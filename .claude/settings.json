@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(playwright-cli -s=rota *)",
+      "Bash(ffprobe *)",
+      "Bash(ffmpeg *)"
+    ]
+  }
+}
