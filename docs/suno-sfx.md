@@ -114,7 +114,39 @@
 
 ---
 
-## 6. Quellen
+## 6. Automatisierung (verifiziert 2026-07-26)
+
+**Suno hat keine öffentliche API** → Generierung läuft über die Web-UI per playwright-cli,
+Download aber per **CDN-Direktlink** (keine Menü-Navigation nötig!).
+
+### Kern-Erkenntnisse aus dem Reverse-Engineering
+
+| Erkenntnis | Detail |
+|------------|--------|
+| **CDN-Direktlink** | `https://cdn1.suno.ai/{song-id}.mp3` — HTTP 200 sobald fertig gerendert, ohne Auth abrufbar. Song-IDs stehen im DOM als `/song/{uuid}`-Links im Workspace. |
+| **Interne API** | `studio-api-prod.suno.com/api/*`, Auth via Clerk-JWT (in-page: `window.Clerk.session.getToken()`). Generate-Endpunkt: `/api/generate/v2-web/`. |
+| **Warum NICHT pure API** | Suno lädt Cloudflare Turnstile + hCaptcha — der Generate-Call ist Captcha-gefährdet. UI-Klick-Weg umgeht das robust (echter Browser-Kontext). |
+| **Snapshot statt Koordinaten** | `playwright-cli snapshot` liefert Element-Refs (`e207` Textbox, `e257` Create-Button) — Bedienung komplett ohne Maus-Koordinaten und ohne Popup-Menüs. Refs IMMER frisch aus aktuellem Snapshot greppen (Attribute wie `[active]` können dazwischen stehen). |
+| **Dauer-Angabe unzuverlässig** | „1 second" im Prompt lieferte 1,8–3,4 s. Trimmen in der Nachbearbeitung ist PFLICHT (ffmpeg silenceremove + Ziel-Länge). |
+| **2 Entwürfe pro Generierung** | Beide werden heruntergeladen (`-a.mp3`/`-b.mp3`); da Claude nicht hören kann, entscheidet der User am Soundboard — oder Variante A wird als Default genommen. |
+
+### Produktions-Skript
+
+```bash
+# Voraussetzung: playwright-cli Session "suno" läuft, eingeloggt, Sounds-Tab offen
+/work/rota/tools/suno-sfx.sh "<prompt>" <basename> [outdir]
+# Beispiel (verifiziert):
+/work/rota/tools/suno-sfx.sh "massive impact hit with deep sub boom and debris tail, 1.5 seconds, powerful critical strike, one shot" crit-impact
+# → crit-impact-a.mp3 (2.68s) + crit-impact-b.mp3 (3.40s) in assets/sfx/raw/
+```
+
+Ablauf intern: Workspace-IDs snapshotten → Prompt füllen → Create klicken → auf 2 neue
+`/song/{id}` warten (Diff) → beide via CDN laden → ffprobe-Check.
+
+**Session-Start (falls Browser zu):** `playwright-cli -s=suno open https://suno.com/create --headed`
+→ User loggt ein → Sounds-Tab wählen. Login-Session lebt im Browser-Profil der laufenden Instanz.
+
+## 7. Quellen
 
 - [Suno Sounds: Generate Custom Audio Samples — offizielle Doku](https://help.suno.com/en/articles/10625537)
 - [Jack Righteous: How to Generate AI Sound Effects with Suno Sounds](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-sounds-ai-sound-effects-guide)
