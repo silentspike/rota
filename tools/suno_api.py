@@ -12,7 +12,8 @@ einmaligen Browser-Login keinen laufenden Browser mehr.
 Cookie-Quelle: .suno-state.json (aus `playwright-cli -s=suno state-save`).
 
 Usage:
-    python suno_api.py auth-test
+    python suno_api.py auth-test          # Account + Credits pruefen
+    python suno_api.py save-state         # Browser-Sitzung sichern (nur Suno-Cookies)
     python suno_api.py gen "<prompt>" <basename> [--loop] [--outdir DIR]
     python suno_api.py batch <manifest.json> [--outdir DIR]
 
@@ -43,6 +44,7 @@ AUTH = "https://auth.suno.com/v1"
 CDN = "https://cdn1.suno.ai"
 BROWSER = "chrome124"
 PW_SESSION = "suno"
+EXPECTED_ACCOUNT = "backupslave"  # Nur dieser Suno-Account darf verwendet werden
 PACING_S = 5  # Pause zwischen Generierungen — bewusst hoeflich zur API
 
 
@@ -78,6 +80,29 @@ def session_id() -> str:
     sys.exit("FEHLER: clerk_active_context-Cookie ohne session_id — neu einloggen und state-save.")
 
 
+def sanitize_state(path: Path) -> int:
+    """Alles verwerfen, was nicht zu Suno gehoert.
+
+    playwright-cli state-save sichert den KOMPLETTEN Browser-Kontext — darin stecken auch
+    Cookies von Drittanbietern, die suno.com einbindet (Stripe, Werbe-Pixel) sowie vom
+    Login-Anbieter (Microsoft). Die braucht dieses Werkzeug nicht, also bleiben sie auch
+    nicht im Klartext auf der Platte liegen.
+
+    Gibt die Anzahl der entfernten Eintraege zurueck.
+    """
+    if not path.exists():
+        return 0
+    data = json.loads(path.read_text())
+    cookies = data.get("cookies", [])
+    keep = [c for c in cookies if "suno" in c.get("domain", "")]
+    origins = data.get("origins", [])
+    keep_origins = [o for o in origins if "suno" in o.get("origin", "")]
+    removed = (len(cookies) - len(keep)) + (len(origins) - len(keep_origins))
+    path.write_text(json.dumps({"cookies": keep, "origins": keep_origins}, indent=1))
+    path.chmod(0o600)
+    return removed
+
+
 def refresh_state() -> bool:
     """Cookies aus dem laufenden Browser neu sichern (Clerk rotiert sie regelmaessig)."""
     r = subprocess.run(
@@ -85,7 +110,11 @@ def refresh_state() -> bool:
         capture_output=True, text=True, timeout=60,
     )
     ok = STATE_FILE.exists() and r.returncode == 0
-    print("  Cookies aus dem Browser aufgefrischt" if ok else "  Auffrischen fehlgeschlagen")
+    if ok:
+        removed = sanitize_state(STATE_FILE)
+        print(f"  Cookies aus dem Browser aufgefrischt ({removed} fremde Eintraege verworfen)")
+    else:
+        print("  Auffrischen fehlgeschlagen")
     return ok
 
 
@@ -130,6 +159,28 @@ def api_headers(jwt: str) -> dict[str, str]:
         "device-id": cookie_value("suno_device_id"),
         "browser-token": "{}",
     }
+
+
+def check_account(s: requests.Session, jwt: str | None = None) -> str:
+    """Prueft ueber die API, welcher Suno-Account aktiv ist. Bricht bei falschem Account ab.
+
+    Rein API-basiert (GET /api/session/) — KEIN Browser noetig. Verhindert, dass
+    versehentlich die Credits eines anderen Accounts verbraucht werden.
+    """
+    r = s.get(f"{API}/session/", headers=api_headers(jwt or fresh_token(s)))
+    if r.status_code != 200:
+        sys.exit(f"FEHLER Account-Pruefung: HTTP {r.status_code} — {r.text[:200]}")
+    user = r.json().get("user") or {}
+    name = user.get("handle") or user.get("display_name") or user.get("email") or ""
+    if not name:
+        sys.exit("FEHLER: Account nicht ermittelbar — Sitzung erneuern (save-state).")
+    if EXPECTED_ACCOUNT.lower() not in name.lower():
+        sys.exit(
+            f"ABBRUCH: falscher Suno-Account aktiv — '{name}', erwartet '{EXPECTED_ACCOUNT}'.\n"
+            "  Im Browser mit dem richtigen Account anmelden, dann:\n"
+            "  /venv/bin/python tools/suno_api.py save-state"
+        )
+    return name
 
 
 class ChallengeRequired(Exception):
@@ -481,8 +532,9 @@ def main() -> None:
 
     if cmd == "auth-test":
         jwt = fresh_token(s)
+        acc = check_account(s, jwt)
         r = s.get(f"{API}/billing/info/", headers=api_headers(jwt))
-        print(f"Token: {jwt[:24]}...  billing/info: HTTP {r.status_code}")
+        print(f"Account: {acc}  |  billing/info: HTTP {r.status_code}")
         if r.status_code == 200:
             info = r.json()
             print(f"  Credits: {info.get('total_credits_left')}  Tier: {info.get('subscription_type')}")
@@ -490,7 +542,14 @@ def main() -> None:
             print(f"  {r.text[:300]}")
         return
 
+    if cmd == "save-state":
+        if refresh_state():
+            print(f"  Gesichert: {STATE_FILE} (nur Suno-Cookies, Rechte 600)")
+            print(f"  Account: {check_account(session())}")  # nach Auffrischen
+        return
+
     if cmd == "gen":
+        check_account(s)
         prompt, name = sys.argv[2], sys.argv[3]
         loop = "--loop" in sys.argv
         outdir = Path("/work/rota/assets/sfx/raw")
@@ -504,6 +563,7 @@ def main() -> None:
         return
 
     if cmd == "batch":
+        check_account(s)
         manifest = json.loads(Path(sys.argv[2]).read_text())
         outdir = Path("/work/rota/assets/sfx/raw")
         if "--outdir" in sys.argv:

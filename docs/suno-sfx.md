@@ -44,7 +44,7 @@
    → Was (boom), Textur (heavy cinematic), Material (metallic tail), Dauer (3s), Kontext (dark trailer)
 
 4. **Dauer-Angaben bringen fast nichts** — laut Guides soll `2 second long ...` helfen; unsere
-   Messung (Abschnitt 7.3) zeigt: nur bis ~2 s als grober Hinweis wirksam, darüber ignoriert.
+   Messung (Abschnitt 7.5) zeigt: nur bis ~2 s als grober Hinweis wirksam, darüber ignoriert.
    Die Länge wird stattdessen in der Nachbearbeitung gesetzt (`tools/sfx-post.sh`).
 
 5. **Mehrfach generieren, dann auslesen.** Empfohlener Workflow laut Guides: pro Sound mehrere Durchläufe, stärkste Variante nehmen, ggf. nachträglich trimmen/normalisieren. Iterieren statt am ersten Ergebnis kleben: Wenn „coffee shop ambiance" Lofi-Musik liefert → umformulieren zu „background chatter and clinking cups ambiance".
@@ -77,7 +77,7 @@
 
 ## 4. Sound-Längen: das zentrale Thema
 
-Suno **ignoriert Sekundenangaben im Prompt** (Messung in Abschnitt 7.3). Die Länge entsteht aus
+Suno **ignoriert Sekundenangaben im Prompt** (Messung in Abschnitt 7.5). Die Länge entsteht aus
 der Klangbeschreibung und wird anschließend in der Nachbearbeitung exakt gesetzt.
 
 ### 4.1 Länge über die Klangbeschreibung steuern (gemessen)
@@ -241,7 +241,37 @@ das Endprodukt nach der Nachbearbeitung in `<outdir>/../final/<name>.ogg`.
 **Verifiziert (2026-07-26):** `auth-test` → HTTP 200, 10.805 Credits · `gen` One-Shot → 2× 1,80 s ·
 `gen --loop` → 2× 8,2/9,4 s · `batch` mit 2 Einträgen → 4 Dateien. Alle 48 kHz Stereo MP3.
 
-### 7.2 Captcha-Verhalten (gemessen)
+### 7.2 Account-Absicherung und Datensparsamkeit
+
+**Vorgesehener Account: `backupslave`** (`EXPECTED_ACCOUNT` in `suno_api.py`). Vor jeder
+Generierung prüft `check_account()` **über die API** (`GET /api/session/` → `user.handle`),
+welcher Account aktiv ist, und bricht bei Abweichung ab — damit nie versehentlich die Credits
+eines anderen Accounts verbraucht werden. Kein Browser nötig.
+
+**Datensparsamkeit:** `playwright-cli state-save` sichert den KOMPLETTEN Browser-Kontext.
+Im ersten Lauf waren das 122 Cookies aus 28 Domains — darunter Stripe (Suno-Zahlungsabwicklung),
+`login.microsoftonline.com`/`login.live.com` (Login über das Outlook-Konto) sowie Werbe- und
+Affiliate-Pixel (TikTok, Twitter, Bing, bidr.io, pxf.io), die suno.com selbst einbindet.
+
+`sanitize_state()` verwirft alles, was nicht zu `suno` gehört, und setzt die Dateirechte auf 600.
+Läuft automatisch bei jedem `refresh_state()`/`save-state`. Verifiziert: 122 → 39 Cookies
+(4 Suno-Domains), 89 fremde Einträge entfernt — Login danach weiterhin voll funktionsfähig
+(in frischem Browser aus der bereinigten Datei wiederhergestellt).
+
+### 7.3 Wann der Browser überhaupt gebraucht wird
+
+Der Normalbetrieb läuft **ohne Browser**. Nur zwei Situationen fassen ihn an:
+
+| Situation | Warum |
+|---|---|
+| Captcha-Challenge (`422`) | Der Token entsteht nur in der echten Seite — ein Seiten-Klick erzeugt den Sound und schaltet die API wieder frei |
+| Cookies rotiert/abgelaufen | `refresh_state()` sichert sie neu aus der laufenden Browser-Sitzung |
+
+Läuft keine Browser-Sitzung, startet `playwright-cli` bei einem solchen Befehl automatisch eine
+neue — die ist dann aber nicht eingeloggt. Deshalb: Sitzung offen lassen, oder nach dem Login
+`save-state` aufrufen und bei Bedarf mit `state-load` wiederherstellen.
+
+### 7.4 Captcha-Verhalten (gemessen)
 
 Suno verlangt **nicht immer** einen Verifikations-Token, aber die Vertrauensstufe sinkt bei
 reinen API-Aufrufen:
@@ -260,7 +290,7 @@ zugleich wieder frei. `PACING_S = 5` hält den Abstand zwischen Generierungen be
 > Kein Umgehen der Schutzmaßnahme: Der Token entsteht ausschließlich dort, wo Suno ihn vorsieht —
 > in der echten Seite. Es wird nichts nachgebaut, gelöst oder wiederverwendet.
 
-### 7.3 Dauer-Verhalten (gemessen 2026-07-26, je 2 Varianten pro Prompt)
+### 7.5 Dauer-Verhalten (gemessen 2026-07-26, je 2 Varianten pro Prompt)
 
 | Prompt-Angabe | Container A/B | **Reiner Ton** A/B |
 |---|---|---|
@@ -280,7 +310,7 @@ zugleich wieder frei. `PACING_S = 5` hält den Abstand zwischen Generierungen be
 - **Bis zu 60 % jeder Datei ist Stille** — für Tastendruck-Sounds tödlich (hörbare Verzögerung).
 - **Lange Sounds nur über Loop-Modus** (dort gemessen: 8,2–9,4 s).
 
-### 7.4 Nachbearbeitung ist PFLICHT — `tools/sfx-post.sh`
+### 7.6 Nachbearbeitung ist PFLICHT — `tools/sfx-post.sh`
 
 ```bash
 tools/sfx-post.sh <in-dir> <out-dir> [a|b]     # Variante a oder b uebernehmen
@@ -309,7 +339,7 @@ Verifiziert:
 | Kürzen auf 5,0 s | 11,80 s | **5,00 s** (0,25 s Ausblendung) |
 | Loop, unangetastet | 8,20 s | 8,30 s (nur Pegel) |
 
-### 7.5 Sitzungs-Ablauf (Clerk-Cookies)
+### 7.7 Sitzungs-Ablauf (Clerk-Cookies)
 
 Clerk rotiert die Cookies laufend; zusätzlich kann die Suno-Sitzung ganz ablaufen
 (beobachtet nach ca. 1 Stunde intensiver Nutzung — ob reguläre Ablaufzeit oder Reaktion auf
@@ -327,7 +357,7 @@ playwright-cli -s=suno open https://suno.com/create --headed   # User loggt ein
 playwright-cli -s=suno state-save /work/rota/.suno-state.json
 ```
 
-### 7.6 Weg B — Browser-UI als Fallback
+### 7.8 Weg B — Browser-UI als Fallback
 
 `tools/suno-sfx.sh` — steuert die Web-UI per playwright-cli über Element-Refs aus dem
 Accessibility-Snapshot (keine Maus-Koordinaten, keine Popup-Menüs), Download ebenfalls per
@@ -338,7 +368,7 @@ CDN-Direktlink. Nutzen, falls sich die API ändert oder Cookies nicht erneuerbar
 tools/suno-sfx.sh "<prompt>" <basename> [outdir]
 ```
 
-### 7.7 Weitere Erkenntnisse aus dem Reverse-Engineering
+### 7.9 Weitere Erkenntnisse aus dem Reverse-Engineering
 
 | Erkenntnis | Detail |
 |------------|--------|
