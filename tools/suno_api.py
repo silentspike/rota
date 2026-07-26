@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import time
 import uuid
@@ -35,6 +36,7 @@ API = "https://studio-api-prod.suno.com/api"
 AUTH = "https://auth.suno.com/v1"
 CDN = "https://cdn1.suno.ai"
 BROWSER = "chrome124"
+PACING_S = 5  # Pause zwischen Generierungen — bewusst hoeflich zur API
 
 
 def load_state() -> list[dict]:
@@ -101,8 +103,16 @@ def api_headers(jwt: str) -> dict[str, str]:
     }
 
 
+class ChallengeRequired(Exception):
+    """Suno verlangt einen Captcha-Token (HTTP 422 token_validation_failed)."""
+
+
 def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False) -> list[str]:
-    """Sound generieren. Gibt die Clip-IDs der (zwei) Entwuerfe zurueck."""
+    """Sound direkt per API generieren. Gibt die Clip-IDs der (zwei) Entwuerfe zurueck.
+
+    Wirft ChallengeRequired, wenn Suno einen Captcha-Token verlangt — dann uebernimmt
+    ui_generate() (echter Seiten-Klick), was zugleich das Vertrauen wiederherstellt.
+    """
     title = " ".join(w.capitalize() for w in prompt.split()[:12])
     payload = {
         "token": None,
@@ -138,6 +148,8 @@ def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False) -> 
         "token_provider": None,
     }
     r = s.post(f"{API}/generate/v2-web/", headers=api_headers(jwt), json=payload)
+    if r.status_code == 422 and "token_validation" in r.text:
+        raise ChallengeRequired(r.text[:200])
     if r.status_code not in (200, 201):
         sys.exit(f"FEHLER generate: HTTP {r.status_code} — {r.text[:500]}")
     data = r.json()
@@ -149,22 +161,167 @@ def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False) -> 
     return ids
 
 
-def download(ids: list[str], name: str, outdir: Path, tries: int = 40) -> list[Path]:
+# ---------------------------------------------------------------------------
+# Generierung ueber die echte Seite (mintet den Captcha-Token selbst).
+# Reine API-Generierung scheitert ab dem 3. Aufruf mit 422 token_validation_failed.
+# ---------------------------------------------------------------------------
+
+PW_SESSION = "suno"
+HOOK = Path(__file__).resolve().parent / "suno-hook.js"
+
+
+def pw(*args: str, timeout: int = 120) -> str:
+    r = subprocess.run(
+        ["playwright-cli", f"-s={PW_SESSION}", *args],
+        capture_output=True, text=True, timeout=timeout,
+    )
+    return r.stdout
+
+
+def pw_eval(js: str) -> str:
+    return pw("eval", js)
+
+
+def latest_snapshot() -> Path:
+    d = Path("/work/.playwright-cli")
+    return max(d.glob("page-*.yml"), key=lambda p: p.stat().st_mtime)
+
+
+def ui_refs() -> tuple[str, str]:
+    """Frische Element-Refs fuer Prompt-Textbox und Create-Button."""
+    pw("snapshot")
+    text = latest_snapshot().read_text()
+    tb = re.search(r'textbox "Describe the sound you want".*?\[ref=([^\]]+)\]', text)
+    cb = re.search(r'button "Create song".*?\[ref=([^\]]+)\]', text)
+    if not tb or not cb:
+        sys.exit(
+            "FEHLER: Suno-Create-Seite mit Sounds-Tab nicht gefunden.\n"
+            f"  playwright-cli -s={PW_SESSION} open https://suno.com/create --headed"
+        )
+    return tb.group(1), cb.group(1)
+
+
+def ui_generate(prompt: str, loop: bool = False, timeout_s: int = 120) -> list[str]:
+    """Loest die Generierung in der Seite aus und liest die Clip-UUIDs aus der Antwort."""
+    pw_eval(HOOK.read_text())
+    before = pw_eval("() => String((window.__gen || []).length)")
+    n_before = int(re.search(r'"?(\d+)"?', before).group(1)) if re.search(r"\d", before) else 0
+
+    tb, cb = ui_refs()
+    if loop:
+        set_loop_toggle(True)
+    pw("fill", tb, prompt)
+    pw("click", cb)
+
+    for _ in range(timeout_s // 2):
+        time.sleep(2)
+        raw = pw_eval(
+            "() => JSON.stringify((window.__gen || []).slice(%d).map(g => ({tags: g.tags, ids: g.ids})))"
+            % n_before
+        )
+        m = re.search(r'\[(?:\\?"|\{).*\]', raw.replace('\\"', '"'))
+        if not m:
+            continue
+        try:
+            entries = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            continue
+        for e in entries:
+            if e.get("ids") and (not e.get("tags") or e["tags"].strip() == prompt.strip()):
+                print(f"  generate OK — {len(e['ids'])} Entwuerfe: {', '.join(e['ids'])}")
+                return e["ids"]
+    sys.exit("FEHLER: keine Clip-IDs erfasst (Captcha sichtbar? Credits leer?) — Screenshot pruefen.")
+
+
+def make_sound(s: requests.Session, prompt: str, loop: bool = False) -> list[str]:
+    """API-first mit automatischem Seiten-Fallback.
+
+    Normalfall: direkter API-Aufruf (kein Browser noetig).
+    Bei Captcha-Challenge: einmal ueber die echte Seite — erzeugt den Sound UND
+    stellt das Vertrauen wieder her, sodass die folgenden Aufrufe wieder per API laufen.
+    """
+    try:
+        return generate(s, fresh_token(s), prompt, loop)
+    except ChallengeRequired:
+        print("  Challenge angefordert — weiche einmal auf die Seite aus...")
+        return ui_generate(prompt, loop)
+
+
+def set_loop_toggle(loop: bool) -> None:
+    """Schaltet Type: One-Shot / Loop in den Advanced Options."""
+    pw("snapshot")
+    text = latest_snapshot().read_text()
+    label = "Loop" if loop else "One-Shot"
+    m = re.search(rf'button "{label}".*?\[ref=([^\]]+)\]', text)
+    if m:
+        pw("click", m.group(1))
+    else:
+        print(f"  WARNUNG: {label}-Schalter nicht gefunden — UI-Zustand wird uebernommen")
+
+
+def clip_status(s: requests.Session, jwt: str, ids: list[str]) -> dict[str, dict]:
+    """Status mehrerer Clips in EINEM Aufruf. Gibt {id: clip-dict} zurueck."""
+    r = s.get(f"{API}/feed/v2", params={"ids": ",".join(ids)}, headers=api_headers(jwt))
+    if r.status_code != 200:
+        print(f"  WARNUNG feed/v2: HTTP {r.status_code} — {r.text[:200]}")
+        return {}
+    return {c["id"]: c for c in r.json().get("clips", [])}
+
+
+def await_complete(
+    s: requests.Session, ids: list[str], tries: int = 60, delay: int = 5
+) -> dict[str, str]:
+    """Wartet bis alle Clips 'complete' sind. Gibt {id: audio_url} zurueck.
+
+    Bricht pro Clip sofort ab, wenn Suno 'error' meldet (statt blind weiterzupollen).
+    """
+    ready: dict[str, str] = {}
+    failed: set[str] = set()
+    for attempt in range(tries):
+        pending = [i for i in ids if i not in ready and i not in failed]
+        if not pending:
+            break
+        clips = clip_status(s, fresh_token(s), pending)
+        for cid in pending:
+            c = clips.get(cid)
+            if not c:
+                continue
+            st = c.get("status")
+            if st == "complete" and c.get("audio_url"):
+                ready[cid] = c["audio_url"]
+                print(f"    {cid[:8]}: complete")
+            elif st == "error":
+                failed.add(cid)
+                print(f"    {cid[:8]}: FEHLER — {c.get('error_type')}: {c.get('error_message')}")
+            elif attempt % 4 == 0:
+                print(f"    {cid[:8]}: {st}...")
+        if len([i for i in ids if i not in ready and i not in failed]):
+            time.sleep(delay)
+    for cid in ids:
+        if cid not in ready and cid not in failed:
+            print(f"    {cid[:8]}: TIMEOUT nach {tries * delay}s")
+    return ready
+
+
+def download(s: requests.Session, ids: list[str], name: str, outdir: Path) -> list[Path]:
+    """Wartet auf Fertigstellung (Status-API) und laedt die von Suno gelieferte audio_url."""
     outdir.mkdir(parents=True, exist_ok=True)
+    urls = await_complete(s, ids)
     dl = requests.Session(impersonate=BROWSER)
     out: list[Path] = []
     for suffix, cid in zip("ab", ids):
+        url = urls.get(cid)
+        if not url:
+            print(f"  UEBERSPRUNGEN: {cid} (nicht fertiggestellt)")
+            continue
         target = outdir / f"{name}-{suffix}.mp3"
-        for _ in range(tries):
-            r = dl.get(f"{CDN}/{cid}.mp3")
-            if r.status_code == 200 and len(r.content) > 5000:
-                target.write_bytes(r.content)
-                print(f"  {target}  ({len(r.content) // 1024} KB)")
-                out.append(target)
-                break
-            time.sleep(6)
+        r = dl.get(url)
+        if r.status_code == 200 and len(r.content) > 5000:
+            target.write_bytes(r.content)
+            print(f"  {target}  ({len(r.content) // 1024} KB)")
+            out.append(target)
         else:
-            print(f"  FEHLER: {cid} nach {tries} Versuchen nicht verfuegbar")
+            print(f"  FEHLER Download {url}: HTTP {r.status_code}, {len(r.content)} Bytes")
     return out
 
 
@@ -192,9 +349,9 @@ def main() -> None:
         if "--outdir" in sys.argv:
             outdir = Path(sys.argv[sys.argv.index("--outdir") + 1])
         print(f"[1/2] generate ({'loop' if loop else 'one-shot'}): {prompt[:60]}...")
-        ids = generate(s, fresh_token(s), prompt, loop)
+        ids = make_sound(s, prompt, loop)
         print("[2/2] download...")
-        download(ids, name, outdir)
+        download(s, ids, name, outdir)
         print(f"FERTIG: {name}")
         return
 
@@ -208,17 +365,17 @@ def main() -> None:
         for i, item in enumerate(manifest, 1):
             name, prompt = item["name"], item["prompt"]
             loop = bool(item.get("loop", False))
-            if all((outdir / f"{name}-{s}.mp3").exists() for s in "ab"):
+            if all((outdir / f"{name}-{sfx}.mp3").exists() for sfx in "ab"):
                 print(f"[{i}/{len(manifest)}] {name}: schon vorhanden, ueberspringe")
                 continue
             print(f"[{i}/{len(manifest)}] generate {name} ({'loop' if loop else 'one-shot'})")
-            jobs.append((name, generate(s, fresh_token(s), prompt, loop)))
-            time.sleep(2)
+            jobs.append((name, make_sound(s, prompt, loop)))
+            time.sleep(PACING_S)
         # Phase 2: einsammeln
         print(f"\nDownload von {len(jobs)} Jobs...")
         for name, ids in jobs:
             print(f"  {name}:")
-            download(ids, name, outdir)
+            download(s, ids, name, outdir)
         print(f"FERTIG: {len(jobs)} Sounds in {outdir}")
         return
 

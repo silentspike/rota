@@ -1,0 +1,8 @@
+[
+  {"name": "dur-05s", "prompt": "sharp metallic ping, 0.5 seconds, one shot", "loop": false},
+  {"name": "dur-1s", "prompt": "sharp metallic ping, 1 second, one shot", "loop": false},
+  {"name": "dur-2s", "prompt": "sharp metallic ping, 2 seconds duration, one shot", "loop": false},
+  {"name": "dur-5s", "prompt": "sharp metallic ping, 5 seconds duration, one shot", "loop": false},
+  {"name": "dur-10s", "prompt": "sharp metallic ping, 10 seconds duration, one shot", "loop": false},
+  {"name": "dur-none", "prompt": "sharp metallic ping, one shot", "loop": false}
+]
