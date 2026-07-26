@@ -14,6 +14,10 @@ Cookie-Quelle: .suno-state.json (aus `playwright-cli -s=suno state-save`).
 Usage:
     python suno_api.py auth-test
     python suno_api.py gen "<prompt>" <basename> [--loop] [--outdir DIR]
+    python suno_api.py batch <manifest.json> [--outdir DIR]
+
+Manifest-Format (JSON-Liste):
+    [{"name": "spell-fire", "prompt": "fiery whoosh ...", "loop": false}, ...]
 """
 from __future__ import annotations
 
@@ -192,6 +196,30 @@ def main() -> None:
         print("[2/2] download...")
         download(ids, name, outdir)
         print(f"FERTIG: {name}")
+        return
+
+    if cmd == "batch":
+        manifest = json.loads(Path(sys.argv[2]).read_text())
+        outdir = Path("/work/rota/assets/sfx/raw")
+        if "--outdir" in sys.argv:
+            outdir = Path(sys.argv[sys.argv.index("--outdir") + 1])
+        # Phase 1: alle Generierungen anstossen (Suno rendert parallel)
+        jobs: list[tuple[str, list[str]]] = []
+        for i, item in enumerate(manifest, 1):
+            name, prompt = item["name"], item["prompt"]
+            loop = bool(item.get("loop", False))
+            if all((outdir / f"{name}-{s}.mp3").exists() for s in "ab"):
+                print(f"[{i}/{len(manifest)}] {name}: schon vorhanden, ueberspringe")
+                continue
+            print(f"[{i}/{len(manifest)}] generate {name} ({'loop' if loop else 'one-shot'})")
+            jobs.append((name, generate(s, fresh_token(s), prompt, loop)))
+            time.sleep(2)
+        # Phase 2: einsammeln
+        print(f"\nDownload von {len(jobs)} Jobs...")
+        for name, ids in jobs:
+            print(f"  {name}:")
+            download(ids, name, outdir)
+        print(f"FERTIG: {len(jobs)} Sounds in {outdir}")
         return
 
     sys.exit(f"Unbekanntes Kommando: {cmd}\n{__doc__}")

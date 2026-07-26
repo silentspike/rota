@@ -116,35 +116,68 @@
 
 ## 6. Automatisierung (verifiziert 2026-07-26)
 
-**Suno hat keine öffentliche API** → Generierung läuft über die Web-UI per playwright-cli,
-Download aber per **CDN-Direktlink** (keine Menü-Navigation nötig!).
+**Suno hat keine öffentliche API**, aber die interne Web-API ist direkt ansteuerbar.
+Es gibt zwei Wege — **Weg A (API) ist der Produktions-Weg**, Weg B (Browser) der Fallback.
 
-### Kern-Erkenntnisse aus dem Reverse-Engineering
+### Weg A — Interne API ohne Browser (PRIMÄR, verifiziert)
+
+`tools/suno_api.py`, HTTP-Backend `curl_cffi` (impersoniert Chrome auf TLS-/HTTP2-Ebene,
+dadurch keine Cloudflare-Reibung). Nach einmaligem Browser-Login läuft alles headless.
+
+```bash
+# Einmalig (oder wenn Cookies abgelaufen): eingeloggte Browser-Session sichern
+playwright-cli -s=suno open https://suno.com/create --headed   # User loggt ein
+playwright-cli -s=suno state-save /work/rota/.suno-state.json  # gitignored!
+
+# Danach ohne Browser:
+/venv/bin/python tools/suno_api.py auth-test
+/venv/bin/python tools/suno_api.py gen "<prompt>" <basename> [--loop] [--outdir DIR]
+/venv/bin/python tools/suno_api.py batch <manifest.json> [--outdir DIR]
+```
+
+**Manifest-Format** (für Massen-Produktion; überspringt automatisch, was schon existiert):
+
+```json
+[
+  {"name": "spell-fire", "prompt": "fiery whoosh into heavy impact ...", "loop": false},
+  {"name": "amb-fireworld", "prompt": "dark volcanic ambience ...", "loop": true}
+]
+```
+
+**Technik:**
+
+| Baustein | Detail |
+|----------|--------|
+| Auth | Clerk. Kurzlebiger JWT (~60 s) wird pro Aufruf frisch geminted: `POST auth.suno.com/v1/client/sessions/{sid}/tokens` mit `__client`-Cookie. Session-ID steckt im `clerk_active_context`-Cookie. |
+| **Cookie-Scoping ist kritisch** | `__client` liegt auf `auth.suno.com`, `__session` auf `.suno.com`. Werden Cookies nur für eine Domain gesetzt → `403 client_not_found`. Alle Suno-Cookies domain-korrekt übernehmen. |
+| Generate | `POST studio-api-prod.suno.com/api/generate/v2-web/` mit `Authorization: Bearer <jwt>`, `task: "sound"`, `mv: "chirp-fenix"`, Prompt in `tags` (nicht `prompt`!), `make_instrumental: true`. |
+| **Loop-Schalter** | `metadata.sound_configs.user_loop: true/false` — direkt im Payload, kein UI-Umschalten nötig. |
+| **Kein Captcha** | Der echte Request enthält `"token": null, "token_provider": null` — Turnstile/hCaptcha werden auf der Seite geladen, sind für die Sound-Generierung aber nicht scharf. |
+| Antwort | `{"clips": [{id: ...}, {id: ...}]}` — zwei Entwürfe, sofort. |
+| Download | `https://cdn1.suno.ai/{clip-id}.mp3`, ohne Auth. Polling bis HTTP 200 (Rendering dauert ~20–60 s). |
+
+**Verifiziert (2026-07-26):** `auth-test` → HTTP 200, 10.805 Credits · `gen` One-Shot → 2× 1,80 s ·
+`gen --loop` → 2× 8,2/9,4 s · `batch` mit 2 Einträgen → 4 Dateien. Alle 48 kHz Stereo MP3.
+
+### Weg B — Browser-UI als Fallback
+
+`tools/suno-sfx.sh` — steuert die Web-UI per playwright-cli über Element-Refs aus dem
+Accessibility-Snapshot (keine Maus-Koordinaten, keine Popup-Menüs), Download ebenfalls per
+CDN-Direktlink. Nutzen, falls sich die API ändert oder Cookies nicht erneuerbar sind.
+
+```bash
+# Voraussetzung: Session "suno" läuft, eingeloggt, Sounds-Tab offen
+tools/suno-sfx.sh "<prompt>" <basename> [outdir]
+```
+
+### Weitere Erkenntnisse aus dem Reverse-Engineering
 
 | Erkenntnis | Detail |
 |------------|--------|
 | **CDN-Direktlink** | `https://cdn1.suno.ai/{song-id}.mp3` — HTTP 200 sobald fertig gerendert, ohne Auth abrufbar. Song-IDs stehen im DOM als `/song/{uuid}`-Links im Workspace. |
-| **Interne API** | `studio-api-prod.suno.com/api/*`, Auth via Clerk-JWT (in-page: `window.Clerk.session.getToken()`). Generate-Endpunkt: `/api/generate/v2-web/`. |
-| **Warum NICHT pure API** | Suno lädt Cloudflare Turnstile + hCaptcha — der Generate-Call ist Captcha-gefährdet. UI-Klick-Weg umgeht das robust (echter Browser-Kontext). |
-| **Snapshot statt Koordinaten** | `playwright-cli snapshot` liefert Element-Refs (`e207` Textbox, `e257` Create-Button) — Bedienung komplett ohne Maus-Koordinaten und ohne Popup-Menüs. Refs IMMER frisch aus aktuellem Snapshot greppen (Attribute wie `[active]` können dazwischen stehen). |
-| **Dauer-Angabe unzuverlässig** | „1 second" im Prompt lieferte 1,8–3,4 s. Trimmen in der Nachbearbeitung ist PFLICHT (ffmpeg silenceremove + Ziel-Länge). |
+| **Dauer-Angabe unzuverlässig** | „1 second" im Prompt lieferte 1,8–3,4 s (One-Shots), Loops 8–9,5 s. Trimmen in der Nachbearbeitung ist PFLICHT (ffmpeg silenceremove + Ziel-Länge). |
 | **2 Entwürfe pro Generierung** | Beide werden heruntergeladen (`-a.mp3`/`-b.mp3`); da Claude nicht hören kann, entscheidet der User am Soundboard — oder Variante A wird als Default genommen. |
-
-### Produktions-Skript
-
-```bash
-# Voraussetzung: playwright-cli Session "suno" läuft, eingeloggt, Sounds-Tab offen
-/work/rota/tools/suno-sfx.sh "<prompt>" <basename> [outdir]
-# Beispiel (verifiziert):
-/work/rota/tools/suno-sfx.sh "massive impact hit with deep sub boom and debris tail, 1.5 seconds, powerful critical strike, one shot" crit-impact
-# → crit-impact-a.mp3 (2.68s) + crit-impact-b.mp3 (3.40s) in assets/sfx/raw/
-```
-
-Ablauf intern: Workspace-IDs snapshotten → Prompt füllen → Create klicken → auf 2 neue
-`/song/{id}` warten (Diff) → beide via CDN laden → ffprobe-Check.
-
-**Session-Start (falls Browser zu):** `playwright-cli -s=suno open https://suno.com/create --headed`
-→ User loggt ein → Sounds-Tab wählen. Login-Session lebt im Browser-Profil der laufenden Instanz.
+| **Snapshot statt Koordinaten (Weg B)** | `playwright-cli snapshot` liefert Element-Refs (Textbox, Create-Button) — Bedienung ohne Maus-Koordinaten und ohne Popup-Menüs. Refs IMMER frisch greppen (Attribute wie `[active]` können dazwischenstehen). |
 
 ## 7. Quellen
 
