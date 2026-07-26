@@ -17,7 +17,13 @@ Usage:
     python suno_api.py batch <manifest.json> [--outdir DIR]
 
 Manifest-Format (JSON-Liste):
-    [{"name": "spell-fire", "prompt": "fiery whoosh ...", "loop": false}, ...]
+    [{"name": "spell-fire", "prompt": "fiery whoosh ...", "loop": false},
+     {"name": "boss-kill", "prompt": "heavy gong ...", "target_s": 2.0, "tol": 0.4, "attempts": 3}]
+
+    target_s  = gewuenschte Laenge des HOERBAREN Anteils; wird durch Iteration angenaehert
+                (Suno ignoriert Sekundenangaben im Prompt — wirksam ist das Ausklang-Vokabular).
+    tol       = erlaubte Abweichung in Sekunden (default 0.4)
+    attempts  = max. Generierungs-Versuche (default 3)
 """
 from __future__ import annotations
 
@@ -36,6 +42,7 @@ API = "https://studio-api-prod.suno.com/api"
 AUTH = "https://auth.suno.com/v1"
 CDN = "https://cdn1.suno.ai"
 BROWSER = "chrome124"
+PW_SESSION = "suno"
 PACING_S = 5  # Pause zwischen Generierungen — bewusst hoeflich zur API
 
 
@@ -71,8 +78,23 @@ def session_id() -> str:
     sys.exit("FEHLER: clerk_active_context-Cookie ohne session_id — neu einloggen und state-save.")
 
 
-def fresh_token(s: requests.Session) -> str:
-    """Kurzlebigen Clerk-JWT neu ausstellen (gueltig ~60 s)."""
+def refresh_state() -> bool:
+    """Cookies aus dem laufenden Browser neu sichern (Clerk rotiert sie regelmaessig)."""
+    r = subprocess.run(
+        ["playwright-cli", f"-s={PW_SESSION}", "state-save", str(STATE_FILE)],
+        capture_output=True, text=True, timeout=60,
+    )
+    ok = STATE_FILE.exists() and r.returncode == 0
+    print("  Cookies aus dem Browser aufgefrischt" if ok else "  Auffrischen fehlgeschlagen")
+    return ok
+
+
+def fresh_token(s: requests.Session, _retried: bool = False) -> str:
+    """Kurzlebigen Clerk-JWT neu ausstellen (gueltig ~60 s).
+
+    Bei abgelaufenen/rotierten Cookies einmalig die Sitzungsdatei aus dem laufenden
+    Browser auffrischen und erneut versuchen.
+    """
     r = s.post(
         f"{AUTH}/client/sessions/{session_id()}/tokens",
         params={"__clerk_api_version": "2025-04-10", "_clerk_js_version": "5.114.0"},
@@ -84,7 +106,14 @@ def fresh_token(s: requests.Session) -> str:
         data="",
     )
     if r.status_code != 200:
-        sys.exit(f"FEHLER Token-Refresh: HTTP {r.status_code} — {r.text[:300]}")
+        if not _retried and r.status_code in (401, 403):
+            print(f"  Sitzung abgelaufen (HTTP {r.status_code}) — frische Cookies holen...")
+            if refresh_state():
+                return fresh_token(session(), _retried=True)
+        sys.exit(
+            f"FEHLER Token-Refresh: HTTP {r.status_code} — {r.text[:200]}\n"
+            f"  Browser-Login erneuern:  playwright-cli -s={PW_SESSION} open https://suno.com/create --headed"
+        )
     jwt = r.json().get("jwt")
     if not jwt:
         sys.exit(f"FEHLER: kein jwt in Antwort: {r.text[:300]}")
@@ -107,7 +136,8 @@ class ChallengeRequired(Exception):
     """Suno verlangt einen Captcha-Token (HTTP 422 token_validation_failed)."""
 
 
-def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False) -> list[str]:
+def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False,
+             negative: str = "") -> list[str]:
     """Sound direkt per API generieren. Gibt die Clip-IDs der (zwei) Entwuerfe zurueck.
 
     Wirft ChallengeRequired, wenn Suno einen Captcha-Token verlangt — dann uebernimmt
@@ -120,7 +150,7 @@ def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False) -> 
         "generation_type": "TEXT",
         "title": title,
         "tags": prompt,
-        "negative_tags": "",
+        "negative_tags": negative,
         "mv": "chirp-fenix",
         "prompt": "",
         "make_instrumental": True,
@@ -166,7 +196,6 @@ def generate(s: requests.Session, jwt: str, prompt: str, loop: bool = False) -> 
 # Reine API-Generierung scheitert ab dem 3. Aufruf mit 422 token_validation_failed.
 # ---------------------------------------------------------------------------
 
-PW_SESSION = "suno"
 HOOK = Path(__file__).resolve().parent / "suno-hook.js"
 
 
@@ -233,7 +262,8 @@ def ui_generate(prompt: str, loop: bool = False, timeout_s: int = 120) -> list[s
     sys.exit("FEHLER: keine Clip-IDs erfasst (Captcha sichtbar? Credits leer?) — Screenshot pruefen.")
 
 
-def make_sound(s: requests.Session, prompt: str, loop: bool = False) -> list[str]:
+def make_sound(s: requests.Session, prompt: str, loop: bool = False,
+               negative: str = "") -> list[str]:
     """API-first mit automatischem Seiten-Fallback.
 
     Normalfall: direkter API-Aufruf (kein Browser noetig).
@@ -241,7 +271,7 @@ def make_sound(s: requests.Session, prompt: str, loop: bool = False) -> list[str
     stellt das Vertrauen wieder her, sodass die folgenden Aufrufe wieder per API laufen.
     """
     try:
-        return generate(s, fresh_token(s), prompt, loop)
+        return generate(s, fresh_token(s), prompt, loop, negative)
     except ChallengeRequired:
         print("  Challenge angefordert — weiche einmal auf die Seite aus...")
         return ui_generate(prompt, loop)
@@ -257,6 +287,124 @@ def set_loop_toggle(loop: bool) -> None:
         pw("click", m.group(1))
     else:
         print(f"  WARNUNG: {label}-Schalter nicht gefunden — UI-Zustand wird uebernommen")
+
+
+# ---------------------------------------------------------------------------
+# Ziel-Laenge: Suno ignoriert Sekundenangaben im Prompt (gemessen, siehe docs).
+# Wirksam ist die Beschreibung des AUSKLANGS. Wir iterieren ueber diese Leiter,
+# messen den reinen Ton-Anteil und behalten den besten Treffer.
+# ---------------------------------------------------------------------------
+
+# Gemessen: die Sekundenangabe im Prompt wirkt nicht, die KLANGBESCHREIBUNG schon.
+# Kurz  = perkussiv/trocken (ping, click, snap)      -> 0,4-1,0 s
+# Mittel= impact/whoosh mit kurzem Nachklang         -> 1,8-2,5 s
+# Lang  = gong/boom mit Hall, riser, sustained, drone-> 6-11 s
+LONGER = "with long reverb tail, slow decay, sustained resonance"
+MUCH_LONGER = "long sustained resonance, very slow fade out, lingering reverb tail, drone"
+SHORTER = "tight and dry, short decay"
+MUCH_SHORTER = "clipped, snappy, percussive, no reverb"
+# negative_tags: echter API-Hebel — hier gegen die jeweils falsche Richtung
+NEG_FOR_SHORT = "long reverb, sustained, drone, ambient pad, slow fade"
+NEG_FOR_LONG = "clipped, dry, abrupt cutoff"
+
+
+def audible_seconds(path: Path) -> float:
+    """Dauer OHNE Stille am Anfang/Ende (das, was man tatsaechlich hoert)."""
+    tmp = path.with_suffix(".probe.wav")
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", str(path), "-af",
+         "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0:"
+         "stop_periods=-1:stop_threshold=-50dB:stop_duration=0.05", str(tmp)],
+        capture_output=True, check=False,
+    )
+    if not tmp.exists():
+        return 0.0
+    r = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(tmp)],
+        capture_output=True, text=True,
+    )
+    tmp.unlink(missing_ok=True)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+# Woerter im Basis-Prompt, die der gewuenschten Richtung zuwiderlaufen
+CONFLICT_LONG = re.compile(r",?\s*\b(dark |long |deep )?(reverb|reverberant|sustained|drone|ambient|fade[- ]?out)\b[^,]*", re.I)
+CONFLICT_SHORT = re.compile(r",?\s*\b(tight|dry|clipped|snappy|staccato|short decay|no reverb)\b[^,]*", re.I)
+
+
+def tune_prompt(prompt: str, measured: float, target: float) -> tuple[str, str]:
+    """Prompt + negative_tags fuer den naechsten Versuch. Gibt (prompt, negative) zurueck.
+
+    Entfernt zusaetzlich widersprechende Woerter aus dem Basis-Prompt — sonst kaempft
+    z.B. 'dark reverb' gegen den Kuerzungs-Hinweis an (im Test: Ziel 2,5 s -> 11 s).
+    """
+    if measured < target:
+        hint = MUCH_LONGER if measured < target * 0.5 else LONGER
+        base = CONFLICT_SHORT.sub("", prompt)
+        return f"{base}, {hint}", NEG_FOR_LONG
+    hint = MUCH_SHORTER if measured > target * 2 else SHORTER
+    base = CONFLICT_LONG.sub("", prompt)
+    return f"{base}, {hint}", NEG_FOR_SHORT
+
+
+def make_sound_targeted(
+    s: requests.Session, prompt: str, name: str, outdir: Path,
+    target_s: float, tol: float = 0.4, attempts: int = 3, loop: bool = False,
+) -> Path | None:
+    """Generiert solange (max. `attempts`), bis der reine Ton nahe an target_s liegt.
+
+    Behaelt den besten Kandidaten. Es wird NICHT hart auf Laenge geschnitten —
+    nur Stille entfernt, damit kein Ausklang abgehackt wird.
+    """
+    cand_dir = outdir / "candidates"
+    all_cands: list[tuple[float, Path]] = []       # (Sekunden, Datei) ueber alle Versuche
+    best: tuple[float, Path, float] | None = None  # (Abweichung, Datei, gemessene Sekunden)
+    cur, neg = prompt, ""
+    for attempt in range(1, attempts + 1):
+        print(f"  Versuch {attempt}/{attempts} (Ziel {target_s:.1f}s ±{tol})")
+        print(f"    prompt: {cur}")
+        if neg:
+            print(f"    negativ: {neg}")
+        ids = make_sound(s, cur, loop, neg)
+        files = download(s, ids, f"{name}-t{attempt}", cand_dir)
+        attempt_secs: list[float] = []
+        for f in files:
+            sec = audible_seconds(f)
+            attempt_secs.append(sec)
+            all_cands.append((sec, f))
+            diff = abs(sec - target_s)
+            marker = " (>= Ziel, kuerzbar)" if sec >= target_s else ""
+            print(f"    {f.name}: {sec:.2f}s Ton (Abweichung {diff:.2f}s){marker}")
+            if best is None or diff < best[0]:
+                best = (diff, f, sec)
+        # Brauchbar ist alles, was >= Ziel liegt (Kuerzen mit Ausblendung ist verlustfrei
+        # moeglich) oder innerhalb der Toleranz — Verlaengern geht nicht.
+        usable = [c for c in attempt_secs if c >= target_s] or []
+        if (best and best[0] <= tol) or usable:
+            break
+        if attempt < attempts and attempt_secs:
+            cur, neg = tune_prompt(prompt, max(attempt_secs), target_s)
+            time.sleep(PACING_S)
+
+    if not all_cands:
+        print(f"  FEHLER: kein Kandidat fuer {name}")
+        return None
+    # Auswahl: kuerzester Kandidat, der noch >= Ziel liegt (wird sauber gekuerzt).
+    # Gibt es keinen, der lang genug ist: der laengste vorhandene.
+    long_enough = sorted([c for c in all_cands if c[0] >= target_s])
+    chosen_sec, chosen = long_enough[0] if long_enough else max(all_cands)
+    final = outdir / f"{name}-a.mp3"
+    final.write_bytes(chosen.read_bytes())
+    if long_enough:
+        print(f"  GEWAEHLT: {final.name} — {chosen_sec:.2f}s Ton, wird auf {target_s:.1f}s "
+              f"gekuerzt (Quelle: {chosen.name})")
+    else:
+        print(f"  GEWAEHLT: {final.name} — nur {chosen_sec:.2f}s Ton, Ziel {target_s:.1f}s "
+              f"NICHT erreicht (Quelle: {chosen.name})")
+    return final
 
 
 def clip_status(s: requests.Session, jwt: str, ids: list[str]) -> dict[str, dict]:
@@ -360,13 +508,25 @@ def main() -> None:
         outdir = Path("/work/rota/assets/sfx/raw")
         if "--outdir" in sys.argv:
             outdir = Path(sys.argv[sys.argv.index("--outdir") + 1])
-        # Phase 1: alle Generierungen anstossen (Suno rendert parallel)
+        # Eintraege MIT Ziel-Laenge laufen einzeln (Iteration noetig),
+        # Eintraege OHNE Ziel-Laenge werden gebuendelt angestossen.
         jobs: list[tuple[str, list[str]]] = []
         for i, item in enumerate(manifest, 1):
             name, prompt = item["name"], item["prompt"]
             loop = bool(item.get("loop", False))
             if all((outdir / f"{name}-{sfx}.mp3").exists() for sfx in "ab"):
                 print(f"[{i}/{len(manifest)}] {name}: schon vorhanden, ueberspringe")
+                continue
+            if item.get("target_s"):
+                print(f"[{i}/{len(manifest)}] {name} — Ziel-Laenge {item['target_s']}s")
+                make_sound_targeted(
+                    s, prompt, name, outdir,
+                    target_s=float(item["target_s"]),
+                    tol=float(item.get("tol", 0.4)),
+                    attempts=int(item.get("attempts", 3)),
+                    loop=loop,
+                )
+                time.sleep(PACING_S)
                 continue
             print(f"[{i}/{len(manifest)}] generate {name} ({'loop' if loop else 'one-shot'})")
             jobs.append((name, make_sound(s, prompt, loop)))
@@ -376,7 +536,13 @@ def main() -> None:
         for name, ids in jobs:
             print(f"  {name}:")
             download(s, ids, name, outdir)
-        print(f"FERTIG: {len(jobs)} Sounds in {outdir}")
+        lengths = {i["name"]: float(i["target_s"]) for i in manifest if i.get("target_s")}
+        if lengths:
+            (outdir / "lengths.json").write_text(json.dumps(lengths, indent=1))
+        print(f"\nFERTIG: {len(jobs) + len(lengths)} Sounds in {outdir}")
+        print("Nachbearbeitung (Stille weg + auf Ziel-Laenge kuerzen + Lautheit + OGG):")
+        post = Path(__file__).resolve().parent / "sfx-post.sh"
+        subprocess.run([str(post), str(outdir), str(outdir.parent / "final")], check=False)
         return
 
     sys.exit(f"Unbekanntes Kommando: {cmd}\n{__doc__}")
