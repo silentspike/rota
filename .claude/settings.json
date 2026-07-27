@@ -5,5 +5,33 @@
       "Bash(ffprobe *)",
       "Bash(ffmpeg *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/bin/pretooluse-task-checklist-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/bin/pretooluse-start-progress-gate.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/bin/posttooluse-start-enforcer.sh"
+          }
+        ]
+      }
+    ]
   }
 }

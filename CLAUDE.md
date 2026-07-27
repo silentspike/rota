@@ -14,7 +14,7 @@ angelehnt an World-of-Warcraft-Rotationen (Global Cooldown, Cooldown-Management,
 
 | Dokument | Inhalt |
 |----------|--------|
-| `docs/GAME-DESIGN.md` | Das komplette Spiel-Design (alle Entscheidungen des Auftraggebers) — WIRD VON DER PLANUNGS-SESSION ERSTELLT |
+| `docs/GAME-DESIGN.md` | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
 | `docs/suno-sfx.md` | Sound-Produktion mit Suno Sounds: Prompt-Regeln, Workflow, Prompt-Vorlagen |
 
 Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMMER das Design-Dokument.
