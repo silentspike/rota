@@ -1,0 +1,7 @@
+{
+ "spell-kindle": 0.5,
+ "spell-smoulder": 0.8,
+ "spell-pyre": 1.4,
+ "feedback-input-error": 0.25,
+ "boss-hit": 0.3
+}
