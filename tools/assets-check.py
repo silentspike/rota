@@ -26,15 +26,21 @@ Rueckgabewert 0, wenn alles sauber ist, sonst 1.
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS_MD = os.path.join(REPO, "ASSETS.md")
+CREDITS_JSON = os.path.join(REPO, "data", "credits.json")
 
 # Wurzeln, fuer die ASSETS.md Vollstaendigkeit zusagt.
 ROOTS = ["assets", "docs/refs", "docs/style-candidates"]
+
+# Wurzeln, deren Inhalt im Spiel genannt werden muss. Klaenge sind
+# Eigenerzeugung (Suno) und brauchen keine Nennung.
+CREDIT_ROOTS = ["assets/img", "assets/fonts"]
 
 # Dateien, die keine Assets sind und deshalb keinen Herkunftseintrag brauchen.
 SKIP_NAMES = {".gitkeep", ".gitignore", ".DS_Store"}
@@ -164,6 +170,53 @@ def check_licenses(md: str, roots: list[str]) -> list[str]:
     return problems
 
 
+def check_credits() -> list[str]:
+    """Jede ausgelieferte Grafik und Schrift braucht eine Nennung im Spiel.
+
+    Die Zauber-Symbole stehen unter CC BY 3.0 - ohne Namensnennung ist die
+    Nutzung unzulaessig. Diese Pruefung stellt sicher, dass niemand eine Datei
+    nach assets/img/ oder assets/fonts/ legt, ohne data/credits.json zu
+    ergaenzen - und dass umgekehrt kein Eintrag auf Dateien zeigt, die es
+    nicht mehr gibt.
+    """
+    problems: list[str] = []
+    if not os.path.exists(CREDITS_JSON):
+        return [f"{os.path.relpath(CREDITS_JSON, REPO)} fehlt - ohne Credits keine CC-BY-Nutzung"]
+
+    with open(CREDITS_JSON, encoding="utf-8") as fh:
+        data = json.load(fh)
+    entries = data.get("entries", [])
+
+    covers: list[tuple[str, str]] = []
+    for entry in entries:
+        for pat in entry.get("covers", []):
+            covers.append((entry.get("id", "?"), pat))
+
+    hit = {pat: 0 for _id, pat in covers}
+    for root in CREDIT_ROOTS:
+        abs_root = os.path.join(REPO, root)
+        if not os.path.isdir(abs_root):
+            continue
+        for dirpath, _dirnames, filenames in os.walk(abs_root):
+            for fn in sorted(filenames):
+                if fn in SKIP_NAMES:
+                    continue
+                rel = os.path.relpath(os.path.join(dirpath, fn), REPO)
+                # Mitgelieferte Lizenztexte sind kein Werk, das genannt wird.
+                if os.sep + "LICENSES" + os.sep in os.sep + rel:
+                    continue
+                matched = [pat for _id, pat in covers if fnmatch.fnmatch(rel, pat)]
+                if not matched:
+                    problems.append(f"{rel}: keine Nennung in data/credits.json")
+                for pat in matched:
+                    hit[pat] += 1
+
+    for entry_id, pat in covers:
+        if hit[pat] == 0:
+            problems.append(f"credits.json/{entry_id}: \"{pat}\" trifft keine Datei")
+    return problems
+
+
 def main(argv: list[str]) -> int:
     roots = argv[1:] or ROOTS
     md = read_assets_md()
@@ -174,6 +227,7 @@ def main(argv: list[str]) -> int:
 
     missing = check_coverage(roots, pats)
     lic = check_licenses(md, roots)
+    creds = check_credits()
 
     total_files = 0
     for root in roots:
@@ -205,7 +259,15 @@ def main(argv: list[str]) -> int:
     else:
         print("Lizenzen: keine ausgeschlossene Lizenzform gefunden")
 
-    return 1 if (missing or lic) else 0
+    if creds:
+        print("CREDITS")
+        for p in creds:
+            print(f"  {p}")
+        print()
+    else:
+        print("Credits: jede ausgelieferte Grafik und Schrift ist im Spiel genannt")
+
+    return 1 if (missing or lic or creds) else 0
 
 
 if __name__ == "__main__":

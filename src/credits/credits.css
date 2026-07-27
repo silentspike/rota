@@ -1,0 +1,172 @@
+/*
+ * Credits-Bereich. HTML-Menü über der Zeichenfläche (GAME-DESIGN 18.1), im
+ * Stil GEÄTZT: geschwärztes Eisen, Cinzel für Überschriften, EB Garamond für
+ * Fließtext (17.2).
+ *
+ * Der Knopf sitzt vorläufig unten rechts. Er muss unaufdringlich sein — das
+ * Spiel IST das HUD — aber erreichbar bleiben, weil CC BY genau das verlangt.
+ */
+
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../../assets/fonts/Cinzel-Variable.ttf') format('truetype-variations');
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EB Garamond';
+  src: url('../../assets/fonts/EBGaramond-Variable.ttf') format('truetype-variations');
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+.credits-button {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 10;
+  padding: 5px 12px;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: #6d675d;
+  background: transparent;
+  border: 1px solid #2a2621;
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.credits-button:hover,
+.credits-button:focus-visible {
+  color: #cbc3b4;
+  border-color: #5a5147;
+  outline: none;
+}
+
+.credits-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(4, 4, 5, 0.86);
+}
+
+.credits-backdrop[hidden] {
+  display: none;
+}
+
+.credits-panel {
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 34px 38px 30px;
+  color: #cfc8ba;
+  background:
+    linear-gradient(rgba(13, 12, 11, 0.87), rgba(13, 12, 11, 0.9)),
+    url('../../assets/img/textures/metal036-blackened-iron-512.jpg') center / 340px repeat;
+  border: 1px solid #3c342a;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 #5a4e3e,
+    0 18px 60px rgba(0, 0, 0, 0.7);
+  font-family: 'EB Garamond', serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.credits-title {
+  margin: 0 0 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: #efe8da;
+}
+
+.credits-lede {
+  margin: 0 0 24px;
+  max-width: 62ch;
+  color: #948d80;
+  font-size: 15px;
+}
+
+.credits-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.credits-item {
+  padding: 12px 0;
+  border-top: 1px solid #241f1a;
+}
+
+.credits-work {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: #b9b1a1;
+}
+
+.credits-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin-top: 2px;
+}
+
+.credits-author {
+  color: #efe8da;
+  font-size: 17px;
+}
+
+.credits-source,
+.credits-licence a {
+  color: #8aa9c4;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(138, 169, 196, 0.3);
+}
+
+.credits-source:hover,
+.credits-licence a:hover {
+  border-bottom-color: #8aa9c4;
+}
+
+.credits-source {
+  font-size: 14px;
+}
+
+.credits-licence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 13px;
+  color: #7d766a;
+}
+
+.credits-required {
+  padding: 0 7px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #d9bd63;
+  border: 1px solid #4d431f;
+  border-radius: 2px;
+  background: #2c2713;
+}
+
+.credits-foot {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid #241f1a;
+  font-size: 14px;
+  color: #7d766a;
+}
