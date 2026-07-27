@@ -17,6 +17,11 @@ export interface CreditsEntry {
   readonly license: string;
   readonly licenseUrl: string;
   readonly source: string;
+  /**
+   * Was am Werk veraendert wurde. CC BY verlangt, Bearbeitungen kenntlich zu
+   * machen; fehlt das Feld, wurde die Datei unveraendert uebernommen.
+   */
+  readonly modified?: string;
   /** true = Namensnennung ist Lizenzauflage, nicht Hoeflichkeit. */
   readonly required: boolean;
   /** Welche Dateien unter assets/ dieser Eintrag deckt (Muster erlaubt). */

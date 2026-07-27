@@ -170,3 +170,10 @@
   font-size: 14px;
   color: #7d766a;
 }
+
+.credits-modified {
+  margin-top: 3px;
+  font-size: 13px;
+  font-style: italic;
+  color: #6f6a5f;
+}

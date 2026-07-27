@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ROTA — Symbol-Prüfblatt (Issue #20)</title>
+    <style>
+      :root {
+        --calcination: #ff6a2a;
+        --fixation: #cfe4ff;
+        --sublimation: #f2c24a;
+        --coagulation: #46d9b4;
+        --putrefaction: #a06bd8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #0a0a0c;
+        color: #cfc8ba;
+        font:
+          14px/1.6 system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 26px;
+      }
+      h2 {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #6e6a63;
+        margin: 34px 0 12px;
+        font-weight: 600;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 96ch;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, 92px);
+        gap: 10px;
+      }
+      /* Der Slot, wie E1 ihn zeichnet: SLOT_SIZE = 92, Symbol 72 darin. */
+      .slot {
+        width: 92px;
+        height: 92px;
+        display: grid;
+        place-items: center;
+        border-radius: 2px;
+      }
+      .dark .slot {
+        background: #15151c;
+        border: 1px solid #2e2e3a;
+      }
+      .light .slot {
+        background: #f4f1ea;
+        border: 1px solid #cfc7b8;
+      }
+      .glyph {
+        width: 72px;
+        height: 72px;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+      }
+      /* Auf hellem Grund wird das Symbol dunkel eingefärbt. Sichtbar würde
+         hier jeder Farbrest, den ein Freisteller hinterlassen hätte. */
+      .light .glyph {
+        background-color: #171310;
+      }
+      .raw {
+        width: 72px;
+        height: 72px;
+      }
+      .note {
+        color: #8b8579;
+        font-size: 13px;
+        margin: 0 0 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Symbol-Prüfblatt</h1>
+    <div class="sub">
+      Issue #20 · Epic E9 · die 24 normalisierten Symbole aus <code>assets/img/icons/</code>
+    </div>
+
+    <div class="why">
+      Die Symbole werden nicht als fertiges Bild gezeichnet, sondern als <strong>Maske</strong>
+      eingefärbt — die Silhouette gibt die Form, die Farbe kommt aus der Schule (GAME-DESIGN 9.3).
+      Deshalb steht hier jedes Symbol dreimal: auf dunklem Grund wie im Spiel, auf hellem Grund
+      (dort fiele jeder dunkle Rand sofort auf, AC3) und unverändert als Rohdatei.
+    </div>
+
+    <h2>Auf dunklem Grund — wie in der Zauberleiste</h2>
+    <p class="note">Slot 92 px, Symbol 72 px, eingefärbt in den fünf Schulfarben der Reihe nach.</p>
+    <div class="grid dark" id="dark"></div>
+
+    <h2>Auf hellem Grund — AC3: keine dunklen Ränder</h2>
+    <p class="note">
+      Dunkel eingefärbt auf hellem Papier. Ein Rest aus einem Freisteller zeigte sich hier als
+      heller oder grauer Saum um die Form.
+    </p>
+    <div class="grid light" id="light"></div>
+
+    <h2>Rohdatei, unverändert</h2>
+    <p class="note">Weiße Silhouette, wie sie von game-icons.net kommt und im Repository liegt.</p>
+    <div class="grid dark" id="raw"></div>
+
+    <script src="icons.js"></script>
+    <script>
+      const SCHOOLS = [
+        'var(--calcination)',
+        'var(--fixation)',
+        'var(--sublimation)',
+        'var(--coagulation)',
+        'var(--putrefaction)',
+      ];
+
+      // Wird beim Bauen aus dem Verzeichnis erzeugt; siehe tools/icon-check-page.py
+      const ICONS = window.__ICONS ?? [];
+
+      function slot(src, tint, raw) {
+        const s = document.createElement('div');
+        s.className = 'slot';
+        if (raw) {
+          const img = document.createElement('img');
+          img.className = 'raw';
+          img.src = src;
+          img.alt = '';
+          s.appendChild(img);
+        } else {
+          const g = document.createElement('div');
+          g.className = 'glyph';
+          g.style.webkitMaskImage = `url('${src}')`;
+          g.style.maskImage = `url('${src}')`;
+          if (tint) g.style.backgroundColor = tint;
+          s.appendChild(g);
+        }
+        s.title = src;
+        return s;
+      }
+
+      const dark = document.getElementById('dark');
+      const light = document.getElementById('light');
+      const raw = document.getElementById('raw');
+      ICONS.forEach((src, i) => {
+        dark.appendChild(slot(src, SCHOOLS[i % SCHOOLS.length], false));
+        light.appendChild(slot(src, null, false));
+        raw.appendChild(slot(src, null, true));
+      });
+    </script>
+  </body>
+</html>

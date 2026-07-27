@@ -9,6 +9,7 @@
       "license": "CC BY 3.0",
       "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
       "source": "https://game-icons.net",
+      "modified": "cropped, centred and scaled for uniform optical weight",
       "required": true,
       "covers": ["assets/img/icons/lorc/*.svg"]
     },
@@ -20,6 +21,7 @@
       "license": "CC BY 3.0",
       "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
       "source": "https://game-icons.net",
+      "modified": "cropped, centred and scaled for uniform optical weight",
       "required": true,
       "covers": ["assets/img/icons/delapouite/*.svg"]
     },
@@ -31,6 +33,7 @@
       "license": "CC BY 3.0",
       "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
       "source": "https://game-icons.net",
+      "modified": "cropped, centred and scaled for uniform optical weight",
       "required": true,
       "covers": ["assets/img/icons/cathelineau/*.svg"]
     },
