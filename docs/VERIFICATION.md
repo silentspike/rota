@@ -78,16 +78,24 @@ Aus `GAME-DESIGN.md` 20.2. Sie gelten für jedes Issue, das den Kampf berührt.
 ### 3.1 Ruckelfreiheit
 
 ```bash
-playwright-cli -s=rota eval "window.__rota.perf().frameTimes.slice(-600)" > /tmp/frames.json
-python3 -c "
-import json; f=json.load(open('/tmp/frames.json'))
-over=[x for x in f if x>16.7]
-print(f'Bilder: {len(f)}  ueber 16,7 ms: {len(over)} ({100*len(over)/len(f):.2f} %)')
-print(f'max {max(f):.1f} ms   p99 {sorted(f)[int(len(f)*0.99)]:.1f} ms')
-"
+playwright-cli -s=rota eval "window.__rota.resetPerf()"
+sleep 12   # 600 Bilder bei 60 Hz
+playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().frameTimeSummary)"
 ```
 
-**Bestanden:** kein Bild über 16,7 ms in 600 aufeinanderfolgenden Bildern (10 s bei 60 Hz).
+**Bestanden:** `over: 0` bei mindestens 600 Bildern — kein Bild, dessen **Arbeitszeit** 16,7 ms
+überschreitet.
+
+> **`frameTimes` ist die Arbeitszeit je Bild, `frameIntervals` ist der Abstand zwischen zwei
+> Bildern. Geprüft wird die Arbeitszeit.**
+>
+> Der Abstand misst den Bildschirm, nicht das Spiel: Bei 60 Hz liegt er naturgemäß bei ~16,67 ms und
+> reißt die 16,7-ms-Marke ständig um Bruchteile. Gemessen bei der Abnahme von Issue #7: Arbeitszeit
+> `max 5,3 ms, over 0` bei 794 Bildern — Abstand im selben Lauf `max 100 ms, over 456`. Wer die
+> falsche Reihe nimmt, verwirft eine einwandfreie Umsetzung.
+>
+> `frameIntervalSummary` ist trotzdem nützlich: Ein hoher `max` dort zeigt Aussetzer der Umgebung
+> (Systemlast, headless-Eigenheiten) und erklärt verworfene Takte.
 
 ### 3.2 Eingabe-Verzögerung unter 16 ms
 
@@ -129,13 +137,31 @@ Aufzeichnung überein — **kein Ereignis fehlt**, auch nicht bei 10.000 Einträ
 
 ### 3.5 Keine Speicheranforderung im laufenden Bild
 
+Voraussetzung: `.playwright/cli.config.json` startet Chrome mit `--js-flags=--expose-gc` und
+`--enable-precise-memory-info`. Ohne beides rundet Chrome auf 100 KB, und die Messung ist wertlos.
+
 ```bash
-playwright-cli -s=rota eval "window.__rota.perf().allocationsPerFrame"
+# Messung starten, Ergebnis in eine globale Variable (eval kennt kein await)
+playwright-cli -s=rota eval "(window.__m=null, window.__rota.measureAllocations(600).then(r=>{window.__m=r}), 1)"
+sleep 14
+playwright-cli -s=rota eval "JSON.stringify(window.__m)"
 ```
 
-**Bestanden:** 0 nach dem Aufwärmen. Das ist die härteste der fünf Messungen und der Grund für die
-Objekt-Pools und den Ringpuffer (GAME-DESIGN 18.2). Ein Wert über 0 bedeutet, dass irgendwo im
-Bild-Pfad ein Objekt erzeugt wird — das führt früher oder später zu Rucklern.
+**Bestanden: kein Skalieren mit der Bildzahl.** Dreimal messen mit 300, 600 und 1800 Bildern — die
+Werte müssen um Null schwanken und dürfen **nicht** proportional zur Bildzahl wachsen.
+
+> **Nicht auf „exakt 0 Byte" prüfen.** Das Verfahren ist dafür zu grob. Bei der Abnahme von Issue #7
+> gemessen: 300 Bilder → **−552** Byte, 600 → **−484**, 1800 → **+712**. **Negative Werte** sind der
+> Beweis, dass hier Messrauschen des Aufräumers vorliegt und keine Allokation — Speicher kann nicht
+> negativ angefordert werden.
+>
+> Eine echte Allokation von auch nur 10 Byte je Bild ergäbe bei 1800 Bildern 18 KB, monoton positiv,
+> und würde beim Verdreifachen der Bildzahl mitwachsen. **Genau darauf wird geprüft.**
+>
+> Ein Einzelwert von „0" ist kein Nachweis, sondern ein Treffer im Rauschband.
+
+Das ist die härteste der fünf Messungen und der Grund für die Objekt-Pools und den Ringpuffer
+(GAME-DESIGN 18.2). Systematische Allokation im Bild-Pfad führt früher oder später zu Rucklern.
 
 ---
 
