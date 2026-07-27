@@ -1,0 +1,30 @@
+/*
+ * Seiten-Grundlage. Nicht das HUD selbst — das entsteht auf der Zeichenfläche
+ * (GAME-DESIGN 18.1: Canvas für den Kampf, HTML nur für Menüs).
+ *
+ * Aufgabe hier: die Zeichenfläche fensterfüllend halten und alles unterdrücken,
+ * was der Browser sonst von sich aus dazutut (Ränder, Bildlaufleisten,
+ * Textauswahl beim Hämmern auf der Tastatur).
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color-scheme: dark;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+}
+
+canvas {
+  /* Ein Tastendruck darf niemals versehentlich Text markieren. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
