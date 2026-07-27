@@ -983,6 +983,37 @@ erkennen: ja. Selbst gestalten: nein.
 aber kommerziell nicht nutzbar; die häufigste Falle, weil der Knopf trotzdem „Free Download" heißt.
 [`ASSETS.md`](../ASSETS.md) führt jede Datei mit Herkunft, Lizenz und Nennungspflicht.
 
+#### Gewählter Stil: GEÄTZT (Entscheidung des Auftraggebers, 2026-07-27)
+
+Ausgewählt aus vier echten Kandidaten-Sets, die in Issue #19 nebeneinander vorgelegt wurden.
+
+| Baustein    | Quelle                                                                                               | Lizenz    |
+| ----------- | ---------------------------------------------------------------------------------------------------- | --------- |
+| **Symbole** | [game-icons.net](https://game-icons.net) — einfarbige Silhouette in der Schulfarbe auf dunklem Eisen | CC BY 3.0 |
+| **Textur**  | ambientCG Metal036 (geschwärztes Eisen)                                                              | CC0       |
+| **Schrift** | Cinzel (Überschriften) + EB Garamond (Fließtext)                                                     | OFL       |
+
+**Warum GEÄTZT:**
+
+- **Vektor** — bei jeder Bildschirmgröße scharf, kein Nachschärfen nötig. Das HUD wird als Ganzes
+  skaliert (9.2), also ist das keine Feinheit, sondern Voraussetzung.
+- **Die Schulfarbe steckt im Symbol selbst**, nicht nur im Rahmen. Farbcodierung nach 9.3 ohne
+  Zusatzaufwand — und auf einen Blick zuzuordnen, worauf es bei Millisekunden-Entscheidungen ankommt.
+- **4.181 Symbole zur Auswahl.** Für 60 Zauber (Kapitel 3) ist reichlich Reserve da; die
+  alchemistischen Begriffe sind sämtlich abgedeckt.
+
+**Die bekannte Schwäche und was daraus folgt:** Flach. Ohne Rahmen und Textur wirkt der Satz
+nüchtern bis karg. **Damit wird Issue #22 (Rahmen, Panels, Ringtextur) zum tragenden Teil des
+Aussehens** — nicht mehr zur Zutat. Es entscheidet, ob GEÄTZT streng oder leer wirkt.
+
+**Folge für die Lizenz:** game-icons.net steht unter CC BY 3.0. **Der Credits-Bereich wird damit
+fällig** (17.2), sobald die erste Symboldatei nach `assets/img/` wandert. Die Nennungstexte je
+Urheber stehen in `ASSETS.md`. Das ist eine Lizenzauflage, keine Höflichkeit.
+
+> Verworfen wurde unter anderem der einzige reine CC0-Weg („Skill, item and spell icons", pauliuw):
+> überwiegend Gegenstands-Symbole, Rahmen fest eingemalt, uneinheitliche Machart. Der Kontaktbogen
+> liegt als Beleg unter `docs/style-candidates/`.
+
 **Zauber-Symbole: freie Gestaltung wie in WoW**, aber **mit mechanischer Ähnlichkeits-Prüfung**:
 Alle Symbole werden in Spielgröße paarweise rechnerisch verglichen; zu ähnliche Paare werden neu
 erzeugt. Grund: Erzeugte Symbole aus einem Durchgang tendieren zur Ähnlichkeit. Bei 16 Symbolen und
