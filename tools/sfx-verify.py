@@ -204,13 +204,23 @@ def main() -> None:
     if args.json:
         print(json.dumps({"checked": results, "missing": missing}, indent=2))
     else:
-        print(f"{'Kennung':28s} {'Laenge':>8s} {'Ziel':>6s} {'Stille':>8s} {'Peak':>8s} {'LUFS':>7s}  Befund")
+        print(
+            f"{'Kennung':28s} {'Laenge':>8s} {'Ziel':>6s} {'Stille':>8s} {'Peak':>8s} "
+            f"{'Lautheit':>16s}  Befund"
+        )
         for r in results:
             target = f"{r['targetS']:.2f}" if r["targetS"] else "  —"
+            # Bei sehr kurzen Klaengen ist LUFS bedeutungslos; dann steht hier
+            # der Effektivwert, nach dem auch geurteilt wurde.
+            loudness = (
+                f"{r['lufs']:.1f} LUFS"
+                if r["loudnessMeasure"] == "lufs"
+                else f"{r['rmsDbfs']:.1f} dBFS RMS"
+            )
             verdict = "in Ordnung" if not r["problems"] else "; ".join(r["problems"])
             print(
                 f"{r['id']:28s} {r['durationS']:8.3f} {target:>6s} "
-                f"{r['leadSilenceMs']:7.1f}m {r['peakDbfs']:8.2f} {r['lufs']:7.1f}  {verdict}"
+                f"{r['leadSilenceMs']:7.1f}m {r['peakDbfs']:8.2f} {loudness:>16s}  {verdict}"
             )
         if missing:
             print(f"\nNoch nicht erzeugt ({len(missing)}):")
