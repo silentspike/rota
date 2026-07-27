@@ -13,6 +13,19 @@ export default defineConfig(({ mode }) => ({
     target: 'es2022',
     outDir: 'dist',
     sourcemap: mode !== 'production',
+    // Das Abhoer-Soundboard (Epic E8) ist ein Entwicklungs-Werkzeug und steht
+    // deshalb nur in der Entwicklungs-Fassung im Bau — in der Auslieferung
+    // existiert die Seite nicht (GAME-DESIGN 19.3).
+    ...(mode === 'production'
+      ? {}
+      : {
+          rollupOptions: {
+            input: {
+              main: 'index.html',
+              soundboard: 'soundboard.html',
+            },
+          },
+        }),
   },
   test: {
     include: ['tests/**/*.test.ts'],
