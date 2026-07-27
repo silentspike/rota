@@ -1,0 +1,17 @@
+{
+  "browser": {
+    "contextOptions": {
+      "viewport": { "width": 1920, "height": 900 }
+    },
+    "launchOptions": {
+      "args": [
+        "--js-flags=--expose-gc",
+        "--enable-precise-memory-info",
+        "--enable-benchmarking",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--disable-background-timer-throttling"
+      ]
+    }
+  }
+}

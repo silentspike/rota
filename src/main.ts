@@ -1,8 +1,12 @@
+import './render/page.css';
+import { App } from './core/app.js';
 import { installDevTools } from './devtools/index.js';
 
-installDevTools();
-
-const app = document.querySelector<HTMLDivElement>('#app');
-if (app) {
-  app.textContent = 'ROTA';
+const root = document.querySelector<HTMLDivElement>('#app');
+if (root === null) {
+  throw new Error('#app fehlt in index.html');
 }
+
+const app = new App(root);
+installDevTools(app);
+app.start();
