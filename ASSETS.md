@@ -107,15 +107,25 @@ Die Original-Lizenztexte liegen unverändert unter `docs/style-candidates/LICENS
 
 ### Grafik (`assets/img/`)
 
-_(noch leer — wird gefüllt, sobald der Stil aus `docs/style-candidates/` gewählt ist)_
+**Stil GEÄTZT** — Entscheidung des Auftraggebers vom 2026-07-27, festgehalten in
+`docs/GAME-DESIGN.md` 17.2.
 
-| Datei | Herkunft | Lizenz | Nennung | Verwendung |
-| ----- | -------- | ------ | ------- | ---------- |
-| —     | —        | —      | —       | —          |
+| Datei                                                 | n   | Herkunft                                                                       | Lizenz        | Nennung                                    | Verwendung                                                           |
+| ----------------------------------------------------- | --- | ------------------------------------------------------------------------------ | ------------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| `assets/img/icons/lorc/*.svg`                         | 19  | [game-icons.net](https://game-icons.net), Urheber **Lorc**                     | **CC BY 3.0** | **ja** — „Icons made by Lorc"              | Zauber-Symbole, einfarbig, werden in der Schulfarbe eingefärbt (9.3) |
+| `assets/img/icons/delapouite/*.svg`                   | 4   | [game-icons.net](https://game-icons.net), Urheber **Delapouite**               | **CC BY 3.0** | **ja** — „Icons made by Delapouite"        | wie oben                                                             |
+| `assets/img/icons/cathelineau/*.svg`                  | 1   | [game-icons.net](https://game-icons.net), Urheber **Cathelineau**              | **CC BY 3.0** | **ja** — „Icons made by Cathelineau"       | wie oben                                                             |
+| `assets/img/textures/metal036-blackened-iron-512.jpg` | 1   | [ambientCG Metal036](https://ambientcg.com/a/Metal036), auf 512 px verkleinert | CC0           | nein (Nennung trotzdem im Credits-Bereich) | Untergrund „geschwärztes Eisen" für Tafeln und Rahmen                |
+| `assets/img/LICENSES/game-icons.txt`                  | 1   | Original-Lizenztext aus dem game-icons.net-Archiv                              | (Lizenztext)  | —                                          | Nachweis, mit der vollständigen Urheberliste                         |
+
+> **Die 24 Symbole sind der Startbestand, nicht die Endauswahl.** Version 1 hat **60 Zauber**
+> (GAME-DESIGN 3); game-icons.net stellt 4.181 Symbole bereit, die Reserve ist also reichlich. Welches
+> Symbol zu welchem Zauber gehört, entscheidet sich erst mit dem Zauber-Katalog (Epic E10). Die
+> Ähnlichkeits-Prüfung aus Issue #21 läuft über den jeweils aktuellen Bestand.
 
 ### Klang (`assets/audio/`)
 
-_(noch leer — wird in Epic E8 gefüllt)_
+_(Epic E8 — hier noch nicht geführt, siehe „Offen")_
 
 Erzeugung über Suno, Werkzeugkette siehe [`docs/suno-sfx.md`](docs/suno-sfx.md).
 Konto: `backupslave` (Konto-Wächter in `tools/suno_api.py` erzwingt das).
@@ -126,11 +136,15 @@ Konto: `backupslave` (Konto-Wächter in `tools/suno_api.py` erzwingt das).
 
 ### Schriften (`assets/fonts/`)
 
-_(noch leer — die Auswahl steht in `docs/style-candidates/fonts/` zur Entscheidung bereit)_
+**Stil GEÄTZT** — Cinzel für Überschriften, EB Garamond für Fließtext (GAME-DESIGN 17.2).
+Beide als variable Schrift, also eine Datei je Familie über den gesamten Strichstärkenbereich.
 
-| Datei | Herkunft | Lizenz | Nennung | Verwendung |
-| ----- | -------- | ------ | ------- | ---------- |
-| —     | —        | —      | —       | —          |
+| Datei                                      | Herkunft                                                                    | Lizenz       | Nennung                         | Verwendung                              |
+| ------------------------------------------ | --------------------------------------------------------------------------- | ------------ | ------------------------------- | --------------------------------------- |
+| `assets/fonts/Cinzel-Variable.ttf`         | [Google Fonts — Cinzel](https://fonts.google.com/specimen/Cinzel), 400–900  | OFL 1.1      | empfohlen — „Natanael Gama"     | Überschriften, Beschriftungen, Keybinds |
+| `assets/fonts/EBGaramond-Variable.ttf`     | [Google Fonts — EB Garamond](https://fonts.google.com/specimen/EB+Garamond) | OFL 1.1      | empfohlen — „Duffner und Pardo" | Fließtext, Zahlen in den Instrumenten   |
+| `assets/fonts/LICENSES/Cinzel-OFL.txt`     | Original-Lizenztext                                                         | (Lizenztext) | —                               | Nachweis                                |
+| `assets/fonts/LICENSES/EBGaramond-OFL.txt` | Original-Lizenztext                                                         | (Lizenztext) | —                               | Nachweis                                |
 
 ---
 
@@ -140,28 +154,38 @@ Sobald das erste **CC-BY**-Asset dazukommt, braucht das Spiel einen Credits-Bere
 Asset: Titel, Urheber, Lizenz, Quelle. **Das ist eine Lizenzauflage, keine Höflichkeit** — ohne
 Nennung ist die Nutzung unzulässig.
 
-Solange ausschließlich CC0 und Eigenerzeugungen verwendet werden, ist der Bereich nicht nötig.
+**Aktueller Stand: der Bereich existiert und ist im laufenden Spiel erreichbar.** Mit der
+Stil-Entscheidung GEÄTZT sind 24 CC-BY-Symbole nach `assets/img/` gewandert; damit ist die Nennung
+Pflicht geworden.
 
-**Aktueller Stand: kein CC-BY-Asset im ausgelieferten Bestand (`assets/`), also noch kein
-Credits-Bereich erforderlich.** Unter `docs/style-candidates/` liegen CC-BY-Dateien, die aber
-ausdrücklich nur zur Entscheidung dienen und nicht ausgeliefert werden.
+| Was        | Wo                                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inhalte    | `data/credits.json` — die eine Wahrheit für das, was angezeigt wird                                                                               |
+| Anzeige    | `src/credits/credits.ts` und `src/credits/credits.css`, HTML über der Zeichenfläche                                                               |
+| Erreichbar | Knopf **CREDITS** unten rechts; `Escape` schließt wieder                                                                                          |
+| Prüfung    | `python3 tools/assets-check.py` — meldet jede Datei unter `assets/img/` oder `assets/fonts/` ohne Nennung, und jeden Eintrag, der ins Leere zeigt |
+| Unit-Tests | `tests/unit/credits.test.ts` — prüft den geforderten Wortlaut je Urheber                                                                          |
 
-**Vorgemerkt und unvermeidbar:** Die Recherche zu Issue #19 hat ergeben, dass es für 26
-Zaubersymbole in den erlaubten Quellen **keinen reinen CC0-Weg** gibt — beide tragfähigen Quellen
-(game-icons.net und Painterly Spell Icons) stehen unter CC BY 3.0. Sobald der Stil gewählt und die
-erste Symboldatei nach `assets/img/` übernommen ist, **muss** der Credits-Bereich existieren. Er
-listet je Urheber: „Icons made by Lorc / Delapouite / Cathelineau" beziehungsweise „J. W. Bjerk
-(eleazzaar), www.jwbjerk.com/art".
+Genannt werden derzeit: **„Icons made by Lorc"**, **„Icons made by Delapouite"**,
+**„Icons made by Cathelineau"** (alle CC BY 3.0, Pflicht) sowie ambientCG, Natanael Gama und
+Duffner/Pardo (CC0 beziehungsweise OFL, freiwillig).
+
+> **Der Ort des Knopfes ist vorläufig.** game-icons.net verlangt lediglich, dass die Nennung „from a
+> menu" erreichbar ist. Sobald es ein Hauptmenü gibt, gehört der Eintrag dorthin und der Knopf am
+> Bildrand verschwindet. Bis dahin muss er bleiben — ohne ihn wäre jede Auslieferung unzulässig.
 
 ---
 
 ## Offen
 
-| Punkt                                   | Status                                                                                                                |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Konkretes Asset-Set und Stil-Festlegung | **Wartet auf den Auftraggeber.** Vier Kandidaten liegen vor: `docs/style-candidates/` (Issue #19)                     |
-| Credits-Bereich im Spiel                | **Wird gebraucht**, sobald der Stil gewählt ist — es gibt keinen reinen CC0-Weg zu 26 Zaubersymbolen (Issue #19, AC5) |
-| Sound-Manifest (115 Slots)              | Epic E8                                                                                                               |
+| Punkt                                   | Status                                                                                                                                                         |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Konkretes Asset-Set und Stil-Festlegung | **Erledigt** — GEÄTZT, Entscheidung vom 2026-07-27, festgehalten in `docs/GAME-DESIGN.md` 17.2                                                                 |
+| Credits-Bereich im Spiel                | **Erledigt** — `data/credits.json`, Knopf unten rechts, mechanisch geprüft                                                                                     |
+| Symbol-Zuordnung zu den 60 Zaubern      | Epic E10 (Zauber-Katalog). Der Bestand von 24 Symbolen ist ein Startbestand                                                                                    |
+| Rahmen, Panels, Ringtextur              | Issue #22 — **tragender Teil des Aussehens**, nicht Zutat, weil GEÄTZT für sich flach ist                                                                      |
+| `assets/sfx/` ohne Einträge             | **Epic E8.** 69 versionierte Suno-Rohdateien aus Erprobungsläufen. `tools/assets-check.py` meldet sie; hier bewusst nicht eingetragen, weil kein Spiel-Bestand |
+| Sound-Manifest                          | Epic E8                                                                                                                                                        |
 
 ### Zum Stil: es gibt bewusst kein HUD-Referenzbild
 
