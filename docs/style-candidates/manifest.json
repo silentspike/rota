@@ -1,0 +1,329 @@
+{
+  "gameIcons": [
+    {
+      "file": "icons/game-icons/delapouite/bellows.svg",
+      "author": "delapouite",
+      "name": "bellows",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/game-icons/delapouite/furnace.svg",
+      "author": "delapouite",
+      "name": "furnace",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/burning-embers.svg",
+      "author": "lorc",
+      "name": "burning-embers",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/boiling-bubbles.svg",
+      "author": "lorc",
+      "name": "boiling-bubbles",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/fire-bowl.svg",
+      "author": "lorc",
+      "name": "fire-bowl",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/wax-seal.svg",
+      "author": "lorc",
+      "name": "wax-seal",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/caged-ball.svg",
+      "author": "lorc",
+      "name": "caged-ball",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/game-icons/delapouite/dial-padlock.svg",
+      "author": "delapouite",
+      "name": "dial-padlock",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/crystal-bars.svg",
+      "author": "lorc",
+      "name": "crystal-bars",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/hourglass.svg",
+      "author": "lorc",
+      "name": "hourglass",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/bottle-vapors.svg",
+      "author": "lorc",
+      "name": "bottle-vapors",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/dust-cloud.svg",
+      "author": "lorc",
+      "name": "dust-cloud",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/erlenmeyer.svg",
+      "author": "lorc",
+      "name": "erlenmeyer",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/spiral-bloom.svg",
+      "author": "lorc",
+      "name": "spiral-bloom",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/oily-spiral.svg",
+      "author": "lorc",
+      "name": "oily-spiral",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/crystal-growth.svg",
+      "author": "lorc",
+      "name": "crystal-growth",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/crystalize.svg",
+      "author": "lorc",
+      "name": "crystalize",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/gooey-molecule.svg",
+      "author": "lorc",
+      "name": "gooey-molecule",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/chalice-drops.svg",
+      "author": "lorc",
+      "name": "chalice-drops",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/game-icons/delapouite/mortar.svg",
+      "author": "delapouite",
+      "name": "mortar",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/game-icons/lorc/acid-blob.svg",
+      "author": "lorc",
+      "name": "acid-blob",
+      "school": "PUTREFACTION"
+    },
+    {
+      "file": "icons/game-icons/lorc/dripping-goo.svg",
+      "author": "lorc",
+      "name": "dripping-goo",
+      "school": "PUTREFACTION"
+    },
+    {
+      "file": "icons/game-icons/cathelineau/earth-worm.svg",
+      "author": "cathelineau",
+      "name": "earth-worm",
+      "school": "PUTREFACTION"
+    },
+    {
+      "file": "icons/game-icons/lorc/molecule.svg",
+      "author": "lorc",
+      "name": "molecule",
+      "school": "PUTREFACTION"
+    }
+  ],
+  "painterly": [
+    {
+      "file": "icons/painterly/fireball-red-1.png",
+      "name": "fireball",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/painterly/explosion-orange-1.png",
+      "name": "explosion",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/painterly/needles-fire-1.png",
+      "name": "needles",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/painterly/lightning-orange-1.png",
+      "name": "lightning",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/painterly/beam-red-1.png",
+      "name": "beam",
+      "school": "CALCINATION"
+    },
+    {
+      "file": "icons/painterly/link-blue-1.png",
+      "name": "link",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/painterly/protect-sky-1.png",
+      "name": "protect",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/painterly/runes-blue-1.png",
+      "name": "runes",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/painterly/wind-grasp-sky-1.png",
+      "name": "wind-grasp",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/painterly/ice-sky-1.png",
+      "name": "ice",
+      "school": "FIXATION"
+    },
+    {
+      "file": "icons/painterly/air-burst-air-1.png",
+      "name": "air-burst",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/painterly/fog-orange-1.png",
+      "name": "fog",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/painterly/enchant-orange-1.png",
+      "name": "enchant",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/painterly/light-royal-1.png",
+      "name": "light",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/painterly/wind-sky-1.png",
+      "name": "wind",
+      "school": "SUBLIMATION"
+    },
+    {
+      "file": "icons/painterly/heal-jade-1.png",
+      "name": "heal",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/painterly/vines-jade-1.png",
+      "name": "vines",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/painterly/shielding-spirit-1.png",
+      "name": "shielding",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/painterly/leaf-jade-1.png",
+      "name": "leaf",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/painterly/rock-plain-1.png",
+      "name": "rock",
+      "school": "COAGULATION"
+    },
+    {
+      "file": "icons/painterly/rip-magenta-1.png",
+      "name": "rip",
+      "school": "PUTREFACTION"
+    },
+    {
+      "file": "icons/painterly/evil-eye-eerie-1.png",
+      "name": "evil-eye",
+      "school": "PUTREFACTION"
+    },
+    {
+      "file": "icons/painterly/horror-eerie-1.png",
+      "name": "horror",
+      "school": "PUTREFACTION"
+    },
+    {
+      "file": "icons/painterly/wild-eerie-1.png",
+      "name": "wild",
+      "school": "PUTREFACTION"
+    }
+  ],
+  "kenney": [
+    {
+      "file": "ui/kenney/button_square_depth_border.svg"
+    },
+    {
+      "file": "ui/kenney/button_square_border.svg"
+    },
+    {
+      "file": "ui/kenney/button_square_depth_border.png"
+    },
+    {
+      "file": "ui/kenney/fantasy-panel-005.png"
+    },
+    {
+      "file": "ui/kenney/fantasy-panel-010.png"
+    },
+    {
+      "file": "ui/kenney/fantasy-border-005.png"
+    },
+    {
+      "file": "ui/kenney/adventure-panel-brown.png"
+    },
+    {
+      "file": "ui/kenney/adventure-panel-grey.png"
+    },
+    {
+      "file": "ui/kenney/rpg-panel-beige.png"
+    },
+    {
+      "file": "ui/kenney/rpg-panel-inset-beige.png"
+    }
+  ],
+  "fonts": [
+    {
+      "file": "fonts/Cinzel[wght].ttf"
+    },
+    {
+      "file": "fonts/EBGaramond[wght].ttf"
+    },
+    {
+      "file": "fonts/Marcellus-Regular.ttf"
+    },
+    {
+      "file": "fonts/ChakraPetch-Regular.ttf"
+    },
+    {
+      "file": "fonts/ChakraPetch-SemiBold.ttf"
+    }
+  ],
+  "textures": [
+    {
+      "file": "textures/Metal036_Color_512.jpg",
+      "asset": "Metal036"
+    },
+    {
+      "file": "textures/Metal009_Color_512.jpg",
+      "asset": "Metal009"
+    }
+  ]
+}
