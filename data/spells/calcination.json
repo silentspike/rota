@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "school": "CALCINATION",
+  "resource": {
+    "id": "heat",
+    "name": "Heat",
+    "cap": 20,
+    "decayPerStepMs": 2000,
+    "decayAmount": 1,
+    "highlightAt": 15
+  },
+  "spells": [
+    {
+      "id": "kindle",
+      "name": "Kindle",
+      "unlockLevel": 1,
+      "baseDamage": 100,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "resourceGain": {
+        "heat": 3
+      }
+    },
+    {
+      "id": "smoulder",
+      "name": "Smoulder",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "dot": {
+        "tickDamage": 40,
+        "tickIntervalMs": 2000,
+        "durationMs": 12000,
+        "refreshMode": "reset",
+        "resourceGainPerTick": {
+          "heat": 1
+        }
+      }
+    },
+    {
+      "id": "pyre",
+      "name": "Pyre",
+      "unlockLevel": 2,
+      "baseDamage": 0,
+      "cooldownMs": 5000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "spender": {
+        "resource": "heat",
+        "damagePerPoint": 12,
+        "bonusThreshold": 15,
+        "bonusMultiplier": 2,
+        "consumesAll": true
+      }
+    }
+  ]
+}

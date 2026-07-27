@@ -10,17 +10,21 @@
       const u = args[0];
       const url = String(u && u.url ? u.url : u);
       if (url.includes('/api/generate/v2-web/')) {
-        res.clone().json().then(d => {
-          const clips = d.clips || (d.id ? [d] : []);
-          window.__gen.push({
-            t: Date.now(),
-            tags: (clips[0] && clips[0].metadata && clips[0].metadata.tags) || null,
-            ids: clips.map(c => c.id),
-          });
-        }).catch(() => {});
+        res
+          .clone()
+          .json()
+          .then((d) => {
+            const clips = d.clips || (d.id ? [d] : []);
+            window.__gen.push({
+              t: Date.now(),
+              tags: (clips[0] && clips[0].metadata && clips[0].metadata.tags) || null,
+              ids: clips.map((c) => c.id),
+            });
+          })
+          .catch(() => {});
       }
     } catch (e) {}
     return res;
   };
   return 'gen-hook ready (' + window.__gen.length + ' erfasst)';
-}
+};

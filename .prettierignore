@@ -1,0 +1,6 @@
+dist/
+node_modules/
+sim/target/
+assets/
+docs/refs/
+package-lock.json

@@ -18,7 +18,7 @@ refs:
 > soll. Jede Acceptance Criteria wird von mir **selbst** ausgeführt, mit **meinem** Befehl und
 > **meiner** Ausgabe.
 
-Das steht so auch in der globalen `CLAUDE.md`: *Agent-Ergebnisse niemals ungeprüft weitergeben.*
+Das steht so auch in der globalen `CLAUDE.md`: _Agent-Ergebnisse niemals ungeprüft weitergeben._
 Der Grund ist nicht Misstrauen, sondern Arbeitsteilung — der Worker sieht sein Issue, ich sehe das
 Gesamtsystem. Fehler entstehen fast immer dazwischen.
 
@@ -26,14 +26,14 @@ Gesamtsystem. Fehler entstehen fast immer dazwischen.
 
 ## 1. Ablauf einer Abnahme
 
-| # | Schritt |
-|---|---|
-| 1 | Issue-Text und die zugehörigen Abschnitte in `GAME-DESIGN.md` aufschlagen |
-| 2 | Prüfen, ob der PR gemerged und `ci-pass` grün war — sonst sofort zurück |
-| 3 | Spiel im aktuellen `main`-Stand starten (siehe § 2) |
-| 4 | **Jede AC einzeln** ausführen, Befehl und Ausgabe protokollieren |
-| 5 | Zusätzlich die Standard-Messungen aus § 3, soweit das Issue sie berührt |
-| 6 | Ergebnis nach § 5 melden |
+| #   | Schritt                                                                   |
+| --- | ------------------------------------------------------------------------- |
+| 1   | Issue-Text und die zugehörigen Abschnitte in `GAME-DESIGN.md` aufschlagen |
+| 2   | Prüfen, ob der PR gemerged und `ci-pass` grün war — sonst sofort zurück   |
+| 3   | Spiel im aktuellen `main`-Stand starten (siehe § 2)                       |
+| 4   | **Jede AC einzeln** ausführen, Befehl und Ausgabe protokollieren          |
+| 5   | Zusätzlich die Standard-Messungen aus § 3, soweit das Issue sie berührt   |
+| 6   | Ergebnis nach § 5 melden                                                  |
 
 **Nicht gebündelt prüfen.** „Alle fünf ACs auf einmal durchgesehen" ist keine Abnahme. Jede AC
 bekommt ihren eigenen Befehl und ihre eigene Ausgabe — auch wenn zwei sich ähneln.
@@ -92,7 +92,7 @@ print(f'max {max(f):.1f} ms   p99 {sorted(f)[int(len(f)*0.99)]:.1f} ms')
 ### 3.2 Eingabe-Verzögerung unter 16 ms
 
 ```bash
-playwright-cli -s=rota eval "window.__rota.perf().inputLatency" 
+playwright-cli -s=rota eval "window.__rota.perf().inputLatency"
 ```
 
 **Bestanden:** Maximum unter 16 ms. Gemessen wird von `keydown` bis zum Zeichnen des Bildes, in dem
@@ -141,7 +141,7 @@ Bild-Pfad ein Objekt erzeugt wird — das führt früher oder später zu Ruckler
 
 ## 4. Animationen prüfen
 
-Claude kann nicht beurteilen, ob sich etwas *gut anfühlt* — aber sehr wohl, ob es **technisch
+Claude kann nicht beurteilen, ob sich etwas _gut anfühlt_ — aber sehr wohl, ob es **technisch
 korrekt** läuft: springt nichts, stimmen Timing und Endzustand.
 
 ```bash
@@ -164,12 +164,12 @@ ls /tmp/frames/*.jpg | wc -l
 **Gemessen** (2026-07-27, an einem synthetischen Testbild — dem ungünstigsten Fall, echte
 HUD-Aufnahmen auf dunklem Grund komprimieren deutlich besser):
 
-| Variante | je Bild | hochgerechnet auf 600 | Budget |
-|---|---|---|---|
-| `scale=1920:-2 -q:v 4` | 68 KB | 39,8 MB | **zu groß** |
-| `scale=1920:-2 -q:v 6` | 60 KB | 35,2 MB | **zu groß** |
-| `scale=1920:-2 -q:v 8` | 55 KB | 32,2 MB | **zu groß** |
-| **`scale=1280:-2 -q:v 6`** | **35 KB** | **20,5 MB** | **eingehalten** |
+| Variante                   | je Bild   | hochgerechnet auf 600 | Budget          |
+| -------------------------- | --------- | --------------------- | --------------- |
+| `scale=1920:-2 -q:v 4`     | 68 KB     | 39,8 MB               | **zu groß**     |
+| `scale=1920:-2 -q:v 6`     | 60 KB     | 35,2 MB               | **zu groß**     |
+| `scale=1920:-2 -q:v 8`     | 55 KB     | 32,2 MB               | **zu groß**     |
+| **`scale=1280:-2 -q:v 6`** | **35 KB** | **20,5 MB**           | **eingehalten** |
 
 > **Warum nicht 1920 px:** Die naheliegende Wahl reißt das Budget. Für die Animationsprüfung geht es
 > um Sprünge, Timing und Endzustand — dafür genügt 1280 px mit Reserve. Wer bei einem einzelnen
@@ -177,12 +177,12 @@ HUD-Aufnahmen auf dunklem Grund komprimieren deutlich besser):
 
 Dann **alle** Bilder in einem Durchgang mit `Read` ansehen — nicht stichprobenweise. Geprüft wird:
 
-| Prüfpunkt | Was schiefgehen kann |
-|---|---|
+| Prüfpunkt                         | Was schiefgehen kann                          |
+| --------------------------------- | --------------------------------------------- |
 | Kein Sprung zwischen zwei Bildern | Animation setzt neu an statt zu interpolieren |
-| Endzustand stimmt | Wischblende bleibt bei 359° statt 360° stehen |
-| Timing passt zur Vorgabe | 700 ms Ausblendung dauert tatsächlich 700 ms |
-| Kein Flackern | doppeltes Zeichnen pro Bild |
+| Endzustand stimmt                 | Wischblende bleibt bei 359° statt 360° stehen |
+| Timing passt zur Vorgabe          | 700 ms Ausblendung dauert tatsächlich 700 ms  |
+| Kein Flackern                     | doppeltes Zeichnen pro Bild                   |
 
 ---
 
@@ -194,9 +194,10 @@ Alle ACs mit eigenem Befehl und eigener Ausgabe belegt. Keine Ausnahme, keine Re
 
 ```markdown
 ## Issue #<n> — ABGENOMMEN
+
 AC1: <Text> → BESTANDEN
-  $ <mein Befehl>
-  <meine Ausgabe>
+$ <mein Befehl>
+<meine Ausgabe>
 ...
 Zusätzlich geprüft: <Standard-Messungen>
 ```
@@ -207,9 +208,10 @@ Mindestens eine AC nicht belegbar. Das Issue **bleibt offen**.
 
 ```markdown
 ## Issue #<n> — OFFEN MIT BLOCKER
+
 Blockierende AC: <welche>
-  $ <mein Befehl>
-  <die Ausgabe, die das Gegenteil zeigt>
+$ <mein Befehl>
+<die Ausgabe, die das Gegenteil zeigt>
 Grund: <was fehlt oder falsch ist>
 Alle anderen ACs: <Stand>
 ```
@@ -221,12 +223,12 @@ kein `scope:partial`. Ein Issue mit vier von fünf ACs ist ein offenes Issue.
 
 ## 6. Was ich ausdrücklich NICHT beurteile
 
-| Nicht meine Zuständigkeit | Wer entscheidet |
-|---|---|
-| **Spielgefühl** — fühlt sich das Drücken gut an? | **der Auftraggeber** |
-| **Ästhetik** — sieht das gut aus? | **der Auftraggeber** |
-| **Klang** — klingt das richtig? | **der Auftraggeber** (ich kann nicht hören; ich prüfe nur technisch: Länge, Pegel, Anfangs-Stille, Clipping) |
-| **Ob eine Design-Entscheidung klug war** | steht in `GAME-DESIGN.md` und ist getroffen |
+| Nicht meine Zuständigkeit                        | Wer entscheidet                                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| **Spielgefühl** — fühlt sich das Drücken gut an? | **der Auftraggeber**                                                                                         |
+| **Ästhetik** — sieht das gut aus?                | **der Auftraggeber**                                                                                         |
+| **Klang** — klingt das richtig?                  | **der Auftraggeber** (ich kann nicht hören; ich prüfe nur technisch: Länge, Pegel, Anfangs-Stille, Clipping) |
+| **Ob eine Design-Entscheidung klug war**         | steht in `GAME-DESIGN.md` und ist getroffen                                                                  |
 
 > Bei diesen vier Punkten ist meine Aufgabe, **die Voraussetzungen zu schaffen** — dass der
 > Auftraggeber etwas Lauffähiges vor sich hat und dass alles Messbare gemessen ist. Nicht, ein Urteil
@@ -236,10 +238,10 @@ kein `scope:partial`. Ein Issue mit vier von fünf ACs ist ein offenes Issue.
 
 ## 7. Häufige Fehler bei der Abnahme — an mich selbst
 
-| Fehler | Warum er passiert | Gegenmittel |
-|---|---|---|
-| **Self-Grading** | „Der Code sieht korrekt aus" fühlt sich wie Prüfen an | Kein Befehl = ungeprüft. Ausnahmslos |
-| **Schwellwert anpassen** | Die Messung liegt knapp daneben, die Grenze wirkt willkürlich | Die Grenze steht im Design. Der Code wird angepasst, nicht die Grenze |
-| **Nachlassende Strenge** | Bei Issue 40 wirkt vieles „offensichtlich" | Issue 40 bekommt exakt dasselbe Verfahren wie Issue 1 |
-| **Alte Nachweise wiederverwenden** | Spart Zeit | Der Code hat sich geändert. Neu messen |
-| **Dem Melde-Format des Workers glauben** | Es sieht sauber aus und hat Befehle drin | Es sind **seine** Befehle. Ich führe **meine** aus |
+| Fehler                                   | Warum er passiert                                             | Gegenmittel                                                           |
+| ---------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Self-Grading**                         | „Der Code sieht korrekt aus" fühlt sich wie Prüfen an         | Kein Befehl = ungeprüft. Ausnahmslos                                  |
+| **Schwellwert anpassen**                 | Die Messung liegt knapp daneben, die Grenze wirkt willkürlich | Die Grenze steht im Design. Der Code wird angepasst, nicht die Grenze |
+| **Nachlassende Strenge**                 | Bei Issue 40 wirkt vieles „offensichtlich"                    | Issue 40 bekommt exakt dasselbe Verfahren wie Issue 1                 |
+| **Alte Nachweise wiederverwenden**       | Spart Zeit                                                    | Der Code hat sich geändert. Neu messen                                |
+| **Dem Melde-Format des Workers glauben** | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                    |

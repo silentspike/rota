@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "id": "first-crucible",
+  "name": "The First Crucible",
+  "instance": "prologue",
+  "hp": 4200,
+  "overpressureMs": 60000,
+  "phases": [],
+  "timeline": [],
+  "resistances": {},
+  "signature": null
+}

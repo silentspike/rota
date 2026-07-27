@@ -1,10 +1,6 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(playwright-cli -s=rota *)",
-      "Bash(ffprobe *)",
-      "Bash(ffmpeg *)"
-    ]
+    "allow": ["Bash(playwright-cli -s=rota *)", "Bash(ffprobe *)", "Bash(ffmpeg *)"]
   },
   "hooks": {
     "PreToolUse": [
