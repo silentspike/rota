@@ -1,27 +1,51 @@
 import { describe, expect, it } from 'vitest';
+import { Combat } from '../../src/core/combat.js';
+import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { GCD_MS, GlobalCooldown } from '../../src/core/gcd.js';
-import { NEVER, Session, type FeedbackSink } from '../../src/core/session.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { NEVER, NO_SPELL, Session, type FeedbackSink } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 
 class RecordingFeedback implements FeedbackSink {
   readonly accepted: number[] = [];
   readonly rejected: number[] = [];
 
-  onPressAccepted(slot: number, timeMs: number): void {
+  onPressAccepted(_slot: number, _spellIndex: number, timeMs: number): void {
     this.accepted.push(timeMs);
-    void slot;
   }
 
-  onPressRejected(slot: number, timeMs: number): void {
+  onPressRejected(_slot: number, _reason: number, timeMs: number): void {
     this.rejected.push(timeMs);
-    void slot;
   }
 }
 
-/** Rechnet `ticks` Takte ab `fromMs` — so, wie es die Schleife täte. */
-function run(session: Session, ticks: number, fromMs = 0): void {
-  for (let i = 0; i < ticks; i++) session.tick(fromMs + i * TICK_MS);
+interface Harness {
+  readonly queue: PressQueue;
+  readonly combat: Combat;
+  readonly session: Session;
+  readonly feedback: RecordingFeedback;
+  /** Rechnet `ticks` Takte ab `fromMs` — so, wie es die Schleife täte. */
+  readonly run: (ticks: number, fromMs?: number) => void;
+}
+
+/** Q = KINDLE, W = SMOULDER, E = PYRE (siehe `src/core/loadout.ts`). */
+function setup(): Harness {
+  const queue = new PressQueue();
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const feedback = new RecordingFeedback();
+  const session = new Session(queue, combat, feedback);
+  session.bind(0, combat.indexOf('kindle'));
+  session.bind(1, combat.indexOf('smoulder'));
+  session.bind(2, combat.indexOf('pyre'));
+  return {
+    queue,
+    combat,
+    session,
+    feedback,
+    run: (ticks: number, fromMs = 0): void => {
+      for (let i = 0; i < ticks; i++) session.tick(fromMs + i * TICK_MS);
+    },
+  };
 }
 
 describe('GlobalCooldown', () => {
@@ -39,7 +63,6 @@ describe('GlobalCooldown', () => {
     expect(gcd.isReady(1000)).toBe(false);
     expect(gcd.isReady(2490)).toBe(false);
     expect(gcd.remainingMs(2490)).toBe(10);
-    // Auf die Millisekunde: bei 2500 ist wieder frei.
     expect(gcd.isReady(2500)).toBe(true);
     expect(gcd.remainingMs(2500)).toBe(0);
   });
@@ -71,135 +94,186 @@ describe('GlobalCooldown', () => {
   });
 });
 
-describe('Session — Eingabe während der Wartezeit (AC4)', () => {
-  it('nimmt den ersten Druck an und löst die Wartezeit aus', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 0, 0, 0);
-    run(session, 1);
+describe('Session — Eingabe während der Wartezeit (AC4 aus E1-2)', () => {
+  it('nimmt den ersten Druck an und wirkt den Zauber', () => {
+    const h = setup();
+    h.queue.push(0, 0, 0, 0);
+    h.run(1);
 
-    expect(session.acceptedCount).toBe(1);
-    expect(session.rejectedCount).toBe(0);
-    expect(session.gcd.isReady(0)).toBe(false);
+    expect(h.session.acceptedCount).toBe(1);
+    expect(h.session.rejectedCount).toBe(0);
+    expect(h.combat.castCount(h.combat.indexOf('kindle'))).toBe(1);
+    expect(h.combat.damageDealt).toBe(100);
   });
 
   it('verwirft einen Druck während der Wartezeit — er wird nicht nachgeholt', () => {
-    const queue = new PressQueue();
-    const feedback = new RecordingFeedback();
-    const session = new Session(queue, feedback);
+    const h = setup();
+    h.queue.push(0, 0, 0, 0); // Takt 0: angenommen
+    h.queue.push(1, 50, 0, 0); // 500 ms: mitten in der Wartezeit
+    h.run(400); // vier Sekunden
 
-    queue.push(0, 0, 0, 0); // Takt 0: angenommen
-    queue.push(1, 50, 0, 0); // Takt 50 (500 ms): mitten in der Wartezeit
-    run(session, 400); // 4 Sekunden — weit über die Wartezeit hinaus
-
-    expect(session.acceptedCount).toBe(1);
-    expect(session.rejectedCount).toBe(1);
-    // Entscheidend: Nach Ablauf der Wartezeit passiert nichts mehr. Wäre der
-    // Druck vorgemerkt worden, stünde hier eine zweite Annahme.
-    expect(feedback.accepted).toEqual([0]);
-    expect(feedback.rejected).toEqual([500]);
-    expect(queue.size).toBe(0);
+    expect(h.session.acceptedCount).toBe(1);
+    expect(h.session.rejectedCount).toBe(1);
+    // Wäre der Druck vorgemerkt worden, stünde hier eine zweite Annahme.
+    expect(h.feedback.accepted).toEqual([0]);
+    expect(h.feedback.rejected).toEqual([500]);
+    expect(h.queue.size).toBe(0);
+    expect(h.combat.castCount(h.combat.indexOf('smoulder'))).toBe(0);
   });
 
-  it('nimmt den nächsten Druck nach Ablauf der Wartezeit an', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 0, 0, 0);
-    queue.push(1, 150, 0, 0); // genau bei 1500 ms
-    run(session, 200);
+  it('nimmt den nächsten Druck genau nach Ablauf der Wartezeit an', () => {
+    const h = setup();
+    h.queue.push(0, 0, 0, 0);
+    h.queue.push(1, 150, 0, 0); // genau bei 1500 ms
+    h.run(200);
 
-    expect(session.acceptedCount).toBe(2);
-    expect(session.rejectedCount).toBe(0);
+    expect(h.session.acceptedCount).toBe(2);
+    expect(h.session.rejectedCount).toBe(0);
   });
 
-  it('weist einen Druck eine Millisekunde zu früh ab', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 0, 0, 0);
-    queue.push(1, 149, 0, 0); // 1490 ms — ein Takt zu früh
-    run(session, 200);
+  it('weist einen Druck einen Takt zu früh ab', () => {
+    const h = setup();
+    h.queue.push(0, 0, 0, 0);
+    h.queue.push(1, 149, 0, 0); // 1490 ms
+    h.run(200);
 
-    expect(session.acceptedCount).toBe(1);
-    expect(session.rejectedCount).toBe(1);
+    expect(h.session.acceptedCount).toBe(1);
+    expect(h.session.rejectedCount).toBe(1);
   });
 
   it('verwirft auch eine ganze Serie, ohne einen davon nachzuholen', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 0, 0, 0);
-    for (let tick = 1; tick < 60; tick++) queue.push(1, tick, 0, 0);
-    run(session, 600);
+    const h = setup();
+    h.queue.push(0, 0, 0, 0);
+    for (let tick = 1; tick < 60; tick++) h.queue.push(1, tick, 0, 0);
+    h.run(600);
 
-    expect(session.acceptedCount).toBe(1);
-    expect(session.rejectedCount).toBe(59);
+    expect(h.session.acceptedCount).toBe(1);
+    expect(h.session.rejectedCount).toBe(59);
+  });
+});
+
+describe('Session — globale Wartezeit blockiert alle Zauber (AC5)', () => {
+  it('sperrt nach einem Zauber auch alle anderen', () => {
+    const h = setup();
+    h.queue.push(0, 0, 0, 0); // KINDLE
+    h.queue.push(1, 10, 0, 0); // SMOULDER, 100 ms später
+    h.queue.push(2, 20, 0, 0); // PYRE, 200 ms später
+    h.run(140); // bis 1390 ms, also innerhalb der Wartezeit
+
+    expect(h.session.acceptedCount).toBe(1);
+    expect(h.session.rejectedCount).toBe(2);
+    for (const id of ['kindle', 'smoulder', 'pyre']) {
+      const index = h.combat.indexOf(id);
+      expect(h.combat.castCount(index)).toBe(id === 'kindle' ? 1 : 0);
+    }
+  });
+
+  it('gibt alle Zauber im selben Takt wieder frei', () => {
+    const h = setup();
+    const kindle = h.combat.indexOf('kindle');
+    const smoulder = h.combat.indexOf('smoulder');
+    const pyre = h.combat.indexOf('pyre');
+    h.combat.cast(kindle, 0);
+
+    // Beide anderen sind selbst nicht auf Abklingzeit — nur die Wartezeit sperrt.
+    expect(h.combat.isOffCooldown(smoulder, 0)).toBe(true);
+    expect(h.combat.isOffCooldown(pyre, 0)).toBe(true);
+    expect(h.combat.isReady(smoulder, 1490)).toBe(false);
+    expect(h.combat.isReady(pyre, 1490)).toBe(false);
+    expect(h.combat.isReady(smoulder, 1500)).toBe(true);
+    expect(h.combat.isReady(pyre, 1500)).toBe(true);
   });
 });
 
 describe('Session — Zustand für die Anzeige', () => {
   it('merkt sich, wann eine Belegung zuletzt angenommen oder verworfen wurde', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(3, 0, 0, 0);
-    queue.push(7, 20, 0, 0);
-    run(session, 100);
+    const h = setup();
+    h.queue.push(0, 0, 0, 0);
+    h.queue.push(1, 20, 0, 0);
+    h.run(100);
 
-    expect(session.acceptedAtMs[3]).toBe(0);
-    expect(session.rejectedAtMs[7]).toBe(200);
-    expect(session.acceptedAtMs[7]).toBe(NEVER);
-    expect(session.lastPressedSlot).toBe(7);
+    expect(h.session.acceptedAtMs[0]).toBe(0);
+    expect(h.session.rejectedAtMs[1]).toBe(200);
+    expect(h.session.acceptedAtMs[1]).toBe(NEVER);
+    expect(h.session.lastPressedSlot).toBe(1);
+  });
+
+  it('behandelt einen leeren Platz als Fehleingabe', () => {
+    const h = setup();
+    h.queue.push(9, 0, 0, 0); // nichts darauf gelegt
+    h.run(5);
+
+    expect(h.session.spellOnSlot(9)).toBe(NO_SPELL);
+    expect(h.session.acceptedCount).toBe(0);
+    expect(h.session.rejectedCount).toBe(1);
+    expect(h.combat.damageDealt).toBe(0);
+  });
+
+  it('kennt die Zahl der belegten Plätze', () => {
+    const h = setup();
+    expect(h.session.boundSlotCount()).toBe(3);
   });
 
   it('legt für jeden sichtbaren Ausgang eine Messspur ab', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 0, 111.5, 4);
-    queue.push(1, 10, 222.5, 9);
-    run(session, 100);
+    const h = setup();
+    h.queue.push(0, 0, 111.5, 4);
+    h.queue.push(1, 10, 222.5, 9);
+    h.run(100);
 
-    expect(session.latency.size).toBe(2);
-    expect(session.latency.frontStamp()).toBe(111.5);
-    expect(session.latency.frontFrame()).toBe(4);
-    session.latency.shift();
-    expect(session.latency.frontStamp()).toBe(222.5);
+    expect(h.session.latency.size).toBe(2);
+    expect(h.session.latency.frontStamp()).toBe(111.5);
+    expect(h.session.latency.frontFrame()).toBe(4);
+    h.session.latency.shift();
+    expect(h.session.latency.frontStamp()).toBe(222.5);
+  });
+
+  it('zählt Takte ohne Handlung als Leerlauf', () => {
+    const h = setup();
+    h.run(10); // zehn Takte, nichts gedrückt
+    expect(h.session.idleMs).toBe(100);
+
+    const h2 = setup();
+    h2.queue.push(0, 0, 0, 0);
+    h2.run(10); // erster Takt wirkt, die neun übrigen liegen in der Wartezeit
+    expect(h2.session.idleMs).toBe(0);
   });
 
   it('setzt sich vollständig zurück', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 0, 0, 0);
-    run(session, 10);
-    session.reset();
+    const h = setup();
+    h.queue.push(0, 0, 0, 0);
+    h.run(10);
+    h.session.reset();
 
-    expect(session.acceptedCount).toBe(0);
-    expect(session.rejectedCount).toBe(0);
-    expect(session.lastPressedSlot).toBe(-1);
-    expect(session.acceptedAtMs[0]).toBe(NEVER);
-    expect(session.gcd.isReady(0)).toBe(true);
-    expect(session.latency.size).toBe(0);
+    expect(h.session.acceptedCount).toBe(0);
+    expect(h.session.rejectedCount).toBe(0);
+    expect(h.session.lastPressedSlot).toBe(-1);
+    expect(h.session.acceptedAtMs[0]).toBe(NEVER);
+    expect(h.session.gcd.isReady(0)).toBe(true);
+    expect(h.session.latency.size).toBe(0);
+    expect(h.combat.damageDealt).toBe(0);
+    expect(h.session.idleMs).toBe(0);
   });
 });
 
 describe('Session — Puffer wird nie zur Warteschlange', () => {
   it('leert alles, was dem laufenden Takt oder früher zugewiesen war', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    for (let i = 0; i < 10; i++) queue.push(i, 0, 0, 0);
-    session.tick(0);
+    const h = setup();
+    for (let i = 0; i < 10; i++) h.queue.push(i % 3, 0, 0, 0);
+    h.session.tick(0);
 
-    expect(queue.size).toBe(0);
-    expect(session.acceptedCount + session.rejectedCount).toBe(10);
+    expect(h.queue.size).toBe(0);
+    expect(h.session.acceptedCount + h.session.rejectedCount).toBe(10);
   });
 
   it('lässt einen Druck aus einem späteren Takt liegen, bis dieser Takt kommt', () => {
-    const queue = new PressQueue();
-    const session = new Session(queue);
-    queue.push(0, 5, 0, 0);
-    run(session, 5);
-    expect(queue.size).toBe(1);
-    expect(session.acceptedCount).toBe(0);
+    const h = setup();
+    h.queue.push(0, 5, 0, 0);
+    h.run(5);
+    expect(h.queue.size).toBe(1);
+    expect(h.session.acceptedCount).toBe(0);
 
-    session.tick(50);
-    expect(queue.size).toBe(0);
-    expect(session.acceptedCount).toBe(1);
+    h.session.tick(50);
+    expect(h.queue.size).toBe(0);
+    expect(h.session.acceptedCount).toBe(1);
   });
 });
