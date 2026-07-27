@@ -107,26 +107,31 @@ Solange ausschließlich CC0 und Eigenerzeugungen verwendet werden, ist der Berei
 
 ## Offen
 
-| Punkt                                                                                                                        | Status                                            |
-| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **Die zwei HUD-Referenzbilder** (Reaktionsgefäß, Messring, „CASCADE FAILURE"-Zauberbalken, Pergament-Ausgabefeld, Apparatur) | **Auf dem System nicht auffindbar** — siehe unten |
-| Konkretes Asset-Set und Stil-Festlegung                                                                                      | Epic E9                                           |
-| Sound-Manifest (115 Slots)                                                                                                   | Epic E8                                           |
+| Punkt                                   | Status  |
+| --------------------------------------- | ------- |
+| Konkretes Asset-Set und Stil-Festlegung | Epic E9 |
+| Sound-Manifest (115 Slots)              | Epic E8 |
 
-### Zu den fehlenden HUD-Referenzbildern
+### Zum Stil: es gibt bewusst kein HUD-Referenzbild
 
-`docs/GAME-DESIGN.md` 17.2 und der Planungs-Plan beschreiben **zwei vom Auftraggeber erzeugte
-Referenzbilder** in alchemistischer Fassung. Eine systemweite Suche über `/home/jan`, `/work`,
-`/data` und `/tmp` (alle Bilddateien der letzten Tage, dazu Namenssuche nach `rota`, `hud`, `alch`,
-`crucible`, `cascade`) hat sie **nicht gefunden**.
+Frühere Fassungen dieses Dokuments führten „zwei fehlende HUD-Referenzbilder" als offenen Punkt.
+**Das ist erledigt — nicht weil die Bilder aufgetaucht sind, sondern weil sie nicht gebraucht werden.**
 
-Wahrscheinlichste Erklärung: Sie lagen als Bild-Anhang im Gesprächsverlauf der Planungs-Session und
-wurden nie als Datei gespeichert.
+Der Grund steht in `docs/GAME-DESIGN.md` 17.2: Der Stil kommt **von einem menschlichen Gestalter über
+fertige freie Assets**, nicht aus einer Bildvorlage. Genau deshalb heißt Issue E9-1 „Assets
+recherchieren und Stil **festlegen**" und nicht „Stil generieren". Die Entscheidung fällt an echten
+Kandidaten-Sets, die der Auftraggeber nebeneinander sieht.
 
-**Folge:** Epic E9 kann ohne sie den Stil nicht festlegen, und E1 baut das HUD-Gerüst ohne visuelle
-Vorlage. Beides ist nicht blockierend — das SVG-Gerüst entsteht ohnehin zuerst und unabhängig
-(GAME-DESIGN 17.2, Bau-Reihenfolge) —, aber die Bilder werden **vor dem Übergang zu Schritt 2 von
-E9 gebraucht**.
+Ein erzeugtes HUD-Bild wurde am 2026-07-27 zur Probe angefertigt und vom Auftraggeber **abgelehnt**:
+Messing, Nieten und vergilbtes Papier — Steampunk von der Stange, wörtlich „austauschbar". Es liegt
+bewusst **nicht** im Repository. Eine Richtungsvorgabe, die niemand will, ist schlechter als keine;
+sie würde die Auswahl in eine bereits verworfene Ecke drängen.
 
-**Was der Auftraggeber tun muss:** die zwei Bilder nach `/work/rota/docs/refs/` legen und hier
-eintragen.
+**Was aus dem Versuch übernommen wurde — die Anordnung ist bestätigt:** Ring in der Bildmitte,
+Zauberleiste unten links im Tastatur-Raster mit sichtbarem Umschalt-Block daneben, Instrumente
+rechts, Überdruck oben links, Cast-Balken darunter. Das liest sich auf einen Blick und ist in
+GAME-DESIGN 9.1 festgehalten.
+
+**Was E9 stattdessen als Ausgangspunkt hat:** `docs/refs/frame-alpha-reference.png` — kein
+Stil-Vorbild, sondern der technische Nachweis, dass `gpt-image` brauchbares Alpha liefert, und die
+Messgrundlage für die beiden Nachbearbeitungs-Schritte.
