@@ -22,6 +22,14 @@ export class PerfCounters {
   readonly frameInterval = new RingBufferF64(FRAME_HISTORY);
   readonly tickWork = new RingBufferF64(FRAME_HISTORY);
   readonly inputLatency = new RingBufferF64(FRAME_HISTORY);
+  /**
+   * Wie viele Bilder zwischen `keydown` und dem Bild lagen, das die Wirkung zeigt.
+   *
+   * Das ist das eigentliche Kriterium aus GAME-DESIGN 20.2 („unter einem Bild"):
+   * Der Wert muss **1** sein. Die absolute Verzögerung enthält zusätzlich die
+   * Wartezeit auf das nächste Bild des Bildschirms, die kein Spiel unterbieten kann.
+   */
+  readonly inputFrameDelay = new RingBufferF64(FRAME_HISTORY);
 
   private frames = 0;
   private ticks = 0;
@@ -38,8 +46,9 @@ export class PerfCounters {
   }
 
   /** Eingabe-Verzögerung von `keydown` bis zum Zeichnen des Bildes mit der Wirkung. */
-  recordInputLatency(latencyMs: number): void {
+  recordInputLatency(latencyMs: number, frameDelay: number): void {
     this.inputLatency.push(latencyMs);
+    this.inputFrameDelay.push(frameDelay);
   }
 
   get frameCount(): number {
@@ -59,6 +68,7 @@ export class PerfCounters {
     this.frameInterval.clear();
     this.tickWork.clear();
     this.inputLatency.clear();
+    this.inputFrameDelay.clear();
     this.frames = 0;
     this.ticks = 0;
     this.worstFrameWorkMs = 0;
