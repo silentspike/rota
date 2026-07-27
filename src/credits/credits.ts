@@ -122,6 +122,11 @@ export function buildCreditsPanel(data: CreditsData): HTMLElement {
     }
     item.appendChild(licence);
 
+    // CC BY verlangt, Bearbeitungen kenntlich zu machen.
+    if (entry.modified !== undefined && entry.modified !== '') {
+      item.appendChild(element('div', 'credits-modified', `Modified: ${entry.modified}`));
+    }
+
     list.appendChild(item);
   }
   panel.appendChild(list);
