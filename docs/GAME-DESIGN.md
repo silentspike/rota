@@ -1236,7 +1236,7 @@ Wegwerfarbeit.** Konkrete Zahlen: [`STEP1-SPEC.md`](STEP1-SPEC.md).
 | ------------------- | --------------------------------------------------------------------- |
 | Spielgefühl         | **Urteil des Auftraggebers** — die Frage, die nur er beantworten kann |
 | Ruckelfreiheit      | Keine Aussetzer im laufenden Kampf                                    |
-| Eingabe-Verzögerung | **Unter einem Bild (< 16 ms)**                                        |
+| Eingabe-Verzögerung | **Die Wirkung erscheint im nächsten Bild** — nie im übernächsten      |
 | Abklingzeiten       | Auf die Millisekunde korrekt                                          |
 | Kampfprotokoll      | Vollständig, kein Ereignis fehlt                                      |
 | Speicher            | **Keine Speicheranforderung im laufenden Bild**                       |
