@@ -283,7 +283,12 @@ def ui_refs() -> tuple[str, str]:
 
 def ui_generate(prompt: str, loop: bool = False, timeout_s: int = 120) -> list[str]:
     """Loest die Generierung in der Seite aus und liest die Clip-UUIDs aus der Antwort."""
-    pw_eval(HOOK.read_text())
+    # Ohne abschliessendes Semikolon: playwright-cli uebergibt den Text als
+    # Funktion an page.evaluate und lehnt "() => {...};" mit
+    # "Passed function is not well-serializable" ab. Prettier haengt das
+    # Semikolon bei jedem Formatieren wieder an, deshalb wird es hier
+    # abgeschnitten statt in der Datei zu fehlen.
+    pw_eval(HOOK.read_text().strip().rstrip(";"))
     before = pw_eval("() => String((window.__gen || []).length)")
     n_before = int(re.search(r'"?(\d+)"?', before).group(1)) if re.search(r"\d", before) else 0
 
