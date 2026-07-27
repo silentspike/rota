@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/rota/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ROTA — Abhoer-Soundboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101014;
+        --panel: #1a1a20;
+        --line: #2c2c36;
+        --text: #e6e6ea;
+        --dim: #9a9aa8;
+        --accent: #d9a441;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.5 ui-monospace,
+          'DejaVu Sans Mono',
+          monospace;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      p.lead {
+        margin: 0 0 20px;
+        color: var(--dim);
+      }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 0 0 12px;
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .faders {
+        display: grid;
+        grid-template-columns: 90px 1fr 60px;
+        gap: 8px 12px;
+        align-items: center;
+        max-width: 520px;
+      }
+      input[type='range'] {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 5px 10px 5px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      th {
+        color: var(--dim);
+        font-weight: normal;
+      }
+      button {
+        background: #26262f;
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 4px 12px;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      kbd {
+        background: #26262f;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 1px 7px;
+        color: var(--accent);
+      }
+      .dim {
+        color: var(--dim);
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        color: var(--dim);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ROTA — Abhoer-Soundboard</h1>
+    <p class="lead">
+      Entwicklungs-Werkzeug. Liegt nicht in der Auslieferung. Die aesthetische Abnahme macht der
+      Auftraggeber, die technische das Werkzeug.
+    </p>
+
+    <section>
+      <h2>Zustand</h2>
+      <pre id="status">Warte auf erste Taste oder Klick (der Browser weckt den Ton erst dann).</pre>
+    </section>
+
+    <section>
+      <h2>Lautstaerke</h2>
+      <div class="faders" id="faders"></div>
+    </section>
+
+    <section>
+      <h2>Verzoegerung Tastendruck bis Ton</h2>
+      <pre id="latency">Noch nichts gemessen. Tasten druecken.</pre>
+    </section>
+
+    <section>
+      <h2>Klaenge</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Taste</th>
+            <th>Kennung</th>
+            <th>Weg</th>
+            <th>Art</th>
+            <th>Abspielen</th>
+          </tr>
+        </thead>
+        <tbody id="sounds"></tbody>
+      </table>
+    </section>
+
+    <script type="module" src="/src/audio/soundboard.ts"></script>
+  </body>
+</html>
