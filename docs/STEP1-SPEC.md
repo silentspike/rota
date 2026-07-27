@@ -28,13 +28,13 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 ### 1.1 KINDLE — der Füller
 
-| Feld | Wert |
-|---|---|
-| Grundschaden | **100** |
-| Abklingzeit | **1,5 s** |
-| Wirkzeit | 0 (Sofort-Zauber) |
-| Löst GCD aus | ja |
-| Hitze | **+3** |
+| Feld         | Wert              |
+| ------------ | ----------------- |
+| Grundschaden | **100**           |
+| Abklingzeit  | **1,5 s**         |
+| Wirkzeit     | 0 (Sofort-Zauber) |
+| Löst GCD aus | ja                |
+| Hitze        | **+3**            |
 
 > **Warum die Abklingzeit genau dem GCD entspricht:** Der Füller muss die Taktlücken schließen können.
 > Bei einer längeren Abklingzeit entstünde Zwangs-Leerlauf, den **kein Können vermeiden kann** — das
@@ -43,16 +43,16 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 ### 1.2 SMOULDER — der Brand-Effekt (DoT)
 
-| Feld | Wert |
-|---|---|
-| Direktschaden | 0 |
-| Schaden je Tick | **40** |
-| Tick-Abstand | **2 s** |
-| Dauer | **12 s** (= 6 Ticks, 240 Schaden gesamt) |
-| Abklingzeit | **1,5 s** (= GCD, also praktisch keine) |
-| Löst GCD aus | ja |
-| Hitze je Tick | **+1** |
-| Erneuern | **setzt zurück — die verbleibende Restzeit ist verloren** |
+| Feld            | Wert                                                      |
+| --------------- | --------------------------------------------------------- |
+| Direktschaden   | 0                                                         |
+| Schaden je Tick | **40**                                                    |
+| Tick-Abstand    | **2 s**                                                   |
+| Dauer           | **12 s** (= 6 Ticks, 240 Schaden gesamt)                  |
+| Abklingzeit     | **1,5 s** (= GCD, also praktisch keine)                   |
+| Löst GCD aus    | ja                                                        |
+| Hitze je Tick   | **+1**                                                    |
+| Erneuern        | **setzt zurück — die verbleibende Restzeit ist verloren** |
 
 > **Warum keine eigene Abklingzeit:** Wie in WoW hindert das Spiel niemanden daran, zu früh zu
 > erneuern. **Genau darin liegt die Fähigkeit.** Eine Abklingzeit, die zu frühes Erneuern technisch
@@ -61,44 +61,44 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 ### 1.3 PYRE — der Entlade-Zauber
 
-| Feld | Wert |
-|---|---|
-| Schaden | **12 × Hitze** |
-| **Bonus** | **ab 15 Hitze doppelter Schaden** |
-| Abklingzeit | **5 s** |
-| Wirkzeit | 0 (Sofort-Zauber) |
-| Löst GCD aus | ja |
-| Wirkung | setzt die Hitze auf **0** |
+| Feld         | Wert                              |
+| ------------ | --------------------------------- |
+| Schaden      | **12 × Hitze**                    |
+| **Bonus**    | **ab 15 Hitze doppelter Schaden** |
+| Abklingzeit  | **5 s**                           |
+| Wirkzeit     | 0 (Sofort-Zauber)                 |
+| Löst GCD aus | ja                                |
+| Wirkung      | setzt die Hitze auf **0**         |
 
 **Beispiele:** bei 10 Hitze → 120 · bei 14 Hitze → 168 · bei **15 Hitze → 360** · bei 20 Hitze → 480.
 
 > **Warum eine Schwelle und kein „bei voller Hitze":** Beide Extreme wurden durchgerechnet und
 > verworfen.
 >
-> *Rein linear* (`12 × Hitze`, ohne Bonus) ist **mathematisch neutral** — jeder Hitzepunkt ist gleich
+> _Rein linear_ (`12 × Hitze`, ohne Bonus) ist **mathematisch neutral** — jeder Hitzepunkt ist gleich
 > viel wert, egal wann man ihn ausgibt. Es gäbe überhaupt keine Entscheidung zu treffen.
 >
-> *Genau am Maximum* ist das andere Extrem: Der Verfall zieht die Hitze ständig unter den Cap, sodass
+> _Genau am Maximum_ ist das andere Extrem: Der Verfall zieht die Hitze ständig unter den Cap, sodass
 > der Spieler den Moment praktisch nie trifft. **Gemessen: 2 Zündungen in 60 Sekunden statt 8.**
 >
 > Die Schwelle bei 15 erzeugt zusammen mit dem Cap bei 20 ein **Fenster**:
 >
-> | | Folge |
-> |---|---|
-> | **zu früh** (unter 15) | halber Schaden |
-> | **im Fenster** (15–20) | voller Bonus |
+> |                            | Folge                  |
+> | -------------------------- | ---------------------- |
+> | **zu früh** (unter 15)     | halber Schaden         |
+> | **im Fenster** (15–20)     | voller Bonus           |
 > | **zu spät** (Cap erreicht) | weitere Hitze verpufft |
 >
 > Das ist die Fähigkeit, die Schritt 1 lehrt — und sie ist in einem Satz erklärbar.
 
 ### 1.4 Hitze — die Schul-Mechanik
 
-| Feld | Wert |
-|---|---|
-| Obergrenze | **20** |
-| Verfall | **1 Punkt alle 2 s** |
-| Startwert | 0 |
-| Anzeige | über der Zauberleiste, mit sichtbarer Markierung bei 15 |
+| Feld       | Wert                                                    |
+| ---------- | ------------------------------------------------------- |
+| Obergrenze | **20**                                                  |
+| Verfall    | **1 Punkt alle 2 s**                                    |
+| Startwert  | 0                                                       |
+| Anzeige    | über der Zauberleiste, mit sichtbarer Markierung bei 15 |
 
 **Netto-Aufbaurate bei durchgehendem KINDLE-Einsatz:**
 `3 / 1,5 s` (KINDLE) `+ 1 / 2 s` (SMOULDER-Tick) `− 1 / 2 s` (Verfall) = **2,0 Hitze pro Sekunde**
@@ -110,12 +110,12 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 ## 2. Globale Regeln
 
-| Regel | Wert |
-|---|---|
-| Globale Wartezeit (GCD) | **1,5 s** — für alle drei Zauber |
-| Logik-Takt | **10 ms**, ganzzahlige Zeit |
-| Krit | **entfällt in Schritt 1** (PURITY = 0 auf Stufe 1) |
-| Ausrüstung, Talente, Widerstände | entfallen — alle Faktoren = 1,0 |
+| Regel                            | Wert                                               |
+| -------------------------------- | -------------------------------------------------- |
+| Globale Wartezeit (GCD)          | **1,5 s** — für alle drei Zauber                   |
+| Logik-Takt                       | **10 ms**, ganzzahlige Zeit                        |
+| Krit                             | **entfällt in Schritt 1** (PURITY = 0 auf Stufe 1) |
+| Ausrüstung, Talente, Widerstände | entfallen — alle Faktoren = 1,0                    |
 
 > **Warum kein Krit in Schritt 1:** Auf Stufe 1 ohne Ausrüstung ist PURITY = 0. Damit ist die
 > Rechnung **exakt statt gemittelt** — jeder Durchlauf liefert denselben Wert, und Abweichungen
@@ -128,14 +128,14 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 **THE FIRST CRUCIBLE**
 
-| Feld | Wert |
-|---|---|
-| Lebenspunkte | **4.200** |
-| Überdruck-Timer | **60 s** |
-| Schaden auf den Spieler | keiner |
-| Phasen | keine |
-| Mechaniken | keine |
-| Widerstände | keine |
+| Feld                    | Wert      |
+| ----------------------- | --------- |
+| Lebenspunkte            | **4.200** |
+| Überdruck-Timer         | **60 s**  |
+| Schaden auf den Spieler | keiner    |
+| Phasen                  | keine     |
+| Mechaniken              | keine     |
+| Widerstände             | keine     |
 
 > **Warum ausgerechnet 4.200:** Damit die schlechte Rotation **knapp scheitert** — gemessen bei
 > 96,3 %. Das ist die Frust-Vermeidung aus GAME-DESIGN 12.8 in Zahlen: Der Versuch bringt etwas
@@ -176,12 +176,12 @@ SCHLECHTE ROTATION  (SMOULDER zu früh, PYRE sofort)
 
 **Vergleich über die vollen 60 s** (ohne Kill-Abbruch, damit beide gleich lang rechnen):
 
-| Rotation | Schaden | gegenüber „gut" |
-|---|---|---|
-| **gut** | **5.992** | — |
-| nur DoT zu früh erneuert | 5.368 | **−10,4 %** |
-| nur PYRE zu früh gezündet | 4.316 | **−28,0 %** |
-| beide Fehler | 4.044 | **−32,5 %** |
+| Rotation                  | Schaden   | gegenüber „gut" |
+| ------------------------- | --------- | --------------- |
+| **gut**                   | **5.992** | —               |
+| nur DoT zu früh erneuert  | 5.368     | **−10,4 %**     |
+| nur PYRE zu früh gezündet | 4.316     | **−28,0 %**     |
+| beide Fehler              | 4.044     | **−32,5 %**     |
 
 **Differenz gut ↔ schlecht: 1.948 Schaden = 48,2 % mehr.**
 
@@ -193,6 +193,7 @@ SCHLECHTE ROTATION  (SMOULDER zu früh, PYRE sofort)
 ### Die zwei Rotationen als Prioritätenliste
 
 **Gut:**
+
 ```
 1. SMOULDER, wenn seine Restlaufzeit unter einem GCD liegt
 2. PYRE,     wenn bereit UND Hitze >= 15
@@ -200,6 +201,7 @@ SCHLECHTE ROTATION  (SMOULDER zu früh, PYRE sofort)
 ```
 
 **Schlecht** — plausibel falsch, nicht absichtlich dumm:
+
 ```
 1. SMOULDER, sobald die halbe Laufzeit vorbei ist   (verschenkt Restzeit und einen GCD)
 2. PYRE,     sobald bereit                          (nimmt den Bonus nie mit)
@@ -299,24 +301,24 @@ Spiel (TypeScript) und der Simulator (Rust) — es ist damit ab jetzt eine Schni
 
 ## 6. Was der Worker daraus bauen muss
 
-| Anforderung | Nachweis |
-|---|---|
-| Die drei Zauber verhalten sich exakt wie oben | Aufgezeichnete Runde ergibt denselben Schaden wie `step1-check.py` |
-| Hitze baut sich mit 2,0/s auf und verfällt mit 0,5/s | Konsolen-Abfrage des Hitze-Werts über die Zeit |
-| PYRE verdoppelt ab genau 15, nicht ab 14 | Zwei Zündungen bei 14 und 15 Hitze, Schadenswerte vergleichen |
-| SMOULDER-Erneuern verwirft die Restzeit | Erneuern bei 6 s Restzeit → nächster Tick 2 s später, keine Überlagerung |
-| Der Boss fällt mit der guten Rotation bei ~44 s | Durchlauf im Spiel, Restzeit ablesen |
+| Anforderung                                          | Nachweis                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| Die drei Zauber verhalten sich exakt wie oben        | Aufgezeichnete Runde ergibt denselben Schaden wie `step1-check.py`       |
+| Hitze baut sich mit 2,0/s auf und verfällt mit 0,5/s | Konsolen-Abfrage des Hitze-Werts über die Zeit                           |
+| PYRE verdoppelt ab genau 15, nicht ab 14             | Zwei Zündungen bei 14 und 15 Hitze, Schadenswerte vergleichen            |
+| SMOULDER-Erneuern verwirft die Restzeit              | Erneuern bei 6 s Restzeit → nächster Tick 2 s später, keine Überlagerung |
+| Der Boss fällt mit der guten Rotation bei ~44 s      | Durchlauf im Spiel, Restzeit ablesen                                     |
 
 ---
 
 ## 7. Offene Punkte, die NICHT Schritt 1 betreffen
 
-| Punkt | Wo geklärt |
-|---|---|
-| Die restlichen 57 Zauber | GAME-DESIGN 22, vor Epic E10 |
-| Krit, Ausrüstung, Talente | ab Schritt 3 |
-| Boss-Mechaniken und Phasen | Epic E4 |
-| Wie die drei Zauber im fertigen Spiel freigeschaltet werden | siehe unten |
+| Punkt                                                       | Wo geklärt                   |
+| ----------------------------------------------------------- | ---------------------------- |
+| Die restlichen 57 Zauber                                    | GAME-DESIGN 22, vor Epic E10 |
+| Krit, Ausrüstung, Talente                                   | ab Schritt 3                 |
+| Boss-Mechaniken und Phasen                                  | Epic E4                      |
+| Wie die drei Zauber im fertigen Spiel freigeschaltet werden | siehe unten                  |
 
 > **Aufgelöster Widerspruch:** GAME-DESIGN 12.2 nennt als Start-Ausstattung **zwei** Zauber, Schritt 1
 > braucht aber **drei**, weil die CALCINATION-Mechanik ohne den Entlade-Zauber nicht funktioniert.

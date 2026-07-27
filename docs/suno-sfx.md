@@ -14,12 +14,12 @@
 
 ### Einstellungen
 
-| Option | Bedeutung | Einsatz bei uns |
-|--------|-----------|-----------------|
-| **One Shot** | Einzelner kurzer Sound | Zauber-Impacts, Crits, Kill-Sounds, UI-Klicks, „Spell ready"-Chime |
-| **Loop** | Nahtlos wiederholbarer Clip | Hintergrund-Ambiente pro Welt, Spannungs-Layer |
-| **BPM** | Beats pro Minute | Nur für musikalische Loops; bei reinen Effekten weglassen |
-| **Key (Tonart)** | z.B. C major, A minor | Für Welt-Ambiente: **gleiche Tonart pro Welt** = alles klingt „aus einem Guss" |
+| Option           | Bedeutung                   | Einsatz bei uns                                                                |
+| ---------------- | --------------------------- | ------------------------------------------------------------------------------ |
+| **One Shot**     | Einzelner kurzer Sound      | Zauber-Impacts, Crits, Kill-Sounds, UI-Klicks, „Spell ready"-Chime             |
+| **Loop**         | Nahtlos wiederholbarer Clip | Hintergrund-Ambiente pro Welt, Spannungs-Layer                                 |
+| **BPM**          | Beats pro Minute            | Nur für musikalische Loops; bei reinen Effekten weglassen                      |
+| **Key (Tonart)** | z.B. C major, A minor       | Für Welt-Ambiente: **gleiche Tonart pro Welt** = alles klingt „aus einem Guss" |
 
 ---
 
@@ -62,6 +62,7 @@
 ## 3. Stärken & Schwächen von Suno Sounds
 
 **Stark (= exakt unser Bedarfsprofil):**
+
 - Cineastische Hits/Impacts und Übergänge
 - Glitch-Effekte
 - Synthetische/designte Effekte
@@ -69,6 +70,7 @@
 - Ausdrücklich: **Game-Audio**
 
 **Schwach (brauchen wir nicht):**
+
 - Realistisches Foley (Schritte auf definiertem Untergrund)
 - Komplexe physische Interaktionen
 - High-End-Foley-Ansprüche
@@ -82,14 +84,15 @@ der Klangbeschreibung und wird anschließend in der Nachbearbeitung exakt gesetz
 
 ### 4.1 Länge über die Klangbeschreibung steuern (gemessen)
 
-| Ziel | So beschreiben | Gemessener Ton-Anteil |
-|------|----------------|----------------------|
-| **kurz** (< 1 s) | `ping`, `click`, `tick`, `snap`, `blip` — perkussiv, trocken | 0,43–0,99 s |
-| **mittel** (1–3 s) | `impact`, `whoosh`, `zap`, `hit` + kurzer Nachklang | 1,76–2,46 s |
-| **lang** (5–11 s) | `gong`, `boom with long reverb tail`, `riser`, `sustained hum`, `drone` | 6,22–11,33 s |
-| **beliebig lang** | **Loop-Modus** → nahtlose Schleife, im Spiel wiederholt | 8,2–9,4 s pro Durchlauf |
+| Ziel               | So beschreiben                                                          | Gemessener Ton-Anteil   |
+| ------------------ | ----------------------------------------------------------------------- | ----------------------- |
+| **kurz** (< 1 s)   | `ping`, `click`, `tick`, `snap`, `blip` — perkussiv, trocken            | 0,43–0,99 s             |
+| **mittel** (1–3 s) | `impact`, `whoosh`, `zap`, `hit` + kurzer Nachklang                     | 1,76–2,46 s             |
+| **lang** (5–11 s)  | `gong`, `boom with long reverb tail`, `riser`, `sustained hum`, `drone` | 6,22–11,33 s            |
+| **beliebig lang**  | **Loop-Modus** → nahtlose Schleife, im Spiel wiederholt                 | 8,2–9,4 s pro Durchlauf |
 
 Zusätzliche Hebel im API-Payload:
+
 - `negative_tags` — z.B. `"long reverb, sustained, drone"` erzwingt kürzer,
   `"clipped, dry, abrupt cutoff"` erzwingt länger. Wird von der Iteration automatisch gesetzt.
 - **Widersprüche im Basis-Prompt bereinigen:** `dark reverb` kämpft gegen einen Kürzungs-Hinweis
@@ -110,11 +113,11 @@ Buff-Fenster („10 s erhöhter Schaden"), DoT-Brennen, Welt-Ambiente, Zeitdruck
 > Hier ist **eine feste Datei grundsätzlich falsch** — der Spieler kann abbrechen, der Buff kann
 > früher enden. Standard-Architektur im Spiele-Audio, dreiteilig:
 >
-> | Teil | Quelle | Abspielweise |
-> |------|--------|--------------|
-> | **Ansatz** (attack) | One-Shot | einmal beim Start |
-> | **Körper** (body) | **Loop-Modus** | in Schleife, solange der Effekt läuft |
-> | **Ausklang** (release) | One-Shot | einmal beim Enden/Abbrechen |
+> | Teil                   | Quelle         | Abspielweise                          |
+> | ---------------------- | -------------- | ------------------------------------- |
+> | **Ansatz** (attack)    | One-Shot       | einmal beim Start                     |
+> | **Körper** (body)      | **Loop-Modus** | in Schleife, solange der Effekt läuft |
+> | **Ausklang** (release) | One-Shot       | einmal beim Enden/Abbrechen           |
 >
 > Ein 30-Sekunden-Kanalisieren spielt dieselbe Schleife dreimal — kostet keine zusätzlichen
 > Assets. Die Web Audio API kann per `loopStart`/`loopEnd` lückenlos schleifen.
@@ -133,7 +136,7 @@ Buff-Fenster („10 s erhöhter Schaden"), DoT-Brennen, Welt-Ambiente, Zeitdruck
 3. **Automatische Nachbearbeitung** (`sfx-post.sh`, wird von `batch` selbst aufgerufen):
    Stille weg → auf Ziel-Länge kürzen mit Ausblendung → Lautheit normalisieren → OGG.
    Loops: nur normalisieren.
-4. **Abhör-Soundboard** — der User hört alle Kandidaten ab und markiert *behalten / neu*.
+4. **Abhör-Soundboard** — der User hört alle Kandidaten ab und markiert _behalten / neu_.
    (Claude kann nicht hören — der User ist die ästhetische QA; die technische macht das Werkzeug.)
 5. **Einbindung im Spiel** über die Web Audio API: latenzfreies Abspielen auf Tastendruck,
    Mixing, leichte Tonhöhen-Variation bei Wiederholungen (z.B. Crits) gegen Monotonie,
@@ -147,37 +150,37 @@ Buff-Fenster („10 s erhöhter Schaden"), DoT-Brennen, Welt-Ambiente, Zeitdruck
 
 **One-Shots — Zauber & Treffer**
 
-| Slot | Prompt-Entwurf | T |
-|------|---------------|---|
-| Feuerball-Impact | `fiery whoosh into heavy impact, crackling flame tail, fantasy spell hit` | 1,2 s |
-| Frost-Zauber | `sharp icy crystalline shatter, cold shimmer tail, frost magic hit` | 1,0 s |
-| Arkan/Generic Hit | `bright arcane zap impact, short magical shimmer tail, fantasy spell` | 0,8 s |
-| Crit-Verstärker | `massive impact hit with deep sub boom and debris tail, powerful critical strike` | 1,5 s |
-| DoT-Applikation | `dark sizzling ignition, burning crackle` | 0,8 s |
-| Heilung | `warm soft chime swell with gentle shimmer, healing glow` | 1,2 s |
-| Schutzschild auf | `deep resonant energy barrier activation, metallic hum` | 1,0 s |
-| Spell Reflect | `sharp metallic deflection ping with reverse whoosh` | 0,5 s |
+| Slot              | Prompt-Entwurf                                                                    | T     |
+| ----------------- | --------------------------------------------------------------------------------- | ----- |
+| Feuerball-Impact  | `fiery whoosh into heavy impact, crackling flame tail, fantasy spell hit`         | 1,2 s |
+| Frost-Zauber      | `sharp icy crystalline shatter, cold shimmer tail, frost magic hit`               | 1,0 s |
+| Arkan/Generic Hit | `bright arcane zap impact, short magical shimmer tail, fantasy spell`             | 0,8 s |
+| Crit-Verstärker   | `massive impact hit with deep sub boom and debris tail, powerful critical strike` | 1,5 s |
+| DoT-Applikation   | `dark sizzling ignition, burning crackle`                                         | 0,8 s |
+| Heilung           | `warm soft chime swell with gentle shimmer, healing glow`                         | 1,2 s |
+| Schutzschild auf  | `deep resonant energy barrier activation, metallic hum`                           | 1,0 s |
+| Spell Reflect     | `sharp metallic deflection ping with reverse whoosh`                              | 0,5 s |
 
 **One-Shots — UI & Ereignisse**
 
-| Slot | Prompt-Entwurf | T |
-|------|---------------|---|
-| Spell ready | `short bright chime, ascending, subtle, UI notification` | 0,4 s |
-| Fehleingabe | `dull muted thud click, short, UI error, subtle` | 0,25 s |
-| Countdown-Tick | `soft wooden tick, metronome click` | 0,15 s |
-| Kampfstart | `deep braam with rising tension riser, battle start stinger` | 2,0 s |
-| Boss-Kill | `heavy metallic gong impact, dark reverb, victorious dark fantasy stinger` | 2,5 s |
-| Neue Bestzeit | `triumphant short fanfare stinger, bright brass and shimmer` | 2,0 s |
+| Slot           | Prompt-Entwurf                                                             | T      |
+| -------------- | -------------------------------------------------------------------------- | ------ |
+| Spell ready    | `short bright chime, ascending, subtle, UI notification`                   | 0,4 s  |
+| Fehleingabe    | `dull muted thud click, short, UI error, subtle`                           | 0,25 s |
+| Countdown-Tick | `soft wooden tick, metronome click`                                        | 0,15 s |
+| Kampfstart     | `deep braam with rising tension riser, battle start stinger`               | 2,0 s  |
+| Boss-Kill      | `heavy metallic gong impact, dark reverb, victorious dark fantasy stinger` | 2,5 s  |
+| Neue Bestzeit  | `triumphant short fanfare stinger, bright brass and shimmer`               | 2,0 s  |
 
 **Sustained — dreiteilig (Ansatz / Körper / Ausklang)**
 
-| Effekt | Ansatz (One-Shot) | Körper (LOOP) | Ausklang (One-Shot) |
-|--------|-------------------|---------------|---------------------|
-| Kanalisierter Zauber | `energy channel start, rising hum` (0,4 s) | `sustained magical channeling hum, seamless loop` | `energy channel release, fading hum` (0,6 s) |
-| Schadens-Buff-Fenster | `power surge activation, bright swell` (0,6 s) | `empowered magical aura hum, seamless loop` | `power fading down, soft release` (0,8 s) |
-| DoT brennt | `ignition whoosh` (0,3 s) | `steady burning crackle, seamless loop` | `flame extinguish hiss` (0,5 s) |
-| Zeit fast abgelaufen | — | `tense heartbeat pulse with low rumble, seamless loop` | — |
-| Welt-Ambiente (je Welt) | — | `dark volcanic ambience, distant lava rumble and ember crackle, seamless loop` | — |
+| Effekt                  | Ansatz (One-Shot)                              | Körper (LOOP)                                                                  | Ausklang (One-Shot)                          |
+| ----------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------- |
+| Kanalisierter Zauber    | `energy channel start, rising hum` (0,4 s)     | `sustained magical channeling hum, seamless loop`                              | `energy channel release, fading hum` (0,6 s) |
+| Schadens-Buff-Fenster   | `power surge activation, bright swell` (0,6 s) | `empowered magical aura hum, seamless loop`                                    | `power fading down, soft release` (0,8 s)    |
+| DoT brennt              | `ignition whoosh` (0,3 s)                      | `steady burning crackle, seamless loop`                                        | `flame extinguish hiss` (0,5 s)              |
+| Zeit fast abgelaufen    | —                                              | `tense heartbeat pulse with low rumble, seamless loop`                         | —                                            |
+| Welt-Ambiente (je Welt) | —                                              | `dark volcanic ambience, distant lava rumble and ember crackle, seamless loop` | —                                            |
 
 > Für Ambiente pro Welt die **Tonart fixieren** (Key-Feld), dann klingt eine Welt „aus einem Guss".
 > Die Slot-Liste wächst mit dem Spell-Katalog aus dem Game-Design-Dokument.
@@ -209,34 +212,39 @@ playwright-cli -s=suno state-save /work/rota/.suno-state.json  # gitignored!
 
 ```json
 [
-  {"name": "spell-fire",    "prompt": "fiery whoosh into heavy impact ...", "target_s": 1.2},
-  {"name": "boss-kill",     "prompt": "heavy metallic gong impact ...", "target_s": 2.5,
-                            "tol": 0.5, "attempts": 3},
-  {"name": "amb-fireworld", "prompt": "dark volcanic ambience ...", "loop": true}
+  { "name": "spell-fire", "prompt": "fiery whoosh into heavy impact ...", "target_s": 1.2 },
+  {
+    "name": "boss-kill",
+    "prompt": "heavy metallic gong impact ...",
+    "target_s": 2.5,
+    "tol": 0.5,
+    "attempts": 3
+  },
+  { "name": "amb-fireworld", "prompt": "dark volcanic ambience ...", "loop": true }
 ]
 ```
 
-| Feld | Bedeutung |
-|------|-----------|
+| Feld       | Bedeutung                                                                                                                                                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `target_s` | Ziel-Länge des **hörbaren** Anteils. Löst die Iteration aus: generieren → messen → Prompt nachsteuern (Ausklang-Vokabular + `negative_tags`) → wiederholen. Gewählt wird der **kürzeste Kandidat ≥ Ziel**, den die Nachbearbeitung dann exakt auf `target_s` bringt. |
-| `tol` | Toleranz in Sekunden (default 0,4) |
-| `attempts` | max. Generierungs-Versuche (default 3) |
-| `loop` | Loop-Modus. Schließt `target_s` aus — die Länge steuert das Spiel durch Wiederholen. Ränder werden nie beschnitten. |
+| `tol`      | Toleranz in Sekunden (default 0,4)                                                                                                                                                                                                                                   |
+| `attempts` | max. Generierungs-Versuche (default 3)                                                                                                                                                                                                                               |
+| `loop`     | Loop-Modus. Schließt `target_s` aus — die Länge steuert das Spiel durch Wiederholen. Ränder werden nie beschnitten.                                                                                                                                                  |
 
 Zwischenergebnisse landen in `<outdir>/candidates/`, der gewählte Kandidat als `<name>-a.mp3`,
 das Endprodukt nach der Nachbearbeitung in `<outdir>/../final/<name>.ogg`.
 
 **Technik:**
 
-| Baustein | Detail |
-|----------|--------|
-| Auth | Clerk. Kurzlebiger JWT (~60 s) wird pro Aufruf frisch geminted: `POST auth.suno.com/v1/client/sessions/{sid}/tokens` mit `__client`-Cookie. Session-ID steckt im `clerk_active_context`-Cookie. |
-| **Cookie-Scoping ist kritisch** | `__client` liegt auf `auth.suno.com`, `__session` auf `.suno.com`. Werden Cookies nur für eine Domain gesetzt → `403 client_not_found`. Alle Suno-Cookies domain-korrekt übernehmen. |
-| Generate | `POST studio-api-prod.suno.com/api/generate/v2-web/` mit `Authorization: Bearer <jwt>`, `task: "sound"`, `mv: "chirp-fenix"`, Prompt in `tags` (nicht `prompt`!), `make_instrumental: true`. |
-| **Loop-Schalter** | `metadata.sound_configs.user_loop: true/false` — direkt im Payload, kein UI-Umschalten nötig. |
-| **Kein Captcha** | Der echte Request enthält `"token": null, "token_provider": null` — Turnstile/hCaptcha werden auf der Seite geladen, sind für die Sound-Generierung aber nicht scharf. |
-| Antwort | `{"clips": [{id: ...}, {id: ...}]}` — zwei Entwürfe, sofort. |
-| Download | `https://cdn1.suno.ai/{clip-id}.mp3`, ohne Auth. Polling bis HTTP 200 (Rendering dauert ~20–60 s). |
+| Baustein                        | Detail                                                                                                                                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth                            | Clerk. Kurzlebiger JWT (~60 s) wird pro Aufruf frisch geminted: `POST auth.suno.com/v1/client/sessions/{sid}/tokens` mit `__client`-Cookie. Session-ID steckt im `clerk_active_context`-Cookie. |
+| **Cookie-Scoping ist kritisch** | `__client` liegt auf `auth.suno.com`, `__session` auf `.suno.com`. Werden Cookies nur für eine Domain gesetzt → `403 client_not_found`. Alle Suno-Cookies domain-korrekt übernehmen.            |
+| Generate                        | `POST studio-api-prod.suno.com/api/generate/v2-web/` mit `Authorization: Bearer <jwt>`, `task: "sound"`, `mv: "chirp-fenix"`, Prompt in `tags` (nicht `prompt`!), `make_instrumental: true`.    |
+| **Loop-Schalter**               | `metadata.sound_configs.user_loop: true/false` — direkt im Payload, kein UI-Umschalten nötig.                                                                                                   |
+| **Kein Captcha**                | Der echte Request enthält `"token": null, "token_provider": null` — Turnstile/hCaptcha werden auf der Seite geladen, sind für die Sound-Generierung aber nicht scharf.                          |
+| Antwort                         | `{"clips": [{id: ...}, {id: ...}]}` — zwei Entwürfe, sofort.                                                                                                                                    |
+| Download                        | `https://cdn1.suno.ai/{clip-id}.mp3`, ohne Auth. Polling bis HTTP 200 (Rendering dauert ~20–60 s).                                                                                              |
 
 **Verifiziert (2026-07-26):** `auth-test` → HTTP 200, 10.805 Credits · `gen` One-Shot → 2× 1,80 s ·
 `gen --loop` → 2× 8,2/9,4 s · `batch` mit 2 Einträgen → 4 Dateien. Alle 48 kHz Stereo MP3.
@@ -262,10 +270,10 @@ Läuft automatisch bei jedem `refresh_state()`/`save-state`. Verifiziert: 122 �
 
 Der Normalbetrieb läuft **ohne Browser**. Nur zwei Situationen fassen ihn an:
 
-| Situation | Warum |
-|---|---|
-| Captcha-Challenge (`422`) | Der Token entsteht nur in der echten Seite — ein Seiten-Klick erzeugt den Sound und schaltet die API wieder frei |
-| Cookies rotiert/abgelaufen | `refresh_state()` sichert sie neu aus der laufenden Browser-Sitzung |
+| Situation                  | Warum                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Captcha-Challenge (`422`)  | Der Token entsteht nur in der echten Seite — ein Seiten-Klick erzeugt den Sound und schaltet die API wieder frei |
+| Cookies rotiert/abgelaufen | `refresh_state()` sichert sie neu aus der laufenden Browser-Sitzung                                              |
 
 Läuft keine Browser-Sitzung, startet `playwright-cli` bei einem solchen Befehl automatisch eine
 neue — die ist dann aber nicht eingeloggt. Deshalb: Sitzung offen lassen, oder nach dem Login
@@ -280,7 +288,7 @@ reinen API-Aufrufen:
 2. Ab ca. dem dritten Aufruf: `HTTP 422 token_validation_failed`, `retryable: false` — dauerhaft,
    auch nach Wartezeit.
 3. **Eine** Generierung über die echte Seite mintet einen Token (`token: "1.OVrEc8Vz...",
-   token_provider: 2`) und **stellt das Vertrauen für die Sitzung wieder her** — danach laufen
+token_provider: 2`) und **stellt das Vertrauen für die Sitzung wieder her** — danach laufen
    direkte API-Aufrufe wieder durch (verifiziert).
 
 Deshalb: `make_sound()` = **API-first mit automatischem Seiten-Fallback**. Der Browser wird nur
@@ -292,14 +300,14 @@ zugleich wieder frei. `PACING_S = 5` hält den Abstand zwischen Generierungen be
 
 ### 7.5 Dauer-Verhalten (gemessen 2026-07-26, je 2 Varianten pro Prompt)
 
-| Prompt-Angabe | Container A/B | **Reiner Ton** A/B |
-|---|---|---|
-| „0.5 seconds" | 1,80 / 1,80 s | 0,87 / 0,85 s |
-| „1 second" | 1,80 / 1,80 s | 0,43 / 0,99 s |
-| „2 seconds duration" | 2,72 / 7,32 s | 1,76 / 2,06 s |
-| „5 seconds duration" | 1,80 / 1,80 s | 0,84 / 1,12 s |
-| „10 seconds duration" | 3,80 / 1,80 s | 2,46 / 0,93 s |
-| *ohne Angabe* | 2,16 / 1,80 s | 0,62 / 0,88 s |
+| Prompt-Angabe         | Container A/B | **Reiner Ton** A/B |
+| --------------------- | ------------- | ------------------ |
+| „0.5 seconds"         | 1,80 / 1,80 s | 0,87 / 0,85 s      |
+| „1 second"            | 1,80 / 1,80 s | 0,43 / 0,99 s      |
+| „2 seconds duration"  | 2,72 / 7,32 s | 1,76 / 2,06 s      |
+| „5 seconds duration"  | 1,80 / 1,80 s | 0,84 / 1,12 s      |
+| „10 seconds duration" | 3,80 / 1,80 s | 2,46 / 0,93 s      |
+| _ohne Angabe_         | 2,16 / 1,80 s | 0,62 / 0,88 s      |
 
 **Fazit:**
 
@@ -320,7 +328,7 @@ Wird von `batch` automatisch aufgerufen. Steuerung über `<in-dir>/lengths.json`
 (schreibt `batch` selbst aus dem Manifest):
 
 ```json
-{"boss-kill": 2.5, "amb-fireworld": {"loop": true}}
+{ "boss-kill": 2.5, "amb-fireworld": { "loop": true } }
 ```
 
 **One-Shots:** Stille vorn/hinten entfernen (−50 dB) → falls länger als Ziel: auf Ziel kürzen mit
@@ -331,13 +339,13 @@ exponentieller Ausblendung (20 % der Ziel-Länge, max. 0,25 s) → Lautheit norm
 
 Verifiziert:
 
-| Datei | vorher | nachher |
-|---|---|---|
-| Stille-Entfernung | 1,80 s | 0,87 s |
-| Stille-Entfernung | 3,80 s | 2,46 s |
-| Kürzen auf 2,0 s | 13,88 s | **2,00 s** (0,25 s Ausblendung) |
-| Kürzen auf 5,0 s | 11,80 s | **5,00 s** (0,25 s Ausblendung) |
-| Loop, unangetastet | 8,20 s | 8,30 s (nur Pegel) |
+| Datei              | vorher  | nachher                         |
+| ------------------ | ------- | ------------------------------- |
+| Stille-Entfernung  | 1,80 s  | 0,87 s                          |
+| Stille-Entfernung  | 3,80 s  | 2,46 s                          |
+| Kürzen auf 2,0 s   | 13,88 s | **2,00 s** (0,25 s Ausblendung) |
+| Kürzen auf 5,0 s   | 11,80 s | **5,00 s** (0,25 s Ausblendung) |
+| Loop, unangetastet | 8,20 s  | 8,30 s (nur Pegel)              |
 
 ### 7.7 Sitzungs-Ablauf (Clerk-Cookies)
 
@@ -347,10 +355,10 @@ das Zugriffsmuster, ist nicht unterscheidbar).
 
 Zwei Stufen, die erste läuft automatisch:
 
-| Symptom | Ursache | Behandlung |
-|---|---|---|
-| `403 client_not_found` | Cookies im State-File veraltet (Rotation) | **automatisch**: `refresh_state()` sichert die Cookies neu aus dem laufenden Browser und wiederholt einmal |
-| `403 client_user_not_found` nach dem Auffrischen | Browser selbst ausgeloggt | **manuell**: im sichtbaren Browserfenster neu einloggen, dann `state-save` |
+| Symptom                                          | Ursache                                   | Behandlung                                                                                                 |
+| ------------------------------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `403 client_not_found`                           | Cookies im State-File veraltet (Rotation) | **automatisch**: `refresh_state()` sichert die Cookies neu aus dem laufenden Browser und wiederholt einmal |
+| `403 client_user_not_found` nach dem Auffrischen | Browser selbst ausgeloggt                 | **manuell**: im sichtbaren Browserfenster neu einloggen, dann `state-save`                                 |
 
 ```bash
 playwright-cli -s=suno open https://suno.com/create --headed   # User loggt ein
@@ -370,11 +378,11 @@ tools/suno-sfx.sh "<prompt>" <basename> [outdir]
 
 ### 7.9 Weitere Erkenntnisse aus dem Reverse-Engineering
 
-| Erkenntnis | Detail |
-|------------|--------|
-| **CDN-Direktlink** | `https://cdn1.suno.ai/{song-id}.mp3` — HTTP 200 sobald fertig gerendert, ohne Auth abrufbar. Song-IDs stehen im DOM als `/song/{uuid}`-Links im Workspace. |
-| **Dauer-Angabe unzuverlässig** | „1 second" im Prompt lieferte 1,8–3,4 s (One-Shots), Loops 8–9,5 s. Trimmen in der Nachbearbeitung ist PFLICHT (ffmpeg silenceremove + Ziel-Länge). |
-| **2 Entwürfe pro Generierung** | Beide werden heruntergeladen (`-a.mp3`/`-b.mp3`); da Claude nicht hören kann, entscheidet der User am Soundboard — oder Variante A wird als Default genommen. |
+| Erkenntnis                             | Detail                                                                                                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CDN-Direktlink**                     | `https://cdn1.suno.ai/{song-id}.mp3` — HTTP 200 sobald fertig gerendert, ohne Auth abrufbar. Song-IDs stehen im DOM als `/song/{uuid}`-Links im Workspace.                                                    |
+| **Dauer-Angabe unzuverlässig**         | „1 second" im Prompt lieferte 1,8–3,4 s (One-Shots), Loops 8–9,5 s. Trimmen in der Nachbearbeitung ist PFLICHT (ffmpeg silenceremove + Ziel-Länge).                                                           |
+| **2 Entwürfe pro Generierung**         | Beide werden heruntergeladen (`-a.mp3`/`-b.mp3`); da Claude nicht hören kann, entscheidet der User am Soundboard — oder Variante A wird als Default genommen.                                                 |
 | **Snapshot statt Koordinaten (Weg B)** | `playwright-cli snapshot` liefert Element-Refs (Textbox, Create-Button) — Bedienung ohne Maus-Koordinaten und ohne Popup-Menüs. Refs IMMER frisch greppen (Attribute wie `[active]` können dazwischenstehen). |
 
 ## 8. Quellen

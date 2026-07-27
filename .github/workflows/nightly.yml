@@ -1,0 +1,46 @@
+name: Nightly
+
+# Alles Schwere. Blockiert nie einen PR (WORKER-GUIDE: PR-Gate unter 3 Minuten).
+# Der Balance-Lauf mit tausenden Durchgängen gehört genau hierhin.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  balance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Referenz-Rechnung Schritt 1
+        run: python3 tools/step1-check.py
+      - name: Balance-Lauf
+        shell: bash
+        run: |
+          if [ -d sim ]; then
+            echo "Simulator vorhanden — voller Balance-Lauf folgt mit Epic E2."
+          else
+            echo "Simulator noch nicht gebaut (Epic E2). Übersprungen."
+          fi
+      - name: Boss-Machbarkeit und Erfolgs-Prüflauf
+        run: echo "Folgt mit Epic E2 (GAME-DESIGN 18.5 und 12.9)."
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: CodeQL
+        shell: bash
+        run: |
+          if [ -f package.json ]; then
+            echo "CodeQL wird aktiviert, sobald TypeScript-Code vorliegt (Epic E1)."
+          else
+            echo "Noch kein Code. Übersprungen."
+          fi

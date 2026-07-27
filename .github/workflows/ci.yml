@@ -1,0 +1,229 @@
+name: CI
+
+# Ziel: PR-Gate unter 3 Minuten (siehe docs/WORKER-GUIDE.md).
+# Der Overhead je Issue ist der ganze Zyklus, nicht nur die CI-Zeit — deshalb
+# laufen hier nur die Prüfungen, die JEDE Änderung betreffen. Alles Schwere
+# (Balance-Lauf, Boss-Machbarkeit, CodeQL) läuft nachts in nightly.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Ein neuer Push bricht den vorherigen Lauf ab.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- Pfad-Filter
+  # Reine Doku-Änderungen überspringen alle Code-Jobs. Ohne das zahlt jede
+  # Korrektur an einer Markdown-Datei die volle Bauzeit.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      sim: ${{ steps.filter.outputs.sim }}
+      rules: ${{ steps.filter.outputs.rules }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            FILES=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
+          else
+            FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git ls-files)
+          fi
+          echo "Geänderte Dateien:"
+          printf '%s\n' "$FILES"
+
+          # Gibt "true"/"false" zurück, je nachdem ob eine Datei auf das Muster passt.
+          match() { if printf '%s\n' "$FILES" | grep -qE "$1"; then echo true; else echo false; fi; }
+          # "code" ist alles außer reiner Dokumentation.
+          nondoc() { if printf '%s\n' "$FILES" | grep -qvE '^(docs/|.*\.md)$'; then echo true; else echo false; fi; }
+
+          {
+            echo "code=$(nondoc)"
+            echo "sim=$(match '^sim/')"
+            echo "rules=$(match '^(data/|src/core/|sim/)')"
+          } >> "$GITHUB_OUTPUT"
+      - name: Ergebnis
+        run: |
+          echo "code=${{ steps.filter.outputs.code }}"
+          echo "sim=${{ steps.filter.outputs.sim }}"
+          echo "rules=${{ steps.filter.outputs.rules }}"
+
+  # ------------------------------------------------------------------ TypeScript
+  lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+      # CVE-2021-42574 (Trojan Source): unsichtbare Steuerzeichen können den
+      # Quelltext anders aussehen lassen, als der Compiler ihn liest.
+      - name: Versteckte Unicode-Steuerzeichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Bidi-Overrides und Zero-Width-Zeichen
+          PATTERN=$'‪|‫|‬|‭|‮|⁦|⁧|⁨|⁩|​|‌|‍|﻿'
+          if grep -rlP "$PATTERN" --include='*.ts' --include='*.js' --include='*.json' --include='*.html' --include='*.css' . ; then
+            echo "::error::Versteckte Unicode-Steuerzeichen gefunden (CVE-2021-42574)."
+            exit 1
+          fi
+          echo "Keine versteckten Steuerzeichen gefunden."
+
+  typecheck:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  unit:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # GAME-DESIGN 19.3: Die Entwicklungs-Werkzeuge müssen aus der
+      # Auslieferung vollständig herausgeschnitten sein — kein Byte davon.
+      - name: Dev-Werkzeuge nicht im Auslieferungs-Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rl "__ROTA_DEVTOOLS__" dist/ 2>/dev/null; then
+            echo "::error::Dev-Werkzeuge sind im Auslieferungs-Bundle gelandet."
+            exit 1
+          fi
+          echo "Auslieferungs-Bundle enthält keine Dev-Werkzeuge."
+
+  # ---------------------------------------------------------- Rust (Simulator)
+  # Läuft nur, wenn sim/ betroffen ist — sonst zahlt jede TypeScript-Änderung
+  # Rust-Bauzeit.
+  sim:
+    needs: changes
+    if: needs.changes.outputs.sim == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: sim
+      - run: cargo fmt --all --check
+        working-directory: sim
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: sim
+      - run: cargo test
+        working-directory: sim
+
+  # ------------------------------------------------------------------- Parität
+  # Aufgezeichnete Runden müssen in Spiel UND Simulator denselben Wert ergeben
+  # (GAME-DESIGN 18.4). Läuft nur, wenn die Regeln betroffen sind.
+  parity:
+    needs: changes
+    if: needs.changes.outputs.rules == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Referenz-Rechnung Schritt 1
+        run: python3 tools/step1-check.py
+      - name: Gemeinsame Prüffälle
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d tests/parity ]; then
+            npm ci && npm run test:parity
+          else
+            echo "Noch keine Prüffälle vorhanden (kommt mit Epic E2). Übersprungen."
+          fi
+
+  # -------------------------------------------------------------------- ci-pass
+  # DER EINZIGE REQUIRED CHECK.
+  #
+  # Warum das der wichtigste Job der Datei ist: Die Branch Protection muss nie
+  # wieder angefasst werden, wenn ein Job dazukommt oder umbenannt wird. Genau
+  # dort verliert man sonst bei jedem Umbau eine halbe Stunde.
+  #
+  # if: always() ist zwingend — ohne das würde ci-pass selbst übersprungen,
+  # sobald ein benötigter Job übersprungen wurde, und der Required Check bliebe
+  # ewig "pending".
+  ci-pass:
+    needs: [changes, lint, typecheck, unit, build, sim, parity]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ergebnisse aller Jobs prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A R=(
+            [lint]="${{ needs.lint.result }}"
+            [typecheck]="${{ needs.typecheck.result }}"
+            [unit]="${{ needs.unit.result }}"
+            [build]="${{ needs.build.result }}"
+            [sim]="${{ needs.sim.result }}"
+            [parity]="${{ needs.parity.result }}"
+          )
+          FAILED=0
+          for job in "${!R[@]}"; do
+            case "${R[$job]}" in
+              success)   printf '  %-12s bestanden\n' "$job" ;;
+              skipped)   printf '  %-12s übersprungen (Pfad-Filter)\n' "$job" ;;
+              *)         printf '  %-12s FEHLGESCHLAGEN (%s)\n' "$job" "${R[$job]}"; FAILED=1 ;;
+            esac
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::Mindestens ein Job ist fehlgeschlagen."
+            exit 1
+          fi
+          echo "Alle Jobs bestanden oder bewusst übersprungen."

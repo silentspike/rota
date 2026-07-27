@@ -14,13 +14,13 @@ refs:
 
 ## Wie dieses Dokument zu benutzen ist
 
-| Du willst … | Lies |
-|---|---|
-| überhaupt anfangen | Kapitel 1–3 |
-| eine Spielmechanik bauen | Kapitel 4–7, 11 |
-| am HUD arbeiten | Kapitel 8–10 |
-| am Fortschritt arbeiten | Kapitel 12–14 |
-| Technik/Architektur | Kapitel 18–19 |
+| Du willst …              | Lies                                                            |
+| ------------------------ | --------------------------------------------------------------- |
+| überhaupt anfangen       | Kapitel 1–3                                                     |
+| eine Spielmechanik bauen | Kapitel 4–7, 11                                                 |
+| am HUD arbeiten          | Kapitel 8–10                                                    |
+| am Fortschritt arbeiten  | Kapitel 12–14                                                   |
+| Technik/Architektur      | Kapitel 18–19                                                   |
 | **eine Idee einbringen** | **Kapitel 21 ZUERST** — dort steht, was bereits verworfen wurde |
 
 > **Kapitel 21 ist Pflichtlektüre vor jeder Design-Entscheidung.** Jede Zeile dort war eine bewusste
@@ -44,16 +44,16 @@ letzter Anreiz bleibt.
 
 **Zwei Spielphasen mit völlig unterschiedlichem Charakter:**
 
-| Phase | Charakter | Ziel-Spielzeit |
-|---|---|---|
-| **Stufe 1–100** | Ein **Durchspielen** — man kommt voran, lernt Zauber und Mechaniken, scheitert selten dauerhaft | **~24 Stunden** |
-| **Endgame** | Ein **harter Grind** — viele Versuche je Boss, hohe Anforderungen | **~300 Stunden** |
+| Phase           | Charakter                                                                                       | Ziel-Spielzeit   |
+| --------------- | ----------------------------------------------------------------------------------------------- | ---------------- |
+| **Stufe 1–100** | Ein **Durchspielen** — man kommt voran, lernt Zauber und Mechaniken, scheitert selten dauerhaft | **~24 Stunden**  |
+| **Endgame**     | Ein **harter Grind** — viele Versuche je Boss, hohe Anforderungen                               | **~300 Stunden** |
 
 **Kein WoW-Klon.** World of Warcraft dient ausschließlich als Vorbild für **Mechanik**. Namen, Welt,
 Begriffe und Ästhetik sind eigenständig.
 
 **Die Welt: Alchemie.** Ein namenloser Alchemist an seinem Werktisch; die Bosse sind
-**Transmutationen, die schiefgehen**. Der Spieler *ist* der Alchemist — nie gezeigt, weil man aus
+**Transmutationen, die schiefgehen**. Der Spieler _ist_ der Alchemist — nie gezeigt, weil man aus
 seinen Augen schaut. Das HUD ist sein Werktisch.
 
 **Der Name ROTA** ist der Spieler-Ausdruck für Rotation und zugleich lateinisch für „Rad" — das
@@ -79,7 +79,7 @@ Wortgleich aus `/work/rota/CLAUDE.md`. Diese sechs Punkte stehen nicht zur Disku
 6. **Determinismus.** Keine Zufalls-Procs im Spieler-Kit. Synergien sind 100% planbar.
    Zufall existiert nur beim Zauberbuch-Draft (gelenkter Zufall).
 
-> **Zu Gesetz 6, wichtige Präzisierung:** *Krit ist die eine bewusste Ausnahme.* Kritische Treffer
+> **Zu Gesetz 6, wichtige Präzisierung:** _Krit ist die eine bewusste Ausnahme._ Kritische Treffer
 > werden echt gewürfelt (siehe 6.5). Gemeint ist: keine zufällig auslösenden Zauber-Effekte, keine
 > „20 % Chance, dass X passiert"-Mechaniken im Spieler-Kit.
 
@@ -100,16 +100,16 @@ Beim Entwerfen jeder Einzelheit gelten zusätzlich diese acht Sätze:
 
 ## 3. Spielkern
 
-| Thema | Festlegung |
-|---|---|
-| **Spieltiefe** | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns |
-| **Synergien** | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer |
-| **Eingabe** | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt) |
-| **Zauber-Typen** | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs. **Keine** Kanal-Zauber mit Tastenhalten |
-| **Umfang V1** | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36) |
-| **Höchststufe** | **100** |
-| **Talentpunkte** | **~50** (etwa jede zweite Stufe einer) |
-| **Zauber-Bestand** | **60** (12 je Schule), davon **12–16 gleichzeitig auf der Leiste** |
+| Thema              | Festlegung                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Spieltiefe**     | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns |
+| **Synergien**      | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                              |
+| **Eingabe**        | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                           |
+| **Zauber-Typen**   | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs. **Keine** Kanal-Zauber mit Tastenhalten                                       |
+| **Umfang V1**      | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                |
+| **Höchststufe**    | **100**                                                                                                                                    |
+| **Talentpunkte**   | **~50** (etwa jede zweite Stufe einer)                                                                                                     |
+| **Zauber-Bestand** | **60** (12 je Schule), davon **12–16 gleichzeitig auf der Leiste**                                                                         |
 
 Man besitzt also deutlich mehr Zauber, als man mitnehmen kann. Das ist Absicht: Die Zusammenstellung
 ist eine der beiden Kernaufgaben (die andere ist die Reihenfolge).
@@ -121,13 +121,13 @@ ist eine der beiden Kernaufgaben (die andere ist die Reihenfolge).
 Die Schulen sind **mechanische Rollen**, nicht nur Farben. Jede spielt sich anders.
 Namen sind echte alchemistische Prozesse, zugeordnet nach ihrer historischen Bedeutung.
 
-| Schule | Bedeutung | Rolle | Charakter |
-|---|---|---|---|
-| **CALCINATION** | Verbrennen | Aufbau / Schaden über Zeit | Effekte laufen weiter, Stärke sammelt sich an. Schwacher Start, starkes Ende; muss aufrechterhalten werden. Passt zu langen Endkämpfen |
-| **FIXATION** | Festmachen | Kontrolle des Bosses | Greift in das ein, was der Boss tut: verlangsamt seine Zauber (größeres Unterbrechen-Fenster), verzögert Angriffe. Die einzige Schule, die den Kampfverlauf selbst beeinflusst |
-| **SUBLIMATION** | Umwandeln | Cooldown-Manipulation | Wirkt auf das Rotations-System selbst: verkürzt Abklingzeiten. Der Rücksetzer-Zauber gehört hierher. Die Schule für Könner |
-| **COAGULATION** | Verfestigen | Überleben | Heilung, Schutzschilde, Reflexion. Auf hohen Schwierigkeitsstufen muss man Leisten-Plätze dafür opfern — echte Abwägung Schaden gegen Sicherheit |
-| **PUTREFACTION** | Zersetzen | Schwächung des Bosses | Erhöht nicht den eigenen Schaden, sondern lässt den Boss **von allen Quellen** mehr Schaden nehmen. Wirkt mit ALLEN anderen Schulen zusammen |
+| Schule           | Bedeutung   | Rolle                      | Charakter                                                                                                                                                                      |
+| ---------------- | ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **CALCINATION**  | Verbrennen  | Aufbau / Schaden über Zeit | Effekte laufen weiter, Stärke sammelt sich an. Schwacher Start, starkes Ende; muss aufrechterhalten werden. Passt zu langen Endkämpfen                                         |
+| **FIXATION**     | Festmachen  | Kontrolle des Bosses       | Greift in das ein, was der Boss tut: verlangsamt seine Zauber (größeres Unterbrechen-Fenster), verzögert Angriffe. Die einzige Schule, die den Kampfverlauf selbst beeinflusst |
+| **SUBLIMATION**  | Umwandeln   | Cooldown-Manipulation      | Wirkt auf das Rotations-System selbst: verkürzt Abklingzeiten. Der Rücksetzer-Zauber gehört hierher. Die Schule für Könner                                                     |
+| **COAGULATION**  | Verfestigen | Überleben                  | Heilung, Schutzschilde, Reflexion. Auf hohen Schwierigkeitsstufen muss man Leisten-Plätze dafür opfern — echte Abwägung Schaden gegen Sicherheit                               |
+| **PUTREFACTION** | Zersetzen   | Schwächung des Bosses      | Erhöht nicht den eigenen Schaden, sondern lässt den Boss **von allen Quellen** mehr Schaden nehmen. Wirkt mit ALLEN anderen Schulen zusammen                                   |
 
 > Jeder Name trägt seine Mechanik in sich — wer die Bedeutung einmal liest, vergisst die Zuordnung
 > nicht mehr. Das rechtfertigt die sperrigen Begriffe. Im Spiel steht überall der Klartext daneben:
@@ -138,13 +138,13 @@ Namen sind echte alchemistische Prozesse, zugeordnet nach ihrer historischen Bed
 **Keine Liste fester Zauber-Paare, sondern fünf Systeme.** Jede Schule hat eine tragende Mechanik,
 in die ihre zwölf Zauber einzahlen.
 
-| Schule | Zentrale Mechanik |
-|---|---|
-| **CALCINATION** | **Hitze sammeln und entladen.** Jede Wirkung erzeugt Hitze; **ein Entlade-Zauber verbraucht die gesamte angesammelte Hitze** und schlägt entsprechend hart zu. Klarer Rhythmus aus Aufbauen und Entladen — und die Entscheidung *wann* entladen wird, ist echte Planung. Der Entlade-Zauber ist damit Pflichtzauber der Schule |
-| **FIXATION** | **Kontroll-Punkte als Vorrat zum Ausgeben.** Fixierungs-Zauber bauen Punkte auf; der Spieler gibt sie gezielt aus, um Boss-Handlungen zu beeinflussen: einen Zauber verlangsamen, einen Schlag verzögern, eine Phase hinauszögern. Ein **Planungswerkzeug**, keine passive Wirkung |
-| **SUBLIMATION** | **Automatische Verkürzung aller Abklingzeiten.** Sublimations-Zauber verkürzen laufend alle Abklingzeiten um einen kleinen Betrag. Der **Cooldown-Rücksetzer** bleibt als eigener Zauber daneben bestehen: er setzt den *nächsten gewirkten* Zauber zurück |
-| **COAGULATION** | **Drei Wege nebeneinander:** (1) **Schutzschicht**, die eingehenden Schaden aufnimmt und sich stapeln lässt — belohnt Vorausschauen, weil sie VOR dem Schlag stehen muss; (2) **klassische Heilung**, die Fehler nachträglich verzeiht; (3) **Schaden-in-Schutz-Umwandlung**, die einen Teil des ausgeteilten Schadens laufend in Schutz verwandelt |
-| **PUTREFACTION** | **Zersetzungs-Stapel auf dem Boss.** Jede Wirkung legt einen Stapel an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen**. Stapel verfallen langsam, mit Obergrenze. Allein gespielt schwach — braucht immer Partner |
+| Schule           | Zentrale Mechanik                                                                                                                                                                                                                                                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CALCINATION**  | **Hitze sammeln und entladen.** Jede Wirkung erzeugt Hitze; **ein Entlade-Zauber verbraucht die gesamte angesammelte Hitze** und schlägt entsprechend hart zu. Klarer Rhythmus aus Aufbauen und Entladen — und die Entscheidung _wann_ entladen wird, ist echte Planung. Der Entlade-Zauber ist damit Pflichtzauber der Schule                      |
+| **FIXATION**     | **Kontroll-Punkte als Vorrat zum Ausgeben.** Fixierungs-Zauber bauen Punkte auf; der Spieler gibt sie gezielt aus, um Boss-Handlungen zu beeinflussen: einen Zauber verlangsamen, einen Schlag verzögern, eine Phase hinauszögern. Ein **Planungswerkzeug**, keine passive Wirkung                                                                  |
+| **SUBLIMATION**  | **Automatische Verkürzung aller Abklingzeiten.** Sublimations-Zauber verkürzen laufend alle Abklingzeiten um einen kleinen Betrag. Der **Cooldown-Rücksetzer** bleibt als eigener Zauber daneben bestehen: er setzt den _nächsten gewirkten_ Zauber zurück                                                                                          |
+| **COAGULATION**  | **Drei Wege nebeneinander:** (1) **Schutzschicht**, die eingehenden Schaden aufnimmt und sich stapeln lässt — belohnt Vorausschauen, weil sie VOR dem Schlag stehen muss; (2) **klassische Heilung**, die Fehler nachträglich verzeiht; (3) **Schaden-in-Schutz-Umwandlung**, die einen Teil des ausgeteilten Schadens laufend in Schutz verwandelt |
+| **PUTREFACTION** | **Zersetzungs-Stapel auf dem Boss.** Jede Wirkung legt einen Stapel an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen**. Stapel verfallen langsam, mit Obergrenze. Allein gespielt schwach — braucht immer Partner                                                                                                          |
 
 > **Warum fünf Systeme statt 120 Einzelregeln:** Man lernt fünf Mechaniken; jede Schule fühlt sich
 > völlig anders an; und **ein neuer Zauber fügt sich automatisch ein**, weil er auf eine bestehende
@@ -177,11 +177,11 @@ statt durch Verbot.**
 - SUBLIMATION setzt zurück → ein zweiter starker Zauber wird möglich
 - PUTREFACTION erhöht den Schaden aller anderen Schulen
 
-| Regel | Festlegung |
-|---|---|
-| **Synergie-Fenster** | **Zwei bis drei globale Wartezeiten** (3–5 s bei 1,5 s Grundtakt). Lang genug, dass es kein Reflextest ist; kurz genug, dass man nicht beliebig aufschieben kann. **In Wartezeiten gerechnet, nicht in Sekunden** — sonst verschiebt sich das Verhältnis bei hohem Tempo |
-| **Stapel-Regel** | **Verschiedene Bonus-Arten stapeln multiplikativ, gleiche Arten ersetzen einander.** Das Zusammenlegen aller großen Fähigkeiten zu einem gewaltigen Fenster wird damit zur Kernfertigkeit („Cooldown-Alignment"), aber derselbe Bonus lässt sich nicht stumpf mehrfach stapeln |
-| **Anzeige** | **Pulsierender Rahmen** am begünstigten Zauber, solange das Fenster offen ist |
+| Regel                | Festlegung                                                                                                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Synergie-Fenster** | **Zwei bis drei globale Wartezeiten** (3–5 s bei 1,5 s Grundtakt). Lang genug, dass es kein Reflextest ist; kurz genug, dass man nicht beliebig aufschieben kann. **In Wartezeiten gerechnet, nicht in Sekunden** — sonst verschiebt sich das Verhältnis bei hohem Tempo       |
+| **Stapel-Regel**     | **Verschiedene Bonus-Arten stapeln multiplikativ, gleiche Arten ersetzen einander.** Das Zusammenlegen aller großen Fähigkeiten zu einem gewaltigen Fenster wird damit zur Kernfertigkeit („Cooldown-Alignment"), aber derselbe Bonus lässt sich nicht stumpf mehrfach stapeln |
+| **Anzeige**          | **Pulsierender Rahmen** am begünstigten Zauber, solange das Fenster offen ist                                                                                                                                                                                                  |
 
 Die Bonus-Kategorien müssen im Hilfe-System erklärt werden (siehe 17.3).
 
@@ -197,21 +197,21 @@ gleichzeitig, und sie sitzen dort, wo der Blick ohnehin ist.
 
 Auf jedem der zehn Ausrüstungsplätze vorhanden:
 
-| Name | Ersetzt | Bedeutung in der Fiktion |
-|---|---|---|
+| Name        | Ersetzt     | Bedeutung in der Fiktion                                |
+| ----------- | ----------- | ------------------------------------------------------- |
 | **ESSENCE** | Intelligenz | Stärke der Substanz — erhöht den Schaden aller Prozesse |
-| **VESSEL** | Leben | Belastbarkeit des Gefäßes, das die Reaktion hält |
-| **WARD** | Rüstung | Schutzbannung gegen Rückschlag |
+| **VESSEL**  | Leben       | Belastbarkeit des Gefäßes, das die Reaktion hält        |
+| **WARD**    | Rüstung     | Schutzbannung gegen Rückschlag                          |
 
 ### 6.2 Sonderwerte
 
 Die drei Werte, die die Rotation tatsächlich beeinflussen:
 
-| Name | Ersetzt | Warum der Begriff passt |
-|---|---|---|
-| **CATALYSIS** | Tempo | Katalyse beschleunigt Reaktionen — fachlich exakt |
-| **PURITY** | Kritchance | Reinheit der Substanz |
-| **YIELD** | Kritschaden | Ausbeute |
+| Name          | Ersetzt     | Warum der Begriff passt                           |
+| ------------- | ----------- | ------------------------------------------------- |
+| **CATALYSIS** | Tempo       | Katalyse beschleunigt Reaktionen — fachlich exakt |
+| **PURITY**    | Kritchance  | Reinheit der Substanz                             |
+| **YIELD**     | Kritschaden | Ausbeute                                          |
 
 **CATALYSIS ist der einzige Wert, der die Rotation strukturell verändert** (kürzere globale
 Wartezeit und kürzere Abklingzeiten). Er wächst dauerhaft über Talente und kurzzeitig über
@@ -235,12 +235,12 @@ Fließkomma-Multiplikation ist nicht assoziativ, und beide Seiten müssen auf de
 
 ### 6.4 Zahlen-Rahmen
 
-| Größe | Festlegung |
-|---|---|
-| **Schadens-Größenordnung** | ~100 Schaden auf Stufe 1, einige zehntausend auf Stufe 100. Vier- bis fünfstellige Zahlen bleiben im Kampf lesbar |
-| **Wachstum** | **Gleichmäßig ~5 % je Stufe.** Über 100 Stufen ergibt das Faktor ~130. Jede Stufe fühlt sich gleich wertvoll an, alte Inhalte werden verlässlich leichter. Der genaue Prozentsatz wird am Simulator feinjustiert |
-| **Abklingzeiten** | **3–180 Sekunden, fein abgestuft, NUR ganze Sekunden.** Keine festen Klassen — jeder Zauber bekommt seinen individuell gewählten Wert. Die unregelmäßigen Überlagerungen machen die Rotation interessant und schwerer zu lernen (**gewollt**) |
-| **Globale Wartezeit** | **1,5 s**, per Talent senkbar bis ca. 1,0 s |
+| Größe                      | Festlegung                                                                                                                                                                                                                                    |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Schadens-Größenordnung** | ~100 Schaden auf Stufe 1, einige zehntausend auf Stufe 100. Vier- bis fünfstellige Zahlen bleiben im Kampf lesbar                                                                                                                             |
+| **Wachstum**               | **Gleichmäßig ~5 % je Stufe.** Über 100 Stufen ergibt das Faktor ~130. Jede Stufe fühlt sich gleich wertvoll an, alte Inhalte werden verlässlich leichter. Der genaue Prozentsatz wird am Simulator feinjustiert                              |
+| **Abklingzeiten**          | **3–180 Sekunden, fein abgestuft, NUR ganze Sekunden.** Keine festen Klassen — jeder Zauber bekommt seinen individuell gewählten Wert. Die unregelmäßigen Überlagerungen machen die Rotation interessant und schwerer zu lernen (**gewollt**) |
+| **Globale Wartezeit**      | **1,5 s**, per Talent senkbar bis ca. 1,0 s                                                                                                                                                                                                   |
 
 > **Warnung aus der Genre-Erfahrung:** WoW musste seine Zahlen zweimal zurücksetzen (2014, 2018),
 > Diablo 3 landete bei Billionen. Bei 5 % je Stufe bleiben wir weit davon entfernt — aber die
@@ -276,10 +276,10 @@ Abwägung, die COAGULATION interessant macht.
 
 ### 7.1 Zauberbalken und Wirkungsdauer — zwei getrennte Dinge
 
-| Art | Verhalten |
-|---|---|
-| **Zauberbalken (Wirkzeit)** | **Blockiert.** Während der Balken läuft, kann nichts anderes gewirkt werden. Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
-| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt |
+| Art                                              | Verhalten                                                                                                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zauberbalken (Wirkzeit)**                      | **Blockiert.** Während der Balken läuft, kann nichts anderes gewirkt werden. Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
+| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                            |
 
 **Abbruch eines Zauberbalkens: nur durch bestimmte, vorher erkennbare Boss-Angriffe.** Normale
 Treffer stören nicht. Bei Abbruch geht der Zauber verloren, **die Abklingzeit läuft aber nicht an**.
@@ -305,28 +305,28 @@ Wer sich sechs Brand-Effekte zumutet, hat sich bewusst dafür entschieden und wi
 
 Ein Zauber ist ein **Datensatz**, kein Code (Leitplanke 6). Felder:
 
-| Feld | Bedeutung |
-|---|---|
-| `id`, `name`, `school` | Kennung, englischer Anzeigename, Schule |
-| `baseDamage` | Grundschaden |
-| `cooldownS` | Abklingzeit in **ganzen Sekunden** |
-| `castTimeS` | Wirkzeit (0 = Sofort-Zauber) |
-| `triggersGcd` | true außer bei Unterbrechen |
-| `dot` | optional: `{ tickDamage, tickIntervalS, durationS }` |
-| `resourceGain` | was die Schul-Mechanik dazubekommt (Hitze, Kontroll-Punkte, Stapel) |
-| `synergy` | auf welche Ereignisse der Zauber reagiert und welchen Faktor er beisteuert |
-| `unlockLevel` | ab welcher Spielerstufe verfügbar |
+| Feld                   | Bedeutung                                                                  |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `id`, `name`, `school` | Kennung, englischer Anzeigename, Schule                                    |
+| `baseDamage`           | Grundschaden                                                               |
+| `cooldownS`            | Abklingzeit in **ganzen Sekunden**                                         |
+| `castTimeS`            | Wirkzeit (0 = Sofort-Zauber)                                               |
+| `triggersGcd`          | true außer bei Unterbrechen                                                |
+| `dot`                  | optional: `{ tickDamage, tickIntervalS, durationS }`                       |
+| `resourceGain`         | was die Schul-Mechanik dazubekommt (Hitze, Kontroll-Punkte, Stapel)        |
+| `synergy`              | auf welche Ereignisse der Zauber reagiert und welchen Faktor er beisteuert |
+| `unlockLevel`          | ab welcher Spielerstufe verfügbar                                          |
 
 Das genaue JSON-Format steht in [`STEP1-SPEC.md`](STEP1-SPEC.md) und wird von Spiel **und**
 Rust-Simulator geteilt.
 
 ### 7.4 Die drei schulunabhängigen Sonderzauber
 
-| Zauber | Leisten-Platz | GCD | Verfügbarkeit |
-|---|---|---|---|
-| **Unterbrechen** | belegt einen Platz | **kein GCD** | eigene Abklingzeit |
-| **Overdrive** | **kein Platz**, eigene Taste | — | **einmal pro Kampf**, frei zündbar |
-| **Spellsteal** | schulunabhängig | — | Fenster-abhängig |
+| Zauber           | Leisten-Platz                | GCD          | Verfügbarkeit                      |
+| ---------------- | ---------------------------- | ------------ | ---------------------------------- |
+| **Unterbrechen** | belegt einen Platz           | **kein GCD** | eigene Abklingzeit                 |
+| **Overdrive**    | **kein Platz**, eigene Taste | —            | **einmal pro Kampf**, frei zündbar |
+| **Spellsteal**   | schulunabhängig              | —            | Fenster-abhängig                   |
 
 **Overdrive** (ersetzt „Bloodlust"): kurzer, starker Tempo-Schub. **Jede Zusammenstellung hat ihn**
 → das Zünden im richtigen Moment ist eine Fähigkeit, die jeder lernen muss, und er ist der
@@ -359,13 +359,13 @@ Y  X  C  V      =  26 Belegungen
    Leertaste
 ```
 
-| Aspekt | Festlegung |
-|---|---|
+| Aspekt                                 | Festlegung                                                                                                                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt** |
-| **Umschalt** | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle |
-| **Leertaste** | Normale belegbare Taste, keine Sonderrolle |
-| **Leiste frei anordenbar** | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt** |
-| **Rechte Hand** | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung |
+| **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                    |
+| **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                      |
+| **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                |
+| **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                 |
 
 ### 8.2 Fehleingabe
 
@@ -383,27 +383,27 @@ siehe 19.1.)
 
 ## 9. HUD
 
-**Grundsatz:** Keine Spielfigur, kein Kreatur-Artwork. Das Spiel *ist* das HUD.
+**Grundsatz:** Keine Spielfigur, kein Kreatur-Artwork. Das Spiel _ist_ das HUD.
 
-| Element | Festlegung |
-|---|---|
-| **Boss** | **Großer Kreisring** in der Bildmitte = Lebensbalken und Boss-Darstellung zugleich. Es ist das **Reaktionsgefäß**; darin läuft eine Umwandlung außer Kontrolle. Identität durch Farbe, Segmentierung, Verhalten (springt/reißt bei Phasenwechsel, wird rot und vibriert bei Überdruck) |
-| **Abklingzeit** | **Wischblende + Zahl** — dunkler Schleier wandert wie ein Uhrzeiger weg, Restsekunden als Zahl |
-| **Globale Wartezeit** | **Eigene Darstellung**, deutlich unterscheidbar von der individuellen Abklingzeit |
-| **Bereit-Zustand** | Bereite Zauber leuchten, nicht bereite sind abgedunkelt. **Keine Empfehlung**, welcher Zauber der beste wäre |
-| **Synergie** | Pulsierender Rahmen am begünstigten Zauber |
-| **DPS-Anzeige** | Große Zahl + Verlaufskurve + gestrichelte Bestlauf-Linie. **Keine** Schadensaufschlüsselung pro Zauber während des Kampfes |
-| **Wucht** | Aufsteigende und verblassende Schadenszahlen, Aufblitzen bei Treffern, leichtes Bild-Ruckeln bei großen Schlägen, Splittern des Zauberbalkens beim Unterbrechen |
+| Element               | Festlegung                                                                                                                                                                                                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Boss**              | **Großer Kreisring** in der Bildmitte = Lebensbalken und Boss-Darstellung zugleich. Es ist das **Reaktionsgefäß**; darin läuft eine Umwandlung außer Kontrolle. Identität durch Farbe, Segmentierung, Verhalten (springt/reißt bei Phasenwechsel, wird rot und vibriert bei Überdruck) |
+| **Abklingzeit**       | **Wischblende + Zahl** — dunkler Schleier wandert wie ein Uhrzeiger weg, Restsekunden als Zahl                                                                                                                                                                                         |
+| **Globale Wartezeit** | **Eigene Darstellung**, deutlich unterscheidbar von der individuellen Abklingzeit                                                                                                                                                                                                      |
+| **Bereit-Zustand**    | Bereite Zauber leuchten, nicht bereite sind abgedunkelt. **Keine Empfehlung**, welcher Zauber der beste wäre                                                                                                                                                                           |
+| **Synergie**          | Pulsierender Rahmen am begünstigten Zauber                                                                                                                                                                                                                                             |
+| **DPS-Anzeige**       | Große Zahl + Verlaufskurve + gestrichelte Bestlauf-Linie. **Keine** Schadensaufschlüsselung pro Zauber während des Kampfes                                                                                                                                                             |
+| **Wucht**             | Aufsteigende und verblassende Schadenszahlen, Aufblitzen bei Treffern, leichtes Bild-Ruckeln bei großen Schlägen, Splittern des Zauberbalkens beim Unterbrechen                                                                                                                        |
 
 ### 9.1 Anordnung
 
-| Bereich | Ort |
-|---|---|
-| Zauberleiste | **unten links** |
-| Reaktionsgefäß-Ring | Bildmitte |
-| Instrumente und Anzeigen | **rechts** |
-| Schul-Mechanik-Anzeigen | direkt über der Zauberleiste |
-| Überdruck-Timer | oben links |
+| Bereich                  | Ort                          |
+| ------------------------ | ---------------------------- |
+| Zauberleiste             | **unten links**              |
+| Reaktionsgefäß-Ring      | Bildmitte                    |
+| Instrumente und Anzeigen | **rechts**                   |
+| Schul-Mechanik-Anzeigen  | direkt über der Zauberleiste |
+| Überdruck-Timer          | oben links                   |
 
 **Die Leiste bildet die Tastatur nach:** obere Reihe `Q W E R`, mittlere `A S D F`, untere `Y X C V`.
 **Auge und Finger lernen dieselbe Karte.** Wer das Symbol oben links sieht, weiß ohne Nachdenken,
@@ -433,12 +433,12 @@ bleiben Ränder frei.
 
 Nach alchemistischer Tradition (Nigredo, Albedo, Citrinitas, Rubedo) — **nicht** nach WoW-Elementen:
 
-| Schule | Farbe |
-|---|---|
-| CALCINATION | rot-orange |
-| FIXATION | weiß-blau |
-| SUBLIMATION | gelb-gold |
-| COAGULATION | grün-türkis |
+| Schule       | Farbe           |
+| ------------ | --------------- |
+| CALCINATION  | rot-orange      |
+| FIXATION     | weiß-blau       |
+| SUBLIMATION  | gelb-gold       |
+| COAGULATION  | grün-türkis     |
 | PUTREFACTION | schwarz-violett |
 
 > Schwarz-violett braucht auf dunklem Grund sorgfältige Abstimmung.
@@ -447,24 +447,24 @@ Nach alchemistischer Tradition (Nigredo, Albedo, Citrinitas, Rubedo) — **nicht
 
 Jede Bewegung ist über **Dauer, Kurve, Überschwingen, Verzögerung** exakt beschrieben:
 
-| Bewegung | Umsetzung |
-|---|---|
-| Wischblende | rotierende Maske, Winkel 0–360° |
-| Ring | SVG-Strichlänge |
-| Schadenszahl | Translation + Ausblendung über 700 ms |
-| Bild-Ruckeln | 6 px über 120 ms |
-| Synergie-Puls | Schwingung zweier Werte |
+| Bewegung      | Umsetzung                             |
+| ------------- | ------------------------------------- |
+| Wischblende   | rotierende Maske, Winkel 0–360°       |
+| Ring          | SVG-Strichlänge                       |
+| Schadenszahl  | Translation + Ausblendung über 700 ms |
+| Bild-Ruckeln  | 6 px über 120 ms                      |
+| Synergie-Puls | Schwingung zweier Werte               |
 
 ---
 
 ## 10. Kampfablauf
 
-| Phase | Verhalten |
-|---|---|
-| **Vorbereitung** | **Kein Ziel vorhanden** → alle Zauber auf den Boss sind ausgegraut. Selbst-Verstärkungen erlaubt, Abklingzeiten laufen mit. **Keine Uhr.** Schlechte Vorbereitung ist die Schuld des Spielers |
-| **Bereitschafts-Prüfung** | „Ready"-Knopf → **3 s Countdown** → Start. Uhr und Eingabe beginnen gleichzeitig |
-| **Kampf** | Rotation gegen den Überdruck-Timer |
-| **Ende** | Sieg · Spieler-Tod · Zeitablauf (Überdruck) · Abbruch |
+| Phase                     | Verhalten                                                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vorbereitung**          | **Kein Ziel vorhanden** → alle Zauber auf den Boss sind ausgegraut. Selbst-Verstärkungen erlaubt, Abklingzeiten laufen mit. **Keine Uhr.** Schlechte Vorbereitung ist die Schuld des Spielers |
+| **Bereitschafts-Prüfung** | „Ready"-Knopf → **3 s Countdown** → Start. Uhr und Eingabe beginnen gleichzeitig                                                                                                              |
+| **Kampf**                 | Rotation gegen den Überdruck-Timer                                                                                                                                                            |
+| **Ende**                  | Sieg · Spieler-Tod · Zeitablauf (Überdruck) · Abbruch                                                                                                                                         |
 
 **Abbrechen:** `Esc` → Menü → **„Wipe Run"**. Gilt als Ende und zeigt **dieselbe Auswertung wie ein
 Sieg**, mit „Restart Run" und „Back to Menu".
@@ -476,17 +476,18 @@ Sieg**, mit „Restart Run" und „Back to Menu".
 
 ### 10.1 Kampfdauer
 
-| Boss-Typ | Dauer |
-|---|---|
-| Kleinere Bosse | kurz |
-| Zwischenbosse | länger |
-| Instanz-Endbosse | **bis 10 Minuten** |
-| **Endgame-Bosse** | **3–5 Minuten** |
+| Boss-Typ          | Dauer              |
+| ----------------- | ------------------ |
+| Kleinere Bosse    | kurz               |
+| Zwischenbosse     | länger             |
+| Instanz-Endbosse  | **bis 10 Minuten** |
+| **Endgame-Bosse** | **3–5 Minuten**    |
 
 > Die kurze Endgame-Dauer ist Absicht: Zehn Versuche sind dann 40 Minuten statt anderthalb Stunden.
 > Die 10-Minuten-Kämpfe bleiben den wenigen Instanz-Endbossen vorbehalten, wo sie als Ereignis wirken.
 
 **Spannungsbogen bei langen Kämpfen:**
+
 - **Eskalierende Phasen** — jede Phase legt eine Mechanik obendrauf, statt sie zu tauschen
 - **Sichtbare Meilensteine** — Phasenwechsel als Bildschirm-Ereignis, Ring ändert Farbe und Form
 - **Endspurt-Phase** unter 20 % — Boss schlägt härter, eigene Verstärkungen wirken stärker, Musik zieht an
@@ -499,15 +500,15 @@ Keine Zwischenphase zum Durchatmen.
 
 ### 11.1 Boss-Datenmodell
 
-| Feld | Bedeutung |
-|---|---|
-| Lebenspunkte | |
-| Schadens-Ereignisse | als **feste Zeitleiste** |
-| Phasen-Schwellen | Lebenspunkt-Prozente, z. B. 70 %, 40 % |
-| Überdruck-Zeitpunkt | |
-| Widerstände | je Schule |
-| Bausteine | 2–4 aus dem Baukasten, mit der Stufe wachsend |
-| Signatur-Regel | **eine Regel, die es nur bei diesem Boss gibt** |
+| Feld                | Bedeutung                                       |
+| ------------------- | ----------------------------------------------- |
+| Lebenspunkte        |                                                 |
+| Schadens-Ereignisse | als **feste Zeitleiste**                        |
+| Phasen-Schwellen    | Lebenspunkt-Prozente, z. B. 70 %, 40 %          |
+| Überdruck-Zeitpunkt |                                                 |
+| Widerstände         | je Schule                                       |
+| Bausteine           | 2–4 aus dem Baukasten, mit der Stufe wachsend   |
+| Signatur-Regel      | **eine Regel, die es nur bei diesem Boss gibt** |
 
 **Der Ablauf ist fest und lernbar.** Der Boss reagiert **nicht** auf Spielerverhalten, und es gibt
 keine zufälligen Abweichungen — Voraussetzung für Planbarkeit, Simulierbarkeit und vergleichbare
@@ -522,17 +523,17 @@ räumlich** und damit für uns unbrauchbar.
 > ein Zeitpunkt. Statt „stell dich in den Kreis" heißt es „wirke diesen Zauber innerhalb von zwei
 > Sekunden". Der Spieler trifft dieselben Entscheidungen, nur in der Zeit statt im Raum.
 
-| # | Baustein | Wirkung |
-|---|---|---|
-| 1 | **Energieleiste als zweite Uhr** | Boss-Energie steigt unabhängig von den Lebenspunkten und löst bei 100 eine Mechanik aus. Gibt dem Kampf einen inneren Rhythmus, der nichts mit dem Lebensbalken zu tun hat |
-| 2 | **Zähler, der bei 100 tötet** | Ein Wert steigt unfreiwillig an; bei 100 stirbt man. Zurücksetzen nur über eine begrenzt verfügbare Handlung |
-| 3 | **Exponentieller Stapel** | 1 Stapel = X, 2 = 3X, 3 = 9X. Erzwingt eine Handlung an einem exakt bestimmten Punkt. **Muss gut angekündigt sein** |
-| 4 | **Wettrennen gegen einen Zauber** | Der Boss wird unverwundbar, während etwas anderes vor Ablauf zerstört werden muss. **Der beste Moment für Overdrive** |
-| 5 | **Fehler heilt den Boss** | Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz. **Nur für einzelne Bosse**, sonst frustrierend |
-| 6 | **Umgekehrtes Ziel** | Statt Schaden zu machen muss eine kippende Reaktion **stabilisiert** werden. Der Kampf, in dem COAGULATION glänzt |
-| 7 | **Eskalierende Wiederholung** | Dieselbe Phase kehrt mehrfach wieder — kürzere Fenster, mehr gleichzeitige Anforderungen |
-| 8 | **Schwächung ohne Heil-Lösung** | Ein Effekt lässt sich nicht wegheilen, sondern nur durch eine bestimmte **Handlung** loswerden. **Braucht mehrere Lösungswege** |
-| 9 | **Unterbrechbarer Zauber** | Boss beginnt einen Zauber, Balken läuft. Auf niedriger Schwierigkeit optional, auf hoher Pflicht |
+| #   | Baustein                          | Wirkung                                                                                                                                                                    |
+| --- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Energieleiste als zweite Uhr**  | Boss-Energie steigt unabhängig von den Lebenspunkten und löst bei 100 eine Mechanik aus. Gibt dem Kampf einen inneren Rhythmus, der nichts mit dem Lebensbalken zu tun hat |
+| 2   | **Zähler, der bei 100 tötet**     | Ein Wert steigt unfreiwillig an; bei 100 stirbt man. Zurücksetzen nur über eine begrenzt verfügbare Handlung                                                               |
+| 3   | **Exponentieller Stapel**         | 1 Stapel = X, 2 = 3X, 3 = 9X. Erzwingt eine Handlung an einem exakt bestimmten Punkt. **Muss gut angekündigt sein**                                                        |
+| 4   | **Wettrennen gegen einen Zauber** | Der Boss wird unverwundbar, während etwas anderes vor Ablauf zerstört werden muss. **Der beste Moment für Overdrive**                                                      |
+| 5   | **Fehler heilt den Boss**         | Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz. **Nur für einzelne Bosse**, sonst frustrierend                                                      |
+| 6   | **Umgekehrtes Ziel**              | Statt Schaden zu machen muss eine kippende Reaktion **stabilisiert** werden. Der Kampf, in dem COAGULATION glänzt                                                          |
+| 7   | **Eskalierende Wiederholung**     | Dieselbe Phase kehrt mehrfach wieder — kürzere Fenster, mehr gleichzeitige Anforderungen                                                                                   |
+| 8   | **Schwächung ohne Heil-Lösung**   | Ein Effekt lässt sich nicht wegheilen, sondern nur durch eine bestimmte **Handlung** loswerden. **Braucht mehrere Lösungswege**                                            |
+| 9   | **Unterbrechbarer Zauber**        | Boss beginnt einen Zauber, Balken läuft. Auf niedriger Schwierigkeit optional, auf hoher Pflicht                                                                           |
 
 Die restlichen 6–11 Bausteine entstehen als **Varianten dieser neun** (z. B. unterbrechbarer Zauber
 mit Schild davor / zwei gleichzeitig, nur einer schaffbar / unterbrechen macht ihn beim nächsten
@@ -549,11 +550,11 @@ Weg, nur unterschiedlich elegante.
 
 ### 11.4 Widerstände
 
-| Aspekt | Festlegung |
-|---|---|
-| **Stärke** | ca. **20–30 %** weniger von der widerstandenen Schule, 20–30 % mehr von der Schwachstelle |
-| **Wirkung** | **Nur auf den Schaden, nicht auf die Mechanik.** Wer trotz Widerstand CALCINATION spielt, sammelt weiter normal Hitze — macht damit aber weniger Schaden. Keine Schule fühlt sich je kaputt an, nur schwächer |
-| **Sichtbarkeit** | **Vorher in der Boss-Übersicht.** Die Zusammenstellung ist bewusste Vorbereitung, keine böse Überraschung |
+| Aspekt           | Festlegung                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stärke**       | ca. **20–30 %** weniger von der widerstandenen Schule, 20–30 % mehr von der Schwachstelle                                                                                                                     |
+| **Wirkung**      | **Nur auf den Schaden, nicht auf die Mechanik.** Wer trotz Widerstand CALCINATION spielt, sammelt weiter normal Hitze — macht damit aber weniger Schaden. Keine Schule fühlt sich je kaputt an, nur schwächer |
+| **Sichtbarkeit** | **Vorher in der Boss-Übersicht.** Die Zusammenstellung ist bewusste Vorbereitung, keine böse Überraschung                                                                                                     |
 
 > **„Es muss möglich sein, nicht nötig."** Wer bei seiner Lieblingsschule bleibt, kommt durch —
 > nur langsamer.
@@ -569,24 +570,24 @@ laufenden 45-s-Balken. **Das macht aus Reagieren Planen.**
 
 **Drei Eskalationsstufen:**
 
-| Stufe | Darstellung | Wofür |
-|---|---|---|
-| **1 — Balken läuft** | Zeitbalken über die volle Abklingzeit, durchgehend sichtbar | Alles; die Grundinformation zum Planen |
-| **2 — Hervorhebung** | Balken blinkt, springt an eine auffälligere Stelle, Klang in den letzten Sekunden | Fähigkeiten, die hart treffen |
-| **3 — Höchste Stufe** | Gesprochener Countdown 5-4-3-2-1, Bildschirm blitzt und ruckelt, eigener Klang | **Ausschließlich** für tödliche Mechaniken |
+| Stufe                 | Darstellung                                                                       | Wofür                                      |
+| --------------------- | --------------------------------------------------------------------------------- | ------------------------------------------ |
+| **1 — Balken läuft**  | Zeitbalken über die volle Abklingzeit, durchgehend sichtbar                       | Alles; die Grundinformation zum Planen     |
+| **2 — Hervorhebung**  | Balken blinkt, springt an eine auffälligere Stelle, Klang in den letzten Sekunden | Fähigkeiten, die hart treffen              |
+| **3 — Höchste Stufe** | Gesprochener Countdown 5-4-3-2-1, Bildschirm blitzt und ruckelt, eigener Klang    | **Ausschließlich** für tödliche Mechaniken |
 
 > **Wenn alles gleich laut warnt, hört man nichts mehr.** Stufe 3 muss selten bleiben.
 
 **Vier Warn-Arten:**
 
-| Art | Bedeutung | Behandlung |
-|---|---|---|
-| **Schwächung auf dir** | Trifft nur den Spieler, verlangt persönliche Reaktion | Eigene Farbe und eigener Klang, sofortiges Handeln |
-| **Allgemeiner Schaden** | Trifft ohne Zutun; man kann nur vorher heilen oder schützen | Ruhigere Ankündigung |
-| **Jetzt handeln oder sterben** | Unterbrechen sonst Wipe; Schutzschild jetzt oder Tod | Volle Behandlung: Countdown, Blitz, eigener Klang |
-| **Gelegenheit** | Schadensfenster öffnet sich, Verstärkung stehlbar, Schwäche verwundbar | Muss sich klar von den Warnungen abheben — **hier entscheidet sich der Schaden** |
+| Art                            | Bedeutung                                                              | Behandlung                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Schwächung auf dir**         | Trifft nur den Spieler, verlangt persönliche Reaktion                  | Eigene Farbe und eigener Klang, sofortiges Handeln                               |
+| **Allgemeiner Schaden**        | Trifft ohne Zutun; man kann nur vorher heilen oder schützen            | Ruhigere Ankündigung                                                             |
+| **Jetzt handeln oder sterben** | Unterbrechen sonst Wipe; Schutzschild jetzt oder Tod                   | Volle Behandlung: Countdown, Blitz, eigener Klang                                |
+| **Gelegenheit**                | Schadensfenster öffnet sich, Verstärkung stehlbar, Schwäche verwundbar | Muss sich klar von den Warnungen abheben — **hier entscheidet sich der Schaden** |
 
-**Vier Kanäle**, je nach Ereignis unterschiedlich kombiniert — *nicht alles ist bei allem angebracht*:
+**Vier Kanäle**, je nach Ereignis unterschiedlich kombiniert — _nicht alles ist bei allem angebracht_:
 
 1. **Zeitleiste der nächsten Ereignisse** — Balken mit Symbol und Restzeit
 2. **Textmeldung mit Countdown** in der Bildmitte — benennt die Fähigkeit
@@ -596,23 +597,23 @@ laufenden 45-s-Balken. **Das macht aus Reagieren Planen.**
 
 **Weitere Festlegungen:**
 
-| Punkt | Festlegung |
-|---|---|
+| Punkt                                                    | Festlegung                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | **Warnungen auf allen Schwierigkeitsstufen vollständig** | Die Härte kommt aus mehr Lebenspunkten, engeren Fenstern und zusätzlichen Mechaniken — **nicht aus vorenthaltener Information** |
-| **Fähigkeiten werden benannt** | „Cascade Failure in 5" statt „Danger in 5". Namen sind das, woran man sich an einen Boss erinnert |
-| **Nur die nächste Wiederholung** | Kein Zähler „noch 3×" — das wäre nur eine Schätzung. **Ausnahme:** begrenzte Zwischenphasen zeigen die Restzahl |
-| **Keine Erklärungen im Kampf** | Die Ankündigung nennt nur den Namen. Einzelheiten stehen vorher in der Boss-Übersicht |
-| **Mehrere gleichzeitige Ereignisse** | Nach **Dringlichkeit sortiert** — das Tödliche oben und lauter, das Nebensächliche gedämpft oder kurz unterdrückt |
+| **Fähigkeiten werden benannt**                           | „Cascade Failure in 5" statt „Danger in 5". Namen sind das, woran man sich an einen Boss erinnert                               |
+| **Nur die nächste Wiederholung**                         | Kein Zähler „noch 3×" — das wäre nur eine Schätzung. **Ausnahme:** begrenzte Zwischenphasen zeigen die Restzahl                 |
+| **Keine Erklärungen im Kampf**                           | Die Ankündigung nennt nur den Namen. Einzelheiten stehen vorher in der Boss-Übersicht                                           |
+| **Mehrere gleichzeitige Ereignisse**                     | Nach **Dringlichkeit sortiert** — das Tödliche oben und lauter, das Nebensächliche gedämpft oder kurz unterdrückt               |
 
 ### 11.6 Boss-Übersicht (Vorbild: WoW Adventure Guide)
 
-| Element | Festlegung |
-|---|---|
-| **Vollständige Fähigkeiten-Liste** | Name, Wirkung, Abklingzeit, mögliche Antworten — dazu Widerstände, Phasen-Schwellen und die Signatur-Regel |
-| **Keine Zeitangaben** | Nur Phasen und Reihenfolge, **keine Sekunden**. Die Zeitpunkte muss man erspielen |
-| **Keine Empfehlungen** | Nur Fakten. Das Zusammenstellen ist eine Kernaufgabe |
-| **Markierungen je Fähigkeit** | **unterbrechbar · tödlich wenn ignoriert · Gelegenheit · stehlbar · verlangt Schutz** — dieselben Kategorien wie die Warnungen im Kampf |
-| **Eigene Vorgeschichte** | Versuche, Bestzeit je Schwierigkeitsstufe, Fortschrittsmarke, erreichte Tempo-Stufe, offene Erfolge, fehlende Beute |
+| Element                            | Festlegung                                                                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vollständige Fähigkeiten-Liste** | Name, Wirkung, Abklingzeit, mögliche Antworten — dazu Widerstände, Phasen-Schwellen und die Signatur-Regel                              |
+| **Keine Zeitangaben**              | Nur Phasen und Reihenfolge, **keine Sekunden**. Die Zeitpunkte muss man erspielen                                                       |
+| **Keine Empfehlungen**             | Nur Fakten. Das Zusammenstellen ist eine Kernaufgabe                                                                                    |
+| **Markierungen je Fähigkeit**      | **unterbrechbar · tödlich wenn ignoriert · Gelegenheit · stehlbar · verlangt Schutz** — dieselben Kategorien wie die Warnungen im Kampf |
+| **Eigene Vorgeschichte**           | Versuche, Bestzeit je Schwierigkeitsstufe, Fortschrittsmarke, erreichte Tempo-Stufe, offene Erfolge, fehlende Beute                     |
 
 ### 11.7 Schwierigkeitsstufen
 
@@ -627,21 +628,21 @@ mehr Punkte. Mit 68 Bossen ergibt das **204 Herausforderungen**.
 
 Eine neue Stufe gibt **alles vier**:
 
-| Belohnung | Wirkung |
-|---|---|
-| **Neue Zauber freischalten** | Zauber sind an Stufen gebunden → vollständig steuerbare Lernkurve |
-| **Talentpunkte** | Stetiger, spürbarer Fortschritt |
-| **Grundwerte erhöhen** | Aufstieg ist sofort spürbar |
+| Belohnung                       | Wirkung                                                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Neue Zauber freischalten**    | Zauber sind an Stufen gebunden → vollständig steuerbare Lernkurve                                                                                 |
+| **Talentpunkte**                | Stetiger, spürbarer Fortschritt                                                                                                                   |
+| **Grundwerte erhöhen**          | Aufstieg ist sofort spürbar                                                                                                                       |
 | **Leisten-Plätze freischalten** | Start mit **zwei**, schrittweise bis 12–16. **Löst das „easy to learn"-Problem elegant:** Ein Anfänger jongliert zwei Abklingzeiten, kein Dutzend |
 
 ### 12.2 Einstieg — die ersten Minuten
 
-| Aspekt | Festlegung |
-|---|---|
-| **Erster Eindruck** | **Sofort drücken, Erklärung nebenbei.** Kein Menü, kein Vorspann — nach dem Start steht man vor dem Werktisch, ein Symbol leuchtet, eine Zeile sagt „Press Q". Die Reaktion antwortet sichtbar und hörbar |
-| **Start-Ausstattung** | **Zwei Zauber, zwei Leisten-Plätze** |
-| **Wachstum** | Bis Stufe 10 drei weitere Zauber, danach etwa alle drei Stufen einer |
-| **Einführungs-Instanz** | **Drei kurze Lern-Kämpfe**: (1) erster Zauber und Abklingzeit, (2) globale Wartezeit und zweiter Zauber, (3) erste Synergie. Kein Zeitdruck, kein Boss-Schaden. **Überspringbar** |
+| Aspekt                  | Festlegung                                                                                                                                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Erster Eindruck**     | **Sofort drücken, Erklärung nebenbei.** Kein Menü, kein Vorspann — nach dem Start steht man vor dem Werktisch, ein Symbol leuchtet, eine Zeile sagt „Press Q". Die Reaktion antwortet sichtbar und hörbar |
+| **Start-Ausstattung**   | **Zwei Zauber, zwei Leisten-Plätze**                                                                                                                                                                      |
+| **Wachstum**            | Bis Stufe 10 drei weitere Zauber, danach etwa alle drei Stufen einer                                                                                                                                      |
+| **Einführungs-Instanz** | **Drei kurze Lern-Kämpfe**: (1) erster Zauber und Abklingzeit, (2) globale Wartezeit und zweiter Zauber, (3) erste Synergie. Kein Zeitdruck, kein Boss-Schaden. **Überspringbar**                         |
 
 ### 12.3 Neue Zauber: gelenkter Zufall
 
@@ -661,11 +662,11 @@ Topf**; die Gewichtung erhöht sie, wenn der Spieler noch keine hat.
 
 **Endlos-Leiter:**
 
-| Aspekt | Festlegung |
-|---|---|
-| **Zugang** | **Als Stufe auf jedem Endgame-Boss** — jeder der 36 Bosse ist nach Mythisch auf Leiter-Stufe 1, 2, 3 … spielbar. Höchststufe wird je Boss geführt |
+| Aspekt         | Festlegung                                                                                                                                                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zugang**     | **Als Stufe auf jedem Endgame-Boss** — jeder der 36 Bosse ist nach Mythisch auf Leiter-Stufe 1, 2, 3 … spielbar. Höchststufe wird je Boss geführt                                                                                                         |
 | **Obergrenze** | **Werte gedeckelt, Stufen unbegrenzt.** Ab einer bestimmten Leiter-Stufe wachsen Gegenstandsstufen und Spielerstärke nicht mehr — ab da wird es reines Können. **Ein echter, nie erreichbarer Horizont.** Muss dem Spieler verständlich vermittelt werden |
-| **Fiktion** | **Tiefer und tiefer in den Apparat** — ältere, fremdartigere Reaktionen, die dort schon lange vor dem Spieler liefen |
+| **Fiktion**    | **Tiefer und tiefer in den Apparat** — ältere, fremdartigere Reaktionen, die dort schon lange vor dem Spieler liefen                                                                                                                                      |
 
 ### 12.5 Talentbaum
 
@@ -673,13 +674,13 @@ Topf**; die Gewichtung erhöht sie, wenn der Spieler noch keine hat.
 Mechanik**, nicht nur Werte. Der globale Baum wirkt auf CATALYSIS/PURITY/YIELD/VESSEL/GCD.
 Zusätzlich ein bis zwei wählbare Verbesserungen **direkt am ausgerüsteten Zauber**.
 
-| Aspekt | Festlegung |
-|---|---|
-| **Punkte** | **~50 bei 100 Stufen.** Damit lassen sich zwei Bäume tief ausbauen und ein dritter antippen — **niemals alles** |
-| **Struktur je Schul-Baum** | **Gemeinsamer Stamm** → **drei Wege** (bei CALCINATION etwa: schneller aufbauen / stärker entladen / länger halten). Am Ende jedes Weges ein **Schlüsseltalent** |
+| Aspekt                                     | Festlegung                                                                                                                                                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Punkte**                                 | **~50 bei 100 Stufen.** Damit lassen sich zwei Bäume tief ausbauen und ein dritter antippen — **niemals alles**                                                                          |
+| **Struktur je Schul-Baum**                 | **Gemeinsamer Stamm** → **drei Wege** (bei CALCINATION etwa: schneller aufbauen / stärker entladen / länger halten). Am Ende jedes Weges ein **Schlüsseltalent**                         |
 | **Schlüsseltalente bauen die Rotation um** | z. B. „Der Entlade-Zauber verbraucht nur die Hälfte der Hitze, wirkt dafür zweimal". **Ein neues Schlüsseltalent fühlt sich an wie eine neue Schule** — genau das, was 300 Stunden trägt |
-| **Ansicht** | **Alles auf einem Bildschirm** — eine große Fläche mit allen sechs Bäumen, frei verschiebbar und zoombar |
-| **Umskillen** | **Jederzeit kostenlos** zwischen den Kämpfen. Kostet ausdrücklich KEINE Punkte — das Spiel ist ein Optimierungs-Labor |
+| **Ansicht**                                | **Alles auf einem Bildschirm** — eine große Fläche mit allen sechs Bäumen, frei verschiebbar und zoombar                                                                                 |
+| **Umskillen**                              | **Jederzeit kostenlos** zwischen den Kämpfen. Kostet ausdrücklich KEINE Punkte — das Spiel ist ein Optimierungs-Labor                                                                    |
 
 **Vorlagen:** Zusammenstellung **UND** Talentverteilung werden **gemeinsam** in einer Vorlage
 gespeichert (z. B. „Boss 7 mythic"). Beides gehört zusammen; getrennt zu speichern wäre eine
@@ -687,23 +688,23 @@ Fehlerquelle.
 
 ### 12.6 Punkte
 
-| Aspekt | Festlegung |
-|---|---|
-| **Quelle** | Restlaufzeit beim Boss-Sieg, **überproportional** umgerechnet — die letzten Sekunden sind unverhältnismäßig viel wert, damit Feinoptimierung sich lohnt |
-| **Wiederholen** | Punkte für **Bestzeit-Verbesserung** (Differenz-Auszahlung) plus ein Rest-Ertrag fürs bloße Wiederholen |
+| Aspekt                 | Festlegung                                                                                                                                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Quelle**             | Restlaufzeit beim Boss-Sieg, **überproportional** umgerechnet — die letzten Sekunden sind unverhältnismäßig viel wert, damit Feinoptimierung sich lohnt                                                                                    |
+| **Wiederholen**        | Punkte für **Bestzeit-Verbesserung** (Differenz-Auszahlung) plus ein Rest-Ertrag fürs bloße Wiederholen                                                                                                                                    |
 | **Abnehmender Ertrag** | Der Ertrag sinkt **mit dem Stufenabstand**: voller Ertrag solange der Boss zur eigenen Stufe passt, bei ~10 Stufen Abstand nur noch ein Bruchteil, bei ~20 praktisch nichts. Lenkt sanft zum passenden Inhalt, **ohne etwas zu verbieten** |
-| **Verwendung** | **Freischaltungen** (Instanzen, einzelne Zauber, Ausrüstungsplätze) und **Gegenstände aufwerten** |
+| **Verwendung**         | **Freischaltungen** (Instanzen, einzelne Zauber, Ausrüstungsplätze) und **Gegenstände aufwerten**                                                                                                                                          |
 
 ### 12.7 Instanz-Freischaltung
 
 Vier Kriterien **nebeneinander**:
 
-| Kriterium | Einsatz |
-|---|---|
-| **Instanz abgeschlossen** | Hauptpfad |
-| **Punkte-Schwelle** | **Ventil gegen Feststecken** — wer scheitert, kommt durch Perfektionieren alter Kämpfe weiter |
-| **Schwierigkeitsstufe** | Heroisch öffnet nach Normal, Mythisch nach Heroisch |
-| **Meisterschafts-Schlüssel** | Nur für optionale Geheim-Instanzen. **Nie im Hauptpfad** |
+| Kriterium                    | Einsatz                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------- |
+| **Instanz abgeschlossen**    | Hauptpfad                                                                                     |
+| **Punkte-Schwelle**          | **Ventil gegen Feststecken** — wer scheitert, kommt durch Perfektionieren alter Kämpfe weiter |
+| **Schwierigkeitsstufe**      | Heroisch öffnet nach Normal, Mythisch nach Heroisch                                           |
+| **Meisterschafts-Schlüssel** | Nur für optionale Geheim-Instanzen. **Nie im Hauptpfad**                                      |
 
 Innerhalb einer freigeschalteten Instanz sind die Bosse **frei wählbar**.
 
@@ -712,11 +713,11 @@ Innerhalb einer freigeschalteten Instanz sind die Bosse **frei wählbar**.
 **Viele Versuche ≠ frustrierende Versuche.** Ein Raid-Trupp scheitert hundertmal und bleibt dabei,
 weil **jeder Versuch etwas einbringt**. Frustrierend wird es, wenn zwanzig Versuche gleich aussehen.
 
-| Mechanismus | Ausgestaltung |
-|---|---|
-| **Fortschrittsmarke je Boss** | „Best attempt: reaction down to 23 %". Jeder Versuch, der die Marke unterbietet, ist sichtbar ein Schritt weiter — auch ohne Sieg. **Getrennt je Boss UND Schwierigkeitsstufe** |
-| **Kürzere Versuche im Endgame** | 3–5 Minuten |
-| **Konkrete Fehleranalyse** | Die drei größten Verlustquellen mit Auswirkung in Prozent (siehe 15.2). Versuch 20 ist dann klüger als Versuch 5, nicht nur häufiger |
+| Mechanismus                     | Ausgestaltung                                                                                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fortschrittsmarke je Boss**   | „Best attempt: reaction down to 23 %". Jeder Versuch, der die Marke unterbietet, ist sichtbar ein Schritt weiter — auch ohne Sieg. **Getrennt je Boss UND Schwierigkeitsstufe** |
+| **Kürzere Versuche im Endgame** | 3–5 Minuten                                                                                                                                                                     |
+| **Konkrete Fehleranalyse**      | Die drei größten Verlustquellen mit Auswirkung in Prozent (siehe 15.2). Versuch 20 ist dann klüger als Versuch 5, nicht nur häufiger                                            |
 
 > **Keine Belohnung bei Niederlage.** Ein gescheiterter Versuch zahlt nichts aus.
 > **Folge, die im Blick bleiben muss:** Damit fehlt das Sicherheitsventil, sich über Ausrüstung an
@@ -742,10 +743,10 @@ auslieferbar.** Als automatischer Test formuliert.
 
 ### 13.1 Zwei Fortschritts-Systeme mit getrennten Rollen
 
-| System | Rolle |
-|---|---|
+| System         | Rolle                                                                              |
+| -------------- | ---------------------------------------------------------------------------------- |
 | **Talentbaum** | **WIE** die Rotation funktioniert — neue Effekte, kürzere Abklingzeiten, Synergien |
-| **Ausrüstung** | **WIE STARK** die Werte sind |
+| **Ausrüstung** | **WIE STARK** die Werte sind                                                       |
 
 ### 13.2 Zehn Ausrüstungsplätze
 
@@ -765,12 +766,12 @@ auch wenn die Sonderwerte nicht passen.
 
 ### 13.3 Qualitäten
 
-| Qualität | Werte-Plätze | Besonderheit |
-|---|---|---|
-| Common | 1 | — |
-| Rare | 2 | — |
-| Epic | 3 | — |
-| **Legendary** | 3+ | **Echter Sondereffekt, der die Rotation verändert** (z. B. „Der Cooldown-Rücksetzer wirkt auf zwei Zauber") |
+| Qualität      | Werte-Plätze | Besonderheit                                                                                                |
+| ------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
+| Common        | 1            | —                                                                                                           |
+| Rare          | 2            | —                                                                                                           |
+| Epic          | 3            | —                                                                                                           |
+| **Legendary** | 3+           | **Echter Sondereffekt, der die Rotation verändert** (z. B. „Der Cooldown-Rücksetzer wirkt auf zwei Zauber") |
 
 **Werte-Berechnung: feste Formel, Qualität als Faktor.** Aus Gegenstandsstufe und Qualität errechnet
 sich ein Wertebudget, das auf die Werte-Plätze verteilt wird. **Kein Gegenstand wird von Hand
@@ -780,13 +781,13 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 
 ### 13.4 Fallraten
 
-| Regel | Wirkung |
-|---|---|
-| **Obergrenze durch Inhalt** | Frühe Instanzen lassen nur Common und Rare fallen; Epic erst ab einer bestimmten Instanz, Legendary erst im Endgame. **Verhindert, dass ein früher Glückstreffer die restlichen zwanzig Aufstiegsstufen entwertet** |
-| **Steigende Raten darin** | Innerhalb der erlaubten Qualitäten steigen die Raten mit Instanz, Schwierigkeitsstufe und Endlos-Stufe |
-| **Richtwerte im Endgame** | Common 60 %, Rare 30 %, Epic 9 %, **Legendary 1 %** |
-| **Zwei getrennte Achsen** | **Qualität** und **Gegenstandsstufe** laufen unabhängig. Ein episches Stück aus einer frühen Instanz ist schwächer als ein seltenes aus dem Endgame — alter Inhalt entwertet sich von selbst |
-| **Kein Pech-Schutz, keine Garantie** | Eine ehrliche Prozentzahl, kein versteckter Zähler |
+| Regel                                | Wirkung                                                                                                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Obergrenze durch Inhalt**          | Frühe Instanzen lassen nur Common und Rare fallen; Epic erst ab einer bestimmten Instanz, Legendary erst im Endgame. **Verhindert, dass ein früher Glückstreffer die restlichen zwanzig Aufstiegsstufen entwertet** |
+| **Steigende Raten darin**            | Innerhalb der erlaubten Qualitäten steigen die Raten mit Instanz, Schwierigkeitsstufe und Endlos-Stufe                                                                                                              |
+| **Richtwerte im Endgame**            | Common 60 %, Rare 30 %, Epic 9 %, **Legendary 1 %**                                                                                                                                                                 |
+| **Zwei getrennte Achsen**            | **Qualität** und **Gegenstandsstufe** laufen unabhängig. Ein episches Stück aus einer frühen Instanz ist schwächer als ein seltenes aus dem Endgame — alter Inhalt entwertet sich von selbst                        |
+| **Kein Pech-Schutz, keine Garantie** | Eine ehrliche Prozentzahl, kein versteckter Zähler                                                                                                                                                                  |
 
 > **Bekannte, bewusst akzeptierte Folge (der lange Schwanz):** Bei 1 % Legendary haben nach 100
 > Siegen noch 37 % nichts, nach 300 noch 5 %. Die Minderheit im Schwanz erlebt ein anderes Spiel.
@@ -808,14 +809,14 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 
 ### 13.6 Beute-Handhabung
 
-| Aspekt | Festlegung |
-|---|---|
-| **Beute-Moment gestaffelt** | Common erscheint sofort und beiläufig, Rare mit kurzem Aufblitzen, Epic mit deutlichem Effekt — **ein Legendary hält alles an**: eigener Klang, Bild verdunkelt sich, Gegenstand erscheint groß. 99 von 100 Siegen laufen schnell durch, der eine Moment brennt sich ein |
-| **Automatischer Vergleich** | Jeder Fund zeigt sofort, ob er besser ist als das Getragene — mit ungefährer Schadensangabe aus den **Skalierungsfaktoren des Balance-Läufers**. Die Bewertung ist eine **Näherung** und kann bei ungewöhnlichen Zusammenstellungen danebenliegen |
-| **Überflüssige Beute → Material** | Nicht behaltene Gegenstände werden **automatisch** in Aufwertungs-Material umgewandelt. Kein Inventar, kein Sortieren |
-| **Aufwertung** | Material und Punkte heben die **Gegenstandsstufe** an — **höchstens bis zur Stufe, die im aktuellen Inhalt ohnehin fällt.** Grinden macht nie stärker als der Inhalt hergibt |
-| **Aufwertung ist stückgebunden** | Hängt am einzelnen Gegenstand, nicht am Platz. **Bekannter Nachteil:** Jeder bessere Fund entwertet die Investition — das kann das Ausprobieren bremsen. Im Auge behalten |
-| **Gezielte Jagd** | Bestimmte Gegenstände fallen **nur bei einem bestimmten Boss**. Jeder Boss bekommt einen eigenen Grund, wiederholt zu werden |
+| Aspekt                            | Festlegung                                                                                                                                                                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Beute-Moment gestaffelt**       | Common erscheint sofort und beiläufig, Rare mit kurzem Aufblitzen, Epic mit deutlichem Effekt — **ein Legendary hält alles an**: eigener Klang, Bild verdunkelt sich, Gegenstand erscheint groß. 99 von 100 Siegen laufen schnell durch, der eine Moment brennt sich ein |
+| **Automatischer Vergleich**       | Jeder Fund zeigt sofort, ob er besser ist als das Getragene — mit ungefährer Schadensangabe aus den **Skalierungsfaktoren des Balance-Läufers**. Die Bewertung ist eine **Näherung** und kann bei ungewöhnlichen Zusammenstellungen danebenliegen                        |
+| **Überflüssige Beute → Material** | Nicht behaltene Gegenstände werden **automatisch** in Aufwertungs-Material umgewandelt. Kein Inventar, kein Sortieren                                                                                                                                                    |
+| **Aufwertung**                    | Material und Punkte heben die **Gegenstandsstufe** an — **höchstens bis zur Stufe, die im aktuellen Inhalt ohnehin fällt.** Grinden macht nie stärker als der Inhalt hergibt                                                                                             |
+| **Aufwertung ist stückgebunden**  | Hängt am einzelnen Gegenstand, nicht am Platz. **Bekannter Nachteil:** Jeder bessere Fund entwertet die Investition — das kann das Ausprobieren bremsen. Im Auge behalten                                                                                                |
+| **Gezielte Jagd**                 | Bestimmte Gegenstände fallen **nur bei einem bestimmten Boss**. Jeder Boss bekommt einen eigenen Grund, wiederholt zu werden                                                                                                                                             |
 
 **Beute aus altem Inhalt:** ja, **aber auf der Gegenstandsstufe des Bosses**. Wer ihm entwachsen ist,
 bekommt Übertroffenes. Der Grind versiegt von selbst, ohne künstliches Verbot.
@@ -848,6 +849,7 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 „Retry" und „View Analysis". Details nur auf Wunsch.
 
 **Die drei Kennzahlen:**
+
 - **Leerlauf pro Zauber** — wie viele Sekunden lag jeder Zauber ungenutzt bereit (nach Verlust sortiert)
 - **Verlorene Zeit gesamt** — Sekunden und Prozent ohne aktiven Zauber
 - **Synergie-Ausbeute** — wie viel Prozent der möglichen Kombinationen genutzt wurden
@@ -858,12 +860,12 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 Daten des Durchlaufs berechnet — es sind Multiplikationen, alle Werte stehen bereits im
 Kampfprotokoll.
 
-| Fehlerart | Rechnung | Ausgabe an den Spieler |
-|---|---|---|
-| **Verpasste Wirkungen** | Ein Zauber mit 12 s Abklingzeit passt 20× in einen 240-s-Kampf; gewirkt 15 → 5 verpasst × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf** | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion | „6.4 s idle — four wasted actions, 7 %" |
-| **Verpasste Synergien** | Verfügbar minus genutzt × Synergie-Bonus | „Seven of ten combinations used — 5 %" |
-| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers | „Two missed — 14 %" |
+| Fehlerart                     | Rechnung                                                                                               | Ausgabe an den Spieler                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| **Verpasste Wirkungen**       | Ein Zauber mit 12 s Abklingzeit passt 20× in einen 240-s-Kampf; gewirkt 15 → 5 verpasst × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
+| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                   | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                               | „Seven of ten combinations used — 5 %"                     |
+| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                      | „Two missed — 14 %"                                        |
 
 **Die drei größten Verlustquellen** werden hervorgehoben. Sie können aus der Rotation stammen
 **oder aus dem Umgang mit dem Boss** — bei einem Boss mit Mechaniken ist das oft der teurere Teil.
@@ -877,7 +879,7 @@ Kampfprotokoll.
 - **Effizienz-Tabelle** — Wirkungen gegen theoretisches Maximum, Leerlauf, Synergie-Quote,
   Schadensanteil. **Effizienz statt Schadensanteil** ist die aussagekräftige Größe: Der
   Schadensanteil ist bei jedem Durchlauf nahezu gleich und misst die Zauber, nicht das Können.
-  Er bleibt als *eine* Spalte, weil er für Talent-Entscheidungen nützlich ist
+  Er bleibt als _eine_ Spalte, weil er für Talent-Entscheidungen nützlich ist
 - **Vergleich mit Bestlauf** — zwei Kurven übereinander, Kennzahlen mit Differenz
 - **Verlauf über alle Durchläufe** — Entwicklung von Schaden und Leerlauf über die Zeit
 
@@ -917,17 +919,17 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 
 **Umfang V1: ~115 Sounds**, jeder der 60 Zauber einzeln vertont.
 
-| Bereich | Anzahl |
-|---|---|
-| Zauber (je einzeln) | ~60 |
-| Sonderzauber (Unterbrechen, Overdrive, Rücksetzer, Schild auf/bricht, Heilung, Reflexion) | 7 |
-| Kampf-Rückmeldung (Zauber bereit, Fehleingabe, Synergie verfügbar, GCD-Ende) | 4 |
-| Boss (Zauberbeginn, durchgekommen, Treffer, Phasenwechsel, Überdruck-Warnung, Überdruck, Reaktion kippt, besiegt) | 8 |
-| Kampfzustände (Countdown, Start, wenig Leben, Tod, Zeitablauf) | 6 |
-| Nach dem Kampf (Sieg, Niederlage, Bestzeit, Erfolg, Stufenaufstieg, Punkte) | 6 |
-| Menü | 12 |
-| **Beute nach Qualität** | **4** |
-| Klangteppich (Loop je Instanz plus Menü und Spannungs-Schicht) | 8 |
+| Bereich                                                                                                           | Anzahl |
+| ----------------------------------------------------------------------------------------------------------------- | ------ |
+| Zauber (je einzeln)                                                                                               | ~60    |
+| Sonderzauber (Unterbrechen, Overdrive, Rücksetzer, Schild auf/bricht, Heilung, Reflexion)                         | 7      |
+| Kampf-Rückmeldung (Zauber bereit, Fehleingabe, Synergie verfügbar, GCD-Ende)                                      | 4      |
+| Boss (Zauberbeginn, durchgekommen, Treffer, Phasenwechsel, Überdruck-Warnung, Überdruck, Reaktion kippt, besiegt) | 8      |
+| Kampfzustände (Countdown, Start, wenig Leben, Tod, Zeitablauf)                                                    | 6      |
+| Nach dem Kampf (Sieg, Niederlage, Bestzeit, Erfolg, Stufenaufstieg, Punkte)                                       | 6      |
+| Menü                                                                                                              | 12     |
+| **Beute nach Qualität**                                                                                           | **4**  |
+| Klangteppich (Loop je Instanz plus Menü und Spannungs-Schicht)                                                    | 8      |
 
 > **Die vier Beute-Klänge sind einer der stärksten Dopamin-Momente überhaupt** — der legendäre Klang
 > in Diablo ist berühmt, Spieler erkennen ihn, bevor sie den Gegenstand sehen. Hier lohnt sich Sorgfalt.
@@ -936,12 +938,12 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 Schichten — Endspurt, Phasenwechsel, Überdruck. Deutlich haltbarer als eine feste Schleife, die bei
 hunderten Wiederholungen zur Qual wird.
 
-| Technik | Festlegung |
-|---|---|
-| **Wiedergabe** | Web Audio API — latenzfrei auf Tastendruck, `loopStart`/`loopEnd` für Sustained-Sounds |
-| **Lautstärke** | **Getrennt regelbar** für Musik, Effekte und Oberfläche. Viele hören nebenbei eigene Musik und würden sonst den Ton ganz abschalten — und damit die klanglichen Hinweise verlieren |
-| **Tonhöhen-Streuung** | Wenige Prozent, zufällig, bei jeder Wiedergabe. Verhindert den Maschinengewehr-Effekt. Bei tonalen Klängen je Klang begrenzen |
-| **Zwei Sound-Typen** | **One-Shot** (feste Länge) und **Sustained** — letztere **dreiteilig**: Ansatz (One-Shot) → Körper (Loop) → Ausklang (One-Shot), weil der Effekt abgebrochen werden kann |
+| Technik               | Festlegung                                                                                                                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Wiedergabe**        | Web Audio API — latenzfrei auf Tastendruck, `loopStart`/`loopEnd` für Sustained-Sounds                                                                                             |
+| **Lautstärke**        | **Getrennt regelbar** für Musik, Effekte und Oberfläche. Viele hören nebenbei eigene Musik und würden sonst den Ton ganz abschalten — und damit die klanglichen Hinweise verlieren |
+| **Tonhöhen-Streuung** | Wenige Prozent, zufällig, bei jeder Wiedergabe. Verhindert den Maschinengewehr-Effekt. Bei tonalen Klängen je Klang begrenzen                                                      |
+| **Zwei Sound-Typen**  | **One-Shot** (feste Länge) und **Sustained** — letztere **dreiteilig**: Ansatz (One-Shot) → Körper (Loop) → Ausklang (One-Shot), weil der Effekt abgebrochen werden kann           |
 
 **Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT [`suno-sfx.md`](suno-sfx.md).
 **Ästhetische Abnahme macht der Auftraggeber** über ein Abhör-Soundboard; Claude kann nicht hören
@@ -953,11 +955,13 @@ und prüft nur technisch (ffprobe: Länge, Pegel, Anfangs-Stille, Clipping).
 erkennen: ja. Selbst gestalten: nein.
 
 **Reihenfolge:**
+
 1. **Fertige freie Assets zuerst** — der Stil kommt von einem menschlichen Gestalter
 2. **KI-Generierung nur für Lücken**
 3. **Selbst zeichnen: nie**
 
 **Bau-Reihenfolge des HUDs:**
+
 1. **Zuerst das HUD als SVG-Gerüst** — Aufteilung, Geometrie und alle Bewegungen. Sofort spielbar und prüfbar
 2. **Danach die erzeugten Grafiken als Texturen und Rahmen darüberlegen**
 
@@ -971,16 +975,16 @@ erzeugt. Grund: Erzeugte Symbole aus einem Durchgang tendieren zur Ähnlichkeit.
 Millisekunden-Entscheidungen wäre das ein Ratespiel.
 
 **Verifikation der Animationen:** Aufzeichnung als Video → Zerlegung in Einzelbilder → hunderte
-Frames auf einmal prüfen (technische Korrektheit). Ob es sich *gut anfühlt*, beurteilt der
+Frames auf einmal prüfen (technische Korrektheit). Ob es sich _gut anfühlt_, beurteilt der
 Auftraggeber.
 
 ### 17.3 Hilfe-System
 
-| Baustein | Ausgestaltung |
-|---|---|
-| **Erklärfenster bei Berührung** | Maus über Symbol/Wert/Begriff → vollständige Erklärung: Wirkung, Werte, Synergien, Bedeutung des Prozess-Namens. **Muss auch für Boss-Fähigkeiten funktionieren** |
-| **Geführte Einführung** | Beim ersten Auftreten einer Mechanik hält das Spiel kurz an und erklärt sie an Ort und Stelle |
-| **Klartext neben dem Fachbegriff** | Überall „COAGULATION (Survival)" |
+| Baustein                           | Ausgestaltung                                                                                                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Erklärfenster bei Berührung**    | Maus über Symbol/Wert/Begriff → vollständige Erklärung: Wirkung, Werte, Synergien, Bedeutung des Prozess-Namens. **Muss auch für Boss-Fähigkeiten funktionieren** |
+| **Geführte Einführung**            | Beim ersten Auftreten einer Mechanik hält das Spiel kurz an und erklärt sie an Ort und Stelle                                                                     |
+| **Klartext neben dem Fachbegriff** | Überall „COAGULATION (Survival)"                                                                                                                                  |
 
 Ein separates Nachschlagewerk im Menü wurde **nicht** gewählt.
 
@@ -1011,17 +1015,17 @@ geschrieben wurde.
 
 ### 18.1 Technik-Entscheidungen
 
-| Thema | Festlegung |
-|---|---|
-| **Sprache/Bauwerkzeug** | **TypeScript + Vite. KEIN UI-Framework** — kein React, kein Svelte |
-| **Darstellung** | **Canvas für den Kampf, HTML für Menüs/Talentbaum/Auswertung** |
-| **Dev-Server** | **nginx auf `localhost:8000/rota/`** — NIEMALS eigene HTTP-Server starten |
-| **Browser-Tests** | `playwright-cli -s=rota` (headless; `--headed` nur wenn zugeschaut wird). Session am Ende schließen |
-| **Simulator** | **Rust**, eigenständige Bibliothek unter `sim/` |
-| **Spielinhalte** | **Dateien im Repository** (JSON/TOML), **keine Datenbank** |
-| **Speicherung** | Browser-Speicher, laufend automatisch, **plus die letzten fünf rotierenden Sicherungsstände** und Export/Import. Bei beschädigtem Spielstand wird automatisch der letzte heile Stand angeboten |
-| **Offline** | **Vollständig offline** nach dem ersten Laden |
-| **Auslieferung** | Eigene Webseite. So bauen, dass eine Spieleplattform später möglich bleibt |
+| Thema                   | Festlegung                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sprache/Bauwerkzeug** | **TypeScript + Vite. KEIN UI-Framework** — kein React, kein Svelte                                                                                                                             |
+| **Darstellung**         | **Canvas für den Kampf, HTML für Menüs/Talentbaum/Auswertung**                                                                                                                                 |
+| **Dev-Server**          | **nginx auf `localhost:8000/rota/`** — NIEMALS eigene HTTP-Server starten                                                                                                                      |
+| **Browser-Tests**       | `playwright-cli -s=rota` (headless; `--headed` nur wenn zugeschaut wird). Session am Ende schließen                                                                                            |
+| **Simulator**           | **Rust**, eigenständige Bibliothek unter `sim/`                                                                                                                                                |
+| **Spielinhalte**        | **Dateien im Repository** (JSON/TOML), **keine Datenbank**                                                                                                                                     |
+| **Speicherung**         | Browser-Speicher, laufend automatisch, **plus die letzten fünf rotierenden Sicherungsstände** und Export/Import. Bei beschädigtem Spielstand wird automatisch der letzte heile Stand angeboten |
+| **Offline**             | **Vollständig offline** nach dem ersten Laden                                                                                                                                                  |
+| **Auslieferung**        | Eigene Webseite. So bauen, dass eine Spieleplattform später möglich bleibt                                                                                                                     |
 
 > Ein Spiel mit festem Logik-Takt und eigener Zeichenschleife braucht kein Oberflächen-Framework —
 > die haben ihre eigene Vorstellung davon, wann neu gezeichnet wird, und stören hier eher.
@@ -1033,17 +1037,17 @@ Die Spiellogik selbst ist vernachlässigbar: ~50 Zähler ergeben etwa 1.000 Rech
 Auch wildes Hämmern auf 20 Tasten kostet praktisch nichts — **die Grenze setzt die Hand, nicht der
 Prozessor.** Die echten Gefahren liegen woanders:
 
-| Gefahr | Gegenmaßnahme |
-|---|---|
-| **Speicherbereinigung verursacht Ruckeln** | **Objekte vorab anlegen und wiederverwenden**, nie im laufenden Bild etwas erzeugen. Ziel: **null Speicheranforderungen nach dem Aufwärmen** |
-| **Layout-Neuberechnung durch HTML-Änderungen** | Canvas für alles Bewegte, **ein Zeichenvorgang pro Bild** |
-| **Geräteabhängiges Verhalten** | **Fester Logik-Takt (~10 ms)**, Darstellung getrennt und interpolierend. Auf 144 Hz gelten dieselben Regeln wie auf 60 Hz. Voraussetzung für vergleichbare Bestzeiten |
-| **Datenmenge im Kampfprotokoll** | **Vorab angelegter Ringpuffer mit gepackten Zahlen** (Zeitpunkt, Ereignisart, Zauber, Wert). ~10.000 Einträge bei einem 10-Minuten-Kampf ≈ 160 KB, keine Objekte |
+| Gefahr                                         | Gegenmaßnahme                                                                                                                                                         |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Speicherbereinigung verursacht Ruckeln**     | **Objekte vorab anlegen und wiederverwenden**, nie im laufenden Bild etwas erzeugen. Ziel: **null Speicheranforderungen nach dem Aufwärmen**                          |
+| **Layout-Neuberechnung durch HTML-Änderungen** | Canvas für alles Bewegte, **ein Zeichenvorgang pro Bild**                                                                                                             |
+| **Geräteabhängiges Verhalten**                 | **Fester Logik-Takt (~10 ms)**, Darstellung getrennt und interpolierend. Auf 144 Hz gelten dieselben Regeln wie auf 60 Hz. Voraussetzung für vergleichbare Bestzeiten |
+| **Datenmenge im Kampfprotokoll**               | **Vorab angelegter Ringpuffer mit gepackten Zahlen** (Zeitpunkt, Ereignisart, Zauber, Wert). ~10.000 Einträge bei einem 10-Minuten-Kampf ≈ 160 KB, keine Objekte      |
 
 ### 18.3 Ereignisgesteuertes Kampfsystem
 
-**Feste Ereignismenge:** *Zauber gewirkt* · *Schaden verursacht* · *Krit* · *DoT tickt* · *Boss
-betritt Phase* · *Verstärkung läuft ab*.
+**Feste Ereignismenge:** _Zauber gewirkt_ · _Schaden verursacht_ · _Krit_ · _DoT tickt_ · _Boss
+betritt Phase_ · _Verstärkung läuft ab_.
 
 Jeder Zauber, jedes Talent, jeder legendäre Effekt beschreibt nur, **worauf er reagiert**.
 
@@ -1054,13 +1058,13 @@ Jeder Zauber, jedes Talent, jeder legendäre Effekt beschreibt nur, **worauf er 
 
 ### 18.4 Determinismus und der Abgleich mit dem Simulator
 
-| Prinzip | Warum |
-|---|---|
-| **Ganzzahlige Zeit statt Fließkomma-Sekunden** | Abklingzeit 8 s bei Tempo-Faktor 1,17 ergibt krumme Werte; Fließkomma-Timer driften über hunderte Ticks |
-| **Gesetzte Startwerte, getrennte Zufallsströme** | Krit, DoT-Ticks und Heilung brauchen **je einen eigenen Strom** — sonst verschiebt eine zusätzliche Ziehung alles Nachfolgende |
-| **Ergebnisse nach Startwert sortieren** vor dem Zusammenzählen | Fließkomma-Addition ist nicht assoziativ |
-| **Parallel zwischen Durchgängen, nie innerhalb** | Ein Schritt hängt vom vorherigen ab |
-| **Keine Speicheranforderung im Schritt**, zusammenhängende Listen | Aus dem Vorbild-Projekt übernommen |
+| Prinzip                                                           | Warum                                                                                                                          |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Ganzzahlige Zeit statt Fließkomma-Sekunden**                    | Abklingzeit 8 s bei Tempo-Faktor 1,17 ergibt krumme Werte; Fließkomma-Timer driften über hunderte Ticks                        |
+| **Gesetzte Startwerte, getrennte Zufallsströme**                  | Krit, DoT-Ticks und Heilung brauchen **je einen eigenen Strom** — sonst verschiebt eine zusätzliche Ziehung alles Nachfolgende |
+| **Ergebnisse nach Startwert sortieren** vor dem Zusammenzählen    | Fließkomma-Addition ist nicht assoziativ                                                                                       |
+| **Parallel zwischen Durchgängen, nie innerhalb**                  | Ein Schritt hängt vom vorherigen ab                                                                                            |
+| **Keine Speicheranforderung im Schritt**, zusammenhängende Listen | Aus dem Vorbild-Projekt übernommen                                                                                             |
 
 **Gemeinsame Prüffälle (Pflichttest bei jeder Änderung):** Eine Sammlung fester Testfälle der Form
 „diese Tastendrücke zu diesen Zeitpunkten mit dieser Ausrüstung ergeben exakt diesen Schaden".
@@ -1076,14 +1080,15 @@ Simulation** — im Spiel wird nur ausgerechnet, was tatsächlich gewirkt wurde.
 
 Vorbild: **SimulationCraft**. Übernommen:
 
-| Konzept | Bedeutung für ROTA |
-|---|---|
-| **Ereignisgesteuert** statt fester Takt | Zwischen zwei Tastendrücken passiert außer DoT-Ticks nichts |
-| **Aktions-Prioritätenliste (APL)** | Die Rotation als geordnete Regelliste: „Wirke A, wenn Bedingung X. Sonst B, wenn Y." Beherrschbarer Suchraum, und das Ergebnis ist für Menschen lesbar |
-| **Monte-Carlo** | Viele Durchgänge, Mittelwert und Fehlerbalken — nötig, weil Krit echter Zufall ist |
-| **Skalierungsfaktoren** | „Wie viel Schaden bringt ein Punkt CATALYSIS?" |
+| Konzept                                 | Bedeutung für ROTA                                                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ereignisgesteuert** statt fester Takt | Zwischen zwei Tastendrücken passiert außer DoT-Ticks nichts                                                                                            |
+| **Aktions-Prioritätenliste (APL)**      | Die Rotation als geordnete Regelliste: „Wirke A, wenn Bedingung X. Sonst B, wenn Y." Beherrschbarer Suchraum, und das Ergebnis ist für Menschen lesbar |
+| **Monte-Carlo**                         | Viele Durchgänge, Mittelwert und Fehlerbalken — nötig, weil Krit echter Zufall ist                                                                     |
+| **Skalierungsfaktoren**                 | „Wie viel Schaden bringt ein Punkt CATALYSIS?"                                                                                                         |
 
 **Ausgabe** (nur für Claude, Textausgabe/JSON genügt, **keine Diagramme nötig**):
+
 - **Skalierungsfaktoren je Wert** — Grundlage für Ausrüstungs- und Talent-Balance
 - **Zauber-Vergleichstabelle** — deckt tote Zauber auf, die niemand nutzt
 - **Boss-Machbarkeitsprüfung** — ist jeder Boss je Schwierigkeit im Zeitlimit besiegbar, mit wie viel Reserve?
@@ -1114,24 +1119,24 @@ der Fassung vermerkt, unter der sie erzielt wurden.
 **Keine Oberfläche, keine Knöpfe, nichts im Bild.** Alle Werkzeuge über Konsolen-Befehle ansprechbar
 → dadurch auch automatisiert in Tests verwendbar.
 
-| Werkzeug | Zweck |
-|---|---|
-| **Zeitsteuerung** | Anhalten, Einzelschritt, Zeitlupe, Zeitraffer. **Muss sauber vom Logik-Takt getrennt sein**, sonst verfälscht es Messungen |
-| **Zustand setzen** | Boss-Leben, alle Abklingzeiten bereit, zu Phase springen, Hitze setzen. Erspart drei Minuten Spielzeit für eine Phase-3-Prüfung |
-| **Aufzeichnen und Abspielen** | Runde mit Tastendrücken und Zufalls-Startwert aufzeichnen, exakt wiederholen. Grundlage für Regressionstests **und** für den Abgleich Spiel ↔ Simulator |
-| **Zustands-Prüfsumme je Takt** | Weichen Spiel und Simulator ab, sieht man **in welchem Takt**. Abschaltbar (kostet Rechenzeit) |
-| **Leistungs-Messwerte** | Bildzeit, Zeit je Logik-Takt, Speicheranforderungen pro Bild, Eingabe-Verzögerung |
-| **Schadens-Herleitung** | Bei jedem Treffer nachvollziehbar: Grundschaden × welcher Faktor × welcher Faktor. Nur auf Abruf für einen einzelnen Treffer |
-| **Eingabe-Zeitmessung** | Je Tastendruck: wie viele Millisekunden nach Ablauf des GCD. Beantwortet die Balance-Frage, wie viel ein Mensch gegenüber der perfekten Rechnung verliert. **Im fertigen Spiel bewusst nicht vorgesehen** |
-| **Kampfprotokoll als Klartext** | Ringpuffer als lesbare Liste, exportierbar |
+| Werkzeug                        | Zweck                                                                                                                                                                                                     |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zeitsteuerung**               | Anhalten, Einzelschritt, Zeitlupe, Zeitraffer. **Muss sauber vom Logik-Takt getrennt sein**, sonst verfälscht es Messungen                                                                                |
+| **Zustand setzen**              | Boss-Leben, alle Abklingzeiten bereit, zu Phase springen, Hitze setzen. Erspart drei Minuten Spielzeit für eine Phase-3-Prüfung                                                                           |
+| **Aufzeichnen und Abspielen**   | Runde mit Tastendrücken und Zufalls-Startwert aufzeichnen, exakt wiederholen. Grundlage für Regressionstests **und** für den Abgleich Spiel ↔ Simulator                                                   |
+| **Zustands-Prüfsumme je Takt**  | Weichen Spiel und Simulator ab, sieht man **in welchem Takt**. Abschaltbar (kostet Rechenzeit)                                                                                                            |
+| **Leistungs-Messwerte**         | Bildzeit, Zeit je Logik-Takt, Speicheranforderungen pro Bild, Eingabe-Verzögerung                                                                                                                         |
+| **Schadens-Herleitung**         | Bei jedem Treffer nachvollziehbar: Grundschaden × welcher Faktor × welcher Faktor. Nur auf Abruf für einen einzelnen Treffer                                                                              |
+| **Eingabe-Zeitmessung**         | Je Tastendruck: wie viele Millisekunden nach Ablauf des GCD. Beantwortet die Balance-Frage, wie viel ein Mensch gegenüber der perfekten Rechnung verliert. **Im fertigen Spiel bewusst nicht vorgesehen** |
+| **Kampfprotokoll als Klartext** | Ringpuffer als lesbare Liste, exportierbar                                                                                                                                                                |
 
 ### 19.2 Für den Auftraggeber — sichtbar im „Player Home"
 
-| Einstellung | Zweck |
-|---|---|
-| **Unsterblich** | Eine Mechanik in Ruhe ansehen |
-| **Boss sofort töten** | Zur Auswertung oder nächsten Stufe springen |
-| **Stufen-Boost** | Spielerstufe frei einstellen — setzt Stufe, Talentpunkte und freigeschaltete Zauber |
+| Einstellung           | Zweck                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Unsterblich**       | Eine Mechanik in Ruhe ansehen                                                                            |
+| **Boss sofort töten** | Zur Auswertung oder nächsten Stufe springen                                                              |
+| **Stufen-Boost**      | Spielerstufe frei einstellen — setzt Stufe, Talentpunkte und freigeschaltete Zauber                      |
 | **Ausrüstung wählen** | An jedem der zehn Plätze **alle im Spiel vorhandenen Gegenstände** zur Auswahl, nicht nur die erspielten |
 
 > Ohne Stufen-Boost und Ausrüstungs-Auswahl lässt sich das **Endgame nicht beurteilen, bevor es
@@ -1161,15 +1166,15 @@ bevor viel Arbeit hineinfließt.**
 
 ### 20.2 Schritt 1 — spielbarer Kampf mit drei Zaubern
 
-| Enthalten | |
-|---|---|
-| Zauberleiste mit drei Zaubern | Abklingzeiten mit Wischblende und Zahl |
-| Globale Wartezeit | eigene Darstellung |
-| Ein Testboss | Reaktionsgefäß-Ring und Überdruck-Timer |
-| Schadenszahlen | aufsteigend und verblassend |
-| Kampfprotokoll | vorab angelegter Ringpuffer |
-| Kurzfassung nach dem Kampf | mit den drei Kennzahlen |
-| **Drei bis vier Kernklänge** | je Zauber einer, plus Fehleingabe und Treffer |
+| Enthalten                     |                                               |
+| ----------------------------- | --------------------------------------------- |
+| Zauberleiste mit drei Zaubern | Abklingzeiten mit Wischblende und Zahl        |
+| Globale Wartezeit             | eigene Darstellung                            |
+| Ein Testboss                  | Reaktionsgefäß-Ring und Überdruck-Timer       |
+| Schadenszahlen                | aufsteigend und verblassend                   |
+| Kampfprotokoll                | vorab angelegter Ringpuffer                   |
+| Kurzfassung nach dem Kampf    | mit den drei Kennzahlen                       |
+| **Drei bis vier Kernklänge**  | je Zauber einer, plus Fehleingabe und Treffer |
 
 Alles als **SVG-Gerüst ohne Grafiken**.
 
@@ -1182,24 +1187,24 @@ Wegwerfarbeit.** Konkrete Zahlen: [`STEP1-SPEC.md`](STEP1-SPEC.md).
 
 **Abnahme:**
 
-| Prüfung | Kriterium |
-|---|---|
-| Spielgefühl | **Urteil des Auftraggebers** — die Frage, die nur er beantworten kann |
-| Ruckelfreiheit | Keine Aussetzer im laufenden Kampf |
-| Eingabe-Verzögerung | **Unter einem Bild (< 16 ms)** |
-| Abklingzeiten | Auf die Millisekunde korrekt |
-| Kampfprotokoll | Vollständig, kein Ereignis fehlt |
-| Speicher | **Keine Speicheranforderung im laufenden Bild** |
+| Prüfung             | Kriterium                                                             |
+| ------------------- | --------------------------------------------------------------------- |
+| Spielgefühl         | **Urteil des Auftraggebers** — die Frage, die nur er beantworten kann |
+| Ruckelfreiheit      | Keine Aussetzer im laufenden Kampf                                    |
+| Eingabe-Verzögerung | **Unter einem Bild (< 16 ms)**                                        |
+| Abklingzeiten       | Auf die Millisekunde korrekt                                          |
+| Kampfprotokoll      | Vollständig, kein Ereignis fehlt                                      |
+| Speicher            | **Keine Speicheranforderung im laufenden Bild**                       |
 
 > Alles Messbare wird **gemessen statt behauptet**. Verfahren: [`VERIFICATION.md`](VERIFICATION.md).
 
 ### 20.3 Schritt 2–4
 
-| Schritt | Inhalt |
-|---|---|
-| **2** | **Simulator** als Rust-Bibliothek, abgeglichen über die gemeinsamen Prüffälle |
-| **3** | **Prototyp-Prüflauf**: zwölf Zauber (3 CALCINATION, 3 FIXATION, 2 SUBLIMATION, 2 COAGULATION, 2 PUTREFACTION), drei Testbosse (60 s ohne Mechanik / 180 s mit Unterbrechen / 300 s mit hartem Schaden und zwei Phasen) |
-| **4** | **Inhalt in Wellen** — Instanz für Instanz, jede sofort spielbar |
+| Schritt | Inhalt                                                                                                                                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **2**   | **Simulator** als Rust-Bibliothek, abgeglichen über die gemeinsamen Prüffälle                                                                                                                                          |
+| **3**   | **Prototyp-Prüflauf**: zwölf Zauber (3 CALCINATION, 3 FIXATION, 2 SUBLIMATION, 2 COAGULATION, 2 PUTREFACTION), drei Testbosse (60 s ohne Mechanik / 180 s mit Unterbrechen / 300 s mit hartem Schaden und zwei Phasen) |
+| **4**   | **Inhalt in Wellen** — Instanz für Instanz, jede sofort spielbar                                                                                                                                                       |
 
 **Hartes Abnahme-Kriterium für Schritt 3, vorab festgelegt:**
 
@@ -1209,7 +1214,7 @@ Wegwerfarbeit.** Konkrete Zahlen: [`STEP1-SPEC.md`](STEP1-SPEC.md).
 > Wird das nicht erreicht, wird an den **Mechaniken** nachgebessert, bevor Inhalte gebaut werden.
 > Nicht am Aussehen — am Spiel.
 
-> **Ausdrückliche Abgrenzung:** Es wird **nicht** geprüft, ob jeder Boss eine *andere* Rotation
+> **Ausdrückliche Abgrenzung:** Es wird **nicht** geprüft, ob jeder Boss eine _andere_ Rotation
 > verlangt. Der Spieler soll spielen können, wie er will.
 
 ---
@@ -1221,51 +1226,51 @@ ausdrückliche Rücksprache mit dem Auftraggeber wieder aufnehmen.
 
 ### 21.1 (F.1) Verworfen — Spielmechanik
 
-| Verworfen | Stattdessen | Grund |
-|---|---|---|
-| **Globale Ressource (Mana)** | Nur Schul-Mechaniken mit eigenen Ladungen | Abklingzeiten sind die alleinige Schwierigkeit |
-| **Zufalls-Procs im Spieler-Kit** | Deterministische Synergien | Planbarkeit ist der Kern. *Ausnahme: Krit* |
-| **Pech-Schutz beim Krit** | Echte Wahrscheinlichkeit pro Treffer | Bewusst mit Glücksanteil |
-| **Klickbare Zauberleiste** | Nur Tastatur | Grundsatzentscheidung |
-| **Eingabe vormerken (Input-Queue)** | Fehleingabe blinkt rot + Ton, nichts wird gemerkt | Nimmt dem Spieler Präzisionsleistung ab und verfälscht die Auswertung |
-| **Rotations-Empfehlung / Hervorhebung des besten Zaubers** | Nur „bereit"-Zustand über Helligkeit | Würde die Hauptaufgabe lösen, bevor der Spieler anfängt |
-| **Übungsmodus für Boss-Phasen** | Wipe = von vorn | Wie im echten Raid |
-| **Prüfzeit-Wettkampfmodus im Training** | Nur die freie Puppe | — |
-| **Belohnung bei Niederlage** | Nur Fortschrittsmarke und Fehleranalyse | *Folge: Punkte-Schwellen und niedrigere Stufen müssen offen bleiben* |
-| **Pech-Grenze / Garantie bei Beute** | Reine Prozent-Fallrate | Materialumwandlung federt indirekt ab |
-| **Werte-Streuung bei Gegenständen** | Feste Formel aus Stufe und Qualität | Kein „perfektes Exemplar"-Glücksspiel |
-| **Qualität anheben / Werte neu würfeln** | Nur Gegenstandsstufe anheben | Würde die Fallraten entwerten |
-| **Aufwertung auf den Ausrüstungsplatz** | Stückgebunden | *Bekannter Nachteil: bessere Funde entwerten die Investition* |
-| **Sätze während des Aufstiegs** | Sätze erst im Endgame | — |
-| **Boss reagiert auf Spielerverhalten** | Fester, lernbarer Ablauf | Voraussetzung für Planbarkeit und Simulierbarkeit |
-| **Zufällige Abweichungen im Boss-Ablauf** | Fester Ablauf | Bestzeiten müssen vergleichbar sein |
-| **Zwischenphase zum Durchatmen** | Eskalierende Phasen ohne Pause | Nicht gewählt |
-| **Zauber-Versiegelung als Grundmechanik** | Drei Grundmechaniken ohne sie | Nicht gewählt |
-| **Kanal-Zauber mit Tastenhalten** | Keypress = Trigger | Design-Gesetz 1 |
-| **Vollbild-exklusive Funktionen** | Feature-Parität | Design-Gesetz 3 |
+| Verworfen                                                  | Stattdessen                                       | Grund                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------- |
+| **Globale Ressource (Mana)**                               | Nur Schul-Mechaniken mit eigenen Ladungen         | Abklingzeiten sind die alleinige Schwierigkeit                        |
+| **Zufalls-Procs im Spieler-Kit**                           | Deterministische Synergien                        | Planbarkeit ist der Kern. _Ausnahme: Krit_                            |
+| **Pech-Schutz beim Krit**                                  | Echte Wahrscheinlichkeit pro Treffer              | Bewusst mit Glücksanteil                                              |
+| **Klickbare Zauberleiste**                                 | Nur Tastatur                                      | Grundsatzentscheidung                                                 |
+| **Eingabe vormerken (Input-Queue)**                        | Fehleingabe blinkt rot + Ton, nichts wird gemerkt | Nimmt dem Spieler Präzisionsleistung ab und verfälscht die Auswertung |
+| **Rotations-Empfehlung / Hervorhebung des besten Zaubers** | Nur „bereit"-Zustand über Helligkeit              | Würde die Hauptaufgabe lösen, bevor der Spieler anfängt               |
+| **Übungsmodus für Boss-Phasen**                            | Wipe = von vorn                                   | Wie im echten Raid                                                    |
+| **Prüfzeit-Wettkampfmodus im Training**                    | Nur die freie Puppe                               | —                                                                     |
+| **Belohnung bei Niederlage**                               | Nur Fortschrittsmarke und Fehleranalyse           | _Folge: Punkte-Schwellen und niedrigere Stufen müssen offen bleiben_  |
+| **Pech-Grenze / Garantie bei Beute**                       | Reine Prozent-Fallrate                            | Materialumwandlung federt indirekt ab                                 |
+| **Werte-Streuung bei Gegenständen**                        | Feste Formel aus Stufe und Qualität               | Kein „perfektes Exemplar"-Glücksspiel                                 |
+| **Qualität anheben / Werte neu würfeln**                   | Nur Gegenstandsstufe anheben                      | Würde die Fallraten entwerten                                         |
+| **Aufwertung auf den Ausrüstungsplatz**                    | Stückgebunden                                     | _Bekannter Nachteil: bessere Funde entwerten die Investition_         |
+| **Sätze während des Aufstiegs**                            | Sätze erst im Endgame                             | —                                                                     |
+| **Boss reagiert auf Spielerverhalten**                     | Fester, lernbarer Ablauf                          | Voraussetzung für Planbarkeit und Simulierbarkeit                     |
+| **Zufällige Abweichungen im Boss-Ablauf**                  | Fester Ablauf                                     | Bestzeiten müssen vergleichbar sein                                   |
+| **Zwischenphase zum Durchatmen**                           | Eskalierende Phasen ohne Pause                    | Nicht gewählt                                                         |
+| **Zauber-Versiegelung als Grundmechanik**                  | Drei Grundmechaniken ohne sie                     | Nicht gewählt                                                         |
+| **Kanal-Zauber mit Tastenhalten**                          | Keypress = Trigger                                | Design-Gesetz 1                                                       |
+| **Vollbild-exklusive Funktionen**                          | Feature-Parität                                   | Design-Gesetz 3                                                       |
 
 ### 21.2 (F.2) Verworfen — Anzeige und Hilfen
 
-| Verworfen | Grund |
-|---|---|
-| **Rotations-Güte in Prozent im Spiel** | Erspart dem Spiel jede Simulation — der eigentliche Gewinn |
-| **Referenz-Rotation als Lernhilfe** | Das Herausfinden ist der Kern des Spiels |
-| **Zeitangaben in der Boss-Übersicht** | Nur Phasen und Reihenfolge; Timing muss man erspielen |
-| **Empfehlungen zur Zusammenstellung** | Nur Fakten — die Schlussfolgerung zieht der Spieler |
-| **Erklärungen während des Kampfes** | Die Einzelheiten stehen vorher in der Vorbereitung |
-| **Sichtbares Kampfprotokoll** | Läuft nur intern; in WoW liest es ohnehin niemand |
-| **Zähler „noch 3×"** | Wäre nur eine Schätzung; Rhythmus soll verinnerlicht werden |
-| **Nachschlagewerk im Menü** | Erklärfenster, geführte Einführung und Klartext genügen |
-| **Eingabe-Zeitmessung im Spiel** | Niemand wird für seine Reaktionszeit getadelt (*bleibt Entwicklungs-Werkzeug*) |
-| **Weniger Warnung auf höheren Schwierigkeitsstufen** | Information vorzuenthalten ist die billigste Form von Schwierigkeit |
-| **Farbsehschwächen-Unterstützung** | Ein Farbsatz für alle. *Milderung ohne Zusatzaufwand: Bereit-Zustand läuft über Helligkeit, Abklingzeit über Wischblende und Zahl — die spielkritische Information hängt nicht allein an der Farbe* |
-| **Einstellungen zur Reizstärke** | Grundeinstellung muss **dauertauglich** sein — lieber zurückhaltender als zu grell |
-| **Teilen von Ergebnissen (Auswertungsbild)** | Nicht vorgesehen |
-| **Manipulationsschutz** | Unnötig, solange die Bestenliste lokal ist |
+| Verworfen                                            | Grund                                                                                                                                                                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rotations-Güte in Prozent im Spiel**               | Erspart dem Spiel jede Simulation — der eigentliche Gewinn                                                                                                                                          |
+| **Referenz-Rotation als Lernhilfe**                  | Das Herausfinden ist der Kern des Spiels                                                                                                                                                            |
+| **Zeitangaben in der Boss-Übersicht**                | Nur Phasen und Reihenfolge; Timing muss man erspielen                                                                                                                                               |
+| **Empfehlungen zur Zusammenstellung**                | Nur Fakten — die Schlussfolgerung zieht der Spieler                                                                                                                                                 |
+| **Erklärungen während des Kampfes**                  | Die Einzelheiten stehen vorher in der Vorbereitung                                                                                                                                                  |
+| **Sichtbares Kampfprotokoll**                        | Läuft nur intern; in WoW liest es ohnehin niemand                                                                                                                                                   |
+| **Zähler „noch 3×"**                                 | Wäre nur eine Schätzung; Rhythmus soll verinnerlicht werden                                                                                                                                         |
+| **Nachschlagewerk im Menü**                          | Erklärfenster, geführte Einführung und Klartext genügen                                                                                                                                             |
+| **Eingabe-Zeitmessung im Spiel**                     | Niemand wird für seine Reaktionszeit getadelt (_bleibt Entwicklungs-Werkzeug_)                                                                                                                      |
+| **Weniger Warnung auf höheren Schwierigkeitsstufen** | Information vorzuenthalten ist die billigste Form von Schwierigkeit                                                                                                                                 |
+| **Farbsehschwächen-Unterstützung**                   | Ein Farbsatz für alle. _Milderung ohne Zusatzaufwand: Bereit-Zustand läuft über Helligkeit, Abklingzeit über Wischblende und Zahl — die spielkritische Information hängt nicht allein an der Farbe_ |
+| **Einstellungen zur Reizstärke**                     | Grundeinstellung muss **dauertauglich** sein — lieber zurückhaltender als zu grell                                                                                                                  |
+| **Teilen von Ergebnissen (Auswertungsbild)**         | Nicht vorgesehen                                                                                                                                                                                    |
+| **Manipulationsschutz**                              | Unnötig, solange die Bestenliste lokal ist                                                                                                                                                          |
 
 ### 21.3 (F.3) Verworfen — WoW-Elemente
 
-Wöchentliche Sperren · Ausrüstung als Zufallsbelohnung *(neben dem Talentbaum)* · Trash-Gegner vor
+Wöchentliche Sperren · Ausrüstung als Zufallsbelohnung _(neben dem Talentbaum)_ · Trash-Gegner vor
 dem Boss · Verbrauchsgegenstände (Fläschchen, Essen).
 
 **Acht mechanisch reizvolle Muster aus der Boss-Recherche, bewusst nicht übernommen:**
@@ -1275,46 +1280,46 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 
 ### 21.4 (F.4) Verworfen — Technik
 
-| Verworfen | Stattdessen | Grund |
-|---|---|---|
-| **React / Svelte / jedes UI-Framework** | Reines TypeScript + Vite | Fester Logik-Takt und eigene Zeichenschleife vertragen sich schlecht mit Framework-Rendering |
-| **Datenbank für Spielinhalte** | Dateien im Repository | Versionierung, kein Server, einkompilierbar |
-| **Alles über HTML/CSS** | Canvas für den Kampf | Layout-Neuberechnung bei jedem Bild |
-| **Logik im Bild-Takt** | Fester Logik-Takt, Darstellung getrennt | Sonst wären Bestzeiten geräteabhängig |
-| **Objekt-Liste fürs Kampfprotokoll** | Vorab angelegter Ringpuffer | Aufräum-Last verursacht Ruckeln |
-| **Simulator in TypeScript** | Rust | 10–50× schneller bei großen Läufen |
-| **Zwei getrennte Regel-Umsetzungen ohne Abgleich** | Gemeinsame Prüffälle als Pflichttest | Sonst Balance für ein Spiel, das es nicht gibt |
-| **ElevenLabs für Sound** | Suno | Kein Guthaben vorhanden |
-| **Reine API-Sound-Generierung ohne Browser** | API-first mit Seiten-Fallback | Suno verlangt ab dem 3. Aufruf einen Captcha-Token |
-| **Captcha-Token exportieren und außerhalb einlösen** | Klick in der echten Seite | Kein Gewinn (der Browser wird ohnehin gebraucht), dazu Sperrrisiko für den bezahlten Account |
-| **Selbst gestaltete Grafik** | Freie Assets + KI-Elemente | Eingestandene Grenze |
-| **Assets mit „Free for personal use"** | Nur CC0 und CC BY | Kommerziell nicht nutzbar |
+| Verworfen                                            | Stattdessen                             | Grund                                                                                        |
+| ---------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **React / Svelte / jedes UI-Framework**              | Reines TypeScript + Vite                | Fester Logik-Takt und eigene Zeichenschleife vertragen sich schlecht mit Framework-Rendering |
+| **Datenbank für Spielinhalte**                       | Dateien im Repository                   | Versionierung, kein Server, einkompilierbar                                                  |
+| **Alles über HTML/CSS**                              | Canvas für den Kampf                    | Layout-Neuberechnung bei jedem Bild                                                          |
+| **Logik im Bild-Takt**                               | Fester Logik-Takt, Darstellung getrennt | Sonst wären Bestzeiten geräteabhängig                                                        |
+| **Objekt-Liste fürs Kampfprotokoll**                 | Vorab angelegter Ringpuffer             | Aufräum-Last verursacht Ruckeln                                                              |
+| **Simulator in TypeScript**                          | Rust                                    | 10–50× schneller bei großen Läufen                                                           |
+| **Zwei getrennte Regel-Umsetzungen ohne Abgleich**   | Gemeinsame Prüffälle als Pflichttest    | Sonst Balance für ein Spiel, das es nicht gibt                                               |
+| **ElevenLabs für Sound**                             | Suno                                    | Kein Guthaben vorhanden                                                                      |
+| **Reine API-Sound-Generierung ohne Browser**         | API-first mit Seiten-Fallback           | Suno verlangt ab dem 3. Aufruf einen Captcha-Token                                           |
+| **Captcha-Token exportieren und außerhalb einlösen** | Klick in der echten Seite               | Kein Gewinn (der Browser wird ohnehin gebraucht), dazu Sperrrisiko für den bezahlten Account |
+| **Selbst gestaltete Grafik**                         | Freie Assets + KI-Elemente              | Eingestandene Grenze                                                                         |
+| **Assets mit „Free for personal use"**               | Nur CC0 und CC BY                       | Kommerziell nicht nutzbar                                                                    |
 
 ### 21.5 (F.5) Außerhalb des Umfangs von Version 1
 
-| Punkt | Status |
-|---|---|
-| **Zusatzgegner, Zielwechsel, Flächenschaden** | **Version 2.** Würde eine zweite Rotationsebene einziehen und Zauber-Katalog, Talentbaum, Anzeige und Optimums-Suche erheblich vergrößern |
-| **Zeitstrahl in der Auswertung** | **Später nachrüsten.** Die drei Kennzahlen sagen bereits, WAS schieflief; der Zeitstrahl sagt WO |
-| **Geteilte Bestenliste** | **Später.** Braucht Server, Datenbank, Betrugs-Schutz. Vorbereitung steht |
-| **Spieleplattform (itch.io, Steam)** | **Offen gehalten** — so bauen, dass ein späterer Wechsel möglich bleibt |
-| **Mobile / Touch-Bedienung** | **Nicht vorgesehen.** Widerspricht der Tastatur-Grundentscheidung |
-| **Mehrsprachigkeit** | **Nicht vorgesehen.** Spieltexte nur Englisch |
+| Punkt                                                  | Status                                                                                                                                                |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zusatzgegner, Zielwechsel, Flächenschaden**          | **Version 2.** Würde eine zweite Rotationsebene einziehen und Zauber-Katalog, Talentbaum, Anzeige und Optimums-Suche erheblich vergrößern             |
+| **Zeitstrahl in der Auswertung**                       | **Später nachrüsten.** Die drei Kennzahlen sagen bereits, WAS schieflief; der Zeitstrahl sagt WO                                                      |
+| **Geteilte Bestenliste**                               | **Später.** Braucht Server, Datenbank, Betrugs-Schutz. Vorbereitung steht                                                                             |
+| **Spieleplattform (itch.io, Steam)**                   | **Offen gehalten** — so bauen, dass ein späterer Wechsel möglich bleibt                                                                               |
+| **Mobile / Touch-Bedienung**                           | **Nicht vorgesehen.** Widerspricht der Tastatur-Grundentscheidung                                                                                     |
+| **Mehrsprachigkeit**                                   | **Nicht vorgesehen.** Spieltexte nur Englisch                                                                                                         |
 | **Frei belegbare Tasten mit eigenem Einstellungsmenü** | Grundsatz steht (physische Position, Umschalt frei belegbar, Leiste frei anordenbar) — die **Tastenbelegungs-Oberfläche** dafür ist noch zu entwerfen |
 
 ### 21.6 (F.7) Risiken, die im Auge behalten werden müssen
 
-| Punkt | Beschreibung |
-|---|---|
-| **Kernrisiko Tiefe** | Wenn die optimale Rotation eine feste Prioritätenliste ist, trägt nichts 300 Stunden → Prüfstein 20.3, **mindestens 10 %** |
-| **288 Zeitmarken von Hand** | Viel Arbeit und fehleranfällig. Entlastung: Balance-Läufer liefert Vorschlagswerte (Gold ≈ 110 %, Silber ≈ 130 %, Bronze ≈ 160 % der errechneten Bestzeit) |
-| **Satz-Boni gegen Sonderwerte** | Müssen etwa gleichwertig sein, sonst kippt es. Eigener Prüflauf nötig |
-| **Stückgebundene Aufwertung** | Kann das Ausprobieren bremsen |
-| **Kein Sicherheitsventil bei Niederlage** | Punkte-Schwellen und niedrigere Stufen müssen verlässlich offen sein |
-| **Langer Schwanz bei Fallraten** | Bei 1 % Legendary haben nach 300 Siegen noch 5 % nichts |
-| **Zahlen-Inflation durch die Endlos-Leiter** | WoW musste zweimal zurücksetzen. Die Werte-Obergrenze ist auch eine Lesbarkeits-Entscheidung |
-| **Grafik-Stil aus KI-Einzelteilen** | Uneinheitliche Lichtrichtung und Rahmenstärke wirken zusammengestückelt. Notausgang: ein Gestalter |
-| **E1 blockiert den Start** | *(Arbeitsorganisation)* Die ersten Tage arbeitet nur eine Code-Session, weil alle folgenden Epics auf einer **abgenommenen** Grundlage aufbauen sollen. E8 (Klang) und E9 (Grafik) füllen die Zeit — sie brauchen keinen Code |
+| Punkt                                        | Beschreibung                                                                                                                                                                                                                  |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Kernrisiko Tiefe**                         | Wenn die optimale Rotation eine feste Prioritätenliste ist, trägt nichts 300 Stunden → Prüfstein 20.3, **mindestens 10 %**                                                                                                    |
+| **288 Zeitmarken von Hand**                  | Viel Arbeit und fehleranfällig. Entlastung: Balance-Läufer liefert Vorschlagswerte (Gold ≈ 110 %, Silber ≈ 130 %, Bronze ≈ 160 % der errechneten Bestzeit)                                                                    |
+| **Satz-Boni gegen Sonderwerte**              | Müssen etwa gleichwertig sein, sonst kippt es. Eigener Prüflauf nötig                                                                                                                                                         |
+| **Stückgebundene Aufwertung**                | Kann das Ausprobieren bremsen                                                                                                                                                                                                 |
+| **Kein Sicherheitsventil bei Niederlage**    | Punkte-Schwellen und niedrigere Stufen müssen verlässlich offen sein                                                                                                                                                          |
+| **Langer Schwanz bei Fallraten**             | Bei 1 % Legendary haben nach 300 Siegen noch 5 % nichts                                                                                                                                                                       |
+| **Zahlen-Inflation durch die Endlos-Leiter** | WoW musste zweimal zurücksetzen. Die Werte-Obergrenze ist auch eine Lesbarkeits-Entscheidung                                                                                                                                  |
+| **Grafik-Stil aus KI-Einzelteilen**          | Uneinheitliche Lichtrichtung und Rahmenstärke wirken zusammengestückelt. Notausgang: ein Gestalter                                                                                                                            |
+| **E1 blockiert den Start**                   | _(Arbeitsorganisation)_ Die ersten Tage arbeitet nur eine Code-Session, weil alle folgenden Epics auf einer **abgenommenen** Grundlage aufbauen sollen. E8 (Klang) und E9 (Grafik) füllen die Zeit — sie brauchen keinen Code |
 
 ---
 
@@ -1323,26 +1328,26 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 Diese Punkte sind **beschlossen**, aber die Ausarbeitung fehlt. Jeder braucht vor seinem Epic eine
 eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen.**
 
-| Punkt | Was fehlt | Vor Epic |
-|---|---|---|
-| **Die 60 Zauber** | Namen, Werte, Abklingzeiten, konkrete Synergie-Beziehungen, Stufen-Zuordnung | E10 (Anfang: die 3 aus Schritt 1, dann die 12 des Prototyps) |
-| **15–20 Mechanik-Bausteine** | Die Varianten der neun übernommenen Muster | E4 |
-| **68 Signatur-Regeln** | Je Boss eine Regel in einem Satz | E10 |
-| **Boss-Zeitleisten** | Je Boss: welcher Baustein wann, Phasen-Schwellen, Energieleisten-Takt | E10 |
-| **Talent-Inhalte** | ~50 Punkte, 15 Zweige, Schlüsseltalente je Weg | E5 |
-| **Gegenstands-Katalog** | Konkrete Gegenstände, Sätze, legendäre Effekte, Boss-Bindungen | E6 |
-| **Erfahrungskurve** | Wie viel Erfahrung je Stufe, woher sie kommt | E5 |
-| **Endlos-Leiter-Skalierung** | Wachstum je Stufe, wo die Werte-Obergrenze liegt | E10 |
-| **Erfolge** | Je Boss die konkreten Ziele, 288 Zeitmarken | E10 |
-| **Instanz-Themen und Namen** | 14 Instanzen mit Thema, Farbwelt, Klangteppich | E10 |
-| **~150 Archiv-Texte** | Inhalte, Stimmen-Verteilung, Reihenfolge | E10 |
-| **Sound-Manifest** | 115 Prompts mit Ziel-Längen | E8 |
-| **Grafik-Stil** | Konkretes Asset-Set auswählen | E9 |
-| **Cooldown-Rücksetzer** | Abklingzeit, ob GCD-frei, auf welche Zauber anwendbar | E3 |
-| **Unterbrechen** | Fensterbreite, Abklingzeit, Folgen des Verpassens | E4 |
-| **Spellsteal** | Fensterbreite, Dauer der übernommenen Verstärkung, Abklingzeit | E4 |
-| **Schwierigkeitsstufen** | Welche Mechanik kommt auf welcher Stufe dazu | E4 |
-| **Punkteformel** | Konkrete überproportionale Kurve | E5 |
-| **Abnehmender Ertrag** | Konkrete Kurve über den Stufenabstand | E5 |
-| **Tastenbelegungs-Oberfläche** | Entwurf des Einstellungs-Bildschirms | E1 oder E5 |
-| **Issue-Ausarbeitung je Epic** | *(Arbeitsorganisation)* Angelegt sind zunächst nur die Issues für E1, E8 und E9. Die übrigen werden formuliert, wenn ihr Epic an die Reihe kommt — sie jetzt zu schreiben wäre Raterei | laufend |
+| Punkt                          | Was fehlt                                                                                                                                                                              | Vor Epic                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **Die 60 Zauber**              | Namen, Werte, Abklingzeiten, konkrete Synergie-Beziehungen, Stufen-Zuordnung                                                                                                           | E10 (Anfang: die 3 aus Schritt 1, dann die 12 des Prototyps) |
+| **15–20 Mechanik-Bausteine**   | Die Varianten der neun übernommenen Muster                                                                                                                                             | E4                                                           |
+| **68 Signatur-Regeln**         | Je Boss eine Regel in einem Satz                                                                                                                                                       | E10                                                          |
+| **Boss-Zeitleisten**           | Je Boss: welcher Baustein wann, Phasen-Schwellen, Energieleisten-Takt                                                                                                                  | E10                                                          |
+| **Talent-Inhalte**             | ~50 Punkte, 15 Zweige, Schlüsseltalente je Weg                                                                                                                                         | E5                                                           |
+| **Gegenstands-Katalog**        | Konkrete Gegenstände, Sätze, legendäre Effekte, Boss-Bindungen                                                                                                                         | E6                                                           |
+| **Erfahrungskurve**            | Wie viel Erfahrung je Stufe, woher sie kommt                                                                                                                                           | E5                                                           |
+| **Endlos-Leiter-Skalierung**   | Wachstum je Stufe, wo die Werte-Obergrenze liegt                                                                                                                                       | E10                                                          |
+| **Erfolge**                    | Je Boss die konkreten Ziele, 288 Zeitmarken                                                                                                                                            | E10                                                          |
+| **Instanz-Themen und Namen**   | 14 Instanzen mit Thema, Farbwelt, Klangteppich                                                                                                                                         | E10                                                          |
+| **~150 Archiv-Texte**          | Inhalte, Stimmen-Verteilung, Reihenfolge                                                                                                                                               | E10                                                          |
+| **Sound-Manifest**             | 115 Prompts mit Ziel-Längen                                                                                                                                                            | E8                                                           |
+| **Grafik-Stil**                | Konkretes Asset-Set auswählen                                                                                                                                                          | E9                                                           |
+| **Cooldown-Rücksetzer**        | Abklingzeit, ob GCD-frei, auf welche Zauber anwendbar                                                                                                                                  | E3                                                           |
+| **Unterbrechen**               | Fensterbreite, Abklingzeit, Folgen des Verpassens                                                                                                                                      | E4                                                           |
+| **Spellsteal**                 | Fensterbreite, Dauer der übernommenen Verstärkung, Abklingzeit                                                                                                                         | E4                                                           |
+| **Schwierigkeitsstufen**       | Welche Mechanik kommt auf welcher Stufe dazu                                                                                                                                           | E4                                                           |
+| **Punkteformel**               | Konkrete überproportionale Kurve                                                                                                                                                       | E5                                                           |
+| **Abnehmender Ertrag**         | Konkrete Kurve über den Stufenabstand                                                                                                                                                  | E5                                                           |
+| **Tastenbelegungs-Oberfläche** | Entwurf des Einstellungs-Bildschirms                                                                                                                                                   | E1 oder E5                                                   |
+| **Issue-Ausarbeitung je Epic** | _(Arbeitsorganisation)_ Angelegt sind zunächst nur die Issues für E1, E8 und E9. Die übrigen werden formuliert, wenn ihr Epic an die Reihe kommt — sie jetzt zu schreiben wäre Raterei | laufend                                                      |

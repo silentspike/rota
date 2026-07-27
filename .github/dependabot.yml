@@ -1,31 +1,31 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: 'weekly'
+      day: 'monday'
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore"
+      prefix: 'chore'
     groups:
       # Sammel-PR statt einem je Paket — sonst erstickt das PR-Gate
       # an Kleinst-Updates, und der Overhead je Issue steigt (siehe WORKER-GUIDE).
       dev-dependencies:
-        dependency-type: "development"
+        dependency-type: 'development'
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: 'weekly'
+      day: 'monday'
     commit-message:
-      prefix: "chore"
+      prefix: 'chore'
 
-  - package-ecosystem: "cargo"
-    directory: "/sim"
+  - package-ecosystem: 'cargo'
+    directory: '/sim'
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: 'weekly'
+      day: 'monday'
     commit-message:
-      prefix: "chore"
+      prefix: 'chore'

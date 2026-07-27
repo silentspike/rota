@@ -26,12 +26,12 @@ refs:
 
 Lies in dieser Reihenfolge:
 
-| # | Dokument | Warum |
-|---|---|---|
-| 1 | `CLAUDE.md` (Projekt) | Die sechs Design-Gesetze und die technischen Rahmenbedingungen |
-| 2 | `docs/GAME-DESIGN.md` | Das komplette Design. **Kapitel 21 besonders** — dort steht, was bereits verworfen wurde |
-| 3 | `docs/STEP1-SPEC.md` | Nur wenn du an E1 arbeitest: die konkreten Zahlen |
-| 4 | dieses Dokument | Der Ablauf |
+| #   | Dokument              | Warum                                                                                    |
+| --- | --------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | `CLAUDE.md` (Projekt) | Die sechs Design-Gesetze und die technischen Rahmenbedingungen                           |
+| 2   | `docs/GAME-DESIGN.md` | Das komplette Design. **Kapitel 21 besonders** — dort steht, was bereits verworfen wurde |
+| 3   | `docs/STEP1-SPEC.md`  | Nur wenn du an E1 arbeitest: die konkreten Zahlen                                        |
+| 4   | dieses Dokument       | Der Ablauf                                                                               |
 
 > **Kapitel 21 von GAME-DESIGN.md ist Pflichtlektüre.** Jede Zeile dort war eine bewusste Entscheidung
 > des Auftraggebers. Wenn dir beim Bauen eine „bessere Idee" kommt, steht sie mit hoher
@@ -48,11 +48,11 @@ Lies in dieser Reihenfolge:
 
 ### Worktree-Zuordnung
 
-| Epic | Worktree | Arbeitet vor allem in |
-|---|---|---|
+| Epic                        | Worktree                  | Arbeitet vor allem in                    |
+| --------------------------- | ------------------------- | ---------------------------------------- |
 | **E1** — Kampf-Kern und HUD | `/work/rota-worktrees/e1` | `src/core/`, `src/render/`, `src/input/` |
-| **E8** — Klang | `/work/rota-worktrees/e8` | `src/audio/`, `assets/audio/` |
-| **E9** — Grafik-Assets | `/work/rota-worktrees/e9` | `assets/img/`, `ASSETS.md` |
+| **E8** — Klang              | `/work/rota-worktrees/e8` | `src/audio/`, `assets/audio/`            |
+| **E9** — Grafik-Assets      | `/work/rota-worktrees/e9` | `assets/img/`, `ASSETS.md`               |
 
 Weitere Worktrees entstehen, wenn ihr Epic an die Reihe kommt.
 
@@ -158,13 +158,13 @@ welche AC und warum. Das ist ein völlig normaler Ausgang und besser als eine ge
 
 ## 5. Was als Nachweis gilt — und was nicht
 
-| Gilt als Nachweis | Gilt NICHT |
-|---|---|
-| Befehl ausgeführt, Ausgabe gezeigt | „Code gelesen, sieht korrekt aus" |
-| Screenshot aus dem laufenden Spiel | Zeilennummern zitiert |
-| Messung (Latenz, Bildzeit, Speicher) | „Struktur ist vorhanden" |
-| Testlauf mit konkretem Ergebnis | „Pattern implementiert" |
-| Konsolen-Ausgabe der Dev-Werkzeuge | Quelltext-Review ohne Ausführung |
+| Gilt als Nachweis                    | Gilt NICHT                        |
+| ------------------------------------ | --------------------------------- |
+| Befehl ausgeführt, Ausgabe gezeigt   | „Code gelesen, sieht korrekt aus" |
+| Screenshot aus dem laufenden Spiel   | Zeilennummern zitiert             |
+| Messung (Latenz, Bildzeit, Speicher) | „Struktur ist vorhanden"          |
+| Testlauf mit konkretem Ergebnis      | „Pattern implementiert"           |
+| Konsolen-Ausgabe der Dev-Werkzeuge   | Quelltext-Review ohne Ausführung  |
 
 **Grundzustand jeder AC ist UNGEPRÜFT.** Kein Befehl = ungeprüft. Ungeprüft ist nicht bestanden.
 
@@ -191,31 +191,35 @@ Das kopierst du am Ende jedes Issues in den Chat. Der Auftraggeber gibt es an di
 weiter.
 
 ```markdown
-## Issue #<nummer> — <Titel>   [FERTIG | OFFEN MIT BLOCKER]
+## Issue #<nummer> — <Titel> [FERTIG | OFFEN MIT BLOCKER]
 
 ### Was gebaut wurde
+
 - <Stichpunkte, 2–5 Zeilen>
 - Geänderte Dateien: <Liste>
 - Commits: <hashes>
 
 ### AC-Nachweise
+
 AC1: <AC-Text> → BESTANDEN
-  $ <exakter Befehl>
-  <tatsächliche Ausgabe, gekürzt auf das Aussagekräftige>
+$ <exakter Befehl>
+<tatsächliche Ausgabe, gekürzt auf das Aussagekräftige>
 
 AC2: <AC-Text> → BESTANDEN
-  $ <exakter Befehl>
-  <Ausgabe>
+$ <exakter Befehl>
+<Ausgabe>
 
 AC3: <AC-Text> → NICHT BESTANDEN
-  $ <Befehl>
-  <Ausgabe>
-  Grund: <warum>   Blockiert: <ja/nein, was hängt daran>
+$ <Befehl>
+<Ausgabe>
+Grund: <warum> Blockiert: <ja/nein, was hängt daran>
 
 ### Was NICHT geprüft wurde
+
 - <Punkt> — Grund: <warum nicht>
 
 ### Zuversicht
+
 <Prozent> — <ein Satz Begründung>
 ```
 
@@ -241,14 +245,14 @@ melden, dann wird er in der SSOT aufgelöst.
 
 ## 8. Technische Rahmenbedingungen (aus `CLAUDE.md`)
 
-| Punkt | Regel |
-|---|---|
-| **Dev-Server** | nginx auf `localhost:8000/rota/`. **Niemals eigene HTTP-Server starten** |
-| **Browser-Tests** | `playwright-cli -s=rota …`, Session am Ende mit `close` beenden. `--headed` nur, wenn zugeschaut werden soll |
-| **Kein UI-Framework** | Reines TypeScript. Kein React, kein Svelte |
-| **Spieltexte** | Nur Englisch. Kommunikation auf Deutsch |
-| **Umlaute** | In Doku, Kommentaren und Commit-Messages echte Umlaute (ä ö ü ß), nicht ae/oe/ue/ss. ASCII nur in Bezeichnern, Dateinamen, URLs |
-| **Keine Emojis** | Weder im Code noch in der Oberfläche noch in Commits |
+| Punkt                 | Regel                                                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Dev-Server**        | nginx auf `localhost:8000/rota/`. **Niemals eigene HTTP-Server starten**                                                        |
+| **Browser-Tests**     | `playwright-cli -s=rota …`, Session am Ende mit `close` beenden. `--headed` nur, wenn zugeschaut werden soll                    |
+| **Kein UI-Framework** | Reines TypeScript. Kein React, kein Svelte                                                                                      |
+| **Spieltexte**        | Nur Englisch. Kommunikation auf Deutsch                                                                                         |
+| **Umlaute**           | In Doku, Kommentaren und Commit-Messages echte Umlaute (ä ö ü ß), nicht ae/oe/ue/ss. ASCII nur in Bezeichnern, Dateinamen, URLs |
+| **Keine Emojis**      | Weder im Code noch in der Oberfläche noch in Commits                                                                            |
 
 ---
 

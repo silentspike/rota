@@ -6,15 +6,15 @@
 
 ## Lizenzregel — nicht verhandelbar
 
-| Lizenz | Erlaubt? | Auflage |
-|---|---|---|
-| **CC0 / Public Domain** | **ja** | keine |
-| **CC BY** | **ja** | **Namensnennung** — muss in den Credits im Spiel stehen |
-| **OFL** (Schriften) | ja | Schrift darf nicht einzeln verkauft werden; Nennung empfohlen |
-| **Eigenerzeugung** (KI/eigene Datei) | ja | Werkzeug und Datum notieren |
-| „Free for personal use" | **NEIN** | — |
-| „Free for non-commercial use" | **NEIN** | — |
-| unklare oder fehlende Lizenz | **NEIN** | — |
+| Lizenz                               | Erlaubt? | Auflage                                                       |
+| ------------------------------------ | -------- | ------------------------------------------------------------- |
+| **CC0 / Public Domain**              | **ja**   | keine                                                         |
+| **CC BY**                            | **ja**   | **Namensnennung** — muss in den Credits im Spiel stehen       |
+| **OFL** (Schriften)                  | ja       | Schrift darf nicht einzeln verkauft werden; Nennung empfohlen |
+| **Eigenerzeugung** (KI/eigene Datei) | ja       | Werkzeug und Datum notieren                                   |
+| „Free for personal use"              | **NEIN** | —                                                             |
+| „Free for non-commercial use"        | **NEIN** | —                                                             |
+| unklare oder fehlende Lizenz         | **NEIN** | —                                                             |
 
 > **Die häufigste Falle: „Free for personal use".** Der Download-Knopf heißt trotzdem „Free
 > Download", die Datei ist kostenlos — aber **kommerziell nicht nutzbar**. ROTA wird als
@@ -25,15 +25,15 @@
 
 **Erlaubte Quellen** (aus `docs/GAME-DESIGN.md` 17.2):
 
-| Quelle | Was | Lizenz |
-|---|---|---|
-| [game-icons.net](https://game-icons.net) | 4.000+ Fantasy-Symbole als SVG, umfärbbar | CC BY 3.0 |
-| [Kenney.nl](https://kenney.nl) | UI-Pakete | CC0 |
-| [OpenGameArt.org](https://opengameart.org) | gemischt, je Asset prüfen | gemischt |
-| itch.io | Dark-Fantasy-RPG-UI-Pakete | **nur die ausdrücklich kostenlosen und kommerziell nutzbaren** |
-| [ambientCG](https://ambientcg.com) / [Poly Haven](https://polyhaven.com) | Metall- und Steintexturen | CC0 |
-| [Google Fonts](https://fonts.google.com) | Cinzel, Marcellus, EB Garamond, Zahlenschrift | OFL |
-| [Freesound.org](https://freesound.org) | ergänzende Klänge, falls Suno versagt | je Datei prüfen |
+| Quelle                                                                   | Was                                           | Lizenz                                                         |
+| ------------------------------------------------------------------------ | --------------------------------------------- | -------------------------------------------------------------- |
+| [game-icons.net](https://game-icons.net)                                 | 4.000+ Fantasy-Symbole als SVG, umfärbbar     | CC BY 3.0                                                      |
+| [Kenney.nl](https://kenney.nl)                                           | UI-Pakete                                     | CC0                                                            |
+| [OpenGameArt.org](https://opengameart.org)                               | gemischt, je Asset prüfen                     | gemischt                                                       |
+| itch.io                                                                  | Dark-Fantasy-RPG-UI-Pakete                    | **nur die ausdrücklich kostenlosen und kommerziell nutzbaren** |
+| [ambientCG](https://ambientcg.com) / [Poly Haven](https://polyhaven.com) | Metall- und Steintexturen                     | CC0                                                            |
+| [Google Fonts](https://fonts.google.com)                                 | Cinzel, Marcellus, EB Garamond, Zahlenschrift | OFL                                                            |
+| [Freesound.org](https://freesound.org)                                   | ergänzende Klänge, falls Suno versagt         | je Datei prüfen                                                |
 
 ---
 
@@ -41,15 +41,15 @@
 
 ### Referenzen (`docs/refs/`) — nicht Teil der Auslieferung
 
-| Datei | Herkunft | Lizenz | Nennung | Zweck |
-|---|---|---|---|---|
-| `frame-alpha-reference.png` | Eigenerzeugung, `gpt-image`, 2026-07-27 | Eigenerzeugung | nein | **Nachweis des Transparenz-Wegs** und Stil-Referenz für Rahmen (Epic E9) |
+| Datei                       | Herkunft                                | Lizenz         | Nennung | Zweck                                                                    |
+| --------------------------- | --------------------------------------- | -------------- | ------- | ------------------------------------------------------------------------ |
+| `frame-alpha-reference.png` | Eigenerzeugung, `gpt-image`, 2026-07-27 | Eigenerzeugung | nein    | **Nachweis des Transparenz-Wegs** und Stil-Referenz für Rahmen (Epic E9) |
 
 **`frame-alpha-reference.png` — gemessene Eigenschaften:**
 
-| Größe | Modus | vollständig transparent | vollständig deckend | halbtransparent |
-|---|---|---|---|---|
-| 1024 × 1024 | RGBA | 84,9 % | 8,2 % | **6,84 %** |
+| Größe       | Modus | vollständig transparent | vollständig deckend | halbtransparent |
+| ----------- | ----- | ----------------------- | ------------------- | --------------- |
+| 1024 × 1024 | RGBA  | 84,9 %                  | 8,2 %               | **6,84 %**      |
 
 > **Warum der Wert 6,84 % der wichtige ist:** Halbtransparente Pixel bedeuten **weiche Kanten und
 > erhaltenes Glühen**. Läge er bei 0, wäre die Transparenz hart ausgestanzt und jedes Symbol hätte
@@ -67,30 +67,30 @@
 
 ### Grafik (`assets/img/`)
 
-*(noch leer — wird in Epic E9 gefüllt)*
+_(noch leer — wird in Epic E9 gefüllt)_
 
 | Datei | Herkunft | Lizenz | Nennung | Verwendung |
-|---|---|---|---|---|
-| — | — | — | — | — |
+| ----- | -------- | ------ | ------- | ---------- |
+| —     | —        | —      | —       | —          |
 
 ### Klang (`assets/audio/`)
 
-*(noch leer — wird in Epic E8 gefüllt)*
+_(noch leer — wird in Epic E8 gefüllt)_
 
 Erzeugung über Suno, Werkzeugkette siehe [`docs/suno-sfx.md`](docs/suno-sfx.md).
 Konto: `backupslave` (Konto-Wächter in `tools/suno_api.py` erzwingt das).
 
 | Datei | Herkunft | Lizenz | Nennung | Verwendung |
-|---|---|---|---|---|
-| — | — | — | — | — |
+| ----- | -------- | ------ | ------- | ---------- |
+| —     | —        | —      | —       | —          |
 
 ### Schriften (`assets/fonts/`)
 
-*(noch leer — Auswahl in Epic E9)*
+_(noch leer — Auswahl in Epic E9)_
 
 | Datei | Herkunft | Lizenz | Nennung | Verwendung |
-|---|---|---|---|---|
-| — | — | — | — | — |
+| ----- | -------- | ------ | ------- | ---------- |
+| —     | —        | —      | —       | —          |
 
 ---
 
@@ -107,11 +107,11 @@ Solange ausschließlich CC0 und Eigenerzeugungen verwendet werden, ist der Berei
 
 ## Offen
 
-| Punkt | Status |
-|---|---|
+| Punkt                                                                                                                        | Status                                            |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | **Die zwei HUD-Referenzbilder** (Reaktionsgefäß, Messring, „CASCADE FAILURE"-Zauberbalken, Pergament-Ausgabefeld, Apparatur) | **Auf dem System nicht auffindbar** — siehe unten |
-| Konkretes Asset-Set und Stil-Festlegung | Epic E9 |
-| Sound-Manifest (115 Slots) | Epic E8 |
+| Konkretes Asset-Set und Stil-Festlegung                                                                                      | Epic E9                                           |
+| Sound-Manifest (115 Slots)                                                                                                   | Epic E8                                           |
 
 ### Zu den fehlenden HUD-Referenzbildern
 
