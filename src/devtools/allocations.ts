@@ -36,6 +36,9 @@ export interface AllocationResult {
   readonly precise: boolean;
 }
 
+/** So viele Anfragen warten höchstens. Mehr wäre ein Bedienfehler. */
+const WAITING_LIMIT = 8;
+
 const NO_RESULT: AllocationResult = {
   frames: 0,
   bytesTotal: 0,
@@ -85,6 +88,16 @@ export class AllocationProbe {
   private precise = false;
   private result: AllocationResult = NO_RESULT;
   private onDone: ((result: AllocationResult) => void) | null = null;
+  /**
+   * Anfragen, die eintrafen, während schon gemessen wurde.
+   *
+   * Ohne diese Liste bliebe der Aufrufer hängen: `begin` würde stillschweigend
+   * nichts tun, und das Versprechen aus `measureAllocations` würde nie eingelöst.
+   * Genau das ist beim Messen zu Issue E1-2 passiert — die automatische Messung
+   * lief gerade, und der Abruf lief in eine Zeitüberschreitung.
+   */
+  private readonly waiting: { frames: number; onDone: ((r: AllocationResult) => void) | null }[] =
+    [];
 
   get lastResult(): AllocationResult {
     return this.result;
@@ -94,9 +107,27 @@ export class AllocationProbe {
     return this.measuring;
   }
 
-  /** Startet eine Messung über `frames` Bilder. */
+  /**
+   * Startet eine Messung über `frames` Bilder.
+   *
+   * Läuft bereits eine, wird die Anfrage hinten angestellt und startet, sobald
+   * die laufende fertig ist. Wer nicht warten will, prüft vorher `isMeasuring`.
+   */
   begin(frames: number, onDone?: (result: AllocationResult) => void): void {
-    if (this.measuring) return;
+    if (this.measuring) {
+      if (this.waiting.length < WAITING_LIMIT) {
+        this.waiting.push({ frames, onDone: onDone ?? null });
+      } else if (onDone !== undefined) {
+        // Reißleiste gegen unbegrenztes Wachsen: Der Aufrufer bekommt das
+        // letzte Ergebnis statt eines Versprechens, das niemand einlöst.
+        onDone(this.result);
+      }
+      return;
+    }
+    this.startNow(frames, onDone ?? null);
+  }
+
+  private startNow(frames: number, onDone: ((result: AllocationResult) => void) | null): void {
     this.gcAvailable = collectGarbage();
     this.heapAtStart = readHeap();
     this.precise = looksPrecise(this.heapAtStart);
@@ -129,5 +160,8 @@ export class AllocationProbe {
     const done = this.onDone;
     this.onDone = null;
     if (done !== null) done(this.result);
+
+    const next = this.waiting.shift();
+    if (next !== undefined) this.startNow(next.frames, next.onDone);
   }
 }
