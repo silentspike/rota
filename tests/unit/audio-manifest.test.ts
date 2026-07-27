@@ -44,14 +44,33 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
     expect(coverageTotals(SOUND_MANIFEST).target).toBe(115);
   });
 
-  it('begruendet jede Luecke — keine Gruppe bleibt unerklaert offen', () => {
+  it('weist jede Luecke als Platzhalter mit Epic und Begruendung aus', () => {
     for (const [group, counts] of Object.entries(SOUND_MANIFEST.coverage.groups)) {
       if (counts.present >= counts.target) continue;
-      const reason = SOUND_MANIFEST.coverage.blocked.find((entry) => entry.group === group);
-      expect(reason, `Gruppe ${group} ohne Begruendung`).toBeDefined();
-      expect(reason!.reason.length).toBeGreaterThan(30);
-      expect(reason!.missing).toBe(counts.target - counts.present);
+      const placeholder = SOUND_MANIFEST.coverage.placeholders.find(
+        (entry) => entry.group === group,
+      );
+      expect(placeholder, `Gruppe ${group} ohne Platzhalter`).toBeDefined();
+      expect(placeholder!.count).toBe(counts.target - counts.present);
+      expect(placeholder!.epic.length).toBeGreaterThan(1);
+      expect(placeholder!.reason.length).toBeGreaterThan(30);
     }
+  });
+
+  it('beschreibt alle 47 ableitbaren Slots vollstaendig', () => {
+    // 115 minus die 60 Zauber (Epic E10) minus die 8 Musik-Schichten (#18).
+    const ableitbar = SOUND_MANIFEST.sounds.filter((sound) => sound.group !== 'spells');
+    expect(ableitbar).toHaveLength(47);
+    for (const sound of ableitbar) {
+      expect(sound.file, sound.id).toBeDefined();
+      expect(sound.targetSeconds, sound.id).toBeGreaterThan(0);
+      expect(sound.prompt, sound.id).toBeDefined();
+    }
+  });
+
+  it('deckt mit Beschriebenem und Platzhaltern zusammen die vollen 115 ab', () => {
+    const platzhalter = SOUND_MANIFEST.coverage.placeholders.reduce((a, p) => a + p.count, 0);
+    expect(SOUND_MANIFEST.sounds.length + platzhalter).toBe(115);
   });
 
   it('kennt jede Datei, die unter assets/audio liegt — keine Waisen', () => {
@@ -71,7 +90,7 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
 describe('parseManifest — Pruefung fehlerhafter Verzeichnisse', () => {
   const base: Manifest = {
     schema: 1,
-    coverage: { groups: { test: { target: 1, present: 1 } }, blocked: [] },
+    coverage: { groups: { test: { target: 1, present: 1 } }, placeholders: [] },
     sounds: [
       {
         id: 'a',
@@ -89,7 +108,7 @@ describe('parseManifest — Pruefung fehlerhafter Verzeichnisse', () => {
   it('meldet doppelte Kennungen', () => {
     const parsed = parseManifest({
       ...base,
-      coverage: { groups: { test: { target: 2, present: 2 } }, blocked: [] },
+      coverage: { groups: { test: { target: 2, present: 2 } }, placeholders: [] },
       sounds: [base.sounds[0]!, base.sounds[0]!],
     });
     expect(parsed.problems.some((p) => p.includes('mehrfach'))).toBe(true);
@@ -112,18 +131,18 @@ describe('parseManifest — Pruefung fehlerhafter Verzeichnisse', () => {
     expect(parsed.problems.some((p) => p.includes('Ziel-Laenge'))).toBe(true);
   });
 
-  it('meldet eine Luecke ohne Begruendung', () => {
+  it('meldet eine Luecke ohne Platzhalter', () => {
     const parsed = parseManifest({
       ...base,
-      coverage: { groups: { test: { target: 5, present: 1 } }, blocked: [] },
+      coverage: { groups: { test: { target: 5, present: 1 } }, placeholders: [] },
     });
-    expect(parsed.problems.some((p) => p.includes('ohne dass ein Grund'))).toBe(true);
+    expect(parsed.problems.some((p) => p.includes('ohne dass ein Platzhalter'))).toBe(true);
   });
 
   it('meldet eine Abdeckung, die nicht zum Inhalt passt', () => {
     const parsed = parseManifest({
       ...base,
-      coverage: { groups: { test: { target: 3, present: 3 } }, blocked: [] },
+      coverage: { groups: { test: { target: 3, present: 3 } }, placeholders: [] },
     });
     expect(parsed.problems.some((p) => p.includes('tatsaechlich'))).toBe(true);
   });
