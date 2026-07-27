@@ -919,17 +919,31 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 
 **Umfang V1: ~115 Sounds**, jeder der 60 Zauber einzeln vertont.
 
-| Bereich                                                                                                           | Anzahl |
-| ----------------------------------------------------------------------------------------------------------------- | ------ |
-| Zauber (je einzeln)                                                                                               | ~60    |
-| Sonderzauber (Unterbrechen, Overdrive, Rücksetzer, Schild auf/bricht, Heilung, Reflexion)                         | 7      |
-| Kampf-Rückmeldung (Zauber bereit, Fehleingabe, Synergie verfügbar, GCD-Ende)                                      | 4      |
-| Boss (Zauberbeginn, durchgekommen, Treffer, Phasenwechsel, Überdruck-Warnung, Überdruck, Reaktion kippt, besiegt) | 8      |
-| Kampfzustände (Countdown, Start, wenig Leben, Tod, Zeitablauf)                                                    | 6      |
-| Nach dem Kampf (Sieg, Niederlage, Bestzeit, Erfolg, Stufenaufstieg, Punkte)                                       | 6      |
-| Menü                                                                                                              | 12     |
-| **Beute nach Qualität**                                                                                           | **4**  |
-| Klangteppich (Loop je Instanz plus Menü und Spannungs-Schicht)                                                    | 8      |
+| Bereich                                                                                                                                                                                 | Anzahl |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Zauber (je einzeln)                                                                                                                                                                     | ~60    |
+| Sonderzauber (Unterbrechen, Overdrive, Rücksetzer, Schild auf, Schild bricht, Heilung, Reflexion)                                                                                       | 7      |
+| Kampf-Rückmeldung (Zauber bereit, Fehleingabe, Synergie verfügbar, GCD-Ende)                                                                                                            | 4      |
+| Boss (Zauberbeginn, durchgekommen, Treffer, Phasenwechsel, Überdruck-Warnung, Überdruck, Reaktion kippt, besiegt)                                                                       | 8      |
+| Kampfzustände (Countdown, Start, wenig Leben, Tod, Zeitablauf, **Wipe Run**)                                                                                                            | 6      |
+| Nach dem Kampf (Sieg, Niederlage, Bestzeit, Erfolg, Stufenaufstieg, Punkte)                                                                                                             | 6      |
+| Menü (Berühren, Drücken, Reiter, Fenster auf, Fenster zu, Talentpunkt, Talente zurück, Gegenstand angelegt, Zusammenstellung gespeichert, abgelehnt, **Freischaltung**, **Aufwertung**) | 12     |
+| **Beute nach Qualität**                                                                                                                                                                 | **4**  |
+| Klangteppich (Loop je Instanz plus Menü und Spannungs-Schicht)                                                                                                                          | 8      |
+
+> **Zu den drei zuletzt benannten Klängen** (2026-07-27): Der Planungs-Plan nannte bei
+> Kampfzuständen die Zahl 6 und bei Menü die Zahl 12, listete aber nur 5 bzw. 10 Einträge — ein
+> Zählfehler aus dem Interview. Die drei fehlenden sind aus dem Design abgeleitet und ergänzt:
+>
+> | Klang             | Warum genau dieser                                                                                                                                                                                                                                |
+> | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | **Wipe Run**      | GAME-DESIGN 12.8 verlangt einen reibungslosen Wiederholungs-Ablauf (Esc → Wipe Run → Auswertung → Restart). Bei ~10 Versuchen je Endgame-Boss ist das der **häufigste Übergang im ganzen Spiel** und der einzige Kampf-Ausgang ohne eigenen Klang |
+> | **Freischaltung** | Punkte für eine Instanz, einen Zauber oder einen Ausrüstungsplatz ausgeben (12.6, 12.7)                                                                                                                                                           |
+> | **Aufwertung**    | Material und Punkte in Gegenstandsstufe umsetzen (13.6) — im Endgame der Kern-Kreislauf                                                                                                                                                           |
+>
+> **Freischaltung und Aufwertung sind die beiden einzigen Verwendungen von Punkten** und hatten
+> beide keinen Klang. „Vorlage geladen" braucht dagegen keinen eigenen — es teilt sich den Klang
+> mit „Zusammenstellung gespeichert", weil es dieselbe Handlungsklasse ist.
 
 > **Die vier Beute-Klänge sind einer der stärksten Dopamin-Momente überhaupt** — der legendäre Klang
 > in Diablo ist berühmt, Spieler erkennen ihn, bevor sie den Gegenstand sehen. Hier lohnt sich Sorgfalt.
