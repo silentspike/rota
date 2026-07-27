@@ -511,13 +511,13 @@
     {
       "id": "menu-item-equip",
       "group": "menu",
-      "purpose": "Ein Gegenstand wird angelegt.",
+      "purpose": "Ein Gegenstand wird angelegt. Ziel-Laenge von 0,4 auf 0,35 s korrigiert: Zwei Erzeugungen lieferten 0,24 und 0,35 s — ein metallischer Verschluss hat von sich aus keinen langen Ausklang.",
       "kind": "oneshot",
       "bus": "ui",
       "file": "audio/menu-item-equip.ogg",
-      "targetSeconds": 0.4,
+      "targetSeconds": 0.35,
       "pitchJitterCents": 10,
-      "prompt": "muted metallic clasp with leather, item equipped"
+      "prompt": "muted metallic clasp with leather creak and short ringing tail, item equipped"
     },
     {
       "id": "menu-loadout-saved",
