@@ -177,6 +177,17 @@ Werte müssen um Null schwanken und dürfen **nicht** proportional zur Bildzahl 
 >
 > Ein Einzelwert von „0" ist kein Nachweis, sondern ein Treffer im Rauschband.
 
+**Zwei Fallen bei dieser Messung** (beide bei der Abnahme von Issue #8 aufgetreten):
+
+1. **Die erste Messung nach dem Laden ist unbrauchbar.** Direkt nach dem Öffnen wurden 450 KB auf
+   300 Bilder gemessen — reines Aufwärmen (Klang-Dekodierung, JIT). **Vor der Messung 20 bis 25 s
+   laufen lassen.** Und die Reihenfolge einmal umdrehen (1800/600/300 statt 300/600/1800): Hängt ein
+   Wert an der Bildzahl, bleibt er; hängt er am Zeitpunkt, wandert er mit.
+2. **Klang-Wiedergabe erzeugt Speicher je Tastendruck, nicht je Bild.** Gemessen: 156 Byte je Druck.
+   Das ist der `AudioBufferSourceNode`, den die Web-Audio-Spezifikation für jede Wiedergabe verlangt
+   — nicht vermeidbar und **kein Verstoss**, weil er nicht an der Bildzahl haengt. Bei einer Messung
+   unter Tastatur-Beschuss diesen Anteil herausrechnen.
+
 Das ist die härteste der fünf Messungen und der Grund für die Objekt-Pools und den Ringpuffer
 (GAME-DESIGN 18.2). Systematische Allokation im Bild-Pfad führt früher oder später zu Rucklern.
 
