@@ -38,6 +38,14 @@ Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMME
 ## Technische Rahmenbedingungen
 
 - **Dev-Server:** nginx auf `localhost:8000/rota/` — NIEMALS eigene HTTP-Server starten.
+  - **Ausgeliefert wird der gebaute Stand** (`npm run build` → `dist/`), nicht der Vite-Dev-Server.
+    So prüfen Worker und Master-Session dasselbe, was auch ausgeliefert würde. Nach jeder Änderung
+    also `npm run build`, dann neu laden.
+  - **Dev-Werkzeuge im Browser testen:** `npx vite build --mode development` — dann ist
+    `window.__rota` verfügbar. Danach wieder `npm run build`, damit der Produktionsstand ausliegt.
+  - Ein `404` auf `/favicon.ico` in der Konsole ist **erwartet und nicht projektbezogen**: Browser
+    fragen die Datei automatisch auf der Server-Wurzel ab, nicht unter `/rota/`. Das eigene Symbol
+    liegt unter `/rota/favicon.svg` und wird korrekt geladen.
 - **Browser-Tests:** `playwright-cli -s=rota ...` (headless; `--headed` nur wenn der User zuschauen will).
   Session am Ende mit `close` beenden.
 - **Sound:** Erzeugung via Suno Sounds (siehe `docs/suno-sfx.md`). ElevenLabs hat KEIN Guthaben.
