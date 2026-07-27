@@ -48,13 +48,16 @@ Lies in dieser Reihenfolge:
 
 ### Worktree-Zuordnung
 
-| Epic                        | Worktree                  | Arbeitet vor allem in                    |
-| --------------------------- | ------------------------- | ---------------------------------------- |
-| **E1** — Kampf-Kern und HUD | `/work/rota-worktrees/e1` | `src/core/`, `src/render/`, `src/input/` |
-| **E8** — Klang              | `/work/rota-worktrees/e8` | `src/audio/`, `assets/audio/`            |
-| **E9** — Grafik-Assets      | `/work/rota-worktrees/e9` | `assets/img/`, `ASSETS.md`               |
+| Epic                        | Worktree                  | Ruhe-Branch | Arbeitet vor allem in                    |
+| --------------------------- | ------------------------- | ----------- | ---------------------------------------- |
+| **E1** — Kampf-Kern und HUD | `/work/rota-worktrees/e1` | `wt-e1`     | `src/core/`, `src/render/`, `src/input/` |
+| **E8** — Klang              | `/work/rota-worktrees/e8` | `wt-e8`     | `src/audio/`, `assets/audio/`            |
+| **E9** — Grafik-Assets      | `/work/rota-worktrees/e9` | `wt-e9`     | `assets/img/`, `ASSETS.md`               |
 
 Weitere Worktrees entstehen, wenn ihr Epic an die Reihe kommt.
+
+Die Worktrees liegen bewusst **außerhalb** von `/work/rota` — lägen sie darin, zöge Vite sie als
+Quellen in den Build.
 
 > **Halte dich an deinen Dateibereich.** Die Aufteilung existiert, damit fünf Sessions gleichzeitig
 > arbeiten können, ohne sich über Merge-Konflikte zu blockieren. Wenn du etwas außerhalb deines
@@ -70,9 +73,15 @@ Weitere Worktrees entstehen, wenn ihr Epic an die Reihe kommt.
 ```bash
 cd /work/rota-worktrees/<dein-epic>
 git fetch origin
-git checkout main
-git pull --ff-only origin main
+git switch wt-<dein-epic>          # der Ruhe-Branch des Worktrees
+git reset --hard origin/main
 ```
+
+> **Warum nicht `git checkout main`:** `main` ist bereits im Hauptverzeichnis `/work/rota`
+> ausgecheckt, und git lässt denselben Branch nicht zweimal auschecken. Deshalb hat jeder Worktree
+> einen eigenen Ruhe-Branch (`wt-e1`, `wt-e8`, `wt-e9`), der per `reset --hard` auf den aktuellen
+> `origin/main` gesetzt wird. Auf diesem Branch wird **nie gearbeitet** — er ist nur der
+> Ausgangspunkt.
 
 > **Nicht überspringen.** `main` kann weitergewandert sein, weil eine andere Session inzwischen einen
 > PR gemerged hat. Wer auf einem alten Stand entwickelt, baut Konflikte ein, die niemand braucht.
