@@ -27,10 +27,11 @@ describe('PerfCounters', () => {
 
   it('hält die Eingabe-Verzögerung getrennt', () => {
     const perf = new PerfCounters();
-    perf.recordInputLatency(8.2);
-    perf.recordInputLatency(12.4);
+    perf.recordInputLatency(8.2, 1);
+    perf.recordInputLatency(12.4, 1);
 
     expect(perf.inputLatency.toArray()).toEqual([8.2, 12.4]);
+    expect(perf.inputFrameDelay.toArray()).toEqual([1, 1]);
     expect(perf.frameCount).toBe(0);
   });
 });
