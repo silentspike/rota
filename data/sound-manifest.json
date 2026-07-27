@@ -2,7 +2,7 @@
   "schema": 1,
   "note": "Verzeichnis aller Klaenge (GAME-DESIGN 17.1). Prompt-Regeln: docs/suno-sfx.md 2. Erzeugung: tools/suno_api.py batch, Nachbearbeitung: tools/sfx-post.sh.",
   "coverage": {
-    "note": "Soll aus GAME-DESIGN 17.1. Was noch fehlt, fehlt nicht aus Nachlaessigkeit, sondern weil die Vorlage dafuer noch nicht ausgearbeitet ist (GAME-DESIGN 22). Siehe 'blocked'.",
+    "note": "Soll aus GAME-DESIGN 17.1. Die 47 ableitbaren Slots sind vollstaendig beschrieben. Was fehlt, steht unter 'placeholders' mit dem Epic, das es ausarbeitet — es fehlt nicht aus Nachlaessigkeit, sondern weil die Vorlage dafuer noch nicht existiert (GAME-DESIGN 22).",
     "groups": {
       "spells": {
         "target": 60,
@@ -22,7 +22,7 @@
       },
       "state": {
         "target": 6,
-        "present": 5
+        "present": 6
       },
       "postfight": {
         "target": 6,
@@ -30,7 +30,7 @@
       },
       "menu": {
         "target": 12,
-        "present": 0
+        "present": 12
       },
       "loot": {
         "target": 4,
@@ -41,26 +41,18 @@
         "present": 0
       }
     },
-    "blocked": [
+    "placeholders": [
       {
         "group": "spells",
-        "missing": 57,
-        "reason": "Von den 60 Zaubern sind erst die drei aus Schritt 1 ausgearbeitet (STEP1-SPEC 1). Namen, Schulen und Wirkung der uebrigen 57 stehen in GAME-DESIGN 22 als noch nicht ausgeplant, vor Epic E10. Ein Klang-Slot ohne Zauber waere geraten."
-      },
-      {
-        "group": "state",
-        "missing": 1,
-        "reason": "GAME-DESIGN 17.1 nennt fuer Kampfzustaende die Zahl 6, listet aber nur fuenf: Countdown, Start, wenig Leben, Tod, Zeitablauf. Welcher der sechste ist, geht aus dem Dokument nicht hervor."
-      },
-      {
-        "group": "menu",
-        "missing": 12,
-        "reason": "GAME-DESIGN 17.1 nennt die Zahl 12 ohne Aufstellung. Welche zwoelf Menue-Ereignisse vertont werden, ist eine Design-Entscheidung (Bestaetigen, Zurueck, Talent setzen, Ausruestung anlegen, Freischaltung ...) und keine Ableitung."
+        "count": 57,
+        "epic": "E10",
+        "reason": "Von den 60 Zaubern sind erst die drei aus Schritt 1 ausgearbeitet (STEP1-SPEC 1). Namen, Schulen und Wirkung der uebrigen 57 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
-        "missing": 8,
-        "reason": "Ein Grundklang je Instanz plus Menue und Spannungs-Schicht. Die 14 Instanzen samt Thema und Farbwelt stehen in GAME-DESIGN 22 als noch nicht ausgeplant (vor E10); zudem ist unklar, wie 14 Instanzen auf 8 Slots abgebildet werden. Gehoert ohnehin zu Issue E8-4."
+        "count": 8,
+        "epic": "E8-4 (Issue #18)",
+        "reason": "Ein Grundklang je Instanz plus Menue und Spannungs-Schicht. Die Musik-Schichten sind ein eigenes Issue; die Instanz-Themen selbst stehen in GAME-DESIGN 22 (vor E10)."
       }
     ]
   },
@@ -151,7 +143,7 @@
       "file": "audio/special-shield-break.ogg",
       "targetSeconds": 0.9,
       "pitchJitterCents": 15,
-      "prompt": "crystalline barrier shatter, glassy debris scatter, shield break"
+      "prompt": "crystalline barrier shatter, dense glassy debris scatter with body, shield break"
     },
     {
       "id": "special-heal",
@@ -173,7 +165,7 @@
       "file": "audio/special-reflect.ogg",
       "targetSeconds": 0.5,
       "pitchJitterCents": 15,
-      "prompt": "sharp metallic deflection ping with reverse whoosh"
+      "prompt": "sharp metallic deflection ping with reverse whoosh and ringing tail"
     },
     {
       "id": "feedback-spell-ready",
@@ -217,7 +209,7 @@
       "file": "audio/feedback-gcd-end.ogg",
       "targetSeconds": 0.12,
       "pitchJitterCents": 0,
-      "prompt": "very short soft tick, dry, subtle UI cue"
+      "prompt": "dry wooden tick with clear attack, close mic, short UI cue"
     },
     {
       "id": "boss-cast-start",
@@ -363,6 +355,17 @@
       "prompt": "harsh buzzer stop, dry mechanical cutoff, time out"
     },
     {
+      "id": "state-wipe-run",
+      "group": "state",
+      "purpose": "Wipe Run — der Uebergang vom gescheiterten Versuch zurueck in die Vorbereitung. Bei rund zehn Versuchen je Endgame-Boss der haeufigste Uebergang im ganzen Spiel (GAME-DESIGN 12.8); darf deshalb unter keinen Umstaenden strafend klingen.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/state-wipe-run.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 0,
+      "prompt": "soft dark sweep with low whoosh, quiet reset transition"
+    },
+    {
       "id": "post-victory",
       "group": "postfight",
       "purpose": "Sieg — die Auswertung geht auf.",
@@ -429,15 +432,147 @@
       "prompt": "small bright coin tick, dry, counting cue"
     },
     {
+      "id": "menu-hover",
+      "group": "menu",
+      "purpose": "Beruehren eines Bedienelements. Loest bei jeder Mausbewegung aus und muss deshalb fast unhoerbar sein.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-hover.ogg",
+      "targetSeconds": 0.08,
+      "pitchJitterCents": 15,
+      "prompt": "very short soft tick, muted, UI hover"
+    },
+    {
+      "id": "menu-press",
+      "group": "menu",
+      "purpose": "Druecken eines Bedienelements — die Bestaetigung, dass der Klick angekommen ist.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-press.ogg",
+      "targetSeconds": 0.12,
+      "pitchJitterCents": 8,
+      "prompt": "short dry click, tactile UI button press"
+    },
+    {
+      "id": "menu-tab",
+      "group": "menu",
+      "purpose": "Wechsel zwischen Reitern.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-tab.ogg",
+      "targetSeconds": 0.18,
+      "pitchJitterCents": 8,
+      "prompt": "soft paper swipe with light click, UI tab switch"
+    },
+    {
+      "id": "menu-window-open",
+      "group": "menu",
+      "purpose": "Ein Fenster geht auf.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-window-open.ogg",
+      "targetSeconds": 0.35,
+      "pitchJitterCents": 0,
+      "prompt": "soft ascending whoosh with light click, UI panel open"
+    },
+    {
+      "id": "menu-window-close",
+      "group": "menu",
+      "purpose": "Ein Fenster geht zu.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-window-close.ogg",
+      "targetSeconds": 0.3,
+      "pitchJitterCents": 0,
+      "prompt": "soft descending whoosh, UI panel close"
+    },
+    {
+      "id": "menu-talent-spend",
+      "group": "menu",
+      "purpose": "Ein Talentpunkt wird gesetzt. Muss sich lohnend anfuehlen — der Talentbaum ist eine der beiden Kernaufgaben.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-talent-spend.ogg",
+      "targetSeconds": 0.45,
+      "pitchJitterCents": 0,
+      "prompt": "bright crystalline click with short shimmer, talent point spent"
+    },
+    {
+      "id": "menu-talent-reset",
+      "group": "menu",
+      "purpose": "Talente zurueckgesetzt. Kostenlos und jederzeit moeglich (GAME-DESIGN 12.5), darf also nicht nach Verlust klingen.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-talent-reset.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 0,
+      "prompt": "reverse shimmer sweep, soft, talents cleared"
+    },
+    {
+      "id": "menu-item-equip",
+      "group": "menu",
+      "purpose": "Ein Gegenstand wird angelegt.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-item-equip.ogg",
+      "targetSeconds": 0.4,
+      "pitchJitterCents": 10,
+      "prompt": "muted metallic clasp with leather, item equipped"
+    },
+    {
+      "id": "menu-loadout-saved",
+      "group": "menu",
+      "purpose": "Eine Zusammenstellung wurde gespeichert. Teilt sich den Klang mit dem Laden einer Vorlage — dieselbe Handlungsklasse.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-loadout-saved.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 0,
+      "prompt": "short confirming double chime, soft, saved"
+    },
+    {
+      "id": "menu-denied",
+      "group": "menu",
+      "purpose": "Eine Handlung ist nicht moeglich. Verwandt mit der Fehleingabe im Kampf, aber im Menue traegt kein rotes Blinken die Nachricht.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-denied.ogg",
+      "targetSeconds": 0.25,
+      "pitchJitterCents": 0,
+      "prompt": "dull low muted thud, short, action refused"
+    },
+    {
+      "id": "menu-unlock",
+      "group": "menu",
+      "purpose": "Freischaltung: Punkte werden fuer eine Instanz, einen Zauber oder einen Ausruestungsplatz ausgegeben (GAME-DESIGN 12.6, 12.7). Eine der beiden einzigen Verwendungen von Punkten.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-unlock.ogg",
+      "targetSeconds": 1.0,
+      "pitchJitterCents": 0,
+      "prompt": "warm rising chime with soft shimmer, unlock confirmed"
+    },
+    {
+      "id": "menu-upgrade",
+      "group": "menu",
+      "purpose": "Aufwertung: Material und Punkte werden in Gegenstandsstufe umgesetzt (GAME-DESIGN 13.6) — im Endgame der Kern-Kreislauf.",
+      "kind": "oneshot",
+      "bus": "ui",
+      "file": "audio/menu-upgrade.ogg",
+      "targetSeconds": 1.2,
+      "pitchJitterCents": 0,
+      "prompt": "bright metallic forge ring with rising shimmer, item upgraded"
+    },
+    {
       "id": "loot-common",
       "group": "loot",
-      "purpose": "Beute Common — erscheint sofort und beilaeufig (GAME-DESIGN 13.6).",
+      "purpose": "Beute Common — erscheint sofort und beilaeufig (GAME-DESIGN 13.6). Ziel-Laenge von 0,3 auf 0,2 s korrigiert: Zwei Erzeugungen mit unterschiedlichen Prompts lieferten beide rund 0,18 s Ton. Verlaengern geht nicht, und fuer den beilaeufigsten Klang des Spiels ist kurz richtig.",
       "kind": "oneshot",
       "bus": "ui",
       "file": "audio/loot-common.ogg",
-      "targetSeconds": 0.3,
+      "targetSeconds": 0.2,
       "pitchJitterCents": 10,
-      "prompt": "soft muted click drop, subtle item pickup"
+      "prompt": "soft muted click drop with short wooden tail, subtle item pickup"
     },
     {
       "id": "loot-rare",

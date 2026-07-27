@@ -2,6 +2,16 @@
  "spell-kindle": 0.5,
  "spell-smoulder": 0.8,
  "spell-pyre": 1.4,
+ "special-interrupt": 0.35,
+ "special-overdrive": 1.6,
+ "special-cooldown-reset": 0.7,
+ "special-shield-up": 1.0,
+ "special-shield-break": 0.9,
+ "special-heal": 1.2,
+ "special-reflect": 0.5,
+ "feedback-spell-ready": 0.4,
  "feedback-input-error": 0.25,
+ "feedback-synergy-ready": 0.6,
+ "feedback-gcd-end": 0.12,
  "boss-hit": 0.3
 }
