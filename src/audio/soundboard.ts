@@ -13,7 +13,7 @@
  * und landet nie beim Spieler.
  */
 import { AudioEngine } from './engine.js';
-import { resolveAssetUrl, knownAssets } from './asset-urls.js';
+import { resolveAssetUrl } from './asset-urls.js';
 import { makeClick, makeNoiseHit, makeSeamlessTone } from './dev-tones.js';
 import {
   instrumentContext,
@@ -22,6 +22,8 @@ import {
   measureLoopSeam,
   measurePitchSpread,
 } from './measure.js';
+import { parseManifest } from './manifest.js';
+import { SOUND_MANIFEST } from './manifest-data.js';
 import { BUSES, type Bus, type SoundDef, type VoiceHandle } from './types.js';
 
 /**
@@ -55,6 +57,9 @@ const KEYS = [
 interface Entry {
   readonly def: SoundDef;
   readonly key: string | null;
+  /** Woher der Klang kommt: aus dem Verzeichnis, aus der Werkzeugkette, synthetisch. */
+  readonly origin: string;
+  readonly purpose: string;
   handle: VoiceHandle;
 }
 
@@ -66,9 +71,16 @@ const engine = new AudioEngine(ctx, {
 
 // ----------------------------------------------------------- Klang-Verzeichnis
 
-const defs: SoundDef[] = [
-  // Synthetische Klaenge: Sie erlauben Messungen mit bekanntem Sollwert, auch
-  // bevor die erzeugten Dateien vorliegen.
+/** Das gepflegte Verzeichnis — die Klaenge des Spiels. */
+const manifest = parseManifest(SOUND_MANIFEST);
+if (manifest.problems.length > 0) {
+  console.warn('[rota] Verzeichnis beanstandet:', manifest.problems);
+}
+const purposes = new Map(SOUND_MANIFEST.sounds.map((sound) => [sound.id, sound.purpose]));
+
+const devDefs: SoundDef[] = [
+  // Synthetische Klaenge: Sie erlauben Messungen mit bekanntem Sollwert,
+  // unabhaengig davon, welche Dateien gerade vorliegen.
   { kind: 'oneshot', id: 'dev-click', bus: 'ui', src: 'dev://click', pitchJitterCents: 0 },
   { kind: 'oneshot', id: 'dev-hit', bus: 'sfx', src: 'dev://noise', pitchJitterCents: 30 },
   {
@@ -82,31 +94,53 @@ const defs: SoundDef[] = [
   },
 ];
 
-for (const src of [
-  ...knownAssets().map((asset) => `/assets/${asset}`),
-  ...Object.keys(toolchainUrls),
-]) {
-  defs.push({
-    kind: 'oneshot',
-    id: src.replace(/^.*\//, '').replace(/\.[a-z0-9]+$/i, ''),
-    bus: 'sfx',
-    src,
-    pitchJitterCents: 0,
-  });
-}
+/** Ergebnisse der Werkzeugketten-Messreihen, nur zum Vergleich abhoerbar. */
+const toolchainDefs: SoundDef[] = Object.keys(toolchainUrls).map((src) => ({
+  kind: 'oneshot',
+  id: src.replace(/^.*\//, '').replace(/\.[a-z0-9]+$/i, ''),
+  bus: 'sfx',
+  src,
+  pitchJitterCents: 0,
+}));
 
+const defs: SoundDef[] = [...manifest.defs, ...devDefs, ...toolchainDefs];
 engine.library.register(defs);
 engine.library.put('dev://click', makeClick(ctx));
 engine.library.put('dev://noise', makeNoiseHit(ctx));
 engine.library.put('dev://tone', makeSeamlessTone(ctx));
 
-const entries: Entry[] = defs.map((def, index) => ({
+const entries: Entry[] = defs.map((def) => ({
   def,
-  key: KEYS[index] ?? null,
+  key: null,
+  origin: manifest.defs.includes(def)
+    ? 'Verzeichnis'
+    : devDefs.includes(def)
+      ? 'synthetisch'
+      : 'Werkzeugkette',
+  purpose: purposes.get(def.id) ?? '',
   handle: -1,
 }));
 const byKey = new Map<string, Entry>();
-for (const entry of entries) if (entry.key) byKey.set(entry.key, entry);
+
+/**
+ * Tasten nur an Klaenge vergeben, deren Datei vorliegt.
+ *
+ * Wird nach dem Laden erneut aufgerufen: Vorher steht noch nicht fest, was
+ * tatsaechlich da ist, und eine Taste, die ins Leere greift, waere beim
+ * Abhoeren nur verwirrend.
+ */
+function assignKeys(): void {
+  byKey.clear();
+  let next = 0;
+  for (const entry of entries) {
+    const key = isLoaded(entry.def) ? (KEYS[next] ?? null) : null;
+    (entry as { key: string | null }).key = key;
+    if (key) {
+      byKey.set(key, entry);
+      next++;
+    }
+  }
+}
 
 // ------------------------------------------------------- Verzoegerungs-Messung
 
@@ -157,7 +191,7 @@ function renderStatus(extra = ''): void {
     `Puffer-Latenz  base ${(ctx.baseLatency * 1000).toFixed(2)} ms   output ${((ctx.outputLatency || 0) * 1000).toFixed(2)} ms`,
     `Stimmen        ${engine.metrics().activeVoices} aktiv von ${engine.pool.size()}   geraeumt ${engine.metrics().stolenVoices}`,
     `Knoten erzeugt Lautstaerke ${counters.gains}   Quellen ${counters.sources}`,
-    extra,
+    extra || loadReport,
   ]
     .filter(Boolean)
     .join('\n');
@@ -211,32 +245,51 @@ function renderFaders(): void {
   }
 }
 
+/** Liegt die Datei zu diesem Klang vor? */
+function isLoaded(def: SoundDef): boolean {
+  const src = def.kind === 'oneshot' ? def.src : def.bodySrc;
+  return engine.library.buffer(src) !== undefined;
+}
+
 function renderSounds(): void {
   soundsEl.replaceChildren();
   for (const entry of entries) {
+    const loaded = isLoaded(entry.def);
     const tr = document.createElement('tr');
+
     const key = document.createElement('td');
-    if (entry.key) {
+    if (entry.key && loaded) {
       const kbd = document.createElement('kbd');
       kbd.textContent = entry.key;
       key.append(kbd);
     } else {
       key.textContent = '—';
     }
+
     const id = document.createElement('td');
     id.textContent = entry.def.id;
+    const purpose = document.createElement('td');
+    purpose.className = 'dim';
+    purpose.textContent = entry.purpose || entry.origin;
     const bus = document.createElement('td');
     bus.textContent = entry.def.bus;
     const kind = document.createElement('td');
     kind.textContent = entry.def.kind === 'oneshot' ? 'One-Shot' : 'dreiteilig';
+
     const action = document.createElement('td');
-    const button = document.createElement('button');
-    button.textContent = entry.def.kind === 'oneshot' ? 'abspielen' : 'start / stop';
-    button.addEventListener('click', () => {
-      void trigger(entry);
-    });
-    action.append(button);
-    tr.append(key, id, bus, kind, action);
+    if (loaded) {
+      const button = document.createElement('button');
+      button.textContent = entry.def.kind === 'oneshot' ? 'abspielen' : 'start / stop';
+      button.addEventListener('click', () => {
+        void trigger(entry);
+      });
+      action.append(button);
+    } else {
+      action.className = 'dim';
+      action.textContent = 'noch nicht erzeugt';
+    }
+
+    tr.append(key, id, purpose, bus, kind, action);
     soundsEl.append(tr);
   }
 }
@@ -283,18 +336,27 @@ for (const type of ['keydown', 'pointerdown'] as const) {
   });
 }
 
+// Vor den ersten Zeichnen-Aufrufen deklariert: renderStatus() liest ihn.
+let loadReport = '';
+
+assignKeys();
 renderFaders();
 renderSounds();
 renderStatus();
 renderLatency();
 
 void engine.load().then((report) => {
-  renderStatus(
-    `Dateien        ${report.loaded} geladen, ${report.seconds.toFixed(1)} s, ${(report.bytes / 1024).toFixed(0)} KiB` +
-      (report.failures.length
-        ? `\nFehlend        ${report.failures.map((f) => f.src).join(', ')}`
-        : ''),
+  assignKeys();
+  renderSounds();
+  const manifestFiles = new Set(
+    manifest.defs.map((def) => (def.kind === 'oneshot' ? def.src : def.bodySrc)),
   );
+  const missing = report.failures.filter((failure) => manifestFiles.has(failure.src));
+  loadReport =
+    `Dateien        ${report.loaded} geladen, ${report.seconds.toFixed(1)} s, ${(report.bytes / 1024).toFixed(0)} KiB\n` +
+    `Verzeichnis    ${manifestFiles.size - missing.length} von ${manifestFiles.size} Klaengen erzeugt` +
+    (manifest.problems.length ? `\nBeanstandet    ${manifest.problems.length} Eintraege` : '');
+  renderStatus(loadReport);
 });
 
 // --------------------------------------------------- Zugriff fuer die Messungen
