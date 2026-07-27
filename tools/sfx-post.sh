@@ -31,6 +31,10 @@ IN="${1:?Usage: sfx-post.sh <in-dir> <out-dir> [a|b]}"
 OUT="${2:?out-dir fehlt}"
 VAR="${3:-a}"
 LEN_FILE="$IN/lengths.json"
+
+# Zielwerte fuer Klaenge unter 400 ms, wo EBU R128 nicht greift (siehe unten).
+SHORT_TARGET_RMS=-20.0
+SHORT_PEAK_CEIL=-1.5
 mkdir -p "$OUT"
 
 # Gibt "<ziel-sekunden>|<loop 0/1>" zurueck, leer wenn kein Eintrag
@@ -75,6 +79,26 @@ for f in "$IN"/*-"$VAR".mp3; do
       fstart=$(awk "BEGIN{printf \"%.3f\", $target - $fade}")
       filter="afade=t=out:st=$fstart:d=$fade:curve=exp,atrim=0:$target,$filter"
       note=" [gekuerzt auf ${target}s, ${fade}s Ausblendung]"
+    fi
+    # Kurze Klaenge: RMS statt loudnorm.
+    #
+    # EBU R128 misst in Bloecken von 400 ms. Bei kuerzerem Material hat
+    # loudnorm nichts, woran es sich orientieren kann, und hebt wild an —
+    # gemessen ueber elf kurze Klaenge eine Streuung von 14 dB (-11,4 bis
+    # -25,7 dBFS RMS). Nebeneinander gehoert ist das ein Durcheinander.
+    # Deshalb hier ein fester Zielwert ueber den Effektivwert, begrenzt durch
+    # die Spitzenreserve. Kein Kompressor: Der Klang behaelt seine Form.
+    out_len="$target"
+    [ -z "$out_len" ] && out_len="$mid"
+    if awk "BEGIN{exit !($out_len < 0.4)}"; then
+      stats=$(ffmpeg -v info -i "$trimmed" -af astats=measure_perchannel=none -f null - 2>&1)
+      rms=$(printf '%s\n' "$stats" | grep -oP 'RMS level dB:\s*\K-?[0-9.]+' | head -1)
+      peak=$(printf '%s\n' "$stats" | grep -oP 'Peak level dB:\s*\K-?[0-9.]+' | head -1)
+      if [ -n "$rms" ] && [ -n "$peak" ]; then
+        gain=$(awk "BEGIN{g = $SHORT_TARGET_RMS - ($rms); h = $SHORT_PEAK_CEIL - ($peak); if (g > h) g = h; printf \"%.2f\", g}")
+        filter="${filter%%loudnorm*}volume=${gain}dB"
+        note="$note [kurz: Pegel ueber RMS, ${gain} dB]"
+      fi
     fi
     ffmpeg -v error -y -i "$trimmed" -af "$filter" -c:a libvorbis -q:a 5 "$target_file"
     rm -f "$trimmed"
