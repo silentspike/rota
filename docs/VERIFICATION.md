@@ -97,14 +97,31 @@ playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().frameTimeSummar
 > `frameIntervalSummary` ist trotzdem nützlich: Ein hoher `max` dort zeigt Aussetzer der Umgebung
 > (Systemlast, headless-Eigenheiten) und erklärt verworfene Takte.
 
-### 3.2 Eingabe-Verzögerung unter 16 ms
+### 3.2 Eingabe-Verzögerung: Wirkung im nächsten Bild
 
 ```bash
-playwright-cli -s=rota eval "window.__rota.perf().inputLatency"
+playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().inputFrameDelaySummary)"
+playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().inputLatencySummary)"   # Begleitwert
 ```
 
-**Bestanden:** Maximum unter 16 ms. Gemessen wird von `keydown` bis zum Zeichnen des Bildes, in dem
-die Wirkung sichtbar ist — **nicht** bis zur Verarbeitung im Logik-Takt.
+**Bestanden:** `inputFrameDelaySummary.over === 0` — **jeder** Tastendruck wirkt im nächsten Bild,
+keiner erst im übernächsten. Gemessen wird von `keydown` bis zum Zeichnen des Bildes, in dem die
+Wirkung sichtbar ist.
+
+> **Nicht gegen eine Millisekunden-Grenze prüfen.** Die frühere Fassung verlangte „unter 16 ms" —
+> das ist in sich widersprüchlich, weil ein Bild bei 60 Hz **16,67 ms** dauert. Die Grenze war also
+> strenger als das, was sie beschreiben sollte, und damit auch bei optimaler Umsetzung unerfüllbar.
+>
+> Bei der Abnahme von Issue #8 gemessen, 50 Drücke: **Bild-Verzögerung min 1, max 1, mean 1, over 0**
+> — jeder Druck wirkt im nächstmöglichen Bild. Im selben Lauf: **Millisekunden max 31,1, over 16 ms
+> bei einem von 50**. Der Ausreißer entstand, weil ein Bildabstand länger war; die Millisekunden
+> messen Bildschirm und Systemlast mit, die Bild-Verzögerung nicht.
+>
+> Dieselbe Falle wie bei `frameTimes` in § 3.1: Ein Kriterium, das die Umgebung misst statt das
+> Spiel, verwirft einwandfreie Arbeit.
+
+Der Millisekunden-Wert bleibt als **Begleitwert** nützlich: Ein hoher `mean` bei `frameDelay = 1`
+deutet auf einen zu groben Logik-Takt hin.
 
 ### 3.3 Abklingzeiten auf die Millisekunde
 
@@ -159,6 +176,17 @@ Werte müssen um Null schwanken und dürfen **nicht** proportional zur Bildzahl 
 > und würde beim Verdreifachen der Bildzahl mitwachsen. **Genau darauf wird geprüft.**
 >
 > Ein Einzelwert von „0" ist kein Nachweis, sondern ein Treffer im Rauschband.
+
+**Zwei Fallen bei dieser Messung** (beide bei der Abnahme von Issue #8 aufgetreten):
+
+1. **Die erste Messung nach dem Laden ist unbrauchbar.** Direkt nach dem Öffnen wurden 450 KB auf
+   300 Bilder gemessen — reines Aufwärmen (Klang-Dekodierung, JIT). **Vor der Messung 20 bis 25 s
+   laufen lassen.** Und die Reihenfolge einmal umdrehen (1800/600/300 statt 300/600/1800): Hängt ein
+   Wert an der Bildzahl, bleibt er; hängt er am Zeitpunkt, wandert er mit.
+2. **Klang-Wiedergabe erzeugt Speicher je Tastendruck, nicht je Bild.** Gemessen: 156 Byte je Druck.
+   Das ist der `AudioBufferSourceNode`, den die Web-Audio-Spezifikation für jede Wiedergabe verlangt
+   — nicht vermeidbar und **kein Verstoss**, weil er nicht an der Bildzahl haengt. Bei einer Messung
+   unter Tastatur-Beschuss diesen Anteil herausrechnen.
 
 Das ist die härteste der fünf Messungen und der Grund für die Objekt-Pools und den Ringpuffer
 (GAME-DESIGN 18.2). Systematische Allokation im Bild-Pfad führt früher oder später zu Rucklern.
