@@ -245,3 +245,5 @@ kein `scope:partial`. Ein Issue mit vier von fünf ACs ist ein offenes Issue.
 | **Nachlassende Strenge**                 | Bei Issue 40 wirkt vieles „offensichtlich"                    | Issue 40 bekommt exakt dasselbe Verfahren wie Issue 1                 |
 | **Alte Nachweise wiederverwenden**       | Spart Zeit                                                    | Der Code hat sich geändert. Neu messen                                |
 | **Dem Melde-Format des Workers glauben** | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                    |
+
+<!-- Prüflauf Pfad-Filter, 2026-07-27T15:29:45Z -->
