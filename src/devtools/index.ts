@@ -15,6 +15,14 @@ import type { App } from '../core/app.js';
 import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js';
 import { KEYS_PER_LAYER, SLOT_CODES } from '../input/keys.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
+import {
+  measureCooldown,
+  runReference,
+  type CooldownMeasurement,
+  type ReferenceOptions,
+  type ReferenceResult,
+  type RotationName,
+} from './reference-run.js';
 
 /** Bilder, die vor der ersten Speicher-Messung verstreichen (Aufwärmen). */
 const WARMUP_FRAMES = 240;
@@ -27,6 +35,8 @@ const ALLOCATION_INTERVAL_FRAMES = 1800;
 const FRAME_BUDGET_MS = 16.7;
 /** Die Schwelle der Eingabe-Verzögerung aus GAME-DESIGN 20.2 / VERIFICATION § 3.2. */
 const INPUT_BUDGET_MS = 16;
+/** Namen der Kampf-Zustände in der Reihenfolge aus `combat.ts`. */
+const FIGHT_STATE_NAMES: readonly string[] = ['running', 'won', 'overpressure'];
 
 export interface PerfSnapshot {
   /** Arbeitszeit je Bild in ms: Logik-Takte plus Zeichnen. Das Maß für Ruckelfreiheit. */
@@ -64,6 +74,46 @@ export interface StateSnapshot {
   /** Restzeit der globalen Wartezeit in ms. */
   readonly gcdRemainingMs: number;
   readonly gcdLengthMs: number;
+}
+
+/** Ein Zauber, wie er gerade dasteht. */
+export interface SpellState {
+  readonly id: string;
+  readonly name: string;
+  /** Platz auf der Leiste, oder -1. */
+  readonly slot: number;
+  readonly cooldownMs: number;
+  readonly cooldownRemainingMs: number;
+  readonly ready: boolean;
+  readonly casts: number;
+  readonly damage: number;
+  /** Restlaufzeit des Effekts über Zeit in ms, 0 wenn keiner läuft. */
+  readonly dotRemainingMs: number;
+  readonly dotTicks: number;
+  readonly lostDotTicks: number;
+}
+
+/** Zustand des Kampfes (GAME-DESIGN 19.1: Zustand abfragen und setzen). */
+export interface CombatSnapshot {
+  readonly timeMs: number;
+  readonly state: string;
+  readonly damage: number;
+  readonly bossName: string;
+  readonly bossHp: number;
+  readonly bossHpRemaining: number;
+  readonly overpressureMs: number;
+  readonly endedAtMs: number;
+  /** Der Vorrat der Schul-Mechanik — in Schritt 1 die Hitze. */
+  readonly resource: number;
+  readonly resourceCap: number;
+  readonly resourceHighlightAt: number;
+  readonly resourceOverflow: number;
+  readonly idleMs: number;
+  readonly spells: SpellState[];
+  /** Ziehungen je Zufallsstrom. In Schritt 1 müssen alle 0 sein. */
+  readonly randomDraws: number[];
+  /** Was beim Lesen der Spieldaten nicht stimmte. Leer heißt: alles in Ordnung. */
+  readonly dataProblems: readonly string[];
 }
 
 /** Zustand der Eingabe (GAME-DESIGN 8). */
@@ -107,6 +157,21 @@ export interface DevTools {
   state(): StateSnapshot;
   /** Zustand der Eingabe (GAME-DESIGN 8). */
   input(): InputSnapshot;
+  /** Zustand des Kampfes. */
+  combat(): CombatSnapshot;
+  /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
+  setResource(value: number): void;
+  /** Kampf von vorn beginnen. */
+  resetFight(): void;
+  /**
+   * Eine Runde nach fester Prioritätenliste durchrechnen und das Ergebnis melden.
+   *
+   * Das ist der Abgleich gegen `tools/step1-check.py` (GAME-DESIGN 18.4). Reines
+   * Werkzeug — im Spiel erscheint keine Referenz-Rotation (GAME-DESIGN 18.5).
+   */
+  simulate(rotation: RotationName, options?: ReferenceOptions): ReferenceResult;
+  /** Abklingzeit über viele Zyklen messen (VERIFICATION § 3.3). */
+  measureCooldown(spellId: string, cycles: number): CooldownMeasurement;
   /** Setzt alle Messreihen zurück. */
   resetPerf(): void;
   /** Misst den Halden-Zuwachs über `frames` Bilder. */
@@ -207,6 +272,62 @@ export function installDevTools(app: App): void {
         audioMissing: metrics?.missing ?? 0,
       };
     },
+    combat: () => {
+      const combat = app.combat;
+      const timeMs = app.loop.timeMs;
+      const spells: SpellState[] = [];
+      for (let i = 0; i < combat.spells.length; i++) {
+        const spell = combat.spells[i];
+        if (spell === undefined) continue;
+        let slot = -1;
+        for (let s = 0; s < SLOT_CODES.length * 2; s++) {
+          if (app.session.spellOnSlot(s) === i) {
+            slot = s;
+            break;
+          }
+        }
+        spells.push({
+          id: spell.id,
+          name: spell.name,
+          slot,
+          cooldownMs: spell.cooldownMs,
+          cooldownRemainingMs: combat.cooldownRemainingMs(i, timeMs),
+          ready: combat.isReady(i, timeMs),
+          casts: combat.castCount(i),
+          damage: combat.damageOf(i),
+          dotRemainingMs: combat.dotRemainingMs(i, timeMs),
+          dotTicks: combat.dotTickCount(i),
+          lostDotTicks: combat.lostDotTicks(i),
+        });
+      }
+      return {
+        timeMs,
+        state: FIGHT_STATE_NAMES[combat.fightState] ?? '?',
+        damage: combat.damageDealt,
+        bossName: combat.boss.name,
+        bossHp: combat.boss.hp,
+        bossHpRemaining: combat.bossHpRemaining,
+        overpressureMs: combat.boss.overpressureMs,
+        endedAtMs: combat.endedAt,
+        resource: combat.resource,
+        resourceCap: combat.school.resource.cap,
+        resourceHighlightAt: combat.school.resource.highlightAt,
+        resourceOverflow: combat.resourceOverflow,
+        idleMs: app.session.idleMs,
+        spells,
+        randomDraws: combat.random.drawCounts(),
+        dataProblems: app.dataProblems,
+      };
+    },
+    setResource: (value: number) => {
+      app.combat.setResource(value);
+    },
+    resetFight: () => {
+      app.session.reset();
+      app.loop.reset();
+    },
+    simulate: (rotation, options) => runReference(rotation, options),
+    measureCooldown: (spellId, cycles) => measureCooldown(spellId, cycles),
     resetPerf: () => {
       perf.reset();
       framesSinceMeasurement = 0;

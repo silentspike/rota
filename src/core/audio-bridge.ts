@@ -23,6 +23,7 @@ export class AudioFeedback implements FeedbackSink {
   private failure: string | null = null;
   private unlocked = false;
   private requested = 0;
+  private spellSounds: readonly string[] = [];
 
   /** Ist ein Klang-Kontext vorhanden und geladen? */
   get isReady(): boolean {
@@ -80,12 +81,25 @@ export class AudioFeedback implements FeedbackSink {
     void this.engine.unlock();
   }
 
-  onPressAccepted(_slot: number, _timeMs: number): void {
-    // Der Klang eines angenommenen Drucks ist der Klang des gewirkten Zaubers.
-    // Zauber gibt es ab E1-3; bis dahin bleibt eine angenommene Eingabe stumm.
+  /**
+   * Klang je Zauber, nach dessen Kennnummer im Kampf.
+   *
+   * Ein Zauber ohne eigenen Klang bleibt stumm, statt einen fremden zu leihen —
+   * das Verzeichnis führt erst drei der sechzig (GAME-DESIGN 22).
+   */
+  setSpellSounds(soundIds: readonly string[]): void {
+    this.spellSounds = soundIds;
   }
 
-  onPressRejected(_slot: number, _timeMs: number): void {
+  onPressAccepted(_slot: number, spellIndex: number, _timeMs: number): void {
+    const id = this.spellSounds[spellIndex];
+    if (id === undefined) return;
+    this.requested++;
+    if (this.engine === null) return;
+    this.engine.play(id);
+  }
+
+  onPressRejected(_slot: number, _reason: number, _timeMs: number): void {
     this.requested++;
     if (this.engine === null) return;
     this.engine.play(SOUND_INPUT_ERROR);
