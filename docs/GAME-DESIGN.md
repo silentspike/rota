@@ -929,7 +929,7 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 | Nach dem Kampf (Sieg, Niederlage, Bestzeit, Erfolg, Stufenaufstieg, Punkte)                                                                                                             | 6      |
 | Menü (Berühren, Drücken, Reiter, Fenster auf, Fenster zu, Talentpunkt, Talente zurück, Gegenstand angelegt, Zusammenstellung gespeichert, abgelehnt, **Freischaltung**, **Aufwertung**) | 12     |
 | **Beute nach Qualität**                                                                                                                                                                 | **4**  |
-| Klangteppich (Loop je Instanz plus Menü und Spannungs-Schicht)                                                                                                                          | 8      |
+| Klangteppich: 5 feste Schichten (Menü, Spannung, Endspurt, Phasenwechsel, Überdruck) plus **ein Grundklang je Instanz**                                                                 | 5 + 14 |
 
 > **Zu den drei zuletzt benannten Klängen** (2026-07-27): Der Planungs-Plan nannte bei
 > Kampfzuständen die Zahl 6 und bei Menü die Zahl 12, listete aber nur 5 bzw. 10 Einträge — ein
@@ -947,6 +947,23 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 
 > **Die vier Beute-Klänge sind einer der stärksten Dopamin-Momente überhaupt** — der legendäre Klang
 > in Diablo ist berühmt, Spieler erkennen ihn, bevor sie den Gegenstand sehen. Hier lohnt sich Sorgfalt.
+
+> **Korrektur der Slot-Zahl (2026-07-27):** Der Plan nannte hier **8** — eine Schätzung aus der Zeit,
+> bevor der Umfang auf **14 Instanzen** festgelegt war (8 passen zu drei Instanzen plus den fünf
+> festen Schichten). Der echte Bedarf ist **19**: fünf feste plus 14 Instanz-Grundklänge.
+>
+> **Die Trennung verläuft entlang der Abhängigkeit:**
+>
+> |                                                                          | Anzahl | Wann                                                                       |
+> | ------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------- |
+> | **Feste Schichten** — Menü, Spannung, Endspurt, Phasenwechsel, Überdruck | 5      | **jetzt**, in Epic E8. Sie hängen an Kampf-Ereignissen, nicht an Instanzen |
+> | **Instanz-Grundklänge**                                                  | 14     | mit **E10**, wo Thema, Farbwelt und Klangteppich je Instanz entstehen      |
+>
+> Damit steigt die Gesamtzahl der Klänge von 115 auf **126**.
+>
+> **Offen für E10:** Ob die 14 Grundklänge eigenständige Stücke werden oder Varianten der fünf
+> Prozess-Schwerpunkte (17.4 ordnet jeder Instanz einen Prozess zu). Das entscheidet sich, wenn die
+> Instanz-Themen stehen — nicht vorher.
 
 **Musik: Schichten, die auf den Kampf reagieren.** Ein Grundklang je Instanz, dazu zuschaltbare
 Schichten — Endspurt, Phasenwechsel, Überdruck. Deutlich haltbarer als eine feste Schleife, die bei

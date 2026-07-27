@@ -100,3 +100,15 @@ describe('validateCredits', () => {
     expect(validateCredits({ note: '', entries: [] }).join(' ')).toContain('keinen Eintrag');
   });
 });
+
+describe('Bearbeitungshinweis', () => {
+  it('kennzeichnet die zugeschnittenen game-icons-Saetze', () => {
+    // Die Symbole wurden zentriert und im Gewicht angeglichen (Issue #20).
+    // CC BY verlangt, dass eine Bearbeitung kenntlich gemacht wird.
+    const bearbeitet = CREDITS.entries.filter((entry) => entry.id.startsWith('game-icons-'));
+    expect(bearbeitet.length).toBe(3);
+    for (const entry of bearbeitet) {
+      expect(entry.modified, entry.id).toBeTruthy();
+    }
+  });
+});
