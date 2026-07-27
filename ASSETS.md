@@ -1,8 +1,9 @@
 # ASSETS.md — Herkunft, Lizenz, Nennungspflicht
 
-> **Jede Datei unter `assets/` und `docs/refs/` steht hier drin.** Ohne Eintrag darf nichts
-> ausgeliefert werden.
+> **Jede Datei unter `assets/`, `docs/refs/` und `docs/style-candidates/` steht hier drin.** Ohne
+> Eintrag darf nichts ausgeliefert werden.
 > Pflege: Wer ein Asset hinzufügt, ergänzt im selben Commit die Zeile hier.
+> Prüfung: `python3 tools/assets-check.py` — meldet jede Datei ohne Eintrag und jede unerlaubte Lizenz.
 
 ## Lizenzregel — nicht verhandelbar
 
@@ -65,9 +66,48 @@
 
 ---
 
+### Stil-Kandidaten (`docs/style-candidates/`) — Entscheidungsvorlage, nicht Teil der Auslieferung
+
+Vier Kandidaten-Sets für Issue #19, nebeneinander unter `http://localhost:8000/rota-e9-style/`.
+**Nichts davon ist bereits gewählt.** Die gewählten Dateien wandern nach der Entscheidung in
+`assets/img/` bzw. `assets/fonts/` und bekommen dort ihre eigene Zeile.
+
+Maschinenlesbare Einzelliste mit Urheber und Schul-Zuordnung: `docs/style-candidates/manifest.json`.
+Die Original-Lizenztexte liegen unverändert unter `docs/style-candidates/LICENSES/`.
+
+| Gruppe                                     | n   | Herkunft                                                                                                                                      | Lizenz         | Nennung                                                 |
+| ------------------------------------------ | --- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------- |
+| `icons/game-icons/lorc/*.svg`              | 19  | [game-icons.net](https://game-icons.net), Urheber **Lorc**                                                                                    | **CC BY 3.0**  | **ja** — „Icons made by Lorc"                           |
+| `icons/game-icons/delapouite/*.svg`        | 4   | [game-icons.net](https://game-icons.net), Urheber **Delapouite**                                                                              | **CC BY 3.0**  | **ja** — „Icons made by Delapouite"                     |
+| `icons/game-icons/cathelineau/*.svg`       | 1   | [game-icons.net](https://game-icons.net), Urheber **Cathelineau**                                                                             | **CC BY 3.0**  | **ja** — „Icons made by Cathelineau"                    |
+| `icons/painterly/*.png`                    | 28  | [Painterly Spell Icons 1–4](https://opengameart.org/content/painterly-spell-icons-part-1), **J. W. Bjerk** (eleazzaar)                        | **CC BY 3.0**  | **ja** — „J. W. Bjerk (eleazzaar), www.jwbjerk.com/art" |
+| `ui/kenney/button_square*`                 | 3   | [Kenney UI Pack](https://kenney.nl/assets/ui-pack)                                                                                            | CC0            | nein                                                    |
+| `ui/kenney/fantasy-*`                      | 3   | [Kenney Fantasy UI Borders](https://kenney.nl/assets/fantasy-ui-borders)                                                                      | CC0            | nein                                                    |
+| `ui/kenney/adventure-*`                    | 2   | [Kenney UI Pack Adventure](https://kenney.nl/assets/ui-pack-adventure)                                                                        | CC0            | nein                                                    |
+| `ui/kenney/rpg-*`                          | 2   | [Kenney UI Pack RPG Expansion](https://kenney.nl/assets/ui-pack-rpg-expansion)                                                                | CC0            | nein                                                    |
+| `textures/Metal036_Color_512.jpg`          | 1   | [ambientCG Metal036](https://ambientcg.com/a/Metal036), auf 512 px verkleinert                                                                | CC0            | nein                                                    |
+| `textures/Metal009_Color_512.jpg`          | 1   | [ambientCG Metal009](https://ambientcg.com/a/Metal009), auf 512 px verkleinert                                                                | CC0            | nein                                                    |
+| `fonts/Cinzel[wght].ttf`                   | 1   | [Google Fonts — Cinzel](https://fonts.google.com/specimen/Cinzel)                                                                             | OFL            | empfohlen                                               |
+| `fonts/EBGaramond[wght].ttf`               | 1   | [Google Fonts — EB Garamond](https://fonts.google.com/specimen/EB+Garamond)                                                                   | OFL            | empfohlen                                               |
+| `fonts/Marcellus-Regular.ttf`              | 1   | [Google Fonts — Marcellus](https://fonts.google.com/specimen/Marcellus)                                                                       | OFL            | empfohlen                                               |
+| `fonts/ChakraPetch-*.ttf`                  | 2   | [Google Fonts — Chakra Petch](https://fonts.google.com/specimen/Chakra+Petch)                                                                 | OFL            | empfohlen                                               |
+| `fonts/KenneyFuture.ttf`                   | 1   | [Kenney UI Pack](https://kenney.nl/assets/ui-pack), Schrift „Kenney Future"                                                                   | CC0            | nein                                                    |
+| `rejected/pauliuw-cc0-kontaktbogen.png`    | 1   | Eigenerzeugung (ImageMagick `montage`) aus [Skill, item and spell icons](https://opengameart.org/content/skill-item-and-spell-icons), pauliuw | CC0            | nein                                                    |
+| `LICENSES/*.txt`                           | 10  | Original-Lizenztexte der obigen Pakete                                                                                                        | (Lizenztext)   | —                                                       |
+| `index.html`, `README.md`, `manifest.json` | 3   | Eigenerzeugung, 2026-07-27                                                                                                                    | Eigenerzeugung | nein                                                    |
+
+> **Geprüft und verworfen:** „Skill, item and spell icons" von _pauliuw_ (OpenGameArt, CC0) — der
+> einzige gefundene Weg zu Zaubersymbolen **ohne** Nennungspflicht. Es sind überwiegend
+> Gegenstands-Symbole mit fest eingemaltem Rahmen und uneinheitlicher Machart. Der Kontaktbogen liegt
+> als Beleg unter `rejected/`.
+>
+> **Folge:** Für 26 Zaubersymbole gibt es in den erlaubten Quellen **keinen reinen CC0-Weg**. Beide
+> tragfähigen Symbol-Quellen stehen unter CC BY 3.0. Der Credits-Bereich im Spiel wird also gebraucht,
+> sobald die Wahl getroffen ist — siehe unten.
+
 ### Grafik (`assets/img/`)
 
-_(noch leer — wird in Epic E9 gefüllt)_
+_(noch leer — wird gefüllt, sobald der Stil aus `docs/style-candidates/` gewählt ist)_
 
 | Datei | Herkunft | Lizenz | Nennung | Verwendung |
 | ----- | -------- | ------ | ------- | ---------- |
@@ -86,7 +126,7 @@ Konto: `backupslave` (Konto-Wächter in `tools/suno_api.py` erzwingt das).
 
 ### Schriften (`assets/fonts/`)
 
-_(noch leer — Auswahl in Epic E9)_
+_(noch leer — die Auswahl steht in `docs/style-candidates/fonts/` zur Entscheidung bereit)_
 
 | Datei | Herkunft | Lizenz | Nennung | Verwendung |
 | ----- | -------- | ------ | ------- | ---------- |
@@ -101,16 +141,27 @@ Asset: Titel, Urheber, Lizenz, Quelle. **Das ist eine Lizenzauflage, keine Höfl
 Nennung ist die Nutzung unzulässig.
 
 Solange ausschließlich CC0 und Eigenerzeugungen verwendet werden, ist der Bereich nicht nötig.
-**Aktueller Stand: kein CC-BY-Asset im Bestand, kein Credits-Bereich erforderlich.**
+
+**Aktueller Stand: kein CC-BY-Asset im ausgelieferten Bestand (`assets/`), also noch kein
+Credits-Bereich erforderlich.** Unter `docs/style-candidates/` liegen CC-BY-Dateien, die aber
+ausdrücklich nur zur Entscheidung dienen und nicht ausgeliefert werden.
+
+**Vorgemerkt und unvermeidbar:** Die Recherche zu Issue #19 hat ergeben, dass es für 26
+Zaubersymbole in den erlaubten Quellen **keinen reinen CC0-Weg** gibt — beide tragfähigen Quellen
+(game-icons.net und Painterly Spell Icons) stehen unter CC BY 3.0. Sobald der Stil gewählt und die
+erste Symboldatei nach `assets/img/` übernommen ist, **muss** der Credits-Bereich existieren. Er
+listet je Urheber: „Icons made by Lorc / Delapouite / Cathelineau" beziehungsweise „J. W. Bjerk
+(eleazzaar), www.jwbjerk.com/art".
 
 ---
 
 ## Offen
 
-| Punkt                                   | Status  |
-| --------------------------------------- | ------- |
-| Konkretes Asset-Set und Stil-Festlegung | Epic E9 |
-| Sound-Manifest (115 Slots)              | Epic E8 |
+| Punkt                                   | Status                                                                                                                |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Konkretes Asset-Set und Stil-Festlegung | **Wartet auf den Auftraggeber.** Vier Kandidaten liegen vor: `docs/style-candidates/` (Issue #19)                     |
+| Credits-Bereich im Spiel                | **Wird gebraucht**, sobald der Stil gewählt ist — es gibt keinen reinen CC0-Weg zu 26 Zaubersymbolen (Issue #19, AC5) |
+| Sound-Manifest (115 Slots)              | Epic E8                                                                                                               |
 
 ### Zum Stil: es gibt bewusst kein HUD-Referenzbild
 

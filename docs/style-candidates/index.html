@@ -1,0 +1,1271 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ROTA — Stil-Kandidaten (Issue #19)</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Schriften. Alle vier Familien liegen lokal unter fonts/ und sind
+       * OFL bzw. CC0. Es wird nichts von einem fremden Server nachgeladen.
+       * ------------------------------------------------------------------ */
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('fonts/Cinzel[wght].ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      @font-face {
+        font-family: 'EB Garamond';
+        src: url('fonts/EBGaramond[wght].ttf') format('truetype-variations');
+        font-weight: 400 800;
+      }
+      @font-face {
+        font-family: 'Marcellus';
+        src: url('fonts/Marcellus-Regular.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Chakra Petch';
+        src: url('fonts/ChakraPetch-Regular.ttf') format('truetype');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'Chakra Petch';
+        src: url('fonts/ChakraPetch-SemiBold.ttf') format('truetype');
+        font-weight: 600;
+      }
+      @font-face {
+        font-family: 'Kenney Future';
+        src: url('fonts/KenneyFuture.ttf') format('truetype');
+      }
+
+      /* Wischblende: der Winkel muss animierbar sein, deshalb als typisierte
+         Custom Property angemeldet (GAME-DESIGN 9.4: rotierende Maske 0-360). */
+      @property --sweep {
+        syntax: '<angle>';
+        inherits: false;
+        initial-value: 0deg;
+      }
+
+      /* ------------------------------------------------------------------ *
+       * Schulfarben — GAME-DESIGN 9.3, unveraendert uebernommen.
+       * ------------------------------------------------------------------ */
+      :root {
+        --calcination: #ff6a2a;
+        --fixation: #cfe4ff;
+        --sublimation: #f2c24a;
+        --coagulation: #46d9b4;
+        --putrefaction: #a06bd8;
+
+        --page: #0a0a0c;
+        --ink: #d8d4cc;
+        --ink-dim: #8b8579;
+        --line: #26262b;
+        --card: #101014;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--page);
+        color: var(--ink);
+        font:
+          15px/1.6 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: #8fb8e8;
+      }
+      code {
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+        font-size: 0.9em;
+        color: #b9d3a8;
+      }
+
+      .wrap {
+        max-width: 1900px;
+        margin: 0 auto;
+        padding: 40px 28px 90px;
+      }
+
+      header.page {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 28px;
+        margin-bottom: 32px;
+      }
+      header.page h1 {
+        font:
+          400 30px/1.25 'Cinzel',
+          serif;
+        letter-spacing: 0.06em;
+        margin: 0 0 6px;
+        color: #efeae0;
+      }
+      header.page .sub {
+        color: var(--ink-dim);
+        font-size: 14px;
+        margin-bottom: 20px;
+      }
+      .note {
+        border-left: 2px solid #3a3a42;
+        padding: 2px 0 2px 16px;
+        margin: 14px 0;
+        color: #b3ada2;
+        font-size: 14px;
+        max-width: 100ch;
+      }
+      .note strong {
+        color: #e6e0d5;
+      }
+
+      .howto {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+        margin-top: 22px;
+      }
+      .howto div {
+        background: #121216;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 13px 15px;
+        font-size: 13.5px;
+        color: #a9a49a;
+      }
+      .howto b {
+        display: block;
+        color: #e6e0d5;
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+      }
+
+      /* ------------------------------------------------------------------ *
+       * Der Vergleich: vier Spalten, immer nebeneinander. Wird das Fenster
+       * schmaler als die vier Karten, scrollt die Reihe waagerecht - sie
+       * bricht NICHT um, weil der Vergleich sonst keiner mehr waere.
+       * ------------------------------------------------------------------ */
+      .compare {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(400px, 1fr));
+        gap: 20px;
+        overflow-x: auto;
+        padding-bottom: 10px;
+        align-items: start;
+      }
+
+      .cand {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: var(--card);
+        overflow: hidden;
+      }
+      .cand > .head {
+        padding: 16px 18px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .cand .tag {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        color: #6e6a63;
+      }
+      .cand h2 {
+        margin: 3px 0 4px;
+        font-size: 20px;
+        letter-spacing: 0.04em;
+      }
+      /* Feste Höhe, damit alle vier Karten ihre Abschnitte auf derselben
+         Höhe beginnen - sonst verrutscht der Vergleich um ein paar Zeilen. */
+      .cand .claim {
+        font-size: 13px;
+        color: #98938a;
+        min-height: 5.1em;
+      }
+
+      .stage {
+        padding: 20px 18px 22px;
+      }
+      .stage + .stage {
+        border-top: 1px solid #1c1c21;
+      }
+      .stage h3 {
+        font-size: 10.5px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #6e6a63;
+        margin: 0 0 13px;
+        font-weight: 600;
+      }
+
+      /* ------------------------------ Zauberleiste ---------------------- */
+      .bar {
+        display: grid;
+        grid-template-columns: repeat(4, 64px);
+        gap: 8px;
+      }
+      .slot {
+        position: relative;
+        width: 64px;
+        height: 64px;
+      }
+      .slot .art {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+      .glyph {
+        width: 46px;
+        height: 46px;
+      }
+      /* Weisse SVG-Silhouette als Maske: so laesst sie sich exakt in der
+         Schulfarbe einfaerben (game-icons.net liefert einfarbige Pfade). */
+      .glyph.mask {
+        background-color: var(--tint, #ddd);
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+      }
+      .glyph.bitmap {
+        object-fit: contain;
+      }
+
+      /* Abklingzeit: dunkler Schleier wandert wie ein Uhrzeiger weg (9.4). */
+      .cd {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 4, 6, 0.74);
+        -webkit-mask: conic-gradient(from -90deg, #000 var(--sweep), transparent 0);
+        mask: conic-gradient(from -90deg, #000 var(--sweep), transparent 0);
+        animation: sweep 9s linear infinite;
+        pointer-events: none;
+      }
+      @keyframes sweep {
+        from {
+          --sweep: 360deg;
+        }
+        to {
+          --sweep: 0deg;
+        }
+      }
+      .cd-num {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        color: #fff;
+        text-shadow: 0 1px 3px #000;
+        pointer-events: none;
+      }
+      .dim .art {
+        filter: brightness(0.42) saturate(0.5);
+      }
+      /* Bereite Zauber leuchten, nicht bereite sind abgedunkelt (GAME-DESIGN 9). */
+      .slot:not(.dim) .glyph {
+        filter: drop-shadow(0 0 5px var(--tint, #fff));
+      }
+
+      /* Globale Wartezeit: eigene Darstellung, klar unterscheidbar von der
+         Wischblende - duenner Ring AUSSERHALB des Symbols statt Schleier
+         darin (GAME-DESIGN 9. Tabelle, Zeile "Globale Wartezeit"). */
+      .gcd {
+        position: absolute;
+        inset: -6px;
+        pointer-events: none;
+      }
+      .gcd circle {
+        fill: none;
+        stroke: #f4f1ea;
+        stroke-width: 2;
+        stroke-linecap: butt;
+        opacity: 0.85;
+        stroke-dasharray: 232;
+        animation: gcdring 1.5s linear infinite;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+      }
+      @keyframes gcdring {
+        from {
+          stroke-dashoffset: 0;
+        }
+        to {
+          stroke-dashoffset: 232;
+        }
+      }
+
+      /* Synergie: pulsierender Rahmen am beguenstigten Zauber (5. Anzeige). */
+      .syn::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border: 2px solid var(--tint, #fff);
+        border-radius: inherit;
+        animation: pulse 1.4s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.25;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.045);
+        }
+      }
+
+      .keybind {
+        position: absolute;
+        left: 4px;
+        top: 2px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: #efeae0;
+        text-shadow: 0 1px 2px #000;
+        pointer-events: none;
+      }
+
+      .legend {
+        display: grid;
+        grid-template-columns: repeat(4, 64px);
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 10px;
+        color: #6e6a63;
+        text-align: center;
+        line-height: 1.3;
+      }
+
+      /* ------------------------------ Schulfarben ----------------------- */
+      .schools {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+      }
+      .schools .slot {
+        width: 100%;
+        aspect-ratio: 1;
+        height: auto;
+      }
+      .schools .glyph {
+        width: 62%;
+        height: 62%;
+      }
+      .schools .cap {
+        margin-top: 5px;
+        font-size: 9px;
+        letter-spacing: 0.04em;
+        color: #6e6a63;
+        text-align: center;
+      }
+
+      /* ------------------------------ Instrumente ----------------------- */
+      .meters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 16px;
+      }
+      .meter {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        border-bottom: 1px solid #202026;
+        padding: 3px 0;
+      }
+      .meter .k {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        color: #7d786f;
+      }
+      .meter .v {
+        font-size: 16px;
+        color: #e8e2d6;
+      }
+
+      /* ------------------------------ Reaktionsgefaess ------------------ */
+      .vessel {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .vessel svg {
+        flex: none;
+      }
+      .vessel .hint {
+        font-size: 11.5px;
+        color: #7d786f;
+      }
+
+      /* ------------------------------ Typografie ------------------------ */
+      .type .dps {
+        font-size: 44px;
+        line-height: 1;
+        color: #f2ede2;
+      }
+      .type .dps small {
+        font-size: 13px;
+        letter-spacing: 0.16em;
+        color: #7d786f;
+        display: block;
+        margin-bottom: 2px;
+      }
+      .type .digits {
+        margin-top: 10px;
+        font-size: 19px;
+        letter-spacing: 0.08em;
+        color: #b9b3a7;
+      }
+      .type .word {
+        margin-top: 8px;
+        font-size: 15px;
+        letter-spacing: 0.1em;
+        color: #cfc8ba;
+      }
+
+      /* ------------------------------ Herkunft -------------------------- */
+      table.src {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      table.src th,
+      table.src td {
+        text-align: left;
+        padding: 5px 8px 5px 0;
+        border-bottom: 1px solid #1c1c21;
+        vertical-align: top;
+      }
+      table.src th {
+        color: #6e6a63;
+        font-weight: 600;
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .lic {
+        display: inline-block;
+        font-size: 10.5px;
+        padding: 1px 6px;
+        border-radius: 2px;
+        letter-spacing: 0.04em;
+      }
+      .lic.cc0 {
+        background: #17301f;
+        color: #7fd39a;
+        border: 1px solid #285139;
+      }
+      .lic.ccby {
+        background: #2c2713;
+        color: #d9bd63;
+        border: 1px solid #4d431f;
+      }
+      .lic.ofl {
+        background: #16262f;
+        color: #79bcd6;
+        border: 1px solid #27444f;
+      }
+
+      ul.pro,
+      ul.con {
+        margin: 0;
+        padding-left: 17px;
+        font-size: 13px;
+      }
+      ul.pro li {
+        color: #a8c9a3;
+        margin-bottom: 4px;
+      }
+      ul.con li {
+        color: #cfa79c;
+        margin-bottom: 4px;
+      }
+      .gap {
+        font-size: 12.5px;
+        color: #8b8579;
+        border-top: 1px dashed #26262b;
+        margin-top: 12px;
+        padding-top: 10px;
+      }
+
+      /* ------------------------------ Fusszeile ------------------------- */
+      footer.page {
+        margin-top: 46px;
+        border-top: 1px solid var(--line);
+        padding-top: 28px;
+      }
+      footer.page h2 {
+        font:
+          400 20px/1.3 'Cinzel',
+          serif;
+        letter-spacing: 0.05em;
+        margin: 0 0 12px;
+      }
+      .foot-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 24px;
+      }
+      .foot-grid section {
+        background: #101014;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 18px 20px;
+      }
+      .foot-grid h3 {
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #8b8579;
+        margin: 0 0 10px;
+      }
+      .foot-grid p,
+      .foot-grid li {
+        font-size: 13px;
+        color: #a9a49a;
+      }
+      .foot-grid img {
+        max-width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        margin-top: 8px;
+      }
+
+      /* ------------------------------------------------------------------ *
+       * Die vier Stile. Nur hier steht, was einen Kandidaten ausmacht -
+       * alles darueber ist fuer alle vier gleich, damit der Vergleich haelt.
+       * ------------------------------------------------------------------ */
+
+      /* A - GEAETZT: dunkles Eisen, Symbol in Schulfarbe eingebrannt,
+         Renaissance-Kapitalis. */
+      .set-etched {
+        --tint: var(--calcination);
+      }
+      .set-etched .stage,
+      .set-etched .head {
+        background:
+          linear-gradient(#0d0c0bdd, #0d0c0bdd),
+          url('textures/Metal036_Color_512.jpg') center/220px repeat;
+      }
+      .set-etched h2,
+      .set-etched .type .dps,
+      .set-etched .type .word {
+        font-family: 'Cinzel', serif;
+        letter-spacing: 0.1em;
+      }
+      .set-etched .claim,
+      .set-etched .meter .v,
+      .set-etched .type .digits {
+        font-family: 'EB Garamond', serif;
+      }
+      .set-etched .meter .k,
+      .set-etched .keybind {
+        font-family: 'Cinzel', serif;
+      }
+      .set-etched .slot {
+        border-radius: 2px;
+      }
+      .set-etched .slot .art {
+        background:
+          linear-gradient(#181512, #0c0b0a),
+          url('textures/Metal036_Color_512.jpg') center/140px repeat;
+        border: 1px solid #3c342a;
+        box-shadow:
+          inset 0 1px 0 #5a4e3e,
+          inset 0 -1px 0 #000,
+          0 1px 2px #000;
+        border-radius: 2px;
+      }
+      .set-etched .glyph.mask {
+        filter: drop-shadow(0 1px 0 #000);
+      }
+
+      /* B - GEMALT: gemalte Symbole auf Schwarz, eigener gemalter Rahmen. */
+      .set-painted {
+        --tint: var(--coagulation);
+      }
+      .set-painted .stage,
+      .set-painted .head {
+        background: #08080a;
+      }
+      .set-painted h2,
+      .set-painted .type .dps,
+      .set-painted .type .word,
+      .set-painted .meter .k,
+      .set-painted .keybind {
+        font-family: 'Marcellus', serif;
+        letter-spacing: 0.06em;
+      }
+      .set-painted .claim,
+      .set-painted .meter .v,
+      .set-painted .type .digits {
+        font-family: 'EB Garamond', serif;
+      }
+      .set-painted .slot .art {
+        background: #000;
+        border-radius: 3px;
+      }
+      .set-painted .slot::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        background: url('icons/painterly/frame-0-grey.png') center/100% 100% no-repeat;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .set-painted .glyph {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* C - WERKSTATT: Kenney-Rahmen, kraeftige Kontur, warmes Holz/Blech. */
+      .set-workshop {
+        --tint: #f0e2c4;
+      }
+      .set-workshop .stage,
+      .set-workshop .head {
+        background: #14100c;
+      }
+      .set-workshop h2,
+      .set-workshop .type .dps,
+      .set-workshop .type .word,
+      .set-workshop .meter .k,
+      .set-workshop .keybind {
+        font-family: 'Kenney Future', sans-serif;
+        letter-spacing: 0.03em;
+      }
+      .set-workshop .claim,
+      .set-workshop .meter .v,
+      .set-workshop .type .digits {
+        font-family: 'Kenney Future', sans-serif;
+      }
+      .set-workshop .type .dps {
+        font-size: 34px;
+      }
+      .set-workshop .slot .art {
+        background: url('ui/kenney/adventure-panel-brown.png') center/100% 100% no-repeat;
+        border-radius: 4px;
+      }
+      .set-workshop .glyph {
+        width: 40px;
+        height: 40px;
+      }
+      .set-workshop .keybind {
+        left: 6px;
+        top: 4px;
+        font-size: 9px;
+        color: #2b1d10;
+        text-shadow: 0 1px 0 #d9bd8a;
+      }
+
+      /* D - INSTRUMENT: gebuerstetes Blech, kaltes Glas, technische Schrift.
+         Schulfarbe nur als schmale Kante, nicht als Flaeche. */
+      .set-instrument {
+        --tint: #e9eef2;
+      }
+      .set-instrument .stage,
+      .set-instrument .head {
+        background:
+          linear-gradient(#0d0f11e8, #0d0f11e8),
+          url('textures/Metal009_Color_512.jpg') center/260px repeat;
+      }
+      .set-instrument h2,
+      .set-instrument .claim,
+      .set-instrument .type .dps,
+      .set-instrument .type .word,
+      .set-instrument .type .digits,
+      .set-instrument .meter .k,
+      .set-instrument .meter .v,
+      .set-instrument .keybind {
+        font-family: 'Chakra Petch', sans-serif;
+      }
+      .set-instrument h2 {
+        letter-spacing: 0.12em;
+      }
+      .set-instrument .slot .art {
+        background:
+          linear-gradient(#1b2024, #0e1114),
+          url('textures/Metal009_Color_512.jpg') center/160px repeat;
+        border: 1px solid #333c43;
+        border-bottom: 2px solid var(--edge, #5d6b76);
+        box-shadow: inset 0 1px 0 #47535c;
+      }
+      .set-instrument .glyph.mask {
+        opacity: 0.94;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="page">
+        <h1>ROTA — Stil-Kandidaten</h1>
+        <div class="sub">
+          Entscheidungsvorlage zu Issue #19 · Epic E9 Grafik-Assets · Stand 2026-07-27
+        </div>
+
+        <div class="note">
+          <strong>Wozu diese Seite da ist.</strong> Der Stil von ROTA soll von einem menschlichen
+          Gestalter kommen, nicht aus einer erzeugten Bildvorlage (GAME-DESIGN 17.2). Deshalb stehen
+          hier vier <em>echte</em> freie Asset-Sets nebeneinander — heruntergeladen, lizenzgeprüft
+          und mit denselben Bausteinen gezeigt. Entschieden wird an dem, was zu sehen ist.
+        </div>
+        <div class="note">
+          <strong>Das ist kein HUD-Entwurf.</strong> Zu sehen sind Bausteine in Spielgröße:
+          Zauberleiste, Abklingzeit, globale Wartezeit, Synergie-Rahmen, Instrumente, Ring,
+          Typografie. Die Anordnung des HUDs steht bereits fest (GAME-DESIGN 9.1) und wird hier
+          bewusst nicht nachgebaut.
+        </div>
+
+        <div class="howto">
+          <div>
+            <b>Worauf es ankommt</b>
+            Die Symbole trägt man 300 Stunden lang im Blick. Sie müssen sich in einer Millisekunde
+            unterscheiden lassen — nicht hübsch sein.
+          </div>
+          <div>
+            <b>Was gleich ist</b>
+            Alle vier zeigen dieselben vier Zaubersymbole, dieselben fünf Schulfarben, dieselben
+            sechs Werte und dieselbe Zahl. Unterschiedlich ist nur der Stil.
+          </div>
+          <div>
+            <b>Was noch fehlt</b>
+            Rahmen für das Reaktionsgefäß und die Instrumententafeln entstehen erst in Issue #22.
+            Bei jedem Kandidaten steht, was er selbst mitbringt und was erzeugt werden muss.
+          </div>
+          <div>
+            <b>Die Lizenzregel</b>
+            Nur CC0 und CC BY. „Free for personal use" ist ausgeschlossen. Jede Datei auf dieser
+            Seite ist geprüft; der Lizenztext liegt unter <code>LICENSES/</code>.
+          </div>
+        </div>
+      </header>
+
+      <div class="compare" id="compare"></div>
+
+      <footer class="page">
+        <h2>Was sonst noch geprüft wurde</h2>
+        <div class="foot-grid">
+          <section>
+            <h3>Geprüft und verworfen: „Skill, item and spell icons" (CC0)</h3>
+            <p>
+              Der einzige gefundene Weg zu Zaubersymbolen <em>ohne</em> Namensnennungspflicht: 102
+              Symbole von <em>pauliuw</em> auf OpenGameArt, CC0. Verworfen, weil es überwiegend
+              <em>Gegenstands</em>-Symbole sind (Rüstung, Schwerter, Truhen), der Rahmen fest ins
+              Bild gemalt ist und die Machart uneinheitlich wirkt.
+            </p>
+            <img
+              src="rejected/pauliuw-cc0-kontaktbogen.png"
+              alt="Kontaktbogen der 60 ersten CC0-Symbole von pauliuw"
+            />
+          </section>
+          <section>
+            <h3>Folge für die Credits: sie werden gebraucht</h3>
+            <p>
+              Für 26 Zaubersymbole gibt es in den erlaubten Quellen
+              <strong>keinen reinen CC0-Weg</strong>. Beide tragfähigen Symbol-Quellen
+              (game-icons.net und die Painterly Spell Icons) stehen unter
+              <span class="lic ccby">CC BY 3.0</span>. Damit braucht das Spiel einen Credits-Bereich
+              — das ist eine Lizenzauflage, keine Höflichkeit (<code>ASSETS.md</code>).
+            </p>
+            <p>
+              Nur Kandidat C käme ohne Namensnennung aus, wenn die Symbole ebenfalls von Kenney
+              kämen — Kenney hat aber keine 26 brauchbaren Zaubersymbole im Angebot. Deshalb nutzt
+              auch C die Symbole von game-icons.net.
+            </p>
+          </section>
+          <section>
+            <h3>Wo die Dateien herkommen</h3>
+            <ul>
+              <li><a href="https://game-icons.net">game-icons.net</a> — 4.181 SVG, CC BY 3.0</li>
+              <li>
+                <a href="https://opengameart.org/content/painterly-spell-icons-part-1"
+                  >Painterly Spell Icons 1–4</a
+                >, J. W. Bjerk (eleazzaar) — CC BY 3.0
+              </li>
+              <li>
+                <a href="https://kenney.nl/assets">Kenney</a> — UI Pack, RPG Expansion, Adventure,
+                Fantasy UI Borders, alle CC0
+              </li>
+              <li><a href="https://ambientcg.com">ambientCG</a> — Metal036, Metal009, CC0</li>
+              <li>
+                <a href="https://fonts.google.com">Google Fonts</a> — Cinzel, EB Garamond,
+                Marcellus, Chakra Petch, alle OFL
+              </li>
+            </ul>
+          </section>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      /* --------------------------------------------------------------------
+       * Die vier Kandidaten. Jeder bekommt exakt dieselben Bausteine, damit
+       * der Vergleich trägt: vier Symbole in der Leiste (bereit / Abklingzeit
+       * mit Wischblende / globale Wartezeit / Synergie), fünf Schulfarben,
+       * sechs Werte, ein Ring, eine Zahl.
+       *
+       * Wichtig: Es kommen ausschliesslich die sechs echten Werte vor -
+       * ESSENCE, VESSEL, WARD, CATALYSIS, PURITY, YIELD (GAME-DESIGN 6.1/6.2).
+       * Zaubernamen sind bewusst NICHT erfunden; die 60 Zauber sind noch
+       * nicht ausgeplant (GAME-DESIGN 22).
+       * ------------------------------------------------------------------ */
+
+      const SCHOOLS = [
+        ['CALCINATION', 'var(--calcination)'],
+        ['FIXATION', 'var(--fixation)'],
+        ['SUBLIMATION', 'var(--sublimation)'],
+        ['COAGULATION', 'var(--coagulation)'],
+        ['PUTREFACTION', 'var(--putrefaction)'],
+      ];
+
+      const GI = 'icons/game-icons/';
+      const PA = 'icons/painterly/';
+
+      const CANDIDATES = [
+        {
+          id: 'A',
+          cls: 'set-etched',
+          name: 'GEÄTZT',
+          claim:
+            'Einfarbige Silhouetten, in der Schulfarbe auf dunkles Eisen eingebrannt. Kapitalis wie auf einer Grabplatte.',
+          kind: 'mask',
+          bar: [
+            GI + 'delapouite/bellows.svg',
+            GI + 'lorc/wax-seal.svg',
+            GI + 'lorc/bottle-vapors.svg',
+            GI + 'lorc/crystal-growth.svg',
+          ],
+          schools: [
+            GI + 'lorc/burning-embers.svg',
+            GI + 'lorc/caged-ball.svg',
+            GI + 'lorc/erlenmeyer.svg',
+            GI + 'lorc/crystalize.svg',
+            GI + 'lorc/acid-blob.svg',
+          ],
+          ring: { track: '#221d17', arc: 'var(--calcination)', w: 9 },
+          sources: [
+            [
+              'Symbole',
+              'game-icons.net (Lorc, Delapouite, Cathelineau)',
+              'ccby',
+              'CC BY 3.0',
+              'https://game-icons.net',
+            ],
+            [
+              'Textur',
+              'ambientCG Metal036 (geschwärztes Eisen)',
+              'cc0',
+              'CC0',
+              'https://ambientcg.com/a/Metal036',
+            ],
+            [
+              'Schrift',
+              'Cinzel + EB Garamond',
+              'ofl',
+              'OFL',
+              'https://fonts.google.com/specimen/Cinzel',
+            ],
+          ],
+          pro: [
+            'Ein einziger Formen-Wortschatz über alle 26 Symbole — sie gehören sichtbar zusammen.',
+            'Vektor: bei jeder Bildschirmgröße scharf, kein Nachschärfen nötig.',
+            'Die Schulfarbe steckt im Symbol selbst, nicht nur im Rahmen. Farbcodierung nach 9.3 ohne Zusatzaufwand.',
+            '4.181 Symbole zur Auswahl — die Alchemie-Begriffe sind alle vorhanden.',
+          ],
+          con: [
+            'Flach. Ohne Rahmen und Textur wirkt es nüchtern bis karg.',
+            'Namensnennung je Urheber Pflicht (mehrere Zeichner in einem Set).',
+          ],
+          gap: 'Bringt selbst mit: Symbole, Textur, Schrift. Erzeugt werden müssen: Rahmen, Instrumententafeln, Ringtextur (Issue #22).',
+        },
+        {
+          id: 'B',
+          cls: 'set-painted',
+          name: 'GEMALT',
+          claim:
+            'Gemalte, leuchtende Zaubersymbole auf Schwarz — mit passenden gemalten Rahmen aus demselben Satz.',
+          kind: 'bitmap',
+          bar: [
+            PA + 'fireball-red-1.png',
+            PA + 'link-blue-1.png',
+            PA + 'air-burst-air-1.png',
+            PA + 'heal-jade-1.png',
+          ],
+          schools: [
+            PA + 'explosion-orange-1.png',
+            PA + 'protect-sky-1.png',
+            PA + 'light-royal-1.png',
+            PA + 'vines-jade-1.png',
+            PA + 'rip-magenta-1.png',
+          ],
+          ring: { track: '#141018', arc: 'var(--putrefaction)', w: 9 },
+          sources: [
+            [
+              'Symbole',
+              'Painterly Spell Icons 1–4, J. W. Bjerk (eleazzaar)',
+              'ccby',
+              'CC BY 3.0',
+              'https://opengameart.org/content/painterly-spell-icons-part-1',
+            ],
+            [
+              'Rahmen',
+              'aus demselben Satz (frame-0/1/2, 10 Farben)',
+              'ccby',
+              'CC BY 3.0',
+              'https://opengameart.org/content/painterly-spell-icons-part-4',
+            ],
+            [
+              'Schrift',
+              'Marcellus + EB Garamond',
+              'ofl',
+              'OFL',
+              'https://fonts.google.com/specimen/Marcellus',
+            ],
+          ],
+          pro: [
+            'Einziger Kandidat, der Symbole UND passende Rahmen mitbringt — nichts muss erzeugt werden.',
+            'Liest sich sofort als Zauber. Wärme und Leuchten, wie man es aus dem Genre kennt.',
+            'Die Farbvarianten decken die fünf Schulfarben aus 9.3 fast eins zu eins ab.',
+          ],
+          con: [
+            'Nur rund 30 Grundformen. Bei 26 Zaubern bleibt fast keine Reserve — und die Ähnlichkeits-Prüfung aus Issue #21 wird eng.',
+            'Rastergrafik mit 256 px: auf großen Bildschirmen sichtbar weich.',
+            'Die Farbe steckt fest im Bild. Eine Umfärbung nach Schule ist nicht möglich, man ist an die vorhandenen Varianten gebunden.',
+            'Widerspricht am ehesten dem Grundsatz „das Spiel ist das HUD" — es sieht nach Zauberbuch aus, nicht nach Apparatur.',
+          ],
+          gap: 'Bringt selbst mit: Symbole, Rahmen, Schrift. Erzeugt werden müssen: Instrumententafeln, Ringtextur.',
+        },
+        {
+          id: 'C',
+          cls: 'set-workshop',
+          name: 'WERKSTATT',
+          claim:
+            'Kräftige Konturen, Holz und Blech, klare Flächen. Alles aus einer Hand und vollständig CC0 — bis auf die Symbole.',
+          kind: 'mask',
+          bar: [
+            GI + 'delapouite/furnace.svg',
+            GI + 'delapouite/dial-padlock.svg',
+            GI + 'lorc/dust-cloud.svg',
+            GI + 'delapouite/mortar.svg',
+          ],
+          schools: [
+            GI + 'lorc/fire-bowl.svg',
+            GI + 'lorc/crystal-bars.svg',
+            GI + 'lorc/spiral-bloom.svg',
+            GI + 'lorc/chalice-drops.svg',
+            GI + 'lorc/dripping-goo.svg',
+          ],
+          ring: { track: '#2a2018', arc: '#d9a441', w: 11 },
+          sources: [
+            [
+              'Rahmen, Tafeln',
+              'Kenney UI Pack Adventure / RPG Expansion / Fantasy UI Borders',
+              'cc0',
+              'CC0',
+              'https://kenney.nl/assets/ui-pack-adventure',
+            ],
+            ['Symbole', 'game-icons.net', 'ccby', 'CC BY 3.0', 'https://game-icons.net'],
+            ['Schrift', 'Kenney Future', 'cc0', 'CC0', 'https://kenney.nl/assets/ui-pack'],
+          ],
+          pro: [
+            'Rahmen, Tafeln, Balken, Regler, Kästchen — die komplette Oberfläche liegt fertig vor, von einem einzigen Gestalter.',
+            'Kein Risiko, dass erzeugte Einzelteile zusammengestückelt wirken (das Risiko aus GAME-DESIGN 21.6).',
+            'Alles außer den Symbolen ist CC0.',
+          ],
+          con: [
+            'Wirkt freundlich und comicnah — weit weg von einer außer Kontrolle geratenen Umwandlung.',
+            'Braun und Beige liegen dicht an dem, was als „Messing und vergilbtes Papier" schon einmal abgelehnt wurde.',
+            'Auf den kräftigen Konturen verlieren die feinen Silhouetten an Wirkung.',
+          ],
+          gap: 'Bringt selbst mit: Rahmen, Tafeln, Balken, Schrift, Symbole. Erzeugt werden müsste fast nichts — nur die Ringtextur.',
+        },
+        {
+          id: 'D',
+          cls: 'set-instrument',
+          name: 'INSTRUMENT',
+          claim:
+            'Gebürstetes Blech, kaltes Glas, technische Schrift. Die Schulfarbe nur als schmale Kante — das Spiel als Messgerät.',
+          kind: 'mask',
+          bar: [
+            GI + 'lorc/boiling-bubbles.svg',
+            GI + 'lorc/hourglass.svg',
+            GI + 'lorc/oily-spiral.svg',
+            GI + 'lorc/gooey-molecule.svg',
+          ],
+          schools: [
+            GI + 'lorc/burning-embers.svg',
+            GI + 'lorc/wax-seal.svg',
+            GI + 'lorc/bottle-vapors.svg',
+            GI + 'lorc/crystal-growth.svg',
+            GI + 'lorc/molecule.svg',
+          ],
+          ring: { track: '#161a1d', arc: '#cfd8de', w: 7 },
+          coldGlyph: true,
+          sources: [
+            ['Symbole', 'game-icons.net', 'ccby', 'CC BY 3.0', 'https://game-icons.net'],
+            [
+              'Blech, Tafeln',
+              'ambientCG Metal009 + Kenney UI Pack (grau, abgedunkelt)',
+              'cc0',
+              'CC0',
+              'https://ambientcg.com/a/Metal009',
+            ],
+            [
+              'Schrift',
+              'Chakra Petch',
+              'ofl',
+              'OFL',
+              'https://fonts.google.com/specimen/Chakra+Petch',
+            ],
+          ],
+          pro: [
+            'Am nächsten am Grundsatz „das Spiel IST das HUD" — es sieht nach Apparatur aus, nicht nach Fantasy-Menü.',
+            'Kalte, ruhige Grundstimmung: dauertauglich über lange Sitzungen (GAME-DESIGN 21.2, Reizstärke).',
+            'Zahlen sind in einer technischen Schrift auf einen Blick lesbar — bei vier- bis fünfstelligem Schaden der Normalfall.',
+            'Dieselbe Symbol-Quelle wie A, also derselbe große Vorrat.',
+          ],
+          con: [
+            'Die Schulfarbe tritt zurück. Das ist gewollt, kostet aber Wiedererkennung im Vergleich zu A.',
+            'Ohne Zierrat steht und fällt alles mit den Rahmen aus Issue #22.',
+            'Kann kühl bis steril wirken.',
+          ],
+          gap: 'Bringt selbst mit: Symbole, Blechtextur, Schrift, einfache Tafeln. Erzeugt werden müssen: Rahmen mit Charakter, Ringtextur.',
+        },
+      ];
+
+      /* ---------------------------------------------------------------- */
+
+      function glyph(src, kind, tint) {
+        if (kind === 'bitmap') {
+          const img = document.createElement('img');
+          img.className = 'glyph bitmap';
+          img.src = src;
+          img.alt = '';
+          return img;
+        }
+        const d = document.createElement('div');
+        d.className = 'glyph mask';
+        d.style.webkitMaskImage = `url('${src}')`;
+        d.style.maskImage = `url('${src}')`;
+        if (tint) d.style.backgroundColor = tint;
+        return d;
+      }
+
+      function slot(src, kind, opts) {
+        const o = opts || {};
+        const s = document.createElement('div');
+        s.className = 'slot' + (o.dim ? ' dim' : '') + (o.syn ? ' syn' : '');
+        if (o.tint) s.style.setProperty('--tint', o.tint);
+        if (o.edge) s.style.setProperty('--edge', o.edge);
+
+        const art = document.createElement('div');
+        art.className = 'art';
+        art.appendChild(glyph(src, kind, o.tint));
+        s.appendChild(art);
+
+        if (o.keybind) {
+          const k = document.createElement('span');
+          k.className = 'keybind';
+          k.textContent = o.keybind;
+          s.appendChild(k);
+        }
+        if (o.cooldown) {
+          const cd = document.createElement('div');
+          cd.className = 'cd';
+          s.appendChild(cd);
+          const n = document.createElement('div');
+          n.className = 'cd-num';
+          n.textContent = o.cooldown;
+          s.appendChild(n);
+        }
+        if (o.gcd) {
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('class', 'gcd');
+          svg.setAttribute('viewBox', '0 0 76 76');
+          const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          c.setAttribute('cx', '38');
+          c.setAttribute('cy', '38');
+          c.setAttribute('r', '37');
+          svg.appendChild(c);
+          s.appendChild(svg);
+        }
+        return s;
+      }
+
+      function ringSvg(cfg) {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('width', '96');
+        svg.setAttribute('height', '96');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        const r = 42;
+        const track = document.createElementNS(ns, 'circle');
+        track.setAttribute('cx', 50);
+        track.setAttribute('cy', 50);
+        track.setAttribute('r', r);
+        track.setAttribute('fill', 'none');
+        track.setAttribute('stroke', cfg.track);
+        track.setAttribute('stroke-width', cfg.w);
+        svg.appendChild(track);
+        const arc = document.createElementNS(ns, 'circle');
+        const C = 2 * Math.PI * r;
+        arc.setAttribute('cx', 50);
+        arc.setAttribute('cy', 50);
+        arc.setAttribute('r', r);
+        arc.setAttribute('fill', 'none');
+        arc.setAttribute('stroke', cfg.arc);
+        arc.setAttribute('stroke-width', cfg.w);
+        arc.setAttribute('stroke-linecap', 'butt');
+        arc.setAttribute('stroke-dasharray', `${C * 0.62} ${C}`);
+        arc.setAttribute('transform', 'rotate(-90 50 50)');
+        svg.appendChild(arc);
+        return svg;
+      }
+
+      function el(tag, cls, html) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (html !== undefined) e.innerHTML = html;
+        return e;
+      }
+
+      function stage(title, node) {
+        const s = el('div', 'stage');
+        s.appendChild(el('h3', null, title));
+        s.appendChild(node);
+        return s;
+      }
+
+      function build(c) {
+        const card = el('div', 'cand ' + c.cls);
+
+        const head = el('div', 'head');
+        head.appendChild(el('div', 'tag', 'KANDIDAT ' + c.id));
+        head.appendChild(el('h2', null, c.name));
+        head.appendChild(el('div', 'claim', c.claim));
+        card.appendChild(head);
+
+        /* --- Zauberleiste: bereit / Abklingzeit / globale Wartezeit / Synergie */
+        const bar = el('div', 'bar');
+        const keys = ['Q', 'W', 'E', 'R'];
+        const states = [
+          { keybind: keys[0] },
+          { keybind: keys[1], cooldown: '7', dim: true },
+          { keybind: keys[2], gcd: true },
+          { keybind: keys[3], syn: true },
+        ];
+        c.bar.forEach((src, i) => {
+          const o = Object.assign({}, states[i]);
+          o.tint = c.coldGlyph ? '#e9eef2' : SCHOOLS[i][1];
+          o.edge = SCHOOLS[i][1];
+          bar.appendChild(slot(src, c.kind, o));
+        });
+        const barWrap = el('div');
+        barWrap.appendChild(bar);
+        const leg = el('div', 'legend');
+        ['bereit', 'Abklingzeit', 'globale<br />Wartezeit', 'Synergie'].forEach((t) =>
+          leg.appendChild(el('div', null, t)),
+        );
+        barWrap.appendChild(leg);
+        card.appendChild(stage('Zauberleiste · Tastatur-Raster · 64 px', barWrap));
+
+        /* --- Fünf Schulfarben */
+        const sch = el('div');
+        const grid = el('div', 'schools');
+        c.schools.forEach((src, i) => {
+          const box = el('div');
+          box.appendChild(
+            slot(src, c.kind, {
+              tint: c.coldGlyph ? '#e9eef2' : SCHOOLS[i][1],
+              edge: SCHOOLS[i][1],
+            }),
+          );
+          box.appendChild(el('div', 'cap', SCHOOLS[i][0]));
+          grid.appendChild(box);
+        });
+        sch.appendChild(grid);
+        card.appendChild(stage('Farbcodierung der fünf Schulen (9.3)', sch));
+
+        /* --- Instrumente: ausschliesslich die sechs echten Werte */
+        const m = el('div', 'meters');
+        [
+          ['ESSENCE', '1 482'],
+          ['VESSEL', '38 400'],
+          ['WARD', '2 095'],
+          ['CATALYSIS', '17,4 %'],
+          ['PURITY', '31,2 %'],
+          ['YIELD', '212 %'],
+        ].forEach(([k, v]) => {
+          const row = el('div', 'meter');
+          row.appendChild(el('span', 'k', k));
+          row.appendChild(el('span', 'v', v));
+          m.appendChild(row);
+        });
+        card.appendChild(stage('Instrumente (6.1 / 6.2)', m));
+
+        /* --- Reaktionsgefäß */
+        const v = el('div', 'vessel');
+        v.appendChild(ringSvg(c.ring));
+        v.appendChild(
+          el(
+            'div',
+            'hint',
+            'Der Ring ist Lebensbalken und Boss zugleich (GAME-DESIGN 9). Hier nur als Materialprobe — Segmentierung und Verhalten baut E1.',
+          ),
+        );
+        card.appendChild(stage('Reaktionsgefäß-Ring', v));
+
+        /* --- Typografie */
+        const t = el('div', 'type');
+        t.appendChild(el('div', 'dps', '<small>DAMAGE PER SECOND</small>14 872'));
+        t.appendChild(el('div', 'digits', '0 1 2 3 4 5 6 7 8 9 · 1,5 s · 180 s'));
+        t.appendChild(el('div', 'word', 'CALCINATION (Damage over Time)'));
+        card.appendChild(stage('Typografie', t));
+
+        /* --- Herkunft und Lizenz */
+        const tbl = el('table', 'src');
+        tbl.innerHTML =
+          '<tr><th>Baustein</th><th>Quelle</th><th>Lizenz</th></tr>' +
+          c.sources
+            .map(
+              ([what, who, cls, lic, url]) =>
+                `<tr><td>${what}</td><td><a href="${url}" target="_blank" rel="noopener">${who}</a></td><td><span class="lic ${cls}">${lic}</span></td></tr>`,
+            )
+            .join('');
+        card.appendChild(stage('Herkunft und Lizenz', tbl));
+
+        /* --- Bewertung */
+        const b = el('div');
+        const ul1 = el('ul', 'pro');
+        c.pro.forEach((p) => ul1.appendChild(el('li', null, p)));
+        b.appendChild(ul1);
+        const ul2 = el('ul', 'con');
+        ul2.style.marginTop = '10px';
+        c.con.forEach((p) => ul2.appendChild(el('li', null, p)));
+        b.appendChild(ul2);
+        b.appendChild(el('div', 'gap', c.gap));
+        card.appendChild(stage('Dafür und dagegen', b));
+
+        return card;
+      }
+
+      const root = document.getElementById('compare');
+      CANDIDATES.forEach((c) => root.appendChild(build(c)));
+    </script>
+  </body>
+</html>
