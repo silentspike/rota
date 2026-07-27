@@ -82,11 +82,16 @@ jobs:
           set -euo pipefail
           # Bidi-Overrides und Zero-Width-Zeichen
           PATTERN=$'‪|‫|‬|‭|‮|⁦|⁧|⁨|⁩|​|‌|‍|﻿'
-          if grep -rlP "$PATTERN" --include='*.ts' --include='*.js' --include='*.json' --include='*.html' --include='*.css' . ; then
+          # Nur eigener Quelltext. node_modules enthält legitime Unicode-Zeichen
+          # (z. B. TypeScripts lib.es2015.core.d.ts und übersetzte Meldungen).
+          if grep -rlP "$PATTERN" \
+               --include='*.ts' --include='*.js' --include='*.json' \
+               --include='*.html' --include='*.css' \
+               src tests data index.html 2>/dev/null; then
             echo "::error::Versteckte Unicode-Steuerzeichen gefunden (CVE-2021-42574)."
             exit 1
           fi
-          echo "Keine versteckten Steuerzeichen gefunden."
+          echo "Keine versteckten Steuerzeichen im eigenen Quelltext gefunden."
 
   typecheck:
     needs: changes
@@ -181,10 +186,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d tests/parity ]; then
-            npm ci && npm run test:parity
+          # Auf tatsächliche Testdateien prüfen, nicht auf den Ordner: der
+          # existiert von Anfang an (mit .gitkeep), und vitest bricht ab, wenn
+          # es nichts zu tun findet.
+          if compgen -G 'tests/parity/*.test.ts' > /dev/null; then
+            npm ci
+            npm run test:parity
           else
-            echo "Noch keine Prüffälle vorhanden (kommt mit Epic E2). Übersprungen."
+            echo "Noch keine Prüffälle vorhanden (kommen mit Epic E2). Übersprungen."
           fi
 
   # -------------------------------------------------------------------- ci-pass
