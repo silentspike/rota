@@ -152,8 +152,15 @@ def check(path: Path, target_s: float | None, is_loop: bool) -> dict:
     # kein Pegel, sondern die Auskunft "nicht messbar".
     if duration < LUFS_MIN_DURATION_S or lufs <= LUFS_NOT_MEASURABLE:
         loudness_measure = "rms"
-        if abs(rms - TARGET_RMS_DBFS) > RMS_TOLERANCE_DB:
+        # Dieselbe Physik wie unten bei LUFS: Steht der Spitzenpegel am
+        # Anschlag, ist der Effektivwert ausgereizt.
+        transient = peak >= PEAK_MAXED_DBFS
+        if abs(rms - TARGET_RMS_DBFS) > RMS_TOLERANCE_DB and not (
+            transient and rms < TARGET_RMS_DBFS
+        ):
             problems.append(f"Effektivwert {rms:.1f} dBFS (LUFS bei {duration:.2f}s nicht messbar)")
+        elif transient and rms < TARGET_RMS_DBFS - RMS_TOLERANCE_DB:
+            loudness_measure = "rms-transient"
     else:
         loudness_measure = "lufs"
         tolerance = (
@@ -244,6 +251,8 @@ def main() -> None:
                 loudness = f"{r['lufs']:.1f} LUFS"
             elif r["loudnessMeasure"] == "lufs-transient":
                 loudness = f"{r['lufs']:.1f} LUFS*"
+            elif r["loudnessMeasure"] == "rms-transient":
+                loudness = f"{r['rmsDbfs']:.1f} dBFS RMS*"
             else:
                 loudness = f"{r['rmsDbfs']:.1f} dBFS RMS"
             verdict = "in Ordnung" if not r["problems"] else "; ".join(r["problems"])
