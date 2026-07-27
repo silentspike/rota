@@ -1,7 +1,30 @@
+# Geheimnisse — niemals ins Repository
 .env
+.env.*
 *.key
-*.db
+*.pem
+.suno-state.json
+
+# Abhängigkeiten und Bau-Ergebnisse
 node_modules/
+dist/
+.vite/
 venv/
 __pycache__/
-.suno-state.json
+*.pyc
+
+# Rust (Simulator)
+sim/target/
+
+# Werkzeug-Ausgaben
+.playwright-cli/
+*.log
+llm-*.md
+
+# Datenbanken und lokale Zwischenstände
+*.db
+*.sqlite
+
+# Betriebssystem
+.DS_Store
+Thumbs.db

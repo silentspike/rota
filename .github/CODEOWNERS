@@ -1,0 +1,9 @@
+# Alle Änderungen gehen an den Projektverantwortlichen.
+* @obtFusi
+
+# Die SSOT-Dokumente sind besonders schützenswert: Wer hier etwas ändert,
+# ändert die Grundlage, gegen die alle Worker geprüft werden.
+/docs/GAME-DESIGN.md   @obtFusi
+/docs/STEP1-SPEC.md    @obtFusi
+/docs/VERIFICATION.md  @obtFusi
+/docs/WORKER-GUIDE.md  @obtFusi
