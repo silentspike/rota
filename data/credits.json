@@ -1,0 +1,71 @@
+{
+  "note": "Die eine Wahrheit fuer den Credits-Bereich im Spiel. ASSETS.md fuehrt jede Datei mit Herkunft und Lizenz; hier steht, was dem Spieler angezeigt wird. tools/assets-check.py prueft, dass jede nennungspflichtige Datei unter assets/ von genau einem Eintrag hier gedeckt ist.",
+  "entries": [
+    {
+      "id": "game-icons-lorc",
+      "work": "Spell and process icons",
+      "author": "Lorc",
+      "attribution": "Icons made by Lorc",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "source": "https://game-icons.net",
+      "required": true,
+      "covers": ["assets/img/icons/lorc/*.svg"]
+    },
+    {
+      "id": "game-icons-delapouite",
+      "work": "Spell and process icons",
+      "author": "Delapouite",
+      "attribution": "Icons made by Delapouite",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "source": "https://game-icons.net",
+      "required": true,
+      "covers": ["assets/img/icons/delapouite/*.svg"]
+    },
+    {
+      "id": "game-icons-cathelineau",
+      "work": "Spell and process icons",
+      "author": "Cathelineau",
+      "attribution": "Icons made by Cathelineau",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "source": "https://game-icons.net",
+      "required": true,
+      "covers": ["assets/img/icons/cathelineau/*.svg"]
+    },
+    {
+      "id": "ambientcg-metal036",
+      "work": "Metal036 (blackened iron)",
+      "author": "ambientCG",
+      "attribution": "Metal036 from ambientCG.com",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source": "https://ambientcg.com/a/Metal036",
+      "required": false,
+      "covers": ["assets/img/textures/metal036-blackened-iron-512.jpg"]
+    },
+    {
+      "id": "font-cinzel",
+      "work": "Cinzel",
+      "author": "Natanael Gama",
+      "attribution": "Cinzel by Natanael Gama",
+      "license": "SIL Open Font License 1.1",
+      "licenseUrl": "https://openfontlicense.org",
+      "source": "https://fonts.google.com/specimen/Cinzel",
+      "required": false,
+      "covers": ["assets/fonts/Cinzel-Variable.ttf"]
+    },
+    {
+      "id": "font-ebgaramond",
+      "work": "EB Garamond",
+      "author": "Georg Duffner and Octavio Pardo",
+      "attribution": "EB Garamond by Georg Duffner and Octavio Pardo",
+      "license": "SIL Open Font License 1.1",
+      "licenseUrl": "https://openfontlicense.org",
+      "source": "https://fonts.google.com/specimen/EB+Garamond",
+      "required": false,
+      "covers": ["assets/fonts/EBGaramond-Variable.ttf"]
+    }
+  ]
+}
