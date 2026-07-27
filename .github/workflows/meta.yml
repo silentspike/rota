@@ -47,12 +47,24 @@ jobs:
             test
             perf
 
+  # gitleaks direkt als Binary statt über gitleaks-action:
+  # Die Action verlangt für Organisationen eine kostenpflichtige Lizenz
+  # ("[silentspike] is an organization. License key is required."), das
+  # Werkzeug selbst ist MIT-lizenziert und frei nutzbar.
   secret-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: gitleaks installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Verlauf nach Geheimnissen durchsuchen
+        shell: bash
+        run: gitleaks git --no-banner --redact --exit-code 1 .
