@@ -268,21 +268,66 @@ def latest_snapshot() -> Path:
 
 
 def ui_refs() -> tuple[str, str]:
-    """Frische Element-Refs fuer Prompt-Textbox und Create-Button."""
-    pw("snapshot")
-    text = latest_snapshot().read_text()
-    tb = re.search(r'textbox "Describe the sound you want".*?\[ref=([^\]]+)\]', text)
-    cb = re.search(r'button "Create song".*?\[ref=([^\]]+)\]', text)
-    if not tb or not cb:
-        sys.exit(
-            "FEHLER: Suno-Create-Seite mit Sounds-Tab nicht gefunden.\n"
-            f"  playwright-cli -s={PW_SESSION} open https://suno.com/create --headed"
-        )
-    return tb.group(1), cb.group(1)
+    """Frische Element-Refs fuer Prompt-Textbox und Create-Button.
+
+    Steht die Seite im Song-Modus, wird der Sounds-Reiter selbst geoeffnet: Nach
+    einem Neuladen faellt Suno auf den Song-Modus zurueck, und ohne diesen
+    Klick scheitert der Fallback an einer Seite, die eigentlich in Ordnung ist.
+    """
+    for attempt in range(2):
+        pw("snapshot")
+        text = latest_snapshot().read_text()
+        tb = re.search(r'textbox "Describe the sound you want".*?\[ref=([^\]]+)\]', text)
+        cb = re.search(r'button "Create song".*?\[ref=([^\]]+)\]', text)
+        if tb and cb:
+            return tb.group(1), cb.group(1)
+        if attempt == 0:
+            tab = re.search(r'tab "Sounds" \[ref=([^\]]+)\]', text)
+            if tab:
+                print("  Sounds-Reiter war nicht offen — oeffne ihn...")
+                pw("click", tab.group(1))
+                time.sleep(2)
+
+    sys.exit(
+        "FEHLER: Suno-Create-Seite mit Sounds-Tab nicht gefunden.\n"
+        f"  playwright-cli -s={PW_SESSION} open https://suno.com/create --headed"
+    )
+
+
+def workspace_ids() -> list[str]:
+    """Song-UUIDs, die gerade im Workspace stehen — neueste zuerst.
+
+    Zweiter Weg zu den Clip-IDs, falls der fetch-Hook nichts erfasst (siehe
+    ui_generate). Die Links stehen als /song/{uuid} im DOM.
+    """
+    raw = pw_eval(
+        "() => JSON.stringify(Array.from(document.querySelectorAll('a[href^=\"/song/\"]'))"
+        ".map(a => a.getAttribute('href').slice(6)))"
+    )
+    m = re.search(r"\[.*\]", raw.replace('\\"', '"'))
+    if not m:
+        return []
+    try:
+        ids = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return []
+    # Reihenfolge erhalten, Doppelte entfernen.
+    seen: list[str] = []
+    for i in ids:
+        if i not in seen:
+            seen.append(i)
+    return seen
 
 
 def ui_generate(prompt: str, loop: bool = False, timeout_s: int = 120) -> list[str]:
-    """Loest die Generierung in der Seite aus und liest die Clip-UUIDs aus der Antwort."""
+    """Loest die Generierung in der Seite aus und liest die Clip-UUIDs aus.
+
+    Zwei Wege, weil der erste nicht verlaesslich ist: Der fetch-Hook sieht den
+    Generate-Aufruf nur, wenn die Seite ihn ueber `window.fetch` schickt — bei
+    einem Seiten-Neuaufbau (Clerk-Handshake, React-Remount) geht er verloren
+    und `window.__gen` bleibt leer. Dann werden die neuen Eintraege stattdessen
+    im Workspace abgelesen.
+    """
     # Ohne abschliessendes Semikolon: playwright-cli uebergibt den Text als
     # Funktion an page.evaluate und lehnt "() => {...};" mit
     # "Passed function is not well-serializable" ab. Prettier haengt das
@@ -291,6 +336,8 @@ def ui_generate(prompt: str, loop: bool = False, timeout_s: int = 120) -> list[s
     pw_eval(HOOK.read_text().strip().rstrip(";"))
     before = pw_eval("() => String((window.__gen || []).length)")
     n_before = int(re.search(r'"?(\d+)"?', before).group(1)) if re.search(r"\d", before) else 0
+
+    known_before = set(workspace_ids())
 
     tb, cb = ui_refs()
     if loop:
@@ -305,16 +352,22 @@ def ui_generate(prompt: str, loop: bool = False, timeout_s: int = 120) -> list[s
             % n_before
         )
         m = re.search(r'\[(?:\\?"|\{).*\]', raw.replace('\\"', '"'))
-        if not m:
-            continue
-        try:
-            entries = json.loads(m.group(0))
-        except json.JSONDecodeError:
-            continue
-        for e in entries:
-            if e.get("ids") and (not e.get("tags") or e["tags"].strip() == prompt.strip()):
-                print(f"  generate OK — {len(e['ids'])} Entwuerfe: {', '.join(e['ids'])}")
-                return e["ids"]
+        if m:
+            try:
+                entries = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                entries = []
+            for e in entries:
+                if e.get("ids") and (not e.get("tags") or e["tags"].strip() == prompt.strip()):
+                    print(f"  generate OK — {len(e['ids'])} Entwuerfe: {', '.join(e['ids'])}")
+                    return e["ids"]
+
+        # Zweiter Weg: neue Eintraege im Workspace.
+        fresh = [i for i in workspace_ids() if i not in known_before]
+        if len(fresh) >= 2:
+            ids = fresh[:2]
+            print(f"  generate OK (aus dem Workspace) — 2 Entwuerfe: {', '.join(ids)}")
+            return ids
     sys.exit("FEHLER: keine Clip-IDs erfasst (Captcha sichtbar? Credits leer?) — Screenshot pruefen.")
 
 
@@ -601,9 +654,26 @@ def main() -> None:
         for name, ids in jobs:
             print(f"  {name}:")
             download(s, ids, name, outdir)
-        lengths = {i["name"]: float(i["target_s"]) for i in manifest if i.get("target_s")}
+        # Ziel-Laengen ZUSAMMENFUEHREN statt ueberschreiben.
+        #
+        # Die Nachbearbeitung laeuft unten ueber den GANZEN Ordner, nicht nur
+        # ueber die Dateien dieses Laufs. Stuende in lengths.json nur, was
+        # gerade erzeugt wurde, verloeren alle frueher erzeugten Klaenge beim
+        # naechsten Teil-Lauf ihre Kuerzung und lagen wieder in voller Laenge
+        # vor (beobachtet: ein Boss-Klang mit Ziel 1,2 s kam als 7,3 s zurueck).
+        lengths_file = outdir / "lengths.json"
+        lengths: dict[str, float] = {}
+        if lengths_file.exists():
+            try:
+                lengths = json.loads(lengths_file.read_text())
+            except json.JSONDecodeError:
+                lengths = {}
+        lengths.update({i["name"]: float(i["target_s"]) for i in manifest if i.get("target_s")})
+        for i in manifest:
+            if i.get("loop"):
+                lengths[i["name"]] = {"loop": True}
         if lengths:
-            (outdir / "lengths.json").write_text(json.dumps(lengths, indent=1))
+            lengths_file.write_text(json.dumps(lengths, indent=1))
         print(f"\nFERTIG: {len(jobs) + len(lengths)} Sounds in {outdir}")
         print("Nachbearbeitung (Stille weg + auf Ziel-Laenge kuerzen + Lautheit + OGG):")
         post = Path(__file__).resolve().parent / "sfx-post.sh"

@@ -36,11 +36,22 @@ export interface ManifestEntry {
   readonly loopEnd?: number;
 }
 
+/**
+ * Reservierter Platz fuer Klaenge, die es geben wird, sobald ihre Vorlage
+ * ausgearbeitet ist. Der Verweis auf das Epic sagt, wer sie fuellt.
+ */
+export interface Placeholder {
+  readonly group: string;
+  readonly count: number;
+  readonly epic: string;
+  readonly reason: string;
+}
+
 export interface Manifest {
   readonly schema: number;
   readonly coverage: {
     readonly groups: Record<string, { target: number; present: number }>;
-    readonly blocked: ReadonlyArray<{ group: string; missing: number; reason: string }>;
+    readonly placeholders: readonly Placeholder[];
   };
   readonly sounds: readonly ManifestEntry[];
 }
@@ -155,10 +166,19 @@ export function parseManifest(raw: Manifest): ParsedManifest {
       );
     }
     const missing = counts.target - counts.present;
-    if (missing > 0 && !raw.coverage.blocked.some((b) => b.group === group)) {
+    if (missing === 0) continue;
+
+    const placeholder = raw.coverage.placeholders.find((entry) => entry.group === group);
+    if (!placeholder) {
       problems.push(
-        `Gruppe "${group}": ${missing} Klaenge fehlen, ohne dass ein Grund hinterlegt ist.`,
+        `Gruppe "${group}": ${missing} Klaenge fehlen, ohne dass ein Platzhalter sie ausweist.`,
       );
+    } else if (placeholder.count !== missing) {
+      problems.push(
+        `Gruppe "${group}": Platzhalter nennt ${placeholder.count} Klaenge, es fehlen aber ${missing}.`,
+      );
+    } else if (!placeholder.epic) {
+      problems.push(`Gruppe "${group}": Platzhalter ohne Verweis auf ein Epic.`);
     }
   }
 

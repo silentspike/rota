@@ -32,9 +32,20 @@ bedeuten. Deshalb:
 | 0,4 - 3 s  | integrierte Lautheit (LUFS)      | +- 3,0    |
 | < 0,4 s    | Effektivwert (RMS) statt LUFS    | -20 +- 6 dBFS |
 
+Dieselbe Ersatzmessung greift, wenn ffmpeg trotz ausreichender Laenge -70 LUFS
+meldet: Bei knapp ueber 400 ms bleibt nach dem Gating mitunter kein Block
+uebrig, und der Wert ist dann kein Pegel, sondern die Auskunft "nicht messbar".
+
 Der Ein-Pass-`loudnorm` aus `sfx-post.sh` streut bei kurzem Material ohnehin um
 ein bis zwei LUFS; eine engere Grenze wuerde nicht Qualitaet messen, sondern
 Rauschen.
+
+**Zu transienten Klaengen.** Splittern, Klicken und Schlagen haben einen hohen
+Scheitelfaktor: Der Spitzenpegel steht am Anschlag, die Lautheit bleibt trotzdem
+niedrig. Weiter anheben ginge nur ueber Kompression — und die nimmt genau das
+weg, was den Klang ausmacht. Liegt der Spitzenpegel ueber -3 dBFS, gilt die
+Aussteuerung deshalb als ausgereizt; die Zeile bekommt einen Stern statt einer
+Beanstandung.
 """
 
 import argparse
@@ -56,9 +67,15 @@ SILENCE_FLOOR_DB = -50
 # Unterhalb dieser Laenge ist die integrierte Lautheit nach R128 nicht
 # aussagekraeftig (Bloecke von 400 ms).
 LUFS_MIN_DURATION_S = 0.4
+# ffmpeg meldet diesen Wert, wenn nach dem Gating kein Block uebrig bleibt.
+LUFS_NOT_MEASURABLE = -60.0
 LUFS_SHORT_DURATION_S = 3.0
 LUFS_TOLERANCE_LONG = 1.5
 LUFS_TOLERANCE_SHORT = 3.0
+
+# Ab diesem Spitzenpegel gilt die Aussteuerung als ausgereizt: Lautheit laesst
+# sich dann nur noch durch Kompression steigern.
+PEAK_MAXED_DBFS = -3.0
 
 # Ersatzmass fuer sehr kurze Klaenge.
 TARGET_RMS_DBFS = -20.0
@@ -129,8 +146,11 @@ def check(path: Path, target_s: float | None, is_loop: bool) -> dict:
     if peak > MAX_PEAK_DBFS:
         problems.append(f"Spitzenpegel {peak:.2f} dBFS")
 
-    # Lautheit: welches Mass anwendbar ist, entscheidet die Laenge.
-    if duration < LUFS_MIN_DURATION_S:
+    # Lautheit: welches Mass anwendbar ist, entscheidet die Laenge — und was
+    # die Messung selbst sagt. Bei knapp ueber 400 ms bleibt vom Gating oft
+    # kein einziger Block uebrig; ffmpeg meldet dann -70 LUFS. Dieser Wert ist
+    # kein Pegel, sondern die Auskunft "nicht messbar".
+    if duration < LUFS_MIN_DURATION_S or lufs <= LUFS_NOT_MEASURABLE:
         loudness_measure = "rms"
         if abs(rms - TARGET_RMS_DBFS) > RMS_TOLERANCE_DB:
             problems.append(f"Effektivwert {rms:.1f} dBFS (LUFS bei {duration:.2f}s nicht messbar)")
@@ -139,8 +159,16 @@ def check(path: Path, target_s: float | None, is_loop: bool) -> dict:
         tolerance = (
             LUFS_TOLERANCE_LONG if duration >= LUFS_SHORT_DURATION_S else LUFS_TOLERANCE_SHORT
         )
-        if abs(lufs - TARGET_LUFS) > tolerance:
+        # Ein sehr transienter Klang — Splittern, Klicken, Schlagen — hat einen
+        # hohen Scheitelfaktor: Der Spitzenpegel steht am Anschlag, waehrend die
+        # Lautheit niedrig bleibt. Weiter anheben ginge nur mit Kompression, und
+        # die nimmt genau das weg, was den Klang ausmacht. Steht der Peak nahe
+        # der Vollaussteuerung, ist die Lautheit ausgereizt und kein Mangel.
+        transient = peak >= PEAK_MAXED_DBFS
+        if abs(lufs - TARGET_LUFS) > tolerance and not (transient and lufs < TARGET_LUFS):
             problems.append(f"Lautheit {lufs:.1f} LUFS (Ziel {TARGET_LUFS} +- {tolerance})")
+        elif transient and lufs < TARGET_LUFS - tolerance:
+            loudness_measure = "lufs-transient"
 
     return {
         "file": str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path),
@@ -212,11 +240,12 @@ def main() -> None:
             target = f"{r['targetS']:.2f}" if r["targetS"] else "  —"
             # Bei sehr kurzen Klaengen ist LUFS bedeutungslos; dann steht hier
             # der Effektivwert, nach dem auch geurteilt wurde.
-            loudness = (
-                f"{r['lufs']:.1f} LUFS"
-                if r["loudnessMeasure"] == "lufs"
-                else f"{r['rmsDbfs']:.1f} dBFS RMS"
-            )
+            if r["loudnessMeasure"] == "lufs":
+                loudness = f"{r['lufs']:.1f} LUFS"
+            elif r["loudnessMeasure"] == "lufs-transient":
+                loudness = f"{r['lufs']:.1f} LUFS*"
+            else:
+                loudness = f"{r['rmsDbfs']:.1f} dBFS RMS"
             verdict = "in Ordnung" if not r["problems"] else "; ".join(r["problems"])
             print(
                 f"{r['id']:28s} {r['durationS']:8.3f} {target:>6s} "
