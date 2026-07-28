@@ -22,6 +22,7 @@ export class Surface {
   private scale = 1;
   private offsetX = 0;
   private offsetY = 0;
+  private passes = 0;
   private readonly boundResize: () => void;
 
   constructor(parent: HTMLElement) {
@@ -46,6 +47,24 @@ export class Surface {
 
   get designScale(): number {
     return this.scale;
+  }
+
+  get designOffsetX(): number {
+    return this.offsetX;
+  }
+
+  get designOffsetY(): number {
+    return this.offsetY;
+  }
+
+  /**
+   * Zahl der Zeichenvorgänge.
+   *
+   * GAME-DESIGN 18.2 verlangt **einen Zeichenvorgang je Bild**. Der Zähler macht
+   * das nachprüfbar: Er muss mit der Zahl der gezeichneten Bilder übereinstimmen.
+   */
+  get drawPasses(): number {
+    return this.passes;
   }
 
   dispose(): void {
@@ -73,6 +92,7 @@ export class Surface {
    * Spielfläche freiräumen. Fordert keinen Speicher an.
    */
   beginFrame(background: string, letterbox: string): void {
+    this.passes++;
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = letterbox;
