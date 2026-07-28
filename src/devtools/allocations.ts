@@ -80,6 +80,12 @@ function looksPrecise(sample: number): boolean {
  * `onFrame` nichts als eine Zahl hochzuzählen.
  */
 export class AllocationProbe {
+  /**
+   * Wird nach jeder erzwungenen Aufräumung gerufen, damit die Schleife die
+   * dabei verlorene Zeit nicht als Rückstand des Spiels zählt.
+   */
+  onCollected: (() => void) | null = null;
+
   private measuring = false;
   private framesLeft = 0;
   private framesRequested = 0;
@@ -129,6 +135,7 @@ export class AllocationProbe {
 
   private startNow(frames: number, onDone: ((result: AllocationResult) => void) | null): void {
     this.gcAvailable = collectGarbage();
+    if (this.onCollected !== null) this.onCollected();
     this.heapAtStart = readHeap();
     this.precise = looksPrecise(this.heapAtStart);
     this.framesRequested = frames;
@@ -149,6 +156,7 @@ export class AllocationProbe {
     this.measuring = false;
     const gcAgain = collectGarbage();
     const heapAtEnd = readHeap();
+    if (this.onCollected !== null) this.onCollected();
     const bytesTotal = heapAtEnd - this.heapAtStart;
     this.result = {
       frames: this.framesRequested,

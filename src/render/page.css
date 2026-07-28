@@ -18,8 +18,107 @@ body {
 }
 
 #app {
+  position: relative;
   width: 100vw;
   height: 100vh;
+}
+
+/*
+ * Vorbereitung, Esc-Menü und Auswertung (GAME-DESIGN 18.1: HTML für Menüs).
+ *
+ * Die Ebene liegt über der Zeichenfläche, nimmt aber nur dann Mausereignisse an,
+ * wenn wirklich etwas zu bedienen ist — sonst finge sie im Kampf jeden Klick ab.
+ */
+.rota-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: ui-monospace, 'DejaVu Sans Mono', monospace;
+  color: #d5d5de;
+}
+
+.rota-overlay-active {
+  pointer-events: auto;
+  background: rgba(6, 6, 10, 0.72);
+}
+
+.rota-panel {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 460px;
+  padding: 40px 48px;
+  border: 2px solid #3a3a4a;
+  background: #101017;
+  text-align: center;
+}
+
+.rota-panel.rota-visible {
+  display: flex;
+}
+
+.rota-title {
+  margin: 0 0 6px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #e2e2ea;
+}
+
+.rota-title-win {
+  color: #f0a24a;
+}
+
+.rota-note {
+  margin: 0;
+  font-size: 16px;
+  color: #8a8a9c;
+}
+
+.rota-note-dim {
+  color: #61616e;
+}
+
+.rota-hint {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #61616e;
+}
+
+.rota-button {
+  padding: 12px 20px;
+  border: 2px solid #7a4526;
+  background: #1b1b24;
+  color: #e2e2ea;
+  font: inherit;
+  font-size: 18px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.rota-button:hover,
+.rota-button:focus-visible {
+  border-color: #c9702f;
+  background: #232330;
+  outline: none;
+}
+
+.rota-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  font-size: 18px;
+}
+
+.rota-row-label {
+  color: #61616e;
+}
+
+.rota-row-value {
+  color: #e2e2ea;
 }
 
 canvas {
