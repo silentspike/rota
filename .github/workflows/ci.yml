@@ -55,7 +55,13 @@ jobs:
 
           {
             echo "code=$(nondoc)"
-            echo "sim=$(match '^sim/')"
+            # data/ MUSS dabei sein: sim/build.rs kompiliert die Zauber- und
+            # Boss-Daten zur Bauzeit ein. Ohne data/ im Filter aendert jemand
+            # einen Zauberwert, die Rust-Tests laufen NICHT, der Simulator ist
+            # still falsch — und ci-pass meldet gruen. Cargo.toml/Cargo.lock
+            # liegen seit PR #64 im Wurzelverzeichnis (Workspace), damit der
+            # Remote-Bau data/ ueberhaupt zu sehen bekommt.
+            echo "sim=$(match '^(sim/|data/|Cargo\.toml$|Cargo\.lock$)')"
             # tools/ und tests/parity/ gehoeren dazu: tools/step1-check.py IST die
             # Referenz, gegen die der parity-Job prueft. Ohne sie im Filter geht
             # eine geaenderte Referenz ungeprueft durch (aufgetreten bei PR #41).
@@ -166,13 +172,14 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          workspaces: sim
+          # Das Bau-Verzeichnis liegt in der Wurzel, weil dort der Workspace
+          # definiert ist. Mit "sim" griffe der Cache ins Leere.
+          workspaces: .
+      # Aus der Wurzel, nicht aus sim/: --all erfasst so den ganzen Workspace
+      # und nicht nur das eine Paket, das heute darin liegt.
       - run: cargo fmt --all --check
-        working-directory: sim
       - run: cargo clippy --all-targets -- -D warnings
-        working-directory: sim
       - run: cargo test
-        working-directory: sim
 
   # ------------------------------------------------------------------- Parität
   # Aufgezeichnete Runden müssen in Spiel UND Simulator denselben Wert ergeben
