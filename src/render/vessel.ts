@@ -15,6 +15,11 @@
  * Vibration ist eine Sinusfunktion der Zeit, **kein Zufall**: Zwei Durchläufe
  * müssen dasselbe Bild ergeben (Design-Gesetz 6).
  */
+// Die Warnschwelle liegt im Kampfablauf, nicht in der Zeichnung: Ring, Klang
+// und Musik warnen zum selben Zeitpunkt (E1-9).
+import { OVERPRESSURE_WARNING_MS } from '../core/phases.js';
+
+export { OVERPRESSURE_WARNING_MS };
 
 /** Mitte des Rings in Entwurfs-Koordinaten. */
 export const VESSEL_CENTER_X = 960;
@@ -35,8 +40,6 @@ const FLASH = '#fff4e0';
 const INK = '#e6e6ee';
 const INK_DIM = '#75758a';
 
-/** Ab dieser Restzeit beginnt der Ring zu warnen. */
-export const OVERPRESSURE_WARNING_MS = 10_000;
 /** Größte Auslenkung der Vibration in Entwurfs-Pixeln. */
 const SHAKE_MAX_PX = 5;
 /** Schwingungen je Sekunde. */

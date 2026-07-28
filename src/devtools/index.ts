@@ -19,9 +19,11 @@ import { NO_SPELL } from '../core/session.js';
 import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
 import { combatChecksum } from '../core/checksum.js';
 import { EVENT_NAMES, type LogEntry } from '../core/log.js';
+import { EVENT_NAMES as COMBAT_EVENT_NAMES, NO_KEY, eventIndex } from '../core/events.js';
+import { buildSoundReport, type SoundReport } from './sound-report.js';
 import { recordingNames, recordings, replayRecording, type ReplayResult } from './recording.js';
 import type { RunSummary } from '../core/summary.js';
-import { OUTCOME_NAMES, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
+import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
@@ -39,6 +41,15 @@ const WARMUP_FRAMES = 240;
 const ALLOCATION_WINDOW_FRAMES = 600;
 /** Abstand zwischen zwei Speicher-Messungen in Bildern. */
 const ALLOCATION_INTERVAL_FRAMES = 1800;
+
+/**
+ * Wie weit die Wiedergabe im Bild vorausschaut, in Takten.
+ *
+ * Ein Bild rechnet bei 60 Hz ein bis zwei Takte, bei Zeitraffer mehr. Der
+ * Vorlauf muss diese Spanne abdecken, damit kein Druck seinen Takt verpasst;
+ * der Puffer hält vorzeitig eingespeiste Drücke bis zu ihrem Takt zurück.
+ */
+const REPLAY_LOOKAHEAD_TICKS = 30;
 
 /** Die Bildzeit-Schwelle aus GAME-DESIGN 20.2 / VERIFICATION § 3.1. */
 const FRAME_BUDGET_MS = 16.7;
@@ -353,6 +364,18 @@ export interface DevTools {
   simulate(rotation: RotationName, options?: ReferenceOptions): ReferenceResult;
   /** Abklingzeit über viele Zyklen messen (VERIFICATION § 3.3). */
   measureCooldown(spellId: string, cycles: number): CooldownMeasurement;
+  // ------------------------------------------------- Klang und Musik (17.1)
+  /** Abdeckungs-Bericht: Was klingt, was noch nicht, und was ins Leere liefe. */
+  sound(): SoundReport;
+  /**
+   * Ein Kampf-Ereignis von Hand auslösen.
+   *
+   * Zum Prüfen der Klänge, die ein Lauf nicht erreicht — etwa der Überdruck,
+   * wenn man gewinnt. Der Kampf bleibt unberührt; es klingt nur.
+   */
+  emit(eventName: string): boolean;
+  /** Namen aller Kampf-Ereignisse, auf die ein Klang hören kann. */
+  events(): string[];
   /** Setzt alle Messreihen zurück. */
   resetPerf(): void;
   /** Misst den Halden-Zuwachs über `frames` Bilder. */
@@ -645,17 +668,43 @@ export function installDevTools(app: App): void {
       // Bundle landen (GAME-DESIGN 18.5 und 19.3).
       app.backToMenu();
       let index = 0;
+      /** Takt der Schleife, in dem der Kampf beginnt. -1 = noch unbekannt. */
+      let startTick = -1;
       liveReplay = name;
       app.loop.onBeforeTick = (): void => {
-        if (app.session.phase !== PHASE_FIGHTING) return;
-        const tick = Math.round(app.combat.fightElapsedMs(app.loop.timeMs) / TICK_MS);
+        // **Jeder Druck wird auf seinen Takt gelegt, nicht auf „jetzt".**
+        //
+        // Dieser Haken läuft einmal je **Bild**, in dem ein bis zwei Takte
+        // gerechnet werden — er kann den Takt der Aufzeichnung also gar nicht
+        // treffen. Ein Druck 10 ms vor Ablauf der Wartezeit wird verworfen, und
+        // damit fällt eine Wirkung der Rotation aus.
+        //
+        // Deshalb wird der Start-Takt schon im Countdown **vorausberechnet**
+        // und jeder Druck mit seinem Ziel-Takt in den Puffer gelegt; der hält
+        // ihn bis dahin zurück. Gefunden bei E1-9: Der Siegeslauf endete im
+        // Überdruck mit 4004 statt 4240 Schaden, die erste Wirkung lag bei
+        // 10 ms statt 0 und die zweite kam 1490 ms später.
+        const phase = app.session.phase;
+        if (startTick < 0) {
+          if (phase === PHASE_COUNTDOWN) {
+            const left = app.session.countdownRemainingMs(app.loop.timeMs);
+            startTick = app.loop.tickCount + Math.ceil(left / TICK_MS);
+          } else if (phase === PHASE_FIGHTING) {
+            startTick =
+              app.loop.tickCount - Math.round(app.combat.fightElapsedMs(app.loop.timeMs) / TICK_MS);
+          } else {
+            return; // Vorbereitung: Es ist noch nichts entschieden.
+          }
+        }
+
+        const dueUntil = app.loop.tickCount - startTick + REPLAY_LOOKAHEAD_TICKS;
         while (index < recording.presses.length) {
           const press = recording.presses[index];
-          if (press === undefined || press.tick > tick) break;
+          if (press === undefined || press.tick > dueUntil) break;
           index++;
           app.pressQueue.push(
             press.slot,
-            app.loop.tickCount,
+            press.tick + startTick,
             performance.now(),
             app.loop.frameCount,
           );
@@ -740,6 +789,14 @@ export function installDevTools(app: App): void {
     isPaused: () => app.overlay.isPaused,
     simulate: (rotation, options) => runReference(rotation, options),
     measureCooldown: (spellId, cycles) => measureCooldown(spellId, cycles),
+    sound: () => buildSoundReport(app),
+    events: () => [...COMBAT_EVENT_NAMES],
+    emit: (eventName) => {
+      const event = eventIndex(eventName);
+      if (event < 0) return false;
+      app.audio.onEvent(event, NO_KEY, app.loop.timeMs);
+      return true;
+    },
     resetPerf: () => {
       perf.reset();
       framesSinceMeasurement = 0;

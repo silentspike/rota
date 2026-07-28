@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { CALCINATION, FIRST_CRUCIBLE, parseBoss, parseSchool } from '../../src/core/data.js';
 import { computeDamage, NEUTRAL_FACTORS } from '../../src/core/damage.js';
 import { RandomStreams, STREAM_COUNT, STREAM_CRIT, STREAM_DOT_TICK } from '../../src/core/rng.js';
-import { STEP1_BINDINGS, spellSoundId } from '../../src/core/loadout.js';
+import { STEP1_BINDINGS } from '../../src/core/loadout.js';
+import { SOUND_MANIFEST } from '../../src/audio/manifest-data.js';
+import { parseManifest } from '../../src/audio/manifest.js';
+import { EV_SPELL_CAST } from '../../src/core/events.js';
+import { SoundMap } from '../../src/core/sound-map.js';
 
 describe('Zauber-Datensätze', () => {
   it('liest CALCINATION ohne Beanstandung', () => {
@@ -201,7 +205,17 @@ describe('Anfangsbelegung', () => {
     for (const binding of STEP1_BINDINGS) expect(ids.has(binding.spellId)).toBe(true);
   });
 
-  it('bildet die Klang-Kennung nach dem Verzeichnis von Epic E8', () => {
-    expect(spellSoundId('kindle')).toBe('spell-kindle');
+  it('hat für jeden Zauber einen Klang im Verzeichnis', () => {
+    // Seit E1-9 steht die Zuordnung im Verzeichnis statt als Namensregel im
+    // Code — geprüft wird deshalb das Verzeichnis, nicht eine Funktion.
+    const map = new SoundMap(parseManifest(SOUND_MANIFEST).entries);
+    map.bindSpells(CALCINATION.value.spells.map((s) => s.id));
+    expect(map.problems).toEqual([]);
+    for (const binding of STEP1_BINDINGS) {
+      const index = CALCINATION.value.spells.findIndex((s) => s.id === binding.spellId);
+      const sounds = map.soundsFor(EV_SPELL_CAST, index);
+      expect(sounds.length).toBe(1);
+      expect(map.ids[sounds[0] as number]).toBe(`spell-${binding.spellId}`);
+    }
   });
 });
