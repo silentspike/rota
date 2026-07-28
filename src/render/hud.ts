@@ -21,6 +21,7 @@ import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import type { Overlay } from './overlay.js';
+import type { RunSummary } from '../core/summary.js';
 import type { Impact } from './impact.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
@@ -68,6 +69,8 @@ export class HudRenderer {
   private digitAdvanceVessel = 32;
   private digitAdvanceTimer = 26;
   private digitAdvanceCountdown = 84;
+  /** Für welchen Ausgang die Kurzfassung schon gerechnet wurde. */
+  private lastSummaryOutcome = -1;
   private readonly spellBar: SpellBar;
   /** Ein einziges, wiederverwendetes Objekt — im Bild wird nichts erzeugt. */
   private readonly vesselView: {
@@ -79,13 +82,22 @@ export class HudRenderer {
   } = { hpFraction: 1, overpressureRemainingMs: 0, shownMs: 0, finished: false, flash: 0 };
 
   /** Ergebnis-Werte der Auswertung. Wiederverwendet, damit nichts entsteht. */
-  private readonly resultView = {
+  private readonly resultView: {
+    outcome: number;
+    elapsedMs: number;
+    remainingMs: number;
+    damage: number;
+    bossHp: number;
+    casts: number;
+    summary: RunSummary | null;
+  } = {
     outcome: 0,
     elapsedMs: 0,
     remainingMs: 0,
     damage: 0,
     bossHp: 0,
     casts: 0,
+    summary: null,
   };
 
   constructor(
@@ -162,6 +174,14 @@ export class HudRenderer {
     view.damage = combat.damageDealt;
     view.bossHp = combat.boss.hp;
     view.casts = this.session.acceptedCount;
+    // Die Kurzfassung wird nur beim Wechsel in die Auswertung gerechnet, nicht
+    // je Bild: Sie erzeugt Speicher und darf das auch (GAME-DESIGN 15.1).
+    view.summary =
+      this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome
+        ? this.session.summary(shownMs)
+        : view.summary;
+    if (this.session.phase === PHASE_ENDED) this.lastSummaryOutcome = this.session.outcome;
+    else this.lastSummaryOutcome = -1;
     this.overlay.update(this.session.phase, this.session.outcome, view);
   }
 
