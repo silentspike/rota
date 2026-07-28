@@ -438,6 +438,13 @@ export class Combat {
     this.damageDealtValue = this.boss.hp - clamped;
   }
 
+  /** Alle Abklingzeiten sofort bereit — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
+  setCooldownsReady(): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.cooldownReadyAtMs.fill(0);
+    this.gcd.reset();
+  }
+
   /** Vorrat setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
   setResource(value: number): void {
     if (!__ROTA_DEVTOOLS__) return;
