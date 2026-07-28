@@ -330,6 +330,64 @@ kein `scope:partial`. Ein Issue mit vier von fünf ACs ist ein offenes Issue.
 
 ---
 
+## 5a. Klang und Musik prüfen
+
+Was klingt, kann ich nicht beurteilen (siehe § 6) — **ob** etwas klingt, sehr wohl. Der Bericht
+`__rota.sound()` beantwortet drei Fragen: Läuft eine Anforderung ins Leere? Bleibt ein Eintrag des
+Verzeichnisses stumm? Schalten die Musik-Schichten an den richtigen Punkten?
+
+```bash
+# Klang wacht erst mit einer Nutzergeste auf — ohne Tastendruck bleibt alles stumm
+# und `kontext` steht auf "suspended".
+playwright-cli -s=rota press Enter
+
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.sound().probleme)"      # muss [] sein
+playwright-cli -s=rota eval "() => window.__rota.sound().klangFehlend"                   # muss 0 sein
+playwright-cli -s=rota eval "() => window.__rota.sound().kontext"                        # "running"
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.sound().proKlang)"
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.sound().musik)"
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.events())"               # 24 Ereignisse
+playwright-cli -s=rota eval "() => window.__rota.emit('boss.overpressure')"              # von Hand auslösen
+```
+
+| Kennzahl        | Bedeutung                                                              | Erwartet                |
+| --------------- | ---------------------------------------------------------------------- | ----------------------- |
+| `klangFehlend`  | angeforderte Klänge, die es nicht gibt                                 | **0**                   |
+| `probleme`      | Beanstandungen am Verzeichnis (unbekanntes Ereignis, falscher Betreff) | **[]**                  |
+| `zugeordnet`    | Einträge im Verzeichnis mit Auslöser                                   | 29                      |
+| `ausgeloest`    | davon in dieser Sitzung erklungen                                      | wächst mit den Läufen   |
+| `nochNicht`     | Zuordnungen ohne Auslösung, **mit Grund**                              | nur E3/E4-Gründe        |
+| `ohneAusloeser` | Einträge ganz ohne Auslöser (Menü, Beute, Sonderzauber)                | 27, alles spätere Epics |
+
+**Ein stummer Eintrag ist kein Fehler, solange der Grund benannt ist.** Acht Klänge hängen an
+Ereignissen, die es in Schritt 1 nicht gibt (Boss-Zauber, Phasenwechsel, Spieler-Schaden) — sie
+stehen mit Epic-Verweis unter `nochNicht`. Ein Eintrag dort ohne Grund wäre einer.
+
+**Die Musik-Schichten prüft man über die Zeit, nicht als Momentaufnahme.** Ein Beobachter, der
+`musik.hoerbar` bei jeder Änderung mitschreibt, zeigt den ganzen Verlauf:
+
+```bash
+playwright-cli -s=rota eval "() => { window.__obs=[]; window.__last=''; setInterval(()=>{ const s=__rota.state(); const h=__rota.sound().musik.hoerbar.join('+'); if(h!==window.__last){ window.__last=h; window.__obs.push({t:Math.round(s.fightElapsedMs), hp:__rota.combat().bossHpRemaining, hoerbar:h}); } }, 50); __rota.replayLive('cooldown-precision'); return 1; }"
+# 45 s warten, dann:
+playwright-cli -s=rota eval "() => JSON.stringify(window.__obs)"
+```
+
+Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
+
+| Kampfzeit | Boss | hörbar                  | Warum                                         |
+| --------- | ---- | ----------------------- | --------------------------------------------- |
+| Countdown | 4200 | `music-menu`            | Grundklang außerhalb des Kampfes              |
+| 30 ms     | 4200 | `music-bed-placeholder` | `fight.start`                                 |
+| 33 050 ms | 780  | `+ music-final-push`    | unter 20 % (GAME-DESIGN 10.1)                 |
+| 50 040 ms | —    | `+ music-overpressure`  | 10 s Restzeit, dieselbe Schwelle wie der Ring |
+| Ende      | 0    | `music-menu`            | `fight.end`, dann `menu.enter`                |
+
+> **Klang wacht nur mit einer Nutzergeste auf.** `eval` allein genügt nicht — der Browser hält den
+> Kontext an, bis eine echte Taste kam. Wer ohne Tastendruck misst, sieht `kontext: "suspended"`,
+> `wiedergaben: 0` und hält eine funktionierende Anbindung für kaputt.
+
+---
+
 ## 6. Was ich ausdrücklich NICHT beurteile
 
 | Nicht meine Zuständigkeit                        | Wer entscheidet                                                                                              |

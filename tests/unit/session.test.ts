@@ -3,19 +3,24 @@ import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { GCD_MS, GlobalCooldown } from '../../src/core/gcd.js';
 import { TICK_MS } from '../../src/core/loop.js';
-import { NEVER, NO_SPELL, Session, type FeedbackSink } from '../../src/core/session.js';
+import { EV_INPUT_REJECTED, EV_SPELL_CAST, type FeedbackSink } from '../../src/core/events.js';
+import { NEVER, NO_SPELL, Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 
 class RecordingFeedback implements FeedbackSink {
   readonly accepted: number[] = [];
   readonly rejected: number[] = [];
+  /** Jedes gemeldete Ereignis als Paar aus Kennnummer und Zeit. */
+  readonly events: { event: number; key: number; timeMs: number }[] = [];
 
-  onPressAccepted(_slot: number, _spellIndex: number, timeMs: number): void {
-    this.accepted.push(timeMs);
+  onEvent(event: number, key: number, timeMs: number): void {
+    this.events.push({ event, key, timeMs });
+    if (event === EV_SPELL_CAST) this.accepted.push(timeMs);
+    else if (event === EV_INPUT_REJECTED) this.rejected.push(timeMs);
   }
 
-  onPressRejected(_slot: number, _reason: number, timeMs: number): void {
-    this.rejected.push(timeMs);
+  countOf(event: number): number {
+    return this.events.filter((e) => e.event === event).length;
   }
 }
 
