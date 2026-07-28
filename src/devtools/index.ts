@@ -16,6 +16,7 @@ import { TICK_MS } from '../core/loop.js';
 import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js';
 import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
 import { NO_SPELL } from '../core/session.js';
+import { OUTCOME_NAMES, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
@@ -62,6 +63,8 @@ export interface PerfSnapshot {
   readonly frames: number;
   readonly ticks: number;
   readonly droppedTicks: number;
+  /** Wie oft Zeit für eine Messung verworfen wurde. Nur Werkzeug-Bedingt. */
+  readonly discardedForMeasurement: number;
   readonly simTimeMs: number;
 }
 
@@ -77,6 +80,17 @@ export interface StateSnapshot {
   /** Restzeit der globalen Wartezeit in ms. */
   readonly gcdRemainingMs: number;
   readonly gcdLengthMs: number;
+  /** Phase des Kampfablaufs (GAME-DESIGN 10). */
+  readonly phase: string;
+  readonly outcome: string;
+  /** Restzeit des Countdowns in ms. */
+  readonly countdownRemainingMs: number;
+  /** Verstrichene KAMPFzeit in ms — die Uhr, die der Spieler sieht. */
+  readonly fightElapsedMs: number;
+  readonly overpressureRemainingMs: number;
+  /** Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf begann. */
+  readonly fightStartedAtMs: number;
+  readonly endedAtMs: number;
 }
 
 /** Ein Zauber, wie er gerade dasteht. */
@@ -209,8 +223,18 @@ export interface DevTools {
   bindSlot(slot: number, spellId: string): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
   setResource(value: number): void;
+  /** Verbleibende Lebenspunkte des Bosses setzen (GAME-DESIGN 19.1). */
+  setBossHp(hp: number): void;
   /** Kampf von vorn beginnen. */
   resetFight(): void;
+  /** „Ready" auslösen — der Countdown beginnt. */
+  ready(): boolean;
+  /** „Wipe Run" auslösen. */
+  wipe(): boolean;
+  /** Esc-Menü öffnen oder schließen. */
+  togglePause(): void;
+  /** Ist das Esc-Menü offen? */
+  isPaused(): boolean;
   /**
    * Eine Runde nach fester Prioritätenliste durchrechnen und das Ergebnis melden.
    *
@@ -231,6 +255,11 @@ export function installDevTools(app: App): void {
 
   const perf = new PerfCounters();
   const probe = new AllocationProbe();
+  // Die erzwungene Aufräumung hält die Seite an. Ohne diesen Anschluss zählte
+  // die Schleife die dabei verlorene Zeit als verworfene Takte des Spiels.
+  probe.onCollected = () => {
+    app.loop.discardPendingTime();
+  };
   let framesSinceMeasurement = 0;
   let warmupLeft = WARMUP_FRAMES;
 
@@ -281,6 +310,7 @@ export function installDevTools(app: App): void {
       frames: perf.frameCount,
       ticks: perf.tickCount,
       droppedTicks: app.loop.droppedTickCount,
+      discardedForMeasurement: app.loop.discardCount,
       simTimeMs: app.loop.timeMs,
     }),
     state: () => ({
@@ -292,6 +322,13 @@ export function installDevTools(app: App): void {
       alpha: app.loop.alpha,
       gcdRemainingMs: app.session.gcd.remainingMs(app.loop.timeMs),
       gcdLengthMs: app.session.gcd.lengthMs,
+      phase: PHASE_NAMES[app.session.phase] ?? '?',
+      outcome: OUTCOME_NAMES[app.session.outcome] ?? '?',
+      countdownRemainingMs: app.session.countdownRemainingMs(app.loop.timeMs),
+      fightElapsedMs: app.session.fightElapsedMs(app.loop.timeMs),
+      overpressureRemainingMs: app.session.overpressureRemainingMs(app.loop.timeMs),
+      fightStartedAtMs: app.combat.fightStartedAt,
+      endedAtMs: app.session.endedAtMs,
     }),
     input: () => {
       const metrics = app.audio.audio?.metrics();
@@ -427,13 +464,21 @@ export function installDevTools(app: App): void {
       app.session.bind(slot, index);
       return true;
     },
+    setBossHp: (hp: number) => {
+      app.combat.setBossHpRemaining(hp);
+    },
     setResource: (value: number) => {
       app.combat.setResource(value);
     },
     resetFight: () => {
-      app.session.reset();
-      app.loop.reset();
+      app.backToMenu();
     },
+    ready: () => app.ready(),
+    wipe: () => app.wipe(),
+    togglePause: () => {
+      app.togglePause();
+    },
+    isPaused: () => app.overlay.isPaused,
     simulate: (rotation, options) => runReference(rotation, options),
     measureCooldown: (spellId, cycles) => measureCooldown(spellId, cycles),
     resetPerf: () => {

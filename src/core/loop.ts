@@ -114,6 +114,7 @@ export class GameLoop {
 
   private running = false;
   private frameHandle = 0;
+  private discards = 0;
 
   constructor(options: GameLoopOptions) {
     this.simulation = options.simulation;
@@ -172,6 +173,32 @@ export class GameLoop {
     this.ticksRun = 0;
     this.carryMs = 0;
     this.hasLastTimestamp = false;
+  }
+
+  /**
+   * Verwirft die aufgelaufene Zeit, ohne sie als Rückstand zu zählen.
+   *
+   * **Nur für Messungen, die die Seite selbst anhalten.** Die erzwungene
+   * Aufräumung in `devtools/allocations.ts` blockiert den Hauptfaden für über
+   * hundert Millisekunden; ohne diesen Aufruf holte die Schleife danach Takte
+   * nach und zählte den Rest als verworfen — gemessen: **10 verworfene Takte je
+   * Speichermessung**, obwohl das Spiel nichts falsch gemacht hat. Das Messgerät
+   * darf die Messung nicht verfälschen.
+   *
+   * Wie oft das geschah, steht in `discardCount` — damit bleibt sichtbar, dass
+   * hier Zeit verschwunden ist, und der Aufruf lässt sich nicht stillschweigend
+   * missbrauchen.
+   */
+  discardPendingTime(): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.carryMs = 0;
+    this.hasLastTimestamp = false;
+    this.discards++;
+  }
+
+  /** Wie oft `discardPendingTime` gerufen wurde. Im Auslieferungsstand 0. */
+  get discardCount(): number {
+    return this.discards;
   }
 
   /**
