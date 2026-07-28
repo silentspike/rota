@@ -102,6 +102,20 @@ playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().frameTimeSummar
 > | Issue #10 | 25,3 ms Arbeitszeit, 178 verworfene Takte              | Zwei gleichzeitige Playwright-Schleifen hungerten die Seite aus. Sauber: 1,2 ms, 0 verworfen                            |
 > | Issue #12 | 42 statt 60 Bilder je Sekunde durch die Schadenszahlen | Die Browser-Sitzung war nach ~40 Minuten Dauermessung müde. Der Vergleichslauf **ohne** Treffer zeigte dieselben 45 fps |
 >
+> **Das erste Fenster nach einem Zustandswechsel ist unbrauchbar.** Die Nullmessung allein genügt
+> nicht — erst ein **Wiederholungsfenster im selben Zustand** ist belastbar. Bei Issue #13 gemessen,
+> derselbe Kampf dreimal:
+>
+> | Lauf | Zustand                          | Arbeitszeit max | über 16,7 ms |
+> | ---- | -------------------------------- | --------------- | ------------ |
+> | A    | ohne Overlay, **erstes Fenster** | 22,9 ms         | 1            |
+> | B    | mit Overlay                      | 15,3 ms         | 0            |
+> | C    | ohne Overlay, **Wiederholung**   | **4,8 ms**      | 0            |
+>
+> A und C sind derselbe Zustand. Der Unterschied liegt allein in der Zeit seit dem letzten Wechsel —
+> das HTML-Overlay, das zunächst verdächtigt wurde, war unschuldig. Dieselbe Falle wie in § 3.5
+> („die erste Messung nach dem Laden ist unbrauchbar"), nur für die Bildzeit.
+
 > **Bei langen Messreihen den Browser neu starten.** Im zweiten Fall lagen in einer frischen Sitzung
 > alle vier Varianten bei 60 fps — und ohne die Nullmessung wäre ein Fehler gemeldet worden, den es
 > nicht gibt.
