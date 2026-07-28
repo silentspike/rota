@@ -63,11 +63,25 @@
 //! `tests/edge_cases.rs` haelt die Grenze fest, damit sie dort nicht neu
 //! entdeckt werden muss.
 
+use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 use crate::event::{EventKind, EventQueue};
 use crate::log::{CombatLog, LogKind, NO_SPELL};
+use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
+
+/// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
+/// `FIGHT_RUNNING` fuehrt.
+///
+/// **Er aendert sich waehrend eines Durchgangs nicht**, und das ist kein
+/// Versehen: Weder `src/devtools/reference-run.ts` noch
+/// `src/devtools/recording.ts` rufen `checkDefeat` auf — beide pruefen den
+/// Boss-Tod selbst und schreiben den Zustand dabei nicht fort. Da die
+/// Zustands-Pruefsumme dieses Feld einruehrt, muss der Simulator es genauso
+/// halten; ein hier gesetzter Sieg-Zustand ergaebe ab dem Sieg-Takt eine
+/// abweichende Pruefsumme, ohne dass eine Regel anders gerechnet waere.
+pub const FIGHT_RUNNING: i32 = 0;
 
 /// Eine Rotation: Welcher Zauber soll jetzt gewirkt werden?
 ///
@@ -88,7 +102,11 @@ const EVENT_CAPACITY: usize = 256;
 #[derive(Debug, Clone, Copy)]
 pub struct FightConfig {
     /// Startwert der Zufallsstroeme.
-    pub seed: u64,
+    ///
+    /// 32 Bit, weil das Spiel 32 Bit fuehrt (`src/core/rng.ts`). Ein breiterer
+    /// Startwert liesse sich hier annehmen und waere im Spiel nicht darstellbar —
+    /// aufgezeichnete Runden waeren dann nicht mehr uebertragbar.
+    pub seed: u32,
     /// Kampfdauer. `None` heisst: der Ueberdruck-Timer des Bosses.
     pub duration_ms: Option<Millis>,
     /// Ob der Kampf endet, sobald der Boss faellt.
@@ -158,6 +176,7 @@ pub struct Fight {
     casts: [u32; SPELL_COUNT],
     damage_by_spell: [u32; SPELL_COUNT],
     lost_dot_ticks: [u32; SPELL_COUNT],
+    dot_tick_counts: [u32; SPELL_COUNT],
     resource_overflow: u32,
     idle_ms: Millis,
 
@@ -185,6 +204,7 @@ impl Fight {
             casts: [0; SPELL_COUNT],
             damage_by_spell: [0; SPELL_COUNT],
             lost_dot_ticks: [0; SPELL_COUNT],
+            dot_tick_counts: [0; SPELL_COUNT],
             resource_overflow: 0,
             idle_ms: 0,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
@@ -253,9 +273,117 @@ impl Fight {
         self.result()
     }
 
+    /// Spielt eine aufgezeichnete Runde ab (GAME-DESIGN 18.4).
+    ///
+    /// Anders als [`Fight::run`] entscheidet hier nicht der Simulator, was
+    /// gewirkt wird — die Tastendruecke stehen fest. Genau das macht den
+    /// Pruefall aussagekraeftig: Geprueft wird die **Regelrechnung**, nicht die
+    /// Rotationswahl.
+    ///
+    /// # Warum das hier Takt fuer Takt laeuft
+    ///
+    /// Der uebrige Simulator springt von Ereignis zu Ereignis; das geht hier
+    /// nicht, denn die Aufzeichnung ist taktgebunden und die Pruefsumme wird je
+    /// Takt verglichen. Beide Wege benutzen aber **dieselben** Zustandsuebergaenge
+    /// ([`Fight::apply`], [`Fight::cast`]) — es gibt nur eine Regelrechnung, nicht
+    /// zwei, die auseinanderlaufen koennten.
+    ///
+    /// Der Ablauf ist der von `replayRecording` in `src/devtools/recording.ts`:
+    /// je Takt erst die passiven Wirkungen, dann die Sieg-Pruefung mit Abbruch,
+    /// dann die Tastendruecke, dann die Pruefsumme.
+    pub fn replay(&mut self, recording: &Recording, checksum_per_tick: bool) -> ReplayResult {
+        if RESOURCE.decay_per_step_ms > 0 {
+            self.queue
+                .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
+        }
+
+        let mut checksums = Vec::with_capacity(if checksum_per_tick {
+            recording.ticks as usize
+        } else {
+            0
+        });
+        let mut sequence: u32 = 0;
+        let mut accepted = 0;
+        let mut rejected = 0;
+        let mut press_index = 0;
+
+        for tick in 0..recording.ticks {
+            let now = tick * TICK_MS;
+            self.time = now;
+
+            // Phase 1 — passive Wirkungen dieses Takts.
+            while let Some(due) = self.queue.peek_time() {
+                if due > now {
+                    break;
+                }
+                let event = self.queue.pop().expect("peek_time hat bestaetigt");
+                self.apply(event.kind);
+            }
+
+            // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
+            // Pruefsumme dieses Takts wird noch geschrieben.
+            if self.killed_at.is_none() && self.damage >= BOSS.hp {
+                self.killed_at = Some(now);
+                self.log.push(now, LogKind::Kill, NO_SPELL, self.damage);
+                let hash = self.checksum_at(now);
+                sequence = sequence.wrapping_mul(31).wrapping_add(hash);
+                if checksum_per_tick {
+                    checksums.push(hash);
+                }
+                break;
+            }
+
+            // Phase 3 — die Tastendruecke dieses Takts.
+            while press_index < recording.presses.len() {
+                let press = recording.presses[press_index];
+                if press.tick > tick {
+                    break;
+                }
+                press_index += 1;
+                match recording.spell_for_slot(press.slot) {
+                    // Unbelegter Platz: Fehleingabe, nichts wird gemerkt.
+                    None => rejected += 1,
+                    Some(index) => {
+                        if self.is_ready(index) {
+                            self.cast(index);
+                            accepted += 1;
+                        } else {
+                            // Zu frueh gedrueckt. Das Spiel merkt sich den Druck
+                            // ausdruecklich **nicht** (GAME-DESIGN 21.1: keine
+                            // Eingabe-Vormerkung) — er ist damit verloren.
+                            rejected += 1;
+                        }
+                    }
+                }
+            }
+
+            let hash = self.checksum_at(now);
+            sequence = sequence.wrapping_mul(31).wrapping_add(hash);
+            if checksum_per_tick {
+                checksums.push(hash);
+            }
+        }
+
+        let final_time = self
+            .killed_at
+            .unwrap_or_else(|| recording.ticks.saturating_sub(1) * TICK_MS);
+
+        ReplayResult {
+            damage: self.damage,
+            killed_at_ms: self.killed_at,
+            accepted,
+            rejected,
+            casts: self.casts.to_vec(),
+            final_checksum: self.checksum_at(final_time),
+            sequence_checksum: sequence,
+            checksums,
+            random_draws: self.rng.total_draws(),
+        }
+    }
+
     /// Setzt den Kampf zurueck, **ohne** Speicher freizugeben oder neu
     /// anzufordern. So kostet ein zweiter Durchgang nichts.
-    pub fn reset(&mut self, seed: u64) {
+    pub fn reset(&mut self, seed: u32) {
         self.time = 0;
         self.damage = 0;
         self.killed_at = None;
@@ -267,6 +395,7 @@ impl Fight {
         self.casts = [0; SPELL_COUNT];
         self.damage_by_spell = [0; SPELL_COUNT];
         self.lost_dot_ticks = [0; SPELL_COUNT];
+        self.dot_tick_counts = [0; SPELL_COUNT];
         self.resource_overflow = 0;
         self.idle_ms = 0;
         self.queue.clear();
@@ -299,6 +428,7 @@ impl Fight {
         };
 
         self.deal(index, dot.tick_damage, LogKind::DotTick);
+        self.dot_tick_counts[index] += 1;
         self.add_resource(dot.resource_gain_per_tick);
 
         // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
@@ -463,6 +593,84 @@ impl Fight {
     #[must_use]
     pub fn dot_remaining_ms(&self, index: usize) -> Millis {
         self.dot_expires_at[index].map_or(0, |expires| expires.saturating_sub(self.time))
+    }
+
+    /// Restliche Abklingzeit eines Zaubers zu einem beliebigen Zeitpunkt.
+    ///
+    /// Der Zeitpunkt wird uebergeben statt aus dem Zustand genommen, weil die
+    /// Pruefsumme ihn fuer **jeden Takt** braucht — auch fuer die, an denen der
+    /// ereignisgesteuerte Simulator gar nicht anhaelt.
+    #[must_use]
+    pub fn cooldown_remaining_ms_at(&self, index: usize, time_ms: Millis) -> Millis {
+        self.cooldown_ready_at[index].saturating_sub(time_ms)
+    }
+
+    /// Restlaufzeit eines Brand-Effekts zu einem beliebigen Zeitpunkt.
+    #[must_use]
+    pub fn dot_remaining_ms_at(&self, index: usize, time_ms: Millis) -> Millis {
+        self.dot_expires_at[index].map_or(0, |expires| expires.saturating_sub(time_ms))
+    }
+
+    /// Wie oft ein Zauber gewirkt wurde.
+    #[must_use]
+    pub fn cast_count(&self, index: usize) -> u32 {
+        self.casts[index]
+    }
+
+    /// Wie oft ein Brand-Effekt getickt hat.
+    #[must_use]
+    pub fn dot_tick_count(&self, index: usize) -> u32 {
+        self.dot_tick_counts[index]
+    }
+
+    /// Durch zu fruehes Erneuern verfallene Ticks.
+    #[must_use]
+    pub fn lost_dot_ticks(&self, index: usize) -> u32 {
+        self.lost_dot_ticks[index]
+    }
+
+    /// Am Deckel verpuffte Ressource.
+    #[must_use]
+    pub fn resource_overflow(&self) -> u32 {
+        self.resource_overflow
+    }
+
+    /// Wann die globale Wartezeit ablaeuft.
+    #[must_use]
+    pub fn gcd_ready_at(&self) -> Millis {
+        self.gcd_ready_at
+    }
+
+    /// Zustands-Pruefsumme zu einem Zeitpunkt (GAME-DESIGN 19.1).
+    ///
+    /// **Die Reihenfolge der Felder ist Teil der Schnittstelle** und stammt aus
+    /// `combatChecksum` in `src/core/checksum.ts`. Ein Feld dazwischenzuschieben
+    /// oder zwei zu vertauschen aendert jede Summe — dann meldet der Abgleich
+    /// bei jedem Takt eine Abweichung und bei keinem eine echte.
+    ///
+    /// Welcher Wert als ganze Zahl und welcher als Fliesskommazahl eingeht, ist
+    /// ebenfalls vorgegeben: Im Spiel sind Schaden, Wartezeit und Restzeiten
+    /// `number`, also Fliesskomma, auch wenn sie ganzzahlige Werte tragen.
+    #[must_use]
+    pub fn checksum_at(&self, time_ms: Millis) -> u32 {
+        let mut h = FNV_OFFSET;
+        h = mix_int(h, time_ms as i32);
+        h = mix_float(h, f64::from(self.damage));
+        h = mix_int(h, i32::from(self.resource));
+        h = mix_int(h, self.resource_overflow as i32);
+        h = mix_int(h, FIGHT_RUNNING);
+        h = mix_float(h, f64::from(self.gcd_ready_at));
+        for index in 0..SPELL_COUNT {
+            h = mix_float(h, f64::from(self.cooldown_remaining_ms_at(index, time_ms)));
+            h = mix_float(h, f64::from(self.dot_remaining_ms_at(index, time_ms)));
+            h = mix_int(h, self.casts[index] as i32);
+            h = mix_int(h, self.dot_tick_counts[index] as i32);
+            h = mix_int(h, self.lost_dot_ticks[index] as i32);
+        }
+        for draws in self.rng.draw_counts() {
+            h = mix_int(h, draws as i32);
+        }
+        h
     }
 
     /// Der Boss, gegen den gerechnet wird.

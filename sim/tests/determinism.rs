@@ -43,7 +43,7 @@ fn fingerprint(result: &RunResult, entries: &[Entry]) -> Vec<u8> {
     out
 }
 
-fn run_once(seed: u64) -> Vec<u8> {
+fn run_once(seed: u32) -> Vec<u8> {
     let mut fight = Fight::new(FightConfig {
         seed,
         ..FightConfig::default()
@@ -113,7 +113,7 @@ fn ac1_alle_vier_rotationen_sind_wiederholbar() {
 }
 
 /// Zeitpunkt und Schaden jedes DoT-Ticks eines Durchgangs.
-fn dot_tick_folge(seed: u64) -> Vec<(u32, u32)> {
+fn dot_tick_folge(seed: u32) -> Vec<(u32, u32)> {
     let mut fight = Fight::new(FightConfig {
         seed,
         ..FightConfig::default()
@@ -143,7 +143,7 @@ fn ac2_zusaetzliche_krit_wuerfe_verschieben_die_dot_tick_folge_nicht() {
         ..FightConfig::default()
     });
     for _ in 0..500 {
-        fight.rng().next_u64(Stream::Crit);
+        fight.rng().next_u32(Stream::Crit);
     }
     fight.run(rotation::good);
     let mit: Vec<(u32, u32)> = fight
@@ -177,8 +177,8 @@ fn ac2_gilt_auch_fuer_die_naechsten_ziehungen_des_dot_stroms() {
         ..FightConfig::default()
     });
     ohne.run(rotation::good);
-    let erwartet: Vec<u64> = (0..16)
-        .map(|_| ohne.rng().next_u64(Stream::DotTick))
+    let erwartet: Vec<u32> = (0..16)
+        .map(|_| ohne.rng().next_u32(Stream::DotTick))
         .collect();
 
     let mut mit = Fight::new(FightConfig {
@@ -186,11 +186,11 @@ fn ac2_gilt_auch_fuer_die_naechsten_ziehungen_des_dot_stroms() {
         ..FightConfig::default()
     });
     for _ in 0..500 {
-        mit.rng().next_u64(Stream::Crit);
+        mit.rng().next_u32(Stream::Crit);
     }
     mit.run(rotation::good);
-    let tatsaechlich: Vec<u64> = (0..16)
-        .map(|_| mit.rng().next_u64(Stream::DotTick))
+    let tatsaechlich: Vec<u32> = (0..16)
+        .map(|_| mit.rng().next_u32(Stream::DotTick))
         .collect();
 
     assert_eq!(
@@ -205,7 +205,7 @@ fn verschiedene_startwerte_aendern_in_schritt_1_nichts() {
     // nicht beruehren — und wenn doch, hat sich irgendwo eine Ziehung
     // eingeschlichen, die es nicht geben duerfte.
     let a = run_once(1);
-    let b = run_once(0xFFFF_FFFF_FFFF_FFFF);
+    let b = run_once(0xFFFF_FFFF);
     assert_eq!(
         a, b,
         "der Startwert wirkt sich aus, obwohl in Schritt 1 niemand zieht"

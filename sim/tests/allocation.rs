@@ -102,7 +102,7 @@ fn ac4_gilt_auch_fuer_wiederholte_durchgaenge() {
     fight.run(rotation::good);
 
     let (_, allocations, bytes) = count(|| {
-        for seed in 0..1000u64 {
+        for seed in 0..1000u32 {
             fight.reset(seed);
             fight.run(rotation::good);
         }
