@@ -91,13 +91,22 @@ export class Surface {
    * Bereitet das Bild vor: Ränder füllen, auf Entwurfs-Koordinaten umstellen,
    * Spielfläche freiräumen. Fordert keinen Speicher an.
    */
-  beginFrame(background: string, letterbox: string): void {
+  beginFrame(background: string, letterbox: string, shakeX = 0, shakeY = 0): void {
     this.passes++;
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = letterbox;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.setTransform(this.scale, 0, 0, this.scale, this.offsetX, this.offsetY);
+    // Das Bild-Ruckeln verschiebt die ganze Fläche (GAME-DESIGN 9): Es ist ein
+    // Stoß gegen den Werktisch, nicht eine Bewegung einzelner Teile.
+    ctx.setTransform(
+      this.scale,
+      0,
+      0,
+      this.scale,
+      this.offsetX + shakeX * this.scale,
+      this.offsetY + shakeY * this.scale,
+    );
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
   }

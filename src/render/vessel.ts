@@ -31,6 +31,7 @@ const GLOW_INNER = '#c0472a';
 const CRYSTAL = '#2b2b36';
 const CRYSTAL_EDGE = '#3d3d4c';
 const OVERPRESSURE = '#d8362a';
+const FLASH = '#fff4e0';
 const INK = '#e6e6ee';
 const INK_DIM = '#75758a';
 
@@ -53,6 +54,8 @@ export interface VesselView {
   readonly shownMs: number;
   /** Ist der Kampf vorbei? Dann steht der Ring still. */
   readonly finished: boolean;
+  /** Stärke des Aufblitzens bei einem Treffer, 0 bis 1 (GAME-DESIGN 9). */
+  readonly flash: number;
 }
 
 /**
@@ -131,6 +134,18 @@ export function drawVessel(ctx: CanvasRenderingContext2D, view: VesselView): voi
   ctx.strokeStyle = CRYSTAL_EDGE;
   ctx.lineWidth = 2;
   ctx.stroke();
+
+  // Aufblitzen bei jedem Treffer: Der ganze Ring wird kurz heller. Es liegt
+  // ÜBER der Fassung, damit auch ein fast leerer Ring noch reagiert.
+  if (view.flash > 0) {
+    ctx.globalAlpha = view.flash * 0.55;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outer, 0, TWO_PI);
+    ctx.arc(cx, cy, inner, 0, TWO_PI, true);
+    ctx.fillStyle = FLASH;
+    ctx.fill('evenodd');
+    ctx.globalAlpha = 1;
+  }
 }
 
 /** Farben und Maße, die das HUD für Beschriftung und Zahlen braucht. */
