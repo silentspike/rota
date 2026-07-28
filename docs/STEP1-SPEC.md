@@ -43,16 +43,23 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 ### 1.2 SMOULDER — der Brand-Effekt (DoT)
 
-| Feld            | Wert                                                      |
-| --------------- | --------------------------------------------------------- |
-| Direktschaden   | 0                                                         |
-| Schaden je Tick | **40**                                                    |
-| Tick-Abstand    | **2 s**                                                   |
-| Dauer           | **12 s** (= 6 Ticks, 240 Schaden gesamt)                  |
-| Abklingzeit     | **1,5 s** (= GCD, also praktisch keine)                   |
-| Löst GCD aus    | ja                                                        |
-| Hitze je Tick   | **+1**                                                    |
-| Erneuern        | **setzt zurück — die verbleibende Restzeit ist verloren** |
+| Feld            | Wert                                                                        |
+| --------------- | --------------------------------------------------------------------------- |
+| Direktschaden   | 0                                                                           |
+| Schaden je Tick | **40**                                                                      |
+| Tick-Abstand    | **2 s**                                                                     |
+| Dauer           | **12 s** — Ticks bei 2, 4, 6, 8, 10 und **12 s** = **6 Ticks, 240 Schaden** |
+| Abklingzeit     | **1,5 s** (= GCD, also praktisch keine)                                     |
+| Löst GCD aus    | ja                                                                          |
+| Hitze je Tick   | **+1**                                                                      |
+| Erneuern        | **setzt zurück — die verbleibende Restzeit ist verloren**                   |
+
+> **Der letzte Tick fällt mit dem Ablauf zusammen** (`aktiv` prüft `Ablaufzeit >= jetzt`, nicht `>`).
+> Das war zwischen § 1.2 und dem Referenz-Skript uneinheitlich und wurde am 2026-07-28 zugunsten
+> von 6 Ticks entschieden: Der Spieler sieht **12,0 s** Restlaufzeit. Bei 5 Ticks wären die letzten
+> zwei Sekunden wirkungslos, und „so spät wie möglich erneuern" (GAME-DESIGN 7.2) hieße heimlich
+> „bei 10 s". Eine Anzeige, die zwei Sekunden zu viel verspricht, ist eine versteckte Falle — und
+> die DoT-Restlaufzeit ist laut 7.2 **die wichtigste Anzeige neben den Abklingzeiten**.
 
 > **Warum keine eigene Abklingzeit:** Wie in WoW hindert das Spiel niemanden daran, zu früh zu
 > erneuern. **Genau darin liegt die Fähigkeit.** Eine Abklingzeit, die zu frühes Erneuern technisch
@@ -154,41 +161,47 @@ Alle drei gehören zu **CALCINATION** und zahlen auf deren Mechanik ein: Hitze s
 
 ```
 GUTE ROTATION   (SMOULDER spät erneuern, PYRE ab 15 Hitze)
-  Schaden gesamt         4.236
-  Wirkungen           KINDLE 23  SMOULDER  4  PYRE  3
-  PYRE-Schaden           1.176
-  SMOULDER-Ticks           760
-  verlorene DoT-Ticks        0
-  verpuffte Hitze            0
-  Leerlauf                 0.0 s
-  Boss                besiegt bei 44.00 s (16.00 s Reserve)
+    Schaden gesamt         4.240
+    Wirkungen           KINDLE 20  SMOULDER  4  PYRE  4
+    PYRE-Schaden           1.440
+    SMOULDER-Ticks           800
+    verlorene DoT-Ticks        0
+    verpuffte Hitze            0
+    Leerlauf                 0.0 s
+    Boss                besiegt bei 40.51 s (19.49 s Reserve)
 
 SCHLECHTE ROTATION  (SMOULDER zu früh, PYRE sofort)
-  Schaden gesamt         4.044
-  Wirkungen           KINDLE 24  SMOULDER  8  PYRE  8
-  PYRE-Schaden             684
-  SMOULDER-Ticks           960
-  verlorene DoT-Ticks       14
-  verpuffte Hitze            0
-  Leerlauf                 0.0 s
-  Boss                ÜBERLEBT (4044/4200 = 96.3 %)
+    Schaden gesamt         4.044
+    Wirkungen           KINDLE 24  SMOULDER  8  PYRE  8
+    PYRE-Schaden             684
+    SMOULDER-Ticks           960
+    verlorene DoT-Ticks       14
+    verpuffte Hitze            0
+    Leerlauf                 0.0 s
+    Boss                ÜBERLEBT (4044/4200 = 96.3 %)
 ```
 
 **Vergleich über die vollen 60 s** (ohne Kill-Abbruch, damit beide gleich lang rechnen):
 
 | Rotation                  | Schaden   | gegenüber „gut" |
 | ------------------------- | --------- | --------------- |
-| **gut**                   | **5.992** | —               |
-| nur DoT zu früh erneuert  | 5.368     | **−10,4 %**     |
-| nur PYRE zu früh gezündet | 4.316     | **−28,0 %**     |
-| beide Fehler              | 4.044     | **−32,5 %**     |
+| **gut**                   | **5.960** | —               |
+| nur DoT zu früh erneuert  | 5.368     | **−9,9 %**      |
+| nur PYRE zu früh gezündet | 4.524     | **−24,1 %**     |
+| beide Fehler              | 4.044     | **−32,1 %**     |
 
-**Differenz gut ↔ schlecht: 1.948 Schaden = 48,2 % mehr.**
+**Differenz gut ↔ schlecht: 1.916 Schaden = 47,4 % mehr.**
 
-> **Kriterium aus GAME-DESIGN 20.3 (mindestens 10 %) erfüllt.**
-> Bemerkenswert: **Auch jeder Fehler für sich allein liegt über 10 %.** Wer nur einen der beiden
-> Punkte versteht, sieht bereits einen messbaren Sprung — genau die Lernkurve, die „easy to learn,
-> very hard to master" verlangt.
+> **Kriterium aus GAME-DESIGN 20.3 (mindestens 10 %) erfüllt** — mit 47,4 % weit darüber.
+>
+> **Die beiden Fehler wiegen unterschiedlich schwer:** Der PYRE-Fehler kostet **24,1 %**, der
+> DoT-Fehler **9,9 %**. Wer nur das Entlade-Fenster versteht, macht den größeren Sprung. Das ist
+> kein Mangel, sondern eine brauchbare Lernreihenfolge: Die auffälligere Regel (Bonus ab 15 Hitze)
+> zahlt sich zuerst aus, die feinere (spät erneuern) danach.
+>
+> Das 10-%-Kriterium gilt für **gute gegen schlechte Rotation**, nicht für jeden Einzelfehler.
+> Vor der Korrektur auf 6 Ticks lagen beide über 10 % — dass der DoT-Fehler jetzt knapp darunter
+> liegt, ist die Folge davon, dass auch die schlechte Rotation vom sechsten Tick profitiert.
 
 ### Die zwei Rotationen als Prioritätenliste
 

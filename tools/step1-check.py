@@ -109,7 +109,12 @@ class Fight:
         return self.cd[spell] <= self.t and self.gcd_until <= self.t
 
     def smoulder_active(self):
-        return self.smoulder_expires > self.t
+        # >= und nicht >: Der letzte Tick faellt mit dem Ablauf zusammen.
+        # Eine Dauer von 12 s bei 2 s Tick-Abstand ergibt 6 Ticks, nicht 5.
+        # Sonst waeren die letzten 2 s wirkungslos, und "so spaet wie moeglich
+        # erneuern" (GAME-DESIGN 7.2) hiesse heimlich "bei 10 s" — obwohl die
+        # Restlaufzeit-Anzeige 12 s sagt.
+        return self.smoulder_expires >= self.t
 
     def smoulder_remaining_ms(self):
         return max(0, self.smoulder_expires - self.t)
