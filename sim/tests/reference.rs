@@ -44,6 +44,9 @@ fn gute_rotation_trifft_die_referenz() {
     assert_eq!(r.casts[PYRE], 4, "PYRE-Wirkungen");
     assert_eq!(r.damage_by_spell[PYRE], 1440, "PYRE-Schaden");
     assert_eq!(r.damage_by_spell[SMOULDER], 800, "SMOULDER-Ticks");
+    // Dieselbe Zeile prueft `tests/parity/step1.test.ts` auf der Spiel-Seite:
+    // Der Rest ist KINDLE, 20 Wirkungen à 100.
+    assert_eq!(r.damage_by_spell[KINDLE], 2000, "KINDLE-Schaden");
     assert_eq!(r.lost_dot_ticks[SMOULDER], 0, "verlorene DoT-Ticks");
     assert_eq!(r.resource_overflow, 0, "verpuffte Hitze");
     assert_eq!(r.idle_ms, 0, "Leerlauf");
@@ -61,6 +64,7 @@ fn schlechte_rotation_trifft_die_referenz() {
     assert_eq!(r.casts[PYRE], 8);
     assert_eq!(r.damage_by_spell[PYRE], 684, "PYRE-Schaden");
     assert_eq!(r.damage_by_spell[SMOULDER], 960, "SMOULDER-Ticks");
+    assert_eq!(r.damage_by_spell[KINDLE], 2400, "KINDLE-Schaden");
     assert_eq!(r.lost_dot_ticks[SMOULDER], 14, "verlorene DoT-Ticks");
     assert_eq!(r.resource_overflow, 0);
     assert_eq!(r.idle_ms, 0);

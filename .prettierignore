@@ -4,3 +4,8 @@ sim/target/
 assets/
 docs/refs/
 package-lock.json
+
+# Erzeugte Vergleichsdateien fuer den Abgleich mit dem Simulator.
+# Sie entstehen aus dem Spielcode (tests/parity/export-parity.mjs) und werden
+# nie von Hand bearbeitet; eine Umformatierung wuerde nur den Diff verrauschen.
+tests/parity/recordings/

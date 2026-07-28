@@ -55,15 +55,18 @@
 
 #![warn(missing_docs)]
 
+pub mod checksum;
 pub mod data;
 pub mod event;
 pub mod fight;
 pub mod log;
+pub mod replay;
 pub mod rng;
 pub mod rotation;
 pub mod time;
 
 pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 pub use fight::{Fight, FightConfig, RunResult};
+pub use replay::{Binding, Press, Recording, ReplayResult};
 pub use rng::{Stream, Streams};
 pub use time::{Millis, GCD_MS, TICK_MS};
