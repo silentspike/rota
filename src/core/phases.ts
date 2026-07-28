@@ -48,6 +48,22 @@ export const OUTCOME_NAMES: readonly string[] = [
 /** Dauer des Countdowns (GAME-DESIGN 10). Ganzzahlig wie alle Zeiten. */
 export const COUNTDOWN_MS = 3000;
 
+/**
+ * Ab dieser Restzeit warnt das Spiel vor dem Überdruck.
+ *
+ * Aus E1-5: Ab hier färbt sich der Ring und beginnt zu vibrieren. Klang und
+ * Musik hängen an **derselben** Schwelle — zwei Warnungen zu verschiedenen
+ * Zeitpunkten wären zwei Warnungen.
+ */
+export const OVERPRESSURE_WARNING_MS = 10_000;
+
+/**
+ * Endspurt: der Boss steht kurz vor dem Fall (GAME-DESIGN 10.1, „unter 20 %").
+ *
+ * Anteil der **verbliebenen** Lebenspunkte.
+ */
+export const LOW_HEALTH_SHARE = 0.2;
+
 /** Zählt der Ausgang als Sieg? */
 export function isVictory(outcome: number): boolean {
   return outcome === OUTCOME_VICTORY;
