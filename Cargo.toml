@@ -1,0 +1,22 @@
+# Cargo-Workspace des Simulators (Epic E2).
+#
+# Warum diese Datei im Wurzelverzeichnis liegt und nicht nur in `sim/`:
+#
+# Der Simulator kompiliert die Zauber- und Boss-Daten aus `data/` ein
+# (Issue #53, GAME-DESIGN 18.3) — `sim/build.rs` liest also `../data/*.json`.
+# Gebaut wird nach `CLAUDE.md` remote auf dem Bau-Server, und `cargo remote`
+# uebertraegt dorthin genau **ein** Verzeichnis: das des Workspace. Waere der
+# Workspace `sim/`, kaeme `data/` dort nie an, und der Bau schluege mit
+# `couldn't read src/../../data/spells/calcination.json` fehl.
+#
+# Geprueft wurden vorher zwei Alternativen, beide verworfen:
+#   * ein Symlink `sim/data -> ../data` — rsync uebertraegt ihn als Symlink,
+#     das Ziel fehlt auf dem Bau-Server weiterhin
+#   * eine Kopie der Daten unter `sim/` — zwei Wahrheiten fuer dieselben Zahlen,
+#     genau der Fehler, den die gemeinsamen Pruefaelle aus 18.4 verhindern sollen
+#
+# Fuer die TypeScript-Seite aendert sich dadurch nichts: Vite, npm und die
+# CI-Jobs `lint`, `test` und `build` beruehren weder diese Datei noch `/target/`.
+[workspace]
+members = ["sim"]
+resolver = "2"
