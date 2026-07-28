@@ -37,6 +37,9 @@ function setup(): Harness {
   session.bind(0, combat.indexOf('kindle'));
   session.bind(1, combat.indexOf('smoulder'));
   session.bind(2, combat.indexOf('pyre'));
+  // Die Prüfungen hier gelten dem Kampf, nicht dem Ablauf davor. Der Kampf
+  // beginnt deshalb bei 0 — denselben Weg nimmt der Countdown an seinem Ende.
+  session.startFight(0);
   return {
     queue,
     combat,

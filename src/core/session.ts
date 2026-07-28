@@ -11,7 +11,18 @@
  * Der Ablauf je Takt folgt `tools/step1-check.py`: erst die laufenden Wirkungen,
  * dann die Prüfung auf das Kampfende, dann die Tastendrücke dieses Takts.
  */
-import { CAST_OK, Combat, FIGHT_RUNNING } from './combat.js';
+import { CAST_OK, Combat, FIGHT_RUNNING, FIGHT_WON } from './combat.js';
+import {
+  COUNTDOWN_MS,
+  OUTCOME_NONE,
+  OUTCOME_OVERPRESSURE,
+  OUTCOME_VICTORY,
+  OUTCOME_WIPE,
+  PHASE_COUNTDOWN,
+  PHASE_ENDED,
+  PHASE_FIGHTING,
+  PHASE_PREPARE,
+} from './phases.js';
 import { LatencyTrace } from './latency.js';
 import type { Simulation } from './loop.js';
 import { TICK_MS } from './loop.js';
@@ -20,6 +31,14 @@ import type { PressQueue } from '../input/queue.js';
 
 /** Kein Zauber auf diesem Platz. */
 export const NO_SPELL = -1;
+
+/**
+ * Gründe für eine verworfene Eingabe, die nicht aus `combat.ts` stammen.
+ * Negativ, damit sie sich nie mit den `CAST_*`-Kennungen überschneiden.
+ */
+export const REJECT_EMPTY_SLOT = -1;
+export const REJECT_FIGHT_OVER = -2;
+export const REJECT_NO_TARGET = -3;
 
 /** Nie gedrückt. */
 export const NEVER = -1;
@@ -49,6 +68,10 @@ export class Session implements Simulation {
   private lastSlot = -1;
   private timeMs = 0;
   private idleTicks = 0;
+  private phaseValue = PHASE_PREPARE;
+  private outcomeValue = OUTCOME_NONE;
+  private countdownEndsAtMs = 0;
+  private endedAt = -1;
 
   constructor(
     private readonly queue: PressQueue,
@@ -110,11 +133,25 @@ export class Session implements Simulation {
   tick(timeMs: number): void {
     this.timeMs = timeMs;
 
-    // 1. laufende Wirkungen
-    this.combat.stepPassive(timeMs);
+    // 0. Countdown. Der Übergang geschieht VOR allem anderen in diesem Takt:
+    //    Uhr und Eingabe beginnen damit im selben Takt, nicht einen später.
+    if (this.phaseValue === PHASE_COUNTDOWN && timeMs >= this.countdownEndsAtMs) {
+      this.startFight(timeMs);
+    }
+
+    const fighting = this.phaseValue === PHASE_FIGHTING;
+
+    // 1. laufende Wirkungen — nur im Kampf. In der Vorbereitung laufen allein die
+    //    Abklingzeiten mit (GAME-DESIGN 10), es gibt keine Uhr und keinen Verfall.
+    if (fighting) this.combat.stepPassive(timeMs);
 
     // 2. Kampfende
-    const over = this.combat.checkDefeat(timeMs);
+    if (fighting && this.combat.checkDefeat(timeMs)) {
+      this.finish(
+        this.combat.fightState === FIGHT_WON ? OUTCOME_VICTORY : OUTCOME_OVERPRESSURE,
+        timeMs,
+      );
+    }
 
     // 3. Tastendrücke dieses Takts. Alles abarbeiten, was diesem Takt oder einem
     //    früheren zugewiesen war — dadurch kann der Puffer nie zur Warteschlange
@@ -129,7 +166,96 @@ export class Session implements Simulation {
       if (this.apply(slot, timeMs, stampMs, frameIndex)) casted = true;
     }
 
-    if (!over && !casted && this.combat.gcd.isReady(timeMs)) this.idleTicks++;
+    if (this.phaseValue === PHASE_FIGHTING && !casted && this.combat.gcd.isReady(timeMs)) {
+      this.idleTicks++;
+    }
+  }
+
+  // ------------------------------------------------------------ Kampfablauf
+
+  get phase(): number {
+    return this.phaseValue;
+  }
+
+  get outcome(): number {
+    return this.outcomeValue;
+  }
+
+  /** Restzeit des Countdowns in ms, sonst 0. */
+  countdownRemainingMs(timeMs: number): number {
+    if (this.phaseValue !== PHASE_COUNTDOWN) return 0;
+    const left = this.countdownEndsAtMs - timeMs;
+    return left > 0 ? left : 0;
+  }
+
+  /** Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf endete. */
+  get endedAtMs(): number {
+    return this.endedAt;
+  }
+
+  /**
+   * Die Uhr, die der Spieler sieht.
+   *
+   * **Null in der Vorbereitung und im Countdown** (GAME-DESIGN 10: „Keine Uhr"),
+   * und nach dem Ende stehengeblieben — die Auswertung zeigt die Zeit des
+   * Kampfes, nicht die seit dem Laden der Seite. `Combat` kennt diesen
+   * Unterschied nicht; er gehört zum Ablauf und damit hierher.
+   */
+  fightElapsedMs(timeMs: number): number {
+    if (this.phaseValue === PHASE_PREPARE || this.phaseValue === PHASE_COUNTDOWN) return 0;
+    return this.combat.fightElapsedMs(this.endedAt >= 0 ? this.endedAt : timeMs);
+  }
+
+  /** Restzeit bis zum Überdruck, aus Sicht des Spielers. */
+  overpressureRemainingMs(timeMs: number): number {
+    const left = this.combat.boss.overpressureMs - this.fightElapsedMs(timeMs);
+    return left > 0 ? left : 0;
+  }
+
+  /**
+   * „Ready" gedrückt: Der Countdown beginnt.
+   *
+   * Nur aus der Vorbereitung heraus — ein zweiter Druck während des Countdowns
+   * darf ihn nicht verlängern.
+   */
+  beginCountdown(timeMs: number): boolean {
+    if (this.phaseValue !== PHASE_PREPARE) return false;
+    this.phaseValue = PHASE_COUNTDOWN;
+    this.countdownEndsAtMs = timeMs + COUNTDOWN_MS;
+    return true;
+  }
+
+  /**
+   * Abbruch durch den Spieler (GAME-DESIGN 10: „Wipe Run").
+   *
+   * Gilt als Ende und führt zur **selben** Auswertung wie ein Sieg — nur mit
+   * anderem Ausgang. Keine Strafe.
+   */
+  wipe(timeMs: number): boolean {
+    if (this.phaseValue !== PHASE_FIGHTING && this.phaseValue !== PHASE_COUNTDOWN) return false;
+    this.finish(OUTCOME_WIPE, timeMs);
+    return true;
+  }
+
+  /**
+   * Den Kampf in diesem Takt beginnen lassen.
+   *
+   * Derselbe Weg, den der Countdown an seinem Ende nimmt — Uhr und Eingabe gehen
+   * dadurch zwangsläufig im selben Takt auf. Für die Entwicklungs-Werkzeuge
+   * zusätzlich direkt aufrufbar (GAME-DESIGN 19.1: Zustand setzen).
+   */
+  startFight(timeMs: number): void {
+    if (this.phaseValue === PHASE_ENDED) return;
+    this.phaseValue = PHASE_FIGHTING;
+    this.countdownEndsAtMs = timeMs;
+    this.combat.beginFight(timeMs);
+  }
+
+  private finish(outcome: number, timeMs: number): void {
+    if (this.phaseValue === PHASE_ENDED) return;
+    this.phaseValue = PHASE_ENDED;
+    this.outcomeValue = outcome;
+    this.endedAt = timeMs;
   }
 
   /** @returns true, wenn tatsächlich gewirkt wurde. */
@@ -139,9 +265,13 @@ export class Session implements Simulation {
 
     let accepted = false;
     let reason = CAST_OK;
-    if (spellIndex === NO_SPELL || this.combat.fightState !== FIGHT_RUNNING) {
+    if (this.phaseValue !== PHASE_FIGHTING) {
+      // In der Vorbereitung ist kein Ziel vorhanden: Alle Zauber auf den Boss
+      // sind ausgegraut (GAME-DESIGN 10). In Schritt 1 sind das alle drei.
+      reason = REJECT_NO_TARGET;
+    } else if (spellIndex === NO_SPELL || this.combat.fightState !== FIGHT_RUNNING) {
       // Ein leerer Platz ist eine Fehleingabe wie jede andere.
-      reason = spellIndex === NO_SPELL ? -1 : -2;
+      reason = spellIndex === NO_SPELL ? REJECT_EMPTY_SLOT : REJECT_FIGHT_OVER;
     } else {
       const outcome = this.combat.cast(spellIndex, timeMs);
       reason = outcome.result;
@@ -174,5 +304,9 @@ export class Session implements Simulation {
     this.lastSlot = -1;
     this.timeMs = 0;
     this.idleTicks = 0;
+    this.phaseValue = PHASE_PREPARE;
+    this.outcomeValue = OUTCOME_NONE;
+    this.countdownEndsAtMs = 0;
+    this.endedAt = -1;
   }
 }

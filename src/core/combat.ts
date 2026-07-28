@@ -89,6 +89,7 @@ export class Combat {
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
+  private fightStartedAtMs = 0;
 
   constructor(options: CombatOptions) {
     this.school = options.school;
@@ -152,6 +153,43 @@ export class Combat {
   /** Kampfzeit, zu der der Kampf endete, sonst `NOT_ACTIVE`. */
   get endedAt(): number {
     return this.endedAtMs;
+  }
+
+  /**
+   * Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf begann.
+   *
+   * **Zwei Uhren, eine Zeitachse:** Die Abklingzeiten laufen schon in der
+   * Vorbereitung mit (GAME-DESIGN 10), die Kampfuhr beginnt erst mit dem Ende des
+   * Countdowns. Beide messen dieselbe durchlaufende Zeit — nur der Nullpunkt der
+   * Kampfuhr liegt später. Eine zweite, angehaltene Zeitachse wäre die Sorte
+   * Sonderfall, an der später jede Aufzeichnung scheitert.
+   */
+  get fightStartedAt(): number {
+    return this.fightStartedAtMs;
+  }
+
+  /** Verstrichene **Kampfzeit** — die Zahl, die der Spieler auf der Uhr sieht. */
+  fightElapsedMs(timeMs: number): number {
+    const elapsed = timeMs - this.fightStartedAtMs;
+    return elapsed > 0 ? elapsed : 0;
+  }
+
+  /** Restzeit bis zum Überdruck. */
+  overpressureRemainingMs(timeMs: number): number {
+    const left = this.boss.overpressureMs - this.fightElapsedMs(timeMs);
+    return left > 0 ? left : 0;
+  }
+
+  /**
+   * Den Kampf beginnen lassen.
+   *
+   * Setzt den Nullpunkt der Kampfuhr und den Verfall-Plan des Vorrats. Die
+   * Abklingzeiten laufen unverändert weiter — was in der Vorbereitung gewirkt
+   * wurde, bleibt gewirkt.
+   */
+  beginFight(timeMs: number): void {
+    this.fightStartedAtMs = timeMs;
+    this.nextDecayAtMs = timeMs + this.school.resource.decayPerStepMs;
   }
 
   castCount(index: number): number {
@@ -251,7 +289,9 @@ export class Combat {
       this.endedAtMs = timeMs;
       return true;
     }
-    if (timeMs >= this.boss.overpressureMs) {
+    // Der Überdruck bemisst sich an der KAMPFuhr, nicht an der durchlaufenden:
+    // Die Vorbereitung darf nichts von der Kampfzeit abziehen.
+    if (this.fightElapsedMs(timeMs) >= this.boss.overpressureMs) {
       this.stateValue = FIGHT_OVERPRESSURE;
       this.endedAtMs = timeMs;
       return true;
@@ -349,8 +389,22 @@ export class Combat {
 
   // ------------------------------------------------------------ Zustand setzen
 
+  /**
+   * Verbleibende Lebenspunkte setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1:
+   * „Zustand setzen: Boss-Leben"). Erspart drei Minuten Spielzeit für eine
+   * Prüfung kurz vor dem Ende.
+   */
+  setBossHpRemaining(hp: number): void {
+    // Zustand setzen ist ein Werkzeug, mit dem sich das Spiel steuern lässt —
+    // und damit genau das, was GAME-DESIGN 19.3 aus der Auslieferung heraushält.
+    if (!__ROTA_DEVTOOLS__) return;
+    const clamped = hp < 0 ? 0 : hp > this.boss.hp ? this.boss.hp : hp;
+    this.damageDealtValue = this.boss.hp - clamped;
+  }
+
   /** Vorrat setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
   setResource(value: number): void {
+    if (!__ROTA_DEVTOOLS__) return;
     const cap = this.school.resource.cap;
     this.resourceValue = value < 0 ? 0 : value > cap ? cap : value;
   }
@@ -371,5 +425,6 @@ export class Combat {
     this.damageDealtValue = 0;
     this.stateValue = FIGHT_RUNNING;
     this.endedAtMs = NOT_ACTIVE;
+    this.fightStartedAtMs = 0;
   }
 }
