@@ -26,7 +26,9 @@ import {
   PHASE_PREPARE,
 } from './phases.js';
 import { LatencyTrace } from './latency.js';
+import { combatChecksum } from './checksum.js';
 import { CombatLog } from './log.js';
+import { RingBufferF64 } from './ring.js';
 import type { Simulation } from './loop.js';
 import { TICK_MS } from './loop.js';
 import { SLOT_COUNT } from '../input/keys.js';
@@ -68,6 +70,31 @@ export class Session implements Simulation {
 
   /** Das Kampfprotokoll (GAME-DESIGN 18.2). */
   readonly log = new CombatLog();
+
+  /**
+   * Eingabe-Zeitmessung (GAME-DESIGN 19.1): Millisekunden nach Ablauf der
+   * globalen Wartezeit, je angenommenem Druck.
+   *
+   * **Im fertigen Spiel bewusst nicht vorgesehen** (GAME-DESIGN 21.2: niemand
+   * wird für seine Reaktionszeit getadelt). Sie beantwortet nur die
+   * Balance-Frage, wie viel ein Mensch gegenüber der perfekten Rechnung verliert.
+   */
+  private inputTimingBuffer: RingBufferF64 | null = null;
+
+  /** Prüfsumme je Takt (GAME-DESIGN 19.1). Abschaltbar, weil sie Zeit kostet. */
+  private checksums: RingBufferF64 | null = null;
+  private trackChecksums = false;
+
+  /**
+   * Die Puffer entstehen erst beim ersten Zugriff.
+   *
+   * Im Auslieferungsstand greift niemand zu — dort werden sie nie angelegt, und
+   * die 48 KB des Prüfsummen-Puffers kosten nichts (GAME-DESIGN 19.3).
+   */
+  get inputTiming(): RingBufferF64 {
+    if (this.inputTimingBuffer === null) this.inputTimingBuffer = new RingBufferF64(512);
+    return this.inputTimingBuffer;
+  }
 
   /**
    * Leerlauf je Zauber in ms — wie lange er ungenutzt bereit lag.
@@ -191,6 +218,10 @@ export class Session implements Simulation {
       if (this.apply(slot, timeMs, stampMs, frameIndex)) casted = true;
     }
 
+    if (this.trackChecksums && this.phaseValue === PHASE_FIGHTING) {
+      this.checksums?.push(combatChecksum(this.combat, timeMs));
+    }
+
     if (this.phaseValue === PHASE_FIGHTING && !casted && this.combat.gcd.isReady(timeMs)) {
       this.idleTicks++;
       // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
@@ -218,6 +249,24 @@ export class Session implements Simulation {
     if (this.phaseValue !== PHASE_COUNTDOWN) return 0;
     const left = this.countdownEndsAtMs - timeMs;
     return left > 0 ? left : 0;
+  }
+
+  /** Prüfsumme je Takt mitschreiben. Kostet Rechenzeit (GAME-DESIGN 19.1). */
+  setChecksumTracking(on: boolean): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.trackChecksums = on;
+    if (on) this.checksums ??= new RingBufferF64(6000);
+    else this.checksums?.clear();
+  }
+
+  get isTrackingChecksums(): boolean {
+    return this.trackChecksums;
+  }
+
+  /** Die zuletzt mitgeschriebenen Prüfsummen, älteste zuerst. */
+  checksumTrail(limit = 600): number[] {
+    const all = this.checksums?.toArray() ?? [];
+    return all.slice(Math.max(0, all.length - limit));
   }
 
   /** Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf endete. */
@@ -318,6 +367,7 @@ export class Session implements Simulation {
   private apply(slot: number, timeMs: number, stampMs: number, frameIndex: number): boolean {
     this.lastSlot = slot;
     const spellIndex = this.bindings[slot] ?? NO_SPELL;
+    const gcdReadyAt = this.combat.gcd.readyAt;
 
     let accepted = false;
     let reason = CAST_OK;
@@ -335,6 +385,10 @@ export class Session implements Simulation {
     }
 
     if (accepted) {
+      // Wie viele Millisekunden nach Freiwerden der Wartezeit kam der Druck?
+      // Nur für die Werkzeuge — im fertigen Spiel ausdrücklich nicht vorgesehen
+      // (GAME-DESIGN 21.2: niemand wird für seine Reaktionszeit getadelt).
+      if (__ROTA_DEVTOOLS__) this.inputTiming.push(timeMs - gcdReadyAt);
       this.acceptedAtMs[slot] = timeMs;
       this.accepted++;
       if (this.feedback !== null) this.feedback.onPressAccepted(slot, spellIndex, timeMs);
@@ -366,5 +420,7 @@ export class Session implements Simulation {
     this.endedAt = -1;
     this.log.clear();
     this.idlePerSpellMs.fill(0);
+    this.inputTimingBuffer?.clear();
+    this.checksums?.clear();
   }
 }
