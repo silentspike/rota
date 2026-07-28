@@ -17,7 +17,11 @@ import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js'
 import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
 import { NO_SPELL } from '../core/session.js';
 import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
-import { OUTCOME_NAMES, PHASE_NAMES } from '../core/phases.js';
+import { combatChecksum } from '../core/checksum.js';
+import { EVENT_NAMES, type LogEntry } from '../core/log.js';
+import { recordingNames, recordings, replayRecording, type ReplayResult } from './recording.js';
+import type { RunSummary } from '../core/summary.js';
+import { OUTCOME_NAMES, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
@@ -191,6 +195,31 @@ export interface ImpactSnapshot {
   readonly flashStrength: number;
 }
 
+/** Woraus sich der Schaden eines Treffers zusammensetzt (GAME-DESIGN 6.3, 19.1). */
+export interface DamageBreakdown {
+  readonly spellId: string;
+  readonly baseDamage: number;
+  /** Entladeschaden aus dem Vorrat, falls der Zauber einer ist. */
+  readonly spenderDamage: number;
+  readonly resource: number;
+  readonly bonusApplied: boolean;
+  /** Die Faktoren in der Reihenfolge, in der sie angewandt werden. */
+  readonly factors: { readonly name: string; readonly value: number }[];
+  readonly total: number;
+}
+
+/** Kennzahlen des Kampfprotokolls. */
+export interface LogStats {
+  readonly entries: number;
+  readonly capacity: number;
+  readonly totalWritten: number;
+  /** Muss 0 sein. Darüber ist der Puffer zu klein ausgelegt. */
+  readonly dropped: number;
+  readonly overflowed: boolean;
+  readonly byteLength: number;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
 /** Zustand der Eingabe (GAME-DESIGN 8). */
 export interface InputSnapshot {
   /** Angenommene Tastendrücke — sie haben die globale Wartezeit ausgelöst. */
@@ -239,6 +268,58 @@ export interface DevTools {
   /** Zustand der Trefferwucht: Pool, Zahlen, Ruckeln. */
   impact(): ImpactSnapshot;
   /**
+   * Das Kampfprotokoll als lesbare Liste (GAME-DESIGN 19.1, VERIFICATION § 3.4).
+   *
+   * **Erzeugt Speicher** — nur für Werkzeuge. Im Spiel bleibt das Protokoll
+   * intern; einen sichtbaren Textstrom gibt es nicht (GAME-DESIGN 21.2).
+   */
+  log(): LogEntry[];
+  /** Kennzahlen des Protokolls, ohne die ganze Liste zu erzeugen. */
+  logStats(): LogStats;
+  /** Die Kurzfassung nach dem Kampf (GAME-DESIGN 15.1). */
+  summary(): RunSummary;
+  /** Das Protokoll als Klartext ausgeben (GAME-DESIGN 19.1). */
+  logText(limit?: number): string;
+
+  // ---------------------------------------------------- Zeitsteuerung (19.1)
+  /** Anhalten. Bilder werden weiter gezeichnet und gemessen. */
+  pause(): void;
+  resume(): void;
+  /** Einzelschritt: `count` Logik-Takte sofort rechnen, ohne auf ein Bild zu warten. */
+  step(count?: number): number;
+  /** Zeitlupe (< 1) oder Zeitraffer (> 1). Der Takt bleibt 10 ms. */
+  setTimeScale(scale: number): void;
+  timeScale(): number;
+
+  // ------------------------------------------- Aufzeichnen und Abspielen (19.1)
+  /** Namen der eingebauten Aufzeichnungen. */
+  recordings(): string[];
+  /**
+   * Eine Aufzeichnung abspielen — ohne Uhr, ohne Bild, sofort.
+   *
+   * Zwei Aufrufe liefern byteweise dasselbe. Mit `checksumPerTick` kommt die
+   * volle Prüfsummenfolge mit; ohne nur die beiden Gesamtwerte, weil 6000
+   * Zahlen selten gebraucht werden.
+   */
+  replay(name: string, options?: { checksumPerTick?: boolean }): ReplayResult;
+  /** Dieselbe Aufzeichnung im laufenden Spiel abspielen — für die Bildprüfung. */
+  replayLive(name: string): boolean;
+  /** Läuft gerade eine Wiedergabe im Spiel? */
+  isReplaying(): boolean;
+
+  // --------------------------------------------- Prüfsumme und Herleitung (19.1)
+  /** Prüfsumme des jetzigen Zustands. */
+  checksum(): number;
+  /** Prüfsumme je Takt mitschreiben. Kostet Rechenzeit, daher abschaltbar. */
+  setChecksumTracking(on: boolean): void;
+  checksumTrail(limit?: number): number[];
+  /** Schadens-Herleitung eines Zaubers beim jetzigen Zustand. */
+  explainDamage(spellId: string): DamageBreakdown;
+  /** Eingabe-Zeitmessung: ms nach Ablauf der globalen Wartezeit, je Druck. */
+  inputTiming(): number[];
+  /** Alle Abklingzeiten sofort bereit machen (GAME-DESIGN 19.1: Zustand setzen). */
+  setCooldownsReady(): void;
+  /**
    * Schadenszahlen einspeisen, ohne den Kampf anzufassen.
    *
    * Nur ein Messmittel: Zwanzig Treffer je Sekunde entstehen in Schritt 1 nicht
@@ -283,6 +364,8 @@ export function installDevTools(app: App): void {
 
   const perf = new PerfCounters();
   const probe = new AllocationProbe();
+  /** Name der laufenden Wiedergabe im Bild, sonst `null`. */
+  let liveReplay: string | null = null;
   // Die erzwungene Aufräumung hält die Seite an. Ohne diesen Anschluss zählte
   // die Schleife die dabei verlorene Zeit als verworfene Takte des Spiels.
   probe.onCollected = () => {
@@ -497,6 +580,137 @@ export function installDevTools(app: App): void {
         flashStrength: app.impact.flashStrength(shownMs),
       };
     },
+    log: () => app.session.log.toArray(),
+    logStats: () => {
+      const log = app.session.log;
+      const counts: Record<string, number> = {};
+      for (let type = 0; type < EVENT_NAMES.length; type++) {
+        counts[EVENT_NAMES[type] as string] = log.countOf(type);
+      }
+      return {
+        entries: log.length,
+        capacity: log.capacity,
+        totalWritten: log.totalWritten,
+        dropped: log.droppedCount,
+        overflowed: log.hasOverflowed,
+        byteLength: log.byteLength,
+        counts,
+      };
+    },
+    summary: () => app.session.summary(app.loop.timeMs),
+    logText: (limit = 200) => {
+      const entries = app.session.log.toArray();
+      const from = Math.max(0, entries.length - limit);
+      let out = '';
+      for (let i = from; i < entries.length; i++) {
+        const e = entries[i];
+        if (e === undefined) continue;
+        const spell = e.spell >= 0 ? (app.combat.spellAt(e.spell)?.id ?? String(e.spell)) : '-';
+        out += `${(e.timeMs / 1000).toFixed(2)}  ${e.type.padEnd(10)} ${spell.padEnd(9)} ${e.value}\n`;
+      }
+      return out;
+    },
+    pause: () => {
+      app.loop.setPaused(true);
+    },
+    resume: () => {
+      app.loop.setPaused(false);
+    },
+    step: (count = 1) => {
+      app.loop.advanceTicks(count);
+      return app.loop.timeMs;
+    },
+    setTimeScale: (scale: number) => {
+      app.loop.setTimeScale(scale);
+    },
+    timeScale: () => app.loop.timeScale,
+
+    recordings: () => recordingNames(),
+    replay: (name: string, options = {}) => {
+      const recording = recordings().get(name);
+      if (recording === undefined) {
+        throw new Error(
+          `Unbekannte Aufzeichnung: ${name}. Bekannt: ${recordingNames().join(', ')}`,
+        );
+      }
+      return replayRecording(recording, options);
+    },
+    replayLive: (name: string) => {
+      const recording = recordings().get(name);
+      if (recording === undefined) return false;
+      // Die Wiedergabe legt ihre Drücke in denselben Puffer, den auch die
+      // Tastatur benutzt — sonst prüfte sie einen anderen Weg als den echten.
+      // Der Haken sitzt hier und nicht in `App`, damit weder die Aufzeichnungen
+      // noch die Prioritätenliste, aus der sie entstehen, im Auslieferungs-
+      // Bundle landen (GAME-DESIGN 18.5 und 19.3).
+      app.backToMenu();
+      let index = 0;
+      liveReplay = name;
+      app.loop.onBeforeTick = (): void => {
+        if (app.session.phase !== PHASE_FIGHTING) return;
+        const tick = Math.round(app.combat.fightElapsedMs(app.loop.timeMs) / TICK_MS);
+        while (index < recording.presses.length) {
+          const press = recording.presses[index];
+          if (press === undefined || press.tick > tick) break;
+          index++;
+          app.pressQueue.push(
+            press.slot,
+            app.loop.tickCount,
+            performance.now(),
+            app.loop.frameCount,
+          );
+        }
+        if (index >= recording.presses.length) {
+          liveReplay = null;
+          app.loop.onBeforeTick = null;
+        }
+      };
+      app.ready();
+      return true;
+    },
+    isReplaying: () => liveReplay !== null,
+
+    checksum: () => combatChecksum(app.combat, app.loop.timeMs),
+    setChecksumTracking: (on: boolean) => {
+      app.session.setChecksumTracking(on);
+    },
+    checksumTrail: (limit = 600) => app.session.checksumTrail(limit),
+    explainDamage: (spellId: string) => {
+      const index = app.combat.indexOf(spellId);
+      const spell = app.combat.spellAt(index);
+      if (spell === undefined) throw new Error(`Unbekannter Zauber: ${spellId}`);
+      const spender = spell.spender;
+      const resource = app.combat.resource;
+      const bonusApplied = spender !== undefined && resource >= spender.bonusThreshold;
+      const spenderRaw =
+        spender === undefined
+          ? 0
+          : spender.damagePerPoint * resource * (bonusApplied ? spender.bonusMultiplier : 1);
+      const factors = [
+        { name: 'essence', value: 1 },
+        { name: 'talents', value: 1 },
+        { name: 'buffs', value: 1 },
+        { name: 'synergy', value: 1 },
+        { name: 'resistance', value: app.combat.boss.resistances[app.combat.school.school] ?? 1 },
+        { name: 'crit', value: 1 },
+      ];
+      let total = spell.baseDamage + spenderRaw;
+      for (const factor of factors) total *= factor.value;
+      return {
+        spellId,
+        baseDamage: spell.baseDamage,
+        spenderDamage: spenderRaw,
+        resource,
+        bonusApplied,
+        factors,
+        total: Math.round(total),
+      };
+    },
+    inputTiming: () => app.session.inputTiming.toArray(),
+    setCooldownsReady: () => {
+      app.combat.setCooldownsReady();
+    },
+
     feedHits: (count: number, damage = 100, big = false) => {
       const now = app.loop.timeMs;
       for (let i = 0; i < count; i++) {

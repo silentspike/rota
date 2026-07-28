@@ -121,6 +121,25 @@ body {
   color: #e2e2ea;
 }
 
+.rota-divider {
+  height: 1px;
+  margin: 6px 0;
+  background: #3a3a4a;
+}
+
+/* Aufgeklappt nur auf Wunsch — die Kurzfassung bleibt kurz. */
+.rota-detail {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid #2a2a36;
+}
+
+.rota-detail.rota-visible {
+  display: flex;
+}
+
 canvas {
   /* Ein Tastendruck darf niemals versehentlich Text markieren. */
   user-select: none;
