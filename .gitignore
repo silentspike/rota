@@ -14,6 +14,9 @@ __pycache__/
 *.pyc
 
 # Rust (Simulator)
+# Das Bau-Verzeichnis liegt im Wurzelverzeichnis, weil dort der Cargo-Workspace
+# definiert ist (siehe Cargo.toml) — nur so bekommt der Remote-Bau data/ zu sehen.
+/target/
 sim/target/
 
 # Klang-Rohdaten und Kandidaten der Werkzeugkette.

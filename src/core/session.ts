@@ -12,8 +12,10 @@
  * dann die Prüfung auf das Kampfende, dann die Tastendrücke dieses Takts.
  */
 import { CAST_OK, Combat, FIGHT_RUNNING, FIGHT_WON } from './combat.js';
+import { buildSummary, type RunSummary } from './summary.js';
 import {
   COUNTDOWN_MS,
+  OUTCOME_NAMES,
   OUTCOME_NONE,
   OUTCOME_OVERPRESSURE,
   OUTCOME_VICTORY,
@@ -24,6 +26,9 @@ import {
   PHASE_PREPARE,
 } from './phases.js';
 import { LatencyTrace } from './latency.js';
+import { combatChecksum } from './checksum.js';
+import { CombatLog } from './log.js';
+import { RingBufferF64 } from './ring.js';
 import type { Simulation } from './loop.js';
 import { TICK_MS } from './loop.js';
 import { SLOT_COUNT } from '../input/keys.js';
@@ -63,6 +68,46 @@ export class Session implements Simulation {
   /** Belegung → Zauber. `NO_SPELL`, solange der Platz leer ist. */
   private readonly bindings = new Int32Array(SLOT_COUNT).fill(NO_SPELL);
 
+  /** Das Kampfprotokoll (GAME-DESIGN 18.2). */
+  readonly log = new CombatLog();
+
+  /**
+   * Eingabe-Zeitmessung (GAME-DESIGN 19.1): Millisekunden nach Ablauf der
+   * globalen Wartezeit, je angenommenem Druck.
+   *
+   * **Im fertigen Spiel bewusst nicht vorgesehen** (GAME-DESIGN 21.2: niemand
+   * wird für seine Reaktionszeit getadelt). Sie beantwortet nur die
+   * Balance-Frage, wie viel ein Mensch gegenüber der perfekten Rechnung verliert.
+   */
+  private inputTimingBuffer: RingBufferF64 | null = null;
+
+  /** Prüfsumme je Takt (GAME-DESIGN 19.1). Abschaltbar, weil sie Zeit kostet. */
+  private checksums: RingBufferF64 | null = null;
+  private trackChecksums = false;
+
+  /**
+   * Die Puffer entstehen erst beim ersten Zugriff.
+   *
+   * Im Auslieferungsstand greift niemand zu — dort werden sie nie angelegt, und
+   * die 48 KB des Prüfsummen-Puffers kosten nichts (GAME-DESIGN 19.3).
+   */
+  get inputTiming(): RingBufferF64 {
+    if (this.inputTimingBuffer === null) this.inputTimingBuffer = new RingBufferF64(512);
+    return this.inputTimingBuffer;
+  }
+
+  /**
+   * Leerlauf je Zauber in ms — wie lange er ungenutzt bereit lag.
+   *
+   * Gezählt wird nur in Takten, in denen **gar nichts** gewirkt wurde. Ein
+   * Zauber, der bereit war, während ein anderer gewirkt wurde, war eine
+   * Entscheidung, kein Leerlauf.
+   */
+  readonly idlePerSpellMs: Float64Array;
+
+  /** Liegt der Zauber auf mindestens einem Platz? */
+  private readonly boundSpells: Uint8Array;
+
   private accepted = 0;
   private rejected = 0;
   private lastSlot = -1;
@@ -77,7 +122,11 @@ export class Session implements Simulation {
     private readonly queue: PressQueue,
     readonly combat: Combat,
     private readonly feedback: FeedbackSink | null = null,
-  ) {}
+  ) {
+    this.idlePerSpellMs = new Float64Array(combat.spells.length);
+    this.boundSpells = new Uint8Array(combat.spells.length);
+    combat.log = this.log;
+  }
 
   /** Abkürzung: Die globale Wartezeit gehört dem Kampf. */
   get gcd(): Combat['gcd'] {
@@ -115,6 +164,9 @@ export class Session implements Simulation {
   bind(slot: number, spellIndex: number): void {
     if (slot < 0 || slot >= SLOT_COUNT) return;
     this.bindings[slot] = spellIndex;
+    if (spellIndex >= 0 && spellIndex < this.boundSpells.length) {
+      this.boundSpells[spellIndex] = 1;
+    }
   }
 
   spellOnSlot(slot: number): number {
@@ -166,8 +218,19 @@ export class Session implements Simulation {
       if (this.apply(slot, timeMs, stampMs, frameIndex)) casted = true;
     }
 
+    if (this.trackChecksums && this.phaseValue === PHASE_FIGHTING) {
+      this.checksums?.push(combatChecksum(this.combat, timeMs));
+    }
+
     if (this.phaseValue === PHASE_FIGHTING && !casted && this.combat.gcd.isReady(timeMs)) {
       this.idleTicks++;
+      // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
+      // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
+      for (let i = 0; i < this.boundSpells.length; i++) {
+        if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
+          this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
+        }
+      }
     }
   }
 
@@ -186,6 +249,24 @@ export class Session implements Simulation {
     if (this.phaseValue !== PHASE_COUNTDOWN) return 0;
     const left = this.countdownEndsAtMs - timeMs;
     return left > 0 ? left : 0;
+  }
+
+  /** Prüfsumme je Takt mitschreiben. Kostet Rechenzeit (GAME-DESIGN 19.1). */
+  setChecksumTracking(on: boolean): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.trackChecksums = on;
+    if (on) this.checksums ??= new RingBufferF64(6000);
+    else this.checksums?.clear();
+  }
+
+  get isTrackingChecksums(): boolean {
+    return this.trackChecksums;
+  }
+
+  /** Die zuletzt mitgeschriebenen Prüfsummen, älteste zuerst. */
+  checksumTrail(limit = 600): number[] {
+    const all = this.checksums?.toArray() ?? [];
+    return all.slice(Math.max(0, all.length - limit));
   }
 
   /** Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf endete. */
@@ -238,6 +319,30 @@ export class Session implements Simulation {
   }
 
   /**
+   * Die Kurzfassung des Laufs (GAME-DESIGN 15.1).
+   *
+   * Wird **nach** dem Kampf gerufen, nicht im Bild — hier darf Speicher entstehen.
+   */
+  summary(timeMs: number): RunSummary {
+    return buildSummary({
+      combat: this.combat,
+      log: this.log,
+      outcome: OUTCOME_NAMES[this.outcomeValue] ?? '?',
+      victory: this.outcomeValue === OUTCOME_VICTORY,
+      elapsedMs: this.fightElapsedMs(timeMs),
+      remainingMs: this.overpressureRemainingMs(timeMs),
+      casts: this.accepted,
+      lostTimeMs: this.idleMs,
+      idlePerSpellMs: this.idlePerSpellMs,
+      // In Schritt 1 gibt es keine Synergien: eine Schule, keine
+      // schulübergreifenden Fenster (GAME-DESIGN 5). Beide Zahlen sind 0, und
+      // die Ausbeute bleibt damit unbestimmt statt erfunden.
+      synergyUsed: 0,
+      synergyAvailable: 0,
+    });
+  }
+
+  /**
    * Den Kampf in diesem Takt beginnen lassen.
    *
    * Derselbe Weg, den der Countdown an seinem Ende nimmt — Uhr und Eingabe gehen
@@ -262,6 +367,7 @@ export class Session implements Simulation {
   private apply(slot: number, timeMs: number, stampMs: number, frameIndex: number): boolean {
     this.lastSlot = slot;
     const spellIndex = this.bindings[slot] ?? NO_SPELL;
+    const gcdReadyAt = this.combat.gcd.readyAt;
 
     let accepted = false;
     let reason = CAST_OK;
@@ -279,6 +385,10 @@ export class Session implements Simulation {
     }
 
     if (accepted) {
+      // Wie viele Millisekunden nach Freiwerden der Wartezeit kam der Druck?
+      // Nur für die Werkzeuge — im fertigen Spiel ausdrücklich nicht vorgesehen
+      // (GAME-DESIGN 21.2: niemand wird für seine Reaktionszeit getadelt).
+      if (__ROTA_DEVTOOLS__) this.inputTiming.push(timeMs - gcdReadyAt);
       this.acceptedAtMs[slot] = timeMs;
       this.accepted++;
       if (this.feedback !== null) this.feedback.onPressAccepted(slot, spellIndex, timeMs);
@@ -308,5 +418,9 @@ export class Session implements Simulation {
     this.outcomeValue = OUTCOME_NONE;
     this.countdownEndsAtMs = 0;
     this.endedAt = -1;
+    this.log.clear();
+    this.idlePerSpellMs.fill(0);
+    this.inputTimingBuffer?.clear();
+    this.checksums?.clear();
   }
 }
