@@ -12,8 +12,11 @@
  * Zeitsteuerung, Aufzeichnen, Prüfsumme und Kampfprotokoll folgen mit E1-8.
  */
 import type { App } from '../core/app.js';
+import { TICK_MS } from '../core/loop.js';
 import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js';
-import { KEYS_PER_LAYER, SLOT_CODES } from '../input/keys.js';
+import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
+import { NO_SPELL } from '../core/session.js';
+import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
   measureCooldown,
@@ -116,6 +119,47 @@ export interface CombatSnapshot {
   readonly dataProblems: readonly string[];
 }
 
+/**
+ * Ein Platz der Zauberleiste, wie er gerade gezeichnet wird.
+ *
+ * Die Maße stehen in **Geräte-Pixeln** auf der Zeichenfläche, nicht in
+ * Entwurfs-Koordinaten: So lässt sich mit `getImageData` nachmessen, was
+ * tatsächlich im Bild steht, statt dem Spiel zu glauben.
+ */
+export interface HudSlotSnapshot {
+  readonly slot: number;
+  readonly spellId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly ready: boolean;
+  readonly cooldownMs: number;
+  readonly cooldownRemainingMs: number;
+  /** Restanteil der Abklingzeit, 0 bis 1 — der Winkel der Wischblende folgt ihm. */
+  readonly sweepShare: number;
+  /** Winkel der Blenden-Kante in Radiant, 0 = drei Uhr, wachsend im Uhrzeigersinn. */
+  readonly sweepHandAngle: number;
+  readonly gcdRemainingMs: number;
+  readonly gcdShare: number;
+  readonly dotRemainingMs: number;
+  readonly dotDurationMs: number;
+}
+
+export interface HudSnapshot {
+  readonly canvasWidth: number;
+  readonly canvasHeight: number;
+  readonly scale: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
+  /** Zeichenvorgänge insgesamt. Muss der Zahl der Bilder entsprechen. */
+  readonly drawPasses: number;
+  readonly frames: number;
+  readonly slots: HudSlotSnapshot[];
+}
+
 /** Zustand der Eingabe (GAME-DESIGN 8). */
 export interface InputSnapshot {
   /** Angenommene Tastendrücke — sie haben die globale Wartezeit ausgelöst. */
@@ -159,6 +203,10 @@ export interface DevTools {
   input(): InputSnapshot;
   /** Zustand des Kampfes. */
   combat(): CombatSnapshot;
+  /** Lage und Zeitanzeigen der Zauberleiste, in Geräte-Pixeln. */
+  hud(): HudSnapshot;
+  /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
+  bindSlot(slot: number, spellId: string): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
   setResource(value: number): void;
   /** Kampf von vorn beginnen. */
@@ -318,6 +366,66 @@ export function installDevTools(app: App): void {
         randomDraws: combat.random.drawCounts(),
         dataProblems: app.dataProblems,
       };
+    },
+    hud: () => {
+      const combat = app.combat;
+      const surface = app.surface;
+      // Dieselbe Zeit, die auch der Renderer benutzt: die interpolierte. Sonst
+      // meldete die Abfrage einen anderen Stand als der, der im Bild steht, und
+      // ein Vergleich mit den Bildpunkten wäre wertlos.
+      const timeMs = app.loop.timeMs + app.loop.alpha * TICK_MS;
+      const scale = surface.designScale;
+      const rect: Rect = { x: 0, y: 0, width: 0, height: 0 };
+      const slots: HudSlotSnapshot[] = [];
+      for (let slot = 0; slot < SLOT_COUNT; slot++) {
+        const spellIndex = app.session.spellOnSlot(slot);
+        if (spellIndex === NO_SPELL) continue;
+        const spell = combat.spellAt(spellIndex);
+        if (spell === undefined) continue;
+        slotRect(slot, rect);
+        const cooldownRemainingMs = combat.cooldownRemainingMs(spellIndex, timeMs);
+        const sweepShare = spell.cooldownMs > 0 ? cooldownRemainingMs / spell.cooldownMs : 0;
+        const gcdRemainingMs = combat.gcd.remainingMs(timeMs);
+        const x = surface.designOffsetX + rect.x * scale;
+        const y = surface.designOffsetY + rect.y * scale;
+        const width = rect.width * scale;
+        const height = rect.height * scale;
+        slots.push({
+          slot,
+          spellId: spell.id,
+          x,
+          y,
+          width,
+          height,
+          centerX: x + width * 0.5,
+          centerY: y + height * 0.5,
+          ready: cooldownRemainingMs === 0 && gcdRemainingMs === 0,
+          cooldownMs: spell.cooldownMs,
+          cooldownRemainingMs,
+          sweepShare,
+          sweepHandAngle: sweepHandAngle(sweepShare),
+          gcdRemainingMs,
+          gcdShare: gcdRemainingMs / combat.gcd.lengthMs,
+          dotRemainingMs: combat.dotRemainingMs(spellIndex, timeMs),
+          dotDurationMs: spell.dot?.durationMs ?? 0,
+        });
+      }
+      return {
+        canvasWidth: surface.canvas.width,
+        canvasHeight: surface.canvas.height,
+        scale,
+        offsetX: surface.designOffsetX,
+        offsetY: surface.designOffsetY,
+        drawPasses: surface.drawPasses,
+        frames: app.loop.frameCount,
+        slots,
+      };
+    },
+    bindSlot: (slot: number, spellId: string) => {
+      const index = app.combat.indexOf(spellId);
+      if (index < 0) return false;
+      app.session.bind(slot, index);
+      return true;
     },
     setResource: (value: number) => {
       app.combat.setResource(value);
