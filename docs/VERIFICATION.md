@@ -177,7 +177,20 @@ Werte müssen um Null schwanken und dürfen **nicht** proportional zur Bildzahl 
 >
 > Ein Einzelwert von „0" ist kein Nachweis, sondern ein Treffer im Rauschband.
 
-**Zwei Fallen bei dieser Messung** (beide bei der Abnahme von Issue #8 aufgetreten):
+**Die Messung verfälscht die Takt-Zählung** (gefunden bei Issue #11): Die erzwungene Aufräumung
+hält die Seite über hundert Millisekunden an; danach holt die Schleife Takte nach und verwirft den
+Rest. Eine einzige Speichermessung erzeugte so **10 verworfene Takte**, die wie ein Spielfehler
+aussahen.
+
+`GameLoop.discardPendingTime` trennt das jetzt: `perf().discardedForMeasurement` zählt die
+Mess-Artefakte getrennt von `droppedTicks`. **Nachgemessen bei der Abnahme:** `droppedTicks` blieb
+über eine Speichermessung hinweg unverändert, `discardedForMeasurement` stand bei 6.
+
+> **Folge für § 3.1:** Wer `droppedTicks` nach einer Speichermessung liest, misst seinen Prüfstand.
+> Entweder vorher zurücksetzen oder beide Zähler nebeneinander lesen. Die „7 verworfenen Takte", die
+> ich bei Issue #7 als Build-Wechsel erklärt habe, waren mit hoher Wahrscheinlichkeit dasselbe.
+
+**Zwei weitere Fallen** (beide bei der Abnahme von Issue #8 aufgetreten):
 
 1. **Die erste Messung nach dem Laden ist unbrauchbar.** Direkt nach dem Öffnen wurden 450 KB auf
    300 Bilder gemessen — reines Aufwärmen (Klang-Dekodierung, JIT). **Vor der Messung 20 bis 25 s
