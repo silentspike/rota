@@ -80,6 +80,17 @@
       "source": "https://suno.com",
       "required": false,
       "covers": ["assets/audio/*.ogg"]
+    },
+    {
+      "id": "frames-generated",
+      "work": "Frames and vessel mount",
+      "author": "generated for ROTA",
+      "attribution": "Frames generated for ROTA with gpt-image",
+      "license": "Own work",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "source": "https://github.com/silentspike/rota",
+      "required": false,
+      "covers": ["assets/img/frames/*.png"]
     }
   ]
 }

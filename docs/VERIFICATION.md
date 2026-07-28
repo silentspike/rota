@@ -73,6 +73,20 @@ playwright-cli -s=rota eval "window.__rota.log()"
 
 ## 3. Die fünf Standard-Messungen
 
+> **Jeder `eval`-Ausdruck mit `=>` muss eine nackte Pfeilfunktion sein.**
+> `playwright-cli eval` hält jeden Ausdruck, in dem `=>` vorkommt, für eine
+> Funktionsdefinition und ruft ihn auf — sonst `TypeError: result is not a function`.
+>
+> ```bash
+> eval "window.__rota.log().filter(e=>e.type==='cast').length"        # scheitert
+> eval "(() => typeof window.__rota)()"                               # scheitert AUCH
+> eval "() => window.__rota.log().filter(e=>e.type==='cast').length"  # läuft
+> ```
+>
+> Die sofort aufgerufene Fassung `(() => …)()` ist die naheliegende Rettung und
+> scheitert genauso — sie enthält ebenfalls `=>`. Von der E1-Session bei #14
+> gemeldet, beim Nachprüfen an der eigenen Schreibweise bestätigt.
+
 Aus `GAME-DESIGN.md` 20.2. Sie gelten für jedes Issue, das den Kampf berührt.
 
 ### 3.1 Ruckelfreiheit
@@ -172,7 +186,7 @@ playwright-cli -s=rota eval "window.__rota.measureCooldown('kindle', 100)"
 
 ```bash
 playwright-cli -s=rota eval "window.__rota.log().length"
-playwright-cli -s=rota eval "window.__rota.log().filter(e=>e.type==='cast').length"
+playwright-cli -s=rota eval "() => window.__rota.log().filter(e=>e.type==='cast').length"
 ```
 
 **Bestanden:** Die Zahl der protokollierten Wirkungen stimmt mit der Zahl der Tastendrücke aus der
@@ -185,7 +199,7 @@ Voraussetzung: `.playwright/cli.config.json` startet Chrome mit `--js-flags=--ex
 
 ```bash
 # Messung starten, Ergebnis in eine globale Variable (eval kennt kein await)
-playwright-cli -s=rota eval "(window.__m=null, window.__rota.measureAllocations(600).then(r=>{window.__m=r}), 1)"
+playwright-cli -s=rota eval "() => { window.__m=null; window.__rota.measureAllocations(600).then(r=>{window.__m=r}); return 1; }"
 sleep 14
 playwright-cli -s=rota eval "JSON.stringify(window.__m)"
 ```
@@ -240,7 +254,9 @@ korrekt** läuft: springt nichts, stimmen Timing und Endzustand.
 ```bash
 # 1. Aufzeichnen
 playwright-cli -s=rota video-start
-playwright-cli -s=rota eval "window.__rota.replay('cooldown-sweep')"
+# replayLive, NICHT replay: replay() rechnet sofort und ohne Bild durch — die
+# Aufnahme zeigte sonst einen unveraenderten Bildschirm.
+playwright-cli -s=rota eval "() => window.__rota.replayLive('cooldown-sweep')"
 playwright-cli -s=rota video-stop /tmp/anim.webm
 
 # 2. Zerlegen — 1280 px Breite, Qualität 6 (Begründung unten)
