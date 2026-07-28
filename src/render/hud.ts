@@ -21,6 +21,7 @@ import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import type { Overlay } from './overlay.js';
+import type { Impact } from './impact.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
@@ -74,7 +75,8 @@ export class HudRenderer {
     overpressureRemainingMs: number;
     shownMs: number;
     finished: boolean;
-  } = { hpFraction: 1, overpressureRemainingMs: 0, shownMs: 0, finished: false };
+    flash: number;
+  } = { hpFraction: 1, overpressureRemainingMs: 0, shownMs: 0, finished: false, flash: 0 };
 
   /** Ergebnis-Werte der Auswertung. Wiederverwendet, damit nichts entsteht. */
   private readonly resultView = {
@@ -91,6 +93,7 @@ export class HudRenderer {
     private readonly session: Session,
     labels: KeyLabels,
     private readonly overlay: Overlay,
+    private readonly impact: Impact,
   ) {
     this.spellBar = new SpellBar(session, labels);
     const ctx = surface.ctx;
@@ -103,6 +106,7 @@ export class HudRenderer {
     ctx.font = FONT_COUNTDOWN;
     this.digitAdvanceCountdown = measureDigitAdvance(ctx);
     this.spellBar.measure(ctx);
+    this.impact.measure(ctx);
   }
 
   render(simTimeMs: number, alpha: number): void {
@@ -111,10 +115,12 @@ export class HudRenderer {
     // Wischblende und Wartezeit bei 144 Hz sichtbar in Zehntel-Stufen.
     const shownMs = simTimeMs + alpha * TICK_MS;
 
-    this.surface.beginFrame(BACKGROUND, LETTERBOX);
+    // Das Bild-Ruckeln verschiebt die ganze Fläche (GAME-DESIGN 9).
+    this.surface.beginFrame(BACKGROUND, LETTERBOX, this.impact.shakeOffset(shownMs), 0);
     ctx.textBaseline = 'alphabetic';
 
     this.drawVesselAndTimer(ctx, shownMs);
+    this.impact.draw(ctx, shownMs);
     this.drawHeat(ctx);
     this.spellBar.draw(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
@@ -178,6 +184,7 @@ export class HudRenderer {
     this.vesselView.overpressureRemainingMs = fighting ? remaining : Number.POSITIVE_INFINITY;
     this.vesselView.shownMs = shownMs;
     this.vesselView.finished = phase === PHASE_ENDED;
+    this.vesselView.flash = this.impact.flashStrength(shownMs);
     drawVessel(ctx, this.vesselView);
 
     // Prozentzahl in der Mitte des Rings.

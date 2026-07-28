@@ -15,6 +15,7 @@ import { Session } from './session.js';
 import { PressQueue } from '../input/queue.js';
 import { InputRouter } from '../input/router.js';
 import { KeyLabels } from '../input/layout.js';
+import { Impact } from '../render/impact.js';
 import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { HudRenderer } from '../render/hud.js';
@@ -29,6 +30,7 @@ export class App {
   readonly labels = new KeyLabels();
   readonly audio = new AudioFeedback();
   readonly overlay: Overlay;
+  readonly impact = new Impact();
 
   private readonly boundUiKey: (event: KeyboardEvent) => void;
 
@@ -58,7 +60,20 @@ export class App {
       onBackToMenu: () => this.backToMenu(),
     });
 
-    const renderer = new HudRenderer(this.surface, this.session, this.labels, this.overlay);
+    // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
+    // stummes, unsichtbares Spiel rechnet identisch (GAME-DESIGN 18.5).
+    this.combat.onHit = (damage, kind, isCrit, big, timeMs): void => {
+      this.impact.onHit(damage, kind, isCrit, big, timeMs);
+      this.audio.onHit(damage, kind, isCrit, big);
+    };
+
+    const renderer = new HudRenderer(
+      this.surface,
+      this.session,
+      this.labels,
+      this.overlay,
+      this.impact,
+    );
     this.loop = new GameLoop({
       simulation: this.session,
       renderer,
@@ -128,6 +143,7 @@ export class App {
   backToMenu(): void {
     this.overlay.setPaused(false);
     this.session.reset();
+    this.impact.reset();
     this.loop.reset();
   }
 
