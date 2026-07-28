@@ -47,7 +47,7 @@ fn smoulder_bei_0_und_4000(fight: &Fight) -> Option<usize> {
     None
 }
 
-/// **Grenze des ereignisgesteuerten Modells — festgehalten, nicht behoben.**
+/// **Grenze einer Rotation, die blosse Funktion ist.**
 ///
 /// Die Rotation wird nur an Ereigniszeitpunkten befragt. Fuer eine Rotation, die
 /// den **Zustand** abfragt, ist das vollstaendig: Der Zustand aendert sich
@@ -59,15 +59,16 @@ fn smoulder_bei_0_und_4000(fight: &Fight) -> Option<usize> {
 /// nicht gewirkt. Die Referenz mit ihrem 10-ms-Takt wirkt an derselben Stelle
 /// sehr wohl.
 ///
-/// Das ist beim Bau von E2-1 aufgefallen und gehoert zu **E2-3 (APL-Sprache)**:
-/// Erlaubt die Prioritaetenliste zeitabhaengige Bedingungen — etwa "in den
-/// letzten zehn Sekunden des Kampfes" —, dann muss die Auswertung fuer jede
-/// solche Bedingung einen Weckruf einplanen. Bis dahin haelt dieser Test fest,
-/// **dass** die Grenze besteht, damit sie in E2-3 nicht neu entdeckt werden muss.
+/// **Seit E2-3 ist das fuer Prioritaetenlisten geloest** — sie kennen ihre
+/// Bedingungen und melden ueber `Decide::next_wakeup`, wann sie erneut geprueft
+/// werden wollen (`tests/apl.rs`,
+/// `zeitabhaengige_bedingungen_wecken_den_simulator`). Eine Funktion kann das
+/// nicht: Sie ist eine undurchsichtige Entscheidung, aus der sich kein
+/// Umschlagpunkt ableiten laesst.
 ///
-/// Betroffen ist dabei nur der Fall, dass die globale Wartezeit bereits
-/// abgelaufen ist und trotzdem nichts gewirkt wird. Wer wirkt, loest damit einen
-/// Weckruf aus.
+/// Dieser Test haelt deshalb fest, dass die Grenze fuer Funktionen **weiterhin
+/// besteht** — wer eine zeitabhaengige Rotation braucht, schreibt sie als
+/// Prioritaetenliste.
 #[test]
 fn zeitgesteuerte_rotationen_werden_nur_an_ereigniszeitpunkten_befragt() {
     fn smoulder_bei_0_und_3000(fight: &Fight) -> Option<usize> {

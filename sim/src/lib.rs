@@ -55,6 +55,7 @@
 
 #![warn(missing_docs)]
 
+pub mod apl;
 pub mod checksum;
 pub mod data;
 pub mod event;
@@ -65,8 +66,9 @@ pub mod rng;
 pub mod rotation;
 pub mod time;
 
+pub use apl::{Apl, AplError};
 pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
-pub use fight::{Fight, FightConfig, RunResult};
+pub use fight::{Decide, Fight, FightConfig, RunResult};
 pub use replay::{Binding, Press, Recording, ReplayResult};
 pub use rng::{Stream, Streams};
 pub use time::{Millis, GCD_MS, TICK_MS};
