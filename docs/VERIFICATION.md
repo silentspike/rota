@@ -94,6 +94,18 @@ playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().frameTimeSummar
 > `max 5,3 ms, over 0` bei 794 Bildern — Abstand im selben Lauf `max 100 ms, over 456`. Wer die
 > falsche Reihe nimmt, verwirft eine einwandfreie Umsetzung.
 >
+> **Vor jedem Leistungsbefund einmal OHNE die geprüfte Sache messen.** Ohne diese Nullmessung
+> beschuldigt man das Falsche. Zwei reale Fälle:
+>
+> | Fall      | Was es schien                                          | Was es war                                                                                                              |
+> | --------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+> | Issue #10 | 25,3 ms Arbeitszeit, 178 verworfene Takte              | Zwei gleichzeitige Playwright-Schleifen hungerten die Seite aus. Sauber: 1,2 ms, 0 verworfen                            |
+> | Issue #12 | 42 statt 60 Bilder je Sekunde durch die Schadenszahlen | Die Browser-Sitzung war nach ~40 Minuten Dauermessung müde. Der Vergleichslauf **ohne** Treffer zeigte dieselben 45 fps |
+>
+> **Bei langen Messreihen den Browser neu starten.** Im zweiten Fall lagen in einer frischen Sitzung
+> alle vier Varianten bei 60 fps — und ohne die Nullmessung wäre ein Fehler gemeldet worden, den es
+> nicht gibt.
+
 > `frameIntervalSummary` ist trotzdem nützlich: Ein hoher `max` dort zeigt Aussetzer der Umgebung
 > (Systemlast, headless-Eigenheiten) und erklärt verworfene Takte.
 
