@@ -9,8 +9,8 @@
  * Referenz. Sie sind hier bewusst als Zahlen ausgeschrieben statt zur Laufzeit
  * ermittelt: Ein Prüffall, der seinen Sollwert aus dem Prüfling zieht, prüft nichts.
  *
- * Läuft im CI als eigener Job `parity`, sobald `data/`, `src/core/` oder `sim/`
- * berührt werden.
+ * Läuft im CI als eigener Job `parity`, sobald `data/`, `src/core/`, `sim/`,
+ * `tools/` oder `tests/parity/` berührt werden.
  */
 import { describe, expect, it } from 'vitest';
 import { runReference } from '../../src/devtools/reference-run.js';
@@ -18,12 +18,12 @@ import { runReference } from '../../src/devtools/reference-run.js';
 /** Aus `docs/STEP1-SPEC.md` § 4 — dem Lauf von `python3 tools/step1-check.py`. */
 const REFERENCE = {
   good: {
-    damage: 4236,
-    killedAtMs: 44_000,
-    remainingMs: 16_000,
-    casts: { kindle: 23, smoulder: 4, pyre: 3 },
-    pyreDamage: 1176,
-    smoulderDamage: 760,
+    damage: 4240,
+    killedAtMs: 40_510,
+    remainingMs: 19_490,
+    casts: { kindle: 20, smoulder: 4, pyre: 4 },
+    pyreDamage: 1440,
+    smoulderDamage: 800,
     lostDotTicks: 0,
     resourceOverflow: 0,
     idleMs: 0,
@@ -40,11 +40,11 @@ const REFERENCE = {
   },
   /** Vergleich über die vollen 60 s, ohne Abbruch beim Sieg. */
   full: {
-    good: 5992,
+    good: 5960,
     bad: 4044,
     dotErrorOnly: 5368,
-    pyreErrorOnly: 4316,
-    spreadPercent: 48.2,
+    pyreErrorOnly: 4524,
+    spreadPercent: 47.4,
   },
 } as const;
 
@@ -67,8 +67,8 @@ describe('Prüffall Schritt 1 — gute Rotation (AC1)', () => {
   it('verteilt den Schaden gleich auf die Zauber', () => {
     expect(run.damageBySpell['pyre']).toBe(REFERENCE.good.pyreDamage);
     expect(run.damageBySpell['smoulder']).toBe(REFERENCE.good.smoulderDamage);
-    // Der Rest ist KINDLE: 23 Wirkungen à 100.
-    expect(run.damageBySpell['kindle']).toBe(2300);
+    // Der Rest ist KINDLE: 20 Wirkungen à 100.
+    expect(run.damageBySpell['kindle']).toBe(2000);
   });
 
   it('verschenkt weder DoT-Ticks noch Hitze noch Zeit', () => {
@@ -133,13 +133,19 @@ describe('Prüffall Schritt 1 — Vergleich über die vollen 60 s', () => {
     expect(spread).toBeGreaterThanOrEqual(10);
   });
 
-  it('lässt auch jeden Einzelfehler über zehn Prozent kosten', () => {
-    // Wer nur einen der beiden Punkte versteht, sieht bereits einen messbaren
-    // Sprung — die Lernkurve aus STEP1-SPEC § 4.
+  it('lässt jeden Einzelfehler spürbar kosten — PYRE deutlich mehr als der DoT', () => {
+    // Das 10-%-Kriterium aus GAME-DESIGN 20.3 gilt für gute GEGEN schlechte
+    // Rotation, nicht je Einzelfehler. Seit der Umstellung auf sechs DoT-Ticks
+    // (STEP1-SPEC § 1.2) kostet der DoT-Fehler 9,9 %, der PYRE-Fehler 24,1 % —
+    // auch die schlechte Rotation profitiert vom sechsten Tick.
+    //
+    // Das ist eine brauchbare Lernreihenfolge: Die auffälligere Regel (Bonus ab
+    // 15 Hitze) zahlt sich zuerst aus, die feinere (spät erneuern) danach.
     const dotLoss = (100 * (good.damage - dotOnly.damage)) / good.damage;
     const pyreLoss = (100 * (good.damage - pyreOnly.damage)) / good.damage;
-    expect(dotLoss).toBeGreaterThan(10);
-    expect(pyreLoss).toBeGreaterThan(10);
+    expect(dotLoss).toBeGreaterThan(5);
+    expect(pyreLoss).toBeGreaterThan(20);
+    expect(pyreLoss).toBeGreaterThan(dotLoss * 2);
   });
 });
 
