@@ -56,7 +56,10 @@ jobs:
           {
             echo "code=$(nondoc)"
             echo "sim=$(match '^sim/')"
-            echo "rules=$(match '^(data/|src/core/|sim/)')"
+            # tools/ und tests/parity/ gehoeren dazu: tools/step1-check.py IST die
+            # Referenz, gegen die der parity-Job prueft. Ohne sie im Filter geht
+            # eine geaenderte Referenz ungeprueft durch (aufgetreten bei PR #41).
+            echo "rules=$(match '^(data/|src/core/|sim/|tools/|tests/parity/)')"
           } >> "$GITHUB_OUTPUT"
       - name: Ergebnis
         run: |

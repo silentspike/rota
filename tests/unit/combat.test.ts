@@ -202,22 +202,24 @@ describe('Combat — SMOULDER (AC3)', () => {
     combat.cast(smoulder, 0);
     stepUntil(combat, TICK_MS, 20_000);
 
-    expect(combat.isDotActive(smoulder, 12_000)).toBe(false);
+    // Zum Ablaufzeitpunkt selbst gilt der Effekt noch als aktiv — genau dort
+    // fällt der sechste Tick. Erst danach ist er weg.
+    expect(combat.isDotActive(smoulder, 12_000)).toBe(true);
+    expect(combat.isDotActive(smoulder, 12_010)).toBe(false);
     expect(combat.dotRemainingMs(smoulder, 12_000)).toBe(0);
   });
 
-  it('tickt fünfmal je Anwendung — die Regel der Referenz', () => {
-    // WICHTIG: `tools/step1-check.py` prüft `expires > t`; im Takt des Ablaufs
-    // tickt der Effekt nicht mehr. STEP1-SPEC § 1.2 nennt in einer Klammer
-    // "6 Ticks, 240 Schaden". Der Widerspruch ist gemeldet und noch offen; dieser
-    // Test hält fest, wogegen AC1 tatsächlich prüft.
+  it('tickt sechsmal je Anwendung — der letzte Tick fällt mit dem Ablauf zusammen', () => {
+    // Entschieden am 2026-07-28 (STEP1-SPEC § 1.2): Ticks bei 2, 4, 6, 8, 10 und
+    // 12 s. Bei fünf Ticks wären die letzten zwei Sekunden wirkungslos, obwohl
+    // die Restlaufzeit-Anzeige 12,0 s zeigt.
     const combat = makeCombat();
     const smoulder = combat.indexOf('smoulder');
     combat.cast(smoulder, 0);
     stepUntil(combat, TICK_MS, 20_000);
 
-    expect(combat.dotTickCount(smoulder)).toBe(5);
-    expect(combat.damageOf(smoulder)).toBe(200);
+    expect(combat.dotTickCount(smoulder)).toBe(6);
+    expect(combat.damageOf(smoulder)).toBe(240);
   });
 });
 
