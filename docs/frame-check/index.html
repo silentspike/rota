@@ -112,12 +112,14 @@
         outline: 1px solid var(--slot-edge);
         outline-offset: -1px;
       }
-      .panel.rahmen::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: url('frames/panel-frame.png') center / 100% 100% no-repeat;
-        pointer-events: none;
+      /* Die Tafel benutzt DENSELBEN Rahmen wie der Slot, als 9-Slice gezogen:
+         Die vier Ecken bleiben unveraendert, die Kanten werden nur laengs
+         gestreckt, nie quer. Dadurch ist die Bandstaerke hier exakt so gross
+         wie am Slot - und der Stil kann gar nicht driften, weil es dasselbe
+         Bild ist. */
+      .panel.rahmen {
+        border: 10px solid transparent;
+        border-image: url('frames/slot-frame.png') 19 fill / 10px / 0 stretch;
       }
       .meter {
         display: flex;
@@ -148,11 +150,15 @@
         position: absolute;
         inset: 0;
       }
+      /* Die Fassung liegt AUSSEN und INNEN um den Kanal, in dem der
+         Fuellstand laeuft - sie darf ihn nicht ueberdecken. Das Bild ist
+         deshalb groesser als der Ring: die beiden Reifen sitzen bei Radius
+         364-396 und 480-512 von 512. */
       .vessel.rahmen::after {
         content: '';
         position: absolute;
-        inset: 0;
-        background: url('frames/ring-band.png') center / 100% 100% no-repeat;
+        inset: -14.5px;
+        background: url('frames/ring-mount.png') center / 100% 100% no-repeat;
         pointer-events: none;
       }
 
