@@ -69,6 +69,17 @@
       "source": "https://fonts.google.com/specimen/EB+Garamond",
       "required": false,
       "covers": ["assets/fonts/EBGaramond-Variable.ttf"]
+    },
+    {
+      "id": "suno-audio",
+      "work": "Sound effects and music layers",
+      "author": "Suno",
+      "attribution": "Sound created with Suno",
+      "license": "Suno Pro — commercial use rights",
+      "licenseUrl": "https://suno.com/terms",
+      "source": "https://suno.com",
+      "required": false,
+      "covers": ["assets/audio/*.ogg"]
     }
   ]
 }
