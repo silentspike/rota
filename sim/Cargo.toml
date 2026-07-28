@@ -1,0 +1,23 @@
+[package]
+name = "rota-sim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "ROTA-Simulator — dieselben Kampfregeln wie das Spiel, ereignisgesteuert und deterministisch"
+
+# Die Bibliothek selbst hat KEINE Abhaengigkeiten. Das ist Absicht: Eine Kiste,
+# die im Schritt Speicher anfordert oder ihre Zufallszahlen zwischen zwei
+# Fassungen anders erzeugt, wuerde den Determinismus aus GAME-DESIGN 18.4
+# unterlaufen — und genau der ist der Zweck dieses Simulators.
+[dependencies]
+
+# Nur zur Bauzeit: build.rs verwandelt data/*.json in statische Rust-Werte.
+# Zur Laufzeit ist kein JSON mehr vorhanden, also auch kein Parser noetig.
+[build-dependencies]
+serde_json = "1"
+
+# Nur fuer Tests: Der Nachweis, dass die einkompilierten Werte Feld fuer Feld
+# denen aus data/ entsprechen, liest das JSON ein zweites Mal — bewusst auf
+# einem anderen Weg als build.rs, sonst pruefte der Test seinen eigenen Fehler mit.
+[dev-dependencies]
+serde_json = "1"
