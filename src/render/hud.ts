@@ -1,62 +1,44 @@
 /**
- * Die Zauberleiste als Tastatur-Abbild (GAME-DESIGN 9.1) — Stand Issue E1-3.
+ * Das HUD (GAME-DESIGN 9) — Stand Issue E1-4.
  *
- * Die Leiste bildet die Tastatur nach: obere Reihe, mittlere Reihe, untere Reihe,
- * Leertaste. **Auge und Finger lernen dieselbe Karte.** Beide Ebenen sind dauerhaft
- * sichtbar, weil auch die selteneren Belegungen ihre Abklingzeit zeigen müssen.
+ * **Das Spiel IST das HUD** (Design-Gesetz 4). Es gibt keine Spielfigur und kein
+ * Kreatur-Artwork; die Gestaltungsarbeit fließt in Zauberleiste, Abklingzeiten,
+ * Zahlen und Balken.
  *
- * Was hier noch **nicht** steht: Zauber-Symbole, die Wischblende als rotierende
- * Maske, die eigene Darstellung der globalen Wartezeit und die Hitze-Anzeige mit
- * Markierung bei 15. Das ist Issue E1-4. Ebenfalls dort zu entscheiden, ob leere
- * Plätze überhaupt gezeichnet werden (GAME-DESIGN 9.1: „nur freigeschaltete Plätze
- * zeigen") — bis dahin bleiben sie als schwache Kästen stehen, damit die feste
- * Lage der Plätze sichtbar ist.
+ * Anordnung nach GAME-DESIGN 9.1:
  *
- * Im Bild-Pfad wird nichts erzeugt: feste Zeichenketten, ziffernweise Zahlen,
- * keine Textvermessung.
+ * - **Zauberleiste unten links** — siehe `spellbar.ts`
+ * - **Schul-Mechanik-Anzeige direkt darüber** — die Hitze, mit Markierung bei 15
+ * - **Instrumente rechts** — Zeit, Schaden, Wirkungen
+ * - **Boss in der Bildmitte** — hier noch als Balken; der Reaktionsgefäß-Ring
+ *   entsteht in E1-5
+ *
+ * Ein Zeichenvorgang je Bild (GAME-DESIGN 18.2): `Surface.beginFrame` läuft genau
+ * einmal, danach wird nur noch in dieselbe Fläche gezeichnet.
  */
 import { FIGHT_OVERPRESSURE, FIGHT_WON } from '../core/combat.js';
 import { TICK_MS } from '../core/loop.js';
-import { NEVER, NO_SPELL, type Session } from '../core/session.js';
-import {
-  KEYS_PER_LAYER,
-  LAYER_COUNT,
-  SPACE_POSITION,
-  columnOfPosition,
-  rowOfPosition,
-  slotOf,
-} from '../input/keys.js';
+import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
-import { DESIGN_WIDTH, Surface } from './surface.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
+import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
+import { DESIGN_WIDTH, Surface } from './surface.js';
 
 const BACKGROUND = '#0b0b0f';
 const LETTERBOX = '#000000';
-const INK = '#cfcfd8';
+const INK = '#d5d5de';
 const INK_DIM = '#61616e';
-const INK_FAINT = '#3a3a46';
-const SLOT_FILL = '#15151c';
-const SLOT_FILL_READY = '#20202b';
-const SLOT_EDGE = '#2e2e3a';
-const SLOT_EDGE_BOUND = '#4a4a5c';
-const GCD_TRACK = '#1d1d27';
-const GCD_FILL = '#6f86a8';
-const HEAT_TRACK = '#1d1d27';
-const HEAT_FILL = '#e08a3c';
+const HEAT_TRACK = '#1b1b24';
+/** CALCINATION ist rot-orange (GAME-DESIGN 9.3). */
+const HEAT_FILL = '#d4762e';
+const HEAT_FILL_BONUS = '#f0a24a';
 const HEAT_MARK = '#efe7d4';
-const BOSS_TRACK = '#1d1d27';
+const BOSS_TRACK = '#1b1b24';
 const BOSS_FILL = '#a8442f';
-const FLASH_ACCEPT = '#efe7d4';
-const FLASH_REJECT = '#c03a30';
 
-const FONT_KEY = '20px ui-monospace, "DejaVu Sans Mono", monospace';
-const FONT_NAME = '19px ui-monospace, "DejaVu Sans Mono", monospace';
-const FONT_COOLDOWN = '30px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_TEXT = '24px ui-monospace, "DejaVu Sans Mono", monospace';
+const FONT_SMALL = '19px ui-monospace, "DejaVu Sans Mono", monospace';
 
-const TITLE = 'ROTA — spells, cooldowns, heat (E1-3)';
-const BLOCK_TITLES: readonly string[] = ['DIRECT', 'SHIFT'];
-const LABEL_GCD = 'GCD';
 const LABEL_HEAT = 'HEAT';
 const LABEL_BOSS = 'THE FIRST CRUCIBLE';
 const LABEL_TIME = 'time';
@@ -66,25 +48,10 @@ const LABEL_MISSED = 'misinputs';
 const LABEL_STATE = 'state';
 const STATE_NAMES: readonly string[] = ['fighting', 'defeated', 'overpressure'];
 
-/**
- * Bewegungen nach den vier Größen aus GAME-DESIGN 9.4: Dauer, Kurve,
- * Überschwingen, Verzögerung. Beide Blitze laufen ohne Überschwingen und ohne
- * Verzögerung — eine Rückmeldung auf einen Tastendruck darf nicht nachfedern.
- */
-const ACCEPT_FLASH_MS = 140;
-const REJECT_FLASH_MS = 220;
-
-const SLOT_SIZE = 92;
-const SLOT_GAP = 10;
-const SPACE_HEIGHT = 46;
-const BLOCK_WIDTH = 4 * SLOT_SIZE + 3 * SLOT_GAP;
-const BLOCK_TOP = 658;
-const BLOCK_LEFT: readonly number[] = [90, 90 + BLOCK_WIDTH + 70];
-const BAR_LEFT = 90;
-const BAR_WIDTH = (BLOCK_LEFT[1] as number) + BLOCK_WIDTH - BAR_LEFT;
-const BAR_HEIGHT = 16;
-const GCD_TOP = 596;
-const HEAT_TOP = 530;
+const BAR_WIDTH = BAR_RIGHT - BAR_LEFT;
+/** Direkt über der Zauberleiste (GAME-DESIGN 9.1). */
+const HEAT_HEIGHT = 26;
+const HEAT_TOP = BLOCK_TOP - 66;
 const BOSS_TOP = 300;
 const BOSS_HEIGHT = 26;
 const READOUT_RIGHT = DESIGN_WIDTH - 90;
@@ -92,34 +59,32 @@ const READOUT_LEFT = 1180;
 
 export class HudRenderer {
   private digitAdvance = 16;
+  private readonly spellBar: SpellBar;
 
   constructor(
     private readonly surface: Surface,
     private readonly session: Session,
-    private readonly labels: KeyLabels,
+    labels: KeyLabels,
   ) {
+    this.spellBar = new SpellBar(session, labels);
     const ctx = surface.ctx;
     ctx.font = FONT_TEXT;
     this.digitAdvance = measureDigitAdvance(ctx);
+    this.spellBar.measure(ctx);
   }
 
   render(simTimeMs: number, alpha: number): void {
     const ctx = this.surface.ctx;
     // Die anzuzeigende Zeit läuft zwischen den Takten weiter: Ohne das ruckten
-    // Abklingzeiten und Wartezeit bei 144 Hz sichtbar in Zehntel-Stufen.
+    // Wischblende und Wartezeit bei 144 Hz sichtbar in Zehntel-Stufen.
     const shownMs = simTimeMs + alpha * TICK_MS;
 
     this.surface.beginFrame(BACKGROUND, LETTERBOX);
     ctx.textBaseline = 'alphabetic';
-    ctx.textAlign = 'left';
-    ctx.font = FONT_TEXT;
-    ctx.fillStyle = INK;
-    ctx.fillText(TITLE, BAR_LEFT, 180);
 
     this.drawBoss(ctx);
     this.drawHeat(ctx);
-    this.drawGcd(ctx, shownMs);
-    for (let layer = 0; layer < LAYER_COUNT; layer++) this.drawBlock(ctx, layer, shownMs);
+    this.spellBar.draw(ctx, shownMs);
     this.drawReadouts(ctx, simTimeMs);
   }
 
@@ -137,152 +102,39 @@ export class HudRenderer {
     ctx.fillRect(BAR_LEFT, BOSS_TOP, BAR_WIDTH * combat.bossHpFraction, BOSS_HEIGHT);
 
     ctx.fillStyle = INK;
-    drawIntegerRight(
-      ctx,
-      combat.bossHpRemaining,
-      BAR_LEFT + BAR_WIDTH,
-      BOSS_TOP - 14,
-      this.digitAdvance,
-    );
+    drawIntegerRight(ctx, combat.bossHpRemaining, BAR_RIGHT, BOSS_TOP - 14, this.digitAdvance);
   }
 
-  /** Hitze mit Markierung an der Bonus-Schwelle (GAME-DESIGN 9, STEP1-SPEC 1.4). */
+  /**
+   * Die Hitze mit Markierung an der Bonus-Schwelle (GAME-DESIGN 9, STEP1-SPEC 1.4).
+   *
+   * Die Markierung bei 15 ist die wichtigste Linie des Bildes: Rechts davon
+   * verdoppelt der Entlade-Zauber seinen Schaden. Damit sie nicht allein als Farbe
+   * wirkt, wechselt der Balken jenseits davon zusätzlich die Helligkeit.
+   */
   private drawHeat(ctx: CanvasRenderingContext2D): void {
     const combat = this.session.combat;
     const resource = combat.school.resource;
     ctx.textAlign = 'left';
-    ctx.font = FONT_TEXT;
+    ctx.font = FONT_SMALL;
     ctx.fillStyle = INK_DIM;
-    ctx.fillText(LABEL_HEAT, BAR_LEFT, HEAT_TOP - 14);
+    ctx.fillText(LABEL_HEAT, BAR_LEFT, HEAT_TOP - 10);
 
     ctx.fillStyle = HEAT_TRACK;
-    ctx.fillRect(BAR_LEFT, HEAT_TOP, BAR_WIDTH, BAR_HEIGHT);
-    ctx.fillStyle = HEAT_FILL;
-    ctx.fillRect(BAR_LEFT, HEAT_TOP, BAR_WIDTH * (combat.resource / resource.cap), BAR_HEIGHT);
+    ctx.fillRect(BAR_LEFT, HEAT_TOP, BAR_WIDTH, HEAT_HEIGHT);
 
-    // Die Markierung ist die wichtigste Linie des Bildes: Rechts davon verdoppelt
-    // der Entlade-Zauber seinen Schaden.
+    const share = combat.resource / resource.cap;
+    const bonus = combat.resource >= resource.highlightAt;
+    ctx.fillStyle = bonus ? HEAT_FILL_BONUS : HEAT_FILL;
+    ctx.fillRect(BAR_LEFT, HEAT_TOP, BAR_WIDTH * share, HEAT_HEIGHT);
+
     const markX = BAR_LEFT + BAR_WIDTH * (resource.highlightAt / resource.cap);
     ctx.fillStyle = HEAT_MARK;
-    ctx.fillRect(markX - 1, HEAT_TOP - 6, 2, BAR_HEIGHT + 12);
+    ctx.fillRect(markX - 1.5, HEAT_TOP - 7, 3, HEAT_HEIGHT + 14);
 
-    ctx.fillStyle = INK;
-    drawIntegerRight(ctx, combat.resource, BAR_LEFT + BAR_WIDTH, HEAT_TOP - 14, this.digitAdvance);
-  }
-
-  private drawGcd(ctx: CanvasRenderingContext2D, shownMs: number): void {
-    const gcd = this.session.gcd;
-    ctx.textAlign = 'left';
     ctx.font = FONT_TEXT;
-    ctx.fillStyle = INK_DIM;
-    ctx.fillText(LABEL_GCD, BAR_LEFT, GCD_TOP - 14);
-
-    ctx.fillStyle = GCD_TRACK;
-    ctx.fillRect(BAR_LEFT, GCD_TOP, BAR_WIDTH, BAR_HEIGHT);
-
-    const remaining = gcd.remainingMs(shownMs);
-    if (remaining > 0) {
-      // Der Balken läuft ab, statt sich zu füllen: Was schrumpft, ist die
-      // Wartezeit — die Richtung der Bewegung soll das sagen.
-      ctx.fillStyle = GCD_FILL;
-      ctx.fillRect(BAR_LEFT, GCD_TOP, (remaining / gcd.lengthMs) * BAR_WIDTH, BAR_HEIGHT);
-    }
     ctx.fillStyle = INK;
-    drawFixedRight(ctx, remaining / 1000, 2, BAR_LEFT + BAR_WIDTH, GCD_TOP - 14, this.digitAdvance);
-  }
-
-  private drawBlock(ctx: CanvasRenderingContext2D, layer: number, shownMs: number): void {
-    const left = BLOCK_LEFT[layer] as number;
-    const combat = this.session.combat;
-
-    ctx.textAlign = 'left';
-    ctx.font = FONT_TEXT;
-    ctx.fillStyle = INK_FAINT;
-    ctx.fillText(BLOCK_TITLES[layer] as string, left, BLOCK_TOP - 18);
-
-    for (let position = 0; position < KEYS_PER_LAYER; position++) {
-      const slot = slotOf(layer, position);
-      const isSpace = position === SPACE_POSITION;
-      const x = isSpace ? left : left + columnOfPosition(position) * (SLOT_SIZE + SLOT_GAP);
-      const y = BLOCK_TOP + rowOfPosition(position) * (SLOT_SIZE + SLOT_GAP);
-      const width = isSpace ? BLOCK_WIDTH : SLOT_SIZE;
-      const height = isSpace ? SPACE_HEIGHT : SLOT_SIZE;
-
-      const spellIndex = this.session.spellOnSlot(slot);
-      const bound = spellIndex !== NO_SPELL;
-      const ready = bound && combat.isReady(spellIndex, shownMs);
-
-      ctx.fillStyle = ready ? SLOT_FILL_READY : SLOT_FILL;
-      ctx.fillRect(x, y, width, height);
-      ctx.strokeStyle = bound ? SLOT_EDGE_BOUND : SLOT_EDGE;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x + 1, y + 1, width - 2, height - 2);
-
-      this.drawFlash(ctx, slot, shownMs, x, y, width, height);
-
-      // Auf jedem Platz steht der Keybind (GAME-DESIGN 9.1) — auch auf leeren.
-      ctx.font = FONT_KEY;
-      ctx.textAlign = 'left';
-      ctx.fillStyle = bound ? (ready ? INK : INK_DIM) : INK_FAINT;
-      ctx.fillText(this.labels.label(position), x + 8, y + 24);
-
-      if (!bound || isSpace) continue;
-
-      const spell = combat.spellAt(spellIndex);
-      if (spell === undefined) continue;
-      ctx.textAlign = 'center';
-      ctx.font = FONT_NAME;
-      ctx.fillStyle = ready ? INK : INK_DIM;
-      ctx.fillText(spell.name, x + width * 0.5, y + height - 14);
-
-      const remaining = combat.cooldownRemainingMs(spellIndex, shownMs);
-      if (remaining > 0) {
-        ctx.font = FONT_COOLDOWN;
-        ctx.fillStyle = INK;
-        drawFixedRight(
-          ctx,
-          remaining / 1000,
-          1,
-          x + width * 0.5 + this.digitAdvance * 1.5,
-          y + height * 0.5 + 8,
-          this.digitAdvance,
-        );
-      }
-    }
-  }
-
-  /** Aufleuchten bei angenommener, rotes Blinken bei verworfener Eingabe. */
-  private drawFlash(
-    ctx: CanvasRenderingContext2D,
-    slot: number,
-    shownMs: number,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ): void {
-    const acceptedAt = this.session.acceptedAtMs[slot] as number;
-    const rejectedAt = this.session.rejectedAtMs[slot] as number;
-    const acceptAge = acceptedAt === NEVER ? Number.POSITIVE_INFINITY : shownMs - acceptedAt;
-    const rejectAge = rejectedAt === NEVER ? Number.POSITIVE_INFINITY : shownMs - rejectedAt;
-
-    // Der jüngere der beiden Blitze gewinnt: Wer zweimal drückt, sieht die
-    // zweite Rückmeldung, nicht die erste.
-    if (rejectAge <= acceptAge) {
-      if (rejectAge >= 0 && rejectAge < REJECT_FLASH_MS) {
-        ctx.globalAlpha = falloff(rejectAge / REJECT_FLASH_MS);
-        ctx.fillStyle = FLASH_REJECT;
-        ctx.fillRect(x, y, width, height);
-        ctx.globalAlpha = 1;
-      }
-      return;
-    }
-    if (acceptAge >= 0 && acceptAge < ACCEPT_FLASH_MS) {
-      ctx.globalAlpha = falloff(acceptAge / ACCEPT_FLASH_MS) * 0.85;
-      ctx.fillStyle = FLASH_ACCEPT;
-      ctx.fillRect(x, y, width, height);
-      ctx.globalAlpha = 1;
-    }
+    drawIntegerRight(ctx, combat.resource, BAR_RIGHT, HEAT_TOP - 10, this.digitAdvance);
   }
 
   private drawReadouts(ctx: CanvasRenderingContext2D, simTimeMs: number): void {
@@ -309,10 +161,4 @@ export class HudRenderer {
     ctx.fillText(STATE_NAMES[state] ?? '?', READOUT_RIGHT, 836);
     ctx.textAlign = 'left';
   }
-}
-
-/** Ausblendkurve: schnell weg, dann ausklingen. Kein Überschwingen. */
-function falloff(t: number): number {
-  const rest = 1 - t;
-  return rest * rest;
 }
