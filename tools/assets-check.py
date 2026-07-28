@@ -29,6 +29,7 @@ import fnmatch
 import json
 import os
 import re
+import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,6 +45,32 @@ CREDIT_ROOTS = ["assets/img", "assets/fonts"]
 
 # Dateien, die keine Assets sind und deshalb keinen Herkunftseintrag brauchen.
 SKIP_NAMES = {".gitkeep", ".gitignore", ".DS_Store"}
+
+
+def tracked_files(root: str) -> set[str] | None:
+    """Dateien unter `root`, die git kennt oder kennen wuerde — repo-relativ.
+
+    Warum nicht einfach jede Datei auf der Platte: ASSETS.md sagt zu, dass
+    jede **ausgelieferte** Datei einen Eintrag hat. Was `.gitignore` ausschliesst,
+    wird nie ausgeliefert — etwa `assets/sfx/`, wo die Suno-Rohdateien und der
+    jeweils zweite Entwurf liegen. Ohne diese Unterscheidung meldet die Pruefung
+    lokale Zwischenstaende, die niemanden etwas angehen, und wird dadurch
+    unbrauchbar: Eine Pruefung, die immer rot ist, sieht sich niemand mehr an.
+
+    `--cached --others --exclude-standard` erfasst beides: was schon
+    versioniert ist und was neu dazugekommen ist, ohne ignoriert zu sein.
+
+    Gibt None zurueck, wenn git nicht verfuegbar ist — dann faellt die Pruefung
+    auf das Dateisystem zurueck.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", root],
+            cwd=REPO, capture_output=True, text=True, check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {line for line in out.splitlines() if line}
 
 # Ausgeschlossene Lizenzformen (ASSETS.md, Abschnitt "Lizenzregel").
 FORBIDDEN = [
@@ -124,6 +151,7 @@ def check_coverage(roots: list[str], pats: list[str]) -> dict[str, list[str]]:
         abs_root = os.path.join(REPO, root)
         if not os.path.isdir(abs_root):
             continue
+        known = tracked_files(root)
         for dirpath, dirnames, filenames in os.walk(abs_root):
             dirnames[:] = [d for d in dirnames if d != "__MACOSX"]
             for fn in sorted(filenames):
@@ -131,6 +159,9 @@ def check_coverage(roots: list[str], pats: list[str]) -> dict[str, list[str]]:
                     continue
                 abs_path = os.path.join(dirpath, fn)
                 rel_repo = os.path.relpath(abs_path, REPO)
+                # Was nicht ausgeliefert wird, braucht keinen Eintrag.
+                if known is not None and rel_repo not in known:
+                    continue
                 rel_root = os.path.relpath(abs_path, abs_root)
                 if not covered(rel_root, rel_repo, pats):
                     missing.setdefault(root, []).append(rel_repo)
@@ -211,8 +242,13 @@ def check_credits() -> list[str]:
                 for pat in matched:
                     hit[pat] += 1
 
+    # Ein Eintrag darf auch auf etwas ausserhalb der nennungspflichtigen Wurzeln
+    # zeigen: Die Klaenge etwa sind Eigenerzeugung und muessen nicht genannt
+    # werden — der Eintrag dazu ist freiwillig, zeigt aber sehr wohl auf echte
+    # Dateien. Geprueft wird deshalb gegen den ganzen assets-Baum.
+    all_assets = tracked_files("assets") or set()
     for entry_id, pat in covers:
-        if hit[pat] == 0:
+        if hit[pat] == 0 and not any(fnmatch.fnmatch(rel, pat) for rel in all_assets):
             problems.append(f"credits.json/{entry_id}: \"{pat}\" trifft keine Datei")
     return problems
 
