@@ -1,0 +1,120 @@
+/**
+ * Erzeugt die Inhalte der gemeinsamen Vergleichsdateien (Issue #54).
+ *
+ * Getrennt von den Werkzeugen, die sie schreiben, damit **derselbe** Code sie
+ * auch prüfen kann: `freshness.test.ts` baut die Inhalte neu und vergleicht sie
+ * mit dem, was im Repository liegt.
+ *
+ * **Warum das nötig ist:** Der Rust-Simulator prüft gegen die eingecheckten
+ * Dateien. Ändert jemand eine Regel im Spiel und schreibt die Dateien nicht neu,
+ * prüft der Simulator weiter gegen die alten Werte — und bleibt grün, obwohl
+ * beide Seiten längst auseinanderlaufen. Der Prüffall würde dann genau in dem
+ * Moment nichts mehr aussagen, in dem er gebraucht wird.
+ */
+import { mixFloat, mixInt } from '../../src/core/checksum.js';
+import { STEP1_BINDINGS } from '../../src/core/loadout.js';
+import { TICK_MS } from '../../src/core/loop.js';
+import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
+import { recordings, replayRecording } from '../../src/devtools/recording.js';
+
+/** Fassung des Dateiformats. Der Simulator lehnt alles andere ab. */
+export const SCHEMA = 1;
+
+/** Welche Aufzeichnung ausgeschrieben wird. */
+export const RECORDING_NAME = 'cooldown-precision';
+
+/** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
+const FNV_OFFSET = 0x811c9dc5;
+
+/** Startwerte, gegen die geprüft wird — Randfälle eingeschlossen. */
+const SEEDS = [0, 1, 42, 0xffffffff];
+
+/**
+ * Die aufgezeichnete Runde samt Ergebnis und Prüfsumme je Takt.
+ *
+ * Enthält die Belegung, weil ein Tastendruck einen Platz nennt und keinen
+ * Zauber (GAME-DESIGN 8.1). Ohne sie müsste der Simulator `loadout.ts`
+ * nachbilden, und eine spätere Umbelegung würde jede alte Aufzeichnung still
+ * umdeuten.
+ */
+export function recordingPayload(): Record<string, unknown> {
+  const recording = recordings().get(RECORDING_NAME);
+  if (recording === undefined) {
+    throw new Error(`Unbekannte Aufzeichnung: ${RECORDING_NAME}`);
+  }
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      randomDraws: result.randomDraws,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/** Eine Ziehung als rohe 32-Bit-Zahl statt als Bruch in [0, 1). */
+function drawU32(stream: { next(): number }): number {
+  return Math.floor(stream.next() * 4294967296);
+}
+
+/**
+ * Die Bausteine, auf denen der Gleichlauf beruht: Zufallsströme und Prüfsumme.
+ *
+ * Sie stehen getrennt vom Kampf, weil ein Kampf-Prüffall sie in Schritt 1 gar
+ * nicht berührt — dort zieht niemand (`STEP1-SPEC` § 2). Ein Simulator mit
+ * fremdem Erzeuger bestünde jeden Kampf und risse erst ab Schritt 3.
+ */
+export function primitivesPayload(): Record<string, unknown> {
+  const streams = SEEDS.map((seed) => {
+    const set = new RandomStreams(seed);
+    return {
+      seed,
+      streamSeeds: Array.from({ length: STREAM_COUNT }, (_, i) => set.stream(i).seed >>> 0),
+      draws: Object.fromEntries(
+        Array.from({ length: STREAM_COUNT }, (_, i) => [
+          STREAM_NAMES[i] ?? String(i),
+          Array.from({ length: 8 }, () => drawU32(set.stream(i))),
+        ]),
+      ),
+    };
+  });
+
+  const checksum = {
+    offset: FNV_OFFSET >>> 0,
+    mixInt: [0, 1, 255, 256, 40510, -1, -40510, 0x7fffffff | 0].map((value) => ({
+      value,
+      result: mixInt(FNV_OFFSET, value) >>> 0,
+    })),
+    mixFloat: [0, 1, -1, 1500, 4240, 0.5, 12000].map((value) => ({
+      value,
+      result: mixFloat(FNV_OFFSET, value) >>> 0,
+    })),
+    chain: (() => {
+      let h = FNV_OFFSET;
+      for (const value of [1, 2, 3, 4, 5]) h = mixInt(h, value);
+      for (const value of [1.5, 2.5]) h = mixFloat(h, value);
+      return h >>> 0;
+    })(),
+  };
+
+  return { schema: SCHEMA, streamNames: STREAM_NAMES, streams, checksum };
+}
+
+/** So werden die Dateien geschrieben — an einer Stelle festgelegt. */
+export function serialize(payload: unknown): string {
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
