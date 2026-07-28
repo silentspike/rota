@@ -40,6 +40,28 @@
 //! Das ist keine Nachbesserung zugunsten einer Wunschzahl, sondern die Regel
 //! selbst: Der Sieg gilt in dem Logik-Takt als festgestellt, in dem das Spiel
 //! ihn feststellt.
+//!
+//! # Wo das Verfahren an seine Grenze kommt
+//!
+//! Die Rotation wird **nur an Ereigniszeitpunkten** befragt. Fuer eine Rotation,
+//! die den Zustand abfragt — Abklingzeit bereit? Ressource ueber der Schwelle?
+//! Restlaufzeit unter einem GCD? — ist das vollstaendig, denn der Zustand
+//! aendert sich ausschliesslich an Ereignissen. Alle vier Rotationen aus
+//! `STEP1-SPEC` § 4 sind so gebaut.
+//!
+//! Fuer eine Rotation, die auf die **Uhr** schaut, ist es unvollstaendig. Faellt
+//! der Zeitpunkt, zu dem ihre Bedingung wahr wird, zwischen zwei Ereignisse,
+//! bemerkt der Simulator ihn nicht — die Referenz mit ihrem 10-ms-Takt sehr
+//! wohl. Betroffen ist dabei nur der Fall, dass die globale Wartezeit bereits
+//! abgelaufen ist und trotzdem nichts gewirkt wird; wer wirkt, loest ohnehin
+//! einen Weckruf aus.
+//!
+//! Das ist **kein Fehler in Schritt 1**, sondern eine offene Frage fuer
+//! **E2-3 (APL-Sprache)**: Erlaubt die Prioritaetenliste zeitabhaengige
+//! Bedingungen — etwa "in den letzten zehn Sekunden des Kampfes" —, muss ihre
+//! Auswertung fuer jede solche Bedingung einen Weckruf einplanen.
+//! `tests/edge_cases.rs` haelt die Grenze fest, damit sie dort nicht neu
+//! entdeckt werden muss.
 
 use crate::data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 use crate::event::{EventKind, EventQueue};
