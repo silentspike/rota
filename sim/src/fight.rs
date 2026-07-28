@@ -49,19 +49,21 @@
 //! aendert sich ausschliesslich an Ereignissen. Alle vier Rotationen aus
 //! `STEP1-SPEC` § 4 sind so gebaut.
 //!
-//! Fuer eine Rotation, die auf die **Uhr** schaut, ist es unvollstaendig. Faellt
-//! der Zeitpunkt, zu dem ihre Bedingung wahr wird, zwischen zwei Ereignisse,
-//! bemerkt der Simulator ihn nicht — die Referenz mit ihrem 10-ms-Takt sehr
-//! wohl. Betroffen ist dabei nur der Fall, dass die globale Wartezeit bereits
-//! abgelaufen ist und trotzdem nichts gewirkt wird; wer wirkt, loest ohnehin
-//! einen Weckruf aus.
+//! Fuer eine Rotation, die auf die **Uhr** schaut, waere es unvollstaendig:
+//! Faellt der Zeitpunkt, zu dem ihre Bedingung wahr wird, zwischen zwei
+//! Ereignisse, bemerkt der Simulator ihn nicht — die Referenz mit ihrem
+//! 10-ms-Takt sehr wohl.
 //!
-//! Das ist **kein Fehler in Schritt 1**, sondern eine offene Frage fuer
-//! **E2-3 (APL-Sprache)**: Erlaubt die Prioritaetenliste zeitabhaengige
-//! Bedingungen — etwa "in den letzten zehn Sekunden des Kampfes" —, muss ihre
-//! Auswertung fuer jede solche Bedingung einen Weckruf einplanen.
-//! `tests/edge_cases.rs` haelt die Grenze fest, damit sie dort nicht neu
-//! entdeckt werden muss.
+//! **Seit E2-3 ist das geloest**, aber nicht hier: [`Decide::next_wakeup`] laesst
+//! die Entscheidung selbst sagen, wann sie erneut geprueft werden will, und
+//! [`Fight::schedule_decision_wakeup`] plant den Weckruf ein. Eine
+//! Prioritaetenliste ([`crate::apl`]) kennt ihre Bedingungen und rechnet den
+//! Umschlagpunkt aus; eine Rotation als blosse Funktion kann das nicht und
+//! bekommt deshalb weiterhin keine Weckrufe — fuer die vier zustandsabhaengigen
+//! Pruefrotationen ist das genau richtig.
+//!
+//! `tests/edge_cases.rs` haelt beide Seiten fest: dass eine Funktion die Grenze
+//! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
@@ -85,9 +87,39 @@ pub const FIGHT_RUNNING: i32 = 0;
 
 /// Eine Rotation: Welcher Zauber soll jetzt gewirkt werden?
 ///
-/// `None` heisst bewusst warten. Die Prioritaetenliste als Sprache kommt in
-/// E2-3; bis dahin ist eine Rotation eine gewoehnliche Funktion.
+/// `None` heisst bewusst warten. Neben dieser einfachen Form gibt es seit E2-3
+/// die Prioritaetenliste als eigene Sprache ([`crate::apl`]); beide Wege laufen
+/// ueber [`Decide`] durch dieselbe Kampfschleife.
 pub type Rotation = fn(&Fight) -> Option<usize>;
+
+/// Wer entscheidet, was gewirkt wird.
+///
+/// Zwei Umsetzungen: eine gewoehnliche Funktion (die vier Pruefrotationen) und
+/// [`crate::apl::Apl`], die geschriebene Prioritaetenliste.
+pub trait Decide {
+    /// Welcher Zauber jetzt gewirkt werden soll, oder `None` fuer warten.
+    fn decide(&self, fight: &Fight) -> Option<usize>;
+
+    /// Wann die Entscheidung erneut geprueft werden will, weil eine ihrer
+    /// Bedingungen **allein durch verstreichende Zeit** umschlagen kann.
+    ///
+    /// Der Kampf springt von Ereignis zu Ereignis. Ohne diese Auskunft wuerde
+    /// eine Bedingung wie „Restlaufzeit unter einem GCD" erst beim naechsten
+    /// ohnehin anstehenden Ereignis bemerkt — und das kann Sekunden spaeter
+    /// sein. Das war der Vorabfund aus Issue #53; hier wird er behoben.
+    ///
+    /// Die Voreinstellung `None` ist fuer zustandsabhaengige Rotationen richtig:
+    /// Deren Bedingungen aendern sich nur, wenn ohnehin ein Ereignis eintritt.
+    fn next_wakeup(&self, _fight: &Fight) -> Option<Millis> {
+        None
+    }
+}
+
+impl Decide for Rotation {
+    fn decide(&self, fight: &Fight) -> Option<usize> {
+        self(fight)
+    }
+}
 
 /// Wie viele Ereignisse gleichzeitig offen sein koennen.
 ///
@@ -220,6 +252,18 @@ impl Fight {
     /// Ein bereits gelaufener Kampf muss vorher mit [`Fight::reset`]
     /// zurueckgesetzt werden.
     pub fn run(&mut self, rotation: Rotation) -> RunResult {
+        self.run_with(&rotation)
+    }
+
+    /// Rechnet den Kampf mit einer geschriebenen Prioritaetenliste durch.
+    ///
+    /// Nutzt dieselbe Schleife wie [`Fight::run`] — es gibt nur **eine**
+    /// Regelrechnung, nicht zwei, die auseinanderlaufen koennten.
+    pub fn run_apl(&mut self, apl: &crate::apl::Apl) -> RunResult {
+        self.run_with(apl)
+    }
+
+    fn run_with<D: Decide + ?Sized>(&mut self, decider: &D) -> RunResult {
         // Der Verfall laeuft ab Kampfbeginn, unabhaengig davon, ob ueberhaupt
         // Ressource da ist — so macht es die Referenz, und das ist auch richtig:
         // Der Takt haengt am Kampf, nicht am Fuellstand.
@@ -256,7 +300,7 @@ impl Fight {
 
             // Phase 3 — die Entscheidung des Spielers.
             if self.gcd_ready_at <= now {
-                match rotation(self) {
+                match decider.decide(self) {
                     Some(index) => self.cast(index),
                     None => {
                         // Gewartet, obwohl gewirkt werden durfte. Die Referenz
@@ -268,6 +312,8 @@ impl Fight {
                     }
                 }
             }
+
+            self.schedule_decision_wakeup(decider, now);
         }
 
         self.result()
@@ -593,6 +639,70 @@ impl Fight {
     #[must_use]
     pub fn dot_remaining_ms(&self, index: usize) -> Millis {
         self.dot_expires_at[index].map_or(0, |expires| expires.saturating_sub(self.time))
+    }
+
+    /// Plant einen Weckruf ein, wenn die Entscheidung einen braucht.
+    ///
+    /// Nur, wenn er **frueher** liegt als das naechste ohnehin anstehende
+    /// Ereignis — sonst fuellte sich die Schlange mit Weckrufen, die nichts
+    /// bringen, und die Kapazitaet aus [`EVENT_CAPACITY`] waere schneller
+    /// erreicht als noetig.
+    ///
+    /// Vor Ablauf der globalen Wartezeit ist eine erneute Pruefung ebenfalls
+    /// zwecklos: Gewirkt werden kann ohnehin nicht.
+    fn schedule_decision_wakeup<D: Decide + ?Sized>(&mut self, decider: &D, now: Millis) {
+        let Some(wanted) = decider.next_wakeup(self) else {
+            return;
+        };
+        let at = wanted.max(self.gcd_ready_at);
+        if at <= now || at >= self.duration_ms {
+            return;
+        }
+        if self.queue.peek_time().is_none_or(|next| at < next) {
+            self.queue.push(at, EventKind::Wakeup);
+        }
+    }
+
+    /// Restliche Abklingzeit eines Zaubers **jetzt**.
+    #[must_use]
+    pub fn cooldown_remaining_ms(&self, index: usize) -> Millis {
+        self.cooldown_remaining_ms_at(index, self.time)
+    }
+
+    /// Ob die eigene Abklingzeit eines Zaubers abgelaufen ist.
+    ///
+    /// **Ohne** die globale Wartezeit — anders als [`Fight::is_ready`].
+    /// Entscheidungen fallen ohnehin nur, wenn der GCD bereit ist; eine
+    /// Prioritaetenliste soll deshalb nach der Abklingzeit fragen koennen, ohne
+    /// die Wartezeit jedes Mal mitzudenken.
+    #[must_use]
+    pub fn cooldown_ready(&self, index: usize) -> bool {
+        self.cooldown_ready_at[index] <= self.time
+    }
+
+    /// Verbleibende Lebenspunkte des Bosses.
+    #[must_use]
+    pub fn boss_hp_remaining(&self) -> u32 {
+        BOSS.hp.saturating_sub(self.damage)
+    }
+
+    /// Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet.
+    ///
+    /// Ganzzahlig, weil die Prioritaetenliste ganzzahlig rechnet — und weil ein
+    /// Fliesskomma-Vergleich an dieser Stelle zwischen zwei Umsetzungen
+    /// unterschiedlich ausfallen koennte.
+    #[must_use]
+    pub fn boss_hp_percent(&self) -> u32 {
+        if BOSS.hp == 0 {
+            return 0;
+        }
+        (self.boss_hp_remaining() * 100) / BOSS.hp
+    }
+
+    /// Zeit bis zum Ueberdruck.
+    #[must_use]
+    pub fn fight_remaining_ms(&self) -> Millis {
+        self.duration_ms.saturating_sub(self.time)
     }
 
     /// Restliche Abklingzeit eines Zaubers zu einem beliebigen Zeitpunkt.
