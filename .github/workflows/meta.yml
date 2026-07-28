@@ -1,8 +1,12 @@
 name: Meta
 
-# Prüfungen, die nicht am Code hängen: die Workflows selbst, PR-Titel, Geheimnisse.
-# Bewusst NICHT Teil von ci-pass — ein falscher PR-Titel soll den Code nicht blockieren,
-# aber trotzdem sichtbar sein.
+# Was hier bleibt, ist bewusst NICHT Teil von ci-pass: ein falscher PR-Titel ist
+# kosmetisch und soll den Code nicht blockieren, aber sichtbar sein.
+#
+# actionlint und secret-scan sind aus genau diesem Grund nach ci.yml gewandert
+# (PR #66): Ein gefundenes Geheimnis oder ein syntaktisch kaputter Workflow darf
+# NICHT mergebar sein. Belegt an PR #65, der mit rotem pr-title durchging —
+# was bei pr-title gewollt ist, bei secret-scan aber ein Loch gewesen wäre.
 
 on:
   push:
@@ -19,15 +23,6 @@ permissions:
   contents: read
 
 jobs:
-  actionlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: reviewdog/action-actionlint@50842263c20a7c46bd0065b9e624d3c569db061e # v1.73.0
-        with:
-          reporter: github-pr-check
-          fail_on_error: true
-
   pr-title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -46,25 +41,5 @@ jobs:
             refactor
             test
             perf
-
-  # gitleaks direkt als Binary statt über gitleaks-action:
-  # Die Action verlangt für Organisationen eine kostenpflichtige Lizenz
-  # ("[silentspike] is an organization. License key is required."), das
-  # Werkzeug selbst ist MIT-lizenziert und frei nutzbar.
-  secret-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0
-      - name: gitleaks installieren
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION=8.30.1
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
-      - name: Verlauf nach Geheimnissen durchsuchen
-        shell: bash
-        run: gitleaks git --no-banner --redact --exit-code 1 .
+            ci
+            build
