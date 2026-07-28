@@ -33,6 +33,11 @@ def jobs_for(entry: dict) -> list[dict]:
         return [job]
 
     if entry["kind"] == "sustained":
+        # Reiner Loop ohne Ansatz und Ausklang — etwa eine Musik-Schicht. Dann
+        # traegt die Datei den Namen der Kennung, ohne "-body".
+        if not entry.get("attackFile") and not entry.get("releaseFile"):
+            return [{"name": entry["id"], "prompt": entry["bodyPrompt"], "loop": True}]
+
         out = []
         if entry.get("attackFile"):
             out.append(

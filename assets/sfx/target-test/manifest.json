@@ -1,4 +1,0 @@
-[
-  {"name": "boss-kill", "prompt": "heavy metallic gong impact, dark reverb, victorious dark fantasy stinger", "target_s": 2.5, "tol": 0.5, "attempts": 3},
-  {"name": "epic-riser", "prompt": "rising tension riser building to impact, orchestral braam", "target_s": 5.0, "tol": 0.8, "attempts": 3}
-]

@@ -40,8 +40,8 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
     }
   });
 
-  it('haelt sich an die Aufstellung aus GAME-DESIGN 17.1 (115 Klaenge)', () => {
-    expect(coverageTotals(SOUND_MANIFEST).target).toBe(115);
+  it('haelt sich an die Aufstellung aus GAME-DESIGN 17.1 (126 Klaenge)', () => {
+    expect(coverageTotals(SOUND_MANIFEST).target).toBe(126);
   });
 
   it('weist jede Luecke als Platzhalter mit Epic und Begruendung aus', () => {
@@ -57,20 +57,43 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
     }
   });
 
-  it('beschreibt alle 47 ableitbaren Slots vollstaendig', () => {
-    // 115 minus die 60 Zauber (Epic E10) minus die 8 Musik-Schichten (#18).
-    const ableitbar = SOUND_MANIFEST.sounds.filter((sound) => sound.group !== 'spells');
-    expect(ableitbar).toHaveLength(47);
+  it('beschreibt alle ableitbaren Slots vollstaendig', () => {
+    // 126 minus die 60 Zauber und die 14 Instanz-Grundklaenge (beide E10)
+    // ergibt 52: die 47 Klaenge ausserhalb der Musik plus die fuenf festen
+    // Schichten. Vorlaeufige Eintraege zaehlen nicht mit.
+    const ableitbar = SOUND_MANIFEST.sounds.filter(
+      (sound) => sound.group !== 'spells' && !sound.provisional,
+    );
+    expect(ableitbar).toHaveLength(52);
     for (const sound of ableitbar) {
-      expect(sound.file, sound.id).toBeDefined();
-      expect(sound.targetSeconds, sound.id).toBeGreaterThan(0);
-      expect(sound.prompt, sound.id).toBeDefined();
+      if (sound.kind === 'oneshot') {
+        expect(sound.file, sound.id).toBeDefined();
+        expect(sound.targetSeconds, sound.id).toBeGreaterThan(0);
+        expect(sound.prompt, sound.id).toBeDefined();
+      } else {
+        expect(sound.bodyFile, sound.id).toBeDefined();
+        expect(sound.bodyPrompt, sound.id).toBeDefined();
+      }
     }
   });
 
-  it('deckt mit Beschriebenem und Platzhaltern zusammen die vollen 115 ab', () => {
+  it('zaehlt vorlaeufige Eintraege nicht zur Abdeckung', () => {
+    const provisional = SOUND_MANIFEST.sounds.filter((sound) => sound.provisional);
+    expect(provisional.length).toBeGreaterThan(0);
+    for (const sound of provisional) {
+      expect(sound.provisional!.length).toBeGreaterThan(20);
+    }
+    // Die Abdeckung der Gruppe zaehlt sie nicht mit.
+    const music = SOUND_MANIFEST.sounds.filter(
+      (sound) => sound.group === 'music' && !sound.provisional,
+    );
+    expect(SOUND_MANIFEST.coverage.groups.music!.present).toBe(music.length);
+  });
+
+  it('deckt mit Beschriebenem und Platzhaltern zusammen die vollen 126 ab', () => {
     const platzhalter = SOUND_MANIFEST.coverage.placeholders.reduce((a, p) => a + p.count, 0);
-    expect(SOUND_MANIFEST.sounds.length + platzhalter).toBe(115);
+    const beschrieben = SOUND_MANIFEST.sounds.filter((sound) => !sound.provisional).length;
+    expect(beschrieben + platzhalter).toBe(126);
   });
 
   it('kennt jede Datei, die unter assets/audio liegt — keine Waisen', () => {
