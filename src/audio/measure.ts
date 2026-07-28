@@ -10,6 +10,7 @@
  */
 import { AudioEngine } from './engine.js';
 import { makeClick, makeSeamlessTone } from './dev-tones.js';
+import { MusicDirector } from './music.js';
 import type { OneShotDef, SustainedDef } from './types.js';
 
 const SAMPLE_RATE = 48000;
@@ -224,6 +225,160 @@ export function measurePitchSpread(engine: AudioEngine, id: string, count = 20):
     spreadPercent: (max / min - 1) * 100,
     maxCents: Math.max(...rates.map((r) => Math.abs(1200 * Math.log2(r)))),
   };
+}
+
+// ------------------------------------------------------------ Musik-Schichten
+
+export interface LayerSwitchReport {
+  /** Groesster Sprung im Signal waehrend der Umblendung. */
+  readonly transitionMaxStep: number;
+  /** Groesster Sprung im uebrigen Signal — der Massstab. */
+  readonly steadyMaxStep: number;
+  /** Effektivwert vor dem Zuschalten. */
+  readonly rmsBefore: number;
+  /** Effektivwert danach. */
+  readonly rmsAfter: number;
+  /** Zeitpunkt, an dem die Blende begann (Sekunden). */
+  readonly switchedAt: number;
+}
+
+/**
+ * Eine Schicht zuschalten und das fertige Signal vermessen.
+ *
+ * Zwei Fragen auf einmal: Wird die Schicht ueberhaupt hoerbar (Effektivwert
+ * vorher gegen nachher), und knackt es dabei (Sprung im Signal gegen den
+ * Sprung, den das Signal ohnehin macht)?
+ */
+export async function measureLayerSwitch(seconds = 8): Promise<LayerSwitchReport> {
+  const total = Math.round(seconds * SAMPLE_RATE);
+  const ctx = new OfflineAudioContext(1, total, SAMPLE_RATE);
+  const engine = new AudioEngine(ctx);
+
+  const base: SustainedDef = {
+    kind: 'sustained',
+    id: 'measure-base',
+    bus: 'music',
+    bodySrc: 'measure://bed',
+    pitchJitterCents: 0,
+  };
+  const extra: SustainedDef = {
+    kind: 'sustained',
+    id: 'measure-extra',
+    bus: 'music',
+    bodySrc: 'measure://layer',
+    pitchJitterCents: 0,
+  };
+  engine.library.register([base, extra]);
+  engine.library.put('measure://bed', makeSeamlessTone(ctx, 110, 11, 0.4));
+  engine.library.put('measure://layer', makeSeamlessTone(ctx, 275, 22, 0.4));
+
+  const music = new MusicDirector(engine, { barSeconds: 2, fadeSeconds: 1 });
+  music.start([{ id: 'measure-base', base: true }, { id: 'measure-extra' }]);
+  // Der Offline-Kontext steht bei 0, bis gerendert wird: Die Blende wird also
+  // auf die naechste Taktgrenze nach dem Start terminiert und liegt damit
+  // vorhersagbar im Signal.
+  music.enable('measure-extra');
+  const scheduled = music.nextBar(0);
+
+  const rendered = await ctx.startRendering();
+  const data = rendered.getChannelData(0);
+
+  const from = Math.round((scheduled - 0.05) * SAMPLE_RATE);
+  const to = Math.round((scheduled + 1.05) * SAMPLE_RATE);
+  return {
+    transitionMaxStep: maxStep(data, Math.max(1, from), Math.min(data.length, to)),
+    steadyMaxStep: maxStep(data, Math.round(2.5 * SAMPLE_RATE), Math.round(3.5 * SAMPLE_RATE)),
+    rmsBefore: rms(data, Math.round(0.5 * SAMPLE_RATE), Math.round(1.5 * SAMPLE_RATE)),
+    rmsAfter: rms(data, data.length - Math.round(1.5 * SAMPLE_RATE), data.length),
+    switchedAt: scheduled,
+  };
+}
+
+export interface LayerSyncReport {
+  readonly rounds: number;
+  readonly loopSamples: number;
+  /**
+   * Groesste Abweichung zwischen der Summe zweier gleicher Schichten und dem
+   * doppelten Einzelsignal. Null heisst: Sie laufen exakt gleich.
+   */
+  readonly maxDeviation: number;
+  readonly peak: number;
+}
+
+/**
+ * Gleichlauf zweier Schichten ueber viele Umlaeufe.
+ *
+ * Verfahren: Zwei Schichten mit **demselben** Puffer laufen lassen. Sind sie
+ * gleichauf, ist die Summe exakt das doppelte Einzelsignal. Jede Verschiebung
+ * — und jeder Drift, der sich ueber zwanzig Umlaeufe aufbaut — zeigt sich
+ * sofort als Abweichung davon.
+ */
+export async function measureLayerSync(rounds = 20): Promise<LayerSyncReport> {
+  const probe = new OfflineAudioContext(1, SAMPLE_RATE, SAMPLE_RATE);
+  const loopSamples = makeSeamlessTone(probe, 220, 22, 0.4).length;
+  const total = loopSamples * (rounds + 1);
+
+  const render = async (layers: number): Promise<Float32Array> => {
+    const ctx = new OfflineAudioContext(1, total, SAMPLE_RATE);
+    const engine = new AudioEngine(ctx);
+    const defs: SustainedDef[] = [];
+    for (let i = 0; i < layers; i++) {
+      defs.push({
+        kind: 'sustained',
+        id: `measure-sync-${i}`,
+        bus: 'music',
+        bodySrc: 'measure://sync',
+        pitchJitterCents: 0,
+      });
+    }
+    engine.library.register(defs);
+    engine.library.put('measure://sync', makeSeamlessTone(ctx, 220, 22, 0.4));
+    const music = new MusicDirector(engine, { barSeconds: 1, fadeSeconds: 0.01 });
+    music.start(defs.map((def) => ({ id: def.id, base: true, gain: 1 })));
+    const out = await ctx.startRendering();
+    return out.getChannelData(0).slice();
+  };
+
+  const single = await render(1);
+  const doubled = await render(2);
+
+  let deviation = 0;
+  let peak = 0;
+  for (let i = 0; i < single.length; i++) {
+    const expected = (single[i] ?? 0) * 2;
+    const actual = doubled[i] ?? 0;
+    const diff = Math.abs(actual - expected);
+    if (diff > deviation) deviation = diff;
+    if (Math.abs(actual) > peak) peak = Math.abs(actual);
+  }
+
+  return { rounds, loopSamples, maxDeviation: deviation, peak };
+}
+
+/**
+ * Wirkt der Musik-Regler auf alle Schichten? Rendert dieselbe Aufstellung
+ * einmal offen und einmal mit dem Regler auf null.
+ */
+export async function measureMusicVolume(seconds = 4): Promise<{ open: number; muted: number }> {
+  const render = async (volume: number): Promise<number> => {
+    const ctx = new OfflineAudioContext(1, Math.round(seconds * SAMPLE_RATE), SAMPLE_RATE);
+    const engine = new AudioEngine(ctx);
+    const defs: SustainedDef[] = ['a', 'b', 'c'].map((suffix) => ({
+      kind: 'sustained',
+      id: `measure-vol-${suffix}`,
+      bus: 'music',
+      bodySrc: 'measure://vol',
+      pitchJitterCents: 0,
+    }));
+    engine.library.register(defs);
+    engine.library.put('measure://vol', makeSeamlessTone(ctx, 220, 22, 0.4));
+    engine.setVolume('music', volume);
+    const music = new MusicDirector(engine, { barSeconds: 1, fadeSeconds: 0.01 });
+    music.start(defs.map((def) => ({ id: def.id, base: true })));
+    const out = await ctx.startRendering();
+    return rms(out.getChannelData(0), Math.round(0.5 * SAMPLE_RATE));
+  };
+  return { open: await render(1), muted: await render(0) };
 }
 
 // --------------------------------------------------------- Aufraeum-Last

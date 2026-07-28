@@ -34,6 +34,12 @@ export interface ManifestEntry {
   readonly fadeOutSeconds?: number;
   readonly loopStart?: number;
   readonly loopEnd?: number;
+  /**
+   * Gesetzt, wenn der Klang ein Ersatz ist, bis seine Vorlage ausgearbeitet
+   * wurde. Solche Eintraege zaehlen **nicht** zur Abdeckung — sonst sae he das
+   * Verzeichnis vollstaendiger aus, als es ist. Der Wert nennt den Grund.
+   */
+  readonly provisional?: string;
 }
 
 /**
@@ -159,7 +165,7 @@ export function parseManifest(raw: Manifest): ParsedManifest {
   // Die gefuehrte Abdeckung muss zum Inhalt passen, sonst faellt eine Luecke
   // niemandem auf.
   for (const [group, counts] of Object.entries(raw.coverage.groups)) {
-    const actual = raw.sounds.filter((sound) => sound.group === group).length;
+    const actual = raw.sounds.filter((sound) => sound.group === group && !sound.provisional).length;
     if (actual !== counts.present) {
       problems.push(
         `Gruppe "${group}": Abdeckung sagt ${counts.present} Eintraege, tatsaechlich sind es ${actual}.`,

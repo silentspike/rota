@@ -148,7 +148,13 @@ export class AudioEngine {
    * Der Bezeichner zeigt auf den Koerper — er ist der Teil, der laeuft, bis
    * der Spieleffekt endet oder abgebrochen wird.
    */
-  startSustained(id: string): VoiceHandle {
+  /**
+   * @param startGain Anfangspegel. Ohne Angabe gilt der Wert aus dem
+   *   Datensatz samt seiner Einblendung. Mit 0 startet die Stimme stumm — so
+   *   beginnt eine Musik-Schicht mitzulaufen, ohne hoerbar zu sein, und wird
+   *   spaeter taktsynchron aufgeblendet (siehe MusicDirector).
+   */
+  startSustained(id: string, startGain?: number): VoiceHandle {
     const def = this.library.def(id);
     if (!def || def.kind !== 'sustained') {
       this.missing++;
@@ -184,7 +190,9 @@ export class AudioEngine {
     const fadeIn = def.fadeInSeconds ?? 0;
     const gain = slot.gain.gain;
     gain.cancelScheduledValues(now);
-    if (fadeIn > 0) {
+    if (startGain !== undefined) {
+      gain.setValueAtTime(startGain, now);
+    } else if (fadeIn > 0) {
       gain.setValueAtTime(0, now);
       gain.linearRampToValueAtTime(target, now + fadeIn);
     } else {
@@ -232,6 +240,34 @@ export class AudioEngine {
       const release = this.library.buffer(sustained.releaseSrc);
       if (release) this.startRaw(sustained.bus, release, sustained.id, sustained.gain ?? 1, 1, now);
     }
+  }
+
+  /**
+   * Den Pegel einer laufenden Stimme umblenden — die Grundlage der
+   * Musik-Schichten.
+   *
+   * Der Zeitpunkt liegt bewusst in der Zukunft: So laesst sich ein Uebergang
+   * auf eine Taktgrenze legen, statt ihn sofort zu beginnen.
+   *
+   * `cancelAndHoldAtTime` haelt den Wert fest, den eine laufende Automation zu
+   * diesem Zeitpunkt haette. Ohne das wuerde eine noch laufende Blende
+   * abgeschnitten und der Pegel spraenge — genau das Knacken, das vermieden
+   * werden soll.
+   */
+  fadeVoice(handle: VoiceHandle, target: number, at: number, seconds: number): boolean {
+    const slot = this.pool.resolve(handle);
+    if (!slot) return false;
+    const gain = slot.gain.gain;
+    const start = Math.max(at, this.ctx.currentTime);
+    const param = gain as AudioParam & { cancelAndHoldAtTime?: (t: number) => AudioParam };
+    if (typeof param.cancelAndHoldAtTime === 'function') {
+      param.cancelAndHoldAtTime(start);
+    } else {
+      gain.cancelScheduledValues(start);
+      gain.setValueAtTime(gain.value, start);
+    }
+    gain.linearRampToValueAtTime(target, start + seconds);
+    return true;
   }
 
   /** Laeuft die Stimme zu diesem Bezeichner noch? */

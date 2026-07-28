@@ -1,5 +1,0 @@
-[
-  {"name": "channel-start", "prompt": "energy channel start, rising hum", "target_s": 0.5, "tol": 0.3, "attempts": 2},
-  {"name": "channel-body", "prompt": "sustained magical channeling hum, seamless loop", "loop": true},
-  {"name": "channel-release", "prompt": "energy channel release, fading hum", "target_s": 0.7, "tol": 0.3, "attempts": 2}
-]
