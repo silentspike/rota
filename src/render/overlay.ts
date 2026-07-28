@@ -20,6 +20,7 @@ import {
   PHASE_ENDED,
   PHASE_PREPARE,
 } from '../core/phases.js';
+import type { RunSummary } from '../core/summary.js';
 
 export interface OverlayActions {
   onReady(): void;
@@ -29,7 +30,7 @@ export interface OverlayActions {
   onBackToMenu(): void;
 }
 
-/** Was die Auswertung anzeigt. Die drei Kennzahlen aus 15.1 folgen mit E1-7. */
+/** Was die Auswertung anzeigt. */
 export interface ResultView {
   readonly outcome: number;
   /** Verstrichene Kampfzeit in ms. */
@@ -39,6 +40,8 @@ export interface ResultView {
   readonly damage: number;
   readonly bossHp: number;
   readonly casts: number;
+  /** Die Kurzfassung mit den drei Kennzahlen (GAME-DESIGN 15.1). */
+  readonly summary: RunSummary | null;
 }
 
 const OUTCOME_HEADLINES: Readonly<Record<number, string>> = {
@@ -79,6 +82,9 @@ export class Overlay {
   private readonly result: HTMLElement;
   private readonly resultHeadline: HTMLElement;
   private readonly resultRows: Record<string, HTMLElement> = {};
+  private readonly detail: HTMLElement;
+  private readonly analysisButton: HTMLButtonElement;
+  private detailOpen = false;
 
   private shownPhase = -1;
   private shownOutcome = -1;
@@ -123,13 +129,35 @@ export class Overlay {
       ['remaining', 'Reserve'],
       ['damage', 'Damage'],
       ['progress', 'Progress'],
-      ['casts', 'Casts'],
+      ['score', 'Score'],
     ] as const) {
       const made = row(label);
       this.result.appendChild(made.root);
       this.resultRows[key] = made.value;
     }
-    this.result.appendChild(button('Restart Run', actions.onRestart));
+
+    // Die drei Kennzahlen aus GAME-DESIGN 15.1.
+    this.result.appendChild(element('div', 'rota-divider'));
+    for (const [key, label] of [
+      ['idleWorst', 'Idle · worst spell'],
+      ['lostTime', 'Time lost'],
+      ['synergy', 'Synergy yield'],
+    ] as const) {
+      const made = row(label);
+      this.result.appendChild(made.root);
+      this.resultRows[key] = made.value;
+    }
+
+    // "View Analysis" klappt den Leerlauf je Zauber auf. Die ausführliche
+    // Auswertung mit Effizienz-Tabelle und Bestlauf-Vergleich ist Epic E7.
+    this.detail = element('div', 'rota-detail');
+    this.result.appendChild(this.detail);
+
+    this.result.appendChild(button('Retry', actions.onRestart));
+    this.analysisButton = button('View Analysis', () => {
+      this.toggleDetail();
+    });
+    this.result.appendChild(this.analysisButton);
     this.result.appendChild(button('Back to Menu', actions.onBackToMenu));
     this.root.appendChild(this.result);
 
@@ -163,6 +191,9 @@ export class Overlay {
     this.shownPhase = phase;
     this.shownOutcome = outcome;
 
+    this.detailOpen = false;
+    this.detail.classList.remove('rota-visible');
+    this.analysisButton.textContent = 'View Analysis';
     this.hideAll();
     if (phase === PHASE_PREPARE) {
       this.show(this.prepare);
@@ -188,7 +219,66 @@ export class Overlay {
     set('damage', String(view.damage));
     const progress = view.bossHp > 0 ? (100 * view.damage) / view.bossHp : 0;
     set('progress', `${Math.min(100, progress).toFixed(1)} %`);
-    set('casts', String(view.casts));
+    // Die Punkteformel ist noch nicht ausgearbeitet (GAME-DESIGN 22, vor Epic
+    // E5). Eine erfundene Zahl wäre schlimmer als ein ehrlicher Strich.
+    set('score', '—');
+
+    const summary = view.summary;
+    if (summary === null) return;
+    const worst = summary.idlePerSpell[0];
+    set(
+      'idleWorst',
+      worst === undefined
+        ? '—'
+        : `${worst.spellId} · ${(worst.idleMs / 1000).toFixed(1)} s (${(worst.share * 100).toFixed(0)} %)`,
+    );
+    set(
+      'lostTime',
+      `${(summary.lostTimeMs / 1000).toFixed(1)} s (${(summary.lostTimeShare * 100).toFixed(0)} %)`,
+    );
+    set(
+      'synergy',
+      summary.synergyAvailable === 0
+        ? 'none available'
+        : `${summary.synergyUsed} of ${summary.synergyAvailable}`,
+    );
+    this.fillDetail(summary);
+  }
+
+  /** Der Leerlauf je Zauber, nach Verlust sortiert (GAME-DESIGN 15.1). */
+  private fillDetail(summary: RunSummary): void {
+    this.detail.replaceChildren();
+    this.detail.appendChild(element('p', 'rota-hint', 'Idle time per spell, worst first'));
+    for (const entry of summary.idlePerSpell) {
+      const line = element('div', 'rota-row');
+      line.appendChild(
+        element('span', 'rota-row-label', `${entry.spellId} · ${entry.casts} casts`),
+      );
+      line.appendChild(
+        element(
+          'span',
+          'rota-row-value',
+          `${(entry.idleMs / 1000).toFixed(1)} s (${(entry.share * 100).toFixed(0)} %)`,
+        ),
+      );
+      this.detail.appendChild(line);
+    }
+    const log = element('div', 'rota-row');
+    log.appendChild(element('span', 'rota-row-label', 'Log entries'));
+    log.appendChild(
+      element(
+        'span',
+        'rota-row-value',
+        `${summary.logEntries} / ${summary.logCapacity}${summary.logOverflowed ? ` · ${summary.logDropped} dropped` : ''}`,
+      ),
+    );
+    this.detail.appendChild(log);
+  }
+
+  private toggleDetail(): void {
+    this.detailOpen = !this.detailOpen;
+    this.detail.classList.toggle('rota-visible', this.detailOpen);
+    this.analysisButton.textContent = this.detailOpen ? 'Hide Analysis' : 'View Analysis';
   }
 
   private show(panel: HTMLElement): void {

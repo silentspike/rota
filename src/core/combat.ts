@@ -16,6 +16,7 @@
  */
 import { computeDamage, NEUTRAL_FACTORS, type DamageFactors } from './damage.js';
 import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
+import { EVENT_CAST, EVENT_DAMAGE, EVENT_DOT_TICK, type CombatLog } from './log.js';
 import type { BossDef, SchoolDef, SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
@@ -69,6 +70,15 @@ export class Combat {
    * Bleibt `null`, wenn niemand zuhört — dann kostet der Kampf keinen Aufruf.
    */
   onHit: HitFn | null = null;
+
+  /**
+   * Das Kampfprotokoll (GAME-DESIGN 18.2). Bleibt `null`, wenn niemand mitschreibt.
+   *
+   * Geschrieben wird in **Kampfzeit**, nicht in der durchlaufenden Uhr: Ein
+   * Protokoll, dessen Nullpunkt vom Laden der Seite abhängt, lässt sich zwischen
+   * zwei Läufen nicht vergleichen.
+   */
+  log: CombatLog | null = null;
 
   /** Wiederverwendetes Ergebnis-Objekt, siehe `CastOutcome`. */
   private readonly outcome: CastOutcome = {
@@ -277,6 +287,7 @@ export class Combat {
       this.damageDealtValue += damage;
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
       this.reportHit(damage, HIT_DOT, false, timeMs);
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, i, damage);
       this.dotTickCounts[i] = (this.dotTickCounts[i] ?? 0) + 1;
       this.addResource(dot.resourceGainPerTick[this.school.resource.id] ?? 0);
       this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
@@ -361,6 +372,7 @@ export class Combat {
       this.damageDealtValue += damage;
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
       this.reportHit(damage, HIT_DIRECT, false, timeMs);
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
     }
 
     const dot = spell.dot;
@@ -382,6 +394,8 @@ export class Combat {
     this.cooldownReadyAtMs[index] = timeMs + spell.cooldownMs;
     if (spell.triggersGcd) this.gcd.trigger(timeMs);
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
+
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);
 
     outcome.result = CAST_OK;
     outcome.damage = damage;
