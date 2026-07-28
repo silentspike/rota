@@ -132,14 +132,52 @@ Credits-Bereich zeigt sie an. Die unveränderten Originale liegen als Beleg unte
 
 ### Klang (`assets/audio/`)
 
-_(Epic E8 — hier noch nicht geführt, siehe „Offen")_
+**Alle 56 Dateien sind Eigenerzeugung mit Suno**, erzeugt am 27. und 28. Juli 2026 über das Konto
+`backupslave` im **Pro Plan**. Die Werkzeugkette steht in [`docs/suno-sfx.md`](docs/suno-sfx.md);
+`tools/suno_api.py` erzwingt das Konto über einen Wächter, der vor jeder Generierung prüft, welcher
+Account angemeldet ist.
 
-Erzeugung über Suno, Werkzeugkette siehe [`docs/suno-sfx.md`](docs/suno-sfx.md).
-Konto: `backupslave` (Konto-Wächter in `tools/suno_api.py` erzwingt das).
+| Muster                        | n   | Herkunft                               | Lizenz / Rechtelage                 | Nennung | Verwendung                                                                                                                                     |
+| ----------------------------- | --- | -------------------------------------- | ----------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assets/audio/spell-*.ogg`    | 3   | Suno Pro, `backupslave`, 2026-07-27    | Eigenerzeugung, kommerziell nutzbar | nein    | KINDLE, SMOULDER, PYRE — die drei Zauber aus Schritt 1                                                                                         |
+| `assets/audio/special-*.ogg`  | 7   | Suno Pro, `backupslave`, 2026-07-27    | Eigenerzeugung, kommerziell nutzbar | nein    | Unterbrechen, Overdrive, Rücksetzer, Schild auf/bricht, Heilung, Reflexion                                                                     |
+| `assets/audio/feedback-*.ogg` | 4   | Suno Pro, `backupslave`, 2026-07-27    | Eigenerzeugung, kommerziell nutzbar | nein    | Zauber bereit, Fehleingabe, Synergie verfügbar, GCD-Ende                                                                                       |
+| `assets/audio/boss-*.ogg`     | 8   | Suno Pro, `backupslave`, 2026-07-27    | Eigenerzeugung, kommerziell nutzbar | nein    | Zauberbeginn, durchgekommen, Treffer, Phasenwechsel, Überdruck, Reaktion kippt, besiegt                                                        |
+| `assets/audio/state-*.ogg`    | 6   | Suno Pro, `backupslave`, 2026-07-27/28 | Eigenerzeugung, kommerziell nutzbar | nein    | Countdown, Start, wenig Leben, Tod, Zeitablauf, Wipe Run                                                                                       |
+| `assets/audio/post-*.ogg`     | 6   | Suno Pro, `backupslave`, 2026-07-27    | Eigenerzeugung, kommerziell nutzbar | nein    | Sieg, Niederlage, Bestzeit, Erfolg, Stufenaufstieg, Punkte                                                                                     |
+| `assets/audio/menu-*.ogg`     | 12  | Suno Pro, `backupslave`, 2026-07-28    | Eigenerzeugung, kommerziell nutzbar | nein    | Berühren, Drücken, Reiter, Fenster auf/zu, Talentpunkt, Talente zurück, Gegenstand angelegt, gespeichert, abgelehnt, Freischaltung, Aufwertung |
+| `assets/audio/loot-*.ogg`     | 4   | Suno Pro, `backupslave`, 2026-07-27    | Eigenerzeugung, kommerziell nutzbar | nein    | Beute nach Qualität: Common, Rare, Epic, Legendary                                                                                             |
+| `assets/audio/music-*.ogg`    | 6   | Suno Pro, `backupslave`, 2026-07-28    | Eigenerzeugung, kommerziell nutzbar | nein    | Fünf feste Klangteppich-Schichten plus ein vorläufiger Grundklang                                                                              |
 
-| Datei | Herkunft | Lizenz | Nennung | Verwendung |
-| ----- | -------- | ------ | ------- | ---------- |
-| —     | —        | —      | —       | —          |
+**Nachbearbeitet** über `tools/sfx-post.sh`: Stille entfernt, auf die Ziel-Länge gekürzt mit weicher
+Ausblendung, Pegel angeglichen, als OGG Vorbis abgelegt. Die Rohdateien und der jeweils zweite
+Suno-Entwurf liegen lokal unter `assets/sfx/` und sind bewusst **nicht** versioniert (siehe
+`.gitignore`). Technisch geprüft mit `python3 tools/sfx-verify.py`.
+
+#### Die Rechtelage — belegt, nicht behauptet
+
+Bei Suno hängt die kommerzielle Nutzbarkeit am **Kontotyp**, nicht am einzelnen Klang. Drei Belege:
+
+| #   | Beleg                               | Fundstelle                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Welcher Tarif tatsächlich läuft** | `GET studio-api-prod.suno.com/api/billing/info/` meldet für `backupslave`: `plan.plan_key = "pro"`, `plan.name = "Pro Plan"`, und in `plan.features` ausdrücklich **„Commercial use rights for songs made while subscribed"**. Abgefragt am 2026-07-28, Abo-Anker `2026-07-26`                                                                                                                               |
+| 2   | **Die Nutzungsbedingungen**         | [suno.com/terms](https://suno.com/terms), Abschnitt **„Intellectual Property Rights > Content"**: _„if you are a user who has subscribed to the Pro or Premier paid tier of the Service, Suno hereby assigns to you all of its right, title and interest in and to any Output owned by Suno and generated from Submissions made by you through the Service during the term of your paid-tier subscription."_ |
+| 3   | **Die Hilfeseite dazu**             | [help.suno.com, Artikel 2746945](https://help.suno.com/en/articles/2746945): _„If you make songs while subscribed to the Pro or Premier plan, you own the songs. Further, you are granted a commercial use license to monetize those songs."_ Für den kostenlosen Tarif gilt das Gegenteil: _„Suno is the owner of the songs. You are allowed to use the songs for non-commerical purposes."_                |
+
+**Was daraus folgt — und was nicht:**
+
+| Punkt                            | Stand                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kommerzielle Nutzung in ROTA     | **zulässig** — alle 56 Dateien wurden am 27./28. Juli 2026 erzeugt, also innerhalb der laufenden Pro-Laufzeit (Anker 2026-07-26)                                                                                                                                                                                                                                                                                                                                                 |
+| Nennungspflicht                  | **keine.** Die Nennungsauflage der Bedingungen betrifft ausdrücklich nur den kostenlosen Tarif                                                                                                                                                                                                                                                                                                                                                                                   |
+| Urheberrecht an den Ausgaben     | **offen, und das ist kein Versäumnis.** Die Bedingungen sagen selbst: _„due to the nature of machine learning, Suno makes no representation or warranty to you that any copyright will vest in any Output."_ Wir dürfen die Klänge nutzen und verkaufen; ob sie urheberrechtlich schutzfähig sind, ist damit **nicht** zugesichert — bei KI-Ausgaben in vielen Rechtsordnungen zweifelhaft. Praktische Folge: Dritte lassen sich nicht sicher von einer Nachnutzung ausschließen |
+| Was passiert, wenn das Abo endet | Die Zuweisung gilt für Ausgaben, die **während** der Laufzeit erzeugt wurden. Bereits erzeugte Klänge bleiben also nutzbar; **neue** Klänge nach einem Wechsel in den kostenlosen Tarif wären es nicht. Wer nach einer Abo-Pause weitere Klänge erzeugt, prüft den Tarif vorher                                                                                                                                                                                                  |
+
+> **Warum das hier steht und nicht nur im Kopf:** Ein Klang ohne belegte Rechtelage ist so wertlos
+> wie eine Grafik, deren Lizenz nur den privaten Gebrauch erlaubt — nur fällt es später auf, wenn
+> keine Zeit mehr ist. Der Tarif
+> lässt sich jederzeit gegen die Wirklichkeit prüfen: `/venv/bin/python tools/suno_api.py auth-test`
+> zeigt Konto und Tarif-Stand an.
 
 ### Schriften (`assets/fonts/`)
 
@@ -185,14 +223,15 @@ Duffner/Pardo (CC0 beziehungsweise OFL, freiwillig).
 
 ## Offen
 
-| Punkt                                   | Status                                                                                                                                                         |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Konkretes Asset-Set und Stil-Festlegung | **Erledigt** — GEÄTZT, Entscheidung vom 2026-07-27, festgehalten in `docs/GAME-DESIGN.md` 17.2                                                                 |
-| Credits-Bereich im Spiel                | **Erledigt** — `data/credits.json`, Knopf unten rechts, mechanisch geprüft                                                                                     |
-| Symbol-Zuordnung zu den 60 Zaubern      | Epic E10 (Zauber-Katalog). Der Bestand von 24 Symbolen ist ein Startbestand                                                                                    |
-| Rahmen, Panels, Ringtextur              | Issue #22 — **tragender Teil des Aussehens**, nicht Zutat, weil GEÄTZT für sich flach ist                                                                      |
-| `assets/sfx/` ohne Einträge             | **Epic E8.** 69 versionierte Suno-Rohdateien aus Erprobungsläufen. `tools/assets-check.py` meldet sie; hier bewusst nicht eingetragen, weil kein Spiel-Bestand |
-| Sound-Manifest                          | Epic E8                                                                                                                                                        |
+| Punkt                                   | Status                                                                                                                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Konkretes Asset-Set und Stil-Festlegung | **Erledigt** — GEÄTZT, Entscheidung vom 2026-07-27, festgehalten in `docs/GAME-DESIGN.md` 17.2                                                                                                                     |
+| Credits-Bereich im Spiel                | **Erledigt** — `data/credits.json`, Knopf unten rechts, mechanisch geprüft                                                                                                                                         |
+| Symbol-Zuordnung zu den 60 Zaubern      | Epic E10 (Zauber-Katalog). Der Bestand von 24 Symbolen ist ein Startbestand                                                                                                                                        |
+| Rahmen, Panels, Ringtextur              | Issue #22 — **tragender Teil des Aussehens**, nicht Zutat, weil GEÄTZT für sich flach ist                                                                                                                          |
+| `assets/sfx/` ohne Einträge             | **Erledigt** — der Ordner ist seit Issue #18 in der `.gitignore` (248 Dateien, 21 MB). Dort liegen Suno-Rohdateien und der jeweils zweite Entwurf; lokal bleiben sie, damit sich ohne neue Credits umstellen lässt |
+| Klang-Bestand in diesem Dokument        | **Erledigt** — Issue #43, alle 56 Dateien geführt, Rechtelage mit drei Fundstellen belegt                                                                                                                          |
+| Sound-Manifest                          | **Erledigt** — `data/sound-manifest.json`, 56 beschriebene Klänge plus Platzhalter für die 71 aus E10                                                                                                              |
 
 ### Zum Stil: es gibt bewusst kein HUD-Referenzbild
 
