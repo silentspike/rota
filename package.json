@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "soundboard": "vite build --mode development && echo '\\nAbhoer-Soundboard: http://localhost:8000/rota/soundboard.html'",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
