@@ -112,14 +112,15 @@ Die Original-Lizenztexte liegen unverändert unter `docs/style-candidates/LICENS
 
 | Datei                                                 | n   | Herkunft                                                                       | Lizenz        | Nennung                                    | Verwendung                                                           |
 | ----------------------------------------------------- | --- | ------------------------------------------------------------------------------ | ------------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| `assets/img/icons/lorc/*.svg`                         | 19  | [game-icons.net](https://game-icons.net), Urheber **Lorc**                     | **CC BY 3.0** | **ja** — „Icons made by Lorc"              | Zauber-Symbole, einfarbig, werden in der Schulfarbe eingefärbt (9.3) |
-| `assets/img/icons/delapouite/*.svg`                   | 4   | [game-icons.net](https://game-icons.net), Urheber **Delapouite**               | **CC BY 3.0** | **ja** — „Icons made by Delapouite"        | wie oben                                                             |
+| `assets/img/icons/lorc/*.svg`                         | 18  | [game-icons.net](https://game-icons.net), Urheber **Lorc**                     | **CC BY 3.0** | **ja** — „Icons made by Lorc"              | Zauber-Symbole, einfarbig, werden in der Schulfarbe eingefärbt (9.3) |
+| `assets/img/icons/delapouite/*.svg`                   | 5   | [game-icons.net](https://game-icons.net), Urheber **Delapouite**               | **CC BY 3.0** | **ja** — „Icons made by Delapouite"        | wie oben                                                             |
 | `assets/img/icons/cathelineau/*.svg`                  | 1   | [game-icons.net](https://game-icons.net), Urheber **Cathelineau**              | **CC BY 3.0** | **ja** — „Icons made by Cathelineau"       | wie oben                                                             |
 | `assets/img/textures/metal036-blackened-iron-512.jpg` | 1   | [ambientCG Metal036](https://ambientcg.com/a/Metal036), auf 512 px verkleinert | CC0           | nein (Nennung trotzdem im Credits-Bereich) | Untergrund „geschwärztes Eisen" für Tafeln und Rahmen                |
 | `assets/img/LICENSES/game-icons.txt`                  | 1   | Original-Lizenztext aus dem game-icons.net-Archiv                              | (Lizenztext)  | —                                          | Nachweis, mit der vollständigen Urheberliste                         |
 
 **Die Symbole sind bearbeitet** (Issue #20): zugeschnitten, exakt zentriert und im optischen Gewicht
-angeglichen. Die Zeichnung selbst ist unangetastet — jedes SVG trägt den Originalpfad und davor nur
+angeglichen. **Zwei wurden in Issue #21 ausgetauscht**, weil sie in Spielgröße verwechselbar waren:
+`spiral-bloom` wich `test-tubes`, `caged-ball` wich `clamp`. Die Zeichnung selbst ist unangetastet — jedes SVG trägt den Originalpfad und davor nur
 eine Transformation. Wiederholbar über `python3 tools/icon-normalize.py`, geprüft mit
 `python3 tools/icon-verify.py`. CC BY verlangt, Bearbeitungen kenntlich zu machen; der
 Credits-Bereich zeigt sie an. Die unveränderten Originale liegen als Beleg unter

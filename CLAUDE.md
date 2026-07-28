@@ -43,6 +43,10 @@ Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMME
     also `npm run build`, dann neu laden.
   - **Dev-Werkzeuge im Browser testen:** `npx vite build --mode development` — dann ist
     `window.__rota` verfügbar. Danach wieder `npm run build`, damit der Produktionsstand ausliegt.
+  - **Abhör-Soundboard:** `npm run soundboard`, dann `localhost:8000/rota/soundboard.html`.
+    Die Seite entsteht **nur** im Entwicklungs-Bau (Dev-Werkzeug, GAME-DESIGN 19.3); jedes
+    `npm run build` entfernt sie wieder. Ohne den Bau-Schritt liefert nginx über `try_files`
+    die Spiel-Seite aus — HTTP 200, aber die falsche Seite.
   - Ein `404` auf `/favicon.ico` in der Konsole ist **erwartet und nicht projektbezogen**: Browser
     fragen die Datei automatisch auf der Server-Wurzel ab, nicht unter `/rota/`. Das eigene Symbol
     liegt unter `/rota/favicon.svg` und wird korrekt geladen.
