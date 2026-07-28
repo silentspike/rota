@@ -9,7 +9,8 @@
 import { AudioFeedback } from './audio-bridge.js';
 import { Combat } from './combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from './data.js';
-import { STEP1_BINDINGS, spellSoundId } from './loadout.js';
+import { EV_BOSS_HIT, NO_KEY } from './events.js';
+import { STEP1_BINDINGS } from './loadout.js';
 import { GameLoop } from './loop.js';
 import { Session } from './session.js';
 import { PressQueue } from '../input/queue.js';
@@ -50,7 +51,7 @@ export class App {
       const index = this.combat.indexOf(binding.spellId);
       if (index >= 0) this.session.bind(binding.slot, index);
     }
-    this.audio.setSpellSounds(this.combat.spells.map((spell) => spellSoundId(spell.id)));
+    this.audio.bindSpells(this.combat.spells.map((spell) => spell.id));
 
     this.overlay = new Overlay(parent, {
       onReady: () => this.ready(),
@@ -64,7 +65,13 @@ export class App {
     // stummes, unsichtbares Spiel rechnet identisch (GAME-DESIGN 18.5).
     this.combat.onHit = (damage, kind, isCrit, big, timeMs): void => {
       this.impact.onHit(damage, kind, isCrit, big, timeMs);
-      this.audio.onHit(damage, kind, isCrit, big);
+      // **Jeder Treffer klingt** — so beschreibt das Verzeichnis den Klang:
+      // „der häufigste Klang im Spiel überhaupt, jeder Zauber und jeder
+      // DoT-Tick löst ihn aus. Deshalb sehr kurz, trocken und mit Streuung."
+      // Gegen den Maschinengewehr-Effekt steht die Tonhöhen-Streuung, nicht das
+      // Weglassen (GAME-DESIGN 17.1). In E1-6 war das noch offen und deshalb auf
+      // die großen Treffer beschränkt; E8 hat es entschieden.
+      this.audio.onEvent(EV_BOSS_HIT, NO_KEY, timeMs);
     };
 
     const renderer = new HudRenderer(
@@ -106,6 +113,10 @@ export class App {
 
   /** „Ready" — der Countdown beginnt (GAME-DESIGN 10). */
   ready(): boolean {
+    // „Ready" ist eine Nutzergeste, und zwar die erste des Kampfes. Erst danach
+    // gibt der Browser den Klang-Kontext frei — geschähe das erst beim ersten
+    // Zauber, bliebe der Countdown stumm.
+    this.audio.unlock();
     return this.session.beginCountdown(this.loop.timeMs);
   }
 

@@ -12,6 +12,35 @@
  */
 import type { Bus, OneShotDef, SoundDef, SustainedDef } from './types.js';
 
+/**
+ * Wann der Klang erklingt — die Zuordnung zu einem Kampf-Ereignis.
+ *
+ * **Hier steht das Verzeichnis dem Kampf gegenueber**: Welche Ereignisse es gibt,
+ * weiss der Kampf (`src/core/events.ts`); welcher Klang daran haengt, steht hier
+ * und ist damit ohne Code-Aenderung zu aendern. Ein Eintrag ohne `trigger` ist
+ * kein Fehler — er wartet auf das Epic, das sein Ereignis baut.
+ */
+export interface SoundTrigger {
+  /** Name des Ereignisses, z. B. `spell.cast`. */
+  readonly on?: string;
+  /**
+   * Betreff, den das Ereignis tragen muss — bei `spell.cast` die Zauber-Kennung.
+   * Nur bei Ereignissen erlaubt, die einen Betreff kennen.
+   */
+  readonly key?: string;
+  /**
+   * Musik-Schicht statt einzelner Klang: laeuft von Anfang an mit und wird
+   * auf- und abgeblendet, statt gestartet zu werden (siehe `music.ts`).
+   */
+  readonly layer?: boolean;
+  /** Nur Schichten: von Anfang an hoerbar. */
+  readonly base?: boolean;
+  /** Nur Schichten: Ereignis, das sie wieder abschaltet. */
+  readonly off?: string;
+  /** Nur Schichten: sofort blenden statt an der naechsten Taktgrenze. */
+  readonly immediate?: boolean;
+}
+
 export interface ManifestEntry {
   readonly id: string;
   readonly group: string;
@@ -40,6 +69,12 @@ export interface ManifestEntry {
    * Verzeichnis vollstaendiger aus, als es ist. Der Wert nennt den Grund.
    */
   readonly provisional?: string;
+  /**
+   * Wann der Klang erklingt. Ohne Angabe bleibt er stumm — geprueft wird das
+   * nicht hier, sondern beim Kampf (`src/core/sound-map.ts`), der als einziger
+   * die Ereignis-Namen kennt.
+   */
+  readonly trigger?: SoundTrigger;
 }
 
 /**
@@ -102,6 +137,26 @@ export function parseManifest(raw: Manifest): ParsedManifest {
     if (entry.pitchJitterCents !== undefined && entry.pitchJitterCents < 0) {
       problems.push(`${where}: Streuung darf nicht negativ sein.`);
       continue;
+    }
+
+    // Der Ausloeser wird hier nur auf seine Form geprueft. Ob das genannte
+    // Ereignis existiert, weiss allein der Kampf — die Pruefung dort waere hier
+    // eine Abhaengigkeit in die falsche Richtung.
+    const trigger = entry.trigger;
+    if (trigger !== undefined) {
+      const isLayer = trigger.layer === true;
+      if (trigger.on === undefined && !isLayer) {
+        problems.push(`${where}: Ausloeser ohne Ereignis.`);
+      }
+      if (trigger.key !== undefined && trigger.on === undefined) {
+        problems.push(`${where}: Betreff ohne Ereignis.`);
+      }
+      if (!isLayer && (trigger.off !== undefined || trigger.base !== undefined)) {
+        problems.push(`${where}: Schicht-Angaben an einem Klang, der keine Schicht ist.`);
+      }
+      if (isLayer && entry.kind !== 'sustained') {
+        problems.push(`${where}: Eine Musik-Schicht muss ein dreiteiliger Klang sein.`);
+      }
     }
 
     if (entry.kind === 'oneshot') {

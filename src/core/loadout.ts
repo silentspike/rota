@@ -26,7 +26,7 @@ export const STEP1_BINDINGS: readonly Binding[] = [
   { slot: 2, spellId: 'pyre' }, // obere Reihe, dritte Taste
 ];
 
-/** Kennung des Klangs eines Zaubers im Verzeichnis von Epic E8. */
-export function spellSoundId(spellId: string): string {
-  return `spell-${spellId}`;
-}
+// Welchen Klang ein Zauber hat, stand hier bis E1-9 als Namensregel
+// (`spell-` + Kennung). Sie ist entfallen: Die Zuordnung steht jetzt im
+// Verzeichnis (`data/sound-manifest.json`, Feld `trigger`) und damit an genau
+// einer Stelle. Eine Regel im Code daneben wäre eine zweite Wahrheit.
