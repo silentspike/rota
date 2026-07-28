@@ -977,6 +977,25 @@ hunderten Wiederholungen zur Qual wird.
 | **Zwei Sound-Typen**  | **One-Shot** (feste Länge) und **Sustained** — letztere **dreiteilig**: Ansatz (One-Shot) → Körper (Loop) → Ausklang (One-Shot), weil der Effekt abgebrochen werden kann           |
 
 **Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT [`suno-sfx.md`](suno-sfx.md).
+
+#### Was die Klang-Produktion kostet (gemessen, 2026-07-28)
+
+Aus Epic E8, für die Planung von E10:
+
+|                                                               |                                                                                                            |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 56 Klänge kosteten                                            | rund **2.500 Suno-Credits** — etwa **45 je Klang**, inklusive Nachbesserungen und verworfener Erstversuche |
+| Die verbleibenden **71** (57 Zauber + 14 Instanz-Grundklänge) | rund **3.200 Credits**, eher mehr                                                                          |
+| Monatskontingent im Pro-Tarif                                 | **2.500**, setzt sich monatlich zurück                                                                     |
+
+> **E10 ist dadurch nicht blockiert, aber es passt nicht in eine Abrechnungsperiode.** Entweder über
+> zwei Monate verteilen oder aufladen. Bei den Instanz-Grundklängen ist mit mehr Aufwand zu rechnen:
+> Loops haben eine niedrigere Trefferquote als One-Shots.
+>
+> **Vor jedem größeren Lauf den Stand prüfen** — `GET /api/billing/info/` liefert
+> `total_credits_left`. Nicht `credits` lesen: Das ist ein anderes Feld und führte am 28.07. zu der
+> Fehlmeldung, das Guthaben stehe bei null, obwohl 2.372 verfügbar waren.
+
 **Ästhetische Abnahme macht der Auftraggeber** über ein Abhör-Soundboard; Claude kann nicht hören
 und prüft nur technisch (ffprobe: Länge, Pegel, Anfangs-Stille, Clipping).
 
