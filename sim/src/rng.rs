@@ -1,4 +1,4 @@
-//! Zufall — **je Quelle ein eigener Strom**.
+//! Zufall — **je Quelle ein eigener Strom**, und derselbe Erzeuger wie im Spiel.
 //!
 //! Aus GAME-DESIGN 18.4:
 //!
@@ -12,20 +12,32 @@
 //! Talent unterscheiden sollten, unterscheiden sich dann ueberall, und die
 //! gemessene Wirkung des Talents ist Rauschen.
 //!
-//! **In Schritt 1 zieht noch niemand.** Auf Stufe 1 ist PURITY = 0, also gibt es
-//! keinen Krit (`STEP1-SPEC` § 2). Die Stroeme sind trotzdem von Anfang an
-//! angelegt — sie nachtraeglich einzuziehen hiesse, jede bis dahin
-//! aufgezeichnete Runde zu entwerten.
+//! # Warum mulberry32 und nicht irgendein guter Erzeuger
 //!
-//! # Warum ein eigener Generator statt einer fertigen Kiste
+//! Weil das Spiel ihn benutzt. `src/core/rng.ts` sagt es selbst:
 //!
-//! Der Simulator muss **ueber Jahre** dieselbe Zahlenfolge liefern: Aufgezeichnete
-//! Runden sind Regressionstests (GAME-DESIGN 19.1), und die verlieren ihren Wert,
-//! sobald eine Abhaengigkeit ihren Generator austauscht. SplitMix64 ist
-//! veroeffentlicht, in 20 Zeilen vollstaendig, und liefert auf jeder Maschine
-//! dasselbe Ergebnis.
+//! > klein, schnell, ohne Speicheranforderung je Ziehung und ueber
+//! > Sprachgrenzen hinweg in wenigen Zeilen identisch nachzubauen — **die
+//! > Bedingung dafuer, dass der Rust-Simulator dieselbe Folge liefert**.
+//!
+//! Ein anderer Erzeuger waere hier besonders heimtueckisch: In Schritt 1 zieht
+//! niemand (PURITY = 0, kein Krit — `STEP1-SPEC` § 2), also bestuende ein
+//! Simulator mit fremdem Erzeuger heute **jeden** gemeinsamen Pruefall. Reissen
+//! wuerde es erst ab Schritt 3, mit dem ersten Krit — und dann sucht man den
+//! Fehler im Kampfablauf, wo er nicht ist.
+//!
+//! `tests/parity_primitives.rs` prueft die Folge deshalb gegen Werte, die aus
+//! dem Spielcode selbst stammen: `tests/parity/recordings/primitives.json`.
+//!
+//! Die Stroeme sind von Anfang an angelegt, obwohl noch niemand zieht — sie
+//! nachtraeglich einzuziehen hiesse, jede bis dahin aufgezeichnete Runde zu
+//! entwerten.
 
 /// Woher eine Zufallszahl stammt. Jede Quelle hat ihren eigenen Strom.
+///
+/// Die Zahlenwerte sind Teil der Schnittstelle: Sie bestimmen die Reihenfolge in
+/// der Zustands-Pruefsumme und muessen zu `STREAM_CRIT`, `STREAM_DOT_TICK` und
+/// `STREAM_HEAL` aus `src/core/rng.ts` passen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stream {
     /// Ob ein Treffer kritisch ist (ab Schritt 3).
@@ -42,102 +54,175 @@ pub const STREAM_COUNT: usize = 3;
 impl Stream {
     /// Alle Stroeme in fester Reihenfolge — fuer Tests und Berichte.
     pub const ALL: [Stream; STREAM_COUNT] = [Stream::Crit, Stream::DotTick, Stream::Heal];
+
+    /// Name des Stroms, wie ihn `STREAM_NAMES` in `src/core/rng.ts` fuehrt.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Stream::Crit => "crit",
+            Stream::DotTick => "dotTick",
+            Stream::Heal => "heal",
+        }
+    }
 }
 
-/// Die Zufallsstroeme eines Kampfes.
+/// Ein einzelner Strom.
 ///
-/// Wird beim Aufbau des Kampfes angelegt und danach nur noch fortgeschrieben —
-/// keine Speicheranforderung im Schritt.
+/// Der Zustand ist eine einzige 32-Bit-Zahl — damit vollstaendig speicherbar und
+/// exakt wiederherstellbar.
+#[derive(Debug, Clone, Copy)]
+pub struct RandomStream {
+    seed: u32,
+    state: u32,
+    draws: u32,
+}
+
+impl RandomStream {
+    /// Legt einen Strom mit dem gegebenen Startwert an.
+    #[must_use]
+    pub const fn new(seed: u32) -> Self {
+        Self {
+            seed,
+            state: seed,
+            draws: 0,
+        }
+    }
+
+    /// Der Startwert.
+    #[must_use]
+    pub const fn seed(&self) -> u32 {
+        self.seed
+    }
+
+    /// Zahl der Ziehungen. In Schritt 1 muss sie 0 bleiben.
+    #[must_use]
+    pub const fn draws(&self) -> u32 {
+        self.draws
+    }
+
+    /// Die naechste Zahl, roh ueber 32 Bit.
+    ///
+    /// Das Spiel gibt an dieser Stelle `wert / 4294967296` zurueck; die rohe Zahl
+    /// ist derselbe Schritt ohne die Division und laesst sich exakt vergleichen.
+    pub fn next_u32(&mut self) -> u32 {
+        self.draws += 1;
+        self.state = self.state.wrapping_add(0x6d2b_79f5);
+        let mut t = self.state;
+        t = (t ^ (t >> 15)).wrapping_mul(t | 1);
+        t ^= t.wrapping_add((t ^ (t >> 7)).wrapping_mul(t | 61));
+        t ^ (t >> 14)
+    }
+
+    /// Die naechste Zahl in `[0, 1)` — wie `next()` im Spiel.
+    pub fn next_f64(&mut self) -> f64 {
+        f64::from(self.next_u32()) / 4_294_967_296.0
+    }
+
+    /// Trifft eine Wahrscheinlichkeit in `[0, 1]`.
+    ///
+    /// Die beiden Kurzschluesse sind **nicht** nur Bequemlichkeit: Ein Wurf,
+    /// dessen Ergebnis feststeht, wuerde den Strom weiterdrehen und damit alles
+    /// Nachfolgende verschieben. `src/core/rng.ts` macht es genauso.
+    pub fn chance(&mut self, probability: f64) -> bool {
+        if probability <= 0.0 {
+            return false;
+        }
+        if probability >= 1.0 {
+            return true;
+        }
+        self.next_f64() < probability
+    }
+
+    /// Setzt den Strom auf seinen Startwert zurueck.
+    pub const fn reset(&mut self) {
+        self.state = self.seed;
+        self.draws = 0;
+    }
+}
+
+/// Alle Stroeme eines Kampfes, aus einem einzigen Startwert abgeleitet.
 #[derive(Debug, Clone)]
 pub struct Streams {
-    /// Startwert, aus dem alle Stroeme abgeleitet wurden.
-    seed: u64,
-    /// Zustand je Strom.
-    state: [u64; STREAM_COUNT],
-    /// Wie oft aus jedem Strom gezogen wurde.
-    draws: [u32; STREAM_COUNT],
+    seed: u32,
+    streams: [RandomStream; STREAM_COUNT],
 }
-
-/// Streuwert je Strom, damit zwei Stroeme aus demselben Startwert nicht
-/// dieselbe Folge liefern. Die Zahlen sind beliebig, aber **fest**: Sie zu
-/// aendern hiesse, jede aufgezeichnete Runde ungueltig zu machen.
-const STREAM_SALT: [u64; STREAM_COUNT] = [
-    0x9E37_79B9_7F4A_7C15, // Crit
-    0xBF58_476D_1CE4_E5B9, // DotTick
-    0x94D0_49BB_1331_11EB, // Heal
-];
 
 impl Streams {
     /// Legt die Stroeme zu einem Startwert an.
+    ///
+    /// Die Ableitung ist dieselbe wie in `src/core/rng.ts`:
+    /// `(seed * 0x9e3779b1 + i * 0x85ebca6b) mod 2^32`. Ohne diese Streuung
+    /// lieferten alle drei Stroeme dieselbe Folge.
     #[must_use]
-    pub fn new(seed: u64) -> Self {
-        let mut state = [0u64; STREAM_COUNT];
-        for (i, slot) in state.iter_mut().enumerate() {
-            // Der Startwert wird je Strom gestreut und einmal durchgemischt.
-            // Ohne das Durchmischen laegen die Anfangszustaende dicht beieinander,
-            // und die ersten Ziehungen waeren zwischen den Stroemen sichtbar aehnlich.
-            *slot = mix(seed ^ STREAM_SALT[i]);
+    pub fn new(seed: u32) -> Self {
+        let mut streams = [RandomStream::new(0); STREAM_COUNT];
+        for (i, slot) in streams.iter_mut().enumerate() {
+            let offset = (i as u32).wrapping_mul(0x85eb_ca6b);
+            *slot = RandomStream::new(seed.wrapping_mul(0x9e37_79b1).wrapping_add(offset));
         }
-        Self {
-            seed,
-            state,
-            draws: [0; STREAM_COUNT],
-        }
+        Self { seed, streams }
     }
 
     /// Der Startwert, aus dem diese Stroeme entstanden sind.
     #[must_use]
-    pub fn seed(&self) -> u64 {
+    pub const fn seed(&self) -> u32 {
         self.seed
     }
 
-    /// Zieht die naechste Zahl aus einem Strom.
-    pub fn next_u64(&mut self, stream: Stream) -> u64 {
-        let i = stream as usize;
-        self.state[i] = self.state[i].wrapping_add(0x9E37_79B9_7F4A_7C15);
-        self.draws[i] += 1;
-        mix(self.state[i])
+    /// Ein Strom, schreibend.
+    pub fn stream(&mut self, stream: Stream) -> &mut RandomStream {
+        &mut self.streams[stream as usize]
     }
 
-    /// Entscheidet mit einer Wahrscheinlichkeit in Zehntelprozent (0…1000).
+    /// Startwert eines einzelnen Stroms, wie ihn die Ableitung ergeben hat.
     ///
-    /// Ganzzahlig gerechnet, damit dieselbe Entscheidung auf jeder Maschine
-    /// gleich ausfaellt — ein Vergleich zweier Fliesskommazahlen waere hier
-    /// genau die Art von Detail, die Spiel und Simulator auseinanderlaufen laesst.
-    pub fn chance_per_mille(&mut self, stream: Stream, per_mille: u32) -> bool {
-        if per_mille == 0 {
-            // Wichtig: **keine Ziehung**. Ein Wurf, dessen Ergebnis feststeht,
-            // wuerde den Strom weiterdrehen und damit alles Folgende verschieben.
-            return false;
-        }
-        if per_mille >= 1000 {
-            return true;
-        }
-        (self.next_u64(stream) % 1000) < u64::from(per_mille)
+    /// Fuer den Abgleich mit dem Spiel: Stimmt schon dieser Wert nicht, liegt
+    /// der Fehler in der Ableitung und nicht im Erzeuger — ein Unterschied, der
+    /// bei der Suche Stunden spart.
+    #[must_use]
+    pub fn stream_seed(&self, stream: Stream) -> u32 {
+        self.streams[stream as usize].seed()
+    }
+
+    /// Zieht die naechste Zahl aus einem Strom.
+    pub fn next_u32(&mut self, stream: Stream) -> u32 {
+        self.streams[stream as usize].next_u32()
+    }
+
+    /// Trifft eine Wahrscheinlichkeit aus dem angegebenen Strom.
+    pub fn chance(&mut self, stream: Stream, probability: f64) -> bool {
+        self.streams[stream as usize].chance(probability)
     }
 
     /// Wie oft aus einem Strom gezogen wurde.
     #[must_use]
     pub fn draws(&self, stream: Stream) -> u32 {
-        self.draws[stream as usize]
+        self.streams[stream as usize].draws()
+    }
+
+    /// Ziehungen je Strom, in der Reihenfolge der Schnittstelle — so gehen sie
+    /// in die Zustands-Pruefsumme ein.
+    #[must_use]
+    pub fn draw_counts(&self) -> [u32; STREAM_COUNT] {
+        let mut out = [0; STREAM_COUNT];
+        for (i, slot) in out.iter_mut().enumerate() {
+            *slot = self.streams[i].draws();
+        }
+        out
     }
 
     /// Ziehungen ueber alle Stroeme. In Schritt 1 muss das 0 sein.
     #[must_use]
     pub fn total_draws(&self) -> u32 {
-        self.draws.iter().sum()
+        self.streams.iter().map(RandomStream::draws).sum()
     }
-}
 
-/// SplitMix64 — der Mischschritt.
-///
-/// Quelle: Steele, Lea, Flood, "Fast Splittable Pseudorandom Number Generators"
-/// (2014). Die Konstanten sind Teil des Verfahrens und duerfen nicht angepasst
-/// werden.
-const fn mix(mut z: u64) -> u64 {
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
+    /// Setzt alle Stroeme auf ihre Startwerte zurueck.
+    pub fn reset(&mut self) {
+        for stream in &mut self.streams {
+            stream.reset();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -149,7 +234,7 @@ mod tests {
         let mut a = Streams::new(42);
         let mut b = Streams::new(42);
         for _ in 0..64 {
-            assert_eq!(a.next_u64(Stream::Crit), b.next_u64(Stream::Crit));
+            assert_eq!(a.next_u32(Stream::Crit), b.next_u32(Stream::Crit));
         }
     }
 
@@ -157,30 +242,58 @@ mod tests {
     fn verschiedene_startwerte_verschiedene_folge() {
         let mut a = Streams::new(1);
         let mut b = Streams::new(2);
-        assert_ne!(a.next_u64(Stream::Crit), b.next_u64(Stream::Crit));
+        assert_ne!(a.next_u32(Stream::Crit), b.next_u32(Stream::Crit));
+    }
+
+    #[test]
+    fn die_drei_stroeme_liefern_verschiedene_folgen() {
+        // Ohne die Streuung im Startwert waeren alle drei gleich — und die
+        // Trennung der Stroeme waere nur auf dem Papier vorhanden.
+        let mut s = Streams::new(7);
+        let crit = s.next_u32(Stream::Crit);
+        let dot = s.next_u32(Stream::DotTick);
+        let heal = s.next_u32(Stream::Heal);
+        assert_ne!(crit, dot);
+        assert_ne!(dot, heal);
+        assert_ne!(crit, heal);
     }
 
     #[test]
     fn stroeme_laufen_unabhaengig() {
-        // Das ist die Regel aus 18.4 in ihrer kuerzesten Form: Ziehungen aus dem
-        // einen Strom duerfen den anderen nicht bewegen.
+        // Die Regel aus 18.4 in ihrer kuerzesten Form: Ziehungen aus dem einen
+        // Strom duerfen den anderen nicht bewegen.
         let mut ohne = Streams::new(7);
         let mut mit = Streams::new(7);
 
-        let erwartet: Vec<u64> = (0..8).map(|_| ohne.next_u64(Stream::DotTick)).collect();
+        let erwartet: Vec<u32> = (0..8).map(|_| ohne.next_u32(Stream::DotTick)).collect();
 
         for _ in 0..100 {
-            mit.next_u64(Stream::Crit);
+            mit.next_u32(Stream::Crit);
         }
-        let tatsaechlich: Vec<u64> = (0..8).map(|_| mit.next_u64(Stream::DotTick)).collect();
+        let tatsaechlich: Vec<u32> = (0..8).map(|_| mit.next_u32(Stream::DotTick)).collect();
 
         assert_eq!(erwartet, tatsaechlich);
     }
 
     #[test]
-    fn null_prozent_zieht_nicht() {
+    fn ziehungen_in_null_eins() {
         let mut s = Streams::new(3);
-        assert!(!s.chance_per_mille(Stream::Crit, 0));
+        for _ in 0..256 {
+            let value = s.stream(Stream::Crit).next_f64();
+            assert!(
+                (0.0..1.0).contains(&value),
+                "{value} liegt ausserhalb [0, 1)"
+            );
+        }
+    }
+
+    #[test]
+    fn sichere_entscheidungen_ziehen_nicht() {
+        let mut s = Streams::new(3);
+        assert!(!s.chance(Stream::Crit, 0.0));
+        assert!(!s.chance(Stream::Crit, -1.0));
+        assert!(s.chance(Stream::Crit, 1.0));
+        assert!(s.chance(Stream::Crit, 2.0));
         assert_eq!(
             s.draws(Stream::Crit),
             0,
@@ -189,21 +302,22 @@ mod tests {
     }
 
     #[test]
-    fn hundert_prozent_zieht_nicht() {
-        let mut s = Streams::new(3);
-        assert!(s.chance_per_mille(Stream::Crit, 1000));
-        assert_eq!(s.draws(Stream::Crit), 0);
+    fn ziehungen_werden_je_strom_gezaehlt() {
+        let mut s = Streams::new(9);
+        s.next_u32(Stream::Crit);
+        s.next_u32(Stream::Crit);
+        s.next_u32(Stream::Heal);
+        assert_eq!(s.draw_counts(), [2, 0, 1]);
+        assert_eq!(s.total_draws(), 3);
     }
 
     #[test]
-    fn ziehungen_werden_je_strom_gezaehlt() {
-        let mut s = Streams::new(9);
-        s.next_u64(Stream::Crit);
-        s.next_u64(Stream::Crit);
-        s.next_u64(Stream::Heal);
-        assert_eq!(s.draws(Stream::Crit), 2);
-        assert_eq!(s.draws(Stream::DotTick), 0);
-        assert_eq!(s.draws(Stream::Heal), 1);
-        assert_eq!(s.total_draws(), 3);
+    fn zuruecksetzen_stellt_die_folge_wieder_her() {
+        let mut s = Streams::new(11);
+        let erste: Vec<u32> = (0..4).map(|_| s.next_u32(Stream::Crit)).collect();
+        s.reset();
+        let zweite: Vec<u32> = (0..4).map(|_| s.next_u32(Stream::Crit)).collect();
+        assert_eq!(erste, zweite);
+        assert_eq!(s.draws(Stream::Crit), 4);
     }
 }
