@@ -4,6 +4,7 @@
 window.__ICONS = [
   'icons/cathelineau/earth-worm.svg',
   'icons/delapouite/bellows.svg',
+  'icons/delapouite/clamp.svg',
   'icons/delapouite/dial-padlock.svg',
   'icons/delapouite/furnace.svg',
   'icons/delapouite/mortar.svg',
@@ -11,7 +12,6 @@ window.__ICONS = [
   'icons/lorc/boiling-bubbles.svg',
   'icons/lorc/bottle-vapors.svg',
   'icons/lorc/burning-embers.svg',
-  'icons/lorc/caged-ball.svg',
   'icons/lorc/chalice-drops.svg',
   'icons/lorc/crystal-bars.svg',
   'icons/lorc/crystal-growth.svg',
@@ -24,6 +24,6 @@ window.__ICONS = [
   'icons/lorc/hourglass.svg',
   'icons/lorc/molecule.svg',
   'icons/lorc/oily-spiral.svg',
-  'icons/lorc/spiral-bloom.svg',
+  'icons/lorc/test-tubes.svg',
   'icons/lorc/wax-seal.svg',
 ];
