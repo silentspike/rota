@@ -17,6 +17,14 @@ Die Zielgroessen stammen aus dem laufenden Code, nicht aus einer Annahme:
 src/render/spellbar.ts (SLOT_SIZE) und src/render/vessel.ts (VESSEL_RADIUS,
 VESSEL_THICKNESS).
 
+Fuer die Instrumententafel gibt es KEIN eigenes Bild. Sie benutzt denselben
+slot-frame.png als 9-Slice (CSS border-image): Ecken bleiben unveraendert, nur
+die Kanten werden gestreckt - und zwar laengs, nie quer. Damit ist die
+Bandstaerke unabhaengig von der Panelgroesse ueberall gleich. Ein gestrecktes
+Vollbild kann das nicht: Beim ersten Versuch frass das Band die Werte in der
+Tafel auf, weil gleiche RELATIVE Bandbreite nicht gleiche absolute Staerke
+bedeutet.
+
 Aufruf:
 
     python3 tools/frame-prepare.py --from gen-tmp
@@ -36,10 +44,11 @@ OUT = os.path.join(REPO, "assets", "img", "frames")
 TARGETS = {
     # Zauber-Symbol-Slot: SLOT_SIZE = 104 (src/render/spellbar.ts)
     "slot-frame.png": (208, 208),
-    # Instrumententafel rechts: READOUT_LEFT 1180 bis READOUT_RIGHT 1830
-    "panel-frame.png": (1300, 866),
-    # Reaktionsgefaess: VESSEL_RADIUS 186 + VESSEL_THICKNESS 34 / 2 = 203
-    "ring-band.png": (812, 812),
+    # Reaktionsgefaess: VESSEL_RADIUS 186 + VESSEL_THICKNESS 34 / 2 = 203,
+    # verdoppelt. Eine FASSUNG aus zwei schmalen Reifen - der Kanal dazwischen
+    # bleibt frei, weil dort der Fuellstand laeuft (Dekor darf Information nie
+    # ueberlagern).
+    "ring-mount.png": (812, 812),
 }
 
 
