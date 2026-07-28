@@ -190,11 +190,12 @@ export class Combat {
   }
 
   isDotActive(index: number, timeMs: number): boolean {
-    // Echt größer, nicht größer-gleich: Im Takt des Ablaufs tickt der Effekt nicht
-    // mehr. Das ist die Regel aus `tools/step1-check.py`, gegen die AC1 dieses
-    // Issues prüft. STEP1-SPEC § 1.2 nennt in einer Klammer 6 Ticks je Anwendung,
-    // was 5 ergäbe — der Widerspruch ist gemeldet und noch nicht entschieden.
-    return (this.dotExpiresAtMs[index] ?? NOT_ACTIVE) > timeMs;
+    // Größer-gleich: Der letzte Tick fällt mit dem Ablauf zusammen. Eine Dauer von
+    // 12 s bei 2 s Tick-Abstand ergibt 6 Ticks (bei 2, 4, 6, 8, 10, 12 s), nicht 5.
+    // Entschieden am 2026-07-28 (STEP1-SPEC § 1.2): Der Spieler sieht 12,0 s
+    // Restlaufzeit — bei 5 Ticks wären die letzten zwei Sekunden wirkungslos, und
+    // "so spät wie möglich erneuern" (GAME-DESIGN 7.2) hieße heimlich "bei 10 s".
+    return (this.dotExpiresAtMs[index] ?? NOT_ACTIVE) >= timeMs;
   }
 
   /** Ist der Zauber selbst bereit? Die globale Wartezeit zählt hier nicht mit. */
