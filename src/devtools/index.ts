@@ -16,6 +16,7 @@ import { TICK_MS } from '../core/loop.js';
 import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js';
 import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
 import { NO_SPELL } from '../core/session.js';
+import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
 import { OUTCOME_NAMES, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
@@ -174,6 +175,22 @@ export interface HudSnapshot {
   readonly slots: HudSlotSnapshot[];
 }
 
+/** Zustand der Trefferwucht (GAME-DESIGN 9). */
+export interface ImpactSnapshot {
+  /** Plätze im vorab angelegten Pool. */
+  readonly poolCapacity: number;
+  /** Zahlen, die gerade unterwegs sind. */
+  readonly activeCount: number;
+  /** Wie oft eine noch sichtbare Zahl wiederverwendet werden musste. */
+  readonly recycleCount: number;
+  /** Wie viele Zahlen insgesamt gestartet sind. */
+  readonly spawnCount: number;
+  /** Aktuelle Auslenkung des Bild-Ruckelns in Entwurfs-Pixeln. */
+  readonly shakeOffsetPx: number;
+  /** Aktuelle Stärke des Aufblitzens, 0 bis 1. */
+  readonly flashStrength: number;
+}
+
 /** Zustand der Eingabe (GAME-DESIGN 8). */
 export interface InputSnapshot {
   /** Angenommene Tastendrücke — sie haben die globale Wartezeit ausgelöst. */
@@ -219,6 +236,17 @@ export interface DevTools {
   combat(): CombatSnapshot;
   /** Lage und Zeitanzeigen der Zauberleiste, in Geräte-Pixeln. */
   hud(): HudSnapshot;
+  /** Zustand der Trefferwucht: Pool, Zahlen, Ruckeln. */
+  impact(): ImpactSnapshot;
+  /**
+   * Schadenszahlen einspeisen, ohne den Kampf anzufassen.
+   *
+   * Nur ein Messmittel: Zwanzig Treffer je Sekunde entstehen in Schritt 1 nicht
+   * von selbst (ein DoT tickt alle zwei Sekunden), im späteren Spiel mit vielen
+   * gleichzeitigen Effekten sehr wohl. Der Kampf bleibt unberührt — es wird
+   * nichts gewirkt und kein Schaden gezählt.
+   */
+  feedHits(count: number, damage?: number, big?: boolean): void;
   /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
   bindSlot(slot: number, spellId: string): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
@@ -457,6 +485,23 @@ export function installDevTools(app: App): void {
         frames: app.loop.frameCount,
         slots,
       };
+    },
+    impact: () => {
+      const shownMs = app.loop.timeMs + app.loop.alpha * TICK_MS;
+      return {
+        poolCapacity: app.impact.poolCapacity,
+        activeCount: app.impact.activeCount,
+        recycleCount: app.impact.recycleCount,
+        spawnCount: app.impact.spawnCount,
+        shakeOffsetPx: app.impact.shakeOffset(shownMs),
+        flashStrength: app.impact.flashStrength(shownMs),
+      };
+    },
+    feedHits: (count: number, damage = 100, big = false) => {
+      const now = app.loop.timeMs;
+      for (let i = 0; i < count; i++) {
+        app.impact.onHit(damage, i % 3 === 0 ? HIT_DOT : HIT_DIRECT, false, big, now);
+      }
     },
     bindSlot: (slot: number, spellId: string) => {
       const index = app.combat.indexOf(spellId);
