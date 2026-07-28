@@ -17,6 +17,8 @@ import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js'
 import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
 import { NO_SPELL } from '../core/session.js';
 import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
+import { EVENT_NAMES, type LogEntry } from '../core/log.js';
+import type { RunSummary } from '../core/summary.js';
 import { OUTCOME_NAMES, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
@@ -191,6 +193,18 @@ export interface ImpactSnapshot {
   readonly flashStrength: number;
 }
 
+/** Kennzahlen des Kampfprotokolls. */
+export interface LogStats {
+  readonly entries: number;
+  readonly capacity: number;
+  readonly totalWritten: number;
+  /** Muss 0 sein. Darüber ist der Puffer zu klein ausgelegt. */
+  readonly dropped: number;
+  readonly overflowed: boolean;
+  readonly byteLength: number;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
 /** Zustand der Eingabe (GAME-DESIGN 8). */
 export interface InputSnapshot {
   /** Angenommene Tastendrücke — sie haben die globale Wartezeit ausgelöst. */
@@ -238,6 +252,19 @@ export interface DevTools {
   hud(): HudSnapshot;
   /** Zustand der Trefferwucht: Pool, Zahlen, Ruckeln. */
   impact(): ImpactSnapshot;
+  /**
+   * Das Kampfprotokoll als lesbare Liste (GAME-DESIGN 19.1, VERIFICATION § 3.4).
+   *
+   * **Erzeugt Speicher** — nur für Werkzeuge. Im Spiel bleibt das Protokoll
+   * intern; einen sichtbaren Textstrom gibt es nicht (GAME-DESIGN 21.2).
+   */
+  log(): LogEntry[];
+  /** Kennzahlen des Protokolls, ohne die ganze Liste zu erzeugen. */
+  logStats(): LogStats;
+  /** Die Kurzfassung nach dem Kampf (GAME-DESIGN 15.1). */
+  summary(): RunSummary;
+  /** Das Protokoll als Klartext ausgeben (GAME-DESIGN 19.1). */
+  logText(limit?: number): string;
   /**
    * Schadenszahlen einspeisen, ohne den Kampf anzufassen.
    *
@@ -496,6 +523,36 @@ export function installDevTools(app: App): void {
         shakeOffsetPx: app.impact.shakeOffset(shownMs),
         flashStrength: app.impact.flashStrength(shownMs),
       };
+    },
+    log: () => app.session.log.toArray(),
+    logStats: () => {
+      const log = app.session.log;
+      const counts: Record<string, number> = {};
+      for (let type = 0; type < EVENT_NAMES.length; type++) {
+        counts[EVENT_NAMES[type] as string] = log.countOf(type);
+      }
+      return {
+        entries: log.length,
+        capacity: log.capacity,
+        totalWritten: log.totalWritten,
+        dropped: log.droppedCount,
+        overflowed: log.hasOverflowed,
+        byteLength: log.byteLength,
+        counts,
+      };
+    },
+    summary: () => app.session.summary(app.loop.timeMs),
+    logText: (limit = 200) => {
+      const entries = app.session.log.toArray();
+      const from = Math.max(0, entries.length - limit);
+      let out = '';
+      for (let i = from; i < entries.length; i++) {
+        const e = entries[i];
+        if (e === undefined) continue;
+        const spell = e.spell >= 0 ? (app.combat.spellAt(e.spell)?.id ?? String(e.spell)) : '-';
+        out += `${(e.timeMs / 1000).toFixed(2)}  ${e.type.padEnd(10)} ${spell.padEnd(9)} ${e.value}\n`;
+      }
+      return out;
     },
     feedHits: (count: number, damage = 100, big = false) => {
       const now = app.loop.timeMs;

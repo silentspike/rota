@@ -12,8 +12,10 @@
  * dann die Prüfung auf das Kampfende, dann die Tastendrücke dieses Takts.
  */
 import { CAST_OK, Combat, FIGHT_RUNNING, FIGHT_WON } from './combat.js';
+import { buildSummary, type RunSummary } from './summary.js';
 import {
   COUNTDOWN_MS,
+  OUTCOME_NAMES,
   OUTCOME_NONE,
   OUTCOME_OVERPRESSURE,
   OUTCOME_VICTORY,
@@ -24,6 +26,7 @@ import {
   PHASE_PREPARE,
 } from './phases.js';
 import { LatencyTrace } from './latency.js';
+import { CombatLog } from './log.js';
 import type { Simulation } from './loop.js';
 import { TICK_MS } from './loop.js';
 import { SLOT_COUNT } from '../input/keys.js';
@@ -63,6 +66,21 @@ export class Session implements Simulation {
   /** Belegung → Zauber. `NO_SPELL`, solange der Platz leer ist. */
   private readonly bindings = new Int32Array(SLOT_COUNT).fill(NO_SPELL);
 
+  /** Das Kampfprotokoll (GAME-DESIGN 18.2). */
+  readonly log = new CombatLog();
+
+  /**
+   * Leerlauf je Zauber in ms — wie lange er ungenutzt bereit lag.
+   *
+   * Gezählt wird nur in Takten, in denen **gar nichts** gewirkt wurde. Ein
+   * Zauber, der bereit war, während ein anderer gewirkt wurde, war eine
+   * Entscheidung, kein Leerlauf.
+   */
+  readonly idlePerSpellMs: Float64Array;
+
+  /** Liegt der Zauber auf mindestens einem Platz? */
+  private readonly boundSpells: Uint8Array;
+
   private accepted = 0;
   private rejected = 0;
   private lastSlot = -1;
@@ -77,7 +95,11 @@ export class Session implements Simulation {
     private readonly queue: PressQueue,
     readonly combat: Combat,
     private readonly feedback: FeedbackSink | null = null,
-  ) {}
+  ) {
+    this.idlePerSpellMs = new Float64Array(combat.spells.length);
+    this.boundSpells = new Uint8Array(combat.spells.length);
+    combat.log = this.log;
+  }
 
   /** Abkürzung: Die globale Wartezeit gehört dem Kampf. */
   get gcd(): Combat['gcd'] {
@@ -115,6 +137,9 @@ export class Session implements Simulation {
   bind(slot: number, spellIndex: number): void {
     if (slot < 0 || slot >= SLOT_COUNT) return;
     this.bindings[slot] = spellIndex;
+    if (spellIndex >= 0 && spellIndex < this.boundSpells.length) {
+      this.boundSpells[spellIndex] = 1;
+    }
   }
 
   spellOnSlot(slot: number): number {
@@ -168,6 +193,13 @@ export class Session implements Simulation {
 
     if (this.phaseValue === PHASE_FIGHTING && !casted && this.combat.gcd.isReady(timeMs)) {
       this.idleTicks++;
+      // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
+      // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
+      for (let i = 0; i < this.boundSpells.length; i++) {
+        if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
+          this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
+        }
+      }
     }
   }
 
@@ -235,6 +267,30 @@ export class Session implements Simulation {
     if (this.phaseValue !== PHASE_FIGHTING && this.phaseValue !== PHASE_COUNTDOWN) return false;
     this.finish(OUTCOME_WIPE, timeMs);
     return true;
+  }
+
+  /**
+   * Die Kurzfassung des Laufs (GAME-DESIGN 15.1).
+   *
+   * Wird **nach** dem Kampf gerufen, nicht im Bild — hier darf Speicher entstehen.
+   */
+  summary(timeMs: number): RunSummary {
+    return buildSummary({
+      combat: this.combat,
+      log: this.log,
+      outcome: OUTCOME_NAMES[this.outcomeValue] ?? '?',
+      victory: this.outcomeValue === OUTCOME_VICTORY,
+      elapsedMs: this.fightElapsedMs(timeMs),
+      remainingMs: this.overpressureRemainingMs(timeMs),
+      casts: this.accepted,
+      lostTimeMs: this.idleMs,
+      idlePerSpellMs: this.idlePerSpellMs,
+      // In Schritt 1 gibt es keine Synergien: eine Schule, keine
+      // schulübergreifenden Fenster (GAME-DESIGN 5). Beide Zahlen sind 0, und
+      // die Ausbeute bleibt damit unbestimmt statt erfunden.
+      synergyUsed: 0,
+      synergyAvailable: 0,
+    });
   }
 
   /**
@@ -308,5 +364,7 @@ export class Session implements Simulation {
     this.outcomeValue = OUTCOME_NONE;
     this.countdownEndsAtMs = 0;
     this.endedAt = -1;
+    this.log.clear();
+    this.idlePerSpellMs.fill(0);
   }
 }
