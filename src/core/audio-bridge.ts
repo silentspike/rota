@@ -17,6 +17,9 @@ import type { FeedbackSink } from './session.js';
 /** Fehleingabe: dumpfer Ton neben dem roten Blinken (GAME-DESIGN 8.2). */
 export const SOUND_INPUT_ERROR = 'feedback-input-error';
 
+/** Aufschlag auf dem Boss (GAME-DESIGN 17.1). */
+export const SOUND_BOSS_HIT = 'boss-hit';
+
 export class AudioFeedback implements FeedbackSink {
   private engine: AudioEngine | null = null;
   private ready = false;
@@ -97,6 +100,21 @@ export class AudioFeedback implements FeedbackSink {
     this.requested++;
     if (this.engine === null) return;
     this.engine.play(id);
+  }
+
+  /**
+   * Ein Treffer auf dem Boss.
+   *
+   * **Nur die großen klingen.** Bei zwanzig Treffern je Sekunde — jeder
+   * DoT-Tick zählt mit — wäre ein Aufschlag je Treffer der Maschinengewehr-
+   * Effekt, vor dem GAME-DESIGN 17.1 warnt. Welche Treffer am Ende klingen,
+   * entscheidet Epic E8; der Auslöser steht ab hier bereit.
+   */
+  onHit(_damage: number, _kind: number, _isCrit: boolean, big: boolean): void {
+    if (!big) return;
+    this.requested++;
+    if (this.engine === null) return;
+    this.engine.play(SOUND_BOSS_HIT);
   }
 
   onPressRejected(_slot: number, _reason: number, _timeMs: number): void {

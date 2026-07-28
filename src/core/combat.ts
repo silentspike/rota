@@ -15,6 +15,7 @@
  * bevor im selben Takt noch etwas gewirkt wird.
  */
 import { computeDamage, NEUTRAL_FACTORS, type DamageFactors } from './damage.js';
+import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
 import type { BossDef, SchoolDef, SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
@@ -61,6 +62,13 @@ export class Combat {
   readonly spells: readonly SpellDef[];
   readonly gcd = new GlobalCooldown();
   readonly random: RandomStreams;
+
+  /**
+   * Empfänger für Treffer (GAME-DESIGN 9 „Wucht").
+   *
+   * Bleibt `null`, wenn niemand zuhört — dann kostet der Kampf keinen Aufruf.
+   */
+  onHit: HitFn | null = null;
 
   /** Wiederverwendetes Ergebnis-Objekt, siehe `CastOutcome`. */
   private readonly outcome: CastOutcome = {
@@ -268,6 +276,7 @@ export class Combat {
       const damage = computeDamage(dot.tickDamage, this.factors);
       this.damageDealtValue += damage;
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
+      this.reportHit(damage, HIT_DOT, false, timeMs);
       this.dotTickCounts[i] = (this.dotTickCounts[i] ?? 0) + 1;
       this.addResource(dot.resourceGainPerTick[this.school.resource.id] ?? 0);
       this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
@@ -351,6 +360,7 @@ export class Combat {
     if (damage > 0) {
       this.damageDealtValue += damage;
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
+      this.reportHit(damage, HIT_DIRECT, false, timeMs);
     }
 
     const dot = spell.dot;
@@ -376,6 +386,18 @@ export class Combat {
     outcome.result = CAST_OK;
     outcome.damage = damage;
     return outcome;
+  }
+
+  /**
+   * Einen Treffer melden.
+   *
+   * Ob er „groß" ist, entscheidet der Kampf und nicht die Anzeige: Es ist eine
+   * Aussage über den Schaden, nicht über den Geschmack.
+   */
+  private reportHit(damage: number, kind: number, isCrit: boolean, timeMs: number): void {
+    const sink = this.onHit;
+    if (sink === null) return;
+    sink(damage, kind, isCrit, damage >= this.boss.hp * BIG_HIT_HP_SHARE, timeMs);
   }
 
   private addResource(amount: number): void {
