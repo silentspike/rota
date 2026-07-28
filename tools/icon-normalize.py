@@ -71,6 +71,43 @@ MARGIN = 0.06
 SCALE_MIN = 0.62
 SCALE_MAX = 1.0
 
+# Ziel-Deckungsgrad, FESTGESCHRIEBEN.
+#
+# Anfangs war das der Median des jeweiligen Satzes. Das war ein Fehler: Wird ein
+# Symbol ausgetauscht, wandert der Median, alle uebrigen Symbole werden neu
+# skaliert - und die Aehnlichkeitswerte aus Issue #21 springen mit. Ein Tausch,
+# der ein Paar entschaerfen soll, riss dadurch an anderer Stelle ein neues auf.
+#
+# Der Wert stammt aus dem Median der 24 Symbole zum Zeitpunkt von Issue #20 und
+# steht seitdem fest. Damit ist die Normalisierung wiederholbar (ein zweiter
+# Lauf aendert nichts) und ein Tausch wirkt nur auf das getauschte Symbol.
+# Neu bestimmen laesst er sich mit --from-set, aber das ist eine Entscheidung
+# und kein Nebeneffekt.
+TARGET_INK = 0.31
+
+
+NORMALIZED_GROUP = re.compile(r'^<g data-rota-normalized="1"[^>]*>(.*)</g>$', re.S)
+
+
+def strip_normalization(path: str, dst: str) -> str:
+    """Schreibt das Symbol OHNE eine fruehere Normalisierung nach dst.
+
+    Alles Weitere wird von dieser Fassung abgeleitet - Inhalts-Rechteck wie
+    Skalierung. Wuerde stattdessen die bereits normalisierte Datei vermessen,
+    faende die Suche bei jedem Lauf leicht andere Zahlen: gleiches Aussehen,
+    aber jedes Mal ein Diff. Wiederholbar ist das nicht.
+    """
+    with open(path, encoding="utf-8") as fh:
+        svg = fh.read()
+    inner = re.sub(r"^.*?<svg[^>]*>", "", svg, count=1, flags=re.S)
+    inner = re.sub(r"</svg>\s*$", "", inner, flags=re.S).strip()
+    m = NORMALIZED_GROUP.match(inner)
+    if m:
+        inner = m.group(1).strip()
+    with open(dst, "w", encoding="utf-8") as fh:
+        fh.write(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {FIELD} {FIELD}">{inner}</svg>\n')
+    return dst
+
 
 def query_bbox(path: str) -> tuple[float, float, float, float]:
     """Das Rechteck, das der sichtbare Inhalt tatsaechlich einnimmt."""
@@ -122,12 +159,20 @@ def rewrite(src: str, dst: str, bbox: tuple[float, float, float, float], scale: 
         svg = fh.read()
 
     inner = re.sub(r"^.*?<svg[^>]*>", "", svg, count=1, flags=re.S)
-    inner = re.sub(r"</svg>\s*$", "", inner, flags=re.S)
+    inner = re.sub(r"</svg>\s*$", "", inner, flags=re.S).strip()
+
+    # Eine fruehere Normalisierung wird ERSETZT, nicht umwickelt. Ohne das
+    # schachtelt jeder Lauf eine weitere Transformation ein, die Datei waechst,
+    # und das Werkzeug ist nicht mehr wiederholbar - was Issue #21 ausdruecklich
+    # verlangt. Erkennbar ist die eigene Gruppe am Merkmal data-rota-normalized.
+    stripped = re.match(r'^<g data-rota-normalized="1"[^>]*>(.*)</g>$', inner, flags=re.S)
+    if stripped:
+        inner = stripped.group(1).strip()
 
     out = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {FIELD} {FIELD}">'
-        f'<g transform="translate({tx:.3f} {ty:.3f}) scale({factor:.6f})">'
-        f"{inner.strip()}"
+        f'<g data-rota-normalized="1" transform="translate({tx:.3f} {ty:.3f}) scale({factor:.6f})">'
+        f"{inner}"
         f"</g></svg>"
     )
     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -168,6 +213,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--check", action="store_true", help="nur messen, nichts schreiben")
     parser.add_argument("--size", type=int, default=GAME_SIZE, help="Pruefgroesse in px")
     parser.add_argument("--icons", default=ICONS, help="Verzeichnis der Symbole")
+    parser.add_argument(
+        "--target", type=float, default=TARGET_INK, help="Ziel-Deckungsgrad (Vorgabe festgeschrieben)"
+    )
+    parser.add_argument(
+        "--from-set",
+        action="store_true",
+        help="Ziel neu aus dem Median des Satzes bestimmen statt der festen Vorgabe",
+    )
     args = parser.parse_args(argv[1:])
 
     files = sorted(glob.glob(os.path.join(args.icons, "**", "*.svg"), recursive=True))
@@ -179,33 +232,45 @@ def main(argv: list[str]) -> int:
 
     print("VORHER")
     before = []
-    for path in files:
-        ratio = ink_ratio(path, args.size)
-        before.append((path, ratio, query_bbox(path)))
-        print(f"  {os.path.relpath(path, args.icons):<32}{ratio * 100:6.1f}%")
+    tmp = tempfile.mkdtemp(prefix="rota-icons-")
+    try:
+        for path in files:
+            ratio = ink_ratio(path, args.size)
+            # Alles Weitere leitet sich vom Original ab, nicht vom bereits
+            # normalisierten Zwischenstand - sonst ist der Lauf nicht wiederholbar.
+            base = strip_normalization(path, os.path.join(tmp, os.path.basename(path)))
+            before.append((path, ratio, query_bbox(base), base))
+            print(f"  {os.path.relpath(path, args.icons):<32}{ratio * 100:6.1f}%")
 
-    ratios = [r for _p, r, _b in before]
-    target = statistics.median(ratios)
-    print(
-        f"\n  Spanne {min(ratios) * 100:.1f}% bis {max(ratios) * 100:.1f}% "
-        f"(Faktor {max(ratios) / min(ratios):.1f}x), Median {target * 100:.1f}%"
-    )
+        ratios = [r for _p, r, _b, _s in before]
+        if args.from_set:
+            target = statistics.median(ratios)
+            quelle = "Median dieses Satzes"
+        else:
+            target = args.target
+            quelle = "festgeschrieben"
+        print(
+            f"\n  Spanne {min(ratios) * 100:.1f}% bis {max(ratios) * 100:.1f}% "
+            f"(Faktor {max(ratios) / min(ratios):.1f}x), Median {statistics.median(ratios) * 100:.1f}%"
+        )
+        print(f"  Ziel {target * 100:.1f}% ({quelle})")
 
-    if args.check:
-        print("\n--check: nichts geschrieben")
-        return 0
+        if args.check:
+            print("\n--check: nichts geschrieben")
+            return 0
 
-    print("\nNACHHER")
-    after = []
-    for path, _ratio, bbox in before:
-        scale, got = fit_scale(path, bbox, target, args.size)
-        rel = os.path.relpath(path, args.icons)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            staged = os.path.join(tmpdir, "out.svg")
-            rewrite(path, staged, bbox, scale)
+        print("\nNACHHER")
+        after = []
+        for path, _ratio, bbox, base in before:
+            scale, got = fit_scale(base, bbox, target, args.size)
+            rel = os.path.relpath(path, args.icons)
+            staged = os.path.join(tmp, "out.svg")
+            rewrite(base, staged, bbox, scale)
             shutil.copyfile(staged, path)
-        after.append(got)
-        print(f"  {rel:<32}{got * 100:6.1f}%   (Skalierung {scale:.3f})")
+            after.append(got)
+            print(f"  {rel:<32}{got * 100:6.1f}%   (Skalierung {scale:.3f})")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     print(
         f"\n  Spanne {min(after) * 100:.1f}% bis {max(after) * 100:.1f}% "
