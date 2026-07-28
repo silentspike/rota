@@ -19,27 +19,16 @@ import {
   instrumentContext,
   measureBusIsolation,
   measureFramePressure,
+  measureLayerSwitch,
+  measureLayerSync,
   measureLoopSeam,
+  measureMusicVolume,
   measurePitchSpread,
 } from './measure.js';
+import { MusicDirector, type MusicLayer } from './music.js';
 import { parseManifest } from './manifest.js';
 import { SOUND_MANIFEST } from './manifest-data.js';
 import { BUSES, type Bus, type SoundDef, type VoiceHandle } from './types.js';
-
-/**
- * Zusaetzlich zu den Klaengen des Spiels (`assets/audio/`, aufgeloest ueber
- * `asset-urls.ts`) macht das Soundboard die fertig nachbearbeiteten Ergebnisse
- * der Werkzeugkette abhoerbar.
- *
- * Dieser Glob steht bewusst hier und nicht in `asset-urls.ts`: Das Soundboard
- * wird nur in der Entwicklungs-Fassung gebaut, damit landen diese Dateien
- * niemals in der Auslieferung.
- */
-const toolchainUrls = import.meta.glob<string>('/assets/sfx/final/*.{ogg,mp3}', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-});
 
 /**
  * Tastenbelegung des Soundboards, nach physischen Reihen.
@@ -65,9 +54,7 @@ interface Entry {
 
 const ctx = new AudioContext({ latencyHint: 'interactive' });
 const counters = instrumentContext(ctx);
-const engine = new AudioEngine(ctx, {
-  resolveUrl: (src) => toolchainUrls[src] ?? resolveAssetUrl(src),
-});
+const engine = new AudioEngine(ctx, { resolveUrl: resolveAssetUrl });
 
 // ----------------------------------------------------------- Klang-Verzeichnis
 
@@ -94,16 +81,7 @@ const devDefs: SoundDef[] = [
   },
 ];
 
-/** Ergebnisse der Werkzeugketten-Messreihen, nur zum Vergleich abhoerbar. */
-const toolchainDefs: SoundDef[] = Object.keys(toolchainUrls).map((src) => ({
-  kind: 'oneshot',
-  id: src.replace(/^.*\//, '').replace(/\.[a-z0-9]+$/i, ''),
-  bus: 'sfx',
-  src,
-  pitchJitterCents: 0,
-}));
-
-const defs: SoundDef[] = [...manifest.defs, ...devDefs, ...toolchainDefs];
+const defs: SoundDef[] = [...manifest.defs, ...devDefs];
 engine.library.register(defs);
 engine.library.put('dev://click', makeClick(ctx));
 engine.library.put('dev://noise', makeNoiseHit(ctx));
@@ -112,11 +90,7 @@ engine.library.put('dev://tone', makeSeamlessTone(ctx));
 const entries: Entry[] = defs.map((def) => ({
   def,
   key: null,
-  origin: manifest.defs.includes(def)
-    ? 'Verzeichnis'
-    : devDefs.includes(def)
-      ? 'synthetisch'
-      : 'Werkzeugkette',
+  origin: manifest.defs.includes(def) ? 'Verzeichnis' : 'synthetisch',
   purpose: purposes.get(def.id) ?? '',
   handle: -1,
 }));
@@ -141,6 +115,22 @@ function assignKeys(): void {
     }
   }
 }
+
+/**
+ * Die Schichten des Klangteppichs (GAME-DESIGN 17.1).
+ *
+ * Der Grundklang ist vorlaeufig: Die Instanz-Klangteppiche entstehen mit E10,
+ * wenn Thema und Farbwelt je Instanz feststehen.
+ */
+const MUSIC_LAYERS: MusicLayer[] = [
+  { id: 'music-bed-placeholder', base: true, gain: 0.8 },
+  { id: 'music-tension', gain: 0.7 },
+  { id: 'music-final-push', gain: 0.7 },
+  { id: 'music-phase-change', gain: 0.6 },
+  { id: 'music-overpressure', gain: 0.8 },
+];
+
+const music = new MusicDirector(engine, { barSeconds: 2, fadeSeconds: 1.5 });
 
 // ------------------------------------------------------- Verzoegerungs-Messung
 
@@ -398,6 +388,13 @@ interface AudioDevTools {
     seconds?: number,
     playsPerSecond?: number,
   ): Promise<Awaited<ReturnType<typeof measureFramePressure>>>;
+  /** Schicht-Messungen fuer die Musik (Issue E8-4). */
+  layerSwitch(): Promise<Awaited<ReturnType<typeof measureLayerSwitch>>>;
+  layerSync(rounds?: number): Promise<Awaited<ReturnType<typeof measureLayerSync>>>;
+  musicVolume(): Promise<Awaited<ReturnType<typeof measureMusicVolume>>>;
+  /** Die echten Musik-Schichten im laufenden Kontext. */
+  music: MusicDirector;
+  startMusic(): { gestartet: string[]; fehlend: string[] };
   heapProbe(
     count?: number,
     id?: string,
@@ -455,6 +452,14 @@ const tools: AudioDevTools = {
   pitch: (id, count = 20) => measurePitchSpread(engine, id, count),
   seam: (rounds = 20) => measureLoopSeam(rounds),
   busMix: () => measureBusIsolation(),
+  layerSwitch: () => measureLayerSwitch(),
+  layerSync: (rounds = 20) => measureLayerSync(rounds),
+  musicVolume: () => measureMusicVolume(),
+  music,
+  startMusic: () => {
+    const fehlend = music.start(MUSIC_LAYERS);
+    return { gestartet: music.runningLayers(), fehlend };
+  },
   frames: (id = 'dev-click', seconds = 6, playsPerSecond = 20) =>
     measureFramePressure(() => engine.play(id), seconds, playsPerSecond),
   heapProbe: (count = 2000, id = 'dev-click') => {

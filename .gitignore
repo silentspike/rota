@@ -16,6 +16,16 @@ __pycache__/
 # Rust (Simulator)
 sim/target/
 
+# Klang-Rohdaten und Kandidaten der Werkzeugkette.
+#
+# Was das Spiel braucht, liegt in assets/audio/ und ist versioniert. Unter
+# assets/sfx/ sammeln sich dagegen Suno-Rohdateien, beide Entwuerfe je Klang
+# und die Zwischenstaende der Erprobungslaeufe — zusammen zweistellige
+# Megabyte an MP3, die niemand aus dem Repository braucht. Lokal bleiben sie
+# liegen: Damit laesst sich jederzeit auf den zweiten Entwurf umstellen
+# (tools/sfx-post.sh <raw> <out> b), ohne neue Credits zu verbrauchen.
+assets/sfx/
+
 # Werkzeug-Ausgaben
 .playwright-cli/
 *.log

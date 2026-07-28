@@ -37,8 +37,8 @@
         "present": 4
       },
       "music": {
-        "target": 8,
-        "present": 0
+        "target": 19,
+        "present": 5
       }
     },
     "placeholders": [
@@ -50,9 +50,9 @@
       },
       {
         "group": "music",
-        "count": 8,
-        "epic": "E8-4 (Issue #18)",
-        "reason": "Ein Grundklang je Instanz plus Menue und Spannungs-Schicht. Die Musik-Schichten sind ein eigenes Issue; die Instanz-Themen selbst stehen in GAME-DESIGN 22 (vor E10)."
+        "count": 14,
+        "epic": "E10",
+        "reason": "Ein Grundklang je Instanz. Thema, Farbwelt und Klangteppich der 14 Instanzen entstehen mit E10 (GAME-DESIGN 22); offen ist dort auch, ob es eigenstaendige Stuecke werden oder Varianten der fuenf Prozess-Schwerpunkte."
       }
     ]
   },
@@ -606,6 +606,85 @@
       "targetSeconds": 3.0,
       "pitchJitterCents": 0,
       "prompt": "huge cinematic reveal, deep boom with long golden shimmer tail, legendary item drop"
+    },
+    {
+      "id": "music-menu",
+      "group": "music",
+      "purpose": "Menue-Klangteppich. Laeuft ausserhalb des Kampfes — beim Zusammenstellen, im Talentbaum, in der Auswertung. Muss ueber hunderte Stunden ertraeglich bleiben, also zurueckhaltend und ohne einpraegsame Melodie.",
+      "kind": "sustained",
+      "bus": "music",
+      "bodyFile": "audio/music-menu.ogg",
+      "bodyPrompt": "calm alchemical laboratory ambience, low warm drone with distant glass resonance, seamless loop",
+      "loop": true,
+      "fadeInSeconds": 1.5,
+      "fadeOutSeconds": 1.5,
+      "pitchJitterCents": 0
+    },
+    {
+      "id": "music-tension",
+      "group": "music",
+      "purpose": "Spannungs-Schicht. Wird ueber den Grundklang gelegt, wenn der Kampf ernst wird — die erste Stufe der Reaktion des Klangteppichs auf den Kampfverlauf.",
+      "kind": "sustained",
+      "bus": "music",
+      "bodyFile": "audio/music-tension.ogg",
+      "bodyPrompt": "tense low pulsing drone with subtle metallic shimmer, seamless loop",
+      "loop": true,
+      "fadeInSeconds": 1.5,
+      "fadeOutSeconds": 1.5,
+      "pitchJitterCents": 0
+    },
+    {
+      "id": "music-final-push",
+      "group": "music",
+      "purpose": "Endspurt. Kommt hinzu, wenn der Boss kurz vor dem Fall steht. Treibend, damit die letzten Sekunden ziehen.",
+      "kind": "sustained",
+      "bus": "music",
+      "bodyFile": "audio/music-final-push.ogg",
+      "bodyPrompt": "driving low percussive pulse with steady rhythm, continuous urgent energy, seamless loop",
+      "loop": true,
+      "fadeInSeconds": 1.5,
+      "fadeOutSeconds": 1.5,
+      "pitchJitterCents": 0
+    },
+    {
+      "id": "music-phase-change",
+      "group": "music",
+      "purpose": "Phasenwechsel. Zeigt an, dass der Kampf seinen Charakter geaendert hat (GAME-DESIGN 11.1).",
+      "kind": "sustained",
+      "bus": "music",
+      "bodyFile": "audio/music-phase-change.ogg",
+      "bodyPrompt": "dark shifting harmonic drone with metallic scrape texture, seamless loop",
+      "loop": true,
+      "fadeInSeconds": 1.5,
+      "fadeOutSeconds": 1.5,
+      "pitchJitterCents": 0
+    },
+    {
+      "id": "music-overpressure",
+      "group": "music",
+      "purpose": "Ueberdruck. Die letzte Stufe: Die Zeit laeuft ab, der Versuch steht auf der Kippe.",
+      "kind": "sustained",
+      "bus": "music",
+      "bodyFile": "audio/music-overpressure.ogg",
+      "bodyPrompt": "alarming fast pulsing low rumble with dissonant overtones, seamless loop",
+      "loop": true,
+      "fadeInSeconds": 1.5,
+      "fadeOutSeconds": 1.5,
+      "pitchJitterCents": 0
+    },
+    {
+      "id": "music-bed-placeholder",
+      "group": "music",
+      "purpose": "Vorlaeufiger Grundklang. Ersetzt den Instanz-Klangteppich, solange die 14 Instanz-Themen nicht ausgearbeitet sind — bewusst themenlos, damit hier kein Instanz-Charakter erfunden wird.",
+      "kind": "sustained",
+      "bus": "music",
+      "bodyFile": "audio/music-bed-placeholder.ogg",
+      "bodyPrompt": "neutral low alchemical drone, slow breathing texture, seamless loop",
+      "loop": true,
+      "fadeInSeconds": 1.5,
+      "fadeOutSeconds": 1.5,
+      "pitchJitterCents": 0,
+      "provisional": "Ersatz, bis die Instanz-Themen stehen (E10). Zaehlt nicht zur Abdeckung."
     }
   ]
 }
