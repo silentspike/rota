@@ -52,6 +52,15 @@ const FONT_TIMER = '46px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_COUNTDOWN = '140px ui-monospace, "DejaVu Sans Mono", monospace';
 
 const LABEL_HEAT = 'HEAT';
+/**
+ * Die Rückmeldung, dass der Auswahlmodus scharf steht (Issue E3-3c).
+ *
+ * Englisch wie alle Spieltexte (Design-Gesetz 5). Sie sagt, was zu tun ist,
+ * nicht was geschehen ist: Der Modus wartet auf eine Entscheidung, und ohne
+ * diesen Satz wüsste der Spieler nicht, dass sein nächster Druck etwas
+ * anderes bedeutet als sonst.
+ */
+const LABEL_RESET_ARMED = 'CHOOSE A SPELL TO RESET';
 const LABEL_BOSS = 'THE FIRST CRUCIBLE';
 const LABEL_PERCENT = 'REACTION';
 const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
@@ -159,6 +168,7 @@ export class HudRenderer {
     this.drawVesselAndTimer(ctx, shownMs);
     this.impact.draw(ctx, shownMs);
     this.drawHeat(ctx);
+    this.drawResetPrompt(ctx);
     this.spellBar.draw(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
     this.drawCountdown(ctx, shownMs);
@@ -265,6 +275,20 @@ export class HudRenderer {
       TIMER_TOP + 44,
       this.digitAdvanceTimer,
     );
+  }
+
+  /**
+   * Die Rückmeldung des Auswahlmodus (Issue E3-3c).
+   *
+   * Sie steht über der Leiste, weil der Blick beim Wählen dort ist — und sie
+   * verschwindet mit dem nächsten Druck, gleich wie er ausgeht.
+   */
+  private drawResetPrompt(ctx: CanvasRenderingContext2D): void {
+    if (!this.session.isResetArmed) return;
+    ctx.textAlign = 'left';
+    ctx.font = FONT_SMALL;
+    ctx.fillStyle = HEAT_FILL_BONUS;
+    ctx.fillText(LABEL_RESET_ARMED, BAR_LEFT, BLOCK_TOP - 18);
   }
 
   /**

@@ -64,6 +64,14 @@ export interface SpellDef {
    * nichts — das ist der Fall für alle Zauber der Kalzination.
    */
   readonly cooldownReductionMs?: number;
+  /**
+   * Setzt dieser Zauber den **Auswahlmodus** scharf (SUBLIMATION, Issue E3-3c)?
+   *
+   * Der Rücksetzer wirkt nicht auf den nächsten gewirkten Zauber, sondern
+   * fragt: Welchen? Zwei Schritte, drei Aktionen — die Entscheidung des
+   * Auftraggebers vom 2026-07-29.
+   */
+  readonly armsCooldownReset?: boolean;
 }
 
 export interface SchoolDef {
@@ -262,6 +270,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
     ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
+    ...(raw['armsCooldownReset'] === true ? { armsCooldownReset: true } : {}),
   };
 }
 
