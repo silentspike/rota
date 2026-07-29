@@ -17,7 +17,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use rota_sim::apl::{parse, Apl};
-use rota_sim::balance::{run, BalanceConfig, BalanceResult, Statistics};
+use rota_sim::balance::{run, scaling, BalanceConfig, BalanceResult, ScalingFactor, Statistics};
 
 /// Die gute Rotation, wie sie im Repository liegt.
 const GOOD: &str = include_str!("../apl/step1-good.apl");
@@ -100,10 +100,21 @@ fn main() -> ExitCode {
             };
             // Die Dauer steht neben dem Ergebnis, nicht darin: Sie ist die
             // einzige Zahl, die sich zwischen zwei gleichen Läufen ändern darf.
+            let werte = scaling(
+                &BalanceConfig {
+                    iterations: options.iterations,
+                    base_seed: options.base_seed,
+                    threads: options.threads,
+                    ..BalanceConfig::default()
+                },
+                &listen[index].1,
+                0.01,
+            );
             println!(
-                "  {{\"elapsedMs\":{:?},\"result\":{}}}{komma}",
+                "  {{\"elapsedMs\":{:?},\"result\":{},\"scaling\":{}}}{komma}",
                 dauer.as_secs_f64() * 1000.0,
-                result.to_json()
+                result.to_json(),
+                scaling_json(&werte)
             );
         }
         println!("]");
@@ -123,9 +134,10 @@ fn main() -> ExitCode {
         report(name, result, dauer.as_secs_f64());
     }
 
-    if ergebnisse.len() == 2 {
-        vergleich(&ergebnisse[0].1, &ergebnisse[1].1);
+    if listen.len() == 2 {
+        vergleich(&listen[0].1, &listen[1].1, &options);
     }
+    skalierung(&listen[0].1, &options);
 
     ExitCode::SUCCESS
 }
@@ -212,29 +224,95 @@ fn zeile_stat(name: &str, s: &Statistics) {
 }
 
 /// Stellt zwei Läufe gegenüber — der Prüfstein aus GAME-DESIGN 20.3.
-fn vergleich(gut: &BalanceResult, schlecht: &BalanceResult) {
-    println!("{}", "-".repeat(72));
-    println!("VERGLEICH");
+///
+/// **Zwei Zahlen, zwei Fragen, und sie sind nicht austauschbar.** Diese Funktion
+/// rechnet beide selbst, statt eine davon zu zeigen und vor der anderen zu
+/// warnen: Wer nur den Schaden bis zum Sieg sieht, hält 4240 gegen 4044 und
+/// kommt auf +4,8 % — dabei hat die gute Rotation 19,5 s früher aufgehört zu
+/// rechnen. Über die volle Kampfzeit sind es 5960 gegen 4044, also +47,4 %.
+fn vergleich(gut_apl: &Apl, schlecht_apl: &Apl, options: &Options) {
+    let voll = BalanceConfig {
+        iterations: options.iterations,
+        base_seed: options.base_seed,
+        threads: options.threads,
+        stop_on_kill: false,
+        ..BalanceConfig::default()
+    };
+    let gut = run(&voll, gut_apl);
+    let schlecht = run(&voll, schlecht_apl);
 
-    // **Zwei Zahlen, zwei Fragen.** Die Zeit bis zum Sieg misst, ob der Boss
-    // faellt; der Schaden misst, ob Koennen sich lohnt. Wer den Schaden eines
-    // abgebrochenen Laufs gegen den eines vollen haelt, vergleicht ungleich
-    // lange Kaempfe — die bessere Rotation hoert frueher auf und sieht dadurch
-    // schlechter aus.
-    if !gut.samples.is_empty() {
-        println!(
-            "      Schaden bis zum Sieg     {:.0} gegen {:.0}",
-            gut.damage.mean, schlecht.damage.mean
-        );
-        println!("         Achtung: Diese Zahlen sind nur vergleichbar, wenn beide Laeufe");
-        println!("         gleich lang rechnen. Fuer das 10-%-Kriterium aus GAME-DESIGN 20.3");
-        println!("         zaehlt der Lauf ueber die volle Kampfzeit (stop_on_kill = false),");
-        println!("         dort 5960 gegen 4044 = +47,4 %.");
-    }
-    println!(
-        "      Siege                    {:.1} % gegen {:.1} %",
-        gut.kill_rate() * 100.0,
-        schlecht.kill_rate() * 100.0
-    );
     println!("{}", "-".repeat(72));
+    println!("VERGLEICH — zwei Zahlen, zwei Fragen");
+    println!();
+    println!("  1. FAELLT DER BOSS?   Lauf endet mit dem Sieg (stop_on_kill = true)");
+    println!("     Diese Zahlen sind NICHT untereinander vergleichbar: Die bessere");
+    println!("     Rotation hoert frueher auf und sammelt danach keinen Schaden mehr.");
+    println!();
+    println!("  2. LOHNT SICH KOENNEN?   Lauf ueber die volle Kampfzeit");
+    println!("     Nur diese Zahl gehoert in das 10-%-Kriterium aus GAME-DESIGN 20.3.");
+    println!("        {:<12} {:>8.0}", "gut", gut.damage.mean);
+    println!("        {:<12} {:>8.0}", "schlecht", schlecht.damage.mean);
+
+    if schlecht.damage.mean > 0.0 {
+        let abstand = (gut.damage.mean - schlecht.damage.mean) / schlecht.damage.mean * 100.0;
+        println!("        {:<12} {:>8.1} %", "Abstand", abstand);
+        let urteil = if abstand >= 10.0 {
+            "BESTANDEN: Koennen lohnt sich messbar."
+        } else {
+            "FEHLGESCHLAGEN: unter 10 % — GAME-DESIGN 20.3 verlangt Nachbesserung an den Mechaniken."
+        };
+        println!("        {urteil}");
+    }
+    println!("{}", "-".repeat(72));
+}
+
+/// Zeigt, wie stark jeder Faktor der Schadensformel durchschlägt.
+fn skalierung(apl: &Apl, options: &Options) {
+    let config = BalanceConfig {
+        iterations: options.iterations,
+        base_seed: options.base_seed,
+        threads: options.threads,
+        ..BalanceConfig::default()
+    };
+    let werte = scaling(&config, apl, 0.01);
+
+    println!();
+    println!("{}", "-".repeat(72));
+    println!("SKALIERUNG — Zuwachs je Prozentpunkt auf dem Faktor");
+    println!("  Gemessen ueber die volle Kampfzeit, paarweise mit gleichen Startwerten.");
+    println!();
+    println!(
+        "  {:<12} {:<44} {:>10}",
+        "Faktor", "Spielwert dahinter", "je 1 %"
+    );
+    for wert in &werte {
+        println!(
+            "  {:<12} {:<44} {:>10.1}",
+            wert.factor, wert.stat, wert.gain_per_percent
+        );
+    }
+    println!();
+    println!("  Was hier NICHT steht: der Zuwachs je WERT-PUNKT. Die Umrechnung");
+    println!("  Punkt -> Faktor ist im Design noch nicht festgelegt (GAME-DESIGN 22:");
+    println!("  Talent-Inhalte vor E5, Gegenstands-Katalog vor E6). Sobald sie da ist,");
+    println!("  ist der Wert je Punkt eine Multiplikation dieser Zahlen.");
+    println!();
+    println!("  PURITY und CATALYSIS fehlen ganz: Krit wird nirgends gewuerfelt und");
+    println!("  Tempo ist auch im Spiel nicht umgesetzt (src/core/gcd.ts: \"Ab Epic E5");
+    println!("  von CATALYSIS beeinflusst\").");
+    println!("{}", "-".repeat(72));
+}
+
+/// Eine Zeile der JSON-Ausgabe für einen Skalierungswert.
+fn scaling_json(werte: &[ScalingFactor]) -> String {
+    let eintraege: Vec<String> = werte
+        .iter()
+        .map(|w| {
+            format!(
+                "{{\"factor\":{:?},\"stat\":{:?},\"delta\":{:?},\"gainMean\":{:?},\"gainCi95\":{:?},\"gainPerPercent\":{:?}}}",
+                w.factor, w.stat, w.delta, w.gain.mean, w.gain.ci95, w.gain_per_percent
+            )
+        })
+        .collect();
+    format!("[{}]", eintraege.join(","))
 }

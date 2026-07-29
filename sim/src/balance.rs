@@ -38,6 +38,7 @@
 use std::thread;
 
 use crate::apl::Apl;
+use crate::factors::{DamageFactors, NEUTRAL};
 use crate::fight::{Fight, FightConfig};
 use crate::time::Millis;
 
@@ -56,7 +57,19 @@ pub struct BalanceConfig {
     /// Kampfdauer. `None` heißt: der Überdruck-Timer des Bosses.
     pub duration_ms: Option<Millis>,
     /// Ob ein Durchgang mit dem Sieg endet.
+    ///
+    /// **Zwei Stellungen, zwei Fragen** — und sie zu verwechseln ist der Fehler,
+    /// vor dem `STEP1-SPEC` § 4 ausdruecklich warnt:
+    ///
+    /// * `true` misst, **ob der Boss faellt**. Der Durchgang endet mit dem Sieg,
+    ///   der Schaden ist damit abgeschnitten.
+    /// * `false` misst, **ob Koennen sich lohnt**. Beide Rotationen rechnen
+    ///   gleich lang, nur so sind ihre Schadenszahlen vergleichbar.
+    ///
+    /// Nur die zweite Zahl gehoert in das 10-%-Kriterium aus GAME-DESIGN 20.3.
     pub stop_on_kill: bool,
+    /// Die Faktoren der Schadensformel.
+    pub factors: DamageFactors,
 }
 
 impl Default for BalanceConfig {
@@ -67,6 +80,7 @@ impl Default for BalanceConfig {
             threads: 1,
             duration_ms: None,
             stop_on_kill: true,
+            factors: NEUTRAL,
         }
     }
 }
@@ -326,6 +340,7 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         seed: config.base_seed.wrapping_add(offset),
         duration_ms: config.duration_ms,
         stop_on_kill: config.stop_on_kill,
+        factors: config.factors,
         // Das Protokoll kostet Speicher und wird hier von niemandem gelesen.
         log_capacity: 0,
     });
@@ -406,4 +421,137 @@ mod tests {
             "wenn diese beiden gleich sind, prueft der Test seine Voraussetzung nicht mehr"
         );
     }
+}
+
+/// Wie stark ein Faktor der Schadensformel auf den Schaden durchschlägt.
+///
+/// Das ist die Antwort auf die Frage aus GAME-DESIGN 18.5 — *„Wie viel Schaden
+/// bringt ein Punkt CATALYSIS?"* — soweit sie heute beantwortbar ist. Gemessen
+/// wird die Empfindlichkeit gegenüber dem **Faktor**, nicht gegenüber dem
+/// **Punkt**: Die Umrechnung Punkt → Faktor ist im Design noch nicht festgelegt
+/// (GAME-DESIGN 22: Talent-Inhalte vor E5, Gegenstands-Katalog vor E6). Sobald
+/// sie feststeht, ist der Wert je Punkt eine Multiplikation dieser Zahl.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScalingFactor {
+    /// Feld der Schadensformel, das verändert wurde.
+    pub factor: &'static str,
+    /// Welcher Spielwert dahintersteht, soweit benannt.
+    pub stat: &'static str,
+    /// Um wie viel der Faktor angehoben wurde.
+    pub delta: f64,
+    /// Mittlerer Schaden ohne Anhebung.
+    pub baseline_mean: f64,
+    /// Mittlerer Schaden mit Anhebung.
+    pub raised_mean: f64,
+    /// Zuwachs, **paarweise** je Durchgang gemessen.
+    ///
+    /// Paarweise und nicht als Differenz zweier Mittelwerte: Beide Läufe
+    /// benutzen dieselben Startwerte, also hebt sich der Zufall in der Differenz
+    /// weg. Bei echtem Krit (ab Schritt 3) ist das der Unterschied zwischen
+    /// einem brauchbaren und einem unbrauchbaren Skalierungswert.
+    pub gain: Statistics,
+    /// Zuwachs je Prozentpunkt auf dem Faktor.
+    pub gain_per_percent: f64,
+}
+
+/// Die Faktoren der Schadensformel und die Werte, die dahinterstehen.
+///
+/// Für `talents`, `buffs`, `synergy` und `resistance` gibt es keinen einzelnen
+/// Spielwert — sie sammeln, was Talentbaum, Verstärkungen, Synergie-Fenster und
+/// Boss-Widerstand beitragen (GAME-DESIGN 6.3).
+const FACTOR_NAMES: [(&str, &str); 6] = [
+    ("essence", "ESSENCE"),
+    ("talents", "(Talentbaum)"),
+    ("buffs", "(Verstaerkungen)"),
+    ("synergy", "(Synergie)"),
+    ("resistance", "(Boss-Widerstand)"),
+    ("crit", "YIELD, nur wenn jeder Treffer kritisch waere"),
+];
+
+/// Setzt einen Faktor auf einen neuen Wert.
+fn with_factor(mut factors: DamageFactors, name: &str, value: f64) -> DamageFactors {
+    match name {
+        "essence" => factors.essence = value,
+        "talents" => factors.talents = value,
+        "buffs" => factors.buffs = value,
+        "synergy" => factors.synergy = value,
+        "resistance" => factors.resistance = value,
+        "crit" => factors.crit = value,
+        _ => unreachable!("unbekannter Faktor: {name}"),
+    }
+    factors
+}
+
+/// Liest einen Faktor aus.
+fn factor_value(factors: &DamageFactors, name: &str) -> f64 {
+    match name {
+        "essence" => factors.essence,
+        "talents" => factors.talents,
+        "buffs" => factors.buffs,
+        "synergy" => factors.synergy,
+        "resistance" => factors.resistance,
+        "crit" => factors.crit,
+        _ => unreachable!("unbekannter Faktor: {name}"),
+    }
+}
+
+/// Misst die Empfindlichkeit gegenüber jedem Faktor der Schadensformel.
+///
+/// `delta` ist die Anhebung, üblich sind 0,01 für ein Prozent. Für jeden Faktor
+/// laufen zwei Durchgangs-Reihen mit **denselben Startwerten**; verglichen wird
+/// paarweise.
+///
+/// Der Vergleich läuft über die **volle Kampfzeit** (`stop_on_kill = false`),
+/// unabhängig davon, was in `config` steht: Ein Lauf, der beim Sieg abbricht,
+/// misst nicht mehr Schaden, sondern nur früheren Sieg — und der Zuwachs wäre
+/// systematisch zu klein.
+#[must_use]
+pub fn scaling(config: &BalanceConfig, apl: &Apl, delta: f64) -> Vec<ScalingFactor> {
+    let full = BalanceConfig {
+        stop_on_kill: false,
+        ..*config
+    };
+    let baseline = run(&full, apl);
+
+    FACTOR_NAMES
+        .iter()
+        .map(|&(factor, stat)| {
+            let raised_factors = with_factor(
+                full.factors,
+                factor,
+                factor_value(&full.factors, factor) + delta,
+            );
+            let raised = run(
+                &BalanceConfig {
+                    factors: raised_factors,
+                    ..full
+                },
+                apl,
+            );
+
+            // Paarweise: Die Ergebnisse sind nach Startwert sortiert, also
+            // gehoeren gleiche Positionen zum selben Durchgang.
+            let gains: Vec<f64> = baseline
+                .samples
+                .iter()
+                .zip(&raised.samples)
+                .map(|(a, b)| f64::from(b.damage) - f64::from(a.damage))
+                .collect();
+            let gain = Statistics::from_sorted(&gains);
+
+            ScalingFactor {
+                factor,
+                stat,
+                delta,
+                baseline_mean: baseline.damage.mean,
+                raised_mean: raised.damage.mean,
+                gain_per_percent: if delta == 0.0 {
+                    0.0
+                } else {
+                    gain.mean / (delta * 100.0)
+                },
+                gain,
+            }
+        })
+        .collect()
 }
