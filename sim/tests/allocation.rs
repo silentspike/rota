@@ -143,10 +143,13 @@ fn ohne_protokoll_kostet_der_aufbau_fast_nichts() {
     // | Anzahl | wofuer                                                  |
     // | ------ | ------------------------------------------------------- |
     // |      1 | die Ereignis-Schlange                                    |
-    // |      2 | die geteilten Zellen (angesetzter Gewinn, Zaehler)       |
+    // |      2 | die geteilten Zellen der Stapel-Mechanik                 |
     // |      2 | je ein `Box<dyn RuleReceiver>` fuer die beiden Ereignisse |
     // |      2 | die beiden Kennungen als `String`                        |
     // |      4 | die Listen der Verteilung, beim ersten Eintrag           |
+    // |      2 | die geteilten Zellen der Sublimation (E3-3)              |
+    // |      1 | ihr `Box<dyn RuleReceiver>`                              |
+    // |      1 | ihre Kennung als `String`                                |
     //
     // **Die Zahl steht hier exakt und nicht als Obergrenze**, damit sie
     // auffaellt, wenn sie sich bewegt. Was zaehlt, ist ohnehin die andere
@@ -159,8 +162,8 @@ fn ohne_protokoll_kostet_der_aufbau_fast_nichts() {
         })
     });
     assert_eq!(
-        allocations, 11,
-        "erwartet werden elf Anforderungen: Ereignis-Schlange plus Anmeldung \
-         der Schul-Mechanik (Aufschluesselung im Kommentar darueber)"
+        allocations, 15,
+        "erwartet werden fuenfzehn Anforderungen: Ereignis-Schlange plus Anmeldung \
+         der Schul-Mechaniken (Aufschluesselung im Kommentar darueber)"
     );
 }
