@@ -79,5 +79,12 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixInt(h, combat.bossPhase);
   h = mixInt(h, combat.bossEnergy);
   h = mixInt(h, combat.timelineIndex);
+  // **Angehängt, nicht eingeschoben** (Issue #110). Ohne die Lebenspunkte wäre
+  // die Prüfsumme für einen Boss, der Schaden austeilt, blind: Zwei Läufe mit
+  // verschiedenem erlittenem Schaden sähen gleich aus.
+  h = mixInt(h, combat.playerHp);
+  // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen auffällt,
+  // bevor der Treffer überhaupt fällt.
+  h = mixInt(h, combat.casting);
   return h >>> 0;
 }

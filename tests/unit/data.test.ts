@@ -12,7 +12,8 @@ describe('Zauber-Datensätze', () => {
   it('liest CALCINATION ohne Beanstandung', () => {
     expect(CALCINATION.problems).toEqual([]);
     expect(CALCINATION.value.school).toBe('CALCINATION');
-    expect(CALCINATION.value.spells.length).toBe(3);
+    // Drei Kampfzauber, dazu seit #110 der Unterbrecher QUENCH.
+    expect(CALCINATION.value.spells.length).toBe(4);
   });
 
   it('trägt alle Zahlen aus STEP1-SPEC § 1', () => {

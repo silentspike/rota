@@ -11,6 +11,7 @@
  */
 import rawSchool from '../../data/spells/calcination.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
+import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -72,6 +73,16 @@ export interface SpellDef {
    * Auftraggebers vom 2026-07-29.
    */
   readonly armsCooldownReset?: boolean;
+  /**
+   * Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**
+   * (GAME-DESIGN 11.2, Baustein 9, Issue #110).
+   *
+   * Steht in den Daten und nicht im Code: Ein Zauber, der das kann, ist ein
+   * Datensatz wie jeder andere. Er ist zugleich die **einzige Ausnahme** von
+   * der globalen Wartezeit (GAME-DESIGN 6.6) — auch das steht als
+   * `triggersGcd: false` in denselben Daten.
+   */
+  readonly interrupt?: boolean;
 }
 
 export interface SchoolDef {
@@ -124,10 +135,44 @@ export interface EnergyDef {
  * gehört nach E10 (GAME-DESIGN 22). Hier steht das Gerüst, das beides trägt.
  */
 export interface TimelineEntryDef {
-  /** Zeitpunkt seit Kampfbeginn, auf dem Takt-Raster des Spiels. */
+  /**
+   * Zeitpunkt seit Kampfbeginn, auf dem Takt-Raster des Spiels.
+   *
+   * Bei einem Zauber ist das der Zeitpunkt, zu dem er **beginnt** — nicht der,
+   * zu dem er trifft. Der Treffer liegt `castTimeMs` später, und dazwischen
+   * liegt das Fenster, in dem unterbrochen werden kann.
+   */
   readonly atMs: number;
-  /** Kennung des Mechanik-Bausteins, der hier greift. */
+  /**
+   * Welcher Mechanik-Baustein hier greift.
+   *
+   * `strike` trifft sofort, `interruptibleCast` läuft eine Wirkzeit lang und
+   * lässt sich abbrechen. Ein unbekannter Wert wird beim Lesen gemeldet und
+   * übersprungen — `sim/build.rs` bricht dafür den Bau ab.
+   */
   readonly mechanic: string;
+  /** Anzeigename der Fähigkeit. Englisch, wie alle Spieltexte. */
+  readonly name: string;
+  /** Schaden am Spieler, **vor** WARD. */
+  readonly damage: number;
+  /** Wirkzeit eines Boss-Zaubers. 0 bei allem, was sofort trifft. */
+  readonly castTimeMs: number;
+}
+
+/**
+ * Die Grundwerte des Spielers (GAME-DESIGN 6.1).
+ *
+ * **Berechnet, nicht gespeichert.** Der Spielstand hält sie nicht — sie ergeben
+ * sich aus Ausrüstung und Talenten, und beides gibt es noch nicht (E5, E6).
+ *
+ * > **Die Zahlen sind noch nicht Design.** GAME-DESIGN Teil F.6 führt sie als
+ * > „vor E4 auszuplanen"; entschieden ist davon nichts.
+ */
+export interface PlayerBaseDef {
+  /** VESSEL — Lebenspunkte. */
+  readonly vessel: number;
+  /** WARD — Anteil, um den eingehender Schaden gemindert wird. */
+  readonly wardReduction: number;
 }
 
 export interface BossDef {
@@ -249,6 +294,13 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   const spender = parseSpender(raw['spender'], where, problems);
   const resourceGain = isRecord(raw['resourceGain']) ? gains(raw['resourceGain']) : undefined;
 
+  const unterbricht = raw['interrupt'] === true;
+  if (unterbricht && raw['triggersGcd'] !== false) {
+    // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
+    // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
+    // legen, und der ganze Baustein wäre tot.
+    problems.push(`${where}: Ein Unterbrecher darf keine globale Wartezeit auslösen.`);
+  }
   const reduction = raw['cooldownReductionMs'];
   const cooldownReductionMs = typeof reduction === 'number' ? reduction : undefined;
   if (cooldownReductionMs !== undefined) {
@@ -266,6 +318,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     cooldownMs,
     castTimeMs: number(raw['castTimeMs'], 0),
     triggersGcd: raw['triggersGcd'] !== false,
+    interrupt: unterbricht,
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
@@ -407,10 +460,32 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
         );
         continue;
       }
+      const mechanic = typeof entry['mechanic'] === 'string' ? entry['mechanic'] : 'unknown';
+      // Ein unbekannter Baustein wird gemeldet und übersprungen, nicht still
+      // zu einem Standardfall gemacht: Ein Boss-Zauber, der versehentlich als
+      // Schlag gilt, wäre nicht unterbrechbar — im Kampf sähe das wie ein
+      // Balance-Problem aus, nicht wie ein Datenfehler. `sim/build.rs` bricht
+      // dafür den Bau ab; hier wird gemeldet, weil diese Seite zur Laufzeit liest.
+      if (mechanic !== 'strike' && mechanic !== 'interruptibleCast') {
+        problems.push(
+          `Zeitleisten-Eintrag bei ${atMs} ms nennt die unbekannte Mechanik "${mechanic}".`,
+        );
+        continue;
+      }
+      const castTimeMs = number(entry['castTimeMs'], 0);
+      if (mechanic === 'interruptibleCast' && castTimeMs <= 0) {
+        problems.push(
+          `Der Zauber bei ${atMs} ms hat keine Wirkzeit und wäre damit nicht zu unterbrechen.`,
+        );
+        continue;
+      }
       voriger = atMs;
       timeline.push({
         atMs,
-        mechanic: typeof entry['mechanic'] === 'string' ? entry['mechanic'] : 'unknown',
+        mechanic,
+        name: typeof entry['name'] === 'string' ? entry['name'] : 'Unnamed',
+        damage: number(entry['damage'], 0),
+        castTimeMs,
       });
     }
   }
@@ -467,6 +542,31 @@ export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
     out.set(gelesen.value.id, gelesen);
   }
   return out;
+})();
+
+/**
+ * Die Grundwerte des Spielers, aus `data/player/base.json`.
+ *
+ * Dieselbe Datei, die `sim/build.rs` einliest — **eine Wahrheit für beide
+ * Seiten**. Zwei getrennte Zahlensätze wären genau die Art Abweichung, die
+ * kein Prüffall meldet, weil beide Seiten für sich stimmig blieben.
+ */
+export const PLAYER: PlayerBaseDef = (() => {
+  const roh = rawPlayer as Record<string, unknown>;
+  const vessel = number(roh['vessel'], 0);
+  const wardReduction = number(roh['wardReduction'], 0);
+  // Kein `problems`-Kanal hier: Diese Datei ist keine Inhaltsdatei, die ein
+  // Autor pflegt, sondern eine Voraussetzung des Spiels. Fehlt sie oder ist
+  // sie unsinnig, ist nichts spielbar — dann ist ein harter Abbruch ehrlicher
+  // als ein Spieler mit null Lebenspunkten.
+  if (vessel <= 0) throw new Error('data/player/base.json: vessel muss positiv sein.');
+  if (wardReduction < 0 || wardReduction >= 1) {
+    throw new Error(
+      'data/player/base.json: wardReduction muss in [0, 1) liegen — bei 1 wäre der ' +
+        'Spieler unverwundbar, darüber würde ihn Schaden heilen.',
+    );
+  }
+  return { vessel, wardReduction };
 })();
 
 /**

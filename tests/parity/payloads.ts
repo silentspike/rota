@@ -21,7 +21,14 @@ import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat } from '../../src/core/combat.js';
-import { bossById, BOSSES, CALCINATION, FIRST_CRUCIBLE, parseSchool } from '../../src/core/data.js';
+import {
+  bossById,
+  BOSSES,
+  CALCINATION,
+  FIRST_CRUCIBLE,
+  parseSchool,
+  PLAYER,
+} from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
 import {
@@ -371,6 +378,10 @@ export function bossStatePayload(): Record<string, unknown> {
   // Takt verschoben — sie wuerde fehlschlagen, obwohl beide Seiten richtig
   // rechnen. Genau das ist beim ersten Versuch passiert.
   const hpAnteil: number[] = [];
+  // Die Lebenspunkte des Spielers je Takt (Issue #110). Ohne diese Spur bliebe
+  // der eingehende Schaden in der Prüfsumme verborgen: Sie meldete zwar eine
+  // Abweichung, aber nicht, dass es um den Spieler geht.
+  const spielerHp: number[] = [];
   const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
   let pressIndex = 0;
   for (let tick = 0; tick < recording.ticks; tick++) {
@@ -383,6 +394,7 @@ export function bossStatePayload(): Record<string, unknown> {
       energie.push(combat.bossEnergy);
       zeitleiste.push(combat.timelineIndex);
       hpAnteil.push(anteilVorDemWirken);
+      spielerHp.push(combat.playerHp);
       break;
     }
     while (pressIndex < recording.presses.length) {
@@ -397,6 +409,7 @@ export function bossStatePayload(): Record<string, unknown> {
     energie.push(combat.bossEnergy);
     zeitleiste.push(combat.timelineIndex);
     hpAnteil.push(anteilVorDemWirken);
+    spielerHp.push(combat.playerHp);
   }
 
   return {
@@ -433,12 +446,19 @@ export function bossStatePayload(): Record<string, unknown> {
       finalPhase: phasen[phasen.length - 1] ?? 0,
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
+      finalPlayerHp: combat.playerHp,
+      damageTaken: combat.damageTaken,
+      diedAtMs: combat.diedAtMs,
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
     },
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
     checksums: result.checksums,
     phases: phasen,
     energy: energie,
     timelineIndex: zeitleiste,
     hpPercent: hpAnteil,
+    playerHp: spielerHp,
   };
 }
 
