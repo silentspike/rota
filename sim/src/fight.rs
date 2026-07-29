@@ -73,6 +73,7 @@ use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
+use crate::stacks::{PendingGain, StackMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
 
 /// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
@@ -228,6 +229,12 @@ pub struct Fight {
     log: CombatLog,
     rng: Streams,
 
+    /// Was die Schul-Mechanik angesetzt, der Kampf aber noch nicht gebucht hat
+    /// (Issue E3-2). Siehe [`crate::stacks`] fuer den Grund der Teilung.
+    pending_gain: PendingGain,
+    /// Wie oft Stapel angesetzt wurden.
+    stack_gains: std::rc::Rc<std::cell::Cell<u32>>,
+
     /// Die Regel-Ereignisse (GAME-DESIGN 18.3, Issue E3-1b).
     ///
     /// **Erst der Schaden, dann "Zauber gewirkt"** — Entscheidung des
@@ -241,7 +248,7 @@ impl Fight {
     /// Legt einen Durchgang an. Fordert allen benoetigten Speicher **jetzt** an.
     #[must_use]
     pub fn new(config: FightConfig) -> Self {
-        Self {
+        let mut fight = Self {
             time: 0,
             duration_ms: config.duration_ms.unwrap_or(BOSS.overpressure_ms),
             stop_on_kill: config.stop_on_kill,
@@ -269,6 +276,50 @@ impl Fight {
             // nicht gibt, kauft auch nichts: Angemeldet wird beim Aufbau, nicht
             // im Schritt (GAME-DESIGN 18.4 verlangt nur Letzteres).
             events: RuleEvents::default(),
+            pending_gain: PendingGain::default(),
+            stack_gains: std::rc::Rc::default(),
+        };
+        fight.register_school_mechanics();
+        fight
+    }
+
+    /// Die Schul-Mechanik anmelden (Issue E3-2).
+    ///
+    /// Eine Zeile fuer alle Schulen: Welcher Vorrat gefuellt wird und wie viel,
+    /// steht in den Daten des jeweiligen Zaubers.
+    fn register_school_mechanics(&mut self) {
+        let mechanic = StackMechanic::new(
+            std::rc::Rc::clone(&self.pending_gain),
+            std::rc::Rc::clone(&self.stack_gains),
+        );
+        self.events
+            .register("stacks:heat", RuleEvent::SpellCast, 0, Box::new(mechanic));
+        let second = StackMechanic::new(
+            std::rc::Rc::clone(&self.pending_gain),
+            std::rc::Rc::clone(&self.stack_gains),
+        );
+        self.events
+            .register("stacks:heat", RuleEvent::DotTick, 0, Box::new(second));
+    }
+
+    /// Wie oft die Schul-Mechanik Stapel angesetzt hat.
+    #[must_use]
+    pub fn stack_gain_count(&self) -> u32 {
+        self.stack_gains.get()
+    }
+
+    /// Ein Regel-Ereignis austragen und einsammeln, was die Schul-Mechanik
+    /// dabei angesetzt hat.
+    ///
+    /// **Die einzige Stelle, an der gebucht wird.** Der Empfaenger kann nicht
+    /// selbst buchen (siehe [`crate::stacks`]); dass es hier und nur hier
+    /// geschieht, haelt die Regel trotzdem an einem Ort.
+    fn emit_rule(&mut self, event: RuleEvent, subject: i16, value: f64) {
+        let now = self.time;
+        self.events.emit(event, subject, value, now);
+        let gained = self.pending_gain.replace(0);
+        if gained > 0 {
+            self.add_resource(gained);
         }
     }
 
@@ -529,14 +580,9 @@ impl Fight {
         );
         // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zaehlen
         // will, meldet sich fuer beide Arten an — so bleibt die Folge eindeutig.
-        self.events.emit(
-            RuleEvent::DotTick,
-            index as i16,
-            f64::from(tick_damage),
-            self.time,
-        );
+        self.emit_rule(RuleEvent::DotTick, index as i16, f64::from(tick_damage));
         self.dot_tick_counts[index] += 1;
-        self.add_resource(dot.resource_gain_per_tick);
+        // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
         // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
         // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
@@ -615,16 +661,11 @@ impl Fight {
         // Ereignisse und dort eines. In Schritt 1 gibt es keinen solchen
         // Zauber — genau deshalb ist es jetzt festzulegen und nicht dann.
         if cast_damage > 0 {
-            self.events
-                .emit(RuleEvent::Damage, index as i16, f64::from(cast_damage), now);
+            self.emit_rule(RuleEvent::Damage, index as i16, f64::from(cast_damage));
         }
         // Hierher gehoert `RuleEvent::Crit`. Krit ruht in Schritt 1
         // (PURITY = 0, `STEP1-SPEC` 2); ein Ausloeser, der nie zutrifft, waere
         // toter Code.
-
-        if spell.resource_gain > 0 {
-            self.add_resource(spell.resource_gain);
-        }
 
         if let Some(dot) = spell.dot {
             if self.dot_active(index) {
@@ -666,12 +707,7 @@ impl Fight {
         // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt ueber Zeit,
         // Vorrat, Abklingzeit und Wartezeit stehen.
         self.log.push(now, LogKind::Cast, index as u8, 0);
-        self.events.emit(
-            RuleEvent::SpellCast,
-            index as i16,
-            f64::from(cast_damage),
-            now,
-        );
+        self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
     }
 
     /// Traegt Schaden ein und gibt den Betrag zurueck.

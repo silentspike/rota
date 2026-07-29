@@ -132,8 +132,26 @@ fn ac4_gilt_fuer_alle_vier_rotationen() {
 
 #[test]
 fn ohne_protokoll_kostet_der_aufbau_fast_nichts() {
-    // Fuer grosse Laeufe wird das Protokoll abgeschaltet. Dann darf auch der
-    // Aufbau nur noch die Ereignis-Schlange anfordern.
+    // Fuer grosse Laeufe wird das Protokoll abgeschaltet. Dann kostet der
+    // Aufbau nur noch die Ereignis-Schlange und die Anmeldung der
+    // Schul-Mechanik.
+    //
+    // **Bis Issue E3-2 war es genau eine Anforderung.** Seitdem haengt der
+    // Hitze-Gewinn an einem Empfaenger statt fest im Kampfcode zu stehen, und
+    // ein Empfaenger anzumelden kostet:
+    //
+    // | Anzahl | wofuer                                                  |
+    // | ------ | ------------------------------------------------------- |
+    // |      1 | die Ereignis-Schlange                                    |
+    // |      2 | die geteilten Zellen (angesetzter Gewinn, Zaehler)       |
+    // |      2 | je ein `Box<dyn RuleReceiver>` fuer die beiden Ereignisse |
+    // |      2 | die beiden Kennungen als `String`                        |
+    // |      4 | die Listen der Verteilung, beim ersten Eintrag           |
+    //
+    // **Die Zahl steht hier exakt und nicht als Obergrenze**, damit sie
+    // auffaellt, wenn sie sich bewegt. Was zaehlt, ist ohnehin die andere
+    // Zusage aus GAME-DESIGN 18.4: **im Schritt** wird nichts angefordert —
+    // das pruefen die drei Tests darueber, und sie stehen weiter bei 0.
     let (_, allocations, _) = count(|| {
         Fight::new(FightConfig {
             log_capacity: 0,
@@ -141,7 +159,8 @@ fn ohne_protokoll_kostet_der_aufbau_fast_nichts() {
         })
     });
     assert_eq!(
-        allocations, 1,
-        "erwartet wird genau eine Anforderung: die Ereignis-Schlange"
+        allocations, 11,
+        "erwartet werden elf Anforderungen: Ereignis-Schlange plus Anmeldung \
+         der Schul-Mechanik (Aufschluesselung im Kommentar darueber)"
     );
 }
