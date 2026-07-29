@@ -54,6 +54,15 @@ export interface SpellDef {
   readonly resourceGain?: Readonly<Record<string, number>>;
   readonly dot?: DotDef;
   readonly spender?: SpenderDef;
+  /**
+   * Um wie viele Millisekunden dieser Zauber **alle laufenden Abklingzeiten**
+   * verkürzt (SUBLIMATION, GAME-DESIGN 4.1, Issue E3-3).
+   *
+   * Steht in den Daten und nicht im Code: Ein Zauber, der das kann, ist ein
+   * Datensatz wie jeder andere (Leitplanke 6). Fehlt das Feld, verkürzt er
+   * nichts — das ist der Fall für alle Zauber der Kalzination.
+   */
+  readonly cooldownReductionMs?: number;
 }
 
 export interface SchoolDef {
@@ -176,6 +185,15 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   const spender = parseSpender(raw['spender'], where, problems);
   const resourceGain = isRecord(raw['resourceGain']) ? gains(raw['resourceGain']) : undefined;
 
+  const reduction = raw['cooldownReductionMs'];
+  const cooldownReductionMs = typeof reduction === 'number' ? reduction : undefined;
+  if (cooldownReductionMs !== undefined) {
+    if (cooldownReductionMs < 0) problems.push(`${where}: Verkürzung ist negativ.`);
+    if (!Number.isInteger(cooldownReductionMs)) {
+      problems.push(`${where}: Verkürzung ${cooldownReductionMs} ist nicht ganzzahlig.`);
+    }
+  }
+
   return {
     id,
     name: typeof raw['name'] === 'string' ? raw['name'] : id,
@@ -187,6 +205,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
+    ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
   };
 }
 
