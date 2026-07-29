@@ -136,15 +136,18 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
   });
 
   it('kennt für jede Art einen Namen', () => {
-    // Acht seit E3-6: Der Nummernraum ist mit dem Simulator geteilt, und die
-    // Namen stehen auch für die zwei Arten, die nur er schreibt. Wer ein
-    // fremdes Protokoll liest, soll denselben Namen sehen statt ein
+    // Acht seit E3-6, zehn seit #96: Der Nummernraum ist mit dem Simulator
+    // geteilt, und die Namen stehen auch für die Arten, die nur er schreibt.
+    // Wer ein fremdes Protokoll liest, soll denselben Namen sehen statt ein
     // Fragezeichen.
-    expect(EVENT_NAMES.length).toBe(8);
+    expect(EVENT_NAMES.length).toBe(10);
     expect(EVENT_NAMES[EVENT_CAST]).toBe('cast');
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
     expect(EVENT_NAMES[4]).toBe('spend');
     expect(EVENT_NAMES[5]).toBe('kill');
+    // Die beiden aus #96 — Boss-Energieleiste und Boss-Zeitleiste.
+    expect(EVENT_NAMES[8]).toBe('bossEnergy');
+    expect(EVENT_NAMES[9]).toBe('bossTimeline');
   });
 
   it('schreibt nur die Arten, die dem Spiel gehören', () => {
