@@ -1,0 +1,187 @@
+/*
+ * Auswertung nach dem Kampf. HTML-Menü über der Zeichenfläche
+ * (GAME-DESIGN 18.1), im Stil GEÄTZT: geschwärztes Eisen, Cinzel für
+ * Überschriften, EB Garamond für Fließtext (17.2).
+ *
+ * Die Effizienz-Spalte ist optisch hervorgehoben, der Schadensanteil
+ * abgedunkelt — die Gewichtung der Anzeige folgt der Aussage (15.3).
+ */
+
+.analysis-view {
+  max-width: 900px;
+  color: #cfc8ba;
+  font-family: 'EB Garamond', serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.analysis-heading {
+  margin: 0 0 12px;
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: #8b8579;
+}
+
+.analysis-losses {
+  margin-bottom: 40px;
+}
+
+.analysis-loss-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: loss;
+}
+
+.analysis-loss {
+  counter-increment: loss;
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 4px 18px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-top: 1px solid #241f1a;
+}
+
+.analysis-loss::before {
+  content: counter(loss);
+  grid-row: span 2;
+  align-self: start;
+  font-family: 'Cinzel', serif;
+  font-size: 26px;
+  color: #4a453d;
+}
+
+.analysis-loss-label {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: #efe8da;
+}
+
+.analysis-loss-detail {
+  font-size: 17px;
+  color: #cfc8ba;
+}
+
+.analysis-loss-bar {
+  grid-column: 2 / -1;
+  display: block;
+  height: 3px;
+  background: #1e1a16;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.analysis-loss-fill {
+  display: block;
+  height: 100%;
+  background: #c05a2a;
+}
+
+.analysis-total {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #241f1a;
+  color: #948d80;
+}
+
+.analysis-empty {
+  color: #948d80;
+}
+
+/* ---------------------------------------------------- Effizienz-Tabelle */
+
+.analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-table th {
+  padding: 0 14px 8px 0;
+  text-align: right;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: #6e6a63;
+  border-bottom: 1px solid #241f1a;
+}
+
+.analysis-table th:first-child,
+.analysis-table td:first-child {
+  text-align: left;
+}
+
+/* Die führende Größe. Sie steht direkt hinter dem Namen und ist die einzige
+   Spalte mit voller Helligkeit. */
+.analysis-table th.analysis-lead {
+  color: #d9bd63;
+  text-align: left;
+}
+
+.analysis-table td {
+  padding: 11px 14px 11px 0;
+  border-bottom: 1px solid #1a1613;
+}
+
+.analysis-name {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #efe8da;
+}
+
+td.analysis-lead {
+  width: 210px;
+  text-align: left;
+}
+
+.analysis-efficiency-value {
+  display: inline-block;
+  min-width: 68px;
+  font-size: 19px;
+  color: #efe8da;
+}
+
+.analysis-over {
+  color: #d9bd63;
+}
+
+.analysis-meter {
+  display: inline-block;
+  width: 110px;
+  height: 4px;
+  vertical-align: middle;
+  background: #1e1a16;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.analysis-meter-fill {
+  display: block;
+  height: 100%;
+  background: #6f8f6a;
+}
+
+.analysis-num {
+  text-align: right;
+  font-size: 16px;
+  color: #b9b1a1;
+}
+
+/* Der Schadensanteil bleibt lesbar, tritt aber zurück — er misst die Zauber,
+   nicht das Können. */
+.analysis-dim {
+  color: #6e6a63;
+}
+
+.analysis-note {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: #7d766a;
+  max-width: 76ch;
+}
