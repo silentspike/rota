@@ -347,27 +347,38 @@ export interface DevTools {
    *
    * Messmittel für den Speicher-Nachweis: Ein Kampf trägt rund sechzig
    * Ereignisse aus — zu wenig, um eine Anforderung je Ereignis von der
-   * Messschwankung zu unterscheiden. Der Kampf bleibt unberührt; nur die
-   * Empfänger laufen, und die Prüfsumme wächst.
+   * Messschwankung zu unterscheiden.
+   *
+   * **Läuft über einen eigenen Bus**, nicht über den des Kampfes: Sonst
+   * verschöbe jede Messung die Ereignisfolge, an der der Abgleich mit dem
+   * Simulator hängt.
    */
   emitRuleEvents(count: number, event?: number): void;
   /**
    * Einen zählenden Empfänger anmelden.
    *
    * Ohne ihn misst der Speicher-Nachweis nur die Verteilung, nicht den Empfang
-   * — und der ist der Teil, an dem später die Schul-Mechaniken hängen.
+   * — und der ist der Teil, an dem später die Schul-Mechaniken hängen. Er
+   * hängt am Mess-Bus, nicht am Kampf.
    *
    * @returns wie oft dieser Empfänger schon gerufen wurde, als Ablesefunktion
    */
   addRuleProbe(event: number, id?: string): () => number;
-  /** Empfänger eines Ereignisses in ihrer Reihenfolge. */
+  /** Empfänger eines Ereignisses **des Kampfes**, in ihrer Reihenfolge. */
   ruleReceivers(event: number): string[];
-  /** Zustand des Ereignis-Systems: Folge, Anzahl, Namen. */
+  /**
+   * Zustand des Ereignis-Systems **des Kampfes**: Folge, Anzahl, Empfänger.
+   *
+   * `measurementEmitted` zählt getrennt, was über `emitRuleEvents` eingespeist
+   * wurde — das läuft über einen eigenen Bus und verfälscht die Kampf-Folge
+   * nicht.
+   */
   ruleEvents(): {
     names: string[];
     emitted: number;
     sequenceChecksum: number;
     receivers: Record<string, string[]>;
+    measurementEmitted: number;
   };
   /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
   bindSlot(slot: number, spellId: string): boolean;
@@ -820,17 +831,18 @@ export function installDevTools(app: App): void {
       );
       return () => count;
     },
-    ruleReceivers: (event: number) => ruleBus.receiverIds(event),
+    ruleReceivers: (event: number) => app.combat.events.receiverIds(event),
     ruleEvents: () => {
       const receivers: Record<string, string[]> = {};
       for (let event = 0; event < RULE_EVENT_COUNT; event++) {
-        receivers[RULE_EVENT_NAMES[event] ?? String(event)] = ruleBus.receiverIds(event);
+        receivers[RULE_EVENT_NAMES[event] ?? String(event)] = app.combat.events.receiverIds(event);
       }
       return {
         names: [...RULE_EVENT_NAMES],
-        emitted: ruleBus.emittedCount,
-        sequenceChecksum: ruleBus.sequenceChecksum,
+        emitted: app.combat.events.emittedCount,
+        sequenceChecksum: app.combat.events.sequenceChecksum,
         receivers,
+        measurementEmitted: ruleBus.emittedCount,
       };
     },
     bindSlot: (slot: number, spellId: string) => {

@@ -47,6 +47,22 @@ pub enum EventKind {
     },
     /// Die Ressource verfaellt um einen Schritt.
     ResourceDecay,
+    /// Die Energieleiste des Bosses steigt um einen Schritt.
+    ///
+    /// Die zweite Uhr (GAME-DESIGN 11.2, Baustein 1). Sie steht **nach** dem
+    /// Ressourcen-Verfall in der Rangfolge, weil beides passive Wirkungen sind
+    /// und die Reihenfolge festliegen muss — nicht, weil eine wichtiger waere.
+    EnergyTick,
+    /// Ein Eintrag der Boss-Zeitleiste wird faellig.
+    ///
+    /// Steht nach der Energieleiste, aus demselben Grund: Beides sind
+    /// Handlungen des Bosses, und ihre Reihenfolge muss festliegen, damit
+    /// zwei Ereignisse auf demselben Zeitpunkt in beiden Umsetzungen gleich
+    /// laufen.
+    TimelineStep {
+        /// Index des Eintrags in `Boss::timeline`.
+        index: u16,
+    },
     /// Nur aufwachen: Zu diesem Zeitpunkt kann sich eine Entscheidung ergeben
     /// (Abklingzeit oder globale Wartezeit ist abgelaufen), oder es ist zu
     /// pruefen, ob der Boss gefallen ist.
@@ -63,7 +79,9 @@ impl EventKind {
         match self {
             EventKind::DotTick { .. } => 0,
             EventKind::ResourceDecay => 1,
-            EventKind::Wakeup => 2,
+            EventKind::EnergyTick => 2,
+            EventKind::TimelineStep { .. } => 3,
+            EventKind::Wakeup => 4,
         }
     }
 }

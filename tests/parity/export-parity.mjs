@@ -5,12 +5,13 @@
  * npx vite-node tests/parity/export-parity.ts
  * ```
  *
- * Zwei Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
+ * Fünf Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
  *
  * | Datei | Inhalt |
  * | --- | --- |
  * | `cooldown-precision.json` | Eine aufgezeichnete Runde samt Ergebnis und Prüfsumme je Takt |
  * | `primitives.json` | Zufallsströme und Prüfsumme — die Bausteine darunter |
+ * | `rule-events.json` | Eine feste Folge von Regel-Ereignissen samt Prüfsumme |
  *
  * **Nach jeder Regeländerung neu laufen lassen.** `freshness.test.ts` erzwingt
  * das: Er baut dieselben Inhalte und vergleicht sie mit dem, was hier liegt.
@@ -32,7 +33,20 @@ import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { primitivesPayload, recordingPayload, RECORDING_NAME, serialize } from './payloads.ts';
+import {
+  buffsPayload,
+  cooldownResetPayload,
+  logKindsPayload,
+  bossStatePayload,
+  misplaysPayload,
+  primitivesPayload,
+  recordingPayload,
+  ruleEventsPayload,
+  MISPLAY_NAME,
+  RECORDING_NAME,
+  VESSEL_NAME,
+  serialize,
+} from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +57,30 @@ writeFileSync(recordingPath, serialize(recording), 'utf8');
 const primitives = primitivesPayload();
 const primitivesPath = join(here, 'recordings', 'primitives.json');
 writeFileSync(primitivesPath, serialize(primitives), 'utf8');
+
+const misplays = misplaysPayload();
+const misplaysPath = join(here, 'recordings', `${MISPLAY_NAME}.json`);
+writeFileSync(misplaysPath, serialize(misplays), 'utf8');
+
+const bossState = bossStatePayload();
+const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
+writeFileSync(bossStatePath, serialize(bossState), 'utf8');
+
+const ruleEvents = ruleEventsPayload();
+const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
+writeFileSync(ruleEventsPath, serialize(ruleEvents), 'utf8');
+
+const buffs = buffsPayload();
+const buffsPath = join(here, 'recordings', 'buffs.json');
+writeFileSync(buffsPath, serialize(buffs), 'utf8');
+
+const logKinds = logKindsPayload();
+const logKindsPath = join(here, 'recordings', 'log-kinds.json');
+writeFileSync(logKindsPath, serialize(logKinds), 'utf8');
+
+const cooldownReset = cooldownResetPayload();
+const cooldownResetPath = join(here, 'recordings', 'cooldown-reset.json');
+writeFileSync(cooldownResetPath, serialize(cooldownReset), 'utf8');
 
 const expected = recording['expected'];
 const checksums = recording['checksums'];
@@ -58,3 +96,34 @@ console.log(`  Prüfsummen     ${checksums.length} Takte`);
 console.log(`  Folge-Summe    ${expected['sequenceChecksum']}`);
 console.log(`  Ziehungen      ${expected['randomDraws']}`);
 console.log(`geschrieben: ${primitivesPath}`);
+
+const m = misplays['expected'];
+console.log(`geschrieben: ${misplaysPath}`);
+console.log(
+  `  Tastendrücke   ${misplays['presses'].length} (angenommen ${m['accepted']}, abgelehnt ${m['rejected']})`,
+);
+console.log(`  Ablehnungen    ${JSON.stringify(m['rejectedByReason'])}`);
+console.log(`  Schaden        ${m['damage']}`);
+console.log(`  verlorene DoT-Ticks ${m['lostDotTicks']}`);
+console.log(`  Leerlauf-Takte ${m['idleTicks']}`);
+console.log(`  Prüfsummen     ${misplays['checksums'].length} Takte`);
+const b = bossState['expected'];
+console.log(`geschrieben: ${bossStatePath}`);
+console.log(`  Boss           ${bossState['bossId']}`);
+console.log(`  Schaden        ${b['damage']}, Sieg bei ${b['killedAtMs']} ms`);
+console.log(
+  `  Endphase       ${b['finalPhase']}, Energie-Ausloesungen ${b['energyTriggers']}, Zeitleiste ${b['finalTimelineIndex']}`,
+);
+console.log(`  Pruefsummen    ${bossState['checksums'].length} Takte`);
+console.log(`geschrieben: ${ruleEventsPath}`);
+console.log(`geschrieben: ${buffsPath}`);
+console.log(`geschrieben: ${logKindsPath}`);
+console.log(`geschrieben: ${cooldownResetPath}`);
+console.log(`  Auswahlmodus  ${cooldownReset['steps'].length} Schritte`);
+console.log(
+  `  Protokoll-Arten ${logKinds['kinds'].length}, davon ${logKinds['writtenByGame'].length} vom Spiel`,
+);
+console.log(`  Verstaerkungen ${buffs['steps'].length} Schritte, ${buffs['replacements']} ersetzt`);
+console.log(
+  `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
+);

@@ -62,10 +62,23 @@ jobs:
             # liegen seit PR #64 im Wurzelverzeichnis (Workspace), damit der
             # Remote-Bau data/ ueberhaupt zu sehen bekommt.
             echo "sim=$(match '^(sim/|data/|Cargo\.toml$|Cargo\.lock$)')"
-            # tools/ und tests/parity/ gehoeren dazu: tools/step1-check.py IST die
-            # Referenz, gegen die der parity-Job prueft. Ohne sie im Filter geht
-            # eine geaenderte Referenz ungeprueft durch (aufgetreten bei PR #41).
-            echo "rules=$(match '^(data/|src/core/|sim/|tools/|tests/parity/)')"
+            # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
+            # "code": alles außer reiner Dokumentation.
+            #
+            # Die frühere Fassung zählte auf, wo Regeln liegen dürfen
+            # (data/, src/core/, sim/, tools/, tests/parity/). Zweimal ging das
+            # schief, weil ein Pfad fehlte:
+            #   PR #41  tools/step1-check.py IST die Referenz — eine geänderte
+            #           Referenz ging ungeprüft durch
+            #   PR #89  src/combat/ kam neu dazu. Von Worker-2 gemeldet, BEVOR
+            #           #87 dort die Regeln anschließt: Der parity-Job wäre
+            #           nicht gelaufen, eine Abweichung zwischen Spiel und
+            #           Simulator hätte ci-pass grün passiert.
+            #
+            # Eine Liste, die jemand bei jedem neuen Verzeichnis ergänzen muss,
+            # wird irgendwann vergessen — und niemand merkt es, weil das
+            # Ergebnis grün aussieht. Der Job kostet 26 Sekunden.
+            echo "rules=$(nondoc)"
           } >> "$GITHUB_OUTPUT"
       - name: Ergebnis
         run: |
