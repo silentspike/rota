@@ -21,6 +21,7 @@ import {
   PHASE_PREPARE,
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
+import { classOfStat, formatStat, type StatLine } from '../gear/format.js';
 
 export interface OverlayActions {
   onReady(): void;
@@ -83,6 +84,8 @@ export class Overlay {
   private readonly resultHeadline: HTMLElement;
   private readonly resultRows: Record<string, HTMLElement> = {};
   private readonly detail: HTMLElement;
+  /** Die Werte-Karte des Vorbereitungs-Bildschirms (Issue E6-1, AC4). */
+  private readonly gearCard: HTMLElement;
   private readonly analysisButton: HTMLButtonElement;
   private detailOpen = false;
 
@@ -106,6 +109,13 @@ export class Overlay {
         'Cooldowns run during preparation. The clock does not.',
       ),
     );
+    // Die Werte-Karte. **Leer, solange es keine Gegenstände gibt** — der
+    // Katalog steht noch nicht (GAME-DESIGN 22, vor E6). Sie zeigt sich erst,
+    // wenn etwas anzuzeigen ist, und schiebt bis dahin nichts.
+    this.gearCard = element('div', 'rota-gear-card');
+    this.gearCard.hidden = true;
+    this.prepare.appendChild(this.gearCard);
+
     this.prepare.appendChild(button('Ready', actions.onReady));
     this.prepare.appendChild(element('p', 'rota-hint', 'Enter'));
     this.root.appendChild(this.prepare);
@@ -279,6 +289,35 @@ export class Overlay {
     this.detailOpen = !this.detailOpen;
     this.detail.classList.toggle('rota-visible', this.detailOpen);
     this.analysisButton.textContent = this.detailOpen ? 'Hide Analysis' : 'View Analysis';
+  }
+
+  /**
+   * Die Werte eines Gegenstands anzeigen (Issue E6-1, AC4).
+   *
+   * **Additive und multiplikative Werte sind an zwei Merkmalen zu
+   * unterscheiden:** an der Schreibweise (`+20%` gegen `x1.20`) und an der
+   * Farbe. Zwei Merkmale, weil eine Farbe allein nicht trägt — etwa jeder
+   * zwölfte Mann sieht Rot und Grün nicht auseinander.
+   *
+   * Wird **nur bei einer Änderung** angefasst, nie je Bild: Jede Änderung am
+   * HTML löst eine Neuberechnung des Layouts aus (GAME-DESIGN 18.2).
+   */
+  showGear(title: string, lines: readonly StatLine[]): void {
+    this.gearCard.replaceChildren();
+    if (lines.length === 0) {
+      this.gearCard.hidden = true;
+      return;
+    }
+    this.gearCard.appendChild(element('h3', 'rota-gear-title', title));
+    for (const line of lines) {
+      const root = element('div', 'rota-row');
+      root.appendChild(element('span', 'rota-row-label', line.label));
+      root.appendChild(
+        element('span', `rota-row-value ${classOfStat(line.kind)}`, formatStat(line)),
+      );
+      this.gearCard.appendChild(root);
+    }
+    this.gearCard.hidden = false;
   }
 
   private show(panel: HTMLElement): void {
