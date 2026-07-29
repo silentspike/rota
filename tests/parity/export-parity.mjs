@@ -34,9 +34,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  misplaysPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
+  MISPLAY_NAME,
   RECORDING_NAME,
   serialize,
 } from './payloads.ts';
@@ -50,6 +52,10 @@ writeFileSync(recordingPath, serialize(recording), 'utf8');
 const primitives = primitivesPayload();
 const primitivesPath = join(here, 'recordings', 'primitives.json');
 writeFileSync(primitivesPath, serialize(primitives), 'utf8');
+
+const misplays = misplaysPayload();
+const misplaysPath = join(here, 'recordings', `${MISPLAY_NAME}.json`);
+writeFileSync(misplaysPath, serialize(misplays), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
@@ -69,6 +75,17 @@ console.log(`  Prüfsummen     ${checksums.length} Takte`);
 console.log(`  Folge-Summe    ${expected['sequenceChecksum']}`);
 console.log(`  Ziehungen      ${expected['randomDraws']}`);
 console.log(`geschrieben: ${primitivesPath}`);
+
+const m = misplays['expected'];
+console.log(`geschrieben: ${misplaysPath}`);
+console.log(
+  `  Tastendrücke   ${misplays['presses'].length} (angenommen ${m['accepted']}, abgelehnt ${m['rejected']})`,
+);
+console.log(`  Ablehnungen    ${JSON.stringify(m['rejectedByReason'])}`);
+console.log(`  Schaden        ${m['damage']}`);
+console.log(`  verlorene DoT-Ticks ${m['lostDotTicks']}`);
+console.log(`  Leerlauf-Takte ${m['idleTicks']}`);
+console.log(`  Prüfsummen     ${misplays['checksums'].length} Takte`);
 console.log(`geschrieben: ${ruleEventsPath}`);
 console.log(
   `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
