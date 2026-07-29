@@ -145,9 +145,13 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
     expect(EVENT_NAMES[4]).toBe('spend');
     expect(EVENT_NAMES[5]).toBe('kill');
-    // Die beiden aus #96 — Boss-Energieleiste und Boss-Zeitleiste.
-    expect(EVENT_NAMES[8]).toBe('bossEnergy');
-    expect(EVENT_NAMES[9]).toBe('bossTimeline');
+    // Die beiden aus #96 — Boss-Energieleiste und Boss-Zeitleiste. Die Namen
+    // sagen ausdrücklich `Triggered`/`Fired`, weil beide **Vorgänge** sind und
+    // keine Zustände: Der Stand der Leiste heißt `Combat.bossEnergy`, der
+    // Zeiger `Combat.timelineIndex`. Genau diese beiden wurden beim ersten
+    // Lesen verwechselt.
+    expect(EVENT_NAMES[8]).toBe('bossEnergyTriggered');
+    expect(EVENT_NAMES[9]).toBe('bossTimelineFired');
   });
 
   it('schreibt nur die Arten, die dem Spiel gehören', () => {

@@ -63,8 +63,14 @@ pub enum LogKind {
     /// schreibt sie seit Issue #96 ebenfalls — dieselbe Bedeutung, dieselbe
     /// Zahl. Genau dafuer wurde der gemeinsame Raum eingerichtet.
     BossPhase = 6,
-    /// Die Energieleiste des Bosses hat ausgeloest. `value` zaehlt die
+    /// Die Energieleiste des Bosses hat **ausgeloest**. `value` zaehlt die
     /// Ausloesungen.
+    ///
+    /// Heisst im gemeinsamen Raum `bossEnergyTriggered`, und das `Triggered`
+    /// ist wesentlich: Dies ist ein **Vorgang**, kein Zustand. Geschrieben
+    /// wird nur im Moment des Ausloesens, nicht bei jedem Anstieg — der Stand
+    /// der Leiste ist [`Fight::energy`] und etwas anderes. Beim ersten Lesen
+    /// wurden die beiden verwechselt; daher die zwei unterscheidbaren Namen.
     ///
     /// Neu im gemeinsamen Raum (Issue #96). Nur der Simulator schreibt sie —
     /// wie `spend` und `kill` auch.
