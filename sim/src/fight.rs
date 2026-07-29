@@ -72,6 +72,7 @@ use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
 use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
+use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
 
 /// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
@@ -226,6 +227,14 @@ pub struct Fight {
     queue: EventQueue,
     log: CombatLog,
     rng: Streams,
+
+    /// Die Regel-Ereignisse (GAME-DESIGN 18.3, Issue E3-1b).
+    ///
+    /// **Erst der Schaden, dann "Zauber gewirkt"** — Entscheidung des
+    /// Auftraggebers vom 2026-07-29. Ein Empfaenger reagiert auf eine
+    /// abgeschlossene Handlung und beeinflusst den naechsten Zauber, nicht den
+    /// laufenden. Dieselbe Reihenfolge im Spiel (`src/core/combat.ts`).
+    events: RuleEvents,
 }
 
 impl Fight {
@@ -253,7 +262,33 @@ impl Fight {
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
+            // **Ohne Vorab-Speicher.** Der erste Versuch legte vier Plaetze je
+            // Ereignis an — und `tests/allocation.rs` schlug sofort an: Der
+            // Aufbau darf ohne Protokoll genau eine Anforderung kosten, die
+            // Ereignis-Schlange. Vorab-Speicher fuer Empfaenger, die es noch
+            // nicht gibt, kauft auch nichts: Angemeldet wird beim Aufbau, nicht
+            // im Schritt (GAME-DESIGN 18.4 verlangt nur Letzteres).
+            events: RuleEvents::default(),
         }
+    }
+
+    /// Einen Empfaenger fuer ein Regel-Ereignis anmelden (Issue E3-1b).
+    ///
+    /// Laeuft beim Aufbau, nicht im Schritt.
+    pub fn on_rule_event(
+        &mut self,
+        id: &str,
+        on: RuleEvent,
+        order: i32,
+        receiver: Box<dyn RuleReceiver>,
+    ) {
+        self.events.register(id, on, order, receiver);
+    }
+
+    /// Die Regel-Ereignisse dieses Durchgangs — Folge, Anzahl, Empfaenger.
+    #[must_use]
+    pub const fn rule_events(&self) -> &RuleEvents {
+        &self.events
     }
 
     // ---------------------------------------------------------------- Ablauf
@@ -458,6 +493,9 @@ impl Fight {
         self.queue.clear();
         self.log.clear();
         self.rng = Streams::new(seed);
+        // Nur die Folge, nicht die Anmeldungen: Ein neuer Durchgang behaelt
+        // seine Empfaenger und beginnt lediglich wieder bei null Ereignissen.
+        self.events.clear_sequence();
     }
 
     fn apply(&mut self, kind: EventKind) {
@@ -484,10 +522,18 @@ impl Fight {
             return;
         };
 
-        self.deal(
+        let tick_damage = self.deal(
             index,
             compute_damage(dot.tick_damage, &self.factors),
             LogKind::DotTick,
+        );
+        // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zaehlen
+        // will, meldet sich fuer beide Arten an — so bleibt die Folge eindeutig.
+        self.events.emit(
+            RuleEvent::DotTick,
+            index as i16,
+            f64::from(tick_damage),
+            self.time,
         );
         self.dot_tick_counts[index] += 1;
         self.add_resource(dot.resource_gain_per_tick);
@@ -528,10 +574,19 @@ impl Fight {
         let now = self.time;
 
         self.casts[index] += 1;
-        self.log.push(now, LogKind::Cast, index as u8, 0);
+
+        // **Erst der Schaden, dann die Wirkung.** Bis zu Issue E3-1b stand der
+        // Cast-Eintrag hier oben und damit VOR dem Schaden — das Spiel
+        // (`src/core/combat.ts`) schreibt seit E1-7 umgekehrt. Zwei
+        // Erzaehlungen desselben Kampfes, die sich widersprechen, sind beim
+        // Abgleich schlimmer als eine; deshalb ist der Simulator angeglichen
+        // worden und nicht das Spiel (Entscheidung des Auftraggebers,
+        // 2026-07-29). Verglichen wurde bis dahin nur Zahlenwerk, weshalb es
+        // niemandem auffiel.
+        let mut cast_damage = 0;
 
         if spell.base_damage > 0 {
-            self.deal(
+            cast_damage += self.deal(
                 index,
                 compute_damage(spell.base_damage, &self.factors),
                 LogKind::Damage,
@@ -546,13 +601,26 @@ impl Fight {
             }
             self.log
                 .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            self.deal(
+            cast_damage += self.deal(
                 index,
                 compute_damage(damage, &self.factors),
                 LogKind::Damage,
             );
             self.resource = 0;
         }
+
+        // **Ein Schaden-Ereignis je Wirkung, mit der Summe** — nicht eines je
+        // Teilbetrag. Das Spiel rechnet Grund- und Entladeschaden zusammen und
+        // meldet einmal; ein Zauber, der beides hat, ergaebe hier sonst zwei
+        // Ereignisse und dort eines. In Schritt 1 gibt es keinen solchen
+        // Zauber — genau deshalb ist es jetzt festzulegen und nicht dann.
+        if cast_damage > 0 {
+            self.events
+                .emit(RuleEvent::Damage, index as i16, f64::from(cast_damage), now);
+        }
+        // Hierher gehoert `RuleEvent::Crit`. Krit ruht in Schritt 1
+        // (PURITY = 0, `STEP1-SPEC` 2); ein Ausloeser, der nie zutrifft, waere
+        // toter Code.
 
         if spell.resource_gain > 0 {
             self.add_resource(spell.resource_gain);
@@ -594,12 +662,24 @@ impl Fight {
         if self.damage >= BOSS.hp {
             self.queue.push(now + TICK_MS, EventKind::Wakeup);
         }
+
+        // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt ueber Zeit,
+        // Vorrat, Abklingzeit und Wartezeit stehen.
+        self.log.push(now, LogKind::Cast, index as u8, 0);
+        self.events.emit(
+            RuleEvent::SpellCast,
+            index as i16,
+            f64::from(cast_damage),
+            now,
+        );
     }
 
-    fn deal(&mut self, index: usize, amount: u32, kind: LogKind) {
+    /// Traegt Schaden ein und gibt den Betrag zurueck.
+    fn deal(&mut self, index: usize, amount: u32, kind: LogKind) -> u32 {
         self.damage += amount;
         self.damage_by_spell[index] += amount;
         self.log.push(self.time, kind, index as u8, amount);
+        amount
     }
 
     fn add_resource(&mut self, amount: u16) {

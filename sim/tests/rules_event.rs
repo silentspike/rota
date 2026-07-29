@@ -9,6 +9,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
 use rota_sim::log::LogKind;
+use rota_sim::replay::{Binding, Press, Recording};
 use rota_sim::rules_event::{RuleEvent, RuleEvents, RuleReceiver, NO_SUBJECT};
 use rota_sim::{rotation, Fight, FightConfig};
 
@@ -294,24 +295,139 @@ fn dieselbe_ereignisfolge_ergibt_dieselbe_pruefsumme() {
     );
 }
 
-/// Der Befund, der zu dieser Datei gehoert: In welcher Reihenfolge schreibt
-/// **der Simulator** Wirkung und Schaden ins Protokoll?
+/// **Schaden vor Wirkung — innerhalb DERSELBEN Wirkung.**
 ///
-/// Nicht gelesen, sondern ausgefuehrt — die Antwort entscheidet, in welcher
-/// Reihenfolge die Regel-Ereignisse ausgetragen werden muessen.
+/// Bis Issue E3-1b stand es hier umgekehrt (Cast oben in `Fight::cast`), im
+/// Spiel seit E1-7 so. Der Simulator ist angeglichen worden, nicht das Spiel
+/// (Entscheidung des Auftraggebers, 2026-07-29).
+///
+/// **Der erste Anlauf dieses Tests war wertlos** und hat das mitgeteilt, indem
+/// er vor UND nach der Aenderung gruen blieb: Er verglich den ersten
+/// Cast-Eintrag mit dem ersten Damage-Eintrag — die stammen aber aus
+/// verschiedenen Wirkungen. Der erste Zauber der guten Rotation ist SMOULDER,
+/// und der macht keinen Direktschaden. Verglichen werden muss innerhalb
+/// **einer** Wirkung, also bei gleicher Zeit und gleichem Zauber.
 #[test]
-fn protokoll_reihenfolge_von_wirkung_und_schaden() {
+fn protokoll_schreibt_schaden_vor_wirkung() {
     let mut fight = Fight::new(FightConfig::default());
     fight.run(rotation::good);
     let entries = fight.log().entries();
 
-    let erste_wirkung = entries.iter().position(|e| e.kind == LogKind::Cast);
-    let erster_schaden = entries.iter().position(|e| e.kind == LogKind::Damage);
-    assert!(erste_wirkung.is_some() && erster_schaden.is_some());
+    let mut geprueft = 0;
+    for (index, eintrag) in entries.iter().enumerate() {
+        if eintrag.kind != LogKind::Damage {
+            continue;
+        }
+        // Der zugehoerige Cast-Eintrag: gleiche Zeit, gleicher Zauber.
+        let cast = entries
+            .iter()
+            .position(|e| {
+                e.kind == LogKind::Cast && e.time == eintrag.time && e.spell == eintrag.spell
+            })
+            .expect("zu jedem Direktschaden gehoert eine Wirkung");
+        assert!(
+            index < cast,
+            "bei {} ms steht die Wirkung von Zauber {} vor ihrem Schaden",
+            eintrag.time,
+            eintrag.spell
+        );
+        geprueft += 1;
+    }
     assert!(
-        erste_wirkung < erster_schaden,
-        "Simulator schreibt Wirkung vor Schaden — im Spiel ist es umgekehrt \
-         (tests/unit/log.test.ts). Steht das nicht mehr so, ist dieser Test der Ort, \
-         an dem es auffaellt."
+        geprueft >= 20,
+        "zu wenige Faelle geprueft ({geprueft}) — der Test sagt dann nichts"
+    );
+}
+
+/// Der unveraenderte Inhalt der aufgezeichneten Runde.
+const RECORDING: &str = include_str!("../../tests/parity/recordings/cooldown-precision.json");
+
+/// **Dieselbe Tastenfolge ergibt dieselben Ereignisse.**
+///
+/// Das ist der eigentliche Abgleich des Anschlusses — und die Zahlen standen
+/// fest, **bevor** die Rust-Seite gebaut wurde: Das Spiel hat sie nach
+/// `rule-events.json` geschrieben. Gegen ein festes Ziel zu bauen statt
+/// hinterher abzugleichen heisst, dass eine Abweichung sofort auffaellt.
+///
+/// Die Zustands-Pruefsumme bleibt davon unberuehrt — sie steht daneben, nicht
+/// darin (AC3 des Issues). Deshalb pruefen `parity_recording.rs` und dieser
+/// Test dieselbe Aufzeichnung, ohne sich in die Quere zu kommen.
+#[test]
+fn dieselbe_tastenfolge_ergibt_dieselbe_ereignisfolge() {
+    let ziel: serde_json::Value =
+        serde_json::from_str(RULE_EVENTS).expect("rule-events.json ist kein JSON");
+    let erwartet = &ziel["recording"];
+    let json: serde_json::Value =
+        serde_json::from_str(RECORDING).expect("cooldown-precision.json ist kein JSON");
+
+    let bindings = json["bindings"]
+        .as_array()
+        .expect("bindings fehlen")
+        .iter()
+        .map(|entry| {
+            let spell_id = entry["spellId"].as_str().expect("spellId fehlt");
+            let spell = rota_sim::data::SPELLS
+                .iter()
+                .position(|s| s.id == spell_id)
+                .unwrap_or_else(|| panic!("Zauber {spell_id} kennt der Simulator nicht"));
+            Binding {
+                slot: u8::try_from(entry["slot"].as_u64().expect("slot fehlt"))
+                    .expect("slot > 255"),
+                spell,
+            }
+        })
+        .collect();
+    let presses = json["presses"]
+        .as_array()
+        .expect("presses fehlen")
+        .iter()
+        .map(|entry| Press {
+            tick: u32::try_from(entry["tick"].as_u64().expect("tick fehlt"))
+                .expect("tick zu gross"),
+            slot: u8::try_from(entry["slot"].as_u64().expect("slot fehlt")).expect("slot > 255"),
+        })
+        .collect();
+    let recording = Recording {
+        name: json["name"].as_str().expect("name fehlt").to_owned(),
+        seed: u32::try_from(json["seed"].as_u64().expect("seed fehlt")).expect("seed zu gross"),
+        ticks: u32::try_from(json["ticks"].as_u64().expect("ticks fehlen"))
+            .expect("ticks zu gross"),
+        bindings,
+        presses,
+    };
+
+    let mut fight = Fight::new(FightConfig {
+        seed: recording.seed,
+        ..FightConfig::default()
+    });
+    let result = fight.replay(&recording, false);
+
+    // Erst die Zahlen, die das Spiel mitgeliefert hat — sie sagen, ob ueberhaupt
+    // derselbe Kampf gelaufen ist.
+    assert_eq!(
+        u64::from(result.damage),
+        erwartet["damage"].as_u64().expect("damage fehlt"),
+        "nicht einmal der Schaden stimmt — dann sagt die Ereignisfolge nichts"
+    );
+    assert_eq!(
+        result.killed_at_ms.map(u64::from),
+        erwartet["killedAtMs"].as_u64(),
+        "der Sieg faellt auf einen anderen Zeitpunkt"
+    );
+
+    let events = fight.rule_events();
+    assert_eq!(
+        events.emitted_count(),
+        erwartet["ruleEventCount"]
+            .as_u64()
+            .expect("ruleEventCount fehlt"),
+        "andere Zahl von Ereignissen — eine Anschlussstelle fehlt oder ist doppelt"
+    );
+    assert_eq!(
+        u64::from(events.sequence_checksum()),
+        erwartet["ruleSequenceChecksum"]
+            .as_u64()
+            .expect("ruleSequenceChecksum fehlt"),
+        "gleiche Zahl, andere Reihenfolge oder andere Werte"
     );
 }
