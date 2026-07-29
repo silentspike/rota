@@ -57,6 +57,8 @@
 
 pub mod apl;
 pub mod balance;
+// Issue E3-5: Verstaerkungen und Synergie-Fenster.
+pub mod buffs;
 pub mod checksum;
 pub mod data;
 pub mod event;
