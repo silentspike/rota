@@ -27,7 +27,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
     expect(CALCINATION.problems).toEqual([]);
     expect(FIRST_CRUCIBLE.problems).toEqual([]);
     const combat = makeCombat();
-    expect(combat.spells.map((s) => s.id)).toEqual(['kindle', 'smoulder', 'pyre']);
+    // Drei Kampfzauber, dazu seit #110 der Unterbrecher QUENCH.
+    expect(combat.spells.map((s) => s.id)).toEqual(['kindle', 'smoulder', 'pyre', 'quench']);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
     expect(combat.school.resource.cap).toBe(20);

@@ -199,7 +199,7 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     for (let i = 0; i < 300; i++) h.session.tick(i * TICK_MS);
     const summary = h.session.summary(3000);
 
-    expect(summary.idlePerSpell.length).toBe(3);
+    expect(summary.idlePerSpell.length).toBe(4);
     for (const entry of summary.idlePerSpell) {
       expect(entry.idleMs).toBe(3000);
       expect(entry.share).toBeCloseTo(1);
