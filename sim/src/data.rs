@@ -86,6 +86,43 @@ pub struct Spell {
     pub cooldown_reduction_ms: Millis,
 }
 
+/// Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
+/// wechselt (GAME-DESIGN 11.1).
+///
+/// **Eskalierend, nicht tauschend:** Jede Phase legt eine Mechanik obendrauf,
+/// statt die vorige zu ersetzen. Die Mechaniken selbst kommen mit E4-2; hier
+/// steht nur, WANN gewechselt wird.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Phase {
+    /// Anteil der verbleibenden Lebenspunkte in Prozent, ab dem sie gilt.
+    pub at_hp_percent: u32,
+    /// Anzeigename der Phase.
+    pub name: &'static str,
+}
+
+/// Die Energieleiste — die zweite Uhr eines Bosses.
+///
+/// Aus GAME-DESIGN 11.2, dem ersten der neun Mechanik-Bausteine:
+///
+/// > Boss-Energie steigt **unabhaengig von den Lebenspunkten** und loest bei 100
+/// > eine Mechanik aus. Gibt dem Kampf einen inneren Rhythmus, der nichts mit
+/// > dem Lebensbalken zu tun hat.
+///
+/// Das „unabhaengig" ist die eigentliche Aussage: Wer schneller Schaden macht,
+/// verschiebt den Ausloeser **nicht**. Damit entsteht ein zweiter Takt, gegen
+/// den der Spieler planen muss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Energy {
+    /// Abstand zwischen zwei Anstiegen.
+    pub per_step_ms: Millis,
+    /// Wie viel je Anstieg dazukommt.
+    pub amount: u32,
+    /// Ab diesem Stand loest sie aus.
+    pub threshold: u32,
+    /// Worauf sie nach dem Ausloesen faellt.
+    pub reset_to: u32,
+}
+
 /// Ein Boss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Boss {
@@ -93,13 +130,46 @@ pub struct Boss {
     pub id: &'static str,
     /// Anzeigename im Spiel.
     pub name: &'static str,
+    /// Instanz, zu der er gehoert.
+    pub instance: &'static str,
     /// Lebenspunkte.
     pub hp: u32,
     /// Zeitlimit: Ist es abgelaufen, hat der Spieler verloren.
     pub overpressure_ms: Millis,
+    /// Phasen-Schwellen, absteigend. Leer heisst: keine Phasen.
+    pub phases: &'static [Phase],
+    /// Die zweite Uhr, falls dieser Boss eine hat.
+    pub energy: Option<Energy>,
+}
+
+impl Boss {
+    /// Welche Phase bei diesem Anteil der Lebenspunkte gilt.
+    ///
+    /// 0 ist der Start. Die Zaehlung steigt, waehrend die Lebenspunkte fallen —
+    /// der Boss geht also von Phase 0 nach oben.
+    #[must_use]
+    pub fn phase_at(&self, hp_percent: u32) -> usize {
+        let mut phase = 0;
+        for (index, schwelle) in self.phases.iter().enumerate() {
+            if hp_percent <= schwelle.at_hp_percent {
+                phase = index + 1;
+            }
+        }
+        phase
+    }
 }
 
 include!(concat!(env!("OUT_DIR"), "/data_generated.rs"));
+
+/// Sucht einen Boss ueber seinen Bezeichner.
+///
+/// Lineare Suche ueber eine Liste mit fester Reihenfolge — bei 68 Bossen ist
+/// der Unterschied zu einer Hash-Abbildung nicht messbar, und die Suche laeuft
+/// ohnehin nur beim Aufbau, nie im Schritt.
+#[must_use]
+pub fn boss_by_id(id: &str) -> Option<&'static Boss> {
+    BOSSES.iter().find(|boss| boss.id == id)
+}
 
 /// Sucht einen Zauber ueber seinen Bezeichner.
 ///

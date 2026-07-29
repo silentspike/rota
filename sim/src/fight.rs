@@ -961,7 +961,7 @@ impl Fight {
     /// Der Boss, gegen den gerechnet wird.
     #[must_use]
     pub fn boss(&self) -> &'static Boss {
-        &BOSS
+        BOSS
     }
 
     /// Die Schul-Mechanik.
