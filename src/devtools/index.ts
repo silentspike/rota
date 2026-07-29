@@ -21,6 +21,7 @@ import { combatChecksum } from '../core/checksum.js';
 import { EVENT_NAMES, type LogEntry } from '../core/log.js';
 import { EVENT_NAMES as COMBAT_EVENT_NAMES, NO_KEY, eventIndex } from '../core/events.js';
 import { buildSoundReport, type SoundReport } from './sound-report.js';
+import { RULE_DAMAGE, RULE_EVENT_COUNT, RULE_EVENT_NAMES, RuleEvents } from '../combat/events.js';
 import { recordingNames, recordings, replayRecording, type ReplayResult } from './recording.js';
 import type { RunSummary } from '../core/summary.js';
 import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
@@ -339,6 +340,35 @@ export interface DevTools {
    * nichts gewirkt und kein Schaden gezählt.
    */
   feedHits(count: number, damage?: number, big?: boolean): void;
+
+  // ------------------------------------------------- Ereignis-System (18.3)
+  /**
+   * Regel-Ereignisse einspeisen, ohne den Kampf anzufassen.
+   *
+   * Messmittel für den Speicher-Nachweis: Ein Kampf trägt rund sechzig
+   * Ereignisse aus — zu wenig, um eine Anforderung je Ereignis von der
+   * Messschwankung zu unterscheiden. Der Kampf bleibt unberührt; nur die
+   * Empfänger laufen, und die Prüfsumme wächst.
+   */
+  emitRuleEvents(count: number, event?: number): void;
+  /**
+   * Einen zählenden Empfänger anmelden.
+   *
+   * Ohne ihn misst der Speicher-Nachweis nur die Verteilung, nicht den Empfang
+   * — und der ist der Teil, an dem später die Schul-Mechaniken hängen.
+   *
+   * @returns wie oft dieser Empfänger schon gerufen wurde, als Ablesefunktion
+   */
+  addRuleProbe(event: number, id?: string): () => number;
+  /** Empfänger eines Ereignisses in ihrer Reihenfolge. */
+  ruleReceivers(event: number): string[];
+  /** Zustand des Ereignis-Systems: Folge, Anzahl, Namen. */
+  ruleEvents(): {
+    names: string[];
+    emitted: number;
+    sequenceChecksum: number;
+    receivers: Record<string, string[]>;
+  };
   /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
   bindSlot(slot: number, spellId: string): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
@@ -387,6 +417,14 @@ export function installDevTools(app: App): void {
 
   const perf = new PerfCounters();
   const probe = new AllocationProbe();
+  /**
+   * Ein eigenstaendiges Ereignis-System zum Messen (Issue E3-1).
+   *
+   * Es haengt bewusst NICHT am Kampf: Der Anschluss ist Issue E3-1b und wird
+   * auf beiden Seiten zugleich gemacht, weil die Stellen, an denen ein Ereignis
+   * entsteht, die Reihenfolge festlegen — und die gilt nie einseitig.
+   */
+  const ruleBus = new RuleEvents();
   /** Name der laufenden Wiedergabe im Bild, sonst `null`. */
   let liveReplay: string | null = null;
   // Die erzwungene Aufräumung hält die Seite an. Ohne diesen Anschluss zählte
@@ -765,6 +803,35 @@ export function installDevTools(app: App): void {
       for (let i = 0; i < count; i++) {
         app.impact.onHit(damage, i % 3 === 0 ? HIT_DOT : HIT_DIRECT, false, big, now);
       }
+    },
+    emitRuleEvents: (count: number, event = RULE_DAMAGE) => {
+      const now = app.loop.timeMs;
+      for (let i = 0; i < count; i++) ruleBus.emit(event, i % 3, 100, now);
+    },
+    addRuleProbe: (event: number, id = 'probe') => {
+      let count = 0;
+      ruleBus.register(
+        { id, on: event },
+        {
+          onRuleEvent: () => {
+            count++;
+          },
+        },
+      );
+      return () => count;
+    },
+    ruleReceivers: (event: number) => ruleBus.receiverIds(event),
+    ruleEvents: () => {
+      const receivers: Record<string, string[]> = {};
+      for (let event = 0; event < RULE_EVENT_COUNT; event++) {
+        receivers[RULE_EVENT_NAMES[event] ?? String(event)] = ruleBus.receiverIds(event);
+      }
+      return {
+        names: [...RULE_EVENT_NAMES],
+        emitted: ruleBus.emittedCount,
+        sequenceChecksum: ruleBus.sequenceChecksum,
+        receivers,
+      };
     },
     bindSlot: (slot: number, spellId: string) => {
       const index = app.combat.indexOf(spellId);
