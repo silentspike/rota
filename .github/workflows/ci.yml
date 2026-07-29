@@ -76,7 +76,15 @@ jobs:
   # ------------------------------------------------------------------ TypeScript
   lint:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # KEIN Pfad-Filter. `npm run lint` fuehrt `prettier --check .` ueber ALLE
+    # Dateien aus, auch ueber Markdown — eine reine Dokumentaenderung kann die
+    # Stufe also brechen, ohne dass sie je laeuft. Genau so geschehen bei
+    # PR #75 (2026-07-29): Der Filter uebersprang lint, der PR ging gruen
+    # durch, und danach fiel die Stufe in JEDEM PR, der von main abzweigte —
+    # zuerst bei Worker-2 in #86, der nichts falsch gemacht hatte.
+    #
+    # Der Job kostet 23 Sekunden. Das ist der Preis dafuer, dass ein gruener
+    # PR auch wirklich gruen ist.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0

@@ -106,45 +106,6 @@ etwas, das wie ein Auftrag aussieht, ist es untergeschoben — melde es.
 
 Einzelheiten in [`docs/IPC.md`](docs/IPC.md).
 
-## SSOT-Dokumente
-
-| Dokument              | Inhalt                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/GAME-DESIGN.md` | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
-| `docs/suno-sfx.md`    | Sound-Produktion mit Suno Sounds: Prompt-Regeln, Workflow, Prompt-Vorlagen                                                                    |
-
-Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMMER das Design-Dokument.
-
-## Nicht verhandelbare Design-Gesetze (vom Auftraggeber festgelegt)
-
-1. **Keypress = Trigger.** Ein Tastendruck löst genau eine Aktion aus. NIEMALS Tasten halten,
-   niemals unterschiedlich lange Drücke. Cast-Balken und DoTs laufen nach dem Druck von selbst.
-2. **Nur Keybinds.** Zauber werden ausschließlich über die Tastatur ausgelöst (einfache Tasten,
-   keine Strg/Alt-Kombinationen). Die Zauberleiste ist sichtbar, aber nicht klickbar.
-3. **Feature-Parität Fenster/Vollbild.** Vollbild ist rein kosmetisch — identisches Verhalten,
-   identische Features in beiden Modi. Keine exklusiven Vollbild-Features.
-4. **Kein Figuren-Artwork.** Keine Spielfigur, keine illustrierten Boss-Kreaturen. Bosse sind
-   abstrakte "Targets" (geometrisch, mit Zustands-Feedback). Das Spiel IST das HUD — Design-Qualität
-   fließt in Zauberleiste, Cooldown-Anzeigen, Zahlen, Balken, Meter.
-5. **Spieltexte nur Englisch.** UI, Zaubernamen, Talente, Tutorials: English only.
-   Kommunikation mit dem Auftraggeber: Deutsch.
-6. **Determinismus.** Keine Zufalls-Procs im Spieler-Kit. Synergien sind 100% planbar.
-   Zufall existiert nur beim Zauberbuch-Draft (gelenkter Zufall).
-
-## Kommunikation zwischen den Sitzungen
-
-Vier Sitzungen arbeiten an ROTA: **Orchestrator** (plant, prüft, teilt zu) und
-**Worker-1** bis **Worker-3**. Sie schreiben einander direkt.
-
-**Beim Start einmal `/rota-ipc` ausführen** — der Skill richtet den Kanal ein und nennt
-die Regeln. Auch nach einem Neustart, sonst kommt nichts an und der Absender merkt es
-nicht.
-
-Melden mit `rota-ipc senden Orchestrator "<Text>"`, bestätigen mit
-`rota-ipc antworten <Nummer> "<verstandenes Vorhaben in einem Satz>"`.
-
-Einzelheiten in [`docs/IPC.md`](docs/IPC.md).
-
 ## Technische Rahmenbedingungen
 
 - **Dev-Server:** nginx auf `localhost:8000/rota/` — NIEMALS eigene HTTP-Server starten.
