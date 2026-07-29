@@ -5,12 +5,13 @@
  * npx vite-node tests/parity/export-parity.ts
  * ```
  *
- * Zwei Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
+ * Drei Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
  *
  * | Datei | Inhalt |
  * | --- | --- |
  * | `cooldown-precision.json` | Eine aufgezeichnete Runde samt Ergebnis und Prüfsumme je Takt |
  * | `primitives.json` | Zufallsströme und Prüfsumme — die Bausteine darunter |
+ * | `rule-events.json` | Eine feste Folge von Regel-Ereignissen samt Prüfsumme |
  *
  * **Nach jeder Regeländerung neu laufen lassen.** `freshness.test.ts` erzwingt
  * das: Er baut dieselben Inhalte und vergleicht sie mit dem, was hier liegt.
@@ -32,7 +33,13 @@ import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { primitivesPayload, recordingPayload, RECORDING_NAME, serialize } from './payloads.ts';
+import {
+  primitivesPayload,
+  recordingPayload,
+  ruleEventsPayload,
+  RECORDING_NAME,
+  serialize,
+} from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +50,10 @@ writeFileSync(recordingPath, serialize(recording), 'utf8');
 const primitives = primitivesPayload();
 const primitivesPath = join(here, 'recordings', 'primitives.json');
 writeFileSync(primitivesPath, serialize(primitives), 'utf8');
+
+const ruleEvents = ruleEventsPayload();
+const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
+writeFileSync(ruleEventsPath, serialize(ruleEvents), 'utf8');
 
 const expected = recording['expected'];
 const checksums = recording['checksums'];
@@ -58,3 +69,7 @@ console.log(`  Prüfsummen     ${checksums.length} Takte`);
 console.log(`  Folge-Summe    ${expected['sequenceChecksum']}`);
 console.log(`  Ziehungen      ${expected['randomDraws']}`);
 console.log(`geschrieben: ${primitivesPath}`);
+console.log(`geschrieben: ${ruleEventsPath}`);
+console.log(
+  `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
+);

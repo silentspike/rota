@@ -16,6 +16,17 @@ import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
+import {
+  NO_SUBJECT,
+  RULE_BOSS_PHASE,
+  RULE_BUFF_EXPIRED,
+  RULE_CRIT,
+  RULE_DAMAGE,
+  RULE_DOT_TICK,
+  RULE_EVENT_NAMES,
+  RULE_SPELL_CAST,
+  RuleEvents,
+} from '../../src/combat/events.js';
 
 /** Fassung des Dateiformats. Der Simulator lehnt alles andere ab. */
 export const SCHEMA = 1;
@@ -112,6 +123,69 @@ export function primitivesPayload(): Record<string, unknown> {
   };
 
   return { schema: SCHEMA, streamNames: STREAM_NAMES, streams, checksum };
+}
+
+/**
+ * Eine feste Folge von Regel-Ereignissen samt Prüfsumme (Issue E3-1b).
+ *
+ * **Warum das noch vor dem Anschluss geprüft wird:** Der Abgleich der
+ * Ereignisfolge steht und fällt damit, dass beide Seiten dieselbe Rechnung
+ * anstellen. Weichen sie schon hier ab, meldet der spätere Vergleich bei jedem
+ * Zauber eine Abweichung und bei keinem eine echte — dieselbe Falle, die
+ * `primitivesPayload` für die Zufallsströme abfängt.
+ *
+ * Die Folge ist bewusst künstlich: Sie enthält jedes der sechs Ereignisse, dazu
+ * negative Betreffs, Bruchzahlen und einen Wert, der sich erst im letzten Bit
+ * unterscheidet.
+ */
+export function ruleEventsPayload(): Record<string, unknown> {
+  const bus = new RuleEvents();
+  const steps: { event: number; subject: number; value: number; timeMs: number }[] = [];
+  const after: number[] = [];
+
+  const emit = (event: number, subject: number, value: number, timeMs: number): void => {
+    bus.emit(event, subject, value, timeMs);
+    steps.push({ event, subject, value, timeMs });
+    after.push(bus.sequenceChecksum);
+  };
+
+  emit(RULE_SPELL_CAST, 0, 100, 0);
+  emit(RULE_DAMAGE, 0, 100, 0);
+  emit(RULE_DOT_TICK, 1, 40, 2000);
+  emit(RULE_CRIT, 2, 360.5, 3000);
+  emit(RULE_BOSS_PHASE, NO_SUBJECT, 2, 40_510);
+  emit(RULE_BUFF_EXPIRED, 3, 0, 60_000);
+  // Ein Wert, der sich erst im letzten Bit unterscheidet — genau solche
+  // Abweichungen sucht der Abgleich.
+  emit(RULE_DAMAGE, 0, 1, 60_010);
+  emit(RULE_DAMAGE, 0, 1 + Number.EPSILON, 60_020);
+
+  // Dieselbe Aufzeichnung wie in `cooldown-precision.json`, diesmal nach ihrer
+  // EREIGNISFOLGE gefragt. Das ist der eigentliche Abgleich: dieselbe
+  // Tastenfolge muss auf beiden Seiten dieselben Ereignisse in derselben
+  // Reihenfolge ergeben. Der Wert steht hier und nicht in
+  // `cooldown-precision.json`, damit die Datei unberührt bleibt, gegen die
+  // `parity_recording.rs` prüft.
+  const referenz = recordings().get(RECORDING_NAME);
+  if (referenz === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RECORDING_NAME}`);
+  const lauf = replayRecording(referenz);
+
+  return {
+    schema: SCHEMA,
+    eventNames: RULE_EVENT_NAMES,
+    recording: {
+      name: RECORDING_NAME,
+      damage: lauf.damage,
+      killedAtMs: lauf.killedAtMs,
+      ruleEventCount: lauf.ruleEventCount,
+      ruleSequenceChecksum: lauf.ruleSequenceChecksum,
+    },
+    steps,
+    /** Prüfsumme nach jedem einzelnen Schritt — sagt, WO es auseinanderläuft. */
+    checksumAfterEach: after,
+    sequenceChecksum: bus.sequenceChecksum,
+    emitted: bus.emittedCount,
+  };
 }
 
 /** So werden die Dateien geschrieben — an einer Stelle festgelegt. */
