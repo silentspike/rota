@@ -109,6 +109,23 @@ fn text<'a>(node: &'a Value, field: &str, whose: &str) -> &'a str {
         .unwrap_or_else(|| panic!("{whose}: Feld \"{field}\" fehlt oder ist keine Zeichenkette"))
 }
 
+/// Liest ein **optionales** Zahlenfeld. Fehlt es, gilt `default`.
+///
+/// Getrennt von [`uint`], und das ist Absicht: `uint` bricht bei einem
+/// fehlenden Feld ab, weil ein stillschweigend auf 0 gesetzter Pflichtwert
+/// einen Simulator ergaebe, der plausibel aussieht und falsch rechnet. Bei
+/// einem Feld, das die meisten Zauber gar nicht fuehren, ist das Fehlen
+/// dagegen die Regel und keine Nachlaessigkeit.
+fn opt_uint(node: &Value, field: &str, whose: &str, default: u64) -> u64 {
+    let Some(raw) = node.get(field) else {
+        return default;
+    };
+    match raw {
+        Value::Number(n) if n.is_u64() => n.as_u64().expect("is_u64 geprueft"),
+        other => panic!("{whose}: \"{field}\" muss eine ganze Zahl >= 0 sein, ist aber {other}"),
+    }
+}
+
 /// Liest `{ "heat": 3 }` und prueft dabei, dass die genannte Ressource die der
 /// Schule ist. Ein Zauber, der eine unbekannte Ressource fuellt, waere im
 /// Simulator sonst eine stille Null.
@@ -252,6 +269,11 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
         out,
         "        resource_gain: {},",
         resource_amount(spell, "resourceGain", &whose, resource_id)
+    );
+    let _ = writeln!(
+        out,
+        "        cooldown_reduction_ms: {},",
+        opt_uint(spell, "cooldownReductionMs", &whose, 0)
     );
     emit_dot(out, spell, &whose, resource_id);
     emit_spender(out, spell, &whose, resource_id);

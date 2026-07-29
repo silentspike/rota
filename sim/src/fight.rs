@@ -74,6 +74,7 @@ use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
 use crate::stacks::{PendingGain, StackMechanic};
+use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
 
 /// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
@@ -234,6 +235,11 @@ pub struct Fight {
     pending_gain: PendingGain,
     /// Wie oft Stapel angesetzt wurden.
     stack_gains: std::rc::Rc<std::cell::Cell<u32>>,
+    /// Verkuerzung der Abklingzeiten, angesetzt und noch nicht ausgefuehrt
+    /// (Issue E3-3). Siehe [`crate::sublimation`] fuer den Grund der Teilung.
+    pending_shorten: PendingSlot,
+    /// Wie oft die Sublimation angesetzt hat.
+    sublimation_uses: std::rc::Rc<std::cell::Cell<u32>>,
 
     /// Die Regel-Ereignisse (GAME-DESIGN 18.3, Issue E3-1b).
     ///
@@ -278,6 +284,8 @@ impl Fight {
             events: RuleEvents::default(),
             pending_gain: PendingGain::default(),
             stack_gains: std::rc::Rc::default(),
+            pending_shorten: PendingSlot::default(),
+            sublimation_uses: std::rc::Rc::default(),
         };
         fight.register_school_mechanics();
         fight
@@ -300,6 +308,30 @@ impl Fight {
         );
         self.events
             .register("stacks:heat", RuleEvent::DotTick, 0, Box::new(second));
+
+        // SUBLIMATION (Issue E3-3), Rang 10: nach der Stapel-Mechanik. Die
+        // Verkuerzungen kommen aus den Zauber-Daten; wer nichts verkuerzt,
+        // steht mit 0 in der Tabelle.
+        let mut per_cast = [0; SPELL_COUNT];
+        for (index, spell) in SPELLS.iter().enumerate() {
+            per_cast[index] = spell.cooldown_reduction_ms;
+        }
+        self.events.register(
+            "sublimation",
+            RuleEvent::SpellCast,
+            10,
+            Box::new(SublimationMechanic::new(
+                per_cast,
+                std::rc::Rc::clone(&self.pending_shorten),
+                std::rc::Rc::clone(&self.sublimation_uses),
+            )),
+        );
+    }
+
+    /// Wie oft die Sublimation angesetzt hat.
+    #[must_use]
+    pub fn sublimation_use_count(&self) -> u32 {
+        self.sublimation_uses.get()
     }
 
     /// Wie oft die Schul-Mechanik Stapel angesetzt hat.
@@ -320,6 +352,10 @@ impl Fight {
         let gained = self.pending_gain.replace(0);
         if gained > 0 {
             self.add_resource(gained);
+        }
+        let order = self.pending_shorten.replace(PendingShorten::default());
+        if order.amount > 0 {
+            shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
 

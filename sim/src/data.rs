@@ -76,6 +76,14 @@ pub struct Spell {
     pub dot: Option<Dot>,
     /// Entlade-Verhalten, falls der Zauber die Ressource verbraucht.
     pub spender: Option<Spender>,
+    /// Um wie viel dieser Zauber **alle laufenden Abklingzeiten** verkuerzt
+    /// (SUBLIMATION, GAME-DESIGN 4.1, Issue E3-3).
+    ///
+    /// **0 heisst: verkuerzt nichts.** Das Feld ist in der Datei optional; die
+    /// drei Zauber der Kalzination fuehren es nicht. Ein Pflichtfeld waere hier
+    /// falsch — ein Zauber ohne Sublimations-Wirkung soll es gar nicht erst
+    /// nennen muessen.
+    pub cooldown_reduction_ms: Millis,
 }
 
 /// Ein Boss.
