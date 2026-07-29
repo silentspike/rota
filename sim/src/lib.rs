@@ -60,6 +60,8 @@ pub mod balance;
 // Issue E3-5: Verstaerkungen und Synergie-Fenster.
 pub mod buffs;
 pub mod checksum;
+// Issue E3-3c: der Cooldown-Ruecksetzer als Auswahlmodus.
+pub mod cooldown_reset;
 pub mod data;
 pub mod event;
 pub mod factors;
