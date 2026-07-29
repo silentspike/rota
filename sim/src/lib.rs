@@ -72,6 +72,8 @@ pub mod rotation;
 pub mod rules_event;
 // Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
 pub mod stacks;
+// Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
+pub mod sublimation;
 pub mod time;
 
 pub use apl::{Apl, AplError};
