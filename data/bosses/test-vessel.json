@@ -16,9 +16,15 @@
     "resetTo": 0
   },
   "timeline": [
-    { "atMs": 5000, "mechanic": "placeholder" },
-    { "atMs": 20000, "mechanic": "placeholder" },
-    { "atMs": 45000, "mechanic": "placeholder" }
+    { "atMs": 5000, "mechanic": "strike", "name": "Backlash", "damage": 400 },
+    {
+      "atMs": 20000,
+      "mechanic": "interruptibleCast",
+      "name": "Runaway Reaction",
+      "damage": 1200,
+      "castTimeMs": 3000
+    },
+    { "atMs": 45000, "mechanic": "strike", "name": "Backlash", "damage": 400 }
   ],
   "resistances": {},
   "signature": null
