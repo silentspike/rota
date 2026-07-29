@@ -233,6 +233,20 @@ impl Boss {
 /// > **Die Zahlen sind noch nicht Design.** GAME-DESIGN Teil F.6 fuehrt sie
 /// > als „vor E4 auszuplanen"; entschieden ist davon nichts. Sie tragen die
 /// > Prueffaelle aus Issue #110 und sonst nichts.
+///
+/// # Verhaeltnis zur Ausruestung (E6)
+///
+/// `src/gear/slots.ts` fuehrt mit `BASE_STAT_IDS` die **Kennungen** der
+/// Grundwerte; diese Datei fuehrt ihre **Werte**. Zwei verschiedene Aussagen,
+/// kein Widerspruch.
+///
+/// **Diese Werte sind der STARTWERT.** Ausruestung wird darauf **addiert**,
+/// sie ersetzt ihn nicht. Heute traegt kein Stueck etwas, also faellt die
+/// Frage nicht auf; wer sie zusammenfuehrt, findet die Antwort hier und in
+/// `src/core/data.ts`.
+///
+/// Eine Formel von WARD-Punkten zu Minderungsanteil fehlt dabei noch, und
+/// zwar mit Absicht — sie ist Design und steht in Kapitel 22 als offen.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerBase {
     /// VESSEL — Lebenspunkte.
