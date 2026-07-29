@@ -64,6 +64,7 @@ pub mod factors;
 pub mod fight;
 pub mod log;
 pub mod replay;
+pub mod report;
 pub mod rng;
 pub mod rotation;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
@@ -77,5 +78,8 @@ pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 pub use factors::{compute_damage, DamageFactors, NEUTRAL};
 pub use fight::{Decide, Fight, FightConfig, RunResult};
 pub use replay::{Binding, Press, Recording, ReplayResult};
+pub use report::{
+    achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
+};
 pub use rng::{Stream, Streams};
 pub use time::{Millis, GCD_MS, TICK_MS};
