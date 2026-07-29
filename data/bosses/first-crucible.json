@@ -6,6 +6,7 @@
   "hp": 4200,
   "overpressureMs": 60000,
   "phases": [],
+  "energy": null,
   "timeline": [],
   "resistances": {},
   "signature": null

@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "id": "test-vessel",
+  "name": "The Proving Vessel",
+  "instance": "testing",
+  "hp": 8000,
+  "overpressureMs": 90000,
+  "phases": [
+    { "atHpPercent": 70, "name": "Second Heat" },
+    { "atHpPercent": 40, "name": "Final Fusion" }
+  ],
+  "energy": {
+    "perStepMs": 1000,
+    "amount": 7,
+    "threshold": 100,
+    "resetTo": 0
+  },
+  "timeline": [],
+  "resistances": {},
+  "signature": null
+}
