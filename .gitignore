@@ -41,3 +41,7 @@ llm-*.md
 # Betriebssystem
 .DS_Store
 Thumbs.db
+
+# Generiert von tools/analysis-preview.sh (Pruefblatt, nicht Auslieferung)
+docs/analysis-check/preview.js
+docs/analysis-check/preview.css

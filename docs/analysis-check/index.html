@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ROTA — Auswertung, Prüfblatt (Issue #81)</title>
+    <link rel="stylesheet" href="preview.css" />
+    <style>
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('fonts/Cinzel-Variable.ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      @font-face {
+        font-family: 'EB Garamond';
+        src: url('fonts/EBGaramond-Variable.ttf') format('truetype-variations');
+        font-weight: 400 800;
+      }
+      body {
+        margin: 0;
+        padding: 36px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.6 system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 21px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 20px;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 100ch;
+        margin-bottom: 34px;
+      }
+      code {
+        color: #b9d3a8;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Auswertung nach dem Kampf</h1>
+    <div class="sub">Issue #81 · Epic E7 · Prüfblatt für AC4</div>
+    <div class="why">
+      Diese Seite lädt <code>src/analysis/</code> <strong>unverändert</strong> — sie bildet die
+      Tabelle nicht nach. Wäre sie nachgebaut, prüfte der Browser-Nachweis eine zweite Wahrheit
+      statt der Sache. <br /><br />
+      <strong>Worauf zu achten ist (AC4):</strong> <code>EFFICIENCY</code> steht direkt hinter dem
+      Namen, ist die einzige hervorgehobene Spalte und bestimmt die Sortierung — schlechteste
+      zuerst. <code>DAMAGE SHARE</code> steht ganz rechts und tritt zurück. <br /><br />
+      Und: Keine Zeile sagt, was der Spieler <em>stattdessen</em> hätte tun sollen.
+    </div>
+    <div id="view"></div>
+    <script src="preview.js"></script>
+  </body>
+</html>
