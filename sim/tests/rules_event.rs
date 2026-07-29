@@ -13,6 +13,9 @@ use rota_sim::replay::{Binding, Press, Recording};
 use rota_sim::rules_event::{RuleEvent, RuleEvents, RuleReceiver, NO_SUBJECT};
 use rota_sim::{rotation, Fight, FightConfig};
 
+mod common;
+use common::float;
+
 // Derselbe thread-lokale Zaehl-Allocator wie in `tests/allocation.rs`. Er steht
 // hier noch einmal, weil jede Testdatei ein eigenes Programm ist und einen
 // eigenen globalen Allocator braucht.
@@ -268,7 +271,9 @@ fn dieselbe_ereignisfolge_ergibt_dieselbe_pruefsumme() {
         .expect("unbekanntes Ereignis");
         let subject = i16::try_from(step["subject"].as_i64().expect("subject erwartet"))
             .expect("passt nicht in 16 Bit");
-        let value = step["value"].as_f64().expect("value erwartet");
+        // Ueber das Bitmuster, nicht ueber `as_f64()` — sonst rechnete der
+        // Simulator mit einer anderen Zahl als das Spiel (Issue #122).
+        let value = float(&step["valueBits"]);
         let time = u32::try_from(step["timeMs"].as_u64().expect("timeMs erwartet"))
             .expect("passt nicht in 32 Bit");
 
