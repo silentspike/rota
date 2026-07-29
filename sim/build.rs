@@ -29,6 +29,13 @@ use serde_json::Value;
 
 /// Pfad zur Zauber-Datei, relativ zum Paketverzeichnis `sim/`.
 const SPELLS_JSON: &str = "../data/spells/calcination.json";
+/// Die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4), relativ zu `sim/`.
+///
+/// Getrennt von der Schule, weil sie **keiner** angehoeren: Ein Boss-Zauber
+/// laesst sich unterbrechen ODER durch FIXATION verlangsamen ODER durch
+/// COAGULATION aushalten (11.3). In `calcination.json` waere Unterbrechen eine
+/// Faehigkeit der Kalzination — und das ist es nicht.
+const COMMON_SPELLS_JSON: &str = "../data/spells/common.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -53,6 +60,7 @@ fn main() {
     // baut mit veralteten Werten weiter — der unangenehmste Fehler ueberhaupt,
     // weil er sich wie ein Rechenfehler anfuehlt.
     println!("cargo:rerun-if-changed={SPELLS_JSON}");
+    println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
@@ -61,6 +69,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     let spells = read_json(SPELLS_JSON);
+    let common = read_json(COMMON_SPELLS_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -71,7 +80,7 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
-    emit_spells(&mut out, &spells);
+    emit_spells(&mut out, &spells, &common);
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
 
@@ -214,7 +223,7 @@ fn emit_resource(out: &mut String, spells: &Value) {
     let _ = writeln!(out, "}};\n");
 }
 
-fn emit_spells(out: &mut String, spells: &Value) {
+fn emit_spells(out: &mut String, spells: &Value, common: &Value) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
         "id",
@@ -225,6 +234,16 @@ fn emit_spells(out: &mut String, spells: &Value) {
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("calcination.json: Liste \"spells\" fehlt"));
     assert!(!list.is_empty(), "calcination.json: \"spells\" ist leer");
+
+    // Die Sonderzauber stehen **hinter** den Schulzaubern, immer. Die
+    // Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3): Sie bestimmt
+    // die Indizes, und die stehen in jeder aufgezeichneten Runde. Sie
+    // umzustellen deutete jede alte Aufzeichnung still um.
+    let gemeinsame = common
+        .get("spells")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("common.json: Liste \"spells\" fehlt"));
+    let list: Vec<&Value> = list.iter().chain(gemeinsame.iter()).collect();
 
     let _ = writeln!(
         out,
@@ -239,7 +258,7 @@ fn emit_spells(out: &mut String, spells: &Value) {
          /// die Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3)."
     );
     let _ = writeln!(out, "pub static SPELLS: [Spell; SPELL_COUNT] = [");
-    for spell in list {
+    for spell in &list {
         emit_spell(out, spell, resource_id);
     }
     let _ = writeln!(out, "];\n");

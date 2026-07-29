@@ -10,6 +10,7 @@
  * Ein Zauber, der still fehlt, fällt erst im Kampf auf.
  */
 import rawSchool from '../../data/spells/calcination.json';
+import rawCommonSpells from '../../data/spells/common.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
@@ -508,7 +509,23 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
 }
 
 /** Die Schule aus Schritt 1, fertig gelesen. */
-export const CALCINATION: ParseResult<SchoolDef> = parseSchool(rawSchool);
+export const CALCINATION: ParseResult<SchoolDef> = (() => {
+  // Die schulunabhängigen Sonderzauber (GAME-DESIGN 7.4) kommen **hinter** die
+  // Schulzauber, immer. Die Reihenfolge ist Teil des Determinismus
+  // (GAME-DESIGN 18.3): Sie bestimmt die Indizes, und die stehen in jeder
+  // aufgezeichneten Runde. Sie umzustellen deutete jede alte Aufzeichnung
+  // still um — und `sim/build.rs` fügt sie an derselben Stelle an.
+  const roh = rawSchool as Record<string, unknown>;
+  const gemeinsam = (rawCommonSpells as Record<string, unknown>)['spells'];
+  const zusammen = {
+    ...roh,
+    spells: [
+      ...(Array.isArray(roh['spells']) ? roh['spells'] : []),
+      ...(Array.isArray(gemeinsam) ? gemeinsam : []),
+    ],
+  };
+  return parseSchool(zusammen);
+})();
 
 /** Der Testboss aus Schritt 1, fertig gelesen. */
 export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
