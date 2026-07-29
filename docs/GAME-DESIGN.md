@@ -860,12 +860,32 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 Daten des Durchlaufs berechnet — es sind Multiplikationen, alle Werte stehen bereits im
 Kampfprotokoll.
 
-| Fehlerart                     | Rechnung                                                                                               | Ausgabe an den Spieler                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| **Verpasste Wirkungen**       | Ein Zauber mit 12 s Abklingzeit passt 20× in einen 240-s-Kampf; gewirkt 15 → 5 verpasst × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                   | „6.4 s idle — four wasted actions, 7 %"                    |
-| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                               | „Seven of ten combinations used — 5 %"                     |
-| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                      | „Two missed — 14 %"                                        |
+| Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
+| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                                              | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
+| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
+
+> **Korrektur vom 2026-07-29 — warum „Kampfzeit ÷ Abklingzeit" nicht trägt.**
+> Die frühere Rechnung nahm das Maximum je Zauber einzeln: 240 s ÷ 12 s = 20 mögliche
+> Wirkungen. Die Summe dieser Maxima übersteigt aber die Zahl der Aktionen, die es im Kampf
+> überhaupt gibt — die Zauber teilen sich den GCD. **Gemessen an einem Prüfdurchlauf: 193
+> theoretische Maxima gegen 160 verfügbare Aktionen**, also 33 Wirkungen, die es nicht geben kann.
+>
+> Der Spieler bekam dadurch eine Messlatte hingehängt, die niemand erreichen kann („KINDLE 92 von
+> 160, 68 verpasst" — obwohl er dafür alle anderen Zauber hätte weglassen müssen), und die größte
+> Verlustquelle war systematisch zu hoch ausgewiesen.
+>
+> **Verworfen wurde die rechnerisch genaueste Lösung:** die Summe der Maxima auf die verfügbaren
+> Aktionen zu normieren. Ein so verteiltes Budget kommt einer Aussage darüber nahe, wie man hätte
+> spielen sollen — genau die Grenze aus 21.2.
+>
+> **Die jetzige Definition braucht keine Referenz.** Beide Bedingungen stehen im Kampfprotokoll,
+> und sie kann nicht überzeichnen: Jedes leere GCD-Fenster zählt nur einmal. Wer statt Zauber A
+> Zauber B gewirkt hat, hat nichts verloren — er hat gewählt, und Wählen ist das Spiel.
+>
+> Gefunden hat es Worker-3 beim Bau von #81, statt die Rechnung ungeprüft zu übernehmen.
 
 **Die drei größten Verlustquellen** werden hervorgehoben. Sie können aus der Rotation stammen
 **oder aus dem Umgang mit dem Boss** — bei einem Boss mit Mechaniken ist das oft der teurere Teil.
