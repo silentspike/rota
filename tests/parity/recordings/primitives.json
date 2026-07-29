@@ -206,30 +206,37 @@
     "mixFloat": [
       {
         "value": 0,
+        "valueBits": "0000000000000000",
         "result": 2615243109
       },
       {
         "value": 1,
+        "valueBits": "3ff0000000000000",
         "result": 2355796088
       },
       {
         "value": -1,
+        "valueBits": "bff0000000000000",
         "result": 208260856
       },
       {
         "value": 1500,
+        "valueBits": "4097700000000000",
         "result": 1303595466
       },
       {
         "value": 4240,
+        "valueBits": "40b0900000000000",
         "result": 3747221253
       },
       {
         "value": 0.5,
+        "valueBits": "3fe0000000000000",
         "result": 210923880
       },
       {
         "value": 12000,
+        "valueBits": "40c7700000000000",
         "result": 1827473658
       }
     ],

@@ -4,6 +4,7 @@
 //! Schaden = Grundschaden
 //!         × ESSENCE-Faktor
 //!         × Talent-Faktoren
+//!         × Ausrüstungs-Sondereffekte
 //!         × aktive Verstärkungen
 //!         × Synergie-Faktoren
 //!         × Widerstandsfaktor des Bosses
@@ -41,6 +42,19 @@ pub struct DamageFactors {
     pub essence: f64,
     /// Aus dem Talentbaum.
     pub talents: f64,
+    /// Legendaere Effekte **und** Satz-Boni — Topf 4 aus GAME-DESIGN 13.1b.
+    ///
+    /// **Warum an dieser Stelle:** Keiner der bestehenden Faktoren konnte ihn
+    /// aufnehmen. `essence` machte ihn additiv mit ESSENCE, `talents` additiv
+    /// mit den Talenten — und 13.1 trennt beide Systeme ausdruecklich. `buffs`
+    /// IST Topf 3, und zwischen Toepfen wird multipliziert. Es blieb nur ein
+    /// eigener Faktor. Die Position gruppiert die Formel: erst die
+    /// Spieler-Faktoren, dann der Zustand, dann der Boss, zuletzt Krit.
+    ///
+    /// Heute steht er bei 1,0 und bewegt keine einzige Zahl. Genau deshalb war
+    /// Vorsicht geboten — eine Aenderung, die nichts bewegt, geht sonst
+    /// unbemerkt durch.
+    pub gear_effects: f64,
     /// Laufende Verstaerkungen auf dem Spieler.
     pub buffs: f64,
     /// Offene Synergie-Fenster (GAME-DESIGN 5).
@@ -59,6 +73,7 @@ pub struct DamageFactors {
 pub const NEUTRAL: DamageFactors = DamageFactors {
     essence: 1.0,
     talents: 1.0,
+    gear_effects: 1.0,
     buffs: 1.0,
     synergy: 1.0,
     resistance: 1.0,
@@ -106,6 +121,7 @@ pub fn compute_damage(base_damage: u32, factors: &DamageFactors) -> u32 {
     let mut value = f64::from(base_damage);
     value *= factors.essence;
     value *= factors.talents;
+    value *= factors.gear_effects;
     value *= factors.buffs;
     value *= factors.synergy;
     value *= factors.resistance;
@@ -133,13 +149,31 @@ mod tests {
 
     #[test]
     fn die_reihenfolge_der_multiplikationen_steht_fest() {
-        // Zwei Faktoren, die sich im letzten Bit auswirken. Wenn jemand die
-        // Reihenfolge in `compute_damage` umstellt, aendert sich dieser Wert —
-        // und der Gleichlauf mit dem Spiel waere gebrochen, ohne dass es
-        // irgendwo knallt.
+        // **Was dieser Waechter leistet — und was nicht.**
+        //
+        // Er prueft, dass ALLE Faktoren angewandt werden. Wer einen vergisst
+        // oder doppelt anwendet, faellt hier auf.
+        //
+        // Eine **Umstellung** der Reihenfolge faengt er NICHT, und der
+        // urspruengliche Kommentar hier behauptete das Gegenteil. Gemessen am
+        // 2026-07-29 (Issue E6-1): ueber 36 356 232 Kombinationen im
+        // u32-Bereich gibt es keinen Wertesatz, bei dem eine Umstellung den
+        // GERUNDETEN Schaden bewegt. `compute_damage` rundet am Ende, und bei
+        // u32-Betraegen ist der Fliesskomma-Unterschied rund eine Million mal
+        // kleiner als eine halbe Einheit.
+        //
+        // Der Gleichlauf ist trotzdem gesichert, nur anderswo:
+        // `tests/unit/damage-order.test.ts` auf der Spielseite kann es, weil
+        // JavaScript keine u32-Grenze kennt und dort Betraege erreichbar sind,
+        // bei denen die Rundung kippt. Dort steht die Gegenprobe, die hier
+        // nicht moeglich ist.
         let factors = DamageFactors {
             essence: 1.1,
             talents: 1.03,
+            // **Ausdruecklich nicht 1,0.** Ein neutraler Wert liesse sich
+            // beliebig verschieben, ohne dass dieser Waechter etwas merkt —
+            // er wuerde die Position des neuen Faktors also gar nicht sichern.
+            gear_effects: 1.19,
             buffs: 1.07,
             synergy: 1.13,
             resistance: 0.97,
@@ -148,6 +182,7 @@ mod tests {
         let mut erwartet = 100.0_f64;
         erwartet *= 1.1;
         erwartet *= 1.03;
+        erwartet *= 1.19;
         erwartet *= 1.07;
         erwartet *= 1.13;
         erwartet *= 0.97;
