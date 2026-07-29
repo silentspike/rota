@@ -126,6 +126,20 @@ export class Combat {
   private resourceValue = 0;
   private resourceOverflowValue = 0;
   private nextDecayAtMs: number;
+  /** Welche Phase gerade läuft. 0 ist der Start (GAME-DESIGN 11.1). */
+  private bossPhaseValue = 0;
+  /** Stand der Energieleiste — der zweiten Uhr (GAME-DESIGN 11.2). */
+  private bossEnergyValue = 0;
+  /** Wann die Energieleiste das nächste Mal steigt. */
+  private nextEnergyAtMs: number;
+  /** Wie oft sie ausgelöst hat. */
+  private bossEnergyTriggersValue = 0;
+
+  /**
+   * Wie weit die Boss-Zeitleiste abgearbeitet ist — Zeiger auf den **nächsten**
+   * fälligen Eintrag (GAME-DESIGN 11.1).
+   */
+  private timelineIndexValue = 0;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -148,6 +162,11 @@ export class Combat {
     for (let i = 0; i < count; i++) this.indexById.set((this.spells[i] as SpellDef).id, i);
 
     this.nextDecayAtMs = options.school.resource.decayPerStepMs;
+    // Genauso wie der Verfall im Konstruktor: Der Replay ruft `beginFight`
+    // nicht, und ein Startwert von 0 ließe die Leiste schon im Takt 0 steigen —
+    // der Simulator plant den ersten Anstieg bei `perStepMs`. Genau so eine
+    // Kleinigkeit lässt beide Seiten auseinanderlaufen.
+    this.nextEnergyAtMs = options.boss.energy?.perStepMs ?? 0;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
 
@@ -194,6 +213,38 @@ export class Combat {
   }
 
   /** Wie viel Vorrat an der Obergrenze verpufft ist. */
+  /**
+   * Welche Phase gerade läuft. 0 ist der Start.
+   *
+   * Geht in die Zustands-Prüfsumme ein (Issue #96): Ohne sie wären zwei Läufe
+   * in verschiedenen Phasen nicht zu unterscheiden.
+   */
+  get bossPhase(): number {
+    return this.bossPhaseValue;
+  }
+
+  /** Stand der Energieleiste. Geht ebenfalls in die Prüfsumme ein. */
+  get bossEnergy(): number {
+    return this.bossEnergyValue;
+  }
+
+  /** Wie oft die Energieleiste ausgelöst hat. */
+  get bossEnergyTriggers(): number {
+    return this.bossEnergyTriggersValue;
+  }
+
+  /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
+  get timelineIndex(): number {
+    return this.timelineIndexValue;
+  }
+
+  /** Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet. */
+  get bossHpPercent(): number {
+    if (this.boss.hp <= 0) return 0;
+    const übrig = this.boss.hp - this.damageDealtValue;
+    return Math.floor((Math.max(0, übrig) * 100) / this.boss.hp);
+  }
+
   get resourceOverflow(): number {
     return this.resourceOverflowValue;
   }
@@ -242,6 +293,7 @@ export class Combat {
   beginFight(timeMs: number): void {
     this.fightStartedAtMs = timeMs;
     this.nextDecayAtMs = timeMs + this.school.resource.decayPerStepMs;
+    this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
   }
 
   castCount(index: number): number {
@@ -337,6 +389,53 @@ export class Combat {
       const left = this.resourceValue - resource.decayAmount;
       this.resourceValue = left > 0 ? left : 0;
       this.nextDecayAtMs += resource.decayPerStepMs;
+    }
+
+    // Die zweite Uhr (GAME-DESIGN 11.2, Baustein 1). Sie steigt **unabhängig
+    // vom Schaden des Spielers** — wer schneller zuschlägt, verschiebt den
+    // Auslöser nicht. Genau das macht sie zu einem zweiten Takt, gegen den
+    // geplant werden muss.
+    const energy = this.boss.energy;
+    if (energy !== null && energy.perStepMs > 0) {
+      while (timeMs >= this.nextEnergyAtMs) {
+        this.bossEnergyValue += energy.amount;
+        if (this.bossEnergyValue >= energy.threshold) {
+          this.bossEnergyTriggersValue++;
+          this.bossEnergyValue = energy.resetTo;
+        }
+        this.nextEnergyAtMs += energy.perStepMs;
+      }
+    }
+
+    // Die feste Zeitleiste. Sie hängt weder am Schaden noch an der Phase,
+    // sondern allein an der Uhr — deshalb steht sie hier bei den passiven
+    // Wirkungen. Die `while`-Schleife holt mehrere Einträge nach, falls ein
+    // Takt über sie hinwegspringt; im 10-ms-Takt kann das nur passieren, wenn
+    // zwei Einträge auf denselben Zeitpunkt fallen, und dann ist es richtig so.
+    //
+    // **Was hier noch fehlt, ist die Wirkung** — die Bausteine kommen in E4-2
+    // bis E4-6. Geprüft wird vorerst nur der Zeitpunkt.
+    // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
+    // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
+    // zwar ein stiller: Die Einträge kämen zu früh, aber der Kampf liefe weiter.
+    const seitBeginn = timeMs - this.fightStartedAtMs;
+    while (this.timelineIndexValue < this.boss.timeline.length) {
+      const eintrag = this.boss.timeline[this.timelineIndexValue];
+      if (eintrag === undefined || seitBeginn < eintrag.atMs) break;
+      this.timelineIndexValue++;
+    }
+
+    // Phasenwechsel an der Lebenspunkt-Schwelle. Die Phase kann nur STEIGEN:
+    // Heilt der Boss später einmal (Baustein 5), verschwindet eine schon
+    // gezeigte Mechanik nicht wieder.
+    if (this.boss.phases.length > 0) {
+      const prozent = this.bossHpPercent;
+      let neue = 0;
+      for (let i = 0; i < this.boss.phases.length; i++) {
+        const schwelle = this.boss.phases[i];
+        if (schwelle !== undefined && prozent <= schwelle.atHpPercent) neue = i + 1;
+      }
+      if (neue > this.bossPhaseValue) this.bossPhaseValue = neue;
     }
   }
 

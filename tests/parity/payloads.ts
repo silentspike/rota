@@ -19,7 +19,7 @@ import { EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js'
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat } from '../../src/core/combat.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { bossById, BOSSES, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
 import {
@@ -42,6 +42,9 @@ export const RECORDING_NAME = 'cooldown-precision';
 
 /** Die Runde mit den absichtlichen Fehlgriffen (Issue #95). */
 export const MISPLAY_NAME = 'misplays';
+
+/** Der Prueffall gegen den Boss mit Phasen und Energieleiste (Issue #96). */
+export const VESSEL_NAME = 'vessel-phases';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -317,6 +320,123 @@ export function misplaysPayload(): Record<string, unknown> {
       idleTicks: analyse.idleTicks,
     },
     checksums: result.checksums,
+  };
+}
+
+/**
+ * Der gemeinsame Prüffall gegen einen Boss **mit** Phasen, Energieleiste und
+ * Zeitleiste (Issue #96, AC4).
+ *
+ * Die drei bestehenden Vergleichsdateien laufen alle gegen `first-crucible` —
+ * einen Boss ohne all das. Sie belegen damit genau **nichts** über die neuen
+ * Felder: Phase, Energie und Zeitleisten-Zeiger stehen dort von Anfang bis Ende
+ * auf null, und eine Umsetzung, die sie überhaupt nicht führt, bestünde jeden
+ * dieser Prüffälle.
+ *
+ * Deshalb hier dieselbe gute Rotation gegen `test-vessel`. Was sich zwischen
+ * beiden Aufzeichnungen unterscheidet, kommt aus den Boss-Daten und aus nichts
+ * sonst.
+ *
+ * **Die drei Zustandsspuren stehen ausdrücklich neben der Prüfsumme.** Sie
+ * gehen ohnehin in sie ein — aber eine abweichende Prüfsumme sagt nur *dass*
+ * etwas anders ist, nicht *was*. Mit den Spuren zeigt ein Fehlschlag direkt auf
+ * die Phase, die Energie oder die Zeitleiste.
+ */
+export function bossStatePayload(): Record<string, unknown> {
+  const recording = recordings().get(VESSEL_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${VESSEL_NAME}`);
+  const boss = bossById('test-vessel');
+  if (boss === undefined) throw new Error('Der Boss test-vessel fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  // Zweiter Durchlauf für die Zustandsspuren. Ein eigener Durchlauf und nicht
+  // ein erweitertes `ReplayResult`: Die Spuren interessieren nur diesen
+  // Prüffall, und `replayRecording` ist die Schnittstelle aller anderen.
+  const phasen: number[] = [];
+  const energie: number[] = [];
+  const zeitleiste: number[] = [];
+  // Der Anteil der Lebenspunkte je Takt, **so wie die passive Phase ihn sieht**
+  // — also vor dem Wirken dieses Takts.
+  //
+  // Unentbehrlich fuer AC2: Ohne diese Spur liesse sich der Phasenwechsel nur
+  // gegen die Phase selbst pruefen, und das waere zirkulaer.
+  //
+  // Der Zeitpunkt ist dabei die halbe Miete. Der Phasenwechsel geschieht in
+  // `stepPassive`, also **bevor** der Spieler in diesem Takt handelt. Ein nach
+  // dem Wirken abgelesener Anteil gehoerte damit schon zum naechsten Takt, und
+  // die Pruefung "der Takt davor lag noch ueber der Schwelle" waere um einen
+  // Takt verschoben — sie wuerde fehlschlagen, obwohl beide Seiten richtig
+  // rechnen. Genau das ist beim ersten Versuch passiert.
+  const hpAnteil: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    // Vor dem Wirken abgelesen — siehe oben.
+    const anteilVorDemWirken = combat.bossHpPercent;
+    if (combat.damageDealt >= combat.boss.hp) {
+      phasen.push(combat.bossPhase);
+      energie.push(combat.bossEnergy);
+      zeitleiste.push(combat.timelineIndex);
+      hpAnteil.push(anteilVorDemWirken);
+      break;
+    }
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of STEP1_BINDINGS) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    phasen.push(combat.bossPhase);
+    energie.push(combat.bossEnergy);
+    zeitleiste.push(combat.timelineIndex);
+    hpAnteil.push(anteilVorDemWirken);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    // **Beide Seiten muessen dieselbe Menge sehen.** Das Spiel liest das
+    // Verzeichnis ueber `import.meta.glob`, der Simulator ueber `build.rs` —
+    // zwei voellig verschiedene Wege zum selben Ergebnis. Kennt einer einen
+    // Boss, den der andere nicht hat, faellt das ohne diese Liste erst auf,
+    // wenn jemand gegen ihn rechnen will.
+    allBossIds: [...BOSSES.keys()],
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      phases: boss.phases.map((p) => ({ atHpPercent: p.atHpPercent, name: p.name })),
+      energy: boss.energy,
+      timeline: boss.timeline.map((e) => ({ atMs: e.atMs, mechanic: e.mechanic })),
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      randomDraws: result.randomDraws,
+      finalPhase: phasen[phasen.length - 1] ?? 0,
+      energyTriggers: combat.bossEnergyTriggers,
+      finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
+    },
+    checksums: result.checksums,
+    phases: phasen,
+    energy: energie,
+    timelineIndex: zeitleiste,
+    hpPercent: hpAnteil,
   };
 }
 

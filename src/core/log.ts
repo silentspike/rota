@@ -46,6 +46,13 @@
  * | 5   | `kill`       | —     | ja        |
  * | 6   | `phase`      | ja    | —         |
  * | 7   | `buffExpire` | ja    | —         |
+ * | 8   | `bossEnergy` | —     | ja        |
+ * | 9   | `bossTimeline` | —   | ja        |
+ *
+ * Nummer 6 hat mit Issue #96 eine zweite Schreiberin bekommen: Der Simulator
+ * führt Boss-Phasen jetzt ebenfalls. Dieselbe Zahl, dieselbe Bedeutung — genau
+ * dafür ist der gemeinsame Raum da. 8 und 9 sind neu und gehören vorerst allein
+ * dem Simulator, wie `spend` und `kill` auch.
  *
  * Die Namen stehen auch für die Arten, die diese Seite nie schreibt: Wer ein
  * fremdes Protokoll liest, soll denselben Namen sehen und nicht ein Fragezeichen.
@@ -63,6 +70,10 @@ export const EVENT_SPEND = 4;
 export const EVENT_KILL = 5;
 export const EVENT_PHASE = 6;
 export const EVENT_BUFF_EXPIRE = 7;
+/** Nur der Simulator schreibt sie — die Energieleiste des Bosses (Issue #96). */
+export const EVENT_BOSS_ENERGY = 8;
+/** Nur der Simulator schreibt sie — die Boss-Zeitleiste (Issue #96). */
+export const EVENT_BOSS_TIMELINE = 9;
 
 export const EVENT_NAMES: readonly string[] = [
   'cast',
@@ -73,6 +84,8 @@ export const EVENT_NAMES: readonly string[] = [
   'kill',
   'phase',
   'buffExpire',
+  'bossEnergy',
+  'bossTimeline',
 ];
 
 /** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */
