@@ -235,12 +235,33 @@ Er wächst dauerhaft über Talente und Ausrüstung, kurzzeitig über **Overdrive
 Schaden = Grundschaden
         × ESSENCE-Faktor
         × Talent-Faktoren
+        × Ausrüstungs-Sondereffekte
         × aktive Verstärkungen
         × Synergie-Faktoren
         × Widerstandsfaktor des Bosses
         × Verwundbarkeit des Bosses
         × Krit
 ```
+
+> **Der achte Faktor, ergänzt am 2026-07-29.** Die **Ausrüstungs-Sondereffekte** sind Topf 4 aus
+> 13.1b: legendäre Effekte und Satz-Boni, untereinander addiert, nach außen **ein** Faktor.
+>
+> **Position: direkt nach den Talenten.** Damit stehen die drei Faktoren, die vom Spieler kommen —
+> ESSENCE, Talente, Ausrüstung — beieinander, danach die Zustands-Faktoren (Verstärkungen,
+> Synergie), dann die Boss-Faktoren (Widerstand, Verwundbarkeit) und zuletzt Krit.
+>
+> **Warum ein eigener Faktor und keiner der bestehenden:** `essence` würde Topf 4 additiv mit
+> ESSENCE machen. `talents` würde ihn additiv mit Talenten machen — und 13.1 trennt beide Systeme
+> ausdrücklich („WIE die Rotation funktioniert" gegen „WIE STARK die Werte sind"). `buffs` **ist**
+> Topf 3, und zwischen Töpfen wird multipliziert.
+>
+> Auch hier gilt: Die Position ist eine Festlegung, keine Geschmacksfrage, und heute bewegt sie
+> keine Zahl — der Faktor steht bei 1,0.
+
+**Zu Topf 2 (CATALYSIS, PURITY, YIELD): „je eigener Faktor" heißt nicht drei neue Faktoren hier.**
+CATALYSIS wirkt auf Abklingzeiten und DoT-Abstände (6.2), ist also gar kein Schadensfaktor. PURITY
+ist eine Wahrscheinlichkeit, kein Multiplikator. Nur YIELD landet als `crit`. Gemeint ist: **nicht in
+einen gemeinsamen Multiplikator zusammengeworfen** — jeder Sonderwert behält seinen eigenen Wirkweg.
 
 > **Der siebte Faktor, ergänzt am 2026-07-29.** Die **Verwundbarkeit des Bosses** trägt alles,
 > was ihn für Schaden **aus jeder Quelle** empfänglicher macht — vor allem die Zersetzungs-Stapel

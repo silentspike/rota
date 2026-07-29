@@ -11,6 +11,9 @@
 
 use serde_json::Value;
 
+mod common;
+use common::bits;
+
 use rota_sim::checksum::{mix_float, mix_int, FNV_OFFSET};
 use rota_sim::gear::{
     budget_of, distribute_budget, undecided_slots, ValuePools, BASE_STAT_IDS, POOL_COUNT,
@@ -29,22 +32,6 @@ fn datei() -> Value {
         "unbekannte Fassung von gear.json"
     );
     value
-}
-
-/// Die Bits einer Gleitkommazahl aus der Datei.
-///
-/// **Warum nicht `as_f64()`.** `serde_json` liest `1.6500000000000001` als
-/// `1.65` — ein Bit daneben. Gemessen am 2026-07-29: Rusts eigener Zahlenleser
-/// trifft den Wert, `serde_json` nicht, und es ist nicht einmal systematisch
-/// (`1.0000000000000002` geht durch, `1.6500000000000001` nicht). Der Vergleich
-/// laeuft deshalb ueber das Bitmuster, das die Datei ausdruecklich mitfuehrt.
-///
-/// **Dieser Test hat den Fehler selbst gefunden** — er verglich zuerst
-/// `as_f64()` und meldete `1.6500000000000001` gegen `1.65`, obwohl beide Seiten
-/// dasselbe rechneten.
-fn bits(value: &Value) -> u64 {
-    let text = value.as_str().expect("Bitmuster als Zeichenkette erwartet");
-    u64::from_str_radix(text, 16).expect("16 Hexzeichen erwartet")
 }
 
 fn namen(value: &Value, feld: &str) -> Vec<String> {
