@@ -33,12 +33,18 @@ const LOG_KINDS: &str = include_str!("../../tests/parity/recordings/log-kinds.js
 
 /// Die Arten, die **dieser** Seite gehoeren, mit ihrer Kennnummer und ihrem
 /// Namen im gemeinsamen Raum.
-const MINE: [(LogKind, u64, &str); 5] = [
+const MINE: [(LogKind, u64, &str); 8] = [
     (LogKind::Cast, 0, "cast"),
     (LogKind::Damage, 1, "damage"),
     (LogKind::DotTick, 2, "dotTick"),
     (LogKind::Spend, 4, "spend"),
     (LogKind::Kill, 5, "kill"),
+    // Ab hier Issue #96. Die 6 teilt sich der Simulator seither mit dem Spiel:
+    // Beide schreiben den Phasenwechsel, dieselbe Zahl, dieselbe Bedeutung.
+    // 8 und 9 sind neu und gehoeren vorerst allein dem Simulator.
+    (LogKind::BossPhase, 6, "phase"),
+    (LogKind::BossEnergy, 8, "bossEnergy"),
+    (LogKind::BossTimeline, 9, "bossTimeline"),
 ];
 
 fn kinds() -> Vec<(u64, String, bool)> {
@@ -126,9 +132,9 @@ fn jede_nummer_gehoert_mindestens_einer_seite() {
 /// Eine Stolperdrahte: Wer eine Variante hinzufuegt oder umnummeriert, ohne
 /// den gemeinsamen Raum anzupassen, faellt hier auf.
 #[test]
-fn der_simulator_fuehrt_genau_seine_fuenf_arten() {
+fn der_simulator_fuehrt_genau_seine_acht_arten() {
     let gemeinsam = kinds();
-    assert_eq!(MINE.len(), 5, "der Simulator hat eine Art dazubekommen");
+    assert_eq!(MINE.len(), 8, "der Simulator hat eine Art dazubekommen");
 
     // Was nur das Spiel schreibt, darf hier keine Variante haben.
     let nur_spiel: Vec<u64> = gemeinsam
@@ -138,15 +144,15 @@ fn der_simulator_fuehrt_genau_seine_fuenf_arten() {
         .collect();
     assert_eq!(
         nur_spiel,
-        vec![3, 6, 7],
-        "andere Aufteilung als vereinbart — Krit, Phasenwechsel und Verstaerkung \
-         laeuft ab gehoeren dem Spiel"
+        vec![3, 7],
+        "andere Aufteilung als vereinbart — Krit und Verstaerkung laeuft ab \
+         gehoeren dem Spiel; den Phasenwechsel (6) schreiben seit #96 beide"
     );
 
     let meine: Vec<u64> = MINE.iter().map(|(_, nr, _)| *nr).collect();
     assert_eq!(
         meine,
-        vec![0, 1, 2, 4, 5],
+        vec![0, 1, 2, 4, 5, 6, 8, 9],
         "der Simulator belegt andere Nummern als vereinbart"
     );
 }
@@ -161,5 +167,5 @@ fn der_gemeinsame_raum_ist_vollstaendig() {
             "der gemeinsame Raum hat bei {index} eine Luecke oder eine Dublette"
         );
     }
-    assert_eq!(gemeinsam.len(), 8, "der Raum hat seine Groesse geaendert");
+    assert_eq!(gemeinsam.len(), 10, "der Raum hat seine Groesse geaendert");
 }

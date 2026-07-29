@@ -11,6 +11,7 @@
  */
 import rawSchool from '../../data/spells/calcination.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
+import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
 export interface ResourceDef {
@@ -72,6 +73,55 @@ export interface SchoolDef {
   readonly spells: readonly SpellDef[];
 }
 
+/**
+ * Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
+ * wechselt (GAME-DESIGN 11.1).
+ *
+ * **Eskalierend, nicht tauschend:** Jede Phase legt eine Mechanik obendrauf,
+ * statt die vorige zu ersetzen. Die Mechaniken selbst kommen mit E4-2; hier
+ * steht nur, WANN gewechselt wird.
+ */
+export interface PhaseDef {
+  /** Anteil der verbleibenden Lebenspunkte in Prozent, ab dem sie gilt. */
+  readonly atHpPercent: number;
+  readonly name: string;
+}
+
+/**
+ * Die Energieleiste — die zweite Uhr eines Bosses (GAME-DESIGN 11.2,
+ * Baustein 1).
+ *
+ * > Boss-Energie steigt **unabhängig von den Lebenspunkten** und löst bei 100
+ * > eine Mechanik aus.
+ *
+ * Das „unabhängig" ist die eigentliche Aussage: Wer schneller Schaden macht,
+ * verschiebt den Auslöser **nicht**.
+ */
+export interface EnergyDef {
+  readonly perStepMs: number;
+  readonly amount: number;
+  readonly threshold: number;
+  readonly resetTo: number;
+}
+
+/**
+ * Ein Eintrag der Boss-Zeitleiste (GAME-DESIGN 11.1: „Schadens-Ereignisse als
+ * **feste Zeitleiste**").
+ *
+ * Fest heißt wirklich fest: Der Boss reagiert nicht auf den Spieler, und es
+ * gibt keine zufällige Streuung. Nur so sind Bestzeiten vergleichbar.
+ *
+ * **Was hier absichtlich fehlt, ist die Wirkung.** Welcher Baustein was tut,
+ * ist Gegenstand von E4-2 bis E4-6; welcher Boss welche Einträge bekommt,
+ * gehört nach E10 (GAME-DESIGN 22). Hier steht das Gerüst, das beides trägt.
+ */
+export interface TimelineEntryDef {
+  /** Zeitpunkt seit Kampfbeginn, auf dem Takt-Raster des Spiels. */
+  readonly atMs: number;
+  /** Kennung des Mechanik-Bausteins, der hier greift. */
+  readonly mechanic: string;
+}
+
 export interface BossDef {
   readonly schema: number;
   readonly id: string;
@@ -80,6 +130,12 @@ export interface BossDef {
   readonly hp: number;
   readonly overpressureMs: number;
   readonly resistances: Readonly<Record<string, number>>;
+  /** Phasen-Schwellen, absteigend. Leer heißt: keine Phasen. */
+  readonly phases: readonly PhaseDef[];
+  /** Die zweite Uhr, oder `null`. */
+  readonly energy: EnergyDef | null;
+  /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
+  readonly timeline: readonly TimelineEntryDef[];
 }
 
 export interface ParseResult<T> {
@@ -261,6 +317,95 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     }
   }
 
+  // Phasen müssen absteigend stehen. Eine unsortierte Liste wäre eine stille
+  // Falle: Der Kampf würde Phasen überspringen, ohne dass irgendwo etwas
+  // bricht. `sim/build.rs` bricht dafür den Bau ab; hier wird es gemeldet,
+  // weil die Spiel-Seite zur Laufzeit liest.
+  const phases: PhaseDef[] = [];
+  if (Array.isArray(source['phases'])) {
+    let vorige = 101;
+    for (const entry of source['phases']) {
+      if (!isRecord(entry)) continue;
+      const atHpPercent = number(entry['atHpPercent'], 0);
+      if (atHpPercent <= 0 || atHpPercent >= 100) {
+        problems.push(`Phasen-Schwelle bei ${atHpPercent} % ergibt keine Phase.`);
+        continue;
+      }
+      if (atHpPercent >= vorige) {
+        problems.push(
+          `Phasen-Schwellen müssen absteigend stehen: ${atHpPercent} % nach ${vorige} %.`,
+        );
+        continue;
+      }
+      vorige = atHpPercent;
+      phases.push({
+        atHpPercent,
+        name: typeof entry['name'] === 'string' ? entry['name'] : 'Unnamed',
+      });
+    }
+  }
+
+  let energy: EnergyDef | null = null;
+  if (isRecord(source['energy'])) {
+    const perStepMs = number(source['energy']['perStepMs'], 0);
+    const threshold = number(source['energy']['threshold'], 0);
+    const resetTo = number(source['energy']['resetTo'], 0);
+    if (perStepMs <= 0) problems.push('Die Energieleiste hat keinen Takt (perStepMs).');
+    // Das Spiel kann nur zu Takt-Grenzen handeln, der Simulator springt frei.
+    // Bei 333 ms stiege die Leiste dort bei 333/666/999, hier bei 340/670/1000
+    // — der Abstand wüchse mit jedem Schritt. `sim/build.rs` bricht dafür den
+    // Bau ab; hier wird es gemeldet, weil diese Seite zur Laufzeit liest.
+    if (perStepMs > 0 && perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `perStepMs ${perStepMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'Spiel und Simulator liefen mit jedem Anstieg weiter auseinander.',
+      );
+    }
+    if (threshold <= 0) problems.push('Die Energieleiste hat keine Schwelle (threshold).');
+    if (resetTo >= threshold) {
+      problems.push(
+        `resetTo ${resetTo} liegt nicht unter threshold ${threshold} — die Leiste käme nie herunter.`,
+      );
+    }
+    energy = {
+      perStepMs,
+      amount: number(source['energy']['amount'], 0),
+      threshold,
+      resetTo,
+    };
+  }
+
+  // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
+  // still — ein Eintrag hinter einem späteren würde nie ausgelöst, und einer
+  // neben dem Raster griffe hier später als im Simulator.
+  const timeline: TimelineEntryDef[] = [];
+  if (Array.isArray(source['timeline'])) {
+    let voriger = -1;
+    for (const entry of source['timeline']) {
+      if (!isRecord(entry)) continue;
+      const atMs = number(entry['atMs'], -1);
+      if (atMs < 0) {
+        problems.push('Ein Zeitleisten-Eintrag hat keinen Zeitpunkt (atMs).');
+        continue;
+      }
+      if (atMs <= voriger) {
+        problems.push(`Die Zeitleiste muss aufsteigend stehen: ${atMs} ms nach ${voriger} ms.`);
+        continue;
+      }
+      if (atMs % TICK_MS !== 0) {
+        problems.push(
+          `Zeitleisten-Eintrag bei ${atMs} ms liegt nicht auf dem ${TICK_MS}-ms-Raster.`,
+        );
+        continue;
+      }
+      voriger = atMs;
+      timeline.push({
+        atMs,
+        mechanic: typeof entry['mechanic'] === 'string' ? entry['mechanic'] : 'unknown',
+      });
+    }
+  }
+
   return {
     value: {
       schema,
@@ -270,6 +415,9 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       hp,
       overpressureMs,
       resistances,
+      phases,
+      energy,
+      timeline,
     },
     problems,
   };
@@ -280,3 +428,43 @@ export const CALCINATION: ParseResult<SchoolDef> = parseSchool(rawSchool);
 
 /** Der Testboss aus Schritt 1, fertig gelesen. */
 export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
+
+/**
+ * **Alle** Bosse, nach Bezeichner — aus dem Verzeichnis gelesen, nicht einzeln
+ * aufgezählt (Issue #96, AC1: „ein neuer Boss entsteht als Datendatei, ohne
+ * dass eine Zeile Programmcode geändert wird").
+ *
+ * Der feste `import` oben reicht dafür nicht: Er nennt genau eine Datei, und
+ * ein zweiter Boss bräuchte eine zweite Zeile. `import.meta.glob` löst das zur
+ * Bauzeit auf — die JSON-Dateien landen also weiterhin gebündelt im Ergebnis,
+ * es wird nichts zur Laufzeit nachgeladen.
+ *
+ * Der Simulator macht dasselbe an seiner Stelle: `sim/build.rs` liest das
+ * Verzeichnis sortiert. **Beide Seiten müssen dieselbe Menge sehen**, sonst
+ * kennt einer einen Boss, den der andere nicht rechnen kann.
+ */
+export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
+  const dateien = import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
+    eager: true,
+    import: 'default',
+  });
+  // Sortiert, damit die Reihenfolge nicht vom Dateisystem abhängt — dieselbe
+  // Entscheidung wie `dateien.sort()` in `sim/build.rs` (GAME-DESIGN 18.4:
+  // feste Reihenfolge, keine Hash-Container).
+  const pfade = Object.keys(dateien).sort();
+  const out = new Map<string, ParseResult<BossDef>>();
+  for (const pfad of pfade) {
+    const gelesen = parseBoss(dateien[pfad]);
+    out.set(gelesen.value.id, gelesen);
+  }
+  return out;
+})();
+
+/**
+ * Ein Boss nach Bezeichner, oder `undefined`.
+ *
+ * Das Gegenstück zu `boss_by_id` im Simulator (`sim/src/data.rs`).
+ */
+export function bossById(id: string): BossDef | undefined {
+  return BOSSES.get(id)?.value;
+}

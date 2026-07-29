@@ -40,6 +40,16 @@
       "kind": 7,
       "name": "buffExpire",
       "writtenByGame": true
+    },
+    {
+      "kind": 8,
+      "name": "bossEnergy",
+      "writtenByGame": false
+    },
+    {
+      "kind": 9,
+      "name": "bossTimeline",
+      "writtenByGame": false
     }
   ],
   "writtenByGame": [
