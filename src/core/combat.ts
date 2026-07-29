@@ -22,6 +22,7 @@ import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
 import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
+import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
 /** Ausgang eines Wirk-Versuchs. */
 export const CAST_OK = 0;
@@ -154,10 +155,14 @@ export class Combat {
     // alle Schulen: Welcher Vorrat gefüllt wird und wie viel, steht in den
     // Daten des jeweiligen Zaubers.
     this.stacks = registerStackMechanic(this);
+    this.sublimation = registerSublimation(this);
   }
 
   /** Die Stapel-Mechanik dieser Schule. Öffentlich für Prüfung und Werkzeuge. */
   readonly stacks: StackMechanic;
+
+  /** Die Verkürzung der Abklingzeiten (E3-3). */
+  readonly sublimation: SublimationMechanic;
 
   // ---------------------------------------------------------------- Abfragen
 
@@ -477,6 +482,36 @@ export class Combat {
   /** Kennung des Vorrats dieser Schule. */
   get resourceId(): string {
     return this.school.resource.id;
+  }
+
+  /** Was ein Zauber laut seinen Daten an Abklingzeit verkürzt (E3-3). */
+  reductionOfSpell(spellIndex: number): number {
+    return this.spells[spellIndex]?.cooldownReductionMs ?? 0;
+  }
+
+  /**
+   * Alle laufenden Abklingzeiten verkürzen (SUBLIMATION, GAME-DESIGN 4.1).
+   *
+   * **Nur laufende.** Ein Zauber, der bereit ist, bleibt unberührt — sonst
+   * entstünde eine „negative Restzeit", die den nächsten Wirk-Versuch um genau
+   * diesen Betrag früher zuließe, ohne dass es je eine Abklingzeit gegeben
+   * hätte. Die Zeit wird deshalb auf den Jetzt-Zeitpunkt begrenzt, nicht
+   * einfach abgezogen.
+   *
+   * @returns wie viele Abklingzeiten tatsächlich verkürzt wurden
+   */
+  shortenCooldowns(amount: number, timeMs: number, exceptIndex: number): number {
+    if (amount <= 0) return 0;
+    let touched = 0;
+    for (let i = 0; i < this.cooldownReadyAtMs.length; i++) {
+      if (i === exceptIndex) continue;
+      const readyAt = this.cooldownReadyAtMs[i] ?? 0;
+      if (readyAt <= timeMs) continue;
+      const shortened = readyAt - amount;
+      this.cooldownReadyAtMs[i] = shortened > timeMs ? shortened : timeMs;
+      touched++;
+    }
+    return touched;
   }
 
   private addResource(amount: number): void {
