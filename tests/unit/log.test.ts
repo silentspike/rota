@@ -7,6 +7,7 @@ import {
   EVENT_CAST,
   EVENT_DAMAGE,
   EVENT_DOT_TICK,
+  EVENT_KINDS_WRITTEN_BY_GAME,
   EVENT_NAMES,
   LOG_CAPACITY,
 } from '../../src/core/log.js';
@@ -135,9 +136,24 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
   });
 
   it('kennt für jede Art einen Namen', () => {
-    expect(EVENT_NAMES.length).toBe(6);
+    // Acht seit E3-6: Der Nummernraum ist mit dem Simulator geteilt, und die
+    // Namen stehen auch für die zwei Arten, die nur er schreibt. Wer ein
+    // fremdes Protokoll liest, soll denselben Namen sehen statt ein
+    // Fragezeichen.
+    expect(EVENT_NAMES.length).toBe(8);
     expect(EVENT_NAMES[EVENT_CAST]).toBe('cast');
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
+    expect(EVENT_NAMES[4]).toBe('spend');
+    expect(EVENT_NAMES[5]).toBe('kill');
+  });
+
+  it('schreibt nur die Arten, die dem Spiel gehören', () => {
+    // Die Gegenprobe zur Aufteilung: Was der Simulator führt, taucht hier nie
+    // auf. Eine Zahl, die beide Seiten schreiben, aber verschieden meinen,
+    // war genau der Fehler, den E3-6 behoben hat.
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).not.toContain(4);
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).not.toContain(5);
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).toEqual([0, 1, 2, 3, 6, 7]);
   });
 });
 
