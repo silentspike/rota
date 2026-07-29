@@ -11,6 +11,7 @@
  */
 import rawSchool from '../../data/spells/calcination.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
+import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
 export interface ResourceDef {
@@ -103,6 +104,24 @@ export interface EnergyDef {
   readonly resetTo: number;
 }
 
+/**
+ * Ein Eintrag der Boss-Zeitleiste (GAME-DESIGN 11.1: „Schadens-Ereignisse als
+ * **feste Zeitleiste**").
+ *
+ * Fest heißt wirklich fest: Der Boss reagiert nicht auf den Spieler, und es
+ * gibt keine zufällige Streuung. Nur so sind Bestzeiten vergleichbar.
+ *
+ * **Was hier absichtlich fehlt, ist die Wirkung.** Welcher Baustein was tut,
+ * ist Gegenstand von E4-2 bis E4-6; welcher Boss welche Einträge bekommt,
+ * gehört nach E10 (GAME-DESIGN 22). Hier steht das Gerüst, das beides trägt.
+ */
+export interface TimelineEntryDef {
+  /** Zeitpunkt seit Kampfbeginn, auf dem Takt-Raster des Spiels. */
+  readonly atMs: number;
+  /** Kennung des Mechanik-Bausteins, der hier greift. */
+  readonly mechanic: string;
+}
+
 export interface BossDef {
   readonly schema: number;
   readonly id: string;
@@ -115,6 +134,8 @@ export interface BossDef {
   readonly phases: readonly PhaseDef[];
   /** Die zweite Uhr, oder `null`. */
   readonly energy: EnergyDef | null;
+  /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
+  readonly timeline: readonly TimelineEntryDef[];
 }
 
 export interface ParseResult<T> {
@@ -330,6 +351,16 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     const threshold = number(source['energy']['threshold'], 0);
     const resetTo = number(source['energy']['resetTo'], 0);
     if (perStepMs <= 0) problems.push('Die Energieleiste hat keinen Takt (perStepMs).');
+    // Das Spiel kann nur zu Takt-Grenzen handeln, der Simulator springt frei.
+    // Bei 333 ms stiege die Leiste dort bei 333/666/999, hier bei 340/670/1000
+    // — der Abstand wüchse mit jedem Schritt. `sim/build.rs` bricht dafür den
+    // Bau ab; hier wird es gemeldet, weil diese Seite zur Laufzeit liest.
+    if (perStepMs > 0 && perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `perStepMs ${perStepMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'Spiel und Simulator liefen mit jedem Anstieg weiter auseinander.',
+      );
+    }
     if (threshold <= 0) problems.push('Die Energieleiste hat keine Schwelle (threshold).');
     if (resetTo >= threshold) {
       problems.push(
@@ -344,6 +375,37 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     };
   }
 
+  // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
+  // still — ein Eintrag hinter einem späteren würde nie ausgelöst, und einer
+  // neben dem Raster griffe hier später als im Simulator.
+  const timeline: TimelineEntryDef[] = [];
+  if (Array.isArray(source['timeline'])) {
+    let voriger = -1;
+    for (const entry of source['timeline']) {
+      if (!isRecord(entry)) continue;
+      const atMs = number(entry['atMs'], -1);
+      if (atMs < 0) {
+        problems.push('Ein Zeitleisten-Eintrag hat keinen Zeitpunkt (atMs).');
+        continue;
+      }
+      if (atMs <= voriger) {
+        problems.push(`Die Zeitleiste muss aufsteigend stehen: ${atMs} ms nach ${voriger} ms.`);
+        continue;
+      }
+      if (atMs % TICK_MS !== 0) {
+        problems.push(
+          `Zeitleisten-Eintrag bei ${atMs} ms liegt nicht auf dem ${TICK_MS}-ms-Raster.`,
+        );
+        continue;
+      }
+      voriger = atMs;
+      timeline.push({
+        atMs,
+        mechanic: typeof entry['mechanic'] === 'string' ? entry['mechanic'] : 'unknown',
+      });
+    }
+  }
+
   return {
     value: {
       schema,
@@ -355,6 +417,7 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       resistances,
       phases,
       energy,
+      timeline,
     },
     problems,
   };

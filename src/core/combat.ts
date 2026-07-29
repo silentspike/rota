@@ -134,6 +134,12 @@ export class Combat {
   private nextEnergyAtMs: number;
   /** Wie oft sie ausgelöst hat. */
   private bossEnergyTriggersValue = 0;
+
+  /**
+   * Wie weit die Boss-Zeitleiste abgearbeitet ist — Zeiger auf den **nächsten**
+   * fälligen Eintrag (GAME-DESIGN 11.1).
+   */
+  private timelineIndexValue = 0;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -225,6 +231,11 @@ export class Combat {
   /** Wie oft die Energieleiste ausgelöst hat. */
   get bossEnergyTriggers(): number {
     return this.bossEnergyTriggersValue;
+  }
+
+  /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
+  get timelineIndex(): number {
+    return this.timelineIndexValue;
   }
 
   /** Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet. */
@@ -394,6 +405,24 @@ export class Combat {
         }
         this.nextEnergyAtMs += energy.perStepMs;
       }
+    }
+
+    // Die feste Zeitleiste. Sie hängt weder am Schaden noch an der Phase,
+    // sondern allein an der Uhr — deshalb steht sie hier bei den passiven
+    // Wirkungen. Die `while`-Schleife holt mehrere Einträge nach, falls ein
+    // Takt über sie hinwegspringt; im 10-ms-Takt kann das nur passieren, wenn
+    // zwei Einträge auf denselben Zeitpunkt fallen, und dann ist es richtig so.
+    //
+    // **Was hier noch fehlt, ist die Wirkung** — die Bausteine kommen in E4-2
+    // bis E4-6. Geprüft wird vorerst nur der Zeitpunkt.
+    // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
+    // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
+    // zwar ein stiller: Die Einträge kämen zu früh, aber der Kampf liefe weiter.
+    const seitBeginn = timeMs - this.fightStartedAtMs;
+    while (this.timelineIndexValue < this.boss.timeline.length) {
+      const eintrag = this.boss.timeline[this.timelineIndexValue];
+      if (eintrag === undefined || seitBeginn < eintrag.atMs) break;
+      this.timelineIndexValue++;
     }
 
     // Phasenwechsel an der Lebenspunkt-Schwelle. Die Phase kann nur STEIGEN:

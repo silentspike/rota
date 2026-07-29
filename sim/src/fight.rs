@@ -220,6 +220,11 @@ pub struct Fight {
     energy: u32,
     /// Wie oft die Energieleiste ausgeloest hat.
     energy_triggers: u32,
+    /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
+    ///
+    /// Zeigt auf den **naechsten** faelligen Eintrag. Steht er am Ende der
+    /// Liste, ist die Zeitleiste durch.
+    timeline_index: usize,
 
     // -- Spieler --
     gcd_ready_at: Millis,
@@ -278,6 +283,7 @@ impl Fight {
             phase: 0,
             energy: 0,
             energy_triggers: 0,
+            timeline_index: 0,
             gcd_ready_at: 0,
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -423,6 +429,7 @@ impl Fight {
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
         self.schedule_first_energy_tick();
+        self.schedule_next_timeline_step();
         // Die erste Entscheidung faellt bei 0.
         self.queue.push(0, EventKind::Wakeup);
 
@@ -496,6 +503,7 @@ impl Fight {
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
         self.schedule_first_energy_tick();
+        self.schedule_next_timeline_step();
 
         let mut checksums = Vec::with_capacity(if checksum_per_tick {
             recording.ticks as usize
@@ -592,6 +600,7 @@ impl Fight {
         self.phase = 0;
         self.energy = 0;
         self.energy_triggers = 0;
+        self.timeline_index = 0;
         self.gcd_ready_at = 0;
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -620,11 +629,54 @@ impl Fight {
         }
     }
 
+    /// Plant den naechsten faelligen Eintrag der Boss-Zeitleiste ein.
+    ///
+    /// Immer nur **einen**. Alle auf einmal einzuplanen waere kuerzer, wuerde
+    /// aber die Ereignis-Schlange mit Eintraegen fuellen, die ein frueher
+    /// Sieg ohnehin nie erreicht — und ihre Kapazitaet ist bewusst fest
+    /// ([`EVENT_CAPACITY`]).
+    fn schedule_next_timeline_step(&mut self) {
+        let Some(entry) = self.boss.timeline.get(self.timeline_index) else {
+            return;
+        };
+        if entry.at_ms < self.duration_ms {
+            self.queue.push(
+                entry.at_ms,
+                EventKind::TimelineStep {
+                    index: self.timeline_index as u16,
+                },
+            );
+        }
+    }
+
+    /// Ein Eintrag der Zeitleiste ist faellig (GAME-DESIGN 11.1).
+    ///
+    /// **Noch ohne Wirkung.** Die neun Mechanik-Bausteine kommen in E4-2 bis
+    /// E4-6, die Zeitleisten der einzelnen Bosse in E10. Was hier schon steht,
+    /// ist der Zeitpunkt: Er wird taktgenau angesteuert, protokolliert und geht
+    /// ueber den Zeiger in die Zustands-Pruefsumme ein. Ein spaeter angehaengter
+    /// Baustein setzt damit auf nachgewiesener Zeitrechnung auf statt auf einer
+    /// erst dann erstmals gepruefen.
+    fn timeline_step(&mut self, index: usize) {
+        // Ein veralteter Eintrag: Der Zeiger ist bereits weiter. Kann heute
+        // nicht vorkommen, weil immer nur einer offen ist — aber wenn E4-2
+        // Eintraege ueberspringbar macht, faengt es das hier ab, statt den
+        // Zeiger rueckwaerts laufen zu lassen.
+        if index != self.timeline_index {
+            return;
+        }
+        self.log
+            .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
+        self.timeline_index += 1;
+        self.schedule_next_timeline_step();
+    }
+
     fn apply(&mut self, kind: EventKind) {
         match kind {
             EventKind::DotTick { spell, generation } => self.dot_tick(spell as usize, generation),
             EventKind::ResourceDecay => self.decay(),
             EventKind::EnergyTick => self.energy_tick(),
+            EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
             // Simulator zu diesem Zeitpunkt ueberhaupt aufwacht — weil dann eine
             // Abklingzeit abgelaufen ist oder der Sieg zu pruefen war.
@@ -1051,6 +1103,7 @@ impl Fight {
         // und der Abgleich meldete Uebereinstimmung, wo keine ist.
         h = mix_int(h, self.phase as i32);
         h = mix_int(h, self.energy as i32);
+        h = mix_int(h, self.timeline_index as i32);
         h
     }
 
@@ -1070,6 +1123,12 @@ impl Fight {
     #[must_use]
     pub fn energy_triggers(&self) -> u32 {
         self.energy_triggers
+    }
+
+    /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
+    #[must_use]
+    pub fn timeline_index(&self) -> usize {
+        self.timeline_index
     }
 
     /// Der Boss, gegen den gerechnet wird.
