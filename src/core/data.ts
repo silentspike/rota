@@ -72,6 +72,37 @@ export interface SchoolDef {
   readonly spells: readonly SpellDef[];
 }
 
+/**
+ * Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
+ * wechselt (GAME-DESIGN 11.1).
+ *
+ * **Eskalierend, nicht tauschend:** Jede Phase legt eine Mechanik obendrauf,
+ * statt die vorige zu ersetzen. Die Mechaniken selbst kommen mit E4-2; hier
+ * steht nur, WANN gewechselt wird.
+ */
+export interface PhaseDef {
+  /** Anteil der verbleibenden Lebenspunkte in Prozent, ab dem sie gilt. */
+  readonly atHpPercent: number;
+  readonly name: string;
+}
+
+/**
+ * Die Energieleiste — die zweite Uhr eines Bosses (GAME-DESIGN 11.2,
+ * Baustein 1).
+ *
+ * > Boss-Energie steigt **unabhängig von den Lebenspunkten** und löst bei 100
+ * > eine Mechanik aus.
+ *
+ * Das „unabhängig" ist die eigentliche Aussage: Wer schneller Schaden macht,
+ * verschiebt den Auslöser **nicht**.
+ */
+export interface EnergyDef {
+  readonly perStepMs: number;
+  readonly amount: number;
+  readonly threshold: number;
+  readonly resetTo: number;
+}
+
 export interface BossDef {
   readonly schema: number;
   readonly id: string;
@@ -80,6 +111,10 @@ export interface BossDef {
   readonly hp: number;
   readonly overpressureMs: number;
   readonly resistances: Readonly<Record<string, number>>;
+  /** Phasen-Schwellen, absteigend. Leer heißt: keine Phasen. */
+  readonly phases: readonly PhaseDef[];
+  /** Die zweite Uhr, oder `null`. */
+  readonly energy: EnergyDef | null;
 }
 
 export interface ParseResult<T> {
@@ -261,6 +296,54 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     }
   }
 
+  // Phasen müssen absteigend stehen. Eine unsortierte Liste wäre eine stille
+  // Falle: Der Kampf würde Phasen überspringen, ohne dass irgendwo etwas
+  // bricht. `sim/build.rs` bricht dafür den Bau ab; hier wird es gemeldet,
+  // weil die Spiel-Seite zur Laufzeit liest.
+  const phases: PhaseDef[] = [];
+  if (Array.isArray(source['phases'])) {
+    let vorige = 101;
+    for (const entry of source['phases']) {
+      if (!isRecord(entry)) continue;
+      const atHpPercent = number(entry['atHpPercent'], 0);
+      if (atHpPercent <= 0 || atHpPercent >= 100) {
+        problems.push(`Phasen-Schwelle bei ${atHpPercent} % ergibt keine Phase.`);
+        continue;
+      }
+      if (atHpPercent >= vorige) {
+        problems.push(
+          `Phasen-Schwellen müssen absteigend stehen: ${atHpPercent} % nach ${vorige} %.`,
+        );
+        continue;
+      }
+      vorige = atHpPercent;
+      phases.push({
+        atHpPercent,
+        name: typeof entry['name'] === 'string' ? entry['name'] : 'Unnamed',
+      });
+    }
+  }
+
+  let energy: EnergyDef | null = null;
+  if (isRecord(source['energy'])) {
+    const perStepMs = number(source['energy']['perStepMs'], 0);
+    const threshold = number(source['energy']['threshold'], 0);
+    const resetTo = number(source['energy']['resetTo'], 0);
+    if (perStepMs <= 0) problems.push('Die Energieleiste hat keinen Takt (perStepMs).');
+    if (threshold <= 0) problems.push('Die Energieleiste hat keine Schwelle (threshold).');
+    if (resetTo >= threshold) {
+      problems.push(
+        `resetTo ${resetTo} liegt nicht unter threshold ${threshold} — die Leiste käme nie herunter.`,
+      );
+    }
+    energy = {
+      perStepMs,
+      amount: number(source['energy']['amount'], 0),
+      threshold,
+      resetTo,
+    };
+  }
+
   return {
     value: {
       schema,
@@ -270,6 +353,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       hp,
       overpressureMs,
       resistances,
+      phases,
+      energy,
     },
     problems,
   };

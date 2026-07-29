@@ -68,5 +68,15 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   }
   const draws = combat.random.drawCounts();
   for (let i = 0; i < draws.length; i++) h = mixInt(h, draws[i] as number);
+  // **Angehängt, nicht eingeschoben** (Issue #96, Boss-Phasen und
+  // Energieleiste). Die bestehenden Positionen bleiben unverändert; die
+  // Reihenfolge ist ohnehin willkürlich und muss nur auf beiden Seiten gleich
+  // sein — `sim/src/fight.rs`, `checksum_at`.
+  //
+  // Ohne diese beiden Felder wäre die Prüfsumme für einen Boss mit Phasen
+  // blind: Zwei Läufe in verschiedenen Phasen sähen gleich aus, und der
+  // Abgleich meldete Übereinstimmung, wo keine ist.
+  h = mixInt(h, combat.bossPhase);
+  h = mixInt(h, combat.bossEnergy);
   return h >>> 0;
 }

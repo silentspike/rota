@@ -57,6 +57,24 @@ pub enum LogKind {
     Spend = 4,
     /// Der Boss ist gefallen.
     Kill = 5,
+    /// Der Boss hat die Phase gewechselt. `value` ist die neue Phase.
+    ///
+    /// **Nummer 6 gehoerte bisher allein dem Spiel** (E3-6). Der Simulator
+    /// schreibt sie seit Issue #96 ebenfalls — dieselbe Bedeutung, dieselbe
+    /// Zahl. Genau dafuer wurde der gemeinsame Raum eingerichtet.
+    BossPhase = 6,
+    /// Die Energieleiste des Bosses hat ausgeloest. `value` zaehlt die
+    /// Ausloesungen.
+    ///
+    /// Neu im gemeinsamen Raum (Issue #96). Nur der Simulator schreibt sie —
+    /// wie `spend` und `kill` auch.
+    BossEnergy = 8,
+    /// Ein Eintrag der Boss-Zeitleiste ist faellig geworden. `value` ist sein
+    /// Index in `Boss::timeline`.
+    ///
+    /// Was der Eintrag *bewirkt*, entscheidet sich in E4-2 bis E4-6 — hier
+    /// steht vorerst nur, dass er zur richtigen Zeit gegriffen hat.
+    BossTimeline = 9,
 }
 
 /// Ein Eintrag. Gepackte Zahlen, keine Zeichenketten, kein Zeiger.
