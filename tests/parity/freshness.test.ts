@@ -26,12 +26,14 @@ import eingecheckteBausteine from './recordings/primitives.json';
 import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
 import eingecheckteVerstaerkungen from './recordings/buffs.json';
+import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import {
   misplaysPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
   buffsPayload,
+  logKindsPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -58,6 +60,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Verstärkungen entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteVerstaerkungen, HINWEIS).toEqual(buffsPayload());
+  });
+
+  it('die Protokoll-Arten entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteProtokollArten, HINWEIS).toEqual(logKindsPayload());
   });
 });
 
