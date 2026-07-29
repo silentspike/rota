@@ -23,8 +23,14 @@ import { describe, expect, it } from 'vitest';
 // Inhalt maßgeblich, nicht die Formatierung der Datei.
 import eingecheckteAufzeichnung from './recordings/cooldown-precision.json';
 import eingecheckteBausteine from './recordings/primitives.json';
+import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
-import { primitivesPayload, recordingPayload, ruleEventsPayload } from './payloads.js';
+import {
+  misplaysPayload,
+  primitivesPayload,
+  recordingPayload,
+  ruleEventsPayload,
+} from './payloads.js';
 
 const HINWEIS =
   'Die Datei ist nicht mehr aktuell. Neu schreiben mit:\n' +
@@ -38,6 +44,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Bausteine entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteBausteine, HINWEIS).toEqual(primitivesPayload());
+  });
+
+  it('die Runde mit Fehlgriffen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteFehlgriffe, HINWEIS).toEqual(misplaysPayload());
   });
 
   it('die Ereignisfolge entspricht dem heutigen Spielstand', () => {
@@ -107,5 +117,38 @@ describe('Die Aufzeichnung taugt als Prüffall', () => {
     // 40510 ms Kampf bei 10 ms Takt: Takt 0 bis 4051, also 4052 Werte.
     const killedAtMs = expected['killedAtMs'] ?? -1;
     expect(checksums.length).toBe(killedAtMs / 10 + 1);
+  });
+});
+
+describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {
+  const payload = misplaysPayload();
+  const expected = payload['expected'] as Record<string, unknown>;
+  const reasons = expected['rejectedByReason'] as Record<string, number>;
+
+  it('enthält jeden der vier Fehlertypen mindestens einmal', () => {
+    // Ohne diese Aufschlüsselung sähe eine Runde mit hundert Drücken derselben
+    // falschen Sorte genauso aus wie eine mit allen vier.
+    expect(reasons['onGcd'] ?? 0).toBeGreaterThan(0); // während der Wartezeit
+    expect(reasons['onCooldown'] ?? 0).toBeGreaterThan(0); // auf Abklingzeit
+    expect(expected['lostDotTicks'] as number).toBeGreaterThan(0); // zu früh erneuert
+    expect(expected['idleTicks'] as number).toBeGreaterThan(0); // Leerlauf
+    expect(reasons['ok'] ?? 0).toBeGreaterThan(0); // und etwas geht durch
+  });
+
+  it('besteht überwiegend aus Fehlgriffen', () => {
+    // Sonst wäre es eine normale Runde mit ein paar Ausrutschern und würde den
+    // Ablehnungspfad kaum berühren.
+    expect(expected['rejected'] as number).toBeGreaterThan(expected['accepted'] as number);
+  });
+
+  it('ergibt ein anderes Ergebnis als die fehlerfreie Runde', () => {
+    // Sonst prüfte diese Datei dasselbe wie cooldown-precision.
+    expect(expected['damage']).not.toBe(4240);
+    expect(expected['killedAtMs']).toBe(-1);
+  });
+
+  it('hat für jeden gerechneten Takt eine Prüfsumme', () => {
+    const checksums = payload['checksums'] as number[];
+    expect(checksums.length).toBe(payload['ticks']);
   });
 });
