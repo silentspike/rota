@@ -510,6 +510,11 @@ impl Fight {
         } else {
             0
         });
+        // Die drei Zustandsspuren. Wie `checksums` nur auf Verlangen, und mit
+        // derselben Kapazitaet vorbelegt — im Schritt wird nichts angefordert.
+        let mut phases = Vec::with_capacity(checksums.capacity());
+        let mut energy = Vec::with_capacity(checksums.capacity());
+        let mut timeline_index = Vec::with_capacity(checksums.capacity());
         let mut sequence: u32 = 0;
         let mut accepted = 0;
         let mut rejected = 0;
@@ -539,6 +544,9 @@ impl Fight {
                 sequence = sequence.wrapping_mul(31).wrapping_add(hash);
                 if checksum_per_tick {
                     checksums.push(hash);
+                    phases.push(self.phase as u32);
+                    energy.push(self.energy);
+                    timeline_index.push(self.timeline_index as u32);
                 }
                 break;
             }
@@ -571,6 +579,9 @@ impl Fight {
             sequence = sequence.wrapping_mul(31).wrapping_add(hash);
             if checksum_per_tick {
                 checksums.push(hash);
+                phases.push(self.phase as u32);
+                energy.push(self.energy);
+                timeline_index.push(self.timeline_index as u32);
             }
         }
 
@@ -588,6 +599,9 @@ impl Fight {
             sequence_checksum: sequence,
             checksums,
             random_draws: self.rng.total_draws(),
+            phases,
+            energy,
+            timeline_index,
         }
     }
 

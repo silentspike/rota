@@ -504,7 +504,7 @@ fn emit_timeline(out: &mut String, boss: &Value, whose: &str) {
              {at} ms kommt nach {voriger} ms"
         );
         assert!(
-            at % RASTER_MS == 0,
+            at.is_multiple_of(RASTER_MS),
             "{whose}: {at} ms liegt nicht auf dem {RASTER_MS}-ms-Raster des \
              Spiels — der Simulator loeste frueher aus als das Spiel"
         );
@@ -579,7 +579,7 @@ fn emit_energy(out: &mut String, boss: &Value, whose: &str) {
     // stiege die Leiste im Simulator bei 333/666/999, im Spiel bei 340/670/1000
     // — der Abstand waechst mit jedem Schritt.
     assert!(
-        per_step % RASTER_MS == 0,
+        per_step.is_multiple_of(RASTER_MS),
         "{whose}: perStepMs {per_step} liegt nicht auf dem {RASTER_MS}-ms-Raster \
          des Spiels — Simulator und Spiel liefen mit jedem Anstieg weiter auseinander"
     );

@@ -96,6 +96,17 @@ pub struct ReplayResult {
     pub checksums: Vec<u32>,
     /// Ziehungen aus den Zufallsstroemen.
     pub random_draws: u32,
+    /// Boss-Phase je Takt. Wie `checksums` nur auf Verlangen gefuellt.
+    ///
+    /// Die drei folgenden Spuren gehen ohnehin in die Pruefsumme ein — aber
+    /// eine abweichende Pruefsumme sagt nur *dass* etwas anders ist, nicht
+    /// *was*. Mit den Spuren zeigt ein Fehlschlag direkt auf die Phase, die
+    /// Energieleiste oder die Zeitleiste (Issue #96).
+    pub phases: Vec<u32>,
+    /// Stand der Energieleiste je Takt.
+    pub energy: Vec<u32>,
+    /// Stand des Zeitleisten-Zeigers je Takt.
+    pub timeline_index: Vec<u32>,
 }
 
 /// Wo zwei Prueffsummen-Folgen zum ersten Mal auseinanderlaufen.
