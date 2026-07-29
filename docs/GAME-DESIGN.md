@@ -213,9 +213,21 @@ Die drei Werte, die die Rotation tatsächlich beeinflussen:
 | **PURITY**    | Kritchance  | Reinheit der Substanz                             |
 | **YIELD**     | Kritschaden | Ausbeute                                          |
 
-**CATALYSIS ist der einzige Wert, der die Rotation strukturell verändert** (kürzere globale
-Wartezeit und kürzere Abklingzeiten). Er wächst dauerhaft über Talente und kurzzeitig über
-**Overdrive** (siehe 11.4).
+**CATALYSIS ist der einzige Wert, der die Rotation strukturell verändert.** Er wirkt auf
+**Abklingzeiten und DoT-Tick-Abstände** — ausdrücklich **nicht** auf die globale Wartezeit.
+
+> **Festlegung vom 2026-07-29.** Der GCD sinkt ausschließlich über den **Talentbaum**, nie über
+> Ausrüstung. Grund: Kürzere Abklingzeiten sind eine Planungsaufgabe (mehr Wirkungen möglich,
+> man muss sie einweben). Ein kürzerer GCD ist ein Reaktionstest (die Hand muss schneller
+> werden). Ein einziger Ausrüstungswert, der beides tut, zwingt dem Spieler Fingerfertigkeit
+> auf, statt sie ihn wählen zu lassen — und widerspricht dem Grundsatz, dass die Reaktionszeit
+> nicht bewertet wird (21.2).
+>
+> **DoT-Ticks skalieren mit** (WoW-Muster seit Patch 6.0.2): Eine DoT-lastige Ausrichtung hat
+> damit denselben Skalierungswert wie jede andere. Ticks werden dichter, die **Dauer bleibt** —
+> das erzeugt Breakpoints je DoT, die der Balance-Läufer messen muss.
+
+Er wächst dauerhaft über Talente und Ausrüstung, kurzzeitig über **Overdrive** (siehe 11.4).
 
 ### 6.3 Schadensformel
 
@@ -226,8 +238,22 @@ Schaden = Grundschaden
         × aktive Verstärkungen
         × Synergie-Faktoren
         × Widerstandsfaktor des Bosses
+        × Verwundbarkeit des Bosses
         × Krit
 ```
+
+> **Der siebte Faktor, ergänzt am 2026-07-29.** Die **Verwundbarkeit des Bosses** trägt alles,
+> was ihn für Schaden **aus jeder Quelle** empfänglicher macht — vor allem die Zersetzungs-Stapel
+> der Putrefaktion (4.1). Sie steht **direkt neben dem Widerstand**, weil beide Aussagen über den
+> Boss sind und nicht über den Spieler.
+>
+> **Die Position ist eine Festlegung, keine Geschmacksfrage.** Fließkomma-Multiplikation ist
+> nicht assoziativ — eine andere Reihenfolge ergibt andere Bits und damit eine andere
+> Zustands-Prüfsumme. Sie gehört deshalb ins Dokument und darf nicht im Code entschieden werden.
+>
+> **Heute ändert sie keine einzige Zahl:** Der Faktor steht bei 1,0, und 1,0 ist in IEEE754 die
+> exakte Eins. Genau deshalb war Vorsicht geboten — eine Änderung, die keine Zahl bewegt, geht
+> sonst unbemerkt durch.
 
 Die Reihenfolge der Multiplikationen ist **festgelegt und für Spiel und Simulator identisch** —
 Fließkomma-Multiplikation ist nicht assoziativ, und beide Seiten müssen auf denselben Wert kommen
@@ -860,12 +886,44 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 Daten des Durchlaufs berechnet — es sind Multiplikationen, alle Werte stehen bereits im
 Kampfprotokoll.
 
-| Fehlerart                     | Rechnung                                                                                               | Ausgabe an den Spieler                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| **Verpasste Wirkungen**       | Ein Zauber mit 12 s Abklingzeit passt 20× in einen 240-s-Kampf; gewirkt 15 → 5 verpasst × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                   | „6.4 s idle — four wasted actions, 7 %"                    |
-| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                               | „Seven of ten combinations used — 5 %"                     |
-| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                      | „Two missed — 14 %"                                        |
+| Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
+| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                                              | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
+| **Verlorene DoT-Ticks**       | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
+| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
+
+> **Korrektur vom 2026-07-29 — warum „Kampfzeit ÷ Abklingzeit" nicht trägt.**
+> Die frühere Rechnung nahm das Maximum je Zauber einzeln: 240 s ÷ 12 s = 20 mögliche
+> Wirkungen. Die Summe dieser Maxima übersteigt aber die Zahl der Aktionen, die es im Kampf
+> überhaupt gibt — die Zauber teilen sich den GCD. **Gemessen an einem Prüfdurchlauf: 193
+> theoretische Maxima gegen 160 verfügbare Aktionen**, also 33 Wirkungen, die es nicht geben kann.
+>
+> Der Spieler bekam dadurch eine Messlatte hingehängt, die niemand erreichen kann („KINDLE 92 von
+> 160, 68 verpasst" — obwohl er dafür alle anderen Zauber hätte weglassen müssen), und die größte
+> Verlustquelle war systematisch zu hoch ausgewiesen.
+>
+> **Verworfen wurde die rechnerisch genaueste Lösung:** die Summe der Maxima auf die verfügbaren
+> Aktionen zu normieren. Ein so verteiltes Budget kommt einer Aussage darüber nahe, wie man hätte
+> spielen sollen — genau die Grenze aus 21.2.
+>
+> **Die jetzige Definition braucht keine Referenz.** Beide Bedingungen stehen im Kampfprotokoll,
+> und sie kann nicht überzeichnen: Jedes leere GCD-Fenster zählt nur einmal. Wer statt Zauber A
+> Zauber B gewirkt hat, hat nichts verloren — er hat gewählt, und Wählen ist das Spiel.
+>
+> Gefunden hat es Worker-3 beim Bau von #81, statt die Rechnung ungeprüft zu übernehmen.
+
+> **Verlorene DoT-Ticks, ergänzt am 2026-07-29.** Die Zahl wird längst gemessen
+> (`combat.lostDotTicks`, im Prüfdurchlauf 14 bei der schlechten Rotation) und fließt in die
+> Zustands-Prüfsumme ein — sie fehlte nur in der Auswertung.
+>
+> Sie ist ein **eigenständiger** Verlust ohne Überschneidung mit dem Leerlauf: Wer einen Brand zu
+> früh erneuert, hat **gehandelt**, nur falsch. Kein leeres GCD-Fenster, keine Doppelzählung.
+>
+> Und sie gehört gezeigt, weil das Design die harte Erneuerungs-Regel ausdrücklich als Präzision
+> will, die als Können belohnt wird — dann muss ihr Verlust auch sichtbar sein. In Schritt 1 ist
+> sie der **zweitgrößte** Fehler (9,9 % laut STEP1-SPEC § 4).
 
 **Die drei größten Verlustquellen** werden hervorgehoben. Sie können aus der Rotation stammen
 **oder aus dem Umgang mit dem Boss** — bei einem Boss mit Mechaniken ist das oft der teurere Teil.
@@ -1390,17 +1448,17 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 
 ### 21.6 (F.7) Risiken, die im Auge behalten werden müssen
 
-| Punkt                                        | Beschreibung                                                                                                                                                                                                                  |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Kernrisiko Tiefe**                         | Wenn die optimale Rotation eine feste Prioritätenliste ist, trägt nichts 300 Stunden → Prüfstein 20.3, **mindestens 10 %**                                                                                                    |
-| **288 Zeitmarken von Hand**                  | Viel Arbeit und fehleranfällig. Entlastung: Balance-Läufer liefert Vorschlagswerte (Gold ≈ 110 %, Silber ≈ 130 %, Bronze ≈ 160 % der errechneten Bestzeit)                                                                    |
-| **Satz-Boni gegen Sonderwerte**              | Müssen etwa gleichwertig sein, sonst kippt es. Eigener Prüflauf nötig                                                                                                                                                         |
-| **Stückgebundene Aufwertung**                | Kann das Ausprobieren bremsen                                                                                                                                                                                                 |
-| **Kein Sicherheitsventil bei Niederlage**    | Punkte-Schwellen und niedrigere Stufen müssen verlässlich offen sein                                                                                                                                                          |
-| **Langer Schwanz bei Fallraten**             | Bei 1 % Legendary haben nach 300 Siegen noch 5 % nichts                                                                                                                                                                       |
-| **Zahlen-Inflation durch die Endlos-Leiter** | WoW musste zweimal zurücksetzen. Die Werte-Obergrenze ist auch eine Lesbarkeits-Entscheidung                                                                                                                                  |
-| **Grafik-Stil aus KI-Einzelteilen**          | Uneinheitliche Lichtrichtung und Rahmenstärke wirken zusammengestückelt. Notausgang: ein Gestalter                                                                                                                            |
-| **E1 blockiert den Start**                   | _(Arbeitsorganisation)_ Die ersten Tage arbeitet nur eine Code-Session, weil alle folgenden Epics auf einer **abgenommenen** Grundlage aufbauen sollen. E8 (Klang) und E9 (Grafik) füllen die Zeit — sie brauchen keinen Code |
+| Punkt                                        | Beschreibung                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Kernrisiko Tiefe**                         | Wenn die optimale Rotation eine feste Prioritätenliste ist, trägt nichts 300 Stunden → Prüfstein 20.3, **mindestens 10 %**                                                                                                                                                                                                                                                              |
+| **288 Zeitmarken von Hand**                  | Viel Arbeit und fehleranfällig. Entlastung: Balance-Läufer liefert Vorschlagswerte (Gold = 105 %, Silber = 115 %, Bronze = 130 % der errechneten Bestzeit — **korrigiert am 2026-07-29**: Mit den früheren 110/130/160 % lag Bronze bei einer Bestzeit von 40.510 ms auf 64.816 ms und damit **über dem Zeitlimit von 60.000 ms**. Jeder Sieg erfüllte sie; sie unterschied niemanden.) |
+| **Satz-Boni gegen Sonderwerte**              | Müssen etwa gleichwertig sein, sonst kippt es. Eigener Prüflauf nötig                                                                                                                                                                                                                                                                                                                   |
+| **Stückgebundene Aufwertung**                | Kann das Ausprobieren bremsen                                                                                                                                                                                                                                                                                                                                                           |
+| **Kein Sicherheitsventil bei Niederlage**    | Punkte-Schwellen und niedrigere Stufen müssen verlässlich offen sein                                                                                                                                                                                                                                                                                                                    |
+| **Langer Schwanz bei Fallraten**             | Bei 1 % Legendary haben nach 300 Siegen noch 5 % nichts                                                                                                                                                                                                                                                                                                                                 |
+| **Zahlen-Inflation durch die Endlos-Leiter** | WoW musste zweimal zurücksetzen. Die Werte-Obergrenze ist auch eine Lesbarkeits-Entscheidung                                                                                                                                                                                                                                                                                            |
+| **Grafik-Stil aus KI-Einzelteilen**          | Uneinheitliche Lichtrichtung und Rahmenstärke wirken zusammengestückelt. Notausgang: ein Gestalter                                                                                                                                                                                                                                                                                      |
+| **E1 blockiert den Start**                   | _(Arbeitsorganisation)_ Die ersten Tage arbeitet nur eine Code-Session, weil alle folgenden Epics auf einer **abgenommenen** Grundlage aufbauen sollen. E8 (Klang) und E9 (Grafik) füllen die Zeit — sie brauchen keinen Code                                                                                                                                                           |
 
 ---
 

@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "kinds": [
+    {
+      "kind": 0,
+      "name": "cast",
+      "writtenByGame": true
+    },
+    {
+      "kind": 1,
+      "name": "damage",
+      "writtenByGame": true
+    },
+    {
+      "kind": 2,
+      "name": "dotTick",
+      "writtenByGame": true
+    },
+    {
+      "kind": 3,
+      "name": "crit",
+      "writtenByGame": true
+    },
+    {
+      "kind": 4,
+      "name": "spend",
+      "writtenByGame": false
+    },
+    {
+      "kind": 5,
+      "name": "kill",
+      "writtenByGame": false
+    },
+    {
+      "kind": 6,
+      "name": "phase",
+      "writtenByGame": true
+    },
+    {
+      "kind": 7,
+      "name": "buffExpire",
+      "writtenByGame": true
+    },
+    {
+      "kind": 8,
+      "name": "bossEnergy",
+      "writtenByGame": false
+    },
+    {
+      "kind": 9,
+      "name": "bossTimeline",
+      "writtenByGame": false
+    }
+  ],
+  "writtenByGame": [
+    0,
+    1,
+    2,
+    3,
+    6,
+    7
+  ]
+}

@@ -16,18 +16,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Referenz-Rechnung Schritt 1
         run: python3 tools/step1-check.py
+      # Alles Folgende im Release-Bau. Im Debug ist der Läufer rund achtzehnmal
+      # langsamer — für zehntausend Durchgänge ist das der Unterschied zwischen
+      # Sekunden und Minuten.
       - name: Balance-Lauf
-        shell: bash
         run: |
-          if [ -d sim ]; then
-            echo "Simulator vorhanden — voller Balance-Lauf folgt mit Epic E2."
-          else
-            echo "Simulator noch nicht gebaut (Epic E2). Übersprungen."
-          fi
+          cargo run --release --quiet --example balance \
+            --manifest-path sim/Cargo.toml -- --iterations 10000 --threads 4
       - name: Boss-Machbarkeit und Erfolgs-Prüflauf
-        run: echo "Folgt mit Epic E2 (GAME-DESIGN 18.5 und 12.9)."
+        # Endet mit 1, wenn für einen Erfolg keine Lösung existiert — dann gilt
+        # der Boss als nicht auslieferbar (GAME-DESIGN 12.9).
+        run: cargo run --release --quiet --example report --manifest-path sim/Cargo.toml
+      - name: Abgleich Simulator gegen Spiel
+        # Läuft im PR-Gate bereits, hier zusätzlich im Release-Bau: Optimierungen
+        # dürfen Fließkomma-Operationen umordnen, und die Zustands-Prüfsumme
+        # rührt Fließkomma-Bits ein.
+        run: cargo run --release --quiet --example parity --manifest-path sim/Cargo.toml
 
   codeql:
     runs-on: ubuntu-latest
