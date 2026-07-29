@@ -27,6 +27,13 @@ import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numeral
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
+import {
+  loadoutFingerprint,
+  mechanicsOfLoadout,
+  visibleIndicators,
+  type LoadoutSource,
+} from '../combat/schools/indicators.js';
+import { SLOT_COUNT } from '../input/keys.js';
 
 const BACKGROUND = '#0b0b0f';
 const LETTERBOX = '#000000';
@@ -71,6 +78,15 @@ export class HudRenderer {
   private digitAdvanceCountdown = 84;
   /** Für welchen Ausgang die Kurzfassung schon gerechnet wurde. */
   private lastSummaryOutcome = -1;
+  /** Fingerabdruck der Zusammenstellung, für den die Anzeigen gelten. */
+  private indicatorFingerprint = -1;
+  /** Die sichtbaren Schul-Anzeigen. Wird nur bei Änderung neu gerechnet. */
+  private visibleCache: readonly string[] = [];
+  /**
+   * Woraus die Anzeigen-Auswahl liest — **ein einziges Objekt**, beim Aufbau
+   * angelegt. Es je Bild zu bauen wäre Speicher im Bild.
+   */
+  private readonly mechanicSource: LoadoutSource;
   private readonly spellBar: SpellBar;
   /** Ein einziges, wiederverwendetes Objekt — im Bild wird nichts erzeugt. */
   private readonly vesselView: {
@@ -107,6 +123,15 @@ export class HudRenderer {
     private readonly overlay: Overlay,
     private readonly impact: Impact,
   ) {
+    this.mechanicSource = {
+      get resourceId(): string {
+        return session.combat.resourceId;
+      },
+      slotCount: SLOT_COUNT,
+      spellOnSlot: (slot) => session.spellOnSlot(slot),
+      gainOfSpell: (spell, id) => session.combat.gainOfSpell(spell, id),
+      gainOfTick: (spell, id) => session.combat.gainOfTick(spell, id),
+    };
     this.spellBar = new SpellBar(session, labels);
     const ctx = surface.ctx;
     ctx.font = FONT_TEXT;
@@ -243,6 +268,23 @@ export class HudRenderer {
   }
 
   /**
+   * Welche Schul-Anzeigen erscheinen (Issue E3-5).
+   *
+   * **Die Liste wird nur neu gerechnet, wenn sich die Zusammenstellung
+   * ändert.** Sie zu erzeugen kostet Speicher, und im Bild darf nichts
+   * entstehen (GAME-DESIGN 18.2) — der Fingerabdruck davor ist eine Zahl und
+   * kostet nichts. Ein Umbelegen wirkt trotzdem sofort.
+   */
+  private visibleMechanics(): readonly string[] {
+    const fingerprint = loadoutFingerprint(this.mechanicSource);
+    if (fingerprint !== this.indicatorFingerprint) {
+      this.indicatorFingerprint = fingerprint;
+      this.visibleCache = visibleIndicators(mechanicsOfLoadout(this.mechanicSource));
+    }
+    return this.visibleCache;
+  }
+
+  /**
    * Die Hitze mit Markierung an der Bonus-Schwelle (GAME-DESIGN 9, STEP1-SPEC 1.4).
    *
    * Die Markierung bei 15 ist die wichtigste Linie des Bildes: Rechts davon
@@ -251,6 +293,10 @@ export class HudRenderer {
    */
   private drawHeat(ctx: CanvasRenderingContext2D): void {
     const combat = this.session.combat;
+    // Nur die aktiv genutzten Mechaniken (GAME-DESIGN 5, Issue E3-5). Wer
+    // keine Kalzination mitführt, sieht keine Hitze-Anzeige — eine Zahl, die
+    // sich nie bewegt, ist schlimmer als keine.
+    if (!this.visibleMechanics().includes(combat.resourceId)) return;
     const resource = combat.school.resource;
     ctx.textAlign = 'left';
     ctx.font = FONT_SMALL;

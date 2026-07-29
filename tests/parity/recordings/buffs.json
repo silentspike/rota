@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "gcdMs": 1500,
+  "kindCapacity": 8,
+  "steps": [
+    {
+      "was": "art 0 mit 1,2 fuer 3 Wartezeiten",
+      "timeMs": 0,
+      "aktiv": 1,
+      "checksum": 1165850569
+    },
+    {
+      "was": "art 1 mit 1,5 fuer 2 Wartezeiten",
+      "timeMs": 0,
+      "aktiv": 2,
+      "checksum": 2963238636
+    },
+    {
+      "was": "art 0 erneut — ersetzt",
+      "timeMs": 0,
+      "aktiv": 2,
+      "checksum": 2963238636
+    },
+    {
+      "was": "art 1 schwaecher — ersetzt trotzdem",
+      "timeMs": 0,
+      "aktiv": 2,
+      "checksum": 4112355527
+    },
+    {
+      "was": "art 2 mit einem Faktor knapp ueber eins",
+      "timeMs": 0,
+      "aktiv": 3,
+      "checksum": 1276174712
+    },
+    {
+      "was": "nach dem Ablauf der dritten",
+      "timeMs": 1500,
+      "aktiv": 2,
+      "checksum": 4112355527
+    },
+    {
+      "was": "nach dem Ablauf der zweiten",
+      "timeMs": 3000,
+      "aktiv": 1,
+      "checksum": 1165850569
+    },
+    {
+      "was": "nach dem Ablauf der ersten",
+      "timeMs": 4500,
+      "aktiv": 0,
+      "checksum": 2355796088
+    }
+  ],
+  "replacements": 2,
+  "expirations": 3
+}
