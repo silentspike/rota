@@ -70,6 +70,8 @@ pub mod rotation;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
 // einzige Beruehrung mit einer bestehenden Datei in `sim/src/`.
 pub mod rules_event;
+// Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
+pub mod stacks;
 pub mod time;
 
 pub use apl::{Apl, AplError};
