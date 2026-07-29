@@ -56,19 +56,36 @@
 #![warn(missing_docs)]
 
 pub mod apl;
+pub mod balance;
+// Issue E3-5: Verstaerkungen und Synergie-Fenster.
+pub mod buffs;
 pub mod checksum;
 pub mod data;
 pub mod event;
+pub mod factors;
 pub mod fight;
 pub mod log;
 pub mod replay;
+pub mod report;
 pub mod rng;
 pub mod rotation;
+// Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
+// einzige Beruehrung mit einer bestehenden Datei in `sim/src/`.
+pub mod rules_event;
+// Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
+pub mod stacks;
+// Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
+pub mod sublimation;
 pub mod time;
 
 pub use apl::{Apl, AplError};
+pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
 pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
+pub use factors::{compute_damage, DamageFactors, NEUTRAL};
 pub use fight::{Decide, Fight, FightConfig, RunResult};
 pub use replay::{Binding, Press, Recording, ReplayResult};
+pub use report::{
+    achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
+};
 pub use rng::{Stream, Streams};
 pub use time::{Millis, GCD_MS, TICK_MS};
