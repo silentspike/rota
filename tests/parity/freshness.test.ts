@@ -27,7 +27,9 @@ import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
 import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
+import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import {
+  bossStatePayload,
   misplaysPayload,
   primitivesPayload,
   recordingPayload,
@@ -64,6 +66,8 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Protokoll-Arten entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteProtokollArten, HINWEIS).toEqual(logKindsPayload());
+  it('der Kampf gegen den Boss mit Phasen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterBossZustand, HINWEIS).toEqual(bossStatePayload());
   });
 });
 
@@ -130,6 +134,96 @@ describe('Die Aufzeichnung taugt als Prüffall', () => {
     const killedAtMs = expected['killedAtMs'] ?? -1;
     expect(checksums.length).toBe(killedAtMs / 10 + 1);
   });
+});
+
+describe('Der Kampf gegen den Boss mit Phasen taugt als Prüffall (#96)', () => {
+  const payload = bossStatePayload();
+  const expected = payload['expected'] as Record<string, number>;
+  const boss = payload['boss'] as Record<string, unknown>;
+  const phasen = payload['phases'] as number[];
+  const energie = payload['energy'] as number[];
+  const zeitleiste = payload['timelineIndex'] as number[];
+  const hpAnteil = payload['hpPercent'] as number[];
+  const checksums = payload['checksums'] as number[];
+
+  it('berührt beide Phasen, beide Uhren und die ganze Zeitleiste', () => {
+    // **Ohne diese Prüfung wäre die Datei wertlos.** Ein Kampf, in dem der Boss
+    // nie unter 70 % fällt, die Energie nie auslöst und kein Zeitleisten-Eintrag
+    // greift, sähe für jede Umsetzung gleich aus — auch für eine, die von all
+    // dem nichts weiß.
+    expect(expected['finalPhase']).toBe(2);
+    expect(expected['energyTriggers']).toBeGreaterThan(0);
+    expect(expected['finalTimelineIndex']).toBe(
+      (boss['timeline'] as unknown[]).length,
+    );
+  });
+
+  it('AC2: die Phase wechselt genau an der Schwelle, auf einen Takt genau', () => {
+    const schwellen = boss['phases'] as { atHpPercent: number }[];
+    let vorige = 0;
+    let wechsel = 0;
+    for (let tick = 0; tick < phasen.length; tick++) {
+      const jetzt = phasen[tick] as number;
+      if (jetzt === vorige) continue;
+      wechsel++;
+      // Die Phase darf nur um eins steigen — sonst wurde eine übersprungen.
+      expect(jetzt).toBe(vorige + 1);
+      const schwelle = schwellen[jetzt - 1]?.atHpPercent ?? 0;
+      // Der Takt, in dem gewechselt wird, liegt AUF oder UNTER der Schwelle …
+      expect(hpAnteil[tick] as number).toBeLessThanOrEqual(schwelle);
+      // … und der Takt davor lag noch DARÜBER. Zusammen ist das „auf einen Takt
+      // genau": Eine Umsetzung, die einen Takt zu früh oder zu spät wechselt,
+      // fällt durch eine der beiden Bedingungen.
+      expect(hpAnteil[tick - 1] as number).toBeGreaterThan(schwelle);
+      vorige = jetzt;
+    }
+    expect(wechsel).toBe(schwellen.length);
+  });
+
+  it('AC3: die Energieleiste steigt allein nach der Uhr', () => {
+    // Der Kern des Bausteins: Sie hängt NICHT am Schaden. Nachgewiesen über den
+    // Abstand zwischen zwei Auslösungen — er muss konstant sein, obwohl der
+    // Schaden über den Kampf schwankt.
+    const energy = boss['energy'] as { perStepMs: number; amount: number; threshold: number };
+    const proAusloesung = Math.ceil(energy.threshold / energy.amount);
+    const ausloesungen: number[] = [];
+    for (let tick = 1; tick < energie.length; tick++) {
+      // Ein Rückgang heißt: Die Leiste hat ausgelöst und ist zurückgefallen.
+      if ((energie[tick] as number) < (energie[tick - 1] as number)) ausloesungen.push(tick);
+    }
+    expect(ausloesungen.length).toBe(expected['energyTriggers']);
+    expect(ausloesungen.length).toBeGreaterThan(1);
+    for (let i = 1; i < ausloesungen.length; i++) {
+      const abstand = (ausloesungen[i] as number) - (ausloesungen[i - 1] as number);
+      // In Takten: proAusloesung Anstiege à perStepMs.
+      expect(abstand).toBe((proAusloesung * energy.perStepMs) / 10);
+    }
+  });
+
+  it('AC3: die Zeitleiste rückt zu den Zeitpunkten der Daten vor', () => {
+    const eintraege = boss['timeline'] as { atMs: number }[];
+    let vorige = 0;
+    let getroffen = 0;
+    for (let tick = 0; tick < zeitleiste.length; tick++) {
+      const jetzt = zeitleiste[tick] as number;
+      if (jetzt === vorige) continue;
+      // Der Takt, in dem vorgerückt wird, muss GENAU der Zeitpunkt aus den
+      // Daten sein — nicht einer davor, nicht einer danach.
+      expect(tick * 10).toBe(eintraege[jetzt - 1]?.atMs);
+      vorige = jetzt;
+      getroffen++;
+    }
+    expect(getroffen).toBe(eintraege.length);
+  });
+
+  it('hat für jeden gerechneten Takt eine Prüfsumme und eine Spur', () => {
+    const killedAtMs = expected['killedAtMs'] ?? -1;
+    expect(checksums.length).toBe(killedAtMs / 10 + 1);
+    expect(phasen.length).toBe(checksums.length);
+    expect(energie.length).toBe(checksums.length);
+    expect(zeitleiste.length).toBe(checksums.length);
+  });
+
 });
 
 describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {

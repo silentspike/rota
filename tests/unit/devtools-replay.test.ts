@@ -55,7 +55,12 @@ describe('Zustands-Prüfsumme', () => {
 
 describe('Aufzeichnungen', () => {
   it('kennt die beiden aus VERIFICATION genannten Namen', () => {
-    expect(recordingNames()).toEqual(['cooldown-precision', 'cooldown-sweep']);
+    // `vessel-phases` ist mit Issue #96 dazugekommen — der gemeinsame Prüffall
+    // gegen einen Boss mit Phasen und Energieleiste. Die beiden aus VERIFICATION
+    // stehen weiterhin vorn und unverändert; deshalb wird auf sie geprüft und
+    // nicht auf die Gesamtliste, die mit jedem weiteren Prüffall wächst.
+    expect(recordingNames().slice(0, 2)).toEqual(['cooldown-precision', 'cooldown-sweep']);
+    expect(recordingNames()).toContain('vessel-phases');
   });
 
   it('ist eine echte Aufzeichnung, keine abgetippte Liste', () => {

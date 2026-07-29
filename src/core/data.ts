@@ -428,3 +428,43 @@ export const CALCINATION: ParseResult<SchoolDef> = parseSchool(rawSchool);
 
 /** Der Testboss aus Schritt 1, fertig gelesen. */
 export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
+
+/**
+ * **Alle** Bosse, nach Bezeichner — aus dem Verzeichnis gelesen, nicht einzeln
+ * aufgezählt (Issue #96, AC1: „ein neuer Boss entsteht als Datendatei, ohne
+ * dass eine Zeile Programmcode geändert wird").
+ *
+ * Der feste `import` oben reicht dafür nicht: Er nennt genau eine Datei, und
+ * ein zweiter Boss bräuchte eine zweite Zeile. `import.meta.glob` löst das zur
+ * Bauzeit auf — die JSON-Dateien landen also weiterhin gebündelt im Ergebnis,
+ * es wird nichts zur Laufzeit nachgeladen.
+ *
+ * Der Simulator macht dasselbe an seiner Stelle: `sim/build.rs` liest das
+ * Verzeichnis sortiert. **Beide Seiten müssen dieselbe Menge sehen**, sonst
+ * kennt einer einen Boss, den der andere nicht rechnen kann.
+ */
+export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
+  const dateien = import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
+    eager: true,
+    import: 'default',
+  });
+  // Sortiert, damit die Reihenfolge nicht vom Dateisystem abhängt — dieselbe
+  // Entscheidung wie `dateien.sort()` in `sim/build.rs` (GAME-DESIGN 18.4:
+  // feste Reihenfolge, keine Hash-Container).
+  const pfade = Object.keys(dateien).sort();
+  const out = new Map<string, ParseResult<BossDef>>();
+  for (const pfad of pfade) {
+    const gelesen = parseBoss(dateien[pfad]);
+    out.set(gelesen.value.id, gelesen);
+  }
+  return out;
+})();
+
+/**
+ * Ein Boss nach Bezeichner, oder `undefined`.
+ *
+ * Das Gegenstück zu `boss_by_id` im Simulator (`sim/src/data.rs`).
+ */
+export function bossById(id: string): BossDef | undefined {
+  return BOSSES.get(id)?.value;
+}

@@ -36,12 +36,14 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   logKindsPayload,
+  bossStatePayload,
   misplaysPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
   MISPLAY_NAME,
   RECORDING_NAME,
+  VESSEL_NAME,
   serialize,
 } from './payloads.ts';
 
@@ -58,6 +60,10 @@ writeFileSync(primitivesPath, serialize(primitives), 'utf8');
 const misplays = misplaysPayload();
 const misplaysPath = join(here, 'recordings', `${MISPLAY_NAME}.json`);
 writeFileSync(misplaysPath, serialize(misplays), 'utf8');
+
+const bossState = bossStatePayload();
+const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
+writeFileSync(bossStatePath, serialize(bossState), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
@@ -96,6 +102,14 @@ console.log(`  Schaden        ${m['damage']}`);
 console.log(`  verlorene DoT-Ticks ${m['lostDotTicks']}`);
 console.log(`  Leerlauf-Takte ${m['idleTicks']}`);
 console.log(`  Prüfsummen     ${misplays['checksums'].length} Takte`);
+const b = bossState['expected'];
+console.log(`geschrieben: ${bossStatePath}`);
+console.log(`  Boss           ${bossState['bossId']}`);
+console.log(`  Schaden        ${b['damage']}, Sieg bei ${b['killedAtMs']} ms`);
+console.log(
+  `  Endphase       ${b['finalPhase']}, Energie-Ausloesungen ${b['energyTriggers']}, Zeitleiste ${b['finalTimelineIndex']}`,
+);
+console.log(`  Pruefsummen    ${bossState['checksums'].length} Takte`);
 console.log(`geschrieben: ${ruleEventsPath}`);
 console.log(`geschrieben: ${buffsPath}`);
 console.log(`geschrieben: ${logKindsPath}`);
