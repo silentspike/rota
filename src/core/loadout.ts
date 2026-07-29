@@ -24,6 +24,11 @@ export const STEP1_BINDINGS: readonly Binding[] = [
   { slot: 0, spellId: 'kindle' }, // obere Reihe, erste Taste
   { slot: 1, spellId: 'smoulder' }, // obere Reihe, zweite Taste
   { slot: 2, spellId: 'pyre' }, // obere Reihe, dritte Taste
+  // Der Unterbrecher belegt einen Platz wie jeder andere Zauber
+  // (GAME-DESIGN 10.4, Issue #110). Er steht HINTER den dreien, damit jede
+  // bestehende Aufzeichnung unverändert gilt: Ein Tastendruck nennt einen
+  // Platz, und die Plätze 0 bis 2 bedeuten weiterhin dasselbe.
+  { slot: 3, spellId: 'quench' },
 ];
 
 // Welchen Klang ein Zauber hat, stand hier bis E1-9 als Namensregel

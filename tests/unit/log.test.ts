@@ -199,7 +199,10 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     for (let i = 0; i < 300; i++) h.session.tick(i * TICK_MS);
     const summary = h.session.summary(3000);
 
-    expect(summary.idlePerSpell.length).toBe(4);
+    // Drei, nicht vier: Der Unterbrecher steht nicht in dieser Liste
+    // (Issue #110). Sie beantwortet „wo verlierst du Zeit", und QUENCH wartet
+    // bewusst — er stünde dauerhaft mit 0 darin.
+    expect(summary.idlePerSpell.length).toBe(3);
     for (const entry of summary.idlePerSpell) {
       expect(entry.idleMs).toBe(3000);
       expect(entry.share).toBeCloseTo(1);
@@ -288,6 +291,9 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
 
     expect(h.session.log.length).toBe(0);
     expect(h.session.idleMs).toBe(0);
-    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0]);
+    // Vier Einträge: Das ist die Rohmessung je Zauber, und die führt QUENCH
+    // mit (immer 0, weil er nicht mitgezählt wird). Erst die aufbereitete
+    // Liste `idlePerSpell` lässt ihn weg.
+    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0]);
   });
 });

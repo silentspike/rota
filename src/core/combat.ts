@@ -444,7 +444,14 @@ export class Combat {
 
   /** Kann der Zauber jetzt gewirkt werden? */
   isReady(index: number, timeMs: number): boolean {
-    return this.isOffCooldown(index, timeMs) && this.gcd.isReady(timeMs);
+    if (!this.isOffCooldown(index, timeMs)) return false;
+    // Dieselbe Ausnahme wie in `cast` (GAME-DESIGN 6.6, Issue #110). Sie steht
+    // hier ein zweites Mal, weil die Zauberleiste `isReady` fragt und nicht
+    // `cast`: Ohne sie zeigte sie den Unterbrecher als gesperrt an, während er
+    // in Wahrheit wirkbar ist — und der Spieler drückte ihn nicht.
+    const spell = this.spells[index];
+    if (spell !== undefined && !spell.triggersGcd) return true;
+    return this.gcd.isReady(timeMs);
   }
 
   // ------------------------------------------------------------------- Takt
@@ -603,7 +610,15 @@ export class Combat {
       outcome.result = CAST_FIGHT_OVER;
       return outcome;
     }
-    if (!this.gcd.isReady(timeMs)) {
+    // **Wer keine Wartezeit auslöst, wird auch von keiner gesperrt**
+    // (GAME-DESIGN 6.6/10.4, Issue #110).
+    //
+    // Bis hierher galt die Sperre für jeden Zauber. Für die drei aus Schritt 1
+    // war das richtig — sie lösen alle eine aus. Für den Unterbrecher wäre es
+    // die Ausnahme mit falschem Vorzeichen: Er löste zwar keine Wartezeit aus,
+    // könnte aber während einer laufenden nicht gewirkt werden. Gebraucht wird
+    // er genau dann.
+    if (spell.triggersGcd && !this.gcd.isReady(timeMs)) {
       outcome.result = CAST_ON_GCD;
       return outcome;
     }

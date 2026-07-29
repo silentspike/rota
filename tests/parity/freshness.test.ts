@@ -29,9 +29,11 @@ import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
+import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import {
   bossStatePayload,
   misplaysPayload,
+  playerDamagePayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -76,6 +78,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Kampf gegen den Boss mit Phasen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterBossZustand, HINWEIS).toEqual(bossStatePayload());
+  });
+
+  it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterSpielerSchaden, HINWEIS).toEqual(playerDamagePayload());
   });
 });
 

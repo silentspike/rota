@@ -16,6 +16,10 @@
     {
       "slot": 2,
       "spellId": "pyre"
+    },
+    {
+      "slot": 3,
+      "spellId": "quench"
     }
   ],
   "presses": [
