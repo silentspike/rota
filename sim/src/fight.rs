@@ -159,6 +159,12 @@ pub struct FightConfig {
     /// In Schritt 1 durchweg neutral (`STEP1-SPEC` § 2). Der Balance-Laeufer
     /// veraendert je einen davon, um die Empfindlichkeit zu messen.
     pub factors: DamageFactors,
+    /// Gegen welchen Boss gerechnet wird.
+    ///
+    /// Voreinstellung ist der Boss aus `data/bosses/`, der als Standard
+    /// gekennzeichnet ist. Mit 68 Bossen (GAME-DESIGN 11.7) wird das der
+    /// haeufigste Schalter des Balance-Laeufers.
+    pub boss: &'static Boss,
 }
 
 impl Default for FightConfig {
@@ -169,6 +175,7 @@ impl Default for FightConfig {
             stop_on_kill: true,
             log_capacity: 4096,
             factors: NEUTRAL,
+            boss: BOSS,
         }
     }
 }
@@ -204,8 +211,15 @@ pub struct Fight {
     stop_on_kill: bool,
 
     // -- Boss --
+    boss: &'static Boss,
     damage: u32,
     killed_at: Option<Millis>,
+    /// Welche Phase gerade laeuft. 0 ist der Start.
+    phase: usize,
+    /// Stand der Energieleiste — der zweiten Uhr.
+    energy: u32,
+    /// Wie oft die Energieleiste ausgeloest hat.
+    energy_triggers: u32,
 
     // -- Spieler --
     gcd_ready_at: Millis,
@@ -256,10 +270,14 @@ impl Fight {
     pub fn new(config: FightConfig) -> Self {
         let mut fight = Self {
             time: 0,
-            duration_ms: config.duration_ms.unwrap_or(BOSS.overpressure_ms),
+            duration_ms: config.duration_ms.unwrap_or(config.boss.overpressure_ms),
             stop_on_kill: config.stop_on_kill,
+            boss: config.boss,
             damage: 0,
             killed_at: None,
+            phase: 0,
+            energy: 0,
+            energy_triggers: 0,
             gcd_ready_at: 0,
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -404,6 +422,7 @@ impl Fight {
             self.queue
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
+        self.schedule_first_energy_tick();
         // Die erste Entscheidung faellt bei 0.
         self.queue.push(0, EventKind::Wakeup);
 
@@ -423,13 +442,14 @@ impl Fight {
             }
 
             // Phase 2 — Sieg-Pruefung, an derselben Stelle wie in der Referenz.
-            if self.killed_at.is_none() && self.damage >= BOSS.hp {
+            if self.killed_at.is_none() && self.damage >= self.boss.hp {
                 self.killed_at = Some(now);
                 self.log.push(now, LogKind::Kill, NO_SPELL, self.damage);
                 if self.stop_on_kill {
                     break;
                 }
             }
+            self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
             if self.gcd_ready_at <= now {
@@ -475,6 +495,7 @@ impl Fight {
             self.queue
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
+        self.schedule_first_energy_tick();
 
         let mut checksums = Vec::with_capacity(if checksum_per_tick {
             recording.ticks as usize
@@ -499,9 +520,11 @@ impl Fight {
                 self.apply(event.kind);
             }
 
+            self.check_phase();
+
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
             // Pruefsumme dieses Takts wird noch geschrieben.
-            if self.killed_at.is_none() && self.damage >= BOSS.hp {
+            if self.killed_at.is_none() && self.damage >= self.boss.hp {
                 self.killed_at = Some(now);
                 self.log.push(now, LogKind::Kill, NO_SPELL, self.damage);
                 let hash = self.checksum_at(now);
@@ -566,6 +589,9 @@ impl Fight {
         self.time = 0;
         self.damage = 0;
         self.killed_at = None;
+        self.phase = 0;
+        self.energy = 0;
+        self.energy_triggers = 0;
         self.gcd_ready_at = 0;
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -585,10 +611,20 @@ impl Fight {
         self.events.clear_sequence();
     }
 
+    /// Plant den ersten Anstieg der Energieleiste ein, falls der Boss eine hat.
+    fn schedule_first_energy_tick(&mut self) {
+        if let Some(energy) = self.boss.energy {
+            if energy.per_step_ms > 0 && energy.per_step_ms < self.duration_ms {
+                self.queue.push(energy.per_step_ms, EventKind::EnergyTick);
+            }
+        }
+    }
+
     fn apply(&mut self, kind: EventKind) {
         match kind {
             EventKind::DotTick { spell, generation } => self.dot_tick(spell as usize, generation),
             EventKind::ResourceDecay => self.decay(),
+            EventKind::EnergyTick => self.energy_tick(),
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
             // Simulator zu diesem Zeitpunkt ueberhaupt aufwacht — weil dann eine
             // Abklingzeit abgelaufen ist oder der Sieg zu pruefen war.
@@ -633,6 +669,57 @@ impl Fight {
                     generation,
                 },
             );
+        }
+    }
+
+    /// Die Energieleiste steigt (GAME-DESIGN 11.2, Baustein 1).
+    ///
+    /// **Unabhaengig vom Schaden des Spielers** — das ist die eigentliche
+    /// Aussage des Bausteins. Wer schneller zuschlaegt, verschiebt den
+    /// Ausloeser nicht; damit entsteht ein zweiter Takt, gegen den geplant
+    /// werden muss.
+    fn energy_tick(&mut self) {
+        let Some(energy) = self.boss.energy else {
+            return;
+        };
+
+        self.energy = self.energy.saturating_add(energy.amount);
+        if self.energy >= energy.threshold {
+            self.energy_triggers += 1;
+            self.energy = energy.reset_to;
+            self.log.push(
+                self.time,
+                LogKind::BossEnergy,
+                NO_SPELL,
+                self.energy_triggers,
+            );
+        }
+
+        let next = self.time + energy.per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::EnergyTick);
+        }
+    }
+
+    /// Prueft, ob der Boss die Phase wechselt.
+    ///
+    /// An derselben Stelle wie die Sieg-Pruefung: nach den passiven Wirkungen,
+    /// vor der Entscheidung des Spielers. Das ist kein Zufall — beide haengen
+    /// am selben Wert, den Lebenspunkten, und muessen deshalb denselben
+    /// Zeitpunkt sehen.
+    ///
+    /// **Eskalierend, nicht springend:** Die Phase kann nur steigen. Heilt der
+    /// Boss spaeter einmal (GAME-DESIGN 11.2, Baustein 5), faellt sie nicht
+    /// zurueck — eine schon gezeigte Mechanik verschwindet nicht wieder.
+    fn check_phase(&mut self) {
+        if self.boss.phases.is_empty() {
+            return;
+        }
+        let neue = self.boss.phase_at(self.boss_hp_percent());
+        if neue > self.phase {
+            self.phase = neue;
+            self.log
+                .push(self.time, LogKind::BossPhase, NO_SPELL, neue as u32);
         }
     }
 
@@ -736,7 +823,7 @@ impl Fight {
         // weil die Pruefung vor der Wirk-Phase steht. Ohne diesen Weckruf
         // koennte der Simulator bis zum naechsten regulaeren Ereignis
         // weiterspringen und einen zu spaeten Zeitpunkt melden.
-        if self.damage >= BOSS.hp {
+        if self.damage >= self.boss.hp {
             self.queue.push(now + TICK_MS, EventKind::Wakeup);
         }
 
@@ -858,7 +945,7 @@ impl Fight {
     /// Verbleibende Lebenspunkte des Bosses.
     #[must_use]
     pub fn boss_hp_remaining(&self) -> u32 {
-        BOSS.hp.saturating_sub(self.damage)
+        self.boss.hp.saturating_sub(self.damage)
     }
 
     /// Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet.
@@ -868,10 +955,10 @@ impl Fight {
     /// unterschiedlich ausfallen koennte.
     #[must_use]
     pub fn boss_hp_percent(&self) -> u32 {
-        if BOSS.hp == 0 {
+        if self.boss.hp == 0 {
             return 0;
         }
-        (self.boss_hp_remaining() * 100) / BOSS.hp
+        (self.boss_hp_remaining() * 100) / self.boss.hp
     }
 
     /// Zeit bis zum Ueberdruck.
@@ -955,13 +1042,40 @@ impl Fight {
         for draws in self.rng.draw_counts() {
             h = mix_int(h, draws as i32);
         }
+        // **Angehaengt, nicht eingeschoben** (Issue #96). Die bestehenden
+        // Positionen bleiben dadurch unveraendert; die Reihenfolge ist ohnehin
+        // willkuerlich und muss nur auf beiden Seiten gleich sein.
+        //
+        // Ohne diese beiden Felder waere die Pruefsumme fuer einen Boss mit
+        // Phasen blind: Zwei Laeufe in verschiedenen Phasen saehen gleich aus,
+        // und der Abgleich meldete Uebereinstimmung, wo keine ist.
+        h = mix_int(h, self.phase as i32);
+        h = mix_int(h, self.energy as i32);
         h
+    }
+
+    /// Welche Phase gerade laeuft. 0 ist der Start.
+    #[must_use]
+    pub fn phase(&self) -> usize {
+        self.phase
+    }
+
+    /// Stand der Energieleiste.
+    #[must_use]
+    pub fn energy(&self) -> u32 {
+        self.energy
+    }
+
+    /// Wie oft die Energieleiste ausgeloest hat.
+    #[must_use]
+    pub fn energy_triggers(&self) -> u32 {
+        self.energy_triggers
     }
 
     /// Der Boss, gegen den gerechnet wird.
     #[must_use]
     pub fn boss(&self) -> &'static Boss {
-        BOSS
+        self.boss
     }
 
     /// Die Schul-Mechanik.
