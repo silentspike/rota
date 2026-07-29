@@ -52,6 +52,17 @@ export interface ReplayResult {
   readonly finalChecksum: number;
   /** Prüfsumme über die ganze Folge — ein Wert für den schnellen Vergleich. */
   readonly sequenceChecksum: number;
+  /**
+   * Prüfsumme über die Folge der **Regel-Ereignisse** (Issue E3-1b).
+   *
+   * Steht neben der Zustands-Prüfsumme, nicht darin: Die Feldfolge von
+   * `combatChecksum` bleibt damit unberührt, und die Parität aus #54 gilt
+   * weiter. Beide Größen zusammen sagen, ob zwei Umsetzungen denselben
+   * Zustand **und** denselben Ablauf haben.
+   */
+  readonly ruleSequenceChecksum: number;
+  /** Wie viele Regel-Ereignisse dabei ausgetragen wurden. */
+  readonly ruleEventCount: number;
   /** Prüfsumme je Takt. Nur gefüllt, wenn ausdrücklich verlangt. */
   readonly checksums: number[];
   readonly randomDraws: number;
@@ -139,6 +150,8 @@ export function replayRecording(
       killedAtMs >= 0 ? killedAtMs : (recording.ticks - 1) * TICK_MS,
     ),
     sequenceChecksum: sequence,
+    ruleSequenceChecksum: combat.events.sequenceChecksum,
+    ruleEventCount: combat.events.emittedCount,
     checksums,
     randomDraws: combat.random.totalDraws,
   };
