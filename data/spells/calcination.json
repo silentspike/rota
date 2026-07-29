@@ -61,7 +61,7 @@
       "name": "Quench",
       "unlockLevel": 1,
       "baseDamage": 0,
-      "cooldownMs": 15000,
+      "cooldownMs": 5000,
       "castTimeMs": 0,
       "triggersGcd": false,
       "interrupt": true

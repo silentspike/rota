@@ -93,6 +93,12 @@ export function buildSummary(input: SummaryInput): RunSummary {
   for (let i = 0; i < combat.spells.length; i++) {
     const spell = combat.spells[i];
     if (spell === undefined) continue;
+    // **Der Unterbrecher steht nicht in dieser Liste** (Issue #110). Sie
+    // beantwortet „wo verlierst du Zeit", und ein Zauber, der bewusst wartet,
+    // bis der Boss etwas wirkt, verliert keine — er stünde dauerhaft mit 0
+    // darin und wäre reines Rauschen. Ob er zu selten kam, sagt die Zahl der
+    // verpassten Unterbrechungen (GAME-DESIGN 19.2).
+    if (spell.interrupt === true) continue;
     const idleMs = input.idlePerSpellMs[i] ?? 0;
     idlePerSpell.push({
       spellId: spell.id,

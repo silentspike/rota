@@ -1105,7 +1105,21 @@ impl Fight {
     /// globale Wartezeit abgelaufen.
     #[must_use]
     pub fn is_ready(&self, index: usize) -> bool {
-        self.cooldown_ready_at[index] <= self.time && self.gcd_ready_at <= self.time
+        if self.cooldown_ready_at[index] > self.time {
+            return false;
+        }
+        // **Wer keine Wartezeit ausloest, wird auch von keiner gesperrt**
+        // (GAME-DESIGN 6.6/10.4, Issue #110).
+        //
+        // Bis hierher galt die Sperre fuer jeden Zauber. Fuer die drei aus
+        // Schritt 1 war das richtig — sie loesen alle eine aus. Fuer den
+        // Unterbrecher waere es die Ausnahme mit falschem Vorzeichen: Er
+        // loeste zwar keine Wartezeit aus, koennte aber waehrend einer
+        // laufenden nicht gewirkt werden. Gebraucht wird er genau dann.
+        if !SPELLS[index].triggers_gcd {
+            return true;
+        }
+        self.gcd_ready_at <= self.time
     }
 
     /// Ob ein Brand-Effekt gerade laeuft.
@@ -1305,6 +1319,36 @@ impl Fight {
     #[must_use]
     pub fn timeline_index(&self) -> usize {
         self.timeline_index
+    }
+
+    /// Verbleibende Lebenspunkte des Spielers.
+    #[must_use]
+    pub fn player_hp(&self) -> u32 {
+        self.player_hp
+    }
+
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    #[must_use]
+    pub fn damage_taken(&self) -> u32 {
+        self.damage_taken
+    }
+
+    /// Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3).
+    #[must_use]
+    pub fn player_dead(&self) -> bool {
+        self.died_at.is_some()
+    }
+
+    /// Welcher Boss-Zauber gerade laeuft, als Index in `Boss::timeline`.
+    #[must_use]
+    pub fn casting(&self) -> Option<usize> {
+        self.casting
+    }
+
+    /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
+    #[must_use]
+    pub fn interrupts_landed(&self) -> u32 {
+        self.interrupts_landed
     }
 
     /// Der Boss, gegen den gerechnet wird.

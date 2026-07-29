@@ -327,7 +327,18 @@ export class Session implements Simulation {
       // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
       // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
       for (let i = 0; i < this.boundSpells.length; i++) {
-        if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
+        if (this.boundSpells[i] !== 1) continue;
+        // **Der Unterbrecher zählt hier nicht mit** (Issue #110). Er liegt fast
+        // immer bereit und wird selten gewirkt — er stünde damit dauerhaft ganz
+        // oben in „wo verlierst du Zeit".
+        //
+        // Das wäre eine falsche Auskunft, nicht bloß eine schiefe Zeile: Der
+        // Spieler bekäme als wichtigsten Hinweis „du wirkst QUENCH zu selten",
+        // während der Boss womöglich gar keinen unterbrechbaren Zauber hat.
+        // Ob er zu selten unterbrochen hat, sagt die Zahl der verpassten
+        // Unterbrechungen (GAME-DESIGN 19.2) — nicht diese Liste.
+        if (this.combat.spellAt(i)?.interrupt === true) continue;
+        if (this.combat.isOffCooldown(i, timeMs)) {
           this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
         }
       }
