@@ -12,6 +12,8 @@ import {
   RuleEvents,
   type RuleReceiver,
 } from '../../src/combat/events.js';
+import { Combat } from '../../src/core/combat.js';
+import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
 /** Ein Empfänger, der nur mitschreibt, wer wann drankam. */
@@ -226,6 +228,114 @@ describe('Prüfsumme über die Ereignisfolge (Vorarbeit für #87)', () => {
   });
 });
 
-// Was der Kampf austrägt, steht in Issue E3-1b (#87): Der Anschluss geschieht
-// auf beiden Seiten zugleich, weil die Stellen, an denen ein Ereignis entsteht,
-// die Reihenfolge festlegen — und die gilt nie einseitig (Auflage aus #87).
+describe('Der Anschluss an den Kampf (E3-1b, AC1)', () => {
+  function makeCombat(): Combat {
+    return new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  }
+
+  it('meldet erst den Schaden, dann die Wirkung', () => {
+    // Entscheidung des Auftraggebers vom 2026-07-29: „Zauber gewirkt" meldet
+    // eine ABGESCHLOSSENE Handlung. Ein Empfänger beeinflusst den nächsten
+    // Zauber, nicht den laufenden.
+    const combat = makeCombat();
+    const folge: number[] = [];
+    const empfaenger: RuleReceiver = { onRuleEvent: (event) => void folge.push(event) };
+    combat.events.register({ id: 'p', on: RULE_SPELL_CAST }, empfaenger);
+    combat.events.register({ id: 'p', on: RULE_DAMAGE }, empfaenger);
+    combat.cast(combat.indexOf('kindle'), 0);
+
+    expect(folge).toEqual([RULE_DAMAGE, RULE_SPELL_CAST]);
+  });
+
+  it('sieht denselben Schaden, den der Zauber angerichtet hat', () => {
+    const combat = makeCombat();
+    let gemeldet = -1;
+    combat.events.register(
+      { id: 'p', on: RULE_DAMAGE },
+      { onRuleEvent: (_event, _subject, value) => void (gemeldet = value) },
+    );
+    const outcome = combat.cast(combat.indexOf('kindle'), 0);
+    expect(gemeldet).toBe(outcome.damage);
+    expect(gemeldet).toBe(100);
+  });
+
+  it('meldet jeden Tick eines Effekts über Zeit', () => {
+    const combat = makeCombat();
+    let ticks = 0;
+    let summe = 0;
+    combat.events.register(
+      { id: 't', on: RULE_DOT_TICK },
+      {
+        onRuleEvent: (_event, _subject, value) => {
+          ticks++;
+          summe += value;
+        },
+      },
+    );
+    combat.cast(combat.indexOf('smoulder'), 0);
+    for (let t = TICK_MS; t <= 12_000; t += TICK_MS) combat.stepPassive(t);
+
+    // Dieselben Zahlen wie im Protokoll-Prüffall: sechs Ticks, 240 Schaden.
+    expect(ticks).toBe(6);
+    expect(summe).toBe(240);
+  });
+
+  it('trägt einen Zauber ohne Schaden nur als Wirkung aus', () => {
+    const combat = makeCombat();
+    const folge: number[] = [];
+    const empfaenger: RuleReceiver = { onRuleEvent: (event) => void folge.push(event) };
+    for (const event of [RULE_SPELL_CAST, RULE_DAMAGE]) {
+      combat.events.register({ id: 'p', on: event }, empfaenger);
+    }
+    // PYRE ohne Hitze: der Verzehrer bringt nichts, der Grundschaden ist 0.
+    combat.cast(combat.indexOf('pyre'), 0);
+    expect(folge).toEqual([RULE_SPELL_CAST]);
+  });
+
+  it('trägt nichts aus, wenn der Zauber gar nicht gewirkt wurde', () => {
+    const combat = makeCombat();
+    let gerufen = 0;
+    for (let event = 0; event < RULE_EVENT_COUNT; event++) {
+      combat.events.register({ id: 'p', on: event }, { onRuleEvent: () => void gerufen++ });
+    }
+    combat.cast(combat.indexOf('kindle'), 0);
+    const nachErstem = gerufen;
+    // Zweiter Versuch in derselben Wartezeit: abgelehnt, also kein Ereignis.
+    combat.cast(combat.indexOf('kindle'), 10);
+    expect(gerufen).toBe(nachErstem);
+  });
+
+  it('setzt beim Zurücksetzen die Folge zurück, nicht die Anmeldungen', () => {
+    const combat = makeCombat();
+    combat.events.register({ id: 'a', on: RULE_SPELL_CAST }, { onRuleEvent: () => undefined });
+    combat.cast(combat.indexOf('kindle'), 0);
+    const vorher = combat.events.sequenceChecksum;
+    combat.reset();
+
+    expect(combat.events.emittedCount).toBe(0);
+    expect(combat.events.sequenceChecksum).not.toBe(vorher);
+    expect(combat.events.receiverIds(RULE_SPELL_CAST)).toEqual(['a']);
+  });
+
+  it('ändert die Referenz-Rechnung nicht (AC3)', () => {
+    // Die Probe aufs Ganze: Ein Kampf mit Empfängern muss denselben Schaden
+    // ergeben wie einer ohne. Ein Ereignis-System, das das Ergebnis verschiebt,
+    // wäre kein Beobachter mehr.
+    const laufen = (mitEmpfaenger: boolean): number => {
+      const combat = makeCombat();
+      if (mitEmpfaenger) {
+        for (let event = 0; event < RULE_EVENT_COUNT; event++) {
+          combat.events.register({ id: 'still', on: event }, { onRuleEvent: () => undefined });
+        }
+      }
+      const kindle = combat.indexOf('kindle');
+      for (let t = 0; t <= 20_000; t += TICK_MS) {
+        combat.stepPassive(t);
+        if (combat.gcd.isReady(t) && combat.isReady(kindle, t)) combat.cast(kindle, t);
+      }
+      return combat.damageDealt;
+    };
+    expect(laufen(true)).toBe(laufen(false));
+    expect(laufen(false)).toBeGreaterThan(0);
+  });
+});
