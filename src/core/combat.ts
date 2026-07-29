@@ -21,6 +21,7 @@ import type { BossDef, SchoolDef, SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
 import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
+import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 
 /** Ausgang eines Wirk-Versuchs. */
 export const CAST_OK = 0;
@@ -148,7 +149,15 @@ export class Combat {
     this.nextDecayAtMs = options.school.resource.decayPerStepMs;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
+
+    // Die Schul-Mechanik hört ab hier auf Ereignisse (E3-2). Eine Zeile für
+    // alle Schulen: Welcher Vorrat gefüllt wird und wie viel, steht in den
+    // Daten des jeweiligen Zaubers.
+    this.stacks = registerStackMechanic(this);
   }
+
+  /** Die Stapel-Mechanik dieser Schule. Öffentlich für Prüfung und Werkzeuge. */
+  readonly stacks: StackMechanic;
 
   // ---------------------------------------------------------------- Abfragen
 
@@ -312,7 +321,9 @@ export class Combat {
       // will, meldet sich für beide Arten an — so bleibt die Folge eindeutig.
       this.events.emit(RULE_DOT_TICK, i, damage, timeMs);
       this.dotTickCounts[i] = (this.dotTickCounts[i] ?? 0) + 1;
-      this.addResource(dot.resourceGainPerTick[this.school.resource.id] ?? 0);
+      // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
+      // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
+      // beisteuert, steht in seinen Daten, nicht im Kampfcode.
       this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
     }
 
@@ -416,9 +427,6 @@ export class Combat {
       this.dotNextTickAtMs[index] = timeMs + dot.tickIntervalMs;
     }
 
-    const gain = spell.resourceGain?.[this.school.resource.id] ?? 0;
-    if (gain !== 0) this.addResource(gain);
-
     this.cooldownReadyAtMs[index] = timeMs + spell.cooldownMs;
     if (spell.triggersGcd) this.gcd.trigger(timeMs);
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
@@ -443,6 +451,32 @@ export class Combat {
     const sink = this.onHit;
     if (sink === null) return;
     sink(damage, kind, isCrit, damage >= this.boss.hp * BIG_HIT_HP_SHARE, timeMs);
+  }
+
+  /**
+   * Stapel hinzufügen — der Zugriff, den die Schul-Mechanik benutzt.
+   *
+   * Deckelt selbst und zählt mit, was an der Obergrenze verpufft. Öffentlich
+   * seit E3-2: Der Gewinn entsteht nicht mehr im Kampfcode, sondern in einem
+   * Empfänger (`src/combat/schools/stacks.ts`).
+   */
+  gainResource(amount: number): void {
+    this.addResource(amount);
+  }
+
+  /** Was ein Zauber bei einer Wirkung beisteuert — aus seinen Daten. */
+  gainOfSpell(spellIndex: number, resourceId: string): number {
+    return this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
+  }
+
+  /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
+  gainOfTick(spellIndex: number, resourceId: string): number {
+    return this.spells[spellIndex]?.dot?.resourceGainPerTick[resourceId] ?? 0;
+  }
+
+  /** Kennung des Vorrats dieser Schule. */
+  get resourceId(): string {
+    return this.school.resource.id;
   }
 
   private addResource(amount: number): void {
