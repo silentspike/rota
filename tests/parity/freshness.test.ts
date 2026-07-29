@@ -25,11 +25,13 @@ import eingecheckteAufzeichnung from './recordings/cooldown-precision.json';
 import eingecheckteBausteine from './recordings/primitives.json';
 import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
+import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import {
   misplaysPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
+  buffsPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -52,6 +54,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Ereignisfolge entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteEreignisse, HINWEIS).toEqual(ruleEventsPayload());
+  });
+
+  it('die Verstärkungen entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteVerstaerkungen, HINWEIS).toEqual(buffsPayload());
   });
 });
 

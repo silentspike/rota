@@ -5,7 +5,7 @@
  * npx vite-node tests/parity/export-parity.ts
  * ```
  *
- * Drei Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
+ * Vier Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
  *
  * | Datei | Inhalt |
  * | --- | --- |
@@ -34,6 +34,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  buffsPayload,
   misplaysPayload,
   primitivesPayload,
   recordingPayload,
@@ -61,6 +62,10 @@ const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
 writeFileSync(ruleEventsPath, serialize(ruleEvents), 'utf8');
 
+const buffs = buffsPayload();
+const buffsPath = join(here, 'recordings', 'buffs.json');
+writeFileSync(buffsPath, serialize(buffs), 'utf8');
+
 const expected = recording['expected'];
 const checksums = recording['checksums'];
 const presses = recording['presses'];
@@ -87,6 +92,8 @@ console.log(`  verlorene DoT-Ticks ${m['lostDotTicks']}`);
 console.log(`  Leerlauf-Takte ${m['idleTicks']}`);
 console.log(`  Prüfsummen     ${misplays['checksums'].length} Takte`);
 console.log(`geschrieben: ${ruleEventsPath}`);
+console.log(`geschrieben: ${buffsPath}`);
+console.log(`  Verstaerkungen ${buffs['steps'].length} Schritte, ${buffs['replacements']} ersetzt`);
 console.log(
   `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
 );

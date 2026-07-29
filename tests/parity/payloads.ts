@@ -14,6 +14,8 @@
 import { mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { GCD_MS } from '../../src/core/gcd.js';
+import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
@@ -374,6 +376,69 @@ function analyzeMisplays(recording: Recording): {
   for (let i = 0; i < combat.spells.length; i++) lostDotTicks += combat.lostDotTicks(i);
 
   return { reasons, lostDotTicks, idleTicks };
+}
+
+/**
+ * Eine feste Folge von Verstärkungen samt Faktor nach jedem Schritt (E3-5).
+ *
+ * **Anders als bei der Sublimation ist dieser Abgleich heute schon
+ * aussagekräftig**: Die Stapel-Regel hängt an keinem Zauber und an keinen
+ * Daten, die es noch nicht gibt. Sie lässt sich deshalb vollständig
+ * gegenrechnen — beide Seiten müssen nach jedem Schritt denselben Faktor
+ * haben, bis aufs letzte Bit.
+ *
+ * Verglichen wird über die **Prüfsumme** des Faktors, nicht über die Zahl
+ * selbst: Ein Faktor wie 1,2 × 1,5 ist in JSON nicht verlustfrei zu
+ * schreiben, seine Bit-Darstellung schon (`mixFloat`).
+ */
+export function buffsPayload(): Record<string, unknown> {
+  const buffs = new Buffs();
+  const steps: Record<string, unknown>[] = [];
+
+  const merken = (was: string, timeMs: number): void => {
+    const faktor = buffs.factor(timeMs);
+    steps.push({
+      was,
+      timeMs,
+      aktiv: buffs.activeCount(timeMs),
+      checksum: mixFloat(FNV_OFFSET, faktor) >>> 0,
+    });
+  };
+
+  // Zwei verschiedene Arten — multiplikativ.
+  buffs.applyForGcds(0, 1.2, 3, 0, GCD_MS);
+  merken('art 0 mit 1,2 fuer 3 Wartezeiten', 0);
+  buffs.applyForGcds(1, 1.5, 2, 0, GCD_MS);
+  merken('art 1 mit 1,5 fuer 2 Wartezeiten', 0);
+
+  // Dieselbe Art erneut — ersetzt, stapelt nicht.
+  buffs.applyForGcds(0, 1.2, 3, 0, GCD_MS);
+  merken('art 0 erneut — ersetzt', 0);
+
+  // Eine schwächere ersetzt ebenfalls.
+  buffs.applyForGcds(1, 1.1, 2, 0, GCD_MS);
+  merken('art 1 schwaecher — ersetzt trotzdem', 0);
+
+  // Eine dritte Art mit einem krummen Faktor.
+  buffs.applyForGcds(2, 1.0000000000000002, 1, 0, GCD_MS);
+  merken('art 2 mit einem Faktor knapp ueber eins', 0);
+
+  // Nach 1,5 s läuft die dritte ab, nach 3 s die zweite.
+  buffs.expire(1500);
+  merken('nach dem Ablauf der dritten', 1500);
+  buffs.expire(3000);
+  merken('nach dem Ablauf der zweiten', 3000);
+  buffs.expire(4500);
+  merken('nach dem Ablauf der ersten', 4500);
+
+  return {
+    schema: SCHEMA,
+    gcdMs: GCD_MS,
+    kindCapacity: BUFF_KIND_CAPACITY,
+    steps,
+    replacements: buffs.replacementCount,
+    expirations: buffs.expirationCount,
+  };
 }
 
 /** So werden die Dateien geschrieben — an einer Stelle festgelegt. */
