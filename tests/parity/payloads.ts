@@ -15,6 +15,7 @@ import { mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { GCD_MS } from '../../src/core/gcd.js';
+import { EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat } from '../../src/core/combat.js';
@@ -438,6 +439,27 @@ export function buffsPayload(): Record<string, unknown> {
     steps,
     replacements: buffs.replacementCount,
     expirations: buffs.expirationCount,
+  };
+}
+
+/**
+ * Der gemeinsame Nummernraum der Protokoll-Arten (Issue E3-6).
+ *
+ * **Warum diese Datei existiert:** Bis E3-6 führten Spiel und Simulator eigene
+ * Nummern, und ab der 2 bedeutete dieselbe Zahl etwas anderes. Verglichen hat
+ * das nie jemand — deshalb ist es nie aufgefallen, und deshalb steht hier
+ * jetzt ein Wächter. Er kostet nichts, solange beide Seiten übereinstimmen,
+ * und benennt bei Abweichung die betroffene Kennnummer.
+ */
+export function logKindsPayload(): Record<string, unknown> {
+  return {
+    schema: SCHEMA,
+    kinds: EVENT_NAMES.map((name, kind) => ({
+      kind,
+      name,
+      writtenByGame: EVENT_KINDS_WRITTEN_BY_GAME.includes(kind),
+    })),
+    writtenByGame: [...EVENT_KINDS_WRITTEN_BY_GAME],
   };
 }
 
