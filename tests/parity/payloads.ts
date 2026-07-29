@@ -15,6 +15,9 @@ import { mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
+import { Combat } from '../../src/core/combat.js';
+import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
 import {
   NO_SUBJECT,
@@ -33,6 +36,9 @@ export const SCHEMA = 1;
 
 /** Welche Aufzeichnung ausgeschrieben wird. */
 export const RECORDING_NAME = 'cooldown-precision';
+
+/** Die Runde mit den absichtlichen Fehlgriffen (Issue #95). */
+export const MISPLAY_NAME = 'misplays';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -186,6 +192,188 @@ export function ruleEventsPayload(): Record<string, unknown> {
     sequenceChecksum: bus.sequenceChecksum,
     emitted: bus.emittedCount,
   };
+}
+
+/**
+ * Zeichnet eine Runde auf, in der **absichtlich falsch gespielt wird** (#95).
+ *
+ * Die Prüffälle aus #54 belegen, dass beide Seiten dieselbe Zahl rechnen, wenn
+ * der Spieler alles richtig macht. Sie belegen nicht, dass sie auch dann
+ * übereinstimmen, wenn er etwas falsch macht — und das ist die größere Hälfte.
+ * Ein Kampf besteht aus Fehlgriffen, verpassten Fenstern und zu früh gedrückten
+ * Tasten.
+ *
+ * Vier Fehlertypen, jeder mindestens einmal:
+ *
+ * | Fehler | Was das Spiel tut |
+ * | --- | --- |
+ * | Taste während der globalen Wartezeit | abgelehnt (`CAST_ON_GCD`) |
+ * | Zauber auf Abklingzeit | abgelehnt (`CAST_ON_COOLDOWN`) |
+ * | Brand-Effekt zu früh erneuert | angenommen, Restlaufzeit verloren |
+ * | Leerlauf ohne Eingabe | nichts, der GCD läuft leer |
+ *
+ * **Aufgezeichnet, nicht abgetippt.** Die Tastendrücke entstehen daraus, dass
+ * hier ein schlechter Spieler nachgespielt wird — die abgelehnten stehen mit in
+ * der Liste, denn genau sie sind der Prüfgegenstand. Das Spiel merkt sich einen
+ * abgelehnten Druck ausdrücklich **nicht** (GAME-DESIGN 21.1, verworfene
+ * Eingabe-Vormerkung); er ist damit verloren, und beide Seiten müssen das gleich
+ * sehen.
+ */
+function recordMisplays(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const kindle = combat.indexOf('kindle');
+  const smoulder = combat.indexOf('smoulder');
+  const pyre = combat.indexOf('pyre');
+  const slotOf = new Map<number, number>();
+  for (const binding of STEP1_BINDINGS) slotOf.set(combat.indexOf(binding.spellId), binding.slot);
+
+  const presses: RecordedPress[] = [];
+  // Drückt einen Zauber, ob er darf oder nicht — und schreibt den Druck mit.
+  const press = (spell: number, tick: number, timeMs: number): void => {
+    combat.cast(spell, timeMs);
+    presses.push({ tick, slot: slotOf.get(spell) ?? 0 });
+  };
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+
+    // Fehler 4 — Leerlauf: Zwischen 20 s und 24 s wird gar nichts gedrückt,
+    // obwohl der GCD frei ist. Vier Sekunden verschenkte Zeit.
+    if (timeMs >= 20_000 && timeMs < 24_000) continue;
+
+    // Fehler 1 — während der globalen Wartezeit drücken. Alle 300 ms ein
+    // zusätzlicher Druck auf KINDLE, der meistens auf den laufenden GCD trifft.
+    if (!combat.gcd.isReady(timeMs) && timeMs % 300 === 0) {
+      press(kindle, tick, timeMs);
+      continue;
+    }
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // Fehler 2 — auf Abklingzeit drücken: PYRE alle 2 s, obwohl es 5 s braucht.
+    if (timeMs % 2000 === 0 && !combat.isReady(pyre, timeMs)) {
+      press(pyre, tick, timeMs);
+      continue;
+    }
+
+    // Fehler 3 — zu früh erneuern: SMOULDER bei jeder halben Laufzeit statt am
+    // Ende. Wird angenommen, wirft aber die halbe Restzeit weg.
+    if (combat.dotRemainingMs(smoulder, timeMs) < 6000 && combat.isReady(smoulder, timeMs)) {
+      press(smoulder, tick, timeMs);
+      continue;
+    }
+
+    // PYRE, sobald bereit — ohne auf die Bonus-Schwelle zu warten.
+    if (combat.isReady(pyre, timeMs) && combat.resource > 0) {
+      press(pyre, tick, timeMs);
+      continue;
+    }
+
+    if (combat.isReady(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: MISPLAY_NAME, seed: 0, ticks, presses };
+}
+
+/**
+ * Die Runde mit Fehlgriffen samt Ergebnis und Prüfsumme je Takt.
+ *
+ * `rejectedByReason` steht mit in der Datei: Ohne diese Aufschlüsselung ließe
+ * sich nicht belegen, dass **jeder** Fehlertyp mindestens einmal vorkommt — eine
+ * Aufzeichnung mit fünfzig abgelehnten Drücken derselben Sorte sähe genauso aus.
+ */
+export function misplaysPayload(): Record<string, unknown> {
+  const recording = recordMisplays(6000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  // Die Aufzeichnung noch einmal durchspielen und dabei zählen, WAS genau
+  // schiefging. `replayRecording` liefert nur "angenommen" und "abgelehnt" —
+  // damit ließe sich nicht belegen, dass jeder der vier Fehlertypen vorkommt.
+  const analyse = analyzeMisplays(recording);
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      randomDraws: result.randomDraws,
+      rejectedByReason: analyse.reasons,
+      lostDotTicks: analyse.lostDotTicks,
+      idleTicks: analyse.idleTicks,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/**
+ * Spielt die Aufzeichnung durch und zählt, **was** dabei schiefging.
+ *
+ * Nötig, weil `replayRecording` nur „angenommen" und „abgelehnt" liefert. Damit
+ * ließe sich AC1 nicht belegen: Eine Runde mit hundert abgelehnten Drücken
+ * derselben Sorte sähe genauso aus wie eine mit allen vier Fehlertypen.
+ */
+function analyzeMisplays(recording: Recording): {
+  reasons: Record<string, number>;
+  lostDotTicks: number;
+  idleTicks: number;
+} {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const slotToSpell = new Map<number, number>();
+  for (const binding of STEP1_BINDINGS)
+    slotToSpell.set(binding.slot, combat.indexOf(binding.spellId));
+
+  const reasons: Record<string, number> = {
+    ok: 0,
+    unknown: 0,
+    onCooldown: 0,
+    onGcd: 0,
+    fightOver: 0,
+  };
+  const namen = ['ok', 'unknown', 'onCooldown', 'onGcd', 'fightOver'];
+  let pressIndex = 0;
+  let idleTicks = 0;
+
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+
+    let gedrueckt = false;
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      gedrueckt = true;
+      const spell = slotToSpell.get(press.slot);
+      if (spell === undefined) {
+        reasons['unknown'] = (reasons['unknown'] ?? 0) + 1;
+        continue;
+      }
+      const outcome = combat.cast(spell, timeMs);
+      const name = namen[outcome.result] ?? 'unknown';
+      reasons[name] = (reasons[name] ?? 0) + 1;
+    }
+
+    // Leerlauf: Der GCD war frei, und es wurde trotzdem nicht gedrückt.
+    if (!gedrueckt && combat.gcd.isReady(timeMs)) idleTicks++;
+  }
+
+  let lostDotTicks = 0;
+  for (let i = 0; i < combat.spells.length; i++) lostDotTicks += combat.lostDotTicks(i);
+
+  return { reasons, lostDotTicks, idleTicks };
 }
 
 /** So werden die Dateien geschrieben — an einer Stelle festgelegt. */
