@@ -68,8 +68,8 @@ rota-ipc antworten <Nummer> "<Satz>"           # Bestätigung, Pflicht
 rota-ipc offen                                 # was du noch schuldest
 ```
 
-**Jede Nachricht bestätigst du sofort**, sobald du sie verarbeitest — mit dem *verstandenen
-Vorhaben in einem Satz*, nicht mit „erhalten". So zeigt sich ein Missverständnis sofort statt
+**Jede Nachricht bestätigst du sofort**, sobald du sie verarbeitest — mit dem _verstandenen
+Vorhaben in einem Satz_, nicht mit „erhalten". So zeigt sich ein Missverständnis sofort statt
 Stunden später. Dein eigentliches Ergebnis kommt später als **neue** Nachricht.
 
 **Melde dich auch, bevor du still wirst.** Wenn du fertig bist oder wartest, sag das — sonst

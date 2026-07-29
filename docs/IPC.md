@@ -48,7 +48,7 @@ function Cpm(...){ let E = Afi(_); if (!E) return; }   // der Poller
 Ist niemand da, gibt `Afi` nichts zurück und der Poller steigt in der ersten Zeile aus.
 Das Postfach wird dann **nie** gelesen — weder während die Sitzung arbeitet noch während
 sie wartet. In der headless-Variante steht es sogar im Klartext:
-*„No more active teammates, stopping poll"*.
+_„No more active teammates, stopping poll"_.
 
 **Woran man es erkennt:**
 
@@ -174,17 +174,17 @@ bash /work/rota-ipc/pruefen.sh   # 66 Prüfungen gegen die Testsitzung
 
 Häufige Fälle:
 
-| Meldung                          | Bedeutung                                                                                        |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `Kein Rolleneintrag fuer <Pfad>` | Aus einem Verzeichnis gesendet, das keiner Rolle gehört                                          |
-| `WEG NICHT ERLAUBT`              | Worker-zu-Worker — beabsichtigt, kein Fehler                                                     |
-| `scheint nicht zu laufen`        | Die Zielsitzung schreibt seit über 12 h nichts. Zustellung würde gelingen, aber niemand läse sie |
-| `bereits beantwortet`            | Genau eine Antwort je Nachricht                                                                  |
-| `liest sein Postfach nicht`      | Der Zielsitzung fehlt der Anker-Teammember — sie muss `/rota-ipc` ausführen                       |
-| `Absender passt nicht zur Sitzung` | Aus einem fremden Rollenverzeichnis gesendet. Zurück in die eigene Worktree-Wurzel wechseln     |
-| `laesst sich keiner Sitzung zuordnen` | Der Aufruf ist vom Prozessbaum abgetrennt (`setsid`, `nohup`) — so wird nicht gesendet       |
-| `stellt ausschliesslich unter 'Watcher' zu` | `melden` ist dem Watcher vorbehalten; aus einer Sitzung heraus gilt `senden`           |
-| `Nummer <n> ist bereits vergeben` | Zwei Träger derselben Nummer — die Antwortadresse wäre mehrdeutig                                 |
+| Meldung                                     | Bedeutung                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Kein Rolleneintrag fuer <Pfad>`            | Aus einem Verzeichnis gesendet, das keiner Rolle gehört                                          |
+| `WEG NICHT ERLAUBT`                         | Worker-zu-Worker — beabsichtigt, kein Fehler                                                     |
+| `scheint nicht zu laufen`                   | Die Zielsitzung schreibt seit über 12 h nichts. Zustellung würde gelingen, aber niemand läse sie |
+| `bereits beantwortet`                       | Genau eine Antwort je Nachricht                                                                  |
+| `liest sein Postfach nicht`                 | Der Zielsitzung fehlt der Anker-Teammember — sie muss `/rota-ipc` ausführen                      |
+| `Absender passt nicht zur Sitzung`          | Aus einem fremden Rollenverzeichnis gesendet. Zurück in die eigene Worktree-Wurzel wechseln      |
+| `laesst sich keiner Sitzung zuordnen`       | Der Aufruf ist vom Prozessbaum abgetrennt (`setsid`, `nohup`) — so wird nicht gesendet           |
+| `stellt ausschliesslich unter 'Watcher' zu` | `melden` ist dem Watcher vorbehalten; aus einer Sitzung heraus gilt `senden`                     |
+| `Nummer <n> ist bereits vergeben`           | Zwei Träger derselben Nummer — die Antwortadresse wäre mehrdeutig                                |
 
 Fällt das System ganz aus, gilt der alte Weg: Der Orchestrator schreibt den Text, den der
 Auftraggeber kopiert — **ausdrücklich angesagt**, nicht stillschweigend, und mit einer
