@@ -56,9 +56,11 @@
 #![warn(missing_docs)]
 
 pub mod apl;
+pub mod balance;
 pub mod checksum;
 pub mod data;
 pub mod event;
+pub mod factors;
 pub mod fight;
 pub mod log;
 pub mod replay;
@@ -70,7 +72,9 @@ pub mod rules_event;
 pub mod time;
 
 pub use apl::{Apl, AplError};
+pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
 pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
+pub use factors::{compute_damage, DamageFactors, NEUTRAL};
 pub use fight::{Decide, Fight, FightConfig, RunResult};
 pub use replay::{Binding, Press, Recording, ReplayResult};
 pub use rng::{Stream, Streams};

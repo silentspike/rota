@@ -68,6 +68,7 @@
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 use crate::event::{EventKind, EventQueue};
+use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
 use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
@@ -150,6 +151,11 @@ pub struct FightConfig {
     /// Wie viele Protokoll-Eintraege aufbewahrt werden. 0 schaltet das
     /// Protokoll ab.
     pub log_capacity: usize,
+    /// Die Faktoren der Schadensformel (GAME-DESIGN 6.3).
+    ///
+    /// In Schritt 1 durchweg neutral (`STEP1-SPEC` § 2). Der Balance-Laeufer
+    /// veraendert je einen davon, um die Empfindlichkeit zu messen.
+    pub factors: DamageFactors,
 }
 
 impl Default for FightConfig {
@@ -159,6 +165,7 @@ impl Default for FightConfig {
             duration_ms: None,
             stop_on_kill: true,
             log_capacity: 4096,
+            factors: NEUTRAL,
         }
     }
 }
@@ -212,6 +219,9 @@ pub struct Fight {
     resource_overflow: u32,
     idle_ms: Millis,
 
+    // -- Regeln --
+    factors: DamageFactors,
+
     // -- Werkzeuge --
     queue: EventQueue,
     log: CombatLog,
@@ -239,6 +249,7 @@ impl Fight {
             dot_tick_counts: [0; SPELL_COUNT],
             resource_overflow: 0,
             idle_ms: 0,
+            factors: config.factors,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -473,7 +484,11 @@ impl Fight {
             return;
         };
 
-        self.deal(index, dot.tick_damage, LogKind::DotTick);
+        self.deal(
+            index,
+            compute_damage(dot.tick_damage, &self.factors),
+            LogKind::DotTick,
+        );
         self.dot_tick_counts[index] += 1;
         self.add_resource(dot.resource_gain_per_tick);
 
@@ -516,7 +531,11 @@ impl Fight {
         self.log.push(now, LogKind::Cast, index as u8, 0);
 
         if spell.base_damage > 0 {
-            self.deal(index, spell.base_damage, LogKind::Damage);
+            self.deal(
+                index,
+                compute_damage(spell.base_damage, &self.factors),
+                LogKind::Damage,
+            );
         }
 
         if let Some(spender) = spell.spender {
@@ -527,7 +546,11 @@ impl Fight {
             }
             self.log
                 .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            self.deal(index, damage, LogKind::Damage);
+            self.deal(
+                index,
+                compute_damage(damage, &self.factors),
+                LogKind::Damage,
+            );
             self.resource = 0;
         }
 
