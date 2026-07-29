@@ -160,9 +160,26 @@ export function ruleEventsPayload(): Record<string, unknown> {
   emit(RULE_DAMAGE, 0, 1, 60_010);
   emit(RULE_DAMAGE, 0, 1 + Number.EPSILON, 60_020);
 
+  // Dieselbe Aufzeichnung wie in `cooldown-precision.json`, diesmal nach ihrer
+  // EREIGNISFOLGE gefragt. Das ist der eigentliche Abgleich: dieselbe
+  // Tastenfolge muss auf beiden Seiten dieselben Ereignisse in derselben
+  // Reihenfolge ergeben. Der Wert steht hier und nicht in
+  // `cooldown-precision.json`, damit die Datei unberührt bleibt, gegen die
+  // `parity_recording.rs` prüft.
+  const referenz = recordings().get(RECORDING_NAME);
+  if (referenz === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RECORDING_NAME}`);
+  const lauf = replayRecording(referenz);
+
   return {
     schema: SCHEMA,
     eventNames: RULE_EVENT_NAMES,
+    recording: {
+      name: RECORDING_NAME,
+      damage: lauf.damage,
+      killedAtMs: lauf.killedAtMs,
+      ruleEventCount: lauf.ruleEventCount,
+      ruleSequenceChecksum: lauf.ruleSequenceChecksum,
+    },
     steps,
     /** Prüfsumme nach jedem einzelnen Schritt — sagt, WO es auseinanderläuft. */
     checksumAfterEach: after,

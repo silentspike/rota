@@ -20,6 +20,7 @@ import { EVENT_CAST, EVENT_DAMAGE, EVENT_DOT_TICK, type CombatLog } from './log.
 import type { BossDef, SchoolDef, SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
+import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
 
 /** Ausgang eines Wirk-Versuchs. */
 export const CAST_OK = 0;
@@ -79,6 +80,25 @@ export class Combat {
    * zwei Läufen nicht vergleichen.
    */
   log: CombatLog | null = null;
+
+  /**
+   * Das Ereignis-System (GAME-DESIGN 18.3, Issue E3-1b).
+   *
+   * **Erst der Schaden, dann die Wirkung** — Entscheidung des Auftraggebers
+   * vom 2026-07-29. „Zauber gewirkt" meldet eine **abgeschlossene** Handlung:
+   * Ein Empfänger beeinflusst den nächsten Zauber, nicht den laufenden. Der
+   * Zersetzungs-Stapel der PUTREFACTION wirkt damit ab dem nächsten Treffer,
+   * nicht auf den auslösenden.
+   *
+   * Der Grund ist kein Geschmack: Bei der umgekehrten Reihenfolge könnte ein
+   * Effekt den Schaden verändern, der ihn ausgelöst hat, und solche
+   * Rückkopplungen lassen sich in einer Optimums-Suche später nicht mehr
+   * auseinanderdividieren.
+   *
+   * Dieselbe Reihenfolge wie das Kampfprotokoll — zwei Erzählungen desselben
+   * Kampfes, die auseinanderliefen, wären beim Abgleich schlimmer als eine.
+   */
+  readonly events = new RuleEvents();
 
   /** Wiederverwendetes Ergebnis-Objekt, siehe `CastOutcome`. */
   private readonly outcome: CastOutcome = {
@@ -288,6 +308,9 @@ export class Combat {
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
       this.reportHit(damage, HIT_DOT, false, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, i, damage);
+      // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zählen
+      // will, meldet sich für beide Arten an — so bleibt die Folge eindeutig.
+      this.events.emit(RULE_DOT_TICK, i, damage, timeMs);
       this.dotTickCounts[i] = (this.dotTickCounts[i] ?? 0) + 1;
       this.addResource(dot.resourceGainPerTick[this.school.resource.id] ?? 0);
       this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
@@ -373,6 +396,11 @@ export class Combat {
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
       this.reportHit(damage, HIT_DIRECT, false, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
+      this.events.emit(RULE_DAMAGE, index, damage, timeMs);
+      // Hierher gehört `RULE_CRIT`. Es fehlt nicht aus Nachlässigkeit: Krit
+      // ruht in Schritt 1 (PURITY = 0, GAME-DESIGN 6.5), `reportHit` bekommt
+      // überall `false`. Einen Auslöser zu schreiben, der nie zutrifft, wäre
+      // toter Code — die Kennung steht bereit, der Ort ist benannt.
     }
 
     const dot = spell.dot;
@@ -396,6 +424,9 @@ export class Combat {
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
     this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);
+    // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt über Zeit,
+    // Vorrat, Abklingzeit und Wartezeit stehen.
+    this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
 
     outcome.result = CAST_OK;
     outcome.damage = damage;
@@ -469,5 +500,8 @@ export class Combat {
     this.stateValue = FIGHT_RUNNING;
     this.endedAtMs = NOT_ACTIVE;
     this.fightStartedAtMs = 0;
+    // Nur die Folge, nicht die Anmeldungen: Ein neuer Versuch behält seine
+    // Zauber und Talente — er beginnt lediglich wieder bei null Ereignissen.
+    this.events.clearSequence();
   }
 }

@@ -8,6 +8,13 @@
     "boss.phase",
     "buff.expired"
   ],
+  "recording": {
+    "name": "cooldown-precision",
+    "damage": 4240,
+    "killedAtMs": 40510,
+    "ruleEventCount": 72,
+    "ruleSequenceChecksum": 3552421087
+  },
   "steps": [
     {
       "event": 0,
