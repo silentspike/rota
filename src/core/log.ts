@@ -24,25 +24,65 @@
  */
 
 /**
- * Die feste Ereignismenge aus GAME-DESIGN 18.3.
+ * Die Arten eines Protokoll-Eintrags — **ein gemeinsamer Nummernraum mit dem
+ * Simulator** (Issue E3-6).
  *
- * Sie ist bewusst geschlossen: Jeder Zauber, jedes Talent und jeder legendäre
- * Effekt beschreibt nur, auf welches dieser Ereignisse er reagiert.
+ * Bis dahin führten beide Seiten eigene Nummern, und ab der 2 bedeutete
+ * dieselbe Zahl etwas anderes: Eine 3 hieß im Simulator „Entladung", hier
+ * „DoT-Tick"; eine 4 dort „Boss gefallen", hier „Phasenwechsel". Verglichen
+ * hat das nie jemand, deshalb ist es nie aufgefallen — die Auswertung in Epic
+ * E7 liest aber genau diese Daten, und eine verschobene Bedeutung ergäbe eine
+ * Fehleranalyse, die plausibel aussieht und falsch ist.
+ *
+ * **Jede Seite benutzt nur ihre Teilmenge**, statt leere Einträge zu führen:
+ *
+ * | Nr. | Art          | Spiel | Simulator |
+ * | --- | ------------ | ----- | --------- |
+ * | 0   | `cast`       | ja    | ja        |
+ * | 1   | `damage`     | ja    | ja        |
+ * | 2   | `dotTick`    | ja    | ja        |
+ * | 3   | `crit`       | ja    | —         |
+ * | 4   | `spend`      | —     | ja        |
+ * | 5   | `kill`       | —     | ja        |
+ * | 6   | `phase`      | ja    | —         |
+ * | 7   | `buffExpire` | ja    | —         |
+ *
+ * Die Namen stehen auch für die Arten, die diese Seite nie schreibt: Wer ein
+ * fremdes Protokoll liest, soll denselben Namen sehen und nicht ein Fragezeichen.
+ *
+ * `tests/parity/recordings/log-kinds.json` hält die Tabelle fest, und
+ * `sim/tests/log_kinds.rs` prüft die andere Seite dagegen.
  */
 export const EVENT_CAST = 0;
 export const EVENT_DAMAGE = 1;
-export const EVENT_CRIT = 2;
-export const EVENT_DOT_TICK = 3;
-export const EVENT_PHASE = 4;
-export const EVENT_BUFF_EXPIRE = 5;
+export const EVENT_DOT_TICK = 2;
+export const EVENT_CRIT = 3;
+/** Nur der Simulator schreibt sie — hier steht sie für den gemeinsamen Raum. */
+export const EVENT_SPEND = 4;
+/** Nur der Simulator schreibt sie. */
+export const EVENT_KILL = 5;
+export const EVENT_PHASE = 6;
+export const EVENT_BUFF_EXPIRE = 7;
 
 export const EVENT_NAMES: readonly string[] = [
   'cast',
   'damage',
-  'crit',
   'dotTick',
+  'crit',
+  'spend',
+  'kill',
   'phase',
   'buffExpire',
+];
+
+/** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */
+export const EVENT_KINDS_WRITTEN_BY_GAME: readonly number[] = [
+  EVENT_CAST,
+  EVENT_DAMAGE,
+  EVENT_DOT_TICK,
+  EVENT_CRIT,
+  EVENT_PHASE,
+  EVENT_BUFF_EXPIRE,
 ];
 
 /** Kein Zauber-Bezug. */

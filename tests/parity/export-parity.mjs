@@ -5,7 +5,7 @@
  * npx vite-node tests/parity/export-parity.ts
  * ```
  *
- * Vier Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
+ * Fünf Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
  *
  * | Datei | Inhalt |
  * | --- | --- |
@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buffsPayload,
+  logKindsPayload,
   misplaysPayload,
   primitivesPayload,
   recordingPayload,
@@ -66,6 +67,10 @@ const buffs = buffsPayload();
 const buffsPath = join(here, 'recordings', 'buffs.json');
 writeFileSync(buffsPath, serialize(buffs), 'utf8');
 
+const logKinds = logKindsPayload();
+const logKindsPath = join(here, 'recordings', 'log-kinds.json');
+writeFileSync(logKindsPath, serialize(logKinds), 'utf8');
+
 const expected = recording['expected'];
 const checksums = recording['checksums'];
 const presses = recording['presses'];
@@ -93,6 +98,10 @@ console.log(`  Leerlauf-Takte ${m['idleTicks']}`);
 console.log(`  Prüfsummen     ${misplays['checksums'].length} Takte`);
 console.log(`geschrieben: ${ruleEventsPath}`);
 console.log(`geschrieben: ${buffsPath}`);
+console.log(`geschrieben: ${logKindsPath}`);
+console.log(
+  `  Protokoll-Arten ${logKinds['kinds'].length}, davon ${logKinds['writtenByGame'].length} vom Spiel`,
+);
 console.log(`  Verstaerkungen ${buffs['steps'].length} Schritte, ${buffs['replacements']} ersetzt`);
 console.log(
   `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
