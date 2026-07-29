@@ -567,6 +567,23 @@ export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
  * Dieselbe Datei, die `sim/build.rs` einliest — **eine Wahrheit für beide
  * Seiten**. Zwei getrennte Zahlensätze wären genau die Art Abweichung, die
  * kein Prüffall meldet, weil beide Seiten für sich stimmig blieben.
+ *
+ * # Verhältnis zur Ausrüstung (E6)
+ *
+ * `src/gear/slots.ts` führt mit `BASE_STAT_IDS` die **Kennungen** der
+ * Grundwerte (`essence`, `vessel`, `ward`); diese Datei führt ihre **Werte**.
+ * Das sind zwei verschiedene Aussagen, kein Widerspruch.
+ *
+ * **Diese Werte sind der STARTWERT.** Sobald ein Ausrüstungsstück VESSEL
+ * trägt, wird es darauf **addiert** — es ersetzt sie nicht. Heute trägt kein
+ * Stück etwas, also fällt die Frage nicht auf; wer sie zusammenführt, findet
+ * die Antwort hier.
+ *
+ * **Eine Formel fehlt dabei noch, und sie fehlt mit Absicht:** Ein
+ * Ausrüstungs-WARD ist ein Punktwert, `wardReduction` hier ein Anteil
+ * (0,2 = 20 % weniger Schaden). Wie Punkte zu einem Anteil werden, ist eine
+ * Design-Entscheidung und steht in GAME-DESIGN Kapitel 22 als offen. Sie hier
+ * zu erfinden hieße, sie stillschweigend zu treffen.
  */
 export const PLAYER: PlayerBaseDef = (() => {
   const roh = rawPlayer as Record<string, unknown>;
