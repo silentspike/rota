@@ -100,6 +100,27 @@ pub struct Phase {
     pub name: &'static str,
 }
 
+/// Ein Eintrag der Boss-Zeitleiste (GAME-DESIGN 11.1: „Schadens-Ereignisse als
+/// **feste Zeitleiste**“).
+///
+/// **Fest heisst wirklich fest.** Der Boss reagiert nicht auf den Spieler, und
+/// es gibt keine zufaellige Streuung — nur so sind Bestzeiten vergleichbar und
+/// der Kampf ueberhaupt simulierbar (GAME-DESIGN 11.1, Absatz danach).
+///
+/// **Was hier absichtlich fehlt:** die Wirkung. Welcher Baustein was tut, ist
+/// Gegenstand von E4-2 bis E4-6, und welcher Boss welche Eintraege bekommt,
+/// gehoert nach E10 (GAME-DESIGN 22, Zeile „Boss-Zeitleisten“). Dieses Feld ist
+/// das Geruest, das beides spaeter traegt: Der Zeitpunkt wird schon jetzt
+/// taktgenau angesteuert und geht in die Zustands-Pruefsumme ein, damit ein
+/// spaeter angehaengter Baustein nicht auf ungepruefter Zeitrechnung aufsetzt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimelineEntry {
+    /// Zeitpunkt seit Kampfbeginn. Liegt auf dem Takt-Raster des Spiels.
+    pub at_ms: Millis,
+    /// Kennung des Mechanik-Bausteins, der hier greift.
+    pub mechanic: &'static str,
+}
+
 /// Die Energieleiste — die zweite Uhr eines Bosses.
 ///
 /// Aus GAME-DESIGN 11.2, dem ersten der neun Mechanik-Bausteine:
@@ -140,6 +161,8 @@ pub struct Boss {
     pub phases: &'static [Phase],
     /// Die zweite Uhr, falls dieser Boss eine hat.
     pub energy: Option<Energy>,
+    /// Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt.
+    pub timeline: &'static [TimelineEntry],
 }
 
 impl Boss {

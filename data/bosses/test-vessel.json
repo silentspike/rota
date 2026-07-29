@@ -15,7 +15,11 @@
     "threshold": 100,
     "resetTo": 0
   },
-  "timeline": [],
+  "timeline": [
+    { "atMs": 5000, "mechanic": "placeholder" },
+    { "atMs": 20000, "mechanic": "placeholder" },
+    { "atMs": 45000, "mechanic": "placeholder" }
+  ],
   "resistances": {},
   "signature": null
 }

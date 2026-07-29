@@ -78,5 +78,6 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Abgleich meldete Übereinstimmung, wo keine ist.
   h = mixInt(h, combat.bossPhase);
   h = mixInt(h, combat.bossEnergy);
+  h = mixInt(h, combat.timelineIndex);
   return h >>> 0;
 }

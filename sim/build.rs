@@ -460,7 +460,63 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     );
     emit_phases(out, boss, whose);
     emit_energy(out, boss, whose);
+    emit_timeline(out, boss, whose);
     let _ = writeln!(out, "    }},");
+}
+
+/// Das Takt-Raster des Spiels in Millisekunden (`TICK_MS` in `lib.rs`).
+///
+/// Hier noch einmal als Zahl, weil ein Bau-Skript die eigene Kiste nicht
+/// einbinden kann. Wandert der Takt jemals, faellt es sofort auf: Der Test
+/// `das_raster_im_bauskript_passt_zum_takt` vergleicht beide Werte.
+const RASTER_MS: u64 = 10;
+
+/// Die feste Abfolge der Boss-Handlungen (GAME-DESIGN 11.1).
+///
+/// Zwei Bedingungen werden hier erzwungen, weil beide Verstoesse **still**
+/// waeren — der Kampf liefe weiter und rechnete nur falsch:
+///
+/// 1. **Aufsteigend sortiert.** Der Kampf haelt einen Zeiger und rueckt ihn
+///    vor; ein Eintrag hinter einem spaeteren wuerde nie ausgeloest.
+/// 2. **Auf dem Takt-Raster.** Das Spiel rechnet alle zehn Millisekunden, der
+///    Simulator springt von Ereignis zu Ereignis. Ein Eintrag bei 333 ms
+///    griffe im Simulator bei 333, im Spiel erst bei 340 — die Paritaet waere
+///    hin, und zwar nur bei diesem einen Boss.
+fn emit_timeline(out: &mut String, boss: &Value, whose: &str) {
+    let Some(list) = boss.get("timeline").and_then(Value::as_array) else {
+        let _ = writeln!(out, "        timeline: &[],");
+        return;
+    };
+    if list.is_empty() {
+        let _ = writeln!(out, "        timeline: &[],");
+        return;
+    }
+
+    let mut voriger = 0_u64;
+    let mut erster = true;
+    let _ = writeln!(out, "        timeline: &[");
+    for (index, entry) in list.iter().enumerate() {
+        let whose = format!("{whose}/timeline[{index}]");
+        let at = uint(entry, "atMs", &whose);
+        assert!(
+            erster || at > voriger,
+            "{whose}: Die Zeitleiste muss aufsteigend stehen, \
+             {at} ms kommt nach {voriger} ms"
+        );
+        assert!(
+            at % RASTER_MS == 0,
+            "{whose}: {at} ms liegt nicht auf dem {RASTER_MS}-ms-Raster des \
+             Spiels — der Simulator loeste frueher aus als das Spiel"
+        );
+        voriger = at;
+        erster = false;
+        let _ = writeln!(
+            out,
+            "            TimelineEntry {{ at_ms: {at}, mechanic: {:?} }},",
+            text(entry, "mechanic", &whose)
+        );
+    }
+    let _ = writeln!(out, "        ],");
 }
 
 /// Die Phasen-Schwellen eines Bosses (GAME-DESIGN 11.1).
@@ -518,6 +574,14 @@ fn emit_energy(out: &mut String, boss: &Value, whose: &str) {
     assert!(
         per_step > 0,
         "{whose}: perStepMs muss groesser als null sein, sonst stuende die Uhr"
+    );
+    // Dieselbe Falle wie bei der Zeitleiste, nur wiederkehrend: Bei 333 ms
+    // stiege die Leiste im Simulator bei 333/666/999, im Spiel bei 340/670/1000
+    // — der Abstand waechst mit jedem Schritt.
+    assert!(
+        per_step % RASTER_MS == 0,
+        "{whose}: perStepMs {per_step} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         des Spiels — Simulator und Spiel liefen mit jedem Anstieg weiter auseinander"
     );
     let threshold = uint(energy, "threshold", &whose);
     assert!(
