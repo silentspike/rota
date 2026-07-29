@@ -155,9 +155,7 @@ describe('Der Kampf gegen den Boss mit Phasen taugt als Prüffall (#96)', () => 
     // dem nichts weiß.
     expect(expected['finalPhase']).toBe(2);
     expect(expected['energyTriggers']).toBeGreaterThan(0);
-    expect(expected['finalTimelineIndex']).toBe(
-      (boss['timeline'] as unknown[]).length,
-    );
+    expect(expected['finalTimelineIndex']).toBe((boss['timeline'] as unknown[]).length);
   });
 
   it('AC2: die Phase wechselt genau an der Schwelle, auf einen Takt genau', () => {
@@ -225,7 +223,6 @@ describe('Der Kampf gegen den Boss mit Phasen taugt als Prüffall (#96)', () => 
     expect(energie.length).toBe(checksums.length);
     expect(zeitleiste.length).toBe(checksums.length);
   });
-
 });
 
 describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {
