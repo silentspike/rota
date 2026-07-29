@@ -589,6 +589,22 @@ export class Combat {
   }
 
   /**
+   * Die Abklingzeit **eines** Zaubers auf null setzen.
+   *
+   * Für den Cooldown-Rücksetzer (SUBLIMATION, Issue E3-3c). Er ist ein
+   * Auswahlmodus: Der Spieler sagt ausdrücklich, welchen Zauber er meint —
+   * deshalb genau einer und nicht alle, und deshalb hier statt in
+   * `setCooldownsReady`, das ein Entwicklungs-Werkzeug ist.
+   *
+   * @returns false, wenn es den Zauber nicht gibt.
+   */
+  clearCooldown(index: number): boolean {
+    if (index < 0 || index >= this.cooldownReadyAtMs.length) return false;
+    this.cooldownReadyAtMs[index] = 0;
+    return true;
+  }
+
+  /**
    * Alle laufenden Abklingzeiten verkürzen (SUBLIMATION, GAME-DESIGN 4.1).
    *
    * **Nur laufende.** Ein Zauber, der bereit ist, bleibt unberührt — sonst

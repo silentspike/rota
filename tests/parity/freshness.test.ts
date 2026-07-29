@@ -27,6 +27,7 @@ import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
 import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
+import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import {
   bossStatePayload,
@@ -36,6 +37,7 @@ import {
   ruleEventsPayload,
   buffsPayload,
   logKindsPayload,
+  cooldownResetPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -66,6 +68,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Protokoll-Arten entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteProtokollArten, HINWEIS).toEqual(logKindsPayload());
+  });
+
+  it('der Auswahlmodus entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterAuswahlmodus, HINWEIS).toEqual(cooldownResetPayload());
   });
 
   it('der Kampf gegen den Boss mit Phasen entspricht dem heutigen Spielstand', () => {
