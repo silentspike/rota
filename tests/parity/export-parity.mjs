@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   cooldownResetPayload,
+  gearPayload,
   logKindsPayload,
   bossStatePayload,
   misplaysPayload,
@@ -82,6 +83,10 @@ const cooldownReset = cooldownResetPayload();
 const cooldownResetPath = join(here, 'recordings', 'cooldown-reset.json');
 writeFileSync(cooldownResetPath, serialize(cooldownReset), 'utf8');
 
+const gear = gearPayload();
+const gearPath = join(here, 'recordings', 'gear.json');
+writeFileSync(gearPath, serialize(gear), 'utf8');
+
 const expected = recording['expected'];
 const checksums = recording['checksums'];
 const presses = recording['presses'];
@@ -120,6 +125,10 @@ console.log(`geschrieben: ${buffsPath}`);
 console.log(`geschrieben: ${logKindsPath}`);
 console.log(`geschrieben: ${cooldownResetPath}`);
 console.log(`  Auswahlmodus  ${cooldownReset['steps'].length} Schritte`);
+console.log(`geschrieben: ${gearPath}`);
+console.log(
+  `  Ausruestung   ${gear['poolSteps'].length} Topf-Schritte, ${gear['budgets'].length} Budgets, ${gear['undecidedSlots'].length} Plaetze offen`,
+);
 console.log(
   `  Protokoll-Arten ${logKinds['kinds'].length}, davon ${logKinds['writtenByGame'].length} vom Spiel`,
 );

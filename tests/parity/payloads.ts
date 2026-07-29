@@ -25,6 +25,30 @@ import { bossById, BOSSES, CALCINATION, FIRST_CRUCIBLE, parseSchool } from '../.
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
 import {
+  POOL_CATALYSIS,
+  POOL_COUNT,
+  POOL_ESSENCE,
+  POOL_GEAR_EFFECTS,
+  POOL_NAMES,
+  POOL_YIELD,
+  ValuePools,
+} from '../../src/gear/pools.js';
+import {
+  QUALITY_COUNT,
+  QUALITY_HAS_EFFECT,
+  QUALITY_NAMES,
+  QUALITY_STAT_SLOTS,
+  budgetOf,
+  distributeBudget,
+} from '../../src/gear/budget.js';
+import {
+  BASE_STAT_IDS,
+  SLOT_NAMES,
+  SLOT_SPECIAL,
+  SPECIAL_NAMES,
+  undecidedSlots,
+} from '../../src/gear/slots.js';
+import {
   NO_SUBJECT,
   RULE_BOSS_PHASE,
   RULE_BUFF_EXPIRED,
@@ -658,4 +682,113 @@ export function cooldownResetPayload(): Record<string, unknown> {
 /** So werden die Dateien geschrieben — an einer Stelle festgelegt. */
 export function serialize(payload: unknown): string {
   return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+/**
+ * Die exakten Bits einer Gleitkommazahl, als 16 Hexzeichen.
+ *
+ * **Warum die Dezimalschreibweise nicht reicht.** `serde_json` liest
+ * `1.6500000000000001` als `1.65` — ein Bit daneben. Gemessen am 2026-07-29:
+ * Rusts eigener Zahlenleser (`str::parse::<f64>`) trifft den Wert, der von
+ * `serde_json` nicht. Und es ist nicht einmal systematisch —
+ * `1.0000000000000002` geht durch, `1.6500000000000001` nicht. Ein Vergleich
+ * über die Dezimalschreibweise ist damit grün aus Glück, nicht aus
+ * Konstruktion.
+ *
+ * Die Zahl steht deshalb **zweimal** in der Datei: einmal dezimal, damit der
+ * Diff lesbar bleibt, und einmal als Bitmuster, weil nur das den Vergleich
+ * trägt.
+ */
+function bitsOf(value: number): string {
+  const buffer = new ArrayBuffer(8);
+  new DataView(buffer).setFloat64(0, value);
+  return Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Die vier Töpfe, das Werte-Budget und die zehn Plätze (Issue E6-1).
+ *
+ * **Warum das ohne einen einzigen ausgelieferten Gegenstand aussagekräftig
+ * ist:** Der Gegenstands-Katalog steht noch nicht (GAME-DESIGN 22, vor E6).
+ * Geprüft wird deshalb die Rechenregel, nicht ihr Inhalt — dieselbe Lage wie
+ * beim Auswahlmodus (#102), wo der Nachweis auch ohne ausgelieferten Zauber
+ * getragen hat. Die Regel ist ohne den Katalog vollständig; die Zahlen darin
+ * sind ausdrücklich vorläufig (13.1b: „nicht festgelegt, sondern gemessen").
+ */
+export function gearPayload(): Record<string, unknown> {
+  // Eine feste Folge von Beiträgen. Sie deckt beide Regeln ab: gleiche Töpfe
+  // addieren, verschiedene multiplizieren — und enthält den Fall, um den es
+  // in 13.1b eigentlich geht (Satz-Bonus neben legendärem Effekt).
+  const beitraege: readonly [number, number, string][] = [
+    [POOL_ESSENCE, 0.2, 'ESSENCE aus einem Gegenstand'],
+    [POOL_ESSENCE, 0.3, 'ESSENCE aus einem zweiten — addiert sich zu 0,5'],
+    [POOL_CATALYSIS, 0.1, 'CATALYSIS — eigener Faktor, multipliziert'],
+    [POOL_GEAR_EFFECTS, 0.3, 'Sechser-Satz'],
+    [POOL_GEAR_EFFECTS, 0.2, 'legendärer Effekt — 50 %, NICHT 56 %'],
+    [POOL_YIELD, 0.25, 'YIELD — dritter eigener Faktor'],
+  ];
+
+  const pools = new ValuePools();
+  const poolSteps: Record<string, unknown>[] = [];
+  for (const [pool, share, was] of beitraege) {
+    pools.add(pool, share);
+    let hash = FNV_OFFSET;
+    for (let index = 0; index < POOL_COUNT; index++) {
+      hash = mixFloat(hash, pools.factor(index));
+    }
+    hash = mixFloat(hash, pools.product());
+    poolSteps.push({
+      was,
+      pool,
+      share,
+      shareBits: bitsOf(share),
+      factors: Array.from({ length: POOL_COUNT }, (_, index) => pools.factor(index)),
+      factorBits: Array.from({ length: POOL_COUNT }, (_, index) => bitsOf(pools.factor(index))),
+      product: pools.product(),
+      productBits: bitsOf(pools.product()),
+      checksum: hash >>> 0,
+    });
+  }
+
+  // Die Stufenleiter. Nicht alle 100 Stufen — die Aussage steckt in den
+  // Rändern und einigen Punkten dazwischen, und eine Datei mit 400 Zeilen
+  // liest im Diff niemand mehr.
+  const stufen = [1, 2, 3, 10, 25, 50, 75, 100];
+  const budgets: Record<string, unknown>[] = [];
+  for (let quality = 0; quality < QUALITY_COUNT; quality++) {
+    const slots = QUALITY_STAT_SLOTS[quality] ?? 0;
+    for (const level of stufen) {
+      const werte = new Int32Array(slots);
+      distributeBudget(level, quality, werte);
+      let hash = FNV_OFFSET;
+      hash = mixInt(hash, level);
+      hash = mixInt(hash, quality);
+      hash = mixInt(hash, budgetOf(level, quality));
+      for (const wert of werte) hash = mixInt(hash, wert);
+      budgets.push({
+        quality,
+        level,
+        budget: budgetOf(level, quality),
+        shares: Array.from(werte),
+        checksum: hash >>> 0,
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    poolNames: POOL_NAMES,
+    qualityNames: QUALITY_NAMES,
+    qualityStatSlots: QUALITY_STAT_SLOTS,
+    qualityHasEffect: QUALITY_HAS_EFFECT,
+    slotNames: SLOT_NAMES,
+    baseStatIds: BASE_STAT_IDS,
+    slotSpecial: SLOT_SPECIAL,
+    specialNames: SPECIAL_NAMES,
+    undecidedSlots: undecidedSlots(),
+    poolSteps,
+    budgets,
+  };
 }

@@ -146,3 +146,37 @@ canvas {
   -webkit-user-select: none;
   touch-action: none;
 }
+
+/* --- Werte-Karte am Gegenstand (GAME-DESIGN 13.1b, Issue E6-1) -------------
+   Additive und multiplikative Werte sind an ZWEI Merkmalen zu unterscheiden:
+   an der Schreibweise (+20% gegen x1.20) und an der Farbe. Zwei Merkmale,
+   weil eine Farbe allein nicht trägt. */
+.rota-gear-card {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 4px;
+  min-width: 18rem;
+}
+
+.rota-gear-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 55%);
+}
+
+/* Additiv: die ruhige, gewohnte Farbe — das ist der Normalfall. */
+.rota-stat-additive {
+  color: #cfd6dd;
+}
+
+/* Multiplikativ: eigene Farbe, weil dieser Wert sich anders verhält.
+   Ein warmer Ton gegen den kühlen Normalfall — der Unterschied bleibt
+   auch bei Rot-Grün-Blindheit als Helligkeits- und Temperaturunterschied
+   erhalten, und die Schreibweise trägt ihn ohnehin allein. */
+.rota-stat-multiplicative {
+  color: #ffc14d;
+  font-weight: 600;
+}
