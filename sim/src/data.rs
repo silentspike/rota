@@ -297,11 +297,40 @@ mod tests {
 
     #[test]
     fn die_drei_zauber_aus_schritt_1_sind_da() {
-        assert_eq!(SPELL_COUNT, 3, "Schritt 1 hat genau drei Zauber");
+        // Drei Schadenszauber, dazu seit Issue #110 der Unterbrecher. Er zaehlt
+        // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
+        // und kommt in keiner der vier Pruefrotationen vor.
+        assert_eq!(SPELL_COUNT, 4);
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
         assert_eq!(index_of("gibtesnicht"), None);
+
+        // Nicht ueber `base_damage` gezaehlt: SMOULDER ist ein Brand-Effekt und
+        // PYRE ein Entlader, beide haben 0 Sofortschaden. Der Unterbrecher
+        // unterscheidet sich nicht durch den Schaden, sondern durch die Rolle.
+        let kampfzauber = SPELLS.iter().filter(|s| !s.interrupt).count();
+        assert_eq!(kampfzauber, 3, "Schritt 1 hat genau drei Kampfzauber");
+    }
+
+    #[test]
+    fn der_unterbrecher_ist_die_einzige_ausnahme_von_der_wartezeit() {
+        // GAME-DESIGN 6.6: **Genau eine** Ausnahme. Ein zweiter Zauber ohne
+        // globale Wartezeit waere eine Design-Aenderung, die sich in eine
+        // Datendatei einschleichen koennte, ohne dass jemand sie beschliesst.
+        let ohne_gcd: Vec<&str> = SPELLS
+            .iter()
+            .filter(|s| !s.triggers_gcd)
+            .map(|s| s.id)
+            .collect();
+        assert_eq!(ohne_gcd, vec!["quench"]);
+
+        let unterbrecher: Vec<&str> = SPELLS
+            .iter()
+            .filter(|s| s.interrupt)
+            .map(|s| s.id)
+            .collect();
+        assert_eq!(unterbrecher, vec!["quench"]);
     }
 
     #[test]

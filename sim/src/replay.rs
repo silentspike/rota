@@ -107,6 +107,16 @@ pub struct ReplayResult {
     pub energy: Vec<u32>,
     /// Stand des Zeitleisten-Zeigers je Takt.
     pub timeline_index: Vec<u32>,
+    /// Verbleibende Lebenspunkte des Spielers je Takt (Issue #110).
+    pub player_hp: Vec<u32>,
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    pub damage_taken: u32,
+    /// Kampfzeit des Spielertods, oder `None`.
+    pub died_at_ms: Option<Millis>,
+    /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
+    pub interrupts_landed: u32,
+    /// Wie oft einer durchgekommen ist.
+    pub interrupts_missed: u32,
 }
 
 /// Wo zwei Prueffsummen-Folgen zum ersten Mal auseinanderlaufen.
