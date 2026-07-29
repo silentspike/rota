@@ -314,7 +314,9 @@ describe('Der Anschluss an den Kampf (E3-1b, AC1)', () => {
 
     expect(combat.events.emittedCount).toBe(0);
     expect(combat.events.sequenceChecksum).not.toBe(vorher);
-    expect(combat.events.receiverIds(RULE_SPELL_CAST)).toEqual(['a']);
+    // Die Schul-Mechanik ist seit E3-2 selbst ein Empfänger und steht mit in
+    // der Liste — das Zurücksetzen darf auch sie nicht abmelden.
+    expect(combat.events.receiverIds(RULE_SPELL_CAST)).toEqual(['stacks:heat', 'a']);
   });
 
   it('ändert die Referenz-Rechnung nicht (AC3)', () => {
