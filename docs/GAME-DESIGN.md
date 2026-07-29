@@ -646,6 +646,33 @@ laufenden 45-s-Balken. **Das macht aus Reagieren Planen.**
 **Normal / Heroisch / Mythisch** je Boss: mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken,
 mehr Punkte. Mit 68 Bossen ergibt das **204 Herausforderungen**.
 
+#### Die Schwierigkeit gehört zur INSTANZ, nicht zur Spielerstufe
+
+_Entschieden am 2026-07-29, nachdem der Auftraggeber die Frage stellte, wie sich Normal und Mythisch
+zu den Stufen 1–100 verhalten._
+
+Instanz 1 auf Mythisch ist für **Stufe ~12** gedacht und wird dort gespielt — härter als Normal, aber
+im selben Stufenbereich. Vorbild ist WoWs klassisches Muster: Dungeon, dann heroischer Dungeon, beide
+auf der Stufe, für die sie gebaut sind.
+
+**Der Widerspruch, den das auflöst:** Zwei bereits getroffene Entscheidungen ließen sich sonst nicht
+beide erfüllen —
+
+| Regel                                                                   | Folgt daraus                                                                  |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Der Ertrag sinkt mit dem Stufenabstand, bei ~20 Stufen praktisch nichts | Instanz 1 Mythisch muss **zeitnah** gespielt werden, sonst wirft es nichts ab |
+| „Ab Höchststufe beginnt das eigentliche Spiel: mythische Schwierigkeit" | Mythisch wäre eine **Endgame**-Sache                                          |
+
+Spielte man Instanz 1 Mythisch erst mit Stufe 100, wäre der Ertrag null — die Stufe existierte
+formal, aber niemand spielte sie.
+
+**„Mythisch ist Endgame" ist damit keine Aussage über die Spielerstufe, sondern über die Instanzen:**
+Das Mythisch der sechs Endgame-Instanzen ist das Schwerste im Spiel, weil sie selbst das Schwerste
+sind — nicht, weil die Schwierigkeitsstufe an eine Spielerstufe gebunden wäre.
+
+Das passt zur bereits beschlossenen Beute-Regel: **Beute auf der Gegenstandsstufe des Bosses.** Wer
+Instanz 1 auf Mythisch mit Stufe 12 spielt, bekommt Gegenstände, die zu Stufe 12 passen.
+
 ---
 
 ## 12. Fortschritt
@@ -773,6 +800,53 @@ auslieferbar.** Als automatischer Test formuliert.
 | -------------- | ---------------------------------------------------------------------------------- |
 | **Talentbaum** | **WIE** die Rotation funktioniert — neue Effekte, kürzere Abklingzeiten, Synergien |
 | **Ausrüstung** | **WIE STARK** die Werte sind                                                       |
+
+### 13.1b Wie sich Werte verrechnen — vier Töpfe
+
+_Entschieden am 2026-07-29 nach Recherche, wie Diablo IV und WoW es tatsächlich machen._
+
+**Das Prinzip: Innerhalb eines Topfes wird addiert, zwischen den Töpfen multipliziert.**
+
+| Topf                          | Inhalt                                        | Verrechnung                                      |
+| ----------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| ESSENCE                       | alle Quellen des Grundwerts                   | additiv, dann **ein** Faktor                     |
+| Sonderwerte                   | CATALYSIS, PURITY, YIELD                      | **je eigener** Faktor                            |
+| Aktive Verstärkungen          | Overdrive, Synergien, Zersetzungs-Stapel      | additiv untereinander                            |
+| **Ausrüstungs-Sondereffekte** | **legendäre Effekte UND Satz-Boni gemeinsam** | **additiv untereinander**, ein Faktor nach außen |
+
+**Warum die Sonderwerte je einen eigenen Faktor bekommen** (WoW-Muster): Weil sie sich
+multiplizieren, will man alle drei mischen statt einen zu stapeln. Das ist der eigentliche
+Designwert — nicht „mehr Zahl", sondern **keine Monokultur**.
+
+**Warum legendäre Effekte und Satz-Boni in DENSELBEN Topf gehören:** Ein Sechser-Bonus von 30 % und
+ein legendärer Effekt von 20 % ergeben 50 %, nicht 56 %. Damit konkurrieren sie fair, und die
+Mischung wird zur echten Abwägung statt zur Frage, was sich besser multipliziert.
+
+> **Die Lektion aus zwei Spielen.** In Diablo IV waren Kritschaden und Verwundbarkeit ursprünglich
+> eigene multiplikative Töpfe. Sie wurden „disproportional stark", jeder Build lief über sie, und
+> Blizzard verschob sie in Saison 2 in den additiven Topf zurück. Diablo 3 verlor dieselbe Schlacht
+> bei den Sätzen: Die Sechser-Boni wurden über Jahre hochgezogen, bis **legendäre Gegenstände ohne
+> Satz-Bonus schlicht ignoriert wurden** — von Spielern wie von Entwicklern.
+>
+> **Was multiplikativ ist, wird gejagt — und alles andere wird liegen gelassen.** Deshalb wenige,
+> klar benannte Multiplikatoren, und deshalb Sätze und Legendäre im selben Topf.
+
+**Die Zahlen stehen ausdrücklich noch nicht fest.** Sie werden nicht festgelegt, sondern **gemessen**:
+Der Balance-Läufer vergleicht den besten Satz-Aufbau gegen den besten Affix-Aufbau je Ausrichtung
+(siehe 13.5, harte Balance-Anforderung).
+
+**Verhältnis zur Schadensformel:** Die sechs Faktoren im Kampf-Kern (`essence`, `talents`, `buffs`,
+`synergy`, `resistance`, `crit`) bleiben unverändert — sie laufen seit E1 und tragen alle
+Prüfsummen. Die vier Töpfe beschreiben, **wie Ausrüstungs-Werte in diese Faktoren einfließen**, nicht
+eine zweite Formel daneben. Ob eine Vereinheitlichung sich lohnt, entscheidet eine Messung.
+
+#### Anzeige: additiv und multiplikativ sind unterscheidbar
+
+Wie in Diablo, wo `[+]%` und `[x]%` am Gegenstand stehen: **Multiplikative Werte bekommen eine eigene
+Schreibweise und Farbe.** Ohne diese Kennzeichnung kann ein Spieler nicht erkennen, warum ein
+Gegenstand viel besser ist als ein scheinbar gleichwertiger — und müsste es außerhalb des Spiels
+nachschlagen. Das ist dieselbe Linie wie bei den Boss-Ankündigungen: Was man zum Spielen wissen muss,
+steht im Spiel.
 
 ### 13.2 Zehn Ausrüstungsplätze
 
