@@ -66,6 +66,8 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Protokoll-Arten entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteProtokollArten, HINWEIS).toEqual(logKindsPayload());
+  });
+
   it('der Kampf gegen den Boss mit Phasen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterBossZustand, HINWEIS).toEqual(bossStatePayload());
   });
