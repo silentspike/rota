@@ -17,9 +17,11 @@ import { TICK_MS } from '../../src/core/loop.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
+import { Session } from '../../src/core/session.js';
+import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat } from '../../src/core/combat.js';
-import { bossById, BOSSES, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { bossById, BOSSES, CALCINATION, FIRST_CRUCIBLE, parseSchool } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
 import {
@@ -581,6 +583,76 @@ export function logKindsPayload(): Record<string, unknown> {
     })),
     writtenByGame: [...EVENT_KINDS_WRITTEN_BY_GAME],
   };
+}
+
+/**
+ * Eine feste Folge am Auswahlmodus des Rücksetzers (Issue E3-3c).
+ *
+ * **Aussagekräftig wie bei den Verstärkungen, nicht trivial wie bei der
+ * Sublimation:** Der Modus hängt an keinem ausgelieferten Zauber. Was er tut
+ * — Abklingzeit auf null, Wartezeit auslösen, verpuffen — lässt sich auf
+ * beiden Seiten mit denselben Schritten nachrechnen.
+ *
+ * Der Zustand nach jedem Schritt geht als Prüfsumme in die Datei: die
+ * Restzeiten aller Zauber, die Wartezeit und die beiden Zähler.
+ */
+export function cooldownResetPayload(): Record<string, unknown> {
+  const school = parseSchool({
+    schema: 1,
+    school: 'CALCINATION',
+    resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+    spells: [
+      { id: 'lang', name: 'Lang', cooldownMs: 30_000, baseDamage: 50 },
+      { id: 'kurz', name: 'Kurz', cooldownMs: 1500, baseDamage: 10 },
+      // Kurze Abklingzeit, damit die Folge ihn ZWEIMAL benutzen kann — einmal
+      // in die Selbstwahl, einmal in den Treffer. Die echte Zahl steht noch
+      // nicht fest (Issue #102, „eigene Abklingzeit: offen").
+      { id: 'reset', name: 'Reset', cooldownMs: 3000, baseDamage: 0, armsCooldownReset: true },
+    ],
+  });
+  if (school.problems.length > 0) throw new Error(school.problems.join(' '));
+
+  const queue = new PressQueue();
+  const combat = new Combat({ school: school.value, boss: FIRST_CRUCIBLE.value });
+  const session = new Session(queue, combat);
+  for (let slot = 0; slot < 3; slot++) session.bind(slot, slot);
+  session.startFight(0);
+
+  const steps: Record<string, unknown>[] = [];
+  const druecke = (slot: number, timeMs: number, was: string): void => {
+    queue.push(slot, timeMs / TICK_MS, 0, 0);
+    session.tick(timeMs);
+
+    let hash = FNV_OFFSET;
+    hash = mixInt(hash, timeMs);
+    for (let i = 0; i < combat.spells.length; i++) {
+      hash = mixFloat(hash, combat.cooldownRemainingMs(i, timeMs));
+      hash = mixInt(hash, combat.castCount(i));
+    }
+    hash = mixFloat(hash, combat.gcd.remainingMs(timeMs));
+    hash = mixInt(hash, session.resetsAppliedCount);
+    hash = mixInt(hash, session.resetsWastedCount);
+
+    steps.push({
+      was,
+      timeMs,
+      armed: session.isResetArmed,
+      applied: session.resetsAppliedCount,
+      wasted: session.resetsWastedCount,
+      readyAt: combat.spells.map((_, i) => combat.cooldownRemainingMs(i, timeMs)),
+      gcdRemainingMs: combat.gcd.remainingMs(timeMs),
+      checksum: hash >>> 0,
+    });
+  };
+
+  druecke(0, 0, 'LANG wirken — 30 s Abklingzeit');
+  druecke(2, 1500, 'Ruecksetzer wirken — Modus wird scharf');
+  druecke(2, 3000, 'sich selbst waehlen — verpufft, Modus verbraucht');
+  druecke(2, 4500, 'Ruecksetzer erneut wirken — wieder scharf');
+  druecke(0, 6000, 'LANG waehlen — Abklingzeit faellt auf null');
+  druecke(0, 7500, 'LANG erneut wirken — der Nachdruck');
+
+  return { schema: SCHEMA, gcdMs: GCD_MS, steps };
 }
 
 /** So werden die Dateien geschrieben — an einer Stelle festgelegt. */
