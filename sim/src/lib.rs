@@ -66,6 +66,7 @@ pub mod data;
 pub mod event;
 pub mod factors;
 pub mod fight;
+pub mod gear;
 pub mod log;
 pub mod replay;
 pub mod report;
