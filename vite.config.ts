@@ -23,6 +23,13 @@ export default defineConfig(({ mode }) => ({
             input: {
               main: 'index.html',
               soundboard: 'soundboard.html',
+              // Die Prüfblätter aus Epic E7. Sie liegen bewusst hier und nicht
+              // hinter einer nginx-Location: Eine Location in /etc/nginx/ zeigt
+              // auf einen Worktree im gerade ausgecheckten Branch und ist damit
+              // Evidence, die nur auf einem Rechner funktioniert. Als
+              // Eingangsseite sieht jeder dasselbe, der den Entwicklungs-Bau
+              // ausführt.
+              saveCheck: 'docs/save-check/index.html',
             },
           },
         }),
