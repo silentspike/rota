@@ -83,6 +83,25 @@ export const FIGHT_OVERPRESSURE = 2;
 
 export const NOT_ACTIVE = -1;
 
+// -- PUTREFACTION (Issue #97) --
+//
+// Die drei Größen der Zersetzungs-Stapel. **Alle drei sind vorläufig und
+// werden gemessen** (GAME-DESIGN 4.1, Teil F.6): Wie viel ein Stapel trägt,
+// wie viele es höchstens gibt und wie lange sie halten, bestimmt der
+// Balance-Läufer — nicht diese Datei. Sie tragen bis dahin die Prüffälle.
+//
+// Der Simulator führt dieselben drei Werte in `fight.rs`; die Prüfsumme je
+// Takt hält beide Seiten zusammen.
+
+/** Wie viele Stapel höchstens gleichzeitig liegen. Wird gemessen. */
+export const MAX_DECAY_STACKS = 5;
+
+/** Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht. Wird gemessen. */
+export const DECAY_STACK_PERCENT = 3;
+
+/** Wie lange ein einzelner Stapel hält. Wird gemessen. */
+export const DECAY_STACK_DURATION_MS = 12_000;
+
 /**
  * Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
  *
@@ -193,6 +212,21 @@ export class Combat {
    * hineingeschrieben wird — der Grund steht bei `factorsOnCrit`.
    */
   private readonly factors: MutableFactors;
+  /**
+   * Ablaufzeiten der Zersetzungs-Stapel, **aufsteigend** — der älteste vorn.
+   *
+   * **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Ein gemeinsamer
+   * Verfall war die verworfene Bauart: Er hätte jeden Zwischenfall im Kampf
+   * den ganzen Aufbau gekostet.
+   *
+   * Ein Feld fester Länge statt einer wachsenden Liste: Der Kampf darf im
+   * laufenden Bild nichts erzeugen (18.2).
+   */
+  private readonly decayExpiryMs = new Float64Array(MAX_DECAY_STACKS);
+
+  /** Wie viele Stapel gerade liegen. */
+  private decayCountValue = 0;
+
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
   private readonly worn: WornValues;
   /**
@@ -741,6 +775,85 @@ export class Combat {
    * Steht bei den passiven Wirkungen, weil beides allein an der Uhr hängt —
    * wie die Energieleiste des Bosses.
    */
+  /**
+   * Legt Zersetzungs-Stapel an (PUTREFACTION, GAME-DESIGN 4.1).
+   *
+   * **Die Obergrenze verbraucht nichts.** Eine Wirkung über der Grenze erhöht
+   * nichts und nimmt auch nichts weg — sie erneuert insbesondere nicht die Uhr
+   * des ältesten Stapels. Sonst hielte man den Aufbau ewig oben, ohne je
+   * nachzulegen, und „verfallen langsam" wäre wirkungslos.
+   */
+  private applyPutrefaction(spell: SpellDef, timeMs: number): void {
+    const decay = spell.decay;
+    if (decay === undefined) return;
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    for (let i = 0; i < decay.stacks; i++) {
+      if (this.decayCountValue >= MAX_DECAY_STACKS) break;
+      // Ans Ende, weil der neue am spätesten verfällt — die Liste bleibt damit
+      // aufsteigend, ohne je zu sortieren.
+      this.decayExpiryMs[this.decayCountValue] = seitBeginn + DECAY_STACK_DURATION_MS;
+      this.decayCountValue++;
+    }
+    this.updateVulnerability();
+  }
+
+  /**
+   * Lässt abgelaufene Stapel verfallen — **den ältesten zuerst**.
+   *
+   * Die Liste steht aufsteigend, also stehen die abgelaufenen vorn. Was bleibt,
+   * rückt auf; die jüngeren behalten ihre eigene Restzeit.
+   */
+  private expirePutrefaction(timeMs: number): void {
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    let verfallen = 0;
+    while (verfallen < this.decayCountValue && (this.decayExpiryMs[verfallen] ?? 0) <= seitBeginn) {
+      verfallen++;
+    }
+    if (verfallen === 0) return;
+    for (let i = verfallen; i < this.decayCountValue; i++) {
+      this.decayExpiryMs[i - verfallen] = this.decayExpiryMs[i] ?? 0;
+    }
+    this.decayCountValue -= verfallen;
+    this.updateVulnerability();
+  }
+
+  /**
+   * Rechnet die Verwundbarkeit aus den liegenden Stapeln.
+   *
+   * **Über `setDamageFactor`** (Issue #196): Nur so zieht die vorab angelegte
+   * Krit-Fassung mit. Direkt auf `this.factors` zu schreiben ließe jeden
+   * kritischen Treffer mit dem alten Wert rechnen — der Quelltext-Wächter aus
+   * #196 fängt das, und genau dafür wurde er gebaut.
+   *
+   * **Ganzzahlig bis zur letzten Teilung.** `(100 + n · p) / 100` ist auf
+   * beiden Seiten dieselbe Rechnung; `1 + n · p / 100` wäre es nicht zwingend
+   * (18.4).
+   */
+  private updateVulnerability(): void {
+    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
+  }
+
+  /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
+  get decayStacks(): number {
+    return this.decayCountValue;
+  }
+
+  /**
+   * Wann der Stapel an Platz `index` verfällt, in Kampfzeit. 0 für unbelegt.
+   *
+   * Für die Prüfsumme: Die Zahl der Stapel allein genügt nicht — zwei Läufe
+   * mit gleich vielen, aber verschieden alten Stapeln laufen gleich weiter,
+   * bis der erste verfällt.
+   */
+  decayExpiryAt(index: number): number {
+    return index < this.decayCountValue ? (this.decayExpiryMs[index] ?? 0) : 0;
+  }
+
+  /** Die Verwundbarkeit, die daraus folgt. 1,0 ohne Stapel. */
+  get vulnerability(): number {
+    return this.factors.vulnerability;
+  }
+
   private expireCoagulation(timeMs: number): void {
     const seitBeginn = timeMs - this.fightStartedAtMs;
     // Die Frist der Phasen-Senkung ist um, ohne dass ein Wechsel stattfand.
@@ -1153,6 +1266,7 @@ export class Combat {
     // Zauber beginnt zu laufen und trifft erst nach seiner Wirkzeit.
     //
     this.expireCoagulation(timeMs);
+    this.expirePutrefaction(timeMs);
 
     // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
     // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
@@ -1305,6 +1419,7 @@ export class Combat {
     // festzulegen und nicht dann.
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
+    this.applyPutrefaction(spell, timeMs);
 
     // **Ein Wurf für die ganze Wirkung**, und er fällt genau dann, wenn der
     // Zauber **laut seinen Daten** Schaden austeilen kann — nicht danach, ob am
