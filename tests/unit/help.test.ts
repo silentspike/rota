@@ -26,8 +26,18 @@ const HELP: HelpEntry[] = [
     effect: 'Deals fire damage and builds heat.',
     values: '100 damage, 1.5 s cooldown, +3 heat',
   },
-  { id: 'ESSENCE', subject: 'stat', title: 'ESSENCE (Strength of the substance)', effect: 'Raises the damage of every process.' },
-  { id: 'crucible-flare', subject: 'bossAbility', title: 'Flare', effect: 'The vessel vents heat. Interruptible.' },
+  {
+    id: 'ESSENCE',
+    subject: 'stat',
+    title: 'ESSENCE (Strength of the substance)',
+    effect: 'Raises the damage of every process.',
+  },
+  {
+    id: 'crucible-flare',
+    subject: 'bossAbility',
+    title: 'Flare',
+    effect: 'The vessel vents heat. Interruptible.',
+  },
 ];
 
 describe('AC3 — Klartext neben jedem Fachbegriff', () => {
@@ -36,7 +46,13 @@ describe('AC3 — Klartext neben jedem Fachbegriff', () => {
   });
 
   it('kennt alle fuenf Schulen', () => {
-    for (const schule of ['CALCINATION', 'FIXATION', 'SUBLIMATION', 'COAGULATION', 'PUTREFACTION']) {
+    for (const schule of [
+      'CALCINATION',
+      'FIXATION',
+      'SUBLIMATION',
+      'COAGULATION',
+      'PUTREFACTION',
+    ]) {
       expect(SCHOOL_PLAIN[schule], schule).toBeTruthy();
       expect(withPlainText(schule)).toContain('(');
     }
@@ -96,7 +112,16 @@ describe('Keine Rotations-Empfehlung, nirgends', () => {
     const texte = HELP.map((e) => `${e.title} ${e.effect} ${e.values ?? ''} ${e.synergies ?? ''}`)
       .join(' ')
       .toLowerCase();
-    for (const wort of ['should', 'optimal', 'better', 'instead', 'rotation', 'before', 'after you', 'always cast']) {
+    for (const wort of [
+      'should',
+      'optimal',
+      'better',
+      'instead',
+      'rotation',
+      'before',
+      'after you',
+      'always cast',
+    ]) {
       expect(texte, `"${wort}" darf nicht vorkommen`).not.toContain(wort);
     }
   });
