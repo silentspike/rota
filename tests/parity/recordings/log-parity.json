@@ -101,7 +101,7 @@
     "damage": 15,
     "dotTick": 0,
     "crit": 0,
-    "phase": 0,
+    "phase": 1,
     "buffExpire": 0,
     "bossTimelineFired": 3,
     "playerDamage": 2,
@@ -116,6 +116,6 @@
     "interruptsLanded": 1,
     "healed": 240,
     "timelineIndex": 3,
-    "logEntries": 41
+    "logEntries": 42
   }
 }

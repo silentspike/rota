@@ -928,8 +928,14 @@ impl Fight {
             self.shield_expires_at = Some(self.time + shield.duration_ms);
             self.queue
                 .push(self.time + shield.duration_ms, EventKind::Wakeup);
-            self.log
-                .push(self.time, LogKind::Cast, index as u8, self.shield);
+            // **Kein eigener Cast-Eintrag hier** (Issue #151). Er stand bis
+            // dahin daneben und ergab fuer CRUST ZWEI Zeilen: diese und die
+            // regulaere am Ende von `cast`. Das Spiel schreibt nur eine —
+            // gefunden, weil der Prueffall die ZAHL je Art vergleicht und
+            // nicht ihr Vorkommen.
+            //
+            // Der Aufbau der Schicht braucht auch keine eigene Art: Was sie
+            // leistet, steht in `ShieldAbsorb`, sobald sie etwas auffaengt.
         }
 
         // Weg 2 — Heilung.
