@@ -45,6 +45,8 @@ import {
   coagulationPayload,
   fixationPayload,
   logParityPayload,
+  timelineLoopPayload,
+  TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -91,6 +93,10 @@ writeFileSync(fixationPath, serialize(fixation), 'utf8');
 const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
+
+const timelineLoop = timelineLoopPayload();
+const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);
+writeFileSync(timelineLoopPath, serialize(timelineLoop), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');

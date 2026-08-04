@@ -60,8 +60,13 @@ pub enum EventKind {
     /// zwei Ereignisse auf demselben Zeitpunkt in beiden Umsetzungen gleich
     /// laufen.
     TimelineStep {
-        /// Index des Eintrags in `Boss::timeline`.
-        index: u16,
+        /// Fortschrittszaehler der Zeitleiste, **nicht** der Platz in der Liste.
+        ///
+        /// `u32`, seit sich die Zeitleiste wiederholen kann (#174): Der Zaehler
+        /// waechst dann ueber die Laenge der Liste hinaus. Ein `as u16` haette
+        /// still abgeschnitten, der Abgleich in `timeline_step` waere
+        /// fehlgeschlagen — und die Puppe haette einfach aufgehoert zu handeln.
+        index: u32,
     },
     /// Ein laufender Boss-Zauber ist fertig gewirkt und trifft — **falls** er
     /// nicht inzwischen unterbrochen wurde.
@@ -70,8 +75,8 @@ pub enum EventKind {
     /// eine passive Wirkung wie sie, und der Spieler soll im selben Takt noch
     /// entscheiden koennen.
     BossCastLands {
-        /// Index des Eintrags in `Boss::timeline`.
-        index: u16,
+        /// Fortschrittszaehler der Zeitleiste, siehe [`EventKind::TimelineStep`].
+        index: u32,
     },
     /// Nur aufwachen: Zu diesem Zeitpunkt kann sich eine Entscheidung ergeben
     /// (Abklingzeit oder globale Wartezeit ist abgelaufen), oder es ist zu
