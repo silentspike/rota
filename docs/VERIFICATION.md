@@ -405,12 +405,14 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 
 ## 7. Häufige Fehler bei der Abnahme — an mich selbst
 
-| Fehler                                   | Warum er passiert                                             | Gegenmittel                                                           |
-| ---------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
-| **Self-Grading**                         | „Der Code sieht korrekt aus" fühlt sich wie Prüfen an         | Kein Befehl = ungeprüft. Ausnahmslos                                  |
-| **Schwellwert anpassen**                 | Die Messung liegt knapp daneben, die Grenze wirkt willkürlich | Die Grenze steht im Design. Der Code wird angepasst, nicht die Grenze |
-| **Nachlassende Strenge**                 | Bei Issue 40 wirkt vieles „offensichtlich"                    | Issue 40 bekommt exakt dasselbe Verfahren wie Issue 1                 |
-| **Alte Nachweise wiederverwenden**       | Spart Zeit                                                    | Der Code hat sich geändert. Neu messen                                |
-| **Dem Melde-Format des Workers glauben** | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                    |
+| Fehler                                       | Warum er passiert                                             | Gegenmittel                                                                                                                                  |
+| -------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Self-Grading**                             | „Der Code sieht korrekt aus" fühlt sich wie Prüfen an         | Kein Befehl = ungeprüft. Ausnahmslos                                                                                                         |
+| **Schwellwert anpassen**                     | Die Messung liegt knapp daneben, die Grenze wirkt willkürlich | Die Grenze steht im Design. Der Code wird angepasst, nicht die Grenze                                                                        |
+| **Nachlassende Strenge**                     | Bei Issue 40 wirkt vieles „offensichtlich"                    | Issue 40 bekommt exakt dasselbe Verfahren wie Issue 1                                                                                        |
+| **Alte Nachweise wiederverwenden**           | Spart Zeit                                                    | Der Code hat sich geändert. Neu messen                                                                                                       |
+| **`browser`-Nachweise gegen den Dev-Server** | Dort funktioniert mehr als im Auslieferungs-Bau               | Jeder `browser`-Nachweis gilt nur im **gebauten** Stand über nginx. Bei Issue #16 lieferte die Route HTTP 200 und trotzdem die falsche Seite |
+| **Eine URL weitergeben, ohne sie zu öffnen** | Die Route antwortet, der Worker hat es geprüft                | Selbst aufrufen. Bei #16 habe ich genau das versäumt — der Auftraggeber bekam eine schwarze Seite                                            |
+| **Dem Melde-Format des Workers glauben**     | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                                                                                           |
 
 <!-- Prüflauf Pfad-Filter, 2026-07-27T15:29:45Z -->
