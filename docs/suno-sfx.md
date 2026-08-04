@@ -279,6 +279,33 @@ Läuft keine Browser-Sitzung, startet `playwright-cli` bei einem solchen Befehl 
 neue — die ist dann aber nicht eingeloggt. Deshalb: Sitzung offen lassen, oder nach dem Login
 `save-state` aufrufen und bei Bedarf mit `state-load` wiederherstellen.
 
+**Genau dieser Satz beschrieb am 2026-08-04 einen Datenverlust, den der Code nicht verhinderte**
+(Issue #199): `refresh_state()` sicherte die nicht angemeldete Sitzung über die funktionierende
+Datei. `state-save` meldet dabei Erfolg — es gibt ja einen Browser-Kontext, er ist nur leer.
+Wiederhergestellt wurde der Zugang nur, weil zufällig zwei alte Kopien in anderen Arbeitsbäumen
+lagen.
+
+Seither prüft `refresh_state()`, **bevor** es schreibt (gemessen, siehe unten):
+
+| Schritt                | Verhalten                                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Sichern                | immer nach `.suno-state.json.neu`, nie direkt auf die Datei                                                     |
+| Prüfen                 | `__client` **und** `clerk_active_context` mit `session_id` — dasselbe Muster, das `session_id()` später benutzt |
+| Fehlt eines der beiden | verworfen nach `.suno-state.json.verworfen`, die Datei bleibt unangetastet, Rückgabewert `False`                |
+| Beide vorhanden        | vorherige Datei nach `.suno-state.json.bak`, dann ersetzen                                                      |
+
+`save-state` meldet bei Ablehnung **Rückgabewert 1** — vorher meldete auch dieser Fall `0`.
+
+Alle drei Dateien fallen unter `.suno-state.json*` in der `.gitignore`: es sind dieselben Cookies
+im Klartext, nur unter anderem Namen.
+
+Gemessen am 2026-08-04, echter Fehlzustand über den Browser (nicht simuliert):
+
+```
+alter Code   1082726 Bytes -> 1091599 Bytes, clerk_active_context weg, meldet True
+neuer Code   1082726 Bytes -> 1082726 Bytes (Prüfsumme gleich), auth-test danach Rückgabewert 0
+```
+
 ### 7.4 Captcha-Verhalten (gemessen)
 
 Suno verlangt **nicht immer** einen Verifikations-Token, aber die Vertrauensstufe sinkt bei
