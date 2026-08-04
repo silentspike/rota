@@ -3,7 +3,14 @@ import { CAST_OK, Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs } from '../../src/core/haste.js';
-import { NOTHING_WORN, critChance, critFactor, type WornValues } from '../../src/gear/worn.js';
+import {
+  NOTHING_WORN,
+  critChance,
+  critFactor,
+  gearEffectFactor,
+  isNothingWorn,
+  type WornValues,
+} from '../../src/gear/worn.js';
 
 /**
  * Die Ausrüstungswerte kommen im Kampf an (GAME-DESIGN 6.7, Issue #177) —
@@ -52,7 +59,7 @@ describe('Ohne getragene Ausrüstung ändert sich nichts (AC7)', () => {
   it('zieht MIT PURITY sehr wohl — der Gegenfall', () => {
     // Ohne ihn bliebe die Zeile darüber auch dann grün, wenn der Kampf
     // überhaupt nie würfelt.
-    const combat = combatMit({ catalysis: 0, purity: 500, yieldBonus: 0 });
+    const combat = combatMit({ catalysis: 0, purity: 500, yieldBonus: 0, gearEffects: 0 });
     combat.beginFight(0);
     combat.cast(combat.indexOf('kindle'), 0);
     expect(combat.random.totalDraws).toBeGreaterThan(0);
@@ -61,7 +68,7 @@ describe('Ohne getragene Ausrüstung ändert sich nichts (AC7)', () => {
   it('würfelt auch bei 100 % PURITY nicht — dort steht das Ergebnis fest', () => {
     // `chance` schließt bei 1 genauso kurz wie bei 0. Am Deckel ist Krit kein
     // Zufall mehr (6.7), und ein Wurf wäre Verschwendung.
-    const combat = combatMit({ catalysis: 0, purity: 1000, yieldBonus: 0 });
+    const combat = combatMit({ catalysis: 0, purity: 1000, yieldBonus: 0, gearEffects: 0 });
     combat.beginFight(0);
     combat.cast(combat.indexOf('kindle'), 0);
     expect(combat.random.totalDraws).toBe(0);
@@ -76,7 +83,7 @@ describe('Tempo verkürzt Abklingzeiten (AC2, erster Wirkort)', () => {
     expect(hastedMs(pyre, 200)).toBe(4170); // 5000/1,2 = 4166,67 -> aufgerastert
 
     const ohne = combatMit(NOTHING_WORN);
-    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0 });
+    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0, gearEffects: 0 });
     for (const c of [ohne, mit]) {
       c.beginFight(0);
       // PYRE braucht Hitze; ohne sie wirkt er zwar, teilt aber keinen Schaden
@@ -93,7 +100,7 @@ describe('Tempo verkürzt Abklingzeiten (AC2, erster Wirkort)', () => {
   it('macht ihn dadurch früher wieder bereit', () => {
     // Die Folge der Zeile darüber, und sie ist der eigentliche Zweck: Eine
     // kürzere Zahl, die niemanden früher handeln lässt, wäre wirkungslos.
-    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0 });
+    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0, gearEffects: 0 });
     mit.beginFight(0);
     mit.cast(mit.indexOf('pyre'), 0);
     const index = mit.indexOf('pyre');
@@ -117,7 +124,7 @@ describe('Tempo verdichtet DoT-Ticks (AC2, zweiter Wirkort)', () => {
     expect(hastedMs(2000, 200)).toBe(1670);
 
     const ohne = combatMit(NOTHING_WORN);
-    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0 });
+    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0, gearEffects: 0 });
     for (const c of [ohne, mit]) {
       c.beginFight(0);
       expect(c.cast(c.indexOf('smoulder'), 0).result).toBe(CAST_OK);
@@ -134,7 +141,7 @@ describe('Tempo verdichtet DoT-Ticks (AC2, zweiter Wirkort)', () => {
 
   it('gibt über die volle Laufzeit mehr Ticks ab', () => {
     const ohne = combatMit(NOTHING_WORN);
-    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0 });
+    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0, gearEffects: 0 });
     for (const c of [ohne, mit]) {
       c.beginFight(0);
       c.cast(c.indexOf('smoulder'), 0);
@@ -153,7 +160,7 @@ describe('Die Dauer bleibt, die Ticks werden mehr (AC4)', () => {
     // **Der Kern von 6.7**: Schrumpfte die Dauer mit dem Tempo, verschöbe sich
     // der optimale Erneuerungszeitpunkt (7.2) bei jedem Ausrüstungswechsel.
     const ohne = combatMit(NOTHING_WORN);
-    const mit = combatMit({ catalysis: 500, purity: 0, yieldBonus: 0 });
+    const mit = combatMit({ catalysis: 500, purity: 0, yieldBonus: 0, gearEffects: 0 });
     for (const c of [ohne, mit]) {
       c.beginFight(0);
       c.cast(c.indexOf('smoulder'), 0);
@@ -171,7 +178,7 @@ describe('Die Dauer bleibt, die Ticks werden mehr (AC4)', () => {
     // WoW zahlt ihn aus, wenn der Rest mindestens 0,1 s beträgt; bei uns wäre
     // das eine Kommazahl im **Schaden**, also genau dort, wo Spiel und
     // Simulator bitgleich sein müssen.
-    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0 });
+    const mit = combatMit({ catalysis: 200, purity: 0, yieldBonus: 0, gearEffects: 0 });
     mit.beginFight(0);
     mit.cast(mit.indexOf('smoulder'), 0);
     stepUntil(mit, 0, 12_010);
@@ -191,7 +198,7 @@ describe('PURITY und YIELD wirken auf den Krit (AC5)', () => {
     // einzelnen: Ein einzelner Wurf sagt über eine Rate nichts.
     const treffer = 200;
     let krits = 0;
-    const combat = combatMit({ catalysis: 0, purity: 500, yieldBonus: 0 });
+    const combat = combatMit({ catalysis: 0, purity: 500, yieldBonus: 0, gearEffects: 0 });
     combat.beginFight(0);
     combat.onHit = (_damage, _kind, crit, _big, _t) => {
       if (crit) krits++;
@@ -223,8 +230,8 @@ describe('PURITY und YIELD wirken auf den Krit (AC5)', () => {
   it('YIELD erhöht den Kritschaden — eigener Nachweis', () => {
     // Damit ausschließlich YIELD gemessen wird, kritet in beiden Läufen JEDER
     // Treffer (PURITY 100 %). Sonst mischte sich der Zufall der Rate hinein.
-    const nurPurity = combatMit({ catalysis: 0, purity: 1000, yieldBonus: 0 });
-    const mitYield = combatMit({ catalysis: 0, purity: 1000, yieldBonus: 500 });
+    const nurPurity = combatMit({ catalysis: 0, purity: 1000, yieldBonus: 0, gearEffects: 0 });
+    const mitYield = combatMit({ catalysis: 0, purity: 1000, yieldBonus: 500, gearEffects: 0 });
     for (const c of [nurPurity, mitYield]) {
       c.beginFight(0);
       c.cast(c.indexOf('kindle'), 0);
@@ -237,7 +244,7 @@ describe('PURITY und YIELD wirken auf den Krit (AC5)', () => {
 
   it('YIELD ohne PURITY bewirkt nichts — die Abwägung, die 6.7 zumutet', () => {
     const ohne = combatMit(NOTHING_WORN);
-    const nurYield = combatMit({ catalysis: 0, purity: 0, yieldBonus: 500 });
+    const nurYield = combatMit({ catalysis: 0, purity: 0, yieldBonus: 500, gearEffects: 0 });
     for (const c of [ohne, nurYield]) {
       c.beginFight(0);
       c.cast(c.indexOf('kindle'), 0);
@@ -248,10 +255,10 @@ describe('PURITY und YIELD wirken auf den Krit (AC5)', () => {
 
   it('rechnet die beiden Werte so um, wie 6.7 es festlegt', () => {
     expect(critFactor(NOTHING_WORN)).toBe(1.5);
-    expect(critFactor({ catalysis: 0, purity: 0, yieldBonus: 500 })).toBe(2);
-    expect(critChance({ catalysis: 0, purity: 250, yieldBonus: 0 })).toBe(0.25);
+    expect(critFactor({ catalysis: 0, purity: 0, yieldBonus: 500, gearEffects: 0 })).toBe(2);
+    expect(critChance({ catalysis: 0, purity: 250, yieldBonus: 0, gearEffects: 0 })).toBe(0.25);
     // Über dem Deckel bleibt die Chance eins, statt über eins zu gehen.
-    expect(critChance({ catalysis: 0, purity: 5000, yieldBonus: 0 })).toBe(1);
+    expect(critChance({ catalysis: 0, purity: 5000, yieldBonus: 0, gearEffects: 0 })).toBe(1);
   });
 });
 
@@ -270,12 +277,70 @@ describe('Jeder der drei Werte bewegt etwas — der Gegenfall zum ganzen Issue',
     };
 
     const ohne = lauf(NOTHING_WORN);
-    const nurTempo = lauf({ catalysis: 200, purity: 0, yieldBonus: 0 });
-    const nurPurity = lauf({ catalysis: 0, purity: 1000, yieldBonus: 0 });
-    const mitYield = lauf({ catalysis: 0, purity: 1000, yieldBonus: 1000 });
+    const nurTempo = lauf({ catalysis: 200, purity: 0, yieldBonus: 0, gearEffects: 0 });
+    const nurPurity = lauf({ catalysis: 0, purity: 1000, yieldBonus: 0, gearEffects: 0 });
+    const mitYield = lauf({ catalysis: 0, purity: 1000, yieldBonus: 1000, gearEffects: 0 });
 
     expect(nurTempo, 'CATALYSIS bewegt nichts').not.toBe(ohne);
     expect(nurPurity, 'PURITY bewegt nichts').not.toBe(ohne);
     expect(mitYield, 'YIELD bewegt nichts').not.toBe(nurPurity);
+  });
+});
+
+describe('Topf 4 kommt im Kampf an (Nacharbeit an #177)', () => {
+  /**
+   * **Dieser Block hat einen eigenen Grund, und der ist eine Warnung.**
+   *
+   * Als `gearEffects` zum Feld dazukam, verlangte TypeScript in jedem Literal
+   * dieser Datei einen Wert. Der bequeme Weg wäre gewesen, überall `0`
+   * nachzutragen und fertig — alle Prüfungen blieben grün, und der neue Faktor
+   * wäre **vollständig ungeprüft** durchgegangen.
+   *
+   * Genau dieser Fehler ist am 2026-08-04 einer anderen Sitzung unterlaufen und
+   * steht seitdem im WORKER-GUIDE: „das neue Feld im Testliteral mit dem
+   * neutralen Wert nachgetragen — der Wächter blieb grün, obwohl der Faktor
+   * fehlte."
+   *
+   * Die Nullen oben sind richtig: Jene Fälle prüfen die **Sonderwerte**, und
+   * dort soll Topf 4 nicht mitspielen. Aber sie brauchen diesen Block daneben.
+   */
+
+  it('erhöht den Schaden — der Nachweis, den die Nullen oben nicht führen', () => {
+    const ohne = combatMit(NOTHING_WORN);
+    const mit = combatMit({ catalysis: 0, purity: 0, yieldBonus: 0, gearEffects: 500 });
+    for (const c of [ohne, mit]) {
+      c.beginFight(0);
+      c.cast(c.indexOf('kindle'), 0);
+    }
+    // KINDLE macht 100 Grundschaden, Topf 4 bei +50 % ergibt 150.
+    expect(ohne.damageDealt).toBe(100);
+    expect(mit.damageDealt).toBe(150);
+  });
+
+  it('rechnet eins plus die Summe, wie 13.1b es verlangt', () => {
+    expect(gearEffectFactor(NOTHING_WORN)).toBe(1);
+    expect(gearEffectFactor({ catalysis: 0, purity: 0, yieldBonus: 0, gearEffects: 500 })).toBe(
+      1.5,
+    );
+    // **Satz-Bonus und legendärer Effekt teilen den Topf** (13.1b): 30 % + 20 %
+    // sind 50 %, nicht 56 %. Das ist die Lehre aus Diablo, die dort zitiert wird.
+    expect(gearEffectFactor({ catalysis: 0, purity: 0, yieldBonus: 0, gearEffects: 500 })).not.toBe(
+      1.3 * 1.2,
+    );
+  });
+
+  it('zählt in `isNothingWorn` mit — sonst wäre AC7 blind für ihn', () => {
+    expect(isNothingWorn(NOTHING_WORN)).toBe(true);
+    expect(isNothingWorn({ catalysis: 0, purity: 0, yieldBonus: 0, gearEffects: 1 })).toBe(false);
+  });
+
+  it('lässt ohne getragene Ausrüstung alles unverändert', () => {
+    // Die AC7-Zusicherung aus #177, auf das neue Feld ausgedehnt: Ein Faktor
+    // von exakt 1,0 bewegt in IEEE754 keine einzige Zahl.
+    const combat = combatMit(NOTHING_WORN);
+    combat.beginFight(0);
+    combat.cast(combat.indexOf('kindle'), 0);
+    expect(combat.damageDealt).toBe(100);
+    expect(gearEffectFactor(NOTHING_WORN)).toBe(1);
   });
 });

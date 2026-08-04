@@ -19,6 +19,7 @@ import {
   CRIT_BASE_PERMILLE,
   critChance,
   critFactor,
+  gearEffectFactor,
   type WornValues,
 } from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
@@ -1471,7 +1472,12 @@ export function hastePayload(): Record<string, unknown> {
  * PURITY 375 liegt bewusst zwischen den beiden Kurzschlüssen von `chance`, so
  * dass wirklich gewürfelt wird.
  */
-const WORN_FOR_PARITY: WornValues = { catalysis: 170, purity: 375, yieldBonus: 250 };
+const WORN_FOR_PARITY: WornValues = {
+  catalysis: 170,
+  purity: 375,
+  yieldBonus: 250,
+  gearEffects: 130,
+};
 
 /** Der Name der Vergleichsdatei mit getragener Ausrüstung. */
 export const WORN_NAME = 'worn-values';
@@ -1508,7 +1514,11 @@ export function wornPayload(): Record<string, unknown> {
       catalysis: WORN_FOR_PARITY.catalysis,
       purity: WORN_FOR_PARITY.purity,
       yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      gearEffects: WORN_FOR_PARITY.gearEffects,
     },
+    // Topf 4 als Faktor: eins plus die Summe. Fliesskomma, also mit Bitmuster.
+    gearEffectFactor: gearEffectFactor(WORN_FOR_PARITY),
+    gearEffectFactorBits: bitsOf(gearEffectFactor(WORN_FOR_PARITY)),
     critBasePermille: CRIT_BASE_PERMILLE,
     // Die abgeleiteten Werte stehen mit in der Datei, jeder auch als Bitmuster:
     // Sie sind Fließkommazahlen und gehen in den Schaden ein. Die Regel dieses

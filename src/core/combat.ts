@@ -33,7 +33,13 @@ import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
 import { hastedMs } from './haste.js';
-import { NOTHING_WORN, critChance, critFactor, type WornValues } from '../gear/worn.js';
+import {
+  NOTHING_WORN,
+  critChance,
+  critFactor,
+  gearEffectFactor,
+  type WornValues,
+} from '../gear/worn.js';
 import {
   RULE_CRIT,
   RULE_DAMAGE,
@@ -315,8 +321,15 @@ export class Combat {
     this.nextEnergyAtMs = options.boss.energy?.perStepMs ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
-    this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
     this.worn = options.worn ?? NOTHING_WORN;
+    // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt: Ausrüstung
+    // wird zwischen den Kämpfen gewechselt (13.1). Ohne getragene Ausrüstung
+    // ist der Faktor exakt 1,0 — die Multiplikation bewegt dann keine Zahl.
+    this.factors = {
+      ...NEUTRAL_FACTORS,
+      resistance: this.resistanceFactor,
+      gearEffects: gearEffectFactor(this.worn),
+    };
     this.factorsOnCrit = { ...this.factors, crit: critFactor(this.worn) };
 
     // Die Schul-Mechanik hört ab hier auf Ereignisse (E3-2). Eine Zeile für
