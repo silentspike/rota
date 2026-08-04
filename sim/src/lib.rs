@@ -57,6 +57,8 @@
 
 pub mod apl;
 pub mod balance;
+// Issue #118: die Suche nach dem besten Aufbau.
+pub mod best_build;
 // Issue E3-5: Verstaerkungen und Synergie-Fenster.
 pub mod buffs;
 pub mod checksum;
@@ -67,6 +69,9 @@ pub mod event;
 pub mod factors;
 pub mod fight;
 pub mod gear;
+// Issue #118: die Balance-Messung der Ausruestung.
+pub mod gear_balance;
+// Issue #177: Tempo wirkt auf Zeiten.
 pub mod haste;
 pub mod log;
 pub mod replay;
