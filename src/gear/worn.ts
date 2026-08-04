@@ -28,7 +28,7 @@
  * Prüfsumme.
  */
 
-/** Die drei Sonderwerte, wie sie im Kampf ankommen. */
+/** Was der Spieler trägt: die drei Sonderwerte aus 6.2 und Topf 4 aus 13.1b. */
 export interface WornValues {
   /** CATALYSIS in Promille. */
   readonly catalysis: number;
@@ -36,6 +36,24 @@ export interface WornValues {
   readonly purity: number;
   /** YIELD in Promille, **zusätzlich** zur Basis aus `CRIT_BASE_PERMILLE`. */
   readonly yieldBonus: number;
+  /**
+   * **Topf 4** in Promille: Satz-Boni **und** legendäre Effekte zusammen
+   * (13.1b).
+   *
+   * # Warum dieses Feld erst nach #177 kam
+   *
+   * #177 hat die drei Sonderwerte aus 6.2 verdrahtet. Topf 4 blieb liegen,
+   * obwohl der Befund im Issue ihn ausdrücklich nannte — keine einzige AC hat
+   * ihn aufgeführt. Aufgefallen ist es bei #118, wo „bester Satz-Aufbau gegen
+   * besten Affix-Aufbau" gemessen werden soll und die Satz-Seite gar nicht im
+   * Kampf ankam.
+   *
+   * # Eine Verdrahtung, zwei Quellen
+   *
+   * 13.1b legt Satz-Boni und legendäre Effekte in **denselben** Topf, wo sie
+   * untereinander addiert werden. Nach außen ist es ein Faktor.
+   */
+  readonly gearEffects: number;
 }
 
 /**
@@ -46,12 +64,30 @@ export interface WornValues {
  */
 export const CRIT_BASE_PERMILLE = 1500;
 
-/** Nichts getragen — alle drei Werte null. */
-export const NOTHING_WORN: WornValues = { catalysis: 0, purity: 0, yieldBonus: 0 };
+/** Nichts getragen — alle vier Werte null. */
+export const NOTHING_WORN: WornValues = {
+  catalysis: 0,
+  purity: 0,
+  yieldBonus: 0,
+  gearEffects: 0,
+};
 
 /** Ob überhaupt etwas getragen wird. */
 export function isNothingWorn(worn: WornValues): boolean {
-  return worn.catalysis === 0 && worn.purity === 0 && worn.yieldBonus === 0;
+  return (
+    worn.catalysis === 0 && worn.purity === 0 && worn.yieldBonus === 0 && worn.gearEffects === 0
+  );
+}
+
+/**
+ * Der Faktor von Topf 4 für die Schadensformel.
+ *
+ * **Eins plus die Summe** — dieselbe Regel wie in `ValuePools.factor`, nur
+ * ganzzahlig hereingegeben. Ohne getragene Ausrüstung ist es exakt 1,0, und 1,0
+ * ist in IEEE754 die exakte Eins: Der Faktor bewegt dann keine einzige Zahl.
+ */
+export function gearEffectFactor(worn: WornValues): number {
+  return 1 + worn.gearEffects / 1000;
 }
 
 /**

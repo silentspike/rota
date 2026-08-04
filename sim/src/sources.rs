@@ -161,6 +161,32 @@ pub fn total_max(stat: usize, item_level: u32) -> u32 {
     sum
 }
 
+/// Was ein **einzelner legendaerer Effekt** zu Topf 4 beitraegt, in Promille.
+///
+/// **Vorlaeufig — der Wert wird gemessen (#118).** Eine Begruendung, warum
+/// ausgerechnet diese Zahl, gibt es nicht und soll es nicht geben: Eine Zahl
+/// mit Begruendungs-Anschein waere schlimmer als eine offen gesetzte (6.7).
+pub const LEGENDARY_EFFECT_PERMILLE: u32 = 200;
+
+/// Was ein **Satz-Bonus** je Werte-Stufe zu Topf 4 beitraegt, in Promille.
+/// **Vorlaeufig — der Wert wird gemessen (#118).**
+pub const SET_BONUS_PERMILLE: u32 = 150;
+
+/// Wie viele Satz-Stufen Werte-Boni tragen (13.5).
+///
+/// Die oberste traegt Rotations-Effekte statt Werten. Abgeleitet aus
+/// [`crate::sets::SET_TIERS`], nicht abgetippt.
+pub const SET_VALUE_TIERS: u32 = crate::sets::SET_TIERS.len() as u32 - 1;
+
+/// Topf 4 aus getragenen legendaeren Effekten und Satz-Stufen.
+///
+/// **Beide Quellen, eine Zahl** — der Zweck des gemeinsamen Topfes (13.1b):
+/// Innerhalb wird addiert, also konkurrieren sie, statt sich zu multiplizieren.
+#[must_use]
+pub fn gear_effects_permille(legendaries: u32, set_tiers: u32) -> u32 {
+    legendaries * LEGENDARY_EFFECT_PERMILLE + set_tiers.min(SET_VALUE_TIERS) * SET_BONUS_PERMILLE
+}
+
 /// Der Aufbau, der **alles** auf einen Wert setzt.
 ///
 /// Ohne Overdrive gerechnet — ein Dauerwert, der einen befristeten Spitzenwert
@@ -172,6 +198,30 @@ pub fn pure_build(stat: usize, item_level: u32) -> WornValues {
         catalysis: if stat == STAT_CATALYSIS { alles } else { 0 },
         purity: if stat == STAT_PURITY { alles } else { 0 },
         yield_bonus: if stat == STAT_YIELD { alles } else { 0 },
+        gear_effects: 0,
+    }
+}
+
+/// Der **Satz-Aufbau**: dasselbe Budget, aber vollstaendig in Topf 4.
+///
+/// # Was hier gegen was antritt (13.5, Issue #118)
+///
+/// > Satz-Boni und **Affixe** muessen **etwa gleichwertig** sein. Kippt es in
+/// > die eine Richtung, tragen alle nur Saetze; kippt es in die andere, sind
+/// > die Saetze wertlos.
+///
+/// Der Unterschied ist nicht die Menge, sondern die **Verrechnung**: Ein
+/// Affix-Aufbau verteilt sein Budget auf drei Wirkwege, die sich
+/// multiplizieren; ein Satz-Aufbau sammelt alles in einem Topf, in dem
+/// addiert wird (13.1b).
+///
+/// **Beide bekommen deshalb dasselbe Budget** — sonst verglichen man nicht
+/// zwei Wege, sondern zwei Budgets.
+#[must_use]
+pub fn set_build(reference_stat: usize, item_level: u32) -> WornValues {
+    WornValues {
+        gear_effects: permanent_max(reference_stat, item_level),
+        ..WornValues::none()
     }
 }
 
@@ -188,13 +238,14 @@ pub fn mixed_build(reference_stat: usize, item_level: u32) -> WornValues {
         catalysis: drittel,
         purity: drittel,
         yield_bonus: drittel,
+        gear_effects: 0,
     }
 }
 
 /// Was ein Aufbau insgesamt einsetzt — fuer den fairen Vergleich.
 #[must_use]
 pub const fn build_total(build: &WornValues) -> u32 {
-    build.catalysis + build.purity + build.yield_bonus
+    build.catalysis + build.purity + build.yield_bonus + build.gear_effects
 }
 
 #[cfg(test)]
@@ -259,6 +310,41 @@ mod tests {
                 "Bezugswert {name}: {rein} gegen {gemischt}"
             );
         }
+    }
+
+    #[test]
+    fn die_beiden_quellen_von_topf_4_addieren_sich() {
+        // **AC3 von #195.** Ein Prueffall, der nur zeigt "beide zusammen sind
+        // staerker", belegt nichts — das gilt additiv wie multiplikativ. Die
+        // Zahlen muessen AUSEINANDERLIEGEN.
+        assert_eq!(
+            gear_effects_permille(1, 1),
+            LEGENDARY_EFFECT_PERMILLE + SET_BONUS_PERMILLE
+        );
+
+        let additiv = 1.0 + 0.2 + 0.15;
+        let multiplikativ = 1.2 * 1.15;
+        assert_ne!(
+            additiv, multiplikativ,
+            "die beiden Faelle sind nicht unterscheidbar — der Prueffall taugt nichts"
+        );
+
+        let worn = WornValues {
+            gear_effects: gear_effects_permille(1, 1),
+            ..WornValues::none()
+        };
+        assert!((worn.gear_effect_factor() - additiv).abs() < 1e-12);
+        assert!((worn.gear_effect_factor() - multiplikativ).abs() > 1e-3);
+    }
+
+    #[test]
+    fn die_oberste_satz_stufe_traegt_keine_werte() {
+        // 13.5: Rotations-Effekte auf der sechsten Stufe, Werte darunter.
+        assert_eq!(
+            gear_effects_permille(0, 99),
+            SET_VALUE_TIERS * SET_BONUS_PERMILLE
+        );
+        assert_eq!(SET_VALUE_TIERS, 2);
     }
 
     #[test]

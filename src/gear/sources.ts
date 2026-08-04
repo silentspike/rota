@@ -220,6 +220,40 @@ export function totalMax(stat: number, itemLevel: number = MAX_ITEM_LEVEL): numb
 export const SET_VALUE_TIERS = SET_TIERS.length - 1;
 
 /**
+ * Was ein **einzelner legendärer Effekt** zu Topf 4 beiträgt, in Promille.
+ *
+ * **Vorläufig — der Wert wird gemessen (#118).** Hier steht er, damit Topf 4
+ * überhaupt eine Quelle hat; eine Begründung, warum ausgerechnet diese Zahl,
+ * gibt es nicht und soll es nicht geben. Eine Zahl mit Begründungs-Anschein
+ * wäre schlimmer als eine offen gesetzte (6.7).
+ */
+export const LEGENDARY_EFFECT_PERMILLE = 200;
+
+/**
+ * Was ein **Satz-Bonus** je Werte-Stufe zu Topf 4 beiträgt, in Promille.
+ *
+ * **Vorläufig — der Wert wird gemessen (#118).** 13.5 gibt nur die Struktur
+ * vor: Werte-Boni auf den unteren Stufen (zwei und vier Teile),
+ * Rotations-Effekte auf der sechsten.
+ */
+export const SET_BONUS_PERMILLE = 150;
+
+/**
+ * Topf 4 aus getragenen legendären Effekten und Satz-Stufen.
+ *
+ * **Beide Quellen, eine Zahl** — genau das ist der Zweck des gemeinsamen
+ * Topfes (13.1b): Innerhalb wird addiert, also konkurrieren sie, statt sich zu
+ * multiplizieren. Lägen sie getrennt, schlüge die Kombination aus beidem jede
+ * andere Ausrichtung, und alles ohne Satz-Bonus würde liegen gelassen — die
+ * Lehre aus Diablo, die 13.1b zitiert.
+ */
+export function gearEffectsPermille(legendaries: number, setTiers: number): number {
+  const l = legendaries > 0 ? legendaries : 0;
+  const t = setTiers > 0 ? Math.min(setTiers, SET_VALUE_TIERS) : 0;
+  return l * LEGENDARY_EFFECT_PERMILLE + t * SET_BONUS_PERMILLE;
+}
+
+/**
  * Ein Aufbau: was der Spieler aus jeder Quelle tatsächlich zieht, in Promille.
  *
  * Gebraucht für den Vergleich aus AC4 — ein reiner Tempo-Aufbau gegen einen
