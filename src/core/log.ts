@@ -66,16 +66,67 @@
  * `tests/parity/recordings/log-kinds.json` hält die Tabelle fest, und
  * `sim/tests/log_kinds.rs` prüft die andere Seite dagegen.
  */
-export const EVENT_CAST = 0;
-export const EVENT_DAMAGE = 1;
-export const EVENT_DOT_TICK = 2;
-export const EVENT_CRIT = 3;
+/**
+ * **Die eine Quelle des Nummernraums** (Issue #138).
+ *
+ * Schlüssel ist der Name, Wert die Kennnummer — beides untrennbar in einem
+ * Eintrag. Eine Art hinzuzufügen bringt zwangsläufig beides mit.
+ *
+ * # Was hier bis Issue #138 stand
+ *
+ * **Zwei parallele Listen von Hand**: die `EVENT_`-Konstanten mit ihren
+ * Nummern, und `EVENT_NAMES`, in dem der **Index die Nummer war**. Wer eine
+ * Konstante anlegte und die Namensliste nicht erweiterte, bekam an dieser
+ * Stelle `undefined` — und umgekehrt.
+ *
+ * Das war nicht nur unschön. `logKindsPayload()` erzeugt
+ * `tests/parity/recordings/log-kinds.json` aus dieser Liste, und genau diese
+ * Datei ist die Gegenseite, gegen die `sim/tests/log_kinds.rs` prüft. Wären
+ * die beiden Spiel-Listen auseinandergelaufen, hätte der Wächter **gegen eine
+ * falsche Wahrheit verglichen**, ohne es bemerken zu können.
+ *
+ * Auf der Rust-Seite ist derselbe Fehler seit #134 unmöglich — dort erzeugt
+ * ein Makro Varianten, Aufzählung und Namen aus einer Liste. Hier tut es
+ * dieses Objekt.
+ *
+ * # Warum die Nummern ausgeschrieben stehen
+ *
+ * Sie ließen sich aus der Reihenfolge ableiten. Sie stehen trotzdem da, weil
+ * der Nummernraum ein **Format zwischen zwei Programmen** ist: Wer einen
+ * Eintrag in der Mitte einfügt, verschiebt sonst stillschweigend alle
+ * folgenden Nummern — und ein aufgezeichnetes Protokoll bedeutete danach
+ * etwas anderes. Ausgeschrieben sieht man beim Einfügen, dass man eine neue
+ * Nummer vergeben muss.
+ */
+const EVENT_KINDS = {
+  cast: 0,
+  damage: 1,
+  dotTick: 2,
+  crit: 3,
+  spend: 4,
+  kill: 5,
+  phase: 6,
+  buffExpire: 7,
+  bossEnergyTriggered: 8,
+  bossTimelineFired: 9,
+  playerDamage: 10,
+  playerDeath: 11,
+  interruptLanded: 12,
+  shieldAbsorb: 13,
+  healed: 14,
+  convertedToShield: 15,
+} as const;
+
+export const EVENT_CAST = EVENT_KINDS.cast;
+export const EVENT_DAMAGE = EVENT_KINDS.damage;
+export const EVENT_DOT_TICK = EVENT_KINDS.dotTick;
+export const EVENT_CRIT = EVENT_KINDS.crit;
 /** Nur der Simulator schreibt sie — hier steht sie für den gemeinsamen Raum. */
-export const EVENT_SPEND = 4;
+export const EVENT_SPEND = EVENT_KINDS.spend;
 /** Nur der Simulator schreibt sie. */
-export const EVENT_KILL = 5;
-export const EVENT_PHASE = 6;
-export const EVENT_BUFF_EXPIRE = 7;
+export const EVENT_KILL = EVENT_KINDS.kill;
+export const EVENT_PHASE = EVENT_KINDS.phase;
+export const EVENT_BUFF_EXPIRE = EVENT_KINDS.buffExpire;
 /**
  * Die Energieleiste des Bosses hat **ausgelöst** (Issue #96).
  *
@@ -87,7 +138,7 @@ export const EVENT_BUFF_EXPIRE = 7;
  *
  * Nur der Simulator schreibt sie.
  */
-export const EVENT_BOSS_ENERGY_TRIGGERED = 8;
+export const EVENT_BOSS_ENERGY_TRIGGERED = EVENT_KINDS.bossEnergyTriggered;
 /**
  * Ein Eintrag der Boss-Zeitleiste ist **fällig geworden** (Issue #96).
  *
@@ -96,38 +147,32 @@ export const EVENT_BOSS_ENERGY_TRIGGERED = 8;
  *
  * Nur der Simulator schreibt sie.
  */
-export const EVENT_BOSS_TIMELINE_FIRED = 9;
+export const EVENT_BOSS_TIMELINE_FIRED = EVENT_KINDS.bossTimelineFired;
 /** Nur der Simulator schreibt sie — Schaden am Spieler (Issue #110). */
-export const EVENT_PLAYER_DAMAGE = 10;
+export const EVENT_PLAYER_DAMAGE = EVENT_KINDS.playerDamage;
 /** Nur der Simulator schreibt sie — der Spieler ist gestorben (#110). */
-export const EVENT_PLAYER_DEATH = 11;
+export const EVENT_PLAYER_DEATH = EVENT_KINDS.playerDeath;
 /** Nur der Simulator schreibt sie — ein Boss-Zauber wurde unterbrochen (#110). */
-export const EVENT_INTERRUPT_LANDED = 12;
+export const EVENT_INTERRUPT_LANDED = EVENT_KINDS.interruptLanded;
 /** Nur der Simulator schreibt sie — die Schutzschicht hat aufgefangen (#79). */
-export const EVENT_SHIELD_ABSORB = 13;
+export const EVENT_SHIELD_ABSORB = EVENT_KINDS.shieldAbsorb;
 /** Nur der Simulator schreibt sie — der Spieler wurde geheilt (#79). */
-export const EVENT_HEALED = 14;
+export const EVENT_HEALED = EVENT_KINDS.healed;
 /** Nur der Simulator schreibt sie — Schaden wurde in Schutz verwandelt (#79). */
-export const EVENT_CONVERTED_TO_SHIELD = 15;
+export const EVENT_CONVERTED_TO_SHIELD = EVENT_KINDS.convertedToShield;
 
-export const EVENT_NAMES: readonly string[] = [
-  'cast',
-  'damage',
-  'dotTick',
-  'crit',
-  'spend',
-  'kill',
-  'phase',
-  'buffExpire',
-  'bossEnergyTriggered',
-  'bossTimelineFired',
-  'playerDamage',
-  'playerDeath',
-  'interruptLanded',
-  'shieldAbsorb',
-  'healed',
-  'convertedToShield',
-];
+/**
+ * Die Namen, **Index gleich Kennnummer** — aus [`EVENT_KINDS`] erzeugt.
+ *
+ * Über die Werte aufgebaut und nicht über die Schlüsselreihenfolge: So hängt
+ * die Zuordnung an der ausgeschriebenen Nummer und nicht daran, in welcher
+ * Reihenfolge jemand die Einträge hingeschrieben hat.
+ */
+export const EVENT_NAMES: readonly string[] = (() => {
+  const namen: string[] = [];
+  for (const [name, kind] of Object.entries(EVENT_KINDS)) namen[kind] = name;
+  return namen;
+})();
 
 /** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */
 export const EVENT_KINDS_WRITTEN_BY_GAME: readonly number[] = [
