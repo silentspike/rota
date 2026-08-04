@@ -4,6 +4,12 @@ import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs } from '../../src/core/haste.js';
 import {
+  LEGENDARY_EFFECT_PERMILLE,
+  SET_BONUS_PERMILLE,
+  SET_VALUE_TIERS,
+  gearEffectsPermille,
+} from '../../src/gear/sources.js';
+import {
   NOTHING_WORN,
   critChance,
   critFactor,
@@ -342,5 +348,86 @@ describe('Topf 4 kommt im Kampf an (Nacharbeit an #177)', () => {
     combat.cast(combat.indexOf('kindle'), 0);
     expect(combat.damageDealt).toBe(100);
     expect(gearEffectFactor(NOTHING_WORN)).toBe(1);
+  });
+});
+
+describe('Zwei Quellen, ein Topf (Issue #195)', () => {
+  it('lässt einen legendären Effekt allein wirken (AC1)', () => {
+    const ohne = combatMit(NOTHING_WORN);
+    const mit = combatMit({
+      catalysis: 0,
+      purity: 0,
+      yieldBonus: 0,
+      gearEffects: gearEffectsPermille(1, 0),
+    });
+    for (const c of [ohne, mit]) {
+      c.beginFight(0);
+      c.cast(c.indexOf('kindle'), 0);
+    }
+    expect(mit.damageDealt).toBeGreaterThan(ohne.damageDealt);
+    // 100 × 1,2 = 120
+    expect(mit.damageDealt).toBe(120);
+  });
+
+  it('lässt einen Satz-Bonus allein wirken (AC2, eigener Nachweis)', () => {
+    // **Eigener Lauf.** Ein gemeinsamer Prüffall bliebe grün, wenn nur eine
+    // der beiden Quellen ankommt — dieselbe Klasse wie #100.
+    const ohne = combatMit(NOTHING_WORN);
+    const mit = combatMit({
+      catalysis: 0,
+      purity: 0,
+      yieldBonus: 0,
+      gearEffects: gearEffectsPermille(0, 1),
+    });
+    for (const c of [ohne, mit]) {
+      c.beginFight(0);
+      c.cast(c.indexOf('kindle'), 0);
+    }
+    expect(mit.damageDealt).toBeGreaterThan(ohne.damageDealt);
+    // 100 × 1,15 = 115
+    expect(mit.damageDealt).toBe(115);
+  });
+
+  it('ADDIERT beide innerhalb des Topfes — und das ist zahlenmäßig unterscheidbar (AC3)', () => {
+    // **Der Kern des Issues.** Ein Prüffall, der nur zeigt „beide zusammen
+    // sind stärker als einer", belegt gar nichts — das gilt für additiv und
+    // multiplikativ gleichermaßen. Die beiden Fälle müssen AUSEINANDERLIEGEN:
+    //
+    //   additiv        1 + 0,20 + 0,15  =  1,35   →  100 × 1,35 = 135
+    //   multiplikativ  1,20 × 1,15      =  1,38   →  100 × 1,38 = 138
+    //
+    // Läge Topf 4 getrennt, multiplizierten sich die beiden Quellen, und die
+    // Kombination aus beidem schlüge jede andere Ausrichtung (13.1b — die
+    // Lehre aus Diablo IV).
+    const beide = combatMit({
+      catalysis: 0,
+      purity: 0,
+      yieldBonus: 0,
+      gearEffects: gearEffectsPermille(1, 1),
+    });
+    beide.beginFight(0);
+    beide.cast(beide.indexOf('kindle'), 0);
+
+    const additiv = Math.round(100 * (1 + 0.2 + 0.15));
+    const multiplikativ = Math.round(100 * 1.2 * 1.15);
+    // Ohne diese Zeile prüfte der Fall nichts: Wären beide Erwartungen gleich,
+    // könnte er nicht zwischen ihnen unterscheiden.
+    expect(additiv).not.toBe(multiplikativ);
+    expect(additiv).toBe(135);
+    expect(multiplikativ).toBe(138);
+
+    expect(beide.damageDealt).toBe(additiv);
+    expect(beide.damageDealt).not.toBe(multiplikativ);
+  });
+
+  it('rechnet die Summe der Quellen, nicht ihr Produkt — auch in der Zahl selbst', () => {
+    expect(gearEffectsPermille(1, 1)).toBe(LEGENDARY_EFFECT_PERMILLE + SET_BONUS_PERMILLE);
+    expect(gearEffectsPermille(2, 0)).toBe(2 * LEGENDARY_EFFECT_PERMILLE);
+    expect(gearEffectsPermille(0, 0)).toBe(0);
+    // Die oberste Satz-Stufe trägt Rotations-Effekte statt Werten (13.5) —
+    // mehr als SET_VALUE_TIERS Stufen bringen deshalb nichts mehr.
+    expect(gearEffectsPermille(0, 99)).toBe(SET_VALUE_TIERS * SET_BONUS_PERMILLE);
+    // Und negative Eingaben erfinden nichts.
+    expect(gearEffectsPermille(-1, -1)).toBe(0);
   });
 });
