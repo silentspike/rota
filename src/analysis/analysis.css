@@ -107,6 +107,18 @@
   color: #7d7768;
 }
 
+/* Verpasste Unterbrechungen: eigene Zeile, abgesetzt, ohne Prozentsatz. Der
+   Strich oben trennt sie sichtbar von der Prozentrechnung darueber — sie
+   gehoert nicht dazu. */
+.losses-interrupts {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #33323a;
+  display: grid;
+  gap: 2px;
+  color: #cfc8ba;
+}
+
 /* Was heute nicht gemessen werden kann — sichtbar, aber nicht als Verlust. */
 .losses-unavailable {
   margin-top: 14px;

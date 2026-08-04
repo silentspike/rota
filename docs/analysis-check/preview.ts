@@ -11,13 +11,18 @@
  * nicht, misst die Auswertung nicht das Spiel.
  */
 import { Combat } from '../../src/core/combat.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { COUNTDOWN_MS } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { EFFICIENCY_COLUMNS } from '../../src/analysis/efficiency.js';
-import { analyzeRun, runDataFor, type RunAnalysis } from '../../src/analysis/run-analysis.js';
+import {
+  analyzeRun,
+  interruptDataFor,
+  runDataFor,
+  type RunAnalysis,
+} from '../../src/analysis/run-analysis.js';
 import { buildEfficiencyView, buildLossView } from '../../src/analysis/analysis-view.js';
 import '../../src/analysis/analysis.css';
 
@@ -40,9 +45,13 @@ function line(text: string, ok?: boolean): void {
  * Ohne `beginCountdown` bliebe die Sitzung in der Vorbereitung; es würde nichts
  * gewirkt, und jede Zahl wäre null — dann geht auch eine falsche Rechnung durch.
  */
-function play(loadout: readonly number[], everyMs: number): RunAnalysis {
+function play(
+  loadout: readonly number[],
+  everyMs: number,
+  boss: BossDef = FIRST_CRUCIBLE.value,
+): RunAnalysis {
   const queue = new PressQueue();
-  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const combat = new Combat({ school: CALCINATION.value, boss });
   const session = new Session(queue, combat);
   loadout.forEach((spell, slot) => {
     session.bind(slot, spell);
@@ -64,13 +73,16 @@ function play(loadout: readonly number[], everyMs: number): RunAnalysis {
   }
 
   const summary = session.summary(ende);
+  // Seit Issue #151 kommen die Gelegenheiten aus dem Kampf selbst -- vorher
+  // stand hier `null`, weil das Spiel die Boss-Ereignisse nicht schrieb.
+  const interrupts = interruptDataFor(combat);
   return analyzeRun({
     summary,
     gcdMs: GCD_MS,
     spells: runDataFor(combat, summary, loadout),
     synergyBonusDamage: 0,
-    missedInterrupts: null,
-    damagePerLandedBossCast: 0,
+    missedInterrupts: interrupts.missed,
+    damagePerLandedBossCast: interrupts.damagePerLandedCast,
   });
 }
 
@@ -163,12 +175,56 @@ line(
 // --- Die Lücke bleibt sichtbar ----------------------------------------------
 
 line('');
-line('Was heute nicht messbar ist (Issue #151)');
+line('Verpasste Unterbrechungen — eigene Zeile, eigene Einheit');
+
+// Seit Issue #151 messbar. Der Boss test-onslaught wirkt drei unterbrechbare
+// Zauber zu je 2000 Schaden; QUENCH liegt auf der Leiste und wird nie gewirkt.
+const QUENCH = 3;
+const mitUnterbrecher = play([KINDLE, QUENCH], 3000, bossById('test-onslaught') as BossDef);
+
 line(
-  `Als Lücke ausgewiesen: ${schlampig.losses.unavailable.join(', ')}`,
-  schlampig.losses.unavailable.includes('missedInterrupts'),
+  `Gemessen: ${mitUnterbrecher.losses.interrupts?.detail ?? 'keine'}`,
+  (mitUnterbrecher.losses.interrupts?.missed ?? 0) > 0,
+);
+// Der Kern der Entscheidung vom 2026-08-04: Die Zeile steht NEBEN der
+// Prozentrechnung, nicht darin. Sie misst eingesteckten statt ausgeteilten
+// Schaden -- in einen Prozentsatz geworfen verglichen sie Unvergleichbares.
+line(
+  `Sie bleibt aus dem Prozentsatz heraus: ${Math.round(mitUnterbrecher.losses.totalLost)} verloren, ` +
+    `${mitUnterbrecher.losses.interrupts?.damageTaken ?? 0} genommen`,
+  !mitUnterbrecher.losses.sources.some((s) => s.kind === 'missedInterrupts'),
 );
 line(
-  'Und nicht als Quelle mit Verlust 0',
-  !schlampig.losses.sources.some((s) => s.kind === 'missedInterrupts'),
+  'Und sie verdrängt keine Schadensquelle aus den drei größten',
+  !mitUnterbrecher.losses.top.some((s) => s.kind === 'missedInterrupts'),
+);
+
+// Der Fall, in dem sich nichts ändern darf: Ein Boss ohne unterbrechbare
+// Zauber. QUENCH liegt genauso bereit -- nach der alten Bereitschafts-Regel
+// stünde er als größte Verlustquelle ganz oben.
+const ohneGelegenheit = play([KINDLE, QUENCH], 3000);
+line(
+  `Ohne Gelegenheit keine Zeile: ${ohneGelegenheit.losses.interrupts === null}`,
+  ohneGelegenheit.losses.interrupts === null,
+);
+
+// Und im Bild. Mit Beschriftung, weil unten sonst zweimal dieselbe
+// Ueberschrift mit verschiedenen Zahlen steht und niemand weiss, welcher
+// Block welcher ist.
+const beschriftung = document.createElement('p');
+beschriftung.className = 'sub';
+beschriftung.textContent =
+  'Zweiter Block: derselbe Aufbau gegen test-onslaught, drei unterbrechbare Zauber, keiner unterbrochen.';
+document.querySelector('#view')?.appendChild(beschriftung);
+const ansicht = buildLossView(mitUnterbrecher.losses);
+document.querySelector('#view')?.appendChild(ansicht);
+const zeile = ansicht.querySelector('.losses-interrupts');
+line(
+  `Im Bild als eigene Zeile: ${zeile?.textContent ?? 'fehlt'}`,
+  zeile !== null &&
+    (zeile as HTMLElement).dataset.missed === String(mitUnterbrecher.losses.interrupts?.missed),
+);
+line(
+  'Ohne Prozentsatz in der Zeile',
+  (zeile?.textContent ?? '').includes('damage taken') && !(zeile?.textContent ?? '').includes('%'),
 );
