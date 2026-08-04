@@ -77,8 +77,19 @@ export function analyzeRun(input: RunAnalysisInput): RunAnalysis {
   // Die beiden Hälften des Leerlaufs kommen getrennt aus der Sitzung. Sie hier
   // aus `lostTimeMs` aufzuteilen wäre nicht möglich: Die Summe weiß nicht mehr,
   // ob in einem Takt etwas bereit lag (AC7).
-  const missedCastWindows = windows(summary.lostTimeWithReadyMs, gcdMs);
-  const idleWindows = windows(summary.lostTimeNothingReadyMs, gcdMs);
+  //
+  // ZUERST DIE ZAHL DER LEEREN FENSTER, DANN DIE AUFTEILUNG DARAUS.
+  // Jede Hälfte einzeln zu runden ergibt mehr Fenster, als es leere gab:
+  // gemessen 1000 ms + 1000 ms → 1 + 1 = 2 Fenster, obwohl 2000 ms bei 1,5 s
+  // Grundtakt nur eines sind. Der Verlust stünde damit höher, als er war —
+  // und genau das verbietet AC7. Die Aufteilung folgt dem gemessenen
+  // Verhältnis, die Summe steht durch die Konstruktion fest.
+  const totalIdleWindows = windows(summary.lostTimeMs, gcdMs);
+  const missedCastWindows =
+    summary.lostTimeMs > 0
+      ? Math.round((totalIdleWindows * summary.lostTimeWithReadyMs) / summary.lostTimeMs)
+      : 0;
+  const idleWindows = totalIdleWindows - missedCastWindows;
 
   const averageDamagePerCast = summary.casts > 0 ? summary.damage / summary.casts : 0;
 
