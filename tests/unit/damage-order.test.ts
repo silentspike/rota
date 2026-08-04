@@ -38,6 +38,12 @@ const IN_REIHENFOLGE: DamageFactors = {
   buffs: 2.22,
   synergy: 1.091,
   resistance: 1.963,
+  // **Nicht 1,0.** Der Faktor steht heute im Spiel bei eins, und eins ist in
+  // IEEE754 die exakte Eins — dieser Prüffall könnte die Position dann gar
+  // nicht prüfen, weil jede Stelle dasselbe Ergebnis gäbe. Der Wert ist
+  // gesucht, nicht gewählt: bei 2,036 kippt ein Tausch mit dem Widerstand die
+  // Rundung.
+  vulnerability: 2.036,
   crit: 0.834,
 };
 
@@ -61,9 +67,10 @@ describe('Die Reihenfolge der Multiplikationen steht fest', () => {
     erwartet *= 2.22; // aktive Verstärkungen
     erwartet *= 1.091; // Synergie
     erwartet *= 1.963; // Widerstand
+    erwartet *= 2.036; // Verwundbarkeit des Bosses
     erwartet *= 0.834; // Krit
     expect(computeDamage(GROSS, IN_REIHENFOLGE)).toBe(Math.round(erwartet));
-    expect(computeDamage(GROSS, IN_REIHENFOLGE)).toBe(21_241_229_171_569);
+    expect(computeDamage(GROSS, IN_REIHENFOLGE)).toBe(43_247_142_593_315);
   });
 
   it('fängt den REALISTISCHEN Fehler: zwei benachbarte Faktoren vertauscht', () => {
@@ -83,9 +90,32 @@ describe('Die Reihenfolge der Multiplikationen steht fest', () => {
     vertauscht *= 2.22;
     vertauscht *= 1.091;
     vertauscht *= 1.963;
+    vertauscht *= 2.036;
     vertauscht *= 0.834;
 
-    expect(Math.round(vertauscht)).toBe(21_241_229_171_570);
+    expect(Math.round(vertauscht)).toBe(43_247_142_593_316);
+    expect(computeDamage(GROSS, IN_REIHENFOLGE)).not.toBe(Math.round(vertauscht));
+  });
+
+  it('fängt den Tausch von Widerstand und Verwundbarkeit', () => {
+    // **Die beiden Boss-Faktoren stehen nebeneinander** (6.3), und genau
+    // deshalb ist ihr Tausch der wahrscheinlichste Fehler: Wer den siebten
+    // Faktor nachträgt, setzt ihn leicht eine Zeile zu früh.
+    //
+    // Multiplikation ist kommutativ, Assoziativität ist es nicht — `(x·r)·v`
+    // und `(x·v)·r` sind verschiedene Rechnungen. Bei 2,036 trennt das eine
+    // Einheit, und die Rundung zeigt es.
+    let vertauscht = GROSS;
+    vertauscht *= 1.605;
+    vertauscht *= 2.476;
+    vertauscht *= 1.348;
+    vertauscht *= 2.22;
+    vertauscht *= 1.091;
+    vertauscht *= 2.036; // Verwundbarkeit VOR dem Widerstand — der Fehler
+    vertauscht *= 1.963;
+    vertauscht *= 0.834;
+
+    expect(Math.round(vertauscht)).toBe(43_247_142_593_316);
     expect(computeDamage(GROSS, IN_REIHENFOLGE)).not.toBe(Math.round(vertauscht));
   });
 
@@ -95,7 +125,7 @@ describe('Die Reihenfolge der Multiplikationen steht fest', () => {
     // nimmt ihm damit jede Wirkung.
     const klein = 100;
     let vertauscht = klein;
-    for (const f of [1.605, 1.348, 2.476, 2.22, 1.091, 1.963, 0.834]) vertauscht *= f;
+    for (const f of [1.605, 1.348, 2.476, 2.22, 1.091, 1.963, 2.036, 0.834]) vertauscht *= f;
     expect(computeDamage(klein, IN_REIHENFOLGE)).toBe(Math.round(vertauscht));
   });
 });
@@ -115,5 +145,35 @@ describe('Der Ausrüstungs-Faktor bewegt heute keine Zahl', () => {
         computeDamage(grundschaden, ohne),
       );
     }
+  });
+});
+
+describe('Der Verwundbarkeits-Faktor bewegt heute keine Zahl', () => {
+  it('steht neutral auf 1,0', () => {
+    // Derselbe Grund wie beim Ausrüstungs-Faktor, und dieselbe Gefahr: Eine
+    // Änderung, die keine Zahl bewegt, geht unbemerkt durch. Der Beleg dafür
+    // liegt außerhalb dieser Datei — nach dem Einbau des Faktors hat sich
+    // keine einzige Vergleichsdatei geändert.
+    expect(NEUTRAL_FACTORS.vulnerability).toBe(1);
+    expect(computeDamage(4240, NEUTRAL_FACTORS)).toBe(4240);
+  });
+
+  it('lässt jeden Schadenswert bitgleich', () => {
+    const ohne = { ...NEUTRAL_FACTORS, essence: 1.37, crit: 2 };
+    for (let grundschaden = 1; grundschaden <= 2000; grundschaden++) {
+      expect(computeDamage(grundschaden, { ...ohne, vulnerability: 1 })).toBe(
+        computeDamage(grundschaden, ohne),
+      );
+    }
+  });
+
+  it('wirkt, sobald er nicht mehr eins ist — sonst wäre er Zierrat', () => {
+    // Der Gegenfall zu den beiden darüber. Ein Faktor, der bei 1,0 nichts tut,
+    // muss bei 1,5 etwas tun — sonst ist er zwar eingebaut, aber nicht
+    // angeschlossen, und die Stapel der Putrefaktion liefen ins Leere.
+    const neutral = computeDamage(1000, NEUTRAL_FACTORS);
+    const verwundbar = computeDamage(1000, { ...NEUTRAL_FACTORS, vulnerability: 1.5 });
+    expect(verwundbar).toBeGreaterThan(neutral);
+    expect(verwundbar).toBe(1500);
   });
 });

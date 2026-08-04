@@ -61,6 +61,18 @@ pub struct DamageFactors {
     pub synergy: f64,
     /// Widerstand des Bosses gegen die Schule (GAME-DESIGN 11.4).
     pub resistance: f64,
+    /// Verwundbarkeit des Bosses — der siebte Faktor (GAME-DESIGN 6.3).
+    ///
+    /// Traegt alles, was den Boss fuer Schaden **aus jeder Quelle**
+    /// empfaenglicher macht; heute sind das die Zersetzungs-Stapel der
+    /// Putrefaktion (4.1).
+    ///
+    /// **Die Position ist eine Festlegung, keine Geschmacksfrage:**
+    /// `… × resistance × vulnerability × crit`. Fliesskomma-Multiplikation ist
+    /// nicht assoziativ — eine andere Reihenfolge ergibt andere Bits und damit
+    /// eine andere Zustands-Pruefsumme. Sie steht direkt neben dem Widerstand,
+    /// weil beide Aussagen ueber den Boss sind und nicht ueber den Spieler.
+    pub vulnerability: f64,
     /// 1,0 ohne Krit, sonst der YIELD-Faktor.
     pub crit: f64,
 }
@@ -77,6 +89,7 @@ pub const NEUTRAL: DamageFactors = DamageFactors {
     buffs: 1.0,
     synergy: 1.0,
     resistance: 1.0,
+    vulnerability: 1.0,
     crit: 1.0,
 };
 
@@ -125,6 +138,7 @@ pub fn compute_damage(base_damage: u32, factors: &DamageFactors) -> u32 {
     value *= factors.buffs;
     value *= factors.synergy;
     value *= factors.resistance;
+    value *= factors.vulnerability;
     value *= factors.crit;
 
     debug_assert!(
@@ -177,6 +191,7 @@ mod tests {
             buffs: 1.07,
             synergy: 1.13,
             resistance: 0.97,
+            vulnerability: 1.0,
             crit: 2.0,
         };
         let mut erwartet = 100.0_f64;
