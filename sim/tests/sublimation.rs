@@ -40,17 +40,37 @@ fn die_mechanik_ist_angemeldet_und_steht_hinter_der_stapel_mechanik() {
 }
 
 #[test]
-fn kein_ausgelieferter_zauber_verkuerzt_etwas() {
-    // Der Grund, warum die Referenz unberuehrt bleibt — und zugleich der
-    // Grund, warum AC5 offen ist.
-    for spell in data::SPELLS {
-        assert_eq!(
-            spell.cooldown_reduction_ms, 0,
-            "Zauber {} traegt eine Verkuerzung; dann ist AC5 pruefbar \
-             und dieser Test gehoert ersetzt",
-            spell.id
-        );
-    }
+fn genau_ein_ausgelieferter_zauber_verkuerzt_etwas() {
+    // **ERSETZT, nicht geloescht** (Issue #201). Vorher hiess dieser Fall
+    // `kein_ausgelieferter_zauber_verkuerzt_etwas` und verlangte ausdruecklich
+    // seine eigene Abloesung:
+    //
+    //   "Zauber {} traegt eine Verkuerzung; dann ist AC5 pruefbar und dieser
+    //    Test gehoert ersetzt"
+    //
+    // Seit VAPOUR traegt einer sie. Ihn zu loeschen haette die Absicherung
+    // herausgenommen, die #104 verlangt — geblieben ist deshalb die Frage,
+    // nur andersherum gestellt: WELCHE Zauber verkuerzen, und verkuerzen sie
+    // dasselbe wie im Spiel?
+    let mit: Vec<&str> = data::SPELLS
+        .iter()
+        .filter(|spell| spell.cooldown_reduction_ms > 0)
+        .map(|spell| spell.id)
+        .collect();
+    assert_eq!(
+        mit,
+        vec!["vapour"],
+        "Wer hier einen Zauber ergaenzt, aendert die Referenz-Rechnung — \
+         dann gehoert sie nachgemessen, nicht diese Liste erweitert"
+    );
+
+    // Und der Betrag stammt aus den Daten, nicht aus dem Code: Er muss dem
+    // entsprechen, was `data/spells/sublimation.json` sagt.
+    let vapour = data::SPELLS
+        .iter()
+        .find(|spell| spell.id == "vapour")
+        .expect("vapour");
+    assert_eq!(vapour.cooldown_reduction_ms, 1000);
 }
 
 #[test]

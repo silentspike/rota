@@ -15,6 +15,28 @@
 import { describe, expect, it } from 'vitest';
 import { runReference } from '../../src/devtools/reference-run.js';
 
+/**
+ * Die Wirkungszahlen pruefen, ohne jeden Zauber aufzuzaehlen (Issue #201).
+ *
+ * Vorher stand die Referenz mit allen elf Zaubern da, zehn davon auf null —
+ * eine Abschrift, die jeder neue Zauber von Hand verlaengert. Die Aussage ist
+ * eine andere und schaerfer: Die Rotation wirkt DIESE drei so oft, und
+ * **keinen anderen ueberhaupt**. Ein neuer Zauber, den die Referenz-Rotation
+ * versehentlich wirkt, faellt damit auf, statt eine Zeile zu verlangen.
+ */
+function erwarteWirkungen(
+  gemessen: Readonly<Record<string, number>>,
+  referenz: Readonly<Record<string, number>>,
+): void {
+  for (const [id, zahl] of Object.entries(referenz)) {
+    expect(gemessen[id], id).toBe(zahl);
+  }
+  for (const [id, zahl] of Object.entries(gemessen)) {
+    if (id in referenz) continue;
+    expect(zahl, `${id} wird von der Referenz-Rotation nicht gewirkt`).toBe(0);
+  }
+}
+
 /** Aus `docs/STEP1-SPEC.md` § 4 — dem Lauf von `python3 tools/step1-check.py`. */
 const REFERENCE = {
   good: {
@@ -25,14 +47,6 @@ const REFERENCE = {
       kindle: 20,
       smoulder: 4,
       pyre: 4,
-      quench: 0,
-      crust: 0,
-      salve: 0,
-      temper: 0,
-      bind: 0,
-      stall: 0,
-      stay: 0,
-      anchor: 0,
     },
     pyreDamage: 1440,
     smoulderDamage: 800,
@@ -47,14 +61,6 @@ const REFERENCE = {
       kindle: 24,
       smoulder: 8,
       pyre: 8,
-      quench: 0,
-      crust: 0,
-      salve: 0,
-      temper: 0,
-      bind: 0,
-      stall: 0,
-      stay: 0,
-      anchor: 0,
     },
     pyreDamage: 684,
     smoulderDamage: 960,
@@ -85,7 +91,7 @@ describe('Prüffall Schritt 1 — gute Rotation (AC1)', () => {
   });
 
   it('wirkt jeden Zauber gleich oft', () => {
-    expect(run.casts).toEqual(REFERENCE.good.casts);
+    erwarteWirkungen(run.casts, REFERENCE.good.casts);
   });
 
   it('verteilt den Schaden gleich auf die Zauber', () => {
@@ -123,7 +129,7 @@ describe('Prüffall Schritt 1 — schlechte Rotation (AC1)', () => {
   });
 
   it('wirkt jeden Zauber gleich oft', () => {
-    expect(run.casts).toEqual(REFERENCE.bad.casts);
+    erwarteWirkungen(run.casts, REFERENCE.bad.casts);
   });
 
   it('verliert genau 14 DoT-Ticks durch zu frühes Erneuern', () => {

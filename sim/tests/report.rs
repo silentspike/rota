@@ -8,6 +8,7 @@
 //! Nachweis dafür ist der Workflow-Lauf selbst.
 
 use rota_sim::apl::{parse, Apl};
+use rota_sim::data;
 use rota_sim::report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
 };
@@ -27,13 +28,32 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     let result = Fight::new(FightConfig::default()).run_apl(&apl(GOOD, "gut"));
     let table = spell_table(&result);
 
-    // Vier seit #100: die drei aus Schritt 1 und BIND, der Fueller der
-    // Fixierung. Er macht Schaden und traegt damit zur Tabelle bei — die drei
-    // AUSGABE-Zauber der Fixierung nicht, sie richten keinen an.
+    // **Abgeleitet, nicht abgeschrieben** (Issue #201). Hier stand die 4 mit
+    // einer Aufzaehlung daneben — jeder neue Zauber setzt sie hoch, und der
+    // Prueffall wird zur Wartungsaufgabe.
+    //
+    // Die Aussage ist: In der Tabelle steht **jeder Zauber mit Grundschaden**
+    // und kein anderer. Das laesst sich aus den Daten lesen.
+    // Die Tabelle fuehrt jeden Zauber, der KEIN Hilfszauber ist. Was ein
+    // Hilfszauber ist, entscheidet `report.rs` — hier wird es nicht noch
+    // einmal aufgezaehlt, sondern an der Wirkung abgelesen: Ein Zauber ohne
+    // Schadensquelle, der trotzdem in der Tabelle steht, waere dauerhaft
+    // "TOT" und damit eine falsche Auskunft.
+    for row in &table {
+        let spell = data::SPELLS
+            .iter()
+            .find(|s| s.id == row.id)
+            .expect("Zeile ohne Zauber");
+        assert!(
+            spell.base_damage > 0 || spell.dot.is_some() || spell.spender.is_some(),
+            "{}: steht in der Schadens-Tabelle, kann aber keinen Schaden machen",
+            row.id
+        );
+    }
     assert_eq!(
         table.len(),
         4,
-        "alle Schadenszauber muessen aufgefuehrt sein"
+        "alle vier Schadenszauber muessen aufgefuehrt sein"
     );
     assert!(
         table
@@ -103,9 +123,14 @@ fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
         .filter(|row| row.is_dead())
         .map(|row| row.id)
         .collect();
-    // Drei seit #100: SMOULDER und PYRE fehlen in dieser Rotation, BIND
-    // gehoert einer anderen Schule und ist deshalb ebenfalls ungewirkt.
-    assert_eq!(tote.len(), 3, "SMOULDER, PYRE und BIND kommen nicht vor");
+    // **Abgeleitet** (Issue #201): tot ist in dieser Rotation alles ausser
+    // KINDLE. Die Zahl daneben zu pflegen hiesse, sie bei jedem neuen Zauber
+    // hochzusetzen — und die Aussage ist ohnehin eine andere.
+    assert_eq!(
+        tote.len(),
+        table.len() - 1,
+        "in dieser Rotation wird nur KINDLE gewirkt, tot sind: {tote:?}"
+    );
     assert!(tote.contains(&"smoulder"));
     assert!(tote.contains(&"pyre"));
     assert!(!table.iter().any(|row| row.id == "kindle" && row.is_dead()));

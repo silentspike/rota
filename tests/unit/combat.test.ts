@@ -44,6 +44,14 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'stall',
       'stay',
       'anchor',
+      // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
+      //
+      // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
+      // diesem Issue abgeleitet habe, IST hier die Reihenfolge die Aussage:
+      // Sie bestimmt die Indizes, und die stehen in jeder aufgezeichneten
+      // Runde. Wer einen Zauber dazwischenschiebt, muss das hier sehen.
+      'vapour',
+      'reflux',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
