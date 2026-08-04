@@ -521,7 +521,16 @@ mod tests {
         // Scharf bleibt der Fall trotzdem: Faellt ein Zauber weg, bricht eine
         // der Zusicherungen darunter.
         assert_eq!(SPELL_COUNT, SPELLS.len());
-        assert!(SPELL_COUNT >= 11, "es sind Zauber verschwunden");
+        // "Es darf keiner verschwinden" — an den Kennungen geprueft, nicht an
+        // einer Zahl. Ein `assert!(SPELL_COUNT >= 11)` waere zur Uebersetzungszeit
+        // konstant; clippy lehnt das mit -D warnings ab, und zu Recht: Es
+        // prueft nichts, was sich zur Laufzeit noch aendern koennte.
+        for id in [
+            "kindle", "smoulder", "pyre", "quench", "crust", "salve", "temper", "bind", "stall",
+            "stay", "anchor",
+        ] {
+            assert!(index_of(id).is_some(), "Zauber {id} ist verschwunden");
+        }
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
