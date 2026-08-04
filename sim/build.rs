@@ -367,6 +367,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
     emit_dot(out, spell, &whose, resource_id);
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
+    emit_putrefaction(out, spell, &whose);
     emit_fixation(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
@@ -749,6 +750,22 @@ fn emit_player(out: &mut String, player: &Value) {
 /// Alle drei sind **optional**: Ein Zauber, der keiner von ihnen ist, nennt
 /// die Felder gar nicht. Die drei Kalzinations-Zauber und der Unterbrecher
 /// fuehren keines davon.
+/// Die Felder der PUTREFACTION (Issue #97). Fehlen sie, stehen sie auf 0 —
+/// ein Zauber ohne Zersetzungs-Wirkung soll sie gar nicht erst nennen muessen.
+fn emit_putrefaction(out: &mut String, spell: &Value, _whose: &str) {
+    let stapel = spell
+        .get("decay")
+        .and_then(|d| d.get("stacks"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let je_stapel = spell
+        .get("perDecayStackPercent")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        decay_stacks: {stapel},");
+    let _ = writeln!(out, "        per_decay_stack_percent: {je_stapel},");
+}
+
 fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
     match spell.get("shield") {
         None | Some(Value::Null) => {

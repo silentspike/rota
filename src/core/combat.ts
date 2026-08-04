@@ -50,6 +50,26 @@ export const FIGHT_OVERPRESSURE = 2;
 
 export const NOT_ACTIVE = -1;
 
+// -- PUTREFACTION (Issue #97) --
+//
+// Die drei Größen der Zersetzungs-Stapel. **Alle drei sind vorläufig und
+// werden gemessen** (GAME-DESIGN 4.1, Teil F.6): Wie viel ein Stapel trägt,
+// wie viele es höchstens gibt und wie lange sie halten, bestimmt der
+// Balance-Läufer — nicht diese Datei. Sie tragen bis dahin die Prüffälle.
+//
+// Jede Größe steht an genau einer Stelle je Seite; der Simulator führt
+// dieselben drei Werte in `fight.rs`, und die Prüfsumme je Takt hält beide
+// zusammen.
+
+/** Wie viele Stapel höchstens gleichzeitig liegen. Wird gemessen. */
+export const MAX_DECAY_STACKS = 5;
+
+/** Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht. Wird gemessen. */
+export const DECAY_STACK_PERCENT = 3;
+
+/** Wie lange ein einzelner Stapel hält. Wird gemessen. */
+export const DECAY_STACK_DURATION_MS = 12_000;
+
 /**
  * Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
  *
@@ -144,7 +164,16 @@ export class Combat {
   private readonly dotTickCounts: Int32Array;
 
   private readonly resistanceFactor: number;
-  private readonly factors: DamageFactors;
+  /**
+   * Die Faktoren der Schadensformel, **ein einziges wiederverwendetes Objekt**.
+   *
+   * Der Verwundbarkeits-Faktor ändert sich im Kampf (Zersetzungs-Stapel,
+   * #97), deshalb sind die Felder hier schreibbar. Ein neues Objekt je
+   * Änderung wäre eine Allokation im laufenden Bild (GAME-DESIGN 18.2) —
+   * dieselbe Falle, die bei der zyklischen Zeitleiste schon einmal zugeschlagen
+   * hat.
+   */
+  private readonly factors: { -readonly [K in keyof DamageFactors]: DamageFactors[K] };
 
   private resourceValue = 0;
   private resourceOverflowValue = 0;
@@ -215,6 +244,24 @@ export class Combat {
 
   /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
   private convertedValue = 0;
+
+  // -- PUTREFACTION (Issue #97) --
+
+  /**
+   * Ablaufzeiten der Zersetzungs-Stapel, **aufsteigend** — der älteste vorn.
+   *
+   * **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Ein gemeinsamer
+   * Verfall war die verworfene Bauart: Er hätte jeden Zwischenfall im Kampf
+   * den ganzen Aufbau gekostet.
+   *
+   * Ein Feld fester Länge statt einer wachsenden Liste: Der Kampf darf im
+   * laufenden Bild nichts erzeugen (GAME-DESIGN 18.2). `decayCountValue` sagt,
+   * wie viele der Plätze belegt sind.
+   */
+  private readonly decayExpiryMs = new Float64Array(MAX_DECAY_STACKS);
+
+  /** Wie viele Stapel gerade liegen. */
+  private decayCountValue = 0;
 
   // -- FIXATION (Issue #100) --
 
@@ -534,6 +581,82 @@ export class Combat {
   }
 
   /**
+   * Legt Zersetzungs-Stapel an (PUTREFACTION, GAME-DESIGN 4.1).
+   *
+   * **Die Obergrenze verbraucht nichts.** Eine Wirkung über der Grenze erhöht
+   * nichts und nimmt auch nichts weg — sie erneuert insbesondere nicht die
+   * Uhr des ältesten Stapels. Sonst könnte man den Aufbau ewig oben halten,
+   * ohne je nachzulegen, und „verfallen langsam" wäre wirkungslos.
+   */
+  private applyPutrefaction(spell: SpellDef, timeMs: number): void {
+    const decay = spell.decay;
+    if (decay === undefined) return;
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    for (let i = 0; i < decay.stacks; i++) {
+      if (this.decayCountValue >= MAX_DECAY_STACKS) break;
+      // Ans Ende, weil der neue am spätesten verfällt — die Liste bleibt
+      // damit aufsteigend, ohne je zu sortieren.
+      this.decayExpiryMs[this.decayCountValue] = seitBeginn + DECAY_STACK_DURATION_MS;
+      this.decayCountValue++;
+    }
+    this.updateVulnerability();
+  }
+
+  /**
+   * Lässt abgelaufene Stapel verfallen — **den ältesten zuerst**.
+   *
+   * Die Liste steht aufsteigend, also stehen die abgelaufenen vorn. Was
+   * bleibt, rückt auf; die jüngeren behalten ihre eigene Restzeit.
+   */
+  private expirePutrefaction(timeMs: number): void {
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    let verfallen = 0;
+    while (verfallen < this.decayCountValue && (this.decayExpiryMs[verfallen] ?? 0) <= seitBeginn) {
+      verfallen++;
+    }
+    if (verfallen === 0) return;
+    for (let i = verfallen; i < this.decayCountValue; i++) {
+      this.decayExpiryMs[i - verfallen] = this.decayExpiryMs[i] ?? 0;
+    }
+    this.decayCountValue -= verfallen;
+    this.updateVulnerability();
+  }
+
+  /**
+   * Rechnet die Verwundbarkeit des Bosses aus den liegenden Stapeln.
+   *
+   * **Ganzzahlig bis zur letzten Teilung.** `(100 + n · p) / 100` ist auf
+   * beiden Seiten dieselbe Rechnung; `1 + n · p / 100` wäre es nicht
+   * zwingend, weil dann zwei Fließkomma-Schritte in anderer Reihenfolge
+   * stehen könnten (GAME-DESIGN 18.4).
+   */
+  private updateVulnerability(): void {
+    const prozent = 100 + this.decayCountValue * DECAY_STACK_PERCENT;
+    this.factors.vulnerability = prozent / 100;
+  }
+
+  /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
+  get decayStacks(): number {
+    return this.decayCountValue;
+  }
+
+  /**
+   * Wann der Stapel an Platz `index` verfällt, in Kampfzeit. 0 für unbelegt.
+   *
+   * Für die Prüfsumme: Die Zahl der Stapel allein genügt nicht — zwei Läufe
+   * mit gleich vielen, aber verschieden alten Stapeln laufen gleich weiter,
+   * bis der erste verfällt.
+   */
+  decayExpiryAt(index: number): number {
+    return index < this.decayCountValue ? (this.decayExpiryMs[index] ?? 0) : 0;
+  }
+
+  /** Die Verwundbarkeit, die daraus folgt. 1,0 ohne Stapel. */
+  get vulnerability(): number {
+    return this.factors.vulnerability;
+  }
+
+  /**
    * Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 läuft.
    *
    * **Ganzzahlig und abgerundet.** Der Anteil steht als Prozentzahl in den
@@ -827,6 +950,7 @@ export class Combat {
     // Zauber beginnt zu laufen und trifft erst nach seiner Wirkzeit.
     //
     this.expireCoagulation(timeMs);
+    this.expirePutrefaction(timeMs);
 
     // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
     // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
@@ -972,9 +1096,22 @@ export class Combat {
     // festzulegen und nicht dann.
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
+    this.applyPutrefaction(spell, timeMs);
 
     let damage = 0;
-    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);
+    if (spell.baseDamage > 0) {
+      // **FESTER liest die Stapel VOR dem eigenen Aufbau** — dieser Zauber
+      // legt selbst keine an, aber die Reihenfolge ist trotzdem festzulegen,
+      // damit ein künftiger Zauber, der beides tut, nicht stillschweigend
+      // anders rechnet als der Simulator (dasselbe Vorgehen wie bei
+      // Entlade-Zaubern und dem Vorrat).
+      const jeStapel = spell.perDecayStackPercent ?? 0;
+      const grund =
+        jeStapel > 0
+          ? (spell.baseDamage * (100 + this.decayCountValue * jeStapel)) / 100
+          : spell.baseDamage;
+      damage += computeDamage(grund, this.factors);
+    }
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
