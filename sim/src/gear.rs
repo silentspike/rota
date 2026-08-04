@@ -129,12 +129,16 @@ pub const QUALITY_COUNT: usize = 4;
 /// Die Namen in der Reihenfolge der Kennnummern.
 pub const QUALITY_NAMES: [&str; QUALITY_COUNT] = ["common", "rare", "epic", "legendary"];
 
-/// Wie viele Werte-Plaetze eine Qualitaet traegt.
+/// Wie viele **Affixe** eine Qualitaet traegt (13.3).
+///
+/// **Affixe, nicht Werte ueberhaupt.** Die Grundwerte kommen zusaetzlich; siehe
+/// [`BASE_STAT_IDS`]. Der Name weicht bewusst von der frueheren Bezeichnung
+/// "Werte-Plaetze" ab — die hat die Verwechslung erst erzeugt.
 ///
 /// **Legendary steht in 13.3 als "3+".** Das Pluszeichen ist in derselben Zeile
-/// erklaert — "echter Sondereffekt". Gelesen als: drei Werte-Plaetze UND
-/// zusaetzlich ein Effekt, nicht als vierter Werte-Platz.
-pub const QUALITY_STAT_SLOTS: [usize; QUALITY_COUNT] = [1, 2, 3, 3];
+/// erklaert — "echter Sondereffekt". Gelesen als: drei Affixe UND zusaetzlich
+/// ein Effekt, nicht als vierter Affix.
+pub const QUALITY_AFFIX_SLOTS: [usize; QUALITY_COUNT] = [1, 2, 3, 3];
 
 /// Welche Qualitaet einen Sondereffekt traegt.
 pub const QUALITY_HAS_EFFECT: [bool; QUALITY_COUNT] = [false, false, false, true];
@@ -191,7 +195,7 @@ pub fn share_of_slot(budget: u64, slots: usize, index: usize) -> u64 {
 /// Schreibt in ein uebergebenes Feld und gibt die Zahl der beschriebenen
 /// Plaetze zurueck.
 pub fn distribute_budget(item_level: u32, quality: usize, out: &mut [u64]) -> usize {
-    let slots = QUALITY_STAT_SLOTS.get(quality).copied().unwrap_or(0);
+    let slots = QUALITY_AFFIX_SLOTS.get(quality).copied().unwrap_or(0);
     let budget = budget_of(item_level, quality);
     let count = slots.min(out.len());
     for (index, slot) in out.iter_mut().enumerate().take(count) {
@@ -201,6 +205,27 @@ pub fn distribute_budget(item_level: u32, quality: usize, out: &mut [u64]) -> us
 }
 
 /// Die zehn Plaetze aus 13.2.
+///
+/// **Die Plaetze sind Behaelter, sonst nichts** — wie in WoW und Diablo. Welche
+/// Werte ein Stueck traegt, haengt an Seltenheit und Gegenstandsstufe, nicht am
+/// Platz.
+///
+/// # Was hier bis zum 2026-07-29 stand
+///
+/// Eine platz-spezifische Wertezuordnung: Focus und Catalyst immer CATALYSIS,
+/// Sigil und Talisman immer PURITY/YIELD, und so fort. Sie stand im Plan und im
+/// Design-Dokument, mit einer Begruendung, die ueberzeugend klang.
+/// **Angeordnet worden war sie nie** — auf Rueckfrage des Auftraggebers
+/// durchsucht, keine einzige Fundstelle in den Gespraechen.
+///
+/// Aufgefallen ist es, weil zwei der zehn Plaetze (`relic`, `shard`) nie eine
+/// Zuordnung bekamen und zwei der vier Kategorien ("Verteidigung",
+/// "Zauber-Verstaerkung") gar keine definierten Werte waren. Beides fiel erst
+/// auf, als E6-1 die Tabelle bauen sollte — und statt die Luecken zu raten,
+/// wurde gefragt.
+///
+/// **Merksatz aus 13.2:** Eine Festlegung, die niemand angeordnet hat, sieht im
+/// Dokument genauso aus wie eine, die entschieden wurde.
 pub const SLOT_COUNT: usize = 10;
 
 /// Die Namen in der Reihenfolge aus 13.2.
@@ -217,62 +242,16 @@ pub const SLOT_NAMES: [&str; SLOT_COUNT] = [
     "prism",
 ];
 
-/// Die Grundwerte, die auf **jedem** Platz sitzen (13.2, 6.1).
+/// Die Grundwerte, die **jeder** Gegenstand traegt (13.2, 6.1).
 ///
-/// **Eine Frage, die das Design nicht beantwortet:** ob sie aus demselben
-/// Budget ziehen wie die Werte-Plaetze. 13.3 sagt, das Budget werde "auf die
-/// Werte-Plaetze verteilt", und gibt Common genau einen davon — ein Platz kann
-/// aber keine drei Grundwerte tragen. Diese Liste sagt deshalb nur, WELCHE
-/// Grundwerte es gibt, nicht woher sie ihre Zahlen nehmen.
+/// **Sie kommen zusaetzlich zu den Affixen**, nicht aus deren Budget — wie ein
+/// Diablo-Gegenstand immer Ruestung traegt. Ein Common-Stueck hat also ESSENCE,
+/// VESSEL und WARD **plus** einen Affix.
+///
+/// Am 2026-07-29 praezisiert. Anlass war eine Rechnung, die nicht aufging: 13.3
+/// gab Common genau einen "Werte-Platz", und ein Platz kann keine drei
+/// Grundwerte tragen. Die Spalte meint **Affixe**.
 pub const BASE_STAT_IDS: [&str; 3] = ["essence", "vessel", "ward"];
-
-/// Noch nicht zugeordnet.
-pub const SPECIAL_UNDECIDED: i32 = -1;
-/// CATALYSIS (6.2).
-pub const SPECIAL_CATALYSIS: i32 = 0;
-/// PURITY und YIELD gemeinsam (6.2).
-pub const SPECIAL_PURITY_YIELD: i32 = 1;
-/// "Verteidigung" — im Dokument kein benannter Wert.
-pub const SPECIAL_DEFENSE: i32 = 2;
-/// "Zauber-Verstaerkung" — im Dokument kein benannter Wert.
-pub const SPECIAL_SPELL_AMP: i32 = 3;
-
-/// Die Namen der Sonderwert-Kategorien.
-pub const SPECIAL_NAMES: [&str; 4] = ["catalysis", "purityYield", "defense", "spellAmp"];
-
-/// Die feste Zuordnung aus 13.2 — **Daten, nicht Code**.
-///
-/// **`relic` und `shard` sind ausdruecklich offen.** 13.2 zaehlt zehn Plaetze
-/// auf und ordnet acht zu; beide kommen im gesamten Design-Dokument genau einmal
-/// vor, in der Namensliste. Ein geratener Sonderwert waere eine
-/// Design-Entscheidung im Code — eine, die niemandem auffiele, weil sie
-/// plausibel aussaehe.
-pub const SLOT_SPECIAL: [i32; SLOT_COUNT] = [
-    SPECIAL_CATALYSIS,    // focus
-    SPECIAL_CATALYSIS,    // catalyst
-    SPECIAL_PURITY_YIELD, // sigil
-    SPECIAL_UNDECIDED,    // relic  <- 13.2 sagt dazu nichts
-    SPECIAL_SPELL_AMP,    // grimoire
-    SPECIAL_UNDECIDED,    // shard  <- 13.2 sagt dazu nichts
-    SPECIAL_PURITY_YIELD, // talisman
-    SPECIAL_DEFENSE,      // phylactery
-    SPECIAL_DEFENSE,      // anchor
-    SPECIAL_SPELL_AMP,    // prism
-];
-
-/// Traegt dieser Platz eine festgelegte Sonderwert-Zuordnung?
-#[must_use]
-pub fn is_slot_decided(slot: usize) -> bool {
-    SLOT_SPECIAL.get(slot).copied().unwrap_or(SPECIAL_UNDECIDED) != SPECIAL_UNDECIDED
-}
-
-/// Welche Plaetze noch auf ihre Zuordnung warten.
-#[must_use]
-pub fn undecided_slots() -> Vec<usize> {
-    (0..SLOT_COUNT)
-        .filter(|slot| !is_slot_decided(*slot))
-        .collect()
-}
 
 #[cfg(test)]
 mod tests {
@@ -309,7 +288,7 @@ mod tests {
 
     #[test]
     fn hoehere_stufe_heisst_durchweg_hoehere_werte() {
-        for (quality, &slots) in QUALITY_STAT_SLOTS.iter().enumerate() {
+        for (quality, &slots) in QUALITY_AFFIX_SLOTS.iter().enumerate() {
             for level in 1..MAX_ITEM_LEVEL {
                 let mut unten = [0u64; 4];
                 let mut oben = [0u64; 4];
@@ -340,11 +319,16 @@ mod tests {
     }
 
     #[test]
-    fn zwei_plaetze_sind_offen() {
-        assert_eq!(undecided_slots(), vec![3, 5]);
-        assert!(!is_slot_decided(3));
-        assert!(!is_slot_decided(5));
-        assert!(is_slot_decided(0));
-        assert!(!is_slot_decided(SLOT_COUNT));
+    fn die_plaetze_sind_nur_behaelter() {
+        // Bis zum 2026-07-29 stand hier eine Pruefung auf die zwei Plaetze ohne
+        // Zuordnung. Die Zuordnung selbst ist gestrichen — geblieben ist, dass
+        // es zehn Behaelter mit Namen gibt, mehr nicht.
+        assert_eq!(SLOT_NAMES.len(), SLOT_COUNT);
+        assert_eq!(SLOT_NAMES[3], "relic");
+        assert_eq!(SLOT_NAMES[5], "shard");
+        // Und die drei Grundwerte, die jeder Gegenstand traegt — zusaetzlich zu
+        // den Affixen, deshalb mehr als der eine Affix eines Common-Stuecks.
+        assert_eq!(BASE_STAT_IDS.len(), 3);
+        assert!(BASE_STAT_IDS.len() > QUALITY_AFFIX_SLOTS[QUALITY_COMMON]);
     }
 }

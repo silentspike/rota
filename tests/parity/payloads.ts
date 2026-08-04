@@ -37,17 +37,11 @@ import {
   QUALITY_COUNT,
   QUALITY_HAS_EFFECT,
   QUALITY_NAMES,
-  QUALITY_STAT_SLOTS,
+  QUALITY_AFFIX_SLOTS,
   budgetOf,
   distributeBudget,
 } from '../../src/gear/budget.js';
-import {
-  BASE_STAT_IDS,
-  SLOT_NAMES,
-  SLOT_SPECIAL,
-  SPECIAL_NAMES,
-  undecidedSlots,
-} from '../../src/gear/slots.js';
+import { BASE_STAT_IDS, SLOT_NAMES } from '../../src/gear/slots.js';
 import {
   NO_SUBJECT,
   RULE_BOSS_PHASE,
@@ -777,7 +771,7 @@ export function gearPayload(): Record<string, unknown> {
   const stufen = [1, 2, 3, 10, 25, 50, 75, 100];
   const budgets: Record<string, unknown>[] = [];
   for (let quality = 0; quality < QUALITY_COUNT; quality++) {
-    const slots = QUALITY_STAT_SLOTS[quality] ?? 0;
+    const slots = QUALITY_AFFIX_SLOTS[quality] ?? 0;
     for (const level of stufen) {
       const werte = new Int32Array(slots);
       distributeBudget(level, quality, werte);
@@ -800,13 +794,10 @@ export function gearPayload(): Record<string, unknown> {
     schema: SCHEMA,
     poolNames: POOL_NAMES,
     qualityNames: QUALITY_NAMES,
-    qualityStatSlots: QUALITY_STAT_SLOTS,
+    qualityAffixSlots: QUALITY_AFFIX_SLOTS,
     qualityHasEffect: QUALITY_HAS_EFFECT,
     slotNames: SLOT_NAMES,
     baseStatIds: BASE_STAT_IDS,
-    slotSpecial: SLOT_SPECIAL,
-    specialNames: SPECIAL_NAMES,
-    undecidedSlots: undecidedSlots(),
     poolSteps,
     budgets,
   };
