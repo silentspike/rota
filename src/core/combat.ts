@@ -16,7 +16,18 @@
  */
 import { computeDamage, NEUTRAL_FACTORS, type DamageFactors } from './damage.js';
 import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
-import { EVENT_CAST, EVENT_DAMAGE, EVENT_DOT_TICK, type CombatLog } from './log.js';
+import {
+  EVENT_BOSS_TIMELINE_FIRED,
+  EVENT_CAST,
+  EVENT_DAMAGE,
+  EVENT_DOT_TICK,
+  EVENT_HEALED,
+  EVENT_INTERRUPT_LANDED,
+  EVENT_PLAYER_DAMAGE,
+  EVENT_SHIELD_ABSORB,
+  NO_SPELL_REF,
+  type CombatLog,
+} from './log.js';
 import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
@@ -489,6 +500,7 @@ export class Combat {
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
       }
     }
 
@@ -559,6 +571,12 @@ export class Combat {
     if (abgefangen > 0) {
       this.shieldValue -= abgefangen;
       this.shieldAbsorbedValue += abgefangen;
+      this.log?.push(
+        this.fightElapsedMs(timeMs),
+        EVENT_SHIELD_ABSORB,
+        NO_SPELL_REF,
+        abgefangen,
+      );
       if (this.shieldValue === 0) {
         // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
         this.shieldStacksValue = 0;
@@ -568,6 +586,12 @@ export class Combat {
 
     const angekommen = nachWard - abgefangen;
     this.damageTakenValue += angekommen;
+    this.log?.push(
+      this.fightElapsedMs(timeMs),
+      EVENT_PLAYER_DAMAGE,
+      NO_SPELL_REF,
+      angekommen,
+    );
     this.playerHpValue = Math.max(0, this.playerHpValue - angekommen);
     if (this.playerHpValue === 0) {
       this.diedAtMsValue = timeMs - this.fightStartedAtMs;
@@ -580,11 +604,21 @@ export class Combat {
    * Gibt zurück, ob überhaupt etwas zu unterbrechen war. Ein Unterbrechen ins
    * Leere ist **kein Fehler**, sondern eine vertane Abklingzeit.
    */
-  private interruptBossCast(): boolean {
+  private interruptBossCast(timeMs: number): boolean {
     if (this.castingValue < 0) return false;
     this.castingValue = -1;
     this.castLandsAtMs = -1;
     this.interruptsLandedValue++;
+    // **Das Spiel schreibt es jetzt selbst** (Issue #151). Bis dahin führte es
+    // nur der Simulator — und die Fehleranalyse läuft im Browser, nicht im
+    // Simulator. Ein Protokoll, in dem die Größe überall fehlt, kann eine
+    // Gelegenheit nicht belegen.
+    this.log?.push(
+      this.fightElapsedMs(timeMs),
+      EVENT_INTERRUPT_LANDED,
+      NO_SPELL_REF,
+      this.interruptsLandedValue,
+    );
     return true;
   }
 
@@ -800,6 +834,12 @@ export class Combat {
       const eintrag = this.boss.timeline[this.timelineIndexValue];
       if (eintrag === undefined || seitBeginn < eintrag.atMs + this.nextStrikeDelayMs) break;
       const index = this.timelineIndexValue;
+      this.log?.push(
+        this.fightElapsedMs(timeMs),
+        EVENT_BOSS_TIMELINE_FIRED,
+        NO_SPELL_REF,
+        index,
+      );
       // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
       // Zeitpunkt an (STAY, Issue #100).
       this.nextStrikeDelayMs = 0;
@@ -897,7 +937,7 @@ export class Combat {
     // globale Wartezeit auslöst, steht weiter unten als `spell.triggersGcd` und
     // kommt aus den Daten — hier wäre eine zweite Stelle, an der dieselbe Regel
     // hängt, und zwei Stellen laufen auseinander.
-    if (spell.interrupt === true) this.interruptBossCast();
+    if (spell.interrupt === true) this.interruptBossCast(timeMs);
 
     // Die drei Wege der Koagulation (Issue #79). Sie stehen VOR dem Schaden,
     // weil ein Zauber, der beides täte, erst schützen und dann zuschlagen
