@@ -109,11 +109,27 @@ line(
 
 // Der Fall, in dem sich nichts aendern darf: derselbe Lauf gegen sich selbst.
 const selbst = buildComparisonView(compareRuns(bestlauf.summary, bestlauf.summary));
+const selbstZeilen = [...selbst.querySelectorAll('tr[data-metric]')] as HTMLElement[];
 line(
   'Derselbe Lauf gegen sich selbst meldet keine Verbesserung',
-  [...selbst.querySelectorAll('tr[data-metric]')].every(
-    (z) => (z as HTMLElement).dataset.improved === 'false',
-  ),
+  selbstZeilen
+    .filter((z) => z.dataset.metric !== 'time')
+    .every((z) => z.dataset.improved === 'false'),
+);
+
+// Die Kampfzeit ist die Ausnahme, und sie steht ausdruecklich da: Keiner der
+// beiden Laeufe hat gewonnen, also sagt sie nichts. Ohne diese Regel meldete
+// der kuerzere -- weil frueher gestorben -- einen Fortschritt.
+const zeitZeile = selbstZeilen.find((z) => z.dataset.metric === 'time');
+line(
+  `Kampfzeit ohne Sieg bleibt unbestimmt: ${zeitZeile?.dataset.improved}`,
+  zeitZeile?.dataset.improved === 'unknown',
+);
+line(
+  `Und im Vergleich der beiden Laeufe ebenso: ${
+    kennzahlen.find((k) => k.key === 'time')?.improved
+  }`,
+  kennzahlen.find((k) => k.key === 'time')?.improved === null,
 );
 
 // --- AC4: 50 Durchläufe ------------------------------------------------------

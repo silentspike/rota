@@ -98,11 +98,19 @@ const METRICS: readonly {
   label: string;
   better: Direction;
   of: (run: RunSummary) => number;
+  /**
+   * Ob die Kennzahl nur zwischen zwei SIEGEN etwas aussagt.
+   *
+   * Die Kampfzeit ist so eine: Wer nach 22 s stirbt, war nicht schneller als
+   * wer nach 30 s gewonnen hat -- er war frueher fertig. Ohne diese
+   * Unterscheidung meldet der Vergleich eine Niederlage als Fortschritt.
+   */
+  victoryOnly?: boolean;
 }[] = [
   // Fortschritt zuerst: Er ist die Kennzahl, die auch bei einer Niederlage
   // etwas aussagt (Issue #82, Fortschrittsmarke).
   { key: 'progress', label: 'PROGRESS', better: 'higher', of: (r) => r.progressPercent },
-  { key: 'time', label: 'FIGHT TIME', better: 'lower', of: (r) => r.elapsedMs },
+  { key: 'time', label: 'FIGHT TIME', better: 'lower', of: (r) => r.elapsedMs, victoryOnly: true },
   { key: 'damage', label: 'DAMAGE', better: 'higher', of: (r) => r.damage },
   { key: 'casts', label: 'CASTS', better: 'higher', of: (r) => r.casts },
   { key: 'idle', label: 'IDLE', better: 'lower', of: (r) => r.lostTimeNothingReadyMs },
@@ -131,6 +139,10 @@ export function compareRuns(current: RunSummary, best: RunSummary | null): Compa
     }
     const bestValue = metric.of(best);
     const delta = currentValue - bestValue;
+    // Eine Kennzahl, die nur zwischen Siegen gilt, bleibt sonst UNBEKANNT.
+    // Der Wert und die Differenz stehen trotzdem da -- verschwiegen wuerde
+    // sonst eine Zahl, die der Spieler im Bild sieht.
+    const vergleichbar = metric.victoryOnly !== true || (current.victory && best.victory);
     return {
       key: metric.key,
       label: metric.label,
@@ -140,7 +152,13 @@ export function compareRuns(current: RunSummary, best: RunSummary | null): Compa
       better: metric.better,
       // Gleichstand ist keine Verbesserung. Ihn als eine auszugeben hiesse,
       // dem Spieler Fortschritt zu melden, wo er auf der Stelle trat.
-      improved: delta === 0 ? false : metric.better === 'higher' ? delta > 0 : delta < 0,
+      improved: !vergleichbar
+        ? null
+        : delta === 0
+          ? false
+          : metric.better === 'higher'
+            ? delta > 0
+            : delta < 0,
     };
   });
 }
