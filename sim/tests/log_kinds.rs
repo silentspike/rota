@@ -43,8 +43,8 @@ const MINE: [(LogKind, u64, &str); 8] = [
     // Beide schreiben den Phasenwechsel, dieselbe Zahl, dieselbe Bedeutung.
     // 8 und 9 sind neu und gehoeren vorerst allein dem Simulator.
     (LogKind::BossPhase, 6, "phase"),
-    (LogKind::BossEnergy, 8, "bossEnergy"),
-    (LogKind::BossTimeline, 9, "bossTimeline"),
+    (LogKind::BossEnergy, 8, "bossEnergyTriggered"),
+    (LogKind::BossTimeline, 9, "bossTimelineFired"),
 ];
 
 fn kinds() -> Vec<(u64, String, bool)> {

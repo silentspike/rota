@@ -93,8 +93,22 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     for (let i = 0; i < SPELL_IDS.length; i++) {
       const sounds = map.soundsFor(EV_SPELL_CAST, i);
       expect(sounds.length).toBe(1);
-      expect(map.ids[sounds[0] as number]).toBe(`spell-${SPELL_IDS[i] as string}`);
     }
+
+    // **Auf den Namen wird ausdrücklich NICHT geprüft.** Bis E1-9 stand hier
+    // die Regel `spell-` + Kennung; sie ist entfallen, weil die Zuordnung ins
+    // Verzeichnis gehört und nicht in eine Namenskonvention (siehe
+    // `src/core/loadout.ts`). QUENCH ist der erste Fall, in dem beides
+    // auseinanderfällt: Sein Klang heißt `special-interrupt`, weil
+    // GAME-DESIGN 17.1 Unterbrechen unter den sieben SONDERZAUBERN führt und
+    // nicht unter den 60 Zaubern.
+    //
+    // Ein Test, der den Namen weiter erzwingt, hielte eine abgeschaffte Regel
+    // am Leben — und zwar an der Stelle, an der sie zum ersten Mal falsch wird.
+    const quench = SPELL_IDS.indexOf('quench');
+    expect(quench).toBeGreaterThanOrEqual(0);
+    const quenchSounds = map.soundsFor(EV_SPELL_CAST, quench);
+    expect(map.ids[quenchSounds[0] as number]).toBe('special-interrupt');
   });
 
   it('nimmt einen zusätzlichen Eintrag ohne Code-Änderung auf', () => {

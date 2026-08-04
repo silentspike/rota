@@ -63,6 +63,16 @@ pub enum EventKind {
         /// Index des Eintrags in `Boss::timeline`.
         index: u16,
     },
+    /// Ein laufender Boss-Zauber ist fertig gewirkt und trifft — **falls** er
+    /// nicht inzwischen unterbrochen wurde.
+    ///
+    /// Steht vor dem Weckruf und hinter den uebrigen Boss-Handlungen: Er ist
+    /// eine passive Wirkung wie sie, und der Spieler soll im selben Takt noch
+    /// entscheiden koennen.
+    BossCastLands {
+        /// Index des Eintrags in `Boss::timeline`.
+        index: u16,
+    },
     /// Nur aufwachen: Zu diesem Zeitpunkt kann sich eine Entscheidung ergeben
     /// (Abklingzeit oder globale Wartezeit ist abgelaufen), oder es ist zu
     /// pruefen, ob der Boss gefallen ist.
@@ -81,7 +91,8 @@ impl EventKind {
             EventKind::ResourceDecay => 1,
             EventKind::EnergyTick => 2,
             EventKind::TimelineStep { .. } => 3,
-            EventKind::Wakeup => 4,
+            EventKind::BossCastLands { .. } => 4,
+            EventKind::Wakeup => 5,
         }
     }
 }

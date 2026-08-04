@@ -70,6 +70,15 @@ pub struct Spell {
     pub cast_time_ms: Millis,
     /// Ob der Zauber die globale Wartezeit ausloest.
     pub triggers_gcd: bool,
+    /// Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**
+    /// (GAME-DESIGN 11.2, Baustein 9).
+    ///
+    /// Steht in den Daten und nicht im Code: Ein Zauber, der das kann, ist ein
+    /// Datensatz wie jeder andere (Leitplanke 6). Er ist zugleich die **einzige
+    /// Ausnahme** von der globalen Wartezeit im ganzen Spiel (GAME-DESIGN 6.6)
+    /// — aber auch das steht als `triggers_gcd: false` in denselben Daten und
+    /// nicht als Sonderfall in der Kampfschleife.
+    pub interrupt: bool,
     /// Ressourcen-Gewinn beim Wirken.
     pub resource_gain: u16,
     /// Brand-Effekt, falls der Zauber einen hat.
@@ -107,18 +116,51 @@ pub struct Phase {
 /// es gibt keine zufaellige Streuung — nur so sind Bestzeiten vergleichbar und
 /// der Kampf ueberhaupt simulierbar (GAME-DESIGN 11.1, Absatz danach).
 ///
-/// **Was hier absichtlich fehlt:** die Wirkung. Welcher Baustein was tut, ist
-/// Gegenstand von E4-2 bis E4-6, und welcher Boss welche Eintraege bekommt,
-/// gehoert nach E10 (GAME-DESIGN 22, Zeile „Boss-Zeitleisten“). Dieses Feld ist
-/// das Geruest, das beides spaeter traegt: Der Zeitpunkt wird schon jetzt
-/// taktgenau angesteuert und geht in die Zustands-Pruefsumme ein, damit ein
-/// spaeter angehaengter Baustein nicht auf ungepruefter Zeitrechnung aufsetzt.
+/// **Seit Issue #110 hat ein Eintrag Wirkung.** In #96 war dies noch ein
+/// leeres Geruest: Der Zeitpunkt wurde taktgenau angesteuert, aber es geschah
+/// nichts. Jetzt teilt der Boss damit Schaden aus — sofort ([`TimelineKind::Strike`])
+/// oder nach einer Wirkzeit, die sich unterbrechen laesst
+/// ([`TimelineKind::InterruptibleCast`]).
+///
+/// Was **weiterhin** fehlt, sind die uebrigen sieben Mechanik-Bausteine
+/// (E4-3 und spaeter) und die Zeitleisten der einzelnen Bosse, die nach E10
+/// gehoeren (GAME-DESIGN 22).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimelineEntry {
     /// Zeitpunkt seit Kampfbeginn. Liegt auf dem Takt-Raster des Spiels.
+    ///
+    /// Bei einem Zauber ist das der Zeitpunkt, zu dem er **beginnt** — nicht
+    /// der, zu dem er trifft. Der Treffer liegt `cast_time_ms` spaeter, und
+    /// dazwischen liegt das Fenster, in dem unterbrochen werden kann.
     pub at_ms: Millis,
     /// Kennung des Mechanik-Bausteins, der hier greift.
     pub mechanic: &'static str,
+    /// Anzeigename der Faehigkeit. Englisch, wie alle Spieltexte.
+    pub name: &'static str,
+    /// Was hier geschieht.
+    pub kind: TimelineKind,
+    /// Schaden am Spieler, **vor** WARD.
+    pub damage: u32,
+    /// Wirkzeit eines Boss-Zaubers. 0 bei allem, was sofort trifft.
+    pub cast_time_ms: Millis,
+}
+
+/// Was ein Zeitleisten-Eintrag tut.
+///
+/// Nur zwei Arten, und das ist Absicht: Die uebrigen der neun Mechanik-
+/// Bausteine (GAME-DESIGN 11.2) kommen in E4-3 und spaeter. Wer hier eine
+/// dritte Art braucht, fuegt sie hinzu — das Geruest aus #96 traegt sie.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimelineKind {
+    /// Trifft sofort. Nicht zu verhindern, nur auszuhalten.
+    Strike,
+    /// Ein Zauber mit Wirkzeit. **Unterbrechbar**, solange er laeuft
+    /// (GAME-DESIGN 11.2, Baustein 9).
+    ///
+    /// Kommt er durch, trifft er mit vollem Schaden; wird er unterbrochen,
+    /// richtet er gar nichts an. Ein Mittelding gibt es nicht — das ist die
+    /// Entscheidung, die den Baustein ausmacht.
+    InterruptibleCast,
 }
 
 /// Die Energieleiste — die zweite Uhr eines Bosses.
@@ -182,6 +224,57 @@ impl Boss {
     }
 }
 
+/// Die Grundwerte des Spielers (GAME-DESIGN 6.1).
+///
+/// **Berechnet, nicht gespeichert.** Der Spielstand haelt sie nicht — sie
+/// ergeben sich aus Ausruestung und Talenten, und beides gibt es noch nicht
+/// (E5, E6). Bis dahin stehen sie in `data/player/base.json`.
+///
+/// > **Die Zahlen sind noch nicht Design.** GAME-DESIGN Teil F.6 fuehrt sie
+/// > als „vor E4 auszuplanen"; entschieden ist davon nichts. Sie tragen die
+/// > Prueffaelle aus Issue #110 und sonst nichts.
+///
+/// # Verhaeltnis zur Ausruestung (E6)
+///
+/// `src/gear/slots.ts` fuehrt mit `BASE_STAT_IDS` die **Kennungen** der
+/// Grundwerte; diese Datei fuehrt ihre **Werte**. Zwei verschiedene Aussagen,
+/// kein Widerspruch.
+///
+/// **Diese Werte sind der STARTWERT.** Ausruestung wird darauf **addiert**,
+/// sie ersetzt ihn nicht. Heute traegt kein Stueck etwas, also faellt die
+/// Frage nicht auf; wer sie zusammenfuehrt, findet die Antwort hier und in
+/// `src/core/data.ts`.
+///
+/// Eine Formel von WARD-Punkten zu Minderungsanteil fehlt dabei noch, und
+/// zwar mit Absicht — sie ist Design und steht in Kapitel 22 als offen.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerBase {
+    /// VESSEL — Lebenspunkte.
+    pub vessel: u32,
+    /// WARD — Anteil, um den eingehender Schaden gemindert wird.
+    ///
+    /// Ein Anteil und keine Ruestungszahl: Eine Ruestungsformel waere eine
+    /// Design-Entscheidung, und die ist nicht gefallen. Ein Anteil traegt den
+    /// Prueffall, ohne etwas vorwegzunehmen.
+    pub ward_reduction: f64,
+}
+
+impl PlayerBase {
+    /// Wie viel Schaden nach WARD ankommt.
+    ///
+    /// **Einmal gerundet, am Ende** — dieselbe Regel wie bei ausgehendem
+    /// Schaden (GAME-DESIGN 6.3). Zweimal zu runden ergaebe je nach
+    /// Reihenfolge andere Zahlen, und genau daran laufen zwei Umsetzungen
+    /// auseinander.
+    #[must_use]
+    pub fn incoming(&self, raw: u32) -> u32 {
+        let gemindert = f64::from(raw) * (1.0 - self.ward_reduction);
+        // Nie unter null, und nie mehr als der Rohwert: Ein WARD ueber 1.0
+        // wuerde den Spieler sonst heilen.
+        gemindert.round().max(0.0) as u32
+    }
+}
+
 include!(concat!(env!("OUT_DIR"), "/data_generated.rs"));
 
 /// Sucht einen Boss ueber seinen Bezeichner.
@@ -218,11 +311,40 @@ mod tests {
 
     #[test]
     fn die_drei_zauber_aus_schritt_1_sind_da() {
-        assert_eq!(SPELL_COUNT, 3, "Schritt 1 hat genau drei Zauber");
+        // Drei Schadenszauber, dazu seit Issue #110 der Unterbrecher. Er zaehlt
+        // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
+        // und kommt in keiner der vier Pruefrotationen vor.
+        assert_eq!(SPELL_COUNT, 4);
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
         assert_eq!(index_of("gibtesnicht"), None);
+
+        // Nicht ueber `base_damage` gezaehlt: SMOULDER ist ein Brand-Effekt und
+        // PYRE ein Entlader, beide haben 0 Sofortschaden. Der Unterbrecher
+        // unterscheidet sich nicht durch den Schaden, sondern durch die Rolle.
+        let kampfzauber = SPELLS.iter().filter(|s| !s.interrupt).count();
+        assert_eq!(kampfzauber, 3, "Schritt 1 hat genau drei Kampfzauber");
+    }
+
+    #[test]
+    fn der_unterbrecher_ist_die_einzige_ausnahme_von_der_wartezeit() {
+        // GAME-DESIGN 6.6: **Genau eine** Ausnahme. Ein zweiter Zauber ohne
+        // globale Wartezeit waere eine Design-Aenderung, die sich in eine
+        // Datendatei einschleichen koennte, ohne dass jemand sie beschliesst.
+        let ohne_gcd: Vec<&str> = SPELLS
+            .iter()
+            .filter(|s| !s.triggers_gcd)
+            .map(|s| s.id)
+            .collect();
+        assert_eq!(ohne_gcd, vec!["quench"]);
+
+        let unterbrecher: Vec<&str> = SPELLS
+            .iter()
+            .filter(|s| s.interrupt)
+            .map(|s| s.id)
+            .collect();
+        assert_eq!(unterbrecher, vec!["quench"]);
     }
 
     #[test]
