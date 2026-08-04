@@ -49,7 +49,19 @@ import {
   budgetOf,
   distributeBudget,
 } from '../../src/gear/budget.js';
-import { BASE_STAT_IDS, SLOT_NAMES } from '../../src/gear/slots.js';
+import { BASE_STAT_IDS, SLOT_COUNT, SLOT_NAMES } from '../../src/gear/slots.js';
+import {
+  BONUS_ROTATION,
+  BONUS_VALUE,
+  NO_SET,
+  SET_COUNT,
+  SET_TIERS,
+  activeRotationEffects,
+  countPieces,
+  tiersReached,
+  valueShareOf,
+  type SetDef,
+} from '../../src/gear/sets.js';
 import {
   NO_SUBJECT,
   RULE_BOSS_PHASE,
@@ -1054,5 +1066,92 @@ export function gearPayload(): Record<string, unknown> {
     baseStatIds: BASE_STAT_IDS,
     poolSteps,
     budgets,
+  };
+}
+
+/**
+ * Sätze: Zählung, Schwellen und Anteile (Issue E6-3).
+ *
+ * **Aussagekräftig ohne einen einzigen ausgelieferten Satz.** Welche 18 Boni
+ * es gibt, ist Katalog-Inhalt (GAME-DESIGN 22, vor E10). Geprüft wird die
+ * Rechenregel — dieselbe Lage wie bei den Töpfen (#114) und beim Auswahlmodus
+ * (#102).
+ *
+ * Die Zusammenstellungen decken ausdrücklich den Fall mit ab, in dem sich
+ * **nichts** ändern darf: eine Leiste ohne Satz-Teil.
+ */
+export function setsPayload(): Record<string, unknown> {
+  const saetze: SetDef[] = [
+    {
+      id: 0,
+      school: 'CALCINATION',
+      tiers: [
+        { kind: BONUS_VALUE, share: 0.1, effect: '' },
+        { kind: BONUS_VALUE, share: 0.2, effect: '' },
+        { kind: BONUS_ROTATION, share: 0, effect: 'test-a-sechser' },
+      ],
+    },
+    {
+      id: 1,
+      school: 'SUBLIMATION',
+      tiers: [
+        { kind: BONUS_VALUE, share: 0.05, effect: '' },
+        { kind: BONUS_VALUE, share: 0.15, effect: '' },
+        { kind: BONUS_ROTATION, share: 0, effect: 'test-b-sechser' },
+      ],
+    },
+  ];
+
+  const leiste = (...teile: number[]): number[] => {
+    const out = new Array<number>(SLOT_COUNT).fill(NO_SET);
+    for (let i = 0; i < teile.length && i < SLOT_COUNT; i++) out[i] = teile[i] as number;
+    return out;
+  };
+
+  const faelle: { was: string; equipped: number[] }[] = [
+    // **Der Fall, in dem sich nichts ändern darf** — ohne ihn belegte die
+    // Folge nur, dass überhaupt etwas passiert.
+    { was: 'kein Satz-Teil', equipped: leiste() },
+    { was: 'ein Teil — noch keine Stufe', equipped: leiste(0) },
+    { was: 'zwei Teile — erste Stufe', equipped: leiste(0, 0) },
+    { was: 'drei Teile — weiterhin erste Stufe', equipped: leiste(0, 0, 0) },
+    { was: 'vier Teile — zweite Stufe', equipped: leiste(0, 0, 0, 0) },
+    { was: 'fuenf Teile — wie vier, nicht weniger', equipped: leiste(0, 0, 0, 0, 0) },
+    { was: 'sechs Teile — der Rotations-Effekt', equipped: leiste(0, 0, 0, 0, 0, 0) },
+    { was: 'vier von A und zwei von B', equipped: leiste(0, 0, 0, 0, 1, 1) },
+    // Der Platz spielt keine Rolle: dieselben vier Teile, weit hinten.
+    {
+      was: 'vier von A auf hinteren Plaetzen',
+      equipped: [NO_SET, NO_SET, 0, NO_SET, 0, NO_SET, NO_SET, 0, NO_SET, 0],
+    },
+  ];
+
+  const steps = faelle.map(({ was, equipped }) => {
+    const pieces = new Int32Array(SET_COUNT);
+    const getragen = countPieces(equipped, pieces);
+    const anteil = valueShareOf(saetze, pieces);
+    let hash = FNV_OFFSET;
+    hash = mixInt(hash, getragen);
+    for (const zahl of pieces) hash = mixInt(hash, zahl);
+    hash = mixFloat(hash, anteil);
+    return {
+      was,
+      equipped,
+      pieces: Array.from(pieces),
+      wornPieces: getragen,
+      tiersReached: Array.from(pieces, (n) => tiersReached(n)),
+      valueShare: anteil,
+      valueShareBits: bitsOf(anteil),
+      rotationEffects: activeRotationEffects(saetze, pieces),
+      checksum: hash >>> 0,
+    };
+  });
+
+  return {
+    schema: SCHEMA,
+    tiers: SET_TIERS,
+    setCount: SET_COUNT,
+    sets: saetze,
+    steps,
   };
 }
