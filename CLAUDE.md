@@ -114,6 +114,15 @@ Einzelheiten in [`docs/IPC.md`](docs/IPC.md).
     also `npm run build`, dann neu laden.
   - **Dev-Werkzeuge im Browser testen:** `npx vite build --mode development` — dann ist
     `window.__rota` verfügbar. Danach wieder `npm run build`, damit der Produktionsstand ausliegt.
+  - **In einem Worktree gehört `--base` dazu:** `npx vite build --mode development --base=/rota-e1/`
+    (für e2 `/rota-e2/`, für e9 `/rota-e9/`). `vite.config.ts` setzt `base` auf `/rota/` — ohne den
+    Schalter lädt die Seite unter `/rota-e1/` ihre Bausteine aus `/rota/`, also **aus einem fremden
+    Worktree**. Ergebnis: HTTP 200, richtige Seite, **falsches Programm**, `window.__rota`
+    undefined.
+    > Diese Falle hat zweimal Zeit gekostet — am 2026-07-29 zwanzig Minuten Suche, am 2026-08-04
+    > eine Fehldiagnose bei einer Abnahme. Sie sieht wie ein fehlender Entwicklungs-Bau aus und ist
+    > keiner. Wer `undefined` misst, prüft **zuerst**, aus welchem Pfad die Seite ihre Bausteine
+    > lädt: `curl -s localhost:8000/rota-eN/ | grep -o 'src="[^"]*"'`
   - **Abhör-Soundboard:** `npm run soundboard`, dann `localhost:8000/rota/soundboard.html`.
     Die Seite entsteht **nur** im Entwicklungs-Bau (Dev-Werkzeug, GAME-DESIGN 19.3); jedes
     `npm run build` entfernt sie wieder. Ohne den Bau-Schritt liefert nginx über `try_files`
