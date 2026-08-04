@@ -1193,6 +1193,35 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 > Gefunden hat es Worker-1, nicht ich. Wer 13.5 gelesen hätte, ohne 13.2 zu kennen, hätte den
 > Prüflauf gegen eine gestrichene Regel gebaut.
 
+#### Der Preis des Satz-Bonus ist die Wahlfreiheit
+
+_Vom Auftraggeber entschieden am 2026-08-04, nachdem Worker-1 die Lücke beim Bau der Messung
+gemeldet hat._
+
+**Ein Satz-Teil trägt dieselben Affixe wie ein freies Stück derselben Qualität.** Es wird nichts
+abgezogen. Der Preis ist ein anderer:
+
+> Wer sechs Satz-Teile trägt, kann auf diesen sechs Plätzen **nicht die besten Einzelstücke
+> tragen**. Er nimmt, was der Satz an Affixen mitbringt, statt gezielt zu wählen.
+
+**Warum die Frage gestellt werden musste:** Ein Satz-Teil ist ein Gegenstand — es trägt Affixe
+**und** zählt für den Satz. Ohne einen Preis käme der Bonus obendrauf, und „Satz tragen" wäre
+immer richtig; die Anforderung „etwa gleichwertig" wäre unerfüllbar, ganz gleich wie die Zahlen
+gesetzt sind.
+
+**Was das für den Prüflauf bedeutet:** Der Satz-Aufbau darf seine Affixe **nicht frei wählen** —
+sie sind durch die getragenen Teile vorgegeben. Nur der Affix-Aufbau wählt frei. Ein Vergleich,
+in dem beide Seiten optimal verteilen, misst den Preis nicht und fällt zwangsläufig zugunsten
+der Sätze aus.
+
+> **Bewusst nicht gewählt:** weniger Affixe je Satz-Teil. Das wäre leichter zu balancieren und im
+> Kopf nachrechenbar — ließe Satz-Teile beim Finden aber schwächer wirken als andere Stücke
+> derselben Qualität, und das widerspricht dem Sechser-Bonus als Krönung (13.5).
+>
+> **Bekannte Folge, die der Prüflauf im Auge behalten muss:** Der Nachteil hängt am Beute-Glück.
+> Wessen Satz-Teile zufällig passende Affixe tragen, zahlt kaum etwas — wessen Teile danebenliegen,
+> zahlt viel. Der Vergleich misst also eine Spanne, keinen festen Abstand.
+
 ### 13.6 Beute-Handhabung
 
 | Aspekt                            | Festlegung                                                                                                                                                                                                                                                               |
@@ -1398,6 +1427,42 @@ Links die eigenen Zauber nach Schule gruppiert, rechts die Leiste.
 Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur einem Zauber trägt.
 
 **Keine Empfehlungen vom Spiel.** Das Zusammenstellen ist eine der beiden Kernaufgaben.
+
+### 16.1 Das Player Home — der Bildschirm zwischen den Kämpfen
+
+_Nachgetragen am 2026-08-04. Der Begriff stand vorher nur in der Überschrift von 19.2 und war
+nirgends erklärt — siehe die Anmerkung am Ende dieses Abschnitts._
+
+**Das Player Home ist ein Spieler-Bildschirm**, nicht ein Werkzeug-Bereich. Er ist der Ort, an dem
+alles geschieht, was zwischen zwei Kämpfen zu entscheiden ist:
+
+| Was dort sitzt             | Kapitel |
+| -------------------------- | ------- |
+| Talentpunkte verteilen     | 12.5    |
+| Instanz und Boss wählen    | 11.6    |
+| Die Zusammenstellung bauen | 16      |
+| Ausrüstung anlegen         | 13      |
+| **Die Werte-Übersicht**    | 6.7     |
+
+Die vier **Test-Einstellungen** aus 19.2 sitzen zusätzlich dort — sie sind ein Aufsatz für den
+Auftraggeber, kein Bestandteil des Bildschirms. 19.3 schneidet **sie** beim Bauen heraus, nicht
+das Player Home.
+
+> **Woran sich das entscheidet:** Der Bildschirm bleibt im Auslieferungs-Bau vollständig
+> vorhanden. Verschwindet er, verliert der Spieler seinen Talentbaum und seine Ausrüstung —
+> und 6.7 begründet die Werte-Übersicht ausdrücklich mit dem Spieler: „Ein Deckel, den man
+> nicht sieht, ist eine Falle." Eine Falle, vor der nur der Auftraggeber gewarnt wird, ist
+> keine Warnung.
+
+> **Warum dieser Abschnitt nachgetragen werden musste.** „Player Home" kam im ganzen Dokument
+> genau einmal vor: in der Überschrift „19.2 Für den Auftraggeber — sichtbar im Player Home".
+> Wer nur dieses Dokument liest — und genau das sollen die Worker —, konnte den Begriff nur
+> als Werkzeug-Bereich verstehen und musste aus 19.3 schließen, dass er beim Bauen verschwindet.
+> Gemeldet von E7 beim Beginn von #188, mit Beleg statt Vermutung.
+>
+> **Die allgemeine Lehre:** Ein Begriff, der nur in einer Überschrift vorkommt, ist nicht
+> definiert — er ist benannt. Wer ihn zum ersten Mal liest, leitet seine Bedeutung aus dem
+> Kapitel ab, in dem er steht, und das kann das falsche sein.
 
 ---
 
@@ -1806,6 +1871,10 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 
 > Ohne Stufen-Boost und Ausrüstungs-Auswahl lässt sich das **Endgame nicht beurteilen, bevor es
 > erspielt ist** — bei 24 h Aufstieg wäre jede Endgame-Prüfung sonst unmöglich.
+
+> **Das Player Home selbst ist ein Spieler-Bildschirm (16.1), kein Werkzeug.** Herausgeschnitten
+> werden von 19.3 die vier Einstellungen oben — nicht der Bildschirm, in dem sie sitzen. Ohne ihn
+> hätte der Spieler keinen Talentbaum und keine Ausrüstung.
 
 ### 19.3 Trennung von der Auslieferung
 

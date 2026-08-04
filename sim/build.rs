@@ -531,6 +531,16 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
         "        overpressure_ms: {},",
         uint(boss, "overpressureMs", whose)
     );
+    // Fehlt das Feld, wiederholt sich nichts — das ist der Normalfall und
+    // gilt fuer jeden ausgelieferten Boss.
+    let _ = writeln!(
+        out,
+        "        timeline_loop_ms: {},",
+        match boss.get("timelineLoopMs").and_then(Value::as_u64) {
+            Some(ms) => format!("Some({ms})"),
+            None => "None".to_owned(),
+        }
+    );
     emit_phases(out, boss, whose);
     emit_energy(out, boss, whose);
     emit_timeline(out, boss, whose);
