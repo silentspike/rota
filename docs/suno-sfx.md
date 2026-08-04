@@ -208,6 +208,14 @@ playwright-cli -s=suno state-save /work/rota/.suno-state.json  # gitignored!
 /venv/bin/python tools/suno_api.py batch <manifest.json> [--outdir DIR]
 ```
 
+**Die Zustandsdatei liegt neben dem Skript, nicht an einem festen Ort.**
+`STATE_FILE` ist `Path(__file__).resolve().parent.parent / ".suno-state.json"` — aus einem
+Arbeitsbaum aufgerufen sucht das Werkzeug sie also **dort** und nicht in `/work/rota`. Jeder
+Arbeitsbaum braucht damit seine eigene Kopie; dafür kann ein Lauf im Arbeitsbaum die Datei in
+`/work/rota` nicht beschädigen. Am 2026-08-04 war genau das der Grund, warum nach dem Verlust
+(Abschnitt 7.3) noch zwei brauchbare Kopien existierten — ein Verhalten, das zufällig
+geholfen hat und nirgends stand.
+
 **Manifest-Format** (für Massen-Produktion; überspringt automatisch, was schon existiert):
 
 ```json
