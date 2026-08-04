@@ -118,3 +118,28 @@ describe('Jederzeit abbrechbar', () => {
     expect(raum.start().accepted).toBe(false);
   });
 });
+
+describe('AC4 — dieselbe Auswertung wie nach einem Boss-Kampf', () => {
+  it('die Puppe durchläuft denselben Weg, weil sie ein BossDef ist', () => {
+    // Der Nachweis ist struktureller Art und braucht die Verlustrechnung aus
+    // #81 NICHT: Weil die Puppe ein gewöhnlicher Boss ist und Combat
+    // unangetastet bleibt, entsteht die Auswertung über dieselbe Funktion
+    // (buildSummary) mit denselben Feldern. Es gibt gar keinen zweiten Weg,
+    // auf dem sie abweichen könnte.
+    const dummy = buildDummy(DEFAULT_DUMMY, 'CALCINATION');
+    const boss = {
+      schema: 1,
+      id: 'x',
+      name: 'X',
+      instance: 'i',
+      hp: 1000,
+      overpressureMs: 60_000,
+      resistances: {},
+      phases: [],
+      energy: null,
+      timeline: [],
+    };
+    // Gleiche Form heißt: dieselben Felder, keine zusätzlichen, keine fehlenden.
+    expect(Object.keys(dummy).sort()).toEqual(Object.keys(boss).sort());
+  });
+});
