@@ -12,11 +12,16 @@
 //! Schritt 3 an). Der Empfaenger laeuft also mit und verkuerzt nichts, und
 //! genau deshalb bleibt die Referenz-Rechnung unberuehrt.
 //!
-//! **AC5 des Issues bleibt damit ausdruecklich offen**: Dass Spiel und
-//! Simulator dieselbe Verkuerzung rechnen, laesst sich erst zeigen, wenn ein
-//! Zauber das Feld traegt. Beide Seiten pruefen heute dieselben Aussagen
-//! ueber die Rechnung — das ist etwas anderes als ein gemeinsamer Prueffall.
+//! **Seit Issue #201 traegt VAPOUR das Feld.** Damit ist die Verkuerzung auf
+//! beiden Seiten an einem echten Zauber pruefbar; der Platzhalter-Fall ist
+//! ersetzt, nicht geloescht.
+//!
+//! REFLUX dagegen kann der Simulator noch nicht: Der Druck-Pfad in
+//! `Fight::replay` kennt nur "wirken" und "ablehnen", nicht "waehlen". Das ist
+//! Issue #223, und der Waechter unten haelt es fest.
 
+use rota_sim::data::index_of;
+use rota_sim::replay::{Binding, Press, Recording};
 use rota_sim::rules_event::RuleEvent;
 use rota_sim::{data, rotation, Fight, FightConfig};
 
@@ -85,4 +90,49 @@ fn der_referenzlauf_bleibt_unberuehrt() {
         0,
         "die Mechanik hat angesetzt, obwohl kein Zauber etwas verkuerzt"
     );
+}
+
+/// Der Waechter greift, sobald eine Aufzeichnung REFLUX enthaelt (Issue #223).
+///
+/// **Der Gegenbeweis zum Waechter selbst.** Ein Waechter, der nie anschlaegt,
+/// ist von einem fehlenden nicht zu unterscheiden — deshalb wird hier eine
+/// Aufzeichnung gebaut, die ihn ausloest, und belegt, dass sie es tut.
+#[test]
+#[should_panic(expected = "Auswahlmodus")]
+fn eine_aufzeichnung_mit_reflux_bricht_den_lauf_ab() {
+    let reflux = index_of("reflux").expect("REFLUX gehoert seit Issue #201 zum Zauberkasten");
+    let recording = Recording {
+        name: "reflux-probe".to_owned(),
+        seed: 0,
+        ticks: 10,
+        bindings: vec![Binding {
+            slot: 0,
+            spell: reflux,
+        }],
+        presses: vec![Press { tick: 1, slot: 0 }],
+    };
+    let mut fight = Fight::new(FightConfig::default());
+    fight.replay(&recording, false);
+}
+
+/// Und die Gegenrichtung: Ohne REFLUX laeuft dieselbe Aufzeichnung durch.
+///
+/// Ohne diesen Fall koennte der Waechter bei JEDEM Druck anschlagen, und der
+/// Fall darueber wuerde es nicht merken.
+#[test]
+fn dieselbe_aufzeichnung_mit_kindle_laeuft_durch() {
+    let kindle = index_of("kindle").expect("kindle");
+    let recording = Recording {
+        name: "kindle-probe".to_owned(),
+        seed: 0,
+        ticks: 10,
+        bindings: vec![Binding {
+            slot: 0,
+            spell: kindle,
+        }],
+        presses: vec![Press { tick: 1, slot: 0 }],
+    };
+    let mut fight = Fight::new(FightConfig::default());
+    let result = fight.replay(&recording, false);
+    assert_eq!(result.casts[kindle], 1, "KINDLE muss gewirkt worden sein");
 }

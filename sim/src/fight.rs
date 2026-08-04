@@ -783,6 +783,26 @@ impl Fight {
                     // Unbelegter Platz: Fehleingabe, nichts wird gemerkt.
                     None => rejected += 1,
                     Some(index) => {
+                        // **WAECHTER (Issue #201, offen als #223).** Der
+                        // Simulator kennt den Auswahlmodus nicht: Dieser Pfad
+                        // kann "wirken" und "ablehnen", nicht "waehlen".
+                        // `cooldown_reset.rs` baut ihn vollstaendig — und kein
+                        // Aufruf im Kampf ruft ihn.
+                        //
+                        // Ohne diese Zeile liefe eine Aufzeichnung mit REFLUX
+                        // still falsch durch: Der Ruecksetzer wuerde als
+                        // gewoehnlicher Zauber gewirkt, der naechste Druck
+                        // NICHT zurueckgesetzt, und beide Seiten liefen
+                        // auseinander, ohne dass es jemand meldet. Genau der
+                        // Zustand, den Issue #201 behebt — diesmal wuessten
+                        // wir es beim Bauen.
+                        assert!(
+                            !SPELLS[index].arms_cooldown_reset,
+                            "Die Aufzeichnung wirkt {}, und der Simulator kennt den \
+                             Auswahlmodus noch nicht (Issue #223). Bis der Druck-Pfad \
+                             ihn kennt, waere jeder Vergleich gegen diesen Lauf wertlos.",
+                            SPELLS[index].id
+                        );
                         if self.is_ready(index) {
                             self.cast(index);
                             accepted += 1;
