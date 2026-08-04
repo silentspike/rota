@@ -21,9 +21,24 @@
 export const STREAM_CRIT = 0;
 export const STREAM_DOT_TICK = 1;
 export const STREAM_HEAL = 2;
-export const STREAM_COUNT = 3;
+/**
+ * Beute-Würfe (GAME-DESIGN 13.4, Issue E6-2).
+ *
+ * **Ein eigener Strom, getrennt von Krit, DoT-Ticks und Heilung.** Zögen
+ * Beute und Krit aus demselben Strom, verschöbe jeder zusätzliche Krit die
+ * Beute-Folge — zwei Läufe mit derselben Rotation, aber verschiedenem
+ * Krit-Glück, bekämen verschiedene Beute, ohne dass es jemand entschieden
+ * hätte. Dieselbe Begründung, aus der Krit, DoT-Ticks und Heilung je einen
+ * eigenen Strom haben.
+ *
+ * **STREAM_HEAL bleibt auf 2, obwohl heute nichts daraus zieht.** Ihn zu
+ * entfernen und später wieder einzufügen würde jede aufgezeichnete Prüfsumme
+ * zweimal verschieben; ein reservierter Strom kostet nichts.
+ */
+export const STREAM_LOOT = 3;
+export const STREAM_COUNT = 4;
 
-export const STREAM_NAMES: readonly string[] = ['crit', 'dotTick', 'heal'];
+export const STREAM_NAMES: readonly string[] = ['crit', 'dotTick', 'heal', 'loot'];
 
 /**
  * Ein Strom. Der Zustand ist eine einzige vorzeichenlose 32-Bit-Zahl; damit ist

@@ -12,6 +12,7 @@ import {
 } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { STREAM_COUNT } from '../../src/core/rng.js';
 
 function makeCombat(): Combat {
   return new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
@@ -300,7 +301,12 @@ describe('Combat — Zufallsströme', () => {
       timeMs += TICK_MS;
     }
     expect(combat.random.totalDraws).toBe(0);
-    expect(combat.random.drawCounts()).toEqual([0, 0, 0]);
+    // An STREAM_COUNT gebunden statt hart eingetragen: Die Aussage ist
+    // „aus KEINEM Strom gezogen", nicht „es gibt genau drei". Der erste
+    // Anlauf stand als [0, 0, 0] da und fiel um, als die Beute einen
+    // eigenen Strom bekam (#115) — obwohl die geprüfte Eigenschaft
+    // unverändert galt.
+    expect(combat.random.drawCounts()).toEqual(new Array<number>(STREAM_COUNT).fill(0));
   });
 });
 
