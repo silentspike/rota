@@ -209,6 +209,30 @@ Ein Prüffall wacht seitdem darüber (`tests/unit/source-is-text.test.ts`): Er l
 `.css` aus `src/` und `docs/` und schlägt bei jedem NUL-Byte an — **einschließlich der Absicherung,
 dass er überhaupt Dateien findet.** Ohne sie liefe er auch bei leerer Liste durch.
 
+##### Nach NUL-Bytes suchen: grep taugt dafür nicht
+
+_Zwei Sitzungen, zwei verschiedene Fehlschläge, dieselbe Ursache — am selben Tag._
+
+| Versuch                 | Ergebnis                                           | Was wirklich geschah                                                                                               |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `grep -qP '\x00' datei` | findet **nichts**, auch nicht die betroffene Datei | grep behandelt die Datei als binär und meldet nur „Binary file matches" — mit `-q` verschluckt                     |
+| `grep -c $'\x00' datei` | meldet **210**                                     | Die Shell kann kein NUL in einer Variable halten. `$'\x00'` wird zum **leeren Muster**, und grep zählt alle Zeilen |
+
+Der zweite Fall ist der tückischere: Die Zahl sieht wie ein Ergebnis aus. 210 Zeilen und 210
+angebliche NUL-Bytes sind nicht zu unterscheiden, wenn man die Datei nicht kennt.
+
+**Was trägt:**
+
+```bash
+# Ist die Datei Text?
+grep -qI . datei && echo TEXT || echo BINAER
+
+# Wie viele NUL-Bytes?
+A=$(wc -c < datei); B=$(tr -d '\000' < datei | wc -c); echo $((A - B))
+```
+
+Beides ohne Muster-Interpretation — deshalb funktionieren sie.
+
 ### Schritt 6 — Merge nach `main`
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
