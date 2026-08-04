@@ -21,19 +21,16 @@ const REFERENCE = {
     damage: 4240,
     killedAtMs: 40_510,
     remainingMs: 19_490,
-    casts: {
-      kindle: 20,
-      smoulder: 4,
-      pyre: 4,
-      quench: 0,
-      crust: 0,
-      salve: 0,
-      temper: 0,
-      bind: 0,
-      stall: 0,
-      stay: 0,
-      anchor: 0,
-    },
+    // **Nur die GEWIRKTEN.** Die acht Nullen, die hier standen, waren keine
+    // Angabe über die Referenz, sondern eine einzige Aussage: „außer diesen
+    // dreien wurde nichts gewirkt". Als Aufzählung geschrieben musste sie bei
+    // jedem neuen Zauber nachgepflegt werden — Issue #97 brachte zwei, und der
+    // Prüffall wurde rot, obwohl die Referenz stimmte.
+    //
+    // Die Aussage steht jetzt unten als eigene Prüfung, und sie ist **schärfer**
+    // als die Aufzählung: Auch ein künftiger Zauber, der fälschlich gewirkt
+    // wird, fällt auf — er steht nicht im Literal, also muss er null sein.
+    casts: { kindle: 20, smoulder: 4, pyre: 4 },
     pyreDamage: 1440,
     smoulderDamage: 800,
     lostDotTicks: 0,
@@ -43,19 +40,8 @@ const REFERENCE = {
   bad: {
     damage: 4044,
     killedAtMs: -1,
-    casts: {
-      kindle: 24,
-      smoulder: 8,
-      pyre: 8,
-      quench: 0,
-      crust: 0,
-      salve: 0,
-      temper: 0,
-      bind: 0,
-      stall: 0,
-      stay: 0,
-      anchor: 0,
-    },
+    // Nur die GEWIRKTEN, siehe oben.
+    casts: { kindle: 24, smoulder: 8, pyre: 8 },
     pyreDamage: 684,
     smoulderDamage: 960,
     lostDotTicks: 14,
@@ -85,7 +71,16 @@ describe('Prüffall Schritt 1 — gute Rotation (AC1)', () => {
   });
 
   it('wirkt jeden Zauber gleich oft', () => {
-    expect(run.casts).toEqual(REFERENCE.good.casts);
+    // Die genannten stimmen …
+    for (const [id, n] of Object.entries(REFERENCE.good.casts)) {
+      expect(run.casts[id], id).toBe(n);
+    }
+    // … und alle übrigen sind null — auch die, die es heute noch nicht gibt.
+    // Das ist die Aussage, die vorher als acht Nullen dastand.
+    expect(
+      Object.entries(run.casts).filter(([id, n]) => !(id in REFERENCE.good.casts) && n !== 0),
+      'ein Zauber wurde gewirkt, der in dieser Rotation gar nicht vorkommt',
+    ).toEqual([]);
   });
 
   it('verteilt den Schaden gleich auf die Zauber', () => {
@@ -123,7 +118,16 @@ describe('Prüffall Schritt 1 — schlechte Rotation (AC1)', () => {
   });
 
   it('wirkt jeden Zauber gleich oft', () => {
-    expect(run.casts).toEqual(REFERENCE.bad.casts);
+    // Die genannten stimmen …
+    for (const [id, n] of Object.entries(REFERENCE.bad.casts)) {
+      expect(run.casts[id], id).toBe(n);
+    }
+    // … und alle übrigen sind null — auch die, die es heute noch nicht gibt.
+    // Das ist die Aussage, die vorher als acht Nullen dastand.
+    expect(
+      Object.entries(run.casts).filter(([id, n]) => !(id in REFERENCE.bad.casts) && n !== 0),
+      'ein Zauber wurde gewirkt, der in dieser Rotation gar nicht vorkommt',
+    ).toEqual([]);
   });
 
   it('verliert genau 14 DoT-Ticks durch zu frühes Erneuern', () => {

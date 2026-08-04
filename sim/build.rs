@@ -91,7 +91,14 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
-    emit_spells(&mut out, &spells, &common, &coagulation, &fixation, &putrefaction);
+    emit_spells(
+        &mut out,
+        &spells,
+        &common,
+        &coagulation,
+        &fixation,
+        &putrefaction,
+    );
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
 
