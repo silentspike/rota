@@ -22,6 +22,9 @@ import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../core/dat
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 import { STEP1_BINDINGS } from '../core/loadout.js';
+import { PressQueue } from '../input/queue.js';
+import { Session } from '../core/session.js';
+import { PHASE_FIGHTING } from '../core/phases.js';
 import { NOTHING_WORN, type WornValues } from '../gear/worn.js';
 
 /** Ein Tastendruck: in welchem Takt, auf welchen Platz. */
@@ -253,6 +256,71 @@ function recordCooldownSweep(name: string, ticks: number): Recording {
 }
 
 /**
+ * Eine Runde, die den **Auswahlmodus** benutzt (Issue #223).
+ *
+ * Sie ist der einzige Weg, den Ruecksetzer in einer Aufzeichnung zu haben —
+ * und Aufzeichnungen entstehen aus einem echten Lauf, nicht aus einer
+ * abgetippten Druckliste (GAME-DESIGN 18.4).
+ *
+ * **Ueber eine `Session`, nicht ueber `Combat`.** Der Auswahlmodus lebt in der
+ * Sitzung: Sie entscheidet, ob ein Druck wirkt oder waehlt. Ein Rekorder, der
+ * `combat.cast` ruft, wuerde REFLUX als gewoehnlichen Zauber wirken — und die
+ * Aufzeichnung enthielte den Modus nie.
+ *
+ * Die Abfolge ist bewusst schlicht und wiederholt sich: PYRE wirken (er hat
+ * die laengste Abklingzeit der drei), dann REFLUX, dann PYRE waehlen — er ist
+ * damit sofort wieder bereit. Dazwischen KINDLE als Fueller.
+ */
+function recordResetRotation(name: string, ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const queue = new PressQueue();
+  const session = new Session(queue, combat);
+  const belegung = [
+    { slot: 0, id: 'kindle' },
+    { slot: 1, id: 'pyre' },
+    { slot: 2, id: 'reflux' },
+  ];
+  for (const { slot, id } of belegung) session.bind(slot, combat.indexOf(id));
+  const kindle = combat.indexOf('kindle');
+  const pyre = combat.indexOf('pyre');
+  const reflux = combat.indexOf('reflux');
+
+  const presses: RecordedPress[] = [];
+  // **`startFight` statt `beginCountdown`.** Der Simulator kennt keinen
+  // Countdown: `Fight::replay` beginnt bei Takt 0 mit der Kampfuhr. Mit
+  // Countdown liefe die Kampfuhr hier drei Sekunden spaeter los, und die
+  // Zustaende waeren von Anfang an verschieden — die Paritaet scheiterte an
+  // der Aufzeichnung, nicht an der Rechnung. Derselbe Weg wie in
+  // `cooldownResetPayload` (E3-3c).
+  session.startFight(0);
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    // Der Druck wird VOR dem Takt eingereiht — die Sitzung arbeitet ihn in
+    // diesem Takt ab, genau wie im Spiel.
+    let slot = -1;
+    if (session.phase === PHASE_FIGHTING && combat.gcd.isReady(timeMs)) {
+      if (session.isResetArmed) {
+        // Steht der Modus scharf, ist der naechste Druck die WAHL. PYRE liegt
+        // dann auf Abklingzeit — genau darauf soll sie fallen.
+        slot = 1;
+      } else if (combat.isReady(reflux, timeMs) && !combat.isOffCooldown(pyre, timeMs)) {
+        slot = 2;
+      } else if (combat.isReady(pyre, timeMs)) {
+        slot = 1;
+      } else if (combat.isReady(kindle, timeMs)) {
+        slot = 0;
+      }
+    }
+    if (slot >= 0) {
+      queue.push(slot, tick, timeMs, tick);
+      presses.push({ tick, slot });
+    }
+    session.tick(timeMs);
+  }
+  return { name, seed: 0, ticks, presses };
+}
+
+/**
  * Die eingebauten Aufzeichnungen.
  *
  * Erzeugt beim ersten Zugriff, nicht beim Laden: Wer die Werkzeuge nicht
@@ -284,6 +352,10 @@ export function recordings(): Map<string, Recording> {
     if (doomsayer !== undefined) {
       builtIn.set('doom-stacks', recordGoodRotation('doom-stacks', 3000, doomsayer));
     }
+    // Der Prueffall zum Auswahlmodus (Issue #223). 60 s in Takten: REFLUX hat
+    // 45 s Abklingzeit, ein kuerzerer Lauf zeigte ihn nur EINMAL. Gemessen —
+    // bei 20 s stand genau ein Druck auf Platz 2 in der Aufzeichnung.
+    builtIn.set('cooldown-reset-run', recordResetRotation('cooldown-reset-run', 6000));
   }
   return builtIn;
 }
