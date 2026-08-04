@@ -46,6 +46,19 @@ import {
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
+
+/**
+ * Die Faktoren, wie `Combat` sie INTERN haelt (Issue #196).
+ *
+ * `DamageFactors` ist nach aussen unveraenderlich, und das bleibt so: Wer sie
+ * bekommt, soll sie nicht anfassen koennen. Innerhalb dieser Klasse muessen
+ * sie sich aber bewegen duerfen -- sonst waere ein Faktor, der sich im Kampf
+ * aendert, gar nicht abbildbar.
+ *
+ * Der Schreibzugriff bleibt trotzdem auf EINE Stelle beschraenkt: Ein
+ * Prueffall liest diese Datei und faengt jede andere.
+ */
+type MutableFactors = { -readonly [K in keyof DamageFactors]: DamageFactors[K] };
 import {
   RULE_CRIT,
   RULE_DAMAGE,
@@ -172,7 +185,14 @@ export class Combat {
   private readonly dotTickCounts: Int32Array;
 
   private readonly resistanceFactor: number;
-  private readonly factors: DamageFactors;
+  /**
+   * Die Schadensfaktoren dieses Kampfes.
+   *
+   * **Geschrieben wird ausschliesslich ueber `setDamageFactor`** (Issue #196).
+   * Ein Prueffall liest diese Datei und schlaegt an, wenn irgendwo sonst
+   * hineingeschrieben wird — der Grund steht bei `factorsOnCrit`.
+   */
+  private readonly factors: MutableFactors;
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
   private readonly worn: WornValues;
   /**
@@ -181,11 +201,24 @@ export class Combat {
    * **Vorab angelegt, weil im laufenden Takt nichts entstehen darf** (18.2).
    * Der naheliegende Weg wäre `{ ...this.factors, crit: … }` im Treffer
    * gewesen — ein Objekt je Treffer, bei einem zehnminütigen Kampf
-   * zehntausende. Möglich ist die Vorab-Fassung, weil `worn` sich während eines
-   * Kampfes nicht ändert: Der Kritschaden steht damit von Anfang an fest, nur
-   * **ob** er greift, entscheidet der Wurf.
+   * zehntausende.
+   *
+   * SIE WIRD NACHGEZOGEN, NICHT EINGEFROREN (Issue #196)
+   * ----------------------------------------------------
+   * Die frühere Begründung lautete, die Vorab-Fassung sei möglich, „weil
+   * `worn` sich während eines Kampfes nicht ändert". Das galt, solange
+   * **alle** Faktoren bei Kampfbeginn feststanden. Sobald einer sich im Kampf
+   * bewegt — Verwundbarkeits-Stapel, Zeit-begrenzte Wirkungen —, rechnete
+   * jeder kritische Treffer mit dem Stand von Sekunde null, und zwar still:
+   * Ein gewöhnlicher Treffer wäre richtig, ein kritischer falsch.
+   *
+   * Die Optimierung bleibt. Nachgezogen wird bei jeder **Änderung**, nicht bei
+   * jedem Treffer — das sind ein paar Schreibvorgänge je Kampf statt
+   * zehntausend Objekten.
+   *
+   * `crit` selbst steht hier und nur hier: Er ist abgeleitet, nicht gesetzt.
    */
-  private readonly factorsOnCrit: DamageFactors;
+  private readonly factorsOnCrit: MutableFactors;
 
   private resourceValue = 0;
   private resourceOverflowValue = 0;
@@ -874,6 +907,40 @@ export class Combat {
   /** Die Faktoren für einen Treffer, je nachdem ob der Wurf saß. */
   private factorsFor(crit: boolean): DamageFactors {
     return crit ? this.factorsOnCrit : this.factors;
+  }
+
+  /**
+   * Einen Schadensfaktor während des Kampfes setzen (Issue #196).
+   *
+   * **Die einzige Stelle, die `factors` schreibt.** Sie zieht die Krit-Fassung
+   * mit — genau hier und nicht beim Treffer, damit im laufenden Takt nichts
+   * entsteht (GAME-DESIGN 18.2).
+   *
+   * `crit` ist ausgenommen: Er ist aus `worn` abgeleitet und gehört nicht zu
+   * den Faktoren, die eine Mechanik setzt. Wäre er hier setzbar, könnte
+   * jemand die Krit-Fassung über diesen Weg still von der Basis abkoppeln.
+   */
+  setDamageFactor(kind: Exclude<keyof DamageFactors, 'crit'>, value: number): void {
+    this.factors[kind] = value;
+    // Das Mitziehen ist der ganze Punkt dieser Methode. Fehlt diese Zeile,
+    // rechnet jeder kritische Treffer mit dem alten Wert weiter.
+    this.factorsOnCrit[kind] = value;
+  }
+
+  /**
+   * Ob die Krit-Fassung noch zur Basis passt.
+   *
+   * Für Prüffälle und Werkzeuge: Sie muss in **allen** Feldern außer `crit`
+   * mit `factors` übereinstimmen. Weicht sie ab, rechnen gewöhnlicher und
+   * kritischer Treffer mit verschiedenen Grundlagen — und der Unterschied
+   * fällt nur bei einem Prüffall auf, der beides zugleich abdeckt.
+   */
+  get critFactorsMirrorBase(): boolean {
+    for (const key of Object.keys(this.factors) as (keyof DamageFactors)[]) {
+      if (key === 'crit') continue;
+      if (this.factors[key] !== this.factorsOnCrit[key]) return false;
+    }
+    return true;
   }
 
   isDotActive(index: number, timeMs: number): boolean {
