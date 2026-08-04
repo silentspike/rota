@@ -1,0 +1,25 @@
+/* Laufende Anzeige im Trainingsraum (Issue #84), Stil GEÄTZT. */
+.training-metrics {
+  display: flex;
+  gap: 28px;
+  padding: 14px 18px;
+  background: #12100e;
+  border: 1px solid #3c342a;
+  border-radius: 3px;
+}
+.training-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.training-metric-label {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #6e6a63;
+}
+.training-metric-value {
+  font-family: ui-monospace, monospace;
+  font-size: 19px;
+  color: #efe8da;
+}

@@ -45,3 +45,5 @@ Thumbs.db
 
 # Generiert beim Entwicklungs-Bau der Pruefblaetter
 docs/archive-check/preview.js
+
+docs/training-check/preview.js
