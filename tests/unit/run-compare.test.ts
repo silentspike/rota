@@ -85,8 +85,34 @@ describe('AC1 — die Differenz je Kennzahl', () => {
     const lauf = play([KINDLE, SMOULDER], 3000).summary;
     for (const zeile of compareRuns(lauf, lauf)) {
       expect(zeile.delta, zeile.key).toBe(0);
-      expect(zeile.improved, zeile.key).toBe(false);
+      // Die Kampfzeit bleibt UNBEKANNT, weil keiner der beiden Laeufe gewonnen
+      // hat -- siehe den eigenen Prueffall dazu.
+      expect(zeile.improved, zeile.key).toBe(zeile.key === 'time' ? null : false);
     }
+  });
+
+  it('vergleicht die Kampfzeit nur zwischen zwei SIEGEN', () => {
+    // Wer nach 22 s stirbt, war nicht schneller als wer nach 30 s gewonnen
+    // hat -- er war frueher fertig. Ohne diese Unterscheidung meldete der
+    // Vergleich eine Niederlage als Fortschritt, und genau so stand es im
+    // Bild, bevor es auffiel.
+    const kurz = play([KINDLE, SMOULDER], 1500, 22_000).summary;
+    const lang = play([KINDLE, SMOULDER], 1500, 30_000).summary;
+    expect(kurz.victory).toBe(false);
+
+    const zeit = compareRuns(kurz, lang).find((z) => z.key === 'time');
+    expect(zeit?.delta).toBeLessThan(0);
+    expect(zeit?.improved).toBeNull();
+
+    // Der Wert selbst wird NICHT verschwiegen -- der Spieler sieht ihn im Bild,
+    // und ihn wegzulassen hiesse, eine Zahl zu unterschlagen statt sie
+    // einzuordnen.
+    expect(zeit?.current).toBe(kurz.elapsedMs);
+    expect(zeit?.best).toBe(lang.elapsedMs);
+
+    // Und die uebrigen Kennzahlen bleiben vergleichbar: Die Ausnahme gilt
+    // genau einer, nicht der ganzen Zeile.
+    expect(compareRuns(kurz, lang).find((z) => z.key === 'damage')?.improved).not.toBeNull();
   });
 
   it('sagt beim ersten Durchlauf, dass es nichts zu vergleichen gibt', () => {
