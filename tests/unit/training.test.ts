@@ -5,6 +5,11 @@
  * Kennzahlen aus einer Stelle kommen statt hier neu gerechnet zu werden.
  */
 import { describe, expect, it } from 'vitest';
+import { Combat } from '../../src/core/combat.js';
+import { CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
+import { PressQueue } from '../../src/input/queue.js';
+import { Session } from '../../src/core/session.js';
+import type { RunSummary } from '../../src/core/summary.js';
 import {
   buildDummy,
   DEFAULT_DUMMY,
@@ -120,26 +125,47 @@ describe('Jederzeit abbrechbar', () => {
 });
 
 describe('AC4 — dieselbe Auswertung wie nach einem Boss-Kampf', () => {
-  it('die Puppe durchläuft denselben Weg, weil sie ein BossDef ist', () => {
-    // Der Nachweis ist struktureller Art und braucht die Verlustrechnung aus
-    // #81 NICHT: Weil die Puppe ein gewöhnlicher Boss ist und Combat
-    // unangetastet bleibt, entsteht die Auswertung über dieselbe Funktion
-    // (buildSummary) mit denselben Feldern. Es gibt gar keinen zweiten Weg,
-    // auf dem sie abweichen könnte.
-    const dummy = buildDummy(DEFAULT_DUMMY, 'CALCINATION');
-    const boss = {
-      schema: 1,
-      id: 'x',
-      name: 'X',
-      instance: 'i',
-      hp: 1000,
-      overpressureMs: 60_000,
-      resistances: {},
-      phases: [],
-      energy: null,
-      timeline: [],
-    };
-    // Gleiche Form heißt: dieselben Felder, keine zusätzlichen, keine fehlenden.
-    expect(Object.keys(dummy).sort()).toEqual(Object.keys(boss).sort());
+  /**
+   * Zwei Durchlaeufe, einer gegen die Puppe und einer gegen den echten Boss,
+   * beide durch dieselbe Session und dieselbe buildSummary.
+   *
+   * Ein frueherer Prueffall verglich nur die Struktur zweier BossDef. Daraus
+   * FOLGT zwar, dass die Auswertung dieselbe ist — aber gemessen war nur die
+   * Voraussetzung, nicht die Folgerung. Dieser hier misst die Folgerung.
+   */
+  function runFor(boss: BossDef): RunSummary {
+    const queue = new PressQueue();
+    const session = new Session(queue, new Combat({ school: CALCINATION.value, boss }));
+    // Kein start() — die Sitzung laeuft ueber tick(), und die Vorbereitung
+    // laeuft mit. Nur so lange takten, wie der Vergleich braucht.
+    for (let t = 0; t <= 6000; t += 100) session.tick(t);
+    return session.summary(6000);
+  }
+
+  it('erzeugt dieselben Felder wie ein Boss-Kampf, nicht nur dieselbe Puppe', () => {
+    const training = runFor(buildDummy(DEFAULT_DUMMY, 'CALCINATION'));
+    const kampf = runFor(FIRST_CRUCIBLE.value);
+
+    expect(Object.keys(training).sort()).toEqual(Object.keys(kampf).sort());
+  });
+
+  it('liefert die drei Kennzahlen in beiden Faellen', () => {
+    const training = runFor(buildDummy(DEFAULT_DUMMY, 'CALCINATION'));
+    for (const feld of [
+      'idlePerSpell',
+      'lostTimeMs',
+      'lostTimeShare',
+      'synergyUsed',
+      'synergyAvailable',
+    ]) {
+      expect(training, feld).toHaveProperty(feld);
+    }
+  });
+
+  it('unterscheidet sich in den WERTEN, nicht in der Form', () => {
+    // Die Puppe haelt laenger — das ist der Unterschied, den es geben soll.
+    const training = runFor(buildDummy(DEFAULT_DUMMY, 'CALCINATION'));
+    const kampf = runFor(FIRST_CRUCIBLE.value);
+    expect(training.bossHp).toBeGreaterThan(kampf.bossHp);
   });
 });
