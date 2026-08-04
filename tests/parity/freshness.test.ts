@@ -29,6 +29,7 @@ import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
+import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -40,6 +41,7 @@ import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
 import {
   bossStatePayload,
+  timelineLoopPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -102,6 +104,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Kampf gegen den Boss mit Phasen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterBossZustand, HINWEIS).toEqual(bossStatePayload());
+  });
+
+  it('der Durchgang gegen die wiederholte Zeitleiste entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteWiederholung, HINWEIS).toEqual(timelineLoopPayload());
   });
 
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {

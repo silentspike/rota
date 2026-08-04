@@ -1,0 +1,120 @@
+/**
+ * Die Werte-Übersicht (Issue #188).
+ *
+ * Der Wert steht groß, der Deckel klein daneben — sie gehören zusammen und
+ * werden zusammen gelesen. Die Warnung steht rechts und trägt ihre Aussage im
+ * TEXT, nicht in der Farbe: Wer Farben nicht unterscheidet, liest „2 % over
+ * the limit, no effect" und weiß dasselbe.
+ *
+ * Kein Balken (GAME-DESIGN 6.7) — er bräuchte ein Maximum, und vier der sechs
+ * Werte haben keins.
+ */
+
+.stats {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+}
+
+.stats-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.stats-table td {
+  padding: 5px 12px 5px 0;
+  font-variant-numeric: tabular-nums;
+  vertical-align: baseline;
+}
+
+.stats-label {
+  color: #a09a8b;
+  letter-spacing: 0.08em;
+}
+
+.stats-value {
+  text-align: right;
+  color: #e6dfd1;
+  font-size: 16px;
+}
+
+/* Der Deckel gehört zum Wert und tritt zurück. */
+.stats-cap {
+  color: #7d7768;
+  font-size: 12px;
+}
+
+.stats-warning {
+  color: #d8a24a;
+  font-size: 12px;
+}
+
+/* Über dem Deckel wird auch der Wert selbst matter: Er zählt ab dort nicht
+   mehr, und das soll man sehen, ohne die Warnung gelesen zu haben. */
+.stats-row[data-over-cap='yes'] .stats-value {
+  color: #b8a77e;
+}
+
+/**
+ * Das Player Home (GAME-DESIGN 16.1, Issue #188).
+ *
+ * Er liegt ueber dem Spiel, nicht daneben: Zwischen zwei Kaempfen soll nichts
+ * anderes um Aufmerksamkeit werben. Verborgen ist er GAR NICHT da --
+ * `display: none`, kein durchsichtiger Kasten, der Klicks abfaengt.
+ */
+.home {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 40px;
+  background: #0b0b0f;
+  color: #cfc8ba;
+  font-family: ui-monospace, monospace;
+}
+
+.home.home-visible {
+  display: block;
+}
+
+.home-title {
+  font-family: 'Cinzel', system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  font-size: 22px;
+  color: #d8a24a;
+  margin: 0 0 28px;
+}
+
+/* Die Bereiche stehen untereinander und tragen ihre eigene Breite. Spaeter
+   kommen Talentbaum, Boss-Wahl und Ausruestung dazu -- ein Raster mit fester
+   Spaltenzahl muesste dafuer angefasst werden. */
+.home-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+.home-section-title {
+  font-family: 'Cinzel', system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  color: #7d7768;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.home-back {
+  font: inherit;
+  color: #cfc8ba;
+  background: #17171d;
+  border: 1px solid #3a3a42;
+  padding: 9px 22px;
+  cursor: pointer;
+}
+
+.home-back:hover {
+  border-color: #d8a24a;
+}
