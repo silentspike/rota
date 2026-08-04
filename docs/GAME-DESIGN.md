@@ -153,6 +153,37 @@ in die ihre zwölf Zauber einzahlen.
 > **Risiko:** Diese fünf Mechaniken tragen das ganze Spiel. Sie müssen sehr sorgfältig entworfen
 > werden und sind der erste Prüfstein im Prototyp (siehe 20.3).
 
+#### Zwei Festlegungen zur Bauart, entschieden am 2026-08-04
+
+**Putrefaktion: jeder Stapel hat seine eigene Uhr.** Der älteste verfällt zuerst, die jüngeren
+bleiben. Wer regelmäßig nachlegt, hält den Aufbau oben.
+
+> Ein gleitender Zustand statt eines Alles-oder-nichts. Der Spieler darf den Aufbau bewusst absacken
+> lassen, wenn gerade Wichtigeres ansteht, und verliert nicht alles — ein gemeinsamer Verfall hätte
+> jeden Zwischenfall im Kampf den ganzen Aufbau gekostet.
+>
+> **Preis, den die Anzeige tragen muss:** mehrere Restzeiten gleichzeitig. Das ist eine Anforderung
+> an 12.3 (Anzeige der Schul-Mechaniken über der Leiste), keine Nebensache.
+
+**Sublimation: ein fester Betrag, kein Anteil.** Jede Wirkung nimmt allen laufenden Abklingzeiten
+dieselbe Zeitspanne.
+
+> **Der Spieler kann abzählen.** Er weiß, wann etwas bereit wird, und kann darauf planen — ein
+> Prozentsatz auf Restzeiten wäre im Kopf nicht mehr zu rechnen und widerspräche der Forderung nach
+> planbaren Abklingzeiten (6.2).
+>
+> **Folge für die Ausrichtung der Schule:** Ein fester Betrag wirkt bei kurzen Abklingzeiten
+> stärker als bei langen. Sublimation ist damit die Schule für schnelle Rotationen — was zur
+> Beschreibung „die Schule für Könner" passt.
+
+**Die Zahlen dazu werden gemessen, nicht gesetzt** (Teil F.6): wie viel Prozent ein Stapel trägt, wie
+viele es höchstens gibt, wie lange sie halten, um wie viel Sublimation verkürzt. Bis zur Messung
+stehen vorläufige Werte im Code — an genau einer Stelle je Größe und ausdrücklich als vorläufig
+benannt, damit das Ersetzen eine Zeile bleibt.
+
+> **Kein Begründungs-Anschein.** Eine vorläufige Zahl trägt den Vermerk „wird gemessen", nicht eine
+> Herleitung, die sie geprüft aussehen lässt.
+
 ### 4.2 Ressourcen
 
 **Keine globale Ressource.** Kein Mana. Aber einzelne Schulen arbeiten mit **Ladungen**
