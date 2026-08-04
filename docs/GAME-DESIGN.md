@@ -623,6 +623,43 @@ zurück?"
 > Abklingzeiten, Fensterbreiten und GCD-Verhalten dieser vier sind **noch nicht festgelegt** —
 > siehe Kapitel 22.
 
+### 7.5 Die zwölf Prototyp-Zauber und ihre Namen
+
+_Namen am 2026-08-04 vom Auftraggeber freigegeben. Sie werden später die **Start-Zauber des
+Spiels** — keine Wegwerfarbeit, und weil sie ohnehin die einfachsten sein müssen, passen sie
+genau an den Anfang._
+
+| Schule           | Zauber                               | Rolle                                      |
+| ---------------- | ------------------------------------ | ------------------------------------------ |
+| **CALCINATION**  | `KINDLE` · `SMOULDER` · `PYRE`       | zwei Hitze-Erzeuger und der Entlade-Zauber |
+| **FIXATION**     | `BIND` · `STALL` · `STAY` · `ANCHOR` | Kontroll-Erzeuger und Ausgeber             |
+| **COAGULATION**  | `CRUST` · `SALVE` · `TEMPER`         | Schutzschicht, Heilung, Umwandlung         |
+| **SUBLIMATION**  | `VAPOUR` · `REFLUX`                  | Verkürzer und Cooldown-Rücksetzer          |
+| **PUTREFACTION** | `CANKER` · `FESTER`                  | Stapel-Erzeuger und Verstärker             |
+| schulunabhängig  | `QUENCH`                             | Unterbrechen                               |
+
+**Jeder Name trägt seine Mechanik** — dasselbe Prinzip wie bei den Schul-Namen selbst (Kapitel 4):
+
+| Name       | Bedeutung        | Warum er passt                                                                                    |
+| ---------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| **VAPOUR** | verdampfen       | Sublimation überspringt die flüssige Phase — der Zauber überspringt Wartezeit                     |
+| **REFLUX** | Rückfluss        | Echter Laborbegriff: Kondensat fließt in den Kolben zurück. Genau das tut ein Cooldown-Rücksetzer |
+| **CANKER** | Fäulnisherd      | Legt den ersten Zersetzungs-Stapel an — etwas, das sich ausbreitet                                |
+| **FESTER** | eitern, schwären | Wirkt **stärker, je mehr Stapel liegen**. Der Name sagt, dass es schlimmer wird                   |
+
+> **`CANKER` und `FESTER` gehören als Paar zusammen** — Fäulnisherd und was daraus wird. Wer die
+> Bedeutung einmal liest, weiß ohne Nachschlagen, welcher aufbaut und welcher davon lebt.
+
+**Alle einsilbig oder zweisilbig.** Ein Zaubername steht auf einem Symbol von 48 Pixeln und wird
+im Kampf im Augenwinkel gelesen — er muss kurz sein.
+
+> **Zwölf Zauber bei zwölf Leisten-Plätzen bedeutet: Man kann nicht alle mitnehmen** — genau die
+> Entscheidung, die der Prototyp-Prüflauf (20.3) messen soll.
+
+> **Nachgetragen am 2026-08-04.** Die vier neuen Namen standen zunächst **nur im Plan**, und ein
+> Issue verwies auf „GAME-DESIGN 4" — wo sie nicht standen. Derselbe Fall wie beim Player Home
+> (16.1) am selben Tag: Eine Festlegung, die nur an einem Ort steht, den die Umsetzer nicht lesen.
+
 ---
 
 ## 8. Eingabe und Tastenbelegung
