@@ -345,9 +345,33 @@ def pw_eval(js: str) -> str:
     return pw("eval", js)
 
 
-def latest_snapshot() -> Path:
-    d = Path("/work/.playwright-cli")
-    return max(d.glob("page-*.yml"), key=lambda p: p.stat().st_mtime)
+def latest_snapshot(seit: float) -> Path:
+    """Die Seiten-Aufnahme, die playwright-cli GERADE geschrieben hat.
+
+    ZWEI FEHLER AUF EINMAL, BEIDE STILL (Issue #204)
+    ------------------------------------------------
+    Vorher stand hier `Path("/work/.playwright-cli")` — fest verdrahtet.
+    `playwright-cli` schreibt seine Aufnahmen aber ins ARBEITSVERZEICHNIS des
+    Aufrufers. Aus einem Arbeitsbaum heraus las das Werkzeug damit die Aufnahme
+    einer voellig anderen Sitzung: am 2026-08-04 eine zehn Stunden alte Seite,
+    auf der es den Sounds-Reiter erwartungsgemaess nicht fand. Gemeldet wurde
+    "Suno-Create-Seite mit Sounds-Tab nicht gefunden" — wahr fuer jene Datei,
+    falsch fuer die Seite, die tatsaechlich offen stand.
+
+    Der Ort allein reicht aber nicht. Wenn `pw("snapshot")` scheitert, liegt im
+    richtigen Verzeichnis immer noch eine aeltere Aufnahme, und die Funktion
+    haette sie genommen — derselbe Irrtum, nur naeher dran. Deshalb muss die
+    Datei NACH dem Auftrag entstanden sein; sonst ist es keine Antwort auf
+    diesen Aufruf, sondern ein Fund.
+    """
+    d = Path.cwd() / ".playwright-cli"
+    frisch = [p for p in d.glob("page-*.yml") if p.stat().st_mtime >= seit]
+    if not frisch:
+        sys.exit(
+            f"FEHLER: playwright-cli hat keine neue Seiten-Aufnahme in {d} abgelegt.\n"
+            "  Laeuft die Sitzung?  playwright-cli list"
+        )
+    return max(frisch, key=lambda p: p.stat().st_mtime)
 
 
 def ui_refs() -> tuple[str, str]:
@@ -358,8 +382,9 @@ def ui_refs() -> tuple[str, str]:
     Klick scheitert der Fallback an einer Seite, die eigentlich in Ordnung ist.
     """
     for attempt in range(2):
+        seit = time.time()
         pw("snapshot")
-        text = latest_snapshot().read_text()
+        text = latest_snapshot(seit - 2).read_text()
         tb = re.search(r'textbox "Describe the sound you want".*?\[ref=([^\]]+)\]', text)
         cb = re.search(r'button "Create song".*?\[ref=([^\]]+)\]', text)
         if tb and cb:
@@ -471,8 +496,9 @@ def make_sound(s: requests.Session, prompt: str, loop: bool = False,
 
 def set_loop_toggle(loop: bool) -> None:
     """Schaltet Type: One-Shot / Loop in den Advanced Options."""
+    seit = time.time()
     pw("snapshot")
-    text = latest_snapshot().read_text()
+    text = latest_snapshot(seit - 2).read_text()
     label = "Loop" if loop else "One-Shot"
     m = re.search(rf'button "{label}".*?\[ref=([^\]]+)\]', text)
     if m:
