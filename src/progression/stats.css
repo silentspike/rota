@@ -1,0 +1,65 @@
+/**
+ * Die Werte-Übersicht (Issue #188).
+ *
+ * Der Wert steht groß, der Deckel klein daneben — sie gehören zusammen und
+ * werden zusammen gelesen. Die Warnung steht rechts und trägt ihre Aussage im
+ * TEXT, nicht in der Farbe: Wer Farben nicht unterscheidet, liest „2 % over
+ * the limit, no effect" und weiß dasselbe.
+ *
+ * Kein Balken (GAME-DESIGN 6.7) — er bräuchte ein Maximum, und vier der sechs
+ * Werte haben keins.
+ */
+
+.stats {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+}
+
+.stats-heading {
+  font-family: 'Cinzel', system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  font-size: 15px;
+  color: #9a9384;
+  margin: 0 0 8px;
+}
+
+.stats-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.stats-table td {
+  padding: 5px 12px 5px 0;
+  font-variant-numeric: tabular-nums;
+  vertical-align: baseline;
+}
+
+.stats-label {
+  color: #a09a8b;
+  letter-spacing: 0.08em;
+}
+
+.stats-value {
+  text-align: right;
+  color: #e6dfd1;
+  font-size: 16px;
+}
+
+/* Der Deckel gehört zum Wert und tritt zurück. */
+.stats-cap {
+  color: #7d7768;
+  font-size: 12px;
+}
+
+.stats-warning {
+  color: #d8a24a;
+  font-size: 12px;
+}
+
+/* Über dem Deckel wird auch der Wert selbst matter: Er zählt ab dort nicht
+   mehr, und das soll man sehen, ohne die Warnung gelesen zu haben. */
+.stats-row[data-over-cap='yes'] .stats-value {
+  color: #b8a77e;
+}
