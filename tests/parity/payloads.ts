@@ -123,6 +123,9 @@ export const FIXATION_NAME = 'fixation';
 /** Der Prueffall zu den Protokoll-Arten des Spiels (Issue #151). */
 export const LOG_PARITY_NAME = 'log-parity';
 
+/** Vergleichsdatei für die wiederholte Zeitleiste (#174). */
+export const TIMELINE_LOOP_NAME = 'timeline-loop';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -972,6 +975,81 @@ export function logParityPayload(): Record<string, unknown> {
       healed: combat.healed,
       timelineIndex: combat.timelineIndex,
       logEntries: log.length,
+    },
+  };
+}
+
+/**
+ * Ein Durchgang gegen einen Boss mit **wiederholter** Zeitleiste (#174).
+ *
+ * # Warum mindestens zwei Zyklen
+ *
+ * Eine Wiederholungs-Regel, die nur eine Seite kennt, bricht die Parität
+ * **erst nach dem ersten Zyklus**. Ein Lauf, der einen Zyklus abdeckt, liefe
+ * grün — und die Abweichung fiele erst auf, wenn jemand länger übt.
+ *
+ * Der Prüf-Boss `test-metronome` hat eine Zykluslänge von 6 s; der Lauf
+ * umfasst 30 s, also fünf Zyklen. Die Prüfung darauf steht in
+ * `sim/tests/parity_timeline_loop.rs` und ist hart: Weniger als zwei Zyklen
+ * lässt der Fall nicht durchgehen.
+ */
+export function timelineLoopPayload(): Record<string, unknown> {
+  const boss = bossById('test-metronome');
+  if (boss === undefined) throw new Error('Der Boss test-metronome fehlt.');
+  if (boss.timelineLoopMs === null) {
+    throw new Error('test-metronome hat keine timelineLoopMs — der Fall prüfte dann nichts.');
+  }
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const quench = combat.indexOf('quench');
+  const ticks = 3000; // 30 s = fünf Zyklen
+
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const timelineIndex: number[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      timelineIndex.push(combat.timelineIndex);
+      break;
+    }
+    // QUENCH, wenn der Boss zaubert — sonst KINDLE. Das unterbricht in
+    // späteren Zyklen ebenso wie im ersten und deckt damit auch den
+    // Zeitpunkt des Treffers ab, nicht nur den des Beginns.
+    const gewaehlt = combat.casting >= 0 && combat.isReady(quench, timeMs) ? quench : kindle;
+    if (combat.cast(gewaehlt, timeMs).result === 0) {
+      presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    timelineIndex.push(combat.timelineIndex);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: TIMELINE_LOOP_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    timelineLoopMs: boss.timelineLoopMs,
+    timelineLength: boss.timeline.length,
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      { slot: 1, spellId: 'quench' },
+    ],
+    presses,
+    checksums,
+    /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
+    timelineIndex,
+    expected: {
+      damageDealt: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
+      finalTimelineIndex: combat.timelineIndex,
+      finalPlayerHp: combat.playerHp,
     },
   };
 }

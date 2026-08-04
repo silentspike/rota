@@ -31,6 +31,13 @@ export interface OverlayActions {
   onWipe(): void;
   onRestart(): void;
   onBackToMenu(): void;
+  /**
+   * Das Player Home oeffnen (GAME-DESIGN 16.1, Issue #188).
+   *
+   * Das Overlay OEFFNET es nicht selbst: Es weiss nicht, was darin steht, und
+   * soll es nicht wissen. Es meldet nur den Wunsch.
+   */
+  onOpenHome(): void;
 }
 
 /**
@@ -152,6 +159,9 @@ export class Overlay {
     this.prepare.appendChild(this.gearCard);
 
     this.prepare.appendChild(button('Ready', actions.onReady));
+    // Das Player Home ist der Ort ZWISCHEN den Kaempfen -- erreichbar von
+    // hier und von der Auswertung, nicht waehrend des Kampfes (AC1).
+    this.prepare.appendChild(button('Player Home', actions.onOpenHome));
     this.prepare.appendChild(element('p', 'rota-hint', 'Enter'));
     this.root.appendChild(this.prepare);
 
@@ -223,6 +233,7 @@ export class Overlay {
     });
     this.result.appendChild(this.analysisButton);
     this.result.appendChild(button('Back to Menu', actions.onBackToMenu));
+    this.result.appendChild(button('Player Home', actions.onOpenHome));
     this.root.appendChild(this.result);
 
     parent.appendChild(this.root);
