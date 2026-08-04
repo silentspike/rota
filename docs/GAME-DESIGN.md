@@ -1006,7 +1006,7 @@ Kampfprotokoll.
 | Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                                              | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Leerlauf**                  | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
 | **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
 | **Verlorene DoT-Ticks**       | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
 | **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
@@ -1041,6 +1041,49 @@ Kampfprotokoll.
 > Und sie gehört gezeigt, weil das Design die harte Erneuerungs-Regel ausdrücklich als Präzision
 > will, die als Können belohnt wird — dann muss ihr Verlust auch sichtbar sein. In Schritt 1 ist
 > sie der **zweitgrößte** Fehler (9,9 % laut STEP1-SPEC § 4).
+
+> **Leerlauf und verpasste Wirkungen schließen einander aus, ergänzt am 2026-08-04.**
+>
+> Beide Quellen zählten bisher denselben Fehler: Wer einen bereiten Zauber nicht wirkt, erzeugt ein
+> leeres GCD-Fenster — das erschien einmal als „verpasste Wirkung" und einmal als „Leerlauf". Die
+> Prozentzahlen addierten sich damit auf mehr als den tatsächlichen Verlust.
+>
+> **Die Trennung verläuft an der Frage, ob überhaupt etwas bereit war:**
+>
+> | Fall                                       | Zählt als             | Was der Spieler daraus lernt                |
+> | ------------------------------------------ | --------------------- | ------------------------------------------- |
+> | Ein Zauber war bereit, wurde nicht gewirkt | **verpasste Wirkung** | „du hättest wirken können"                  |
+> | **Kein** Zauber war bereit                 | **Leerlauf**          | „du hast dich in eine Wartezeit manövriert" |
+>
+> Zwei verschiedene Fehler mit zwei verschiedenen Lehren — und jeder erscheint genau einmal.
+
+#### Situative Zauber: gezählt wird die Gelegenheit, nicht die Bereitschaft
+
+_Entschieden am 2026-08-04, nachdem der Fall beim Bau von E4-2 auffiel._
+
+Ein **Unterbrecher** liegt fünfzehn Sekunden bereit und wird nie gewirkt — weil der Boss keinen
+unterbrechbaren Zauber hat. Nach der Bereitschafts-Regel stünde er damit als **größte**
+Verlustquelle ganz oben, und der Spieler bekäme als wichtigsten Hinweis „wirke QUENCH öfter",
+während es nichts zu unterbrechen gab.
+
+**Nicht die Bereitschaft zählt, sondern die ungenutzte Gelegenheit:**
+
+| Zauber-Art       | Verlust zählt, wenn                                        |
+| ---------------- | ---------------------------------------------------------- |
+| Schaden          | er bereit war und das GCD-Fenster leer blieb — wie bisher  |
+| **Unterbrecher** | ein unterbrechbarer Boss-Zauber lief **und durchkam**      |
+| **Defensiv**     | ein Schlag traf, den Schutz oder Heilung abgefangen hätten |
+
+Das deckt sich mit den bereits vorgesehenen Quellen: „Verpasste Unterbrechungen" zählt denselben
+Fehler, nur richtig herum. Ohne diese Regel würde er **doppelt** erscheinen.
+
+> **Die Regel gilt vorausschauend, nicht nur für den bekannten Fall.** Der naheliegende Fix wäre
+> gewesen, Unterbrecher aus der Leerlauf-Liste zu nehmen. Das löst genau einen Fall — und sobald
+> Schutzschilde existieren (sie entstehen gerade in E3-4), taucht derselbe Fehler bei ihnen wieder
+> auf und wird als neuer Fund gemeldet.
+>
+> **Voraussetzung:** Das Kampfprotokoll muss die Boss-Gelegenheiten ausweisen — welcher Zauber lief,
+> welcher Schlag traf. Heute tut es das nicht; das ist Teil dieser Arbeit und keine Nebensache.
 
 **Die drei größten Verlustquellen** werden hervorgehoben. Sie können aus der Rotation stammen
 **oder aus dem Umgang mit dem Boss** — bei einem Boss mit Mechaniken ist das oft der teurere Teil.
