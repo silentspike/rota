@@ -66,7 +66,11 @@
       "file": "audio/spell-kindle.ogg",
       "targetSeconds": 0.5,
       "pitchJitterCents": 25,
-      "prompt": "sharp fiery spark ignition, dry crackle, short one shot, fantasy fire spell"
+      "prompt": "sharp fiery spark ignition, dry crackle, short one shot, fantasy fire spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "kindle"
+      }
     },
     {
       "id": "spell-smoulder",
@@ -77,7 +81,11 @@
       "file": "audio/spell-smoulder.ogg",
       "targetSeconds": 0.8,
       "pitchJitterCents": 20,
-      "prompt": "dark sizzling ignition, burning crackle onset, fantasy fire damage over time"
+      "prompt": "dark sizzling ignition, burning crackle onset, fantasy fire damage over time",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "smoulder"
+      }
     },
     {
       "id": "spell-pyre",
@@ -88,7 +96,11 @@
       "file": "audio/spell-pyre.ogg",
       "targetSeconds": 1.4,
       "pitchJitterCents": 12,
-      "prompt": "heavy fiery detonation, deep sub boom, crackling ember tail, powerful fantasy fire blast"
+      "prompt": "heavy fiery detonation, deep sub boom, crackling ember tail, powerful fantasy fire blast",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "pyre"
+      }
     },
     {
       "id": "special-interrupt",
@@ -99,7 +111,11 @@
       "file": "audio/special-interrupt.ogg",
       "targetSeconds": 0.35,
       "pitchJitterCents": 15,
-      "prompt": "sharp metallic clang, abrupt cutoff, spell interrupt hit"
+      "prompt": "sharp metallic clang, abrupt cutoff, spell interrupt hit",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "quench"
+      }
     },
     {
       "id": "special-overdrive",
@@ -176,7 +192,10 @@
       "file": "audio/feedback-spell-ready.ogg",
       "targetSeconds": 0.4,
       "pitchJitterCents": 0,
-      "prompt": "short bright chime, ascending, subtle, UI notification"
+      "prompt": "short bright chime, ascending, subtle, UI notification",
+      "trigger": {
+        "on": "spell.ready"
+      }
     },
     {
       "id": "feedback-input-error",
@@ -187,7 +206,10 @@
       "file": "audio/feedback-input-error.ogg",
       "targetSeconds": 0.25,
       "pitchJitterCents": 0,
-      "prompt": "dull muted thud click, short, UI error, subtle"
+      "prompt": "dull muted thud click, short, UI error, subtle",
+      "trigger": {
+        "on": "input.rejected"
+      }
     },
     {
       "id": "feedback-synergy-ready",
@@ -198,7 +220,10 @@
       "file": "audio/feedback-synergy-ready.ogg",
       "targetSeconds": 0.6,
       "pitchJitterCents": 0,
-      "prompt": "bright dual tone shimmer ping, magical alignment, subtle UI cue"
+      "prompt": "bright dual tone shimmer ping, magical alignment, subtle UI cue",
+      "trigger": {
+        "on": "synergy.ready"
+      }
     },
     {
       "id": "feedback-gcd-end",
@@ -209,7 +234,10 @@
       "file": "audio/feedback-gcd-end.ogg",
       "targetSeconds": 0.12,
       "pitchJitterCents": 0,
-      "prompt": "dry wooden tick with clear attack, close mic, short UI cue"
+      "prompt": "dry wooden tick with clear attack, close mic, short UI cue",
+      "trigger": {
+        "on": "gcd.end"
+      }
     },
     {
       "id": "boss-cast-start",
@@ -220,7 +248,10 @@
       "file": "audio/boss-cast-start.ogg",
       "targetSeconds": 1.2,
       "pitchJitterCents": 8,
-      "prompt": "deep ominous swell rising, dark magic charge up"
+      "prompt": "deep ominous swell rising, dark magic charge up",
+      "trigger": {
+        "on": "boss.cast.start"
+      }
     },
     {
       "id": "boss-cast-success",
@@ -231,7 +262,10 @@
       "file": "audio/boss-cast-success.ogg",
       "targetSeconds": 1.5,
       "pitchJitterCents": 8,
-      "prompt": "heavy dark impact with low rumble, ominous magic release"
+      "prompt": "heavy dark impact with low rumble, ominous magic release",
+      "trigger": {
+        "on": "boss.cast.success"
+      }
     },
     {
       "id": "boss-hit",
@@ -242,7 +276,10 @@
       "file": "audio/boss-hit.ogg",
       "targetSeconds": 0.3,
       "pitchJitterCents": 30,
-      "prompt": "dry percussive impact on stone, short, combat hit"
+      "prompt": "dry percussive impact on stone, short, combat hit",
+      "trigger": {
+        "on": "boss.hit"
+      }
     },
     {
       "id": "boss-phase-change",
@@ -253,7 +290,10 @@
       "file": "audio/boss-phase-change.ogg",
       "targetSeconds": 2.0,
       "pitchJitterCents": 0,
-      "prompt": "dark tonal shift, low brass swell with metallic scrape, boss phase transition"
+      "prompt": "dark tonal shift, low brass swell with metallic scrape, boss phase transition",
+      "trigger": {
+        "on": "boss.phase.change"
+      }
     },
     {
       "id": "boss-overpressure-warning",
@@ -264,7 +304,10 @@
       "file": "audio/boss-overpressure-warning.ogg",
       "targetSeconds": 1.0,
       "pitchJitterCents": 0,
-      "prompt": "tense alarm pulse, metallic warning beat, rising danger"
+      "prompt": "tense alarm pulse, metallic warning beat, rising danger",
+      "trigger": {
+        "on": "boss.overpressure.warning"
+      }
     },
     {
       "id": "boss-overpressure",
@@ -275,7 +318,10 @@
       "file": "audio/boss-overpressure.ogg",
       "targetSeconds": 2.5,
       "pitchJitterCents": 0,
-      "prompt": "massive pressure release explosion, deep boom, debris tail"
+      "prompt": "massive pressure release explosion, deep boom, debris tail",
+      "trigger": {
+        "on": "boss.overpressure"
+      }
     },
     {
       "id": "boss-reaction-destabilise",
@@ -286,7 +332,10 @@
       "file": "audio/boss-reaction-destabilise.ogg",
       "targetSeconds": 1.5,
       "pitchJitterCents": 10,
-      "prompt": "unstable warbling drone burst, eerie chemical reaction turning"
+      "prompt": "unstable warbling drone burst, eerie chemical reaction turning",
+      "trigger": {
+        "on": "boss.reaction.destabilise"
+      }
     },
     {
       "id": "boss-defeated",
@@ -297,7 +346,10 @@
       "file": "audio/boss-defeated.ogg",
       "targetSeconds": 2.5,
       "pitchJitterCents": 0,
-      "prompt": "heavy metallic gong impact, victorious dark fantasy stinger"
+      "prompt": "heavy metallic gong impact, victorious dark fantasy stinger",
+      "trigger": {
+        "on": "boss.defeated"
+      }
     },
     {
       "id": "state-countdown-tick",
@@ -308,7 +360,10 @@
       "file": "audio/state-countdown-tick.ogg",
       "targetSeconds": 0.15,
       "pitchJitterCents": 0,
-      "prompt": "soft wooden tick, metronome click"
+      "prompt": "soft wooden tick, metronome click",
+      "trigger": {
+        "on": "fight.countdown.tick"
+      }
     },
     {
       "id": "state-fight-start",
@@ -319,7 +374,10 @@
       "file": "audio/state-fight-start.ogg",
       "targetSeconds": 2.0,
       "pitchJitterCents": 0,
-      "prompt": "deep braam with rising tension riser, battle start stinger"
+      "prompt": "deep braam with rising tension riser, battle start stinger",
+      "trigger": {
+        "on": "fight.start"
+      }
     },
     {
       "id": "state-low-health",
@@ -330,7 +388,10 @@
       "file": "audio/state-low-health.ogg",
       "targetSeconds": 0.8,
       "pitchJitterCents": 5,
-      "prompt": "tense heartbeat thump with dark undertone, danger cue"
+      "prompt": "tense heartbeat thump with dark undertone, danger cue",
+      "trigger": {
+        "on": "player.low-health"
+      }
     },
     {
       "id": "state-death",
@@ -341,7 +402,10 @@
       "file": "audio/state-death.ogg",
       "targetSeconds": 2.0,
       "pitchJitterCents": 0,
-      "prompt": "hollow descending collapse, dark reverse swell, defeat"
+      "prompt": "hollow descending collapse, dark reverse swell, defeat",
+      "trigger": {
+        "on": "player.death"
+      }
     },
     {
       "id": "state-time-expired",
@@ -352,7 +416,10 @@
       "file": "audio/state-time-expired.ogg",
       "targetSeconds": 1.0,
       "pitchJitterCents": 0,
-      "prompt": "harsh buzzer stop, dry mechanical cutoff, time out"
+      "prompt": "harsh buzzer stop, dry mechanical cutoff, time out",
+      "trigger": {
+        "on": "boss.overpressure"
+      }
     },
     {
       "id": "state-wipe-run",
@@ -363,7 +430,10 @@
       "file": "audio/state-wipe-run.ogg",
       "targetSeconds": 0.8,
       "pitchJitterCents": 0,
-      "prompt": "soft dark sweep with low whoosh, quiet reset transition"
+      "prompt": "soft dark sweep with low whoosh, quiet reset transition",
+      "trigger": {
+        "on": "fight.wipe"
+      }
     },
     {
       "id": "post-victory",
@@ -374,7 +444,10 @@
       "file": "audio/post-victory.ogg",
       "targetSeconds": 2.0,
       "pitchJitterCents": 0,
-      "prompt": "warm triumphant chord swell with shimmer, victory stinger"
+      "prompt": "warm triumphant chord swell with shimmer, victory stinger",
+      "trigger": {
+        "on": "result.victory"
+      }
     },
     {
       "id": "post-defeat",
@@ -385,7 +458,10 @@
       "file": "audio/post-defeat.ogg",
       "targetSeconds": 1.8,
       "pitchJitterCents": 0,
-      "prompt": "soft descending minor chord, muted, quiet defeat cue"
+      "prompt": "soft descending minor chord, muted, quiet defeat cue",
+      "trigger": {
+        "on": "result.defeat"
+      }
     },
     {
       "id": "post-best-time",
@@ -396,7 +472,10 @@
       "file": "audio/post-best-time.ogg",
       "targetSeconds": 2.0,
       "pitchJitterCents": 0,
-      "prompt": "triumphant short fanfare stinger, bright brass and shimmer"
+      "prompt": "triumphant short fanfare stinger, bright brass and shimmer",
+      "trigger": {
+        "on": "result.best-time"
+      }
     },
     {
       "id": "post-achievement",
@@ -618,7 +697,13 @@
       "loop": true,
       "fadeInSeconds": 1.5,
       "fadeOutSeconds": 1.5,
-      "pitchJitterCents": 0
+      "pitchJitterCents": 0,
+      "trigger": {
+        "layer": true,
+        "base": true,
+        "on": "menu.enter",
+        "off": "fight.start"
+      }
     },
     {
       "id": "music-tension",
@@ -644,7 +729,12 @@
       "loop": true,
       "fadeInSeconds": 1.5,
       "fadeOutSeconds": 1.5,
-      "pitchJitterCents": 0
+      "pitchJitterCents": 0,
+      "trigger": {
+        "layer": true,
+        "on": "boss.low-health",
+        "off": "fight.end"
+      }
     },
     {
       "id": "music-phase-change",
@@ -657,7 +747,12 @@
       "loop": true,
       "fadeInSeconds": 1.5,
       "fadeOutSeconds": 1.5,
-      "pitchJitterCents": 0
+      "pitchJitterCents": 0,
+      "trigger": {
+        "layer": true,
+        "on": "boss.phase.change",
+        "off": "fight.end"
+      }
     },
     {
       "id": "music-overpressure",
@@ -670,7 +765,13 @@
       "loop": true,
       "fadeInSeconds": 1.5,
       "fadeOutSeconds": 1.5,
-      "pitchJitterCents": 0
+      "pitchJitterCents": 0,
+      "trigger": {
+        "layer": true,
+        "on": "boss.overpressure.warning",
+        "off": "fight.end",
+        "immediate": true
+      }
     },
     {
       "id": "music-bed-placeholder",
@@ -684,7 +785,12 @@
       "fadeInSeconds": 1.5,
       "fadeOutSeconds": 1.5,
       "pitchJitterCents": 0,
-      "provisional": "Ersatz, bis die Instanz-Themen stehen (E10). Zaehlt nicht zur Abdeckung."
+      "provisional": "Ersatz, bis die Instanz-Themen stehen (E10). Zaehlt nicht zur Abdeckung.",
+      "trigger": {
+        "layer": true,
+        "on": "fight.start",
+        "off": "fight.end"
+      }
     }
   ]
 }

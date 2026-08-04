@@ -1,0 +1,528 @@
+{
+  "schema": 1,
+  "poolNames": [
+    "essence",
+    "catalysis",
+    "purity",
+    "yield",
+    "active",
+    "gearEffects"
+  ],
+  "qualityNames": [
+    "common",
+    "rare",
+    "epic",
+    "legendary"
+  ],
+  "qualityAffixSlots": [
+    1,
+    2,
+    3,
+    3
+  ],
+  "qualityHasEffect": [
+    false,
+    false,
+    false,
+    true
+  ],
+  "slotNames": [
+    "focus",
+    "catalyst",
+    "sigil",
+    "relic",
+    "grimoire",
+    "shard",
+    "talisman",
+    "phylactery",
+    "anchor",
+    "prism"
+  ],
+  "baseStatIds": [
+    "essence",
+    "vessel",
+    "ward"
+  ],
+  "poolSteps": [
+    {
+      "was": "ESSENCE aus einem Gegenstand",
+      "pool": 0,
+      "share": 0.2,
+      "shareBits": "3fc999999999999a",
+      "factors": [
+        1.2,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "factorBits": [
+        "3ff3333333333333",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000"
+      ],
+      "product": 1.2,
+      "productBits": "3ff3333333333333",
+      "checksum": 3212861880
+    },
+    {
+      "was": "ESSENCE aus einem zweiten — addiert sich zu 0,5",
+      "pool": 0,
+      "share": 0.3,
+      "shareBits": "3fd3333333333333",
+      "factors": [
+        1.5,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "factorBits": [
+        "3ff8000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000"
+      ],
+      "product": 1.5,
+      "productBits": "3ff8000000000000",
+      "checksum": 4150597880
+    },
+    {
+      "was": "CATALYSIS — eigener Faktor, multipliziert",
+      "pool": 1,
+      "share": 0.1,
+      "shareBits": "3fb999999999999a",
+      "factors": [
+        1.5,
+        1.1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "factorBits": [
+        "3ff8000000000000",
+        "3ff199999999999a",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000"
+      ],
+      "product": 1.6500000000000001,
+      "productBits": "3ffa666666666667",
+      "checksum": 3701471867
+    },
+    {
+      "was": "Sechser-Satz",
+      "pool": 5,
+      "share": 0.3,
+      "shareBits": "3fd3333333333333",
+      "factors": [
+        1.5,
+        1.1,
+        1,
+        1,
+        1,
+        1.3
+      ],
+      "factorBits": [
+        "3ff8000000000000",
+        "3ff199999999999a",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff4cccccccccccd"
+      ],
+      "product": 2.1450000000000005,
+      "productBits": "400128f5c28f5c2a",
+      "checksum": 3195216999
+    },
+    {
+      "was": "legendärer Effekt — 50 %, NICHT 56 %",
+      "pool": 5,
+      "share": 0.2,
+      "shareBits": "3fc999999999999a",
+      "factors": [
+        1.5,
+        1.1,
+        1,
+        1,
+        1,
+        1.5
+      ],
+      "factorBits": [
+        "3ff8000000000000",
+        "3ff199999999999a",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff0000000000000",
+        "3ff8000000000000"
+      ],
+      "product": 2.475,
+      "productBits": "4003cccccccccccd",
+      "checksum": 2813404303
+    },
+    {
+      "was": "YIELD — dritter eigener Faktor",
+      "pool": 3,
+      "share": 0.25,
+      "shareBits": "3fd0000000000000",
+      "factors": [
+        1.5,
+        1.1,
+        1,
+        1.25,
+        1,
+        1.5
+      ],
+      "factorBits": [
+        "3ff8000000000000",
+        "3ff199999999999a",
+        "3ff0000000000000",
+        "3ff4000000000000",
+        "3ff0000000000000",
+        "3ff8000000000000"
+      ],
+      "product": 3.09375,
+      "productBits": "4008c00000000000",
+      "checksum": 3706583057
+    }
+  ],
+  "budgets": [
+    {
+      "quality": 0,
+      "level": 1,
+      "budget": 100,
+      "shares": [
+        100
+      ],
+      "checksum": 1502942340
+    },
+    {
+      "quality": 0,
+      "level": 2,
+      "budget": 105,
+      "shares": [
+        105
+      ],
+      "checksum": 3762799671
+    },
+    {
+      "quality": 0,
+      "level": 3,
+      "budget": 110,
+      "shares": [
+        110
+      ],
+      "checksum": 2887442790
+    },
+    {
+      "quality": 0,
+      "level": 10,
+      "budget": 151,
+      "shares": [
+        151
+      ],
+      "checksum": 621491999
+    },
+    {
+      "quality": 0,
+      "level": 25,
+      "budget": 302,
+      "shares": [
+        302
+      ],
+      "checksum": 4248571608
+    },
+    {
+      "quality": 0,
+      "level": 50,
+      "budget": 1004,
+      "shares": [
+        1004
+      ],
+      "checksum": 230269487
+    },
+    {
+      "quality": 0,
+      "level": 75,
+      "budget": 3375,
+      "shares": [
+        3375
+      ],
+      "checksum": 2408116998
+    },
+    {
+      "quality": 0,
+      "level": 100,
+      "budget": 11409,
+      "shares": [
+        11409
+      ],
+      "checksum": 1371901009
+    },
+    {
+      "quality": 1,
+      "level": 1,
+      "budget": 140,
+      "shares": [
+        70,
+        70
+      ],
+      "checksum": 1382897385
+    },
+    {
+      "quality": 1,
+      "level": 2,
+      "budget": 147,
+      "shares": [
+        74,
+        73
+      ],
+      "checksum": 2661981350
+    },
+    {
+      "quality": 1,
+      "level": 3,
+      "budget": 154,
+      "shares": [
+        77,
+        77
+      ],
+      "checksum": 2650336429
+    },
+    {
+      "quality": 1,
+      "level": 10,
+      "budget": 213,
+      "shares": [
+        107,
+        106
+      ],
+      "checksum": 281203098
+    },
+    {
+      "quality": 1,
+      "level": 25,
+      "budget": 432,
+      "shares": [
+        216,
+        216
+      ],
+      "checksum": 980873890
+    },
+    {
+      "quality": 1,
+      "level": 50,
+      "budget": 1439,
+      "shares": [
+        720,
+        719
+      ],
+      "checksum": 782960689
+    },
+    {
+      "quality": 1,
+      "level": 75,
+      "budget": 4853,
+      "shares": [
+        2427,
+        2426
+      ],
+      "checksum": 3128366265
+    },
+    {
+      "quality": 1,
+      "level": 100,
+      "budget": 16409,
+      "shares": [
+        8205,
+        8204
+      ],
+      "checksum": 728343928
+    },
+    {
+      "quality": 2,
+      "level": 1,
+      "budget": 190,
+      "shares": [
+        64,
+        63,
+        63
+      ],
+      "checksum": 3554356648
+    },
+    {
+      "quality": 2,
+      "level": 2,
+      "budget": 199,
+      "shares": [
+        67,
+        66,
+        66
+      ],
+      "checksum": 3940210161
+    },
+    {
+      "quality": 2,
+      "level": 3,
+      "budget": 208,
+      "shares": [
+        70,
+        69,
+        69
+      ],
+      "checksum": 4060551010
+    },
+    {
+      "quality": 2,
+      "level": 10,
+      "budget": 288,
+      "shares": [
+        96,
+        96,
+        96
+      ],
+      "checksum": 1696680562
+    },
+    {
+      "quality": 2,
+      "level": 25,
+      "budget": 591,
+      "shares": [
+        197,
+        197,
+        197
+      ],
+      "checksum": 1233706974
+    },
+    {
+      "quality": 2,
+      "level": 50,
+      "budget": 1978,
+      "shares": [
+        660,
+        659,
+        659
+      ],
+      "checksum": 472620264
+    },
+    {
+      "quality": 2,
+      "level": 75,
+      "budget": 6675,
+      "shares": [
+        2225,
+        2225,
+        2225
+      ],
+      "checksum": 1288996596
+    },
+    {
+      "quality": 2,
+      "level": 100,
+      "budget": 22579,
+      "shares": [
+        7527,
+        7526,
+        7526
+      ],
+      "checksum": 2392927548
+    },
+    {
+      "quality": 3,
+      "level": 1,
+      "budget": 190,
+      "shares": [
+        64,
+        63,
+        63
+      ],
+      "checksum": 689087065
+    },
+    {
+      "quality": 3,
+      "level": 2,
+      "budget": 199,
+      "shares": [
+        67,
+        66,
+        66
+      ],
+      "checksum": 669807936
+    },
+    {
+      "quality": 3,
+      "level": 3,
+      "budget": 208,
+      "shares": [
+        70,
+        69,
+        69
+      ],
+      "checksum": 4269421683
+    },
+    {
+      "quality": 3,
+      "level": 10,
+      "budget": 288,
+      "shares": [
+        96,
+        96,
+        96
+      ],
+      "checksum": 2382693207
+    },
+    {
+      "quality": 3,
+      "level": 25,
+      "budget": 591,
+      "shares": [
+        197,
+        197,
+        197
+      ],
+      "checksum": 3288511699
+    },
+    {
+      "quality": 3,
+      "level": 50,
+      "budget": 1978,
+      "shares": [
+        660,
+        659,
+        659
+      ],
+      "checksum": 4008486309
+    },
+    {
+      "quality": 3,
+      "level": 75,
+      "budget": 6675,
+      "shares": [
+        2225,
+        2225,
+        2225
+      ],
+      "checksum": 2223356025
+    },
+    {
+      "quality": 3,
+      "level": 100,
+      "budget": 22579,
+      "shares": [
+        7527,
+        7526,
+        7526
+      ],
+      "checksum": 2962966409
+    }
+  ]
+}

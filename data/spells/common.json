@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "_comment": "Die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4). Sie gehoeren KEINER Schule an: Ein Boss-Zauber laesst sich unterbrechen ODER durch FIXATION verlangsamen ODER durch COAGULATION aushalten (11.3) — jede Zusammenstellung hat einen Weg. In calcination.json waere Unterbrechen eine Faehigkeit der Kalzination, und das ist es nicht. Abklingzeiten und Fensterbreiten dieser Zauber sind laut 7.4 NOCH NICHT FESTGELEGT (Kapitel 22); die Werte hier tragen die Prueffaelle aus Issue #110 und sonst nichts.",
+  "spells": [
+    {
+      "id": "quench",
+      "name": "Quench",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 5000,
+      "castTimeMs": 0,
+      "triggersGcd": false,
+      "interrupt": true
+    }
+  ]
+}

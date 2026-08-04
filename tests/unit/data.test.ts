@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { CALCINATION, FIRST_CRUCIBLE, parseBoss, parseSchool } from '../../src/core/data.js';
 import { computeDamage, NEUTRAL_FACTORS } from '../../src/core/damage.js';
 import { RandomStreams, STREAM_COUNT, STREAM_CRIT, STREAM_DOT_TICK } from '../../src/core/rng.js';
-import { STEP1_BINDINGS, spellSoundId } from '../../src/core/loadout.js';
+import { STEP1_BINDINGS } from '../../src/core/loadout.js';
+import { SOUND_MANIFEST } from '../../src/audio/manifest-data.js';
+import { parseManifest } from '../../src/audio/manifest.js';
+import { EV_SPELL_CAST } from '../../src/core/events.js';
+import { SoundMap } from '../../src/core/sound-map.js';
 
 describe('Zauber-Datensätze', () => {
   it('liest CALCINATION ohne Beanstandung', () => {
     expect(CALCINATION.problems).toEqual([]);
     expect(CALCINATION.value.school).toBe('CALCINATION');
-    expect(CALCINATION.value.spells.length).toBe(3);
+    // Drei Kampfzauber, dazu seit #110 der Unterbrecher QUENCH.
+    expect(CALCINATION.value.spells.length).toBe(4);
   });
 
   it('trägt alle Zahlen aus STEP1-SPEC § 1', () => {
@@ -192,8 +197,11 @@ describe('Zufallsströme', () => {
 
 describe('Anfangsbelegung', () => {
   it('legt die drei Zauber auf die obere Reihe von links', () => {
-    expect(STEP1_BINDINGS.map((b) => b.slot)).toEqual([0, 1, 2]);
-    expect(STEP1_BINDINGS.map((b) => b.spellId)).toEqual(['kindle', 'smoulder', 'pyre']);
+    // QUENCH steht seit #110 auf Platz 3 — HINTER den dreien, damit jede
+    // bestehende Aufzeichnung unverändert gilt: Ein Tastendruck nennt einen
+    // Platz, und die Plätze 0 bis 2 bedeuten weiterhin dasselbe.
+    expect(STEP1_BINDINGS.map((b) => b.slot)).toEqual([0, 1, 2, 3]);
+    expect(STEP1_BINDINGS.map((b) => b.spellId)).toEqual(['kindle', 'smoulder', 'pyre', 'quench']);
   });
 
   it('verweist auf Zauber, die es wirklich gibt', () => {
@@ -201,7 +209,23 @@ describe('Anfangsbelegung', () => {
     for (const binding of STEP1_BINDINGS) expect(ids.has(binding.spellId)).toBe(true);
   });
 
-  it('bildet die Klang-Kennung nach dem Verzeichnis von Epic E8', () => {
-    expect(spellSoundId('kindle')).toBe('spell-kindle');
+  it('hat für jeden Zauber einen Klang im Verzeichnis', () => {
+    // Seit E1-9 steht die Zuordnung im Verzeichnis statt als Namensregel im
+    // Code — geprüft wird deshalb das Verzeichnis, nicht eine Funktion.
+    const map = new SoundMap(parseManifest(SOUND_MANIFEST).entries);
+    map.bindSpells(CALCINATION.value.spells.map((s) => s.id));
+    expect(map.problems).toEqual([]);
+    for (const binding of STEP1_BINDINGS) {
+      const index = CALCINATION.value.spells.findIndex((s) => s.id === binding.spellId);
+      const sounds = map.soundsFor(EV_SPELL_CAST, index);
+      expect(sounds.length).toBe(1);
+      // Der Name folgt KEINER Regel — genau das war der Punkt von E1-9. QUENCH
+      // ist der erste Fall, in dem es auffällt: Sein Klang heißt
+      // `special-interrupt`, weil GAME-DESIGN 17.1 Unterbrechen unter den
+      // sieben Sonderzaubern führt und nicht unter den 60 Zaubern.
+      expect(map.ids[sounds[0] as number]).toBe(
+        binding.spellId === 'quench' ? 'special-interrupt' : `spell-${binding.spellId}`,
+      );
+    }
   });
 });

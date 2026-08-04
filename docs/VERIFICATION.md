@@ -73,6 +73,20 @@ playwright-cli -s=rota eval "window.__rota.log()"
 
 ## 3. Die fünf Standard-Messungen
 
+> **Jeder `eval`-Ausdruck mit `=>` muss eine nackte Pfeilfunktion sein.**
+> `playwright-cli eval` hält jeden Ausdruck, in dem `=>` vorkommt, für eine
+> Funktionsdefinition und ruft ihn auf — sonst `TypeError: result is not a function`.
+>
+> ```bash
+> eval "window.__rota.log().filter(e=>e.type==='cast').length"        # scheitert
+> eval "(() => typeof window.__rota)()"                               # scheitert AUCH
+> eval "() => window.__rota.log().filter(e=>e.type==='cast').length"  # läuft
+> ```
+>
+> Die sofort aufgerufene Fassung `(() => …)()` ist die naheliegende Rettung und
+> scheitert genauso — sie enthält ebenfalls `=>`. Von der E1-Session bei #14
+> gemeldet, beim Nachprüfen an der eigenen Schreibweise bestätigt.
+
 Aus `GAME-DESIGN.md` 20.2. Sie gelten für jedes Issue, das den Kampf berührt.
 
 ### 3.1 Ruckelfreiheit
@@ -94,6 +108,32 @@ playwright-cli -s=rota eval "JSON.stringify(window.__rota.perf().frameTimeSummar
 > `max 5,3 ms, over 0` bei 794 Bildern — Abstand im selben Lauf `max 100 ms, over 456`. Wer die
 > falsche Reihe nimmt, verwirft eine einwandfreie Umsetzung.
 >
+> **Vor jedem Leistungsbefund einmal OHNE die geprüfte Sache messen.** Ohne diese Nullmessung
+> beschuldigt man das Falsche. Zwei reale Fälle:
+>
+> | Fall      | Was es schien                                          | Was es war                                                                                                              |
+> | --------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+> | Issue #10 | 25,3 ms Arbeitszeit, 178 verworfene Takte              | Zwei gleichzeitige Playwright-Schleifen hungerten die Seite aus. Sauber: 1,2 ms, 0 verworfen                            |
+> | Issue #12 | 42 statt 60 Bilder je Sekunde durch die Schadenszahlen | Die Browser-Sitzung war nach ~40 Minuten Dauermessung müde. Der Vergleichslauf **ohne** Treffer zeigte dieselben 45 fps |
+>
+> **Das erste Fenster nach einem Zustandswechsel ist unbrauchbar.** Die Nullmessung allein genügt
+> nicht — erst ein **Wiederholungsfenster im selben Zustand** ist belastbar. Bei Issue #13 gemessen,
+> derselbe Kampf dreimal:
+>
+> | Lauf | Zustand                          | Arbeitszeit max | über 16,7 ms |
+> | ---- | -------------------------------- | --------------- | ------------ |
+> | A    | ohne Overlay, **erstes Fenster** | 22,9 ms         | 1            |
+> | B    | mit Overlay                      | 15,3 ms         | 0            |
+> | C    | ohne Overlay, **Wiederholung**   | **4,8 ms**      | 0            |
+>
+> A und C sind derselbe Zustand. Der Unterschied liegt allein in der Zeit seit dem letzten Wechsel —
+> das HTML-Overlay, das zunächst verdächtigt wurde, war unschuldig. Dieselbe Falle wie in § 3.5
+> („die erste Messung nach dem Laden ist unbrauchbar"), nur für die Bildzeit.
+
+> **Bei langen Messreihen den Browser neu starten.** Im zweiten Fall lagen in einer frischen Sitzung
+> alle vier Varianten bei 60 fps — und ohne die Nullmessung wäre ein Fehler gemeldet worden, den es
+> nicht gibt.
+
 > `frameIntervalSummary` ist trotzdem nützlich: Ein hoher `max` dort zeigt Aussetzer der Umgebung
 > (Systemlast, headless-Eigenheiten) und erklärt verworfene Takte.
 
@@ -146,7 +186,7 @@ playwright-cli -s=rota eval "window.__rota.measureCooldown('kindle', 100)"
 
 ```bash
 playwright-cli -s=rota eval "window.__rota.log().length"
-playwright-cli -s=rota eval "window.__rota.log().filter(e=>e.type==='cast').length"
+playwright-cli -s=rota eval "() => window.__rota.log().filter(e=>e.type==='cast').length"
 ```
 
 **Bestanden:** Die Zahl der protokollierten Wirkungen stimmt mit der Zahl der Tastendrücke aus der
@@ -159,7 +199,7 @@ Voraussetzung: `.playwright/cli.config.json` startet Chrome mit `--js-flags=--ex
 
 ```bash
 # Messung starten, Ergebnis in eine globale Variable (eval kennt kein await)
-playwright-cli -s=rota eval "(window.__m=null, window.__rota.measureAllocations(600).then(r=>{window.__m=r}), 1)"
+playwright-cli -s=rota eval "() => { window.__m=null; window.__rota.measureAllocations(600).then(r=>{window.__m=r}); return 1; }"
 sleep 14
 playwright-cli -s=rota eval "JSON.stringify(window.__m)"
 ```
@@ -177,7 +217,20 @@ Werte müssen um Null schwanken und dürfen **nicht** proportional zur Bildzahl 
 >
 > Ein Einzelwert von „0" ist kein Nachweis, sondern ein Treffer im Rauschband.
 
-**Zwei Fallen bei dieser Messung** (beide bei der Abnahme von Issue #8 aufgetreten):
+**Die Messung verfälscht die Takt-Zählung** (gefunden bei Issue #11): Die erzwungene Aufräumung
+hält die Seite über hundert Millisekunden an; danach holt die Schleife Takte nach und verwirft den
+Rest. Eine einzige Speichermessung erzeugte so **10 verworfene Takte**, die wie ein Spielfehler
+aussahen.
+
+`GameLoop.discardPendingTime` trennt das jetzt: `perf().discardedForMeasurement` zählt die
+Mess-Artefakte getrennt von `droppedTicks`. **Nachgemessen bei der Abnahme:** `droppedTicks` blieb
+über eine Speichermessung hinweg unverändert, `discardedForMeasurement` stand bei 6.
+
+> **Folge für § 3.1:** Wer `droppedTicks` nach einer Speichermessung liest, misst seinen Prüfstand.
+> Entweder vorher zurücksetzen oder beide Zähler nebeneinander lesen. Die „7 verworfenen Takte", die
+> ich bei Issue #7 als Build-Wechsel erklärt habe, waren mit hoher Wahrscheinlichkeit dasselbe.
+
+**Zwei weitere Fallen** (beide bei der Abnahme von Issue #8 aufgetreten):
 
 1. **Die erste Messung nach dem Laden ist unbrauchbar.** Direkt nach dem Öffnen wurden 450 KB auf
    300 Bilder gemessen — reines Aufwärmen (Klang-Dekodierung, JIT). **Vor der Messung 20 bis 25 s
@@ -201,7 +254,9 @@ korrekt** läuft: springt nichts, stimmen Timing und Endzustand.
 ```bash
 # 1. Aufzeichnen
 playwright-cli -s=rota video-start
-playwright-cli -s=rota eval "window.__rota.replay('cooldown-sweep')"
+# replayLive, NICHT replay: replay() rechnet sofort und ohne Bild durch — die
+# Aufnahme zeigte sonst einen unveraenderten Bildschirm.
+playwright-cli -s=rota eval "() => window.__rota.replayLive('cooldown-sweep')"
 playwright-cli -s=rota video-stop /tmp/anim.webm
 
 # 2. Zerlegen — 1280 px Breite, Qualität 6 (Begründung unten)
@@ -272,6 +327,64 @@ Alle anderen ACs: <Stand>
 
 **Dazwischen gibt es nichts.** Kein „größtenteils abgenommen", kein „bis auf Kleinigkeiten fertig",
 kein `scope:partial`. Ein Issue mit vier von fünf ACs ist ein offenes Issue.
+
+---
+
+## 5a. Klang und Musik prüfen
+
+Was klingt, kann ich nicht beurteilen (siehe § 6) — **ob** etwas klingt, sehr wohl. Der Bericht
+`__rota.sound()` beantwortet drei Fragen: Läuft eine Anforderung ins Leere? Bleibt ein Eintrag des
+Verzeichnisses stumm? Schalten die Musik-Schichten an den richtigen Punkten?
+
+```bash
+# Klang wacht erst mit einer Nutzergeste auf — ohne Tastendruck bleibt alles stumm
+# und `kontext` steht auf "suspended".
+playwright-cli -s=rota press Enter
+
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.sound().probleme)"      # muss [] sein
+playwright-cli -s=rota eval "() => window.__rota.sound().klangFehlend"                   # muss 0 sein
+playwright-cli -s=rota eval "() => window.__rota.sound().kontext"                        # "running"
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.sound().proKlang)"
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.sound().musik)"
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.events())"               # 24 Ereignisse
+playwright-cli -s=rota eval "() => window.__rota.emit('boss.overpressure')"              # von Hand auslösen
+```
+
+| Kennzahl        | Bedeutung                                                              | Erwartet                |
+| --------------- | ---------------------------------------------------------------------- | ----------------------- |
+| `klangFehlend`  | angeforderte Klänge, die es nicht gibt                                 | **0**                   |
+| `probleme`      | Beanstandungen am Verzeichnis (unbekanntes Ereignis, falscher Betreff) | **[]**                  |
+| `zugeordnet`    | Einträge im Verzeichnis mit Auslöser                                   | 29                      |
+| `ausgeloest`    | davon in dieser Sitzung erklungen                                      | wächst mit den Läufen   |
+| `nochNicht`     | Zuordnungen ohne Auslösung, **mit Grund**                              | nur E3/E4-Gründe        |
+| `ohneAusloeser` | Einträge ganz ohne Auslöser (Menü, Beute, Sonderzauber)                | 27, alles spätere Epics |
+
+**Ein stummer Eintrag ist kein Fehler, solange der Grund benannt ist.** Acht Klänge hängen an
+Ereignissen, die es in Schritt 1 nicht gibt (Boss-Zauber, Phasenwechsel, Spieler-Schaden) — sie
+stehen mit Epic-Verweis unter `nochNicht`. Ein Eintrag dort ohne Grund wäre einer.
+
+**Die Musik-Schichten prüft man über die Zeit, nicht als Momentaufnahme.** Ein Beobachter, der
+`musik.hoerbar` bei jeder Änderung mitschreibt, zeigt den ganzen Verlauf:
+
+```bash
+playwright-cli -s=rota eval "() => { window.__obs=[]; window.__last=''; setInterval(()=>{ const s=__rota.state(); const h=__rota.sound().musik.hoerbar.join('+'); if(h!==window.__last){ window.__last=h; window.__obs.push({t:Math.round(s.fightElapsedMs), hp:__rota.combat().bossHpRemaining, hoerbar:h}); } }, 50); __rota.replayLive('cooldown-precision'); return 1; }"
+# 45 s warten, dann:
+playwright-cli -s=rota eval "() => JSON.stringify(window.__obs)"
+```
+
+Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
+
+| Kampfzeit | Boss | hörbar                  | Warum                                         |
+| --------- | ---- | ----------------------- | --------------------------------------------- |
+| Countdown | 4200 | `music-menu`            | Grundklang außerhalb des Kampfes              |
+| 30 ms     | 4200 | `music-bed-placeholder` | `fight.start`                                 |
+| 33 050 ms | 780  | `+ music-final-push`    | unter 20 % (GAME-DESIGN 10.1)                 |
+| 50 040 ms | —    | `+ music-overpressure`  | 10 s Restzeit, dieselbe Schwelle wie der Ring |
+| Ende      | 0    | `music-menu`            | `fight.end`, dann `menu.enter`                |
+
+> **Klang wacht nur mit einer Nutzergeste auf.** `eval` allein genügt nicht — der Browser hält den
+> Kontext an, bis eine echte Taste kam. Wer ohne Tastendruck misst, sieht `kontext: "suspended"`,
+> `wiedergaben: 0` und hält eine funktionierende Anbindung für kaputt.
 
 ---
 
