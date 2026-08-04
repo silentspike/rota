@@ -1,0 +1,381 @@
+{
+  "schema": 1,
+  "tiers": [
+    2,
+    4,
+    6
+  ],
+  "setCount": 6,
+  "sets": [
+    {
+      "id": 0,
+      "school": "CALCINATION",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "test-a-sechser"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "school": "SUBLIMATION",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.05,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.15,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "test-b-sechser"
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "was": "kein Satz-Teil",
+      "equipped": [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 0,
+      "tiersReached": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0,
+      "valueShareBits": "0000000000000000",
+      "rotationEffects": [],
+      "checksum": 400696213
+    },
+    {
+      "was": "ein Teil — noch keine Stufe",
+      "equipped": [
+        0,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 1,
+      "tiersReached": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0,
+      "valueShareBits": "0000000000000000",
+      "rotationEffects": [],
+      "checksum": 1894325381
+    },
+    {
+      "was": "zwei Teile — erste Stufe",
+      "equipped": [
+        0,
+        0,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 2,
+      "tiersReached": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.1,
+      "valueShareBits": "3fb999999999999a",
+      "rotationEffects": [],
+      "checksum": 362567860
+    },
+    {
+      "was": "drei Teile — weiterhin erste Stufe",
+      "equipped": [
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 3,
+      "tiersReached": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.1,
+      "valueShareBits": "3fb999999999999a",
+      "rotationEffects": [],
+      "checksum": 2220343332
+    },
+    {
+      "was": "vier Teile — zweite Stufe",
+      "equipped": [
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        4,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 4,
+      "tiersReached": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.30000000000000004,
+      "valueShareBits": "3fd3333333333334",
+      "rotationEffects": [],
+      "checksum": 2467126566
+    },
+    {
+      "was": "fuenf Teile — wie vier, nicht weniger",
+      "equipped": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        5,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 5,
+      "tiersReached": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.30000000000000004,
+      "valueShareBits": "3fd3333333333334",
+      "rotationEffects": [],
+      "checksum": 1161927702
+    },
+    {
+      "was": "sechs Teile — der Rotations-Effekt",
+      "equipped": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        6,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 6,
+      "tiersReached": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.30000000000000004,
+      "valueShareBits": "3fd3333333333334",
+      "rotationEffects": [
+        "test-a-sechser"
+      ],
+      "checksum": 3830792710
+    },
+    {
+      "was": "vier von A und zwei von B",
+      "equipped": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "pieces": [
+        4,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 6,
+      "tiersReached": [
+        2,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.35000000000000003,
+      "valueShareBits": "3fd6666666666667",
+      "rotationEffects": [],
+      "checksum": 3703612895
+    },
+    {
+      "was": "vier von A auf hinteren Plaetzen",
+      "equipped": [
+        -1,
+        -1,
+        0,
+        -1,
+        0,
+        -1,
+        -1,
+        0,
+        -1,
+        0
+      ],
+      "pieces": [
+        4,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "wornPieces": 4,
+      "tiersReached": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "valueShare": 0.30000000000000004,
+      "valueShareBits": "3fd3333333333334",
+      "rotationEffects": [],
+      "checksum": 2467126566
+    }
+  ]
+}
