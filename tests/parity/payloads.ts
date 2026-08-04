@@ -15,7 +15,7 @@ import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { GCD_MS } from '../../src/core/gcd.js';
-import { EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
+import { CombatLog, EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
@@ -94,6 +94,9 @@ export const COAGULATION_NAME = 'coagulation';
 
 /** Der Prueffall zur Fixierung — Kontroll-Punkte auf den Kampfverlauf (#100). */
 export const FIXATION_NAME = 'fixation';
+
+/** Der Prueffall zu den Protokoll-Arten des Spiels (Issue #151). */
+export const LOG_PARITY_NAME = 'log-parity';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -859,6 +862,92 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     controlPerTick: control,
     phasePerTick: phase,
     timelineIndexPerTick: timelineIndex,
+  };
+}
+
+/**
+ * Was das Spiel ins Protokoll schreibt — je Art gezählt (Issue #151).
+ *
+ * **Die ZAHL ist der Nachweis, nicht das Vorkommen.** Dass eine Art überhaupt
+ * auftaucht, sagt wenig; die Zahl sagt, ob sie an denselben Stellen
+ * geschrieben wird wie im Simulator. Ein Spiel, das den Schlag einmal und der
+ * Simulator dreimal protokolliert, sähe plausibel aus und wäre falsch.
+ *
+ * Das ist hier keine theoretische Sorge: Im Simulator läuft jeder ausgeteilte
+ * Schaden durch `deal()`, im Spiel gibt es diese eine Stelle nicht. Die
+ * Schreibpunkte liegen verschieden — nur ihre Zahl kann zeigen, dass sie
+ * trotzdem dasselbe erfassen.
+ */
+export function logParityPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const log = new CombatLog();
+  combat.log = log;
+  const kindle = combat.indexOf('kindle');
+  const crust = combat.indexOf('crust');
+  const salve = combat.indexOf('salve');
+  const quench = combat.indexOf('quench');
+  const ticks = 2500; // 25 s
+
+  const presses: { tick: number; slot: number }[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) break;
+
+    // Eine Rotation, die JEDE der fünf Arten auslöst: CRUST baut die
+    // Schutzschicht auf (shieldAbsorb), QUENCH unterbricht den Boss-Zauber
+    // (interruptLanded), KINDLE füllt die Lücken. Der Boss liefert
+    // bossTimelineFired und playerDamage von selbst.
+    // CRUST kommt **nur einmal**, ganz am Anfang. Wirkte er sooft es geht,
+    // finge er jeden Schlag ab, der Spieler bliebe auf voller Anzeige, und
+    // SALVE heilte nichts — `healed` stünde auf null, und der Nachweis für die
+    // Heilung wäre still weg. Eine Art mit null Einträgen belegt nichts.
+    let gewaehlt = -1;
+    if (combat.casting >= 0 && combat.isReady(quench, timeMs)) gewaehlt = quench;
+    else if (tick < 100 && combat.isReady(crust, timeMs)) gewaehlt = crust;
+    else if (combat.playerHp < PLAYER.vessel && combat.isReady(salve, timeMs)) gewaehlt = salve;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+    if (gewaehlt < 0) continue;
+
+    if (combat.cast(gewaehlt, timeMs).result === 0) {
+      const platz = gewaehlt === kindle ? 0 : gewaehlt === crust ? 1 : gewaehlt === quench ? 2 : 3;
+      presses.push({ tick, slot: platz });
+    }
+  }
+
+  // Je Art zählen — das ist der Vergleichswert.
+  const counts: Record<string, number> = {};
+  for (const kind of EVENT_KINDS_WRITTEN_BY_GAME) {
+    counts[EVENT_NAMES[kind] ?? String(kind)] = log.countOf(kind);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: LOG_PARITY_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      { slot: 1, spellId: 'crust' },
+      { slot: 2, spellId: 'quench' },
+      { slot: 3, spellId: 'salve' },
+    ],
+    presses,
+    /** Anzahl je Protokoll-Art. Der Simulator muss dieselben Zahlen ergeben. */
+    counts,
+    expected: {
+      damageDealt: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      shieldAbsorbed: combat.shieldAbsorbed,
+      interruptsLanded: combat.interruptsLanded,
+      healed: combat.healed,
+      timelineIndex: combat.timelineIndex,
+      logEntries: log.length,
+    },
   };
 }
 

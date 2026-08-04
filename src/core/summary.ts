@@ -46,6 +46,15 @@ export interface RunSummary {
   readonly lostTimeMs: number;
   readonly lostTimeShare: number;
   /**
+   * Der Leerlauf, getrennt nach seiner Ursache (Issue #81, AC7).
+   *
+   * Die beiden Zahlen ergeben zusammen immer `lostTimeMs` und ueberschneiden
+   * sich in keinem Takt — sie entstehen aus einem Wenn-Sonst in `Session.tick`.
+   * Aus `lostTimeMs` allein waeren sie nicht mehr herstellbar.
+   */
+  readonly lostTimeWithReadyMs: number;
+  readonly lostTimeNothingReadyMs: number;
+  /**
    * Genutzte von möglichen Synergien.
    *
    * In Schritt 1 gibt es **keine** Synergien: Alle drei Zauber gehören derselben
@@ -75,6 +84,9 @@ export interface SummaryInput {
   readonly casts: number;
   /** Takte ohne Handlung, in ms — aus der Session. */
   readonly lostTimeMs: number;
+  /** Die beiden Haelften des Leerlaufs (Issue #81, AC7). Summe = lostTimeMs. */
+  readonly lostTimeWithReadyMs: number;
+  readonly lostTimeNothingReadyMs: number;
   /** Leerlauf je Zauber in ms, nach Kennnummer. */
   readonly idlePerSpellMs: Float64Array;
   readonly synergyUsed: number;
@@ -124,6 +136,8 @@ export function buildSummary(input: SummaryInput): RunSummary {
     casts: input.casts,
     idlePerSpell,
     lostTimeMs: input.lostTimeMs,
+    lostTimeWithReadyMs: input.lostTimeWithReadyMs,
+    lostTimeNothingReadyMs: input.lostTimeNothingReadyMs,
     lostTimeShare: elapsedMs > 0 ? input.lostTimeMs / elapsedMs : 0,
     synergyUsed: input.synergyUsed,
     synergyAvailable: input.synergyAvailable,

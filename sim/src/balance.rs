@@ -366,6 +366,108 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
 
 #[cfg(test)]
 mod tests {
+    use super::{factor_value, with_factor, FACTOR_NAMES};
+    use crate::factors::{DamageFactors, NEUTRAL};
+
+    /// **Waechter: Jeder Faktor der Struktur steht in der Liste** (Issue #159).
+    ///
+    /// # Warum das nicht ueber die Anzahl geht
+    ///
+    /// `FACTOR_NAMES.len() == 7` waere die naheliegende Pruefung und beim
+    /// naechsten Zuwachs wieder blind: Sie verlangte nur, dass jemand die Zahl
+    /// mitpflegt — dieselbe Handarbeit mit einem zusaetzlichen Schritt.
+    ///
+    /// # Wie er stattdessen arbeitet
+    ///
+    /// Der Vergleichswert unten wird als **vollstaendiges Struktur-Literal**
+    /// gebaut. Der Uebersetzer erzwingt dabei eine Zeile je Feld: Wer der
+    /// Schadensformel einen Faktor hinzufuegt und diese Stelle vergisst,
+    /// bekommt `E0063: missing field` — keinen gruenen Lauf.
+    ///
+    /// Und dieselbe Struktur wird ueber [`FACTOR_NAMES`] aufgebaut. Fehlt dort
+    /// ein Eintrag, bleibt sein Feld auf 1,0 stehen, waehrend das Literal 2,0
+    /// traegt — die beiden laufen auseinander, und die Meldung nennt das Feld.
+    ///
+    /// Damit folgt die Pruefung aus der **Struktur**, nicht aus einer Zahl.
+    #[test]
+    fn jeder_faktor_der_formel_steht_in_der_liste() {
+        // Exhaustiv — der Uebersetzer laesst kein Feld aus (E0063).
+        let alle_gesetzt = DamageFactors {
+            essence: 2.0,
+            talents: 2.0,
+            gear_effects: 2.0,
+            buffs: 2.0,
+            synergy: 2.0,
+            resistance: 2.0,
+            crit: 2.0,
+        };
+
+        let ueber_die_liste = FACTOR_NAMES
+            .iter()
+            .fold(NEUTRAL, |f, (name, _)| with_factor(f, name, 2.0));
+
+        assert_eq!(
+            ueber_die_liste, alle_gesetzt,
+            "Ein Faktor der Schadensformel fehlt in FACTOR_NAMES. Die Liste ist eine von \
+             Hand gefuehrte Abschrift und kann nicht bemerken, dass ihr ein Eintrag fehlt — \
+             genau so hat die Empfindlichkeits-Messung bis Issue #159 den Ausruestungs-Faktor \
+             ausgelassen. Ergaenze ihn in FACTOR_NAMES, with_factor und factor_value."
+        );
+    }
+
+    /// **Waechter, andere Richtung: Jeder Name der Liste wird angenommen.**
+    ///
+    /// `with_factor` und `factor_value` haben je einen `unreachable!`-Zweig.
+    /// Ein Name, den sie nicht kennen, laesst den Lauf abstuerzen — mitten in
+    /// einer Messung, die Minuten gedauert hat. Hier faellt er in
+    /// Millisekunden auf.
+    #[test]
+    fn jeder_name_der_liste_wird_angenommen() {
+        for (name, _) in FACTOR_NAMES {
+            let gesetzt = with_factor(NEUTRAL, name, 3.0);
+            assert_eq!(
+                factor_value(&gesetzt, name),
+                3.0,
+                "\"{name}\" steht in FACTOR_NAMES, aber with_factor oder factor_value \
+                 kennen ihn nicht"
+            );
+            // Und er muss auch wirklich etwas veraendern — ein Name, der auf
+            // ein totes Feld zeigt, waere still wirkungslos.
+            assert_ne!(gesetzt, NEUTRAL, "\"{name}\" veraendert die Faktoren nicht");
+        }
+    }
+
+    /// Kein Name steht zweimal, keiner zeigt auf dasselbe Feld.
+    ///
+    /// Zwei Eintraege auf demselben Feld saehen im Bericht wie zwei Faktoren
+    /// aus und waeren einer.
+    #[test]
+    fn kein_name_und_kein_feld_zweimal() {
+        let mut namen: Vec<&str> = FACTOR_NAMES.iter().map(|(n, _)| *n).collect();
+        let vorher = namen.len();
+        namen.sort_unstable();
+        namen.dedup();
+        assert_eq!(
+            namen.len(),
+            vorher,
+            "ein Name steht zweimal in FACTOR_NAMES"
+        );
+
+        for (a, _) in FACTOR_NAMES {
+            for (b, _) in FACTOR_NAMES {
+                if a == b {
+                    continue;
+                }
+                let nur_a = with_factor(NEUTRAL, a, 5.0);
+                assert_eq!(
+                    factor_value(&nur_a, b),
+                    1.0,
+                    "\"{a}\" und \"{b}\" zeigen auf dasselbe Feld"
+                );
+            }
+        }
+    }
+
     use super::*;
 
     #[test]
@@ -464,9 +566,15 @@ pub struct ScalingFactor {
 /// Für `talents`, `buffs`, `synergy` und `resistance` gibt es keinen einzelnen
 /// Spielwert — sie sammeln, was Talentbaum, Verstärkungen, Synergie-Fenster und
 /// Boss-Widerstand beitragen (GAME-DESIGN 6.3).
-const FACTOR_NAMES: [(&str, &str); 6] = [
+const FACTOR_NAMES: [(&str, &str); 7] = [
     ("essence", "ESSENCE"),
     ("talents", "(Talentbaum)"),
+    // **Fehlte bis Issue #159.** Er kam mit #123 in die Formel; die Liste hier
+    // ist eine von Hand gefuehrte Abschrift und konnte nicht bemerken, dass ihr
+    // ein Eintrag fehlt. Damit liess die Empfindlichkeits-Messung ausgerechnet
+    // den Faktor aus, ueber den Satz-Boni und legendaere Effekte einfliessen —
+    // also das, was #118 vergleichen soll.
+    ("gearEffects", "Satz-Boni und legendaere Effekte"),
     ("buffs", "(Verstaerkungen)"),
     ("synergy", "(Synergie)"),
     ("resistance", "(Boss-Widerstand)"),
@@ -478,6 +586,7 @@ fn with_factor(mut factors: DamageFactors, name: &str, value: f64) -> DamageFact
     match name {
         "essence" => factors.essence = value,
         "talents" => factors.talents = value,
+        "gearEffects" => factors.gear_effects = value,
         "buffs" => factors.buffs = value,
         "synergy" => factors.synergy = value,
         "resistance" => factors.resistance = value,
@@ -492,6 +601,7 @@ fn factor_value(factors: &DamageFactors, name: &str) -> f64 {
     match name {
         "essence" => factors.essence,
         "talents" => factors.talents,
+        "gearEffects" => factors.gear_effects,
         "buffs" => factors.buffs,
         "synergy" => factors.synergy,
         "resistance" => factors.resistance,

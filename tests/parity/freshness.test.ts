@@ -34,12 +34,14 @@ import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
 import eingecheckteFixierung from './recordings/fixation.json';
+import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import {
   bossStatePayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
+  logParityPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -106,6 +108,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Fixierung entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteFixierung, HINWEIS).toEqual(fixationPayload());
+  });
+
+  it('die Protokoll-Arten des Spiels entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteProtokollParitaet, HINWEIS).toEqual(logParityPayload());
   });
 });
 
