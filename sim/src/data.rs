@@ -203,6 +203,13 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Wie viele Zersetzungs-Stapel der Zauber anlegt (PUTREFACTION, #97).
+    pub decay_stacks: u32,
+    /// Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.
+    ///
+    /// Traegt FESTER. **Nicht** die Verwundbarkeit des Bosses — die gilt fuer
+    /// alle Quellen. **Vorlaeufig, wird gemessen.**
+    pub per_decay_stack_percent: u32,
     /// Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, #100).
     ///
     /// Steht als eigenes Feld und nicht unter `resource_gain`: Der Kampf
