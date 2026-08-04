@@ -181,9 +181,14 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // Die Gegenprobe zur Aufteilung: Was der Simulator führt, taucht hier nie
     // auf. Eine Zahl, die beide Seiten schreiben, aber verschieden meinen,
     // war genau der Fehler, den E3-6 behoben hat.
+    // 4 (spend) und 5 (kill) bleiben beim Simulator — das Spiel kennt weder
+    // eine Entladung als eigenes Ereignis noch den Boss-Tod als Protokollzeile.
     expect(EVENT_KINDS_WRITTEN_BY_GAME).not.toContain(4);
     expect(EVENT_KINDS_WRITTEN_BY_GAME).not.toContain(5);
-    expect(EVENT_KINDS_WRITTEN_BY_GAME).toEqual([0, 1, 2, 3, 6, 7]);
+    // Seit #151 schreibt das Spiel fünf weitere: Zeitleiste (9), Spielerschaden
+    // (10), Unterbrechen (12), Schutzschicht (13) und Heilung (14). Die
+    // Fehleranalyse läuft im Browser — ohne sie wäre dort alles leer.
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).toEqual([0, 1, 2, 3, 6, 7, 9, 10, 12, 13, 14]);
   });
 });
 

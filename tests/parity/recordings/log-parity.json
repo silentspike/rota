@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "name": "log-parity",
+  "bossId": "test-warden",
+  "ticks": 2500,
+  "tickMs": 10,
+  "bindings": [
+    {
+      "slot": 0,
+      "spellId": "kindle"
+    },
+    {
+      "slot": 1,
+      "spellId": "crust"
+    },
+    {
+      "slot": 2,
+      "spellId": "quench"
+    },
+    {
+      "slot": 3,
+      "spellId": "salve"
+    }
+  ],
+  "presses": [
+    {
+      "tick": 0,
+      "slot": 1
+    },
+    {
+      "tick": 150,
+      "slot": 0
+    },
+    {
+      "tick": 300,
+      "slot": 0
+    },
+    {
+      "tick": 400,
+      "slot": 2
+    },
+    {
+      "tick": 450,
+      "slot": 0
+    },
+    {
+      "tick": 600,
+      "slot": 0
+    },
+    {
+      "tick": 750,
+      "slot": 0
+    },
+    {
+      "tick": 900,
+      "slot": 0
+    },
+    {
+      "tick": 1050,
+      "slot": 0
+    },
+    {
+      "tick": 1200,
+      "slot": 0
+    },
+    {
+      "tick": 1350,
+      "slot": 0
+    },
+    {
+      "tick": 1500,
+      "slot": 0
+    },
+    {
+      "tick": 1650,
+      "slot": 0
+    },
+    {
+      "tick": 1800,
+      "slot": 0
+    },
+    {
+      "tick": 1950,
+      "slot": 3
+    },
+    {
+      "tick": 2100,
+      "slot": 0
+    },
+    {
+      "tick": 2250,
+      "slot": 0
+    },
+    {
+      "tick": 2400,
+      "slot": 0
+    }
+  ],
+  "counts": {
+    "cast": 18,
+    "damage": 15,
+    "dotTick": 0,
+    "crit": 0,
+    "phase": 1,
+    "buffExpire": 0,
+    "bossTimelineFired": 3,
+    "playerDamage": 2,
+    "interruptLanded": 1,
+    "shieldAbsorb": 1,
+    "healed": 1
+  },
+  "expected": {
+    "damageDealt": 1500,
+    "damageTaken": 240,
+    "shieldAbsorbed": 240,
+    "interruptsLanded": 1,
+    "healed": 240,
+    "timelineIndex": 3,
+    "logEntries": 42
+  }
+}
