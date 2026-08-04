@@ -117,9 +117,16 @@ describe('GameLoop — ganzzahlige Zeit', () => {
     driver.runFrames(20, 1000 / 60);
 
     expect(sim.tickTimes.length).toBeGreaterThan(0);
+    // Gesammelt statt je Takt geprüft (#127). Gemessen: 3656 expect-Aufrufe
+    // kosten 569 ms, die Rechnung dahinter 10 ms. Der Rest der Laufzeit ist
+    // echte Simulationsarbeit und bleibt — hier ging es nur um den Aufruf.
+    const krumm: string[] = [];
     for (let i = 0; i < sim.tickTimes.length; i++) {
-      expect(sim.tickTimes[i]).toBe(i * TICK_MS);
+      if (sim.tickTimes[i] !== i * TICK_MS) {
+        krumm.push(`Takt ${i}: ${sim.tickTimes[i]} statt ${i * TICK_MS}`);
+      }
     }
+    expect(krumm).toEqual([]);
     expect(loop.timeMs).toBe(sim.tickTimes.length * TICK_MS);
     expect(Number.isInteger(loop.timeMs)).toBe(true);
   });

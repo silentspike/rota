@@ -50,6 +50,36 @@
       "kind": 9,
       "name": "bossTimelineFired",
       "writtenByGame": false
+    },
+    {
+      "kind": 10,
+      "name": "playerDamage",
+      "writtenByGame": false
+    },
+    {
+      "kind": 11,
+      "name": "playerDeath",
+      "writtenByGame": false
+    },
+    {
+      "kind": 12,
+      "name": "interruptLanded",
+      "writtenByGame": false
+    },
+    {
+      "kind": 13,
+      "name": "shieldAbsorb",
+      "writtenByGame": false
+    },
+    {
+      "kind": 14,
+      "name": "healed",
+      "writtenByGame": false
+    },
+    {
+      "kind": 15,
+      "name": "convertedToShield",
+      "writtenByGame": false
     }
   ],
   "writtenByGame": [

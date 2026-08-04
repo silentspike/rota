@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 3
+        "present": 6
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 57,
+        "count": 54,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind erst die drei aus Schritt 1 ausgearbeitet (STEP1-SPEC 1). Namen, Schulen und Wirkung der uebrigen 57 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "Von den 60 Zaubern sind sechs ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1) und die drei Wege der COAGULATION (Issue #79). Namen, Schulen und Wirkung der uebrigen 54 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -100,6 +100,51 @@
       "trigger": {
         "on": "spell.cast",
         "key": "pyre"
+      }
+    },
+    {
+      "id": "spell-crust",
+      "group": "spells",
+      "purpose": "CRUST — die Schutzschicht der COAGULATION. Etwas legt sich schuetzend an; kein Schlag, sondern ein Verhaerten. Muss sich klar von einem Treffer unterscheiden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-crust.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 15,
+      "prompt": "mineral crust forming, low crystalline settling, protective glassy layer, no impact",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "crust"
+      }
+    },
+    {
+      "id": "spell-salve",
+      "group": "spells",
+      "purpose": "SALVE — die Heilung. Der einzige durchweg freundliche Klang der Schule; er soll Erleichterung ausdruecken, nicht Kraft.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-salve.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 15,
+      "prompt": "warm liquid restoration, soft gentle shimmer, soothing alchemical balm, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "salve"
+      }
+    },
+    {
+      "id": "spell-temper",
+      "group": "spells",
+      "purpose": "TEMPER — Schaden-in-Schutz-Umwandlung. Sie schaltet einen Zustand an, statt sofort zu wirken: ein Anlaufen, kein Aufschlag.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-temper.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 15,
+      "prompt": "metal tempering hiss, sustained hardening tone, quenching steam, rising not striking",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "temper"
       }
     },
     {

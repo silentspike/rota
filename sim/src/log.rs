@@ -17,52 +17,103 @@
 
 use crate::time::Millis;
 
-/// Art eines Protokoll-Eintrags — **ein gemeinsamer Nummernraum mit dem
-/// Spiel** (Issue E3-6).
+// Art eines Protokoll-Eintrags — **ein gemeinsamer Nummernraum mit dem Spiel**
+// (Issue E3-6).
+//
+// Bis dahin fuehrten beide Seiten eigene Nummern, und ab der 2 bedeutete
+// dieselbe Zahl etwas anderes: Eine 3 hiess hier "Entladung", im Spiel
+// "DoT-Tick"; eine 4 hier "Boss gefallen", dort "Phasenwechsel". Verglichen hat
+// das nie jemand — die Auswertung in Epic E7 liest aber genau diese Daten, und
+// eine verschobene Bedeutung ergaebe eine Fehleranalyse, die plausibel aussieht
+// und falsch ist.
+//
+// **Jede Seite benutzt nur ihre Teilmenge.** Leere Varianten zu fuehren, die
+// der Simulator nie schreibt, waere toter Code.
+//
+// **Hier stand bis Issue #134 eine Tabelle aller Arten.** Sie war eine weitere
+// Abschrift — und sie war bereits abgedriftet: Sie fuehrte acht von sechzehn
+// Arten, und bei Nummer 6 stand "nur Spiel", obwohl der Simulator sie seit #96
+// ebenfalls schreibt. Eine Uebersicht, die man von Hand nachziehen muss, wird
+// irgendwann falsch und sieht dabei richtig aus. Die Liste steht deshalb genau
+// einmal da: unten im Makro-Aufruf, und `tests/log_kinds.rs` prueft sie gegen
+// eine Datei, die aus dem Spielcode stammt.
+
+/// Erzeugt [`LogKind`] samt [`LogKind::ALL`] und [`LogKind::name`] aus **einer**
+/// Liste.
 ///
-/// Bis dahin fuehrten beide Seiten eigene Nummern, und ab der 2 bedeutete
-/// dieselbe Zahl etwas anderes: Eine 3 hiess hier "Entladung", im Spiel
-/// "DoT-Tick"; eine 4 hier "Boss gefallen", dort "Phasenwechsel". Verglichen
-/// hat das nie jemand — die Auswertung in Epic E7 liest aber genau diese
-/// Daten, und eine verschobene Bedeutung ergaebe eine Fehleranalyse, die
-/// plausibel aussieht und falsch ist.
+/// # Warum ein Makro und nicht drei Listen
 ///
-/// **Jede Seite benutzt nur ihre Teilmenge.** Die Luecken bei 3, 6 und 7
-/// gehoeren dem Spiel (Krit, Phasenwechsel, Verstaerkung laeuft ab); leere
-/// Varianten zu fuehren, die der Simulator nie schreibt, waere toter Code.
+/// Bis Issue #134 standen die Varianten hier, ihre Aufzaehlung nirgends und
+/// ihre Namen in einer von Hand gefuehrten Abschrift im Prueffall. Der
+/// Waechter aus #105 verglich, was dort EINGETRAGEN war — er konnte nicht
+/// bemerken, dass etwas FEHLT. Drei Arten (`playerDamage`, `playerDeath`,
+/// `interruptLanded`) liefen so seit #110 mit, ohne je im gemeinsamen
+/// Nummernraum zu stehen.
 ///
-/// | Nr. | Art          | Spiel | Simulator |
-/// | --- | ------------ | ----- | --------- |
-/// | 0   | `cast`       | ja    | ja        |
-/// | 1   | `damage`     | ja    | ja        |
-/// | 2   | `dotTick`    | ja    | ja        |
-/// | 3   | `crit`       | ja    | —         |
-/// | 4   | `spend`      | —     | ja        |
-/// | 5   | `kill`       | —     | ja        |
-/// | 6   | `phase`      | ja    | —         |
-/// | 7   | `buffExpire` | ja    | —         |
-///
-/// `tests/log_kinds.rs` prueft die Tabelle gegen eine Datei, die aus dem
-/// Spielcode stammt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum LogKind {
+/// Eine Pruefung, die nur ZAEHLT, waere beim naechsten Zuwachs wieder blind:
+/// Sie meldet eine Zahl, die jemand hochsetzt, ohne nachzusehen. Deshalb steht
+/// die Liste jetzt genau einmal da. Wer eine Art hinzufuegt, bekommt Variante,
+/// Aufzaehlung und Namen in einem Zug — **auseinanderlaufen koennen sie nicht
+/// mehr.**
+macro_rules! log_kinds {
+    ($(
+        $(#[$meta:meta])*
+        $variant:ident = $number:expr => $name:literal,
+    )+) => {
+        /// Art eines Protokoll-Eintrags.
+        ///
+        /// Die Zahlen sind der **gemeinsame Nummernraum** von Spiel und
+        /// Simulator (Issue #105): Dieselbe Zahl bedeutet auf beiden Seiten
+        /// dasselbe. `tests/log_kinds.rs` prueft das gegen eine Datei, die aus
+        /// dem Spielcode stammt.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[repr(u8)]
+        pub enum LogKind {
+            $($(#[$meta])* $variant = $number,)+
+        }
+
+        impl LogKind {
+            /// **Alle** Arten, in der Reihenfolge ihrer Nummern.
+            ///
+            /// Vom Makro erzeugt und damit vollstaendig — nicht von Hand
+            /// gefuehrt und deshalb auch nicht vergessbar.
+            pub const ALL: &'static [LogKind] = &[$(LogKind::$variant,)+];
+
+            /// Der Name im gemeinsamen Nummernraum.
+            #[must_use]
+            pub const fn name(self) -> &'static str {
+                match self {
+                    $(LogKind::$variant => $name,)+
+                }
+            }
+
+            /// Die Kennnummer im gemeinsamen Nummernraum.
+            #[must_use]
+            pub const fn number(self) -> u8 {
+                self as u8
+            }
+        }
+    };
+}
+
+log_kinds! {
+
     /// Ein Zauber wurde gewirkt.
-    Cast = 0,
+    Cast = 0 => "cast",
     /// Ein Zauber hat beim Wirken Schaden verursacht.
-    Damage = 1,
+    Damage = 1 => "damage",
     /// Ein Brand-Effekt hat getickt.
-    DotTick = 2,
+    DotTick = 2 => "dotTick",
     /// Ein Entlade-Zauber hat die Ressource verbraucht.
-    Spend = 4,
+    Spend = 4 => "spend",
     /// Der Boss ist gefallen.
-    Kill = 5,
+    Kill = 5 => "kill",
     /// Der Boss hat die Phase gewechselt. `value` ist die neue Phase.
     ///
     /// **Nummer 6 gehoerte bisher allein dem Spiel** (E3-6). Der Simulator
     /// schreibt sie seit Issue #96 ebenfalls — dieselbe Bedeutung, dieselbe
     /// Zahl. Genau dafuer wurde der gemeinsame Raum eingerichtet.
-    BossPhase = 6,
+    BossPhase = 6 => "phase",
     /// Die Energieleiste des Bosses hat **ausgeloest**. `value` zaehlt die
     /// Ausloesungen.
     ///
@@ -74,24 +125,36 @@ pub enum LogKind {
     ///
     /// Neu im gemeinsamen Raum (Issue #96). Nur der Simulator schreibt sie —
     /// wie `spend` und `kill` auch.
-    BossEnergy = 8,
+    BossEnergy = 8 => "bossEnergyTriggered",
     /// Ein Eintrag der Boss-Zeitleiste ist faellig geworden. `value` ist sein
     /// Index in `Boss::timeline`.
     ///
     /// Was der Eintrag *bewirkt*, entscheidet sich in E4-2 bis E4-6 — hier
     /// steht vorerst nur, dass er zur richtigen Zeit gegriffen hat.
-    BossTimeline = 9,
+    BossTimeline = 9 => "bossTimelineFired",
     /// Der Spieler hat Schaden genommen. `value` ist der Betrag **nach** WARD.
     ///
     /// Neu im gemeinsamen Raum (Issue #110).
-    PlayerDamage = 10,
+    PlayerDamage = 10 => "playerDamage",
     /// Der Spieler ist gestorben. `value` ist der insgesamt erlittene Schaden.
     ///
     /// Keine Strafe (GAME-DESIGN A.3) — der Eintrag steht fuer die Auswertung,
     /// nicht fuer eine Buchung.
-    PlayerDeath = 11,
+    PlayerDeath = 11 => "playerDeath",
     /// Der Spieler hat einen Boss-Zauber unterbrochen. `value` zaehlt sie.
-    InterruptLanded = 12,
+    InterruptLanded = 12 => "interruptLanded",
+    /// Die Schutzschicht hat Schaden aufgefangen (COAGULATION, Weg 1).
+    /// `value` ist der abgefangene Betrag.
+    ShieldAbsorb = 13 => "shieldAbsorb",
+    /// Der Spieler wurde geheilt (Weg 2). `value` ist der zurueckgeholte Betrag.
+    ///
+    /// **Nicht der Betrag aus den Daten**, sondern der wirklich angekommene:
+    /// Eine Heilung ueber die volle Lebensanzeige hinaus zaehlt nur, was
+    /// gefehlt hat. Sonst saehe ein Lauf mit voller Anzeige nach mehr Heilung
+    /// aus, als er gebraucht hat.
+    Healed = 14 => "healed",
+    /// Ausgeteilter Schaden wurde in Schutz verwandelt (Weg 3).
+    ConvertedToShield = 15 => "convertedToShield",
 }
 
 /// Ein Eintrag. Gepackte Zahlen, keine Zeichenketten, kein Zeiger.

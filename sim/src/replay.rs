@@ -109,6 +109,14 @@ pub struct ReplayResult {
     pub timeline_index: Vec<u32>,
     /// Verbleibende Lebenspunkte des Spielers je Takt (Issue #110).
     pub player_hp: Vec<u32>,
+    /// Stand der Schutzschicht je Takt (COAGULATION, Issue #79).
+    pub shield: Vec<u32>,
+    /// Wie viel die Schutzschicht insgesamt aufgefangen hat.
+    pub shield_absorbed: u32,
+    /// Wie viel Leben insgesamt zurueckgeholt wurde.
+    pub healed: u32,
+    /// Wie viel Schutz die Umwandlung erzeugt hat.
+    pub converted: u32,
     /// Gesamter erlittener Schaden, **nach** WARD.
     pub damage_taken: u32,
     /// Kampfzeit des Spielertods, oder `None`.

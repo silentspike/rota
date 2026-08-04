@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "school": "COAGULATION",
+  "_comment": "Die Ueberlebens-Schule (GAME-DESIGN 4.1, Issue #79). Sie bietet ausdruecklich DREI Wege nebeneinander, nicht einen — und der Spieler waehlt, welchen er auf die Leiste legt. Alle drei loesen den vollen GCD aus (GAME-DESIGN 6.6): Ueberleben kostet Schaden und Zeit, und genau das ist die Abwaegung, die die Schule interessant macht. VORLAEUFIGE ZAHLEN, nicht balanciert: Sie sind an den Werten aus Issue #110 ausgerichtet (VESSEL 5000, Boss-Schlaege 1600 nach WARD) und tragen die Prueffaelle. GAME-DESIGN Kapitel 22 fuehrt die Balance-Werte als offen.",
+  "spells": [
+    {
+      "id": "crust",
+      "name": "Crust",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "shield": {
+        "amount": 900,
+        "durationMs": 12000,
+        "maxStacks": 3
+      }
+    },
+    {
+      "id": "salve",
+      "name": "Salve",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 12000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "heal": {
+        "amount": 1500
+      }
+    },
+    {
+      "id": "temper",
+      "name": "Temper",
+      "unlockLevel": 2,
+      "baseDamage": 0,
+      "cooldownMs": 15000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "conversion": {
+        "sharePercent": 25,
+        "durationMs": 10000
+      }
+    }
+  ]
+}

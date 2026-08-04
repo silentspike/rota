@@ -36,6 +36,8 @@ const SPELLS_JSON: &str = "../data/spells/calcination.json";
 /// COAGULATION aushalten (11.3). In `calcination.json` waere Unterbrechen eine
 /// Faehigkeit der Kalzination — und das ist es nicht.
 const COMMON_SPELLS_JSON: &str = "../data/spells/common.json";
+/// Die Ueberlebens-Schule (GAME-DESIGN 4.1, Issue #79), relativ zu `sim/`.
+const COAGULATION_JSON: &str = "../data/spells/coagulation.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -61,6 +63,7 @@ fn main() {
     // weil er sich wie ein Rechenfehler anfuehlt.
     println!("cargo:rerun-if-changed={SPELLS_JSON}");
     println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
+    println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
@@ -70,6 +73,7 @@ fn main() {
 
     let spells = read_json(SPELLS_JSON);
     let common = read_json(COMMON_SPELLS_JSON);
+    let coagulation = read_json(COAGULATION_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -80,7 +84,7 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
-    emit_spells(&mut out, &spells, &common);
+    emit_spells(&mut out, &spells, &common, &coagulation);
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
 
@@ -223,7 +227,7 @@ fn emit_resource(out: &mut String, spells: &Value) {
     let _ = writeln!(out, "}};\n");
 }
 
-fn emit_spells(out: &mut String, spells: &Value, common: &Value) {
+fn emit_spells(out: &mut String, spells: &Value, common: &Value, coagulation: &Value) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
         "id",
@@ -243,7 +247,19 @@ fn emit_spells(out: &mut String, spells: &Value, common: &Value) {
         .get("spells")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("common.json: Liste \"spells\" fehlt"));
-    let list: Vec<&Value> = list.iter().chain(gemeinsame.iter()).collect();
+    // **Neue Zauber kommen HINTEN dazu, nie dazwischen.** Die Reihenfolge
+    // bestimmt die Indizes, und die stehen in jeder aufgezeichneten Runde —
+    // QUENCH von Platz 3 auf Platz 6 zu schieben deutete jede alte
+    // Aufzeichnung still um, ohne dass ein Prueffall es meldet.
+    let koagulation = coagulation
+        .get("spells")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("coagulation.json: Liste \"spells\" fehlt"));
+    let list: Vec<&Value> = list
+        .iter()
+        .chain(gemeinsame.iter())
+        .chain(koagulation.iter())
+        .collect();
 
     let _ = writeln!(
         out,
@@ -335,6 +351,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
     );
     emit_dot(out, spell, &whose, resource_id);
     emit_spender(out, spell, &whose, resource_id);
+    emit_coagulation(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
 
@@ -709,4 +726,73 @@ fn emit_player(out: &mut String, player: &Value) {
         out,
         "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?} }};\n"
     );
+}
+
+/// Die drei Wege der Koagulation (GAME-DESIGN 4.1, Issue #79).
+///
+/// Alle drei sind **optional**: Ein Zauber, der keiner von ihnen ist, nennt
+/// die Felder gar nicht. Die drei Kalzinations-Zauber und der Unterbrecher
+/// fuehren keines davon.
+fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
+    match spell.get("shield") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        shield: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/shield");
+            let amount = uint(node, "amount", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            let stacks = uint(node, "maxStacks", &whose);
+            assert!(
+                amount > 0,
+                "{whose}: Eine Schutzschicht ohne Betrag schuetzt nichts"
+            );
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            assert!(stacks > 0, "{whose}: maxStacks muss mindestens 1 sein");
+            let _ = writeln!(
+                out,
+                "        shield: Some(Shield {{ amount: {amount}, duration_ms: {duration}, max_stacks: {stacks} }}),"
+            );
+        }
+    }
+
+    match spell.get("heal") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        heal: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/heal");
+            let amount = uint(node, "amount", &whose);
+            assert!(amount > 0, "{whose}: Eine Heilung ohne Betrag heilt nichts");
+            let _ = writeln!(out, "        heal: Some(Heal {{ amount: {amount} }}),");
+        }
+    }
+
+    match spell.get("conversion") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        conversion: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/conversion");
+            let share = uint(node, "sharePercent", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            // Ueber 100 % waere kein Schutz mehr, sondern eine Vervielfachung:
+            // Der Spieler bekaeme mehr Schutz, als er Schaden macht.
+            assert!(
+                share > 0 && share <= 100,
+                "{whose}: sharePercent {share} liegt nicht in (0, 100]"
+            );
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            let _ = writeln!(
+                out,
+                "        conversion: Some(Conversion {{ share_percent: {share}, duration_ms: {duration} }}),"
+            );
+        }
+    }
 }
