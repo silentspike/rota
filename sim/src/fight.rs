@@ -849,6 +849,14 @@ impl Fight {
         if index != self.timeline_index {
             return;
         }
+        // **Verschoben statt faellig** (STAY, #100). Wurde der Eintrag
+        // nachtraeglich verzoegert, steht der neue Weckruf schon in der
+        // Schlange; dieser hier ist der alte und laeuft ins Leere. Ihn zu
+        // loeschen waere teurer als ihn verfallen zu lassen — dasselbe
+        // Vorgehen wie bei veralteten DoT-Ticks und beim Boss-Zauber.
+        if self.time < self.boss.timeline[index].at_ms + self.next_strike_delay {
+            return;
+        }
         self.log
             .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
 
