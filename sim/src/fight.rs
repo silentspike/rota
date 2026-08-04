@@ -137,6 +137,18 @@ impl Decide for Rotation {
 /// **nachfordern** wuerde, und das waere eine Speicheranforderung im Schritt.
 const EVENT_CAPACITY: usize = 256;
 
+/// Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
+///
+/// **Vorlaeufig, nicht balanciert.** Die Frist ist Katalog-Inhalt und steht in
+/// GAME-DESIGN F.6 als „vor E10 auszuplanen". Sie traegt die Prueffaelle und
+/// sonst nichts.
+///
+/// Sie steht hier und nicht in den Zauber-Daten, weil sie eine Eigenschaft der
+/// WIRKUNG ist und nicht des Zaubers: Jeder kuenftige Zauber mit `holdPhase`
+/// soll dieselbe Frist haben, sonst waere „hinauszoegern" bei jedem etwas
+/// anderes.
+const PHASE_HOLD_DURATION_MS: Millis = 8_000;
+
 /// Einstellungen eines Durchgangs.
 #[derive(Debug, Clone, Copy)]
 pub struct FightConfig {
@@ -299,6 +311,17 @@ pub struct Fight {
     next_strike_delay: Millis,
     /// Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR).
     phase_hold_percent: u32,
+    /// Bis wann die Senkung gilt (GAME-DESIGN 4.2b).
+    ///
+    /// **„Hinauszoegern" heisst befristet, nicht dauerhaft.** Sie endet, was
+    /// zuerst eintritt: Die Frist laeuft ab, oder der naechste Wechsel hat
+    /// stattgefunden — dann ist sie verbraucht.
+    ///
+    /// Eine Senkung, die den ganzen Kampf haelt, verschoebe bei einem Boss mit
+    /// zwei Schwellen **beide**. Ein einziger Druck zu Kampfbeginn waere die
+    /// beste Spielweise, und danach gaebe es nichts mehr zu entscheiden — das
+    /// widerspraeche „Planungswerkzeug, keine passive Wirkung".
+    phase_hold_until: Option<Millis>,
     /// Wann der laufende Boss-Zauber trifft.
     ///
     /// Wird mitgefuehrt, weil STALL ihn **verschiebt** (FIXATION, #100): Ohne
@@ -385,6 +408,7 @@ impl Fight {
             control: 0,
             next_strike_delay: 0,
             phase_hold_percent: 0,
+            phase_hold_until: None,
             cast_lands_at: 0,
             control_spent: 0,
             control_failed: 0,
@@ -570,6 +594,7 @@ impl Fight {
                 break;
             }
             self.expire_coagulation();
+            self.expire_fixation();
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
@@ -650,6 +675,7 @@ impl Fight {
             }
 
             self.expire_coagulation();
+            self.expire_fixation();
             self.check_phase();
 
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
@@ -778,6 +804,7 @@ impl Fight {
         self.control = 0;
         self.next_strike_delay = 0;
         self.phase_hold_percent = 0;
+        self.phase_hold_until = None;
         self.cast_lands_at = 0;
         self.control_spent = 0;
         self.control_failed = 0;
@@ -995,6 +1022,9 @@ impl Fight {
             // hoeheren Phase aus, faellt der Boss nicht zurueck.
             ControlEffect::HoldPhase => {
                 self.phase_hold_percent = control.amount;
+                self.phase_hold_until = Some(self.time + PHASE_HOLD_DURATION_MS);
+                self.queue
+                    .push(self.time + PHASE_HOLD_DURATION_MS, EventKind::Wakeup);
                 self.log
                     .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
             }
@@ -1056,6 +1086,14 @@ impl Fight {
     ///
     /// Steht bei den passiven Wirkungen, weil beides allein an der Uhr haengt —
     /// wie die Energieleiste des Bosses.
+    fn expire_fixation(&mut self) {
+        // Die Frist ist um, ohne dass ein Wechsel stattgefunden hat.
+        if self.phase_hold_until.is_some_and(|bis| self.time > bis) {
+            self.phase_hold_percent = 0;
+            self.phase_hold_until = None;
+        }
+    }
+
     fn expire_coagulation(&mut self) {
         if self.shield_expires_at.is_some_and(|bis| self.time > bis) {
             self.shield = 0;
@@ -1233,6 +1271,11 @@ impl Fight {
         let neue = self.boss.phase_at(anteil);
         if neue > self.phase {
             self.phase = neue;
+            // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt fuer diesen
+            // einen Wechsel. Der uebernaechste bekommt wieder die volle
+            // Schwelle — sonst verschoebe ein Druck alle folgenden mit.
+            self.phase_hold_percent = 0;
+            self.phase_hold_until = None;
             self.log
                 .push(self.time, LogKind::BossPhase, NO_SPELL, neue as u32);
         }
