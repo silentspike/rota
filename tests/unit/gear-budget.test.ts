@@ -25,16 +25,27 @@ describe('Höhere Stufe heißt durchweg höhere Werte (AC1)', () => {
   it('steigt auf JEDEM Werte-Platz, über alle 100 Stufen und alle Qualitäten', () => {
     // „durchweg" wörtlich: nicht die Summe, nicht der erste Platz — jeder
     // einzelne. Geprüft wird die gesamte Stufenleiter, nicht eine Stichprobe.
+    // Gesammelt statt je Platz geprüft — siehe Kopf von `log.test.ts`:
+    // `expect` in einer heißen Schleife ist selbst die Messgröße (#127).
+    const rueckschritte: string[] = [];
     for (let quality = 0; quality < QUALITY_COUNT; quality++) {
       for (let level = 1; level < MAX_ITEM_LEVEL; level++) {
         const unten = werte(level, quality);
         const oben = werte(level + 1, quality);
-        expect(oben.length).toBe(unten.length);
+        if (oben.length !== unten.length) {
+          rueckschritte.push(`q${quality} Stufe ${level}: andere Zahl Plätze`);
+          continue;
+        }
         for (let slot = 0; slot < unten.length; slot++) {
-          expect(oben[slot]).toBeGreaterThan(unten[slot] as number);
+          if (!((oben[slot] as number) > (unten[slot] as number))) {
+            rueckschritte.push(
+              `q${quality} Stufe ${level}->${level + 1} Platz ${slot}: ${unten[slot]} -> ${oben[slot]}`,
+            );
+          }
         }
       }
     }
+    expect(rueckschritte).toEqual([]);
   });
 
   it('hängt an der Wachstumsrate, nicht an der Verteilungsformel', () => {
@@ -45,25 +56,32 @@ describe('Höhere Stufe heißt durchweg höhere Werte (AC1)', () => {
     // wird ⌊(budget+plätze−1−index)/plätze⌋ zu q + (index < r ? 1 : 0).
     const naiv = (budget: number, slots: number, index: number): number =>
       Math.floor(budget / slots) + (index < budget % slots ? 1 : 0);
+    const unterschiede: string[] = [];
     for (let budget = 0; budget <= 2000; budget++) {
       for (let slots = 1; slots <= 4; slots++) {
         for (let index = 0; index < slots; index++) {
-          expect(shareOfSlot(budget, slots, index)).toBe(naiv(budget, slots, index));
+          if (shareOfSlot(budget, slots, index) !== naiv(budget, slots, index)) {
+            unterschiede.push(`budget ${budget}, ${slots} Plätze, Platz ${index}`);
+          }
         }
       }
     }
+    expect(unterschiede).toEqual([]);
 
     // Woran AC1 WIRKLICH hängt: Das Budget muss je Stufe um mindestens so
     // viel wachsen, wie es Plätze gibt. Bei einem Zuwachs von 1 könnte gar
     // keine Verteilung alle Plätze anheben — die Summe stiege sonst um die
     // Zahl der Plätze.
+    const zuKnapp: string[] = [];
     for (let quality = 0; quality < QUALITY_COUNT; quality++) {
       const slots = QUALITY_AFFIX_SLOTS[quality] as number;
       for (let level = 1; level < MAX_ITEM_LEVEL; level++) {
         const zuwachs = budgetOf(level + 1, quality) - budgetOf(level, quality);
-        expect(zuwachs).toBeGreaterThanOrEqual(slots);
+        if (zuwachs < slots)
+          zuKnapp.push(`q${quality} Stufe ${level}: Zuwachs ${zuwachs} < ${slots}`);
       }
     }
+    expect(zuKnapp).toEqual([]);
   });
 
   it('kippt, sobald das Wachstum unter die Zahl der Plätze fällt', () => {
@@ -79,12 +97,16 @@ describe('Höhere Stufe heißt durchweg höhere Werte (AC1)', () => {
 
   it('verteilt das Budget restlos', () => {
     // Sonst verschwände Wert im Rundungsspalt, und niemand sähe es.
+    const verloren: string[] = [];
     for (let quality = 0; quality < QUALITY_COUNT; quality++) {
       for (let level = 1; level <= MAX_ITEM_LEVEL; level++) {
         const summe = werte(level, quality).reduce((a, b) => a + b, 0);
-        expect(summe).toBe(budgetOf(level, quality));
+        if (summe !== budgetOf(level, quality)) {
+          verloren.push(`q${quality} Stufe ${level}: ${summe} statt ${budgetOf(level, quality)}`);
+        }
       }
     }
+    expect(verloren).toEqual([]);
   });
 
   it('trägt keine Zahl von Hand ein', () => {
@@ -114,10 +136,16 @@ describe('Die Qualitäten (13.3)', () => {
   });
 
   it('gibt einer höheren Qualität auf gleicher Stufe mehr Budget', () => {
+    const falschHerum: string[] = [];
     for (let level = 1; level <= MAX_ITEM_LEVEL; level++) {
-      expect(budgetOf(level, QUALITY_RARE)).toBeGreaterThan(budgetOf(level, QUALITY_COMMON));
-      expect(budgetOf(level, QUALITY_EPIC)).toBeGreaterThan(budgetOf(level, QUALITY_RARE));
+      if (budgetOf(level, QUALITY_RARE) <= budgetOf(level, QUALITY_COMMON)) {
+        falschHerum.push(`Stufe ${level}: Rare <= Common`);
+      }
+      if (budgetOf(level, QUALITY_EPIC) <= budgetOf(level, QUALITY_RARE)) {
+        falschHerum.push(`Stufe ${level}: Epic <= Rare`);
+      }
     }
+    expect(falschHerum).toEqual([]);
   });
 
   it('lässt Qualität und Gegenstandsstufe unabhängig laufen (13.4)', () => {

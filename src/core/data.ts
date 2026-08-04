@@ -11,6 +11,7 @@
  */
 import rawSchool from '../../data/spells/calcination.json';
 import rawCommonSpells from '../../data/spells/common.json';
+import rawCoagulation from '../../data/spells/coagulation.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
@@ -84,6 +85,46 @@ export interface SpellDef {
    * `triggersGcd: false` in denselben Daten.
    */
   readonly interrupt?: boolean;
+  /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
+  readonly shield?: ShieldDef;
+  /** Heilung, falls der Zauber eine ist (Weg 2). */
+  readonly heal?: HealDef;
+  /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
+  readonly conversion?: ConversionDef;
+}
+
+/**
+ * Eine Schutzschicht (COAGULATION, Weg 1 — GAME-DESIGN 4.1).
+ *
+ * > Nimmt eingehenden Schaden auf und lässt sich stapeln — **belohnt
+ * > Vorausschauen, weil sie VOR dem Schlag stehen muss.**
+ *
+ * Das „vorher" ist die ganze Mechanik. Eine Schutzschicht, die man nach dem
+ * Schlag aufbaut, wäre eine Heilung mit anderem Namen — und die gibt es in
+ * dieser Schule bereits als eigenen Weg.
+ */
+export interface ShieldDef {
+  readonly amount: number;
+  readonly durationMs: number;
+  readonly maxStacks: number;
+}
+
+/** Eine Heilung (Weg 2): holt verlorenes Leben zurück. */
+export interface HealDef {
+  readonly amount: number;
+}
+
+/**
+ * Schaden-in-Schutz-Umwandlung (Weg 3).
+ *
+ * `sharePercent` ist **ganzzahlig** und kein Bruch: Ganzzahlige Werte sind die
+ * erste Determinismus-Regel (GAME-DESIGN 18.4). Ein `0.25` müsste von beiden
+ * Seiten unabhängig gerundet werden — und genau daran laufen zwei Umsetzungen
+ * auseinander.
+ */
+export interface ConversionDef {
+  readonly sharePercent: number;
+  readonly durationMs: number;
 }
 
 export interface SchoolDef {
@@ -274,6 +315,53 @@ function parseSpender(raw: unknown, where: string, problems: string[]): SpenderD
   };
 }
 
+/**
+ * Die drei Wege der Koagulation (GAME-DESIGN 4.1, Issue #79).
+ *
+ * Alle drei sind **optional**: Ein Zauber, der keiner von ihnen ist, nennt die
+ * Felder gar nicht. Fehlerhafte Angaben werden gemeldet und der Weg
+ * weggelassen — ein Schild ohne Betrag schützt nichts, und ein stillschweigend
+ * auf 0 gesetzter Wert sähe im Kampf wie ein Balance-Problem aus.
+ */
+function parseCoagulation(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: string[],
+): Partial<SpellDef> {
+  const out: {
+    shield?: ShieldDef;
+    heal?: HealDef;
+    conversion?: ConversionDef;
+  } = {};
+
+  if (isRecord(raw['shield'])) {
+    const amount = number(raw['shield']['amount'], 0);
+    const durationMs = number(raw['shield']['durationMs'], 0);
+    const maxStacks = number(raw['shield']['maxStacks'], 0);
+    if (amount <= 0) problems.push(`${where}: Eine Schutzschicht ohne Betrag schützt nichts.`);
+    else if (maxStacks < 1) problems.push(`${where}: maxStacks muss mindestens 1 sein.`);
+    else out.shield = { amount, durationMs, maxStacks };
+  }
+
+  if (isRecord(raw['heal'])) {
+    const amount = number(raw['heal']['amount'], 0);
+    if (amount <= 0) problems.push(`${where}: Eine Heilung ohne Betrag heilt nichts.`);
+    else out.heal = { amount };
+  }
+
+  if (isRecord(raw['conversion'])) {
+    const sharePercent = number(raw['conversion']['sharePercent'], 0);
+    const durationMs = number(raw['conversion']['durationMs'], 0);
+    // Über 100 % wäre kein Schutz mehr, sondern eine Vervielfachung: Der
+    // Spieler bekäme mehr Schutz, als er Schaden macht.
+    if (sharePercent <= 0 || sharePercent > 100) {
+      problems.push(`${where}: sharePercent ${sharePercent} liegt nicht in (0, 100].`);
+    } else out.conversion = { sharePercent, durationMs };
+  }
+
+  return out;
+}
+
 function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   if (!isRecord(raw)) {
     problems.push('Ein Zauber-Eintrag ist kein Objekt.');
@@ -320,6 +408,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     castTimeMs: number(raw['castTimeMs'], 0),
     triggersGcd: raw['triggersGcd'] !== false,
     interrupt: unterbricht,
+    ...parseCoagulation(raw, where, problems),
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
@@ -517,11 +606,13 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
   // still um — und `sim/build.rs` fügt sie an derselben Stelle an.
   const roh = rawSchool as Record<string, unknown>;
   const gemeinsam = (rawCommonSpells as Record<string, unknown>)['spells'];
+  const koagulation = (rawCoagulation as Record<string, unknown>)['spells'];
   const zusammen = {
     ...roh,
     spells: [
       ...(Array.isArray(roh['spells']) ? roh['spells'] : []),
       ...(Array.isArray(gemeinsam) ? gemeinsam : []),
+      ...(Array.isArray(koagulation) ? koagulation : []),
     ],
   };
   return parseSchool(zusammen);

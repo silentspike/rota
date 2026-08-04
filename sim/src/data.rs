@@ -53,6 +53,57 @@ pub struct Spender {
     pub bonus_multiplier: u32,
 }
 
+/// Eine Schutzschicht (COAGULATION, Weg 1 — GAME-DESIGN 4.1).
+///
+/// > Nimmt eingehenden Schaden auf und laesst sich stapeln — **belohnt
+/// > Vorausschauen, weil sie VOR dem Schlag stehen muss.**
+///
+/// Das „vorher" ist die ganze Mechanik. Eine Schutzschicht, die man nach dem
+/// Schlag aufbaut, waere eine Heilung mit anderem Namen — und die gibt es in
+/// dieser Schule bereits als eigenen Weg.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Shield {
+    /// Wie viel Schaden eine Anwendung aufnimmt.
+    pub amount: u32,
+    /// Wie lange sie steht, wenn sie nicht aufgebraucht wird.
+    pub duration_ms: Millis,
+    /// Wie viele Anwendungen sich stapeln lassen.
+    pub max_stacks: u32,
+}
+
+/// Eine Heilung (COAGULATION, Weg 2).
+///
+/// > Holt verlorenes Leben zurueck und **verzeiht Fehler nachtraeglich.**
+///
+/// Der Gegenentwurf zur Schutzschicht: Sie wirkt, nachdem der Schaden
+/// gefallen ist, kostet dafuer aber eine Wirkung, die kein Schaden war.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Heal {
+    /// Wie viele Lebenspunkte zurueckkommen.
+    pub amount: u32,
+}
+
+/// Schaden-in-Schutz-Umwandlung (COAGULATION, Weg 3).
+///
+/// > Verwandelt einen Teil des **ausgeteilten** Schadens laufend in Schutz.
+///
+/// Der dritte Weg haengt damit am eigenen Schaden statt am eingehenden: Wer
+/// hart zuschlaegt, schuetzt sich nebenbei. Er ist der einzige der drei, der
+/// nicht in dem Moment wirkt, in dem er gewirkt wird — er schaltet einen
+/// Zustand fuer eine Weile an.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Conversion {
+    /// Anteil des ausgeteilten Schadens in **Prozent**, ganzzahlig.
+    ///
+    /// Ganzzahlig und nicht als Bruch: Ganzzahlige Werte sind die erste
+    /// Determinismus-Regel (GAME-DESIGN 18.4). Ein `0.25` in der Datei waere
+    /// eine Fliesskommazahl, die beide Seiten unabhaengig runden muessten —
+    /// und genau daran laufen zwei Umsetzungen auseinander.
+    pub share_percent: u32,
+    /// Wie lange die Umwandlung nach dem Wirken laeuft.
+    pub duration_ms: Millis,
+}
+
 /// Ein Zauber.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spell {
@@ -93,6 +144,12 @@ pub struct Spell {
     /// falsch — ein Zauber ohne Sublimations-Wirkung soll es gar nicht erst
     /// nennen muessen.
     pub cooldown_reduction_ms: Millis,
+    /// Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1).
+    pub shield: Option<Shield>,
+    /// Heilung, falls der Zauber eine ist (Weg 2).
+    pub heal: Option<Heal>,
+    /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
+    pub conversion: Option<Conversion>,
 }
 
 /// Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
@@ -314,7 +371,8 @@ mod tests {
         // Drei Schadenszauber, dazu seit Issue #110 der Unterbrecher. Er zaehlt
         // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
         // und kommt in keiner der vier Pruefrotationen vor.
-        assert_eq!(SPELL_COUNT, 4);
+        // Drei Kalzination, ein Unterbrecher, drei Koagulation (Issue #79).
+        assert_eq!(SPELL_COUNT, 7);
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
@@ -323,8 +381,14 @@ mod tests {
         // Nicht ueber `base_damage` gezaehlt: SMOULDER ist ein Brand-Effekt und
         // PYRE ein Entlader, beide haben 0 Sofortschaden. Der Unterbrecher
         // unterscheidet sich nicht durch den Schaden, sondern durch die Rolle.
-        let kampfzauber = SPELLS.iter().filter(|s| !s.interrupt).count();
-        assert_eq!(kampfzauber, 3, "Schritt 1 hat genau drei Kampfzauber");
+        // Die drei aus Schritt 1: keine Unterbrecher, keine Koagulation.
+        let schritt1 = SPELLS
+            .iter()
+            .filter(|s| {
+                !s.interrupt && s.shield.is_none() && s.heal.is_none() && s.conversion.is_none()
+            })
+            .count();
+        assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");
     }
 
     #[test]

@@ -166,6 +166,32 @@ export class Combat {
 
   /** Wie oft einer durchgekommen ist. */
   private interruptsMissedValue = 0;
+
+  // -- COAGULATION (Issue #79) --
+
+  /** Stand der Schutzschicht: wie viel Schaden sie noch aufnehmen kann. */
+  private shieldValue = 0;
+
+  /** Wann sie verfällt, wenn sie nicht vorher aufgebraucht wird. -1 = keine. */
+  private shieldExpiresAtMs = -1;
+
+  /** Wie viele Anwendungen gerade übereinanderliegen. */
+  private shieldStacksValue = 0;
+
+  /** Wie viel Schaden die Schutzschicht insgesamt abgefangen hat. */
+  private shieldAbsorbedValue = 0;
+
+  /** Wie viel Leben insgesamt zurückgeholt wurde. */
+  private healedValue = 0;
+
+  /** Bis wann die Schaden-in-Schutz-Umwandlung läuft. -1 = keine. */
+  private conversionUntilMs = -1;
+
+  /** Anteil, den sie umwandelt, in Prozent. 0 heißt: keine läuft. */
+  private conversionPercentValue = 0;
+
+  /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
+  private convertedValue = 0;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -307,13 +333,148 @@ export class Combat {
    * Spieler mit null Lebenspunkten, der noch einen Takt weiterwirkt, wäre eine
    * stille Abweichung zum Simulator.
    */
+  /** Stand der Schutzschicht (COAGULATION, Weg 1). */
+  get shield(): number {
+    return this.shieldValue;
+  }
+
+  /** Wie viele Anwendungen der Schutzschicht übereinanderliegen. */
+  get shieldStacks(): number {
+    return this.shieldStacksValue;
+  }
+
+  /** Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat. */
+  get shieldAbsorbed(): number {
+    return this.shieldAbsorbedValue;
+  }
+
+  /** Wie viel Leben insgesamt zurückgeholt wurde (Weg 2). */
+  get healed(): number {
+    return this.healedValue;
+  }
+
+  /** Anteil der laufenden Umwandlung in Prozent; 0 heißt: keine (Weg 3). */
+  get conversionPercent(): number {
+    return this.conversionPercentValue;
+  }
+
+  /** Wie viel Schutz die Umwandlung erzeugt hat. */
+  get converted(): number {
+    return this.convertedValue;
+  }
+
+  /**
+   * Die drei Wege der Koagulation, soweit sie beim Wirken greifen
+   * (GAME-DESIGN 4.1, Issue #79).
+   *
+   * Weg 3 wirkt hier nur als **Anschalter**: Die Umwandlung selbst geschieht
+   * später, bei jedem ausgeteilten Schaden.
+   */
+  private applyCoagulation(spell: SpellDef, timeMs: number): void {
+    const seitBeginn = timeMs - this.fightStartedAtMs;
+
+    // Weg 1 — Schutzschicht aufbauen.
+    const shield = spell.shield;
+    if (shield !== undefined) {
+      // **Stapeln bis zur Grenze, dann nicht weiter.** Ein weiterer Druck auf
+      // eine volle Schicht erneuert die Laufzeit, erhöht aber den Betrag
+      // nicht — sonst wäre die Obergrenze wirkungslos.
+      if (this.shieldStacksValue < shield.maxStacks) {
+        this.shieldStacksValue++;
+        this.shieldValue += shield.amount;
+      }
+      this.shieldExpiresAtMs = seitBeginn + shield.durationMs;
+    }
+
+    // Weg 2 — Heilung.
+    const heal = spell.heal;
+    if (heal !== undefined) {
+      // **Nur bis zur vollen Anzeige.** Was darüber hinausginge, verpufft — es
+      // als Heilung zu zählen ließe einen Lauf mit voller Anzeige nach mehr
+      // Wirkung aussehen, als er gebraucht hat.
+      const fehlend = Math.max(0, PLAYER.vessel - this.playerHpValue);
+      const wirklich = Math.min(heal.amount, fehlend);
+      if (wirklich > 0) {
+        this.playerHpValue += wirklich;
+        this.healedValue += wirklich;
+      }
+    }
+
+    // Weg 3 — die Umwandlung anschalten.
+    const conversion = spell.conversion;
+    if (conversion !== undefined) {
+      this.conversionPercentValue = conversion.sharePercent;
+      this.conversionUntilMs = seitBeginn + conversion.durationMs;
+    }
+  }
+
+  /**
+   * Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 läuft.
+   *
+   * **Ganzzahlig und abgerundet.** Der Anteil steht als Prozentzahl in den
+   * Daten, damit hier `Math.floor(schaden * prozent / 100)` möglich ist. Ein
+   * Bruch als Faktor müsste von beiden Seiten unabhängig gerundet werden —
+   * genau daran laufen zwei Umsetzungen auseinander (GAME-DESIGN 18.4).
+   */
+  private convertDamageToShield(damage: number, timeMs: number): void {
+    if (this.conversionPercentValue === 0 || damage <= 0) return;
+    if (timeMs - this.fightStartedAtMs > this.conversionUntilMs) return;
+    const gewonnen = Math.floor((damage * this.conversionPercentValue) / 100);
+    if (gewonnen <= 0) return;
+    this.shieldValue += gewonnen;
+    this.convertedValue += gewonnen;
+  }
+
+  /**
+   * Lässt die Schutzschicht und die Umwandlung ablaufen.
+   *
+   * Steht bei den passiven Wirkungen, weil beides allein an der Uhr hängt —
+   * wie die Energieleiste des Bosses.
+   */
+  private expireCoagulation(timeMs: number): void {
+    const seitBeginn = timeMs - this.fightStartedAtMs;
+    if (this.shieldExpiresAtMs >= 0 && seitBeginn > this.shieldExpiresAtMs) {
+      this.shieldValue = 0;
+      this.shieldStacksValue = 0;
+      this.shieldExpiresAtMs = -1;
+    }
+    if (this.conversionUntilMs >= 0 && seitBeginn > this.conversionUntilMs) {
+      this.conversionPercentValue = 0;
+      this.conversionUntilMs = -1;
+    }
+  }
+
   private hitPlayer(raw: number, timeMs: number): void {
     if (this.diedAtMsValue >= 0) return;
     // **Einmal gerundet, am Ende** — dieselbe Regel wie bei ausgehendem
     // Schaden (GAME-DESIGN 6.3) und dieselbe Zeile wie `PlayerBase::incoming`
     // im Simulator. Zweimal zu runden ergäbe je nach Reihenfolge andere
     // Zahlen, und genau daran laufen zwei Umsetzungen auseinander.
-    const angekommen = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+    const nachWard = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+
+    // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
+    // Issue #79).
+    //
+    // Das ist die ganze Mechanik: Sie muss VOR dem Schlag stehen. Eine
+    // Schicht, die erst danach greift, wäre eine Heilung mit anderem Namen —
+    // und die gibt es in dieser Schule als eigenen Weg.
+    //
+    // **Nach WARD, nicht davor.** WARD ist eine Eigenschaft des Spielers und
+    // mindert jeden Schlag; die Schicht fängt auf, was danach übrig bleibt.
+    // Andersherum gerechnet würde WARD den Schutz mitmindern und damit doppelt
+    // zählen. Dieselbe Reihenfolge wie in `Fight::hit_player`.
+    const abgefangen = Math.min(this.shieldValue, nachWard);
+    if (abgefangen > 0) {
+      this.shieldValue -= abgefangen;
+      this.shieldAbsorbedValue += abgefangen;
+      if (this.shieldValue === 0) {
+        // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+        this.shieldStacksValue = 0;
+        this.shieldExpiresAtMs = -1;
+      }
+    }
+
+    const angekommen = nachWard - abgefangen;
     this.damageTakenValue += angekommen;
     this.playerHpValue = Math.max(0, this.playerHpValue - angekommen);
     if (this.playerHpValue === 0) {
@@ -476,6 +637,9 @@ export class Combat {
       const damage = computeDamage(dot.tickDamage, this.factors);
       this.damageDealtValue += damage;
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
+      // Auch ein Brand-Tick speist Weg 3 (Issue #79) — im Simulator läuft
+      // jeder ausgeteilte Schaden durch `deal`, hier gibt es zwei Stellen.
+      this.convertDamageToShield(damage, timeMs);
       this.reportHit(damage, HIT_DOT, false, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, i, damage);
       // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zählen
@@ -520,6 +684,8 @@ export class Combat {
     // **Seit #110 hat ein Eintrag Wirkung**: Ein Schlag trifft sofort, ein
     // Zauber beginnt zu laufen und trifft erst nach seiner Wirkzeit.
     //
+    this.expireCoagulation(timeMs);
+
     // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
     // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
     // zwar ein stiller: Die Einträge kämen zu früh, aber der Kampf liefe weiter.
@@ -635,6 +801,12 @@ export class Combat {
     // hängt, und zwei Stellen laufen auseinander.
     if (spell.interrupt === true) this.interruptBossCast();
 
+    // Die drei Wege der Koagulation (Issue #79). Sie stehen VOR dem Schaden,
+    // weil ein Zauber, der beides täte, erst schützen und dann zuschlagen
+    // soll — heute ohne Wirkung (keiner macht beides) und deshalb jetzt
+    // festzulegen und nicht dann.
+    this.applyCoagulation(spell, timeMs);
+
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);
 
@@ -654,6 +826,7 @@ export class Combat {
     if (damage > 0) {
       this.damageDealtValue += damage;
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
+      this.convertDamageToShield(damage, timeMs);
       this.reportHit(damage, HIT_DIRECT, false, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
       this.events.emit(RULE_DAMAGE, index, damage, timeMs);

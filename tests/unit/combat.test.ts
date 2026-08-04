@@ -12,6 +12,7 @@ import {
 } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { STREAM_COUNT } from '../../src/core/rng.js';
 
 function makeCombat(): Combat {
   return new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
@@ -28,7 +29,17 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
     expect(FIRST_CRUCIBLE.problems).toEqual([]);
     const combat = makeCombat();
     // Drei Kampfzauber, dazu seit #110 der Unterbrecher QUENCH.
-    expect(combat.spells.map((s) => s.id)).toEqual(['kindle', 'smoulder', 'pyre', 'quench']);
+    expect(combat.spells.map((s) => s.id)).toEqual([
+      'kindle',
+      'smoulder',
+      'pyre',
+      'quench',
+      // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
+      // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
+      'crust',
+      'salve',
+      'temper',
+    ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
     expect(combat.school.resource.cap).toBe(20);
@@ -300,7 +311,16 @@ describe('Combat — Zufallsströme', () => {
       timeMs += TICK_MS;
     }
     expect(combat.random.totalDraws).toBe(0);
-    expect(combat.random.drawCounts()).toEqual([0, 0, 0]);
+    // An STREAM_COUNT gebunden statt hart eingetragen: Die Aussage ist
+    // „aus KEINEM Strom gezogen", nicht „es gibt genau drei".
+    //
+    // Der Anlass ist wieder weggefallen — beim ersten Entwurf von #115 bekam
+    // die Beute einen vierten Strom, und diese Zeile fiel als [0, 0, 0] um,
+    // obwohl die geprüfte Eigenschaft unverändert galt. Der Strom liegt
+    // inzwischen außerhalb (Entscheidung vom 2026-08-04), STREAM_COUNT steht
+    // wieder bei 3. Die Bindung bleibt trotzdem: Sie kostet nichts und
+    // beschreibt, was gemeint ist.
+    expect(combat.random.drawCounts()).toEqual(new Array<number>(STREAM_COUNT).fill(0));
   });
 });
 
