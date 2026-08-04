@@ -155,6 +155,9 @@ log_kinds! {
     Healed = 14 => "healed",
     /// Ausgeteilter Schaden wurde in Schutz verwandelt (Weg 3).
     ConvertedToShield = 15 => "convertedToShield",
+    /// Kontroll-Punkte wurden ausgegeben (FIXATION, Issue #100).
+    /// `value` ist der Betrag der Wirkung — Millisekunden oder Prozentpunkte.
+    ControlSpent = 16 => "controlSpent",
 }
 
 /// Ein Eintrag. Gepackte Zahlen, keine Zeichenketten, kein Zeiger.

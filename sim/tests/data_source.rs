@@ -20,6 +20,7 @@ use rota_sim::{BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 const SPELLS_JSON: &str = include_str!("../../data/spells/calcination.json");
 const COMMON_SPELLS_JSON: &str = include_str!("../../data/spells/common.json");
 const COAGULATION_JSON: &str = include_str!("../../data/spells/coagulation.json");
+const FIXATION_JSON: &str = include_str!("../../data/spells/fixation.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
@@ -39,7 +40,12 @@ fn common_spells_json() -> Value {
 /// **Die Reihenfolge ist die Zusicherung**, nicht bloss die Menge. Sie
 /// bestimmt die Indizes, und die stehen in jeder aufgezeichneten Runde —
 /// neue Zauber kommen deshalb hinten dazu, nie dazwischen.
-fn alle_zauber(schule: &Value, gemeinsam: &Value, koagulation: &Value) -> Vec<Value> {
+fn alle_zauber(
+    schule: &Value,
+    gemeinsam: &Value,
+    koagulation: &Value,
+    fixierung: &Value,
+) -> Vec<Value> {
     let mut liste: Vec<Value> = schule["spells"]
         .as_array()
         .expect("calcination.json: spells fehlt")
@@ -55,6 +61,13 @@ fn alle_zauber(schule: &Value, gemeinsam: &Value, koagulation: &Value) -> Vec<Va
         koagulation["spells"]
             .as_array()
             .expect("coagulation.json: spells fehlt")
+            .iter()
+            .cloned(),
+    );
+    liste.extend(
+        fixierung["spells"]
+            .as_array()
+            .expect("fixation.json: spells fehlt")
             .iter()
             .cloned(),
     );
@@ -104,7 +117,9 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
     let gemeinsam = common_spells_json();
     let koagulation: Value =
         serde_json::from_str(COAGULATION_JSON).expect("coagulation.json ist kein gueltiges JSON");
-    let liste = alle_zauber(&json, &gemeinsam, &koagulation);
+    let fixierung: Value =
+        serde_json::from_str(FIXATION_JSON).expect("fixation.json ist kein gueltiges JSON");
+    let liste = alle_zauber(&json, &gemeinsam, &koagulation, &fixierung);
 
     assert_eq!(
         SPELL_COUNT,

@@ -192,6 +192,39 @@ export class Combat {
 
   /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
   private convertedValue = 0;
+
+  // -- FIXATION (Issue #100) --
+
+  /**
+   * Vorrat an Kontroll-Punkten.
+   *
+   * **Zum Ausgeben, nicht zum Sammeln** (GAME-DESIGN 4.1): Sie verfallen nicht
+   * wie die Hitze, sondern warten darauf, dass der Spieler sich entscheidet.
+   */
+  private controlValue = 0;
+
+  /** Wie viele Punkte insgesamt ausgegeben wurden. */
+  private controlSpentValue = 0;
+
+  /**
+   * Wie oft eine Wirkung mangels Punkten ins Leere lief.
+   *
+   * **Kein Fehler, sondern eine vertane Wirkung.** Reichen die Punkte nicht,
+   * geschieht nichts — der Zauber nimmt sich nicht, was er nicht hat.
+   */
+  private controlFailedValue = 0;
+
+  /**
+   * Um wie viel der **nächste** Zeitleisten-Eintrag nach hinten geschoben ist.
+   *
+   * Nur der eine, nicht die folgenden — Entscheidung des Auftraggebers vom
+   * 2026-08-04. Verzögern verschafft Luft und **erkauft sie mit Gedränge
+   * danach**.
+   */
+  private nextStrikeDelayMs = 0;
+
+  /** Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR). */
+  private phaseHoldPercentValue = 0;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -361,6 +394,65 @@ export class Combat {
   /** Wie viel Schutz die Umwandlung erzeugt hat. */
   get converted(): number {
     return this.convertedValue;
+  }
+
+  /** Vorrat an Kontroll-Punkten (FIXATION, Issue #100). */
+  get control(): number {
+    return this.controlValue;
+  }
+
+  /** Wie viele Kontroll-Punkte insgesamt ausgegeben wurden. */
+  get controlSpent(): number {
+    return this.controlSpentValue;
+  }
+
+  /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
+  get controlFailed(): number {
+    return this.controlFailedValue;
+  }
+
+  /** Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist. */
+  get phaseHoldPercent(): number {
+    return this.phaseHoldPercentValue;
+  }
+
+  /**
+   * Kontroll-Punkte aufbauen und ausgeben (FIXATION, GAME-DESIGN 4.1).
+   *
+   * **Der Spieler entscheidet, wofür** — deshalb steht die Wirkung am Zauber
+   * und nicht an einer Automatik. Reichen die Punkte nicht, geschieht nichts.
+   */
+  private applyFixation(spell: SpellDef, timeMs: number): void {
+    if (spell.controlGain !== undefined && spell.controlGain > 0) {
+      this.controlValue += spell.controlGain;
+    }
+
+    const control = spell.control;
+    if (control === undefined) return;
+    if (this.controlValue < control.cost) {
+      this.controlFailedValue++;
+      return;
+    }
+    this.controlValue -= control.cost;
+    this.controlSpentValue += control.cost;
+
+    // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
+    // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
+    // unterscheidet.
+    if (control.effect === 'slowCast') {
+      // Der laufende Boss-Zauber trifft später; das Unterbrechen-Fenster wird
+      // größer.
+      if (this.castingValue >= 0) this.castLandsAtMs += control.amount;
+    } else if (control.effect === 'delayStrike') {
+      // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
+      // der Abstand dahinter schrumpft, und genau das ist der Preis.
+      this.nextStrikeDelayMs += control.amount;
+    } else if (control.effect === 'holdPhase') {
+      // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
+      // zurück** — die Phase kann nur steigen.
+      this.phaseHoldPercentValue = control.amount;
+    }
+    void timeMs;
   }
 
   /**
@@ -706,8 +798,11 @@ export class Combat {
 
     while (this.timelineIndexValue < this.boss.timeline.length) {
       const eintrag = this.boss.timeline[this.timelineIndexValue];
-      if (eintrag === undefined || seitBeginn < eintrag.atMs) break;
+      if (eintrag === undefined || seitBeginn < eintrag.atMs + this.nextStrikeDelayMs) break;
       const index = this.timelineIndexValue;
+      // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
+      // Zeitpunkt an (STAY, Issue #100).
+      this.nextStrikeDelayMs = 0;
       this.timelineIndexValue++;
       if (eintrag.mechanic === 'interruptibleCast') {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
@@ -724,7 +819,10 @@ export class Combat {
     // Heilt der Boss später einmal (Baustein 5), verschwindet eine schon
     // gezeigte Mechanik nicht wieder.
     if (this.boss.phases.length > 0) {
-      const prozent = this.bossHpPercent;
+      // Die gesenkte Schwelle aus ANCHOR (#100): Der Boss muss tiefer fallen,
+      // bevor er wechselt. Gerechnet über den Anteil, nicht über die
+      // Boss-Daten — die gehören dem Boss, nicht dem Kampf.
+      const prozent = this.bossHpPercent + this.phaseHoldPercentValue;
       let neue = 0;
       for (let i = 0; i < this.boss.phases.length; i++) {
         const schwelle = this.boss.phases[i];
@@ -806,6 +904,7 @@ export class Combat {
     // soll — heute ohne Wirkung (keiner macht beides) und deshalb jetzt
     // festzulegen und nicht dann.
     this.applyCoagulation(spell, timeMs);
+    this.applyFixation(spell, timeMs);
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);

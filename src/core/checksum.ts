@@ -95,5 +95,10 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Die laufende Umwandlung gehört dazu, nicht nur ihr Ergebnis: Sie
   // entscheidet über jeden künftigen Schlag.
   h = mixInt(h, combat.conversionPercent);
+  // **Angehängt, nicht eingeschoben** (Issue #100). Ohne den Kontroll-Vorrat
+  // wäre die Prüfsumme für jeden Kampf mit Fixierung blind, und die gesenkte
+  // Phasen-Schwelle entscheidet über jeden künftigen Wechsel.
+  h = mixInt(h, combat.control);
+  h = mixInt(h, combat.phaseHoldPercent);
   return h >>> 0;
 }
