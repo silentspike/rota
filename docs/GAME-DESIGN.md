@@ -401,6 +401,103 @@ dass Muskelgedächtnis entsteht.
 **Defensiv-Zauber lösen den normalen GCD aus** — Überleben kostet Schaden und Zeit. Das ist die
 Abwägung, die COAGULATION interessant macht.
 
+### 6.7 Wie die Werte im Kampf ankommen
+
+_Entschieden am 2026-08-04, nach Recherche zu WoW und Diablo 4. Bis dahin war die Umrechnung als
+offener Punkt in Kapitel 22 geführt — sie blockierte E5 und E6._
+
+#### Prozent stehen direkt auf dem Gegenstand
+
+Ein Fund trägt **„+3 % Tempo"**, nicht „+120 Tempo". Was er bringt, hängt nicht von der Spielerstufe
+ab.
+
+> **Warum nicht das Punkte-Modell aus WoW:** Dort wächst zusätzlich ein Umrechnungs-Nenner mit der
+> Stufe. Der Zweck — alte Funde entwerten — wird bei uns schon von der **Gegenstandsstufe** erledigt:
+> Ein Stück von Stufe 20 trägt weniger Prozent als eines von Stufe 100, genau wie bei allen anderen
+> Werten. Ein zweiter Mechanismus daneben wäre eine Bremse ohne eigenen Zweck.
+>
+> **Der Preis ist ein harter Deckel**, und der steht unten. Ohne den Nenner gibt es keine eingebaute
+> Bremse.
+
+#### Tempo (CATALYSIS) wirkt auf ZEITEN, nicht auf den Schaden
+
+Das ist der Unterschied zu den beiden anderen Sonderwerten und der Grund, warum die Schadensformel
+in 6.3 **sieben** Faktoren führt und nicht acht.
+
+> Diablo 4 formuliert es genau: _„Attack speed does not enter the damage formula, but rather it
+> multiplies how often you get to use it."_ Tempo verändert nicht, wie hart ein Treffer trifft,
+> sondern wie oft man handelt.
+
+```
+neue_zeit = auf_takt_aufrunden(basis_zeit × 1000 / (1000 + tempo_promille))
+```
+
+Ganzzahlig in Promille gerechnet, einmal auf den Logik-Takt gerastert. **Keine Fließkomma-Zeit** —
+die Determinismus-Regel aus 18.4 bleibt unangetastet.
+
+| Wirkort                | Untergrenze       |
+| ---------------------- | ----------------- |
+| Globale Wartezeit      | **1000 ms** (6.6) |
+| Wirkzeit               | keine             |
+| **Alle** Abklingzeiten | ein Takt          |
+| DoT-Tick-Abstand       | ein Takt          |
+
+**Alle Abklingzeiten skalieren mit** — anders als in WoW, wo eine Ausnahmeliste je Fähigkeit
+entscheidet. Abklingzeiten sind bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
+mitskaliert, wäre eine zweite Regel zum Auswendiglernen.
+
+#### DoTs: die Dauer bleibt, die Ticks werden mehr
+
+```
+tick_abstand = auf_takt_aufrunden(basis_abstand × 1000 / (1000 + tempo))
+tick_zahl    = dauer / tick_abstand          (ganzzahlig, Rest verfällt)
+```
+
+**Kein anteiliger letzter Tick.** WoW zahlt ihn aus, wenn der Rest ≥ 0,1 s ist — bei uns wäre das
+eine Kommazahl im **Schaden**, also genau dort, wo Spiel und Simulator bitgleich sein müssen.
+
+> **Warum die Dauer fest bleibt:** Die harte Erneuerungs-Regel (7.2 — Erneuern setzt zurück, Restzeit
+> ist verloren) hängt an einem stabilen Zeitfenster. Schrumpfte die Dauer mit dem Tempo, verschöbe
+> sich der optimale Erneuerungszeitpunkt bei jedem Ausrüstungswechsel.
+
+#### Die Deckel — abgeleitet, nicht gesetzt
+
+| Wert                    | Deckel    | Woraus er folgt                                   |
+| ----------------------- | --------- | ------------------------------------------------- |
+| **CATALYSIS** (Tempo)   | **50 %**  | `1500 / (1 + t) = 1000` — die Untergrenze aus 6.6 |
+| **PURITY** (Kritchance) | **100 %** | jeder Treffer kritet; darüber hinaus wirkungslos  |
+| **YIELD** (Kritschaden) | keiner    | wächst weiter, ohne eine Grenze zu berühren       |
+
+**Der Tempo-Deckel ist keine gewürfelte Zahl.** Er ist die Stelle, an der die bereits beschlossene
+Untergrenze der Wartezeit greift. Fällt die 1,0 s später, verschiebt sich der Deckel mit — es gibt
+genau einen Ort, an dem die Zahl entschieden wird.
+
+> **Folge des 100-%-Deckels bei PURITY, die im Blick bleiben muss:** Am Deckel ist Krit kein Zufall
+> mehr. Kapitel 6.5 hält fest, dass der Glücksanteil **gewollt** ist — er verschwindet für den
+> Spieler, der so weit investiert. Das ist ein erreichbares Ziel, auf das sich ein ganzer Aufbau
+> ausrichten lässt, und zugleich der Punkt, ab dem YIELD der einzige Wert ist, der noch zählt.
+> **Keine abnehmenden Erträge** federn das ab (siehe unten) — die Balance muss es tun.
+
+#### Keine abnehmenden Erträge
+
+Jeder Prozentpunkt zählt gleich, bis zum Deckel. Diablo staffelt Abklingzeit-Reduktion invers
+multiplikativ; das ist mächtig, aber schwer zu erklären und schwer zu simulieren.
+
+> „Jeder Punkt zählt gleich" ist **eine** Regel. „Jeder weitere zählt weniger, nach dieser Formel"
+> sind drei — und der Spieler kann den Wert eines Fundes nicht mehr im Kopf ausrechnen.
+
+#### Die Deckel sind sichtbar
+
+**Die Werte-Übersicht zeigt zu jedem gedeckelten Wert seinen Deckel und weist Überschuss aus:**
+
+```
+CATALYSIS   52 %   ⚠ 2 % über dem Limit, wirkungslos
+```
+
+Zahl plus Warnhinweis, kein eigener Balken. **Ein Deckel, den man nicht sieht, ist eine Falle:** Wer
+weiter in Tempo investiert, ohne es zu merken, verliert Ausrüstungsplätze an einen Wert, der nichts
+mehr bringt.
+
 ---
 
 ## 7. Zauber
