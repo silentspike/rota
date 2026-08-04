@@ -55,10 +55,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sfx_limits import LENGTH_TOLERANCE_S, length_ok
+
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "data" / "sound-manifest.json"
 
-LENGTH_TOLERANCE_S = 0.05
 MAX_LEAD_SILENCE_S = 0.020
 MAX_PEAK_DBFS = -0.5
 TARGET_LUFS = -16.0
@@ -139,8 +140,11 @@ def check(path: Path, target_s: float | None, is_loop: bool) -> dict:
     rms = rms_dbfs(path)
 
     problems = []
-    if target_s is not None and not is_loop and abs(duration - target_s) > LENGTH_TOLERANCE_S:
-        problems.append(f"Laenge {duration:.3f}s weicht von Ziel {target_s:.3f}s ab")
+    if target_s is not None and not is_loop and not length_ok(duration, target_s):
+        problems.append(
+            f"Laenge {duration:.3f}s weicht von Ziel {target_s:.3f}s ab "
+            f"(Grenze ±{LENGTH_TOLERANCE_S}s)"
+        )
     if silence > MAX_LEAD_SILENCE_S:
         problems.append(f"Anfangs-Stille {silence * 1000:.0f} ms")
     if peak > MAX_PEAK_DBFS:
