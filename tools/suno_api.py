@@ -44,8 +44,19 @@ AUTH = "https://auth.suno.com/v1"
 CDN = "https://cdn1.suno.ai"
 BROWSER = "chrome124"
 PW_SESSION = "suno"
+SESSION_RE = re.compile(r"(session_[0-9a-zA-Z]+)")
 EXPECTED_ACCOUNT = "backupslave"  # Nur dieser Suno-Account darf verwendet werden
 PACING_S = 5  # Pause zwischen Generierungen — bewusst hoeflich zur API
+
+
+def cookies_in(path: Path) -> list[dict]:
+    """Die Suno-Cookies einer Zustandsdatei. Leer, wenn sie fehlt oder unlesbar ist."""
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text()).get("cookies", [])
+    except (json.JSONDecodeError, OSError):
+        return []
 
 
 def load_state() -> list[dict]:
@@ -74,10 +85,34 @@ def cookie_value(name: str) -> str:
 
 
 def session_id() -> str:
-    m = re.match(r"(session_[0-9a-zA-Z]+)", cookie_value("clerk_active_context"))
+    m = SESSION_RE.match(cookie_value("clerk_active_context"))
     if m:
         return m.group(1)
     sys.exit("FEHLER: clerk_active_context-Cookie ohne session_id — neu einloggen und state-save.")
+
+
+def missing_credentials(cookies: list[dict]) -> list[str]:
+    """Was einem Zustand fehlt, um damit arbeiten zu koennen. Leere Liste = brauchbar.
+
+    GEPRUEFT WIRD, WAS DIESES WERKZEUG SPAETER BENUTZT -- nicht etwas
+    Danebenliegendes:
+
+      __client              haelt die Clerk-Anmeldung; ohne ihn gibt es keinen JWT
+      clerk_active_context  liefert die session_id fuer den Token-Endpunkt,
+                            und zwar ueber DASSELBE Muster wie session_id()
+
+    Beide ueber denselben Ausdruck zu pruefen, den der Aufruf spaeter nimmt, ist
+    Absicht: Eine Pruefung, die nur "Cookie vorhanden" fragt, ginge bei einem
+    leeren oder verstuemmelten Wert durch -- und genau so sah der Zustand aus,
+    der am 2026-08-04 einen funktionierenden ueberschrieben hat.
+    """
+    werte = {c["name"]: c.get("value", "") for c in cookies if "suno" in c.get("domain", "")}
+    fehlt = []
+    if not werte.get("__client"):
+        fehlt.append("__client")
+    if not SESSION_RE.match(werte.get("clerk_active_context", "")):
+        fehlt.append("clerk_active_context (mit session_id)")
+    return fehlt
 
 
 def sanitize_state(path: Path) -> int:
@@ -104,18 +139,66 @@ def sanitize_state(path: Path) -> int:
 
 
 def refresh_state() -> bool:
-    """Cookies aus dem laufenden Browser neu sichern (Clerk rotiert sie regelmaessig)."""
+    """Cookies aus dem laufenden Browser neu sichern (Clerk rotiert sie regelmaessig).
+
+    DER VORHANDENE ZUSTAND WIRD NIE AUFS SPIEL GESETZT
+    --------------------------------------------------
+    Am 2026-08-04 hat diese Funktion eine funktionierende Datei durch eine
+    wertlose ersetzt. Die Erfolgspruefung lautete
+
+        ok = STATE_FILE.exists() and r.returncode == 0
+
+    und fragte damit das Falsche: ob der Befehl durchlief und eine Datei da ist.
+    `state-save` laeuft aber IMMER durch -- auch wenn im Browser niemand
+    angemeldet ist. Dann liegen 23 Cookies in der Datei, `clerk_active_context`
+    fehlt, und der Zugang ist tot. Es gab kein Backup; wiederhergestellt wurde
+    er nur, weil zufaellig zwei alte Kopien in anderen Arbeitsbaeumen lagen.
+
+    Unter welcher Bedingung haette die alte Pruefung ein anderes Ergebnis
+    geliefert? Unter keiner. Deshalb jetzt drei Aenderungen:
+
+      1. Gesichert wird NEBEN die Datei, nie darauf.
+      2. Der neue Zustand muss die Pflicht-Cookies tragen, sonst wird er
+         verworfen und der alte bleibt unangetastet.
+      3. Erst unmittelbar vor dem Ersetzen entsteht die Sicherungskopie.
+
+    Der verworfene Zustand bleibt als `.verworfen` liegen -- wer wissen will,
+    warum das Auffrischen scheiterte, kann hineinsehen, statt es nachstellen zu
+    muessen.
+    """
+    neu = STATE_FILE.parent / (STATE_FILE.name + ".neu")
+    neu.unlink(missing_ok=True)
     r = subprocess.run(
-        ["playwright-cli", f"-s={PW_SESSION}", "state-save", str(STATE_FILE)],
+        ["playwright-cli", f"-s={PW_SESSION}", "state-save", str(neu)],
         capture_output=True, text=True, timeout=60,
     )
-    ok = STATE_FILE.exists() and r.returncode == 0
-    if ok:
-        removed = sanitize_state(STATE_FILE)
-        print(f"  Cookies aus dem Browser aufgefrischt ({removed} fremde Eintraege verworfen)")
-    else:
-        print("  Auffrischen fehlgeschlagen")
-    return ok
+    if r.returncode != 0 or not neu.exists():
+        neu.unlink(missing_ok=True)
+        print(f"  Auffrischen fehlgeschlagen (state-save Rueckgabewert {r.returncode})")
+        print(f"  {STATE_FILE.name} ist UNVERAENDERT.")
+        return False
+
+    # Erst aufraeumen, dann pruefen: Beurteilt wird genau das, was geschrieben
+    # wuerde -- nicht ein Zwischenstand, den es hinterher nicht mehr gibt.
+    removed = sanitize_state(neu)
+    fehlt = missing_credentials(cookies_in(neu))
+    if fehlt:
+        verworfen = STATE_FILE.parent / (STATE_FILE.name + ".verworfen")
+        neu.replace(verworfen)
+        print(f"  Auffrischen VERWORFEN — dem neuen Zustand fehlt: {', '.join(fehlt)}")
+        print("  Im Browser ist vermutlich niemand angemeldet:")
+        print(f"    playwright-cli -s={PW_SESSION} open https://suno.com/create --headed")
+        print(f"  {STATE_FILE.name} ist UNVERAENDERT. Verworfener Zustand: {verworfen.name}")
+        return False
+
+    if STATE_FILE.exists():
+        sicherung = STATE_FILE.parent / (STATE_FILE.name + ".bak")
+        sicherung.write_bytes(STATE_FILE.read_bytes())
+        sicherung.chmod(0o600)
+    neu.replace(STATE_FILE)
+    STATE_FILE.chmod(0o600)
+    print(f"  Cookies aus dem Browser aufgefrischt ({removed} fremde Eintraege verworfen)")
+    return True
 
 
 def fresh_token(s: requests.Session, _retried: bool = False) -> str:
@@ -601,9 +684,13 @@ def main() -> None:
         return
 
     if cmd == "save-state":
-        if refresh_state():
-            print(f"  Gesichert: {STATE_FILE} (nur Suno-Cookies, Rechte 600)")
-            print(f"  Account: {check_account(session())}")  # nach Auffrischen
+        # Rueckgabewert 1 bei Fehlschlag. Vorher meldete auch der abgelehnte
+        # Fall 0 -- in einer &&-Kette liefe alles weiter, als stuende der
+        # Zugang. Dieselbe Klasse wie der Fehler, den dieses Issue behebt.
+        if not refresh_state():
+            sys.exit(1)
+        print(f"  Gesichert: {STATE_FILE} (nur Suno-Cookies, Rechte 600)")
+        print(f"  Account: {check_account(session())}")  # nach Auffrischen
         return
 
     if cmd == "gen":
@@ -675,9 +762,22 @@ def main() -> None:
         if lengths:
             lengths_file.write_text(json.dumps(lengths, indent=1))
         print(f"\nFERTIG: {len(jobs) + len(lengths)} Sounds in {outdir}")
-        print("Nachbearbeitung (Stille weg + auf Ziel-Laenge kuerzen + Lautheit + OGG):")
+        ziel = outdir.parent / "final"
+        print(f"Nachbearbeitung nach {ziel} (Stille weg + kuerzen + Lautheit + OGG):")
+        # Puffer leeren, BEVOR das Unterprogramm schreibt.
+        #
+        # print() ist in eine Datei blockgepuffert, sfx-post.sh schreibt direkt
+        # auf den Dateideskriptor. Ohne dieses flush() steht die Ausgabe der
+        # Nachbearbeitung im Log GANZ OBEN, vor den Zeilen, die sie ankuendigen.
+        # Ich habe daraus am 2026-08-04 geschlossen, die Nachbearbeitung sei gar
+        # nicht gelaufen, und einen Fehler gemeldet, den es nicht gab.
+        sys.stdout.flush()
         post = Path(__file__).resolve().parent / "sfx-post.sh"
-        subprocess.run([str(post), str(outdir), str(outdir.parent / "final")], check=False)
+        r = subprocess.run([str(post), str(outdir), str(ziel)], check=False)
+        if r.returncode != 0:
+            # Ein `batch`, das ohne fertige OGG-Dateien 0 meldet, waere genau
+            # die Sorte stiller Erfolg, um die es in diesem Issue geht.
+            sys.exit(f"FEHLER: Nachbearbeitung fehlgeschlagen (Rueckgabewert {r.returncode})")
         return
 
     sys.exit(f"Unbekanntes Kommando: {cmd}\n{__doc__}")
