@@ -3,6 +3,7 @@ import { RULE_SPELL_CAST } from '../../src/combat/events.js';
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, parseSchool } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { GCD_MS } from '../../src/core/gcd.js';
 
 /**
  * Eine Prüf-Schule mit einem Sublimations-Zauber.
@@ -155,14 +156,21 @@ describe('Kein Zauber bekommt negative Restzeit (AC2)', () => {
 });
 
 describe('Die Referenz bleibt unberührt (AC3)', () => {
-  it('verkürzt nichts, wenn kein Zauber es kann', () => {
-    // Die drei Zauber der Kalzination führen das Feld nicht — der Empfänger
-    // läuft mit und tut nichts. Genau das ist der Grund, warum die Referenz
-    // bei 4240 bleibt.
+  it('verkürzt nichts, solange die Referenz-Rotation keinen Verkürzer wirkt', () => {
+    // **Ersetzt, nicht gelöscht** (Issue #201). Vorher hieß dieser Fall
+    // „verkürzt nichts, wenn kein Zauber es kann" und sicherte zu, dass KEIN
+    // Zauber das Feld führt. Seit VAPOUR führt einer es — die alte Zusicherung
+    // wäre jetzt schlicht falsch.
+    //
+    // Die Aussage, auf die es ankommt, ist eine andere und bleibt gültig: Die
+    // Referenz-Rechnung bei 4240 hängt daran, dass die Rotation aus Schritt 1
+    // **keinen** Verkürzer wirkt. Ob es einen gibt, ist dafür gleichgültig.
     const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
-    for (const spell of combat.spells) {
-      expect(spell.cooldownReductionMs).toBeUndefined();
-    }
+
+    // Es GIBT jetzt einen — sonst prüfte der Fall unten eine leere Menge.
+    const mitVerkuerzung = combat.spells.filter((spell) => (spell.cooldownReductionMs ?? 0) > 0);
+    expect(mitVerkuerzung.map((spell) => spell.id)).toEqual(['vapour']);
+
     const kindle = combat.indexOf('kindle');
     for (let t = 0; t <= 20_000; t += TICK_MS) {
       combat.stepPassive(t);
@@ -170,5 +178,28 @@ describe('Die Referenz bleibt unberührt (AC3)', () => {
     }
     expect(combat.sublimation.applicationCount).toBe(0);
     expect(combat.sublimation.shortenedCount).toBe(0);
+  });
+
+  it('verkürzt sehr wohl, sobald der Verkürzer gewirkt wird — der Gegenfall', () => {
+    // Ohne ihn bliebe der Fall darüber auch dann grün, wenn die Verkürzung
+    // überhaupt nicht mehr griffe. Er misst dann nur noch, dass niemand sie
+    // auslöst.
+    const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+    const vapour = combat.indexOf('vapour');
+    const pyre = combat.indexOf('pyre');
+    expect(vapour).toBeGreaterThanOrEqual(0);
+
+    // **Nach der globalen Wartezeit**, sonst wird der zweite Druck abgelehnt
+    // und der Fall misst nichts. Mein erster Entwurf wirkte bei 1000 ms und
+    // bekam applicationCount 0 — nicht weil die Verkuerzung fehlte, sondern
+    // weil der Zauber gar nicht gewirkt wurde.
+    combat.cast(pyre, 0);
+    const t2 = GCD_MS;
+    const ohne = combat.cooldownRemainingMs(pyre, t2);
+    expect(combat.cast(vapour, t2).result).toBe(0);
+    const mit = combat.cooldownRemainingMs(pyre, t2);
+
+    expect(combat.sublimation.applicationCount).toBe(1);
+    expect(ohne - mit).toBe(combat.spells[vapour]?.cooldownReductionMs);
   });
 });

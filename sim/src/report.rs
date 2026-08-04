@@ -81,6 +81,12 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // Die drei Ausgabe-Zauber der Fixierung (#100). BIND gehoert NICHT
         // dazu: Er macht Schaden und traegt damit zur Tabelle bei.
         || spell.control.is_some()
+        // Die zwei der Sublimation (#201). Sie sparen ZEIT, nicht Schaden —
+        // die Tabelle wuerde sie dauerhaft als "TOT" melden, auch wenn der
+        // Spieler sie perfekt einsetzt. Genau die falsche Auskunft, vor der
+        // der Absatz darueber warnt.
+        || spell.cooldown_reduction_ms > 0
+        || spell.arms_cooldown_reset
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

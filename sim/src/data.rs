@@ -185,6 +185,18 @@ pub struct Spell {
     /// falsch — ein Zauber ohne Sublimations-Wirkung soll es gar nicht erst
     /// nennen muessen.
     pub cooldown_reduction_ms: Millis,
+    /// Ob dieser Zauber den **Auswahlmodus** scharf stellt (SUBLIMATION,
+    /// Issue E3-3c; getragen seit Issue #201 von REFLUX).
+    ///
+    /// **Das Feld steht hier, weil `data/` die einzige Wahrheit ist** — es
+    /// beschreibt den Zauber, so wie die Datei ihn beschreibt.
+    ///
+    /// GELESEN WIRD ES IM SIMULATOR NOCH NICHT. `cooldown_reset.rs` baut den
+    /// Modus vollstaendig, aber kein Aufruf im Kampf ruft ihn: Der Druck-Pfad
+    /// in `Fight::replay` kennt nur "wirken oder ablehnen", nicht "waehlen".
+    /// Das ist die offene Haelfte von Issue #201 (AC4) und ausdruecklich
+    /// gemeldet — nicht uebersehen.
+    pub arms_cooldown_reset: bool,
     /// Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1).
     pub shield: Option<Shield>,
     /// Heilung, falls der Zauber eine ist (Weg 2).
@@ -500,9 +512,25 @@ mod tests {
         // Drei Schadenszauber, dazu seit Issue #110 der Unterbrecher. Er zaehlt
         // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
         // und kommt in keiner der vier Pruefrotationen vor.
-        // Drei Kalzination, ein Unterbrecher (#110), drei Koagulation (#79),
-        // vier Fixierung (#100).
-        assert_eq!(SPELL_COUNT, 11);
+        // **Abgeleitet, nicht abgeschrieben** (Issue #201). Hier stand die Zahl
+        // 11 und darueber ein Kommentar, der sie aufzaehlte — bei jedem neuen
+        // Zauber von Hand hochzusetzen. Was hier zaehlt, ist nicht die Zahl,
+        // sondern dass beide Seiten dieselbe Menge sehen; das prueft
+        // `parity_step1` gegen die Aufzeichnung des Spiels.
+        //
+        // Scharf bleibt der Fall trotzdem: Faellt ein Zauber weg, bricht eine
+        // der Zusicherungen darunter.
+        assert_eq!(SPELL_COUNT, SPELLS.len());
+        // "Es darf keiner verschwinden" — an den Kennungen geprueft, nicht an
+        // einer Zahl. Ein `assert!(SPELL_COUNT >= 11)` waere zur Uebersetzungszeit
+        // konstant; clippy lehnt das mit -D warnings ab, und zu Recht: Es
+        // prueft nichts, was sich zur Laufzeit noch aendern koennte.
+        for id in [
+            "kindle", "smoulder", "pyre", "quench", "crust", "salve", "temper", "bind", "stall",
+            "stay", "anchor",
+        ] {
+            assert!(index_of(id).is_some(), "Zauber {id} ist verschwunden");
+        }
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
@@ -521,6 +549,12 @@ mod tests {
                     && s.conversion.is_none()
                     && s.control.is_none()
                     && s.control_gain == 0
+                    // Und seit Issue #201 die Sublimation: VAPOUR verkuerzt,
+                    // REFLUX setzt zurueck. Ohne diese zwei Zeilen zaehlte der
+                    // Filter sie zu den "drei Kampfzaubern aus Schritt 1" —
+                    // sie tragen keins der Merkmale darueber.
+                    && s.cooldown_reduction_ms == 0
+                    && !s.arms_cooldown_reset
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");

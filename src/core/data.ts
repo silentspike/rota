@@ -13,6 +13,7 @@ import rawSchool from '../../data/spells/calcination.json';
 import rawCommonSpells from '../../data/spells/common.json';
 import rawCoagulation from '../../data/spells/coagulation.json';
 import rawFixation from '../../data/spells/fixation.json';
+import rawSublimation from '../../data/spells/sublimation.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
@@ -847,6 +848,12 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...(Array.isArray(koagulation) ? koagulation : []),
       ...(Array.isArray((rawFixation as Record<string, unknown>)['spells'])
         ? ((rawFixation as Record<string, unknown>)['spells'] as unknown[])
+        : []),
+      // **Ganz hinten angefügt** (Issue #201). Die Reihenfolge bestimmt die
+      // Indizes, und die stehen in jeder aufgezeichneten Runde — vorne
+      // einzufügen deutete jede alte Aufzeichnung still um.
+      ...(Array.isArray((rawSublimation as Record<string, unknown>)['spells'])
+        ? ((rawSublimation as Record<string, unknown>)['spells'] as unknown[])
         : []),
     ],
   };

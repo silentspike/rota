@@ -242,7 +242,10 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // verschenkter Leerlauf. Die richtige Rechnung ist nicht „hat er
     // stillgelegen", sondern „gab es eine Gelegenheit, die er ungenutzt ließ".
     // Das steht als Kriterium in Issue #81 (E7) und gehört dorthin.
-    expect(summary.idlePerSpell.length).toBe(11);
+    // **Abgeleitet, nicht abgeschrieben** (Issue #201). Die Zusammenfassung
+    // fuehrt einen Eintrag je Zauber — welche Zahl das ist, sagt der
+    // Zauberkasten und nicht diese Zeile.
+    expect(summary.idlePerSpell.length).toBe(CALCINATION.value.spells.length);
     const belegt = summary.idlePerSpell.filter((e) =>
       ['kindle', 'smoulder', 'pyre'].includes(e.spellId),
     );
@@ -284,24 +287,21 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
         (list[i] as { idleMs: number }).idleMs,
       );
     }
-    // PYRE und QUENCH stehen beide bei null — PYRE, weil es auf Abklingzeit
-    // liegt, QUENCH, weil es hier nicht belegt ist. Bei Gleichstand entscheidet
-    // die Kennung, damit die Reihenfolge zwischen zwei Läufen nicht springt.
-    // PYRE liegt auf Abklingzeit, die vier anderen sind hier nicht belegt —
-    // alle fuenf stehen deshalb bei null, und bei Gleichstand entscheidet die
-    // Kennung, damit die Reihenfolge zwischen zwei Laeufen nicht springt.
-    const hinten = list.slice(-9).map((e) => e.spellId);
-    expect(hinten).toEqual([
-      'anchor',
-      'bind',
-      'crust',
-      'pyre',
-      'quench',
-      'salve',
-      'stall',
-      'stay',
-      'temper',
-    ]);
+    // **Abgeleitet, nicht aufgezaehlt** (Issue #201). Hier standen neun Namen
+    // in einer Liste; jeder neue Zauber haette sie von Hand verlaengert — und
+    // ein Prueffall, den man bei jeder Aenderung nachzieht, prueft irgendwann
+    // nur noch sich selbst.
+    //
+    // Die Aussage ist ohnehin eine andere: Bei Gleichstand entscheidet die
+    // Kennung, damit die Reihenfolge zwischen zwei Laeufen nicht springt. Das
+    // laesst sich pruefen, ohne die Namen zu kennen.
+    const ohneLeerlauf = list.filter((e) => e.idleMs === 0).map((e) => e.spellId);
+    expect(ohneLeerlauf.length).toBeGreaterThan(1);
+    expect(ohneLeerlauf).toEqual([...ohneLeerlauf].sort());
+    // Und die Namen, auf die es ankommt, sind darunter: PYRE liegt auf
+    // Abklingzeit, QUENCH ist nicht belegt.
+    expect(ohneLeerlauf).toContain('pyre');
+    expect(ohneLeerlauf).toContain('quench');
     expect(list[list.length - 1]?.idleMs).toBe(0);
   });
 
@@ -355,9 +355,15 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
 
     expect(h.session.log.length).toBe(0);
     expect(h.session.idleMs).toBe(0);
-    // Vier Einträge: Das ist die Rohmessung je Zauber, und die führt QUENCH
-    // mit (immer 0, weil er nicht mitgezählt wird). Erst die aufbereitete
-    // Liste `idlePerSpell` lässt ihn weg.
-    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // Die Rohmessung je Zauber. Sie fuehrt QUENCH mit (immer 0, weil er nicht
+    // mitgezaehlt wird); erst die aufbereitete Liste `idlePerSpell` laesst ihn
+    // weg.
+    //
+    // **Laenge abgeleitet, Inhalt geprueft** (Issue #201): Hier stand eine
+    // Reihe aus elf Nullen, die bei jedem neuen Zauber von Hand zu verlaengern
+    // war. Die Aussage ist "alles auf null", nicht "elf Stueck".
+    const roh = Array.from(h.session.idlePerSpellMs);
+    expect(roh.length).toBe(CALCINATION.value.spells.length);
+    expect(roh.every((wert) => wert === 0)).toBe(true);
   });
 });
