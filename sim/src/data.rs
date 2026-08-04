@@ -371,7 +371,8 @@ mod tests {
         // Drei Schadenszauber, dazu seit Issue #110 der Unterbrecher. Er zaehlt
         // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
         // und kommt in keiner der vier Pruefrotationen vor.
-        assert_eq!(SPELL_COUNT, 4);
+        // Drei Kalzination, ein Unterbrecher, drei Koagulation (Issue #79).
+        assert_eq!(SPELL_COUNT, 7);
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
@@ -380,8 +381,14 @@ mod tests {
         // Nicht ueber `base_damage` gezaehlt: SMOULDER ist ein Brand-Effekt und
         // PYRE ein Entlader, beide haben 0 Sofortschaden. Der Unterbrecher
         // unterscheidet sich nicht durch den Schaden, sondern durch die Rolle.
-        let kampfzauber = SPELLS.iter().filter(|s| !s.interrupt).count();
-        assert_eq!(kampfzauber, 3, "Schritt 1 hat genau drei Kampfzauber");
+        // Die drei aus Schritt 1: keine Unterbrecher, keine Koagulation.
+        let schritt1 = SPELLS
+            .iter()
+            .filter(|s| {
+                !s.interrupt && s.shield.is_none() && s.heal.is_none() && s.conversion.is_none()
+            })
+            .count();
+        assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");
     }
 
     #[test]
