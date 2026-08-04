@@ -254,3 +254,35 @@ canvas {
 .rota-loot-legendary .rota-loot-name {
   font-size: 2.6rem;
 }
+
+/**
+ * Die Fortschrittsmarke in der Auswertung (Issue #187).
+ *
+ * Sie steht ueber den Kennzahlen und ist die einzige Zeile dort, die nach
+ * einer Niederlage etwas Aufbauendes sagt -- deshalb heller als alles
+ * darunter. Sichtbar nur, wenn es eine Marke GIBT: `rota-mark` ohne
+ * `rota-visible` nimmt keinen Platz ein, damit kein leerer Block dasteht.
+ */
+.rota-mark {
+  display: none;
+}
+
+.rota-mark.rota-visible {
+  display: block;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-left: 2px solid #d8a24a;
+  background: rgba(216, 162, 74, 0.06);
+}
+
+.rota-mark-line {
+  margin: 0;
+  color: #e6dfd1;
+  font-size: 15px;
+}
+
+.rota-mark-attempts {
+  margin: 3px 0 0;
+  color: #8b8579;
+  font-size: 12px;
+}

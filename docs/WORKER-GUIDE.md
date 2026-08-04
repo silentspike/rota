@@ -418,6 +418,41 @@ eine echte Eigenschaft.
 >
 > Niemand hätte es bemerkt. Genau deshalb steht es hier.
 
+### Der Prüffall lief an einem Punkt, an dem die Abweichung gar nicht sichtbar sein kann
+
+_Drei Fundstellen am 2026-08-04, in drei verschiedenen Worktrees, alle drei von den Findern selbst
+gemeldet._
+
+Der Prüffall ist richtig gebaut, das Messinstrument ist in Ordnung — aber die **Stelle**, an der
+gemessen wird, ist so gewählt, dass der gesuchte Fehler dort keine Spur hinterlässt. Er wird grün,
+egal ob der Fehler da ist oder nicht.
+
+| Fall                                                                                       | Warum die Abweichung unsichtbar war                                                                                         |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Wächter gegen versehentlich beschleunigte Boss-Zauber, gemessen an der **Summe** über 60 s | Der Zauber landete 1500 ms zu früh — und traf trotzdem. Am Kampfende stand dieselbe Summe. **Zwölf von zwölf blieben grün** |
+| Neues Feld im Testliteral mit dem **neutralen Wert** nachgetragen                          | `1.0` bewegt keine Zahl. Der Wächter blieb grün, obwohl der Faktor in der Namensliste fehlte                                |
+| Prüffall gegen einen Durchlauf mit **genau 50 %** Fortschritt                              | Dort ist die verbliebene Gesundheit ebenfalls 50. Die beiden Größen sind an diesem Punkt nicht zu unterscheiden             |
+
+**Die gemeinsame Frage:**
+
+> An der Stelle, an der ich messe — **gehen die beiden Größen überhaupt auseinander?**
+>
+> Bei 50 zu 50 nicht. Bei einem neutralen Wert nicht. Bei einer Summe über den ganzen Lauf nicht,
+> wenn der Fehler nur etwas **verschiebt**.
+
+Konkret heißt das:
+
+- **Gegen eine Verschiebung in der Zeit hilft keine Summe.** Der Prüffall muss auf die Uhr sehen,
+  nicht auf das Konto — Kampfende so legen, dass der Zauber regulär **dahinter** und fälschlich
+  beschleunigt **davor** landet.
+- **Ein Wächter, dem man beim Nachtragen den neutralen Wert gibt, hört auf zu wachen.** Neue Felder
+  in Testdaten bekommen einen Wert, der etwas **bewegt**.
+- **Wähle Zahlen, die sich unterscheiden.** 66 zu 34, nicht 50 zu 50. Und sichere ausdrücklich zu,
+  dass sie es tun — sonst wandert der Fall beim nächsten Umbau still zurück.
+
+> Alle drei fielen ihren Findern **beim Nachlesen des eigenen Prüffalls** auf, nicht durch ein
+> Werkzeug. Der Compiler sagt dazu nichts, und die CI bleibt grün.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
