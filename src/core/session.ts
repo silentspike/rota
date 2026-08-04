@@ -163,6 +163,20 @@ export class Session implements Simulation {
   private lastSlot = -1;
   private timeMs = 0;
   private idleTicks = 0;
+  /**
+   * Der Leerlauf, in zwei Hälften geteilt — die Grundlage von AC7 in Issue #81.
+   *
+   * `idleTicks` allein ist eine Summe: Aus ihr lässt sich nicht mehr ablesen,
+   * ob in einem Takt ein Zauber bereit lag oder nicht. Genau das ist aber der
+   * Unterschied zwischen „verpasste Wirkung" und „Leerlauf" — zwei
+   * Verlustquellen, die sich nicht überschneiden dürfen.
+   *
+   * Die Trennung geschieht deshalb **beim Zählen**, in einem einzigen
+   * Wenn-Sonst über dieselbe Bedingung. Nachträglich ist sie nicht
+   * herstellbar, und zwei getrennt geführte Zähler könnten auseinanderlaufen.
+   */
+  private idleTicksWithReady = 0;
+  private idleTicksNothingReady = 0;
   private phaseValue = PHASE_PREPARE;
   private outcomeValue = OUTCOME_NONE;
   private countdownEndsAtMs = 0;
@@ -248,6 +262,16 @@ export class Session implements Simulation {
     return this.idleTicks * TICK_MS;
   }
 
+  /** Leerlauf, in dem ein Zauber bereit lag — verpasste Wirkung (Issue #81). */
+  get idleWithReadyMs(): number {
+    return this.idleTicksWithReady * TICK_MS;
+  }
+
+  /** Leerlauf, in dem **kein** Zauber bereit lag — echter Leerlauf. */
+  get idleNothingReadyMs(): number {
+    return this.idleTicksNothingReady * TICK_MS;
+  }
+
   bind(slot: number, spellIndex: number): void {
     if (slot < 0 || slot >= SLOT_COUNT) return;
     this.bindings[slot] = spellIndex;
@@ -326,11 +350,17 @@ export class Session implements Simulation {
       this.idleTicks++;
       // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
       // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
+      let anyReady = false;
       for (let i = 0; i < this.boundSpells.length; i++) {
         if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
           this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
+          anyReady = true;
         }
       }
+      // Ein Wenn-Sonst, kein zweites Wenn: So kann derselbe Takt nicht in beide
+      // Hälften geraten, und ihre Summe ist immer `idleTicks`.
+      if (anyReady) this.idleTicksWithReady++;
+      else this.idleTicksNothingReady++;
     }
   }
 
@@ -472,6 +502,8 @@ export class Session implements Simulation {
       remainingMs: this.overpressureRemainingMs(timeMs),
       casts: this.accepted,
       lostTimeMs: this.idleMs,
+      lostTimeWithReadyMs: this.idleWithReadyMs,
+      lostTimeNothingReadyMs: this.idleNothingReadyMs,
       idlePerSpellMs: this.idlePerSpellMs,
       // In Schritt 1 gibt es keine Synergien: eine Schule, keine
       // schulübergreifenden Fenster (GAME-DESIGN 5). Beide Zahlen sind 0, und
@@ -644,6 +676,8 @@ export class Session implements Simulation {
     this.lastSlot = -1;
     this.timeMs = 0;
     this.idleTicks = 0;
+    this.idleTicksWithReady = 0;
+    this.idleTicksNothingReady = 0;
     this.phaseValue = PHASE_PREPARE;
     this.outcomeValue = OUTCOME_NONE;
     this.countdownEndsAtMs = 0;

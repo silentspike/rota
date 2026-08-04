@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>ROTA — Trainingsraum, Prüfblatt (Issue #84)</title>
+    <style>
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('/assets/fonts/Cinzel-Variable.ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      body {
+        margin: 0;
+        padding: 34px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.7 ui-monospace,
+          monospace;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 400;
+        margin: 0 0 4px;
+        font-family: system-ui, sans-serif;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 18px;
+        font-family: system-ui, sans-serif;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 98ch;
+        margin-bottom: 26px;
+        font-family: system-ui, sans-serif;
+      }
+      .note {
+        color: #cfc8ba;
+      }
+      .ok {
+        color: #7fd39a;
+      }
+      .ok::before {
+        content: '  BESTANDEN  ';
+        color: #4f8f66;
+      }
+      .bad {
+        color: #d98b7f;
+      }
+      .bad::before {
+        content: '  NICHT BESTANDEN  ';
+        color: #a8503f;
+      }
+      #view {
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Effizienz-Tabelle und Fehleranalyse — Prüfblatt</h1>
+    <div class="sub">
+      Issue #81 · Epic E7 · AC4 (Browser), AC1 bis AC3 und AC7 als Beleg daneben
+    </div>
+    <div class="why">
+      <strong>AC4 verlangt die Spaltenfolge im Bild:</strong> Effizienz führt, der Schadensanteil
+      steht am Ende. Der Schadensanteil ist bei jedem Durchlauf nahezu gleich — er misst die Zauber,
+      nicht das Können (GAME-DESIGN 15.3). Er bleibt als <em>eine</em> Spalte, weil er für
+      Talent-Entscheidungen nützlich ist; er darf nur nicht führen. <br /><br />
+      Die Tabellen unten entstehen aus <strong>echten Durchläufen</strong>: Sitzung, Countdown,
+      Tastendrücke, Kampfende. Ein Blatt mit von Hand gesetzten Zahlen zeigte nur, dass die Ansicht
+      Zahlen darstellen kann. <br /><br />
+      <strong>Zwei Durchläufe nebeneinander</strong>, weil ein einzelner nichts belegt: derselbe
+      Boss, dieselben Zauber, nur seltener gedrückt. Ändern sich die Zahlen nicht, misst die
+      Auswertung nicht das Spiel. <br /><br />
+      <strong>Was heute fehlt, steht da.</strong> Die verpassten Unterbrechungen sind nicht messbar,
+      solange das Spiel die Boss-Gelegenheiten nicht protokolliert (Issue #151). Sie erscheinen als
+      Lücke und nicht als Null — eine Null sähe aus wie „kein Verlust".
+    </div>
+    <div id="out"></div>
+    <div id="view"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

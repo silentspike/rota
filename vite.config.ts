@@ -36,6 +36,7 @@ export default defineConfig(({ mode }) => ({
               // Eingangsseite sieht jeder dasselbe, der den Entwicklungs-Bau
               // ausführt.
               saveCheck: 'docs/save-check/index.html',
+              analysisCheck: 'docs/analysis-check/index.html',
             },
           },
         }),
