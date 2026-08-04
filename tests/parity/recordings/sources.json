@@ -1,0 +1,216 @@
+{
+  "schema": 1,
+  "budgetPerPermille": 250,
+  "sourceNames": [
+    "affixes",
+    "talents",
+    "spells",
+    "legendary",
+    "sets"
+  ],
+  "statNames": [
+    "catalysis",
+    "purity",
+    "yield"
+  ],
+  "permanent": [
+    true,
+    true,
+    false,
+    true,
+    true
+  ],
+  "stats": [
+    {
+      "stat": 0,
+      "name": "catalysis",
+      "sources": [
+        {
+          "source": 0,
+          "name": "affixes",
+          "max": 900
+        },
+        {
+          "source": 1,
+          "name": "talents",
+          "max": 100
+        },
+        {
+          "source": 2,
+          "name": "spells",
+          "max": 300
+        },
+        {
+          "source": 3,
+          "name": "legendary",
+          "max": 50
+        },
+        {
+          "source": 4,
+          "name": "sets",
+          "max": 80
+        }
+      ],
+      "permanentMax": 1130,
+      "totalMax": 1430,
+      "pure": {
+        "catalysis": 1130,
+        "purity": 0,
+        "yieldBonus": 0
+      },
+      "mixed": {
+        "catalysis": 376,
+        "purity": 376,
+        "yieldBonus": 376
+      }
+    },
+    {
+      "stat": 1,
+      "name": "purity",
+      "sources": [
+        {
+          "source": 0,
+          "name": "affixes",
+          "max": 900
+        },
+        {
+          "source": 1,
+          "name": "talents",
+          "max": 100
+        },
+        {
+          "source": 2,
+          "name": "spells",
+          "max": 0
+        },
+        {
+          "source": 3,
+          "name": "legendary",
+          "max": 50
+        },
+        {
+          "source": 4,
+          "name": "sets",
+          "max": 80
+        }
+      ],
+      "permanentMax": 1130,
+      "totalMax": 1130,
+      "pure": {
+        "catalysis": 0,
+        "purity": 1130,
+        "yieldBonus": 0
+      },
+      "mixed": {
+        "catalysis": 376,
+        "purity": 376,
+        "yieldBonus": 376
+      }
+    },
+    {
+      "stat": 2,
+      "name": "yield",
+      "sources": [
+        {
+          "source": 0,
+          "name": "affixes",
+          "max": 900
+        },
+        {
+          "source": 1,
+          "name": "talents",
+          "max": 200
+        },
+        {
+          "source": 2,
+          "name": "spells",
+          "max": 0
+        },
+        {
+          "source": 3,
+          "name": "legendary",
+          "max": 100
+        },
+        {
+          "source": 4,
+          "name": "sets",
+          "max": 160
+        }
+      ],
+      "permanentMax": 1360,
+      "totalMax": 1360,
+      "pure": {
+        "catalysis": 0,
+        "purity": 0,
+        "yieldBonus": 1360
+      },
+      "mixed": {
+        "catalysis": 453,
+        "purity": 453,
+        "yieldBonus": 453
+      }
+    }
+  ],
+  "affixes": [
+    {
+      "level": 1,
+      "quality": 0,
+      "budget": 100,
+      "permille": 0
+    },
+    {
+      "level": 25,
+      "quality": 0,
+      "budget": 302,
+      "permille": 1
+    },
+    {
+      "level": 50,
+      "quality": 0,
+      "budget": 1004,
+      "permille": 4
+    },
+    {
+      "level": 75,
+      "quality": 0,
+      "budget": 3375,
+      "permille": 13
+    },
+    {
+      "level": 100,
+      "quality": 0,
+      "budget": 11409,
+      "permille": 45
+    },
+    {
+      "level": 1,
+      "quality": 2,
+      "budget": 190,
+      "permille": 0
+    },
+    {
+      "level": 25,
+      "quality": 2,
+      "budget": 591,
+      "permille": 0
+    },
+    {
+      "level": 50,
+      "quality": 2,
+      "budget": 1978,
+      "permille": 2
+    },
+    {
+      "level": 75,
+      "quality": 2,
+      "budget": 6675,
+      "permille": 8
+    },
+    {
+      "level": 100,
+      "quality": 2,
+      "budget": 22579,
+      "permille": 30
+    }
+  ]
+}

@@ -49,6 +49,9 @@ import {
   ValuePools,
 } from '../../src/gear/pools.js';
 import {
+  MAX_ITEM_LEVEL,
+  QUALITY_COMMON,
+  QUALITY_EPIC,
   QUALITY_COUNT,
   QUALITY_HAS_EFFECT,
   QUALITY_NAMES,
@@ -57,6 +60,20 @@ import {
   distributeBudget,
 } from '../../src/gear/budget.js';
 import { BASE_STAT_IDS, SLOT_COUNT, SLOT_NAMES } from '../../src/gear/slots.js';
+import {
+  BUDGET_PER_PERMILLE,
+  SOURCE_COUNT,
+  SOURCE_NAMES,
+  STAT_COUNT,
+  STAT_NAMES,
+  affixPermille,
+  isPermanent,
+  maxOf,
+  mixedBuild,
+  permanentMax,
+  pureBuild,
+  totalMax,
+} from '../../src/gear/sources.js';
 import {
   BONUS_ROTATION,
   BONUS_VALUE,
@@ -1514,5 +1531,59 @@ export function wornPayload(): Record<string, unknown> {
       randomDraws: result.randomDraws,
     },
     checksums: result.checksums,
+  };
+}
+
+/**
+ * Die fünf Quellen der Sonderwerte (Issue #178).
+ *
+ * **Warum das ein eigener Vergleich ist:** Die Zahlen entscheiden, was ein
+ * Spieler überhaupt erreichen kann. Liefen sie auseinander, rechnete der
+ * Balance-Läufer mit anderen Grenzen als das Spiel — und beide sähen für sich
+ * genommen richtig aus.
+ *
+ * Ganzzahlig in Promille, also **keine Bitmuster nötig**.
+ */
+export function sourcesPayload(): Record<string, unknown> {
+  const stats = [];
+  for (let stat = 0; stat < STAT_COUNT; stat++) {
+    const je = [];
+    for (let source = 0; source < SOURCE_COUNT; source++) {
+      je.push({ source, name: SOURCE_NAMES[source], max: maxOf(source, stat) });
+    }
+    stats.push({
+      stat,
+      name: STAT_NAMES[stat],
+      sources: je,
+      permanentMax: permanentMax(stat),
+      totalMax: totalMax(stat),
+      pure: pureBuild(stat),
+      mixed: mixedBuild(stat),
+    });
+  }
+
+  // Der Affix-Wert je Stufe und Qualität — die Ableitung, an der beide Seiten
+  // hängen. Wenige Stützstellen genügen: Bricht die Herleitung, bricht sie
+  // überall.
+  const affixes = [];
+  for (const quality of [QUALITY_COMMON, QUALITY_EPIC]) {
+    for (const level of [1, 25, 50, 75, MAX_ITEM_LEVEL]) {
+      affixes.push({
+        level,
+        quality,
+        budget: budgetOf(level, quality),
+        permille: affixPermille(level, quality),
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    budgetPerPermille: BUDGET_PER_PERMILLE,
+    sourceNames: SOURCE_NAMES,
+    statNames: STAT_NAMES,
+    permanent: Array.from({ length: SOURCE_COUNT }, (_, s) => isPermanent(s)),
+    stats,
+    affixes,
   };
 }
