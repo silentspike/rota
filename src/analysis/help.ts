@@ -108,7 +108,7 @@ export interface IntroductionState {
 export function nextIntroduction(
   introductions: readonly Introduction[],
   state: IntroductionState,
-  mechanicId: string
+  mechanicId: string,
 ): Introduction | null {
   if (state.seenMechanicIds.includes(mechanicId)) return null;
   return introductions.find((intro) => intro.mechanicId === mechanicId) ?? null;
