@@ -29,7 +29,7 @@
 //! sobald die übrigen dazukommen.
 
 use crate::apl::Apl;
-use crate::data::{BOSS, SPELLS, SPELL_COUNT};
+use crate::data::{Spell, BOSS, SPELLS, SPELL_COUNT};
 use crate::fight::{Fight, FightConfig, RunResult};
 use crate::time::Millis;
 
@@ -67,6 +67,21 @@ impl SpellContribution {
 /// Nach Schaden absteigend sortiert; bei Gleichstand entscheidet die Reihenfolge
 /// aus `data/`, damit zwei Läufe dieselbe Tabelle ergeben.
 #[must_use]
+/// Zauber, die **nicht** in den Schadens-Vergleich gehoeren.
+///
+/// Der Unterbrecher (#110) und die drei Wege der Koagulation (#79) richten
+/// keinen Schaden an. Die Tabelle wuerde sie deshalb immer als „TOT" melden,
+/// auch wenn der Spieler sie perfekt einsetzt.
+///
+/// Das waere nicht bloss eine schiefe Zeile, sondern eine falsche Auskunft:
+/// Die Tabelle beantwortet die Frage „welcher Zauber traegt wie viel bei", und
+/// ein Werkzeug, das Schaden VERHINDERT oder Leben zurueckholt, beantwortet sie
+/// gar nicht. Ob er zu selten kam, sagen die verpassten Unterbrechungen und der
+/// erlittene Schaden (GAME-DESIGN 19.2) — nicht diese Tabelle.
+fn ist_hilfszauber(spell: &Spell) -> bool {
+    spell.interrupt || spell.shield.is_some() || spell.heal.is_some() || spell.conversion.is_some()
+}
+
 pub fn spell_table(result: &RunResult) -> Vec<SpellContribution> {
     let total = f64::from(result.damage);
     let mut rows: Vec<SpellContribution> = (0..SPELL_COUNT)
@@ -80,7 +95,7 @@ pub fn spell_table(result: &RunResult) -> Vec<SpellContribution> {
         // wie viel bei", und ein Werkzeug, das Schaden VERHINDERT, beantwortet
         // sie gar nicht. Ob er zu selten gewirkt wurde, sagt die Zahl der
         // verpassten Unterbrechungen (GAME-DESIGN 19.2) — nicht diese Tabelle.
-        .filter(|&spell| !SPELLS[spell].interrupt)
+        .filter(|&spell| !ist_hilfszauber(&SPELLS[spell]))
         .map(|spell| {
             let damage = result.damage_by_spell[spell];
             let casts = result.casts[spell];
