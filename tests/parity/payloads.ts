@@ -913,8 +913,7 @@ export function logParityPayload(): Record<string, unknown> {
     if (gewaehlt < 0) continue;
 
     if (combat.cast(gewaehlt, timeMs).result === 0) {
-      const platz =
-        gewaehlt === kindle ? 0 : gewaehlt === crust ? 1 : gewaehlt === quench ? 2 : 3;
+      const platz = gewaehlt === kindle ? 0 : gewaehlt === crust ? 1 : gewaehlt === quench ? 2 : 3;
       presses.push({ tick, slot: platz });
     }
   }
