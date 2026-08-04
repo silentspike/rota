@@ -1194,13 +1194,40 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 Daten des Durchlaufs berechnet — es sind Multiplikationen, alle Werte stehen bereits im
 Kampfprotokoll.
 
-| Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
-| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
-| **Verlorene DoT-Ticks**       | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
-| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
+| Fehlerart               | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Verpasste Wirkungen** | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
+| **Leerlauf**            | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Verpasste Synergien** | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
+| **Verlorene DoT-Ticks** | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
+
+**Diese vier teilen sich eine Rangliste und eine gemeinsame Prozentrechnung.** Sie messen alle
+dasselbe: Schaden, den der Spieler **nicht ausgeteilt** hat.
+
+#### Verpasste Unterbrechungen stehen getrennt
+
+_Entschieden am 2026-08-04, nachdem E7-1 den Größenunterschied gemessen hatte._
+
+| Fehlerart                     | Rechnung                                          | Ausgabe an den Spieler                       |
+| ----------------------------- | ------------------------------------------------- | -------------------------------------------- |
+| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers | „Two interrupts missed — 6,000 damage taken" |
+
+**Eigene Zeile, eigene Zahl, NICHT in derselben Prozentrechnung.** Der Grund ist keine Feinheit:
+
+> Die vier oberen messen **nicht ausgeteilten** Schaden. Diese misst **eingesteckten**. Beides in
+> einen Prozentsatz zu werfen vergleicht Unvergleichbares — und die Zahl gewinnt immer.
+>
+> **Gemessen an einem Testboss:** 2.100 ausgeteilt, „6.000 verloren", Anteil 74,1 %. Der Spieler
+> liest „du hast 74 % liegen gelassen" — dabei hat er 6.000 Schaden **genommen** und ist gestorben.
+> Das ist schlimmer als Schadensverlust, aber es ist nicht dasselbe.
+>
+> **Und es ist kein Randfall:** Ein Boss-Zauber (2.000) übersteigt den Spielerschaden je Wirkung
+> (100) um das Zwanzigfache. Diese Quelle stünde fast immer oben — unabhängig davon, wie gut die
+> Rotation war. Damit stünde der Spieler wieder vor dem Problem, das die Gelegenheits-Regel lösen
+> sollte: Der wichtigste Hinweis handelte vom Unterbrecher.
+
+Bis zum 2026-08-04 stand sie als fünfte Zeile in derselben Tabelle, mit dem Beispiel
+„Two missed — 14 %". Die Rechnung selbst ändert sich **nicht** — nur ihr Platz in der Ausgabe.
 
 > **Korrektur vom 2026-07-29 — warum „Kampfzeit ÷ Abklingzeit" nicht trägt.**
 > Die frühere Rechnung nahm das Maximum je Zauber einzeln: 240 s ÷ 12 s = 20 mögliche
