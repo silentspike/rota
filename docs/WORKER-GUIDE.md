@@ -397,7 +397,7 @@ rot wurde. Gelöst durch ein **Zeitfenster** statt eines Zeitpunkts.
 
 ### Die Messung selbst kann kaputt sein — nicht nur der Prüffall
 
-_Vier Fundstellen am 2026-08-04, an vier verschiedenen Stellen, in vier verschiedenen Rollen._
+_Zehn Fundstellen, 2026-08-04 und 2026-08-05, in allen vier Rollen — auch beim Orchestrator._
 
 Die Abschnitte oben behandeln Prüffälle, die zu wenig zeigen. Das hier ist eine andere Klasse:
 **Der Prüffall ist richtig, aber das Messinstrument liefert eine Zahl, die nichts mit der Frage zu
@@ -412,6 +412,21 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 | Ein Skript von Hand getestet, dann als Cron-Job eingetragen | Cron bringt kein `PATH` mit `~/bin` mit. **30 Läufe, 30 Abstürze, kein einziger erfolgreicher** — und niemand sah es, weil der Job still starb |
 | `grep -c "muster" datei.min.js`                             | Minifiziertes JS ist **eine** Zeile. `grep -c` zählt Zeilen: `1` heißt „kommt vor", nicht „kommt einmal vor"                                   |
 | `grep "doom" hud.ts \| sed -n '346,400p'`                   | Die Zeilenspanne reichte über das Funktionsende hinaus — die Treffer standen im **Aufrufer**                                                   |
+| `git grep "vulnerability" origin/main` → Treffer                                       | Beide Treffer waren **Kommentare** — einer verglich mit Diablo, einer erklärte eine andere Methode. Das Feld gab es nicht. Der Orchestrator meldete es einem Worker als vorhanden           |
+| `SPELL_IDS = CALCINATION.value.spells.map(…)` im Klang-Prüffall                        | Der Fall bindet **eine** Schule. Bei 13 Zaubern prüft er 3 — VAPOUR und REFLUX kamen nicht durch, weil sie Klänge haben, sondern weil sie nie geprüft wurden                                |
+| `quelle.indexOf('setDamageFactor(')` als Anker auf die Methode                         | `indexOf` findet das **erste** Vorkommen. Solange niemand die Methode aufruft, ist das die Definition — beim ersten Aufrufer der Aufruf. Der Wächter ging beim ersten echten Nutzer kaputt   |
+
+> **Die drei letzten teilen eine Wurzel: Eine Prüfung, die grün meldet, weil sie den Fall gar nicht
+> erreicht.** Sie ist gefährlicher als eine rote — eine rote wird untersucht, eine grüne geglaubt.
+>
+> Der Prüffall `crit-factors-source.test.ts` benennt die Grenze in seinem eigenen Kopf:
+> „Sie prüft Text, nicht Bedeutung." Das gilt für jeden `grep` genauso, und der Orchestrator hat es
+> am selben Abend selbst missachtet, an dem er es zitierte.
+>
+> **Die Gegenfrage, die alle drei gefangen hätte:** Nicht „ist es grün?", sondern **„wäre es rot,
+> wenn der Fehler da wäre?"** Wer einen Wächter baut, baut die Gegenprobe mit: den Fehler künstlich
+> herstellen und sehen, ob er anschlägt. Beim `indexOf`-Fall heißt das konkret — einen Aufruf vor
+> die Definition setzen und prüfen, dass der Wächter **grün bleibt**.
 
 **Die gemeinsame Frage, die alle sieben beantwortet hätte:**
 
