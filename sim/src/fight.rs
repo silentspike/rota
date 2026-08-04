@@ -1620,6 +1620,12 @@ impl Fight {
         // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
         // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
         h = mix_int(h, self.conversion_percent as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
+        // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
+        // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden
+        // kuenftigen Wechsel.
+        h = mix_int(h, self.control as i32);
+        h = mix_int(h, self.phase_hold_percent as i32);
         h
     }
 
