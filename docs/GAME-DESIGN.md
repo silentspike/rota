@@ -159,6 +159,31 @@ in die ihre zwölf Zauber einzahlen.
 (Hitze-Stapel, Kontroll-Punkte, Zersetzungs-Stapel) — das gibt ihnen Tiefe und ein eigenes
 Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Schwierigkeit" anzutasten.
 
+> **Jede Schul-Größe bekommt eigene Felder, keine gemeinsame Struktur.**
+> _Festgehalten am 2026-08-04, nachdem E3-3b dieselbe Frage stellte, die E3-4 schon beantwortet hatte._
+>
+> Im Kampf-Zustand steht heute:
+>
+> ```
+> resource, resource_overflow                                  Hitze (CALCINATION)
+> shield, shield_expires_at, shield_stacks, shield_absorbed     Schutzschicht (COAGULATION)
+> ```
+>
+> **Diese Größen sind verschiedene Dinge, nicht verschiedene Instanzen desselben Dings.** Hitze
+> verfällt mit der Zeit. Die Schutzschicht nimmt Schaden auf und stapelt. Kontroll-Punkte werden
+> gezielt ausgegeben. Zersetzungs-Stapel wirken auf den Boss statt auf den Spieler.
+>
+> Eine gemeinsame Ressourcen-Struktur würde sie gleich behandeln — und die erste Sonderregel bricht
+> sie wieder auf. Vier Felder mit klaren Regeln sind ehrlicher als eine Abstraktion mit vier
+> Ausnahmen.
+>
+> **Und der Nebeneffekt trägt:** `build.rs` prüft jeden `resourceGain` scharf gegen die Kennung der
+> Hitze. Diese Schärfe aufzugeben, um ein zweites Feld unterzubringen, wäre der schlechteste Tausch
+> — sie fängt genau die stillen Fehler, die sonst erst Monate später auffallen.
+>
+> Sollte sich später zeigen, dass mehrere Größen dieselben Regeln teilen, ist die Zusammenlegung ein
+> eigenes Issue mit eigenem Nachweis — kein Nebenprodukt einer Schul-Umsetzung.
+
 ### 4.3 Schul-Mischung
 
 **Frei.** Die Leiste darf beliebig aus allen Schulen befüllt werden, keine Begrenzung.

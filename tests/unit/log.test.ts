@@ -36,13 +36,28 @@ describe('Kampfprotokoll — Ringpuffer (AC1)', () => {
     expect(log.length).toBe(LOG_CAPACITY);
     expect(log.droppedCount).toBe(0);
     expect(log.hasOverflowed).toBe(false);
-    // Jeder einzelne Eintrag, nicht nur der erste und letzte.
+    // Jeder einzelne Eintrag, nicht nur der erste und letzte — aber mit
+    // EINEM expect statt 40.000.
+    //
+    // **`expect` in einer heißen Schleife ist selbst die Messgröße.**
+    // Gemessen am 2026-08-04: 40.000 einzelne Aufrufe kosten 3469 ms,
+    // dieselbe Prüfung mit einem Aufruf 16 ms — Faktor 217. Der Fall lief
+    // deshalb in die Zeitgrenze, ohne dass am Ringpuffer etwas langsam wäre
+    // (Issue #127).
+    //
+    // Die gesammelte Fassung prüft nicht weniger, sondern mehr: Sie meldet
+    // ALLE Abweichungen, nicht nur die erste.
+    const abweichungen: string[] = [];
     for (let i = 0; i < LOG_CAPACITY; i++) {
-      expect(log.timeAt(i)).toBe(i * 10);
-      expect(log.spellAt(i)).toBe(i % 3);
-      expect(log.valueAt(i)).toBe(i + 1);
-      expect(log.typeAt(i)).toBe(EVENT_DAMAGE);
+      if (log.timeAt(i) !== i * 10)
+        abweichungen.push(`${i}: Zeit ${log.timeAt(i)} statt ${i * 10}`);
+      if (log.spellAt(i) !== i % 3)
+        abweichungen.push(`${i}: Zauber ${log.spellAt(i)} statt ${i % 3}`);
+      if (log.valueAt(i) !== i + 1)
+        abweichungen.push(`${i}: Wert ${log.valueAt(i)} statt ${i + 1}`);
+      if (log.typeAt(i) !== EVENT_DAMAGE) abweichungen.push(`${i}: Art ${log.typeAt(i)}`);
     }
+    expect(abweichungen).toEqual([]);
   });
 
   it('gibt 10.000 Einträge vollständig als Liste aus', () => {
