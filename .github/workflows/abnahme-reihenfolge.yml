@@ -49,8 +49,13 @@ jobs:
           # Dublette, in ein anderes geschnitten), setzt dieses Label. Ohne ihn
           # wäre der Wächter im Weg statt nützlich — und ein Wächter, der im Weg
           # steht, wird abgeschaltet.
-          if gh issue view "$NR" --repo "$REPO" --json labels \
-               --jq '[.labels[].name] | index("ohne-pr")' | grep -qv '^null$'; then
+          # `any(...)` liefert IMMER true oder false. Die erste Fassung nahm
+          # `index(...)` und prüfte mit `grep -qv '^null$'` — gemessen gibt gh
+          # bei `null` aber eine LEERE Zeile aus, nicht das Wort. Die leere
+          # Zeile ist nicht "null", also griff das grep, und der Wächter
+          # übersprang JEDES Mal. Er meldete dabei "success".
+          if [ "$(gh issue view "$NR" --repo "$REPO" --json labels \
+                    --jq 'any(.labels[].name; . == "ohne-pr")')" = "true" ]; then
             echo "treffer=" >> "$GITHUB_OUTPUT"
             echo "Label 'ohne-pr' gesetzt — keine Prüfung."
             exit 0
