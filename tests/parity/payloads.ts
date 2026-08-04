@@ -656,6 +656,94 @@ export function doomStacksPayload(): Record<string, unknown> {
   };
 }
 
+/** Der Prueffall zum Auswahlmodus des Ruecksetzers (Issue #223). */
+export const RESET_RUN_NAME = 'cooldown-reset-run';
+
+/**
+ * Der Auswahlmodus, Takt für Takt (Issue #223).
+ *
+ * **Über eine `Session`, nicht über `replayRecording`.** Der Modus lebt in der
+ * Sitzung: Sie entscheidet, ob ein Druck wirkt oder wählt. `replayRecording`
+ * ruft `combat.cast` und würde REFLUX als gewöhnlichen Zauber wirken — die
+ * Prüfsummen wären dann die eines Laufs, den es so nie gab.
+ *
+ * Zwei Spuren neben den Prüfsummen: was der Modus getan hat (angewandt oder
+ * verpufft) und ob er gerade scharf steht. Eine abweichende Prüfsumme sagt
+ * nur, **dass** etwas anders ist; die Spuren sagen **was**.
+ *
+ * **Nicht zu verwechseln mit `cooldownResetPayload`** (Issue E3-3c). Der prüft
+ * die REGELN des Modus an einem erfundenen Zauberkasten und einer festen
+ * Schrittfolge — und das tat er, als kein ausgelieferter Zauber ihn benutzte.
+ * Dieser hier prüft den **Druck-Pfad im Kampf** an einem echten Lauf mit
+ * REFLUX. Genau der Pfad fehlte im Simulator (Issue #223).
+ */
+export function resetRunPayload(): Record<string, unknown> {
+  const recording = recordings().get(RESET_RUN_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RESET_RUN_NAME}`);
+
+  const belegung = [
+    { slot: 0, spellId: 'kindle' },
+    { slot: 1, spellId: 'pyre' },
+    { slot: 2, spellId: 'reflux' },
+  ];
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: FIRST_CRUCIBLE.value,
+    seed: recording.seed,
+  });
+  const queue = new PressQueue();
+  const session = new Session(queue, combat);
+  for (const { slot, spellId } of belegung) session.bind(slot, combat.indexOf(spellId));
+
+  const checksums: number[] = [];
+  const scharf: number[] = [];
+  let sequence = 0;
+  let pressIndex = 0;
+
+  // `startFight` statt `beginCountdown` — siehe `recordResetRotation`: Der
+  // Simulator kennt keinen Countdown.
+  session.startFight(0);
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      queue.push(press.slot, tick, timeMs, tick);
+    }
+    session.tick(timeMs);
+
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+    scharf.push(session.isResetArmed ? 1 : 0);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: belegung,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: combat.damageDealt,
+      // Wie oft der Modus gegriffen hat und wie oft er verpufft ist. Beide
+      // Zahlen gehoeren dazu: Ein Lauf, in dem jede Wahl verpufft, saehe
+      // ohne sie aus wie einer, in dem jede greift.
+      resetsApplied: session.resetsAppliedCount,
+      resetsWasted: session.resetsWastedCount,
+      accepted: session.acceptedCount,
+      rejected: session.rejectedCount,
+      finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
+      sequenceChecksum: sequence,
+    },
+    checksums,
+    armed: scharf,
+  };
+}
+
 /**
  * Eingehender Schaden, Spielertod und Unterbrechen (Issue #110).
  *
