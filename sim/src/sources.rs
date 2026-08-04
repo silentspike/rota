@@ -172,6 +172,30 @@ pub fn pure_build(stat: usize, item_level: u32) -> WornValues {
         catalysis: if stat == STAT_CATALYSIS { alles } else { 0 },
         purity: if stat == STAT_PURITY { alles } else { 0 },
         yield_bonus: if stat == STAT_YIELD { alles } else { 0 },
+        gear_effects: 0,
+    }
+}
+
+/// Der **Satz-Aufbau**: dasselbe Budget, aber vollstaendig in Topf 4.
+///
+/// # Was hier gegen was antritt (13.5, Issue #118)
+///
+/// > Satz-Boni und **Affixe** muessen **etwa gleichwertig** sein. Kippt es in
+/// > die eine Richtung, tragen alle nur Saetze; kippt es in die andere, sind
+/// > die Saetze wertlos.
+///
+/// Der Unterschied ist nicht die Menge, sondern die **Verrechnung**: Ein
+/// Affix-Aufbau verteilt sein Budget auf drei Wirkwege, die sich
+/// multiplizieren; ein Satz-Aufbau sammelt alles in einem Topf, in dem
+/// addiert wird (13.1b).
+///
+/// **Beide bekommen deshalb dasselbe Budget** — sonst verglichen man nicht
+/// zwei Wege, sondern zwei Budgets.
+#[must_use]
+pub fn set_build(reference_stat: usize, item_level: u32) -> WornValues {
+    WornValues {
+        gear_effects: permanent_max(reference_stat, item_level),
+        ..WornValues::none()
     }
 }
 
@@ -188,13 +212,14 @@ pub fn mixed_build(reference_stat: usize, item_level: u32) -> WornValues {
         catalysis: drittel,
         purity: drittel,
         yield_bonus: drittel,
+        gear_effects: 0,
     }
 }
 
 /// Was ein Aufbau insgesamt einsetzt — fuer den fairen Vergleich.
 #[must_use]
 pub const fn build_total(build: &WornValues) -> u32 {
-    build.catalysis + build.purity + build.yield_bonus
+    build.catalysis + build.purity + build.yield_bonus + build.gear_effects
 }
 
 #[cfg(test)]

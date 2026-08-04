@@ -445,7 +445,22 @@ impl Fight {
             dot_tick_counts: [0; SPELL_COUNT],
             resource_overflow: 0,
             idle_ms: 0,
-            factors: config.factors,
+            // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt.
+            //
+            // Er aendert sich waehrend eines Kampfes nicht: Ausruestung wird
+            // zwischen den Kaempfen gewechselt (13.1). Ihn je Treffer neu zu
+            // rechnen waere Arbeit ohne Ergebnis — und `DamageFactors` traegt
+            // ihn ohnehin als eigenes Feld (6.3).
+            //
+            // **Ohne getragene Ausruestung ist der Faktor exakt 1,0**, und 1,0
+            // ist in IEEE754 die exakte Eins. Die Multiplikation in
+            // `compute_damage` bewegt dann keine einzige Zahl — und
+            // `is_neutral()` greift weiterhin, weil das Feld unveraendert bei
+            // 1,0 steht.
+            factors: DamageFactors {
+                gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
+                ..config.factors
+            },
             worn: config.worn,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),

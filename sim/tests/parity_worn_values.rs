@@ -82,6 +82,7 @@ fn worn(json: &Value) -> WornValues {
         catalysis: u32_at(node, "catalysis"),
         purity: u32_at(node, "purity"),
         yield_bonus: u32_at(node, "yieldBonus"),
+        gear_effects: u32_at(node, "gearEffects"),
     }
 }
 
@@ -152,6 +153,17 @@ fn die_beiden_abgeleiteten_werte_stimmen_bitgenau_ueberein() {
     // geht in den Schaden ein.
     assert_eq!(getragen.crit_chance(), float(&json["critChanceBits"]));
     assert_eq!(getragen.crit_factor(), float(&json["critFactorBits"]));
+    // **Topf 4** — seit der Nacharbeit an #177 Teil des Laufs. Ohne diese Zeile
+    // liefe der neue Faktor durch die Pruefsumme, ohne je einzeln verglichen
+    // worden zu sein.
+    assert_eq!(
+        getragen.gear_effect_factor(),
+        float(&json["gearEffectFactorBits"])
+    );
+    assert!(
+        getragen.gear_effect_factor() > 1.0,
+        "Topf 4 ist neutral — dieser Lauf prueft ihn nicht"
+    );
 
     // Und die Werte sind nicht zufaellig die neutralen: Ein Lauf mit
     // Kritchance 0 pruefte die halbe Datei nicht.
