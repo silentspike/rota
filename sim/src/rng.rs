@@ -37,7 +37,7 @@
 ///
 /// Die Zahlenwerte sind Teil der Schnittstelle: Sie bestimmen die Reihenfolge in
 /// der Zustands-Pruefsumme und muessen zu `STREAM_CRIT`, `STREAM_DOT_TICK` und
-/// `STREAM_HEAL` aus `src/core/rng.ts` passen.
+/// `STREAM_HEAL` und `STREAM_LOOT` aus `src/core/rng.ts` passen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stream {
     /// Ob ein Treffer kritisch ist (ab Schritt 3).
@@ -45,15 +45,28 @@ pub enum Stream {
     /// Streuung auf DoT-Ticks.
     DotTick = 1,
     /// Heilung.
+    ///
+    /// **Bleibt reserviert, obwohl heute nichts daraus zieht.** Alle drei
+    /// Koagulations-Wege sind deterministisch (Design 21.1 verwirft
+    /// Zufalls-Procs ausser Krit). Ihn zu entfernen und spaeter wieder
+    /// einzufuegen wuerde jede aufgezeichnete Pruefsumme zweimal verschieben.
     Heal = 2,
+    /// Beute-Wuerfe (GAME-DESIGN 13.4, Issue E6-2).
+    ///
+    /// **Ein eigener Strom.** Zoegen Beute und Krit aus demselben, verschoebe
+    /// jeder zusaetzliche Krit die Beute-Folge — zwei Laeufe mit derselben
+    /// Rotation, aber verschiedenem Krit-Glueck, bekaemen verschiedene Beute,
+    /// ohne dass es jemand entschieden haette.
+    Loot = 3,
 }
 
 /// Anzahl der Stroeme.
-pub const STREAM_COUNT: usize = 3;
+pub const STREAM_COUNT: usize = 4;
 
 impl Stream {
     /// Alle Stroeme in fester Reihenfolge — fuer Tests und Berichte.
-    pub const ALL: [Stream; STREAM_COUNT] = [Stream::Crit, Stream::DotTick, Stream::Heal];
+    pub const ALL: [Stream; STREAM_COUNT] =
+        [Stream::Crit, Stream::DotTick, Stream::Heal, Stream::Loot];
 
     /// Name des Stroms, wie ihn `STREAM_NAMES` in `src/core/rng.ts` fuehrt.
     #[must_use]
@@ -62,6 +75,7 @@ impl Stream {
             Stream::Crit => "crit",
             Stream::DotTick => "dotTick",
             Stream::Heal => "heal",
+            Stream::Loot => "loot",
         }
     }
 }
@@ -307,8 +321,10 @@ mod tests {
         s.next_u32(Stream::Crit);
         s.next_u32(Stream::Crit);
         s.next_u32(Stream::Heal);
-        assert_eq!(s.draw_counts(), [2, 0, 1]);
-        assert_eq!(s.total_draws(), 3);
+        s.next_u32(Stream::Loot);
+        // Vier Eintraege, seit die Beute einen eigenen Strom hat (#115).
+        assert_eq!(s.draw_counts(), [2, 0, 1, 1]);
+        assert_eq!(s.total_draws(), 4);
     }
 
     #[test]
