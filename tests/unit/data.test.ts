@@ -14,7 +14,7 @@ describe('Zauber-Datensätze', () => {
     expect(CALCINATION.value.school).toBe('CALCINATION');
     // Drei Kampfzauber, der Unterbrecher QUENCH (#110) und die drei Wege der
     // Koagulation (#79).
-    expect(CALCINATION.value.spells.length).toBe(7);
+    expect(CALCINATION.value.spells.length).toBe(11);
   });
 
   it('trägt alle Zahlen aus STEP1-SPEC § 1', () => {

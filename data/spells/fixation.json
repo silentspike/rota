@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "school": "FIXATION",
+  "_comment": "Die einzige Schule, die den KAMPFVERLAUF beeinflusst (GAME-DESIGN 4.1, Issue #100). Kontroll-Punkte sind ein PLANUNGSWERKZEUG, keine passive Wirkung: BIND baut sie auf, die drei Ausgabe-Zauber geben sie gezielt aus. controlGain steht als EIGENES Feld und nicht unter resourceGain, weil der Kampf genau eine Schul-Ressource fuehrt (Hitze) — ein zweiter Eintrag dort wuerde gegen sie geprueft und der Bau braeche ab. VORLAEUFIGE ZAHLEN, nicht balanciert: Das Issue fuehrt 'wie viele Punkte je Wirkung' und 'wie stark ein Kontroll-Punkt wirkt' selbst als offen; GAME-DESIGN 22 setzt die drei Zauber auf Schritt 3 an.",
+  "spells": [
+    {
+      "id": "bind",
+      "name": "Bind",
+      "unlockLevel": 1,
+      "baseDamage": 60,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "controlGain": 2
+    },
+    {
+      "id": "stall",
+      "name": "Stall",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 4,
+        "effect": "slowCast",
+        "amountMs": 2000
+      }
+    },
+    {
+      "id": "stay",
+      "name": "Stay",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 3,
+        "effect": "delayStrike",
+        "amountMs": 3000
+      }
+    },
+    {
+      "id": "anchor",
+      "name": "Anchor",
+      "unlockLevel": 2,
+      "baseDamage": 0,
+      "cooldownMs": 20000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 6,
+        "effect": "holdPhase",
+        "amountPercent": 10
+      }
+    }
+  ]
+}

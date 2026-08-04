@@ -80,6 +80,11 @@
       "kind": 15,
       "name": "convertedToShield",
       "writtenByGame": false
+    },
+    {
+      "kind": 16,
+      "name": "controlSpent",
+      "writtenByGame": false
     }
   ],
   "writtenByGame": [

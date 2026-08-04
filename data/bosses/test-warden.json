@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "test-warden",
+  "name": "The Bound Warden",
+  "instance": "testing",
+  "hp": 3000,
+  "overpressureMs": 60000,
+  "phases": [{ "atHpPercent": 60, "name": "Unbound" }],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 4000,
+      "mechanic": "interruptibleCast",
+      "name": "Sealing Word",
+      "damage": 600,
+      "castTimeMs": 3000
+    },
+    { "atMs": 12000, "mechanic": "strike", "name": "Warden's Hand", "damage": 300 },
+    { "atMs": 19000, "mechanic": "strike", "name": "Warden's Hand", "damage": 300 }
+  ],
+  "resistances": {},
+  "signature": null
+}
