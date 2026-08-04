@@ -143,7 +143,7 @@ console.log(`geschrieben: ${cooldownResetPath}`);
 console.log(`  Auswahlmodus  ${cooldownReset['steps'].length} Schritte`);
 console.log(`geschrieben: ${gearPath}`);
 console.log(
-  `  Ausruestung   ${gear['poolSteps'].length} Topf-Schritte, ${gear['budgets'].length} Budgets, ${gear['undecidedSlots'].length} Plaetze offen`,
+  `  Ausruestung   ${gear['poolSteps'].length} Topf-Schritte, ${gear['budgets'].length} Budgets, ${gear['slotNames'].length} Plaetze`,
 );
 console.log(
   `  Protokoll-Arten ${logKinds['kinds'].length}, davon ${logKinds['writtenByGame'].length} vom Spiel`,
