@@ -57,11 +57,16 @@
 
 pub mod apl;
 pub mod balance;
+// Issue E3-5: Verstaerkungen und Synergie-Fenster.
+pub mod buffs;
 pub mod checksum;
+// Issue E3-3c: der Cooldown-Ruecksetzer als Auswahlmodus.
+pub mod cooldown_reset;
 pub mod data;
 pub mod event;
 pub mod factors;
 pub mod fight;
+pub mod gear;
 pub mod log;
 pub mod replay;
 pub mod report;
@@ -70,6 +75,10 @@ pub mod rotation;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
 // einzige Beruehrung mit einer bestehenden Datei in `sim/src/`.
 pub mod rules_event;
+// Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
+pub mod stacks;
+// Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
+pub mod sublimation;
 pub mod time;
 
 pub use apl::{Apl, AplError};

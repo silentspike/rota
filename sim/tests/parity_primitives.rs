@@ -18,6 +18,9 @@
 
 use serde_json::Value;
 
+mod common;
+use common::float;
+
 use rota_sim::checksum::{mix_float, mix_int, FNV_OFFSET};
 use rota_sim::rng::{RandomStream, Streams, STREAM_COUNT};
 use rota_sim::Stream;
@@ -137,7 +140,8 @@ fn mix_float_stimmt_mit_dem_spiel_ueberein() {
         .as_array()
         .expect("mixFloat fehlt")
     {
-        let value = case["value"].as_f64().expect("Zahl erwartet");
+        // Ueber das Bitmuster, nicht ueber `as_f64()` (Issue #122).
+        let value = float(&case["valueBits"]);
         let expected = u32_at(&case["result"]);
         assert_eq!(
             mix_float(FNV_OFFSET, value),

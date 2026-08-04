@@ -12,7 +12,9 @@ describe('Zauber-Datensätze', () => {
   it('liest CALCINATION ohne Beanstandung', () => {
     expect(CALCINATION.problems).toEqual([]);
     expect(CALCINATION.value.school).toBe('CALCINATION');
-    expect(CALCINATION.value.spells.length).toBe(3);
+    // Drei Kampfzauber, der Unterbrecher QUENCH (#110) und die drei Wege der
+    // Koagulation (#79).
+    expect(CALCINATION.value.spells.length).toBe(7);
   });
 
   it('trägt alle Zahlen aus STEP1-SPEC § 1', () => {
@@ -196,8 +198,11 @@ describe('Zufallsströme', () => {
 
 describe('Anfangsbelegung', () => {
   it('legt die drei Zauber auf die obere Reihe von links', () => {
-    expect(STEP1_BINDINGS.map((b) => b.slot)).toEqual([0, 1, 2]);
-    expect(STEP1_BINDINGS.map((b) => b.spellId)).toEqual(['kindle', 'smoulder', 'pyre']);
+    // QUENCH steht seit #110 auf Platz 3 — HINTER den dreien, damit jede
+    // bestehende Aufzeichnung unverändert gilt: Ein Tastendruck nennt einen
+    // Platz, und die Plätze 0 bis 2 bedeuten weiterhin dasselbe.
+    expect(STEP1_BINDINGS.map((b) => b.slot)).toEqual([0, 1, 2, 3]);
+    expect(STEP1_BINDINGS.map((b) => b.spellId)).toEqual(['kindle', 'smoulder', 'pyre', 'quench']);
   });
 
   it('verweist auf Zauber, die es wirklich gibt', () => {
@@ -215,7 +220,13 @@ describe('Anfangsbelegung', () => {
       const index = CALCINATION.value.spells.findIndex((s) => s.id === binding.spellId);
       const sounds = map.soundsFor(EV_SPELL_CAST, index);
       expect(sounds.length).toBe(1);
-      expect(map.ids[sounds[0] as number]).toBe(`spell-${binding.spellId}`);
+      // Der Name folgt KEINER Regel — genau das war der Punkt von E1-9. QUENCH
+      // ist der erste Fall, in dem es auffällt: Sein Klang heißt
+      // `special-interrupt`, weil GAME-DESIGN 17.1 Unterbrechen unter den
+      // sieben Sonderzaubern führt und nicht unter den 60 Zaubern.
+      expect(map.ids[sounds[0] as number]).toBe(
+        binding.spellId === 'quench' ? 'special-interrupt' : `spell-${binding.spellId}`,
+      );
     }
   });
 });

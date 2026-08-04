@@ -38,6 +38,7 @@
 use std::thread;
 
 use crate::apl::Apl;
+use crate::data::{Boss, BOSS};
 use crate::factors::{DamageFactors, NEUTRAL};
 use crate::fight::{Fight, FightConfig};
 use crate::time::Millis;
@@ -70,6 +71,8 @@ pub struct BalanceConfig {
     pub stop_on_kill: bool,
     /// Die Faktoren der Schadensformel.
     pub factors: DamageFactors,
+    /// Gegen welchen Boss gerechnet wird.
+    pub boss: &'static Boss,
 }
 
 impl Default for BalanceConfig {
@@ -81,6 +84,7 @@ impl Default for BalanceConfig {
             duration_ms: None,
             stop_on_kill: true,
             factors: NEUTRAL,
+            boss: BOSS,
         }
     }
 }
@@ -341,6 +345,7 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         duration_ms: config.duration_ms,
         stop_on_kill: config.stop_on_kill,
         factors: config.factors,
+        boss: config.boss,
         // Das Protokoll kostet Speicher und wird hier von niemandem gelesen.
         log_capacity: 0,
     });
