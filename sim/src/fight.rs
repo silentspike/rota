@@ -147,7 +147,10 @@ const EVENT_CAPACITY: usize = 256;
 /// WIRKUNG ist und nicht des Zaubers: Jeder kuenftige Zauber mit `holdPhase`
 /// soll dieselbe Frist haben, sonst waere „hinauszoegern" bei jedem etwas
 /// anderes.
-const PHASE_HOLD_DURATION_MS: Millis = 8_000;
+/// Oeffentlich, damit Prueffaelle gegen sie rechnen statt 8000 zu verdrahten:
+/// Eine Aenderung der Frist muss die Faelle mitnehmen, nicht stillschweigend
+/// an ihnen vorbeilaufen.
+pub const PHASE_HOLD_DURATION_MS: Millis = 8_000;
 
 /// Einstellungen eines Durchgangs.
 #[derive(Debug, Clone, Copy)]
@@ -1560,6 +1563,17 @@ impl Fight {
             return 0;
         }
         (self.boss_hp_remaining() * 100) / self.boss.hp
+    }
+
+    /// Um wie viele Prozentpunkte die Phasen-Schwelle gerade gesenkt ist.
+    ///
+    /// Fuer die Prueffaelle zu #100: Ohne diesen Zugang kann ein Fall nicht
+    /// pruefen, dass die **Ursache** eintritt — dass die Senkung zum
+    /// betrachteten Zeitpunkt ueberhaupt anliegt. Ein Fall, der das nicht
+    /// pruefen kann, ist auch dann gruen, wenn er ins Leere laeuft.
+    #[must_use]
+    pub fn phase_hold_percent(&self) -> u32 {
+        self.phase_hold_percent
     }
 
     /// Zeit bis zum Ueberdruck.
