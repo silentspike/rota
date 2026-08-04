@@ -48,6 +48,37 @@ export function emptySave(gameVersion: string, now: number): SaveData {
   };
 }
 
+/**
+ * Einen geladenen Stand auf die heutige Form bringen.
+ *
+ * WARUM DAS NOETIG IST, OBWOHL DIE PRUEFSUMME STIMMT
+ * -------------------------------------------------
+ * Ein Stand, der vor Issue #82 geschrieben wurde, kennt `runHistory` und
+ * `progressMarks` nicht — und er ist deswegen nicht **beschädigt**: Prüfsumme
+ * und Schema stimmen, `SaveStore` gibt ihn als `ok` zurück, und das ist
+ * richtig so. Fehlende Felder sind kein Schaden, sondern ein älterer Stand.
+ *
+ * Ohne diese Stelle stünde in `runHistory` dann `undefined`, und der erste
+ * Zugriff würfe — **beim Kampfende**, also genau dann, wenn der Spieler seine
+ * Auswertung sehen will. Gemessen, bevor es jemand erlebt hat.
+ *
+ * Ergänzt wird nur, was FEHLT. Ein vorhandenes Feld wird nie überschrieben:
+ * Das hier ist eine Ergänzung und keine Reparatur.
+ */
+function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): SaveData {
+  const leer = emptySave(gameVersion, now);
+  if (geladen === null) return leer;
+  return {
+    ...leer,
+    ...geladen,
+    // Die beiden aus #82. Sie stehen einzeln da, weil `...geladen` ein
+    // ausdrückliches `undefined` durchreichen würde — der Streu-Operator
+    // unterscheidet nicht zwischen „fehlt" und „ist undefined".
+    runHistory: geladen.runHistory ?? leer.runHistory,
+    progressMarks: geladen.progressMarks ?? leer.progressMarks,
+  };
+}
+
 /** Was beim Laden geschah — für die Anzeige und für das Prüfblatt. */
 export interface PersistenceStatus {
   /** `ok`, `recovered` (ein jüngerer Stand war beschädigt) oder `empty`. */
@@ -90,7 +121,7 @@ export class RunPersistence {
     const gelesen = this.store.load();
     this.statusValue = gelesen.status;
     this.skippedValue = gelesen.skipped;
-    this.data = gelesen.data ?? emptySave(gameVersion, now());
+    this.data = ergaenzt(gelesen.data, gameVersion, now());
   }
 
   get state(): RecordedState {
