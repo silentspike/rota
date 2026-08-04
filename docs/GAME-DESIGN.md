@@ -184,6 +184,55 @@ Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Sch
 > Sollte sich später zeigen, dass mehrere Größen dieselben Regeln teilen, ist die Zusammenlegung ein
 > eigenes Issue mit eigenem Nachweis — kein Nebenprodukt einer Schul-Umsetzung.
 
+### 4.2b Die drei Fixierungs-Wirkungen im Einzelnen
+
+_Festgelegt am 2026-08-04. Die drei Wirkungen standen seit 4.1 fest, ihre **Reichweite und Dauer**
+nicht — und der Code hatte sie stillschweigend beantwortet._
+
+| Wirkung                 | Greift an                                 | Reicht wie weit                                         |
+| ----------------------- | ----------------------------------------- | ------------------------------------------------------- |
+| **Zauber verlangsamen** | Die Wirkzeit dehnt sich                   | Der **eine laufende** Zauber                            |
+| **Schlag verzögern**    | Der Zeitleisten-Eintrag rückt nach hinten | **Nur der nächste.** Die folgenden bleiben, wo sie sind |
+| **Phase hinauszögern**  | Die Phasen-Schwelle sinkt vorübergehend   | **Nur der nächste Wechsel**, und **befristet**          |
+
+**Alle drei wirken auf genau eine Boss-Handlung.** Das ist die gemeinsame Regel der Schule: Fixierung
+kauft einen einzelnen Moment, nicht einen Zustand.
+
+#### „Hinauszögern" heißt befristet, nicht dauerhaft
+
+Die Senkung endet, **was zuerst eintritt**:
+
+1. die Frist läuft ab, oder
+2. der nächste Phasenwechsel hat stattgefunden — dann ist sie verbraucht.
+
+> **Warum nicht dauerhaft:** Eine Senkung, die den ganzen Kampf hält, verschiebt bei einem Boss mit
+> zwei Schwellen **beide** — ein einziger Druck zu Kampfbeginn wäre die beste Spielweise, und danach
+> gäbe es nichts mehr zu entscheiden. Das widerspricht „Planungswerkzeug, keine passive Wirkung"
+> (4.1). Befristet muss man den Moment treffen.
+>
+> **Der Code hielt sie bis zum 2026-08-04 dauerhaft.** `phase_hold_percent` wurde gesetzt und nur
+> beim Kampf-Reset wieder genullt — es gab keinen Ablauf. Aufgefallen ist es nicht beim Spielen,
+> sondern beim Gegenprüfen von Issue #100: Die Zusicherung „die Phase kann nur steigen" ließ sich
+> im Code aufheben, ohne dass einer von 26 Prüfläufen es merkte. Die Zeile war richtig — nur
+> ungeprüft, weil das Ereignis, das sie abfängt, gar nicht vorkommen konnte.
+
+#### Wann die Phase überhaupt zurückfallen könnte
+
+Nur in **einem** Fall, und der ist der Prüffall:
+
+```
+Der Boss hat bereits gewechselt (Lebensstand unter der Schwelle, Phase 1).
+DANN wird die Senkung gewirkt — der gerechnete Anteil steigt über die Schwelle.
+Ohne Schutzregel fiele der Boss auf Phase 0 zurück.
+```
+
+**Eine schon gezeigte Mechanik verschwindet nicht wieder** (11.2). Die Schutzregel bleibt deshalb
+bestehen, auch wenn die Frist den Fall seltener macht — und sie braucht einen Prüffall, der die
+Senkung **nach** dem Wechsel wirkt. Wer sie davor wirkt, prüft nichts.
+
+**Die Frist selbst ist Katalog-Inhalt** (Teil F.6, vor E10): eine Zahl in den Daten, nicht im Code,
+und bis zur Balance-Runde ausdrücklich vorläufig.
+
 ### 4.3 Schul-Mischung
 
 **Frei.** Die Leiste darf beliebig aus allen Schulen befüllt werden, keine Begrenzung.
