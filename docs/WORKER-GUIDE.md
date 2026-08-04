@@ -173,6 +173,42 @@ nachgezogen hast.
 Der Fall ist derselbe wie oben, nur an einer Datei, die niemand als „Arbeit" ansieht: Grün belegt,
 dass nichts kaputt ist, nicht dass etwas da ist.
 
+#### Steht statt einer Zeilenzahl `Bin` da, ist die Prüfung für diese Datei blind
+
+_Gemessen am 2026-08-04 an einer Quelldatei, die es nicht sein sollte._
+
+```
+src/analysis/progress-mark.ts    | Bin 6480 -> 8114 bytes
+                                   ^^^
+tests/unit/progress-mark.test.ts |  51 +++++++++++++++++
+```
+
+**Ein einziges NUL-Byte** in einem Template-String genügt — Git behandelt die ganze Datei als binär.
+Die Ursache war ein Trennzeichen für einen zusammengesetzten Schlüssel, technisch sogar die richtige
+Wahl. Nur als **echtes Byte** geschrieben statt als Escape-Sequenz.
+
+| Was ausfällt                            |                                              |
+| --------------------------------------- | -------------------------------------------- |
+| `git diff`                              | zeigt den Inhalt nicht, nur die Byte-Zahl    |
+| `git diff --stat`                       | **genau die Prüfung aus dem Abschnitt oben** |
+| Merge-Konflikte                         | nicht auflösbar                              |
+| Durchsicht im PR                        | GitHub zeigt „Binary file not shown"         |
+| `git blame`, `git log -p`, `git bisect` | hören an dieser Datei auf zu arbeiten        |
+
+> Der Bearbeiter hatte an dem Tag fünfmal „1725 Zeilen hinzu, 4 entfernt" gemeldet — für diese Datei
+> stand dort nie eine Zeile. **Ein Zweig, der sie zurückdreht, hätte in seiner Prüfung genauso
+> ausgesehen wie einer, der sie ergänzt.**
+
+**Zwei Dinge folgen daraus:**
+
+1. **Ein `Bin` im `--stat` ist kein Detail, sondern ein Halt.** Bei Quelldateien immer.
+2. **Wer den Fehler behebt, fasst den Commit mit dem Vorgänger zusammen** — sonst bleibt ein binärer
+   Stand in der Historie stehen, und `blame` und `bisect` stolpern weiter darüber.
+
+Ein Prüffall wacht seitdem darüber (`tests/unit/source-is-text.test.ts`): Er lädt alle `.ts` und
+`.css` aus `src/` und `docs/` und schlägt bei jedem NUL-Byte an — **einschließlich der Absicherung,
+dass er überhaupt Dateien findet.** Ohne sie liefe er auch bei leerer Liste durch.
+
 ### Schritt 6 — Merge nach `main`
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
