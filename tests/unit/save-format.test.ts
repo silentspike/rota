@@ -37,6 +37,8 @@ function save(): SaveData {
       },
     ],
     defeatedBosses: ['first-crucible'],
+    runHistory: [],
+    progressMarks: [],
   };
 }
 

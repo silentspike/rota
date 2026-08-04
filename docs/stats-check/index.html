@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>ROTA — Trainingsraum, Prüfblatt (Issue #84)</title>
+    <style>
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('/assets/fonts/Cinzel-Variable.ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      body {
+        margin: 0;
+        padding: 34px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.7 ui-monospace,
+          monospace;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 400;
+        margin: 0 0 4px;
+        font-family: system-ui, sans-serif;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 18px;
+        font-family: system-ui, sans-serif;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 98ch;
+        margin-bottom: 26px;
+        font-family: system-ui, sans-serif;
+      }
+      .note {
+        color: #cfc8ba;
+      }
+      .ok {
+        color: #7fd39a;
+      }
+      .ok::before {
+        content: '  BESTANDEN  ';
+        color: #4f8f66;
+      }
+      .bad {
+        color: #d98b7f;
+      }
+      .bad::before {
+        content: '  NICHT BESTANDEN  ';
+        color: #a8503f;
+      }
+      #view {
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Werte-Übersicht — Prüfblatt</h1>
+    <div class="sub">Issue #188 · Epic E5 · die ANSICHT, nicht die ACs</div>
+    <div class="why">
+      <strong>Dieses Blatt ist nicht der AC-Nachweis.</strong> Der steht im Spiel selbst: Die
+      Übersicht sitzt seit Issue #188 im Player Home und wird dort im Auslieferungs-Bau geprüft.
+      <br /><br />
+      Als dieses Blatt entstand, war der Ort noch offen — GAME-DESIGN nannte „Player Home" genau
+      einmal, in der Überschrift des Werkzeug-Kapitels, das 19.3 beim Bauen herausschneidet.
+      <strong>16.1 trägt die Definition inzwischen nach:</strong> Das Player Home ist ein
+      Spieler-Bildschirm; die vier Test-Einstellungen sind ein Aufsatz darin. <br /><br />
+      Was hier belegt wird: dass die Ansicht aus den gerechneten Zeilen das Richtige <em>baut</em> —
+      Werte, Deckel, Warnung und ihr Gegenfall. Im Bestand gibt es keinen einzigen DOM-Prüffall;
+      alle Ansichten werden so belegt. <br /><br />
+      <strong>Der Deckel ist ein Datenwert.</strong> Die letzte Zeile führt vor, was passiert, wenn
+      Issue #118 einen Deckel für CATALYSIS misst: Ein Eintrag in der Tabelle, keine Codeänderung.
+    </div>
+    <div id="out"></div>
+    <div id="view"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

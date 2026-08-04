@@ -33,6 +33,13 @@ export interface LossContribution {
   readonly damage: number;
   /** Ein Satz fuer den Spieler, englisch (Design-Gesetz 5). */
   readonly detail: string;
+  /**
+   * Wie oft es vorkam, wo die Anzahl selbst eine Aussage ist.
+   *
+   * Heute nur bei den Unterbrechungen: Ihre Zeile nennt die Anzahl, weil sie
+   * keinen Prozentsatz bekommt (GAME-DESIGN 15.2).
+   */
+  readonly count?: number;
 }
 
 /**
@@ -57,6 +64,41 @@ export interface RankedLoss extends LossContribution {
   readonly share: number;
 }
 
+/**
+ * Verpasste Unterbrechungen — **getrennt ausgewiesen**.
+ *
+ * Entschieden vom Auftraggeber am 2026-08-04 (GAME-DESIGN 15.2): Sie bekommen
+ * eine eigene Zahl, aber **nicht** dieselbe Prozentrechnung wie die vier
+ * Schadensquellen.
+ *
+ * Die vier oberen messen NICHT AUSGETEILTEN Schaden. Diese misst
+ * EINGESTECKTEN. Beides in einen Prozentsatz zu werfen vergleicht
+ * Unvergleichbares — und die Zahl gewinnt immer: Ein Boss-Zauber übersteigt
+ * den Spielerschaden je Wirkung leicht um das Zwanzigfache. Die Quelle stünde
+ * damit fast immer oben, unabhängig von der Rotation, und der wichtigste
+ * Hinweis handelte wieder vom Unterbrecher — genau das, was die
+ * Gelegenheits-Regel verhindern sollte.
+ *
+ * Die Rechnung selbst ist unverändert: Anzahl × Schaden des durchgekommenen
+ * Boss-Zaubers.
+ */
+export interface InterruptLoss {
+  readonly missed: number;
+  /** Schaden, den der Spieler GENOMMEN hat — nicht entgangener Schaden. */
+  readonly damageTaken: number;
+  /** Ein Satz für den Spieler, englisch (Design-Gesetz 5). */
+  readonly detail: string;
+}
+
+/**
+ * Die eine Art, die eine andere Größe misst als alle anderen.
+ *
+ * Sie steht hier als Konstante und nicht als Sonderfall im Rumpf, damit
+ * sichtbar ist, WARUM sie anders behandelt wird: nicht weil sie besonders
+ * ist, sondern weil ihre Einheit eine andere ist.
+ */
+const MEASURES_DAMAGE_TAKEN: LossKind = 'missedInterrupts';
+
 export interface LossReport {
   /** Alle rechenbaren Quellen mit Verlust ueber 0, groesste zuerst. */
   readonly sources: readonly RankedLoss[];
@@ -74,6 +116,13 @@ export interface LossReport {
    * Rechnung vorzutaeuschen.
    */
   readonly unavailable: readonly LossKind[];
+  /**
+   * Verpasste Unterbrechungen, getrennt von der Prozentrechnung oben.
+   *
+   * `null` heißt: keine gemessen oder nicht messbar. Wo sie nicht messbar
+   * sind, stehen sie zusätzlich in `unavailable`.
+   */
+  readonly interrupts: InterruptLoss | null;
 }
 
 /**
@@ -88,11 +137,25 @@ export interface LossReport {
 export function rankLosses(damageDealt: number, defs: readonly LossSourceDef[]): LossReport {
   const computed: { def: LossSourceDef; value: LossContribution }[] = [];
   const unavailable: LossKind[] = [];
+  let interrupts: InterruptLoss | null = null;
 
   for (const def of defs) {
     const value = def.compute();
     if (value === null) {
       unavailable.push(def.kind);
+      continue;
+    }
+    // Andere Einheit, andere Zeile. Sie geht NICHT in totalLost, potential
+    // oder totalShare ein -- sonst stuende sie in einem Prozentsatz, der
+    // ausgeteilten Schaden meint.
+    if (def.kind === MEASURES_DAMAGE_TAKEN) {
+      if (value.damage > 0) {
+        interrupts = {
+          missed: value.count ?? 0,
+          damageTaken: value.damage,
+          detail: value.detail,
+        };
+      }
       continue;
     }
     computed.push({ def, value });
@@ -120,6 +183,7 @@ export function rankLosses(damageDealt: number, defs: readonly LossSourceDef[]):
     potential,
     totalShare: shareOf(totalLost),
     unavailable,
+    interrupts,
   };
 }
 
@@ -248,9 +312,15 @@ export function interruptSource(
     label: 'Missed interrupts',
     compute(): LossContribution | null {
       if (missedOpportunities === null) return null;
+      const damage = missedOpportunities * damagePerLandedCast;
       return {
-        damage: missedOpportunities * damagePerLandedCast,
-        detail: `${missedOpportunities} interruptible cast${missedOpportunities === 1 ? '' : 's'} got through`,
+        damage,
+        count: missedOpportunities,
+        // "damage taken", nicht "damage": Der Satz sagt die Einheit selbst,
+        // damit die Zeile auch fuer sich gelesen nicht missverstanden wird.
+        detail:
+          `${missedOpportunities} interrupt${missedOpportunities === 1 ? '' : 's'} missed — ` +
+          `${Math.round(damage).toLocaleString('en-US')} damage taken`,
       };
     },
   };

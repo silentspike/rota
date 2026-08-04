@@ -67,11 +67,13 @@
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{
-    Boss, Control, ControlEffect, Resource, Spell, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS,
-    SPELL_COUNT,
+    Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER,
+    RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
+use crate::gear::WornValues;
+use crate::haste::hasted_ms;
 use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
@@ -137,6 +139,21 @@ impl Decide for Rotation {
 /// **nachfordern** wuerde, und das waere eine Speicheranforderung im Schritt.
 const EVENT_CAPACITY: usize = 256;
 
+/// Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
+///
+/// **Vorlaeufig, nicht balanciert.** Die Frist ist Katalog-Inhalt und steht in
+/// GAME-DESIGN F.6 als „vor E10 auszuplanen". Sie traegt die Prueffaelle und
+/// sonst nichts.
+///
+/// Sie steht hier und nicht in den Zauber-Daten, weil sie eine Eigenschaft der
+/// WIRKUNG ist und nicht des Zaubers: Jeder kuenftige Zauber mit `holdPhase`
+/// soll dieselbe Frist haben, sonst waere „hinauszoegern" bei jedem etwas
+/// anderes.
+/// Oeffentlich, damit Prueffaelle gegen sie rechnen statt 8000 zu verdrahten:
+/// Eine Aenderung der Frist muss die Faelle mitnehmen, nicht stillschweigend
+/// an ihnen vorbeilaufen.
+pub const PHASE_HOLD_DURATION_MS: Millis = 8_000;
+
 /// Einstellungen eines Durchgangs.
 #[derive(Debug, Clone, Copy)]
 pub struct FightConfig {
@@ -168,6 +185,13 @@ pub struct FightConfig {
     /// gekennzeichnet ist. Mit 68 Bossen (GAME-DESIGN 11.7) wird das der
     /// haeufigste Schalter des Balance-Laeufers.
     pub boss: &'static Boss,
+    /// Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+    ///
+    /// **Voreinstellung ist [`WornValues::none`]**, und daran haengt die
+    /// Zusicherung aus AC7: Solange nichts getragen wird, laeuft der Kampf
+    /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
+    /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
+    pub worn: WornValues,
 }
 
 impl Default for FightConfig {
@@ -179,6 +203,7 @@ impl Default for FightConfig {
             log_capacity: 4096,
             factors: NEUTRAL,
             boss: BOSS,
+            worn: WornValues::none(),
         }
     }
 }
@@ -198,6 +223,13 @@ pub struct RunResult {
     pub damage_by_spell: [u32; SPELL_COUNT],
     /// Durch zu fruehes Erneuern verfallene Ticks, je Zauber.
     pub lost_dot_ticks: [u32; SPELL_COUNT],
+    /// **Abgegebene** Ticks je Zauber (Issue #177).
+    ///
+    /// Der Kampf fuehrt diese Zahl seit E3-1b mit und gab sie bislang nicht
+    /// heraus — sie ging nur in die Zustands-Pruefsumme ein. Mit CATALYSIS wird
+    /// sie zur Messgroesse: „Die Dauer bleibt, die Ticks werden mehr" (6.7) ist
+    /// ueber den Schaden allein nicht pruefbar, weil dort der Krit mitspielt.
+    pub dot_tick_counts: [u32; SPELL_COUNT],
     /// Am Deckel verpuffte Ressource.
     pub resource_overflow: u32,
     /// Zeit, in der gewartet wurde, obwohl gewirkt werden durfte.
@@ -299,6 +331,17 @@ pub struct Fight {
     next_strike_delay: Millis,
     /// Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR).
     phase_hold_percent: u32,
+    /// Bis wann die Senkung gilt (GAME-DESIGN 4.2b).
+    ///
+    /// **„Hinauszoegern" heisst befristet, nicht dauerhaft.** Sie endet, was
+    /// zuerst eintritt: Die Frist laeuft ab, oder der naechste Wechsel hat
+    /// stattgefunden — dann ist sie verbraucht.
+    ///
+    /// Eine Senkung, die den ganzen Kampf haelt, verschoebe bei einem Boss mit
+    /// zwei Schwellen **beide**. Ein einziger Druck zu Kampfbeginn waere die
+    /// beste Spielweise, und danach gaebe es nichts mehr zu entscheiden — das
+    /// widerspraeche „Planungswerkzeug, keine passive Wirkung".
+    phase_hold_until: Option<Millis>,
     /// Wann der laufende Boss-Zauber trifft.
     ///
     /// Wird mitgefuehrt, weil STALL ihn **verschiebt** (FIXATION, #100): Ohne
@@ -327,6 +370,8 @@ pub struct Fight {
 
     // -- Regeln --
     factors: DamageFactors,
+    /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
+    worn: WornValues,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -385,6 +430,7 @@ impl Fight {
             control: 0,
             next_strike_delay: 0,
             phase_hold_percent: 0,
+            phase_hold_until: None,
             cast_lands_at: 0,
             control_spent: 0,
             control_failed: 0,
@@ -399,7 +445,23 @@ impl Fight {
             dot_tick_counts: [0; SPELL_COUNT],
             resource_overflow: 0,
             idle_ms: 0,
-            factors: config.factors,
+            // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt.
+            //
+            // Er aendert sich waehrend eines Kampfes nicht: Ausruestung wird
+            // zwischen den Kaempfen gewechselt (13.1). Ihn je Treffer neu zu
+            // rechnen waere Arbeit ohne Ergebnis — und `DamageFactors` traegt
+            // ihn ohnehin als eigenes Feld (6.3).
+            //
+            // **Ohne getragene Ausruestung ist der Faktor exakt 1,0**, und 1,0
+            // ist in IEEE754 die exakte Eins. Die Multiplikation in
+            // `compute_damage` bewegt dann keine einzige Zahl — und
+            // `is_neutral()` greift weiterhin, weil das Feld unveraendert bei
+            // 1,0 steht.
+            factors: DamageFactors {
+                gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
+                ..config.factors
+            },
+            worn: config.worn,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -570,6 +632,7 @@ impl Fight {
                 break;
             }
             self.expire_coagulation();
+            self.expire_fixation();
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
@@ -650,6 +713,7 @@ impl Fight {
             }
 
             self.expire_coagulation();
+            self.expire_fixation();
             self.check_phase();
 
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
@@ -778,6 +842,7 @@ impl Fight {
         self.control = 0;
         self.next_strike_delay = 0;
         self.phase_hold_percent = 0;
+        self.phase_hold_until = None;
         self.cast_lands_at = 0;
         self.control_spent = 0;
         self.control_failed = 0;
@@ -815,19 +880,49 @@ impl Fight {
     /// aber die Ereignis-Schlange mit Eintraegen fuellen, die ein frueher
     /// Sieg ohnehin nie erreicht — und ihre Kapazitaet ist bewusst fest
     /// ([`EVENT_CAPACITY`]).
+    /// Welcher Eintrag beim Fortschrittsstand `index` ansteht, und wann.
+    ///
+    /// **Der Zaehler ist Fortschritt, nicht Platz in der Liste.** Wiederholt
+    /// sich die Zeitleiste (`timeline_loop_ms`, Issue #174), laeuft er darueber
+    /// hinaus: Eintrag `i` im Zyklus `z` ist faellig bei `z * loop + at_ms`.
+    ///
+    /// Ohne Wiederholung endet die Zeitleiste am letzten Eintrag — dann gibt
+    /// diese Funktion `None`, und der Kampf plant nichts mehr ein.
+    ///
+    /// **Bei leerer Liste immer `None`.** Das ist der Fall der stummen Puppe,
+    /// an der maximale Rotationen gemessen werden: Eine Wiederholung ueber
+    /// nichts darf nicht kreisen, nichts ausloesen und nichts kosten.
+    fn timeline_at(&self, index: usize) -> Option<(TimelineEntry, Millis)> {
+        let len = self.boss.timeline.len();
+        if len == 0 {
+            return None;
+        }
+        match self.boss.timeline_loop_ms {
+            None => self.boss.timeline.get(index).map(|e| (*e, e.at_ms)),
+            Some(loop_ms) => {
+                let entry = self.boss.timeline[index % len];
+                let zyklus = Millis::try_from(index / len).unwrap_or(Millis::MAX);
+                Some((
+                    entry,
+                    zyklus.saturating_mul(loop_ms).saturating_add(entry.at_ms),
+                ))
+            }
+        }
+    }
+
     fn schedule_next_timeline_step(&mut self) {
-        let Some(entry) = self.boss.timeline.get(self.timeline_index) else {
+        let Some((_, at_ms)) = self.timeline_at(self.timeline_index) else {
             return;
         };
         // **Die Verzoegerung aus STAY gilt nur fuer diesen einen Eintrag**
         // (#100). Die folgenden stehen, wo sie stehen — der Abstand dahinter
         // schrumpft, und genau das ist der Preis.
-        let faellig = entry.at_ms + self.next_strike_delay;
+        let faellig = at_ms + self.next_strike_delay;
         if faellig < self.duration_ms {
             self.queue.push(
                 faellig,
                 EventKind::TimelineStep {
-                    index: self.timeline_index as u16,
+                    index: u32::try_from(self.timeline_index).unwrap_or(u32::MAX),
                 },
             );
         }
@@ -854,7 +949,10 @@ impl Fight {
         // Schlange; dieser hier ist der alte und laeuft ins Leere. Ihn zu
         // loeschen waere teurer als ihn verfallen zu lassen — dasselbe
         // Vorgehen wie bei veralteten DoT-Ticks und beim Boss-Zauber.
-        if self.time < self.boss.timeline[index].at_ms + self.next_strike_delay {
+        let Some((entry, at_ms)) = self.timeline_at(index) else {
+            return;
+        };
+        if self.time < at_ms + self.next_strike_delay {
             return;
         }
         self.log
@@ -862,7 +960,6 @@ impl Fight {
 
         // **Hier bekommt die Zeitleiste ihre Wirkung** (Issue #110). In #96
         // wurde der Zeitpunkt nur angesteuert und protokolliert.
-        let entry = self.boss.timeline[index];
         match entry.kind {
             // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
             TimelineKind::Strike => self.hit_player(entry.damage),
@@ -874,7 +971,7 @@ impl Fight {
                 self.queue.push(
                     self.cast_lands_at,
                     EventKind::BossCastLands {
-                        index: index as u16,
+                        index: u32::try_from(index).unwrap_or(u32::MAX),
                     },
                 );
             }
@@ -907,7 +1004,11 @@ impl Fight {
         }
         self.casting = None;
         self.interrupts_missed += 1;
-        self.hit_player(self.boss.timeline[index].damage);
+        // Ueber `timeline_at`, nicht ueber den Platz in der Liste: Bei
+        // wiederholter Zeitleiste liegt der Zaehler darueber (#174).
+        if let Some((entry, _)) = self.timeline_at(index) {
+            self.hit_player(entry.damage);
+        }
     }
 
     /// Die drei Wege der Koagulation, soweit sie beim Wirken greifen
@@ -977,7 +1078,7 @@ impl Fight {
                     self.queue.push(
                         self.cast_lands_at,
                         EventKind::BossCastLands {
-                            index: index as u16,
+                            index: u32::try_from(index).unwrap_or(u32::MAX),
                         },
                     );
                     self.log
@@ -1001,6 +1102,9 @@ impl Fight {
             // hoeheren Phase aus, faellt der Boss nicht zurueck.
             ControlEffect::HoldPhase => {
                 self.phase_hold_percent = control.amount;
+                self.phase_hold_until = Some(self.time + PHASE_HOLD_DURATION_MS);
+                self.queue
+                    .push(self.time + PHASE_HOLD_DURATION_MS, EventKind::Wakeup);
                 self.log
                     .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
             }
@@ -1062,6 +1166,14 @@ impl Fight {
     ///
     /// Steht bei den passiven Wirkungen, weil beides allein an der Uhr haengt —
     /// wie die Energieleiste des Bosses.
+    fn expire_fixation(&mut self) {
+        // Die Frist ist um, ohne dass ein Wechsel stattgefunden hat.
+        if self.phase_hold_until.is_some_and(|bis| self.time > bis) {
+            self.phase_hold_percent = 0;
+            self.phase_hold_until = None;
+        }
+    }
+
     fn expire_coagulation(&mut self) {
         if self.shield_expires_at.is_some_and(|bis| self.time > bis) {
             self.shield = 0;
@@ -1148,6 +1260,65 @@ impl Fight {
         }
     }
 
+    /// Eine Zeit unter dem Einfluss des getragenen CATALYSIS (GAME-DESIGN 6.7).
+    ///
+    /// **Die einzige Stelle, an der Tempo auf eine Zeit trifft.** Jeder Wirkort
+    /// geht durch sie; wer einen neuen hinzufuegt, ruft sie auf und bekommt das
+    /// Takt-Raster und die Untergrenze geschenkt.
+    ///
+    /// Ohne getragene Ausruestung gibt sie `base_ms` unveraendert zurueck —
+    /// siehe [`hasted_ms`], dort haengt AC7 daran.
+    fn hasted(&self, base_ms: Millis) -> Millis {
+        hasted_ms(base_ms, self.worn.catalysis)
+    }
+
+    /// Der Tick-Abstand eines Effekts ueber Zeit, unter dem Einfluss von Tempo.
+    ///
+    /// Steht als eigene Methode da, weil der Abstand an **vier** Stellen
+    /// gebraucht wird: beim ersten Tick, beim naechsten, beim Zaehlen der durch
+    /// Erneuern verlorenen Ticks — und in den Pruefungen. Vier Handabschriften
+    /// derselben Rechnung waeren genau die Klasse Fehler, die #134, #138, #159
+    /// und #173 hinterlassen haben.
+    fn dot_interval(&self, dot: &Dot) -> Millis {
+        self.hasted(dot.tick_interval_ms)
+    }
+
+    /// Ein Kritwurf fuer **eine Wirkung** (GAME-DESIGN 6.5).
+    ///
+    /// > Echte Wahrscheinlichkeit pro Zauber, pro DoT-Tick und pro Heilung.
+    /// > Kein Pech-Schutz, kein fester Startwert, keine feste Reihenfolge.
+    ///
+    /// # Wann gewuerfelt wird — und warum nicht oefter
+    ///
+    /// **Ein Wurf je Wirkung, nicht je Teilbetrag.** Ein Zauber mit Grund- und
+    /// Entladeschaden kritet als Ganzes oder gar nicht. Das folgt derselben
+    /// Festlegung, die weiter unten ein einziges Schaden-Ereignis je Wirkung
+    /// meldet: Zwei Wuerfe waeren zwei Erzaehlungen desselben Treffers.
+    ///
+    /// # Ohne PURITY faellt gar kein Wurf
+    ///
+    /// [`crate::rng::RandomStream::chance`] schliesst bei einer
+    /// Wahrscheinlichkeit von 0 kurz, **ohne den Strom zu drehen** — der
+    /// Kommentar dort nennt genau diesen Grund. Damit bleibt der Ziehungszaehler
+    /// unveraendert, und mit ihm die Zustands-Pruefsumme. **Daran haengt AC7**,
+    /// und zwar an einer Stelle, die man leicht uebersieht: Ein Wurf, dessen
+    /// Ergebnis feststeht, waere rechnerisch folgenlos und trotzdem sichtbar.
+    fn roll_crit(&mut self) -> bool {
+        self.rng.chance(Stream::Crit, self.worn.crit_chance())
+    }
+
+    /// Die Faktoren fuer einen Treffer, je nachdem ob der Wurf sass.
+    fn factors_for(&self, crit: bool) -> DamageFactors {
+        if crit {
+            DamageFactors {
+                crit: self.worn.crit_factor(),
+                ..self.factors
+            }
+        } else {
+            self.factors
+        }
+    }
+
     fn dot_tick(&mut self, index: usize, generation: u16) {
         // Veraltet: Der Effekt wurde inzwischen erneuert, und `refreshMode:
         // "reset"` laesst die alte Anwendung verfallen (`STEP1-SPEC` 1.2).
@@ -1161,14 +1332,27 @@ impl Fight {
             return;
         };
 
+        // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
+        // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn
+        // gesetzt hat — sonst kritete ein DoT ueber seine ganze Laufzeit
+        // entweder immer oder nie, und der Glueckanteil, den 6.5 ausdruecklich
+        // will, verschwaende sich in einer einzigen Entscheidung.
+        let kritet = self.roll_crit();
+        let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
-            compute_damage(dot.tick_damage, &self.factors),
+            compute_damage(dot.tick_damage, &factors),
             LogKind::DotTick,
         );
         // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zaehlen
         // will, meldet sich fuer beide Arten an — so bleibt die Folge eindeutig.
         self.emit_rule(RuleEvent::DotTick, index as i16, f64::from(tick_damage));
+        // **Das Ereignis, das bis #177 ruhte.** Sein Kommentar in
+        // `rules_event.rs` sagte "Ruht in Schritt 1 (PURITY = 0)" — mit
+        // getragenem PURITY hat es einen Fall.
+        if kritet {
+            self.emit_rule(RuleEvent::Crit, index as i16, f64::from(tick_damage));
+        }
         self.dot_tick_counts[index] += 1;
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
@@ -1176,7 +1360,7 @@ impl Fight {
         // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
         // 12 s Laufzeit bei 2 s Abstand ergeben **6** Ticks, der letzte genau
         // beim Ablauf (`STEP1-SPEC` 1.2).
-        let next = self.time + dot.tick_interval_ms;
+        let next = self.time + self.dot_interval(&dot);
         if self.dot_expires_at[index].is_some_and(|expires| next <= expires) {
             self.queue.push(
                 next,
@@ -1239,6 +1423,11 @@ impl Fight {
         let neue = self.boss.phase_at(anteil);
         if neue > self.phase {
             self.phase = neue;
+            // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt fuer diesen
+            // einen Wechsel. Der uebernaechste bekommt wieder die volle
+            // Schwelle — sonst verschoebe ein Druck alle folgenden mit.
+            self.phase_hold_percent = 0;
+            self.phase_hold_until = None;
             self.log
                 .push(self.time, LogKind::BossPhase, NO_SPELL, neue as u32);
         }
@@ -1298,10 +1487,25 @@ impl Fight {
         self.apply_coagulation(index, spell);
         self.apply_fixation(spell);
 
+        // **Ein Wurf fuer die ganze Wirkung**, und er faellt genau dann, wenn
+        // der Zauber **laut seinen Daten** Schaden austeilen kann — nicht
+        // danach, ob am Ende ein Betrag herauskommt.
+        //
+        // Der Unterschied betrifft den Entlade-Zauber ohne Punkte: Er wuerfelt,
+        // obwohl sein Schaden null ist. Das ist Absicht. Die Bedingung ist aus
+        // den Daten ablesbar und haengt nicht am Zustand — damit ist sie auf
+        // beiden Seiten trivial gleichzuhalten. Eine Bedingung ueber den
+        // ausgerechneten Betrag waere es nicht, und ein Zufallsstrom, der auf
+        // den zwei Seiten verschieden oft gedreht wird, laesst den ganzen
+        // folgenden Kampf auseinanderlaufen.
+        let teilt_schaden_aus = spell.base_damage > 0 || spell.spender.is_some();
+        let kritet = teilt_schaden_aus && self.roll_crit();
+        let factors = self.factors_for(kritet);
+
         if spell.base_damage > 0 {
             cast_damage += self.deal(
                 index,
-                compute_damage(spell.base_damage, &self.factors),
+                compute_damage(spell.base_damage, &factors),
                 LogKind::Damage,
             );
         }
@@ -1314,11 +1518,7 @@ impl Fight {
             }
             self.log
                 .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            cast_damage += self.deal(
-                index,
-                compute_damage(damage, &self.factors),
-                LogKind::Damage,
-            );
+            cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
             self.resource = 0;
         }
 
@@ -1330,9 +1530,14 @@ impl Fight {
         if cast_damage > 0 {
             self.emit_rule(RuleEvent::Damage, index as i16, f64::from(cast_damage));
         }
-        // Hierher gehoert `RuleEvent::Crit`. Krit ruht in Schritt 1
-        // (PURITY = 0, `STEP1-SPEC` 2); ein Ausloeser, der nie zutrifft, waere
-        // toter Code.
+        // **Hier stand bis #177: "Krit ruht in Schritt 1 (PURITY = 0); ein
+        // Ausloeser, der nie zutrifft, waere toter Code."** Der Ort war richtig
+        // benannt; jetzt hat er einen Fall. Der Ausloeser steht NACH
+        // `RuleEvent::Damage`, weil ein Krit eine Aussage ueber einen Treffer
+        // ist, den es schon gegeben hat.
+        if kritet && cast_damage > 0 {
+            self.emit_rule(RuleEvent::Crit, index as i16, f64::from(cast_damage));
+        }
 
         if let Some(dot) = spell.dot {
             if self.dot_active(index) {
@@ -1340,11 +1545,15 @@ impl Fight {
                 // Ticks verloren geht, ist die Kennzahl, an der die Fehleranalyse
                 // den haeufigsten Anfaengerfehler festmacht.
                 let remaining = self.dot_expires_at[index].unwrap_or(now) - now;
-                self.lost_dot_ticks[index] += remaining / dot.tick_interval_ms;
+                self.lost_dot_ticks[index] += remaining / self.dot_interval(&dot);
             }
             self.dot_generation[index] = self.dot_generation[index].wrapping_add(1);
+            // **Die Dauer bleibt unangetastet** (GAME-DESIGN 6.7). Tempo macht
+            // die Ticks dichter, nicht das Fenster kuerzer — sonst verschoebe
+            // sich der beste Erneuerungszeitpunkt (7.2) bei jedem
+            // Ausruestungswechsel.
             self.dot_expires_at[index] = Some(now + dot.duration_ms);
-            let first = snap_up(now + dot.tick_interval_ms);
+            let first = snap_up(now + self.dot_interval(&dot));
             self.queue.push(
                 first,
                 EventKind::DotTick {
@@ -1354,7 +1563,12 @@ impl Fight {
             );
         }
 
-        let ready_at = snap_up(now + spell.cooldown_ms);
+        // **Alle Abklingzeiten skalieren mit** (GAME-DESIGN 6.7) — anders als
+        // in WoW, wo eine Ausnahmeliste je Faehigkeit entscheidet.
+        // Abklingzeiten sind bei uns die alleinige Schwierigkeit (2.1); eine
+        // Liste, welcher Zauber mitskaliert, waere eine zweite Regel zum
+        // Auswendiglernen.
+        let ready_at = snap_up(now + self.hasted(spell.cooldown_ms));
         self.cooldown_ready_at[index] = ready_at;
         self.queue.push(ready_at, EventKind::Wakeup);
 
@@ -1405,6 +1619,7 @@ impl Fight {
             casts: self.casts,
             damage_by_spell: self.damage_by_spell,
             lost_dot_ticks: self.lost_dot_ticks,
+            dot_tick_counts: self.dot_tick_counts,
             resource_overflow: self.resource_overflow,
             idle_ms: self.idle_ms,
             random_draws: self.rng.total_draws(),
@@ -1523,6 +1738,17 @@ impl Fight {
             return 0;
         }
         (self.boss_hp_remaining() * 100) / self.boss.hp
+    }
+
+    /// Um wie viele Prozentpunkte die Phasen-Schwelle gerade gesenkt ist.
+    ///
+    /// Fuer die Prueffaelle zu #100: Ohne diesen Zugang kann ein Fall nicht
+    /// pruefen, dass die **Ursache** eintritt — dass die Senkung zum
+    /// betrachteten Zeitpunkt ueberhaupt anliegt. Ein Fall, der das nicht
+    /// pruefen kann, ist auch dann gruen, wenn er ins Leere laeuft.
+    #[must_use]
+    pub fn phase_hold_percent(&self) -> u32 {
+        self.phase_hold_percent
     }
 
     /// Zeit bis zum Ueberdruck.

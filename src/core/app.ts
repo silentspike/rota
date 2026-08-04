@@ -19,6 +19,16 @@ import { KeyLabels } from '../input/layout.js';
 import { Impact } from '../render/impact.js';
 import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
+import { RunPersistence } from '../analysis/run-persistence.js';
+import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { markDisplayFor } from '../analysis/mark-display.js';
+import type { MarkDisplay } from '../render/overlay.js';
+import { PlayerHome } from '../progression/player-home.js';
+import { statOverview } from '../progression/stat-overview.js';
+import { buildStatOverview } from '../progression/stat-overview-view.js';
+import { NOTHING_WORN } from '../gear/worn.js';
+import { baseStats } from '../progression/base-stats.js';
+import '../progression/stats.css';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -41,11 +51,70 @@ export class App {
   /** Was beim Lesen der Spieldaten nicht stimmte. Leer heißt: alles in Ordnung. */
   readonly dataProblems: readonly string[];
 
+  /**
+   * Der Spielstand im Browser (Issue #179).
+   *
+   * Öffentlich, weil das Prüfblatt ihn liest — und weil ein Zustand, den man
+   * nur über einen Kampf erreichen kann, nicht nachweisbar wäre.
+   */
+  readonly persistence: RunPersistence;
+
+  /**
+   * Was der letzte Kampf an Marke und Verlauf bewirkt hat, oder `null`.
+   *
+   * Daraus zeigt die Auswertung dem Spieler, dass er weiterkommt — bei einer
+   * **Niederlage** ist das der ganze Zweck (GAME-DESIGN 15.1).
+   */
+  lastRecord: RecordResult | null = null;
+
+  /**
+   * Die Fortschrittsmarke, fertig zum Anzeigen (Issue #187).
+   *
+   * Hier gebildet und nicht in der Ansicht: Der Satz entsteht an EINER Stelle,
+   * aus `markSentence`. Zwei Stellen, die aus denselben Zahlen einen Satz
+   * machen, laufen beim naechsten Nachziehen auseinander.
+   *
+   * `null` heisst: nichts zeigen. Das ist der Fall beim allerersten Kampf
+   * eines Spielstands und nach einem Sieg -- dort steht das Ergebnis, nicht
+   * die Marke (Issue #187, AC3 und AC4).
+   */
+  lastMark: MarkDisplay | null = null;
+
+  /**
+   * Der Bildschirm zwischen den Kaempfen (GAME-DESIGN 16.1, Issue #188).
+   *
+   * Oeffentlich, weil das Pruefblatt ihn liest -- und weil ein Bildschirm, den
+   * man nur ueber einen Knopf erreicht, ohne Browser nicht nachweisbar waere.
+   */
+  readonly home: PlayerHome;
+
   constructor(parent: HTMLElement) {
     this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
     this.surface = new Surface(parent);
     this.combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
     this.session = new Session(this.pressQueue, this.combat, this.audio);
+
+    // Erste Verwendung des Spielstands ueberhaupt: Rotation, Pruefsummen und
+    // Wiederherstellung stehen seit #83 bereit und liefen nie.
+    this.persistence = new RunPersistence(__ROTA_VERSION__, () => Date.now());
+
+    // Am Kampfende festhalten, was der Versuch eingebracht hat. Der Beobachter
+    // greift nicht ein -- ein Spiel ohne Spielstand rechnet identisch
+    // (GAME-DESIGN 18.5), es merkt sich nur nichts.
+    this.session.onFinish = (summary, outcome): void => {
+      this.lastRecord = recordRun(this.persistence.state, summary, outcome, {
+        bossId: this.combat.boss.id,
+        // Schritt 1 kennt eine Stufe. Die Zahl steht hier und nicht als
+        // Vorgabe im Rechner: Sobald es mehrere gibt, ist es diese Zeile.
+        difficulty: 1,
+        gameVersion: __ROTA_VERSION__,
+        at: Date.now(),
+      });
+      // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
+      // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
+      if (this.lastRecord.counted) this.persistence.persist(this.lastRecord);
+      this.lastMark = markDisplayFor(this.lastRecord, summary, this.combat.boss.id);
+    };
 
     for (const binding of STEP1_BINDINGS) {
       const index = this.combat.indexOf(binding.spellId);
@@ -59,7 +128,25 @@ export class App {
       onWipe: () => this.wipe(),
       onRestart: () => this.restart(),
       onBackToMenu: () => this.backToMenu(),
+      onOpenHome: () => {
+        this.home.show();
+      },
     });
+
+    // Das Player Home. Es fasst den Kampf NICHT an -- kein Anhalten, kein
+    // Zuruecksetzen, kein Zugriff auf die Sitzung. Es zeigt und verbirgt sich.
+    this.home = new PlayerHome(() => {
+      // Zurueck heisst zurueck zum Bildschirm davor. Das Overlay steht
+      // ohnehin dort, wo es stand -- es wurde nie angefasst.
+    });
+    this.home.addSection({
+      id: 'stats',
+      title: 'Stats',
+      // Die Werte, wie sie heute gelten. Ohne Ausruestung sind es die
+      // Grundwerte -- ein neuer Spielstand hat nichts angelegt (AC7).
+      content: buildStatOverview(statOverview(baseStats(), NOTHING_WORN)),
+    });
+    parent.appendChild(this.home.root);
 
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
     // stummes, unsichtbares Spiel rechnet identisch (GAME-DESIGN 18.5).
@@ -80,6 +167,7 @@ export class App {
       this.labels,
       this.overlay,
       this.impact,
+      () => this.lastMark,
     );
     this.loop = new GameLoop({
       simulation: this.session,

@@ -29,10 +29,43 @@ import {
   NO_SPELL_REF,
   type CombatLog,
 } from './log.js';
-import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
+import {
+  PLAYER,
+  type BossDef,
+  type SchoolDef,
+  type SpellDef,
+  type TimelineEntryDef,
+} from './data.js';
 import { GlobalCooldown } from './gcd.js';
-import { RandomStreams } from './rng.js';
-import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
+import { RandomStreams, STREAM_CRIT } from './rng.js';
+import { hastedMs } from './haste.js';
+import {
+  NOTHING_WORN,
+  critChance,
+  critFactor,
+  gearEffectFactor,
+  type WornValues,
+} from '../gear/worn.js';
+
+/**
+ * Die Faktoren, wie `Combat` sie INTERN haelt (Issue #196).
+ *
+ * `DamageFactors` ist nach aussen unveraenderlich, und das bleibt so: Wer sie
+ * bekommt, soll sie nicht anfassen koennen. Innerhalb dieser Klasse muessen
+ * sie sich aber bewegen duerfen -- sonst waere ein Faktor, der sich im Kampf
+ * aendert, gar nicht abbildbar.
+ *
+ * Der Schreibzugriff bleibt trotzdem auf EINE Stelle beschraenkt: Ein
+ * Prueffall liest diese Datei und faengt jede andere.
+ */
+type MutableFactors = { -readonly [K in keyof DamageFactors]: DamageFactors[K] };
+import {
+  RULE_CRIT,
+  RULE_DAMAGE,
+  RULE_DOT_TICK,
+  RULE_SPELL_CAST,
+  RuleEvents,
+} from '../combat/events.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
@@ -50,11 +83,30 @@ export const FIGHT_OVERPRESSURE = 2;
 
 export const NOT_ACTIVE = -1;
 
+/**
+ * Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
+ *
+ * **Vorläufig, nicht balanciert** — Katalog-Inhalt, GAME-DESIGN F.6 setzt die
+ * Zahl auf E10 an. Sie steht hier und nicht in den Zauber-Daten, weil sie eine
+ * Eigenschaft der WIRKUNG ist und nicht des Zaubers: Jeder künftige Zauber mit
+ * `holdPhase` soll dieselbe Frist haben, sonst wäre „hinauszögern" bei jedem
+ * etwas anderes. Dieselbe Zahl steht in `sim/src/fight.rs`.
+ */
+export const PHASE_HOLD_DURATION_MS = 8_000;
+
 export interface CombatOptions {
   readonly school: SchoolDef;
   readonly boss: BossDef;
   /** Startwert der Zufallsströme. In Schritt 1 zieht noch niemand daraus. */
   readonly seed?: number;
+  /**
+   * Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+   *
+   * **Fehlt der Wert, wird nichts getragen** — und daran hängt die Zusicherung
+   * aus AC7: Der Kampf läuft dann durch dieselben Zweige wie vorher, keine Zeit
+   * wird umgerechnet, kein Zufallsstrom gedreht, keine Prüfsumme bewegt.
+   */
+  readonly worn?: WornValues;
 }
 
 /**
@@ -133,7 +185,40 @@ export class Combat {
   private readonly dotTickCounts: Int32Array;
 
   private readonly resistanceFactor: number;
-  private readonly factors: DamageFactors;
+  /**
+   * Die Schadensfaktoren dieses Kampfes.
+   *
+   * **Geschrieben wird ausschliesslich ueber `setDamageFactor`** (Issue #196).
+   * Ein Prueffall liest diese Datei und schlaegt an, wenn irgendwo sonst
+   * hineingeschrieben wird — der Grund steht bei `factorsOnCrit`.
+   */
+  private readonly factors: MutableFactors;
+  /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
+  private readonly worn: WornValues;
+  /**
+   * Dieselben Faktoren, aber mit gesetztem Krit.
+   *
+   * **Vorab angelegt, weil im laufenden Takt nichts entstehen darf** (18.2).
+   * Der naheliegende Weg wäre `{ ...this.factors, crit: … }` im Treffer
+   * gewesen — ein Objekt je Treffer, bei einem zehnminütigen Kampf
+   * zehntausende.
+   *
+   * SIE WIRD NACHGEZOGEN, NICHT EINGEFROREN (Issue #196)
+   * ----------------------------------------------------
+   * Die frühere Begründung lautete, die Vorab-Fassung sei möglich, „weil
+   * `worn` sich während eines Kampfes nicht ändert". Das galt, solange
+   * **alle** Faktoren bei Kampfbeginn feststanden. Sobald einer sich im Kampf
+   * bewegt — Verwundbarkeits-Stapel, Zeit-begrenzte Wirkungen —, rechnete
+   * jeder kritische Treffer mit dem Stand von Sekunde null, und zwar still:
+   * Ein gewöhnlicher Treffer wäre richtig, ein kritischer falsch.
+   *
+   * Die Optimierung bleibt. Nachgezogen wird bei jeder **Änderung**, nicht bei
+   * jedem Treffer — das sind ein paar Schreibvorgänge je Kampf statt
+   * zehntausend Objekten.
+   *
+   * `crit` selbst steht hier und nur hier: Er ist abgeleitet, nicht gesetzt.
+   */
+  private readonly factorsOnCrit: MutableFactors;
 
   private resourceValue = 0;
   private resourceOverflowValue = 0;
@@ -237,6 +322,15 @@ export class Combat {
 
   /** Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR). */
   private phaseHoldPercentValue = 0;
+
+  /**
+   * Bis wann die Senkung gilt (GAME-DESIGN 4.2b). -1 = keine.
+   *
+   * **„Hinauszögern" heißt befristet, nicht dauerhaft.** Sie endet, was zuerst
+   * eintritt: Die Frist läuft ab, oder der nächste Wechsel hat stattgefunden —
+   * dann ist sie verbraucht.
+   */
+  private phaseHoldUntilMs = -1;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -266,7 +360,16 @@ export class Combat {
     this.nextEnergyAtMs = options.boss.energy?.perStepMs ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
-    this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
+    this.worn = options.worn ?? NOTHING_WORN;
+    // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt: Ausrüstung
+    // wird zwischen den Kämpfen gewechselt (13.1). Ohne getragene Ausrüstung
+    // ist der Faktor exakt 1,0 — die Multiplikation bewegt dann keine Zahl.
+    this.factors = {
+      ...NEUTRAL_FACTORS,
+      resistance: this.resistanceFactor,
+      gearEffects: gearEffectFactor(this.worn),
+    };
+    this.factorsOnCrit = { ...this.factors, crit: critFactor(this.worn) };
 
     // Die Schul-Mechanik hört ab hier auf Ereignisse (E3-2). Eine Zeile für
     // alle Schulen: Welcher Vorrat gefüllt wird und wie viel, steht in den
@@ -329,6 +432,47 @@ export class Combat {
   /** Wie oft die Energieleiste ausgelöst hat. */
   get bossEnergyTriggers(): number {
     return this.bossEnergyTriggersValue;
+  }
+
+  /**
+   * Welcher Eintrag beim Fortschrittsstand `index` ansteht.
+   *
+   * **Der Zähler ist Fortschritt, nicht Platz in der Liste.** Wiederholt sich
+   * die Zeitleiste (`timelineLoopMs`, Issue #174), läuft er darüber hinaus:
+   * Eintrag `i` im Zyklus `z` ist fällig bei `z * loop + atMs`.
+   *
+   * **Bei leerer Liste immer `undefined`.** Das ist der Fall der stummen
+   * Puppe, an der maximale Rotationen gemessen werden: Eine Wiederholung über
+   * nichts darf nicht kreisen, nichts auslösen und nichts kosten.
+   *
+   * Wortgleich mit `Fight::timeline_at` im Simulator — eine Regel, die nur
+   * eine Seite kennt, bricht die Parität erst nach dem ersten Zyklus.
+   */
+  private timelineEntryAt(index: number): TimelineEntryDef | undefined {
+    const laenge = this.boss.timeline.length;
+    if (laenge === 0) return undefined;
+    return this.boss.timelineLoopMs === null
+      ? this.boss.timeline[index]
+      : this.boss.timeline[index % laenge];
+  }
+
+  /**
+   * Wann der Eintrag beim Stand `index` fällig ist. `-1`, wenn keiner ansteht.
+   *
+   * **Zwei Methoden mit einfachen Rückgabewerten statt einer mit einem
+   * Objekt.** Der erste Entwurf gab `{ eintrag, atMs }` zurück und erzeugte
+   * damit bei jedem Aufruf ein Objekt — im laufenden Kampf, was GAME-DESIGN
+   * 18.2 ausdrücklich verbietet. Gefunden beim Bauen von AC4.
+   */
+  private timelineDueAt(index: number): number {
+    const laenge = this.boss.timeline.length;
+    if (laenge === 0) return -1;
+    const loop = this.boss.timelineLoopMs;
+    if (loop === null) {
+      const eintrag = this.boss.timeline[index];
+      return eintrag === undefined ? -1 : eintrag.atMs;
+    }
+    return Math.floor(index / laenge) * loop + this.boss.timeline[index % laenge]!.atMs;
   }
 
   /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
@@ -463,8 +607,8 @@ export class Combat {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
       this.phaseHoldPercentValue = control.amount;
+      this.phaseHoldUntilMs = timeMs - this.fightStartedAtMs + PHASE_HOLD_DURATION_MS;
     }
-    void timeMs;
   }
 
   /**
@@ -538,6 +682,11 @@ export class Combat {
    */
   private expireCoagulation(timeMs: number): void {
     const seitBeginn = timeMs - this.fightStartedAtMs;
+    // Die Frist der Phasen-Senkung ist um, ohne dass ein Wechsel stattfand.
+    if (this.phaseHoldUntilMs >= 0 && seitBeginn > this.phaseHoldUntilMs) {
+      this.phaseHoldPercentValue = 0;
+      this.phaseHoldUntilMs = -1;
+    }
     if (this.shieldExpiresAtMs >= 0 && seitBeginn > this.shieldExpiresAtMs) {
       this.shieldValue = 0;
       this.shieldStacksValue = 0;
@@ -706,6 +855,94 @@ export class Combat {
     return left > 0 ? left : 0;
   }
 
+  /**
+   * Eine Zeit unter dem Einfluss des getragenen CATALYSIS (GAME-DESIGN 6.7).
+   *
+   * **Die einzige Stelle, an der Tempo auf eine Zeit trifft.** Jeder Wirkort
+   * geht durch sie; wer einen neuen hinzufügt, ruft sie auf und bekommt das
+   * Takt-Raster und die Untergrenze geschenkt.
+   *
+   * Ohne getragene Ausrüstung gibt sie `baseMs` unverändert zurück — siehe
+   * `hastedMs`, dort hängt AC7 daran.
+   */
+  private hasted(baseMs: number): number {
+    return hastedMs(baseMs, this.worn.catalysis);
+  }
+
+  /**
+   * Der Tick-Abstand eines Effekts über Zeit, unter dem Einfluss von Tempo.
+   *
+   * Steht als eigene Methode da, weil der Abstand an **drei** Stellen gebraucht
+   * wird: beim Setzen, beim nächsten Tick und beim Zählen der durch Erneuern
+   * verlorenen Ticks. Drei Handabschriften derselben Rechnung wären genau die
+   * Klasse Fehler, die #134, #138, #159 und #173 hinterlassen haben.
+   */
+  private dotInterval(dot: { readonly tickIntervalMs: number }): number {
+    return this.hasted(dot.tickIntervalMs);
+  }
+
+  /**
+   * Ein Kritwurf für **eine Wirkung** (GAME-DESIGN 6.5).
+   *
+   * > Echte Wahrscheinlichkeit pro Zauber, pro DoT-Tick und pro Heilung. Kein
+   * > Pech-Schutz, kein fester Startwert, keine feste Reihenfolge.
+   *
+   * Gibt zurück, **ob** der Wurf saß. Die Faktoren holt der Aufrufer über
+   * `factorsFor` — getrennt, weil das Ergebnis auch für die Trefferanzeige und
+   * das Regel-Ereignis `RULE_CRIT` gebraucht wird und ein zweiter Wurf dafür
+   * eine zweite Wahrheit wäre.
+   *
+   * # Ohne PURITY fällt gar kein Wurf
+   *
+   * `RandomStream.chance` schließt bei einer Wahrscheinlichkeit von 0 kurz,
+   * **ohne den Strom zu drehen**. Damit bleibt der Ziehungszähler unverändert,
+   * und mit ihm die Zustands-Prüfsumme. **Daran hängt AC7**, und zwar an einer
+   * Stelle, die man leicht übersieht: Ein Wurf, dessen Ergebnis feststeht, wäre
+   * rechnerisch folgenlos und trotzdem sichtbar.
+   */
+  private rollCrit(): boolean {
+    return this.random.stream(STREAM_CRIT).chance(critChance(this.worn));
+  }
+
+  /** Die Faktoren für einen Treffer, je nachdem ob der Wurf saß. */
+  private factorsFor(crit: boolean): DamageFactors {
+    return crit ? this.factorsOnCrit : this.factors;
+  }
+
+  /**
+   * Einen Schadensfaktor während des Kampfes setzen (Issue #196).
+   *
+   * **Die einzige Stelle, die `factors` schreibt.** Sie zieht die Krit-Fassung
+   * mit — genau hier und nicht beim Treffer, damit im laufenden Takt nichts
+   * entsteht (GAME-DESIGN 18.2).
+   *
+   * `crit` ist ausgenommen: Er ist aus `worn` abgeleitet und gehört nicht zu
+   * den Faktoren, die eine Mechanik setzt. Wäre er hier setzbar, könnte
+   * jemand die Krit-Fassung über diesen Weg still von der Basis abkoppeln.
+   */
+  setDamageFactor(kind: Exclude<keyof DamageFactors, 'crit'>, value: number): void {
+    this.factors[kind] = value;
+    // Das Mitziehen ist der ganze Punkt dieser Methode. Fehlt diese Zeile,
+    // rechnet jeder kritische Treffer mit dem alten Wert weiter.
+    this.factorsOnCrit[kind] = value;
+  }
+
+  /**
+   * Ob die Krit-Fassung noch zur Basis passt.
+   *
+   * Für Prüffälle und Werkzeuge: Sie muss in **allen** Feldern außer `crit`
+   * mit `factors` übereinstimmen. Weicht sie ab, rechnen gewöhnlicher und
+   * kritischer Treffer mit verschiedenen Grundlagen — und der Unterschied
+   * fällt nur bei einem Prüffall auf, der beides zugleich abdeckt.
+   */
+  get critFactorsMirrorBase(): boolean {
+    for (const key of Object.keys(this.factors) as (keyof DamageFactors)[]) {
+      if (key === 'crit') continue;
+      if (this.factors[key] !== this.factorsOnCrit[key]) return false;
+    }
+    return true;
+  }
+
   isDotActive(index: number, timeMs: number): boolean {
     // Größer-gleich: Der letzte Tick fällt mit dem Ablauf zusammen. Eine Dauer von
     // 12 s bei 2 s Tick-Abstand ergibt 6 Ticks (bei 2, 4, 6, 8, 10, 12 s), nicht 5.
@@ -751,14 +988,24 @@ export class Combat {
       const nextTick = this.dotNextTickAtMs[i] ?? NOT_ACTIVE;
       if (nextTick === NOT_ACTIVE || timeMs < nextTick) continue;
 
-      const damage = computeDamage(dot.tickDamage, this.factors);
+      // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
+      // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn gesetzt
+      // hat — sonst kritete ein DoT über seine ganze Laufzeit entweder immer
+      // oder nie, und der Glücksanteil, den 6.5 ausdrücklich will, verschwände
+      // in einer einzigen Entscheidung.
+      const kritet = this.rollCrit();
+      const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
       this.damageDealtValue += damage;
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
       // Auch ein Brand-Tick speist Weg 3 (Issue #79) — im Simulator läuft
       // jeder ausgeteilte Schaden durch `deal`, hier gibt es zwei Stellen.
       this.convertDamageToShield(damage, timeMs);
-      this.reportHit(damage, HIT_DOT, false, timeMs);
+      this.reportHit(damage, HIT_DOT, kritet, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, i, damage);
+      // **Das Ereignis, das bis #177 ruhte.** Der Kommentar an der Cast-Stelle
+      // sagte, es fehle nicht aus Nachlässigkeit — es hatte nur nie einen Fall.
+      // Mit getragenem PURITY hat es einen.
+      if (kritet) this.events.emit(RULE_CRIT, i, damage, timeMs);
       // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zählen
       // will, meldet sich für beide Arten an — so bleibt die Folge eindeutig.
       this.events.emit(RULE_DOT_TICK, i, damage, timeMs);
@@ -766,7 +1013,7 @@ export class Combat {
       // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
       // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
       // beisteuert, steht in seinen Daten, nicht im Kampfcode.
-      this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
+      this.dotNextTickAtMs[i] = nextTick + this.dotInterval(dot);
     }
 
     const resource = this.school.resource;
@@ -814,16 +1061,23 @@ export class Combat {
     // Simulator — dort steht `BossCastLands` vor `TimelineStep` in der
     // Rangfolge der Ereignisse.
     if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMs) {
-      const laufend = this.boss.timeline[this.castingValue];
+      // Über `timelineAt`, nicht über den Platz in der Liste: Bei wiederholter
+      // Zeitleiste liegt der Zähler darüber (#174).
+      const laufend = this.timelineEntryAt(this.castingValue);
       this.castingValue = -1;
       this.castLandsAtMs = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
     }
 
-    while (this.timelineIndexValue < this.boss.timeline.length) {
-      const eintrag = this.boss.timeline[this.timelineIndexValue];
-      if (eintrag === undefined || seitBeginn < eintrag.atMs + this.nextStrikeDelayMs) break;
+    for (;;) {
+      // `-1` heißt: nichts steht mehr an. Ohne Wiederholung ist die
+      // Zeitleiste zu Ende — mit Wiederholung ist sie leer, und dann darf
+      // hier nichts kreisen (#174, der Fall der stummen Puppe).
+      const faelligAtMs = this.timelineDueAt(this.timelineIndexValue);
+      if (faelligAtMs < 0) break;
+      if (seitBeginn < faelligAtMs + this.nextStrikeDelayMs) break;
+      const eintrag = this.timelineEntryAt(this.timelineIndexValue)!;
       const index = this.timelineIndexValue;
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_BOSS_TIMELINE_FIRED, NO_SPELL_REF, index);
       // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
@@ -834,7 +1088,7 @@ export class Combat {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
-        this.castLandsAtMs = eintrag.atMs + eintrag.castTimeMs;
+        this.castLandsAtMs = faelligAtMs + eintrag.castTimeMs;
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
@@ -856,9 +1110,19 @@ export class Combat {
       }
       if (neue > this.bossPhaseValue) {
         this.bossPhaseValue = neue;
+        // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt für diesen einen
+        // Wechsel. Der übernächste bekommt wieder die volle Schwelle — sonst
+        // verschöbe ein Druck alle folgenden mit.
+        this.phaseHoldPercentValue = 0;
+        this.phaseHoldUntilMs = -1;
         // **Nummer 6 gehört seit #96 BEIDEN Seiten** — der Simulator schrieb
         // sie, das Spiel nicht. Gefunden, weil der Prüffall die Zahl je Art
         // vergleicht: Simulator 1, Spiel 0.
+        //
+        // Steht NACH dem Verbrauch, in derselben Reihenfolge wie
+        // `Fight::check_phase` im Simulator. Am Zustand ändert das nichts —
+        // aber wo die beiden Seiten dieselbe Stelle verschieden ordnen, wird
+        // die nächste Ergänzung dort zur stillen Abweichung.
         this.log?.push(this.fightElapsedMs(timeMs), EVENT_PHASE, NO_SPELL_REF, neue);
       }
     }
@@ -938,8 +1202,23 @@ export class Combat {
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
 
+    // **Ein Wurf für die ganze Wirkung**, und er fällt genau dann, wenn der
+    // Zauber **laut seinen Daten** Schaden austeilen kann — nicht danach, ob am
+    // Ende ein Betrag herauskommt.
+    //
+    // Der Unterschied betrifft den Entlade-Zauber ohne Punkte: Er würfelt,
+    // obwohl sein Schaden null ist. Das ist Absicht. Die Bedingung ist aus den
+    // Daten ablesbar und hängt nicht am Zustand — damit ist sie auf beiden
+    // Seiten trivial gleichzuhalten. Eine Bedingung über den ausgerechneten
+    // Betrag wäre es nicht, und ein Zufallsstrom, der auf den zwei Seiten
+    // verschieden oft gedreht wird, lässt den ganzen folgenden Kampf
+    // auseinanderlaufen.
+    const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
+    const kritet = teiltSchadenAus ? this.rollCrit() : false;
+    const castFactors = this.factorsFor(kritet);
+
     let damage = 0;
-    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);
+    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
@@ -950,7 +1229,7 @@ export class Combat {
         raw *= spender.bonusMultiplier;
         outcome.bonusApplied = true;
       }
-      damage += computeDamage(raw, this.factors);
+      damage += computeDamage(raw, castFactors);
       if (spender.consumesAll) this.resourceValue = 0;
     }
 
@@ -958,13 +1237,15 @@ export class Combat {
       this.damageDealtValue += damage;
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
       this.convertDamageToShield(damage, timeMs);
-      this.reportHit(damage, HIT_DIRECT, false, timeMs);
+      this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
       this.events.emit(RULE_DAMAGE, index, damage, timeMs);
-      // Hierher gehört `RULE_CRIT`. Es fehlt nicht aus Nachlässigkeit: Krit
-      // ruht in Schritt 1 (PURITY = 0, GAME-DESIGN 6.5), `reportHit` bekommt
-      // überall `false`. Einen Auslöser zu schreiben, der nie zutrifft, wäre
-      // toter Code — die Kennung steht bereit, der Ort ist benannt.
+      // **Hier stand bis #177: „Krit ruht in Schritt 1, ein Auslöser wäre
+      // toter Code — die Kennung steht bereit, der Ort ist benannt."** Der Ort
+      // war richtig benannt; jetzt hat er einen Fall. Der Auslöser steht NACH
+      // `RULE_DAMAGE`, weil ein Krit eine Aussage über einen Treffer ist, den
+      // es schon gegeben hat.
+      if (kritet) this.events.emit(RULE_CRIT, index, damage, timeMs);
     }
 
     const dot = spell.dot;
@@ -974,13 +1255,20 @@ export class Combat {
       if (this.isDotActive(index, timeMs)) {
         const remaining = this.dotRemainingMs(index, timeMs);
         this.dotTicksLost[index] =
-          (this.dotTicksLost[index] ?? 0) + Math.floor(remaining / dot.tickIntervalMs);
+          (this.dotTicksLost[index] ?? 0) + Math.floor(remaining / this.dotInterval(dot));
       }
+      // **Die Dauer bleibt unangetastet** (GAME-DESIGN 6.7). Tempo macht die
+      // Ticks dichter, nicht das Fenster kürzer — sonst verschöbe sich der
+      // beste Erneuerungszeitpunkt (7.2) bei jedem Ausrüstungswechsel.
       this.dotExpiresAtMs[index] = timeMs + dot.durationMs;
-      this.dotNextTickAtMs[index] = timeMs + dot.tickIntervalMs;
+      this.dotNextTickAtMs[index] = timeMs + this.dotInterval(dot);
     }
 
-    this.cooldownReadyAtMs[index] = timeMs + spell.cooldownMs;
+    // **Alle Abklingzeiten skalieren mit** (GAME-DESIGN 6.7) — anders als in
+    // WoW, wo eine Ausnahmeliste je Fähigkeit entscheidet. Abklingzeiten sind
+    // bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
+    // mitskaliert, wäre eine zweite Regel zum Auswendiglernen.
+    this.cooldownReadyAtMs[index] = timeMs + this.hasted(spell.cooldownMs);
     if (spell.triggersGcd) this.gcd.trigger(timeMs);
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 

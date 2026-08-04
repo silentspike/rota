@@ -173,6 +173,66 @@ nachgezogen hast.
 Der Fall ist derselbe wie oben, nur an einer Datei, die niemand als „Arbeit" ansieht: Grün belegt,
 dass nichts kaputt ist, nicht dass etwas da ist.
 
+#### Steht statt einer Zeilenzahl `Bin` da, ist die Prüfung für diese Datei blind
+
+_Gemessen am 2026-08-04 an einer Quelldatei, die es nicht sein sollte._
+
+```
+src/analysis/progress-mark.ts    | Bin 6480 -> 8114 bytes
+                                   ^^^
+tests/unit/progress-mark.test.ts |  51 +++++++++++++++++
+```
+
+**Ein einziges NUL-Byte** in einem Template-String genügt — Git behandelt die ganze Datei als binär.
+Die Ursache war ein Trennzeichen für einen zusammengesetzten Schlüssel, technisch sogar die richtige
+Wahl. Nur als **echtes Byte** geschrieben statt als Escape-Sequenz.
+
+| Was ausfällt                            |                                              |
+| --------------------------------------- | -------------------------------------------- |
+| `git diff`                              | zeigt den Inhalt nicht, nur die Byte-Zahl    |
+| `git diff --stat`                       | **genau die Prüfung aus dem Abschnitt oben** |
+| Merge-Konflikte                         | nicht auflösbar                              |
+| Durchsicht im PR                        | GitHub zeigt „Binary file not shown"         |
+| `git blame`, `git log -p`, `git bisect` | hören an dieser Datei auf zu arbeiten        |
+
+> Der Bearbeiter hatte an dem Tag fünfmal „1725 Zeilen hinzu, 4 entfernt" gemeldet — für diese Datei
+> stand dort nie eine Zeile. **Ein Zweig, der sie zurückdreht, hätte in seiner Prüfung genauso
+> ausgesehen wie einer, der sie ergänzt.**
+
+**Zwei Dinge folgen daraus:**
+
+1. **Ein `Bin` im `--stat` ist kein Detail, sondern ein Halt.** Bei Quelldateien immer.
+2. **Wer den Fehler behebt, fasst den Commit mit dem Vorgänger zusammen** — sonst bleibt ein binärer
+   Stand in der Historie stehen, und `blame` und `bisect` stolpern weiter darüber.
+
+Ein Prüffall wacht seitdem darüber (`tests/unit/source-is-text.test.ts`): Er lädt alle `.ts` und
+`.css` aus `src/` und `docs/` und schlägt bei jedem NUL-Byte an — **einschließlich der Absicherung,
+dass er überhaupt Dateien findet.** Ohne sie liefe er auch bei leerer Liste durch.
+
+##### Nach NUL-Bytes suchen: grep taugt dafür nicht
+
+_Zwei Sitzungen, zwei verschiedene Fehlschläge, dieselbe Ursache — am selben Tag._
+
+| Versuch                 | Ergebnis                                           | Was wirklich geschah                                                                                               |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `grep -qP '\x00' datei` | findet **nichts**, auch nicht die betroffene Datei | grep behandelt die Datei als binär und meldet nur „Binary file matches" — mit `-q` verschluckt                     |
+| `grep -c $'\x00' datei` | meldet **210**                                     | Die Shell kann kein NUL in einer Variable halten. `$'\x00'` wird zum **leeren Muster**, und grep zählt alle Zeilen |
+
+Der zweite Fall ist der tückischere: Die Zahl sieht wie ein Ergebnis aus. 210 Zeilen und 210
+angebliche NUL-Bytes sind nicht zu unterscheiden, wenn man die Datei nicht kennt.
+
+**Was trägt:**
+
+```bash
+# Ist die Datei Text?
+grep -qI . datei && echo TEXT || echo BINAER
+
+# Wie viele NUL-Bytes?
+A=$(wc -c < datei); B=$(tr -d '\000' < datei | wc -c); echo $((A - B))
+```
+
+Beides ohne Muster-Interpretation — deshalb funktionieren sie.
+
 ### Schritt 6 — Merge nach `main`
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
@@ -181,6 +241,26 @@ Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollst
 
 Du meldest dein Ergebnis im Format aus § 6. Die Master-Session prüft **selbst im laufenden Spiel**
 gegen `GAME-DESIGN.md`. Deine Behauptungen zählen dabei nicht als Nachweis — sie werden nachgemessen.
+
+#### Warten ist kein Zustand, in dem man bleibt
+
+_Am 2026-08-04 saßen zwei Sitzungen 45 Minuten still, jede aus einem eigenen Grund. Beide hatten
+Arbeit._
+
+| Sitzung | Wartete auf                          | Warum das falsch war                                                                                                        |
+| ------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| A       | die Abnahme des gerade gemeldeten PR | Das **nächste** Issue war längst zugewiesen und hing inhaltlich nicht daran                                                 |
+| B       | die Antwort auf eine Design-Frage    | Sie betraf **einen** Teilaspekt; der Rest des Issues war unabhängig — was sie selbst angekündigt und dann nicht getan hatte |
+
+**Eine Abnahme ist kein Startsignal für das nächste Issue.** Sie schließt das vorige ab. Wenn im
+Issue-Bestand etwas auf dich wartet, fang damit an — der Orchestrator holt dich nicht ab.
+
+**Eine offene Frage blockiert selten alles.** Trenn beim Melden ausdrücklich, was daran hängt und was
+nicht, und bau dann den unabhängigen Teil. Wer schreibt „ich arbeite derweil weiter" und es nicht
+tut, hat zweimal falsch gemeldet.
+
+> **Die Voreinstellung ist Arbeiten, nicht Warten.** Wer wirklich nichts hat, sagt das — ausdrücklich
+> und mit der Frage, was als Nächstes kommt. Stille sieht von außen genauso aus wie Beschäftigung.
 
 ### Schritt 8 — Erst jetzt: Issue schließen, Branch löschen
 
@@ -337,6 +417,41 @@ eine echte Eigenschaft.
 > Meldung, statt die alte Formulierung stehen zu lassen.
 >
 > Niemand hätte es bemerkt. Genau deshalb steht es hier.
+
+### Der Prüffall lief an einem Punkt, an dem die Abweichung gar nicht sichtbar sein kann
+
+_Drei Fundstellen am 2026-08-04, in drei verschiedenen Worktrees, alle drei von den Findern selbst
+gemeldet._
+
+Der Prüffall ist richtig gebaut, das Messinstrument ist in Ordnung — aber die **Stelle**, an der
+gemessen wird, ist so gewählt, dass der gesuchte Fehler dort keine Spur hinterlässt. Er wird grün,
+egal ob der Fehler da ist oder nicht.
+
+| Fall                                                                                       | Warum die Abweichung unsichtbar war                                                                                         |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Wächter gegen versehentlich beschleunigte Boss-Zauber, gemessen an der **Summe** über 60 s | Der Zauber landete 1500 ms zu früh — und traf trotzdem. Am Kampfende stand dieselbe Summe. **Zwölf von zwölf blieben grün** |
+| Neues Feld im Testliteral mit dem **neutralen Wert** nachgetragen                          | `1.0` bewegt keine Zahl. Der Wächter blieb grün, obwohl der Faktor in der Namensliste fehlte                                |
+| Prüffall gegen einen Durchlauf mit **genau 50 %** Fortschritt                              | Dort ist die verbliebene Gesundheit ebenfalls 50. Die beiden Größen sind an diesem Punkt nicht zu unterscheiden             |
+
+**Die gemeinsame Frage:**
+
+> An der Stelle, an der ich messe — **gehen die beiden Größen überhaupt auseinander?**
+>
+> Bei 50 zu 50 nicht. Bei einem neutralen Wert nicht. Bei einer Summe über den ganzen Lauf nicht,
+> wenn der Fehler nur etwas **verschiebt**.
+
+Konkret heißt das:
+
+- **Gegen eine Verschiebung in der Zeit hilft keine Summe.** Der Prüffall muss auf die Uhr sehen,
+  nicht auf das Konto — Kampfende so legen, dass der Zauber regulär **dahinter** und fälschlich
+  beschleunigt **davor** landet.
+- **Ein Wächter, dem man beim Nachtragen den neutralen Wert gibt, hört auf zu wachen.** Neue Felder
+  in Testdaten bekommen einen Wert, der etwas **bewegt**.
+- **Wähle Zahlen, die sich unterscheiden.** 66 zu 34, nicht 50 zu 50. Und sichere ausdrücklich zu,
+  dass sie es tun — sonst wandert der Fall beim nächsten Umbau still zurück.
+
+> Alle drei fielen ihren Findern **beim Nachlesen des eigenen Prüffalls** auf, nicht durch ein
+> Werkzeug. Der Compiler sagt dazu nichts, und die CI bleibt grün.
 
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
