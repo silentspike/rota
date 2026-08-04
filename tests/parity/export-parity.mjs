@@ -39,6 +39,7 @@ import {
   gearPayload,
   hastePayload,
   wornPayload,
+  sourcesPayload,
   WORN_NAME,
   setsPayload,
   logKindsPayload,
@@ -132,6 +133,10 @@ writeFileSync(hastePath, serialize(haste), 'utf8');
 const worn = wornPayload();
 const wornPath = join(here, 'recordings', `${WORN_NAME}.json`);
 writeFileSync(wornPath, serialize(worn), 'utf8');
+
+const sources = sourcesPayload();
+const sourcesPath = join(here, 'recordings', 'sources.json');
+writeFileSync(sourcesPath, serialize(sources), 'utf8');
 
 const expected = recording['expected'];
 const checksums = recording['checksums'];

@@ -77,6 +77,8 @@ pub mod rotation;
 // einzige Beruehrung mit einer bestehenden Datei in `sim/src/`.
 pub mod rules_event;
 pub mod sets;
+// Issue #178: die fuenf Quellen der Sonderwerte.
+pub mod sources;
 // Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
 pub mod stacks;
 // Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
