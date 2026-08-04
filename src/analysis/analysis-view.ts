@@ -130,6 +130,18 @@ export function buildLossView(report: LossReport): HTMLElement {
     root.appendChild(list);
   }
 
+  // Die verpassten Unterbrechungen stehen GETRENNT, mit eigener Zahl und ohne
+  // Prozentsatz (GAME-DESIGN 15.2, entschieden am 2026-08-04). Sie messen
+  // eingesteckten statt ausgeteilten Schaden; in derselben Prozentrechnung
+  // verglichen sie Unvergleichbares — und die Zahl gewönne immer.
+  if (report.interrupts !== null) {
+    const box = element('div', 'losses-interrupts');
+    box.dataset.missed = String(report.interrupts.missed);
+    box.appendChild(element('span', 'loss-label', LOSS_LABEL.missedInterrupts));
+    box.appendChild(element('span', 'loss-detail', report.interrupts.detail));
+    root.appendChild(box);
+  }
+
   // Die Lücke gehört sichtbar. Sie wegzulassen hieße, eine vollständige
   // Rechnung vorzutäuschen (Issue #151).
   if (report.unavailable.length > 0) {
