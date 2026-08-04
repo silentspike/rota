@@ -77,6 +77,9 @@ export const VESSEL_NAME = 'vessel-phases';
 /** Der Prueffall zum eingehenden Schaden und zum Unterbrechen (Issue #110). */
 export const PLAYER_DAMAGE_NAME = 'player-damage';
 
+/** Der Prueffall zu den drei Wegen der Koagulation (Issue #79). */
+export const COAGULATION_NAME = 'coagulation';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -605,6 +608,116 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     },
     checksums,
     playerHpPerTick: playerHp,
+  };
+}
+
+/**
+ * Die drei Wege der Koagulation, gegen **denselben** Boss (Issue #79).
+ *
+ * **Vier Läufe, die sich in genau einer Sache unterscheiden:** welchen
+ * Verteidigungszauber der Spieler wirkt — keinen, CRUST, SALVE oder TEMPER.
+ * Derselbe Boss, dasselbe Schadensprofil, dieselbe Angriffsrotation,
+ * derselbe Startwert.
+ *
+ * **Das ist der Kern von AC1.** Drei Wege, die alle „irgendwie überleben
+ * helfen", wären kein Nachweis; drei Wege, die bei gleichem eingehenden
+ * Schaden zu drei verschiedenen Endzuständen führen, sind einer. Ein Lauf je
+ * Weg genügt dafür nicht — erst der Vergleich zeigt, dass sie sich wirklich
+ * unterscheiden und nicht bloß alle dasselbe tun.
+ *
+ * Der Lauf ohne Verteidigung ist die Meßlatte: Er zeigt, dass der Boss
+ * überhaupt gefährlich ist. Ohne ihn könnten alle drei Wege wirkungslos sein,
+ * ohne dass es auffällt.
+ */
+export function coagulationPayload(): Record<string, unknown> {
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('Der Boss test-onslaught fehlt.');
+
+  return {
+    schema: SCHEMA,
+    name: COAGULATION_NAME,
+    bossId: boss.id,
+    tickMs: TICK_MS,
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    runs: ['none', 'crust', 'salve', 'temper'].map((weg) => defenceRun(boss, weg)),
+  };
+}
+
+/**
+ * Ein Durchgang mit einem der drei Wege — oder ohne.
+ *
+ * Die Angriffsrotation ist in allen vier Läufen dieselbe: KINDLE, sooft es
+ * geht. Der Verteidigungszauber kommt dazu, sobald er bereit ist. Beides löst
+ * den vollen GCD aus (GAME-DESIGN 6.6), und genau das ist die Abwägung:
+ * **Überleben kostet Schaden und Zeit.**
+ */
+function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const defence = weg === 'none' ? -1 : combat.indexOf(weg);
+  const ticks = 3000; // 30 s
+
+  const checksums: number[] = [];
+  const playerHp: number[] = [];
+  const shield: number[] = [];
+  const presses: { tick: number; slot: number }[] = [];
+  let sequence = 0;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    if (combat.playerDead) {
+      const hash = combatChecksum(combat, timeMs);
+      sequence = (sequence * 31 + hash) >>> 0;
+      checksums.push(hash);
+      playerHp.push(combat.playerHp);
+      shield.push(combat.shield);
+      break;
+    }
+
+    // Der Verteidigungszauber hat Vorrang, wenn er bereit ist — sonst käme er
+    // nie zum Zug, weil KINDLE jeden GCD belegt.
+    if (defence >= 0 && combat.isReady(defence, timeMs)) {
+      if (combat.cast(defence, timeMs).result === 0) presses.push({ tick, slot: 1 });
+    } else if (combat.isReady(kindle, timeMs)) {
+      if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
+    }
+
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+    playerHp.push(combat.playerHp);
+    shield.push(combat.shield);
+  }
+
+  return {
+    way: weg,
+    ticks,
+    // Die Drücke stehen in der Datei, damit der Simulator dieselbe Runde
+    // nachspielt statt die Regel nachzubauen. Eine nachgebaute Regel, die
+    // minimal abweicht, ergäbe eine Abweichung, die wie ein Rechenfehler
+    // aussieht.
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      ...(weg === 'none' ? [] : [{ slot: 1, spellId: weg }]),
+    ],
+    presses,
+    expected: {
+      playerHp: combat.playerHp,
+      damageTaken: combat.damageTaken,
+      diedAtMs: combat.diedAtMs,
+      damageDealt: combat.damageDealt,
+      shieldAbsorbed: combat.shieldAbsorbed,
+      healed: combat.healed,
+      converted: combat.converted,
+      castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
+      castsKindle: combat.castCount(kindle),
+      sequenceChecksum: sequence,
+    },
+    checksums,
+    playerHpPerTick: playerHp,
+    shieldPerTick: shield,
   };
 }
 

@@ -31,10 +31,12 @@ import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
+import eingecheckteKoagulation from './recordings/coagulation.json';
 import {
   bossStatePayload,
   misplaysPayload,
   playerDamagePayload,
+  coagulationPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -88,6 +90,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterSpielerSchaden, HINWEIS).toEqual(playerDamagePayload());
+  });
+
+  it('die drei Wege der Koagulation entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteKoagulation, HINWEIS).toEqual(coagulationPayload());
   });
 });
 
