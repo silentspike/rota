@@ -19,6 +19,8 @@ import { KeyLabels } from '../input/layout.js';
 import { Impact } from '../render/impact.js';
 import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
+import { RunPersistence } from '../analysis/run-persistence.js';
+import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -41,11 +43,48 @@ export class App {
   /** Was beim Lesen der Spieldaten nicht stimmte. Leer heißt: alles in Ordnung. */
   readonly dataProblems: readonly string[];
 
+  /**
+   * Der Spielstand im Browser (Issue #179).
+   *
+   * Öffentlich, weil das Prüfblatt ihn liest — und weil ein Zustand, den man
+   * nur über einen Kampf erreichen kann, nicht nachweisbar wäre.
+   */
+  readonly persistence: RunPersistence;
+
+  /**
+   * Was der letzte Kampf an Marke und Verlauf bewirkt hat, oder `null`.
+   *
+   * Daraus zeigt die Auswertung dem Spieler, dass er weiterkommt — bei einer
+   * **Niederlage** ist das der ganze Zweck (GAME-DESIGN 15.1).
+   */
+  lastRecord: RecordResult | null = null;
+
   constructor(parent: HTMLElement) {
     this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
     this.surface = new Surface(parent);
     this.combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
     this.session = new Session(this.pressQueue, this.combat, this.audio);
+
+    // Erste Verwendung des Spielstands ueberhaupt: Rotation, Pruefsummen und
+    // Wiederherstellung stehen seit #83 bereit und liefen nie.
+    this.persistence = new RunPersistence(__ROTA_VERSION__, () => Date.now());
+
+    // Am Kampfende festhalten, was der Versuch eingebracht hat. Der Beobachter
+    // greift nicht ein -- ein Spiel ohne Spielstand rechnet identisch
+    // (GAME-DESIGN 18.5), es merkt sich nur nichts.
+    this.session.onFinish = (summary, outcome): void => {
+      this.lastRecord = recordRun(this.persistence.state, summary, outcome, {
+        bossId: this.combat.boss.id,
+        // Schritt 1 kennt eine Stufe. Die Zahl steht hier und nicht als
+        // Vorgabe im Rechner: Sobald es mehrere gibt, ist es diese Zeile.
+        difficulty: 1,
+        gameVersion: __ROTA_VERSION__,
+        at: Date.now(),
+      });
+      // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
+      // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
+      if (this.lastRecord.counted) this.persistence.persist(this.lastRecord);
+    };
 
     for (const binding of STEP1_BINDINGS) {
       const index = this.combat.indexOf(binding.spellId);
