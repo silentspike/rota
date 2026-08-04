@@ -23,6 +23,12 @@ import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
 import { markDisplayFor } from '../analysis/mark-display.js';
 import type { MarkDisplay } from '../render/overlay.js';
+import { PlayerHome } from '../progression/player-home.js';
+import { statOverview } from '../progression/stat-overview.js';
+import { buildStatOverview } from '../progression/stat-overview-view.js';
+import { NOTHING_WORN } from '../gear/worn.js';
+import { baseStats } from '../progression/base-stats.js';
+import '../progression/stats.css';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -74,6 +80,14 @@ export class App {
    */
   lastMark: MarkDisplay | null = null;
 
+  /**
+   * Der Bildschirm zwischen den Kaempfen (GAME-DESIGN 16.1, Issue #188).
+   *
+   * Oeffentlich, weil das Pruefblatt ihn liest -- und weil ein Bildschirm, den
+   * man nur ueber einen Knopf erreicht, ohne Browser nicht nachweisbar waere.
+   */
+  readonly home: PlayerHome;
+
   constructor(parent: HTMLElement) {
     this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
     this.surface = new Surface(parent);
@@ -114,7 +128,25 @@ export class App {
       onWipe: () => this.wipe(),
       onRestart: () => this.restart(),
       onBackToMenu: () => this.backToMenu(),
+      onOpenHome: () => {
+        this.home.show();
+      },
     });
+
+    // Das Player Home. Es fasst den Kampf NICHT an -- kein Anhalten, kein
+    // Zuruecksetzen, kein Zugriff auf die Sitzung. Es zeigt und verbirgt sich.
+    this.home = new PlayerHome(() => {
+      // Zurueck heisst zurueck zum Bildschirm davor. Das Overlay steht
+      // ohnehin dort, wo es stand -- es wurde nie angefasst.
+    });
+    this.home.addSection({
+      id: 'stats',
+      title: 'Stats',
+      // Die Werte, wie sie heute gelten. Ohne Ausruestung sind es die
+      // Grundwerte -- ein neuer Spielstand hat nichts angelegt (AC7).
+      content: buildStatOverview(statOverview(baseStats(), NOTHING_WORN)),
+    });
+    parent.appendChild(this.home.root);
 
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
     // stummes, unsichtbares Spiel rechnet identisch (GAME-DESIGN 18.5).
