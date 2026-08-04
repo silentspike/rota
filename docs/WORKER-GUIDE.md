@@ -149,6 +149,28 @@ dass die Prüffälle die neue Mechanik **wirklich berühren** — bei E3-4 war d
 die Schutzschicht auf der Spielseite gar nicht eingebaut war, weil in allen bestehenden Fällen der
 Schutz null ist.
 
+#### `[new branch]` beim Push ist dieselbe Meldung
+
+_Am 2026-08-04 abends, gefunden von E7._
+
+Er baute auf Anweisung an einer bereits gemergten Änderung weiter. Währenddessen wurde der PR
+gemergt und der Zweig gelöscht. Sein `push` legte ihn **neu an**, statt ihn zu aktualisieren — und
+sagte das auch:
+
+```
+ * [new branch]      fix/... -> fix/...
+```
+
+Erwartet hatte er eine Aktualisierung. Er hat nachgesehen statt weiterzumachen und fand: PR gemergt,
+alter Zweig weg, sein Commit allein auf einem neuen.
+
+> **Ein Push, der einen Zweig NEU anlegt statt ihn zu aktualisieren, ist eine Meldung über einen
+> Zustand, den du nicht kennst** — genauso wie `non-fast-forward`. Beide Male sagt git etwas über
+> die Gegenseite, das du nicht erwartet hast.
+
+Der Schaden entsteht erst, wenn man darüber hinwegliest: Der Commit liegt dann auf einem Zweig, den
+niemand kennt und kein PR verfolgt.
+
 #### Vor jedem PR: steht im Diff nur, was du angefasst hast?
 
 ```bash
@@ -381,14 +403,17 @@ Die Abschnitte oben behandeln Prüffälle, die zu wenig zeigen. Das hier ist ein
 **Der Prüffall ist richtig, aber das Messinstrument liefert eine Zahl, die nichts mit der Frage zu
 tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 
-| Was gemessen wurde                                  | Warum es nichts belegte                                                                    |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `!!document.querySelector('[class*=rota-loot]')`    | `skipLoot()` setzt `hidden`, das Element **bleibt im DOM** — der Ausdruck ist immer `true` |
-| `cargo test 2>&1 \| tail -40`                       | Die letzten 40 Zeilen sind vier Sammlungen von 27. `0 FAILED` stimmt und beweist nichts    |
-| `npx tsc --noEmit; echo "Exit=$?" && git commit …`  | Das `echo` gelingt immer. Der Rückgabewert wurde **angezeigt**, nicht ausgewertet          |
-| `window.__rota === undefined` als Beleg für den Bau | Die Seite lud aus einem fremden Worktree — das erwartete Ergebnis aus der falschen Quelle  |
+| Was gemessen wurde                                          | Warum es nichts belegte                                                                                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `!!document.querySelector('[class*=rota-loot]')`            | `skipLoot()` setzt `hidden`, das Element **bleibt im DOM** — der Ausdruck ist immer `true`                                                     |
+| `cargo test 2>&1 \| tail -40`                               | Die letzten 40 Zeilen sind vier Sammlungen von 27. `0 FAILED` stimmt und beweist nichts                                                        |
+| `npx tsc --noEmit; echo "Exit=$?" && git commit …`          | Das `echo` gelingt immer. Der Rückgabewert wurde **angezeigt**, nicht ausgewertet                                                              |
+| `window.__rota === undefined` als Beleg für den Bau         | Die Seite lud aus einem fremden Worktree — das erwartete Ergebnis aus der falschen Quelle                                                      |
+| Ein Skript von Hand getestet, dann als Cron-Job eingetragen | Cron bringt kein `PATH` mit `~/bin` mit. **30 Läufe, 30 Abstürze, kein einziger erfolgreicher** — und niemand sah es, weil der Job still starb |
+| `grep -c "muster" datei.min.js`                             | Minifiziertes JS ist **eine** Zeile. `grep -c` zählt Zeilen: `1` heißt „kommt vor", nicht „kommt einmal vor"                                   |
+| `grep "doom" hud.ts \| sed -n '346,400p'`                   | Die Zeilenspanne reichte über das Funktionsende hinaus — die Treffer standen im **Aufrufer**                                                   |
 
-**Die gemeinsame Frage, die alle vier beantwortet hätte:**
+**Die gemeinsame Frage, die alle sieben beantwortet hätte:**
 
 > Unter welcher Bedingung würde meine Messung ein **anderes** Ergebnis liefern?
 >
@@ -398,6 +423,13 @@ Konkret heißt das:
 
 - **Prüfe auf das Merkmal, das sich ändert** — nicht auf Existenz. `hidden`, nicht `querySelector`.
 - **Werte Rückgabewerte aus, statt sie anzuzeigen.** `cmd && weiter` oder `set -e`, nie `echo $?`.
+- **Prüfe das, was laufen wird — nicht eine Näherung davon.** Ein Skript von Hand zu starten prüft
+  das Skript; ob der Cron-Job läuft, prüft nur `env -i`. Wer den Eintrag anlegt und das Skript
+  testet, hat die Zustellung nicht geprüft.
+- **`grep -c` zählt Zeilen, nicht Treffer.** Auf minifiziertem JS, einzeiligem JSON oder jeder
+  anderen langen Zeile ist die Antwort immer `0` oder `1`. Treffer zählt `grep -o … | wc -l`.
+- **Eine Zeilenspanne ist eine Behauptung über den Aufbau der Datei.** `sed -n '346,400p'` kann über
+  das Ende der Funktion hinausreichen — dann misst du im Nachbarn und schließt auf deinen.
 - **Leite direkt am Befehl in eine Datei um** — `cargo test > lauf.txt 2>&1`, dann darin zählen.
   Nicht `| tail`, nicht `| head`. `grep -c` über den vollen Strom ist in Ordnung, weil es filtert
   statt abzuschneiden.
