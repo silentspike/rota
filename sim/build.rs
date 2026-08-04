@@ -38,6 +38,8 @@ const SPELLS_JSON: &str = "../data/spells/calcination.json";
 const COMMON_SPELLS_JSON: &str = "../data/spells/common.json";
 /// Die Ueberlebens-Schule (GAME-DESIGN 4.1, Issue #79), relativ zu `sim/`.
 const COAGULATION_JSON: &str = "../data/spells/coagulation.json";
+/// Die Fixierung (GAME-DESIGN 4.1, Issue #100), relativ zu `sim/`.
+const FIXATION_JSON: &str = "../data/spells/fixation.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -64,6 +66,7 @@ fn main() {
     println!("cargo:rerun-if-changed={SPELLS_JSON}");
     println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
+    println!("cargo:rerun-if-changed={FIXATION_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
@@ -74,6 +77,7 @@ fn main() {
     let spells = read_json(SPELLS_JSON);
     let common = read_json(COMMON_SPELLS_JSON);
     let coagulation = read_json(COAGULATION_JSON);
+    let fixation = read_json(FIXATION_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -84,7 +88,7 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
-    emit_spells(&mut out, &spells, &common, &coagulation);
+    emit_spells(&mut out, &spells, &common, &coagulation, &fixation);
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
 
@@ -227,7 +231,13 @@ fn emit_resource(out: &mut String, spells: &Value) {
     let _ = writeln!(out, "}};\n");
 }
 
-fn emit_spells(out: &mut String, spells: &Value, common: &Value, coagulation: &Value) {
+fn emit_spells(
+    out: &mut String,
+    spells: &Value,
+    common: &Value,
+    coagulation: &Value,
+    fixation: &Value,
+) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
         "id",
@@ -255,10 +265,15 @@ fn emit_spells(out: &mut String, spells: &Value, common: &Value, coagulation: &V
         .get("spells")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("coagulation.json: Liste \"spells\" fehlt"));
+    let fixierung = fixation
+        .get("spells")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("fixation.json: Liste \"spells\" fehlt"));
     let list: Vec<&Value> = list
         .iter()
         .chain(gemeinsame.iter())
         .chain(koagulation.iter())
+        .chain(fixierung.iter())
         .collect();
 
     let _ = writeln!(
@@ -352,6 +367,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
     emit_dot(out, spell, &whose, resource_id);
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
+    emit_fixation(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
 
@@ -792,6 +808,67 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let _ = writeln!(
                 out,
                 "        conversion: Some(Conversion {{ share_percent: {share}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+}
+
+/// Kontroll-Punkte und die drei Wirkungen (FIXATION, Issue #100).
+fn emit_fixation(out: &mut String, spell: &Value, whose: &str) {
+    let _ = writeln!(
+        out,
+        "        control_gain: {},",
+        opt_uint(spell, "controlGain", whose, 0)
+    );
+
+    match spell.get("control") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        control: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/control");
+            let cost = uint(node, "cost", &whose);
+            assert!(
+                cost > 0,
+                "{whose}: Eine Wirkung ohne Kosten waere keine Ausgabe von \
+                 Kontroll-Punkten, sondern eine passive Wirkung — und genau \
+                 das ist FIXATION laut GAME-DESIGN 4.1 NICHT"
+            );
+
+            // Die drei Wirkungen stehen woertlich im Design. Ein unbekannter
+            // Wert bricht den Bau ab, statt still zu einem Standardfall zu
+            // werden: Ein Zauber, der versehentlich einen Schlag verzoegert
+            // statt eine Phase, saehe im Kampf wie ein Balance-Problem aus.
+            let (effekt, feld) = match text(node, "effect", &whose) {
+                "slowCast" => ("ControlEffect::SlowCast", "amountMs"),
+                "delayStrike" => ("ControlEffect::DelayStrike", "amountMs"),
+                "holdPhase" => ("ControlEffect::HoldPhase", "amountPercent"),
+                other => panic!(
+                    "{whose}: unbekannte Wirkung {other:?}. Bekannt sind \
+                     \"slowCast\", \"delayStrike\" und \"holdPhase\" \
+                     (GAME-DESIGN 4.1)."
+                ),
+            };
+            let amount = uint(node, feld, &whose);
+            assert!(amount > 0, "{whose}: {feld} muss groesser als null sein");
+            if feld == "amountMs" {
+                assert!(
+                    amount.is_multiple_of(RASTER_MS),
+                    "{whose}: {amount} ms liegt nicht auf dem {RASTER_MS}-ms-Raster"
+                );
+            } else {
+                // Ueber 100 Prozentpunkte waere keine Verschiebung mehr,
+                // sondern eine Schwelle unter null — die Phase kaeme nie.
+                assert!(
+                    amount < 100,
+                    "{whose}: amountPercent {amount} verschoebe die Schwelle \
+                     unter null; die Phase kaeme dann nie"
+                );
+            }
+
+            let _ = writeln!(
+                out,
+                "        control: Some(Control {{ cost: {cost}, effect: {effekt}, amount: {amount} }}),"
             );
         }
     }

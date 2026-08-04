@@ -74,7 +74,13 @@ impl SpellContribution {
 /// gar nicht. Ob er zu selten kam, sagen die verpassten Unterbrechungen und der
 /// erlittene Schaden (GAME-DESIGN 19.2) — nicht diese Tabelle.
 fn ist_hilfszauber(spell: &Spell) -> bool {
-    spell.interrupt || spell.shield.is_some() || spell.heal.is_some() || spell.conversion.is_some()
+    spell.interrupt
+        || spell.shield.is_some()
+        || spell.heal.is_some()
+        || spell.conversion.is_some()
+        // Die drei Ausgabe-Zauber der Fixierung (#100). BIND gehoert NICHT
+        // dazu: Er macht Schaden und traegt damit zur Tabelle bei.
+        || spell.control.is_some()
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

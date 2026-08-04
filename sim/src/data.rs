@@ -104,6 +104,47 @@ pub struct Conversion {
     pub duration_ms: Millis,
 }
 
+/// Was ein Fixierungs-Zauber mit Kontroll-Punkten anstellt (FIXATION,
+/// GAME-DESIGN 4.1, Issue #100).
+///
+/// > Kontroll-Punkte als Vorrat zum Ausgeben. Der Spieler gibt sie **gezielt**
+/// > aus, um Boss-Handlungen zu beeinflussen. Ein **Planungswerkzeug**, keine
+/// > passive Wirkung.
+///
+/// Das „gezielt" ist die eigentliche Aussage: Punkte werden nie automatisch
+/// verbraucht. Reichen sie nicht, geschieht **nichts** — der Zauber ist
+/// vertan, aber er nimmt sich nicht, was er nicht hat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Control {
+    /// Wie viele Punkte die Wirkung kostet.
+    pub cost: u32,
+    /// Welche der drei Boss-Handlungen sie beeinflusst.
+    pub effect: ControlEffect,
+    /// Um wie viel — in Millisekunden oder Prozentpunkten, je nach Wirkung.
+    pub amount: u32,
+}
+
+/// Die drei Wirkungen aus GAME-DESIGN 4.1.
+///
+/// **Diese drei stehen fest**, anders als ihre Zahlen: Sie stammen woertlich
+/// aus dem Design und sind keine Umsetzungs-Entscheidung.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlEffect {
+    /// Einen Boss-Zauber verlangsamen: Die Wirkzeit dehnt sich, und damit wird
+    /// das Fenster zum Unterbrechen groesser (#110, Baustein 9).
+    SlowCast,
+    /// Einen Schlag verzoegern: Der Zeitleisten-Eintrag rueckt nach hinten.
+    DelayStrike,
+    /// Eine Phase hinauszoegern: Die Schwelle sinkt voruebergehend.
+    ///
+    /// **Sie nimmt einen Wechsel nicht zurueck.** Die Phase kann nur steigen
+    /// (GAME-DESIGN 11.1, eskalierend; `Fight::check_phase`) — eine gesenkte
+    /// Schwelle verschiebt den naechsten Wechsel, mehr nicht. Laeuft die
+    /// Fixierung waehrend einer hoeheren Phase aus, faellt der Boss nicht
+    /// zurueck.
+    HoldPhase,
+}
+
 /// Ein Zauber.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spell {
@@ -150,6 +191,16 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, #100).
+    ///
+    /// Steht als eigenes Feld und nicht unter `resource_gain`: Der Kampf
+    /// fuehrt genau eine Schul-Ressource (Hitze), und jede Schul-Groesse hat
+    /// eigene Felder, weil sie eigene Regeln hat. Hitze verfaellt, die
+    /// Schutzschicht faengt auf, Kontroll-Punkte werden ausgegeben — das sind
+    /// verschiedene Dinge, keine Instanzen desselben Dings.
+    pub control_gain: u32,
+    /// Was der Zauber mit Kontroll-Punkten **anstellt**, falls er sie ausgibt.
+    pub control: Option<Control>,
 }
 
 /// Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
@@ -371,8 +422,9 @@ mod tests {
         // Drei Schadenszauber, dazu seit Issue #110 der Unterbrecher. Er zaehlt
         // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
         // und kommt in keiner der vier Pruefrotationen vor.
-        // Drei Kalzination, ein Unterbrecher, drei Koagulation (Issue #79).
-        assert_eq!(SPELL_COUNT, 7);
+        // Drei Kalzination, ein Unterbrecher (#110), drei Koagulation (#79),
+        // vier Fixierung (#100).
+        assert_eq!(SPELL_COUNT, 11);
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
@@ -385,7 +437,12 @@ mod tests {
         let schritt1 = SPELLS
             .iter()
             .filter(|s| {
-                !s.interrupt && s.shield.is_none() && s.heal.is_none() && s.conversion.is_none()
+                !s.interrupt
+                    && s.shield.is_none()
+                    && s.heal.is_none()
+                    && s.conversion.is_none()
+                    && s.control.is_none()
+                    && s.control_gain == 0
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");

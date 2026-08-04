@@ -27,7 +27,20 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     let result = Fight::new(FightConfig::default()).run_apl(&apl(GOOD, "gut"));
     let table = spell_table(&result);
 
-    assert_eq!(table.len(), 3, "alle drei Zauber muessen aufgefuehrt sein");
+    // Vier seit #100: die drei aus Schritt 1 und BIND, der Fueller der
+    // Fixierung. Er macht Schaden und traegt damit zur Tabelle bei — die drei
+    // AUSGABE-Zauber der Fixierung nicht, sie richten keinen an.
+    assert_eq!(
+        table.len(),
+        4,
+        "alle Schadenszauber muessen aufgefuehrt sein"
+    );
+    assert!(
+        table
+            .iter()
+            .all(|r| r.id != "stall" && r.id != "stay" && r.id != "anchor"),
+        "die Ausgabe-Zauber der Fixierung gehoeren nicht in den Schadens-Vergleich"
+    );
 
     // Nach Schaden sortiert: KINDLE 2000, PYRE 1440, SMOULDER 800.
     assert_eq!(table[0].id, "kindle");
@@ -61,7 +74,14 @@ fn ac1_kein_zauber_aus_schritt_1_ist_tot() {
     // Zauber aufdecken, die niemand nutzt. In Schritt 1 darf keiner tot sein —
     // waere einer es, waeren die drei Zauber falsch bemessen.
     let result = Fight::new(FightConfig::default()).run_apl(&apl(GOOD, "gut"));
+    // **Nur die drei aus Schritt 1**, wie der Name sagt. BIND gehoert der
+    // Fixierung und wird von einer Kalzinations-Rotation zu Recht nie
+    // gewirkt — ihn hier zu fordern hiesse, jede Rotation muesse jede Schule
+    // spielen. Das Gegenteil ist der Fall (GAME-DESIGN 11.3).
     for row in spell_table(&result) {
+        if !["kindle", "smoulder", "pyre"].contains(&row.id) {
+            continue;
+        }
         assert!(!row.is_dead(), "{} wird nie gewirkt", row.id);
     }
 }
@@ -83,7 +103,9 @@ fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
         .filter(|row| row.is_dead())
         .map(|row| row.id)
         .collect();
-    assert_eq!(tote.len(), 2, "SMOULDER und PYRE kommen nicht vor");
+    // Drei seit #100: SMOULDER und PYRE fehlen in dieser Rotation, BIND
+    // gehoert einer anderen Schule und ist deshalb ebenfalls ungewirkt.
+    assert_eq!(tote.len(), 3, "SMOULDER, PYRE und BIND kommen nicht vor");
     assert!(tote.contains(&"smoulder"));
     assert!(tote.contains(&"pyre"));
     assert!(!table.iter().any(|row| row.id == "kindle" && row.is_dead()));
