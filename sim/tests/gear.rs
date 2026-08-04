@@ -16,9 +16,8 @@ use common::bits;
 
 use rota_sim::checksum::{mix_float, mix_int, FNV_OFFSET};
 use rota_sim::gear::{
-    budget_of, distribute_budget, undecided_slots, ValuePools, BASE_STAT_IDS, POOL_COUNT,
-    POOL_NAMES, QUALITY_HAS_EFFECT, QUALITY_NAMES, QUALITY_STAT_SLOTS, SLOT_NAMES, SLOT_SPECIAL,
-    SPECIAL_NAMES,
+    budget_of, distribute_budget, ValuePools, BASE_STAT_IDS, POOL_COUNT, POOL_NAMES,
+    QUALITY_AFFIX_SLOTS, QUALITY_HAS_EFFECT, QUALITY_NAMES, SLOT_NAMES,
 };
 
 /// Der unveraenderte Inhalt der Vergleichsdatei aus dem Spiel.
@@ -55,18 +54,17 @@ fn beide_seiten_benennen_dasselbe() {
     assert_eq!(namen(&value, "poolNames"), POOL_NAMES.to_vec());
     assert_eq!(namen(&value, "qualityNames"), QUALITY_NAMES.to_vec());
     assert_eq!(namen(&value, "slotNames"), SLOT_NAMES.to_vec());
-    assert_eq!(namen(&value, "specialNames"), SPECIAL_NAMES.to_vec());
     assert_eq!(namen(&value, "baseStatIds"), BASE_STAT_IDS.to_vec());
 
-    let slots: Vec<u64> = value["qualityStatSlots"]
+    let slots: Vec<u64> = value["qualityAffixSlots"]
         .as_array()
-        .expect("qualityStatSlots fehlen")
+        .expect("qualityAffixSlots fehlen")
         .iter()
         .map(|entry| entry.as_u64().expect("Zahl erwartet"))
         .collect();
     assert_eq!(
         slots,
-        QUALITY_STAT_SLOTS
+        QUALITY_AFFIX_SLOTS
             .iter()
             .map(|s| *s as u64)
             .collect::<Vec<_>>(),
@@ -82,45 +80,27 @@ fn beide_seiten_benennen_dasselbe() {
     assert_eq!(effect, QUALITY_HAS_EFFECT.to_vec());
 }
 
-/// Die zwei unbestimmten Plaetze stehen auf beiden Seiten offen.
+/// Die Plaetze sind auf beiden Seiten reine Behaelter.
 ///
-/// **Eine Stolperdrahte, keine Formalie:** Wer `relic` oder `shard` auf einer
-/// Seite zuordnet und auf der anderen vergisst, faellt hier auf — und zwar
-/// bevor ein Gegenstand mit einem geratenen Sonderwert im Spiel landet.
+/// **Hier stand bis zum 2026-07-29 eine Pruefung der platz-spezifischen
+/// Wertezuordnung** — sie ist gestrichen (13.2). Geblieben ist der Vergleich
+/// der Namen und der Grundwerte; eine wiederkehrende Zuordnung faellt auf,
+/// weil die Vergleichsdatei sie gar nicht mehr fuehrt.
 #[test]
-fn dieselben_plaetze_sind_offen() {
+fn keine_seite_ordnet_den_plaetzen_werte_zu() {
     let value = datei();
 
-    let special: Vec<i64> = value["slotSpecial"]
-        .as_array()
-        .expect("slotSpecial fehlt")
-        .iter()
-        .map(|entry| entry.as_i64().expect("Zahl erwartet"))
-        .collect();
-    assert_eq!(
-        special,
-        SLOT_SPECIAL
-            .iter()
-            .map(|s| i64::from(*s))
-            .collect::<Vec<_>>(),
-        "die Platz-Zuordnung laeuft auseinander"
-    );
+    for feld in ["slotSpecial", "specialNames", "undecidedSlots"] {
+        assert!(
+            value.get(feld).is_none(),
+            "\"{feld}\" ist in gear.json zurueckgekehrt — die platz-spezifische \
+             Wertezuordnung wurde am 2026-07-29 gestrichen (13.2)"
+        );
+    }
 
-    let offen: Vec<u64> = value["undecidedSlots"]
-        .as_array()
-        .expect("undecidedSlots fehlen")
-        .iter()
-        .map(|entry| entry.as_u64().expect("Zahl erwartet"))
-        .collect();
-    assert_eq!(
-        offen,
-        undecided_slots()
-            .iter()
-            .map(|s| *s as u64)
-            .collect::<Vec<_>>(),
-        "eine Seite hat einen Platz zugeordnet, die andere nicht"
-    );
-    assert_eq!(offen.len(), 2, "13.2 laesst genau zwei Plaetze offen");
+    // Was geblieben ist: zehn benannte Behaelter und drei Grundwerte.
+    assert_eq!(namen(&value, "slotNames").len(), SLOT_NAMES.len());
+    assert_eq!(namen(&value, "baseStatIds"), BASE_STAT_IDS.to_vec());
 }
 
 /// **Der Kern: dieselbe Folge von Beitraegen ergibt dieselben Faktoren.**

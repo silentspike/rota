@@ -8,7 +8,7 @@ import {
   QUALITY_LEGENDARY,
   QUALITY_NAMES,
   QUALITY_RARE,
-  QUALITY_STAT_SLOTS,
+  QUALITY_AFFIX_SLOTS,
   budgetOf,
   distributeBudget,
   shareOfSlot,
@@ -58,7 +58,7 @@ describe('Höhere Stufe heißt durchweg höhere Werte (AC1)', () => {
     // keine Verteilung alle Plätze anheben — die Summe stiege sonst um die
     // Zahl der Plätze.
     for (let quality = 0; quality < QUALITY_COUNT; quality++) {
-      const slots = QUALITY_STAT_SLOTS[quality] as number;
+      const slots = QUALITY_AFFIX_SLOTS[quality] as number;
       for (let level = 1; level < MAX_ITEM_LEVEL; level++) {
         const zuwachs = budgetOf(level + 1, quality) - budgetOf(level, quality);
         expect(zuwachs).toBeGreaterThanOrEqual(slots);
@@ -102,12 +102,12 @@ describe('Höhere Stufe heißt durchweg höhere Werte (AC1)', () => {
 });
 
 describe('Die Qualitäten (13.3)', () => {
-  it('trägt Werte-Plätze 1, 2, 3, 3', () => {
-    expect(QUALITY_STAT_SLOTS[QUALITY_COMMON]).toBe(1);
-    expect(QUALITY_STAT_SLOTS[QUALITY_RARE]).toBe(2);
-    expect(QUALITY_STAT_SLOTS[QUALITY_EPIC]).toBe(3);
-    // „3+" gelesen als: drei Plätze UND ein Effekt — nicht als vierter Platz.
-    expect(QUALITY_STAT_SLOTS[QUALITY_LEGENDARY]).toBe(3);
+  it('trägt Affixe 1, 2, 3, 3 — zusätzlich zu den drei Grundwerten', () => {
+    expect(QUALITY_AFFIX_SLOTS[QUALITY_COMMON]).toBe(1);
+    expect(QUALITY_AFFIX_SLOTS[QUALITY_RARE]).toBe(2);
+    expect(QUALITY_AFFIX_SLOTS[QUALITY_EPIC]).toBe(3);
+    // „3+" gelesen als: drei Affixe UND ein Effekt — nicht als vierter Affix.
+    expect(QUALITY_AFFIX_SLOTS[QUALITY_LEGENDARY]).toBe(3);
     expect(QUALITY_HAS_EFFECT[QUALITY_LEGENDARY]).toBe(true);
     expect(QUALITY_HAS_EFFECT[QUALITY_EPIC]).toBe(false);
     expect(QUALITY_NAMES.length).toBe(QUALITY_COUNT);
