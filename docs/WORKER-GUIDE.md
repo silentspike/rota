@@ -205,6 +205,28 @@ welche AC und warum. Das ist ein völlig normaler Ausgang und besser als eine ge
 
 **Grundzustand jeder AC ist UNGEPRÜFT.** Kein Befehl = ungeprüft. Ungeprüft ist nicht bestanden.
 
+### Die Messlatte muss den Fall enthalten, in dem sich etwas NICHT ändern darf
+
+_Formuliert von E3-3b am 2026-08-04, als Verallgemeinerung mehrerer Funde._
+
+Ein Prüffall, der nur zeigt, dass die neue Mechanik **etwas tut**, belegt selten das Richtige. Was
+er zeigen muss, ist der Unterschied — und dazu gehört die Seite, die **gleich bleiben soll**:
+
+| Nachweis                                      | Ohne die Gegenseite hätte auch bestanden …                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Drei Verteidigungs-Wege wirken verschieden    | … dass alle drei wirkungslos sind — es fehlte der Lauf **ohne** Verteidigung                |
+| Ein Schlag lässt sich verzögern               | … dass die **ganze** Zeitleiste rückt — es fehlte der zweite Schlag, der stehen bleibt      |
+| Eine Phase lässt sich hinauszögern            | … dass sie danach **zurückfällt** — es fehlte der Lauf, in dem die Wirkung ausläuft         |
+| Ein Unterbrecher ohne Gelegenheit zählt nicht | … dass Unterbrecher **grundsätzlich** ignoriert werden — es fehlte der Fall mit Gelegenheit |
+| Ausrüstung verändert den Schaden              | … dass ein anderer Faktor die Arbeit tut — es fehlte der neutrale Lauf                      |
+
+**Die Frage vor jedem Prüffall lautet deshalb nicht nur „was soll sich ändern", sondern auch: was
+darf sich dabei NICHT ändern — und steht das im selben Lauf?**
+
+Ein verwandter Fall: Wenn die neue Größe im Prüflauf überall **null** ist, kann er nichts zeigen.
+Bei E3-4 war die Parität grün, während die Schutzschicht auf einer Seite fehlte — in allen
+bestehenden Fällen war der Schutz null.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
