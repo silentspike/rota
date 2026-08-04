@@ -160,6 +160,14 @@ export class App {
 
   private handleUiKey(event: KeyboardEvent): void {
     if (event.ctrlKey || event.altKey || event.metaKey) return;
+    // **Der Beute-Moment ist vollständig überspringbar** (GAME-DESIGN 13.6),
+    // auch der des Legendary. Er wird ZUERST behandelt: Wer die Taste drückt,
+    // will weiter — und ein Moment, der eine Eingabe schluckt, wäre beim
+    // zweiten Mal eine Zumutung.
+    if (event.code === 'Space' && this.overlay.skipLoot()) {
+      event.preventDefault();
+      return;
+    }
     if (event.code === 'Escape') {
       event.preventDefault();
       this.togglePause();
