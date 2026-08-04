@@ -285,6 +285,31 @@ pub struct WornValues {
     pub purity: u32,
     /// YIELD in Promille, **zusaetzlich** zur Basis aus [`CRIT_BASE_PERMILLE`].
     pub yield_bonus: u32,
+    /// **Topf 4** in Promille: Satz-Boni **und** legendaere Effekte zusammen
+    /// (13.1b).
+    ///
+    /// # Warum dieses Feld erst nach #177 kam
+    ///
+    /// #177 hat die drei Sonderwerte aus 6.2 verdrahtet — CATALYSIS auf Zeiten,
+    /// PURITY und YIELD auf den Krit. Topf 4 blieb dabei liegen, obwohl der
+    /// Befund im Issue ihn ausdruecklich nannte ("kein einziger Topf wird
+    /// ausserhalb von gear.rs gelesen, auch POOL_GEAR_EFFECTS nicht"): Keine
+    /// einzige AC hat ihn aufgefuehrt.
+    ///
+    /// Aufgefallen ist es bei #118, wo "bester Satz-Aufbau gegen besten
+    /// Affix-Aufbau" gemessen werden soll — und die Satz-Seite gar nicht im
+    /// Kampf ankam.
+    ///
+    /// # Eine Verdrahtung, zwei Quellen
+    ///
+    /// 13.1b legt Satz-Boni und legendaere Effekte in **denselben** Topf, wo
+    /// sie untereinander addiert werden. Nach aussen ist es ein Faktor. Das
+    /// Quellen-Modul (`crate::sources`) fuehrt sie getrennt, weil sie
+    /// verschieden entstehen — hier kommen sie als eine Zahl an.
+    ///
+    /// **Die Lehre aus Diablo, die 13.1b zitiert:** Was multiplikativ ist, wird
+    /// gejagt. Deshalb ein Topf und nicht zwei.
+    pub gear_effects: u32,
 }
 
 /// Der Kritschaden ohne jeden YIELD-Beitrag: **150 %** (GAME-DESIGN 6.7).
@@ -301,13 +326,25 @@ impl WornValues {
             catalysis: 0,
             purity: 0,
             yield_bonus: 0,
+            gear_effects: 0,
         }
     }
 
     /// Ob ueberhaupt etwas getragen wird.
     #[must_use]
     pub const fn is_none(&self) -> bool {
-        self.catalysis == 0 && self.purity == 0 && self.yield_bonus == 0
+        self.catalysis == 0 && self.purity == 0 && self.yield_bonus == 0 && self.gear_effects == 0
+    }
+
+    /// Der Faktor von Topf 4 fuer die Schadensformel.
+    ///
+    /// **Eins plus die Summe** — dieselbe Regel wie in [`ValuePools::factor`],
+    /// nur ganzzahlig hereingegeben. Ohne getragene Ausruestung ist es exakt
+    /// 1,0, und 1,0 ist in IEEE754 die exakte Eins: Der Faktor bewegt dann
+    /// keine einzige Zahl.
+    #[must_use]
+    pub fn gear_effect_factor(&self) -> f64 {
+        1.0 + f64::from(self.gear_effects) / 1000.0
     }
 
     /// Die Kritchance als Wahrscheinlichkeit in `[0, 1]`.
