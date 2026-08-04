@@ -237,6 +237,29 @@ Beides ohne Muster-Interpretation — deshalb funktionieren sie.
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
 
+#### Eine Zusage mit Bedingung braucht einen Ort
+
+_Am 2026-08-04 lag ein abgenommener PR **acht Stunden** offen. Der Autor hätte die Arbeit fast ein
+zweites Mal gebaut._
+
+Die Abnahme war erfolgt, und die Merge-Ankündigung war an eine Bedingung geknüpft: „sobald ich den
+anderen PR durch habe". Der andere PR ging durch — und die Zusage blieb am Gedächtnis dessen
+hängen, der sie gegeben hatte. Der war längst beim nächsten Auftrag.
+
+> **Wer eine Bedingung setzt, muss sie auflösen.** Eine Zusage, die nur im Kopf steht, hat keinen
+> Ort, an dem jemand sie findet.
+
+**Beide Seiten haben eine Hälfte:**
+
+- **Wer wartet:** Ein PR, auf den du wartest, gehört auf **deine** Liste, nicht auf die des anderen.
+  Prüfe beim Anfangen eines Issues, ob dazu noch ein offener PR von dir existiert.
+- **Wer zusagt:** Keine Ankündigung mit „sobald…". Entweder sofort, oder mit einem Zeitpunkt, an
+  dem der andere nachfragen darf.
+
+> Am selben Tag lag ein zweiter Fall daneben: Ein PR war seit sechs Stunden gemergt, das zugehörige
+> Issue offen. **Merge und Schließen sind zwei Schritte** — der Ablauf oben nennt sie getrennt, weil
+> sie es sind.
+
 ### Schritt 7 — Verifikation durch die Master-Session
 
 Du meldest dein Ergebnis im Format aus § 6. Die Master-Session prüft **selbst im laufenden Spiel**
@@ -452,6 +475,77 @@ Konkret heißt das:
 
 > Alle drei fielen ihren Findern **beim Nachlesen des eigenen Prüffalls** auf, nicht durch ein
 > Werkzeug. Der Compiler sagt dazu nichts, und die CI bleibt grün.
+
+### „Lief es sauber" beantwortet nicht „war es das Richtige"
+
+_Gefunden und selbst gemeldet von E1 am 2026-08-04, beim Nachziehen eines PR._
+
+Der Zweig war der falsche. Der Merge von `main` lief trotzdem **konfliktfrei** durch, 34
+Sammlungen grün, alles wie erwartet:
+
+```
+git checkout feat/e6-4-aufwertung     # klang richtig — war der Zweig von heute früh
+git merge main                        # sauber, keine Konflikte
+cargo test                            # 34 Sammlungen ok
+```
+
+Gefangen hat es erst der Versuch, das eine Merkmal zu benutzen, das **nur dieser Zweig** hat:
+
+```
+cargo run --example gear-balance
+error: no example target named `gear-balance`
+```
+
+> **Ein sauberer Merge auf dem falschen Zweig sieht aus wie Erfolg.**
+>
+> **Die Prüfung „lief es sauber" kann die Frage „war es das Richtige" nicht beantworten. Sie sind
+> unabhängig.**
+
+Dasselbe Muster wie die `--base`-Falle in `CLAUDE.md`: **an einem Merkmal prüfen, das nur der
+eigene Stand hat** — nicht an der Abwesenheit von Fehlern.
+
+Und die zweite Hälfte gehört dazu: E1 hatte **nicht gepusht**, sondern mit `git reset --hard`
+zurückgenommen. Verloren war nichts.
+
+### Die Uhr kann genauso danebenliegen wie der Wert
+
+_Gefunden und selbst gemeldet von E7 am 2026-08-04, beim Warten auf die CI._
+
+Zwei Schleifen hintereinander: erst auf zehn Einträge warten, dann auf „kein pending". Dazwischen
+tauschte GitHub die Liste aus — erst standen die zehn des **alten** Laufs da, dann vier neue auf
+pending. Die erste Schleife stieg auf dem alten Lauf aus und meldete `0 bestanden, 0 fehlgeschlagen`.
+
+**Die Bedingung gehört in EINEN Ausdruck**, nicht in zwei aufeinanderfolgende Wartephasen:
+
+```
+mindestens zehn bestanden UND kein pending UND kein fail
+```
+
+> Es ist dieselbe Klasse wie die Fälle oben — eine Messung, die etwas anderes misst als gemeint —
+> **nur an der Uhr statt am Wert.** Zwischen zwei Abfragen kann sich das ändern, worüber die erste
+> geurteilt hat.
+
+### Ein neuer Zauber ist kein lokaler Eingriff
+
+_Von E3 am 2026-08-04 teuer gelernt: ein Commit, fünf rote Prüffälle in fremden Dateien._
+
+`SPELL_COUNT` ist eine feste Größe für **alle** Zustands-Listen im Kampf, und mehrere Prüffälle
+führen Erwartungen darauf. Wer einen Zauber anlegt, ändert damit:
+
+| Ort                                            | Was dort hängt                               |
+| ---------------------------------------------- | -------------------------------------------- |
+| `sim/build.rs`                                 | kennt die neue Datei nicht                   |
+| `data.rs`, `data_source.rs`                    | Zauberzahl, Datei-Abgleich, Schritt-1-Filter |
+| `report.rs` und zwei weitere                   | Erwartungslisten „toter" Zauber              |
+| `step1.test.ts`, `data.test.ts`, `log.test.ts` | abgeschriebene Zahlen                        |
+| `data/sound-manifest.json`                     | jeder Zauber braucht genau einen Klang       |
+
+**Die Prüffrage bei jeder dieser Stellen:** Würde sie nach meiner Änderung noch rot werden, wenn
+jemand einen Zauber vergisst? Wenn nein, hast du einen Wächter **entschärft** statt ihn nachgezogen.
+
+> Die richtige Reparatur ist fast nie „die Zahl hochsetzen". `tote.len() == table.len() - 1` ist
+> keine größere Zahl, sondern eine andere **Aussage** — und sie braucht beim nächsten Zauber keine
+> Pflege mehr.
 
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 

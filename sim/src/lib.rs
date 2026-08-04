@@ -57,6 +57,8 @@
 
 pub mod apl;
 pub mod balance;
+// Issue #118: die Suche nach dem besten Aufbau.
+pub mod best_build;
 // Issue E3-5: Verstaerkungen und Synergie-Fenster.
 pub mod buffs;
 pub mod checksum;
