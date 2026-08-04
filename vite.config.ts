@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => ({
               // ausführt.
               saveCheck: 'docs/save-check/index.html',
               analysisCheck: 'docs/analysis-check/index.html',
+              historyCheck: 'docs/history-check/index.html',
             },
           },
         }),
