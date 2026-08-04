@@ -73,6 +73,16 @@ export function buildDummy(settings: DummySettings, school: string): BossDef {
     phases: [],
     energy: null,
     timeline: buildDummyTimeline(settings),
+    // **Die Puppe wiederholt sich** (#174, GAME-DESIGN 15.5 „kein Zeitlimit").
+    // Wer eine Rotation ueber drei Minuten einschleift, uebte sonst nach der
+    // ersten Minute gegen einen Sandsack, der nichts mehr tut — und es faellt
+    // nicht auf, weil der Durchgang weiterlaeuft und nur die Boss-Ereignisse
+    // aufhoeren.
+    //
+    // Die Zykluslaenge ist die Spanne selbst: Die Abstaende (12 s fuer Zauber,
+    // 8 s fuer Schlaege) teilen sie beide, deshalb entsteht am Uebergang weder
+    // eine Luecke noch eine Haeufung.
+    timelineLoopMs: DUMMY_TIMELINE_SPAN_MS,
   };
 }
 

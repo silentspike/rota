@@ -5,6 +5,7 @@
   "allBossIds": [
     "first-crucible",
     "test-gatekeeper",
+    "test-metronome",
     "test-onslaught",
     "test-vessel",
     "test-warden"
