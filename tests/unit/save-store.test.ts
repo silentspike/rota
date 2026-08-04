@@ -41,6 +41,8 @@ function save(level = 1): SaveData {
     unlockedInstances: [],
     bestRuns: [],
     defeatedBosses: [],
+    runHistory: [],
+    progressMarks: [],
   };
 }
 
