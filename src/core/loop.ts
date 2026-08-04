@@ -17,6 +17,28 @@
 export const TICK_MS = 10;
 
 /**
+ * Rundet eine Zeit auf die nächste Takt-Grenze auf.
+ *
+ * Das Gegenstück zu `snap_up` in `sim/src/time.rs`, das es dort **seit Schritt 1**
+ * gibt — hier fehlte es bis Issue #177, und zwar folgenlos: Solange jede
+ * Abklingzeit ganze Sekunden trägt (6.4) und `timeMs` immer ein Vielfaches von
+ * `TICK_MS` ist, liegt jede gerechnete Zeit ohnehin auf dem Raster.
+ *
+ * **Mit Tempo endet das.** Eine Abklingzeit von 8 s bei +20 % ergibt 6666,67 ms.
+ * Wer sie ungerastert einplant, meldet den Zauber bei 6666 ms bereit; das Spiel
+ * bemerkt es erst beim nächsten Takt bei 6670 ms. Der Simulator wäre damit um bis
+ * zu einen Takt je Zauber schneller als das Spiel — eine Abweichung, die sich über
+ * einen Kampf zu Sekunden summiert und in keiner einzelnen Zahl sichtbar ist.
+ *
+ * **Aufwärts, nie abwärts:** Das Spiel kann nur zu Takt-Grenzen handeln, und eine
+ * Zeit, die zwischen zwei Grenzen endet, ist erst an der späteren vorbei.
+ */
+export function snapUp(timeMs: number): number {
+  const rest = timeMs % TICK_MS;
+  return rest === 0 ? timeMs : timeMs + (TICK_MS - rest);
+}
+
+/**
  * Obergrenze für nachgeholte Takte je Bild.
  *
  * Ohne sie schaukelt sich ein Rückstand auf: Viele nachzuholende Takte machen das

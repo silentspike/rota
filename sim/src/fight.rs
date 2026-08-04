@@ -67,11 +67,13 @@
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{
-    Boss, Control, ControlEffect, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER,
+    Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER,
     RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
+use crate::gear::WornValues;
+use crate::haste::hasted_ms;
 use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
@@ -183,6 +185,13 @@ pub struct FightConfig {
     /// gekennzeichnet ist. Mit 68 Bossen (GAME-DESIGN 11.7) wird das der
     /// haeufigste Schalter des Balance-Laeufers.
     pub boss: &'static Boss,
+    /// Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+    ///
+    /// **Voreinstellung ist [`WornValues::none`]**, und daran haengt die
+    /// Zusicherung aus AC7: Solange nichts getragen wird, laeuft der Kampf
+    /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
+    /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
+    pub worn: WornValues,
 }
 
 impl Default for FightConfig {
@@ -194,6 +203,7 @@ impl Default for FightConfig {
             log_capacity: 4096,
             factors: NEUTRAL,
             boss: BOSS,
+            worn: WornValues::none(),
         }
     }
 }
@@ -213,6 +223,13 @@ pub struct RunResult {
     pub damage_by_spell: [u32; SPELL_COUNT],
     /// Durch zu fruehes Erneuern verfallene Ticks, je Zauber.
     pub lost_dot_ticks: [u32; SPELL_COUNT],
+    /// **Abgegebene** Ticks je Zauber (Issue #177).
+    ///
+    /// Der Kampf fuehrt diese Zahl seit E3-1b mit und gab sie bislang nicht
+    /// heraus — sie ging nur in die Zustands-Pruefsumme ein. Mit CATALYSIS wird
+    /// sie zur Messgroesse: „Die Dauer bleibt, die Ticks werden mehr" (6.7) ist
+    /// ueber den Schaden allein nicht pruefbar, weil dort der Krit mitspielt.
+    pub dot_tick_counts: [u32; SPELL_COUNT],
     /// Am Deckel verpuffte Ressource.
     pub resource_overflow: u32,
     /// Zeit, in der gewartet wurde, obwohl gewirkt werden durfte.
@@ -353,6 +370,8 @@ pub struct Fight {
 
     // -- Regeln --
     factors: DamageFactors,
+    /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
+    worn: WornValues,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -427,6 +446,7 @@ impl Fight {
             resource_overflow: 0,
             idle_ms: 0,
             factors: config.factors,
+            worn: config.worn,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -1225,6 +1245,65 @@ impl Fight {
         }
     }
 
+    /// Eine Zeit unter dem Einfluss des getragenen CATALYSIS (GAME-DESIGN 6.7).
+    ///
+    /// **Die einzige Stelle, an der Tempo auf eine Zeit trifft.** Jeder Wirkort
+    /// geht durch sie; wer einen neuen hinzufuegt, ruft sie auf und bekommt das
+    /// Takt-Raster und die Untergrenze geschenkt.
+    ///
+    /// Ohne getragene Ausruestung gibt sie `base_ms` unveraendert zurueck —
+    /// siehe [`hasted_ms`], dort haengt AC7 daran.
+    fn hasted(&self, base_ms: Millis) -> Millis {
+        hasted_ms(base_ms, self.worn.catalysis)
+    }
+
+    /// Der Tick-Abstand eines Effekts ueber Zeit, unter dem Einfluss von Tempo.
+    ///
+    /// Steht als eigene Methode da, weil der Abstand an **vier** Stellen
+    /// gebraucht wird: beim ersten Tick, beim naechsten, beim Zaehlen der durch
+    /// Erneuern verlorenen Ticks — und in den Pruefungen. Vier Handabschriften
+    /// derselben Rechnung waeren genau die Klasse Fehler, die #134, #138, #159
+    /// und #173 hinterlassen haben.
+    fn dot_interval(&self, dot: &Dot) -> Millis {
+        self.hasted(dot.tick_interval_ms)
+    }
+
+    /// Ein Kritwurf fuer **eine Wirkung** (GAME-DESIGN 6.5).
+    ///
+    /// > Echte Wahrscheinlichkeit pro Zauber, pro DoT-Tick und pro Heilung.
+    /// > Kein Pech-Schutz, kein fester Startwert, keine feste Reihenfolge.
+    ///
+    /// # Wann gewuerfelt wird — und warum nicht oefter
+    ///
+    /// **Ein Wurf je Wirkung, nicht je Teilbetrag.** Ein Zauber mit Grund- und
+    /// Entladeschaden kritet als Ganzes oder gar nicht. Das folgt derselben
+    /// Festlegung, die weiter unten ein einziges Schaden-Ereignis je Wirkung
+    /// meldet: Zwei Wuerfe waeren zwei Erzaehlungen desselben Treffers.
+    ///
+    /// # Ohne PURITY faellt gar kein Wurf
+    ///
+    /// [`crate::rng::RandomStream::chance`] schliesst bei einer
+    /// Wahrscheinlichkeit von 0 kurz, **ohne den Strom zu drehen** — der
+    /// Kommentar dort nennt genau diesen Grund. Damit bleibt der Ziehungszaehler
+    /// unveraendert, und mit ihm die Zustands-Pruefsumme. **Daran haengt AC7**,
+    /// und zwar an einer Stelle, die man leicht uebersieht: Ein Wurf, dessen
+    /// Ergebnis feststeht, waere rechnerisch folgenlos und trotzdem sichtbar.
+    fn roll_crit(&mut self) -> bool {
+        self.rng.chance(Stream::Crit, self.worn.crit_chance())
+    }
+
+    /// Die Faktoren fuer einen Treffer, je nachdem ob der Wurf sass.
+    fn factors_for(&self, crit: bool) -> DamageFactors {
+        if crit {
+            DamageFactors {
+                crit: self.worn.crit_factor(),
+                ..self.factors
+            }
+        } else {
+            self.factors
+        }
+    }
+
     fn dot_tick(&mut self, index: usize, generation: u16) {
         // Veraltet: Der Effekt wurde inzwischen erneuert, und `refreshMode:
         // "reset"` laesst die alte Anwendung verfallen (`STEP1-SPEC` 1.2).
@@ -1238,14 +1317,27 @@ impl Fight {
             return;
         };
 
+        // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
+        // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn
+        // gesetzt hat — sonst kritete ein DoT ueber seine ganze Laufzeit
+        // entweder immer oder nie, und der Glueckanteil, den 6.5 ausdruecklich
+        // will, verschwaende sich in einer einzigen Entscheidung.
+        let kritet = self.roll_crit();
+        let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
-            compute_damage(dot.tick_damage, &self.factors),
+            compute_damage(dot.tick_damage, &factors),
             LogKind::DotTick,
         );
         // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zaehlen
         // will, meldet sich fuer beide Arten an — so bleibt die Folge eindeutig.
         self.emit_rule(RuleEvent::DotTick, index as i16, f64::from(tick_damage));
+        // **Das Ereignis, das bis #177 ruhte.** Sein Kommentar in
+        // `rules_event.rs` sagte "Ruht in Schritt 1 (PURITY = 0)" — mit
+        // getragenem PURITY hat es einen Fall.
+        if kritet {
+            self.emit_rule(RuleEvent::Crit, index as i16, f64::from(tick_damage));
+        }
         self.dot_tick_counts[index] += 1;
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
@@ -1253,7 +1345,7 @@ impl Fight {
         // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
         // 12 s Laufzeit bei 2 s Abstand ergeben **6** Ticks, der letzte genau
         // beim Ablauf (`STEP1-SPEC` 1.2).
-        let next = self.time + dot.tick_interval_ms;
+        let next = self.time + self.dot_interval(&dot);
         if self.dot_expires_at[index].is_some_and(|expires| next <= expires) {
             self.queue.push(
                 next,
@@ -1380,10 +1472,25 @@ impl Fight {
         self.apply_coagulation(index, spell);
         self.apply_fixation(spell);
 
+        // **Ein Wurf fuer die ganze Wirkung**, und er faellt genau dann, wenn
+        // der Zauber **laut seinen Daten** Schaden austeilen kann — nicht
+        // danach, ob am Ende ein Betrag herauskommt.
+        //
+        // Der Unterschied betrifft den Entlade-Zauber ohne Punkte: Er wuerfelt,
+        // obwohl sein Schaden null ist. Das ist Absicht. Die Bedingung ist aus
+        // den Daten ablesbar und haengt nicht am Zustand — damit ist sie auf
+        // beiden Seiten trivial gleichzuhalten. Eine Bedingung ueber den
+        // ausgerechneten Betrag waere es nicht, und ein Zufallsstrom, der auf
+        // den zwei Seiten verschieden oft gedreht wird, laesst den ganzen
+        // folgenden Kampf auseinanderlaufen.
+        let teilt_schaden_aus = spell.base_damage > 0 || spell.spender.is_some();
+        let kritet = teilt_schaden_aus && self.roll_crit();
+        let factors = self.factors_for(kritet);
+
         if spell.base_damage > 0 {
             cast_damage += self.deal(
                 index,
-                compute_damage(spell.base_damage, &self.factors),
+                compute_damage(spell.base_damage, &factors),
                 LogKind::Damage,
             );
         }
@@ -1396,11 +1503,7 @@ impl Fight {
             }
             self.log
                 .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            cast_damage += self.deal(
-                index,
-                compute_damage(damage, &self.factors),
-                LogKind::Damage,
-            );
+            cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
             self.resource = 0;
         }
 
@@ -1412,9 +1515,14 @@ impl Fight {
         if cast_damage > 0 {
             self.emit_rule(RuleEvent::Damage, index as i16, f64::from(cast_damage));
         }
-        // Hierher gehoert `RuleEvent::Crit`. Krit ruht in Schritt 1
-        // (PURITY = 0, `STEP1-SPEC` 2); ein Ausloeser, der nie zutrifft, waere
-        // toter Code.
+        // **Hier stand bis #177: "Krit ruht in Schritt 1 (PURITY = 0); ein
+        // Ausloeser, der nie zutrifft, waere toter Code."** Der Ort war richtig
+        // benannt; jetzt hat er einen Fall. Der Ausloeser steht NACH
+        // `RuleEvent::Damage`, weil ein Krit eine Aussage ueber einen Treffer
+        // ist, den es schon gegeben hat.
+        if kritet && cast_damage > 0 {
+            self.emit_rule(RuleEvent::Crit, index as i16, f64::from(cast_damage));
+        }
 
         if let Some(dot) = spell.dot {
             if self.dot_active(index) {
@@ -1422,11 +1530,15 @@ impl Fight {
                 // Ticks verloren geht, ist die Kennzahl, an der die Fehleranalyse
                 // den haeufigsten Anfaengerfehler festmacht.
                 let remaining = self.dot_expires_at[index].unwrap_or(now) - now;
-                self.lost_dot_ticks[index] += remaining / dot.tick_interval_ms;
+                self.lost_dot_ticks[index] += remaining / self.dot_interval(&dot);
             }
             self.dot_generation[index] = self.dot_generation[index].wrapping_add(1);
+            // **Die Dauer bleibt unangetastet** (GAME-DESIGN 6.7). Tempo macht
+            // die Ticks dichter, nicht das Fenster kuerzer — sonst verschoebe
+            // sich der beste Erneuerungszeitpunkt (7.2) bei jedem
+            // Ausruestungswechsel.
             self.dot_expires_at[index] = Some(now + dot.duration_ms);
-            let first = snap_up(now + dot.tick_interval_ms);
+            let first = snap_up(now + self.dot_interval(&dot));
             self.queue.push(
                 first,
                 EventKind::DotTick {
@@ -1436,7 +1548,12 @@ impl Fight {
             );
         }
 
-        let ready_at = snap_up(now + spell.cooldown_ms);
+        // **Alle Abklingzeiten skalieren mit** (GAME-DESIGN 6.7) — anders als
+        // in WoW, wo eine Ausnahmeliste je Faehigkeit entscheidet.
+        // Abklingzeiten sind bei uns die alleinige Schwierigkeit (2.1); eine
+        // Liste, welcher Zauber mitskaliert, waere eine zweite Regel zum
+        // Auswendiglernen.
+        let ready_at = snap_up(now + self.hasted(spell.cooldown_ms));
         self.cooldown_ready_at[index] = ready_at;
         self.queue.push(ready_at, EventKind::Wakeup);
 
@@ -1487,6 +1604,7 @@ impl Fight {
             casts: self.casts,
             damage_by_spell: self.damage_by_spell,
             lost_dot_ticks: self.lost_dot_ticks,
+            dot_tick_counts: self.dot_tick_counts,
             resource_overflow: self.resource_overflow,
             idle_ms: self.idle_ms,
             random_draws: self.rng.total_draws(),

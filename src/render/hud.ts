@@ -20,7 +20,7 @@ import { TICK_MS } from '../core/loop.js';
 import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
-import type { Overlay } from './overlay.js';
+import type { MarkDisplay, Overlay } from './overlay.js';
 import type { RunSummary } from '../core/summary.js';
 import type { Impact } from './impact.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
@@ -115,6 +115,7 @@ export class HudRenderer {
     bossHp: number;
     casts: number;
     summary: RunSummary | null;
+    mark: MarkDisplay | null;
   } = {
     outcome: 0,
     elapsedMs: 0,
@@ -123,6 +124,7 @@ export class HudRenderer {
     bossHp: 0,
     casts: 0,
     summary: null,
+    mark: null,
   };
 
   constructor(
@@ -131,6 +133,15 @@ export class HudRenderer {
     labels: KeyLabels,
     private readonly overlay: Overlay,
     private readonly impact: Impact,
+    /**
+     * Woher die Fortschrittsmarke kommt (Issue #187).
+     *
+     * Als Quelle und nicht als Wert: Die Anzeige fragt beim Wechsel in die
+     * Auswertung, statt dass jemand sie hineinreicht und dabei vergisst, sie
+     * nachzuziehen. Dasselbe Muster wie `MetricsSource` im Trainingsraum --
+     * und die Vorgabe `null` haelt jeden bestehenden Aufruf gueltig.
+     */
+    private readonly markSource: () => MarkDisplay | null = () => null,
   ) {
     this.mechanicSource = {
       get resourceId(): string {
@@ -215,6 +226,11 @@ export class HudRenderer {
       this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome
         ? this.session.summary(shownMs)
         : view.summary;
+    // Die Marke wird beim selben Wechsel geholt wie die Kurzfassung -- nicht
+    // je Bild. Sie aendert sich waehrend der Auswertung nicht.
+    if (this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome) {
+      view.mark = this.markSource();
+    }
     if (this.session.phase === PHASE_ENDED) this.lastSummaryOutcome = this.session.outcome;
     else this.lastSummaryOutcome = -1;
     this.overlay.update(this.session.phase, this.session.outcome, view);

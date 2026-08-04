@@ -36,6 +36,8 @@ import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
 import eingecheckteFixierung from './recordings/fixation.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
+import eingecheckteUmrechnung from './recordings/haste.json';
+import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import {
   bossStatePayload,
   timelineLoopPayload,
@@ -52,6 +54,8 @@ import {
   cooldownResetPayload,
   gearPayload,
   setsPayload,
+  hastePayload,
+  wornPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -118,6 +122,14 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Protokoll-Arten des Spiels entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteProtokollParitaet, HINWEIS).toEqual(logParityPayload());
+  });
+
+  it('die Tempo-Umrechnung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteUmrechnung, HINWEIS).toEqual(hastePayload());
+  });
+
+  it('der Lauf mit getragener Ausrüstung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteGetrageneWerte, HINWEIS).toEqual(wornPayload());
   });
 });
 
