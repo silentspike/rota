@@ -24,23 +24,42 @@
  * `Number.MAX_SAFE_INTEGER` (9,007e15) — die längste Abklingzeit aus 6.4 sind
  * 180 000 ms, mal 1000 also 1,8e8.
  *
+ * # Die Wirkorte, und einer der ausdrücklich fehlt
+ *
+ * | Wirkort                | Untergrenze |
+ * | ---------------------- | ----------- |
+ * | **Alle** Abklingzeiten | ein Takt    |
+ * | DoT-Tick-Abstand       | ein Takt    |
+ * | ~~Globale Wartezeit~~  | —           |
+ *
+ * **Die globale Wartezeit gehört NICHT dazu.** 6.2 legt seit dem 2026-07-29
+ * fest: Der GCD sinkt ausschließlich über den **Talentbaum**, nie über
+ * Ausrüstung. Kürzere Abklingzeiten sind eine Planungsaufgabe, ein kürzerer GCD
+ * ein Reaktionstest — und die Reaktionszeit wird nicht bewertet (21.2).
+ *
+ * 6.7 hatte sie beim ersten Schreiben versehentlich als Wirkort geführt; die
+ * Fassung vom 2026-08-04 streicht sie wieder. Diese Datei hat den Wirkort nie
+ * gehabt.
+ *
  * # Was hier NICHT steht: der Deckel
  *
- * 6.7 nennt für CATALYSIS einen Deckel von 50 %, abgeleitet aus
- * `1500 / (1 + t) = 1000` — „die Untergrenze aus 6.6".
+ * **Der Tempo-Deckel wird gemessen, nicht gesetzt** (6.7). Die Frage lautet,
+ * bei welchem Wert Tempo aufhört, sich gegen Kritchance und Kritschaden zu
+ * lohnen — das beantwortet der Balance-Läufer, kein Überlegen.
  *
- * **6.6 enthält keine Untergrenze.** Nachgezählt am 2026-08-04: Die 1,0 s
- * stehen an genau einer Stelle im Design, nämlich in 6.4, und dort als „per
- * **Talent** senkbar bis **ca.** 1,0 s". Aus einem Ungefähr für einen anderen
- * Mechanismus lässt sich kein Deckel ableiten, und ein `HASTE_CAP = 500` wäre
- * genau die Handabschrift, vor der die Auflage zu Issue #177 warnt.
+ * > Eine Ableitung stand dort und trug nicht: „50 %, folgt aus
+ * > `1500 / (1 + t) = 1000` — die Untergrenze aus 6.6". Beide Bezugspunkte
+ * > waren falsch. 6.6 enthält keine Untergrenze (sie steht in 6.4, als
+ * > **„ca. 1,0 s"** und für den **Talentbaum**), und Ausrüstungs-Tempo berührt
+ * > die Wartezeit gar nicht.
+ * >
+ * > **Merksatz aus 6.7:** Eine Zahl mit Begründungs-Anschein ist schlimmer als
+ * > eine offen gesetzte — sie sieht geprüft aus. Wer sie liest, sucht die
+ * > Quelle nicht nach.
  *
- * Dieselbe Stelle trägt den zweiten offenen Punkt: 6.7 führt die **globale
- * Wartezeit** als Wirkort, 6.2 schließt sie ausdrücklich aus („Der GCD sinkt
- * ausschließlich über den Talentbaum, nie über Ausrüstung", Festlegung vom
- * 2026-07-29). Beides ist gemeldet; bis zur Entscheidung wirkt Tempo hier auf
- * **Abklingzeiten und DoT-Tick-Abstände** — die Wirkorte, in denen 6.2 und 6.7
- * übereinstimmen.
+ * Solange die Messung aussteht, ist Tempo hier **ungedeckelt**. Die einzige
+ * Grenze ist die Untergrenze von einem Takt je Zeit, und die ist eine
+ * Rechenregel, keine Balance-Entscheidung.
  */
 
 import { TICK_MS, snapUp } from './loop.js';

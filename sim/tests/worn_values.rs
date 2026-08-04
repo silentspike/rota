@@ -18,17 +18,27 @@
 //!
 //! # Was hier NICHT geprueft wird, und warum
 //!
-//! **Die globale Wartezeit.** 6.7 fuehrt sie als Wirkort, 6.2 schliesst sie
-//! ausdruecklich aus ("Der GCD sinkt ausschliesslich ueber den Talentbaum, nie
-//! ueber Ausruestung", Festlegung vom 2026-07-29). Der Widerspruch ist gemeldet
-//! und nicht von hier aus zu entscheiden. Bis die Antwort da ist, wirkt Tempo
-//! auf die Wirkorte, in denen **beide** Kapitel uebereinstimmen.
+//! **Die globale Wartezeit — weil Tempo sie nicht beruehren DARF.** 6.2 legt
+//! seit dem 2026-07-29 fest, dass der GCD ausschliesslich ueber den Talentbaum
+//! sinkt. 6.7 hatte sie beim ersten Schreiben versehentlich als Wirkort
+//! gefuehrt; die Fassung vom 2026-08-04 streicht sie wieder.
+//!
+//! Ein Prueffall dafuer waere also nicht bloss ueberfluessig, sondern falsch
+//! herum. Was es stattdessen gibt, ist der Befund in `nur_pyre`: **weil** der
+//! GCD unberuehrt bleibt, aendert Tempo die Zahl der Aktionen nicht, und eine
+//! kuerzere Abklingzeit wirkt nur dort, wo ein Zauber sonst nicht bereit
+//! gewesen waere.
+//!
+//! **Der Tempo-Deckel.** Er wird gemessen, nicht gesetzt (6.7) — vom
+//! Balance-Laeufer, nicht von hier. Solange die Messung aussteht, ist Tempo
+//! ungedeckelt, und `unter_einem_takt_geht_es_nicht` in `crate::haste` prueft
+//! die einzige Grenze, die es heute gibt.
 
-use rota_sim::data::{KINDLE, PYRE, SMOULDER, SPELLS};
+use rota_sim::data::{boss_by_id, KINDLE, PYRE, SMOULDER, SPELLS};
 use rota_sim::gear::WornValues;
 use rota_sim::haste::hasted_ms;
 use rota_sim::rotation;
-use rota_sim::{Fight, FightConfig, RunResult};
+use rota_sim::{Fight, FightConfig, Millis, RunResult};
 
 /// Ein Durchgang ueber die volle Kampfzeit mit den angegebenen Werten.
 ///
@@ -141,9 +151,15 @@ fn ohne_ausruestung_laeuft_jede_zeit_unveraendert() {
 /// Abklingzeit aendert erst dann etwas, wenn ein Zauber sonst NICHT bereit
 /// gewesen waere. Mit dieser Rotation ist genau das der Fall.
 ///
-/// Dass die Zahl der Aktionen am GCD haengt, ist auch der Grund, warum der
-/// blockierte AC1 mehr als eine Formalie ist: Solange Tempo die Wartezeit nicht
-/// beruehrt, verschiebt es die Rotation nur ueber die Abklingzeiten.
+/// **Dass die Zahl der Aktionen am GCD haengt, ist eine Folge der Design-Regel,
+/// kein Mangel.** Weil Tempo die Wartezeit nicht beruehrt (6.2), verschiebt es
+/// die Rotation ausschliesslich ueber Abklingzeiten und DoT-Ticks — genau die
+/// Planungsaufgabe, die 6.2 vom Reaktionstest unterscheidet.
+///
+/// Die Folge fuer die Balance ist trotzdem messbar und gehoert in den
+/// Deckel-Lauf: Mit KINDLE und SMOULDER auf genau 1500 ms ist im heutigen
+/// Zauberkasten **kein** Zauber durch seine Abklingzeit begrenzt. CATALYSIS
+/// wirkt dort also fast nur ueber die DoT-Ticks.
 fn nur_pyre(fight: &Fight) -> Option<usize> {
     if fight.is_ready(PYRE) {
         Some(PYRE)
@@ -422,4 +438,131 @@ fn jeder_der_drei_werte_bewegt_etwas() {
     assert_ne!(nur_tempo.damage, ohne.damage, "CATALYSIS bewegt nichts");
     assert_ne!(nur_purity.damage, ohne.damage, "PURITY bewegt nichts");
     assert_ne!(nur_yield.damage, nur_purity.damage, "YIELD bewegt nichts");
+}
+
+// ---------------------------------------------------------------------------
+// Der vierte Wirkort aus 6.7 — und warum hier nichts zu verdrahten war
+// ---------------------------------------------------------------------------
+
+#[test]
+fn kein_spieler_zauber_hat_ueberhaupt_eine_wirkzeit() {
+    // 6.7 fuehrt die **Wirkzeit** als dritten Wirkort ("Untergrenze: keine").
+    // Sie ist hier nicht verdrahtet, und das ist kein Versehen: Im heutigen
+    // Zauberkasten gibt es keine.
+    //
+    // Diese Pruefung haelt den Zustand fest, auf den sich das stuetzt. Bekommt
+    // ein Zauber je eine Wirkzeit (7.1 sieht 1,5 bis 2,5 s vor), faellt sie —
+    // und wer sie repariert, findet hier den Hinweis, dass dann auch der
+    // Wirkort dazugehoert.
+    for spell in SPELLS.iter() {
+        assert_eq!(
+            spell.cast_time_ms, 0,
+            "{} hat eine Wirkzeit — dann gehoert sie durch `hasted` (6.7)",
+            spell.id
+        );
+    }
+}
+
+#[test]
+fn tempo_beschleunigt_den_boss_nicht() {
+    // **Der gefaehrlichste Fehler, den dieses Issue haette machen koennen.**
+    //
+    // Die einzige Wirkzeit, die es im Code ueberhaupt gibt, gehoert dem BOSS
+    // (`interruptibleCast` in seiner Zeitleiste). Wer den Wirkort "Wirkzeit"
+    // aus 6.7 blind verdrahtet, indem er jedes `cast_time_ms` durch `hasted`
+    // schickt, beschleunigt damit die Zauber des GEGNERS — und zwar umso mehr,
+    // je besser die Ausruestung des Spielers ist.
+    //
+    // # Warum dieser Fall auf die Uhr misst und nicht auf die Summe
+    //
+    // Die erste Fassung verglich erlittenen Schaden und Unterbrechungen ueber
+    // die vollen 60 s. Sie war **wertlos**, und das hat erst die Gegenprobe
+    // gezeigt: Mit `self.hasted(entry.cast_time_ms)` an der Boss-Stelle blieben
+    // alle zwoelf Faelle gruen. Der Zauber landete zwar bei 5500 ms statt bei
+    // 7000 — aber er landete, und am Ende des Kampfes stand dieselbe Summe.
+    //
+    // Gemessen wird deshalb ein **Zeitpunkt**: Der Kampf endet bei 6500 ms.
+    // Regulaer landet der Zauber bei 4000 + 3000 = 7000 und faellt damit hinter
+    // das Kampfende. Waere er faelschlich beschleunigt, landete er bei
+    // 4000 + 1500 = 5500 — mitten im Kampf.
+    let boss = boss_by_id("test-warden").expect("test-warden fehlt");
+    let cast = boss
+        .timeline
+        .iter()
+        .find(|e| e.cast_time_ms > 0)
+        .expect("test-warden hat keinen Zauber mit Wirkzeit — dann prueft dieser Fall nichts");
+    assert_eq!(cast.cast_time_ms, 3000, "die Datenlage");
+    assert_eq!(cast.at_ms, 4000, "die Datenlage");
+
+    /// Das Kampfende liegt zwischen den beiden Landezeitpunkten.
+    const KURZ_MS: Millis = 6500;
+    assert!(
+        cast.at_ms + cast.cast_time_ms > KURZ_MS,
+        "regulaer zu spaet"
+    );
+    assert!(
+        cast.at_ms + hasted_ms(cast.cast_time_ms, 1000) < KURZ_MS,
+        "faelschlich beschleunigt waere er rechtzeitig — sonst faengt dieser Fall nichts"
+    );
+
+    let kurzer_lauf = |worn: WornValues| {
+        let mut fight = Fight::new(FightConfig {
+            stop_on_kill: false,
+            duration_ms: Some(KURZ_MS),
+            boss,
+            worn,
+            ..FightConfig::default()
+        });
+        fight.run(rotation::good);
+        fight.damage_taken()
+    };
+
+    assert_eq!(
+        kurzer_lauf(WornValues::none()),
+        0,
+        "regulaer landet der Boss-Zauber erst nach dem Kampfende"
+    );
+    assert_eq!(
+        kurzer_lauf(WornValues {
+            catalysis: 1000,
+            ..WornValues::none()
+        }),
+        0,
+        "+100 % Tempo des SPIELERS hat den Boss-Zauber vorgezogen"
+    );
+
+    // **Der Vergleichsfall, ohne den beide Nullen nichts bedeuten:** Bei voller
+    // Kampfzeit trifft derselbe Zauber sehr wohl.
+    let mut voll = Fight::new(FightConfig {
+        stop_on_kill: false,
+        boss,
+        worn: WornValues::none(),
+        ..FightConfig::default()
+    });
+    voll.run(rotation::good);
+    assert!(
+        voll.damage_taken() > 0,
+        "der Boss teilt ueberhaupt keinen Schaden aus — dieser Fall prueft nichts"
+    );
+
+    // Und dass `worn` in diesem Aufbau ueberhaupt ankommt: Beim Spieler wirkt
+    // dasselbe Tempo.
+    let lauf = |worn: WornValues| {
+        Fight::new(FightConfig {
+            stop_on_kill: false,
+            boss,
+            worn,
+            ..FightConfig::default()
+        })
+        .run(rotation::good)
+    };
+    assert_ne!(
+        lauf(WornValues {
+            catalysis: 1000,
+            ..WornValues::none()
+        })
+        .damage,
+        lauf(WornValues::none()).damage,
+        "+100 % Tempo bewegt den Spieler-Schaden nicht — kommt `worn` ueberhaupt an?"
+    );
 }
