@@ -1435,6 +1435,43 @@ Aus Epic E8, für die Planung von E10:
 **Ästhetische Abnahme macht der Auftraggeber** über ein Abhör-Soundboard; Claude kann nicht hören
 und prüft nur technisch (ffprobe: Länge, Pegel, Anfangs-Stille, Clipping).
 
+#### Kein Klang verzögert irgendetwas
+
+_Entschieden am 2026-08-04, als Antwort auf eine Frage, die enger gestellt war._
+
+**Alle Klänge müssen zeitgleich spielen können.** Kein Klang wartet auf einen anderen, keiner
+verdrängt einen laufenden, und **keiner verzögert eine Handlung im Spiel** — weder einen Zauber noch
+eine Boss-Aktion noch einen Zustandswechsel.
+
+> Die Frage lautete, welcher von zwei gleichzeitigen Klängen weichen soll. Die Antwort war: keiner.
+> Ein Klang ist eine **Meldung über** das Spiel, nie ein Teil davon. Sobald die Wiedergabe einen
+> Ablauf beeinflussen kann — auch nur um einen Takt —, ist der Gleichlauf mit dem Simulator dahin,
+> denn der hat keine Audio-Schicht.
+
+Praktisch heißt das: Wiedergabe immer nebenläufig, nie abwartend; ein Klang, dessen Kanal belegt ist,
+bekommt einen neuen statt zu warten; und die Zahl gleichzeitiger Klänge ist eine Frage der
+Lautstärke-Mischung, nicht der Reihenfolge.
+
+#### Die drei offenen Schaltpunkte
+
+_Entschieden am 2026-08-04. Sie standen als Design-Fragen aus E8 und blockierten das Epic._
+
+| Klang                         | Wann                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Spannungs-Schicht** (Musik) | **Zwei Auslöser**: unter 20 % Boss-Leben **oder** wenn das Zeitlimit ins letzte Viertel geht — was zuerst eintritt |
+| **Ende der Wartezeit**        | **Abschaltbar, standardmäßig aus** — ein Metronom als Lernhilfe, nicht als Grundzustand                            |
+| **Überdruck + Zeitablauf**    | **Beide, gleichzeitig**, als ein Klangbild abgestimmt (siehe Regel oben)                                           |
+
+> **Warum die Spannungs-Schicht zwei Auslöser hat:** Der Endspurt unter 20 % ist bereits ein
+> beschlossenes Ereignis (10.2) — der Spieler lernt keinen neuen Schaltpunkt. Aber bei einem Lauf,
+> der gut läuft, käme sie nie, und dann fehlte der Höhepunkt genau bei den besten Durchgängen. Der
+> zweite Auslöser warnt außerdem vor dem, was den Spieler tatsächlich tötet.
+>
+> **Warum das Metronom standardmäßig aus ist:** Bei einem Zehn-Minuten-Kampf sind es rund 400
+> Klänge. Als dauerhafter Grundzustand nutzt sich das ab; als einschaltbare Lernhilfe ist es
+> wertvoll, weil der Spieler den Grundtakt über das Ohr lernt und den Blick für die Abklingzeiten
+> frei behält.
+
 ### 17.2 Grafik
 
 **Eingestandene Grenze:** Claude kann keinen eigenen visuellen Stil hervorbringen. Referenzbilder
