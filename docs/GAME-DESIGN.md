@@ -1193,6 +1193,35 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 > Gefunden hat es Worker-1, nicht ich. Wer 13.5 gelesen hätte, ohne 13.2 zu kennen, hätte den
 > Prüflauf gegen eine gestrichene Regel gebaut.
 
+#### Der Preis des Satz-Bonus ist die Wahlfreiheit
+
+_Vom Auftraggeber entschieden am 2026-08-04, nachdem Worker-1 die Lücke beim Bau der Messung
+gemeldet hat._
+
+**Ein Satz-Teil trägt dieselben Affixe wie ein freies Stück derselben Qualität.** Es wird nichts
+abgezogen. Der Preis ist ein anderer:
+
+> Wer sechs Satz-Teile trägt, kann auf diesen sechs Plätzen **nicht die besten Einzelstücke
+> tragen**. Er nimmt, was der Satz an Affixen mitbringt, statt gezielt zu wählen.
+
+**Warum die Frage gestellt werden musste:** Ein Satz-Teil ist ein Gegenstand — es trägt Affixe
+**und** zählt für den Satz. Ohne einen Preis käme der Bonus obendrauf, und „Satz tragen" wäre
+immer richtig; die Anforderung „etwa gleichwertig" wäre unerfüllbar, ganz gleich wie die Zahlen
+gesetzt sind.
+
+**Was das für den Prüflauf bedeutet:** Der Satz-Aufbau darf seine Affixe **nicht frei wählen** —
+sie sind durch die getragenen Teile vorgegeben. Nur der Affix-Aufbau wählt frei. Ein Vergleich,
+in dem beide Seiten optimal verteilen, misst den Preis nicht und fällt zwangsläufig zugunsten
+der Sätze aus.
+
+> **Bewusst nicht gewählt:** weniger Affixe je Satz-Teil. Das wäre leichter zu balancieren und im
+> Kopf nachrechenbar — ließe Satz-Teile beim Finden aber schwächer wirken als andere Stücke
+> derselben Qualität, und das widerspricht dem Sechser-Bonus als Krönung (13.5).
+>
+> **Bekannte Folge, die der Prüflauf im Auge behalten muss:** Der Nachteil hängt am Beute-Glück.
+> Wessen Satz-Teile zufällig passende Affixe tragen, zahlt kaum etwas — wessen Teile danebenliegen,
+> zahlt viel. Der Vergleich misst also eine Spanne, keinen festen Abstand.
+
 ### 13.6 Beute-Handhabung
 
 | Aspekt                            | Festlegung                                                                                                                                                                                                                                                               |
