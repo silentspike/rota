@@ -121,6 +121,34 @@ grün. Ist er rot, **den Code reparieren, nicht den Test.**
 > **Kein Anpassen von Schwellwerten, Tests oder Konfiguration, damit etwas durchgeht.** Die einzige
 > Ausnahme ist, wenn das Issue ausdrücklich sagt, dass ein Schwellwert falsch gesetzt war.
 
+#### Grün belegt, dass nichts kaputt ist — nicht, dass etwas da ist
+
+_Gemessen am 2026-08-04, beinahe mit Datenverlust._
+
+Ein Zweig, dem die eigentliche Arbeit fehlt, ist **genauso grün** wie einer, der sie enthält. Die CI
+prüft, ob der vorhandene Code funktioniert, nicht ob der Code vorhanden ist.
+
+> Beim Mergen von #115 wurde der Push abgelehnt (`non-fast-forward`). Der lokale Zweig hatte die
+> eigene Arbeit **nicht mehr** — ein zwischenzeitliches `git checkout -B` hatte ihn auf `main`
+> zurückgesetzt. Der Remote war die einzige vollständige Kopie.
+>
+> Ein `git push --force` hätte sie gelöscht, und der danach gemergte PR wäre grün und leer gewesen.
+
+**`non-fast-forward` ist kein Ärgernis, das man wegdrückt, sondern eine Meldung über einen Zustand,
+den man nicht kennt.** Bevor du forcierst — was ohnehin die Ausnahme sein sollte —, sieh nach, was
+auf beiden Seiten steht:
+
+```bash
+git log --oneline origin/<zweig>..HEAD        # was hat der lokale Zweig, was der Remote nicht hat?
+git log --oneline HEAD..origin/<zweig>        # und umgekehrt — die wichtigere Richtung
+git show origin/<zweig>:<eine deiner Dateien> # liegt deine Arbeit dort noch?
+```
+
+Dasselbe gilt für die Abnahme: Ein grüner PR ist eine Voraussetzung, kein Nachweis. Der Nachweis ist,
+dass die Prüffälle die neue Mechanik **wirklich berühren** — bei E3-4 war die Parität grün, während
+die Schutzschicht auf der Spielseite gar nicht eingebaut war, weil in allen bestehenden Fällen der
+Schutz null ist.
+
 ### Schritt 6 — Merge nach `main`
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
