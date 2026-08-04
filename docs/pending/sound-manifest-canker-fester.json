@@ -1,0 +1,47 @@
+{
+  "_hinweis": "NICHT EINGEHAENGT. Diese zwei Eintraege gehoeren in data/sound-manifest.json, sobald Issue #97 die Zauber CANKER und FESTER anlegt. Vorher machen sie main ROT: SoundMap.bindSpells meldet 'Klang \"spell-canker\": Zauber \"canker\" gibt es nicht.' -- eine absichtliche Pruefung mit eigenem Prueffall (sound-triggers.test.ts:178), keine Luecke. Die Klaenge selbst liegen bereits in assets/audio/ und sind geprueft.",
+  "_einbau": [
+    "1. Die zwei Eintraege aus 'sounds' hinter den uebrigen group=spells einfuegen.",
+    "2. coverage.groups.spells.present von 10 auf 12 setzen.",
+    "3. coverage.placeholders[spells].count von 50 auf 48 setzen -- sonst geht die Rechnung 60 nicht auf.",
+    "4. npx vitest run tests/unit/sound-triggers.test.ts  (muss gruen sein, OHNE dass der Prueffall geaendert wurde)",
+    "5. /venv/bin/python tools/sfx-verify.py            (liest die Ziel-Laengen aus dem Manifest)"
+  ],
+  "_gemessen": {
+    "spell-canker": "0.528 s Ton, Ziel 0.50, 0.0 ms Anfangs-Stille, Spitze -1.60 dB, -17.4 LUFS",
+    "spell-fester": "0.900 s Ton, Ziel 0.90, 0.0 ms Anfangs-Stille, Spitze -1.90 dB, -15.8 LUFS",
+    "unterscheidbar": "canker/fester: Laenge x1.71, Schwerpunkt 53 %, Baender 0.60 -- verwandt (beide tieflastig, organisch), nicht verwechselbar"
+  },
+  "sounds": [
+    {
+      "id": "spell-canker",
+      "group": "spells",
+      "purpose": "CANKER — der Faeulnisherd der PUTREFAKTION. Legt den ersten Stapel an und wird oft gedrueckt, muss also kurz und zurueckhaltend sein — wie KINDLE in der CALCINATION.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-canker.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "wet organic rupture, soft fleshy burst, damp membrane tear, short dry one shot, dark violet decay spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "canker"
+      }
+    },
+    {
+      "id": "spell-fester",
+      "group": "spells",
+      "purpose": "FESTER — wirkt staerker, je mehr Stapel liegen. DERSELBE Werkstoff wie CANKER, aber tiefer und voller: Die beiden gehoeren als Paar zusammen (GAME-DESIGN 4) und muessen als verwandt hoerbar sein, ohne verwechselbar zu werden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-fester.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 15,
+      "prompt": "deep festering swell, thick wet rot bloom, low gurgling decay surge, heavy organic putrefaction, dark violet",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "fester"
+      }
+    }
+  ]
+}
