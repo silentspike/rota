@@ -153,3 +153,52 @@ export function runDataFor(
   }
   return rows;
 }
+
+/**
+ * Die Zahlen fuer die verpassten Unterbrechungen, aus dem Kampf gelesen.
+ *
+ * SEIT ISSUE #151 IST DAS MOEGLICH. Bis dahin schrieb nur der Simulator die
+ * Boss-Ereignisse, und die Fehleranalyse laeuft im Browser -- ein Protokoll,
+ * in dem die Groesse ueberall fehlt, kann eine Gelegenheit nicht belegen.
+ *
+ * GEZAEHLT WIRD DIE GELEGENHEIT, NICHT DIE BEREITSCHAFT (GAME-DESIGN 15.2).
+ * `combat.interruptsMissed` steigt genau dann, wenn ein unterbrechbarer
+ * Boss-Zauber seine Wirkzeit ueberstanden hat und durchgekommen ist. Ein
+ * Unterbrecher, der bereitlag, weil es nichts zu unterbrechen gab, taucht
+ * darin nicht auf -- und genau das ist der Fall, den die Regel verhindern soll
+ * (AC5).
+ */
+export interface InterruptData {
+  /** Ungenutzte Gelegenheiten. */
+  readonly missed: number;
+  /** Schaden eines durchgekommenen Boss-Zaubers. */
+  readonly damagePerLandedCast: number;
+  /**
+   * Ob die unterbrechbaren Zauber dieses Bosses verschieden viel Schaden
+   * machen.
+   *
+   * Dann ist `damagePerLandedCast` ein Mittelwert und die Rechnung
+   * "Anzahl x Schaden" (GAME-DESIGN 15.2) eine Naeherung. Steht hier, damit
+   * niemand die Zahl fuer genauer haelt, als sie ist.
+   */
+  readonly averaged: boolean;
+}
+
+export function interruptDataFor(combat: Combat): InterruptData {
+  const unterbrechbare = combat.boss.timeline.filter(
+    (eintrag) => eintrag.mechanic === 'interruptibleCast',
+  );
+  if (unterbrechbare.length === 0) {
+    // Kein unterbrechbarer Zauber im ganzen Kampf. `0` und nicht `null`: Das
+    // ist eine MESSUNG ("es gab nichts zu verpassen") und keine fehlende
+    // Datengrundlage.
+    return { missed: 0, damagePerLandedCast: 0, averaged: false };
+  }
+  const werte = unterbrechbare.map((eintrag) => eintrag.damage);
+  const summe = werte.reduce((a, b) => a + b, 0);
+  return {
+    missed: combat.interruptsMissed,
+    damagePerLandedCast: summe / werte.length,
+    averaged: new Set(werte).size > 1,
+  };
+}
