@@ -17,7 +17,7 @@
 import { computeDamage, NEUTRAL_FACTORS, type DamageFactors } from './damage.js';
 import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
 import { EVENT_CAST, EVENT_DAMAGE, EVENT_DOT_TICK, type CombatLog } from './log.js';
-import type { BossDef, SchoolDef, SpellDef } from './data.js';
+import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
 import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
@@ -140,6 +140,32 @@ export class Combat {
    * fälligen Eintrag (GAME-DESIGN 11.1).
    */
   private timelineIndexValue = 0;
+
+  /**
+   * Welcher Boss-Zauber gerade läuft, als Index in `boss.timeline`.
+   *
+   * `-1` heißt: keiner. Solange einer läuft, kann er unterbrochen werden —
+   * danach nicht mehr, auch nicht im Takt des Treffers.
+   */
+  private castingValue = -1;
+
+  /** Kampfzeit, zu der der laufende Boss-Zauber trifft. */
+  private castLandsAtMs = -1;
+
+  /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
+  private playerHpValue: number;
+
+  /** Kampfzeit des Spielertods, oder -1. */
+  private diedAtMsValue = -1;
+
+  /** Gesamter erlittener Schaden, **nach** WARD. */
+  private damageTakenValue = 0;
+
+  /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat. */
+  private interruptsLandedValue = 0;
+
+  /** Wie oft einer durchgekommen ist. */
+  private interruptsMissedValue = 0;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -167,6 +193,7 @@ export class Combat {
     // der Simulator plant den ersten Anstieg bei `perStepMs`. Genau so eine
     // Kleinigkeit lässt beide Seiten auseinanderlaufen.
     this.nextEnergyAtMs = options.boss.energy?.perStepMs ?? 0;
+    this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
 
@@ -236,6 +263,76 @@ export class Combat {
   /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
   get timelineIndex(): number {
     return this.timelineIndexValue;
+  }
+
+  /** Verbleibende Lebenspunkte des Spielers. */
+  get playerHp(): number {
+    return this.playerHpValue;
+  }
+
+  /** Welcher Boss-Zauber gerade läuft, oder -1. */
+  get casting(): number {
+    return this.castingValue;
+  }
+
+  /** Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3). */
+  get playerDead(): boolean {
+    return this.diedAtMsValue >= 0;
+  }
+
+  /** Kampfzeit des Spielertods, oder -1. */
+  get diedAtMs(): number {
+    return this.diedAtMsValue;
+  }
+
+  /** Gesamter erlittener Schaden, **nach** WARD. */
+  get damageTaken(): number {
+    return this.damageTakenValue;
+  }
+
+  /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat. */
+  get interruptsLanded(): number {
+    return this.interruptsLandedValue;
+  }
+
+  /** Wie oft einer durchgekommen ist. */
+  get interruptsMissed(): number {
+    return this.interruptsMissedValue;
+  }
+
+  /**
+   * Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
+   *
+   * Der Tod wird hier festgestellt und nicht erst in der Kampfschleife: Ein
+   * Spieler mit null Lebenspunkten, der noch einen Takt weiterwirkt, wäre eine
+   * stille Abweichung zum Simulator.
+   */
+  private hitPlayer(raw: number, timeMs: number): void {
+    if (this.diedAtMsValue >= 0) return;
+    // **Einmal gerundet, am Ende** — dieselbe Regel wie bei ausgehendem
+    // Schaden (GAME-DESIGN 6.3) und dieselbe Zeile wie `PlayerBase::incoming`
+    // im Simulator. Zweimal zu runden ergäbe je nach Reihenfolge andere
+    // Zahlen, und genau daran laufen zwei Umsetzungen auseinander.
+    const angekommen = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+    this.damageTakenValue += angekommen;
+    this.playerHpValue = Math.max(0, this.playerHpValue - angekommen);
+    if (this.playerHpValue === 0) {
+      this.diedAtMsValue = timeMs - this.fightStartedAtMs;
+    }
+  }
+
+  /**
+   * Bricht einen laufenden Boss-Zauber ab (GAME-DESIGN 11.2, Baustein 9).
+   *
+   * Gibt zurück, ob überhaupt etwas zu unterbrechen war. Ein Unterbrechen ins
+   * Leere ist **kein Fehler**, sondern eine vertane Abklingzeit.
+   */
+  private interruptBossCast(): boolean {
+    if (this.castingValue < 0) return false;
+    this.castingValue = -1;
+    this.castLandsAtMs = -1;
+    this.interruptsLandedValue++;
+    return true;
   }
 
   /** Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet. */
@@ -347,7 +444,14 @@ export class Combat {
 
   /** Kann der Zauber jetzt gewirkt werden? */
   isReady(index: number, timeMs: number): boolean {
-    return this.isOffCooldown(index, timeMs) && this.gcd.isReady(timeMs);
+    if (!this.isOffCooldown(index, timeMs)) return false;
+    // Dieselbe Ausnahme wie in `cast` (GAME-DESIGN 6.6, Issue #110). Sie steht
+    // hier ein zweites Mal, weil die Zauberleiste `isReady` fragt und nicht
+    // `cast`: Ohne sie zeigte sie den Unterbrecher als gesperrt an, während er
+    // in Wahrheit wirkbar ist — und der Spieler drückte ihn nicht.
+    const spell = this.spells[index];
+    if (spell !== undefined && !spell.triggersGcd) return true;
+    return this.gcd.isReady(timeMs);
   }
 
   // ------------------------------------------------------------------- Takt
@@ -413,16 +517,41 @@ export class Combat {
     // Takt über sie hinwegspringt; im 10-ms-Takt kann das nur passieren, wenn
     // zwei Einträge auf denselben Zeitpunkt fallen, und dann ist es richtig so.
     //
-    // **Was hier noch fehlt, ist die Wirkung** — die Bausteine kommen in E4-2
-    // bis E4-6. Geprüft wird vorerst nur der Zeitpunkt.
+    // **Seit #110 hat ein Eintrag Wirkung**: Ein Schlag trifft sofort, ein
+    // Zauber beginnt zu laufen und trifft erst nach seiner Wirkzeit.
+    //
     // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
     // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
     // zwar ein stiller: Die Einträge kämen zu früh, aber der Kampf liefe weiter.
     const seitBeginn = timeMs - this.fightStartedAtMs;
+
+    // Zuerst der laufende Boss-Zauber: Ist seine Wirkzeit um, trifft er.
+    // **Vor** dem Vorrücken der Zeitleiste, damit ein Treffer und ein neuer
+    // Eintrag im selben Takt in derselben Reihenfolge geschehen wie im
+    // Simulator — dort steht `BossCastLands` vor `TimelineStep` in der
+    // Rangfolge der Ereignisse.
+    if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMs) {
+      const laufend = this.boss.timeline[this.castingValue];
+      this.castingValue = -1;
+      this.castLandsAtMs = -1;
+      this.interruptsMissedValue++;
+      if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
+    }
+
     while (this.timelineIndexValue < this.boss.timeline.length) {
       const eintrag = this.boss.timeline[this.timelineIndexValue];
       if (eintrag === undefined || seitBeginn < eintrag.atMs) break;
+      const index = this.timelineIndexValue;
       this.timelineIndexValue++;
+      if (eintrag.mechanic === 'interruptibleCast') {
+        // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
+        // dahin kann der Spieler ihn abbrechen.
+        this.castingValue = index;
+        this.castLandsAtMs = eintrag.atMs + eintrag.castTimeMs;
+      } else {
+        // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
+        this.hitPlayer(eintrag.damage, timeMs);
+      }
     }
 
     // Phasenwechsel an der Lebenspunkt-Schwelle. Die Phase kann nur STEIGEN:
@@ -481,7 +610,15 @@ export class Combat {
       outcome.result = CAST_FIGHT_OVER;
       return outcome;
     }
-    if (!this.gcd.isReady(timeMs)) {
+    // **Wer keine Wartezeit auslöst, wird auch von keiner gesperrt**
+    // (GAME-DESIGN 6.6/10.4, Issue #110).
+    //
+    // Bis hierher galt die Sperre für jeden Zauber. Für die drei aus Schritt 1
+    // war das richtig — sie lösen alle eine aus. Für den Unterbrecher wäre es
+    // die Ausnahme mit falschem Vorzeichen: Er löste zwar keine Wartezeit aus,
+    // könnte aber während einer laufenden nicht gewirkt werden. Gebraucht wird
+    // er genau dann.
+    if (spell.triggersGcd && !this.gcd.isReady(timeMs)) {
       outcome.result = CAST_ON_GCD;
       return outcome;
     }
@@ -489,6 +626,14 @@ export class Combat {
       outcome.result = CAST_ON_COOLDOWN;
       return outcome;
     }
+
+    // Unterbrechen (GAME-DESIGN 11.2, Baustein 9).
+    //
+    // **Kein Sonderfall in der Wartezeit-Rechnung.** Dass dieser Zauber keine
+    // globale Wartezeit auslöst, steht weiter unten als `spell.triggersGcd` und
+    // kommt aus den Daten — hier wäre eine zweite Stelle, an der dieselbe Regel
+    // hängt, und zwei Stellen laufen auseinander.
+    if (spell.interrupt === true) this.interruptBossCast();
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);

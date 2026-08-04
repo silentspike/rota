@@ -111,7 +111,11 @@
       "file": "audio/special-interrupt.ogg",
       "targetSeconds": 0.35,
       "pitchJitterCents": 15,
-      "prompt": "sharp metallic clang, abrupt cutoff, spell interrupt hit"
+      "prompt": "sharp metallic clang, abrupt cutoff, spell interrupt hit",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "quench"
+      }
     },
     {
       "id": "special-overdrive",

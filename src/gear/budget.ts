@@ -1,5 +1,5 @@
 /**
- * Werte-Budget und Qualitäten (GAME-DESIGN 13.3, Issue E6-1).
+ * Affix-Budget und Qualitäten (GAME-DESIGN 13.3, Issue E6-1).
  *
  * > „**Kein Gegenstand wird von Hand balanciert** — ein neuer Gegenstand ist
  * > ein Eintrag mit Stufe, Qualität und Werte-Arten." (13.3)
@@ -46,15 +46,25 @@ export const QUALITY_COUNT = 4;
 export const QUALITY_NAMES: readonly string[] = ['common', 'rare', 'epic', 'legendary'];
 
 /**
- * Wie viele Werte-Plätze eine Qualität trägt (13.3).
+ * Wie viele **Affixe** eine Qualität trägt (13.3).
+ *
+ * **Affixe, nicht Werte überhaupt.** Die Spalte heißt im Design
+ * „Werte-Plätze", und genau daran ist eine Rechnung gescheitert: Common
+ * bekommt einen davon, aber jeder Gegenstand trägt drei Grundwerte
+ * (ESSENCE, VESSEL, WARD) — ein Platz kann keine drei tragen. Am 2026-07-29
+ * geklärt: **Die Grundwerte kommen zusätzlich**, wie die Rüstung an einem
+ * Diablo-Gegenstand. Die Zahl hier zählt nur, was obendrauf gewürfelt wird.
+ *
+ * Der Name `QUALITY_AFFIX_SLOTS` steht deshalb bewusst nicht so da wie im
+ * Design — die dortige Benennung hat die Verwechslung überhaupt erst erzeugt.
  *
  * **Legendary steht in der Tabelle als „3+".** Das Pluszeichen ist in
  * derselben Zeile erklärt — „echter Sondereffekt, der die Rotation verändert".
- * Gelesen als: drei Werte-Plätze **und zusätzlich** ein Effekt, nicht als
- * „drei oder mehr Werte-Plätze". Die andere Lesart wäre ein vierter
- * Werte-Platz und damit eine stillschweigende Balance-Entscheidung.
+ * Gelesen als: drei Affixe **und zusätzlich** ein Effekt, nicht als „drei oder
+ * mehr Affixe". Die andere Lesart wäre ein vierter Affix und damit eine
+ * stillschweigende Balance-Entscheidung.
  */
-export const QUALITY_STAT_SLOTS: readonly number[] = [1, 2, 3, 3];
+export const QUALITY_AFFIX_SLOTS: readonly number[] = [1, 2, 3, 3];
 
 /** Welche Qualität einen Sondereffekt trägt (13.3). */
 export const QUALITY_HAS_EFFECT: readonly boolean[] = [false, false, false, true];
@@ -122,7 +132,7 @@ export function shareOfSlot(budget: number, slots: number, index: number): numbe
 }
 
 /**
- * Das Budget auf die Werte-Plätze einer Qualität verteilen.
+ * Das Budget auf die Affixe einer Qualität verteilen.
  *
  * Schreibt in ein übergebenes Feld, statt eines anzulegen (18.2). Gibt die
  * Zahl der beschriebenen Plätze zurück.
@@ -132,7 +142,7 @@ export function distributeBudget(
   quality: number,
   out: Int32Array | number[],
 ): number {
-  const slots = QUALITY_STAT_SLOTS[quality] ?? 0;
+  const slots = QUALITY_AFFIX_SLOTS[quality] ?? 0;
   const budget = budgetOf(itemLevel, quality);
   const count = Math.min(slots, out.length);
   for (let index = 0; index < count; index++) {

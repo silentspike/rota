@@ -40,12 +40,14 @@ import {
   logKindsPayload,
   bossStatePayload,
   misplaysPayload,
+  playerDamagePayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
   MISPLAY_NAME,
   RECORDING_NAME,
   VESSEL_NAME,
+  PLAYER_DAMAGE_NAME,
   serialize,
 } from './payloads.ts';
 
@@ -66,6 +68,10 @@ writeFileSync(misplaysPath, serialize(misplays), 'utf8');
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
 writeFileSync(bossStatePath, serialize(bossState), 'utf8');
+
+const playerDamage = playerDamagePayload();
+const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);
+writeFileSync(playerDamagePath, serialize(playerDamage), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
@@ -120,6 +126,16 @@ console.log(
   `  Endphase       ${b['finalPhase']}, Energie-Ausloesungen ${b['energyTriggers']}, Zeitleiste ${b['finalTimelineIndex']}`,
 );
 console.log(`  Pruefsummen    ${bossState['checksums'].length} Takte`);
+console.log(`geschrieben: ${playerDamagePath}`);
+for (const lauf of playerDamage['runs']) {
+  const e = lauf['expected'];
+  console.log(
+    `  ${lauf['withInterrupt'] ? 'mit ' : 'ohne'} QUENCH   ` +
+      `HP ${e['playerHp']}, erlitten ${e['damageTaken']}, ` +
+      `unterbrochen ${e['interruptsLanded']}, durchgekommen ${e['interruptsMissed']}, ` +
+      `Tod bei ${e['diedAtMs']} ms`,
+  );
+}
 console.log(`geschrieben: ${ruleEventsPath}`);
 console.log(`geschrieben: ${buffsPath}`);
 console.log(`geschrieben: ${logKindsPath}`);
@@ -127,7 +143,7 @@ console.log(`geschrieben: ${cooldownResetPath}`);
 console.log(`  Auswahlmodus  ${cooldownReset['steps'].length} Schritte`);
 console.log(`geschrieben: ${gearPath}`);
 console.log(
-  `  Ausruestung   ${gear['poolSteps'].length} Topf-Schritte, ${gear['budgets'].length} Budgets, ${gear['undecidedSlots'].length} Plaetze offen`,
+  `  Ausruestung   ${gear['poolSteps'].length} Topf-Schritte, ${gear['budgets'].length} Budgets, ${gear['slotNames'].length} Plaetze`,
 );
 console.log(
   `  Protokoll-Arten ${logKinds['kinds'].length}, davon ${logKinds['writtenByGame'].length} vom Spiel`,
