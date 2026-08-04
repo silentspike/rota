@@ -22,6 +22,8 @@ import {
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
 import { classOfStat, formatStat, type StatLine } from '../gear/format.js';
+import { labelFor, presentationFor, LootMoment } from '../loot/moment.js';
+import type { Comparison } from '../loot/compare.js';
 
 export interface OverlayActions {
   onReady(): void;
@@ -86,6 +88,10 @@ export class Overlay {
   private readonly detail: HTMLElement;
   /** Die Werte-Karte des Vorbereitungs-Bildschirms (Issue E6-1, AC4). */
   private readonly gearCard: HTMLElement;
+  /** Der Beute-Moment (Issue E6-4). */
+  private readonly lootPanel: HTMLElement;
+  /** Sein Zustand — hier, weil das Überspringen an der Anzeige hängt. */
+  readonly loot = new LootMoment();
   private readonly analysisButton: HTMLButtonElement;
   private detailOpen = false;
 
@@ -119,6 +125,13 @@ export class Overlay {
     this.prepare.appendChild(button('Ready', actions.onReady));
     this.prepare.appendChild(element('p', 'rota-hint', 'Enter'));
     this.root.appendChild(this.prepare);
+
+    // --- Beute-Moment (GAME-DESIGN 13.6) -----------------------------------
+    // HTML und nicht Canvas, wie Menüs und Auswertung (18.1). Er wird nur bei
+    // einem Fund angefasst, nie je Bild.
+    this.lootPanel = element('div', 'rota-loot');
+    this.lootPanel.hidden = true;
+    this.root.appendChild(this.lootPanel);
 
     // --- Esc-Menü ----------------------------------------------------------
     this.pause = element('div', 'rota-panel');
@@ -318,6 +331,56 @@ export class Overlay {
       this.gearCard.appendChild(root);
     }
     this.gearCard.hidden = false;
+  }
+
+  /**
+   * Einen Fund zeigen (Issue E6-4, AC3 und AC5).
+   *
+   * Die Inszenierung staffelt sich nach Qualität: Common beiläufig, ein
+   * Legendary hält alles an. Der Vergleich trägt **immer** beide Merkmale der
+   * Näherung — Zeichen und Wort.
+   */
+  showLoot(quality: number, itemName: string, comparison: Comparison, nowMs: number): void {
+    const inszenierung = presentationFor(quality);
+    this.loot.show(quality, nowMs);
+
+    this.lootPanel.replaceChildren();
+    this.lootPanel.className = `rota-loot ${inszenierung.className}`;
+    this.lootPanel.style.setProperty('--rota-loot-dim', String(inszenierung.dim));
+    this.lootPanel.style.setProperty('--rota-loot-ms', `${inszenierung.durationMs}ms`);
+
+    this.lootPanel.appendChild(element('div', 'rota-loot-quality', labelFor(quality)));
+    this.lootPanel.appendChild(element('div', 'rota-loot-name', itemName));
+
+    const wert = element('div', 'rota-loot-delta', comparison.text);
+    wert.classList.add(comparison.verdict > 0 ? 'rota-loot-better' : 'rota-loot-worse');
+    this.lootPanel.appendChild(wert);
+
+    // **Die Näherung in Worten.** Ohne sie liest sich die Zahl wie eine
+    // Messung — und ein Spieler, der sie für exakt hält, trifft falsche
+    // Entscheidungen (Auflage zu AC5).
+    this.lootPanel.appendChild(element('div', 'rota-loot-caveat', comparison.caveat));
+    this.lootPanel.appendChild(element('div', 'rota-loot-hint', 'Space to skip'));
+
+    this.lootPanel.hidden = false;
+  }
+
+  /**
+   * Die Inszenierung überspringen (AC4) — **auch die des Legendary**.
+   *
+   * Gibt zurück, ob überhaupt etwas lief.
+   */
+  skipLoot(): boolean {
+    const lief = this.loot.skip();
+    this.lootPanel.hidden = true;
+    return lief;
+  }
+
+  /** Läuft der Beute-Moment noch? Sonst ausblenden. */
+  stepLoot(nowMs: number): void {
+    if (!this.loot.isRunning) return;
+    this.loot.step(nowMs);
+    if (!this.loot.isRunning) this.lootPanel.hidden = true;
   }
 
   private show(panel: HTMLElement): void {

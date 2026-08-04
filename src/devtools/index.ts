@@ -27,6 +27,7 @@ import type { RunSummary } from '../core/summary.js';
 import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { STAT_ADDITIVE, STAT_MULTIPLICATIVE } from '../gear/format.js';
+import { compareItems } from '../loot/compare.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
   measureCooldown,
@@ -291,6 +292,16 @@ export interface DevTools {
    * gilt — dieselbe Linie wie `test-vessel` bei den Bossen.
    */
   showTestGear(): void;
+  /**
+   * Einen **Prüf-Fund** zeigen (Issue E6-4, AC3 bis AC5).
+   *
+   * Nur hier und nicht im Spiel, weil es noch keine Gegenstände gibt — der
+   * Katalog steht vor E6 aus. Ohne Aufruf zeigt die ausgelieferte Fassung
+   * nichts.
+   */
+  showTestLoot(quality: number): void;
+  /** Die Inszenierung überspringen — der Nachweis zu AC4. */
+  skipLoot(): boolean;
   /** Zustand der Trefferwucht: Pool, Zahlen, Ruckeln. */
   impact(): ImpactSnapshot;
   /**
@@ -880,6 +891,17 @@ export function installDevTools(app: App): void {
       app.togglePause();
     },
     isPaused: () => app.overlay.isPaused,
+    showTestLoot: (quality) => {
+      // Ein Fund, der besser ist als das Getragene — so trägt die Anzeige
+      // beide Merkmale der Näherung und einen sichtbaren Unterschied.
+      app.overlay.showLoot(
+        quality,
+        'TEST-PRISM OF THE FIRST CRUCIBLE',
+        compareItems(1234, 1000),
+        performance.now(),
+      );
+    },
+    skipLoot: () => app.overlay.skipLoot(),
     showTestGear: () => {
       // Ein Gegenstand, der BEIDE Arten trägt — nur so lässt sich der
       // Unterschied überhaupt zeigen. Ein Prüfstück mit nur einer Art wäre
