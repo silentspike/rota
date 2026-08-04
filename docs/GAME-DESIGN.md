@@ -1399,6 +1399,42 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 
 **Keine Empfehlungen vom Spiel.** Das Zusammenstellen ist eine der beiden Kernaufgaben.
 
+### 16.1 Das Player Home — der Bildschirm zwischen den Kämpfen
+
+_Nachgetragen am 2026-08-04. Der Begriff stand vorher nur in der Überschrift von 19.2 und war
+nirgends erklärt — siehe die Anmerkung am Ende dieses Abschnitts._
+
+**Das Player Home ist ein Spieler-Bildschirm**, nicht ein Werkzeug-Bereich. Er ist der Ort, an dem
+alles geschieht, was zwischen zwei Kämpfen zu entscheiden ist:
+
+| Was dort sitzt             | Kapitel |
+| -------------------------- | ------- |
+| Talentpunkte verteilen     | 12.5    |
+| Instanz und Boss wählen    | 11.6    |
+| Die Zusammenstellung bauen | 16      |
+| Ausrüstung anlegen         | 13      |
+| **Die Werte-Übersicht**    | 6.7     |
+
+Die vier **Test-Einstellungen** aus 19.2 sitzen zusätzlich dort — sie sind ein Aufsatz für den
+Auftraggeber, kein Bestandteil des Bildschirms. 19.3 schneidet **sie** beim Bauen heraus, nicht
+das Player Home.
+
+> **Woran sich das entscheidet:** Der Bildschirm bleibt im Auslieferungs-Bau vollständig
+> vorhanden. Verschwindet er, verliert der Spieler seinen Talentbaum und seine Ausrüstung —
+> und 6.7 begründet die Werte-Übersicht ausdrücklich mit dem Spieler: „Ein Deckel, den man
+> nicht sieht, ist eine Falle." Eine Falle, vor der nur der Auftraggeber gewarnt wird, ist
+> keine Warnung.
+
+> **Warum dieser Abschnitt nachgetragen werden musste.** „Player Home" kam im ganzen Dokument
+> genau einmal vor: in der Überschrift „19.2 Für den Auftraggeber — sichtbar im Player Home".
+> Wer nur dieses Dokument liest — und genau das sollen die Worker —, konnte den Begriff nur
+> als Werkzeug-Bereich verstehen und musste aus 19.3 schließen, dass er beim Bauen verschwindet.
+> Gemeldet von E7 beim Beginn von #188, mit Beleg statt Vermutung.
+>
+> **Die allgemeine Lehre:** Ein Begriff, der nur in einer Überschrift vorkommt, ist nicht
+> definiert — er ist benannt. Wer ihn zum ersten Mal liest, leitet seine Bedeutung aus dem
+> Kapitel ab, in dem er steht, und das kann das falsche sein.
+
 ---
 
 ## 17. Klang, Grafik, Hilfe
@@ -1806,6 +1842,10 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 
 > Ohne Stufen-Boost und Ausrüstungs-Auswahl lässt sich das **Endgame nicht beurteilen, bevor es
 > erspielt ist** — bei 24 h Aufstieg wäre jede Endgame-Prüfung sonst unmöglich.
+
+> **Das Player Home selbst ist ein Spieler-Bildschirm (16.1), kein Werkzeug.** Herausgeschnitten
+> werden von 19.3 die vier Einstellungen oben — nicht der Bildschirm, in dem sie sitzen. Ohne ihn
+> hätte der Spieler keinen Talentbaum und keine Ausrüstung.
 
 ### 19.3 Trennung von der Auslieferung
 
