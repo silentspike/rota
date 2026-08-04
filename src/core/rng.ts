@@ -21,7 +21,34 @@
 export const STREAM_CRIT = 0;
 export const STREAM_DOT_TICK = 1;
 export const STREAM_HEAL = 2;
+/**
+ * **STREAM_HEAL bleibt auf 2, obwohl heute nichts daraus zieht.** Alle drei
+ * Koagulations-Wege sind deterministisch (Design 21.1 verwirft Zufalls-Procs
+ * außer Krit). Ihn zu entfernen und später wieder einzufügen würde jede
+ * aufgezeichnete Prüfsumme zweimal verschieben; ein reservierter Strom kostet
+ * nichts.
+ */
 export const STREAM_COUNT = 3;
+
+/**
+ * **Der Beute-Strom gehört NICHT hierher — das ist eine Festlegung, keine
+ * Nachlässigkeit.** Er steht in `src/loot/stream.ts`.
+ *
+ * Die Versuchung ist groß, ihn hier einzureihen: „alle Zufallsquellen an
+ * einer Stelle" klingt aufgeräumt. Es wäre falsch, und der Grund steht in
+ * 20.2: Eigene Ströme schützen davor, dass **eine zusätzliche Ziehung alles
+ * Nachfolgende verschiebt**. Beute wird beim **Sieg** gewürfelt, nicht im
+ * Kampf — sie kann nichts verschieben, und nichts kann sie verschieben.
+ *
+ * Die Kehrseite ist gemessen: Ein vierter Strom hängt in einem Kampf über
+ * 7952 Takte **7952 Nullen** an die Zustands-Prüfsumme, für einen Strom, der
+ * dort nie zieht. Das macht sie länger, nicht schärfer. Sie soll den
+ * **Kampf**-Zustand beschreiben; Beute ist keiner.
+ *
+ * `tests/unit/loot-stream.test.ts` wacht darüber, dass er nicht doch hier
+ * landet — wer ihn einträgt, verschiebt stillschweigend jede aufgezeichnete
+ * Prüfsumme.
+ */
 
 export const STREAM_NAMES: readonly string[] = ['crit', 'dotTick', 'heal'];
 
@@ -70,6 +97,18 @@ export class RandomStream {
 }
 
 /**
+ * Der Startwert eines Stroms, abgeleitet aus dem Startwert des Kampfes.
+ *
+ * **Herausgezogen, damit auch ein Strom AUSSERHALB dieser Sammlung nachweislich
+ * dieselbe Ableitung benutzen kann** — der Beute-Strom in `src/loot/stream.ts`
+ * ist genau der, der hier den Index 3 bekäme. Stünde die Rechnung nur im
+ * Konstruktor, wäre „dieselbe Ableitung" eine Behauptung statt eines Aufrufs.
+ */
+export function seedForStream(seed: number, index: number): number {
+  return (Math.imul(seed >>> 0, 0x9e3779b1) + index * 0x85ebca6b) >>> 0;
+}
+
+/**
  * Alle Ströme eines Kampfes, aus einem einzigen Startwert abgeleitet.
  *
  * Aus dem Startwert des Kampfes wird je Strom ein eigener gemacht, damit sie sich
@@ -81,7 +120,7 @@ export class RandomStreams {
   constructor(readonly seed: number) {
     const list: RandomStream[] = [];
     for (let i = 0; i < STREAM_COUNT; i++) {
-      list.push(new RandomStream((Math.imul(seed >>> 0, 0x9e3779b1) + i * 0x85ebca6b) >>> 0));
+      list.push(new RandomStream(seedForStream(seed, i)));
     }
     this.streams = list;
   }
