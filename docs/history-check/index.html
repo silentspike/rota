@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>ROTA — Trainingsraum, Prüfblatt (Issue #84)</title>
+    <style>
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('/assets/fonts/Cinzel-Variable.ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      body {
+        margin: 0;
+        padding: 34px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.7 ui-monospace,
+          monospace;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 400;
+        margin: 0 0 4px;
+        font-family: system-ui, sans-serif;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 18px;
+        font-family: system-ui, sans-serif;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 98ch;
+        margin-bottom: 26px;
+        font-family: system-ui, sans-serif;
+      }
+      .note {
+        color: #cfc8ba;
+      }
+      .ok {
+        color: #7fd39a;
+      }
+      .ok::before {
+        content: '  BESTANDEN  ';
+        color: #4f8f66;
+      }
+      .bad {
+        color: #d98b7f;
+      }
+      .bad::before {
+        content: '  NICHT BESTANDEN  ';
+        color: #a8503f;
+      }
+      #view {
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bestlauf-Vergleich und Verlauf — Prüfblatt</h1>
+    <div class="sub">
+      Issue #82 · Epic E7 · AC1 und AC4 (Browser), AC2 und AC3 als Beleg daneben
+    </div>
+    <div class="why">
+      <strong>AC1 verlangt zwei Kurven und die Differenz je Kennzahl.</strong> Beide Kurven teilen
+      sich eine <em>absolute</em> Zeitachse — die kürzere endet früher, sichtbar. Jede auf ihre
+      eigene Länge zu strecken wäre der bequeme Weg und versteckte, dass der eine Lauf schneller
+      war. <br /><br />
+      <strong>AC4 verlangt 50 Durchläufe, lesbar und ohne spürbare Verzögerung.</strong> Die Zeit
+      wird unten gemessen und steht als Zahl da, nicht als Behauptung. <br /><br />
+      <strong>Der Schnitt beim Fassungswechsel ist Pflicht, nicht Verzierung.</strong> Er ist die
+      Bedingung, unter der der Schadenswert im Verlauf überhaupt gespeichert werden darf
+      (GAME-DESIGN 18.6): Ohne ihn sieht der Spieler beim Wechsel einen Sprung und schreibt ihn sich
+      selbst zu — dabei hat sich die Balance geändert, nicht sein Spiel. <br /><br />
+      Die Läufe unten sind <strong>wirklich gespielt</strong>: Sitzung, Countdown, Tastendrücke,
+      Kampfende. Ein Blatt mit von Hand gesetzten Zahlen zeigte nur, dass die Ansicht Zahlen
+      darstellen kann.
+    </div>
+    <div id="out"></div>
+    <div id="view"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>
