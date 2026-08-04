@@ -32,11 +32,13 @@ import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
+import eingecheckteFixierung from './recordings/fixation.json';
 import {
   bossStatePayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
+  fixationPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -94,6 +96,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die drei Wege der Koagulation entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteKoagulation, HINWEIS).toEqual(coagulationPayload());
+  });
+
+  it('die Fixierung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteFixierung, HINWEIS).toEqual(fixationPayload());
   });
 });
 
