@@ -68,5 +68,32 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   }
   const draws = combat.random.drawCounts();
   for (let i = 0; i < draws.length; i++) h = mixInt(h, draws[i] as number);
+  // **Angehängt, nicht eingeschoben** (Issue #96, Boss-Phasen und
+  // Energieleiste). Die bestehenden Positionen bleiben unverändert; die
+  // Reihenfolge ist ohnehin willkürlich und muss nur auf beiden Seiten gleich
+  // sein — `sim/src/fight.rs`, `checksum_at`.
+  //
+  // Ohne diese beiden Felder wäre die Prüfsumme für einen Boss mit Phasen
+  // blind: Zwei Läufe in verschiedenen Phasen sähen gleich aus, und der
+  // Abgleich meldete Übereinstimmung, wo keine ist.
+  h = mixInt(h, combat.bossPhase);
+  h = mixInt(h, combat.bossEnergy);
+  h = mixInt(h, combat.timelineIndex);
+  // **Angehängt, nicht eingeschoben** (Issue #110). Ohne die Lebenspunkte wäre
+  // die Prüfsumme für einen Boss, der Schaden austeilt, blind: Zwei Läufe mit
+  // verschiedenem erlittenem Schaden sähen gleich aus.
+  h = mixInt(h, combat.playerHp);
+  // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen auffällt,
+  // bevor der Treffer überhaupt fällt.
+  h = mixInt(h, combat.casting);
+  // **Angehängt, nicht eingeschoben** (Issue #79). Ohne den Schutz wäre die
+  // Prüfsumme für jeden Kampf mit Schutzschicht blind: Zwei Läufe mit
+  // verschieden viel aufgefangenem Schaden sähen gleich aus, solange die
+  // Lebenspunkte zufällig übereinstimmen.
+  h = mixInt(h, combat.shield);
+  h = mixInt(h, combat.shieldStacks);
+  // Die laufende Umwandlung gehört dazu, nicht nur ihr Ergebnis: Sie
+  // entscheidet über jeden künftigen Schlag.
+  h = mixInt(h, combat.conversionPercent);
   return h >>> 0;
 }

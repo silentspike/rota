@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>ROTA — Speicherung, Prüfblatt (Issue #83)</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 34px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.7 ui-monospace,
+          monospace;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 400;
+        margin: 0 0 4px;
+        font-family: system-ui, sans-serif;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 18px;
+        font-family: system-ui, sans-serif;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 96ch;
+        margin-bottom: 26px;
+        font-family: system-ui, sans-serif;
+      }
+      .note {
+        color: #cfc8ba;
+      }
+      .ok {
+        color: #7fd39a;
+      }
+      .ok::before {
+        content: '  BESTANDEN  ';
+        color: #4f8f66;
+      }
+      .bad {
+        color: #d98b7f;
+      }
+      .bad::before {
+        content: '  NICHT BESTANDEN  ';
+        color: #a8503f;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Speicherung — Prüfblatt</h1>
+    <div class="sub">Issue #83 · Epic E7 · AC1 und AC2 im echten localStorage</div>
+    <div class="why">
+      Die Unit-Tests prüfen die Rotation gegen eine nachgebaute Speicher-Abbildung. Das ist für die
+      Verdrängungsregel richtig, beweist aber nicht, dass es im Browser ebenso läuft — dort ist der
+      Speicher geteilt, begrenzt und überlebt einen Neustart. Diese Seite lässt denselben Code gegen
+      <code>window.localStorage</code> laufen.
+    </div>
+    <div id="out"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

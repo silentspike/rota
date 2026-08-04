@@ -18,7 +18,7 @@
  */
 import { Combat } from '../core/combat.js';
 import { combatChecksum } from '../core/checksum.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../core/data.js';
+import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../core/data.js';
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 import { STEP1_BINDINGS } from '../core/loadout.js';
@@ -84,11 +84,22 @@ function spellForSlot(combat: Combat, slot: number): number {
  */
 export function replayRecording(
   recording: Recording,
-  options: { readonly checksumPerTick?: boolean } = {},
+  options: {
+    readonly checksumPerTick?: boolean;
+    /**
+     * Gegen welchen Boss abgespielt wird. Fehlt er, ist es der erste
+     * (`FIRST_CRUCIBLE`) — so bleibt jeder bestehende Aufruf unverändert.
+     *
+     * Wählbar seit Issue #96: Der Simulator kann es über `FightConfig.boss`
+     * schon länger, und ein gemeinsamer Prüffall gegen einen Boss **mit**
+     * Phasen und Energieleiste braucht dieselbe Möglichkeit auf dieser Seite.
+     */
+    readonly boss?: BossDef;
+  } = {},
 ): ReplayResult {
   const combat = new Combat({
     school: CALCINATION.value,
-    boss: FIRST_CRUCIBLE.value,
+    boss: options.boss ?? FIRST_CRUCIBLE.value,
     seed: recording.seed,
   });
   const wantChecksums = options.checksumPerTick === true;
@@ -164,8 +175,8 @@ export function replayRecording(
  * Bedingung aus GAME-DESIGN 18.4. Die Prioritätenliste ist dieselbe wie in
  * `reference-run.ts` und wie in `tools/step1-check.py`.
  */
-function recordGoodRotation(name: string, ticks: number): Recording {
-  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: boss ?? FIRST_CRUCIBLE.value });
   const kindle = combat.indexOf('kindle');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
@@ -242,6 +253,16 @@ export function recordings(): Map<string, Recording> {
     // 60 s Kampfdauer des Testbosses, in Takten.
     builtIn.set('cooldown-precision', recordGoodRotation('cooldown-precision', 6000));
     builtIn.set('cooldown-sweep', recordCooldownSweep('cooldown-sweep', 2000));
+    // Der gemeinsame Pruefall gegen einen Boss **mit** Phasen, Energieleiste und
+    // Zeitleiste (Issue #96, AC4). 90 s Ueberdruck des Testgefaesses, in Takten.
+    //
+    // Dieselbe gute Rotation wie oben, nur gegen einen anderen Boss: Alles, was
+    // sich zwischen beiden Aufzeichnungen unterscheidet, kommt damit aus den
+    // Boss-Daten und aus nichts sonst.
+    const vessel = bossById('test-vessel');
+    if (vessel !== undefined) {
+      builtIn.set('vessel-phases', recordGoodRotation('vessel-phases', 9000, vessel));
+    }
   }
   return builtIn;
 }

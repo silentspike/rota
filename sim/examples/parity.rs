@@ -17,34 +17,72 @@ use std::process::ExitCode;
 
 use serde_json::Value;
 
-use rota_sim::data::{index_of, SPELLS};
+use rota_sim::data::{boss_by_id, index_of, Boss, BOSS, SPELLS};
 use rota_sim::replay::{first_divergence, Binding, Press, Recording};
 use rota_sim::{Fight, FightConfig, TICK_MS};
 
 /// Die aufgezeichnete Runde, wie das Spiel sie geschrieben hat.
 const RECORDING_JSON: &str = include_str!("../../tests/parity/recordings/cooldown-precision.json");
 
+/// Dieselbe Rotation gegen einen Boss **mit** Phasen, Energieleiste und
+/// Zeitleiste (Issue #96).
+///
+/// Steht hier und nicht nur in `tests/parity_boss_state.rs`, weil dieses
+/// Werkzeug im naechtlichen Lauf **im Release-Bau** ausgefuehrt wird. Genau
+/// darum geht es dort: Optimierungen duerfen Fliesskomma-Operationen umordnen,
+/// und die Zustands-Pruefsumme ruehrt Fliesskomma-Bits ein. Ohne diesen Eintrag
+/// blieben Phase, Energieleiste und Zeitleiste im Release ungeprueft.
+const VESSEL_JSON: &str = include_str!("../../tests/parity/recordings/vessel-phases.json");
+
 fn main() -> ExitCode {
-    let json: Value = match serde_json::from_str(RECORDING_JSON) {
-        Ok(value) => value,
-        Err(error) => {
-            eprintln!("Die Aufzeichnung ist nicht lesbar: {error}");
-            return ExitCode::FAILURE;
+    let mut alles_gut = true;
+    for (rohtext, name) in [
+        (RECORDING_JSON, "cooldown-precision"),
+        (VESSEL_JSON, "vessel-phases"),
+    ] {
+        match pruefe(rohtext) {
+            Ok(true) => {}
+            Ok(false) => alles_gut = false,
+            Err(error) => {
+                eprintln!("Die Aufzeichnung {name} ist nicht lesbar: {error}");
+                return ExitCode::FAILURE;
+            }
         }
-    };
+        println!();
+    }
+
+    println!("{}", "=".repeat(66));
+    if alles_gut {
+        println!("BESTANDEN: Simulator und Spiel rechnen alle Runden gleich.");
+        ExitCode::SUCCESS
+    } else {
+        println!("FEHLGESCHLAGEN: siehe ABWEICHUNG oben.");
+        ExitCode::FAILURE
+    }
+}
+
+fn pruefe(rohtext: &str) -> Result<bool, serde_json::Error> {
+    let json: Value = serde_json::from_str(rohtext)?;
 
     let recording = build_recording(&json);
     let expected = &json["expected"];
 
+    // Der Boss steht in der Datei; fehlt das Feld, ist es der voreingestellte.
+    let boss: &'static Boss = json["bossId"].as_str().and_then(boss_by_id).unwrap_or(BOSS);
     let mut fight = Fight::new(FightConfig {
         seed: recording.seed,
+        boss,
+        duration_ms: Some(recording.ticks * TICK_MS),
         ..FightConfig::default()
     });
     let result = fight.replay(&recording, true);
 
     println!("{}", "=".repeat(66));
     println!("ROTA — Abgleich Simulator gegen Spiel");
-    println!("Aufzeichnung \"{}\"", recording.name);
+    println!(
+        "Aufzeichnung \"{}\" gegen Boss \"{}\"",
+        recording.name, boss.id
+    );
     println!(
         "{} Tastendruecke, Startwert {}, {} Takte",
         recording.presses.len(),
@@ -147,15 +185,45 @@ fn main() -> ExitCode {
         }
     }
 
+    // Die drei Zustandsspuren, wenn der Boss sie hat. Ohne sie saehe eine
+    // Umsetzung, die Phasen gar nicht fuehrt, hier vollkommen richtig aus.
+    if !boss.phases.is_empty() || boss.energy.is_some() || !boss.timeline.is_empty() {
+        for (feld, spur, was) in [
+            ("phases", &result.phases, "Phase"),
+            ("energy", &result.energy, "Energieleiste"),
+            ("timelineIndex", &result.timeline_index, "Zeitleiste"),
+        ] {
+            let erwartet: Vec<u32> = json[feld]
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|v| v.as_u64())
+                        .filter_map(|v| u32::try_from(v).ok())
+                        .collect()
+                })
+                .unwrap_or_default();
+            if erwartet == *spur {
+                println!("  {was:<24} {} Takte, alle gleich", erwartet.len());
+            } else {
+                ok = false;
+                println!("  {was:<24} ABWEICHUNG");
+                println!(
+                    "      Laenge                     Spiel {}, Simulator {}",
+                    erwartet.len(),
+                    spur.len()
+                );
+            }
+        }
+    }
+
     println!();
     println!("{}", "-".repeat(66));
     if ok {
-        println!("BESTANDEN: Simulator und Spiel rechnen dieselbe Runde gleich.");
-        ExitCode::SUCCESS
+        println!("bestanden: \"{}\" stimmt ueberein.", recording.name);
     } else {
-        println!("FEHLGESCHLAGEN: siehe ABWEICHUNG oben.");
-        ExitCode::FAILURE
+        println!("FEHLGESCHLAGEN: \"{}\" weicht ab.", recording.name);
     }
+    Ok(ok)
 }
 
 fn build_recording(json: &Value) -> Recording {

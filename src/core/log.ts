@@ -24,25 +24,119 @@
  */
 
 /**
- * Die feste Ereignismenge aus GAME-DESIGN 18.3.
+ * Die Arten eines Protokoll-Eintrags — **ein gemeinsamer Nummernraum mit dem
+ * Simulator** (Issue E3-6).
  *
- * Sie ist bewusst geschlossen: Jeder Zauber, jedes Talent und jeder legendäre
- * Effekt beschreibt nur, auf welches dieser Ereignisse er reagiert.
+ * Bis dahin führten beide Seiten eigene Nummern, und ab der 2 bedeutete
+ * dieselbe Zahl etwas anderes: Eine 3 hieß im Simulator „Entladung", hier
+ * „DoT-Tick"; eine 4 dort „Boss gefallen", hier „Phasenwechsel". Verglichen
+ * hat das nie jemand, deshalb ist es nie aufgefallen — die Auswertung in Epic
+ * E7 liest aber genau diese Daten, und eine verschobene Bedeutung ergäbe eine
+ * Fehleranalyse, die plausibel aussieht und falsch ist.
+ *
+ * **Jede Seite benutzt nur ihre Teilmenge**, statt leere Einträge zu führen:
+ *
+ * | Nr. | Art          | Spiel | Simulator |
+ * | --- | ------------ | ----- | --------- |
+ * | 0   | `cast`       | ja    | ja        |
+ * | 1   | `damage`     | ja    | ja        |
+ * | 2   | `dotTick`    | ja    | ja        |
+ * | 3   | `crit`       | ja    | —         |
+ * | 4   | `spend`      | —     | ja        |
+ * | 5   | `kill`       | —     | ja        |
+ * | 6   | `phase`      | ja    | —         |
+ * | 7   | `buffExpire` | ja    | —         |
+ * | 8   | `bossEnergyTriggered` | — | ja     |
+ * | 9   | `bossTimelineFired`   | — | ja     |
+ * | 10  | `playerDamage`        | — | ja     |
+ * | 11  | `playerDeath`         | — | ja     |
+ * | 12  | `interruptLanded`     | — | ja     |
+ * | 13  | `shieldAbsorb`        | — | ja     |
+ * | 14  | `healed`              | — | ja     |
+ * | 15  | `convertedToShield`   | — | ja     |
+ *
+ * Nummer 6 hat mit Issue #96 eine zweite Schreiberin bekommen: Der Simulator
+ * führt Boss-Phasen jetzt ebenfalls. Dieselbe Zahl, dieselbe Bedeutung — genau
+ * dafür ist der gemeinsame Raum da. 8 und 9 sind neu und gehören vorerst allein
+ * dem Simulator, wie `spend` und `kill` auch.
+ *
+ * Die Namen stehen auch für die Arten, die diese Seite nie schreibt: Wer ein
+ * fremdes Protokoll liest, soll denselben Namen sehen und nicht ein Fragezeichen.
+ *
+ * `tests/parity/recordings/log-kinds.json` hält die Tabelle fest, und
+ * `sim/tests/log_kinds.rs` prüft die andere Seite dagegen.
  */
 export const EVENT_CAST = 0;
 export const EVENT_DAMAGE = 1;
-export const EVENT_CRIT = 2;
-export const EVENT_DOT_TICK = 3;
-export const EVENT_PHASE = 4;
-export const EVENT_BUFF_EXPIRE = 5;
+export const EVENT_DOT_TICK = 2;
+export const EVENT_CRIT = 3;
+/** Nur der Simulator schreibt sie — hier steht sie für den gemeinsamen Raum. */
+export const EVENT_SPEND = 4;
+/** Nur der Simulator schreibt sie. */
+export const EVENT_KILL = 5;
+export const EVENT_PHASE = 6;
+export const EVENT_BUFF_EXPIRE = 7;
+/**
+ * Die Energieleiste des Bosses hat **ausgelöst** (Issue #96).
+ *
+ * Der Name sagt ausdrücklich `Triggered`, weil dies ein **Vorgang** ist und
+ * kein Zustand: Geschrieben wird nur im Moment des Auslösens, nicht bei jedem
+ * Anstieg. Der Stand der Leiste heißt `Combat.bossEnergy` und ist etwas
+ * anderes — beim ersten Lesen wurden die beiden verwechselt, deshalb jetzt
+ * zwei unterscheidbare Namen.
+ *
+ * Nur der Simulator schreibt sie.
+ */
+export const EVENT_BOSS_ENERGY_TRIGGERED = 8;
+/**
+ * Ein Eintrag der Boss-Zeitleiste ist **fällig geworden** (Issue #96).
+ *
+ * Auch hier ein Vorgang, kein Zustand: Der Zeiger heißt
+ * `Combat.timelineIndex`.
+ *
+ * Nur der Simulator schreibt sie.
+ */
+export const EVENT_BOSS_TIMELINE_FIRED = 9;
+/** Nur der Simulator schreibt sie — Schaden am Spieler (Issue #110). */
+export const EVENT_PLAYER_DAMAGE = 10;
+/** Nur der Simulator schreibt sie — der Spieler ist gestorben (#110). */
+export const EVENT_PLAYER_DEATH = 11;
+/** Nur der Simulator schreibt sie — ein Boss-Zauber wurde unterbrochen (#110). */
+export const EVENT_INTERRUPT_LANDED = 12;
+/** Nur der Simulator schreibt sie — die Schutzschicht hat aufgefangen (#79). */
+export const EVENT_SHIELD_ABSORB = 13;
+/** Nur der Simulator schreibt sie — der Spieler wurde geheilt (#79). */
+export const EVENT_HEALED = 14;
+/** Nur der Simulator schreibt sie — Schaden wurde in Schutz verwandelt (#79). */
+export const EVENT_CONVERTED_TO_SHIELD = 15;
 
 export const EVENT_NAMES: readonly string[] = [
   'cast',
   'damage',
-  'crit',
   'dotTick',
+  'crit',
+  'spend',
+  'kill',
   'phase',
   'buffExpire',
+  'bossEnergyTriggered',
+  'bossTimelineFired',
+  'playerDamage',
+  'playerDeath',
+  'interruptLanded',
+  'shieldAbsorb',
+  'healed',
+  'convertedToShield',
+];
+
+/** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */
+export const EVENT_KINDS_WRITTEN_BY_GAME: readonly number[] = [
+  EVENT_CAST,
+  EVENT_DAMAGE,
+  EVENT_DOT_TICK,
+  EVENT_CRIT,
+  EVENT_PHASE,
+  EVENT_BUFF_EXPIRE,
 ];
 
 /** Kein Zauber-Bezug. */

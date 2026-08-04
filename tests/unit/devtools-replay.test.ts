@@ -55,7 +55,12 @@ describe('Zustands-Prüfsumme', () => {
 
 describe('Aufzeichnungen', () => {
   it('kennt die beiden aus VERIFICATION genannten Namen', () => {
-    expect(recordingNames()).toEqual(['cooldown-precision', 'cooldown-sweep']);
+    // `vessel-phases` ist mit Issue #96 dazugekommen — der gemeinsame Prüffall
+    // gegen einen Boss mit Phasen und Energieleiste. Die beiden aus VERIFICATION
+    // stehen weiterhin vorn und unverändert; deshalb wird auf sie geprüft und
+    // nicht auf die Gesamtliste, die mit jedem weiteren Prüffall wächst.
+    expect(recordingNames().slice(0, 2)).toEqual(['cooldown-precision', 'cooldown-sweep']);
+    expect(recordingNames()).toContain('vessel-phases');
   });
 
   it('ist eine echte Aufzeichnung, keine abgetippte Liste', () => {
@@ -78,7 +83,17 @@ describe('Aufzeichnungen', () => {
     const result = replayRecording(recordings().get('cooldown-precision') as never);
     expect(result.damage).toBe(4240);
     expect(result.killedAtMs).toBe(40_510);
-    expect(result.casts).toEqual({ kindle: 20, smoulder: 4, pyre: 4 });
+    // QUENCH steht mit 0 dabei: Er ist der Unterbrecher (Issue #110), richtet
+    // keinen Schaden an und kommt in keiner der vier Prüfrotationen vor.
+    expect(result.casts).toEqual({
+      kindle: 20,
+      smoulder: 4,
+      pyre: 4,
+      quench: 0,
+      crust: 0,
+      salve: 0,
+      temper: 0,
+    });
     expect(result.accepted).toBe(28);
     expect(result.rejected).toBe(0);
     expect(result.randomDraws).toBe(0);

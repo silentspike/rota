@@ -116,6 +116,40 @@ unbeantwortet, und die 30-Minuten-Erinnerung schlüge dauernd falsch an.
 
 Genau **eine** Antwort je Nachricht — ein zweiter Versuch wird abgelehnt.
 
+### Ein leeres Postfach beweist nicht, dass die Nachricht angekommen ist
+
+**Abgeholt heißt nicht verarbeitet.** Zwischen dem Leeren der Postfach-Datei und dem
+Augenblick, in dem die Nachricht in der laufenden Arbeit der Sitzung auftaucht, liegt eine
+Strecke, die der Absender nicht sieht. Nachrichten können sich dort stauen und **als Block**
+ankommen.
+
+> **Gemessen am 2026-08-04.** Der Orchestrator schickte Worker-1 vier Nachrichten (610, 615,
+> 622, 625) zwischen 06:48 und 06:58. Sein Postfach war jedes Mal binnen Sekunden leer. Er
+> schloss daraus: _„Dein Postfach ist leer — die Nachrichten wurden also abgeholt, der Kanal
+> trägt. Du hast sie bekommen. Es fehlt nur die Antwort."_
+>
+> Tatsächlich erreichten alle vier den Worker **gleichzeitig**, nachdem er eine eigene Meldung
+> abgeschickt hatte. Bis dahin hatte er keine davon gesehen — und arbeitete die ganze Zeit an
+> genau dem Auftrag, den die vierte ihm erteilte.
+
+**Was daraus folgt, für den Orchestrator:**
+
+| Beobachtung                   | Was sie belegt                            | Was sie **nicht** belegt        |
+| ----------------------------- | ----------------------------------------- | ------------------------------- |
+| Postfach leer                 | die Datei wurde gelesen                   | dass die Sitzung sie kennt      |
+| keine Bestätigung nach 30 min | nichts Eindeutiges                        | Stillstand, Ausfall, Ignorieren |
+| Bestätigung da                | **die Nachricht ist wirklich angekommen** | —                               |
+
+Nur die Bestätigung trägt. Sie ist der einzige Beleg, und deshalb ist sie Pflicht.
+
+**Vor einer Umverteilung deshalb erst nachsehen, nicht schließen:** ein Blick in den
+Arbeitsbaum (`git -C <worktree> log --oneline -3`, `git status --porcelain`) und in die
+offenen Pull Requests sagt binnen Sekunden, ob dort jemand arbeitet. Eine Zuteilung an den
+Falschen kostet mehr als die zwei Befehle.
+
+> Diese Annahme muss **genau einmal** falsch sein, um Arbeit doppelt zu vergeben oder eine
+> laufende Sitzung abzuräumen. Am 2026-08-04 war sie es.
+
 ## Überwachung
 
 ```bash

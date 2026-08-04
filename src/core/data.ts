@@ -10,7 +10,11 @@
  * Ein Zauber, der still fehlt, fällt erst im Kampf auf.
  */
 import rawSchool from '../../data/spells/calcination.json';
+import rawCommonSpells from '../../data/spells/common.json';
+import rawCoagulation from '../../data/spells/coagulation.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
+import rawPlayer from '../../data/player/base.json';
+import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
 export interface ResourceDef {
@@ -54,6 +58,73 @@ export interface SpellDef {
   readonly resourceGain?: Readonly<Record<string, number>>;
   readonly dot?: DotDef;
   readonly spender?: SpenderDef;
+  /**
+   * Um wie viele Millisekunden dieser Zauber **alle laufenden Abklingzeiten**
+   * verkürzt (SUBLIMATION, GAME-DESIGN 4.1, Issue E3-3).
+   *
+   * Steht in den Daten und nicht im Code: Ein Zauber, der das kann, ist ein
+   * Datensatz wie jeder andere (Leitplanke 6). Fehlt das Feld, verkürzt er
+   * nichts — das ist der Fall für alle Zauber der Kalzination.
+   */
+  readonly cooldownReductionMs?: number;
+  /**
+   * Setzt dieser Zauber den **Auswahlmodus** scharf (SUBLIMATION, Issue E3-3c)?
+   *
+   * Der Rücksetzer wirkt nicht auf den nächsten gewirkten Zauber, sondern
+   * fragt: Welchen? Zwei Schritte, drei Aktionen — die Entscheidung des
+   * Auftraggebers vom 2026-07-29.
+   */
+  readonly armsCooldownReset?: boolean;
+  /**
+   * Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**
+   * (GAME-DESIGN 11.2, Baustein 9, Issue #110).
+   *
+   * Steht in den Daten und nicht im Code: Ein Zauber, der das kann, ist ein
+   * Datensatz wie jeder andere. Er ist zugleich die **einzige Ausnahme** von
+   * der globalen Wartezeit (GAME-DESIGN 6.6) — auch das steht als
+   * `triggersGcd: false` in denselben Daten.
+   */
+  readonly interrupt?: boolean;
+  /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
+  readonly shield?: ShieldDef;
+  /** Heilung, falls der Zauber eine ist (Weg 2). */
+  readonly heal?: HealDef;
+  /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
+  readonly conversion?: ConversionDef;
+}
+
+/**
+ * Eine Schutzschicht (COAGULATION, Weg 1 — GAME-DESIGN 4.1).
+ *
+ * > Nimmt eingehenden Schaden auf und lässt sich stapeln — **belohnt
+ * > Vorausschauen, weil sie VOR dem Schlag stehen muss.**
+ *
+ * Das „vorher" ist die ganze Mechanik. Eine Schutzschicht, die man nach dem
+ * Schlag aufbaut, wäre eine Heilung mit anderem Namen — und die gibt es in
+ * dieser Schule bereits als eigenen Weg.
+ */
+export interface ShieldDef {
+  readonly amount: number;
+  readonly durationMs: number;
+  readonly maxStacks: number;
+}
+
+/** Eine Heilung (Weg 2): holt verlorenes Leben zurück. */
+export interface HealDef {
+  readonly amount: number;
+}
+
+/**
+ * Schaden-in-Schutz-Umwandlung (Weg 3).
+ *
+ * `sharePercent` ist **ganzzahlig** und kein Bruch: Ganzzahlige Werte sind die
+ * erste Determinismus-Regel (GAME-DESIGN 18.4). Ein `0.25` müsste von beiden
+ * Seiten unabhängig gerundet werden — und genau daran laufen zwei Umsetzungen
+ * auseinander.
+ */
+export interface ConversionDef {
+  readonly sharePercent: number;
+  readonly durationMs: number;
 }
 
 export interface SchoolDef {
@@ -61,6 +132,89 @@ export interface SchoolDef {
   readonly school: string;
   readonly resource: ResourceDef;
   readonly spells: readonly SpellDef[];
+}
+
+/**
+ * Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
+ * wechselt (GAME-DESIGN 11.1).
+ *
+ * **Eskalierend, nicht tauschend:** Jede Phase legt eine Mechanik obendrauf,
+ * statt die vorige zu ersetzen. Die Mechaniken selbst kommen mit E4-2; hier
+ * steht nur, WANN gewechselt wird.
+ */
+export interface PhaseDef {
+  /** Anteil der verbleibenden Lebenspunkte in Prozent, ab dem sie gilt. */
+  readonly atHpPercent: number;
+  readonly name: string;
+}
+
+/**
+ * Die Energieleiste — die zweite Uhr eines Bosses (GAME-DESIGN 11.2,
+ * Baustein 1).
+ *
+ * > Boss-Energie steigt **unabhängig von den Lebenspunkten** und löst bei 100
+ * > eine Mechanik aus.
+ *
+ * Das „unabhängig" ist die eigentliche Aussage: Wer schneller Schaden macht,
+ * verschiebt den Auslöser **nicht**.
+ */
+export interface EnergyDef {
+  readonly perStepMs: number;
+  readonly amount: number;
+  readonly threshold: number;
+  readonly resetTo: number;
+}
+
+/**
+ * Ein Eintrag der Boss-Zeitleiste (GAME-DESIGN 11.1: „Schadens-Ereignisse als
+ * **feste Zeitleiste**").
+ *
+ * Fest heißt wirklich fest: Der Boss reagiert nicht auf den Spieler, und es
+ * gibt keine zufällige Streuung. Nur so sind Bestzeiten vergleichbar.
+ *
+ * **Was hier absichtlich fehlt, ist die Wirkung.** Welcher Baustein was tut,
+ * ist Gegenstand von E4-2 bis E4-6; welcher Boss welche Einträge bekommt,
+ * gehört nach E10 (GAME-DESIGN 22). Hier steht das Gerüst, das beides trägt.
+ */
+export interface TimelineEntryDef {
+  /**
+   * Zeitpunkt seit Kampfbeginn, auf dem Takt-Raster des Spiels.
+   *
+   * Bei einem Zauber ist das der Zeitpunkt, zu dem er **beginnt** — nicht der,
+   * zu dem er trifft. Der Treffer liegt `castTimeMs` später, und dazwischen
+   * liegt das Fenster, in dem unterbrochen werden kann.
+   */
+  readonly atMs: number;
+  /**
+   * Welcher Mechanik-Baustein hier greift.
+   *
+   * `strike` trifft sofort, `interruptibleCast` läuft eine Wirkzeit lang und
+   * lässt sich abbrechen. Ein unbekannter Wert wird beim Lesen gemeldet und
+   * übersprungen — `sim/build.rs` bricht dafür den Bau ab.
+   */
+  readonly mechanic: string;
+  /** Anzeigename der Fähigkeit. Englisch, wie alle Spieltexte. */
+  readonly name: string;
+  /** Schaden am Spieler, **vor** WARD. */
+  readonly damage: number;
+  /** Wirkzeit eines Boss-Zaubers. 0 bei allem, was sofort trifft. */
+  readonly castTimeMs: number;
+}
+
+/**
+ * Die Grundwerte des Spielers (GAME-DESIGN 6.1).
+ *
+ * **Berechnet, nicht gespeichert.** Der Spielstand hält sie nicht — sie ergeben
+ * sich aus Ausrüstung und Talenten, und beides gibt es noch nicht (E5, E6).
+ *
+ * > **Die Zahlen sind noch nicht Design.** GAME-DESIGN Teil F.6 führt sie als
+ * > „vor E4 auszuplanen"; entschieden ist davon nichts.
+ */
+export interface PlayerBaseDef {
+  /** VESSEL — Lebenspunkte. */
+  readonly vessel: number;
+  /** WARD — Anteil, um den eingehender Schaden gemindert wird. */
+  readonly wardReduction: number;
 }
 
 export interface BossDef {
@@ -71,6 +225,12 @@ export interface BossDef {
   readonly hp: number;
   readonly overpressureMs: number;
   readonly resistances: Readonly<Record<string, number>>;
+  /** Phasen-Schwellen, absteigend. Leer heißt: keine Phasen. */
+  readonly phases: readonly PhaseDef[];
+  /** Die zweite Uhr, oder `null`. */
+  readonly energy: EnergyDef | null;
+  /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
+  readonly timeline: readonly TimelineEntryDef[];
 }
 
 export interface ParseResult<T> {
@@ -155,6 +315,53 @@ function parseSpender(raw: unknown, where: string, problems: string[]): SpenderD
   };
 }
 
+/**
+ * Die drei Wege der Koagulation (GAME-DESIGN 4.1, Issue #79).
+ *
+ * Alle drei sind **optional**: Ein Zauber, der keiner von ihnen ist, nennt die
+ * Felder gar nicht. Fehlerhafte Angaben werden gemeldet und der Weg
+ * weggelassen — ein Schild ohne Betrag schützt nichts, und ein stillschweigend
+ * auf 0 gesetzter Wert sähe im Kampf wie ein Balance-Problem aus.
+ */
+function parseCoagulation(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: string[],
+): Partial<SpellDef> {
+  const out: {
+    shield?: ShieldDef;
+    heal?: HealDef;
+    conversion?: ConversionDef;
+  } = {};
+
+  if (isRecord(raw['shield'])) {
+    const amount = number(raw['shield']['amount'], 0);
+    const durationMs = number(raw['shield']['durationMs'], 0);
+    const maxStacks = number(raw['shield']['maxStacks'], 0);
+    if (amount <= 0) problems.push(`${where}: Eine Schutzschicht ohne Betrag schützt nichts.`);
+    else if (maxStacks < 1) problems.push(`${where}: maxStacks muss mindestens 1 sein.`);
+    else out.shield = { amount, durationMs, maxStacks };
+  }
+
+  if (isRecord(raw['heal'])) {
+    const amount = number(raw['heal']['amount'], 0);
+    if (amount <= 0) problems.push(`${where}: Eine Heilung ohne Betrag heilt nichts.`);
+    else out.heal = { amount };
+  }
+
+  if (isRecord(raw['conversion'])) {
+    const sharePercent = number(raw['conversion']['sharePercent'], 0);
+    const durationMs = number(raw['conversion']['durationMs'], 0);
+    // Über 100 % wäre kein Schutz mehr, sondern eine Vervielfachung: Der
+    // Spieler bekäme mehr Schutz, als er Schaden macht.
+    if (sharePercent <= 0 || sharePercent > 100) {
+      problems.push(`${where}: sharePercent ${sharePercent} liegt nicht in (0, 100].`);
+    } else out.conversion = { sharePercent, durationMs };
+  }
+
+  return out;
+}
+
 function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   if (!isRecord(raw)) {
     problems.push('Ein Zauber-Eintrag ist kein Objekt.');
@@ -176,6 +383,22 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   const spender = parseSpender(raw['spender'], where, problems);
   const resourceGain = isRecord(raw['resourceGain']) ? gains(raw['resourceGain']) : undefined;
 
+  const unterbricht = raw['interrupt'] === true;
+  if (unterbricht && raw['triggersGcd'] !== false) {
+    // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
+    // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
+    // legen, und der ganze Baustein wäre tot.
+    problems.push(`${where}: Ein Unterbrecher darf keine globale Wartezeit auslösen.`);
+  }
+  const reduction = raw['cooldownReductionMs'];
+  const cooldownReductionMs = typeof reduction === 'number' ? reduction : undefined;
+  if (cooldownReductionMs !== undefined) {
+    if (cooldownReductionMs < 0) problems.push(`${where}: Verkürzung ist negativ.`);
+    if (!Number.isInteger(cooldownReductionMs)) {
+      problems.push(`${where}: Verkürzung ${cooldownReductionMs} ist nicht ganzzahlig.`);
+    }
+  }
+
   return {
     id,
     name: typeof raw['name'] === 'string' ? raw['name'] : id,
@@ -184,9 +407,13 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     cooldownMs,
     castTimeMs: number(raw['castTimeMs'], 0),
     triggersGcd: raw['triggersGcd'] !== false,
+    interrupt: unterbricht,
+    ...parseCoagulation(raw, where, problems),
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
+    ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
+    ...(raw['armsCooldownReset'] === true ? { armsCooldownReset: true } : {}),
   };
 }
 
@@ -242,6 +469,117 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     }
   }
 
+  // Phasen müssen absteigend stehen. Eine unsortierte Liste wäre eine stille
+  // Falle: Der Kampf würde Phasen überspringen, ohne dass irgendwo etwas
+  // bricht. `sim/build.rs` bricht dafür den Bau ab; hier wird es gemeldet,
+  // weil die Spiel-Seite zur Laufzeit liest.
+  const phases: PhaseDef[] = [];
+  if (Array.isArray(source['phases'])) {
+    let vorige = 101;
+    for (const entry of source['phases']) {
+      if (!isRecord(entry)) continue;
+      const atHpPercent = number(entry['atHpPercent'], 0);
+      if (atHpPercent <= 0 || atHpPercent >= 100) {
+        problems.push(`Phasen-Schwelle bei ${atHpPercent} % ergibt keine Phase.`);
+        continue;
+      }
+      if (atHpPercent >= vorige) {
+        problems.push(
+          `Phasen-Schwellen müssen absteigend stehen: ${atHpPercent} % nach ${vorige} %.`,
+        );
+        continue;
+      }
+      vorige = atHpPercent;
+      phases.push({
+        atHpPercent,
+        name: typeof entry['name'] === 'string' ? entry['name'] : 'Unnamed',
+      });
+    }
+  }
+
+  let energy: EnergyDef | null = null;
+  if (isRecord(source['energy'])) {
+    const perStepMs = number(source['energy']['perStepMs'], 0);
+    const threshold = number(source['energy']['threshold'], 0);
+    const resetTo = number(source['energy']['resetTo'], 0);
+    if (perStepMs <= 0) problems.push('Die Energieleiste hat keinen Takt (perStepMs).');
+    // Das Spiel kann nur zu Takt-Grenzen handeln, der Simulator springt frei.
+    // Bei 333 ms stiege die Leiste dort bei 333/666/999, hier bei 340/670/1000
+    // — der Abstand wüchse mit jedem Schritt. `sim/build.rs` bricht dafür den
+    // Bau ab; hier wird es gemeldet, weil diese Seite zur Laufzeit liest.
+    if (perStepMs > 0 && perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `perStepMs ${perStepMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'Spiel und Simulator liefen mit jedem Anstieg weiter auseinander.',
+      );
+    }
+    if (threshold <= 0) problems.push('Die Energieleiste hat keine Schwelle (threshold).');
+    if (resetTo >= threshold) {
+      problems.push(
+        `resetTo ${resetTo} liegt nicht unter threshold ${threshold} — die Leiste käme nie herunter.`,
+      );
+    }
+    energy = {
+      perStepMs,
+      amount: number(source['energy']['amount'], 0),
+      threshold,
+      resetTo,
+    };
+  }
+
+  // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
+  // still — ein Eintrag hinter einem späteren würde nie ausgelöst, und einer
+  // neben dem Raster griffe hier später als im Simulator.
+  const timeline: TimelineEntryDef[] = [];
+  if (Array.isArray(source['timeline'])) {
+    let voriger = -1;
+    for (const entry of source['timeline']) {
+      if (!isRecord(entry)) continue;
+      const atMs = number(entry['atMs'], -1);
+      if (atMs < 0) {
+        problems.push('Ein Zeitleisten-Eintrag hat keinen Zeitpunkt (atMs).');
+        continue;
+      }
+      if (atMs <= voriger) {
+        problems.push(`Die Zeitleiste muss aufsteigend stehen: ${atMs} ms nach ${voriger} ms.`);
+        continue;
+      }
+      if (atMs % TICK_MS !== 0) {
+        problems.push(
+          `Zeitleisten-Eintrag bei ${atMs} ms liegt nicht auf dem ${TICK_MS}-ms-Raster.`,
+        );
+        continue;
+      }
+      const mechanic = typeof entry['mechanic'] === 'string' ? entry['mechanic'] : 'unknown';
+      // Ein unbekannter Baustein wird gemeldet und übersprungen, nicht still
+      // zu einem Standardfall gemacht: Ein Boss-Zauber, der versehentlich als
+      // Schlag gilt, wäre nicht unterbrechbar — im Kampf sähe das wie ein
+      // Balance-Problem aus, nicht wie ein Datenfehler. `sim/build.rs` bricht
+      // dafür den Bau ab; hier wird gemeldet, weil diese Seite zur Laufzeit liest.
+      if (mechanic !== 'strike' && mechanic !== 'interruptibleCast') {
+        problems.push(
+          `Zeitleisten-Eintrag bei ${atMs} ms nennt die unbekannte Mechanik "${mechanic}".`,
+        );
+        continue;
+      }
+      const castTimeMs = number(entry['castTimeMs'], 0);
+      if (mechanic === 'interruptibleCast' && castTimeMs <= 0) {
+        problems.push(
+          `Der Zauber bei ${atMs} ms hat keine Wirkzeit und wäre damit nicht zu unterbrechen.`,
+        );
+        continue;
+      }
+      voriger = atMs;
+      timeline.push({
+        atMs,
+        mechanic,
+        name: typeof entry['name'] === 'string' ? entry['name'] : 'Unnamed',
+        damage: number(entry['damage'], 0),
+        castTimeMs,
+      });
+    }
+  }
+
   return {
     value: {
       schema,
@@ -251,13 +589,116 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       hp,
       overpressureMs,
       resistances,
+      phases,
+      energy,
+      timeline,
     },
     problems,
   };
 }
 
 /** Die Schule aus Schritt 1, fertig gelesen. */
-export const CALCINATION: ParseResult<SchoolDef> = parseSchool(rawSchool);
+export const CALCINATION: ParseResult<SchoolDef> = (() => {
+  // Die schulunabhängigen Sonderzauber (GAME-DESIGN 7.4) kommen **hinter** die
+  // Schulzauber, immer. Die Reihenfolge ist Teil des Determinismus
+  // (GAME-DESIGN 18.3): Sie bestimmt die Indizes, und die stehen in jeder
+  // aufgezeichneten Runde. Sie umzustellen deutete jede alte Aufzeichnung
+  // still um — und `sim/build.rs` fügt sie an derselben Stelle an.
+  const roh = rawSchool as Record<string, unknown>;
+  const gemeinsam = (rawCommonSpells as Record<string, unknown>)['spells'];
+  const koagulation = (rawCoagulation as Record<string, unknown>)['spells'];
+  const zusammen = {
+    ...roh,
+    spells: [
+      ...(Array.isArray(roh['spells']) ? roh['spells'] : []),
+      ...(Array.isArray(gemeinsam) ? gemeinsam : []),
+      ...(Array.isArray(koagulation) ? koagulation : []),
+    ],
+  };
+  return parseSchool(zusammen);
+})();
 
 /** Der Testboss aus Schritt 1, fertig gelesen. */
 export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
+
+/**
+ * **Alle** Bosse, nach Bezeichner — aus dem Verzeichnis gelesen, nicht einzeln
+ * aufgezählt (Issue #96, AC1: „ein neuer Boss entsteht als Datendatei, ohne
+ * dass eine Zeile Programmcode geändert wird").
+ *
+ * Der feste `import` oben reicht dafür nicht: Er nennt genau eine Datei, und
+ * ein zweiter Boss bräuchte eine zweite Zeile. `import.meta.glob` löst das zur
+ * Bauzeit auf — die JSON-Dateien landen also weiterhin gebündelt im Ergebnis,
+ * es wird nichts zur Laufzeit nachgeladen.
+ *
+ * Der Simulator macht dasselbe an seiner Stelle: `sim/build.rs` liest das
+ * Verzeichnis sortiert. **Beide Seiten müssen dieselbe Menge sehen**, sonst
+ * kennt einer einen Boss, den der andere nicht rechnen kann.
+ */
+export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
+  const dateien = import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
+    eager: true,
+    import: 'default',
+  });
+  // Sortiert, damit die Reihenfolge nicht vom Dateisystem abhängt — dieselbe
+  // Entscheidung wie `dateien.sort()` in `sim/build.rs` (GAME-DESIGN 18.4:
+  // feste Reihenfolge, keine Hash-Container).
+  const pfade = Object.keys(dateien).sort();
+  const out = new Map<string, ParseResult<BossDef>>();
+  for (const pfad of pfade) {
+    const gelesen = parseBoss(dateien[pfad]);
+    out.set(gelesen.value.id, gelesen);
+  }
+  return out;
+})();
+
+/**
+ * Die Grundwerte des Spielers, aus `data/player/base.json`.
+ *
+ * Dieselbe Datei, die `sim/build.rs` einliest — **eine Wahrheit für beide
+ * Seiten**. Zwei getrennte Zahlensätze wären genau die Art Abweichung, die
+ * kein Prüffall meldet, weil beide Seiten für sich stimmig blieben.
+ *
+ * # Verhältnis zur Ausrüstung (E6)
+ *
+ * `src/gear/slots.ts` führt mit `BASE_STAT_IDS` die **Kennungen** der
+ * Grundwerte (`essence`, `vessel`, `ward`); diese Datei führt ihre **Werte**.
+ * Das sind zwei verschiedene Aussagen, kein Widerspruch.
+ *
+ * **Diese Werte sind der STARTWERT.** Sobald ein Ausrüstungsstück VESSEL
+ * trägt, wird es darauf **addiert** — es ersetzt sie nicht. Heute trägt kein
+ * Stück etwas, also fällt die Frage nicht auf; wer sie zusammenführt, findet
+ * die Antwort hier.
+ *
+ * **Eine Formel fehlt dabei noch, und sie fehlt mit Absicht:** Ein
+ * Ausrüstungs-WARD ist ein Punktwert, `wardReduction` hier ein Anteil
+ * (0,2 = 20 % weniger Schaden). Wie Punkte zu einem Anteil werden, ist eine
+ * Design-Entscheidung und steht in GAME-DESIGN Kapitel 22 als offen. Sie hier
+ * zu erfinden hieße, sie stillschweigend zu treffen.
+ */
+export const PLAYER: PlayerBaseDef = (() => {
+  const roh = rawPlayer as Record<string, unknown>;
+  const vessel = number(roh['vessel'], 0);
+  const wardReduction = number(roh['wardReduction'], 0);
+  // Kein `problems`-Kanal hier: Diese Datei ist keine Inhaltsdatei, die ein
+  // Autor pflegt, sondern eine Voraussetzung des Spiels. Fehlt sie oder ist
+  // sie unsinnig, ist nichts spielbar — dann ist ein harter Abbruch ehrlicher
+  // als ein Spieler mit null Lebenspunkten.
+  if (vessel <= 0) throw new Error('data/player/base.json: vessel muss positiv sein.');
+  if (wardReduction < 0 || wardReduction >= 1) {
+    throw new Error(
+      'data/player/base.json: wardReduction muss in [0, 1) liegen — bei 1 wäre der ' +
+        'Spieler unverwundbar, darüber würde ihn Schaden heilen.',
+    );
+  }
+  return { vessel, wardReduction };
+})();
+
+/**
+ * Ein Boss nach Bezeichner, oder `undefined`.
+ *
+ * Das Gegenstück zu `boss_by_id` im Simulator (`sim/src/data.rs`).
+ */
+export function bossById(id: string): BossDef | undefined {
+  return BOSSES.get(id)?.value;
+}
