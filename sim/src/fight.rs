@@ -66,13 +66,17 @@
 //! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
-use crate::data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
+use crate::data::{
+    Boss, Resource, Spell, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+};
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
 use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
+use crate::stacks::{PendingGain, StackMechanic};
+use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
 
 /// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
@@ -157,6 +161,12 @@ pub struct FightConfig {
     /// In Schritt 1 durchweg neutral (`STEP1-SPEC` § 2). Der Balance-Laeufer
     /// veraendert je einen davon, um die Empfindlichkeit zu messen.
     pub factors: DamageFactors,
+    /// Gegen welchen Boss gerechnet wird.
+    ///
+    /// Voreinstellung ist der Boss aus `data/bosses/`, der als Standard
+    /// gekennzeichnet ist. Mit 68 Bossen (GAME-DESIGN 11.7) wird das der
+    /// haeufigste Schalter des Balance-Laeufers.
+    pub boss: &'static Boss,
 }
 
 impl Default for FightConfig {
@@ -167,6 +177,7 @@ impl Default for FightConfig {
             stop_on_kill: true,
             log_capacity: 4096,
             factors: NEUTRAL,
+            boss: BOSS,
         }
     }
 }
@@ -202,8 +213,61 @@ pub struct Fight {
     stop_on_kill: bool,
 
     // -- Boss --
+    boss: &'static Boss,
     damage: u32,
     killed_at: Option<Millis>,
+    /// Welche Phase gerade laeuft. 0 ist der Start.
+    phase: usize,
+    /// Stand der Energieleiste — der zweiten Uhr.
+    energy: u32,
+    /// Wie oft die Energieleiste ausgeloest hat.
+    energy_triggers: u32,
+    /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
+    ///
+    /// Zeigt auf den **naechsten** faelligen Eintrag. Steht er am Ende der
+    /// Liste, ist die Zeitleiste durch.
+    timeline_index: usize,
+    /// Welcher Boss-Zauber gerade laeuft, als Index in `Boss::timeline`.
+    ///
+    /// `None` heisst: keiner. Solange einer laeuft, kann er unterbrochen
+    /// werden — danach nicht mehr, auch nicht im Takt des Treffers.
+    casting: Option<usize>,
+    /// Wie oft ein Boss-Zauber durchgekommen ist.
+    interrupts_missed: u32,
+    /// Wie oft der Spieler einen unterbrochen hat.
+    interrupts_landed: u32,
+
+    // -- Spieler --
+    /// Verbleibende Lebenspunkte. Beginnt bei `PLAYER.vessel`.
+    player_hp: u32,
+    /// Kampfzeit des Spielertods, oder `None`.
+    ///
+    /// **Keine Strafe** (GAME-DESIGN A.3): Der Versuch ist vorbei, die
+    /// Auswertung erscheint wie bei jedem anderen Ende, und man startet neu.
+    died_at: Option<Millis>,
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    ///
+    /// Zaehlt, was den Spieler wirklich getroffen hat — was die Schutzschicht
+    /// abgefangen hat, steht in `shield_absorbed`.
+    damage_taken: u32,
+
+    // -- COAGULATION (Issue #79) --
+    /// Stand der Schutzschicht: wie viel Schaden sie noch aufnehmen kann.
+    shield: u32,
+    /// Wann sie verfaellt, wenn sie nicht vorher aufgebraucht wird.
+    shield_expires_at: Option<Millis>,
+    /// Wie viele Anwendungen gerade uebereinanderliegen.
+    shield_stacks: u32,
+    /// Wie viel Schaden die Schutzschicht insgesamt abgefangen hat.
+    shield_absorbed: u32,
+    /// Wie viel Leben insgesamt zurueckgeholt wurde.
+    healed: u32,
+    /// Bis wann die Schaden-in-Schutz-Umwandlung laeuft (Weg 3).
+    conversion_until: Option<Millis>,
+    /// Anteil, den sie umwandelt, in Prozent. 0 heisst: keine laeuft.
+    conversion_percent: u32,
+    /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
+    converted: u32,
 
     // -- Spieler --
     gcd_ready_at: Millis,
@@ -228,6 +292,17 @@ pub struct Fight {
     log: CombatLog,
     rng: Streams,
 
+    /// Was die Schul-Mechanik angesetzt, der Kampf aber noch nicht gebucht hat
+    /// (Issue E3-2). Siehe [`crate::stacks`] fuer den Grund der Teilung.
+    pending_gain: PendingGain,
+    /// Wie oft Stapel angesetzt wurden.
+    stack_gains: std::rc::Rc<std::cell::Cell<u32>>,
+    /// Verkuerzung der Abklingzeiten, angesetzt und noch nicht ausgefuehrt
+    /// (Issue E3-3). Siehe [`crate::sublimation`] fuer den Grund der Teilung.
+    pending_shorten: PendingSlot,
+    /// Wie oft die Sublimation angesetzt hat.
+    sublimation_uses: std::rc::Rc<std::cell::Cell<u32>>,
+
     /// Die Regel-Ereignisse (GAME-DESIGN 18.3, Issue E3-1b).
     ///
     /// **Erst der Schaden, dann "Zauber gewirkt"** — Entscheidung des
@@ -241,12 +316,31 @@ impl Fight {
     /// Legt einen Durchgang an. Fordert allen benoetigten Speicher **jetzt** an.
     #[must_use]
     pub fn new(config: FightConfig) -> Self {
-        Self {
+        let mut fight = Self {
             time: 0,
-            duration_ms: config.duration_ms.unwrap_or(BOSS.overpressure_ms),
+            duration_ms: config.duration_ms.unwrap_or(config.boss.overpressure_ms),
             stop_on_kill: config.stop_on_kill,
+            boss: config.boss,
             damage: 0,
             killed_at: None,
+            phase: 0,
+            energy: 0,
+            energy_triggers: 0,
+            timeline_index: 0,
+            casting: None,
+            interrupts_missed: 0,
+            interrupts_landed: 0,
+            player_hp: PLAYER.vessel,
+            died_at: None,
+            damage_taken: 0,
+            shield: 0,
+            shield_expires_at: None,
+            shield_stacks: 0,
+            shield_absorbed: 0,
+            healed: 0,
+            conversion_until: None,
+            conversion_percent: 0,
+            converted: 0,
             gcd_ready_at: 0,
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -269,6 +363,80 @@ impl Fight {
             // nicht gibt, kauft auch nichts: Angemeldet wird beim Aufbau, nicht
             // im Schritt (GAME-DESIGN 18.4 verlangt nur Letzteres).
             events: RuleEvents::default(),
+            pending_gain: PendingGain::default(),
+            stack_gains: std::rc::Rc::default(),
+            pending_shorten: PendingSlot::default(),
+            sublimation_uses: std::rc::Rc::default(),
+        };
+        fight.register_school_mechanics();
+        fight
+    }
+
+    /// Die Schul-Mechanik anmelden (Issue E3-2).
+    ///
+    /// Eine Zeile fuer alle Schulen: Welcher Vorrat gefuellt wird und wie viel,
+    /// steht in den Daten des jeweiligen Zaubers.
+    fn register_school_mechanics(&mut self) {
+        let mechanic = StackMechanic::new(
+            std::rc::Rc::clone(&self.pending_gain),
+            std::rc::Rc::clone(&self.stack_gains),
+        );
+        self.events
+            .register("stacks:heat", RuleEvent::SpellCast, 0, Box::new(mechanic));
+        let second = StackMechanic::new(
+            std::rc::Rc::clone(&self.pending_gain),
+            std::rc::Rc::clone(&self.stack_gains),
+        );
+        self.events
+            .register("stacks:heat", RuleEvent::DotTick, 0, Box::new(second));
+
+        // SUBLIMATION (Issue E3-3), Rang 10: nach der Stapel-Mechanik. Die
+        // Verkuerzungen kommen aus den Zauber-Daten; wer nichts verkuerzt,
+        // steht mit 0 in der Tabelle.
+        let mut per_cast = [0; SPELL_COUNT];
+        for (index, spell) in SPELLS.iter().enumerate() {
+            per_cast[index] = spell.cooldown_reduction_ms;
+        }
+        self.events.register(
+            "sublimation",
+            RuleEvent::SpellCast,
+            10,
+            Box::new(SublimationMechanic::new(
+                per_cast,
+                std::rc::Rc::clone(&self.pending_shorten),
+                std::rc::Rc::clone(&self.sublimation_uses),
+            )),
+        );
+    }
+
+    /// Wie oft die Sublimation angesetzt hat.
+    #[must_use]
+    pub fn sublimation_use_count(&self) -> u32 {
+        self.sublimation_uses.get()
+    }
+
+    /// Wie oft die Schul-Mechanik Stapel angesetzt hat.
+    #[must_use]
+    pub fn stack_gain_count(&self) -> u32 {
+        self.stack_gains.get()
+    }
+
+    /// Ein Regel-Ereignis austragen und einsammeln, was die Schul-Mechanik
+    /// dabei angesetzt hat.
+    ///
+    /// **Die einzige Stelle, an der gebucht wird.** Der Empfaenger kann nicht
+    /// selbst buchen (siehe [`crate::stacks`]); dass es hier und nur hier
+    /// geschieht, haelt die Regel trotzdem an einem Ort.
+    fn emit_rule(&mut self, event: RuleEvent, subject: i16, value: f64) {
+        let now = self.time;
+        self.events.emit(event, subject, value, now);
+        let gained = self.pending_gain.replace(0);
+        if gained > 0 {
+            self.add_resource(gained);
+        }
+        let order = self.pending_shorten.replace(PendingShorten::default());
+        if order.amount > 0 {
+            shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
 
@@ -317,6 +485,8 @@ impl Fight {
             self.queue
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
+        self.schedule_first_energy_tick();
+        self.schedule_next_timeline_step();
         // Die erste Entscheidung faellt bei 0.
         self.queue.push(0, EventKind::Wakeup);
 
@@ -336,13 +506,24 @@ impl Fight {
             }
 
             // Phase 2 — Sieg-Pruefung, an derselben Stelle wie in der Referenz.
-            if self.killed_at.is_none() && self.damage >= BOSS.hp {
+            if self.killed_at.is_none() && self.damage >= self.boss.hp {
                 self.killed_at = Some(now);
                 self.log.push(now, LogKind::Kill, NO_SPELL, self.damage);
                 if self.stop_on_kill {
                     break;
                 }
             }
+
+            // Der Spielertod beendet den Versuch — **immer**, auch wenn
+            // `stop_on_kill` aus ist (GAME-DESIGN A.3: Versuch vorbei, keine
+            // Strafe). Der Unterschied zum Sieg ist Absicht: Zwei Rotationen
+            // ueber die volle Zeit zu vergleichen ergibt Sinn, ein toter
+            // Spieler, der weiterwirkt, nicht.
+            if self.died_at.is_some() {
+                break;
+            }
+            self.expire_coagulation();
+            self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
             if self.gcd_ready_at <= now {
@@ -388,12 +569,21 @@ impl Fight {
             self.queue
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
+        self.schedule_first_energy_tick();
+        self.schedule_next_timeline_step();
 
         let mut checksums = Vec::with_capacity(if checksum_per_tick {
             recording.ticks as usize
         } else {
             0
         });
+        // Die drei Zustandsspuren. Wie `checksums` nur auf Verlangen, und mit
+        // derselben Kapazitaet vorbelegt — im Schritt wird nichts angefordert.
+        let mut phases = Vec::with_capacity(checksums.capacity());
+        let mut energy = Vec::with_capacity(checksums.capacity());
+        let mut timeline_index = Vec::with_capacity(checksums.capacity());
+        let mut player_hp = Vec::with_capacity(checksums.capacity());
+        let mut shield_spur = Vec::with_capacity(checksums.capacity());
         let mut sequence: u32 = 0;
         let mut accepted = 0;
         let mut rejected = 0;
@@ -412,15 +602,39 @@ impl Fight {
                 self.apply(event.kind);
             }
 
+            self.expire_coagulation();
+            self.check_phase();
+
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
             // Pruefsumme dieses Takts wird noch geschrieben.
-            if self.killed_at.is_none() && self.damage >= BOSS.hp {
+            if self.killed_at.is_none() && self.damage >= self.boss.hp {
                 self.killed_at = Some(now);
                 self.log.push(now, LogKind::Kill, NO_SPELL, self.damage);
                 let hash = self.checksum_at(now);
                 sequence = sequence.wrapping_mul(31).wrapping_add(hash);
                 if checksum_per_tick {
                     checksums.push(hash);
+                    phases.push(self.phase as u32);
+                    energy.push(self.energy);
+                    timeline_index.push(self.timeline_index as u32);
+                    player_hp.push(self.player_hp);
+                    shield_spur.push(self.shield);
+                }
+                break;
+            }
+
+            // Der Spielertod endet genauso — mit der Pruefsumme dieses Takts,
+            // damit beide Seiten denselben letzten Eintrag haben.
+            if self.died_at.is_some() {
+                let hash = self.checksum_at(now);
+                sequence = sequence.wrapping_mul(31).wrapping_add(hash);
+                if checksum_per_tick {
+                    checksums.push(hash);
+                    phases.push(self.phase as u32);
+                    energy.push(self.energy);
+                    timeline_index.push(self.timeline_index as u32);
+                    player_hp.push(self.player_hp);
+                    shield_spur.push(self.shield);
                 }
                 break;
             }
@@ -453,6 +667,11 @@ impl Fight {
             sequence = sequence.wrapping_mul(31).wrapping_add(hash);
             if checksum_per_tick {
                 checksums.push(hash);
+                phases.push(self.phase as u32);
+                energy.push(self.energy);
+                timeline_index.push(self.timeline_index as u32);
+                player_hp.push(self.player_hp);
+                shield_spur.push(self.shield);
             }
         }
 
@@ -470,6 +689,18 @@ impl Fight {
             sequence_checksum: sequence,
             checksums,
             random_draws: self.rng.total_draws(),
+            phases,
+            energy,
+            timeline_index,
+            player_hp,
+            damage_taken: self.damage_taken,
+            died_at_ms: self.died_at,
+            interrupts_landed: self.interrupts_landed,
+            interrupts_missed: self.interrupts_missed,
+            shield: shield_spur,
+            shield_absorbed: self.shield_absorbed,
+            healed: self.healed,
+            converted: self.converted,
         }
     }
 
@@ -479,6 +710,24 @@ impl Fight {
         self.time = 0;
         self.damage = 0;
         self.killed_at = None;
+        self.phase = 0;
+        self.energy = 0;
+        self.energy_triggers = 0;
+        self.timeline_index = 0;
+        self.casting = None;
+        self.interrupts_missed = 0;
+        self.interrupts_landed = 0;
+        self.player_hp = PLAYER.vessel;
+        self.died_at = None;
+        self.damage_taken = 0;
+        self.shield = 0;
+        self.shield_expires_at = None;
+        self.shield_stacks = 0;
+        self.shield_absorbed = 0;
+        self.healed = 0;
+        self.conversion_until = None;
+        self.conversion_percent = 0;
+        self.converted = 0;
         self.gcd_ready_at = 0;
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -498,10 +747,247 @@ impl Fight {
         self.events.clear_sequence();
     }
 
+    /// Plant den ersten Anstieg der Energieleiste ein, falls der Boss eine hat.
+    fn schedule_first_energy_tick(&mut self) {
+        if let Some(energy) = self.boss.energy {
+            if energy.per_step_ms > 0 && energy.per_step_ms < self.duration_ms {
+                self.queue.push(energy.per_step_ms, EventKind::EnergyTick);
+            }
+        }
+    }
+
+    /// Plant den naechsten faelligen Eintrag der Boss-Zeitleiste ein.
+    ///
+    /// Immer nur **einen**. Alle auf einmal einzuplanen waere kuerzer, wuerde
+    /// aber die Ereignis-Schlange mit Eintraegen fuellen, die ein frueher
+    /// Sieg ohnehin nie erreicht — und ihre Kapazitaet ist bewusst fest
+    /// ([`EVENT_CAPACITY`]).
+    fn schedule_next_timeline_step(&mut self) {
+        let Some(entry) = self.boss.timeline.get(self.timeline_index) else {
+            return;
+        };
+        if entry.at_ms < self.duration_ms {
+            self.queue.push(
+                entry.at_ms,
+                EventKind::TimelineStep {
+                    index: self.timeline_index as u16,
+                },
+            );
+        }
+    }
+
+    /// Ein Eintrag der Zeitleiste ist faellig (GAME-DESIGN 11.1).
+    ///
+    /// **Noch ohne Wirkung.** Die neun Mechanik-Bausteine kommen in E4-2 bis
+    /// E4-6, die Zeitleisten der einzelnen Bosse in E10. Was hier schon steht,
+    /// ist der Zeitpunkt: Er wird taktgenau angesteuert, protokolliert und geht
+    /// ueber den Zeiger in die Zustands-Pruefsumme ein. Ein spaeter angehaengter
+    /// Baustein setzt damit auf nachgewiesener Zeitrechnung auf statt auf einer
+    /// erst dann erstmals gepruefen.
+    fn timeline_step(&mut self, index: usize) {
+        // Ein veralteter Eintrag: Der Zeiger ist bereits weiter. Kann heute
+        // nicht vorkommen, weil immer nur einer offen ist — aber wenn E4-2
+        // Eintraege ueberspringbar macht, faengt es das hier ab, statt den
+        // Zeiger rueckwaerts laufen zu lassen.
+        if index != self.timeline_index {
+            return;
+        }
+        self.log
+            .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
+
+        // **Hier bekommt die Zeitleiste ihre Wirkung** (Issue #110). In #96
+        // wurde der Zeitpunkt nur angesteuert und protokolliert.
+        let entry = self.boss.timeline[index];
+        match entry.kind {
+            // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
+            TimelineKind::Strike => self.hit_player(entry.damage),
+            // Beginnt zu wirken. Ob er trifft, entscheidet sich erst, wenn die
+            // Wirkzeit um ist — bis dahin kann der Spieler ihn abbrechen.
+            TimelineKind::InterruptibleCast => {
+                self.casting = Some(index);
+                self.queue.push(
+                    self.time + entry.cast_time_ms,
+                    EventKind::BossCastLands {
+                        index: index as u16,
+                    },
+                );
+            }
+        }
+
+        self.timeline_index += 1;
+        self.schedule_next_timeline_step();
+    }
+
+    /// Ein Boss-Zauber ist fertig gewirkt.
+    ///
+    /// Er trifft **nur**, wenn er noch laeuft. Wurde er unterbrochen, steht
+    /// `casting` auf `None` oder auf einem anderen Eintrag, und dieser Aufruf
+    /// verpufft — der eingeplante Treffer aus der Schlange zu entfernen waere
+    /// teurer als ihn hier verfallen zu lassen (dasselbe Vorgehen wie bei den
+    /// veralteten DoT-Ticks, `generation`).
+    fn boss_cast_lands(&mut self, index: usize) {
+        if self.casting != Some(index) {
+            return;
+        }
+        self.casting = None;
+        self.interrupts_missed += 1;
+        self.hit_player(self.boss.timeline[index].damage);
+    }
+
+    /// Die drei Wege der Koagulation, soweit sie beim Wirken greifen
+    /// (GAME-DESIGN 4.1, Issue #79).
+    ///
+    /// Weg 3 wirkt hier nur als **Anschalter**: Die Umwandlung selbst
+    /// geschieht spaeter, bei jedem ausgeteilten Schaden.
+    fn apply_coagulation(&mut self, index: usize, spell: &Spell) {
+        // Weg 1 — Schutzschicht aufbauen.
+        if let Some(shield) = spell.shield {
+            // **Stapeln bis zur Grenze, dann nicht weiter.** Ein vierter Druck
+            // auf eine volle Schicht erneuert die Laufzeit, erhoeht aber den
+            // Betrag nicht — sonst waere die Obergrenze wirkungslos.
+            if self.shield_stacks < shield.max_stacks {
+                self.shield_stacks += 1;
+                self.shield = self.shield.saturating_add(shield.amount);
+            }
+            self.shield_expires_at = Some(self.time + shield.duration_ms);
+            self.queue
+                .push(self.time + shield.duration_ms, EventKind::Wakeup);
+            self.log
+                .push(self.time, LogKind::Cast, index as u8, self.shield);
+        }
+
+        // Weg 2 — Heilung.
+        if let Some(heal) = spell.heal {
+            // **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist
+            // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
+            // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
+            // als er gebraucht hat.
+            let fehlend = PLAYER.vessel.saturating_sub(self.player_hp);
+            let wirklich = heal.amount.min(fehlend);
+            if wirklich > 0 {
+                self.player_hp += wirklich;
+                self.healed = self.healed.saturating_add(wirklich);
+                self.log
+                    .push(self.time, LogKind::Healed, index as u8, wirklich);
+            }
+        }
+
+        // Weg 3 — die Umwandlung anschalten.
+        if let Some(conversion) = spell.conversion {
+            self.conversion_percent = conversion.share_percent;
+            self.conversion_until = Some(self.time + conversion.duration_ms);
+            self.queue
+                .push(self.time + conversion.duration_ms, EventKind::Wakeup);
+        }
+    }
+
+    /// Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 laeuft.
+    ///
+    /// **Ganzzahlig und abgerundet.** Der Anteil steht als Prozentzahl in den
+    /// Daten (`share_percent`), damit hier eine ganzzahlige Rechnung moeglich
+    /// ist: `schaden * prozent / 100`. Ein Bruch als Faktor muesste von beiden
+    /// Seiten unabhaengig gerundet werden — genau daran laufen zwei
+    /// Umsetzungen auseinander (GAME-DESIGN 18.4).
+    fn convert_damage_to_shield(&mut self, damage: u32) {
+        if self.conversion_percent == 0 || damage == 0 {
+            return;
+        }
+        if self.conversion_until.is_none_or(|bis| self.time > bis) {
+            return;
+        }
+        let gewonnen = damage * self.conversion_percent / 100;
+        if gewonnen == 0 {
+            return;
+        }
+        self.shield = self.shield.saturating_add(gewonnen);
+        self.converted = self.converted.saturating_add(gewonnen);
+        self.log
+            .push(self.time, LogKind::ConvertedToShield, NO_SPELL, gewonnen);
+    }
+
+    /// Laesst die Schutzschicht und die Umwandlung ablaufen.
+    ///
+    /// Steht bei den passiven Wirkungen, weil beides allein an der Uhr haengt —
+    /// wie die Energieleiste des Bosses.
+    fn expire_coagulation(&mut self) {
+        if self.shield_expires_at.is_some_and(|bis| self.time > bis) {
+            self.shield = 0;
+            self.shield_stacks = 0;
+            self.shield_expires_at = None;
+        }
+        if self.conversion_until.is_some_and(|bis| self.time > bis) {
+            self.conversion_percent = 0;
+            self.conversion_until = None;
+        }
+    }
+
+    /// Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
+    ///
+    /// Der Tod wird hier festgestellt und nicht erst in der Kampfschleife: Ein
+    /// Spieler mit null Lebenspunkten, der noch einen Takt weiterwirkt, waere
+    /// eine stille Abweichung zwischen beiden Umsetzungen.
+    fn hit_player(&mut self, raw: u32) {
+        if self.died_at.is_some() {
+            return;
+        }
+        let nach_ward = PLAYER.incoming(raw);
+
+        // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
+        //
+        // Das ist die ganze Mechanik: Sie muss VOR dem Schlag stehen. Eine
+        // Schicht, die erst danach greift, waere eine Heilung mit anderem
+        // Namen — und die gibt es in dieser Schule als eigenen Weg.
+        //
+        // **Nach WARD, nicht davor.** WARD ist eine Eigenschaft des Spielers
+        // und mindert jeden Schlag; die Schicht faengt auf, was danach uebrig
+        // bleibt. Andersherum gerechnet wuerde WARD den Schutz mitmindern und
+        // damit doppelt zaehlen.
+        let abgefangen = self.shield.min(nach_ward);
+        if abgefangen > 0 {
+            self.shield -= abgefangen;
+            self.shield_absorbed = self.shield_absorbed.saturating_add(abgefangen);
+            self.log
+                .push(self.time, LogKind::ShieldAbsorb, NO_SPELL, abgefangen);
+            if self.shield == 0 {
+                // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+                self.shield_stacks = 0;
+                self.shield_expires_at = None;
+            }
+        }
+
+        let angekommen = nach_ward - abgefangen;
+        self.damage_taken = self.damage_taken.saturating_add(angekommen);
+        self.player_hp = self.player_hp.saturating_sub(angekommen);
+        self.log
+            .push(self.time, LogKind::PlayerDamage, NO_SPELL, angekommen);
+        if self.player_hp == 0 {
+            self.died_at = Some(self.time);
+            self.log
+                .push(self.time, LogKind::PlayerDeath, NO_SPELL, self.damage_taken);
+        }
+    }
+
+    /// Bricht einen laufenden Boss-Zauber ab (GAME-DESIGN 11.2, Baustein 9).
+    ///
+    /// Gibt zurueck, ob ueberhaupt etwas zu unterbrechen war. Ein Unterbrechen
+    /// ins Leere ist **kein Fehler**, sondern eine vertane Abklingzeit — der
+    /// Zauber wird gewirkt, er trifft nur nichts.
+    fn interrupt_boss_cast(&mut self) -> bool {
+        if self.casting.take().is_some() {
+            self.interrupts_landed += 1;
+            true
+        } else {
+            false
+        }
+    }
+
     fn apply(&mut self, kind: EventKind) {
         match kind {
             EventKind::DotTick { spell, generation } => self.dot_tick(spell as usize, generation),
             EventKind::ResourceDecay => self.decay(),
+            EventKind::EnergyTick => self.energy_tick(),
+            EventKind::TimelineStep { index } => self.timeline_step(index as usize),
+            EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
             // Simulator zu diesem Zeitpunkt ueberhaupt aufwacht — weil dann eine
             // Abklingzeit abgelaufen ist oder der Sieg zu pruefen war.
@@ -529,14 +1015,9 @@ impl Fight {
         );
         // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zaehlen
         // will, meldet sich fuer beide Arten an — so bleibt die Folge eindeutig.
-        self.events.emit(
-            RuleEvent::DotTick,
-            index as i16,
-            f64::from(tick_damage),
-            self.time,
-        );
+        self.emit_rule(RuleEvent::DotTick, index as i16, f64::from(tick_damage));
         self.dot_tick_counts[index] += 1;
-        self.add_resource(dot.resource_gain_per_tick);
+        // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
         // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
         // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
@@ -551,6 +1032,57 @@ impl Fight {
                     generation,
                 },
             );
+        }
+    }
+
+    /// Die Energieleiste steigt (GAME-DESIGN 11.2, Baustein 1).
+    ///
+    /// **Unabhaengig vom Schaden des Spielers** — das ist die eigentliche
+    /// Aussage des Bausteins. Wer schneller zuschlaegt, verschiebt den
+    /// Ausloeser nicht; damit entsteht ein zweiter Takt, gegen den geplant
+    /// werden muss.
+    fn energy_tick(&mut self) {
+        let Some(energy) = self.boss.energy else {
+            return;
+        };
+
+        self.energy = self.energy.saturating_add(energy.amount);
+        if self.energy >= energy.threshold {
+            self.energy_triggers += 1;
+            self.energy = energy.reset_to;
+            self.log.push(
+                self.time,
+                LogKind::BossEnergy,
+                NO_SPELL,
+                self.energy_triggers,
+            );
+        }
+
+        let next = self.time + energy.per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::EnergyTick);
+        }
+    }
+
+    /// Prueft, ob der Boss die Phase wechselt.
+    ///
+    /// An derselben Stelle wie die Sieg-Pruefung: nach den passiven Wirkungen,
+    /// vor der Entscheidung des Spielers. Das ist kein Zufall — beide haengen
+    /// am selben Wert, den Lebenspunkten, und muessen deshalb denselben
+    /// Zeitpunkt sehen.
+    ///
+    /// **Eskalierend, nicht springend:** Die Phase kann nur steigen. Heilt der
+    /// Boss spaeter einmal (GAME-DESIGN 11.2, Baustein 5), faellt sie nicht
+    /// zurueck — eine schon gezeigte Mechanik verschwindet nicht wieder.
+    fn check_phase(&mut self) {
+        if self.boss.phases.is_empty() {
+            return;
+        }
+        let neue = self.boss.phase_at(self.boss_hp_percent());
+        if neue > self.phase {
+            self.phase = neue;
+            self.log
+                .push(self.time, LogKind::BossPhase, NO_SPELL, neue as u32);
         }
     }
 
@@ -585,6 +1117,28 @@ impl Fight {
         // niemandem auffiel.
         let mut cast_damage = 0;
 
+        // Unterbrechen (GAME-DESIGN 11.2, Baustein 9).
+        //
+        // **Kein Sonderfall in der Wartezeit-Rechnung.** Dass dieser Zauber
+        // keine globale Wartezeit ausloest, steht weiter unten als
+        // `spell.triggers_gcd` und kommt aus den Daten — hier waere eine
+        // zweite Stelle, an der dieselbe Regel haengt, und zwei Stellen laufen
+        // auseinander.
+        if spell.interrupt && self.interrupt_boss_cast() {
+            self.log.push(
+                now,
+                LogKind::InterruptLanded,
+                index as u8,
+                self.interrupts_landed,
+            );
+        }
+
+        // Die drei Wege der Koagulation (Issue #79). Sie stehen VOR dem
+        // Schaden, weil ein Zauber, der beides taete, erst schuetzen und dann
+        // zuschlagen soll — die Reihenfolge ist heute ohne Wirkung (keiner
+        // macht beides) und deshalb jetzt festzulegen und nicht dann.
+        self.apply_coagulation(index, spell);
+
         if spell.base_damage > 0 {
             cast_damage += self.deal(
                 index,
@@ -615,16 +1169,11 @@ impl Fight {
         // Ereignisse und dort eines. In Schritt 1 gibt es keinen solchen
         // Zauber — genau deshalb ist es jetzt festzulegen und nicht dann.
         if cast_damage > 0 {
-            self.events
-                .emit(RuleEvent::Damage, index as i16, f64::from(cast_damage), now);
+            self.emit_rule(RuleEvent::Damage, index as i16, f64::from(cast_damage));
         }
         // Hierher gehoert `RuleEvent::Crit`. Krit ruht in Schritt 1
         // (PURITY = 0, `STEP1-SPEC` 2); ein Ausloeser, der nie zutrifft, waere
         // toter Code.
-
-        if spell.resource_gain > 0 {
-            self.add_resource(spell.resource_gain);
-        }
 
         if let Some(dot) = spell.dot {
             if self.dot_active(index) {
@@ -659,19 +1208,14 @@ impl Fight {
         // weil die Pruefung vor der Wirk-Phase steht. Ohne diesen Weckruf
         // koennte der Simulator bis zum naechsten regulaeren Ereignis
         // weiterspringen und einen zu spaeten Zeitpunkt melden.
-        if self.damage >= BOSS.hp {
+        if self.damage >= self.boss.hp {
             self.queue.push(now + TICK_MS, EventKind::Wakeup);
         }
 
         // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt ueber Zeit,
         // Vorrat, Abklingzeit und Wartezeit stehen.
         self.log.push(now, LogKind::Cast, index as u8, 0);
-        self.events.emit(
-            RuleEvent::SpellCast,
-            index as i16,
-            f64::from(cast_damage),
-            now,
-        );
+        self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
     }
 
     /// Traegt Schaden ein und gibt den Betrag zurueck.
@@ -679,6 +1223,12 @@ impl Fight {
         self.damage += amount;
         self.damage_by_spell[index] += amount;
         self.log.push(self.time, kind, index as u8, amount);
+        // **Hier und nur hier** speist Weg 3 (Issue #79). Jeder ausgeteilte
+        // Schaden laeuft durch diese Funktion — Sofortschaden, Entladung und
+        // Brand-Tick. Die Umwandlung an den drei Aufrufstellen einzeln
+        // anzuhaengen waere dieselbe Regel an drei Orten, und einer davon
+        // liefe irgendwann weg.
+        self.convert_damage_to_shield(amount);
         amount
     }
 
@@ -726,7 +1276,21 @@ impl Fight {
     /// globale Wartezeit abgelaufen.
     #[must_use]
     pub fn is_ready(&self, index: usize) -> bool {
-        self.cooldown_ready_at[index] <= self.time && self.gcd_ready_at <= self.time
+        if self.cooldown_ready_at[index] > self.time {
+            return false;
+        }
+        // **Wer keine Wartezeit ausloest, wird auch von keiner gesperrt**
+        // (GAME-DESIGN 6.6/10.4, Issue #110).
+        //
+        // Bis hierher galt die Sperre fuer jeden Zauber. Fuer die drei aus
+        // Schritt 1 war das richtig — sie loesen alle eine aus. Fuer den
+        // Unterbrecher waere es die Ausnahme mit falschem Vorzeichen: Er
+        // loeste zwar keine Wartezeit aus, koennte aber waehrend einer
+        // laufenden nicht gewirkt werden. Gebraucht wird er genau dann.
+        if !SPELLS[index].triggers_gcd {
+            return true;
+        }
+        self.gcd_ready_at <= self.time
     }
 
     /// Ob ein Brand-Effekt gerade laeuft.
@@ -786,7 +1350,7 @@ impl Fight {
     /// Verbleibende Lebenspunkte des Bosses.
     #[must_use]
     pub fn boss_hp_remaining(&self) -> u32 {
-        BOSS.hp.saturating_sub(self.damage)
+        self.boss.hp.saturating_sub(self.damage)
     }
 
     /// Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet.
@@ -796,10 +1360,10 @@ impl Fight {
     /// unterschiedlich ausfallen koennte.
     #[must_use]
     pub fn boss_hp_percent(&self) -> u32 {
-        if BOSS.hp == 0 {
+        if self.boss.hp == 0 {
             return 0;
         }
-        (self.boss_hp_remaining() * 100) / BOSS.hp
+        (self.boss_hp_remaining() * 100) / self.boss.hp
     }
 
     /// Zeit bis zum Ueberdruck.
@@ -883,13 +1447,125 @@ impl Fight {
         for draws in self.rng.draw_counts() {
             h = mix_int(h, draws as i32);
         }
+        // **Angehaengt, nicht eingeschoben** (Issue #96). Die bestehenden
+        // Positionen bleiben dadurch unveraendert; die Reihenfolge ist ohnehin
+        // willkuerlich und muss nur auf beiden Seiten gleich sein.
+        //
+        // Ohne diese beiden Felder waere die Pruefsumme fuer einen Boss mit
+        // Phasen blind: Zwei Laeufe in verschiedenen Phasen saehen gleich aus,
+        // und der Abgleich meldete Uebereinstimmung, wo keine ist.
+        h = mix_int(h, self.phase as i32);
+        h = mix_int(h, self.energy as i32);
+        h = mix_int(h, self.timeline_index as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #110). Ohne die
+        // Lebenspunkte waere die Pruefsumme fuer einen Boss, der Schaden
+        // austeilt, blind: Zwei Laeufe mit verschiedenem erlittenem Schaden
+        // saehen gleich aus.
+        h = mix_int(h, self.player_hp as i32);
+        // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen
+        // auffaellt, bevor der Treffer ueberhaupt faellt.
+        h = mix_int(h, self.casting.map_or(-1, |i| i as i32));
+        // **Angehaengt, nicht eingeschoben** (Issue #79). Ohne den Schutz waere
+        // die Pruefsumme fuer jeden Kampf mit Schutzschicht blind: Zwei Laeufe
+        // mit verschieden viel aufgefangenem Schaden saehen gleich aus, solange
+        // die Lebenspunkte zufaellig uebereinstimmen.
+        h = mix_int(h, self.shield as i32);
+        h = mix_int(h, self.shield_stacks as i32);
+        // Die laufende Umwandlung gehoert dazu, nicht nur ihr Ergebnis: Sie
+        // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
+        // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
+        h = mix_int(h, self.conversion_percent as i32);
         h
+    }
+
+    /// Welche Phase gerade laeuft. 0 ist der Start.
+    #[must_use]
+    pub fn phase(&self) -> usize {
+        self.phase
+    }
+
+    /// Stand der Energieleiste.
+    #[must_use]
+    pub fn energy(&self) -> u32 {
+        self.energy
+    }
+
+    /// Wie oft die Energieleiste ausgeloest hat.
+    #[must_use]
+    pub fn energy_triggers(&self) -> u32 {
+        self.energy_triggers
+    }
+
+    /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
+    #[must_use]
+    pub fn timeline_index(&self) -> usize {
+        self.timeline_index
+    }
+
+    /// Verbleibende Lebenspunkte des Spielers.
+    #[must_use]
+    pub fn player_hp(&self) -> u32 {
+        self.player_hp
+    }
+
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    #[must_use]
+    pub fn damage_taken(&self) -> u32 {
+        self.damage_taken
+    }
+
+    /// Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3).
+    #[must_use]
+    pub fn player_dead(&self) -> bool {
+        self.died_at.is_some()
+    }
+
+    /// Welcher Boss-Zauber gerade laeuft, als Index in `Boss::timeline`.
+    #[must_use]
+    pub fn casting(&self) -> Option<usize> {
+        self.casting
+    }
+
+    /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
+    #[must_use]
+    pub fn interrupts_landed(&self) -> u32 {
+        self.interrupts_landed
+    }
+
+    /// Stand der Schutzschicht (COAGULATION, Weg 1).
+    #[must_use]
+    pub fn shield(&self) -> u32 {
+        self.shield
+    }
+
+    /// Wie viele Anwendungen der Schutzschicht uebereinanderliegen.
+    #[must_use]
+    pub fn shield_stacks(&self) -> u32 {
+        self.shield_stacks
+    }
+
+    /// Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat.
+    #[must_use]
+    pub fn shield_absorbed(&self) -> u32 {
+        self.shield_absorbed
+    }
+
+    /// Wie viel Leben insgesamt zurueckgeholt wurde (Weg 2).
+    #[must_use]
+    pub fn healed(&self) -> u32 {
+        self.healed
+    }
+
+    /// Wie viel Schutz die Umwandlung erzeugt hat (Weg 3).
+    #[must_use]
+    pub fn converted(&self) -> u32 {
+        self.converted
     }
 
     /// Der Boss, gegen den gerechnet wird.
     #[must_use]
     pub fn boss(&self) -> &'static Boss {
-        &BOSS
+        self.boss
     }
 
     /// Die Schul-Mechanik.

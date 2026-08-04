@@ -17,7 +17,33 @@
 
 use crate::time::Millis;
 
-/// Art eines Protokoll-Eintrags.
+/// Art eines Protokoll-Eintrags — **ein gemeinsamer Nummernraum mit dem
+/// Spiel** (Issue E3-6).
+///
+/// Bis dahin fuehrten beide Seiten eigene Nummern, und ab der 2 bedeutete
+/// dieselbe Zahl etwas anderes: Eine 3 hiess hier "Entladung", im Spiel
+/// "DoT-Tick"; eine 4 hier "Boss gefallen", dort "Phasenwechsel". Verglichen
+/// hat das nie jemand — die Auswertung in Epic E7 liest aber genau diese
+/// Daten, und eine verschobene Bedeutung ergaebe eine Fehleranalyse, die
+/// plausibel aussieht und falsch ist.
+///
+/// **Jede Seite benutzt nur ihre Teilmenge.** Die Luecken bei 3, 6 und 7
+/// gehoeren dem Spiel (Krit, Phasenwechsel, Verstaerkung laeuft ab); leere
+/// Varianten zu fuehren, die der Simulator nie schreibt, waere toter Code.
+///
+/// | Nr. | Art          | Spiel | Simulator |
+/// | --- | ------------ | ----- | --------- |
+/// | 0   | `cast`       | ja    | ja        |
+/// | 1   | `damage`     | ja    | ja        |
+/// | 2   | `dotTick`    | ja    | ja        |
+/// | 3   | `crit`       | ja    | —         |
+/// | 4   | `spend`      | —     | ja        |
+/// | 5   | `kill`       | —     | ja        |
+/// | 6   | `phase`      | ja    | —         |
+/// | 7   | `buffExpire` | ja    | —         |
+///
+/// `tests/log_kinds.rs` prueft die Tabelle gegen eine Datei, die aus dem
+/// Spielcode stammt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum LogKind {
@@ -28,9 +54,56 @@ pub enum LogKind {
     /// Ein Brand-Effekt hat getickt.
     DotTick = 2,
     /// Ein Entlade-Zauber hat die Ressource verbraucht.
-    Spend = 3,
+    Spend = 4,
     /// Der Boss ist gefallen.
-    Kill = 4,
+    Kill = 5,
+    /// Der Boss hat die Phase gewechselt. `value` ist die neue Phase.
+    ///
+    /// **Nummer 6 gehoerte bisher allein dem Spiel** (E3-6). Der Simulator
+    /// schreibt sie seit Issue #96 ebenfalls — dieselbe Bedeutung, dieselbe
+    /// Zahl. Genau dafuer wurde der gemeinsame Raum eingerichtet.
+    BossPhase = 6,
+    /// Die Energieleiste des Bosses hat **ausgeloest**. `value` zaehlt die
+    /// Ausloesungen.
+    ///
+    /// Heisst im gemeinsamen Raum `bossEnergyTriggered`, und das `Triggered`
+    /// ist wesentlich: Dies ist ein **Vorgang**, kein Zustand. Geschrieben
+    /// wird nur im Moment des Ausloesens, nicht bei jedem Anstieg — der Stand
+    /// der Leiste ist [`Fight::energy`] und etwas anderes. Beim ersten Lesen
+    /// wurden die beiden verwechselt; daher die zwei unterscheidbaren Namen.
+    ///
+    /// Neu im gemeinsamen Raum (Issue #96). Nur der Simulator schreibt sie —
+    /// wie `spend` und `kill` auch.
+    BossEnergy = 8,
+    /// Ein Eintrag der Boss-Zeitleiste ist faellig geworden. `value` ist sein
+    /// Index in `Boss::timeline`.
+    ///
+    /// Was der Eintrag *bewirkt*, entscheidet sich in E4-2 bis E4-6 — hier
+    /// steht vorerst nur, dass er zur richtigen Zeit gegriffen hat.
+    BossTimeline = 9,
+    /// Der Spieler hat Schaden genommen. `value` ist der Betrag **nach** WARD.
+    ///
+    /// Neu im gemeinsamen Raum (Issue #110).
+    PlayerDamage = 10,
+    /// Der Spieler ist gestorben. `value` ist der insgesamt erlittene Schaden.
+    ///
+    /// Keine Strafe (GAME-DESIGN A.3) — der Eintrag steht fuer die Auswertung,
+    /// nicht fuer eine Buchung.
+    PlayerDeath = 11,
+    /// Der Spieler hat einen Boss-Zauber unterbrochen. `value` zaehlt sie.
+    InterruptLanded = 12,
+    /// Die Schutzschicht hat Schaden aufgefangen (COAGULATION, Weg 1).
+    /// `value` ist der abgefangene Betrag.
+    ShieldAbsorb = 13,
+    /// Der Spieler wurde geheilt (Weg 2). `value` ist der zurueckgeholte Betrag.
+    ///
+    /// **Nicht der Betrag aus den Daten**, sondern der wirklich angekommene:
+    /// Eine Heilung ueber die volle Lebensanzeige hinaus zaehlt nur, was
+    /// gefehlt hat. Sonst saehe ein Lauf mit voller Anzeige nach mehr Heilung
+    /// aus, als er gebraucht hat.
+    Healed = 14,
+    /// Ausgeteilter Schaden wurde in Schutz verwandelt (Weg 3).
+    ConvertedToShield = 15,
 }
 
 /// Ein Eintrag. Gepackte Zahlen, keine Zeichenketten, kein Zeiger.

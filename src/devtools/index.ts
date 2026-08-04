@@ -26,6 +26,7 @@ import { recordingNames, recordings, replayRecording, type ReplayResult } from '
 import type { RunSummary } from '../core/summary.js';
 import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
+import { STAT_ADDITIVE, STAT_MULTIPLICATIVE } from '../gear/format.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
   measureCooldown,
@@ -277,6 +278,19 @@ export interface DevTools {
   combat(): CombatSnapshot;
   /** Lage und Zeitanzeigen der Zauberleiste, in Geräte-Pixeln. */
   hud(): HudSnapshot;
+  /**
+   * Einen **Prüfgegenstand** auf dem Vorbereitungs-Bildschirm anzeigen
+   * (Issue E6-1, AC4).
+   *
+   * **Nur hier und nicht im Spiel**, weil es noch keine Gegenstände gibt: Der
+   * Katalog steht vor E6 aus (GAME-DESIGN 22). Ohne Aufruf bleibt die Karte
+   * leer und die ausgelieferte Fassung zeigt nichts — genau wie das
+   * Abhör-Soundboard nur im Entwicklungs-Bau entsteht (19.3).
+   *
+   * Der Name trägt die Kennzeichnung `test-`, damit er nicht als Spielinhalt
+   * gilt — dieselbe Linie wie `test-vessel` bei den Bossen.
+   */
+  showTestGear(): void;
   /** Zustand der Trefferwucht: Pool, Zahlen, Ruckeln. */
   impact(): ImpactSnapshot;
   /**
@@ -866,6 +880,17 @@ export function installDevTools(app: App): void {
       app.togglePause();
     },
     isPaused: () => app.overlay.isPaused,
+    showTestGear: () => {
+      // Ein Gegenstand, der BEIDE Arten trägt — nur so lässt sich der
+      // Unterschied überhaupt zeigen. Ein Prüfstück mit nur einer Art wäre
+      // der triviale Fall, den AC4 ausdrücklich nicht meint.
+      app.overlay.showGear('TEST-RELIC · ITEM LEVEL 40 · EPIC', [
+        { label: 'ESSENCE', share: 0.2, kind: STAT_ADDITIVE },
+        { label: 'SET BONUS (4)', share: 0.3, kind: STAT_ADDITIVE },
+        { label: 'CATALYSIS', share: 0.12, kind: STAT_MULTIPLICATIVE },
+        { label: 'PURITY', share: 0.08, kind: STAT_MULTIPLICATIVE },
+      ]);
+    },
     simulate: (rotation, options) => runReference(rotation, options),
     measureCooldown: (spellId, cycles) => measureCooldown(spellId, cycles),
     sound: () => buildSoundReport(app),

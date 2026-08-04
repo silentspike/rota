@@ -21,7 +21,7 @@ const REFERENCE = {
     damage: 4240,
     killedAtMs: 40_510,
     remainingMs: 19_490,
-    casts: { kindle: 20, smoulder: 4, pyre: 4 },
+    casts: { kindle: 20, smoulder: 4, pyre: 4, quench: 0, crust: 0, salve: 0, temper: 0 },
     pyreDamage: 1440,
     smoulderDamage: 800,
     lostDotTicks: 0,
@@ -31,7 +31,7 @@ const REFERENCE = {
   bad: {
     damage: 4044,
     killedAtMs: -1,
-    casts: { kindle: 24, smoulder: 8, pyre: 8 },
+    casts: { kindle: 24, smoulder: 8, pyre: 8, quench: 0, crust: 0, salve: 0, temper: 0 },
     pyreDamage: 684,
     smoulderDamage: 960,
     lostDotTicks: 14,

@@ -7,6 +7,7 @@ import {
   EVENT_CAST,
   EVENT_DAMAGE,
   EVENT_DOT_TICK,
+  EVENT_KINDS_WRITTEN_BY_GAME,
   EVENT_NAMES,
   LOG_CAPACITY,
 } from '../../src/core/log.js';
@@ -135,9 +136,39 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
   });
 
   it('kennt für jede Art einen Namen', () => {
-    expect(EVENT_NAMES.length).toBe(6);
+    // Acht seit E3-6, zehn seit #96: Der Nummernraum ist mit dem Simulator
+    // geteilt, und die Namen stehen auch für die Arten, die nur er schreibt.
+    // Wer ein fremdes Protokoll liest, soll denselben Namen sehen statt ein
+    // Fragezeichen.
+    // Sechzehn seit #79: Der Simulator führt inzwischen Spieler-Leben (#110)
+    // und die drei Wege der Koagulation (#79). Die Namen stehen auch für die
+    // Arten, die diese Seite nie schreibt — wer ein fremdes Protokoll liest,
+    // soll denselben Namen sehen statt ein Fragezeichen.
+    expect(EVENT_NAMES.length).toBe(16);
     expect(EVENT_NAMES[EVENT_CAST]).toBe('cast');
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
+    expect(EVENT_NAMES[4]).toBe('spend');
+    expect(EVENT_NAMES[5]).toBe('kill');
+    // Die beiden aus #96 — Boss-Energieleiste und Boss-Zeitleiste. Die Namen
+    // sagen ausdrücklich `Triggered`/`Fired`, weil beide **Vorgänge** sind und
+    // keine Zustände: Der Stand der Leiste heißt `Combat.bossEnergy`, der
+    // Zeiger `Combat.timelineIndex`. Genau diese beiden wurden beim ersten
+    // Lesen verwechselt.
+    expect(EVENT_NAMES[8]).toBe('bossEnergyTriggered');
+    expect(EVENT_NAMES[9]).toBe('bossTimelineFired');
+    // Die drei aus #79 — auch sie Vorgänge, nicht Zustände.
+    expect(EVENT_NAMES[13]).toBe('shieldAbsorb');
+    expect(EVENT_NAMES[14]).toBe('healed');
+    expect(EVENT_NAMES[15]).toBe('convertedToShield');
+  });
+
+  it('schreibt nur die Arten, die dem Spiel gehören', () => {
+    // Die Gegenprobe zur Aufteilung: Was der Simulator führt, taucht hier nie
+    // auf. Eine Zahl, die beide Seiten schreiben, aber verschieden meinen,
+    // war genau der Fehler, den E3-6 behoben hat.
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).not.toContain(4);
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).not.toContain(5);
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).toEqual([0, 1, 2, 3, 6, 7]);
   });
 });
 
@@ -176,11 +207,32 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     for (let i = 0; i < 300; i++) h.session.tick(i * TICK_MS);
     const summary = h.session.summary(3000);
 
-    expect(summary.idlePerSpell.length).toBe(3);
-    for (const entry of summary.idlePerSpell) {
+    // Vier Zeilen seit #110, aber nur drei mit Leerlauf: QUENCH ist in diesem
+    // Aufbau nicht auf die Leiste gelegt, und was nicht belegt ist, kann nicht
+    // versäumt werden.
+    //
+    // **Im Spiel liegt er auf Platz 3** (`STEP1_BINDINGS`), und dort zeigt sich
+    // die eigentliche Schwäche dieser Liste: Ein Unterbrecher liegt fast immer
+    // bereit, verliert aber keine Zeit — er wartet auf eine Gelegenheit. Die
+    // Liste würde ihn trotzdem als Verlustquelle führen.
+    //
+    // **Das bleibt vorerst so, und zwar mit Absicht.** Das Problem ist
+    // allgemeiner als der Unterbrecher: Jeder situative Zauber trifft es — ein
+    // Schutzschild, der bereitliegt, weil kein Schlag kam, ist auch kein
+    // verschenkter Leerlauf. Die richtige Rechnung ist nicht „hat er
+    // stillgelegen", sondern „gab es eine Gelegenheit, die er ungenutzt ließ".
+    // Das steht als Kriterium in Issue #81 (E7) und gehört dorthin.
+    expect(summary.idlePerSpell.length).toBe(7);
+    const belegt = summary.idlePerSpell.filter((e) =>
+      ['kindle', 'smoulder', 'pyre'].includes(e.spellId),
+    );
+    expect(belegt.length).toBe(3);
+    for (const entry of belegt) {
       expect(entry.idleMs).toBe(3000);
       expect(entry.share).toBeCloseTo(1);
     }
+    // Der Unbelegte steht mit null da — nicht mit Leerlauf.
+    expect(summary.idlePerSpell.find((e) => e.spellId === 'quench')?.idleMs).toBe(0);
   });
 
   it('zählt einen Zauber auf Abklingzeit nicht als Leerlauf', () => {
@@ -212,7 +264,15 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
         (list[i] as { idleMs: number }).idleMs,
       );
     }
-    expect(list[list.length - 1]?.spellId).toBe('pyre');
+    // PYRE und QUENCH stehen beide bei null — PYRE, weil es auf Abklingzeit
+    // liegt, QUENCH, weil es hier nicht belegt ist. Bei Gleichstand entscheidet
+    // die Kennung, damit die Reihenfolge zwischen zwei Läufen nicht springt.
+    // PYRE liegt auf Abklingzeit, die vier anderen sind hier nicht belegt —
+    // alle fuenf stehen deshalb bei null, und bei Gleichstand entscheidet die
+    // Kennung, damit die Reihenfolge zwischen zwei Laeufen nicht springt.
+    const hinten = list.slice(-5).map((e) => e.spellId);
+    expect(hinten).toEqual(['crust', 'pyre', 'quench', 'salve', 'temper']);
+    expect(list[list.length - 1]?.idleMs).toBe(0);
   });
 
   it('erfindet keine Synergie-Ausbeute, wo es keine Synergien gibt', () => {
@@ -265,6 +325,9 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
 
     expect(h.session.log.length).toBe(0);
     expect(h.session.idleMs).toBe(0);
-    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0]);
+    // Vier Einträge: Das ist die Rohmessung je Zauber, und die führt QUENCH
+    // mit (immer 0, weil er nicht mitgezählt wird). Erst die aufbereitete
+    // Liste `idlePerSpell` lässt ihn weg.
+    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
 });

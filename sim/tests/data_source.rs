@@ -18,11 +18,47 @@ use rota_sim::{BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 
 /// Der unveraenderte Inhalt der Zauber-Datei.
 const SPELLS_JSON: &str = include_str!("../../data/spells/calcination.json");
+const COMMON_SPELLS_JSON: &str = include_str!("../../data/spells/common.json");
+const COAGULATION_JSON: &str = include_str!("../../data/spells/coagulation.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
 fn spells_json() -> Value {
     serde_json::from_str(SPELLS_JSON).expect("data/spells/calcination.json ist kein gueltiges JSON")
+}
+
+/// Die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4).
+fn common_spells_json() -> Value {
+    serde_json::from_str(COMMON_SPELLS_JSON)
+        .expect("data/spells/common.json ist kein gueltiges JSON")
+}
+
+/// Alle Zauber in der Reihenfolge, in der `build.rs` sie einkompiliert:
+/// erst die der Schule, dann die schulunabhaengigen, dann die Koagulation.
+///
+/// **Die Reihenfolge ist die Zusicherung**, nicht bloss die Menge. Sie
+/// bestimmt die Indizes, und die stehen in jeder aufgezeichneten Runde —
+/// neue Zauber kommen deshalb hinten dazu, nie dazwischen.
+fn alle_zauber(schule: &Value, gemeinsam: &Value, koagulation: &Value) -> Vec<Value> {
+    let mut liste: Vec<Value> = schule["spells"]
+        .as_array()
+        .expect("calcination.json: spells fehlt")
+        .clone();
+    liste.extend(
+        gemeinsam["spells"]
+            .as_array()
+            .expect("common.json: spells fehlt")
+            .iter()
+            .cloned(),
+    );
+    liste.extend(
+        koagulation["spells"]
+            .as_array()
+            .expect("coagulation.json: spells fehlt")
+            .iter()
+            .cloned(),
+    );
+    liste
 }
 
 fn boss_json() -> Value {
@@ -65,7 +101,10 @@ fn ac5_die_schul_mechanik_stammt_aus_der_datei() {
 #[test]
 fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
     let json = spells_json();
-    let liste = json["spells"].as_array().expect("spells ist keine Liste");
+    let gemeinsam = common_spells_json();
+    let koagulation: Value =
+        serde_json::from_str(COAGULATION_JSON).expect("coagulation.json ist kein gueltiges JSON");
+    let liste = alle_zauber(&json, &gemeinsam, &koagulation);
 
     assert_eq!(
         SPELL_COUNT,

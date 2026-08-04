@@ -45,6 +45,11 @@ pub enum Stream {
     /// Streuung auf DoT-Ticks.
     DotTick = 1,
     /// Heilung.
+    ///
+    /// **Bleibt reserviert, obwohl heute nichts daraus zieht.** Alle drei
+    /// Koagulations-Wege sind deterministisch (Design 21.1 verwirft
+    /// Zufalls-Procs ausser Krit). Ihn zu entfernen und spaeter wieder
+    /// einzufuegen wuerde jede aufgezeichnete Pruefsumme zweimal verschieben.
     Heal = 2,
 }
 
@@ -309,6 +314,27 @@ mod tests {
         s.next_u32(Stream::Heal);
         assert_eq!(s.draw_counts(), [2, 0, 1]);
         assert_eq!(s.total_draws(), 3);
+    }
+
+    /// **Waechter gegen die Rueckkehr des Beute-Stroms** (Issue E6-2).
+    ///
+    /// Wer ihn hier eintraegt — aus dem naheliegenden Reflex, alle
+    /// Zufallsquellen an einer Stelle zu haben — verschiebt stillschweigend
+    /// JEDE aufgezeichnete Pruefsumme: 23 463 Zeilen in fuenf
+    /// Vergleichsdateien, am 2026-08-04 gemessen.
+    #[test]
+    fn der_beute_strom_gehoert_nicht_zu_den_kampf_stroemen() {
+        assert_eq!(
+            STREAM_COUNT, 3,
+            "Der Beute-Strom gehoert NICHT zu den Kampf-Stroemen (Entscheidung vom \
+             2026-08-04, GAME-DESIGN 20.2). Beute wird beim SIEG gewuerfelt, nicht im \
+             Kampf — sie kann nichts verschieben. Ihn hier einzutragen haengt jedem Takt \
+             eine Null an die Zustands-Pruefsumme und verschiebt alle aufgezeichneten \
+             Laeufe. Er steht in src/loot/stream.ts."
+        );
+        let namen: Vec<&str> = Stream::ALL.iter().map(|s| s.name()).collect();
+        assert_eq!(namen, vec!["crit", "dotTick", "heal"]);
+        assert!(!namen.contains(&"loot"));
     }
 
     #[test]

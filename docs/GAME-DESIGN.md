@@ -213,9 +213,21 @@ Die drei Werte, die die Rotation tatsächlich beeinflussen:
 | **PURITY**    | Kritchance  | Reinheit der Substanz                             |
 | **YIELD**     | Kritschaden | Ausbeute                                          |
 
-**CATALYSIS ist der einzige Wert, der die Rotation strukturell verändert** (kürzere globale
-Wartezeit und kürzere Abklingzeiten). Er wächst dauerhaft über Talente und kurzzeitig über
-**Overdrive** (siehe 11.4).
+**CATALYSIS ist der einzige Wert, der die Rotation strukturell verändert.** Er wirkt auf
+**Abklingzeiten und DoT-Tick-Abstände** — ausdrücklich **nicht** auf die globale Wartezeit.
+
+> **Festlegung vom 2026-07-29.** Der GCD sinkt ausschließlich über den **Talentbaum**, nie über
+> Ausrüstung. Grund: Kürzere Abklingzeiten sind eine Planungsaufgabe (mehr Wirkungen möglich,
+> man muss sie einweben). Ein kürzerer GCD ist ein Reaktionstest (die Hand muss schneller
+> werden). Ein einziger Ausrüstungswert, der beides tut, zwingt dem Spieler Fingerfertigkeit
+> auf, statt sie ihn wählen zu lassen — und widerspricht dem Grundsatz, dass die Reaktionszeit
+> nicht bewertet wird (21.2).
+>
+> **DoT-Ticks skalieren mit** (WoW-Muster seit Patch 6.0.2): Eine DoT-lastige Ausrichtung hat
+> damit denselben Skalierungswert wie jede andere. Ticks werden dichter, die **Dauer bleibt** —
+> das erzeugt Breakpoints je DoT, die der Balance-Läufer messen muss.
+
+Er wächst dauerhaft über Talente und Ausrüstung, kurzzeitig über **Overdrive** (siehe 11.4).
 
 ### 6.3 Schadensformel
 
@@ -223,11 +235,46 @@ Wartezeit und kürzere Abklingzeiten). Er wächst dauerhaft über Talente und ku
 Schaden = Grundschaden
         × ESSENCE-Faktor
         × Talent-Faktoren
+        × Ausrüstungs-Sondereffekte
         × aktive Verstärkungen
         × Synergie-Faktoren
         × Widerstandsfaktor des Bosses
+        × Verwundbarkeit des Bosses
         × Krit
 ```
+
+> **Der achte Faktor, ergänzt am 2026-07-29.** Die **Ausrüstungs-Sondereffekte** sind Topf 4 aus
+> 13.1b: legendäre Effekte und Satz-Boni, untereinander addiert, nach außen **ein** Faktor.
+>
+> **Position: direkt nach den Talenten.** Damit stehen die drei Faktoren, die vom Spieler kommen —
+> ESSENCE, Talente, Ausrüstung — beieinander, danach die Zustands-Faktoren (Verstärkungen,
+> Synergie), dann die Boss-Faktoren (Widerstand, Verwundbarkeit) und zuletzt Krit.
+>
+> **Warum ein eigener Faktor und keiner der bestehenden:** `essence` würde Topf 4 additiv mit
+> ESSENCE machen. `talents` würde ihn additiv mit Talenten machen — und 13.1 trennt beide Systeme
+> ausdrücklich („WIE die Rotation funktioniert" gegen „WIE STARK die Werte sind"). `buffs` **ist**
+> Topf 3, und zwischen Töpfen wird multipliziert.
+>
+> Auch hier gilt: Die Position ist eine Festlegung, keine Geschmacksfrage, und heute bewegt sie
+> keine Zahl — der Faktor steht bei 1,0.
+
+**Zu Topf 2 (CATALYSIS, PURITY, YIELD): „je eigener Faktor" heißt nicht drei neue Faktoren hier.**
+CATALYSIS wirkt auf Abklingzeiten und DoT-Abstände (6.2), ist also gar kein Schadensfaktor. PURITY
+ist eine Wahrscheinlichkeit, kein Multiplikator. Nur YIELD landet als `crit`. Gemeint ist: **nicht in
+einen gemeinsamen Multiplikator zusammengeworfen** — jeder Sonderwert behält seinen eigenen Wirkweg.
+
+> **Der siebte Faktor, ergänzt am 2026-07-29.** Die **Verwundbarkeit des Bosses** trägt alles,
+> was ihn für Schaden **aus jeder Quelle** empfänglicher macht — vor allem die Zersetzungs-Stapel
+> der Putrefaktion (4.1). Sie steht **direkt neben dem Widerstand**, weil beide Aussagen über den
+> Boss sind und nicht über den Spieler.
+>
+> **Die Position ist eine Festlegung, keine Geschmacksfrage.** Fließkomma-Multiplikation ist
+> nicht assoziativ — eine andere Reihenfolge ergibt andere Bits und damit eine andere
+> Zustands-Prüfsumme. Sie gehört deshalb ins Dokument und darf nicht im Code entschieden werden.
+>
+> **Heute ändert sie keine einzige Zahl:** Der Faktor steht bei 1,0, und 1,0 ist in IEEE754 die
+> exakte Eins. Genau deshalb war Vorsicht geboten — eine Änderung, die keine Zahl bewegt, geht
+> sonst unbemerkt durch.
 
 Die Reihenfolge der Multiplikationen ist **festgelegt und für Spiel und Simulator identisch** —
 Fließkomma-Multiplikation ist nicht assoziativ, und beide Seiten müssen auf denselben Wert kommen
@@ -620,6 +667,33 @@ laufenden 45-s-Balken. **Das macht aus Reagieren Planen.**
 **Normal / Heroisch / Mythisch** je Boss: mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken,
 mehr Punkte. Mit 68 Bossen ergibt das **204 Herausforderungen**.
 
+#### Die Schwierigkeit gehört zur INSTANZ, nicht zur Spielerstufe
+
+_Entschieden am 2026-07-29, nachdem der Auftraggeber die Frage stellte, wie sich Normal und Mythisch
+zu den Stufen 1–100 verhalten._
+
+Instanz 1 auf Mythisch ist für **Stufe ~12** gedacht und wird dort gespielt — härter als Normal, aber
+im selben Stufenbereich. Vorbild ist WoWs klassisches Muster: Dungeon, dann heroischer Dungeon, beide
+auf der Stufe, für die sie gebaut sind.
+
+**Der Widerspruch, den das auflöst:** Zwei bereits getroffene Entscheidungen ließen sich sonst nicht
+beide erfüllen —
+
+| Regel                                                                   | Folgt daraus                                                                  |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Der Ertrag sinkt mit dem Stufenabstand, bei ~20 Stufen praktisch nichts | Instanz 1 Mythisch muss **zeitnah** gespielt werden, sonst wirft es nichts ab |
+| „Ab Höchststufe beginnt das eigentliche Spiel: mythische Schwierigkeit" | Mythisch wäre eine **Endgame**-Sache                                          |
+
+Spielte man Instanz 1 Mythisch erst mit Stufe 100, wäre der Ertrag null — die Stufe existierte
+formal, aber niemand spielte sie.
+
+**„Mythisch ist Endgame" ist damit keine Aussage über die Spielerstufe, sondern über die Instanzen:**
+Das Mythisch der sechs Endgame-Instanzen ist das Schwerste im Spiel, weil sie selbst das Schwerste
+sind — nicht, weil die Schwierigkeitsstufe an eine Spielerstufe gebunden wäre.
+
+Das passt zur bereits beschlossenen Beute-Regel: **Beute auf der Gegenstandsstufe des Bosses.** Wer
+Instanz 1 auf Mythisch mit Stufe 12 spielt, bekommt Gegenstände, die zu Stufe 12 passen.
+
 ---
 
 ## 12. Fortschritt
@@ -748,30 +822,99 @@ auslieferbar.** Als automatischer Test formuliert.
 | **Talentbaum** | **WIE** die Rotation funktioniert — neue Effekte, kürzere Abklingzeiten, Synergien |
 | **Ausrüstung** | **WIE STARK** die Werte sind                                                       |
 
+### 13.1b Wie sich Werte verrechnen — vier Töpfe
+
+_Entschieden am 2026-07-29 nach Recherche, wie Diablo IV und WoW es tatsächlich machen._
+
+**Das Prinzip: Innerhalb eines Topfes wird addiert, zwischen den Töpfen multipliziert.**
+
+| Topf                          | Inhalt                                        | Verrechnung                                      |
+| ----------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| ESSENCE                       | alle Quellen des Grundwerts                   | additiv, dann **ein** Faktor                     |
+| Sonderwerte                   | CATALYSIS, PURITY, YIELD                      | **je eigener** Faktor                            |
+| Aktive Verstärkungen          | Overdrive, Synergien, Zersetzungs-Stapel      | additiv untereinander                            |
+| **Ausrüstungs-Sondereffekte** | **legendäre Effekte UND Satz-Boni gemeinsam** | **additiv untereinander**, ein Faktor nach außen |
+
+**Warum die Sonderwerte je einen eigenen Faktor bekommen** (WoW-Muster): Weil sie sich
+multiplizieren, will man alle drei mischen statt einen zu stapeln. Das ist der eigentliche
+Designwert — nicht „mehr Zahl", sondern **keine Monokultur**.
+
+**Warum legendäre Effekte und Satz-Boni in DENSELBEN Topf gehören:** Ein Sechser-Bonus von 30 % und
+ein legendärer Effekt von 20 % ergeben 50 %, nicht 56 %. Damit konkurrieren sie fair, und die
+Mischung wird zur echten Abwägung statt zur Frage, was sich besser multipliziert.
+
+> **Die Lektion aus zwei Spielen.** In Diablo IV waren Kritschaden und Verwundbarkeit ursprünglich
+> eigene multiplikative Töpfe. Sie wurden „disproportional stark", jeder Build lief über sie, und
+> Blizzard verschob sie in Saison 2 in den additiven Topf zurück. Diablo 3 verlor dieselbe Schlacht
+> bei den Sätzen: Die Sechser-Boni wurden über Jahre hochgezogen, bis **legendäre Gegenstände ohne
+> Satz-Bonus schlicht ignoriert wurden** — von Spielern wie von Entwicklern.
+>
+> **Was multiplikativ ist, wird gejagt — und alles andere wird liegen gelassen.** Deshalb wenige,
+> klar benannte Multiplikatoren, und deshalb Sätze und Legendäre im selben Topf.
+
+**Die Zahlen stehen ausdrücklich noch nicht fest.** Sie werden nicht festgelegt, sondern **gemessen**:
+Der Balance-Läufer vergleicht den besten Satz-Aufbau gegen den besten Affix-Aufbau je Ausrichtung
+(siehe 13.5, harte Balance-Anforderung).
+
+**Verhältnis zur Schadensformel:** Die sechs Faktoren im Kampf-Kern (`essence`, `talents`, `buffs`,
+`synergy`, `resistance`, `crit`) bleiben unverändert — sie laufen seit E1 und tragen alle
+Prüfsummen. Die vier Töpfe beschreiben, **wie Ausrüstungs-Werte in diese Faktoren einfließen**, nicht
+eine zweite Formel daneben. Ob eine Vereinheitlichung sich lohnt, entscheidet eine Messung.
+
+#### Anzeige: additiv und multiplikativ sind unterscheidbar
+
+Wie in Diablo, wo `[+]%` und `[x]%` am Gegenstand stehen: **Multiplikative Werte bekommen eine eigene
+Schreibweise und Farbe.** Ohne diese Kennzeichnung kann ein Spieler nicht erkennen, warum ein
+Gegenstand viel besser ist als ein scheinbar gleichwertiger — und müsste es außerhalb des Spiels
+nachschlagen. Das ist dieselbe Linie wie bei den Boss-Ankündigungen: Was man zum Spielen wissen muss,
+steht im Spiel.
+
 ### 13.2 Zehn Ausrüstungsplätze
 
 Bewusst **keine Körperteile**, weil es keine Spielfigur gibt — arkane Artefakte:
 
 `Focus · Catalyst · Sigil · Relic · Grimoire · Shard · Talisman · Phylactery · Anchor · Prism`
 
-**Platz-spezifische Sonderwerte, feste Zuordnung:** z. B. Focus und Catalyst immer CATALYSIS, Sigil
-und Talisman immer PURITY/YIELD, Anchor und Phylactery immer Verteidigung, Grimoire und Prism immer
-Zauber-Verstärkung.
+**Die Plätze sind Behälter, sonst nichts** — wie in WoW und Diablo. Ein gefundenes Stück gehört auf
+seinen Platz; welche Werte es trägt, hängt an **Seltenheit und Gegenstandsstufe**, nicht am Platz.
 
-> **Gezieltes Grinden statt blinden Sammelns** — jeder der zehn Plätze bekommt einen erkennbaren
-> Charakter.
-
-**Grundwerte (ESSENCE, VESSEL, WARD) auf jedem Platz** — jeder Fund verbessert also spürbar etwas,
-auch wenn die Sonderwerte nicht passen.
+> **Gestrichen am 2026-07-29: die platz-spezifische Wertezuordnung.**
+>
+> Hier stand bis dahin eine feste Zuordnung („Focus und Catalyst immer CATALYSIS, Sigil und Talisman
+> immer PURITY/YIELD …") samt der Begründung „gezieltes Grinden statt blinden Sammelns".
+>
+> **Sie war nie mit dem Auftraggeber besprochen.** Auf seine Rückfrage hin durchsucht:
+>
+> ```
+> $ mainrag search "Ausruestungsplaetze Fokus Katalysator Siegel platz-spezifische Sonderwerte" \
+>       --source claude-conversations      →  No results
+> $ mainrag search "Fokus Katalysator Siegel Reliquie Grimoire"   →  No results
+> ```
+>
+> Keine Fundstelle. Die Regel ist beim Schreiben des Plans entstanden, mit einer Begründung, die
+> plausibel klang und deshalb nie hinterfragt wurde. Zwei der zehn Plätze (Relic, Shard) bekamen nie
+> eine Zuordnung, und zwei der vier genannten Kategorien („Verteidigung", „Zauber-Verstärkung")
+> waren gar keine definierten Werte — beides fiel erst auf, als E6-1 die Tabelle bauen sollte.
+>
+> **Merksatz:** Eine Festlegung, die niemand angeordnet hat, sieht im Dokument genauso aus wie eine,
+> die entschieden wurde. Wer sie später liest, kann beides nicht unterscheiden.
 
 ### 13.3 Qualitäten
 
-| Qualität      | Werte-Plätze | Besonderheit                                                                                                |
-| ------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| Common        | 1            | —                                                                                                           |
-| Rare          | 2            | —                                                                                                           |
-| Epic          | 3            | —                                                                                                           |
-| **Legendary** | 3+           | **Echter Sondereffekt, der die Rotation verändert** (z. B. „Der Cooldown-Rücksetzer wirkt auf zwei Zauber") |
+Ein Gegenstand trägt **immer die drei Grundwerte** ESSENCE, VESSEL und WARD — jeder Fund verbessert
+also spürbar etwas. **Dazu** kommen Affixe, deren Zahl mit der Seltenheit steigt:
+
+| Qualität      | Affixe | Besonderheit                                                                                                |
+| ------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Common        | 1      | —                                                                                                           |
+| Rare          | 2      | —                                                                                                           |
+| Epic          | 3      | —                                                                                                           |
+| **Legendary** | 3+     | **Echter Sondereffekt, der die Rotation verändert** (z. B. „Der Cooldown-Rücksetzer wirkt auf zwei Zauber") |
+
+> **Präzisiert am 2026-07-29.** Die Spalte hieß „Werte-Plätze", was so gelesen werden konnte, als
+> zählten die Grundwerte mit — dann hätte ein Common-Gegenstand **einen** Wert insgesamt, und ein
+> Platz könnte keine drei Grundwerte tragen. Gemeint sind **Affixe**, wie in WoW und Diablo: Die
+> Grundwerte kommen zusätzlich, so wie ein Diablo-Gegenstand immer Rüstung trägt.
 
 **Werte-Berechnung: feste Formel, Qualität als Faktor.** Aus Gegenstandsstufe und Qualität errechnet
 sich ein Wertebudget, das auf die Werte-Plätze verteilt wird. **Kein Gegenstand wird von Hand
@@ -863,8 +1006,9 @@ Kampfprotokoll.
 | Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden ohne Handlung ÷ GCD = verschenkte Aktionen × Durchschnittsschaden je Aktion                                              | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Leerlauf**                  | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
 | **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
+| **Verlorene DoT-Ticks**       | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
 | **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
 
 > **Korrektur vom 2026-07-29 — warum „Kampfzeit ÷ Abklingzeit" nicht trägt.**
@@ -886,6 +1030,60 @@ Kampfprotokoll.
 > Zauber B gewirkt hat, hat nichts verloren — er hat gewählt, und Wählen ist das Spiel.
 >
 > Gefunden hat es Worker-3 beim Bau von #81, statt die Rechnung ungeprüft zu übernehmen.
+
+> **Verlorene DoT-Ticks, ergänzt am 2026-07-29.** Die Zahl wird längst gemessen
+> (`combat.lostDotTicks`, im Prüfdurchlauf 14 bei der schlechten Rotation) und fließt in die
+> Zustands-Prüfsumme ein — sie fehlte nur in der Auswertung.
+>
+> Sie ist ein **eigenständiger** Verlust ohne Überschneidung mit dem Leerlauf: Wer einen Brand zu
+> früh erneuert, hat **gehandelt**, nur falsch. Kein leeres GCD-Fenster, keine Doppelzählung.
+>
+> Und sie gehört gezeigt, weil das Design die harte Erneuerungs-Regel ausdrücklich als Präzision
+> will, die als Können belohnt wird — dann muss ihr Verlust auch sichtbar sein. In Schritt 1 ist
+> sie der **zweitgrößte** Fehler (9,9 % laut STEP1-SPEC § 4).
+
+> **Leerlauf und verpasste Wirkungen schließen einander aus, ergänzt am 2026-08-04.**
+>
+> Beide Quellen zählten bisher denselben Fehler: Wer einen bereiten Zauber nicht wirkt, erzeugt ein
+> leeres GCD-Fenster — das erschien einmal als „verpasste Wirkung" und einmal als „Leerlauf". Die
+> Prozentzahlen addierten sich damit auf mehr als den tatsächlichen Verlust.
+>
+> **Die Trennung verläuft an der Frage, ob überhaupt etwas bereit war:**
+>
+> | Fall                                       | Zählt als             | Was der Spieler daraus lernt                |
+> | ------------------------------------------ | --------------------- | ------------------------------------------- |
+> | Ein Zauber war bereit, wurde nicht gewirkt | **verpasste Wirkung** | „du hättest wirken können"                  |
+> | **Kein** Zauber war bereit                 | **Leerlauf**          | „du hast dich in eine Wartezeit manövriert" |
+>
+> Zwei verschiedene Fehler mit zwei verschiedenen Lehren — und jeder erscheint genau einmal.
+
+#### Situative Zauber: gezählt wird die Gelegenheit, nicht die Bereitschaft
+
+_Entschieden am 2026-08-04, nachdem der Fall beim Bau von E4-2 auffiel._
+
+Ein **Unterbrecher** liegt fünfzehn Sekunden bereit und wird nie gewirkt — weil der Boss keinen
+unterbrechbaren Zauber hat. Nach der Bereitschafts-Regel stünde er damit als **größte**
+Verlustquelle ganz oben, und der Spieler bekäme als wichtigsten Hinweis „wirke QUENCH öfter",
+während es nichts zu unterbrechen gab.
+
+**Nicht die Bereitschaft zählt, sondern die ungenutzte Gelegenheit:**
+
+| Zauber-Art       | Verlust zählt, wenn                                        |
+| ---------------- | ---------------------------------------------------------- |
+| Schaden          | er bereit war und das GCD-Fenster leer blieb — wie bisher  |
+| **Unterbrecher** | ein unterbrechbarer Boss-Zauber lief **und durchkam**      |
+| **Defensiv**     | ein Schlag traf, den Schutz oder Heilung abgefangen hätten |
+
+Das deckt sich mit den bereits vorgesehenen Quellen: „Verpasste Unterbrechungen" zählt denselben
+Fehler, nur richtig herum. Ohne diese Regel würde er **doppelt** erscheinen.
+
+> **Die Regel gilt vorausschauend, nicht nur für den bekannten Fall.** Der naheliegende Fix wäre
+> gewesen, Unterbrecher aus der Leerlauf-Liste zu nehmen. Das löst genau einen Fall — und sobald
+> Schutzschilde existieren (sie entstehen gerade in E3-4), taucht derselbe Fehler bei ihnen wieder
+> auf und wird als neuer Fund gemeldet.
+>
+> **Voraussetzung:** Das Kampfprotokoll muss die Boss-Gelegenheiten ausweisen — welcher Zauber lief,
+> welcher Schlag traf. Heute tut es das nicht; das ist Teil dieser Arbeit und keine Nebensache.
 
 **Die drei größten Verlustquellen** werden hervorgehoben. Sie können aus der Rotation stammen
 **oder aus dem Umgang mit dem Boss** — bei einem Boss mit Mechaniken ist das oft der teurere Teil.
@@ -1167,6 +1365,39 @@ Jeder Zauber, jedes Talent, jeder legendäre Effekt beschreibt nur, **worauf er 
 | **Parallel zwischen Durchgängen, nie innerhalb**                  | Ein Schritt hängt vom vorherigen ab                                                                                            |
 | **Keine Speicheranforderung im Schritt**, zusammenhängende Listen | Aus dem Vorbild-Projekt übernommen                                                                                             |
 
+#### Der Beute-Zufall gehört NICHT zu den Kampf-Strömen
+
+_Entschieden am 2026-08-04, nachdem E6-2 die Folgen beider Wege gemessen hat._
+
+Die Kampf-Ströme (Krit, DoT-Ticks, Heilung) leben in `RandomStreams`, und ihre Ziehungszähler
+gehen **je Takt** in die Zustands-Prüfsumme. Der Beute-Zufall bekommt einen **eigenen Strom
+außerhalb** davon — aus demselben Kampf-Startwert abgeleitet, aber nicht in `drawCounts()`.
+
+**Warum, und warum das kein Widerspruch zur Regel darüber ist:** Die Regel schützt davor, dass
+eine zusätzliche Ziehung **alles Nachfolgende verschiebt**. Dieser Schutz greift für Ströme, die
+im selben Ablauf ziehen. Beute wird **beim Sieg** gewürfelt, nicht während des Kampfes — sie kann
+nichts verschieben, und nichts kann sie verschieben.
+
+Ein vierter Strom in `RandomStreams` würde in einem Kampf über 7952 Takte **7952 Nullen** an die
+Prüfsumme hängen, für einen Strom, der im Kampf nie zieht. Das macht die Prüfsumme länger, nicht
+schärfer. Sie soll den **Kampf-Zustand** beschreiben; Beute ist kein Kampf-Zustand.
+
+**Drei Auflagen, damit die Trennung nicht zur Schlamperei wird:**
+
+1. **Dieselbe Ableitung aus dem Kampf-Startwert.** Eine aufgezeichnete Runde muss auch ihre Beute
+   exakt wiederholen.
+2. **Ein Wächter verhindert die Rückkehr in `drawCounts()`.** Wer den Beute-Strom später dort
+   einträgt — aus dem nachvollziehbaren Reflex, alle Ströme an einer Stelle zu haben — verschiebt
+   damit stillschweigend jede aufgezeichnete Prüfsumme.
+3. **Die Begründung steht im Code**, nicht nur hier. Sonst liest jemand „zwei Orte für Zufall" und
+   räumt auf.
+
+> **Nicht entschieden wurde nach Aufwand.** Der andere Weg hätte 23 463 Zeilen in fünf
+> Vergleichsdateien bewegt, davon zwei aus fremder Arbeit — gemessen, nicht geschätzt. Zum
+> Zeitpunkt der Entscheidung hatte aber **keine** offene Verzweigung eine dieser Dateien
+> angefasst; die Kollisionsgefahr war null. Die Entscheidung fiel allein daran, was die
+> Prüfsumme beschreiben soll.
+
 **Gemeinsame Prüffälle (Pflichttest bei jeder Änderung):** Eine Sammlung fester Testfälle der Form
 „diese Tastendrücke zu diesen Zeitpunkten mit dieser Ausrüstung ergeben exakt diesen Schaden".
 **Beide Seiten — Simulator (Rust) und Spiel (Browser) — müssen jede Datei bestehen.**
@@ -1410,17 +1641,17 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 
 ### 21.6 (F.7) Risiken, die im Auge behalten werden müssen
 
-| Punkt                                        | Beschreibung                                                                                                                                                                                                                  |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Kernrisiko Tiefe**                         | Wenn die optimale Rotation eine feste Prioritätenliste ist, trägt nichts 300 Stunden → Prüfstein 20.3, **mindestens 10 %**                                                                                                    |
-| **288 Zeitmarken von Hand**                  | Viel Arbeit und fehleranfällig. Entlastung: Balance-Läufer liefert Vorschlagswerte (Gold ≈ 110 %, Silber ≈ 130 %, Bronze ≈ 160 % der errechneten Bestzeit)                                                                    |
-| **Satz-Boni gegen Sonderwerte**              | Müssen etwa gleichwertig sein, sonst kippt es. Eigener Prüflauf nötig                                                                                                                                                         |
-| **Stückgebundene Aufwertung**                | Kann das Ausprobieren bremsen                                                                                                                                                                                                 |
-| **Kein Sicherheitsventil bei Niederlage**    | Punkte-Schwellen und niedrigere Stufen müssen verlässlich offen sein                                                                                                                                                          |
-| **Langer Schwanz bei Fallraten**             | Bei 1 % Legendary haben nach 300 Siegen noch 5 % nichts                                                                                                                                                                       |
-| **Zahlen-Inflation durch die Endlos-Leiter** | WoW musste zweimal zurücksetzen. Die Werte-Obergrenze ist auch eine Lesbarkeits-Entscheidung                                                                                                                                  |
-| **Grafik-Stil aus KI-Einzelteilen**          | Uneinheitliche Lichtrichtung und Rahmenstärke wirken zusammengestückelt. Notausgang: ein Gestalter                                                                                                                            |
-| **E1 blockiert den Start**                   | _(Arbeitsorganisation)_ Die ersten Tage arbeitet nur eine Code-Session, weil alle folgenden Epics auf einer **abgenommenen** Grundlage aufbauen sollen. E8 (Klang) und E9 (Grafik) füllen die Zeit — sie brauchen keinen Code |
+| Punkt                                        | Beschreibung                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Kernrisiko Tiefe**                         | Wenn die optimale Rotation eine feste Prioritätenliste ist, trägt nichts 300 Stunden → Prüfstein 20.3, **mindestens 10 %**                                                                                                                                                                                                                                                              |
+| **288 Zeitmarken von Hand**                  | Viel Arbeit und fehleranfällig. Entlastung: Balance-Läufer liefert Vorschlagswerte (Gold = 105 %, Silber = 115 %, Bronze = 130 % der errechneten Bestzeit — **korrigiert am 2026-07-29**: Mit den früheren 110/130/160 % lag Bronze bei einer Bestzeit von 40.510 ms auf 64.816 ms und damit **über dem Zeitlimit von 60.000 ms**. Jeder Sieg erfüllte sie; sie unterschied niemanden.) |
+| **Satz-Boni gegen Sonderwerte**              | Müssen etwa gleichwertig sein, sonst kippt es. Eigener Prüflauf nötig                                                                                                                                                                                                                                                                                                                   |
+| **Stückgebundene Aufwertung**                | Kann das Ausprobieren bremsen                                                                                                                                                                                                                                                                                                                                                           |
+| **Kein Sicherheitsventil bei Niederlage**    | Punkte-Schwellen und niedrigere Stufen müssen verlässlich offen sein                                                                                                                                                                                                                                                                                                                    |
+| **Langer Schwanz bei Fallraten**             | Bei 1 % Legendary haben nach 300 Siegen noch 5 % nichts                                                                                                                                                                                                                                                                                                                                 |
+| **Zahlen-Inflation durch die Endlos-Leiter** | WoW musste zweimal zurücksetzen. Die Werte-Obergrenze ist auch eine Lesbarkeits-Entscheidung                                                                                                                                                                                                                                                                                            |
+| **Grafik-Stil aus KI-Einzelteilen**          | Uneinheitliche Lichtrichtung und Rahmenstärke wirken zusammengestückelt. Notausgang: ein Gestalter                                                                                                                                                                                                                                                                                      |
+| **E1 blockiert den Start**                   | _(Arbeitsorganisation)_ Die ersten Tage arbeitet nur eine Code-Session, weil alle folgenden Epics auf einer **abgenommenen** Grundlage aufbauen sollen. E8 (Klang) und E9 (Grafik) füllen die Zeit — sie brauchen keinen Code                                                                                                                                                           |
 
 ---
 

@@ -132,6 +132,24 @@ export class Session implements Simulation {
   private countdownStep = -1;
 
   /**
+   * Der Auswahlmodus des Cooldown-Rücksetzers (GAME-DESIGN 4.1, Issue E3-3c).
+   *
+   * Kennnummer des Rücksetzers, der scharf steht — sonst `NO_SPELL`. Der
+   * nächste Tastendruck **wählt** dann, statt zu wirken.
+   *
+   * **Warum ein Modus und kein passiver Effekt auf den nächsten Zauber:**
+   * Entscheidung des Auftraggebers vom 2026-07-29. Der Spieler sagt
+   * ausdrücklich, welchen Zauber er meint, statt dass der nächste gewirkte
+   * ihn zufällig abbekommt. Drei Aktionen — Rücksetzer, Auswahl, Nachdruck —
+   * müssen sich gegen drei gewöhnliche Wirkungen rechnen.
+   */
+  private resetArmedFor = NO_SPELL;
+  /** Wie oft eine Auswahl eine Abklingzeit zurückgesetzt hat. */
+  private resetsApplied = 0;
+  /** Wie oft eine Auswahl verpufft ist — der Zauber lag nicht auf Abklingzeit. */
+  private resetsWasted = 0;
+
+  /**
    * Beste Kampfzeit dieser Sitzung in ms, oder -1.
    *
    * **Überlebt `reset()` bewusst** — sonst wäre jeder Lauf eine neue Bestzeit.
@@ -175,6 +193,26 @@ export class Session implements Simulation {
   /** Beste Kampfzeit dieser Sitzung in ms, oder -1. */
   get bestTimeMs(): number {
     return this.bestFightMs;
+  }
+
+  /** Steht der Auswahlmodus scharf? Für die Anzeige und die Prüfung. */
+  get isResetArmed(): boolean {
+    return this.resetArmedFor !== NO_SPELL;
+  }
+
+  /** Welcher Rücksetzer scharf steht, sonst `NO_SPELL`. */
+  get resetArmedBy(): number {
+    return this.resetArmedFor;
+  }
+
+  /** Wie oft eine Auswahl eine Abklingzeit zurückgesetzt hat. */
+  get resetsAppliedCount(): number {
+    return this.resetsApplied;
+  }
+
+  /** Wie oft eine Auswahl verpufft ist. */
+  get resetsWastedCount(): number {
+    return this.resetsWasted;
   }
 
   /** Abkürzung: Die globale Wartezeit gehört dem Kampf. */
@@ -509,12 +547,16 @@ export class Session implements Simulation {
     // ausgegraut (GAME-DESIGN 10). In Schritt 1 sind das alle drei. Ein leerer
     // Platz ist eine Fehleingabe wie jede andere.
     let accepted = false;
+    // Steht der Auswahlmodus scharf, WÄHLT dieser Druck, statt zu wirken.
+    const chose = this.resetArmedFor !== NO_SPELL;
     if (
       this.phaseValue === PHASE_FIGHTING &&
       spellIndex !== NO_SPELL &&
       this.combat.fightState === FIGHT_RUNNING
     ) {
-      accepted = this.combat.cast(spellIndex, timeMs).result === CAST_OK;
+      accepted = chose
+        ? this.chooseForReset(spellIndex, timeMs)
+        : this.combat.cast(spellIndex, timeMs).result === CAST_OK;
     }
 
     if (accepted) {
@@ -523,8 +565,18 @@ export class Session implements Simulation {
       // (GAME-DESIGN 21.2: niemand wird für seine Reaktionszeit getadelt).
       if (__ROTA_DEVTOOLS__) this.inputTiming.push(timeMs - gcdReadyAt);
       this.acceptedAtMs[slot] = timeMs;
-      this.accepted++;
-      this.emit(EV_SPELL_CAST, spellIndex, timeMs);
+      // Eine Auswahl ist keine Wirkung: Sie zählt nicht als Zauber und meldet
+      // kein `spell.cast`. Sonst stünde in der Auswertung eine Wirkung, die
+      // nie stattgefunden hat.
+      if (!chose) {
+        this.accepted++;
+        this.emit(EV_SPELL_CAST, spellIndex, timeMs);
+        // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
+        // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
+        if (this.combat.spellAt(spellIndex)?.armsCooldownReset === true) {
+          this.resetArmedFor = spellIndex;
+        }
+      }
     } else {
       this.rejectedAtMs[slot] = timeMs;
       this.rejected++;
@@ -534,6 +586,51 @@ export class Session implements Simulation {
     // der andere als rotes Blinken. Beide zählen daher für die Verzögerung.
     this.latency.push(stampMs, frameIndex);
     return accepted;
+  }
+
+  /**
+   * Ein Druck im Auswahlmodus (Issue E3-3c).
+   *
+   * **Die Auswahl löst die volle Wartezeit aus.** Das steht nicht wörtlich im
+   * Issue, folgt aber zwingend aus AC4 („kein Doppel-Wirken im selben Takt")
+   * und aus seiner eigenen Rechnung: Drei Aktionen — Rücksetzer, Auswahl,
+   * Nachdruck — müssen sich gegen drei gewöhnliche Wirkungen rechnen. Wäre die
+   * Auswahl umsonst, fiele der Nachdruck in denselben Takt, und es wären zwei.
+   *
+   * @returns true, wenn die Auswahl angenommen wurde (kein rotes Blinken)
+   */
+  private chooseForReset(spellIndex: number, timeMs: number): boolean {
+    // **Jede Wahl verbraucht den Rücksetzer** — auch eine falsche.
+    const self = spellIndex === this.resetArmedFor;
+    this.resetArmedFor = NO_SPELL;
+    // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
+    this.combat.gcd.trigger(timeMs);
+
+    if (self || this.combat.isOffCooldown(spellIndex, timeMs)) {
+      // **Verpufft.** Zwei Fälle, eine Regel: der Rücksetzer auf sich selbst
+      // (er wirkt nie auf sich — sonst ließe er sich endlos ketten, der erste
+      // Zug, den eine Optimums-Suche findet) und ein Zauber, der gar nicht
+      // auf Abklingzeit liegt.
+      //
+      // **Warum GAME-DESIGN 8.2 hier NICHT gilt** — die naheliegende
+      // Herleitung, und sie führt in die Irre: Dort geht es um eine Taste,
+      // auf der kein Zauber liegt, also um eine Eingabe ins Leere. Eine
+      // falsche Auswahl trifft dagegen einen Zauber, nur den falschen. Das
+      // ist ein Spielfehler, keine Fehleingabe, und der Auftraggeber hat ihn
+      // ausdrücklich so gewollt: „wenn er einen zauber wählt der gar keinen
+      // cooldown hat ist pech für den user, muss er lernen besser zu spielen
+      // oder timen" (2026-07-29).
+      //
+      // Und die einfachere Regel gewinnt: Wer sich merken müsste, welche
+      // Fehlgriffe teuer sind und welche umsonst, lernt eine Ausnahme statt
+      // einer Mechanik.
+      this.resetsWasted++;
+      return false;
+    }
+
+    this.combat.clearCooldown(spellIndex);
+    this.resetsApplied++;
+    return true;
   }
 
   reset(): void {
@@ -561,6 +658,9 @@ export class Session implements Simulation {
     this.sawLowHealth = false;
     this.warnedOverpressure = false;
     this.countdownStep = -1;
+    this.resetArmedFor = NO_SPELL;
+    this.resetsApplied = 0;
+    this.resetsWasted = 0;
     // Erst das Kampfende, dann der Menü-Teppich — genau wie beim regulären
     // Ausgang. Wer aus einem **laufenden** Kampf zurückgeht, hat sonst zwei
     // Klangteppiche übereinander: Der Kampf-Teppich wird nie abgeschaltet.

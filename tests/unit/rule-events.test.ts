@@ -308,13 +308,19 @@ describe('Der Anschluss an den Kampf (E3-1b, AC1)', () => {
   it('setzt beim Zurücksetzen die Folge zurück, nicht die Anmeldungen', () => {
     const combat = makeCombat();
     combat.events.register({ id: 'a', on: RULE_SPELL_CAST }, { onRuleEvent: () => undefined });
+    const angemeldet = combat.events.receiverIds(RULE_SPELL_CAST);
     combat.cast(combat.indexOf('kindle'), 0);
     const vorher = combat.events.sequenceChecksum;
     combat.reset();
 
     expect(combat.events.emittedCount).toBe(0);
     expect(combat.events.sequenceChecksum).not.toBe(vorher);
-    expect(combat.events.receiverIds(RULE_SPELL_CAST)).toEqual(['a']);
+    // Die Schul-Mechaniken sind seit E3-2 selbst Empfänger und stehen mit in
+    // der Liste — das Zurücksetzen darf keinen von ihnen abmelden. Verglichen
+    // wird gegen die Liste von vorher, nicht gegen eine abgetippte: Sonst
+    // bricht der Prüffall bei jeder neuen Schule, ohne etwas zu finden.
+    expect(combat.events.receiverIds(RULE_SPELL_CAST)).toEqual(angemeldet);
+    expect(angemeldet).toContain('a');
   });
 
   it('ändert die Referenz-Rechnung nicht (AC3)', () => {

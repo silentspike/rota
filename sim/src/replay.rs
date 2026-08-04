@@ -96,6 +96,35 @@ pub struct ReplayResult {
     pub checksums: Vec<u32>,
     /// Ziehungen aus den Zufallsstroemen.
     pub random_draws: u32,
+    /// Boss-Phase je Takt. Wie `checksums` nur auf Verlangen gefuellt.
+    ///
+    /// Die drei folgenden Spuren gehen ohnehin in die Pruefsumme ein — aber
+    /// eine abweichende Pruefsumme sagt nur *dass* etwas anders ist, nicht
+    /// *was*. Mit den Spuren zeigt ein Fehlschlag direkt auf die Phase, die
+    /// Energieleiste oder die Zeitleiste (Issue #96).
+    pub phases: Vec<u32>,
+    /// Stand der Energieleiste je Takt.
+    pub energy: Vec<u32>,
+    /// Stand des Zeitleisten-Zeigers je Takt.
+    pub timeline_index: Vec<u32>,
+    /// Verbleibende Lebenspunkte des Spielers je Takt (Issue #110).
+    pub player_hp: Vec<u32>,
+    /// Stand der Schutzschicht je Takt (COAGULATION, Issue #79).
+    pub shield: Vec<u32>,
+    /// Wie viel die Schutzschicht insgesamt aufgefangen hat.
+    pub shield_absorbed: u32,
+    /// Wie viel Leben insgesamt zurueckgeholt wurde.
+    pub healed: u32,
+    /// Wie viel Schutz die Umwandlung erzeugt hat.
+    pub converted: u32,
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    pub damage_taken: u32,
+    /// Kampfzeit des Spielertods, oder `None`.
+    pub died_at_ms: Option<Millis>,
+    /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
+    pub interrupts_landed: u32,
+    /// Wie oft einer durchgekommen ist.
+    pub interrupts_missed: u32,
 }
 
 /// Wo zwei Prueffsummen-Folgen zum ersten Mal auseinanderlaufen.

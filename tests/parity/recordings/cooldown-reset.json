@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "gcdMs": 1500,
+  "steps": [
+    {
+      "was": "LANG wirken — 30 s Abklingzeit",
+      "timeMs": 0,
+      "armed": false,
+      "applied": 0,
+      "wasted": 0,
+      "readyAt": [
+        30000,
+        0,
+        0
+      ],
+      "gcdRemainingMs": 1500,
+      "checksum": 3280431274
+    },
+    {
+      "was": "Ruecksetzer wirken — Modus wird scharf",
+      "timeMs": 1500,
+      "armed": true,
+      "applied": 0,
+      "wasted": 0,
+      "readyAt": [
+        28500,
+        0,
+        3000
+      ],
+      "gcdRemainingMs": 1500,
+      "checksum": 982718666
+    },
+    {
+      "was": "sich selbst waehlen — verpufft, Modus verbraucht",
+      "timeMs": 3000,
+      "armed": false,
+      "applied": 0,
+      "wasted": 1,
+      "readyAt": [
+        27000,
+        0,
+        1500
+      ],
+      "gcdRemainingMs": 1500,
+      "checksum": 2807070301
+    },
+    {
+      "was": "Ruecksetzer erneut wirken — wieder scharf",
+      "timeMs": 4500,
+      "armed": true,
+      "applied": 0,
+      "wasted": 1,
+      "readyAt": [
+        25500,
+        0,
+        3000
+      ],
+      "gcdRemainingMs": 1500,
+      "checksum": 1760398333
+    },
+    {
+      "was": "LANG waehlen — Abklingzeit faellt auf null",
+      "timeMs": 6000,
+      "armed": false,
+      "applied": 1,
+      "wasted": 1,
+      "readyAt": [
+        0,
+        0,
+        1500
+      ],
+      "gcdRemainingMs": 1500,
+      "checksum": 1533408091
+    },
+    {
+      "was": "LANG erneut wirken — der Nachdruck",
+      "timeMs": 7500,
+      "armed": false,
+      "applied": 1,
+      "wasted": 1,
+      "readyAt": [
+        30000,
+        0,
+        0
+      ],
+      "gcdRemainingMs": 1500,
+      "checksum": 3518518804
+    }
+  ]
+}

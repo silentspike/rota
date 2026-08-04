@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "id": "test-onslaught",
+  "name": "The Runaway Crucible",
+  "instance": "testing",
+  "hp": 999999,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 3000,
+      "mechanic": "interruptibleCast",
+      "name": "Cascade",
+      "damage": 2000,
+      "castTimeMs": 2000
+    },
+    {
+      "atMs": 10000,
+      "mechanic": "interruptibleCast",
+      "name": "Cascade",
+      "damage": 2000,
+      "castTimeMs": 2000
+    },
+    {
+      "atMs": 17000,
+      "mechanic": "interruptibleCast",
+      "name": "Cascade",
+      "damage": 2000,
+      "castTimeMs": 2000
+    },
+    { "atMs": 24000, "mechanic": "strike", "name": "Ember Wash", "damage": 500 }
+  ],
+  "resistances": {},
+  "signature": null
+}
