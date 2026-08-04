@@ -187,6 +187,7 @@ mod tests {
             buffs: 1.07,
             synergy: 1.13,
             resistance: 0.97,
+            vulnerability: 1.0,
             crit: 2.0,
         };
         let mut erwartet = 100.0_f64;

@@ -409,6 +409,7 @@ mod tests {
             buffs: 2.0,
             synergy: 2.0,
             resistance: 2.0,
+            vulnerability: 2.0,
             crit: 2.0,
         };
 
@@ -576,7 +577,7 @@ pub struct ScalingFactor {
 /// Für `talents`, `buffs`, `synergy` und `resistance` gibt es keinen einzelnen
 /// Spielwert — sie sammeln, was Talentbaum, Verstärkungen, Synergie-Fenster und
 /// Boss-Widerstand beitragen (GAME-DESIGN 6.3).
-const FACTOR_NAMES: [(&str, &str); 7] = [
+const FACTOR_NAMES: [(&str, &str); 8] = [
     ("essence", "ESSENCE"),
     ("talents", "(Talentbaum)"),
     // **Fehlte bis Issue #159.** Er kam mit #123 in die Formel; die Liste hier
@@ -588,6 +589,7 @@ const FACTOR_NAMES: [(&str, &str); 7] = [
     ("buffs", "(Verstaerkungen)"),
     ("synergy", "(Synergie)"),
     ("resistance", "(Boss-Widerstand)"),
+    ("vulnerability", "(Boss-Verwundbarkeit)"),
     ("crit", "YIELD, nur wenn jeder Treffer kritisch waere"),
 ];
 
@@ -600,6 +602,7 @@ fn with_factor(mut factors: DamageFactors, name: &str, value: f64) -> DamageFact
         "buffs" => factors.buffs = value,
         "synergy" => factors.synergy = value,
         "resistance" => factors.resistance = value,
+        "vulnerability" => factors.vulnerability = value,
         "crit" => factors.crit = value,
         _ => unreachable!("unbekannter Faktor: {name}"),
     }
@@ -615,6 +618,7 @@ fn factor_value(factors: &DamageFactors, name: &str) -> f64 {
         "buffs" => factors.buffs,
         "synergy" => factors.synergy,
         "resistance" => factors.resistance,
+        "vulnerability" => factors.vulnerability,
         "crit" => factors.crit,
         _ => unreachable!("unbekannter Faktor: {name}"),
     }
