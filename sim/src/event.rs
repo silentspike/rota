@@ -53,6 +53,16 @@ pub enum EventKind {
     /// Ressourcen-Verfall in der Rangfolge, weil beides passive Wirkungen sind
     /// und die Reihenfolge festliegen muss — nicht, weil eine wichtiger waere.
     EnergyTick,
+    /// Der toedliche Zaehler steigt um einen Schritt (Baustein 2, Issue #216).
+    ///
+    /// **Zwischen Energieleiste und Zeitleiste**, und zwar genau dort, wo er
+    /// auch im Spiel steht (`Combat::tick`). Die Rangfolge dieser Aufzaehlung
+    /// entscheidet, was bei gleichem Zeitpunkt zuerst laeuft; steht sie hier
+    /// anders als dort, laufen beide Seiten bei jedem Zusammentreffen
+    /// auseinander — und zwar nur dann, was es schwer zu finden macht.
+    DoomTick,
+    /// Ein exponentieller Stapel kommt dazu (Baustein 3, Issue #216).
+    StackTick,
     /// Ein Eintrag der Boss-Zeitleiste wird faellig.
     ///
     /// Steht nach der Energieleiste, aus demselben Grund: Beides sind
@@ -95,9 +105,15 @@ impl EventKind {
             EventKind::DotTick { .. } => 0,
             EventKind::ResourceDecay => 1,
             EventKind::EnergyTick => 2,
-            EventKind::TimelineStep { .. } => 3,
-            EventKind::BossCastLands { .. } => 4,
-            EventKind::Wakeup => 5,
+            // Zaehler und Stapel stehen zwischen Energieleiste und Zeitleiste,
+            // genau wie in `Combat::tick` (Issue #216). Die drei folgenden
+            // Raenge ruecken dadurch nach — ihre ABSTAENDE bleiben, und nur
+            // die zaehlen.
+            EventKind::DoomTick => 3,
+            EventKind::StackTick => 4,
+            EventKind::TimelineStep { .. } => 5,
+            EventKind::BossCastLands { .. } => 6,
+            EventKind::Wakeup => 7,
         }
     }
 }

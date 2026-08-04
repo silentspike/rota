@@ -540,6 +540,122 @@ export function bossStatePayload(): Record<string, unknown> {
   };
 }
 
+/** Der Prueffall zu Zaehler und exponentiellem Stapel (Issue #216). */
+export const DOOM_STACKS_NAME = 'doom-stacks';
+
+/**
+ * Zaehler und exponentieller Stapel, Takt fuer Takt (Issue #216, AC5).
+ *
+ * Gebaut wie `bossStatePayload`, mit drei zusaetzlichen Spuren. Sie gehen
+ * ohnehin in die Pruefsumme ein — aber eine abweichende Pruefsumme sagt nur,
+ * **dass** etwas anders ist. Mit den Spuren zeigt ein Fehlschlag direkt auf den
+ * Zaehler, seine Ladungen oder die Stapel.
+ *
+ * **Der Lauf geht ueber den Tod hinaus.** Der Zaehler toetet bei 20 s, die
+ * Aufzeichnung laeuft 30 s. Die zehn Sekunden danach sind kein Beiwerk: Sie
+ * belegen, dass beide Seiten nach dem Tod dasselbe tun — naemlich nichts mehr.
+ * Genau dort liefen zwei Umsetzungen sonst auseinander, ohne dass es jemand
+ * merkte, weil der Kampf ja ohnehin vorbei ist.
+ */
+export function doomStacksPayload(): Record<string, unknown> {
+  const recording = recordings().get(DOOM_STACKS_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${DOOM_STACKS_NAME}`);
+  const boss = bossById('test-doomsayer');
+  if (boss === undefined) throw new Error('Der Boss test-doomsayer fehlt.');
+
+  const zaehler: number[] = [];
+  const ladungen: number[] = [];
+  const stapel: number[] = [];
+  const spielerHp: number[] = [];
+  const checksums: number[] = [];
+  let sequence = 0;
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // **Der Spielertod beendet den Versuch** (GAME-DESIGN A.3), mit der
+    // Prüfsumme dieses Takts — dieselbe Stelle und dieselbe Reihenfolge wie in
+    // `playerDamagePayload` und in `Fight::replay`.
+    //
+    // Nicht `replayRecording`: Die kennt nur den Tod des BOSSES und liefe hier
+    // bis zum Ende der Aufzeichnung weiter. Gemessen hat der Simulator 2001
+    // Einträge geschrieben und meine erste Fassung 3000 — bei auf jeden Takt
+    // gleichen Werten. Nicht die Rechnung lag daneben, sondern die Frage,
+    // wann ein Lauf endet.
+    if (combat.playerDead) {
+      const hash = combatChecksum(combat, timeMs);
+      sequence = (sequence * 31 + hash) >>> 0;
+      checksums.push(hash);
+      zaehler.push(combat.doom);
+      ladungen.push(combat.doomCharges);
+      stapel.push(combat.bossStacks);
+      spielerHp.push(combat.playerHp);
+      break;
+    }
+
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of STEP1_BINDINGS) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+    zaehler.push(combat.doom);
+    ladungen.push(combat.doomCharges);
+    stapel.push(combat.bossStacks);
+    spielerHp.push(combat.playerHp);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      doom: boss.doom,
+      stacks: boss.stacks,
+    },
+    expected: {
+      damage: combat.damageDealt,
+      // **Nicht die letzte Takt-Prüfsumme.** Beide Seiten stempeln den
+      // Schlusswert mit `(ticks - 1) * TICK_MS`, auch wenn der Lauf früher
+      // endet — `Fight::replay` mit `final_time` und `replayRecording` mit
+      // derselben Formel. Die Zeit geht in die Prüfsumme ein, also ergibt der
+      // Wert bei 20 000 ms einen anderen als bei 29 990. Mein erster Entwurf
+      // nahm den letzten Takt und wich damit ab, obwohl alle 2001
+      // Takt-Prüfsummen übereinstimmten.
+      finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
+      sequenceChecksum: sequence,
+      finalDoom: combat.doom,
+      finalDoomCharges: combat.doomCharges,
+      finalStacks: combat.bossStacks,
+      finalPlayerHp: combat.playerHp,
+      damageTaken: combat.damageTaken,
+      diedAtMs: combat.diedAtMs,
+    },
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    checksums,
+    doom: zaehler,
+    doomCharges: ladungen,
+    stacks: stapel,
+    playerHp: spielerHp,
+  };
+}
+
 /**
  * Eingehender Schaden, Spielertod und Unterbrechen (Issue #110).
  *

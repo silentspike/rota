@@ -294,6 +294,70 @@ pub struct Energy {
     pub reset_to: u32,
 }
 
+/// Der Zaehler, der bei seiner Schwelle toetet (GAME-DESIGN 11.2, Baustein 2).
+///
+/// > Ein Wert steigt unfreiwillig an; bei 100 stirbt man. Zuruecksetzen nur
+/// > ueber eine **begrenzt verfuegbare Handlung**.
+///
+/// Der Unterschied zur Energieleiste: Die springt zurueck und loest aus, dieser
+/// Zaehler toetet und springt gar nicht zurueck. Zwei Felder statt eines
+/// Schalters — wer sie zusammenlegte, muesste an jeder Auswertung fragen,
+/// welche Sorte gemeint ist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Doom {
+    /// Abstand zwischen zwei Anstiegen.
+    pub per_step_ms: Millis,
+    /// Wie viel je Anstieg dazukommt.
+    pub amount: u32,
+    /// Bei diesem Stand stirbt der Spieler.
+    pub threshold: u32,
+    /// Was die Ruecksetz-Handlung abzieht.
+    pub clear_amount: u32,
+    /// Wie oft sie im ganzen Kampf zur Verfuegung steht.
+    pub clear_charges: u32,
+}
+
+/// Der exponentielle Stapel (GAME-DESIGN 11.2, Baustein 3).
+///
+/// > 1 Stapel = X, 2 = 3X, 3 = 9X. Erzwingt eine Handlung an einem exakt
+/// > bestimmten Punkt.
+///
+/// Beim Zaehler oben ist die SCHWELLE hart, hier die KURVE: Es gibt keinen
+/// Punkt, an dem etwas umschlaegt — der Schaden wird schlicht unbezahlbar, und
+/// zwar an einer Stelle, die sich ausrechnen laesst, bevor sie kommt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stacks {
+    /// Abstand zwischen zwei Stapeln.
+    pub per_step_ms: Millis,
+    /// Schaden beim ERSTEN Stapel — das X aus 11.2.
+    pub base_damage: u32,
+    /// Wachstumsfaktor je weiterem Stapel. 3 ergibt 1 -> 3 -> 9.
+    pub factor: u32,
+    /// Obergrenze. Nicht Design, sondern Arithmetik: Ohne sie verliesse
+    /// `base_damage * factor^(n-1)` den Wertebereich, und beide Seiten taeten
+    /// das verschieden.
+    pub max_stacks: u32,
+}
+
+/// Schaden eines exponentiellen Stapels.
+///
+/// `base_damage * factor^(stacks-1)` — bei EINEM Stapel steht X, nicht 3X.
+/// Der Exponent ist um eins versetzt; mit `factor^stacks` begaenne die Reihe
+/// bei 3X und der erste Stapel waere schon so teuer wie der zweite sein soll.
+///
+/// Ganzzahlig in einer Schleife, wie `stackDamage` in `src/core/damage.ts`.
+#[must_use]
+pub fn stack_damage(def: Stacks, stacks: u32) -> u32 {
+    if stacks == 0 {
+        return 0;
+    }
+    let mut value = def.base_damage;
+    for _ in 1..stacks {
+        value = value.saturating_mul(def.factor);
+    }
+    value
+}
+
 /// Ein Boss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Boss {
@@ -311,6 +375,10 @@ pub struct Boss {
     pub phases: &'static [Phase],
     /// Die zweite Uhr, falls dieser Boss eine hat.
     pub energy: Option<Energy>,
+    /// Der toedliche Zaehler, falls dieser Boss einen hat (Issue #216).
+    pub doom: Option<Doom>,
+    /// Der exponentielle Stapel, falls dieser Boss einen hat (Issue #216).
+    pub stacks: Option<Stacks>,
     /// Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt.
     pub timeline: &'static [TimelineEntry],
     /// Laenge eines Zyklus, wenn sich die Zeitleiste **wiederholt** (#174).

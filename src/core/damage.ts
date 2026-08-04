@@ -91,3 +91,29 @@ export function computeDamage(baseDamage: number, factors: DamageFactors): numbe
   value *= factors.crit;
   return Math.round(value);
 }
+
+/**
+ * Schaden eines exponentiellen Stapels (GAME-DESIGN 11.2, Baustein 3; #216).
+ *
+ * > 1 Stapel = X, 2 = 3X, 3 = 9X.
+ *
+ * Also `baseDamage * factor^(stacks-1)` — bei einem Stapel steht X, nicht 3X.
+ * Der Exponent ist um eins versetzt, und das ist keine Feinheit: Mit
+ * `factor^stacks` begänne die Reihe bei 3X und der erste Stapel wäre schon so
+ * teuer wie der zweite sein soll.
+ *
+ * **Ganzzahlig durchgerechnet**, in einer Schleife statt über `Math.pow`.
+ * `Math.pow` liefert eine Fließkommazahl, und Rust rechnet daneben mit
+ * `saturating_mul` über ganze Zahlen. Zwei Seiten, die einen großen Wert
+ * verschieden runden oder verschieden überlaufen lassen, sind keine Parität
+ * mehr (GAME-DESIGN 18.4).
+ */
+export function stackDamage(
+  def: { readonly baseDamage: number; readonly factor: number },
+  stacks: number,
+): number {
+  if (stacks <= 0) return 0;
+  let value = def.baseDamage;
+  for (let i = 1; i < stacks; i++) value *= def.factor;
+  return value;
+}

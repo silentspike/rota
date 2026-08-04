@@ -14,7 +14,7 @@
  * Die Reihenfolge ist nicht beliebig: Ein DoT-Tick, der den Boss legt, muss zählen,
  * bevor im selben Takt noch etwas gewirkt wird.
  */
-import { computeDamage, NEUTRAL_FACTORS, type DamageFactors } from './damage.js';
+import { computeDamage, NEUTRAL_FACTORS, stackDamage, type DamageFactors } from './damage.js';
 import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
 import {
   EVENT_BOSS_TIMELINE_FIRED,
@@ -252,6 +252,21 @@ export class Combat {
   /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
   private playerHpValue: number;
 
+  /** Stand des Zählers, der bei seiner Schwelle tötet (Issue #216). */
+  private doomValue = 0;
+
+  /** Kampfzeit des nächsten Zähler-Schritts. */
+  private nextDoomAtMs = 0;
+
+  /** Wie oft die Rücksetz-Handlung noch zur Verfügung steht. */
+  private doomChargesValue = 0;
+
+  /** Zahl der Stapel (Issue #216). */
+  private stacksValue = 0;
+
+  /** Kampfzeit des nächsten Stapel-Schritts. */
+  private nextStackAtMs = 0;
+
   /** Kampfzeit des Spielertods, oder -1. */
   private diedAtMsValue = -1;
 
@@ -358,6 +373,11 @@ export class Combat {
     // der Simulator plant den ersten Anstieg bei `perStepMs`. Genau so eine
     // Kleinigkeit lässt beide Seiten auseinanderlaufen.
     this.nextEnergyAtMs = options.boss.energy?.perStepMs ?? 0;
+    // Dieselbe Begründung wie eine Zeile darüber: Der Replay ruft `beginFight`
+    // nicht, und ein Startwert von 0 ließe beide schon im Takt 0 steigen.
+    this.nextDoomAtMs = options.boss.doom?.perStepMs ?? 0;
+    this.nextStackAtMs = options.boss.stacks?.perStepMs ?? 0;
+    this.doomChargesValue = options.boss.doom?.clearCharges ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.worn = options.worn ?? NOTHING_WORN;
@@ -483,6 +503,47 @@ export class Combat {
   /** Verbleibende Lebenspunkte des Spielers. */
   get playerHp(): number {
     return this.playerHpValue;
+  }
+
+  /** Stand des tödlichen Zählers (Issue #216). 0, wenn der Boss keinen hat. */
+  get doom(): number {
+    return this.doomValue;
+  }
+
+  /** Verbleibende Anwendungen der Rücksetz-Handlung. */
+  get doomCharges(): number {
+    return this.doomChargesValue;
+  }
+
+  /**
+   * Zahl der exponentiellen Stapel des Bosses (Issue #216).
+   *
+   * `bossStacks` und nicht `stacks`: Der Name war vergeben — die Schule fuehrt
+   * unter `stacks` ihre eigene Stapel-Mechanik. Zwei verschiedene Dinge unter
+   * einem Namen waeren im Kampf nicht auseinanderzuhalten.
+   */
+  get bossStacks(): number {
+    return this.stacksValue;
+  }
+
+  /**
+   * Die begrenzt verfügbare Handlung, die den Zähler senkt (11.2, Baustein 2).
+   *
+   * Gibt zurück, ob sie gegriffen hat. **Ohne Ladung geschieht nichts** — sie
+   * nimmt sich nicht, was sie nicht hat, dieselbe Regel wie bei den
+   * Kontroll-Punkten der Fixierung.
+   *
+   * WELCHE TASTE SIE AUSLÖST, STEHT HIER NICHT. Dieses Issue baut den
+   * Mechanismus; die Bindung an einen Zauber entscheidet E10 mit den
+   * Signatur-Regeln (Frage an den Auftraggeber, Meldung 1177).
+   */
+  clearDoom(): boolean {
+    const doom = this.boss.doom;
+    if (doom === null || this.doomChargesValue <= 0 || this.diedAtMsValue >= 0) return false;
+    this.doomChargesValue--;
+    const left = this.doomValue - doom.clearAmount;
+    this.doomValue = left > 0 ? left : 0;
+    return true;
   }
 
   /** Welcher Boss-Zauber gerade läuft, oder -1. */
@@ -818,6 +879,8 @@ export class Combat {
     this.fightStartedAtMs = timeMs;
     this.nextDecayAtMs = timeMs + this.school.resource.decayPerStepMs;
     this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
+    this.nextDoomAtMs = timeMs + (this.boss.doom?.perStepMs ?? 0);
+    this.nextStackAtMs = timeMs + (this.boss.stacks?.perStepMs ?? 0);
   }
 
   castCount(index: number): number {
@@ -1036,6 +1099,47 @@ export class Combat {
           this.bossEnergyValue = energy.resetTo;
         }
         this.nextEnergyAtMs += energy.perStepMs;
+      }
+    }
+
+    // Der Zähler, der bei seiner Schwelle tötet (11.2, Baustein 2; #216).
+    //
+    // Er steigt wie die Energieleiste von selbst — aber er springt **nicht**
+    // zurück. Wer die Schwelle erreicht, ist tot, und zwar durch den Zähler
+    // und nicht durch Zeitablauf: `hitPlayer` mit den vollen Lebenspunkten
+    // wäre der falsche Weg, weil WARD und Schutzschicht dann noch mindern
+    // würden. Ein Zähler, den eine Schutzschicht überlebt, wäre keiner.
+    const doom = this.boss.doom;
+    if (doom !== null && doom.perStepMs > 0 && this.diedAtMsValue < 0) {
+      while (timeMs >= this.nextDoomAtMs) {
+        this.doomValue += doom.amount;
+        this.nextDoomAtMs += doom.perStepMs;
+        if (this.doomValue >= doom.threshold) {
+          this.doomValue = doom.threshold;
+          this.playerHpValue = 0;
+          this.diedAtMsValue = timeMs - this.fightStartedAtMs;
+          // KEIN Protokoll-Eintrag: Das Protokoll traegt die Fehleranalyse,
+          // und ein Schadens-Ereignis ueber 0 waere dort eine Zeile, die nach
+          // Schaden aussieht und keiner ist. Eine eigene Art im gemeinsamen
+          // Nummernraum (#134) waere die richtige Loesung — sie gehoert in das
+          // Issue, das den Zaehler an einen Boss haengt, nicht hierher.
+          break;
+        }
+      }
+    }
+
+    // Der exponentielle Stapel (11.2, Baustein 3; #216).
+    //
+    // Anders als der Zähler tötet er nicht bei einem Wert, sondern macht den
+    // Schaden unbezahlbar: 1 → 3 → 9. Er geht deshalb durch `hitPlayer` wie
+    // jeder andere Schlag — WARD und Schutzschicht wirken, und genau das ist
+    // die Antwort, die dem Spieler bleibt.
+    const stacks = this.boss.stacks;
+    if (stacks !== null && stacks.perStepMs > 0) {
+      while (timeMs >= this.nextStackAtMs) {
+        if (this.stacksValue < stacks.maxStacks) this.stacksValue++;
+        this.hitPlayer(stackDamage(stacks, this.stacksValue), timeMs);
+        this.nextStackAtMs += stacks.perStepMs;
       }
     }
 

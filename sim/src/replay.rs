@@ -105,6 +105,12 @@ pub struct ReplayResult {
     pub phases: Vec<u32>,
     /// Stand der Energieleiste je Takt.
     pub energy: Vec<u32>,
+    /// Stand des toedlichen Zaehlers je Takt (Issue #216).
+    pub doom: Vec<u32>,
+    /// Verbleibende Ladungen der Ruecksetz-Handlung je Takt.
+    pub doom_charges: Vec<u32>,
+    /// Zahl der exponentiellen Stapel je Takt.
+    pub stacks: Vec<u32>,
     /// Stand des Zeitleisten-Zeigers je Takt.
     pub timeline_index: Vec<u32>,
     /// Verbleibende Lebenspunkte des Spielers je Takt (Issue #110).
