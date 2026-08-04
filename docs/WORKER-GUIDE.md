@@ -295,8 +295,18 @@ Konkret heißt das:
 
 - **Prüfe auf das Merkmal, das sich ändert** — nicht auf Existenz. `hidden`, nicht `querySelector`.
 - **Werte Rückgabewerte aus, statt sie anzuzeigen.** `cmd && weiter` oder `set -e`, nie `echo $?`.
-- **Leite in eine Datei um, statt durch `tail` oder `head` zu filtern.** `grep -c` über den vollen
-  Strom ist in Ordnung; alles, was **abschneidet**, ist es nicht.
+- **Leite direkt am Befehl in eine Datei um** — `cargo test > lauf.txt 2>&1`, dann darin zählen.
+  Nicht `| tail`, nicht `| head`. `grep -c` über den vollen Strom ist in Ordnung, weil es filtert
+  statt abzuschneiden.
+
+  > **„In einer Datei messen" allein genügt nicht.** Die Harness legt einen langen Ausgabestrom
+  > selbst in eine Datei und nennt sie „full output" — war er vorher schon durch `tail -40`
+  > gekürzt, steht **die Kürzung** darin. Wer dann in dieser Datei zählt, glaubt den ganzen Lauf zu
+  > sehen und sieht ein Achtel. Die Umleitung muss **vor** jeder Kürzung stehen.
+
+- **Zähle, was BESTANDEN hat — nicht nur, was fehlgeschlagen ist.** `0 FAILED` ist auch dann wahr,
+  wenn vier von 27 Sammlungen gelaufen sind. Die Zahl der bestandenen Sammlungen ist die Größe, die
+  eine unvollständige Messung verrät.
 - **Belege mit einem Merkmal, das nur dein Stand hat** — nicht mit der Abwesenheit von etwas. Die
   Abwesenheit hat viele Ursachen, und eine davon ist, dass du am falschen Ort suchst.
 
