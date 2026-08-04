@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>ROTA — Archiv und Hilfe, Prüfblatt (Issue #85)</title>
+    <style>
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('/assets/fonts/Cinzel-Variable.ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      @font-face {
+        font-family: 'EB Garamond';
+        src: url('/assets/fonts/EBGaramond-Variable.ttf') format('truetype-variations');
+        font-weight: 400 800;
+      }
+      body {
+        margin: 0;
+        padding: 34px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.7 system-ui,
+          sans-serif;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 400;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 18px;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 98ch;
+        margin-bottom: 26px;
+      }
+      #out {
+        font-family: ui-monospace, monospace;
+        margin-bottom: 34px;
+      }
+      .note {
+        color: #cfc8ba;
+      }
+      .ok {
+        color: #7fd39a;
+      }
+      .ok::before {
+        content: '  BESTANDEN  ';
+        color: #4f8f66;
+      }
+      .bad {
+        color: #d98b7f;
+      }
+      .bad::before {
+        content: '  NICHT BESTANDEN  ';
+        color: #a8503f;
+      }
+      #view {
+        max-width: 760px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Archiv und Hilfe-System — Prüfblatt</h1>
+    <div class="sub">Issue #85 · Epic E7 · AC1 bis AC4</div>
+    <div class="why">
+      Diese Seite lädt <code>src/analysis/</code> unverändert und läuft über eine
+      <strong>Vite-Eingangsseite</strong>, nicht über eine nginx-Location — eine Location in
+      <code>/etc/nginx/</code> zeigt auf einen Worktree im gerade ausgecheckten Branch und ist
+      Evidence, die nur auf einem Rechner funktioniert (Lehre aus #83). <br /><br />
+      Unten steht die Ansicht selbst: Erklärfenster erscheinen beim Überfahren der drei Knöpfe —
+      Zauber-Symbol, Wert und <strong>Boss-Fähigkeit</strong>.
+    </div>
+    <div id="out"></div>
+    <div id="view"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

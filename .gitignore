@@ -42,3 +42,6 @@ llm-*.md
 .DS_Store
 Thumbs.db
 
+
+# Generiert beim Entwicklungs-Bau der Pruefblaetter
+docs/archive-check/preview.js
