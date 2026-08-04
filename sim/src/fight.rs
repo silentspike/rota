@@ -246,7 +246,28 @@ pub struct Fight {
     /// Auswertung erscheint wie bei jedem anderen Ende, und man startet neu.
     died_at: Option<Millis>,
     /// Gesamter erlittener Schaden, **nach** WARD.
+    ///
+    /// Zaehlt, was den Spieler wirklich getroffen hat — was die Schutzschicht
+    /// abgefangen hat, steht in `shield_absorbed`.
     damage_taken: u32,
+
+    // -- COAGULATION (Issue #79) --
+    /// Stand der Schutzschicht: wie viel Schaden sie noch aufnehmen kann.
+    shield: u32,
+    /// Wann sie verfaellt, wenn sie nicht vorher aufgebraucht wird.
+    shield_expires_at: Option<Millis>,
+    /// Wie viele Anwendungen gerade uebereinanderliegen.
+    shield_stacks: u32,
+    /// Wie viel Schaden die Schutzschicht insgesamt abgefangen hat.
+    shield_absorbed: u32,
+    /// Wie viel Leben insgesamt zurueckgeholt wurde.
+    healed: u32,
+    /// Bis wann die Schaden-in-Schutz-Umwandlung laeuft (Weg 3).
+    conversion_until: Option<Millis>,
+    /// Anteil, den sie umwandelt, in Prozent. 0 heisst: keine laeuft.
+    conversion_percent: u32,
+    /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
+    converted: u32,
 
     // -- Spieler --
     gcd_ready_at: Millis,
@@ -312,6 +333,14 @@ impl Fight {
             player_hp: PLAYER.vessel,
             died_at: None,
             damage_taken: 0,
+            shield: 0,
+            shield_expires_at: None,
+            shield_stacks: 0,
+            shield_absorbed: 0,
+            healed: 0,
+            conversion_until: None,
+            conversion_percent: 0,
+            converted: 0,
             gcd_ready_at: 0,
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -493,6 +522,7 @@ impl Fight {
             if self.died_at.is_some() {
                 break;
             }
+            self.expire_coagulation();
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
@@ -571,6 +601,7 @@ impl Fight {
                 self.apply(event.kind);
             }
 
+            self.expire_coagulation();
             self.check_phase();
 
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
@@ -681,6 +712,14 @@ impl Fight {
         self.player_hp = PLAYER.vessel;
         self.died_at = None;
         self.damage_taken = 0;
+        self.shield = 0;
+        self.shield_expires_at = None;
+        self.shield_stacks = 0;
+        self.shield_absorbed = 0;
+        self.healed = 0;
+        self.conversion_until = None;
+        self.conversion_percent = 0;
+        self.converted = 0;
         self.gcd_ready_at = 0;
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -787,6 +826,93 @@ impl Fight {
         self.hit_player(self.boss.timeline[index].damage);
     }
 
+    /// Die drei Wege der Koagulation, soweit sie beim Wirken greifen
+    /// (GAME-DESIGN 4.1, Issue #79).
+    ///
+    /// Weg 3 wirkt hier nur als **Anschalter**: Die Umwandlung selbst
+    /// geschieht spaeter, bei jedem ausgeteilten Schaden.
+    fn apply_coagulation(&mut self, index: usize, spell: &Spell) {
+        // Weg 1 — Schutzschicht aufbauen.
+        if let Some(shield) = spell.shield {
+            // **Stapeln bis zur Grenze, dann nicht weiter.** Ein vierter Druck
+            // auf eine volle Schicht erneuert die Laufzeit, erhoeht aber den
+            // Betrag nicht — sonst waere die Obergrenze wirkungslos.
+            if self.shield_stacks < shield.max_stacks {
+                self.shield_stacks += 1;
+                self.shield = self.shield.saturating_add(shield.amount);
+            }
+            self.shield_expires_at = Some(self.time + shield.duration_ms);
+            self.queue
+                .push(self.time + shield.duration_ms, EventKind::Wakeup);
+            self.log
+                .push(self.time, LogKind::Cast, index as u8, self.shield);
+        }
+
+        // Weg 2 — Heilung.
+        if let Some(heal) = spell.heal {
+            // **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist
+            // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
+            // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
+            // als er gebraucht hat.
+            let fehlend = PLAYER.vessel.saturating_sub(self.player_hp);
+            let wirklich = heal.amount.min(fehlend);
+            if wirklich > 0 {
+                self.player_hp += wirklich;
+                self.healed = self.healed.saturating_add(wirklich);
+                self.log
+                    .push(self.time, LogKind::Healed, index as u8, wirklich);
+            }
+        }
+
+        // Weg 3 — die Umwandlung anschalten.
+        if let Some(conversion) = spell.conversion {
+            self.conversion_percent = conversion.share_percent;
+            self.conversion_until = Some(self.time + conversion.duration_ms);
+            self.queue
+                .push(self.time + conversion.duration_ms, EventKind::Wakeup);
+        }
+    }
+
+    /// Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 laeuft.
+    ///
+    /// **Ganzzahlig und abgerundet.** Der Anteil steht als Prozentzahl in den
+    /// Daten (`share_percent`), damit hier eine ganzzahlige Rechnung moeglich
+    /// ist: `schaden * prozent / 100`. Ein Bruch als Faktor muesste von beiden
+    /// Seiten unabhaengig gerundet werden — genau daran laufen zwei
+    /// Umsetzungen auseinander (GAME-DESIGN 18.4).
+    fn convert_damage_to_shield(&mut self, damage: u32) {
+        if self.conversion_percent == 0 || damage == 0 {
+            return;
+        }
+        if self.conversion_until.is_none_or(|bis| self.time > bis) {
+            return;
+        }
+        let gewonnen = damage * self.conversion_percent / 100;
+        if gewonnen == 0 {
+            return;
+        }
+        self.shield = self.shield.saturating_add(gewonnen);
+        self.converted = self.converted.saturating_add(gewonnen);
+        self.log
+            .push(self.time, LogKind::ConvertedToShield, NO_SPELL, gewonnen);
+    }
+
+    /// Laesst die Schutzschicht und die Umwandlung ablaufen.
+    ///
+    /// Steht bei den passiven Wirkungen, weil beides allein an der Uhr haengt —
+    /// wie die Energieleiste des Bosses.
+    fn expire_coagulation(&mut self) {
+        if self.shield_expires_at.is_some_and(|bis| self.time > bis) {
+            self.shield = 0;
+            self.shield_stacks = 0;
+            self.shield_expires_at = None;
+        }
+        if self.conversion_until.is_some_and(|bis| self.time > bis) {
+            self.conversion_percent = 0;
+            self.conversion_until = None;
+        }
+    }
+
     /// Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
     ///
     /// Der Tod wird hier festgestellt und nicht erst in der Kampfschleife: Ein
@@ -796,7 +922,32 @@ impl Fight {
         if self.died_at.is_some() {
             return;
         }
-        let angekommen = PLAYER.incoming(raw);
+        let nach_ward = PLAYER.incoming(raw);
+
+        // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
+        //
+        // Das ist die ganze Mechanik: Sie muss VOR dem Schlag stehen. Eine
+        // Schicht, die erst danach greift, waere eine Heilung mit anderem
+        // Namen — und die gibt es in dieser Schule als eigenen Weg.
+        //
+        // **Nach WARD, nicht davor.** WARD ist eine Eigenschaft des Spielers
+        // und mindert jeden Schlag; die Schicht faengt auf, was danach uebrig
+        // bleibt. Andersherum gerechnet wuerde WARD den Schutz mitmindern und
+        // damit doppelt zaehlen.
+        let abgefangen = self.shield.min(nach_ward);
+        if abgefangen > 0 {
+            self.shield -= abgefangen;
+            self.shield_absorbed = self.shield_absorbed.saturating_add(abgefangen);
+            self.log
+                .push(self.time, LogKind::ShieldAbsorb, NO_SPELL, abgefangen);
+            if self.shield == 0 {
+                // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+                self.shield_stacks = 0;
+                self.shield_expires_at = None;
+            }
+        }
+
+        let angekommen = nach_ward - abgefangen;
         self.damage_taken = self.damage_taken.saturating_add(angekommen);
         self.player_hp = self.player_hp.saturating_sub(angekommen);
         self.log
@@ -974,6 +1125,12 @@ impl Fight {
             );
         }
 
+        // Die drei Wege der Koagulation (Issue #79). Sie stehen VOR dem
+        // Schaden, weil ein Zauber, der beides taete, erst schuetzen und dann
+        // zuschlagen soll — die Reihenfolge ist heute ohne Wirkung (keiner
+        // macht beides) und deshalb jetzt festzulegen und nicht dann.
+        self.apply_coagulation(index, spell);
+
         if spell.base_damage > 0 {
             cast_damage += self.deal(
                 index,
@@ -1058,6 +1215,12 @@ impl Fight {
         self.damage += amount;
         self.damage_by_spell[index] += amount;
         self.log.push(self.time, kind, index as u8, amount);
+        // **Hier und nur hier** speist Weg 3 (Issue #79). Jeder ausgeteilte
+        // Schaden laeuft durch diese Funktion — Sofortschaden, Entladung und
+        // Brand-Tick. Die Umwandlung an den drei Aufrufstellen einzeln
+        // anzuhaengen waere dieselbe Regel an drei Orten, und einer davon
+        // liefe irgendwann weg.
+        self.convert_damage_to_shield(amount);
         amount
     }
 
@@ -1294,6 +1457,16 @@ impl Fight {
         // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen
         // auffaellt, bevor der Treffer ueberhaupt faellt.
         h = mix_int(h, self.casting.map_or(-1, |i| i as i32));
+        // **Angehaengt, nicht eingeschoben** (Issue #79). Ohne den Schutz waere
+        // die Pruefsumme fuer jeden Kampf mit Schutzschicht blind: Zwei Laeufe
+        // mit verschieden viel aufgefangenem Schaden saehen gleich aus, solange
+        // die Lebenspunkte zufaellig uebereinstimmen.
+        h = mix_int(h, self.shield as i32);
+        h = mix_int(h, self.shield_stacks as i32);
+        // Die laufende Umwandlung gehoert dazu, nicht nur ihr Ergebnis: Sie
+        // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
+        // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
+        h = mix_int(h, self.conversion_percent as i32);
         h
     }
 
@@ -1349,6 +1522,36 @@ impl Fight {
     #[must_use]
     pub fn interrupts_landed(&self) -> u32 {
         self.interrupts_landed
+    }
+
+    /// Stand der Schutzschicht (COAGULATION, Weg 1).
+    #[must_use]
+    pub fn shield(&self) -> u32 {
+        self.shield
+    }
+
+    /// Wie viele Anwendungen der Schutzschicht uebereinanderliegen.
+    #[must_use]
+    pub fn shield_stacks(&self) -> u32 {
+        self.shield_stacks
+    }
+
+    /// Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat.
+    #[must_use]
+    pub fn shield_absorbed(&self) -> u32 {
+        self.shield_absorbed
+    }
+
+    /// Wie viel Leben insgesamt zurueckgeholt wurde (Weg 2).
+    #[must_use]
+    pub fn healed(&self) -> u32 {
+        self.healed
+    }
+
+    /// Wie viel Schutz die Umwandlung erzeugt hat (Weg 3).
+    #[must_use]
+    pub fn converted(&self) -> u32 {
+        self.converted
     }
 
     /// Der Boss, gegen den gerechnet wird.
