@@ -21,6 +21,8 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { markDisplayFor } from '../analysis/mark-display.js';
+import type { MarkDisplay } from '../render/overlay.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -59,6 +61,19 @@ export class App {
    */
   lastRecord: RecordResult | null = null;
 
+  /**
+   * Die Fortschrittsmarke, fertig zum Anzeigen (Issue #187).
+   *
+   * Hier gebildet und nicht in der Ansicht: Der Satz entsteht an EINER Stelle,
+   * aus `markSentence`. Zwei Stellen, die aus denselben Zahlen einen Satz
+   * machen, laufen beim naechsten Nachziehen auseinander.
+   *
+   * `null` heisst: nichts zeigen. Das ist der Fall beim allerersten Kampf
+   * eines Spielstands und nach einem Sieg -- dort steht das Ergebnis, nicht
+   * die Marke (Issue #187, AC3 und AC4).
+   */
+  lastMark: MarkDisplay | null = null;
+
   constructor(parent: HTMLElement) {
     this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
     this.surface = new Surface(parent);
@@ -84,6 +99,7 @@ export class App {
       // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
       // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
       if (this.lastRecord.counted) this.persistence.persist(this.lastRecord);
+      this.lastMark = markDisplayFor(this.lastRecord, summary, this.combat.boss.id);
     };
 
     for (const binding of STEP1_BINDINGS) {
@@ -119,6 +135,7 @@ export class App {
       this.labels,
       this.overlay,
       this.impact,
+      () => this.lastMark,
     );
     this.loop = new GameLoop({
       simulation: this.session,
