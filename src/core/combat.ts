@@ -38,6 +38,17 @@ export const FIGHT_OVERPRESSURE = 2;
 
 export const NOT_ACTIVE = -1;
 
+/**
+ * Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
+ *
+ * **Vorläufig, nicht balanciert** — Katalog-Inhalt, GAME-DESIGN F.6 setzt die
+ * Zahl auf E10 an. Sie steht hier und nicht in den Zauber-Daten, weil sie eine
+ * Eigenschaft der WIRKUNG ist und nicht des Zaubers: Jeder künftige Zauber mit
+ * `holdPhase` soll dieselbe Frist haben, sonst wäre „hinauszögern" bei jedem
+ * etwas anderes. Dieselbe Zahl steht in `sim/src/fight.rs`.
+ */
+export const PHASE_HOLD_DURATION_MS = 8_000;
+
 export interface CombatOptions {
   readonly school: SchoolDef;
   readonly boss: BossDef;
@@ -225,6 +236,15 @@ export class Combat {
 
   /** Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR). */
   private phaseHoldPercentValue = 0;
+
+  /**
+   * Bis wann die Senkung gilt (GAME-DESIGN 4.2b). -1 = keine.
+   *
+   * **„Hinauszögern" heißt befristet, nicht dauerhaft.** Sie endet, was zuerst
+   * eintritt: Die Frist läuft ab, oder der nächste Wechsel hat stattgefunden —
+   * dann ist sie verbraucht.
+   */
+  private phaseHoldUntilMs = -1;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
@@ -451,8 +471,8 @@ export class Combat {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
       this.phaseHoldPercentValue = control.amount;
+      this.phaseHoldUntilMs = timeMs - this.fightStartedAtMs + PHASE_HOLD_DURATION_MS;
     }
-    void timeMs;
   }
 
   /**
@@ -525,6 +545,11 @@ export class Combat {
    */
   private expireCoagulation(timeMs: number): void {
     const seitBeginn = timeMs - this.fightStartedAtMs;
+    // Die Frist der Phasen-Senkung ist um, ohne dass ein Wechsel stattfand.
+    if (this.phaseHoldUntilMs >= 0 && seitBeginn > this.phaseHoldUntilMs) {
+      this.phaseHoldPercentValue = 0;
+      this.phaseHoldUntilMs = -1;
+    }
     if (this.shieldExpiresAtMs >= 0 && seitBeginn > this.shieldExpiresAtMs) {
       this.shieldValue = 0;
       this.shieldStacksValue = 0;
@@ -828,7 +853,14 @@ export class Combat {
         const schwelle = this.boss.phases[i];
         if (schwelle !== undefined && prozent <= schwelle.atHpPercent) neue = i + 1;
       }
-      if (neue > this.bossPhaseValue) this.bossPhaseValue = neue;
+      if (neue > this.bossPhaseValue) {
+        this.bossPhaseValue = neue;
+        // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt für diesen einen
+        // Wechsel. Der übernächste bekommt wieder die volle Schwelle — sonst
+        // verschöbe ein Druck alle folgenden mit.
+        this.phaseHoldPercentValue = 0;
+        this.phaseHoldUntilMs = -1;
+      }
     }
   }
 
