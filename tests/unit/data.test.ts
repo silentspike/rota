@@ -170,12 +170,16 @@ describe('Zufallsströme', () => {
   });
 
   it('bleibt im Bereich null bis eins', () => {
+    // Gesammelt statt je Ziehung geprüft: 20.000 expect-Aufrufe trieben den
+    // Fall in die Zeitgrenze, ohne dass am Zufallsstrom etwas langsam wäre
+    // (Issue #127).
     const stream = new RandomStreams(7).stream(STREAM_CRIT);
+    const ausserhalb: string[] = [];
     for (let i = 0; i < 10_000; i++) {
       const value = stream.next();
-      expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThan(1);
+      if (!(value >= 0 && value < 1)) ausserhalb.push(`Ziehung ${i}: ${value}`);
     }
+    expect(ausserhalb).toEqual([]);
   });
 
   it('zählt Ziehungen und stellt sich wieder her', () => {

@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => ({
               // einen Worktree im gerade ausgecheckten Branch und ist damit
               // Evidence, die nur auf einem Rechner funktioniert.
               archiveCheck: 'docs/archive-check/index.html',
+              trainingCheck: 'docs/training-check/index.html',
               // Die Prüfblätter aus Epic E7. Sie liegen bewusst hier und nicht
               // hinter einer nginx-Location: Eine Location in /etc/nginx/ zeigt
               // auf einen Worktree im gerade ausgecheckten Branch und ist damit

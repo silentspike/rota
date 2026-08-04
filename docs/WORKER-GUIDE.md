@@ -121,6 +121,58 @@ grün. Ist er rot, **den Code reparieren, nicht den Test.**
 > **Kein Anpassen von Schwellwerten, Tests oder Konfiguration, damit etwas durchgeht.** Die einzige
 > Ausnahme ist, wenn das Issue ausdrücklich sagt, dass ein Schwellwert falsch gesetzt war.
 
+#### Grün belegt, dass nichts kaputt ist — nicht, dass etwas da ist
+
+_Gemessen am 2026-08-04, beinahe mit Datenverlust._
+
+Ein Zweig, dem die eigentliche Arbeit fehlt, ist **genauso grün** wie einer, der sie enthält. Die CI
+prüft, ob der vorhandene Code funktioniert, nicht ob der Code vorhanden ist.
+
+> Beim Mergen von #115 wurde der Push abgelehnt (`non-fast-forward`). Der lokale Zweig hatte die
+> eigene Arbeit **nicht mehr** — ein zwischenzeitliches `git checkout -B` hatte ihn auf `main`
+> zurückgesetzt. Der Remote war die einzige vollständige Kopie.
+>
+> Ein `git push --force` hätte sie gelöscht, und der danach gemergte PR wäre grün und leer gewesen.
+
+**`non-fast-forward` ist kein Ärgernis, das man wegdrückt, sondern eine Meldung über einen Zustand,
+den man nicht kennt.** Bevor du forcierst — was ohnehin die Ausnahme sein sollte —, sieh nach, was
+auf beiden Seiten steht:
+
+```bash
+git log --oneline origin/<zweig>..HEAD        # was hat der lokale Zweig, was der Remote nicht hat?
+git log --oneline HEAD..origin/<zweig>        # und umgekehrt — die wichtigere Richtung
+git show origin/<zweig>:<eine deiner Dateien> # liegt deine Arbeit dort noch?
+```
+
+Dasselbe gilt für die Abnahme: Ein grüner PR ist eine Voraussetzung, kein Nachweis. Der Nachweis ist,
+dass die Prüffälle die neue Mechanik **wirklich berühren** — bei E3-4 war die Parität grün, während
+die Schutzschicht auf der Spielseite gar nicht eingebaut war, weil in allen bestehenden Fällen der
+Schutz null ist.
+
+#### Vor jedem PR: steht im Diff nur, was du angefasst hast?
+
+```bash
+git diff --stat origin/main..HEAD
+```
+
+Zwei Sekunden. Was dort auftaucht und nicht von dir stammt, ist fremde Arbeit, die dein Zweig
+**zurückdreht** — meist, weil sie nach deinem Zweigstart entstanden ist und du `main` nicht
+nachgezogen hast.
+
+> **Gemessen am 2026-08-04.** Ein PR, der eine einzige Testdatei ändern sollte, hätte nebenbei
+> 22 Zeilen aus `docs/WORKER-GUIDE.md` gelöscht:
+>
+> ```
+> docs/WORKER-GUIDE.md    | 22 ----------------------
+> tests/unit/loop.test.ts |  9 ++++++++-
+> ```
+>
+> **Die CI hat es nicht gefangen** — ein PR mit weniger Dokumentation ist genauso grün wie einer mit
+> mehr. Gefunden hat es nur der Blick auf den Diff.
+
+Der Fall ist derselbe wie oben, nur an einer Datei, die niemand als „Arbeit" ansieht: Grün belegt,
+dass nichts kaputt ist, nicht dass etwas da ist.
+
 ### Schritt 6 — Merge nach `main`
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
@@ -176,6 +228,47 @@ welche AC und warum. Das ist ein völlig normaler Ausgang und besser als eine ge
 | Konsolen-Ausgabe der Dev-Werkzeuge   | Quelltext-Review ohne Ausführung  |
 
 **Grundzustand jeder AC ist UNGEPRÜFT.** Kein Befehl = ungeprüft. Ungeprüft ist nicht bestanden.
+
+### Die Messlatte muss den Fall enthalten, in dem sich etwas NICHT ändern darf
+
+_Formuliert von E3-3b am 2026-08-04, als Verallgemeinerung mehrerer Funde._
+
+Ein Prüffall, der nur zeigt, dass die neue Mechanik **etwas tut**, belegt selten das Richtige. Was
+er zeigen muss, ist der Unterschied — und dazu gehört die Seite, die **gleich bleiben soll**:
+
+| Nachweis                                      | Ohne die Gegenseite hätte auch bestanden …                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Drei Verteidigungs-Wege wirken verschieden    | … dass alle drei wirkungslos sind — es fehlte der Lauf **ohne** Verteidigung                |
+| Ein Schlag lässt sich verzögern               | … dass die **ganze** Zeitleiste rückt — es fehlte der zweite Schlag, der stehen bleibt      |
+| Eine Phase lässt sich hinauszögern            | … dass sie danach **zurückfällt** — es fehlte der Lauf, in dem die Wirkung ausläuft         |
+| Ein Unterbrecher ohne Gelegenheit zählt nicht | … dass Unterbrecher **grundsätzlich** ignoriert werden — es fehlte der Fall mit Gelegenheit |
+| Ausrüstung verändert den Schaden              | … dass ein anderer Faktor die Arbeit tut — es fehlte der neutrale Lauf                      |
+
+**Die Frage vor jedem Prüffall lautet deshalb nicht nur „was soll sich ändern", sondern auch: was
+darf sich dabei NICHT ändern — und steht das im selben Lauf?**
+
+Ein verwandter Fall: Wenn die neue Größe im Prüflauf überall **null** ist, kann er nichts zeigen.
+Bei E3-4 war die Parität grün, während die Schutzschicht auf einer Seite fehlte — in allen
+bestehenden Fällen war der Schutz null.
+
+**Daraus folgt eine Regel, die sich sofort anwenden lässt: Wo du eine _Wirkung_ nachweist, prüfe
+auf eine Ungleichung, nicht auf eine Zahl.**
+
+| Formulierung                     | Fängt den Nullfall |
+| -------------------------------- | ------------------ |
+| `expect(mit).toBeLessThan(ohne)` | **ja**             |
+| `expect(mit).toBe(1234)`         | nein               |
+| `expect(mit).toBe(ohne * 0.5)`   | nein — `0 === 0`   |
+
+> **Gemessen am 2026-08-04 in E7-4.** Zwei Läufe sollten zeigen, dass ein Widerstand den Schaden
+> halbiert. Beide ergaben **null Schaden** — der Prüfaufbau startete den Countdown nicht, es wurde
+> nie gewirkt. Die Ungleichung schlug fehl (`expected 0 to be less than 0`) und deckte den kaputten
+> Aufbau auf. Eine Gleichheitsprüfung wäre grün gewesen und hätte nichts belegt.
+
+Dieselbe Falle eine Ebene tiefer: Nicht die Größe ist null, sondern **die Handlung findet gar nicht
+statt.** In E3-3b sollte ein Zauber zu einem festen Zeitpunkt gedrückt werden — lief dort gerade
+eine Wartezeit, kam der Druck nicht durch, und der Nachweis war still weg, ohne dass der Prüffall
+rot wurde. Gelöst durch ein **Zeitfenster** statt eines Zeitpunkts.
 
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
