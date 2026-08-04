@@ -48,6 +48,12 @@
  * | 7   | `buffExpire` | ja    | —         |
  * | 8   | `bossEnergyTriggered` | — | ja     |
  * | 9   | `bossTimelineFired`   | — | ja     |
+ * | 10  | `playerDamage`        | — | ja     |
+ * | 11  | `playerDeath`         | — | ja     |
+ * | 12  | `interruptLanded`     | — | ja     |
+ * | 13  | `shieldAbsorb`        | — | ja     |
+ * | 14  | `healed`              | — | ja     |
+ * | 15  | `convertedToShield`   | — | ja     |
  *
  * Nummer 6 hat mit Issue #96 eine zweite Schreiberin bekommen: Der Simulator
  * führt Boss-Phasen jetzt ebenfalls. Dieselbe Zahl, dieselbe Bedeutung — genau
@@ -91,6 +97,18 @@ export const EVENT_BOSS_ENERGY_TRIGGERED = 8;
  * Nur der Simulator schreibt sie.
  */
 export const EVENT_BOSS_TIMELINE_FIRED = 9;
+/** Nur der Simulator schreibt sie — Schaden am Spieler (Issue #110). */
+export const EVENT_PLAYER_DAMAGE = 10;
+/** Nur der Simulator schreibt sie — der Spieler ist gestorben (#110). */
+export const EVENT_PLAYER_DEATH = 11;
+/** Nur der Simulator schreibt sie — ein Boss-Zauber wurde unterbrochen (#110). */
+export const EVENT_INTERRUPT_LANDED = 12;
+/** Nur der Simulator schreibt sie — die Schutzschicht hat aufgefangen (#79). */
+export const EVENT_SHIELD_ABSORB = 13;
+/** Nur der Simulator schreibt sie — der Spieler wurde geheilt (#79). */
+export const EVENT_HEALED = 14;
+/** Nur der Simulator schreibt sie — Schaden wurde in Schutz verwandelt (#79). */
+export const EVENT_CONVERTED_TO_SHIELD = 15;
 
 export const EVENT_NAMES: readonly string[] = [
   'cast',
@@ -103,6 +121,12 @@ export const EVENT_NAMES: readonly string[] = [
   'buffExpire',
   'bossEnergyTriggered',
   'bossTimelineFired',
+  'playerDamage',
+  'playerDeath',
+  'interruptLanded',
+  'shieldAbsorb',
+  'healed',
+  'convertedToShield',
 ];
 
 /** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */

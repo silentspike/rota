@@ -140,7 +140,11 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // geteilt, und die Namen stehen auch für die Arten, die nur er schreibt.
     // Wer ein fremdes Protokoll liest, soll denselben Namen sehen statt ein
     // Fragezeichen.
-    expect(EVENT_NAMES.length).toBe(10);
+    // Sechzehn seit #79: Der Simulator führt inzwischen Spieler-Leben (#110)
+    // und die drei Wege der Koagulation (#79). Die Namen stehen auch für die
+    // Arten, die diese Seite nie schreibt — wer ein fremdes Protokoll liest,
+    // soll denselben Namen sehen statt ein Fragezeichen.
+    expect(EVENT_NAMES.length).toBe(16);
     expect(EVENT_NAMES[EVENT_CAST]).toBe('cast');
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
     expect(EVENT_NAMES[4]).toBe('spend');
@@ -152,6 +156,10 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // Lesen verwechselt.
     expect(EVENT_NAMES[8]).toBe('bossEnergyTriggered');
     expect(EVENT_NAMES[9]).toBe('bossTimelineFired');
+    // Die drei aus #79 — auch sie Vorgänge, nicht Zustände.
+    expect(EVENT_NAMES[13]).toBe('shieldAbsorb');
+    expect(EVENT_NAMES[14]).toBe('healed');
+    expect(EVENT_NAMES[15]).toBe('convertedToShield');
   });
 
   it('schreibt nur die Arten, die dem Spiel gehören', () => {
