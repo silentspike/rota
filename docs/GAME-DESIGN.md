@@ -970,10 +970,20 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 - Werte-Boni auf den unteren Stufen, **echte Rotations-Effekte** auf den höheren. Jeder Satz zielt
   auf eine Schule → auch ungenutzte Zauber bekommen ihre Nische
 
-> **Harte Balance-Anforderung:** Satz-Boni und platz-spezifische Sonderwerte müssen **etwa
-> gleichwertig** sein. Kippt es in die eine Richtung, tragen alle nur Sätze; kippt es in die andere,
-> sind die Sätze wertlos. Eigener Prüflauf im Simulator (bester Satz-Aufbau gegen besten
-> Affix-Aufbau je Ausrichtung).
+> **Harte Balance-Anforderung:** Satz-Boni und **Affixe** müssen **etwa gleichwertig** sein. Kippt es
+> in die eine Richtung, tragen alle nur Sätze; kippt es in die andere, sind die Sätze wertlos.
+> Eigener Prüflauf im Simulator (bester Satz-Aufbau gegen besten Affix-Aufbau je Ausrichtung).
+>
+> Gegenüber steht den Sätzen also die **Affix-Auswahl** aus 13.3 — drei Affixe auf einem Epic gegen
+> zwei Satz-Teile, das ist die Abwägung, die der Prüflauf messen muss.
+
+> **Nachgezogen am 2026-08-04.** Hier stand „Satz-Boni und **platz-spezifische Sonderwerte**". Die
+> platz-spezifische Wertezuordnung ist am 2026-07-29 gestrichen (13.2) — der Begriff blieb an dieser
+> Stelle stehen und beschrieb damit einen Gegenspieler, den es nicht mehr gibt. Die Anforderung
+> selbst ist unverändert: Sätze gegen Affixe.
+>
+> Gefunden hat es Worker-1, nicht ich. Wer 13.5 gelesen hätte, ohne 13.2 zu kennen, hätte den
+> Prüflauf gegen eine gestrichene Regel gebaut.
 
 ### 13.6 Beute-Handhabung
 
