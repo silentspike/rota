@@ -66,7 +66,9 @@
 //! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
-use crate::data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
+use crate::data::{
+    Boss, Resource, Spell, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+};
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
 use crate::log::{CombatLog, LogKind, NO_SPELL};
@@ -225,6 +227,26 @@ pub struct Fight {
     /// Zeigt auf den **naechsten** faelligen Eintrag. Steht er am Ende der
     /// Liste, ist die Zeitleiste durch.
     timeline_index: usize,
+    /// Welcher Boss-Zauber gerade laeuft, als Index in `Boss::timeline`.
+    ///
+    /// `None` heisst: keiner. Solange einer laeuft, kann er unterbrochen
+    /// werden — danach nicht mehr, auch nicht im Takt des Treffers.
+    casting: Option<usize>,
+    /// Wie oft ein Boss-Zauber durchgekommen ist.
+    interrupts_missed: u32,
+    /// Wie oft der Spieler einen unterbrochen hat.
+    interrupts_landed: u32,
+
+    // -- Spieler --
+    /// Verbleibende Lebenspunkte. Beginnt bei `PLAYER.vessel`.
+    player_hp: u32,
+    /// Kampfzeit des Spielertods, oder `None`.
+    ///
+    /// **Keine Strafe** (GAME-DESIGN A.3): Der Versuch ist vorbei, die
+    /// Auswertung erscheint wie bei jedem anderen Ende, und man startet neu.
+    died_at: Option<Millis>,
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    damage_taken: u32,
 
     // -- Spieler --
     gcd_ready_at: Millis,
@@ -284,6 +306,12 @@ impl Fight {
             energy: 0,
             energy_triggers: 0,
             timeline_index: 0,
+            casting: None,
+            interrupts_missed: 0,
+            interrupts_landed: 0,
+            player_hp: PLAYER.vessel,
+            died_at: None,
+            damage_taken: 0,
             gcd_ready_at: 0,
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -456,6 +484,15 @@ impl Fight {
                     break;
                 }
             }
+
+            // Der Spielertod beendet den Versuch — **immer**, auch wenn
+            // `stop_on_kill` aus ist (GAME-DESIGN A.3: Versuch vorbei, keine
+            // Strafe). Der Unterschied zum Sieg ist Absicht: Zwei Rotationen
+            // ueber die volle Zeit zu vergleichen ergibt Sinn, ein toter
+            // Spieler, der weiterwirkt, nicht.
+            if self.died_at.is_some() {
+                break;
+            }
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
@@ -515,6 +552,7 @@ impl Fight {
         let mut phases = Vec::with_capacity(checksums.capacity());
         let mut energy = Vec::with_capacity(checksums.capacity());
         let mut timeline_index = Vec::with_capacity(checksums.capacity());
+        let mut player_hp = Vec::with_capacity(checksums.capacity());
         let mut sequence: u32 = 0;
         let mut accepted = 0;
         let mut rejected = 0;
@@ -547,6 +585,22 @@ impl Fight {
                     phases.push(self.phase as u32);
                     energy.push(self.energy);
                     timeline_index.push(self.timeline_index as u32);
+                    player_hp.push(self.player_hp);
+                }
+                break;
+            }
+
+            // Der Spielertod endet genauso — mit der Pruefsumme dieses Takts,
+            // damit beide Seiten denselben letzten Eintrag haben.
+            if self.died_at.is_some() {
+                let hash = self.checksum_at(now);
+                sequence = sequence.wrapping_mul(31).wrapping_add(hash);
+                if checksum_per_tick {
+                    checksums.push(hash);
+                    phases.push(self.phase as u32);
+                    energy.push(self.energy);
+                    timeline_index.push(self.timeline_index as u32);
+                    player_hp.push(self.player_hp);
                 }
                 break;
             }
@@ -582,6 +636,7 @@ impl Fight {
                 phases.push(self.phase as u32);
                 energy.push(self.energy);
                 timeline_index.push(self.timeline_index as u32);
+                player_hp.push(self.player_hp);
             }
         }
 
@@ -602,6 +657,11 @@ impl Fight {
             phases,
             energy,
             timeline_index,
+            player_hp,
+            damage_taken: self.damage_taken,
+            died_at_ms: self.died_at,
+            interrupts_landed: self.interrupts_landed,
+            interrupts_missed: self.interrupts_missed,
         }
     }
 
@@ -615,6 +675,12 @@ impl Fight {
         self.energy = 0;
         self.energy_triggers = 0;
         self.timeline_index = 0;
+        self.casting = None;
+        self.interrupts_missed = 0;
+        self.interrupts_landed = 0;
+        self.player_hp = PLAYER.vessel;
+        self.died_at = None;
+        self.damage_taken = 0;
         self.gcd_ready_at = 0;
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -681,8 +747,79 @@ impl Fight {
         }
         self.log
             .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
+
+        // **Hier bekommt die Zeitleiste ihre Wirkung** (Issue #110). In #96
+        // wurde der Zeitpunkt nur angesteuert und protokolliert.
+        let entry = self.boss.timeline[index];
+        match entry.kind {
+            // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
+            TimelineKind::Strike => self.hit_player(entry.damage),
+            // Beginnt zu wirken. Ob er trifft, entscheidet sich erst, wenn die
+            // Wirkzeit um ist — bis dahin kann der Spieler ihn abbrechen.
+            TimelineKind::InterruptibleCast => {
+                self.casting = Some(index);
+                self.queue.push(
+                    self.time + entry.cast_time_ms,
+                    EventKind::BossCastLands {
+                        index: index as u16,
+                    },
+                );
+            }
+        }
+
         self.timeline_index += 1;
         self.schedule_next_timeline_step();
+    }
+
+    /// Ein Boss-Zauber ist fertig gewirkt.
+    ///
+    /// Er trifft **nur**, wenn er noch laeuft. Wurde er unterbrochen, steht
+    /// `casting` auf `None` oder auf einem anderen Eintrag, und dieser Aufruf
+    /// verpufft — der eingeplante Treffer aus der Schlange zu entfernen waere
+    /// teurer als ihn hier verfallen zu lassen (dasselbe Vorgehen wie bei den
+    /// veralteten DoT-Ticks, `generation`).
+    fn boss_cast_lands(&mut self, index: usize) {
+        if self.casting != Some(index) {
+            return;
+        }
+        self.casting = None;
+        self.interrupts_missed += 1;
+        self.hit_player(self.boss.timeline[index].damage);
+    }
+
+    /// Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
+    ///
+    /// Der Tod wird hier festgestellt und nicht erst in der Kampfschleife: Ein
+    /// Spieler mit null Lebenspunkten, der noch einen Takt weiterwirkt, waere
+    /// eine stille Abweichung zwischen beiden Umsetzungen.
+    fn hit_player(&mut self, raw: u32) {
+        if self.died_at.is_some() {
+            return;
+        }
+        let angekommen = PLAYER.incoming(raw);
+        self.damage_taken = self.damage_taken.saturating_add(angekommen);
+        self.player_hp = self.player_hp.saturating_sub(angekommen);
+        self.log
+            .push(self.time, LogKind::PlayerDamage, NO_SPELL, angekommen);
+        if self.player_hp == 0 {
+            self.died_at = Some(self.time);
+            self.log
+                .push(self.time, LogKind::PlayerDeath, NO_SPELL, self.damage_taken);
+        }
+    }
+
+    /// Bricht einen laufenden Boss-Zauber ab (GAME-DESIGN 11.2, Baustein 9).
+    ///
+    /// Gibt zurueck, ob ueberhaupt etwas zu unterbrechen war. Ein Unterbrechen
+    /// ins Leere ist **kein Fehler**, sondern eine vertane Abklingzeit — der
+    /// Zauber wird gewirkt, er trifft nur nichts.
+    fn interrupt_boss_cast(&mut self) -> bool {
+        if self.casting.take().is_some() {
+            self.interrupts_landed += 1;
+            true
+        } else {
+            false
+        }
     }
 
     fn apply(&mut self, kind: EventKind) {
@@ -691,6 +828,7 @@ impl Fight {
             EventKind::ResourceDecay => self.decay(),
             EventKind::EnergyTick => self.energy_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
+            EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
             // Simulator zu diesem Zeitpunkt ueberhaupt aufwacht — weil dann eine
             // Abklingzeit abgelaufen ist oder der Sieg zu pruefen war.
@@ -819,6 +957,22 @@ impl Fight {
         // 2026-07-29). Verglichen wurde bis dahin nur Zahlenwerk, weshalb es
         // niemandem auffiel.
         let mut cast_damage = 0;
+
+        // Unterbrechen (GAME-DESIGN 11.2, Baustein 9).
+        //
+        // **Kein Sonderfall in der Wartezeit-Rechnung.** Dass dieser Zauber
+        // keine globale Wartezeit ausloest, steht weiter unten als
+        // `spell.triggers_gcd` und kommt aus den Daten — hier waere eine
+        // zweite Stelle, an der dieselbe Regel haengt, und zwei Stellen laufen
+        // auseinander.
+        if spell.interrupt && self.interrupt_boss_cast() {
+            self.log.push(
+                now,
+                LogKind::InterruptLanded,
+                index as u8,
+                self.interrupts_landed,
+            );
+        }
 
         if spell.base_damage > 0 {
             cast_damage += self.deal(
@@ -951,7 +1105,21 @@ impl Fight {
     /// globale Wartezeit abgelaufen.
     #[must_use]
     pub fn is_ready(&self, index: usize) -> bool {
-        self.cooldown_ready_at[index] <= self.time && self.gcd_ready_at <= self.time
+        if self.cooldown_ready_at[index] > self.time {
+            return false;
+        }
+        // **Wer keine Wartezeit ausloest, wird auch von keiner gesperrt**
+        // (GAME-DESIGN 6.6/10.4, Issue #110).
+        //
+        // Bis hierher galt die Sperre fuer jeden Zauber. Fuer die drei aus
+        // Schritt 1 war das richtig — sie loesen alle eine aus. Fuer den
+        // Unterbrecher waere es die Ausnahme mit falschem Vorzeichen: Er
+        // loeste zwar keine Wartezeit aus, koennte aber waehrend einer
+        // laufenden nicht gewirkt werden. Gebraucht wird er genau dann.
+        if !SPELLS[index].triggers_gcd {
+            return true;
+        }
+        self.gcd_ready_at <= self.time
     }
 
     /// Ob ein Brand-Effekt gerade laeuft.
@@ -1118,6 +1286,14 @@ impl Fight {
         h = mix_int(h, self.phase as i32);
         h = mix_int(h, self.energy as i32);
         h = mix_int(h, self.timeline_index as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #110). Ohne die
+        // Lebenspunkte waere die Pruefsumme fuer einen Boss, der Schaden
+        // austeilt, blind: Zwei Laeufe mit verschiedenem erlittenem Schaden
+        // saehen gleich aus.
+        h = mix_int(h, self.player_hp as i32);
+        // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen
+        // auffaellt, bevor der Treffer ueberhaupt faellt.
+        h = mix_int(h, self.casting.map_or(-1, |i| i as i32));
         h
     }
 
@@ -1143,6 +1319,36 @@ impl Fight {
     #[must_use]
     pub fn timeline_index(&self) -> usize {
         self.timeline_index
+    }
+
+    /// Verbleibende Lebenspunkte des Spielers.
+    #[must_use]
+    pub fn player_hp(&self) -> u32 {
+        self.player_hp
+    }
+
+    /// Gesamter erlittener Schaden, **nach** WARD.
+    #[must_use]
+    pub fn damage_taken(&self) -> u32 {
+        self.damage_taken
+    }
+
+    /// Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3).
+    #[must_use]
+    pub fn player_dead(&self) -> bool {
+        self.died_at.is_some()
+    }
+
+    /// Welcher Boss-Zauber gerade laeuft, als Index in `Boss::timeline`.
+    #[must_use]
+    pub fn casting(&self) -> Option<usize> {
+        self.casting
+    }
+
+    /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
+    #[must_use]
+    pub fn interrupts_landed(&self) -> u32 {
+        self.interrupts_landed
     }
 
     /// Der Boss, gegen den gerechnet wird.

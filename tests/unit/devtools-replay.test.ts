@@ -83,7 +83,9 @@ describe('Aufzeichnungen', () => {
     const result = replayRecording(recordings().get('cooldown-precision') as never);
     expect(result.damage).toBe(4240);
     expect(result.killedAtMs).toBe(40_510);
-    expect(result.casts).toEqual({ kindle: 20, smoulder: 4, pyre: 4 });
+    // QUENCH steht mit 0 dabei: Er ist der Unterbrecher (Issue #110), richtet
+    // keinen Schaden an und kommt in keiner der vier Prüfrotationen vor.
+    expect(result.casts).toEqual({ kindle: 20, smoulder: 4, pyre: 4, quench: 0 });
     expect(result.accepted).toBe(28);
     expect(result.rejected).toBe(0);
     expect(result.randomDraws).toBe(0);
