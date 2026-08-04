@@ -93,6 +93,7 @@ describe('AC7 — Leerlauf und verpasste Wirkungen schliessen einander aus', () 
     ['nur ein langsamer Zauber', [PYRE], 5000],
     ['langsamer Zauber, zu frueh gedrueckt', [PYRE], 1500],
     ['sehr lange Abklingzeit', [CRUST], 6000],
+    ['zwei langsame Zauber', [PYRE, CRUST], 1500],
   ];
 
   for (const [name, loadout, everyMs] of FAELLE) {
@@ -123,6 +124,25 @@ describe('AC7 — Leerlauf und verpasste Wirkungen schliessen einander aus', () 
     expect(analysis.missedCastWindows).toBe(0);
     expect(analysis.idleWindows).toBe(0);
     expect(summary.damage).toBeGreaterThan(0);
+  });
+
+  it('laeuft mit ZWEI belegten Zaubern auseinander', () => {
+    // Der schaerfere Fall. Mit nur EINEM belegten Zauber sind „mindestens einer
+    // bereit" und „genau dieser bereit" dasselbe — der Nachweis bestuende, ohne
+    // die Trennung zu beruehren. Erst bei zwei Zaubern mit verschiedenen
+    // Abklingzeiten gibt es Fenster beider Arten im selben Durchlauf.
+    const { summary, analysis } = play([PYRE, CRUST], 1500);
+
+    expect(summary.lostTimeWithReadyMs).toBeGreaterThan(0);
+    expect(summary.lostTimeNothingReadyMs).toBeGreaterThan(0);
+    // Beide ECHT kleiner als der Leerlauf: Keiner der Zaehler ist bloss eine
+    // umbenannte Kopie von idleTicks.
+    expect(summary.lostTimeWithReadyMs).toBeLessThan(summary.lostTimeMs);
+    expect(summary.lostTimeNothingReadyMs).toBeLessThan(summary.lostTimeMs);
+    expect(summary.lostTimeWithReadyMs + summary.lostTimeNothingReadyMs).toBe(summary.lostTimeMs);
+    // Und beide Fensterzahlen kommen in der Auswertung an.
+    expect(analysis.missedCastWindows).toBeGreaterThan(0);
+    expect(analysis.idleWindows).toBeGreaterThan(0);
   });
 
   it('trennt tatsaechlich — beide Haelften kommen einzeln vor', () => {
