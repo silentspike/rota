@@ -33,7 +33,7 @@ const LOG_KINDS: &str = include_str!("../../tests/parity/recordings/log-kinds.js
 
 /// Die Arten, die **dieser** Seite gehoeren, mit ihrer Kennnummer und ihrem
 /// Namen im gemeinsamen Raum.
-const MINE: [(LogKind, u64, &str); 8] = [
+const MINE: [(LogKind, u64, &str); 14] = [
     (LogKind::Cast, 0, "cast"),
     (LogKind::Damage, 1, "damage"),
     (LogKind::DotTick, 2, "dotTick"),
@@ -45,6 +45,14 @@ const MINE: [(LogKind, u64, &str); 8] = [
     (LogKind::BossPhase, 6, "phase"),
     (LogKind::BossEnergy, 8, "bossEnergyTriggered"),
     (LogKind::BossTimeline, 9, "bossTimelineFired"),
+    // Issue #110: Spieler-Leben und Unterbrechen.
+    (LogKind::PlayerDamage, 10, "playerDamage"),
+    (LogKind::PlayerDeath, 11, "playerDeath"),
+    (LogKind::InterruptLanded, 12, "interruptLanded"),
+    // Issue #79: die drei Wege der Koagulation.
+    (LogKind::ShieldAbsorb, 13, "shieldAbsorb"),
+    (LogKind::Healed, 14, "healed"),
+    (LogKind::ConvertedToShield, 15, "convertedToShield"),
 ];
 
 fn kinds() -> Vec<(u64, String, bool)> {
@@ -132,9 +140,9 @@ fn jede_nummer_gehoert_mindestens_einer_seite() {
 /// Eine Stolperdrahte: Wer eine Variante hinzufuegt oder umnummeriert, ohne
 /// den gemeinsamen Raum anzupassen, faellt hier auf.
 #[test]
-fn der_simulator_fuehrt_genau_seine_acht_arten() {
+fn der_simulator_fuehrt_genau_seine_vierzehn_arten() {
     let gemeinsam = kinds();
-    assert_eq!(MINE.len(), 8, "der Simulator hat eine Art dazubekommen");
+    assert_eq!(MINE.len(), 14, "der Simulator hat eine Art dazubekommen");
 
     // Was nur das Spiel schreibt, darf hier keine Variante haben.
     let nur_spiel: Vec<u64> = gemeinsam
@@ -152,7 +160,7 @@ fn der_simulator_fuehrt_genau_seine_acht_arten() {
     let meine: Vec<u64> = MINE.iter().map(|(_, nr, _)| *nr).collect();
     assert_eq!(
         meine,
-        vec![0, 1, 2, 4, 5, 6, 8, 9],
+        vec![0, 1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15],
         "der Simulator belegt andere Nummern als vereinbart"
     );
 }
@@ -167,5 +175,5 @@ fn der_gemeinsame_raum_ist_vollstaendig() {
             "der gemeinsame Raum hat bei {index} eine Luecke oder eine Dublette"
         );
     }
-    assert_eq!(gemeinsam.len(), 10, "der Raum hat seine Groesse geaendert");
+    assert_eq!(gemeinsam.len(), 16, "der Raum hat seine Groesse geaendert");
 }

@@ -29,7 +29,17 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
     expect(FIRST_CRUCIBLE.problems).toEqual([]);
     const combat = makeCombat();
     // Drei Kampfzauber, dazu seit #110 der Unterbrecher QUENCH.
-    expect(combat.spells.map((s) => s.id)).toEqual(['kindle', 'smoulder', 'pyre', 'quench']);
+    expect(combat.spells.map((s) => s.id)).toEqual([
+      'kindle',
+      'smoulder',
+      'pyre',
+      'quench',
+      // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
+      // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
+      'crust',
+      'salve',
+      'temper',
+    ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
     expect(combat.school.resource.cap).toBe(20);

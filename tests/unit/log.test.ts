@@ -140,7 +140,11 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // geteilt, und die Namen stehen auch für die Arten, die nur er schreibt.
     // Wer ein fremdes Protokoll liest, soll denselben Namen sehen statt ein
     // Fragezeichen.
-    expect(EVENT_NAMES.length).toBe(10);
+    // Sechzehn seit #79: Der Simulator führt inzwischen Spieler-Leben (#110)
+    // und die drei Wege der Koagulation (#79). Die Namen stehen auch für die
+    // Arten, die diese Seite nie schreibt — wer ein fremdes Protokoll liest,
+    // soll denselben Namen sehen statt ein Fragezeichen.
+    expect(EVENT_NAMES.length).toBe(16);
     expect(EVENT_NAMES[EVENT_CAST]).toBe('cast');
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
     expect(EVENT_NAMES[4]).toBe('spend');
@@ -152,6 +156,10 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // Lesen verwechselt.
     expect(EVENT_NAMES[8]).toBe('bossEnergyTriggered');
     expect(EVENT_NAMES[9]).toBe('bossTimelineFired');
+    // Die drei aus #79 — auch sie Vorgänge, nicht Zustände.
+    expect(EVENT_NAMES[13]).toBe('shieldAbsorb');
+    expect(EVENT_NAMES[14]).toBe('healed');
+    expect(EVENT_NAMES[15]).toBe('convertedToShield');
   });
 
   it('schreibt nur die Arten, die dem Spiel gehören', () => {
@@ -214,8 +222,10 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // verschenkter Leerlauf. Die richtige Rechnung ist nicht „hat er
     // stillgelegen", sondern „gab es eine Gelegenheit, die er ungenutzt ließ".
     // Das steht als Kriterium in Issue #81 (E7) und gehört dorthin.
-    expect(summary.idlePerSpell.length).toBe(4);
-    const belegt = summary.idlePerSpell.filter((e) => e.spellId !== 'quench');
+    expect(summary.idlePerSpell.length).toBe(7);
+    const belegt = summary.idlePerSpell.filter((e) =>
+      ['kindle', 'smoulder', 'pyre'].includes(e.spellId),
+    );
     expect(belegt.length).toBe(3);
     for (const entry of belegt) {
       expect(entry.idleMs).toBe(3000);
@@ -257,8 +267,11 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // PYRE und QUENCH stehen beide bei null — PYRE, weil es auf Abklingzeit
     // liegt, QUENCH, weil es hier nicht belegt ist. Bei Gleichstand entscheidet
     // die Kennung, damit die Reihenfolge zwischen zwei Läufen nicht springt.
-    const hinten = list.slice(-2).map((e) => e.spellId);
-    expect(hinten).toEqual(['pyre', 'quench']);
+    // PYRE liegt auf Abklingzeit, die vier anderen sind hier nicht belegt —
+    // alle fuenf stehen deshalb bei null, und bei Gleichstand entscheidet die
+    // Kennung, damit die Reihenfolge zwischen zwei Laeufen nicht springt.
+    const hinten = list.slice(-5).map((e) => e.spellId);
+    expect(hinten).toEqual(['crust', 'pyre', 'quench', 'salve', 'temper']);
     expect(list[list.length - 1]?.idleMs).toBe(0);
   });
 
@@ -315,6 +328,6 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // Vier Einträge: Das ist die Rohmessung je Zauber, und die führt QUENCH
     // mit (immer 0, weil er nicht mitgezählt wird). Erst die aufbereitete
     // Liste `idlePerSpell` lässt ihn weg.
-    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0]);
+    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
 });
