@@ -180,3 +180,77 @@ canvas {
   color: #ffc14d;
   font-weight: 600;
 }
+
+/* --- Beute-Moment (GAME-DESIGN 13.6, Issue E6-4) ---------------------------
+   Vier Stufen, vier Inszenierungen. Die Staffelung ist die Regel: Der seltene
+   Moment wirkt nur, WEIL die häufigen kurz sind. */
+.rota-loot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  pointer-events: none;
+  background: rgb(0 0 0 / calc(var(--rota-loot-dim, 0) * 100%));
+}
+
+.rota-loot-quality {
+  font-size: 0.9rem;
+  letter-spacing: 0.3em;
+}
+
+.rota-loot-name {
+  font-size: 1.4rem;
+}
+
+.rota-loot-delta {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.rota-loot-better {
+  color: #7ddf8f;
+}
+
+.rota-loot-worse {
+  color: #d98a8a;
+}
+
+/* Die Näherung in Worten — nie ausblenden, nie verkleinern bis zur
+   Unlesbarkeit. Sie ist der Unterschied zwischen einer Schätzung und einer
+   Zahl, die jemand für exakt hält. */
+.rota-loot-caveat {
+  font-size: 0.75rem;
+  color: rgb(255 255 255 / 65%);
+}
+
+.rota-loot-hint {
+  margin-top: 0.6rem;
+  font-size: 0.7rem;
+  color: rgb(255 255 255 / 45%);
+}
+
+/* Common: beiläufig — klein, keine Farbe, keine Verdunklung. */
+.rota-loot-common .rota-loot-quality {
+  color: rgb(255 255 255 / 55%);
+}
+
+.rota-loot-rare .rota-loot-quality {
+  color: #6fa8dc;
+}
+
+.rota-loot-epic .rota-loot-quality {
+  color: #b98cd8;
+}
+
+/* Legendary: hält alles an — der Gegenstand erscheint groß. */
+.rota-loot-legendary .rota-loot-quality {
+  color: #ffb347;
+  font-size: 1.2rem;
+}
+
+.rota-loot-legendary .rota-loot-name {
+  font-size: 2.6rem;
+}
