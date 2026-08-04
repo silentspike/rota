@@ -29,12 +29,21 @@ use serde_json::Value;
 
 /// Pfad zur Zauber-Datei, relativ zum Paketverzeichnis `sim/`.
 const SPELLS_JSON: &str = "../data/spells/calcination.json";
+/// Die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4), relativ zu `sim/`.
+///
+/// Getrennt von der Schule, weil sie **keiner** angehoeren: Ein Boss-Zauber
+/// laesst sich unterbrechen ODER durch FIXATION verlangsamen ODER durch
+/// COAGULATION aushalten (11.3). In `calcination.json` waere Unterbrechen eine
+/// Faehigkeit der Kalzination — und das ist es nicht.
+const COMMON_SPELLS_JSON: &str = "../data/spells/common.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
 /// Bedingung fuer AC1 aus Issue #96: Ein neuer Boss entsteht als Datendatei,
 /// ohne dass eine Zeile Programmcode geaendert wird.
 const BOSSES_DIR: &str = "../data/bosses";
+/// Die Grundwerte des Spielers, relativ zum Paketverzeichnis `sim/`.
+const PLAYER_JSON: &str = "../data/player/base.json";
 
 /// Welcher Boss der Standard ist, wenn keiner gewaehlt wird.
 ///
@@ -51,13 +60,16 @@ fn main() {
     // baut mit veralteten Werten weiter — der unangenehmste Fehler ueberhaupt,
     // weil er sich wie ein Rechenfehler anfuehlt.
     println!("cargo:rerun-if-changed={SPELLS_JSON}");
+    println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
     println!("cargo:rerun-if-changed={BOSSES_DIR}");
+    println!("cargo:rerun-if-changed={PLAYER_JSON}");
     println!("cargo:rerun-if-changed=build.rs");
 
     let spells = read_json(SPELLS_JSON);
+    let common = read_json(COMMON_SPELLS_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -68,8 +80,9 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
-    emit_spells(&mut out, &spells);
+    emit_spells(&mut out, &spells, &common);
     emit_bosses(&mut out, &bosses);
+    emit_player(&mut out, &read_json(PLAYER_JSON));
 
     let dest = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR fehlt")).join("data_generated.rs");
     fs::write(&dest, out).unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", dest.display()));
@@ -210,7 +223,7 @@ fn emit_resource(out: &mut String, spells: &Value) {
     let _ = writeln!(out, "}};\n");
 }
 
-fn emit_spells(out: &mut String, spells: &Value) {
+fn emit_spells(out: &mut String, spells: &Value, common: &Value) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
         "id",
@@ -221,6 +234,16 @@ fn emit_spells(out: &mut String, spells: &Value) {
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("calcination.json: Liste \"spells\" fehlt"));
     assert!(!list.is_empty(), "calcination.json: \"spells\" ist leer");
+
+    // Die Sonderzauber stehen **hinter** den Schulzaubern, immer. Die
+    // Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3): Sie bestimmt
+    // die Indizes, und die stehen in jeder aufgezeichneten Runde. Sie
+    // umzustellen deutete jede alte Aufzeichnung still um.
+    let gemeinsame = common
+        .get("spells")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("common.json: Liste \"spells\" fehlt"));
+    let list: Vec<&Value> = list.iter().chain(gemeinsame.iter()).collect();
 
     let _ = writeln!(
         out,
@@ -235,7 +258,7 @@ fn emit_spells(out: &mut String, spells: &Value) {
          /// die Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3)."
     );
     let _ = writeln!(out, "pub static SPELLS: [Spell; SPELL_COUNT] = [");
-    for spell in list {
+    for spell in &list {
         emit_spell(out, spell, resource_id);
     }
     let _ = writeln!(out, "];\n");
@@ -283,6 +306,23 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
         "        triggers_gcd: {},",
         boolean(spell, "triggersGcd", &whose)
     );
+    // Optional: Die allermeisten Zauber unterbrechen nichts, und sie sollen
+    // das Feld gar nicht erst nennen muessen.
+    let unterbricht = spell
+        .get("interrupt")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        interrupt: {unterbricht},");
+    // Ein Unterbrecher, der die globale Wartezeit ausloest, waere die Ausnahme
+    // aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Er koennte nicht mehr
+    // zwischen zwei Zauber gelegt werden, und der ganze Baustein waere tot.
+    if unterbricht {
+        assert!(
+            !boolean(spell, "triggersGcd", &whose),
+            "{whose}: Ein Unterbrecher darf keine globale Wartezeit ausloesen \
+             (GAME-DESIGN 6.6 — die einzige Ausnahme im Spiel)"
+        );
+    }
     let _ = writeln!(
         out,
         "        resource_gain: {},",
@@ -510,10 +550,46 @@ fn emit_timeline(out: &mut String, boss: &Value, whose: &str) {
         );
         voriger = at;
         erster = false;
+
+        // Die Art bestimmt, was der Eintrag tut. Ein unbekannter Wert bricht
+        // den Bau ab, statt still zu einem Standardfall zu werden: Ein
+        // Boss-Zauber, der versehentlich als Schlag gilt, waere nicht
+        // unterbrechbar — und das saehe im Kampf wie ein Balance-Problem aus.
+        let mechanic = text(entry, "mechanic", &whose);
+        let kind = match mechanic {
+            "strike" => "TimelineKind::Strike",
+            "interruptibleCast" => "TimelineKind::InterruptibleCast",
+            other => panic!(
+                "{whose}: unbekannte Mechanik {other:?}. \
+                 Bekannt sind \"strike\" und \"interruptibleCast\"."
+            ),
+        };
+        let cast_time = opt_uint(entry, "castTimeMs", &whose, 0);
+        assert!(
+            cast_time.is_multiple_of(RASTER_MS),
+            "{whose}: castTimeMs {cast_time} liegt nicht auf dem \
+             {RASTER_MS}-ms-Raster des Spiels"
+        );
+        if mechanic == "interruptibleCast" {
+            assert!(
+                cast_time > 0,
+                "{whose}: Ein unterbrechbarer Zauber ohne Wirkzeit kann nicht \
+                 unterbrochen werden — er waere ein Schlag mit falschem Namen"
+            );
+        } else {
+            assert!(
+                cast_time == 0,
+                "{whose}: Nur ein unterbrechbarer Zauber hat eine Wirkzeit"
+            );
+        }
+
         let _ = writeln!(
             out,
-            "            TimelineEntry {{ at_ms: {at}, mechanic: {:?} }},",
-            text(entry, "mechanic", &whose)
+            "            TimelineEntry {{ at_ms: {at}, mechanic: {:?}, \
+             name: {:?}, kind: {kind}, damage: {}, cast_time_ms: {cast_time} }},",
+            mechanic,
+            text(entry, "name", &whose),
+            opt_uint(entry, "damage", &whose, 0)
         );
     }
     let _ = writeln!(out, "        ],");
@@ -605,4 +681,32 @@ fn emit_energy(out: &mut String, boss: &Value, whose: &str) {
     let _ = writeln!(out, "            threshold: {threshold},");
     let _ = writeln!(out, "            reset_to: {reset_to},");
     let _ = writeln!(out, "        }}),");
+}
+
+/// Die Grundwerte des Spielers (GAME-DESIGN 6.1).
+///
+/// Aus Daten und nicht aus dem Code, weil sie **nicht Design** sind: Die
+/// Zahlen fuer eingehenden Schaden stehen in GAME-DESIGN F.6 als „vor E4
+/// auszuplanen" und sind nicht entschieden. Wer sie aendert, aendert eine
+/// Datei — nicht eine Zeile Rust.
+fn emit_player(out: &mut String, player: &Value) {
+    let whose = "player/base.json";
+    let vessel = uint(player, "vessel", whose);
+    assert!(vessel > 0, "{whose}: vessel muss groesser als null sein");
+
+    let ward = player
+        .get("wardReduction")
+        .and_then(Value::as_f64)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"wardReduction\" fehlt"));
+    assert!(
+        (0.0..1.0).contains(&ward),
+        "{whose}: wardReduction {ward} liegt nicht in [0, 1) — bei 1.0 waere \
+         der Spieler unverwundbar, darueber wuerde ihn Schaden heilen"
+    );
+
+    let _ = writeln!(out, "/// Die Grundwerte des Spielers aus `data/player/`.");
+    let _ = writeln!(
+        out,
+        "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?} }};\n"
+    );
 }
