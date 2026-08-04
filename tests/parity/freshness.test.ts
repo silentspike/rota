@@ -37,6 +37,7 @@ import eingecheckteFixierung from './recordings/fixation.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
+import eingecheckteQuellen from './recordings/sources.json';
 import {
   bossStatePayload,
   misplaysPayload,
@@ -54,6 +55,7 @@ import {
   setsPayload,
   hastePayload,
   wornPayload,
+  sourcesPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -124,6 +126,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit getragener Ausrüstung entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteGetrageneWerte, HINWEIS).toEqual(wornPayload());
+  });
+
+  it('die fünf Quellen entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteQuellen, HINWEIS).toEqual(sourcesPayload());
   });
 });
 
