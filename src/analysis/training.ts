@@ -72,6 +72,11 @@ export function buildDummy(settings: DummySettings, school: string): BossDef {
     resistances: { [school]: settings.resistance },
     phases: [],
     energy: null,
+    // Die Puppe bekommt weder Zähler noch Stapel (Issue #216). Beide töten
+    // beziehungsweise machen den Schaden unbezahlbar — an einem Sandsack, an
+    // dem geübt wird, wäre das genau verkehrt (GAME-DESIGN 15.5).
+    doom: null,
+    stacks: null,
     timeline: buildDummyTimeline(settings),
     // **Die Puppe wiederholt sich** (#174, GAME-DESIGN 15.5 „kein Zeitlimit").
     // Wer eine Rotation ueber drei Minuten einschleift, uebte sonst nach der

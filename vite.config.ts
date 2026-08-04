@@ -46,6 +46,7 @@ export default defineConfig(({ mode }) => ({
               historyCheck: 'docs/history-check/index.html',
               persistenceCheck: 'docs/persistence-check/index.html',
               statsCheck: 'docs/stats-check/index.html',
+              doomCheck: 'docs/doom-check/index.html',
             },
           },
         }),

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>ROTA — Zähler-Anzeige, Prüfblatt (Issue #216)</title>
+    <style>
+      @font-face {
+        font-family: 'Cinzel';
+        src: url('/assets/fonts/Cinzel-Variable.ttf') format('truetype-variations');
+        font-weight: 400 900;
+      }
+      body {
+        margin: 0;
+        padding: 34px;
+        background: #0b0b0f;
+        color: #cfc8ba;
+        font:
+          14px/1.7 ui-monospace,
+          monospace;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 400;
+        margin: 0 0 4px;
+        font-family: system-ui, sans-serif;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 18px;
+        font-family: system-ui, sans-serif;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 98ch;
+        margin-bottom: 26px;
+        font-family: system-ui, sans-serif;
+      }
+      .note {
+        color: #cfc8ba;
+      }
+      .ok {
+        color: #7fd39a;
+      }
+      .ok::before {
+        content: '  BESTANDEN  ';
+        color: #4f8f66;
+      }
+      .bad {
+        color: #d98b7f;
+      }
+      .bad::before {
+        content: '  NICHT BESTANDEN  ';
+        color: #a8503f;
+      }
+      #view {
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Der Zähler in der Anzeige — Prüfblatt</h1>
+    <div class="sub">Issue #216 · Epic E4 · AC6 — der Zähler muss sichtbar sein</div>
+    <div class="why">
+      <strong>Warum es diese Anzeige geben muss.</strong> GAME-DESIGN 11.2 sagt es beim Baustein
+      selbst: „muss gut angekündigt sein — wer ihn verpasst, ist meist sofort tot." Eine tödliche
+      Schwelle ohne Anzeige ist die Sorte Schwierigkeit, die 11.7 ausdrücklich verwirft: Information
+      vorzuenthalten ist die billigste Form davon. <br /><br />
+      <strong>Warum ein Prüfblatt und nicht das Spiel.</strong> Kein Boss trägt den Baustein —
+      welcher ihn bekommt, entscheidet E10 mit den Signatur-Regeln (Issue #216 sagt das
+      ausdrücklich). Im Spiel gibt es die Anzeige deshalb heute nirgends zu sehen. Hier läuft der
+      echte <code>HudRenderer</code> gegen <code>test-doomsayer</code>, den Prüf-Boss aus denselben
+      Daten. <br /><br />
+      <strong>Der Gegenfall gehört dazu:</strong> Gegen einen Boss ohne Zähler darf die Anzeige
+      nicht erscheinen. Ein leerer Balken, der immer dasteht, wird übersehen — und dann fehlt er
+      genau in dem Moment, in dem er zählt.
+    </div>
+    <div id="out"></div>
+    <div id="view"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

@@ -44,6 +44,7 @@ import {
   setsPayload,
   logKindsPayload,
   bossStatePayload,
+  doomStacksPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -57,6 +58,7 @@ import {
   MISPLAY_NAME,
   RECORDING_NAME,
   VESSEL_NAME,
+  DOOM_STACKS_NAME,
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
   FIXATION_NAME,
@@ -81,6 +83,10 @@ writeFileSync(misplaysPath, serialize(misplays), 'utf8');
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
 writeFileSync(bossStatePath, serialize(bossState), 'utf8');
+
+const doomStacks = doomStacksPayload();
+const doomStacksPath = join(here, 'recordings', `${DOOM_STACKS_NAME}.json`);
+writeFileSync(doomStacksPath, serialize(doomStacks), 'utf8');
 
 const playerDamage = playerDamagePayload();
 const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);
