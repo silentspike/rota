@@ -13,7 +13,7 @@
  * und in jeder Sprache in zehn Zeilen nachzubauen. Das ist die Bedingung dafür,
  * dass der Rust-Simulator dieselbe Folge erzeugt (GAME-DESIGN 18.4).
  */
-import type { Combat } from './combat.js';
+import { MAX_DECAY_STACKS, type Combat } from './combat.js';
 
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
@@ -111,5 +111,15 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixInt(h, combat.doom);
   h = mixInt(h, combat.doomCharges);
   h = mixInt(h, combat.bossStacks);
+  // **Angehängt, nicht eingeschoben** (Issue #97). Die Feldfolge ist die
+  // Schnittstelle zum Simulator; ein neues Feld in der Mitte verschöbe jede
+  // eingecheckte Vergleichsdatei auf einen Schlag.
+  //
+  // Die Zahl der Stapel allein genügt nicht: Zwei Läufe mit gleich vielen,
+  // aber verschieden alten Stapeln laufen gleich weiter — bis der erste
+  // verfällt. Deshalb geht jede Restzeit einzeln ein, in fester Reihenfolge
+  // (der älteste zuerst), und die unbelegten Plätze als 0.
+  h = mixInt(h, combat.decayStacks);
+  for (let i = 0; i < MAX_DECAY_STACKS; i++) h = mixInt(h, combat.decayExpiryAt(i));
   return h >>> 0;
 }

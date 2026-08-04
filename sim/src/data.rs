@@ -562,6 +562,11 @@ mod tests {
                     // sie tragen keins der Merkmale darueber.
                     && s.cooldown_reduction_ms == 0
                     && !s.arms_cooldown_reset
+                    // Und seit Issue #97 die Zersetzung: CANKER legt Stapel an,
+                    // FESTER lebt von ihnen. Auch sie tragen keins der Merkmale
+                    // darueber und zaehlten sonst zu den drei aus Schritt 1.
+                    && s.decay_stacks == 0
+                    && s.per_decay_stack_percent == 0
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");
