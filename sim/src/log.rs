@@ -104,6 +104,9 @@ pub enum LogKind {
     Healed = 14,
     /// Ausgeteilter Schaden wurde in Schutz verwandelt (Weg 3).
     ConvertedToShield = 15,
+    /// Kontroll-Punkte wurden ausgegeben (FIXATION, Issue #100).
+    /// `value` ist der Betrag der Wirkung — Millisekunden oder Prozentpunkte.
+    ControlSpent = 16,
 }
 
 /// Ein Eintrag. Gepackte Zahlen, keine Zeichenketten, kein Zeiger.
