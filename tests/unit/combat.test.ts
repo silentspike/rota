@@ -302,10 +302,14 @@ describe('Combat — Zufallsströme', () => {
     }
     expect(combat.random.totalDraws).toBe(0);
     // An STREAM_COUNT gebunden statt hart eingetragen: Die Aussage ist
-    // „aus KEINEM Strom gezogen", nicht „es gibt genau drei". Der erste
-    // Anlauf stand als [0, 0, 0] da und fiel um, als die Beute einen
-    // eigenen Strom bekam (#115) — obwohl die geprüfte Eigenschaft
-    // unverändert galt.
+    // „aus KEINEM Strom gezogen", nicht „es gibt genau drei".
+    //
+    // Der Anlass ist wieder weggefallen — beim ersten Entwurf von #115 bekam
+    // die Beute einen vierten Strom, und diese Zeile fiel als [0, 0, 0] um,
+    // obwohl die geprüfte Eigenschaft unverändert galt. Der Strom liegt
+    // inzwischen außerhalb (Entscheidung vom 2026-08-04), STREAM_COUNT steht
+    // wieder bei 3. Die Bindung bleibt trotzdem: Sie kostet nichts und
+    // beschreibt, was gemeint ist.
     expect(combat.random.drawCounts()).toEqual(new Array<number>(STREAM_COUNT).fill(0));
   });
 });
