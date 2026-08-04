@@ -33,6 +33,24 @@ export interface OverlayActions {
   onBackToMenu(): void;
 }
 
+/**
+ * Die Fortschrittsmarke, fertig zum Anzeigen (Issue #187).
+ *
+ * FERTIG heisst: Der Satz ist schon gebildet. Die Ansicht rechnet nicht und
+ * formuliert nicht — sonst gaebe es zwei Stellen, die aus denselben Zahlen
+ * einen Satz machen, und die zweite wird beim Nachziehen vergessen. Dasselbe
+ * Muster wie bei der laufenden Anzeige im Trainingsraum.
+ *
+ * `null` heisst: **nichts zeigen**. Nicht „0 %", nicht „—". Der erste Kampf
+ * eines neuen Spielstands hat keine Marke, und eine Anzeige, die dann eine
+ * Null zeigt, behauptet einen Fortschritt, den es nicht gibt.
+ */
+export interface MarkDisplay {
+  /** Ein Satz fuer den Spieler, englisch (Design-Gesetz 5). */
+  readonly sentence: string;
+  readonly attempts: number;
+}
+
 /** Was die Auswertung anzeigt. */
 export interface ResultView {
   readonly outcome: number;
@@ -45,6 +63,14 @@ export interface ResultView {
   readonly casts: number;
   /** Die Kurzfassung mit den drei Kennzahlen (GAME-DESIGN 15.1). */
   readonly summary: RunSummary | null;
+  /**
+   * Die Fortschrittsmarke, oder `null`.
+   *
+   * Sie ist der Grund, warum ein Spieler nach der zwanzigsten Niederlage
+   * weitermacht (GAME-DESIGN 10.3) — und bis Issue #187 wurde sie gespeichert,
+   * ohne dass er sie je zu sehen bekam.
+   */
+  readonly mark: MarkDisplay | null;
 }
 
 const OUTCOME_HEADLINES: Readonly<Record<number, string>> = {
@@ -84,6 +110,9 @@ export class Overlay {
   private readonly pause: HTMLElement;
   private readonly result: HTMLElement;
   private readonly resultHeadline: HTMLElement;
+  private readonly markPanel: HTMLElement;
+  private readonly markSentence: HTMLElement;
+  private readonly markAttempts: HTMLElement;
   private readonly resultRows: Record<string, HTMLElement> = {};
   private readonly detail: HTMLElement;
   /** Die Werte-Karte des Vorbereitungs-Bildschirms (Issue E6-1, AC4). */
@@ -158,6 +187,18 @@ export class Overlay {
       this.result.appendChild(made.root);
       this.resultRows[key] = made.value;
     }
+
+    // Die Fortschrittsmarke steht VOR den Kennzahlen, direkt unter der
+    // Ueberschrift (Issue #187). Sie ist die Antwort auf die Frage, mit der
+    // ein Spieler nach einer Niederlage vor dem Bildschirm sitzt -- „bringt
+    // das ueberhaupt was?". Weiter unten stuende sie unter Zahlen, die diese
+    // Frage nicht beantworten.
+    this.markPanel = element('div', 'rota-mark');
+    this.markSentence = element('p', 'rota-mark-line', '');
+    this.markAttempts = element('p', 'rota-mark-attempts', '');
+    this.markPanel.appendChild(this.markSentence);
+    this.markPanel.appendChild(this.markAttempts);
+    this.result.appendChild(this.markPanel);
 
     // Die drei Kennzahlen aus GAME-DESIGN 15.1.
     this.result.appendChild(element('div', 'rota-divider'));
@@ -245,6 +286,22 @@ export class Overlay {
     // Die Punkteformel ist noch nicht ausgearbeitet (GAME-DESIGN 22, vor Epic
     // E5). Eine erfundene Zahl wäre schlimmer als ein ehrlicher Strich.
     set('score', '—');
+
+    // Die Marke: ganz weg, wenn es keine gibt. Ein leerer Block mit Trenner
+    // saehe aus wie ein Fehler, eine „0 %" waere eine Luege (AC4).
+    const mark = view.mark;
+    this.markPanel.classList.toggle('rota-visible', mark !== null);
+    if (mark === null) {
+      this.markSentence.textContent = '';
+      this.markAttempts.textContent = '';
+    } else {
+      this.markSentence.textContent = mark.sentence;
+      // Die Zahl der Versuche gehoert daneben: Sie macht aus „19 %" ein
+      // „19 % beim zwoelften Versuch" -- und genau das ist die Geschichte,
+      // die der Spieler sich erzaehlt.
+      this.markAttempts.textContent =
+        mark.attempts === 1 ? '1 attempt' : `${mark.attempts} attempts`;
+    }
 
     const summary = view.summary;
     if (summary === null) return;

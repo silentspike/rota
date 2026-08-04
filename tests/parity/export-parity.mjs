@@ -37,6 +37,9 @@ import {
   buffsPayload,
   cooldownResetPayload,
   gearPayload,
+  hastePayload,
+  wornPayload,
+  WORN_NAME,
   setsPayload,
   logKindsPayload,
   bossStatePayload,
@@ -121,6 +124,14 @@ writeFileSync(gearPath, serialize(gear), 'utf8');
 const sets = setsPayload();
 const setsPath = join(here, 'recordings', 'sets.json');
 writeFileSync(setsPath, serialize(sets), 'utf8');
+
+const haste = hastePayload();
+const hastePath = join(here, 'recordings', 'haste.json');
+writeFileSync(hastePath, serialize(haste), 'utf8');
+
+const worn = wornPayload();
+const wornPath = join(here, 'recordings', `${WORN_NAME}.json`);
+writeFileSync(wornPath, serialize(worn), 'utf8');
 
 const expected = recording['expected'];
 const checksums = recording['checksums'];
