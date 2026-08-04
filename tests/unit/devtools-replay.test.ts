@@ -93,6 +93,10 @@ describe('Aufzeichnungen', () => {
       crust: 0,
       salve: 0,
       temper: 0,
+      bind: 0,
+      stall: 0,
+      stay: 0,
+      anchor: 0,
     });
     expect(result.accepted).toBe(28);
     expect(result.rejected).toBe(0);

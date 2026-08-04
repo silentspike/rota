@@ -222,7 +222,7 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // verschenkter Leerlauf. Die richtige Rechnung ist nicht „hat er
     // stillgelegen", sondern „gab es eine Gelegenheit, die er ungenutzt ließ".
     // Das steht als Kriterium in Issue #81 (E7) und gehört dorthin.
-    expect(summary.idlePerSpell.length).toBe(7);
+    expect(summary.idlePerSpell.length).toBe(11);
     const belegt = summary.idlePerSpell.filter((e) =>
       ['kindle', 'smoulder', 'pyre'].includes(e.spellId),
     );
@@ -270,8 +270,18 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // PYRE liegt auf Abklingzeit, die vier anderen sind hier nicht belegt —
     // alle fuenf stehen deshalb bei null, und bei Gleichstand entscheidet die
     // Kennung, damit die Reihenfolge zwischen zwei Laeufen nicht springt.
-    const hinten = list.slice(-5).map((e) => e.spellId);
-    expect(hinten).toEqual(['crust', 'pyre', 'quench', 'salve', 'temper']);
+    const hinten = list.slice(-9).map((e) => e.spellId);
+    expect(hinten).toEqual([
+      'anchor',
+      'bind',
+      'crust',
+      'pyre',
+      'quench',
+      'salve',
+      'stall',
+      'stay',
+      'temper',
+    ]);
     expect(list[list.length - 1]?.idleMs).toBe(0);
   });
 
@@ -328,6 +338,6 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // Vier Einträge: Das ist die Rohmessung je Zauber, und die führt QUENCH
     // mit (immer 0, weil er nicht mitgezählt wird). Erst die aufbereitete
     // Liste `idlePerSpell` lässt ihn weg.
-    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    expect(Array.from(h.session.idlePerSpellMs)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 });

@@ -12,6 +12,7 @@
 import rawSchool from '../../data/spells/calcination.json';
 import rawCommonSpells from '../../data/spells/common.json';
 import rawCoagulation from '../../data/spells/coagulation.json';
+import rawFixation from '../../data/spells/fixation.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
@@ -91,6 +92,35 @@ export interface SpellDef {
   readonly heal?: HealDef;
   /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
   readonly conversion?: ConversionDef;
+  /**
+   * Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, Issue #100).
+   *
+   * Eigenes Feld und nicht unter `resourceGain`: Der Kampf führt genau eine
+   * Schul-Ressource (Hitze), und jede Schul-Größe hat eigene Felder, weil sie
+   * eigene Regeln hat. Hitze verfällt, die Schutzschicht fängt auf,
+   * Kontroll-Punkte werden ausgegeben.
+   */
+  readonly controlGain?: number;
+  /** Was der Zauber mit Kontroll-Punkten **anstellt**, falls er sie ausgibt. */
+  readonly control?: ControlDef;
+}
+
+/**
+ * Was ein Fixierungs-Zauber mit Kontroll-Punkten anstellt (GAME-DESIGN 4.1).
+ *
+ * > Der Spieler gibt sie **gezielt** aus. Ein **Planungswerkzeug**, keine
+ * > passive Wirkung.
+ *
+ * Das „gezielt" ist die eigentliche Aussage: Punkte werden nie automatisch
+ * verbraucht. Reichen sie nicht, geschieht **nichts** — der Zauber ist vertan,
+ * aber er nimmt sich nicht, was er nicht hat.
+ */
+export interface ControlDef {
+  readonly cost: number;
+  /** `slowCast`, `delayStrike` oder `holdPhase` — die drei aus 4.1. */
+  readonly effect: string;
+  /** Um wie viel: Millisekunden bei den ersten beiden, Prozentpunkte bei der dritten. */
+  readonly amount: number;
 }
 
 /**
@@ -362,6 +392,46 @@ function parseCoagulation(
   return out;
 }
 
+/**
+ * Kontroll-Punkte und die drei Wirkungen (FIXATION, Issue #100).
+ *
+ * Die drei Wirkungen stehen wörtlich im Design; ein unbekannter Wert wird
+ * gemeldet und der Zauber verliert seine Wirkung — `sim/build.rs` bricht dafür
+ * den Bau ab. Ein Zauber, der versehentlich einen Schlag verzögert statt eine
+ * Phase, sähe im Kampf wie ein Balance-Problem aus.
+ */
+function parseFixation(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: string[],
+): Partial<SpellDef> {
+  const out: { controlGain?: number; control?: ControlDef } = {};
+
+  const gain = number(raw['controlGain'], 0);
+  if (gain > 0) out.controlGain = gain;
+
+  if (isRecord(raw['control'])) {
+    const knoten = raw['control'];
+    const cost = number(knoten['cost'], 0);
+    const effect = typeof knoten['effect'] === 'string' ? knoten['effect'] : '';
+    const amount = number(knoten['amountMs'], 0) || number(knoten['amountPercent'], 0);
+
+    if (cost <= 0) {
+      // Eine Wirkung ohne Kosten wäre keine Ausgabe von Kontroll-Punkten,
+      // sondern eine passive Wirkung — und genau das ist FIXATION nicht.
+      problems.push(`${where}: Eine Kontroll-Wirkung ohne Kosten ist keine Ausgabe.`);
+    } else if (!['slowCast', 'delayStrike', 'holdPhase'].includes(effect)) {
+      problems.push(`${where}: unbekannte Kontroll-Wirkung "${effect}".`);
+    } else if (amount <= 0) {
+      problems.push(`${where}: Die Kontroll-Wirkung "${effect}" hat keinen Betrag.`);
+    } else {
+      out.control = { cost, effect, amount };
+    }
+  }
+
+  return out;
+}
+
 function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   if (!isRecord(raw)) {
     problems.push('Ein Zauber-Eintrag ist kein Objekt.');
@@ -409,6 +479,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     triggersGcd: raw['triggersGcd'] !== false,
     interrupt: unterbricht,
     ...parseCoagulation(raw, where, problems),
+    ...parseFixation(raw, where, problems),
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
@@ -613,6 +684,9 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...(Array.isArray(roh['spells']) ? roh['spells'] : []),
       ...(Array.isArray(gemeinsam) ? gemeinsam : []),
       ...(Array.isArray(koagulation) ? koagulation : []),
+      ...(Array.isArray((rawFixation as Record<string, unknown>)['spells'])
+        ? ((rawFixation as Record<string, unknown>)['spells'] as unknown[])
+        : []),
     ],
   };
   return parseSchool(zusammen);

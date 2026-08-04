@@ -39,6 +39,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'crust',
       'salve',
       'temper',
+      // Die vier der Fixierung (Issue #100), ebenfalls hinten.
+      'bind',
+      'stall',
+      'stay',
+      'anchor',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
