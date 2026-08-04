@@ -25,7 +25,12 @@
  * beides; es gibt keinen Weg, ihn aus einem der beiden Teile allein zu bilden.
  */
 
-/** Ein abgeschlossener Versuch, so wie er in die Marke eingeht. */
+/**
+ * Ein abgeschlossener Versuch, so wie er in die Marke eingeht.
+ *
+ * **Nicht von Hand zusammensetzen — `attemptFrom` benutzen.** Der Grund steht
+ * dort.
+ */
 export interface Attempt {
   readonly bossId: string;
   /** Schwierigkeitsstufe als Zahl — dieselbe Zählung wie in `BestRun`. */
@@ -59,6 +64,48 @@ export interface ProgressMark {
   readonly defeated: boolean;
   readonly gameVersion: string;
   readonly at: number;
+}
+
+/** Woher der Versuch kommt, soweit es nicht in der Kurzfassung steht. */
+export interface AttemptContext {
+  readonly bossId: string;
+  readonly difficulty: number;
+  readonly gameVersion: string;
+  /** Zeitpunkt in ms seit 1970. */
+  readonly at: number;
+}
+
+/**
+ * Einen Versuch aus der Kurzfassung des Kampfes bilden.
+ *
+ * DIESE FUNKTION SCHLIESST EINE FALLE.
+ * `RunSummary.progressPercent` sagt, WIE WEIT der Spieler kam — größer ist
+ * besser. `Attempt.remainingPercent` sagt, WIE VIEL ÜBRIG BLIEB — kleiner ist
+ * besser. Beides sind Zahlen zwischen 0 und 100 mit „Percent" im Namen, und
+ * beides passt widerspruchslos ineinander.
+ *
+ * Wer `remainingPercent: summary.progressPercent` schreibt, dreht damit die
+ * **ganze** Fortschrittsmarke um: Jeder schlechtere Versuch gälte als
+ * Verbesserung, und die Marke belohnte genau das Gegenteil dessen, wofür sie
+ * da ist. Der Übersetzer merkt nichts, und die Zahlen sähen plausibel aus.
+ *
+ * Deshalb steht die Umrechnung an **einer** Stelle und nicht an jeder
+ * Aufrufstelle neu.
+ */
+export function attemptFrom(
+  summary: { readonly progressPercent: number; readonly victory: boolean },
+  context: AttemptContext,
+): Attempt {
+  return {
+    bossId: context.bossId,
+    difficulty: context.difficulty,
+    // Das Minus ist die ganze Umrechnung — und der Grund, warum es diese
+    // Funktion gibt.
+    remainingPercent: Math.max(0, 100 - summary.progressPercent),
+    victory: summary.victory,
+    gameVersion: context.gameVersion,
+    at: context.at,
+  };
 }
 
 /**

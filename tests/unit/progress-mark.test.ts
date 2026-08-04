@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  attemptFrom,
   markFor,
   markKey,
   markSentence,
@@ -199,5 +200,55 @@ describe('Die uebergebene Liste bleibt unangetastet', () => {
     const kopie = JSON.stringify(marks);
     recordAttempt(marks, versuch({ remainingPercent: 5 }));
     expect(JSON.stringify(marks)).toBe(kopie);
+  });
+});
+
+describe('Die Umrechnung aus der Kurzfassung', () => {
+  const KONTEXT = {
+    bossId: 'first-crucible',
+    difficulty: NORMAL,
+    gameVersion: '0.1.0',
+    at: 1000,
+  };
+
+  it('dreht den Fortschritt in verbliebene Gesundheit um', () => {
+    // 77 % geschafft heisst 23 % uebrig. Genau die Zahl aus dem Design:
+    // "Reaction down to 23 %".
+    expect(attemptFrom({ progressPercent: 77, victory: false }, KONTEXT).remainingPercent).toBe(23);
+  });
+
+  it('macht aus einem Sieg eine Null', () => {
+    const versuchAusSieg = attemptFrom({ progressPercent: 100, victory: true }, KONTEXT);
+    expect(versuchAusSieg.remainingPercent).toBe(0);
+    expect(versuchAusSieg.victory).toBe(true);
+  });
+
+  it('bleibt bei Ueberschlag nicht negativ', () => {
+    // Mehr Schaden als Leben gibt es rechnerisch; eine negative verbliebene
+    // Gesundheit gibt es nicht.
+    expect(attemptFrom({ progressPercent: 130, victory: true }, KONTEXT).remainingPercent).toBe(0);
+  });
+
+  it('kehrt die Marke NICHT um — der Fall, den die Funktion verhindert', () => {
+    // Der eigentliche Grund fuer attemptFrom. Wer progressPercent direkt als
+    // remainingPercent einsetzt, dreht die ganze Marke um: Der schlechtere
+    // Durchlauf gaelte als Verbesserung.
+    const schwach = { progressPercent: 20, victory: false };
+    const stark = { progressPercent: 80, victory: false };
+
+    let marks = recordAttempt([], attemptFrom(schwach, KONTEXT)).marks;
+    const richtig = recordAttempt(marks, attemptFrom(stark, KONTEXT));
+    expect(richtig.improved).toBe(true);
+    expect(markFor(richtig.marks, 'first-crucible', NORMAL)?.bestRemainingPercent).toBe(20);
+
+    // Und so saehe es aus, wenn jemand die Umrechnung vergisst -- hier
+    // absichtlich falsch gebaut, damit der Unterschied im Prueffall steht.
+    marks = recordAttempt([], { ...KONTEXT, remainingPercent: 20, victory: false }).marks;
+    const verdreht = recordAttempt(marks, {
+      ...KONTEXT,
+      remainingPercent: 80,
+      victory: false,
+    });
+    expect(verdreht.improved).toBe(false);
   });
 });
