@@ -185,6 +185,15 @@ export const EVENT_KINDS_WRITTEN_BY_GAME: readonly number[] = [
   EVENT_CRIT,
   EVENT_PHASE,
   EVENT_BUFF_EXPIRE,
+  // **Seit Issue #151 schreibt das Spiel diese fünf ebenfalls.** Bis dahin
+  // führte sie nur der Simulator — und die Fehleranalyse läuft im Browser,
+  // nicht im Simulator. Ein Protokoll, in dem die Größe überall fehlt, kann
+  // eine Gelegenheit nicht belegen (GAME-DESIGN 15.2, Issue #81).
+  EVENT_BOSS_TIMELINE_FIRED,
+  EVENT_PLAYER_DAMAGE,
+  EVENT_INTERRUPT_LANDED,
+  EVENT_SHIELD_ABSORB,
+  EVENT_HEALED,
 ];
 
 /** Kein Zauber-Bezug. */

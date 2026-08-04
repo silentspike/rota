@@ -44,6 +44,7 @@ import {
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
+  logParityPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -53,6 +54,7 @@ import {
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
   FIXATION_NAME,
+  LOG_PARITY_NAME,
   serialize,
 } from './payloads.ts';
 
@@ -85,6 +87,10 @@ writeFileSync(coagulationPath, serialize(coagulation), 'utf8');
 const fixation = fixationPayload();
 const fixationPath = join(here, 'recordings', `${FIXATION_NAME}.json`);
 writeFileSync(fixationPath, serialize(fixation), 'utf8');
+
+const logParity = logParityPayload();
+const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
+writeFileSync(logParityPath, serialize(logParity), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
@@ -174,6 +180,8 @@ for (const lauf of fixation['runs']) {
       `Zeitleiste bei ${rueckt.join(', ')} ms`,
   );
 }
+console.log(`geschrieben: ${logParityPath}`);
+console.log(`  je Art        ${JSON.stringify(logParity['counts'])}`);
 console.log(`geschrieben: ${ruleEventsPath}`);
 console.log(`geschrieben: ${buffsPath}`);
 console.log(`geschrieben: ${logKindsPath}`);
