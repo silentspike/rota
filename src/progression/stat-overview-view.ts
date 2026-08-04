@@ -42,8 +42,11 @@ function element(tag: string, className?: string, text?: string): HTMLElement {
  * dasteht, ohne die Gestaltung zu befragen.
  */
 export function buildStatOverview(rows: readonly StatRow[]): HTMLElement {
+  // KEINE eigene Ueberschrift. Wer die Uebersicht einsetzt, benennt den
+  // Bereich -- im Player Home tut das die Bereichs-Ueberschrift. Beide
+  // zusammen ergaben zweimal 'STATS' untereinander; im Bild gesehen, nicht
+  // im Code.
   const root = element('section', 'stats');
-  root.appendChild(element('h3', 'stats-heading', 'STATS'));
 
   const grid = document.createElement('table');
   grid.className = 'stats-table';

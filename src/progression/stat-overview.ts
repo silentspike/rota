@@ -106,7 +106,10 @@ const LABELS: Readonly<Record<string, string>> = {
 const UNITS: Readonly<Record<string, StatUnit>> = {
   essence: 'flat',
   vessel: 'flat',
-  ward: 'flat',
+  // WARD ist eine Schadensminderung in Prozent, kein Rohwert -- 20 heisst
+  // '20 % weniger eingehender Schaden'. Ohne das Zeichen laese der Spieler
+  // eine Rohzahl, die er nirgends wiederfindet.
+  ward: 'percent',
   catalysis: 'percent',
   purity: 'percent',
   yield: 'percent',
