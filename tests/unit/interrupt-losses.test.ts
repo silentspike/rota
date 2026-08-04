@@ -91,6 +91,7 @@ describe('AC5 — nichts zu unterbrechen, kein Verlust', () => {
     const { analysis, combat } = play(FIRST_CRUCIBLE.value, [KINDLE, QUENCH], []);
 
     expect(combat.boss.timeline).toHaveLength(0);
+    expect(analysis.losses.interrupts).toBeNull();
     expect(analysis.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
     // Und NICHT als fehlende Datengrundlage: Es wurde gemessen, dass es nichts
     // zu verpassen gab. Das ist eine Aussage, kein Loch.
@@ -108,7 +109,7 @@ describe('AC5 — nichts zu unterbrechen, kein Verlust', () => {
     const { analysis } = play(nurSchlaege, [KINDLE, QUENCH], []);
 
     expect(nurSchlaege.timeline.length).toBeGreaterThan(0);
-    expect(analysis.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
+    expect(analysis.losses.interrupts).toBeNull();
   });
 });
 
@@ -118,7 +119,9 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
 
     // Drei unterbrechbare Zauber, keiner unterbrochen.
     expect(combat.interruptsMissed).toBeGreaterThan(0);
-    expect(analysis.losses.sources.map((s) => s.kind)).toContain('missedInterrupts');
+    expect(analysis.losses.interrupts?.missed).toBe(combat.interruptsMissed);
+    // In der eigenen Zeile, NICHT in der Prozentrechnung der Schadensquellen.
+    expect(analysis.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
   });
 
   it('rechnet Anzahl mal Schaden des durchgekommenen Zaubers', () => {
@@ -130,8 +133,18 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     expect(jeZauber).toBe(2000);
     const erwartet = combat.interruptsMissed * (jeZauber ?? 0);
 
-    const quelle = analysis.losses.sources.find((s) => s.kind === 'missedInterrupts');
-    expect(quelle?.damage).toBe(erwartet);
+    expect(analysis.losses.interrupts?.damageTaken).toBe(erwartet);
+  });
+
+  it('bleibt aus dem Prozentsatz der Schadensquellen heraus', () => {
+    // Der Kern der Entscheidung vom 2026-08-04. Gemessen: 6000 genommener
+    // Schaden gegen 2100 ausgeteilten -- in derselben Rechnung stuenden 74 %
+    // 'liegen gelassen' da, obwohl der Spieler nichts liegen gelassen, sondern
+    // etwas EINGESTECKT hat.
+    const { analysis } = play(ONSLAUGHT, [KINDLE, QUENCH], []);
+    expect(analysis.losses.interrupts?.damageTaken).toBe(6000);
+    expect(analysis.losses.totalLost).toBe(0);
+    expect(analysis.losses.totalShare).toBe(0);
   });
 
   it('zaehlt ihn NICHT doppelt — weder als Leerlauf noch als verpasste Wirkung', () => {
@@ -146,9 +159,9 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     expect(mit.missedCastWindows).toBe(ohne.missedCastWindows);
     expect(mit.idleWindows).toBe(ohne.idleWindows);
 
-    // Und der Unterbrecher steht genau EINMAL in der Rechnung.
-    const arten = mit.losses.sources.map((s) => s.kind);
-    expect(arten.filter((k) => k === 'missedInterrupts')).toHaveLength(1);
+    // Und der Unterbrecher steht genau EINMAL -- in seiner eigenen Zeile.
+    expect(mit.losses.interrupts?.missed).toBe(3);
+    expect(mit.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
   });
 
   it('verschwindet wieder, sobald der Spieler unterbricht', () => {
@@ -163,9 +176,9 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     expect(unterbrochen.combat.interruptsLanded).toBeGreaterThan(0);
     expect(unterbrochen.combat.interruptsMissed).toBeLessThan(verpasst.combat.interruptsMissed);
 
-    const vorher = verpasst.analysis.losses.sources.find((s) => s.kind === 'missedInterrupts');
-    const nachher = unterbrochen.analysis.losses.sources.find((s) => s.kind === 'missedInterrupts');
-    expect(nachher?.damage ?? 0).toBeLessThan(vorher?.damage ?? 0);
+    expect(unterbrochen.analysis.losses.interrupts?.damageTaken ?? 0).toBeLessThan(
+      verpasst.analysis.losses.interrupts?.damageTaken ?? 0,
+    );
   });
 });
 
