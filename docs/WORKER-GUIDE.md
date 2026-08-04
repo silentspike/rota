@@ -149,6 +149,30 @@ dass die Prüffälle die neue Mechanik **wirklich berühren** — bei E3-4 war d
 die Schutzschicht auf der Spielseite gar nicht eingebaut war, weil in allen bestehenden Fällen der
 Schutz null ist.
 
+#### Vor jedem PR: steht im Diff nur, was du angefasst hast?
+
+```bash
+git diff --stat origin/main..HEAD
+```
+
+Zwei Sekunden. Was dort auftaucht und nicht von dir stammt, ist fremde Arbeit, die dein Zweig
+**zurückdreht** — meist, weil sie nach deinem Zweigstart entstanden ist und du `main` nicht
+nachgezogen hast.
+
+> **Gemessen am 2026-08-04.** Ein PR, der eine einzige Testdatei ändern sollte, hätte nebenbei
+> 22 Zeilen aus `docs/WORKER-GUIDE.md` gelöscht:
+>
+> ```
+> docs/WORKER-GUIDE.md    | 22 ----------------------
+> tests/unit/loop.test.ts |  9 ++++++++-
+> ```
+>
+> **Die CI hat es nicht gefangen** — ein PR mit weniger Dokumentation ist genauso grün wie einer mit
+> mehr. Gefunden hat es nur der Blick auf den Diff.
+
+Der Fall ist derselbe wie oben, nur an einer Datei, die niemand als „Arbeit" ansieht: Grün belegt,
+dass nichts kaputt ist, nicht dass etwas da ist.
+
 ### Schritt 6 — Merge nach `main`
 
 Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollständig).
