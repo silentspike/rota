@@ -20,7 +20,7 @@
  * Verlustrechnung). Sie hier neu zu rechnen waere eine zweite Wahrheit ueber
  * dieselbe Zahl — und die zweite wird beim Nachziehen vergessen.
  */
-import type { BossDef } from '../core/data.js';
+import type { BossDef, TimelineEntryDef } from '../core/data.js';
 
 /** Was der Spieler an der Puppe einstellen kann (GAME-DESIGN 15.5). */
 export interface DummySettings {
@@ -72,26 +72,97 @@ export function buildDummy(settings: DummySettings, school: string): BossDef {
     resistances: { [school]: settings.resistance },
     phases: [],
     energy: null,
-    // Ohne Zauber keine Zeitleiste. Mit Zauber ein einziger, der sich
-    // wiederholt — mehr braucht das Ueben des Unterbrechens nicht, und
-    // mehr waere eine Boss-Nachbildung, die niemand verlangt hat.
-    timeline: settings.castsSpells ? DUMMY_TIMELINE : [],
+    timeline: buildDummyTimeline(settings),
   };
 }
 
+/** Abstand zwischen zwei unterbrechbaren Zaubern. */
+const DUMMY_CAST_INTERVAL_MS = 12_000;
+/** Wirkzeit eines solchen Zaubers — das Fenster zum Unterbrechen. */
+const DUMMY_CAST_TIME_MS = 2_500;
+/** Abstand zwischen zwei Schlaegen. */
+const DUMMY_STRIKE_INTERVAL_MS = 8_000;
+/** Wie weit die Zeitleiste im Voraus gefuellt wird. */
+const DUMMY_TIMELINE_SPAN_MS = 48_000;
+
 /**
- * Ein wiederkehrender unterbrechbarer Zauber.
+ * Schaden eines Puppen-Eintrags am Spieler.
  *
- * Zwoelf Sekunden Abstand, damit der Spieler zwischen zwei Gelegenheiten
- * seine Rotation laufen lassen kann — sonst uebt er nur das Unterbrechen und
- * nichts sonst.
+ * Klein genug, dass ein Uebungsdurchgang nicht am Spielertod endet, und gross
+ * genug, dass ein Treffer sichtbar ist.
  */
-const DUMMY_TIMELINE = [
-  { atMs: 12_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
-  { atMs: 24_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
-  { atMs: 36_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
-  { atMs: 48_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
-] as unknown as BossDef['timeline'];
+const DUMMY_DAMAGE = 40;
+
+/**
+ * Die Zeitleiste der Puppe.
+ *
+ * **Ohne `as unknown as`** (Issue #167): Genau diese Zusicherung hat vier
+ * falsche Feldnamen (`kind`, `ability`, `castMs`, fehlendes `damage`) am
+ * Uebersetzer vorbeigeschleust. `Combat` las dann `eintrag.mechanic` als
+ * `undefined`, fiel in den Schlag-Zweig und rief `hitPlayer(undefined)` — das
+ * Spielerleben wurde `NaN`, und keine einzige Unterbrechungs-Gelegenheit
+ * entstand. Wo eine Struktur nicht passt, ist die Struktur falsch.
+ *
+ * # Was die beiden Einstellungen steuern
+ *
+ * | Einstellung | Wirkung |
+ * | --- | --- |
+ * | `castsSpells` | ob unterbrechbare Zauber auf der Zeitleiste stehen |
+ * | `dealsDamage` | ob ueberhaupt Schaden am Spieler entsteht |
+ *
+ * Sie sind unabhaengig. Steht `castsSpells` auf `true` und `dealsDamage` auf
+ * `false`, gibt es Gelegenheiten zum Unterbrechen, die nichts kosten — der
+ * Spieler uebt das Zeitfenster ohne Druck. Das folgt aus der Zusage von
+ * `dealsDamage`: „macht keinen Schaden" muss auch dann gelten, wenn zugleich
+ * gezaubert wird, sonst waere die Einstellung an eine zweite gekoppelt.
+ *
+ * Die Eintraege stehen **aufsteigend nach `atMs`** — `Combat` laeuft mit einem
+ * Zeiger vorwaerts durch die Liste und bricht beim ersten nicht faelligen
+ * Eintrag ab.
+ */
+function buildDummyTimeline(settings: DummySettings): readonly TimelineEntryDef[] {
+  const schaden = settings.dealsDamage ? DUMMY_DAMAGE : 0;
+  const eintraege: TimelineEntryDef[] = [];
+
+  if (settings.castsSpells) {
+    for (
+      let at = DUMMY_CAST_INTERVAL_MS;
+      at <= DUMMY_TIMELINE_SPAN_MS;
+      at += DUMMY_CAST_INTERVAL_MS
+    ) {
+      eintraege.push({
+        atMs: at,
+        mechanic: 'interruptibleCast',
+        name: 'Dummy Cast',
+        damage: schaden,
+        castTimeMs: DUMMY_CAST_TIME_MS,
+      });
+    }
+  }
+
+  // Schlaege gibt es nur, wenn die Puppe zurueckschlagen soll. Ohne sie waere
+  // `dealsDamage` bei ausgeschaltetem `castsSpells` wirkungslos — genau der
+  // Zustand, den Issue #167 als „steht in der Schnittstelle und bewirkt
+  // nichts" beschreibt.
+  if (settings.dealsDamage) {
+    for (
+      let at = DUMMY_STRIKE_INTERVAL_MS;
+      at <= DUMMY_TIMELINE_SPAN_MS;
+      at += DUMMY_STRIKE_INTERVAL_MS
+    ) {
+      eintraege.push({
+        atMs: at,
+        mechanic: 'strike',
+        name: 'Dummy Strike',
+        damage: DUMMY_DAMAGE,
+        castTimeMs: 0,
+      });
+    }
+  }
+
+  eintraege.sort((a, b) => a.atMs - b.atMs);
+  return eintraege;
+}
 
 /** Der Zustand eines Uebungsdurchgangs. */
 export type TrainingPhase = 'idle' | 'running';
