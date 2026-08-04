@@ -114,6 +114,16 @@ export class Session implements Simulation {
    */
   readonly idlePerSpellMs: Float64Array;
 
+  /**
+   * Leere Fenster, in denen **kein** belegter Zauber bereit war (Issue #151).
+   *
+   * Der reine Leerlauf im Sinne von GAME-DESIGN 15.2 — abgegrenzt von der
+   * verpassten Wirkung, bei der mindestens einer bereitlag. Beide Größen
+   * zusammen ergeben `idleTicks`; einzeln lassen sie sich aus den vorhandenen
+   * Summen nicht ableiten.
+   */
+  idleWithNothingReadyTicks = 0;
+
   /** Liegt der Zauber auf mindestens einem Platz? */
   private readonly boundSpells: Uint8Array;
 
@@ -326,11 +336,27 @@ export class Session implements Simulation {
       this.idleTicks++;
       // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
       // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
+      let einerBereit = false;
       for (let i = 0; i < this.boundSpells.length; i++) {
         if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
           this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
+          einerBereit = true;
         }
       }
+      // **Diese eine Zeile ist aus den beiden Summen nicht rekonstruierbar**
+      // (Issue #151). GAME-DESIGN 15.2 trennt zwei Verlustquellen
+      // überschneidungsfrei: ein Fenster, in dem MINDESTENS EIN Zauber bereit
+      // war (verpasste Wirkung), und eines, in dem KEINER es war (Leerlauf).
+      //
+      // War in einem Fenster mehr als einer bereit, steht es in mehreren
+      // Einzelsummen — zwei Zauber und drei leere Fenster ergeben dieselben
+      // Zahlen für zwei verschiedene Welten:
+      //
+      //   nur A | A und B | keiner   -> idleTicks 3, je Zauber [2,1], 2 mit / 1 ohne
+      //   nur A | nur B   | nur A    -> idleTicks 3, je Zauber [2,1], 3 mit / 0 ohne
+      //
+      // Aus (3, [2,1]) folgt keins von beidem.
+      if (!einerBereit) this.idleWithNothingReadyTicks++;
     }
   }
 
@@ -650,6 +676,7 @@ export class Session implements Simulation {
     this.endedAt = -1;
     this.log.clear();
     this.idlePerSpellMs.fill(0);
+    this.idleWithNothingReadyTicks = 0;
     this.inputTimingBuffer?.clear();
     this.checksums?.clear();
 

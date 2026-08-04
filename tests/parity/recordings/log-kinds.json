@@ -49,12 +49,12 @@
     {
       "kind": 9,
       "name": "bossTimelineFired",
-      "writtenByGame": false
+      "writtenByGame": true
     },
     {
       "kind": 10,
       "name": "playerDamage",
-      "writtenByGame": false
+      "writtenByGame": true
     },
     {
       "kind": 11,
@@ -64,17 +64,17 @@
     {
       "kind": 12,
       "name": "interruptLanded",
-      "writtenByGame": false
+      "writtenByGame": true
     },
     {
       "kind": 13,
       "name": "shieldAbsorb",
-      "writtenByGame": false
+      "writtenByGame": true
     },
     {
       "kind": 14,
       "name": "healed",
-      "writtenByGame": false
+      "writtenByGame": true
     },
     {
       "kind": 15,
@@ -93,6 +93,11 @@
     2,
     3,
     6,
-    7
+    7,
+    9,
+    10,
+    12,
+    13,
+    14
   ]
 }
