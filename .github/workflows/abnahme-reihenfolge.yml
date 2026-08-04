@@ -1,0 +1,117 @@
+name: Abnahme-Reihenfolge
+
+# Ein Issue darf nicht geschlossen werden, solange ein PR dazu offen ist.
+#
+# WARUM DAS EIN WORKFLOW IST UND KEINE REGEL IM GUIDE
+# ----------------------------------------------------
+# Der Ablauf in docs/WORKER-GUIDE.md § 3 nennt Merge und Schließen als zwei
+# getrennte Schritte, und seit dem 2026-08-04 steht dort ausdrücklich der Satz
+# „Merge und Schließen sind zwei Schritte". Am selben Tag ist der Fehler
+# trotzdem zweimal passiert — beide Male vom Orchestrator, der die Regel
+# selbst geschrieben hatte:
+#
+#   #118  Issue geschlossen, PR war BEHIND und lief noch
+#   #199  Issue geschlossen, ci-pass fehlte noch
+#
+# Eine Regel, die ihr eigener Autor zweimal an einem Tag bricht, ist keine
+# Absicherung. Dieser Workflow macht daraus einen Mechanismus: Er öffnet das
+# Issue wieder und sagt, warum.
+#
+# Die umgekehrte Reihenfolge (PR gemergt, Issue offen) fängt er NICHT — sie
+# ist harmlos und fällt beim nächsten Blick auf die Issue-Liste auf. Gefährlich
+# ist nur diese Richtung: Ein geschlossenes Issue verschwindet aus der Liste,
+# und die unfertige Arbeit dahinter mit ihm.
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  offener-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Offene PRs zu diesem Issue suchen
+        id: suche
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NR: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Der Ausweg: Wer ein Issue bewusst ohne PR schließt (verworfen,
+          # Dublette, in ein anderes geschnitten), setzt dieses Label. Ohne ihn
+          # wäre der Wächter im Weg statt nützlich — und ein Wächter, der im Weg
+          # steht, wird abgeschaltet.
+          if gh issue view "$NR" --repo "$REPO" --json labels \
+               --jq '[.labels[].name] | index("ohne-pr")' | grep -qv '^null$'; then
+            echo "treffer=" >> "$GITHUB_OUTPUT"
+            echo "Label 'ohne-pr' gesetzt — keine Prüfung."
+            exit 0
+          fi
+
+          gh pr list --repo "$REPO" --state open --limit 100 \
+            --json number,headRefName,body > prs.json
+
+          # Zwei Wege, einen PR dem Issue zuzuordnen:
+          #   1. die Nummer im Zweignamen (feat/e6-118-ac1, fix/e8-199-…)
+          #   2. eine Erwähnung als #118 im PR-Text
+          #
+          # Beide mit Ziffern-Grenzen, sonst trifft 19 auch auf 199. Gemessen:
+          #   199 -> nur der Zweig e8-199      19 -> nur der Zweig e3-19
+          #   11  -> nichts (trotz 118)         9 -> nichts (trotz 199)
+          #
+          # Weg 2 trifft absichtlich zu viel: Ein PR, der ein Issue nur ERWÄHNT,
+          # löst das Wiederöffnen ebenfalls aus. Das ist die sichere Richtung —
+          # einmal zu viel öffnen kostet einen Klick, ein übersehenes Issue
+          # kostet die Arbeit dahinter. Für den Fall gibt es das Label 'ohne-pr'.
+          treffer=$(jq -r --arg nr "$NR" '
+            [ .[]
+              | select(
+                  (.headRefName | test("(^|[^0-9])" + $nr + "([^0-9]|$)"))
+                  or ((.body // "") | test("#" + $nr + "([^0-9]|$)"))
+                )
+              | "#\(.number) (\(.headRefName))"
+            ] | join(", ")' prs.json)
+
+          echo "treffer=$treffer" >> "$GITHUB_OUTPUT"
+          if [ -n "$treffer" ]; then
+            echo "Offene PRs gefunden: $treffer"
+          else
+            echo "Kein offener PR — Schließen war in Ordnung."
+          fi
+
+      - name: Issue wieder öffnen
+        if: steps.suche.outputs.treffer != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NR: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          TREFFER: ${{ steps.suche.outputs.treffer }}
+        run: |
+          set -euo pipefail
+          gh issue reopen "$NR" --repo "$REPO"
+          cat > kommentar.md <<'ENDE'
+          **Wieder geöffnet — es ist noch ein PR offen:** TREFFER_HIER
+
+          Der Ablauf in `docs/WORKER-GUIDE.md` § 3 nennt Merge und Schließen als zwei
+          getrennte Schritte. Ein geschlossenes Issue verschwindet aus der Liste, und die
+          unfertige Arbeit dahinter mit ihm.
+
+          Schließe es erneut, sobald der PR gemergt ist. Wird das Issue bewusst **ohne** PR
+          geschlossen — verworfen, Dublette, in ein anderes geschnitten —, setze vorher das
+          Label `ohne-pr`.
+
+          <sub>Automatisch, weil die Regel allein nicht getragen hat: Sie wurde am
+          2026-08-04 zweimal an einem Tag gebrochen, beide Male von dem, der sie
+          geschrieben hatte.</sub>
+          ENDE
+          sed -i 's/^          //' kommentar.md
+          sed -i "s|TREFFER_HIER|$TREFFER|" kommentar.md
+          gh issue comment "$NR" --repo "$REPO" --body-file kommentar.md
