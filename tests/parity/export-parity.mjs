@@ -43,6 +43,7 @@ import {
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
+  fixationPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -51,6 +52,7 @@ import {
   VESSEL_NAME,
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
+  FIXATION_NAME,
   serialize,
 } from './payloads.ts';
 
@@ -79,6 +81,10 @@ writeFileSync(playerDamagePath, serialize(playerDamage), 'utf8');
 const coagulation = coagulationPayload();
 const coagulationPath = join(here, 'recordings', `${COAGULATION_NAME}.json`);
 writeFileSync(coagulationPath, serialize(coagulation), 'utf8');
+
+const fixation = fixationPayload();
+const fixationPath = join(here, 'recordings', `${FIXATION_NAME}.json`);
+writeFileSync(fixationPath, serialize(fixation), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
@@ -154,6 +160,18 @@ for (const lauf of coagulation['runs']) {
     `  ${String(lauf['way']).padEnd(7)} HP ${e['playerHp']}, erlitten ${e['damageTaken']}, ` +
       `abgefangen ${e['shieldAbsorbed']}, geheilt ${e['healed']}, ` +
       `umgewandelt ${e['converted']}, ausgeteilt ${e['damageDealt']}`,
+  );
+}
+console.log(`geschrieben: ${fixationPath}`);
+for (const lauf of fixation['runs']) {
+  const e = lauf['expected'];
+  const t = lauf['timelineIndexPerTick'];
+  const rueckt = [];
+  for (let i = 1; i < t.length; i++) if (t[i] !== t[i - 1]) rueckt.push(i * 10);
+  console.log(
+    `  Ausgabe ${String(lauf['withSpending']).padEnd(5)} ausgegeben ${e['controlSpent']}, ` +
+      `Phase ${e['finalPhase']}, Schwelle -${e['phaseHoldPercent']}, ` +
+      `Zeitleiste bei ${rueckt.join(', ')} ms`,
   );
 }
 console.log(`geschrieben: ${ruleEventsPath}`);

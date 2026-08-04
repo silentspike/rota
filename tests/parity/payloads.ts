@@ -92,6 +92,9 @@ export const PLAYER_DAMAGE_NAME = 'player-damage';
 /** Der Prueffall zu den drei Wegen der Koagulation (Issue #79). */
 export const COAGULATION_NAME = 'coagulation';
 
+/** Der Prueffall zur Fixierung — Kontroll-Punkte auf den Kampfverlauf (#100). */
+export const FIXATION_NAME = 'fixation';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -730,6 +733,132 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     checksums,
     playerHpPerTick: playerHp,
     shieldPerTick: shield,
+  };
+}
+
+/**
+ * Die Fixierung greift in den Kampfverlauf ein (Issue #100).
+ *
+ * **Zwei Läufe gegen denselben Boss, die sich in genau einer Sache
+ * unterscheiden:** ob der Spieler seine Kontroll-Punkte ausgibt. Derselbe
+ * Boss, derselbe Startwert, dieselbe Angriffsrotation.
+ *
+ * Der Prüffall trägt drei Nachweise, und zwei davon zeigen, dass sich etwas
+ * **nicht** ändert:
+ *
+ * | Nachweis | Was er zeigt |
+ * | --- | --- |
+ * | AC1 | Der Boss verhält sich messbar anders — nicht nur ein Zähler läuft hoch |
+ * | STAY | Der **zweite** Schlag rückt NICHT mit, nur der erste |
+ * | ANCHOR | Läuft die Fixierung während einer höheren Phase aus, **bleibt** die Phase |
+ *
+ * Ohne die letzten beiden wären die zugehörigen Zeilen nur zufällig richtig:
+ * Ein Lauf mit nur einem Schlag bestünde auch die verworfene STAY-Fassung, und
+ * eine Phase, die nie zurückfallen könnte, belegt `check_phase` nicht.
+ */
+export function fixationPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  return {
+    schema: SCHEMA,
+    name: FIXATION_NAME,
+    bossId: boss.id,
+    tickMs: TICK_MS,
+    boss: {
+      hp: boss.hp,
+      phases: boss.phases.map((f) => ({ atHpPercent: f.atHpPercent, name: f.name })),
+      timeline: boss.timeline.map((e) => ({
+        atMs: e.atMs,
+        mechanic: e.mechanic,
+        name: e.name,
+        damage: e.damage,
+        castTimeMs: e.castTimeMs,
+      })),
+    },
+    runs: [false, true].map((mitAusgabe) => controlRun(boss, mitAusgabe)),
+  };
+}
+
+/**
+ * Ein Durchgang mit oder ohne Ausgabe der Kontroll-Punkte.
+ *
+ * BIND baut auf, sooft es geht; STAY und ANCHOR geben aus, sobald sie bereit
+ * sind und die Punkte reichen. Ohne Ausgabe wirkt der Spieler nur BIND — die
+ * Punkte sammeln sich und bleiben liegen.
+ */
+function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const bind = combat.indexOf('bind');
+  const stay = combat.indexOf('stay');
+  const anchor = combat.indexOf('anchor');
+  const ticks = 3000; // 30 s
+
+  const checksums: number[] = [];
+  const control: number[] = [];
+  const phase: number[] = [];
+  const timelineIndex: number[] = [];
+  const presses: { tick: number; slot: number }[] = [];
+  let sequence = 0;
+  let stayGewirkt = false;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) break;
+
+    // **STAY genau einmal, und zwar VOR dem ersten Schlag** (Issue #100).
+    // Sooft-wie-möglich wäre bequemer, würde den Nachweis aber wertlos machen:
+    // Rückt der zweite Schlag nicht mit, weil die Verzögerung gerade
+    // verbraucht war statt weil die Regel greift, zeigt der Fall nichts. Der
+    // erste Schlag liegt bei 12 s — eine Ausgabe bei ~10 s trifft ihn, und der
+    // zweite bei 19 s muss dann unverändert stehen.
+    // Ein FENSTER, kein Zeitpunkt: Bei Takt 1000 läuft womöglich gerade die
+    // Wartezeit von BIND, und ein Druck, der daran scheitert, verschöbe
+    // nichts — der Nachweis wäre still weg.
+    const imFenster = !stayGewirkt && tick >= 1000 && tick < 1150;
+    if (mitAusgabe && imFenster && combat.control >= 3 && combat.isReady(stay, timeMs)) {
+      if (combat.cast(stay, timeMs).result === 0) {
+        presses.push({ tick, slot: 1 });
+        stayGewirkt = true;
+      }
+    } else if (mitAusgabe && combat.isReady(anchor, timeMs) && combat.control >= 6) {
+      if (combat.cast(anchor, timeMs).result === 0) presses.push({ tick, slot: 2 });
+    } else if (combat.isReady(bind, timeMs)) {
+      if (combat.cast(bind, timeMs).result === 0) presses.push({ tick, slot: 0 });
+    }
+
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+    control.push(combat.control);
+    phase.push(combat.bossPhase);
+    timelineIndex.push(combat.timelineIndex);
+  }
+
+  return {
+    withSpending: mitAusgabe,
+    ticks,
+    bindings: [
+      { slot: 0, spellId: 'bind' },
+      { slot: 1, spellId: 'stay' },
+      { slot: 2, spellId: 'anchor' },
+    ],
+    presses,
+    expected: {
+      control: combat.control,
+      controlSpent: combat.controlSpent,
+      controlFailed: combat.controlFailed,
+      phaseHoldPercent: combat.phaseHoldPercent,
+      finalPhase: combat.bossPhase,
+      damageTaken: combat.damageTaken,
+      damageDealt: combat.damageDealt,
+      sequenceChecksum: sequence,
+    },
+    checksums,
+    controlPerTick: control,
+    phasePerTick: phase,
+    timelineIndexPerTick: timelineIndex,
   };
 }
 

@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 6
+        "present": 10
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 54,
+        "count": 50,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind sechs ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1) und die drei Wege der COAGULATION (Issue #79). Namen, Schulen und Wirkung der uebrigen 54 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -145,6 +145,66 @@
       "trigger": {
         "on": "spell.cast",
         "key": "temper"
+      }
+    },
+    {
+      "id": "spell-bind",
+      "group": "spells",
+      "purpose": "BIND — der Fueller der FIXATION. Baut Kontroll-Punkte auf; ein Greifen, kein Schlag. Wird oft gedrueckt, muss also kurz und zurueckhaltend sein.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-bind.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 15,
+      "prompt": "short binding snap, tight rope-pull click, restrained arcane grip, dry",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "bind"
+      }
+    },
+    {
+      "id": "spell-stall",
+      "group": "spells",
+      "purpose": "STALL — verlangsamt einen Boss-Zauber. Der Klang soll ZIEHEN, nicht schlagen: etwas wird gedehnt.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-stall.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 15,
+      "prompt": "descending time-stretch drone, viscous slowing pull, no impact",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "stall"
+      }
+    },
+    {
+      "id": "spell-stay",
+      "group": "spells",
+      "purpose": "STAY — verzoegert einen Schlag. Ein Anhalten, kurz und bestimmt.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-stay.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 15,
+      "prompt": "sudden arresting thud, held tension, abrupt stop with short tail",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "stay"
+      }
+    },
+    {
+      "id": "spell-anchor",
+      "group": "spells",
+      "purpose": "ANCHOR — haelt eine Phase zurueck. Der schwerste der vier; er greift am tiefsten in den Kampfverlauf ein.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-anchor.ogg",
+      "targetSeconds": 1.1,
+      "pitchJitterCents": 15,
+      "prompt": "deep heavy anchoring boom, low sustained weight, immovable stone settling",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "anchor"
       }
     },
     {

@@ -67,7 +67,8 @@
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{
-    Boss, Resource, Spell, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    Boss, Control, ControlEffect, Resource, Spell, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS,
+    SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -269,6 +270,46 @@ pub struct Fight {
     /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
     converted: u32,
 
+    // -- FIXATION (Issue #100) --
+    /// Vorrat an Kontroll-Punkten.
+    ///
+    /// **Zum Ausgeben, nicht zum Sammeln** (GAME-DESIGN 4.1): Sie verfallen
+    /// nicht wie die Hitze, sondern warten darauf, dass der Spieler sich
+    /// entscheidet. Das ist der Unterschied zwischen einem Planungswerkzeug
+    /// und einer Ressource, die einen Rhythmus vorgibt.
+    control: u32,
+    /// Wie viele Punkte insgesamt ausgegeben wurden.
+    control_spent: u32,
+    /// Um wie viel der **naechste** Zeitleisten-Eintrag nach hinten geschoben
+    /// ist (STAY, #100).
+    ///
+    /// **Nur der eine, nicht die folgenden** — Entscheidung des Auftraggebers
+    /// vom 2026-08-04. Der Wortlaut in GAME-DESIGN 4.1 sagt „einen Schlag
+    /// verzoegern", Singular.
+    ///
+    /// Der Unterschied ist nicht kosmetisch: Schlaegt der Boss bei 10, 17 und
+    /// 24 s und der Spieler verzoegert den ersten um 3 s, ergibt das 13, 17,
+    /// 24 — der Abstand zum zweiten schrumpft von sieben auf vier Sekunden.
+    /// Verzoegern verschafft Luft und **erkauft sie mit Gedraenge danach**.
+    ///
+    /// Die verworfene Fassung haette alle folgenden mitgeschoben (13, 20, 27).
+    /// Mehrfach eingesetzt haette sie den Boss immer weiter nach hinten
+    /// gedraengt, ohne dass es etwas kostet ausser Punkten — ein anderer
+    /// Zauber.
+    next_strike_delay: Millis,
+    /// Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR).
+    phase_hold_percent: u32,
+    /// Wann der laufende Boss-Zauber trifft.
+    ///
+    /// Wird mitgefuehrt, weil STALL ihn **verschiebt** (FIXATION, #100): Ohne
+    /// diesen Wert liesse sich nicht sagen, wohin.
+    cast_lands_at: Millis,
+    /// Wie oft eine Wirkung mangels Punkten ins Leere lief.
+    ///
+    /// **Kein Fehler, sondern eine vertane Wirkung.** Reichen die Punkte
+    /// nicht, geschieht nichts — der Zauber nimmt sich nicht, was er nicht hat.
+    control_failed: u32,
+
     // -- Spieler --
     gcd_ready_at: Millis,
     cooldown_ready_at: [Millis; SPELL_COUNT],
@@ -341,6 +382,12 @@ impl Fight {
             conversion_until: None,
             conversion_percent: 0,
             converted: 0,
+            control: 0,
+            next_strike_delay: 0,
+            phase_hold_percent: 0,
+            cast_lands_at: 0,
+            control_spent: 0,
+            control_failed: 0,
             gcd_ready_at: 0,
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -728,6 +775,12 @@ impl Fight {
         self.conversion_until = None;
         self.conversion_percent = 0;
         self.converted = 0;
+        self.control = 0;
+        self.next_strike_delay = 0;
+        self.phase_hold_percent = 0;
+        self.cast_lands_at = 0;
+        self.control_spent = 0;
+        self.control_failed = 0;
         self.gcd_ready_at = 0;
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -766,9 +819,13 @@ impl Fight {
         let Some(entry) = self.boss.timeline.get(self.timeline_index) else {
             return;
         };
-        if entry.at_ms < self.duration_ms {
+        // **Die Verzoegerung aus STAY gilt nur fuer diesen einen Eintrag**
+        // (#100). Die folgenden stehen, wo sie stehen — der Abstand dahinter
+        // schrumpft, und genau das ist der Preis.
+        let faellig = entry.at_ms + self.next_strike_delay;
+        if faellig < self.duration_ms {
             self.queue.push(
-                entry.at_ms,
+                faellig,
                 EventKind::TimelineStep {
                     index: self.timeline_index as u16,
                 },
@@ -792,6 +849,14 @@ impl Fight {
         if index != self.timeline_index {
             return;
         }
+        // **Verschoben statt faellig** (STAY, #100). Wurde der Eintrag
+        // nachtraeglich verzoegert, steht der neue Weckruf schon in der
+        // Schlange; dieser hier ist der alte und laeuft ins Leere. Ihn zu
+        // loeschen waere teurer als ihn verfallen zu lassen — dasselbe
+        // Vorgehen wie bei veralteten DoT-Ticks und beim Boss-Zauber.
+        if self.time < self.boss.timeline[index].at_ms + self.next_strike_delay {
+            return;
+        }
         self.log
             .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
 
@@ -805,8 +870,9 @@ impl Fight {
             // Wirkzeit um ist — bis dahin kann der Spieler ihn abbrechen.
             TimelineKind::InterruptibleCast => {
                 self.casting = Some(index);
+                self.cast_lands_at = self.time + entry.cast_time_ms;
                 self.queue.push(
-                    self.time + entry.cast_time_ms,
+                    self.cast_lands_at,
                     EventKind::BossCastLands {
                         index: index as u16,
                     },
@@ -814,6 +880,9 @@ impl Fight {
             }
         }
 
+        // Verbraucht: Der naechste Eintrag faengt wieder bei seinem eigenen
+        // Zeitpunkt an.
+        self.next_strike_delay = 0;
         self.timeline_index += 1;
         self.schedule_next_timeline_step();
     }
@@ -827,6 +896,13 @@ impl Fight {
     /// veralteten DoT-Ticks, `generation`).
     fn boss_cast_lands(&mut self, index: usize) {
         if self.casting != Some(index) {
+            return;
+        }
+        // **Verschoben statt faellig** (STALL, #100). Der urspruenglich
+        // eingeplante Weckruf laeuft ins Leere; der neue steht schon in der
+        // Schlange. Ihn zu loeschen waere teurer als ihn verfallen zu lassen —
+        // dasselbe Vorgehen wie bei veralteten DoT-Ticks.
+        if self.time < self.cast_lands_at {
             return;
         }
         self.casting = None;
@@ -879,6 +955,77 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+    }
+
+    /// Die drei Wirkungen aus GAME-DESIGN 4.1.
+    ///
+    /// Hier greift FIXATION wirklich in den **Kampfverlauf** ein — das ist,
+    /// was sie von jeder anderen Schule unterscheidet.
+    fn apply_control_effect(&mut self, control: Control) {
+        match control.effect {
+            // Einen Boss-Zauber verlangsamen: Die Wirkzeit dehnt sich, und
+            // damit wird das Fenster zum Unterbrechen groesser.
+            ControlEffect::SlowCast => {
+                if let Some(index) = self.casting {
+                    self.cast_lands_at += control.amount;
+                    self.queue.push(
+                        self.cast_lands_at,
+                        EventKind::BossCastLands {
+                            index: index as u16,
+                        },
+                    );
+                    self.log
+                        .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
+                }
+            }
+            // Einen Schlag verzoegern: Der naechste Zeitleisten-Eintrag rueckt
+            // nach hinten.
+            ControlEffect::DelayStrike => {
+                // Nur der naechste Eintrag. Zweimal vor demselben Schlag
+                // gewirkt summiert sich — das ist derselbe Schlag, nicht zwei.
+                self.next_strike_delay = self.next_strike_delay.saturating_add(control.amount);
+                self.schedule_next_timeline_step();
+                self.log
+                    .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
+            }
+            // Eine Phase hinauszoegern: Die Schwelle sinkt voruebergehend.
+            //
+            // **Sie nimmt einen Wechsel nicht zurueck.** Die Phase kann nur
+            // steigen (`check_phase`) — laeuft die Fixierung waehrend einer
+            // hoeheren Phase aus, faellt der Boss nicht zurueck.
+            ControlEffect::HoldPhase => {
+                self.phase_hold_percent = control.amount;
+                self.log
+                    .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
+            }
+        }
+    }
+
+    /// Kontroll-Punkte aufbauen und ausgeben (FIXATION, Issue #100).
+    ///
+    /// **Der Spieler entscheidet, wofuer** — deshalb steht die Wirkung am
+    /// Zauber und nicht an einer Automatik. Reichen die Punkte nicht,
+    /// geschieht nichts; der Zauber ist vertan, aber er nimmt sich nicht, was
+    /// er nicht hat.
+    fn apply_fixation(&mut self, spell: &Spell) {
+        if spell.control_gain > 0 {
+            // Ohne Obergrenze: Kontroll-Punkte verfallen nicht (anders als
+            // Hitze), und eine Grenze waere eine Design-Entscheidung, die
+            // nicht gefallen ist. Faellt sie spaeter, ist es eine Zahl in den
+            // Daten.
+            self.control = self.control.saturating_add(spell.control_gain);
+        }
+
+        let Some(control) = spell.control else {
+            return;
+        };
+        if self.control < control.cost {
+            self.control_failed += 1;
+            return;
+        }
+        self.control -= control.cost;
+        self.control_spent = self.control_spent.saturating_add(control.cost);
+        self.apply_control_effect(control);
     }
 
     /// Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 laeuft.
@@ -1078,7 +1225,12 @@ impl Fight {
         if self.boss.phases.is_empty() {
             return;
         }
-        let neue = self.boss.phase_at(self.boss_hp_percent());
+        // **Die gesenkte Schwelle aus ANCHOR** (#100): Der Boss muss tiefer
+        // fallen, bevor er wechselt. Gerechnet wird, indem der Anteil
+        // scheinbar hoeher liegt — dasselbe Ergebnis, ohne die Boss-Daten
+        // anzufassen, die statisch einkompiliert sind.
+        let anteil = self.boss_hp_percent() + self.phase_hold_percent;
+        let neue = self.boss.phase_at(anteil);
         if neue > self.phase {
             self.phase = neue;
             self.log
@@ -1138,6 +1290,7 @@ impl Fight {
         // zuschlagen soll — die Reihenfolge ist heute ohne Wirkung (keiner
         // macht beides) und deshalb jetzt festzulegen und nicht dann.
         self.apply_coagulation(index, spell);
+        self.apply_fixation(spell);
 
         if spell.base_damage > 0 {
             cast_damage += self.deal(
@@ -1475,6 +1628,12 @@ impl Fight {
         // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
         // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
         h = mix_int(h, self.conversion_percent as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
+        // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
+        // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden
+        // kuenftigen Wechsel.
+        h = mix_int(h, self.control as i32);
+        h = mix_int(h, self.phase_hold_percent as i32);
         h
     }
 
