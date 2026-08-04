@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. GAME-DESIGN Teil F.6 fuehrt die Zahlen fuer eingehenden Schaden, Unterbrechen-Fenster und die Folgen eines verpassten Zaubers als 'vor E4 auszuplanen'; entschieden ist davon nichts. Diese Werte tragen die Prueffaelle aus Issue #110 und sonst nichts. Der Balance-Laeufer setzt sie spaeter.",
+  "vessel": 5000,
+  "wardReduction": 0.2
+}

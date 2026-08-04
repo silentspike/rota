@@ -11,7 +11,7 @@
  * beide Seiten längst auseinanderlaufen. Der Prüffall würde dann genau in dem
  * Moment nichts mehr aussagen, in dem er gebraucht wird.
  */
-import { mixFloat, mixInt } from '../../src/core/checksum.js';
+import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { GCD_MS } from '../../src/core/gcd.js';
@@ -21,7 +21,15 @@ import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat } from '../../src/core/combat.js';
-import { bossById, BOSSES, CALCINATION, FIRST_CRUCIBLE, parseSchool } from '../../src/core/data.js';
+import {
+  bossById,
+  BOSSES,
+  CALCINATION,
+  FIRST_CRUCIBLE,
+  parseSchool,
+  PLAYER,
+  type BossDef,
+} from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
 import {
@@ -37,17 +45,11 @@ import {
   QUALITY_COUNT,
   QUALITY_HAS_EFFECT,
   QUALITY_NAMES,
-  QUALITY_STAT_SLOTS,
+  QUALITY_AFFIX_SLOTS,
   budgetOf,
   distributeBudget,
 } from '../../src/gear/budget.js';
-import {
-  BASE_STAT_IDS,
-  SLOT_NAMES,
-  SLOT_SPECIAL,
-  SPECIAL_NAMES,
-  undecidedSlots,
-} from '../../src/gear/slots.js';
+import { BASE_STAT_IDS, SLOT_NAMES } from '../../src/gear/slots.js';
 import {
   NO_SUBJECT,
   RULE_BOSS_PHASE,
@@ -71,6 +73,9 @@ export const MISPLAY_NAME = 'misplays';
 
 /** Der Prueffall gegen den Boss mit Phasen und Energieleiste (Issue #96). */
 export const VESSEL_NAME = 'vessel-phases';
+
+/** Der Prueffall zum eingehenden Schaden und zum Unterbrechen (Issue #110). */
+export const PLAYER_DAMAGE_NAME = 'player-damage';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -402,6 +407,10 @@ export function bossStatePayload(): Record<string, unknown> {
   // Takt verschoben — sie wuerde fehlschlagen, obwohl beide Seiten richtig
   // rechnen. Genau das ist beim ersten Versuch passiert.
   const hpAnteil: number[] = [];
+  // Die Lebenspunkte des Spielers je Takt (Issue #110). Ohne diese Spur bliebe
+  // der eingehende Schaden in der Prüfsumme verborgen: Sie meldete zwar eine
+  // Abweichung, aber nicht, dass es um den Spieler geht.
+  const spielerHp: number[] = [];
   const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
   let pressIndex = 0;
   for (let tick = 0; tick < recording.ticks; tick++) {
@@ -414,6 +423,7 @@ export function bossStatePayload(): Record<string, unknown> {
       energie.push(combat.bossEnergy);
       zeitleiste.push(combat.timelineIndex);
       hpAnteil.push(anteilVorDemWirken);
+      spielerHp.push(combat.playerHp);
       break;
     }
     while (pressIndex < recording.presses.length) {
@@ -428,6 +438,7 @@ export function bossStatePayload(): Record<string, unknown> {
     energie.push(combat.bossEnergy);
     zeitleiste.push(combat.timelineIndex);
     hpAnteil.push(anteilVorDemWirken);
+    spielerHp.push(combat.playerHp);
   }
 
   return {
@@ -464,12 +475,136 @@ export function bossStatePayload(): Record<string, unknown> {
       finalPhase: phasen[phasen.length - 1] ?? 0,
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
+      finalPlayerHp: combat.playerHp,
+      damageTaken: combat.damageTaken,
+      diedAtMs: combat.diedAtMs,
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
     },
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
     checksums: result.checksums,
     phases: phasen,
     energy: energie,
     timelineIndex: zeitleiste,
     hpPercent: hpAnteil,
+    playerHp: spielerHp,
+  };
+}
+
+/**
+ * Eingehender Schaden, Spielertod und Unterbrechen (Issue #110).
+ *
+ * **Zwei Läufe gegen denselben Boss, die sich in genau einer Sache
+ * unterscheiden:** Im einen wirkt der Spieler QUENCH, im anderen nicht. Alles
+ * andere ist gleich — derselbe Startwert, dieselbe Rotation, dieselben
+ * Zeitpunkte.
+ *
+ * Das Ergebnis trennt sich trotzdem vollständig:
+ *
+ * | | ohne QUENCH | mit QUENCH |
+ * | --- | --- | --- |
+ * | Boss-Zauber durchgekommen | 3 | 0 |
+ * | erlittener Schaden | 5200 | 400 |
+ * | Spieler | **tot** | lebt |
+ *
+ * Damit tragen zwei Läufe drei Acceptance Criteria: AC2 (der Tod beendet den
+ * Versuch), AC3 (unterbrochen richtet nichts an, nicht unterbrochen den vollen
+ * Schaden) und AC4 (die Wartezeit) — und zwar so, dass **eine** Ursache das
+ * ganze Ergebnis erklärt. Ein Prüffall, in dem sich zwei Dinge gleichzeitig
+ * ändern, könnte das nicht.
+ */
+export function playerDamagePayload(): Record<string, unknown> {
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('Der Boss test-onslaught fehlt.');
+
+  return {
+    schema: SCHEMA,
+    name: PLAYER_DAMAGE_NAME,
+    bossId: boss.id,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      timeline: boss.timeline.map((e) => ({
+        atMs: e.atMs,
+        mechanic: e.mechanic,
+        name: e.name,
+        damage: e.damage,
+        castTimeMs: e.castTimeMs,
+      })),
+    },
+    runs: [interruptRun(boss, false), interruptRun(boss, true)],
+  };
+}
+
+/**
+ * Ein Durchgang gegen den Boss, wahlweise mit oder ohne Unterbrechen.
+ *
+ * Die Rotation ist bewusst schlicht: KINDLE, sooft es geht — und QUENCH, sobald
+ * ein Boss-Zauber läuft. Sie soll nicht gut sein, sondern **den Unterschied
+ * zeigen**.
+ */
+function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const quench = combat.indexOf('quench');
+  const ticks = 3000; // 30 s
+
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const playerHp: number[] = [];
+  let sequence = 0;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // **Der Spielertod beendet den Versuch** (GAME-DESIGN A.3) — keine Strafe,
+    // die Auswertung erscheint wie bei jedem anderen Ende. Die Prüfsumme dieses
+    // Takts wird noch geschrieben, damit beide Seiten denselben letzten Eintrag
+    // haben.
+    if (combat.playerDead) {
+      const hash = combatChecksum(combat, timeMs);
+      sequence = (sequence * 31 + hash) >>> 0;
+      checksums.push(hash);
+      playerHp.push(combat.playerHp);
+      break;
+    }
+
+    // QUENCH zuerst: Er löst keine Wartezeit aus, also kostet er den
+    // Schadenszauber dieses Takts nichts. Genau das ist der Sinn der Ausnahme
+    // (GAME-DESIGN 6.6) — und hier wird sie zum ersten Mal wirklich gebraucht.
+    if (mitQuench && combat.casting >= 0 && combat.isReady(quench, timeMs)) {
+      if (combat.cast(quench, timeMs).result === 0) presses.push({ tick, slot: 3 });
+    }
+    if (combat.isReady(kindle, timeMs) && combat.gcd.isReady(timeMs)) {
+      if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
+    }
+
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+    playerHp.push(combat.playerHp);
+  }
+
+  return {
+    withInterrupt: mitQuench,
+    ticks,
+    presses,
+    expected: {
+      playerHp: combat.playerHp,
+      damageTaken: combat.damageTaken,
+      diedAtMs: combat.diedAtMs,
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
+      castsQuench: combat.castCount(quench),
+      castsKindle: combat.castCount(kindle),
+      sequenceChecksum: sequence,
+    },
+    checksums,
+    playerHpPerTick: playerHp,
   };
 }
 
@@ -777,7 +912,7 @@ export function gearPayload(): Record<string, unknown> {
   const stufen = [1, 2, 3, 10, 25, 50, 75, 100];
   const budgets: Record<string, unknown>[] = [];
   for (let quality = 0; quality < QUALITY_COUNT; quality++) {
-    const slots = QUALITY_STAT_SLOTS[quality] ?? 0;
+    const slots = QUALITY_AFFIX_SLOTS[quality] ?? 0;
     for (const level of stufen) {
       const werte = new Int32Array(slots);
       distributeBudget(level, quality, werte);
@@ -800,13 +935,10 @@ export function gearPayload(): Record<string, unknown> {
     schema: SCHEMA,
     poolNames: POOL_NAMES,
     qualityNames: QUALITY_NAMES,
-    qualityStatSlots: QUALITY_STAT_SLOTS,
+    qualityAffixSlots: QUALITY_AFFIX_SLOTS,
     qualityHasEffect: QUALITY_HAS_EFFECT,
     slotNames: SLOT_NAMES,
     baseStatIds: BASE_STAT_IDS,
-    slotSpecial: SLOT_SPECIAL,
-    specialNames: SPECIAL_NAMES,
-    undecidedSlots: undecidedSlots(),
     poolSteps,
     budgets,
   };

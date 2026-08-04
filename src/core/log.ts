@@ -46,8 +46,8 @@
  * | 5   | `kill`       | —     | ja        |
  * | 6   | `phase`      | ja    | —         |
  * | 7   | `buffExpire` | ja    | —         |
- * | 8   | `bossEnergy` | —     | ja        |
- * | 9   | `bossTimeline` | —   | ja        |
+ * | 8   | `bossEnergyTriggered` | — | ja     |
+ * | 9   | `bossTimelineFired`   | — | ja     |
  *
  * Nummer 6 hat mit Issue #96 eine zweite Schreiberin bekommen: Der Simulator
  * führt Boss-Phasen jetzt ebenfalls. Dieselbe Zahl, dieselbe Bedeutung — genau
@@ -70,10 +70,27 @@ export const EVENT_SPEND = 4;
 export const EVENT_KILL = 5;
 export const EVENT_PHASE = 6;
 export const EVENT_BUFF_EXPIRE = 7;
-/** Nur der Simulator schreibt sie — die Energieleiste des Bosses (Issue #96). */
-export const EVENT_BOSS_ENERGY = 8;
-/** Nur der Simulator schreibt sie — die Boss-Zeitleiste (Issue #96). */
-export const EVENT_BOSS_TIMELINE = 9;
+/**
+ * Die Energieleiste des Bosses hat **ausgelöst** (Issue #96).
+ *
+ * Der Name sagt ausdrücklich `Triggered`, weil dies ein **Vorgang** ist und
+ * kein Zustand: Geschrieben wird nur im Moment des Auslösens, nicht bei jedem
+ * Anstieg. Der Stand der Leiste heißt `Combat.bossEnergy` und ist etwas
+ * anderes — beim ersten Lesen wurden die beiden verwechselt, deshalb jetzt
+ * zwei unterscheidbare Namen.
+ *
+ * Nur der Simulator schreibt sie.
+ */
+export const EVENT_BOSS_ENERGY_TRIGGERED = 8;
+/**
+ * Ein Eintrag der Boss-Zeitleiste ist **fällig geworden** (Issue #96).
+ *
+ * Auch hier ein Vorgang, kein Zustand: Der Zeiger heißt
+ * `Combat.timelineIndex`.
+ *
+ * Nur der Simulator schreibt sie.
+ */
+export const EVENT_BOSS_TIMELINE_FIRED = 9;
 
 export const EVENT_NAMES: readonly string[] = [
   'cast',
@@ -84,8 +101,8 @@ export const EVENT_NAMES: readonly string[] = [
   'kill',
   'phase',
   'buffExpire',
-  'bossEnergy',
-  'bossTimeline',
+  'bossEnergyTriggered',
+  'bossTimelineFired',
 ];
 
 /** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */

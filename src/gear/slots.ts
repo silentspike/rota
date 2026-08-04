@@ -4,43 +4,42 @@
  * > Bewusst **keine Körperteile**, weil es keine Spielfigur gibt — arkane
  * > Artefakte. (13.2)
  *
- * Jeder Platz trägt die **Grundwerte** ESSENCE, VESSEL und WARD — „jeder Fund
- * verbessert also spürbar etwas, auch wenn die Sonderwerte nicht passen" —
- * und darüber hinaus einen **platz-spezifischen Sonderwert in fester
- * Zuordnung**. Der Sinn dieser Zuordnung steht ausdrücklich im Design:
+ * **Ein Platz ist ein Platz.** Er nimmt einen Gegenstand auf, mehr nicht —
+ * wie in WoW oder Diablo. Er hat keine Aufgabe, keinen Charakter und keinen
+ * Wert, der ihm gehört.
  *
- * > **Gezieltes Grinden statt blinden Sammelns** — jeder der zehn Plätze
- * > bekommt einen erkennbaren Charakter. (13.2)
+ * # Warum das hier so ausdrücklich steht
  *
- * # Zwei Plätze haben noch keinen Charakter
+ * Bis zum 2026-07-29 trug diese Datei eine **platz-spezifische
+ * Sonderwert-Zuordnung**: Focus und Catalyst immer CATALYSIS, Sigil und
+ * Talisman immer PURITY/YIELD, und so fort. Sie stand im Plan, sie stand im
+ * Design-Dokument, und sie hatte eine Begründung, die überzeugend klang —
+ * „gezieltes Grinden statt blinden Sammelns".
  *
- * 13.2 zählt zehn Plätze auf und ordnet **acht** davon zu. `Relic` und `Shard`
- * kommen im gesamten Design-Dokument genau einmal vor — in der Namensliste.
- * Sie stehen hier deshalb als [`SPECIAL_UNDECIDED`], und
- * [`isSlotDecided`] meldet das.
+ * **Angeordnet worden war sie nie.** Nachgesehen statt angenommen:
  *
- * **Das ist Absicht und kein Platzhalter, den man später vergisst.** Ein
- * geratener Sonderwert wäre eine Design-Entscheidung im Code — und zwar eine,
- * die niemandem auffiele, weil sie plausibel aussähe. Ein Prüffall schlägt
- * fehl, sobald ein Gegenstand auf einem unbestimmten Platz einen Sonderwert
- * bekommt. Eintragen ist später eine Datenzeile, kein Umbau.
+ * ```text
+ *   mainrag search "Ausruestungsplaetze Fokus Katalysator Siegel
+ *                   platz-spezifische Sonderwerte" --source claude-conversations
+ *     -> No results
+ *   mainrag search "Fokus Katalysator Siegel Reliquie Grimoire"
+ *     -> No results
+ * ```
  *
- * # Zwei Kategorien sind noch keine Werte
+ * Keine einzige Fundstelle. Die Regel war beim Schreiben entstanden und wurde
+ * nie hinterfragt, weil ihre Begründung plausibel war. Der Auftraggeber hat
+ * sie gestrichen: *„wann haben wir besprochen dass ausruestungsplaetze eine
+ * aufgabe haben? das sind genauso wie bei wow oder diablo ausruestungsplaetze
+ * in welche die items reinkommen"*.
  *
- * 6.1 kennt drei Grundwerte (ESSENCE, VESSEL, WARD), 6.2 drei Sonderwerte
- * (CATALYSIS, PURITY, YIELD). Das sind alle Werte, die das Dokument kennt. Die
- * Platz-Tabelle vergibt aber vier Kategorien, und zwei davon zeigen auf keinen
- * dieser sechs:
+ * Aufgefallen ist es, weil zwei der zehn Plätze — `Relic` und `Shard` — im
+ * ganzen Dokument keine Zuordnung hatten. Statt sie zu erraten, wurde
+ * gefragt. Ein geratener Sonderwert hätte die falsche Regel bestätigt, statt
+ * sie auffliegen zu lassen.
  *
- * | Kategorie              | Steht im Dokument als Wert? |
- * | ---------------------- | --------------------------- |
- * | CATALYSIS              | ja (6.2)                    |
- * | PURITY/YIELD           | ja (6.2)                    |
- * | „Verteidigung"         | **nein** — WARD? VESSEL? beide? |
- * | „Zauber-Verstärkung"   | **nein** — vermutlich eher ein Effekt aus Topf 4 als ein Wert |
- *
- * Sie stehen deshalb als eigene Kategorien und nicht als Verweis auf einen der
- * sechs Werte. Was sie genau sind, entscheidet das Design, nicht diese Datei.
+ * **Die Lehre gehört hierher und nicht in einen Commit-Text:** Eine Regel mit
+ * guter Begründung ist damit noch nicht angeordnet. Wer die Lücke in einer
+ * Regel findet, hat womöglich die Regel gefunden.
  */
 
 /** Die zehn Plätze in der Reihenfolge aus 13.2. */
@@ -71,67 +70,19 @@ export const SLOT_NAMES: readonly string[] = [
 ];
 
 /**
- * Die Grundwerte, die auf **jedem** Platz sitzen (13.2, 6.1).
+ * Die Grundwerte, die **jeder** Gegenstand trägt (13.2, 6.1).
  *
  * > „Grundwerte (ESSENCE, VESSEL, WARD) auf jedem Platz — jeder Fund
  * > verbessert also spürbar etwas, auch wenn die Sonderwerte nicht passen."
  *
- * # Eine Frage, die das Design nicht beantwortet
+ * **Sie kommen zusätzlich zu den Affixen**, nicht aus deren Budget — wie ein
+ * Diablo-Gegenstand immer Rüstung trägt, unabhängig davon, welche Affixe
+ * darauf gewürfelt wurden. Ein Common-Stück hat also ESSENCE, VESSEL und WARD
+ * **plus** einen Affix.
  *
- * **Ziehen die Grundwerte aus demselben Budget wie die Werte-Plätze?** 13.3
- * sagt, das Budget werde „auf die Werte-Plätze verteilt", und gibt Common
- * genau einen davon. Ein Platz kann aber keine drei Grundwerte tragen. Also
- * entweder sind die Grundwerte **zusätzlich** zum Budget, oder „Werte-Plätze"
- * meint etwas anderes als hier angenommen.
- *
- * Beide Lesarten sind balance-relevant und keine davon steht im Dokument.
- * Diese Liste sagt deshalb nur, **welche** Grundwerte es gibt — nicht, woher
- * sie ihre Zahlen nehmen. Das entscheidet das Design.
+ * Das war die vierte offene Frage aus #114 und ist seit dem 2026-07-29
+ * entschieden. Anlass war eine Rechnung, die nicht aufging: 13.3 gibt Common
+ * genau **einen** Werte-Platz, und ein Platz kann keine drei Grundwerte
+ * tragen. Die Spalte meint **Affixe**, nicht Werte überhaupt.
  */
 export const BASE_STAT_IDS: readonly string[] = ['essence', 'vessel', 'ward'];
-
-/** Noch nicht zugeordnet — siehe Kopf dieser Datei. */
-export const SPECIAL_UNDECIDED = -1;
-/** CATALYSIS (6.2). */
-export const SPECIAL_CATALYSIS = 0;
-/** PURITY und YIELD gemeinsam (6.2). */
-export const SPECIAL_PURITY_YIELD = 1;
-/** „Verteidigung" — im Dokument kein benannter Wert. */
-export const SPECIAL_DEFENSE = 2;
-/** „Zauber-Verstärkung" — im Dokument kein benannter Wert. */
-export const SPECIAL_SPELL_AMP = 3;
-
-export const SPECIAL_NAMES: readonly string[] = ['catalysis', 'purityYield', 'defense', 'spellAmp'];
-
-/**
- * Die feste Zuordnung aus 13.2 — **Daten, nicht Code**.
- *
- * Dieselbe Linie wie bei den Schulen und den Ereignis-Empfängern: Wer eine
- * Zuordnung ändert, ändert eine Zeile und keine Verzweigung.
- */
-export const SLOT_SPECIAL: readonly number[] = [
-  SPECIAL_CATALYSIS, // focus
-  SPECIAL_CATALYSIS, // catalyst
-  SPECIAL_PURITY_YIELD, // sigil
-  SPECIAL_UNDECIDED, // relic      <- 13.2 sagt dazu nichts
-  SPECIAL_SPELL_AMP, // grimoire
-  SPECIAL_UNDECIDED, // shard      <- 13.2 sagt dazu nichts
-  SPECIAL_PURITY_YIELD, // talisman
-  SPECIAL_DEFENSE, // phylactery
-  SPECIAL_DEFENSE, // anchor
-  SPECIAL_SPELL_AMP, // prism
-];
-
-/** Trägt dieser Platz eine festgelegte Sonderwert-Zuordnung? */
-export function isSlotDecided(slot: number): boolean {
-  return (SLOT_SPECIAL[slot] ?? SPECIAL_UNDECIDED) !== SPECIAL_UNDECIDED;
-}
-
-/** Welche Plätze noch auf ihre Zuordnung warten. */
-export function undecidedSlots(): number[] {
-  const open: number[] = [];
-  for (let slot = 0; slot < SLOT_COUNT; slot++) {
-    if (!isSlotDecided(slot)) open.push(slot);
-  }
-  return open;
-}
