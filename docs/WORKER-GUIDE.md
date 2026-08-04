@@ -227,6 +227,25 @@ Ein verwandter Fall: Wenn die neue Größe im Prüflauf überall **null** ist, k
 Bei E3-4 war die Parität grün, während die Schutzschicht auf einer Seite fehlte — in allen
 bestehenden Fällen war der Schutz null.
 
+**Daraus folgt eine Regel, die sich sofort anwenden lässt: Wo du eine _Wirkung_ nachweist, prüfe
+auf eine Ungleichung, nicht auf eine Zahl.**
+
+| Formulierung                     | Fängt den Nullfall |
+| -------------------------------- | ------------------ |
+| `expect(mit).toBeLessThan(ohne)` | **ja**             |
+| `expect(mit).toBe(1234)`         | nein               |
+| `expect(mit).toBe(ohne * 0.5)`   | nein — `0 === 0`   |
+
+> **Gemessen am 2026-08-04 in E7-4.** Zwei Läufe sollten zeigen, dass ein Widerstand den Schaden
+> halbiert. Beide ergaben **null Schaden** — der Prüfaufbau startete den Countdown nicht, es wurde
+> nie gewirkt. Die Ungleichung schlug fehl (`expected 0 to be less than 0`) und deckte den kaputten
+> Aufbau auf. Eine Gleichheitsprüfung wäre grün gewesen und hätte nichts belegt.
+
+Dieselbe Falle eine Ebene tiefer: Nicht die Größe ist null, sondern **die Handlung findet gar nicht
+statt.** In E3-3b sollte ein Zauber zu einem festen Zeitpunkt gedrückt werden — lief dort gerade
+eine Wartezeit, kam der Druck nicht durch, und der Nachweis war still weg, ohne dass der Prüffall
+rot wurde. Gelöst durch ein **Zeitfenster** statt eines Zeitpunkts.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
