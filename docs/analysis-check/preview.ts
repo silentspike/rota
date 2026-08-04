@@ -23,6 +23,8 @@ import '../../src/analysis/analysis.css';
 
 const KINDLE = 0;
 const SMOULDER = 1;
+const PYRE = 2;
+const CRUST = 4;
 const FIGHT_MS = 30_000;
 
 function line(text: string, ok?: boolean): void {
@@ -74,6 +76,10 @@ function play(loadout: readonly number[], everyMs: number): RunAnalysis {
 
 const sauber = play([KINDLE, SMOULDER], 1500);
 const schlampig = play([KINDLE, SMOULDER], 3000);
+// Zwei belegte Zauber mit verschiedenen Abklingzeiten. Nur so gibt es im
+// selben Durchlauf Fenster BEIDER Arten — bei einem belegten Zauber sind
+// „mindestens einer bereit" und „genau dieser bereit" dasselbe.
+const gemischt = play([PYRE, CRUST], 1500);
 
 // --- AC4: die Spaltenfolge --------------------------------------------------
 
@@ -139,6 +145,19 @@ line(
   `Kein Verlust übersteigt das Potenzial: ${Math.round(schlampig.losses.totalLost)} von ` +
     `${Math.round(schlampig.losses.potential)}`,
   schlampig.losses.totalLost <= schlampig.losses.potential,
+);
+line(
+  `Zwei belegte Zauber, beide Hälften ungleich null: ` +
+    `${gemischt.missedCastWindows} mit bereitem Zauber, ${gemischt.idleWindows} ohne`,
+  gemischt.missedCastWindows > 0 && gemischt.idleWindows > 0,
+);
+// Beide ECHT kleiner als der Gesamtleerlauf. Wäre einer der Zähler bloß eine
+// umbenannte Kopie von idleTicks, stünde er hier gleich dem Gesamtwert.
+const gesamtFenster = gemischt.missedCastWindows + gemischt.idleWindows;
+line(
+  `Keiner der beiden Zähler ist der Gesamtleerlauf: ` +
+    `${gemischt.missedCastWindows} und ${gemischt.idleWindows} von ${gesamtFenster}`,
+  gemischt.missedCastWindows < gesamtFenster && gemischt.idleWindows < gesamtFenster,
 );
 
 // --- Die Lücke bleibt sichtbar ----------------------------------------------
