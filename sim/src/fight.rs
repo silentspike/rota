@@ -2097,13 +2097,6 @@ impl Fight {
         // kuenftigen Wechsel.
         h = mix_int(h, self.control as i32);
         h = mix_int(h, self.phase_hold_percent as i32);
-        // **Angehaengt, nicht eingeschoben** (Issue #97). Die Zahl der Stapel
-        // allein genuegt nicht: Zwei Laeufe mit gleich vielen, aber verschieden
-        // alten Stapeln laufen gleich weiter — bis der erste verfaellt.
-        h = mix_int(h, self.decay_count as i32);
-        for i in 0..MAX_DECAY_STACKS {
-            h = mix_int(h, self.decay_expiry_at(i) as i32);
-        }
         // **Angehaengt, nicht eingeschoben** (Issue #216, Zaehler und Stapel).
         // Ohne sie waere die Pruefsumme fuer einen Boss mit diesen Bausteinen
         // blind: Zwei Laeufe mit verschiedenem Zaehlerstand saehen gleich aus,
@@ -2112,6 +2105,20 @@ impl Fight {
         h = mix_int(h, self.doom as i32);
         h = mix_int(h, self.doom_charges as i32);
         h = mix_int(h, self.stacks as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #97) — und zwar ans ECHTE
+        // Ende. Mein erster Versuch setzte den Block hinter
+        // `phase_hold_percent`, also VOR doom/doom_charges/stacks aus #216;
+        // das Spiel haengt hinter stacks an. Dieselben Felder, andere
+        // Reihenfolge — die Pruefsumme wich schon in Takt 0 ab, ohne dass ein
+        // einziger Stapel lag.
+        //
+        // Die Zahl der Stapel allein genuegt nicht: Zwei Laeufe mit gleich
+        // vielen, aber verschieden alten Stapeln laufen gleich weiter, bis der
+        // erste verfaellt.
+        h = mix_int(h, self.decay_count as i32);
+        for i in 0..MAX_DECAY_STACKS {
+            h = mix_int(h, self.decay_expiry_at(i) as i32);
+        }
         h
     }
 
