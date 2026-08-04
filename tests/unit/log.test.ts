@@ -144,7 +144,7 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // und die drei Wege der Koagulation (#79). Die Namen stehen auch für die
     // Arten, die diese Seite nie schreibt — wer ein fremdes Protokoll liest,
     // soll denselben Namen sehen statt ein Fragezeichen.
-    expect(EVENT_NAMES.length).toBe(16);
+    expect(EVENT_NAMES.length).toBe(17);
     expect(EVENT_NAMES[EVENT_CAST]).toBe('cast');
     expect(EVENT_NAMES[EVENT_DOT_TICK]).toBe('dotTick');
     expect(EVENT_NAMES[4]).toBe('spend');

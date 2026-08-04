@@ -280,12 +280,23 @@ pub struct Fight {
     control: u32,
     /// Wie viele Punkte insgesamt ausgegeben wurden.
     control_spent: u32,
-    /// Um wie viel die Zeitleiste nach hinten geschoben ist (STAY, #100).
+    /// Um wie viel der **naechste** Zeitleisten-Eintrag nach hinten geschoben
+    /// ist (STAY, #100).
     ///
-    /// Summiert sich: Zweimal verzoegern schiebt zweimal. Der Boss holt es
-    /// **nicht** nach — ein verschobener Schlag faellt spaeter, nicht
-    /// zusaetzlich.
-    timeline_delay: Millis,
+    /// **Nur der eine, nicht die folgenden** — Entscheidung des Auftraggebers
+    /// vom 2026-08-04. Der Wortlaut in GAME-DESIGN 4.1 sagt „einen Schlag
+    /// verzoegern", Singular.
+    ///
+    /// Der Unterschied ist nicht kosmetisch: Schlaegt der Boss bei 10, 17 und
+    /// 24 s und der Spieler verzoegert den ersten um 3 s, ergibt das 13, 17,
+    /// 24 — der Abstand zum zweiten schrumpft von sieben auf vier Sekunden.
+    /// Verzoegern verschafft Luft und **erkauft sie mit Gedraenge danach**.
+    ///
+    /// Die verworfene Fassung haette alle folgenden mitgeschoben (13, 20, 27).
+    /// Mehrfach eingesetzt haette sie den Boss immer weiter nach hinten
+    /// gedraengt, ohne dass es etwas kostet ausser Punkten — ein anderer
+    /// Zauber.
+    next_strike_delay: Millis,
     /// Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR).
     phase_hold_percent: u32,
     /// Wann der laufende Boss-Zauber trifft.
@@ -372,7 +383,7 @@ impl Fight {
             conversion_percent: 0,
             converted: 0,
             control: 0,
-            timeline_delay: 0,
+            next_strike_delay: 0,
             phase_hold_percent: 0,
             cast_lands_at: 0,
             control_spent: 0,
@@ -765,7 +776,7 @@ impl Fight {
         self.conversion_percent = 0;
         self.converted = 0;
         self.control = 0;
-        self.timeline_delay = 0;
+        self.next_strike_delay = 0;
         self.phase_hold_percent = 0;
         self.cast_lands_at = 0;
         self.control_spent = 0;
@@ -808,10 +819,10 @@ impl Fight {
         let Some(entry) = self.boss.timeline.get(self.timeline_index) else {
             return;
         };
-        // **Die Verzoegerung aus STAY zaehlt mit** (#100). Sie summiert sich
-        // und gilt fuer jeden noch folgenden Eintrag — der Boss holt nichts
-        // nach, seine ganze Zeitleiste rueckt.
-        let faellig = entry.at_ms + self.timeline_delay;
+        // **Die Verzoegerung aus STAY gilt nur fuer diesen einen Eintrag**
+        // (#100). Die folgenden stehen, wo sie stehen — der Abstand dahinter
+        // schrumpft, und genau das ist der Preis.
+        let faellig = entry.at_ms + self.next_strike_delay;
         if faellig < self.duration_ms {
             self.queue.push(
                 faellig,
@@ -861,6 +872,9 @@ impl Fight {
             }
         }
 
+        // Verbraucht: Der naechste Eintrag faengt wieder bei seinem eigenen
+        // Zeitpunkt an.
+        self.next_strike_delay = 0;
         self.timeline_index += 1;
         self.schedule_next_timeline_step();
     }
@@ -959,7 +973,9 @@ impl Fight {
             // Einen Schlag verzoegern: Der naechste Zeitleisten-Eintrag rueckt
             // nach hinten.
             ControlEffect::DelayStrike => {
-                self.timeline_delay = self.timeline_delay.saturating_add(control.amount);
+                // Nur der naechste Eintrag. Zweimal vor demselben Schlag
+                // gewirkt summiert sich — das ist derselbe Schlag, nicht zwei.
+                self.next_strike_delay = self.next_strike_delay.saturating_add(control.amount);
                 self.schedule_next_timeline_step();
                 self.log
                     .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
