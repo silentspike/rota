@@ -247,6 +247,195 @@ fn die_phase_bleibt_wenn_die_fixierung_waehrend_einer_hoeheren_phase_auslaeuft()
 }
 
 #[test]
+fn stall_dehnt_die_wirkzeit_und_vergroessert_das_unterbrechen_fenster() {
+    // **Die Luecke aus der Fertigmeldung zu #100.** STALL war gebaut, aber im
+    // Prueffall kam er nicht zum Zug: Die Rotation dort bevorzugt STAY und
+    // ANCHOR, und der Boss-Zauber war vorbei, bevor STALL an die Reihe kam.
+    //
+    // „Die Wirkung laeuft durch die Pruefsumme" belegt nur, dass beide Seiten
+    // dasselbe rechnen — nicht, dass sie das Richtige tun. Deshalb hier ein
+    // eigener Nachweis.
+    //
+    // Der Boss wirkt von 4000 bis 7000 ms. BIND gibt 2 Punkte je 1500 ms, die
+    // vier fuer STALL sind also ab etwa 3000 ms da.
+    let boss = boss_by_id("test-warden").expect("test-warden");
+    let bind = index_of("bind").expect("bind");
+    let stall = index_of("stall").expect("stall");
+    let stall_daten = SPELLS[stall].control.expect("STALL gibt Punkte aus");
+
+    let bauen = |mit_stall: bool| {
+        let mut presses = Vec::new();
+        for tick in 0..800 {
+            // Ab Takt 450 (4500 ms) laeuft der Boss-Zauber und die Punkte
+            // reichen. Ein FENSTER, kein Zeitpunkt: Bei einem festen Takt
+            // koennte die Wartezeit von BIND laufen, und ein gescheiterter
+            // Druck verschoebe nichts — der Nachweis waere still weg.
+            let im_fenster = mit_stall && (450..520).contains(&tick);
+            presses.push(Press {
+                tick,
+                slot: if im_fenster { 1 } else { 0 },
+            });
+        }
+        let recording = Recording {
+            name: format!("stall-{mit_stall}"),
+            seed: 0,
+            // **Der Lauf endet zwischen beiden Trefferzeitpunkten.** Ohne
+            // STALL trifft der Zauber bei 7000 ms, mit STALL bei 9000. Liefe
+            // er bis 10000, traefe er in beiden Faellen — und der Unterschied
+            // waere unsichtbar.
+            ticks: 800,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: bind,
+                },
+                Binding {
+                    slot: 1,
+                    spell: stall,
+                },
+            ],
+            presses,
+        };
+        let mut fight = Fight::new(FightConfig {
+            seed: 0,
+            boss,
+            duration_ms: Some(8_000),
+            ..FightConfig::default()
+        });
+        let ergebnis = fight.replay(&recording, true);
+        (ergebnis, fight.damage_taken())
+    };
+
+    let (ohne, schaden_ohne) = bauen(false);
+    let (mit, schaden_mit) = bauen(true);
+
+    // **Die Ursache zuerst:** STALL muss ueberhaupt gewirkt worden sein. Eine
+    // Ungleichung auf das Ergebnis faengt den Nullfall im ERGEBNIS — sie
+    // faengt nicht, dass die Handlung ausgeblieben ist.
+    assert!(
+        mit.casts[stall] > 0,
+        "STALL kam nicht zum Zug — dann prueft dieser Fall nichts"
+    );
+    assert_eq!(ohne.casts[stall], 0);
+
+    // Ohne STALL trifft der Zauber und richtet Schaden an.
+    assert!(
+        schaden_ohne > 0,
+        "der Boss-Zauber muss ohne Verlangsamung treffen"
+    );
+
+    // **Mit STALL trifft er spaeter** — innerhalb dieser acht Sekunden also
+    // gar nicht mehr. Das ist die Wirkung: Die Wirkzeit dehnt sich, und das
+    // Fenster zum Unterbrechen wird groesser.
+    assert!(
+        schaden_mit < schaden_ohne,
+        "STALL hat den Zauber nicht verzoegert: {schaden_mit} gegen \
+         {schaden_ohne} ohne Verlangsamung"
+    );
+    assert!(stall_daten.amount > 0);
+}
+
+#[test]
+fn stall_macht_ein_unterbrechen_moeglich_das_ohne_ihn_zu_spaet_kaeme() {
+    // **Das ist die Mechanik, nicht die Zahl.** Der Test darueber zeigt, dass
+    // der Zauber SPAETER trifft — richtig, aber es ist eine Zahl. GAME-DESIGN
+    // 4.1 sagt, wozu die Verlangsamung da ist: Das Fenster zum Unterbrechen
+    // wird GROESSER, man hat mehr Zeit zu reagieren.
+    //
+    // Der Nachweis dafuer ist ein QUENCH-Druck zu EINEM Zeitpunkt, der
+    //   ohne STALL zu spaet ist  — der Zauber hat schon getroffen
+    //   mit  STALL noch im Fenster liegt — er wird abgebrochen
+    //
+    // Derselbe Druck, derselbe Zeitpunkt, verschiedenes Ergebnis. Ohne diesen
+    // Fall belegte der Prueffall nur, dass sich eine Zahl aendert.
+    let boss = boss_by_id("test-warden").expect("test-warden");
+    let bind = index_of("bind").expect("bind");
+    let stall = index_of("stall").expect("stall");
+    let quench = index_of("quench").expect("quench");
+
+    // Der Boss wirkt von 4000 bis 7000 ms. Mit STALL trifft er erst bei 9000.
+    // Ein QUENCH bei 8000 ms kommt ohne Verlangsamung eine Sekunde zu spaet
+    // und liegt mit ihr noch im Fenster.
+    let bauen = |mit_stall: bool| {
+        let mut presses = Vec::new();
+        for tick in 0..900 {
+            let slot = if mit_stall && (450..520).contains(&tick) {
+                1 // STALL, sobald die Punkte reichen
+            } else if tick == 800 {
+                2 // QUENCH — derselbe Zeitpunkt in beiden Laeufen
+            } else {
+                0 // BIND
+            };
+            presses.push(Press { tick, slot });
+        }
+        let recording = Recording {
+            name: format!("stall-fenster-{mit_stall}"),
+            seed: 0,
+            ticks: 900,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: bind,
+                },
+                Binding {
+                    slot: 1,
+                    spell: stall,
+                },
+                Binding {
+                    slot: 2,
+                    spell: quench,
+                },
+            ],
+            presses,
+        };
+        let mut fight = Fight::new(FightConfig {
+            seed: 0,
+            boss,
+            duration_ms: Some(9_000),
+            ..FightConfig::default()
+        });
+        fight.replay(&recording, false)
+    };
+
+    let ohne = bauen(false);
+    let mit = bauen(true);
+
+    // **Die Ursache zuerst:** In beiden Laeufen muss QUENCH gewirkt worden
+    // sein. Sonst vergliche der Fall zwei Laeufe, in denen niemand
+    // unterbrochen hat — und das saehe genauso aus.
+    assert!(
+        ohne.casts[quench] > 0,
+        "QUENCH kam im Lauf ohne STALL nicht zum Zug"
+    );
+    assert!(
+        mit.casts[quench] > 0,
+        "QUENCH kam im Lauf mit STALL nicht zum Zug"
+    );
+    assert!(mit.casts[stall] > 0, "STALL kam nicht zum Zug");
+
+    // Ohne STALL geht das Unterbrechen ins Leere: Der Zauber ist durch.
+    assert_eq!(
+        ohne.interrupts_landed, 0,
+        "ohne STALL darf das Unterbrechen zu spaet kommen"
+    );
+    assert_eq!(
+        ohne.interrupts_missed, 1,
+        "der Zauber muss durchgekommen sein"
+    );
+
+    // **Mit STALL trifft derselbe Druck.** Das Fenster ist groesser geworden.
+    assert_eq!(
+        mit.interrupts_landed, 1,
+        "mit STALL muss derselbe Druck den Zauber abbrechen — sonst ist das \
+         Fenster nicht groesser geworden"
+    );
+    assert_eq!(mit.interrupts_missed, 0);
+
+    // Und die Folge davon: kein Schaden.
+    assert!(mit.damage_taken < ohne.damage_taken);
+}
+
+#[test]
 fn ac4_die_pruefsummen_stimmen_in_jedem_einzelnen_takt() {
     let json = data();
     for mit_ausgabe in [false, true] {
