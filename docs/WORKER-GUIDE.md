@@ -270,6 +270,74 @@ statt.** In E3-3b sollte ein Zauber zu einem festen Zeitpunkt gedrückt werden �
 eine Wartezeit, kam der Druck nicht durch, und der Nachweis war still weg, ohne dass der Prüffall
 rot wurde. Gelöst durch ein **Zeitfenster** statt eines Zeitpunkts.
 
+### Die Messung selbst kann kaputt sein — nicht nur der Prüffall
+
+_Vier Fundstellen am 2026-08-04, an vier verschiedenen Stellen, in vier verschiedenen Rollen._
+
+Die Abschnitte oben behandeln Prüffälle, die zu wenig zeigen. Das hier ist eine andere Klasse:
+**Der Prüffall ist richtig, aber das Messinstrument liefert eine Zahl, die nichts mit der Frage zu
+tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
+
+| Was gemessen wurde                                  | Warum es nichts belegte                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `!!document.querySelector('[class*=rota-loot]')`    | `skipLoot()` setzt `hidden`, das Element **bleibt im DOM** — der Ausdruck ist immer `true` |
+| `cargo test 2>&1 \| tail -40`                       | Die letzten 40 Zeilen sind vier Sammlungen von 27. `0 FAILED` stimmt und beweist nichts    |
+| `npx tsc --noEmit; echo "Exit=$?" && git commit …`  | Das `echo` gelingt immer. Der Rückgabewert wurde **angezeigt**, nicht ausgewertet          |
+| `window.__rota === undefined` als Beleg für den Bau | Die Seite lud aus einem fremden Worktree — das erwartete Ergebnis aus der falschen Quelle  |
+
+**Die gemeinsame Frage, die alle vier beantwortet hätte:**
+
+> Unter welcher Bedingung würde meine Messung ein **anderes** Ergebnis liefern?
+>
+> Fällt dir keine ein, misst du nichts.
+
+Konkret heißt das:
+
+- **Prüfe auf das Merkmal, das sich ändert** — nicht auf Existenz. `hidden`, nicht `querySelector`.
+- **Werte Rückgabewerte aus, statt sie anzuzeigen.** `cmd && weiter` oder `set -e`, nie `echo $?`.
+- **Leite direkt am Befehl in eine Datei um** — `cargo test > lauf.txt 2>&1`, dann darin zählen.
+  Nicht `| tail`, nicht `| head`. `grep -c` über den vollen Strom ist in Ordnung, weil es filtert
+  statt abzuschneiden.
+
+  > **„In einer Datei messen" allein genügt nicht.** Die Harness legt einen langen Ausgabestrom
+  > selbst in eine Datei und nennt sie „full output" — war er vorher schon durch `tail -40`
+  > gekürzt, steht **die Kürzung** darin. Wer dann in dieser Datei zählt, glaubt den ganzen Lauf zu
+  > sehen und sieht ein Achtel. Die Umleitung muss **vor** jeder Kürzung stehen.
+
+- **Zähle, was BESTANDEN hat — nicht nur, was fehlgeschlagen ist.** `0 FAILED` ist auch dann wahr,
+  wenn vier von 27 Sammlungen gelaufen sind. Die Zahl der bestandenen Sammlungen ist die Größe, die
+  eine unvollständige Messung verrät.
+- **Belege mit einem Merkmal, das nur dein Stand hat** — nicht mit der Abwesenheit von etwas. Die
+  Abwesenheit hat viele Ursachen, und eine davon ist, dass du am falschen Ort suchst.
+
+### Eine Prüfung kann durch eine spätere Änderung zur Konstruktion werden
+
+_Gefunden und selbst gemeldet von E7-2 am 2026-08-04._
+
+Der heimtückischste Fall, weil ihn niemand verursacht: Eine Prüfung war ein echter Nachweis, und
+eine **spätere, richtige** Änderung macht sie zur Tautologie. Sie bleibt grün, niemand fasst sie an,
+und sie steht weiter in der Melde-Liste.
+
+```
+vorher   missedCastWindows und idleWindows wurden getrennt gerundet
+         Die Prüfung "beide zusammen ergeben die Gesamtzahl" konnte FEHLSCHLAGEN
+         → sie war ein Nachweis
+
+nachher  idleWindows = gesamt − missedCastWindows
+         Dieselbe Prüfung ist jetzt per Konstruktion wahr
+         → sie ist eine Tautologie, die wie ein Nachweis aussieht
+```
+
+Messbar wurde es an einer Zahl: Dieselbe Verfälschung brach vorher **zehn** Prüffälle, nachher
+**sechs**. Die vier Weggefallenen hatten sie über eine Rundungs-Zufälligkeit gefangen, nicht über
+eine echte Eigenschaft.
+
+> **Die Regel:** Wer eine Rechnung ändert, prüft nach, **welche seiner Zusicherungen dadurch
+> unhaltbar geworden sind** — im Sinne von: nicht mehr falsifizierbar. Und schreibt es in die
+> Meldung, statt die alte Formulierung stehen zu lassen.
+>
+> Niemand hätte es bemerkt. Genau deshalb steht es hier.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
