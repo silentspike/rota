@@ -235,12 +235,33 @@ Er wächst dauerhaft über Talente und Ausrüstung, kurzzeitig über **Overdrive
 Schaden = Grundschaden
         × ESSENCE-Faktor
         × Talent-Faktoren
+        × Ausrüstungs-Sondereffekte
         × aktive Verstärkungen
         × Synergie-Faktoren
         × Widerstandsfaktor des Bosses
         × Verwundbarkeit des Bosses
         × Krit
 ```
+
+> **Der achte Faktor, ergänzt am 2026-07-29.** Die **Ausrüstungs-Sondereffekte** sind Topf 4 aus
+> 13.1b: legendäre Effekte und Satz-Boni, untereinander addiert, nach außen **ein** Faktor.
+>
+> **Position: direkt nach den Talenten.** Damit stehen die drei Faktoren, die vom Spieler kommen —
+> ESSENCE, Talente, Ausrüstung — beieinander, danach die Zustands-Faktoren (Verstärkungen,
+> Synergie), dann die Boss-Faktoren (Widerstand, Verwundbarkeit) und zuletzt Krit.
+>
+> **Warum ein eigener Faktor und keiner der bestehenden:** `essence` würde Topf 4 additiv mit
+> ESSENCE machen. `talents` würde ihn additiv mit Talenten machen — und 13.1 trennt beide Systeme
+> ausdrücklich („WIE die Rotation funktioniert" gegen „WIE STARK die Werte sind"). `buffs` **ist**
+> Topf 3, und zwischen Töpfen wird multipliziert.
+>
+> Auch hier gilt: Die Position ist eine Festlegung, keine Geschmacksfrage, und heute bewegt sie
+> keine Zahl — der Faktor steht bei 1,0.
+
+**Zu Topf 2 (CATALYSIS, PURITY, YIELD): „je eigener Faktor" heißt nicht drei neue Faktoren hier.**
+CATALYSIS wirkt auf Abklingzeiten und DoT-Abstände (6.2), ist also gar kein Schadensfaktor. PURITY
+ist eine Wahrscheinlichkeit, kein Multiplikator. Nur YIELD landet als `crit`. Gemeint ist: **nicht in
+einen gemeinsamen Multiplikator zusammengeworfen** — jeder Sonderwert behält seinen eigenen Wirkweg.
 
 > **Der siebte Faktor, ergänzt am 2026-07-29.** Die **Verwundbarkeit des Bosses** trägt alles,
 > was ihn für Schaden **aus jeder Quelle** empfänglicher macht — vor allem die Zersetzungs-Stapel
@@ -854,24 +875,46 @@ Bewusst **keine Körperteile**, weil es keine Spielfigur gibt — arkane Artefak
 
 `Focus · Catalyst · Sigil · Relic · Grimoire · Shard · Talisman · Phylactery · Anchor · Prism`
 
-**Platz-spezifische Sonderwerte, feste Zuordnung:** z. B. Focus und Catalyst immer CATALYSIS, Sigil
-und Talisman immer PURITY/YIELD, Anchor und Phylactery immer Verteidigung, Grimoire und Prism immer
-Zauber-Verstärkung.
+**Die Plätze sind Behälter, sonst nichts** — wie in WoW und Diablo. Ein gefundenes Stück gehört auf
+seinen Platz; welche Werte es trägt, hängt an **Seltenheit und Gegenstandsstufe**, nicht am Platz.
 
-> **Gezieltes Grinden statt blinden Sammelns** — jeder der zehn Plätze bekommt einen erkennbaren
-> Charakter.
-
-**Grundwerte (ESSENCE, VESSEL, WARD) auf jedem Platz** — jeder Fund verbessert also spürbar etwas,
-auch wenn die Sonderwerte nicht passen.
+> **Gestrichen am 2026-07-29: die platz-spezifische Wertezuordnung.**
+>
+> Hier stand bis dahin eine feste Zuordnung („Focus und Catalyst immer CATALYSIS, Sigil und Talisman
+> immer PURITY/YIELD …") samt der Begründung „gezieltes Grinden statt blinden Sammelns".
+>
+> **Sie war nie mit dem Auftraggeber besprochen.** Auf seine Rückfrage hin durchsucht:
+>
+> ```
+> $ mainrag search "Ausruestungsplaetze Fokus Katalysator Siegel platz-spezifische Sonderwerte" \
+>       --source claude-conversations      →  No results
+> $ mainrag search "Fokus Katalysator Siegel Reliquie Grimoire"   →  No results
+> ```
+>
+> Keine Fundstelle. Die Regel ist beim Schreiben des Plans entstanden, mit einer Begründung, die
+> plausibel klang und deshalb nie hinterfragt wurde. Zwei der zehn Plätze (Relic, Shard) bekamen nie
+> eine Zuordnung, und zwei der vier genannten Kategorien („Verteidigung", „Zauber-Verstärkung")
+> waren gar keine definierten Werte — beides fiel erst auf, als E6-1 die Tabelle bauen sollte.
+>
+> **Merksatz:** Eine Festlegung, die niemand angeordnet hat, sieht im Dokument genauso aus wie eine,
+> die entschieden wurde. Wer sie später liest, kann beides nicht unterscheiden.
 
 ### 13.3 Qualitäten
 
-| Qualität      | Werte-Plätze | Besonderheit                                                                                                |
-| ------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| Common        | 1            | —                                                                                                           |
-| Rare          | 2            | —                                                                                                           |
-| Epic          | 3            | —                                                                                                           |
-| **Legendary** | 3+           | **Echter Sondereffekt, der die Rotation verändert** (z. B. „Der Cooldown-Rücksetzer wirkt auf zwei Zauber") |
+Ein Gegenstand trägt **immer die drei Grundwerte** ESSENCE, VESSEL und WARD — jeder Fund verbessert
+also spürbar etwas. **Dazu** kommen Affixe, deren Zahl mit der Seltenheit steigt:
+
+| Qualität      | Affixe | Besonderheit                                                                                                |
+| ------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Common        | 1      | —                                                                                                           |
+| Rare          | 2      | —                                                                                                           |
+| Epic          | 3      | —                                                                                                           |
+| **Legendary** | 3+     | **Echter Sondereffekt, der die Rotation verändert** (z. B. „Der Cooldown-Rücksetzer wirkt auf zwei Zauber") |
+
+> **Präzisiert am 2026-07-29.** Die Spalte hieß „Werte-Plätze", was so gelesen werden konnte, als
+> zählten die Grundwerte mit — dann hätte ein Common-Gegenstand **einen** Wert insgesamt, und ein
+> Platz könnte keine drei Grundwerte tragen. Gemeint sind **Affixe**, wie in WoW und Diablo: Die
+> Grundwerte kommen zusätzlich, so wie ein Diablo-Gegenstand immer Rüstung trägt.
 
 **Werte-Berechnung: feste Formel, Qualität als Faktor.** Aus Gegenstandsstufe und Qualität errechnet
 sich ein Wertebudget, das auf die Werte-Plätze verteilt wird. **Kein Gegenstand wird von Hand
