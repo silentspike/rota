@@ -74,7 +74,10 @@ describe('Jede der fünf Quellen trägt ihren Anteil (AC1)', () => {
     // Die vier anderen wirken auf alle drei.
     for (const source of [SOURCE_AFFIXES, SOURCE_TALENTS, SOURCE_LEGENDARY, SOURCE_SETS]) {
       for (let stat = 0; stat < STAT_COUNT; stat++) {
-        expect(maxOf(source, stat), `${SOURCE_NAMES[source]} auf ${STAT_NAMES[stat]}`).toBeGreaterThan(0);
+        expect(
+          maxOf(source, stat),
+          `${SOURCE_NAMES[source]} auf ${STAT_NAMES[stat]}`,
+        ).toBeGreaterThan(0);
       }
     }
   });
