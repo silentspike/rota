@@ -114,7 +114,6 @@ export class Session implements Simulation {
    */
   readonly idlePerSpellMs: Float64Array;
 
-
   /** Liegt der Zauber auf mindestens einem Platz? */
   private readonly boundSpells: Uint8Array;
 

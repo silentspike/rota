@@ -571,12 +571,7 @@ export class Combat {
     if (abgefangen > 0) {
       this.shieldValue -= abgefangen;
       this.shieldAbsorbedValue += abgefangen;
-      this.log?.push(
-        this.fightElapsedMs(timeMs),
-        EVENT_SHIELD_ABSORB,
-        NO_SPELL_REF,
-        abgefangen,
-      );
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_SHIELD_ABSORB, NO_SPELL_REF, abgefangen);
       if (this.shieldValue === 0) {
         // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
         this.shieldStacksValue = 0;
@@ -586,12 +581,7 @@ export class Combat {
 
     const angekommen = nachWard - abgefangen;
     this.damageTakenValue += angekommen;
-    this.log?.push(
-      this.fightElapsedMs(timeMs),
-      EVENT_PLAYER_DAMAGE,
-      NO_SPELL_REF,
-      angekommen,
-    );
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_PLAYER_DAMAGE, NO_SPELL_REF, angekommen);
     this.playerHpValue = Math.max(0, this.playerHpValue - angekommen);
     if (this.playerHpValue === 0) {
       this.diedAtMsValue = timeMs - this.fightStartedAtMs;
@@ -834,12 +824,7 @@ export class Combat {
       const eintrag = this.boss.timeline[this.timelineIndexValue];
       if (eintrag === undefined || seitBeginn < eintrag.atMs + this.nextStrikeDelayMs) break;
       const index = this.timelineIndexValue;
-      this.log?.push(
-        this.fightElapsedMs(timeMs),
-        EVENT_BOSS_TIMELINE_FIRED,
-        NO_SPELL_REF,
-        index,
-      );
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_BOSS_TIMELINE_FIRED, NO_SPELL_REF, index);
       // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
       // Zeitpunkt an (STAY, Issue #100).
       this.nextStrikeDelayMs = 0;
