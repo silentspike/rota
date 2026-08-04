@@ -1,5 +1,5 @@
 //! Der Waechter ueber den gemeinsamen Nummernraum der Protokoll-Arten
-//! (Issue E3-6).
+//! (Issues E3-6 und #134).
 //!
 //! # Warum es ihn gibt
 //!
@@ -18,11 +18,33 @@
 //! eine verschobene Bedeutung ergaebe eine Fehleranalyse, die plausibel
 //! aussieht und falsch ist.
 //!
+//! # Der blinde Fleck, den er selbst hatte (#134)
+//!
+//! Bis Issue #134 stand hier eine **von Hand gefuehrte Abschrift** namens
+//! `MINE`. Sie verglich, was dort EINGETRAGEN war — und konnte nicht
+//! bemerken, dass etwas FEHLT. Drei Arten (`playerDamage`, `playerDeath`,
+//! `interruptLanded`) liefen seit #110 im Simulator mit, ohne je im
+//! gemeinsamen Raum zu stehen. Aufgefallen waere es erst, wenn jemand ein
+//! Simulator-Protokoll im Spiel liest: Nummer 10 haette dort nichts bedeutet.
+//! **Genau der Zustand, den E3-6 abgeschafft hat.**
+//!
+//! Die Abschrift ist ersatzlos entfallen. An ihre Stelle tritt
+//! [`LogKind::ALL`], das ein Makro in `sim/src/log.rs` aus derselben Liste
+//! erzeugt wie die Varianten selbst — vergessen kann man es damit nicht mehr.
+//!
+//! **Warum das die Abschrift ersetzen darf, ohne ihren Zweck zu verlieren:**
+//! Ihr Wert war die unabhaengige zweite Meinung. Die liefert weiterhin die
+//! Gegenseite — `log-kinds.json` entsteht aus dem Spielcode und weiss vom
+//! Simulator nichts. Eine falsche Nummer oder ein vertippter Name in `log.rs`
+//! faellt gegen diese Datei auf, nicht gegen eine Abschrift, die derselbe
+//! Mensch im selben Augenblick mitgeschrieben hat.
+//!
 //! # Was er leistet
 //!
 //! Er prueft nicht nur, DASS etwas abweicht, sondern **welche Kennnummer** —
 //! ein Waechter, der nur "ungleich" meldet, kostet den naechsten eine Stunde
-//! Suche.
+//! Suche. Und er prueft **beide Richtungen**: ob eine Art des Simulators im
+//! Raum fehlt, und ob eine Art des Raums dem Simulator fehlt.
 
 use serde_json::Value;
 
@@ -31,32 +53,16 @@ use rota_sim::log::LogKind;
 /// Der unveraenderte Inhalt der Vergleichsdatei aus dem Spiel.
 const LOG_KINDS: &str = include_str!("../../tests/parity/recordings/log-kinds.json");
 
-/// Die Arten, die **dieser** Seite gehoeren, mit ihrer Kennnummer und ihrem
-/// Namen im gemeinsamen Raum.
-const MINE: [(LogKind, u64, &str); 14] = [
-    (LogKind::Cast, 0, "cast"),
-    (LogKind::Damage, 1, "damage"),
-    (LogKind::DotTick, 2, "dotTick"),
-    (LogKind::Spend, 4, "spend"),
-    (LogKind::Kill, 5, "kill"),
-    // Ab hier Issue #96. Die 6 teilt sich der Simulator seither mit dem Spiel:
-    // Beide schreiben den Phasenwechsel, dieselbe Zahl, dieselbe Bedeutung.
-    // 8 und 9 sind neu und gehoeren vorerst allein dem Simulator.
-    (LogKind::BossPhase, 6, "phase"),
-    (LogKind::BossEnergy, 8, "bossEnergyTriggered"),
-    (LogKind::BossTimeline, 9, "bossTimelineFired"),
-    // Issue #110: Spieler-Leben und Unterbrechen.
-    (LogKind::PlayerDamage, 10, "playerDamage"),
-    (LogKind::PlayerDeath, 11, "playerDeath"),
-    (LogKind::InterruptLanded, 12, "interruptLanded"),
-    // Issue #79: die drei Wege der Koagulation.
-    (LogKind::ShieldAbsorb, 13, "shieldAbsorb"),
-    (LogKind::Healed, 14, "healed"),
-    (LogKind::ConvertedToShield, 15, "convertedToShield"),
-];
+/// Ein Eintrag des gemeinsamen Raums.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Art {
+    nummer: u64,
+    name: String,
+    vom_spiel: bool,
+}
 
-fn kinds() -> Vec<(u64, String, bool)> {
-    let value: Value = serde_json::from_str(LOG_KINDS).expect("log-kinds.json ist kein JSON");
+fn raum_aus(text: &str) -> Vec<Art> {
+    let value: Value = serde_json::from_str(text).expect("log-kinds.json ist kein JSON");
     assert_eq!(
         value["schema"].as_u64(),
         Some(1),
@@ -66,114 +72,217 @@ fn kinds() -> Vec<(u64, String, bool)> {
         .as_array()
         .expect("kinds fehlen")
         .iter()
-        .map(|entry| {
-            (
-                entry["kind"].as_u64().expect("kind fehlt"),
-                entry["name"].as_str().expect("name fehlt").to_owned(),
-                entry["writtenByGame"]
-                    .as_bool()
-                    .expect("writtenByGame fehlt"),
-            )
+        .map(|entry| Art {
+            nummer: entry["kind"].as_u64().expect("kind fehlt"),
+            name: entry["name"].as_str().expect("name fehlt").to_owned(),
+            vom_spiel: entry["writtenByGame"]
+                .as_bool()
+                .expect("writtenByGame fehlt"),
         })
         .collect()
 }
 
-/// **Jede Art dieser Seite traegt dieselbe Nummer wie im Spiel.**
-///
-/// Bei Abweichung nennt die Meldung die Kennnummer, beide Namen und die
-/// Richtung — nicht nur "ungleich".
-#[test]
-fn dieselbe_nummer_bedeutet_auf_beiden_seiten_dasselbe() {
-    let gemeinsam = kinds();
+fn raum() -> Vec<Art> {
+    raum_aus(LOG_KINDS)
+}
 
-    for (kind, nummer, name) in MINE {
-        let eintrag = gemeinsam
+/// **Richtung 1: Jede Art des Simulators steht im gemeinsamen Raum.**
+///
+/// Das ist die Richtung, die bis #134 blind war. Als `Result` statt als
+/// `assert!`, damit die Gegenprobe sie aufrufen kann, ohne den Prueflauf
+/// abzubrechen — ein Waechter, dessen Wirkung man nicht zeigen kann, ist eine
+/// Behauptung.
+fn jede_art_des_simulators_im_raum(raum: &[Art]) -> Result<(), String> {
+    for kind in LogKind::ALL {
+        let nummer = u64::from(kind.number());
+        match raum.iter().find(|art| art.nummer == nummer) {
+            None => {
+                return Err(format!(
+                    "Kennnummer {nummer} ({}) fehlt im gemeinsamen Raum. Der Simulator \
+                     schreibt sie, das Spiel kennt sie nicht — wer ein Simulator-Protokoll \
+                     im Spiel liest, saehe dort eine Zahl ohne Bedeutung. Entweder \
+                     log-kinds.json neu schreiben (npx vite-node \
+                     tests/parity/export-parity.mjs) oder die Art in sim/src/log.rs \
+                     entfernen.",
+                    kind.name()
+                ));
+            }
+            Some(art) if art.name != kind.name() => {
+                return Err(format!(
+                    "Kennnummer {nummer}: Der Simulator nennt sie \"{}\", das Spiel \"{}\". \
+                     Dieselbe Zahl bedeutet auf beiden Seiten etwas anderes — genau der \
+                     Fehler, den Issue E3-6 behoben hat.",
+                    kind.name(),
+                    art.name
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(())
+}
+
+/// **Richtung 2: Jede Art, die dem Simulator gehoert, kennt er auch.**
+///
+/// Eine Art, die das Spiel NICHT schreibt, muss der Simulator schreiben —
+/// sonst schriebe sie niemand, und sie waere eine tote Nummer. Arten, die das
+/// Spiel schreibt, darf der Simulator dagegen fehlen: `crit` und `buffExpire`
+/// gehoeren ihm nicht.
+fn jede_art_des_raums_dem_simulator_bekannt(raum: &[Art]) -> Result<(), String> {
+    for art in raum.iter().filter(|art| !art.vom_spiel) {
+        if !LogKind::ALL
             .iter()
-            .find(|(nr, _, _)| *nr == nummer)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Kennnummer {nummer} ({name}) fehlt im gemeinsamen Raum. \
-                     Der Simulator schreibt sie, das Spiel kennt sie nicht — \
-                     entweder log-kinds.json neu schreiben oder die Art hier entfernen."
-                )
-            });
-        assert_eq!(
-            eintrag.1, name,
-            "Kennnummer {nummer}: Der Simulator nennt sie \"{name}\", das Spiel \"{}\". \
-             Dieselbe Zahl bedeutet auf beiden Seiten etwas anderes — genau der Fehler, \
-             den Issue E3-6 behoben hat.",
-            eintrag.1
-        );
-        assert_eq!(
-            kind as u8,
-            u8::try_from(nummer).expect("Kennnummer passt nicht in ein Byte"),
-            "LogKind::{kind:?} steht auf {}, im gemeinsamen Raum aber auf {nummer}",
-            kind as u8
-        );
+            .any(|kind| u64::from(kind.number()) == art.nummer)
+        {
+            return Err(format!(
+                "Kennnummer {} ({}) ist im gemeinsamen Raum als Sache des Simulators \
+                 eingetragen — das Spiel schreibt sie nicht —, aber sim/src/log.rs kennt \
+                 sie nicht. Damit schriebe sie niemand.",
+                art.nummer, art.name
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// AC1 am echten Stand.
+#[test]
+fn jede_art_des_simulators_steht_im_gemeinsamen_raum() {
+    if let Err(meldung) = jede_art_des_simulators_im_raum(&raum()) {
+        panic!("{meldung}");
     }
 }
 
-/// Keine Nummer im gemeinsamen Raum gehoert niemandem.
+/// AC2 am echten Stand.
+#[test]
+fn jede_art_des_raums_ist_dem_simulator_bekannt() {
+    if let Err(meldung) = jede_art_des_raums_dem_simulator_bekannt(&raum()) {
+        panic!("{meldung}");
+    }
+}
+
+/// **Gegenprobe zu AC1** — der Nachweis, dass die Pruefung ueberhaupt greift.
+///
+/// Ohne sie waere der Prueffall darueber nur gruen, und gruen war die alte
+/// Fassung auch: Sie hat drei fehlende Arten wochenlang nicht gemeldet.
+#[test]
+fn eine_fehlende_art_des_simulators_wird_gemeldet() {
+    let letzte = LogKind::ALL.last().expect("keine Arten");
+    let ohne: Vec<Art> = raum()
+        .into_iter()
+        .filter(|art| art.nummer != u64::from(letzte.number()))
+        .collect();
+
+    let meldung = jede_art_des_simulators_im_raum(&ohne)
+        .expect_err("die fehlende Art ist NICHT aufgefallen — der Waechter ist blind");
+
+    // Und sie muss sagen, WELCHE — nicht nur, dass etwas fehlt.
+    assert!(
+        meldung.contains(letzte.name()),
+        "die Meldung nennt den Namen nicht: {meldung}"
+    );
+    assert!(
+        meldung.contains(&letzte.number().to_string()),
+        "die Meldung nennt die Nummer nicht: {meldung}"
+    );
+}
+
+/// **Gegenprobe zu AC1, zweiter Fall:** dieselbe Nummer, anderer Name.
+#[test]
+fn ein_abweichender_name_wird_gemeldet() {
+    let erste = LogKind::ALL.first().expect("keine Arten");
+    let verdreht: Vec<Art> = raum()
+        .into_iter()
+        .map(|mut art| {
+            if art.nummer == u64::from(erste.number()) {
+                art.name = "etwasAnderes".to_owned();
+            }
+            art
+        })
+        .collect();
+
+    let meldung = jede_art_des_simulators_im_raum(&verdreht)
+        .expect_err("der abweichende Name ist NICHT aufgefallen");
+    assert!(meldung.contains("etwasAnderes"), "{meldung}");
+    assert!(meldung.contains(erste.name()), "{meldung}");
+}
+
+/// **Gegenprobe zu AC2.**
+#[test]
+fn eine_dem_simulator_unbekannte_art_wird_gemeldet() {
+    // Eine Art, die das Spiel nicht schreibt und der Simulator nicht kennt —
+    // genau der Zustand aus #110, nur andersherum.
+    let mut erfunden = raum();
+    erfunden.push(Art {
+        nummer: 99,
+        name: "erfundeneArt".to_owned(),
+        vom_spiel: false,
+    });
+
+    let meldung = jede_art_des_raums_dem_simulator_bekannt(&erfunden)
+        .expect_err("die unbekannte Art ist NICHT aufgefallen");
+    assert!(meldung.contains("erfundeneArt"), "{meldung}");
+    assert!(meldung.contains("99"), "{meldung}");
+}
+
+/// Keine Nummer im gemeinsamen Raum gehoert niemandem (AC3, unveraendert).
 ///
 /// **Der erste Anlauf dieses Tests war falsch** und hat es sofort gemeldet:
 /// Ich hatte die beiden Teilmengen als disjunkt angenommen. Sie sind es nicht
 /// — 0, 1 und 2 schreiben BEIDE Seiten, und genau das ist der Sinn eines
-/// gemeinsamen Raums. Die Ueberschneidung ist die Regel, nicht der Fehler;
-/// falsch waere nur eine Nummer, die dieselbe Zahl verschieden benennt (siehe
-/// oben) oder die niemand schreibt.
+/// gemeinsamen Raums.
 #[test]
 fn jede_nummer_gehoert_mindestens_einer_seite() {
-    let gemeinsam = kinds();
-    let meine: Vec<u64> = MINE.iter().map(|(_, nr, _)| *nr).collect();
-
-    for (nummer, name, vom_spiel) in &gemeinsam {
+    for art in &raum() {
+        let vom_simulator = LogKind::ALL
+            .iter()
+            .any(|kind| u64::from(kind.number()) == art.nummer);
         assert!(
-            *vom_spiel || meine.contains(nummer),
-            "Kennnummer {nummer} ({name}) schreibt niemand — eine tote Nummer im \
-             gemeinsamen Raum. Entweder gehoert sie einer Seite oder sie gehoert entfernt."
+            art.vom_spiel || vom_simulator,
+            "Kennnummer {} ({}) schreibt niemand — eine tote Nummer im gemeinsamen Raum.",
+            art.nummer,
+            art.name
         );
     }
 }
 
-/// Der Simulator fuehrt genau die fuenf Arten, die ihm zustehen.
-///
-/// Eine Stolperdrahte: Wer eine Variante hinzufuegt oder umnummeriert, ohne
-/// den gemeinsamen Raum anzupassen, faellt hier auf.
-#[test]
-fn der_simulator_fuehrt_genau_seine_vierzehn_arten() {
-    let gemeinsam = kinds();
-    assert_eq!(MINE.len(), 14, "der Simulator hat eine Art dazubekommen");
-
-    // Was nur das Spiel schreibt, darf hier keine Variante haben.
-    let nur_spiel: Vec<u64> = gemeinsam
-        .iter()
-        .filter(|(nr, _, vom_spiel)| *vom_spiel && !MINE.iter().any(|(_, m, _)| m == nr))
-        .map(|(nr, _, _)| *nr)
-        .collect();
-    assert_eq!(
-        nur_spiel,
-        vec![3, 7],
-        "andere Aufteilung als vereinbart — Krit und Verstaerkung laeuft ab \
-         gehoeren dem Spiel; den Phasenwechsel (6) schreiben seit #96 beide"
-    );
-
-    let meine: Vec<u64> = MINE.iter().map(|(_, nr, _)| *nr).collect();
-    assert_eq!(
-        meine,
-        vec![0, 1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15],
-        "der Simulator belegt andere Nummern als vereinbart"
-    );
-}
-
-/// Der Raum ist luecken- und dublettenfrei.
+/// Der Raum ist luecken- und dublettenfrei (AC3, unveraendert).
 #[test]
 fn der_gemeinsame_raum_ist_vollstaendig() {
-    let gemeinsam = kinds();
-    for (index, (nummer, _, _)) in gemeinsam.iter().enumerate() {
+    let gemeinsam = raum();
+    for (index, art) in gemeinsam.iter().enumerate() {
         assert_eq!(
-            *nummer, index as u64,
+            art.nummer, index as u64,
             "der gemeinsame Raum hat bei {index} eine Luecke oder eine Dublette"
         );
     }
-    assert_eq!(gemeinsam.len(), 16, "der Raum hat seine Groesse geaendert");
+    assert!(
+        !gemeinsam.is_empty(),
+        "ein leerer Raum bestuende jede Pruefung"
+    );
+}
+
+/// Die Aufzaehlung des Simulators ist in sich stimmig.
+///
+/// **Keine Zaehlung.** `LogKind::ALL` entsteht im Makro aus derselben Liste
+/// wie die Varianten; eine feste Zahl waere genau die Pruefung, die beim
+/// naechsten Zuwachs wieder blind ist — jemand setzt sie hoch, ohne
+/// nachzusehen. Geprueft wird stattdessen, dass keine Nummer und kein Name
+/// doppelt vergeben ist.
+#[test]
+fn der_simulator_vergibt_keine_nummer_und_keinen_namen_zweimal() {
+    let mut nummern: Vec<u8> = LogKind::ALL.iter().map(|k| k.number()).collect();
+    let vorher = nummern.len();
+    nummern.sort_unstable();
+    nummern.dedup();
+    assert_eq!(
+        nummern.len(),
+        vorher,
+        "eine Kennnummer ist doppelt vergeben"
+    );
+
+    let mut namen: Vec<&str> = LogKind::ALL.iter().map(|k| k.name()).collect();
+    namen.sort_unstable();
+    namen.dedup();
+    assert_eq!(namen.len(), vorher, "ein Name ist doppelt vergeben");
 }
