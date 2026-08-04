@@ -23,6 +23,7 @@ import {
   EVENT_DOT_TICK,
   EVENT_HEALED,
   EVENT_INTERRUPT_LANDED,
+  EVENT_PHASE,
   EVENT_PLAYER_DAMAGE,
   EVENT_SHIELD_ABSORB,
   NO_SPELL_REF,
@@ -853,7 +854,13 @@ export class Combat {
         const schwelle = this.boss.phases[i];
         if (schwelle !== undefined && prozent <= schwelle.atHpPercent) neue = i + 1;
       }
-      if (neue > this.bossPhaseValue) this.bossPhaseValue = neue;
+      if (neue > this.bossPhaseValue) {
+        this.bossPhaseValue = neue;
+        // **Nummer 6 gehört seit #96 BEIDEN Seiten** — der Simulator schrieb
+        // sie, das Spiel nicht. Gefunden, weil der Prüffall die Zahl je Art
+        // vergleicht: Simulator 1, Spiel 0.
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_PHASE, NO_SPELL_REF, neue);
+      }
     }
   }
 
