@@ -28,23 +28,28 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
     expect(CALCINATION.problems).toEqual([]);
     expect(FIRST_CRUCIBLE.problems).toEqual([]);
     const combat = makeCombat();
-    // Drei Kampfzauber, dazu seit #110 der Unterbrecher QUENCH.
-    expect(combat.spells.map((s) => s.id)).toEqual([
+    // **Die ersten vier Plätze sind der Vertrag mit jeder Aufzeichnung.**
+    // Sie stehen in jeder aufgezeichneten Runde, und sie umzustellen deutete
+    // alle still um (GAME-DESIGN 18.3). Deshalb werden genau sie namentlich
+    // geprüft — der Rest nicht.
+    //
+    // Hier stand vorher die vollständige Liste. Sie war eine Abschrift: Issue
+    // #97 hängte zwei Zauber hinten an, und der Fall wurde rot, obwohl genau
+    // das richtig war. Neue Zauber gehören ans Ende, und dass sie dort landen,
+    // sagen die beiden Prüfungen darunter — ohne dass jemand eine Liste
+    // nachträgt.
+    expect(combat.spells.slice(0, 4).map((s) => s.id)).toEqual([
       'kindle',
       'smoulder',
       'pyre',
       'quench',
-      // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
-      // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
-      'crust',
-      'salve',
-      'temper',
-      // Die vier der Fixierung (Issue #100), ebenfalls hinten.
-      'bind',
-      'stall',
-      'stay',
-      'anchor',
     ]);
+    // Kein Zauber kommt doppelt vor — sonst zeigte ein Platz auf den falschen.
+    const ids = combat.spells.map((s) => s.id);
+    expect(new Set(ids).size, `doppelte Kennung in ${ids.join(', ')}`).toBe(ids.length);
+    // Und die Leiste ist nicht leer geworden.
+    expect(ids.length).toBeGreaterThanOrEqual(4);
+
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
     expect(combat.school.resource.cap).toBe(20);
