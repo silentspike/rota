@@ -1,0 +1,136 @@
+/**
+ * Bestlauf-Vergleich und Verlauf (Issue #82).
+ *
+ * Die Kurve des aktuellen Laufs steht vorn, der Bestlauf tritt zurück — sonst
+ * sucht der Spieler erst, welche Linie seine ist. Der Schnitt am
+ * Fassungswechsel ist gestrichelt und trotzdem deutlich: Er ist keine
+ * Verzierung, sondern die Auskunft, dass zwei Abschnitte nicht vergleichbar
+ * sind.
+ */
+
+.compare,
+.curves,
+.history {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+  margin-bottom: 30px;
+}
+
+.compare-heading,
+.curves-heading,
+.history-heading {
+  font-family: 'Cinzel', system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  font-size: 15px;
+  color: #9a9384;
+  margin: 0 0 8px;
+}
+
+/* --- Kennzahlen mit Differenz -------------------------------------------- */
+
+.compare-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 5px 14px 5px 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-table th {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #7d7768;
+  border-bottom: 1px solid #33323a;
+  font-weight: 400;
+}
+
+.compare-label {
+  text-align: left;
+  color: #a09a8b;
+}
+
+.compare-delta {
+  color: #86806f;
+}
+
+/* Besser und schlechter unterscheiden sich in der Farbe UND im Vorzeichen —
+   Farbe allein trüge die Aussage nicht für jeden. */
+tr[data-improved='true'] .compare-delta {
+  color: #7fd39a;
+}
+
+tr[data-improved='false'] .compare-delta {
+  color: #d98b7f;
+}
+
+tr[data-improved='unknown'] .compare-delta {
+  color: #56514a;
+}
+
+.compare-empty,
+.history-empty {
+  color: #7d7768;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* --- Die beiden Kurven ---------------------------------------------------- */
+
+.curve-plot,
+.history-plot {
+  width: 100%;
+  height: 180px;
+  display: block;
+  background: #101016;
+  border: 1px solid #23222a;
+}
+
+.history-plot {
+  height: 160px;
+}
+
+.curve {
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Der Bestlauf tritt zurück: Der Spieler soll seine eigene Kurve zuerst
+   finden, nicht erst zuordnen müssen. */
+.curve-best {
+  stroke: #5e5a52;
+  stroke-dasharray: 4 4;
+}
+
+.curve-current {
+  stroke: #d8a24a;
+}
+
+.curve-legend,
+.history-legend {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #7d7768;
+}
+
+/* --- Der Verlauf ---------------------------------------------------------- */
+
+.history-line {
+  stroke: #d8a24a;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Der Schnitt am Fassungswechsel. Gestrichelt, aber hell genug, um ihn nicht
+   zu übersehen — er sagt, dass links und rechts nicht vergleichbar sind. */
+.history-cut {
+  stroke: #6b6459;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
