@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => ({
               analysisCheck: 'docs/analysis-check/index.html',
               historyCheck: 'docs/history-check/index.html',
               persistenceCheck: 'docs/persistence-check/index.html',
+              statsCheck: 'docs/stats-check/index.html',
             },
           },
         }),
