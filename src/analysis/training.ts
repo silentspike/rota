@@ -1,0 +1,196 @@
+/**
+ * Der Trainingsraum (GAME-DESIGN 15.5, Issue #84).
+ *
+ * WARUM DIE LAUFENDE ANZEIGE DER KERN IST, NICHT DIE PUPPE
+ * -------------------------------------------------------
+ * Ohne sie ist der Trainingsraum ein Boss ohne Zeitlimit. Mit ihr sieht der
+ * Spieler im selben Moment, in dem er einen Fehler macht, dass er ihn gemacht
+ * hat — und das ist der einzige Ort im Spiel, an dem eine solche Rueckmeldung
+ * erlaubt ist. Im Kampf waere sie eine Hilfe, die dem Spieler die Aufgabe
+ * abnimmt (GAME-DESIGN 21.2).
+ *
+ * DIE PUPPE IST EIN BOSS, KEIN SONDERFALL
+ * ---------------------------------------
+ * Sie entsteht als `BossDef` zur Laufzeit. `Combat` bleibt unangetastet: Was
+ * die Puppe von einem Boss unterscheidet, sind Werte, keine Regeln — und ein
+ * zweiter Kampf-Pfad neben dem echten wuerde auseinanderlaufen, sobald einer
+ * gepflegt wird.
+ *
+ * Die drei Kennzahlen kommen aus EINER Stelle (`RunSummary`, spaeter der
+ * Verlustrechnung). Sie hier neu zu rechnen waere eine zweite Wahrheit ueber
+ * dieselbe Zahl — und die zweite wird beim Nachziehen vergessen.
+ */
+import type { BossDef } from '../core/data.js';
+
+/** Was der Spieler an der Puppe einstellen kann (GAME-DESIGN 15.5). */
+export interface DummySettings {
+  /**
+   * Widerstand gegen die eigene Schule, 0 bis 1. 1 heisst kein Widerstand.
+   *
+   * Landet unveraendert in `boss.resistances` und damit im
+   * Widerstandsfaktor der Schadensformel (src/core/damage.ts).
+   */
+  readonly resistance: number;
+  /** Ob die Puppe zurueckschlaegt — zum Ueben unter Druck. */
+  readonly dealsDamage: boolean;
+  /** Ob sie Zauber wirkt — zum Ueben des Unterbrechens. */
+  readonly castsSpells: boolean;
+}
+
+export const DEFAULT_DUMMY: DummySettings = {
+  resistance: 1,
+  dealsDamage: false,
+  castsSpells: false,
+};
+
+/**
+ * Unbegrenztes Leben.
+ *
+ * Nicht `Infinity`: Der Wert geht in Pruefsumme und Anzeige ein, und beides
+ * verkraeftet keine Unendlichkeit. Eine Zahl, die in keinem Uebungsdurchgang
+ * erreicht wird, tut dasselbe, ohne irgendwo zu brechen.
+ */
+export const DUMMY_HP = 1_000_000_000;
+
+/** Kein Zeitlimit — derselbe Gedanke wie bei DUMMY_HP. */
+export const DUMMY_OVERPRESSURE_MS = 86_400_000;
+
+/**
+ * Die Puppe als Boss-Definition.
+ *
+ * `school` bestimmt, gegen welche Schule der Widerstand wirkt: Der Faktor wird
+ * in `Combat` als `boss.resistances[school]` gelesen, nicht pauschal.
+ */
+export function buildDummy(settings: DummySettings, school: string): BossDef {
+  return {
+    schema: 1,
+    id: 'training-dummy',
+    name: 'Training dummy',
+    instance: 'training',
+    hp: DUMMY_HP,
+    overpressureMs: DUMMY_OVERPRESSURE_MS,
+    resistances: { [school]: settings.resistance },
+    phases: [],
+    energy: null,
+    // Ohne Zauber keine Zeitleiste. Mit Zauber ein einziger, der sich
+    // wiederholt — mehr braucht das Ueben des Unterbrechens nicht, und
+    // mehr waere eine Boss-Nachbildung, die niemand verlangt hat.
+    timeline: settings.castsSpells ? DUMMY_TIMELINE : [],
+  };
+}
+
+/**
+ * Ein wiederkehrender unterbrechbarer Zauber.
+ *
+ * Zwoelf Sekunden Abstand, damit der Spieler zwischen zwei Gelegenheiten
+ * seine Rotation laufen lassen kann — sonst uebt er nur das Unterbrechen und
+ * nichts sonst.
+ */
+const DUMMY_TIMELINE = [
+  { atMs: 12_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
+  { atMs: 24_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
+  { atMs: 36_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
+  { atMs: 48_000, kind: 'cast', ability: 'dummy-cast', castMs: 2500 },
+] as unknown as BossDef['timeline'];
+
+/** Der Zustand eines Uebungsdurchgangs. */
+export type TrainingPhase = 'idle' | 'running';
+
+/** Die drei Kennzahlen, wie sie waehrend des Uebens angezeigt werden. */
+export interface LiveMetrics {
+  /** Verlorene Zeit in ms und ihr Anteil, 0 bis 1. */
+  readonly lostTimeMs: number;
+  readonly lostTimeShare: number;
+  /** Verpasste Wirkungen — BEZOGEN, nicht hier gerechnet. */
+  readonly missedCasts: number;
+  /** Genutzte von moeglichen Synergien. */
+  readonly synergyUsed: number;
+  readonly synergyAvailable: number;
+}
+
+export interface ChangeResult {
+  readonly accepted: boolean;
+  /** Englisch — steht im Spiel. Leer, wenn angenommen. */
+  readonly reason: string;
+}
+
+/**
+ * Der Trainingsraum als Zustand.
+ *
+ * Er haelt NICHT die Kennzahlen — die kommen bei jedem Bild aus der laufenden
+ * Sitzung. Er haelt nur, was der Spieler eingestellt hat und ob gerade geuebt
+ * wird.
+ */
+export class TrainingRoom {
+  private phaseValue: TrainingPhase = 'idle';
+  private settingsValue: DummySettings = DEFAULT_DUMMY;
+  private loadoutValue: readonly string[] = [];
+
+  get phase(): TrainingPhase {
+    return this.phaseValue;
+  }
+
+  get settings(): DummySettings {
+    return this.settingsValue;
+  }
+
+  get loadout(): readonly string[] {
+    return this.loadoutValue;
+  }
+
+  get isRunning(): boolean {
+    return this.phaseValue === 'running';
+  }
+
+  /**
+   * Die Zusammenstellung wechseln — nur zwischen Durchgaengen.
+   *
+   * Mitten im Ueben abgelehnt (GAME-DESIGN 15.5): Sonst waeren die Kennzahlen
+   * des laufenden Durchgangs eine Mischung aus zwei Zusammenstellungen und
+   * saegen richtig aus, ohne es zu sein.
+   */
+  setLoadout(spellIds: readonly string[]): ChangeResult {
+    if (this.isRunning) {
+      return {
+        accepted: false,
+        reason: 'Loadout can only be changed between runs.',
+      };
+    }
+    this.loadoutValue = [...spellIds];
+    return { accepted: true, reason: '' };
+  }
+
+  /**
+   * Die Puppe einstellen — ebenfalls nur zwischen Durchgaengen.
+   *
+   * Aus demselben Grund: Ein mitten im Durchgang eingeschalteter Widerstand
+   * machte den Schadenswert der ersten Haelfte unvergleichbar mit dem der
+   * zweiten.
+   */
+  setSettings(settings: DummySettings): ChangeResult {
+    if (this.isRunning) {
+      return {
+        accepted: false,
+        reason: 'Dummy settings can only be changed between runs.',
+      };
+    }
+    this.settingsValue = { ...settings };
+    return { accepted: true, reason: '' };
+  }
+
+  start(): ChangeResult {
+    if (this.isRunning) return { accepted: false, reason: 'Already running.' };
+    this.phaseValue = 'running';
+    return { accepted: true, reason: '' };
+  }
+
+  /** Jederzeit abbrechbar (GAME-DESIGN 15.5) — ohne Bedingung. */
+  stop(): void {
+    this.phaseValue = 'idle';
+  }
+
+  /** Die Puppe fuer den naechsten Durchgang. */
+  dummyFor(school: string): BossDef {
+    return buildDummy(this.settingsValue, school);
+  }
+}
