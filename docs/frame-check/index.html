@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ROTA — Rahmen-Prüfblatt (Issue #22)</title>
+    <style>
+      :root {
+        --calcination: #ff6a2a;
+        --fixation: #cfe4ff;
+        --sublimation: #f2c24a;
+        --coagulation: #46d9b4;
+        --putrefaction: #a06bd8;
+        /* Farben aus src/render/hud.ts und src/render/spellbar.ts */
+        --bg: #0b0b0f;
+        --slot-fill: #15151c;
+        --slot-edge: #2e2e3a;
+        --ink: #d5d5de;
+        --ink-dim: #61616e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.6 system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+      }
+      .sub {
+        color: #8b8579;
+        margin-bottom: 22px;
+      }
+      h2 {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #6e6a63;
+        margin: 34px 0 10px;
+        font-weight: 600;
+      }
+      .why {
+        border-left: 2px solid #3a3a42;
+        padding-left: 14px;
+        color: #a9a49a;
+        max-width: 100ch;
+      }
+      .note {
+        color: #8b8579;
+        font-size: 13px;
+        margin: 0 0 14px;
+        max-width: 100ch;
+      }
+
+      /* --- Zauberleiste, Maße aus src/render/spellbar.ts ------------------ */
+      .bar {
+        display: grid;
+        grid-template-columns: repeat(4, 104px);
+        gap: 12px;
+      }
+      .slot {
+        position: relative;
+        width: 104px;
+        height: 104px;
+        background: var(--slot-fill);
+      }
+      /* Das Gerüst, wie E1 es zeichnet: 1 px Kante um den Slot. */
+      .bar.geruest .slot {
+        outline: 1px solid var(--slot-edge);
+        outline-offset: -1px;
+      }
+      .slot .glyph {
+        position: absolute;
+        inset: 16px;
+        background-color: var(--tint, #ddd);
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+      }
+      /* Der erzeugte Rahmen liegt exakt auf dem Slot — keine Verschiebung,
+         keine Skalierung über die Slotgröße hinaus. Genau hier zeigt sich,
+         ob eine Kante doppelt läuft (AC2). */
+      .rahmen .slot::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: url('frames/slot-frame.png') center / 100% 100% no-repeat;
+        pointer-events: none;
+      }
+
+      /* --- Instrumententafel, Maße aus src/render/hud.ts ------------------ */
+      .panel {
+        position: relative;
+        width: 650px;
+        height: 433px;
+        background: #101017;
+        padding: 34px 40px;
+      }
+      .panel.geruest {
+        outline: 1px solid var(--slot-edge);
+        outline-offset: -1px;
+      }
+      /* Die Tafel benutzt DENSELBEN Rahmen wie der Slot, als 9-Slice gezogen:
+         Die vier Ecken bleiben unveraendert, die Kanten werden nur laengs
+         gestreckt, nie quer. Dadurch ist die Bandstaerke hier exakt so gross
+         wie am Slot - und der Stil kann gar nicht driften, weil es dasselbe
+         Bild ist. */
+      .panel.rahmen {
+        border: 10px solid transparent;
+        border-image: url('frames/slot-frame.png') 19 fill / 10px / 0 stretch;
+      }
+      .meter {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        border-bottom: 1px solid #1e1e28;
+        padding: 5px 0;
+        font-family: ui-monospace, monospace;
+      }
+      .meter .k {
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        color: var(--ink-dim);
+      }
+      .meter .v {
+        font-size: 19px;
+        color: var(--ink);
+      }
+
+      /* --- Reaktionsgefäß, Maße aus src/render/vessel.ts ------------------
+         VESSEL_RADIUS 186, VESSEL_THICKNESS 34 -> Außenkante 203 vom Mittelpunkt */
+      .vessel {
+        position: relative;
+        width: 406px;
+        height: 406px;
+      }
+      .vessel svg {
+        position: absolute;
+        inset: 0;
+      }
+      /* Die Fassung liegt AUSSEN und INNEN um den Kanal, in dem der
+         Fuellstand laeuft - sie darf ihn nicht ueberdecken. Das Bild ist
+         deshalb groesser als der Ring: die beiden Reifen sitzen bei Radius
+         364-396 und 480-512 von 512. */
+      .vessel.rahmen::after {
+        content: '';
+        position: absolute;
+        inset: -14.5px;
+        background: url('frames/ring-mount.png') center / 100% 100% no-repeat;
+        pointer-events: none;
+      }
+
+      .row {
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .col h3 {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        color: #6e6a63;
+        margin: 0 0 10px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Rahmen-Prüfblatt</h1>
+    <div class="sub">
+      Issue #22 · Epic E9 · die drei Elemente aus <code>assets/img/frames/</code>
+    </div>
+
+    <div class="why">
+      Die Rahmen werden über das fertige Gerüst gelegt (GAME-DESIGN 17.2: erst Gerüst, dann
+      Texturen). Deshalb steht hier jedes Element zweimal nebeneinander:
+      <strong>links das nackte Gerüst</strong>, wie E1 es zeichnet,
+      <strong>rechts mit aufgelegtem Rahmen</strong>. Alle Maße stammen aus dem laufenden Code —
+      Slot 104 px aus <code>spellbar.ts</code>, Ring 186/34 aus <code>vessel.ts</code>, Tafel 650 px
+      aus <code>hud.ts</code>. <br /><br />
+      <strong>Worauf zu achten ist (AC2):</strong> Läuft am Übergang eine Kante doppelt? Steht das
+      Gerüst irgendwo unter dem Rahmen hervor? Sitzt der Rahmen versetzt?
+    </div>
+
+    <h2>Zauber-Symbole · Slot 104 px</h2>
+    <p class="note">Vier Symbole in den Schulfarben, links ohne, rechts mit Rahmen.</p>
+    <div class="row">
+      <div class="col">
+        <h3>Gerüst</h3>
+        <div class="bar geruest" id="bar-a"></div>
+      </div>
+      <div class="col">
+        <h3>mit Rahmen</h3>
+        <div class="bar rahmen" id="bar-b"></div>
+      </div>
+    </div>
+
+    <h2>Instrumente rechts · 650 × 433</h2>
+    <div class="row">
+      <div class="col">
+        <h3>Gerüst</h3>
+        <div class="panel geruest"><div class="meters" id="m-a"></div></div>
+      </div>
+      <div class="col">
+        <h3>mit Rahmen</h3>
+        <div class="panel rahmen"><div class="meters" id="m-b"></div></div>
+      </div>
+    </div>
+
+    <h2>Reaktionsgefäß · Radius 186, Dicke 34</h2>
+    <p class="note">
+      Der Ring ist Lebensbalken und Boss zugleich. Links das Gerüst aus <code>vessel.ts</code>,
+      rechts mit aufgelegter Bandtextur.
+    </p>
+    <div class="row">
+      <div class="col">
+        <h3>Gerüst</h3>
+        <div class="vessel geruest" id="v-a"></div>
+      </div>
+      <div class="col">
+        <h3>mit Rahmen</h3>
+        <div class="vessel rahmen" id="v-b"></div>
+      </div>
+    </div>
+
+    <script src="icons.js"></script>
+    <script>
+      const SCHOOLS = [
+        'var(--calcination)',
+        'var(--fixation)',
+        'var(--sublimation)',
+        'var(--coagulation)',
+      ];
+      const ICONS = window.__ICONS ?? [];
+
+      function bar(target) {
+        for (let i = 0; i < 4; i++) {
+          const s = document.createElement('div');
+          s.className = 'slot';
+          s.style.setProperty('--tint', SCHOOLS[i]);
+          const g = document.createElement('div');
+          g.className = 'glyph';
+          const src = ICONS[i * 5] ?? ICONS[i];
+          if (src) {
+            g.style.webkitMaskImage = `url('${src}')`;
+            g.style.maskImage = `url('${src}')`;
+          }
+          g.style.backgroundColor = SCHOOLS[i];
+          s.appendChild(g);
+          target.appendChild(s);
+        }
+      }
+      bar(document.getElementById('bar-a'));
+      bar(document.getElementById('bar-b'));
+
+      // Nur die sechs echten Werte (GAME-DESIGN 6.1 / 6.2).
+      const VALUES = [
+        ['ESSENCE', '1 482'],
+        ['VESSEL', '38 400'],
+        ['WARD', '2 095'],
+        ['CATALYSIS', '17.4 %'],
+        ['PURITY', '31.2 %'],
+        ['YIELD', '212 %'],
+      ];
+      for (const id of ['m-a', 'm-b']) {
+        const box = document.getElementById(id);
+        for (const [k, v] of VALUES) {
+          const row = document.createElement('div');
+          row.className = 'meter';
+          const a = document.createElement('span');
+          a.className = 'k';
+          a.textContent = k;
+          const b = document.createElement('span');
+          b.className = 'v';
+          b.textContent = v;
+          row.append(a, b);
+          box.appendChild(row);
+        }
+      }
+
+      // Der Ring, wie vessel.ts ihn zeichnet: Radius 186, Dicke 34.
+      function ring(target) {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('viewBox', '0 0 406 406');
+        const track = document.createElementNS(ns, 'circle');
+        track.setAttribute('cx', '203');
+        track.setAttribute('cy', '203');
+        track.setAttribute('r', '186');
+        track.setAttribute('fill', 'none');
+        track.setAttribute('stroke', '#1b1b24');
+        track.setAttribute('stroke-width', '34');
+        svg.appendChild(track);
+        const fill = document.createElementNS(ns, 'circle');
+        const C = 2 * Math.PI * 186;
+        fill.setAttribute('cx', '203');
+        fill.setAttribute('cy', '203');
+        fill.setAttribute('r', '186');
+        fill.setAttribute('fill', 'none');
+        fill.setAttribute('stroke', '#a8442f');
+        fill.setAttribute('stroke-width', '34');
+        fill.setAttribute('stroke-dasharray', `${C * 0.68} ${C}`);
+        fill.setAttribute('transform', 'rotate(-90 203 203)');
+        svg.appendChild(fill);
+        target.appendChild(svg);
+      }
+      ring(document.getElementById('v-a'));
+      ring(document.getElementById('v-b'));
+    </script>
+  </body>
+</html>

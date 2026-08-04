@@ -196,8 +196,28 @@ Erlaubt und erwünscht ist stattdessen die ehrliche Einschätzung:
 
 ## 6. Melde-Format
 
-Das kopierst du am Ende jedes Issues in den Chat. Der Auftraggeber gibt es an die Master-Session
-weiter.
+Das schickst du am Ende jedes Issues an den Orchestrator:
+
+```bash
+rota-ipc senden Orchestrator - <<'ENDE'
+<deine Meldung>
+ENDE
+```
+
+**Nicht mehr in den Chat kopieren.** Der Auftraggeber war früher der Transportweg; seit dem
+2026-07-28 schreiben die Sitzungen einander direkt. Einzelheiten in [`IPC.md`](IPC.md).
+
+**Jede Nachricht, die du bekommst, bestätigst du sofort** — mit dem verstandenen Vorhaben in
+einem Satz, nicht nur „erhalten":
+
+```bash
+rota-ipc antworten <Nummer> "Beginne mit Issue #58, erwarte etwa zwei Stunden."
+```
+
+So zeigt sich ein Missverständnis sofort statt Stunden später. Dein Ergebnis kommt danach als
+**neue** Nachricht.
+
+Klemmt der Versand: **melde das, weiche nicht aus.** Keine GitHub-Kommentare, kein anderer Weg.
 
 ```markdown
 ## Issue #<nummer> — <Titel> [FERTIG | OFFEN MIT BLOCKER]

@@ -55,11 +55,30 @@ jobs:
 
           {
             echo "code=$(nondoc)"
-            echo "sim=$(match '^sim/')"
-            # tools/ und tests/parity/ gehoeren dazu: tools/step1-check.py IST die
-            # Referenz, gegen die der parity-Job prueft. Ohne sie im Filter geht
-            # eine geaenderte Referenz ungeprueft durch (aufgetreten bei PR #41).
-            echo "rules=$(match '^(data/|src/core/|sim/|tools/|tests/parity/)')"
+            # data/ MUSS dabei sein: sim/build.rs kompiliert die Zauber- und
+            # Boss-Daten zur Bauzeit ein. Ohne data/ im Filter aendert jemand
+            # einen Zauberwert, die Rust-Tests laufen NICHT, der Simulator ist
+            # still falsch — und ci-pass meldet gruen. Cargo.toml/Cargo.lock
+            # liegen seit PR #64 im Wurzelverzeichnis (Workspace), damit der
+            # Remote-Bau data/ ueberhaupt zu sehen bekommt.
+            echo "sim=$(match '^(sim/|data/|Cargo\.toml$|Cargo\.lock$)')"
+            # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
+            # "code": alles außer reiner Dokumentation.
+            #
+            # Die frühere Fassung zählte auf, wo Regeln liegen dürfen
+            # (data/, src/core/, sim/, tools/, tests/parity/). Zweimal ging das
+            # schief, weil ein Pfad fehlte:
+            #   PR #41  tools/step1-check.py IST die Referenz — eine geänderte
+            #           Referenz ging ungeprüft durch
+            #   PR #89  src/combat/ kam neu dazu. Von Worker-2 gemeldet, BEVOR
+            #           #87 dort die Regeln anschließt: Der parity-Job wäre
+            #           nicht gelaufen, eine Abweichung zwischen Spiel und
+            #           Simulator hätte ci-pass grün passiert.
+            #
+            # Eine Liste, die jemand bei jedem neuen Verzeichnis ergänzen muss,
+            # wird irgendwann vergessen — und niemand merkt es, weil das
+            # Ergebnis grün aussieht. Der Job kostet 26 Sekunden.
+            echo "rules=$(nondoc)"
           } >> "$GITHUB_OUTPUT"
       - name: Ergebnis
         run: |
@@ -70,7 +89,15 @@ jobs:
   # ------------------------------------------------------------------ TypeScript
   lint:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # KEIN Pfad-Filter. `npm run lint` fuehrt `prettier --check .` ueber ALLE
+    # Dateien aus, auch ueber Markdown — eine reine Dokumentaenderung kann die
+    # Stufe also brechen, ohne dass sie je laeuft. Genau so geschehen bei
+    # PR #75 (2026-07-29): Der Filter uebersprang lint, der PR ging gruen
+    # durch, und danach fiel die Stufe in JEDEM PR, der von main abzweigte —
+    # zuerst bei Worker-2 in #86, der nichts falsch gemacht hatte.
+    #
+    # Der Job kostet 23 Sekunden. Das ist der Preis dafuer, dass ein gruener
+    # PR auch wirklich gruen ist.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -166,13 +193,14 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          workspaces: sim
+          # Das Bau-Verzeichnis liegt in der Wurzel, weil dort der Workspace
+          # definiert ist. Mit "sim" griffe der Cache ins Leere.
+          workspaces: .
+      # Aus der Wurzel, nicht aus sim/: --all erfasst so den ganzen Workspace
+      # und nicht nur das eine Paket, das heute darin liegt.
       - run: cargo fmt --all --check
-        working-directory: sim
       - run: cargo clippy --all-targets -- -D warnings
-        working-directory: sim
       - run: cargo test
-        working-directory: sim
 
   # ------------------------------------------------------------------- Parität
   # Aufgezeichnete Runden müssen in Spiel UND Simulator denselben Wert ergeben
@@ -187,6 +215,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Die dritte Umsetzung derselben Regeln (GAME-DESIGN 18.4) — ohne sie
+      # prüft dieser Job nur zwei von drei Seiten.
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Referenz-Rechnung Schritt 1
         run: python3 tools/step1-check.py
       - name: Gemeinsame Prüffälle
@@ -202,6 +236,50 @@ jobs:
           else
             echo "Noch keine Prüffälle vorhanden (kommen mit Epic E2). Übersprungen."
           fi
+      - name: Simulator gegen Spiel
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Die aufgezeichnete Runde muss in beiden Umsetzungen denselben Schaden
+          # und dieselbe Zustands-Prüfsumme je Takt ergeben. Weicht etwas ab,
+          # nennt die Ausgabe den Takt (Issue #54, AC4).
+          cargo run --quiet --example parity --manifest-path sim/Cargo.toml
+          cargo test --quiet --manifest-path sim/Cargo.toml \
+            --test parity_recording --test parity_primitives --test reference
+
+  # ------------------------------------------------------------------- Hygiene
+  # Beide hängen NICHT am Pfad-Filter: Ein Geheimnis kann in jeder Datei landen,
+  # auch in einer reinen Dokumentations-Änderung.
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: reviewdog/action-actionlint@50842263c20a7c46bd0065b9e624d3c569db061e # v1.73.0
+        with:
+          reporter: github-pr-check
+          fail_on_error: true
+
+  # gitleaks direkt als Binary statt über gitleaks-action:
+  # Die Action verlangt für Organisationen eine kostenpflichtige Lizenz
+  # ("[silentspike] is an organization. License key is required."), das
+  # Werkzeug selbst ist MIT-lizenziert und frei nutzbar.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: gitleaks installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Verlauf nach Geheimnissen durchsuchen
+        shell: bash
+        run: gitleaks git --no-banner --redact --exit-code 1 .
 
   # -------------------------------------------------------------------- ci-pass
   # DER EINZIGE REQUIRED CHECK.
@@ -214,7 +292,7 @@ jobs:
   # sobald ein benötigter Job übersprungen wurde, und der Required Check bliebe
   # ewig "pending".
   ci-pass:
-    needs: [changes, lint, typecheck, unit, build, sim, parity]
+    needs: [changes, lint, typecheck, unit, build, sim, parity, actionlint, secret-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -242,6 +320,10 @@ jobs:
             [build]="${{ needs.build.result }}"
             [sim]="${{ needs.sim.result }}"
             [parity]="${{ needs.parity.result }}"
+            [actionlint]="${{ needs.actionlint.result }}"
+            # Klammer-Notation: GitHub-Actions-Ausdrücke lösen "needs.secret-scan"
+            # nicht auf, weil der Bindestrich in der Punkt-Notation nicht erlaubt ist.
+            [secret-scan]="${{ needs['secret-scan'].result }}"
           )
           FAILED=0
           for job in "${!R[@]}"; do

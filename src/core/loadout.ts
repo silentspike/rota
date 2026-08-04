@@ -24,9 +24,14 @@ export const STEP1_BINDINGS: readonly Binding[] = [
   { slot: 0, spellId: 'kindle' }, // obere Reihe, erste Taste
   { slot: 1, spellId: 'smoulder' }, // obere Reihe, zweite Taste
   { slot: 2, spellId: 'pyre' }, // obere Reihe, dritte Taste
+  // Der Unterbrecher belegt einen Platz wie jeder andere Zauber
+  // (GAME-DESIGN 10.4, Issue #110). Er steht HINTER den dreien, damit jede
+  // bestehende Aufzeichnung unverändert gilt: Ein Tastendruck nennt einen
+  // Platz, und die Plätze 0 bis 2 bedeuten weiterhin dasselbe.
+  { slot: 3, spellId: 'quench' },
 ];
 
-/** Kennung des Klangs eines Zaubers im Verzeichnis von Epic E8. */
-export function spellSoundId(spellId: string): string {
-  return `spell-${spellId}`;
-}
+// Welchen Klang ein Zauber hat, stand hier bis E1-9 als Namensregel
+// (`spell-` + Kennung). Sie ist entfallen: Die Zuordnung steht jetzt im
+// Verzeichnis (`data/sound-manifest.json`, Feld `trigger`) und damit an genau
+// einer Stelle. Eine Regel im Code daneben wäre eine zweite Wahrheit.

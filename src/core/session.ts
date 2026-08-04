@@ -11,8 +11,48 @@
  * Der Ablauf je Takt folgt `tools/step1-check.py`: erst die laufenden Wirkungen,
  * dann die Prüfung auf das Kampfende, dann die Tastendrücke dieses Takts.
  */
-import { CAST_OK, Combat, FIGHT_RUNNING } from './combat.js';
+import { CAST_OK, Combat, FIGHT_RUNNING, FIGHT_WON } from './combat.js';
+import { buildSummary, type RunSummary } from './summary.js';
+import {
+  COUNTDOWN_MS,
+  LOW_HEALTH_SHARE,
+  OUTCOME_DEATH,
+  OUTCOME_NAMES,
+  OUTCOME_NONE,
+  OUTCOME_OVERPRESSURE,
+  OUTCOME_VICTORY,
+  OUTCOME_WIPE,
+  OVERPRESSURE_WARNING_MS,
+  PHASE_COUNTDOWN,
+  PHASE_ENDED,
+  PHASE_FIGHTING,
+  PHASE_PREPARE,
+} from './phases.js';
+import {
+  EV_BOSS_DEFEATED,
+  EV_BOSS_LOW_HEALTH,
+  EV_BOSS_OVERPRESSURE,
+  EV_BOSS_OVERPRESSURE_WARNING,
+  EV_COUNTDOWN_TICK,
+  EV_FIGHT_END,
+  EV_FIGHT_START,
+  EV_FIGHT_WIPE,
+  EV_GCD_END,
+  EV_INPUT_REJECTED,
+  EV_MENU_ENTER,
+  EV_PLAYER_DEATH,
+  EV_RESULT_BEST_TIME,
+  EV_RESULT_DEFEAT,
+  EV_RESULT_VICTORY,
+  EV_SPELL_CAST,
+  EV_SPELL_READY,
+  NO_KEY,
+  type FeedbackSink,
+} from './events.js';
 import { LatencyTrace } from './latency.js';
+import { combatChecksum } from './checksum.js';
+import { CombatLog } from './log.js';
+import { RingBufferF64 } from './ring.js';
 import type { Simulation } from './loop.js';
 import { TICK_MS } from './loop.js';
 import { SLOT_COUNT } from '../input/keys.js';
@@ -24,14 +64,7 @@ export const NO_SPELL = -1;
 /** Nie gedrückt. */
 export const NEVER = -1;
 
-/**
- * Wohin die Rückmeldung geht, die nicht im Bild stattfindet — derzeit der Klang.
- * Der Kampf kennt weder Puffer noch Knoten; er sagt nur, was geschehen ist.
- */
-export interface FeedbackSink {
-  onPressAccepted(slot: number, spellIndex: number, timeMs: number): void;
-  onPressRejected(slot: number, reason: number, timeMs: number): void;
-}
+export type { FeedbackSink };
 
 export class Session implements Simulation {
   readonly latency = new LatencyTrace();
@@ -44,17 +77,143 @@ export class Session implements Simulation {
   /** Belegung → Zauber. `NO_SPELL`, solange der Platz leer ist. */
   private readonly bindings = new Int32Array(SLOT_COUNT).fill(NO_SPELL);
 
+  /** Das Kampfprotokoll (GAME-DESIGN 18.2). */
+  readonly log = new CombatLog();
+
+  /**
+   * Eingabe-Zeitmessung (GAME-DESIGN 19.1): Millisekunden nach Ablauf der
+   * globalen Wartezeit, je angenommenem Druck.
+   *
+   * **Im fertigen Spiel bewusst nicht vorgesehen** (GAME-DESIGN 21.2: niemand
+   * wird für seine Reaktionszeit getadelt). Sie beantwortet nur die
+   * Balance-Frage, wie viel ein Mensch gegenüber der perfekten Rechnung verliert.
+   */
+  private inputTimingBuffer: RingBufferF64 | null = null;
+
+  /** Prüfsumme je Takt (GAME-DESIGN 19.1). Abschaltbar, weil sie Zeit kostet. */
+  private checksums: RingBufferF64 | null = null;
+  private trackChecksums = false;
+
+  /**
+   * Die Puffer entstehen erst beim ersten Zugriff.
+   *
+   * Im Auslieferungsstand greift niemand zu — dort werden sie nie angelegt, und
+   * die 48 KB des Prüfsummen-Puffers kosten nichts (GAME-DESIGN 19.3).
+   */
+  get inputTiming(): RingBufferF64 {
+    if (this.inputTimingBuffer === null) this.inputTimingBuffer = new RingBufferF64(512);
+    return this.inputTimingBuffer;
+  }
+
+  /**
+   * Leerlauf je Zauber in ms — wie lange er ungenutzt bereit lag.
+   *
+   * Gezählt wird nur in Takten, in denen **gar nichts** gewirkt wurde. Ein
+   * Zauber, der bereit war, während ein anderer gewirkt wurde, war eine
+   * Entscheidung, kein Leerlauf.
+   */
+  readonly idlePerSpellMs: Float64Array;
+
+  /** Liegt der Zauber auf mindestens einem Platz? */
+  private readonly boundSpells: Uint8Array;
+
+  /**
+   * Kantenerkennung für die Rückmeldungen, die kein Tastendruck auslöst.
+   *
+   * „Zauber wieder bereit" und „Wartezeit abgelaufen" sind **Übergänge**, keine
+   * Zustände. Ohne den Vergleich mit dem vorigen Takt klänge der Hinweis
+   * hundertmal je Sekunde, statt einmal.
+   */
+  private readonly wasReady: Uint8Array;
+  private wasGcdReady = true;
+  private sawLowHealth = false;
+  private warnedOverpressure = false;
+  /** Zuletzt geschlagene Countdown-Sekunde, sonst -1. */
+  private countdownStep = -1;
+
+  /**
+   * Der Auswahlmodus des Cooldown-Rücksetzers (GAME-DESIGN 4.1, Issue E3-3c).
+   *
+   * Kennnummer des Rücksetzers, der scharf steht — sonst `NO_SPELL`. Der
+   * nächste Tastendruck **wählt** dann, statt zu wirken.
+   *
+   * **Warum ein Modus und kein passiver Effekt auf den nächsten Zauber:**
+   * Entscheidung des Auftraggebers vom 2026-07-29. Der Spieler sagt
+   * ausdrücklich, welchen Zauber er meint, statt dass der nächste gewirkte
+   * ihn zufällig abbekommt. Drei Aktionen — Rücksetzer, Auswahl, Nachdruck —
+   * müssen sich gegen drei gewöhnliche Wirkungen rechnen.
+   */
+  private resetArmedFor = NO_SPELL;
+  /** Wie oft eine Auswahl eine Abklingzeit zurückgesetzt hat. */
+  private resetsApplied = 0;
+  /** Wie oft eine Auswahl verpufft ist — der Zauber lag nicht auf Abklingzeit. */
+  private resetsWasted = 0;
+
+  /**
+   * Beste Kampfzeit dieser Sitzung in ms, oder -1.
+   *
+   * **Überlebt `reset()` bewusst** — sonst wäre jeder Lauf eine neue Bestzeit.
+   * Über das Ende der Seite hinaus hält sie nicht; der Spielstand im Browser
+   * gehört zu einem späteren Epic.
+   */
+  private bestFightMs = -1;
+
   private accepted = 0;
   private rejected = 0;
   private lastSlot = -1;
   private timeMs = 0;
   private idleTicks = 0;
+  private phaseValue = PHASE_PREPARE;
+  private outcomeValue = OUTCOME_NONE;
+  private countdownEndsAtMs = 0;
+  private endedAt = -1;
 
   constructor(
     private readonly queue: PressQueue,
     readonly combat: Combat,
     private readonly feedback: FeedbackSink | null = null,
-  ) {}
+  ) {
+    this.idlePerSpellMs = new Float64Array(combat.spells.length);
+    this.boundSpells = new Uint8Array(combat.spells.length);
+    this.wasReady = new Uint8Array(combat.spells.length).fill(1);
+    combat.log = this.log;
+  }
+
+  /**
+   * Ein Kampf-Ereignis melden (GAME-DESIGN 17.1).
+   *
+   * Der Kampf sagt nur, **was** geschehen ist; welcher Klang daran hängt, steht
+   * im Verzeichnis. Hört niemand zu, kostet die Meldung einen Vergleich — und
+   * das Spiel rechnet identisch (GAME-DESIGN 18.5).
+   */
+  private emit(event: number, key: number, timeMs: number): void {
+    if (this.feedback !== null) this.feedback.onEvent(event, key, timeMs);
+  }
+
+  /** Beste Kampfzeit dieser Sitzung in ms, oder -1. */
+  get bestTimeMs(): number {
+    return this.bestFightMs;
+  }
+
+  /** Steht der Auswahlmodus scharf? Für die Anzeige und die Prüfung. */
+  get isResetArmed(): boolean {
+    return this.resetArmedFor !== NO_SPELL;
+  }
+
+  /** Welcher Rücksetzer scharf steht, sonst `NO_SPELL`. */
+  get resetArmedBy(): number {
+    return this.resetArmedFor;
+  }
+
+  /** Wie oft eine Auswahl eine Abklingzeit zurückgesetzt hat. */
+  get resetsAppliedCount(): number {
+    return this.resetsApplied;
+  }
+
+  /** Wie oft eine Auswahl verpufft ist. */
+  get resetsWastedCount(): number {
+    return this.resetsWasted;
+  }
 
   /** Abkürzung: Die globale Wartezeit gehört dem Kampf. */
   get gcd(): Combat['gcd'] {
@@ -92,6 +251,9 @@ export class Session implements Simulation {
   bind(slot: number, spellIndex: number): void {
     if (slot < 0 || slot >= SLOT_COUNT) return;
     this.bindings[slot] = spellIndex;
+    if (spellIndex >= 0 && spellIndex < this.boundSpells.length) {
+      this.boundSpells[spellIndex] = 1;
+    }
   }
 
   spellOnSlot(slot: number): number {
@@ -110,11 +272,33 @@ export class Session implements Simulation {
   tick(timeMs: number): void {
     this.timeMs = timeMs;
 
-    // 1. laufende Wirkungen
-    this.combat.stepPassive(timeMs);
+    // 0. Countdown. Der Übergang geschieht VOR allem anderen in diesem Takt:
+    //    Uhr und Eingabe beginnen damit im selben Takt, nicht einen später.
+    if (this.phaseValue === PHASE_COUNTDOWN && timeMs >= this.countdownEndsAtMs) {
+      this.startFight(timeMs);
+    } else if (this.phaseValue === PHASE_COUNTDOWN) {
+      // Je Sekunde ein Schlag (Klang-Verzeichnis: „Countdown vor dem Kampf, je
+      // Sekunde ein Schlag"). Drei Schläge, dann der Kampfbeginn.
+      const step = Math.ceil((this.countdownEndsAtMs - timeMs) / 1000);
+      if (step !== this.countdownStep) {
+        this.countdownStep = step;
+        this.emit(EV_COUNTDOWN_TICK, NO_KEY, timeMs);
+      }
+    }
+
+    const fighting = this.phaseValue === PHASE_FIGHTING;
+
+    // 1. laufende Wirkungen — nur im Kampf. In der Vorbereitung laufen allein die
+    //    Abklingzeiten mit (GAME-DESIGN 10), es gibt keine Uhr und keinen Verfall.
+    if (fighting) this.combat.stepPassive(timeMs);
 
     // 2. Kampfende
-    const over = this.combat.checkDefeat(timeMs);
+    if (fighting && this.combat.checkDefeat(timeMs)) {
+      this.finish(
+        this.combat.fightState === FIGHT_WON ? OUTCOME_VICTORY : OUTCOME_OVERPRESSURE,
+        timeMs,
+      );
+    }
 
     // 3. Tastendrücke dieses Takts. Alles abarbeiten, was diesem Takt oder einem
     //    früheren zugewiesen war — dadurch kann der Puffer nie zur Warteschlange
@@ -129,38 +313,324 @@ export class Session implements Simulation {
       if (this.apply(slot, timeMs, stampMs, frameIndex)) casted = true;
     }
 
-    if (!over && !casted && this.combat.gcd.isReady(timeMs)) this.idleTicks++;
+    if (this.trackChecksums && this.phaseValue === PHASE_FIGHTING) {
+      this.checksums?.push(combatChecksum(this.combat, timeMs));
+    }
+
+    // 4. Übergänge, die kein Tastendruck auslöst — erst nach den Drücken, damit
+    //    ein Zauber, der in diesem Takt gewirkt wurde, nicht zugleich als
+    //    „wieder bereit" gilt.
+    if (this.phaseValue === PHASE_FIGHTING) this.detectEdges(timeMs);
+
+    if (this.phaseValue === PHASE_FIGHTING && !casted && this.combat.gcd.isReady(timeMs)) {
+      this.idleTicks++;
+      // Welcher Zauber lag in diesem Takt ungenutzt bereit? Nur belegte zählen —
+      // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
+      for (let i = 0; i < this.boundSpells.length; i++) {
+        if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
+          this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
+        }
+      }
+    }
+  }
+
+  /**
+   * Die vier Übergänge, die aus dem Zustand folgen statt aus einer Eingabe:
+   * Wartezeit abgelaufen, Zauber wieder bereit, Boss im Endspurt, Überdruck
+   * kündigt sich an.
+   *
+   * Läuft in jedem Kampf-Takt und darf deshalb nichts erzeugen: nur Vergleiche
+   * auf vorab angelegten Feldern (GAME-DESIGN 18.2).
+   */
+  private detectEdges(timeMs: number): void {
+    const gcdReady = this.combat.gcd.isReady(timeMs);
+    if (gcdReady && !this.wasGcdReady) this.emit(EV_GCD_END, NO_KEY, timeMs);
+    this.wasGcdReady = gcdReady;
+
+    for (let i = 0; i < this.wasReady.length; i++) {
+      // Nur belegte Zauber: Was nicht auf der Leiste liegt, kann nicht bereit
+      // werden — der Hinweis ginge ins Leere.
+      if (this.boundSpells[i] !== 1) continue;
+      const ready = this.combat.isOffCooldown(i, timeMs) ? 1 : 0;
+      if (ready === 1 && this.wasReady[i] === 0) this.emit(EV_SPELL_READY, i, timeMs);
+      this.wasReady[i] = ready;
+    }
+
+    if (
+      !this.sawLowHealth &&
+      this.combat.damageDealt >= this.combat.boss.hp * (1 - LOW_HEALTH_SHARE)
+    ) {
+      this.sawLowHealth = true;
+      this.emit(EV_BOSS_LOW_HEALTH, NO_KEY, timeMs);
+    }
+
+    if (
+      !this.warnedOverpressure &&
+      this.overpressureRemainingMs(timeMs) <= OVERPRESSURE_WARNING_MS
+    ) {
+      this.warnedOverpressure = true;
+      this.emit(EV_BOSS_OVERPRESSURE_WARNING, NO_KEY, timeMs);
+    }
+  }
+
+  // ------------------------------------------------------------ Kampfablauf
+
+  get phase(): number {
+    return this.phaseValue;
+  }
+
+  get outcome(): number {
+    return this.outcomeValue;
+  }
+
+  /** Restzeit des Countdowns in ms, sonst 0. */
+  countdownRemainingMs(timeMs: number): number {
+    if (this.phaseValue !== PHASE_COUNTDOWN) return 0;
+    const left = this.countdownEndsAtMs - timeMs;
+    return left > 0 ? left : 0;
+  }
+
+  /** Prüfsumme je Takt mitschreiben. Kostet Rechenzeit (GAME-DESIGN 19.1). */
+  setChecksumTracking(on: boolean): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.trackChecksums = on;
+    if (on) this.checksums ??= new RingBufferF64(6000);
+    else this.checksums?.clear();
+  }
+
+  get isTrackingChecksums(): boolean {
+    return this.trackChecksums;
+  }
+
+  /** Die zuletzt mitgeschriebenen Prüfsummen, älteste zuerst. */
+  checksumTrail(limit = 600): number[] {
+    const all = this.checksums?.toArray() ?? [];
+    return all.slice(Math.max(0, all.length - limit));
+  }
+
+  /** Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf endete. */
+  get endedAtMs(): number {
+    return this.endedAt;
+  }
+
+  /**
+   * Die Uhr, die der Spieler sieht.
+   *
+   * **Null in der Vorbereitung und im Countdown** (GAME-DESIGN 10: „Keine Uhr"),
+   * und nach dem Ende stehengeblieben — die Auswertung zeigt die Zeit des
+   * Kampfes, nicht die seit dem Laden der Seite. `Combat` kennt diesen
+   * Unterschied nicht; er gehört zum Ablauf und damit hierher.
+   */
+  fightElapsedMs(timeMs: number): number {
+    if (this.phaseValue === PHASE_PREPARE || this.phaseValue === PHASE_COUNTDOWN) return 0;
+    return this.combat.fightElapsedMs(this.endedAt >= 0 ? this.endedAt : timeMs);
+  }
+
+  /** Restzeit bis zum Überdruck, aus Sicht des Spielers. */
+  overpressureRemainingMs(timeMs: number): number {
+    const left = this.combat.boss.overpressureMs - this.fightElapsedMs(timeMs);
+    return left > 0 ? left : 0;
+  }
+
+  /**
+   * „Ready" gedrückt: Der Countdown beginnt.
+   *
+   * Nur aus der Vorbereitung heraus — ein zweiter Druck während des Countdowns
+   * darf ihn nicht verlängern.
+   */
+  beginCountdown(timeMs: number): boolean {
+    if (this.phaseValue !== PHASE_PREPARE) return false;
+    this.phaseValue = PHASE_COUNTDOWN;
+    this.countdownEndsAtMs = timeMs + COUNTDOWN_MS;
+    return true;
+  }
+
+  /**
+   * Abbruch durch den Spieler (GAME-DESIGN 10: „Wipe Run").
+   *
+   * Gilt als Ende und führt zur **selben** Auswertung wie ein Sieg — nur mit
+   * anderem Ausgang. Keine Strafe.
+   */
+  wipe(timeMs: number): boolean {
+    if (this.phaseValue !== PHASE_FIGHTING && this.phaseValue !== PHASE_COUNTDOWN) return false;
+    this.finish(OUTCOME_WIPE, timeMs);
+    return true;
+  }
+
+  /**
+   * Die Kurzfassung des Laufs (GAME-DESIGN 15.1).
+   *
+   * Wird **nach** dem Kampf gerufen, nicht im Bild — hier darf Speicher entstehen.
+   */
+  summary(timeMs: number): RunSummary {
+    return buildSummary({
+      combat: this.combat,
+      log: this.log,
+      outcome: OUTCOME_NAMES[this.outcomeValue] ?? '?',
+      victory: this.outcomeValue === OUTCOME_VICTORY,
+      elapsedMs: this.fightElapsedMs(timeMs),
+      remainingMs: this.overpressureRemainingMs(timeMs),
+      casts: this.accepted,
+      lostTimeMs: this.idleMs,
+      idlePerSpellMs: this.idlePerSpellMs,
+      // In Schritt 1 gibt es keine Synergien: eine Schule, keine
+      // schulübergreifenden Fenster (GAME-DESIGN 5). Beide Zahlen sind 0, und
+      // die Ausbeute bleibt damit unbestimmt statt erfunden.
+      synergyUsed: 0,
+      synergyAvailable: 0,
+    });
+  }
+
+  /**
+   * Den Kampf in diesem Takt beginnen lassen.
+   *
+   * Derselbe Weg, den der Countdown an seinem Ende nimmt — Uhr und Eingabe gehen
+   * dadurch zwangsläufig im selben Takt auf. Für die Entwicklungs-Werkzeuge
+   * zusätzlich direkt aufrufbar (GAME-DESIGN 19.1: Zustand setzen).
+   */
+  startFight(timeMs: number): void {
+    if (this.phaseValue === PHASE_ENDED) return;
+    this.phaseValue = PHASE_FIGHTING;
+    this.countdownEndsAtMs = timeMs;
+    this.combat.beginFight(timeMs);
+
+    // Ausgangslage der Kantenerkennung. Ohne sie schlüge im ersten Takt jeder
+    // bereite Zauber an — der Kampf begänne mit einem Akkord.
+    this.wasGcdReady = this.combat.gcd.isReady(timeMs);
+    for (let i = 0; i < this.wasReady.length; i++) {
+      this.wasReady[i] = this.combat.isOffCooldown(i, timeMs) ? 1 : 0;
+    }
+    this.sawLowHealth = false;
+    this.warnedOverpressure = false;
+    this.emit(EV_FIGHT_START, NO_KEY, timeMs);
+  }
+
+  private finish(outcome: number, timeMs: number): void {
+    if (this.phaseValue === PHASE_ENDED) return;
+    this.phaseValue = PHASE_ENDED;
+    this.outcomeValue = outcome;
+    this.endedAt = timeMs;
+
+    if (outcome === OUTCOME_VICTORY) {
+      this.emit(EV_BOSS_DEFEATED, NO_KEY, timeMs);
+      this.emit(EV_RESULT_VICTORY, NO_KEY, timeMs);
+      const elapsed = this.fightElapsedMs(timeMs);
+      if (this.bestFightMs < 0 || elapsed < this.bestFightMs) {
+        this.bestFightMs = elapsed;
+        this.emit(EV_RESULT_BEST_TIME, NO_KEY, timeMs);
+      }
+    } else if (outcome === OUTCOME_OVERPRESSURE) {
+      this.emit(EV_BOSS_OVERPRESSURE, NO_KEY, timeMs);
+      this.emit(EV_RESULT_DEFEAT, NO_KEY, timeMs);
+    } else if (outcome === OUTCOME_WIPE) {
+      // Der Abbruch hat einen **eigenen** Klang und ist ausdrücklich keine
+      // Niederlage (GAME-DESIGN 10: keine Strafe, 12.8: häufigster Übergang).
+      this.emit(EV_FIGHT_WIPE, NO_KEY, timeMs);
+    } else if (outcome === OUTCOME_DEATH) {
+      this.emit(EV_PLAYER_DEATH, NO_KEY, timeMs);
+      this.emit(EV_RESULT_DEFEAT, NO_KEY, timeMs);
+    }
+
+    // Zuletzt die Musik: erst der Ausgang, dann der Wechsel des Klangteppichs.
+    // Die Auswertung ist ein Bild ohne Kampf und bekommt deshalb den Menü-Teppich.
+    this.emit(EV_FIGHT_END, NO_KEY, timeMs);
+    this.emit(EV_MENU_ENTER, NO_KEY, timeMs);
   }
 
   /** @returns true, wenn tatsächlich gewirkt wurde. */
   private apply(slot: number, timeMs: number, stampMs: number, frameIndex: number): boolean {
     this.lastSlot = slot;
     const spellIndex = this.bindings[slot] ?? NO_SPELL;
+    const gcdReadyAt = this.combat.gcd.readyAt;
 
+    // In der Vorbereitung ist kein Ziel vorhanden: Alle Zauber auf den Boss sind
+    // ausgegraut (GAME-DESIGN 10). In Schritt 1 sind das alle drei. Ein leerer
+    // Platz ist eine Fehleingabe wie jede andere.
     let accepted = false;
-    let reason = CAST_OK;
-    if (spellIndex === NO_SPELL || this.combat.fightState !== FIGHT_RUNNING) {
-      // Ein leerer Platz ist eine Fehleingabe wie jede andere.
-      reason = spellIndex === NO_SPELL ? -1 : -2;
-    } else {
-      const outcome = this.combat.cast(spellIndex, timeMs);
-      reason = outcome.result;
-      accepted = outcome.result === CAST_OK;
+    // Steht der Auswahlmodus scharf, WÄHLT dieser Druck, statt zu wirken.
+    const chose = this.resetArmedFor !== NO_SPELL;
+    if (
+      this.phaseValue === PHASE_FIGHTING &&
+      spellIndex !== NO_SPELL &&
+      this.combat.fightState === FIGHT_RUNNING
+    ) {
+      accepted = chose
+        ? this.chooseForReset(spellIndex, timeMs)
+        : this.combat.cast(spellIndex, timeMs).result === CAST_OK;
     }
 
     if (accepted) {
+      // Wie viele Millisekunden nach Freiwerden der Wartezeit kam der Druck?
+      // Nur für die Werkzeuge — im fertigen Spiel ausdrücklich nicht vorgesehen
+      // (GAME-DESIGN 21.2: niemand wird für seine Reaktionszeit getadelt).
+      if (__ROTA_DEVTOOLS__) this.inputTiming.push(timeMs - gcdReadyAt);
       this.acceptedAtMs[slot] = timeMs;
-      this.accepted++;
-      if (this.feedback !== null) this.feedback.onPressAccepted(slot, spellIndex, timeMs);
+      // Eine Auswahl ist keine Wirkung: Sie zählt nicht als Zauber und meldet
+      // kein `spell.cast`. Sonst stünde in der Auswertung eine Wirkung, die
+      // nie stattgefunden hat.
+      if (!chose) {
+        this.accepted++;
+        this.emit(EV_SPELL_CAST, spellIndex, timeMs);
+        // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
+        // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
+        if (this.combat.spellAt(spellIndex)?.armsCooldownReset === true) {
+          this.resetArmedFor = spellIndex;
+        }
+      }
     } else {
       this.rejectedAtMs[slot] = timeMs;
       this.rejected++;
-      if (this.feedback !== null) this.feedback.onPressRejected(slot, reason, timeMs);
+      this.emit(EV_INPUT_REJECTED, NO_KEY, timeMs);
     }
     // Beide Ausgänge sind im nächsten Bild sichtbar: der eine als Aufleuchten,
     // der andere als rotes Blinken. Beide zählen daher für die Verzögerung.
     this.latency.push(stampMs, frameIndex);
     return accepted;
+  }
+
+  /**
+   * Ein Druck im Auswahlmodus (Issue E3-3c).
+   *
+   * **Die Auswahl löst die volle Wartezeit aus.** Das steht nicht wörtlich im
+   * Issue, folgt aber zwingend aus AC4 („kein Doppel-Wirken im selben Takt")
+   * und aus seiner eigenen Rechnung: Drei Aktionen — Rücksetzer, Auswahl,
+   * Nachdruck — müssen sich gegen drei gewöhnliche Wirkungen rechnen. Wäre die
+   * Auswahl umsonst, fiele der Nachdruck in denselben Takt, und es wären zwei.
+   *
+   * @returns true, wenn die Auswahl angenommen wurde (kein rotes Blinken)
+   */
+  private chooseForReset(spellIndex: number, timeMs: number): boolean {
+    // **Jede Wahl verbraucht den Rücksetzer** — auch eine falsche.
+    const self = spellIndex === this.resetArmedFor;
+    this.resetArmedFor = NO_SPELL;
+    // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
+    this.combat.gcd.trigger(timeMs);
+
+    if (self || this.combat.isOffCooldown(spellIndex, timeMs)) {
+      // **Verpufft.** Zwei Fälle, eine Regel: der Rücksetzer auf sich selbst
+      // (er wirkt nie auf sich — sonst ließe er sich endlos ketten, der erste
+      // Zug, den eine Optimums-Suche findet) und ein Zauber, der gar nicht
+      // auf Abklingzeit liegt.
+      //
+      // **Warum GAME-DESIGN 8.2 hier NICHT gilt** — die naheliegende
+      // Herleitung, und sie führt in die Irre: Dort geht es um eine Taste,
+      // auf der kein Zauber liegt, also um eine Eingabe ins Leere. Eine
+      // falsche Auswahl trifft dagegen einen Zauber, nur den falschen. Das
+      // ist ein Spielfehler, keine Fehleingabe, und der Auftraggeber hat ihn
+      // ausdrücklich so gewollt: „wenn er einen zauber wählt der gar keinen
+      // cooldown hat ist pech für den user, muss er lernen besser zu spielen
+      // oder timen" (2026-07-29).
+      //
+      // Und die einfachere Regel gewinnt: Wer sich merken müsste, welche
+      // Fehlgriffe teuer sind und welche umsonst, lernt eine Ausnahme statt
+      // einer Mechanik.
+      this.resetsWasted++;
+      return false;
+    }
+
+    this.combat.clearCooldown(spellIndex);
+    this.resetsApplied++;
+    return true;
   }
 
   reset(): void {
@@ -174,5 +644,29 @@ export class Session implements Simulation {
     this.lastSlot = -1;
     this.timeMs = 0;
     this.idleTicks = 0;
+    this.phaseValue = PHASE_PREPARE;
+    this.outcomeValue = OUTCOME_NONE;
+    this.countdownEndsAtMs = 0;
+    this.endedAt = -1;
+    this.log.clear();
+    this.idlePerSpellMs.fill(0);
+    this.inputTimingBuffer?.clear();
+    this.checksums?.clear();
+
+    this.wasReady.fill(1);
+    this.wasGcdReady = true;
+    this.sawLowHealth = false;
+    this.warnedOverpressure = false;
+    this.countdownStep = -1;
+    this.resetArmedFor = NO_SPELL;
+    this.resetsApplied = 0;
+    this.resetsWasted = 0;
+    // Erst das Kampfende, dann der Menü-Teppich — genau wie beim regulären
+    // Ausgang. Wer aus einem **laufenden** Kampf zurückgeht, hat sonst zwei
+    // Klangteppiche übereinander: Der Kampf-Teppich wird nie abgeschaltet.
+    // Im Bild aufgefallen, nicht im Prüflauf.
+    this.emit(EV_FIGHT_END, NO_KEY, 0);
+    // Die Bestzeit bleibt: Sie gehört der Sitzung, nicht dem Lauf.
+    this.emit(EV_MENU_ENTER, NO_KEY, 0);
   }
 }

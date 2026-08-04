@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "eventNames": [
+    "spell.cast",
+    "damage",
+    "crit",
+    "dot.tick",
+    "boss.phase",
+    "buff.expired"
+  ],
+  "recording": {
+    "name": "cooldown-precision",
+    "damage": 4240,
+    "killedAtMs": 40510,
+    "ruleEventCount": 72,
+    "ruleSequenceChecksum": 3552421087
+  },
+  "steps": [
+    {
+      "event": 0,
+      "subject": 0,
+      "value": 100,
+      "valueBits": "4059000000000000",
+      "timeMs": 0
+    },
+    {
+      "event": 1,
+      "subject": 0,
+      "value": 100,
+      "valueBits": "4059000000000000",
+      "timeMs": 0
+    },
+    {
+      "event": 3,
+      "subject": 1,
+      "value": 40,
+      "valueBits": "4044000000000000",
+      "timeMs": 2000
+    },
+    {
+      "event": 2,
+      "subject": 2,
+      "value": 360.5,
+      "valueBits": "4076880000000000",
+      "timeMs": 3000
+    },
+    {
+      "event": 4,
+      "subject": -1,
+      "value": 2,
+      "valueBits": "4000000000000000",
+      "timeMs": 40510
+    },
+    {
+      "event": 5,
+      "subject": 3,
+      "value": 0,
+      "valueBits": "0000000000000000",
+      "timeMs": 60000
+    },
+    {
+      "event": 1,
+      "subject": 0,
+      "value": 1,
+      "valueBits": "3ff0000000000000",
+      "timeMs": 60010
+    },
+    {
+      "event": 1,
+      "subject": 0,
+      "value": 1.0000000000000002,
+      "valueBits": "3ff0000000000001",
+      "timeMs": 60020
+    }
+  ],
+  "checksumAfterEach": [
+    2168830596,
+    1547139140,
+    2679712779,
+    4232340868,
+    554277064,
+    3727817648,
+    3315176040,
+    1489593011
+  ],
+  "sequenceChecksum": 1489593011,
+  "emitted": 8
+}

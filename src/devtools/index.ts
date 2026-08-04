@@ -16,7 +16,17 @@ import { TICK_MS } from '../core/loop.js';
 import { PerfCounters, summarize, type SeriesSummary } from '../core/metrics.js';
 import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
 import { NO_SPELL } from '../core/session.js';
+import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
+import { combatChecksum } from '../core/checksum.js';
+import { EVENT_NAMES, type LogEntry } from '../core/log.js';
+import { EVENT_NAMES as COMBAT_EVENT_NAMES, NO_KEY, eventIndex } from '../core/events.js';
+import { buildSoundReport, type SoundReport } from './sound-report.js';
+import { RULE_DAMAGE, RULE_EVENT_COUNT, RULE_EVENT_NAMES, RuleEvents } from '../combat/events.js';
+import { recordingNames, recordings, replayRecording, type ReplayResult } from './recording.js';
+import type { RunSummary } from '../core/summary.js';
+import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
+import { STAT_ADDITIVE, STAT_MULTIPLICATIVE } from '../gear/format.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
   measureCooldown,
@@ -33,6 +43,15 @@ const WARMUP_FRAMES = 240;
 const ALLOCATION_WINDOW_FRAMES = 600;
 /** Abstand zwischen zwei Speicher-Messungen in Bildern. */
 const ALLOCATION_INTERVAL_FRAMES = 1800;
+
+/**
+ * Wie weit die Wiedergabe im Bild vorausschaut, in Takten.
+ *
+ * Ein Bild rechnet bei 60 Hz ein bis zwei Takte, bei Zeitraffer mehr. Der
+ * Vorlauf muss diese Spanne abdecken, damit kein Druck seinen Takt verpasst;
+ * der Puffer hält vorzeitig eingespeiste Drücke bis zu ihrem Takt zurück.
+ */
+const REPLAY_LOOKAHEAD_TICKS = 30;
 
 /** Die Bildzeit-Schwelle aus GAME-DESIGN 20.2 / VERIFICATION § 3.1. */
 const FRAME_BUDGET_MS = 16.7;
@@ -62,6 +81,8 @@ export interface PerfSnapshot {
   readonly frames: number;
   readonly ticks: number;
   readonly droppedTicks: number;
+  /** Wie oft Zeit für eine Messung verworfen wurde. Nur Werkzeug-Bedingt. */
+  readonly discardedForMeasurement: number;
   readonly simTimeMs: number;
 }
 
@@ -77,6 +98,17 @@ export interface StateSnapshot {
   /** Restzeit der globalen Wartezeit in ms. */
   readonly gcdRemainingMs: number;
   readonly gcdLengthMs: number;
+  /** Phase des Kampfablaufs (GAME-DESIGN 10). */
+  readonly phase: string;
+  readonly outcome: string;
+  /** Restzeit des Countdowns in ms. */
+  readonly countdownRemainingMs: number;
+  /** Verstrichene KAMPFzeit in ms — die Uhr, die der Spieler sieht. */
+  readonly fightElapsedMs: number;
+  readonly overpressureRemainingMs: number;
+  /** Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf begann. */
+  readonly fightStartedAtMs: number;
+  readonly endedAtMs: number;
 }
 
 /** Ein Zauber, wie er gerade dasteht. */
@@ -160,6 +192,47 @@ export interface HudSnapshot {
   readonly slots: HudSlotSnapshot[];
 }
 
+/** Zustand der Trefferwucht (GAME-DESIGN 9). */
+export interface ImpactSnapshot {
+  /** Plätze im vorab angelegten Pool. */
+  readonly poolCapacity: number;
+  /** Zahlen, die gerade unterwegs sind. */
+  readonly activeCount: number;
+  /** Wie oft eine noch sichtbare Zahl wiederverwendet werden musste. */
+  readonly recycleCount: number;
+  /** Wie viele Zahlen insgesamt gestartet sind. */
+  readonly spawnCount: number;
+  /** Aktuelle Auslenkung des Bild-Ruckelns in Entwurfs-Pixeln. */
+  readonly shakeOffsetPx: number;
+  /** Aktuelle Stärke des Aufblitzens, 0 bis 1. */
+  readonly flashStrength: number;
+}
+
+/** Woraus sich der Schaden eines Treffers zusammensetzt (GAME-DESIGN 6.3, 19.1). */
+export interface DamageBreakdown {
+  readonly spellId: string;
+  readonly baseDamage: number;
+  /** Entladeschaden aus dem Vorrat, falls der Zauber einer ist. */
+  readonly spenderDamage: number;
+  readonly resource: number;
+  readonly bonusApplied: boolean;
+  /** Die Faktoren in der Reihenfolge, in der sie angewandt werden. */
+  readonly factors: { readonly name: string; readonly value: number }[];
+  readonly total: number;
+}
+
+/** Kennzahlen des Kampfprotokolls. */
+export interface LogStats {
+  readonly entries: number;
+  readonly capacity: number;
+  readonly totalWritten: number;
+  /** Muss 0 sein. Darüber ist der Puffer zu klein ausgelegt. */
+  readonly dropped: number;
+  readonly overflowed: boolean;
+  readonly byteLength: number;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
 /** Zustand der Eingabe (GAME-DESIGN 8). */
 export interface InputSnapshot {
   /** Angenommene Tastendrücke — sie haben die globale Wartezeit ausgelöst. */
@@ -205,12 +278,138 @@ export interface DevTools {
   combat(): CombatSnapshot;
   /** Lage und Zeitanzeigen der Zauberleiste, in Geräte-Pixeln. */
   hud(): HudSnapshot;
+  /**
+   * Einen **Prüfgegenstand** auf dem Vorbereitungs-Bildschirm anzeigen
+   * (Issue E6-1, AC4).
+   *
+   * **Nur hier und nicht im Spiel**, weil es noch keine Gegenstände gibt: Der
+   * Katalog steht vor E6 aus (GAME-DESIGN 22). Ohne Aufruf bleibt die Karte
+   * leer und die ausgelieferte Fassung zeigt nichts — genau wie das
+   * Abhör-Soundboard nur im Entwicklungs-Bau entsteht (19.3).
+   *
+   * Der Name trägt die Kennzeichnung `test-`, damit er nicht als Spielinhalt
+   * gilt — dieselbe Linie wie `test-vessel` bei den Bossen.
+   */
+  showTestGear(): void;
+  /** Zustand der Trefferwucht: Pool, Zahlen, Ruckeln. */
+  impact(): ImpactSnapshot;
+  /**
+   * Das Kampfprotokoll als lesbare Liste (GAME-DESIGN 19.1, VERIFICATION § 3.4).
+   *
+   * **Erzeugt Speicher** — nur für Werkzeuge. Im Spiel bleibt das Protokoll
+   * intern; einen sichtbaren Textstrom gibt es nicht (GAME-DESIGN 21.2).
+   */
+  log(): LogEntry[];
+  /** Kennzahlen des Protokolls, ohne die ganze Liste zu erzeugen. */
+  logStats(): LogStats;
+  /** Die Kurzfassung nach dem Kampf (GAME-DESIGN 15.1). */
+  summary(): RunSummary;
+  /** Das Protokoll als Klartext ausgeben (GAME-DESIGN 19.1). */
+  logText(limit?: number): string;
+
+  // ---------------------------------------------------- Zeitsteuerung (19.1)
+  /** Anhalten. Bilder werden weiter gezeichnet und gemessen. */
+  pause(): void;
+  resume(): void;
+  /** Einzelschritt: `count` Logik-Takte sofort rechnen, ohne auf ein Bild zu warten. */
+  step(count?: number): number;
+  /** Zeitlupe (< 1) oder Zeitraffer (> 1). Der Takt bleibt 10 ms. */
+  setTimeScale(scale: number): void;
+  timeScale(): number;
+
+  // ------------------------------------------- Aufzeichnen und Abspielen (19.1)
+  /** Namen der eingebauten Aufzeichnungen. */
+  recordings(): string[];
+  /**
+   * Eine Aufzeichnung abspielen — ohne Uhr, ohne Bild, sofort.
+   *
+   * Zwei Aufrufe liefern byteweise dasselbe. Mit `checksumPerTick` kommt die
+   * volle Prüfsummenfolge mit; ohne nur die beiden Gesamtwerte, weil 6000
+   * Zahlen selten gebraucht werden.
+   */
+  replay(name: string, options?: { checksumPerTick?: boolean }): ReplayResult;
+  /** Dieselbe Aufzeichnung im laufenden Spiel abspielen — für die Bildprüfung. */
+  replayLive(name: string): boolean;
+  /** Läuft gerade eine Wiedergabe im Spiel? */
+  isReplaying(): boolean;
+
+  // --------------------------------------------- Prüfsumme und Herleitung (19.1)
+  /** Prüfsumme des jetzigen Zustands. */
+  checksum(): number;
+  /** Prüfsumme je Takt mitschreiben. Kostet Rechenzeit, daher abschaltbar. */
+  setChecksumTracking(on: boolean): void;
+  checksumTrail(limit?: number): number[];
+  /** Schadens-Herleitung eines Zaubers beim jetzigen Zustand. */
+  explainDamage(spellId: string): DamageBreakdown;
+  /** Eingabe-Zeitmessung: ms nach Ablauf der globalen Wartezeit, je Druck. */
+  inputTiming(): number[];
+  /** Alle Abklingzeiten sofort bereit machen (GAME-DESIGN 19.1: Zustand setzen). */
+  setCooldownsReady(): void;
+  /**
+   * Schadenszahlen einspeisen, ohne den Kampf anzufassen.
+   *
+   * Nur ein Messmittel: Zwanzig Treffer je Sekunde entstehen in Schritt 1 nicht
+   * von selbst (ein DoT tickt alle zwei Sekunden), im späteren Spiel mit vielen
+   * gleichzeitigen Effekten sehr wohl. Der Kampf bleibt unberührt — es wird
+   * nichts gewirkt und kein Schaden gezählt.
+   */
+  feedHits(count: number, damage?: number, big?: boolean): void;
+
+  // ------------------------------------------------- Ereignis-System (18.3)
+  /**
+   * Regel-Ereignisse einspeisen, ohne den Kampf anzufassen.
+   *
+   * Messmittel für den Speicher-Nachweis: Ein Kampf trägt rund sechzig
+   * Ereignisse aus — zu wenig, um eine Anforderung je Ereignis von der
+   * Messschwankung zu unterscheiden.
+   *
+   * **Läuft über einen eigenen Bus**, nicht über den des Kampfes: Sonst
+   * verschöbe jede Messung die Ereignisfolge, an der der Abgleich mit dem
+   * Simulator hängt.
+   */
+  emitRuleEvents(count: number, event?: number): void;
+  /**
+   * Einen zählenden Empfänger anmelden.
+   *
+   * Ohne ihn misst der Speicher-Nachweis nur die Verteilung, nicht den Empfang
+   * — und der ist der Teil, an dem später die Schul-Mechaniken hängen. Er
+   * hängt am Mess-Bus, nicht am Kampf.
+   *
+   * @returns wie oft dieser Empfänger schon gerufen wurde, als Ablesefunktion
+   */
+  addRuleProbe(event: number, id?: string): () => number;
+  /** Empfänger eines Ereignisses **des Kampfes**, in ihrer Reihenfolge. */
+  ruleReceivers(event: number): string[];
+  /**
+   * Zustand des Ereignis-Systems **des Kampfes**: Folge, Anzahl, Empfänger.
+   *
+   * `measurementEmitted` zählt getrennt, was über `emitRuleEvents` eingespeist
+   * wurde — das läuft über einen eigenen Bus und verfälscht die Kampf-Folge
+   * nicht.
+   */
+  ruleEvents(): {
+    names: string[];
+    emitted: number;
+    sequenceChecksum: number;
+    receivers: Record<string, string[]>;
+    measurementEmitted: number;
+  };
   /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
   bindSlot(slot: number, spellId: string): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
   setResource(value: number): void;
+  /** Verbleibende Lebenspunkte des Bosses setzen (GAME-DESIGN 19.1). */
+  setBossHp(hp: number): void;
   /** Kampf von vorn beginnen. */
   resetFight(): void;
+  /** „Ready" auslösen — der Countdown beginnt. */
+  ready(): boolean;
+  /** „Wipe Run" auslösen. */
+  wipe(): boolean;
+  /** Esc-Menü öffnen oder schließen. */
+  togglePause(): void;
+  /** Ist das Esc-Menü offen? */
+  isPaused(): boolean;
   /**
    * Eine Runde nach fester Prioritätenliste durchrechnen und das Ergebnis melden.
    *
@@ -220,6 +419,18 @@ export interface DevTools {
   simulate(rotation: RotationName, options?: ReferenceOptions): ReferenceResult;
   /** Abklingzeit über viele Zyklen messen (VERIFICATION § 3.3). */
   measureCooldown(spellId: string, cycles: number): CooldownMeasurement;
+  // ------------------------------------------------- Klang und Musik (17.1)
+  /** Abdeckungs-Bericht: Was klingt, was noch nicht, und was ins Leere liefe. */
+  sound(): SoundReport;
+  /**
+   * Ein Kampf-Ereignis von Hand auslösen.
+   *
+   * Zum Prüfen der Klänge, die ein Lauf nicht erreicht — etwa der Überdruck,
+   * wenn man gewinnt. Der Kampf bleibt unberührt; es klingt nur.
+   */
+  emit(eventName: string): boolean;
+  /** Namen aller Kampf-Ereignisse, auf die ein Klang hören kann. */
+  events(): string[];
   /** Setzt alle Messreihen zurück. */
   resetPerf(): void;
   /** Misst den Halden-Zuwachs über `frames` Bilder. */
@@ -231,6 +442,21 @@ export function installDevTools(app: App): void {
 
   const perf = new PerfCounters();
   const probe = new AllocationProbe();
+  /**
+   * Ein eigenstaendiges Ereignis-System zum Messen (Issue E3-1).
+   *
+   * Es haengt bewusst NICHT am Kampf: Der Anschluss ist Issue E3-1b und wird
+   * auf beiden Seiten zugleich gemacht, weil die Stellen, an denen ein Ereignis
+   * entsteht, die Reihenfolge festlegen — und die gilt nie einseitig.
+   */
+  const ruleBus = new RuleEvents();
+  /** Name der laufenden Wiedergabe im Bild, sonst `null`. */
+  let liveReplay: string | null = null;
+  // Die erzwungene Aufräumung hält die Seite an. Ohne diesen Anschluss zählte
+  // die Schleife die dabei verlorene Zeit als verworfene Takte des Spiels.
+  probe.onCollected = () => {
+    app.loop.discardPendingTime();
+  };
   let framesSinceMeasurement = 0;
   let warmupLeft = WARMUP_FRAMES;
 
@@ -281,6 +507,7 @@ export function installDevTools(app: App): void {
       frames: perf.frameCount,
       ticks: perf.tickCount,
       droppedTicks: app.loop.droppedTickCount,
+      discardedForMeasurement: app.loop.discardCount,
       simTimeMs: app.loop.timeMs,
     }),
     state: () => ({
@@ -292,6 +519,13 @@ export function installDevTools(app: App): void {
       alpha: app.loop.alpha,
       gcdRemainingMs: app.session.gcd.remainingMs(app.loop.timeMs),
       gcdLengthMs: app.session.gcd.lengthMs,
+      phase: PHASE_NAMES[app.session.phase] ?? '?',
+      outcome: OUTCOME_NAMES[app.session.outcome] ?? '?',
+      countdownRemainingMs: app.session.countdownRemainingMs(app.loop.timeMs),
+      fightElapsedMs: app.session.fightElapsedMs(app.loop.timeMs),
+      overpressureRemainingMs: app.session.overpressureRemainingMs(app.loop.timeMs),
+      fightStartedAtMs: app.combat.fightStartedAt,
+      endedAtMs: app.session.endedAtMs,
     }),
     input: () => {
       const metrics = app.audio.audio?.metrics();
@@ -421,21 +655,252 @@ export function installDevTools(app: App): void {
         slots,
       };
     },
+    impact: () => {
+      const shownMs = app.loop.timeMs + app.loop.alpha * TICK_MS;
+      return {
+        poolCapacity: app.impact.poolCapacity,
+        activeCount: app.impact.activeCount,
+        recycleCount: app.impact.recycleCount,
+        spawnCount: app.impact.spawnCount,
+        shakeOffsetPx: app.impact.shakeOffset(shownMs),
+        flashStrength: app.impact.flashStrength(shownMs),
+      };
+    },
+    log: () => app.session.log.toArray(),
+    logStats: () => {
+      const log = app.session.log;
+      const counts: Record<string, number> = {};
+      for (let type = 0; type < EVENT_NAMES.length; type++) {
+        counts[EVENT_NAMES[type] as string] = log.countOf(type);
+      }
+      return {
+        entries: log.length,
+        capacity: log.capacity,
+        totalWritten: log.totalWritten,
+        dropped: log.droppedCount,
+        overflowed: log.hasOverflowed,
+        byteLength: log.byteLength,
+        counts,
+      };
+    },
+    summary: () => app.session.summary(app.loop.timeMs),
+    logText: (limit = 200) => {
+      const entries = app.session.log.toArray();
+      const from = Math.max(0, entries.length - limit);
+      let out = '';
+      for (let i = from; i < entries.length; i++) {
+        const e = entries[i];
+        if (e === undefined) continue;
+        const spell = e.spell >= 0 ? (app.combat.spellAt(e.spell)?.id ?? String(e.spell)) : '-';
+        out += `${(e.timeMs / 1000).toFixed(2)}  ${e.type.padEnd(10)} ${spell.padEnd(9)} ${e.value}\n`;
+      }
+      return out;
+    },
+    pause: () => {
+      app.loop.setPaused(true);
+    },
+    resume: () => {
+      app.loop.setPaused(false);
+    },
+    step: (count = 1) => {
+      app.loop.advanceTicks(count);
+      return app.loop.timeMs;
+    },
+    setTimeScale: (scale: number) => {
+      app.loop.setTimeScale(scale);
+    },
+    timeScale: () => app.loop.timeScale,
+
+    recordings: () => recordingNames(),
+    replay: (name: string, options = {}) => {
+      const recording = recordings().get(name);
+      if (recording === undefined) {
+        throw new Error(
+          `Unbekannte Aufzeichnung: ${name}. Bekannt: ${recordingNames().join(', ')}`,
+        );
+      }
+      return replayRecording(recording, options);
+    },
+    replayLive: (name: string) => {
+      const recording = recordings().get(name);
+      if (recording === undefined) return false;
+      // Die Wiedergabe legt ihre Drücke in denselben Puffer, den auch die
+      // Tastatur benutzt — sonst prüfte sie einen anderen Weg als den echten.
+      // Der Haken sitzt hier und nicht in `App`, damit weder die Aufzeichnungen
+      // noch die Prioritätenliste, aus der sie entstehen, im Auslieferungs-
+      // Bundle landen (GAME-DESIGN 18.5 und 19.3).
+      app.backToMenu();
+      let index = 0;
+      /** Takt der Schleife, in dem der Kampf beginnt. -1 = noch unbekannt. */
+      let startTick = -1;
+      liveReplay = name;
+      app.loop.onBeforeTick = (): void => {
+        // **Jeder Druck wird auf seinen Takt gelegt, nicht auf „jetzt".**
+        //
+        // Dieser Haken läuft einmal je **Bild**, in dem ein bis zwei Takte
+        // gerechnet werden — er kann den Takt der Aufzeichnung also gar nicht
+        // treffen. Ein Druck 10 ms vor Ablauf der Wartezeit wird verworfen, und
+        // damit fällt eine Wirkung der Rotation aus.
+        //
+        // Deshalb wird der Start-Takt schon im Countdown **vorausberechnet**
+        // und jeder Druck mit seinem Ziel-Takt in den Puffer gelegt; der hält
+        // ihn bis dahin zurück. Gefunden bei E1-9: Der Siegeslauf endete im
+        // Überdruck mit 4004 statt 4240 Schaden, die erste Wirkung lag bei
+        // 10 ms statt 0 und die zweite kam 1490 ms später.
+        const phase = app.session.phase;
+        if (startTick < 0) {
+          if (phase === PHASE_COUNTDOWN) {
+            const left = app.session.countdownRemainingMs(app.loop.timeMs);
+            startTick = app.loop.tickCount + Math.ceil(left / TICK_MS);
+          } else if (phase === PHASE_FIGHTING) {
+            startTick =
+              app.loop.tickCount - Math.round(app.combat.fightElapsedMs(app.loop.timeMs) / TICK_MS);
+          } else {
+            return; // Vorbereitung: Es ist noch nichts entschieden.
+          }
+        }
+
+        const dueUntil = app.loop.tickCount - startTick + REPLAY_LOOKAHEAD_TICKS;
+        while (index < recording.presses.length) {
+          const press = recording.presses[index];
+          if (press === undefined || press.tick > dueUntil) break;
+          index++;
+          app.pressQueue.push(
+            press.slot,
+            press.tick + startTick,
+            performance.now(),
+            app.loop.frameCount,
+          );
+        }
+        if (index >= recording.presses.length) {
+          liveReplay = null;
+          app.loop.onBeforeTick = null;
+        }
+      };
+      app.ready();
+      return true;
+    },
+    isReplaying: () => liveReplay !== null,
+
+    checksum: () => combatChecksum(app.combat, app.loop.timeMs),
+    setChecksumTracking: (on: boolean) => {
+      app.session.setChecksumTracking(on);
+    },
+    checksumTrail: (limit = 600) => app.session.checksumTrail(limit),
+    explainDamage: (spellId: string) => {
+      const index = app.combat.indexOf(spellId);
+      const spell = app.combat.spellAt(index);
+      if (spell === undefined) throw new Error(`Unbekannter Zauber: ${spellId}`);
+      const spender = spell.spender;
+      const resource = app.combat.resource;
+      const bonusApplied = spender !== undefined && resource >= spender.bonusThreshold;
+      const spenderRaw =
+        spender === undefined
+          ? 0
+          : spender.damagePerPoint * resource * (bonusApplied ? spender.bonusMultiplier : 1);
+      const factors = [
+        { name: 'essence', value: 1 },
+        { name: 'talents', value: 1 },
+        { name: 'buffs', value: 1 },
+        { name: 'synergy', value: 1 },
+        { name: 'resistance', value: app.combat.boss.resistances[app.combat.school.school] ?? 1 },
+        { name: 'crit', value: 1 },
+      ];
+      let total = spell.baseDamage + spenderRaw;
+      for (const factor of factors) total *= factor.value;
+      return {
+        spellId,
+        baseDamage: spell.baseDamage,
+        spenderDamage: spenderRaw,
+        resource,
+        bonusApplied,
+        factors,
+        total: Math.round(total),
+      };
+    },
+    inputTiming: () => app.session.inputTiming.toArray(),
+    setCooldownsReady: () => {
+      app.combat.setCooldownsReady();
+    },
+
+    feedHits: (count: number, damage = 100, big = false) => {
+      const now = app.loop.timeMs;
+      for (let i = 0; i < count; i++) {
+        app.impact.onHit(damage, i % 3 === 0 ? HIT_DOT : HIT_DIRECT, false, big, now);
+      }
+    },
+    emitRuleEvents: (count: number, event = RULE_DAMAGE) => {
+      const now = app.loop.timeMs;
+      for (let i = 0; i < count; i++) ruleBus.emit(event, i % 3, 100, now);
+    },
+    addRuleProbe: (event: number, id = 'probe') => {
+      let count = 0;
+      ruleBus.register(
+        { id, on: event },
+        {
+          onRuleEvent: () => {
+            count++;
+          },
+        },
+      );
+      return () => count;
+    },
+    ruleReceivers: (event: number) => app.combat.events.receiverIds(event),
+    ruleEvents: () => {
+      const receivers: Record<string, string[]> = {};
+      for (let event = 0; event < RULE_EVENT_COUNT; event++) {
+        receivers[RULE_EVENT_NAMES[event] ?? String(event)] = app.combat.events.receiverIds(event);
+      }
+      return {
+        names: [...RULE_EVENT_NAMES],
+        emitted: app.combat.events.emittedCount,
+        sequenceChecksum: app.combat.events.sequenceChecksum,
+        receivers,
+        measurementEmitted: ruleBus.emittedCount,
+      };
+    },
     bindSlot: (slot: number, spellId: string) => {
       const index = app.combat.indexOf(spellId);
       if (index < 0) return false;
       app.session.bind(slot, index);
       return true;
     },
+    setBossHp: (hp: number) => {
+      app.combat.setBossHpRemaining(hp);
+    },
     setResource: (value: number) => {
       app.combat.setResource(value);
     },
     resetFight: () => {
-      app.session.reset();
-      app.loop.reset();
+      app.backToMenu();
+    },
+    ready: () => app.ready(),
+    wipe: () => app.wipe(),
+    togglePause: () => {
+      app.togglePause();
+    },
+    isPaused: () => app.overlay.isPaused,
+    showTestGear: () => {
+      // Ein Gegenstand, der BEIDE Arten trägt — nur so lässt sich der
+      // Unterschied überhaupt zeigen. Ein Prüfstück mit nur einer Art wäre
+      // der triviale Fall, den AC4 ausdrücklich nicht meint.
+      app.overlay.showGear('TEST-RELIC · ITEM LEVEL 40 · EPIC', [
+        { label: 'ESSENCE', share: 0.2, kind: STAT_ADDITIVE },
+        { label: 'SET BONUS (4)', share: 0.3, kind: STAT_ADDITIVE },
+        { label: 'CATALYSIS', share: 0.12, kind: STAT_MULTIPLICATIVE },
+        { label: 'PURITY', share: 0.08, kind: STAT_MULTIPLICATIVE },
+      ]);
     },
     simulate: (rotation, options) => runReference(rotation, options),
     measureCooldown: (spellId, cycles) => measureCooldown(spellId, cycles),
+    sound: () => buildSoundReport(app),
+    events: () => [...COMBAT_EVENT_NAMES],
+    emit: (eventName) => {
+      const event = eventIndex(eventName);
+      if (event < 0) return false;
+      app.audio.onEvent(event, NO_KEY, app.loop.timeMs);
+      return true;
+    },
     resetPerf: () => {
       perf.reset();
       framesSinceMeasurement = 0;

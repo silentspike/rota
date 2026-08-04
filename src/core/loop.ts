@@ -92,6 +92,15 @@ export class GameLoop {
    */
   onFrameMeasured: FrameMeasurementFn | null = null;
 
+  /**
+   * Wird vor den Takten eines Bildes gerufen.
+   *
+   * Die Wiedergabe einer Aufzeichnung braucht diesen Haken, um ihre Drücke in
+   * denselben Puffer zu legen wie die Tastatur — sonst liefe sie an der
+   * Eingabe vorbei und prüfte einen anderen Weg als den echten.
+   */
+  onBeforeTick: (() => void) | null = null;
+
   private readonly simulation: Simulation;
   private readonly renderer: Renderer;
   private readonly requestFrame: RequestFrameFn;
@@ -114,6 +123,9 @@ export class GameLoop {
 
   private running = false;
   private frameHandle = 0;
+  private discards = 0;
+  private scale = 1;
+  private pausedValue = false;
 
   constructor(options: GameLoopOptions) {
     this.simulation = options.simulation;
@@ -175,6 +187,63 @@ export class GameLoop {
   }
 
   /**
+   * Zeitsteuerung (GAME-DESIGN 19.1): Zeitlupe, Zeitraffer, Anhalten.
+   *
+   * **Sauber vom Logik-Takt getrennt.** Der Faktor wirkt nur darauf, wie viel
+   * Realzeit in Takte umgesetzt wird — der Takt selbst bleibt 10 ms, und die
+   * Messwerte je Bild (Arbeitszeit, Bildabstand, Eingabe-Verzögerung) entstehen
+   * völlig unabhängig davon. Zeitlupe darf das Bild nicht schöner aussehen
+   * lassen, als es ist.
+   */
+  get timeScale(): number {
+    return this.scale;
+  }
+
+  setTimeScale(scale: number): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    if (!Number.isFinite(scale) || scale < 0) return;
+    this.scale = scale;
+  }
+
+  get isPaused(): boolean {
+    return this.pausedValue;
+  }
+
+  setPaused(paused: boolean): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.pausedValue = paused;
+    // Aufgelaufene Realzeit verwerfen, sonst holt die Schleife die Pause nach.
+    this.carryMs = 0;
+    this.hasLastTimestamp = false;
+  }
+
+  /**
+   * Verwirft die aufgelaufene Zeit, ohne sie als Rückstand zu zählen.
+   *
+   * **Nur für Messungen, die die Seite selbst anhalten.** Die erzwungene
+   * Aufräumung in `devtools/allocations.ts` blockiert den Hauptfaden für über
+   * hundert Millisekunden; ohne diesen Aufruf holte die Schleife danach Takte
+   * nach und zählte den Rest als verworfen — gemessen: **10 verworfene Takte je
+   * Speichermessung**, obwohl das Spiel nichts falsch gemacht hat. Das Messgerät
+   * darf die Messung nicht verfälschen.
+   *
+   * Wie oft das geschah, steht in `discardCount` — damit bleibt sichtbar, dass
+   * hier Zeit verschwunden ist, und der Aufruf lässt sich nicht stillschweigend
+   * missbrauchen.
+   */
+  discardPendingTime(): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.carryMs = 0;
+    this.hasLastTimestamp = false;
+    this.discards++;
+  }
+
+  /** Wie oft `discardPendingTime` gerufen wurde. Im Auslieferungsstand 0. */
+  get discardCount(): number {
+    return this.discards;
+  }
+
+  /**
    * Rechnet `count` Takte sofort, ohne auf ein Bild zu warten.
    *
    * Für die Entwicklungs-Werkzeuge (Einzelschritt, GAME-DESIGN 19.1) und für Tests,
@@ -203,11 +272,15 @@ export class GameLoop {
       // Ein rückwärts laufender Zeitstempel wäre ein Fehler der Zeitquelle; ihn
       // hier abzufangen ist billiger als überall mit negativer Zeit zu rechnen.
       if (intervalMs < 0) intervalMs = 0;
-      this.carryMs += intervalMs;
+      // Der gemessene Bildabstand bleibt unberührt — nur die Umsetzung in
+      // Takte wird gestreckt oder gestaucht.
+      if (!this.pausedValue) this.carryMs += intervalMs * this.scale;
     } else {
       this.hasLastTimestamp = true;
     }
     this.lastTimestampMs = timestampMs;
+
+    if (this.onBeforeTick !== null) this.onBeforeTick();
 
     let ticksThisFrame = 0;
     while (this.carryMs >= TICK_MS && ticksThisFrame < MAX_CATCHUP_TICKS) {

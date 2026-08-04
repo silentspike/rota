@@ -15,9 +15,14 @@
  * bevor im selben Takt noch etwas gewirkt wird.
  */
 import { computeDamage, NEUTRAL_FACTORS, type DamageFactors } from './damage.js';
-import type { BossDef, SchoolDef, SpellDef } from './data.js';
+import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
+import { EVENT_CAST, EVENT_DAMAGE, EVENT_DOT_TICK, type CombatLog } from './log.js';
+import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams } from './rng.js';
+import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
+import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
+import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
 /** Ausgang eines Wirk-Versuchs. */
 export const CAST_OK = 0;
@@ -62,6 +67,41 @@ export class Combat {
   readonly gcd = new GlobalCooldown();
   readonly random: RandomStreams;
 
+  /**
+   * Empfänger für Treffer (GAME-DESIGN 9 „Wucht").
+   *
+   * Bleibt `null`, wenn niemand zuhört — dann kostet der Kampf keinen Aufruf.
+   */
+  onHit: HitFn | null = null;
+
+  /**
+   * Das Kampfprotokoll (GAME-DESIGN 18.2). Bleibt `null`, wenn niemand mitschreibt.
+   *
+   * Geschrieben wird in **Kampfzeit**, nicht in der durchlaufenden Uhr: Ein
+   * Protokoll, dessen Nullpunkt vom Laden der Seite abhängt, lässt sich zwischen
+   * zwei Läufen nicht vergleichen.
+   */
+  log: CombatLog | null = null;
+
+  /**
+   * Das Ereignis-System (GAME-DESIGN 18.3, Issue E3-1b).
+   *
+   * **Erst der Schaden, dann die Wirkung** — Entscheidung des Auftraggebers
+   * vom 2026-07-29. „Zauber gewirkt" meldet eine **abgeschlossene** Handlung:
+   * Ein Empfänger beeinflusst den nächsten Zauber, nicht den laufenden. Der
+   * Zersetzungs-Stapel der PUTREFACTION wirkt damit ab dem nächsten Treffer,
+   * nicht auf den auslösenden.
+   *
+   * Der Grund ist kein Geschmack: Bei der umgekehrten Reihenfolge könnte ein
+   * Effekt den Schaden verändern, der ihn ausgelöst hat, und solche
+   * Rückkopplungen lassen sich in einer Optimums-Suche später nicht mehr
+   * auseinanderdividieren.
+   *
+   * Dieselbe Reihenfolge wie das Kampfprotokoll — zwei Erzählungen desselben
+   * Kampfes, die auseinanderliefen, wären beim Abgleich schlimmer als eine.
+   */
+  readonly events = new RuleEvents();
+
   /** Wiederverwendetes Ergebnis-Objekt, siehe `CastOutcome`. */
   private readonly outcome: CastOutcome = {
     result: CAST_OK,
@@ -86,9 +126,50 @@ export class Combat {
   private resourceValue = 0;
   private resourceOverflowValue = 0;
   private nextDecayAtMs: number;
+  /** Welche Phase gerade läuft. 0 ist der Start (GAME-DESIGN 11.1). */
+  private bossPhaseValue = 0;
+  /** Stand der Energieleiste — der zweiten Uhr (GAME-DESIGN 11.2). */
+  private bossEnergyValue = 0;
+  /** Wann die Energieleiste das nächste Mal steigt. */
+  private nextEnergyAtMs: number;
+  /** Wie oft sie ausgelöst hat. */
+  private bossEnergyTriggersValue = 0;
+
+  /**
+   * Wie weit die Boss-Zeitleiste abgearbeitet ist — Zeiger auf den **nächsten**
+   * fälligen Eintrag (GAME-DESIGN 11.1).
+   */
+  private timelineIndexValue = 0;
+
+  /**
+   * Welcher Boss-Zauber gerade läuft, als Index in `boss.timeline`.
+   *
+   * `-1` heißt: keiner. Solange einer läuft, kann er unterbrochen werden —
+   * danach nicht mehr, auch nicht im Takt des Treffers.
+   */
+  private castingValue = -1;
+
+  /** Kampfzeit, zu der der laufende Boss-Zauber trifft. */
+  private castLandsAtMs = -1;
+
+  /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
+  private playerHpValue: number;
+
+  /** Kampfzeit des Spielertods, oder -1. */
+  private diedAtMsValue = -1;
+
+  /** Gesamter erlittener Schaden, **nach** WARD. */
+  private damageTakenValue = 0;
+
+  /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat. */
+  private interruptsLandedValue = 0;
+
+  /** Wie oft einer durchgekommen ist. */
+  private interruptsMissedValue = 0;
   private damageDealtValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
+  private fightStartedAtMs = 0;
 
   constructor(options: CombatOptions) {
     this.school = options.school;
@@ -107,9 +188,27 @@ export class Combat {
     for (let i = 0; i < count; i++) this.indexById.set((this.spells[i] as SpellDef).id, i);
 
     this.nextDecayAtMs = options.school.resource.decayPerStepMs;
+    // Genauso wie der Verfall im Konstruktor: Der Replay ruft `beginFight`
+    // nicht, und ein Startwert von 0 ließe die Leiste schon im Takt 0 steigen —
+    // der Simulator plant den ersten Anstieg bei `perStepMs`. Genau so eine
+    // Kleinigkeit lässt beide Seiten auseinanderlaufen.
+    this.nextEnergyAtMs = options.boss.energy?.perStepMs ?? 0;
+    this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
+
+    // Die Schul-Mechanik hört ab hier auf Ereignisse (E3-2). Eine Zeile für
+    // alle Schulen: Welcher Vorrat gefüllt wird und wie viel, steht in den
+    // Daten des jeweiligen Zaubers.
+    this.stacks = registerStackMechanic(this);
+    this.sublimation = registerSublimation(this);
   }
+
+  /** Die Stapel-Mechanik dieser Schule. Öffentlich für Prüfung und Werkzeuge. */
+  readonly stacks: StackMechanic;
+
+  /** Die Verkürzung der Abklingzeiten (E3-3). */
+  readonly sublimation: SublimationMechanic;
 
   // ---------------------------------------------------------------- Abfragen
 
@@ -141,6 +240,108 @@ export class Combat {
   }
 
   /** Wie viel Vorrat an der Obergrenze verpufft ist. */
+  /**
+   * Welche Phase gerade läuft. 0 ist der Start.
+   *
+   * Geht in die Zustands-Prüfsumme ein (Issue #96): Ohne sie wären zwei Läufe
+   * in verschiedenen Phasen nicht zu unterscheiden.
+   */
+  get bossPhase(): number {
+    return this.bossPhaseValue;
+  }
+
+  /** Stand der Energieleiste. Geht ebenfalls in die Prüfsumme ein. */
+  get bossEnergy(): number {
+    return this.bossEnergyValue;
+  }
+
+  /** Wie oft die Energieleiste ausgelöst hat. */
+  get bossEnergyTriggers(): number {
+    return this.bossEnergyTriggersValue;
+  }
+
+  /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
+  get timelineIndex(): number {
+    return this.timelineIndexValue;
+  }
+
+  /** Verbleibende Lebenspunkte des Spielers. */
+  get playerHp(): number {
+    return this.playerHpValue;
+  }
+
+  /** Welcher Boss-Zauber gerade läuft, oder -1. */
+  get casting(): number {
+    return this.castingValue;
+  }
+
+  /** Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3). */
+  get playerDead(): boolean {
+    return this.diedAtMsValue >= 0;
+  }
+
+  /** Kampfzeit des Spielertods, oder -1. */
+  get diedAtMs(): number {
+    return this.diedAtMsValue;
+  }
+
+  /** Gesamter erlittener Schaden, **nach** WARD. */
+  get damageTaken(): number {
+    return this.damageTakenValue;
+  }
+
+  /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat. */
+  get interruptsLanded(): number {
+    return this.interruptsLandedValue;
+  }
+
+  /** Wie oft einer durchgekommen ist. */
+  get interruptsMissed(): number {
+    return this.interruptsMissedValue;
+  }
+
+  /**
+   * Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
+   *
+   * Der Tod wird hier festgestellt und nicht erst in der Kampfschleife: Ein
+   * Spieler mit null Lebenspunkten, der noch einen Takt weiterwirkt, wäre eine
+   * stille Abweichung zum Simulator.
+   */
+  private hitPlayer(raw: number, timeMs: number): void {
+    if (this.diedAtMsValue >= 0) return;
+    // **Einmal gerundet, am Ende** — dieselbe Regel wie bei ausgehendem
+    // Schaden (GAME-DESIGN 6.3) und dieselbe Zeile wie `PlayerBase::incoming`
+    // im Simulator. Zweimal zu runden ergäbe je nach Reihenfolge andere
+    // Zahlen, und genau daran laufen zwei Umsetzungen auseinander.
+    const angekommen = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+    this.damageTakenValue += angekommen;
+    this.playerHpValue = Math.max(0, this.playerHpValue - angekommen);
+    if (this.playerHpValue === 0) {
+      this.diedAtMsValue = timeMs - this.fightStartedAtMs;
+    }
+  }
+
+  /**
+   * Bricht einen laufenden Boss-Zauber ab (GAME-DESIGN 11.2, Baustein 9).
+   *
+   * Gibt zurück, ob überhaupt etwas zu unterbrechen war. Ein Unterbrechen ins
+   * Leere ist **kein Fehler**, sondern eine vertane Abklingzeit.
+   */
+  private interruptBossCast(): boolean {
+    if (this.castingValue < 0) return false;
+    this.castingValue = -1;
+    this.castLandsAtMs = -1;
+    this.interruptsLandedValue++;
+    return true;
+  }
+
+  /** Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet. */
+  get bossHpPercent(): number {
+    if (this.boss.hp <= 0) return 0;
+    const übrig = this.boss.hp - this.damageDealtValue;
+    return Math.floor((Math.max(0, übrig) * 100) / this.boss.hp);
+  }
+
   get resourceOverflow(): number {
     return this.resourceOverflowValue;
   }
@@ -152,6 +353,44 @@ export class Combat {
   /** Kampfzeit, zu der der Kampf endete, sonst `NOT_ACTIVE`. */
   get endedAt(): number {
     return this.endedAtMs;
+  }
+
+  /**
+   * Zeitpunkt auf der durchlaufenden Uhr, zu dem der Kampf begann.
+   *
+   * **Zwei Uhren, eine Zeitachse:** Die Abklingzeiten laufen schon in der
+   * Vorbereitung mit (GAME-DESIGN 10), die Kampfuhr beginnt erst mit dem Ende des
+   * Countdowns. Beide messen dieselbe durchlaufende Zeit — nur der Nullpunkt der
+   * Kampfuhr liegt später. Eine zweite, angehaltene Zeitachse wäre die Sorte
+   * Sonderfall, an der später jede Aufzeichnung scheitert.
+   */
+  get fightStartedAt(): number {
+    return this.fightStartedAtMs;
+  }
+
+  /** Verstrichene **Kampfzeit** — die Zahl, die der Spieler auf der Uhr sieht. */
+  fightElapsedMs(timeMs: number): number {
+    const elapsed = timeMs - this.fightStartedAtMs;
+    return elapsed > 0 ? elapsed : 0;
+  }
+
+  /** Restzeit bis zum Überdruck. */
+  overpressureRemainingMs(timeMs: number): number {
+    const left = this.boss.overpressureMs - this.fightElapsedMs(timeMs);
+    return left > 0 ? left : 0;
+  }
+
+  /**
+   * Den Kampf beginnen lassen.
+   *
+   * Setzt den Nullpunkt der Kampfuhr und den Verfall-Plan des Vorrats. Die
+   * Abklingzeiten laufen unverändert weiter — was in der Vorbereitung gewirkt
+   * wurde, bleibt gewirkt.
+   */
+  beginFight(timeMs: number): void {
+    this.fightStartedAtMs = timeMs;
+    this.nextDecayAtMs = timeMs + this.school.resource.decayPerStepMs;
+    this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
   }
 
   castCount(index: number): number {
@@ -205,7 +444,14 @@ export class Combat {
 
   /** Kann der Zauber jetzt gewirkt werden? */
   isReady(index: number, timeMs: number): boolean {
-    return this.isOffCooldown(index, timeMs) && this.gcd.isReady(timeMs);
+    if (!this.isOffCooldown(index, timeMs)) return false;
+    // Dieselbe Ausnahme wie in `cast` (GAME-DESIGN 6.6, Issue #110). Sie steht
+    // hier ein zweites Mal, weil die Zauberleiste `isReady` fragt und nicht
+    // `cast`: Ohne sie zeigte sie den Unterbrecher als gesperrt an, während er
+    // in Wahrheit wirkbar ist — und der Spieler drückte ihn nicht.
+    const spell = this.spells[index];
+    if (spell !== undefined && !spell.triggersGcd) return true;
+    return this.gcd.isReady(timeMs);
   }
 
   // ------------------------------------------------------------------- Takt
@@ -230,8 +476,15 @@ export class Combat {
       const damage = computeDamage(dot.tickDamage, this.factors);
       this.damageDealtValue += damage;
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
+      this.reportHit(damage, HIT_DOT, false, timeMs);
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, i, damage);
+      // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zählen
+      // will, meldet sich für beide Arten an — so bleibt die Folge eindeutig.
+      this.events.emit(RULE_DOT_TICK, i, damage, timeMs);
       this.dotTickCounts[i] = (this.dotTickCounts[i] ?? 0) + 1;
-      this.addResource(dot.resourceGainPerTick[this.school.resource.id] ?? 0);
+      // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
+      // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
+      // beisteuert, steht in seinen Daten, nicht im Kampfcode.
       this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
     }
 
@@ -240,6 +493,78 @@ export class Combat {
       const left = this.resourceValue - resource.decayAmount;
       this.resourceValue = left > 0 ? left : 0;
       this.nextDecayAtMs += resource.decayPerStepMs;
+    }
+
+    // Die zweite Uhr (GAME-DESIGN 11.2, Baustein 1). Sie steigt **unabhängig
+    // vom Schaden des Spielers** — wer schneller zuschlägt, verschiebt den
+    // Auslöser nicht. Genau das macht sie zu einem zweiten Takt, gegen den
+    // geplant werden muss.
+    const energy = this.boss.energy;
+    if (energy !== null && energy.perStepMs > 0) {
+      while (timeMs >= this.nextEnergyAtMs) {
+        this.bossEnergyValue += energy.amount;
+        if (this.bossEnergyValue >= energy.threshold) {
+          this.bossEnergyTriggersValue++;
+          this.bossEnergyValue = energy.resetTo;
+        }
+        this.nextEnergyAtMs += energy.perStepMs;
+      }
+    }
+
+    // Die feste Zeitleiste. Sie hängt weder am Schaden noch an der Phase,
+    // sondern allein an der Uhr — deshalb steht sie hier bei den passiven
+    // Wirkungen. Die `while`-Schleife holt mehrere Einträge nach, falls ein
+    // Takt über sie hinwegspringt; im 10-ms-Takt kann das nur passieren, wenn
+    // zwei Einträge auf denselben Zeitpunkt fallen, und dann ist es richtig so.
+    //
+    // **Seit #110 hat ein Eintrag Wirkung**: Ein Schlag trifft sofort, ein
+    // Zauber beginnt zu laufen und trifft erst nach seiner Wirkzeit.
+    //
+    // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
+    // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
+    // zwar ein stiller: Die Einträge kämen zu früh, aber der Kampf liefe weiter.
+    const seitBeginn = timeMs - this.fightStartedAtMs;
+
+    // Zuerst der laufende Boss-Zauber: Ist seine Wirkzeit um, trifft er.
+    // **Vor** dem Vorrücken der Zeitleiste, damit ein Treffer und ein neuer
+    // Eintrag im selben Takt in derselben Reihenfolge geschehen wie im
+    // Simulator — dort steht `BossCastLands` vor `TimelineStep` in der
+    // Rangfolge der Ereignisse.
+    if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMs) {
+      const laufend = this.boss.timeline[this.castingValue];
+      this.castingValue = -1;
+      this.castLandsAtMs = -1;
+      this.interruptsMissedValue++;
+      if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
+    }
+
+    while (this.timelineIndexValue < this.boss.timeline.length) {
+      const eintrag = this.boss.timeline[this.timelineIndexValue];
+      if (eintrag === undefined || seitBeginn < eintrag.atMs) break;
+      const index = this.timelineIndexValue;
+      this.timelineIndexValue++;
+      if (eintrag.mechanic === 'interruptibleCast') {
+        // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
+        // dahin kann der Spieler ihn abbrechen.
+        this.castingValue = index;
+        this.castLandsAtMs = eintrag.atMs + eintrag.castTimeMs;
+      } else {
+        // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
+        this.hitPlayer(eintrag.damage, timeMs);
+      }
+    }
+
+    // Phasenwechsel an der Lebenspunkt-Schwelle. Die Phase kann nur STEIGEN:
+    // Heilt der Boss später einmal (Baustein 5), verschwindet eine schon
+    // gezeigte Mechanik nicht wieder.
+    if (this.boss.phases.length > 0) {
+      const prozent = this.bossHpPercent;
+      let neue = 0;
+      for (let i = 0; i < this.boss.phases.length; i++) {
+        const schwelle = this.boss.phases[i];
+        if (schwelle !== undefined && prozent <= schwelle.atHpPercent) neue = i + 1;
+      }
+      if (neue > this.bossPhaseValue) this.bossPhaseValue = neue;
     }
   }
 
@@ -251,7 +576,9 @@ export class Combat {
       this.endedAtMs = timeMs;
       return true;
     }
-    if (timeMs >= this.boss.overpressureMs) {
+    // Der Überdruck bemisst sich an der KAMPFuhr, nicht an der durchlaufenden:
+    // Die Vorbereitung darf nichts von der Kampfzeit abziehen.
+    if (this.fightElapsedMs(timeMs) >= this.boss.overpressureMs) {
       this.stateValue = FIGHT_OVERPRESSURE;
       this.endedAtMs = timeMs;
       return true;
@@ -283,7 +610,15 @@ export class Combat {
       outcome.result = CAST_FIGHT_OVER;
       return outcome;
     }
-    if (!this.gcd.isReady(timeMs)) {
+    // **Wer keine Wartezeit auslöst, wird auch von keiner gesperrt**
+    // (GAME-DESIGN 6.6/10.4, Issue #110).
+    //
+    // Bis hierher galt die Sperre für jeden Zauber. Für die drei aus Schritt 1
+    // war das richtig — sie lösen alle eine aus. Für den Unterbrecher wäre es
+    // die Ausnahme mit falschem Vorzeichen: Er löste zwar keine Wartezeit aus,
+    // könnte aber während einer laufenden nicht gewirkt werden. Gebraucht wird
+    // er genau dann.
+    if (spell.triggersGcd && !this.gcd.isReady(timeMs)) {
       outcome.result = CAST_ON_GCD;
       return outcome;
     }
@@ -291,6 +626,14 @@ export class Combat {
       outcome.result = CAST_ON_COOLDOWN;
       return outcome;
     }
+
+    // Unterbrechen (GAME-DESIGN 11.2, Baustein 9).
+    //
+    // **Kein Sonderfall in der Wartezeit-Rechnung.** Dass dieser Zauber keine
+    // globale Wartezeit auslöst, steht weiter unten als `spell.triggersGcd` und
+    // kommt aus den Daten — hier wäre eine zweite Stelle, an der dieselbe Regel
+    // hängt, und zwei Stellen laufen auseinander.
+    if (spell.interrupt === true) this.interruptBossCast();
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);
@@ -311,6 +654,13 @@ export class Combat {
     if (damage > 0) {
       this.damageDealtValue += damage;
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
+      this.reportHit(damage, HIT_DIRECT, false, timeMs);
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
+      this.events.emit(RULE_DAMAGE, index, damage, timeMs);
+      // Hierher gehört `RULE_CRIT`. Es fehlt nicht aus Nachlässigkeit: Krit
+      // ruht in Schritt 1 (PURITY = 0, GAME-DESIGN 6.5), `reportHit` bekommt
+      // überall `false`. Einen Auslöser zu schreiben, der nie zutrifft, wäre
+      // toter Code — die Kennung steht bereit, der Ort ist benannt.
     }
 
     const dot = spell.dot;
@@ -326,16 +676,102 @@ export class Combat {
       this.dotNextTickAtMs[index] = timeMs + dot.tickIntervalMs;
     }
 
-    const gain = spell.resourceGain?.[this.school.resource.id] ?? 0;
-    if (gain !== 0) this.addResource(gain);
-
     this.cooldownReadyAtMs[index] = timeMs + spell.cooldownMs;
     if (spell.triggersGcd) this.gcd.trigger(timeMs);
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);
+    // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt über Zeit,
+    // Vorrat, Abklingzeit und Wartezeit stehen.
+    this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+
     outcome.result = CAST_OK;
     outcome.damage = damage;
     return outcome;
+  }
+
+  /**
+   * Einen Treffer melden.
+   *
+   * Ob er „groß" ist, entscheidet der Kampf und nicht die Anzeige: Es ist eine
+   * Aussage über den Schaden, nicht über den Geschmack.
+   */
+  private reportHit(damage: number, kind: number, isCrit: boolean, timeMs: number): void {
+    const sink = this.onHit;
+    if (sink === null) return;
+    sink(damage, kind, isCrit, damage >= this.boss.hp * BIG_HIT_HP_SHARE, timeMs);
+  }
+
+  /**
+   * Stapel hinzufügen — der Zugriff, den die Schul-Mechanik benutzt.
+   *
+   * Deckelt selbst und zählt mit, was an der Obergrenze verpufft. Öffentlich
+   * seit E3-2: Der Gewinn entsteht nicht mehr im Kampfcode, sondern in einem
+   * Empfänger (`src/combat/schools/stacks.ts`).
+   */
+  gainResource(amount: number): void {
+    this.addResource(amount);
+  }
+
+  /** Was ein Zauber bei einer Wirkung beisteuert — aus seinen Daten. */
+  gainOfSpell(spellIndex: number, resourceId: string): number {
+    return this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
+  }
+
+  /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
+  gainOfTick(spellIndex: number, resourceId: string): number {
+    return this.spells[spellIndex]?.dot?.resourceGainPerTick[resourceId] ?? 0;
+  }
+
+  /** Kennung des Vorrats dieser Schule. */
+  get resourceId(): string {
+    return this.school.resource.id;
+  }
+
+  /** Was ein Zauber laut seinen Daten an Abklingzeit verkürzt (E3-3). */
+  reductionOfSpell(spellIndex: number): number {
+    return this.spells[spellIndex]?.cooldownReductionMs ?? 0;
+  }
+
+  /**
+   * Die Abklingzeit **eines** Zaubers auf null setzen.
+   *
+   * Für den Cooldown-Rücksetzer (SUBLIMATION, Issue E3-3c). Er ist ein
+   * Auswahlmodus: Der Spieler sagt ausdrücklich, welchen Zauber er meint —
+   * deshalb genau einer und nicht alle, und deshalb hier statt in
+   * `setCooldownsReady`, das ein Entwicklungs-Werkzeug ist.
+   *
+   * @returns false, wenn es den Zauber nicht gibt.
+   */
+  clearCooldown(index: number): boolean {
+    if (index < 0 || index >= this.cooldownReadyAtMs.length) return false;
+    this.cooldownReadyAtMs[index] = 0;
+    return true;
+  }
+
+  /**
+   * Alle laufenden Abklingzeiten verkürzen (SUBLIMATION, GAME-DESIGN 4.1).
+   *
+   * **Nur laufende.** Ein Zauber, der bereit ist, bleibt unberührt — sonst
+   * entstünde eine „negative Restzeit", die den nächsten Wirk-Versuch um genau
+   * diesen Betrag früher zuließe, ohne dass es je eine Abklingzeit gegeben
+   * hätte. Die Zeit wird deshalb auf den Jetzt-Zeitpunkt begrenzt, nicht
+   * einfach abgezogen.
+   *
+   * @returns wie viele Abklingzeiten tatsächlich verkürzt wurden
+   */
+  shortenCooldowns(amount: number, timeMs: number, exceptIndex: number): number {
+    if (amount <= 0) return 0;
+    let touched = 0;
+    for (let i = 0; i < this.cooldownReadyAtMs.length; i++) {
+      if (i === exceptIndex) continue;
+      const readyAt = this.cooldownReadyAtMs[i] ?? 0;
+      if (readyAt <= timeMs) continue;
+      const shortened = readyAt - amount;
+      this.cooldownReadyAtMs[i] = shortened > timeMs ? shortened : timeMs;
+      touched++;
+    }
+    return touched;
   }
 
   private addResource(amount: number): void {
@@ -349,8 +785,29 @@ export class Combat {
 
   // ------------------------------------------------------------ Zustand setzen
 
+  /**
+   * Verbleibende Lebenspunkte setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1:
+   * „Zustand setzen: Boss-Leben"). Erspart drei Minuten Spielzeit für eine
+   * Prüfung kurz vor dem Ende.
+   */
+  setBossHpRemaining(hp: number): void {
+    // Zustand setzen ist ein Werkzeug, mit dem sich das Spiel steuern lässt —
+    // und damit genau das, was GAME-DESIGN 19.3 aus der Auslieferung heraushält.
+    if (!__ROTA_DEVTOOLS__) return;
+    const clamped = hp < 0 ? 0 : hp > this.boss.hp ? this.boss.hp : hp;
+    this.damageDealtValue = this.boss.hp - clamped;
+  }
+
+  /** Alle Abklingzeiten sofort bereit — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
+  setCooldownsReady(): void {
+    if (!__ROTA_DEVTOOLS__) return;
+    this.cooldownReadyAtMs.fill(0);
+    this.gcd.reset();
+  }
+
   /** Vorrat setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
   setResource(value: number): void {
+    if (!__ROTA_DEVTOOLS__) return;
     const cap = this.school.resource.cap;
     this.resourceValue = value < 0 ? 0 : value > cap ? cap : value;
   }
@@ -371,5 +828,9 @@ export class Combat {
     this.damageDealtValue = 0;
     this.stateValue = FIGHT_RUNNING;
     this.endedAtMs = NOT_ACTIVE;
+    this.fightStartedAtMs = 0;
+    // Nur die Folge, nicht die Anmeldungen: Ein neuer Versuch behält seine
+    // Zauber und Talente — er beginnt lediglich wieder bei null Ereignissen.
+    this.events.clearSequence();
   }
 }
