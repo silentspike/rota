@@ -5,7 +5,8 @@
   "allBossIds": [
     "first-crucible",
     "test-onslaught",
-    "test-vessel"
+    "test-vessel",
+    "test-warden"
   ],
   "seed": 0,
   "ticks": 9000,
