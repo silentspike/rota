@@ -8,7 +8,7 @@
       "name": "Canker",
       "unlockLevel": 1,
       "baseDamage": 45,
-      "cooldownMs": 4500,
+      "cooldownMs": 2000,
       "castTimeMs": 0,
       "triggersGcd": true,
       "decay": {

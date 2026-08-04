@@ -13,6 +13,7 @@ import rawSchool from '../../data/spells/calcination.json';
 import rawCommonSpells from '../../data/spells/common.json';
 import rawCoagulation from '../../data/spells/coagulation.json';
 import rawFixation from '../../data/spells/fixation.json';
+import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
@@ -735,6 +736,9 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...(Array.isArray(koagulation) ? koagulation : []),
       ...(Array.isArray((rawFixation as Record<string, unknown>)['spells'])
         ? ((rawFixation as Record<string, unknown>)['spells'] as unknown[])
+        : []),
+      ...(Array.isArray((rawPutrefaction as Record<string, unknown>)['spells'])
+        ? ((rawPutrefaction as Record<string, unknown>)['spells'] as unknown[])
         : []),
     ],
   };
