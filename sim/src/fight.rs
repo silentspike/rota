@@ -67,8 +67,8 @@
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{
-    Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER,
-    RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
+    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -255,6 +255,12 @@ pub struct Fight {
     energy: u32,
     /// Wie oft die Energieleiste ausgeloest hat.
     energy_triggers: u32,
+    /// Stand des toedlichen Zaehlers (Issue #216).
+    doom: u32,
+    /// Verbleibende Anwendungen der Ruecksetz-Handlung.
+    doom_charges: u32,
+    /// Zahl der exponentiellen Stapel (Issue #216).
+    stacks: u32,
     /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
     ///
     /// Zeigt auf den **naechsten** faelligen Eintrag. Steht er am Ende der
@@ -412,6 +418,9 @@ impl Fight {
             phase: 0,
             energy: 0,
             energy_triggers: 0,
+            doom: 0,
+            doom_charges: config.boss.doom.map_or(0, |d| d.clear_charges),
+            stacks: 0,
             timeline_index: 0,
             casting: None,
             interrupts_missed: 0,
@@ -595,6 +604,8 @@ impl Fight {
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
         self.schedule_first_energy_tick();
+        self.schedule_first_doom_tick();
+        self.schedule_first_stack_tick();
         self.schedule_next_timeline_step();
         // Die erste Entscheidung faellt bei 0.
         self.queue.push(0, EventKind::Wakeup);
@@ -680,6 +691,8 @@ impl Fight {
                 .push(RESOURCE.decay_per_step_ms, EventKind::ResourceDecay);
         }
         self.schedule_first_energy_tick();
+        self.schedule_first_doom_tick();
+        self.schedule_first_stack_tick();
         self.schedule_next_timeline_step();
 
         let mut checksums = Vec::with_capacity(if checksum_per_tick {
@@ -824,6 +837,9 @@ impl Fight {
         self.phase = 0;
         self.energy = 0;
         self.energy_triggers = 0;
+        self.doom = 0;
+        self.doom_charges = self.boss.doom.map_or(0, |d| d.clear_charges);
+        self.stacks = 0;
         self.timeline_index = 0;
         self.casting = None;
         self.interrupts_missed = 0;
@@ -870,6 +886,24 @@ impl Fight {
         if let Some(energy) = self.boss.energy {
             if energy.per_step_ms > 0 && energy.per_step_ms < self.duration_ms {
                 self.queue.push(energy.per_step_ms, EventKind::EnergyTick);
+            }
+        }
+    }
+
+    /// Plant den ersten Anstieg des toedlichen Zaehlers ein (Issue #216).
+    fn schedule_first_doom_tick(&mut self) {
+        if let Some(doom) = self.boss.doom {
+            if doom.per_step_ms > 0 && doom.per_step_ms < self.duration_ms {
+                self.queue.push(doom.per_step_ms, EventKind::DoomTick);
+            }
+        }
+    }
+
+    /// Plant den ersten Stapel ein (Issue #216).
+    fn schedule_first_stack_tick(&mut self) {
+        if let Some(stacks) = self.boss.stacks {
+            if stacks.per_step_ms > 0 && stacks.per_step_ms < self.duration_ms {
+                self.queue.push(stacks.per_step_ms, EventKind::StackTick);
             }
         }
     }
@@ -1251,6 +1285,8 @@ impl Fight {
             EventKind::DotTick { spell, generation } => self.dot_tick(spell as usize, generation),
             EventKind::ResourceDecay => self.decay(),
             EventKind::EnergyTick => self.energy_tick(),
+            EventKind::DoomTick => self.doom_tick(),
+            EventKind::StackTick => self.stack_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
@@ -1399,6 +1435,76 @@ impl Fight {
         if next < self.duration_ms {
             self.queue.push(next, EventKind::EnergyTick);
         }
+    }
+
+    /// Der toedliche Zaehler steigt (GAME-DESIGN 11.2, Baustein 2; Issue #216).
+    ///
+    /// Er springt **nicht** zurueck wie die Energieleiste — bei der Schwelle
+    /// ist der Lauf vorbei. Der Tod geht dabei NICHT durch `hit_player`:
+    /// WARD und Schutzschicht wuerden dort mindern, und ein Zaehler, den eine
+    /// Schutzschicht ueberlebt, waere keiner.
+    fn doom_tick(&mut self) {
+        let Some(doom) = self.boss.doom else {
+            return;
+        };
+        if self.died_at.is_some() {
+            return;
+        }
+
+        self.doom = self.doom.saturating_add(doom.amount);
+        if self.doom >= doom.threshold {
+            self.doom = doom.threshold;
+            self.player_hp = 0;
+            self.died_at = Some(self.time);
+            return;
+        }
+
+        let next = self.time + doom.per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::DoomTick);
+        }
+    }
+
+    /// Ein exponentieller Stapel kommt dazu (Baustein 3; Issue #216).
+    ///
+    /// Anders als der Zaehler toetet er nicht bei einem Wert, sondern macht den
+    /// Schaden unbezahlbar: 1 -> 3 -> 9. Er geht deshalb durch `hit_player` wie
+    /// jeder andere Schlag — WARD und Schutzschicht wirken, und genau das ist
+    /// die Antwort, die dem Spieler bleibt.
+    fn stack_tick(&mut self) {
+        let Some(stacks) = self.boss.stacks else {
+            return;
+        };
+
+        if self.stacks < stacks.max_stacks {
+            self.stacks += 1;
+        }
+        let damage = stack_damage(stacks, self.stacks);
+        self.hit_player(damage);
+
+        let next = self.time + stacks.per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::StackTick);
+        }
+    }
+
+    /// Die begrenzt verfuegbare Handlung, die den Zaehler senkt.
+    ///
+    /// Gibt zurueck, ob sie gegriffen hat. **Ohne Ladung geschieht nichts** —
+    /// sie nimmt sich nicht, was sie nicht hat.
+    ///
+    /// WELCHE TASTE SIE AUSLOEST, STEHT HIER NICHT: Dieses Issue baut den
+    /// Mechanismus, die Bindung an einen Zauber entscheidet E10.
+    pub fn clear_doom(&mut self) -> bool {
+        let Some(doom) = self.boss.doom else {
+            return false;
+        };
+        if self.doom_charges == 0 || self.died_at.is_some() {
+            return false;
+        }
+        self.doom_charges -= 1;
+        self.doom = self.doom.saturating_sub(doom.clear_amount);
+        true
     }
 
     /// Prueft, ob der Boss die Phase wechselt.
@@ -1866,6 +1972,14 @@ impl Fight {
         // kuenftigen Wechsel.
         h = mix_int(h, self.control as i32);
         h = mix_int(h, self.phase_hold_percent as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #216, Zaehler und Stapel).
+        // Ohne sie waere die Pruefsumme fuer einen Boss mit diesen Bausteinen
+        // blind: Zwei Laeufe mit verschiedenem Zaehlerstand saehen gleich aus,
+        // solange die Lebenspunkte uebereinstimmen — und beim Zaehler stimmen
+        // sie ueberein, denn er nimmt keine.
+        h = mix_int(h, self.doom as i32);
+        h = mix_int(h, self.doom_charges as i32);
+        h = mix_int(h, self.stacks as i32);
         h
     }
 

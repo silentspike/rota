@@ -196,6 +196,79 @@ export interface EnergyDef {
 }
 
 /**
+ * Der Zähler, der bei 100 tötet (GAME-DESIGN 11.2, Baustein 2; Issue #216).
+ *
+ * > Ein Wert steigt unfreiwillig an; bei 100 stirbt man. Zurücksetzen nur über
+ * > eine **begrenzt verfügbare Handlung**.
+ *
+ * DER UNTERSCHIED ZUR ENERGIELEISTE
+ * ---------------------------------
+ * Beide steigen von selbst, und beide haben eine Schwelle. Die Energieleiste
+ * **springt zurück** und löst aus; dieser Zähler **tötet** und springt gar
+ * nicht zurück. Deshalb sind es zwei Felder und nicht ein Schalter an einem:
+ * Wer sie zusammenlegte, müsste an jeder Auswertung fragen, welche Sorte
+ * gemeint ist.
+ *
+ * DIE BEGRENZUNG IST DIE MECHANIK
+ * -------------------------------
+ * Ohne sie wäre der Zähler eine Taste, die man drückt, wenn die Zahl hoch ist.
+ * Erst dass die Handlung **ausgeht**, macht ihn zu einer Entscheidung: früh
+ * senken und später ohne Mittel dastehen, oder warten und knapp kalkulieren.
+ *
+ * **Welche Handlung das ist, steht hier nicht** — dieses Issue baut den
+ * Mechanismus, nicht seine Bindung an eine Taste (das entscheidet E10 mit den
+ * Signatur-Regeln). Die Daten sagen nur, wie viel sie nimmt und wie oft es sie
+ * gibt.
+ */
+export interface DoomDef {
+  /** Takt, in dem der Zähler steigt. Auf dem 10-ms-Raster. */
+  readonly perStepMs: number;
+  /** Was je Takt dazukommt. */
+  readonly amount: number;
+  /** Bei diesem Wert stirbt der Spieler. */
+  readonly threshold: number;
+  /** Was die Rücksetz-Handlung abzieht. */
+  readonly clearAmount: number;
+  /** Wie oft sie im ganzen Kampf zur Verfügung steht. */
+  readonly clearCharges: number;
+}
+
+/**
+ * Der exponentielle Stapel (GAME-DESIGN 11.2, Baustein 3; Issue #216).
+ *
+ * > 1 Stapel = X, 2 = 3X, 3 = 9X. Erzwingt eine Handlung an einem exakt
+ * > bestimmten Punkt. **Muss gut angekündigt sein.**
+ *
+ * WARUM DIE KURVE UND NICHT DIE SCHWELLE
+ * --------------------------------------
+ * Der Zähler oben tötet bei einem festen Wert — die Schwelle ist hart, der
+ * Anstieg gleichmäßig. Hier ist es umgekehrt: Es gibt keine Schwelle, an der
+ * etwas umschlägt. Der Schaden wird schlicht **unbezahlbar**, und zwar an
+ * einem Punkt, den man ausrechnen kann, bevor er kommt.
+ *
+ * Genau deshalb ist `factor` ganzzahlig und nicht als Kurve frei einstellbar:
+ * 1 → 3 → 9 ist die Aussage des Bausteins, und drei Zahlen aus dem Design
+ * lassen sich nachrechnen. Eine frei geformte Kurve wäre eine andere Mechanik.
+ */
+export interface StackDef {
+  /** Takt, in dem ein Stapel dazukommt. Auf dem 10-ms-Raster. */
+  readonly perStepMs: number;
+  /** Schaden beim **ersten** Stapel — das X aus 11.2. */
+  readonly baseDamage: number;
+  /** Wachstumsfaktor je weiterem Stapel. 3 ergibt 1 → 3 → 9. */
+  readonly factor: number;
+  /**
+   * Obergrenze der Stapel.
+   *
+   * Nicht Design, sondern Arithmetik: `baseDamage * factor^(n-1)` verlässt bei
+   * genügend Stapeln den Wertebereich, und Spiel und Simulator täten das
+   * verschieden (JavaScript rechnet mit Fließkomma weiter, Rust sättigt bei
+   * u32). Zwei Seiten, die verschieden überlaufen, sind keine Parität mehr.
+   */
+  readonly maxStacks: number;
+}
+
+/**
  * Ein Eintrag der Boss-Zeitleiste (GAME-DESIGN 11.1: „Schadens-Ereignisse als
  * **feste Zeitleiste**").
  *
@@ -259,6 +332,10 @@ export interface BossDef {
   readonly phases: readonly PhaseDef[];
   /** Die zweite Uhr, oder `null`. */
   readonly energy: EnergyDef | null;
+  /** Der Zähler, der bei der Schwelle tötet, oder `null` (Issue #216). */
+  readonly doom: DoomDef | null;
+  /** Der exponentielle Stapel, oder `null` (Issue #216). */
+  readonly stacks: StackDef | null;
   /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
   readonly timeline: readonly TimelineEntryDef[];
   /**
@@ -620,6 +697,65 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     };
   }
 
+  // Der Zähler und der Stapel (Issue #216). Beide steigen von selbst, also
+  // gilt für beide dieselbe Raster-Prüfung wie für die Energieleiste: Ein Takt
+  // neben dem 10-ms-Raster liefe hier und im Simulator mit jedem Schritt
+  // weiter auseinander, und zwar still.
+  let doom: DoomDef | null = null;
+  if (isRecord(source['doom'])) {
+    const perStepMs = number(source['doom']['perStepMs'], 0);
+    const threshold = number(source['doom']['threshold'], 0);
+    const amount = number(source['doom']['amount'], 0);
+    const clearAmount = number(source['doom']['clearAmount'], 0);
+    const clearCharges = number(source['doom']['clearCharges'], 0);
+    if (perStepMs <= 0) problems.push('Der Zähler hat keinen Takt (perStepMs).');
+    if (perStepMs > 0 && perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `doom.perStepMs ${perStepMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'Spiel und Simulator liefen mit jedem Anstieg weiter auseinander.',
+      );
+    }
+    if (threshold <= 0) problems.push('Der Zähler hat keine Schwelle (threshold).');
+    if (amount <= 0) problems.push('Der Zähler steigt nicht (amount).');
+    // Eine Handlung, die weniger nimmt als ein Takt bringt, ist keine Rettung,
+    // sondern eine Verzögerung mit Bedienaufwand. Das wäre eine stille
+    // Fehlkonfiguration: Der Zähler stiege trotz richtigen Spiels weiter.
+    if (clearCharges > 0 && clearAmount <= amount) {
+      problems.push(
+        `doom.clearAmount ${clearAmount} nimmt nicht mehr, als ein Takt bringt (${amount}) — ` +
+          'der Zähler stiege trotz der Handlung weiter.',
+      );
+    }
+    doom = { perStepMs, amount, threshold, clearAmount, clearCharges };
+  }
+
+  let stacks: StackDef | null = null;
+  if (isRecord(source['stacks'])) {
+    const perStepMs = number(source['stacks']['perStepMs'], 0);
+    const baseDamage = number(source['stacks']['baseDamage'], 0);
+    const factor = number(source['stacks']['factor'], 0);
+    const maxStacks = number(source['stacks']['maxStacks'], 0);
+    if (perStepMs <= 0) problems.push('Der Stapel hat keinen Takt (perStepMs).');
+    if (perStepMs > 0 && perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `stacks.perStepMs ${perStepMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'Spiel und Simulator liefen mit jedem Anstieg weiter auseinander.',
+      );
+    }
+    if (baseDamage <= 0) problems.push('Der Stapel richtet keinen Schaden an (baseDamage).');
+    // Ein Faktor von 1 wäre linear — und damit ein anderer Baustein.
+    if (factor <= 1) {
+      problems.push(`stacks.factor ${factor} wächst nicht exponentiell — 11.2 verlangt 1 → 3 → 9.`);
+    }
+    // Ganzzahlig, weil `baseDamage * factor^(n-1)` sonst auf beiden Seiten
+    // verschieden gerundet würde (GAME-DESIGN 18.4, erste Determinismus-Regel).
+    if (!Number.isInteger(factor)) {
+      problems.push(`stacks.factor ${factor} ist nicht ganzzahlig — beide Seiten rundeten anders.`);
+    }
+    if (maxStacks <= 0) problems.push('Der Stapel hat keine Obergrenze (maxStacks).');
+    stacks = { perStepMs, baseDamage, factor, maxStacks };
+  }
+
   // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
   // still — ein Eintrag hinter einem späteren würde nie ausgelöst, und einer
   // neben dem Raster griffe hier später als im Simulator.
@@ -684,6 +820,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       resistances,
       phases,
       energy,
+      doom,
+      stacks,
       timeline,
       timelineLoopMs,
     },

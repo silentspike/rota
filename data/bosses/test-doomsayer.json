@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "test-doomsayer",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #216 (Zaehler und exponentieller Stapel) und sonst nichts. Wie schnell der Zaehler steigt, wie viel die Ruecksetz-Handlung nimmt und wie oft es sie gibt: wird gemessen. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10 mit den Signatur-Regeln.",
+  "name": "The Doomsayer",
+  "instance": "test",
+  "hp": 999999,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "doom": {
+    "perStepMs": 1000,
+    "amount": 5,
+    "threshold": 100,
+    "clearAmount": 40,
+    "clearCharges": 2
+  },
+  "stacks": {
+    "perStepMs": 2000,
+    "baseDamage": 20,
+    "factor": 3,
+    "maxStacks": 4
+  },
+  "timeline": [],
+  "resistances": {},
+  "signature": null
+}

@@ -543,6 +543,8 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     );
     emit_phases(out, boss, whose);
     emit_energy(out, boss, whose);
+    emit_doom(out, boss, whose);
+    emit_stacks(out, boss, whose);
     emit_timeline(out, boss, whose);
     let _ = writeln!(out, "    }},");
 }
@@ -723,6 +725,105 @@ fn emit_energy(out: &mut String, boss: &Value, whose: &str) {
     );
     let _ = writeln!(out, "            threshold: {threshold},");
     let _ = writeln!(out, "            reset_to: {reset_to},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Der toedliche Zaehler (GAME-DESIGN 11.2, Baustein 2; Issue #216).
+///
+/// Dieselben Pruefungen wie bei der Energieleiste, plus eine, die es dort nicht
+/// gibt: Eine Ruecksetz-Handlung, die weniger nimmt als ein Takt bringt, ist
+/// keine Rettung, sondern eine Verzoegerung mit Bedienaufwand. Der Zaehler
+/// stiege trotz richtigen Spiels weiter — und das faende niemand, weil es wie
+/// eine knappe Auslegung aussaehe.
+fn emit_doom(out: &mut String, boss: &Value, whose: &str) {
+    let doom = boss.get("doom");
+    if doom.is_none() || doom == Some(&Value::Null) {
+        let _ = writeln!(out, "        doom: None,");
+        return;
+    }
+    let doom = doom.expect("auf None geprueft");
+    let whose = format!("{whose}/doom");
+
+    let per_step = uint(doom, "perStepMs", &whose);
+    assert!(
+        per_step > 0,
+        "{whose}: perStepMs muss groesser als null sein, sonst stuende der Zaehler"
+    );
+    assert!(
+        per_step.is_multiple_of(RASTER_MS),
+        "{whose}: perStepMs {per_step} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         des Spiels — Simulator und Spiel liefen mit jedem Anstieg weiter auseinander"
+    );
+    let threshold = uint(doom, "threshold", &whose);
+    assert!(
+        threshold > 0,
+        "{whose}: threshold muss groesser als null sein, sonst toetete er sofort"
+    );
+    let amount = uint(doom, "amount", &whose);
+    assert!(
+        amount > 0,
+        "{whose}: amount muss groesser als null sein, sonst stiege der Zaehler nie"
+    );
+    let clear_amount = uint(doom, "clearAmount", &whose);
+    let clear_charges = uint(doom, "clearCharges", &whose);
+    assert!(
+        clear_charges == 0 || clear_amount > amount,
+        "{whose}: clearAmount {clear_amount} nimmt nicht mehr, als ein Takt bringt \
+         ({amount}) — der Zaehler stiege trotz der Handlung weiter"
+    );
+
+    let _ = writeln!(out, "        doom: Some(Doom {{");
+    let _ = writeln!(out, "            per_step_ms: {per_step},");
+    let _ = writeln!(out, "            amount: {amount},");
+    let _ = writeln!(out, "            threshold: {threshold},");
+    let _ = writeln!(out, "            clear_amount: {clear_amount},");
+    let _ = writeln!(out, "            clear_charges: {clear_charges},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Der exponentielle Stapel (GAME-DESIGN 11.2, Baustein 3; Issue #216).
+fn emit_stacks(out: &mut String, boss: &Value, whose: &str) {
+    let stacks = boss.get("stacks");
+    if stacks.is_none() || stacks == Some(&Value::Null) {
+        let _ = writeln!(out, "        stacks: None,");
+        return;
+    }
+    let stacks = stacks.expect("auf None geprueft");
+    let whose = format!("{whose}/stacks");
+
+    let per_step = uint(stacks, "perStepMs", &whose);
+    assert!(
+        per_step > 0,
+        "{whose}: perStepMs muss groesser als null sein, sonst waechse der Stapel nie"
+    );
+    assert!(
+        per_step.is_multiple_of(RASTER_MS),
+        "{whose}: perStepMs {per_step} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         des Spiels — Simulator und Spiel liefen mit jedem Schritt weiter auseinander"
+    );
+    let base_damage = uint(stacks, "baseDamage", &whose);
+    assert!(
+        base_damage > 0,
+        "{whose}: baseDamage muss groesser als null sein, sonst richtete der Stapel nichts an"
+    );
+    // Ein Faktor von 1 waere linear — und damit ein anderer Baustein.
+    let factor = uint(stacks, "factor", &whose);
+    assert!(
+        factor > 1,
+        "{whose}: factor {factor} waechst nicht exponentiell — 11.2 verlangt 1 -> 3 -> 9"
+    );
+    let max_stacks = uint(stacks, "maxStacks", &whose);
+    assert!(
+        max_stacks > 0,
+        "{whose}: maxStacks muss groesser als null sein — ohne Obergrenze verliesse \
+         base_damage * factor^(n-1) den Wertebereich, und beide Seiten taeten das verschieden"
+    );
+
+    let _ = writeln!(out, "        stacks: Some(Stacks {{");
+    let _ = writeln!(out, "            per_step_ms: {per_step},");
+    let _ = writeln!(out, "            base_damage: {base_damage},");
+    let _ = writeln!(out, "            factor: {factor},");
+    let _ = writeln!(out, "            max_stacks: {max_stacks},");
     let _ = writeln!(out, "        }}),");
 }
 

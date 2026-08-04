@@ -100,5 +100,16 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Phasen-Schwelle entscheidet über jeden künftigen Wechsel.
   h = mixInt(h, combat.control);
   h = mixInt(h, combat.phaseHoldPercent);
+  // **Angehängt, nicht eingeschoben** (Issue #216, Zähler und Stapel). Ohne
+  // sie wäre die Prüfsumme für einen Boss mit diesen Bausteinen blind: Zwei
+  // Läufe mit verschiedenem Zählerstand sähen gleich aus, solange die
+  // Lebenspunkte zufällig übereinstimmen — und beim Zähler stimmen sie
+  // überein, denn er nimmt keine.
+  //
+  // Die Ladungen gehören dazu: Sie sind der Unterschied zwischen „kann noch
+  // senken" und „muss es aushalten", und sie stehen in keiner anderen Größe.
+  h = mixInt(h, combat.doom);
+  h = mixInt(h, combat.doomCharges);
+  h = mixInt(h, combat.bossStacks);
   return h >>> 0;
 }
