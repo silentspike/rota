@@ -40,6 +40,7 @@ const COMMON_SPELLS_JSON: &str = "../data/spells/common.json";
 const COAGULATION_JSON: &str = "../data/spells/coagulation.json";
 /// Die Fixierung (GAME-DESIGN 4.1, Issue #100), relativ zu `sim/`.
 const FIXATION_JSON: &str = "../data/spells/fixation.json";
+const PUTREFACTION_JSON: &str = "../data/spells/putrefaction.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -67,6 +68,7 @@ fn main() {
     println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
+    println!("cargo:rerun-if-changed={PUTREFACTION_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
@@ -78,6 +80,7 @@ fn main() {
     let common = read_json(COMMON_SPELLS_JSON);
     let coagulation = read_json(COAGULATION_JSON);
     let fixation = read_json(FIXATION_JSON);
+    let putrefaction = read_json(PUTREFACTION_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -88,7 +91,7 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
-    emit_spells(&mut out, &spells, &common, &coagulation, &fixation);
+    emit_spells(&mut out, &spells, &common, &coagulation, &fixation, &putrefaction);
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
 
@@ -237,6 +240,7 @@ fn emit_spells(
     common: &Value,
     coagulation: &Value,
     fixation: &Value,
+    putrefaction: &Value,
 ) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
@@ -269,11 +273,16 @@ fn emit_spells(
         .get("spells")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("fixation.json: Liste \"spells\" fehlt"));
+    let zersetzung = putrefaction
+        .get("spells")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("putrefaction.json: Liste \"spells\" fehlt"));
     let list: Vec<&Value> = list
         .iter()
         .chain(gemeinsame.iter())
         .chain(koagulation.iter())
         .chain(fixierung.iter())
+        .chain(zersetzung.iter())
         .collect();
 
     let _ = writeln!(

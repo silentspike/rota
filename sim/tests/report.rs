@@ -8,6 +8,7 @@
 //! Nachweis dafür ist der Workflow-Lauf selbst.
 
 use rota_sim::apl::{parse, Apl};
+use rota_sim::data::SPELLS;
 use rota_sim::report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
 };
@@ -27,13 +28,26 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     let result = Fight::new(FightConfig::default()).run_apl(&apl(GOOD, "gut"));
     let table = spell_table(&result);
 
-    // Vier seit #100: die drei aus Schritt 1 und BIND, der Fueller der
-    // Fixierung. Er macht Schaden und traegt damit zur Tabelle bei — die drei
-    // AUSGABE-Zauber der Fixierung nicht, sie richten keinen an.
+    // **Aus den Zauberdaten abgeleitet, nicht als Zahl.** Vorher stand hier
+    // `table.len() == 4` — eine Momentaufnahme des Zauberkastens, die bei
+    // jedem neuen Zauber nachgepflegt werden muesste (Issue #97 brachte zwei,
+    // und der Fall wurde rot).
+    //
+    // Gezaehlt wird ueber `base_damage` und `dot`, NICHT ueber dieselbe
+    // Filterfunktion, die `spell_table` benutzt — sonst prueft der Fall die
+    // Filterung gegen sich selbst. Gaelte ein Schadenszauber faelschlich als
+    // Hilfszauber, faende die Tabelle ihn nicht und die Zahlen liefen
+    // auseinander.
+    let mit_schaden = SPELLS
+        .iter()
+        .filter(|s| s.base_damage > 0 || s.dot.is_some() || s.spender.is_some())
+        .count();
     assert_eq!(
         table.len(),
-        4,
-        "alle Schadenszauber muessen aufgefuehrt sein"
+        mit_schaden,
+        "alle Schadenszauber muessen aufgefuehrt sein — die Tabelle hat {} \
+         Zeilen, Schaden machen aber {mit_schaden}",
+        table.len()
     );
     assert!(
         table
@@ -103,11 +117,24 @@ fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
         .filter(|row| row.is_dead())
         .map(|row| row.id)
         .collect();
-    // Drei seit #100: SMOULDER und PYRE fehlen in dieser Rotation, BIND
-    // gehoert einer anderen Schule und ist deshalb ebenfalls ungewirkt.
-    assert_eq!(tote.len(), 3, "SMOULDER, PYRE und BIND kommen nicht vor");
+    // **Alle ausser KINDLE**, aus der Struktur statt als Zahl. Die Rotation
+    // wirkt genau einen Zauber; jeder andere in der Tabelle ist ungewirkt.
+    //
+    // Vorher stand hier `tote.len() == 3` — eine Momentaufnahme des
+    // Zauberkastens, die bei jedem neuen Zauber nachgepflegt werden muesste
+    // (Issue #97 brachte zwei, und der Fall wurde rot). Die Form hier ist
+    // nicht schwaecher, sondern staerker: Galte EIN Zauber faelschlich als
+    // gewirkt, waere `tote.len()` um eins zu klein und der Fall bricht.
+    assert_eq!(
+        tote.len(),
+        table.len() - 1,
+        "in einer Rotation, die nur KINDLE wirkt, muss jeder andere Zauber der \
+         Tabelle als tot gelten — gemeldet sind {tote:?} von {} Zeilen",
+        table.len()
+    );
     assert!(tote.contains(&"smoulder"));
     assert!(tote.contains(&"pyre"));
+    assert!(!tote.contains(&"kindle"));
     assert!(!table.iter().any(|row| row.id == "kindle" && row.is_dead()));
 }
 

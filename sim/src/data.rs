@@ -431,8 +431,8 @@ mod tests {
         // nicht zu den dreien aus `STEP1-SPEC`: Er richtet keinen Schaden an
         // und kommt in keiner der vier Pruefrotationen vor.
         // Drei Kalzination, ein Unterbrecher (#110), drei Koagulation (#79),
-        // vier Fixierung (#100).
-        assert_eq!(SPELL_COUNT, 11);
+        // vier Fixierung (#100), zwei Zersetzung (#97).
+        assert_eq!(SPELL_COUNT, 13);
         assert_eq!(index_of("kindle"), Some(KINDLE));
         assert_eq!(index_of("smoulder"), Some(SMOULDER));
         assert_eq!(index_of("pyre"), Some(PYRE));
@@ -451,6 +451,8 @@ mod tests {
                     && s.conversion.is_none()
                     && s.control.is_none()
                     && s.control_gain == 0
+                    && s.decay_stacks == 0
+                    && s.per_decay_stack_percent == 0
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");

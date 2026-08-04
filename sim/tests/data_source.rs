@@ -21,6 +21,7 @@ const SPELLS_JSON: &str = include_str!("../../data/spells/calcination.json");
 const COMMON_SPELLS_JSON: &str = include_str!("../../data/spells/common.json");
 const COAGULATION_JSON: &str = include_str!("../../data/spells/coagulation.json");
 const FIXATION_JSON: &str = include_str!("../../data/spells/fixation.json");
+const PUTREFACTION_JSON: &str = include_str!("../../data/spells/putrefaction.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
@@ -43,6 +44,7 @@ fn common_spells_json() -> Value {
 fn alle_zauber(
     schule: &Value,
     gemeinsam: &Value,
+    zersetzung: &Value,
     koagulation: &Value,
     fixierung: &Value,
 ) -> Vec<Value> {
@@ -68,6 +70,13 @@ fn alle_zauber(
         fixierung["spells"]
             .as_array()
             .expect("fixation.json: spells fehlt")
+            .iter()
+            .cloned(),
+    );
+    liste.extend(
+        zersetzung["spells"]
+            .as_array()
+            .expect("putrefaction.json: spells fehlt")
             .iter()
             .cloned(),
     );
@@ -119,7 +128,9 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         serde_json::from_str(COAGULATION_JSON).expect("coagulation.json ist kein gueltiges JSON");
     let fixierung: Value =
         serde_json::from_str(FIXATION_JSON).expect("fixation.json ist kein gueltiges JSON");
-    let liste = alle_zauber(&json, &gemeinsam, &koagulation, &fixierung);
+    let zersetzung: Value =
+        serde_json::from_str(PUTREFACTION_JSON).expect("putrefaction.json ist kein gueltiges JSON");
+    let liste = alle_zauber(&json, &gemeinsam, &zersetzung, &koagulation, &fixierung);
 
     assert_eq!(
         SPELL_COUNT,
