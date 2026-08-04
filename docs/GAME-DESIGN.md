@@ -230,8 +230,18 @@ Ohne Schutzregel fiele der Boss auf Phase 0 zurück.
 bestehen, auch wenn die Frist den Fall seltener macht — und sie braucht einen Prüffall, der die
 Senkung **nach** dem Wechsel wirkt. Wer sie davor wirkt, prüft nichts.
 
-**Die Frist selbst ist Katalog-Inhalt** (Teil F.6, vor E10): eine Zahl in den Daten, nicht im Code,
-und bis zur Balance-Runde ausdrücklich vorläufig.
+**Die Frist gilt für alle Zauber gleich** — sie gehört zur **Wirkung**, nicht zum einzelnen Zauber.
+
+_Präzisiert am 2026-08-04. Hier stand „eine Zahl in den Daten, nicht im Code" — das war zu schnell
+aus der allgemeinen Katalog-Regel abgeleitet._
+
+> Wäre die Frist je Zauber einstellbar, hieße „hinauszögern" bei jedem etwas anderes, und der Spieler
+> müsste sie pro Zauber nachschlagen. Er lernt sie stattdessen einmal. Die Unterschiede zwischen
+> Fixierungs-Zaubern entstehen weiter über **Stärke** und **Abklingzeit** — dort sind sie sichtbar
+> und gehören in die Daten.
+
+**Der Wert bleibt vorläufig** bis zur Balance-Runde (Teil F.6, vor E10) — vorläufig ist die _Zahl_,
+nicht ihr Ort.
 
 ### 4.3 Schul-Mischung
 
@@ -1520,6 +1530,32 @@ Lernhilfe. Das Herausfinden der besten Reihenfolge ist der Kern des Spiels.
 **Spielstände bleiben immer gültig:** Der Spielstand speichert nur, **WAS** besessen und erreicht
 wurde — **nie berechnete Werte**. Balance-Änderungen gelten sofort für alle. Bestzeiten werden mit
 der Fassung vermerkt, unter der sie erzielt wurden.
+
+#### Die eine Ausnahme: Vorgeschichte mit Fassungsvermerk
+
+_Entschieden am 2026-08-04, nachdem E7-2 den Widerspruch zwischen 15.3 und dieser Regel meldete._
+
+**Der Verlauf über alle Durchläufe (15.3) darf den Schaden mitführen** — obwohl er ein berechneter
+Wert ist. Bedingung: **jeder Eintrag trägt die Fassung**, unter der er entstand, wie die Bestzeit es
+schon tut.
+
+|                               | Wirkt auf das Spiel zurück               | Im Spielstand        |
+| ----------------------------- | ---------------------------------------- | -------------------- |
+| Ein gespeicherter Werte-Bonus | **ja** — er verändert den nächsten Kampf | verboten             |
+| Ein vergangenes Ergebnis      | **nein** — es ist Vorgeschichte          | erlaubt, mit Fassung |
+
+> **Die Regel bleibt, was sie war:** Kein Spielstand friert die Balance seines Tages **für kommende
+> Kämpfe** ein. Ein Ergebnis von gestern tut das nicht — es steht in der Vergangenheit, so wie die
+> Bestzeit, die ausdrücklich erlaubt ist.
+>
+> **Was der Fassungsvermerk leistet:** Wechselt die Fassung, zeigt der Verlauf an dieser Stelle einen
+> **sichtbaren Schnitt** statt einer glatten Linie über zwei verschiedene Balance-Stände. Sonst
+> erschiene ein Sprung, den der Spieler sich selbst zuschreibt — „bin ich schlechter geworden?" —
+> obwohl sich die Zahlen unter ihm verändert haben.
+
+**Die Schutzprüfung bekommt eine benannte Ausnahme, keine Umbenennung.** Ein Feld `dmgValue` zu
+nennen, um an der Prüfung vorbeizukommen, wäre schlimmer als keine Prüfung: Der nächste, der sie
+liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und ist damit auffindbar.
 
 ---
 
