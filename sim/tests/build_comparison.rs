@@ -176,6 +176,26 @@ fn das_ergebnis_wird_berichtet_nicht_zugesichert() {
     // welcher Aufbau gewinnt. Der Prueffall druckt das Ergebnis, damit es beim
     // Balance-Lauf (#118) einen Ausgangspunkt gibt — und faellt nicht, wenn es
     // sich dreht.
+    //
+    // # Das ist EIN Durchgang, kein Mittelwert
+    //
+    // Seit #177 traegt PURITY echten Zufall (6.5). Ein einzelner Durchgang ist
+    // damit eine Stichprobe, keine Messung — und die Spanne ist gross. Gemessen
+    // am 2026-08-04 mit dem Balance-Laeufer ueber 200 Durchgaenge:
+    //
+    // ```text
+    // gemischt   Mittel 8840,7  +/- 478,7   (min 7840, max 10326)
+    // ```
+    //
+    // Die 9708 aus dem Einzellauf unten liegen nahe am oberen Rand. Wer sie mit
+    // den 8940 des reinen PURITY-Aufbaus vergleicht und daraus "gemischt ist
+    // besser" liest, hat einen Wuerfelwurf gelesen. **Die Aussage darueber
+    // gehoert in #118**, mit Fehlerbalken.
+    //
+    // Und der reine PURITY-Aufbau streut ueberhaupt nicht: Er erreicht den
+    // 100-Prozent-Deckel, also kritet jeder Treffer, also wird nicht mehr
+    // gewuerfelt — genau was 6.7 vorhersagt ("Am Deckel ist Krit kein Zufall
+    // mehr").
     let ohne = lauf(WornValues::none());
     println!("\n  Aufbau-Vergleich, volle Kampfzeit, rotation::good");
     println!("  {:<24} {:>10} {:>10}", "Aufbau", "Schaden", "Ziehungen");
