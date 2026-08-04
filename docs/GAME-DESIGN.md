@@ -1322,6 +1322,39 @@ Jeder Zauber, jedes Talent, jeder legendäre Effekt beschreibt nur, **worauf er 
 | **Parallel zwischen Durchgängen, nie innerhalb**                  | Ein Schritt hängt vom vorherigen ab                                                                                            |
 | **Keine Speicheranforderung im Schritt**, zusammenhängende Listen | Aus dem Vorbild-Projekt übernommen                                                                                             |
 
+#### Der Beute-Zufall gehört NICHT zu den Kampf-Strömen
+
+_Entschieden am 2026-08-04, nachdem E6-2 die Folgen beider Wege gemessen hat._
+
+Die Kampf-Ströme (Krit, DoT-Ticks, Heilung) leben in `RandomStreams`, und ihre Ziehungszähler
+gehen **je Takt** in die Zustands-Prüfsumme. Der Beute-Zufall bekommt einen **eigenen Strom
+außerhalb** davon — aus demselben Kampf-Startwert abgeleitet, aber nicht in `drawCounts()`.
+
+**Warum, und warum das kein Widerspruch zur Regel darüber ist:** Die Regel schützt davor, dass
+eine zusätzliche Ziehung **alles Nachfolgende verschiebt**. Dieser Schutz greift für Ströme, die
+im selben Ablauf ziehen. Beute wird **beim Sieg** gewürfelt, nicht während des Kampfes — sie kann
+nichts verschieben, und nichts kann sie verschieben.
+
+Ein vierter Strom in `RandomStreams` würde in einem Kampf über 7952 Takte **7952 Nullen** an die
+Prüfsumme hängen, für einen Strom, der im Kampf nie zieht. Das macht die Prüfsumme länger, nicht
+schärfer. Sie soll den **Kampf-Zustand** beschreiben; Beute ist kein Kampf-Zustand.
+
+**Drei Auflagen, damit die Trennung nicht zur Schlamperei wird:**
+
+1. **Dieselbe Ableitung aus dem Kampf-Startwert.** Eine aufgezeichnete Runde muss auch ihre Beute
+   exakt wiederholen.
+2. **Ein Wächter verhindert die Rückkehr in `drawCounts()`.** Wer den Beute-Strom später dort
+   einträgt — aus dem nachvollziehbaren Reflex, alle Ströme an einer Stelle zu haben — verschiebt
+   damit stillschweigend jede aufgezeichnete Prüfsumme.
+3. **Die Begründung steht im Code**, nicht nur hier. Sonst liest jemand „zwei Orte für Zufall" und
+   räumt auf.
+
+> **Nicht entschieden wurde nach Aufwand.** Der andere Weg hätte 23 463 Zeilen in fünf
+> Vergleichsdateien bewegt, davon zwei aus fremder Arbeit — gemessen, nicht geschätzt. Zum
+> Zeitpunkt der Entscheidung hatte aber **keine** offene Verzweigung eine dieser Dateien
+> angefasst; die Kollisionsgefahr war null. Die Entscheidung fiel allein daran, was die
+> Prüfsumme beschreiben soll.
+
 **Gemeinsame Prüffälle (Pflichttest bei jeder Änderung):** Eine Sammlung fester Testfälle der Form
 „diese Tastendrücke zu diesen Zeitpunkten mit dieser Ausrüstung ergeben exakt diesen Schaden".
 **Beide Seiten — Simulator (Rust) und Spiel (Browser) — müssen jede Datei bestehen.**
