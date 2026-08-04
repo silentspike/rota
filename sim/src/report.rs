@@ -29,7 +29,7 @@
 //! sobald die übrigen dazukommen.
 
 use crate::apl::Apl;
-use crate::data::{BOSS, SPELLS, SPELL_COUNT};
+use crate::data::{Spell, BOSS, SPELLS, SPELL_COUNT};
 use crate::fight::{Fight, FightConfig, RunResult};
 use crate::time::Millis;
 
@@ -62,6 +62,21 @@ impl SpellContribution {
     }
 }
 
+/// Zauber, die **nicht** in den Schadens-Vergleich gehoeren.
+///
+/// Der Unterbrecher (#110) und die drei Wege der Koagulation (#79) richten
+/// keinen Schaden an. Die Tabelle wuerde sie deshalb immer als „TOT" melden,
+/// auch wenn der Spieler sie perfekt einsetzt.
+///
+/// Das waere nicht bloss eine schiefe Zeile, sondern eine falsche Auskunft:
+/// Die Tabelle beantwortet die Frage „welcher Zauber traegt wie viel bei", und
+/// ein Werkzeug, das Schaden VERHINDERT oder Leben zurueckholt, beantwortet sie
+/// gar nicht. Ob er zu selten kam, sagen die verpassten Unterbrechungen und der
+/// erlittene Schaden (GAME-DESIGN 19.2) — nicht diese Tabelle.
+fn ist_hilfszauber(spell: &Spell) -> bool {
+    spell.interrupt || spell.shield.is_some() || spell.heal.is_some() || spell.conversion.is_some()
+}
+
 /// Beitrag und Häufigkeit jedes Zaubers.
 ///
 /// Nach Schaden absteigend sortiert; bei Gleichstand entscheidet die Reihenfolge
@@ -70,17 +85,8 @@ impl SpellContribution {
 pub fn spell_table(result: &RunResult) -> Vec<SpellContribution> {
     let total = f64::from(result.damage);
     let mut rows: Vec<SpellContribution> = (0..SPELL_COUNT)
-        // **Der Unterbrecher gehoert nicht in den Schadens-Vergleich**
-        // (Issue #110). Er richtet keinen Schaden an; die Tabelle wuerde ihn
-        // deshalb immer als „TOT" melden, auch wenn der Spieler ihn perfekt
-        // einsetzt.
-        //
-        // Das waere nicht bloss eine schiefe Zeile, sondern eine falsche
-        // Auskunft: Die Tabelle beantwortet die Frage „welcher Zauber traegt
-        // wie viel bei", und ein Werkzeug, das Schaden VERHINDERT, beantwortet
-        // sie gar nicht. Ob er zu selten gewirkt wurde, sagt die Zahl der
-        // verpassten Unterbrechungen (GAME-DESIGN 19.2) — nicht diese Tabelle.
-        .filter(|&spell| !SPELLS[spell].interrupt)
+        // Hilfszauber bleiben draussen — siehe [`ist_hilfszauber`].
+        .filter(|&spell| !ist_hilfszauber(&SPELLS[spell]))
         .map(|spell| {
             let damage = result.damage_by_spell[spell];
             let casts = result.casts[spell];

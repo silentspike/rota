@@ -92,6 +92,18 @@ pub enum LogKind {
     PlayerDeath = 11,
     /// Der Spieler hat einen Boss-Zauber unterbrochen. `value` zaehlt sie.
     InterruptLanded = 12,
+    /// Die Schutzschicht hat Schaden aufgefangen (COAGULATION, Weg 1).
+    /// `value` ist der abgefangene Betrag.
+    ShieldAbsorb = 13,
+    /// Der Spieler wurde geheilt (Weg 2). `value` ist der zurueckgeholte Betrag.
+    ///
+    /// **Nicht der Betrag aus den Daten**, sondern der wirklich angekommene:
+    /// Eine Heilung ueber die volle Lebensanzeige hinaus zaehlt nur, was
+    /// gefehlt hat. Sonst saehe ein Lauf mit voller Anzeige nach mehr Heilung
+    /// aus, als er gebraucht hat.
+    Healed = 14,
+    /// Ausgeteilter Schaden wurde in Schutz verwandelt (Weg 3).
+    ConvertedToShield = 15,
 }
 
 /// Ein Eintrag. Gepackte Zahlen, keine Zeichenketten, kein Zeiger.
