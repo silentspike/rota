@@ -208,6 +208,38 @@
       }
     },
     {
+      "id": "spell-vapour",
+      "group": "spells",
+      "purpose": "VAPOUR — der Verkuerzer der SUBLIMATION. Er nimmt Wartezeit weg, klingt also nach Aufloesen statt nach Aufprall: kein Schlag, sondern ein Entweichen.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-vapour.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "soft pressurised steam release, airy upward hiss, quick dissipation, no impact",
+      "provisional": "Eintrag steht, Datei fehlt: die Klang-Erzeugung ist seit dem 2026-08-04 durch ein Cloudflare-Turnstile blockiert (Issue #204). Zaehlt nicht zur Abdeckung, solange die Datei fehlt.",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "vapour"
+      }
+    },
+    {
+      "id": "spell-reflux",
+      "group": "spells",
+      "purpose": "REFLUX — der Ruecksetzer der SUBLIMATION. Rueckfluss ins Gefaess: ein Zurueckstroemen, das hoerbar in die Gegenrichtung laeuft wie VAPOUR.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-reflux.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 25,
+      "prompt": "reversed liquid gurgle drawing back into glass vessel, descending suction, wet",
+      "provisional": "Eintrag steht, Datei fehlt: die Klang-Erzeugung ist seit dem 2026-08-04 durch ein Cloudflare-Turnstile blockiert (Issue #204). Zaehlt nicht zur Abdeckung, solange die Datei fehlt.",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "reflux"
+      }
+    },
+    {
       "id": "special-interrupt",
       "group": "special",
       "purpose": "Unterbrechen trifft den Zauber des Bosses. Trocken und eindeutig, weil er ein Zeitfenster bestaetigt.",

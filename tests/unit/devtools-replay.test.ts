@@ -83,21 +83,15 @@ describe('Aufzeichnungen', () => {
     const result = replayRecording(recordings().get('cooldown-precision') as never);
     expect(result.damage).toBe(4240);
     expect(result.killedAtMs).toBe(40_510);
-    // QUENCH steht mit 0 dabei: Er ist der Unterbrecher (Issue #110), richtet
-    // keinen Schaden an und kommt in keiner der vier Prüfrotationen vor.
-    expect(result.casts).toEqual({
-      kindle: 20,
-      smoulder: 4,
-      pyre: 4,
-      quench: 0,
-      crust: 0,
-      salve: 0,
-      temper: 0,
-      bind: 0,
-      stall: 0,
-      stay: 0,
-      anchor: 0,
-    });
+    // **Die drei genannt, der Rest abgeleitet** (Issue #201). Vorher standen
+    // alle elf Zauber da, acht davon auf null — eine Abschrift, die jeder
+    // neue Zauber verlaengert. Die Aussage ist schaerfer so: Die Rotation
+    // wirkt diese drei, und **keinen anderen ueberhaupt**.
+    const erwartet: Record<string, number> = { kindle: 20, smoulder: 4, pyre: 4 };
+    for (const [id, zahl] of Object.entries(result.casts)) {
+      expect(zahl, id).toBe(erwartet[id] ?? 0);
+    }
+    for (const id of Object.keys(erwartet)) expect(result.casts).toHaveProperty(id);
     expect(result.accepted).toBe(28);
     expect(result.rejected).toBe(0);
     expect(result.randomDraws).toBe(0);
