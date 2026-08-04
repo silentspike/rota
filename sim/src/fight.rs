@@ -67,8 +67,8 @@
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{
-    stack_damage, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
-    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind,
+    BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
