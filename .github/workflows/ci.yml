@@ -61,7 +61,19 @@ jobs:
             # still falsch — und ci-pass meldet gruen. Cargo.toml/Cargo.lock
             # liegen seit PR #64 im Wurzelverzeichnis (Workspace), damit der
             # Remote-Bau data/ ueberhaupt zu sehen bekommt.
-            echo "sim=$(match '^(sim/|data/|Cargo\.toml$|Cargo\.lock$)')"
+            # tests/parity/recordings/ MUSS dabei sein: Die Rust-Tests lesen die
+            # Vergleichsdateien per include_str! — sie sind Eingabe der Tests,
+            # nicht nur Erzeugnis des Spiels. Ohne sie im Filter erzeugt jemand
+            # eine Vergleichsdatei neu, die Rust-Tests laufen NICHT, und ein
+            # falscher Vergleichsstand geht durch (Issue #173). Gemessen: EINE
+            # verfaelschte Pruefsumme in fixation.json laesst parity_fixation
+            # mit Exit 101 scheitern — die Stufe haette also etwas zu pruefen.
+            #
+            # Dass diese Liste vollstaendig BLEIBT, prueft
+            # tests/unit/ci-sim-filter.test.ts aus den include_str!-Zeilen
+            # selbst. Eine von Hand gefuehrte Abschrift kann nicht bemerken,
+            # dass ihr ein Eintrag fehlt (#134, #138, #159, und hier).
+            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$)')"
             # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
             # "code": alles außer reiner Dokumentation.
             #
