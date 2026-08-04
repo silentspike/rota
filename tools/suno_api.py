@@ -19,12 +19,16 @@ Usage:
 
 Manifest-Format (JSON-Liste):
     [{"name": "spell-fire", "prompt": "fiery whoosh ...", "loop": false},
-     {"name": "boss-kill", "prompt": "heavy gong ...", "target_s": 2.0, "tol": 0.4, "attempts": 3}]
+     {"name": "boss-kill", "prompt": "heavy gong ...", "target_s": 2.0, "attempts": 3}]
 
     target_s  = gewuenschte Laenge des HOERBAREN Anteils; wird durch Iteration angenaehert
                 (Suno ignoriert Sekundenangaben im Prompt — wirksam ist das Ausklang-Vokabular).
-    tol       = erlaubte Abweichung in Sekunden (default 0.4)
     attempts  = max. Generierungs-Versuche (default 3)
+
+    Wie weit ein Kandidat vom Ziel abweichen darf, steht NICHT im Auftrag,
+    sondern in tools/sfx_limits.py — dieselbe Quelle, aus der sfx-verify.py
+    seine Grenze zieht (Issue #215). Ein `tol` im Auftrag wird gemeldet und
+    ignoriert.
 """
 from __future__ import annotations
 
@@ -37,6 +41,8 @@ import uuid
 from pathlib import Path
 
 from curl_cffi import requests
+
+from sfx_limits import LENGTH_TOLERANCE_S, candidate_usable
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".suno-state.json"
 API = "https://studio-api-prod.suno.com/api"
@@ -570,19 +576,34 @@ def tune_prompt(prompt: str, measured: float, target: float) -> tuple[str, str]:
 
 def make_sound_targeted(
     s: requests.Session, prompt: str, name: str, outdir: Path,
-    target_s: float, tol: float = 0.4, attempts: int = 3, loop: bool = False,
+    target_s: float, attempts: int = 3, loop: bool = False,
 ) -> Path | None:
-    """Generiert solange (max. `attempts`), bis der reine Ton nahe an target_s liegt.
+    """Generiert solange (max. `attempts`), bis ein Kandidat brauchbar ist.
 
-    Behaelt den besten Kandidaten. Es wird NICHT hart auf Laenge geschnitten —
-    nur Stille entfernt, damit kein Ausklang abgehackt wird.
+    Es wird NICHT hart auf Laenge geschnitten — nur Stille entfernt, damit kein
+    Ausklang abgehackt wird. Den Schnitt macht spaeter sfx-post.sh.
+
+    BRAUCHBAR HEISST NICHT "NAHE DRAN" (Issue #215)
+    ------------------------------------------------
+    Vorher galt eine symmetrische Toleranz von 0,4 s: Ein Klang mit 0,229 s bei
+    Ziel 0,50 s wurde angenommen, weil die Abweichung darunter lag. Die Abnahme
+    fordert aber 0,05 s, und `sfx-post.sh` kann nur kuerzen — der Klang war
+    endgueltig durchgefallen, die Credits waren weg, und gemeldet wurde Erfolg.
+
+    Jetzt entscheidet `candidate_usable()` aus `sfx_limits`, dieselbe Quelle,
+    aus der auch `sfx-verify.py` seine Grenze zieht.
+
+    Gibt None zurueck, wenn kein Versuch einen brauchbaren Kandidaten geliefert
+    hat. Dann entsteht auch KEINE Ausgabedatei: Was nicht abnahmefaehig ist,
+    soll nicht im Ordner liegen und beim naechsten Lauf als "schon vorhanden"
+    uebersprungen werden.
     """
     cand_dir = outdir / "candidates"
-    all_cands: list[tuple[float, Path]] = []       # (Sekunden, Datei) ueber alle Versuche
-    best: tuple[float, Path, float] | None = None  # (Abweichung, Datei, gemessene Sekunden)
+    all_cands: list[tuple[float, Path]] = []  # (Sekunden, Datei) ueber alle Versuche
     cur, neg = prompt, ""
     for attempt in range(1, attempts + 1):
-        print(f"  Versuch {attempt}/{attempts} (Ziel {target_s:.1f}s ±{tol})")
+        print(f"  Versuch {attempt}/{attempts} (Ziel {target_s:.2f}s, "
+              f"brauchbar ab {target_s - LENGTH_TOLERANCE_S:.2f}s)")
         print(f"    prompt: {cur}")
         if neg:
             print(f"    negativ: {neg}")
@@ -594,14 +615,17 @@ def make_sound_targeted(
             attempt_secs.append(sec)
             all_cands.append((sec, f))
             diff = abs(sec - target_s)
-            marker = " (>= Ziel, kuerzbar)" if sec >= target_s else ""
+            if sec >= target_s:
+                marker = " (>= Ziel, kuerzbar)"
+            elif candidate_usable(sec, target_s):
+                marker = " (knapp darunter, im Rahmen der Grenze)"
+            else:
+                marker = " (ZU KURZ — nicht mehr zu retten)"
             print(f"    {f.name}: {sec:.2f}s Ton (Abweichung {diff:.2f}s){marker}")
-            if best is None or diff < best[0]:
-                best = (diff, f, sec)
-        # Brauchbar ist alles, was >= Ziel liegt (Kuerzen mit Ausblendung ist verlustfrei
-        # moeglich) oder innerhalb der Toleranz — Verlaengern geht nicht.
-        usable = [c for c in attempt_secs if c >= target_s] or []
-        if (best and best[0] <= tol) or usable:
+        # Abgebrochen wird nur bei einem BRAUCHBAREN Kandidaten. "Nahe dran"
+        # reicht nicht: Was unter dem Ziel liegt, kann die Nachbearbeitung
+        # nicht mehr strecken.
+        if any(candidate_usable(sec, target_s) for sec in attempt_secs):
             break
         if attempt < attempts and attempt_secs:
             cur, neg = tune_prompt(prompt, max(attempt_secs), target_s)
@@ -610,18 +634,25 @@ def make_sound_targeted(
     if not all_cands:
         print(f"  FEHLER: kein Kandidat fuer {name}")
         return None
-    # Auswahl: kuerzester Kandidat, der noch >= Ziel liegt (wird sauber gekuerzt).
-    # Gibt es keinen, der lang genug ist: der laengste vorhandene.
-    long_enough = sorted([c for c in all_cands if c[0] >= target_s])
-    chosen_sec, chosen = long_enough[0] if long_enough else max(all_cands)
+    # Auswahl: der kuerzeste brauchbare — er wird am wenigsten beschnitten.
+    usable = sorted([c for c in all_cands if candidate_usable(c[0], target_s)])
+    if not usable:
+        laengster = max(all_cands)[0]
+        print(f"  FEHLSCHLAG: {name} — nach {attempts} Versuchen kein Kandidat ueber "
+              f"{target_s - LENGTH_TOLERANCE_S:.2f}s (bester: {laengster:.2f}s, Ziel "
+              f"{target_s:.2f}s). Keine Ausgabedatei — die Abnahme wuerde sie ablehnen.")
+        print(f"    Die Kandidaten liegen zum Nachhoeren in {cand_dir}")
+        return None
+    chosen_sec, chosen = usable[0]
     final = outdir / f"{name}-a.mp3"
     final.write_bytes(chosen.read_bytes())
-    if long_enough:
-        print(f"  GEWAEHLT: {final.name} — {chosen_sec:.2f}s Ton, wird auf {target_s:.1f}s "
-              f"gekuerzt (Quelle: {chosen.name})")
-    else:
-        print(f"  GEWAEHLT: {final.name} — nur {chosen_sec:.2f}s Ton, Ziel {target_s:.1f}s "
-              f"NICHT erreicht (Quelle: {chosen.name})")
+    # "gekuerzt" nur, wenn wirklich gekuerzt wird. Ein Kandidat knapp UNTER dem
+    # Ziel ist brauchbar, wird aber nicht beschnitten -- eine Zeile, die das
+    # Gegenteil behauptet, ist genau die Sorte Meldung, die den Leser in die
+    # falsche Richtung schickt.
+    was = (f"wird auf {target_s:.2f}s gekuerzt" if chosen_sec > target_s
+           else f"bleibt wie er ist, {target_s - chosen_sec:.2f}s unter dem Ziel")
+    print(f"  GEWAEHLT: {final.name} — {chosen_sec:.2f}s Ton, {was} (Quelle: {chosen.name})")
     return final
 
 
@@ -742,21 +773,26 @@ def main() -> None:
         # Eintraege MIT Ziel-Laenge laufen einzeln (Iteration noetig),
         # Eintraege OHNE Ziel-Laenge werden gebuendelt angestossen.
         jobs: list[tuple[str, list[str]]] = []
+        gescheitert: list[str] = []
         for i, item in enumerate(manifest, 1):
             name, prompt = item["name"], item["prompt"]
             loop = bool(item.get("loop", False))
+            if "tol" in item:
+                # Nicht still uebergehen: Wer den Wert setzt, erwartet Wirkung.
+                print(f"  HINWEIS: 'tol' bei {name} wird ignoriert — die Grenze steht "
+                      f"seit Issue #215 in tools/sfx_limits.py (±{LENGTH_TOLERANCE_S}s)")
             if all((outdir / f"{name}-{sfx}.mp3").exists() for sfx in "ab"):
                 print(f"[{i}/{len(manifest)}] {name}: schon vorhanden, ueberspringe")
                 continue
             if item.get("target_s"):
                 print(f"[{i}/{len(manifest)}] {name} — Ziel-Laenge {item['target_s']}s")
-                make_sound_targeted(
+                if make_sound_targeted(
                     s, prompt, name, outdir,
                     target_s=float(item["target_s"]),
-                    tol=float(item.get("tol", 0.4)),
                     attempts=int(item.get("attempts", 3)),
                     loop=loop,
-                )
+                ) is None:
+                    gescheitert.append(name)
                 time.sleep(PACING_S)
                 continue
             print(f"[{i}/{len(manifest)}] generate {name} ({'loop' if loop else 'one-shot'})")
@@ -804,6 +840,17 @@ def main() -> None:
             # Ein `batch`, das ohne fertige OGG-Dateien 0 meldet, waere genau
             # die Sorte stiller Erfolg, um die es in diesem Issue geht.
             sys.exit(f"FEHLER: Nachbearbeitung fehlgeschlagen (Rueckgabewert {r.returncode})")
+        if gescheitert:
+            # ZULETZT, nicht sofort: Die anderen Klaenge sind fertig und sollen
+            # nachbearbeitet werden. Aber der Lauf als Ganzes ist nicht gelungen,
+            # und das muss der Rueckgabewert sagen — sonst laeuft eine Kette
+            # weiter, als laege alles vor (Issue #215, AC4).
+            sys.exit(
+                f"FEHLSCHLAG: {len(gescheitert)} von {len(manifest)} nicht erzeugt — "
+                f"{', '.join(gescheitert)}.\n"
+                "  Kein Kandidat hat die Ziel-Laenge erreicht. Prompt anpassen "
+                "(dunkler, laengerer Ausklang) und erneut laufen lassen."
+            )
         return
 
     sys.exit(f"Unbekanntes Kommando: {cmd}\n{__doc__}")
