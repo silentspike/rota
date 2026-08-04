@@ -1,0 +1,146 @@
+/*
+ * Archiv, Erklärfenster und geführte Einführung (Issue #85).
+ * Stil GEÄTZT: geschwärztes Eisen, Cinzel für Überschriften, EB Garamond für
+ * Fließtext (GAME-DESIGN 17.2).
+ */
+.archive-heading,
+.help-title,
+.intro-title,
+.archive-instance {
+  font-family: 'Cinzel', serif;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+.archive-heading {
+  font-size: 15px;
+  color: #8b8579;
+  margin: 0 0 14px;
+}
+.archive-section {
+  margin-bottom: 30px;
+}
+.archive-instance {
+  font-size: 13px;
+  color: #b9b1a1;
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #241f1a;
+}
+.archive-entry {
+  padding: 12px 0;
+  border-bottom: 1px solid #1a1613;
+}
+.archive-entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+.archive-entry-title {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #efe8da;
+}
+.archive-voice {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #6e6a63;
+}
+.archive-body,
+.intro-body {
+  margin: 6px 0 0;
+  font-family: 'EB Garamond', serif;
+  font-size: 16px;
+  color: #cfc8ba;
+}
+.archive-empty {
+  color: #7d766a;
+}
+
+/* Erklärfenster — es sitzt am Element, nicht in einem Menü. */
+.help-popover {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  top: 100%;
+  width: 280px;
+  padding: 12px 14px;
+  background: #12100e;
+  border: 1px solid #3c342a;
+  border-radius: 3px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  text-align: left;
+}
+.help-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #efe8da;
+}
+.help-effect {
+  margin: 0;
+  font-family: 'EB Garamond', serif;
+  font-size: 15px;
+  color: #cfc8ba;
+}
+.help-values,
+.help-synergies {
+  margin: 5px 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: #8b8579;
+}
+
+/* Geführte Einführung — hält an, ist überspringbar. */
+.intro {
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  background: #12100e;
+  border: 1px solid #3c342a;
+  border-left: 3px solid #d9bd63;
+  border-radius: 3px;
+}
+.intro-title {
+  margin: 0;
+  font-size: 14px;
+  color: #efe8da;
+}
+.intro-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.intro-actions button {
+  padding: 5px 14px;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #cbc3b4;
+  background: transparent;
+  border: 1px solid #3c342a;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.intro-actions button:hover {
+  border-color: #5a5147;
+  color: #efe8da;
+}
+
+.demo-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+.demo-target {
+  position: relative;
+  padding: 10px 16px;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #cbc3b4;
+  background: #15151c;
+  border: 1px solid #2e2e3a;
+  border-radius: 2px;
+  cursor: help;
+}
