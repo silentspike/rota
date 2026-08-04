@@ -115,6 +115,7 @@ const EVENT_KINDS = {
   shieldAbsorb: 13,
   healed: 14,
   convertedToShield: 15,
+  controlSpent: 16,
 } as const;
 
 export const EVENT_CAST = EVENT_KINDS.cast;
@@ -160,6 +161,8 @@ export const EVENT_SHIELD_ABSORB = EVENT_KINDS.shieldAbsorb;
 export const EVENT_HEALED = EVENT_KINDS.healed;
 /** Nur der Simulator schreibt sie — Schaden wurde in Schutz verwandelt (#79). */
 export const EVENT_CONVERTED_TO_SHIELD = EVENT_KINDS.convertedToShield;
+/** Nur der Simulator schreibt sie — Kontroll-Punkte ausgegeben (Issue #100). */
+export const EVENT_CONTROL_SPENT = EVENT_KINDS.controlSpent;
 
 /**
  * Die Namen, **Index gleich Kennnummer** — aus [`EVENT_KINDS`] erzeugt.
