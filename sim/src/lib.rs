@@ -69,6 +69,9 @@ pub mod event;
 pub mod factors;
 pub mod fight;
 pub mod gear;
+// Issue #118: die Balance-Messung der Ausruestung.
+pub mod gear_balance;
+// Issue #177: Tempo wirkt auf Zeiten.
 pub mod haste;
 pub mod log;
 pub mod replay;
