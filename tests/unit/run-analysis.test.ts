@@ -107,7 +107,9 @@ describe('AC7 — Leerlauf und verpasste Wirkungen schliessen einander aus', () 
       // Die Summe der Quellen darf das Gesamtpotenzial nicht uebersteigen.
       expect(analysis.losses.totalLost).toBeLessThanOrEqual(analysis.losses.potential);
       expect(analysis.losses.totalShare).toBeLessThanOrEqual(1);
-      // Und kein Fenster steckt in beiden Zaehlern.
+      // Die Fenster-Summe stimmt. Sie BELEGT die Trennung allerdings nicht --
+      // seit der Rundungs-Korrektur steht sie durch die Konstruktion fest. Der
+      // Beleg ist die Millisekunden-Gleichheit im Prueffall darueber.
       expect(analysis.missedCastWindows + analysis.idleWindows).toBe(
         Math.round(summary.lostTimeMs / GCD_MS),
       );
@@ -153,6 +155,79 @@ describe('AC7 — Leerlauf und verpasste Wirkungen schliessen einander aus', () 
     expect(verpasst.lostTimeNothingReadyMs).toBe(0);
     expect(leerlauf.lostTimeNothingReadyMs).toBeGreaterThan(0);
     expect(leerlauf.lostTimeWithReadyMs).toBe(0);
+  });
+});
+
+/**
+ * Die Rundung, an der die Rechnung schon einmal daneben lag.
+ *
+ * Hier steht eine von Hand gesetzte Kurzfassung, obwohl sonst wirklich gespielt
+ * wird -- und das ist Absicht: Geprueft wird eine ARITHMETISCHE Eigenschaft,
+ * die von keinem der spielbaren Durchlaeufe getroffen wurde. Sechs
+ * Zusammenstellungen liefen daran vorbei, der Fehler war trotzdem da.
+ */
+describe('Zwei Haelften, eine Rundung', () => {
+  function kurzfassung(withReadyMs: number, nothingReadyMs: number): RunSummary {
+    return {
+      outcome: 'victory',
+      victory: true,
+      elapsedMs: 30_000,
+      remainingMs: 0,
+      damage: 1000,
+      bossHp: 5000,
+      progressPercent: 20,
+      casts: 10,
+      idlePerSpell: [],
+      lostTimeMs: withReadyMs + nothingReadyMs,
+      lostTimeShare: 0,
+      lostTimeWithReadyMs: withReadyMs,
+      lostTimeNothingReadyMs: nothingReadyMs,
+      synergyUsed: 0,
+      synergyAvailable: 0,
+      logEntries: 0,
+      logCapacity: 0,
+      logDropped: 0,
+      logOverflowed: false,
+      eventCounts: {},
+    };
+  }
+
+  function fenster(withReadyMs: number, nothingReadyMs: number): RunAnalysis {
+    return analyzeRun({
+      summary: kurzfassung(withReadyMs, nothingReadyMs),
+      gcdMs: GCD_MS,
+      spells: [],
+      synergyBonusDamage: 0,
+      missedInterrupts: null,
+      damagePerLandedBossCast: 0,
+    });
+  }
+
+  it('erfindet keine Fenster, die es nicht gab', () => {
+    // 1000 + 1000 ms sind bei 1,5 s Grundtakt EIN leeres Fenster. Getrennt
+    // gerundet waeren es zwei gewesen -- und der ausgewiesene Verlust damit
+    // hoeher als der tatsaechliche, was AC7 verbietet.
+    for (const [mitBereit, ohne] of [
+      [750, 750],
+      [800, 800],
+      [1000, 1000],
+      [1100, 1100],
+    ] as const) {
+      const a = fenster(mitBereit, ohne);
+      expect(a.missedCastWindows + a.idleWindows, `${mitBereit}/${ohne}`).toBe(
+        Math.round((mitBereit + ohne) / GCD_MS),
+      );
+      expect(a.idleWindows).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('laesst den gemessenen Fall unveraendert', () => {
+    // Der Fall, in dem sich nichts aendern darf: [PYRE, CRUST] ergab 5000 und
+    // 10 000 ms, also 3 und 7 Fenster. Die Korrektur darf ihn nicht verschieben
+    // -- die Zahlen stehen im Pruefblatt und in der Meldung an den Orchestrator.
+    const a = fenster(5000, 10_000);
+    expect(a.missedCastWindows).toBe(3);
+    expect(a.idleWindows).toBe(7);
   });
 });
 
