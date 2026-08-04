@@ -357,24 +357,6 @@ export class Combat {
     return this.bossEnergyTriggersValue;
   }
 
-  /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
-  /**
-   * Welcher Eintrag beim Fortschrittsstand `index` ansteht, und wann.
-   *
-   * **Der Zähler ist Fortschritt, nicht Platz in der Liste.** Wiederholt sich
-   * die Zeitleiste (`timelineLoopMs`, Issue #174), läuft er darüber hinaus:
-   * Eintrag `i` im Zyklus `z` ist fällig bei `z * loop + atMs`.
-   *
-   * Ohne Wiederholung endet die Zeitleiste am letzten Eintrag — dann gibt
-   * diese Methode `null`, und der Kampf steuert nichts mehr an.
-   *
-   * **Bei leerer Liste immer `null`.** Das ist der Fall der stummen Puppe, an
-   * der maximale Rotationen gemessen werden: Eine Wiederholung über nichts
-   * darf nicht kreisen, nichts auslösen und nichts kosten.
-   *
-   * Wortgleich mit `Fight::timeline_at` im Simulator — eine Regel, die nur
-   * eine Seite kennt, bricht die Parität erst nach dem ersten Zyklus.
-   */
   /**
    * Welcher Eintrag beim Fortschrittsstand `index` ansteht.
    *
@@ -416,6 +398,7 @@ export class Combat {
     return Math.floor(index / laenge) * loop + this.boss.timeline[index % laenge]!.atMs;
   }
 
+  /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
   get timelineIndex(): number {
     return this.timelineIndexValue;
   }
