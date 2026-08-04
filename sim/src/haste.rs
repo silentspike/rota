@@ -25,24 +25,42 @@
 //! passte nicht mehr. `u64` kostet hier nichts und macht die Grenze
 //! gegenstandslos.
 //!
+//! # Die Wirkorte, und einer der ausdruecklich fehlt
+//!
+//! | Wirkort                | Untergrenze |
+//! | ---------------------- | ----------- |
+//! | **Alle** Abklingzeiten | ein Takt    |
+//! | DoT-Tick-Abstand       | ein Takt    |
+//! | ~~Globale Wartezeit~~  | —           |
+//!
+//! **Die globale Wartezeit gehoert NICHT dazu.** 6.2 legt seit dem 2026-07-29
+//! fest: Der GCD sinkt ausschliesslich ueber den **Talentbaum**, nie ueber
+//! Ausruestung. Kuerzere Abklingzeiten sind eine Planungsaufgabe, ein kuerzerer
+//! GCD ein Reaktionstest — und die Reaktionszeit wird nicht bewertet (21.2).
+//!
+//! 6.7 hatte sie beim ersten Schreiben versehentlich als Wirkort gefuehrt; die
+//! Fassung vom 2026-08-04 streicht sie wieder. Diese Datei hat den Wirkort nie
+//! gehabt.
+//!
 //! # Was hier NICHT steht: der Deckel
 //!
-//! 6.7 nennt fuer CATALYSIS einen Deckel von 50 %, abgeleitet aus
-//! `1500 / (1 + t) = 1000` — „die Untergrenze aus 6.6".
+//! **Der Tempo-Deckel wird gemessen, nicht gesetzt** (6.7). Die Frage lautet,
+//! bei welchem Wert Tempo aufhoert, sich gegen Kritchance und Kritschaden zu
+//! lohnen — das beantwortet der Balance-Laeufer, kein Ueberlegen.
 //!
-//! **6.6 enthaelt keine Untergrenze.** Nachgezaehlt am 2026-08-04: Die 1,0 s
-//! stehen an genau einer Stelle im Design, naemlich in 6.4, und dort als
-//! „per **Talent** senkbar bis **ca.** 1,0 s". Aus einem Ungefaehr fuer einen
-//! anderen Mechanismus laesst sich kein Deckel ableiten, und ein
-//! `const HASTE_CAP = 500` waere genau die Handabschrift, vor der die Auflage
-//! zu Issue #177 warnt.
+//! > Eine Ableitung stand dort und trug nicht: „50 %, folgt aus
+//! > `1500 / (1 + t) = 1000` — die Untergrenze aus 6.6". Beide Bezugspunkte
+//! > waren falsch. 6.6 enthaelt keine Untergrenze (sie steht in 6.4, als
+//! > **„ca. 1,0 s"** und fuer den **Talentbaum**), und Ausruestungs-Tempo
+//! > beruehrt die Wartezeit gar nicht.
+//! >
+//! > **Merksatz aus 6.7:** Eine Zahl mit Begruendungs-Anschein ist schlimmer
+//! > als eine offen gesetzte — sie sieht geprueft aus. Wer sie liest, sucht die
+//! > Quelle nicht nach.
 //!
-//! Dieselbe Stelle traegt den zweiten offenen Punkt: 6.7 fuehrt die **globale
-//! Wartezeit** als Wirkort, 6.2 schliesst sie ausdruecklich aus („Der GCD sinkt
-//! ausschliesslich ueber den Talentbaum, nie ueber Ausruestung", Festlegung vom
-//! 2026-07-29). Beides ist gemeldet; bis zur Entscheidung wirkt Tempo hier auf
-//! **Abklingzeiten und DoT-Tick-Abstaende** — die Wirkorte, in denen 6.2 und
-//! 6.7 uebereinstimmen.
+//! Solange die Messung aussteht, ist Tempo hier **ungedeckelt**. Die einzige
+//! Grenze ist die Untergrenze von einem Takt je Zeit, und die ist eine
+//! Rechenregel, keine Balance-Entscheidung.
 
 use crate::time::{snap_up, Millis, TICK_MS};
 
