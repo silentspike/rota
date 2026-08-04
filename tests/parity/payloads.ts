@@ -161,6 +161,7 @@ export function primitivesPayload(): Record<string, unknown> {
     })),
     mixFloat: [0, 1, -1, 1500, 4240, 0.5, 12000].map((value) => ({
       value,
+      valueBits: bitsOf(value),
       result: mixFloat(FNV_OFFSET, value) >>> 0,
     })),
     chain: (() => {
@@ -189,12 +190,18 @@ export function primitivesPayload(): Record<string, unknown> {
  */
 export function ruleEventsPayload(): Record<string, unknown> {
   const bus = new RuleEvents();
-  const steps: { event: number; subject: number; value: number; timeMs: number }[] = [];
+  const steps: {
+    event: number;
+    subject: number;
+    value: number;
+    valueBits: string;
+    timeMs: number;
+  }[] = [];
   const after: number[] = [];
 
   const emit = (event: number, subject: number, value: number, timeMs: number): void => {
     bus.emit(event, subject, value, timeMs);
-    steps.push({ event, subject, value, timeMs });
+    steps.push({ event, subject, value, valueBits: bitsOf(value), timeMs });
     after.push(bus.sequenceChecksum);
   };
 
@@ -828,19 +835,31 @@ export function serialize(payload: unknown): string {
 /**
  * Die exakten Bits einer Gleitkommazahl, als 16 Hexzeichen.
  *
- * **Warum die Dezimalschreibweise nicht reicht.** `serde_json` liest
- * `1.6500000000000001` als `1.65` — ein Bit daneben. Gemessen am 2026-07-29:
- * Rusts eigener Zahlenleser (`str::parse::<f64>`) trifft den Wert, der von
- * `serde_json` nicht. Und es ist nicht einmal systematisch —
- * `1.0000000000000002` geht durch, `1.6500000000000001` nicht. Ein Vergleich
- * über die Dezimalschreibweise ist damit grün aus Glück, nicht aus
- * Konstruktion.
+ * **Die Regel für dieses Verzeichnis: Jede Gleitkommazahl, die der Simulator
+ * aus einer Vergleichsdatei liest, steht dort zweimal** — einmal dezimal,
+ * damit ein Diff lesbar bleibt, und einmal als Bitmuster, weil nur das den
+ * Vergleich trägt.
  *
- * Die Zahl steht deshalb **zweimal** in der Datei: einmal dezimal, damit der
- * Diff lesbar bleibt, und einmal als Bitmuster, weil nur das den Vergleich
- * trägt.
+ * **Warum die Dezimalschreibweise nicht reicht** (Issue #122): `serde_json`
+ * liest `1.6500000000000001` als `1.65` — ein Bit daneben. Gemessen am
+ * 2026-07-29 und vom Orchestrator unabhängig nachgemessen:
+ *
+ * ```text
+ *   1.6500000000000001   std=3ffa666666666667   serde=3ffa666666666666  ABWEICHUNG
+ *   1.0000000000000002   std=3ff0000000000001   serde=3ff0000000000001  gleich
+ *   2.1450000000000005   std=400128f5c28f5c2a   serde=400128f5c28f5c2a  gleich
+ * ```
+ *
+ * Rusts eigener Zahlenleser trifft den Wert, `serde_json` nicht — und **nicht
+ * systematisch**. Ein Vergleich über die Dezimalschreibweise ist damit grün
+ * aus Glück, nicht aus Konstruktion, und die nächste Zahl, die jemand
+ * einträgt, kann ihn stillschweigend entwerten.
+ *
+ * Gilt auch für **Eingabewerte**: Läse der Simulator die ein Bit daneben,
+ * rechnete er mit anderen Zahlen als das Spiel — und meldete eine Abweichung,
+ * die es nicht gibt.
  */
-function bitsOf(value: number): string {
+export function bitsOf(value: number): string {
   const buffer = new ArrayBuffer(8);
   new DataView(buffer).setFloat64(0, value);
   return Array.from(new Uint8Array(buffer))
