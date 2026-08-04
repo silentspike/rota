@@ -242,6 +242,26 @@ Merge-Commit (kein Squash, kein Rebase — die Historie bleibt linear und vollst
 Du meldest dein Ergebnis im Format aus § 6. Die Master-Session prüft **selbst im laufenden Spiel**
 gegen `GAME-DESIGN.md`. Deine Behauptungen zählen dabei nicht als Nachweis — sie werden nachgemessen.
 
+#### Warten ist kein Zustand, in dem man bleibt
+
+_Am 2026-08-04 saßen zwei Sitzungen 45 Minuten still, jede aus einem eigenen Grund. Beide hatten
+Arbeit._
+
+| Sitzung | Wartete auf                          | Warum das falsch war                                                                                                        |
+| ------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| A       | die Abnahme des gerade gemeldeten PR | Das **nächste** Issue war längst zugewiesen und hing inhaltlich nicht daran                                                 |
+| B       | die Antwort auf eine Design-Frage    | Sie betraf **einen** Teilaspekt; der Rest des Issues war unabhängig — was sie selbst angekündigt und dann nicht getan hatte |
+
+**Eine Abnahme ist kein Startsignal für das nächste Issue.** Sie schließt das vorige ab. Wenn im
+Issue-Bestand etwas auf dich wartet, fang damit an — der Orchestrator holt dich nicht ab.
+
+**Eine offene Frage blockiert selten alles.** Trenn beim Melden ausdrücklich, was daran hängt und was
+nicht, und bau dann den unabhängigen Teil. Wer schreibt „ich arbeite derweil weiter" und es nicht
+tut, hat zweimal falsch gemeldet.
+
+> **Die Voreinstellung ist Arbeiten, nicht Warten.** Wer wirklich nichts hat, sagt das — ausdrücklich
+> und mit der Frage, was als Nächstes kommt. Stille sieht von außen genauso aus wie Beschäftigung.
+
 ### Schritt 8 — Erst jetzt: Issue schließen, Branch löschen
 
 ```bash
