@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
-import { CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
+import { CALCINATION, FIRST_CRUCIBLE, PLAYER, type BossDef } from '../../src/core/data.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { COUNTDOWN_MS } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
@@ -17,6 +17,7 @@ import {
   DUMMY_HP,
   DUMMY_OVERPRESSURE_MS,
   TrainingRoom,
+  type DummySettings,
 } from '../../src/analysis/training.js';
 
 describe('Die Puppe — unbegrenzt, ohne Zeitlimit', () => {
@@ -76,6 +77,11 @@ describe('AC1 — die drei Einstellungen wirken', () => {
   });
 
   it('ohne Zauber keine Zeitleiste, mit Zauber eine', () => {
+    // **Das ist die Vorbedingung, nicht die Wirkung** — und genau diese
+    // Verwechslung hat Issue #167 durchgelassen: Die Zeitleiste war nicht
+    // leer, trug aber falsche Feldnamen, und es entstand nie eine
+    // Unterbrechungs-Gelegenheit. Der Nachweis steht weiter unten in
+    // „AC1 (#167)"; dieser Fall bleibt nur als Vorbedingung stehen.
     expect(buildDummy({ ...DEFAULT_DUMMY, castsSpells: false }, 'X').timeline).toEqual([]);
     expect(
       buildDummy({ ...DEFAULT_DUMMY, castsSpells: true }, 'X').timeline.length,
@@ -109,6 +115,118 @@ describe('AC1 — die drei Einstellungen wirken', () => {
     );
     expect(dummy.resistances['PUTREFACTION']).toBe(0.25);
     expect(dummy.timeline.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Ein Uebungsdurchgang, der lang genug fuer die Zeitleiste ist.
+ *
+ * `runFor` oben endet neun Sekunden nach dem Countdown — vor dem ersten
+ * Puppen-Zauber bei 12 s. Ein Fall, der die Zeitleiste messen will, saehe dort
+ * nie einen Eintrag und waere trotzdem gruen.
+ *
+ * Gibt den Kampf selbst zurueck, nicht die Zusammenfassung: Die gesuchten
+ * Groessen (Spielerleben, Unterbrechungen) stehen an `Combat`.
+ */
+function uebeGegen(settings: DummySettings, dauerMs = 30_000): Combat {
+  const queue = new PressQueue();
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: buildDummy(settings, 'CALCINATION'),
+  });
+  const session = new Session(queue, combat);
+  session.bind(0, 0);
+  session.beginCountdown(0);
+  let tick = 0;
+  for (let t = 0; t <= COUNTDOWN_MS + dauerMs; t += 100) {
+    if (t >= COUNTDOWN_MS && (t - COUNTDOWN_MS) % 1500 === 0) queue.push(0, tick, t, tick);
+    session.tick(t);
+    tick++;
+  }
+  return combat;
+}
+
+describe('AC1 (#167) — castsSpells erzeugt WIRKLICH Gelegenheiten zum Unterbrechen', () => {
+  it('mit Zaubern gibt es mindestens eine, ohne keine', () => {
+    // **Gemessen wird die Wirkung im Kampf**, nicht die Laenge einer Liste.
+    // Vor #167 war die Liste gefuellt und die Zahl hier trotzdem 0: Die
+    // Eintraege trugen `kind` statt `mechanic`, also lief `Combat` in den
+    // Schlag-Zweig und begann nie einen unterbrechbaren Zauber.
+    const mit = uebeGegen({ ...DEFAULT_DUMMY, castsSpells: true });
+    const ohne = uebeGegen({ ...DEFAULT_DUMMY, castsSpells: false });
+
+    expect(mit.interruptsMissed + mit.interruptsLanded).toBeGreaterThan(0);
+    // Und der Fall, in dem sich nichts aendern DARF.
+    expect(ohne.interruptsMissed + ohne.interruptsLanded).toBe(0);
+  });
+
+  it('die Zeitleiste traegt die Feldnamen, die Combat liest', () => {
+    // Der Fall, der die Fehlerklasse dauerhaft faengt — auch wenn jemand die
+    // Typ-Zusicherung wieder einbaut. `mechanic` ist das Feld, dessen Fehlen
+    // den ganzen Schaden angerichtet hat.
+    const timeline = buildDummy(
+      { ...DEFAULT_DUMMY, castsSpells: true, dealsDamage: true },
+      'X',
+    ).timeline;
+    expect(timeline.length).toBeGreaterThan(0);
+    for (const eintrag of timeline) {
+      expect(['interruptibleCast', 'strike']).toContain(eintrag.mechanic);
+      expect(typeof eintrag.name).toBe('string');
+      expect(Number.isFinite(eintrag.damage)).toBe(true);
+      expect(Number.isFinite(eintrag.castTimeMs)).toBe(true);
+    }
+    // Und sie steht aufsteigend — Combat laeuft mit einem Zeiger vorwaerts
+    // durch und braeche beim ersten nicht faelligen Eintrag ab.
+    for (let i = 1; i < timeline.length; i++) {
+      expect(timeline[i]!.atMs).toBeGreaterThanOrEqual(timeline[i - 1]!.atMs);
+    }
+  });
+});
+
+describe('AC2 (#167) — dealsDamage senkt das Spielerleben, sonst bleibt es unberuehrt', () => {
+  it('beide Faelle im selben Prueffall', () => {
+    // `dealsDamage` wurde vor #167 NIRGENDS gelesen. Ein Fall, der nur den
+    // eingeschalteten Zustand prueft, koennte gruen sein, weil eine andere
+    // Quelle Schaden macht — deshalb stehen beide Richtungen hier zusammen.
+    const mit = uebeGegen({ ...DEFAULT_DUMMY, dealsDamage: true });
+    const ohne = uebeGegen({ ...DEFAULT_DUMMY, dealsDamage: false });
+
+    expect(mit.playerHp).toBeLessThan(PLAYER.vessel);
+    expect(ohne.playerHp).toBe(PLAYER.vessel);
+    expect(mit.damageTaken).toBeGreaterThan(0);
+    expect(ohne.damageTaken).toBe(0);
+  });
+
+  it('gilt auch, waehrend die Puppe zaubert', () => {
+    // Die Zusage von `dealsDamage` haengt nicht an der zweiten Einstellung:
+    // „macht keinen Schaden" muss auch dann gelten, wenn zugleich gezaubert
+    // wird — sonst waere die Einstellung an eine andere gekoppelt, und der
+    // Spieler koennte das Zeitfenster nicht ohne Druck ueben.
+    const zaubernd = uebeGegen({ ...DEFAULT_DUMMY, castsSpells: true, dealsDamage: false });
+    expect(zaubernd.interruptsMissed + zaubernd.interruptsLanded).toBeGreaterThan(0);
+    expect(zaubernd.playerHp).toBe(PLAYER.vessel);
+  });
+});
+
+describe('AC3 (#167) — das Spielerleben ist in keinem Zustand NaN', () => {
+  it('ueber alle vier Kombinationen der beiden Schalter', () => {
+    // **`Number.isFinite`, nicht `toBeGreaterThan(0)`.** Jeder Vergleich mit
+    // `NaN` ist falsch, `toBeGreaterThan` meldet dann aber nur „nicht
+    // groesser" — wer das liest, sucht an der falschen Stelle. Genau dieser
+    // Zustand lag vor: `hitPlayer(undefined)` machte das Leben zu `NaN`.
+    for (const dealsDamage of [false, true]) {
+      for (const castsSpells of [false, true]) {
+        const combat = uebeGegen({ ...DEFAULT_DUMMY, dealsDamage, castsSpells });
+        const lage = `dealsDamage=${dealsDamage} castsSpells=${castsSpells}`;
+        expect(Number.isFinite(combat.playerHp), `${lage}: playerHp ist ${combat.playerHp}`).toBe(
+          true,
+        );
+        expect(
+          Number.isFinite(combat.damageTaken),
+          `${lage}: damageTaken ist ${combat.damageTaken}`,
+        ).toBe(true);
+      }
+    }
   });
 });
 
