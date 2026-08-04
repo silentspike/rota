@@ -81,6 +81,16 @@ export class Session implements Simulation {
   readonly log = new CombatLog();
 
   /**
+   * Wird **einmal** beim Kampfende gerufen (Issue #179).
+   *
+   * Wie `combat.onHit` ein reiner Beobachter: Er liest die Kurzfassung und den
+   * Ausgang, greift nicht ein, und ein Spiel ohne Zuhörer rechnet identisch
+   * (GAME-DESIGN 18.5). Daran haengt die Fortschrittsmarke -- ohne diesen Ruf
+   * bleiben Marke und Verlauf leer, egal wie oft gespielt wird.
+   */
+  onFinish: ((summary: RunSummary, outcome: number) => void) | null = null;
+
+  /**
    * Eingabe-Zeitmessung (GAME-DESIGN 19.1): Millisekunden nach Ablauf der
    * globalen Wartezeit, je angenommenem Druck.
    *
@@ -566,6 +576,11 @@ export class Session implements Simulation {
     // Zuletzt die Musik: erst der Ausgang, dann der Wechsel des Klangteppichs.
     // Die Auswertung ist ein Bild ohne Kampf und bekommt deshalb den Menü-Teppich.
     this.emit(EV_FIGHT_END, NO_KEY, timeMs);
+
+    // Und ganz zuletzt der Beobachter: Er bekommt einen fertigen Zustand, nicht
+    // einen halben. Vor den Meldungen gerufen saehe er einen Kampf, dessen
+    // Ausgang noch nirgends angekommen ist.
+    this.onFinish?.(this.summary(timeMs), outcome);
     this.emit(EV_MENU_ENTER, NO_KEY, timeMs);
   }
 
