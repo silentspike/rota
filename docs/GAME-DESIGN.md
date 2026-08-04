@@ -153,6 +153,37 @@ in die ihre zwölf Zauber einzahlen.
 > **Risiko:** Diese fünf Mechaniken tragen das ganze Spiel. Sie müssen sehr sorgfältig entworfen
 > werden und sind der erste Prüfstein im Prototyp (siehe 20.3).
 
+#### Zwei Festlegungen zur Bauart, entschieden am 2026-08-04
+
+**Putrefaktion: jeder Stapel hat seine eigene Uhr.** Der älteste verfällt zuerst, die jüngeren
+bleiben. Wer regelmäßig nachlegt, hält den Aufbau oben.
+
+> Ein gleitender Zustand statt eines Alles-oder-nichts. Der Spieler darf den Aufbau bewusst absacken
+> lassen, wenn gerade Wichtigeres ansteht, und verliert nicht alles — ein gemeinsamer Verfall hätte
+> jeden Zwischenfall im Kampf den ganzen Aufbau gekostet.
+>
+> **Preis, den die Anzeige tragen muss:** mehrere Restzeiten gleichzeitig. Das ist eine Anforderung
+> an 12.3 (Anzeige der Schul-Mechaniken über der Leiste), keine Nebensache.
+
+**Sublimation: ein fester Betrag, kein Anteil.** Jede Wirkung nimmt allen laufenden Abklingzeiten
+dieselbe Zeitspanne.
+
+> **Der Spieler kann abzählen.** Er weiß, wann etwas bereit wird, und kann darauf planen — ein
+> Prozentsatz auf Restzeiten wäre im Kopf nicht mehr zu rechnen und widerspräche der Forderung nach
+> planbaren Abklingzeiten (6.2).
+>
+> **Folge für die Ausrichtung der Schule:** Ein fester Betrag wirkt bei kurzen Abklingzeiten
+> stärker als bei langen. Sublimation ist damit die Schule für schnelle Rotationen — was zur
+> Beschreibung „die Schule für Könner" passt.
+
+**Die Zahlen dazu werden gemessen, nicht gesetzt** (Teil F.6): wie viel Prozent ein Stapel trägt, wie
+viele es höchstens gibt, wie lange sie halten, um wie viel Sublimation verkürzt. Bis zur Messung
+stehen vorläufige Werte im Code — an genau einer Stelle je Größe und ausdrücklich als vorläufig
+benannt, damit das Ersetzen eine Zeile bleibt.
+
+> **Kein Begründungs-Anschein.** Eine vorläufige Zahl trägt den Vermerk „wird gemessen", nicht eine
+> Herleitung, die sie geprüft aussehen lässt.
+
 ### 4.2 Ressourcen
 
 **Keine globale Ressource.** Kein Mana. Aber einzelne Schulen arbeiten mit **Ladungen**
@@ -307,6 +338,9 @@ Die drei Werte, die die Rotation tatsächlich beeinflussen:
 > auf, statt sie ihn wählen zu lassen — und widerspricht dem Grundsatz, dass die Reaktionszeit
 > nicht bewertet wird (21.2).
 >
+> **Am 2026-08-04 bestätigt**, nachdem 6.7 sie versehentlich übergangen hatte. **Wie** CATALYSIS auf
+> die Zeiten wirkt, steht in 6.7; **worauf** es wirkt, steht hier.
+>
 > **DoT-Ticks skalieren mit** (WoW-Muster seit Patch 6.0.2): Eine DoT-lastige Ausrichtung hat
 > damit denselben Skalierungswert wie jede andere. Ticks werden dichter, die **Dauer bleibt** —
 > das erzeugt Breakpoints je DoT, die der Balance-Läufer messen muss.
@@ -421,8 +455,8 @@ ab.
 
 #### Tempo (CATALYSIS) wirkt auf ZEITEN, nicht auf den Schaden
 
-Das ist der Unterschied zu den beiden anderen Sonderwerten und der Grund, warum die Schadensformel
-in 6.3 **sieben** Faktoren führt und nicht acht.
+Das ist der Unterschied zu den beiden anderen Sonderwerten: CATALYSIS steht in der Schadensformel
+(6.3) **gar nicht**, weder als siebter noch als achter Faktor.
 
 > Diablo 4 formuliert es genau: _„Attack speed does not enter the damage formula, but rather it
 > multiplies how often you get to use it."_ Tempo verändert nicht, wie hart ein Treffer trifft,
@@ -435,12 +469,17 @@ neue_zeit = auf_takt_aufrunden(basis_zeit × 1000 / (1000 + tempo_promille))
 Ganzzahlig in Promille gerechnet, einmal auf den Logik-Takt gerastert. **Keine Fließkomma-Zeit** —
 die Determinismus-Regel aus 18.4 bleibt unangetastet.
 
-| Wirkort                | Untergrenze       |
-| ---------------------- | ----------------- |
-| Globale Wartezeit      | **1000 ms** (6.6) |
-| Wirkzeit               | keine             |
-| **Alle** Abklingzeiten | ein Takt          |
-| DoT-Tick-Abstand       | ein Takt          |
+| Wirkort                | Untergrenze |
+| ---------------------- | ----------- |
+| **Alle** Abklingzeiten | ein Takt    |
+| DoT-Tick-Abstand       | ein Takt    |
+| Wirkzeit               | keine       |
+| ~~Globale Wartezeit~~  | —           |
+
+**Die globale Wartezeit gehört NICHT dazu.** 6.2 legt seit dem 2026-07-29 fest: Der GCD sinkt
+ausschließlich über den **Talentbaum**, nie über Ausrüstung. Kürzere Abklingzeiten sind eine
+Planungsaufgabe, ein kürzerer GCD ein Reaktionstest — und die Reaktionszeit wird nicht bewertet
+(21.2).
 
 **Alle Abklingzeiten skalieren mit** — anders als in WoW, wo eine Ausnahmeliste je Fähigkeit
 entscheidet. Abklingzeiten sind bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
@@ -460,17 +499,30 @@ eine Kommazahl im **Schaden**, also genau dort, wo Spiel und Simulator bitgleich
 > ist verloren) hängt an einem stabilen Zeitfenster. Schrumpfte die Dauer mit dem Tempo, verschöbe
 > sich der optimale Erneuerungszeitpunkt bei jedem Ausrüstungswechsel.
 
-#### Die Deckel — abgeleitet, nicht gesetzt
+#### Die Deckel
 
-| Wert                    | Deckel    | Woraus er folgt                                   |
-| ----------------------- | --------- | ------------------------------------------------- |
-| **CATALYSIS** (Tempo)   | **50 %**  | `1500 / (1 + t) = 1000` — die Untergrenze aus 6.6 |
-| **PURITY** (Kritchance) | **100 %** | jeder Treffer kritet; darüber hinaus wirkungslos  |
-| **YIELD** (Kritschaden) | keiner    | wächst weiter, ohne eine Grenze zu berühren       |
+| Wert                    | Deckel       | Woraus er folgt                                  |
+| ----------------------- | ------------ | ------------------------------------------------ |
+| **CATALYSIS** (Tempo)   | **gemessen** | der Balance-Läufer — siehe unten                 |
+| **PURITY** (Kritchance) | **100 %**    | jeder Treffer kritet; darüber hinaus wirkungslos |
+| **YIELD** (Kritschaden) | keiner       | wächst weiter, ohne eine Grenze zu berühren      |
 
-**Der Tempo-Deckel ist keine gewürfelte Zahl.** Er ist die Stelle, an der die bereits beschlossene
-Untergrenze der Wartezeit greift. Fällt die 1,0 s später, verschiebt sich der Deckel mit — es gibt
-genau einen Ort, an dem die Zahl entschieden wird.
+**Der Tempo-Deckel wird gemessen, nicht gesetzt.** Die Frage lautet: Bei welchem Wert hört Tempo auf,
+sich gegen Kritchance und Kritschaden zu lohnen? Das beantwortet kein Überlegen, sondern der
+Balance-Läufer.
+
+> **Eine Ableitung stand hier und trug nicht.** Bis zum 2026-08-04 war der Deckel als „50 %, folgt aus
+> `1500 / (1 + t) = 1000`" begründet. Beide Bezugspunkte waren falsch: 6.6 enthält keine Untergrenze
+> (sie steht in 6.4, als **„ca. 1,0 s"** und für den **Talentbaum**), und Ausrüstungs-Tempo berührt
+> die Wartezeit gar nicht (6.2).
+>
+> Es gäbe eine zweite Ableitung — die kürzeste Abklingzeit (3 s) erreicht bei 100 % Tempo den
+> Grundtakt (1,5 s), darüber bringt sie für diesen Zauber nichts mehr. Sie ist nachprüfbar, aber sie
+> beantwortet die **falsche** Frage: nicht „wo wird Tempo nutzlos", sondern „wo lohnt es sich nicht
+> mehr gegen andere Werte". Das ist eine Balance-Frage, keine Rechenfrage.
+>
+> **Merksatz:** Eine Zahl mit Begründungs-Anschein ist schlimmer als eine offen gesetzte — sie sieht
+> geprüft aus. Wer sie liest, sucht die Quelle nicht nach.
 
 > **Folge des 100-%-Deckels bei PURITY, die im Blick bleiben muss:** Am Deckel ist Krit kein Zufall
 > mehr. Kapitel 6.5 hält fest, dass der Glücksanteil **gewollt** ist — er verschwindet für den
