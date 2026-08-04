@@ -29,14 +29,19 @@ import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
+import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
 import eingecheckteFixierung from './recordings/fixation.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
+import eingecheckteUmrechnung from './recordings/haste.json';
+import eingecheckteGetrageneWerte from './recordings/worn-values.json';
+import eingecheckteQuellen from './recordings/sources.json';
 import {
   bossStatePayload,
+  timelineLoopPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -50,6 +55,9 @@ import {
   cooldownResetPayload,
   gearPayload,
   setsPayload,
+  hastePayload,
+  wornPayload,
+  sourcesPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -98,6 +106,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckterBossZustand, HINWEIS).toEqual(bossStatePayload());
   });
 
+  it('der Durchgang gegen die wiederholte Zeitleiste entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteWiederholung, HINWEIS).toEqual(timelineLoopPayload());
+  });
+
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterSpielerSchaden, HINWEIS).toEqual(playerDamagePayload());
   });
@@ -112,6 +124,18 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Protokoll-Arten des Spiels entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteProtokollParitaet, HINWEIS).toEqual(logParityPayload());
+  });
+
+  it('die Tempo-Umrechnung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteUmrechnung, HINWEIS).toEqual(hastePayload());
+  });
+
+  it('der Lauf mit getragener Ausrüstung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteGetrageneWerte, HINWEIS).toEqual(wornPayload());
+  });
+
+  it('die fünf Quellen entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteQuellen, HINWEIS).toEqual(sourcesPayload());
   });
 });
 

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import pkg from './package.json';
 
 // GAME-DESIGN 19.3: Die Entwicklungs-Werkzeuge stehen hinter __ROTA_DEVTOOLS__.
 // In der Auslieferungs-Fassung ersetzt Vite die Konstante durch `false`; der
@@ -8,6 +9,11 @@ export default defineConfig(({ mode }) => ({
   base: '/rota/',
   define: {
     __ROTA_DEVTOOLS__: JSON.stringify(mode !== 'production'),
+    // Die Fassung steht in package.json und muss im Programm ankommen: Jeder
+    // Verlaufs-Eintrag traegt sie (GAME-DESIGN 18.6, Issue #82). Ohne sie
+    // saehe der Spieler beim Fassungswechsel einen Sprung im Verlauf und
+    // schriebe ihn sich selbst zu.
+    __ROTA_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
     target: 'es2022',
@@ -37,6 +43,9 @@ export default defineConfig(({ mode }) => ({
               // ausführt.
               saveCheck: 'docs/save-check/index.html',
               analysisCheck: 'docs/analysis-check/index.html',
+              historyCheck: 'docs/history-check/index.html',
+              persistenceCheck: 'docs/persistence-check/index.html',
+              statsCheck: 'docs/stats-check/index.html',
             },
           },
         }),

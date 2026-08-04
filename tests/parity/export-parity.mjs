@@ -37,6 +37,10 @@ import {
   buffsPayload,
   cooldownResetPayload,
   gearPayload,
+  hastePayload,
+  wornPayload,
+  sourcesPayload,
+  WORN_NAME,
   setsPayload,
   logKindsPayload,
   bossStatePayload,
@@ -45,6 +49,8 @@ import {
   coagulationPayload,
   fixationPayload,
   logParityPayload,
+  timelineLoopPayload,
+  TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -92,6 +98,10 @@ const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
 
+const timelineLoop = timelineLoopPayload();
+const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);
+writeFileSync(timelineLoopPath, serialize(timelineLoop), 'utf8');
+
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
 writeFileSync(ruleEventsPath, serialize(ruleEvents), 'utf8');
@@ -115,6 +125,18 @@ writeFileSync(gearPath, serialize(gear), 'utf8');
 const sets = setsPayload();
 const setsPath = join(here, 'recordings', 'sets.json');
 writeFileSync(setsPath, serialize(sets), 'utf8');
+
+const haste = hastePayload();
+const hastePath = join(here, 'recordings', 'haste.json');
+writeFileSync(hastePath, serialize(haste), 'utf8');
+
+const worn = wornPayload();
+const wornPath = join(here, 'recordings', `${WORN_NAME}.json`);
+writeFileSync(wornPath, serialize(worn), 'utf8');
+
+const sources = sourcesPayload();
+const sourcesPath = join(here, 'recordings', 'sources.json');
+writeFileSync(sourcesPath, serialize(sources), 'utf8');
 
 const expected = recording['expected'];
 const checksums = recording['checksums'];

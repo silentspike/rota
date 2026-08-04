@@ -153,6 +153,37 @@ in die ihre zwölf Zauber einzahlen.
 > **Risiko:** Diese fünf Mechaniken tragen das ganze Spiel. Sie müssen sehr sorgfältig entworfen
 > werden und sind der erste Prüfstein im Prototyp (siehe 20.3).
 
+#### Zwei Festlegungen zur Bauart, entschieden am 2026-08-04
+
+**Putrefaktion: jeder Stapel hat seine eigene Uhr.** Der älteste verfällt zuerst, die jüngeren
+bleiben. Wer regelmäßig nachlegt, hält den Aufbau oben.
+
+> Ein gleitender Zustand statt eines Alles-oder-nichts. Der Spieler darf den Aufbau bewusst absacken
+> lassen, wenn gerade Wichtigeres ansteht, und verliert nicht alles — ein gemeinsamer Verfall hätte
+> jeden Zwischenfall im Kampf den ganzen Aufbau gekostet.
+>
+> **Preis, den die Anzeige tragen muss:** mehrere Restzeiten gleichzeitig. Das ist eine Anforderung
+> an 12.3 (Anzeige der Schul-Mechaniken über der Leiste), keine Nebensache.
+
+**Sublimation: ein fester Betrag, kein Anteil.** Jede Wirkung nimmt allen laufenden Abklingzeiten
+dieselbe Zeitspanne.
+
+> **Der Spieler kann abzählen.** Er weiß, wann etwas bereit wird, und kann darauf planen — ein
+> Prozentsatz auf Restzeiten wäre im Kopf nicht mehr zu rechnen und widerspräche der Forderung nach
+> planbaren Abklingzeiten (6.2).
+>
+> **Folge für die Ausrichtung der Schule:** Ein fester Betrag wirkt bei kurzen Abklingzeiten
+> stärker als bei langen. Sublimation ist damit die Schule für schnelle Rotationen — was zur
+> Beschreibung „die Schule für Könner" passt.
+
+**Die Zahlen dazu werden gemessen, nicht gesetzt** (Teil F.6): wie viel Prozent ein Stapel trägt, wie
+viele es höchstens gibt, wie lange sie halten, um wie viel Sublimation verkürzt. Bis zur Messung
+stehen vorläufige Werte im Code — an genau einer Stelle je Größe und ausdrücklich als vorläufig
+benannt, damit das Ersetzen eine Zeile bleibt.
+
+> **Kein Begründungs-Anschein.** Eine vorläufige Zahl trägt den Vermerk „wird gemessen", nicht eine
+> Herleitung, die sie geprüft aussehen lässt.
+
 ### 4.2 Ressourcen
 
 **Keine globale Ressource.** Kein Mana. Aber einzelne Schulen arbeiten mit **Ladungen**
@@ -307,6 +338,9 @@ Die drei Werte, die die Rotation tatsächlich beeinflussen:
 > auf, statt sie ihn wählen zu lassen — und widerspricht dem Grundsatz, dass die Reaktionszeit
 > nicht bewertet wird (21.2).
 >
+> **Am 2026-08-04 bestätigt**, nachdem 6.7 sie versehentlich übergangen hatte. **Wie** CATALYSIS auf
+> die Zeiten wirkt, steht in 6.7; **worauf** es wirkt, steht hier.
+>
 > **DoT-Ticks skalieren mit** (WoW-Muster seit Patch 6.0.2): Eine DoT-lastige Ausrichtung hat
 > damit denselben Skalierungswert wie jede andere. Ticks werden dichter, die **Dauer bleibt** —
 > das erzeugt Breakpoints je DoT, die der Balance-Läufer messen muss.
@@ -400,6 +434,121 @@ dass Muskelgedächtnis entsteht.
 
 **Defensiv-Zauber lösen den normalen GCD aus** — Überleben kostet Schaden und Zeit. Das ist die
 Abwägung, die COAGULATION interessant macht.
+
+### 6.7 Wie die Werte im Kampf ankommen
+
+_Entschieden am 2026-08-04, nach Recherche zu WoW und Diablo 4. Bis dahin war die Umrechnung als
+offener Punkt in Kapitel 22 geführt — sie blockierte E5 und E6._
+
+#### Prozent stehen direkt auf dem Gegenstand
+
+Ein Fund trägt **„+3 % Tempo"**, nicht „+120 Tempo". Was er bringt, hängt nicht von der Spielerstufe
+ab.
+
+> **Warum nicht das Punkte-Modell aus WoW:** Dort wächst zusätzlich ein Umrechnungs-Nenner mit der
+> Stufe. Der Zweck — alte Funde entwerten — wird bei uns schon von der **Gegenstandsstufe** erledigt:
+> Ein Stück von Stufe 20 trägt weniger Prozent als eines von Stufe 100, genau wie bei allen anderen
+> Werten. Ein zweiter Mechanismus daneben wäre eine Bremse ohne eigenen Zweck.
+>
+> **Der Preis ist ein harter Deckel**, und der steht unten. Ohne den Nenner gibt es keine eingebaute
+> Bremse.
+
+#### Tempo (CATALYSIS) wirkt auf ZEITEN, nicht auf den Schaden
+
+Das ist der Unterschied zu den beiden anderen Sonderwerten: CATALYSIS steht in der Schadensformel
+(6.3) **gar nicht**, weder als siebter noch als achter Faktor.
+
+> Diablo 4 formuliert es genau: _„Attack speed does not enter the damage formula, but rather it
+> multiplies how often you get to use it."_ Tempo verändert nicht, wie hart ein Treffer trifft,
+> sondern wie oft man handelt.
+
+```
+neue_zeit = auf_takt_aufrunden(basis_zeit × 1000 / (1000 + tempo_promille))
+```
+
+Ganzzahlig in Promille gerechnet, einmal auf den Logik-Takt gerastert. **Keine Fließkomma-Zeit** —
+die Determinismus-Regel aus 18.4 bleibt unangetastet.
+
+| Wirkort                | Untergrenze |
+| ---------------------- | ----------- |
+| **Alle** Abklingzeiten | ein Takt    |
+| DoT-Tick-Abstand       | ein Takt    |
+| Wirkzeit               | keine       |
+| ~~Globale Wartezeit~~  | —           |
+
+**Die globale Wartezeit gehört NICHT dazu.** 6.2 legt seit dem 2026-07-29 fest: Der GCD sinkt
+ausschließlich über den **Talentbaum**, nie über Ausrüstung. Kürzere Abklingzeiten sind eine
+Planungsaufgabe, ein kürzerer GCD ein Reaktionstest — und die Reaktionszeit wird nicht bewertet
+(21.2).
+
+**Alle Abklingzeiten skalieren mit** — anders als in WoW, wo eine Ausnahmeliste je Fähigkeit
+entscheidet. Abklingzeiten sind bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
+mitskaliert, wäre eine zweite Regel zum Auswendiglernen.
+
+#### DoTs: die Dauer bleibt, die Ticks werden mehr
+
+```
+tick_abstand = auf_takt_aufrunden(basis_abstand × 1000 / (1000 + tempo))
+tick_zahl    = dauer / tick_abstand          (ganzzahlig, Rest verfällt)
+```
+
+**Kein anteiliger letzter Tick.** WoW zahlt ihn aus, wenn der Rest ≥ 0,1 s ist — bei uns wäre das
+eine Kommazahl im **Schaden**, also genau dort, wo Spiel und Simulator bitgleich sein müssen.
+
+> **Warum die Dauer fest bleibt:** Die harte Erneuerungs-Regel (7.2 — Erneuern setzt zurück, Restzeit
+> ist verloren) hängt an einem stabilen Zeitfenster. Schrumpfte die Dauer mit dem Tempo, verschöbe
+> sich der optimale Erneuerungszeitpunkt bei jedem Ausrüstungswechsel.
+
+#### Die Deckel
+
+| Wert                    | Deckel       | Woraus er folgt                                  |
+| ----------------------- | ------------ | ------------------------------------------------ |
+| **CATALYSIS** (Tempo)   | **gemessen** | der Balance-Läufer — siehe unten                 |
+| **PURITY** (Kritchance) | **100 %**    | jeder Treffer kritet; darüber hinaus wirkungslos |
+| **YIELD** (Kritschaden) | keiner       | wächst weiter, ohne eine Grenze zu berühren      |
+
+**Der Tempo-Deckel wird gemessen, nicht gesetzt.** Die Frage lautet: Bei welchem Wert hört Tempo auf,
+sich gegen Kritchance und Kritschaden zu lohnen? Das beantwortet kein Überlegen, sondern der
+Balance-Läufer.
+
+> **Eine Ableitung stand hier und trug nicht.** Bis zum 2026-08-04 war der Deckel als „50 %, folgt aus
+> `1500 / (1 + t) = 1000`" begründet. Beide Bezugspunkte waren falsch: 6.6 enthält keine Untergrenze
+> (sie steht in 6.4, als **„ca. 1,0 s"** und für den **Talentbaum**), und Ausrüstungs-Tempo berührt
+> die Wartezeit gar nicht (6.2).
+>
+> Es gäbe eine zweite Ableitung — die kürzeste Abklingzeit (3 s) erreicht bei 100 % Tempo den
+> Grundtakt (1,5 s), darüber bringt sie für diesen Zauber nichts mehr. Sie ist nachprüfbar, aber sie
+> beantwortet die **falsche** Frage: nicht „wo wird Tempo nutzlos", sondern „wo lohnt es sich nicht
+> mehr gegen andere Werte". Das ist eine Balance-Frage, keine Rechenfrage.
+>
+> **Merksatz:** Eine Zahl mit Begründungs-Anschein ist schlimmer als eine offen gesetzte — sie sieht
+> geprüft aus. Wer sie liest, sucht die Quelle nicht nach.
+
+> **Folge des 100-%-Deckels bei PURITY, die im Blick bleiben muss:** Am Deckel ist Krit kein Zufall
+> mehr. Kapitel 6.5 hält fest, dass der Glücksanteil **gewollt** ist — er verschwindet für den
+> Spieler, der so weit investiert. Das ist ein erreichbares Ziel, auf das sich ein ganzer Aufbau
+> ausrichten lässt, und zugleich der Punkt, ab dem YIELD der einzige Wert ist, der noch zählt.
+> **Keine abnehmenden Erträge** federn das ab (siehe unten) — die Balance muss es tun.
+
+#### Keine abnehmenden Erträge
+
+Jeder Prozentpunkt zählt gleich, bis zum Deckel. Diablo staffelt Abklingzeit-Reduktion invers
+multiplikativ; das ist mächtig, aber schwer zu erklären und schwer zu simulieren.
+
+> „Jeder Punkt zählt gleich" ist **eine** Regel. „Jeder weitere zählt weniger, nach dieser Formel"
+> sind drei — und der Spieler kann den Wert eines Fundes nicht mehr im Kopf ausrechnen.
+
+#### Die Deckel sind sichtbar
+
+**Die Werte-Übersicht zeigt zu jedem gedeckelten Wert seinen Deckel und weist Überschuss aus:**
+
+```
+CATALYSIS   52 %   ⚠ 2 % über dem Limit, wirkungslos
+```
+
+Zahl plus Warnhinweis, kein eigener Balken. **Ein Deckel, den man nicht sieht, ist eine Falle:** Wer
+weiter in Tempo investiert, ohne es zu merken, verliert Ausrüstungsplätze an einen Wert, der nichts
+mehr bringt.
 
 ---
 
@@ -1044,6 +1193,35 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 > Gefunden hat es Worker-1, nicht ich. Wer 13.5 gelesen hätte, ohne 13.2 zu kennen, hätte den
 > Prüflauf gegen eine gestrichene Regel gebaut.
 
+#### Der Preis des Satz-Bonus ist die Wahlfreiheit
+
+_Vom Auftraggeber entschieden am 2026-08-04, nachdem Worker-1 die Lücke beim Bau der Messung
+gemeldet hat._
+
+**Ein Satz-Teil trägt dieselben Affixe wie ein freies Stück derselben Qualität.** Es wird nichts
+abgezogen. Der Preis ist ein anderer:
+
+> Wer sechs Satz-Teile trägt, kann auf diesen sechs Plätzen **nicht die besten Einzelstücke
+> tragen**. Er nimmt, was der Satz an Affixen mitbringt, statt gezielt zu wählen.
+
+**Warum die Frage gestellt werden musste:** Ein Satz-Teil ist ein Gegenstand — es trägt Affixe
+**und** zählt für den Satz. Ohne einen Preis käme der Bonus obendrauf, und „Satz tragen" wäre
+immer richtig; die Anforderung „etwa gleichwertig" wäre unerfüllbar, ganz gleich wie die Zahlen
+gesetzt sind.
+
+**Was das für den Prüflauf bedeutet:** Der Satz-Aufbau darf seine Affixe **nicht frei wählen** —
+sie sind durch die getragenen Teile vorgegeben. Nur der Affix-Aufbau wählt frei. Ein Vergleich,
+in dem beide Seiten optimal verteilen, misst den Preis nicht und fällt zwangsläufig zugunsten
+der Sätze aus.
+
+> **Bewusst nicht gewählt:** weniger Affixe je Satz-Teil. Das wäre leichter zu balancieren und im
+> Kopf nachrechenbar — ließe Satz-Teile beim Finden aber schwächer wirken als andere Stücke
+> derselben Qualität, und das widerspricht dem Sechser-Bonus als Krönung (13.5).
+>
+> **Bekannte Folge, die der Prüflauf im Auge behalten muss:** Der Nachteil hängt am Beute-Glück.
+> Wessen Satz-Teile zufällig passende Affixe tragen, zahlt kaum etwas — wessen Teile danebenliegen,
+> zahlt viel. Der Vergleich misst also eine Spanne, keinen festen Abstand.
+
 ### 13.6 Beute-Handhabung
 
 | Aspekt                            | Festlegung                                                                                                                                                                                                                                                               |
@@ -1097,13 +1275,40 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 Daten des Durchlaufs berechnet — es sind Multiplikationen, alle Werte stehen bereits im
 Kampfprotokoll.
 
-| Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
-| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
-| **Verlorene DoT-Ticks**       | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
-| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
+| Fehlerart               | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Verpasste Wirkungen** | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
+| **Leerlauf**            | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Verpasste Synergien** | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
+| **Verlorene DoT-Ticks** | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
+
+**Diese vier teilen sich eine Rangliste und eine gemeinsame Prozentrechnung.** Sie messen alle
+dasselbe: Schaden, den der Spieler **nicht ausgeteilt** hat.
+
+#### Verpasste Unterbrechungen stehen getrennt
+
+_Entschieden am 2026-08-04, nachdem E7-1 den Größenunterschied gemessen hatte._
+
+| Fehlerart                     | Rechnung                                          | Ausgabe an den Spieler                       |
+| ----------------------------- | ------------------------------------------------- | -------------------------------------------- |
+| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers | „Two interrupts missed — 6,000 damage taken" |
+
+**Eigene Zeile, eigene Zahl, NICHT in derselben Prozentrechnung.** Der Grund ist keine Feinheit:
+
+> Die vier oberen messen **nicht ausgeteilten** Schaden. Diese misst **eingesteckten**. Beides in
+> einen Prozentsatz zu werfen vergleicht Unvergleichbares — und die Zahl gewinnt immer.
+>
+> **Gemessen an einem Testboss:** 2.100 ausgeteilt, „6.000 verloren", Anteil 74,1 %. Der Spieler
+> liest „du hast 74 % liegen gelassen" — dabei hat er 6.000 Schaden **genommen** und ist gestorben.
+> Das ist schlimmer als Schadensverlust, aber es ist nicht dasselbe.
+>
+> **Und es ist kein Randfall:** Ein Boss-Zauber (2.000) übersteigt den Spielerschaden je Wirkung
+> (100) um das Zwanzigfache. Diese Quelle stünde fast immer oben — unabhängig davon, wie gut die
+> Rotation war. Damit stünde der Spieler wieder vor dem Problem, das die Gelegenheits-Regel lösen
+> sollte: Der wichtigste Hinweis handelte vom Unterbrecher.
+
+Bis zum 2026-08-04 stand sie als fünfte Zeile in derselben Tabelle, mit dem Beispiel
+„Two missed — 14 %". Die Rechnung selbst ändert sich **nicht** — nur ihr Platz in der Ausgabe.
 
 > **Korrektur vom 2026-07-29 — warum „Kampfzeit ÷ Abklingzeit" nicht trägt.**
 > Die frühere Rechnung nahm das Maximum je Zauber einzeln: 240 s ÷ 12 s = 20 mögliche
@@ -1223,6 +1428,42 @@ Schul-Mechanik einzahlen — man erkennt sofort, ob die Hitze-Mechanik mit nur e
 
 **Keine Empfehlungen vom Spiel.** Das Zusammenstellen ist eine der beiden Kernaufgaben.
 
+### 16.1 Das Player Home — der Bildschirm zwischen den Kämpfen
+
+_Nachgetragen am 2026-08-04. Der Begriff stand vorher nur in der Überschrift von 19.2 und war
+nirgends erklärt — siehe die Anmerkung am Ende dieses Abschnitts._
+
+**Das Player Home ist ein Spieler-Bildschirm**, nicht ein Werkzeug-Bereich. Er ist der Ort, an dem
+alles geschieht, was zwischen zwei Kämpfen zu entscheiden ist:
+
+| Was dort sitzt             | Kapitel |
+| -------------------------- | ------- |
+| Talentpunkte verteilen     | 12.5    |
+| Instanz und Boss wählen    | 11.6    |
+| Die Zusammenstellung bauen | 16      |
+| Ausrüstung anlegen         | 13      |
+| **Die Werte-Übersicht**    | 6.7     |
+
+Die vier **Test-Einstellungen** aus 19.2 sitzen zusätzlich dort — sie sind ein Aufsatz für den
+Auftraggeber, kein Bestandteil des Bildschirms. 19.3 schneidet **sie** beim Bauen heraus, nicht
+das Player Home.
+
+> **Woran sich das entscheidet:** Der Bildschirm bleibt im Auslieferungs-Bau vollständig
+> vorhanden. Verschwindet er, verliert der Spieler seinen Talentbaum und seine Ausrüstung —
+> und 6.7 begründet die Werte-Übersicht ausdrücklich mit dem Spieler: „Ein Deckel, den man
+> nicht sieht, ist eine Falle." Eine Falle, vor der nur der Auftraggeber gewarnt wird, ist
+> keine Warnung.
+
+> **Warum dieser Abschnitt nachgetragen werden musste.** „Player Home" kam im ganzen Dokument
+> genau einmal vor: in der Überschrift „19.2 Für den Auftraggeber — sichtbar im Player Home".
+> Wer nur dieses Dokument liest — und genau das sollen die Worker —, konnte den Begriff nur
+> als Werkzeug-Bereich verstehen und musste aus 19.3 schließen, dass er beim Bauen verschwindet.
+> Gemeldet von E7 beim Beginn von #188, mit Beleg statt Vermutung.
+>
+> **Die allgemeine Lehre:** Ein Begriff, der nur in einer Überschrift vorkommt, ist nicht
+> definiert — er ist benannt. Wer ihn zum ersten Mal liest, leitet seine Bedeutung aus dem
+> Kapitel ab, in dem er steht, und das kann das falsche sein.
+
 ---
 
 ## 17. Klang, Grafik, Hilfe
@@ -1310,6 +1551,43 @@ Aus Epic E8, für die Planung von E10:
 
 **Ästhetische Abnahme macht der Auftraggeber** über ein Abhör-Soundboard; Claude kann nicht hören
 und prüft nur technisch (ffprobe: Länge, Pegel, Anfangs-Stille, Clipping).
+
+#### Kein Klang verzögert irgendetwas
+
+_Entschieden am 2026-08-04, als Antwort auf eine Frage, die enger gestellt war._
+
+**Alle Klänge müssen zeitgleich spielen können.** Kein Klang wartet auf einen anderen, keiner
+verdrängt einen laufenden, und **keiner verzögert eine Handlung im Spiel** — weder einen Zauber noch
+eine Boss-Aktion noch einen Zustandswechsel.
+
+> Die Frage lautete, welcher von zwei gleichzeitigen Klängen weichen soll. Die Antwort war: keiner.
+> Ein Klang ist eine **Meldung über** das Spiel, nie ein Teil davon. Sobald die Wiedergabe einen
+> Ablauf beeinflussen kann — auch nur um einen Takt —, ist der Gleichlauf mit dem Simulator dahin,
+> denn der hat keine Audio-Schicht.
+
+Praktisch heißt das: Wiedergabe immer nebenläufig, nie abwartend; ein Klang, dessen Kanal belegt ist,
+bekommt einen neuen statt zu warten; und die Zahl gleichzeitiger Klänge ist eine Frage der
+Lautstärke-Mischung, nicht der Reihenfolge.
+
+#### Die drei offenen Schaltpunkte
+
+_Entschieden am 2026-08-04. Sie standen als Design-Fragen aus E8 und blockierten das Epic._
+
+| Klang                         | Wann                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Spannungs-Schicht** (Musik) | **Zwei Auslöser**: unter 20 % Boss-Leben **oder** wenn das Zeitlimit ins letzte Viertel geht — was zuerst eintritt |
+| **Ende der Wartezeit**        | **Abschaltbar, standardmäßig aus** — ein Metronom als Lernhilfe, nicht als Grundzustand                            |
+| **Überdruck + Zeitablauf**    | **Beide, gleichzeitig**, als ein Klangbild abgestimmt (siehe Regel oben)                                           |
+
+> **Warum die Spannungs-Schicht zwei Auslöser hat:** Der Endspurt unter 20 % ist bereits ein
+> beschlossenes Ereignis (10.2) — der Spieler lernt keinen neuen Schaltpunkt. Aber bei einem Lauf,
+> der gut läuft, käme sie nie, und dann fehlte der Höhepunkt genau bei den besten Durchgängen. Der
+> zweite Auslöser warnt außerdem vor dem, was den Spieler tatsächlich tötet.
+>
+> **Warum das Metronom standardmäßig aus ist:** Bei einem Zehn-Minuten-Kampf sind es rund 400
+> Klänge. Als dauerhafter Grundzustand nutzt sich das ab; als einschaltbare Lernhilfe ist es
+> wertvoll, weil der Spieler den Grundtakt über das Ohr lernt und den Blick für die Abklingzeiten
+> frei behält.
 
 ### 17.2 Grafik
 
@@ -1593,6 +1871,10 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 
 > Ohne Stufen-Boost und Ausrüstungs-Auswahl lässt sich das **Endgame nicht beurteilen, bevor es
 > erspielt ist** — bei 24 h Aufstieg wäre jede Endgame-Prüfung sonst unmöglich.
+
+> **Das Player Home selbst ist ein Spieler-Bildschirm (16.1), kein Werkzeug.** Herausgeschnitten
+> werden von 19.3 die vier Einstellungen oben — nicht der Bildschirm, in dem sie sitzen. Ohne ihn
+> hätte der Spieler keinen Talentbaum und keine Ausrüstung.
 
 ### 19.3 Trennung von der Auslieferung
 

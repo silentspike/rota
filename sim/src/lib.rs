@@ -67,7 +67,10 @@ pub mod event;
 pub mod factors;
 pub mod fight;
 pub mod gear;
+// Issue #118: die Balance-Messung der Ausruestung.
 pub mod gear_balance;
+// Issue #177: Tempo wirkt auf Zeiten.
+pub mod haste;
 pub mod log;
 pub mod replay;
 pub mod report;
@@ -77,6 +80,8 @@ pub mod rotation;
 // einzige Beruehrung mit einer bestehenden Datei in `sim/src/`.
 pub mod rules_event;
 pub mod sets;
+// Issue #178: die fuenf Quellen der Sonderwerte.
+pub mod sources;
 // Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
 pub mod stacks;
 // Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
@@ -88,6 +93,7 @@ pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
 pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 pub use factors::{compute_damage, DamageFactors, NEUTRAL};
 pub use fight::{Decide, Fight, FightConfig, RunResult};
+pub use haste::{hasted_ms, tick_count};
 pub use replay::{Binding, Press, Recording, ReplayResult};
 pub use report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,

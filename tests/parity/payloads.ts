@@ -14,6 +14,14 @@
 import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { hastedMs, tickCount } from '../../src/core/haste.js';
+import {
+  CRIT_BASE_PERMILLE,
+  critChance,
+  critFactor,
+  gearEffectFactor,
+  type WornValues,
+} from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { CombatLog, EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
@@ -42,6 +50,9 @@ import {
   ValuePools,
 } from '../../src/gear/pools.js';
 import {
+  MAX_ITEM_LEVEL,
+  QUALITY_COMMON,
+  QUALITY_EPIC,
   QUALITY_COUNT,
   QUALITY_HAS_EFFECT,
   QUALITY_NAMES,
@@ -50,6 +61,20 @@ import {
   distributeBudget,
 } from '../../src/gear/budget.js';
 import { BASE_STAT_IDS, SLOT_COUNT, SLOT_NAMES } from '../../src/gear/slots.js';
+import {
+  BUDGET_PER_PERMILLE,
+  SOURCE_COUNT,
+  SOURCE_NAMES,
+  STAT_COUNT,
+  STAT_NAMES,
+  affixPermille,
+  isPermanent,
+  maxOf,
+  mixedBuild,
+  permanentMax,
+  pureBuild,
+  totalMax,
+} from '../../src/gear/sources.js';
 import {
   BONUS_ROTATION,
   BONUS_VALUE,
@@ -97,6 +122,9 @@ export const FIXATION_NAME = 'fixation';
 
 /** Der Prueffall zu den Protokoll-Arten des Spiels (Issue #151). */
 export const LOG_PARITY_NAME = 'log-parity';
+
+/** Vergleichsdatei für die wiederholte Zeitleiste (#174). */
+export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -952,6 +980,81 @@ export function logParityPayload(): Record<string, unknown> {
 }
 
 /**
+ * Ein Durchgang gegen einen Boss mit **wiederholter** Zeitleiste (#174).
+ *
+ * # Warum mindestens zwei Zyklen
+ *
+ * Eine Wiederholungs-Regel, die nur eine Seite kennt, bricht die Parität
+ * **erst nach dem ersten Zyklus**. Ein Lauf, der einen Zyklus abdeckt, liefe
+ * grün — und die Abweichung fiele erst auf, wenn jemand länger übt.
+ *
+ * Der Prüf-Boss `test-metronome` hat eine Zykluslänge von 6 s; der Lauf
+ * umfasst 30 s, also fünf Zyklen. Die Prüfung darauf steht in
+ * `sim/tests/parity_timeline_loop.rs` und ist hart: Weniger als zwei Zyklen
+ * lässt der Fall nicht durchgehen.
+ */
+export function timelineLoopPayload(): Record<string, unknown> {
+  const boss = bossById('test-metronome');
+  if (boss === undefined) throw new Error('Der Boss test-metronome fehlt.');
+  if (boss.timelineLoopMs === null) {
+    throw new Error('test-metronome hat keine timelineLoopMs — der Fall prüfte dann nichts.');
+  }
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const quench = combat.indexOf('quench');
+  const ticks = 3000; // 30 s = fünf Zyklen
+
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const timelineIndex: number[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      timelineIndex.push(combat.timelineIndex);
+      break;
+    }
+    // QUENCH, wenn der Boss zaubert — sonst KINDLE. Das unterbricht in
+    // späteren Zyklen ebenso wie im ersten und deckt damit auch den
+    // Zeitpunkt des Treffers ab, nicht nur den des Beginns.
+    const gewaehlt = combat.casting >= 0 && combat.isReady(quench, timeMs) ? quench : kindle;
+    if (combat.cast(gewaehlt, timeMs).result === 0) {
+      presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    timelineIndex.push(combat.timelineIndex);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: TIMELINE_LOOP_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    timelineLoopMs: boss.timelineLoopMs,
+    timelineLength: boss.timeline.length,
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      { slot: 1, spellId: 'quench' },
+    ],
+    presses,
+    checksums,
+    /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
+    timelineIndex,
+    expected: {
+      damageDealt: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
+      finalTimelineIndex: combat.timelineIndex,
+      finalPlayerHp: combat.playerHp,
+    },
+  };
+}
+
+/**
  * Spielt die Aufzeichnung durch und zählt, **was** dabei schiefging.
  *
  * Nötig, weil `replayRecording` nur „angenommen" und „abgelehnt" liefert. Damit
@@ -1371,5 +1474,204 @@ export function setsPayload(): Record<string, unknown> {
     setCount: SET_COUNT,
     sets: saetze,
     steps,
+  };
+}
+
+/**
+ * Die Umrechnung von Tempo auf Zeiten (GAME-DESIGN 6.7, Issue #177).
+ *
+ * **Warum das ein eigener Vergleich ist und kein Kampf-Prüffall reicht:**
+ * Dieselbe Überlegung wie bei `primitives.json`. Ein Kampf ohne getragene
+ * Ausrüstung hat CATALYSIS = 0 und läuft nie durch diese Rechnung — eine Seite
+ * könnte abrunden statt aufzurunden, und jeder heutige Kampf-Prüffall bliebe
+ * grün. Auffallen würde es erst mit dem ersten getragenen Gegenstand, und dann
+ * suchte man im Kampfablauf statt in der Umrechnung.
+ *
+ * Ganzzahlige Werte, also **keine Bitmuster nötig**: Was hier verglichen wird,
+ * sind Millisekunden und Tick-Zahlen. Die Regel „jede Gleitkommazahl steht
+ * zweimal da" greift nur, wo eine steht.
+ */
+export function hastePayload(): Record<string, unknown> {
+  // Die Basiszeiten decken den Bereich aus 6.4 ab: Abklingzeiten von 3 bis
+  // 180 s, dazu die Wartezeit und ein DoT-Abstand. Der krumme Wert 12 345 ist
+  // Absicht — an ihm hängt der Sonderfall, in dem AC7 gegen das Takt-Raster
+  // gewinnt (siehe `hastedMs`).
+  const basiszeiten = [0, 10, 1500, 2000, 3000, 8000, 12_345, 180_000];
+  // Von "kein Tempo" bis weit über jeden denkbaren Deckel. Die 500 sind der
+  // Wert, an dem 1500 ms auf 1000 ms fallen — die Rechnung, mit der 6.7 den
+  // Deckel begründet.
+  const tempowerte = [0, 1, 50, 170, 200, 333, 500, 750, 1000, 2000, 10_000];
+
+  const steps: Record<string, unknown>[] = [];
+  for (const basis of basiszeiten) {
+    for (const permille of tempowerte) {
+      const zeit = hastedMs(basis, permille);
+      let hash = FNV_OFFSET;
+      hash = mixInt(hash, basis);
+      hash = mixInt(hash, permille);
+      hash = mixInt(hash, zeit);
+      steps.push({ baseMs: basis, permille, hastedMs: zeit, checksum: hash >>> 0 });
+    }
+  }
+
+  // Die DoT-Seite getrennt: Die Dauer bleibt, der Abstand schrumpft, die Zahl
+  // der Ticks steigt. `restMs` zeigt, was verfällt — der Wert, den WoW anteilig
+  // auszahlen würde und wir nicht.
+  const dotSteps = [1000, 2000, 3000].flatMap((basisAbstand) =>
+    [0, 170, 200, 500, 1000].map((permille) => {
+      const dauer = 12_000;
+      const abstand = hastedMs(basisAbstand, permille);
+      const ticks = tickCount(dauer, abstand);
+      let hash = FNV_OFFSET;
+      hash = mixInt(hash, dauer);
+      hash = mixInt(hash, abstand);
+      hash = mixInt(hash, ticks);
+      return {
+        durationMs: dauer,
+        baseIntervalMs: basisAbstand,
+        permille,
+        intervalMs: abstand,
+        ticks,
+        restMs: dauer - ticks * abstand,
+        checksum: hash >>> 0,
+      };
+    }),
+  );
+
+  return { schema: SCHEMA, tickMs: TICK_MS, steps, dotSteps };
+}
+
+/**
+ * Die getragenen Werte, mit denen der Gleichlauf-Lauf aus AC8 rechnet.
+ *
+ * **Alle drei ungleich null, und keiner glatt.** Ein Lauf mit CATALYSIS 500
+ * (also genau der Hälfte) verstünde sich mit jeder Zeit glatt und ließe eine
+ * fehlende Rasterung durchgehen; 170 Promille erzwingt krumme Zwischenwerte.
+ * PURITY 375 liegt bewusst zwischen den beiden Kurzschlüssen von `chance`, so
+ * dass wirklich gewürfelt wird.
+ */
+const WORN_FOR_PARITY: WornValues = {
+  catalysis: 170,
+  purity: 375,
+  yieldBonus: 250,
+  gearEffects: 130,
+};
+
+/** Der Name der Vergleichsdatei mit getragener Ausrüstung. */
+export const WORN_NAME = 'worn-values';
+
+/**
+ * Ein aufgezeichneter Lauf **mit getragener Ausrüstung** (Issue #177, AC8).
+ *
+ * # Warum der bestehende Lauf nicht reicht
+ *
+ * `cooldown-precision.json` läuft ohne Ausrüstung. Er belegt damit AC7 — dass
+ * sich nichts bewegt — aber über die neuen Rechenwege sagt er nichts: Keine
+ * Zeit wird umgerechnet, kein Wurf fällt. Eine Seite könnte den Tick-Abstand
+ * anders runden oder den Zufallsstrom anders oft drehen, und dieser Lauf bliebe
+ * bitgleich.
+ *
+ * Hier ist beides im Spiel. **Die Prüfsumme je Takt** ist dabei das Schärfere
+ * am Vergleich: Ein Endergebnis kann zufällig übereinstimmen, während der Weg
+ * dahin auseinanderlief.
+ */
+export function wornPayload(): Record<string, unknown> {
+  const recording = recordings().get(RECORDING_NAME);
+  if (recording === undefined) {
+    throw new Error(`Unbekannte Aufzeichnung: ${RECORDING_NAME}`);
+  }
+  const result = replayRecording(recording, { checksumPerTick: true, worn: WORN_FOR_PARITY });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    worn: {
+      catalysis: WORN_FOR_PARITY.catalysis,
+      purity: WORN_FOR_PARITY.purity,
+      yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      gearEffects: WORN_FOR_PARITY.gearEffects,
+    },
+    // Topf 4 als Faktor: eins plus die Summe. Fliesskomma, also mit Bitmuster.
+    gearEffectFactor: gearEffectFactor(WORN_FOR_PARITY),
+    gearEffectFactorBits: bitsOf(gearEffectFactor(WORN_FOR_PARITY)),
+    critBasePermille: CRIT_BASE_PERMILLE,
+    // Die abgeleiteten Werte stehen mit in der Datei, jeder auch als Bitmuster:
+    // Sie sind Fließkommazahlen und gehen in den Schaden ein. Die Regel dieses
+    // Verzeichnisses gilt (siehe `bitsOf`) — dezimal für den Diff, Bits für den
+    // Vergleich.
+    critChance: critChance(WORN_FOR_PARITY),
+    critChanceBits: bitsOf(critChance(WORN_FOR_PARITY)),
+    critFactor: critFactor(WORN_FOR_PARITY),
+    critFactorBits: bitsOf(critFactor(WORN_FOR_PARITY)),
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      randomDraws: result.randomDraws,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/**
+ * Die fünf Quellen der Sonderwerte (Issue #178).
+ *
+ * **Warum das ein eigener Vergleich ist:** Die Zahlen entscheiden, was ein
+ * Spieler überhaupt erreichen kann. Liefen sie auseinander, rechnete der
+ * Balance-Läufer mit anderen Grenzen als das Spiel — und beide sähen für sich
+ * genommen richtig aus.
+ *
+ * Ganzzahlig in Promille, also **keine Bitmuster nötig**.
+ */
+export function sourcesPayload(): Record<string, unknown> {
+  const stats = [];
+  for (let stat = 0; stat < STAT_COUNT; stat++) {
+    const je = [];
+    for (let source = 0; source < SOURCE_COUNT; source++) {
+      je.push({ source, name: SOURCE_NAMES[source], max: maxOf(source, stat) });
+    }
+    stats.push({
+      stat,
+      name: STAT_NAMES[stat],
+      sources: je,
+      permanentMax: permanentMax(stat),
+      totalMax: totalMax(stat),
+      pure: pureBuild(stat),
+      mixed: mixedBuild(stat),
+    });
+  }
+
+  // Der Affix-Wert je Stufe und Qualität — die Ableitung, an der beide Seiten
+  // hängen. Wenige Stützstellen genügen: Bricht die Herleitung, bricht sie
+  // überall.
+  const affixes = [];
+  for (const quality of [QUALITY_COMMON, QUALITY_EPIC]) {
+    for (const level of [1, 25, 50, 75, MAX_ITEM_LEVEL]) {
+      affixes.push({
+        level,
+        quality,
+        budget: budgetOf(level, quality),
+        permille: affixPermille(level, quality),
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    budgetPerPermille: BUDGET_PER_PERMILLE,
+    sourceNames: SOURCE_NAMES,
+    statNames: STAT_NAMES,
+    permanent: Array.from({ length: SOURCE_COUNT }, (_, s) => isPermanent(s)),
+    stats,
+    affixes,
   };
 }
