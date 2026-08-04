@@ -68,10 +68,10 @@ const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
 const LABEL_DOOM = 'DOOM';
 const LABEL_DOOM_CHARGES = 'CLEANSE';
 /** Ab diesem Anteil der Schwelle warnt die Farbe. Vorlaeufig, wird gemessen. */
-const DOOM_WARN_AT = 0.7;
-const DOOM_WIDTH = 190;
-const DOOM_HEIGHT = 10;
-const DOOM_TRACK = 'rgba(255, 255, 255, 0.12)';
+const THRESHOLD_WARN_AT = 0.7;
+const THRESHOLD_WIDTH = 190;
+const THRESHOLD_HEIGHT = 10;
+const THRESHOLD_TRACK = 'rgba(255, 255, 255, 0.12)';
 const LABEL_TIME = 'time';
 const LABEL_DAMAGE = 'damage';
 const LABEL_CASTS = 'casts';
@@ -318,6 +318,68 @@ export class HudRenderer {
   }
 
   /**
+   * Eine Leiste für „ein Wert steigt auf eine Schwelle zu" (Issue #216).
+   *
+   * DIE FORM IST NICHT FÜR EINEN BAUSTEIN GEBAUT
+   * --------------------------------------------
+   * Von den neun Bausteinen aus 11.2 haben mindestens zwei dieselbe Gestalt:
+   * der tödliche Zähler (Baustein 2) und die Energieleiste (Baustein 1). Beide
+   * steigen von selbst auf einen Punkt zu, an dem etwas geschieht — was sie
+   * unterscheidet, ist die Folge, nicht die Anzeige.
+   *
+   * Zwei verschiedene Darstellungen für dieselbe Sache wären eine Regel mehr,
+   * die der Spieler lernen muss; 11.5 verlangt dieselben Kategorien überall.
+   * Deshalb nimmt diese Funktion Beschriftung, Stand und Schwelle entgegen und
+   * kennt keinen der beiden Bausteine.
+   *
+   * **Die Energieleiste ist hier nicht angeschlossen** (Issue #219). Sie hätte
+   * einen zweiten Aufruf gebraucht, und der gehört in das Issue, das sie
+   * sichtbar macht — nicht in dieses.
+   *
+   * Die Zahl steht neben dem Balken, nicht nur im Balken: Bei einer Schwelle,
+   * die tötet, ist „wie weit noch" eine Rechnung und keine Schätzung.
+   *
+   * @param zusatz Was rechts neben der Zahl steht, oder `null`. Beim Zähler
+   *   sind es die verbleibenden Anwendungen — ohne sie ist er eine Zahl, die
+   *   steigt, und mit ihnen eine Entscheidung.
+   */
+  private drawThresholdBar(
+    ctx: CanvasRenderingContext2D,
+    top: number,
+    label: string,
+    stand: number,
+    schwelle: number,
+    zusatz: { text: string; dringend: boolean } | null,
+  ): void {
+    const anteil = schwelle > 0 ? Math.min(1, stand / schwelle) : 0;
+
+    ctx.textAlign = 'left';
+    ctx.font = FONT_SMALL;
+    ctx.fillStyle = INK_DIM;
+    ctx.fillText(label, TIMER_LEFT, top);
+
+    ctx.fillStyle = THRESHOLD_TRACK;
+    ctx.fillRect(TIMER_LEFT, top + 10, THRESHOLD_WIDTH, THRESHOLD_HEIGHT);
+    // Die Warnfarbe kommt aus dem STAND, nicht aus der Zeit: Wer früh viel
+    // abbekommen hat, ist früh in Gefahr.
+    ctx.fillStyle = anteil >= THRESHOLD_WARN_AT ? HEAT_MARK : INK;
+    ctx.fillRect(TIMER_LEFT, top + 10, THRESHOLD_WIDTH * anteil, THRESHOLD_HEIGHT);
+
+    const zeileY = top + 10 + THRESHOLD_HEIGHT + 20;
+    ctx.font = FONT_TEXT;
+    ctx.fillStyle = INK;
+    // `drawIntegerRight` und nicht `drawFixedRight` mit null Nachkommastellen:
+    // Letzteres zeichnet den Punkt trotzdem, und der Zähler stand als „60." da.
+    // Im Bild gesehen, nicht im Code.
+    drawIntegerRight(ctx, stand, TIMER_LEFT + THRESHOLD_WIDTH + 44, zeileY, this.digitAdvance);
+
+    if (zusatz === null) return;
+    ctx.font = FONT_SMALL;
+    ctx.fillStyle = zusatz.dringend ? HEAT_MARK : INK_DIM;
+    ctx.fillText(zusatz.text, TIMER_LEFT + THRESHOLD_WIDTH + 56, zeileY);
+  }
+
+  /**
    * Der Zähler, der bei seiner Schwelle tötet (11.2, Baustein 2; Issue #216).
    *
    * WARUM ER ÜBERHAUPT DASTEHEN MUSS
@@ -332,50 +394,18 @@ export class HudRenderer {
    * Kein Boss trägt den Baustein heute. Ein leerer Balken für alle anderen
    * wäre eine Anzeige, die nie etwas anzeigt — und der Blick lernt, sie zu
    * überspringen. Genau dann steht sie umsonst da, wenn sie einmal zählt.
-   *
-   * Die Zahl steht neben dem Balken, nicht nur im Balken: Bei einer Schwelle,
-   * die tötet, ist „wie weit noch" eine Rechnung und keine Schätzung.
    */
   private drawDoom(ctx: CanvasRenderingContext2D): void {
     const doom = this.session.combat.boss.doom;
     if (doom === null) return;
-
-    const stand = this.session.combat.doom;
-    const anteil = Math.min(1, stand / doom.threshold);
-    const top = TIMER_TOP + 78;
-
-    ctx.textAlign = 'left';
-    ctx.font = FONT_SMALL;
-    ctx.fillStyle = INK_DIM;
-    ctx.fillText(LABEL_DOOM, TIMER_LEFT, top);
-
-    ctx.fillStyle = DOOM_TRACK;
-    ctx.fillRect(TIMER_LEFT, top + 10, DOOM_WIDTH, DOOM_HEIGHT);
-    // Die Warnfarbe kommt aus dem STAND, nicht aus der Zeit: Wer früh viel
-    // abbekommen hat, ist früh in Gefahr.
-    ctx.fillStyle = anteil >= DOOM_WARN_AT ? HEAT_MARK : INK;
-    ctx.fillRect(TIMER_LEFT, top + 10, DOOM_WIDTH * anteil, DOOM_HEIGHT);
-
-    ctx.font = FONT_TEXT;
-    // `drawIntegerRight` und nicht `drawFixedRight` mit null Nachkommastellen:
-    // Letzteres zeichnet den Punkt trotzdem, und der Zähler stand als „60." da.
-    // Im Bild gesehen, nicht im Code.
-    drawIntegerRight(
+    const ladungen = this.session.combat.doomCharges;
+    this.drawThresholdBar(
       ctx,
-      stand,
-      TIMER_LEFT + DOOM_WIDTH + 44,
-      top + 10 + DOOM_HEIGHT + 20,
-      this.digitAdvance,
-    );
-
-    // Die Ladungen daneben — ohne sie ist der Zähler eine Zahl, die steigt,
-    // und mit ihnen eine Entscheidung.
-    ctx.font = FONT_SMALL;
-    ctx.fillStyle = this.session.combat.doomCharges > 0 ? INK_DIM : HEAT_MARK;
-    ctx.fillText(
-      `${LABEL_DOOM_CHARGES} ${this.session.combat.doomCharges}`,
-      TIMER_LEFT + DOOM_WIDTH + 56,
-      top + 10 + DOOM_HEIGHT + 20,
+      TIMER_TOP + 78,
+      LABEL_DOOM,
+      this.session.combat.doom,
+      doom.threshold,
+      { text: `${LABEL_DOOM_CHARGES} ${ladungen}`, dringend: ladungen === 0 },
     );
   }
 
