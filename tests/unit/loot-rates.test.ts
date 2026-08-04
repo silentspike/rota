@@ -6,7 +6,8 @@ import {
   QUALITY_LEGENDARY,
   QUALITY_RARE,
 } from '../../src/gear/budget.js';
-import { RandomStreams, STREAM_LOOT } from '../../src/core/rng.js';
+import type { RandomStream } from '../../src/core/rng.js';
+import { lootStreamFor } from '../../src/loot/stream.js';
 import {
   DIFFICULTY_HEROIC,
   DIFFICULTY_MYTHIC,
@@ -23,8 +24,8 @@ import {
 } from '../../src/loot/rates.js';
 
 /** Ein Beute-Wurf, wie ihn das Spiel führt: genau eine Ziehung. */
-function wurf(streams: RandomStreams, gewichte: Int32Array): number {
-  return qualityOfRoll(gewichte, streams.stream(STREAM_LOOT).next());
+function wurf(strom: RandomStream, gewichte: Int32Array): number {
+  return qualityOfRoll(gewichte, strom.next());
 }
 
 function gewichteFuer(instanz: number, schwierigkeit: number, endlos = 0): Int32Array {
@@ -36,10 +37,10 @@ function gewichteFuer(instanz: number, schwierigkeit: number, endlos = 0): Int32
 /** Zählt, was über viele Würfe fällt. */
 function verteilung(instanz: number, schwierigkeit: number, endlos: number, würfe: number) {
   const gewichte = gewichteFuer(instanz, schwierigkeit, endlos);
-  const streams = new RandomStreams(0x5eed);
+  const strom = lootStreamFor(0x5eed);
   const zähler = new Int32Array(QUALITY_COUNT);
   for (let i = 0; i < würfe; i++) {
-    const q = wurf(streams, gewichte);
+    const q = wurf(strom, gewichte);
     zähler[q] = (zähler[q] ?? 0) + 1;
   }
   return zähler;
@@ -166,7 +167,7 @@ describe('Kein Pech-Schutz (AC5)', () => {
     // 50 und verglichen mit der Rate über alles. Bei einem Pech-Schutz wäre
     // der Wert nach der Strähne höher.
     const gewichte = gewichteFuer(INSTANCE_COUNT, DIFFICULTY_MYTHIC);
-    const streams = new RandomStreams(0xbeef);
+    const strom = lootStreamFor(0xbeef);
 
     let strähne = 0;
     let nachSträhne = 0;
@@ -176,7 +177,7 @@ describe('Kein Pech-Schutz (AC5)', () => {
 
     for (let i = 0; i < 500_000; i++) {
       const messenJetzt = strähne >= 50;
-      const q = wurf(streams, gewichte);
+      const q = wurf(strom, gewichte);
       gesamt++;
       if (q === QUALITY_LEGENDARY) legendärGesamt++;
       if (messenJetzt) {
@@ -207,7 +208,7 @@ describe('Kein Pech-Schutz (AC5)', () => {
     // Hier läuft dieselbe Messung gegen eine ABSICHTLICH mit Pech-Schutz
     // gebaute Ziehung. Sie muss auffliegen.
     const gewichte = gewichteFuer(INSTANCE_COUNT, DIFFICULTY_MYTHIC);
-    const streams = new RandomStreams(0xbeef);
+    const strom = lootStreamFor(0xbeef);
 
     let strähne = 0;
     let nachSträhne = 0;
@@ -215,7 +216,7 @@ describe('Kein Pech-Schutz (AC5)', () => {
 
     for (let i = 0; i < 500_000; i++) {
       const messenJetzt = strähne >= 50;
-      const roll = streams.stream(STREAM_LOOT).next();
+      const roll = strom.next();
       // **Der Pech-Schutz**: Nach 50 Fehlschlägen wird der Wurf geschönt.
       const q = strähne >= 50 ? QUALITY_LEGENDARY : qualityOfRoll(gewichte, roll);
       if (messenJetzt) {
