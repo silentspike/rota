@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "id": "test-gatekeeper",
+  "name": "The Twofold Gatekeeper",
+  "instance": "testing",
+  "hp": 1200,
+  "overpressureMs": 120000,
+  "phases": [
+    { "atHpPercent": 70, "name": "Second Gate" },
+    { "atHpPercent": 40, "name": "Third Gate" }
+  ],
+  "energy": null,
+  "timeline": [],
+  "resistances": {},
+  "signature": null
+}
