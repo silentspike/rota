@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "test-metronome",
+  "name": "The Metronome",
+  "instance": "testing",
+  "hp": 100000,
+  "overpressureMs": 300000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    { "atMs": 2000, "mechanic": "strike", "name": "Tick", "damage": 20 },
+    { "atMs": 4000, "mechanic": "strike", "name": "Tock", "damage": 20 },
+    {
+      "atMs": 6000,
+      "mechanic": "interruptibleCast",
+      "name": "Chime",
+      "damage": 30,
+      "castTimeMs": 1000
+    }
+  ],
+  "timelineLoopMs": 6000,
+  "resistances": {},
+  "signature": null
+}
