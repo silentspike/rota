@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyValueStore } from '../../src/analysis/save-store.js';
 import { emptySave, RunPersistence } from '../../src/analysis/run-persistence.js';
+import { checksumOf } from '../../src/analysis/save-store.js';
 import { historySegments } from '../../src/analysis/run-history.js';
 import type { RunHistoryEntry } from '../../src/analysis/save-format.js';
 import { findForbiddenFields } from '../../src/analysis/save-format.js';
@@ -162,6 +163,53 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
     const neu = new RunPersistence('0.2.0', () => JETZT, store);
     neu.persist({ runHistory: [], progressMarks: [] });
     expect(neu.save.gameVersion).toBe('0.2.0');
+  });
+});
+
+describe('Ein Stand aus einer aelteren Fassung', () => {
+  /** Einen Stand ablegen, wie ihn eine aeltere Fassung geschrieben haette. */
+  function legeAltenStandAb(store: MemoryStore, ohne: readonly string[]): void {
+    const alt: Record<string, unknown> = { ...emptySave(FASSUNG, JETZT) };
+    for (const feld of ohne) delete alt[feld];
+    const payload = JSON.stringify(alt);
+    store.setItem('rota.save.0', JSON.stringify({ checksum: checksumOf(payload), payload }));
+    store.setItem('rota.save.index', '0');
+  }
+
+  it('wirft nicht, wenn runHistory und progressMarks fehlen', () => {
+    // Ein Stand vor Issue #82 kennt beide nicht. Er ist deswegen NICHT
+    // beschaedigt: Pruefsumme und Schema stimmen, SaveStore gibt ihn als 'ok'
+    // zurueck, und das ist richtig. Ohne Ergaenzung stuende dort undefined --
+    // und der erste Zugriff wuerfe BEIM KAMPFENDE, also genau dann, wenn der
+    // Spieler seine Auswertung sehen will.
+    const store = new MemoryStore();
+    legeAltenStandAb(store, ['runHistory', 'progressMarks']);
+
+    const p = new RunPersistence(FASSUNG, () => JETZT, store);
+    expect(p.status.status).toBe('ok');
+    expect(p.state.runHistory).toEqual([]);
+    expect(p.state.progressMarks).toEqual([]);
+    // Und der naechste Kampf laesst sich ablegen.
+    expect(p.persist({ runHistory: [eintrag()], progressMarks: [] })).toBe(true);
+  });
+
+  it('behaelt, was der alte Stand SEHR WOHL hatte', () => {
+    // Der Fall, in dem sich nichts aendern darf. Eine Ergaenzung, die den
+    // ganzen Stand ersetzt, waere schlimmer als der Absturz: Sie loeschte
+    // Fortschritt, und niemand merkte es.
+    const store = new MemoryStore();
+    const alt = { ...emptySave(FASSUNG, JETZT), level: 7, experience: 4321 } as Record<
+      string,
+      unknown
+    >;
+    delete alt['runHistory'];
+    const payload = JSON.stringify(alt);
+    store.setItem('rota.save.0', JSON.stringify({ checksum: checksumOf(payload), payload }));
+    store.setItem('rota.save.index', '0');
+
+    const p = new RunPersistence(FASSUNG, () => JETZT, store);
+    expect(p.save.level).toBe(7);
+    expect(p.save.experience).toBe(4321);
   });
 });
 
