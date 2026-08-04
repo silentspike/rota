@@ -37,6 +37,7 @@ import {
   buffsPayload,
   cooldownResetPayload,
   gearPayload,
+  setsPayload,
   logKindsPayload,
   bossStatePayload,
   misplaysPayload,
@@ -99,6 +100,10 @@ const gear = gearPayload();
 const gearPath = join(here, 'recordings', 'gear.json');
 writeFileSync(gearPath, serialize(gear), 'utf8');
 
+const sets = setsPayload();
+const setsPath = join(here, 'recordings', 'sets.json');
+writeFileSync(setsPath, serialize(sets), 'utf8');
+
 const expected = recording['expected'];
 const checksums = recording['checksums'];
 const presses = recording['presses'];
@@ -156,6 +161,8 @@ console.log(`geschrieben: ${buffsPath}`);
 console.log(`geschrieben: ${logKindsPath}`);
 console.log(`geschrieben: ${cooldownResetPath}`);
 console.log(`  Auswahlmodus  ${cooldownReset['steps'].length} Schritte`);
+console.log(`geschrieben: ${setsPath}`);
+console.log(`  Saetze        ${sets['steps'].length} Zusammenstellungen`);
 console.log(`geschrieben: ${gearPath}`);
 console.log(
   `  Ausruestung   ${gear['poolSteps'].length} Topf-Schritte, ${gear['budgets'].length} Budgets, ${gear['slotNames'].length} Plaetze`,

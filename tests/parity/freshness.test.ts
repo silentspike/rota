@@ -30,6 +30,7 @@ import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckteAusruestung from './recordings/gear.json';
+import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
 import {
@@ -44,6 +45,7 @@ import {
   logKindsPayload,
   cooldownResetPayload,
   gearPayload,
+  setsPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -74,6 +76,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Ausrüstungs-Töpfe entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteAusruestung, HINWEIS).toEqual(gearPayload());
+  });
+
+  it('die Sätze entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteSaetze, HINWEIS).toEqual(setsPayload());
   });
 
   it('die Protokoll-Arten entsprechen dem heutigen Spielstand', () => {
