@@ -1,4 +1,18 @@
 import { describe, expect, it } from 'vitest';
+
+/**
+ * Die Schul-Dateien, ueber Vite eingelesen (Issue #201).
+ *
+ * Sie sind die Quelle der Zahl unten. Wer eine neue Schule anlegt und sie
+ * nicht in `data.ts` anschliesst, bekommt hier einen Unterschied — die
+ * Pruefung bleibt also scharf, obwohl keine Zahl mehr darin steht.
+ */
+const SPELL_FILES = Object.values(
+  import.meta.glob<{ spells: unknown[] }>('/data/spells/*.json', {
+    eager: true,
+    import: 'default',
+  }),
+);
 import { CALCINATION, FIRST_CRUCIBLE, parseBoss, parseSchool } from '../../src/core/data.js';
 import { computeDamage, NEUTRAL_FACTORS } from '../../src/core/damage.js';
 import { RandomStreams, STREAM_COUNT, STREAM_CRIT, STREAM_DOT_TICK } from '../../src/core/rng.js';
@@ -12,9 +26,16 @@ describe('Zauber-Datensätze', () => {
   it('liest CALCINATION ohne Beanstandung', () => {
     expect(CALCINATION.problems).toEqual([]);
     expect(CALCINATION.value.school).toBe('CALCINATION');
-    // Drei Kampfzauber, der Unterbrecher QUENCH (#110) und die drei Wege der
-    // Koagulation (#79).
-    expect(CALCINATION.value.spells.length).toBe(11);
+    // **Abgeleitet, nicht abgeschrieben** (Issue #201). Hier stand die Zahl 11,
+    // und der Kommentar daneben zaehlte nur sieben auf — bei #100 nicht
+    // nachgezogen. Eine Abschrift, die bei jedem neuen Zauber von Hand
+    // hochgesetzt wird, ist kein Waechter, sondern eine Wartungsaufgabe.
+    //
+    // Und sie bleibt scharf: Vergisst jemand eine Schul-Datei anzuschliessen,
+    // faellt die Summe auseinander.
+    const ausDenDateien = SPELL_FILES.reduce((summe, datei) => summe + datei.spells.length, 0);
+    expect(CALCINATION.value.spells.length).toBe(ausDenDateien);
+    expect(ausDenDateien).toBeGreaterThanOrEqual(11);
   });
 
   it('trägt alle Zahlen aus STEP1-SPEC § 1', () => {

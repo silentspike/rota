@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "school": "SUBLIMATION",
+  "_comment": "Die Schule fuer Koenner (GAME-DESIGN 4.1, 7.5; Issue #201). Sie wirkt nicht auf den Boss, sondern auf das Rotations-System selbst: VAPOUR verkuerzt laufend alle Abklingzeiten, REFLUX setzt den NAECHSTEN gewirkten Zauber zurueck. Beide loesen den vollen GCD aus (GAME-DESIGN 6.6) — wer Zeit gewinnen will, gibt zuerst welche aus. VORLAEUFIGE ZAHLEN, nicht balanciert: Wie viel VAPOUR verkuerzt und wie oft REFLUX verfuegbar ist, wird vom Balance-Laeufer gemessen (Issue #118 wird nach diesem Issue neu gerechnet). Sie tragen die Prueffaelle und sonst nichts.",
+  "spells": [
+    {
+      "id": "vapour",
+      "name": "Vapour",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 1000
+    },
+    {
+      "id": "reflux",
+      "name": "Reflux",
+      "unlockLevel": 2,
+      "baseDamage": 0,
+      "cooldownMs": 45000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "armsCooldownReset": true
+    }
+  ]
+}
