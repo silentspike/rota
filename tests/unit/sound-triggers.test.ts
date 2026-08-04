@@ -88,11 +88,35 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     expect(parseManifest(SOUND_MANIFEST).problems).toEqual([]);
   });
 
+  /**
+   * Zauber, die **noch keinen Klang haben** — ausdrücklich und namentlich.
+   *
+   * Die Stummheit steht damit schwarz auf weiß im Quelltext statt in einer
+   * übersprungenen Prüfung. Der Fall unten wirkt in **beide** Richtungen: Ein
+   * Zauber ohne Klang, der hier fehlt, macht ihn rot — und ein Zauber, der hier
+   * steht und einen Klang hat, ebenso.
+   *
+   * **Ist die Liste leer, fällt sie weg.** Genau das leisten #198 und #204.
+   */
+  const STUMM = new Set(['canker', 'fester']);
+
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
     for (let i = 0; i < SPELL_IDS.length; i++) {
+      const id = SPELL_IDS[i] ?? '';
       const sounds = map.soundsFor(EV_SPELL_CAST, i);
-      expect(sounds.length).toBe(1);
+      if (STUMM.has(id)) {
+        // **Die zweite Richtung ist die wichtigere.** Ohne sie verrottet die
+        // Liste: Sobald der Klang kommt, bliebe der Eintrag stehen, und beim
+        // nächsten stummen Zauber fiele es niemandem auf, weil „da stehen ja
+        // schon welche drin".
+        expect(
+          sounds.length,
+          `${id} steht in STUMM, hat aber einen Klang — nimm ihn aus der Liste`,
+        ).toBe(0);
+        continue;
+      }
+      expect(sounds.length, `${id} hat keinen Klang und steht nicht in STUMM`).toBe(1);
     }
 
     // **Auf den Namen wird ausdrücklich NICHT geprüft.** Bis E1-9 stand hier
