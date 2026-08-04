@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
 import { PressQueue } from '../../src/input/queue.js';
+import { COUNTDOWN_MS } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import type { RunSummary } from '../../src/core/summary.js';
 import {
@@ -36,6 +37,32 @@ describe('Die Puppe — unbegrenzt, ohne Zeitlimit', () => {
   });
 });
 
+/**
+ * Ein Uebungsdurchgang gegen eine gegebene Puppe.
+ *
+ * Es wird WIRKLICH gewirkt: Ein Durchlauf ohne Tastendruck erzeugt null
+ * Schaden, und dann zeigt ein Vergleich zweier Widerstaende nichts — 0 ist
+ * nicht kleiner als 0. Genau der Fall, vor dem WORKER-GUIDE § 5 warnt: Ist die
+ * gemessene Groesse ueberall null, kann der Prueffall nichts belegen.
+ */
+function runFor(boss: BossDef): RunSummary {
+  const queue = new PressQueue();
+  const session = new Session(queue, new Combat({ school: CALCINATION.value, boss }));
+  session.bind(0, 0);
+  // Ohne beginCountdown bleibt die Sitzung in der Vorbereitung, und dann wird
+  // nichts gewirkt — der Schaden waere ueberall null.
+  session.beginCountdown(0);
+  let tick = 0;
+  const ENDE = COUNTDOWN_MS + 9000;
+  for (let t = 0; t <= ENDE; t += 100) {
+    // Nach dem Countdown alle 1,5 s dieselbe Taste (Grundtakt, 6.6).
+    if (t >= COUNTDOWN_MS && (t - COUNTDOWN_MS) % 1500 === 0) queue.push(0, tick, t, tick);
+    session.tick(t);
+    tick++;
+  }
+  return session.summary(ENDE);
+}
+
 describe('AC1 — die drei Einstellungen wirken', () => {
   it('Widerstand landet dort, wo die Schadensformel ihn liest', () => {
     // Combat liest boss.resistances[school] (combat.ts:197).
@@ -53,6 +80,26 @@ describe('AC1 — die drei Einstellungen wirken', () => {
     expect(
       buildDummy({ ...DEFAULT_DUMMY, castsSpells: true }, 'X').timeline.length,
     ).toBeGreaterThan(0);
+  });
+
+  it('der Widerstand veraendert den Schaden WIRKLICH, und nur er', () => {
+    // Der Test darueber zeigt, dass der Wert gesetzt wird — nicht, dass er
+    // wirkt. Ohne diesen hier haette auch eine Puppe bestanden, deren
+    // Widerstand nirgends ankommt (WORKER-GUIDE § 5).
+    const ohne = runFor(buildDummy({ ...DEFAULT_DUMMY, resistance: 1 }, 'CALCINATION'));
+    const halb = runFor(buildDummy({ ...DEFAULT_DUMMY, resistance: 0.5 }, 'CALCINATION'));
+
+    expect(halb.damage).toBeLessThan(ohne.damage);
+    // Und zwar um den Faktor, nicht irgendwie: halber Widerstand, halber Schaden.
+    expect(halb.damage).toBeCloseTo(ohne.damage * 0.5, 0);
+  });
+
+  it('ein neutraler Widerstand aendert NICHTS — die Gegenprobe', () => {
+    // Der Fall, in dem sich nichts aendern DARF. Ohne ihn haette auch eine
+    // Rechnung bestanden, in der ein anderer Faktor die Arbeit tut.
+    const neutral = runFor(buildDummy({ ...DEFAULT_DUMMY, resistance: 1 }, 'CALCINATION'));
+    const ohneEinstellung = runFor(buildDummy(DEFAULT_DUMMY, 'CALCINATION'));
+    expect(neutral.damage).toBe(ohneEinstellung.damage);
   });
 
   it('wirken in Kombination', () => {
@@ -133,15 +180,6 @@ describe('AC4 — dieselbe Auswertung wie nach einem Boss-Kampf', () => {
    * FOLGT zwar, dass die Auswertung dieselbe ist — aber gemessen war nur die
    * Voraussetzung, nicht die Folgerung. Dieser hier misst die Folgerung.
    */
-  function runFor(boss: BossDef): RunSummary {
-    const queue = new PressQueue();
-    const session = new Session(queue, new Combat({ school: CALCINATION.value, boss }));
-    // Kein start() — die Sitzung laeuft ueber tick(), und die Vorbereitung
-    // laeuft mit. Nur so lange takten, wie der Vergleich braucht.
-    for (let t = 0; t <= 6000; t += 100) session.tick(t);
-    return session.summary(6000);
-  }
-
   it('erzeugt dieselben Felder wie ein Boss-Kampf, nicht nur dieselbe Puppe', () => {
     const training = runFor(buildDummy(DEFAULT_DUMMY, 'CALCINATION'));
     const kampf = runFor(FIRST_CRUCIBLE.value);
