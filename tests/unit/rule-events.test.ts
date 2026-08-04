@@ -154,18 +154,25 @@ describe('Kein Speicher je Ereignis (AC3)', () => {
     bus.register({ id: 'a', on: RULE_DAMAGE }, new Trace('a', senke));
 
     let empfangen = 0;
+    // **Gesammelt statt je Austragung geprüft.** Ein `expect` in der Schleife
+    // wäre hier viermal je Ereignis, also 40.000 Aufrufe — gemessen kosten
+    // die rund 3,5 Sekunden und trieben den Fall in die Zeitgrenze, ohne dass
+    // am Ereignis-Bus etwas langsam wäre (Issue #127).
+    const nichtZahlen: string[] = [];
     const zaehler: RuleReceiver = {
       onRuleEvent: (event, subject, value, timeMs) => {
         // Nur Zahlen — kein Ereignis-Objekt, das je Austragung entstünde.
-        expect(typeof event).toBe('number');
-        expect(typeof subject).toBe('number');
-        expect(typeof value).toBe('number');
-        expect(typeof timeMs).toBe('number');
+        if (typeof event !== 'number') nichtZahlen.push(`${empfangen}: event ${typeof event}`);
+        if (typeof subject !== 'number')
+          nichtZahlen.push(`${empfangen}: subject ${typeof subject}`);
+        if (typeof value !== 'number') nichtZahlen.push(`${empfangen}: value ${typeof value}`);
+        if (typeof timeMs !== 'number') nichtZahlen.push(`${empfangen}: timeMs ${typeof timeMs}`);
         empfangen++;
       },
     };
     bus.register({ id: 'b', on: RULE_DAMAGE }, zaehler);
     for (let i = 0; i < 10_000; i++) bus.emit(RULE_DAMAGE, 0, 100, i);
+    expect(nichtZahlen).toEqual([]);
     expect(empfangen).toBe(10_000);
     expect(bus.emittedCount).toBe(10_000);
   });
