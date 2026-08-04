@@ -54,6 +54,7 @@
  * | 13  | `shieldAbsorb`        | — | ja     |
  * | 14  | `healed`              | — | ja     |
  * | 15  | `convertedToShield`   | — | ja     |
+ * | 16  | `controlSpent`        | — | ja     |
  *
  * Nummer 6 hat mit Issue #96 eine zweite Schreiberin bekommen: Der Simulator
  * führt Boss-Phasen jetzt ebenfalls. Dieselbe Zahl, dieselbe Bedeutung — genau
@@ -109,6 +110,8 @@ export const EVENT_SHIELD_ABSORB = 13;
 export const EVENT_HEALED = 14;
 /** Nur der Simulator schreibt sie — Schaden wurde in Schutz verwandelt (#79). */
 export const EVENT_CONVERTED_TO_SHIELD = 15;
+/** Nur der Simulator schreibt sie — Kontroll-Punkte ausgegeben (#100). */
+export const EVENT_CONTROL_SPENT = 16;
 
 export const EVENT_NAMES: readonly string[] = [
   'cast',
@@ -127,6 +130,7 @@ export const EVENT_NAMES: readonly string[] = [
   'shieldAbsorb',
   'healed',
   'convertedToShield',
+  'controlSpent',
 ];
 
 /** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */
