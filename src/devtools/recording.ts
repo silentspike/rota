@@ -22,6 +22,7 @@ import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../core/dat
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 import { STEP1_BINDINGS } from '../core/loadout.js';
+import { NOTHING_WORN, type WornValues } from '../gear/worn.js';
 
 /** Ein Tastendruck: in welchem Takt, auf welchen Platz. */
 export interface RecordedPress {
@@ -95,12 +96,24 @@ export function replayRecording(
      * Phasen und Energieleiste braucht dieselbe Möglichkeit auf dieser Seite.
      */
     readonly boss?: BossDef;
+    /**
+     * Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+     *
+     * Fehlt der Wert, wird nichts getragen — jeder bestehende Aufruf bleibt
+     * damit unverändert, und genau das verlangt AC7.
+     *
+     * Wählbar, weil AC8 eine Prüfsumme je Takt über einen Lauf **mit**
+     * Ausrüstung fordert. Ohne diesen Schalter ließe sich die Bitgleichheit
+     * nur für den Fall belegen, in dem die neuen Werte gar nichts tun.
+     */
+    readonly worn?: WornValues;
   } = {},
 ): ReplayResult {
   const combat = new Combat({
     school: CALCINATION.value,
     boss: options.boss ?? FIRST_CRUCIBLE.value,
     seed: recording.seed,
+    worn: options.worn ?? NOTHING_WORN,
   });
   const wantChecksums = options.checksumPerTick === true;
   const checksums: number[] = [];

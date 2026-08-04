@@ -253,6 +253,89 @@ pub const SLOT_NAMES: [&str; SLOT_COUNT] = [
 /// Grundwerte tragen. Die Spalte meint **Affixe**.
 pub const BASE_STAT_IDS: [&str; 3] = ["essence", "vessel", "ward"];
 
+/// Was der Spieler **traegt** — die drei Sonderwerte aus 6.2, ganzzahlig.
+///
+/// # Warum Promille und nicht die Toepfe aus [`ValuePools`]
+///
+/// [`ValuePools`] fuehrt Anteile als `f64`, weil Schadensfaktoren Verhaeltnisse
+/// sind. CATALYSIS wirkt aber auf **Zeiten**, und 18.4 verbietet
+/// Fliesskomma-Zeit. Ein Wert, der als `f64` ankommt und fuer die Zeitrechnung
+/// nach `u32` gerundet werden muesste, waere genau die Stelle, an der Spiel und
+/// Simulator um ein Bit auseinanderlaufen koennen.
+///
+/// 6.7 nimmt die Entscheidung vorweg: **„Ganzzahlig in Promille gerechnet."**
+/// Die Werte kommen deshalb gar nicht erst als `f64` herein.
+///
+/// | Feld            | Bedeutung                                | 1000 heisst |
+/// | --------------- | ---------------------------------------- | ----------- |
+/// | `catalysis`     | Tempo — verkuerzt Zeiten                 | +100 %      |
+/// | `purity`        | Kritchance                               | 100 %       |
+/// | `yield_bonus`   | Kritschaden **ueber der Basis** von 150 % | +100 pp    |
+///
+/// # Ohne getragene Ausruestung sind alle drei null
+///
+/// Das ist die Zusicherung aus AC7 in der Bauform: [`WornValues::none`] ist der
+/// Zustand, in dem sich nichts aendern darf — keine Zeit, kein Wurf, keine
+/// Pruefsumme.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WornValues {
+    /// CATALYSIS in Promille.
+    pub catalysis: u32,
+    /// PURITY in Promille.
+    pub purity: u32,
+    /// YIELD in Promille, **zusaetzlich** zur Basis aus [`CRIT_BASE_PERMILLE`].
+    pub yield_bonus: u32,
+}
+
+/// Der Kritschaden ohne jeden YIELD-Beitrag: **150 %** (GAME-DESIGN 6.7).
+///
+/// Steht hier und nicht in `factors.rs`, weil es eine Eigenschaft des Wertes
+/// ist und nicht der Formel — `factors.crit` nimmt das Ergebnis entgegen.
+pub const CRIT_BASE_PERMILLE: u32 = 1500;
+
+impl WornValues {
+    /// Nichts getragen — alle drei Werte null.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            catalysis: 0,
+            purity: 0,
+            yield_bonus: 0,
+        }
+    }
+
+    /// Ob ueberhaupt etwas getragen wird.
+    #[must_use]
+    pub const fn is_none(&self) -> bool {
+        self.catalysis == 0 && self.purity == 0 && self.yield_bonus == 0
+    }
+
+    /// Die Kritchance als Wahrscheinlichkeit in `[0, 1]`.
+    ///
+    /// **Der Deckel bei 100 % ist keine Balance-Entscheidung, sondern eine
+    /// Rechenregel:** Eine Wahrscheinlichkeit ueber eins gibt es nicht, und
+    /// [`crate::rng::RandomStream::chance`] wuerde sie ohnehin als sicheren
+    /// Treffer behandeln. 6.7 haelt denselben Deckel fest — „jeder Treffer
+    /// kritet; darueber hinaus wirkungslos".
+    #[must_use]
+    pub fn crit_chance(&self) -> f64 {
+        if self.purity >= 1000 {
+            return 1.0;
+        }
+        f64::from(self.purity) / 1000.0
+    }
+
+    /// Der Faktor, mit dem ein kritischer Treffer multipliziert wird.
+    ///
+    /// Basis 150 %, plus YIELD. **Ohne YIELD ist es genau 1,5** — und weil 1,5
+    /// in IEEE754 exakt darstellbar ist, ist der Wert auf beiden Seiten
+    /// bitgleich, ohne dass es einer Zusicherung bedarf.
+    #[must_use]
+    pub fn crit_factor(&self) -> f64 {
+        f64::from(CRIT_BASE_PERMILLE + self.yield_bonus) / 1000.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

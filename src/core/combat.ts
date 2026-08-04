@@ -31,8 +31,16 @@ import {
 } from './log.js';
 import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
 import { GlobalCooldown } from './gcd.js';
-import { RandomStreams } from './rng.js';
-import { RULE_DAMAGE, RULE_DOT_TICK, RULE_SPELL_CAST, RuleEvents } from '../combat/events.js';
+import { RandomStreams, STREAM_CRIT } from './rng.js';
+import { hastedMs } from './haste.js';
+import { NOTHING_WORN, critChance, critFactor, type WornValues } from '../gear/worn.js';
+import {
+  RULE_CRIT,
+  RULE_DAMAGE,
+  RULE_DOT_TICK,
+  RULE_SPELL_CAST,
+  RuleEvents,
+} from '../combat/events.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
@@ -66,6 +74,14 @@ export interface CombatOptions {
   readonly boss: BossDef;
   /** Startwert der Zufallsströme. In Schritt 1 zieht noch niemand daraus. */
   readonly seed?: number;
+  /**
+   * Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+   *
+   * **Fehlt der Wert, wird nichts getragen** — und daran hängt die Zusicherung
+   * aus AC7: Der Kampf läuft dann durch dieselben Zweige wie vorher, keine Zeit
+   * wird umgerechnet, kein Zufallsstrom gedreht, keine Prüfsumme bewegt.
+   */
+  readonly worn?: WornValues;
 }
 
 /**
@@ -145,6 +161,19 @@ export class Combat {
 
   private readonly resistanceFactor: number;
   private readonly factors: DamageFactors;
+  /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
+  private readonly worn: WornValues;
+  /**
+   * Dieselben Faktoren, aber mit gesetztem Krit.
+   *
+   * **Vorab angelegt, weil im laufenden Takt nichts entstehen darf** (18.2).
+   * Der naheliegende Weg wäre `{ ...this.factors, crit: … }` im Treffer
+   * gewesen — ein Objekt je Treffer, bei einem zehnminütigen Kampf
+   * zehntausende. Möglich ist die Vorab-Fassung, weil `worn` sich während eines
+   * Kampfes nicht ändert: Der Kritschaden steht damit von Anfang an fest, nur
+   * **ob** er greift, entscheidet der Wurf.
+   */
+  private readonly factorsOnCrit: DamageFactors;
 
   private resourceValue = 0;
   private resourceOverflowValue = 0;
@@ -287,6 +316,8 @@ export class Combat {
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.factors = { ...NEUTRAL_FACTORS, resistance: this.resistanceFactor };
+    this.worn = options.worn ?? NOTHING_WORN;
+    this.factorsOnCrit = { ...this.factors, crit: critFactor(this.worn) };
 
     // Die Schul-Mechanik hört ab hier auf Ereignisse (E3-2). Eine Zeile für
     // alle Schulen: Welcher Vorrat gefüllt wird und wie viel, steht in den
@@ -731,6 +762,60 @@ export class Combat {
     return left > 0 ? left : 0;
   }
 
+  /**
+   * Eine Zeit unter dem Einfluss des getragenen CATALYSIS (GAME-DESIGN 6.7).
+   *
+   * **Die einzige Stelle, an der Tempo auf eine Zeit trifft.** Jeder Wirkort
+   * geht durch sie; wer einen neuen hinzufügt, ruft sie auf und bekommt das
+   * Takt-Raster und die Untergrenze geschenkt.
+   *
+   * Ohne getragene Ausrüstung gibt sie `baseMs` unverändert zurück — siehe
+   * `hastedMs`, dort hängt AC7 daran.
+   */
+  private hasted(baseMs: number): number {
+    return hastedMs(baseMs, this.worn.catalysis);
+  }
+
+  /**
+   * Der Tick-Abstand eines Effekts über Zeit, unter dem Einfluss von Tempo.
+   *
+   * Steht als eigene Methode da, weil der Abstand an **drei** Stellen gebraucht
+   * wird: beim Setzen, beim nächsten Tick und beim Zählen der durch Erneuern
+   * verlorenen Ticks. Drei Handabschriften derselben Rechnung wären genau die
+   * Klasse Fehler, die #134, #138, #159 und #173 hinterlassen haben.
+   */
+  private dotInterval(dot: { readonly tickIntervalMs: number }): number {
+    return this.hasted(dot.tickIntervalMs);
+  }
+
+  /**
+   * Ein Kritwurf für **eine Wirkung** (GAME-DESIGN 6.5).
+   *
+   * > Echte Wahrscheinlichkeit pro Zauber, pro DoT-Tick und pro Heilung. Kein
+   * > Pech-Schutz, kein fester Startwert, keine feste Reihenfolge.
+   *
+   * Gibt zurück, **ob** der Wurf saß. Die Faktoren holt der Aufrufer über
+   * `factorsFor` — getrennt, weil das Ergebnis auch für die Trefferanzeige und
+   * das Regel-Ereignis `RULE_CRIT` gebraucht wird und ein zweiter Wurf dafür
+   * eine zweite Wahrheit wäre.
+   *
+   * # Ohne PURITY fällt gar kein Wurf
+   *
+   * `RandomStream.chance` schließt bei einer Wahrscheinlichkeit von 0 kurz,
+   * **ohne den Strom zu drehen**. Damit bleibt der Ziehungszähler unverändert,
+   * und mit ihm die Zustands-Prüfsumme. **Daran hängt AC7**, und zwar an einer
+   * Stelle, die man leicht übersieht: Ein Wurf, dessen Ergebnis feststeht, wäre
+   * rechnerisch folgenlos und trotzdem sichtbar.
+   */
+  private rollCrit(): boolean {
+    return this.random.stream(STREAM_CRIT).chance(critChance(this.worn));
+  }
+
+  /** Die Faktoren für einen Treffer, je nachdem ob der Wurf saß. */
+  private factorsFor(crit: boolean): DamageFactors {
+    return crit ? this.factorsOnCrit : this.factors;
+  }
+
   isDotActive(index: number, timeMs: number): boolean {
     // Größer-gleich: Der letzte Tick fällt mit dem Ablauf zusammen. Eine Dauer von
     // 12 s bei 2 s Tick-Abstand ergibt 6 Ticks (bei 2, 4, 6, 8, 10, 12 s), nicht 5.
@@ -776,14 +861,24 @@ export class Combat {
       const nextTick = this.dotNextTickAtMs[i] ?? NOT_ACTIVE;
       if (nextTick === NOT_ACTIVE || timeMs < nextTick) continue;
 
-      const damage = computeDamage(dot.tickDamage, this.factors);
+      // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
+      // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn gesetzt
+      // hat — sonst kritete ein DoT über seine ganze Laufzeit entweder immer
+      // oder nie, und der Glücksanteil, den 6.5 ausdrücklich will, verschwände
+      // in einer einzigen Entscheidung.
+      const kritet = this.rollCrit();
+      const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
       this.damageDealtValue += damage;
       this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
       // Auch ein Brand-Tick speist Weg 3 (Issue #79) — im Simulator läuft
       // jeder ausgeteilte Schaden durch `deal`, hier gibt es zwei Stellen.
       this.convertDamageToShield(damage, timeMs);
-      this.reportHit(damage, HIT_DOT, false, timeMs);
+      this.reportHit(damage, HIT_DOT, kritet, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, i, damage);
+      // **Das Ereignis, das bis #177 ruhte.** Der Kommentar an der Cast-Stelle
+      // sagte, es fehle nicht aus Nachlässigkeit — es hatte nur nie einen Fall.
+      // Mit getragenem PURITY hat es einen.
+      if (kritet) this.events.emit(RULE_CRIT, i, damage, timeMs);
       // Ein Tick ist **ein** Ereignis, nicht zwei. Wer allen Schaden zählen
       // will, meldet sich für beide Arten an — so bleibt die Folge eindeutig.
       this.events.emit(RULE_DOT_TICK, i, damage, timeMs);
@@ -791,7 +886,7 @@ export class Combat {
       // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
       // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
       // beisteuert, steht in seinen Daten, nicht im Kampfcode.
-      this.dotNextTickAtMs[i] = nextTick + dot.tickIntervalMs;
+      this.dotNextTickAtMs[i] = nextTick + this.dotInterval(dot);
     }
 
     const resource = this.school.resource;
@@ -973,8 +1068,23 @@ export class Combat {
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
 
+    // **Ein Wurf für die ganze Wirkung**, und er fällt genau dann, wenn der
+    // Zauber **laut seinen Daten** Schaden austeilen kann — nicht danach, ob am
+    // Ende ein Betrag herauskommt.
+    //
+    // Der Unterschied betrifft den Entlade-Zauber ohne Punkte: Er würfelt,
+    // obwohl sein Schaden null ist. Das ist Absicht. Die Bedingung ist aus den
+    // Daten ablesbar und hängt nicht am Zustand — damit ist sie auf beiden
+    // Seiten trivial gleichzuhalten. Eine Bedingung über den ausgerechneten
+    // Betrag wäre es nicht, und ein Zufallsstrom, der auf den zwei Seiten
+    // verschieden oft gedreht wird, lässt den ganzen folgenden Kampf
+    // auseinanderlaufen.
+    const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
+    const kritet = teiltSchadenAus ? this.rollCrit() : false;
+    const castFactors = this.factorsFor(kritet);
+
     let damage = 0;
-    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, this.factors);
+    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
@@ -985,7 +1095,7 @@ export class Combat {
         raw *= spender.bonusMultiplier;
         outcome.bonusApplied = true;
       }
-      damage += computeDamage(raw, this.factors);
+      damage += computeDamage(raw, castFactors);
       if (spender.consumesAll) this.resourceValue = 0;
     }
 
@@ -993,13 +1103,15 @@ export class Combat {
       this.damageDealtValue += damage;
       this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
       this.convertDamageToShield(damage, timeMs);
-      this.reportHit(damage, HIT_DIRECT, false, timeMs);
+      this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
       this.events.emit(RULE_DAMAGE, index, damage, timeMs);
-      // Hierher gehört `RULE_CRIT`. Es fehlt nicht aus Nachlässigkeit: Krit
-      // ruht in Schritt 1 (PURITY = 0, GAME-DESIGN 6.5), `reportHit` bekommt
-      // überall `false`. Einen Auslöser zu schreiben, der nie zutrifft, wäre
-      // toter Code — die Kennung steht bereit, der Ort ist benannt.
+      // **Hier stand bis #177: „Krit ruht in Schritt 1, ein Auslöser wäre
+      // toter Code — die Kennung steht bereit, der Ort ist benannt."** Der Ort
+      // war richtig benannt; jetzt hat er einen Fall. Der Auslöser steht NACH
+      // `RULE_DAMAGE`, weil ein Krit eine Aussage über einen Treffer ist, den
+      // es schon gegeben hat.
+      if (kritet) this.events.emit(RULE_CRIT, index, damage, timeMs);
     }
 
     const dot = spell.dot;
@@ -1009,13 +1121,20 @@ export class Combat {
       if (this.isDotActive(index, timeMs)) {
         const remaining = this.dotRemainingMs(index, timeMs);
         this.dotTicksLost[index] =
-          (this.dotTicksLost[index] ?? 0) + Math.floor(remaining / dot.tickIntervalMs);
+          (this.dotTicksLost[index] ?? 0) + Math.floor(remaining / this.dotInterval(dot));
       }
+      // **Die Dauer bleibt unangetastet** (GAME-DESIGN 6.7). Tempo macht die
+      // Ticks dichter, nicht das Fenster kürzer — sonst verschöbe sich der
+      // beste Erneuerungszeitpunkt (7.2) bei jedem Ausrüstungswechsel.
       this.dotExpiresAtMs[index] = timeMs + dot.durationMs;
-      this.dotNextTickAtMs[index] = timeMs + dot.tickIntervalMs;
+      this.dotNextTickAtMs[index] = timeMs + this.dotInterval(dot);
     }
 
-    this.cooldownReadyAtMs[index] = timeMs + spell.cooldownMs;
+    // **Alle Abklingzeiten skalieren mit** (GAME-DESIGN 6.7) — anders als in
+    // WoW, wo eine Ausnahmeliste je Fähigkeit entscheidet. Abklingzeiten sind
+    // bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
+    // mitskaliert, wäre eine zweite Regel zum Auswendiglernen.
+    this.cooldownReadyAtMs[index] = timeMs + this.hasted(spell.cooldownMs);
     if (spell.triggersGcd) this.gcd.trigger(timeMs);
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
