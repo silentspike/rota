@@ -67,8 +67,8 @@
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::data::{
-    Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineKind, BOSS, PLAYER, RESOURCE,
-    SPELLS, SPELL_COUNT,
+    Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER,
+    RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -865,19 +865,49 @@ impl Fight {
     /// aber die Ereignis-Schlange mit Eintraegen fuellen, die ein frueher
     /// Sieg ohnehin nie erreicht — und ihre Kapazitaet ist bewusst fest
     /// ([`EVENT_CAPACITY`]).
+    /// Welcher Eintrag beim Fortschrittsstand `index` ansteht, und wann.
+    ///
+    /// **Der Zaehler ist Fortschritt, nicht Platz in der Liste.** Wiederholt
+    /// sich die Zeitleiste (`timeline_loop_ms`, Issue #174), laeuft er darueber
+    /// hinaus: Eintrag `i` im Zyklus `z` ist faellig bei `z * loop + at_ms`.
+    ///
+    /// Ohne Wiederholung endet die Zeitleiste am letzten Eintrag — dann gibt
+    /// diese Funktion `None`, und der Kampf plant nichts mehr ein.
+    ///
+    /// **Bei leerer Liste immer `None`.** Das ist der Fall der stummen Puppe,
+    /// an der maximale Rotationen gemessen werden: Eine Wiederholung ueber
+    /// nichts darf nicht kreisen, nichts ausloesen und nichts kosten.
+    fn timeline_at(&self, index: usize) -> Option<(TimelineEntry, Millis)> {
+        let len = self.boss.timeline.len();
+        if len == 0 {
+            return None;
+        }
+        match self.boss.timeline_loop_ms {
+            None => self.boss.timeline.get(index).map(|e| (*e, e.at_ms)),
+            Some(loop_ms) => {
+                let entry = self.boss.timeline[index % len];
+                let zyklus = Millis::try_from(index / len).unwrap_or(Millis::MAX);
+                Some((
+                    entry,
+                    zyklus.saturating_mul(loop_ms).saturating_add(entry.at_ms),
+                ))
+            }
+        }
+    }
+
     fn schedule_next_timeline_step(&mut self) {
-        let Some(entry) = self.boss.timeline.get(self.timeline_index) else {
+        let Some((_, at_ms)) = self.timeline_at(self.timeline_index) else {
             return;
         };
         // **Die Verzoegerung aus STAY gilt nur fuer diesen einen Eintrag**
         // (#100). Die folgenden stehen, wo sie stehen — der Abstand dahinter
         // schrumpft, und genau das ist der Preis.
-        let faellig = entry.at_ms + self.next_strike_delay;
+        let faellig = at_ms + self.next_strike_delay;
         if faellig < self.duration_ms {
             self.queue.push(
                 faellig,
                 EventKind::TimelineStep {
-                    index: self.timeline_index as u16,
+                    index: u32::try_from(self.timeline_index).unwrap_or(u32::MAX),
                 },
             );
         }
@@ -904,7 +934,10 @@ impl Fight {
         // Schlange; dieser hier ist der alte und laeuft ins Leere. Ihn zu
         // loeschen waere teurer als ihn verfallen zu lassen — dasselbe
         // Vorgehen wie bei veralteten DoT-Ticks und beim Boss-Zauber.
-        if self.time < self.boss.timeline[index].at_ms + self.next_strike_delay {
+        let Some((entry, at_ms)) = self.timeline_at(index) else {
+            return;
+        };
+        if self.time < at_ms + self.next_strike_delay {
             return;
         }
         self.log
@@ -912,7 +945,6 @@ impl Fight {
 
         // **Hier bekommt die Zeitleiste ihre Wirkung** (Issue #110). In #96
         // wurde der Zeitpunkt nur angesteuert und protokolliert.
-        let entry = self.boss.timeline[index];
         match entry.kind {
             // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
             TimelineKind::Strike => self.hit_player(entry.damage),
@@ -924,7 +956,7 @@ impl Fight {
                 self.queue.push(
                     self.cast_lands_at,
                     EventKind::BossCastLands {
-                        index: index as u16,
+                        index: u32::try_from(index).unwrap_or(u32::MAX),
                     },
                 );
             }
@@ -957,7 +989,11 @@ impl Fight {
         }
         self.casting = None;
         self.interrupts_missed += 1;
-        self.hit_player(self.boss.timeline[index].damage);
+        // Ueber `timeline_at`, nicht ueber den Platz in der Liste: Bei
+        // wiederholter Zeitleiste liegt der Zaehler darueber (#174).
+        if let Some((entry, _)) = self.timeline_at(index) {
+            self.hit_player(entry.damage);
+        }
     }
 
     /// Die drei Wege der Koagulation, soweit sie beim Wirken greifen
@@ -1027,7 +1063,7 @@ impl Fight {
                     self.queue.push(
                         self.cast_lands_at,
                         EventKind::BossCastLands {
-                            index: index as u16,
+                            index: u32::try_from(index).unwrap_or(u32::MAX),
                         },
                     );
                     self.log

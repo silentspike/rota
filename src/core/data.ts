@@ -261,6 +261,22 @@ export interface BossDef {
   readonly energy: EnergyDef | null;
   /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
   readonly timeline: readonly TimelineEntryDef[];
+  /**
+   * Länge eines Zyklus, wenn sich die Zeitleiste **wiederholt** (#174).
+   *
+   * `null` heißt: Sie läuft einmal und endet — so verhält sich jeder Boss.
+   * Nur die Trainingspuppe wiederholt sich, weil GAME-DESIGN 15.5 ihr „kein
+   * Zeitlimit" zusagt; eine Zeitleiste, die nach 48 Sekunden aufhört, wäre
+   * diese Zusage mit Kleingedrucktem.
+   *
+   * Der Wert ist der Zeitversatz je Durchlauf, nicht die Zahl der Einträge:
+   * Eintrag `i` im Zyklus `z` ist fällig bei `z * loop + atMs`.
+   *
+   * **Muss auf beiden Seiten gleich lauten** (`Boss::timeline_loop_ms` im
+   * Simulator). Eine Regel, die nur eine Seite kennt, bricht die Parität erst
+   * nach dem ersten Zyklus — also nicht im ersten Prüflauf.
+   */
+  readonly timelineLoopMs: number | null;
 }
 
 export interface ParseResult<T> {
@@ -533,6 +549,12 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
   const overpressureMs = number(source['overpressureMs'], 0);
   if (overpressureMs <= 0) problems.push('Der Überdruck-Timer ist nicht gesetzt.');
 
+  // Fehlt das Feld, wiederholt sich nichts — der Normalfall für jeden
+  // ausgelieferten Boss.
+  const rohLoop = source['timelineLoopMs'];
+  const timelineLoopMs =
+    typeof rohLoop === 'number' && Number.isFinite(rohLoop) && rohLoop > 0 ? rohLoop : null;
+
   const resistances: Record<string, number> = {};
   if (isRecord(source['resistances'])) {
     for (const [school, factor] of Object.entries(source['resistances'])) {
@@ -663,6 +685,7 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       phases,
       energy,
       timeline,
+      timelineLoopMs,
     },
     problems,
   };

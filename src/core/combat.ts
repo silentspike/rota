@@ -29,7 +29,13 @@ import {
   NO_SPELL_REF,
   type CombatLog,
 } from './log.js';
-import { PLAYER, type BossDef, type SchoolDef, type SpellDef } from './data.js';
+import {
+  PLAYER,
+  type BossDef,
+  type SchoolDef,
+  type SpellDef,
+  type TimelineEntryDef,
+} from './data.js';
 import { GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
 import { hastedMs } from './haste.js';
@@ -380,6 +386,47 @@ export class Combat {
   /** Wie oft die Energieleiste ausgelöst hat. */
   get bossEnergyTriggers(): number {
     return this.bossEnergyTriggersValue;
+  }
+
+  /**
+   * Welcher Eintrag beim Fortschrittsstand `index` ansteht.
+   *
+   * **Der Zähler ist Fortschritt, nicht Platz in der Liste.** Wiederholt sich
+   * die Zeitleiste (`timelineLoopMs`, Issue #174), läuft er darüber hinaus:
+   * Eintrag `i` im Zyklus `z` ist fällig bei `z * loop + atMs`.
+   *
+   * **Bei leerer Liste immer `undefined`.** Das ist der Fall der stummen
+   * Puppe, an der maximale Rotationen gemessen werden: Eine Wiederholung über
+   * nichts darf nicht kreisen, nichts auslösen und nichts kosten.
+   *
+   * Wortgleich mit `Fight::timeline_at` im Simulator — eine Regel, die nur
+   * eine Seite kennt, bricht die Parität erst nach dem ersten Zyklus.
+   */
+  private timelineEntryAt(index: number): TimelineEntryDef | undefined {
+    const laenge = this.boss.timeline.length;
+    if (laenge === 0) return undefined;
+    return this.boss.timelineLoopMs === null
+      ? this.boss.timeline[index]
+      : this.boss.timeline[index % laenge];
+  }
+
+  /**
+   * Wann der Eintrag beim Stand `index` fällig ist. `-1`, wenn keiner ansteht.
+   *
+   * **Zwei Methoden mit einfachen Rückgabewerten statt einer mit einem
+   * Objekt.** Der erste Entwurf gab `{ eintrag, atMs }` zurück und erzeugte
+   * damit bei jedem Aufruf ein Objekt — im laufenden Kampf, was GAME-DESIGN
+   * 18.2 ausdrücklich verbietet. Gefunden beim Bauen von AC4.
+   */
+  private timelineDueAt(index: number): number {
+    const laenge = this.boss.timeline.length;
+    if (laenge === 0) return -1;
+    const loop = this.boss.timelineLoopMs;
+    if (loop === null) {
+      const eintrag = this.boss.timeline[index];
+      return eintrag === undefined ? -1 : eintrag.atMs;
+    }
+    return Math.floor(index / laenge) * loop + this.boss.timeline[index % laenge]!.atMs;
   }
 
   /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
@@ -934,16 +981,23 @@ export class Combat {
     // Simulator — dort steht `BossCastLands` vor `TimelineStep` in der
     // Rangfolge der Ereignisse.
     if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMs) {
-      const laufend = this.boss.timeline[this.castingValue];
+      // Über `timelineAt`, nicht über den Platz in der Liste: Bei wiederholter
+      // Zeitleiste liegt der Zähler darüber (#174).
+      const laufend = this.timelineEntryAt(this.castingValue);
       this.castingValue = -1;
       this.castLandsAtMs = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
     }
 
-    while (this.timelineIndexValue < this.boss.timeline.length) {
-      const eintrag = this.boss.timeline[this.timelineIndexValue];
-      if (eintrag === undefined || seitBeginn < eintrag.atMs + this.nextStrikeDelayMs) break;
+    for (;;) {
+      // `-1` heißt: nichts steht mehr an. Ohne Wiederholung ist die
+      // Zeitleiste zu Ende — mit Wiederholung ist sie leer, und dann darf
+      // hier nichts kreisen (#174, der Fall der stummen Puppe).
+      const faelligAtMs = this.timelineDueAt(this.timelineIndexValue);
+      if (faelligAtMs < 0) break;
+      if (seitBeginn < faelligAtMs + this.nextStrikeDelayMs) break;
+      const eintrag = this.timelineEntryAt(this.timelineIndexValue)!;
       const index = this.timelineIndexValue;
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_BOSS_TIMELINE_FIRED, NO_SPELL_REF, index);
       // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
@@ -954,7 +1008,7 @@ export class Combat {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
-        this.castLandsAtMs = eintrag.atMs + eintrag.castTimeMs;
+        this.castLandsAtMs = faelligAtMs + eintrag.castTimeMs;
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
