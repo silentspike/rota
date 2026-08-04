@@ -401,6 +401,103 @@ dass Muskelgedächtnis entsteht.
 **Defensiv-Zauber lösen den normalen GCD aus** — Überleben kostet Schaden und Zeit. Das ist die
 Abwägung, die COAGULATION interessant macht.
 
+### 6.7 Wie die Werte im Kampf ankommen
+
+_Entschieden am 2026-08-04, nach Recherche zu WoW und Diablo 4. Bis dahin war die Umrechnung als
+offener Punkt in Kapitel 22 geführt — sie blockierte E5 und E6._
+
+#### Prozent stehen direkt auf dem Gegenstand
+
+Ein Fund trägt **„+3 % Tempo"**, nicht „+120 Tempo". Was er bringt, hängt nicht von der Spielerstufe
+ab.
+
+> **Warum nicht das Punkte-Modell aus WoW:** Dort wächst zusätzlich ein Umrechnungs-Nenner mit der
+> Stufe. Der Zweck — alte Funde entwerten — wird bei uns schon von der **Gegenstandsstufe** erledigt:
+> Ein Stück von Stufe 20 trägt weniger Prozent als eines von Stufe 100, genau wie bei allen anderen
+> Werten. Ein zweiter Mechanismus daneben wäre eine Bremse ohne eigenen Zweck.
+>
+> **Der Preis ist ein harter Deckel**, und der steht unten. Ohne den Nenner gibt es keine eingebaute
+> Bremse.
+
+#### Tempo (CATALYSIS) wirkt auf ZEITEN, nicht auf den Schaden
+
+Das ist der Unterschied zu den beiden anderen Sonderwerten und der Grund, warum die Schadensformel
+in 6.3 **sieben** Faktoren führt und nicht acht.
+
+> Diablo 4 formuliert es genau: _„Attack speed does not enter the damage formula, but rather it
+> multiplies how often you get to use it."_ Tempo verändert nicht, wie hart ein Treffer trifft,
+> sondern wie oft man handelt.
+
+```
+neue_zeit = auf_takt_aufrunden(basis_zeit × 1000 / (1000 + tempo_promille))
+```
+
+Ganzzahlig in Promille gerechnet, einmal auf den Logik-Takt gerastert. **Keine Fließkomma-Zeit** —
+die Determinismus-Regel aus 18.4 bleibt unangetastet.
+
+| Wirkort                | Untergrenze       |
+| ---------------------- | ----------------- |
+| Globale Wartezeit      | **1000 ms** (6.6) |
+| Wirkzeit               | keine             |
+| **Alle** Abklingzeiten | ein Takt          |
+| DoT-Tick-Abstand       | ein Takt          |
+
+**Alle Abklingzeiten skalieren mit** — anders als in WoW, wo eine Ausnahmeliste je Fähigkeit
+entscheidet. Abklingzeiten sind bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
+mitskaliert, wäre eine zweite Regel zum Auswendiglernen.
+
+#### DoTs: die Dauer bleibt, die Ticks werden mehr
+
+```
+tick_abstand = auf_takt_aufrunden(basis_abstand × 1000 / (1000 + tempo))
+tick_zahl    = dauer / tick_abstand          (ganzzahlig, Rest verfällt)
+```
+
+**Kein anteiliger letzter Tick.** WoW zahlt ihn aus, wenn der Rest ≥ 0,1 s ist — bei uns wäre das
+eine Kommazahl im **Schaden**, also genau dort, wo Spiel und Simulator bitgleich sein müssen.
+
+> **Warum die Dauer fest bleibt:** Die harte Erneuerungs-Regel (7.2 — Erneuern setzt zurück, Restzeit
+> ist verloren) hängt an einem stabilen Zeitfenster. Schrumpfte die Dauer mit dem Tempo, verschöbe
+> sich der optimale Erneuerungszeitpunkt bei jedem Ausrüstungswechsel.
+
+#### Die Deckel — abgeleitet, nicht gesetzt
+
+| Wert                    | Deckel    | Woraus er folgt                                   |
+| ----------------------- | --------- | ------------------------------------------------- |
+| **CATALYSIS** (Tempo)   | **50 %**  | `1500 / (1 + t) = 1000` — die Untergrenze aus 6.6 |
+| **PURITY** (Kritchance) | **100 %** | jeder Treffer kritet; darüber hinaus wirkungslos  |
+| **YIELD** (Kritschaden) | keiner    | wächst weiter, ohne eine Grenze zu berühren       |
+
+**Der Tempo-Deckel ist keine gewürfelte Zahl.** Er ist die Stelle, an der die bereits beschlossene
+Untergrenze der Wartezeit greift. Fällt die 1,0 s später, verschiebt sich der Deckel mit — es gibt
+genau einen Ort, an dem die Zahl entschieden wird.
+
+> **Folge des 100-%-Deckels bei PURITY, die im Blick bleiben muss:** Am Deckel ist Krit kein Zufall
+> mehr. Kapitel 6.5 hält fest, dass der Glücksanteil **gewollt** ist — er verschwindet für den
+> Spieler, der so weit investiert. Das ist ein erreichbares Ziel, auf das sich ein ganzer Aufbau
+> ausrichten lässt, und zugleich der Punkt, ab dem YIELD der einzige Wert ist, der noch zählt.
+> **Keine abnehmenden Erträge** federn das ab (siehe unten) — die Balance muss es tun.
+
+#### Keine abnehmenden Erträge
+
+Jeder Prozentpunkt zählt gleich, bis zum Deckel. Diablo staffelt Abklingzeit-Reduktion invers
+multiplikativ; das ist mächtig, aber schwer zu erklären und schwer zu simulieren.
+
+> „Jeder Punkt zählt gleich" ist **eine** Regel. „Jeder weitere zählt weniger, nach dieser Formel"
+> sind drei — und der Spieler kann den Wert eines Fundes nicht mehr im Kopf ausrechnen.
+
+#### Die Deckel sind sichtbar
+
+**Die Werte-Übersicht zeigt zu jedem gedeckelten Wert seinen Deckel und weist Überschuss aus:**
+
+```
+CATALYSIS   52 %   ⚠ 2 % über dem Limit, wirkungslos
+```
+
+Zahl plus Warnhinweis, kein eigener Balken. **Ein Deckel, den man nicht sieht, ist eine Falle:** Wer
+weiter in Tempo investiert, ohne es zu merken, verliert Ausrüstungsplätze an einen Wert, der nichts
+mehr bringt.
+
 ---
 
 ## 7. Zauber
@@ -1097,13 +1194,40 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 Daten des Durchlaufs berechnet — es sind Multiplikationen, alle Werte stehen bereits im
 Kampfprotokoll.
 
-| Fehlerart                     | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **Verpasste Wirkungen**       | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
-| **Leerlauf**                  | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
-| **Verpasste Synergien**       | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
-| **Verlorene DoT-Ticks**       | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
-| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers                                                                                 | „Two missed — 14 %"                                        |
+| Fehlerart               | Rechnung                                                                                                                          | Ausgabe an den Spieler                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Verpasste Wirkungen** | Ein Zauber zählt als verpasst, wenn er **bereit war** UND der Spieler **in diesem GCD-Fenster nichts gewirkt hat** × Schadenswert | „Five casts missed — 21,000 damage left on the table, 9 %" |
+| **Leerlauf**            | Sekunden, in denen **kein Zauber bereit war**, ÷ GCD × Durchschnittsschaden je Aktion                                             | „6.4 s idle — four wasted actions, 7 %"                    |
+| **Verpasste Synergien** | Verfügbar minus genutzt × Synergie-Bonus                                                                                          | „Seven of ten combinations used — 5 %"                     |
+| **Verlorene DoT-Ticks** | Zu früh erneuert → verschenkte Restlaufzeit × Schaden je Tick                                                                     | „Twelve ticks lost — 4,800 damage, 6 %"                    |
+
+**Diese vier teilen sich eine Rangliste und eine gemeinsame Prozentrechnung.** Sie messen alle
+dasselbe: Schaden, den der Spieler **nicht ausgeteilt** hat.
+
+#### Verpasste Unterbrechungen stehen getrennt
+
+_Entschieden am 2026-08-04, nachdem E7-1 den Größenunterschied gemessen hatte._
+
+| Fehlerart                     | Rechnung                                          | Ausgabe an den Spieler                       |
+| ----------------------------- | ------------------------------------------------- | -------------------------------------------- |
+| **Verpasste Unterbrechungen** | Anzahl × Schaden des durchgekommenen Boss-Zaubers | „Two interrupts missed — 6,000 damage taken" |
+
+**Eigene Zeile, eigene Zahl, NICHT in derselben Prozentrechnung.** Der Grund ist keine Feinheit:
+
+> Die vier oberen messen **nicht ausgeteilten** Schaden. Diese misst **eingesteckten**. Beides in
+> einen Prozentsatz zu werfen vergleicht Unvergleichbares — und die Zahl gewinnt immer.
+>
+> **Gemessen an einem Testboss:** 2.100 ausgeteilt, „6.000 verloren", Anteil 74,1 %. Der Spieler
+> liest „du hast 74 % liegen gelassen" — dabei hat er 6.000 Schaden **genommen** und ist gestorben.
+> Das ist schlimmer als Schadensverlust, aber es ist nicht dasselbe.
+>
+> **Und es ist kein Randfall:** Ein Boss-Zauber (2.000) übersteigt den Spielerschaden je Wirkung
+> (100) um das Zwanzigfache. Diese Quelle stünde fast immer oben — unabhängig davon, wie gut die
+> Rotation war. Damit stünde der Spieler wieder vor dem Problem, das die Gelegenheits-Regel lösen
+> sollte: Der wichtigste Hinweis handelte vom Unterbrecher.
+
+Bis zum 2026-08-04 stand sie als fünfte Zeile in derselben Tabelle, mit dem Beispiel
+„Two missed — 14 %". Die Rechnung selbst ändert sich **nicht** — nur ihr Platz in der Ausgabe.
 
 > **Korrektur vom 2026-07-29 — warum „Kampfzeit ÷ Abklingzeit" nicht trägt.**
 > Die frühere Rechnung nahm das Maximum je Zauber einzeln: 240 s ÷ 12 s = 20 mögliche
@@ -1310,6 +1434,43 @@ Aus Epic E8, für die Planung von E10:
 
 **Ästhetische Abnahme macht der Auftraggeber** über ein Abhör-Soundboard; Claude kann nicht hören
 und prüft nur technisch (ffprobe: Länge, Pegel, Anfangs-Stille, Clipping).
+
+#### Kein Klang verzögert irgendetwas
+
+_Entschieden am 2026-08-04, als Antwort auf eine Frage, die enger gestellt war._
+
+**Alle Klänge müssen zeitgleich spielen können.** Kein Klang wartet auf einen anderen, keiner
+verdrängt einen laufenden, und **keiner verzögert eine Handlung im Spiel** — weder einen Zauber noch
+eine Boss-Aktion noch einen Zustandswechsel.
+
+> Die Frage lautete, welcher von zwei gleichzeitigen Klängen weichen soll. Die Antwort war: keiner.
+> Ein Klang ist eine **Meldung über** das Spiel, nie ein Teil davon. Sobald die Wiedergabe einen
+> Ablauf beeinflussen kann — auch nur um einen Takt —, ist der Gleichlauf mit dem Simulator dahin,
+> denn der hat keine Audio-Schicht.
+
+Praktisch heißt das: Wiedergabe immer nebenläufig, nie abwartend; ein Klang, dessen Kanal belegt ist,
+bekommt einen neuen statt zu warten; und die Zahl gleichzeitiger Klänge ist eine Frage der
+Lautstärke-Mischung, nicht der Reihenfolge.
+
+#### Die drei offenen Schaltpunkte
+
+_Entschieden am 2026-08-04. Sie standen als Design-Fragen aus E8 und blockierten das Epic._
+
+| Klang                         | Wann                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Spannungs-Schicht** (Musik) | **Zwei Auslöser**: unter 20 % Boss-Leben **oder** wenn das Zeitlimit ins letzte Viertel geht — was zuerst eintritt |
+| **Ende der Wartezeit**        | **Abschaltbar, standardmäßig aus** — ein Metronom als Lernhilfe, nicht als Grundzustand                            |
+| **Überdruck + Zeitablauf**    | **Beide, gleichzeitig**, als ein Klangbild abgestimmt (siehe Regel oben)                                           |
+
+> **Warum die Spannungs-Schicht zwei Auslöser hat:** Der Endspurt unter 20 % ist bereits ein
+> beschlossenes Ereignis (10.2) — der Spieler lernt keinen neuen Schaltpunkt. Aber bei einem Lauf,
+> der gut läuft, käme sie nie, und dann fehlte der Höhepunkt genau bei den besten Durchgängen. Der
+> zweite Auslöser warnt außerdem vor dem, was den Spieler tatsächlich tötet.
+>
+> **Warum das Metronom standardmäßig aus ist:** Bei einem Zehn-Minuten-Kampf sind es rund 400
+> Klänge. Als dauerhafter Grundzustand nutzt sich das ab; als einschaltbare Lernhilfe ist es
+> wertvoll, weil der Spieler den Grundtakt über das Ohr lernt und den Blick für die Abklingzeiten
+> frei behält.
 
 ### 17.2 Grafik
 
