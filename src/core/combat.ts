@@ -450,7 +450,31 @@ export class Combat {
     // Schaden (GAME-DESIGN 6.3) und dieselbe Zeile wie `PlayerBase::incoming`
     // im Simulator. Zweimal zu runden ergäbe je nach Reihenfolge andere
     // Zahlen, und genau daran laufen zwei Umsetzungen auseinander.
-    const angekommen = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+    const nachWard = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+
+    // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
+    // Issue #79).
+    //
+    // Das ist die ganze Mechanik: Sie muss VOR dem Schlag stehen. Eine
+    // Schicht, die erst danach greift, wäre eine Heilung mit anderem Namen —
+    // und die gibt es in dieser Schule als eigenen Weg.
+    //
+    // **Nach WARD, nicht davor.** WARD ist eine Eigenschaft des Spielers und
+    // mindert jeden Schlag; die Schicht fängt auf, was danach übrig bleibt.
+    // Andersherum gerechnet würde WARD den Schutz mitmindern und damit doppelt
+    // zählen. Dieselbe Reihenfolge wie in `Fight::hit_player`.
+    const abgefangen = Math.min(this.shieldValue, nachWard);
+    if (abgefangen > 0) {
+      this.shieldValue -= abgefangen;
+      this.shieldAbsorbedValue += abgefangen;
+      if (this.shieldValue === 0) {
+        // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+        this.shieldStacksValue = 0;
+        this.shieldExpiresAtMs = -1;
+      }
+    }
+
+    const angekommen = nachWard - abgefangen;
     this.damageTakenValue += angekommen;
     this.playerHpValue = Math.max(0, this.playerHpValue - angekommen);
     if (this.playerHpValue === 0) {

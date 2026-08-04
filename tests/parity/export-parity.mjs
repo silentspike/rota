@@ -41,6 +41,7 @@ import {
   bossStatePayload,
   misplaysPayload,
   playerDamagePayload,
+  coagulationPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -48,6 +49,7 @@ import {
   RECORDING_NAME,
   VESSEL_NAME,
   PLAYER_DAMAGE_NAME,
+  COAGULATION_NAME,
   serialize,
 } from './payloads.ts';
 
@@ -72,6 +74,10 @@ writeFileSync(bossStatePath, serialize(bossState), 'utf8');
 const playerDamage = playerDamagePayload();
 const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);
 writeFileSync(playerDamagePath, serialize(playerDamage), 'utf8');
+
+const coagulation = coagulationPayload();
+const coagulationPath = join(here, 'recordings', `${COAGULATION_NAME}.json`);
+writeFileSync(coagulationPath, serialize(coagulation), 'utf8');
 
 const ruleEvents = ruleEventsPayload();
 const ruleEventsPath = join(here, 'recordings', 'rule-events.json');
@@ -134,6 +140,15 @@ for (const lauf of playerDamage['runs']) {
       `HP ${e['playerHp']}, erlitten ${e['damageTaken']}, ` +
       `unterbrochen ${e['interruptsLanded']}, durchgekommen ${e['interruptsMissed']}, ` +
       `Tod bei ${e['diedAtMs']} ms`,
+  );
+}
+console.log(`geschrieben: ${coagulationPath}`);
+for (const lauf of coagulation['runs']) {
+  const e = lauf['expected'];
+  console.log(
+    `  ${String(lauf['way']).padEnd(7)} HP ${e['playerHp']}, erlitten ${e['damageTaken']}, ` +
+      `abgefangen ${e['shieldAbsorbed']}, geheilt ${e['healed']}, ` +
+      `umgewandelt ${e['converted']}, ausgeteilt ${e['damageDealt']}`,
   );
 }
 console.log(`geschrieben: ${ruleEventsPath}`);

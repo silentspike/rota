@@ -583,6 +583,7 @@ impl Fight {
         let mut energy = Vec::with_capacity(checksums.capacity());
         let mut timeline_index = Vec::with_capacity(checksums.capacity());
         let mut player_hp = Vec::with_capacity(checksums.capacity());
+        let mut shield_spur = Vec::with_capacity(checksums.capacity());
         let mut sequence: u32 = 0;
         let mut accepted = 0;
         let mut rejected = 0;
@@ -617,6 +618,7 @@ impl Fight {
                     energy.push(self.energy);
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
+                    shield_spur.push(self.shield);
                 }
                 break;
             }
@@ -632,6 +634,7 @@ impl Fight {
                     energy.push(self.energy);
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
+                    shield_spur.push(self.shield);
                 }
                 break;
             }
@@ -668,6 +671,7 @@ impl Fight {
                 energy.push(self.energy);
                 timeline_index.push(self.timeline_index as u32);
                 player_hp.push(self.player_hp);
+                shield_spur.push(self.shield);
             }
         }
 
@@ -693,6 +697,10 @@ impl Fight {
             died_at_ms: self.died_at,
             interrupts_landed: self.interrupts_landed,
             interrupts_missed: self.interrupts_missed,
+            shield: shield_spur,
+            shield_absorbed: self.shield_absorbed,
+            healed: self.healed,
+            converted: self.converted,
         }
     }
 
