@@ -242,7 +242,10 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // verschenkter Leerlauf. Die richtige Rechnung ist nicht „hat er
     // stillgelegen", sondern „gab es eine Gelegenheit, die er ungenutzt ließ".
     // Das steht als Kriterium in Issue #81 (E7) und gehört dorthin.
-    expect(summary.idlePerSpell.length).toBe(11);
+    // Aus der Leiste abgeleitet statt verdrahtet: Die Auswertung führt jeden
+    // Zauber, den es gibt (Issue #97 brachte zwei dazu, und die feste 11
+    // wurde rot, obwohl nichts kaputt war).
+    expect(summary.idlePerSpell.length).toBe(CALCINATION.value.spells.length);
     const belegt = summary.idlePerSpell.filter((e) =>
       ['kindle', 'smoulder', 'pyre'].includes(e.spellId),
     );

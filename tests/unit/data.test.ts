@@ -1,4 +1,11 @@
 import { describe, expect, it } from 'vitest';
+// Die Zauberdateien roh — damit die Zahl der Zauber aus ihnen FOLGT, statt
+// daneben verdrahtet zu stehen (Issue #97).
+import rawSpells from '../../data/spells/calcination.json';
+import rawCommon from '../../data/spells/common.json';
+import rawCoagulation from '../../data/spells/coagulation.json';
+import rawFixation from '../../data/spells/fixation.json';
+import rawPutrefaction from '../../data/spells/putrefaction.json';
 import { CALCINATION, FIRST_CRUCIBLE, parseBoss, parseSchool } from '../../src/core/data.js';
 import { computeDamage, NEUTRAL_FACTORS } from '../../src/core/damage.js';
 import { RandomStreams, STREAM_COUNT, STREAM_CRIT, STREAM_DOT_TICK } from '../../src/core/rng.js';
@@ -14,7 +21,17 @@ describe('Zauber-Datensätze', () => {
     expect(CALCINATION.value.school).toBe('CALCINATION');
     // Drei Kampfzauber, der Unterbrecher QUENCH (#110) und die drei Wege der
     // Koagulation (#79).
-    expect(CALCINATION.value.spells.length).toBe(11);
+    // **Aus den Dateien gezählt, nicht verdrahtet.** Hier stand `11` — eine
+    // Momentaufnahme des Zauberkastens, die bei jedem neuen Zauber
+    // nachgepflegt werden musste (Issue #97 brachte zwei, und der Fall wurde
+    // rot, obwohl nichts kaputt war).
+    //
+    // Die Aussage ist „jeder Zauber aus den Dateien kommt an", und die prüft
+    // sich gegen die Dateien selbst — nicht gegen eine Zahl daneben.
+    const ausDenDateien = [rawSpells, rawCommon, rawCoagulation, rawFixation, rawPutrefaction]
+      .map((datei) => (datei as { spells?: unknown[] }).spells?.length ?? 0)
+      .reduce((a, b) => a + b, 0);
+    expect(CALCINATION.value.spells.length).toBe(ausDenDateien);
   });
 
   it('trägt alle Zahlen aus STEP1-SPEC § 1', () => {
