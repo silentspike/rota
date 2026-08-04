@@ -4,6 +4,11 @@
 *.key
 *.pem
 .suno-state.json
+# Auch jede Sicherung davon. Der Rat "vor jedem Lauf eine Kopie anlegen"
+# (Issue #199) erzeugt Dateien mit denselben Sitzungs-Cookies — gemessen:
+# 39 Stueck in einer .bak, und sie war NICHT ignoriert.
+.suno-state.json.*
+*.suno-state.json*
 
 # Abhängigkeiten und Bau-Ergebnisse
 node_modules/
