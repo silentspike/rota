@@ -49,6 +49,9 @@ import {
   ValuePools,
 } from '../../src/gear/pools.js';
 import {
+  MAX_ITEM_LEVEL,
+  QUALITY_COMMON,
+  QUALITY_EPIC,
   QUALITY_COUNT,
   QUALITY_HAS_EFFECT,
   QUALITY_NAMES,
@@ -57,6 +60,20 @@ import {
   distributeBudget,
 } from '../../src/gear/budget.js';
 import { BASE_STAT_IDS, SLOT_COUNT, SLOT_NAMES } from '../../src/gear/slots.js';
+import {
+  BUDGET_PER_PERMILLE,
+  SOURCE_COUNT,
+  SOURCE_NAMES,
+  STAT_COUNT,
+  STAT_NAMES,
+  affixPermille,
+  isPermanent,
+  maxOf,
+  mixedBuild,
+  permanentMax,
+  pureBuild,
+  totalMax,
+} from '../../src/gear/sources.js';
 import {
   BONUS_ROTATION,
   BONUS_VALUE,
@@ -104,6 +121,9 @@ export const FIXATION_NAME = 'fixation';
 
 /** Der Prueffall zu den Protokoll-Arten des Spiels (Issue #151). */
 export const LOG_PARITY_NAME = 'log-parity';
+
+/** Vergleichsdatei für die wiederholte Zeitleiste (#174). */
+export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -959,6 +979,81 @@ export function logParityPayload(): Record<string, unknown> {
 }
 
 /**
+ * Ein Durchgang gegen einen Boss mit **wiederholter** Zeitleiste (#174).
+ *
+ * # Warum mindestens zwei Zyklen
+ *
+ * Eine Wiederholungs-Regel, die nur eine Seite kennt, bricht die Parität
+ * **erst nach dem ersten Zyklus**. Ein Lauf, der einen Zyklus abdeckt, liefe
+ * grün — und die Abweichung fiele erst auf, wenn jemand länger übt.
+ *
+ * Der Prüf-Boss `test-metronome` hat eine Zykluslänge von 6 s; der Lauf
+ * umfasst 30 s, also fünf Zyklen. Die Prüfung darauf steht in
+ * `sim/tests/parity_timeline_loop.rs` und ist hart: Weniger als zwei Zyklen
+ * lässt der Fall nicht durchgehen.
+ */
+export function timelineLoopPayload(): Record<string, unknown> {
+  const boss = bossById('test-metronome');
+  if (boss === undefined) throw new Error('Der Boss test-metronome fehlt.');
+  if (boss.timelineLoopMs === null) {
+    throw new Error('test-metronome hat keine timelineLoopMs — der Fall prüfte dann nichts.');
+  }
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const quench = combat.indexOf('quench');
+  const ticks = 3000; // 30 s = fünf Zyklen
+
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const timelineIndex: number[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      timelineIndex.push(combat.timelineIndex);
+      break;
+    }
+    // QUENCH, wenn der Boss zaubert — sonst KINDLE. Das unterbricht in
+    // späteren Zyklen ebenso wie im ersten und deckt damit auch den
+    // Zeitpunkt des Treffers ab, nicht nur den des Beginns.
+    const gewaehlt = combat.casting >= 0 && combat.isReady(quench, timeMs) ? quench : kindle;
+    if (combat.cast(gewaehlt, timeMs).result === 0) {
+      presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    timelineIndex.push(combat.timelineIndex);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: TIMELINE_LOOP_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    timelineLoopMs: boss.timelineLoopMs,
+    timelineLength: boss.timeline.length,
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      { slot: 1, spellId: 'quench' },
+    ],
+    presses,
+    checksums,
+    /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
+    timelineIndex,
+    expected: {
+      damageDealt: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
+      finalTimelineIndex: combat.timelineIndex,
+      finalPlayerHp: combat.playerHp,
+    },
+  };
+}
+
+/**
  * Spielt die Aufzeichnung durch und zählt, **was** dabei schiefging.
  *
  * Nötig, weil `replayRecording` nur „angenommen" und „abgelehnt" liefert. Damit
@@ -1514,5 +1609,59 @@ export function wornPayload(): Record<string, unknown> {
       randomDraws: result.randomDraws,
     },
     checksums: result.checksums,
+  };
+}
+
+/**
+ * Die fünf Quellen der Sonderwerte (Issue #178).
+ *
+ * **Warum das ein eigener Vergleich ist:** Die Zahlen entscheiden, was ein
+ * Spieler überhaupt erreichen kann. Liefen sie auseinander, rechnete der
+ * Balance-Läufer mit anderen Grenzen als das Spiel — und beide sähen für sich
+ * genommen richtig aus.
+ *
+ * Ganzzahlig in Promille, also **keine Bitmuster nötig**.
+ */
+export function sourcesPayload(): Record<string, unknown> {
+  const stats = [];
+  for (let stat = 0; stat < STAT_COUNT; stat++) {
+    const je = [];
+    for (let source = 0; source < SOURCE_COUNT; source++) {
+      je.push({ source, name: SOURCE_NAMES[source], max: maxOf(source, stat) });
+    }
+    stats.push({
+      stat,
+      name: STAT_NAMES[stat],
+      sources: je,
+      permanentMax: permanentMax(stat),
+      totalMax: totalMax(stat),
+      pure: pureBuild(stat),
+      mixed: mixedBuild(stat),
+    });
+  }
+
+  // Der Affix-Wert je Stufe und Qualität — die Ableitung, an der beide Seiten
+  // hängen. Wenige Stützstellen genügen: Bricht die Herleitung, bricht sie
+  // überall.
+  const affixes = [];
+  for (const quality of [QUALITY_COMMON, QUALITY_EPIC]) {
+    for (const level of [1, 25, 50, 75, MAX_ITEM_LEVEL]) {
+      affixes.push({
+        level,
+        quality,
+        budget: budgetOf(level, quality),
+        permille: affixPermille(level, quality),
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    budgetPerPermille: BUDGET_PER_PERMILLE,
+    sourceNames: SOURCE_NAMES,
+    statNames: STAT_NAMES,
+    permanent: Array.from({ length: SOURCE_COUNT }, (_, s) => isPermanent(s)),
+    stats,
+    affixes,
   };
 }

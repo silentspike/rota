@@ -313,6 +313,16 @@ pub struct Boss {
     pub energy: Option<Energy>,
     /// Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt.
     pub timeline: &'static [TimelineEntry],
+    /// Laenge eines Zyklus, wenn sich die Zeitleiste **wiederholt** (#174).
+    ///
+    /// `None` heisst: Sie laeuft einmal und endet — so verhaelt sich jeder
+    /// Boss. Nur die Trainingspuppe wiederholt sich, weil GAME-DESIGN 15.5 ihr
+    /// „kein Zeitlimit" zusagt; eine Zeitleiste, die nach 48 Sekunden aufhoert,
+    /// waere diese Zusage mit Kleingedrucktem.
+    ///
+    /// Der Wert ist der Zeitversatz je Durchlauf, nicht die Zahl der Eintraege:
+    /// Eintrag `i` im Zyklus `z` ist faellig bei `z * loop + at_ms`.
+    pub timeline_loop_ms: Option<Millis>,
 }
 
 impl Boss {
