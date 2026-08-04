@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "school": "PUTREFACTION",
+  "_comment": "Die Schwaechungs-Schule (GAME-DESIGN 4.1, Issue #97). Sie erhoeht nicht den eigenen Schaden, sondern laesst den Boss von ALLEN Quellen mehr Schaden nehmen — deshalb wirkt sie ueber den siebten Faktor der Schadensformel (6.3, Verwundbarkeit des Bosses) und nicht ueber einen Faktor des Spielers. CANKER und FESTER gehoeren als Paar zusammen: der Faeulnisherd und was daraus wird. ALLE ZAHLEN HIER SIND VORLAEUFIG UND WERDEN GEMESSEN — der Balance-Laeufer bestimmt sie, nicht dieses Dokument (GAME-DESIGN 4.1, Teil F.6).",
+  "spells": [
+    {
+      "id": "canker",
+      "name": "Canker",
+      "unlockLevel": 1,
+      "baseDamage": 45,
+      "cooldownMs": 4500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "decay": {
+        "_comment": "Wird gemessen.",
+        "stacks": 1
+      }
+    },
+    {
+      "id": "fester",
+      "name": "Fester",
+      "unlockLevel": 1,
+      "baseDamage": 60,
+      "cooldownMs": 9000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "perDecayStackPercent": 20
+    }
+  ]
+}
