@@ -276,6 +276,14 @@ export function recordings(): Map<string, Recording> {
     if (vessel !== undefined) {
       builtIn.set('vessel-phases', recordGoodRotation('vessel-phases', 9000, vessel));
     }
+    // Der Pruefall gegen Zaehler und exponentiellen Stapel (Issue #216).
+    // 30 s in Takten — der Zaehler toetet bei 20 s, und die zehn Sekunden
+    // danach gehoeren dazu: Sie belegen, dass beide Seiten nach dem Tod
+    // dasselbe tun (naemlich nichts mehr).
+    const doomsayer = bossById('test-doomsayer');
+    if (doomsayer !== undefined) {
+      builtIn.set('doom-stacks', recordGoodRotation('doom-stacks', 3000, doomsayer));
+    }
   }
   return builtIn;
 }

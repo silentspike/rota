@@ -704,6 +704,9 @@ impl Fight {
         // derselben Kapazitaet vorbelegt — im Schritt wird nichts angefordert.
         let mut phases = Vec::with_capacity(checksums.capacity());
         let mut energy = Vec::with_capacity(checksums.capacity());
+        let mut doom = Vec::with_capacity(checksums.capacity());
+        let mut doom_charges = Vec::with_capacity(checksums.capacity());
+        let mut stacks_trace = Vec::with_capacity(checksums.capacity());
         let mut timeline_index = Vec::with_capacity(checksums.capacity());
         let mut player_hp = Vec::with_capacity(checksums.capacity());
         let mut shield_spur = Vec::with_capacity(checksums.capacity());
@@ -740,6 +743,9 @@ impl Fight {
                     checksums.push(hash);
                     phases.push(self.phase as u32);
                     energy.push(self.energy);
+                    doom.push(self.doom);
+                    doom_charges.push(self.doom_charges);
+                    stacks_trace.push(self.stacks);
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
@@ -756,6 +762,9 @@ impl Fight {
                     checksums.push(hash);
                     phases.push(self.phase as u32);
                     energy.push(self.energy);
+                    doom.push(self.doom);
+                    doom_charges.push(self.doom_charges);
+                    stacks_trace.push(self.stacks);
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
@@ -793,6 +802,9 @@ impl Fight {
                 checksums.push(hash);
                 phases.push(self.phase as u32);
                 energy.push(self.energy);
+                doom.push(self.doom);
+                doom_charges.push(self.doom_charges);
+                stacks_trace.push(self.stacks);
                 timeline_index.push(self.timeline_index as u32);
                 player_hp.push(self.player_hp);
                 shield_spur.push(self.shield);
@@ -815,6 +827,9 @@ impl Fight {
             random_draws: self.rng.total_draws(),
             phases,
             energy,
+            doom,
+            doom_charges,
+            stacks: stacks_trace,
             timeline_index,
             player_hp,
             damage_taken: self.damage_taken,
