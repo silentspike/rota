@@ -1,0 +1,116 @@
+/**
+ * Auswertung nach dem Kampf (Issue #81).
+ *
+ * Die Effizienz-Spalte ist die einzige, die hervorgehoben wird — sie ist die
+ * Aussage der Tabelle (GAME-DESIGN 15.3). Der Schadensanteil steht am Rand,
+ * nicht weil er unwichtig wäre, sondern weil er das Können nicht misst.
+ */
+
+.efficiency,
+.losses {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  /* Ueber diese Breite hinaus reissen die Spalten so weit auseinander, dass
+     Zeile und Zahl nicht mehr zusammen gelesen werden. */
+  max-width: 96ch;
+}
+
+.efficiency-heading,
+.losses-heading {
+  font-family: 'Cinzel', system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  font-size: 15px;
+  color: #9a9384;
+  margin: 0 0 6px;
+}
+
+.efficiency-overall {
+  font-size: 20px;
+  margin: 0 0 14px;
+  color: #e6dfd1;
+}
+
+.efficiency-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.efficiency-table th,
+.efficiency-table td {
+  padding: 5px 14px 5px 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.efficiency-table th {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #7d7768;
+  border-bottom: 1px solid #33323a;
+  font-weight: 400;
+}
+
+.efficiency-spell {
+  text-align: left;
+}
+
+/* Die führende Spalte — die zweite Zelle, gleich hinter dem Zaubernamen. */
+.efficiency-table td:nth-child(2) {
+  color: #e6dfd1;
+  font-size: 16px;
+}
+
+/* Der Schadensanteil: da, aber nicht vorn. */
+.efficiency-table td:last-child {
+  color: #86806f;
+}
+
+.losses {
+  margin-top: 30px;
+}
+
+.losses-total {
+  font-size: 20px;
+  color: #e6dfd1;
+  margin: 0 0 12px;
+}
+
+.losses-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.loss {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 16px;
+  padding: 7px 0;
+  border-bottom: 1px solid #23222a;
+  color: #a09a8b;
+}
+
+/* Die drei größten (GAME-DESIGN 15.2). Die übrigen bleiben lesbar. */
+.loss-top {
+  color: #e6dfd1;
+}
+
+.loss-share {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.loss-detail {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: #7d7768;
+}
+
+/* Was heute nicht gemessen werden kann — sichtbar, aber nicht als Verlust. */
+.losses-unavailable {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #7d7768;
+  font-style: italic;
+}
