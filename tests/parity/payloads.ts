@@ -14,6 +14,13 @@
 import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
+import { hastedMs, tickCount } from '../../src/core/haste.js';
+import {
+  CRIT_BASE_PERMILLE,
+  critChance,
+  critFactor,
+  type WornValues,
+} from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { CombatLog, EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
@@ -1371,5 +1378,141 @@ export function setsPayload(): Record<string, unknown> {
     setCount: SET_COUNT,
     sets: saetze,
     steps,
+  };
+}
+
+/**
+ * Die Umrechnung von Tempo auf Zeiten (GAME-DESIGN 6.7, Issue #177).
+ *
+ * **Warum das ein eigener Vergleich ist und kein Kampf-Prüffall reicht:**
+ * Dieselbe Überlegung wie bei `primitives.json`. Ein Kampf ohne getragene
+ * Ausrüstung hat CATALYSIS = 0 und läuft nie durch diese Rechnung — eine Seite
+ * könnte abrunden statt aufzurunden, und jeder heutige Kampf-Prüffall bliebe
+ * grün. Auffallen würde es erst mit dem ersten getragenen Gegenstand, und dann
+ * suchte man im Kampfablauf statt in der Umrechnung.
+ *
+ * Ganzzahlige Werte, also **keine Bitmuster nötig**: Was hier verglichen wird,
+ * sind Millisekunden und Tick-Zahlen. Die Regel „jede Gleitkommazahl steht
+ * zweimal da" greift nur, wo eine steht.
+ */
+export function hastePayload(): Record<string, unknown> {
+  // Die Basiszeiten decken den Bereich aus 6.4 ab: Abklingzeiten von 3 bis
+  // 180 s, dazu die Wartezeit und ein DoT-Abstand. Der krumme Wert 12 345 ist
+  // Absicht — an ihm hängt der Sonderfall, in dem AC7 gegen das Takt-Raster
+  // gewinnt (siehe `hastedMs`).
+  const basiszeiten = [0, 10, 1500, 2000, 3000, 8000, 12_345, 180_000];
+  // Von "kein Tempo" bis weit über jeden denkbaren Deckel. Die 500 sind der
+  // Wert, an dem 1500 ms auf 1000 ms fallen — die Rechnung, mit der 6.7 den
+  // Deckel begründet.
+  const tempowerte = [0, 1, 50, 170, 200, 333, 500, 750, 1000, 2000, 10_000];
+
+  const steps: Record<string, unknown>[] = [];
+  for (const basis of basiszeiten) {
+    for (const permille of tempowerte) {
+      const zeit = hastedMs(basis, permille);
+      let hash = FNV_OFFSET;
+      hash = mixInt(hash, basis);
+      hash = mixInt(hash, permille);
+      hash = mixInt(hash, zeit);
+      steps.push({ baseMs: basis, permille, hastedMs: zeit, checksum: hash >>> 0 });
+    }
+  }
+
+  // Die DoT-Seite getrennt: Die Dauer bleibt, der Abstand schrumpft, die Zahl
+  // der Ticks steigt. `restMs` zeigt, was verfällt — der Wert, den WoW anteilig
+  // auszahlen würde und wir nicht.
+  const dotSteps = [1000, 2000, 3000].flatMap((basisAbstand) =>
+    [0, 170, 200, 500, 1000].map((permille) => {
+      const dauer = 12_000;
+      const abstand = hastedMs(basisAbstand, permille);
+      const ticks = tickCount(dauer, abstand);
+      let hash = FNV_OFFSET;
+      hash = mixInt(hash, dauer);
+      hash = mixInt(hash, abstand);
+      hash = mixInt(hash, ticks);
+      return {
+        durationMs: dauer,
+        baseIntervalMs: basisAbstand,
+        permille,
+        intervalMs: abstand,
+        ticks,
+        restMs: dauer - ticks * abstand,
+        checksum: hash >>> 0,
+      };
+    }),
+  );
+
+  return { schema: SCHEMA, tickMs: TICK_MS, steps, dotSteps };
+}
+
+/**
+ * Die getragenen Werte, mit denen der Gleichlauf-Lauf aus AC8 rechnet.
+ *
+ * **Alle drei ungleich null, und keiner glatt.** Ein Lauf mit CATALYSIS 500
+ * (also genau der Hälfte) verstünde sich mit jeder Zeit glatt und ließe eine
+ * fehlende Rasterung durchgehen; 170 Promille erzwingt krumme Zwischenwerte.
+ * PURITY 375 liegt bewusst zwischen den beiden Kurzschlüssen von `chance`, so
+ * dass wirklich gewürfelt wird.
+ */
+const WORN_FOR_PARITY: WornValues = { catalysis: 170, purity: 375, yieldBonus: 250 };
+
+/** Der Name der Vergleichsdatei mit getragener Ausrüstung. */
+export const WORN_NAME = 'worn-values';
+
+/**
+ * Ein aufgezeichneter Lauf **mit getragener Ausrüstung** (Issue #177, AC8).
+ *
+ * # Warum der bestehende Lauf nicht reicht
+ *
+ * `cooldown-precision.json` läuft ohne Ausrüstung. Er belegt damit AC7 — dass
+ * sich nichts bewegt — aber über die neuen Rechenwege sagt er nichts: Keine
+ * Zeit wird umgerechnet, kein Wurf fällt. Eine Seite könnte den Tick-Abstand
+ * anders runden oder den Zufallsstrom anders oft drehen, und dieser Lauf bliebe
+ * bitgleich.
+ *
+ * Hier ist beides im Spiel. **Die Prüfsumme je Takt** ist dabei das Schärfere
+ * am Vergleich: Ein Endergebnis kann zufällig übereinstimmen, während der Weg
+ * dahin auseinanderlief.
+ */
+export function wornPayload(): Record<string, unknown> {
+  const recording = recordings().get(RECORDING_NAME);
+  if (recording === undefined) {
+    throw new Error(`Unbekannte Aufzeichnung: ${RECORDING_NAME}`);
+  }
+  const result = replayRecording(recording, { checksumPerTick: true, worn: WORN_FOR_PARITY });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    worn: {
+      catalysis: WORN_FOR_PARITY.catalysis,
+      purity: WORN_FOR_PARITY.purity,
+      yieldBonus: WORN_FOR_PARITY.yieldBonus,
+    },
+    critBasePermille: CRIT_BASE_PERMILLE,
+    // Die abgeleiteten Werte stehen mit in der Datei, jeder auch als Bitmuster:
+    // Sie sind Fließkommazahlen und gehen in den Schaden ein. Die Regel dieses
+    // Verzeichnisses gilt (siehe `bitsOf`) — dezimal für den Diff, Bits für den
+    // Vergleich.
+    critChance: critChance(WORN_FOR_PARITY),
+    critChanceBits: bitsOf(critChance(WORN_FOR_PARITY)),
+    critFactor: critFactor(WORN_FOR_PARITY),
+    critFactorBits: bitsOf(critFactor(WORN_FOR_PARITY)),
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      randomDraws: result.randomDraws,
+    },
+    checksums: result.checksums,
   };
 }

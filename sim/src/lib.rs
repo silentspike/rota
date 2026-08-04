@@ -67,6 +67,7 @@ pub mod event;
 pub mod factors;
 pub mod fight;
 pub mod gear;
+pub mod haste;
 pub mod log;
 pub mod replay;
 pub mod report;
@@ -87,6 +88,7 @@ pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
 pub use data::{Boss, Resource, Spell, BOSS, RESOURCE, SPELLS, SPELL_COUNT};
 pub use factors::{compute_damage, DamageFactors, NEUTRAL};
 pub use fight::{Decide, Fight, FightConfig, RunResult};
+pub use haste::{hasted_ms, tick_count};
 pub use replay::{Binding, Press, Recording, ReplayResult};
 pub use report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,

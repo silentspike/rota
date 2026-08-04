@@ -41,6 +41,7 @@ use crate::apl::Apl;
 use crate::data::{Boss, BOSS};
 use crate::factors::{DamageFactors, NEUTRAL};
 use crate::fight::{Fight, FightConfig};
+use crate::gear::WornValues;
 use crate::time::Millis;
 
 /// Einstellungen eines Balance-Laufs.
@@ -73,6 +74,13 @@ pub struct BalanceConfig {
     pub factors: DamageFactors,
     /// Gegen welchen Boss gerechnet wird.
     pub boss: &'static Boss,
+    /// Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+    ///
+    /// **Der Weg, auf dem Ausruestung ueberhaupt messbar wird.** Bis zu diesem
+    /// Issue las kein einziger Wirkort einen Ausruestungs-Wert; ein Vergleich
+    /// „Satz gegen Affix" konnte deshalb nur eine Modellrechnung sein (#166).
+    /// Mit diesem Feld bekommt der Laeufer etwas zu messen.
+    pub worn: WornValues,
 }
 
 impl Default for BalanceConfig {
@@ -85,6 +93,7 @@ impl Default for BalanceConfig {
             stop_on_kill: true,
             factors: NEUTRAL,
             boss: BOSS,
+            worn: WornValues::none(),
         }
     }
 }
@@ -346,6 +355,7 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         stop_on_kill: config.stop_on_kill,
         factors: config.factors,
         boss: config.boss,
+        worn: config.worn,
         // Das Protokoll kostet Speicher und wird hier von niemandem gelesen.
         log_capacity: 0,
     });
