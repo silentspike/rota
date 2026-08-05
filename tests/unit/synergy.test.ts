@@ -221,3 +221,53 @@ describe('AC5/AC6 — die Auswertung zeigt die gemessene Ausbeute', () => {
     expect(mit.synergyAvailable).not.toBe(ohne.synergyAvailable);
   });
 });
+
+describe('Der Reset raeumt die Fenster mit weg (#318)', () => {
+  it('nach reset() zaehlt der naechste Lauf bei null an', () => {
+    // **Im Browser gefunden, nicht hier.** Die Auswertung zeigte nach einem
+    // Lauf mit CANKER und FESTER weiterhin „1 of 1", obwohl die Leiste
+    // gewechselt hatte und kein Fenster mehr aufging.
+    //
+    // Warum kein bestehender Fall das fing: Jeder baut sich eine frische
+    // Sitzung, und dort ist der Zustand ohnehin leer. Sichtbar wird es erst
+    // beim ZWEITEN Lauf im selben Spiel — also genau dort, wo der Spieler ist.
+    //
+    // Dieser Fall macht den einmaligen Browser-Nachweis wiederholbar.
+    const combat = bau();
+    const c = wirke(combat, 'canker', 0);
+    wirke(combat, 'fester', c + GCD_MS);
+    expect(combat.synergyUsed, 'ohne genutzte Synergie belegt der Reset nichts').toBe(1);
+    expect(combat.synergyAvailable).toBeGreaterThan(0);
+
+    combat.reset();
+
+    expect(combat.synergyUsed, 'die genutzten Synergien ueberleben den Reset').toBe(0);
+    expect(combat.synergyAvailable, 'die Gelegenheiten ueberleben den Reset').toBe(0);
+  });
+
+  it('und das offene Fenster ebenfalls', () => {
+    // **Der zweite Teil, und er ist der stillere.** Ein offenes Fenster, das
+    // den Reset ueberlebt, gaebe dem ersten Zauber des naechsten Laufs einen
+    // Bonus, den niemand ausgeloest hat — und der Schaden waere zu hoch, ohne
+    // dass eine Zahl es meldet.
+    const combat = bau();
+    wirke(combat, 'canker', 0);
+    combat.reset();
+
+    // **Gemessen wird der ZAEHLER, nicht der Schaden.** Mein erster Entwurf
+    // verglich FESTERs Schaden nach dem Reset gegen einen frischen Kampf und
+    // bekam 62 gegen 60. Der Unterschied kam aber NICHT von der Synergie: Er
+    // kommt vom Zersetzungs-Stapel, den CANKER angelegt hat und den
+    // `reset()` nicht wegräumt (`decayCountValue`, eine bestehende Lücke aus
+    // #97 — der Simulator räumt ihn auf, das Spiel nicht).
+    //
+    // Ein Fall, der beides zugleich misst, meldet den fremden Fehler unter
+    // meinem Namen. Der Zähler trennt sie sauber.
+    combat.cast(combat.indexOf('fester'), 0);
+    expect(
+      combat.synergyUsed,
+      'FESTER hat nach dem Reset eine Synergie genutzt — dann steht ein ' +
+        'Fenster offen, das niemand geöffnet hat',
+    ).toBe(0);
+  });
+});
