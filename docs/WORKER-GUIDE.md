@@ -448,6 +448,37 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Ein Prüffall hinter einem Wächter ist grün ohne Grund
+
+_Gefunden am 2026-08-05 bei der fünften Gegenprobe zu #248._
+
+Ein Leser für die Stufen-Tabelle prüft beim Einlesen mehrere Zusicherungen. Daneben steht ein
+Prüffall, der belegen soll, dass die Werte **gleichmäßig** wachsen. Vier Gegenproben liefen:
+
+```
+Stufe 1 nicht 1000        → Leser bricht ab, mit dem Grund
+Aufstieg macht schwächer  → Leser bricht ab, nennt die Stufe
+Tabelle zu kurz           → Leser bricht ab, nennt beide Zahlen
+Sprung, nicht monoton     → Leser bricht ab
+```
+
+**Alle vier fing der Leser ab.** Der Verlaufs-Prüffall kam kein einziges Mal zum Zug — er war
+grün, weil er nie erreicht wurde.
+
+Erst die fünfte Probe traf ihn:
+
+```
+Sprung, aber MONOTON      → Leser lässt ihn durch, und HIER greift der Prüffall
+```
+
+> **Eine Prüfung, die hinter einer strengeren liegt, wird von den naheliegenden Gegenproben nie
+> erreicht.** Sie ist dann grün, ohne je etwas gemessen zu haben — und der Bau sieht doppelt
+> abgesichert aus, wo nur eine Sicherung greift.
+
+**Die Gegenfrage:** Kommt der Fehler, den ich einbaue, überhaupt bis zu dem Prüffall, den ich
+prüfen will? Wo mehrere Prüfungen hintereinander stehen, braucht jede eine Gegenprobe, die
+**genau sie** trifft — und die früheren passieren lässt.
+
 ### Ein Wert, der bei der Niederlage fehlt, sagt nichts über den Sieg
 
 _Gefunden am 2026-08-05 beim Browser-Nachweis zu #247._
