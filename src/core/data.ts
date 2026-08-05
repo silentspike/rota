@@ -246,6 +246,85 @@ export interface DoomDef {
 }
 
 /**
+ * Das Wettrennen gegen einen Zauber (GAME-DESIGN 11.2, Baustein 4; #218).
+ *
+ * > Der Boss wird unverwundbar, während etwas anderes vor Ablauf zerstört
+ * > werden muss. **Der beste Moment für Overdrive.**
+ *
+ * ER WIRKT AUF DEN FORTSCHRITT, NICHT AUF DEN SPIELER
+ * ---------------------------------------------------
+ * Alle bisherigen Bausteine teilen Schaden aus oder töten. Dieser verändert,
+ * was der ausgeteilte Schaden **bewirkt** — er setzt ihn zeitweise auf null.
+ *
+ * **Und das ist nicht `damage × 0`.** Schaden in ein Unverwundbarkeits-Fenster
+ * ist *verlorener* Schaden und gehört in die Fehleranalyse (GAME-DESIGN 15.3).
+ * Wer ihn einfach verschwinden ließe, nähme dem Spieler die einzige Auskunft,
+ * die ihn beim nächsten Versuch besser macht.
+ *
+ * DAS ZIEL IST EIN SCHWELLENWERT, KEIN OBJEKT
+ * -------------------------------------------
+ * 11.2 sagt „etwas anderes muss zerstört werden". Ein zweites Ziel mit eigenen
+ * Lebenspunkten wäre ein **Zusatzgegner**, und GAME-DESIGN 22 verschiebt
+ * Zusatzgegner und Zielwechsel ausdrücklich auf Version 2 — sie zögen eine
+ * zweite Rotationsebene ein.
+ *
+ * Stattdessen lädt der Schaden im Fenster einen **Zähler**. Erreicht er
+ * `threshold` vor Ablauf, ist das Ziel zerstört und das Fenster endet früh.
+ *
+ * **Es ist die Energieleiste mit umgekehrter Füllrichtung** (Baustein 1): Dort
+ * steigt sie von selbst und löst bei 100 aus, hier füllt der Spieler sie. Kein
+ * zweites Ziel, kein Zielwechsel, keine neue Handlung — er drückt weiter
+ * dieselben Tasten auf denselben Boss.
+ *
+ * Und „der beste Moment für Overdrive" trägt: Viel Schaden in ein kurzes
+ * Fenster zu legen ist genau die Aufgabe.
+ */
+export interface RaceDef {
+  /** Zeitpunkt seit Kampfbeginn, zu dem das Fenster beginnt. Auf dem Raster. */
+  readonly atMs: number;
+  /** Wie lange es höchstens dauert. */
+  readonly windowMs: number;
+  /**
+   * Wie viel Schaden im Fenster das Ziel zerstört.
+   *
+   * Vorläufig — wird gemessen.
+   */
+  readonly threshold: number;
+}
+
+/**
+ * Ein Fehler heilt den Boss (GAME-DESIGN 11.2, Baustein 5; #218).
+ *
+ * > Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz.
+ * > **Nur für einzelne Bosse**, sonst frustrierend.
+ *
+ * Der zweite Baustein, der auf den Fortschritt wirkt statt auf den Spieler —
+ * und der einzige, der ihn **zurückdreht**.
+ *
+ * „Nur für einzelne Bosse" ist eine Design-Auflage und keine technische: Hier
+ * entsteht der Mechanismus, wer ihn trägt, entscheidet E10.
+ *
+ * DER AUSLÖSER IST DER DURCHGEKOMMENE BOSS-ZAUBER
+ * -----------------------------------------------
+ * Kein neuer Fehler-Begriff: Baustein 9 ist gebaut, `interruptsMissed` zählt
+ * bereits, und der Spieler kennt die Mechanik.
+ *
+ * **Aber keine feste Kopplung.** Wie viel ein verpasster Unterbrecher heilt,
+ * sagt der Boss-Datensatz; fehlt das Feld, heilt nichts. Eine feste Kopplung
+ * gälte für **alle** Bosse — und 11.2 sagt zu diesem Baustein ausdrücklich
+ * „nur für einzelne Bosse, sonst frustrierend". Als Datenfeld ist es die
+ * Eigenschaft des einen Bosses, der es bekommt; welcher, entscheidet E10.
+ */
+export interface BossHealDef {
+  /**
+   * Wie viel Fortschritt ein durchgekommener Boss-Zauber zurückdreht.
+   *
+   * Vorläufig — wird gemessen.
+   */
+  readonly amount: number;
+}
+
+/**
  * Der exponentielle Stapel (GAME-DESIGN 11.2, Baustein 3; Issue #216).
  *
  * > 1 Stapel = X, 2 = 3X, 3 = 9X. Erzwingt eine Handlung an einem exakt
@@ -348,6 +427,10 @@ export interface BossDef {
   readonly doom: DoomDef | null;
   /** Der exponentielle Stapel, oder `null` (Issue #216). */
   readonly stacks: StackDef | null;
+  /** Das Unverwundbarkeits-Fenster, oder `null` (Issue #218). */
+  readonly race: RaceDef | null;
+  /** Was ein Fehler an Fortschritt zurückdreht, oder `null` (Issue #218). */
+  readonly bossHeal: BossHealDef | null;
   /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
   readonly timeline: readonly TimelineEntryDef[];
   /**
@@ -799,6 +882,45 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     stacks = { perStepMs, baseDamage, factor, maxStacks };
   }
 
+  // Wettrennen und Boss-Heilung (Issue #218). Beide wirken auf den
+  // Fortschritt statt auf den Spieler; die Raster-Pruefung gilt trotzdem,
+  // denn das Fenster beginnt zu einem Zeitpunkt.
+  let race: RaceDef | null = null;
+  if (isRecord(source['race'])) {
+    const atMs = number(source['race']['atMs'], 0);
+    const windowMs = number(source['race']['windowMs'], 0);
+    if (atMs < 0) problems.push('Das Wettrennen beginnt vor dem Kampf (atMs).');
+    if (atMs % TICK_MS !== 0) {
+      problems.push(
+        `race.atMs ${atMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'Spiel und Simulator begännen das Fenster zu verschiedenen Zeitpunkten.',
+      );
+    }
+    if (windowMs <= 0) problems.push('Das Wettrennen hat keine Dauer (windowMs).');
+    const threshold = number(source['race']['threshold'], 0);
+    // Eine Schwelle von 0 waere sofort erreicht — das Fenster endete im selben
+    // Takt, in dem es beginnt, und die Mechanik gaebe es nur auf dem Papier.
+    if (threshold <= 0) {
+      problems.push('Das Wettrennen hat keine Schwelle (threshold) — es endete sofort.');
+    }
+    if (windowMs % TICK_MS !== 0) {
+      problems.push(
+        `race.windowMs ${windowMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          'das Fenster endete auf beiden Seiten verschieden.',
+      );
+    }
+    race = { atMs, windowMs, threshold };
+  }
+
+  let bossHeal: BossHealDef | null = null;
+  if (isRecord(source['bossHeal'])) {
+    const amount = number(source['bossHeal']['amount'], 0);
+    // Eine Heilung von 0 wäre eine Mechanik, die nichts tut — und sie sähe im
+    // Datensatz aus wie eine, die etwas tut.
+    if (amount <= 0) problems.push('Die Boss-Heilung dreht nichts zurück (amount).');
+    bossHeal = { amount };
+  }
+
   // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
   // still — ein Eintrag hinter einem späteren würde nie ausgelöst, und einer
   // neben dem Raster griffe hier später als im Simulator.
@@ -865,6 +987,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       energy,
       doom,
       stacks,
+      race,
+      bossHeal,
       timeline,
       timelineLoopMs,
     },

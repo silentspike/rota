@@ -277,6 +277,18 @@ pub struct Fight {
     doom_charges: u32,
     /// Zahl der exponentiellen Stapel (Issue #216).
     stacks: u32,
+    /// Kampfzeit, zu der das Unverwundbarkeits-Fenster endet (Issue #218).
+    race_ends_at: Option<Millis>,
+    /// Ob das Fenster schon gelaufen ist — es beginnt genau einmal.
+    race_done: bool,
+    /// Wie weit das Ziel geladen ist.
+    race_progress: u32,
+    /// Ob das Ziel zerstoert wurde, statt dass die Zeit ablief.
+    race_won: bool,
+    /// Schaden, der im Fenster verpuffte. Verloren, nicht ausgeteilt.
+    damage_lost_to_race: u32,
+    /// Wie viel Fortschritt der Boss zurueckgedreht hat.
+    boss_healed: u32,
     /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
     ///
     /// Zeigt auf den **naechsten** faelligen Eintrag. Steht er am Ende der
@@ -450,6 +462,12 @@ impl Fight {
             doom: 0,
             doom_charges: config.boss.doom.map_or(0, |d| d.clear_charges),
             stacks: 0,
+            race_ends_at: None,
+            race_done: false,
+            race_progress: 0,
+            race_won: false,
+            damage_lost_to_race: 0,
+            boss_healed: 0,
             timeline_index: 0,
             casting: None,
             interrupts_missed: 0,
@@ -677,6 +695,7 @@ impl Fight {
             self.expire_coagulation();
             self.expire_fixation();
             self.expire_putrefaction();
+            self.advance_race(now);
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
@@ -764,6 +783,7 @@ impl Fight {
             self.expire_coagulation();
             self.expire_fixation();
             self.expire_putrefaction();
+            self.advance_race(now);
             self.check_phase();
 
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
@@ -911,6 +931,8 @@ impl Fight {
             random_draws: self.rng.total_draws(),
             phases,
             energy,
+            damage_lost_to_race: self.damage_lost_to_race,
+            boss_healed: self.boss_healed,
             doom,
             doom_charges,
             stacks: stacks_trace,
@@ -939,6 +961,12 @@ impl Fight {
         self.doom = 0;
         self.doom_charges = self.boss.doom.map_or(0, |d| d.clear_charges);
         self.stacks = 0;
+        self.race_ends_at = None;
+        self.race_done = false;
+        self.race_progress = 0;
+        self.race_won = false;
+        self.damage_lost_to_race = 0;
+        self.boss_healed = 0;
         self.timeline_index = 0;
         self.casting = None;
         self.interrupts_missed = 0;
@@ -1145,6 +1173,53 @@ impl Fight {
         if let Some((entry, _)) = self.timeline_at(index) {
             self.hit_player(entry.damage);
         }
+        // **Ein Fehler macht Fortschritt rueckgaengig** (11.2, Baustein 5;
+        // Issue #218). Derselbe Ausloeser wie auf der Spielseite: der
+        // durchgekommene Boss-Zauber. WIE VIEL steht im Boss-Datensatz —
+        // fehlt das Feld, heilt nichts.
+        self.heal_boss();
+    }
+
+    /// Das Unverwundbarkeits-Fenster fortschreiben (Baustein 4; Issue #218).
+    ///
+    /// **Eine Stelle fuer beide Schleifen.** `run_with` und `replay` haben je
+    /// eine eigene Takt-Schleife; die Regel zweimal hinzuschreiben hiesse,
+    /// dieselbe Sonderregel an zwei Orten zu pflegen — und einer laeuft
+    /// irgendwann weg.
+    ///
+    /// Genau das ist mir hier passiert: Mein erster Einbau traf nur `run_with`,
+    /// und die Paritaet meldete 0 verlorenen Schaden gegen 380 im Spiel.
+    ///
+    /// Das Fenster beginnt GENAU EINMAL. Eines, das sich wiederholt, waere die
+    /// eskalierende Wiederholung (Baustein 7) — ein anderer Baustein.
+    fn advance_race(&mut self, now: Millis) {
+        let Some(race) = self.boss.race else {
+            return;
+        };
+        if !self.race_done && now >= race.at_ms {
+            self.race_done = true;
+            self.race_ends_at = Some(now + race.window_ms);
+        }
+        if let Some(ende) = self.race_ends_at {
+            if now >= ende {
+                self.race_ends_at = None;
+            }
+        }
+    }
+
+    /// Den Boss um den Betrag aus den Daten heilen (Baustein 5; Issue #218).
+    ///
+    /// Der Fortschritt faellt nie unter null: Ein Boss, der mehr "geheilt"
+    /// wird, als je Schaden gefallen ist, haette negativen Fortschritt, und
+    /// jede Prozentrechnung darueber waere unsinnig.
+    fn heal_boss(&mut self) -> u32 {
+        let Some(heal) = self.boss.boss_heal else {
+            return 0;
+        };
+        let wirklich = heal.amount.min(self.damage);
+        self.damage -= wirklich;
+        self.boss_healed += wirklich;
+        wirklich
     }
 
     /// Die drei Wege der Koagulation, soweit sie beim Wirken greifen
@@ -1863,6 +1938,27 @@ impl Fight {
 
     /// Traegt Schaden ein und gibt den Betrag zurueck.
     fn deal(&mut self, index: usize, amount: u32, kind: LogKind) -> u32 {
+        // **Im Unverwundbarkeits-Fenster kommt nichts am Boss an** (11.2,
+        // Baustein 4; Issue #218) — aber der Schaden ist nicht weg. Er laedt
+        // das Ziel und zaehlt als VERLOREN; das ist nicht dasselbe wie mal
+        // null, und die Zahl gehoert in die Fehleranalyse (GAME-DESIGN 15.3).
+        //
+        // Hier und nur hier, aus demselben Grund wie die Umwandlung unten:
+        // Jeder ausgeteilte Schaden laeuft durch diese Funktion. Auf der
+        // Spielseite tut das `bookProgress`, und ein Prueffall haelt dort
+        // fest, dass es nur eine Stelle gibt.
+        if self.race_ends_at.is_some() {
+            self.damage_lost_to_race += amount;
+            if let Some(race) = self.boss.race {
+                self.race_progress += amount;
+                if self.race_progress >= race.threshold {
+                    self.race_won = true;
+                    self.race_ends_at = None;
+                }
+            }
+            self.log.push(self.time, kind, index as u8, amount);
+            return amount;
+        }
         self.damage += amount;
         self.damage_by_spell[index] += amount;
         self.log.push(self.time, kind, index as u8, amount);
@@ -2158,6 +2254,15 @@ impl Fight {
         for i in 0..MAX_DECAY_STACKS {
             h = mix_int(h, self.decay_expiry_at(i) as i32);
         }
+        // **Angehaengt, nicht eingeschoben** (Issue #218). Ohne sie waere die
+        // Pruefsumme fuer einen Boss mit Unverwundbarkeits-Fenster blind: Zwei
+        // Laeufe mit verschieden viel verlorenem Schaden saehen gleich aus,
+        // solange der ausgeteilte uebereinstimmt — und im Fenster stimmt er
+        // ueberein, denn dort waechst er gar nicht.
+        h = mix_int(h, i32::from(self.race_ends_at.is_some()));
+        h = mix_int(h, self.race_progress as i32);
+        h = mix_int(h, self.damage_lost_to_race as i32);
+        h = mix_int(h, self.boss_healed as i32);
         h
     }
 
