@@ -5,7 +5,7 @@
 //! Unterschied je gesehen hätte — er belegt nur, dass nach der Reparatur
 //! Ruhe ist.
 use rota_sim::data::boss_by_id;
-use rota_sim::{rotation, Fight, FightConfig};
+use rota_sim::{Fight, FightConfig};
 
 #[test]
 fn was_der_simulator_am_kollisions_boss_misst() {
