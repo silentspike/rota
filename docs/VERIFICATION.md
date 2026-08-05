@@ -65,13 +65,42 @@ gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
   -q '.mergeable+" | "+.mergeStateStatus+" | "+([.statusCheckRollup[]|select(.name=="ci-pass")|.conclusion//"laeuft"]|join(","))'
 ```
 
-| Ausgabe                          | Bedeutung                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------- |
-| `MERGEABLE \| BLOCKED \|`        | Checks laufen — warten ist richtig                                        |
-| `CONFLICTING \| DIRTY \|`        | **Es wird nie etwas kommen.** Zweig aktualisieren lassen                  |
-| `MERGEABLE \| CLEAN \| SUCCESS`  | fertig                                                                    |
-| `UNKNOWN \| UNKNOWN \|`          | **Zwei ganz verschiedene Lagen** — siehe unten                            |
-| `MERGEABLE \| BEHIND \| SUCCESS` | **Fertig, aber nicht mergefähig** — `strict` verlangt den aktuellen Stand |
+| Ausgabe                            | Bedeutung                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `MERGEABLE \| BLOCKED \|`          | Checks laufen — warten ist richtig                                                 |
+| `CONFLICTING \| DIRTY \|`          | **Es wird nie etwas kommen.** Zweig aktualisieren lassen                           |
+| `MERGEABLE \| CLEAN \| SUCCESS`    | fertig                                                                             |
+| `UNKNOWN \| UNKNOWN \|`            | **Zwei ganz verschiedene Lagen** — siehe unten                                     |
+| `MERGEABLE \| BEHIND \| SUCCESS`   | **Fertig, aber nicht mergefähig** — `strict` verlangt den aktuellen Stand          |
+| `MERGEABLE \| UNSTABLE \| SUCCESS` | **`ci-pass` grün, ein Check außerhalb davon nicht** — der PR ist trotzdem mergebar |
+
+#### `UNSTABLE` ist Absicht, kein Loch
+
+Am 2026-08-05 stand an PR #376 `MERGEABLE | UNSTABLE | SUCCESS`. `ci-pass` war grün, der
+Gesamtzustand nicht — `pr-title` war rot, weil der Titel keinen Conventional-Commits-Präfix trug.
+
+**Der Reflex, daraus einen Befund zu machen, ist falsch.** Der Kopf von `.github/workflows/meta.yml`
+sagt, warum:
+
+> Was hier bleibt, ist bewusst **nicht** Teil von `ci-pass`: ein falscher PR-Titel ist kosmetisch
+> und soll den Code nicht blockieren, aber sichtbar sein.
+>
+> `actionlint` und `secret-scan` sind aus genau diesem Grund nach `ci.yml` gewandert (PR #66):
+> Ein gefundenes Geheimnis oder ein syntaktisch kaputter Workflow darf **nicht** mergebar sein.
+
+Die Trennung ist gemessen und begründet. Was daraus für die Abnahme folgt:
+
+```bash
+gh pr checks <n> | grep -v pass     # bei UNSTABLE: wer fällt?
+```
+
+**`UNSTABLE` heißt: hinsehen, dann entscheiden.** Nicht wegmergen, aber auch nicht blockieren —
+die Frage ist, _welcher_ Check fällt, und die Antwort steht in einem Aufruf.
+
+> Beinahe-Panne desselben Tages: Der Orchestrator hielt die Trennung für ein Loch im Required
+> Check, maß die Jobs, die Aggregat-Struktur und die Branch Protection — und las den Kommentar
+> über der Datei nicht, die er ändern wollte. **Dieselbe Bewegung wie „einen Wächter bauen, ohne
+> zu suchen, ob es einen gibt": Die Antwort stand an der Stelle, an der die Arbeit anfing.**
 
 **`UNKNOWN` heißt entweder „GitHub rechnet noch" oder „der PR ist längst gemergt".** GitHub
 berechnet `mergeable` asynchron; bei einem geschlossenen PR steht dort dauerhaft nichts. Beim
