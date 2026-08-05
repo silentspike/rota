@@ -95,6 +95,24 @@ pub enum EventKind {
         /// Fortschrittszaehler der Zeitleiste, siehe [`EventKind::TimelineStep`].
         index: u32,
     },
+    /// Die Wirkzeit eines SPIELER-Zaubers ist um — er wirkt jetzt
+    /// (GAME-DESIGN 7.1, Issue #304).
+    ///
+    /// Steht hinter allen Handlungen des Bosses und vor dem Weckruf, genau wie
+    /// in `Combat::stepPassive`: Ein abbrechender Schlag im selben Takt muss
+    /// den Zauber noch erwischen koennen. Stuende die Aufloesung davor, kaeme
+    /// der Schaden durch und der Abbruch ginge ins Leere.
+    PlayerCastLands {
+        /// Index des Zaubers in `data::SPELLS`.
+        spell: u8,
+        /// Welcher Wirkvorgang gemeint ist.
+        ///
+        /// Dieselbe Vorsichtsmassnahme wie bei `DotTick`: Ein abgebrochener
+        /// Zauber laesst seinen Weckruf in der Schlange stehen. Ohne diesen
+        /// Zaehler loeste ein spaeterer Wirkvorgang desselben Zaubers ihn
+        /// versehentlich frueh aus.
+        generation: u16,
+    },
     /// Nur aufwachen: Zu diesem Zeitpunkt kann sich eine Entscheidung ergeben
     /// (Abklingzeit oder globale Wartezeit ist abgelaufen), oder es ist zu
     /// pruefen, ob der Boss gefallen ist.
@@ -125,7 +143,10 @@ impl EventKind {
             EventKind::StackTick => 6,
             EventKind::TimelineStep { .. } => 7,
             EventKind::BossCastLands { .. } => 8,
-            EventKind::Wakeup => 9,
+            // Die eigene Wirkzeit zuletzt unter den Zeit-Ereignissen und vor
+            // dem Weckruf (Issue #304) — dieselbe Stelle wie im Spiel.
+            EventKind::PlayerCastLands { .. } => 9,
+            EventKind::Wakeup => 10,
         }
     }
 }

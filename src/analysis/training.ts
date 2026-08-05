@@ -166,6 +166,9 @@ function buildDummyTimeline(settings: DummySettings): readonly TimelineEntryDef[
         name: 'Dummy Cast',
         damage: schaden,
         castTimeMs: DUMMY_CAST_TIME_MS,
+        // Die Puppe bricht nichts ab (Issue #304): Sie ist ein Prueffeld,
+        // kein Boss mit Mechanik.
+        interruptsPlayer: false,
       });
     }
   }
@@ -186,6 +189,9 @@ function buildDummyTimeline(settings: DummySettings): readonly TimelineEntryDef[
         name: 'Dummy Strike',
         damage: DUMMY_DAMAGE,
         castTimeMs: 0,
+        // Die Puppe bricht nichts ab (Issue #304): Sie ist ein Prueffeld,
+        // kein Boss mit Mechanik.
+        interruptsPlayer: false,
       });
     }
   }

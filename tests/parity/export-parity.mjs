@@ -105,6 +105,8 @@ import {
   runawayProgressPayload,
   LEVEL_30_NAME,
   level30Payload,
+  CAST_TIME_NAME,
+  castTimePayload,
 } from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -148,6 +150,15 @@ console.log(`geschrieben: ${level30Path}`);
 console.log(
   `  Stufe 30      vessel ${level30.player.vesselAtLevel} statt ${level30.player.vessel}` +
     `, Schaden ${level30.expected.damage}`,
+);
+
+const castTime = castTimePayload();
+const castTimePath = join(here, 'recordings', `${CAST_TIME_NAME}.json`);
+writeFileSync(castTimePath, serialize(castTime), 'utf8');
+console.log(`geschrieben: ${castTimePath}`);
+console.log(
+  `  Wirkzeit      ${castTime.expected.testCastCasts} Wirkungen, ` +
+    `${castTime.expected.castsInterrupted} abgebrochen`,
 );
 
 const runawayProgress = runawayProgressPayload();

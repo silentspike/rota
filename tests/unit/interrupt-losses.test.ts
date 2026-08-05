@@ -190,8 +190,22 @@ describe('Die Gelegenheits-Daten selbst', () => {
     const gemischt: BossDef = {
       ...ONSLAUGHT,
       timeline: [
-        { atMs: 3000, mechanic: 'interruptibleCast', name: 'A', damage: 1000, castTimeMs: 2000 },
-        { atMs: 10_000, mechanic: 'interruptibleCast', name: 'B', damage: 3000, castTimeMs: 2000 },
+        {
+          atMs: 3000,
+          mechanic: 'interruptibleCast',
+          name: 'A',
+          damage: 1000,
+          castTimeMs: 2000,
+          interruptsPlayer: false,
+        },
+        {
+          atMs: 10_000,
+          mechanic: 'interruptibleCast',
+          name: 'B',
+          damage: 3000,
+          castTimeMs: 2000,
+          interruptsPlayer: false,
+        },
       ],
     };
     const daten = interruptDataFor(new Combat({ school: CALCINATION.value, boss: gemischt }));

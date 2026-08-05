@@ -43,6 +43,14 @@ const FIXATION_JSON: &str = "../data/spells/fixation.json";
 /// SUBLIMATION: der Verkuerzer und der Ruecksetzer (Issue #201).
 const SUBLIMATION_JSON: &str = "../data/spells/sublimation.json";
 const PUTREFACTION_JSON: &str = "../data/spells/putrefaction.json";
+/// Der Pruef-Zauber zur Wirkzeit (Issue #304), relativ zu `sim/`.
+///
+/// **Er gehoert nicht zum Spiel** — seine Stufe liegt ueber der Grenze, und
+/// beide Stellen, die dem Spieler Zauber anbieten, filtern darueber. Er steht
+/// hier, weil der Simulator dieselbe Zauberliste braucht wie das Spiel: Was
+/// nicht in `SPELLS` steht, laesst sich in keiner Aufzeichnung druecken und
+/// damit nicht auf Gleichlauf pruefen.
+const TEST_CAST_JSON: &str = "../data/spells/test-cast.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -73,6 +81,7 @@ fn main() {
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
     println!("cargo:rerun-if-changed={SUBLIMATION_JSON}");
     println!("cargo:rerun-if-changed={PUTREFACTION_JSON}");
+    println!("cargo:rerun-if-changed={TEST_CAST_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
@@ -87,6 +96,7 @@ fn main() {
     let fixation = read_json(FIXATION_JSON);
     let sublimation = read_json(SUBLIMATION_JSON);
     let putrefaction = read_json(PUTREFACTION_JSON);
+    let test_cast = read_json(TEST_CAST_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -97,14 +107,20 @@ fn main() {
 
     emit_school(&mut out, &spells);
     emit_resource(&mut out, &spells);
+    // Die Reihenfolge dieser Liste bestimmt die Zauber-Indizes. Sie ist
+    // dieselbe wie in `src/core/data.ts` (Konstante `CALCINATION`) und darf
+    // nur HINTEN wachsen.
     emit_spells(
         &mut out,
         &spells,
-        &common,
-        &coagulation,
-        &fixation,
-        &sublimation,
-        &putrefaction,
+        &[
+            ("common.json", &common),
+            ("coagulation.json", &coagulation),
+            ("fixation.json", &fixation),
+            ("sublimation.json", &sublimation),
+            ("putrefaction.json", &putrefaction),
+            ("test-cast.json", &test_cast),
+        ],
     );
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
@@ -249,15 +265,18 @@ fn emit_resource(out: &mut String, spells: &Value) {
     let _ = writeln!(out, "}};\n");
 }
 
-fn emit_spells(
-    out: &mut String,
-    spells: &Value,
-    common: &Value,
-    coagulation: &Value,
-    fixation: &Value,
-    sublimation: &Value,
-    putrefaction: &Value,
-) {
+/// Die Zauberliste erzeugen.
+///
+/// `weitere` sind die Dateien HINTER der Schule, **in genau der Reihenfolge, in
+/// der sie angehaengt werden** — jeweils mit ihrem Dateinamen fuer die
+/// Fehlermeldung. Eine Liste statt einzelner Parameter, seit die siebte Datei
+/// dazukam (Issue #304): clippy laesst hoechstens sieben Argumente zu, und die
+/// Aufzaehlung am Aufrufer sagt ohnehin deutlicher, worauf es hier ankommt.
+///
+/// **Die Reihenfolge ist die Aussage.** Sie bestimmt die Indizes, und die
+/// stehen in jeder aufgezeichneten Runde; wer eine Datei dazwischenschiebt,
+/// deutet jede alte Aufzeichnung still um.
+fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
         "id",
@@ -273,38 +292,18 @@ fn emit_spells(
     // Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3): Sie bestimmt
     // die Indizes, und die stehen in jeder aufgezeichneten Runde. Sie
     // umzustellen deutete jede alte Aufzeichnung still um.
-    let gemeinsame = common
-        .get("spells")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("common.json: Liste \"spells\" fehlt"));
     // **Neue Zauber kommen HINTEN dazu, nie dazwischen.** Die Reihenfolge
     // bestimmt die Indizes, und die stehen in jeder aufgezeichneten Runde —
     // QUENCH von Platz 3 auf Platz 6 zu schieben deutete jede alte
     // Aufzeichnung still um, ohne dass ein Prueffall es meldet.
-    let koagulation = coagulation
-        .get("spells")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("coagulation.json: Liste \"spells\" fehlt"));
-    let fixierung = fixation
-        .get("spells")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("fixation.json: Liste \"spells\" fehlt"));
-    let zersetzung = putrefaction
-        .get("spells")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("putrefaction.json: Liste \"spells\" fehlt"));
-    let sublimierung = sublimation
-        .get("spells")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("sublimation.json: Liste \"spells\" fehlt"));
-    let list: Vec<&Value> = list
-        .iter()
-        .chain(gemeinsame.iter())
-        .chain(koagulation.iter())
-        .chain(fixierung.iter())
-        .chain(sublimierung.iter())
-        .chain(zersetzung.iter())
-        .collect();
+    let mut list: Vec<&Value> = list.iter().collect();
+    for (datei, quelle) in weitere {
+        let eintraege = quelle
+            .get("spells")
+            .and_then(Value::as_array)
+            .unwrap_or_else(|| panic!("{datei}: Liste \"spells\" fehlt"));
+        list.extend(eintraege.iter());
+    }
 
     let _ = writeln!(
         out,
@@ -672,10 +671,19 @@ fn emit_timeline(out: &mut String, boss: &Value, whose: &str) {
             );
         }
 
+        // Bricht dieser Angriff eine laufende Wirkzeit des SPIELERS ab?
+        // (GAME-DESIGN 7.1, Issue #304.) Ohne Angabe `false` — ein bestehender
+        // Boss aendert sein Verhalten durch dieses Feld nicht.
+        let interrupts_player = entry
+            .get("interruptsPlayer")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
         let _ = writeln!(
             out,
             "            TimelineEntry {{ at_ms: {at}, mechanic: {:?}, \
-             name: {:?}, kind: {kind}, damage: {}, cast_time_ms: {cast_time} }},",
+             name: {:?}, kind: {kind}, damage: {}, cast_time_ms: {cast_time}, \
+             interrupts_player: {interrupts_player} }},",
             mechanic,
             text(entry, "name", &whose),
             opt_uint(entry, "damage", &whose, 0)
