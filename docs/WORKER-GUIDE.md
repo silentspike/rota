@@ -456,10 +456,10 @@ Nach jedem Neuexport der Vergleichsdateien gilt die Regel: **Ändert sich mehr a
 Prüfsummen, hat sich eine Regel bewegt.** Sie ist richtig — und sie zweimal falsch anzuwenden
 kostet eine Viertelstunde und, schlimmer, das Vertrauen in sie.
 
-| Versuch                                     | Was passierte                                                                                                                                                 |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `expected` als **Ganzes** verglichen        | Meldete „in sieben Dateien geändert" — darin stecken `finalChecksum` und `sequenceChecksum`. Ein Fehlalarm, der wie ein Befund aussah                         |
-| Rekursiv verglichen, Prüfsummen ausgenommen | Fand `allBossIds: + test-crucible-trial`. Korrekt (ein neuer Prüf-Boss gehört in die Liste), aber kein Prüfsummen-Feld — die erste Fassung hatte es übersehen |
+| Versuch                                     | Was passierte                                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `expected` als **Ganzes** verglichen        | Meldete „in sieben Dateien geändert" — darin stecken `finalChecksum` und `sequenceChecksum`. Ein Fehlalarm, der wie ein Befund aussah |
+| Rekursiv verglichen, Prüfsummen ausgenommen | Fand `allBossIds: + test-crucible-trial`. Korrekt (ein neuer Prüf-Boss gehört in die Liste), aber kein Prüfsummen-Feld                |
 
 > **Die Probe soll den Fall fangen, in dem sich eine Regel bewegt hat.** Genau dieser Fall — eine
 > Boss-Liste wächst — sieht in der Datei aus wie ein Spielwert und ist einer. Dass er harmlos
@@ -473,6 +473,30 @@ Und der Grund, warum ein Fehlalarm teurer ist als er aussieht, stammt von dem We
 passierte:
 
 **„Wer das zweimal erlebt, hört auf hinzusehen."**
+
+### Und der Bezugspunkt ist die Merge-Base, nicht HEAD
+
+_Nachgetragen am 2026-08-05, nachdem der Abschnitt oben den Fehler falsch benannt hatte._
+
+Die erste Fassung der Probe war **nicht blind** — sie maß gegen den falschen Stand:
+
+```
+Basis HEAD               vessel-phases.json: expected, checksums
+Basis merge-base(main)   vessel-phases.json: allBossIds, expected, checksums
+```
+
+Der neue Prüf-Boss kam im **ersten** Commit des Zweigs herein und stand zum Zeitpunkt der
+Messung längst in der Basis. Der Unterschied war real — nur nicht gegenüber dem Stand, gegen den
+verglichen wurde.
+
+> **Wer gegen HEAD misst, misst den letzten Schritt und nennt es die Abnahme.**
+
+Das ist wichtig für den Abschnitt darüber: Eine Positivliste allein hätte diesen Fall **nicht**
+gefangen. Mit falschem Bezugspunkt meldet auch eine vollständige Liste nichts, weil sie nichts zu
+vergleichen bekommt. Es sind zwei unabhängige Regeln, und beide werden gebraucht.
+
+Gefunden hat es der Werker selbst — an einem Befund, den der Orchestrator ihm als Lücke seiner
+Probe gemeldet hatte.
 
 ### Eine Zahl ohne committeten Läufer ist eine Behauptung
 
