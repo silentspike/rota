@@ -194,8 +194,19 @@ export class Overlay {
    * Das Overlay bekommt den Namen als Wert und nicht den Boss selbst: Es
    * zeichnet einen Vorbereitungs-Bildschirm und hat mit Kampfdaten nichts zu
    * tun. Wer ihm den ganzen Boss gäbe, lüde ihn ein, mehr daraus zu lesen.
+   *
+   * @param resistances Fertige Zeilen über die Widerstände (Issue #328) —
+   *   **nicht** die Abbildung aus dem Datensatz. Dieselbe Regel wie beim
+   *   Namen, ein Feld weiter: Das Overlay soll den Text setzen, nicht ihn
+   *   herleiten. Wer ihm `Record<string, number>` gäbe, verlagerte die
+   *   Entscheidung „ab wann heißt ein Faktor Widerstand" in die Anzeige.
    */
-  constructor(parent: HTMLElement, bossName: string, actions: OverlayActions) {
+  constructor(
+    parent: HTMLElement,
+    bossName: string,
+    actions: OverlayActions,
+    resistances: readonly string[] = [],
+  ) {
     this.root = element('div', 'rota-overlay');
 
     // --- Vorbereitung: keine Uhr, kein Zeitdruck (GAME-DESIGN 10) -----------
@@ -211,6 +222,27 @@ export class Overlay {
         'Cooldowns run during preparation. The clock does not.',
       ),
     );
+    // **Die Widerstände, VOR dem Kampf** (GAME-DESIGN 11.4, Issue #328):
+    //
+    // > Vorher sichtbar in der Boss-Übersicht — die Zusammenstellung ist
+    // > bewusste Vorbereitung, keine böse Überraschung.
+    //
+    // Der Satz steht in derselben Ecke des Designs wie die Zusammenstellung
+    // selbst: Wer erst im Kampf merkt, dass seine Schule abgewehrt wird, kann
+    // nichts mehr daran ändern — die Leiste wird zwischen den Kämpfen gelegt.
+    //
+    // **Nichts, solange nichts anzuzeigen ist.** Ein leerer Kasten für „dieser
+    // Boss hat keine Widerstände" wäre eine Zeile, die bei zehn von elf Bössen
+    // nur Platz kostet.
+    if (resistances.length > 0) {
+      const karte = element('div', 'rota-resistances');
+      karte.appendChild(element('h3', 'rota-resist-heading', 'Resistances'));
+      for (const zeile of resistances) {
+        karte.appendChild(element('p', 'rota-resist-line', zeile));
+      }
+      this.prepare.appendChild(karte);
+    }
+
     // Die Werte-Karte. **Leer, solange es keine Gegenstände gibt** — der
     // Katalog steht noch nicht (GAME-DESIGN 22, vor E6). Sie zeigt sich erst,
     // wenn etwas anzuzeigen ist, und schiebt bis dahin nichts.

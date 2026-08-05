@@ -70,3 +70,38 @@ export function colourOfSchool(school: string | null): string | null {
   if (school === null) return null;
   return SCHOOL_COLOURS[school] ?? null;
 }
+
+/**
+ * Die Widerstände eines Bosses als fertige Zeilen (GAME-DESIGN 11.4, Issue #328).
+ *
+ * > Vorher sichtbar in der Boss-Übersicht — die Zusammenstellung ist bewusste
+ * > Vorbereitung, keine böse Überraschung.
+ *
+ * **Hier und nicht in der Anzeige**, weil hier eine Entscheidung fällt: Ein
+ * Faktor unter 1 heißt „hält ab", einer darüber „ist schwach dagegen". Stünde
+ * sie im Overlay, träfe sie ein Bildschirm — und der nächste Bildschirm träfe
+ * sie noch einmal, vielleicht anders.
+ *
+ * **Die Zahl wird zur Prozentangabe gerundet**, nicht ausgeschrieben: `0.75`
+ * ist ein Rechenwert, „25 % less damage" ist die Aussage darüber. Der Spieler
+ * soll wissen, was ihn erwartet, nicht die Formel nachrechnen.
+ *
+ * Englisch, wie alle Spieltexte (Design-Gesetz 5).
+ *
+ * @returns Eine Zeile je Eintrag, in der Reihenfolge des Datensatzes. Leer,
+ *   wenn der Boss keine trägt — dann zeigt die Anzeige gar nichts, statt einen
+ *   leeren Kasten.
+ */
+export function resistanceLines(resistances: Readonly<Record<string, number>>): string[] {
+  const zeilen: string[] = [];
+  for (const [school, factor] of Object.entries(resistances)) {
+    // Genau 1 heißt „kein Unterschied" und gehört nicht auf den Bildschirm:
+    // Eine Zeile, die nichts aussagt, kostet den Blick, den die echten
+    // Zeilen brauchen.
+    if (factor === 1) continue;
+    const prozent = Math.round(Math.abs(1 - factor) * 100);
+    const richtung = factor < 1 ? 'less' : 'more';
+    zeilen.push(`${school} · ${prozent} % ${richtung} damage`);
+  }
+  return zeilen;
+}

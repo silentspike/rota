@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "test-vulnerable",
+  "name": "The Brittle Vessel",
+  "instance": "testing",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Die Gegenrichtung zu test-resistant (Issue #328).\n\nER IST GEGEN KALZINATION SCHWACH: Faktor 1,25, also 25 % MEHR Schaden von dieser Schule. Das Design nennt beide Richtungen — '20-30 % weniger von der widerstandenen Schule, 20-30 % mehr von der Schwachstelle' —, und eine Umsetzung, die nur mindert, erfuellte die Haelfte davon.\n\nBis auf das eine Feld ist er mit test-resistant Zeichen fuer Zeichen gleich. Das ist der Punkt: Alles, was zwischen den beiden verschieden herauskommt, kommt aus diesem Feld und aus nichts sonst.",
+  "hp": 999999,
+  "overpressureMs": 300000,
+  "phases": [],
+  "energy": null,
+  "doom": null,
+  "stacks": null,
+  "race": null,
+  "bossHeal": null,
+  "runaway": null,
+  "escalation": null,
+  "affliction": null,
+  "timeline": [],
+  "timelineLoopMs": null,
+  "resistances": {
+    "CALCINATION": 1.25
+  },
+  "signature": null
+}

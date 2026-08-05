@@ -281,6 +281,25 @@ pub struct TimelineEntry {
     pub interrupts_player: bool,
 }
 
+impl Boss {
+    /// Der Schadensfaktor dieses Bosses gegen eine Schule.
+    ///
+    /// 1,0, wenn nichts eingetragen ist — dieselbe Vorgabe wie im Spiel
+    /// (`boss.resistances[school] ?? 1`).
+    #[must_use]
+    pub fn resistance_for(&self, school: &str) -> f64 {
+        let mut i = 0;
+        while i < self.resistances.len() {
+            let (name, faktor) = self.resistances[i];
+            if name == school {
+                return faktor;
+            }
+            i += 1;
+        }
+        1.0
+    }
+}
+
 /// Was ein Zeitleisten-Eintrag tut.
 ///
 /// Nur zwei Arten, und das ist Absicht: Die uebrigen der neun Mechanik-
@@ -483,7 +502,13 @@ pub struct Affliction {
 }
 
 /// Ein Boss.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// **Kein `Eq`, seit die Widerstaende dazugekommen sind** (Issue #328): Sie
+/// tragen `f64`, und Fliesskomma kennt keine vollstaendige Gleichheit (NaN ist
+/// sich selbst ungleich). `PartialEq` bleibt und genuegt — verglichen werden
+/// Bosse nur in Prueffaellen, und dort auf Gleichheit, nie als Schluessel einer
+/// Menge.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Boss {
     /// Bezeichner aus der Datei.
     pub id: &'static str,
@@ -525,6 +550,17 @@ pub struct Boss {
     /// Der Wert ist der Zeitversatz je Durchlauf, nicht die Zahl der Eintraege:
     /// Eintrag `i` im Zyklus `z` ist faellig bei `z * loop + at_ms`.
     pub timeline_loop_ms: Option<Millis>,
+    /// Widerstaende gegen die Schulen (GAME-DESIGN 11.4, Issue #328).
+    ///
+    /// Paar aus Schul-Kennung und Faktor: unter 1,0 haelt der Boss die Schule
+    /// ab, ueber 1,0 ist er ihr gegenueber schwach. Leer heisst: kein
+    /// Unterschied, und das ist heute der Normalfall.
+    ///
+    /// **Als Liste und nicht als Abbildung** — die Reihenfolge der Datei ist
+    /// Teil des Determinismus (GAME-DESIGN 18.3), und eine Hash-Abbildung ist
+    /// im Schritt ohnehin verboten (18.4). Bei zwei Eintraegen ist die lineare
+    /// Suche billiger als jede Struktur, und sie laeuft genau einmal je Kampf.
+    pub resistances: &'static [(&'static str, f64)],
 }
 
 impl Boss {

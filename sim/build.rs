@@ -589,7 +589,44 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     emit_escalation(out, boss, whose);
     emit_affliction(out, boss, whose);
     emit_timeline(out, boss, whose);
+    emit_resistances(out, boss, whose);
     let _ = writeln!(out, "    }},");
+}
+
+/// Die Widerstaende des Bosses gegen die Schulen (GAME-DESIGN 11.4, Issue #328).
+///
+/// **Bis zum 2026-08-05 hat der Simulator dieses Feld ueberhaupt nicht
+/// gelesen.** Das Spiel wendet es seit langem an (`combat.ts`,
+/// `resistanceFactor` in den Schadensfaktoren) — hier stand nichts, und
+/// `factors.resistance` blieb auf 1,0. Aufgefallen ist es nie, weil ALLE elf
+/// Boss-Dateien `resistances: {}` tragen und die Suche im Spiel dann ebenfalls
+/// 1,0 liefert. Eine Abweichung, die auf ihre erste Datenzeile gewartet hat.
+///
+/// Als Liste von Paaren und nicht als eine Zahl fuer `SCHOOL`: Die Zuordnung
+/// steht so in den Daten, und ein Bau-Skript, das sie hier schon aufloest,
+/// verlegt eine Regel aus den Daten in den Uebersetzungsvorgang.
+fn emit_resistances(out: &mut String, boss: &Value, whose: &str) {
+    let Some(map) = boss.get("resistances").and_then(Value::as_object) else {
+        let _ = writeln!(out, "        resistances: &[],");
+        return;
+    };
+    if map.is_empty() {
+        let _ = writeln!(out, "        resistances: &[],");
+        return;
+    }
+    let _ = writeln!(out, "        resistances: &[");
+    for (school, faktor) in map {
+        let wert = faktor
+            .as_f64()
+            .unwrap_or_else(|| panic!("{whose}: Widerstand \"{school}\" ist keine Zahl"));
+        assert!(
+            wert > 0.0,
+            "{whose}: Widerstand \"{school}\" ist {wert} — ein Faktor von null \
+             oder darunter macht den Schaden zunichte statt ihn zu mindern"
+        );
+        let _ = writeln!(out, "            ({school:?}, {wert:?}),");
+    }
+    let _ = writeln!(out, "        ],");
 }
 
 /// Das Takt-Raster des Spiels in Millisekunden (`TICK_MS` in `lib.rs`).

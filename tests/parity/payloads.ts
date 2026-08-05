@@ -979,6 +979,63 @@ export function runawayProgressPayload(): Record<string, unknown> {
   };
 }
 
+export const RESISTANCE_NAME = 'resistances';
+
+/**
+ * Ein Kampf gegen einen Boss mit WIDERSTAENDEN, Takt für Takt (Issue #328, AC7).
+ *
+ * **Bis zu diesem Issue hat der Simulator das Feld nicht gelesen.**
+ * `grep -c "resist" sim/build.rs` ergab 0; `factors.resistance` blieb dort auf
+ * 1,0, während das Spiel den Boss-Widerstand seit langem anwendet. Die
+ * Abweichung war unsichtbar, weil alle elf Boss-Dateien `resistances: {}`
+ * trugen und die Suche im Spiel dann ebenfalls 1,0 lieferte — eine Abweichung,
+ * die auf ihre erste Datenzeile gewartet hat.
+ *
+ * **Zwei Läufe, eine Druckfolge.** Dieselbe Aufzeichnung läuft zusätzlich gegen
+ * einen Boss OHNE Widerstände. Beide Zahlen stehen in der Datei, und der
+ * Rust-Prüffall verlangt, dass sie sich unterscheiden: Ohne diesen Vergleich
+ * wäre die Bitgleichheit auch dann grün, wenn der Widerstand auf BEIDEN Seiten
+ * nicht ankommt. Genau das war der Zustand vor diesem Issue.
+ */
+export function resistancePayload(): Record<string, unknown> {
+  const recording = recordings().get(RESISTANCE_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RESISTANCE_NAME}`);
+  const boss = bossById('test-resistant');
+  if (boss === undefined) throw new Error('Der Boss test-resistant fehlt.');
+  const ohne = bossById('test-metronome');
+  if (ohne === undefined) throw new Error('Der Boss test-metronome fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  // Derselbe Druckverlauf gegen den Boss ohne Widerstand — nur für den
+  // Vergleich, nicht für die Prüfsummen.
+  const neutral = replayRecording(recording, { boss: ohne });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      // Die Zahl steht in der Datei, damit der Rust-Prüffall sie nicht
+      // abschreiben muss: Beide Seiten lesen dieselbe Quelle.
+      resistances: boss.resistances,
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      // Derselbe Lauf ohne Widerstand. Der Unterschied IST die Aussage.
+      damageWithoutResistance: neutral.damage,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const CAST_TIME_NAME = 'cast-time';
 
 /**

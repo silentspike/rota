@@ -69,7 +69,7 @@ use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
     stack_damage, stat_at_level, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
-    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    TimelineKind, BOSS, PLAYER, RESOURCE, SCHOOL, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -590,6 +590,21 @@ impl Fight {
             // 1,0 steht.
             factors: DamageFactors {
                 gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
+                // **Der Widerstand des Bosses gegen die eigene Schule**
+                // (GAME-DESIGN 11.4, Issue #328). Er kommt beim Aufbau in die
+                // Faktoren, nicht im Schritt: Der Boss wechselt zwischen den
+                // Kaempfen, nicht in ihnen — dieselbe Stelle wie im Spiel
+                // (`combat.ts`, `resistanceFactor`).
+                //
+                // **Multipliziert, nicht ersetzt.** Das Spiel beginnt bei
+                // NEUTRAL und SETZT den Faktor; hier kommt er aus `config`, und
+                // `balance.rs` faehrt diesen Wert durch, um die Formel zu
+                // vermessen. Ersetzen naehme dem Laeufer seinen Regler. Beide
+                // Rechnungen stimmen ueberein, solange eine der zwei Zahlen 1,0
+                // ist — und das ist auf jedem Paritaets-Weg der Fall: Der
+                // Laeufer faehrt gegen den Standard-Boss ohne Widerstand, die
+                // Aufzeichnungen fahren mit neutralem `config.factors`.
+                resistance: config.factors.resistance * config.boss.resistance_for(SCHOOL),
                 ..config.factors
             },
             worn: config.worn,
