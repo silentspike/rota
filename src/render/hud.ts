@@ -16,6 +16,7 @@
  * Ein Zeichenvorgang je Bild (GAME-DESIGN 18.2): `Surface.beginFrame` läuft genau
  * einmal, danach wird nur noch in dieselbe Fläche gezeichnet.
  */
+import { heldOf } from '../core/summary.js';
 import { TICK_MS } from '../core/loop.js';
 import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
@@ -131,6 +132,7 @@ export class HudRenderer {
     outcome: number;
     elapsedMs: number;
     remainingMs: number;
+    heldPercent: number | null;
     damage: number;
     bossHp: number;
     casts: number;
@@ -140,6 +142,7 @@ export class HudRenderer {
     outcome: 0,
     elapsedMs: 0,
     remainingMs: 0,
+    heldPercent: null,
     damage: 0,
     bossHp: 0,
     casts: 0,
@@ -237,6 +240,9 @@ export class HudRenderer {
     view.outcome = this.session.outcome;
     view.elapsedMs = this.session.fightElapsedMs(shownMs);
     view.remainingMs = this.session.overpressureRemainingMs(shownMs);
+    // Bei einem Boss mit umgekehrtem Ziel trennt der Ring-Rest die Siege, nicht
+    // die Reserve — die ist dort immer null (Issue #256).
+    view.heldPercent = heldOf(combat);
     view.damage = combat.damageDealt;
     view.bossHp = combat.boss.hp;
     view.casts = this.session.acceptedCount;

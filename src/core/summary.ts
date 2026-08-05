@@ -34,6 +34,30 @@ export interface RunSummary {
   readonly elapsedMs: number;
   /** Restzeit bis zum Überdruck in ms. Beim Sieg die Reserve. */
   readonly remainingMs: number;
+  /**
+   * Was einen Sieg vom anderen trennt (Issue #256).
+   *
+   * **Der Fortschritt sagt, WIE WEIT man kam; diese Zahl, WIE GUT.** Bei
+   * einem gewöhnlichen Boss sind alle Siege 100 % Fortschritt, und getrennt
+   * werden sie durch die Zeit — wer schneller war, war besser.
+   *
+   * Bei einem Boss mit `runaway` ist die Zeit fest: Der Sieg IST das Ablaufen
+   * der Frist, die Reserve ist immer 0,00 s und sagt nichts. Dort trennt der
+   * Ring-Rest — wer mehr Reaktion übrig hat, hat besser gehalten.
+   *
+   * | | Fortschritt | trennt die Siege |
+   * | --- | --- | --- |
+   * | gewöhnlich | Schaden am Ring | Restzeit |
+   * | mit `runaway` | überstandene Frist | **Ring-Rest** |
+   *
+   * Dass die beiden Größen die Plätze tauschen, ist die Umkehrung selbst und
+   * keine Ausnahme daneben.
+   *
+   * `null` bei einem gewöhnlichen Boss: Dort trennt die Restzeit, die schon
+   * dasteht. Eine zweite Zahl wäre der „zweite Satz Anzeigen", den die Auflage
+   * verbietet.
+   */
+  readonly heldPercent: number | null;
   readonly damage: number;
   readonly bossHp: number;
   /**
@@ -120,6 +144,17 @@ export function progressOf(combat: Combat, elapsedMs: number): number {
   return Math.min(100, (100 * combat.damageDealt) / combat.boss.hp);
 }
 
+/**
+ * Wie viel Ring am Ende noch stand, in Prozent (Issue #256).
+ *
+ * Nur bei einem Boss mit `runaway`; sonst `null`. Siehe `heldPercent`.
+ */
+export function heldOf(combat: Combat): number | null {
+  if (combat.boss.runaway === null || combat.boss.hp <= 0) return null;
+  const gehalten = combat.boss.hp - combat.damageDealt;
+  return Math.min(100, Math.max(0, (100 * gehalten) / combat.boss.hp));
+}
+
 export interface SummaryInput {
   readonly combat: Combat;
   readonly log: CombatLog;
@@ -175,6 +210,7 @@ export function buildSummary(input: SummaryInput): RunSummary {
     victory: input.victory,
     elapsedMs,
     remainingMs: input.remainingMs,
+    heldPercent: heldOf(combat),
     damage: combat.damageDealt,
     bossHp: combat.boss.hp,
     progressPercent: progressOf(combat, elapsedMs),

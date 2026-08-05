@@ -28,7 +28,7 @@ import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
-import { progressOf } from '../../src/core/summary.js';
+import { heldOf, progressOf } from '../../src/core/summary.js';
 
 const RUNAWAY = bossById('test-runaway');
 if (RUNAWAY === undefined) throw new Error('data/bosses/test-runaway.json fehlt.');
@@ -145,5 +145,53 @@ describe('Die Ränder', () => {
   it('deckelt bei 100, statt darüber zu gehen', () => {
     const combat = laufen(RUNAWAY, 25_000, 'crust');
     expect(progressOf(combat, 999_999)).toBe(100);
+  });
+});
+
+describe('AC4 — der Ring-Rest trennt die Siege', () => {
+  it('nennt bei einem runaway-Boss, wie viel Ring stehen blieb', () => {
+    // **Die Zahl, die es sonst nirgends gibt.** Die Reserve ist bei einem
+    // solchen Sieg immer 0,00 s — der Sieg IST das Ablaufen der Frist. Sie
+    // sagt also nichts darüber, wie gut der Lauf war.
+    const knapp = laufen(RUNAWAY, 25_000, 'crust');
+    expect(knapp.fightState, 'der Lauf muss gewonnen sein').toBe(1);
+
+    const gehalten = heldOf(knapp);
+    expect(gehalten).not.toBeNull();
+
+    // **Die Zahl kommt aus DIESEM Lauf, nicht aus dem Browser.** Dort hielt
+    // derselbe Boss 16 % — mit zwei CRUST-Wirkungen, weil die Tastenfolge des
+    // Nachweises nicht jede Gelegenheit nutzte. Hier wirkt der Lauf CRUST,
+    // sooft es geht: vier Mal.
+    //
+    // Gerechnet: 20 Ticks à 60 sind 1200 Verlust, davon 720 zurückgedrängt,
+    // bleiben 480 von 1000 — also 52 % gehalten.
+    //
+    // Eine Zahl aus einem anderen Lauf zu übernehmen ist derselbe Fehler wie
+    // eine aus einem anderen Zeitfenster; er ist mir in dieser Nacht schon
+    // zweimal passiert.
+    expect(knapp.damageDealt).toBe(480);
+    expect(gehalten).toBeCloseTo(52, 5);
+  });
+
+  it('unterscheidet zwei Siege, die im Fortschritt gleich stehen', () => {
+    // **Der eigentliche Zweck.** Beide Läufe gewinnen, beide stehen bei 100 %
+    // Fortschritt — ohne diese Zahl wären sie nicht zu unterscheiden.
+    const mitCrust = laufen(RUNAWAY, 25_000, 'crust');
+    const langsam = { ...RUNAWAY, runaway: { perStepMs: 1000, amount: 1 } };
+    const kaumVerlust = laufen(langsam as never, 25_000);
+
+    expect(progressOf(mitCrust, mitCrust.endedAt)).toBe(100);
+    expect(progressOf(kaumVerlust, kaumVerlust.endedAt)).toBe(100);
+    expect(heldOf(kaumVerlust), 'wer weniger Ring verloren hat, steht besser da').toBeGreaterThan(
+      heldOf(mitCrust) as number,
+    );
+  });
+
+  it('gibt bei einem gewöhnlichen Boss null — dort trennt die Restzeit', () => {
+    // **Kein zweiter Satz Anzeigen.** Eine zweite Zahl neben der Reserve wäre
+    // genau das, was die Auflage verbietet.
+    const combat = laufen(FIRST_CRUCIBLE.value, 15_000, 'kindle');
+    expect(heldOf(combat)).toBeNull();
   });
 });
