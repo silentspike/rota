@@ -1,58 +1,39 @@
 # Was beim Auftraggeber liegt
 
-Fünf Entscheidungen, die niemand sonst treffen darf, weil sie das Spiel betreffen und nicht seine
-Umsetzung. Jede steht hier mit **Beleg, Optionen und Folge** — und mit dem, was sie blockiert.
+**Stand 2026-08-05, 15:10: Vier der fünf Entscheidungen sind getroffen.** Sie stehen unten mit dem
+Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt. Offen ist
+nur noch eine — und sie hat sich dabei von einer Design- in eine Balance-Frage verwandelt.
 
-> **Diese Datei ist kein Wunschzettel.** Was hier steht, hält Arbeit auf: zwei Issues sind
-> vollständig blockiert, zwei weitere lassen sich nicht abnehmen, ohne die Frage vorher zu
-> beantworten. Ist eine Entscheidung getroffen, wandert sie ins GAME-DESIGN und verschwindet hier.
-
-Stand: 2026-08-05. Gemessen, nicht erinnert — jeder Beleg unten ist ein ausgeführter Befehl.
-
-> **Warum hier keine Zeilennummern stehen.** Die erste Fassung dieser Datei zitierte
-> `overlay.ts:352`. Eine Stunde später war es Zeile 370 — ein gemergter PR hatte die Datei
-> verschoben. Am selben Tag zeigten fünf offene Issues Zeilennummern, hinter denen inzwischen
-> etwas anderes stand. Eine Zeilennummer in einem Dokument ist eine Abschrift, die niemand
-> pflegt; ein `grep` findet die Stelle auch morgen noch.
+|                             | Ergebnis                                                                 |
+| --------------------------- | ------------------------------------------------------------------------ |
+| **1** Doppelbelegung        | **verboten** — ein Zauber liegt auf höchstens einem Platz                |
+| **2** Punktekurve           | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden |
+| **3** `DECAY_STACK_PERCENT` | **auf 6 % anheben**                                                      |
+| **4** Stumme Zauber         | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**         |
+| **5** PUTREFACTION-Farbe    | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen        |
 
 ---
 
-## 1. Darf derselbe Zauber auf zwei Plätzen liegen?
+## 1. Darf derselbe Zauber auf zwei Plätzen liegen? — ENTSCHIEDEN: nein
 
-**Blockiert:** #287 (AC1 verlangt die Antwort, bevor gebaut wird)
+**Ergebnis vom 2026-08-05: Doppelbelegung ist verboten.** Ein Platz ist knapp (12 bis 16 bei 60
+Zaubern), und ihn zu verdoppeln verschenkt ihn.
 
-Die Leiste hat 12 bis 16 Plätze bei 60 Zaubern. Ob **derselbe** Zauber zweimal liegen darf, steht
-nirgends — GAME-DESIGN 714 sagt nur, dass der Spieler bestimmt, welcher Zauber auf welchem Platz
-liegt.
+**Was daraus folgt:**
 
-```
-$ grep -rn "doppelt|bereits belegt|duplicate" src/progression/ src/core/loadout.ts
-(keine Sperre gefunden)
-```
+|                     |                                                                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **#287**            | AC3 ist der zu bauende Zweig: Die Auswahl bietet einen bereits gelegten Zauber nicht erneut an, und ein Spielstand mit Doppelbelegung wird beim Laden bereinigt. AC2/AC4 sind bereits gebaut (PR #288) |
+| **#306**            | Die Auflage zu AC2 entfällt — die Reparatur an `bind()` muss nicht mehr unter zwei Antworten richtig sein. Das war der Grund, aus dem eine Sitzung das Issue abgelehnt hat                             |
+| **GAME-DESIGN 715** | trägt die Regel                                                                                                                                                                                        |
 
-Heute ist es also erlaubt, und die Vorschau zählt es als zwei Einzahler:
+Die Zählung „wie viele Zauber zahlen je Mechanik ein" (Kapitel 16) stimmt damit von selbst.
 
-```
-{ einmal: 1, zweimal: 2 }      derselbe Zauber, ein Platz gegen zwei
-```
+## 2. Wie verläuft die Punktekurve? — OFFEN, und anders zugeschnitten
 
-|              | Argument                                                                               | Folge für die Umsetzung                                                                                            |
-| ------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **erlaubt**  | Ein zweiter Knopf für denselben Zauber kann bequemer unter einem anderen Finger liegen | Die **Zählung** wird repariert: ein Zauber = ein Einzahler                                                         |
-| **verboten** | Ein Platz ist knapp; ihn zu verdoppeln verschenkt ihn                                  | Die **Auswahl** sperrt ihn, und die Zählung stimmt von selbst. Alte Spielstände müssen beim Laden bereinigt werden |
+**Blockiert:** #276 · **hält auf:** E5 insgesamt
 
-**Warum es zählt:** GAME-DESIGN 16 verlangt von der Vorschau die Aussage, _wie viele Zauber je
-Schul-Mechanik einzahlen_ — „man erkennt sofort, ob die Hitze-Mechanik mit nur einem Zauber trägt".
-Zwei Plätze mit demselben Zauber sind keine zwei Einzahler. Die Vorschau beantwortet heute genau die
-Frage falsch, für die es sie gibt.
-
----
-
-## 2. Wie verläuft die Punktekurve?
-
-**Blockiert:** #276 · **hält auf:** E5 insgesamt, weil Freischaltungen und Aufwertung daran hängen
-
-Es gibt keine Punkte. `score` kommt im Quelltext an genau zwei Stellen vor:
+Es gibt keine Punkte. `score` ist ein Strich:
 
 ```
 $ grep -rn "score" src/render/overlay.ts src/analysis/save-format.ts
@@ -61,54 +42,48 @@ $ grep -rn "score" src/render/overlay.ts src/analysis/save-format.ts
   overlay.ts       set('score', '—');       ← der Wert
 ```
 
-Der zweite ist richtig so: GAME-DESIGN 18.5 verbietet berechnete Werte im Spielstand, die auf
-kommende Kämpfe zurückwirken. Es fehlt also nicht die Speicherung, sondern die **Formel**.
-
-Das Design gibt die Richtung vor und lässt die Kurve offen:
+Die Zeile `Score` ist die Punkte-Anzeige aus der Kurzfassung nach dem Kampf — belegt, nicht
+geschlossen:
 
 ```
-$ grep -n "Punkteformel" docs/GAME-DESIGN.md
-  | Punkteformel | Konkrete überproportionale Kurve | E5 |
+GAME-DESIGN 1349   Dann die Kurzfassung: Erfolg/Misserfolg, Restzeit, PUNKTE, drei Kennzahlen
+Plan, Zeile 1093   dieselbe Aufzählung
+Plan, Zeile 53     die Restlaufzeit beim Boss-Sieg wird in Punkte umgerechnet
 ```
 
-**Überproportional** heißt: Die letzten Sekunden Restzeit sind unverhältnismäßig viel wert, damit
-Feinoptimierung sich lohnt. Was fehlt, ist wie stark.
+### Die Frage war falsch gestellt
 
-| Kurve            | Verhalten                                 | Wem sie dient                                 |
-| ---------------- | ----------------------------------------- | --------------------------------------------- |
-| **quadratisch**  | doppelte Restzeit, vierfache Punkte       | ausgewogen; die üblichen Verdächtigen         |
-| **kubisch**      | doppelte Restzeit, achtfache Punkte       | den Könnern; Gelegenheitsspieler sammeln kaum |
-| **exponentiell** | jede Sekunde ist mehr wert als die vorige | dem Endgame, mit Zahlen-Inflation als Preis   |
+Der Orchestrator hat drei Kurven zur Wahl gestellt — quadratisch, kubisch, exponentiell. Antwort des
+Auftraggebers am 2026-08-05:
 
-**Die Entscheidung hat eine Nebenwirkung, die leicht übersehen wird:** Die Punkte sind zugleich das
-Sicherheitsventil. GAME-DESIGN führt Punkte-Schwellen als den Weg, der einem feststeckenden Spieler
-offen bleibt — eine Kurve, die nur Könnern etwas auszahlt, verschließt genau denen das Ventil, die
-es brauchen.
+> Das muss eigentlich durch unsere Simulation getestet werden, damit die Balance passt. Weil wir ja
+> nicht wissen, ob die von dir vorgeschlagenen Settings nicht zu viele oder zu wenige Punkte dann
+> geben.
 
----
+**Das trifft.** Die Kurve entscheidet nicht über den Charakter des Spiels, sondern über eine Zahl —
+und ob sie zu viel oder zu wenig ausschüttet, kann man nicht wissen, sondern nur messen.
 
-## 3. Bleibt `DECAY_STACK_PERCENT` bei 3?
+### Was heute messbar ist und was nicht
 
-**Hält auf:** nichts unmittelbar — aber jede Balance-Aussage zu PUTREFACTION steht darauf
+|                   |                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **nicht messbar** | Ob die Ausschüttung „passt". Dafür fehlt die andere Seite: was Punkte **kosten** (Instanz-Freischaltungen, Aufwertungsstufen). Beides gibt es noch nicht                 |
+| **messbar**       | Das **Verhältnis**: Wie viel mehr bekommt ein sehr guter Lauf gegenüber einem mittelmäßigen? Das beantwortet, ob Feinoptimierung sich lohnt — und dafür ist die Kurve da |
 
-Befund aus #224, gemessen an beiden Seiten:
+**Die Entscheidung bleibt damit offen, aber sie wartet nicht mehr auf dich, sondern auf eine
+Messung.** Als Auflage an #276 nachgetragen.
 
-```
-$ grep -rn "DECAY_STACK_PERCENT" sim/src/fight.rs src/core/combat.ts | grep const
-  fight.rs     pub const DECAY_STACK_PERCENT: u32 = 3;
-  combat.ts    export const DECAY_STACK_PERCENT = 3;
-```
+## 3. Bleibt `DECAY_STACK_PERCENT` bei 3? — ENTSCHIEDEN: auf 6 %
 
-Bei 4,5 s Abklingzeit und 12 s Haltbarkeit sind höchstens **drei** Stapel gleichzeitig erreichbar.
-Drei Stapel à 3 % sind 9 % mehr Schaden von allen Quellen — und der Break-even, ab dem sich der
-Platz auf der Leiste überhaupt lohnt, läge bei **5,4 % je Stapel**.
+**Ergebnis vom 2026-08-05: 6 % je Stapel.** Bei drei erreichbaren Stapeln sind das 18 % statt 9 % —
+über dem Break-even von 5,4 %, ab dem sich der Leisten-Platz rechnet.
 
-**Wenn der Wert bleibt**, ist PUTREFACTION allein nicht spielbar. Das kann gewollt sein — GAME-DESIGN
-sagt ausdrücklich „allein gespielt schwach, braucht immer Partner". Die Frage ist, ob 9 % gegen einen
-verschenkten Leisten-Platz noch „schwach" heißt oder schon „nie die beste Wahl", und das zweite
-verstößt gegen den Grundsatz, dass jeder Zauber irgendwo die beste Wahl sein muss.
+**Der Grund:** Bei 3 % wäre PUTREFACTION **nie** die beste Wahl, und das ist etwas anderes als
+„allein gespielt schwach". Dein Gesetz sagt: jeder Zauber muss irgendwo die beste Wahl sein.
 
----
+**Was daraus folgt:** Der Wert steht auf **beiden** Seiten (`src/core/combat.ts`,
+`sim/src/fight.rs`) und muss dort gleichzeitig geändert werden; danach werden die Vergleichsdateien
+neu exportiert. Die Begründung steht in GAME-DESIGN, Kapitel 7.
 
 ## 4. Wie kommen die sieben fehlenden Klänge zustande?
 
@@ -143,35 +118,19 @@ Einträge als fertig gelten, und lässt den Mangel selbst bestehen.
 
 ---
 
-## 5. Bleibt PUTREFACTION hell-violett statt schwarz-violett?
+## 5. Bleibt PUTREFACTION hell-violett? — ENTSCHIEDEN: ja
 
-**Hält auf:** nichts — die Abweichung ist gebaut und dokumentiert, sie braucht nur ein Ja oder Nein
+**Ergebnis vom 2026-08-05:** Der gebaute Wert `#9b6fd0` bleibt, und GAME-DESIGN wird darauf
+nachgezogen. Die Entscheidung fiel im Rahmen einer Durchsicht **aller 68 Bilddateien** des Projekts
+(`localhost:8000/rota-bilder/`) — Wortlaut: „die bilder passen so fürs erste. wir können ja später
+noch immer neue mit ki generieren."
 
-Das Design sagt:
+**Was daraus folgt:**
 
-```
-$ grep -n "violett" docs/GAME-DESIGN.md
-  | PUTREFACTION | schwarz-violett |
-  > Schwarz-violett braucht auf dunklem Grund sorgfältige Abstimmung.
-```
-
-Gemessen ist es kein Abstimmungsproblem, sondern ein Zielkonflikt. Kontrast gegen den Grund des
-Player Home (`#1a1613`):
-
-```
-#5b3a8e 2,09 · #6d46a5 2,63 · #7a52b5 3,17 · #8d5fc4 3,91 · #9b6fd0 4,78
-```
-
-Alles unter etwa `#9060c8` ist als Text unlesbar. Gebaut ist `#9b6fd0` — **hell**-violett, und damit
-nicht die Design-Farbe. Die vier anderen Schulen liegen bewusst im selben Korridor (5,00 · 6,43 ·
-6,21 · 5,14), damit keine optisch dominiert.
-
-|                          | Folge                                                                                                                               |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **hell-violett bleibt**  | GAME-DESIGN 789 wird auf den gebauten Wert nachgezogen. Kein Code ändert sich                                                       |
-| **schwarz-violett gilt** | Der **Grund** an dieser Stelle wird heller, nicht die Schrift dunkler. Das berührt das Player Home als Ganzes, nicht nur eine Farbe |
-
----
+- Kein Code ändert sich; alle fünf Schulen bleiben im selben Kontrast-Korridor.
+- **Der Bildbestand ist damit abgenommen, aber nicht angeschlossen:** 24 Zauber-Symbole und zwei
+  erzeugte Rahmen liegen im Repository und werden nirgends geladen. Eigener Befund, eigenes Issue.
+- KI-Erzeugung weiterer Bilder ist ausdrücklich für **später** vorgemerkt, nicht für jetzt.
 
 ## Was hier bewusst **nicht** steht
 
