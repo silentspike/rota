@@ -52,7 +52,10 @@ fn ohne_talente_bewegt_sich_nichts() {
 fn mit_talenten_trifft_es_haerter() {
     let ohne = schaden_bei(0);
     let mit = schaden_bei(500);
-    assert!(mit > ohne, "der Faktor kommt im Schaden nicht an: {ohne} -> {mit}");
+    assert!(
+        mit > ohne,
+        "der Faktor kommt im Schaden nicht an: {ohne} -> {mit}"
+    );
 }
 
 #[test]
@@ -62,5 +65,10 @@ fn die_zahl_ist_dieselbe_wie_im_spiel() {
     // auseinander, faellt eine der beiden Seiten.
     let ohne = schaden_bei(0) as f64;
     let mit = schaden_bei(185) as f64;
-    assert_eq!(mit, (ohne * 1.185).round(), "erwartet {} aus {ohne}", (ohne * 1.185).round());
+    assert_eq!(
+        mit,
+        (ohne * 1.185).round(),
+        "erwartet {} aus {ohne}",
+        (ohne * 1.185).round()
+    );
 }
