@@ -17,6 +17,10 @@
  * einmal, danach wird nur noch in dieselbe Fläche gezeichnet.
  */
 import { heldOf, progressOf } from '../core/summary.js';
+import { analyzeRun, interruptDataFor, runDataFor } from '../analysis/run-analysis.js';
+import type { LossReport } from '../analysis/loss-sources.js';
+import type { Combat } from '../core/combat.js';
+import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
@@ -147,6 +151,7 @@ export class HudRenderer {
     elapsedMs: number;
     remainingMs: number;
     heldPercent: number | null;
+    analysis: LossReport | null;
     damage: number;
     progressPercent: number;
     casts: number;
@@ -157,6 +162,7 @@ export class HudRenderer {
     elapsedMs: 0,
     remainingMs: 0,
     heldPercent: null,
+    analysis: null,
     damage: 0,
     progressPercent: 0,
     casts: 0,
@@ -251,6 +257,40 @@ export class HudRenderer {
     ctx.textAlign = 'left';
   }
 
+  /**
+   * Die Fehleranalyse eines beendeten Laufs (Issue #280).
+   *
+   * **824 Zeilen lagen fertig da und liefen im Spiel nie.** `analyzeRun`,
+   * `rankLosses` und `buildLossView` hatten genau einen Aufrufer: das
+   * Prüfblatt aus #81. Der Spieler sah unter „View Analysis" eine Rohliste je
+   * Zauber und sonst nichts — während GAME-DESIGN 15.3 die drei größten
+   * Verlustquellen mit Prozentanteil als Kern der Ansicht nennt.
+   *
+   * Die Eingaben kommen aus dem Kampf, nicht aus der Kurzfassung: `runDataFor`
+   * braucht die tatsächlich belegten Plätze, `interruptDataFor` die
+   * Zeitleiste des Bosses.
+   */
+  private analysisOf(combat: Combat, summary: RunSummary | null): LossReport | null {
+    if (summary === null) return null;
+    const belegte: number[] = [];
+    for (let slot = 0; slot < SLOT_COUNT; slot++) {
+      const spell = this.session.spellOnSlot(slot);
+      if (spell >= 0) belegte.push(spell);
+    }
+    const interrupts = interruptDataFor(combat);
+    return analyzeRun({
+      summary,
+      gcdMs: GCD_MS,
+      spells: runDataFor(combat, summary, belegte),
+      synergyBonusDamage: 0,
+      missedInterrupts: interrupts.missed,
+      damagePerLandedBossCast: interrupts.damagePerLandedCast,
+      // Was der Boss zurückgedreht hat — aus dem Kampf, nicht aus der
+      // Kurzfassung: Es ist keine Kennzahl des Spielers (Issue #218).
+      bossHealed: combat.bossHealed,
+    }).losses;
+  }
+
   /** Sichtbarkeit der HTML-Ebene nachziehen. Fasst nur bei Phasenwechsel an. */
   private syncOverlay(shownMs: number): void {
     const combat = this.session.combat;
@@ -274,6 +314,25 @@ export class HudRenderer {
       this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome
         ? this.session.summary(shownMs)
         : view.summary;
+    // **NACH der Kurzfassung, nicht davor** — und das war ein Befund im
+    // Browser: Meine erste Fassung stand oben bei `heldPercent`, also bevor
+    // `view.summary` gesetzt war. `analysisOf` bekam `null` und gab `null`
+    // zurück; die Rangliste erschien nie, während alle Prüffälle grün waren.
+    //
+    // **Die Fehleranalyse wird HIER gerechnet, nicht im Overlay** (Issue #280).
+    //
+    // Sie braucht den `Combat` (für `runDataFor` und `interruptDataFor`), das
+    // Overlay hat nur den `ResultView`. Ihm den Kampf zu geben hieße, dass es
+    // irgendwann selbst rechnet — und das ist genau die zweite Stelle, die
+    // #256 dort entfernt hat. Sie hat an einem Tag zwei Befunde gekostet.
+    //
+    // Einmal beim Wechsel, nicht je Bild: Die Rechnung erzeugt Speicher und
+    // darf das auch (GAME-DESIGN 18.2), aber nicht sechzig Mal in der
+    // Sekunde. Dieselbe Regel wie bei der Kurzfassung.
+    view.analysis =
+      this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome
+        ? this.analysisOf(combat, view.summary)
+        : view.analysis;
     // Die Marke wird beim selben Wechsel geholt wie die Kurzfassung -- nicht
     // je Bild. Sie aendert sich waehrend der Auswertung nicht.
     if (this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome) {
