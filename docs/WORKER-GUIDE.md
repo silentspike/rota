@@ -1126,6 +1126,37 @@ ein `wc -l`, dessen Ausgabe man abwartet.
 > Der Merksatz stammt aus der Sitzung, die ihn ausgelöst hat, und er ist der kürzeste im Kapitel:
 > **„Ich habe nicht nachgesehen, sondern erinnert."**
 
+#### Belegt heißt nicht zitierfähig — eine laufabhängige Zahl gehört nicht in einen Kommentar
+
+Die vierte Gestalt fragt, ob eine Aussage überhaupt gemessen wurde. Diese hier setzt eine Stufe
+später an: Die Messung **hat** stattgefunden, sie ist richtig — und die Zahl trägt trotzdem nicht.
+
+In #300 stand an einer Zählstelle:
+
+```
+Mit einem langen Cooldown ist sie erreichbar: REFLUX allein (cooldownMs 45000)
+ergibt 1 Takt bereit gegen 1851 Takte nicht bereit.
+```
+
+Eine Nachmessung ergab **2840** Takte. Beide Zahlen sind korrekt gemessen; die Läufe unterschieden
+sich in Kampfdauer und Druckzeitpunkt. Der Bearbeiter, der die Zahl übernommen hatte, nennt den
+Unterschied genau:
+
+> Ich hätte die Zahl als „nicht belegt" behandelt; sie ist aber **belegt und trotzdem nicht
+> zitierfähig**. Das ist ein Unterschied, und er gehört in den Kommentar.
+
+**Eine laufabhängige Zahl an einer Zählstelle ist eine Zahl ohne Bezug.** Wer nachmisst, bekommt
+etwas anderes und weiß nicht, wer sich geirrt hat — und im schlechteren Fall sucht er den Fehler in
+der Rechnung statt im Lauf.
+
+| gehört in einen Kommentar                                        | gehört in einen Prüffall                       |
+| ---------------------------------------------------------------- | ---------------------------------------------- |
+| die **Bedingung**: „mit einem Cooldown über `GCD_MS` erreichbar" | die **Zahl**, mit dem Aufbau, der sie erzeugt  |
+| die **Rechnung**, aus der sie folgt                              | der Gegenfall, der zeigt, dass sie sich bewegt |
+
+Der Vermerk trägt heute beides an seinem Ort — die Bedingung im Kommentar, die Zahl im Fall, und
+dazwischen den Satz, **warum** hier keine Zahl steht. Ohne ihn trägt der nächste sie wieder ein.
+
 #### Bei zwei Seiten muss die Gegenprobe die LESENDE treffen
 
 Eine Verfeinerung der „falschen Stelle", die dem Orchestrator an einem Tag **zweimal** passiert ist —
