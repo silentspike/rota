@@ -1,40 +1,43 @@
 #!/bin/bash
-# AC6 (neu): Kein BESTEHENDER Wert bewegt sich - ausser den drei Pruefsummen.
+# AC6: Was bewegt ein neuer Zauber in den bestehenden Aufzeichnungen?
 #
-# Aufruf aus der Wurzel des Arbeitsbaums:   tools/ac6.sh
-#
-# WARUM ES IHN GIBT (Issue #268)
-# Ein neuer Zauber verschiebt JEDE Pruefsumme - die Schleifen in
-# `combatChecksum` laufen ueber alle Zauber, drei mehr sind drei Durchlaeufe
-# mehr. "Jede bestehende Pruefsumme unveraendert" ist damit kein erfuellbares
-# Kriterium, sobald ein Zauber dazukommt.
-#
-# Was man WIRKLICH wissen will: Hat der neue Zauber einen bestehenden KAMPF
-# veraendert? Dieses Skript beantwortet genau das - es blendet die drei
-# Pruefsummen aus und vergleicht alles uebrige.
-#
-# Erwartet bewegen sich nur `playerCasting` (ein Zauber-INDEX) und
-# `fieldOrder` (Positionen in der Namensliste): data.ts sortiert die
-# Zauberdateien nach DATEINAMEN, und calcination.json ist die erste - jeder
-# Kalzinations-Zauber schiebt alle anderen nach hinten. Meldet das Skript ein
-# ANDERES Feld, hat ein neuer Zauber einen bestehenden Kampf veraendert.
+# Kein BESTEHENDER Wert darf sich bewegen — ausser den drei Pruefsummen.
 # Neue Zauber duerfen Eintraege HINZUFUEGEN; sie duerfen keinen alten aendern.
-# JEDER jq-FEHLER IST EIN ABBRUCH, KEIN STILLES GRUEN - und das ist der
-# wichtigste Teil. Zwei Aufzeichnungs-Formate liegen nebeneinander:
-# fixation.json hat `runs[]`, cast-time.json ist flach. Ein Filter, der nur
-# eines kennt, stuerzt beim anderen ab - und dann verglichen sich zwei LEERE
-# Ausgaben als gleich. So sind einmal 15 Dateien als "unveraendert" gemeldet
-# worden, waehrend der Befehl in Wahrheit abgestuerzt war.
 #
-# Wer dieses Skript aendert: LASS DEN ABBRUCH DRIN. Ein Pruefbefehl, der bei
-# einem Fehler gruen meldet, ist schlimmer als keiner.
+# ZWEI FALLEN, BEIDE AM EIGENEN LEIB GEMESSEN (2026-08-05):
+#
+#   1. Der Bezugspunkt.  Die erste Fassung verglich gegen `git show HEAD:`.
+#      Nach einem Commit ist HEAD der eigene Stand — das Skript verglich die
+#      Datei mit sich selbst und meldete ab da IMMER "OK". Gefunden von
+#      Worker-1, weil ihm das OK zu gut vorkam.
+#      Deshalb: merge-base, und der Bezugspunkt wird AUSGEDRUCKT. Ein
+#      Vergleich, der nicht sagt wogegen, ist keine Messung.
+#
+#   2. Der Abbruch.  Zwei Aufzeichnungs-Formate liegen nebeneinander
+#      (`runs[]` gegen flach). Ein jq-Filter, der eines voraussetzt, stirbt
+#      beim anderen — und zwei leere Ausgaben vergleichen sich als gleich.
+#      Deshalb bricht jeder jq-Fehler mit Exit 2 ab. LASS DAS DRIN.
+set -uo pipefail
+HIER="$(cd "$(dirname "$0")" && pwd)"
+BASIS="${AC6_BASIS:-$(git merge-base origin/main HEAD)}"
+
+if [ "$(git rev-parse "$BASIS")" = "$(git rev-parse HEAD)" ]; then
+  echo "ABBRUCH: Bezugspunkt ist HEAD selbst — es gaebe nichts zu vergleichen."
+  echo "         (Zweig ohne eigene Commits? Dann ist dieses Skript sinnlos.)"
+  exit 2
+fi
+echo "Bezugspunkt: $(git rev-parse --short "$BASIS")  $(git log -1 --format=%s "$BASIS" | cut -c1-60)"
+
 STRIP='walk(if type=="object" then del(.checksums,.sequenceChecksum,.finalChecksum) else . end)'
 schuldig=0
 for p in tests/parity/recordings/*.json; do
-  git show HEAD:"$p" | jq -S "$STRIP" > /work/tmp/ac6-a.json || { echo "ABBRUCH lesen $p"; exit 2; }
-  jq -S "$STRIP" "$p"                 > /work/tmp/ac6-b.json || { echo "ABBRUCH lesen $p"; exit 2; }
+  git show "$BASIS:$p" 2>/dev/null | jq -S "$STRIP" > /work/tmp/ac6-a.json || {
+    # Neue Datei im Zweig: es gibt nichts zu vergleichen, das ist kein Fehler.
+    git cat-file -e "$BASIS:$p" 2>/dev/null || { echo "  neu im Zweig: $(basename "$p")"; continue; }
+    echo "ABBRUCH lesen $p"; exit 2; }
+  jq -S "$STRIP" "$p" > /work/tmp/ac6-b.json || { echo "ABBRUCH lesen $p"; exit 2; }
   bewegt=$(jq -rn --slurpfile a /work/tmp/ac6-a.json --slurpfile b /work/tmp/ac6-b.json \
-           -f "$(dirname "$0")/ac6-vergleich.jq") || { echo "ABBRUCH vergleichen $p"; exit 2; }
+           -f "$HIER/ac6-vergleich.jq") || { echo "ABBRUCH vergleichen $p"; exit 2; }
   [ -n "$bewegt" ] && { printf "%-26s %s\n" "$(basename "$p")" "$bewegt"; schuldig=1; }
 done
 [ $schuldig = 0 ] && echo "OK - kein bestehender Wert bewegt sich"
