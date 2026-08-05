@@ -25,6 +25,7 @@ import type { MarkDisplay, Overlay } from './overlay.js';
 import type { RunSummary } from '../core/summary.js';
 import type { Impact } from './impact.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
+import { MAX_DECAY_STACKS } from '../core/combat.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
@@ -54,6 +55,9 @@ const FONT_TIMER = '46px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_COUNTDOWN = '140px ui-monospace, "DejaVu Sans Mono", monospace';
 
 const LABEL_HEAT = 'HEAT';
+/** Die zwei Mechaniken, die seit #283 danebenstehen (GAME-DESIGN 5). */
+const LABEL_CONTROL = 'CONTROL';
+const LABEL_DECAY = 'DECAY';
 /**
  * Die Rückmeldung, dass der Auswahlmodus scharf steht (Issue E3-3c).
  *
@@ -96,6 +100,15 @@ const BAR_WIDTH = BAR_RIGHT - BAR_LEFT;
 /** Direkt über der Zauberleiste (GAME-DESIGN 9.1). */
 const HEAT_HEIGHT = 26;
 const HEAT_TOP = BLOCK_TOP - 66;
+/**
+ * Die Zahlen stehen ÜBER dem Hitze-Balken, nicht darunter (Issue #283).
+ *
+ * Darunter läge die Zauberleiste; 5 verlangt „direkt über der Zauberleiste",
+ * und drei Anzeigen brauchen dort zwei Zeilen. Die obere trägt die Zahlen,
+ * weil sie schmaler sind als der Balken.
+ */
+const MECHANIC_TOP = HEAT_TOP - 54;
+const MECHANIC_GAP = 150;
 /** Oben links (GAME-DESIGN 9.1). */
 const TIMER_LEFT = 72;
 const TIMER_TOP = 96;
@@ -206,6 +219,7 @@ export class HudRenderer {
     this.drawVesselAndTimer(ctx, shownMs);
     this.impact.draw(ctx, shownMs);
     this.drawHeat(ctx);
+    this.drawMechanicNumbers(ctx);
     this.drawResetPrompt(ctx);
     this.spellBar.draw(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
@@ -587,6 +601,56 @@ export class HudRenderer {
     ctx.font = FONT_TEXT;
     ctx.fillStyle = INK;
     drawIntegerRight(ctx, combat.resource, BAR_RIGHT, HEAT_TOP - 10, this.digitAdvance);
+  }
+
+  /**
+   * Kontrolle und Zersetzung — als ZAHLEN, nicht als Balken (Issue #283).
+   *
+   * DIE FORM FOLGT DER HERKUNFT DER GRENZE
+   * --------------------------------------
+   * | Herkunft | Form | hier |
+   * | --- | --- | --- |
+   * | in den Daten festgelegt | Balken, er darf sich daran binden | Hitze |
+   * | im Code, „wird gemessen" | Zahl mit Nenner | Zersetzung |
+   * | keine | Zahl allein | Kontrolle |
+   *
+   * **Zwei unabhängige Gründe gegen drei Balken**, beide gemessen:
+   *
+   * 1. Der Wertebereich. `control` hat keine Obergrenze — gemessen 82 nach
+   *    einer Minute BIND auf Abklingzeit. Ein Balken müsste eine erfinden, und
+   *    jede Wahl wäre entweder zu klein oder willkürlich.
+   * 2. Der Verfall, und der ist der stärkere. `control` fällt NIE (60 s
+   *    gemessen, unverändert), `decay` verfällt nach 12 s je Stapel, die Hitze
+   *    1 je 2000 ms. **Ein Balken, der nie fällt, sieht kaputt aus.**
+   *
+   * `MAX_DECAY_STACKS` trägt den Kommentar „Wird gemessen": Die Fünf ist ein
+   * Platzhalter des Balance-Läufers. Kästchen wären fünf Kästchen, bis die
+   * Balance läuft — dann sieben, und die Anordnung müsste mitwachsen. „3 / 5"
+   * wird zu „3 / 7" ohne eine Zeile Änderung.
+   *
+   * Sie erscheinen nach derselben Regel wie die Hitze: nur die aktiv
+   * genutzten (GAME-DESIGN 5).
+   */
+  private drawMechanicNumbers(ctx: CanvasRenderingContext2D): void {
+    const combat = this.session.combat;
+    const sichtbar = this.visibleMechanics();
+    ctx.textAlign = 'left';
+
+    let x = BAR_LEFT;
+    const zeichne = (label: string, wert: string): void => {
+      ctx.font = FONT_SMALL;
+      ctx.fillStyle = INK_DIM;
+      ctx.fillText(label, x, MECHANIC_TOP - 10);
+      ctx.font = FONT_TEXT;
+      ctx.fillStyle = INK;
+      ctx.fillText(wert, x, MECHANIC_TOP + 14);
+      x += MECHANIC_GAP;
+    };
+
+    if (sichtbar.includes('control')) zeichne(LABEL_CONTROL, String(combat.control));
+    if (sichtbar.includes('decay')) {
+      zeichne(LABEL_DECAY, `${combat.decayStacks} / ${MAX_DECAY_STACKS}`);
+    }
   }
 
   private drawReadouts(ctx: CanvasRenderingContext2D, shownMs: number): void {
