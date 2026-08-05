@@ -7,8 +7,8 @@
 //!
 //! BAUSTEIN 6 STAND HIER MIT DABEI und ist am 2026-08-05 herausgeschnitten
 //! worden: Der Boss-Ring des Spiels IST die Reaktion (GAME-DESIGN 9.1), ein
-//! zweiter Wert daneben wäre eine Dublette gewesen. Er bekommt ein eigenes
-//! Issue.
+//! zweiter Wert daneben wäre eine Dublette gewesen. Er wird in Issue #247
+//! gebaut, am Ring statt an einem zweiten Wert.
 //!
 //! Zwei Fallen aus seinem Bau bleiben festgehalten, weil sie beim nächsten
 //! Anlauf wieder auftreten werden — beide waren still, und beide fand erst die
