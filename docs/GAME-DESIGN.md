@@ -1023,6 +1023,25 @@ räumlich** und damit für uns unbrauchbar.
 > weiter; **Schutz und Heilung** heben ihn, um ihren eigenen Betrag aus den Zauberdaten. Die
 > Schaden-in-Schutz-Umwandlung bleibt außen vor — sie würde die Bedingung aufheben, die den
 > Kampf ausmacht.
+>
+> **BEDINGUNG AN JEDEN Boss mit `runaway` (gemessen, Issue #394):** Er braucht einen
+> Stabilisierer, der **ohne eingehenden Schaden** wirkt — sonst ist die Hälfte des Weges
+> wirkungslos, und niemand sieht es.
+>
+> Von den beiden Wegen greift nur einer bedingungslos:
+>
+> | Weg                   | wirkt                              | Bedingung                                      |
+> | --------------------- | ---------------------------------- | ---------------------------------------------- |
+> | **Schutz** (`shield`) | um seinen vollen Betrag            | nur beim **Stapeln**, nicht beim Erneuern      |
+> | **Heilung** (`heal`)  | um `min(Betrag, fehlende Anzeige)` | **nur, wenn der Spieler Schaden genommen hat** |
+>
+> Wer einen `runaway`-Boss ohne Spielerschaden baut — leere `timeline` —, macht die Heilung dort
+> zur Nullhandlung: Es fehlt nie etwas, also hebt sie nie. Bei `test-runaway` stabilisiert
+> `salve` bei **jedem** Intervall exakt 0. Der Kampf bleibt gewinnbar, aber nur über `crust`,
+> und ein Spieler mit der falschen Zusammenstellung findet keinen Weg und keinen Hinweis.
+>
+> Die Prüfung dazu steht in `tests/unit/runaway-beatable.test.ts` — sie fällt, wenn ein solcher
+> Boss unschaffbar wird.
 
 Die restlichen 6–11 Bausteine entstehen als **Varianten dieser neun** (z. B. unterbrechbarer Zauber
 mit Schild davor / zwei gleichzeitig, nur einer schaffbar / unterbrechen macht ihn beim nächsten
