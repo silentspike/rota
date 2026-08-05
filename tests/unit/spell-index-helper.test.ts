@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CALCINATION } from '../../src/core/data.js';
+import { bossById, CALCINATION } from '../../src/core/data.js';
+import { Combat } from '../../src/core/combat.js';
 import { spellIndex } from '../helpers/spell-index.js';
 
 /**
@@ -19,5 +20,24 @@ describe('spellIndex', () => {
     // nicht": Der Prüffall liefe weiter und misst nichts. Der Fehler zeigt
     // stattdessen auf den Tippfehler selbst.
     expect(() => spellIndex('gibtsnicht')).toThrow('gibt es nicht');
+  });
+  it('mit combat liest er DESSEN Zauber — heute dieselben (#403)', () => {
+    // **Die Messung, nicht die Behauptung.** combat.spells IST school.spells
+    // (combat.ts:688), und es gibt eine Schule. Der Parameter kann heute also
+    // keinen Unterschied machen — dieser Fall hält fest, dass es so ist, statt
+    // „allgemeiner" zu behaupten.
+    const boss = bossById('test-warden');
+    if (boss === undefined) throw new Error('test-warden fehlt');
+    const combat = new Combat({ school: CALCINATION.value, boss });
+
+    expect(spellIndex('kindle', combat)).toBe(spellIndex('kindle'));
+    expect(combat.spells.map((s) => s.id)).toEqual(CALCINATION.value.spells.map((s) => s.id));
+  });
+
+  it('und wirft auch mit combat bei einem unbekannten', () => {
+    const boss = bossById('test-warden');
+    if (boss === undefined) throw new Error('test-warden fehlt');
+    const combat = new Combat({ school: CALCINATION.value, boss });
+    expect(() => spellIndex('gibtsnicht', combat)).toThrow('gibt es nicht');
   });
 });
