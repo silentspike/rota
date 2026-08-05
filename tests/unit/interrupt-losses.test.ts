@@ -23,8 +23,21 @@ import {
   type RunAnalysis,
 } from '../../src/analysis/run-analysis.js';
 
-const KINDLE = 0;
-const QUENCH = 3;
+/**
+ * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
+ *
+ * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
+ * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
+ * rot, er misst etwas anderes.
+ */
+function indexVon(id: string): number {
+  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
+  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
+  return i;
+}
+
+const KINDLE = indexVon('kindle');
+const QUENCH = indexVon('quench');
 
 /** Ein Boss mit drei unterbrechbaren Zaubern zu je 2000 Schaden. */
 const ONSLAUGHT = bossById('test-onslaught') as BossDef;

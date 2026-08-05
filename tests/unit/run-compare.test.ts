@@ -19,8 +19,21 @@ import { PressQueue } from '../../src/input/queue.js';
 import { EVENT_CRIT, EVENT_DAMAGE, EVENT_DOT_TICK } from '../../src/core/log.js';
 import { compareRuns, sampleDamageCurve } from '../../src/analysis/run-compare.js';
 
-const KINDLE = 0;
-const SMOULDER = 1;
+/**
+ * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
+ *
+ * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
+ * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
+ * rot, er misst etwas anderes.
+ */
+function indexVon(id: string): number {
+  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
+  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
+  return i;
+}
+
+const KINDLE = indexVon('kindle');
+const SMOULDER = indexVon('smoulder');
 const FIGHT_MS = 30_000;
 
 interface Lauf {
