@@ -448,6 +448,128 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Die gefährlichste Reparatur ist die, die den Fehler erst erzeugt
+
+_Gefunden am 2026-08-05 beim Bau von #247, Etappe 2._
+
+Ein Rust-Prüffall erwartete 300 und bekam 240. Das sah aus wie eine Abweichung **zwischen den
+Seiten** — genau der Fall, für den die Parität gebaut ist.
+
+Es war eine Abweichung zwischen **zwei eigenen Prüffällen**:
+
+```
+der im Spiel      lief bis einschließlich 5000
+die Wiedergabe    läuft tick < ticks, also bis 4990
+```
+
+Beide behaupteten dieselbe Zahl und maßen verschiedene Zeiten.
+
+> **Hätte ich die Rust-Seite an das Spiel „angepasst", wäre daraus eine echte Abweichung
+> geworden — an einer Stelle, die nie wieder jemand angesehen hätte.**
+
+Das ist eine eigene Klasse. Die Abschnitte oben behandeln Prüfungen, die nichts fangen. Hier
+fängt die Prüfung etwas Richtiges, und die naheliegende Reparatur macht daraus einen echten
+Fehler: Die Parität hätte danach grün gemeldet, und die beiden Seiten wären wirklich
+auseinander gewesen.
+
+**Die Regel:** Zwei Prüffälle, die dieselbe Zahl behaupten, müssen dieselbe Zeit messen. Bevor
+eine Seite an die andere angeglichen wird, muss belegt sein, **welche** von beiden recht hat —
+und zwar aus einer dritten Quelle, nicht aus der Erwartung.
+
+Erkennungszeichen: Der Unterschied ist klein und „sieht nach Rundung aus". Genau dann lohnt der
+Blick auf die Schleifengrenzen.
+
+### Ein Wächter, dessen Referenz im selben PR mitwächst, kann nicht anschlagen
+
+_Gefunden am 2026-08-05, nachdem derselbe Fall dreimal verschieden erklärt worden war._
+
+`sim/tests/parity_boss_state.rs` prüft seit Längerem, dass Spiel und Simulator dieselbe
+Boss-Menge sehen — das Spiel über `import.meta.glob`, der Simulator über `build.rs`. Sein
+Kommentar sagt: _„AC1 ist erst erfüllt, wenn eine neue Datendatei auf **beiden** ankommt."_
+
+Als in #250 ein neuer Prüf-Boss dazukam, blieb er **grün**. Nicht weil er falsch gebaut war,
+sondern weil die Vergleichsdatei im selben PR mitwuchs: Er verglich zwei Stände, die beide schon
+den neuen Boss kannten.
+
+> Der Wächter ist richtig gebaut, wird ausgeführt, ist grün — und kann in genau dem Moment
+> nichts sagen, in dem sich ändert, was er bewacht.
+
+Das ist gefährlicher als eine Prüfung, die den Fall nicht erreicht: Dort fehlt die Absicherung
+sichtbar. Hier ist sie vorhanden, läuft und meldet Erfolg.
+
+**Die Gegenfrage:** Wächst im selben PR auch das, wogegen geprüft wird? Dann muss die Gegenprobe
+**vor** dem Mitwachsen ansetzen — die Referenz aus `main` nehmen, nicht die neu erzeugte.
+
+### Ein Gegenfall, der aus dem falschen Grund anders ausgeht, belegt nichts
+
+_Vom selben Tag, an derselben Arbeit._
+
+Der Abschnitt oben behandelt Prüfdaten, die den Fall unerreichbar machen. Das hier ist die
+Umkehrung — der Gegenfall geht anders aus, aber aus dem falschen Grund:
+
+```
+Gegenfall: derselbe Lauf gegen den Ersten Schmelztiegel
+  4240 Lebenspunkte, 60 s Frist — KINDLE allein schafft rund 4000
+  Der Lauf endete weder als Sieg noch überhaupt
+```
+
+Er sah aus wie ein Beleg („mit dem Feld gewinnt man, ohne nicht") und belegte nichts: Der zweite
+Lauf scheiterte an der Kampfdauer, nicht am fehlenden Feld.
+
+> **Die Regel:** Zwischen Fall und Gegenfall darf sich **genau eine** Größe unterscheiden. Der
+> Werker hat es so gelöst: derselbe Boss-Datensatz, einmal mit `runaway`, einmal mit
+> `runaway: null`. Ein Feld, sonst nichts.
+
+### Eine Probe braucht die Liste des Erlaubten, nicht des Verbotenen
+
+_Gefunden in der Nacht zum 2026-08-05, an derselben Probe zweimal._
+
+Nach jedem Neuexport der Vergleichsdateien gilt die Regel: **Ändert sich mehr als die
+Prüfsummen, hat sich eine Regel bewegt.** Sie ist richtig — und sie zweimal falsch anzuwenden
+kostet eine Viertelstunde und, schlimmer, das Vertrauen in sie.
+
+| Versuch                                     | Was passierte                                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `expected` als **Ganzes** verglichen        | Meldete „in sieben Dateien geändert" — darin stecken `finalChecksum` und `sequenceChecksum`. Ein Fehlalarm, der wie ein Befund aussah |
+| Rekursiv verglichen, Prüfsummen ausgenommen | Fand `allBossIds: + test-crucible-trial`. Korrekt (ein neuer Prüf-Boss gehört in die Liste), aber kein Prüfsummen-Feld                |
+
+> **Die Probe soll den Fall fangen, in dem sich eine Regel bewegt hat.** Genau dieser Fall — eine
+> Boss-Liste wächst — sieht in der Datei aus wie ein Spielwert und ist einer. Dass er harmlos
+> war, ist Glück, nicht die Leistung der Probe.
+
+**Die Regel:** Führe die Felder, die sich ändern **dürfen** — Prüfsummen plus dokumentierte
+Ausnahmen. Nicht die, die sich nicht ändern sollen. Der Unterschied ist derselbe wie zwischen
+„ist es grün" und „wäre es rot".
+
+Und der Grund, warum ein Fehlalarm teurer ist als er aussieht, stammt von dem Werker, dem er
+passierte:
+
+**„Wer das zweimal erlebt, hört auf hinzusehen."**
+
+### Und der Bezugspunkt ist die Merge-Base, nicht HEAD
+
+_Nachgetragen am 2026-08-05, nachdem der Abschnitt oben den Fehler falsch benannt hatte._
+
+Die erste Fassung der Probe war **nicht blind** — sie maß gegen den falschen Stand:
+
+```
+Basis HEAD               vessel-phases.json: expected, checksums
+Basis merge-base(main)   vessel-phases.json: allBossIds, expected, checksums
+```
+
+Der neue Prüf-Boss kam im **ersten** Commit des Zweigs herein und stand zum Zeitpunkt der
+Messung längst in der Basis. Der Unterschied war real — nur nicht gegenüber dem Stand, gegen den
+verglichen wurde.
+
+> **Wer gegen HEAD misst, misst den letzten Schritt und nennt es die Abnahme.**
+
+Das ist wichtig für den Abschnitt darüber: Eine Positivliste allein hätte diesen Fall **nicht**
+gefangen. Mit falschem Bezugspunkt meldet auch eine vollständige Liste nichts, weil sie nichts zu
+vergleichen bekommt. Es sind zwei unabhängige Regeln, und beide werden gebraucht.
+
+Gefunden hat es der Werker selbst — an einem Befund, den der Orchestrator ihm als Lücke seiner
+Probe gemeldet hatte.
+
 ### Eine Zahl ohne committeten Läufer ist eine Behauptung
 
 _Gefunden am 2026-08-05 beim Abnehmen von #224._
