@@ -21,8 +21,8 @@
 //! Zeit. Ein Simulator, der Ausgänge bewertet, hätte eine zweite Wahrheit
 //! darüber.
 
-use rota_sim::data::boss_by_id;
-use rota_sim::replay::Recording;
+use rota_sim::data::{boss_by_id, index_of};
+use rota_sim::replay::{Binding, Press, Recording};
 use rota_sim::{Fight, FightConfig, TICK_MS};
 
 fn leerer_lauf(boss_id: &str, ticks: u32) -> rota_sim::ReplayResult {
@@ -114,4 +114,59 @@ fn ein_boss_ohne_das_feld_bewegt_sich_nicht_von_selbst() {
     let result = leerer_lauf("first-crucible", 1_000);
     assert_eq!(result.damage, 0);
     assert!(result.killed_at_ms.is_none());
+}
+
+#[test]
+fn ac4_schutz_draengt_den_ring_zurueck_wie_im_spiel() {
+    // **Dieselbe Zahl wie im Spiel**, und "dieselbe" heisst: bei DEMSELBEN
+    // Fenster. 2000 Takte sind t = 0 bis 19990, auf beiden Seiten `tick <
+    // ticks`. Der Prueffall im Spiel misst mit genau dieser Schleife.
+    //
+    // Das ist die Lehre aus Etappe 2, und sie ist mir hier ein zweites Mal
+    // passiert: Mein erster Entwurf liess Rust 2500 Takte laufen und verglich
+    // mit einem Spiel-Lauf, der bei 20000 ms endete — 720 gegen 480. Das sah
+    // nach einer Abweichung zwischen den SEITEN aus und war eine zwischen den
+    // FENSTERN. Haette ich "repariert", waere daraus eine echte geworden.
+    //
+    // Die Belegung steht in der Aufzeichnung: CRUST hat in der Zauberleiste
+    // aus Schritt 1 keinen Platz, und die zu aendern waere eine
+    // Design-Entscheidung — die Belegung eines Pruefstands ist keine.
+    let boss = boss_by_id("test-runaway").expect("test-runaway");
+    let crust = index_of("crust").expect("CRUST unbekannt");
+
+    // Alle 600 Takte druecken: CRUST hat 6 s Abklingzeit.
+    let presses: Vec<Press> = (0..4)
+        .map(|i| Press {
+            tick: i * 600,
+            slot: 0,
+        })
+        .collect();
+    let recording = Recording {
+        name: "mit-crust".to_owned(),
+        seed: 0,
+        ticks: 2_000,
+        bindings: vec![Binding {
+            slot: 0,
+            spell: crust,
+        }],
+        presses,
+    };
+    let mut fight = Fight::new(FightConfig {
+        seed: 0,
+        boss,
+        duration_ms: Some(recording.ticks * TICK_MS),
+        ..FightConfig::default()
+    });
+    let result = fight.replay(&recording, false);
+
+    assert!(
+        result.stabilised > 0,
+        "im Lauf wurde nie zurueckgedraengt — dann prueft dieser Fall nichts"
+    );
+    assert!(
+        result.killed_at_ms.is_none(),
+        "mit CRUST darf der Ring die Frist ueberstehen"
+    );
+    assert_eq!(result.stabilised, 720, "dieselbe Zahl wie im Spiel");
+    assert_eq!(result.damage, 420, "dieselbe Zahl wie im Spiel");
 }

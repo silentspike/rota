@@ -1,15 +1,13 @@
 /**
  * Das umgekehrte Ziel — die Wertung (GAME-DESIGN 11.2, Baustein 6; Issue #247).
  *
- * **Etappen 1 und 2 von dreien.** Die Wertung steht (wie der Lauf ausgeht) und
- * der Ring sinkt von selbst. Was fehlt, ist Etappe 3: Schutz und Heilung
- * drehen ihn zurück — und damit der einzige Weg, einen solchen Kampf zu
- * gewinnen.
+ * **Alle drei Etappen.** Die Wertung dreht sich, der Ring sinkt von selbst,
+ * und Schutz und Heilung drängen ihn zurück — der einzige Weg, einen solchen
+ * Kampf zu gewinnen.
  *
- * **Deshalb ist der Boss zwischen den Etappen unbesiegbar**, und das ist kein
- * Versehen: 60 je Sekunde über 20 s sind 1200 gegen 1000 Lebenspunkte. Der
- * Prüffall zu AC2 sagt das ausdrücklich, statt einen Sieg zu behaupten, den es
- * gerade nicht gibt.
+ * Die Zahlen dahinter: 60 je Sekunde über 20 s sind 1200 gegen 1000
+ * Lebenspunkte. Wer nichts tut, verliert bei 17 s. Wer CRUST wirkt, drängt
+ * 720 zurück und übersteht die Frist.
  *
  * WARUM ZWEI BEDINGUNGEN UND NICHT EINE
  * -------------------------------------
@@ -21,9 +19,10 @@
  * Kehrte sich nur die erste um, wäre es kein umgekehrtes ZIEL, sondern ein
  * zusätzlicher Verlustweg: Der Spieler hätte weiter nichts zu gewinnen.
  *
- * WAS SIE NICHT BELEGEN: dass ein Kampf mit diesem Feld überhaupt zu gewinnen
- * ist. Das kann erst Etappe 3, und bis dahin steht es hier als offene Aussage
- * statt als grüner Haken.
+ * EINE BEOBACHTUNG, DIE KEIN FEHLER IST und trotzdem hierher gehört: Heilung
+ * drängt nur zurück, was sie wirklich heilt. An einem Boss, der keinen Schaden
+ * austeilt, ist sie als Weg wirkungslos — nicht weil der Weg fehlt, sondern
+ * weil es nichts zu heilen gibt. Der Prüffall unten belegt beide Seiten davon.
  */
 import { describe, expect, it } from 'vitest';
 import { Combat, FIGHT_OVERPRESSURE, FIGHT_RUNNING, FIGHT_WON } from '../../src/core/combat.js';
@@ -84,6 +83,18 @@ const LANGSAM = { ...RUNAWAY, runaway: { perStepMs: 1000, amount: 1 } };
  * Antwort, die niemand geprüft hat, ist geraten.
  */
 const MIT_FENSTER = { ...RUNAWAY, race: { atMs: 3000, windowMs: 6000, threshold: 999999 } };
+
+/**
+ * Derselbe Boss, der auch zuschlägt.
+ *
+ * Nötig, um den Heilungs-Weg überhaupt zeigen zu können: SALVE heilt nur, was
+ * fehlt, und drängt deshalb nur zurück, was sie wirklich heilt. Ohne
+ * eingehenden Schaden hat sie nichts zu tun.
+ */
+const MIT_SCHADEN = {
+  ...RUNAWAY,
+  timeline: [{ atMs: 2000, mechanic: 'strike', name: 'Backlash', damage: 2000, castTimeMs: 0 }],
+};
 
 describe('AC1 — der Ring auf null ist die NIEDERLAGE', () => {
   it('endet an der ausgerechneten Stelle, und die Zahl stand vor der Messung fest', () => {
@@ -261,5 +272,104 @@ describe('AC7-Vorgriff — ein Boss ohne das Feld bleibt unberührt', () => {
     laufen(combat, 20000, 'kindle');
     expect(combat.damageDealt).toBe(RUNAWAY.hp);
     expect(combat.fightState).toBe(FIGHT_WON);
+  });
+});
+
+describe('AC4 — Schutz und Heilung drängen den Ring zurück', () => {
+  it('trifft dieselben Zahlen wie der Simulator, im selben Fenster', () => {
+    // **Dasselbe Fenster, oder es ist kein Vergleich.** 2000 Takte, `tick <
+    // ticks`, Drücke bei 0/600/1200/1800 — Zeile für Zeile dieselbe Schleife
+    // wie `sim/tests/parity_runaway.rs`. Bei Etappe 2 hatte ich das schon
+    // einmal verwechselt und den Unterschied für eine Abweichung zwischen den
+    // Seiten gehalten.
+    const combat = neuerKampf();
+    const crust = combat.indexOf('crust');
+    const drucke = new Set([0, 600, 1200, 1800]);
+    combat.beginFight(0);
+    for (let tick = 0; tick < 2000; tick++) {
+      const t = tick * TICK_MS;
+      combat.stepPassive(t);
+      if (drucke.has(tick)) combat.cast(crust, t);
+    }
+    expect(combat.stabilised).toBe(720);
+    expect(combat.damageDealt).toBe(420);
+  });
+
+  it('CRUST holt den SIEG zurück, den es ohne ihn nicht gibt', () => {
+    // **Zwei Läufe, ein Unterschied.** Ohne Eingriff kippt die Reaktion bei
+    // 17 s; mit CRUST übersteht sie die Frist. Das ist der ganze Baustein in
+    // einem Vergleich.
+    const still = neuerKampf();
+    const haltend = neuerKampf();
+    laufen(still, 25000);
+    laufen(haltend, 25000, 'crust');
+
+    expect(still.fightState, 'ohne Eingriff verloren').toBe(FIGHT_OVERPRESSURE);
+    expect(haltend.fightState, 'mit CRUST gewonnen').toBe(FIGHT_WON);
+    expect(haltend.endedAt).toBe(RUNAWAY.overpressureMs);
+    expect(haltend.stabilised, 'und es war wirklich das Zurückdrängen').toBeGreaterThan(0);
+    expect(still.stabilised).toBe(0);
+  });
+
+  it('drängt um den EIGENEN Betrag des Zaubers zurück, nicht um eine erfundene Zahl', () => {
+    const combat = neuerKampf();
+    const crust = combat.indexOf('crust');
+    const schutz = combat.spells[crust]!.shield!.amount;
+    combat.beginFight(0);
+    // Erst den Ring etwas sinken lassen, sonst gibt es nichts zurückzudrängen.
+    for (let t = 0; t <= 3000; t += TICK_MS) combat.stepPassive(t);
+    const vorher = combat.damageDealt;
+    expect(vorher).toBeGreaterThan(0);
+
+    combat.cast(crust, 3000);
+    expect(vorher - combat.damageDealt).toBe(Math.min(schutz, vorher));
+    expect(combat.stabilised).toBe(Math.min(schutz, vorher));
+  });
+
+  it('drängt nie unter null — der Ring wird nicht voller als voll', () => {
+    const combat = neuerKampf();
+    const crust = combat.indexOf('crust');
+    combat.beginFight(0);
+    combat.stepPassive(0);
+    // Bei Takt 0 ist noch kein Fortschritt gefallen: Es gibt nichts
+    // zurückzudrängen, und CRUST darf daraus keinen negativen Ring machen.
+    combat.cast(crust, 0);
+    expect(combat.damageDealt).toBe(0);
+    expect(combat.stabilised).toBe(0);
+  });
+
+  it('SALVE drängt zurück, wenn es etwas zu heilen gibt — und sonst nicht', () => {
+    // **Beide Seiten derselben Sache.** An einem Boss ohne Schaden heilt SALVE
+    // nichts und drängt deshalb nichts zurück; das ist kein fehlender Weg,
+    // sondern eine Heilung ohne Verletzung.
+    const ohneSchaden = neuerKampf();
+    laufen(ohneSchaden, 12000, 'salve');
+    expect(ohneSchaden.stabilised, 'nichts zu heilen, nichts zu drängen').toBe(0);
+
+    const mitSchaden = neuerKampf(MIT_SCHADEN as never);
+    laufen(mitSchaden, 12000, 'salve');
+    expect(mitSchaden.damageTaken, 'der Boss schlägt wirklich zu').toBeGreaterThan(0);
+    expect(mitSchaden.stabilised, 'jetzt hat die Heilung etwas zu tun').toBeGreaterThan(0);
+  });
+
+  it('TEMPER bleibt draußen — das ist die Grenze, keine Lücke', () => {
+    // 11.2 sagt „STATT Schaden zu machen". TEMPER wandelt ausgeteilten Schaden
+    // in Schutz; würde dieser Schutz zurückdrängen, stabilisierte man DURCH
+    // Schaden machen, und die Bedingung des Kampfes wäre aufgehoben.
+    const combat = neuerKampf();
+    laufen(combat, 12000, 'temper');
+    expect(combat.stabilised).toBe(0);
+  });
+
+  it('ein Boss OHNE das Feld kennt das Zurückdrängen nicht', () => {
+    // Sonst hätte jeder gewöhnliche Kampf einen versteckten Weg, Fortschritt
+    // zu verlieren — CRUST würde dort den eigenen Sieg verzögern.
+    const combat = neuerKampf(OHNE_FELD);
+    laufen(combat, 12000, 'kindle');
+    const nurSchaden = combat.damageDealt;
+    const mitSchutz = neuerKampf(OHNE_FELD);
+    laufen(mitSchutz, 12000, 'crust');
+    expect(mitSchutz.stabilised).toBe(0);
+    expect(nurSchaden).toBeGreaterThan(0);
   });
 });

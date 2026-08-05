@@ -289,6 +289,8 @@ pub struct Fight {
     damage_lost_to_race: u32,
     /// Wie viel Fortschritt der Boss zurueckgedreht hat.
     boss_healed: u32,
+    /// Wie viel Fortschritt der Spieler zurueckgedraengt hat (#247).
+    stabilised: u32,
     /// Ob die Schwaechung gerade liegt (Baustein 8, Issue #240).
     afflicted: bool,
     /// Wie oft sie entfernt wurde.
@@ -477,6 +479,7 @@ impl Fight {
             race_won: false,
             damage_lost_to_race: 0,
             boss_healed: 0,
+            stabilised: 0,
             afflicted: false,
             afflictions_cleared: 0,
             timeline_index: 0,
@@ -958,6 +961,7 @@ impl Fight {
             energy,
             damage_lost_to_race: self.damage_lost_to_race,
             boss_healed: self.boss_healed,
+            stabilised: self.stabilised,
             doom,
             doom_charges,
             stacks: stacks_trace,
@@ -996,6 +1000,7 @@ impl Fight {
         self.race_won = false;
         self.damage_lost_to_race = 0;
         self.boss_healed = 0;
+        self.stabilised = 0;
         self.afflicted = false;
         self.afflictions_cleared = 0;
         self.timeline_index = 0;
@@ -1271,10 +1276,39 @@ impl Fight {
         let Some(heal) = self.boss.boss_heal else {
             return 0;
         };
-        let wirklich = heal.amount.min(self.damage);
-        self.damage -= wirklich;
+        let wirklich = self.undo_progress(heal.amount);
         self.boss_healed += wirklich;
         wirklich
+    }
+
+    /// Fortschritt am Ring zurueckdrehen — **die einzige Stelle, die ihn senkt**.
+    ///
+    /// Zwei Dinge drehen zurueck und haben nichts miteinander zu tun ausser
+    /// dieser Zeile: die Boss-Heilung (Baustein 5, #218) als Strafe und das
+    /// Stabilisieren (Baustein 6, #247) als Antwort des Spielers. Die
+    /// Untergrenze gilt fuer beide — ein Boss mit negativem Fortschritt haette
+    /// einen Ring ueber 100 %.
+    ///
+    /// Spiegelbild zu `undoProgress` auf der Spielseite, wo ein Prueffall die
+    /// Schreibstellen zaehlt.
+    fn undo_progress(&mut self, amount: u32) -> u32 {
+        let wirklich = amount.min(self.damage);
+        self.damage -= wirklich;
+        wirklich
+    }
+
+    /// Die davonlaufende Reaktion zurueckdraengen (Baustein 6, Issue #247).
+    ///
+    /// **Schutz und Heilung um IHREN EIGENEN Betrag.** Eine zweite Zahl
+    /// "stabilisiert um X" neben `shield.amount` waere dieselbe Groesse an zwei
+    /// Orten. TEMPER bleibt draussen: Er wandelt ausgeteilten Schaden in
+    /// Schutz — damit stabilisierte man DURCH Schaden machen, und die
+    /// Bedingung des Bausteins waere aufgehoben.
+    fn stabilise(&mut self, amount: u32) {
+        if self.boss.runaway.is_none() {
+            return;
+        }
+        self.stabilised += self.undo_progress(amount);
     }
 
     /// Die drei Wege der Koagulation, soweit sie beim Wirken greifen
@@ -1291,6 +1325,10 @@ impl Fight {
             if self.shield_stacks < shield.max_stacks {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(shield.amount);
+                // **Der Schutz draengt die Reaktion zurueck** (Baustein 6,
+                // #247), um seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim
+                // blossen Erneuern — sonst waere die Obergrenze wirkungslos.
+                self.stabilise(shield.amount);
             }
             self.shield_expires_at = Some(self.time + shield.duration_ms);
             self.queue
@@ -1316,6 +1354,9 @@ impl Fight {
             if wirklich > 0 {
                 self.player_hp += wirklich;
                 self.healed = self.healed.saturating_add(wirklich);
+                // Auch die Heilung draengt zurueck — mit dem Betrag, der
+                // WIRKLICH angekommen ist.
+                self.stabilise(wirklich);
                 self.log
                     .push(self.time, LogKind::Healed, index as u8, wirklich);
             }
