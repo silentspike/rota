@@ -448,6 +448,33 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Ein Wert, der bei der Niederlage fehlt, sagt nichts über den Sieg
+
+_Gefunden am 2026-08-05 beim Browser-Nachweis zu #247._
+
+Ein Boss mit umgekehrtem Ziel wurde im Browser gespielt, der Lauf endete als Niederlage. Der
+Ergebnis-Bildschirm zeigte drei Anzeigen, die **sichtbar** das Gegenteil sagten — und eine
+vierte, die gar nichts sagte:
+
+```
+Punkte:  —
+```
+
+Das las sich wie „kein Sieg, keine Punkte" und war die einzige Stelle, an der es wirklich weh
+tut. Die Punkteformel rechnet die **Restzeit** beim Sieg; bei diesem Boss ist der Sieg das
+Ablaufen der Frist, es gibt also keine Restzeit. Sie hätte still **null** geliefert — für den
+bestmöglichen Lauf dieselbe Punktzahl wie für den knappsten.
+
+> **Die drei anderen Anzeigen logen sichtbar. Die vierte schwieg, und Schweigen liest sich wie
+> Unauffälligkeit.**
+
+**Die Regel:** Ein leeres Feld ist kein geprüftes Feld. Wer einen Fehlschlag ansieht, hat den
+Erfolgsfall nicht gemessen — und umgekehrt. Bei jeder Anzeige, die im geprüften Ausgang **nicht
+vorkommt**, gehört die Frage dazu: _Was stünde hier im anderen Ausgang?_
+
+Gefunden hat es der Werker selbst, nachdem ihm der fehlende vierte Punkt gemeldet worden war. Er
+hat nicht die Liste übernommen, sondern gefragt, **warum** er ihn übersehen hatte.
+
 ### Die gefährlichste Reparatur ist die, die den Fehler erst erzeugt
 
 _Gefunden am 2026-08-05 beim Bau von #247, Etappe 2._
