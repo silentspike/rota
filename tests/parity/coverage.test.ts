@@ -50,9 +50,11 @@ function ausgelieferteZauber(): string[] {
 }
 
 /** Wie oft jeder Zauber in den Aufzeichnungen **gedrückt** wird. */
-function druecke(): Map<string, number> {
+function druecke(
+  dateien: Record<string, Record<string, unknown>> = RECORDINGS,
+): Map<string, number> {
   const zaehler = new Map<string, number>();
-  for (const datei of Object.values(RECORDINGS)) {
+  for (const datei of Object.values(dateien)) {
     const laeufe = Array.isArray(datei['runs'])
       ? (datei['runs'] as Record<string, unknown>[])
       : [datei];
@@ -97,26 +99,47 @@ describe('AC1 — jeder ausgelieferte Zauber wird in einem Paritäts-Weg gewirkt
 
 describe('AC4 — der Wächter unterscheidet Bindung von Wirkung', () => {
   it('ein Zauber, der nur gebunden ist, zählt nicht', () => {
-    // **Die Gegenprobe zum Wächter selbst.** Zählte er Namen statt Drücke,
-    // wäre er heute grün — und der Befund, aus dem dieses Issue entstand,
-    // wäre nie entstanden.
-    const slotZuZauber = new Map([
-      [0, 'kindle'],
-      [1, 'canker'],
-    ]);
-    const presses: Press[] = [{ slot: 0 }, { slot: 0 }];
+    // **Gemessen an `druecke()` selbst, nicht an einer Kopie davon.**
+    //
+    // Hier stand vorher eine nachgebaute Zählschleife — sie prüfte, dass die
+    // drei Zeilen darüber richtig zählen, und die taten es. Über die Funktion,
+    // die der Wächter wirklich benutzt, sagte sie nichts: Eine Sabotage in
+    // `druecke()` (Bindungen mitzählen — genau der Fehler, aus dem dieses
+    // Issue entstand) ließ alle vier Fälle grün.
+    //
+    // Das ist WORKER-GUIDE 8.18: Wer die Zahl nachrechnet, prüft seine eigene
+    // Kopie gegen das Original.
+    const konstruiert = {
+      '/erfunden.json': {
+        bindings: [
+          { slot: 0, spellId: 'kindle' },
+          { slot: 1, spellId: 'canker' },
+        ],
+        presses: [{ slot: 0 }, { slot: 0 }],
+      },
+    };
 
-    const zaehler = new Map<string, number>();
-    for (const press of presses) {
-      const id = slotZuZauber.get(press.slot);
-      if (id !== undefined) zaehler.set(id, (zaehler.get(id) ?? 0) + 1);
-    }
+    const gezaehlt = druecke(konstruiert);
 
-    expect(zaehler.get('kindle')).toBe(2);
+    expect(gezaehlt.get('kindle'), 'KINDLE wurde zweimal gedrückt').toBe(2);
     expect(
-      zaehler.get('canker'),
+      gezaehlt.get('canker'),
       'CANKER liegt auf Platz 1 und wird nie gedrückt — er darf nicht zählen',
     ).toBeUndefined();
+  });
+
+  it('und ein Druck auf einen unbelegten Platz zählt für niemanden', () => {
+    // Die zweite Hälfte derselben Trennung: `?? 0` würde ihn auf Platz 0
+    // schieben und dem dortigen Zauber zuschlagen (Issue #351).
+    const gezaehlt = druecke({
+      '/erfunden.json': {
+        bindings: [{ slot: 0, spellId: 'kindle' }],
+        presses: [{ slot: 0 }, { slot: 7 }],
+      },
+    });
+
+    expect(gezaehlt.get('kindle')).toBe(1);
+    expect([...gezaehlt.keys()], 'ein Druck ins Leere hat jemandem gezählt').toEqual(['kindle']);
   });
 });
 
