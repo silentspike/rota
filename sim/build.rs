@@ -406,6 +406,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
     emit_putrefaction(out, spell);
+    emit_synergy(out, spell);
     emit_fixation(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
@@ -1153,6 +1154,26 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .unwrap_or(0);
     let _ = writeln!(out, "        decay_stacks: {stapel},");
     let _ = writeln!(out, "        per_decay_stack_percent: {je_stapel},");
+}
+
+/// Die Synergie-Beziehung (Issue #318). Fehlt sie, steht sie auf "kein Partner".
+///
+/// **Das Fenster steht in WARTEZEITEN, nicht in Millisekunden** — GAME-DESIGN
+/// 327. Die Millisekunden entstehen erst im Kampf, durch dieselbe
+/// hasted()-Stelle wie jede andere Zeit.
+fn emit_synergy(out: &mut String, spell: &Value) {
+    let partner = spell
+        .get("synergy")
+        .and_then(|s| s.get("partner"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let fenster = spell
+        .get("synergy")
+        .and_then(|s| s.get("windowGcds"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        synergy_partner: {partner:?},");
+    let _ = writeln!(out, "        synergy_window_gcds: {fenster},");
 }
 
 fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
