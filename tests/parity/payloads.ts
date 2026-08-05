@@ -1770,6 +1770,13 @@ export function logParityPayload(): Record<string, unknown> {
     },
   };
 }
+/** Die Leiste der Sublimations-Aufzeichnung — VOR der Funktion (Issue #405). */
+const SUBLIMATION_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'vapour' },
+  { slot: 2, spellId: 'smoulder' },
+  { slot: 3, spellId: 'pyre' },
+] as const;
 
 /**
  * Ein Durchgang gegen einen Boss mit **wiederholter** Zeitleiste (#174).
@@ -1820,6 +1827,7 @@ export function sublimationPayload(): Record<string, unknown> {
   const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
 
+  const slots = slotMap(combat, SUBLIMATION_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
   const pyreReadyAt: number[] = [];
@@ -1842,9 +1850,10 @@ export function sublimationPayload(): Record<string, unknown> {
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
-      const platz =
-        gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : gewaehlt === smoulder ? 2 : 3;
-      presses.push({ tick, slot: platz });
+      // **Der Platz aus der Bindung, nicht aus einer Vergleichskette** (#405).
+      // Der alte Ausdruck endete auf `: 3` — jeder nicht genannte Zauber bekam
+      // stillschweigend PYREs Platz, ohne dass das je jemand entschieden hätte.
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
     }
     checksums.push(combatChecksum(combat, timeMs));
     // **Die Restzeit von PYRE**, nicht von KINDLE. Der erste Entwurf maß
@@ -1863,12 +1872,7 @@ export function sublimationPayload(): Record<string, unknown> {
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: [
-      { slot: 0, spellId: 'kindle' },
-      { slot: 1, spellId: 'vapour' },
-      { slot: 2, spellId: 'smoulder' },
-      { slot: 3, spellId: 'pyre' },
-    ],
+    bindings: SUBLIMATION_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     checksums,
     /** Restzeit von PYRE je Takt — die Größe, die VAPOUR wirklich bewegt. */
