@@ -59,14 +59,6 @@ const ALLE_TOEPFE = Object.keys(NEUTRAL_FACTORS) as (keyof DamageFactors)[];
  */
 const AUSGENOMMEN: Readonly<Record<string, string>> = {
   crit: 'per Typ von setDamageFactor ausgeschlossen, lebt nur in factorsOnCrit',
-  // **Kein Sonderfall, sondern ein offener Befund** (#420). Er steht hier, weil
-  // dieser Wächter sonst rot einzöge und die Prüfstrecke blockierte — nicht,
-  // weil die Lücke in Ordnung wäre.
-  //
-  // AC4 unten holt ihn zurück: Sobald #420 gemergt ist, hat `buffs` eine
-  // Schreibstelle, dieser Eintrag ist überholt, und der Wächter wird rot, bis
-  // ihn jemand entfernt. Eine Ausnahme, die sich selbst wieder abmeldet.
-  buffs: '#420 — kein Zauber löst eine Verstärkung aus; Zweig fix/e3-420-buffs behebt es',
 };
 
 /** Die zwei Formen, in denen ein Topf beschrieben wird. */
