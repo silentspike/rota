@@ -49,6 +49,14 @@ const INK_DIM = '#61616e';
 const HEAT_TRACK = '#1b1b24';
 /** CALCINATION ist rot-orange (GAME-DESIGN 9.3). */
 const HEAT_FILL = '#d4762e';
+/**
+ * Der Zauberbalken (Issue #304). Ein anderer Farbton als die Hitze und als der
+ * Wartezeit-Streifen: Drei Anzeigen in derselben Farbe wären drei Aussagen, die
+ * wie eine aussehen — und die spielkritische Information darf ohnehin nicht
+ * allein an der Farbe hängen (GAME-DESIGN 21.2), weshalb Ort und Wuchsrichtung
+ * den Unterschied tragen.
+ */
+const CAST_BAR_FILL = '#8fb4d8';
 const HEAT_FILL_BONUS = '#f0a24a';
 const HEAT_MARK = '#efe7d4';
 
@@ -112,6 +120,22 @@ const HEAT_TOP = BLOCK_TOP - 66;
  * weil sie schmaler sind als der Balken.
  */
 const MECHANIC_TOP = HEAT_TOP - 54;
+/**
+ * Der Zauberbalken (GAME-DESIGN 7.1, Issue #304).
+ *
+ * ÜBER der Zahlenzeile und links vom Ziel: Das Band zwischen dem unteren Rand
+ * des Rings (Entwurfs-y 522 bei x 774 bis 1146) und der Mechanik-Zeile ist die
+ * einzige Fläche in Blickrichtung, die frei ist — nachgemessen an einem
+ * Screenshot und nicht geschätzt. Die Breite endet deshalb vor dem Ring.
+ *
+ * **Die VIERTE Zeitanzeige**, und sie muss von den drei in `spellbar.ts` klar
+ * unterscheidbar sein (Abklingzeit als Wischblende, Wartezeit als Streifen,
+ * Wirkungsdauer als Kantenbalken). Sie ist die einzige, die WÄCHST statt zu
+ * schrumpfen, sie trägt einen Namen, und sie steht an einem anderen Ort.
+ */
+const CAST_BAR_TOP = MECHANIC_TOP - 92;
+const CAST_BAR_HEIGHT = 34;
+const CAST_BAR_WIDTH = 560;
 const MECHANIC_GAP = 150;
 /** Oben links (GAME-DESIGN 9.1). */
 const TIMER_LEFT = 72;
@@ -226,6 +250,7 @@ export class HudRenderer {
     this.impact.draw(ctx, shownMs);
     this.drawHeat(ctx);
     this.drawMechanicNumbers(ctx);
+    this.drawCastBar(ctx, shownMs);
     this.drawResetPrompt(ctx);
     this.spellBar.draw(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
@@ -434,6 +459,59 @@ export class HudRenderer {
       TIMER_LEFT + 190,
       TIMER_TOP + 44,
       this.digitAdvanceTimer,
+    );
+  }
+
+  /**
+   * Der laufende Zauber des Spielers (GAME-DESIGN 7.1, Issue #304).
+   *
+   * > **Blockiert.** Während der Balken läuft, kann nichts anderes gewirkt
+   * > werden. […] Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade
+   * > leisten?"
+   *
+   * Diese Verpflichtung braucht ein Bild. Ohne den Balken wüsste der Spieler
+   * nicht, wie lange er noch gebunden ist — und die Sperre wirkte wie ein
+   * Fehler des Spiels statt wie eine Entscheidung, die er getroffen hat.
+   *
+   * **Er wächst nach rechts**, im Gegensatz zu allen anderen Zeitanzeigen im
+   * Spiel: Abklingzeit, Wartezeit und Wirkungsdauer laufen ab, dieser läuft
+   * zu. Das ist der Unterschied zwischen „noch nicht wieder" und „gleich".
+   *
+   * Er verschwindet mit dem Ende — auch beim Abbruch, und zwar sofort. Ein
+   * Balken, der nach einem abgebrochenen Zauber stehen bliebe, behauptete eine
+   * Wirkung, die nicht mehr kommt.
+   */
+  private drawCastBar(ctx: CanvasRenderingContext2D, shownMs: number): void {
+    const combat = this.session.combat;
+    const index = combat.playerCasting;
+    if (index < 0) return;
+    const spell = combat.spellAt(index);
+    if (spell === undefined) return;
+
+    const anteil = combat.playerCastProgress(shownMs);
+    const restMs = combat.playerCastEndsAtMs - shownMs;
+
+    ctx.textAlign = 'left';
+    ctx.font = FONT_SMALL;
+    ctx.fillStyle = INK_DIM;
+    ctx.fillText(spell.name.toUpperCase(), BAR_LEFT, CAST_BAR_TOP - 10);
+
+    ctx.fillStyle = THRESHOLD_TRACK;
+    ctx.fillRect(BAR_LEFT, CAST_BAR_TOP, CAST_BAR_WIDTH, CAST_BAR_HEIGHT);
+    ctx.fillStyle = CAST_BAR_FILL;
+    ctx.fillRect(BAR_LEFT, CAST_BAR_TOP, CAST_BAR_WIDTH * anteil, CAST_BAR_HEIGHT);
+
+    // Die Restzeit in Sekunden, rechtsbündig am Balkenende. Zwei Nachkommastellen
+    // wie bei der Frist oben links — dieselbe Größe, dieselbe Schreibweise.
+    ctx.font = FONT_TEXT;
+    ctx.fillStyle = INK;
+    drawFixedRight(
+      ctx,
+      (restMs > 0 ? restMs : 0) / 1000,
+      2,
+      BAR_LEFT + CAST_BAR_WIDTH,
+      CAST_BAR_TOP - 10,
+      this.digitAdvance,
     );
   }
 

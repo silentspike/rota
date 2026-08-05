@@ -11,7 +11,7 @@
  * Der Ablauf je Takt folgt `tools/step1-check.py`: erst die laufenden Wirkungen,
  * dann die Prüfung auf das Kampfende, dann die Tastendrücke dieses Takts.
  */
-import { CAST_OK, Combat, FIGHT_RUNNING, FIGHT_WON } from './combat.js';
+import { Combat, FIGHT_RUNNING, FIGHT_WON, isCastAccepted } from './combat.js';
 import { buildSummary, type RunSummary } from './summary.js';
 import {
   COUNTDOWN_MS,
@@ -656,7 +656,11 @@ export class Session implements Simulation {
     ) {
       accepted = chose
         ? this.chooseForReset(spellIndex, timeMs)
-        : this.combat.cast(spellIndex, timeMs).result === CAST_OK;
+        : // **Ein begonnener Zauber ist ein angenommener Druck** (Issue #304).
+          // `CAST_OK` allein wäre hier falsch: Ein Zauber mit Wirkzeit meldet
+          // `CAST_STARTED`, und der Spieler bekäme für einen richtigen Druck
+          // ein rotes Blinken.
+          isCastAccepted(this.combat.cast(spellIndex, timeMs).result);
     }
 
     if (accepted) {

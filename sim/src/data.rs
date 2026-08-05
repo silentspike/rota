@@ -270,6 +270,15 @@ pub struct TimelineEntry {
     pub damage: u32,
     /// Wirkzeit eines Boss-Zaubers. 0 bei allem, was sofort trifft.
     pub cast_time_ms: Millis,
+    /// Ob dieser Angriff eine laufende Wirkzeit des SPIELERS abbricht
+    /// (GAME-DESIGN 7.1, Issue #304).
+    ///
+    /// > Abbruch eines Zauberbalkens: **nur durch bestimmte, vorher erkennbare
+    /// > Boss-Angriffe.** Normale Treffer stoeren nicht.
+    ///
+    /// Deshalb ein Feld am Eintrag und keine Regel im Kampf: "bestimmte" heisst,
+    /// dass der Boss-Datensatz es sagt.
+    pub interrupts_player: bool,
 }
 
 /// Was ein Zeitleisten-Eintrag tut.
@@ -695,6 +704,11 @@ mod tests {
                     // darueber und zaehlten sonst zu den drei aus Schritt 1.
                     && s.decay_stacks == 0
                     && s.per_decay_stack_percent == 0
+                    // Und seit Issue #304 der Pruef-Zauber zur Wirkzeit. Er
+                    // wird ueber seine WIRKZEIT ausgeschlossen und nicht ueber
+                    // seinen Namen: Die drei aus Schritt 1 sind Sofort-Zauber,
+                    // und das ist eine Eigenschaft, keine Ausnahmeliste.
+                    && s.cast_time_ms == 0
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");

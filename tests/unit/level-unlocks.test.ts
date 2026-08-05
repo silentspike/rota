@@ -63,8 +63,28 @@ describe('AC3 — Zauber sind an Stufen gebunden', () => {
   it('lässt die Reihenfolge der Quelle stehen, statt nach Stufe zu sortieren', () => {
     // Sortieren würde die Liste bei jedem Aufstieg umordnen, und eine Anzeige,
     // die daran hängt, hüpfte — dieselbe Regel wie bei den Plätzen.
+    //
+    // **Verglichen wird gegen die erreichbaren Zauber, nicht gegen alle**
+    // (Issue #304). Der Prüf-Zauber zur Wirkzeit liegt ÜBER der Stufengrenze
+    // und darf hier fehlen; der Fall darunter belegt, dass genau er es ist.
+    const erreichbar = SPELLS.filter((s) => s.unlockLevel <= LEVELS.maxLevel);
     const alle = unlockedSpells(SPELLS, LEVELS.maxLevel).map((s) => s.id);
-    expect(alle).toEqual(SPELLS.map((s) => s.id));
+    expect(alle).toEqual(erreichbar.map((s) => s.id));
+  });
+
+  it('HAELT DEN PRUEF-ZAUBER AUCH AUF DER HOECHSTEN STUFE ZURUECK', () => {
+    // **Der Fall, an dem die ganze Bauart von Issue #304 haengt.** `test-cast`
+    // steht im Index-Raum, weil der Simulator dieselbe Zauberliste braucht wie
+    // das Spiel — aber der Spieler darf ihn nie bekommen. Waere er
+    // freischaltbar, stuende ein Prüf-Zauber im Zauberbuch.
+    //
+    // Gemessen an der HOECHSTEN Stufe: Auf Stufe 1 waere jeder Zauber mit
+    // hoher Stufe zurueckgehalten, und der Fall bewiese nichts.
+    const oben = unlockedSpells(SPELLS, LEVELS.maxLevel).map((s) => s.id);
+    expect(oben, 'sonst stuende er im Zauberbuch').not.toContain('test-cast');
+    // Und die Gegenrichtung: Er steht ueberhaupt in der Liste — sonst
+    // prueft der Fall daran, dass es ihn nicht gibt.
+    expect(SPELLS.map((s) => s.id)).toContain('test-cast');
   });
 });
 

@@ -979,6 +979,91 @@ export function runawayProgressPayload(): Record<string, unknown> {
   };
 }
 
+export const CAST_TIME_NAME = 'cast-time';
+
+/**
+ * Die WIRKZEIT des Spielers, Takt für Takt (Issue #304, AC5).
+ *
+ * **Bis zu diesem Issue hat keine Vergleichsdatei eine Spieler-Wirkzeit
+ * gefahren** — es gab keine: Alle fünfzehn Zauber standen auf `castTimeMs: 0`,
+ * und `Combat.cast` fragte das Feld an keiner Stelle. Der ganze Zweig war
+ * damit unbelegt, und ein Auseinanderlaufen wäre unsichtbar geblieben, weil
+ * kein Fall es zeigen konnte. Dieselbe Lage wie bei `runaway` vor #256.
+ *
+ * **Die Belegung ist eine eigene** und nicht die aus Schritt 1: Der Prüf-Zauber
+ * steht in keiner Leiste des Spiels. Sie steht in der Datei, und der
+ * Rust-Prüffall liest sie von dort — beide Seiten haben damit dieselbe Quelle
+ * statt zweier Abschriften.
+ *
+ * Zwei Spuren neben den Prüfsummen. Beide gehen ohnehin in die Prüfsumme ein,
+ * aber eine abweichende Prüfsumme sagt nur, **dass** etwas anders ist; die
+ * Spuren sagen **was**: welcher Zauber gerade gewirkt wird und wann er fällig
+ * ist. Wer sie liest, sieht den Abbruch bei 9000 ms als Sprung auf -1.
+ */
+export function castTimePayload(): Record<string, unknown> {
+  const recording = recordings().get(CAST_TIME_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CAST_TIME_NAME}`);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('Der Boss test-caster fehlt.');
+  const bindings = [
+    { slot: 0, spellId: 'kindle' },
+    { slot: 1, spellId: 'test-cast' },
+  ];
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für die Spuren. Er läuft mit denselben Eingaben und
+  // liefert deshalb denselben Kampf — dieselbe Bauart wie in
+  // `runawayProgressPayload`.
+  const casting: number[] = [];
+  const endsAt: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) {
+      casting.push(combat.playerCasting);
+      endsAt.push(combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1);
+      break;
+    }
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of bindings) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    casting.push(combat.playerCasting);
+    endsAt.push(combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      castsInterrupted: combat.castsInterrupted,
+      testCastCasts: combat.castCount(combat.indexOf('test-cast')),
+    },
+    checksums: result.checksums,
+    playerCasting: casting,
+    playerCastEndsAt: endsAt,
+  };
+}
+
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**
