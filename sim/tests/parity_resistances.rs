@@ -231,3 +231,68 @@ fn ohne_widerstand_rechnet_der_simulator_dieselbe_folge_anders() {
          im Simulator nicht an"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Die Bedingung, auf der die Bitgleichheit ruht — und der Waechter dafuer
+// ---------------------------------------------------------------------------
+
+/// Ein Kampf mit gesetztem Balance-Regler gegen einen Boss OHNE Widerstand.
+///
+/// Das ist der Weg, den der Balance-Laeufer geht, und er muss offen bleiben:
+/// Der Regler ist sein Werkzeug, um die Schadensformel zu vermessen.
+#[test]
+fn der_regler_allein_ist_erlaubt() {
+    let ohne = boss_by_id("test-metronome").expect("test-metronome fehlt");
+    let mut fight = Fight::new(FightConfig {
+        boss: ohne,
+        factors: rota_sim::factors::DamageFactors {
+            resistance: 1.1,
+            ..rota_sim::factors::NEUTRAL
+        },
+        ..FightConfig::default()
+    });
+    // Kein Abbruch, und der Regler kommt an: ein Lauf ohne Druecke reicht dafuer
+    // nicht — gemessen wird nur, dass der Aufbau durchgeht.
+    let _ = fight.replay(
+        &Recording {
+            name: "leer".to_owned(),
+            seed: 0,
+            ticks: 10,
+            bindings: vec![],
+            presses: vec![],
+        },
+        false,
+    );
+}
+
+/// Und der Boss-Widerstand allein — der Weg jeder Aufzeichnung.
+#[test]
+fn der_boss_widerstand_allein_ist_erlaubt() {
+    let hart = boss_by_id("test-resistant").expect("test-resistant fehlt");
+    let _ = Fight::new(FightConfig {
+        boss: hart,
+        ..FightConfig::default()
+    });
+}
+
+/// **Beide zusammen brechen ab.**
+///
+/// Der Simulator rechnete dann `1,1 x 0,75`, das Spiel nur `0,75` — und kein
+/// Paritaets-Weg faehrt diese Kombination, also meldete sie niemand. Bis zum
+/// 2026-08-05 stand die Bedingung nur als Kommentar da.
+///
+/// **Der Fall ist der Waechter**, nicht der Kommentar: Wer die Multiplikation
+/// spaeter anders baut, bekommt hier eine rote Meldung mit den zwei Zahlen.
+#[test]
+#[should_panic(expected = "sind beide")]
+fn regler_und_boss_widerstand_zusammen_brechen_ab() {
+    let hart = boss_by_id("test-resistant").expect("test-resistant fehlt");
+    let _ = Fight::new(FightConfig {
+        boss: hart,
+        factors: rota_sim::factors::DamageFactors {
+            resistance: 1.1,
+            ..rota_sim::factors::NEUTRAL
+        },
+        ..FightConfig::default()
+    });
+}

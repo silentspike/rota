@@ -507,6 +507,57 @@ pub struct Fight {
     events: RuleEvents,
 }
 
+/// Der Widerstands-Faktor eines Kampfes (Issue #328).
+///
+/// Zwei Dinge kommen hier zusammen, und sie haben nichts miteinander zu tun:
+///
+/// | | |
+/// | --- | --- |
+/// | `regler` | der Faktor aus `BalanceConfig` — womit der Balance-Laeufer die Formel vermisst |
+/// | Boss | der Widerstand aus den Boss-Daten, den auch das Spiel anwendet |
+///
+/// **Deshalb multipliziert und nicht gesetzt.** Das Spiel kennt keinen Regler;
+/// es beginnt bei NEUTRAL und setzt den Boss-Wert. Wuerde der Simulator hier
+/// ebenfalls setzen, naehme er dem Laeufer sein Werkzeug — ausgerechnet dem,
+/// der belegen soll, was die Widerstaende bewirken.
+///
+/// # DIE BEDINGUNG, AUF DER DIE BITGLEICHHEIT RUHT
+///
+/// Beide Rechnungen stimmen ueberein, **solange eine der zwei Zahlen 1,0 ist**.
+/// Sind es beide nicht, rechnet der Simulator `regler x boss` und das Spiel nur
+/// `boss` — und die Paritaet waere hin, ohne dass ein Prueffall es meldete: Kein
+/// Paritaets-Weg faehrt diese Kombination.
+///
+/// Bis zum 2026-08-05 stand diese Bedingung als KOMMENTAR da. Ein Satz, auf den
+/// sich die Bitgleichheit stuetzt und den niemand prueft, ist dieselbe Klasse
+/// wie #331 — nur mit einer anderen Zahl. Deshalb bricht dieser Aufruf jetzt ab,
+/// statt still etwas zu rechnen, das dem Spiel nicht entspricht.
+///
+/// # Warum ein Abbruch und kein `debug_assert`
+///
+/// Der Balance-Laeufer ist genau die Stelle, die den Regler setzt, und er
+/// laeuft mit `--release`. Ein `debug_assert` schwiege dort — also an der
+/// einzigen Stelle, an der die Kombination ueberhaupt entstehen kann.
+fn combat_resistance(regler: f64, boss: &Boss) -> f64 {
+    let vom_boss = boss.resistance_for(SCHOOL);
+    // **Vergleich auf die exakte Eins, mit Absicht.** 1,0 ist in IEEE754 exakt
+    // darstellbar, und gemeint ist genau der neutrale Wert — nicht "ungefaehr
+    // neutral". Eine Umgebung waere hier die falsche Milde: Ein Regler von
+    // 1,0000001 IST eine Abweichung vom Spiel.
+    #[allow(clippy::float_cmp)]
+    let einer_ist_neutral = regler == 1.0 || vom_boss == 1.0;
+    assert!(
+        einer_ist_neutral,
+        "Balance-Regler ({regler}) UND Boss-Widerstand ({vom_boss}) sind beide \
+         gesetzt. Der Simulator rechnete dann {}, das Spiel nur {vom_boss} — die \
+         Bitgleichheit waere hin, und kein Paritaets-Weg wuerde es melden. \
+         Entweder den Regler auf 1,0 lassen oder gegen einen Boss ohne \
+         Widerstand messen.",
+        regler * vom_boss
+    );
+    regler * vom_boss
+}
+
 impl Fight {
     /// Legt einen Durchgang an. Fordert allen benoetigten Speicher **jetzt** an.
     #[must_use]
@@ -596,15 +647,9 @@ impl Fight {
                 // Kaempfen, nicht in ihnen — dieselbe Stelle wie im Spiel
                 // (`combat.ts`, `resistanceFactor`).
                 //
-                // **Multipliziert, nicht ersetzt.** Das Spiel beginnt bei
-                // NEUTRAL und SETZT den Faktor; hier kommt er aus `config`, und
-                // `balance.rs` faehrt diesen Wert durch, um die Formel zu
-                // vermessen. Ersetzen naehme dem Laeufer seinen Regler. Beide
-                // Rechnungen stimmen ueberein, solange eine der zwei Zahlen 1,0
-                // ist — und das ist auf jedem Paritaets-Weg der Fall: Der
-                // Laeufer faehrt gegen den Standard-Boss ohne Widerstand, die
-                // Aufzeichnungen fahren mit neutralem `config.factors`.
-                resistance: config.factors.resistance * config.boss.resistance_for(SCHOOL),
+                // Warum multipliziert und welche Bedingung daran haengt, steht
+                // bei `combat_resistance` — samt dem Abbruch, der sie haelt.
+                resistance: combat_resistance(config.factors.resistance, config.boss),
                 ..config.factors
             },
             worn: config.worn,
