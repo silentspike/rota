@@ -1347,12 +1347,30 @@ $ grep -n playerDamage src/core/checksum.ts sim/src/fight.rs
 ```
 
 Jemand hat einen Wert aufgenommen — **auf beiden Seiten**, mit mitexportierten Vergleichsdateien —
-und der Wächter blieb grün. Genau die Bewegung, bei der man früher auf einer Seite hängenbleiben
+und der Endzustand ist grün. Genau die Bewegung, bei der man früher auf einer Seite hängenbleiben
 konnte, ohne dass es auffiel.
 
-> Eine Gegenprobe zeigt, dass der Wächter anschlägt, wenn man die Sache **bricht**. Sie zeigt nicht,
-> dass er stillhält, wenn jemand etwas **richtig** macht. Das zweite belegt erst die erste echte
-> Erweiterung danach.
+> **Was dieser Fall belegt und was nicht.** Er belegt, dass eine legitime Erweiterung **durchgeht**:
+> Der Wächter steht ihr nicht dauerhaft im Weg. Er belegt **nicht**, dass der Wächter während der
+> Arbeit still blieb — zwei Verläufe führen zum selben Endzustand, und aus dem gemergten Stand sind
+> sie nicht unterscheidbar:
+>
+> |         |                                                                        |
+> | ------- | ---------------------------------------------------------------------- |
+> | **(a)** | Beide Seiten von Anfang an gepflegt — der Wächter hat nie angeschlagen |
+> | **(b)** | Eine Seite ergänzt, Wächter rot, andere nachgezogen                    |
+>
+> Nachgemessen: `gh api .../commits/4db8e9d/check-runs` liefert nichts mehr — die Läufe sind weg,
+> weil `cancel-in-progress` jeden vorherigen abbricht. **Der Zwischenstand existiert nur im Verlauf
+> eines PR, nicht in seinem Ergebnis.**
+>
+> **Und (b) wäre kein Gegenbeleg, sondern der Normalfall:** Eine Seite ergänzt, andere fehlt, rot —
+> das ist genau, wofür der Wächter gebaut ist. Was ihn stillegen würde, wäre ein Anschlag bei einer
+> Änderung, die **vollständig** war. Dafür gibt es hier keinen Hinweis, aber auch keinen Nachweis.
+
+> Eine Gegenprobe zeigt, dass der Wächter anschlägt, wenn man die Sache **bricht**. Dass er einer
+> vollständigen Erweiterung nicht im Weg steht, zeigt erst der Betrieb — und man kann es nicht
+> herbeiführen, nur abwarten und dann erkennen.
 
 **Wie viele Fälle fallen, ist die zweite Auskunft.** Fielen im Beispiel nur zwei von dreien, wäre
 der dritte einer, der bloß zwei Zahlen vergleicht, die zufällig stimmen. Dass **alle drei** fielen,
