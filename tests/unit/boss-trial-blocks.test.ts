@@ -10,7 +10,7 @@
  * REACTION, während mein Prüf-Boss eine zweite Größe desselben Namens trug.
  * Kein Prüffall hätte das gemeldet — beide Zahlen waren für sich richtig.
  *
- * Baustein 6 bekommt ein eigenes Issue, und die Mechanik bleibt dieselbe: ein
+ * Baustein 6 wird in Issue #247 gebaut, und die Mechanik bleibt dieselbe: ein
  * Wert sinkt, Schutz und Heilung heben ihn, unter einer Schwelle endet der
  * Lauf. Was sich ändert, ist WELCHER Wert es ist.
  */
