@@ -581,6 +581,8 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     emit_energy(out, boss, whose);
     emit_doom(out, boss, whose);
     emit_stacks(out, boss, whose);
+    emit_race(out, boss, whose);
+    emit_boss_heal(out, boss, whose);
     emit_timeline(out, boss, whose);
     let _ = writeln!(out, "    }},");
 }
@@ -860,6 +862,63 @@ fn emit_stacks(out: &mut String, boss: &Value, whose: &str) {
     let _ = writeln!(out, "            base_damage: {base_damage},");
     let _ = writeln!(out, "            factor: {factor},");
     let _ = writeln!(out, "            max_stacks: {max_stacks},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Das Wettrennen (GAME-DESIGN 11.2, Baustein 4; Issue #218).
+fn emit_race(out: &mut String, boss: &Value, whose: &str) {
+    let race = boss.get("race");
+    if race.is_none() || race == Some(&Value::Null) {
+        let _ = writeln!(out, "        race: None,");
+        return;
+    }
+    let race = race.expect("auf None geprueft");
+    let whose = format!("{whose}/race");
+
+    let at_ms = uint(race, "atMs", &whose);
+    assert!(
+        at_ms.is_multiple_of(RASTER_MS),
+        "{whose}: atMs {at_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster des Spiels \
+         — das Fenster begaenne auf beiden Seiten zu verschiedenen Zeitpunkten"
+    );
+    let window_ms = uint(race, "windowMs", &whose);
+    assert!(
+        window_ms > 0 && window_ms.is_multiple_of(RASTER_MS),
+        "{whose}: windowMs {window_ms} muss groesser als null und auf dem \
+         {RASTER_MS}-ms-Raster sein"
+    );
+    // Eine Schwelle von 0 waere sofort erreicht — das Fenster endete im selben
+    // Takt, in dem es beginnt, und die Mechanik gaebe es nur auf dem Papier.
+    let threshold = uint(race, "threshold", &whose);
+    assert!(
+        threshold > 0,
+        "{whose}: threshold muss groesser als null sein, sonst endete das Fenster sofort"
+    );
+
+    let _ = writeln!(out, "        race: Some(Race {{");
+    let _ = writeln!(out, "            at_ms: {at_ms},");
+    let _ = writeln!(out, "            window_ms: {window_ms},");
+    let _ = writeln!(out, "            threshold: {threshold},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Was ein Fehler an Fortschritt zurueckdreht (Baustein 5; Issue #218).
+fn emit_boss_heal(out: &mut String, boss: &Value, whose: &str) {
+    let heal = boss.get("bossHeal");
+    if heal.is_none() || heal == Some(&Value::Null) {
+        let _ = writeln!(out, "        boss_heal: None,");
+        return;
+    }
+    let heal = heal.expect("auf None geprueft");
+    let whose = format!("{whose}/bossHeal");
+    let amount = uint(heal, "amount", &whose);
+    assert!(
+        amount > 0,
+        "{whose}: amount muss groesser als null sein — eine Heilung von 0 saehe im \
+         Datensatz aus wie eine, die etwas tut"
+    );
+    let _ = writeln!(out, "        boss_heal: Some(BossHeal {{");
+    let _ = writeln!(out, "            amount: {amount},");
     let _ = writeln!(out, "        }}),");
 }
 
