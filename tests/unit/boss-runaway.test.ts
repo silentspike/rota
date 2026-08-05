@@ -25,7 +25,13 @@
  * weil es nichts zu heilen gibt. Der Prüffall unten belegt beide Seiten davon.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat, FIGHT_OVERPRESSURE, FIGHT_RUNNING, FIGHT_WON } from '../../src/core/combat.js';
+import {
+  Combat,
+  FIGHT_OVERPRESSURE,
+  FIGHT_RUNNING,
+  FIGHT_WON,
+  alsSpellIndex,
+} from '../../src/core/combat.js';
 import { bossById, CALCINATION } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
@@ -44,7 +50,8 @@ function laufen(combat: Combat, bisMs: number, spellId?: string): void {
   for (let t = 0; t <= bisMs; t += TICK_MS) {
     combat.stepPassive(t);
     if (combat.checkDefeat(t)) return;
-    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(index, t)) combat.cast(index, t);
+    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(alsSpellIndex(index), t))
+      combat.cast(alsSpellIndex(index), t);
   }
 }
 

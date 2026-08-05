@@ -162,6 +162,39 @@ export const DECAY_STACK_DURATION_MS = 12_000;
  */
 export const PHASE_HOLD_DURATION_MS = 8_000;
 
+/**
+ * Ein Zauber-Index, für den Übersetzer von einer beliebigen Zahl unterscheidbar
+ * (Issue #372).
+ *
+ * # Warum eine Marke und nicht `number`
+ *
+ * Ein Zauber-Index, eine Belegungsnummer, eine Kampfzeit und eine Schadenszahl
+ * sind alle `number`. Der Übersetzer kann sie nicht auseinanderhalten, und
+ * deshalb brauchte es bis #369 ein Suchmuster, um handgeschriebene Indizes zu
+ * finden — eins, das 24 Stellen meldete, von denen 8 echt waren, und 13
+ * versteckte Konstanten übersah.
+ *
+ * **Eine Allaussage über Quelltext belegt man nicht durch Suchen, sondern indem
+ * man sie erzwingt.** Mit dieser Marke wird jede rohe Zahl an einer
+ * Zauber-Stelle ein Übersetzungsfehler — auch die, die kein Muster kennt.
+ *
+ * Zur Laufzeit ist sie nicht vorhanden: `SpellIndex` ist eine `number`, die
+ * Marke existiert nur im Typsystem. Keine Aufzeichnung bewegt sich dadurch.
+ */
+declare const spellIndexMarke: unique symbol;
+export type SpellIndex = number & { readonly [spellIndexMarke]: 'spell' };
+
+/**
+ * Eine Zahl als Zauber-Index kennzeichnen — **die sichtbare Ausnahme**.
+ *
+ * Wer sie ruft, umgeht die Prüfung des Übersetzers und sagt es damit. Der
+ * einzige gültige Grund ist eine Zahl, die gerade KEINEN Zauber treffen soll
+ * (`cast(99, …)` prüft die Abweisung eines unbekannten Index).
+ */
+export function alsSpellIndex(zahl: number): SpellIndex {
+  return zahl as SpellIndex;
+}
+
 export interface CombatOptions {
   readonly school: SchoolDef;
   readonly boss: BossDef;
@@ -732,11 +765,14 @@ export class Combat {
 
   // ---------------------------------------------------------------- Abfragen
 
-  indexOf(spellId: string): number {
-    return this.indexById.get(spellId) ?? -1;
+  indexOf(spellId: string): SpellIndex {
+    // **Das `-1` ist die einzige rohe Zahl, die hier entstehen darf** — und sie
+    // bedeutet „gibt es nicht". Sie durch einen Wurf zu ersetzen wäre eine
+    // Verhaltensänderung; heute verlassen sich Aufrufer darauf (Issue #372).
+    return alsSpellIndex(this.indexById.get(spellId) ?? -1);
   }
 
-  spellAt(index: number): SpellDef | undefined {
+  spellAt(index: SpellIndex): SpellDef | undefined {
     return this.spells[index];
   }
 
@@ -1677,11 +1713,11 @@ export class Combat {
     this.nextAfflictionAtMs = 0;
   }
 
-  castCount(index: number): number {
+  castCount(index: SpellIndex): number {
     return this.castCounts[index] ?? 0;
   }
 
-  damageOf(index: number): number {
+  damageOf(index: SpellIndex): number {
     return this.damageBySpell[index] ?? 0;
   }
 
@@ -1705,7 +1741,7 @@ export class Combat {
    * Grundlage der wichtigsten Entscheidung in Schritt 1: so spät wie möglich
    * erneuern, aber nicht zu spät (GAME-DESIGN 7.2).
    */
-  dotRemainingMs(index: number, timeMs: number): number {
+  dotRemainingMs(index: SpellIndex, timeMs: number): number {
     const expires = this.dotExpiresAtMs[index] ?? NOT_ACTIVE;
     if (expires === NOT_ACTIVE) return 0;
     const left = expires - timeMs;
@@ -1816,12 +1852,12 @@ export class Combat {
   }
 
   /** Ist der Zauber selbst bereit? Die globale Wartezeit zählt hier nicht mit. */
-  isOffCooldown(index: number, timeMs: number): boolean {
+  isOffCooldown(index: SpellIndex, timeMs: number): boolean {
     return (this.cooldownReadyAtMs[index] ?? 0) <= timeMs;
   }
 
   /** Kann der Zauber jetzt gewirkt werden? */
-  isReady(index: number, timeMs: number): boolean {
+  isReady(index: SpellIndex, timeMs: number): boolean {
     // **Hier stand bis zum 2026-08-05 eine Sperre** — „während einer Wirkzeit
     // ist keiner bereit". Sie ist mit der Regel entfallen: Die Wirkzeit sperrt
     // nichts, und ein Zauber, der während ihr gedrückt wird, wirkt (GAME-DESIGN
@@ -2379,7 +2415,7 @@ export class Combat {
    * @returns Das wiederverwendete Ergebnis-Objekt. Wer es behalten will, kopiert
    *   die Felder heraus — beim nächsten Aufruf steht etwas anderes darin.
    */
-  cast(index: number, timeMs: number): CastOutcome {
+  cast(index: SpellIndex, timeMs: number): CastOutcome {
     const outcome = this.outcome;
     outcome.spellIndex = index;
     outcome.damage = 0;
@@ -2556,7 +2592,7 @@ export class Combat {
       // Erneuern setzt zurück: Die verbleibende Restzeit ist verloren, und mit
       // ihr die Ticks, die darin noch gekommen wären (GAME-DESIGN 7.2).
       if (this.isDotActive(index, timeMs)) {
-        const remaining = this.dotRemainingMs(index, timeMs);
+        const remaining = this.dotRemainingMs(alsSpellIndex(index), timeMs);
         this.dotTicksLost[index] =
           (this.dotTicksLost[index] ?? 0) + Math.floor(remaining / this.dotInterval(dot));
       }
