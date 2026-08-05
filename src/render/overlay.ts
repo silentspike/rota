@@ -21,6 +21,12 @@ import {
   PHASE_PREPARE,
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
+import type { LossReport } from '../analysis/loss-sources.js';
+import { buildLossView } from '../analysis/analysis-view.js';
+// Ohne diesen Import erscheint die Rangliste ungestylt: Die Datei wurde bis
+// #280 nur vom Pruefblatt geladen (docs/analysis-check/), das sie selbst
+// einbindet.
+import '../analysis/analysis.css';
 import { classOfStat, formatStat, type StatLine } from '../gear/format.js';
 import { labelFor, presentationFor, LootMoment } from '../loot/moment.js';
 import type { Comparison } from '../loot/compare.js';
@@ -72,6 +78,18 @@ export interface ResultView {
    * dasteht (Issue #256).
    */
   readonly heldPercent: number | null;
+  /**
+   * Die Verlustquellen dieses Laufs, **fertig gerechnet** (Issue #280).
+   *
+   * `null` heißt: noch keine gerechnet — nicht „keine Verluste". Die
+   * Unterscheidung zählt, weil eine leere Rangliste eine Aussage ist und eine
+   * fehlende keine.
+   *
+   * Sie kommt aus `hud.ts` und nicht von hier: `analyzeRun` braucht den
+   * `Combat`, und wer ihn dem Overlay gibt, lädt es ein, selbst zu rechnen.
+   * Genau diese zweite Rechenstelle hat #256 hier entfernt.
+   */
+  readonly analysis: LossReport | null;
   readonly damage: number;
   /**
    * Der Fortschritt in Prozent, **fertig gerechnet**.
@@ -418,7 +436,7 @@ export class Overlay {
         ? 'none available'
         : `${summary.synergyUsed} of ${summary.synergyAvailable}`,
     );
-    this.fillDetail(summary);
+    this.fillDetail(summary, view.analysis);
   }
 
   /**
@@ -437,8 +455,21 @@ export class Overlay {
    * Ring über `undoProgress` zurück, statt Schaden zu buchen, und stehen hier
    * deshalb bei null.
    */
-  private fillDetail(summary: RunSummary): void {
+  private fillDetail(summary: RunSummary, analysis: LossReport | null): void {
     this.detail.replaceChildren();
+
+    // **Die Rangliste zuerst** (GAME-DESIGN 15.3, Issue #280). Sie ist die
+    // Auskunft, die den Spieler beim nächsten Versuch besser macht — „Versuch
+    // 20 ist dann klüger als Versuch 5, nicht nur häufiger".
+    //
+    // Die Rohliste darunter bleibt: 15.1 nennt sie ausdrücklich, und sie
+    // beantwortet eine andere Frage. Eine Rangliste sagt nicht, WELCHER
+    // Zauber brachlag — „Idle time 9 %" ohne die Zeile darunter ist eine Zahl
+    // ohne Adresse.
+    if (analysis !== null) {
+      this.detail.appendChild(buildLossView(analysis));
+      this.detail.appendChild(element('div', 'rota-divider'));
+    }
     const umgekehrt = summary.reversed;
     this.detail.appendChild(
       element(
