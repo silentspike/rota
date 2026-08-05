@@ -33,6 +33,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'kindle',
       'smoulder',
       'pyre',
+      // Issue #268 — bei ihrer Schule statt hinten. Die Begruendung steht in
+      // spell-school.test.ts: Die Hinten-anfuegen-Regel schuetzte davor, dass
+      // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
+      'bellows',
+      'searing',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.

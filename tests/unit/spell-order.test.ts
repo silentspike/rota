@@ -44,6 +44,13 @@ const FESTGESCHRIEBEN = [
   'kindle',
   'smoulder',
   'pyre',
+  // **bellows und searing stehen hier bewusst mittendrin** — die Verschiebung
+  // von dreizehn Zaubern ist geprüft und angenommen (#268, Entscheidung des
+  // Orchestrators). Der Wächter hat sie gemeldet; sie wurde nicht weggeklickt,
+  // sondern beantwortet: Die Aufzeichnungen sind namensbasiert und überstehen
+  // sie, und die betroffenen Prüffälle lösen seit #369 über den Bezeichner auf.
+  'bellows',
+  'searing',
   'quench',
   'crust',
   'salve',
