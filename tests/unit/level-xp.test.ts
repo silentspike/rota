@@ -30,14 +30,26 @@ describe('AC1 — ein Sieg gibt Erfahrung, genug davon hebt die Stufe', () => {
     expect(START_LEVEL).toBe(1);
   });
 
-  it('rechnet die Erfahrung an der BOSS-Stufe, nicht an der eigenen', () => {
-    // GAME-DESIGN 12.6 sieht einen abnehmenden Ertrag über den STUFENABSTAND
-    // vor. Einen Abstand gibt es nur, wenn beide Seiten eine Stufe haben —
-    // hinge die Erfahrung am Spieler, wäre die schon beschlossene Regel gar
-    // nicht baubar.
+  it('rechnet die GRUNDMENGE an der BOSS-Stufe, nicht an der eigenen', () => {
+    // GAME-DESIGN 12.6: Einen Stufenabstand gibt es nur, wenn beide Seiten
+    // eine Stufe haben — hinge die Erfahrung am Spieler, wäre die Regel gar
+    // nicht baubar. Hier steht die Grundmenge, ohne Abstand.
     expect(xpForVictory(1, 1)).toBe(100);
+    expect(xpForVictory(10, 10)).toBe(1000);
+    // Ein Boss ÜBER der eigenen Stufe zahlt ebenfalls voll — der abnehmende
+    // Ertrag zielt auf Inhalt, dem man entwachsen ist, nicht auf schweren.
     expect(xpForVictory(10, 1)).toBe(1000);
-    expect(xpForVictory(10, 99), 'die Spieler-Stufe wirkt heute nicht').toBe(1000);
+  });
+
+  it('mindert sie um den Stufenabstand (Issue #276)', () => {
+    // **Bis Issue #276 stand hier das Gegenteil**: „die Spieler-Stufe wirkt
+    // heute nicht" war richtig, solange `xpForVictory` sie mit `void`
+    // wegwarf. Der abnehmende Ertrag ist jetzt gebaut, und zwar als EINE
+    // Kurve für Erfahrung und Punkte zusammen — die Zusicherung dazu steht in
+    // `reward-falloff.test.ts`, weil sie beide Währungen braucht.
+    expect(xpForVictory(10, 99)).toBeLessThan(1000);
+    expect(xpForVictory(10, 20)).toBeLessThan(xpForVictory(10, 12));
+    expect(xpForVictory(10, 12)).toBe(1000);
   });
 
   it('steigt auf, sobald der Bedarf erreicht ist', () => {
