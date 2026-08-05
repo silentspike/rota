@@ -71,16 +71,28 @@ C=$(waechter)
 echo "$C"
 cp "$S2" "$LETZTE"
 
+# **Der lehrreiche Fall** (Issue #408): ans Ende der EIGENEN Schuldatei. Das
+# ist die naheliegende Lesart von „hinten" — und sie ist falsch, weil nach
+# calcination.json noch sechs Dateien kommen. Er MUSS rot sein.
+echo -n "  ans Ende der EIGENEN Datei   -> "
+einfuegen eigene-datei
+D=$(waechter)
+echo "$D"
+cp "$S1" "$ERSTE"
+
 echo
-if [ "$A" = gruen ] && [ "$B" = rot ] && [ "$C" = gruen ]; then
-  echo "OK — der Waechter merkt den Einschub und laesst das Anfuegen durch."
+if [ "$A" = gruen ] && [ "$B" = rot ] && [ "$C" = gruen ] && [ "$D" = rot ]; then
+  echo "OK — der Waechter merkt beide Einschuebe und laesst nur das echte"
+  echo "     Anfuegen ans Ende der LETZTEN Datei durch."
   exit 0
 fi
-echo "FEHLGESCHLAGEN — erwartet: gruen / rot / gruen, gemessen: $A / $B / $C"
+echo "FEHLGESCHLAGEN — erwartet: gruen / rot / gruen / rot, gemessen: $A / $B / $C / $D"
 echo
 echo "  Ist der ERSTE Fall rot, misst nicht der Waechter, sondern dieses Skript"
 echo "  falsch — vor jeder anderen Deutung hier nachsehen."
 echo "  Ist der MITTLERE Fall gruen, prueft der Waechter nicht, was er behauptet."
-echo "  Ist der LETZTE Fall rot, ist er zu streng: Anfuegen MUSS erlaubt bleiben,"
-echo "  sonst kann kein Zauber mehr dazukommen."
+echo "  Ist der DRITTE Fall rot, ist der Waechter zu streng: Anfuegen ans Ende der"
+echo "  LETZTEN Datei MUSS erlaubt bleiben, sonst kann kein Zauber dazukommen."
+echo "  Ist der VIERTE Fall gruen, ist die Regel aus #408 verletzt: Ans Ende der"
+echo "  eigenen Schuldatei ist ein Einschub, weil danach sechs Dateien folgen."
 exit 1
