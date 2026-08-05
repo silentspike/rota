@@ -95,6 +95,21 @@ describe('AC5 — gerechnet, nicht gespeichert', () => {
     expect(anderer).toBe(echt * 2);
   });
 
+  it('trifft dieselben Zahlen wie der Simulator', () => {
+    // **Dieselben Stufen wie in `sim/tests/parity_levels.rs`.** Laufen die
+    // Seiten auseinander, sagt es einer der beiden Fälle in einer Zeile —
+    // statt in einer Prüfsummen-Abweichung in irgendeinem Takt.
+    expect(statAtLevel(1000, 1)).toBe(1000);
+    expect(statAtLevel(1000, 10)).toBe(1551);
+    expect(statAtLevel(1000, 50)).toBe(10921);
+    expect(statAtLevel(1000, 100)).toBe(125239);
+    // 1 * 1551 / 1000 = 1 nach Abschneiden — die Ganzzahl-Division, nicht
+    // gerundet. Mit Fließkomma wäre 1550,9999... ein möglicher Ausgang, und
+    // die Seiten lägen um eins auseinander.
+    expect(statAtLevel(1, 10)).toBe(1);
+    expect(statAtLevel(0, 50)).toBe(0);
+  });
+
   it('rechnet in Ganzzahlen — kein Ergebnis mit Nachkommastellen', () => {
     // Die Bedingung für 18.4: Was hier herauskommt, muss der Simulator
     // bitgleich treffen können. Ganze Zahlen kann er.

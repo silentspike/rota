@@ -356,6 +356,9 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         factors: config.factors,
         boss: config.boss,
         worn: config.worn,
+        // Der Balance-Laeufer misst auf Stufe 1: Er vergleicht Rotationen, und
+        // die Stufe wirkt auf beide gleich (Issue #248).
+        player_level: 1,
         // Das Protokoll kostet Speicher und wird hier von niemandem gelesen.
         log_capacity: 0,
     });

@@ -42,11 +42,20 @@ const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, exper
  * gedrückt läuft die Zeit ab.
  *
  * **Gegen den Türhüter, nicht gegen den Ersten Schmelztiegel.** Gemessen: Eine
- * Rundlauf-Belegung bringt gegen 4200 Lebenspunkte höchstens 4000 Schaden —
- * der Sieg-Lauf gewann nie, und drei Prüffälle waren rot, ohne dass an der
- * Sache etwas falsch war. Der Schmelztiegel ist auf eine gute Rotation
- * ausgelegt, nicht auf abwechselndes Drücken. Mit 1200 Lebenspunkten ist der
- * Ausgang erreichbar, und um den geht es hier.
+ * Rundlauf-Belegung bringt gegen 4200 Lebenspunkte höchstens 4000 Schaden (bei
+ * 1500, 1000, 750 und 500 ms Abstand) — der Sieg-Lauf gewann nie, und drei
+ * Prüffälle waren rot, ohne dass an der Sache etwas falsch war.
+ *
+ * **DAS IST KEINE SCHWÄCHE DES SCHMELZTIEGELS, SONDERN SEIN ZWECK.** Er ist
+ * der einzige ausgelieferte Boss und so ausgelegt, dass eine schlechte
+ * Rotation ihn nicht schafft: Das Abnahme-Kriterium aus GAME-DESIGN 20.3
+ * verlangt mindestens 10 % Unterschied zwischen guter und schlechter Rotation,
+ * gemessen wurden +48,2 %.
+ *
+ * Für Prüffälle heißt das: **Er taugt nicht als Kulisse für etwas anderes.**
+ * Wer einen Sieg braucht, um daran etwas zu messen, das mit der Rotation
+ * nichts zu tun hat, nimmt den Türhüter (1200) oder legt einen eigenen
+ * Datensatz an.
  */
 function spielen(everyMs: number): { summary: RunSummary; outcome: number } {
   const boss = bossById('test-gatekeeper') ?? FIRST_CRUCIBLE.value;
