@@ -10,7 +10,8 @@ import { AudioFeedback } from './audio-bridge.js';
 import { Combat } from './combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
-import { STEP1_BINDINGS } from './loadout.js';
+import { bindSpell, defaultBindings, sanitize, spellAtSlot } from '../progression/bindings.js';
+import { SLOT_COUNT } from '../input/keys.js';
 import { GameLoop } from './loop.js';
 import { Session } from './session.js';
 import { PressQueue } from '../input/queue.js';
@@ -173,10 +174,7 @@ export class App {
       this.lastMark = markDisplayFor(this.lastRecord, summary, this.combat.boss.id);
     };
 
-    for (const binding of STEP1_BINDINGS) {
-      const index = this.combat.indexOf(binding.spellId);
-      if (index >= 0) this.session.bind(binding.slot, index);
-    }
+    this.applyBindings();
     this.audio.bindSpells(this.combat.spells.map((spell) => spell.id));
 
     this.overlay = new Overlay(parent, this.combat.boss.name, {
@@ -277,6 +275,69 @@ export class App {
   // ------------------------------------------------------------ Kampfablauf
 
   /** „Ready" — der Countdown beginnt (GAME-DESIGN 10). */
+  /**
+   * Die Belegung aus dem Spielstand auf die Sitzung übertragen (Issue #264).
+   *
+   * **Bis hierher stand sie fest** (`STEP1_BINDINGS`), seit Schritt 1. Die
+   * Plätze wuchsen mit der Stufe (#248), belegen konnte sie niemand.
+   *
+   * Ein leerer Spielstand bekommt die Startbelegung — und zwar **nicht
+   * gespeichert**, sondern gerechnet: Solange der Spieler nichts geändert hat,
+   * gibt es nichts zu speichern. Erst seine Entscheidung wird abgelegt.
+   *
+   * `sanitize` läuft davor: Ein Stand kann Einträge tragen, die heute nicht
+   * mehr gelten — aus einer Fassung mit anderen Freischaltstufen etwa. Sie
+   * stillschweigend zu übernehmen hieße, dass der Kampf einen Zauber wirkt,
+   * den der Spieler gar nicht haben dürfte.
+   *
+   * **Jeder Platz wird gesetzt, auch die leeren.** Wer nur die belegten
+   * überträgt, lässt einen geräumten Platz auf seinem alten Zauber stehen —
+   * und genau das ist der Fall, der still bricht: Der Spieler merkt es erst im
+   * Kampf und hält es für einen Fehler in seiner Rotation.
+   */
+  private applyBindings(): void {
+    const stand = this.persistence.state;
+    const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const belegung =
+      Object.keys(gespeichert).length > 0
+        ? gespeichert
+        : defaultBindings(stand.level, this.combat.spells);
+
+    for (let slot = 0; slot < SLOT_COUNT; slot++) {
+      const spellId = spellAtSlot(belegung, slot);
+      const index = spellId === null ? -1 : this.combat.indexOf(spellId);
+      this.session.bind(slot, index);
+    }
+  }
+
+  /**
+   * Einen Zauber auf einen Platz legen (Issue #264, AC1 und AC5).
+   *
+   * **Drei Dinge in einer Reihenfolge, und die Reihenfolge zählt:**
+   *
+   * 1. Die Belegung ändern — abgelehnt wird sie, wenn Zauber oder Platz nicht
+   *    frei sind; dann geschieht gar nichts.
+   * 2. Ablegen, damit sie den Neustart überlebt (AC1).
+   * 3. **Auf die Sitzung übertragen.** Ohne diesen Schritt wirkt der Kampf
+   *    weiter den alten Zauber — der Fall, der still bricht: Der Spieler
+   *    merkt es erst im Kampf und hält es für einen Fehler in seiner
+   *    Rotation.
+   *
+   * @returns ob die Belegung wirklich geändert wurde
+   */
+  bindSpellToSlot(spellId: string, slot: number): boolean {
+    const stand = this.persistence.state;
+    const vorher = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const gefuellt =
+      Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.combat.spells);
+    const nachher = bindSpell(gefuellt, spellId, slot, stand.level, this.combat.spells);
+    if (nachher === gefuellt) return false;
+
+    this.persistence.persistBindings(nachher);
+    this.applyBindings();
+    return true;
+  }
+
   /**
    * Die Aufstiegs-Anzeige neu rechnen (Issue #248, AC6).
    *
