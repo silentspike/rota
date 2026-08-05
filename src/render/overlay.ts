@@ -135,12 +135,26 @@ export class Overlay {
   private shownOutcome = -1;
   private paused = false;
 
-  constructor(parent: HTMLElement, actions: OverlayActions) {
+  /**
+   * @param bossName Wie der Boss heißt, aus seinem Datensatz.
+   *
+   * **Nicht aus einer Konstante.** Hier stand bis #229 der Name des ersten
+   * Tiegels fest im Aufruf, und dieselbe Zeichenkette ein zweites Mal in
+   * `hud.ts`. Solange nur ein Boss spielbar war, stimmte sie zufällig.
+   *
+   * Der Name wird bewusst nicht ausgeschrieben: Ein Kommentar, der ihn
+   * zitiert, ist selbst eine Abschrift.
+   *
+   * Das Overlay bekommt den Namen als Wert und nicht den Boss selbst: Es
+   * zeichnet einen Vorbereitungs-Bildschirm und hat mit Kampfdaten nichts zu
+   * tun. Wer ihm den ganzen Boss gäbe, lüde ihn ein, mehr daraus zu lesen.
+   */
+  constructor(parent: HTMLElement, bossName: string, actions: OverlayActions) {
     this.root = element('div', 'rota-overlay');
 
     // --- Vorbereitung: keine Uhr, kein Zeitdruck (GAME-DESIGN 10) -----------
     this.prepare = element('div', 'rota-panel');
-    this.prepare.appendChild(element('h1', 'rota-title', 'THE FIRST CRUCIBLE'));
+    this.prepare.appendChild(element('h1', 'rota-title', bossName.toUpperCase()));
     this.prepare.appendChild(
       element('p', 'rota-note', 'Prologue · no target until the run begins'),
     );
