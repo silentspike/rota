@@ -534,6 +534,17 @@ export interface LevelGrowthDef {
    * geraten statt gerechnet.
    */
   readonly xpToNextLevel: readonly number[];
+  /** Wie viele Leisten-Plätze der Spieler auf Stufe 1 hat. */
+  readonly startBarSlots: number;
+  /**
+   * Stufen, auf denen je ein weiterer Leisten-Platz aufgeht.
+   *
+   * **Nur die ANZAHL, nie welcher Platz.** GAME-DESIGN 9.1 verlangt, dass
+   * Positionen von Anfang an fest vergeben sind, damit das Wachsen bestehende
+   * Plätze nicht verschiebt — sonst leidet das Muskelgedächtnis, und das ist
+   * das Einzige, was eine Rotation überhaupt spielbar macht.
+   */
+  readonly barSlotLevels: readonly number[];
 }
 
 export interface BossDef {
@@ -1377,7 +1388,41 @@ export const LEVELS: LevelGrowthDef = (() => {
       );
     }
   }
-  return { growthPerLevelPercent, maxLevel, factorPerMille, xpPerBossLevel, xpToNextLevel };
+  const startBarSlots = number(roh['startBarSlots'], 0);
+  const barSlotLevels = Array.isArray(roh['barSlotLevels'])
+    ? (roh['barSlotLevels'] as unknown[]).map((x) => number(x, 0))
+    : [];
+  if (startBarSlots < 1) {
+    throw new Error(
+      'data/player/levels.json: startBarSlots muss mindestens 1 sein — mit null Plätzen ' +
+        'ließe sich kein Zauber wirken.',
+    );
+  }
+  for (let i = 0; i < barSlotLevels.length; i++) {
+    const stufe = barSlotLevels[i] ?? 0;
+    if (stufe < 2 || stufe > maxLevel) {
+      throw new Error(
+        `data/player/levels.json: barSlotLevels[${i}] ist ${stufe} — erlaubt sind 2 bis ` +
+          `${maxLevel}. Ein Platz auf Stufe 1 gehörte in startBarSlots, einer darüber käme nie.`,
+      );
+    }
+    if (i > 0 && stufe <= (barSlotLevels[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: barSlotLevels[${i}] (${stufe}) kommt nicht nach ` +
+          `barSlotLevels[${i - 1}]. Die Liste muss aufsteigen, sonst ist unklar, wie viele ` +
+          'Plätze eine Stufe hat.',
+      );
+    }
+  }
+  return {
+    growthPerLevelPercent,
+    maxLevel,
+    factorPerMille,
+    xpPerBossLevel,
+    xpToNextLevel,
+    startBarSlots,
+    barSlotLevels,
+  };
 })();
 
 /**
