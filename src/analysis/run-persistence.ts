@@ -76,6 +76,11 @@ function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): S
     // unterscheidet nicht zwischen „fehlt" und „ist undefined".
     runHistory: geladen.runHistory ?? leer.runHistory,
     progressMarks: geladen.progressMarks ?? leer.progressMarks,
+    // **Seit Issue #377 die dritte.** Sie stand vorher nicht hier, und das war
+    // folgenlos, solange die Liste nie beschrieben wurde. Sobald sie es wird,
+    // ist ein Stand ohne das Feld ein `undefined` in der Kette — und der erste
+    // Sieg danach schriebe in nichts hinein.
+    bestRuns: geladen.bestRuns ?? leer.bestRuns,
   };
 }
 
@@ -128,6 +133,7 @@ export class RunPersistence {
     return {
       runHistory: this.data.runHistory,
       progressMarks: this.data.progressMarks,
+      bestRuns: this.data.bestRuns,
       level: this.data.level,
       experience: this.data.experience,
     };
@@ -211,6 +217,11 @@ export class RunPersistence {
       savedAt: this.now(),
       runHistory: next.runHistory,
       progressMarks: next.progressMarks,
+      // **Was ERREICHT wurde, nicht was gerechnet wurde** (Issue #377): Der
+      // Eintrag hält die Reserve bzw. den Ring-Rest als Rohwert, nicht die
+      // Punkte daraus. Punkte wären ein berechneter Wert, der auf kommende
+      // Kämpfe zurückwirkt — genau das, was 18.5 verbietet.
+      bestRuns: next.bestRuns,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
       // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge

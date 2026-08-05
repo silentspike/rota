@@ -27,7 +27,13 @@ import { PressQueue } from '../../src/input/queue.js';
 import { Session } from '../../src/core/session.js';
 import type { RunSummary } from '../../src/core/summary.js';
 
-const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
+const LEER: RecordedState = {
+  runHistory: [],
+  progressMarks: [],
+  bestRuns: [],
+  level: 1,
+  experience: 0,
+};
 
 /**
  * Einen echten Kampf spielen und seine Zusammenfassung nehmen.
@@ -156,6 +162,7 @@ describe('Ein Sieg gibt Erfahrung — und jemand ruft die Rechnung wirklich auf'
       stand = {
         runHistory: ergebnis.runHistory,
         progressMarks: ergebnis.progressMarks,
+        bestRuns: [],
         level: ergebnis.level,
         experience: ergebnis.experience,
       };
