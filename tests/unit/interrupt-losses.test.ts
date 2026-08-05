@@ -24,20 +24,24 @@ import {
 } from '../../src/analysis/run-analysis.js';
 
 /**
- * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
+ * Zauber-Indizes über den NAMEN, nicht als Zahl (Issue #268).
  *
- * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
- * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
- * rot, er misst etwas anderes.
+ * Hier standen Zahlen: `QUENCH = 3` war richtig, solange `calcination.json`
+ * drei Zauber hatte. Mit zwei neuen zeigte die 3 auf `bellows` — und der
+ * Prüffall drückte einen Hitze-Zauber statt des Unterbrechers.
+ *
+ * **Das ist die gefährlichere Sorte Abschrift.** Sie macht den Fall nicht rot,
+ * sondern lässt ihn den falschen Zauber messen. Hier fiel es nur auf, weil
+ * `bellows` keine Unterbrechung landen kann; wäre an Index 3 ein anderer
+ * Unterbrecher gelandet, hätte niemand etwas gemerkt.
  */
-function indexVon(id: string): number {
-  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
-  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
+function spellIndex(id: string): number {
+  const i = CALCINATION.value.spells.findIndex((s) => s.id === id);
+  if (i < 0) throw new Error(`Zauber ${id} gibt es nicht`);
   return i;
 }
-
-const KINDLE = indexVon('kindle');
-const QUENCH = indexVon('quench');
+const KINDLE = spellIndex('kindle');
+const QUENCH = spellIndex('quench');
 
 /** Ein Boss mit drei unterbrechbaren Zaubern zu je 2000 Schaden. */
 const ONSLAUGHT = bossById('test-onslaught') as BossDef;

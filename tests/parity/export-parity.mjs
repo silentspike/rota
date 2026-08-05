@@ -113,9 +113,15 @@ import {
   resistancePayload,
   RESISTANCE_MIXED_NAME,
   resistanceMixedPayload,
+  newCalcinationPayload,
+  NEW_CALCINATION_NAME,
 } from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+const newCalcination = newCalcinationPayload();
+const newCalcinationPath = join(here, 'recordings', `${NEW_CALCINATION_NAME}.json`);
+writeFileSync(newCalcinationPath, serialize(newCalcination), 'utf8');
 
 const recording = recordingPayload();
 const recordingPath = join(here, 'recordings', `${RECORDING_NAME}.json`);
@@ -339,3 +345,5 @@ console.log(`  Verstaerkungen ${buffs['steps'].length} Schritte, ${buffs['replac
 console.log(
   `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
 );
+console.log(`geschrieben: ${newCalcinationPath}`);
+console.log(`  neue Zauber   ${JSON.stringify(newCalcination['expected']['casts'])}`);
