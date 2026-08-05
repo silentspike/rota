@@ -30,7 +30,7 @@ import type { MarkDisplay, Overlay } from './overlay.js';
 import type { RunSummary } from '../core/summary.js';
 import type { Impact } from './impact.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
-import { MAX_DECAY_STACKS } from '../core/combat.js';
+import { MAX_DECAY_STACKS, alsSpellIndex } from '../core/combat.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
@@ -279,7 +279,7 @@ export class HudRenderer {
       // hier zwei Abfragen, die nur den Vorrat der Schule kannten; mit
       // `control` und `decay` wären es vier geworden (Issue #270).
       feedsMechanic: (spell, mechanicId) => {
-        const def = session.combat.spellAt(spell);
+        const def = session.combat.spellAt(alsSpellIndex(spell));
         return def !== undefined && feedsMechanic(def, mechanicId);
       },
     };
@@ -625,7 +625,7 @@ export class HudRenderer {
     const combat = this.session.combat;
     const index = combat.playerCasting;
     if (index < 0) return;
-    const spell = combat.spellAt(index);
+    const spell = combat.spellAt(alsSpellIndex(index));
     if (spell === undefined) return;
 
     const anteil = combat.playerCastProgress(shownMs);

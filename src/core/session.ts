@@ -11,7 +11,14 @@
  * Der Ablauf je Takt folgt `tools/step1-check.py`: erst die laufenden Wirkungen,
  * dann die Prüfung auf das Kampfende, dann die Tastendrücke dieses Takts.
  */
-import { Combat, FIGHT_RUNNING, FIGHT_WON, isCastAccepted } from './combat.js';
+import {
+  Combat,
+  FIGHT_RUNNING,
+  FIGHT_WON,
+  isCastAccepted,
+  alsSpellIndex,
+  type SpellIndex,
+} from './combat.js';
 import { buildSummary, type RunSummary } from './summary.js';
 import {
   COUNTDOWN_MS,
@@ -322,8 +329,10 @@ export class Session implements Simulation {
     }
   }
 
-  spellOnSlot(slot: number): number {
-    return this.bindings[slot] ?? NO_SPELL;
+  spellOnSlot(slot: number): SpellIndex {
+    // `bindings` ist ein Int32Array — es kann die Marke nicht tragen. Hier ist
+    // die eine Stelle, an der ein Platz zu einem Zauber wird (Issue #372).
+    return alsSpellIndex(this.bindings[slot] ?? NO_SPELL);
   }
 
   /** Plätze mit einem Zauber darauf — die einzigen, die die Leiste zeigt. */
@@ -394,7 +403,7 @@ export class Session implements Simulation {
       // ein Zauber, der nicht auf der Leiste liegt, kann nicht versäumt werden.
       let anyReady = false;
       for (let i = 0; i < this.boundSpells.length; i++) {
-        if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(i, timeMs)) {
+        if (this.boundSpells[i] === 1 && this.combat.isOffCooldown(alsSpellIndex(i), timeMs)) {
           this.idlePerSpellMs[i] = (this.idlePerSpellMs[i] ?? 0) + TICK_MS;
           anyReady = true;
         }
@@ -476,7 +485,7 @@ export class Session implements Simulation {
       // Nur belegte Zauber: Was nicht auf der Leiste liegt, kann nicht bereit
       // werden — der Hinweis ginge ins Leere.
       if (this.boundSpells[i] !== 1) continue;
-      const ready = this.combat.isOffCooldown(i, timeMs) ? 1 : 0;
+      const ready = this.combat.isOffCooldown(alsSpellIndex(i), timeMs) ? 1 : 0;
       if (ready === 1 && this.wasReady[i] === 0) this.emit(EV_SPELL_READY, i, timeMs);
       this.wasReady[i] = ready;
     }
@@ -634,7 +643,7 @@ export class Session implements Simulation {
     // bereite Zauber an — der Kampf begänne mit einem Akkord.
     this.wasGcdReady = this.combat.gcd.isReady(timeMs);
     for (let i = 0; i < this.wasReady.length; i++) {
-      this.wasReady[i] = this.combat.isOffCooldown(i, timeMs) ? 1 : 0;
+      this.wasReady[i] = this.combat.isOffCooldown(alsSpellIndex(i), timeMs) ? 1 : 0;
     }
     this.sawLowHealth = false;
     this.warnedOverpressure = false;
@@ -701,7 +710,7 @@ export class Session implements Simulation {
           // `CAST_OK` allein wäre hier falsch: Ein Zauber mit Wirkzeit meldet
           // `CAST_STARTED`, und der Spieler bekäme für einen richtigen Druck
           // ein rotes Blinken.
-          isCastAccepted(this.combat.cast(spellIndex, timeMs).result);
+          isCastAccepted(this.combat.cast(alsSpellIndex(spellIndex), timeMs).result);
     }
 
     if (accepted) {
@@ -718,7 +727,7 @@ export class Session implements Simulation {
         this.emit(EV_SPELL_CAST, spellIndex, timeMs);
         // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
         // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
-        if (this.combat.spellAt(spellIndex)?.armsCooldownReset === true) {
+        if (this.combat.spellAt(alsSpellIndex(spellIndex))?.armsCooldownReset === true) {
           this.resetArmedFor = spellIndex;
         }
       }
@@ -751,7 +760,7 @@ export class Session implements Simulation {
     // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
     this.combat.gcd.trigger(timeMs);
 
-    if (self || this.combat.isOffCooldown(spellIndex, timeMs)) {
+    if (self || this.combat.isOffCooldown(alsSpellIndex(spellIndex), timeMs)) {
       // **Verpufft.** Zwei Fälle, eine Regel: der Rücksetzer auf sich selbst
       // (er wirkt nie auf sich — sonst ließe er sich endlos ketten, der erste
       // Zug, den eine Optimums-Suche findet) und ein Zauber, der gar nicht

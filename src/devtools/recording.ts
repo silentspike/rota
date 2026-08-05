@@ -16,7 +16,7 @@
  * entsteht deshalb, indem die Referenz-Prioritätenliste einmal durchgespielt und
  * dabei mitgeschrieben wird — nicht, indem jemand Takte abtippt.
  */
-import { Combat, isCastAccepted } from '../core/combat.js';
+import { Combat, isCastAccepted, alsSpellIndex } from '../core/combat.js';
 import { combatChecksum } from '../core/checksum.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../core/data.js';
 import { GCD_MS } from '../core/gcd.js';
@@ -210,7 +210,7 @@ export function replayRecording(
       // Aufzeichnung zählte ihn als Fehleingabe — während der Simulator ihn
       // annimmt. Genau die Sorte Unterschied, die in der Prüfsumme nicht steht,
       // weil sie die Zähler nicht führt.
-      if (isCastAccepted(combat.cast(spellIndex, timeMs).result)) accepted++;
+      if (isCastAccepted(combat.cast(alsSpellIndex(spellIndex), timeMs).result)) accepted++;
       else rejected++;
     }
 
@@ -221,7 +221,7 @@ export function replayRecording(
 
   const casts: Record<string, number> = {};
   for (let i = 0; i < combat.spells.length; i++) {
-    casts[combat.spells[i]?.id ?? String(i)] = combat.castCount(i);
+    casts[combat.spells[i]?.id ?? String(i)] = combat.castCount(alsSpellIndex(i));
   }
 
   return {
@@ -281,7 +281,7 @@ function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Record
       choice = kindle;
     }
     if (choice < 0) continue;
-    combat.cast(choice, timeMs);
+    combat.cast(alsSpellIndex(choice), timeMs);
     presses.push({ tick, slot: slotOf.get(choice) ?? 0 });
   }
   return { name, seed: 0, ticks, presses };
@@ -328,7 +328,7 @@ function recordNewCalcination(name: string, ticks: number): Recording {
         ? searing
         : bellows;
     if (!combat.isReady(choice, timeMs)) continue;
-    combat.cast(choice, timeMs);
+    combat.cast(alsSpellIndex(choice), timeMs);
     // Platz 0 und 1 — die Bindung steht im Payload, nicht hier.
     presses.push({ tick, slot: choice === searing ? 0 : 1 });
   }
@@ -360,7 +360,7 @@ function recordCooldownSweep(name: string, ticks: number): Recording {
         ? kindle
         : -1;
     if (choice < 0) continue;
-    combat.cast(choice, timeMs);
+    combat.cast(alsSpellIndex(choice), timeMs);
     presses.push({ tick, slot: slotOf.get(choice) ?? 0 });
   }
   return { name, seed: 0, ticks, presses };
@@ -462,15 +462,15 @@ function recordTrialRotation(name: string, ticks: number, boss: BossDef): Record
     let slot = -1;
     for (const kandidat of [3, 1, 0]) {
       const i = index.get(kandidat) ?? -1;
-      if (i < 0 || !combat.isReady(i, timeMs)) continue;
+      if (i < 0 || !combat.isReady(alsSpellIndex(i), timeMs)) continue;
       // Platz 3 nur, wenn es etwas zu entfernen gibt — sonst waere der GCD
       // verschenkt (#224).
       if (kandidat === 3 && !combat.afflicted) continue;
-      if (kandidat === 1 && combat.dotRemainingMs(i, timeMs) >= GCD_MS) continue;
+      if (kandidat === 1 && combat.dotRemainingMs(alsSpellIndex(i), timeMs) >= GCD_MS) continue;
       slot = kandidat;
       break;
     }
-    if (slot >= 0 && combat.cast(index.get(slot) ?? -1, timeMs)) {
+    if (slot >= 0 && combat.cast(alsSpellIndex(index.get(slot) ?? -1), timeMs)) {
       presses.push({ tick, slot });
     }
   }
@@ -562,7 +562,7 @@ function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Rec
         ? kindle
         : -1;
     if (wahl < 0) continue;
-    combat.cast(wahl, timeMs);
+    combat.cast(alsSpellIndex(wahl), timeMs);
     presses.push({ tick, slot: slotOf.get(wahl) ?? 0 });
   }
   return { name, seed: 0, ticks, presses };
