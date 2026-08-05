@@ -17,6 +17,7 @@ import rawSublimation from '../../data/spells/sublimation.json';
 import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
+import rawLevels from '../../data/player/levels.json';
 import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -494,6 +495,26 @@ export interface PlayerBaseDef {
   readonly vessel: number;
   /** WARD — Anteil, um den eingehender Schaden gemindert wird. */
   readonly wardReduction: number;
+}
+
+/**
+ * Das Wachstum der Grundwerte je Stufe (GAME-DESIGN 8.1; Issue #248).
+ *
+ * **In Promille und ganzzahlig, und das ist kein Format-Geschmack.** 1,05^n ist
+ * eine Fließkomma-Potenz; `Math.pow` in JavaScript und `f64::powf` in Rust sind
+ * nicht garantiert bitgleich. GAME-DESIGN 18.4 verlangt, dass beide Seiten
+ * dieselbe Zahl rechnen — eine Tabelle rechnet gar nicht, sie steht da.
+ *
+ * Angewandt wird sie als `grundwert * promille / 1000` mit **Ganzzahl-Division**.
+ * Damit kommt in der ganzen Kette keine Fließkommazahl vor.
+ */
+export interface LevelGrowthDef {
+  /** Der Prozentsatz, aus dem die Tabelle entstand — zur Nachvollziehbarkeit. */
+  readonly growthPerLevelPercent: number;
+  /** Die höchste erreichbare Stufe. */
+  readonly maxLevel: number;
+  /** Faktor je Stufe in Promille. Index 0 ist Stufe 1 und trägt 1000. */
+  readonly factorPerMille: readonly number[];
 }
 
 export interface BossDef {
@@ -1273,6 +1294,61 @@ export const PLAYER: PlayerBaseDef = (() => {
   }
   return { vessel, wardReduction };
 })();
+
+export const LEVELS: LevelGrowthDef = (() => {
+  const roh = rawLevels as Record<string, unknown>;
+  const maxLevel = number(roh['maxLevel'], 0);
+  const growthPerLevelPercent = number(roh['growthPerLevelPercent'], 0);
+  const factorPerMille = Array.isArray(roh['factorPerMille'])
+    ? (roh['factorPerMille'] as unknown[]).map((x) => number(x, 0))
+    : [];
+
+  // Harter Abbruch wie bei `base.json`, aus demselben Grund: Das ist keine
+  // Inhaltsdatei, sondern eine Voraussetzung. Eine kaputte Tabelle ergäbe
+  // einen Spieler, dessen Werte auf halber Strecke einfrieren — und das fiele
+  // erst jemandem auf Stufe 60 auf.
+  if (maxLevel < 1) throw new Error('data/player/levels.json: maxLevel muss positiv sein.');
+  if (factorPerMille.length !== maxLevel) {
+    throw new Error(
+      `data/player/levels.json: ${factorPerMille.length} Faktoren für ${maxLevel} Stufen. ` +
+        'Jede Stufe braucht genau einen — sonst wächst der Spieler ab einer Stelle nicht mehr.',
+    );
+  }
+  if (factorPerMille[0] !== 1000) {
+    throw new Error(
+      `data/player/levels.json: Stufe 1 trägt ${String(factorPerMille[0])} statt 1000. ` +
+        'Der Spieler startet mit den Werten aus base.json, nicht darüber oder darunter.',
+    );
+  }
+  // **Monoton steigend**, sonst würde ein Aufstieg den Spieler schwächen.
+  for (let i = 1; i < factorPerMille.length; i++) {
+    if ((factorPerMille[i] ?? 0) <= (factorPerMille[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: Stufe ${i + 1} ist nicht größer als Stufe ${i}. ` +
+          'Ein Aufstieg, der schwächer macht, ist keiner.',
+      );
+    }
+  }
+  return { growthPerLevelPercent, maxLevel, factorPerMille };
+})();
+
+/**
+ * Ein Grundwert auf einer Stufe (Issue #248).
+ *
+ * **Gerechnet, nicht gespeichert** — GAME-DESIGN 18.5 und AC5 des Issues. Der
+ * Spielstand hält die Stufe; was daraus folgt, entsteht bei jedem Aufruf neu.
+ * Wer den Wert stattdessen ablegte, machte jede künftige Balance-Änderung für
+ * bestehende Spielstände wirkungslos — und niemand merkte es, weil nichts
+ * kaputtgeht.
+ *
+ * Stufen außerhalb der Tabelle werden geklemmt statt abgelehnt: Ein Spielstand
+ * aus einer Fassung mit höherer Höchststufe soll spielbar bleiben.
+ */
+export function statAtLevel(base: number, level: number): number {
+  const stufe = Math.min(Math.max(Math.trunc(level), 1), LEVELS.maxLevel);
+  const promille = LEVELS.factorPerMille[stufe - 1] ?? 1000;
+  return Math.trunc((base * promille) / 1000);
+}
 
 /**
  * Ein Boss nach Bezeichner, oder `undefined`.
