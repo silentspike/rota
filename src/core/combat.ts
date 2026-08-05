@@ -390,7 +390,7 @@ export class Combat {
   private decayCountValue = 0;
 
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
-  private readonly worn: WornValues;
+  private worn: WornValues;
   /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
@@ -423,7 +423,7 @@ export class Combat {
    *
    * `crit` selbst steht hier und nur hier: Er ist abgeleitet, nicht gesetzt.
    */
-  private readonly factorsOnCrit: MutableFactors;
+  private factorsOnCrit: MutableFactors;
 
   private resourceValue = 0;
   private resourceOverflowValue = 0;
@@ -926,6 +926,43 @@ export class Combat {
    * Die Faktoren werden dabei neu gebildet, nicht nachgerechnet: Es ist
    * dieselbe Zeile wie beim Aufbau, damit es keine zweite Rechenstelle gibt.
    */
+  /**
+   * Die getragenen Werte ändern (Issue #421a).
+   *
+   * **Nur zwischen Kämpfen**, wie beim Umskillen: Mitten im Kampf zu wechseln
+   * hiesse, den Schaden rückwirkend anders zu rechnen als die bereits
+   * gefallenen Treffer.
+   *
+   * `vesselMax` zieht mit, weil VESSEL die Lebenspunkte hebt — und wie bei
+   * `setPlayerLevel` nur ausserhalb des Kampfes: Mitten drin die Obergrenze zu
+   * heben hiesse, Punkte zu schenken.
+   */
+  setWorn(worn: WornValues): void {
+    if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
+    this.worn = worn;
+    this.setDamageFactor('essence', NEUTRAL_FACTORS.essence * essenceFactor(worn));
+    this.setDamageFactor('gearEffects', gearEffectFactor(worn));
+    // **Die Krit-Fassung als Ganzes neu, nicht Feld für Feld** — und das ist
+    // keine Stilfrage: `crit` ist in `setDamageFactor` ausdrücklich
+    // ausgenommen, weil es nur in dieser Fassung existiert. Ein einzelnes Feld
+    // hier zu beschreiben wäre eine dritte Schreibstelle, und der Wächter aus
+    // #196 hat genau das gefangen — zum zweiten Mal an diesem Abend, nach #417.
+    //
+    // Dieselbe Form wie beim Aufbau. Sie ist hier zulässig, weil zwischen den
+    // Kämpfen kein laufzeitgesetzter Faktor offen steht.
+    this.factorsOnCrit = { ...this.factors, crit: critFactor(worn) };
+    const vorher = this.vesselMax;
+    this.vesselMax = vesselWithGear(statAtLevel(PLAYER.vessel, this.levelValue), worn.vessel);
+    if (this.playerHpValue >= vorher || this.playerHpValue === 0) {
+      this.playerHpValue = this.vesselMax;
+    }
+  }
+
+  /** Die getragenen Werte — für Anzeige und Prüfung. */
+  get wornValues(): WornValues {
+    return this.worn;
+  }
+
   setTalents(allocation: TalentAllocation): void {
     if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
     this.talents = allocation;

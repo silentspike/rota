@@ -37,7 +37,7 @@ import type { RunSummary } from '../core/summary.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
 import { appendRun } from './run-history.js';
-import type { BestRun, ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
+import type { BestRun, OwnedItem, ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
 
 /**
  * Die Ausgänge, die als Versuch zählen.
@@ -108,6 +108,13 @@ export interface RecordedState {
    * Faktor daraus macht, wird bei jedem Kampf neu gerechnet.
    */
   readonly talentPoints: Readonly<Record<string, number>>;
+  /**
+   * Die besessenen Gegenstände (Issue #421a).
+   *
+   * **Was gefunden und angelegt wurde, nicht was es bewirkt** (18.6): Die
+   * getragenen Werte rechnet `wornFrom` bei jedem Kampf neu.
+   */
+  readonly items: readonly OwnedItem[];
   /** Erreichte Stufe (Issue #248). */
   readonly level: number;
   /** Erfahrung auf dieser Stufe, noch nicht verbraucht (Issue #248). */
@@ -249,6 +256,8 @@ export function recordRun(
     // **Unverändert weitergereicht**: Ein Kampf verteilt keine Talente — das
     // tut der Spieler zwischen den Kämpfen (GAME-DESIGN 12.4).
     talentPoints: state.talentPoints,
+    // Ein Kampf findet noch keine Beute — das ist #421b.
+    items: state.items,
     level: nachher.level,
     experience: nachher.xp,
     counted: true,

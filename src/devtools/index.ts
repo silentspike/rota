@@ -475,6 +475,20 @@ export interface DevTools {
    */
   setTalents(allocation: Readonly<Record<string, number>>): string | null;
   /**
+   * Ausrüstung anlegen (Issue #421a).
+   *
+   * **Weil es noch keine Ausrüst-Oberfläche gibt** — die ist ein eigenes
+   * Issue, genau wie der Talentbaum-Bildschirm. Ohne diesen Einstieg wäre die
+   * Kette vom Spielstand in den Kampf gebaut und im Browser nicht zu zeigen.
+   *
+   * Gibt die getragenen Werte zurück, damit der Aufrufer sieht, was angekommen
+   * ist — ein `setItems`, das schweigt, liesse offen, ob die Kennung überhaupt
+   * im Katalog stand.
+   */
+  setItems(
+    items: readonly { itemId: string; upgradeSteps: number; equippedSlot: number | null }[],
+  ): unknown;
+  /**
    * Der Spielstand: WOHER er kommt und was drinsteht (Issue #378).
    *
    * **Der Grund ist ein Fehler, den zwei Sitzungen an einem Abend unabhängig
@@ -1004,6 +1018,10 @@ export function installDevTools(app: App): void {
       );
       app.setTalents(allocation);
       return problem;
+    },
+    setItems: (items) => {
+      app.setItems(items as never);
+      return app.combat.wornValues;
     },
     setBossHp: (hp: number) => {
       app.combat.setBossHpRemaining(hp);
