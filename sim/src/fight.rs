@@ -1664,7 +1664,8 @@ impl Fight {
         if self.died_at.is_some() {
             return;
         }
-        let nach_ward = PLAYER.incoming(raw);
+        // WARD aus der getragenen Ausruestung kommt zur Basis dazu (#282, AC4).
+        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward);
 
         // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
         //

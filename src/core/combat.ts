@@ -1307,7 +1307,15 @@ export class Combat {
     // Schaden (GAME-DESIGN 6.3) und dieselbe Zeile wie `PlayerBase::incoming`
     // im Simulator. Zweimal zu runden ergäbe je nach Reihenfolge andere
     // Zahlen, und genau daran laufen zwei Umsetzungen auseinander.
-    const nachWard = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+    // WARD aus der getragenen Ausrüstung kommt zur Basis dazu (#282, AC4).
+    // **Additiv, nicht multiplikativ:** Beides ist Minderung, also derselbe
+    // Topf — innerhalb eines Topfes wird addiert (13.1b).
+    //
+    // Der Deckel bei 1 ist eine Rechenregel, keine Balance-Zahl: Darüber
+    // würde der Spieler geheilt. Ob es einen Balance-Deckel darunter geben
+    // soll, ist offen und steht nirgends im Design.
+    const minderung = Math.min(1, PLAYER.wardReduction + this.worn.ward / 1000);
+    const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
     // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
     // Issue #79).
