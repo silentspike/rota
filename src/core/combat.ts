@@ -37,7 +37,7 @@ import {
   type SpellDef,
   type TimelineEntryDef,
 } from './data.js';
-import { GlobalCooldown } from './gcd.js';
+import { GCD_MS, GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
 import { hastedMs } from './haste.js';
 import {
@@ -99,6 +99,20 @@ export const MAX_DECAY_STACKS = 5;
 
 /** Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht. Wird gemessen. */
 export const DECAY_STACK_PERCENT = 3;
+
+/**
+ * Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhöht
+ * (GAME-DESIGN 5 und 1193, Issue #318).
+ *
+ * **Gesetzt, nicht gemessen.** GAME-DESIGN regelt Fenster und Stapel-Regel und
+ * schweigt zur Höhe — die bestimmt der Balance-Läufer, wie die Punktekurve.
+ * 25 % liegt in der Mitte des Korridors, den die Widerstände benutzen (20–30 %),
+ * und ist damit vergleichbar.
+ *
+ * Prüfbar wird der Wert, sobald ein Boss die Schulwahl belohnt (#328); #237
+ * kann ihn dann fahren.
+ */
+export const SYNERGY_BONUS_PERCENT = 25;
 
 /** Wie lange ein einzelner Stapel hält. Wird gemessen. */
 export const DECAY_STACK_DURATION_MS = 12_000;
@@ -211,6 +225,15 @@ export class Combat {
   private readonly indexById = new Map<string, number>();
   private readonly cooldownReadyAtMs: Float64Array;
   private readonly castCounts: Int32Array;
+  /**
+   * Bis wann das Synergie-Fenster dieses Zaubers offen steht (Issue #318).
+   *
+   * Index ist der **Partner**, nicht der Auslöser: Gefragt wird beim Wirken
+   * „steht MIR ein Fenster offen", und das ist eine Abfrage ohne Suche.
+   */
+  private readonly synergyWindowEndsMs: Float64Array;
+  private synergyUsedCount = 0;
+  private synergyAvailableCount = 0;
   private readonly damageBySpell: Float64Array;
   private readonly dotExpiresAtMs: Float64Array;
   private readonly dotNextTickAtMs: Float64Array;
@@ -487,6 +510,7 @@ export class Combat {
     const count = this.spells.length;
     this.cooldownReadyAtMs = new Float64Array(count);
     this.castCounts = new Int32Array(count);
+    this.synergyWindowEndsMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.damageBySpell = new Float64Array(count);
     this.dotExpiresAtMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotNextTickAtMs = new Float64Array(count).fill(NOT_ACTIVE);
@@ -1091,6 +1115,84 @@ export class Combat {
    * beiden Seiten dieselbe Rechnung; `1 + n · p / 100` wäre es nicht zwingend
    * (18.4).
    */
+/**
+   * Den Synergie-Faktor setzen, wenn diesem Zauber ein Fenster offen steht
+   * (GAME-DESIGN 5, Issue #318).
+   *
+   * # Der Faktor ist additiv im Topf „aktive Verstärkungen"
+   *
+   * GAME-DESIGN 1193 ordnet Synergien demselben Topf zu wie Overdrive und die
+   * Zersetzungs-Stapel, „additiv untereinander". Zwei offene Fenster addieren
+   * ihre Boni zu EINEM Faktor, statt übereinander zu multiplizieren — das ist
+   * die Stapel-Regel aus 327, angewandt.
+   *
+   * # Der Bonus liegt NEBEN dem Stapel-Bonus, nicht darin
+   *
+   * FESTER wird ohnehin stärker, je mehr Zersetzungs-Stapel liegen
+   * (`perDecayStackPercent`). Das ist eine andere Mechanik. Eine Gegenprobe,
+   * die den Stapelstand mitvariiert, misst die Stapel und nicht die Synergie.
+   */
+  private applySynergyBonus(index: number, timeMs: number): void {
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    const endet = this.synergyWindowEndsMs[index] ?? NOT_ACTIVE;
+    const offen = endet !== NOT_ACTIVE && seitBeginn <= endet;
+    // **Ganzzahlig bis zur letzten Teilung** (GAME-DESIGN 18.4): (100 + n) / 100
+    // und nicht 1 + n / 100 — sonst hängt das Ergebnis an der Reihenfolge der
+    // Gleitkomma-Schritte, und die beiden Seiten laufen auseinander.
+    this.setDamageFactor('synergy', offen ? (100 + SYNERGY_BONUS_PERCENT) / 100 : 1);
+    if (offen) {
+      this.synergyUsedCount++;
+      // **Das Fenster ist verbraucht.** Sonst zählte jede weitere Wirkung im
+      // selben Fenster erneut als genutzte Synergie, und die Ausbeute stiege
+      // über die Zahl der Gelegenheiten.
+      this.synergyWindowEndsMs[index] = NOT_ACTIVE;
+    }
+  }
+
+  /**
+   * Das Fenster für den Partner öffnen (Issue #318).
+   *
+   * # Die Länge steht in WARTEZEITEN, nicht in Millisekunden
+   *
+   * `windowGcds` ist eine Anzahl; die Millisekunden entstehen hier, durch
+   * dieselbe `hasted()`-Stelle wie jede andere Zeit. Damit schrumpft das
+   * Fenster bei hohem CATALYSIS mit — GAME-DESIGN 327: „In Wartezeiten
+   * gerechnet, nicht in Sekunden, sonst verschiebt sich das Verhältnis bei
+   * hohem Tempo."
+   *
+   * # Warum `synergyAvailable` an der Bereitschaft hängt
+   *
+   * Ein Fenster, das aufgeht, während der Partner auf Abklingzeit liegt und
+   * auch bis zum Ende nicht bereit wird, ist **keine Gelegenheit**. Zählte es
+   * mit, sänke die Ausbeute durch etwas, das der Spieler gar nicht hätte
+   * nutzen können — die Zahl bestrafte ihn für eine Abklingzeit statt für sein
+   * Spiel.
+   */
+  private openSynergyWindow(spell: SpellDef, timeMs: number): void {
+    const synergy = spell.synergy;
+    if (synergy === undefined) return;
+    const partner = this.indexOf(synergy.partner);
+    if (partner < 0) return;
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    const laenge = this.hasted(GCD_MS * synergy.windowGcds);
+    this.synergyWindowEndsMs[partner] = seitBeginn + laenge;
+    // **Wird der Partner im Fenster überhaupt bereit?** `cooldownReadyAtMs`
+    // steht in Kampfzeit wie `timeMs`, das Fensterende in Zeit seit
+    // Kampfbeginn — deshalb die Differenz und nicht der rohe Vergleich.
+    const bereitAb = this.cooldownReadyAtMs[partner] ?? 0;
+    if (bereitAb - timeMs <= laenge) this.synergyAvailableCount++;
+  }
+
+  /** Wie oft ein Fenster offen stand, das der Partner hätte nutzen können. */
+  get synergyAvailable(): number {
+    return this.synergyAvailableCount;
+  }
+
+  /** Wie oft der Partner im offenen Fenster gewirkt wurde. */
+  get synergyUsed(): number {
+    return this.synergyUsedCount;
+  }
+
   private updateVulnerability(): void {
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
   }
@@ -1967,6 +2069,7 @@ export class Combat {
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
     this.applyPutrefaction(spell, timeMs);
+    this.openSynergyWindow(spell, timeMs);
 
     // **Ein Wurf für die ganze Wirkung**, und er fällt genau dann, wenn der
     // Zauber **laut seinen Daten** Schaden austeilen kann — nicht danach, ob am
@@ -1979,6 +2082,10 @@ export class Combat {
     // Betrag wäre es nicht, und ein Zufallsstrom, der auf den zwei Seiten
     // verschieden oft gedreht wird, lässt den ganzen folgenden Kampf
     // auseinanderlaufen.
+    // **Erst prüfen, dann öffnen** (Issue #318). Ein Zauber, der sein eigener
+    // Partner wäre, nutzte sonst das Fenster, das er im selben Zug aufmacht.
+    this.applySynergyBonus(index, timeMs);
+
     const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
     const kritet = teiltSchadenAus ? this.rollCrit() : false;
     const castFactors = this.factorsFor(kritet);
