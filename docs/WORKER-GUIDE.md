@@ -1994,6 +1994,32 @@ melden, dann wird er in der SSOT aufgelöst.
 | **Umlaute**           | In Doku, Kommentaren und Commit-Messages echte Umlaute (ä ö ü ß), nicht ae/oe/ue/ss. ASCII nur in Bezeichnern, Dateinamen, URLs |
 | **Keine Emojis**      | Weder im Code noch in der Oberfläche noch in Commits                                                                            |
 
+### Warum diese Liste so lang ist
+
+Was ab hier folgt, sind nicht Einzelfälle, sondern dieselbe Bewegung in
+verschiedenen Verkleidungen: **Das Wissen war jedes Mal vorhanden — es fehlte der Anlass, es im
+richtigen Moment zu holen.**
+
+| Fall                                              | wo das Wissen stand                            |
+| ------------------------------------------------- | ---------------------------------------------- |
+| `setLevel(999)` als Getter benutzt                | im Kommentar der Funktion, selbst geschrieben  |
+| Spielstand am falschen Ringpuffer-Index gelesen   | in einer Meldung, eine Stunde vorher quittiert |
+| Prüfskript verglich gegen `HEAD` statt Merge-Base | in diesem Guide, seit demselben Vormittag      |
+
+Deshalb ist der Weg von einem Abschnitt hier zu einem **Wächter** der eigentliche Fortschritt: Ein
+Merksatz verlangt, dass man im richtigen Moment an ihn denkt. Ein Wächter liefert den Anlass mit.
+
+Wo das gelungen ist, sieht es jedes Mal gleich aus — die Liste kommt **aus** der Struktur statt
+daneben zu stehen:
+
+| Sprache    | Mittel                                      |
+| ---------- | ------------------------------------------- |
+| Rust       | `#[derive(Debug)]` gibt die Feldnamen her   |
+| TypeScript | `Object.keys()` eines echten Ergebnisses    |
+| TypeScript | `Required<{ [K in keyof Optionen]: true }>` |
+
+> **Eine Liste, die jemand pflegen muss, ist die, die zurückbleibt.**
+
 ### Wer Zeilen zählt, vergleicht etwas anderes als wer Werte zählt
 
 In #236 ging es um die Reihenfolge, in der Spiel und Simulator ihre Werte in die Prüfsumme mischen.
