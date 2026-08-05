@@ -54,7 +54,17 @@ const NICHT_FUER_DEN_SPIELER: ReadonlyMap<string, string> = new Map([
  * der genauere — er zeigt die Struktur, nicht einen Lauf.
  */
 function felderVonRecordResult(): string[] {
-  const leer: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
+  // **Der Uebersetzer fuehrt die Liste, nicht ich.** Kommt ein Feld zu
+  // RecordedState dazu (wie `bestRuns` mit #377), faellt diese Zeile — und
+  // genau das soll sie: Ein Prueffall ueber die Felder eines Typs muss den
+  // Typ kennen, den es HEUTE gibt.
+  const leer: RecordedState = {
+    runHistory: [],
+    progressMarks: [],
+    level: 1,
+    experience: 0,
+    bestRuns: [],
+  };
   const abbruch = -1;
   expect(
     countsAsAttempt(abbruch),
