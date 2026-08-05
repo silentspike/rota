@@ -992,15 +992,30 @@ nie nachgezogen worden. Seine Basis-Messung lief grün: 1049 Prüffälle, Rückg
 **Über die Frage „laufen die Prüffälle unter dem neuen Läufer" sagte sie nichts** — sie lief unter
 dem alten.
 
-Beim Nachmessen zeigte sich, dass es kein Einzelfall war:
+Beim Nachmessen zeigte sich, dass es kein Einzelfall war — und dass **zwei verschiedene Ursachen
+gleich aussehen**:
 
-| Worktree | installiert |
-| --- | --- |
-| `/work/rota` · `e2` | vitest 4.1.10 |
-| `e1` · `e8` · `e9` | vitest 3.2.7 |
+| Worktree | installiert | Branch enthält die Aktualisierung? | |
+| --- | --- | --- | --- |
+| `/work/rota` · `e2` | vitest 4.1.10 | ja | in Ordnung |
+| `e1` · `e9` | vitest 3.2.7 | **ja** | **falsches Werkzeug** → `npm ci` |
+| `e8` | vitest 3.2.7 | nein | in Ordnung — der Branch ist älter |
 
-**Drei von fünf**, und in zweien davon wurde zu diesem Zeitpunkt gearbeitet. Jeder Worktree hat sein
-eigenes `node_modules`; ein `npm install` in einem zieht die anderen nicht nach.
+Jeder Worktree hat sein eigenes `node_modules`; ein `npm install` in einem zieht die anderen nicht
+nach. In `e1` und `e9` wurde zu diesem Zeitpunkt gearbeitet.
+
+> **Der `e8`-Fall ist der lehrreichere.** Dort lief `npm ci` mit Rückgabewert 0 und brachte trotzdem
+> weiter vitest 3.2.7 — weil das Sperrverzeichnis dieses Branches noch `^3.0.4` fordert. Das ist
+> **kein Fehler**: `npm ci` installiert exakt nach dem Sperrverzeichnis, und für einen Branch, der
+> älter ist als die Aktualisierung, ist der alte Läufer der richtige.
+>
+> Zwei Ursachen, zwei Reparaturen — und wer sie verwechselt, fährt `npm ci` gegen ein Problem, das
+> es nicht hat:
+>
+> | Ursache | Prüfung | Reparatur |
+> | --- | --- | --- |
+> | `node_modules` nicht nachgezogen | `git merge-base --is-ancestor <commit> HEAD` sagt ja | `npm ci` |
+> | Branch älter als die Aktualisierung | dieselbe Prüfung sagt nein | `main` ziehen, dann `npm ci` |
 
 > **Warum es niemandem auffiel:** Die CI fährt `npm ci` und misst deshalb korrekt. Ein PR ist grün,
 > die lokale Messung ist grün — nur eben mit zwei verschiedenen Werkzeugen. Solange beide dasselbe
