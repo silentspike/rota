@@ -41,6 +41,16 @@ export interface Attempt {
    * 0 heißt besiegt. Kleiner ist besser.
    */
   readonly remainingPercent: number;
+  /**
+   * Ob dieser Boss das umgekehrte Ziel hat (Issue #256).
+   *
+   * **Die ZAHL bleibt davon unberührt** — `remainingPercent` heißt weiter
+   * „kleiner ist besser", und die Marke wählt bei beiden Boss-Arten richtig.
+   * Nur der SATZ wechselt: „down to 15 %" sagt bei einem Boss, dessen Reaktion
+   * davonläuft, das Gegenteil dessen, was geschehen ist. Der Spieler hat den
+   * Ring nicht heruntergedrückt, er hat ihn gehalten.
+   */
+  readonly reversed: boolean;
   readonly victory: boolean;
   /**
    * Fassung des Spiels.
@@ -93,7 +103,11 @@ export interface AttemptContext {
  * Aufrufstelle neu.
  */
 export function attemptFrom(
-  summary: { readonly progressPercent: number; readonly victory: boolean },
+  summary: {
+    readonly progressPercent: number;
+    readonly victory: boolean;
+    readonly reversed: boolean;
+  },
   context: AttemptContext,
 ): Attempt {
   return {
@@ -102,6 +116,7 @@ export function attemptFrom(
     // Das Minus ist die ganze Umrechnung — und der Grund, warum es diese
     // Funktion gibt.
     remainingPercent: Math.max(0, 100 - summary.progressPercent),
+    reversed: summary.reversed,
     victory: summary.victory,
     gameVersion: context.gameVersion,
     at: context.at,
@@ -197,7 +212,48 @@ export function markFor(
  * wo er steht.
  */
 export function markSentence(update: MarkUpdate, attempt: Attempt): string {
-  const now = `${attempt.remainingPercent.toFixed(0)} %`;
+  // **Zwei Satzbäume, EINE Zahl.** Der Wortlaut „down to 23 %" steht in
+  // GAME-DESIGN 1111 — als Beispiel in einer Tabellenzelle, und die eigentliche
+  // Vorgabe daneben lautet „sichtbar ein Schritt weiter, auch ohne Sieg".
+  //
+  // Für einen Boss mit umgekehrtem Ziel gibt es dort keinen Wortlaut. Das ist
+  // eine Lücke, keine Falschumsetzung — und „down to" wäre dort wörtlich
+  // verkehrt: Die Reaktion läuft davon, statt herunterzugehen. Der Spieler hat
+  // gehalten, nicht gedrückt.
+  //
+  // **Was er GESCHAFFT hat, nicht was fehlt.** Die Marke ist das Werkzeug
+  // gegen Frust (GAME-DESIGN 1105) — sie soll Erreichtes zeigen. Deshalb
+  // „held 85 %" statt „15 % short", obwohl beides dieselbe Zahl meint.
+  //
+  // ZWEI SATZBÄUME SIND ZWEI ORTE FÜR EINE REGEL, und einer läuft weg. Ein
+  // Prüffall misst deshalb BEIDE Zweige an denselben Daten
+  // (`progress-mark.test.ts`) — dann kann keiner still auseinanderlaufen.
+  const gehalten = (remaining: number): string => (100 - remaining).toFixed(0);
+  const uebrig = (remaining: number): string => remaining.toFixed(0);
+
+  if (attempt.reversed) {
+    // Ein Sieg zeigt heute keine Marke (#187, siehe unten); der Satz steht
+    // trotzdem richtig da, falls das je aufgeweicht wird.
+    if (attempt.victory) return 'Contained.';
+    const jetzt = gehalten(attempt.remainingPercent);
+    if (update.previousPercent === null) return `Best attempt: held ${jetzt} % of the timer.`;
+    if (update.improved) {
+      return (
+        `New best attempt: held ${jetzt} % of the timer — ` +
+        `${update.gainedPercent.toFixed(0)} points further than before.`
+      );
+    }
+    return (
+      `Held ${jetzt} % of the timer. ` +
+      `Best attempt stands at ${gehalten(update.previousPercent)} %.`
+    );
+  }
+
+  const now = `${uebrig(attempt.remainingPercent)} %`;
+  // **Dieser Satz wird heute nie angezeigt**: `markDisplayFor` gibt nach einem
+  // Sieg `null` zurück, weil dort das Ergebnis steht und nicht die Marke
+  // (Issue #187, AC3 und AC4). Er bleibt trotzdem stehen und richtig — eine
+  // tote Zeile, die niemand pflegt, erscheint sonst irgendwann falsch.
   if (attempt.victory) return 'Defeated.';
   if (update.previousPercent === null) return `Best attempt: down to ${now}.`;
   if (update.improved) {
@@ -206,5 +262,5 @@ export function markSentence(update: MarkUpdate, attempt: Attempt): string {
       `${update.gainedPercent.toFixed(0)} points further than before.`
     );
   }
-  return `Down to ${now}. Best attempt stands at ${update.previousPercent.toFixed(0)} %.`;
+  return `Down to ${now}. Best attempt stands at ${uebrig(update.previousPercent)} %.`;
 }

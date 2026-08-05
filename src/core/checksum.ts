@@ -207,5 +207,15 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // „gelegen und entfernt" trägt — im Zustand sehen die beiden gleich aus.
   h = mixNamedInt(h, 'afflicted', combat.afflicted ? 1 : 0);
   h = mixNamedInt(h, 'afflictionsCleared', combat.afflictionsCleared);
+  // Issue #256: Der Anteil des SPIELERS am Ring-Verlust. `damage` steht schon
+  // an Position 2, aber es mischt seit #247 zwei Herkünfte — die Reaktion
+  // senkt den Ring von selbst. Zwei Läufe mit gleichem `damage` und
+  // verschiedenem Spieler-Anteil sähen ohne dieses Feld identisch aus, und ein
+  // Simulator, der die Trennung anders zieht, fiele nicht auf.
+  //
+  // **Angehängt, nicht eingeschoben** — wie jedes Feld seit #96. Der Name
+  // kommt aus #236 dazu: Der Gleichlauf-Wächter nennt bei einer Abweichung die
+  // Stelle beim Namen, statt nur ihre Nummer zu melden.
+  h = mixNamedFloat(h, 'playerDamage', combat.playerDamage);
   return h >>> 0;
 }

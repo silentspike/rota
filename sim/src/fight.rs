@@ -274,6 +274,17 @@ pub struct Fight {
     // -- Boss --
     boss: &'static Boss,
     damage: u32,
+    /// Wie viel Ring der SPIELER heruntergedrueckt hat (Issue #256, AC3).
+    ///
+    /// `damage` mischt seit #247 zwei Herkuenfte: Die davonlaufende Reaktion
+    /// senkt den Ring von selbst. Gemessen gegen `test-runaway` steht bei
+    /// einem Lauf ohne einen einzigen Tastendruck `damage = 1020`, davon
+    /// null vom Spieler — die Fehleranalyse meldete ihm sonst 1020 Punkte
+    /// als seinen Fehler.
+    ///
+    /// Nur was ankommt: Schaden im Unverwundbarkeits-Fenster senkt den Ring
+    /// nicht und steht in `damage_lost_to_race`.
+    player_damage: u32,
     killed_at: Option<Millis>,
     /// Welche Phase gerade laeuft. 0 ist der Start.
     phase: usize,
@@ -483,6 +494,7 @@ impl Fight {
             stop_on_kill: config.stop_on_kill,
             boss: config.boss,
             damage: 0,
+            player_damage: 0,
             killed_at: None,
             phase: 0,
             energy: 0,
@@ -1918,7 +1930,7 @@ impl Fight {
             return;
         }
 
-        self.book_progress(run.amount);
+        self.book_progress(run.amount, false);
 
         let next = self.time + run.per_step_ms;
         if next < self.duration_ms {
@@ -2195,7 +2207,7 @@ impl Fight {
             self.log.push(self.time, kind, index as u8, amount);
             return amount;
         }
-        self.book_progress(amount);
+        self.book_progress(amount, true);
         self.damage_by_spell[index] += amount;
         self.log.push(self.time, kind, index as u8, amount);
         // **Hier und nur hier** speist Weg 3 (Issue #79). Jeder ausgeteilte
@@ -2219,8 +2231,15 @@ impl Fight {
     /// Unverwundbarkeits-Fenster, die Schadenstabelle, das Protokoll und die
     /// Umwandlung. Alle vier gelten fuer ausgeteilten SCHADEN — die Reaktion
     /// ist keiner.
-    fn book_progress(&mut self, amount: u32) {
+    fn book_progress(&mut self, amount: u32, from_player: bool) {
         self.damage += amount;
+        // **Die Herkunft wird HIER festgehalten, nicht spaeter erschlossen.**
+        // Nach der Buchung ist sie fort: Der Ring weiss nicht mehr, wer ihn
+        // gesenkt hat. Dasselbe Argument wie auf der Spielseite in
+        // `bookProgress`.
+        if from_player {
+            self.player_damage += amount;
+        }
     }
 
     fn add_resource(&mut self, amount: u16) {
@@ -2544,6 +2563,15 @@ impl Fight {
         // gelegen" und "gelegen und entfernt".
         h = mix_named_int(h, "afflicted", i32::from(self.afflicted));
         h = mix_named_int(h, "afflictionsCleared", self.afflictions_cleared as i32);
+        // Issue #256: Der Anteil des SPIELERS am Ring-Verlust. `damage` steht
+        // schon an Position 2, mischt aber seit #247 zwei Herkuenfte. Zwei
+        // Laeufe mit gleichem `damage` und verschiedenem Spieler-Anteil saehen
+        // ohne dieses Feld identisch aus.
+        //
+        // **Angehaengt, nicht eingeschoben** — wie jedes Feld seit #96. Der
+        // Name kommt aus #236 dazu, und er muss WOERTLICH derselbe sein wie
+        // auf der Spielseite: Der Gleichlauf-Waechter vergleicht die Namen.
+        h = mix_named_float(h, "playerDamage", f64::from(self.player_damage));
         h
     }
 

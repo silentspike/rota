@@ -25,6 +25,18 @@ export interface SpellIdle {
   /** Anteil an der Kampfzeit, 0 bis 1. */
   readonly share: number;
   readonly casts: number;
+  /**
+   * Schaden, den dieser Zauber am Ring angerichtet hat (Issue #256).
+   *
+   * **Bei einem Boss mit umgekehrtem Ziel ist DAS die Zeile, die zählt** —
+   * nicht der Leerlauf. Die Liste heißt weiter `SpellIdle`, weil sie eine
+   * Zeile je Zauber ist; der Leerlauf war nur die erste Größe darin.
+   *
+   * Stabilisierer stehen hier bei null: Sie drängen den Ring über
+   * `undoProgress` zurück, statt Schaden zu buchen. Der Wert ist damit genau
+   * der schädliche Anteil je Zauber.
+   */
+  readonly damage: number;
 }
 
 export interface RunSummary {
@@ -34,9 +46,77 @@ export interface RunSummary {
   readonly elapsedMs: number;
   /** Restzeit bis zum Überdruck in ms. Beim Sieg die Reserve. */
   readonly remainingMs: number;
+  /**
+   * Was einen Sieg vom anderen trennt (Issue #256).
+   *
+   * **Der Fortschritt sagt, WIE WEIT man kam; diese Zahl, WIE GUT.** Bei
+   * einem gewöhnlichen Boss sind alle Siege 100 % Fortschritt, und getrennt
+   * werden sie durch die Zeit — wer schneller war, war besser.
+   *
+   * Bei einem Boss mit `runaway` ist die Zeit fest: Der Sieg IST das Ablaufen
+   * der Frist, die Reserve ist immer 0,00 s und sagt nichts. Dort trennt der
+   * Ring-Rest — wer mehr Reaktion übrig hat, hat besser gehalten.
+   *
+   * | | Fortschritt | trennt die Siege |
+   * | --- | --- | --- |
+   * | gewöhnlich | Schaden am Ring | Restzeit |
+   * | mit `runaway` | überstandene Frist | **Ring-Rest** |
+   *
+   * Dass die beiden Größen die Plätze tauschen, ist die Umkehrung selbst und
+   * keine Ausnahme daneben.
+   *
+   * `null` bei einem gewöhnlichen Boss: Dort trennt die Restzeit, die schon
+   * dasteht. Eine zweite Zahl wäre der „zweite Satz Anzeigen", den die Auflage
+   * verbietet.
+   */
+  readonly heldPercent: number | null;
   readonly damage: number;
+  /**
+   * Wie viel des Ring-Verlusts der SPIELER verursacht hat (Issue #256, AC3).
+   *
+   * Bei einem gewöhnlichen Boss ist das `damage` selbst. Bei einem mit
+   * `runaway` ist es der Teil, den er sich selbst zugefügt hat — der Rest
+   * kommt von der Reaktion, die von allein läuft.
+   *
+   * Ohne diese Zahl meldete die Fehleranalyse dem Spieler, der NICHTS gedrückt
+   * hat, den vollen Ring-Verlust als seinen Fehler.
+   */
+  readonly playerDamage: number;
+  /**
+   * Ob dieser Boss das umgekehrte Ziel hat (Issue #256).
+   *
+   * **Ein eigenes Feld statt eines Rückschlusses.** `heldPercent !== null`
+   * läge nahe, ist aber ein indirekter Test: Die Zahl ist auch bei einem
+   * `runaway`-Boss ohne Lebenspunkte `null`. Wer die Umkehrung daran abliest,
+   * liest sie irgendwann falsch — und der Fehler wäre still, weil beide Fälle
+   * plausibel aussehen.
+   */
+  readonly reversed: boolean;
   readonly bossHp: number;
-  /** Fortschrittsmarke in Prozent (GAME-DESIGN 12.8). */
+  /**
+   * Fortschrittsmarke in Prozent (GAME-DESIGN 12.8; Issue #256).
+   *
+   * **Größer ist besser, bei jedem Boss** — nur die gemessene Größe wechselt:
+   *
+   * | | Fortschritt | 100 % heißt |
+   * | --- | --- | --- |
+   * | gewöhnlich | Schaden am Ring | der Boss ist gefallen |
+   * | mit `runaway` | überstandene Frist | die Frist ist überstanden |
+   *
+   * Beide Male sagt die Zahl dasselbe: **wie weit man kam.** Ein Spieler, der
+   * „85 %" liest, weiß bei beiden Boss-Arten, was er weiß — er muss keine
+   * zweite Lesart lernen.
+   *
+   * Das war vor #256 nicht so: Bei einem `runaway`-Boss zählte der Schaden am
+   * Ring, und der ist dort der Weg zur Niederlage. Ein verlorener Lauf stand
+   * bei 100 %, ein gewonnener bei 84 % — die Anzeige feierte, was den Lauf
+   * beendet hatte.
+   *
+   * **Die Gegenrichtung wurde geprüft und verworfen:** Der Ring-Rest als
+   * Fortschritt hätte den Sieg bei 16 % stehen lassen, also als schlechtestes
+   * Ergebnis der Anzeige. Er trennt stattdessen die SIEGE untereinander —
+   * dort, wo bei einem gewöhnlichen Boss die Restzeit steht.
+   */
   readonly progressPercent: number;
   readonly casts: number;
 
@@ -72,6 +152,40 @@ export interface RunSummary {
   readonly logDropped: number;
   readonly logOverflowed: boolean;
   readonly eventCounts: Readonly<Record<string, number>>;
+}
+
+/**
+ * Wie weit der Lauf kam, in Prozent (Issue #256).
+ *
+ * **Eine Entscheidung, an drei Stellen angewandt.** `progress-mark.ts` und
+ * `run-compare.ts` rechnen mit diesem Wert weiter und nehmen beide an, dass
+ * größer besser ist. Solange diese Funktion das einhält, stimmen sie mit —
+ * und niemand muss dreimal getrennt nachdenken.
+ *
+ * Bei einem Boss mit `runaway` ist es die überstandene Frist, sonst der
+ * Schaden am Ring. Beide Male: 100 % heißt, das Ziel ist erreicht.
+ */
+export function progressOf(combat: Combat, elapsedMs: number): number {
+  if (combat.boss.runaway !== null) {
+    const frist = combat.boss.overpressureMs;
+    // Ein Boss ohne Frist hätte kein Ziel — dann ist jeder Augenblick gleich
+    // weit, und 0 ist ehrlicher als eine Division durch null.
+    if (frist <= 0) return 0;
+    return Math.min(100, (100 * Math.max(elapsedMs, 0)) / frist);
+  }
+  if (combat.boss.hp <= 0) return 0;
+  return Math.min(100, (100 * combat.damageDealt) / combat.boss.hp);
+}
+
+/**
+ * Wie viel Ring am Ende noch stand, in Prozent (Issue #256).
+ *
+ * Nur bei einem Boss mit `runaway`; sonst `null`. Siehe `heldPercent`.
+ */
+export function heldOf(combat: Combat): number | null {
+  if (combat.boss.runaway === null || combat.boss.hp <= 0) return null;
+  const gehalten = combat.boss.hp - combat.damageDealt;
+  return Math.min(100, Math.max(0, (100 * gehalten) / combat.boss.hp));
 }
 
 export interface SummaryInput {
@@ -111,6 +225,7 @@ export function buildSummary(input: SummaryInput): RunSummary {
       idleMs,
       share: elapsedMs > 0 ? idleMs / elapsedMs : 0,
       casts: combat.castCount(i),
+      damage: combat.damageOf(i),
     });
   }
   // Nach Verlust sortiert (GAME-DESIGN 15.1). Bei Gleichstand nach Kennung,
@@ -129,10 +244,12 @@ export function buildSummary(input: SummaryInput): RunSummary {
     victory: input.victory,
     elapsedMs,
     remainingMs: input.remainingMs,
+    heldPercent: heldOf(combat),
     damage: combat.damageDealt,
+    playerDamage: combat.playerDamage,
+    reversed: combat.boss.runaway !== null,
     bossHp: combat.boss.hp,
-    progressPercent:
-      combat.boss.hp > 0 ? Math.min(100, (100 * combat.damageDealt) / combat.boss.hp) : 0,
+    progressPercent: progressOf(combat, elapsedMs),
     casts: input.casts,
     idlePerSpell,
     lostTimeMs: input.lostTimeMs,
