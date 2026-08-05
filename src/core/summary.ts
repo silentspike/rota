@@ -25,6 +25,18 @@ export interface SpellIdle {
   /** Anteil an der Kampfzeit, 0 bis 1. */
   readonly share: number;
   readonly casts: number;
+  /**
+   * Schaden, den dieser Zauber am Ring angerichtet hat (Issue #256).
+   *
+   * **Bei einem Boss mit umgekehrtem Ziel ist DAS die Zeile, die zählt** —
+   * nicht der Leerlauf. Die Liste heißt weiter `SpellIdle`, weil sie eine
+   * Zeile je Zauber ist; der Leerlauf war nur die erste Größe darin.
+   *
+   * Stabilisierer stehen hier bei null: Sie drängen den Ring über
+   * `undoProgress` zurück, statt Schaden zu buchen. Der Wert ist damit genau
+   * der schädliche Anteil je Zauber.
+   */
+  readonly damage: number;
 }
 
 export interface RunSummary {
@@ -213,6 +225,7 @@ export function buildSummary(input: SummaryInput): RunSummary {
       idleMs,
       share: elapsedMs > 0 ? idleMs / elapsedMs : 0,
       casts: combat.castCount(i),
+      damage: combat.damageOf(i),
     });
   }
   // Nach Verlust sortiert (GAME-DESIGN 15.1). Bei Gleichstand nach Kennung,

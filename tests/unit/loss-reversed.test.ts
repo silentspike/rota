@@ -172,3 +172,37 @@ describe('Bei einem gewöhnlichen Boss bleibt alles, wie es war', () => {
     ).toBe(true);
   });
 });
+
+describe('Die Zeile je Zauber trägt den Ring-Schaden', () => {
+  it('nennt für jeden Zauber, wie viel Ring er gekostet hat', () => {
+    // **Die Datengrundlage des Detailbereichs** (Issue #256). Er stand bis
+    // zum 2026-08-05 auch bei einem umgekehrten Ziel als „Idle time per
+    // spell" da — dieselbe verkehrte Aussage wie die Zeile darüber, nur
+    // hinter einem Knopf, den ich beim Umbau nicht gedrückt hatte.
+    //
+    // Die Anzeige selbst braucht ein Dokument und ist hier nicht prüfbar; was
+    // sie zeigt, steht in dieser Zahl.
+    const summary = spielen(RUNAWAY, 'kindle', 3000);
+    const kindle = summary.idlePerSpell.find((e) => e.spellId === 'kindle');
+    expect(kindle?.damage, 'KINDLE senkt den Ring').toBeGreaterThan(0);
+    expect(kindle?.damage).toBe(summary.playerDamage);
+  });
+
+  it('lässt einen Stabilisierer bei NULL — er bucht keinen Schaden', () => {
+    // CRUST drängt den Ring über `undoProgress` zurück, statt Schaden zu
+    // buchen. Stünde er hier mit einer Zahl, wiese die Liste ausgerechnet den
+    // Zauber als schädlich aus, der hilft.
+    const summary = spielen(RUNAWAY, 'crust');
+    const crust = summary.idlePerSpell.find((e) => e.spellId === 'crust');
+    expect(crust?.casts, 'er muss gewirkt worden sein, sonst prüft das nichts').toBeGreaterThan(0);
+    expect(crust?.damage).toBe(0);
+  });
+
+  it('summiert sich auf den Anteil des Spielers', () => {
+    // Sonst zeigte die Liste etwas anderes als die Zeile darüber, und der
+    // Spieler hätte zwei Zahlen, die einander widersprechen.
+    const summary = spielen(RUNAWAY, 'kindle', 3000);
+    const summe = summary.idlePerSpell.reduce((s, e) => s + e.damage, 0);
+    expect(summe).toBe(summary.playerDamage);
+  });
+});
