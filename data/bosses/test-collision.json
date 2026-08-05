@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "test-collision",
+  "_comment": "VORLAEUFIGE WERTE — KEIN INHALT. Dieser Boss traegt genau einen Prueffall (Issue #331): Sein zweiter Eintrag BEGINNT in exakt dem Takt, in dem der erste LANDET, und beide sind unterbrechbare Zauber. Das zweite ist die Bedingung, auf die es ankommt: `casting` wird NUR bei einem interruptibleCast gesetzt (fight.rs:1378). Ein `strike` an derselben Stelle beruehrt es nicht — die beiden Ereignisse gingen dann aneinander vorbei, und es gaebe gar keine Kollision. Meine erste Fassung hatte dort einen strike und war deshalb stumm. Erst zwei unterbrechbare Zauber hintereinander lassen den neuen Eintrag das `casting` des alten ueberschreiben — ohne dass irgendjemand unterbricht. KEINE der elf bestehenden Boss-Dateien trifft das, deshalb war der Unterschied zwischen Spiel und Simulator latent. Die Zahlen stehen HIER und nicht im Prueffall: Ein Prueffall, der sich seine Lage selbst herstellt, belegt nur, dass er sie herstellen kann.",
+  "name": "The Colliding Hour",
+  "instance": "testing",
+  "hp": 999999,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 4000,
+      "mechanic": "interruptibleCast",
+      "name": "First Word",
+      "damage": 600,
+      "castTimeMs": 3000
+    },
+    {
+      "atMs": 7000,
+      "mechanic": "interruptibleCast",
+      "name": "Colliding Word",
+      "damage": 600,
+      "castTimeMs": 2000
+    },
+    {
+      "atMs": 20000,
+      "mechanic": "interruptibleCast",
+      "name": "Third Word",
+      "damage": 600,
+      "castTimeMs": 2000
+    },
+    {
+      "atMs": 22000,
+      "mechanic": "interruptibleCast",
+      "name": "Fourth Word",
+      "damage": 600,
+      "castTimeMs": 2000
+    }
+  ],
+  "resistances": {},
+  "signature": null
+}

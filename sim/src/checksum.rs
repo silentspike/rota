@@ -104,6 +104,7 @@ pub fn mix_named_int(hash: u32, name: &'static str, value: i32) -> u32 {
             liste.push(name);
         }
     });
+    note(name, f64::from(value));
     mix_int(hash, value)
 }
 
@@ -115,7 +116,35 @@ pub fn mix_named_float(hash: u32, name: &'static str, value: f64) -> u32 {
             liste.push(name);
         }
     });
+    note(name, value);
     mix_float(hash, value)
+}
+
+/// Wie `record_field_order`, aber mit den WERTEN (Issue #349).
+///
+/// Der Reihenfolge-Waechter (#236) braucht nur die Namen. Wer wissen will,
+/// **welches** Feld nach einem `reset` noch steht, braucht die Werte dazu —
+/// sonst meldet der Vergleich zweier Pruefsummen nur, DASS sie abweichen.
+///
+/// Rust hat keine Reflexion; das hier ist der naechstbeste Zugang: Was in die
+/// Pruefsumme eingeht, kann sich auch benennen lassen.
+pub fn record_fields<F: FnOnce()>(run: F) -> Vec<(&'static str, f64)> {
+    VALUES.with(|v| *v.borrow_mut() = Some(Vec::new()));
+    run();
+    VALUES.with(|v| v.borrow_mut().take()).unwrap_or_default()
+}
+
+thread_local! {
+    static VALUES: std::cell::RefCell<Option<Vec<(&'static str, f64)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn note(name: &'static str, value: f64) {
+    VALUES.with(|v| {
+        if let Some(list) = v.borrow_mut().as_mut() {
+            list.push((name, value));
+        }
+    });
 }
 
 #[cfg(test)]

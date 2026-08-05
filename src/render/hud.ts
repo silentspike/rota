@@ -57,6 +57,13 @@ const HEAT_FILL = '#d4762e';
  * den Unterschied tragen.
  */
 const CAST_BAR_FILL = '#8fb4d8';
+/**
+ * Der Boss-Balken (Issue #327). Warm gegen das kühle Blau des Spieler-Balkens
+ * — aber die Farbe ist die dritte Unterscheidung, nicht die erste: Ort (Ring
+ * gegen Leiste) und Richtung (ablaufend gegen zulaufend) tragen die Aussage
+ * schon allein (GAME-DESIGN 21.2).
+ */
+const BOSS_BAR_FILL = '#c0603a';
 const HEAT_FILL_BONUS = '#f0a24a';
 const HEAT_MARK = '#efe7d4';
 
@@ -134,6 +141,34 @@ const MECHANIC_TOP = HEAT_TOP - 54;
  * schrumpfen, sie trägt einen Namen, und sie steht an einem anderen Ort.
  */
 const CAST_BAR_TOP = MECHANIC_TOP - 92;
+/**
+ * Der Balken des BOSS-Zaubers (GAME-DESIGN 11.2 Baustein 9, Issue #327).
+ *
+ * **Im Ring, unter der Beschriftung.** Er gehört zum ZIEL, nicht zur Leiste —
+ * das ist der Unterschied zum Balken des Spielers, und er ist der Grund für
+ * den Ort: Der eine zeigt, was ICH tue und abwarte; der andere, was der BOSS
+ * tut und wogegen ich etwas tun kann.
+ *
+ * Die Fläche ist nachgemessen und nicht geraten: Unter dem Ring liegt der
+ * Hitze-Balken (72 bis 1032 bei y 550), links davon die Mechanik-Zeile, unten
+ * links der Spieler-Balken. Der Ring-Innenraum ist die einzige freie Fläche,
+ * die zugleich am Ziel liegt.
+ *
+ * **Zwei Zeitanzeigen, zwei Gestalten** (GAME-DESIGN 21.2, die spielkritische
+ * Aussage hängt nicht an der Farbe): Der Spieler-Balken ist breit und liegt
+ * unten links, dieser ist schmal und liegt in der Mitte des Bildes.
+ */
+const BOSS_BAR_WIDTH = 208;
+const BOSS_BAR_HEIGHT = 20;
+/**
+ * **Nachgemessen und einmal korrigiert.** Mein erster Entwurf setzte den
+ * Balken auf +74; im Bild klebte die Beschriftung dann unter „REACTION" (bei
+ * +48) und die zwei lasen sich als ein zweizeiliger Block. Jetzt liegt die
+ * Zeile bei +76 und der Balken darunter — der Ring-Innenraum reicht bis etwa
+ * +150, es ist also Platz da, den der erste Entwurf nur nicht genutzt hat.
+ */
+const BOSS_BAR_TOP = VESSEL_CENTER_Y + 84;
+const BOSS_BAR_LEFT = VESSEL_CENTER_X - BOSS_BAR_WIDTH * 0.5;
 const CAST_BAR_HEIGHT = 34;
 const CAST_BAR_WIDTH = 560;
 const MECHANIC_GAP = 150;
@@ -250,6 +285,7 @@ export class HudRenderer {
     this.impact.draw(ctx, shownMs);
     this.drawHeat(ctx);
     this.drawMechanicNumbers(ctx);
+    this.drawBossCastBar(ctx, shownMs);
     this.drawCastBar(ctx, shownMs);
     this.drawResetPrompt(ctx);
     this.spellBar.draw(ctx, shownMs);
@@ -460,6 +496,77 @@ export class HudRenderer {
       TIMER_TOP + 44,
       this.digitAdvanceTimer,
     );
+  }
+
+  /**
+   * Der laufende Zauber des BOSSES (GAME-DESIGN 11.2 Baustein 9, Issue #327).
+   *
+   * # Warum es ihn bis heute nicht gab
+   *
+   * Das Unterbrechen ist seit #110 gebaut: Die Zeitleiste startet den Zauber,
+   * die Eskalation verkürzt sein Fenster (#240), FIXATION verlängert es
+   * (#100), QUENCH bricht ihn ab, und beide Größen gehen in die Prüfsumme ein.
+   * Nur las sie niemand außer der Prüfsumme — gemessen: zwei Fundstellen von
+   * `combat.casting` im ganzen Quelltext, beide in `checksum.ts`.
+   *
+   * **Das verletzt eine Design-Anforderung**, nicht nur eine Bequemlichkeit.
+   * GAME-DESIGN 7.1 verlangt für den Abbruch „vorher **erkennbare**
+   * Boss-Angriffe", und 21.2 nimmt die Reaktionszeit ausdrücklich aus der
+   * Bewertung: Ein Fenster, das man nicht sieht, ist ein Reaktionstest auf ein
+   * unsichtbares Ereignis.
+   *
+   * # Er läuft ab, der des Spielers läuft zu
+   *
+   * Beim eigenen Zauber wartet man auf das Ende — der Balken füllt sich. Hier
+   * ist das Ende die Gefahr: Der Balken **leert** sich, und was übrig ist, ist
+   * die Zeit zum Handeln. Dieselbe Regel wie bei den drei Zeitanzeigen der
+   * Zauberleiste, wo ablaufende Zeit ablaufend gezeigt wird.
+   */
+  private drawBossCastBar(ctx: CanvasRenderingContext2D, shownMs: number): void {
+    const combat = this.session.combat;
+    if (combat.casting < 0) return;
+    const name = combat.castingName;
+    if (name === null) return;
+
+    // **Kampfzeit, nicht Uhrzeit.** `castLandsAtMs` und `castingStartedAtMs`
+    // zählen ab Kampfbeginn; `shownMs` ist die Uhr des Spiels. Wer die zwei
+    // mischt, bekommt einen Balken, der um die Vorbereitungszeit versetzt ist.
+    const jetzt = this.session.fightElapsedMs(shownMs);
+    const anfang = combat.castingStartedAtMs;
+    const ende = combat.castLandsAtMs;
+    const dauer = ende - anfang;
+    const restMs = ende - jetzt;
+    // Der Anteil, der NOCH bleibt. Bei einer Verschiebung durch STALL wächst
+    // `ende` mitten im Lauf — der Balken wird dadurch wieder länger, und genau
+    // das soll man sehen.
+    const anteil = dauer <= 0 ? 0 : restMs <= 0 ? 0 : restMs >= dauer ? 1 : restMs / dauer;
+
+    // **Dieselbe Anordnung wie beim Balken des Spielers**: Name links, Restzeit
+    // rechts, beides ÜBER dem Balken. Zwei Zeitanzeigen, die verschiedene
+    // Dinge zeigen, sollen sich in Ort und Richtung unterscheiden — nicht in
+    // der Art, wie man sie liest.
+    ctx.textAlign = 'left';
+    ctx.font = FONT_SMALL;
+    ctx.fillStyle = INK_DIM;
+    ctx.fillText(name.toUpperCase(), BOSS_BAR_LEFT, BOSS_BAR_TOP - 8);
+
+    // Die Restzeit ist die Zahl, nach der gehandelt wird — „reicht meine
+    // Abklingzeit noch?"
+    ctx.font = FONT_TEXT;
+    ctx.fillStyle = INK;
+    drawFixedRight(
+      ctx,
+      (restMs > 0 ? restMs : 0) / 1000,
+      2,
+      BOSS_BAR_LEFT + BOSS_BAR_WIDTH,
+      BOSS_BAR_TOP - 8,
+      this.digitAdvance,
+    );
+
+    ctx.fillStyle = THRESHOLD_TRACK;
+    ctx.fillRect(BOSS_BAR_LEFT, BOSS_BAR_TOP, BOSS_BAR_WIDTH, BOSS_BAR_HEIGHT);
+    ctx.fillStyle = BOSS_BAR_FILL;
+    ctx.fillRect(BOSS_BAR_LEFT, BOSS_BAR_TOP, BOSS_BAR_WIDTH * anteil, BOSS_BAR_HEIGHT);
   }
 
   /**

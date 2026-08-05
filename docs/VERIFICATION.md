@@ -65,12 +65,13 @@ gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
   -q '.mergeable+" | "+.mergeStateStatus+" | "+([.statusCheckRollup[]|select(.name=="ci-pass")|.conclusion//"laeuft"]|join(","))'
 ```
 
-| Ausgabe                         | Bedeutung                                                |
-| ------------------------------- | -------------------------------------------------------- |
-| `MERGEABLE \| BLOCKED \|`       | Checks laufen — warten ist richtig                       |
-| `CONFLICTING \| DIRTY \|`       | **Es wird nie etwas kommen.** Zweig aktualisieren lassen |
-| `MERGEABLE \| CLEAN \| SUCCESS` | fertig                                                   |
-| `UNKNOWN \| UNKNOWN \|`         | **Zwei ganz verschiedene Lagen** — siehe unten           |
+| Ausgabe                          | Bedeutung                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `MERGEABLE \| BLOCKED \|`        | Checks laufen — warten ist richtig                                        |
+| `CONFLICTING \| DIRTY \|`        | **Es wird nie etwas kommen.** Zweig aktualisieren lassen                  |
+| `MERGEABLE \| CLEAN \| SUCCESS`  | fertig                                                                    |
+| `UNKNOWN \| UNKNOWN \|`          | **Zwei ganz verschiedene Lagen** — siehe unten                            |
+| `MERGEABLE \| BEHIND \| SUCCESS` | **Fertig, aber nicht mergefähig** — `strict` verlangt den aktuellen Stand |
 
 **`UNKNOWN` heißt entweder „GitHub rechnet noch" oder „der PR ist längst gemergt".** GitHub
 berechnet `mergeable` asynchron; bei einem geschlossenen PR steht dort dauerhaft nichts. Beim
@@ -79,6 +80,18 @@ Nachmessen an einem frischen PR: durchgehend `MERGEABLE | BLOCKED`, bei einem ge
 
 > Wer `UNKNOWN` sieht, fragt zuerst `gh pr view <n> --json state` — bei `MERGED` ist die Frage
 > beantwortet, bei `OPEN` wartet man ein paar Sekunden und misst erneut.
+
+**`BEHIND` ist der Zustand, der eine Warteschleife am längsten narrt.** Die Prüfungen sind grün,
+der Merge scheitert trotzdem — die Branch Protection steht auf `strict`, und **jeder** fremde Merge
+setzt alle offenen PRs zurück in diesen Zustand. Eine Schleife, die auf `CLEAN | SUCCESS` wartet,
+läuft dann bis zum Abbruch durch.
+
+```bash
+gh pr update-branch <n>   # holt main in den Zweig, danach laufen die Prüfungen erneut
+```
+
+> Gemessen am 2026-08-05: fünfzehn Runden gewartet, `SUCCESS` stand ab der dritten. Der eigene
+> Abbruch kam erst nach neun Minuten, und der Merge scheiterte danach sofort.
 
 **Die Unterscheidung kostet nichts und spart das Warten auf etwas, das nicht kommt.**
 
@@ -457,6 +470,38 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 | **Dem Melde-Format des Workers glauben**     | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                                                                                           |
 | **Schaden messen, wenn der Boss stirbt**     | „Schaden" klingt nach der Frage, die man gestellt hat         | Bei `stopOnKill` ist der Gesamtschaden ungefähr die Boss-HP — **unabhängig von der Spielerstärke**. Siehe unten                              |
 | **Einzelmessung nach einem Tastendruck**     | Der Befehl ist zurückgekommen, also ist er verarbeitet        | `playwright-cli press` läuft nicht im Takt der Logik. Fünfmal messen und den eingeschwungenen Wert nehmen                                    |
+
+### `cargo test` bricht nach der ersten gefallenen Sammlung ab
+
+_Von Worker-2 am 2026-08-05 gefunden, nachdem er eine halbe Stunde einen Widerspruch eingekreist
+hatte, den es nicht gab._
+
+Er fuhr eine Gegenprobe über die volle Suite. Seine Konstanten-Prüfung fiel **zuerst** — und die
+Sammlung, die er eigentlich messen wollte, **lief danach gar nicht mehr**. Er las die grünen Zeilen
+des vorigen Laufs und hielt sie für das Ergebnis.
+
+> **„Grün" hieß hier nicht „geprüft und bestanden", sondern „nicht ausgeführt".**
+
+Ohne einen Widerspruch daneben hätte er vier grüne Fälle als Nachweis gemeldet, **die nie gelaufen
+waren**.
+
+**Für Gegenproben heißt das:**
+
+```bash
+cargo test --test <name>          # die betroffene Sammlung EINZELN
+cargo test --all --no-fail-fast   # oder alle, ohne Abbruch
+```
+
+Eine Gegenprobe über `cargo test --all` **ohne** `--no-fail-fast` liefert eine **Untergrenze**, keine
+Zahl: Alles nach der ersten gefallenen Sammlung ist unbekannt. Die Aussage „genau ein Fall wird rot"
+ist damit nicht belegt — sie könnte „einer und alles danach" heißen.
+
+> `npx vitest run` verhält sich anders: Es fährt alle Dateien und meldet `3 failed | 1246 passed`.
+> Dort ist die Zahl belastbar.
+
+**Und beim Zählen der roten Fälle nicht `grep -c` auf das Muster ansetzen:** `^test .*FAILED` trifft
+auch die Ergebniszeile `test result: FAILED` und zählt eine Sammlung als zusätzlichen Fall. Beim
+Nachmessen dieser Regel selbst passiert — die Namen auflisten, nicht die Zeilen zählen.
 
 ### Die Kill-Falle — an einem Tag zweimal zugeschlagen
 
