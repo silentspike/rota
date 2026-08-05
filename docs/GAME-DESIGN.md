@@ -2131,6 +2131,37 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 
 ---
 
+### 18.7 Die Zauber-Reihenfolge ist eine Schnittstelle
+
+**Der Index eines Zaubers ist an einigen Stellen eine nackte Zahl** — und dort deutet eine
+Verschiebung der Liste sie still um. Gemessen, damit die Regel weiß, wovon sie handelt:
+
+| Wo ein Zauber vorkommt                           | Form                         | Verschiebung     |
+| ------------------------------------------------ | ---------------------------- | ---------------- |
+| 21 von 22 Aufzeichnungen (`bindings`, `presses`) | `spellId` und `slot` — Namen | übersteht sie    |
+| `cast-time.json`, Spalte `playerCasting`         | roher Index (2400 Einträge)  | **bricht**       |
+| Prüffälle mit `const QUENCH = 3`                 | roher Index                  | **bricht still** |
+
+**Der teure Fall ist der dritte**, nicht der zweite. Eine Aufzeichnung, die bricht, meldet
+sich: Die Prüfsumme läuft auseinander. Ein Prüffall mit falschem Index meldet sich **nicht**
+— er ist grün und misst einen anderen Zauber.
+
+> Bei `interrupt-losses` fiel eine Verschiebung nur auf, weil an Index 3 zufällig ein
+> Hitze-Zauber landete, der gar keine Unterbrechung platziert. Wäre dort ein anderer
+> Unterbrecher gelandet, hätte niemand etwas gemerkt.
+
+**Neue Zauber gehören deshalb ans Ende.** Hinten anhängen ändert keine bestehende Zahl;
+dazwischen einfügen verschiebt alles danach — in Dateien, die niemand dabei ansieht.
+
+Die Regel folgte keiner ableitbaren Ordnung und stand bis dahin nur als Kommentar in
+`src/core/data.ts`, dreimal wiederholt (#201, #97, #304). Wer sie dort nicht las, konnte sie
+nicht kennen: `quench` aus `common.json` steht vor `crust` aus `coagulation.json`, weil die
+Liste von Hand zusammengesetzt ist.
+
+**Eine Verschiebung ist erlaubt, wenn sie bewusst geschieht.** Sie kostet dann: Aufzeichnungen
+neu erzeugen, den Wächter nachziehen, die Prüffälle prüfen. Das ist Arbeit, und sie soll es
+sein — der Unterschied zu vorher ist, dass sie überhaupt sichtbar wird.
+
 ## 19. Entwicklungs-Werkzeuge
 
 **Grundsatz:** Streng trennen zwischen Werkzeugen für **Claude als Entwickler** und Einstellungen für

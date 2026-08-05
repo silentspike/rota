@@ -33,7 +33,7 @@ function handlungsZeitpunkte(settings: DummySettings, dauerMs: number): number[]
     boss: buildDummy(settings, 'CALCINATION'),
   });
   const session = new Session(queue, combat);
-  session.bind(0, 0);
+  session.bind(0, combat.indexOf('kindle'));
   session.beginCountdown(0);
 
   const zeitpunkte: number[] = [];
@@ -108,7 +108,7 @@ describe('AC1 — die Puppe handelt am Ende so dicht wie am Anfang', () => {
     const queue = new PressQueue();
     const combat = new Combat({ school: CALCINATION.value, boss: ohneWiederholung });
     const session = new Session(queue, combat);
-    session.bind(0, 0);
+    session.bind(0, combat.indexOf('kindle'));
     session.beginCountdown(0);
     for (let t = 0; t <= COUNTDOWN_MS + FUENF_MINUTEN; t += 100) session.tick(t);
 
@@ -175,7 +175,7 @@ describe('AC3 — die stumme Puppe bleibt stumm', () => {
       boss: buildDummy(DEFAULT_DUMMY, 'CALCINATION'),
     });
     const session = new Session(queue, combat);
-    session.bind(0, 0);
+    session.bind(0, combat.indexOf('kindle'));
     session.beginCountdown(0);
     let tick = 0;
     for (let t = 0; t <= COUNTDOWN_MS + FUENF_MINUTEN; t += 100) {

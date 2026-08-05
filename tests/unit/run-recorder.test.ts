@@ -12,6 +12,8 @@ import { COUNTDOWN_MS, OUTCOME_VICTORY, OUTCOME_WIPE, PHASE_ENDED } from '../../
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { markFor } from '../../src/analysis/progress-mark.js';
+import { RunPersistence } from '../../src/analysis/run-persistence.js';
+import { findForbiddenFields } from '../../src/analysis/save-format.js';
 import {
   countsAsAttempt,
   recordRun,
@@ -20,8 +22,21 @@ import {
   type RecordedState,
 } from '../../src/analysis/run-recorder.js';
 
-const KINDLE = 0;
-const SMOULDER = 1;
+/**
+ * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
+ *
+ * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
+ * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
+ * rot, er misst etwas anderes.
+ */
+function indexVon(id: string): number {
+  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
+  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
+  return i;
+}
+
+const KINDLE = indexVon('kindle');
+const SMOULDER = indexVon('smoulder');
 const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
 
 const KONTEXT = {
@@ -194,5 +209,80 @@ describe('Der uebergebene Stand bleibt unangetastet', () => {
     const kopie = JSON.stringify(stand);
     recordRun(stand, lauf.summary, lauf.outcome, KONTEXT);
     expect(JSON.stringify(stand)).toBe(kopie);
+  });
+});
+
+describe('Punkte am echten Lauf (Issue #276)', () => {
+  /**
+   * Ein Sieg, der wirklich gespielt wird.
+   *
+   * Dieselbe Zusammenstellung wie beim Marken-Prueffall oben: KINDLE allein
+   * faellt test-warden nach rund 43,5 s und laesst damit echte Restzeit
+   * uebrig -- ohne die zahlten die Punkte null, und die Pruefung haette
+   * nichts gemessen.
+   */
+  function sieg(): Lauf {
+    const boss = bossById('test-warden') as BossDef;
+    const lauf = play(1500, 120_000, boss, [KINDLE]);
+    expect(lauf.summary.victory).toBe(true);
+    return lauf;
+  }
+
+  it('zahlt fuer einen echten Sieg echte Punkte', () => {
+    // Die Verbindung zwischen Formel und Spiel. Alles andere prueft
+    // points.test.ts an gesetzten Zahlen -- hier kommt die Restzeit aus einem
+    // gespielten Kampf.
+    const lauf = sieg();
+    expect(lauf.summary.remainingMs).toBeGreaterThan(0);
+    const ergebnis = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+    expect(ergebnis.pointsGained).toBeGreaterThan(0);
+  });
+
+  it('zahlt fuer einen gescheiterten Versuch nichts', () => {
+    const lauf = play(3000);
+    expect(lauf.summary.victory).toBe(false);
+    const ergebnis = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+    expect(ergebnis.pointsGained).toBe(0);
+  });
+
+  it('AC4 GEGENPROBE am echten Lauf: derselbe Sieg zahlt bei Abstand weniger', () => {
+    const lauf = sieg();
+    const passend = recordRun(LEER, lauf.summary, lauf.outcome, { ...KONTEXT, bossLevel: 20 });
+    const entwachsen = recordRun({ ...LEER, level: 30 }, lauf.summary, lauf.outcome, {
+      ...KONTEXT,
+      bossLevel: 20,
+    });
+    expect(passend.pointsGained).toBeGreaterThan(0);
+    expect(entwachsen.pointsGained).toBeLessThan(passend.pointsGained);
+    // Und die Erfahrung faellt mitsamt -- eine Waehrung, eine Kurve.
+    expect(entwachsen.xpGained).toBeLessThan(passend.xpGained);
+  });
+
+  it('AC6 — der abgelegte Spielstand haelt keine Punktzahl', () => {
+    // Die Auszahlung reist zur Anzeige und wird nicht abgelegt. Geprueft wird
+    // am geschriebenen JSON, nicht am Typ: Ein Typ sagt, was gemeint war, der
+    // Speicher sagt, was drinsteht.
+    const speicher = new Map<string, string>();
+    const persistenz = new RunPersistence('0.1.0', () => KONTEXT.at, {
+      getItem: (k) => speicher.get(k) ?? null,
+      setItem: (k, v) => {
+        speicher.set(k, v);
+      },
+      removeItem: (k) => {
+        speicher.delete(k);
+      },
+    });
+
+    const lauf = sieg();
+    const ergebnis = recordRun(persistenz.state, lauf.summary, lauf.outcome, KONTEXT);
+    expect(ergebnis.pointsGained).toBeGreaterThan(0);
+    expect(persistenz.persist(ergebnis)).toBe(true);
+
+    const geschrieben = [...speicher.values()].join('\n');
+    expect(geschrieben.length).toBeGreaterThan(0);
+    // Der Betrag selbst taucht nirgends auf, und kein Feld traegt seinen Namen.
+    expect(geschrieben).not.toContain('pointsGained');
+    expect(geschrieben).not.toMatch(/"points"/);
+    expect(findForbiddenFields(JSON.parse([...speicher.values()][0] as string))).toEqual([]);
   });
 });
