@@ -23,6 +23,7 @@
  */
 import { mixInt } from '../core/checksum.js';
 import { findForbiddenFields, SAVE_SCHEMA, type SaveData } from './save-format.js';
+import { cleanSave } from './entry-shape.js';
 
 /** Wie viele Staende gehalten werden (Umfang von #83). */
 export const SLOT_COUNT = 5;
@@ -122,7 +123,16 @@ export class SaveStore {
       // Ein Stand aus einer kuenftigen Fassung ist nicht "heil, nur neuer" -
       // wir wissen nicht, was darin steht.
       if (typeof data?.schema !== 'number' || data.schema > SAVE_SCHEMA) return null;
-      return data;
+      // **Der Inhalt, nicht nur die Huelle** (Issue #378). Bis hierher pruefte
+      // dieser Pfad die Pruefsumme und die Schema-Nummer; ein Eintrag mit
+      // falsch getipptem Feld kam durch und wurde weitergerechnet.
+      //
+      // Ein `null` hier loest die Rotation aus, die es laengst gibt: `load()`
+      // geht rueckwaerts weiter und meldet `recovered`. Der Ausloeser fehlte,
+      // nicht der Mechanismus.
+      const sauber = cleanSave(data);
+      if (sauber.data === null) return null;
+      return sauber.data as unknown as SaveData;
     } catch {
       return null;
     }
