@@ -61,7 +61,7 @@ const LABEL_HEAT = 'HEAT';
  * anderes bedeutet als sonst.
  */
 const LABEL_RESET_ARMED = 'CHOOSE A SPELL TO RESET';
-const LABEL_BOSS = 'THE FIRST CRUCIBLE';
+
 const LABEL_PERCENT = 'REACTION';
 const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
 // Spieltexte englisch (Design-Gesetz 5).
@@ -291,7 +291,33 @@ export class HudRenderer {
     ctx.font = FONT_SMALL;
     ctx.fillStyle = INK_DIM;
     ctx.fillText(LABEL_PERCENT, VESSEL_CENTER_X, VESSEL_CENTER_Y + 48);
-    ctx.fillText(LABEL_BOSS, VESSEL_CENTER_X, VESSEL_CENTER_Y - VESSEL_RADIUS - 26);
+    // **Der Name kommt aus dem Boss, nicht aus einer Konstante.**
+    //
+    // Hier stand bis #229 eine Konstante `LABEL_BOSS` mit dem Namen des
+    // ersten Tiegels, und dieselbe Zeichenkette ein zweites Mal in
+    // `overlay.ts`. Solange nur ein Boss spielbar war, stimmte sie zufällig —
+    // mit dem Startparameter aus #219 stand über dem Testboss der falsche
+    // Name.
+    //
+    // **Der Name wird hier bewusst nicht ausgeschrieben.** Ein Kommentar, der
+    // ihn zitiert, ist selbst eine Abschrift — und `boss-name-source.test.ts`
+    // hat genau diese zwei Kommentare gefangen, als sie noch dastanden.
+    //
+    // Das ist die gefährlichere Sorte Handabschrift: Sie erzeugt keinen
+    // Pflegeaufwand, sondern führt eine MESSUNG in die Irre. Wer den Boss
+    // wechselt und den vertrauten Namen sieht, hält den Wechsel für
+    // gescheitert — oder, schlimmer, hält einen echten Fehlschlag für
+    // gelungen.
+    //
+    // Großbuchstaben hier statt in den Daten: Sie sind eine Eigenschaft der
+    // ANZEIGE (9.3, dieselbe Schreibweise wie alle Beschriftungen), nicht des
+    // Bosses. Ein Datensatz, der seinen Namen in Versalien führte, wäre in
+    // jeder anderen Verwendung falsch.
+    ctx.fillText(
+      this.session.combat.boss.name.toUpperCase(),
+      VESSEL_CENTER_X,
+      VESSEL_CENTER_Y - VESSEL_RADIUS - 26,
+    );
     ctx.textAlign = 'left';
 
     // **Die Leisten stapeln sich, statt feste Plätze zu haben.**
