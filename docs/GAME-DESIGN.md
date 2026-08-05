@@ -1364,6 +1364,48 @@ balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und W
 
 **Keine Werte-Streuung.** Kein „perfektes Exemplar"-Glücksspiel.
 
+#### Woher die drei Grundwerte ihre Höhe bekommen
+
+> **AUSGELEGT vom Orchestrator am 2026-08-05, nicht vom Auftraggeber entschieden.** Der Merksatz aus
+> 13.2 gilt auch hier: Eine Festlegung, die niemand angeordnet hat, sieht im Dokument genauso aus wie
+> eine, die entschieden wurde. Deshalb steht dieser Kasten davor.
+
+Die Frage kam bei #282 auf, wo gemessen wurde, dass ESSENCE, VESSEL und WARD im Kampf gar nicht
+ankommen: `BASE_STAT_IDS` steht auf beiden Seiten und **wird nirgends gelesen**. Kein vergessener
+Anschluss, sondern ein nie gebauter — und beim Bauen stellte sich heraus, dass die Höhe nirgends
+festgelegt ist.
+
+**Was das Dokument bereits hergibt:**
+
+| Frage                                  | Antwort                                           | Fundstelle  |
+| -------------------------------------- | ------------------------------------------------- | ----------- |
+| Hängt die Höhe am **Platz**?           | **Nein**, ausdrücklich — die Plätze sind Behälter | 13.2        |
+| Hängt sie an der **Gegenstandsstufe**? | Ja                                                | 13.2, 13.3  |
+| Steuert die **Qualität** sie mit?      | **Nein — sie steuert die Zahl der Affixe**        | siehe unten |
+
+**Die dritte Zeile ist die Auslegung.** 13.2 sagt „hängt an Seltenheit und Gegenstandsstufe", 13.3
+sagt „die Grundwerte kommen zusätzlich, so wie ein Diablo-Gegenstand immer Rüstung trägt". Beides
+zusammen ist nicht eindeutig. Gelesen wird es so:
+
+- **13.2 spricht über die Affix-Arten** — welche Werte ein Stück trägt. Die drei Grundwerte sind
+  ohnehin immer dieselben, dort gibt es nichts zu wählen.
+- **In Diablo skaliert die Rüstung mit der Gegenstandsstufe**; die Qualität gibt Affixe, nicht mehr
+  Rüstung. Genau dieser Vergleich steht in 13.3.
+
+**Die Kurve wird nicht neu erfunden.** Sie steht bereits in den Stufendaten und lässt VESSEL des
+Spielers wachsen (`LEVELS.factorPerMille`, `statAtLevel`). Für Gegenstände gilt dieselbe Kurve mit
+der **Gegenstandsstufe** als Eingang statt der Spielerstufe — der Unterschied ist wesentlich:
+
+> Die Gegenstandsstufe kommt vom **Inhalt**, nicht vom Spieler (13.2: „Die Schwierigkeit gehört zur
+> Instanz, nicht zur Spielerstufe"). Hinge sie an der Spielerstufe, bekäme ein Spieler auf
+> Höchststufe in einer frühen Instanz plötzlich brauchbare Funde — genau die Entwertung, die der
+> abnehmende Ertrag verhindern soll.
+
+**Was ausdrücklich NICHT ausgelegt ist: die Basiswerte selbst.** Wie viel ESSENCE ein Gegenstand auf
+Stufe 1 trägt, ist eine reine Balance-Zahl. Sie gehört gemessen, nicht gesetzt — der Balance-Läufer
+weist Skalierungsfaktoren je Wert aus. Bis dahin steht sie als benannte, ausdrücklich unkalibrierte
+Konstante an einer Stelle; siehe `docs/ENTSCHEIDUNGEN-OFFEN.md`.
+
 ### 13.4 Fallraten
 
 | Regel                                | Wirkung                                                                                                                                                                                                             |
