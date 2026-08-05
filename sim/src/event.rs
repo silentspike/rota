@@ -141,8 +141,26 @@ impl EventKind {
             EventKind::RunawayTick => 4,
             EventKind::AfflictionTick => 5,
             EventKind::StackTick => 6,
-            EventKind::TimelineStep { .. } => 7,
-            EventKind::BossCastLands { .. } => 8,
+            // **Der landende Boss-Zauber VOR dem Vorruecken der Zeitleiste**
+            // (Issue #331). Bis hierher war es umgekehrt, und beide Seiten
+            // loesten dieselbe Lage entgegengesetzt auf.
+            //
+            // # Warum diese Reihenfolge die richtige ist
+            //
+            // Faellt der Schritt zuerst, ueberschreibt der neue Eintrag das
+            // `casting` des alten — der angefangene Zauber landet nie, obwohl
+            // ihn niemand unterbrochen hat. Der Boss unterbricht sich selbst.
+            //
+            // Das nimmt dem Spieler einen Schaden, den er VERDIENT hat: Er
+            // hat nicht unterbrochen, also muss er den Treffer nehmen. Genau
+            // das ist die Entscheidung, um die es in einem Rotations-Spiel
+            // geht — wer sie falsch trifft, soll die Folge spueren.
+            //
+            // Gemessen an `test-collision`: Der Simulator liess zwei von vier
+            // Zaubern ausfallen (960 statt 1920 erlittener Schaden). Der
+            // Spieler bekam geschenkt, was er haette verhindern muessen.
+            EventKind::BossCastLands { .. } => 7,
+            EventKind::TimelineStep { .. } => 8,
             // Die eigene Wirkzeit zuletzt unter den Zeit-Ereignissen und vor
             // dem Weckruf (Issue #304) — dieselbe Stelle wie im Spiel.
             EventKind::PlayerCastLands { .. } => 9,
