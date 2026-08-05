@@ -583,6 +583,7 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     emit_stacks(out, boss, whose);
     emit_race(out, boss, whose);
     emit_boss_heal(out, boss, whose);
+    emit_runaway(out, boss, whose);
     emit_escalation(out, boss, whose);
     emit_affliction(out, boss, whose);
     emit_timeline(out, boss, whose);
@@ -920,6 +921,38 @@ fn emit_boss_heal(out: &mut String, boss: &Value, whose: &str) {
          Datensatz aus wie eine, die etwas tut"
     );
     let _ = writeln!(out, "        boss_heal: Some(BossHeal {{");
+    let _ = writeln!(out, "            amount: {amount},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Das umgekehrte Ziel (Baustein 6; Issue #247).
+///
+/// Dieselben Bedingungen wie im Leser des Spiels (`src/core/data.ts`) — beide
+/// Seiten lesen dieselbe Datei und koennen einander nicht einbinden.
+fn emit_runaway(out: &mut String, boss: &Value, whose: &str) {
+    let run = boss.get("runaway");
+    if run.is_none() || run == Some(&Value::Null) {
+        let _ = writeln!(out, "        runaway: None,");
+        return;
+    }
+    let run = run.expect("auf None geprueft");
+    let whose = format!("{whose}/runaway");
+
+    let per_step_ms = uint(run, "perStepMs", &whose);
+    assert!(
+        per_step_ms > 0 && per_step_ms.is_multiple_of(RASTER_MS),
+        "{whose}: perStepMs {per_step_ms} muss groesser als null und auf dem \
+         {RASTER_MS}-ms-Raster sein — sonst kippte die Reaktion auf beiden \
+         Seiten zu verschiedenen Zeitpunkten"
+    );
+    let amount = uint(run, "amount", &whose);
+    assert!(
+        amount > 0,
+        "{whose}: amount muss groesser als null sein, sonst laeuft die Reaktion nie davon"
+    );
+
+    let _ = writeln!(out, "        runaway: Some(Runaway {{");
+    let _ = writeln!(out, "            per_step_ms: {per_step_ms},");
     let _ = writeln!(out, "            amount: {amount},");
     let _ = writeln!(out, "        }}),");
 }
