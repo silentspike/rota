@@ -265,3 +265,71 @@ fn die_laengengrenze_verschweigt_kein_besseres_ergebnis() {
         bis_vier.best.mean
     );
 }
+
+/// Misst eine Liste, die als Text vorliegt.
+fn miss_text(boss_id: &str, text: &str) -> f64 {
+    let apl = rota_sim::apl::parse("rueckgelesen", text).expect("erzeugter Text ist kein APL");
+    let config = config(boss_id);
+    crate::greedy_hilfe::miss(&config, &apl)
+}
+
+#[test]
+#[ignore = "misst hunderte Kaempfe; laeuft auf Anforderung"]
+fn die_ausgegebene_liste_bedeutet_dasselbe_wie_die_gefundene() {
+    // **Nicht: „ist der Text parsebar".** Ein Text, der durchgeht und etwas
+    // anderes bedeutet, ist schlimmer als einer, der nicht durchgeht — er
+    // fällt niemandem auf. Gemessen wird deshalb die ZAHL.
+    let config = config("first-crucible");
+    let gefunden = greedy(&config, &pool(TEILMENGEN[2].1), MAX_LEN);
+    let text = gefunden.best.apl.to_string();
+    eprintln!("AC3 erzeugter Text:\n{text}");
+
+    let zurueck = miss_text("first-crucible", &text);
+    assert!(
+        (zurueck - gefunden.best.mean).abs() < f64::EPSILON,
+        "gefunden {:.1}, zurueckgelesen {:.1} — der Text bedeutet etwas anderes \
+         als die Struktur",
+        gefunden.best.mean,
+        zurueck
+    );
+
+    // **Die Gegenprobe zur Rueckprobe.** Ohne sie waere sie immer gruen: Eine
+    // Pruefung, die nie rot sein kann, belegt nichts.
+    //
+    // **Die ersten beiden Zeilen zu tauschen genuegt NICHT** — gemessen:
+    // dieselbe Zahl. Die gefundene Liste beginnt mit
+    //
+    //   smoulder if dot.smoulder.remains < 1500
+    //   pyre     if heat >= 15
+    //
+    // und diese beiden Bedingungen schliessen einander faktisch aus: Wo die
+    // eine greift, greift die andere nicht, also ist ihre Reihenfolge
+    // gleichgueltig. Eine Gegenprobe, die genau dort ansetzt, kann nichts
+    // zeigen — derselbe Fehler wie eine Teilmenge ohne Struktur.
+    //
+    // Wirksam ist die UNBEDINGTE Zeile: Nach oben gezogen verdeckt sie alles
+    // darunter, weil sie immer zutrifft. Das ist derselbe Mechanismus, an dem
+    // das gierige Anhaengen gescheitert ist (4000,0 statt 5960,0).
+    let zeilen: Vec<&str> = text.lines().collect();
+    assert!(zeilen.len() >= 2, "zu kurz zum Umstellen");
+    let mut getauscht = zeilen.clone();
+    let unbedingt = getauscht.pop().expect("nicht leer");
+    getauscht.insert(0, unbedingt);
+    let anders = miss_text("first-crucible", &getauscht.join("\n"));
+    assert!(
+        (anders - gefunden.best.mean).abs() > f64::EPSILON,
+        "Die unbedingte Zeile nach oben gezogen ergibt dieselbe Zahl ({anders:.1}) — \
+         dann misst die Rueckprobe die Reihenfolge nicht und ist wertlos"
+    );
+    eprintln!(
+        "AC3 Gegenprobe: umgestellt {anders:.1} statt {:.1}",
+        gefunden.best.mean
+    );
+}
+
+mod greedy_hilfe {
+    use rota_sim::balance::BalanceConfig;
+    pub fn miss(config: &BalanceConfig, apl: &rota_sim::Apl) -> f64 {
+        rota_sim::balance::run(config, apl).damage.mean
+    }
+}
