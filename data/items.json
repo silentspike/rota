@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "_comment": "Der Gegenstands-Katalog (Issue #421a, GAME-DESIGN 13.3).\n\n=== EIN EINTRAG TRAEGT KEINE ZAHLEN ===\nDesign Zeile 1437, woertlich: 'Werte-Berechnung: feste Formel, Qualitaet als Faktor. Aus Gegenstandsstufe und Qualitaet errechnet sich ein Wertebudget, das auf die Werte-Plaetze verteilt wird. KEIN GEGENSTAND WIRD VON HAND BALANCIERT — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualitaet und Werte-Arten.'\nDeshalb steht hier NICHT 'ESSENCE: 120'. Was ein Gegenstand traegt, rechnet `wornFrom` ueber `distributeBudget` und `basePermille` aus src/gear/. Wer hier eine Zahl eintraegt, balanciert von Hand — und der Satz oben verbietet genau das.\n\n=== DIE DREI GRUNDWERTE STEHEN NICHT DABEI ===\n13.5 und Zeile 1422: 'Ein Gegenstand traegt IMMER die drei Grundwerte ESSENCE, VESSEL und WARD.' Immer heisst: nicht je Eintrag zu nennen. Sie kommen aus `basePermille(itemLevel, ...)` und sind bei gleicher Stufe fuer jeden Gegenstand gleich — wie die Ruestung eines Diablo-Gegenstands.\nDie affixKinds nennen also NUR die Affixe, nicht den ganzen Gegenstand.\n\n=== WARUM NUR EIN test-EINTRAG ===\nWELCHE Gegenstaende es gibt und wann sie fallen, ist Issue #421b und Inhalt von E6 (Kapitel 22: 'Gegenstands-Katalog — konkrete Gegenstaende, Saetze, legendaere Effekte, Boss-Bindungen').\nDieser eine traegt die Pruefungen zu #421a und sonst nichts. Die Kennzeichnung `test-` ist dieselbe Linie wie bei `test-cast` unter den Zaubern und `test-warden` unter den Bossen: ausserhalb dessen, was das Spiel je ausliefert — und damit bleibt der Referenzlauf 4240 @ 40510 unberuehrt, weil ihn niemand traegt.\n\n=== DIE WERTE-ARTEN ===\nSie nennen Toepfe aus src/gear/pools.ts: essence, catalysis, purity, yield, active, gearEffects. Die Zahl der Affix-Plaetze folgt aus der Qualitaet (QUALITY_AFFIX_SLOTS: common 1, rare 2, epic 3, legendary 3) — stehen mehr Arten da als Plaetze, ist der Eintrag falsch und die Pruefung beim Laden bricht ab.",
+  "items": [
+    {
+      "id": "test-relic",
+      "name": "Test Relic",
+      "slot": 0,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis", "purity", "yield"]
+    }
+  ]
+}

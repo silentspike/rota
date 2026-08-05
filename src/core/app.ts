@@ -39,7 +39,6 @@ import { statOverview } from '../progression/stat-overview.js';
 import { levelBarFill, levelOverview } from '../progression/level-overview.js';
 import { buildLevelOverview } from '../progression/level-overview-view.js';
 import { buildStatOverview } from '../progression/stat-overview-view.js';
-import { NOTHING_WORN } from '../gear/worn.js';
 import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
 import '../progression/levels.css';
@@ -47,6 +46,8 @@ import '../progression/composition.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
+import { wornFrom } from '../gear/catalog.js';
+import type { OwnedItem } from '../analysis/save-format.js';
 
 /**
  * Welcher Boss den Kampf traegt — normalerweise der erste Tiegel.
@@ -182,6 +183,12 @@ export class App {
     // zweite Rechenstelle: `setTalents` bildet die Faktoren neu.
     this.combat.setTalents(this.persistence.state.talentPoints);
 
+    // **Die getragenen Werte** (Issue #421a). Bis hierher bekam der einzige
+    // Produktions-Kampf gar kein `worn` und fiel auf `NOTHING_WORN` zurück —
+    // die Kette `worn -> essenceFactor -> factors` war seit #282 verdrahtet
+    // und begann bei einem Wert, den niemand füllte.
+    this.combat.setWorn(wornFrom(this.persistence.state.items));
+
     // Am Kampfende festhalten, was der Versuch eingebracht hat. Der Beobachter
     // greift nicht ein -- ein Spiel ohne Spielstand rechnet identisch
     // (GAME-DESIGN 18.5), es merkt sich nur nichts.
@@ -268,7 +275,7 @@ export class App {
       // Die Werte, wie sie heute gelten. Ohne Ausruestung sind es die
       // Grundwerte -- ein neuer Spielstand hat nichts angelegt (AC7).
       content: buildStatOverview(
-        statOverview(baseStats(this.persistence.state.level), NOTHING_WORN),
+        statOverview(baseStats(this.persistence.state.level), this.combat.wornValues),
       ),
     });
     parent.appendChild(this.home.root);
@@ -467,6 +474,19 @@ export class App {
    * Die Pruefung, ob die Verteilung zulaessig ist, liegt beim Aufrufer
    * (`allocationProblem`): Hier wird ausgefuehrt, nicht entschieden.
    */
+  /**
+   * Ausrüstung anlegen oder ablegen (Issue #421a).
+   *
+   * Derselbe Weg wie bei den Talenten: in den Spielstand UND in den laufenden
+   * Kampf. Wer nur den Stand schriebe, rechnete bis zum nächsten Neuladen mit
+   * den alten Werten weiter.
+   */
+  setItems(items: readonly OwnedItem[]): void {
+    this.persistence.persistItems(items);
+    this.combat.setWorn(wornFrom(items));
+    this.refreshHome();
+  }
+
   setTalents(allocation: Readonly<Record<string, number>>): void {
     this.persistence.persistTalents(allocation);
     this.combat.setTalents(allocation);
@@ -528,7 +548,9 @@ export class App {
     // alle Prüffälle grün waren: Was ein Dokument braucht, sieht Vitest nicht.
     this.home.replaceSection(
       'stats',
-      buildStatOverview(statOverview(baseStats(this.persistence.state.level), NOTHING_WORN)),
+      buildStatOverview(
+        statOverview(baseStats(this.persistence.state.level), this.combat.wornValues),
+      ),
     );
   }
 

@@ -19,7 +19,7 @@
  * gemeldet, nicht verschluckt — aber er beendet nichts.
  */
 import { SaveStore, SLOT_COUNT, type KeyValueStore } from './save-store.js';
-import { SAVE_SCHEMA, type SaveData } from './save-format.js';
+import { SAVE_SCHEMA, type OwnedItem, type SaveData } from './save-format.js';
 import type { RecordedState } from './run-recorder.js';
 
 /**
@@ -176,6 +176,7 @@ export class RunPersistence {
       progressMarks: this.data.progressMarks,
       bestRuns: this.data.bestRuns,
       talentPoints: this.data.talentPoints,
+      items: this.data.items,
       level: this.data.level,
       experience: this.data.experience,
     };
@@ -237,6 +238,18 @@ export class RunPersistence {
    * Sie entsteht zu einem anderen Zeitpunkt — `persist` schreibt nach einem
    * Kampf, verteilt wird dazwischen.
    */
+  /** Nur die Gegenstände ablegen (Issue #421a) — wie `persistTalents`. */
+  persistItems(items: readonly OwnedItem[]): boolean {
+    this.data = { ...this.data, savedAt: this.now(), items };
+    if (this.store === null) return false;
+    try {
+      this.slotValue = this.store.save(this.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   persistTalents(allocation: Readonly<Record<string, number>>): boolean {
     this.data = { ...this.data, savedAt: this.now(), talentPoints: allocation };
     if (this.store === null) return false;
@@ -325,6 +338,7 @@ export class RunPersistence {
       // der Kampf daraus bildet, ist ein berechneter Wert und gehoert nicht
       // hierher.
       talentPoints: next.talentPoints,
+      items: next.items,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
       // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge
