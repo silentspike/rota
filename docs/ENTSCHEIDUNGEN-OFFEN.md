@@ -2,7 +2,7 @@
 
 **Stand 2026-08-05, 17:05: Vier der ursprünglichen fünf Entscheidungen sind getroffen.** Sie stehen
 unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt.
-**Drei Punkte sind seither dazugekommen** — alle drei aus der Arbeit selbst, nicht aus dem Interview.
+**Vier Punkte sind seither dazugekommen** — alle vier aus der Arbeit selbst, nicht aus dem Interview.
 
 |                                     | Ergebnis                                                                                                    |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -14,6 +14,7 @@ unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, i
 | **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
 | **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
 | **8** Widerstand gegen Schul-Stärke | **OFFEN** — der Korridor 20–30 % kann die Rotation nicht drehen, solange die Schulen 67 % auseinanderliegen |
+| **9** WARD ohne Balance-Deckel      | **OFFEN** — eine hinreichend gute Ausrüstung kann den Spieler unverwundbar machen                           |
 
 ---
 
@@ -282,3 +283,51 @@ entschieden.
 **Das ist ein Verdacht, keine Entscheidung.** Die Frage wird scharf, sobald E10 die restlichen 45
 Zauber entwirft — dann werden die Werte gesetzt, und bis dahin sollte klar sein, gegen welche
 Messlatte.
+
+## 9. WARD hat keinen Balance-Deckel — OFFEN
+
+**Blockiert:** nichts heute · **hält auf:** E6, sobald Ausrüstung erspielt wird
+
+Gefunden von Worker-1 bei #282, als er WARD an den Kampf anschloss — und ausdrücklich **nicht**
+entschieden, sondern gemeldet. Das war richtig.
+
+### Was gebaut ist
+
+WARD mindert **additiv** zur Stufen-Basis; beides ist Minderung, also derselbe Topf (13.1b).
+
+> Multiplikativ wäre nicht nur eine andere Zahl, sondern eine andere **Aussage**: Zwei Minderungen
+> von je 50 % ergäben dann 75 % statt 100 %. Die Gegenprobe (auf multiplikativ umgestellt) färbt
+> genau diesen Fall rot — ein reiner Größenvergleich hätte es nicht gezeigt, weil beide Fassungen
+> „kleiner als ohne" sind.
+
+### Was fehlt
+
+Der einzige Deckel liegt bei **1,0**, und das ist eine **Rechenregel**, keine Balance-Grenze:
+Darüber würde der Spieler von jedem Treffer geheilt.
+
+**Ein Balance-Deckel darunter — etwa 80 % — steht nirgends im Design.** Solange er fehlt, kann eine
+hinreichend gute Ausrüstung den Spieler **unverwundbar** machen.
+
+### Die Ironie steht bereits im Quelltext
+
+`combat.ts:792` begründet, warum die WARD-**Basis** nicht mit der Stufe skaliert:
+
+> Ein Prozentsatz, der mitwächst, erreicht irgendwann 100 % und macht den Spieler unverwundbar.
+
+**Genau diese Sorge trifft jetzt die Ausrüstung — und dort ist sie nicht abgefangen.** Die
+Gefahr wurde einmal erkannt, an einer Stelle gelöst, und die zweite Stelle ist später dazugekommen.
+
+### Was zu entscheiden ist
+
+|                                 | Was es bedeutet                                                                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ein harter Deckel**           | Wie bei CATALYSIS (50 %) und PURITY (100 %) — sichtbar in der Werte-Übersicht, mit Warnhinweis. Passt zu 13.6: „Die Deckel sind sichtbar" |
+| **Abnehmende Erträge bei WARD** | Widerspricht 13.6 ausdrücklich („Keine abnehmenden Erträge. Jeder Prozentpunkt zählt gleich, bis zum Deckel")                             |
+| **Kein Deckel**                 | Unverwundbarkeit ist erreichbar. Das ist eine Entscheidung, keine Lücke — aber es muss eine sein                                          |
+
+**Der Orchestrator neigt zum harten Deckel**, weil das Design für die anderen zwei gedeckelten
+Werte bereits genau dieses Muster festlegt und die Sichtbarkeit mitbeschreibt. Die **Höhe** ist
+dann wieder eine Balance-Zahl und gehört gemessen — wie Punkt 7.
+
+**Heute folgenlos:** Es gibt keine erspielbare Ausrüstung. Die Frage wird scharf, sobald E6 die
+Fundstücke baut.
