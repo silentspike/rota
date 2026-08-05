@@ -66,11 +66,20 @@ const LABEL_PERCENT = 'REACTION';
 const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
 // Spieltexte englisch (Design-Gesetz 5).
 const LABEL_DOOM = 'DOOM';
+const LABEL_ENERGY = 'ENERGY';
 const LABEL_DOOM_CHARGES = 'CLEANSE';
 /** Ab diesem Anteil der Schwelle warnt die Farbe. Vorlaeufig, wird gemessen. */
 const THRESHOLD_WARN_AT = 0.7;
 const THRESHOLD_WIDTH = 190;
 const THRESHOLD_HEIGHT = 10;
+/**
+ * Abstand zweier gestapelter Schwellen-Leisten.
+ *
+ * Abgeleitet aus der Höhe einer Leiste, nicht daneben gesetzt: 10 für die
+ * Beschriftung, die Leiste selbst, 20 bis zur Zahlenzeile und 24 Luft.
+ * Ändert jemand `THRESHOLD_HEIGHT`, wandert der Abstand mit.
+ */
+const THRESHOLD_STACK_STEP = 10 + THRESHOLD_HEIGHT + 20 + 24;
 const THRESHOLD_TRACK = 'rgba(255, 255, 255, 0.12)';
 const LABEL_TIME = 'time';
 const LABEL_DAMAGE = 'damage';
@@ -285,7 +294,15 @@ export class HudRenderer {
     ctx.fillText(LABEL_BOSS, VESSEL_CENTER_X, VESSEL_CENTER_Y - VESSEL_RADIUS - 26);
     ctx.textAlign = 'left';
 
-    this.drawDoom(ctx);
+    // **Die Leisten stapeln sich, statt feste Plätze zu haben.**
+    //
+    // Heute trägt kein Boss beide (`test-vessel` hat die Energieleiste, keiner
+    // den Zähler), und mit festen Plätzen fiele das nicht auf — bis der erste
+    // Boss beides hat und zwei Leisten übereinander stünden. Der Stapel kostet
+    // eine Zeile und kann nicht schiefgehen.
+    let leistenTop = TIMER_TOP + 78;
+    leistenTop = this.drawDoom(ctx, leistenTop);
+    this.drawEnergy(ctx, leistenTop);
 
     // Überdruck-Timer oben links.
     ctx.font = FONT_SMALL;
@@ -395,18 +412,58 @@ export class HudRenderer {
    * wäre eine Anzeige, die nie etwas anzeigt — und der Blick lernt, sie zu
    * überspringen. Genau dann steht sie umsonst da, wenn sie einmal zählt.
    */
-  private drawDoom(ctx: CanvasRenderingContext2D): void {
+  private drawDoom(ctx: CanvasRenderingContext2D, top: number): number {
     const doom = this.session.combat.boss.doom;
-    if (doom === null) return;
+    if (doom === null) return top;
     const ladungen = this.session.combat.doomCharges;
+    this.drawThresholdBar(ctx, top, LABEL_DOOM, this.session.combat.doom, doom.threshold, {
+      text: `${LABEL_DOOM_CHARGES} ${ladungen}`,
+      dringend: ladungen === 0,
+    });
+    return top + THRESHOLD_STACK_STEP;
+  }
+
+  /**
+   * Die Energieleiste des Bosses (11.2, Baustein 1; Issue #219).
+   *
+   * DIE ZWEITE UHR, DIE MAN SEHEN MUSS
+   * ----------------------------------
+   * 11.2 nennt sie „unabhängig vom Schaden des Spielers" — sie läuft nach
+   * ihrem eigenen Takt, und wer schneller zuschlägt, verschiebt sie nicht.
+   * Genau deshalb ist sie eine Planungsgröße: Man weiß, wann etwas kommt, und
+   * richtet die Rotation danach aus. Ohne Anzeige bleibt davon nur Überraschung
+   * übrig, und 11.7 verwirft ausdrücklich, Information vorzuenthalten.
+   *
+   * SIE ERSCHEINT NUR, WENN ES SIE GIBT
+   * -----------------------------------
+   * **Sechs von sieben Bossen haben keine.** Ein leerer Balken bei allen
+   * anderen wäre schlimmer als keiner: Der Blick lernt, ihn zu überspringen —
+   * und übersieht ihn dann bei dem einen Boss, bei dem er zählt.
+   *
+   * DIESELBE FORM WIE DER ZÄHLER, UND ZWAR ABSICHTLICH
+   * --------------------------------------------------
+   * Beide sind „ein Wert steigt auf eine Schwelle zu". Was sie unterscheidet,
+   * ist die Folge, nicht die Anzeige (11.5: dieselben Kategorien überall).
+   * `drawThresholdBar` kennt keinen der beiden Bausteine, und dieser Aufruf
+   * fügt ihr nichts hinzu.
+   *
+   * **Kein Zusatz rechts der Zahl.** Beim Zähler stehen dort die verbleibenden
+   * Anwendungen, weil sie eine Entscheidung tragen. Die Energieleiste hat
+   * nichts Vergleichbares — ein leeres Feld wäre eine Frage, auf die es keine
+   * Antwort gibt.
+   */
+  private drawEnergy(ctx: CanvasRenderingContext2D, top: number): number {
+    const energy = this.session.combat.boss.energy;
+    if (energy === null) return top;
     this.drawThresholdBar(
       ctx,
-      TIMER_TOP + 78,
-      LABEL_DOOM,
-      this.session.combat.doom,
-      doom.threshold,
-      { text: `${LABEL_DOOM_CHARGES} ${ladungen}`, dringend: ladungen === 0 },
+      top,
+      LABEL_ENERGY,
+      this.session.combat.bossEnergy,
+      energy.threshold,
+      null,
     );
+    return top + THRESHOLD_STACK_STEP;
   }
 
   /**
