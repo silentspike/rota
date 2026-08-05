@@ -82,6 +82,9 @@ fn worn(json: &Value) -> WornValues {
         catalysis: u32_at(node, "catalysis"),
         purity: u32_at(node, "purity"),
         yield_bonus: u32_at(node, "yieldBonus"),
+        essence: u32_at(node, "essence"),
+        vessel: u32_at(node, "vessel"),
+        ward: u32_at(node, "ward"),
         gear_effects: u32_at(node, "gearEffects"),
     }
 }

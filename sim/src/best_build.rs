@@ -90,6 +90,12 @@ fn splits(budget: u32, step: u32) -> Vec<WornValues> {
                 catalysis,
                 purity,
                 yield_bonus: budget - catalysis - purity,
+                // Die Aufbau-Suche verteilt das Affix-Budget auf die drei
+                // Sonderwerte. Grundwerte gehoeren nicht dazu — sie haengen
+                // am Gegenstand, nicht am Budget (Issue #178).
+                essence: 0,
+                vessel: 0,
+                ward: 0,
                 gear_effects: 0,
             });
             purity += step;

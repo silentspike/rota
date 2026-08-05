@@ -198,6 +198,11 @@ pub fn pure_build(stat: usize, item_level: u32) -> WornValues {
         catalysis: if stat == STAT_CATALYSIS { alles } else { 0 },
         purity: if stat == STAT_PURITY { alles } else { 0 },
         yield_bonus: if stat == STAT_YIELD { alles } else { 0 },
+        // Ein reiner Aufbau setzt genau EINEN Sonderwert. Die Grundwerte
+        // stehen daneben und werden von der Verteilung nicht beruehrt.
+        essence: 0,
+        vessel: 0,
+        ward: 0,
         gear_effects: 0,
     }
 }
@@ -238,6 +243,10 @@ pub fn mixed_build(reference_stat: usize, item_level: u32) -> WornValues {
         catalysis: drittel,
         purity: drittel,
         yield_bonus: drittel,
+        // Auch der gemischte Aufbau verteilt nur das Affix-Budget.
+        essence: 0,
+        vessel: 0,
+        ward: 0,
         gear_effects: 0,
     }
 }

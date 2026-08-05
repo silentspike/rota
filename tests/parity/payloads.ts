@@ -2256,6 +2256,9 @@ const WORN_FOR_PARITY: WornValues = {
   catalysis: 170,
   purity: 375,
   yieldBonus: 250,
+  essence: 0,
+  vessel: 0,
+  ward: 0,
   gearEffects: 130,
 };
 
@@ -2294,6 +2297,9 @@ export function wornPayload(): Record<string, unknown> {
       catalysis: WORN_FOR_PARITY.catalysis,
       purity: WORN_FOR_PARITY.purity,
       yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      essence: 0,
+      vessel: 0,
+      ward: 0,
       gearEffects: WORN_FOR_PARITY.gearEffects,
     },
     // Topf 4 als Faktor: eins plus die Summe. Fliesskomma, also mit Bitmuster.
