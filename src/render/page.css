@@ -332,3 +332,48 @@ canvas {
 .rota-row[hidden] {
   display: none;
 }
+
+/**
+ * Der Stufenaufstieg (Issue #371).
+ *
+ * Wie `.rota-mark` unsichtbar ohne `rota-visible` — ein leerer Block mit
+ * Rahmen sähe aus wie ein Fehler.
+ *
+ * **Deutlicher als die Marke, und das ist Absicht:** Laut GAME-DESIGN 12.1
+ * ist der Aufstieg der Fortschrittsmoment. Er steht deshalb ganz oben, mit
+ * kräftigerem Rand als die Kennzahlen darunter — aber im selben Rahmen wie
+ * alles andere. Kein eigener Bildschirm, keine Animation: Was zwischen dem
+ * Spieler und der nächsten Runde steht, muss weggehen, sobald er es will
+ * (A.8).
+ */
+.rota-levelup {
+  display: none;
+}
+
+.rota-levelup.rota-visible {
+  display: block;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-left: 3px solid #e8c46a;
+  background: rgba(232, 196, 106, 0.1);
+}
+
+.rota-levelup-title {
+  margin: 0 0 6px;
+  color: #f0e6d2;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.rota-levelup-list {
+  margin: 0;
+  padding-left: 16px;
+  color: #d9d2c4;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.rota-levelup-item {
+  margin: 0;
+}

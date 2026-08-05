@@ -13,7 +13,7 @@
  *
  * Die beiden Listen sind wortgleich zu `apl_good` und `apl_bad` der Referenz.
  */
-import { CALCINATION, FIRST_CRUCIBLE } from '../core/data.js';
+import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../core/data.js';
 import { Combat, FIGHT_RUNNING } from '../core/combat.js';
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
@@ -25,6 +25,15 @@ export type RotationName = 'good' | 'bad' | 'dot-error' | 'pyre-error';
 
 export interface ReferenceResult {
   readonly rotation: RotationName;
+  /**
+   * Gegen welchen Boss gerechnet wurde (Issue #338).
+   *
+   * **Die Zahl allein ist mehrdeutig.** Die Referenz `4240 @ 40510` gilt für
+   * `first-crucible`; ein Lauf gegen einen anderen Boss liefert eine Zahl,
+   * die mit ihr nichts zu tun hat. Steht der Boss daneben, ist das keine
+   * Verwechslungsgefahr mehr, sondern eine Angabe.
+   */
+  readonly bossId: string;
   readonly damage: number;
   /** Kampfzeit des Sieges in ms, oder -1, wenn der Boss überlebt hat. */
   readonly killedAtMs: number;
@@ -114,6 +123,15 @@ const ROTATIONS: Record<RotationName, (c: Combat, i: Indices, t: number) => numb
 };
 
 export interface ReferenceOptions {
+  /**
+   * Gegen welchen Boss gerechnet wird. Ohne Angabe `first-crucible`.
+   *
+   * **Er fehlte bis Issue #338** — und wurde trotzdem übergeben: Im Browser
+   * gibt es kein TypeScript, ein unbekanntes Feld kommt an und wird nie
+   * gelesen. Drei Aufrufe mit drei Bossen ergaben dreimal dieselbe Zahl, und
+   * das sah aus wie ein Befund über die Widerstände.
+   */
+  readonly bossId?: string;
   /** Kampfdauer. Ohne Angabe der Überdruck-Zeitpunkt des Bosses. */
   readonly durationMs?: number;
   /**
@@ -124,11 +142,57 @@ export interface ReferenceOptions {
 }
 
 /** Eine Runde nach fester Prioritätenliste durchrechnen. */
+/**
+ * Die gültigen Schlüssel — **abgeleitet, nicht gepflegt** (Issue #338).
+ *
+ * Aus einem Objekt, das jedes Feld einmal nennt: Der Übersetzer erzwingt
+ * seine Vollständigkeit (`Required<…>`), also wächst die Liste mit dem Typ
+ * mit. Eine von Hand geführte Liste wäre die, die zurückbleibt — dasselbe
+ * Problem wie in #346 und #371.
+ */
+const GUELTIGE_OPTIONEN: Required<{ [K in keyof ReferenceOptions]: true }> = {
+  durationMs: true,
+  stopOnKill: true,
+  bossId: true,
+};
+
+/**
+ * Meldet ein Feld, das es nicht gibt — **mit Namen**.
+ *
+ * # Warum zur Laufzeit
+ *
+ * Die Dev-Werkzeuge sind eine **Laufzeit**-Schnittstelle: Im Browser über
+ * `window.__rota` sind die Typen weg. Ein Feld, das der Typ verbietet, kommt
+ * dort an und wird stillschweigend ignoriert.
+ *
+ * # Warum mit Namen
+ *
+ * „Unbekannte Option" lässt den Aufrufer suchen. Bei drei Feldern ist das
+ * gleichgültig; bei einem Werkzeugkasten mit zwanzig Einträgen ist der Name
+ * der Unterschied zwischen „wo?" und „da".
+ */
+function pruefeOptionen(options: ReferenceOptions): void {
+  const unbekannt = Object.keys(options).filter((key) => !(key in GUELTIGE_OPTIONEN));
+  if (unbekannt.length > 0) {
+    throw new Error(
+      `runReference kennt ${unbekannt.length === 1 ? 'das Feld' : 'die Felder'} ` +
+        `${unbekannt.map((k) => `"${k}"`).join(', ')} nicht. ` +
+        `Gueltig: ${Object.keys(GUELTIGE_OPTIONEN).join(', ')}.`,
+    );
+  }
+}
+
 export function runReference(
   rotation: RotationName,
   options: ReferenceOptions = {},
 ): ReferenceResult {
-  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  pruefeOptionen(options);
+  const bossId = options.bossId ?? FIRST_CRUCIBLE.value.id;
+  const boss = bossById(bossId);
+  if (boss === undefined) {
+    throw new Error(`Boss "${bossId}" gibt es nicht.`);
+  }
+  const combat = new Combat({ school: CALCINATION.value, boss });
   const index: Indices = {
     kindle: combat.indexOf('kindle'),
     smoulder: combat.indexOf('smoulder'),
@@ -168,6 +232,7 @@ export function runReference(
 
   return {
     rotation,
+    bossId,
     damage: combat.damageDealt,
     killedAtMs,
     remainingMs: killedAtMs < 0 ? 0 : durationMs - killedAtMs,
