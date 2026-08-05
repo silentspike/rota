@@ -79,6 +79,8 @@ import {
   doomStacksPayload,
   cooldownResetPayload,
   misplaysPayload,
+  synergyPayload,
+  SYNERGY_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -126,6 +128,10 @@ writeFileSync(primitivesPath, serialize(primitives), 'utf8');
 const misplays = misplaysPayload();
 const misplaysPath = join(here, 'recordings', `${MISPLAY_NAME}.json`);
 writeFileSync(misplaysPath, serialize(misplays), 'utf8');
+
+const synergy = synergyPayload();
+const synergyPath = join(here, 'recordings', `${SYNERGY_NAME}.json`);
+writeFileSync(synergyPath, serialize(synergy), 'utf8');
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);

@@ -1555,6 +1555,43 @@ Toleranz. `1.0` ist in IEEE754 exakt darstellbar, und gemeint ist der neutrale W
 Das gilt nicht überall — wo eine Rechnung Rundungsfehler erzeugt, ist eine Umgebung richtig. Der
 Unterschied: Hier wird kein Rechenergebnis geprüft, sondern **ob jemand einen Regler angefasst hat**.
 
+#### Eine Ausnahme muss benannt sein, sonst ist sie keine
+
+_Von Worker-1 am 2026-08-05 bei #346 formuliert._
+
+Ein Wächter prüfte, ob alle Faktoren der Schadensformel gleich stark wirken. Zwei standen nicht in
+seiner Liste — und niemand hatte entschieden, dass sie nicht hineingehören. Sie waren einfach nicht
+dazugekommen.
+
+> **Eine Ausnahme, die man nennen muss, ist eine Entscheidung. Eine, die durch Weglassen entsteht,
+> ist ein Versehen** — und genau das war der Zustand.
+
+Für einen der beiden gab es einen guten Grund (der Kampf schreibt den Faktor selbst, ein Vergleich
+mit festem Wert wäre sinnlos). Für den anderen gab es keinen; er stammte sogar vom selben
+Bearbeiter, der die Prüfung kannte:
+
+> Ich habe ihn gebaut, ich habe die Formel erweitert, und ich habe nicht bemerkt, dass er aus dieser
+> Prüfung herausfällt. **Der Wächter hat geschwiegen, und ich habe sein Schweigen für Zustimmung
+> gehalten.**
+
+**Von außen sehen beide Fälle gleich aus.** Ein fehlender Eintrag trägt nicht die Information, ob er
+fehlt oder ausgenommen ist — deshalb braucht ein Wächter, der etwas auslässt, eine **ausdrückliche
+Ausnahmeliste mit Begründung je Eintrag**.
+
+Dasselbe Muster liegt unter mehreren Befunden desselben Tages:
+
+|                                              | die Lücke entstand durch                                 |
+| -------------------------------------------- | -------------------------------------------------------- |
+| vier Prüffälle hinter `#[ignore]` (#237)     | Weglassen, begründet mit einer geschätzten Laufzeit      |
+| sieben Zauber ohne Paritäts-Abdeckung (#340) | Weglassen, weil die Wiedergabe sie nicht auflösen konnte |
+| vier Felder, die `reset()` vergisst (#349)   | Weglassen, ohne dass jemand über sie entschieden hätte   |
+
+**Jede sah aus wie Absicht.** Der Unterschied zwischen „ausgenommen" und „vergessen" steht nirgends
+im Code — er entsteht erst dadurch, dass jemand ihn hinschreibt.
+
+> Und die Begründung gehört **je Eintrag**, nicht als Sammelsatz darüber. Ein Sammelsatz erlaubt,
+> einen weiteren Eintrag hinzuzufügen, ohne ihn zu begründen.
+
 **Und daraus folgt eine Regel, die über diesen Fall hinausgeht: Manche Belege haben ein
 Verfallsdatum.**
 
@@ -2144,6 +2181,71 @@ statt des Verweises die **Lücke** dorthin:
 
 > Eine benannte Lücke ist ein Auftrag. Ein erfundener Verweis ist eine geschlossene Tür.
 
+### 8.21 Eine Feldliste, die niemand pflegt
+
+_Von Worker-1 (#346) und Worker-3 (#349) am 2026-08-05 unabhängig voneinander gefunden._
+
+Mehrere Wächter brauchen dieselbe Zutat: **alle Felder einer Struktur.** „Wird jeder Faktor
+gleich stark gerechnet?" (#346) und „überlebt ein Feld das Zurücksetzen?" (#349) sind
+verschiedene Fragen mit demselben Bedarf.
+
+Die naheliegende Antwort ist eine Liste im Prüffall — und sie ist die falsche:
+
+> Wer ein Feld hinzufügt und die Liste vergisst, hat genau den Fehler gebaut, den die Liste
+> verhindern sollte.
+
+**Auf der Spielseite gibt es die Liste geschenkt.** `private x = 0` ist in JavaScript eine
+gewöhnliche Eigenschaft; `Object.keys` sieht sie, auch die von morgen.
+
+**Im Simulator schreibt sie der Übersetzer**, wenn man ihn lässt:
+
+```rust
+#[derive(Debug)]
+pub struct Fight { … }
+```
+
+Zwei Gestalten, je nach Frage:
+
+| Was gebraucht wird | Wie                             | Fall                                  |
+| ------------------ | ------------------------------- | ------------------------------------- |
+| die **Namen**      | Debug-Ausgabe zerlegen          | #346, `alle_faktor_namen()`           |
+| die **Werte**      | zwei Debug-Ausgaben vergleichen | #349, `kein_einziges_feld_ueberlebt…` |
+
+Zur Laufzeit kostet es nichts: Die Auflistung entsteht nur, wenn sie jemand anfordert.
+
+#### Zwei Fallen, beide gemessen
+
+**Der Name aus der Tiefe.** Ein Wächter, der rückwärts zum nächsten `name:` geht, meldete bei
+einem Unterschied in `stack_gains: Cell { value: 40 }` das Feld **`value`** — den Namen aus dem
+`Cell`. Es gibt keine Stelle dieses Namens; der Suchende läuft ins Leere. Der Name muss von der
+**obersten Ebene** kommen, also über die Klammertiefe.
+
+Dieselbe Falle in anderer Gestalt auf der Spielseite: Wer rekursiv **in die Tiefe** geht, meldet
+`stacks.gains` als `events.entries.0.0.receiver.gains`, weil der Ereignis-Bus früher im
+Konstruktor steht. **In die Breite gehen**, dann trägt jeder Wert seinen kürzesten Pfad.
+
+> Ein Wächter muss nicht nur anschlagen, sondern **adressieren**.
+
+#### Die Grenze, und sie braucht ihren eigenen Fall
+
+Die Technik hängt daran, dass `Debug` **abgeleitet** ist. Ersetzt jemand `#[derive(Debug)]` durch
+eine eigene, kürzere Umsetzung, fällt die Namensliste weg oder wird unvollständig — und der
+Wächter wäre **still grün**. Das ist genau die Bauart, gegen die er gebaut ist.
+
+Deshalb prüft #346 die **Form** an bekannten Namen, nicht an ihrer Zahl:
+
+```rust
+for bekannt in ["essence", "talents", "crit"] {
+    assert!(alle.iter().any(|f| f == bekannt), "… Ist `Debug` noch abgeleitet?");
+}
+```
+
+Und #349 prüft, dass die Auflistung überhaupt etwas hergibt (`nach_reset.len() > 1000`), bevor
+sie verglichen wird. Zwei leere Zeichenketten sind gleich.
+
+**Die Regel:** Wer eine Feldliste braucht, nimmt die, die der Übersetzer schreibt — und sichert
+mit einem eigenen Fall ab, dass er sie noch schreibt.
+
 ```
     Worker-Sitzung                                      Orchestrator
          │                                                    │
@@ -2173,3 +2275,47 @@ Zwei Regeln aus § 6 bleiben davon unberührt:
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Erst quittieren, dann melden** | Eine inhaltliche Antwort per `senden` schließt eine Nummer **nicht**. Die Quittung ist ein eigener Aufruf, und sie enthält das verstandene Vorhaben in einem Satz — nicht „erhalten" |
 | **Jede Nummer einzeln**          | Eine Sammelquittung auf drei Nachrichten passt für höchstens zwei davon. Auch das ist an einem Tag gemessen worden                                                                   |
+
+### 8.22 Ein Exit-Code ist keine Wirkung
+
+_Von Worker-2 (#318) am 2026-08-05 zweimal gemacht, einmal selbst gefunden._
+
+Ein Befehl, der mit 0 endet, hat **gemacht, was er wollte** — nicht, was ich wollte. Die
+beiden fallen fast immer zusammen, und deshalb fällt es nicht auf, wenn sie es einmal nicht
+tun.
+
+Zwei Fälle an einem Tag, beide in derselben Form gemeldet:
+
+| gemeldet | tatsächlich                                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `LINT=1` | gesehen, im selben Aufruf weitergemacht und gepusht — der Code brach die Kette nicht                                        |
+| `SHOT=0` | der Pfad stand als **Positionsargument**; das ist `[ref]`, eine Element-Referenz — das Bild landete unter dem Standardnamen |
+
+Der zweite ist der lehrreichere: Der Befehl **ist gelaufen**, fehlerfrei — und er hat den
+Pfad nicht ignoriert, sondern als **etwas anderes verstanden**. `playwright-cli screenshot`
+nimmt an dieser Stelle eine Element-Referenz; einen Zielort gibt es über `--filename`, auch
+absolut. Kein solches Element also, folglich die ganze Seite, gespeichert unter dem
+Standardnamen.
+
+**Genau das ist die Überschrift, belegt:** Alles lief nach Plan — nur nicht nach meinem. Er
+hat etwas anderes getan, als der Aufruf nahelegte — und ich habe den Beleg gemeldet, ohne ihn je
+gesehen zu haben. Gefunden hat es der Orchestrator, drei Stunden später, beim Abnehmen.
+
+**Die Gegenmaßnahme ist kein zweiter Blick, sondern eine andere Frage.** Nicht „ist der
+Befehl durchgelaufen", sondern „liegt das Ergebnis da, das ich behaupte":
+
+```bash
+npm run lint && git commit … && git push      # && statt echo $?
+ls -la <zieldatei>                            # nach jedem Befehl, der etwas erzeugt
+<befehl> --help                               # bevor man behauptet, was er tut
+```
+
+Der dritte Befehl steht dort, weil dieser Abschnitt selbst daran gescheitert ist: Sein
+erster Entwurf behauptete, das Werkzeug nehme keinen Zielpfad an. Es nimmt einen — über
+`--filename`. Eine Aussage **über ein Werkzeug** ist genauso zu messen wie eine Zahl, und
+`--help` kostet zwei Sekunden.
+
+Und für Belege, die in eine Meldung sollen: **einmal ansehen.** Ein Bild, das man nicht
+geöffnet hat, ist eine Behauptung über eine Datei — dieselbe Klasse wie ein Prüffall, den
+man grün gemeldet hat, ohne zu sehen, dass er gar nicht gelaufen ist (VERIFICATION.md,
+`cargo test` bricht nach der ersten gefallenen Sammlung ab).

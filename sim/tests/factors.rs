@@ -114,7 +114,23 @@ fn neutrale_faktoren_aendern_am_gleichlauf_nichts() {
 #[test]
 fn alle_faktoren_wirken_gleich_stark() {
     // Die Schadensformel multipliziert sie alle an derselben Stelle; keiner ist
-    // bevorzugt. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
+    // bevorzugt.
+    //
+    // **`synergy` und `vulnerability` stehen NICHT in der Liste** — sie werden
+    // vom Kampf selbst geschrieben (#97 und #318) und ueberschreiben einen von
+    // aussen gesetzten Wert bei der naechsten Wirkung. Der Faktor waere in
+    // diesem Lauf also gar nicht der, den die Liste setzt; der Fall pruefte
+    // eine Zahl, die es nie gab.
+    //
+    // **Was damit auf der Rust-Seite NICHT mehr geprueft wird:** dass die
+    // Synergie ueberhaupt gleich stark wirkt wie die uebrigen Faktoren. Die
+    // Spielseite misst es in `tests/unit/synergy.test.ts` ueber den Kampf
+    // (Verhaeltnis 1,25 zwischen einer Wirkung im Fenster und einer danach);
+    // ein entsprechender Fall hier fehlt noch und ist als Luecke gemeldet.
+    //
+    // Die Pruefsumme faengt einen Unterschied trotzdem: `synergyUsed`,
+    // `synergyAvailable` und `synergyOpenUntil` stehen seit #318 darin, und
+    // `SYNERGY_BONUS_PERCENT` ist auf beiden Seiten dieselbe Zahl. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
     // von 6.3 — und der Grund, warum in Schritt 1 alle Skalierungswerte gleich
     // sind.
     //
@@ -122,6 +138,20 @@ fn alle_faktoren_wirken_gleich_stark() {
     // hier** (Issue #346). Sonst gaebe es zwei Listen: die, die geprueft wird,
     // und die, gegen die der Waechter vergleicht — und sie koennten
     // auseinanderlaufen. Genau davor schuetzt dieser Umbau.
+    //
+    // # WAS DIESER FALL NICHT ABDECKT (Issue #356)
+    //
+    // Er misst die Formel in `compute_damage`. **Wer eine ZWEITE Schadensstelle
+    // baut, ist nicht erfasst** — etwa eine eigene Rechnung fuer eine neue
+    // Schadensart, die die Faktoren selbst multipliziert statt `compute_damage`
+    // zu rufen. Dort koennte ein Faktor fehlen oder anders wirken, und dieser
+    // Waechter bliebe gruen.
+    //
+    // Die Spielseite hat seit #356 denselben Waechter und dieselbe Grenze; sie
+    // steht dort im Kopf von `tests/unit/damage-strength.test.ts`. Hier stand
+    // sie bis zum 2026-08-05 nicht — nachgetragen, weil eine Grenze, die nur
+    // auf einer Seite benannt ist, auf der anderen wie Vollstaendigkeit
+    // aussieht.
     let referenz = lauf(DamageFactors {
         essence: 1.10,
         ..NEUTRAL
@@ -149,7 +179,6 @@ const GEPRUEFTE_FAKTOREN: &[&str] = &[
     "talents",
     "gear_effects",
     "buffs",
-    "synergy",
     "resistance",
     "crit",
 ];
@@ -246,11 +275,21 @@ fn alle_faktor_namen() -> Vec<String> {
 /// entsteht, ist ein Versehen — und genau das war der Zustand: `gear_effects`
 /// fiel bei Issue #195 aus der Pruefung, ohne dass jemand es bemerkte, weil
 /// Fehlen und Ausnahme identisch aussehen.
-const SCHREIBT_DER_KAMPF_SELBST: &[(&str, &str)] = &[(
-    "vulnerability",
-    "Der Kampf setzt ihn je Treffer aus dem Boss-Zustand (Issue #97). Ein \
-     fester Wert wuerde beim ersten Schritt ueberschrieben.",
-)];
+const SCHREIBT_DER_KAMPF_SELBST: &[(&str, &str)] = &[
+    (
+        "vulnerability",
+        "Der Kampf setzt ihn je Treffer aus dem Boss-Zustand (Issue #97). Ein \
+         fester Wert wuerde beim ersten Schritt ueberschrieben.",
+    ),
+    (
+        "synergy",
+        "Der Kampf setzt ihn bei jeder Wirkung aus dem offenen Fenster (Issue \
+         #318). Ein von aussen gesetzter Wert waere beim ersten Druck weg — \
+         der Fall pruefte eine Zahl, die es im Lauf nie gab. Seine Staerke \
+         misst dafuer sim/tests/parity_synergy_run.rs ueber den KAMPF, mit \
+         zwei Wirkungen im und nach dem Fenster.",
+    ),
+];
 
 #[test]
 fn kein_faktor_faellt_lautlos_aus_der_staerke_pruefung() {

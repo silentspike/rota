@@ -164,6 +164,16 @@ pub const PHASE_HOLD_DURATION_MS: Millis = 8_000;
 /// Wie viele Stapel hoechstens gleichzeitig liegen. Wird gemessen.
 pub const MAX_DECAY_STACKS: usize = 5;
 
+/// Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhoeht
+/// (GAME-DESIGN 5 und 1193, #318).
+///
+/// **Gesetzt, nicht gemessen** — wie `DECAY_STACK_PERCENT`. GAME-DESIGN regelt
+/// Fenster und Stapel-Regel und schweigt zur Hoehe; die bestimmt der
+/// Balance-Laeufer. Der Wert steht WOERTLICH gleich im Spiel
+/// (`SYNERGY_BONUS_PERCENT` in combat.ts) — laufen die beiden auseinander,
+/// meldet es die Pruefsumme ab Takt 0.
+pub const SYNERGY_BONUS_PERCENT: u32 = 25;
+
 /// Um wie viel Prozent ein Stapel den Schaden aller Quellen erhoeht. Wird gemessen.
 pub const DECAY_STACK_PERCENT: u32 = 3;
 
@@ -265,6 +275,22 @@ pub struct RunResult {
 }
 
 /// Ein Kampf-Durchgang.
+///
+/// # `Debug` ist hier ein WERKZEUG, keine Bequemlichkeit (Issue #349)
+///
+/// Rust hat keine Reflexion — es gibt keinen Weg, ueber die Felder zu laufen,
+/// wie `Object.keys` es auf der Spielseite tut. `#[derive(Debug)]` ist der
+/// naechstbeste: Der Uebersetzer schreibt die Auflistung, und sie enthaelt
+/// **jedes** Feld, auch das von morgen.
+///
+/// `tests/reset_completeness.rs` vergleicht damit einen zurueckgesetzten
+/// gegen einen frischen `Fight`. Ohne diese Ableitung braeuchte der Waechter
+/// eine von Hand gepflegte Liste — und wer ein Feld hinzufuegt und die Liste
+/// vergisst, hat genau den Fehler gebaut, den sie verhindern soll.
+///
+/// Es kostet zur Laufzeit nichts: Die Auflistung entsteht nur, wenn sie
+/// jemand anfordert, und das tut ausser dem Waechter niemand.
+#[derive(Debug)]
 pub struct Fight {
     // -- Zeit --
     time: Millis,
@@ -419,6 +445,17 @@ pub struct Fight {
     decay_expiry: [Millis; MAX_DECAY_STACKS],
     /// Wie viele Stapel gerade liegen.
     decay_count: usize,
+    /// Bis wann das Synergie-Fenster dieses Zaubers offen steht (#318).
+    ///
+    /// Index ist der **Partner**, nicht der Ausloeser: Gefragt wird beim
+    /// Wirken "steht MIR ein Fenster offen".
+    ///
+    /// **0 heisst: kein Fenster.** Dieselbe Bauart wie `decay_expiry`, und
+    /// zulaessig, weil ein Fenster nie bei 0 endet — es steht immer mindestens
+    /// eine Wartezeit lang offen.
+    synergy_window_ends: [Millis; SPELL_COUNT],
+    synergy_used: u32,
+    synergy_available: u32,
     /// Wie viele Punkte insgesamt ausgegeben wurden.
     control_spent: u32,
     /// Um wie viel der **naechste** Zeitleisten-Eintrag nach hinten geschoben
@@ -669,6 +706,9 @@ impl Fight {
             control_spent: 0,
             decay_expiry: [0; MAX_DECAY_STACKS],
             decay_count: 0,
+            synergy_window_ends: [0; SPELL_COUNT],
+            synergy_used: 0,
+            synergy_available: 0,
             control_failed: 0,
             gcd_ready_at: 0,
             reset_mode: CooldownReset::new(),
@@ -1131,6 +1171,8 @@ impl Fight {
             casts: self.casts.to_vec(),
             final_checksum: self.checksum_at(final_time),
             sequence_checksum: sequence,
+            synergy_used: self.synergy_used,
+            synergy_available: self.synergy_available,
             checksums,
             random_draws: self.rng.total_draws(),
             phases,
@@ -1184,6 +1226,18 @@ impl Fight {
         self.afflictions_cleared = 0;
         self.timeline_index = 0;
         self.casting = None;
+        // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
+        // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
+        // `record_fields`, das die Pruefsumme mit ihren Namen aufzeichnet:
+        //
+        //     ABWEICHUNG [115] playerDamage: nach reset 4240, frisch 0
+        //
+        // Es ist das SPIEGELBILD des Falls, den Worker-2 gefunden hat: Dort
+        // raeumt der Simulator die Zersetzungs-Stapel und das Spiel nicht,
+        // hier raeumt das Spiel `playerDamageValue` und der Simulator nicht.
+        // Beide Male unsichtbar, weil kein Paritaets-Weg zweimal faehrt.
+        self.player_damage = 0;
+        self.stack_gains.set(0);
         // Ein neuer Lauf faengt ohne laufende Wirkzeit an (Issue #304). Ohne
         // diese Zeilen bliebe der Zustand stehen, und der naechste Kampf
         // begaenne dauerhaft blockiert.
@@ -1213,6 +1267,11 @@ impl Fight {
         self.control_spent = 0;
         self.decay_expiry = [0; MAX_DECAY_STACKS];
         self.decay_count = 0;
+        // **Die Synergie-Fenster und ihre Zaehler** (#318). Im Browser
+        // gemessen: Ohne das traegt der naechste Lauf die Ausbeute des vorigen.
+        self.synergy_window_ends = [0; SPELL_COUNT];
+        self.synergy_used = 0;
+        self.synergy_available = 0;
         self.control_failed = 0;
         self.gcd_ready_at = 0;
         self.reset_mode.reset();
@@ -1716,6 +1775,69 @@ impl Fight {
         }
         self.decay_count -= verfallen;
         self.update_vulnerability();
+    }
+
+    /// Setzt den Synergie-Faktor, wenn diesem Zauber ein Fenster offen steht
+    /// (GAME-DESIGN 5, #318).
+    ///
+    /// Der Bonus liegt **neben** `per_decay_stack_percent`, nicht darin: FESTER
+    /// wird ohnehin staerker, je mehr Stapel liegen. Das sind zwei Mechaniken.
+    fn apply_synergy_bonus(&mut self, index: usize) {
+        let endet = self.synergy_window_ends[index];
+        let offen = endet != 0 && self.time <= endet;
+        // **Ganzzahlig bis zur letzten Teilung** — dieselbe Rechnung wie im
+        // Spiel (18.4).
+        self.factors.synergy = if offen {
+            f64::from(100 + SYNERGY_BONUS_PERCENT) / 100.0
+        } else {
+            1.0
+        };
+        if offen {
+            self.synergy_used += 1;
+            // **Das Fenster ist verbraucht.** Sonst zaehlte jede weitere
+            // Wirkung darin erneut, und die Ausbeute stiege ueber die Zahl der
+            // Gelegenheiten.
+            self.synergy_window_ends[index] = 0;
+        }
+    }
+
+    /// Oeffnet dem Partner ein Fenster (#318).
+    ///
+    /// **Die Laenge steht in WARTEZEITEN**, nicht in Millisekunden. Die
+    /// entstehen hier, durch dieselbe `hasted()`-Stelle wie jede andere Zeit —
+    /// GAME-DESIGN 327: "In Wartezeiten gerechnet, nicht in Sekunden, sonst
+    /// verschiebt sich das Verhaeltnis bei hohem Tempo."
+    fn open_synergy_window(&mut self, spell: &Spell) {
+        if spell.synergy_partner.is_empty() || spell.synergy_window_gcds == 0 {
+            return;
+        }
+        let Some(partner) = SPELLS.iter().position(|s| s.id == spell.synergy_partner) else {
+            return;
+        };
+        let laenge = self.hasted(Millis::from(spell.synergy_window_gcds) * GCD_MS);
+        self.synergy_window_ends[partner] = self.time + laenge;
+        // **Wird der Partner im Fenster ueberhaupt bereit?** Ein Fenster, das
+        // aufgeht waehrend er auf Abklingzeit liegt und bis zum Ende nicht
+        // bereit wird, ist keine Gelegenheit — die Zahl bestrafte den Spieler
+        // sonst fuer eine Abklingzeit statt fuer sein Spiel.
+        if self.cooldown_ready_at[partner].saturating_sub(self.time) <= laenge {
+            self.synergy_available += 1;
+        }
+    }
+
+    /// Die Summe aller offenen Fensterenden — fuer die Pruefsumme (#318).
+    ///
+    /// **Eine Summe statt einer Schleife im Takt-Vergleich**: GAME-DESIGN 18.2
+    /// erlaubt im laufenden Bild keine Erzeugung, und die Spielseite rechnet
+    /// dieselbe Summe.
+    fn synergy_window_sum(&self) -> f64 {
+        let mut summe = 0.0;
+        for endet in self.synergy_window_ends.iter() {
+            if *endet != 0 {
+                summe += *endet as f64;
+            }
+        }
+        summe
     }
 
     /// Rechnet die Verwundbarkeit aus den liegenden Stapeln.
@@ -2334,6 +2456,11 @@ impl Fight {
         self.apply_coagulation(index, spell);
         self.apply_putrefaction(spell);
         self.apply_fixation(spell);
+        // **Erst pruefen, dann oeffnen** (#318). Ein Zauber, der sein eigener
+        // Partner waere, nutzte sonst das Fenster, das er im selben Zug
+        // aufmacht.
+        self.apply_synergy_bonus(index);
+        self.open_synergy_window(spell);
 
         // **Ein Wurf fuer die ganze Wirkung**, und er faellt genau dann, wenn
         // der Zauber **laut seinen Daten** Schaden austeilen kann — nicht
@@ -2872,6 +2999,17 @@ impl Fight {
             self.player_casting
                 .map_or(-1, |_| self.player_cast_ends_at as i32),
         );
+        // Issue #318: Die Synergie-Fenster. Ohne sie liefe ein Simulator, der
+        // das Fenster anders lang rechnet oder es nicht verbraucht, still
+        // auseinander — der Schaden wiche erst dann ab, wenn der Partner
+        // wirklich im Fenster wirkt, und das kann Takte spaeter sein oder nie.
+        //
+        // **Angehaengt, nicht eingeschoben** — ans ECHTE Ende, hinter
+        // playerDamage. Die Namen sind woertlich dieselben wie auf der
+        // Spielseite; der Gleichlauf-Waechter vergleicht sie.
+        h = mix_named_int(h, "synergyUsed", self.synergy_used as i32);
+        h = mix_named_int(h, "synergyAvailable", self.synergy_available as i32);
+        h = mix_named_float(h, "synergyOpenUntil", self.synergy_window_sum());
         h
     }
 

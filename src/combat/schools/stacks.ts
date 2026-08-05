@@ -55,6 +55,18 @@ export class StackMechanic implements RuleReceiver {
   /** Wie oft Stapel dazugekommen sind. Für die Prüfung. */
   private gains = 0;
 
+  /**
+   * Die Zähler eines neuen Versuchs (Issue #349).
+   *
+   * Sie hängen am Kampf und müssen mit ihm zurück. Gefunden hat es der
+   * Wächter in `tests/unit/reset-completeness.test.ts`, nicht ein Gedanke:
+   * Er vergleicht den zurückgesetzten Kampf gegen einen frisch gebauten und
+   * geht dabei auch eine Ebene tiefer.
+   */
+  reset(): void {
+    this.gains = 0;
+  }
+
   constructor(private readonly sink: StackSink) {}
 
   get gainCount(): number {
