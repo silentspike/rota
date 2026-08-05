@@ -66,6 +66,7 @@
 //! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
+use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
     stack_damage, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind,
     BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
@@ -383,6 +384,12 @@ pub struct Fight {
 
     // -- Spieler --
     gcd_ready_at: Millis,
+    /// Der Auswahlmodus des Ruecksetzers (Issue #223).
+    ///
+    /// Bis heute war er gebaut und unbenutzt — `cooldown_reset.rs` stand
+    /// vollstaendig da, und kein Aufruf im Kampf rief ihn. Mit REFLUX (#201)
+    /// gibt es einen Zauber, der ihn scharf stellt.
+    reset_mode: CooldownReset,
     cooldown_ready_at: [Millis; SPELL_COUNT],
     resource: u16,
     dot_expires_at: [Option<Millis>; SPELL_COUNT],
@@ -468,6 +475,7 @@ impl Fight {
             decay_count: 0,
             control_failed: 0,
             gcd_ready_at: 0,
+            reset_mode: CooldownReset::new(),
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
             dot_expires_at: [None; SPELL_COUNT],
@@ -809,29 +817,59 @@ impl Fight {
                     // Unbelegter Platz: Fehleingabe, nichts wird gemerkt.
                     None => rejected += 1,
                     Some(index) => {
-                        // **WAECHTER (Issue #201, offen als #223).** Der
-                        // Simulator kennt den Auswahlmodus nicht: Dieser Pfad
-                        // kann "wirken" und "ablehnen", nicht "waehlen".
-                        // `cooldown_reset.rs` baut ihn vollstaendig — und kein
-                        // Aufruf im Kampf ruft ihn.
+                        // **Drei Ausgaenge, nicht zwei** (Issue #223). Steht
+                        // der Auswahlmodus scharf, WAEHLT dieser Druck, statt
+                        // zu wirken — dieselbe Regel wie `Session.apply` auf
+                        // der Spielseite, und dieselbe Reihenfolge.
                         //
-                        // Ohne diese Zeile liefe eine Aufzeichnung mit REFLUX
-                        // still falsch durch: Der Ruecksetzer wuerde als
-                        // gewoehnlicher Zauber gewirkt, der naechste Druck
-                        // NICHT zurueckgesetzt, und beide Seiten liefen
-                        // auseinander, ohne dass es jemand meldet. Genau der
-                        // Zustand, den Issue #201 behebt — diesmal wuessten
-                        // wir es beim Bauen.
-                        assert!(
-                            !SPELLS[index].arms_cooldown_reset,
-                            "Die Aufzeichnung wirkt {}, und der Simulator kennt den \
-                             Auswahlmodus noch nicht (Issue #223). Bis der Druck-Pfad \
-                             ihn kennt, waere jeder Vergleich gegen diesen Lauf wertlos.",
-                            SPELLS[index].id
-                        );
-                        if self.is_ready(index) {
+                        // Der Waechter, der bis hierher stand, faellt damit:
+                        // Aufzeichnungen duerfen REFLUX enthalten.
+                        if self.reset_mode.is_armed() {
+                            // Die Wahl verbraucht den Ruecksetzer in jedem
+                            // Fall — auch eine falsche. `choose` setzt die
+                            // Abklingzeit und die Wartezeit selbst, damit die
+                            // Regel an einer Stelle steht.
+                            match self.reset_mode.choose(
+                                index,
+                                now,
+                                &mut self.cooldown_ready_at,
+                                &mut self.gcd_ready_at,
+                                GCD_MS,
+                            ) {
+                                // **Eine Auswahl zaehlt NICHT als Wirkung**,
+                                // weder als angenommene noch als abgelehnte.
+                                // `Session.apply` erhoeht `accepted` nur im
+                                // Zweig `if (!chose)`; sonst stuende in der
+                                // Auswertung eine Wirkung, die nie stattfand.
+                                //
+                                // Gemessen, nicht gelesen: Meine erste Fassung
+                                // zaehlte sie mit und kam auf 40 statt 38
+                                // angenommene Druecke bei 40 Druecken und zwei
+                                // Auswahlen. Die Pruefsumme merkte davon
+                                // nichts — sie fuehrt die Zaehler nicht.
+                                Choice::Applied => {}
+                                // Eine verpuffte Wahl dagegen ist eine
+                                // Fehleingabe wie jede andere — auf der
+                                // Spielseite `accepted = false` und damit
+                                // `rejected++`.
+                                Choice::Wasted => rejected += 1,
+                                // Kann hier nicht auftreten: `is_armed` wurde
+                                // gerade geprueft. Behandelt statt ignoriert,
+                                // damit eine spaetere Aenderung an `choose`
+                                // nicht still durchfaellt.
+                                Choice::NotArmed => rejected += 1,
+                            }
+                        } else if self.is_ready(index) {
                             self.cast(index);
                             accepted += 1;
+                            // **NACH der Wirkung scharf stellen**, nie davor.
+                            // Vorher waere falsch: Dann waehlte sein eigener
+                            // Druck bereits, und der Ruecksetzer wuerde nie
+                            // gewirkt. Dieselbe Reihenfolge wie in
+                            // `Session.apply`; AC4 von #223 haelt sie fest.
+                            if SPELLS[index].arms_cooldown_reset {
+                                self.reset_mode.arm(index);
+                            }
                         } else {
                             // Zu frueh gedrueckt. Das Spiel merkt sich den Druck
                             // ausdruecklich **nicht** (GAME-DESIGN 21.1: keine
@@ -926,6 +964,7 @@ impl Fight {
         self.decay_count = 0;
         self.control_failed = 0;
         self.gcd_ready_at = 0;
+        self.reset_mode.reset();
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
         self.dot_expires_at = [None; SPELL_COUNT];

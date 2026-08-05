@@ -92,47 +92,78 @@ fn der_referenzlauf_bleibt_unberuehrt() {
     );
 }
 
-/// Der Waechter greift, sobald eine Aufzeichnung REFLUX enthaelt (Issue #223).
+/// **Der Waechter ist gefallen — und das ist sein Erfolg** (Issue #223).
 ///
-/// **Der Gegenbeweis zum Waechter selbst.** Ein Waechter, der nie anschlaegt,
-/// ist von einem fehlenden nicht zu unterscheiden — deshalb wird hier eine
-/// Aufzeichnung gebaut, die ihn ausloest, und belegt, dass sie es tut.
+/// Bis heute stand hier ein `should_panic`-Fall: Eine Aufzeichnung mit REFLUX
+/// brach den Lauf ab, weil `Fight::replay` den Auswahlmodus nicht kannte. Der
+/// Druck-Pfad kennt ihn jetzt, also darf sie durchlaufen.
+///
+/// **Ersetzt, nicht geloescht.** Was er festhielt, ist jetzt die Zusicherung
+/// in der anderen Richtung: Eine Aufzeichnung mit REFLUX laeuft durch UND der
+/// Ruecksetzer wirkt. Ihn ersatzlos zu streichen hiesse, die Stelle
+/// unbewacht zu lassen, an der beide Seiten heute frisch zusammengefuegt sind.
+///
+/// Der eigentliche Nachweis, dass sie gleich rechnen, steht in
+/// `parity_cooldown_reset_run.rs` — Pruefsumme Takt fuer Takt.
 #[test]
-#[should_panic(expected = "Auswahlmodus")]
-fn eine_aufzeichnung_mit_reflux_bricht_den_lauf_ab() {
+fn eine_aufzeichnung_mit_reflux_laeuft_durch_und_der_ruecksetzer_wirkt() {
     let reflux = index_of("reflux").expect("REFLUX gehoert seit Issue #201 zum Zauberkasten");
+    let pyre = index_of("pyre").expect("pyre");
     let recording = Recording {
         name: "reflux-probe".to_owned(),
         seed: 0,
-        ticks: 10,
-        bindings: vec![Binding {
-            slot: 0,
-            spell: reflux,
-        }],
-        presses: vec![Press { tick: 1, slot: 0 }],
-    };
-    let mut fight = Fight::new(FightConfig::default());
-    fight.replay(&recording, false);
-}
-
-/// Und die Gegenrichtung: Ohne REFLUX laeuft dieselbe Aufzeichnung durch.
-///
-/// Ohne diesen Fall koennte der Waechter bei JEDEM Druck anschlagen, und der
-/// Fall darueber wuerde es nicht merken.
-#[test]
-fn dieselbe_aufzeichnung_mit_kindle_laeuft_durch() {
-    let kindle = index_of("kindle").expect("kindle");
-    let recording = Recording {
-        name: "kindle-probe".to_owned(),
-        seed: 0,
-        ticks: 10,
-        bindings: vec![Binding {
-            slot: 0,
-            spell: kindle,
-        }],
-        presses: vec![Press { tick: 1, slot: 0 }],
+        ticks: 800,
+        bindings: vec![
+            Binding {
+                slot: 0,
+                spell: pyre,
+            },
+            Binding {
+                slot: 1,
+                spell: reflux,
+            },
+        ],
+        // PYRE wirken, REFLUX wirken, PYRE waehlen, PYRE erneut wirken.
+        presses: vec![
+            Press { tick: 0, slot: 0 },
+            Press { tick: 150, slot: 1 },
+            Press { tick: 300, slot: 0 },
+            Press { tick: 450, slot: 0 },
+        ],
     };
     let mut fight = Fight::new(FightConfig::default());
     let result = fight.replay(&recording, false);
-    assert_eq!(result.casts[kindle], 1, "KINDLE muss gewirkt worden sein");
+
+    assert_eq!(result.casts[reflux], 1, "REFLUX selbst wurde gewirkt");
+    assert_eq!(
+        result.casts[pyre], 2,
+        "der zweite PYRE-Druck waere ohne den Ruecksetzer an der Abklingzeit \
+         gescheitert — er belegt, dass die Wahl gegriffen hat"
+    );
+}
+
+/// Und die Gegenrichtung: OHNE den Ruecksetzer scheitert derselbe Druck.
+///
+/// Ohne diesen Fall bliebe der obige auch dann gruen, wenn PYRE aus einem
+/// ganz anderen Grund wieder bereit waere.
+#[test]
+fn ohne_den_ruecksetzer_scheitert_derselbe_zweite_druck() {
+    let pyre = index_of("pyre").expect("pyre");
+    let recording = Recording {
+        name: "ohne-reflux".to_owned(),
+        seed: 0,
+        ticks: 800,
+        bindings: vec![Binding {
+            slot: 0,
+            spell: pyre,
+        }],
+        presses: vec![Press { tick: 0, slot: 0 }, Press { tick: 450, slot: 0 }],
+    };
+    let mut fight = Fight::new(FightConfig::default());
+    let result = fight.replay(&recording, false);
+
+    assert_eq!(
+        result.casts[pyre], 1,
+        "PYRE hat 5 s Abklingzeit — der zweite Druck bei 4,5 s muss scheitern"
+    );
 }
