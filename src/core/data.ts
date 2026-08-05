@@ -515,6 +515,25 @@ export interface LevelGrowthDef {
   readonly maxLevel: number;
   /** Faktor je Stufe in Promille. Index 0 ist Stufe 1 und trägt 1000. */
   readonly factorPerMille: readonly number[];
+  /**
+   * Erfahrung je Sieg, je Stufe des BOSSES.
+   *
+   * **Am Boss, nicht am Spieler**, und das ist keine Geschmacksfrage:
+   * GAME-DESIGN 12.6 sieht einen abnehmenden Ertrag über den STUFENABSTAND vor
+   * („voller Ertrag, solange der Boss zur eigenen Stufe passt"). Einen Abstand
+   * gibt es nur, wenn beide Seiten eine Stufe haben — hinge die Erfahrung am
+   * Spieler, wäre die schon beschlossene Regel gar nicht baubar.
+   */
+  readonly xpPerBossLevel: number;
+  /**
+   * Bedarf für den Aufstieg, Eintrag n von Stufe n nach n+1.
+   *
+   * 99 Einträge für 99 Aufstiege. Die erzeugende Formel und die vier
+   * geprüften Varianten stehen im `_comment` der Datei — eine Zahl ohne ihre
+   * Herkunft ist eine Behauptung, und die nächste Balance-Änderung würde
+   * geraten statt gerechnet.
+   */
+  readonly xpToNextLevel: readonly number[];
 }
 
 export interface BossDef {
@@ -1329,7 +1348,36 @@ export const LEVELS: LevelGrowthDef = (() => {
       );
     }
   }
-  return { growthPerLevelPercent, maxLevel, factorPerMille };
+  const xpPerBossLevel = number(roh['xpPerBossLevel'], 0);
+  const xpToNextLevel = Array.isArray(roh['xpToNextLevel'])
+    ? (roh['xpToNextLevel'] as unknown[]).map((x) => number(x, 0))
+    : [];
+  if (xpPerBossLevel <= 0) {
+    throw new Error('data/player/levels.json: xpPerBossLevel muss positiv sein.');
+  }
+  // **Ein Eintrag WENIGER als Stufen**: von 1 nach 2 bis von 99 nach 100.
+  // Ein Eintrag zu viel sähe aus wie ein Aufstieg über die Höchststufe hinaus.
+  if (xpToNextLevel.length !== maxLevel - 1) {
+    throw new Error(
+      `data/player/levels.json: ${xpToNextLevel.length} Bedarfe für ${maxLevel - 1} ` +
+        'Aufstiege. Der letzte Eintrag führt von der vorletzten Stufe zur höchsten.',
+    );
+  }
+  for (let i = 0; i < xpToNextLevel.length; i++) {
+    if ((xpToNextLevel[i] ?? 0) <= 0) {
+      throw new Error(
+        `data/player/levels.json: Bedarf für Stufe ${i + 1} ist nicht positiv — ` +
+          'eine Stufe ohne Bedarf würde beim ersten Sieg übersprungen.',
+      );
+    }
+    if (i > 0 && (xpToNextLevel[i] ?? 0) <= (xpToNextLevel[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: Stufe ${i + 1} verlangt nicht mehr als Stufe ${i}. ` +
+          'Die Kurve soll steigen; sonst geht der Aufstieg gegen Ende schneller.',
+      );
+    }
+  }
+  return { growthPerLevelPercent, maxLevel, factorPerMille, xpPerBossLevel, xpToNextLevel };
 })();
 
 /**
