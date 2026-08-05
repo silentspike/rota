@@ -29,7 +29,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat, alsSpellIndex } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex, type SpellIndex } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -330,7 +330,7 @@ function recordMisplays(ticks: number): Recording {
 
   const presses: RecordedPress[] = [];
   // Drückt einen Zauber, ob er darf oder nicht — und schreibt den Druck mit.
-  const press = (spell: number, tick: number, timeMs: number): void => {
+  const press = (spell: SpellIndex, tick: number, timeMs: number): void => {
     combat.cast(alsSpellIndex(spell), timeMs);
     presses.push({ tick, slot: slotOf.get(spell) ?? 0 });
   };
@@ -1444,7 +1444,7 @@ export function coagulationPayload(): Record<string, unknown> {
 function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
-  const defence = weg === 'none' ? -1 : combat.indexOf(weg);
+  const defence = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
   const ticks = 3000; // 30 s
 
   const checksums: number[] = [];
@@ -1468,8 +1468,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
 
     // Der Verteidigungszauber hat Vorrang, wenn er bereit ist — sonst käme er
     // nie zum Zug, weil KINDLE jeden GCD belegt.
-    if (defence >= 0 && combat.isReady(alsSpellIndex(defence), timeMs)) {
-      if (combat.cast(alsSpellIndex(defence), timeMs).result === 0) presses.push({ tick, slot: 1 });
+    if (defence >= 0 && combat.isReady(defence, timeMs)) {
+      if (combat.cast(defence, timeMs).result === 0) presses.push({ tick, slot: 1 });
     } else if (combat.isReady(kindle, timeMs)) {
       if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
     }
@@ -1501,7 +1501,7 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
       shieldAbsorbed: combat.shieldAbsorbed,
       healed: combat.healed,
       converted: combat.converted,
-      castsDefence: defence >= 0 ? combat.castCount(alsSpellIndex(defence)) : 0,
+      castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
     },
@@ -2607,7 +2607,7 @@ function recordSynergy(ticks: number): Recording {
   for (const binding of SYNERGY_BINDINGS) slotOf.set(combat.indexOf(binding.spellId), binding.slot);
 
   const presses: RecordedPress[] = [];
-  const press = (spell: number, tick: number, timeMs: number): void => {
+  const press = (spell: SpellIndex, tick: number, timeMs: number): void => {
     const slot = slotOf.get(spell);
     // **Kein `?? 0`.** Ein Druck auf einen ungebundenen Zauber landete sonst auf
     // Platz 0 — die Datei sagte CANKER und der Simulator läse den Zauber, der

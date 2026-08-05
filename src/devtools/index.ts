@@ -595,7 +595,7 @@ export function installDevTools(app: App): void {
       alpha: app.loop.alpha,
       gcdRemainingMs: app.session.gcd.remainingMs(app.loop.timeMs),
       gcdLengthMs: app.session.gcd.lengthMs,
-      playerCasting: app.combat.spellAt(alsSpellIndex(app.combat.playerCasting))?.id ?? null,
+      playerCasting: app.combat.spellAt(app.combat.playerCasting)?.id ?? null,
       playerCastRemainingMs:
         app.combat.playerCasting >= 0
           ? Math.max(0, app.combat.playerCastEndsAtMs - app.loop.timeMs)
