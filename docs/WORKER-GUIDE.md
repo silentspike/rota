@@ -448,6 +448,32 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Eine Probe braucht die Liste des Erlaubten, nicht des Verbotenen
+
+_Gefunden in der Nacht zum 2026-08-05, an derselben Probe zweimal._
+
+Nach jedem Neuexport der Vergleichsdateien gilt die Regel: **Ändert sich mehr als die
+Prüfsummen, hat sich eine Regel bewegt.** Sie ist richtig — und sie zweimal falsch anzuwenden
+kostet eine Viertelstunde und, schlimmer, das Vertrauen in sie.
+
+| Versuch                                     | Was passierte                                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `expected` als **Ganzes** verglichen        | Meldete „in sieben Dateien geändert" — darin stecken `finalChecksum` und `sequenceChecksum`. Ein Fehlalarm, der wie ein Befund aussah                         |
+| Rekursiv verglichen, Prüfsummen ausgenommen | Fand `allBossIds: + test-crucible-trial`. Korrekt (ein neuer Prüf-Boss gehört in die Liste), aber kein Prüfsummen-Feld — die erste Fassung hatte es übersehen |
+
+> **Die Probe soll den Fall fangen, in dem sich eine Regel bewegt hat.** Genau dieser Fall — eine
+> Boss-Liste wächst — sieht in der Datei aus wie ein Spielwert und ist einer. Dass er harmlos
+> war, ist Glück, nicht die Leistung der Probe.
+
+**Die Regel:** Führe die Felder, die sich ändern **dürfen** — Prüfsummen plus dokumentierte
+Ausnahmen. Nicht die, die sich nicht ändern sollen. Der Unterschied ist derselbe wie zwischen
+„ist es grün" und „wäre es rot".
+
+Und der Grund, warum ein Fehlalarm teurer ist als er aussieht, stammt von dem Werker, dem er
+passierte:
+
+**„Wer das zweimal erlebt, hört auf hinzusehen."**
+
 ### Eine Zahl ohne committeten Läufer ist eine Behauptung
 
 _Gefunden am 2026-08-05 beim Abnehmen von #224._
