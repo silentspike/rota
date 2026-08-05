@@ -998,8 +998,18 @@ export class Combat {
    * Er beeinflusst keine Rechnung: Kein Treffer, keine Abklingzeit, kein
    * Zustand hängt an ihm. Ein Feld, das nichts entscheidet, macht die
    * Prüfsumme nicht schärfer — es verlängert nur die Feldfolge, die beide
-   * Seiten gleich halten müssen (dieselbe Begründung wie bei
-   * `playerCastStartedAtMsValue`, Issue #304).
+   * Seiten gleich halten müssen.
+   *
+   * **Die Grenze verläuft nicht bei „neuer Zustand", sondern bei „entscheidet
+   * etwas".** Das ist der Unterschied zu `playerCastingValue` aus #304: Der
+   * bestimmt, was ein Tastendruck abbricht und welche Wirkung verlorengeht —
+   * er gehört in die Prüfsumme, und zwar auf beiden Seiten. Ein
+   * Anfangszeitpunkt für einen Balken bestimmt nichts.
+   *
+   * Wer diese Grenze bei „neu" statt bei „entscheidend" zieht, mischt
+   * entweder zu viel ein (und macht jede Vergleichsdatei bei jeder Anzeige
+   * ungültig) oder zu wenig (und lässt Spiel und Simulator auseinanderlaufen,
+   * ohne dass es jemand meldet).
    *
    * Die Probe darauf ist `npm run parity:export`: Schreibt es nichts, hat der
    * Simulator nichts zu lernen.
