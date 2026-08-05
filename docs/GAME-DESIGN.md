@@ -1938,7 +1938,7 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 | Werkzeug                        | Zweck                                                                                                                                                                                                     |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Zeitsteuerung**               | Anhalten, Einzelschritt, Zeitlupe, Zeitraffer. **Muss sauber vom Logik-Takt getrennt sein**, sonst verfälscht es Messungen                                                                                |
-| **Zustand setzen**              | Boss-Leben, alle Abklingzeiten bereit, zu Phase springen, Hitze setzen, **Boss wechseln**. Erspart drei Minuten Spielzeit für eine Phase-3-Prüfung                                                        |
+| **Zustand setzen**              | Boss-Leben, alle Abklingzeiten bereit, zu Phase springen, Hitze setzen, **Boss wechseln**, **Stufe setzen**. Erspart drei Minuten Spielzeit für eine Phase-3-Prüfung                                      |
 | **Aufzeichnen und Abspielen**   | Runde mit Tastendrücken und Zufalls-Startwert aufzeichnen, exakt wiederholen. Grundlage für Regressionstests **und** für den Abgleich Spiel ↔ Simulator                                                   |
 | **Zustands-Prüfsumme je Takt**  | Weichen Spiel und Simulator ab, sieht man **in welchem Takt**. Abschaltbar (kostet Rechenzeit)                                                                                                            |
 | **Leistungs-Messwerte**         | Bildzeit, Zeit je Logik-Takt, Speicheranforderungen pro Bild, Eingabe-Verzögerung                                                                                                                         |
@@ -1954,6 +1954,21 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 > Zwei Abnahme-Kriterien waren damit nicht belegbar — nicht weil die Anzeige fehlte, sondern
 > weil der Boss fehlte. Ein Werkzeug, mit dem sich jede Mechanik ohne Umweg ansehen lässt, ist
 > genau das, was 19.1 meint.
+
+> **Dasselbe gilt für die Stufe** (ergänzt am 2026-08-05, Issue #264): `setLevel(n)` setzt die
+> Spielerstufe unmittelbar. Die Zauberleiste wächst mit ihr, und **ohne freien Platz lässt sich
+> nicht zeigen, dass ein Zauber darauf ankommt** — acht Kämpfe im Browser zu spielen, um Stufe 3
+> zu erreichen, wäre ein Nachweis über die Erfahrungskurve gewesen, und die ist an anderer Stelle
+> belegt.
+>
+> **Es schreibt nur, WAS erreicht wurde** — Stufe und Erfahrung auf null. Alles andere wird daraus
+> gerechnet, genau wie im Spiel (18.5: der Spielstand hält nie berechnete Werte, die auf kommende
+> Kämpfe zurückwirken). Ein Werkzeug, das stattdessen Grundwerte oder Leisten-Plätze direkt
+> setzte, könnte einen Zustand herstellen, den das Spiel selbst nie erzeugt — und ein Nachweis
+> daran belegte nichts.
+>
+> Nicht zu verwechseln mit dem **Stufen-Boost** aus 19.2: Der ist für den Auftraggeber sichtbar
+> im Player Home, dieser hier ist ein Konsolen-Befehl ohne Oberfläche.
 
 ### 19.2 Für den Auftraggeber — sichtbar im „Player Home"
 
