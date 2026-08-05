@@ -471,6 +471,38 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 | **Schaden messen, wenn der Boss stirbt**     | „Schaden" klingt nach der Frage, die man gestellt hat         | Bei `stopOnKill` ist der Gesamtschaden ungefähr die Boss-HP — **unabhängig von der Spielerstärke**. Siehe unten                              |
 | **Einzelmessung nach einem Tastendruck**     | Der Befehl ist zurückgekommen, also ist er verarbeitet        | `playwright-cli press` läuft nicht im Takt der Logik. Fünfmal messen und den eingeschwungenen Wert nehmen                                    |
 
+### `cargo test` bricht nach der ersten gefallenen Sammlung ab
+
+_Von Worker-2 am 2026-08-05 gefunden, nachdem er eine halbe Stunde einen Widerspruch eingekreist
+hatte, den es nicht gab._
+
+Er fuhr eine Gegenprobe über die volle Suite. Seine Konstanten-Prüfung fiel **zuerst** — und die
+Sammlung, die er eigentlich messen wollte, **lief danach gar nicht mehr**. Er las die grünen Zeilen
+des vorigen Laufs und hielt sie für das Ergebnis.
+
+> **„Grün" hieß hier nicht „geprüft und bestanden", sondern „nicht ausgeführt".**
+
+Ohne einen Widerspruch daneben hätte er vier grüne Fälle als Nachweis gemeldet, **die nie gelaufen
+waren**.
+
+**Für Gegenproben heißt das:**
+
+```bash
+cargo test --test <name>          # die betroffene Sammlung EINZELN
+cargo test --all --no-fail-fast   # oder alle, ohne Abbruch
+```
+
+Eine Gegenprobe über `cargo test --all` **ohne** `--no-fail-fast` liefert eine **Untergrenze**, keine
+Zahl: Alles nach der ersten gefallenen Sammlung ist unbekannt. Die Aussage „genau ein Fall wird rot"
+ist damit nicht belegt — sie könnte „einer und alles danach" heißen.
+
+> `npx vitest run` verhält sich anders: Es fährt alle Dateien und meldet `3 failed | 1246 passed`.
+> Dort ist die Zahl belastbar.
+
+**Und beim Zählen der roten Fälle nicht `grep -c` auf das Muster ansetzen:** `^test .*FAILED` trifft
+auch die Ergebniszeile `test result: FAILED` und zählt eine Sammlung als zusätzlichen Fall. Beim
+Nachmessen dieser Regel selbst passiert — die Namen auflisten, nicht die Zeilen zählen.
+
 ### Die Kill-Falle — an einem Tag zweimal zugeschlagen
 
 **Wer misst, ob eine Verstärkung wirkt, darf nicht den Gesamtschaden nehmen, solange der Lauf mit

@@ -2676,5 +2676,89 @@ export class Combat {
     // Nur die Folge, nicht die Anmeldungen: Ein neuer Versuch behält seine
     // Zauber und Talente — er beginnt lediglich wieder bei null Ereignissen.
     this.events.clearSequence();
+
+    // ------------------------------------------------------------------
+    // Der zweite Lauf (Issue #349)
+    // ------------------------------------------------------------------
+    //
+    // **Hier fehlten 26 Felder**, gefunden vom Wächter in
+    // `tests/unit/reset-completeness.test.ts` — nicht von Hand aufgezählt,
+    // sondern gemessen: Er vergleicht den zurückgesetzten Kampf gegen einen
+    // frisch gebauten und meldet jedes Feld, das abweicht.
+    //
+    // Und es war nicht latent. Das Spiel baut den Kampf genau einmal
+    // (`app.ts`), „Retry" führt hierher. Vor dieser Ergänzung begann der
+    // zweite Versuch mit angeschlagenem Leben, einer Zeitleiste bei Eintrag 2
+    // und liegenden Zersetzungs-Stapeln:
+    //
+    //     LAUF 1 Ende:  HP 4552  Zeitleiste 2  Zersetzung 5  erlitten 448
+    //     nach reset(): HP 4552  Zeitleiste 2  Zersetzung 5  erlitten 448
+    //     frisch:       HP 5000  Zeitleiste 0  Zersetzung 0  erlitten 0
+    //
+    // **Die Werte spiegeln den Konstruktor**, nicht die Null.** Mehrere Uhren
+    // beginnen bei ihrem Takt und nicht bei 0 — der Replay ruft `beginFight`
+    // nicht, und ein Startwert von 0 ließe sie schon im Takt 0 auslösen. Wer
+    // hier stumpf nullt, baut genau den Unterschied ein, den die Kommentare
+    // an den Feldern seit #96 verhindern.
+    this.bossPhaseValue = 0;
+    this.bossEnergyValue = 0;
+    this.bossEnergyTriggersValue = 0;
+    this.timelineIndexValue = 0;
+    this.nextEnergyAtMs = this.boss.energy?.perStepMs ?? 0;
+    this.nextDoomAtMs = this.boss.doom?.perStepMs ?? 0;
+    this.nextStackAtMs = this.boss.stacks?.perStepMs ?? 0;
+    this.nextRunawayAtMs = this.boss.runaway?.perStepMs ?? 0;
+    this.nextAfflictionAtMs = 0;
+    this.nextStrikeDelayMs = 0;
+
+    this.playerHpValue = this.vesselMax;
+    this.diedAtMsValue = -1;
+    this.damageTakenValue = 0;
+    this.interruptsLandedValue = 0;
+    this.interruptsMissedValue = 0;
+
+    this.doomValue = 0;
+    this.doomChargesValue = this.boss.doom?.clearCharges ?? 0;
+    this.stacksValue = 0;
+
+    this.raceDone = false;
+    this.raceWonValue = false;
+    this.raceEndsAtMs = -1;
+    this.raceProgressValue = 0;
+    this.damageLostToRaceValue = 0;
+    this.bossHealedValue = 0;
+    this.stabilisedValue = 0;
+
+    this.afflictedValue = false;
+    this.afflictionsClearedValue = 0;
+
+    this.decayCountValue = 0;
+    this.decayExpiryMs.fill(0);
+
+    this.shieldValue = 0;
+    this.shieldExpiresAtMs = -1;
+    this.shieldStacksValue = 0;
+    this.shieldAbsorbedValue = 0;
+    this.healedValue = 0;
+    this.conversionUntilMs = -1;
+    this.conversionPercentValue = 0;
+    this.convertedValue = 0;
+
+    this.controlValue = 0;
+    this.controlSpentValue = 0;
+    this.controlFailedValue = 0;
+    this.phaseHoldPercentValue = 0;
+    this.phaseHoldUntilMs = -1;
+
+    // **Über `setDamageFactor`, nicht über eine Zuweisung** (Issue #196): Die
+    // Krit-Fassung zieht mit. `resistance` steht nicht dabei — der Widerstand
+    // hängt seit #328 am Zauber und wird vor jeder Wirkung neu gesetzt.
+    this.setDamageFactor('vulnerability', 1);
+
+    // Die Schul-Mechaniken führen eigene Zähler. Sie hängen am Kampf und
+    // müssen mit ihm zurück — sonst zählt der zweite Lauf weiter, wo der erste
+    // aufgehört hat.
+    this.stacks.reset();
+    this.sublimation.reset();
   }
 }
