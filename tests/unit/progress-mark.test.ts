@@ -25,6 +25,7 @@ function versuch(over: Partial<Attempt> = {}): Attempt {
     bossId: 'first-crucible',
     difficulty: NORMAL,
     remainingPercent: 50,
+    reversed: false,
     victory: false,
     gameVersion: '0.1.0',
     at: 1_000,
@@ -87,6 +88,44 @@ describe('AC3 — eine Niederlage kann Fortschritt sein', () => {
     expect(update.previousPercent).toBe(23);
     expect(update.gainedPercent).toBe(4);
     expect(markFor(update.marks, 'first-crucible', NORMAL)?.defeated).toBe(false);
+  });
+
+  it('SAGT ES BEI BEIDEN BOSS-ARTEN — dieselben Daten, zwei Sätze', () => {
+    // **Der Prüffall gegen die Verzweigung selbst** (Issue #256, Variante A).
+    //
+    // Zwei Satzbäume sind zwei Orte für eine Regel, und einer läuft weg. Der
+    // billigste Schutz ist kein dritter Weg, sondern EIN Fall, der beide
+    // Zweige an **denselben Zahlen** misst: Wer einen davon anfasst und den
+    // anderen vergisst, wird hier rot.
+    const daten = { remainingPercent: 15 };
+    const gewoehnlich = versuch({ ...daten, reversed: false });
+    const umgekehrt = versuch({ ...daten, reversed: true });
+
+    const satzA = markSentence(recordAttempt([], gewoehnlich), gewoehnlich);
+    const satzB = markSentence(recordAttempt([], umgekehrt), umgekehrt);
+
+    // Dieselbe Zahl, zwei Lesarten: 15 % übrig sind 85 % gehalten.
+    expect(satzA).toBe('Best attempt: down to 15 %.');
+    expect(satzB).toBe('Best attempt: held 85 % of the timer.');
+    expect(satzB, 'der verkehrte Wortlaut darf dort nicht stehen').not.toContain('down to');
+
+    // Auch der Satz mit der VORIGEN Marke rechnet beide Seiten um. Wer nur die
+    // eine Zahl dreht, mischt hier zwei Größen — genau die Falle, vor der
+    // `attemptFrom` warnt.
+    const vorher = recordAttempt([], versuch({ remainingPercent: 30, reversed: true })).marks;
+    const spaeter = versuch({ remainingPercent: 40, reversed: true });
+    expect(markSentence(recordAttempt(vorher, spaeter), spaeter)).toBe(
+      'Held 60 % of the timer. Best attempt stands at 70 %.',
+    );
+
+    // Und der Sieg-Satz, der heute nie angezeigt wird (#187): Er steht in
+    // beiden Zweigen richtig da, statt als tote Zeile falsch zu werden.
+    expect(markSentence(recordAttempt([], gewoehnlich), versuch({ victory: true }))).toBe(
+      'Defeated.',
+    );
+    expect(
+      markSentence(recordAttempt([], umgekehrt), versuch({ victory: true, reversed: true })),
+    ).toBe('Contained.');
   });
 
   it('sagt es dem Spieler in Worten', () => {
@@ -214,11 +253,17 @@ describe('Die Umrechnung aus der Kurzfassung', () => {
   it('dreht den Fortschritt in verbliebene Gesundheit um', () => {
     // 77 % geschafft heisst 23 % uebrig. Genau die Zahl aus dem Design:
     // "Reaction down to 23 %".
-    expect(attemptFrom({ progressPercent: 77, victory: false }, KONTEXT).remainingPercent).toBe(23);
+    expect(
+      attemptFrom({ progressPercent: 77, victory: false, reversed: false }, KONTEXT)
+        .remainingPercent,
+    ).toBe(23);
   });
 
   it('macht aus einem Sieg eine Null', () => {
-    const versuchAusSieg = attemptFrom({ progressPercent: 100, victory: true }, KONTEXT);
+    const versuchAusSieg = attemptFrom(
+      { progressPercent: 100, victory: true, reversed: false },
+      KONTEXT,
+    );
     expect(versuchAusSieg.remainingPercent).toBe(0);
     expect(versuchAusSieg.victory).toBe(true);
   });
@@ -226,15 +271,18 @@ describe('Die Umrechnung aus der Kurzfassung', () => {
   it('bleibt bei Ueberschlag nicht negativ', () => {
     // Mehr Schaden als Leben gibt es rechnerisch; eine negative verbliebene
     // Gesundheit gibt es nicht.
-    expect(attemptFrom({ progressPercent: 130, victory: true }, KONTEXT).remainingPercent).toBe(0);
+    expect(
+      attemptFrom({ progressPercent: 130, victory: true, reversed: false }, KONTEXT)
+        .remainingPercent,
+    ).toBe(0);
   });
 
   it('kehrt die Marke NICHT um — der Fall, den die Funktion verhindert', () => {
     // Der eigentliche Grund fuer attemptFrom. Wer progressPercent direkt als
     // remainingPercent einsetzt, dreht die ganze Marke um: Der schlechtere
     // Durchlauf gaelte als Verbesserung.
-    const schwach = { progressPercent: 20, victory: false };
-    const stark = { progressPercent: 80, victory: false };
+    const schwach = { progressPercent: 20, victory: false, reversed: false };
+    const stark = { progressPercent: 80, victory: false, reversed: false };
 
     let marks = recordAttempt([], attemptFrom(schwach, KONTEXT)).marks;
     const richtig = recordAttempt(marks, attemptFrom(stark, KONTEXT));
@@ -243,10 +291,16 @@ describe('Die Umrechnung aus der Kurzfassung', () => {
 
     // Und so saehe es aus, wenn jemand die Umrechnung vergisst -- hier
     // absichtlich falsch gebaut, damit der Unterschied im Prueffall steht.
-    marks = recordAttempt([], { ...KONTEXT, remainingPercent: 20, victory: false }).marks;
+    marks = recordAttempt([], {
+      ...KONTEXT,
+      remainingPercent: 20,
+      reversed: false,
+      victory: false,
+    }).marks;
     const verdreht = recordAttempt(marks, {
       ...KONTEXT,
       remainingPercent: 80,
+      reversed: false,
       victory: false,
     });
     expect(verdreht.improved).toBe(false);
