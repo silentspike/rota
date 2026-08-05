@@ -1,20 +1,30 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-05, 17:05: Vier der ursprünglichen fünf Entscheidungen sind getroffen.** Sie stehen
-unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt.
-**Vier Punkte sind seither dazugekommen** — alle vier aus der Arbeit selbst, nicht aus dem Interview.
+**Stand 2026-08-06, 00:40: Vier Punkte sind entschieden, acht liegen offen.** Die
+entschiedenen stehen unten mit Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen,
+ist als Issue verlinkt. **Sieben der zwölf sind aus der Arbeit selbst entstanden, nicht aus dem
+Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 
 |                                     | Ergebnis                                                                                                    |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                                   |
-| **2** Punktekurve                   | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden                                    |
+| **2** Punktekurve                   | **quadratisch (2,0), Rest-Ertrag 20 Promille**                                                              |
 | **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                         |
-| **4** Stumme Zauber                 | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**                                            |
+| **4** Stumme Zauber                 | **OFFEN** — der Auftraggeber bestätigt Suno einmal im sichtbaren Browser (blockiert #198, #204)             |
 | **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                           |
 | **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
 | **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
 | **8** Widerstand gegen Schul-Stärke | **OFFEN** — der Korridor 20–30 % kann die Rotation nicht drehen, solange die Schulen 67 % auseinanderliegen |
 | **9** WARD ohne Balance-Deckel      | **OFFEN** — eine hinreichend gute Ausrüstung kann den Spieler unverwundbar machen                           |
+| **11** SUBLIMATION-Bauart           | **OFFEN** — zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot                                   |
+| **12** `runaway`-Timing             | **OFFEN** — seltener drücken ist besser: Tiefe oder Falle?                                                  |
+| **13** Talentpunkt-Verteilung       | **OFFEN** — die Zahl 50 steht, ihre Verteilung über 100 Stufen nicht                                        |
+
+> **Es gibt keinen Punkt 10.** Er hat nie existiert — beim Anlegen von Punkt 11 wurde die Zahl
+> übersprungen. Die Lücke bleibt stehen, statt umzunummerieren: Die Nummern werden in Issues,
+> Nachrichten und Commits zitiert, und eine stille Verschiebung würde jeden dieser Verweise auf
+> einen anderen Punkt zeigen lassen. Eine sichtbare Lücke ist billiger als eine unsichtbare
+> Umdeutung.
 
 ---
 
@@ -451,3 +461,40 @@ eines ganzen Boss-Typs. Deshalb liegt sie hier.
 > dass 9 500 ms besser ist als 2 000 ms, und fällt, wenn jemand die Deckelung für eine
 > Sicherheitsprüfung hält und entfernt. Was heute gilt, ist damit gesichert — die Frage ist, ob es
 > so bleiben soll.
+
+---
+
+## 13. Wie verteilen sich die 50 Talentpunkte über 100 Stufen? — OFFEN
+
+**Die Zahl ist entschieden, ihre Verteilung nicht.** GAME-DESIGN 12.1 nennt „~50 (etwa jede zweite
+Stufe einer)". Die Summe steht damit fest; wann die Punkte kommen, bestimmt den **Charakter** des
+Aufstiegs — und deshalb liegt die Frage hier und nicht beim Balance-Läufer.
+
+Gerechnet von Worker-3 bei #379, alle drei treffen genau 50 und enden auf Stufe 100:
+
+| Verteilung         | bis 10 | bis 25 | bis 50 | bis 75 | Charakter                         |
+| ------------------ | ------ | ------ | ------ | ------ | --------------------------------- |
+| **A** gleichmäßig  | 5      | 12     | 25     | 37     | wörtlich wie 12.1 — **eingebaut** |
+| **B** spät dichter | 2      | 8      | 20     | 34     | Endspiel belohnt, früh karg       |
+| **C** früh dichter | 9      | 18     | 30     | 40     | Stufe 1–8 jede Stufe einen        |
+
+### Was daran hängt
+
+**C gibt auf den Stufen 1 bis 8 jede Stufe einen Punkt.** Das passt zu „easy to learn" — der
+Spieler merkt sofort, dass es etwas zu entscheiden gibt. Es verlangt ihm aber acht Entscheidungen
+in den ersten Kämpfen ab, zu einem Zeitpunkt, an dem er die Bäume noch nicht kennt.
+
+**B ist das Gegenteil:** bis Stufe 25 nur acht Punkte. Der Aufstieg fühlt sich früh mager an, dafür
+trägt jeder späte Punkt mehr — und die letzten Stufen vor dem Endgame bleiben interessant.
+
+**A ist die wörtliche Lesart** des Designs und heute eingebaut, ausdrücklich als **VORLÄUFIG** in
+`data/player/levels.json` vermerkt.
+
+### Die Wahl
+
+Es gibt keine falsche Antwort — die drei unterscheiden sich nicht in der Menge, sondern darin,
+**wann der Spieler zum ersten Mal etwas zu entscheiden hat**. Wer bei A bleibt, muss nichts tun.
+
+> **Was diese Entscheidung nicht ist:** eine Balance-Frage. Die Gesamtzahl bleibt in allen drei
+> Fällen 50, also ist keine Verteilung stärker als eine andere. Es geht allein um das Tempo, in dem
+> sich der Talentbaum öffnet.

@@ -1262,12 +1262,30 @@ Fehlerquelle.
 
 ### 12.6 Punkte
 
-| Aspekt                 | Festlegung                                                                                                                                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Quelle**             | Restlaufzeit beim Boss-Sieg, **überproportional** umgerechnet — die letzten Sekunden sind unverhältnismäßig viel wert, damit Feinoptimierung sich lohnt                                                                                    |
-| **Wiederholen**        | Punkte für **Bestzeit-Verbesserung** (Differenz-Auszahlung) plus ein Rest-Ertrag fürs bloße Wiederholen                                                                                                                                    |
-| **Abnehmender Ertrag** | Der Ertrag sinkt **mit dem Stufenabstand**: voller Ertrag solange der Boss zur eigenen Stufe passt, bei ~10 Stufen Abstand nur noch ein Bruchteil, bei ~20 praktisch nichts. Lenkt sanft zum passenden Inhalt, **ohne etwas zu verbieten** |
-| **Verwendung**         | **Freischaltungen** (Instanzen, einzelne Zauber, Ausrüstungsplätze) und **Gegenstände aufwerten**                                                                                                                                          |
+| Aspekt                 | Festlegung                                                                                                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Quelle**             | Restlaufzeit beim Boss-Sieg, **überproportional** umgerechnet — die letzten Sekunden sind unverhältnismäßig viel wert, damit Feinoptimierung sich lohnt. **Die Kurve ist quadratisch** (entschieden am 2026-08-05): `round(2 × Sekunden²)`, Werte in `data/player/reward.json` |
+| **Wiederholen**        | Punkte für **Bestzeit-Verbesserung** (Differenz-Auszahlung) plus ein Rest-Ertrag fürs bloße Wiederholen — **20 Promille** der vollen Auszahlung (entschieden am 2026-08-05): 50 Wiederholungen wiegen einen ersten Sieg auf                                                    |
+| **Abnehmender Ertrag** | Der Ertrag sinkt **mit dem Stufenabstand**: voller Ertrag solange der Boss zur eigenen Stufe passt, bei ~10 Stufen Abstand nur noch ein Bruchteil, bei ~20 praktisch nichts. Lenkt sanft zum passenden Inhalt, **ohne etwas zu verbieten**                                     |
+| **Verwendung**         | **Freischaltungen** (Instanzen, einzelne Zauber, Ausrüstungsplätze) und **Gegenstände aufwerten**                                                                                                                                                                              |
+
+> **Warum quadratisch und nicht flacher oder steiler.** Drei Kurven standen zur Wahl, gemessen
+> am Verhältnis eines sehr guten Laufs (45 s Rest) zu einem mittelmäßigen (20 s Rest):
+>
+> | Exponent            | 5 s    | 20 s    | 50 s      | sehr gut ÷ mittelmäßig |
+> | ------------------- | ------ | ------- | --------- | ---------------------- |
+> | moderat 1,6         | 105    | 965     | 4.183     | 3,66×                  |
+> | **quadratisch 2,0** | **50** | **800** | **5.000** | **5,06×**              |
+> | kubisch 3,0         | 6      | 400     | 6.250     | 11,39×                 |
+>
+> **Die Begründung ist die Mitte:** Feinoptimierung lohnt deutlich, ein mittelmäßiger Lauf ist
+> nicht wertlos. Bei 1,6 lohnt die Feinoptimierung zu wenig — und genau dafür ist die Kurve da.
+> Bei 3,0 spielt umsonst, wer die letzten Sekunden nicht holt.
+
+> **Warum 20 Promille für die Wiederholung.** Der Rest-Ertrag soll das Wiederholen tragen, ohne
+> den ersten Sieg zu entwerten: Bei 20 Promille wiegen **fünfzig** Wiederholungen einen ersten
+> Sieg auf. Wer grinden will, darf; es lohnt sich nur zunehmend weniger — genau das Muster, das
+> der abnehmende Ertrag über den Stufenabstand ohnehin verfolgt.
 
 ### 12.7 Instanz-Freischaltung
 
@@ -2220,7 +2238,7 @@ sein — der Unterschied zu vorher ist, dass sie überhaupt sichtbar wird.
 > belegt.
 >
 > **Es schreibt nur, WAS erreicht wurde** — Stufe und Erfahrung auf null. Alles andere wird daraus
-> gerechnet, genau wie im Spiel (18.5: der Spielstand hält nie berechnete Werte, die auf kommende
+> gerechnet, genau wie im Spiel (18.6: der Spielstand hält nie berechnete Werte, die auf kommende
 > Kämpfe zurückwirken). Ein Werkzeug, das stattdessen Grundwerte oder Leisten-Plätze direkt
 > setzte, könnte einen Zustand herstellen, den das Spiel selbst nie erzeugt — und ein Nachweis
 > daran belegte nichts.
@@ -2449,7 +2467,7 @@ eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen
 | **Unterbrechen**               | Fensterbreite, Abklingzeit, Folgen des Verpassens                                                                                                                                      | E4                                                           |
 | **Spellsteal**                 | Fensterbreite, Dauer der übernommenen Verstärkung, Abklingzeit                                                                                                                         | E4                                                           |
 | **Schwierigkeitsstufen**       | Welche Mechanik kommt auf welcher Stufe dazu                                                                                                                                           | E4                                                           |
-| **Punkteformel**               | Konkrete überproportionale Kurve                                                                                                                                                       | E5                                                           |
+| ~~**Punkteformel**~~           | **ERLEDIGT** — quadratisch (2,0), Rest-Ertrag 20 Promille, entschieden am 2026-08-05. Steht in 12.6 und `data/player/reward.json`                                                      | —                                                            |
 | **Abnehmender Ertrag**         | Konkrete Kurve über den Stufenabstand                                                                                                                                                  | E5                                                           |
 | **Tastenbelegungs-Oberfläche** | Entwurf des Einstellungs-Bildschirms                                                                                                                                                   | E1 oder E5                                                   |
 | **Issue-Ausarbeitung je Epic** | _(Arbeitsorganisation)_ Angelegt sind zunächst nur die Issues für E1, E8 und E9. Die übrigen werden formuliert, wenn ihr Epic an die Reihe kommt — sie jetzt zu schreiben wäre Raterei | laufend                                                      |
