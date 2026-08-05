@@ -115,8 +115,14 @@ Beim Entwerfen jeder Einzelheit gelten zusätzlich diese acht Sätze:
 ```
 Erfahrung je Sieg        100 × Boss-Stufe
 Bedarf Stufe n → n+1     200 × n^1.5
-Summe                    7.900.245 Erfahrung, ~1350 Kämpfe, ~23 Stunden
+Summe                    7.900.243 Erfahrung, ~1325 Kämpfe, ~22 Stunden
 ```
+
+> **Wie die Summe nachzurechnen ist** (korrigiert am 2026-08-05): `7.900.243` ist die Summe der
+> **gerundeten** Tabelleneinträge — die ungerundete Reihe ergibt 7.900.245, und wer nachrechnet,
+> muss wissen, welche der beiden dasteht. Die `~1325` gelten bei **Übernahme** des Überschusses;
+> beim Verfallen wären es 1365. Die erste Fassung dieses Absatzes nannte „~1350" — das war ein
+> Mittelwert aus zwei Rechnungen und keine von beiden.
 
 Drei Alternativen wurden durchgerechnet und verworfen: konstant (16,5 h, aber Stufe 99 dauert so
 lange wie Stufe 2), linear (165 h) und quadratisch (82,5 h) — bei beiden letzten explodiert die
