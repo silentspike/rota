@@ -2520,10 +2520,14 @@ Zauber-Indizes meldete 24 Stellen — achtzehn davon waren `gcd.isReady(2490)`, 
 Zeiten. Ein Muster mit drei Vierteln Fehlalarm verfehlt beides: Man baut Richtiges um
 und übersieht Echtes im Rauschen.
 
-**Zweite Stufe: Das Muster zählt etwas anderes, als man meint.** Die verbliebenen
-Treffer waren 13 — aber nur 7 Ursachen. Ein ternärer Ausdruck erzeugte je zwei
-Nutzungen. Wer Vorkommen zählt und Ursachen meint, hält die Arbeit für doppelt so
-groß, wie sie ist.
+**Zweite Stufe: Das Muster zählt etwas anderes, als man meint.** Eine spätere,
+eigene Suche fand 13 Stellen — aber nur 7 Ursachen: Ein ternärer Ausdruck erzeugte
+je zwei Nutzungen. Wer Vorkommen zählt und Ursachen meint, hält die Arbeit für
+doppelt so groß, wie sie ist.
+
+> Die 13 hier ist **nicht** der Rest der 24 von oben. Es sind zwei Messungen an
+> verschiedenen Tagen — und dass sich das im Beleg für genau diesen Fehler
+> beinahe vermischt hätte, ist der Fehler selbst.
 
 **Dritte Stufe: Auch die richtige Zahl kann die falsche Frage sein.** Nach einem
 Umbau stieg die Zahl der Markierungen von 57 auf 62 — und war Fortschritt: Elf waren
