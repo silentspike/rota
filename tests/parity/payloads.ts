@@ -13,7 +13,7 @@
  */
 import { combatChecksum, mixFloat, mixInt, recordFieldOrder } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
-import { pressRecorder } from './press-recorder.js';
+import { pressRecorder, slotFor, slotMap } from './press-recorder.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs, tickCount } from '../../src/core/haste.js';
 import {
@@ -1345,6 +1345,10 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
   const quench = combat.indexOf('quench');
   const ticks = 3000; // 30 s
 
+  // **Die Leiste steht eine Ebene höher** (Issue #405): Dieser Lauf gibt keine
+  // eigene zurück, der Eltern-Payload trägt STEP1_BINDINGS für alle seine
+  // Läufe. Der Platz kommt trotzdem aus der Bindung und nicht aus einer Zahl.
+  const slots = slotMap(combat, STEP1_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
   const playerHp: number[] = [];
@@ -1370,10 +1374,12 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     // Schadenszauber dieses Takts nichts. Genau das ist der Sinn der Ausnahme
     // (GAME-DESIGN 6.6) — und hier wird sie zum ersten Mal wirklich gebraucht.
     if (mitQuench && combat.casting >= 0 && combat.isReady(quench, timeMs)) {
-      if (combat.cast(quench, timeMs).result === 0) presses.push({ tick, slot: 3 });
+      if (combat.cast(quench, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(quench), combat) });
     }
     if (combat.isReady(kindle, timeMs) && combat.gcd.isReady(timeMs)) {
-      if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
+      if (combat.cast(kindle, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(kindle), combat) });
     }
 
     const hash = combatChecksum(combat, timeMs);
@@ -1432,6 +1438,19 @@ export function coagulationPayload(): Record<string, unknown> {
     runs: ['none', 'crust', 'salve', 'temper'].map((weg) => defenceRun(boss, weg)),
   };
 }
+/**
+ * Die Leiste der Verteidigungs-Aufzeichnung (Issue #405).
+ *
+ * **Sie hängt vom Lauf ab** — anders als die übrigen vier: Der zweite Platz
+ * trägt den Zauber, der gerade geprüft wird, und bei `'none'` bleibt er leer.
+ * Deshalb eine Funktion statt einer Konstante; die Bindung entsteht trotzdem
+ * VOR den Drücken und nicht erst im `return`.
+ */
+function defenceBindings(weg: string): { slot: number; spellId: string }[] {
+  const leiste = [{ slot: 0, spellId: 'kindle' }];
+  if (weg !== 'none') leiste.push({ slot: 1, spellId: weg });
+  return leiste;
+}
 
 /**
  * Ein Durchgang mit einem der drei Wege — oder ohne.
@@ -1445,6 +1464,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
   const defence = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
+  const bindings = defenceBindings(weg);
+  const slots = slotMap(combat, bindings);
   const ticks = 3000; // 30 s
 
   const checksums: number[] = [];
@@ -1469,9 +1490,11 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     // Der Verteidigungszauber hat Vorrang, wenn er bereit ist — sonst käme er
     // nie zum Zug, weil KINDLE jeden GCD belegt.
     if (defence >= 0 && combat.isReady(defence, timeMs)) {
-      if (combat.cast(defence, timeMs).result === 0) presses.push({ tick, slot: 1 });
+      if (combat.cast(defence, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, defence, combat) });
     } else if (combat.isReady(kindle, timeMs)) {
-      if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
+      if (combat.cast(kindle, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, kindle, combat) });
     }
 
     const hash = combatChecksum(combat, timeMs);
@@ -1554,6 +1577,18 @@ export function fixationPayload(): Record<string, unknown> {
     runs: [false, true].map((mitAusgabe) => controlRun(boss, mitAusgabe)),
   };
 }
+/**
+ * Die Leiste der Kontroll-Aufzeichnung (Issue #405).
+ *
+ * Als Konstante VOR der Funktion, damit `slotMap` sie sehen kann — im
+ * `return`-Objekt entsteht sie zu spät für die Drücke.
+ */
+const CONTROL_BINDINGS = [
+  { slot: 0, spellId: 'bind' },
+  { slot: 1, spellId: 'stay' },
+  { slot: 2, spellId: 'anchor' },
+  { slot: 3, spellId: 'stall' },
+] as const;
 
 /**
  * Ein Durchgang mit oder ohne Ausgabe der Kontroll-Punkte.
@@ -1574,6 +1609,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
   const control: number[] = [];
   const phase: number[] = [];
   const timelineIndex: number[] = [];
+  const slots = slotMap(combat, CONTROL_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   let sequence = 0;
   let stayGewirkt = false;
@@ -1595,18 +1631,21 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     const imFenster = !stayGewirkt && tick >= 1000 && tick < 1150;
     if (mitAusgabe && imFenster && combat.control >= 3 && combat.isReady(stay, timeMs)) {
       if (combat.cast(stay, timeMs).result === 0) {
-        presses.push({ tick, slot: 1 });
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(stay), combat) });
         stayGewirkt = true;
       }
     } else if (mitAusgabe && combat.isReady(anchor, timeMs) && combat.control >= 6) {
-      if (combat.cast(anchor, timeMs).result === 0) presses.push({ tick, slot: 2 });
+      if (combat.cast(anchor, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(anchor), combat) });
     } else if (mitAusgabe && combat.isReady(stall, timeMs) && combat.control >= 10) {
       // **STALL vor BIND**, wenn Punkte da sind: Er kostet 4 und verlangsamt
       // einen Boss-Zauber. Steht er hinter dem Aufbauer, kommt er nie zum Zug —
       // BIND ist oefter bereit und verbraucht jede Gelegenheit.
-      if (combat.cast(stall, timeMs).result === 0) presses.push({ tick, slot: 3 });
+      if (combat.cast(stall, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(stall), combat) });
     } else if (combat.isReady(bind, timeMs)) {
-      if (combat.cast(bind, timeMs).result === 0) presses.push({ tick, slot: 0 });
+      if (combat.cast(bind, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(bind), combat) });
     }
 
     const hash = combatChecksum(combat, timeMs);
@@ -1620,20 +1659,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
   return {
     withSpending: mitAusgabe,
     ticks,
-    bindings: [
-      { slot: 0, spellId: 'bind' },
-      { slot: 1, spellId: 'stay' },
-      { slot: 2, spellId: 'anchor' },
-      // **Der vierte Kontroll-Zauber** (Issue #340). Er fehlte hier, und damit
-      // war STALL der einzige ausgelieferte Zauber, den KEIN Paritäts-Weg je
-      // wirkte — seine Bitgleichheit galt als angenommen, nicht als geprüft.
-      //
-      // Er gehört in diese Aufzeichnung und nicht in eine eigene: Sie deckt
-      // die FIXATION ab, und `slowCast` berührt `castLandsAt`, das sie ohnehin
-      // je Takt mitschreibt. Damit ist nicht nur der Druck aufgezeichnet,
-      // sondern seine Wirkung.
-      { slot: 3, spellId: 'stall' },
-    ],
+    bindings: CONTROL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     expected: {
       control: combat.control,
@@ -1665,6 +1691,21 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
  * Schreibpunkte liegen verschieden — nur ihre Zahl kann zeigen, dass sie
  * trotzdem dasselbe erfassen.
  */
+/**
+ * Die Leiste der Protokoll-Aufzeichnung (Issue #405).
+ *
+ * **Sie steht hier als Konstante und nicht erst im `return`.** Genau daran lag
+ * es, dass die Plätze weiter unten von Hand geschrieben waren: Zum Zeitpunkt
+ * des Drucks gab es die Leiste noch gar nicht als Wert, also blieb nur die
+ * Zahl — und niemand prüfte sie je gegen die Bindung.
+ */
+const LOG_PARITY_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'crust' },
+  { slot: 2, spellId: 'quench' },
+  { slot: 3, spellId: 'salve' },
+] as const;
+
 export function logParityPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -1678,6 +1719,7 @@ export function logParityPayload(): Record<string, unknown> {
   const quench = combat.indexOf('quench');
   const ticks = 2500; // 25 s
 
+  const slots = slotMap(combat, LOG_PARITY_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -1700,8 +1742,10 @@ export function logParityPayload(): Record<string, unknown> {
     if (gewaehlt < 0) continue;
 
     if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
-      const platz = gewaehlt === kindle ? 0 : gewaehlt === crust ? 1 : gewaehlt === quench ? 2 : 3;
-      presses.push({ tick, slot: platz });
+      // **Der Platz kommt aus der Bindung, nicht aus einem Vergleich** (#405).
+      // `slotFor` wirft, wenn der Zauber auf keinem Platz liegt — die Zahl 3
+      // als stiller Rückfall für „alles andere" ist damit weg.
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
     }
   }
 
@@ -1717,12 +1761,7 @@ export function logParityPayload(): Record<string, unknown> {
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: [
-      { slot: 0, spellId: 'kindle' },
-      { slot: 1, spellId: 'crust' },
-      { slot: 2, spellId: 'quench' },
-      { slot: 3, spellId: 'salve' },
-    ],
+    bindings: LOG_PARITY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     /** Anzahl je Protokoll-Art. Der Simulator muss dieselben Zahlen ergeben. */
     counts,
@@ -1737,6 +1776,13 @@ export function logParityPayload(): Record<string, unknown> {
     },
   };
 }
+/** Die Leiste der Sublimations-Aufzeichnung — VOR der Funktion (Issue #405). */
+const SUBLIMATION_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'vapour' },
+  { slot: 2, spellId: 'smoulder' },
+  { slot: 3, spellId: 'pyre' },
+] as const;
 
 /**
  * Ein Durchgang gegen einen Boss mit **wiederholter** Zeitleiste (#174).
@@ -1787,6 +1833,7 @@ export function sublimationPayload(): Record<string, unknown> {
   const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
 
+  const slots = slotMap(combat, SUBLIMATION_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
   const pyreReadyAt: number[] = [];
@@ -1809,9 +1856,10 @@ export function sublimationPayload(): Record<string, unknown> {
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
-      const platz =
-        gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : gewaehlt === smoulder ? 2 : 3;
-      presses.push({ tick, slot: platz });
+      // **Der Platz aus der Bindung, nicht aus einer Vergleichskette** (#405).
+      // Der alte Ausdruck endete auf `: 3` — jeder nicht genannte Zauber bekam
+      // stillschweigend PYREs Platz, ohne dass das je jemand entschieden hätte.
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
     }
     checksums.push(combatChecksum(combat, timeMs));
     // **Die Restzeit von PYRE**, nicht von KINDLE. Der erste Entwurf maß
@@ -1830,12 +1878,7 @@ export function sublimationPayload(): Record<string, unknown> {
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: [
-      { slot: 0, spellId: 'kindle' },
-      { slot: 1, spellId: 'vapour' },
-      { slot: 2, spellId: 'smoulder' },
-      { slot: 3, spellId: 'pyre' },
-    ],
+    bindings: SUBLIMATION_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     checksums,
     /** Restzeit von PYRE je Takt — die Größe, die VAPOUR wirklich bewegt. */
@@ -1852,6 +1895,11 @@ export function sublimationPayload(): Record<string, unknown> {
     },
   };
 }
+/** Die Leiste der Zeitleisten-Aufzeichnung — VOR der Funktion (Issue #405). */
+const TIMELINE_LOOP_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'quench' },
+] as const;
 
 export function timelineLoopPayload(): Record<string, unknown> {
   const boss = bossById('test-metronome');
@@ -1865,6 +1913,7 @@ export function timelineLoopPayload(): Record<string, unknown> {
   const quench = combat.indexOf('quench');
   const ticks = 3000; // 30 s = fünf Zyklen
 
+  const slots = slotMap(combat, TIMELINE_LOOP_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
   const timelineIndex: number[] = [];
@@ -1881,7 +1930,10 @@ export function timelineLoopPayload(): Record<string, unknown> {
     // Zeitpunkt des Treffers ab, nicht nur den des Beginns.
     const gewaehlt = combat.casting >= 0 && combat.isReady(quench, timeMs) ? quench : kindle;
     if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
-      presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });
+      // **Kein Vergleich mehr** (#405). Diese Zeile war die versteckte von elf:
+      // Eine Suche nach `slot: <Ziffer>` findet sie nicht, die Zuordnung steht
+      // trotzdem von Hand da.
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
     }
     checksums.push(combatChecksum(combat, timeMs));
     timelineIndex.push(combat.timelineIndex);
@@ -1895,10 +1947,7 @@ export function timelineLoopPayload(): Record<string, unknown> {
     tickMs: TICK_MS,
     timelineLoopMs: boss.timelineLoopMs,
     timelineLength: boss.timeline.length,
-    bindings: [
-      { slot: 0, spellId: 'kindle' },
-      { slot: 1, spellId: 'quench' },
-    ],
+    bindings: TIMELINE_LOOP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     checksums,
     /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
