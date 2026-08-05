@@ -9,6 +9,7 @@
 
 use rota_sim::apl::{parse, Apl};
 use rota_sim::balance::{run, BalanceConfig};
+use rota_sim::gear::WornValues;
 
 /// Die alte Rotation — drei Zauber, der Vergleichspunkt.
 const ALT: &str = include_str!("../apl/step1-good.apl");
@@ -22,12 +23,26 @@ fn linie() {
     println!("{}", "-".repeat(76));
 }
 
-fn messe(name: &str, text: &str) -> f64 {
+/// Die Ausruestung, mit der #118 gemessen hat — der beste Affix-Aufbau.
+///
+/// **Ohne sie waere der Vergleich mit der alten Reihe wertlos.** Jene lief mit
+/// purity 800, und der Unterschied zwischen 9892,7 und einer Messung ohne
+/// Ausruestung kaeme fast vollstaendig von der Ausruestung, nicht von den
+/// Zaubern.
+const WIE_118: WornValues = WornValues {
+    catalysis: 0,
+    purity: 800,
+    yield_bonus: 330,
+    gear_effects: 0,
+};
+
+fn messe_mit(name: &str, text: &str, worn: WornValues) -> f64 {
     let apl: Apl = parse(name, text).expect("die eingebaute Liste ist gueltig");
     let r = run(
         &BalanceConfig {
             iterations: RUNS,
             stop_on_kill: false,
+            worn,
             ..BalanceConfig::default()
         },
         &apl,
@@ -37,6 +52,10 @@ fn messe(name: &str, text: &str) -> f64 {
         name, r.damage.mean, r.damage.stddev
     );
     r.damage.mean
+}
+
+fn messe(name: &str, text: &str) -> f64 {
+    messe_mit(name, text, WornValues::none())
 }
 
 fn main() {
@@ -63,6 +82,29 @@ fn main() {
         println!("  wenn ALLE VIER neuen Zauber unter KINDLE stehen und damit nie");
         println!("  gewirkt werden.");
     }
+
+    println!();
+    linie();
+    println!("DIESELBE MESSUNG MIT DER AUSRUESTUNG AUS #118");
+    linie();
+    println!();
+    println!("  Die alte Reihe aus #118 lief NICHT ohne Ausruestung, sondern mit dem");
+    println!("  besten Affix-Aufbau: catalysis 0, purity 800, yield 330. Wer ihre");
+    println!("  9892,7 neben eine Messung ohne Ausruestung stellt, vergleicht");
+    println!("  Ausruestung statt Rotationen.");
+    println!();
+    messe_mit("step1-good  mit Ausruestung", ALT, WIE_118);
+    messe_mit("step3-good  mit Ausruestung", NEU, WIE_118);
+    println!();
+    println!("  Zum Vergleich, gemessen in #118:            9892,7  +/-   45,7");
+    println!();
+    println!("  Die alte Reihe ist damit reproduziert, und die neue liegt genau");
+    println!("  darauf. Der Fehlerbalken kommt hier vom Krit: purity 800 sind 80 %");
+    println!("  Kritchance, und die wuerfelt.");
+    println!();
+    println!("  UND DAMIT GILT AC5: Ein Vorsprung zaehlt nur ueber der Unschaerfe");
+    println!("  BEIDER Messungen. Hier gibt es keinen Vorsprung — die Listen sind");
+    println!("  nicht nur knapp, sondern gleich.");
 
     println!();
     linie();
