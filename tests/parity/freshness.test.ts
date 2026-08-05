@@ -30,6 +30,7 @@ import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckterZaehler from './recordings/doom-stacks.json';
+import eingecheckterAuswahlLauf from './recordings/cooldown-reset-run.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
@@ -43,6 +44,7 @@ import eingecheckteQuellen from './recordings/sources.json';
 import {
   bossStatePayload,
   doomStacksPayload,
+  resetRunPayload,
   timelineLoopPayload,
   misplaysPayload,
   playerDamagePayload,
@@ -110,6 +112,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Zaehler und Stapel entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterZaehler, HINWEIS).toEqual(doomStacksPayload());
+  });
+
+  it('der Lauf mit dem Auswahlmodus entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterAuswahlLauf, HINWEIS).toEqual(resetRunPayload());
   });
 
   it('der Durchgang gegen die wiederholte Zeitleiste entspricht dem heutigen Spielstand', () => {
