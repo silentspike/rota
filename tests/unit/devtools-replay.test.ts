@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
-import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
+import { NOTHING_WORN } from '../../src/gear/worn.js';
 import { GameLoop, TICK_MS, type Renderer, type Simulation } from '../../src/core/loop.js';
 import { recordingNames, recordings, replayRecording } from '../../src/devtools/recording.js';
 
@@ -301,6 +302,21 @@ describe('Zeitsteuerung (AC4)', () => {
  * abgespielt. Kommen zwei gleiche Prüfsummen heraus, ist der Boss unterwegs
  * verlorengegangen — egal, wie das Ergebnis beschriftet ist.
  */
+/**
+ * Ein Boss, der da sein MUSS — sonst bricht der Prüffall hier statt still
+ * weiterzulaufen.
+ *
+ * `bossById` liefert `BossDef | undefined`. Ohne diesen Helfer käme bei einem
+ * Tippfehler im Boss-Namen `undefined` an, `replayRecording` nähme
+ * ersatzweise `FIRST_CRUCIBLE` — und der Vergleich zweier Bosse vergliche in
+ * Wahrheit zweimal denselben. Er wäre rot, aber aus dem falschen Grund.
+ */
+function boss(id: string): BossDef {
+  const gefunden = bossById(id);
+  if (gefunden === undefined) throw new Error(`Boss ${id} gibt es nicht`);
+  return gefunden;
+}
+
 describe('replay-Optionen (Issue #391)', () => {
   it('lehnt ein unbekanntes Feld ab und NENNT es', () => {
     const recording = recordings().get('cooldown-precision') as never;
@@ -321,18 +337,22 @@ describe('replay-Optionen (Issue #391)', () => {
     expect(() =>
       replayRecording(recording, {
         checksumPerTick: false,
-        boss: bossById('first-crucible'),
-        worn: undefined,
+        boss: boss('first-crucible'),
+        // **Echte Werte, nicht `undefined`.** Mit `exactOptionalPropertyTypes`
+        // ist ein Feld auf `undefined` etwas anderes als ein fehlendes Feld —
+        // und ein Prüffall, der fünf Felder auf `undefined` setzt, belegte nur,
+        // dass fünf Namen bekannt sind, nicht dass fünf Werte durchkommen.
+        worn: NOTHING_WORN,
         level: 1,
-        bindings: undefined,
+        bindings: [{ slot: 0, spellId: 'kindle' }],
       }),
     ).not.toThrow();
   });
 
   it('spielt gegen zwei verschiedene Bosse zwei verschiedene Läufe', () => {
     const recording = recordings().get('cooldown-precision') as never;
-    const a = replayRecording(recording, { boss: bossById('first-crucible') });
-    const b = replayRecording(recording, { boss: bossById('test-metronome') });
+    const a = replayRecording(recording, { boss: boss('first-crucible') });
+    const b = replayRecording(recording, { boss: boss('test-metronome') });
     expect(a.finalChecksum).not.toBe(b.finalChecksum);
   });
 });
