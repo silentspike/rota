@@ -590,6 +590,7 @@ export class Session implements Simulation {
   summary(timeMs: number): RunSummary {
     return buildSummary({
       combat: this.combat,
+      boundSpells: this.boundSpells,
       log: this.log,
       outcome: OUTCOME_NAMES[this.outcomeValue] ?? '?',
       victory: this.outcomeValue === OUTCOME_VICTORY,

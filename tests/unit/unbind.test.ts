@@ -148,3 +148,34 @@ describe('AC5 — ein liegender Zauber bleibt in der Rechnung, auch ungewirkt', 
     ).toBeGreaterThan(0);
   });
 });
+
+describe('AC4 — die Aufschlüsselung führt nur gebundene Zauber', () => {
+  it('ein weggebundener verschwindet daraus — vorher gegen nachher', () => {
+    const a = bau();
+    a.session.bind(0, a.combat.indexOf('reflux'));
+    a.session.bind(1, a.combat.indexOf('kindle'));
+
+    const vorher = a.session.summary(0).idlePerSpell.map((z) => z.spellId);
+    expect(vorher, 'KINDLE liegt auf Platz 1 und fehlt schon vorher').toContain('kindle');
+
+    a.session.bind(1, NO_SPELL);
+    const nachher = a.session.summary(0).idlePerSpell.map((z) => z.spellId);
+
+    expect(nachher, 'KINDLE ist vom Platz genommen und steht weiter in der Liste').not.toContain(
+      'kindle',
+    );
+    // **Und nur er.** Ohne das bliebe offen, ob die Reparatur die Liste leert
+    // statt zu filtern — derselbe Fehler, den AC5 an der Zeit misst.
+    expect(nachher).toEqual(vorher.filter((id) => id !== 'kindle'));
+  });
+
+  it('ein Zauber ohne Platz stand nie darin — der Befund selbst', () => {
+    // **Der eigentliche Fund von #306, an der Wurzel gemessen.** buildSummary
+    // lief über ALLE Zauber der Schule und fragte die Bindung nie. Vor
+    // Kampfbeginn, ohne einen einzigen gebundenen Zauber, standen fünfzehn
+    // Zeilen mit 0.0 s in einer Liste, die nach Verlust sortiert sein soll.
+    const a = bau();
+    expect(a.session.summary(0).idlePerSpell).toHaveLength(0);
+    expect(a.combat.spells.length, 'die Schule hätte dann gar keine Zauber').toBeGreaterThan(1);
+  });
+});
