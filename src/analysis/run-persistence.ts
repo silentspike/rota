@@ -125,7 +125,12 @@ export class RunPersistence {
   }
 
   get state(): RecordedState {
-    return { runHistory: this.data.runHistory, progressMarks: this.data.progressMarks };
+    return {
+      runHistory: this.data.runHistory,
+      progressMarks: this.data.progressMarks,
+      level: this.data.level,
+      experience: this.data.experience,
+    };
   }
 
   get save(): SaveData {
@@ -157,6 +162,13 @@ export class RunPersistence {
       savedAt: this.now(),
       runHistory: next.runHistory,
       progressMarks: next.progressMarks,
+      // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
+      // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
+      // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge
+      // nicht kaputt, er würde nur alt, und eine Balance-Änderung erreichte
+      // bestehende Spielstände nie mehr.
+      level: next.level,
+      experience: next.experience,
     };
     if (this.store === null) {
       this.lastErrorValue = 'Kein Browser-Speicher verfuegbar.';

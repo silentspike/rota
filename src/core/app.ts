@@ -158,6 +158,9 @@ export class App {
         // Schritt 1 kennt eine Stufe. Die Zahl steht hier und nicht als
         // Vorgabe im Rechner: Sobald es mehrere gibt, ist es diese Zeile.
         difficulty: 1,
+        // Die Stufe des BOSSES, aus seinem Datensatz — nicht die des
+        // Spielers und nicht die Schwierigkeit (Issue #248).
+        bossLevel: this.combat.boss.level,
         gameVersion: __ROTA_VERSION__,
         at: Date.now(),
       });
