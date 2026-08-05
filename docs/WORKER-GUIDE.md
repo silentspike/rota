@@ -1061,7 +1061,8 @@ sauber gehalten wurde, sondern weil sie beim **Tippen des Befehls** nicht einfie
 > **Ein Prüfwerkzeug auf einzelne Pfade angesetzt prüft nicht das Projekt, sondern deine Erinnerung
 > daran, welche Dateien du angefasst hast.**
 
-Damit sind es drei, und erst zusammen ergeben sie das Bild:
+Damit sind es drei, und erst zusammen ergeben sie das Bild — eine vierte kam später dazu und steht
+im übernächsten Abschnitt:
 
 | Gestalt             | Beispiel                                | gefunden von   |
 | ------------------- | --------------------------------------- | -------------- |
@@ -1084,6 +1085,46 @@ npx vitest run      # nicht: npx vitest run <die Datei, an der ich gearbeitet ha
 Das gilt für die **Aussage**, nicht für die Arbeit: Während des Bauens ist ein einzelner Pfad das
 richtige Werkzeug, weil er schnell ist. Nur darf daraus kein „lint ist sauber" werden — das ist eine
 Aussage über das Projekt, und die trägt nur ein Lauf über das Projekt.
+
+#### Die vierte Gestalt: die falsche Quelle — gar kein Werkzeug
+
+Die ersten drei führen ein Werkzeug aus, das die falsche Frage beantwortet. Die vierte führt
+**keines** aus.
+
+Am 2026-08-05 schrieb der Orchestrator an eine Sitzung: _„Auf 1791 kam keine Antwort."_ Sie war
+gekommen — zwei Nachrichten, 1792 und 1794. Er hatte 1794 sogar **verarbeitet**: Ein Issue, das er
+eine Minute später anlegte, zitiert ihren Befund wörtlich.
+
+Die Antwort der Sitzung nennt den Grund, warum das mehr ist als eine Peinlichkeit:
+
+> „Kam keine Antwort" ist der Satz, mit dem man einen **kaputten Kanal** diagnostiziert. Wäre er hier
+> richtig gewesen, hättest du an der falschen Stelle gesucht.
+
+Der Orchestrator hätte die Rollen-Liste geprüft, den Kanal der Sitzung, vielleicht eine Störung
+gemeldet — und die ganze Zeit lag die Antwort in seinem eigenen Verlauf.
+
+| Gestalt             | was ausgeführt wurde | was hinterher davon zu sehen ist |
+| ------------------- | -------------------- | -------------------------------- |
+| falsches Werkzeug   | ein Lauf             | ein Protokoll                    |
+| falsche Stelle      | ein Lauf             | ein Protokoll                    |
+| falscher Ausschnitt | ein Lauf             | ein Protokoll                    |
+| **falsche Quelle**  | **nichts**           | **nichts**                       |
+
+**Das ist der Grund, warum sie die gefährlichste der vier ist.** Bei den ersten dreien hat ein Lauf
+stattgefunden; man kann ihn hinterher ansehen und den Fehler finden. Hier gibt es nichts anzusehen:
+Zwischen „ich habe nachgesehen" und „ich erinnere mich" ist im Nachhinein kein Unterschied
+sichtbar — **auch nicht für den, der es geschrieben hat.**
+
+Dieselbe Klasse in klein sind die zwei Zeilenzahlen, die dieselbe Sitzung am selben Tag um wenige
+Zeilen danebenmeldete (314 statt 310, 381 statt 382): auch die stammten aus der Erinnerung an einen
+Befehl, der noch lief. Die allgemeine Fassung geht über Zahlen hinaus und gilt für **jede** Aussage.
+
+**Die Gegenprobe ist dieselbe wie überall hier und genauso billig: nachsehen, bevor man schreibt.**
+Bei einer Nachricht ist das ein `rota-ipc offen` oder ein Blick in die Liste; bei einer Zeilenzahl
+ein `wc -l`, dessen Ausgabe man abwartet.
+
+> Der Merksatz stammt aus der Sitzung, die ihn ausgelöst hat, und er ist der kürzeste im Kapitel:
+> **„Ich habe nicht nachgesehen, sondern erinnert."**
 
 #### Bei zwei Seiten muss die Gegenprobe die LESENDE treffen
 
