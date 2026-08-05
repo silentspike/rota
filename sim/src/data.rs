@@ -777,6 +777,18 @@ mod tests {
                     // seinen Namen: Die drei aus Schritt 1 sind Sofort-Zauber,
                     // und das ist eine Eigenschaft, keine Ausnahmeliste.
                     && s.cast_time_ms == 0
+                    // **Und die Freischaltstufe** (Issue #268). Bis hierher
+                    // trennten die Eigenschaften oben die drei aus Schritt 1
+                    // von allem anderen — aber nur, WEIL es nichts anderes
+                    // gab, das ihnen glich. Die neuen Kalzinations-Zauber
+                    // gleichen ihnen: Sofortschaden, keine Stapel, keine
+                    // Wirkzeit.
+                    //
+                    // Die Trennung war also nie eine Eigenschaft, sondern ein
+                    // Zufall der damaligen Menge. Was Schritt 1 wirklich
+                    // ausmacht, ist die Stufe: KINDLE und SMOULDER ab 1, PYRE
+                    // ab 2. Alles danach kam spaeter.
+                    && s.unlock_level <= 2
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");
