@@ -265,6 +265,22 @@ pub struct RunResult {
 }
 
 /// Ein Kampf-Durchgang.
+///
+/// # `Debug` ist hier ein WERKZEUG, keine Bequemlichkeit (Issue #349)
+///
+/// Rust hat keine Reflexion — es gibt keinen Weg, ueber die Felder zu laufen,
+/// wie `Object.keys` es auf der Spielseite tut. `#[derive(Debug)]` ist der
+/// naechstbeste: Der Uebersetzer schreibt die Auflistung, und sie enthaelt
+/// **jedes** Feld, auch das von morgen.
+///
+/// `tests/reset_completeness.rs` vergleicht damit einen zurueckgesetzten
+/// gegen einen frischen `Fight`. Ohne diese Ableitung braeuchte der Waechter
+/// eine von Hand gepflegte Liste — und wer ein Feld hinzufuegt und die Liste
+/// vergisst, hat genau den Fehler gebaut, den sie verhindern soll.
+///
+/// Es kostet zur Laufzeit nichts: Die Auflistung entsteht nur, wenn sie
+/// jemand anfordert, und das tut ausser dem Waechter niemand.
+#[derive(Debug)]
 pub struct Fight {
     // -- Zeit --
     time: Millis,
