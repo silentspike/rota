@@ -17,7 +17,7 @@
 
 use serde_json::Value;
 
-use rota_sim::data::{boss_by_id, index_of};
+use rota_sim::data::{boss_by_id, index_of, SPELLS};
 use rota_sim::replay::{first_divergence, Binding, Press, Recording};
 use rota_sim::{Fight, FightConfig, TICK_MS};
 
@@ -141,6 +141,33 @@ fn ac2_die_pruefsumme_stimmt_in_jedem_einzelnen_takt() {
     assert_eq!(ergebnis.checksums.len(), soll.len());
 }
 
+/// Die Verkuerzung ist in der Spur sichtbar — und zwar in der richtigen GROESSE.
+///
+/// # Warum die Existenz nicht genuegte
+///
+/// Vorher stand hier `spruenge > 0`. Ein Fall von 20 ms haette ihn genauso
+/// befriedigt wie einer von 1010, und von drei VAPOUR-Wuerfen in diesem Lauf
+/// treffen zwei ins Leere — faellt der dritte durch eine Datenaenderung weg,
+/// waere der Fall wieder still gruen (Issue #295).
+///
+/// # Die Klasse ist vermessen, sie muss niemand noch einmal durchsehen
+///
+/// Der Orchestrator hat vor dem Anlegen von #295 alle `sim/tests/` durchgezaehlt:
+///
+/// ```text
+/// 49  assert-Bloecke der Form >0 / >=1 / !=0   in 23 Dateien
+/// 13  davon tragend (letzter assert ihres Testkoerpers)
+///  3  davon ohne jeden exakten Beleg im selben Fall
+///  1  echter Befund — dieser hier
+/// ```
+///
+/// Die zwei anderen sind richtig so und bleiben:
+/// `build_comparison.rs:174` sichert absichtlich nichts zu (mit Begruendung),
+/// `parity_misplays.rs:81` soll Existenz belegen, nicht Groesse.
+///
+/// Auch die naheliegende zweite Vermutung traegt nicht: 87 Zahlliterale in 23
+/// Dateien, und die Stichproben lesen die Datenlage ausdruecklich vor dem
+/// Rechnen vor. Das ist die richtige Form, kein Befund.
 #[test]
 fn ac2_die_verkuerzung_ist_in_der_spur_wirklich_sichtbar() {
     // Die Gegenprobe zur Pruefsumme: Sie zeigt Gleichlauf, nicht WIRKUNG.
@@ -149,17 +176,51 @@ fn ac2_die_verkuerzung_ist_in_der_spur_wirklich_sichtbar() {
     // gewesen sein.
     let json = data();
     let rest = zahlen(&json, "pyreReadyAt");
-    let mut spruenge = 0;
+
+    // **Der Betrag kommt aus derselben Quelle wie die Wirkung** (Issue #295).
+    // Hier 1010 hinzuschreiben machte den Fall scharf UND falsch: Er wuerde
+    // dann eine Zahl pruefen, die niemand mehr mit VAPOUR verbindet, und beim
+    // naechsten Balance-Lauf still danebenliegen.
+    //
+    // Die 1010 setzt sich aus zwei Ursachen zusammen, und beide gehoeren
+    // hergeleitet:
+    //   TICK_MS                   die Uhr laeuft zwischen zwei Takten weiter
+    //   cooldown_reduction_ms     VAPOUR
+    let vapour = index_of("vapour").expect("vapour");
+    let verkuerzung = SPELLS[vapour].cooldown_reduction_ms;
+    assert!(
+        verkuerzung > 0,
+        "VAPOUR traegt keine Verkuerzung mehr — dann kann dieser Fall nichts \
+         belegen, und die Frage ist nicht seine Schaerfe, sondern ob es die \
+         Mechanik noch gibt"
+    );
+    let erwarteter_sprung = TICK_MS + verkuerzung;
+
+    // **Die GROESSE, nicht die Existenz** (Issue #295). Vorher stand hier
+    // `spruenge > 0`: Ein Sprung von 20 ms haette den Fall genauso befriedigt
+    // wie einer von 1010, und faellt der eine wirkende Wurf durch eine
+    // Datenaenderung weg, waere er wieder still gruen.
+    let mut treffer = 0;
+    let mut groesster = 0;
     for paar in rest.windows(2) {
+        if paar[0] <= paar[1] {
+            continue;
+        }
+        let fall = paar[0] - paar[1];
+        groesster = groesster.max(fall);
         // Ohne Verkuerzung faellt die Restzeit je Takt um genau TICK_MS.
-        if paar[0] > paar[1] && paar[0] - paar[1] > TICK_MS {
-            spruenge += 1;
+        if fall == erwarteter_sprung {
+            treffer += 1;
         }
     }
+
     assert!(
-        spruenge > 0,
-        "die Restzeit von PYRE ist nie schneller gefallen als die Uhr — \
-         dann hat VAPOUR nichts bewirkt, und die Pruefsumme belegt nur, dass \
-         beide Seiten dasselbe Nichts rechnen"
+        treffer > 0,
+        "kein einziger Fall der Restzeit betraegt {erwarteter_sprung} ms \
+         ({} ms Uhr + {verkuerzung} ms VAPOUR). Der groesste gemessene Fall \
+         war {groesster} ms — bei {TICK_MS} ms hat VAPOUR gar nicht gewirkt, \
+         bei einem anderen Wert rechnet die Verkuerzung anders als die Daten \
+         sagen",
+        TICK_MS
     );
 }
