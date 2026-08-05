@@ -64,13 +64,20 @@ describe('Der Name verändert die Prüfsumme nicht (AC5)', () => {
 
 describe('Die Namensfolge wird zur Laufzeit aufgezeichnet', () => {
   it('sammelt die Namen in der Reihenfolge ihrer Mischung', () => {
+    // **Der Endwert wird mitgeprüft, nicht weggeworfen.** Die erste Fassung
+    // sammelte nur die Namen ein und liess die Prüfsumme liegen — eslint hat
+    // das als ungenutzte Variable gemeldet, und die Meldung hatte recht: Ein
+    // Aufzeichner, der die Reihenfolge richtig meldet und dabei die Zahl
+    // verändert, wäre hier durchgekommen. Beide Wege müssen auf dieselbe Zahl
+    // führen, sonst ist jede eingecheckte Vergleichsdatei falsch.
+    let mitNamen = START;
     const folge = recordFieldOrder(() => {
-      let h = START;
-      h = mixNamedInt(h, 'erstes', 1);
-      h = mixNamedFloat(h, 'zweites', 2);
-      h = mixNamedInt(h, 'drittes', 3);
+      mitNamen = mixNamedInt(mitNamen, 'erstes', 1);
+      mitNamen = mixNamedFloat(mitNamen, 'zweites', 2);
+      mitNamen = mixNamedInt(mitNamen, 'drittes', 3);
     });
     expect(folge).toEqual(['erstes', 'zweites', 'drittes']);
+    expect(mitNamen).toBe(mixInt(mixFloat(mixInt(START, 1), 2), 3));
   });
 
   it('zeichnet eine Schleife so oft auf, wie sie läuft', () => {
@@ -78,10 +85,11 @@ describe('Die Namensfolge wird zur Laufzeit aufgezeichnet', () => {
     // Quelltext.** Eine Quelltext-Stelle ist nicht ein Wert: Diese eine Zeile
     // erzeugt drei Einträge. Wer Zeilen zählt, vergleicht etwas anderes als
     // wer Werte zählt — und bekommt eine Abweichung gemeldet, die keine ist.
+    let mitNamen = START;
     const folge = recordFieldOrder(() => {
-      let h = START;
-      for (let i = 0; i < 3; i++) h = mixNamedInt(h, 'in der schleife', i);
+      for (let i = 0; i < 3; i++) mitNamen = mixNamedInt(mitNamen, 'in der schleife', i);
     });
+    expect(mitNamen).toBe(mixInt(mixInt(mixInt(START, 0), 1), 2));
     expect(folge).toEqual(['in der schleife', 'in der schleife', 'in der schleife']);
   });
 
