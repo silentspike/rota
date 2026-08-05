@@ -1359,6 +1359,37 @@ Das ist dieselbe Klasse wie „eine Zahl aus einem anderen Lauf", aber die Gegen
 andere: Bei einer Zahl hilft die Frage _aus welchem Lauf stammt sie_; bei einem Bild hilft nur die
 **Reihenfolge**.
 
+### Ein gesetztes Attribut ist nicht dasselbe wie eine sichtbare Wirkung
+
+Bei #294 sollte eine Zeile verschwinden, die nichts zu sagen hat. Sie wurde über `hidden` versteckt,
+und die Messung bestätigte es:
+
+```
+hidden = true
+```
+
+**Die Zeile stand trotzdem da.** Der Browser setzt `hidden` über eine User-Agent-Regel auf
+`display: none` — und `.rota-row { display: flex }` überschreibt sie, weil eine Klassenregel stärker
+wiegt als die des Browsers. Eine CSS-Zeile behebt es.
+
+**Im Prüfstand wäre es nie aufgefallen.** Dort gibt es kein Layout: `expect(zeile.hidden).toBe(true)`
+wäre grün gewesen, und zwar zu Recht — das Attribut _ist_ gesetzt. Nur wirkt es nicht.
+
+Das ist eine eigene Gestalt neben den bisherigen Mess-Fallen. Bei ihnen war die Logik falsch oder die
+Messstelle; hier ist beides richtig und **die Annahme** falsch, dass ein gesetztes Attribut tut, was
+es üblicherweise tut. Dieselbe Falle liegt bei `disabled` auf einem `div`, bei `readonly` ohne
+Formularelement, bei `aria-hidden` neben einem sichtbaren Element und bei jedem `style="display:…"`,
+das gegen eine `!important`-Regel läuft.
+
+**Die Gegenmaßnahme ist nicht mehr Sorgfalt, sondern eine andere Frage.** Nicht „ist das Attribut
+gesetzt", sondern „ist die Zeile im Bild". Der Unterschied ist derselbe wie bei allen `browser`-ACs
+in diesem Projekt — und die Antwort steht nur im Browser.
+
+```javascript
+getComputedStyle(zeile).display; // "none"?  das ist die Aussage
+zeile.hidden; //                    true — sagt nur, dass jemand es wollte
+```
+
 > Wer später den Widerspruch findet, weiß nicht, welche Seite alt ist — das Bild oder der Code.
 
 ### „Unverändert" schützt nur, wenn der Ausgangswert richtig ist
