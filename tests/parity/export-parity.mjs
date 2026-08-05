@@ -2,16 +2,34 @@
  * Schreibt die gemeinsamen Vergleichsdateien für den Abgleich mit dem Simulator.
  *
  * ```text
- * npx vite-node tests/parity/export-parity.ts
+ * npx vite-node tests/parity/export-parity.mjs
  * ```
  *
- * Fünf Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
+ * **`npx vite-node`, nicht `node` und nicht `npx tsx`.** Beide scheitern, und
+ * zwar verschieden — beides am 2026-08-05 gemessen:
+ *
+ * | Aufruf | Fehler |
+ * | --- | --- |
+ * | `node …` | `ERR_MODULE_NOT_FOUND`: sucht `src/core/checksum.js`, da liegt nur die `.ts` |
+ * | `npx tsx …` | `TypeError: (intermediate value).glob is not a function` |
+ *
+ * Das zweite ist das lehrreichere: `tsx` versteht TypeScript, aber
+ * `import.meta.glob` ist keine Sprache, sondern Vite — und daran hängt das
+ * Einlesen der Boss- und Zauber-Daten. Der Dateiname stand hier bis dahin mit
+ * der Endung `.ts`; die Datei heißt aber `.mjs`, und der abgetippte Befehl lief
+ * deshalb ins Leere.
+ *
+ * Alle Vergleichsdateien unter `tests/parity/recordings/` entstehen dabei neu,
+ * nicht nur die eine, an der man gerade arbeitet. Nach dem Lauf lohnt ein
+ * `git status`: Ändert sich mehr als erwartet, hat sich eine Regel bewegt.
+ * Ein paar davon zur Einordnung:
  *
  * | Datei | Inhalt |
  * | --- | --- |
  * | `cooldown-precision.json` | Eine aufgezeichnete Runde samt Ergebnis und Prüfsumme je Takt |
  * | `primitives.json` | Zufallsströme und Prüfsumme — die Bausteine darunter |
  * | `rule-events.json` | Eine feste Folge von Regel-Ereignissen samt Prüfsumme |
+ * | `trial-blocks.json` | Die letzten drei Boss-Bausteine in einem Lauf (#240) |
  *
  * **Nach jeder Regeländerung neu laufen lassen.** `freshness.test.ts` erzwingt
  * das: Er baut dieselben Inhalte und vergleicht sie mit dem, was hier liegt.
