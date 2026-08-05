@@ -22,6 +22,7 @@ const LEER: RecordedState = {
   runHistory: [],
   progressMarks: [],
   bestRuns: [],
+  talentPoints: {},
   level: 1,
   experience: 0,
 };

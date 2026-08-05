@@ -49,6 +49,7 @@ import {
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
+import { NO_TALENTS, talentFactor, type TalentAllocation } from '../progression/talents.js';
 
 /**
  * Die Faktoren, wie `Combat` sie INTERN haelt (Issue #196).
@@ -208,6 +209,14 @@ export interface CombatOptions {
    * wird umgerechnet, kein Zufallsstrom gedreht, keine Prüfsumme bewegt.
    */
   readonly worn?: WornValues;
+  /**
+   * Die verteilten Talente (Issue #417).
+   *
+   * Wie `worn` eine Größe, die für den ganzen Kampf gilt und sich darin nicht
+   * ändert: Umskillen ist zwischen Kämpfen kostenlos (GAME-DESIGN 12.4), nicht
+   * währenddessen.
+   */
+  readonly talents?: TalentAllocation;
   /**
    * Die Stufe des Spielers (Issue #289).
    *
@@ -382,6 +391,15 @@ export class Combat {
 
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
   private readonly worn: WornValues;
+  /**
+   * Die verteilten Talente dieses Kampfes (Issue #417).
+   *
+   * **Nur gelesen, nie geschrieben** — deshalb steht sie nicht in `reset()`:
+   * Ein neuer Kampf bekommt eine neue Zuweisung über die Optionen, und
+   * Umskillen zwischen Kämpfen ist damit von selbst vollständig. Sobald ein
+   * Talent Kampfzustand anlegt (Issue #418), gilt das nicht mehr.
+   */
+  private talents: TalentAllocation;
   /**
    * Dieselben Faktoren, aber mit gesetztem Krit.
    *
@@ -730,6 +748,7 @@ export class Combat {
         schule === null || schule === undefined ? 1 : (options.boss.resistances[schule] ?? 1);
     }
     this.worn = options.worn ?? NOTHING_WORN;
+    this.talents = options.talents ?? NO_TALENTS;
     // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt: Ausrüstung
     // wird zwischen den Kämpfen gewechselt (13.1). Ohne getragene Ausrüstung
     // ist der Faktor exakt 1,0 — die Multiplikation bewegt dann keine Zahl.
@@ -747,6 +766,11 @@ export class Combat {
       // fuer den ganzen Kampf gilt.
       essence: NEUTRAL_FACTORS.essence * essenceFactor(this.worn),
       gearEffects: gearEffectFactor(this.worn),
+      // **Topf 2, und ausdrücklich nicht bei ESSENCE** (Issue #417): 13.1b
+      // trennt die Töpfe — innerhalb additiv, zwischen ihnen multiplikativ.
+      // Talente dort einzurechnen wäre eine gesparte Zeile und machte aus zwei
+      // Töpfen einen. Die Gegenprobe dazu steht in `talents.test.ts`.
+      talents: talentFactor(this.talents),
     };
     this.factorsOnCrit = { ...this.factors, crit: critFactor(this.worn) };
 
@@ -891,6 +915,33 @@ export class Combat {
    * Mitten im Kampf die Obergrenze zu heben hieße, dem Spieler Punkte zu
    * schenken, die er sich nicht erkämpft hat.
    */
+  /**
+   * Die Talent-Verteilung ändern (Issue #417).
+   *
+   * **Nur zwischen Kämpfen**, wie GAME-DESIGN 12.4 es verlangt: „Umskillen
+   * jederzeit kostenlos **zwischen den Kämpfen**". Mitten im Kampf zu wechseln
+   * hiesse, den Schaden rückwirkend anders zu rechnen als die bereits
+   * gefallenen Treffer — und die Prüfsumme wüsste nichts davon.
+   *
+   * Die Faktoren werden dabei neu gebildet, nicht nachgerechnet: Es ist
+   * dieselbe Zeile wie beim Aufbau, damit es keine zweite Rechenstelle gibt.
+   */
+  setTalents(allocation: TalentAllocation): void {
+    if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
+    this.talents = allocation;
+    // **Über `setDamageFactor`, nicht über eine Zuweisung** (Issue #196): Nur
+    // so zieht die Krit-Fassung mit. Meine erste Fassung schrieb beide Felder
+    // von Hand — der Quelltext-Wächter aus #196 hat sie gefangen, und genau
+    // dafür wurde er gebaut. Die Auflage in #249 nennt denselben Fall: Der
+    // gewöhnliche Treffer bliebe richtig, nur der kritische rechnete falsch.
+    this.setDamageFactor('talents', talentFactor(this.talents));
+  }
+
+  /** Die aktuelle Verteilung — für Anzeige und Prüfung. */
+  get talentAllocation(): TalentAllocation {
+    return this.talents;
+  }
+
   setPlayerLevel(level: number): void {
     const stufe = Math.max(1, Math.trunc(level));
     if (stufe === this.levelValue) return;

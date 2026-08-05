@@ -218,6 +218,18 @@ pub struct FightConfig {
     /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
     /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
     pub worn: WornValues,
+    /// Die verteilten Talente als Promille-Summe (Issue #417).
+    ///
+    /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
+    /// Simulator kennt keine Talent-Kennungen und braucht sie nicht — was er
+    /// braucht, ist die Zahl, die daraus folgt. Eine zweite Nachbildung der
+    /// Baumstruktur waere eine zweite Stelle, an der beide Seiten auseinander
+    /// laufen koennen.
+    ///
+    /// **Voreinstellung 0**, also Faktor 1,0 — dieselbe Zusicherung wie bei
+    /// `worn`: Ohne Talente laeuft der Kampf durch dieselben Zweige wie vorher,
+    /// und keine Pruefsumme bewegt sich.
+    pub talent_permille: u32,
     /// Stufe des Spielers (Issue #248).
     ///
     /// Sie wirkt auf die Grundwerte: Ein Kampf auf Stufe 50 hat andere
@@ -239,6 +251,7 @@ impl Default for FightConfig {
             factors: NEUTRAL,
             boss: BOSS,
             worn: WornValues::none(),
+            talent_permille: 0,
             player_level: 1,
         }
     }
@@ -737,6 +750,13 @@ impl Fight {
             factors: DamageFactors {
                 essence: config.factors.essence * config.worn.essence_factor(),
                 gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
+                // **Der Talent-Faktor** (Issue #417). Dieselbe Rechnung wie
+                // `talentFactor` im Spiel: 1 + Promille / 1000, aus ganzen
+                // Zahlen gebildet. Die Summe kommt von aussen, weil der Baum
+                // dort steht und eine zweite Nachbildung eine zweite
+                // Fehlerquelle waere.
+                talents: config.factors.talents
+                    * (1.0 + f64::from(config.talent_permille) / 1000.0),
                 // **Der Widerstand des Bosses gegen die eigene Schule**
                 // (GAME-DESIGN 11.4, Issue #328). Er kommt beim Aufbau in die
                 // Faktoren, nicht im Schritt: Der Boss wechselt zwischen den
