@@ -379,6 +379,15 @@ export class Combat {
   private castLandsAtMsValue = -1;
 
   /**
+   * Kampfzeit, zu der der laufende Boss-Zauber begonnen hat (Issue #327).
+   *
+   * **Nur für den Balken**, siehe `castingStartedAtMs`. Er steht hier, weil er
+   * sich nach einer Verschiebung durch STALL nicht mehr aus dem Ende
+   * zurückrechnen lässt.
+   */
+  private castingStartedAtMsValue = -1;
+
+  /**
    * Welcher Zauber des SPIELERS gerade gewirkt wird, als Index in `spells`.
    *
    * `-1` heißt: keiner. **Bis Issue #304 gab es diesen Zustand nicht** — die
@@ -951,6 +960,55 @@ export class Combat {
   }
 
   /**
+   * Wie der laufende Boss-Zauber heißt, oder `null` (Issue #327).
+   *
+   * **Ein schmaler Zugang statt `timelineEntryAt` öffentlich zu machen.**
+   * Dieselbe Regel wie beim Vorbereitungs-Bildschirm in #328, der fertige
+   * Zeilen bekommt und nicht den Boss: Wer der Anzeige den ganzen Eintrag
+   * gäbe, lüde sie ein, mehr daraus zu lesen — Schaden, Wirkzeit, Mechanik —
+   * und die nächste Anzeige träfe die Entscheidungen dann noch einmal.
+   *
+   * Englisch, wie alle Spieltexte: Der Name kommt aus dem Boss-Datensatz.
+   */
+  get castingName(): string | null {
+    if (this.castingValue < 0) return null;
+    return this.timelineEntryAt(this.castingValue)?.name ?? null;
+  }
+
+  /**
+   * Wann der laufende Boss-Zauber BEGONNEN hat — Kampfzeit seit Beginn
+   * (Issue #327).
+   *
+   * # Warum das ein eigenes Feld braucht und keine Rechnung ist
+   *
+   * Ein Balken braucht Anfang und Ende. Das Ende steht in `castLandsAtMs`, der
+   * Anfang wäre der Zeitpunkt des Zeitleisten-Eintrags — nur ist er nach der
+   * ersten Verschiebung nicht mehr zurückzurechnen:
+   *
+   * | Wer | Was |
+   * | --- | --- |
+   * | Eskalation (#240) | verkürzt die DAUER, beim Start |
+   * | STALL / FIXATION (#100) | verschiebt das ENDE, **während** er läuft |
+   *
+   * „Ende minus Dauer" ergäbe nach einem STALL einen Anfang, den es nie gab —
+   * und der Balken spränge zurück, statt langsamer zu werden.
+   *
+   * # Nicht in der Prüfsumme, und das ist eine Entscheidung
+   *
+   * Er beeinflusst keine Rechnung: Kein Treffer, keine Abklingzeit, kein
+   * Zustand hängt an ihm. Ein Feld, das nichts entscheidet, macht die
+   * Prüfsumme nicht schärfer — es verlängert nur die Feldfolge, die beide
+   * Seiten gleich halten müssen (dieselbe Begründung wie bei
+   * `playerCastStartedAtMsValue`, Issue #304).
+   *
+   * Die Probe darauf ist `npm run parity:export`: Schreibt es nichts, hat der
+   * Simulator nichts zu lernen.
+   */
+  get castingStartedAtMs(): number {
+    return this.castingStartedAtMsValue;
+  }
+
+  /**
    * Wann der laufende Boss-Zauber trifft — Kampfzeit seit Beginn.
    *
    * **Nicht für die Anzeige, sondern für die Prüfsumme** (GAME-DESIGN 19.1).
@@ -1375,6 +1433,10 @@ export class Combat {
     if (this.castingValue < 0) return false;
     this.castingValue = -1;
     this.castLandsAtMsValue = -1;
+    // **Sofort, nicht zum geplanten Trefferzeitpunkt** (Issue #327, AC2): Der
+    // Balken verschwindet mit dem Unterbrechen. Ein Balken, der stehen bliebe,
+    // behauptete eine Wirkung, die nicht mehr kommt.
+    this.castingStartedAtMsValue = -1;
     this.interruptsLandedValue++;
     // **Das Spiel schreibt es jetzt selbst** (Issue #151). Bis dahin führte es
     // nur der Simulator — und die Fehleranalyse läuft im Browser, nicht im
@@ -1817,6 +1879,7 @@ export class Combat {
       const laufend = this.timelineEntryAt(this.castingValue);
       this.castingValue = -1;
       this.castLandsAtMsValue = -1;
+      this.castingStartedAtMsValue = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
       // **Ein Fehler macht Fortschritt rueckgaengig** (11.2, Baustein 5;
@@ -1847,6 +1910,10 @@ export class Combat {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
+        // Der Anfang für den Balken (Issue #327) — die Kampfzeit, zu der der
+        // Eintrag fällig wurde, samt der Verzögerung, die STAY ihm mitgegeben
+        // hat. Genau dieser Wert ist später nicht mehr herzuleiten.
+        this.castingStartedAtMsValue = faelligAtMs + this.nextStrikeDelayMs;
         // **Die eskalierende Wiederholung** (11.2, Baustein 7; Issue #240):
         // Mit jedem Zyklus schrumpft das Fenster zum Unterbrechen. Die
         // Verkuerzung steht in den DATEN — sonst waere sie eine Regel des
@@ -2538,6 +2605,21 @@ export class Combat {
     this.dotTicksLost.fill(0);
     this.dotTickCounts.fill(0);
     this.gcd.reset();
+    // **Ein neuer Versuch fängt ohne laufenden BOSS-Zauber an** (Issue #327).
+    //
+    // Gemessen am 2026-08-05, vor dieser Zeile: Nach `reset()` stand `casting`
+    // weiterhin auf 2 und `castLandsAtMs` auf 7000 — der Zustand überlebte den
+    // Versuch. Der Simulator räumt ihn seit jeher (`Fight::reset`,
+    // `self.casting = None`), das Spiel nicht. Zwei Seiten, zwei Antworten,
+    // und keine Prüfung dazwischen: Keine Aufzeichnung setzt mitten in einem
+    // Boss-Zauber zurück, also hat es nie jemand gemerkt.
+    //
+    // Aufgefallen ist es erst, als der Balken aus diesem Issue den Zustand
+    // ZEIGT: Nach einem Neustart stünde dort ein Zauber, den es nicht mehr
+    // gibt. Eine Anzeige findet, was keine Rechnung verrät.
+    this.castingValue = -1;
+    this.castLandsAtMsValue = -1;
+    this.castingStartedAtMsValue = -1;
     // Ein neuer Versuch fängt ohne laufende Wirkzeit an (Issue #304). Ohne
     // diese Zeilen bliebe der Zustand über den Versuch hinaus stehen: Der
     // erste Druck des nächsten Kampfes bräche einen Zauber ab, den es nicht
