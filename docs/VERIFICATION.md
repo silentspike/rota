@@ -70,6 +70,15 @@ gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
 | `MERGEABLE \| BLOCKED \|`       | Checks laufen — warten ist richtig                       |
 | `CONFLICTING \| DIRTY \|`       | **Es wird nie etwas kommen.** Zweig aktualisieren lassen |
 | `MERGEABLE \| CLEAN \| SUCCESS` | fertig                                                   |
+| `UNKNOWN \| UNKNOWN \|`         | **Zwei ganz verschiedene Lagen** — siehe unten           |
+
+**`UNKNOWN` heißt entweder „GitHub rechnet noch" oder „der PR ist längst gemergt".** GitHub
+berechnet `mergeable` asynchron; bei einem geschlossenen PR steht dort dauerhaft nichts. Beim
+Nachmessen an einem frischen PR: durchgehend `MERGEABLE | BLOCKED`, bei einem gemergten dauerhaft
+`UNKNOWN | UNKNOWN`.
+
+> Wer `UNKNOWN` sieht, fragt zuerst `gh pr view <n> --json state` — bei `MERGED` ist die Frage
+> beantwortet, bei `OPEN` wartet man ein paar Sekunden und misst erneut.
 
 **Die Unterscheidung kostet nichts und spart das Warten auf etwas, das nicht kommt.**
 
