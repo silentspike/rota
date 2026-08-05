@@ -1,8 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NEUTRAL_FACTORS, type DamageFactors } from '../../src/core/damage.js';
+// **Als Text, nicht über `node:fs`.** Der Umweg über das Dateisystem bräuchte
+// `@types/node`, das diese tsconfig bewusst nicht führt (`types: ["vite/client"]`)
+// — und ein Pfad, den erst die Laufzeit prüft, wäre bei einer Umbenennung still
+// leer statt rot. Vite löst den Import beim Bauen auf: Verschwindet die Datei,
+// scheitert schon der Bau.
+import COMBAT from '../../src/core/combat.ts?raw';
 
 /**
  * Jeder Schadensfaktor hat eine Stelle, die ihn setzt (Issue #424).
@@ -38,9 +41,6 @@ import { NEUTRAL_FACTORS, type DamageFactors } from '../../src/core/damage.js';
  * Ein Suchmuster misst, was es kennt (WORKER-GUIDE 8.27). Deshalb prüft dieser
  * Fall **zwei** Formen und nennt bei einem Treffer, welche es war.
  */
-
-const hier = dirname(fileURLToPath(import.meta.url));
-const COMBAT = readFileSync(join(hier, '../../src/core/combat.ts'), 'utf8');
 
 /** Die acht Namen aus dem Typ, nicht von Hand aufgezählt. */
 const ALLE_TOEPFE = Object.keys(NEUTRAL_FACTORS) as (keyof DamageFactors)[];
