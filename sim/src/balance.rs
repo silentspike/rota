@@ -356,6 +356,11 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         factors: config.factors,
         boss: config.boss,
         worn: config.worn,
+        // **Keine Talente im Balance-Laeufer** (Issue #417): Er vergleicht
+        // Rotationen gegeneinander, und ein Faktor, der auf alle gleich wirkt,
+        // verschoebe nur die Achse. Wer Talente messen will, setzt die Achse
+        // `talents` in `config.factors` — die gibt es dafuer.
+        talent_permille: 0,
         // Der Balance-Laeufer misst auf Stufe 1: Er vergleicht Rotationen, und
         // die Stufe wirkt auf beide gleich (Issue #248).
         player_level: 1,
