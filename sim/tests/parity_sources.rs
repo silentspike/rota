@@ -180,3 +180,46 @@ fn der_affix_wert_folgt_auf_beiden_seiten_aus_dem_budget() {
         "alle Stuetzstellen tragen denselben Wert — die Datei prueft die Ableitung nicht"
     );
 }
+
+#[test]
+fn die_grundwerte_rechnen_auf_beiden_seiten_gleich() {
+    // Issue #282. **Nachgerechnet, nicht nachgeschlagen:** Die eingecheckte
+    // Datei liefert die Basis mit, und diese Seite rechnet damit selbst. Wer
+    // nur das Ergebnis vergliche, bekäme beim nächsten Kalibrieren einen
+    // gemeldeten Unterschied zwischen den Seiten, wo nur eine Zahl bewegt
+    // wurde — der Wächter schlüge an, ohne dass etwas auseinanderläuft.
+    let json = data();
+    let eintraege = json["baseStats"]
+        .as_array()
+        .expect("baseStats fehlt — sources.json stammt aus einem Stand vor #282");
+
+    // Der Gegenfall: Eine leere Liste wäre unten in null Durchläufen grün.
+    assert!(
+        eintraege.len() >= 15,
+        "nur {} Stuetzstellen — zu wenige, um eine Kurve zu belegen",
+        eintraege.len()
+    );
+
+    let mut gewachsen = false;
+    for eintrag in eintraege {
+        let level = u32_at(eintrag, "level");
+        let base = u32_at(eintrag, "base");
+        let erwartet = u32_at(eintrag, "permille");
+        let hier = rota_sim::sources::base_permille(level, base);
+        assert_eq!(
+            hier, erwartet,
+            "Stufe {level}, Basis {base}: Simulator {hier}, Spiel {erwartet}"
+        );
+        if level > 1 && hier > base {
+            gewachsen = true;
+        }
+    }
+
+    // Ohne diesen Fall wäre der Vergleich oben auch bei einer flachen Kurve
+    // grün — und eine flache Kurve hiesse, dass die Gegenstandsstufe nichts
+    // bewirkt, also genau der Zustand, den #282 beheben soll.
+    assert!(
+        gewachsen,
+        "kein einziger Wert waechst mit der Stufe — die Kurve ist flach"
+    );
+}

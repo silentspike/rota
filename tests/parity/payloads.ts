@@ -69,6 +69,10 @@ import {
   STAT_COUNT,
   STAT_NAMES,
   affixPermille,
+  basePermille,
+  ESSENCE_AT_LEVEL_1,
+  VESSEL_AT_LEVEL_1,
+  WARD_AT_LEVEL_1,
   isPermanent,
   maxOf,
   mixedBuild,
@@ -2395,6 +2399,16 @@ const WORN_FOR_PARITY: WornValues = {
   catalysis: 170,
   purity: 375,
   yieldBonus: 250,
+  // **Nicht null** (Issue #282, AC6). Stünden die drei Grundwerte hier auf
+  // null, liefe der Gleichlauf-Lauf durch die neue Rechnung, ohne sie je zu
+  // benutzen — er belegte dann, dass beide Seiten dasselbe tun, wenn nichts
+  // zu tun ist.
+  //
+  // Drei verschiedene Werte, damit eine vertauschte Zuordnung auffällt: Wären
+  // sie gleich, blieben `essence` und `ward` vertauscht unbemerkt.
+  essence: 220,
+  vessel: 400,
+  ward: 90,
   gearEffects: 130,
 };
 
@@ -2433,6 +2447,9 @@ export function wornPayload(): Record<string, unknown> {
       catalysis: WORN_FOR_PARITY.catalysis,
       purity: WORN_FOR_PARITY.purity,
       yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      essence: WORN_FOR_PARITY.essence,
+      vessel: WORN_FOR_PARITY.vessel,
+      ward: WORN_FOR_PARITY.ward,
       gearEffects: WORN_FOR_PARITY.gearEffects,
     },
     // Topf 4 als Faktor: eins plus die Summe. Fliesskomma, also mit Bitmuster.
@@ -2506,6 +2523,24 @@ export function sourcesPayload(): Record<string, unknown> {
     }
   }
 
+  // Die Grundwerte je Stufe (Issue #282) — dieselben Stützstellen wie oben.
+  //
+  // **Die Basis wandert mit.** Sie ist unkalibriert; stünde nur das Ergebnis
+  // hier, meldete der Gleichlauf-Wächter beim nächsten Kalibrieren einen
+  // Unterschied zwischen den Seiten, wo nur eine Zahl bewegt wurde. Mit der
+  // Basis daneben kann die Rust-Seite dieselbe Rechnung machen statt dieselbe
+  // Zahl zu erwarten.
+  const baseStats = [];
+  for (const [name, basis] of [
+    ['essence', ESSENCE_AT_LEVEL_1],
+    ['vessel', VESSEL_AT_LEVEL_1],
+    ['ward', WARD_AT_LEVEL_1],
+  ] as const) {
+    for (const level of [1, 25, 50, 75, MAX_ITEM_LEVEL]) {
+      baseStats.push({ stat: name, level, base: basis, permille: basePermille(level, basis) });
+    }
+  }
+
   return {
     schema: SCHEMA,
     budgetPerPermille: BUDGET_PER_PERMILLE,
@@ -2514,5 +2549,6 @@ export function sourcesPayload(): Record<string, unknown> {
     permanent: Array.from({ length: SOURCE_COUNT }, (_, s) => isPermanent(s)),
     stats,
     affixes,
+    baseStats,
   };
 }
