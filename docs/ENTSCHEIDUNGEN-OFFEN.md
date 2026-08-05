@@ -1,8 +1,8 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-06, 00:35: Vier Punkte sind entschieden, sieben liegen offen.** Die
+**Stand 2026-08-06, 00:40: Vier Punkte sind entschieden, acht liegen offen.** Die
 entschiedenen stehen unten mit Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen,
-ist als Issue verlinkt. **Sechs der elf sind aus der Arbeit selbst entstanden, nicht aus dem
+ist als Issue verlinkt. **Sieben der zwölf sind aus der Arbeit selbst entstanden, nicht aus dem
 Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 
 |                                     | Ergebnis                                                                                                    |
@@ -18,6 +18,7 @@ Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 | **9** WARD ohne Balance-Deckel      | **OFFEN** — eine hinreichend gute Ausrüstung kann den Spieler unverwundbar machen                           |
 | **11** SUBLIMATION-Bauart           | **OFFEN** — zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot                                   |
 | **12** `runaway`-Timing             | **OFFEN** — seltener drücken ist besser: Tiefe oder Falle?                                                  |
+| **13** Talentpunkt-Verteilung       | **OFFEN** — die Zahl 50 steht, ihre Verteilung über 100 Stufen nicht                                        |
 
 > **Es gibt keinen Punkt 10.** Er hat nie existiert — beim Anlegen von Punkt 11 wurde die Zahl
 > übersprungen. Die Lücke bleibt stehen, statt umzunummerieren: Die Nummern werden in Issues,
@@ -460,3 +461,40 @@ eines ganzen Boss-Typs. Deshalb liegt sie hier.
 > dass 9 500 ms besser ist als 2 000 ms, und fällt, wenn jemand die Deckelung für eine
 > Sicherheitsprüfung hält und entfernt. Was heute gilt, ist damit gesichert — die Frage ist, ob es
 > so bleiben soll.
+
+---
+
+## 13. Wie verteilen sich die 50 Talentpunkte über 100 Stufen? — OFFEN
+
+**Die Zahl ist entschieden, ihre Verteilung nicht.** GAME-DESIGN 12.1 nennt „~50 (etwa jede zweite
+Stufe einer)". Die Summe steht damit fest; wann die Punkte kommen, bestimmt den **Charakter** des
+Aufstiegs — und deshalb liegt die Frage hier und nicht beim Balance-Läufer.
+
+Gerechnet von Worker-3 bei #379, alle drei treffen genau 50 und enden auf Stufe 100:
+
+| Verteilung         | bis 10 | bis 25 | bis 50 | bis 75 | Charakter                         |
+| ------------------ | ------ | ------ | ------ | ------ | --------------------------------- |
+| **A** gleichmäßig  | 5      | 12     | 25     | 37     | wörtlich wie 12.1 — **eingebaut** |
+| **B** spät dichter | 2      | 8      | 20     | 34     | Endspiel belohnt, früh karg       |
+| **C** früh dichter | 9      | 18     | 30     | 40     | Stufe 1–8 jede Stufe einen        |
+
+### Was daran hängt
+
+**C gibt auf den Stufen 1 bis 8 jede Stufe einen Punkt.** Das passt zu „easy to learn" — der
+Spieler merkt sofort, dass es etwas zu entscheiden gibt. Es verlangt ihm aber acht Entscheidungen
+in den ersten Kämpfen ab, zu einem Zeitpunkt, an dem er die Bäume noch nicht kennt.
+
+**B ist das Gegenteil:** bis Stufe 25 nur acht Punkte. Der Aufstieg fühlt sich früh mager an, dafür
+trägt jeder späte Punkt mehr — und die letzten Stufen vor dem Endgame bleiben interessant.
+
+**A ist die wörtliche Lesart** des Designs und heute eingebaut, ausdrücklich als **VORLÄUFIG** in
+`data/player/levels.json` vermerkt.
+
+### Die Wahl
+
+Es gibt keine falsche Antwort — die drei unterscheiden sich nicht in der Menge, sondern darin,
+**wann der Spieler zum ersten Mal etwas zu entscheiden hat**. Wer bei A bleibt, muss nichts tun.
+
+> **Was diese Entscheidung nicht ist:** eine Balance-Frage. Die Gesamtzahl bleibt in allen drei
+> Fällen 50, also ist keine Verteilung stärker als eine andere. Es geht allein um das Tempo, in dem
+> sich der Talentbaum öffnet.
