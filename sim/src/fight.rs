@@ -65,7 +65,7 @@
 //! `tests/edge_cases.rs` haelt beide Seiten fest: dass eine Funktion die Grenze
 //! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
-use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
+use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
     stack_damage, stat_at_level, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
@@ -2434,21 +2434,29 @@ impl Fight {
     #[must_use]
     pub fn checksum_at(&self, time_ms: Millis) -> u32 {
         let mut h = FNV_OFFSET;
-        h = mix_int(h, time_ms as i32);
-        h = mix_float(h, f64::from(self.damage));
-        h = mix_int(h, i32::from(self.resource));
-        h = mix_int(h, self.resource_overflow as i32);
-        h = mix_int(h, FIGHT_RUNNING);
-        h = mix_float(h, f64::from(self.gcd_ready_at));
+        h = mix_named_int(h, "time", time_ms as i32);
+        h = mix_named_float(h, "damage", f64::from(self.damage));
+        h = mix_named_int(h, "resource", i32::from(self.resource));
+        h = mix_named_int(h, "resourceOverflow", self.resource_overflow as i32);
+        h = mix_named_int(h, "fightState", FIGHT_RUNNING);
+        h = mix_named_float(h, "gcdReadyAt", f64::from(self.gcd_ready_at));
         for index in 0..SPELL_COUNT {
-            h = mix_float(h, f64::from(self.cooldown_remaining_ms_at(index, time_ms)));
-            h = mix_float(h, f64::from(self.dot_remaining_ms_at(index, time_ms)));
-            h = mix_int(h, self.casts[index] as i32);
-            h = mix_int(h, self.dot_tick_counts[index] as i32);
-            h = mix_int(h, self.lost_dot_ticks[index] as i32);
+            h = mix_named_float(
+                h,
+                "cooldownRemaining",
+                f64::from(self.cooldown_remaining_ms_at(index, time_ms)),
+            );
+            h = mix_named_float(
+                h,
+                "dotRemaining",
+                f64::from(self.dot_remaining_ms_at(index, time_ms)),
+            );
+            h = mix_named_int(h, "casts", self.casts[index] as i32);
+            h = mix_named_int(h, "dotTicks", self.dot_tick_counts[index] as i32);
+            h = mix_named_int(h, "lostDotTicks", self.lost_dot_ticks[index] as i32);
         }
         for draws in self.rng.draw_counts() {
-            h = mix_int(h, draws as i32);
+            h = mix_named_int(h, "randomDraws", draws as i32);
         }
         // **Angehaengt, nicht eingeschoben** (Issue #96). Die bestehenden
         // Positionen bleiben dadurch unveraendert; die Reihenfolge ist ohnehin
@@ -2457,41 +2465,41 @@ impl Fight {
         // Ohne diese beiden Felder waere die Pruefsumme fuer einen Boss mit
         // Phasen blind: Zwei Laeufe in verschiedenen Phasen saehen gleich aus,
         // und der Abgleich meldete Uebereinstimmung, wo keine ist.
-        h = mix_int(h, self.phase as i32);
-        h = mix_int(h, self.energy as i32);
-        h = mix_int(h, self.timeline_index as i32);
+        h = mix_named_int(h, "bossPhase", self.phase as i32);
+        h = mix_named_int(h, "bossEnergy", self.energy as i32);
+        h = mix_named_int(h, "timelineIndex", self.timeline_index as i32);
         // **Angehaengt, nicht eingeschoben** (Issue #110). Ohne die
         // Lebenspunkte waere die Pruefsumme fuer einen Boss, der Schaden
         // austeilt, blind: Zwei Laeufe mit verschiedenem erlittenem Schaden
         // saehen gleich aus.
-        h = mix_int(h, self.player_hp as i32);
+        h = mix_named_int(h, "playerHp", self.player_hp as i32);
         // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen
         // auffaellt, bevor der Treffer ueberhaupt faellt.
-        h = mix_int(h, self.casting.map_or(-1, |i| i as i32));
+        h = mix_named_int(h, "casting", self.casting.map_or(-1, |i| i as i32));
         // **Angehaengt, nicht eingeschoben** (Issue #79). Ohne den Schutz waere
         // die Pruefsumme fuer jeden Kampf mit Schutzschicht blind: Zwei Laeufe
         // mit verschieden viel aufgefangenem Schaden saehen gleich aus, solange
         // die Lebenspunkte zufaellig uebereinstimmen.
-        h = mix_int(h, self.shield as i32);
-        h = mix_int(h, self.shield_stacks as i32);
+        h = mix_named_int(h, "shield", self.shield as i32);
+        h = mix_named_int(h, "shieldStacks", self.shield_stacks as i32);
         // Die laufende Umwandlung gehoert dazu, nicht nur ihr Ergebnis: Sie
         // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
         // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
-        h = mix_int(h, self.conversion_percent as i32);
+        h = mix_named_int(h, "conversionPercent", self.conversion_percent as i32);
         // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
         // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
         // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden
         // kuenftigen Wechsel.
-        h = mix_int(h, self.control as i32);
-        h = mix_int(h, self.phase_hold_percent as i32);
+        h = mix_named_int(h, "control", self.control as i32);
+        h = mix_named_int(h, "phaseHoldPercent", self.phase_hold_percent as i32);
         // **Angehaengt, nicht eingeschoben** (Issue #216, Zaehler und Stapel).
         // Ohne sie waere die Pruefsumme fuer einen Boss mit diesen Bausteinen
         // blind: Zwei Laeufe mit verschiedenem Zaehlerstand saehen gleich aus,
         // solange die Lebenspunkte uebereinstimmen — und beim Zaehler stimmen
         // sie ueberein, denn er nimmt keine.
-        h = mix_int(h, self.doom as i32);
-        h = mix_int(h, self.doom_charges as i32);
-        h = mix_int(h, self.stacks as i32);
+        h = mix_named_int(h, "doom", self.doom as i32);
+        h = mix_named_int(h, "doomCharges", self.doom_charges as i32);
+        h = mix_named_int(h, "bossStacks", self.stacks as i32);
         // **Angehaengt, nicht eingeschoben** (Issue #97) — und zwar ans ECHTE
         // Ende. Mein erster Versuch setzte den Block hinter
         // `phase_hold_percent`, also VOR doom/doom_charges/stacks aus #216;
@@ -2502,19 +2510,19 @@ impl Fight {
         // Die Zahl der Stapel allein genuegt nicht: Zwei Laeufe mit gleich
         // vielen, aber verschieden alten Stapeln laufen gleich weiter, bis der
         // erste verfaellt.
-        h = mix_int(h, self.decay_count as i32);
+        h = mix_named_int(h, "decayStacks", self.decay_count as i32);
         for i in 0..MAX_DECAY_STACKS {
-            h = mix_int(h, self.decay_expiry_at(i) as i32);
+            h = mix_named_int(h, "decayExpiry", self.decay_expiry_at(i) as i32);
         }
         // **Angehaengt, nicht eingeschoben** (Issue #218). Ohne sie waere die
         // Pruefsumme fuer einen Boss mit Unverwundbarkeits-Fenster blind: Zwei
         // Laeufe mit verschieden viel verlorenem Schaden saehen gleich aus,
         // solange der ausgeteilte uebereinstimmt — und im Fenster stimmt er
         // ueberein, denn dort waechst er gar nicht.
-        h = mix_int(h, i32::from(self.race_ends_at.is_some()));
-        h = mix_int(h, self.race_progress as i32);
-        h = mix_int(h, self.damage_lost_to_race as i32);
-        h = mix_int(h, self.boss_healed as i32);
+        h = mix_named_int(h, "raceOpen", i32::from(self.race_ends_at.is_some()));
+        h = mix_named_int(h, "raceProgress", self.race_progress as i32);
+        h = mix_named_int(h, "damageLostToRace", self.damage_lost_to_race as i32);
+        h = mix_named_int(h, "bossHealed", self.boss_healed as i32);
         // **Angehaengt, nicht eingeschoben** (Issue #240, die letzten drei
         // Bausteine) — dieselbe Folge wie in `src/core/checksum.ts`.
         //
@@ -2526,12 +2534,16 @@ impl Fight {
         //
         // **Nur solange einer laeuft**, siehe `src/core/checksum.ts`: Ohne
         // laufenden Zauber traegt das Feld dort -1 und hier 0.
-        h = mix_int(h, self.casting.map_or(-1, |_| self.cast_lands_at as i32));
+        h = mix_named_int(
+            h,
+            "castLandsAt",
+            self.casting.map_or(-1, |_| self.cast_lands_at as i32),
+        );
         // Baustein 8: Ob die Schwaechung liegt, entscheidet ueber jeden
         // weiteren Takt. Der Zaehler traegt den Unterschied zwischen "nie
         // gelegen" und "gelegen und entfernt".
-        h = mix_int(h, i32::from(self.afflicted));
-        h = mix_int(h, self.afflictions_cleared as i32);
+        h = mix_named_int(h, "afflicted", i32::from(self.afflicted));
+        h = mix_named_int(h, "afflictionsCleared", self.afflictions_cleared as i32);
         h
     }
 
