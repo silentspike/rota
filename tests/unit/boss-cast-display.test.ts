@@ -159,6 +159,56 @@ describe('Der Abbruch räumt sofort', () => {
   });
 });
 
+describe('Am Balken steht NICHT, ob der Zauber unterbrechbar ist', () => {
+  /**
+   * **Eine Beschriftung, die immer dasselbe sagt, sagt nichts** — dieselbe
+   * Regel wie bei den Widerstands-Zeilen aus #328: „Genau 1 heißt ‚kein
+   * Unterschied' und gehört nicht auf den Bildschirm."
+   *
+   * GAME-DESIGN 11.6 verortet die Markierungen („unterbrechbar · tödlich wenn
+   * ignoriert · Gelegenheit · stehlbar · verlangt Schutz") in der
+   * **Boss-Übersicht**, also der Vorbereitung. Dort unterscheiden sie zwischen
+   * Fähigkeiten. Am laufenden Balken unterscheiden sie zwischen nichts.
+   *
+   * # WORAN MAN ERKENNT, DASS SICH DAS GEÄNDERT HAT
+   *
+   * Heute wird `casting` **nur** für `interruptibleCast` gesetzt — ein
+   * laufender Boss-Zauber ist damit immer unterbrechbar. Wer einen zweiten
+   * Zeitleisten-Typ einführt, der `casting` ebenfalls setzt, hat den Moment
+   * erzeugt: Ab dann trägt der Balken eine Aussage, die nicht mehr für alle
+   * gilt, und die Markierung gehört an ihn.
+   *
+   * Dieser Fall ist die Bedingung, nicht die Erinnerung. Ein Vermerk, der nur
+   * „später mal" sagt, wird nie gefunden; einer, der die Bedingung prüft, wird
+   * von dem gefunden, der die Bedingung herstellt.
+   */
+  it('setzt `casting` ausschließlich für unterbrechbare Zauber', () => {
+    // Über die Daten aller Bösse geprüft, nicht über einen: Ein neuer Typ
+    // käme als Datensatz, und dieser Fall soll ihn sehen.
+    const alle = ['test-crucible-trial', 'test-metronome', 'test-onslaught', 'test-warden'];
+    for (const id of alle) {
+      for (const eintrag of boss(id).timeline) {
+        if (eintrag.mechanic === 'interruptibleCast') continue;
+        expect(
+          eintrag.castTimeMs,
+          `${id}: ein Eintrag der Art "${eintrag.mechanic}" hat eine Wirkzeit — ` +
+            `wird daraus ein laufender Boss-Zauber, ist nicht mehr jeder ` +
+            `unterbrechbar, und die Markierung gehört an den Balken`,
+        ).toBe(0);
+      }
+    }
+  });
+
+  it('läuft im Kampf, ohne dass die Anzeige eine Art unterscheiden müsste', () => {
+    // Der Gegenbeleg zur Regel oben: Solange ein laufender Zauber IMMER
+    // unterbrechbar ist, ist `casting >= 0` die ganze Aussage.
+    const combat = imKampf();
+    bisMs(combat, 6500);
+    expect(combat.casting).toBeGreaterThanOrEqual(0);
+    expect(combat.castingName).toBe('Cascade');
+  });
+});
+
 describe('Die Eskalation verkürzt das Fenster — sichtbar in den Zahlen', () => {
   it('gibt jedem Zyklus eine kürzere Wirkzeit', () => {
     // Die Zahlen, aus denen der Balken seine Länge zieht. Im Browser gemessen:
