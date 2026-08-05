@@ -332,6 +332,15 @@ export class Combat {
 
   /** Kampfzeit des nächsten Stapel-Schritts. */
   private nextStackAtMs = 0;
+  /**
+   * Wann die davonlaufende Reaktion das nächste Mal steigt (Issue #247).
+   *
+   * Im Konstruktor gesetzt, nicht erst in `beginFight` — die Wiedergabe ruft
+   * es nicht. Dieselbe Begründung wie bei Energieleiste, Zähler und Stapel;
+   * im verworfenen Anlauf hat genau das eine Vergleichsdatei aus lauter Nullen
+   * erzeugt.
+   */
+  private nextRunawayAtMs = 0;
 
   /** Kampfzeit des Spielertods, oder -1. */
   private diedAtMsValue = -1;
@@ -443,6 +452,7 @@ export class Combat {
     // nicht, und ein Startwert von 0 ließe beide schon im Takt 0 steigen.
     this.nextDoomAtMs = options.boss.doom?.perStepMs ?? 0;
     this.nextStackAtMs = options.boss.stacks?.perStepMs ?? 0;
+    this.nextRunawayAtMs = options.boss.runaway?.perStepMs ?? 0;
     this.doomChargesValue = options.boss.doom?.clearCharges ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
@@ -1097,6 +1107,7 @@ export class Combat {
     this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
     this.nextDoomAtMs = timeMs + (this.boss.doom?.perStepMs ?? 0);
     this.nextStackAtMs = timeMs + (this.boss.stacks?.perStepMs ?? 0);
+    this.nextRunawayAtMs = timeMs + (this.boss.runaway?.perStepMs ?? 0);
     // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
     this.raceDone = false;
     this.raceEndsAtMs = -1;
@@ -1348,6 +1359,25 @@ export class Combat {
       }
     }
 
+    // Die davonlaufende Reaktion (11.2, Baustein 6; #247).
+    //
+    // **Sie senkt den RING**, nicht einen zweiten Wert — der Ring ist die
+    // Reaktion (9.1). Der Fortschritt geht deshalb durch `bookProgress`, wie
+    // jeder andere auch: EINE Buchungsstelle, die das Fenster und die
+    // Boss-Heilung kennt.
+    //
+    // `vomSpieler: false` — sie ist kein Schaden. Das Fenster hält sie nicht
+    // auf, und sie darf nicht als "im Fenster verloren" erscheinen.
+    //
+    // Zwischen Zaehler und Schwaechung, dieselbe Stelle wie in `fight.rs`.
+    const runaway = this.boss.runaway;
+    if (runaway !== null && runaway.perStepMs > 0 && this.stateValue === FIGHT_RUNNING) {
+      while (timeMs >= this.nextRunawayAtMs) {
+        this.bookProgress(runaway.amount, -1, timeMs, false);
+        this.nextRunawayAtMs += runaway.perStepMs;
+      }
+    }
+
     // Die Schwaechung ohne Heil-Loesung (11.2, Baustein 8; #240).
     const aff = this.boss.affliction;
     if (aff !== null) {
@@ -1519,10 +1549,31 @@ export class Combat {
    * verschwinden ließe, nähme dem Spieler die einzige Auskunft, die ihn beim
    * nächsten Versuch besser macht.
    *
+   * SEIT #247 GIBT ES FORTSCHRITT OHNE ZAUBER: Die davonlaufende Reaktion
+   * senkt den Ring von selbst. Sie kommt hier durch dieselbe Tür wie alles
+   * andere — eine eigene Schreibstelle wäre genau die dritte, die dieser
+   * Kommentar seit #218 verbietet.
+   *
+   * Zwei Dinge musste sie mitdenken, und beide stehen deshalb als Parameter da:
+   *
+   * - **`vomSpieler`.** Das Unverwundbarkeits-Fenster schützt den Boss vor
+   *   SCHADEN. Eine Reaktion, die von selbst kippt, ist keiner — sie läuft im
+   *   Fenster weiter. Liefe sie in den Zweig, zählte sie außerdem als „im
+   *   Fenster verloren", und die Fehleranalyse (15.3) meldete dem Spieler
+   *   Schaden, den er nie gemacht hat.
+   * - **`spellIndex < 0`.** Ohne Zauber gibt es keine Spalte in der
+   *   Schadenstabelle; ein negativer Index legte dort ein Feld an, das keiner
+   *   Zeile entspricht.
+   *
    * @returns ob der Schaden am Boss angekommen ist
    */
-  private bookProgress(damage: number, spellIndex: number, timeMs: number): boolean {
-    if (this.raceEndsAtMs >= 0) {
+  private bookProgress(
+    damage: number,
+    spellIndex: number,
+    timeMs: number,
+    vomSpieler = true,
+  ): boolean {
+    if (vomSpieler && this.raceEndsAtMs >= 0) {
       // **Verloren am Boss, aber nicht wirkungslos.** Der Schaden laedt das
       // Ziel; erreicht es die Schwelle, ist es zerstoert und das Fenster endet
       // frueh. Genau das macht "der beste Moment fuer Overdrive" wahr.
@@ -1539,7 +1590,9 @@ export class Combat {
     }
     void timeMs;
     this.damageDealtValue += damage;
-    this.damageBySpell[spellIndex] = (this.damageBySpell[spellIndex] ?? 0) + damage;
+    if (spellIndex >= 0) {
+      this.damageBySpell[spellIndex] = (this.damageBySpell[spellIndex] ?? 0) + damage;
+    }
     return true;
   }
 

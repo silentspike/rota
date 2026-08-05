@@ -667,6 +667,7 @@ impl Fight {
         self.schedule_first_energy_tick();
         self.schedule_first_doom_tick();
         self.schedule_first_stack_tick();
+        self.schedule_first_runaway_tick();
         self.schedule_first_affliction();
         self.schedule_next_timeline_step();
         // Die erste Entscheidung faellt bei 0.
@@ -757,6 +758,7 @@ impl Fight {
         self.schedule_first_energy_tick();
         self.schedule_first_doom_tick();
         self.schedule_first_stack_tick();
+        self.schedule_first_runaway_tick();
         self.schedule_first_affliction();
         self.schedule_next_timeline_step();
 
@@ -1054,6 +1056,15 @@ impl Fight {
         if let Some(doom) = self.boss.doom {
             if doom.per_step_ms > 0 && doom.per_step_ms < self.duration_ms {
                 self.queue.push(doom.per_step_ms, EventKind::DoomTick);
+            }
+        }
+    }
+
+    /// Plant den ersten Schritt der davonlaufenden Reaktion ein (Issue #247).
+    fn schedule_first_runaway_tick(&mut self) {
+        if let Some(run) = self.boss.runaway {
+            if run.per_step_ms > 0 && run.per_step_ms < self.duration_ms {
+                self.queue.push(run.per_step_ms, EventKind::RunawayTick);
             }
         }
     }
@@ -1569,6 +1580,7 @@ impl Fight {
             EventKind::EnergyTick => self.energy_tick(),
             EventKind::DoomTick => self.doom_tick(),
             EventKind::StackTick => self.stack_tick(),
+            EventKind::RunawayTick => self.runaway_tick(),
             EventKind::AfflictionTick => self.affliction_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
@@ -1829,6 +1841,30 @@ impl Fight {
         }
         self.afflicted = false;
         self.afflictions_cleared += 1;
+    }
+
+    /// Die davonlaufende Reaktion senkt den Ring (Baustein 6, Issue #247).
+    ///
+    /// **Sie ist kein Schaden.** Deshalb geht sie durch `book_progress` und
+    /// nicht durch `deal`: Das Unverwundbarkeits-Fenster haelt sie nicht auf,
+    /// sie taucht nicht in der Schadenstabelle auf, und sie speist die
+    /// Umwandlung nicht. Liefe sie in den Fenster-Zweig, zaehlte sie ausserdem
+    /// als "im Fenster verloren" — die Fehleranalyse meldete dem Spieler dann
+    /// Schaden, den er nie gemacht hat.
+    fn runaway_tick(&mut self) {
+        let Some(run) = self.boss.runaway else {
+            return;
+        };
+        if self.killed_at.is_some() || self.died_at.is_some() {
+            return;
+        }
+
+        self.book_progress(run.amount);
+
+        let next = self.time + run.per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::RunawayTick);
+        }
     }
 
     /// Die Schwaechung greift oder tickt (Baustein 8, Issue #240).
@@ -2100,7 +2136,7 @@ impl Fight {
             self.log.push(self.time, kind, index as u8, amount);
             return amount;
         }
-        self.damage += amount;
+        self.book_progress(amount);
         self.damage_by_spell[index] += amount;
         self.log.push(self.time, kind, index as u8, amount);
         // **Hier und nur hier** speist Weg 3 (Issue #79). Jeder ausgeteilte
@@ -2110,6 +2146,22 @@ impl Fight {
         // liefe irgendwann weg.
         self.convert_damage_to_shield(amount);
         amount
+    }
+
+    /// Fortschritt am Ring buchen — **die einzige Stelle, die ihn erhoeht**.
+    ///
+    /// Seit #247 gibt es Fortschritt ohne Zauber: Die davonlaufende Reaktion
+    /// senkt den Ring von selbst. Sie kommt hier durch dieselbe Tuer wie
+    /// `deal`, damit es nicht zwei Stellen gibt, die kuenftige Sonderregeln
+    /// einzeln kennen muessten. Auf der Spielseite haelt ein Prueffall genau
+    /// das fest (`progress-writer-source.test.ts`).
+    ///
+    /// Was NICHT hierher gehoert und deshalb in `deal` bleibt: das
+    /// Unverwundbarkeits-Fenster, die Schadenstabelle, das Protokoll und die
+    /// Umwandlung. Alle vier gelten fuer ausgeteilten SCHADEN — die Reaktion
+    /// ist keiner.
+    fn book_progress(&mut self, amount: u32) {
+        self.damage += amount;
     }
 
     fn add_resource(&mut self, amount: u16) {
