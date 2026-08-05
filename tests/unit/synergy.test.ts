@@ -4,6 +4,11 @@ import { bossById, CALCINATION } from '../../src/core/data.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { hastedMs } from '../../src/core/haste.js';
 import { NOTHING_WORN } from '../../src/gear/worn.js';
+import { FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { COUNTDOWN_MS } from '../../src/core/phases.js';
+import { PressQueue } from '../../src/input/queue.js';
+import { Session } from '../../src/core/session.js';
+import type { RunSummary } from '../../src/core/summary.js';
 
 /**
  * Synergie-Fenster im Kampf (GAME-DESIGN 5, Issue #318).
@@ -159,5 +164,60 @@ describe('AC4 — das Fenster steht in Wartezeiten, nicht in Millisekunden', () 
       'FESTER wirkte nach dem gehasteten Fensterende und zählte trotzdem — ' +
         'dann steht das Fenster in Millisekunden statt in Wartezeiten',
     ).toBe(0);
+  });
+});
+
+describe('AC5/AC6 — die Auswertung zeigt die gemessene Ausbeute', () => {
+  /** Ein Lauf über die Session, mit genau den genannten Zaubern auf der Leiste. */
+  function laufMit(spellIds: readonly string[], druecke: readonly string[]): RunSummary {
+    const boss = FIRST_CRUCIBLE.value;
+    const combat = new Combat({ school: CALCINATION.value, boss });
+    const queue = new PressQueue();
+    const session = new Session(queue, combat);
+    spellIds.forEach((id, slot) => session.bind(slot, combat.indexOf(id)));
+    session.beginCountdown(0);
+
+    const ende = COUNTDOWN_MS + boss.overpressureMs;
+    let tick = 0;
+    for (let t = 0; t <= ende; t += 10) {
+      for (const id of druecke) {
+        const slot = spellIds.indexOf(id);
+        // Jeden genannten Zauber drücken, sobald er bereit ist — die Rotation
+        // ist hier gleichgültig, gemessen wird die Buchführung.
+        if (slot >= 0 && combat.isReady(combat.indexOf(id), t)) queue.push(slot, tick, t, tick);
+      }
+      session.tick(t);
+      tick++;
+    }
+    return session.summary(ende);
+  }
+
+  it('mit dem Paar auf der Leiste stehen Zahlen statt „unbestimmt" — AC5', () => {
+    const s = laufMit(['canker', 'fester'], ['canker', 'fester']);
+    expect(
+      s.synergyAvailable,
+      'CANKER und FESTER liegen und werden gewirkt — es muss Gelegenheiten geben',
+    ).toBeGreaterThan(0);
+    expect(s.synergyUsed, 'genutzt wurde keine einzige').toBeGreaterThan(0);
+    expect(s.synergyUsed).toBeLessThanOrEqual(s.synergyAvailable);
+  });
+
+  it('ohne das Paar bleibt es unbestimmt, nicht null — AC6', () => {
+    // **Der Unterschied, um den es geht.** Wer keine Synergie mitführt, hat
+    // keine Ausbeute von 0 % — er hat gar keine. Die Anzeige entscheidet das
+    // an `synergyAvailable === 0` (overlay.ts), deshalb muss diese Zahl 0
+    // bleiben und darf nicht etwa auf 1 hochlaufen, weil ein Fenster
+    // theoretisch offen stünde.
+    const s = laufMit(['kindle', 'smoulder'], ['kindle', 'smoulder']);
+    expect(s.synergyAvailable, 'ohne Paar darf keine Gelegenheit entstehen').toBe(0);
+    expect(s.synergyUsed).toBe(0);
+  });
+
+  it('und das Paar liefert wirklich andere Zahlen als kein Paar', () => {
+    // Ohne diesen Vergleich zeigte AC6 nur, dass eine Zahl 0 ist — nicht, dass
+    // sie es aus dem richtigen Grund ist.
+    const mit = laufMit(['canker', 'fester'], ['canker', 'fester']);
+    const ohne = laufMit(['kindle', 'smoulder'], ['kindle', 'smoulder']);
+    expect(mit.synergyAvailable).not.toBe(ohne.synergyAvailable);
   });
 });

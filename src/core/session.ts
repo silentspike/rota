@@ -601,11 +601,19 @@ export class Session implements Simulation {
       lostTimeWithReadyMs: this.idleWithReadyMs,
       lostTimeNothingReadyMs: this.idleNothingReadyMs,
       idlePerSpellMs: this.idlePerSpellMs,
-      // In Schritt 1 gibt es keine Synergien: eine Schule, keine
-      // schulübergreifenden Fenster (GAME-DESIGN 5). Beide Zahlen sind 0, und
-      // die Ausbeute bleibt damit unbestimmt statt erfunden.
-      synergyUsed: 0,
-      synergyAvailable: 0,
+      // **Aus dem Kampf, nicht mehr hart auf 0** (Issue #318). Die alte
+      // Begründung („eine Schule, keine schulübergreifenden Fenster") ist
+      // überholt: Heute liegen alle fünf Schulen im Kampf, und CANKER öffnet
+      // FESTER ein Fenster.
+      //
+      // **Unbestimmt bleibt unbestimmt.** Wer kein Synergie-Paar mitführt, hat
+      // `synergyAvailable === 0` — und die Auswertung zeigt dafür weiterhin
+      // „none available" statt einer Ausbeute von 0 %. Das ist kein
+      // Sonderfall, den diese Stelle behandeln müsste, sondern die Folge
+      // daraus, dass sie die gemessenen Zahlen durchreicht statt sie zu
+      // erfinden.
+      synergyUsed: this.combat.synergyUsed,
+      synergyAvailable: this.combat.synergyAvailable,
     });
   }
 
