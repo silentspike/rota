@@ -995,11 +995,11 @@ dem alten.
 Beim Nachmessen zeigte sich, dass es kein Einzelfall war — und dass **zwei verschiedene Ursachen
 gleich aussehen**:
 
-| Worktree | installiert | Branch enthält die Aktualisierung? | |
-| --- | --- | --- | --- |
-| `/work/rota` · `e2` | vitest 4.1.10 | ja | in Ordnung |
-| `e1` · `e9` | vitest 3.2.7 | **ja** | **falsches Werkzeug** → `npm ci` |
-| `e8` | vitest 3.2.7 | nein | in Ordnung — der Branch ist älter |
+| Worktree            | installiert   | Branch enthält die Aktualisierung? |                                   |
+| ------------------- | ------------- | ---------------------------------- | --------------------------------- |
+| `/work/rota` · `e2` | vitest 4.1.10 | ja                                 | in Ordnung                        |
+| `e1` · `e9`         | vitest 3.2.7  | **ja**                             | **falsches Werkzeug** → `npm ci`  |
+| `e8`                | vitest 3.2.7  | nein                               | in Ordnung — der Branch ist älter |
 
 Jeder Worktree hat sein eigenes `node_modules`; ein `npm install` in einem zieht die anderen nicht
 nach. In `e1` und `e9` wurde zu diesem Zeitpunkt gearbeitet.
@@ -1012,10 +1012,10 @@ nach. In `e1` und `e9` wurde zu diesem Zeitpunkt gearbeitet.
 > Zwei Ursachen, zwei Reparaturen — und wer sie verwechselt, fährt `npm ci` gegen ein Problem, das
 > es nicht hat:
 >
-> | Ursache | Prüfung | Reparatur |
-> | --- | --- | --- |
-> | `node_modules` nicht nachgezogen | `git merge-base --is-ancestor <commit> HEAD` sagt ja | `npm ci` |
-> | Branch älter als die Aktualisierung | dieselbe Prüfung sagt nein | `main` ziehen, dann `npm ci` |
+> | Ursache                             | Prüfung                                              | Reparatur                    |
+> | ----------------------------------- | ---------------------------------------------------- | ---------------------------- |
+> | `node_modules` nicht nachgezogen    | `git merge-base --is-ancestor <commit> HEAD` sagt ja | `npm ci`                     |
+> | Branch älter als die Aktualisierung | dieselbe Prüfung sagt nein                           | `main` ziehen, dann `npm ci` |
 
 > **Warum es niemandem auffiel:** Die CI fährt `npm ci` und misst deshalb korrekt. Ein PR ist grün,
 > die lokale Messung ist grün — nur eben mit zwei verschiedenen Werkzeugen. Solange beide dasselbe
