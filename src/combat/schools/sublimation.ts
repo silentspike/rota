@@ -56,6 +56,19 @@ export class SublimationMechanic implements RuleReceiver {
   private applications = 0;
   private shortenedTotal = 0;
 
+  /**
+   * Die Zähler eines neuen Versuchs (Issue #349).
+   *
+   * Sie hängen am Kampf und müssen mit ihm zurück. Gefunden hat es der
+   * Wächter in `tests/unit/reset-completeness.test.ts`, nicht ein Gedanke:
+   * Er vergleicht den zurückgesetzten Kampf gegen einen frisch gebauten und
+   * geht dabei auch eine Ebene tiefer.
+   */
+  reset(): void {
+    this.applications = 0;
+    this.shortenedTotal = 0;
+  }
+
   constructor(private readonly sink: CooldownSink) {}
 
   get applicationCount(): number {
