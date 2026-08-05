@@ -36,17 +36,12 @@ function neuerKampf(boss = TRIAL): Combat {
  * Zeit richtig.
  */
 function laufen(combat: Combat, bisMs: number, spellId?: string, abMs = 0): void {
-  const index = spellId === undefined ? -1 : combat.indexOf(spellId);
+  const index = spellId === undefined ? alsSpellIndex(-1) : combat.indexOf(spellId);
   combat.beginFight(0);
   for (let t = 0; t <= bisMs; t += TICK_MS) {
     combat.stepPassive(t);
-    if (
-      t >= abMs &&
-      index >= 0 &&
-      combat.gcd.isReady(t) &&
-      combat.isReady(alsSpellIndex(index), t)
-    ) {
-      combat.cast(alsSpellIndex(index), t);
+    if (t >= abMs && index >= 0 && combat.gcd.isReady(t) && combat.isReady(index, t)) {
+      combat.cast(index, t);
     }
   }
 }
