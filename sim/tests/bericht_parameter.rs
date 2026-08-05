@@ -30,8 +30,24 @@
 //! daraus geschlossen, der Waechter faenge nichts, und danach zwanzig Minuten
 //! an der falschen Stelle gesucht.
 //!
-//! Mit der Kampfdauer-Zeile (eine Fundstelle) schlaegt er sofort an,
-//! Rueckgabewert 101.
+//! Mit einem Begriff, der nur einmal vorkommt, schlaegt er sofort an —
+//! Rueckgabewert 101, und die Meldung nennt den fehlenden Parameter.
+//!
+//! # UND EIN ZWEITER SATZ, der mich weitere zwanzig Minuten gekostet hat
+//!
+//! **`cargo test --test X` baut NUR diesen Test, nicht die `examples/`.**
+//!
+//! Ich wollte pruefen, ob der Bau-Server die geaenderte Datei ueberhaupt
+//! bekommt, und habe dafuer einen Syntaxfehler in `rotation-balance.rs`
+//! eingebaut. Der Bau lief durch — woraus ich schloss, die Datei komme nicht
+//! an.
+//!
+//! Falsch. Sie kommt an; sie wird von diesem Befehl nur nicht ueberSETZT.
+//! `include_str!` liest sie trotzdem, naemlich zur Compile-Zeit des Tests.
+//!
+//! Wer wirklich pruefen will, ob eine Datei ankommt, muss sie in etwas
+//! einbauen, das der Befehl auch uebersetzt — oder `cargo test` ohne
+//! `--test` laufen lassen.
 //!
 //! # Was diese Pruefung NICHT kann
 //!
