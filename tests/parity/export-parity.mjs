@@ -37,6 +37,8 @@ import {
   buffsPayload,
   resetRunPayload,
   raceHealPayload,
+  trialBlocksPayload,
+  TRIAL_BLOCKS_NAME,
   gearPayload,
   hastePayload,
   wornPayload,
@@ -101,6 +103,10 @@ writeFileSync(resetRunPath, serialize(resetRun), 'utf8');
 const raceHeal = raceHealPayload();
 const raceHealPath = join(here, 'recordings', `${RACE_HEAL_NAME}.json`);
 writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
+
+const trialBlocks = trialBlocksPayload();
+const trialBlocksPath = join(here, 'recordings', `${TRIAL_BLOCKS_NAME}.json`);
+writeFileSync(trialBlocksPath, serialize(trialBlocks), 'utf8');
 
 const playerDamage = playerDamagePayload();
 const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);
