@@ -386,9 +386,14 @@ export class Session implements Simulation {
       //   Grenzfall, und er sperrt. Solange KINDLE liegt, bleibt die Quelle
       //   „nichts war bereit" strukturell leer.
       //
-      //   Mit einem langen Cooldown ist sie erreichbar: REFLUX allein
-      //   (cooldownMs 45000) ergibt 1 Takt bereit gegen 1851 Takte nicht
-      //   bereit.
+      //   Mit einem langen Cooldown ist sie erreichbar. Das rechnet
+      //   `tests/unit/idle-source-reachable.test.ts` nach — mit REFLUX
+      //   (cooldownMs 45000) allein und dem Gegenfall mit KINDLE dazu.
+      //
+      //   Hier stand vorher eine Zahl („1851 Takte nicht bereit"), die aus
+      //   einer fremden Messung abgeschrieben war und die keine Datei
+      //   nachrechnete. In einem Vermerk, der gegen unbelegte Behauptungen
+      //   geschrieben ist, war das die Behauptung selbst (#300).
       //
       // **Das ist kein Rechenfehler.** GAME-DESIGN 15.3 definiert Leerlauf als
       // „Fenster, in denen kein Zauber bereit war". Ist immer einer bereit,
