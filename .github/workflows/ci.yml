@@ -248,6 +248,37 @@ jobs:
           else
             echo "Noch keine Prüffälle vorhanden (kommen mit Epic E2). Übersprungen."
           fi
+      # ---------------------------------------------------------------------
+      # Die Vergleichsdateien sind der MASSSTAB der Prüfsummen-Prüffälle. Sind
+      # sie älter als die Regeln, laufen beide Seiten gegen einen veralteten
+      # Wert und melden grün, weil sie dieselbe alte Zahl reproduzieren
+      # (Issue #278).
+      #
+      # Der Export hat zwei Rollen, und nur eine gehört hierher:
+      #   erzeugen  NEIN — ein Gate, das schreibt, verändert den Prüfgegenstand
+      #   prüfen    JA  — „läuft er, und ändert er nichts?"
+      #
+      # Der Anlass: Der Export war seit 9d0885b kaputt (Exit 127) und acht
+      # Stunden lang fiel es niemandem auf, während vier PRs durchgingen.
+      # Repariert wurde er in PR #277 — der Grund, warum niemand es merkte,
+      # nicht. Ein `grep -rn "export-parity" .github/workflows/` fand damals
+      # keinen Treffer.
+      - name: Vergleichsdateien sind aktuell
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Erster Teil: Läuft der Export überhaupt? Das fängt den #277-Fall.
+          npx vite-node tests/parity/export-parity.mjs
+
+          # Zweiter Teil, und DAS ist der eigentliche Nachweis: Hat er etwas
+          # verändert? Wenn ja, waren die eingecheckten Dateien nicht auf dem
+          # Stand der Regeln — der Rückgabewert allein hätte das nicht gezeigt.
+          if [ -n "$(git status --porcelain -- tests/parity/recordings/)" ]; then
+            echo "::error::Die Vergleichsdateien sind nicht auf dem Stand der Regeln. Führe 'npm run parity:export' aus und checke das Ergebnis ein."
+            git --no-pager diff --stat -- tests/parity/recordings/
+            exit 1
+          fi
+          echo "Die Vergleichsdateien entsprechen dem heutigen Regelstand."
       - name: Simulator gegen Spiel
         shell: bash
         run: |

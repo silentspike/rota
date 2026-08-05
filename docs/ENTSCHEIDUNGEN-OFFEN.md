@@ -9,6 +9,12 @@ Umsetzung. Jede steht hier mit **Beleg, Optionen und Folge** — und mit dem, wa
 
 Stand: 2026-08-05. Gemessen, nicht erinnert — jeder Beleg unten ist ein ausgeführter Befehl.
 
+> **Warum hier keine Zeilennummern stehen.** Die erste Fassung dieser Datei zitierte
+> `overlay.ts:352`. Eine Stunde später war es Zeile 370 — ein gemergter PR hatte die Datei
+> verschoben. Am selben Tag zeigten fünf offene Issues Zeilennummern, hinter denen inzwischen
+> etwas anderes stand. Eine Zeilennummer in einem Dokument ist eine Abschrift, die niemand
+> pflegt; ein `grep` findet die Stelle auch morgen noch.
+
 ---
 
 ## 1. Darf derselbe Zauber auf zwei Plätzen liegen?
@@ -49,8 +55,10 @@ Frage falsch, für die es sie gibt.
 Es gibt keine Punkte. `score` kommt im Quelltext an genau zwei Stellen vor:
 
 ```
-src/render/overlay.ts:352        set('score', '—');
-src/analysis/save-format.ts:178  /score(?!board)/i    ← verbotenes Feld im Spielstand
+$ grep -rn "score" src/render/overlay.ts src/analysis/save-format.ts
+  save-format.ts   /score(?!board)/i,       ← verbotenes Feld im Spielstand
+  overlay.ts       ['score', 'Score'],      ← die Beschriftung
+  overlay.ts       set('score', '—');       ← der Wert
 ```
 
 Der zweite ist richtig so: GAME-DESIGN 18.5 verbietet berechnete Werte im Spielstand, die auf
@@ -59,8 +67,8 @@ kommende Kämpfe zurückwirken. Es fehlt also nicht die Speicherung, sondern die
 Das Design gibt die Richtung vor und lässt die Kurve offen:
 
 ```
-docs/GAME-DESIGN.md:2179
-| Punkteformel | Konkrete überproportionale Kurve | E5 |
+$ grep -n "Punkteformel" docs/GAME-DESIGN.md
+  | Punkteformel | Konkrete überproportionale Kurve | E5 |
 ```
 
 **Überproportional** heißt: Die letzten Sekunden Restzeit sind unverhältnismäßig viel wert, damit
@@ -86,8 +94,9 @@ es brauchen.
 Befund aus #224, gemessen an beiden Seiten:
 
 ```
-sim/src/fight.rs:168      pub const DECAY_STACK_PERCENT: u32 = 3;
-src/core/combat.ts:101    export const DECAY_STACK_PERCENT = 3;
+$ grep -rn "DECAY_STACK_PERCENT" sim/src/fight.rs src/core/combat.ts | grep const
+  fight.rs     pub const DECAY_STACK_PERCENT: u32 = 3;
+  combat.ts    export const DECAY_STACK_PERCENT = 3;
 ```
 
 Bei 4,5 s Abklingzeit und 12 s Haltbarkeit sind höchstens **drei** Stapel gleichzeitig erreichbar.
@@ -141,8 +150,9 @@ Einträge als fertig gelten, und lässt den Mangel selbst bestehen.
 Das Design sagt:
 
 ```
-docs/GAME-DESIGN.md:789   | PUTREFACTION | schwarz-violett |
-docs/GAME-DESIGN.md:791   > Schwarz-violett braucht auf dunklem Grund sorgfältige Abstimmung.
+$ grep -n "violett" docs/GAME-DESIGN.md
+  | PUTREFACTION | schwarz-violett |
+  > Schwarz-violett braucht auf dunklem Grund sorgfältige Abstimmung.
 ```
 
 Gemessen ist es kein Abstimmungsproblem, sondern ein Zielkonflikt. Kontrast gegen den Grund des
