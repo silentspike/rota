@@ -238,3 +238,30 @@ fn ein_gewirkter_zauber_entfernt_veraendert_die_gefundene_rotation() {
          Suche, sondern eine verdrahtete Liste"
     );
 }
+
+#[test]
+#[ignore = "1546 Listen; einmal zur Absicherung der Laengengrenze"]
+fn die_laengengrenze_verschweigt_kein_besseres_ergebnis() {
+    // MAX_LEN = 4 ist eine Abwaegung, keine Messung: Bei acht Kandidaten und
+    // Laenge 5 waeren es ueber 20.000 Listen. Also einmal an der KLEINSTEN
+    // Teilmenge nachsehen, ob die Grenze etwas verdeckt.
+    //
+    //   gleiche Zahl  -> die Grenze ist belegt statt angenommen
+    //   hoehere Zahl  -> jede bisherige Aussage ueber "das Optimum" ist falsch
+    let config = config("first-crucible");
+    let teilmenge = pool(TEILMENGEN[0].1);
+    let bis_vier = exhaustive(&config, &teilmenge, 4);
+    let bis_fuenf = exhaustive(&config, &teilmenge, 5);
+    eprintln!(
+        "LAENGENGRENZE: bis 4 {:.1} ({} Listen) | bis 5 {:.1} ({} Listen)",
+        bis_vier.best.mean, bis_vier.measured, bis_fuenf.best.mean, bis_fuenf.measured
+    );
+    assert!(
+        (bis_fuenf.best.mean - bis_vier.best.mean).abs() < f64::EPSILON,
+        "Eine fuenfzeilige Liste ist besser: {:.1} gegen {:.1}. Damit ist \
+         MAX_LEN = 4 keine Abwaegung mehr, sondern ein Fehler — die bisherige \
+         Aussage ueber das Optimum faellt.",
+        bis_fuenf.best.mean,
+        bis_vier.best.mean
+    );
+}
