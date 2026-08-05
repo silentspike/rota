@@ -243,6 +243,15 @@ export interface SummaryInput {
   readonly lostTimeNothingReadyMs: number;
   /** Leerlauf je Zauber in ms, nach Kennnummer. */
   readonly idlePerSpellMs: Float64Array;
+  /**
+   * Welche Zauber auf der Leiste liegen — 1 je gebundenem (Issue #306, AC4).
+   *
+   * **Pflichtfeld, nicht optional mit Vorgabe „alle".** Eine Vorgabe hier
+   * schwiege genau dann, wenn ein künftiger Aufrufer sie zu reichen vergisst —
+   * und die Aufschlüsselung führte wieder alle Zauber der Schule. Ein Wächter,
+   * der bei Nachlässigkeit den alten Zustand herstellt, ist keiner.
+   */
+  readonly boundSpells: Uint8Array;
   readonly synergyUsed: number;
   readonly synergyAvailable: number;
 }
@@ -259,6 +268,14 @@ export function buildSummary(input: SummaryInput): RunSummary {
   for (let i = 0; i < combat.spells.length; i++) {
     const spell = combat.spells[i];
     if (spell === undefined) continue;
+    // **Nur was auf der Leiste liegt** (Issue #306, AC4). Ein Zauber ohne Platz
+    // kann nicht „ungenutzt bereit liegen" (GAME-DESIGN 15.1) — er ist gar
+    // nicht wirkbar. Die Zeile wäre keine Untertreibung, sondern falsch.
+    //
+    // Heute fiele es kaum auf: 15 Zauber bei 15 gebauten. Version 1 hat 60 bei
+    // 12 bis 16 Plätzen — dann stünden über vierzig Zeilen mit 0.0 s in einer
+    // Liste, die nach Verlust sortiert sein soll.
+    if (input.boundSpells[i] !== 1) continue;
     const idleMs = input.idlePerSpellMs[i] ?? 0;
     idlePerSpell.push({
       spellId: spell.id,

@@ -405,8 +405,13 @@ export interface DevTools {
     receivers: Record<string, string[]>;
     measurementEmitted: number;
   };
-  /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
-  bindSlot(slot: number, spellId: string): boolean;
+  /**
+   * Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten.
+   *
+   * `null` **leert** den Platz (Issue #306). Ohne das lässt sich eine Leiste
+   * ohne einen zuvor gebundenen Zauber gar nicht herstellen.
+   */
+  bindSlot(slot: number, spellId: string | null): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
   setResource(value: number): void;
   /** Verbleibende Lebenspunkte des Bosses setzen (GAME-DESIGN 19.1). */
@@ -876,7 +881,15 @@ export function installDevTools(app: App): void {
         measurementEmitted: ruleBus.emittedCount,
       };
     },
-    bindSlot: (slot: number, spellId: string) => {
+    bindSlot: (slot: number, spellId: string | null) => {
+      // **`null` leert den Platz** (Issue #306, AC7). Vorher lief das ueber
+      // `indexOf(null)`, das -1 lieferte und den Aufruf mit `false` abbrechen
+      // liess — der Platz blieb belegt, und AC4 war im Browser nicht
+      // nachweisbar: Man bekam nie eine Leiste OHNE den Zauber.
+      if (spellId === null) {
+        app.session.bind(slot, NO_SPELL);
+        return true;
+      }
       const index = app.combat.indexOf(spellId);
       if (index < 0) return false;
       app.session.bind(slot, index);

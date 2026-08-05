@@ -74,6 +74,9 @@ function spielen(boss: typeof FIRST_CRUCIBLE.value, spellId?: string, nurAlleMs 
     lostTimeWithReadyMs: leerMs,
     lostTimeNothingReadyMs: 0,
     idlePerSpellMs: new Float64Array(combat.spells.length),
+    // **Alle als gebunden** (Issue #306): Dieser Fall misst Verlust und
+    // Umkehr, nicht die Aufschlüsselung. Der Filter darf ihm nichts wegnehmen.
+    boundSpells: new Uint8Array(combat.spells.length).fill(1),
     synergyUsed: 0,
     synergyAvailable: 0,
   });

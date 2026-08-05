@@ -243,9 +243,13 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // stillgelegen", sondern „gab es eine Gelegenheit, die er ungenutzt ließ".
     // Das steht als Kriterium in Issue #81 (E7) und gehört dorthin.
     // **Abgeleitet, nicht abgeschrieben** (Issue #201). Die Zusammenfassung
-    // fuehrt einen Eintrag je Zauber — welche Zahl das ist, sagt der
-    // Zauberkasten und nicht diese Zeile.
-    expect(summary.idlePerSpell.length).toBe(CALCINATION.value.spells.length);
+    // fuehrt einen Eintrag je GEBUNDENEM Zauber — welche Zahl das ist, sagt
+    // die Leiste und nicht diese Zeile.
+    //
+    // Hier stand `CALCINATION.value.spells.length`, also alle fuenfzehn. Das
+    // war der Fehler aus #306: Ein Zauber ohne Platz kann nicht "ungenutzt
+    // bereit liegen" (GAME-DESIGN 15.1) — er ist gar nicht wirkbar.
+    expect(summary.idlePerSpell.length).toBe(h.session.boundSlotCount());
     const belegt = summary.idlePerSpell.filter((e) =>
       ['kindle', 'smoulder', 'pyre'].includes(e.spellId),
     );
@@ -254,8 +258,10 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
       expect(entry.idleMs).toBe(3000);
       expect(entry.share).toBeCloseTo(1);
     }
-    // Der Unbelegte steht mit null da — nicht mit Leerlauf.
-    expect(summary.idlePerSpell.find((e) => e.spellId === 'quench')?.idleMs).toBe(0);
+    // **Der Unbelegte steht gar nicht mehr da.** Vorher fuehrte ihn die Liste
+    // mit null — eine Zeile "lag ungenutzt bereit" fuer einen Zauber, der auf
+    // keinem Platz liegt.
+    expect(summary.idlePerSpell.find((e) => e.spellId === 'quench')).toBeUndefined();
   });
 
   it('zählt einen Zauber auf Abklingzeit nicht als Leerlauf', () => {
@@ -273,6 +279,15 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     expect(by.get('kindle')).toBe(1500);
     expect(by.get('smoulder')).toBe(1500);
     expect(by.get('pyre')).toBe(0); // 5 s Abklingzeit, nie wieder bereit
+    // **Und nur diese drei** (Issue #306): `setup()` bindet drei Plaetze, die
+    // Schule hat fuenfzehn Zauber. Vorher standen alle fuenfzehn in der Liste,
+    // zwoelf davon mit 0 — die Zeile "lag ungenutzt bereit" fuer einen Zauber,
+    // der auf keinem Platz liegt und gar nicht wirkbar ist.
+    // Genau die drei aus `setup()` — dieselben, die zwei Zeilen darueber
+    // einzeln geprueft werden.
+    expect([...by.keys()].sort(), 'die Liste fuehrt andere Zauber als die drei gebundenen').toEqual(
+      ['kindle', 'pyre', 'smoulder'],
+    );
   });
 
   it('sortiert nach Verlust, größter zuerst', () => {
@@ -295,11 +310,23 @@ describe('Kurzfassung — die drei Kennzahlen (AC3)', () => {
     // Die Aussage ist ohnehin eine andere: Bei Gleichstand entscheidet die
     // Kennung, damit die Reihenfolge zwischen zwei Laeufen nicht springt. Das
     // laesst sich pruefen, ohne die Namen zu kennen.
-    const ohneLeerlauf = list.filter((e) => e.idleMs === 0).map((e) => e.spellId);
+    // **Zwei weitere Zauber auf die Leiste** (Issue #306). Seit die
+    // Aufschluesselung nur gebundene fuehrt, reichen die drei aus `setup()`
+    // nicht mehr: Nur PYRE stuende bei 0, und die Aussage ueber den Gleichstand
+    // liesse sich an einem einzigen Eintrag gar nicht pruefen.
+    //
+    // Hier stand vorher `expect(ohneLeerlauf).toContain('quench')` mit der
+    // Begruendung "QUENCH ist nicht belegt". Genau das war der Fehler aus
+    // #306: Ein Zauber, der auf keinem Platz liegt, kann nicht "ungenutzt
+    // bereit liegen" — er gehoerte nie in die Liste.
+    h.session.bind(3, h.combat.indexOf('quench'));
+    h.session.bind(4, h.combat.indexOf('vapour'));
+    const nachBindung = h.session.summary(3000).idlePerSpell;
+    const ohneLeerlauf = nachBindung.filter((e) => e.idleMs === 0).map((e) => e.spellId);
     expect(ohneLeerlauf.length).toBeGreaterThan(1);
     expect(ohneLeerlauf).toEqual([...ohneLeerlauf].sort());
     // Und die Namen, auf die es ankommt, sind darunter: PYRE liegt auf
-    // Abklingzeit, QUENCH ist nicht belegt.
+    // Abklingzeit, QUENCH lag bereit und wurde nie gewirkt.
     expect(ohneLeerlauf).toContain('pyre');
     expect(ohneLeerlauf).toContain('quench');
     expect(list[list.length - 1]?.idleMs).toBe(0);
