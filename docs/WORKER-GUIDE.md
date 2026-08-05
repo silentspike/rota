@@ -1670,6 +1670,32 @@ melden, dann wird er in der SSOT aufgelöst.
 | **Umlaute**           | In Doku, Kommentaren und Commit-Messages echte Umlaute (ä ö ü ß), nicht ae/oe/ue/ss. ASCII nur in Bezeichnern, Dateinamen, URLs |
 | **Keine Emojis**      | Weder im Code noch in der Oberfläche noch in Commits                                                                            |
 
+### Werkzeuge, die schweigen oder etwas anderes tun
+
+Fünf Fälle, gesammelt am 2026-08-05 und vom Orchestrator im Quelltext nachgemessen. Sie haben eines
+gemeinsam: **Der Aufruf sieht erfolgreich aus, und das Ergebnis sieht nach einem anderen Fehler
+aus.**
+
+| Werkzeug                     | Was passiert                                                                                                                                                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `playwright-cli` Tastendruck | Der Eingabe-Router liest **`code`**, nicht `key` (`router.ts:121` `positionForCode(event.code)`). Ein Druck ohne `code` kommt nicht an — **ohne Fehlermeldung**                                                                                                                   |
+| Tastendruck ohne `keyup`     | zählt als **gehaltene** Taste: `router.ts:133` verwirft den zweiten Druck (`held[position] === 1`), und nur `handleKeyUp` setzt ihn zurück                                                                                                                                        |
+| `__rota.bindSlot`            | meldet `true` und bindet die **Sitzung** — die Zusammenstellungs-Ansicht liest den **Spielstand**. Zwei verschiedene Dinge. Und `bindSlot(slot, null)` tut gar nichts: `indexOf(null)` ist `-1`, der Aufruf meldet `false` („Zauber unbekannt") statt „Entbinden geht hier nicht" |
+| `npm run parity:export`      | **Exit-Code prüfen.** Ein Lauf mit Exit 127 ändert nichts und sieht aus wie „keine Änderung" — genau so blieb der Export acht Stunden lang kaputt, während vier PRs durchgingen (#277)                                                                                            |
+| `git checkout main`          | schlägt fehl, wenn eine andere Sitzung `main` hält. Dann `git checkout -b <neu> origin/main` oder `git checkout --detach origin/<zweig>`                                                                                                                                          |
+
+**Der erste Fall hat an einem Tag zwei Sitzungen getroffen.** Der Orchestrator maß bei der Abnahme
+von #280 einen Kampf mit `Damage 0` und `100 % Leerlauf` und hätte daraus fast einen Befund an
+fremder Arbeit gemacht — tatsächlich hatte er `playwright-cli key` statt `press` benutzt, einen
+Befehl, den es nicht gibt. **Er meldete keinen Fehler.**
+
+> Das Werkzeug hat geschwiegen und nichts getan, und das Ergebnis sah aus wie ein Befund an der
+> Arbeit eines anderen.
+
+**Die Gegenmaßnahme ist dieselbe wie überall hier:** Bevor du aus einem Messergebnis einen Befund
+machst, prüfe an einem Merkmal, dass die Messung überhaupt stattgefunden hat — ein Wert, der sich
+bewegt haben _muss_, wenn das Werkzeug gewirkt hat.
+
 ---
 
 ## 9. Wie die Kommunikation läuft
