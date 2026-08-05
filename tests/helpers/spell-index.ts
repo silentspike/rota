@@ -21,10 +21,17 @@ import { CALCINATION } from '../../src/core/data.js';
  * Bestand — es gibt derzeit nichts, wovon ein zweiter Kampf sich
  * unterscheiden könnte.
  *
- * **„Allgemeiner" ist damit keine belegbare Aussage, sondern eine über die
- * Zukunft.** Belegbar ist: Der Parameter nimmt die Annahme weg, dass es bei
- * einer Schule bleibt. Er ist keine Verbesserung, die man heute messen kann,
- * sondern eine, die man später nicht nachtragen muss.
+ * **Aber „man kann es heute nicht messen" wäre falsch.** Ein Fall, in dem die
+ * beiden Fassungen Verschiedenes liefern, ist in vier Zeilen gebaut: `Combat`
+ * nimmt jede `SchoolDef`, also auch eine mit gekürzter Zauberliste. Dann zählt
+ * `spellIndex(id)` in der vollen Schule und `spellIndex(id, combat)` in der
+ * des Kampfes — und die Zahlen gehen auseinander. `spell-index-helper.test.ts`
+ * hält das fest.
+ *
+ * Was fehlt, ist also nicht die Wirkung, sondern **ein Aufrufer im Bestand,
+ * der sie braucht.** Der Unterschied ist wichtig: „nicht messbar" klingt nach
+ * Vorrat auf Verdacht; „heute nutzt es niemand" ist eine Aussage über den
+ * Bestand, nicht über die Fähigkeit.
  */
 /**
  * Der Index eines Zaubers, **über den Bezeichner statt über die Zahl**
