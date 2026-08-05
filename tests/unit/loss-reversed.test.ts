@@ -40,7 +40,7 @@ if (RUNAWAY === undefined) throw new Error('data/bosses/test-runaway.json fehlt.
 /** Ein echter Lauf, keine von Hand gesetzte Kurzfassung. */
 function spielen(boss: typeof FIRST_CRUCIBLE.value, spellId?: string, nurAlleMs = 0): RunSummary {
   const combat = new Combat({ school: CALCINATION.value, boss });
-  const index = spellId === undefined ? -1 : combat.indexOf(spellId);
+  const index = spellId === undefined ? alsSpellIndex(-1) : combat.indexOf(spellId);
   combat.beginFight(0);
   let letzte = 0;
   let casts = 0;
@@ -55,13 +55,8 @@ function spielen(boss: typeof FIRST_CRUCIBLE.value, spellId?: string, nurAlleMs 
     letzte = t;
     if (combat.checkDefeat(t)) break;
     const willWirken = nurAlleMs <= 0 || t % nurAlleMs === 0;
-    if (
-      index >= 0 &&
-      willWirken &&
-      combat.gcd.isReady(t) &&
-      combat.isReady(alsSpellIndex(index), t)
-    ) {
-      combat.cast(alsSpellIndex(index), t);
+    if (index >= 0 && willWirken && combat.gcd.isReady(t) && combat.isReady(index, t)) {
+      combat.cast(index, t);
       casts++;
     } else if (combat.gcd.isReady(t)) {
       leerMs += TICK_MS;
