@@ -1,0 +1,91 @@
+/**
+ * Die Leiste belegen (Issue #264).
+ *
+ * Folgt der Werte- und Aufstiegs-Übersicht, damit die drei Bereiche im Player
+ * Home wie ein Bildschirm aussehen und nicht wie drei.
+ */
+
+.composition {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+}
+
+.composition-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.composition-table td {
+  padding: 4px 12px 4px 0;
+  vertical-align: baseline;
+}
+
+.composition-slot {
+  color: #a09a8b;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.composition-select {
+  font-family: inherit;
+  font-size: 14px;
+  color: #e6dfd1;
+  background: #1a1613;
+  border: 1px solid #3a332b;
+  padding: 3px 6px;
+  min-width: 18ch;
+}
+
+.composition-select:focus {
+  outline: 1px solid #d08a3c;
+}
+
+/* Tritt zurück: eine Auskunft, keine Aufforderung. */
+.composition-locked {
+  color: #7d7768;
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+/* --- Zwei Spalten: links die Zauber, rechts die Leiste (GAME-DESIGN 16) --- */
+.composition {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.composition-spells,
+.composition-bar {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.composition-heading {
+  color: #8b8474;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+/* Der Rand trägt die Schulfarbe; sie wird am Element gesetzt, weil sie aus
+   den Daten kommt und nicht aus der Gestaltung. */
+.composition-group {
+  border-left: 2px solid #3a352e;
+  margin: 0 0 12px;
+  padding: 0 0 0 10px;
+}
+
+.composition-group-title {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.composition-spell {
+  color: #b9b2a4;
+  font-size: 13px;
+  line-height: 1.5;
+}
