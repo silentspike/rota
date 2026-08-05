@@ -261,21 +261,35 @@ export interface DoomDef {
  * Wer ihn einfach verschwinden ließe, nähme dem Spieler die einzige Auskunft,
  * die ihn beim nächsten Versuch besser macht.
  *
- * WAS DAS FENSTER VORZEITIG BEENDET, STEHT HIER NICHT
- * ---------------------------------------------------
- * 11.2 sagt „etwas anderes muss zerstört werden", und was dieses Andere ist,
- * ist Design und nicht Umsetzung (Frage an den Auftraggeber, Meldung 1280).
- * Die Daten sagen deshalb nur, **wann** das Fenster beginnt und **wie lange**
- * es höchstens dauert; beendet wird es über `Combat.endRace()`.
+ * DAS ZIEL IST EIN SCHWELLENWERT, KEIN OBJEKT
+ * -------------------------------------------
+ * 11.2 sagt „etwas anderes muss zerstört werden". Ein zweites Ziel mit eigenen
+ * Lebenspunkten wäre ein **Zusatzgegner**, und GAME-DESIGN 22 verschiebt
+ * Zusatzgegner und Zielwechsel ausdrücklich auf Version 2 — sie zögen eine
+ * zweite Rotationsebene ein.
  *
- * Dasselbe Muster wie die Rücksetz-Handlung des Zählers (#216): Der
- * Mechanismus steht, die Bindung entscheidet E10.
+ * Stattdessen lädt der Schaden im Fenster einen **Zähler**. Erreicht er
+ * `threshold` vor Ablauf, ist das Ziel zerstört und das Fenster endet früh.
+ *
+ * **Es ist die Energieleiste mit umgekehrter Füllrichtung** (Baustein 1): Dort
+ * steigt sie von selbst und löst bei 100 aus, hier füllt der Spieler sie. Kein
+ * zweites Ziel, kein Zielwechsel, keine neue Handlung — er drückt weiter
+ * dieselben Tasten auf denselben Boss.
+ *
+ * Und „der beste Moment für Overdrive" trägt: Viel Schaden in ein kurzes
+ * Fenster zu legen ist genau die Aufgabe.
  */
 export interface RaceDef {
   /** Zeitpunkt seit Kampfbeginn, zu dem das Fenster beginnt. Auf dem Raster. */
   readonly atMs: number;
   /** Wie lange es höchstens dauert. */
   readonly windowMs: number;
+  /**
+   * Wie viel Schaden im Fenster das Ziel zerstört.
+   *
+   * Vorläufig — wird gemessen.
+   */
+  readonly threshold: number;
 }
 
 /**
@@ -290,11 +304,23 @@ export interface RaceDef {
  * „Nur für einzelne Bosse" ist eine Design-Auflage und keine technische: Hier
  * entsteht der Mechanismus, wer ihn trägt, entscheidet E10.
  *
- * **Was als Fehler zählt, steht hier nicht** (Meldung 1280). Die Daten nennen
- * den Betrag; ausgelöst wird über `Combat.healBoss()`.
+ * DER AUSLÖSER IST DER DURCHGEKOMMENE BOSS-ZAUBER
+ * -----------------------------------------------
+ * Kein neuer Fehler-Begriff: Baustein 9 ist gebaut, `interruptsMissed` zählt
+ * bereits, und der Spieler kennt die Mechanik.
+ *
+ * **Aber keine feste Kopplung.** Wie viel ein verpasster Unterbrecher heilt,
+ * sagt der Boss-Datensatz; fehlt das Feld, heilt nichts. Eine feste Kopplung
+ * gälte für **alle** Bosse — und 11.2 sagt zu diesem Baustein ausdrücklich
+ * „nur für einzelne Bosse, sonst frustrierend". Als Datenfeld ist es die
+ * Eigenschaft des einen Bosses, der es bekommt; welcher, entscheidet E10.
  */
 export interface BossHealDef {
-  /** Wie viel Fortschritt ein Fehler zurückdreht. */
+  /**
+   * Wie viel Fortschritt ein durchgekommener Boss-Zauber zurückdreht.
+   *
+   * Vorläufig — wird gemessen.
+   */
   readonly amount: number;
 }
 
@@ -871,13 +897,19 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       );
     }
     if (windowMs <= 0) problems.push('Das Wettrennen hat keine Dauer (windowMs).');
+    const threshold = number(source['race']['threshold'], 0);
+    // Eine Schwelle von 0 waere sofort erreicht — das Fenster endete im selben
+    // Takt, in dem es beginnt, und die Mechanik gaebe es nur auf dem Papier.
+    if (threshold <= 0) {
+      problems.push('Das Wettrennen hat keine Schwelle (threshold) — es endete sofort.');
+    }
     if (windowMs % TICK_MS !== 0) {
       problems.push(
         `race.windowMs ${windowMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
           'das Fenster endete auf beiden Seiten verschieden.',
       );
     }
-    race = { atMs, windowMs };
+    race = { atMs, windowMs, threshold };
   }
 
   let bossHeal: BossHealDef | null = null;

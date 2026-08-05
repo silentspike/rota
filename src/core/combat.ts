@@ -307,6 +307,17 @@ export class Combat {
   /** Schaden, der im Fenster verpuffte. Verloren, nicht ausgeteilt. */
   private damageLostToRaceValue = 0;
 
+  /**
+   * Wie weit das Ziel im laufenden Fenster geladen ist (Issue #218).
+   *
+   * Es ist die Energieleiste mit umgekehrter Fuellrichtung: Dort steigt sie
+   * von selbst, hier fuellt der Spieler sie mit Schaden.
+   */
+  private raceProgressValue = 0;
+
+  /** Ob das Ziel zerstoert wurde, statt dass die Zeit ablief. */
+  private raceWonValue = false;
+
   /** Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218). */
   private bossHealedValue = 0;
 
@@ -560,6 +571,16 @@ export class Combat {
    */
   get raceOpen(): boolean {
     return this.raceEndsAtMs >= 0;
+  }
+
+  /** Wie weit das Ziel im laufenden Fenster geladen ist (Issue #218). */
+  get raceProgress(): number {
+    return this.raceProgressValue;
+  }
+
+  /** Ob das Ziel zerstört wurde — der Erfolgsfall des Wettrennens. */
+  get raceWon(): boolean {
+    return this.raceWonValue;
   }
 
   /** Schaden, der im Fenster verpuffte — verloren, nicht ausgeteilt. */
@@ -1340,6 +1361,14 @@ export class Combat {
       this.castLandsAtMs = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
+      // **Ein Fehler macht Fortschritt rueckgaengig** (11.2, Baustein 5;
+      // Issue #218). Der Auslöser ist der durchgekommene Boss-Zauber — kein
+      // neuer Fehler-Begriff, und `interruptsMissed` zaehlt ihn ohnehin.
+      //
+      // Ob und wie viel er heilt, sagt der BOSS-Datensatz. Eine feste
+      // Kopplung gaelte fuer alle Bosse; 11.2 sagt "nur fuer einzelne, sonst
+      // frustrierend".
+      this.healBoss();
     }
 
     for (;;) {
@@ -1419,7 +1448,18 @@ export class Combat {
    */
   private bookProgress(damage: number, spellIndex: number, timeMs: number): boolean {
     if (this.raceEndsAtMs >= 0) {
+      // **Verloren am Boss, aber nicht wirkungslos.** Der Schaden laedt das
+      // Ziel; erreicht es die Schwelle, ist es zerstoert und das Fenster endet
+      // frueh. Genau das macht "der beste Moment fuer Overdrive" wahr.
       this.damageLostToRaceValue += damage;
+      const race = this.boss.race;
+      if (race !== null) {
+        this.raceProgressValue += damage;
+        if (this.raceProgressValue >= race.threshold) {
+          this.raceWonValue = true;
+          this.raceEndsAtMs = -1;
+        }
+      }
       return false;
     }
     void timeMs;
@@ -1429,28 +1469,13 @@ export class Combat {
   }
 
   /**
-   * Das Wettrennen vorzeitig beenden (11.2, Baustein 4; Issue #218).
-   *
-   * **WAS es beendet, steht hier nicht.** 11.2 sagt „etwas anderes muss
-   * zerstört werden"; was dieses Andere ist, ist Design und liegt beim
-   * Auftraggeber (Meldung 1280). Dieselbe Bauart wie `clearDoom` in #216: Der
-   * Mechanismus steht, die Bindung entscheidet E10.
-   *
-   * @returns ob ein Fenster offen war
-   */
-  endRace(): boolean {
-    if (this.raceEndsAtMs < 0) return false;
-    this.raceEndsAtMs = -1;
-    return true;
-  }
-
-  /**
    * Den Boss um den Betrag aus den Daten heilen (Baustein 5; Issue #218).
    *
    * > Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz.
    *
-   * **WAS als Fehler zählt, steht hier nicht** (Meldung 1280) — die Daten
-   * nennen den Betrag, den Auslöser entscheidet E10.
+   * **Ausgelöst vom durchgekommenen Boss-Zauber** — kein neuer Fehler-Begriff.
+   * Wie viel er heilt, sagt der Boss-Datensatz; fehlt das Feld, heilt nichts.
+   * Eine feste Kopplung gälte für alle Bosse, und 11.2 sagt „nur für einzelne".
    *
    * Der Fortschritt fällt nie unter null: Ein Boss, der mehr „geheilt" wird,
    * als je Schaden gefallen ist, hätte negativen Fortschritt, und jede
