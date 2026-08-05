@@ -2731,7 +2731,9 @@ export function newCalcinationPayload(): Record<string, unknown> {
       // **Je Zauber, damit sichtbar ist, dass BEIDE gewirkt wurden.** Eine
       // Gesamtzahl verstiege sich zu der Aussage, dass überhaupt gedrückt
       // wurde — nicht, dass beide dabei waren.
-      casts: Object.fromEntries(bindings.map((b) => [b.spellId, combat.castCount(combat.indexOf(b.spellId))])),
+      casts: Object.fromEntries(
+        bindings.map((b) => [b.spellId, combat.castCount(combat.indexOf(b.spellId))]),
+      ),
     },
     checksums,
   };

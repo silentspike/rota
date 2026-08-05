@@ -24,7 +24,6 @@ import type { RunSummary } from '../../src/core/summary.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { analyzeRun, runDataFor, type RunAnalysis } from '../../src/analysis/run-analysis.js';
 
-
 /**
  * Zauber-Indizes über den NAMEN, nicht als Zahl (Issue #268).
  *
