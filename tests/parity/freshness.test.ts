@@ -44,6 +44,18 @@ import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
+import eingecheckteWirkzeit from './recordings/cast-time.json';
+import eingecheckteWiderstaende from './recordings/resistances.json';
+import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
+// **Diese zwei fehlten hier**, und das ist ein Befund und keine Ergänzung:
+// `runaway-progress` (#256) und `level-30` (#289) stehen seit ihrer Entstehung
+// unter `recordings/`, aber in keinem Frische-Fall. Der Simulator prüft gegen
+// sie — und wäre die Regel im Spiel gewandert, hätte er weiter gegen die alten
+// Werte geprüft und wäre grün geblieben. Genau der Zustand, den die
+// Beschreibung oben als „sagt nichts mehr aus, wenn er gebraucht wird"
+// beschreibt. Gefunden beim Eintragen der dritten Datei.
+import eingecheckteReaktion from './recordings/runaway-progress.json';
+import eingecheckteStufe from './recordings/level-30.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -68,6 +80,11 @@ import {
   hastePayload,
   wornPayload,
   sourcesPayload,
+  castTimePayload,
+  resistancePayload,
+  resistanceMixedPayload,
+  runawayProgressPayload,
+  level30Payload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -162,6 +179,26 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit getragener Ausrüstung entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteGetrageneWerte, HINWEIS).toEqual(wornPayload());
+  });
+
+  it('der Lauf mit einer WIRKZEIT entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteWirkzeit, HINWEIS).toEqual(castTimePayload());
+  });
+
+  it('der Lauf gegen einen Boss mit WIDERSTAENDEN entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteWiderstaende, HINWEIS).toEqual(resistancePayload());
+  });
+
+  it('der Lauf mit GEMISCHTER Leiste entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteGemischteLeiste, HINWEIS).toEqual(resistanceMixedPayload());
+  });
+
+  it('der Lauf mit der davonlaufenden Reaktion entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteReaktion, HINWEIS).toEqual(runawayProgressPayload());
+  });
+
+  it('der Lauf auf Stufe 30 entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteStufe, HINWEIS).toEqual(level30Payload());
   });
 
   it('die fünf Quellen entsprechen dem heutigen Spielstand', () => {

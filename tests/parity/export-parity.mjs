@@ -105,6 +105,12 @@ import {
   runawayProgressPayload,
   LEVEL_30_NAME,
   level30Payload,
+  CAST_TIME_NAME,
+  castTimePayload,
+  RESISTANCE_NAME,
+  resistancePayload,
+  RESISTANCE_MIXED_NAME,
+  resistanceMixedPayload,
 } from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -148,6 +154,30 @@ console.log(`geschrieben: ${level30Path}`);
 console.log(
   `  Stufe 30      vessel ${level30.player.vesselAtLevel} statt ${level30.player.vessel}` +
     `, Schaden ${level30.expected.damage}`,
+);
+
+const resistances = resistancePayload();
+const resistancePath = join(here, 'recordings', `${RESISTANCE_NAME}.json`);
+writeFileSync(resistancePath, serialize(resistances), 'utf8');
+console.log(`geschrieben: ${resistancePath}`);
+console.log(
+  `  Widerstand    ${resistances.expected.damage} statt ` +
+    `${resistances.expected.damageWithoutResistance} ohne`,
+);
+
+const mixed = resistanceMixedPayload();
+const mixedPath = join(here, 'recordings', `${RESISTANCE_MIXED_NAME}.json`);
+writeFileSync(mixedPath, serialize(mixed), 'utf8');
+console.log(`geschrieben: ${mixedPath}`);
+console.log(`  gemischt      ${JSON.stringify(mixed.damageBySpell)}`);
+
+const castTime = castTimePayload();
+const castTimePath = join(here, 'recordings', `${CAST_TIME_NAME}.json`);
+writeFileSync(castTimePath, serialize(castTime), 'utf8');
+console.log(`geschrieben: ${castTimePath}`);
+console.log(
+  `  Wirkzeit      ${castTime.expected.testCastCasts} Wirkungen, ` +
+    `${castTime.expected.castsInterrupted} abgebrochen`,
 );
 
 const runawayProgress = runawayProgressPayload();

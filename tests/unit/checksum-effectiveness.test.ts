@@ -112,10 +112,22 @@ function gelaufen(): Combat {
   const kindle = combat.indexOf('kindle');
   const smoulder = combat.indexOf('smoulder');
   const crust = combat.indexOf('crust');
+  const wirkzeit = combat.indexOf('test-cast');
   combat.beginFight(0);
   for (let t = 0; t <= MESSZEIT_MS; t += TICK_MS) {
     combat.stepPassive(t);
     if (!combat.gcd.isReady(t)) continue;
+    // **Ab 7000 ms der Zauber mit Wirkzeit** (Issue #304). Er dauert 2000 ms,
+    // läuft bei 8000 ms also noch — und nur dann tragen `playerCasting` und
+    // `playerCastEndsAt` einen Wert, an dem sich etwas messen lässt.
+    //
+    // Dieselbe Lehre wie bei `castLandsAt` (#240): Ein Feld, das zur Messzeit
+    // auf seinem Ruhewert steht, ist für diesen Wächter nicht prüfbar — er hat
+    // das damals gemeldet, statt es zu übergehen.
+    if (t >= 7000 && combat.castCount(wirkzeit) === 0 && combat.isReady(wirkzeit, t)) {
+      combat.cast(wirkzeit, t);
+      continue;
+    }
     if (combat.castCount(smoulder) === 0 && combat.isReady(smoulder, t)) {
       if (combat.cast(smoulder, t)) continue;
     }
@@ -224,7 +236,11 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     // Ring-Verlust vom Anteil der davonlaufenden Reaktion. Die Zahl mit der
     // Liste mitzuziehen ist Absicht — bliebe sie auf 34, könnte ein Feld
     // wegfallen, ohne dass jemand es merkt.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(35);
+    //
+    // 37 seit #304: `playerCasting` und `playerCastEndsAt` tragen die laufende
+    // Wirkzeit des Spielers. Bis dahin kannte die Prüfsumme nur die des
+    // Bosses.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(37);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {
@@ -241,6 +257,11 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     expect(combat.casting, 'ein Boss-Zauber laeuft').toBeGreaterThanOrEqual(0);
     expect(combat.castLandsAtMs).toBeGreaterThan(0);
     expect(combat.afflicted).toBe(true);
+    // Und die Wirkzeit des Spielers aus #304, aus demselben Grund: Ohne einen
+    // laufenden Zauber stünden beide Felder auf ihrem Ruhewert, und die zwei
+    // Fälle unten wären grün, ohne etwas zu belegen.
+    expect(combat.playerCasting, 'ein Spieler-Zauber laeuft').toBeGreaterThanOrEqual(0);
+    expect(combat.playerCastEndsAtMs).toBeGreaterThan(MESSZEIT_MS);
   });
 
   // **Jedes Feld einzeln.** „Die Prüfsumme ändert sich" wäre schon erfüllt,

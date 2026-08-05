@@ -1086,6 +1086,46 @@ Das gilt für die **Aussage**, nicht für die Arbeit: Während des Bauens ist ei
 richtige Werkzeug, weil er schnell ist. Nur darf daraus kein „lint ist sauber" werden — das ist eine
 Aussage über das Projekt, und die trägt nur ein Lauf über das Projekt.
 
+##### Der Ausschnitt steckt nicht immer in der Pfadangabe
+
+_Drei Fälle am 2026-08-05, alle drei von verschiedenen Sitzungen an sich selbst gemessen._
+
+Bei `eslint <pfad>` sieht man den Ausschnitt im Befehl. Die unangenehmeren Fälle sind die, wo der
+Befehl vollständig aussieht und das **Werkzeug** weniger prüft, als sein Name verspricht:
+
+| Befehl                   | prüft nicht                                   | gemeldet wurde     |
+| ------------------------ | --------------------------------------------- | ------------------ |
+| `cargo test`             | `clippy` — die CI fährt es zusätzlich         | „48 Suiten grün"   |
+| `cargo build`            | `examples/` — sie bauen erst bei `cargo test` | „build ist grün"   |
+| `cargo test` (ohne Flag) | alles mit `#[ignore]`                         | „alle Suiten grün" |
+
+**Die dritte ist die schärfste**, weil der Ausschnitt im **Quelltext** steht und in keinem Befehl
+sichtbar wird. Vier Prüffälle, die eine ganze Suche absicherten, lagen hinter `#[ignore]` mit der
+Begründung „misst tausende Kämpfe". Gemessen waren es **40 Millisekunden** — und `cargo test`
+meldete `2 passed; 0 failed; 4 ignored`, also grün.
+
+> Die Zeile mit `ignored` ist keine Randnotiz. **Sie ist die Liste dessen, was gerade nicht geprüft
+> wurde**, und sie steht in derselben Zeile wie das Wort `ok`.
+
+**Zwei Gewohnheiten dagegen:**
+
+- **Die Aussage an dem Werkzeug ausrichten, das die CI fährt** — nicht an dem, das schneller ist.
+  Wer `cargo test` fährt und „grün" meldet, hat über `clippy` nichts gesagt.
+- **Beim Ausschließen die Begründung messen, nicht schätzen.** „Läuft zu lange" ist eine Behauptung
+  über eine Zahl. Sie kostet einen Befehl, und dreimal am selben Tag war sie falsch.
+
+**Was die drei Fälle wirklich verbindet**, formuliert von Worker-1, nachdem alle drei ihm oder seinen
+Nachbarn an einem Tag passiert waren:
+
+> Jedes Werkzeug hat mir ein **grünes** Ergebnis gegeben, und jedes war für seine eigene Frage
+> richtig. Falsch war nur, welche Frage ich glaubte gestellt zu haben. Der Fehler ist nicht „zu wenig
+> geprüft", sondern **„die Antwort auf eine engere Frage als Antwort auf die weitere genommen"**.
+
+Der Unterschied ist praktisch: „Zu wenig geprüft" legt nahe, künftig mehr zu prüfen — also mehr
+Aufwand bei derselben Unsicherheit. Die zweite Formulierung sagt, was tatsächlich zu tun ist:
+**aufschreiben, welche Frage man beantworten will, bevor man das Werkzeug wählt.** Dann fällt beim
+Vergleich auf, dass `cargo test` die Frage „besteht das Projekt die Prüfungen?" nicht beantwortet.
+
 #### Die vierte Gestalt: die falsche Quelle — gar kein Werkzeug
 
 Die ersten drei führen ein Werkzeug aus, das die falsche Frage beantwortet. Die vierte führt
@@ -1434,6 +1474,44 @@ konnte, ohne dass es auffiel.
 > Eine Gegenprobe zeigt, dass der Wächter anschlägt, wenn man die Sache **bricht**. Dass er einer
 > vollständigen Erweiterung nicht im Weg steht, zeigt erst der Betrieb — und man kann es nicht
 > herbeiführen, nur abwarten und dann erkennen.
+
+#### Und er muss dort laufen, wo der Fehler entsteht
+
+_Von Worker-3 am 2026-08-05 bei #328 entschieden, gegen den naheliegenden Weg._
+
+Ein Wächter sollte die Bedingung festhalten, dass zwei Zahlen nicht gleichzeitig gesetzt sein
+dürfen. Der übliche Griff in Rust wäre `debug_assert!` — billig, im Auslieferungsbau kostenlos.
+
+**Er wäre wertlos gewesen:**
+
+> Der Balance-Läufer ist genau die Stelle, die den Regler setzt, und er läuft mit `--release`. Ein
+> `debug_assert` schwiege dort — also an der **einzigen** Stelle, an der die Kombination überhaupt
+> entstehen kann.
+
+Ein Wächter, der genau dort still ist, wo der Fehler entsteht, ist die Kommentar-Fassung mit mehr
+Zeremonie. Es wurde ein echtes `assert!`.
+
+**Die Prüffrage:** Läuft mein Wächter in dem Bau, in dem der Fehler auftritt? Nicht: Läuft er
+irgendwo?
+
+Dieselbe Frage trifft mehr als `debug_assert`:
+
+| Wächter                              | schweigt in                                                           |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| `debug_assert!`                      | jedem `--release`-Lauf — also im Balance-Läufer und in der CI-Messung |
+| ein Prüffall hinter `#[ignore]`      | jedem Lauf ohne `--ignored` (§ 8.14)                                  |
+| eine Prüfung nur im Entwicklungs-Bau | dem ausgelieferten Spiel                                              |
+
+**Und eine zweite Entscheidung aus demselben Fall:** Der Vergleich geht auf die **exakte** Eins, ohne
+Toleranz. `1.0` ist in IEEE754 exakt darstellbar, und gemeint ist der neutrale Wert — nicht
+„ungefähr neutral".
+
+> Ein Regler von `1.0000001` **ist** eine Abweichung vom Spiel. Eine Toleranz wäre hier die falsche
+> Milde: Sie erlaubt genau die Abweichung, gegen die der Wächter gebaut wurde, solange sie klein
+> genug ist.
+
+Das gilt nicht überall — wo eine Rechnung Rundungsfehler erzeugt, ist eine Umgebung richtig. Der
+Unterschied: Hier wird kein Rechenergebnis geprüft, sondern **ob jemand einen Regler angefasst hat**.
 
 **Und daraus folgt eine Regel, die über diesen Fall hinausgeht: Manche Belege haben ein
 Verfallsdatum.**
@@ -1847,24 +1925,209 @@ Befehl, den es nicht gibt. **Er meldete keinen Fehler.**
 machst, prüfe an einem Merkmal, dass die Messung überhaupt stattgefunden hat — ein Wert, der sich
 bewegt haben _muss_, wenn das Werkzeug gewirkt hat.
 
----
+### 8.16 Eine Einzelmessung nach einem asynchronen Ereignis ist keine Messung
 
-## 9. Wie die Kommunikation läuft
+_Vom Orchestrator am 2026-08-05 bei der Abnahme von #304 zweimal an sich selbst gelernt._
+
+Ein Tastendruck über `playwright-cli press` läuft **nicht** im Takt der Spiellogik. Zwischen dem
+Absetzen und der Verarbeitung liegen unbestimmt viele Takte. Wer unmittelbar danach einmal misst,
+misst mit erheblicher Wahrscheinlichkeit den Zustand **davor** — und der sieht genau so aus wie ein
+Druck, der gar nicht angekommen ist.
+
+So sah es aus:
 
 ```
-    Worker-Session                Auftraggeber              Master-Session
-         │                             │                          │
-         │  Melde-Format (§ 6)         │                          │
-         ├────────────────────────────►│  kopiert                 │
-         │                             ├─────────────────────────►│
-         │                             │                          │ prüft selbst
-         │                             │                          │ im laufenden
-         │                             │   ABGENOMMEN oder        │ System
-         │                             │◄─────────────────────────┤
-         │  Rückmeldung                │   OFFEN MIT BLOCKER      │
-         │◄────────────────────────────┤                          │
+press q
+eval  → {"casting": null, "rest": 0}          ← „der Zauber startet nicht"
+eval  → {"casting": "test-cast", "rest": 1500} ← doch, eine Sekunde später
 ```
 
-Der Auftraggeber kopiert die Ausgaben zwischen den Sessions hin und her. **Fasse dich deshalb
-kompakt genug, dass die Meldung in einen Kopiervorgang passt** — aber niemals auf Kosten der
-Nachweise. Build-Ausgaben, Testergebnisse und Messwerte sind nie „zu ausführlich".
+Beim zweiten Mal wäre daraus fast ein Befund an fremder Arbeit geworden: Nach einem Druck während
+eines laufenden Zaubers stand `cancelled: 0` und der Zauber lief weiter — also **„der Cast blockiert
+den zweiten Druck", das alte Verhalten**. Die Gegenprobe entlarvte es: Ein späterer Lauf zeigte
+`kindleCasts: 2`, obwohl nur einmal gedrückt worden war. Der erste Druck war angekommen, nur später
+als die Messung.
+
+**Die Regel: Miss in einer Reihe, nicht einmal.**
+
+```
+press w
+for i in 1..5: eval <derselbe Ausdruck>
+```
+
+Ein Zustand, der über fünf aufeinanderfolgende Messungen gleich bleibt, ist eingeschwungen. Eine
+einzelne Zahl direkt nach einem asynchronen Ereignis ist eine Momentaufnahme aus einem Rennen, das
+du nicht kontrollierst.
+
+**Und wenn das Zeitfenster eng ist, verlangsame die Zeit statt schneller zu messen.** Bei einer
+Wirkzeit von 2000 ms und einer Wartezeit von 1500 ms ist das Fenster für den zweiten Druck 500 ms
+breit — bei einer Befehlslatenz von rund einer Sekunde ist es nicht zu treffen. `setTimeScale(0.02)`
+macht daraus 25 Sekunden. Der Versuch, es durch schnelleres Messen zu treffen, ist an diesem Tag
+viermal gescheitert.
+
+> Der gefährliche Teil ist nicht, dass die Messung danebengeht. Es ist, dass die zu frühe Messung
+> **denselben Wert liefert wie ein echter Fehler** — `null`, `0`, „nichts passiert". Sie sieht nicht
+> aus wie ein Messfehler, sondern wie ein Befund.
+
+### 8.17 Die Gegenprobe muss die FEHLERART nachbauen, nicht irgendeinen Schaden
+
+_Von Worker-3 am 2026-08-05 bei #328 gemessen und selbst formuliert._
+
+Ein Wächter ist erst belegt, wenn er einmal rot war (§ 5). Aber **womit** man ihn rot macht,
+entscheidet, ob der Beleg etwas wert ist.
+
+Der Fall: Ein Prüffall soll sicherstellen, dass ein Boss-Widerstand den **Schaden** mindert und den
+**Vorrat** unberührt lässt. Die erste Gegenprobe senkte den Vorrat pauschal um ein Viertel — an
+**allen** Bössen.
+
+```
+Vorrat überall um ein Viertel gesenkt        →  Fall bleibt GRÜN
+Vorrat nur dort gesenkt, wo ein Widerstand
+steht — also die echte Fehlerart              →  Fall wird ROT, als einziger von elf
+```
+
+**Das erste Grün war richtig.** Der Fall vergleicht die drei Bösse miteinander; fehlt überall
+dasselbe, ist der Vergleich unverändert. Ein Wächter, der darauf angesprungen wäre, hätte nicht
+gemessen, was er behauptet.
+
+> Das ist eine Ebene tiefer als „kann der Prüffall den Unterschied überhaupt zeigen": **Kann die
+> Gegenprobe den Fehler überhaupt erzeugen, den sie zu erzeugen behauptet?**
+
+**Die Prüffrage vor jeder Gegenprobe:** Baue ich die Fehlerart nach, gegen die der Wächter schützen
+soll — oder mache ich nur irgendetwas kaputt und sehe, ob es piept? Ein Wächter, der auf jede
+Beschädigung anspringt, unterscheidet nicht mehr zwischen dem Fehler und dem Rest der Welt.
+
+**Ein Nebeneffekt, der die Sache lohnend macht:** Wenn die richtige Gegenprobe **genau einen** Fall
+rot färbt und die anderen zehn grün lässt, ist das zugleich der Beleg, dass die Fälle sich nicht
+gegenseitig abdecken.
+
+### 8.18 Wer die Zahl nachrechnet, prüft am Ende seine eigene Kopie
+
+_Von Worker-2 am 2026-08-05 bei #318 gefunden, beim ersten Anlauf für den Synergie-Prüffall._
+
+Der Fall sollte belegen, dass ein Bonus von 25 % ankommt. Der naheliegende Weg:
+
+```ts
+expect(mit.damage).toBe(Math.round(ohne.damage * 1.25)); // expected 77 to be 78
+```
+
+**Der Fall war richtig, die Rechnung daneben.** Der Faktor geht in die **gesamte** Schadensformel
+ein und wird **einmal am Ende** gerundet — nicht auf den fertigen Schaden aufgeschlagen. Die
+Erwartung war eine zweite, vereinfachte Fassung der Formel.
+
+> Wer die Zahl nachbaut, **dupliziert die Formel** — und prüft am Ende seine eigene Kopie gegen das
+> Original. Stimmen beide überein, weiß man nur, dass man zweimal dasselbe gedacht hat.
+
+**Die Gefahr ist nicht der falsche Prüffall.** Der fällt sofort auf, wie hier. Gefährlich ist der
+Fall, in dem die Kopie zufällig **stimmt**: Dann wandert die vereinfachte Formel als Erwartung in
+den Wächter — und wenn später jemand die echte Formel ändert (eine Rundungsstelle, ein Topf mehr),
+meldet der Wächter rot, obwohl die Änderung richtig ist. Er verteidigt dann die Kopie.
+
+**Was stattdessen zu prüfen ist:**
+
+| statt                                          | besser                                                                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------- |
+| den **Betrag** aus einer nachgebauten Rechnung | das **Verhältnis** zwischen zwei Läufen, mit Rundungsspielraum         |
+| „das Ergebnis ist 78"                          | „mit Bonus ist es messbar mehr als ohne, und zwar um etwa ein Viertel" |
+
+Dasselbe Prinzip trägt zwei andere Stellen in diesem Guide: den Prüffall, der die **Größe** eines
+Sprungs mit dem Betrag aus den Zauberdaten misst statt mit einem Literal (#295), und den, der bei
+einer unkalibrierten Konstante das Verhältnis prüft statt den Betrag, damit er der Kalibrierung
+nicht im Weg steht (#282).
+
+### 8.19 Eine Zeile hier ist zwei Zeilen dort — die Asymmetrie beim Übertragen
+
+_Bei #282 vom Orchestrator gefunden, nachdem der Bearbeiter eine Abweichung in Takt 0 gemeldet
+hatte._
+
+Die zwei Seiten sind **nicht** Zeile für Zeile ineinander übersetzbar. Wo das Spiel eine Zuweisung
+hat, kann der Simulator zwei haben — und wer die eine erweitert, hat die andere nicht vergessen,
+sondern **nie gesehen**:
+
+```rust
+// Simulator: ZWEI Zuweisungen, die aussehen wie ein Paar
+vessel_max: vessel_with_gear(stat_at_level(…), config.worn.vessel),   // erweitert
+player_hp:  stat_at_level(PLAYER.vessel, config.player_level),        // geblieben
+```
+
+```ts
+// Spiel: EINE Zuweisung — hier gibt es nichts zu vergessen
+this.vesselMax = vesselWithGear(statAtLevel(…), worn.vessel);
+this.playerHpValue = this.vesselMax;
+```
+
+**In der alten Fassung waren die zwei Rust-Zeilen eins**: Beide bekamen `stat_at_level(…)`, weil es
+keine Ausrüstung gab. Erst die neue Größe hat sie getrennt — und die Trennung ist auf der anderen
+Seite unsichtbar.
+
+> Die Prüffrage beim Übertragen: **Ist der Wert dort, wo ich ihn ändere, an genau einer Stelle
+> abgeleitet — oder gibt es eine zweite, die dieselbe Quelle liest?** Ein `grep` nach dem Namen des
+> Feldes kostet Sekunden und findet beide.
+
+**Warum die Prüfsumme das meldet und die Prüffälle nicht:** `playerHp` steht in der Prüfsumme
+(`checksum.ts:140`, `fight.rs:2651`). Die Abweichung erschien deshalb in **Takt 0**, vor jeder
+Handlung — der frühestmögliche Zeitpunkt, und damit der Beleg, dass es der Startzustand ist. Ohne
+Prüfsumme wäre sie erst beim ersten Treffer aufgefallen, mit einer Zahl, die man auch für einen
+Rundungsfehler halten könnte.
+
+### 8.20 Ein Verweis auf etwas, das man gerade erst versprochen hat
+
+_Von Worker-2 am 2026-08-05 bei #318 an sich selbst bemerkt._
+
+Ein bestehender Wächter fiel, weil die Synergie jetzt vom Kampf selbst geschrieben wird. Der
+Bearbeiter nahm den Faktor aus der Liste — richtig — und schrieb einen Kommentar dazu, der auf
+einen anderen Fall verwies:
+
+> „… das misst `synergy_wirkt_wie_die_uebrigen` weiter unten."
+
+**Diesen Fall gab es nicht.** Seine eigene Einordnung:
+
+> Ich hatte ihn im selben Zug erfunden, in dem ich ihn versprach.
+
+Der Verweis war keine Lüge, sondern eine **Absicht, die sich beim Schreiben in eine Tatsache
+verwandelt hat** — und das ist die gefährliche Form: Wer den Kommentar später liest, sucht den Fall
+nicht, weil er glaubt, dass er existiert. Die Lücke ist dann doppelt zu, statt nur einmal.
+
+**Die Regel:** Ein Kommentar, der auf einen anderen Prüffall verweist, nennt ihn **beim Namen**, und
+der Name wird **gegrept**, bevor der Kommentar stehen bleibt. Existiert der Fall noch nicht, gehört
+statt des Verweises die **Lücke** dorthin:
+
+```rust
+// synergy ist hier raus, weil der Kampf den Faktor selbst schreibt.
+// WAS DAMIT WEGFAELLT: Dass die Synergie gleich stark wirkt wie die
+// uebrigen Faktoren, misst auf DIESER Seite nichts mehr. Die Spielseite
+// tut es (tests/unit/synergy.test.ts, Verhaeltnis 1,25); ein Rust-Fall
+// dafuer FEHLT.
+```
+
+> Eine benannte Lücke ist ein Auftrag. Ein erfundener Verweis ist eine geschlossene Tür.
+
+```
+    Worker-Sitzung                                      Orchestrator
+         │                                                    │
+         │  rota-ipc senden Orchestrator   (Melde-Format § 6)  │
+         ├───────────────────────────────────────────────────►│
+         │                                                    │ misst selbst
+         │                                                    │ im laufenden
+         │  rota-ipc antworten <Nr>        (Quittung, Pflicht) │ System
+         │◄───────────────────────────────────────────────────┤
+         │                                 ABGENOMMEN oder    │
+         │                                 OFFEN MIT BLOCKER  │
+```
+
+**Der Auftraggeber ist nicht mehr der Transportweg.** Die vier Sitzungen schreiben einander direkt
+über `rota-ipc`; Einzelheiten in [`docs/IPC.md`](IPC.md) und in `CLAUDE.md`. Die frühere Darstellung
+an dieser Stelle — der Auftraggeber kopiert Ausgaben hin und her — galt bis zum 2026-08-05 und ist
+seitdem falsch.
+
+**Daraus folgt eine Änderung, die leicht übersehen wird:** Die alte Empfehlung lautete, sich
+kompakt genug zu fassen, dass die Meldung in einen Kopiervorgang passt. **Diese Grenze gibt es nicht
+mehr.** Über die Standardeingabe (`rota-ipc senden Orchestrator - <<'ENDE'`) ist die Länge frei —
+und Build-Ausgaben, Testergebnisse und Messwerte waren ohnehin nie „zu ausführlich".
+
+Zwei Regeln aus § 6 bleiben davon unberührt:
+
+|                                  |                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Erst quittieren, dann melden** | Eine inhaltliche Antwort per `senden` schließt eine Nummer **nicht**. Die Quittung ist ein eigener Aufruf, und sie enthält das verstandene Vorhaben in einem Satz — nicht „erhalten" |
+| **Jede Nummer einzeln**          | Eine Sammelquittung auf drei Nachrichten passt für höchstens zwei davon. Auch das ist an einem Tag gemessen worden                                                                   |

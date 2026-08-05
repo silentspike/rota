@@ -212,5 +212,97 @@
       "budget": 22579,
       "permille": 30
     }
+  ],
+  "baseStats": [
+    {
+      "stat": "essence",
+      "level": 1,
+      "base": 10,
+      "permille": 10
+    },
+    {
+      "stat": "essence",
+      "level": 25,
+      "base": 10,
+      "permille": 32
+    },
+    {
+      "stat": "essence",
+      "level": 50,
+      "base": 10,
+      "permille": 109
+    },
+    {
+      "stat": "essence",
+      "level": 75,
+      "base": 10,
+      "permille": 369
+    },
+    {
+      "stat": "essence",
+      "level": 100,
+      "base": 10,
+      "permille": 1252
+    },
+    {
+      "stat": "vessel",
+      "level": 1,
+      "base": 10,
+      "permille": 10
+    },
+    {
+      "stat": "vessel",
+      "level": 25,
+      "base": 10,
+      "permille": 32
+    },
+    {
+      "stat": "vessel",
+      "level": 50,
+      "base": 10,
+      "permille": 109
+    },
+    {
+      "stat": "vessel",
+      "level": 75,
+      "base": 10,
+      "permille": 369
+    },
+    {
+      "stat": "vessel",
+      "level": 100,
+      "base": 10,
+      "permille": 1252
+    },
+    {
+      "stat": "ward",
+      "level": 1,
+      "base": 10,
+      "permille": 10
+    },
+    {
+      "stat": "ward",
+      "level": 25,
+      "base": 10,
+      "permille": 32
+    },
+    {
+      "stat": "ward",
+      "level": 50,
+      "base": 10,
+      "permille": 109
+    },
+    {
+      "stat": "ward",
+      "level": 75,
+      "base": 10,
+      "permille": 369
+    },
+    {
+      "stat": "ward",
+      "level": 100,
+      "base": 10,
+      "permille": 1252
+    }
   ]
 }

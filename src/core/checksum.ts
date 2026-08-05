@@ -217,6 +217,27 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // kommt aus #236 dazu: Der Gleichlauf-Wächter nennt bei einer Abweichung die
   // Stelle beim Namen, statt nur ihre Nummer zu melden.
   h = mixNamedFloat(h, 'playerDamage', combat.playerDamage);
+  // Issue #304: die laufende Wirkzeit des SPIELERS. Bis hierher trug die
+  // Prüfsumme nur den Zustand des Bosses (`casting`, `castLandsAt`) — für den
+  // Spieler gab es keinen, weil eine Wirkzeit nie lief.
+  //
+  // **Ohne diese zwei Felder wäre die Prüfung an ihrer empfindlichsten Stelle
+  // blind:** Ein Zauber, der auf einer Seite eine Wirkzeit hat und auf der
+  // anderen sofort trifft, ergäbe in jedem Takt dazwischen dieselbe Summe —
+  // gleicher Schaden (noch keiner), gleiche Abklingzeit (noch keine), gleiche
+  // Wartezeit. Erst der Treffer liefe auseinander, und die Prüfsumme zeigte auf
+  // den Takt des Treffers statt auf den des Fehlers.
+  //
+  // **Angehängt, nicht eingeschoben** — wie jedes Feld seit #96.
+  h = mixNamedInt(h, 'playerCasting', combat.playerCasting);
+  // Dieselbe Konvention wie `castLandsAt` eine Handvoll Zeilen höher: ohne
+  // laufende Wirkzeit ein fester Wert auf beiden Seiten. Sonst meldete jeder
+  // Takt ohne Wirkzeit eine Abweichung, die nichts bedeutet.
+  h = mixNamedInt(
+    h,
+    'playerCastEndsAt',
+    combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1,
+  );
   // Issue #318: Die Synergie-Fenster. Ohne sie liefe ein Simulator, der das
   // Fenster anders lang rechnet oder es nicht verbraucht, still auseinander —
   // der Schaden wiche erst dann ab, wenn der Partner wirklich im Fenster

@@ -56,6 +56,12 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
+      // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
+      // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
+      // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
+      // Liste steht er trotzdem: Sie ist der Index-Raum, und der ist für
+      // Aufzeichnungen und Simulator derselbe.
+      'test-cast',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);

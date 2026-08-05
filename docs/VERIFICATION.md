@@ -41,6 +41,47 @@ bekommt ihren eigenen Befehl und ihre eigene Ausgabe — auch wenn zwei sich äh
 **Frische Nachweise.** „Das habe ich bei Issue 3 schon geprüft" zählt nicht. Der Code hat sich
 seitdem geändert.
 
+### Eine leere Prüfliste ist nicht dasselbe wie eine laufende
+
+_Von Worker-1 am 2026-08-05 bei #282 gemeldet, nachdem es ihm fast entgangen wäre._
+
+```
+$ gh pr checks 347
+no checks reported on the 'feat/...' branch
+```
+
+Das liest sich wie **„läuft noch"**. Es hieß **„startet nie"**: Der Zweig war `CONFLICTING`, und
+GitHub startet für einen Zweig mit Konflikt gar keine Läufe.
+
+> Kein Ergebnis sieht aus wie ein unauffälliges Ergebnis. Dieselbe Gestalt wie die leere Namensfolge
+> und wie ein Werkzeug, das ohne Fehlermeldung nichts tut.
+
+**Das trifft die Warteschleife dieser Checkliste unmittelbar.** Wer auf `ci-pass` wartet und nur auf
+`SUCCESS` oder `FAILURE` prüft, wartet bei einem Konflikt bis zum Abbruch — und weiß danach nicht,
+warum. Deshalb gehört `mergeable` in dieselbe Abfrage:
+
+```bash
+gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
+  -q '.mergeable+" | "+.mergeStateStatus+" | "+([.statusCheckRollup[]|select(.name=="ci-pass")|.conclusion//"laeuft"]|join(","))'
+```
+
+| Ausgabe                         | Bedeutung                                                |
+| ------------------------------- | -------------------------------------------------------- |
+| `MERGEABLE \| BLOCKED \|`       | Checks laufen — warten ist richtig                       |
+| `CONFLICTING \| DIRTY \|`       | **Es wird nie etwas kommen.** Zweig aktualisieren lassen |
+| `MERGEABLE \| CLEAN \| SUCCESS` | fertig                                                   |
+| `UNKNOWN \| UNKNOWN \|`         | **Zwei ganz verschiedene Lagen** — siehe unten           |
+
+**`UNKNOWN` heißt entweder „GitHub rechnet noch" oder „der PR ist längst gemergt".** GitHub
+berechnet `mergeable` asynchron; bei einem geschlossenen PR steht dort dauerhaft nichts. Beim
+Nachmessen an einem frischen PR: durchgehend `MERGEABLE | BLOCKED`, bei einem gemergten dauerhaft
+`UNKNOWN | UNKNOWN`.
+
+> Wer `UNKNOWN` sieht, fragt zuerst `gh pr view <n> --json state` — bei `MERGED` ist die Frage
+> beantwortet, bei `OPEN` wartet man ein paar Sekunden und misst erneut.
+
+**Die Unterscheidung kostet nichts und spart das Warten auf etwas, das nicht kommt.**
+
 ---
 
 ## 2. Das Spiel starten und ansprechen
@@ -414,5 +455,35 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 | **`browser`-Nachweise gegen den Dev-Server** | Dort funktioniert mehr als im Auslieferungs-Bau               | Jeder `browser`-Nachweis gilt nur im **gebauten** Stand über nginx. Bei Issue #16 lieferte die Route HTTP 200 und trotzdem die falsche Seite |
 | **Eine URL weitergeben, ohne sie zu öffnen** | Die Route antwortet, der Worker hat es geprüft                | Selbst aufrufen. Bei #16 habe ich genau das versäumt — der Auftraggeber bekam eine schwarze Seite                                            |
 | **Dem Melde-Format des Workers glauben**     | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                                                                                           |
+| **Schaden messen, wenn der Boss stirbt**     | „Schaden" klingt nach der Frage, die man gestellt hat         | Bei `stopOnKill` ist der Gesamtschaden ungefähr die Boss-HP — **unabhängig von der Spielerstärke**. Siehe unten                              |
+| **Einzelmessung nach einem Tastendruck**     | Der Befehl ist zurückgekommen, also ist er verarbeitet        | `playwright-cli press` läuft nicht im Takt der Logik. Fünfmal messen und den eingeschwungenen Wert nehmen                                    |
+
+### Die Kill-Falle — an einem Tag zweimal zugeschlagen
+
+**Wer misst, ob eine Verstärkung wirkt, darf nicht den Gesamtschaden nehmen, solange der Lauf mit
+dem Tod des Bosses endet.** Wer härter schlägt, überschießt beim letzten Treffer weniger; die Summe
+ist dann fast genau die Boss-HP, und ein stärkerer Spieler kann sogar **weniger** messen.
+
+```
+ESSENCE 500 gegen ohne:   4230 gegen 4240     ← sieht nach "wirkt nicht" aus
+```
+
+Beide Male sah es aus wie ein Befund an der Umsetzung, beide Male war es die Messung:
+
+|                |                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **#237, AC1b** | Zwei Bösse mit identischer Überdruck-Zeit sollten verschiedene Rotationen zeigen. `test-metronome` (300 s) löste es |
+| **#282, AC2**  | „ESSENCE ändert den Schaden nicht" — gemessen wurde der Überschuss beim Todesstoß                                   |
+
+**Zwei Wege heraus, je nach Frage:**
+
+- **Die Zeit messen** statt den Schaden: `killedAtMs`. +50 % Schaden drücken sie auf etwa zwei
+  Drittel — das ist eine Aussage über die Stärke.
+- **`stopOnKill: false`** setzen und über eine feste Dauer messen. Dann ist die Summe wieder eine
+  Aussage über den Schaden.
+
+`BalanceConfig` warnt wörtlich davor: **`stop_on_kill` misst, OB der Boss fällt, nicht WIE VIEL
+Schaden entsteht.** Der Satz stand da und ist beide Male gelesen worden — er hilft nur, wenn man
+ihn beim **Formulieren der Messung** liest, nicht beim Deuten des Ergebnisses.
 
 <!-- Prüflauf Pfad-Filter, 2026-07-27T15:29:45Z -->
