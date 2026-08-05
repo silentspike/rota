@@ -146,6 +146,28 @@ export class RunPersistence {
   }
 
   /**
+   * Nur die Stufe ablegen — fuer Nachweise (Issue #264).
+   *
+   * Setzt die Erfahrung auf null: Ein Sprung auf Stufe 5 mit der Erfahrung von
+   * Stufe 1 waere ein Zustand, den das Spiel nie erreicht.
+   */
+  persistLevel(level: number): boolean {
+    this.data = {
+      ...this.data,
+      savedAt: this.now(),
+      level: Math.max(Math.trunc(level), 1),
+      experience: 0,
+    };
+    if (this.store === null) return false;
+    try {
+      this.store.save(this.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Nur die Belegung ablegen (Issue #264).
    *
    * **Getrennt von `persist`**, weil sie zu einem anderen Zeitpunkt entsteht:

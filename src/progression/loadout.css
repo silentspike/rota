@@ -1,0 +1,49 @@
+/**
+ * Die Leiste belegen (Issue #264).
+ *
+ * Folgt der Werte- und Aufstiegs-Übersicht, damit die drei Bereiche im Player
+ * Home wie ein Bildschirm aussehen und nicht wie drei.
+ */
+
+.loadout {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+}
+
+.loadout-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.loadout-table td {
+  padding: 4px 12px 4px 0;
+  vertical-align: baseline;
+}
+
+.loadout-slot {
+  color: #a09a8b;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.loadout-select {
+  font-family: inherit;
+  font-size: 14px;
+  color: #e6dfd1;
+  background: #1a1613;
+  border: 1px solid #3a332b;
+  padding: 3px 6px;
+  min-width: 18ch;
+}
+
+.loadout-select:focus {
+  outline: 1px solid #d08a3c;
+}
+
+/* Tritt zurück: eine Auskunft, keine Aufforderung. */
+.loadout-locked {
+  color: #7d7768;
+  font-size: 12px;
+  margin: 10px 0 0;
+}

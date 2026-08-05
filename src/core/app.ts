@@ -10,7 +10,14 @@ import { AudioFeedback } from './audio-bridge.js';
 import { Combat } from './combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
-import { bindSpell, defaultBindings, sanitize, spellAtSlot } from '../progression/bindings.js';
+import {
+  bindSpell,
+  clearSlot,
+  defaultBindings,
+  sanitize,
+  spellAtSlot,
+} from '../progression/bindings.js';
+import { buildLoadout } from '../progression/loadout-view.js';
 import { SLOT_COUNT } from '../input/keys.js';
 import { GameLoop } from './loop.js';
 import { Session } from './session.js';
@@ -33,6 +40,7 @@ import { NOTHING_WORN } from '../gear/worn.js';
 import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
 import '../progression/levels.css';
+import '../progression/loadout.css';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -214,6 +222,13 @@ export class App {
         }),
       ),
     });
+    // **Die Leiste vor den Werten, nach dem Aufstieg.** Sie ist das, was der
+    // Spieler hier ändert; die Werte darunter folgen daraus (Issue #264).
+    this.home.addSection({
+      id: 'loadout',
+      title: 'Spell bar',
+      content: this.buildLoadoutSection(),
+    });
     this.home.addSection({
       id: 'stats',
       title: 'Stats',
@@ -332,6 +347,79 @@ export class App {
       Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.combat.spells);
     const nachher = bindSpell(gefuellt, spellId, slot, stand.level, this.combat.spells);
     if (nachher === gefuellt) return false;
+
+    this.persistence.persistBindings(nachher);
+    this.applyBindings();
+    return true;
+  }
+
+  /**
+   * Den Belegungs-Bereich bauen (Issue #264).
+   *
+   * **Nach jeder Änderung neu**, wie die Aufstiegs-Anzeige: Ein einmal
+   * gebauter Bereich zeigte, was beim Aufbau galt. Bei #248 hat genau das eine
+   * falsche Zahl auf dem Bildschirm stehen lassen, während alle Prüffälle grün
+   * waren.
+   */
+  private buildLoadoutSection(): HTMLElement {
+    const stand = this.persistence.state;
+    const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const belegung =
+      Object.keys(gespeichert).length > 0
+        ? gespeichert
+        : defaultBindings(stand.level, this.combat.spells);
+
+    return buildLoadout({
+      bindings: belegung,
+      level: stand.level,
+      spells: this.combat.spells,
+      onBind: (spellId, slot) => {
+        const ok = spellId === null ? this.clearSlotAt(slot) : this.bindSpellToSlot(spellId, slot);
+        // Der Bereich wird neu gebaut, damit die Anzeige und der Kampf
+        // dasselbe sagen — auch die Plätze, die sich mitverändert haben.
+        if (ok) this.refreshLoadout();
+        return ok;
+      },
+    });
+  }
+
+  /**
+   * Die Stufe setzen — nur fuer Nachweise (GAME-DESIGN 19.2; Issue #264).
+   *
+   * Schreibt **nur, was erreicht wurde**: Stufe und Erfahrung auf null. Alles
+   * andere — Grundwerte, freigeschaltete Zauber, Plaetze — wird daraus
+   * gerechnet, wie im Spiel (#248, AC5). Ein Werkzeug, das die Folgen setzt
+   * statt der Ursache, zeigte einen Zustand, den das Spiel nie erreicht.
+   *
+   * Danach wird die Belegung neu uebertragen: Auf einer hoeheren Stufe sind
+   * mehr Plaetze offen, und die muessen gebunden werden, sonst zeigt die
+   * Anzeige mehr, als der Kampf kennt.
+   */
+  setPlayerLevel(level: number): void {
+    this.persistence.persistLevel(level);
+    this.applyBindings();
+    this.refreshLoadout();
+    this.refreshHome();
+  }
+
+  /** Den Belegungs-Bereich neu bauen. */
+  private refreshLoadout(): void {
+    this.home.replaceSection('loadout', this.buildLoadoutSection());
+  }
+
+  /**
+   * Einen Platz räumen (Issue #264).
+   *
+   * Getrennt von `bindSpellToSlot`, weil es etwas anderes ist: Ein leerer
+   * Platz ist kein Zauber mit leerem Namen.
+   */
+  clearSlotAt(slot: number): boolean {
+    const stand = this.persistence.state;
+    const vorher = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const gefuellt =
+      Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.combat.spells);
+    const nachher = clearSlot(gefuellt, slot);
+    if (Object.keys(nachher).length === Object.keys(gefuellt).length) return false;
 
     this.persistence.persistBindings(nachher);
     this.applyBindings();
