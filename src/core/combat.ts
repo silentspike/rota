@@ -45,6 +45,7 @@ import {
   critChance,
   critFactor,
   essenceFactor,
+  vesselWithGear,
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
@@ -617,7 +618,14 @@ export class Combat {
     // **Aus der Stufe, nicht aus der Datei** (Issue #289). `statAtLevel` gibt
     // auf Stufe 1 exakt den Grundwert zurück — dort bewegt sich nichts.
     this.levelValue = options.level ?? 1;
-    this.vesselMax = statAtLevel(PLAYER.vessel, this.levelValue);
+    // **Ausrüstung kommt DAZU, nicht davor** (Issue #282, AC3). Wer die
+    // Stufen-Basis ersetzt statt sie zu erhöhen, macht einen Spieler auf
+    // Stufe 100 ohne Ausrüstung schwächer als einen auf Stufe 1 mit einem
+    // Fund. Ohne getragene Ausrüstung bewegt die Rechnung keine Zahl.
+    this.vesselMax = vesselWithGear(
+      statAtLevel(PLAYER.vessel, this.levelValue),
+      (options.worn ?? NOTHING_WORN).vessel,
+    );
     this.playerHpValue = this.vesselMax;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.worn = options.worn ?? NOTHING_WORN;

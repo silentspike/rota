@@ -345,3 +345,73 @@ fn essence_aus_der_ausruestung_wirkt_im_kampf() {
          {verhaeltnis:.3} ({mit_zeit} gegen {ohne_zeit} ms)"
     );
 }
+
+#[test]
+fn vessel_kommt_zur_stufen_basis_dazu_und_ersetzt_sie_nicht() {
+    // Issue #282, AC3. Zwei Aussagen, die einzeln beide zu schwach waeren.
+    use rota_sim::data::{stat_at_level, PLAYER};
+    use rota_sim::fight::vessel_with_gear;
+
+    let basis_stufe_1 = stat_at_level(PLAYER.vessel, 1);
+    let basis_stufe_100 = stat_at_level(PLAYER.vessel, 100);
+
+    // Der Gegenfall zuerst: Ohne Ausruestung exakt die Basis, kein
+    // Rundungsrest, kein Versatz (AC5).
+    assert_eq!(vessel_with_gear(basis_stufe_1, 0), basis_stufe_1);
+    assert_eq!(vessel_with_gear(basis_stufe_100, 0), basis_stufe_100);
+
+    // Erstens: Ausruestung WIRKT.
+    let mit = vessel_with_gear(basis_stufe_1, 500);
+    assert!(
+        mit > basis_stufe_1,
+        "VESSEL 500 aendert nichts: {mit} gegen {basis_stufe_1}"
+    );
+
+    // Zweitens — und das ist die eigentliche Falle: Sie ersetzt die
+    // Stufen-Basis NICHT. Ein Spieler auf Stufe 100 ohne Ausruestung muss
+    // mehr Leben haben als einer auf Stufe 1 mit einem sehr guten Fund.
+    //
+    // Wer statt zu addieren ersetzt, faellt genau hier durch: Dann haengt das
+    // Leben nur noch an der Ausruestung, und hundert Stufen sind umsonst.
+    assert!(
+        basis_stufe_100 > vessel_with_gear(basis_stufe_1, 1000),
+        "Stufe 100 ohne Ausruestung ({basis_stufe_100}) ist nicht mehr als \
+         Stufe 1 mit doppeltem VESSEL ({}) — die Stufen-Basis wurde ersetzt \
+         statt erhoeht",
+        vessel_with_gear(basis_stufe_1, 1000)
+    );
+
+    // Und die Basis waechst ueberhaupt mit der Stufe — sonst waere der
+    // Vergleich oben trivial erfuellt.
+    assert!(basis_stufe_100 > basis_stufe_1 * 10);
+
+    // **Der Vergleich oben genuegt NICHT, und das ist gemessen.** Ich habe die
+    // Funktion versuchsweise so gebrochen, dass sie die Basis ersetzt
+    // (`worn_permille * 100` statt der Rechnung) — und alle Faelle oben
+    // blieben gruen. Die Zahlen passten zufaellig: Stufe 100 hat so viel
+    // Leben, dass sie auch gegen einen erfundenen Wert gewinnt.
+    //
+    // Was die Ersetzung wirklich ausschliesst, ist die Abhaengigkeit von der
+    // BASIS: Dieselbe Ausruestung an zwei verschiedenen Basen muss zwei
+    // verschiedene Ergebnisse geben, und zwar im Verhaeltnis der Basen.
+    let klein = vessel_with_gear(basis_stufe_1, 500);
+    let gross = vessel_with_gear(basis_stufe_100, 500);
+    assert!(
+        gross > klein,
+        "dieselbe Ausruestung gibt an beiden Basen dasselbe ({gross} und \
+         {klein}) — dann haengt das Ergebnis nicht an der Basis, die \
+         Stufen-Basis ist ersetzt"
+    );
+
+    // Und zwar IM VERHAELTNIS der Basen, nicht bloss groesser. Ein Ergebnis,
+    // das mit der Basis waechst, aber nach einer anderen Regel, kaeme sonst
+    // durch.
+    let verhaeltnis_basen = f64::from(basis_stufe_100) / f64::from(basis_stufe_1);
+    let verhaeltnis_werte = f64::from(gross) / f64::from(klein);
+    assert!(
+        (verhaeltnis_basen - verhaeltnis_werte).abs() < 0.01,
+        "Basen stehen {verhaeltnis_basen:.3} zueinander, Ergebnisse \
+         {verhaeltnis_werte:.3} — die Ausruestung wirkt nicht als Faktor auf \
+         die Basis"
+    );
+}
