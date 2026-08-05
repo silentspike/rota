@@ -331,3 +331,52 @@ dann wieder eine Balance-Zahl und gehört gemessen — wie Punkt 7.
 
 **Heute folgenlos:** Es gibt keine erspielbare Ausrüstung. Die Frage wird scharf, sobald E6 die
 Fundstücke baut.
+
+---
+
+## 11. Zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot — OFFEN
+
+Gemessen am 2026-08-05 von Worker-1 mit dem Balance-Läufer, an zwei Bossen mit
+verschiedener Dauer und verschiedener bester Rotation:
+
+```
+first-crucible (60 s)    nie gewirkt:  draught,  vapour, (+12 weitere)
+test-metronome (300 s)   nie gewirkt:  draught,  vapour, (+12 weitere)
+```
+
+`draught` war ein Entwurf für #268: ein GCD (100 Schaden) gegen **5000 ms auf alle
+Abklingzeiten**. `VAPOUR` ist der ausgelieferte Sublimations-Zauber mit derselben
+Rechnung. **Beide kommen in keiner gemessenen Rotation vor.**
+
+> Der Befund ist nicht „`draught` ist schlecht entworfen". Er lautet: **Die Bauart
+> ‚Abklingzeit verkürzen' trägt in diesem Kampf nicht** — es laufen zu wenige lange
+> Abklingzeiten gleichzeitig, als dass ihre Verkürzung einen GCD zurückverdiente.
+
+### Warum das eine Design-Frage ist und keine Balance-Frage
+
+`SUBLIMATION` ist eine der fünf Schulen, und ihre **zentrale Mechanik ist genau diese
+Bauart** (GAME-DESIGN: „Automatische Verkürzung aller Abklingzeiten"). Trägt sie nicht,
+trägt die Schule nicht — und dann sind es nicht zwei tote Zauber, sondern zwölf.
+
+### Was die Messung NICHT sagt
+
+Sie lief an **zwei** Bossen mit **15** Zaubern. Das fertige Spiel hat 60 Zauber und
+Abklingzeiten bis 180 Sekunden. Die Aussage „es laufen zu wenige lange Abklingzeiten
+gleichzeitig" ist eine Aussage über **heute**, nicht über das Spiel.
+
+**Genau deshalb liegt der Punkt hier und ist nicht entschieden:** Er könnte sich von
+selbst erledigen, wenn die Zauberzahl wächst — oder er könnte bedeuten, dass eine
+Schule auf einer Mechanik steht, die nie trägt. Das ist zu wichtig, um es dem Zufall zu
+überlassen, und zu früh, um es jetzt zu beantworten.
+
+### Die Wahl
+
+|                                               | Was es bedeutet                                                                                                                                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Abwarten und bei 60 Zaubern erneut messen** | Kostet nichts. Risiko: Die Schule ist dann gebaut, und ein Befund an der Wurzel trifft zwölf Zauber und drei Talentzweige                                               |
+| **Die Mechanik jetzt schärfen**               | Etwa: Verkürzung **prozentual** statt in Millisekunden, oder gezielt auf den **nächsten** Zauber statt auf alle. Dann hängt ihr Wert nicht daran, wie viel gerade läuft |
+| **Die Schul-Mechanik austauschen**            | Der härteste Schnitt. `SUBLIMATION` behielte ihren Namen und bekäme eine andere zentrale Mechanik                                                                       |
+
+**Bis zur Entscheidung:** `draught` ist aus #268 gestrichen — nicht wegen dieses Punktes,
+sondern weil er Sublimations-Mechanik in einem Kalzinations-Zauber war. Der Prüffall
+`genau_ein_ausgelieferter_zauber_verkuerzt_etwas` hat das gefangen.
