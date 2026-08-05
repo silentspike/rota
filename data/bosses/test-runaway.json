@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "test-runaway",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #247 (umgekehrtes Ziel) und sonst nichts. ZUR ERREICHBARKEIT, gerechnet bevor die Prueffaelle entstanden: KINDLE macht 100 Schaden je 1500 ms (GCD). Bei 1000 Lebenspunkten faellt der Ring durch EIGENEN Schaden nach zehn Wirkungen, also bei 13500 ms — das ist die Niederlage. Ohne jeden Zauber laeuft die Zeit bei 20000 ms ab — das ist der SIEG. Beide Ausgaenge liegen damit im selben 20-s-Fenster und sind deutlich getrennt (13,5 s gegen 20 s). Die Rate in `runaway` wird in dieser Etappe noch von niemandem gelesen; sie ist so gewaehlt, dass der Ring in der naechsten Etappe von selbst faellt: 60 je Sekunde ueber 20 s sind 1200 und damit mehr als die 1000 Lebenspunkte — ohne Stabilisieren ist der Lauf also verloren, was der Kern des Bausteins ist. Kein Boss des Spiels traegt dieses Feld.",
+  "name": "The Runaway Reaction",
+  "instance": "test",
+  "hp": 1000,
+  "overpressureMs": 20000,
+  "phases": [],
+  "energy": null,
+  "doom": null,
+  "stacks": null,
+  "race": null,
+  "bossHeal": null,
+  "runaway": {
+    "perStepMs": 1000,
+    "amount": 60
+  },
+  "escalation": null,
+  "affliction": null,
+  "timeline": [],
+  "timelineLoopMs": null,
+  "resistances": {},
+  "signature": null
+}

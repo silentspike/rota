@@ -1606,18 +1606,39 @@ export class Combat {
     return true;
   }
 
-  /** Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken. */
+  /**
+   * Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken.
+   *
+   * **BEIDE AUSGÄNGE KEHREN SICH UM, wenn der Boss das umgekehrte Ziel trägt**
+   * (11.2, Baustein 6; Issue #247):
+   *
+   * | | Ring auf 0 | Zeit abgelaufen |
+   * | --- | --- | --- |
+   * | gewöhnlich | Sieg | Niederlage |
+   * | `runaway` | Niederlage | Sieg |
+   *
+   * Nicht eine Bedingung, sondern zwei — sonst wäre es keine Umkehrung des
+   * ZIELS, sondern nur ein anderer Verlustweg. Der Sieg ist dort das
+   * Überstehen der Frist, wie beim Vorbild aus 11.2; die Fiktion trägt es von
+   * selbst, weil der Überdruck laut 7.4 entsteht, **weil** die Reaktion außer
+   * Kontrolle gerät (GAME-DESIGN 7.4). Wer sie hält, bei dem entsteht er nicht.
+   *
+   * Die Zustände bleiben dieselben: `FIGHT_OVERPRESSURE` ist in beiden Fällen
+   * die Niederlage. Ein eigener Zustand wäre eine dritte Wahrheit über dasselbe
+   * Ende, und die Auswertung müsste sie überall mitführen.
+   */
   checkDefeat(timeMs: number): boolean {
     if (this.stateValue !== FIGHT_RUNNING) return true;
+    const umgekehrt = this.boss.runaway !== null;
     if (this.damageDealtValue >= this.boss.hp) {
-      this.stateValue = FIGHT_WON;
+      this.stateValue = umgekehrt ? FIGHT_OVERPRESSURE : FIGHT_WON;
       this.endedAtMs = timeMs;
       return true;
     }
     // Der Überdruck bemisst sich an der KAMPFuhr, nicht an der durchlaufenden:
     // Die Vorbereitung darf nichts von der Kampfzeit abziehen.
     if (this.fightElapsedMs(timeMs) >= this.boss.overpressureMs) {
-      this.stateValue = FIGHT_OVERPRESSURE;
+      this.stateValue = umgekehrt ? FIGHT_WON : FIGHT_OVERPRESSURE;
       this.endedAtMs = timeMs;
       return true;
     }

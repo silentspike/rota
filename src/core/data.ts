@@ -293,6 +293,41 @@ export interface RaceDef {
 }
 
 /**
+ * Das umgekehrte Ziel (GAME-DESIGN 11.2, Baustein 6; Issue #247).
+ *
+ * > **Statt** Schaden zu machen muss eine kippende Reaktion stabilisiert
+ * > werden. Der Kampf, in dem COAGULATION glänzt.
+ *
+ * **AM BOSS-RING, NICHT AN EINEM ZWEITEN WERT.** Das ist die Entscheidung, die
+ * #247 trägt, und sie hat einen Anlauf gekostet: In #240 stand hier ein eigener
+ * Wert `reaction` — bis im Browser auffiel, dass der Ring selbst so heißt.
+ * GAME-DESIGN 9.1: „Großer Kreisring = Lebensbalken und Boss-Darstellung
+ * zugleich. Es ist das Reaktionsgefäß." Es gibt ein Gefäß und eine Reaktion
+ * darin.
+ *
+ * Erst dadurch wird die Umkehrung zur Umkehrung — **beide** Bedingungen drehen
+ * sich, nicht eine:
+ *
+ * | | Ring auf 0 | Zeit abgelaufen |
+ * | --- | --- | --- |
+ * | normaler Boss | Sieg | Niederlage |
+ * | mit diesem Feld | Niederlage | **Sieg** |
+ *
+ * Mit einem zweiten Wert hätte der Spieler eine Leiste zum Senken **und** eine
+ * zum Halten gehabt — also keine Umkehrung, sondern eine Zusatzaufgabe.
+ *
+ * Der Name: „runaway reaction" ist der Fachbegriff für genau das, was 9.1
+ * beschreibt — eine Umwandlung, die außer Kontrolle gerät. Das Ereignis
+ * `boss.reaction.destabilise` (`src/core/events.ts`) trägt sie seit E1.
+ */
+export interface RunawayDef {
+  /** Takt, in dem der Ring von selbst sinkt. Auf dem Raster. */
+  readonly perStepMs: number;
+  /** Wie viel Fortschritt je Takt von selbst dazukommt. */
+  readonly amount: number;
+}
+
+/**
  * Die eskalierende Wiederholung (GAME-DESIGN 11.2, Baustein 7; Issue #240).
  *
  * > Dieselbe Phase kehrt mehrfach wieder — **kürzere Fenster**, mehr
@@ -482,6 +517,13 @@ export interface BossDef {
   /** Was ein Fehler an Fortschritt zurückdreht, oder `null` (Issue #218). */
   readonly bossHeal: BossHealDef | null;
   /** Die Eskalation je Zyklus, oder `null` (Issue #240). */
+  /**
+   * Das umgekehrte Ziel, falls dieser Boss es trägt (Issue #247).
+   *
+   * `null` heißt: gewöhnlicher Kampf — Ring auf 0 ist der Sieg. Das gilt für
+   * jeden ausgelieferten Boss.
+   */
+  readonly runaway: RunawayDef | null;
   readonly escalation: EscalationDef | null;
   /** Die Schwächung ohne Heil-Lösung, oder `null` (Issue #240). */
   readonly affliction: AfflictionDef | null;
@@ -976,6 +1018,21 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
   }
 
   // Die drei letzten Bausteine (Issue #240).
+  let runaway: RunawayDef | null = null;
+  if (isRecord(source['runaway'])) {
+    const perStepMs = number(source['runaway']['perStepMs'], 0);
+    const amount = number(source['runaway']['amount'], 0);
+    if (perStepMs <= 0 || perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `runaway.perStepMs ${perStepMs} muss positiv und auf dem ${TICK_MS}-ms-Raster ` +
+          'liegen — sonst kippte die Reaktion auf beiden Seiten zu verschiedenen ' +
+          'Zeitpunkten.',
+      );
+    }
+    if (amount <= 0) problems.push('Die Reaktion läuft nicht davon (runaway.amount).');
+    runaway = { perStepMs, amount };
+  }
+
   let escalation: EscalationDef | null = null;
   if (isRecord(source['escalation'])) {
     const castTimeShrinkMs = number(source['escalation']['castTimeShrinkMs'], 0);
@@ -1097,6 +1154,7 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       stacks,
       race,
       bossHeal,
+      runaway,
       escalation,
       affliction,
       timeline,
