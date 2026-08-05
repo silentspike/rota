@@ -261,7 +261,11 @@ describe('Combat — SMOULDER (AC3)', () => {
 describe('Combat — Wirken abweisen', () => {
   it('weist einen unbekannten Zauber ab', () => {
     const combat = makeCombat();
+    // **Die 99 bleibt eine Zahl, und das ist Absicht** (Issue #369): Sie soll
+    // gerade KEINEN Zauber treffen. Ein Bezeichner wäre hier falsch — es gibt
+    // keinen für „gibt es nicht".
     expect(combat.cast(99, 0).result).toBe(CAST_UNKNOWN);
+    expect(combat.spells.length, 'die 99 ist keine unmögliche Zahl mehr').toBeLessThan(99);
   });
 
   it('weist einen Zauber auf Abklingzeit ab', () => {
@@ -359,8 +363,10 @@ describe('Combat — zurücksetzen', () => {
     expect(combat.resource).toBe(0);
     expect(combat.resourceOverflow).toBe(0);
     expect(combat.fightState).toBe(FIGHT_RUNNING);
-    expect(combat.castCount(0)).toBe(0);
-    expect(combat.isReady(0, 0)).toBe(true);
+    // **Über den Bezeichner, nicht über die Zahl** (Issue #369). Eine 0 hier
+    // zeigt auf den Zauber, der heute vorn steht.
+    expect(combat.castCount(combat.indexOf('kindle'))).toBe(0);
+    expect(combat.isReady(combat.indexOf('kindle'), 0)).toBe(true);
     expect(combat.dotRemainingMs(combat.indexOf('smoulder'), 0)).toBe(0);
   });
 });
