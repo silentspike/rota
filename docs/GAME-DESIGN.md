@@ -2097,31 +2097,6 @@ werden nur die Projektionen, auf denen Balance-Entscheidungen fallen. Der Rest b
 **Die Referenz-Rotationen aus dem Balance-Läufer erscheinen NIRGENDS im Spiel** — auch nicht als
 Lernhilfe. Das Herausfinden der besten Reihenfolge ist der Kern des Spiels.
 
-### 18.6 Die Zauber-Reihenfolge ist eine Schnittstelle
-
-**Der Index eines Zaubers steht in jeder aufgezeichneten Runde — als Zahl, nicht als Name.**
-Eine Aufzeichnung, die „Platz 0 → Zauber 3" sagt, meint den Zauber, der beim Aufzeichnen an
-Position 3 stand. Verschiebt sich die Liste, zeigt dieselbe Zahl auf einen anderen.
-
-**Neue Zauber werden deshalb hinten angehängt, nie eingeschoben.** Hinten anhängen ändert
-keine bestehende Zahl; dazwischen einfügen verschiebt alles danach — und zwar in Dateien,
-die niemand dabei ansieht.
-
-Die Regel stand bis dahin nur als Kommentar in `src/core/data.ts`, dreimal wiederholt
-(#201, #97, #304). Wer sie dort nicht las, konnte sie nicht kennen: Die Reihenfolge folgt
-keiner ableitbaren Ordnung — nicht alphabetisch, nicht nach Schule, nicht nach Stufe.
-`quench` aus `common.json` steht vor `crust` aus `coagulation.json`, weil die Liste in
-`data.ts` von Hand zusammengesetzt ist.
-
-> **Ein falscher Index ist nicht rot, sondern grün und misst etwas anderes.** Bei
-> `interrupt-losses` fiel eine Verschiebung nur auf, weil an Index 3 ein Hitze-Zauber
-> landete, der gar keine Unterbrechung platziert. Wäre dort ein anderer Unterbrecher
-> gelandet, hätte niemand etwas gemerkt — der Prüffall wäre weiter grün gewesen und hätte
-> den falschen Zauber geprüft.
-
-Ist eine Verschiebung gewollt, gehört sie **bewusst** vollzogen: Aufzeichnungen neu
-erzeugen, den Wächter nachziehen. Das ist Arbeit, und sie soll es sein.
-
 ### 18.6 Aktualisierungen und Spielstände
 
 **Spielstände bleiben immer gültig:** Der Spielstand speichert nur, **WAS** besessen und erreicht
@@ -2155,6 +2130,31 @@ nennen, um an der Prüfung vorbeizukommen, wäre schlimmer als keine Prüfung: D
 liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und ist damit auffindbar.
 
 ---
+
+### 18.7 Die Zauber-Reihenfolge ist eine Schnittstelle
+
+**Der Index eines Zaubers steht in jeder aufgezeichneten Runde — als Zahl, nicht als Name.**
+Eine Aufzeichnung, die „Platz 0 → Zauber 3" sagt, meint den Zauber, der beim Aufzeichnen an
+Position 3 stand. Verschiebt sich die Liste, zeigt dieselbe Zahl auf einen anderen.
+
+**Neue Zauber werden deshalb hinten angehängt, nie eingeschoben.** Hinten anhängen ändert
+keine bestehende Zahl; dazwischen einfügen verschiebt alles danach — und zwar in Dateien,
+die niemand dabei ansieht.
+
+Die Regel stand bis dahin nur als Kommentar in `src/core/data.ts`, dreimal wiederholt
+(#201, #97, #304). Wer sie dort nicht las, konnte sie nicht kennen: Die Reihenfolge folgt
+keiner ableitbaren Ordnung — nicht alphabetisch, nicht nach Schule, nicht nach Stufe.
+`quench` aus `common.json` steht vor `crust` aus `coagulation.json`, weil die Liste in
+`data.ts` von Hand zusammengesetzt ist.
+
+> **Ein falscher Index ist nicht rot, sondern grün und misst etwas anderes.** Bei
+> `interrupt-losses` fiel eine Verschiebung nur auf, weil an Index 3 ein Hitze-Zauber
+> landete, der gar keine Unterbrechung platziert. Wäre dort ein anderer Unterbrecher
+> gelandet, hätte niemand etwas gemerkt — der Prüffall wäre weiter grün gewesen und hätte
+> den falschen Zauber geprüft.
+
+Ist eine Verschiebung gewollt, gehört sie **bewusst** vollzogen: Aufzeichnungen neu
+erzeugen, den Wächter nachziehen. Das ist Arbeit, und sie soll es sein.
 
 ## 19. Entwicklungs-Werkzeuge
 
