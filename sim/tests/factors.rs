@@ -138,6 +138,20 @@ fn alle_faktoren_wirken_gleich_stark() {
     // hier** (Issue #346). Sonst gaebe es zwei Listen: die, die geprueft wird,
     // und die, gegen die der Waechter vergleicht — und sie koennten
     // auseinanderlaufen. Genau davor schuetzt dieser Umbau.
+    //
+    // # WAS DIESER FALL NICHT ABDECKT (Issue #356)
+    //
+    // Er misst die Formel in `compute_damage`. **Wer eine ZWEITE Schadensstelle
+    // baut, ist nicht erfasst** — etwa eine eigene Rechnung fuer eine neue
+    // Schadensart, die die Faktoren selbst multipliziert statt `compute_damage`
+    // zu rufen. Dort koennte ein Faktor fehlen oder anders wirken, und dieser
+    // Waechter bliebe gruen.
+    //
+    // Die Spielseite hat seit #356 denselben Waechter und dieselbe Grenze; sie
+    // steht dort im Kopf von `tests/unit/damage-strength.test.ts`. Hier stand
+    // sie bis zum 2026-08-05 nicht — nachgetragen, weil eine Grenze, die nur
+    // auf einer Seite benannt ist, auf der anderen wie Vollstaendigkeit
+    // aussieht.
     let referenz = lauf(DamageFactors {
         essence: 1.10,
         ..NEUTRAL
