@@ -1847,24 +1847,80 @@ Befehl, den es nicht gibt. **Er meldete keinen Fehler.**
 machst, prüfe an einem Merkmal, dass die Messung überhaupt stattgefunden hat — ein Wert, der sich
 bewegt haben _muss_, wenn das Werkzeug gewirkt hat.
 
+### 8.16 Eine Einzelmessung nach einem asynchronen Ereignis ist keine Messung
+
+_Vom Orchestrator am 2026-08-05 bei der Abnahme von #304 zweimal an sich selbst gelernt._
+
+Ein Tastendruck über `playwright-cli press` läuft **nicht** im Takt der Spiellogik. Zwischen dem
+Absetzen und der Verarbeitung liegen unbestimmt viele Takte. Wer unmittelbar danach einmal misst,
+misst mit erheblicher Wahrscheinlichkeit den Zustand **davor** — und der sieht genau so aus wie ein
+Druck, der gar nicht angekommen ist.
+
+So sah es aus:
+
+```
+press q
+eval  → {"casting": null, "rest": 0}          ← „der Zauber startet nicht"
+eval  → {"casting": "test-cast", "rest": 1500} ← doch, eine Sekunde später
+```
+
+Beim zweiten Mal wäre daraus fast ein Befund an fremder Arbeit geworden: Nach einem Druck während
+eines laufenden Zaubers stand `cancelled: 0` und der Zauber lief weiter — also **„der Cast blockiert
+den zweiten Druck", das alte Verhalten**. Die Gegenprobe entlarvte es: Ein späterer Lauf zeigte
+`kindleCasts: 2`, obwohl nur einmal gedrückt worden war. Der erste Druck war angekommen, nur später
+als die Messung.
+
+**Die Regel: Miss in einer Reihe, nicht einmal.**
+
+```
+press w
+for i in 1..5: eval <derselbe Ausdruck>
+```
+
+Ein Zustand, der über fünf aufeinanderfolgende Messungen gleich bleibt, ist eingeschwungen. Eine
+einzelne Zahl direkt nach einem asynchronen Ereignis ist eine Momentaufnahme aus einem Rennen, das
+du nicht kontrollierst.
+
+**Und wenn das Zeitfenster eng ist, verlangsame die Zeit statt schneller zu messen.** Bei einer
+Wirkzeit von 2000 ms und einer Wartezeit von 1500 ms ist das Fenster für den zweiten Druck 500 ms
+breit — bei einer Befehlslatenz von rund einer Sekunde ist es nicht zu treffen. `setTimeScale(0.02)`
+macht daraus 25 Sekunden. Der Versuch, es durch schnelleres Messen zu treffen, ist an diesem Tag
+viermal gescheitert.
+
+> Der gefährliche Teil ist nicht, dass die Messung danebengeht. Es ist, dass die zu frühe Messung
+> **denselben Wert liefert wie ein echter Fehler** — `null`, `0`, „nichts passiert". Sie sieht nicht
+> aus wie ein Messfehler, sondern wie ein Befund.
+
 ---
 
 ## 9. Wie die Kommunikation läuft
 
 ```
-    Worker-Session                Auftraggeber              Master-Session
-         │                             │                          │
-         │  Melde-Format (§ 6)         │                          │
-         ├────────────────────────────►│  kopiert                 │
-         │                             ├─────────────────────────►│
-         │                             │                          │ prüft selbst
-         │                             │                          │ im laufenden
-         │                             │   ABGENOMMEN oder        │ System
-         │                             │◄─────────────────────────┤
-         │  Rückmeldung                │   OFFEN MIT BLOCKER      │
-         │◄────────────────────────────┤                          │
+    Worker-Sitzung                                      Orchestrator
+         │                                                    │
+         │  rota-ipc senden Orchestrator   (Melde-Format § 6)  │
+         ├───────────────────────────────────────────────────►│
+         │                                                    │ misst selbst
+         │                                                    │ im laufenden
+         │  rota-ipc antworten <Nr>        (Quittung, Pflicht) │ System
+         │◄───────────────────────────────────────────────────┤
+         │                                 ABGENOMMEN oder    │
+         │                                 OFFEN MIT BLOCKER  │
 ```
 
-Der Auftraggeber kopiert die Ausgaben zwischen den Sessions hin und her. **Fasse dich deshalb
-kompakt genug, dass die Meldung in einen Kopiervorgang passt** — aber niemals auf Kosten der
-Nachweise. Build-Ausgaben, Testergebnisse und Messwerte sind nie „zu ausführlich".
+**Der Auftraggeber ist nicht mehr der Transportweg.** Die vier Sitzungen schreiben einander direkt
+über `rota-ipc`; Einzelheiten in [`docs/IPC.md`](IPC.md) und in `CLAUDE.md`. Die frühere Darstellung
+an dieser Stelle — der Auftraggeber kopiert Ausgaben hin und her — galt bis zum 2026-08-05 und ist
+seitdem falsch.
+
+**Daraus folgt eine Änderung, die leicht übersehen wird:** Die alte Empfehlung lautete, sich
+kompakt genug zu fassen, dass die Meldung in einen Kopiervorgang passt. **Diese Grenze gibt es nicht
+mehr.** Über die Standardeingabe (`rota-ipc senden Orchestrator - <<'ENDE'`) ist die Länge frei —
+und Build-Ausgaben, Testergebnisse und Messwerte waren ohnehin nie „zu ausführlich".
+
+Zwei Regeln aus § 6 bleiben davon unberührt:
+
+|                                  |                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Erst quittieren, dann melden** | Eine inhaltliche Antwort per `senden` schließt eine Nummer **nicht**. Die Quittung ist ein eigener Aufruf, und sie enthält das verstandene Vorhaben in einem Satz — nicht „erhalten" |
+| **Jede Nummer einzeln**          | Eine Sammelquittung auf drei Nachrichten passt für höchstens zwei davon. Auch das ist an einem Tag gemessen worden                                                                   |
