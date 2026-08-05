@@ -312,8 +312,27 @@ export interface RaceDef {
  * eigenen Betrag. Eine zweite Zahl „stabilisiert um X" neben `shield.amount`
  * wäre dieselbe Größe an zwei Orten, und die zweite läuft beim Nachziehen weg.
  *
- * **Der Umwandlungs-Weg bleibt außen vor** (gemeldet als Lücke): Er erzeugt
- * Schutz laufend statt beim Wirken, und das wäre eine dritte Regel.
+ * TEMPER BLEIBT DRAUSSEN — UND DAS IST DIE GRENZE DES BAUSTEINS, KEINE LÜCKE
+ * ---------------------------------------------------------------------------
+ * 11.2 sagt: „**Statt** Schaden zu machen muss eine kippende Reaktion
+ * stabilisiert werden."
+ *
+ * TEMPER wandelt ausgeteilten Schaden laufend in Schutz. Würde dieser Schutz
+ * stabilisieren, dann stabilisierte man **durch Schaden machen** — und die
+ * Bedingung, die den ganzen Kampf ausmacht, wäre aufgehoben. Der Boss-Typ
+ * verwandelte sich in einen normalen Kampf, bei dem man nebenbei stabilisiert.
+ *
+ * Es ist auch kein Mangel an TEMPER: GAME-DESIGN 4.1 nennt die drei Wege
+ * ausdrücklich „drei Wege **nebeneinander**" — drei Spielweisen, nicht drei
+ * Antworten auf jede Frage. Ein Boss, der Schutzschicht und Heilung belohnt,
+ * muss nicht auch die Umwandlung belohnen.
+ *
+ * > **Offene Frage, damit sie niemand für ein Versehen hält:** Welcher
+ * > Boss-Typ belohnt die Umwandlung? Vermutlich einer mit hohem Dauerschaden,
+ * > bei dem laufender Schutz besser trägt als punktuelle Heilung. Der
+ * > Orchestrator schneidet das als eigenes Issue, wenn #240 durch ist.
+ *
+ * Wer hier „die Lücke repariert", nimmt dem Baustein seinen Kern.
  */
 export interface StabiliseDef {
   /** Womit die Reaktion beginnt. */
