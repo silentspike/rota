@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "test-collision",
+  "_comment": "VORLAEUFIGE WERTE — KEIN INHALT. Dieser Boss traegt genau einen Prueffall (Issue #331): Sein zweiter Eintrag beginnt in EXAKT dem Takt, in dem der erste landet. 4000 + 3000 = 7000. Damit treffen 'der laufende Zauber landet' und 'die Zeitleiste rueckt vor' im selben Takt zusammen — die Kollision, die Spiel und Simulator heute entgegengesetzt aufloesen. KEINE der elf bestehenden Boss-Dateien trifft diese Bedingung, deshalb war der Unterschied bisher latent und von keinem Prueffall zu sehen. Die Zahlen stehen HIER und nicht im Prueffall: Ein Prueffall, der sich seine Lage selbst herstellt, belegt nur, dass er sie herstellen kann. Wer diesen Boss fuer Inhalt haelt und balanciert, hat ihn missverstanden.",
+  "name": "The Colliding Hour",
+  "instance": "testing",
+  "hp": 999999,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 4000,
+      "mechanic": "interruptibleCast",
+      "name": "First Word",
+      "damage": 600,
+      "castTimeMs": 3000
+    },
+    {
+      "atMs": 7000,
+      "mechanic": "strike",
+      "name": "Colliding Hand",
+      "damage": 300
+    },
+    {
+      "atMs": 20000,
+      "mechanic": "interruptibleCast",
+      "name": "Second Word",
+      "damage": 600,
+      "castTimeMs": 2000
+    },
+    {
+      "atMs": 22000,
+      "mechanic": "strike",
+      "name": "Colliding Hand",
+      "damage": 300
+    }
+  ],
+  "resistances": {},
+  "signature": null
+}
