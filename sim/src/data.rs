@@ -42,6 +42,24 @@ pub struct Dot {
     pub resource_gain_per_tick: u16,
 }
 
+/// Eine Verstaerkung, die ein Zauber beim Wirken ausloest (GAME-DESIGN 5).
+///
+/// **Die Dauer steht in Wartezeiten, nicht in Millisekunden.** Das ist die
+/// Design-Regel und keine Bequemlichkeit: Sinkt die globale Wartezeit, wird das
+/// Fenster in Sekunden kuerzer — "drei Zauber" bleiben drei Zauber. Wer hier
+/// Millisekunden fuehrte, machte aus einem Fenster von drei Zaubern eines von
+/// vier, sobald jemand schneller wirkt.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Buff {
+    /// Die Art, `0` bis `BUFF_KIND_CAPACITY - 1`. Verschiedene Arten
+    /// multiplizieren sich, gleiche ersetzen einander.
+    pub kind: usize,
+    /// Der Faktor auf den Schaden — `1.2` heisst plus zwanzig Prozent.
+    pub factor: f64,
+    /// Laenge des Fensters in globalen Wartezeiten.
+    pub gcds: u32,
+}
+
 /// Ein Entlade-Zauber: verbraucht die Ressource und schlaegt dafuer zu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spender {
@@ -146,7 +164,16 @@ pub enum ControlEffect {
 }
 
 /// Ein Zauber.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// **Ohne `Eq`, seit `buff` dazukam** (Issue #420): Ein Verstaerkungs-Faktor
+/// ist ein Faktor wie `1.2` und damit ein `f64`, und `f64` hat kein `Eq` — NaN
+/// ist mit sich selbst nicht gleich. `PartialEq` bleibt und reicht: Die
+/// Struktur wird verglichen, aber nie als Schluessel benutzt.
+///
+/// Die Widerstaende eines Bosses fuehren aus demselben Grund `f64` (`emit_boss`
+/// in `build.rs`) — ein Faktor in Promille waere eine zweite Darstellung fuer
+/// dieselbe Zahl, und zwei Darstellungen laufen auseinander.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Spell {
     /// Bezeichner aus der Datei, z. B. `kindle`.
     pub id: &'static str,
@@ -183,6 +210,14 @@ pub struct Spell {
     pub dot: Option<Dot>,
     /// Entlade-Verhalten, falls der Zauber die Ressource verbraucht.
     pub spender: Option<Spender>,
+    /// Welche Verstaerkung dieser Zauber ausloest (GAME-DESIGN 5, Issue #420).
+    ///
+    /// **`None` heisst: loest keine aus** — der Fall fuer jeden Zauber des
+    /// Spiels. Bis #420 gab es das Feld gar nicht, und deshalb stand
+    /// `factors.buffs` in jedem Kampf dauerhaft auf 1, obwohl `buffs.rs` die
+    /// Stapel-Regel vollstaendig fuehrt und ein gemeinsamer Prueffall sie
+    /// gegenrechnet: Beide Seiten taten dasselbe nicht.
+    pub buff: Option<Buff>,
     /// Um wie viel dieser Zauber **alle laufenden Abklingzeiten** verkuerzt
     /// (SUBLIMATION, GAME-DESIGN 4.1, Issue E3-3).
     ///
