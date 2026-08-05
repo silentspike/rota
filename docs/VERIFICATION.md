@@ -41,6 +41,60 @@ bekommt ihren eigenen Befehl und ihre eigene Ausgabe — auch wenn zwei sich äh
 **Frische Nachweise.** „Das habe ich bei Issue 3 schon geprüft" zählt nicht. Der Code hat sich
 seitdem geändert.
 
+### Eine leere Prüfliste ist nicht dasselbe wie eine laufende
+
+_Von Worker-1 am 2026-08-05 bei #282 gemeldet, nachdem es ihm fast entgangen wäre._
+
+```
+$ gh pr checks 347
+no checks reported on the 'feat/...' branch
+```
+
+Das liest sich wie **„läuft noch"**. Es hieß **„startet nie"**: Der Zweig war `CONFLICTING`, und
+GitHub startet für einen Zweig mit Konflikt gar keine Läufe.
+
+> Kein Ergebnis sieht aus wie ein unauffälliges Ergebnis. Dieselbe Gestalt wie die leere Namensfolge
+> und wie ein Werkzeug, das ohne Fehlermeldung nichts tut.
+
+**Das trifft die Warteschleife dieser Checkliste unmittelbar.** Wer auf `ci-pass` wartet und nur auf
+`SUCCESS` oder `FAILURE` prüft, wartet bei einem Konflikt bis zum Abbruch — und weiß danach nicht,
+warum. Deshalb gehört `mergeable` in dieselbe Abfrage:
+
+```bash
+gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
+  -q '.mergeable+" | "+.mergeStateStatus+" | "+([.statusCheckRollup[]|select(.name=="ci-pass")|.conclusion//"laeuft"]|join(","))'
+```
+
+| Ausgabe                          | Bedeutung                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `MERGEABLE \| BLOCKED \|`        | Checks laufen — warten ist richtig                                        |
+| `CONFLICTING \| DIRTY \|`        | **Es wird nie etwas kommen.** Zweig aktualisieren lassen                  |
+| `MERGEABLE \| CLEAN \| SUCCESS`  | fertig                                                                    |
+| `UNKNOWN \| UNKNOWN \|`          | **Zwei ganz verschiedene Lagen** — siehe unten                            |
+| `MERGEABLE \| BEHIND \| SUCCESS` | **Fertig, aber nicht mergefähig** — `strict` verlangt den aktuellen Stand |
+
+**`UNKNOWN` heißt entweder „GitHub rechnet noch" oder „der PR ist längst gemergt".** GitHub
+berechnet `mergeable` asynchron; bei einem geschlossenen PR steht dort dauerhaft nichts. Beim
+Nachmessen an einem frischen PR: durchgehend `MERGEABLE | BLOCKED`, bei einem gemergten dauerhaft
+`UNKNOWN | UNKNOWN`.
+
+> Wer `UNKNOWN` sieht, fragt zuerst `gh pr view <n> --json state` — bei `MERGED` ist die Frage
+> beantwortet, bei `OPEN` wartet man ein paar Sekunden und misst erneut.
+
+**`BEHIND` ist der Zustand, der eine Warteschleife am längsten narrt.** Die Prüfungen sind grün,
+der Merge scheitert trotzdem — die Branch Protection steht auf `strict`, und **jeder** fremde Merge
+setzt alle offenen PRs zurück in diesen Zustand. Eine Schleife, die auf `CLEAN | SUCCESS` wartet,
+läuft dann bis zum Abbruch durch.
+
+```bash
+gh pr update-branch <n>   # holt main in den Zweig, danach laufen die Prüfungen erneut
+```
+
+> Gemessen am 2026-08-05: fünfzehn Runden gewartet, `SUCCESS` stand ab der dritten. Der eigene
+> Abbruch kam erst nach neun Minuten, und der Merge scheiterte danach sofort.
+
+**Die Unterscheidung kostet nichts und spart das Warten auf etwas, das nicht kommt.**
+
 ---
 
 ## 2. Das Spiel starten und ansprechen
