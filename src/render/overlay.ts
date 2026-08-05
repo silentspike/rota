@@ -526,6 +526,15 @@ export class Overlay {
       if (levelUp.newBarSlots > 0) {
         zeile(levelUp.newBarSlots === 1 ? '+1 bar slot' : `+${levelUp.newBarSlots} bar slots`);
       }
+      // **Nur wenn einer anfiel** (Issue #379): Auf jeder zweiten Stufe gibt es
+      // keinen, und „+0 talent points" wäre eine Zeile, die nichts sagt.
+      if (levelUp.newTalentPoints > 0) {
+        zeile(
+          levelUp.newTalentPoints === 1
+            ? '+1 talent point'
+            : `+${levelUp.newTalentPoints} talent points`,
+        );
+      }
     }
 
     // Die Marke: ganz weg, wenn es keine gibt. Ein leerer Block mit Trenner

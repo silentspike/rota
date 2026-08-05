@@ -2220,7 +2220,7 @@ sein — der Unterschied zu vorher ist, dass sie überhaupt sichtbar wird.
 > belegt.
 >
 > **Es schreibt nur, WAS erreicht wurde** — Stufe und Erfahrung auf null. Alles andere wird daraus
-> gerechnet, genau wie im Spiel (18.5: der Spielstand hält nie berechnete Werte, die auf kommende
+> gerechnet, genau wie im Spiel (18.6: der Spielstand hält nie berechnete Werte, die auf kommende
 > Kämpfe zurückwirken). Ein Werkzeug, das stattdessen Grundwerte oder Leisten-Plätze direkt
 > setzte, könnte einen Zustand herstellen, den das Spiel selbst nie erzeugt — und ein Nachweis
 > daran belegte nichts.

@@ -6,7 +6,7 @@
  * Hier steht die Rechnung: Wie viel Erfahrung ein Sieg bringt und wann sie zur
  * nächsten Stufe reicht. Was daraus folgt — Grundwerte, freigeschaltete Zauber,
  * Leisten-Plätze — steht anderswo und wird aus der Stufe **gerechnet**, nicht
- * gespeichert (GAME-DESIGN 18.5, AC5 des Issues).
+ * gespeichert (GAME-DESIGN 18.6, AC5 des Issues).
  *
  * Der Unterschied ist still und teuer: Ein gespeicherter Wert geht nicht
  * kaputt, er wird nur alt. Eine Balance-Änderung erreicht bestehende
