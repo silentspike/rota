@@ -121,5 +121,17 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // (der älteste zuerst), und die unbelegten Plätze als 0.
   h = mixInt(h, combat.decayStacks);
   for (let i = 0; i < MAX_DECAY_STACKS; i++) h = mixInt(h, combat.decayExpiryAt(i));
+  // **Angehängt, nicht eingeschoben** (Issue #218). Ohne sie wäre die
+  // Prüfsumme für einen Boss mit Unverwundbarkeits-Fenster blind: Zwei Läufe
+  // mit verschieden viel verlorenem Schaden sähen gleich aus, solange der
+  // ausgeteilte zufällig übereinstimmt — und im Fenster stimmt er überein,
+  // denn dort wächst er gar nicht.
+  //
+  // Der geladene Zähler gehört dazu: Er entscheidet, ob das Fenster früh
+  // endet, und steht in keiner anderen Größe.
+  h = mixInt(h, combat.raceOpen ? 1 : 0);
+  h = mixInt(h, combat.raceProgress);
+  h = mixInt(h, combat.damageLostToRace);
+  h = mixInt(h, combat.bossHealed);
   return h >>> 0;
 }

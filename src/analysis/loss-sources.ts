@@ -99,6 +99,29 @@ export interface InterruptLoss {
  */
 const MEASURES_DAMAGE_TAKEN: LossKind = 'missedInterrupts';
 
+/**
+ * Was ein Boss an Fortschritt zurückgedreht hat (11.2, Baustein 5; #218).
+ *
+ * **Die zweite Größe, die nicht in die Prozentrechnung gehört** — aus einem
+ * anderen Grund als die verpassten Unterbrechungen, aber mit derselben Folge:
+ *
+ * | | misst |
+ * | --- | --- |
+ * | die vier Quellen | Schaden, der **nicht ausgeteilt** wurde |
+ * | verpasste Unterbrechungen | Schaden, den der Spieler **genommen** hat |
+ * | Boss-Heilung | Schaden, der **rückgängig gemacht** wurde |
+ *
+ * Drei Einheiten, eine Zeile je Einheit. Sie in eine Prozentrechnung zu werfen
+ * verglich Unvergleichbares — und die Prozentzahl wäre falsch, ohne dass man
+ * es ihr ansieht.
+ */
+export interface BossHealLoss {
+  /** Wie viel Fortschritt zurückgedreht wurde. */
+  readonly amount: number;
+  /** Ein Satz für den Spieler, englisch (Design-Gesetz 5). */
+  readonly detail: string;
+}
+
 export interface LossReport {
   /** Alle rechenbaren Quellen mit Verlust ueber 0, groesste zuerst. */
   readonly sources: readonly RankedLoss[];
@@ -123,6 +146,13 @@ export interface LossReport {
    * sind, stehen sie zusätzlich in `unavailable`.
    */
   readonly interrupts: InterruptLoss | null;
+  /**
+   * Zurückgedrehter Fortschritt, getrennt von der Prozentrechnung oben.
+   *
+   * `null` heißt: Der Boss hat nichts zurückgedreht — entweder trägt er den
+   * Baustein nicht, oder es kam kein Zauber durch.
+   */
+  readonly bossHeal: BossHealLoss | null;
 }
 
 /**
@@ -134,7 +164,11 @@ export interface LossReport {
  * Abklingzeit" ist genau daran gescheitert (gemessen: 193 theoretische Maxima
  * gegen 160 verfuegbare Aktionen).
  */
-export function rankLosses(damageDealt: number, defs: readonly LossSourceDef[]): LossReport {
+export function rankLosses(
+  damageDealt: number,
+  defs: readonly LossSourceDef[],
+  bossHealed = 0,
+): LossReport {
   const computed: { def: LossSourceDef; value: LossContribution }[] = [];
   const unavailable: LossKind[] = [];
   let interrupts: InterruptLoss | null = null;
@@ -184,6 +218,16 @@ export function rankLosses(damageDealt: number, defs: readonly LossSourceDef[]):
     totalShare: shareOf(totalLost),
     unavailable,
     interrupts,
+    // **Nicht in `sources`, nicht in `totalLost`, nicht in `potential`.**
+    // Dieselbe Trennung wie bei den Unterbrechungen und aus demselben Grund:
+    // eine andere Einheit.
+    bossHeal:
+      bossHealed > 0
+        ? {
+            amount: bossHealed,
+            detail: `${bossHealed.toLocaleString('en-US')} progress undone`,
+          }
+        : null,
   };
 }
 

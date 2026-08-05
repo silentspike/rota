@@ -77,6 +77,11 @@ export function buildDummy(settings: DummySettings, school: string): BossDef {
     // dem geübt wird, wäre das genau verkehrt (GAME-DESIGN 15.5).
     doom: null,
     stacks: null,
+    // Auch kein Wettrennen und keine Boss-Heilung (Issue #218). Beide wirken
+    // auf den Fortschritt — an einem Sandsack, der kein Zeitlimit hat und
+    // nicht fallen soll, waere das ohne Bedeutung.
+    race: null,
+    bossHeal: null,
     timeline: buildDummyTimeline(settings),
     // **Die Puppe wiederholt sich** (#174, GAME-DESIGN 15.5 „kein Zeitlimit").
     // Wer eine Rotation ueber drei Minuten einschleift, uebte sonst nach der

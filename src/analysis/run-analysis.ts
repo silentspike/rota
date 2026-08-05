@@ -55,6 +55,14 @@ export interface RunAnalysisInput {
   readonly missedInterrupts: number | null;
   /** Schaden eines durchgekommenen Boss-Zaubers. */
   readonly damagePerLandedBossCast: number;
+  /**
+   * Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218).
+   *
+   * Steht als eigenes Feld und nicht in `summary`: Es ist keine Kennzahl des
+   * SPIELERS, sondern eine des Bosses — und es gehoert deshalb auch in der
+   * Auswertung in eine eigene Zeile.
+   */
+  readonly bossHealed: number;
 }
 
 export interface RunAnalysis {
@@ -101,13 +109,17 @@ export function analyzeRun(input: RunAnalysisInput): RunAnalysis {
       damagePerTick: spell.damagePerTick,
     }));
 
-  const losses = rankLosses(summary.damage, [
-    missedCastSource(missedCastWindows, averageDamagePerCast),
-    idleSource(idleWindows, gcdMs, averageDamagePerCast),
-    synergySource(summary.synergyUsed, summary.synergyAvailable, input.synergyBonusDamage),
-    dotTickSource(dotLosses),
-    interruptSource(input.missedInterrupts, input.damagePerLandedBossCast),
-  ]);
+  const losses = rankLosses(
+    summary.damage,
+    [
+      missedCastSource(missedCastWindows, averageDamagePerCast),
+      idleSource(idleWindows, gcdMs, averageDamagePerCast),
+      synergySource(summary.synergyUsed, summary.synergyAvailable, input.synergyBonusDamage),
+      dotTickSource(dotLosses),
+      interruptSource(input.missedInterrupts, input.damagePerLandedBossCast),
+    ],
+    input.bossHealed,
+  );
 
   const table = buildEfficiencyTable({
     elapsedMs: summary.elapsedMs,
