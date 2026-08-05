@@ -403,18 +403,18 @@ Die Abschnitte oben behandeln Prüffälle, die zu wenig zeigen. Das hier ist ein
 **Der Prüffall ist richtig, aber das Messinstrument liefert eine Zahl, die nichts mit der Frage zu
 tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 
-| Was gemessen wurde                                          | Warum es nichts belegte                                                                                                                        |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `!!document.querySelector('[class*=rota-loot]')`            | `skipLoot()` setzt `hidden`, das Element **bleibt im DOM** — der Ausdruck ist immer `true`                                                     |
-| `cargo test 2>&1 \| tail -40`                               | Die letzten 40 Zeilen sind vier Sammlungen von 27. `0 FAILED` stimmt und beweist nichts                                                        |
-| `npx tsc --noEmit; echo "Exit=$?" && git commit …`          | Das `echo` gelingt immer. Der Rückgabewert wurde **angezeigt**, nicht ausgewertet                                                              |
-| `window.__rota === undefined` als Beleg für den Bau         | Die Seite lud aus einem fremden Worktree — das erwartete Ergebnis aus der falschen Quelle                                                      |
-| Ein Skript von Hand getestet, dann als Cron-Job eingetragen | Cron bringt kein `PATH` mit `~/bin` mit. **30 Läufe, 30 Abstürze, kein einziger erfolgreicher** — und niemand sah es, weil der Job still starb |
-| `grep -c "muster" datei.min.js`                             | Minifiziertes JS ist **eine** Zeile. `grep -c` zählt Zeilen: `1` heißt „kommt vor", nicht „kommt einmal vor"                                   |
-| `grep "doom" hud.ts \| sed -n '346,400p'`                   | Die Zeilenspanne reichte über das Funktionsende hinaus — die Treffer standen im **Aufrufer**                                                   |
-| `git grep "vulnerability" origin/main` → Treffer                                       | Beide Treffer waren **Kommentare** — einer verglich mit Diablo, einer erklärte eine andere Methode. Das Feld gab es nicht. Der Orchestrator meldete es einem Worker als vorhanden           |
-| `SPELL_IDS = CALCINATION.value.spells.map(…)` im Klang-Prüffall                        | Der Fall bindet **eine** Schule. Bei 13 Zaubern prüft er 3 — VAPOUR und REFLUX kamen nicht durch, weil sie Klänge haben, sondern weil sie nie geprüft wurden                                |
-| `quelle.indexOf('setDamageFactor(')` als Anker auf die Methode                         | `indexOf` findet das **erste** Vorkommen. Solange niemand die Methode aufruft, ist das die Definition — beim ersten Aufrufer der Aufruf. Der Wächter ging beim ersten echten Nutzer kaputt   |
+| Was gemessen wurde                                              | Warum es nichts belegte                                                                                                                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `!!document.querySelector('[class*=rota-loot]')`                | `skipLoot()` setzt `hidden`, das Element **bleibt im DOM** — der Ausdruck ist immer `true`                                                                                                 |
+| `cargo test 2>&1 \| tail -40`                                   | Die letzten 40 Zeilen sind vier Sammlungen von 27. `0 FAILED` stimmt und beweist nichts                                                                                                    |
+| `npx tsc --noEmit; echo "Exit=$?" && git commit …`              | Das `echo` gelingt immer. Der Rückgabewert wurde **angezeigt**, nicht ausgewertet                                                                                                          |
+| `window.__rota === undefined` als Beleg für den Bau             | Die Seite lud aus einem fremden Worktree — das erwartete Ergebnis aus der falschen Quelle                                                                                                  |
+| Ein Skript von Hand getestet, dann als Cron-Job eingetragen     | Cron bringt kein `PATH` mit `~/bin` mit. **30 Läufe, 30 Abstürze, kein einziger erfolgreicher** — und niemand sah es, weil der Job still starb                                             |
+| `grep -c "muster" datei.min.js`                                 | Minifiziertes JS ist **eine** Zeile. `grep -c` zählt Zeilen: `1` heißt „kommt vor", nicht „kommt einmal vor"                                                                               |
+| `grep "doom" hud.ts \| sed -n '346,400p'`                       | Die Zeilenspanne reichte über das Funktionsende hinaus — die Treffer standen im **Aufrufer**                                                                                               |
+| `git grep "vulnerability" origin/main` → Treffer                | Beide Treffer waren **Kommentare** — einer verglich mit Diablo, einer erklärte eine andere Methode. Das Feld gab es nicht. Der Orchestrator meldete es einem Worker als vorhanden          |
+| `SPELL_IDS = CALCINATION.value.spells.map(…)` im Klang-Prüffall | Der Fall bindet **eine** Schule. Bei 13 Zaubern prüft er 3 — VAPOUR und REFLUX kamen nicht durch, weil sie Klänge haben, sondern weil sie nie geprüft wurden                               |
+| `quelle.indexOf('setDamageFactor(')` als Anker auf die Methode  | `indexOf` findet das **erste** Vorkommen. Solange niemand die Methode aufruft, ist das die Definition — beim ersten Aufrufer der Aufruf. Der Wächter ging beim ersten echten Nutzer kaputt |
 
 > **Die drei letzten teilen eine Wurzel: Eine Prüfung, die grün meldet, weil sie den Fall gar nicht
 > erreicht.** Sie ist gefährlicher als eine rote — eine rote wird untersucht, eine grüne geglaubt.
@@ -437,11 +437,11 @@ Oben ging es um Prüfungen, die den Fall nicht erreichen. Hier ist die Prüfung 
 **Zahlen im Datensatz** machen den geprüften Fall unmöglich. Das Kriterium ist grün und hat nie
 etwas berührt.
 
-| Gewählte Zahlen | Warum der Fall nie eintrat |
-| --- | --- |
-| Stapel-Obergrenze **5**, bei 4,5 s Abklingzeit und 12 s Haltbarkeit | Höchstens **drei** Stapel sind gleichzeitig erreichbar. Das AC zur Obergrenze konnte nie anschlagen |
-| Schwelle **1500** für das Wettrennen, Fenster 6 s | In sechs Sekunden passen vier Wirkungen à 100 Schaden. Der **Erfolgsfall** des Kriteriums war unerreichbar — belegt war nur der Fehlschlag |
-| **600** Heilung bei **999 999** Lebenspunkten | Null Prozentpunkte am Balken. Der Prüffall „der Balken läuft rückwärts" maß nichts |
+| Gewählte Zahlen                                                     | Warum der Fall nie eintrat                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Stapel-Obergrenze **5**, bei 4,5 s Abklingzeit und 12 s Haltbarkeit | Höchstens **drei** Stapel sind gleichzeitig erreichbar. Das AC zur Obergrenze konnte nie anschlagen                                        |
+| Schwelle **1500** für das Wettrennen, Fenster 6 s                   | In sechs Sekunden passen vier Wirkungen à 100 Schaden. Der **Erfolgsfall** des Kriteriums war unerreichbar — belegt war nur der Fehlschlag |
+| **600** Heilung bei **999 999** Lebenspunkten                       | Null Prozentpunkte am Balken. Der Prüffall „der Balken läuft rückwärts" maß nichts                                                         |
 
 > **Die gemeinsame Wurzel: Zahlen, die aussehen wie unabhängige Freiheitsgrade, sind es nicht.**
 > Obergrenze, Abklingzeit und Haltbarkeit sind zwei Größen plus eine Folge. Schwelle, Fensterdauer
