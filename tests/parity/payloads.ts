@@ -1036,6 +1036,84 @@ export function resistancePayload(): Record<string, unknown> {
   };
 }
 
+export const RESISTANCE_MIXED_NAME = 'resistances-mixed';
+
+/**
+ * Ein Kampf mit Zaubern aus DREI Schulen gegen einen Boss, der eine davon
+ * abhält (Issue #328, AC7).
+ *
+ * **Der sechste Paritäts-Fall, und er misst als einziger die Zuordnung.** Seit
+ * der Widerstand am ZAUBER hängt und nicht am Kampf, belegt eine Aufzeichnung
+ * mit lauter Kalzinations-Zaubern nur den Fall, in dem alle dieselbe Schule
+ * haben — also genau den, in dem die Umstellung nichts ändert.
+ *
+ * Hier machen die Zauber verschieden viel Schaden, und beide Seiten müssen
+ * dieselbe **Zuordnung** treffen. Eine Umsetzung, die den Widerstand auf alles
+ * anwendet, käme auf eine andere Summe; eine, die ihn auf nichts anwendet,
+ * ebenfalls. Nur die richtige trifft die Zahl in dieser Datei.
+ *
+ * Die Schadens-Aufteilung je Zauber steht mit in der Datei: Weichen die Seiten
+ * ab, sagt sie **welcher** Zauber falsch gerechnet wurde, statt nur dass die
+ * Summe nicht stimmt.
+ */
+export function resistanceMixedPayload(): Record<string, unknown> {
+  const recording = recordings().get(RESISTANCE_MIXED_NAME);
+  if (recording === undefined) {
+    throw new Error(`Unbekannte Aufzeichnung: ${RESISTANCE_MIXED_NAME}`);
+  }
+  const boss = bossById('test-resistant');
+  if (boss === undefined) throw new Error('Der Boss test-resistant fehlt.');
+  const bindings = [
+    { slot: 0, spellId: 'bind' },
+    { slot: 1, spellId: 'canker' },
+    { slot: 2, spellId: 'kindle' },
+  ];
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für den Schaden je Zauber. Er läuft mit denselben
+  // Eingaben und liefert deshalb denselben Kampf.
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of bindings) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+  }
+  const jeZauber: Record<string, number> = {};
+  for (const binding of bindings) {
+    jeZauber[binding.spellId] = combat.damageOf(combat.indexOf(binding.spellId));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: { resistances: boss.resistances },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    damageBySpell: jeZauber,
+    checksums: result.checksums,
+  };
+}
+
 export const CAST_TIME_NAME = 'cast-time';
 
 /**

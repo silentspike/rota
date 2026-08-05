@@ -296,13 +296,17 @@ fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
     // bestimmt die Indizes, und die stehen in jeder aufgezeichneten Runde —
     // QUENCH von Platz 3 auf Platz 6 zu schieben deutete jede alte
     // Aufzeichnung still um, ohne dass ein Prueffall es meldet.
-    let mut list: Vec<&Value> = list.iter().collect();
+    let eigene_schule = spells.get("school").and_then(Value::as_str);
+    let mut list: Vec<(&Value, Option<&str>)> = list.iter().map(|s| (s, eigene_schule)).collect();
     for (datei, quelle) in weitere {
         let eintraege = quelle
             .get("spells")
             .and_then(Value::as_array)
             .unwrap_or_else(|| panic!("{datei}: Liste \"spells\" fehlt"));
-        list.extend(eintraege.iter());
+        // Die Schule steht an der DATEI, nicht am Zauber — `common.json` traegt
+        // keine, und seine Zauber gehoeren deshalb keiner an.
+        let schule = quelle.get("school").and_then(Value::as_str);
+        list.extend(eintraege.iter().map(|s| (s, schule)));
     }
 
     let _ = writeln!(
@@ -318,14 +322,14 @@ fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
          /// die Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3)."
     );
     let _ = writeln!(out, "pub static SPELLS: [Spell; SPELL_COUNT] = [");
-    for spell in &list {
-        emit_spell(out, spell, resource_id);
+    for (spell, schule) in &list {
+        emit_spell(out, spell, resource_id, *schule);
     }
     let _ = writeln!(out, "];\n");
 
     // Benannte Indizes, damit Rotationen nicht mit nackten Zahlen hantieren.
     // Auch sie stammen aus der Datei, nicht aus dieser Quelldatei.
-    for (index, spell) in list.iter().enumerate() {
+    for (index, (spell, _)) in list.iter().enumerate() {
         let id = text(spell, "id", "calcination.json/spells[]");
         let konst = id.to_uppercase().replace(['-', ' '], "_");
         let _ = writeln!(out, "/// Index von `{id}` in [`SPELLS`].");
@@ -334,12 +338,20 @@ fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
     out.push('\n');
 }
 
-fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
+fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option<&str>) {
     let id = text(spell, "id", "calcination.json/spells[]");
     let whose = format!("calcination.json/spells[{id}]");
 
     let _ = writeln!(out, "    Spell {{");
     let _ = writeln!(out, "        id: {id:?},");
+    // Die Schule des Zaubers — aus der DATEI, in der er steht (Issue #328).
+    // `None` fuer die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4):
+    // Wer keiner Schule angehoert, den kann auch kein Schul-Widerstand
+    // abhalten. Dieselbe Zuordnung wie `mitSchule` in `src/core/data.ts`.
+    let _ = match school {
+        Some(name) => writeln!(out, "        school: Some({name:?}),"),
+        None => writeln!(out, "        school: None,"),
+    };
     let _ = writeln!(out, "        name: {:?},", text(spell, "name", &whose));
     let _ = writeln!(
         out,

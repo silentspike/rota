@@ -498,6 +498,69 @@ function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Rec
 }
 
 /**
+ * Die Belegung für die GEMISCHTE Leiste (Issue #328, AC7).
+ *
+ * Drei Schulen auf drei Plätzen. **Das ist der Punkt**: Seit der Widerstand am
+ * ZAUBER hängt und nicht am Kampf, belegt eine Aufzeichnung mit lauter
+ * Kalzinations-Zaubern nur noch den Fall, in dem alle dieselbe Schule haben —
+ * also genau den, der die Umstellung nicht braucht.
+ */
+const MIXED_BINDINGS: readonly { slot: number; id: string }[] = [
+  // **Die Reihenfolge ist der Vorrang**, und sie ist gemessen, nicht geraten:
+  // Mein erster Entwurf setzte KINDLE nach vorn. Er ist nach jeder Wartezeit
+  // wieder bereit, kam deshalb immer an die Reihe, und die beiden anderen
+  // wurden in 20 Sekunden **kein einziges Mal** gewirkt — die Vergleichsdatei
+  // meldete `{"kindle":1050,"bind":0,"canker":0}`. Eine gemischte Leiste, auf
+  // der nur eine Schule vorkommt, prüft genau das, was sie prüfen soll, nicht.
+  { slot: 0, id: 'bind' }, // FIXATION — unberührt, lange Abklingzeit
+  { slot: 1, id: 'canker' }, // PUTREFACTION — unberührt
+  { slot: 2, id: 'kindle' }, // CALCINATION — vom Widerstand getroffen, Füller
+];
+
+/**
+ * Eine Runde mit Zaubern aus DREI Schulen (Issue #328, AC7).
+ *
+ * Gegen einen Boss, der nur eine davon abhält. Damit steht in der
+ * Vergleichsdatei ein Kampf, in dem die Zauber verschieden viel Schaden machen
+ * — und beide Seiten müssen dieselbe Zuordnung treffen, nicht nur dieselbe
+ * Summe.
+ *
+ * Die Abfolge ist schlicht und hängt an keiner Entscheidung: der erste
+ * bereite Zauber in fester Reihenfolge. Eine Rotation, die abwägt, verglichen
+ * zwei Kämpfe statt zweier Rechnungen.
+ */
+function recordMixedRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const plaetze = MIXED_BINDINGS.map(({ slot, id }) => ({ slot, index: combat.indexOf(id) }));
+
+  const presses: RecordedPress[] = [];
+  // **Reihum, nicht nach Vorrang** — und das ist gemessen, nicht Geschmack:
+  // Alle drei Zauber haben 1500 bis 2000 ms Abklingzeit, die Wartezeit hat
+  // 1500. Der erste in einer Vorrangliste ist damit IMMER wieder dran, und die
+  // anderen kommen nie vor. Zwei Anläufe haben das gezeigt, jeder mit einer
+  // anderen Reihenfolge:
+  //
+  //   KINDLE zuerst   {"kindle":1050,"bind":0,"canker":0}
+  //   BIND zuerst     {"bind":840,"canker":0,"kindle":0}
+  //
+  // Eine „gemischte" Leiste, auf der nur eine Schule vorkommt, prüft genau das
+  // nicht, wofür es sie gibt. Reihum kommen alle drei dran.
+  let naechster = 0;
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+    const wahl = plaetze[naechster % plaetze.length];
+    if (wahl === undefined || wahl.index < 0 || !combat.isReady(wahl.index, timeMs)) continue;
+    combat.cast(wahl.index, timeMs);
+    presses.push({ tick, slot: wahl.slot });
+    naechster++;
+  }
+  return { name, seed: 0, ticks, presses };
+}
+
+/**
  * Die eingebauten Aufzeichnungen.
  *
  * Erzeugt beim ersten Zugriff, nicht beim Laden: Wer die Werkzeuge nicht
@@ -578,6 +641,13 @@ export function recordings(): Map<string, Recording> {
     const resistantBoss = bossById('test-resistant');
     if (resistantBoss !== undefined) {
       builtIn.set('resistances', recordGoodRotation('resistances', 2000, resistantBoss));
+      // Und dieselbe Lage mit einer GEMISCHTEN Leiste (AC7). Seit der
+      // Widerstand am Zauber haengt, belegt die Aufzeichnung darueber nur noch
+      // den Fall, in dem alle Zauber dieselbe Schule haben.
+      builtIn.set(
+        'resistances-mixed',
+        recordMixedRotation('resistances-mixed', 2000, resistantBoss),
+      );
     }
     // Der Prueffall zur WIRKZEIT des Spielers (Issue #304, AC5). 2000 Takte
     // sind 20 s: Der dritte Schlag des Bosses faellt bei 15 s, und die Zeit
