@@ -11,11 +11,11 @@ import { Combat } from './combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
+  applyBindings,
   bindSpell,
   clearSlot,
   defaultBindings,
   sanitize,
-  spellAtSlot,
 } from '../progression/bindings.js';
 import { buildLoadout } from '../progression/loadout-view.js';
 import { SLOT_COUNT } from '../input/keys.js';
@@ -318,11 +318,14 @@ export class App {
         ? gespeichert
         : defaultBindings(stand.level, this.combat.spells);
 
-    for (let slot = 0; slot < SLOT_COUNT; slot++) {
-      const spellId = spellAtSlot(belegung, slot);
-      const index = spellId === null ? -1 : this.combat.indexOf(spellId);
-      this.session.bind(slot, index);
-    }
+    applyBindings(
+      belegung,
+      SLOT_COUNT,
+      (spellId) => this.combat.indexOf(spellId),
+      (slot, index) => {
+        this.session.bind(slot, index);
+      },
+    );
   }
 
   /**

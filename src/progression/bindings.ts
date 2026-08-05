@@ -150,6 +150,44 @@ export function defaultBindings(level: number, spells: readonly SpellDef[]): Bin
 }
 
 /**
+ * Eine Belegung auf die Plätze einer Sitzung übertragen (Issue #264).
+ *
+ * **Die einzige Stelle, die das tut** — und sie steht hier, weil sie bis zum
+ * 2026-08-05 an ZWEI Orten stand: in `App.applyBindings` und noch einmal im
+ * Prüfstand, der sie nachbaute. Beide Fassungen waren gleich, und nur eine
+ * wurde gemessen.
+ *
+ * Aufgefallen ist es an einer Gegenprobe, die NICHT anschlug: Wer `app.ts`
+ * umstellt, trifft keinen Prüffall, denn keiner ruft `App` auf (sie braucht
+ * ein Dokument). Meine eigene Gegenprobe hatte den PRÜFSTAND umgestellt und
+ * war rot — sie belegte damit, dass der Prüfstand die Regel misst, nicht dass
+ * die Umsetzung sie einhält.
+ *
+ * Das ist dasselbe Muster wie zwei Schreibstellen für denselben Wert: Die
+ * Regel steht an zwei Orten, und einer läuft weg.
+ *
+ * **Jeder Platz wird gesetzt, auch die leeren.** Wer nur die Einträge der
+ * Belegung überträgt, lässt einen geräumten Platz auf seinem alten Zauber
+ * stehen — nichts stürzt ab, die Taste tut nur etwas anderes, als dasteht,
+ * und der Spieler hält es für einen Fehler in seiner Rotation.
+ *
+ * @param slotCount Wie viele Plätze es überhaupt gibt
+ * @param indexOf Zauber-Kennung auf Index im Kampf, oder negativ
+ * @param bind Setzt den Platz; ein negativer Index heißt „leer"
+ */
+export function applyBindings(
+  bindings: Bindings,
+  slotCount: number,
+  indexOf: (spellId: string) => number,
+  bind: (slot: number, spellIndex: number) => void,
+): void {
+  for (let slot = 0; slot < slotCount; slot++) {
+    const spellId = spellAtSlot(bindings, slot);
+    bind(slot, spellId === null ? -1 : indexOf(spellId));
+  }
+}
+
+/**
  * Der Zauber auf einem Platz, oder `null`.
  *
  * Für die Anzeige und für den Kampf. `null` statt eines leeren Textes: Ein

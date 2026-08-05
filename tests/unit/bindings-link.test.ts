@@ -23,20 +23,41 @@ import { COUNTDOWN_MS, PHASE_FIGHTING } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import { SLOT_COUNT } from '../../src/input/keys.js';
 import { PressQueue } from '../../src/input/queue.js';
-import { bindSpell, defaultBindings, spellAtSlot } from '../../src/progression/bindings.js';
+import {
+  applyBindings,
+  bindSpell,
+  defaultBindings,
+  spellAtSlot,
+} from '../../src/progression/bindings.js';
 
 const SPELLS = CALCINATION.value.spells;
 
-/** Eine Belegung auf eine Sitzung übertragen — wie `App.applyBindings`. */
+/**
+ * Eine Belegung auf eine Sitzung übertragen.
+ *
+ * **Ruft `applyBindings` auf, statt es nachzubauen** — und das ist der
+ * Unterschied, der diesen Prüffall überhaupt zu einem macht. Bis zum
+ * 2026-08-05 stand die Schleife hier ein zweites Mal, gleichlautend mit der in
+ * `App.applyBindings`. Gemessen wurde damit nur die Kopie.
+ *
+ * Aufgefallen ist es an einer Gegenprobe, die NICHT anschlug: Wer `app.ts`
+ * umstellt, trifft keinen Prüffall, denn keiner ruft `App` auf. Meine eigene
+ * Gegenprobe hatte diese Datei umgestellt und war rot — sie belegte, dass der
+ * Prüfstand die Regel misst, nicht dass die Umsetzung sie einhält.
+ */
 function uebertragen(
   session: Session,
   combat: Combat,
   bindings: Readonly<Record<string, string>>,
 ): void {
-  for (let slot = 0; slot < SLOT_COUNT; slot++) {
-    const spellId = spellAtSlot(bindings, slot);
-    session.bind(slot, spellId === null ? -1 : combat.indexOf(spellId));
-  }
+  applyBindings(
+    bindings,
+    SLOT_COUNT,
+    (spellId) => combat.indexOf(spellId),
+    (slot, index) => {
+      session.bind(slot, index);
+    },
+  );
 }
 
 /** Einen Platz drücken und sagen, welcher Zauber dabei gewirkt wurde. */
