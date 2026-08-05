@@ -2260,9 +2260,16 @@ const WORN_FOR_PARITY: WornValues = {
   catalysis: 170,
   purity: 375,
   yieldBonus: 250,
-  essence: 0,
-  vessel: 0,
-  ward: 0,
+  // **Nicht null** (Issue #282, AC6). Stünden die drei Grundwerte hier auf
+  // null, liefe der Gleichlauf-Lauf durch die neue Rechnung, ohne sie je zu
+  // benutzen — er belegte dann, dass beide Seiten dasselbe tun, wenn nichts
+  // zu tun ist.
+  //
+  // Drei verschiedene Werte, damit eine vertauschte Zuordnung auffällt: Wären
+  // sie gleich, blieben `essence` und `ward` vertauscht unbemerkt.
+  essence: 220,
+  vessel: 400,
+  ward: 90,
   gearEffects: 130,
 };
 
@@ -2301,9 +2308,9 @@ export function wornPayload(): Record<string, unknown> {
       catalysis: WORN_FOR_PARITY.catalysis,
       purity: WORN_FOR_PARITY.purity,
       yieldBonus: WORN_FOR_PARITY.yieldBonus,
-      essence: 0,
-      vessel: 0,
-      ward: 0,
+      essence: WORN_FOR_PARITY.essence,
+      vessel: WORN_FOR_PARITY.vessel,
+      ward: WORN_FOR_PARITY.ward,
       gearEffects: WORN_FOR_PARITY.gearEffects,
     },
     // Topf 4 als Faktor: eins plus die Summe. Fliesskomma, also mit Bitmuster.
