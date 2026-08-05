@@ -1331,6 +1331,29 @@ Stelle messen, an der nichts passiert), und dass er überhaupt fallen kann. Für
 genau einen Nachweis, und er kostet zwei Minuten: die Sache kaputtmachen, den Fall rot sehen,
 zurücknehmen.
 
+**Und die andere Hälfte des Nachweises: Er muss auch grün bleiben können.** Ein Wächter, der bei
+jeder legitimen Änderung anschlägt, wird stillgelegt — und dann schützt er nichts mehr.
+
+Der Beleg dafür kam aus dem laufenden Betrieb, nicht aus einer Gegenprobe. Die Namensfolge der
+Prüfsumme wuchs von 110 auf 111 Werte:
+
+```
+$ git log --oneline 4db8e9d -1
+  feat(core): der Ring weiß jetzt, wer ihn gesenkt hat (Issue #256, Etappe 3a)
+
+$ grep -n playerDamage src/core/checksum.ts sim/src/fight.rs
+  checksum.ts:219   mixNamedFloat(h, 'playerDamage', combat.playerDamage);
+  fight.rs:2574     mix_named_float(h, "playerDamage", …);
+```
+
+Jemand hat einen Wert aufgenommen — **auf beiden Seiten**, mit mitexportierten Vergleichsdateien —
+und der Wächter blieb grün. Genau die Bewegung, bei der man früher auf einer Seite hängenbleiben
+konnte, ohne dass es auffiel.
+
+> Eine Gegenprobe zeigt, dass der Wächter anschlägt, wenn man die Sache **bricht**. Sie zeigt nicht,
+> dass er stillhält, wenn jemand etwas **richtig** macht. Das zweite belegt erst die erste echte
+> Erweiterung danach.
+
 **Wie viele Fälle fallen, ist die zweite Auskunft.** Fielen im Beispiel nur zwei von dreien, wäre
 der dritte einer, der bloß zwei Zahlen vergleicht, die zufällig stimmen. Dass **alle drei** fielen,
 belegt, dass auch die Bedingung `cooldownMs > GCD_MS` wirklich geprüft wird und nicht nur
