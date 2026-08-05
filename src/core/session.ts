@@ -705,7 +705,7 @@ export class Session implements Simulation {
       this.combat.fightState === FIGHT_RUNNING
     ) {
       accepted = chose
-        ? this.chooseForReset(spellIndex, timeMs)
+        ? this.chooseForReset(alsSpellIndex(spellIndex), timeMs)
         : // **Ein begonnener Zauber ist ein angenommener Druck** (Issue #304).
           // `CAST_OK` allein wäre hier falsch: Ein Zauber mit Wirkzeit meldet
           // `CAST_STARTED`, und der Spieler bekäme für einen richtigen Druck
@@ -753,7 +753,7 @@ export class Session implements Simulation {
    *
    * @returns true, wenn die Auswahl angenommen wurde (kein rotes Blinken)
    */
-  private chooseForReset(spellIndex: number, timeMs: number): boolean {
+  private chooseForReset(spellIndex: SpellIndex, timeMs: number): boolean {
     // **Jede Wahl verbraucht den Rücksetzer** — auch eine falsche.
     const self = spellIndex === this.resetArmedFor;
     this.resetArmedFor = NO_SPELL;

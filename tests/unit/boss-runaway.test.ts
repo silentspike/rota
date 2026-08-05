@@ -45,13 +45,12 @@ if (RUNAWAY === undefined) throw new Error('data/bosses/test-runaway.json fehlt.
  * `FIGHT_RUNNING`, und jeder Fall unten wäre grün, ohne etwas zu messen.
  */
 function laufen(combat: Combat, bisMs: number, spellId?: string): void {
-  const index = spellId === undefined ? -1 : combat.indexOf(spellId);
+  const index = spellId === undefined ? alsSpellIndex(-1) : combat.indexOf(spellId);
   combat.beginFight(0);
   for (let t = 0; t <= bisMs; t += TICK_MS) {
     combat.stepPassive(t);
     if (combat.checkDefeat(t)) return;
-    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(alsSpellIndex(index), t))
-      combat.cast(alsSpellIndex(index), t);
+    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(index, t)) combat.cast(index, t);
   }
 }
 
