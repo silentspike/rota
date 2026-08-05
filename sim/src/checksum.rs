@@ -58,6 +58,66 @@ pub const fn mix_float(hash: u32, value: f64) -> u32 {
     mix_int(mix_int(hash, low as i32), high as i32)
 }
 
+// Die Namensfolge des laufenden Aufrufs — **nur fuer den Gleichlauf-Waechter**
+// (Issue #236).
+//
+// # Warum zur Laufzeit und nicht aus dem Quelltext
+//
+// Eine Quelltext-Stelle ist nicht ein Wert. `checksum_at` mischt in einer
+// Schleife ueber die Zauber fuenf Werte **je Zauber**. Wer die Namen aus dem
+// Quelltext zieht, zaehlt Zeilen und nicht Werte — und meldet eine Abweichung
+// zwischen den Seiten, die keine ist. Genau daran ist der erste Versuch eines
+// solchen Waechters gescheitert.
+//
+// Zur Laufzeit ist ausserdem gleichgueltig, ob ein Wert direkt oder ueber eine
+// lokale Variable hereinkommt: gemischt ist gemischt.
+//
+// # Im Kampf kostet das nichts
+//
+// Aufgezeichnet wird nur, wenn die Aufzeichnung laeuft. Sonst ist es ein
+// Vergleich gegen `None` und kein Eintrag — der Kampf darf im Schritt nichts
+// anfordern (GAME-DESIGN 18.4).
+thread_local! {
+    static RECORDING: std::cell::RefCell<Option<Vec<&'static str>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Zeichnet die Namensfolge eines Aufrufs auf und gibt sie zurueck.
+pub fn record_field_order<F: FnOnce()>(run: F) -> Vec<&'static str> {
+    RECORDING.with(|r| *r.borrow_mut() = Some(Vec::new()));
+    run();
+    RECORDING.with(|r| r.borrow_mut().take().unwrap_or_default())
+}
+
+/// Eine ganze Zahl einruehren, unter einem Namen.
+///
+/// **Der Name geht NICHT in die Pruefsumme ein.** Taete er es, aenderte sich
+/// jede Pruefsumme im Projekt, und jede eingecheckte Vergleichsdatei waere
+/// falsch. Er dient allein dazu, die Reihenfolge benennbar zu machen: Meldet
+/// der Waechter "an Position 9 steht hier `casts` und dort `dot_ticks`", ist
+/// die Stelle gefunden — statt "Pruefsumme stimmt nicht", was in #97 eine
+/// Stunde Suche bedeutet hat.
+#[must_use]
+pub fn mix_named_int(hash: u32, name: &'static str, value: i32) -> u32 {
+    RECORDING.with(|r| {
+        if let Some(liste) = r.borrow_mut().as_mut() {
+            liste.push(name);
+        }
+    });
+    mix_int(hash, value)
+}
+
+/// Dasselbe fuer eine Fliesskommazahl. Der Name geht auch hier nicht ein.
+#[must_use]
+pub fn mix_named_float(hash: u32, name: &'static str, value: f64) -> u32 {
+    RECORDING.with(|r| {
+        if let Some(liste) = r.borrow_mut().as_mut() {
+            liste.push(name);
+        }
+    });
+    mix_float(hash, value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
