@@ -31,6 +31,7 @@ import '../analysis/analysis.css';
 import { classOfStat, formatStat, type StatLine } from '../gear/format.js';
 import { labelFor, presentationFor, LootMoment } from '../loot/moment.js';
 import type { Comparison } from '../loot/compare.js';
+import type { PointsDisplay } from '../analysis/points-display.js';
 
 export interface OverlayActions {
   onReady(): void;
@@ -104,7 +105,7 @@ export interface ResultView {
    * ihm die Stufen gäbe, lüde es ein, selbst zu rechnen — genau die zweite
    * Rechenstelle, die #256 hier entfernt hat.
    */
-  readonly points: number | null;
+  readonly points: PointsDisplay | null;
   readonly damage: number;
   /**
    * Der Fortschritt in Prozent, **fertig gerechnet**.
@@ -184,6 +185,40 @@ function row(label: string): { root: HTMLElement; label: HTMLElement; value: HTM
   const value = element('span', 'rota-row-value', '—');
   root.appendChild(value);
   return { root, label: beschriftung, value };
+}
+
+/**
+ * Die Punktzahl mit ihrem Grund (Issue #387).
+ *
+ * # Zwei Formen, weil es zwei Fragen sind
+ *
+ * | Fall | Frage des Spielers | Antwort |
+ * | --- | --- | --- |
+ * | `repeat` | „warum so wenig?" | die Marke, die er nicht geschlagen hat |
+ * | `difference` | „warum nicht mehr?" | der Wert, gegen den abgezogen wurde |
+ * | `full` | keine | — kein Zusatz |
+ *
+ * Es ist dieselbe Zahl in `previous`, aber sie beantwortet zwei verschiedene
+ * Fragen, und der Text sagt welche. Ohne den Zusatz sieht ein Lauf mit 428
+ * Punkten nach einem Fehler aus, obwohl er der beste war, den der Spieler je
+ * hatte.
+ *
+ * # Der Text steht HIER und nicht in `pointsDisplayFor`
+ *
+ * Wer dort einen fertigen Satz zurückgäbe, nähme dieser Zeile die
+ * Entscheidung ab — und mit ihr die Möglichkeit, sie richtig zu treffen.
+ * Dieselbe Linie wie bei der Aufstiegs-Einblendung (#371).
+ */
+export function scoreText(points: PointsDisplay | null): string {
+  if (points === null) return '—';
+  const zahl = points.awarded.toLocaleString('en-US');
+  if (points.kind === 'full' || points.previous === null) return zahl;
+  // **Das Mass entscheidet die Einheit** (Issue #377, #387): 55670 ist ohne
+  // sie entweder eine Reserve von 55,67 s oder ein Ring-Rest von 55670 %.
+  const marke = points.isRing
+    ? `${points.previous.toFixed(1)} %`
+    : `${(points.previous / 1000).toFixed(2)} s`;
+  return points.kind === 'repeat' ? `${zahl} · repeat (best ${marke})` : `${zahl} · beat ${marke}`;
 }
 
 export class Overlay {
@@ -456,11 +491,9 @@ export class Overlay {
     // **Gerechnet wird woanders.** `progressOf` kennt die Umkehrung; diese
     // Zeile stellt sie nur dar.
     set('progress', `${view.progressPercent.toFixed(1)} %`);
-    // Die Punkteformel ist noch nicht ausgearbeitet (GAME-DESIGN 22, vor Epic
-    // E5). Eine erfundene Zahl wäre schlimmer als ein ehrlicher Strich.
     // **Ein Strich heißt „nicht gerechnet"**, nicht „nichts verdient". Bis
     // Issue #276 stand hier immer einer, weil es die Rechnung nicht gab.
-    set('score', view.points === null ? '—' : view.points.toLocaleString('en-US'));
+    set('score', scoreText(view.points));
 
     // Der Aufstieg: ganz weg, wenn keiner stattfand — und **nur die Dinge,
     // die eingetreten sind**. Auf Stufe 7 gibt es weder Zauber noch Platz;

@@ -404,3 +404,50 @@ Schule auf einer Mechanik steht, die nie trägt. Das ist zu wichtig, um es dem Z
 **Bis zur Entscheidung:** `draught` ist aus #268 gestrichen — nicht wegen dieses Punktes,
 sondern weil er Sublimations-Mechanik in einem Kalzinations-Zauber war. Der Prüffall
 `genau_ein_ausgelieferter_zauber_verkuerzt_etwas` hat das gefangen.
+
+---
+
+## 12. Bei `test-runaway` ist seltener drücken besser — Tiefe oder Falle? — OFFEN
+
+Gemessen von Worker-3 am 2026-08-05 mit dem Balance-Läufer, deterministisch:
+
+| `crust` alle … | Sieg | Ring-Rest | stabilisiert |
+| -------------- | ---- | --------- | ------------ |
+| nur bei t=0    | nein | 0 %       | 0            |
+| 2 000 ms       | ja   | 52 %      | 720          |
+| 7 000 ms       | ja   | 64 %      | 840          |
+| **9 500 ms**   | ja   | **94 %**  | **1 140**    |
+| 10 000 ms      | ja   | 40 %      | 600          |
+
+**Alle zwei Sekunden zu drücken ist schlechter als alle neuneinhalb.** Und der Druck bei `t=0` ist
+immer verschenkt — er verbraucht einen der drei Stapel, ohne etwas zurückzudrängen.
+
+### Warum
+
+```
+combat.ts:2294  (undoProgress)
+  if (amount <= 0 || this.damageDealtValue <= 0) return 0;
+  const wirklich = Math.min(amount, this.damageDealtValue);
+```
+
+Die Rückdrängung ist am **angesammelten** Verlust gedeckelt. Wer früh drückt, verschenkt den Rest
+der 900.
+
+### Die Frage
+
+Das Spiel ist laut Leitmotiv eine Rotations-Optimierung: „easy to learn, very hard to master", und
+der Kern ist das Beherrschen der Reihenfolge unter Zeitdruck. **Hier ist die optimale Handlung,
+seltener zu drücken.**
+
+|           |                                                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Tiefe** | „Timing statt Frequenz" — eine zweite Fähigkeit neben der Rotation, und ein Grund, warum sich `runaway`-Bosse anders anfühlen      |
+| **Falle** | Das Spiel bestraft, was es sonst belohnt. Wer wie gewohnt auf Zuruf spielt, bekommt 52 statt 94 Prozent — und erfährt nicht, warum |
+
+Beides ist vertretbar, und die Entscheidung ist keine Zahl, sondern eine über den **Charakter**
+eines ganzen Boss-Typs. Deshalb liegt sie hier.
+
+> **Unabhängig davon wird die Deckelung durch einen Prüffall festgehalten** (#394): Er hält fest,
+> dass 9 500 ms besser ist als 2 000 ms, und fällt, wenn jemand die Deckelung für eine
+> Sicherheitsprüfung hält und entfernt. Was heute gilt, ist damit gesichert — die Frage ist, ob es
+> so bleiben soll.
