@@ -1476,6 +1476,33 @@ Grund: <warum> Blockiert: <ja/nein, was hängt daran>
 > Eine ehrliche Lücke ist wertvoll; eine verschwiegene Lücke kostet die Master-Session eine Stunde
 > Suche und dich das Vertrauen.
 
+### Eine geschätzte Zahl in einer Meldung voller gemessener Zahlen ist nicht als Schätzung erkennbar
+
+Am 2026-08-05 meldete dieselbe Sitzung zweimal am selben Tag eine Zeilenzahl, die um wenige Zeilen
+danebenlag — einmal 314 statt 310, einmal 381 statt 382. Beide Male stand sie in einer Meldung, in
+der jede andere Zahl belegt war.
+
+Ihre eigene Diagnose, und sie ist die Regel:
+
+> Ich schreibe die Meldung, **während die Messung läuft**, weil das schneller ist — und fülle die
+> Lücke mit einer Schätzung, die ich dann nicht mehr korrigiere, weil sie plausibel aussieht.
+
+**Das ist die Klasse aus § 5 im Kleinen: eine Zahl, die keiner Messung entstammt, aber wie eine
+aussieht.** Der Empfänger kann sie nicht von den belegten unterscheiden — sie steht im selben
+Absatz, im selben Format, ohne Kennzeichnung. Und weil sie fast stimmt, fällt sie nie auf.
+
+Die Gegenprobe ist trivial und wurde zweimal nicht gemacht: **messen, Ergebnis ansehen, dann
+schreiben.** Nicht in dieser Reihenfolge geschrieben, gehört die Zahl gekennzeichnet:
+
+```markdown
+Die Ergebnisse sind gemessen, die Uhrzeiten sind es nicht — die habe ich aus
+dem Ablauf rekonstruiert, nicht mitgeschrieben.
+```
+
+Dieser Satz stammt aus derselben Sitzung, einen Tag später, in einer Übergabe. **So sieht die
+Anwendung der Regel aus:** Nicht jede Zahl muss gemessen sein — aber welche es nicht ist, muss
+dabeistehen.
+
 ---
 
 ## 7. Bei Lücken im Design
