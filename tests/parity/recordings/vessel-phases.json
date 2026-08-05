@@ -4,6 +4,7 @@
   "bossId": "test-vessel",
   "allBossIds": [
     "first-crucible",
+    "test-crucible-trial",
     "test-doomsayer",
     "test-gatekeeper",
     "test-metronome",

@@ -321,6 +321,27 @@ export class Combat {
   /** Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218). */
   private bossHealedValue = 0;
 
+  /** Stand der kippenden Reaktion (Issue #240, Baustein 6). */
+  private reactionValue = 0;
+
+  /** Kampfzeit des naechsten Absinkens. */
+  private nextReactionDropAtMs = 0;
+
+  /** Ob die Reaktion gekippt ist — der Lauf endet dann. */
+  private reactionFailedValue = false;
+
+  /** Wie oft der Spieler sie gehoben hat. */
+  private stabilisedCountValue = 0;
+
+  /** Ob die Schwaechung liegt (Baustein 8). */
+  private afflictedValue = false;
+
+  /** Kampfzeit des naechsten Schwaechungs-Ticks. */
+  private nextAfflictionAtMs = 0;
+
+  /** Wie oft sie entfernt wurde. */
+  private afflictionsClearedValue = 0;
+
   /** Kampfzeit des nächsten Stapel-Schritts. */
   private nextStackAtMs = 0;
 
@@ -573,6 +594,44 @@ export class Combat {
     return this.raceEndsAtMs >= 0;
   }
 
+  /** Stand der kippenden Reaktion (Issue #240). */
+  get reaction(): number {
+    return this.reactionValue;
+  }
+
+  /** Ob die Reaktion gekippt ist. */
+  get reactionFailed(): boolean {
+    return this.reactionFailedValue;
+  }
+
+  /** Wie oft der Spieler sie gehoben hat. */
+  get stabilisedCount(): number {
+    return this.stabilisedCountValue;
+  }
+
+  /**
+   * Wie viele Zyklen die Zeitleiste gelaufen ist (Baustein 7; Issue #240).
+   *
+   * **Abgeleitet, nicht mitgezählt.** Ein eigenes Feld wäre eine zweite
+   * Wahrheit über dieselbe Größe — und die zweite läuft beim Nachziehen weg.
+   * Der Zeiger weiß es bereits.
+   */
+  get cycle(): number {
+    const laenge = this.boss.timeline.length;
+    if (laenge === 0 || this.boss.timelineLoopMs === null) return 0;
+    return Math.floor(this.timelineIndexValue / laenge);
+  }
+
+  /** Ob die Schwächung gerade liegt (Baustein 8). */
+  get afflicted(): boolean {
+    return this.afflictedValue;
+  }
+
+  /** Wie oft sie entfernt wurde. */
+  get afflictionsCleared(): number {
+    return this.afflictionsClearedValue;
+  }
+
   /** Wie weit das Ziel im laufenden Fenster geladen ist (Issue #218). */
   get raceProgress(): number {
     return this.raceProgressValue;
@@ -779,6 +838,13 @@ export class Combat {
       if (this.shieldStacksValue < shield.maxStacks) {
         this.shieldStacksValue++;
         this.shieldValue += shield.amount;
+        // **Die Reaktion stabilisieren** (11.2, Baustein 6; Issue #240). Der
+        // Schutz hebt sie um seinen EIGENEN Betrag — eine zweite Zahl
+        // "stabilisiert um X" waere dieselbe Groesse an zwei Orten.
+        //
+        // Nur beim Stapeln, nicht beim blossen Erneuern: Sonst waere die
+        // Obergrenze wirkungslos, und das gilt hier wie fuer den Schutz selbst.
+        this.stabilise(shield.amount);
       }
       this.shieldExpiresAtMs = seitBeginn + shield.durationMs;
     }
@@ -794,6 +860,10 @@ export class Combat {
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;
+        // Auch die Heilung stabilisiert — mit dem Betrag, der WIRKLICH
+        // angekommen ist. Was ueber die volle Anzeige hinausginge, verpufft
+        // hier wie dort.
+        this.stabilise(wirklich);
         this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
       }
     }
@@ -1051,6 +1121,12 @@ export class Combat {
     // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
     this.raceDone = false;
     this.raceEndsAtMs = -1;
+    // Die Reaktion beginnt mit ihrem Startwert und sinkt ab dem ersten Takt.
+    this.reactionValue = this.boss.stabilise?.startValue ?? 0;
+    this.nextReactionDropAtMs = timeMs + (this.boss.stabilise?.dropPerStepMs ?? 0);
+    this.reactionFailedValue = false;
+    this.afflictedValue = false;
+    this.nextAfflictionAtMs = 0;
   }
 
   castCount(index: number): number {
@@ -1297,6 +1373,49 @@ export class Combat {
       }
     }
 
+    // Die kippende Reaktion (11.2, Baustein 6; #240).
+    //
+    // Sie sinkt von selbst — unabhaengig vom Schaden des Spielers, wie die
+    // Energieleiste. Was sie hebt, sind Schutz und Heilung; wer nur Schaden
+    // macht, verliert sie.
+    const stab = this.boss.stabilise;
+    if (stab !== null && !this.reactionFailedValue) {
+      while (timeMs >= this.nextReactionDropAtMs) {
+        this.reactionValue -= stab.dropAmount;
+        this.nextReactionDropAtMs += stab.dropPerStepMs;
+        if (this.reactionValue < stab.failBelow) {
+          this.reactionValue = stab.failBelow;
+          this.reactionFailedValue = true;
+          // Der Lauf endet — wie beim toedlichen Zaehler an WARD und
+          // Schutzschicht vorbei. Eine Reaktion, die eine Schutzschicht
+          // ueberlebt, waere keine.
+          this.playerHpValue = 0;
+          this.diedAtMsValue = timeMs - this.fightStartedAtMs;
+          break;
+        }
+      }
+    }
+
+    // Die Schwaechung ohne Heil-Loesung (11.2, Baustein 8; #240).
+    const aff = this.boss.affliction;
+    if (aff !== null) {
+      const seitBeginnFuerAff = timeMs - this.fightStartedAtMs;
+      if (
+        !this.afflictedValue &&
+        this.afflictionsClearedValue === 0 &&
+        seitBeginnFuerAff >= aff.atMs
+      ) {
+        this.afflictedValue = true;
+        this.nextAfflictionAtMs = timeMs + aff.perStepMs;
+      }
+      if (this.afflictedValue) {
+        while (timeMs >= this.nextAfflictionAtMs) {
+          this.hitPlayer(aff.damage, timeMs);
+          this.nextAfflictionAtMs += aff.perStepMs;
+        }
+      }
+    }
+
     // Das Wettrennen (11.2, Baustein 4; #218).
     //
     // Es beginnt GENAU EINMAL, zu dem Zeitpunkt aus den Daten. Ein Fenster,
@@ -1389,7 +1508,11 @@ export class Combat {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
-        this.castLandsAtMs = faelligAtMs + eintrag.castTimeMs;
+        // **Die eskalierende Wiederholung** (11.2, Baustein 7; Issue #240):
+        // Mit jedem Zyklus schrumpft das Fenster zum Unterbrechen. Die
+        // Verkuerzung steht in den DATEN — sonst waere sie eine Regel des
+        // Spiels statt eine Eigenschaft dieses Bosses.
+        this.castLandsAtMs = faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index);
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
@@ -1490,6 +1613,64 @@ export class Combat {
     this.damageDealtValue -= wirklich;
     this.bossHealedValue += wirklich;
     return wirklich;
+  }
+
+  /**
+   * Die Wirkzeit nach der Zahl der Zyklen (11.2, Baustein 7; Issue #240).
+   *
+   * `minCastTimeMs` ist keine Feinheit: Ohne Untergrenze schrumpfte das
+   * Fenster irgendwann auf einen Takt, und der Baustein wäre kein Anspruch
+   * mehr, sondern eine Unmöglichkeit — 11.7 verwirft genau das.
+   */
+  private escalatedCastTime(base: number, eintragIndex: number): number {
+    const esc = this.boss.escalation;
+    const laenge = this.boss.timeline.length;
+    if (esc === null || laenge === 0 || this.boss.timelineLoopMs === null) return base;
+    // **Der Zyklus DIESES Eintrags**, nicht der Stand des Zeigers. Der ist an
+    // dieser Stelle bereits erhoeht — mein erster Entwurf las ihn und gab dem
+    // ERSTEN Zauber schon die Verkuerzung des zweiten Zyklus. Gemessen:
+    // [2500, 2000, 1500, 1000] statt [3000, 2500, 2000, 1500].
+    const zyklus = Math.floor(eintragIndex / laenge);
+    if (zyklus <= 0) return base;
+    const gekuerzt = base - esc.castTimeShrinkMs * zyklus;
+    return gekuerzt < esc.minCastTimeMs ? esc.minCastTimeMs : gekuerzt;
+  }
+
+  /**
+   * Die kippende Reaktion heben (11.2, Baustein 6; Issue #240).
+   *
+   * **Die einzige Stelle, die sie hebt.** Schutz und Heilung rufen sie mit
+   * ihrem eigenen Betrag; wer eine dritte Quelle anlegt, ruft hier ebenfalls
+   * und muss sich nicht um die Obergrenze kümmern.
+   *
+   * Über `maxValue` hinaus wird nicht gehoben: Sonst ließe sich in ruhigen
+   * Minuten ein Vorrat anlegen, und die Mechanik wäre in der Phase, in der sie
+   * zählt, schon gewonnen.
+   */
+  private stabilise(amount: number): void {
+    const def = this.boss.stabilise;
+    if (def === null || this.reactionFailedValue || amount <= 0) return;
+    const neu = this.reactionValue + amount;
+    this.reactionValue = neu > def.maxValue ? def.maxValue : neu;
+    this.stabilisedCountValue++;
+  }
+
+  /**
+   * Die Schwächung entfernen (11.2, Baustein 8; Issue #240).
+   *
+   * **Heilung steht bewusst nicht in `clearedBy`** — das ist der ganze
+   * Baustein. Wer sie einträgt, hat ihn in eine gewöhnliche Schwächung
+   * zurückverwandelt.
+   *
+   * @returns ob etwas zu entfernen war
+   */
+  private clearAffliction(spellId: string): boolean {
+    const def = this.boss.affliction;
+    if (def === null || !this.afflictedValue) return false;
+    if (!def.clearedBy.includes(spellId)) return false;
+    this.afflictedValue = false;
+    this.afflictionsClearedValue++;
+    return true;
   }
 
   /** Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken. */
@@ -1640,6 +1821,11 @@ export class Combat {
     // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt über Zeit,
     // Vorrat, Abklingzeit und Wartezeit stehen.
     this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+
+    // **Die Schwaechung ohne Heil-Loesung** (11.2, Baustein 8; Issue #240).
+    // Steht dieser Zauber in `clearedBy`, ist sie weg — und Heilung steht dort
+    // bewusst NICHT, das ist der ganze Baustein.
+    this.clearAffliction(spell.id);
 
     outcome.result = CAST_OK;
     outcome.damage = damage;
