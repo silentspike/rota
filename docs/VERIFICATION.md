@@ -414,5 +414,35 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 | **`browser`-Nachweise gegen den Dev-Server** | Dort funktioniert mehr als im Auslieferungs-Bau               | Jeder `browser`-Nachweis gilt nur im **gebauten** Stand über nginx. Bei Issue #16 lieferte die Route HTTP 200 und trotzdem die falsche Seite |
 | **Eine URL weitergeben, ohne sie zu öffnen** | Die Route antwortet, der Worker hat es geprüft                | Selbst aufrufen. Bei #16 habe ich genau das versäumt — der Auftraggeber bekam eine schwarze Seite                                            |
 | **Dem Melde-Format des Workers glauben**     | Es sieht sauber aus und hat Befehle drin                      | Es sind **seine** Befehle. Ich führe **meine** aus                                                                                           |
+| **Schaden messen, wenn der Boss stirbt**     | „Schaden" klingt nach der Frage, die man gestellt hat         | Bei `stopOnKill` ist der Gesamtschaden ungefähr die Boss-HP — **unabhängig von der Spielerstärke**. Siehe unten                              |
+| **Einzelmessung nach einem Tastendruck**     | Der Befehl ist zurückgekommen, also ist er verarbeitet        | `playwright-cli press` läuft nicht im Takt der Logik. Fünfmal messen und den eingeschwungenen Wert nehmen                                    |
+
+### Die Kill-Falle — an einem Tag zweimal zugeschlagen
+
+**Wer misst, ob eine Verstärkung wirkt, darf nicht den Gesamtschaden nehmen, solange der Lauf mit
+dem Tod des Bosses endet.** Wer härter schlägt, überschießt beim letzten Treffer weniger; die Summe
+ist dann fast genau die Boss-HP, und ein stärkerer Spieler kann sogar **weniger** messen.
+
+```
+ESSENCE 500 gegen ohne:   4230 gegen 4240     ← sieht nach "wirkt nicht" aus
+```
+
+Beide Male sah es aus wie ein Befund an der Umsetzung, beide Male war es die Messung:
+
+|                |                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **#237, AC1b** | Zwei Bösse mit identischer Überdruck-Zeit sollten verschiedene Rotationen zeigen. `test-metronome` (300 s) löste es |
+| **#282, AC2**  | „ESSENCE ändert den Schaden nicht" — gemessen wurde der Überschuss beim Todesstoß                                   |
+
+**Zwei Wege heraus, je nach Frage:**
+
+- **Die Zeit messen** statt den Schaden: `killedAtMs`. +50 % Schaden drücken sie auf etwa zwei
+  Drittel — das ist eine Aussage über die Stärke.
+- **`stopOnKill: false`** setzen und über eine feste Dauer messen. Dann ist die Summe wieder eine
+  Aussage über den Schaden.
+
+`BalanceConfig` warnt wörtlich davor: **`stop_on_kill` misst, OB der Boss fällt, nicht WIE VIEL
+Schaden entsteht.** Der Satz stand da und ist beide Male gelesen worden — er hilft nur, wenn man
+ihn beim **Formulieren der Messung** liest, nicht beim Deuten des Ergebnisses.
 
 <!-- Prüflauf Pfad-Filter, 2026-07-27T15:29:45Z -->
