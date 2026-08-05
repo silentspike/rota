@@ -472,22 +472,32 @@ sie neu gebaut, oder steht sie noch da, wo sie beim Aufbau hingeschrieben wurde?
 Der Nachweis dafür braucht **zwei** Zustände im laufenden Bild: einmal vor der Änderung, einmal
 danach. Ein Screenshot nach dem Aufbau belegt nur, dass der Anfangswert stimmt.
 
-### Woraus kommt die Zahl, gegen die verglichen wird?
+### Könnte dieser Fall überhaupt einen Unterschied zeigen?
 
-_Die gemeinsame Frage hinter drei Fällen aus einer Nacht._
+_Die gemeinsame Frage hinter vier Fällen aus einer Nacht._
 
-Drei Prüffälle sahen aus wie ein Beleg und waren keiner. Jedes Mal lag es an der **Quelle** der
+Vier Prüffälle sahen aus wie ein Beleg und waren keiner. Jedes Mal lag es an der **Quelle** der
 Vergleichszahl:
 
-| Fall                              | Woher die Zahl kam                  | Was daran falsch war                                                      |
-| --------------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
-| **Tautologie**                    | aus dem Prüflauf selbst             | `[0,1,2].slice(0,2)` gegen `[0,1]` — die eigene Erwartung mit sich selbst |
-| **Falscher Gegenfall**            | aus einer zweiten Ursache           | Der Vergleichslauf scheiterte an der Kampfdauer, nicht am fehlenden Feld  |
-| **Fehlschlag aus falschem Grund** | aus dem Werkzeug statt aus dem Fall | Der Übersetzer brach ab, der Prüffall lief nie                            |
+| Fall                              | Woher die Zahl kam                                   | Was daran falsch war                                                          |
+| --------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Tautologie**                    | aus dem Prüflauf selbst                              | `[0,1,2].slice(0,2)` gegen `[0,1]` — die eigene Erwartung mit sich selbst     |
+| **Falscher Gegenfall**            | aus einer zweiten Ursache                            | Der Vergleichslauf scheiterte an der Kampfdauer, nicht am fehlenden Feld      |
+| **Fehlschlag aus falschem Grund** | aus dem Werkzeug statt aus dem Fall                  | Der Übersetzer brach ab, der Prüffall lief nie                                |
+| **Fall ohne Unterschied**         | aus einer Umsetzung, die beide Wege gleich behandelt | Platz 1 fiel weg — ein nachrückender Eintrag landet dort **zufällig richtig** |
 
 > **Die Frage vor jedem Nachweis:** Woraus kommt die Zahl, gegen die ich vergleiche? Aus einer
 > Quelle, die **unabhängig** von dem ist, was ich prüfe — oder aus derselben Rechnung, demselben
 > Lauf, demselben Werkzeug?
+>
+> **Und die schärfere Fassung**, nachdem die erste zweimal nicht gereicht hat: Nicht nur, woher
+> die Zahl kommt — sondern ob der **Fall** so liegt, dass richtig und falsch sich unterscheiden
+> **können**.
+>
+> Der vierte Fall hat keinen sichtbaren Fehler: Die Zahlen kamen aus der Umsetzung, der Prüffall
+> war sauber gebaut, die Gegenprobe lief. Sie schlug nur nicht an, weil beide Umsetzungen an
+> dieser Stelle dasselbe liefern. Erst als der **vordere** Platz wegfiel statt des hinteren,
+> gingen Nachrücken und Behalten auseinander.
 
 Der erste Fall ist der heimtückischste, weil er eine **Auflage formal erfüllen** kann. Die
 Auflage lautete: _„Die Gegenprobe über zwei Zustände — Belegung auf Stufe 10 gegen Stufe 20,
