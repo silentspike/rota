@@ -419,7 +419,7 @@ export function recordings(): Map<string, Recording> {
     //
     // Baustein 6 stand hier bis zum 2026-08-05 mit dabei und ist herausgenommen:
     // Der Boss-Ring IST die Reaktion (GAME-DESIGN 9.1), ein zweiter Wert daneben
-    // waere eine Dublette gewesen. Er bekommt ein eigenes Issue.
+    // waere eine Dublette gewesen. Er wird in Issue #247 gebaut, an den Ring.
     const trial = bossById('test-crucible-trial');
     if (trial !== undefined) {
       builtIn.set('trial-blocks', recordTrialRotation('trial-blocks', 9000, trial));
