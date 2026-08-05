@@ -1603,6 +1603,13 @@ export interface RewardDef {
   readonly pointsExponent: number;
   /** Was ein Prozentpunkt gehaltener Ring in Sekunden Restlaufzeit wiegt. */
   readonly heldPointsPerPercent: number;
+  /**
+   * Der Rest-Ertrag fürs blosse Wiederholen, in Promille (Issue #377).
+   *
+   * **Unter 1000**, sonst wäre ein Wiederholungslauf so viel wert wie eine
+   * Verbesserung — und dann trüge die Differenz-Auszahlung aus 12.6 nichts.
+   */
+  readonly repeatPerMille: number;
 }
 
 export const REWARD: RewardDef = (() => {
@@ -1615,6 +1622,7 @@ export const REWARD: RewardDef = (() => {
   const pointsPerSecond = number(roh['pointsPerSecond'], 0);
   const pointsExponent = number(roh['pointsExponent'], 0);
   const heldPointsPerPercent = number(roh['heldPointsPerPercent'], 0);
+  const repeatPerMille = number(roh['repeatPerMille'], 0);
 
   // **Ein Eintrag je möglichem Abstand.** Bei 100 Stufen reicht der Abstand von
   // 0 bis 99; eine kürzere Tabelle liefe irgendwo ins Leere und zahlte dort
@@ -1666,6 +1674,18 @@ export const REWARD: RewardDef = (() => {
         'runaway-Boss nie etwas, weil dort die Restzeit immer null ist.',
     );
   }
+  // **Die Design-Aussage als Bedingung an die Daten**, wie beim Exponenten:
+  // 12.6 sagt „Punkte für Bestzeit-Verbesserung PLUS ein Rest-Ertrag fürs
+  // blosse Wiederholen". Bei 1000 wäre Wiederholen genauso viel wert wie
+  // Verbessern, bei 0 gäbe es den Rest-Ertrag gar nicht — beides widerspricht
+  // dem Satz, und beides sähe im laufenden Spiel unauffällig aus.
+  if (!(repeatPerMille > 0) || repeatPerMille >= 1000) {
+    throw new Error(
+      `data/player/reward.json: repeatPerMille ist ${repeatPerMille}. GAME-DESIGN 12.6 ` +
+        'verlangt einen Rest-Ertrag fürs blosse Wiederholen UND eine Differenz-Auszahlung ' +
+        'für die Verbesserung — erlaubt ist deshalb nur echt zwischen 0 und 1000.',
+    );
+  }
   return {
     falloffPerMille,
     fullRewardWithinLevels,
@@ -1673,6 +1693,7 @@ export const REWARD: RewardDef = (() => {
     pointsPerSecond,
     pointsExponent,
     heldPointsPerPercent,
+    repeatPerMille,
   };
 })();
 
