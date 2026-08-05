@@ -1670,6 +1670,37 @@ melden, dann wird er in der SSOT aufgelöst.
 | **Umlaute**           | In Doku, Kommentaren und Commit-Messages echte Umlaute (ä ö ü ß), nicht ae/oe/ue/ss. ASCII nur in Bezeichnern, Dateinamen, URLs |
 | **Keine Emojis**      | Weder im Code noch in der Oberfläche noch in Commits                                                                            |
 
+### Wer Zeilen zählt, vergleicht etwas anderes als wer Werte zählt
+
+In #236 ging es um die Reihenfolge, in der Spiel und Simulator ihre Werte in die Prüfsumme mischen.
+Die entscheidende Wahl war, **die Namensfolge zur Laufzeit einzusammeln statt sie aus dem Quelltext
+zu zählen** — und der Unterschied ist kein Detail:
+
+```
+$ grep -c "mixNamedInt" src/core/checksum.ts
+  31                                        ← Stellen im Quelltext
+
+$ recordFieldOrder(() => combatChecksum(combat, 0)).length
+  111                                       ← Werte in einem Lauf
+```
+
+**Der Unterschied sind die Schleifen.** Eine Quelltext-Zeile über die Zauber steht einmal da und
+mischt fünfzehnmal. Wer Zeilen zählt und mit einer Werte-Zahl vergleicht, meldet eine Abweichung,
+die keine ist — und sucht sie an einer Stelle, an der nichts ist.
+
+**Die Klasse ist allgemeiner als die Prüfsumme.** Überall dort, wo etwas in einer Schleife, einer
+Bedingung oder einem Zweig steht, ist die statische Zahl nicht die dynamische:
+
+| Frage                                | statisch falsch            | dynamisch richtig                                 |
+| ------------------------------------ | -------------------------- | ------------------------------------------------- |
+| Wie viele Werte in der Prüfsumme?    | `grep -c mixNamedInt`      | `recordFieldOrder(...)`                           |
+| Welche Zauber „wählt" eine Rotation? | was in der Liste **steht** | was im Lauf **gewirkt** wurde (`RunResult.casts`) |
+| Welche Zeilen laufen?                | die Datei                  | ein Lauf mit Ausgabe                              |
+
+Der mittlere Fall ist der, der bei einer Rotations-Suche zuschlägt (#237): **Ein Zauber, der ganz
+unten in der Prioritätenliste steht und nie an die Reihe kommt, ist in der Liste vorhanden und im
+Kampf abwesend.**
+
 ### Werkzeuge, die schweigen oder etwas anderes tun
 
 Fünf Fälle, gesammelt am 2026-08-05 und vom Orchestrator im Quelltext nachgemessen. Sie haben eines
