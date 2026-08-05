@@ -83,6 +83,46 @@ export interface RunSummary {
    */
   readonly playerDamage: number;
   /**
+   * Was der Kampf gekostet hat — eingesteckter Schaden NACH Ward (Issue #294).
+   *
+   * **Nicht in der Verlustquellen-Rangliste**, und das ist eine Vorgabe aus
+   * GAME-DESIGN 15.3: Die vier Schadensquellen messen NICHT AUSGETEILTEN
+   * Schaden, diese misst EINGESTECKTEN. In einem gemeinsamen Prozentsatz
+   * gewinnt die Zahl immer — ein Boss-Zauber übersteigt den Spielerschaden je
+   * Wirkung leicht um das Zwanzigfache.
+   */
+  readonly damageTaken: number;
+  /**
+   * Wie viel Ring der Spieler zurückgedrängt hat (Issue #294, AC5).
+   *
+   * **Die dritte Größe neben Reserve und dem eigenen Schaden**, und die
+   * einzige, die aus Schutz und Heilung kommt: `stabilise` wird von Schild
+   * und Heilung gerufen, nie von einem Angriffszauber.
+   *
+   * | | |
+   * | --- | --- |
+   * | Reserve | wie viel Ring am Ende stand — das Ergebnis |
+   * | Ring damage by you | wie viel du heruntergeschlagen hast |
+   * | dieser Wert | wie viel du zurückgedrängt hast |
+   *
+   * Ohne sie sieht ein Spieler, der den Ring mit CRUST und SALVE gehalten
+   * hat, nur eine niedrige Angriffszahl.
+   */
+  readonly stabilised: number;
+  /** Wie viel Schaden die Schutzschicht aufgefangen hat (Issue #294). */
+  readonly shieldAbsorbed: number;
+  /** Anteil der laufenden Umwandlung in Prozent (Issue #294). */
+  readonly converted: number;
+  /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat (Issue #294). */
+  readonly interruptsLanded: number;
+  /**
+   * Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief (Issue #294).
+   *
+   * Ein Fehler des Spielers, kein Zustand des Bosses — deshalb steht die
+   * Zeile bei den Auskünften und nicht beim Kampfverlauf.
+   */
+  readonly controlFailed: number;
+  /**
    * Ob dieser Boss das umgekehrte Ziel hat (Issue #256).
    *
    * **Ein eigenes Feld statt eines Rückschlusses.** `heldPercent !== null`
@@ -247,6 +287,12 @@ export function buildSummary(input: SummaryInput): RunSummary {
     heldPercent: heldOf(combat),
     damage: combat.damageDealt,
     playerDamage: combat.playerDamage,
+    damageTaken: combat.damageTaken,
+    stabilised: combat.stabilised,
+    shieldAbsorbed: combat.shieldAbsorbed,
+    converted: combat.converted,
+    interruptsLanded: combat.interruptsLanded,
+    controlFailed: combat.controlFailed,
     reversed: combat.boss.runaway !== null,
     bossHp: combat.boss.hp,
     progressPercent: progressOf(combat, elapsedMs),
