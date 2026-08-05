@@ -448,6 +448,37 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Die gefährlichste Reparatur ist die, die den Fehler erst erzeugt
+
+_Gefunden am 2026-08-05 beim Bau von #247, Etappe 2._
+
+Ein Rust-Prüffall erwartete 300 und bekam 240. Das sah aus wie eine Abweichung **zwischen den
+Seiten** — genau der Fall, für den die Parität gebaut ist.
+
+Es war eine Abweichung zwischen **zwei eigenen Prüffällen**:
+
+```
+der im Spiel      lief bis einschließlich 5000
+die Wiedergabe    läuft tick < ticks, also bis 4990
+```
+
+Beide behaupteten dieselbe Zahl und maßen verschiedene Zeiten.
+
+> **Hätte ich die Rust-Seite an das Spiel „angepasst", wäre daraus eine echte Abweichung
+> geworden — an einer Stelle, die nie wieder jemand angesehen hätte.**
+
+Das ist eine eigene Klasse. Die Abschnitte oben behandeln Prüfungen, die nichts fangen. Hier
+fängt die Prüfung etwas Richtiges, und die naheliegende Reparatur macht daraus einen echten
+Fehler: Die Parität hätte danach grün gemeldet, und die beiden Seiten wären wirklich
+auseinander gewesen.
+
+**Die Regel:** Zwei Prüffälle, die dieselbe Zahl behaupten, müssen dieselbe Zeit messen. Bevor
+eine Seite an die andere angeglichen wird, muss belegt sein, **welche** von beiden recht hat —
+und zwar aus einer dritten Quelle, nicht aus der Erwartung.
+
+Erkennungszeichen: Der Unterschied ist klein und „sieht nach Rundung aus". Genau dann lohnt der
+Blick auf die Schleifengrenzen.
+
 ### Ein Wächter, dessen Referenz im selben PR mitwächst, kann nicht anschlagen
 
 _Gefunden am 2026-08-05, nachdem derselbe Fall dreimal verschieden erklärt worden war._
