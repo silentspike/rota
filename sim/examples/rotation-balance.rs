@@ -47,9 +47,20 @@ fn messe_mit(name: &str, text: &str, worn: WornValues) -> f64 {
         },
         &apl,
     );
+    // **Der Standardfehler, nicht die Streuung der Einzelwerte.**
+    //
+    // Beide sahen im ersten Entwurf gleich aus — dieselbe Spalte, dasselbe
+    // Zeichen. Nebeneinander mit #118s 45,7 (das ein Standardfehler ist) hätte
+    // meine Streuung von 326,0 so ausgesehen, als wäre diese Messung siebenmal
+    // unsicherer. Sie ist präziser: 23,0 gegen 45,7.
+    //
+    // AC5 fragt nach der Unschärfe der MESSUNG — also danach, wie genau der
+    // Mittelwert bekannt ist. Das ist der Standardfehler; er schrumpft mit der
+    // Wurzel der Durchgänge. Die Streuung der Einzelwerte tut das nicht, sie
+    // ist eine Eigenschaft der Sache.
     println!(
         "  {:<38} {:>9.1}  +/- {:>6.1}",
-        name, r.damage.mean, r.damage.stddev
+        name, r.damage.mean, r.damage.stderr
     );
     r.damage.mean
 }
@@ -67,6 +78,10 @@ fn main() {
 
     println!();
     println!("DIE ZWEI REIHEN NEBENEINANDER  ({RUNS} Durchgaenge je Zeile)");
+    println!();
+    println!("  Das +/- ist der STANDARDFEHLER: wie genau der Mittelwert bekannt ist.");
+    println!("  Nicht die Streuung der Einzelwerte — die ist rund vierzehnmal groesser");
+    println!("  und beantwortet eine andere Frage.");
     println!();
     let alt = messe("step1-good  (drei Zauber)", ALT);
     let neu = messe("step3-good  (alle fuenfzehn verfuegbar)", NEU);
@@ -98,9 +113,16 @@ fn main() {
     println!();
     println!("  Zum Vergleich, gemessen in #118:            9892,7  +/-   45,7");
     println!();
+    println!("  Beide Zahlen sind STANDARDFEHLER und damit vergleichbar. #118 hatte");
+    println!("  60 Durchgaenge, dieser Lauf 200 — deshalb ist er der genauere (23,0");
+    println!("  gegen 45,7), obwohl die Sache selbst gleich stark streut.");
+    println!();
     println!("  Die alte Reihe ist damit reproduziert, und die neue liegt genau");
-    println!("  darauf. Der Fehlerbalken kommt hier vom Krit: purity 800 sind 80 %");
-    println!("  Kritchance, und die wuerfelt.");
+    println!("  darauf: 0,7 Unterschied bei einem Standardfehler von 23,0.");
+    println!();
+    println!("  Der Fehlerbalken kommt hier vom Krit: purity 800 sind 80 % Kritchance,");
+    println!("  und die wuerfelt. Ohne Ausruestung ist er null — dort wuerfelt nichts,");
+    println!("  und das macht den Rotations-Vergleich oben SCHAERFER, nicht schwaecher.");
     println!();
     println!("  UND DAMIT GILT AC5: Ein Vorsprung zaehlt nur ueber der Unschaerfe");
     println!("  BEIDER Messungen. Hier gibt es keinen Vorsprung — die Listen sind");
