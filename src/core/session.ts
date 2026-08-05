@@ -369,6 +369,53 @@ export class Session implements Simulation {
       }
       // Ein Wenn-Sonst, kein zweites Wenn: So kann derselbe Takt nicht in beide
       // Hälften geraten, und ihre Summe ist immer `idleTicks`.
+      //
+      // ---------------------------------------------------------------------
+      // WANN KANN `idleTicksNothingReady` ÜBERHAUPT STEIGEN? (Issue #300)
+      //
+      // Nur, wenn KEIN belegter Zauber bereit ist — und dieser Takt wird
+      // überhaupt nur gezählt, wenn der GCD bereit ist. Daraus folgt die
+      // Bedingung, und zwar als Rechnung, nicht als Beobachtung:
+      //
+      //   Ein Zauber mit `cooldownMs <= GCD_MS` startet seine Abklingzeit
+      //   gleichzeitig mit dem GCD und ist höchstens so lang. Sobald der GCD
+      //   bereit ist, ist er es auch. Ein solcher Zauber auf der Leiste macht
+      //   den `else`-Zweig UNERREICHBAR.
+      //
+      //   GCD_MS = 1500 (gcd.ts), kindle cooldownMs = 1500 — also genau der
+      //   Grenzfall, und er sperrt. Solange KINDLE liegt, bleibt die Quelle
+      //   „nichts war bereit" strukturell leer.
+      //
+      //   Mit einem langen Cooldown ist sie erreichbar. Das rechnet
+      //   `tests/unit/idle-source-reachable.test.ts` nach — mit REFLUX
+      //   (cooldownMs 45000) allein und dem Gegenfall mit KINDLE dazu.
+      //
+      //   Hier stand vorher eine Zahl („1851 Takte nicht bereit"), die aus
+      //   einer fremden Messung abgeschrieben war und die keine Datei
+      //   nachrechnete. In einem Vermerk, der gegen unbelegte Behauptungen
+      //   geschrieben ist, war das die Behauptung selbst (#300).
+      //
+      // **Das ist kein Rechenfehler.** GAME-DESIGN 15.3 definiert Leerlauf als
+      // „Fenster, in denen kein Zauber bereit war". Ist immer einer bereit,
+      // gibt es keinen Leerlauf, und eine leere Quelle ist die richtige
+      // Antwort. Der Vermerk steht hier, damit der Nächste sie nicht für
+      // kaputt hält.
+      //
+      // DIE ZWEITE SPERRE WIEGT SCHWERER UND IST WENIGER SICHTBAR:
+      // `isOffCooldown` fragt **nur** die Abklingzeit, nie die Ressource.
+      //
+      //   STALL ohne Kontroll-Punkte  ->  gilt als bereit
+      //   PYRE ohne Hitze             ->  gilt als bereit
+      //
+      // Ein Zauber, dessen Kosten der Spieler gerade nicht aufbringen kann,
+      // setzt hier trotzdem `anyReady`. Die Quelle bleibt damit auch dann
+      // leer, wenn später Zauber mit Kosten dazukommen und der Spieler sie
+      // nicht bezahlen kann — also genau in der Lage, in der er dasteht und
+      // nichts tun KANN.
+      //
+      // Ob ein unbezahlbarer Zauber als bereit gelten soll, ist eine
+      // Design-Frage und wird hier NICHT entschieden.
+      // ---------------------------------------------------------------------
       if (anyReady) this.idleTicksWithReady++;
       else this.idleTicksNothingReady++;
     }
