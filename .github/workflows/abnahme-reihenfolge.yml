@@ -62,25 +62,34 @@ jobs:
           fi
 
           gh pr list --repo "$REPO" --state open --limit 100 \
-            --json number,headRefName,body > prs.json
+            --json number,headRefName,title > prs.json
 
           # Zwei Wege, einen PR dem Issue zuzuordnen:
           #   1. die Nummer im Zweignamen (feat/e6-118-ac1, fix/e8-199-…)
-          #   2. eine Erwähnung als #118 im PR-Text
+          #   2. die Nummer im PR-TITEL   (… (#118))
           #
           # Beide mit Ziffern-Grenzen, sonst trifft 19 auch auf 199. Gemessen:
           #   199 -> nur der Zweig e8-199      19 -> nur der Zweig e3-19
           #   11  -> nichts (trotz 118)         9 -> nichts (trotz 199)
           #
-          # Weg 2 trifft absichtlich zu viel: Ein PR, der ein Issue nur ERWÄHNT,
-          # löst das Wiederöffnen ebenfalls aus. Das ist die sichere Richtung —
-          # einmal zu viel öffnen kostet einen Klick, ein übersehenes Issue
-          # kostet die Arbeit dahinter. Für den Fall gibt es das Label 'ohne-pr'.
+          # DER PR-TEXT WIRD NICHT MEHR GELESEN. Er hat am 2026-08-05 zweimal
+          # falsch ausgelöst: #232 (Putrefaktion) und #226 (ein Doku-PR) nannten
+          # Issue #219 nur beiläufig, und der Wächter öffnete es fünfzehn
+          # Sekunden nach dem Schließen wieder — obwohl sein PR längst gemergt war.
+          #
+          # Der alte Kommentar hier behauptete, zu viel zu treffen sei die sichere
+          # Richtung und koste "einen Klick". Das stimmte nicht: Der Orchestrator
+          # hielt das Issue zwölf Minuten lang für geschlossen. Ein Wächter, der
+          # regelmäßig falsch anschlägt, wird geglaubt, bis er es einmal nicht tut
+          # — und dann ist er wertlos.
+          #
+          # Titel und Zweigname nennen ein Issue nur, wenn der PR es UMSETZT.
+          # Der Text nennt jedes, auf das er sich bezieht.
           treffer=$(jq -r --arg nr "$NR" '
             [ .[]
               | select(
                   (.headRefName | test("(^|[^0-9])" + $nr + "([^0-9]|$)"))
-                  or ((.body // "") | test("#" + $nr + "([^0-9]|$)"))
+                  or ((.title // "") | test("(^|[^0-9])#?" + $nr + "([^0-9]|$)"))
                 )
               | "#\(.number) (\(.headRefName))"
             ] | join(", ")' prs.json)
