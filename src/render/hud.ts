@@ -29,6 +29,7 @@ import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './v
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
 import {
+  feedsMechanic,
   loadoutFingerprint,
   mechanicsOfLoadout,
   visibleIndicators,
@@ -167,13 +168,16 @@ export class HudRenderer {
     private readonly markSource: () => MarkDisplay | null = () => null,
   ) {
     this.mechanicSource = {
-      get resourceId(): string {
-        return session.combat.resourceId;
-      },
       slotCount: SLOT_COUNT,
       spellOnSlot: (slot) => session.spellOnSlot(slot),
-      gainOfSpell: (spell, id) => session.combat.gainOfSpell(spell, id),
-      gainOfTick: (spell, id) => session.combat.gainOfTick(spell, id),
+      // **Dieselbe Entscheidung wie in der Zusammenstellungs-Ansicht** — sie
+      // steht in `feedsMechanic` und wird hier nur angewandt. Vorher lagen
+      // hier zwei Abfragen, die nur den Vorrat der Schule kannten; mit
+      // `control` und `decay` wären es vier geworden (Issue #270).
+      feedsMechanic: (spell, mechanicId) => {
+        const def = session.combat.spellAt(spell);
+        return def !== undefined && feedsMechanic(def, mechanicId);
+      },
     };
     this.spellBar = new SpellBar(session, labels);
     const ctx = surface.ctx;

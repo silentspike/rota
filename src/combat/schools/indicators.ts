@@ -31,6 +31,102 @@
 /** Nie mehr als so viele Anzeigen gleichzeitig (GAME-DESIGN 5). */
 export const MAX_INDICATORS = 4;
 
+/**
+ * Die Schul-Mechaniken, die der Kampf führt (Issue #270).
+ *
+ * **Diese Tabelle ist die erste Stelle, an der die drei zusammenstehen** —
+ * und das war der Befund, aus dem sie entstand. Der Kampf führt sie längst:
+ *
+ * | Zähler | in `combat.ts` | Schule |
+ * | --- | --- | --- |
+ * | `heat` | `resource()` | CALCINATION |
+ * | `control` | `control()` | FIXATION |
+ * | `decay` | `decayStacks()` | PUTREFACTION |
+ *
+ * Bis zum 2026-08-05 kannte diese Auswahl nur die Hitze, weil sie über
+ * `SchoolDef.resource` ging — und dort steht nur eine. Die anderen zwei
+ * rechneten mit, ohne dass es irgendwo ankam: `MAX_INDICATORS` steht auf 4,
+ * geliefert wurde EINE. Die Konstante existiert nur, weil jemand mit mehreren
+ * gerechnet hat.
+ *
+ * GAME-DESIGN 5 verlangt „nur die aktiv genutzten" — das heißt, dass eine
+ * genutzte Mechanik ANGEZEIGT wird. Wer Kontroll-Punkte sammelt und sie nicht
+ * sieht, ist kein Zustand, den jemand entschieden hat.
+ *
+ * **Woher die Zuordnung kommt:** Aus den Zauberdaten, nicht aus dieser
+ * Tabelle. `feedsMechanic` liest die Felder, die den Beitrag tragen; hier
+ * steht nur, welche Mechaniken es gibt und wie sie heißen. Eine Liste von
+ * Zauber-Kennungen wäre die Handabschrift, die beim nächsten Zauber vergessen
+ * wird — und #268 baut neun neue.
+ */
+export interface MechanicDef {
+  /** Kennung, wie sie in der Anzeige und in `MechanicInfo` steht. */
+  readonly id: string;
+  /** Name für den Spieler, englisch (Design-Gesetz 5). */
+  readonly label: string;
+  /** Zu welcher Schule sie gehört. */
+  readonly school: string;
+}
+
+/** Die drei, in der Reihenfolge der Schulen in den Daten. */
+export const MECHANICS: readonly MechanicDef[] = [
+  { id: 'heat', label: 'Heat', school: 'CALCINATION' },
+  { id: 'control', label: 'Control', school: 'FIXATION' },
+  { id: 'decay', label: 'Decay', school: 'PUTREFACTION' },
+];
+
+/** Was ein Zauber mitbringen muss, damit er auf eine Mechanik einzahlt. */
+export interface MechanicContributor {
+  readonly resourceGain?: Readonly<Record<string, number>>;
+  readonly dot?: { readonly resourceGainPerTick: Readonly<Record<string, number>> };
+  readonly controlGain?: number;
+  readonly decay?: unknown;
+}
+
+/**
+ * Ob dieser Zauber auf diese Mechanik einzahlt.
+ *
+ * **Die eine Stelle, die das entscheidet.** Sie liest die Datenfelder, nicht
+ * eine Liste von Kennungen: Ein neuer Zauber ist damit weiterhin ein
+ * Datensatz (Leitplanke 6).
+ *
+ * Der Vorrat der Schule läuft über `resourceGain` und `dot.resourceGainPerTick`
+ * — beides, weil ein Effekt über Zeit genauso einzahlt wie eine Wirkung. Das
+ * ist keine Feinheit: SMOULDER speist die Hitze ausschließlich über Ticks.
+ */
+export function feedsMechanic(spell: MechanicContributor, mechanicId: string): boolean {
+  if (mechanicId === 'control') return (spell.controlGain ?? 0) > 0;
+  if (mechanicId === 'decay') return spell.decay !== undefined;
+  return (
+    (spell.resourceGain?.[mechanicId] ?? 0) > 0 ||
+    (spell.dot?.resourceGainPerTick[mechanicId] ?? 0) > 0
+  );
+}
+
+/** Was ein Zauber mitbringen muss, damit er von einer Mechanik ZEHRT. */
+export interface MechanicSpender {
+  readonly spender?: { readonly resource: string };
+  readonly control?: unknown;
+  readonly perDecayStackPercent?: number;
+}
+
+/**
+ * Ob dieser Zauber von dieser Mechanik zehrt.
+ *
+ * **Über die Felder, nicht über eine Liste von Kennungen.** Eine Liste wäre
+ * die Handabschrift, die beim nächsten Entlade-Zauber vergessen wird — und
+ * #268 baut neun neue.
+ *
+ * Sie steht neben `feedsMechanic` und nicht darin: Einzahlen und Zehren sind
+ * zwei Größen. Ein Zauber könnte beides tun, und eine Funktion, die „speist
+ * oder zehrt" beantwortet, könnte die beiden nie wieder trennen.
+ */
+export function spendsMechanic(spell: MechanicSpender, mechanicId: string): boolean {
+  if (mechanicId === 'control') return spell.control !== undefined;
+  if (mechanicId === 'decay') return (spell.perDecayStackPercent ?? 0) > 0;
+  return spell.spender?.resource === mechanicId;
+}
+
 /** Eine Mechanik, die eine Anzeige haben könnte. */
 export interface MechanicInfo {
   /** Kennung des Vorrats, z. B. `heat`. */
@@ -59,14 +155,18 @@ export function visibleIndicators(mechanics: readonly MechanicInfo[]): string[] 
  * solcher Zauber auf der Leiste, gibt es nichts anzuzeigen.
  */
 export function mechanicsOfLoadout(source: LoadoutSource): MechanicInfo[] {
-  const id = source.resourceId;
-  let contributors = 0;
-  for (let slot = 0; slot < source.slotCount; slot++) {
-    const spell = source.spellOnSlot(slot);
-    if (spell < 0) continue;
-    if (source.gainOfSpell(spell, id) > 0 || source.gainOfTick(spell, id) > 0) contributors++;
-  }
-  return [{ id, contributors }];
+  // **Alle drei, nicht nur die der Schule** (Issue #270). Vorher stand hier
+  // `source.resourceId` und damit genau eine — die anderen zwei rechneten im
+  // Kampf mit, ohne dass es irgendwo ankam.
+  return MECHANICS.map((mechanic) => {
+    let contributors = 0;
+    for (let slot = 0; slot < source.slotCount; slot++) {
+      const spell = source.spellOnSlot(slot);
+      if (spell < 0) continue;
+      if (source.feedsMechanic(spell, mechanic.id)) contributors++;
+    }
+    return { id: mechanic.id, contributors };
+  });
 }
 
 /**
@@ -77,12 +177,14 @@ export function mechanicsOfLoadout(source: LoadoutSource): MechanicInfo[] {
  * ändern könnte; wer sie mitführt, rechnet die Liste nur bei Bedarf neu.
  */
 export function loadoutFingerprint(source: LoadoutSource): number {
-  const id = source.resourceId;
   let fingerprint = 0;
   for (let slot = 0; slot < source.slotCount; slot++) {
     const spell = source.spellOnSlot(slot);
     if (spell < 0) continue;
-    if (source.gainOfSpell(spell, id) > 0 || source.gainOfTick(spell, id) > 0) {
+    // **Jede Mechanik geht ein, nicht nur die der Schule.** Sonst bliebe der
+    // Abdruck gleich, wenn jemand einen FIXATION-Zauber austauscht — und die
+    // Auswahl liefe mit einer veralteten Liste weiter.
+    if (MECHANICS.some((mechanic) => source.feedsMechanic(spell, mechanic.id))) {
       // Der Platz geht mit ein, nicht nur die Anzahl: Ein Umbelegen, das die
       // Zahl gleich lässt, soll trotzdem auffallen.
       fingerprint = fingerprint * 31 + slot + 1;
@@ -93,11 +195,17 @@ export function loadoutFingerprint(source: LoadoutSource): number {
 
 /** Woraus die Auswahl liest. Nur Abfragen — sie ändert nichts. */
 export interface LoadoutSource {
-  readonly resourceId: string;
   readonly slotCount: number;
   spellOnSlot(slot: number): number;
-  gainOfSpell(spellIndex: number, resourceId: string): number;
-  gainOfTick(spellIndex: number, resourceId: string): number;
+  /**
+   * Ob der Zauber auf diesem Platz die Mechanik speist.
+   *
+   * Ersetzt seit #270 die zwei Abfragen `gainOfSpell`/`gainOfTick`: Die
+   * beantworteten die Frage nur für einen Vorrat, und mit `control` und
+   * `decay` kamen zwei Mechaniken dazu, die keinen führen. Die Entscheidung
+   * steht jetzt in `feedsMechanic`, an einer Stelle.
+   */
+  feedsMechanic(spellIndex: number, mechanicId: string): boolean;
 }
 
 /**
