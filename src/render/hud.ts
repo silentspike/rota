@@ -25,6 +25,7 @@ import { TICK_MS } from '../core/loop.js';
 import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
+import type { LevelUpDisplay } from '../analysis/level-up-display.js';
 import type { MarkDisplay, Overlay } from './overlay.js';
 import type { RunSummary } from '../core/summary.js';
 import type { Impact } from './impact.js';
@@ -217,6 +218,8 @@ export class HudRenderer {
     summary: RunSummary | null;
     mark: MarkDisplay | null;
     points: number | null;
+    xpGained: number | null;
+    levelUp: LevelUpDisplay | null;
   } = {
     outcome: 0,
     elapsedMs: 0,
@@ -229,6 +232,8 @@ export class HudRenderer {
     summary: null,
     mark: null,
     points: null,
+    xpGained: null,
+    levelUp: null,
   };
 
   constructor(
@@ -254,6 +259,17 @@ export class HudRenderer {
      * Bauzeitpunkt übergebener Wert wäre immer der des vorigen Kampfes.
      */
     private readonly pointsSource: () => number | null = () => null,
+    /**
+     * Erfahrung und Aufstieg (Issue #371) — auf demselben Weg wie die Marke.
+     *
+     * **Kein zweiter Weg für dieselbe Frage:** Beide Werte entstehen beim
+     * Ablegen des Laufs und ändern sich während der Auswertung nicht. Sie je
+     * Bild abzufragen hieße sechzig Mal in der Sekunde dieselbe Zahl zu holen.
+     */
+    private readonly progressSource: () => {
+      readonly xpGained: number | null;
+      readonly levelUp: LevelUpDisplay | null;
+    } = () => ({ xpGained: null, levelUp: null }),
   ) {
     this.mechanicSource = {
       slotCount: SLOT_COUNT,
@@ -412,6 +428,9 @@ export class HudRenderer {
       // ändert sich während der Auswertung nicht, und je Bild abzufragen hieße
       // sechzig Mal in der Sekunde dieselbe Zahl zu holen.
       view.points = this.pointsSource();
+      const fortschritt = this.progressSource();
+      view.xpGained = fortschritt.xpGained;
+      view.levelUp = fortschritt.levelUp;
     }
     if (this.session.phase === PHASE_ENDED) this.lastSummaryOutcome = this.session.outcome;
     else this.lastSummaryOutcome = -1;
