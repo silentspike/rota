@@ -1114,6 +1114,110 @@ Das ist die Regel, an der `#224` gescheitert ist: Vier neue Zauber verbesserten 
 keiner Zusammenstellung, und die Ursache stand in zwei Zahlen, die niemand gegeneinander gehalten
 hatte.
 
+### Die Auslegung des Bosses kann zwei verschiedene Formeln zusammenfallen lassen
+
+Alle Abschnitte oben fragen nach dem Prüffall, dem Werkzeug oder der Stelle. Dieser fragt nach dem
+**Gegenstand**: Manche Bosse sind so gebaut, dass zwei verschiedene Rechnungen an ihnen dasselbe
+ergeben.
+
+Gefunden von Worker-3 in #256, an einer Gegenprobe, die er **vor** dem Bau gefahren hat:
+
+```
+first-crucible:  hp 4200,  overpressureMs 60000
+
+nach 15 s mit gedrücktem KINDLE
+  Zeit-Formel     100 × 15000/60000        = 25,0 %
+  Schaden-Formel  100 × 1100/4200          = 26,2 %      Abstand 1,2 Punkte
+```
+
+Beide Formeln liegen 1,2 Punkte auseinander, und der Abstand hängt **nicht** daran, wie man zählt —
+der Orchestrator rechnete mit zehn Wirkungen, Worker-3 mit elf (der Druck bei `t = 0` zählt mit), und
+beide bekamen denselben Abstand. Er hängt an der Auslegung: 4200 Lebenspunkte gegen 60 s Frist bei
+100 Schaden je 1500 ms heißt, dass Schaden und Zeit dort **strukturell proportional** laufen. Bei
+30 s wären es 50,0 gegen 50,0, exakt identisch.
+
+> Ein Vergleich an diesem Boss mit gedrückten Zaubern könnte zu **keinem** Zeitpunkt zeigen, welche
+> Formel läuft. Erst ohne Aktion trennen sie sich: 0 % gegen 25 %.
+
+**Das ist der erste Fall im Guide, bei dem die Auflage vorher griff.** Die vier Gestalten davor
+wurden alle an einer verpassten Gegenprobe gefunden — also hinterher. Worker-3s Satz dazu:
+
+> Ohne die Zusicherung wäre AC5 grün gewesen und hätte nichts belegt.
+
+### Eine Zahl aus einem anderen Lauf ist ein Fehler beim Zitieren, nicht beim Messen
+
+```
+Browser-Nachweis   CRUST zweimal gewirkt   →  16 %
+Prüffall           CRUST viermal gewirkt   →  52 %
+```
+
+Worker-3 hatte die 16 % aus seinem eigenen Browser-Nachweis in einen Prüffall übernommen. Der
+Prüffall wirkt `CRUST` viermal, sooft es geht — die Zahl gehörte zu einem Lauf, der **anders
+gespielt** wurde.
+
+Damit sind es vier verwandte Gestalten, und die letzte fällt aus der Reihe:
+
+| Gestalt               | Beispiel                                        |
+| --------------------- | ----------------------------------------------- |
+| falsches Werkzeug     | `vitest 3.2.7` statt `4.1.10`                   |
+| falsche Stelle        | Gegenprobe an einem Ort ohne Prüffall           |
+| falscher Ausschnitt   | `eslint` auf zwei Pfade statt auf alles         |
+| **andere Drückfolge** | 16 % aus einem Lauf mit zwei statt vier `CRUST` |
+
+Werkzeug, Stelle und Ausschnitt sind Fehler **beim Messen**. Der vierte ist einer **beim Zitieren** —
+die Zahl war korrekt gemessen, nur woanders.
+
+> **Die Prüffrage:** Stammt diese Zahl aus genau dem Lauf, über den ich gerade eine Aussage mache?
+> Eine übernommene Zahl, die zufällig gepasst hätte, wäre nie aufgefallen.
+
+Dieselbe Klasse traf ihn am selben Tag ein zweites Mal, mit umgekehrtem Vorzeichen: Ein Messlauf, der
+`SMOULDER` auf Cooldown drückte, ergab **null** Schaden — der Zauber ist alle 1500 ms bereit, der
+Tick kommt nach 2000 ms, und `refreshMode: "reset"` wirft die Restlaufzeit weg. Seine Einordnung:
+
+> „Sooft es geht" ist für `KINDLE` die beste Drückweise und für `SMOULDER` die schlechtestmögliche.
+
+### Die Gegenprobe prüft nicht nur die Umsetzung — sie prüft den Prüfstand
+
+Worker-3, in #256, nachdem er eine Umstellung zurückgedreht hatte:
+
+> Genau **dieser** Fall blieb als einziger grün. Die Gegenprobe hat nicht die Umsetzung geprüft,
+> sondern meinen Prüfstand.
+
+Sein Prüffall „lässt die vier Schadensquellen weg" drückte `KINDLE` auf Cooldown. Dann gibt es keine
+Leerzeit, die vier Quellen erscheinen ohnehin nicht — er war grün, **egal was die Umsetzung tat**.
+
+Das ist der Grund, warum die Gegenprobe zur Auflage gehört und nicht nur zur guten Praxis: Sie ist
+der einzige Weg, einen Prüffall zu finden, der nichts messen kann. Nachdenken hat sie in den Fällen
+davor nicht gefunden.
+
+**Und sie greift auch am eigenen Nachbau.** Worker-3 baute die Leerlauf-Zählung in einem Prüffall
+nach, um eine Vergleichstabelle zu liefern — sie zählte für **jeden** bereiten Zauber statt nur für
+die auf der Leiste, und hätte nichts getrennt. Er hat sie verworfen und die Zahlen aus den echten
+Browser-Läufen genommen, statt eine saubere Tabelle zu liefern, die falsch ist.
+
+> Eine Tabelle, die zu der Frage passt, die der Empfänger selbst gestellt hat, wird nicht
+> nachgerechnet.
+
+### „Im Bild geprüft" heißt nicht „das ganze Bild geprüft"
+
+Zwei der drei Befunde in #256 saßen in `overlay.ts` — beide Male eine **zweite Stelle mit derselben
+Annahme**, beide Male in derselben Datei, und beide Male für Vitest unsichtbar, weil `overlay.ts` ein
+Dokument braucht.
+
+| Befund                                      | wo                                                 |
+| ------------------------------------------- | -------------------------------------------------- |
+| Die Anzeige rechnete den Fortschritt selbst | eine zweite Formel neben `progressOf`              |
+| Die Detailliste blieb auf Leerlauf stehen   | `fillDetail`, ein Knopfdruck vom Ergebnis entfernt |
+
+Der zweite fiel erst auf, als der Orchestrator bei der Abnahme „View Analysis" **anklickte**.
+Worker-3s Lehre daraus:
+
+> Ich hatte den Knopf nicht gedrückt, obwohl er im selben Bildschirm stand.
+
+**Die Prüffrage:** Habe ich jede Ansicht geöffnet, die von hier aus erreichbar ist — oder nur die,
+die beim Laden zu sehen war? Ein Aufklapp-Bereich, ein zweiter Reiter, eine Detailliste hinter einem
+Knopf zählen nicht als „im Bild geprüft", solange sie zu sind.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
