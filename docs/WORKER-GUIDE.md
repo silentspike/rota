@@ -1218,6 +1218,120 @@ Worker-3s Lehre daraus:
 die beim Laden zu sehen war? Ein Aufklapp-Bereich, ein zweiter Reiter, eine Detailliste hinter einem
 Knopf zählen nicht als „im Bild geprüft", solange sie zu sind.
 
+### Zwei Regeln mit derselben Periode heben sich auf — und die Messgröße wird blind
+
+Die Gestalten oben sagen: falsches Werkzeug, falsche Stelle, falscher Ausschnitt, falscher Lauf.
+Diese sagt etwas anderes — **alles richtig, und trotzdem nichts zu sehen.**
+
+Worker-3 war in #270 überzeugt, dass `SMOULDER`s `resourceGainPerTick` nicht wirkt. Drei Messungen
+sagten dasselbe:
+
+```
+Endwert nach 13 s        0, wie ohne Zauber
+Anstiege gezählt         keiner
+Verlauf gegen Leerlauf   identisch, Takt für Takt
+```
+
+Alle drei waren blind. Die Ursache:
+
+```
+SMOULDER tick   +1 alle 2000 ms
+Verfall         −1 alle 2000 ms      dieselbe Periode
+```
+
+Der Gewinn wird im selben Takt abgebaut. Am Ressourcenwert ist er **zu keinem Zeitpunkt und in keiner
+Auflösung** sichtbar. Sichtbar wird er erst am Zähler des Empfängers:
+
+```
+kindle    gainCount 1   DoT-Ticks 0   Höchstwert 3
+smoulder  gainCount 6   DoT-Ticks 6   Höchstwert 0
+```
+
+Seine Einordnung, die den Unterschied zu allem darüber benennt:
+
+> Die Größe, die ich gemessen habe, ist die **richtige** Größe. Sie ist nur an dieser Stelle
+> strukturell blind, weil zwei Regeln mit derselben Periode gegeneinander laufen.
+
+> **Nebenbefund, der eine SSOT-Zahl korrigiert hat:** `SMOULDER` allein erzeugt netto **keine** Hitze
+> — die Schwelle 15 ist ohne zweiten Erzeuger nie erreichbar. Die Vorarbeit zu #268 nannte „netto mit
+> KINDLE 1,50/s → 15 in 10,0 s"; das rechnete ohne SMOULDER. Mit ihm sind es 2,0/s und 7,5 s. Beide
+> Zahlen standen in derselben Tabelle.
+
+**Die Prüffrage:** Kann sich der Beitrag, den ich messe, gegen etwas anderes aufheben, das im selben
+Takt läuft? Wenn ja, ist die Endgröße die falsche Messstelle — nimm den Zähler, nicht den Wert.
+
+Dieselbe Klasse traf ihn ein zweites Mal am selben Tag, mit anderem Vorzeichen: `combat.decayStacks`
+nach 13 s gelesen ergab null, weil der Stapel nach zwölf Sekunden verfällt. Die Reparatur war eine
+andere **Größe**, nicht ein anderer Zeitpunkt — der **Höchstwert während** des Laufs statt des
+Endwerts.
+
+### Ein Prüffall, der nur das Alte belegt
+
+Alle Gestalten oben fragen: _Kann dieser Fall einen Unterschied zeigen?_ Das reicht nicht.
+
+Gefunden in #270 durch eine Gegenprobe des Orchestrators. Der AC4-Fall belegte, dass die Vorschau mit
+dem Kampf übereinstimmt — über `combat.stacks.gainCount`, den **Hitze**-Zähler:
+
+```
+for (const spell of ['kindle', 'smoulder'])          ← Einzahler
+for (const spell of ['pyre', 'crust', 'quench'])     ← Nicht-Einzahler
+```
+
+Fünf Zauber, alle aus der Kalzination oder ohne Einzahlung. **`bind` und `canker` kamen nicht vor** —
+und genau die zwei Mechaniken, Kontrolle und Zersetzung, waren das Neue an dieser Etappe.
+
+```
+Gegenprobe: control-Einzahler abgeschaltet
+  vorher   1 failed    ← nur der AC2-Fall
+  nachher  2 failed    ← AC2 und AC4
+```
+
+Der Fall hatte sogar eine **eigene** Gegenprobe („MISST ÜBERHAUPT etwas"). Sie belegte, dass die
+Messung Unterschiede sieht — nur eben bei der Hitze. Der Nachweis deckte den Teil ab, der schon
+vorher stimmte.
+
+> Die Frage „kann dieser Fall einen Unterschied zeigen?" reicht nicht. Sie muss lauten: **„Zeigt er
+> ihn für alles, was NEU ist?"**
+
+Worker-3 hatte am selben Tag viermal selbst gefunden, dass ein Prüffall nichts messen kann. Diesen
+fand er nicht — weil er nach der ersten Frage suchte und nicht nach der zweiten.
+
+### Ein Werkzeug kann die Wahrheit sagen und trotzdem das Falsche tun
+
+```
+__rota.bindSlot(0, 'pyre')   →  true
+```
+
+Der Rückgabewert ist **ehrlich**: Der Platz wurde gebunden. Nur bindet das Werkzeug die **Sitzung**,
+während die Zusammenstellungs-Ansicht den **Spielstand** liest. Der Nachweis zeigte deshalb die
+Standard-Belegung, und Worker-3 hätte in #270 fast einen Fehler in der Vorschau gesucht, den es nicht
+gab.
+
+Der Unterschied zu allen Gestalten davor: Nicht die Messung war blind, nicht der Prüffall untauglich
+und nicht das Werkzeug kaputt. **Es tat etwas anderes, als der Nachweis brauchte, und meldete
+wahrheitsgemäß, dass es das getan hat.**
+
+**Die Prüffrage:** Wirkt dieses Werkzeug auf denselben Zustand, den die Anzeige liest? Ein `true` sagt
+nur, dass etwas geschehen ist — nicht, dass es dort geschehen ist, wo du hinsiehst.
+
+Der Ausweg war, den Nachweis über die **Oberfläche** zu führen (die Auswahlliste), nicht über das
+Werkzeug.
+
+### Der Screenshot ist der letzte Schritt vor dem Commit, nicht der vorletzte
+
+In #270 zeigte ein Screenshot „SPELL BAR", während der Code `title: 'Composition'` trug — aufgenommen
+vor der Umbenennung, gemeldet danach.
+
+> Bei einer Zahl aus einer anderen Drückfolge hatte ich zwei verschiedene **Läufe**. Hier zwei
+> verschiedene **Versionen** desselben Programms. Der Fehler entsteht dort, wo zwischen Messen und
+> Melden noch etwas gebaut wird.
+
+Das ist dieselbe Klasse wie „eine Zahl aus einem anderen Lauf", aber die Gegenmaßnahme ist eine
+andere: Bei einer Zahl hilft die Frage _aus welchem Lauf stammt sie_; bei einem Bild hilft nur die
+**Reihenfolge**.
+
+> Wer später den Widerspruch findet, weiß nicht, welche Seite alt ist — das Bild oder der Code.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
