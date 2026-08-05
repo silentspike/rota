@@ -421,11 +421,41 @@ export class Overlay {
     this.fillDetail(summary);
   }
 
-  /** Der Leerlauf je Zauber, nach Verlust sortiert (GAME-DESIGN 15.1). */
+  /**
+   * Die Zeile je Zauber, nach dem sortiert, was zählt (GAME-DESIGN 15.1).
+   *
+   * **BEI EINEM UMGEKEHRTEN ZIEL IST ES NICHT DER LEERLAUF** (Issue #256).
+   * Diese Liste stand bis zum 2026-08-05 als „Idle time per spell" auch dort —
+   * dieselbe verkehrte Aussage wie die Zeile darüber, nur eine Ebene tiefer und
+   * hinter einem Knopf, den ich beim Umbau nicht gedrückt hatte.
+   *
+   * Gefunden hat es kein Prüffall, sondern ein Screenshot: `overlay.ts` braucht
+   * ein Dokument, und die Prüffälle laufen ohne DOM. Dieselbe Stelle, an der
+   * schon die eigene Fortschritts-Rechnung saß.
+   *
+   * Der Schaden je Zauber IST der schädliche Anteil: Stabilisierer drängen den
+   * Ring über `undoProgress` zurück, statt Schaden zu buchen, und stehen hier
+   * deshalb bei null.
+   */
   private fillDetail(summary: RunSummary): void {
     this.detail.replaceChildren();
-    this.detail.appendChild(element('p', 'rota-hint', 'Idle time per spell, worst first'));
-    for (const entry of summary.idlePerSpell) {
+    const umgekehrt = summary.reversed;
+    this.detail.appendChild(
+      element(
+        'p',
+        'rota-hint',
+        umgekehrt ? 'Ring damage per spell, worst first' : 'Idle time per spell, worst first',
+      ),
+    );
+    // Die Kurzfassung sortiert nach Leerlauf. Bei einem umgekehrten Ziel ist
+    // das die falsche Reihenfolge — hier steht der oben, der am meisten Ring
+    // gekostet hat. Eine Kopie, damit die Kurzfassung unberührt bleibt.
+    const zeilen = umgekehrt
+      ? [...summary.idlePerSpell].sort(
+          (a, b) => b.damage - a.damage || a.spellId.localeCompare(b.spellId),
+        )
+      : summary.idlePerSpell;
+    for (const entry of zeilen) {
       const line = element('div', 'rota-row');
       line.appendChild(
         element('span', 'rota-row-label', `${entry.spellId} · ${entry.casts} casts`),
@@ -434,7 +464,11 @@ export class Overlay {
         element(
           'span',
           'rota-row-value',
-          `${(entry.idleMs / 1000).toFixed(1)} s (${(entry.share * 100).toFixed(0)} %)`,
+          umgekehrt
+            ? entry.damage === 0
+              ? '—'
+              : `${entry.damage.toLocaleString('en-US')} ring damage`
+            : `${(entry.idleMs / 1000).toFixed(1)} s (${(entry.share * 100).toFixed(0)} %)`,
         ),
       );
       this.detail.appendChild(line);
