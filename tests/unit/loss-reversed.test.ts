@@ -26,7 +26,7 @@
  * Zeile ist die einzige, die beide Boss-Arten unverändert teilen.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { buildSummary, type RunSummary } from '../../src/core/summary.js';
@@ -55,8 +55,13 @@ function spielen(boss: typeof FIRST_CRUCIBLE.value, spellId?: string, nurAlleMs 
     letzte = t;
     if (combat.checkDefeat(t)) break;
     const willWirken = nurAlleMs <= 0 || t % nurAlleMs === 0;
-    if (index >= 0 && willWirken && combat.gcd.isReady(t) && combat.isReady(index, t)) {
-      combat.cast(index, t);
+    if (
+      index >= 0 &&
+      willWirken &&
+      combat.gcd.isReady(t) &&
+      combat.isReady(alsSpellIndex(index), t)
+    ) {
+      combat.cast(alsSpellIndex(index), t);
       casts++;
     } else if (combat.gcd.isReady(t)) {
       leerMs += TICK_MS;

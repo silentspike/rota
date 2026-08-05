@@ -15,7 +15,7 @@
  * Lauf. Was sich ändert, ist WELCHER Wert es ist.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
@@ -40,8 +40,13 @@ function laufen(combat: Combat, bisMs: number, spellId?: string, abMs = 0): void
   combat.beginFight(0);
   for (let t = 0; t <= bisMs; t += TICK_MS) {
     combat.stepPassive(t);
-    if (t >= abMs && index >= 0 && combat.gcd.isReady(t) && combat.isReady(index, t)) {
-      combat.cast(index, t);
+    if (
+      t >= abMs &&
+      index >= 0 &&
+      combat.gcd.isReady(t) &&
+      combat.isReady(alsSpellIndex(index), t)
+    ) {
+      combat.cast(alsSpellIndex(index), t);
     }
   }
 }

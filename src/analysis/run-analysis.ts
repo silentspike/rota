@@ -1,3 +1,4 @@
+import { alsSpellIndex } from '../core/combat.js';
 /**
  * Ein Durchlauf, ausgewertet (Issue #81).
  *
@@ -178,9 +179,9 @@ export function runDataFor(
     if (spell === undefined) continue;
     rows.push({
       spellId: spell.id,
-      casts: combat.castCount(index),
+      casts: combat.castCount(alsSpellIndex(index)),
       idleMs: idleById.get(spell.id) ?? 0,
-      damage: combat.damageOf(index),
+      damage: combat.damageOf(alsSpellIndex(index)),
       lostDotTicks: combat.lostDotTicks(index),
       damagePerTick: spell.dot?.tickDamage ?? 0,
       triggersGcd: spell.triggersGcd,
