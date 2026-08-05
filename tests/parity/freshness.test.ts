@@ -32,6 +32,7 @@ import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckterZaehler from './recordings/doom-stacks.json';
 import eingecheckterAuswahlLauf from './recordings/cooldown-reset-run.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
+import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -46,6 +47,7 @@ import {
   doomStacksPayload,
   resetRunPayload,
   timelineLoopPayload,
+  sublimationPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -120,6 +122,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Durchgang gegen die wiederholte Zeitleiste entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteWiederholung, HINWEIS).toEqual(timelineLoopPayload());
+  });
+
+  it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
   });
 
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
