@@ -2,17 +2,18 @@
 
 **Stand 2026-08-05, 17:05: Vier der ursprünglichen fünf Entscheidungen sind getroffen.** Sie stehen
 unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt.
-**Zwei Punkte sind seither dazugekommen** — beide aus der Arbeit selbst, nicht aus dem Interview.
+**Drei Punkte sind seither dazugekommen** — alle drei aus der Arbeit selbst, nicht aus dem Interview.
 
-|                             | Ergebnis                                                                      |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| **1** Doppelbelegung        | **verboten** — ein Zauber liegt auf höchstens einem Platz                     |
-| **2** Punktekurve           | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden      |
-| **3** `DECAY_STACK_PERCENT` | **auf 6 % anheben**                                                           |
-| **4** Stumme Zauber         | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**              |
-| **5** PUTREFACTION-Farbe    | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen             |
-| **6** Wirkzeit gegen Tempo  | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar |
-| **7** Grundwerte je Fund    | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1 |
+|                                     | Ergebnis                                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                                   |
+| **2** Punktekurve                   | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden                                    |
+| **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                         |
+| **4** Stumme Zauber                 | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**                                            |
+| **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                           |
+| **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
+| **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
+| **8** Widerstand gegen Schul-Stärke | **OFFEN** — der Korridor 20–30 % kann die Rotation nicht drehen, solange die Schulen 67 % auseinanderliegen |
 
 ---
 
@@ -219,3 +220,65 @@ welcher Basis ein Ausrüstungsstück spürbar etwas beiträgt, ohne die Sonderwe
 Bis dahin steht die Zahl als benannte, ausdrücklich unkalibrierte Konstante an einer Stelle, und
 der Prüffall misst das **Verhältnis** (doppelte Stufe, doppelter Wert) statt des Betrags — sonst
 meldete er rot, sobald jemand kalibriert, und arbeitete gegen die Balance-Arbeit statt für sie.
+
+## 8. Der Widerstands-Korridor gegen die Schul-Stärke — OFFEN
+
+**Blockiert:** nichts unmittelbar · **hält auf:** die Absicht hinter den Widerständen (#328, #268)
+
+Gemessen von Worker-3 am 2026-08-05, nachdem die Widerstände auf beiden Seiten gebaut waren und
+am Zauber hingen. Sieben Faktoren in einem Lauf:
+
+```
+Widerstand   Schaden   beste Rotation
+1,00          31120    pyre / smoulder / kindle
+0,75          23340    pyre / smoulder / kindle     ← Korridor endet hier
+0,60          18668    pyre / smoulder / kindle
+0,50          13480    smoulder / bind              ← ANDERS
+0,20          12000    bind
+```
+
+**Die Mechanik wirkt. Der Korridor nicht.** Die Wahl kippt bei 0,50; das Design nennt 0,70–0,80.
+
+### Warum
+
+```
+CALCINATION    kindle 100 · smoulder 40/Tick · pyre 12/Hitzepunkt
+FIXATION       bind 60
+PUTREFACTION   fester 60 · canker 45
+```
+
+Zwischen den schadensfähigen Schulen liegen **67 %**. Auch um ein Viertel gemindert steht KINDLE
+vor BIND. Ein Widerstand von 25 % kann diesen Abstand nicht drehen — er müsste bei 40 % liegen.
+
+> **Die zehn Zauber ohne Schaden sind kein Balance-Fehler.** Koagulation ist Überleben, Sublimation
+> ist Cooldown-Manipulation. Sie kommen in einer Rotationssuche nicht vor, weil der Prüf-Boss ein
+> reiner Lebensbalken ist — gegen einen Boss, der nichts tut, ist ein Schutzschild wertlos. Das ist
+> ein Grund mehr für Bösse, die etwas verlangen, kein Grund, die Zauber zu ändern.
+
+### Die zwei Sätze, die zusammen nicht aufgehen
+
+|                      |                                                                                                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GAME-DESIGN 1048** | „Es muss möglich sein, nicht nötig." Wer bei seiner Lieblingsschule bleibt, kommt durch — nur langsamer. **Der Widerstand soll die Wahl nicht erzwingen** |
+| **Leitplanke 2**     | „Jeder Zauber muss irgendwo die beste Wahl sein." **Der Widerstand soll die Wahl beeinflussen**                                                           |
+
+Beide gelten, und beide sind richtig gemeint. Sie gehen nur zusammen, wenn die schadensfähigen
+Schulen **ähnlich stark** sind: Liegen sie eng beieinander, verschiebt ein Widerstand von 25 % die
+Rangfolge — liegen sie weit auseinander, verschiebt er gar nichts.
+
+### Die Wahl
+
+|                                      | Was es bedeutet                                                                                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Die Schulen enger zusammenrücken** | Ein Zauber der einen Schule ist etwa so stark wie der entsprechende der anderen. Dann greift der Korridor — aber die Schulen unterscheiden sich nur noch in der **Mechanik**, nicht mehr in der Stärke. Das ist vermutlich ohnehin gewollt |
+| **Den Korridor öffnen**              | 40–50 % statt 20–30 %. Dann dreht der Widerstand die Wahl auch bei ungleichen Schulen — aber „wer nicht umbaut, kommt durch, nur langsamer" wird zu „deutlich langsamer"                                                                   |
+| **Beides so lassen**                 | Der Widerstand bleibt eine Zahl am Ende, keine Entscheidung davor. Dann fehlt der Mechanismus, der die Zauber-Vielfalt tragen soll — und Leitplanke 2 braucht einen anderen                                                                |
+
+**Der Orchestrator neigt zur ersten Variante**, weil sie dem entspricht, was das Design ohnehin
+über die Schulen sagt: Sie sind **mechanische Rollen**, nicht Stärkestufen. Wenn CALCINATION
+grundsätzlich mehr Schaden macht als PUTREFACTION, ist die Schulwahl schon vor jedem Widerstand
+entschieden.
+
+**Das ist ein Verdacht, keine Entscheidung.** Die Frage wird scharf, sobald E10 die restlichen 45
+Zauber entwirft — dann werden die Werte gesetzt, und bis dahin sollte klar sein, gegen welche
+Messlatte.
