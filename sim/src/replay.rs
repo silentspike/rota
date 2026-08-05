@@ -112,6 +112,8 @@ pub struct ReplayResult {
     pub damage_lost_to_race: u32,
     /// Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218).
     pub boss_healed: u32,
+    /// Wie viel Fortschritt der Spieler zurueckgedraengt hat (Issue #247).
+    pub stabilised: u32,
     /// Stand des toedlichen Zaehlers je Takt (Issue #216).
     pub doom: Vec<u32>,
     /// Verbleibende Ladungen der Ruecksetz-Handlung je Takt.

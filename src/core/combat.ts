@@ -332,6 +332,17 @@ export class Combat {
 
   /** Kampfzeit des nächsten Stapel-Schritts. */
   private nextStackAtMs = 0;
+  /**
+   * Wann die davonlaufende Reaktion das nächste Mal steigt (Issue #247).
+   *
+   * Im Konstruktor gesetzt, nicht erst in `beginFight` — die Wiedergabe ruft
+   * es nicht. Dieselbe Begründung wie bei Energieleiste, Zähler und Stapel;
+   * im verworfenen Anlauf hat genau das eine Vergleichsdatei aus lauter Nullen
+   * erzeugt.
+   */
+  private nextRunawayAtMs = 0;
+  /** Wie viel Fortschritt der Spieler insgesamt zurückgedrängt hat (#247). */
+  private stabilisedValue = 0;
 
   /** Kampfzeit des Spielertods, oder -1. */
   private diedAtMsValue = -1;
@@ -443,6 +454,7 @@ export class Combat {
     // nicht, und ein Startwert von 0 ließe beide schon im Takt 0 steigen.
     this.nextDoomAtMs = options.boss.doom?.perStepMs ?? 0;
     this.nextStackAtMs = options.boss.stacks?.perStepMs ?? 0;
+    this.nextRunawayAtMs = options.boss.runaway?.perStepMs ?? 0;
     this.doomChargesValue = options.boss.doom?.clearCharges ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
@@ -666,6 +678,11 @@ export class Combat {
     return true;
   }
 
+  /** Wie viel Fortschritt der Spieler zurückgedrängt hat (Baustein 6; #247). */
+  get stabilised(): number {
+    return this.stabilisedValue;
+  }
+
   /** Welcher Boss-Zauber gerade läuft, oder -1. */
   get casting(): number {
     return this.castingValue;
@@ -828,6 +845,11 @@ export class Combat {
       if (this.shieldStacksValue < shield.maxStacks) {
         this.shieldStacksValue++;
         this.shieldValue += shield.amount;
+        // **Der Schutz drängt die Reaktion zurück** (Baustein 6; #247), um
+        // seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim bloßen Erneuern:
+        // Sonst wäre die Obergrenze wirkungslos, und das gilt hier wie für den
+        // Schutz selbst.
+        this.stabilise(shield.amount);
       }
       this.shieldExpiresAtMs = seitBeginn + shield.durationMs;
     }
@@ -843,6 +865,10 @@ export class Combat {
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;
+        // Auch die Heilung drängt zurück — mit dem Betrag, der WIRKLICH
+        // angekommen ist. Was über die volle Anzeige hinausginge, verpufft
+        // hier wie dort.
+        this.stabilise(wirklich);
         this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
       }
     }
@@ -1097,6 +1123,8 @@ export class Combat {
     this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
     this.nextDoomAtMs = timeMs + (this.boss.doom?.perStepMs ?? 0);
     this.nextStackAtMs = timeMs + (this.boss.stacks?.perStepMs ?? 0);
+    this.nextRunawayAtMs = timeMs + (this.boss.runaway?.perStepMs ?? 0);
+    this.stabilisedValue = 0;
     // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
     this.raceDone = false;
     this.raceEndsAtMs = -1;
@@ -1348,6 +1376,25 @@ export class Combat {
       }
     }
 
+    // Die davonlaufende Reaktion (11.2, Baustein 6; #247).
+    //
+    // **Sie senkt den RING**, nicht einen zweiten Wert — der Ring ist die
+    // Reaktion (9.1). Der Fortschritt geht deshalb durch `bookProgress`, wie
+    // jeder andere auch: EINE Buchungsstelle, die das Fenster und die
+    // Boss-Heilung kennt.
+    //
+    // `vomSpieler: false` — sie ist kein Schaden. Das Fenster hält sie nicht
+    // auf, und sie darf nicht als "im Fenster verloren" erscheinen.
+    //
+    // Zwischen Zaehler und Schwaechung, dieselbe Stelle wie in `fight.rs`.
+    const runaway = this.boss.runaway;
+    if (runaway !== null && runaway.perStepMs > 0 && this.stateValue === FIGHT_RUNNING) {
+      while (timeMs >= this.nextRunawayAtMs) {
+        this.bookProgress(runaway.amount, -1, timeMs, false);
+        this.nextRunawayAtMs += runaway.perStepMs;
+      }
+    }
+
     // Die Schwaechung ohne Heil-Loesung (11.2, Baustein 8; #240).
     const aff = this.boss.affliction;
     if (aff !== null) {
@@ -1519,10 +1566,31 @@ export class Combat {
    * verschwinden ließe, nähme dem Spieler die einzige Auskunft, die ihn beim
    * nächsten Versuch besser macht.
    *
+   * SEIT #247 GIBT ES FORTSCHRITT OHNE ZAUBER: Die davonlaufende Reaktion
+   * senkt den Ring von selbst. Sie kommt hier durch dieselbe Tür wie alles
+   * andere — eine eigene Schreibstelle wäre genau die dritte, die dieser
+   * Kommentar seit #218 verbietet.
+   *
+   * Zwei Dinge musste sie mitdenken, und beide stehen deshalb als Parameter da:
+   *
+   * - **`vomSpieler`.** Das Unverwundbarkeits-Fenster schützt den Boss vor
+   *   SCHADEN. Eine Reaktion, die von selbst kippt, ist keiner — sie läuft im
+   *   Fenster weiter. Liefe sie in den Zweig, zählte sie außerdem als „im
+   *   Fenster verloren", und die Fehleranalyse (15.3) meldete dem Spieler
+   *   Schaden, den er nie gemacht hat.
+   * - **`spellIndex < 0`.** Ohne Zauber gibt es keine Spalte in der
+   *   Schadenstabelle; ein negativer Index legte dort ein Feld an, das keiner
+   *   Zeile entspricht.
+   *
    * @returns ob der Schaden am Boss angekommen ist
    */
-  private bookProgress(damage: number, spellIndex: number, timeMs: number): boolean {
-    if (this.raceEndsAtMs >= 0) {
+  private bookProgress(
+    damage: number,
+    spellIndex: number,
+    timeMs: number,
+    vomSpieler = true,
+  ): boolean {
+    if (vomSpieler && this.raceEndsAtMs >= 0) {
       // **Verloren am Boss, aber nicht wirkungslos.** Der Schaden laedt das
       // Ziel; erreicht es die Schwelle, ist es zerstoert und das Fenster endet
       // frueh. Genau das macht "der beste Moment fuer Overdrive" wahr.
@@ -1539,7 +1607,9 @@ export class Combat {
     }
     void timeMs;
     this.damageDealtValue += damage;
-    this.damageBySpell[spellIndex] = (this.damageBySpell[spellIndex] ?? 0) + damage;
+    if (spellIndex >= 0) {
+      this.damageBySpell[spellIndex] = (this.damageBySpell[spellIndex] ?? 0) + damage;
+    }
     return true;
   }
 
@@ -1560,11 +1630,64 @@ export class Combat {
    */
   healBoss(): number {
     const heal = this.boss.bossHeal;
-    if (heal === null || this.damageDealtValue <= 0) return 0;
-    const wirklich = Math.min(heal.amount, this.damageDealtValue);
-    this.damageDealtValue -= wirklich;
+    if (heal === null) return 0;
+    const wirklich = this.undoProgress(heal.amount);
     this.bossHealedValue += wirklich;
     return wirklich;
+  }
+
+  /**
+   * Fortschritt am Ring zurückdrehen — **die einzige Stelle, die ihn senkt**.
+   *
+   * Zwei Dinge drehen zurück, und sie haben nichts miteinander zu tun außer
+   * dieser Zeile:
+   *
+   * | Wer | Warum |
+   * | --- | --- |
+   * | `healBoss` | Ein Fehler macht Fortschritt rückgängig (Baustein 5, #218) |
+   * | `stabilise` | Der Spieler hält die Reaktion (Baustein 6, #247) |
+   *
+   * Das eine ist Strafe, das andere Antwort — aber beide senken denselben
+   * Wert, und die Untergrenze gilt für beide. Sie zweimal zu schreiben wäre
+   * dasselbe Muster, das `bookProgress` seit #218 verhindert; der Prüffall
+   * `progress-writer-source` zählt die Schreibstellen und bleibt dadurch bei
+   * vier.
+   *
+   * **Nie unter null:** Ein Boss mit negativem Fortschritt hätte einen Ring
+   * über 100 %, und jede Prozentrechnung darüber wäre unsinnig.
+   *
+   * @returns wie viel wirklich zurückgedreht wurde
+   */
+  private undoProgress(amount: number): number {
+    if (amount <= 0 || this.damageDealtValue <= 0) return 0;
+    const wirklich = Math.min(amount, this.damageDealtValue);
+    this.damageDealtValue -= wirklich;
+    return wirklich;
+  }
+
+  /**
+   * Die davonlaufende Reaktion zurückdrängen (11.2, Baustein 6; Issue #247).
+   *
+   * > **Statt** Schaden zu machen muss eine kippende Reaktion stabilisiert
+   * > werden.
+   *
+   * **Schutz und Heilung heben den Ring um IHREN EIGENEN Betrag.** Eine zweite
+   * Zahl „stabilisiert um X" neben `shield.amount` wäre dieselbe Größe an zwei
+   * Orten, und die zweite liefe beim nächsten Balancing weg.
+   *
+   * TEMPER BLEIBT DRAUSSEN, und das ist die Grenze des Bausteins, keine Lücke:
+   * Er wandelt ausgeteilten Schaden in Schutz. Würde dieser Schutz
+   * stabilisieren, dann stabilisierte man **durch Schaden machen** — und die
+   * Bedingung, die den ganzen Kampf ausmacht, wäre aufgehoben. GAME-DESIGN 4.1
+   * nennt die drei Wege „nebeneinander": drei Spielweisen, nicht drei Antworten
+   * auf jede Frage.
+   *
+   * Ohne das Boss-Feld geschieht nichts — sonst hätte jeder gewöhnliche Kampf
+   * einen versteckten Weg, Fortschritt zu verlieren.
+   */
+  private stabilise(amount: number): void {
+    if (this.boss.runaway === null) return;
+    this.stabilisedValue += this.undoProgress(amount);
   }
 
   /**
@@ -1606,18 +1729,39 @@ export class Combat {
     return true;
   }
 
-  /** Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken. */
+  /**
+   * Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken.
+   *
+   * **BEIDE AUSGÄNGE KEHREN SICH UM, wenn der Boss das umgekehrte Ziel trägt**
+   * (11.2, Baustein 6; Issue #247):
+   *
+   * | | Ring auf 0 | Zeit abgelaufen |
+   * | --- | --- | --- |
+   * | gewöhnlich | Sieg | Niederlage |
+   * | `runaway` | Niederlage | Sieg |
+   *
+   * Nicht eine Bedingung, sondern zwei — sonst wäre es keine Umkehrung des
+   * ZIELS, sondern nur ein anderer Verlustweg. Der Sieg ist dort das
+   * Überstehen der Frist, wie beim Vorbild aus 11.2; die Fiktion trägt es von
+   * selbst, weil der Überdruck laut 7.4 entsteht, **weil** die Reaktion außer
+   * Kontrolle gerät (GAME-DESIGN 7.4). Wer sie hält, bei dem entsteht er nicht.
+   *
+   * Die Zustände bleiben dieselben: `FIGHT_OVERPRESSURE` ist in beiden Fällen
+   * die Niederlage. Ein eigener Zustand wäre eine dritte Wahrheit über dasselbe
+   * Ende, und die Auswertung müsste sie überall mitführen.
+   */
   checkDefeat(timeMs: number): boolean {
     if (this.stateValue !== FIGHT_RUNNING) return true;
+    const umgekehrt = this.boss.runaway !== null;
     if (this.damageDealtValue >= this.boss.hp) {
-      this.stateValue = FIGHT_WON;
+      this.stateValue = umgekehrt ? FIGHT_OVERPRESSURE : FIGHT_WON;
       this.endedAtMs = timeMs;
       return true;
     }
     // Der Überdruck bemisst sich an der KAMPFuhr, nicht an der durchlaufenden:
     // Die Vorbereitung darf nichts von der Kampfzeit abziehen.
     if (this.fightElapsedMs(timeMs) >= this.boss.overpressureMs) {
-      this.stateValue = FIGHT_OVERPRESSURE;
+      this.stateValue = umgekehrt ? FIGHT_WON : FIGHT_OVERPRESSURE;
       this.endedAtMs = timeMs;
       return true;
     }
