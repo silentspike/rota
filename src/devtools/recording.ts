@@ -16,7 +16,7 @@
  * entsteht deshalb, indem die Referenz-Prioritätenliste einmal durchgespielt und
  * dabei mitgeschrieben wird — nicht, indem jemand Takte abtippt.
  */
-import { Combat } from '../core/combat.js';
+import { Combat, isCastAccepted } from '../core/combat.js';
 import { combatChecksum } from '../core/checksum.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../core/data.js';
 import { GCD_MS } from '../core/gcd.js';
@@ -72,9 +72,21 @@ export interface ReplayResult {
   readonly randomDraws: number;
 }
 
-/** Belegung → Zauber-Kennung, wie in `loadout.ts` festgelegt. */
-function spellForSlot(combat: Combat, slot: number): number {
-  for (const binding of STEP1_BINDINGS) {
+/**
+ * Belegung → Zauber-Kennung.
+ *
+ * Ohne eigene Angabe die aus `loadout.ts`. Eine eigene braucht seit Issue #304
+ * genau eine Aufzeichnung: Der Prüf-Zauber zur Wirkzeit steht in keiner Leiste
+ * des Spiels, weil er nicht zum Spiel gehört — ihm einen Platz in
+ * `STEP1_BINDINGS` zu geben wäre die stille Änderung, die jede bestehende
+ * Aufzeichnung umdeutet.
+ */
+function spellForSlot(
+  combat: Combat,
+  slot: number,
+  bindings: readonly { readonly slot: number; readonly spellId: string }[] = STEP1_BINDINGS,
+): number {
+  for (const binding of bindings) {
     if (binding.slot === slot) return combat.indexOf(binding.spellId);
   }
   return -1;
@@ -124,6 +136,13 @@ export function replayRecording(
      * Bitgleichheit ist es die teuerste Stelle, an der sie stehen kann.
      */
     readonly level?: number;
+    /**
+     * Welcher Platz welchen Zauber trägt (Issue #304).
+     *
+     * Fehlt sie, ist es die Leiste aus Schritt 1 — jeder bestehende Aufruf
+     * bleibt damit unverändert. Dieselbe Bauart wie `boss`, `worn` und `level`.
+     */
+    readonly bindings?: readonly { readonly slot: number; readonly spellId: string }[];
   } = {},
 ): ReplayResult {
   const combat = new Combat({
@@ -159,12 +178,18 @@ export function replayRecording(
       const press = recording.presses[pressIndex];
       if (press === undefined || press.tick > tick) break;
       pressIndex++;
-      const spellIndex = spellForSlot(combat, press.slot);
+      const spellIndex = spellForSlot(combat, press.slot, options.bindings);
       if (spellIndex < 0) {
         rejected++;
         continue;
       }
-      if (combat.cast(spellIndex, timeMs).result === 0) accepted++;
+      // **Ein begonnener Zauber zählt als angenommen** (Issue #304). Der
+      // Vergleich gegen die nackte 0 stand hier bis dahin und wäre jetzt
+      // falsch: Ein Zauber mit Wirkzeit meldet einen anderen Ausgang, und die
+      // Aufzeichnung zählte ihn als Fehleingabe — während der Simulator ihn
+      // annimmt. Genau die Sorte Unterschied, die in der Prüfsumme nicht steht,
+      // weil sie die Zähler nicht führt.
+      if (isCastAccepted(combat.cast(spellIndex, timeMs).result)) accepted++;
       else rejected++;
     }
 
@@ -382,6 +407,69 @@ function recordTrialRotation(name: string, ticks: number, boss: BossDef): Record
 }
 
 /**
+ * Die Belegung fuer die Wirkzeit-Aufzeichnung (Issue #304).
+ *
+ * **Eine eigene und nicht `STEP1_BINDINGS`**: Der Pruef-Zauber steht in keiner
+ * Leiste des Spiels, weil er nicht zum Spiel gehoert. Ein Platz fuer ihn in der
+ * gemeinsamen Belegung waere genau die stille Aenderung, die eine bestehende
+ * Aufzeichnung umdeutet.
+ */
+const CAST_TIME_BINDINGS: readonly { slot: number; id: string }[] = [
+  { slot: 0, id: 'kindle' },
+  { slot: 1, id: 'test-cast' },
+];
+
+/**
+ * Eine Runde mit einem Zauber, der eine WIRKZEIT hat (Issue #304, AC5).
+ *
+ * **Bis zu diesem Issue hat keine einzige Vergleichsdatei eine Spieler-Wirkzeit
+ * gefahren** — es gab keine: Alle fuenfzehn Zauber standen auf `castTimeMs: 0`.
+ * Die Bitgleichheit war fuer diesen ganzen Zweig damit unbelegt, und ein
+ * Auseinanderlaufen waere unsichtbar geblieben, weil kein Fall es zeigen konnte.
+ * Dieselbe Lage wie bei `runaway` vor #256 und bei der Stufe vor #289.
+ *
+ * DREI DINGE IN EINEM LAUF, und der Boss `test-caster` ist darauf gerechnet:
+ *
+ * | | |
+ * | --- | --- |
+ * | 0 ms | Der Zauber beginnt und wirkt bei 2000 ms — der Schaden faellt am ENDE |
+ * | 8500 ms | Ein gewoehnlicher Schlag trifft die laufende Wirkzeit und stoert sie NICHT |
+ * | 9000 ms | Ein Schlag mit `interruptsPlayer` bricht sie ab |
+ *
+ * Der Fueller ist KINDLE. Er steht nicht zur Zierde da: Ohne ihn liefe zwischen
+ * den Wirkzeiten gar nichts, und eine Abweichung im gewoehnlichen Teil des
+ * Kampfes fiele in dieser Aufzeichnung nicht auf.
+ */
+function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const slotOf = new Map<number, number>();
+  for (const { slot, id } of CAST_TIME_BINDINGS) slotOf.set(combat.indexOf(id), slot);
+  const kindle = combat.indexOf('kindle');
+  const wirkzeit = combat.indexOf('test-cast');
+
+  const presses: RecordedPress[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+    // **Der Zauber mit Wirkzeit hat Vorrang**, sobald er bereit ist. Waere
+    // KINDLE zuerst dran, verschoebe sein GCD die Wirkzeit bei jedem Zyklus um
+    // einen anderen Betrag — und die gerechneten Zeitpunkte des Bosses
+    // (8500/9000 ms) traefen nichts Bestimmtes mehr.
+    const wahl = combat.isReady(wirkzeit, timeMs)
+      ? wirkzeit
+      : combat.isReady(kindle, timeMs)
+        ? kindle
+        : -1;
+    if (wahl < 0) continue;
+    combat.cast(wahl, timeMs);
+    presses.push({ tick, slot: slotOf.get(wahl) ?? 0 });
+  }
+  return { name, seed: 0, ticks, presses };
+}
+
+/**
  * Die eingebauten Aufzeichnungen.
  *
  * Erzeugt beim ersten Zugriff, nicht beim Laden: Wer die Werkzeuge nicht
@@ -447,6 +535,14 @@ export function recordings(): Map<string, Recording> {
     // Stufe 30 und nicht 2: Der Faktor ist dort 4,116 und trennt deutlich.
     // Bei 1,05 saehe ein Rundungsfehler aus wie Uebereinstimmung.
     builtIn.set('level-30', recordGoodRotation('level-30', 3000));
+    // Der Prueffall zur WIRKZEIT des Spielers (Issue #304, AC5). 2000 Takte
+    // sind 20 s: Der dritte Schlag des Bosses faellt bei 15 s, und die Zeit
+    // danach gehoert dazu — sie belegt, dass nach einem Abbruch wieder
+    // gewirkt werden kann.
+    const casterBoss = bossById('test-caster');
+    if (casterBoss !== undefined) {
+      builtIn.set('cast-time', recordCastTimeRotation('cast-time', 2000, casterBoss));
+    }
     const racer = bossById('test-racer');
     if (racer !== undefined) {
       builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));

@@ -23,6 +23,8 @@ const COAGULATION_JSON: &str = include_str!("../../data/spells/coagulation.json"
 const FIXATION_JSON: &str = include_str!("../../data/spells/fixation.json");
 const SUBLIMATION_JSON: &str = include_str!("../../data/spells/sublimation.json");
 const PUTREFACTION_JSON: &str = include_str!("../../data/spells/putrefaction.json");
+/// Der Pruef-Zauber zur Wirkzeit (Issue #304) — ganz hinten, wie in `build.rs`.
+const TEST_CAST_JSON: &str = include_str!("../../data/spells/test-cast.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
@@ -49,6 +51,7 @@ fn alle_zauber(
     fixierung: &Value,
     sublimierung: &Value,
     zersetzung: &Value,
+    pruef: &Value,
 ) -> Vec<Value> {
     let mut liste: Vec<Value> = schule["spells"]
         .as_array()
@@ -86,6 +89,13 @@ fn alle_zauber(
         zersetzung["spells"]
             .as_array()
             .expect("putrefaction.json: spells fehlt")
+            .iter()
+            .cloned(),
+    );
+    liste.extend(
+        pruef["spells"]
+            .as_array()
+            .expect("test-cast.json: spells fehlt")
             .iter()
             .cloned(),
     );
@@ -141,6 +151,8 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         serde_json::from_str(SUBLIMATION_JSON).expect("sublimation.json ist kein gueltiges JSON");
     let zersetzung: Value =
         serde_json::from_str(PUTREFACTION_JSON).expect("putrefaction.json ist kein gueltiges JSON");
+    let pruef: Value =
+        serde_json::from_str(TEST_CAST_JSON).expect("test-cast.json ist kein gueltiges JSON");
     let liste = alle_zauber(
         &json,
         &gemeinsam,
@@ -148,6 +160,7 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         &fixierung,
         &sublimierung,
         &zersetzung,
+        &pruef,
     );
 
     assert_eq!(

@@ -43,6 +43,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'reflux',
       'canker',
       'fester',
+      // Der Pruef-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehoert
+      // nicht zum Spiel, steht aber im Index-Raum — und genau der ist hier die
+      // Aussage.
+      'test-cast',
     ]);
   });
 
