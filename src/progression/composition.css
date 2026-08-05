@@ -89,3 +89,16 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* Die Vorschau: eine Zeile je Mechanik, keine Hervorhebung. */
+.composition-preview {
+  border-top: 1px solid #2c2823;
+  margin: 14px 0 0;
+  padding: 10px 0 0;
+}
+
+.composition-preview-line {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px;
+}

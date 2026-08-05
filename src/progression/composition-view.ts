@@ -31,6 +31,7 @@ import type { SpellDef } from '../core/data.js';
 import { spellAtSlot, type Bindings } from './bindings.js';
 import { barSlotsAtLevel, isSpellUnlocked } from './unlocks.js';
 import { colourOfSchool, NO_SCHOOL_LABEL } from './schools.js';
+import { feedsMechanic, MECHANICS, spendsMechanic } from '../combat/schools/indicators.js';
 
 /** Der Text für „kein Zauber auf diesem Platz". */
 const LEER_LABEL = '— empty —';
@@ -101,6 +102,83 @@ export function groupBySchool(spells: readonly SpellDef[]): SpellGroup[] {
     }
   }
   return gruppen;
+}
+
+/** Eine Zeile der Vorschau. */
+export interface MechanicPreview {
+  /** Kennung der Schule, zu der die Zeile gehört. */
+  readonly school: string;
+  /** Der fertige Satz, englisch (Design-Gesetz 5). */
+  readonly text: string;
+}
+
+/**
+ * Die Mechanik-Vorschau je Schule (AC2).
+ *
+ * > „wie viele Zauber je Schul-Mechanik einzahlen — man erkennt sofort, ob die
+ * > Hitze-Mechanik mit nur einem Zauber trägt" (GAME-DESIGN 16)
+ *
+ * DREI ENTSCHEIDUNGEN STECKEN DARIN:
+ *
+ * 1. **„spending" steht nur da, wenn es einen gibt.** Ein „· 0 spending" bei
+ *    jeder Zeile wäre Rauschen — und es wäre eine stumme Bewertung: Wer keinen
+ *    Entlader mitführt, hat nicht zwangsläufig etwas falsch gemacht.
+ *
+ * 2. **DIE ZEILE ERSCHEINT AUCH BEI NULL.** Die Kampf-Anzeige blendet dort aus
+ *    (`visibleIndicators` filtert `contributors > 0`), und das ist dort
+ *    richtig: Eine Zahl, die sich nie bewegt, ist im Kampf nutzlos. Beim
+ *    ZUSAMMENSTELLEN ist genau die Null die Auskunft — „Heat · 0 feeding · 1
+ *    spending" bei nur PYRE ist wörtlich der Satz aus 16.
+ *
+ *    **Das ist keine Regel an zwei Orten, sondern zwei Fragen.** Wer die
+ *    Abweichung „aufräumt", nimmt die Auskunft weg, um die es geht.
+ *
+ * 3. **„no shared meter" für Schulen ohne Zähler.** COAGULATION und
+ *    SUBLIMATION führen keinen; eine Null wäre eine Aussage über etwas, das es
+ *    nicht gibt.
+ *
+ * Und was NICHT dasteht: kein „only 1 — consider adding another", kein
+ * Ausrufezeichen, keine Einfärbung bei 0. Die Zahl steht da, die Bewertung
+ * macht der Spieler. AC5 beginnt beim Wortlaut, nicht erst bei der Sortierung.
+ */
+export function previewOfLoadout(
+  bindings: Bindings,
+  slotCount: number,
+  spells: readonly SpellDef[],
+): MechanicPreview[] {
+  const belegt: SpellDef[] = [];
+  for (let slot = 0; slot < slotCount; slot++) {
+    const id = spellAtSlot(bindings, slot);
+    if (id === null) continue;
+    const spell = spells.find((s) => s.id === id);
+    if (spell !== undefined) belegt.push(spell);
+  }
+
+  const zeilen: MechanicPreview[] = [];
+  const schulenMitMechanik = new Set(MECHANICS.map((m) => m.school));
+
+  for (const mechanic of MECHANICS) {
+    // Nur, wenn ein Zauber DIESER SCHULE auf der Leiste liegt. Sonst stünde
+    // eine Zeile für etwas da, das der Spieler gar nicht mitführt.
+    if (!belegt.some((s) => s.school === mechanic.school)) continue;
+    const speist = belegt.filter((s) => feedsMechanic(s, mechanic.id)).length;
+    const zehrt = belegt.filter((s) => spendsMechanic(s, mechanic.id)).length;
+    const text =
+      zehrt > 0
+        ? `${mechanic.label} · ${speist} feeding · ${zehrt} spending`
+        : `${mechanic.label} · ${speist} feeding`;
+    zeilen.push({ school: mechanic.school, text });
+  }
+
+  // Die Schulen ohne Zähler, in der Reihenfolge ihres Auftretens.
+  const gesehen = new Set<string>();
+  for (const spell of belegt) {
+    const schule = spell.school;
+    if (schule === null || schulenMitMechanik.has(schule) || gesehen.has(schule)) continue;
+    gesehen.add(schule);
+    zeilen.push({ school: schule, text: 'no shared meter' });
+  }
+  return zeilen;
 }
 
 /**
@@ -186,6 +264,17 @@ export function buildComposition(options: CompositionViewOptions): HTMLElement {
     grid.appendChild(line);
   }
   rechts.appendChild(grid);
+
+  // --- Die Vorschau (AC2) --------------------------------------------------
+  const vorschau = element('div', 'composition-preview');
+  for (const zeile of previewOfLoadout(options.bindings, plaetze, options.spells)) {
+    const line = element('p', 'composition-preview-line', zeile.text);
+    line.dataset.school = zeile.school;
+    const farbe = colourOfSchool(zeile.school);
+    if (farbe !== null) line.style.color = farbe;
+    vorschau.appendChild(line);
+  }
+  rechts.appendChild(vorschau);
 
   // Was noch nicht offen ist, steht als Zeile da — sonst wirkt die Leiste
   // fertig, und der Spieler weiß nicht, dass sie wächst.
