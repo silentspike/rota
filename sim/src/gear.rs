@@ -285,6 +285,25 @@ pub struct WornValues {
     pub purity: u32,
     /// YIELD in Promille, **zusaetzlich** zur Basis aus [`CRIT_BASE_PERMILLE`].
     pub yield_bonus: u32,
+    /// ESSENCE in Promille — **Topf 1**, nicht Topf 4 (Issue #282).
+    ///
+    /// # Warum ein eigenes Feld und nicht `gear_effects`
+    ///
+    /// Die Leitung nach Topf 4 liegt schon, und sie zu benutzen waere eine
+    /// gesparte Zeile. Sie waere auch falsch: GAME-DESIGN 13.1b trennt die
+    /// Toepfe ausdruecklich — innerhalb additiv, ZWISCHEN ihnen multiplikativ.
+    /// Wer ESSENCE in Topf 4 einhaengt, macht aus zwei Toepfen einen und
+    /// kippt die Abwaegung, die 13.5 verlangt.
+    pub essence: u32,
+    /// VESSEL in Promille — Lebenspunkte, **zusaetzlich** zur Stufen-Basis.
+    ///
+    /// Additiv, nicht ersetzend: Wer die Stufen-Basis ersetzt, macht einen
+    /// Spieler auf Stufe 100 ohne Ausruestung schwaecher als einen auf Stufe 1
+    /// mit einem Fund.
+    pub vessel: u32,
+    /// WARD in Promille — Schadensminderung, **zusaetzlich** zu
+    /// `PLAYER.wardReduction`.
+    pub ward: u32,
     /// **Topf 4** in Promille: Satz-Boni **und** legendaere Effekte zusammen
     /// (13.1b).
     ///
@@ -326,6 +345,9 @@ impl WornValues {
             catalysis: 0,
             purity: 0,
             yield_bonus: 0,
+            essence: 0,
+            vessel: 0,
+            ward: 0,
             gear_effects: 0,
         }
     }
@@ -333,7 +355,13 @@ impl WornValues {
     /// Ob ueberhaupt etwas getragen wird.
     #[must_use]
     pub const fn is_none(&self) -> bool {
-        self.catalysis == 0 && self.purity == 0 && self.yield_bonus == 0 && self.gear_effects == 0
+        self.catalysis == 0
+            && self.purity == 0
+            && self.yield_bonus == 0
+            && self.essence == 0
+            && self.vessel == 0
+            && self.ward == 0
+            && self.gear_effects == 0
     }
 
     /// Der Faktor von Topf 4 fuer die Schadensformel.

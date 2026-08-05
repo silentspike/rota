@@ -28,7 +28,10 @@
  * Prüfsumme.
  */
 
-/** Was der Spieler trägt: die drei Sonderwerte aus 6.2 und Topf 4 aus 13.1b. */
+/**
+ * Was der Spieler trägt: die drei Grundwerte aus 6.1, die drei Sonderwerte aus
+ * 6.2 und Topf 4 aus 13.1b.
+ */
 export interface WornValues {
   /** CATALYSIS in Promille. */
   readonly catalysis: number;
@@ -36,6 +39,25 @@ export interface WornValues {
   readonly purity: number;
   /** YIELD in Promille, **zusätzlich** zur Basis aus `CRIT_BASE_PERMILLE`. */
   readonly yieldBonus: number;
+  /**
+   * ESSENCE in Promille — **Topf 1**, nicht Topf 4 (Issue #282).
+   *
+   * Die Leitung nach Topf 4 (`gearEffects`) liegt schon, und sie zu benutzen
+   * wäre eine gesparte Zeile. Sie wäre auch falsch: GAME-DESIGN 13.1b trennt
+   * die Töpfe ausdrücklich — innerhalb additiv, **zwischen** ihnen
+   * multiplikativ. Wer ESSENCE dort einhängt, macht aus zwei Töpfen einen.
+   */
+  readonly essence: number;
+  /**
+   * VESSEL in Promille — Lebenspunkte, **zusätzlich** zur Stufen-Basis.
+   *
+   * Additiv, nicht ersetzend: Wer die Stufen-Basis ersetzt, macht einen
+   * Spieler auf Stufe 100 ohne Ausrüstung schwächer als einen auf Stufe 1 mit
+   * einem Fund.
+   */
+  readonly vessel: number;
+  /** WARD in Promille — **zusätzlich** zu `PLAYER.wardReduction`. */
+  readonly ward: number;
   /**
    * **Topf 4** in Promille: Satz-Boni **und** legendäre Effekte zusammen
    * (13.1b).
@@ -64,18 +86,27 @@ export interface WornValues {
  */
 export const CRIT_BASE_PERMILLE = 1500;
 
-/** Nichts getragen — alle vier Werte null. */
+/** Nichts getragen — alle sieben Werte null. */
 export const NOTHING_WORN: WornValues = {
   catalysis: 0,
   purity: 0,
   yieldBonus: 0,
+  essence: 0,
+  vessel: 0,
+  ward: 0,
   gearEffects: 0,
 };
 
 /** Ob überhaupt etwas getragen wird. */
 export function isNothingWorn(worn: WornValues): boolean {
   return (
-    worn.catalysis === 0 && worn.purity === 0 && worn.yieldBonus === 0 && worn.gearEffects === 0
+    worn.catalysis === 0 &&
+    worn.purity === 0 &&
+    worn.yieldBonus === 0 &&
+    worn.essence === 0 &&
+    worn.vessel === 0 &&
+    worn.ward === 0 &&
+    worn.gearEffects === 0
   );
 }
 
