@@ -69,6 +69,10 @@ import {
   STAT_COUNT,
   STAT_NAMES,
   affixPermille,
+  basePermille,
+  ESSENCE_AT_LEVEL_1,
+  VESSEL_AT_LEVEL_1,
+  WARD_AT_LEVEL_1,
   isPermanent,
   maxOf,
   mixedBuild,
@@ -2373,6 +2377,24 @@ export function sourcesPayload(): Record<string, unknown> {
     }
   }
 
+  // Die Grundwerte je Stufe (Issue #282) — dieselben Stützstellen wie oben.
+  //
+  // **Die Basis wandert mit.** Sie ist unkalibriert; stünde nur das Ergebnis
+  // hier, meldete der Gleichlauf-Wächter beim nächsten Kalibrieren einen
+  // Unterschied zwischen den Seiten, wo nur eine Zahl bewegt wurde. Mit der
+  // Basis daneben kann die Rust-Seite dieselbe Rechnung machen statt dieselbe
+  // Zahl zu erwarten.
+  const baseStats = [];
+  for (const [name, basis] of [
+    ['essence', ESSENCE_AT_LEVEL_1],
+    ['vessel', VESSEL_AT_LEVEL_1],
+    ['ward', WARD_AT_LEVEL_1],
+  ] as const) {
+    for (const level of [1, 25, 50, 75, MAX_ITEM_LEVEL]) {
+      baseStats.push({ stat: name, level, base: basis, permille: basePermille(level, basis) });
+    }
+  }
+
   return {
     schema: SCHEMA,
     budgetPerPermille: BUDGET_PER_PERMILLE,
@@ -2381,5 +2403,6 @@ export function sourcesPayload(): Record<string, unknown> {
     permanent: Array.from({ length: SOURCE_COUNT }, (_, s) => isPermanent(s)),
     stats,
     affixes,
+    baseStats,
   };
 }

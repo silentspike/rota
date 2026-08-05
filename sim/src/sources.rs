@@ -77,6 +77,53 @@ pub const STAT_NAMES: [&str; STAT_COUNT] = ["catalysis", "purity", "yield"];
 pub const BUDGET_PER_PERMILLE: u64 = 250;
 
 /// Was ein **einzelner Affix** einer Qualitaet auf einer Gegenstandsstufe
+/// Was ein Gegenstand dieser Stufe an **je einem Grundwert** traegt, in
+/// Promille (Issue #282).
+///
+/// Das Gegenstueck zu `basePermille` in `src/gear/sources.ts` — beide Seiten
+/// rechnen dieselbe Zahl aus derselben Kurve.
+///
+/// # Warum das neben [`affix_permille`] steht und nicht darin
+///
+/// Grundwerte und Affixe sind zwei verschiedene Quellen (GAME-DESIGN 13.5):
+/// Affixe haengen an Budget, Stufe **und** Qualitaet, Grundwerte **nur** an
+/// der Gegenstandsstufe.
+///
+/// > „Ein Gegenstand traegt IMMER die drei Grundwerte … so wie ein
+/// > Diablo-Gegenstand immer Ruestung traegt." (GAME-DESIGN 1346, 1359)
+///
+/// Deshalb nimmt diese Funktion **keine** Qualitaet entgegen — nicht aus
+/// Vergesslichkeit, sondern weil sie keine hat.
+///
+/// # Was sie NICHT tut
+///
+/// **Sie ist nicht fuer Affixe.** Dafuer steht [`affix_permille`] daneben. Der
+/// Name hier ist kuerzer, und das ist der einzige Grund, aus dem jemand die
+/// falsche greifen wuerde.
+///
+/// Sie liefert auch keine Summe ueber alle Plaetze: Es ist der Wert **eines**
+/// Gegenstands, je **einem** Grundwert.
+///
+/// # Die Basis kommt herein, sie steht nicht hier
+///
+/// Drei Grundwerte, drei Basen — dieselbe Zahl bedeutet bei multiplikativem
+/// Schaden, additivem Leben und der Minderung etwas Verschiedenes. Die Werte
+/// stehen auf der TypeScript-Seite als `ESSENCE_AT_LEVEL_1`,
+/// `VESSEL_AT_LEVEL_1` und `WARD_AT_LEVEL_1` und sind **unkalibriert**;
+/// kalibriert werden sie am Skalierungsfaktor aus dem Balance-Laeufer
+/// (`docs/ENTSCHEIDUNGEN-OFFEN.md`, Punkt 7).
+#[must_use]
+pub fn base_permille(item_level: u32, base_at_level_1: u32) -> u32 {
+    if !(1..=crate::gear::MAX_ITEM_LEVEL).contains(&item_level) {
+        return 0;
+    }
+    let promille = crate::data::LEVEL_FACTOR_PER_MILLE
+        .get(item_level as usize - 1)
+        .copied()
+        .unwrap_or(1000);
+    u32::try_from(u64::from(base_at_level_1) * u64::from(promille) / 1000).unwrap_or(u32::MAX)
+}
+
 /// traegt, in Promille. Abgeleitet aus dem Budget, nicht daneben gesetzt.
 #[must_use]
 pub fn affix_permille(item_level: u32, quality: usize) -> u32 {
