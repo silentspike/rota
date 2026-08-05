@@ -11,7 +11,7 @@
  * beide Seiten längst auseinanderlaufen. Der Prüffall würde dann genau in dem
  * Moment nichts mehr aussagen, in dem er gebraucht wird.
  */
-import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
+import { combatChecksum, mixFloat, mixInt, recordFieldOrder } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs, tickCount } from '../../src/core/haste.js';
@@ -651,6 +651,19 @@ export function doomStacksPayload(): Record<string, unknown> {
       diedAtMs: combat.diedAtMs,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    // **Die Namensfolge der Prüfsumme** (Issue #236).
+    //
+    // Gemessen wird sie am ENDZUSTAND, nicht bei t = 0 — und das ist der
+    // ganze Punkt. `combatChecksum` mischt Zerfallsstapel in einer Schleife;
+    // bei einem frischen Kampf ist die Schleife leer, der Name `decayExpiry`
+    // erschiene nie, und der Wächter wäre für genau die Stelle blind, an der
+    // eine Reihenfolge am ehesten auseinanderläuft.
+    //
+    // Deshalb steht sie hier und nicht in `primitivesPayload`: Nur hier gibt
+    // es einen Kampf, der etwas erlebt hat.
+    fieldOrder: recordFieldOrder(() => {
+      combatChecksum(combat, (recording.ticks - 1) * TICK_MS);
+    }),
     checksums,
     doom: zaehler,
     doomCharges: ladungen,
