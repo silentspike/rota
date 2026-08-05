@@ -71,6 +71,7 @@ describe('Ohne Speicher laeuft das Spiel weiter', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     });
@@ -93,6 +94,7 @@ describe('Ein voller Speicher', () => {
         progressMarks: [],
         bestRuns: [],
         talentPoints: {},
+        items: [],
         level: 1,
         experience: 0,
       });
@@ -112,6 +114,7 @@ describe('Ein voller Speicher', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     });
@@ -130,6 +133,7 @@ describe('Der gewoehnliche Weg', () => {
         progressMarks: [],
         bestRuns: [],
         talentPoints: {},
+        items: [],
         level: 1,
         experience: 0,
       }),
@@ -153,6 +157,7 @@ describe('Der gewoehnliche Weg', () => {
         progressMarks: [],
         bestRuns: [],
         talentPoints: {},
+        items: [],
         level: 1,
         experience: 0,
       }),
@@ -183,6 +188,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     });
@@ -193,6 +199,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     });
@@ -211,6 +218,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     });
@@ -220,6 +228,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     });
@@ -257,6 +266,7 @@ describe('Ein Stand aus einer aelteren Fassung', () => {
         progressMarks: [],
         bestRuns: [],
         talentPoints: {},
+        items: [],
         level: 1,
         experience: 0,
       }),
@@ -298,6 +308,7 @@ describe('Ein voller Verlauf', () => {
         progressMarks: [],
         bestRuns: [],
         talentPoints: {},
+        items: [],
         level: 1,
         experience: 0,
       }),

@@ -31,6 +31,7 @@ const LEER: RecordedState = {
   progressMarks: [],
   bestRuns: [],
   talentPoints: {},
+  items: [],
   level: 1,
   experience: 0,
 };
@@ -206,6 +207,7 @@ describe('Der uebergebene Stand bleibt unangetastet', () => {
       progressMarks: [],
       bestRuns: [],
       talentPoints: {},
+      items: [],
       level: 1,
       experience: 0,
     };

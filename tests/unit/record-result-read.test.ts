@@ -65,6 +65,7 @@ function felderVonRecordResult(): string[] {
     experience: 0,
     bestRuns: [],
     talentPoints: {},
+    items: [],
   };
   const abbruch = -1;
   expect(
