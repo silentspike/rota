@@ -19,6 +19,45 @@ const NEU: &str = include_str!("../apl/step3-good.apl");
 /// Wie viele Durchgaenge je Zeile.
 const RUNS: u32 = 200;
 
+/// Startwert des ersten Durchgangs.
+///
+/// **Steht hier als Konstante, nicht als Vorgabe des Laeufers** (Issue #242).
+/// Wer diesen Bericht in drei Wochen nachfaehrt, bekommt dieselben Zahlen —
+/// aber nur, wenn auch der Startwert derselbe ist. Ein Aufruf, der ihn dem
+/// Standard ueberlaesst, ist genauso wenig reproduzierbar wie einer ohne
+/// Durchgangszahl.
+const SEED: u32 = 0;
+
+/// Die Parameter, unter denen alle Zahlen dieses Berichts entstanden sind.
+///
+/// # Warum sie GEDRUCKT werden und nicht nur im Quelltext stehen
+///
+/// Eine Zahl wird aus einem Bericht herauskopiert — in ein Issue, in eine
+/// Nachricht, in eine Entscheidungsvorlage. Steht die Durchgangszahl nur im
+/// Quelltext, geht sie dabei verloren, und die Zahl wird zur Behauptung.
+///
+/// Genau das ist mit #118 geschehen: Die Zahl 9892,7 existiert, der Aufruf
+/// dahinter wurde nie committet. Weder Durchgangszahl noch Startwert,
+/// Kampfdauer oder Boss sind festgehalten — die Messung ist nicht
+/// wiederholbar, und auf ihr beruhen zwei offene Design-Entscheidungen.
+///
+/// **Gedruckte Parameter reisen mit der Zahl mit.** Das ist der Unterschied
+/// zwischen einer Zahl und einer Messung.
+fn parameter_zeile() {
+    let boss = rota_sim::BOSS;
+    println!("  PARAMETER DIESES LAUFS — sie gehoeren zu jeder Zahl unten");
+    println!();
+    println!("      Durchgaenge je Zeile     {RUNS}");
+    println!("      Startwert                {SEED}");
+    println!("      Boss                     {}", boss.id);
+    println!(
+        "      Kampfdauer               {} ms  (Ueberdruck des Bosses)",
+        boss.overpressure_ms
+    );
+    println!("      Abbruch beim Sieg        nein  (sonst rechnet der staerkere");
+    println!("                                     Aufbau kuerzer, STEP1-SPEC 4)");
+}
+
 fn linie() {
     println!("{}", "-".repeat(76));
 }
@@ -41,6 +80,7 @@ fn messe_mit(name: &str, text: &str, worn: WornValues) -> f64 {
     let r = run(
         &BalanceConfig {
             iterations: RUNS,
+            base_seed: SEED,
             stop_on_kill: false,
             worn,
             ..BalanceConfig::default()
@@ -74,6 +114,9 @@ fn main() {
     linie();
     println!("ROTATIONS-BERICHT — Issue #224");
     println!("  Was aendert sich, seit der Zauberkasten von 11 auf 15 gewachsen ist?");
+    linie();
+    println!();
+    parameter_zeile();
     linie();
 
     println!();
@@ -112,6 +155,13 @@ fn main() {
     messe_mit("step3-good  mit Ausruestung", NEU, WIE_118);
     println!();
     println!("  Zum Vergleich, gemessen in #118:            9892,7");
+    println!();
+    println!("  DIE ZAHL AUS #118 IST DAMIT NEU BELEGT (Issue #242, AC3): Was oben");
+    println!("  steht, ist dieselbe Messung mit demselben Aufbau — nur diesmal mit");
+    println!("  Parametern, die jeder nachfahren kann. Die alte Zahl bleibt trotzdem");
+    println!("  stehen, statt ersetzt zu werden: Wer in drei Wochen eine Abweichung");
+    println!("  sieht, muss erkennen koennen, ob sich das Spiel geaendert hat oder");
+    println!("  nur die Messung.");
     println!();
     println!("  DIE BEIDEN ZAHLEN SIND NICHT GLEICH GUT BELEGT, und das gehoert");
     println!("  dazugesagt:");
