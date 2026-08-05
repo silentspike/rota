@@ -12,7 +12,11 @@
  * | --- | --- |
  * | was er kann | Zauber auf Plätze legen, Plätze räumen |
  * | was fehlt | Gruppierung nach Schule, Live-Vorschau der Synergien, Schul-Mechanik-Zähler |
- * | wo das hingehört | ein eigenes Issue, wenn die Synergie-Anzeige steht |
+ * | wo das hingehört | **Issue #270** — die Ansicht aus 16, mit Live-Vorschau |
+ *
+ * **#270 ersetzt diesen Bereich, es gibt danach EINE Stelle zum Belegen.**
+ * Zwei Stellen für dieselbe Sache wären dieselbe Dublette wie zwei Werte
+ * namens REACTION (#247) — nur an der Oberfläche statt in den Daten.
  *
  * **Warum kein eigener Bildschirm:** Eine halbe Zusammenstellungs-Ansicht
  * müsste später ERSETZT werden, nicht erweitert — wer sie dann baut, fände
