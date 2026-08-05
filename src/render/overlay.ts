@@ -277,6 +277,13 @@ export class Overlay {
       ['idleWorst', 'Idle · worst spell'],
       ['lostTime', 'Time lost'],
       ['synergy', 'Synergy yield'],
+      // Zwei Größen dazu (Issue #294). Sie beantworten „wie ist es gelaufen",
+      // nicht „warum" — das ist die Frage dieser Ebene.
+      ['taken', 'Damage taken'],
+      // **„Pushed back", nicht „Ring held".** Zwei Zeilen mit „held"
+      // nebeneinander — eine in Sekunden, eine in Ringpunkten — liest sich
+      // als dieselbe Größe. Der Name nennt deshalb die HANDLUNG.
+      ['pushedBack', 'Pushed back'],
     ] as const) {
       const made = row(label);
       this.result.appendChild(made.root);
@@ -430,6 +437,17 @@ export class Overlay {
         `${(summary.lostTimeMs / 1000).toFixed(1)} s (${(summary.lostTimeShare * 100).toFixed(0)} %)`,
       );
     }
+    set('taken', summary.damageTaken.toLocaleString('en-US'));
+    // **Nur bei einem umgekehrten Ziel** (AC5). Bei einem gewöhnlichen Boss
+    // gibt es nichts zurückzudrängen — die Zahl stünde dort bei null und
+    // sagte nichts.
+    const rueck = this.resultRows['pushedBack'];
+    const rueckLabel = this.resultLabels['pushedBack'];
+    if (rueck !== undefined && rueckLabel !== undefined) {
+      const zeile = rueck.parentElement;
+      if (zeile !== null) zeile.hidden = !summary.reversed;
+      if (summary.reversed) set('pushedBack', summary.stabilised.toLocaleString('en-US'));
+    }
     set(
       'synergy',
       summary.synergyAvailable === 0
@@ -504,6 +522,29 @@ export class Overlay {
       );
       this.detail.appendChild(line);
     }
+    // --- Vier Auskünfte über einzelne Mechaniken (Issue #294) -------------
+    //
+    // Sie stehen im aufgeklappten Bereich und nicht bei den Kennzahlen: Wer
+    // keinen Unterbrecher mitführt, will die Zeile nicht nach jedem Lauf
+    // sehen; wer einen mitführt, schlägt sie nach.
+    //
+    // **Nur, was sich bewegt hat.** Eine Zeile mit null bei jeder Mechanik,
+    // die der Spieler gar nicht dabeihat, wäre Rauschen — und bei vier Zeilen
+    // wäre es viermal Rauschen.
+    const auskuenfte: readonly [string, number][] = [
+      ['Interrupts landed', summary.interruptsLanded],
+      ['Control wasted', summary.controlFailed],
+      ['Shield absorbed', summary.shieldAbsorbed],
+      ['Converted', summary.converted],
+    ];
+    for (const [label, wert] of auskuenfte) {
+      if (wert <= 0) continue;
+      const zeile = element('div', 'rota-row');
+      zeile.appendChild(element('span', 'rota-row-label', label));
+      zeile.appendChild(element('span', 'rota-row-value', wert.toLocaleString('en-US')));
+      this.detail.appendChild(zeile);
+    }
+
     const log = element('div', 'rota-row');
     log.appendChild(element('span', 'rota-row-label', 'Log entries'));
     log.appendChild(
