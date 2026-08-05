@@ -1,3 +1,4 @@
+import { alsSpellIndex } from '../core/combat.js';
 /**
  * Die Zauberleiste (GAME-DESIGN 9, 9.1, 9.4).
  *
@@ -154,7 +155,7 @@ export class SpellBar {
     shownMs: number,
   ): void {
     const { x, y, width, height } = this.rect;
-    const spell = combat.spellAt(spellIndex);
+    const spell = combat.spellAt(alsSpellIndex(spellIndex));
     if (spell === undefined) return;
 
     const cooldownLeft = combat.cooldownRemainingMs(spellIndex, shownMs);
@@ -236,7 +237,7 @@ export class SpellBar {
     spellIndex: number,
     shownMs: number,
   ): void {
-    const spell = combat.spellAt(spellIndex);
+    const spell = combat.spellAt(alsSpellIndex(spellIndex));
     const dot = spell?.dot;
     if (dot === undefined) return;
     const { x, y, width, height } = this.rect;
@@ -247,7 +248,7 @@ export class SpellBar {
     ctx.fillStyle = DOT_BAR_TRACK;
     ctx.fillRect(barX, barY, DOT_BAR_WIDTH, barHeight);
 
-    const remaining = combat.dotRemainingMs(spellIndex, shownMs);
+    const remaining = combat.dotRemainingMs(alsSpellIndex(spellIndex), shownMs);
     if (remaining > 0) {
       const share = remaining / dot.durationMs;
       ctx.fillStyle = DOT_BAR;

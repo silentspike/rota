@@ -13,7 +13,7 @@
  * und in jeder Sprache in zehn Zeilen nachzubauen. Das ist die Bedingung dafür,
  * dass der Rust-Simulator dieselbe Folge erzeugt (GAME-DESIGN 18.4).
  */
-import { MAX_DECAY_STACKS, type Combat } from './combat.js';
+import { MAX_DECAY_STACKS, type Combat, alsSpellIndex } from './combat.js';
 
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
@@ -116,8 +116,8 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixNamedFloat(h, 'gcdReadyAt', combat.gcd.readyAt);
   for (let i = 0; i < combat.spells.length; i++) {
     h = mixNamedFloat(h, 'cooldownRemaining', combat.cooldownRemainingMs(i, timeMs));
-    h = mixNamedFloat(h, 'dotRemaining', combat.dotRemainingMs(i, timeMs));
-    h = mixNamedInt(h, 'casts', combat.castCount(i));
+    h = mixNamedFloat(h, 'dotRemaining', combat.dotRemainingMs(alsSpellIndex(i), timeMs));
+    h = mixNamedInt(h, 'casts', combat.castCount(alsSpellIndex(i)));
     h = mixNamedInt(h, 'dotTicks', combat.dotTickCount(i));
     h = mixNamedInt(h, 'lostDotTicks', combat.lostDotTicks(i));
   }

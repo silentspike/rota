@@ -17,7 +17,7 @@
  * App sie beim Start herstellt, zeigt der Browser (AC1).
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { COUNTDOWN_MS, PHASE_FIGHTING } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
@@ -67,7 +67,7 @@ function druecken(
   queue: PressQueue,
   slot: number,
 ): string | null {
-  const vorher = combat.spells.map((_, i) => combat.castCount(i));
+  const vorher = combat.spells.map((_, i) => combat.castCount(alsSpellIndex(i)));
   let tick = 0;
   session.beginCountdown(0);
   for (let t = 0; t <= COUNTDOWN_MS + 3000; t += 10) {
@@ -77,7 +77,7 @@ function druecken(
   }
   expect(session.phase, 'der Kampf muss laufen, sonst misst der Fall nichts').toBe(PHASE_FIGHTING);
   for (let i = 0; i < combat.spells.length; i++) {
-    if (combat.castCount(i) > (vorher[i] ?? 0)) return combat.spells[i]?.id ?? null;
+    if (combat.castCount(alsSpellIndex(i)) > (vorher[i] ?? 0)) return combat.spells[i]?.id ?? null;
   }
   return null;
 }
