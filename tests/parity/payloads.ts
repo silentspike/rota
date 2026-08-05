@@ -13,7 +13,7 @@
  */
 import { combatChecksum, mixFloat, mixInt, recordFieldOrder } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
-import { pressRecorder } from './press-recorder.js';
+import { pressRecorder, slotFor, slotMap } from './press-recorder.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs, tickCount } from '../../src/core/haste.js';
 import {
@@ -1665,6 +1665,21 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
  * Schreibpunkte liegen verschieden — nur ihre Zahl kann zeigen, dass sie
  * trotzdem dasselbe erfassen.
  */
+/**
+ * Die Leiste der Protokoll-Aufzeichnung (Issue #405).
+ *
+ * **Sie steht hier als Konstante und nicht erst im `return`.** Genau daran lag
+ * es, dass die Plätze weiter unten von Hand geschrieben waren: Zum Zeitpunkt
+ * des Drucks gab es die Leiste noch gar nicht als Wert, also blieb nur die
+ * Zahl — und niemand prüfte sie je gegen die Bindung.
+ */
+const LOG_PARITY_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'crust' },
+  { slot: 2, spellId: 'quench' },
+  { slot: 3, spellId: 'salve' },
+] as const;
+
 export function logParityPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -1678,6 +1693,7 @@ export function logParityPayload(): Record<string, unknown> {
   const quench = combat.indexOf('quench');
   const ticks = 2500; // 25 s
 
+  const slots = slotMap(combat, LOG_PARITY_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -1700,8 +1716,10 @@ export function logParityPayload(): Record<string, unknown> {
     if (gewaehlt < 0) continue;
 
     if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
-      const platz = gewaehlt === kindle ? 0 : gewaehlt === crust ? 1 : gewaehlt === quench ? 2 : 3;
-      presses.push({ tick, slot: platz });
+      // **Der Platz kommt aus der Bindung, nicht aus einem Vergleich** (#405).
+      // `slotFor` wirft, wenn der Zauber auf keinem Platz liegt — die Zahl 3
+      // als stiller Rückfall für „alles andere" ist damit weg.
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
     }
   }
 
@@ -1717,12 +1735,7 @@ export function logParityPayload(): Record<string, unknown> {
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: [
-      { slot: 0, spellId: 'kindle' },
-      { slot: 1, spellId: 'crust' },
-      { slot: 2, spellId: 'quench' },
-      { slot: 3, spellId: 'salve' },
-    ],
+    bindings: LOG_PARITY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     /** Anzahl je Protokoll-Art. Der Simulator muss dieselben Zahlen ergeben. */
     counts,
