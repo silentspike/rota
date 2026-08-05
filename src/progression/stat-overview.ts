@@ -32,7 +32,7 @@
  * denselben Zahlen einen Satz machen, laufen beim nächsten Nachziehen
  * auseinander.
  */
-import { CRIT_BASE_PERMILLE, type WornValues } from '../gear/worn.js';
+import { CRIT_BASE_PERMILLE, vesselWithGear, type WornValues } from '../gear/worn.js';
 
 /** Wie ein Wert geschrieben wird. */
 export type StatUnit = 'percent' | 'flat';
@@ -162,9 +162,21 @@ export function formatValue(value: number, unit: StatUnit): string {
  */
 export function statOverview(base: BaseStats, worn: WornValues): StatRow[] {
   const werte: Readonly<Record<string, number>> = {
-    essence: base.essence,
-    vessel: base.vessel,
-    ward: base.ward,
+    // **Die drei Grundwerte MIT Ausrüstung** (Issue #421a). Bis dahin standen
+    // hier die nackten Basiswerte, und das fiel nicht auf, weil der Aufrufer
+    // ohnehin fest `NOTHING_WORN` übergab: Die Übersicht zeigte einen Spieler
+    // ohne Ausrüstung, weil es keinen Weg gab, etwas zu tragen.
+    //
+    // **Gerechnet wie im Kampf, nicht daneben:** `vesselWithGear` ist dieselbe
+    // Funktion, die `combat.ts` benutzt. Eine zweite Rechnung hier hiesse, dass
+    // die Anzeige etwas anderes zeigt als der Kampf tut — und der Spieler
+    // vergliche eine Zahl mit einer anderen Wirklichkeit.
+    essence: base.essence + worn.essence,
+    vessel: vesselWithGear(base.vessel, worn.vessel),
+    // WARD ist eine Minderung in Prozent; der Kampf addiert den
+    // Ausrüstungsanteil auf `PLAYER.wardReduction` und deckelt bei 100 %
+    // (`combat.ts`). Dieselbe Rechnung, dieselbe Grenze.
+    ward: Math.min(100, base.ward + worn.ward / 10),
     // Promille im Kampf, Prozent auf dem Bildschirm. Die Umrechnung steht an
     // einer Stelle, nicht in jeder Zeile.
     catalysis: worn.catalysis / 10,
