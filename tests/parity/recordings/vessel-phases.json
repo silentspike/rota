@@ -5,6 +5,7 @@
   "allBossIds": [
     "first-crucible",
     "test-caster",
+    "test-collision",
     "test-crucible-trial",
     "test-doomsayer",
     "test-gatekeeper",

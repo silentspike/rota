@@ -1061,16 +1061,18 @@ sauber gehalten wurde, sondern weil sie beim **Tippen des Befehls** nicht einfie
 > **Ein Prüfwerkzeug auf einzelne Pfade angesetzt prüft nicht das Projekt, sondern deine Erinnerung
 > daran, welche Dateien du angefasst hast.**
 
-Damit sind es drei, und erst zusammen ergeben sie das Bild — eine vierte kam später dazu und steht
-im übernächsten Abschnitt:
+Damit sind es drei, und erst zusammen ergeben sie das Bild — zwei weitere kamen später dazu und
+stehen in den folgenden Abschnitten:
 
-| Gestalt             | Beispiel                                | gefunden von   |
-| ------------------- | --------------------------------------- | -------------- |
-| falsches Werkzeug   | `vitest 3.2.7` statt `4.1.10`           | Worker-2, #150 |
-| falsche Stelle      | Gegenprobe an einem Ort ohne Prüffall   | Worker-3, #264 |
-| falscher Ausschnitt | `eslint` auf zwei Pfade statt auf alles | Worker-1, #236 |
+| Gestalt             | Beispiel                                          | gefunden von   |
+| ------------------- | ------------------------------------------------- | -------------- |
+| falsches Werkzeug   | `vitest 3.2.7` statt `4.1.10`                     | Worker-2, #150 |
+| falsche Stelle      | Gegenprobe an einem Ort ohne Prüffall             | Worker-3, #264 |
+| falscher Ausschnitt | `eslint` auf zwei Pfade statt auf alles           | Worker-1, #236 |
+| falsche Quelle      | erinnert statt nachgesehen — gar kein Lauf        | Worker-1, #278 |
+| falscher Stand      | richtig gemessen, aber in einem Zweig ohne `main` | Worker-2, #318 |
 
-Alle drei melden grün, alle drei messen korrekt — und alle drei beantworten eine andere Frage als
+Alle fünf melden grün, alle fünf messen korrekt — und alle fünf beantworten eine andere Frage als
 die gestellte. Das Werkzeug lügt nicht; es antwortet wahrheitsgemäß auf eine Frage, die man ihm
 versehentlich gestellt hat. Deshalb fällt die Rückmeldung **bestätigend** aus, und genau das macht
 die Klasse gefährlich.
@@ -1165,6 +1167,46 @@ ein `wc -l`, dessen Ausgabe man abwartet.
 
 > Der Merksatz stammt aus der Sitzung, die ihn ausgelöst hat, und er ist der kürzeste im Kapitel:
 > **„Ich habe nicht nachgesehen, sondern erinnert."**
+
+#### Die fünfte Gestalt: der falsche Stand — richtig gemessen, am falschen Ort
+
+_Von Worker-2 am 2026-08-05 bei #318 an sich selbst gefunden und benannt._
+
+Er meldete als Blocker, das Spiel könne beim Abspielen nur eine einzige Leiste auflösen — mit
+Fundstelle und Zeilennummer. **Die Messung war richtig. Der Stand war es nicht:**
+
+```
+git merge-base --is-ancestor origin/main HEAD   →  MAIN FEHLT IM ZWEIG
+```
+
+Der Parameter, den er vermisste, war zwei Stunden vorher in `main` gelandet. Seine eigene
+Einordnung:
+
+> Nicht „ungeprüft behauptet", sondern **„geprüft, aber am falschen Stand"**. Der Befehl war
+> richtig, das Verzeichnis veraltet.
+
+**Der Orchestrator lief im selben Austausch in dieselbe Falle**, in die andere Richtung: Er zählte
+27 Aufzeichnungen mit `bindings`-Feld, der Bearbeiter 13. Beide Zahlen stimmten — für den jeweiligen
+Stand. **Keiner von beiden hatte dazugesagt, welchen.**
+
+| Die vier anderen Gestalten fragen                                   | Diese fragt        |
+| ------------------------------------------------------------------- | ------------------ |
+| Welches Werkzeug? Welche Stelle? Welcher Ausschnitt? Welche Quelle? | **Welcher Stand?** |
+
+**Warum sie schwerer zu sehen ist als die anderen:** Bei einem falschen Werkzeug hilft, das richtige
+zu kennen. Hier ist das Werkzeug richtig, der Befehl richtig, die Ausgabe richtig — und der
+Arbeitsordner beantwortet stillschweigend eine Frage, die niemand gestellt hat.
+
+**Zwei Gewohnheiten dagegen:**
+
+- **Vor jedem Befund über „das Projekt" den Stand messen**, nicht nur den Befund:
+  ```bash
+  git merge-base --is-ancestor origin/main HEAD && echo "main enthalten" || echo "MAIN FEHLT"
+  ```
+- **Den Stand mitschreiben**, wenn die Aussage über das Projekt geht und nicht über den eigenen
+  Zweig. „In `main` (a17278e) steht …" ist nachprüfbar; „in `recording.ts` steht …" ist es nicht.
+
+> Ein Zweig ist eine Meinung über den Code, kein Blick darauf.
 
 #### Belegt heißt nicht zitierfähig — eine laufabhängige Zahl gehört nicht in einen Kommentar
 
@@ -1512,6 +1554,43 @@ Toleranz. `1.0` ist in IEEE754 exakt darstellbar, und gemeint ist der neutrale W
 
 Das gilt nicht überall — wo eine Rechnung Rundungsfehler erzeugt, ist eine Umgebung richtig. Der
 Unterschied: Hier wird kein Rechenergebnis geprüft, sondern **ob jemand einen Regler angefasst hat**.
+
+#### Eine Ausnahme muss benannt sein, sonst ist sie keine
+
+_Von Worker-1 am 2026-08-05 bei #346 formuliert._
+
+Ein Wächter prüfte, ob alle Faktoren der Schadensformel gleich stark wirken. Zwei standen nicht in
+seiner Liste — und niemand hatte entschieden, dass sie nicht hineingehören. Sie waren einfach nicht
+dazugekommen.
+
+> **Eine Ausnahme, die man nennen muss, ist eine Entscheidung. Eine, die durch Weglassen entsteht,
+> ist ein Versehen** — und genau das war der Zustand.
+
+Für einen der beiden gab es einen guten Grund (der Kampf schreibt den Faktor selbst, ein Vergleich
+mit festem Wert wäre sinnlos). Für den anderen gab es keinen; er stammte sogar vom selben
+Bearbeiter, der die Prüfung kannte:
+
+> Ich habe ihn gebaut, ich habe die Formel erweitert, und ich habe nicht bemerkt, dass er aus dieser
+> Prüfung herausfällt. **Der Wächter hat geschwiegen, und ich habe sein Schweigen für Zustimmung
+> gehalten.**
+
+**Von außen sehen beide Fälle gleich aus.** Ein fehlender Eintrag trägt nicht die Information, ob er
+fehlt oder ausgenommen ist — deshalb braucht ein Wächter, der etwas auslässt, eine **ausdrückliche
+Ausnahmeliste mit Begründung je Eintrag**.
+
+Dasselbe Muster liegt unter mehreren Befunden desselben Tages:
+
+|                                              | die Lücke entstand durch                                 |
+| -------------------------------------------- | -------------------------------------------------------- |
+| vier Prüffälle hinter `#[ignore]` (#237)     | Weglassen, begründet mit einer geschätzten Laufzeit      |
+| sieben Zauber ohne Paritäts-Abdeckung (#340) | Weglassen, weil die Wiedergabe sie nicht auflösen konnte |
+| vier Felder, die `reset()` vergisst (#349)   | Weglassen, ohne dass jemand über sie entschieden hätte   |
+
+**Jede sah aus wie Absicht.** Der Unterschied zwischen „ausgenommen" und „vergessen" steht nirgends
+im Code — er entsteht erst dadurch, dass jemand ihn hinschreibt.
+
+> Und die Begründung gehört **je Eintrag**, nicht als Sammelsatz darüber. Ein Sammelsatz erlaubt,
+> einen weiteren Eintrag hinzuzufügen, ohne ihn zu begründen.
 
 **Und daraus folgt eine Regel, die über diesen Fall hinausgeht: Manche Belege haben ein
 Verfallsdatum.**
@@ -2101,6 +2180,71 @@ statt des Verweises die **Lücke** dorthin:
 ```
 
 > Eine benannte Lücke ist ein Auftrag. Ein erfundener Verweis ist eine geschlossene Tür.
+
+### 8.21 Eine Feldliste, die niemand pflegt
+
+_Von Worker-1 (#346) und Worker-3 (#349) am 2026-08-05 unabhängig voneinander gefunden._
+
+Mehrere Wächter brauchen dieselbe Zutat: **alle Felder einer Struktur.** „Wird jeder Faktor
+gleich stark gerechnet?" (#346) und „überlebt ein Feld das Zurücksetzen?" (#349) sind
+verschiedene Fragen mit demselben Bedarf.
+
+Die naheliegende Antwort ist eine Liste im Prüffall — und sie ist die falsche:
+
+> Wer ein Feld hinzufügt und die Liste vergisst, hat genau den Fehler gebaut, den die Liste
+> verhindern sollte.
+
+**Auf der Spielseite gibt es die Liste geschenkt.** `private x = 0` ist in JavaScript eine
+gewöhnliche Eigenschaft; `Object.keys` sieht sie, auch die von morgen.
+
+**Im Simulator schreibt sie der Übersetzer**, wenn man ihn lässt:
+
+```rust
+#[derive(Debug)]
+pub struct Fight { … }
+```
+
+Zwei Gestalten, je nach Frage:
+
+| Was gebraucht wird | Wie                             | Fall                                  |
+| ------------------ | ------------------------------- | ------------------------------------- |
+| die **Namen**      | Debug-Ausgabe zerlegen          | #346, `alle_faktor_namen()`           |
+| die **Werte**      | zwei Debug-Ausgaben vergleichen | #349, `kein_einziges_feld_ueberlebt…` |
+
+Zur Laufzeit kostet es nichts: Die Auflistung entsteht nur, wenn sie jemand anfordert.
+
+#### Zwei Fallen, beide gemessen
+
+**Der Name aus der Tiefe.** Ein Wächter, der rückwärts zum nächsten `name:` geht, meldete bei
+einem Unterschied in `stack_gains: Cell { value: 40 }` das Feld **`value`** — den Namen aus dem
+`Cell`. Es gibt keine Stelle dieses Namens; der Suchende läuft ins Leere. Der Name muss von der
+**obersten Ebene** kommen, also über die Klammertiefe.
+
+Dieselbe Falle in anderer Gestalt auf der Spielseite: Wer rekursiv **in die Tiefe** geht, meldet
+`stacks.gains` als `events.entries.0.0.receiver.gains`, weil der Ereignis-Bus früher im
+Konstruktor steht. **In die Breite gehen**, dann trägt jeder Wert seinen kürzesten Pfad.
+
+> Ein Wächter muss nicht nur anschlagen, sondern **adressieren**.
+
+#### Die Grenze, und sie braucht ihren eigenen Fall
+
+Die Technik hängt daran, dass `Debug` **abgeleitet** ist. Ersetzt jemand `#[derive(Debug)]` durch
+eine eigene, kürzere Umsetzung, fällt die Namensliste weg oder wird unvollständig — und der
+Wächter wäre **still grün**. Das ist genau die Bauart, gegen die er gebaut ist.
+
+Deshalb prüft #346 die **Form** an bekannten Namen, nicht an ihrer Zahl:
+
+```rust
+for bekannt in ["essence", "talents", "crit"] {
+    assert!(alle.iter().any(|f| f == bekannt), "… Ist `Debug` noch abgeleitet?");
+}
+```
+
+Und #349 prüft, dass die Auflistung überhaupt etwas hergibt (`nach_reset.len() > 1000`), bevor
+sie verglichen wird. Zwei leere Zeichenketten sind gleich.
+
+**Die Regel:** Wer eine Feldliste braucht, nimmt die, die der Übersetzer schreibt — und sichert
+mit einem eigenen Fall ab, dass er sie noch schreibt.
 
 ```
     Worker-Sitzung                                      Orchestrator
