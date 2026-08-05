@@ -655,3 +655,76 @@ git ls-tree origin/main -- <pfad>      # liegt sie auf main, oder nur in einem Z
 ```
 
 Ein Kriterium darf nur auf Dinge zeigen, die auf `main` stehen oder im selben PR entstehen.
+
+### Vier eigene Fehler in einer Nacht — alle beim Messen, keiner beim Urteilen
+
+_2026-08-06. Die Urteile waren am Ende richtig; falsch war jeweils der Weg dorthin, und in drei
+von vier Fällen hätte er zu einem falschen Urteil geführt._
+
+#### 1. Der CI-Status stand am falschen Commit
+
+`gh pr view <n> --json mergeStateStatus,statusCheckRollup` meldete `CLEAN|SUCCESS`, der Merge
+scheiterte trotzdem mit _„Required status check ci-pass is expected"_. Der Zustand gehörte zum
+Commit **vor** `update-branch`; der neue Lauf hatte noch nicht begonnen.
+
+**Der Status eines PR ist keine Aussage über seinen heutigen Kopf.** Nach jedem
+`gh pr update-branch` wird gegen den Commit gemessen, nicht gegen den PR:
+
+```bash
+N=$(gh pr view <n> --json headRefOid -q .headRefOid)
+gh api repos/<org>/<repo>/commits/$N/check-runs \
+  -q '.check_runs[]|select(.name=="ci-pass")|.head_sha[0:8]+" "+.conclusion'
+```
+
+Die Ausgabe nennt den SHA — man sieht also, worüber sie spricht. Ein `SUCCESS` ohne SHA daneben
+ist nicht prüfbar.
+
+#### 2. `parity:export` vor dem Test gefahren
+
+Um zu messen, ob eine falsche Platzangabe auffällt, lief erst der Export und dann der Prüflauf:
+**64 grün** — der Export hatte die falsche Zahl längst zur Vergleichsgröße gemacht. In der
+richtigen Reihenfolge fällt derselbe Fall sofort.
+
+> **Wer exportiert, bevor er prüft, misst sein eigenes Ergebnis.** Die Vergleichsdatei ist kein
+> Zeuge mehr, sobald man sie neu geschrieben hat.
+
+Daraus folgt für jedes Kriterium der Form _„`parity:export` bewegt keine Datei"_: Es belegt nur
+etwas, wenn **vor** jeder Änderung gemessen wurde. Sonst ist die Unbewegtheit trivial.
+
+#### 3. Gegen einen zwei Merges alten Arbeitsbaum gemessen
+
+In `payloads.ts` stand noch der `?? 0`-Rückfall, um den es in einem gerade abgenommenen Issue
+ging — beinahe als „die Arbeit ist unvollständig" gemeldet. Der lokale Stand war zwei Merges
+alt; nach `git pull` war die Stelle weg.
+
+Die Abnahme selbst lief im Worktree und damit gegen den richtigen Stand. **Gefährlich war nicht
+die Abnahme, sondern der beiläufige Blick danach** — der greift zum Hauptverzeichnis, und das
+ist genau der Stand, den niemand pflegt.
+
+```bash
+git pull --ff-only && git log --oneline -1     # vor jeder Aussage über „steht da noch"
+```
+
+#### 4. Eine Prüfung gebaut, die nicht lief
+
+Eine Typ-Probe sollte belegen, dass der Übersetzer ein fehlendes Feld meldet. Sie schwieg auf
+**beiden** Ständen — gelesen als „übersetzt". Sie lag in der Repository-Wurzel, und
+`tsconfig.json` hat `include: ["src", "tests", "vite.config.ts"]`. Sie wurde nie übersetzt.
+
+> **Bei einer Prüfung, die bricht, wenn sie greift, ist Schweigen der Erfolgsfall** — und damit
+> im Ausgabetext nicht vom Ausfall zu unterscheiden.
+
+Deshalb gehört zu jeder brechenden Prüfung eine zweite, die sie absichtlich bricht. Nicht als
+Formalie: Es ist der einzige Weg, das Schweigen zu deuten. Dasselbe gilt für Suchbefehle in
+Kriterien — _„die Suche findet nichts"_ belegt erst dann etwas, wenn gezeigt wurde, dass sie
+etwas finden **kann**.
+
+#### Was die vier gemeinsam haben
+
+Keiner war ein Denkfehler über die Sache. Alle vier waren Aussagen darüber, **worauf sich eine
+Messung bezieht**: auf welchen Commit, auf welche Datei, auf welchen Stand, auf welchen
+Übersetzungslauf. Und alle vier sahen im Ausgabetext genau so aus wie das richtige Ergebnis.
+
+Die Gegenmaßnahme ist keine Regel, sondern eine Gewohnheit: **Der Befehl nennt seinen
+Bezugspunkt mit.** Ein SHA in der Ausgabe, ein `git log -1` davor, ein absichtlich gebrochener
+Fall daneben. Das kostet Sekunden und macht die Verwechslung unmöglich statt unwahrscheinlich.
