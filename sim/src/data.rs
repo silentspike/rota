@@ -377,6 +377,42 @@ pub fn stack_damage(def: Stacks, stacks: u32) -> u32 {
     value
 }
 
+/// Das Wettrennen gegen einen Zauber (GAME-DESIGN 11.2, Baustein 4; #218).
+///
+/// > Der Boss wird unverwundbar, waehrend etwas anderes vor Ablauf zerstoert
+/// > werden muss. **Der beste Moment fuer Overdrive.**
+///
+/// DAS ZIEL IST EIN SCHWELLENWERT, KEIN OBJEKT. Ein zweites Ziel mit eigenen
+/// Lebenspunkten waere ein Zusatzgegner, und GAME-DESIGN 22 verschiebt die auf
+/// Version 2. Stattdessen laedt der Schaden im Fenster einen Zaehler; erreicht
+/// er `threshold`, ist das Ziel zerstoert und das Fenster endet frueh.
+///
+/// Es ist die Energieleiste mit umgekehrter Fuellrichtung: Dort steigt sie von
+/// selbst, hier fuellt der Spieler sie.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Race {
+    /// Zeitpunkt seit Kampfbeginn, zu dem das Fenster beginnt.
+    pub at_ms: Millis,
+    /// Wie lange es hoechstens dauert.
+    pub window_ms: Millis,
+    /// Wie viel Schaden im Fenster das Ziel zerstoert. Vorlaeufig.
+    pub threshold: u32,
+}
+
+/// Ein Fehler heilt den Boss (GAME-DESIGN 11.2, Baustein 5; #218).
+///
+/// > Ein Fehler macht Fortschritt rueckgaengig. Haerteste Form von Konsequenz.
+/// > **Nur fuer einzelne Bosse**, sonst frustrierend.
+///
+/// Der Ausloeser ist der durchgekommene Boss-Zauber — kein neuer
+/// Fehler-Begriff. Dass es ein DATENFELD ist und keine feste Kopplung, ist die
+/// Umsetzung von "nur fuer einzelne": Eine Kopplung im Code gaelte fuer alle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BossHeal {
+    /// Wie viel Fortschritt ein durchgekommener Boss-Zauber zurueckdreht.
+    pub amount: u32,
+}
+
 /// Ein Boss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Boss {
@@ -398,6 +434,10 @@ pub struct Boss {
     pub doom: Option<Doom>,
     /// Der exponentielle Stapel, falls dieser Boss einen hat (Issue #216).
     pub stacks: Option<Stacks>,
+    /// Das Unverwundbarkeits-Fenster, falls dieser Boss eines hat (#218).
+    pub race: Option<Race>,
+    /// Was ein Fehler an Fortschritt zurueckdreht, falls ueberhaupt (#218).
+    pub boss_heal: Option<BossHeal>,
     /// Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt.
     pub timeline: &'static [TimelineEntry],
     /// Laenge eines Zyklus, wenn sich die Zeitleiste **wiederholt** (#174).
