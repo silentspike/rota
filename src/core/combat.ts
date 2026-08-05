@@ -31,6 +31,7 @@ import {
 } from './log.js';
 import {
   PLAYER,
+  statAtLevel,
   type BossDef,
   type SchoolDef,
   type SpellDef,
@@ -126,6 +127,19 @@ export interface CombatOptions {
    * wird umgerechnet, kein Zufallsstrom gedreht, keine Prüfsumme bewegt.
    */
   readonly worn?: WornValues;
+  /**
+   * Die Stufe des Spielers (Issue #289).
+   *
+   * **Fehlt sie, gilt Stufe 1** — und daran hängt der Gegenfall: Der
+   * Referenzlauf und jede eingecheckte Vergleichsdatei geben keine Stufe an.
+   * Wäre die Vorgabe eine andere, wanderte jede Aufzeichnung.
+   *
+   * Bis #289 kannte der Kampf die Stufe gar nicht: `statAtLevel` gab es seit
+   * #248 mit siebzehn Prüffällen und keinem Aufrufer, und ein Spieler auf
+   * Stufe 100 war genauso stark wie einer auf Stufe 1 — während das Player
+   * Home ihm „Stat growth x4.116" zeigte.
+   */
+  readonly level?: number;
 }
 
 /**
@@ -423,6 +437,15 @@ export class Combat {
    * dann ist sie verbraucht.
    */
   private phaseHoldUntilMs = -1;
+  /** Die Stufe des Spielers; ohne Angabe 1 (Issue #289). */
+  private levelValue: number;
+  /**
+   * Die Lebenspunkte dieser Stufe — der Deckel fürs Heilen.
+   *
+   * **Nicht `PLAYER.vessel`.** Der ist der Grundwert aus `base.json`; was
+   * dieser Spieler hat, sagt `statAtLevel`.
+   */
+  private vesselMax: number;
   private damageDealtValue = 0;
   /**
    * Wie viel Ring der SPIELER heruntergedrückt hat (Issue #256, AC3).
@@ -483,7 +506,11 @@ export class Combat {
     this.nextStackAtMs = options.boss.stacks?.perStepMs ?? 0;
     this.nextRunawayAtMs = options.boss.runaway?.perStepMs ?? 0;
     this.doomChargesValue = options.boss.doom?.clearCharges ?? 0;
-    this.playerHpValue = PLAYER.vessel;
+    // **Aus der Stufe, nicht aus der Datei** (Issue #289). `statAtLevel` gibt
+    // auf Stufe 1 exakt den Grundwert zurück — dort bewegt sich nichts.
+    this.levelValue = options.level ?? 1;
+    this.vesselMax = statAtLevel(PLAYER.vessel, this.levelValue);
+    this.playerHpValue = this.vesselMax;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
     this.worn = options.worn ?? NOTHING_WORN;
     // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt: Ausrüstung
@@ -616,6 +643,52 @@ export class Combat {
   }
 
   /** Verbleibende Lebenspunkte des Spielers. */
+  /** Die Stufe, mit der dieser Kampf rechnet (Issue #289). */
+  get level(): number {
+    return this.levelValue;
+  }
+
+  /**
+   * Die Stufe setzen — **zwischen den Kämpfen**, nicht im Takt (Issue #289).
+   *
+   * Der Kampf entsteht einmal beim Start des Spiels, die Stufe ändert sich
+   * später. Ohne diesen Weg rechnete jeder Kampf mit der Stufe, die beim
+   * Programmstart galt — und der Aufstieg wäre erst nach einem Neuladen
+   * spürbar.
+   *
+   * **Die Lebenspunkte werden mitgezogen, aber nur außerhalb eines Kampfes.**
+   * Mitten im Kampf die Obergrenze zu heben hieße, dem Spieler Punkte zu
+   * schenken, die er sich nicht erkämpft hat.
+   */
+  setPlayerLevel(level: number): void {
+    const stufe = Math.max(1, Math.trunc(level));
+    if (stufe === this.levelValue) return;
+    this.levelValue = stufe;
+    const vorher = this.vesselMax;
+    this.vesselMax = statAtLevel(PLAYER.vessel, stufe);
+    if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
+    // Außerhalb des Kampfes: voll, wie beim Aufbau.
+    if (this.playerHpValue >= vorher || this.playerHpValue === 0) {
+      this.playerHpValue = this.vesselMax;
+    }
+  }
+
+  /**
+   * Der Anteil, den WARD vom eingehenden Schaden nimmt.
+   *
+   * **Er skaliert NICHT mit der Stufe**, und das ist gemessen, nicht
+   * angenommen: `statAtLevel(0.2, 30)` ist null — die Funktion rechnet
+   * ganzzahlig, und ein Anteil wird dabei zu nichts. Der Simulator lässt ihn
+   * ebenfalls unverändert (`fight.rs`, `PLAYER.incoming`).
+   *
+   * Sachlich dieselbe Antwort: Ein Prozentsatz, der mitwächst, erreicht
+   * irgendwann 100 % und macht den Spieler unverwundbar. Was mitwächst, ist
+   * der abgefangene Schaden — und der ergibt sich aus dem größeren Pool.
+   */
+  get wardReduction(): number {
+    return PLAYER.wardReduction;
+  }
+
   get playerHp(): number {
     return this.playerHpValue;
   }
@@ -897,7 +970,10 @@ export class Combat {
       // **Nur bis zur vollen Anzeige.** Was darüber hinausginge, verpufft — es
       // als Heilung zu zählen ließe einen Lauf mit voller Anzeige nach mehr
       // Wirkung aussehen, als er gebraucht hat.
-      const fehlend = Math.max(0, PLAYER.vessel - this.playerHpValue);
+      // Gedeckelt am Wert DIESER Stufe: Sonst heilte ein Spieler auf Stufe 30
+      // nur bis zum Grundwert, und die gewonnenen Punkte wären nach dem
+      // ersten Schaden fort.
+      const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
       const wirklich = Math.min(heal.amount, fehlend);
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
