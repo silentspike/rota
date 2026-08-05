@@ -41,7 +41,7 @@
 
 use crate::apl::{Apl, Compare, Condition, Rule, Term, Value};
 use crate::balance::BalanceConfig;
-use crate::data::{Spell, SPELLS, SPELL_COUNT};
+use crate::data::{Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
 use crate::time::GCD_MS;
 
 /// Ein Kandidat für eine Zeile der Prioritätenliste.
@@ -120,6 +120,22 @@ fn single(left: Value, compare: Compare, right: Value) -> Condition {
 #[must_use]
 pub fn candidates_for(index: usize) -> Vec<Candidate> {
     let spell: &Spell = &SPELLS[index];
+
+    // **Prüf-Zauber gehören nicht in die Rotationssuche.** Seit Issue #304
+    // steht `test-cast` im Index — `unlockLevel: 101` bei `MAX_LEVEL = 100`,
+    // also für keinen Spieler jemals erreichbar.
+    //
+    // Er kostete nicht nur Messungen (18 Kandidatenzeilen statt 17): Fände die
+    // Suche ihn gut, empföhle sie eine Rotation, die niemand spielen kann.
+    // Gemessen hat er die Zahlen nicht bewegt — 5960,0 und 31120,0 blieben —
+    // aber „gewinnt heute nicht" ist keine Zusicherung für morgen.
+    //
+    // Die Grenze steht in den Daten, nicht hier: `MAX_LEVEL` entsteht in
+    // `build.rs` aus den Stufendaten.
+    if spell.unlock_level > MAX_LEVEL as u16 {
+        return Vec::new();
+    }
+
     let mut out = vec![Candidate {
         spell: index,
         condition: Condition::default(),
@@ -431,7 +447,18 @@ mod tests {
         // ohne Kandidatenzeile kann in keiner gefundenen Rotation vorkommen —
         // und die Suche meldete ihn als „nie gewählt", obwohl sie ihn nie zur
         // Wahl hatte.
+        let mut spielbar = 0;
         for (index, spell) in SPELLS.iter().enumerate() {
+            // Prüf-Zauber sind ausgenommen — sie sollen KEINE Zeile bekommen.
+            if spell.unlock_level > MAX_LEVEL as u16 {
+                assert!(
+                    candidates_for(index).is_empty(),
+                    "Der Pruef-Zauber {} steht in der Suche",
+                    spell.id
+                );
+                continue;
+            }
+            spielbar += 1;
             let zeilen = candidates_for(index);
             assert!(
                 !zeilen.is_empty(),
@@ -445,6 +472,10 @@ mod tests {
                 spell.id
             );
         }
+        assert!(
+            spielbar > 1,
+            "nur {spielbar} spielbare Zauber — dann prueft der Rest nichts"
+        );
     }
 
     #[test]
