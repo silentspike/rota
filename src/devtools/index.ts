@@ -453,6 +453,28 @@ export interface DevTools {
    * @returns die erreichte Stufe
    */
   setLevel(level: number): number;
+  /**
+   * Der Spielstand: WOHER er kommt und was drinsteht (Issue #378).
+   *
+   * **Der Grund ist ein Fehler, den zwei Sitzungen an einem Abend unabhängig
+   * voneinander gemacht haben**: Der Stand liegt in einem Ringpuffer über fünf
+   * Plätze, und der geltende steht in `rota.save.index`. Wer im Browser
+   * `localStorage.getItem('rota.save.0')` liest, bekommt einen plausiblen
+   * Stand — nur nicht den, der gilt. Beide Male sah es aus wie ein
+   * ausgebliebener Fortschritt, beide Male war es der falsche Platz.
+   *
+   * Es fehlte nicht die Information, sondern der ANLASS, sie im richtigen
+   * Moment zu holen. Wer diesen Einstieg benutzt, bekommt den Platz genannt
+   * und kann den falschen gar nicht mehr lesen.
+   */
+  save(): {
+    readonly slot: number;
+    readonly status: string;
+    readonly skipped: number;
+    readonly skippedSlots: readonly number[];
+    readonly healthy: number;
+    readonly data: unknown;
+  };
   setBossHp(hp: number): void;
   /** Kampf von vorn beginnen. */
   resetFight(): void;
@@ -953,6 +975,7 @@ export function installDevTools(app: App): void {
       app.setPlayerLevel(level);
       return app.persistence.state.level;
     },
+    save: () => ({ ...app.persistence.origin, data: app.persistence.save }),
     setBossHp: (hp: number) => {
       app.combat.setBossHpRemaining(hp);
     },

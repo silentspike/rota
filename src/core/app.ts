@@ -29,6 +29,7 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { markDisplayFor } from '../analysis/mark-display.js';
 import type { MarkDisplay } from '../render/overlay.js';
 import { PlayerHome } from '../progression/player-home.js';
@@ -277,6 +278,21 @@ export class App {
       // aber „dieser Lauf hat nichts eingebracht", und ein Abbruch hat gar
       // nicht stattgefunden. Der Strich ist die richtige Aussage.
       () => (this.lastRecord?.counted === true ? this.lastRecord.pointsGained : null),
+      // Erfahrung und Aufstieg (Issue #371), aus demselben Grund nur bei
+      // einem gezaehlten Lauf: Ein Abbruch hat nicht stattgefunden, und eine
+      // 0 hiesse „hat nichts eingebracht".
+      () => {
+        const record = this.lastRecord;
+        if (record?.counted !== true) return { xpGained: null, levelUp: null };
+        return {
+          xpGained: record.xpGained,
+          levelUp: levelUpDisplayFor(
+            record.leveledUp,
+            this.persistence.state.level,
+            this.combat.spells,
+          ),
+        };
+      },
     );
     this.loop = new GameLoop({
       simulation: this.session,
