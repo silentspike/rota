@@ -1362,7 +1362,11 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 
 **Die drei Kennzahlen:**
 
-- **Leerlauf pro Zauber** — wie viele Sekunden lag jeder Zauber ungenutzt bereit (nach Verlust sortiert)
+- **Leerlauf pro Zauber** — wie viele Sekunden lag jeder Zauber ungenutzt bereit (nach Verlust
+  sortiert). **Nur Zauber, die auf der Leiste liegen** (präzisiert am 2026-08-05, Issue #306): Ein
+  Zauber auf keinem Platz kann nicht ungenutzt bereitliegen — er ist nicht wirkbar, und die Zeile
+  wäre eine Falschaussage. Bei 60 Zaubern und 12–16 Plätzen stünden sonst über vierzig Zeilen mit
+  `0.0 s` in der Liste und verdünnten die Sortierung nach Verlust, die derselbe Satz verlangt
 - **Verlorene Zeit gesamt** — Sekunden und Prozent ohne aktiven Zauber
 - **Synergie-Ausbeute** — wie viel Prozent der möglichen Kombinationen genutzt wurden
 
