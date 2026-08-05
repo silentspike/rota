@@ -25,6 +25,7 @@
  * ist, gehört dem Design und nicht dieser Datei. Als Liste ist die Antwort ein
  * Eintrag; als Bedingung wäre sie ein Umbau.
  */
+import { grantXp, xpForVictory } from '../progression/level.js';
 import {
   OUTCOME_DEATH,
   OUTCOME_OVERPRESSURE,
@@ -70,6 +71,15 @@ export function countsAsAttempt(outcome: number): boolean {
 export interface RecordContext {
   readonly bossId: string;
   readonly difficulty: number;
+  /**
+   * Stufe des Bosses (Issue #248).
+   *
+   * Getrennt von `difficulty`: Die Schwierigkeit ist die gewählte Stufe des
+   * Kampfes (normal, heroisch, mythisch), die Boss-Stufe seine Stellung im
+   * Aufstieg. Beides zusammenzulegen hieße, dass ein heroischer Anfangsboss
+   * so viel Erfahrung gäbe wie ein normaler Endboss.
+   */
+  readonly bossLevel: number;
   /** Fassung des Spiels. Bedingung, nicht Beiwerk (GAME-DESIGN 18.6). */
   readonly gameVersion: string;
   /** Zeitpunkt in ms seit 1970. */
@@ -80,11 +90,25 @@ export interface RecordContext {
 export interface RecordedState {
   readonly runHistory: readonly RunHistoryEntry[];
   readonly progressMarks: readonly ProgressMarkEntry[];
+  /** Erreichte Stufe (Issue #248). */
+  readonly level: number;
+  /** Erfahrung auf dieser Stufe, noch nicht verbraucht (Issue #248). */
+  readonly experience: number;
 }
 
 export interface RecordResult extends RecordedState {
   /** Ob dieser Durchlauf überhaupt gezählt hat. */
   readonly counted: boolean;
+  /**
+   * Erfahrung aus diesem Durchlauf, 0 ohne Sieg (Issue #248).
+   *
+   * **Nur der Sieg zählt.** Ein Versuch, der scheitert, geht in die
+   * Fehleranalyse ein und in den Verlauf — aber er bringt keinen Fortschritt,
+   * sonst wäre Verlieren eine Strategie.
+   */
+  readonly xpGained: number;
+  /** Ob dieser Durchlauf die Stufe gehoben hat. */
+  readonly leveledUp: boolean;
   /**
    * Was der Versuch an der Marke bewirkt hat, oder `null` bei einem Abbruch.
    *
@@ -108,7 +132,7 @@ export function recordRun(
   context: RecordContext,
 ): RecordResult {
   if (!countsAsAttempt(outcome)) {
-    return { ...state, counted: false, mark: null };
+    return { ...state, counted: false, mark: null, xpGained: 0, leveledUp: false };
   }
 
   // Die Umrechnung läuft über attemptFrom. Sie hier nachzubauen wäre die eine
@@ -131,10 +155,23 @@ export function recordRun(
     missedMs: summary.lostTimeWithReadyMs,
   };
 
+  // **Erfahrung nur für den Sieg** (Issue #248). Sie hängt an der Stufe des
+  // BOSSES: GAME-DESIGN 12.6 sieht einen abnehmenden Ertrag über den
+  // Stufenabstand vor, und einen Abstand gibt es nur, wenn beide Seiten eine
+  // Stufe haben. Der Ertrag selbst ist noch nicht gebaut — die Unterschrift
+  // nimmt die Spieler-Stufe trotzdem schon auf, damit später nicht jede
+  // Aufrufstelle geändert werden muss.
+  const xpGained = summary.victory ? xpForVictory(context.bossLevel, state.level) : 0;
+  const nachher = grantXp({ level: state.level, xp: state.experience }, xpGained);
+
   return {
     runHistory: appendRun(state.runHistory, entry),
     progressMarks: mark.marks,
+    level: nachher.level,
+    experience: nachher.xp,
     counted: true,
     mark,
+    xpGained,
+    leveledUp: nachher.level > state.level,
   };
 }

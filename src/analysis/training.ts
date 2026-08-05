@@ -86,6 +86,9 @@ export function buildDummy(settings: DummySettings, school: string): BossDef {
     // Uebungsdurchgang, die Eskalation setzt eine Wiederholung mit Anspruch
     // voraus, und eine Schwaechung ohne Heil-Loesung waere an einem Sandsack
     // nur laestig.
+    // Die Puppe hat keine Stufe im Sinne des Aufstiegs: Sie gibt keine
+    // Erfahrung, weil an ihr nichts zu gewinnen ist (15.5).
+    level: 1,
     runaway: null,
     escalation: null,
     affliction: null,

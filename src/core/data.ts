@@ -549,6 +549,18 @@ export interface LevelGrowthDef {
 
 export interface BossDef {
   readonly schema: number;
+  /**
+   * Stufe des Bosses — wovon die Erfahrung für einen Sieg abhängt (#248).
+   *
+   * **Am Boss, nicht am Spieler.** GAME-DESIGN 12.6 sieht einen abnehmenden
+   * Ertrag über den STUFENABSTAND vor; einen Abstand gibt es nur, wenn beide
+   * Seiten eine Stufe haben.
+   *
+   * Fehlt das Feld, ist es 1. Welcher Boss welche Stufe trägt, ist Inhalt und
+   * entscheidet E10 — 12.4 sagt nur, dass acht Instanzen à vier Bosse die
+   * Stufen 1 bis 100 tragen.
+   */
+  readonly level: number;
   readonly id: string;
   readonly name: string;
   readonly instance: string;
@@ -1205,6 +1217,9 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       stacks,
       race,
       bossHeal,
+      // Fehlt das Feld, ist es Stufe 1 — jeder heutige Datensatz kommt so
+      // durch, und E10 trägt sie nach.
+      level: Math.max(Math.trunc(number(source['level'], 1)), 1),
       runaway,
       escalation,
       affliction,

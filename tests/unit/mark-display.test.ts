@@ -17,10 +17,11 @@ import { recordRun, type RecordedState } from '../../src/analysis/run-recorder.j
 
 const KINDLE = 0;
 const SMOULDER = 1;
-const LEER: RecordedState = { runHistory: [], progressMarks: [] };
+const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
 const KONTEXT = {
   bossId: 'first-crucible',
   difficulty: 1,
+  bossLevel: 1,
   gameVersion: '0.1.0',
   at: 1_800_000_000_000,
 };
