@@ -70,6 +70,7 @@ describe('Ohne Speicher laeuft das Spiel weiter', () => {
       runHistory: [eintrag()],
       progressMarks: [],
       bestRuns: [],
+      talentPoints: {},
       level: 1,
       experience: 0,
     });
@@ -91,6 +92,7 @@ describe('Ein voller Speicher', () => {
         runHistory: [eintrag()],
         progressMarks: [],
         bestRuns: [],
+        talentPoints: {},
         level: 1,
         experience: 0,
       });
@@ -109,6 +111,7 @@ describe('Ein voller Speicher', () => {
       runHistory: [eintrag()],
       progressMarks: [],
       bestRuns: [],
+      talentPoints: {},
       level: 1,
       experience: 0,
     });
@@ -126,6 +129,7 @@ describe('Der gewoehnliche Weg', () => {
         runHistory: [eintrag()],
         progressMarks: [],
         bestRuns: [],
+        talentPoints: {},
         level: 1,
         experience: 0,
       }),
@@ -148,6 +152,7 @@ describe('Der gewoehnliche Weg', () => {
         runHistory: [eintrag()],
         progressMarks: [],
         bestRuns: [],
+        talentPoints: {},
         level: 1,
         experience: 0,
       }),
@@ -177,6 +182,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       runHistory: [eintrag({ gameVersion: '0.1.0' })],
       progressMarks: [],
       bestRuns: [],
+      talentPoints: {},
       level: 1,
       experience: 0,
     });
@@ -186,6 +192,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       runHistory: [...neu.state.runHistory, eintrag({ gameVersion: '0.2.0', at: JETZT + 1000 })],
       progressMarks: [],
       bestRuns: [],
+      talentPoints: {},
       level: 1,
       experience: 0,
     });
@@ -203,11 +210,19 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       runHistory: [],
       progressMarks: [],
       bestRuns: [],
+      talentPoints: {},
       level: 1,
       experience: 0,
     });
     const neu = new RunPersistence('0.2.0', () => JETZT, store);
-    neu.persist({ runHistory: [], progressMarks: [], bestRuns: [], level: 1, experience: 0 });
+    neu.persist({
+      runHistory: [],
+      progressMarks: [],
+      bestRuns: [],
+      talentPoints: {},
+      level: 1,
+      experience: 0,
+    });
     expect(neu.save.gameVersion).toBe('0.2.0');
   });
 });
@@ -241,6 +256,7 @@ describe('Ein Stand aus einer aelteren Fassung', () => {
         runHistory: [eintrag()],
         progressMarks: [],
         bestRuns: [],
+        talentPoints: {},
         level: 1,
         experience: 0,
       }),
@@ -277,7 +293,14 @@ describe('Ein voller Verlauf', () => {
     const p = new RunPersistence(FASSUNG, () => JETZT, store);
     const voll = Array.from({ length: 500 }, (_, i) => eintrag({ at: JETZT + i }));
     expect(
-      p.persist({ runHistory: voll, progressMarks: [], bestRuns: [], level: 1, experience: 0 }),
+      p.persist({
+        runHistory: voll,
+        progressMarks: [],
+        bestRuns: [],
+        talentPoints: {},
+        level: 1,
+        experience: 0,
+      }),
     ).toBe(true);
 
     const zurueck = new RunPersistence(FASSUNG, () => JETZT, store);

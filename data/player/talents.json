@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Der Talentbaum von CALCINATION (Issue #417, GAME-DESIGN 12.5).\n\nEIN BAUM, KEIN SCHLUESSELTALENT: Dieses Issue baut den FAKTOR-Weg. Die drei Wege erhoehen Zahlen; ein Talent, das die Rotation umbaut ('der Entlade-Zauber verbraucht nur die Haelfte der Hitze, wirkt dafuer zweimal'), ist Issue #418 und braucht einen Mechanismus, den es noch nicht gibt: einen Weg, Zauberdaten je Kampf zu ueberschreiben.\n\n=== WAS HIER EHRLICH GESAGT WERDEN MUSS ===\n12.5 nennt fuer CALCINATION die drei Wege 'schneller aufbauen / staerker entladen / laenger halten'. Nur der mittlere ist ein Schadensfaktor. 'Schneller aufbauen' waere mehr Ressourcengewinn, 'laenger halten' eine laengere DoT-Dauer — beides sind andere Groessen als der Topf `talents`, und beide brauchten je einen eigenen Weg durch Kampf, Pruefsumme und Simulator.\nDESHALB TRAGEN DIE DREI WEGE HIER IHRE NAMEN UND WIRKEN ALLE UEBER DEN SCHADEN. Das ist eine Zwischenstufe und keine Umsetzung von 12.5: Die Namen halten die Absicht fest, die Wirkung ist einheitlich. Wer #418 und #419 baut, ersetzt die Wirkung, nicht die Struktur.\n\n=== WARUM PROMILLE JE RANG ===\nWie factorPerMille in levels.json und aus demselben Grund (GAME-DESIGN 18.4): Der Faktor entsteht als 1 + Summe/1000 aus ganzen Zahlen. Eine Fliesskomma-Angabe je Rang waere eine Zahl, bei der Spiel und Simulator auseinanderlaufen koennten, bevor die Multiplikation ueberhaupt beginnt.\n\n=== WARUM DER STAMM ZUERST ===\n12.5: 'Gemeinsamer Stamm -> drei Wege'. Der Stamm hat keine Vorbedingung, die Wege verlangen ihn — sonst waere die Struktur eine Liste und kein Baum. Die Bedingung steht als `requires` am Talent und wird beim Verteilen geprueft, nicht beim Rechnen: Ein Spielstand aus einer aelteren Fassung koennte eine Verteilung tragen, die heute nicht mehr erlaubt waere, und ein Kampf, der deswegen abbricht, waere schlimmer als einer, der die alte Verteilung zu Ende rechnet.",
+  "trees": [
+    {
+      "id": "calcination",
+      "school": "CALCINATION",
+      "talents": [
+        {
+          "id": "calcination-trunk",
+          "name": "Kindled Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "calcination-build",
+          "name": "Faster Buildup",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "calcination-trunk"
+        },
+        {
+          "id": "calcination-release",
+          "name": "Harder Release",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 25,
+          "requires": "calcination-trunk"
+        },
+        {
+          "id": "calcination-hold",
+          "name": "Longer Hold",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "calcination-trunk"
+        }
+      ]
+    }
+  ]
+}

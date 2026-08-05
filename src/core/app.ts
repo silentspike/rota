@@ -175,6 +175,13 @@ export class App {
     // Wiederherstellung stehen seit #83 bereit und liefen nie.
     this.persistence = new RunPersistence(__ROTA_VERSION__, () => Date.now());
 
+    // **Die Talente NACH dem Spielstand** (Issue #417): Der Kampf entsteht
+    // weiter oben, weil die Sitzung ihn braucht — die Verteilung kann er also
+    // nicht schon beim Aufbau bekommen. Sie hier nachzuziehen ist dieselbe
+    // Zeile wie bei einem Umskillen zwischen zwei Kaempfen, und es gibt keine
+    // zweite Rechenstelle: `setTalents` bildet die Faktoren neu.
+    this.combat.setTalents(this.persistence.state.talentPoints);
+
     // Am Kampfende festhalten, was der Versuch eingebracht hat. Der Beobachter
     // greift nicht ein -- ein Spiel ohne Spielstand rechnet identisch
     // (GAME-DESIGN 18.5), es merkt sich nur nichts.
@@ -450,6 +457,22 @@ export class App {
    * mehr Plaetze offen, und die muessen gebunden werden, sonst zeigt die
    * Anzeige mehr, als der Kampf kennt.
    */
+  /**
+   * Talente verteilen (Issue #417).
+   *
+   * **Der Weg vom Spielstand in den Kampf, in beide Richtungen.** Wer verteilt,
+   * schreibt in den Stand UND setzt den laufenden Kampf nach — sonst rechnete
+   * der naechste Kampf mit dem alten Stand, bis die Seite neu laedt.
+   *
+   * Die Pruefung, ob die Verteilung zulaessig ist, liegt beim Aufrufer
+   * (`allocationProblem`): Hier wird ausgefuehrt, nicht entschieden.
+   */
+  setTalents(allocation: Readonly<Record<string, number>>): void {
+    this.persistence.persistTalents(allocation);
+    this.combat.setTalents(allocation);
+    this.refreshHome();
+  }
+
   setPlayerLevel(level: number): void {
     this.persistence.persistLevel(level);
     // Der Kampf rechnet ab jetzt mit der neuen Stufe (Issue #289).
