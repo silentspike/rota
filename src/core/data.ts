@@ -59,6 +59,25 @@ export interface SpellDef {
   readonly cooldownMs: number;
   readonly castTimeMs: number;
   readonly triggersGcd: boolean;
+  /**
+   * Aus welcher Schule der Zauber stammt, oder `null` (Issue #270, AC0).
+   *
+   * **`null` heißt schulunabhängig, nicht unbekannt.** GAME-DESIGN 7.4 kennt
+   * die „drei schulunabhängigen Sonderzauber" — QUENCH ist einer davon. Ihn
+   * einer Schule zuzuschlagen behauptete eine Zugehörigkeit, die das Design
+   * ausdrücklich verneint; ein leerer Text sähe aus wie ein fehlender Wert.
+   *
+   * WARUM DAS FELD ÜBERHAUPT NÖTIG WAR: `SchoolDef` trägt eine Schule, und es
+   * gibt genau eine — alle fünfzehn Zauber hängen an ihr, weil sie beim
+   * Zusammenlegen aus sechs Dateien in EINE Liste wandern. Die Herkunft ging
+   * dabei verloren, und ohne sie ist „nach Schule gruppiert" nicht schwer,
+   * sondern unmöglich.
+   *
+   * Die Liste bleibt, wie sie ist: Ihre Reihenfolge bestimmt die Indizes, und
+   * die stehen in jeder aufgezeichneten Runde (GAME-DESIGN 18.3). Das Feld
+   * kommt daneben, nicht anstelle.
+   */
+  readonly school: string | null;
   readonly resourceGain?: Readonly<Record<string, number>>;
   readonly dot?: DotDef;
   readonly spender?: SpenderDef;
@@ -854,6 +873,9 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     cooldownMs,
     castTimeMs: number(raw['castTimeMs'], 0),
     triggersGcd: raw['triggersGcd'] !== false,
+    // Kommt beim Zusammenlegen aus der Herkunftsdatei (siehe `CALCINATION`).
+    // Fehlt es, ist der Zauber schulunabhängig — nicht fehlerhaft.
+    school: typeof raw['school'] === 'string' ? raw['school'] : null,
     interrupt: unterbricht,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
@@ -1240,25 +1262,47 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
   const roh = rawSchool as Record<string, unknown>;
   const gemeinsam = (rawCommonSpells as Record<string, unknown>)['spells'];
   const koagulation = (rawCoagulation as Record<string, unknown>)['spells'];
+  /**
+   * Jedem Zauber seine Herkunftsschule mitgeben (Issue #270, AC0).
+   *
+   * **Hier und nur hier**, weil hier die Datei noch bekannt ist. Eine Zeile
+   * weiter sind die sechs Listen eine, und die Herkunft ist fort — genau der
+   * Zustand, der „nach Schule gruppiert" unmöglich machte.
+   *
+   * Die Reihenfolge fasst das nicht an: Jeder Eintrag bekommt ein Feld dazu,
+   * keiner wechselt die Stelle. Die Indizes stehen in jeder aufgezeichneten
+   * Runde (GAME-DESIGN 18.3), und ein Vergleichs-Prüffall misst genau das.
+   */
+  const mitSchule = (liste: unknown, quelle: Record<string, unknown>): unknown[] => {
+    const schule = quelle['school'];
+    return (Array.isArray(liste) ? liste : []).map((eintrag) =>
+      isRecord(eintrag) && typeof schule === 'string' ? { ...eintrag, school: schule } : eintrag,
+    );
+  };
   const zusammen = {
     ...roh,
     spells: [
-      ...(Array.isArray(roh['spells']) ? roh['spells'] : []),
-      ...(Array.isArray(gemeinsam) ? gemeinsam : []),
-      ...(Array.isArray(koagulation) ? koagulation : []),
-      ...(Array.isArray((rawFixation as Record<string, unknown>)['spells'])
-        ? ((rawFixation as Record<string, unknown>)['spells'] as unknown[])
-        : []),
+      ...mitSchule(roh['spells'], roh),
+      // common.json trägt kein `school` — seine Zauber sind schulunabhängig
+      // (GAME-DESIGN 7.4), und `mitSchule` lässt sie deshalb unberührt.
+      ...mitSchule(gemeinsam, rawCommonSpells as Record<string, unknown>),
+      ...mitSchule(koagulation, rawCoagulation as Record<string, unknown>),
+      ...mitSchule(
+        (rawFixation as Record<string, unknown>)['spells'],
+        rawFixation as Record<string, unknown>,
+      ),
       // **Ganz hinten angefügt** (Issue #201). Die Reihenfolge bestimmt die
       // Indizes, und die stehen in jeder aufgezeichneten Runde — vorne
       // einzufügen deutete jede alte Aufzeichnung still um.
-      ...(Array.isArray((rawSublimation as Record<string, unknown>)['spells'])
-        ? ((rawSublimation as Record<string, unknown>)['spells'] as unknown[])
-        : []),
+      ...mitSchule(
+        (rawSublimation as Record<string, unknown>)['spells'],
+        rawSublimation as Record<string, unknown>,
+      ),
       // Ebenfalls hinten (Issue #97), aus demselben Grund.
-      ...(Array.isArray((rawPutrefaction as Record<string, unknown>)['spells'])
-        ? ((rawPutrefaction as Record<string, unknown>)['spells'] as unknown[])
-        : []),
+      ...mitSchule(
+        (rawPutrefaction as Record<string, unknown>)['spells'],
+        rawPutrefaction as Record<string, unknown>,
+      ),
     ],
   };
   return parseSchool(zusammen);
