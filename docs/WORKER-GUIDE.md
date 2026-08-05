@@ -428,6 +428,26 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > herstellen und sehen, ob er anschlägt. Beim `indexOf`-Fall heißt das konkret — einen Aufruf vor
 > die Definition setzen und prüfen, dass der Wächter **grün bleibt**.
 
+> **Und die Gegenprobe selbst ist der nächste blinde Fleck.** In der Nacht zum 2026-08-05 sind
+> sieben Gegenproben durchgelaufen, ohne etwas zu prüfen — dreimal beim Orchestrator, viermal
+> bei den Werkern. Jede war grün, keine war verdächtig.
+>
+> | Was die Gegenprobe anfasste                          | Warum sie nichts belegte                                    |
+> | ---------------------------------------------------- | ----------------------------------------------------------- |
+> | `arm()` innerhalb des Zweigs verschoben              | Dort folgenlos — `cast()` liest das Feld nicht              |
+> | Künstlicher Aufruf **hinter** die Definition gesetzt | Der Fehler wirkt nur davor                                  |
+> | Eine von zwei `println!`-Zeilen entfernt             | Der Begriff stand noch in der anderen                       |
+> | Syntaxfehler in `examples/`, Bau lief durch          | `cargo test --test X` baut nur diesen Test                  |
+> | `cooldownReductionMs` auf 0 gesetzt                  | Der Prüffall liest die **Aufzeichnung**, nicht die Rechnung |
+>
+> Der Satz, der es zusammenfasst, stammt von dem Werker, dem es dreimal in einer Stunde passierte:
+>
+> **„Dass eine Gegenprobe durchläuft, sagt nichts darüber, ob sie das Richtige angefasst hat."**
+>
+> Praktisch heißt das: Bevor die Gegenprobe zählt, muss belegt sein, dass sie überhaupt ankommt —
+> ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
+> Stelle, ein Begriff, der nur einmal vorkommt.
+
 ### Eine Zahl ohne committeten Läufer ist eine Behauptung
 
 _Gefunden am 2026-08-05 beim Abnehmen von #224._

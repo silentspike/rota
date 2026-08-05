@@ -43,6 +43,18 @@ Vier Sitzungen arbeiten an ROTA: **Orchestrator** (plant, prüft, teilt zu) und 
 bis **Worker-3**. Sie schreiben einander direkt — der Auftraggeber ist nicht mehr der
 Transportweg.
 
+### Beim Start: nachsehen, ob eine Übergabe für dich liegt
+
+```bash
+ls /work/rota-ipc/uebergabe-*.md
+```
+
+Eine Sitzung, die an ihre Grenze kommt, übergibt dort: was zuletzt fertig wurde, was
+halbfertig liegt, und die Befunde, die sonst mit ihr verlorengingen. **Lies deine, bevor du
+etwas anfängst** — sie erspart dir, Erkenntnisse ein zweites Mal zu erarbeiten.
+
+Ist die Übergabe abgearbeitet, lösche sie. Eine veraltete Übergabe ist schlimmer als keine.
+
 ### Beim Start: `/rota-ipc` ausführen — sonst bist du unerreichbar
 
 Der Skill richtet den Kanal ein. **Sein erster Schritt startet einen Teammember** (`ipc-anker`),
