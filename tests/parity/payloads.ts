@@ -1345,6 +1345,10 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
   const quench = combat.indexOf('quench');
   const ticks = 3000; // 30 s
 
+  // **Die Leiste steht eine Ebene höher** (Issue #405): Dieser Lauf gibt keine
+  // eigene zurück, der Eltern-Payload trägt STEP1_BINDINGS für alle seine
+  // Läufe. Der Platz kommt trotzdem aus der Bindung und nicht aus einer Zahl.
+  const slots = slotMap(combat, STEP1_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
   const playerHp: number[] = [];
@@ -1370,10 +1374,12 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     // Schadenszauber dieses Takts nichts. Genau das ist der Sinn der Ausnahme
     // (GAME-DESIGN 6.6) — und hier wird sie zum ersten Mal wirklich gebraucht.
     if (mitQuench && combat.casting >= 0 && combat.isReady(quench, timeMs)) {
-      if (combat.cast(quench, timeMs).result === 0) presses.push({ tick, slot: 3 });
+      if (combat.cast(quench, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(quench), combat) });
     }
     if (combat.isReady(kindle, timeMs) && combat.gcd.isReady(timeMs)) {
-      if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
+      if (combat.cast(kindle, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(kindle), combat) });
     }
 
     const hash = combatChecksum(combat, timeMs);
