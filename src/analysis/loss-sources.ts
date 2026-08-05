@@ -25,7 +25,12 @@
 
 /** Die fuenf Arten, in der Reihenfolge des Designs. */
 export type LossKind =
-  'missedCasts' | 'idle' | 'missedSynergies' | 'lostDotTicks' | 'missedInterrupts';
+  | 'missedCasts'
+  | 'idle'
+  | 'missedSynergies'
+  | 'lostDotTicks'
+  | 'missedInterrupts'
+  | 'selfInflicted';
 
 /** Was eine Quelle beitraegt. `null` heisst: heute nicht rechenbar. */
 export interface LossContribution {
@@ -168,6 +173,7 @@ export function rankLosses(
   damageDealt: number,
   defs: readonly LossSourceDef[],
   bossHealed = 0,
+  potentialOverride: number | null = null,
 ): LossReport {
   const computed: { def: LossSourceDef; value: LossContribution }[] = [];
   const unavailable: LossKind[] = [];
@@ -196,7 +202,16 @@ export function rankLosses(
   }
 
   const totalLost = computed.reduce((sum, entry) => sum + entry.value.damage, 0);
-  const potential = damageDealt + totalLost;
+  // **Wovon der Anteil ein Anteil IST.** Bei einem gewoehnlichen Boss ist das
+  // Potenzial, was der Spieler haette austeilen koennen: das Ausgeteilte plus
+  // das Liegengelassene.
+  //
+  // Bei einem Boss mit umgekehrtem Ziel gibt es dieses Potenzial nicht — dort
+  // sollte gar kein Schaden ausgeteilt werden. Der Bezug ist der ganze Ring,
+  // und die Aussage lautet "so viel Prozent davon hast du selbst
+  // heruntergedrueckt" (Issue #256). Ohne den ausdruecklichen Wert stuende die
+  // einzige Quelle bei 100 %, egal wie klein der Schaden war.
+  const potential = potentialOverride ?? damageDealt + totalLost;
   const shareOf = (value: number): number => (potential > 0 ? value / potential : 0);
 
   const sources = computed
@@ -261,6 +276,46 @@ export function dotTickSource(losses: readonly DotTickLoss[]): LossSourceDef {
         detail:
           `${ticks} ${ticks === 1 ? 'tick' : 'ticks'} lost to early refresh — ` +
           `${Math.round(damage).toLocaleString('en-US')} damage`,
+      };
+    },
+  };
+}
+
+/**
+ * Der Schaden, den der Spieler dem eigenen Ring zugefuegt hat (Issue #256, AC3).
+ *
+ * **Nur bei einem Boss mit umgekehrtem Ziel.** Dort ist ausgeteilter Schaden
+ * kein Fortschritt, sondern der Weg zur Niederlage: Der Ring soll gehalten
+ * werden, nicht gesenkt. Die vier anderen Quellen messen NICHT ausgeteilten
+ * Schaden — bei diesem Boss messen sie damit das Gegenteil dessen, was zaehlt,
+ * und raten dem Spieler zu dem, was ihn umbringt.
+ *
+ * Gemessen an `test-runaway`: KINDLE auf Cooldown setzt 600 Ring-Schaden und
+ * kippt den Lauf 9,5 Sekunden frueher.
+ *
+ * **Nicht `damage`, sondern `playerDamage`.** Der Ring faellt auch von selbst;
+ * ohne die Trennung stuende bei einem Lauf ohne einen einzigen Tastendruck der
+ * volle Verlust als "dein Fehler" (Etappe 3a).
+ *
+ * Der Bezug ist der ganze Ring, nicht der ausgeteilte Schaden: "Du hast 60 %
+ * des Rings selbst heruntergedrueckt" ist die Aussage, die der Spieler
+ * braucht.
+ */
+export function selfInflictedSource(playerDamage: number, bossHp: number): LossSourceDef {
+  return {
+    kind: 'selfInflicted',
+    label: 'Damage you dealt to the ring',
+    compute(): LossContribution | null {
+      if (bossHp <= 0) return null;
+      const anteil = Math.round((100 * playerDamage) / bossHp);
+      if (playerDamage <= 0) {
+        return { damage: 0, detail: 'You dealt no damage to the ring.' };
+      }
+      return {
+        damage: playerDamage,
+        detail:
+          `${Math.round(playerDamage).toLocaleString('en-US')} of ${bossHp.toLocaleString('en-US')} ` +
+          `ring points — ${anteil} % pushed down by you`,
       };
     },
   };

@@ -59,6 +59,27 @@ export interface RunSummary {
    */
   readonly heldPercent: number | null;
   readonly damage: number;
+  /**
+   * Wie viel des Ring-Verlusts der SPIELER verursacht hat (Issue #256, AC3).
+   *
+   * Bei einem gewöhnlichen Boss ist das `damage` selbst. Bei einem mit
+   * `runaway` ist es der Teil, den er sich selbst zugefügt hat — der Rest
+   * kommt von der Reaktion, die von allein läuft.
+   *
+   * Ohne diese Zahl meldete die Fehleranalyse dem Spieler, der NICHTS gedrückt
+   * hat, den vollen Ring-Verlust als seinen Fehler.
+   */
+  readonly playerDamage: number;
+  /**
+   * Ob dieser Boss das umgekehrte Ziel hat (Issue #256).
+   *
+   * **Ein eigenes Feld statt eines Rückschlusses.** `heldPercent !== null`
+   * läge nahe, ist aber ein indirekter Test: Die Zahl ist auch bei einem
+   * `runaway`-Boss ohne Lebenspunkte `null`. Wer die Umkehrung daran abliest,
+   * liest sie irgendwann falsch — und der Fehler wäre still, weil beide Fälle
+   * plausibel aussehen.
+   */
+  readonly reversed: boolean;
   readonly bossHp: number;
   /**
    * Fortschrittsmarke in Prozent (GAME-DESIGN 12.8; Issue #256).
@@ -212,6 +233,8 @@ export function buildSummary(input: SummaryInput): RunSummary {
     remainingMs: input.remainingMs,
     heldPercent: heldOf(combat),
     damage: combat.damageDealt,
+    playerDamage: combat.playerDamage,
+    reversed: combat.boss.runaway !== null,
     bossHp: combat.boss.hp,
     progressPercent: progressOf(combat, elapsedMs),
     casts: input.casts,
