@@ -1372,6 +1372,22 @@ konnte, ohne dass es auffiel.
 > vollständigen Erweiterung nicht im Weg steht, zeigt erst der Betrieb — und man kann es nicht
 > herbeiführen, nur abwarten und dann erkennen.
 
+**Und daraus folgt eine Regel, die über diesen Fall hinausgeht: Manche Belege haben ein
+Verfallsdatum.**
+
+| Beleg                             | wie lange abrufbar                                       |
+| --------------------------------- | -------------------------------------------------------- |
+| CI-Lauf eines Zwischenstands      | bis der nächste Push ihn abbricht (`cancel-in-progress`) |
+| Zustand einer laufenden Sitzung   | bis sie endet                                            |
+| Bildschirmausgabe eines Laufs     | bis das Fenster weg ist                                  |
+| Commit, Prüffall, Vergleichsdatei | dauerhaft                                                |
+
+Die untere Zeile ist der Normalfall, an den man sich gewöhnt — und genau deshalb fällt nicht auf,
+dass die oberen anders sind. **Wer einen Beleg aus der oberen Hälfte brauchen wird, muss ihn
+festhalten, während er existiert**: die Ausgabe in den PR-Text, die Zahl in einen Prüffall, den
+Zwischenstand in eine Meldung. Nachträglich geht es nicht, und man merkt es erst, wenn man ihn
+sucht.
+
 **Wie viele Fälle fallen, ist die zweite Auskunft.** Fielen im Beispiel nur zwei von dreien, wäre
 der dritte einer, der bloß zwei Zahlen vergleicht, die zufällig stimmen. Dass **alle drei** fielen,
 belegt, dass auch die Bedingung `cooldownMs > GCD_MS` wirklich geprüft wird und nicht nur
