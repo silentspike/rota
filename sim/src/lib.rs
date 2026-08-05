@@ -78,6 +78,8 @@ pub mod replay;
 pub mod report;
 pub mod rng;
 pub mod rotation;
+// Issue #237: die Suche nach der besten Rotation.
+pub mod rotation_search;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
 // einzige Beruehrung mit einer bestehenden Datei in `sim/src/`.
 pub mod rules_event;
