@@ -728,3 +728,50 @@ Messung bezieht**: auf welchen Commit, auf welche Datei, auf welchen Stand, auf 
 Die Gegenmaßnahme ist keine Regel, sondern eine Gewohnheit: **Der Befehl nennt seinen
 Bezugspunkt mit.** Ein SHA in der Ausgabe, ein `git log -1` davor, ein absichtlich gebrochener
 Fall daneben. Das kostet Sekunden und macht die Verwechslung unmöglich statt unwahrscheinlich.
+
+### Ein Messpunkt hinter der Wirkung sieht aus wie keine Wirkung
+
+_Gefunden von Worker-2 am 2026-08-06 an sich selbst, vom Orchestrator nachgemessen._
+
+Die Frage war, ob ein Feld in `WornValues` die Zustands-Prüfsumme berührt. Der erste Anlauf
+maß **alle 1500 ms** und meldete: `CATALYSIS` bewegt sie nicht. Das wäre als Befund
+durchgegangen — und es war falsch.
+
+`CATALYSIS` verkürzt die Abklingzeit von 1500 ms auf 1160 ms. Beide Werte liegen **unter**
+dem Messabstand: Zum Messzeitpunkt stand `cooldownRemaining` in beiden Läufen längst auf 0.
+Der Unterschied war nicht weg, weil es keinen gab, sondern weil hinter ihn gemessen wurde.
+
+```
+Takt 0                     gleich       die Abklingzeit läuft noch nicht
+direkt nach dem Cast       verschieden  1500 gegen 1160
+5000 ms nach dem Cast      gleich       beide abgelaufen
+```
+
+Alle drei Zeilen sind wahr, und zwei davon würden „keine Wirkung" belegen.
+
+#### Zwei Werte, zwei verschiedene Messpunkte
+
+| Wert        | wirkt sich aus                     | weil                                                                       |
+| ----------- | ---------------------------------- | -------------------------------------------------------------------------- |
+| `VESSEL`    | **schon bei Takt 0**               | geht in `playerHp` ein, und das steht in der Prüfsumme (`checksum.ts:140`) |
+| `CATALYSIS` | **erst mit laufender Abklingzeit** | verkürzt Zeiten, und eine abgelaufene Zeit ist in beiden Fällen 0          |
+
+**Ein Prüffall, der pauschal „nach dem Kampf" misst, verfehlt beide** — den einen, weil der
+Unterschied im Anfangszustand liegt, den anderen, weil er nur währenddessen sichtbar ist.
+
+#### Was daraus folgt
+
+Vor jeder Messung gehört die Frage beantwortet: **Wann ist die Wirkung sichtbar, und misst mein
+Messpunkt dort?** Eine grüne Zeile beantwortet sie nicht — sie ist mit „keine Wirkung", „noch
+nicht" und „nicht mehr" gleichermaßen vereinbar.
+
+Der billigste Weg dorthin ist, die **Ursache mitzumessen** statt nur das Ergebnis:
+
+```
+GCD          1500 gegen 1500     unberührt
+Schaden       100 gegen  100     unberührt
+Abklingzeit  1500 gegen 1160     ← der Hebel
+```
+
+Damit steht nicht nur, **dass** sich etwas unterscheidet, sondern **woran** es liegt — und man
+sieht sofort, wo der Messpunkt liegen muss.
