@@ -289,6 +289,21 @@ pub struct Fight {
     damage_lost_to_race: u32,
     /// Wie viel Fortschritt der Boss zurueckgedreht hat.
     boss_healed: u32,
+    /// Stand der kippenden Reaktion (Baustein 6, Issue #240).
+    reaction: u32,
+    /// Ob sie gekippt ist — dann ist der Lauf vorbei.
+    reaction_failed: bool,
+    /// Wie oft der Spieler sie gehoben hat.
+    stabilised_count: u32,
+    /// Ob die Schwaechung gerade liegt (Baustein 8, Issue #240).
+    afflicted: bool,
+    /// Wie oft sie entfernt wurde.
+    ///
+    /// Traegt den Unterschied zwischen "nie gelegen" und "gelegen und
+    /// entfernt": Im Zustand sehen die beiden gleich aus. Sie ist ausserdem
+    /// die Bedingung dafuer, dass die Schwaechung **einmal** greift und nicht
+    /// nach jedem Entfernen erneut.
+    afflictions_cleared: u32,
     /// Wie weit die Boss-Zeitleiste abgearbeitet ist.
     ///
     /// Zeigt auf den **naechsten** faelligen Eintrag. Steht er am Ende der
@@ -468,6 +483,11 @@ impl Fight {
             race_won: false,
             damage_lost_to_race: 0,
             boss_healed: 0,
+            reaction: config.boss.stabilise.map_or(0, |s| s.start_value),
+            reaction_failed: false,
+            stabilised_count: 0,
+            afflicted: false,
+            afflictions_cleared: 0,
             timeline_index: 0,
             casting: None,
             interrupts_missed: 0,
@@ -656,6 +676,8 @@ impl Fight {
         self.schedule_first_energy_tick();
         self.schedule_first_doom_tick();
         self.schedule_first_stack_tick();
+        self.schedule_first_reaction_drop();
+        self.schedule_first_affliction();
         self.schedule_next_timeline_step();
         // Die erste Entscheidung faellt bei 0.
         self.queue.push(0, EventKind::Wakeup);
@@ -745,6 +767,8 @@ impl Fight {
         self.schedule_first_energy_tick();
         self.schedule_first_doom_tick();
         self.schedule_first_stack_tick();
+        self.schedule_first_reaction_drop();
+        self.schedule_first_affliction();
         self.schedule_next_timeline_step();
 
         let mut checksums = Vec::with_capacity(if checksum_per_tick {
@@ -759,6 +783,9 @@ impl Fight {
         let mut doom = Vec::with_capacity(checksums.capacity());
         let mut doom_charges = Vec::with_capacity(checksums.capacity());
         let mut stacks_trace = Vec::with_capacity(checksums.capacity());
+        let mut reaction_trace = Vec::with_capacity(checksums.capacity());
+        let mut afflicted_trace = Vec::with_capacity(checksums.capacity());
+        let mut cast_lands_trace: Vec<i64> = Vec::with_capacity(checksums.capacity());
         let mut timeline_index = Vec::with_capacity(checksums.capacity());
         let mut player_hp = Vec::with_capacity(checksums.capacity());
         let mut shield_spur = Vec::with_capacity(checksums.capacity());
@@ -803,6 +830,10 @@ impl Fight {
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
+                    reaction_trace.push(self.reaction);
+                    afflicted_trace.push(u32::from(self.afflicted));
+                    cast_lands_trace
+                        .push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
                 }
                 break;
             }
@@ -822,6 +853,10 @@ impl Fight {
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
+                    reaction_trace.push(self.reaction);
+                    afflicted_trace.push(u32::from(self.afflicted));
+                    cast_lands_trace
+                        .push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
                 }
                 break;
             }
@@ -912,6 +947,9 @@ impl Fight {
                 timeline_index.push(self.timeline_index as u32);
                 player_hp.push(self.player_hp);
                 shield_spur.push(self.shield);
+                reaction_trace.push(self.reaction);
+                afflicted_trace.push(u32::from(self.afflicted));
+                cast_lands_trace.push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
             }
         }
 
@@ -943,6 +981,14 @@ impl Fight {
             interrupts_landed: self.interrupts_landed,
             interrupts_missed: self.interrupts_missed,
             shield: shield_spur,
+            reaction: reaction_trace,
+            afflicted: afflicted_trace,
+            cast_lands_at: cast_lands_trace,
+            final_reaction: self.reaction,
+            reaction_failed: self.reaction_failed,
+            stabilised_count: self.stabilised_count,
+            afflictions_cleared: self.afflictions_cleared,
+            cycle: self.cycle(),
             shield_absorbed: self.shield_absorbed,
             healed: self.healed,
             converted: self.converted,
@@ -967,6 +1013,11 @@ impl Fight {
         self.race_won = false;
         self.damage_lost_to_race = 0;
         self.boss_healed = 0;
+        self.reaction = self.boss.stabilise.map_or(0, |s| s.start_value);
+        self.reaction_failed = false;
+        self.stabilised_count = 0;
+        self.afflicted = false;
+        self.afflictions_cleared = 0;
         self.timeline_index = 0;
         self.casting = None;
         self.interrupts_missed = 0;
@@ -1034,6 +1085,30 @@ impl Fight {
         if let Some(stacks) = self.boss.stacks {
             if stacks.per_step_ms > 0 && stacks.per_step_ms < self.duration_ms {
                 self.queue.push(stacks.per_step_ms, EventKind::StackTick);
+            }
+        }
+    }
+
+    /// Plant das erste Sinken der kippenden Reaktion ein (Issue #240).
+    fn schedule_first_reaction_drop(&mut self) {
+        if let Some(stab) = self.boss.stabilise {
+            if stab.drop_per_step_ms > 0 && stab.drop_per_step_ms < self.duration_ms {
+                self.queue
+                    .push(stab.drop_per_step_ms, EventKind::ReactionDrop);
+            }
+        }
+    }
+
+    /// Plant den Beginn der Schwaechung ein (Issue #240).
+    ///
+    /// **Der Beginn, nicht der erste Schaden.** Sie greift zu `at_ms` und
+    /// tickt von da an; der erste Tick faellt eine Schrittweite spaeter. Wer
+    /// hier gleich `at_ms + per_step_ms` einplante, verschoebe den Beginn und
+    /// damit auch den Zeitpunkt, ab dem sie sich entfernen laesst.
+    fn schedule_first_affliction(&mut self) {
+        if let Some(aff) = self.boss.affliction {
+            if aff.at_ms < self.duration_ms {
+                self.queue.push(aff.at_ms, EventKind::AfflictionTick);
             }
         }
     }
@@ -1131,7 +1206,8 @@ impl Fight {
             // Wirkzeit um ist — bis dahin kann der Spieler ihn abbrechen.
             TimelineKind::InterruptibleCast => {
                 self.casting = Some(index);
-                self.cast_lands_at = self.time + entry.cast_time_ms;
+                self.cast_lands_at =
+                    self.time + self.escalated_cast_time(entry.cast_time_ms, index);
                 self.queue.push(
                     self.cast_lands_at,
                     EventKind::BossCastLands {
@@ -1236,6 +1312,13 @@ impl Fight {
             if self.shield_stacks < shield.max_stacks {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(shield.amount);
+                // **Die Reaktion stabilisieren** (Baustein 6, Issue #240). Der
+                // Schutz hebt sie um seinen EIGENEN Betrag — eine zweite Zahl
+                // "stabilisiert um X" waere dieselbe Groesse an zwei Orten.
+                //
+                // Nur beim Stapeln, nicht beim blossen Erneuern: Sonst waere
+                // die Obergrenze wirkungslos.
+                self.stabilise(shield.amount);
             }
             self.shield_expires_at = Some(self.time + shield.duration_ms);
             self.queue
@@ -1261,6 +1344,10 @@ impl Fight {
             if wirklich > 0 {
                 self.player_hp += wirklich;
                 self.healed = self.healed.saturating_add(wirklich);
+                // Auch die Heilung stabilisiert — mit dem Betrag, der WIRKLICH
+                // angekommen ist. Was ueber die volle Anzeige hinausginge,
+                // verpufft hier wie dort.
+                self.stabilise(wirklich);
                 self.log
                     .push(self.time, LogKind::Healed, index as u8, wirklich);
             }
@@ -1525,6 +1612,8 @@ impl Fight {
             EventKind::EnergyTick => self.energy_tick(),
             EventKind::DoomTick => self.doom_tick(),
             EventKind::StackTick => self.stack_tick(),
+            EventKind::ReactionDrop => self.reaction_drop(),
+            EventKind::AfflictionTick => self.affliction_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
@@ -1723,6 +1812,153 @@ impl Fight {
         let next = self.time + stacks.per_step_ms;
         if next < self.duration_ms {
             self.queue.push(next, EventKind::StackTick);
+        }
+    }
+
+    /// Wie viele Zyklen die Zeitleiste gelaufen ist (Baustein 7, Issue #240).
+    ///
+    /// **Abgeleitet, nicht mitgezaehlt** — genau wie im Spiel. Ein eigenes Feld
+    /// waere eine zweite Wahrheit ueber dieselbe Groesse, und die zweite laeuft
+    /// beim Nachziehen weg. Der Zeiger weiss es bereits.
+    fn cycle(&self) -> u32 {
+        let laenge = self.boss.timeline.len();
+        if laenge == 0 || self.boss.timeline_loop_ms.is_none() {
+            return 0;
+        }
+        u32::try_from(self.timeline_index / laenge).unwrap_or(u32::MAX)
+    }
+
+    /// Die Wirkzeit nach der Eskalation (Baustein 7, Issue #240).
+    ///
+    /// **Der Zyklus kommt aus dem Fortschrittszaehler des Eintrags, nicht aus
+    /// dem Stand der Zeitleiste.** Beim ersten Zauber zeigt der Zeiger bereits
+    /// auf den naechsten Eintrag; wer ihn liest, verkuerzt schon den ersten
+    /// Zauber um einen Zyklus. Im Spiel ist mir genau das passiert, und
+    /// aufgefallen ist es nur, weil die erwartete Reihe VOR dem Vergleich
+    /// ausgerechnet war.
+    ///
+    /// Ohne Wiederholung gibt es keine Zyklen — dann bleibt die Wirkzeit, wie
+    /// sie in der Zeitleiste steht.
+    fn escalated_cast_time(&self, base: Millis, entry_index: usize) -> Millis {
+        let Some(esc) = self.boss.escalation else {
+            return base;
+        };
+        let laenge = self.boss.timeline.len();
+        if laenge == 0 || self.boss.timeline_loop_ms.is_none() {
+            return base;
+        }
+        let zyklus = entry_index / laenge;
+        if zyklus == 0 {
+            return base;
+        }
+        let gekuerzt = i64::from(base) - i64::from(esc.cast_time_shrink_ms) * zyklus as i64;
+        if gekuerzt < i64::from(esc.min_cast_time_ms) {
+            esc.min_cast_time_ms
+        } else {
+            Millis::try_from(gekuerzt).unwrap_or(esc.min_cast_time_ms)
+        }
+    }
+
+    /// Die kippende Reaktion heben (Baustein 6, Issue #240).
+    ///
+    /// **Die einzige Stelle, die sie hebt.** Schutz und Heilung rufen sie mit
+    /// ihrem eigenen Betrag; wer eine dritte Quelle anlegt, ruft hier ebenfalls
+    /// und muss sich nicht um die Obergrenze kuemmern.
+    ///
+    /// Ueber `max_value` hinaus wird nicht gehoben: Sonst liesse sich in
+    /// ruhigen Minuten ein Vorrat anlegen, und die Mechanik waere in der Phase,
+    /// in der sie zaehlt, schon gewonnen.
+    fn stabilise(&mut self, amount: u32) {
+        let Some(stab) = self.boss.stabilise else {
+            return;
+        };
+        if self.reaction_failed || amount == 0 {
+            return;
+        }
+        self.reaction = self.reaction.saturating_add(amount).min(stab.max_value);
+        self.stabilised_count += 1;
+    }
+
+    /// Die Schwaechung entfernen (Baustein 8, Issue #240).
+    ///
+    /// **Heilung steht bewusst nicht in `cleared_by`** — das ist der ganze
+    /// Baustein. Wer sie eintraegt, hat ihn in eine gewoehnliche Schwaechung
+    /// zurueckverwandelt.
+    fn clear_affliction(&mut self, spell_id: &str) {
+        let Some(aff) = self.boss.affliction else {
+            return;
+        };
+        if !self.afflicted || !aff.cleared_by.contains(&spell_id) {
+            return;
+        }
+        self.afflicted = false;
+        self.afflictions_cleared += 1;
+    }
+
+    /// Die kippende Reaktion sinkt um einen Schritt (Baustein 6, Issue #240).
+    ///
+    /// Sie sinkt **unabhaengig vom Schaden des Spielers**, wie die
+    /// Energieleiste. Was sie hebt, sind Schutz und Heilung; wer nur Schaden
+    /// macht, verliert sie — das ist das "statt" aus 11.2.
+    ///
+    /// Das Kippen geht wie beim toedlichen Zaehler an WARD und Schutzschicht
+    /// vorbei: Eine Reaktion, die eine Schutzschicht ueberlebt, waere keine.
+    fn reaction_drop(&mut self) {
+        let Some(stab) = self.boss.stabilise else {
+            return;
+        };
+        if self.reaction_failed {
+            return;
+        }
+
+        // **In i64 gerechnet, nicht in u32.** Das Spiel laesst den Wert im
+        // Zwischenschritt unter die Schwelle fallen und erkennt daran das
+        // Kippen. Ein `saturating_sub` bliebe bei 0 stehen — die Bedingung
+        // `neu < fail_below` waere bei fail_below = 0 dann NIE erfuellt, und
+        // die Reaktion kippte im Simulator ueberhaupt nicht. Der Datensatz von
+        // #240 hat genau diese Schwelle.
+        let neu = i64::from(self.reaction) - i64::from(stab.drop_amount);
+        if neu < i64::from(stab.fail_below) {
+            self.reaction = stab.fail_below;
+            self.reaction_failed = true;
+            self.player_hp = 0;
+            self.died_at = Some(self.time);
+            return;
+        }
+        self.reaction = u32::try_from(neu).unwrap_or(stab.fail_below);
+
+        let next = self.time + stab.drop_per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::ReactionDrop);
+        }
+    }
+
+    /// Die Schwaechung greift oder tickt (Baustein 8, Issue #240).
+    ///
+    /// Beides in einem Ereignis, weil beides an derselben Uhr haengt: Der
+    /// erste Aufruf legt sie auf, jeder weitere macht Schaden. Sie geht durch
+    /// `hit_player` — WARD und Schutzschicht mindern ihn also. Was sie NICHT
+    /// entfernt, ist Heilung, und darin liegt der ganze Baustein.
+    fn affliction_tick(&mut self) {
+        let Some(aff) = self.boss.affliction else {
+            return;
+        };
+
+        if !self.afflicted {
+            // **Genau einmal.** Ist sie schon einmal entfernt worden, kommt sie
+            // nicht wieder — sonst waere das Entfernen eine Verzoegerung und
+            // keine Loesung.
+            if self.afflictions_cleared > 0 {
+                return;
+            }
+            self.afflicted = true;
+        } else {
+            self.hit_player(aff.damage);
+        }
+
+        let next = self.time + aff.per_step_ms;
+        if next < self.duration_ms {
+            self.queue.push(next, EventKind::AfflictionTick);
         }
     }
 
@@ -1934,6 +2170,13 @@ impl Fight {
         // Vorrat, Abklingzeit und Wartezeit stehen.
         self.log.push(now, LogKind::Cast, index as u8, 0);
         self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
+
+        // **Die Schwaechung ohne Heil-Loesung** (Baustein 8, Issue #240).
+        // Steht dieser Zauber in `cleared_by`, ist sie weg — und Heilung steht
+        // dort bewusst NICHT, das ist der ganze Baustein.
+        //
+        // An derselben Stelle wie im Spiel: nach dem Ereignis, als letztes.
+        self.clear_affliction(spell.id);
     }
 
     /// Traegt Schaden ein und gibt den Betrag zurueck.
@@ -2263,6 +2506,30 @@ impl Fight {
         h = mix_int(h, self.race_progress as i32);
         h = mix_int(h, self.damage_lost_to_race as i32);
         h = mix_int(h, self.boss_healed as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #240, die letzten drei
+        // Bausteine) — dieselbe Folge wie in `src/core/checksum.ts`.
+        //
+        // Baustein 6: Ohne den Stand der Reaktion waere die Pruefsumme fuer
+        // einen Boss mit umgekehrtem Ziel blind. Zwei Laeufe kurz vor und weit
+        // vor dem Kippen saehen gleich aus, solange der Schaden uebereinstimmt
+        // — und er stimmt ueberein, denn das Halten kostet Schaden, statt ihn
+        // zu erzeugen.
+        h = mix_int(h, self.reaction as i32);
+        h = mix_int(h, self.stabilised_count as i32);
+        // Baustein 7: Die Eskalation wirkt ausschliesslich auf diesen
+        // Zeitpunkt. Ohne ihn fiele eine falsch gerechnete Verkuerzung erst
+        // auf, wenn der Treffer faellt — Takte spaeter, an einer Stelle, die
+        // nicht mehr auf die Ursache zeigt. Denselben Wert verschiebt die
+        // Fixierung (#100), fuer die er bisher ebenfalls fehlte.
+        //
+        // **Nur solange einer laeuft**, siehe `src/core/checksum.ts`: Ohne
+        // laufenden Zauber traegt das Feld dort -1 und hier 0.
+        h = mix_int(h, self.casting.map_or(-1, |_| self.cast_lands_at as i32));
+        // Baustein 8: Ob die Schwaechung liegt, entscheidet ueber jeden
+        // weiteren Takt. Der Zaehler traegt den Unterschied zwischen "nie
+        // gelegen" und "gelegen und entfernt".
+        h = mix_int(h, i32::from(self.afflicted));
+        h = mix_int(h, self.afflictions_cleared as i32);
         h
     }
 

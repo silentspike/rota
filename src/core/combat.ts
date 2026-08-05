@@ -281,7 +281,7 @@ export class Combat {
   private castingValue = -1;
 
   /** Kampfzeit, zu der der laufende Boss-Zauber trifft. */
-  private castLandsAtMs = -1;
+  private castLandsAtMsValue = -1;
 
   /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
   private playerHpValue: number;
@@ -455,6 +455,16 @@ export class Combat {
     // nicht, und ein Startwert von 0 ließe beide schon im Takt 0 steigen.
     this.nextDoomAtMs = options.boss.doom?.perStepMs ?? 0;
     this.nextStackAtMs = options.boss.stacks?.perStepMs ?? 0;
+    // Und dieselbe Begründung ein drittes Mal, für die kippende Reaktion
+    // (Issue #240). Sie wiegt hier schwerer als bei den Uhren darüber: Ohne
+    // Startwert stünde sie im Takt 0 auf 0, fiele im ersten Schritt darunter
+    // und der Lauf wäre **sofort vorbei** — im Replay, nicht im Spiel, wo
+    // `beginFight` sie setzt. Der Simulator setzt sie im Konstruktor aus den
+    // Boss-Daten; stünde sie hier nur in `beginFight`, liefen beide Seiten im
+    // ersten Takt auseinander. Gemessen: Die erste Vergleichsdatei hatte
+    // `reactionFailed: true` und eine Reihe aus lauter Nullen.
+    this.reactionValue = options.boss.stabilise?.startValue ?? 0;
+    this.nextReactionDropAtMs = options.boss.stabilise?.dropPerStepMs ?? 0;
     this.doomChargesValue = options.boss.doom?.clearCharges ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
@@ -698,6 +708,23 @@ export class Combat {
     return this.castingValue;
   }
 
+  /**
+   * Wann der laufende Boss-Zauber trifft — Kampfzeit seit Beginn.
+   *
+   * **Nicht für die Anzeige, sondern für die Prüfsumme** (GAME-DESIGN 19.1).
+   * Ohne diesen Zugriff wäre sie für zwei Dinge blind, die beide genau hier
+   * wirken: die Eskalation, die das Fenster mit jedem Zyklus verkürzt
+   * (Baustein 7), und die Fixierung, die es verlängert. Bei beiden bliebe der
+   * Unterschied verborgen, bis der Treffer fällt — und dann sagt die Prüfsumme
+   * nicht mehr, in welchem Takt gerechnet wurde, sondern nur noch, dass am Ende
+   * etwas nicht stimmt.
+   *
+   * Der Wert ist bedeutungslos, solange `casting` auf -1 steht.
+   */
+  get castLandsAtMs(): number {
+    return this.castLandsAtMsValue;
+  }
+
   /** Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3). */
   get playerDead(): boolean {
     return this.diedAtMsValue >= 0;
@@ -806,7 +833,7 @@ export class Combat {
     if (control.effect === 'slowCast') {
       // Der laufende Boss-Zauber trifft später; das Unterbrechen-Fenster wird
       // größer.
-      if (this.castingValue >= 0) this.castLandsAtMs += control.amount;
+      if (this.castingValue >= 0) this.castLandsAtMsValue += control.amount;
     } else if (control.effect === 'delayStrike') {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
@@ -1045,7 +1072,7 @@ export class Combat {
   private interruptBossCast(timeMs: number): boolean {
     if (this.castingValue < 0) return false;
     this.castingValue = -1;
-    this.castLandsAtMs = -1;
+    this.castLandsAtMsValue = -1;
     this.interruptsLandedValue++;
     // **Das Spiel schreibt es jetzt selbst** (Issue #151). Bis dahin führte es
     // nur der Simulator — und die Fehleranalyse läuft im Browser, nicht im
@@ -1472,12 +1499,12 @@ export class Combat {
     // Eintrag im selben Takt in derselben Reihenfolge geschehen wie im
     // Simulator — dort steht `BossCastLands` vor `TimelineStep` in der
     // Rangfolge der Ereignisse.
-    if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMs) {
+    if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMsValue) {
       // Über `timelineAt`, nicht über den Platz in der Liste: Bei wiederholter
       // Zeitleiste liegt der Zähler darüber (#174).
       const laufend = this.timelineEntryAt(this.castingValue);
       this.castingValue = -1;
-      this.castLandsAtMs = -1;
+      this.castLandsAtMsValue = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
       // **Ein Fehler macht Fortschritt rueckgaengig** (11.2, Baustein 5;
@@ -1512,7 +1539,7 @@ export class Combat {
         // Mit jedem Zyklus schrumpft das Fenster zum Unterbrechen. Die
         // Verkuerzung steht in den DATEN — sonst waere sie eine Regel des
         // Spiels statt eine Eigenschaft dieses Bosses.
-        this.castLandsAtMs = faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index);
+        this.castLandsAtMsValue = faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index);
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);

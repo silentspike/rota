@@ -61,7 +61,7 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { combatChecksum } from '../../src/core/checksum.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { bossById, CALCINATION } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
 const QUELLE = import.meta.glob('/src/core/checksum.ts', {
@@ -84,7 +84,7 @@ function abgegriffeneFelder(quelle: string): string[] {
   return [...new Set([...rumpf.matchAll(/\bcombat\.([A-Za-z_]\w*)/g)].map((t) => t[1] as string))];
 }
 
-const MESSZEIT_MS = 12000;
+const MESSZEIT_MS = 8000;
 
 /**
  * Ein Kampf mit Zustand — damit gestört wird, was auch wirklich Werte trägt.
@@ -97,9 +97,18 @@ const MESSZEIT_MS = 12000;
  *
  * SMOULDER und CRUST nur einmal, damit auch der Brand-Tick und die Schutzschicht
  * Werte tragen; den Rest füllt KINDLE.
+ *
+ * **Der Prüf-Boss aus #240, und der Zeitpunkt ist gewählt, nicht geraten.** Bei
+ * 8000 ms läuft ein Boss-Zauber (6000 bis 9000), die Schwächung liegt, und die
+ * Reaktion ist einmal gehoben worden. Am Ersten Schmelztiegel lief zu keinem
+ * Zeitpunkt ein Zauber — und weil `castLandsAtMs` ohne laufenden Zauber auf
+ * einem festen Wert steht, war die Prüfsumme dort für ihn nicht messbar. Der
+ * Wächter hat das gemeldet, statt es zu übergehen.
  */
 function gelaufen(): Combat {
-  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const boss = bossById('test-crucible-trial');
+  if (boss === undefined) throw new Error('data/bosses/test-crucible-trial.json fehlt');
+  const combat = new Combat({ school: CALCINATION.value, boss });
   const kindle = combat.indexOf('kindle');
   const smoulder = combat.indexOf('smoulder');
   const crust = combat.indexOf('crust');
@@ -200,11 +209,12 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
   });
 
   it('verliert kein Feld, ohne dass es jemand merkt', () => {
-    // **Die Untergrenze.** Gemessen am 2026-08-05: 31 Größen. Sie darf steigen —
-    // jedes neue Feld ist eine gute Nachricht. Fällt sie, hat jemand eine Zeile
-    // aus `checksum.ts` verloren, und die aus dem Quelltext gelesene Liste
-    // hätte das allein nicht gemeldet: Das Feld wäre einfach nicht mehr dabei.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(31);
+    // **Die Untergrenze.** Gemessen am 2026-08-05: 36 Größen — 31 vor #240 und
+    // die fünf der letzten drei Bausteine. Sie darf steigen, jedes neue Feld
+    // ist eine gute Nachricht. Fällt sie, hat jemand eine Zeile aus
+    // `checksum.ts` verloren, und die aus dem Quelltext gelesene Liste hätte
+    // das allein nicht gemeldet: Das Feld wäre einfach nicht mehr dabei.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(36);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {
@@ -216,6 +226,12 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     expect(combat.dotTickCount(combat.indexOf('smoulder'))).toBeGreaterThan(0);
     expect(combat.shield).toBeGreaterThan(0);
     expect(combat.resource).toBeGreaterThan(0);
+    // Und die drei Bausteine aus #240, jeder mit einem Wert, der sich von
+    // seinem Ruhestand unterscheidet:
+    expect(combat.casting, 'ein Boss-Zauber laeuft').toBeGreaterThanOrEqual(0);
+    expect(combat.castLandsAtMs).toBeGreaterThan(0);
+    expect(combat.stabilisedCount).toBeGreaterThan(0);
+    expect(combat.afflicted).toBe(true);
   });
 
   // **Jedes Feld einzeln.** „Die Prüfsumme ändert sich" wäre schon erfüllt,
