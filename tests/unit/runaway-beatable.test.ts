@@ -25,29 +25,10 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
+import { spellIndex } from '../helpers/spell-index.js';
 import { COUNTDOWN_MS, PHASE_ENDED } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
-
-/**
- * Die Zauber werden über ihre KENNUNG gesucht, nicht über einen Index.
- *
- * **Das ist die Lehre aus dem Bau dieses Issues.** Der erste Läufer schrieb
- * die Reihenfolge aus einer Browser-Ausgabe ab und benutzte 4 für `crust` —
- * das ist `searing`, ein Schadenszauber, und Schaden zählt bei einem
- * `runaway`-Boss gegen den Spieler. Gemessen wurde also, dass ein
- * Schadenszauber nicht stabilisiert; berichtet wurde „crust stabilisiert
- * nicht".
- *
- * Zwei Zauber waren am selben Tag auf Position 3 und 4 dazugekommen (#268).
- * Eine abgeschriebene Reihenfolge hält so etwas nicht aus; eine Suche schon.
- */
-function spellIndex(combat: Combat, id: string): number {
-  const index = combat.spells.findIndex((spell) => spell.id === id);
-  if (index < 0)
-    throw new Error(`Zauber "${id}" gibt es nicht — die Pruefung wuerde nichts messen`);
-  return index;
-}
 
 interface Lauf {
   readonly victory: boolean;
@@ -67,7 +48,7 @@ function spiele(ids: readonly string[], everyMs: number): Lauf {
   const combat = new Combat({ school: CALCINATION.value, boss });
   const session = new Session(queue, combat);
   ids.forEach((id, slot) => {
-    session.bind(slot, spellIndex(combat, id));
+    session.bind(slot, spellIndex(id, combat));
   });
   session.beginCountdown(0);
 
