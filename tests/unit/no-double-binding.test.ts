@@ -19,6 +19,18 @@ import { bindProblem, bindSpell, sanitize, type Bindings } from '../../src/progr
  * Spielstände, die unter der alten Regel entstanden sind — für die braucht es
  * die Bereinigung beim Laden. Ein Nachweis, der nur die Auswahl prüft, lässt
  * sie durch.
+ *
+ * # Die Festlegung: der KLEINERE Platz behält den Zauber
+ *
+ * Sie steht hier und nicht nur im Code, weil sie **willkürlich** ist — es gäbe
+ * keinen Grund, warum nicht der größere gewinnen sollte. Genau deshalb muss sie
+ * stabil sein: Bereinigte derselbe Spielstand zweimal verschieden, hinge die
+ * Leiste des Spielers daran, in welcher Reihenfolge die Plätze aus dem
+ * Speicher kommen.
+ *
+ * Willkürlich heißt nicht beliebig änderbar. Wer sie umdreht, ändert
+ * bestehende Spielstände — das ist eine Design-Entscheidung, keine
+ * Aufräumarbeit.
  */
 
 const SPELLS = CALCINATION.value.spells;
