@@ -116,6 +116,20 @@ export interface StateSnapshot {
   readonly castsInterrupted: number;
   /** Wie oft ein eigener Druck eine Wirkzeit abgebrochen hat. */
   readonly castsCancelled: number;
+  /**
+   * Der laufende Zauber des BOSSES, oder `null` (Issue #327).
+   *
+   * Aus demselben Grund wie `playerCasting`: Ein Nachweis, der zwei
+   * Werkzeug-Aufrufe braucht, misst einen Kampf, der zwischen ihnen
+   * weitergelaufen ist. Der Zauber von `test-crucible-trial` dauert drei
+   * Sekunden — zwischen zwei `playwright-cli`-Aufrufen lagen am 2026-08-05
+   * gemessen bis zu siebzehn.
+   */
+  readonly bossCasting: string | null;
+  /** Restzeit des laufenden Boss-Zaubers in ms, sonst 0. */
+  readonly bossCastRemainingMs: number;
+  /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat. */
+  readonly interruptsLanded: number;
   /** Phase des Kampfablaufs (GAME-DESIGN 10). */
   readonly phase: string;
   readonly outcome: string;
@@ -565,6 +579,12 @@ export function installDevTools(app: App): void {
           : 0,
       castsInterrupted: app.combat.castsInterrupted,
       castsCancelled: app.combat.castsCancelled,
+      bossCasting: app.combat.castingName,
+      bossCastRemainingMs:
+        app.combat.casting >= 0
+          ? Math.max(0, app.combat.castLandsAtMs - app.session.fightElapsedMs(app.loop.timeMs))
+          : 0,
+      interruptsLanded: app.combat.interruptsLanded,
       phase: PHASE_NAMES[app.session.phase] ?? '?',
       outcome: OUTCOME_NAMES[app.session.outcome] ?? '?',
       countdownRemainingMs: app.session.countdownRemainingMs(app.loop.timeMs),
