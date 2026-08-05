@@ -1332,6 +1332,42 @@ andere: Bei einer Zahl hilft die Frage _aus welchem Lauf stammt sie_; bei einem 
 
 > Wer später den Widerspruch findet, weiß nicht, welche Seite alt ist — das Bild oder der Code.
 
+### „Unverändert" schützt nur, wenn der Ausgangswert richtig ist
+
+Ein Gegenfall der Form _„im Ausgangszustand darf sich nichts ändern"_ ist die häufigste Absicherung
+gegen eine Umstellung — und er hat eine Lücke, die man erst sieht, wenn man hineinläuft.
+
+Gefunden in #289, an einem Kriterium des Orchestrators. Es lautete:
+
+> AC4: Auf **Stufe 1** ist jeder Wert exakt der Grundwert aus `base.json` — kein Rundungsrest, kein
+> Versatz.
+
+Gemeint war ein Schutz für den Referenzlauf. Worker-3 hat vor dem Bau gemessen, was die geplante
+Umstellung dort tatsächlich täte:
+
+```
+PLAYER.wardReduction = 0.2          ein ANTEIL, kein Punktwert
+statAtLevel rechnet ganzzahlig:     trunc(base × promille / 1000)
+
+  Stufe   1:  trunc(0.2 × 1000 / 1000)  =  0
+```
+
+Auf Stufe 1 wäre das Ergebnis **null** — der Spieler verlöre seine Schadensreduktion vollständig. Und
+AC4 hätte es nicht gefangen:
+
+> Auf Stufe 1 ist das Ergebnis 0 und damit „unverändert falsch", nicht „korrekt neutral".
+
+**Null ist ein plausibler Wert, kein Ausreißer.** Der Gegenfall vergleicht gegen einen Zustand, den er
+selbst nicht prüft — und wenn die Änderung schon dort danebenliegt, meldet er Übereinstimmung.
+
+> **Die Prüffrage:** Prüft mein Gegenfall, dass sich nichts ändert — oder dass der Wert **richtig**
+> ist? Das erste ist eine Aussage über zwei Zustände, das zweite über einen. Bei einer Umstellung,
+> die den Ausgangswert mitberechnet, braucht es beides.
+
+Der Weg heraus ist nicht ein zweiter Gegenfall, sondern eine schärfere Zusicherung: nicht „gleich wie
+vorher", sondern „gleich wie **dieser genannte Wert**". Eine Zahl, die im Prüffall steht, kann nicht
+stillschweigend mitwandern.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
