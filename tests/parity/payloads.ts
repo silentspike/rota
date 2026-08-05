@@ -1444,7 +1444,7 @@ export function coagulationPayload(): Record<string, unknown> {
 function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
-  const defence = weg === 'none' ? -1 : combat.indexOf(weg);
+  const defence = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
   const ticks = 3000; // 30 s
 
   const checksums: number[] = [];
@@ -1468,8 +1468,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
 
     // Der Verteidigungszauber hat Vorrang, wenn er bereit ist — sonst käme er
     // nie zum Zug, weil KINDLE jeden GCD belegt.
-    if (defence >= 0 && combat.isReady(alsSpellIndex(defence), timeMs)) {
-      if (combat.cast(alsSpellIndex(defence), timeMs).result === 0) presses.push({ tick, slot: 1 });
+    if (defence >= 0 && combat.isReady(defence, timeMs)) {
+      if (combat.cast(defence, timeMs).result === 0) presses.push({ tick, slot: 1 });
     } else if (combat.isReady(kindle, timeMs)) {
       if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
     }
@@ -1501,7 +1501,7 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
       shieldAbsorbed: combat.shieldAbsorbed,
       healed: combat.healed,
       converted: combat.converted,
-      castsDefence: defence >= 0 ? combat.castCount(alsSpellIndex(defence)) : 0,
+      castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
     },
