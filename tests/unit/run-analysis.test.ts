@@ -78,6 +78,7 @@ function play(loadout: readonly number[], everyMs: number): Run {
     // erfunden — die Luecke steht danach in `losses.unavailable`.
     missedInterrupts: null,
     damagePerLandedBossCast: 0,
+    bossHealed: 0,
   });
   return { summary, analysis, combat };
 }
@@ -200,6 +201,7 @@ describe('Zwei Haelften, eine Rundung', () => {
       synergyBonusDamage: 0,
       missedInterrupts: null,
       damagePerLandedBossCast: 0,
+      bossHealed: 0,
     });
   }
 
