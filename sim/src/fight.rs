@@ -81,6 +81,7 @@ use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
 use crate::stacks::{PendingGain, StackMechanic};
 use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
+use crate::buffs::Buffs;
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
 
 /// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
@@ -524,6 +525,8 @@ pub struct Fight {
     resource: u16,
     dot_expires_at: [Option<Millis>; SPELL_COUNT],
     dot_generation: [u16; SPELL_COUNT],
+    /// Die laufenden Verstaerkungen (GAME-DESIGN 5, Issue #420).
+    buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -705,6 +708,7 @@ impl Fight {
             damage_taken: 0,
             shield: 0,
             shield_expires_at: None,
+            buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -947,6 +951,7 @@ impl Fight {
             self.expire_coagulation();
             self.expire_fixation();
             self.expire_putrefaction();
+            self.expire_buffs();
             self.advance_race(now);
             self.check_phase();
 
@@ -1039,6 +1044,7 @@ impl Fight {
             self.expire_coagulation();
             self.expire_fixation();
             self.expire_putrefaction();
+            self.expire_buffs();
             self.advance_race(now);
             self.check_phase();
 
@@ -1246,6 +1252,13 @@ impl Fight {
         self.afflictions_cleared = 0;
         self.timeline_index = 0;
         self.casting = None;
+        // **Und der Faktor dazu**, nicht nur der Zustand: `reset` leert die
+        // Liste, die Rechnung stuende ohne die zweite Zeile weiter auf dem
+        // letzten Wert. Genau dieser Fehler ist beim Synergie-Fenster passiert
+        // (#318) — dort blieb nach einem Leistenwechsel "1 of 1" stehen, weil
+        // der Zustand geraeumt wurde und die Rechnung nicht.
+        self.buffs.reset();
+        self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
         // `record_fields`, das die Pruefsumme mit ihren Namen aufzeichnet:
@@ -1782,6 +1795,20 @@ impl Fight {
     }
 
     /// Laesst abgelaufene Stapel verfallen — **den aeltesten zuerst**.
+    /// Abgelaufene Verstaerkungen wegraeumen und den Faktor nachziehen (#420).
+    ///
+    /// **Die zweite Zeile ist der ganze Punkt.** `Buffs::expire` raeumt nur den
+    /// eigenen Zustand; ohne das Nachziehen bliebe `factors.buffs` auf dem
+    /// alten Wert stehen, und eine abgelaufene Verstaerkung wirkte fuer den
+    /// Rest des Kampfes weiter.
+    fn expire_buffs(&mut self) {
+        let now = self.time;
+        if self.buffs.expire(now) == 0 {
+            return;
+        }
+        self.factors.buffs = self.buffs.factor(now);
+    }
+
     fn expire_putrefaction(&mut self) {
         let mut verfallen = 0;
         while verfallen < self.decay_count && self.decay_expiry[verfallen] <= self.time {
@@ -2512,6 +2539,11 @@ impl Fight {
         // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
         self.factors.resistance = self.resistance_by_spell[index];
         let factors = self.factors_for(kritet);
+        // **`factors` ist hier bereits kopiert.** Die Verstaerkung unten
+        // aendert `self.factors.buffs`, aber nicht mehr diese Kopie — genau so
+        // soll es sein: Ein Zauber verstaerkt die FOLGENDEN, nicht sich selbst.
+        // Im Spiel ergibt sich dasselbe daraus, dass der Buff nach dem Schaden
+        // angelegt wird (`Combat.resolvePlayerCast`).
 
         if spell.base_damage > 0 {
             cast_damage += self.deal(
@@ -2548,6 +2580,21 @@ impl Fight {
         // ist, den es schon gegeben hat.
         if kritet && cast_damage > 0 {
             self.emit_rule(RuleEvent::Crit, index as i16, f64::from(cast_damage));
+        }
+
+        // Die Verstaerkung, nach dem Schaden und vor dem Brand-Effekt — dieselbe
+        // Stelle wie im Spiel (Issue #420).
+        if let Some(buff) = spell.buff {
+            // **`self.hasted(GCD_MS)`, nicht `hasted(gcds * GCD_MS)`.** Die
+            // beiden sind bei ganzzahliger Rechnung NICHT dasselbe: `hasted`
+            // teilt und rastet auf, und drei aufgerundete Wartezeiten koennen
+            // laenger sein als eine aufgerundete Dreifach-Wartezeit. Das Spiel
+            // rechnet `gcds * hasted(GCD_MS)` (`Combat.resolvePlayerCast`), und
+            // eine andere Klammerung hier waere ein Gleichlauf-Bruch, den erst
+            // ein Lauf mit Tempo zeigt.
+            self.buffs
+                .apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, self.hasted(GCD_MS));
+            self.factors.buffs = self.buffs.factor(now);
         }
 
         if let Some(dot) = spell.dot {
