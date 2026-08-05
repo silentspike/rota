@@ -25,6 +25,7 @@ import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { previewOfLoadout } from '../../src/progression/composition-view.js';
 import type { Bindings } from '../../src/progression/bindings.js';
+import { feedsMechanic, mechanicsOfLoadout } from '../../src/combat/schools/indicators.js';
 
 const SPELLS = CALCINATION.value.spells;
 
@@ -194,5 +195,63 @@ describe('AC4 — die Zahlen stimmen mit dem Kampf ueberein', () => {
     expect(zaehlerImKampf('kindle', 'heat')).not.toBe(zaehlerImKampf('pyre', 'heat'));
     expect(zaehlerImKampf('bind', 'control')).not.toBe(zaehlerImKampf('stall', 'control'));
     expect(zaehlerImKampf('canker', 'decay')).not.toBe(zaehlerImKampf('fester', 'decay'));
+  });
+});
+
+describe('AC2 (#287) — gezählt werden Quellen, nicht Plätze', () => {
+  it('zählt einen Zauber auf zwei Plätzen EINMAL', () => {
+    // Zwei Plätze mit BIND sind eine Quelle auf zwei Knöpfen — keine zweite.
+    expect(vorschau({ '0': 'bind' })).toEqual(['Control · 1 feeding']);
+    expect(vorschau({ '0': 'bind', '1': 'bind' })).toEqual(['Control · 1 feeding']);
+    expect(vorschau({ '0': 'bind', '1': 'bind', '2': 'bind' })).toEqual(['Control · 1 feeding']);
+  });
+
+  it('ZÄHLT ZWEI VERSCHIEDENE WEITERHIN ALS ZWEI — die andere Richtung', () => {
+    // **Der Gegenfall, und ohne ihn wäre die Reparatur die Hälfte wert.** Wer
+    // über die MECHANIK entdoppelt statt über die Kennung, macht aus
+    // KINDLE + SMOULDER eine Eins — dann ist die Aussage aus GAME-DESIGN 16
+    // wieder falsch, nur andersherum.
+    expect(vorschau({ '0': 'kindle', '1': 'smoulder' })).toEqual(['Heat · 2 feeding']);
+  });
+
+  it('UNTERSCHEIDET die zwei Zusammenstellungen, um die es geht', () => {
+    // Der Fall, aus dem #287 entstand: Vorher lieferten beide dieselbe Zeile,
+    // und genau ihr Unterschied ist die Frage aus 16.
+    const zweimalDerselbe = vorschau({ '0': 'kindle', '1': 'kindle' });
+    const zweiVerschiedene = vorschau({ '0': 'kindle', '1': 'smoulder' });
+    expect(zweimalDerselbe).toEqual(['Heat · 1 feeding']);
+    expect(zweiVerschiedene).toEqual(['Heat · 2 feeding']);
+    expect(zweimalDerselbe, 'sie müssen unterscheidbar sein').not.toEqual(zweiVerschiedene);
+  });
+
+  it('gilt auch für die Verbraucher', () => {
+    // `spending` zählt über dieselbe Liste. Zweimal PYRE ist ein Entlader.
+    expect(vorschau({ '0': 'kindle', '1': 'pyre', '2': 'pyre' })).toEqual([
+      'Heat · 1 feeding · 1 spending',
+    ]);
+  });
+
+  it('LIEFERT DIESELBE ZAHL WIE DIE KAMPF-AUSWAHL', () => {
+    // **Zwei Zählungen, eine Frage.** Die Vorschau steht in
+    // `composition-view.ts`, die Kampf-Anzeige in `indicators.ts` — beide
+    // beantworten „wie viele Zauber zahlen ein". Liefen sie auseinander,
+    // zeigte das Spiel zwei verschiedene Wahrheiten, je nachdem wo man
+    // hinsieht.
+    const bindings = { '0': 'kindle', '1': 'kindle', '2': 'smoulder' };
+    const ausDerVorschau = vorschau(bindings);
+    const ausDerAuswahl = mechanicsOfLoadout({
+      slotCount: 12,
+      spellOnSlot: (slot) => {
+        const id = bindings[String(slot) as keyof typeof bindings];
+        return id === undefined ? -1 : SPELLS.findIndex((s) => s.id === id);
+      },
+      feedsMechanic: (spellIndex, mechanicId) => {
+        const spell = SPELLS[spellIndex];
+        return spell !== undefined && feedsMechanic(spell, mechanicId);
+      },
+    }).find((m) => m.id === 'heat');
+
+    expect(ausDerVorschau).toEqual(['Heat · 2 feeding']);
+    expect(ausDerAuswahl?.contributors, 'beide Zählungen müssen übereinstimmen').toBe(2);
   });
 });

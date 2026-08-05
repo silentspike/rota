@@ -146,10 +146,24 @@ export function previewOfLoadout(
   slotCount: number,
   spells: readonly SpellDef[],
 ): MechanicPreview[] {
+  // **JEDER ZAUBER EINMAL, auch wenn er auf zwei Plätzen liegt** (Issue #287).
+  // Zwei Plätze mit BIND sind eine Quelle auf zwei Knöpfen — keine zweite.
+  // Vorher stand hier eine Liste über die Plätze, und damit waren zwei
+  // Zusammenstellungen nicht mehr zu unterscheiden:
+  //
+  //   KINDLE zweimal        Heat · 2 feeding
+  //   KINDLE + SMOULDER     Heat · 2 feeding
+  //
+  // Dieselbe Entdoppelung steht in `mechanicsOfLoadout` — die Zählung dort
+  // treibt die Kampf-Anzeige, diese hier die Vorschau. Beide beantworten
+  // dieselbe Frage aus GAME-DESIGN 16 und müssen deshalb dieselbe Zahl
+  // liefern; ein Prüffall vergleicht sie miteinander.
+  const schonGesehen = new Set<string>();
   const belegt: SpellDef[] = [];
   for (let slot = 0; slot < slotCount; slot++) {
     const id = spellAtSlot(bindings, slot);
-    if (id === null) continue;
+    if (id === null || schonGesehen.has(id)) continue;
+    schonGesehen.add(id);
     const spell = spells.find((s) => s.id === id);
     if (spell !== undefined) belegt.push(spell);
   }
