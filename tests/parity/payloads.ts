@@ -1567,6 +1567,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
   const bind = combat.indexOf('bind');
   const stay = combat.indexOf('stay');
   const anchor = combat.indexOf('anchor');
+  const stall = combat.indexOf('stall');
   const ticks = 3000; // 30 s
 
   const checksums: number[] = [];
@@ -1599,6 +1600,11 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
       }
     } else if (mitAusgabe && combat.isReady(anchor, timeMs) && combat.control >= 6) {
       if (combat.cast(anchor, timeMs).result === 0) presses.push({ tick, slot: 2 });
+    } else if (mitAusgabe && combat.isReady(stall, timeMs) && combat.control >= 10) {
+      // **STALL vor BIND**, wenn Punkte da sind: Er kostet 4 und verlangsamt
+      // einen Boss-Zauber. Steht er hinter dem Aufbauer, kommt er nie zum Zug —
+      // BIND ist oefter bereit und verbraucht jede Gelegenheit.
+      if (combat.cast(stall, timeMs).result === 0) presses.push({ tick, slot: 3 });
     } else if (combat.isReady(bind, timeMs)) {
       if (combat.cast(bind, timeMs).result === 0) presses.push({ tick, slot: 0 });
     }
@@ -1618,6 +1624,15 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
       { slot: 0, spellId: 'bind' },
       { slot: 1, spellId: 'stay' },
       { slot: 2, spellId: 'anchor' },
+      // **Der vierte Kontroll-Zauber** (Issue #340). Er fehlte hier, und damit
+      // war STALL der einzige ausgelieferte Zauber, den KEIN Paritäts-Weg je
+      // wirkte — seine Bitgleichheit galt als angenommen, nicht als geprüft.
+      //
+      // Er gehört in diese Aufzeichnung und nicht in eine eigene: Sie deckt
+      // die FIXATION ab, und `slowCast` berührt `castLandsAt`, das sie ohnehin
+      // je Takt mitschreibt. Damit ist nicht nur der Druck aufgezeichnet,
+      // sondern seine Wirkung.
+      { slot: 3, spellId: 'stall' },
     ],
     presses,
     expected: {
