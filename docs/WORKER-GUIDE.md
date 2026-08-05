@@ -2436,16 +2436,22 @@ expect(a.checksum).not.toBe(b.checksum); // das Feld heißt finalChecksum
 Beide Seiten waren `undefined`. Mit `not.toBe` wurde der Fall **rot** — und der Tippfehler fiel
 auf. Mit `toBe` wäre er grün geworden und hätte **zwei Nichtse verglichen**.
 
-| Behauptung              | bei falschem Feldnamen |
-| ----------------------- | ---------------------- |
-| `expect(x).toBe(y)`     | **immer grün**         |
-| `expect(x).not.toBe(y)` | **immer rot**          |
+| Behauptung                  | bei falschem Feldnamen |
+| --------------------------- | ---------------------- |
+| `expect(a.x).toBe(b.x)`     | **immer grün**         |
+| `expect(a.x).not.toBe(b.x)` | **immer rot**          |
+
+**Die Falle entsteht nur, wenn BEIDE Seiten fehlschlagen können.** Bei `expect(x.feld).toBe(5)`
+fällt ein Tippfehler sofort auf — dort steht auf einer Seite ein Wert, der nicht mitverunglückt.
+Gefährlich wird es beim Vergleich **zweier Ausdrücke**, in denen dasselbe Missgeschick passieren
+kann. Das ist bei Vergleichen zweier Läufe der Normalfall — und genau dort stehen die
+Determinismus-Prüffälle dieses Projekts.
 
 Das ist die präziseste Ursache für „eine Prüfung, die nichts prüft", die dieses Projekt bisher
 gefunden hat. Sie liegt nicht am Prüffall und nicht an einem Muster, sondern an der **Richtung**:
 Eine Gleichheits-Behauptung ist mit `undefined === undefined` bereits erfüllt.
 
-**Daraus folgt nicht „schreibe alles als Ungleichheit".** Es folgt: Wo eine
+**Daraus folgt nicht „nimm `not.toBe`".** Es folgt: Wo eine
 Gleichheits-Behauptung steht, muss eine Zusicherung daneben, dass die Werte überhaupt existieren.
 
 ```ts
@@ -2457,7 +2463,27 @@ expect(a.finalChecksum).toBe(erwartet); // dann das
 > vor jeder Schleifenprüfung) und wie `all()` über eine leere Liste. **Der Vergleich zweier Nichtse
 > ist immer wahr** — hier ist die Variante, bei der schon ein Buchstabe genügt.
 
-### 8.25 Verschweigen ist teurer als Verwerfen
+### 8.25 Im Worktree geht beides: `npm run build -- --base=/rota-eN/`
+
+_Gefunden von Worker-1 am 2026-08-05, nachdem die falsche Annahme darüber einen PR rot gemacht hatte._
+
+Der Doppelstrich reicht den Schalter an `vite` durch **und behält den `tsc`-Schritt**, der im
+Skript davorsteht.
+
+```bash
+npm run build -- --base=/rota-e1/     # Typen UND richtiger Pfad
+vite build --base=/rota-e1/           # richtiger Pfad, KEINE Typprüfung
+npm run build                         # Typen, aber Pfad zeigt auf /rota/
+```
+
+**Es sah nach einem Entweder-Oder aus**, und deshalb griff der Finder zum Werkzeug statt zum
+Skript — `tsc` lief nie, und der PR fiel in der CI.
+
+> Der Rat „fahr `npm run build`" allein hätte ihn **nicht** gerettet: Dann wäre er ohne `--base`
+> gebaut und in die andere Falle gelaufen, die in `CLAUDE.md` steht — richtige Seite, falsches
+> Programm. **Erst beide Hälften zusammen ergeben einen Befehl, den man befolgen kann.**
+
+### 8.26 Verschweigen ist teurer als Verwerfen
 
 _Gefunden von Worker-1 an sich selbst, am 2026-08-05._
 
