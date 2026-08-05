@@ -1033,6 +1033,17 @@ npx vite --version
 Der Unterschied zu allen vorherigen Abschnitten in einem Satz: Dort war der Fall untauglich, hier ist
 er tauglich und wird nur mit dem falschen Werkzeug ausgeführt.
 
+**Und der gemeinsame Nenner aller Abschnitte dieses Kapitels**, formuliert von Worker-3, nachdem ihn
+an einem Tag beide Gestalten getroffen hatten — eine Gegenprobe an einer Stelle, die kein Prüffall
+erreicht, und ein Läufer, der nicht der geforderte war:
+
+> Beide sind derselbe Fehler in verschiedener Gestalt: **Ich habe gemessen und nicht gefragt, woran
+> ich messe.** Bei der Gegenprobe war es die Stelle, beim Läufer das Werkzeug.
+
+In beiden Fällen war die Messung selbst korrekt. Rückgabewert, Zahlen, Ausgabe — alles richtig, und
+alles über etwas anderes als die Frage. Das ist der Grund, warum diese Klasse so schwer auffällt:
+Sie sieht bis zur letzten Stelle aus wie ein Nachweis.
+
 ### Ein Zauber, der auf dem GCD weniger macht als der Füller, wird nie gewirkt
 
 Nicht „selten" — **nie**. Eine Prioritätenliste wählt ihn unter keinen Umständen, solange der Füller
