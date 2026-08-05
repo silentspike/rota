@@ -1048,6 +1048,45 @@ Weg, nur unterschiedlich elegante.
 > **„Es muss möglich sein, nicht nötig."** Wer bei seiner Lieblingsschule bleibt, kommt durch —
 > nur langsamer.
 
+#### Der Widerstand hängt am ZAUBER, nicht am Kampf — präzisiert am 2026-08-05
+
+**Bis heute war die Frage nicht gestellt, weil es nur eine Schule gab.** Seit die Zauber ihre eigene
+Schule tragen (#270) und die Leiste frei aus allen fünf befüllt wird, sind es zwei verschiedene
+Dinge — und die Umsetzung hatte die falsche gewählt:
+
+```
+src/core/combat.ts:621   boss.resistances[options.school.school]   die Schule des KAMPFES
+```
+
+**Gemessen, was das bedeutet** (Worker-3, Balance-Läufer über 150 Listen je Boss):
+
+```
+test-resistant   Widerstand 0,75   gefunden 23340,0   pyre / smoulder / kindle
+test-vulnerable  Widerstand 1,25   gefunden 38900,0   pyre / smoulder / kindle
+
+23340 / 0,75 = 31120        38900 / 1,25 = 31120       DIESELBE Liste
+```
+
+Zwei Bösse, die sich um Faktor 1,67 unterscheiden, und beide Male dieselbe Rotation. **Ein Faktor
+auf allen Spielerschaden kann keine Reihenfolge ändern** — er skaliert das Ergebnis und lässt die
+Wahl unberührt. Das gilt für jede Zahl, die man einsetzt.
+
+**Es gilt die Schule des gewirkten Zaubers.** Das ist die einzige Lesart, unter der die Sätze dieses
+Kapitels etwas bedeuten:
+
+| Stelle                | Was sie voraussetzt                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 11.4, Zeile „Wirkung" | „Wer **trotz Widerstand** CALCINATION spielt, macht weniger Schaden" — setzt voraus, dass jemand mit einer anderen Schule **nicht** weniger macht    |
+| Leitplanke 2          | „Jeder Zauber muss irgendwo die beste Wahl sein" — ein Faktor, der alle gleich trifft, trägt dazu nichts bei                                         |
+| 4.2, freie Mischung   | Die Leiste wird aus allen Schulen befüllt. Ein Widerstand, der die Zusammenstellung nicht berührt, ist keine Vorbereitung, sondern eine Zahl am Ende |
+
+**Schulunabhängige Zauber (`school: null`) trifft kein Widerstand.** QUENCH steht außerhalb der
+Schulen; das ist dieselbe Sonderstellung, die ihm auch die globale Wartezeit erlässt.
+
+> **Was das dem Spieler gibt:** Gegen einen kalzinationsfesten Boss lohnen sich PUTREFACTION und
+> COAGULATION — nicht weil das Spiel es verlangt, sondern weil es sich rechnet. Genau der
+> „freiwillige Zwang", den der Auftraggeber als Grund für die Widerstände genannt hat.
+
 ### 11.5 Ankündigungen — eingebaut statt per Zusatzprogramm
 
 In WoW nutzt praktisch jeder Raid-Spieler DBM oder BigWigs. **Bei ROTA gehört das ins Spiel selbst.**
