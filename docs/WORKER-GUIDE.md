@@ -1996,7 +1996,7 @@ melden, dann wird er in der SSOT aufgelöst.
 
 ### Warum diese Liste so lang ist
 
-Was ab hier folgt, sind nicht dreiundzwanzig Einzelfälle, sondern dieselbe Bewegung in
+Was ab hier folgt, sind nicht Einzelfälle, sondern dieselbe Bewegung in
 verschiedenen Verkleidungen: **Das Wissen war jedes Mal vorhanden — es fehlte der Anlass, es im
 richtigen Moment zu holen.**
 
