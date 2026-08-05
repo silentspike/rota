@@ -625,7 +625,7 @@ export class HudRenderer {
     const combat = this.session.combat;
     const index = combat.playerCasting;
     if (index < 0) return;
-    const spell = combat.spellAt(alsSpellIndex(index));
+    const spell = combat.spellAt(index);
     if (spell === undefined) return;
 
     const anteil = combat.playerCastProgress(shownMs);
