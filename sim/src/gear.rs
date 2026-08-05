@@ -375,6 +375,20 @@ impl WornValues {
         1.0 + f64::from(self.gear_effects) / 1000.0
     }
 
+    /// Der Faktor von **Topf 1** aus ESSENCE (Issue #282).
+    ///
+    /// Dieselbe Regel wie [`Self::gear_effect_factor`] — eins plus die Summe —
+    /// aber ein **eigener** Faktor. Zwischen den Toepfen wird multipliziert
+    /// (13.1b); waeren beide derselbe, waere die Rechnung additiv und die
+    /// Abwaegung aus 13.5 waere gekippt.
+    ///
+    /// Ohne getragene Ausruestung ist es exakt 1,0, und 1,0 ist in IEEE754 die
+    /// exakte Eins: Die Multiplikation bewegt dann keine einzige Zahl.
+    #[must_use]
+    pub fn essence_factor(&self) -> f64 {
+        1.0 + f64::from(self.essence) / 1000.0
+    }
+
     /// Die Kritchance als Wahrscheinlichkeit in `[0, 1]`.
     ///
     /// **Der Deckel bei 100 % ist keine Balance-Entscheidung, sondern eine

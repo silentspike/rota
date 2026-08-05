@@ -122,6 +122,21 @@ export function gearEffectFactor(worn: WornValues): number {
 }
 
 /**
+ * Der Faktor von **Topf 1** aus ESSENCE (Issue #282).
+ *
+ * Dieselbe Regel wie `gearEffectFactor` — eins plus die Summe — aber ein
+ * **eigener** Faktor. Zwischen den Töpfen wird multipliziert (13.1b); wären
+ * beide derselbe, wäre die Rechnung additiv und die Abwägung aus 13.5
+ * gekippt.
+ *
+ * Ohne getragene Ausrüstung ist es exakt 1,0, und 1,0 ist in IEEE754 die
+ * exakte Eins: Die Multiplikation bewegt dann keine einzige Zahl.
+ */
+export function essenceFactor(worn: WornValues): number {
+  return 1 + worn.essence / 1000;
+}
+
+/**
  * Die Kritchance als Wahrscheinlichkeit in `[0, 1]`.
  *
  * **Der Deckel bei 100 % ist keine Balance-Entscheidung, sondern eine

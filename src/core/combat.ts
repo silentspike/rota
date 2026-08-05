@@ -44,6 +44,7 @@ import {
   NOTHING_WORN,
   critChance,
   critFactor,
+  essenceFactor,
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
@@ -626,6 +627,10 @@ export class Combat {
     this.factors = {
       ...NEUTRAL_FACTORS,
       resistance: this.resistanceFactor,
+      // **Topf 1 ebenso**, und als EIGENER Faktor: Zwischen den Toepfen wird
+      // multipliziert (13.1b). Waeren ESSENCE und Topf 4 derselbe Faktor,
+      // waere die Rechnung additiv und die Abwaegung aus 13.5 gekippt.
+      essence: NEUTRAL_FACTORS.essence * essenceFactor(this.worn),
       gearEffects: gearEffectFactor(this.worn),
     };
     this.factorsOnCrit = { ...this.factors, crit: critFactor(this.worn) };
