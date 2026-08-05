@@ -1,107 +1,63 @@
 import { describe, expect, it } from 'vitest';
 import { CALCINATION } from '../../src/core/data.js';
+import ERWARTET from './spell-order.json' with { type: 'json' };
 
 /**
- * Die Zauber-Reihenfolge ist eine Schnittstelle (Issue #369).
+ * Die Zauberreihenfolge darf **wachsen, aber nicht sich ändern** (Issue #402).
  *
- * # Warum sie eine ist und nicht ein Detail
+ * # Warum das überhaupt jemanden interessiert
  *
- * Der Index eines Zaubers steht in **jeder** aufgezeichneten Runde — als Zahl,
- * nicht als Name. Eine Aufzeichnung, die `slot 0 → spell 3` sagt, meint den
- * Zauber, der beim Aufzeichnen an Position 3 stand. Verschiebt sich die Liste,
- * zeigt dieselbe Zahl auf einen anderen Zauber.
+ * Die Reihenfolge in `SPELLS` bestimmt die Indizes, und die Indizes stehen in
+ * **jeder aufgezeichneten Runde** — in `tests/parity/recordings/` genauso wie
+ * in einem gespeicherten Spielstand. Wird ein Zauber vorne eingefügt, bedeutet
+ * jede alte Aufzeichnung etwas anderes als zuvor: dieselbe Datei, andere
+ * Zauber, **keine Fehlermeldung**.
  *
- * # Der gefährliche Teil: Ein falscher Index ist nicht rot
+ * Bis heute hielten drei Kommentare (#201, #97, #304) diese Regel zusammen.
+ * Ein Kommentar hält niemanden auf.
  *
- * Er ist **grün und misst etwas anderes**. Bei `interrupt-losses` fiel es nur
- * auf, weil an Index 3 ein Hitze-Zauber landete, der gar keine Unterbrechung
- * platziert. Wäre dort ein anderer Unterbrecher gelandet, hätte niemand etwas
- * gemerkt — der Fall wäre weiter grün gewesen und hätte den falschen Zauber
- * geprüft.
+ * # Warum ein Präfix-Vergleich und keine Gleichheit
  *
- * # Die Reihenfolge folgt keiner ableitbaren Ordnung
+ * Gleichheit wäre zu streng: Sie bräche auch dann, wenn hinten ein Zauber
+ * dazukommt — und genau das ist der erlaubte Weg. Der Wächter prüft deshalb,
+ * dass die heutige Liste mit der eingecheckten **beginnt**. Wachsen ja,
+ * umsortieren nein.
  *
- * Nicht alphabetisch, nicht nach Schule, nicht nach Stufe: `quench` aus
- * `common.json` steht vor `crust` aus `coagulation.json`. Sie ist in `data.ts`
- * von Hand zusammengesetzt, und genau deshalb kann kein Leser sie sich
- * herleiten — er muss sie nachschlagen oder sie bricht ihm.
+ * # Warum die erwartete Liste in einer eigenen Datei steht
+ *
+ * Weil sie sonst aus derselben Quelle käme, die sie bewacht. Eine Liste, die
+ * sich beim Laufen selbst herstellt, ist immer grün — sie belegte nur, dass
+ * `map` funktioniert. Die JSON ist eingecheckt und ändert sich nur, wenn
+ * jemand sie bewusst anfasst.
  */
+describe('Zauberreihenfolge (Issue #402)', () => {
+  const heute = CALCINATION.value.spells.map((s) => s.id);
 
-/**
- * Der festgeschriebene Stand.
- *
- * **Diese Liste ist Absicht, keine Bequemlichkeit.** Sie ist der einzige Ort im
- * Projekt, an dem eine Zauber-Reihenfolge ausgeschrieben steht — überall sonst
- * gilt „über den Bezeichner auflösen, nie über die Zahl". Hier ist die Zahl der
- * Gegenstand der Prüfung.
- *
- * Wer einen Zauber ergänzt, hängt ihn **hinten** an (GAME-DESIGN 18.7). Wer
- * ihn woanders einfügt, verschiebt jede Aufzeichnung — und muss diese Liste
- * ändern, was der Wächter zu einer bewussten Entscheidung macht statt zu einem
- * Versehen.
- */
-const FESTGESCHRIEBEN = [
-  'kindle',
-  'smoulder',
-  'pyre',
-  // **bellows und searing stehen hier bewusst mittendrin** — die Verschiebung
-  // von dreizehn Zaubern ist geprüft und angenommen (#268, Entscheidung des
-  // Orchestrators). Der Wächter hat sie gemeldet; sie wurde nicht weggeklickt,
-  // sondern beantwortet: Die Aufzeichnungen sind namensbasiert und überstehen
-  // sie, und die betroffenen Prüffälle lösen seit #369 über den Bezeichner auf.
-  'bellows',
-  'searing',
-  'quench',
-  'crust',
-  'salve',
-  'temper',
-  'bind',
-  'stall',
-  'stay',
-  'anchor',
-  'vapour',
-  'reflux',
-  'canker',
-  'fester',
-  'test-cast',
-] as const;
-
-describe('AC1 — die Zauber-Reihenfolge ist festgeschrieben', () => {
-  it('nennt bei einer Abweichung die Namen und beide Positionen', () => {
-    const heute = CALCINATION.value.spells.map((spell) => spell.id);
-
-    // **Erst die Verschiebungen einzeln, dann die ganze Liste.** Ein blanker
-    // `toEqual` meldete „Arrays sind verschieden" und ließe den Leser die
-    // Stelle suchen; bei sechzehn Einträgen ist das eine Minute Arbeit für
-    // etwas, das die Prüfung schon weiß.
-    const verschoben = FESTGESCHRIEBEN.map((id, alt) => ({ id, alt, neu: heute.indexOf(id) }))
-      .filter((e) => e.alt !== e.neu)
-      .map((e) => `${e.id}: ${e.alt} → ${e.neu === -1 ? 'nicht mehr da' : e.neu}`);
-
-    expect(
-      verschoben,
-      'Die Zauber-Reihenfolge hat sich verschoben. Sie steht als ZAHL in jeder ' +
-        'Aufzeichnung unter tests/parity/recordings/ — dieselbe Zahl zeigt jetzt ' +
-        'auf einen anderen Zauber.\n' +
-        'Neue Zauber gehören ans ENDE der Liste (GAME-DESIGN 18.7). Ist das ' +
-        'geschehen und die Verschiebung gewollt, gehören die Aufzeichnungen neu ' +
-        'erzeugt und diese Liste nachgezogen.',
-    ).toEqual([]);
-
-    // Und der Gegenfall zur Verschiebung: ein Zauber, der dazugekommen ist.
-    expect(heute.slice(0, FESTGESCHRIEBEN.length)).toEqual([...FESTGESCHRIEBEN]);
+  it('beginnt unverändert — kein Zauber wurde vorne oder in der Mitte eingefügt', () => {
+    // Position für Position, nicht als Ganzes: Die Meldung soll sagen, WO es
+    // auseinanderläuft und WELCHE zwei Namen dort stehen. `toEqual` über zwei
+    // Listen nennt bei achtzehn Einträgen nur „nicht gleich".
+    for (let i = 0; i < ERWARTET.length; i++) {
+      expect(
+        heute[i],
+        `Position ${i}: erwartet "${ERWARTET[i]}", gefunden "${heute[i] ?? '(fehlt)'}". ` +
+          `Ein Zauber wurde eingefügt, entfernt oder umsortiert — das deutet JEDE ` +
+          `bestehende Aufzeichnung still um. Neue Zauber gehören ans ENDE.`,
+      ).toBe(ERWARTET[i]);
+    }
   });
 
-  it('ein neuer Zauber steht hinten, nicht dazwischen', () => {
-    // **Der Fall, der die Regel trägt.** Hinten anhängen ist erlaubt und
-    // ändert keine bestehende Zahl; dazwischen einfügen verschiebt alles
-    // danach.
-    const heute = CALCINATION.value.spells.map((spell) => spell.id);
-    expect(heute.length).toBeGreaterThanOrEqual(FESTGESCHRIEBEN.length);
-    for (let i = 0; i < FESTGESCHRIEBEN.length; i++) {
-      expect(heute[i], `Position ${i} trägt nicht mehr ${FESTGESCHRIEBEN[i]}`).toBe(
-        FESTGESCHRIEBEN[i],
-      );
-    }
+  it('darf hinten gewachsen sein, aber nicht geschrumpft', () => {
+    expect(
+      heute.length,
+      `Die Liste ist kürzer geworden (${heute.length} statt ${ERWARTET.length}). ` +
+        `Ein entfernter Zauber verschiebt alle Indizes dahinter.`,
+    ).toBeGreaterThanOrEqual(ERWARTET.length);
+  });
+
+  it('enthält keinen Namen doppelt', () => {
+    // Sonst zeigten zwei Indizes auf denselben Zauber, und der Präfix-Vergleich
+    // oben bliebe grün, während `indexOf` etwas anderes liefert als gedacht.
+    expect(new Set(heute).size, `Doppelte Zauber-ID in SPELLS`).toBe(heute.length);
   });
 });
