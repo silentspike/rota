@@ -272,6 +272,11 @@ export class App {
       this.overlay,
       this.impact,
       () => this.lastMark,
+      // **Nur bei einem gezählten Lauf.** `recordRun` gibt bei einem Abbruch
+      // `counted: false` und 0 Punkte zurück; eine 0 in der Anzeige hiesse
+      // aber „dieser Lauf hat nichts eingebracht", und ein Abbruch hat gar
+      // nicht stattgefunden. Der Strich ist die richtige Aussage.
+      () => (this.lastRecord?.counted === true ? this.lastRecord.pointsGained : null),
     );
     this.loop = new GameLoop({
       simulation: this.session,

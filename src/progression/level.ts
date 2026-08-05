@@ -29,6 +29,7 @@
  * starken Boss gewählt hat.
  */
 import { LEVELS } from '../core/data.js';
+import { applyRewardFalloff } from './reward-falloff.js';
 
 /** Die Stufe, mit der jeder Spielstand beginnt. */
 export const START_LEVEL = 1;
@@ -49,19 +50,22 @@ export function newLevelState(): LevelState {
 /**
  * Erfahrung für einen Sieg.
  *
- * **Zwei Stufen gehen ein, auch wenn heute nur eine wirkt.** GAME-DESIGN 12.6
- * sieht einen abnehmenden Ertrag über den Stufenabstand vor; er ist noch nicht
- * gebaut und gehört in ein eigenes Issue. Die Unterschrift nimmt ihn trotzdem
- * schon auf — sonst müsste jede Aufrufstelle später geändert werden, und eine
- * davon würde vergessen.
+ * **Beide Stufen wirken, seit Issue #276.** Die Grundmenge hängt an der Stufe
+ * des BOSSES; der Stufenabstand mindert sie nach GAME-DESIGN 12.6. Die
+ * Unterschrift stand seit #248 schon so da und nahm die Spieler-Stufe
+ * entgegen, ohne sie zu benutzen — genau dafür.
  *
- * @param bossLevel Stufe des besiegten Bosses
- * @param playerLevel Stufe des Spielers — heute ohne Wirkung, siehe oben
+ * **Derselbe Faktor wie bei den Punkten, nicht ein zweiter daneben.** 12.6
+ * spricht von „dem Ertrag", nicht von einer der beiden Währungen; die
+ * Begründung steht in `reward-falloff.ts`, die Zusicherung in
+ * `tests/unit/reward-falloff.test.ts`.
+ *
+ * @param bossLevel Stufe des besiegten Bosses — bestimmt die Grundmenge
+ * @param playerLevel Stufe des Spielers — bestimmt zusammen mit dem Boss den Abstand
  */
 export function xpForVictory(bossLevel: number, playerLevel: number): number {
-  void playerLevel;
   const stufe = Math.max(Math.trunc(bossLevel), 1);
-  return stufe * LEVELS.xpPerBossLevel;
+  return applyRewardFalloff(stufe * LEVELS.xpPerBossLevel, bossLevel, playerLevel);
 }
 
 /**

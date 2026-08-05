@@ -90,6 +90,20 @@ export interface ResultView {
    * Genau diese zweite Rechenstelle hat #256 hier entfernt.
    */
   readonly analysis: LossReport | null;
+  /**
+   * Die Punkte für diesen Lauf, **fertig gerechnet** (Issue #276).
+   *
+   * `null` heißt: nicht gerechnet — nicht „null Punkte". Dieselbe
+   * Unterscheidung wie bei `analysis`, und aus demselben Grund: Ein Strich
+   * sagt „hier steht noch nichts", eine 0 sagt „dieser Lauf hat nichts
+   * eingebracht". Beides kommt vor.
+   *
+   * Sie kommt von außen und nicht von hier: Die Rechnung braucht die Stufe des
+   * Spielers UND die des Bosses, und das Overlay kennt keine von beiden. Wer
+   * ihm die Stufen gäbe, lüde es ein, selbst zu rechnen — genau die zweite
+   * Rechenstelle, die #256 hier entfernt hat.
+   */
+  readonly points: number | null;
   readonly damage: number;
   /**
    * Der Fortschritt in Prozent, **fertig gerechnet**.
@@ -406,7 +420,9 @@ export class Overlay {
     set('progress', `${view.progressPercent.toFixed(1)} %`);
     // Die Punkteformel ist noch nicht ausgearbeitet (GAME-DESIGN 22, vor Epic
     // E5). Eine erfundene Zahl wäre schlimmer als ein ehrlicher Strich.
-    set('score', '—');
+    // **Ein Strich heißt „nicht gerechnet"**, nicht „nichts verdient". Bis
+    // Issue #276 stand hier immer einer, weil es die Rechnung nicht gab.
+    set('score', view.points === null ? '—' : view.points.toLocaleString('en-US'));
 
     // Die Marke: ganz weg, wenn es keine gibt. Ein leerer Block mit Trenner
     // saehe aus wie ein Fehler, eine „0 %" waere eine Luege (AC4).
