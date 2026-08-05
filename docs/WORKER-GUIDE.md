@@ -428,6 +428,33 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > herstellen und sehen, ob er anschlägt. Beim `indexOf`-Fall heißt das konkret — einen Aufruf vor
 > die Definition setzen und prüfen, dass der Wächter **grün bleibt**.
 
+### Die Schwester davon: Prüfdaten, die den Fall unerreichbar machen
+
+_Drei Fundstellen in der Nacht zum 2026-08-05, in zwei verschiedenen Rollen, innerhalb von zwei
+Stunden._
+
+Oben ging es um Prüfungen, die den Fall nicht erreichen. Hier ist die Prüfung richtig gebaut — die
+**Zahlen im Datensatz** machen den geprüften Fall unmöglich. Das Kriterium ist grün und hat nie
+etwas berührt.
+
+| Gewählte Zahlen | Warum der Fall nie eintrat |
+| --- | --- |
+| Stapel-Obergrenze **5**, bei 4,5 s Abklingzeit und 12 s Haltbarkeit | Höchstens **drei** Stapel sind gleichzeitig erreichbar. Das AC zur Obergrenze konnte nie anschlagen |
+| Schwelle **1500** für das Wettrennen, Fenster 6 s | In sechs Sekunden passen vier Wirkungen à 100 Schaden. Der **Erfolgsfall** des Kriteriums war unerreichbar — belegt war nur der Fehlschlag |
+| **600** Heilung bei **999 999** Lebenspunkten | Null Prozentpunkte am Balken. Der Prüffall „der Balken läuft rückwärts" maß nichts |
+
+> **Die gemeinsame Wurzel: Zahlen, die aussehen wie unabhängige Freiheitsgrade, sind es nicht.**
+> Obergrenze, Abklingzeit und Haltbarkeit sind zwei Größen plus eine Folge. Schwelle, Fensterdauer
+> und Schaden je Wirkung ebenso. Wer sie einzeln wählt, wählt eine davon zwangsläufig wirkungslos.
+>
+> **Die Gegenfrage:** Nicht „ist die Zahl plausibel?", sondern **„kann der Fall mit diesen Zahlen
+> überhaupt eintreten — und der Gegenfall auch?"** Beide Ausgänge müssen erreichbar sein, sonst
+> prüft das Kriterium nur einen davon.
+>
+> Alle drei wurden von der Messung aufgedeckt, keiner beim Lesen. Und in allen drei Fällen hat der
+> Werker die Rechnung danach **in den Datensatz geschrieben** statt die Zahl stillschweigend zu
+> korrigieren — damit der nächste sie nicht erneut anfassen muss.
+
 **Die gemeinsame Frage, die alle sieben beantwortet hätte:**
 
 > Unter welcher Bedingung würde meine Messung ein **anderes** Ergebnis liefern?
