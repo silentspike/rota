@@ -2275,3 +2275,35 @@ Zwei Regeln aus § 6 bleiben davon unberührt:
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Erst quittieren, dann melden** | Eine inhaltliche Antwort per `senden` schließt eine Nummer **nicht**. Die Quittung ist ein eigener Aufruf, und sie enthält das verstandene Vorhaben in einem Satz — nicht „erhalten" |
 | **Jede Nummer einzeln**          | Eine Sammelquittung auf drei Nachrichten passt für höchstens zwei davon. Auch das ist an einem Tag gemessen worden                                                                   |
+
+### 8.22 Ein Exit-Code ist keine Wirkung
+
+_Von Worker-2 (#318) am 2026-08-05 zweimal gemacht, einmal selbst gefunden._
+
+Ein Befehl, der mit 0 endet, hat **gemacht, was er wollte** — nicht, was ich wollte. Die
+beiden fallen fast immer zusammen, und deshalb fällt es nicht auf, wenn sie es einmal nicht
+tun.
+
+Zwei Fälle an einem Tag, beide in derselben Form gemeldet:
+
+| gemeldet | tatsächlich                                                                           |
+| -------- | ------------------------------------------------------------------------------------- |
+| `LINT=1` | gesehen, im selben Aufruf weitergemacht und gepusht — der Code brach die Kette nicht  |
+| `SHOT=0` | `playwright-cli screenshot <pfad>` nimmt den Pfad **nicht** an; das Bild lag woanders |
+
+Der zweite ist der lehrreichere: Der Befehl **ist gelaufen**, fehlerfrei. Er hat nur etwas
+anderes getan, als der Aufruf nahelegte — und ich habe den Beleg gemeldet, ohne ihn je
+gesehen zu haben. Gefunden hat es der Orchestrator, drei Stunden später, beim Abnehmen.
+
+**Die Gegenmaßnahme ist kein zweiter Blick, sondern eine andere Frage.** Nicht „ist der
+Befehl durchgelaufen", sondern „liegt das Ergebnis da, das ich behaupte":
+
+```bash
+npm run lint && git commit … && git push      # && statt echo $?
+ls -la <zieldatei>                            # nach jedem Befehl, der etwas erzeugt
+```
+
+Und für Belege, die in eine Meldung sollen: **einmal ansehen.** Ein Bild, das man nicht
+geöffnet hat, ist eine Behauptung über eine Datei — dieselbe Klasse wie ein Prüffall, den
+man grün gemeldet hat, ohne zu sehen, dass er gar nicht gelaufen ist (VERIFICATION.md,
+`cargo test` bricht nach der ersten gefallenen Sammlung ab).
