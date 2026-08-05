@@ -390,6 +390,12 @@ export class Session implements Simulation {
       //   `tests/unit/idle-source-reachable.test.ts` nach — mit REFLUX
       //   (cooldownMs 45000) allein und dem Gegenfall mit KINDLE dazu.
       //
+      //   **Wie viele Takte es sind, steht hier bewusst nicht.** Die Zahl
+      //   hängt von Kampfdauer und Druckzeitpunkt ab: Zwei richtige Messungen
+      //   ergaben 1851 und 2840 Takte. Eine laufabhängige Zahl an einer
+      //   Zählstelle ist eine Zahl ohne Bezug — wer nachmisst, bekommt etwas
+      //   anderes und weiß nicht, wer sich geirrt hat.
+      //
       //   Hier stand vorher eine Zahl („1851 Takte nicht bereit"), die aus
       //   einer fremden Messung abgeschrieben war und die keine Datei
       //   nachrechnete. In einem Vermerk, der gegen unbelegte Behauptungen
