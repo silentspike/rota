@@ -9,6 +9,7 @@
       "unlockLevel": 101,
       "baseDamage": 100,
       "cooldownMs": 6000,
+      "castTimeMs": 0,
       "triggersGcd": true,
       "buff": {
         "kind": 0,
