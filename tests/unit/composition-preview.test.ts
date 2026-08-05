@@ -85,30 +85,114 @@ describe('AC2 — die Vorschau nennt die Einzahler', () => {
 });
 
 describe('AC4 — die Zahlen stimmen mit dem Kampf ueberein', () => {
-  /** Wie oft der Empfaenger im Kampf einen Gewinn eingetragen hat. */
-  function gewinneImKampf(spellId: string): number {
+  /**
+   * Was der Kampf fuer diese Mechanik zaehlt, nachdem der Zauber gewirkt hat.
+   *
+   * **ALLE DREI, nicht nur die Hitze** — und das war ein Befund am eigenen
+   * Pruefstand. Bis zum 2026-08-05 fragte diese Funktion allein
+   * `stacks.gainCount`, den HITZE-Zaehler, und die beiden Schleifen unten
+   * nannten fuenf Zauber aus der Kalzination. `bind` und `canker` kamen nicht
+   * vor.
+   *
+   * Damit belegte AC4 genau den Teil, der schon VORHER stimmte: Die Hitze lief
+   * lange; Kontrolle und Zersetzung sind in dieser Etappe dazugekommen. Der
+   * Nachweis deckte das Alte ab und liess das Neue ungeprueft.
+   *
+   * Gefunden hat es eine Gegenprobe des Orchestrators: Er hat den
+   * Kontroll-Zweig in `feedsMechanic` abgeschaltet, und nur EIN Fall wurde rot
+   * — der aus AC2. AC4 blieb gruen, obwohl die Vorschau die Kontrolle
+   * falsch gezaehlt haette.
+   *
+   * Die drei Zaehler stehen an verschiedenen Stellen, weil sie verschieden
+   * arbeiten:
+   *
+   * | Mechanik | gemessen an | warum nicht anders |
+   * | --- | --- | --- |
+   * | `heat` | `stacks.gainCount` | Tick und Verfall haben dieselbe Periode — der Vorrat ist blind, und ein Hoechstwert waere bei SMOULDER null |
+   * | `control` | Hoechstwert von `combat.control` | |
+   * | `decay` | Hoechstwert von `combat.decayStacks` | |
+   *
+   * **DER HOECHSTWERT, NICHT DER ENDWERT** — und das war der zweite Befund an
+   * dieser Funktion. Mein erster Entwurf las `combat.decayStacks` nach 13
+   * Sekunden und bekam null. Gemessen:
+   *
+   *     DECAY 1s:1 2s:1 ... 11s:1 12s:0 13s:0
+   *
+   * Der Stapel verfaellt nach zwoelf Sekunden. Die Frage lautet aber nicht
+   * „steht der Zaehler am Ende hoch", sondern „hat der Zauber ihn bewegt" —
+   * und die beantwortet nur der Hoechstwert.
+   *
+   * Dieselbe Lehre wie bei der Hitze, eine Stufe frueher: Ein Endwert misst,
+   * was uebrig ist, nicht was geschehen ist.
+   */
+  function zaehlerImKampf(spellId: string, mechanicId: string): number {
     const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
     combat.beginFight(0);
     combat.cast(combat.indexOf(spellId), 0);
-    for (let t = TICK_MS; t <= 13_000; t += TICK_MS) combat.stepPassive(t);
+    let hoechst = 0;
+    for (let t = TICK_MS; t <= 13_000; t += TICK_MS) {
+      combat.stepPassive(t);
+      const jetzt = mechanicId === 'control' ? combat.control : combat.decayStacks;
+      if (jetzt > hoechst) hoechst = jetzt;
+    }
+    if (mechanicId === 'control' || mechanicId === 'decay') return hoechst;
     return (combat as unknown as { stacks: { gainCount: number } }).stacks.gainCount;
   }
 
+  /** Welche Zauber die Vorschau als Einzahler fuehrt, und welche nicht. */
+  const FAELLE: readonly { spell: string; mechanic: string; speist: boolean }[] = [
+    { spell: 'kindle', mechanic: 'heat', speist: true },
+    { spell: 'smoulder', mechanic: 'heat', speist: true },
+    { spell: 'pyre', mechanic: 'heat', speist: false },
+    { spell: 'crust', mechanic: 'heat', speist: false },
+    { spell: 'quench', mechanic: 'heat', speist: false },
+    { spell: 'bind', mechanic: 'control', speist: true },
+    { spell: 'stall', mechanic: 'control', speist: false },
+    { spell: 'canker', mechanic: 'decay', speist: true },
+    { spell: 'fester', mechanic: 'decay', speist: false },
+  ];
+
   it('nennt genau die Zauber als Einzahler, die im Kampf einzahlen', () => {
     // **Zwei Wege zur selben Aussage.** Links die Vorschau aus den Daten,
-    // rechts ein gespielter Lauf.
-    for (const spell of ['kindle', 'smoulder']) {
-      expect(vorschau({ '0': spell })[0], `${spell} in der Vorschau`).toContain('1 feeding');
-      expect(gewinneImKampf(spell), `${spell} im Kampf`).toBeGreaterThan(0);
+    // rechts ein gespielter Lauf — fuer JEDE der drei Mechaniken.
+    for (const fall of FAELLE) {
+      const zeile = vorschau({ '0': fall.spell })[0] ?? '';
+      const imKampf = zaehlerImKampf(fall.spell, fall.mechanic);
+      if (fall.speist) {
+        expect(zeile, `${fall.spell} in der Vorschau`).toContain('1 feeding');
+        expect(imKampf, `${fall.spell} im Kampf (${fall.mechanic})`).toBeGreaterThan(0);
+      } else {
+        expect(imKampf, `${fall.spell} zahlt im Kampf nicht ein`).toBe(0);
+        // Wer eine Zeile bekommt, aber nicht einzahlt, steht dort bei null.
+        if (zeile.length > 0 && !zeile.startsWith('no shared meter')) {
+          expect(zeile, `${fall.spell} in der Vorschau`).toContain('0 feeding');
+        }
+      }
     }
-    for (const spell of ['pyre', 'crust', 'quench']) {
-      expect(gewinneImKampf(spell), `${spell} zahlt im Kampf nicht ein`).toBe(0);
-    }
-    expect(vorschau({ '0': 'pyre' })[0]).toContain('0 feeding');
   });
 
-  it('MISST UEBERHAUPT etwas — die Gegenprobe', () => {
-    // Ohne sie waere nicht gezeigt, dass `gewinneImKampf` Unterschiede sieht.
-    expect(gewinneImKampf('kindle')).not.toBe(gewinneImKampf('pyre'));
+  it('DECKT ALLE DREI MECHANIKEN AB — sonst belegt der Fall ein Drittel', () => {
+    // Die Zusicherung gegen genau den Fehler, der hier stand: Ein Nachweis
+    // ueber fuenf Kalzinations-Zauber sagt nichts ueber Kontrolle und
+    // Zersetzung — und das sind die beiden NEUEN.
+    const gemessen = [...new Set(FAELLE.map((f) => f.mechanic))].sort();
+    expect(gemessen).toEqual(['control', 'decay', 'heat']);
+    for (const mechanic of gemessen) {
+      expect(
+        FAELLE.some((f) => f.mechanic === mechanic && f.speist),
+        `${mechanic} braucht einen Einzahler`,
+      ).toBe(true);
+      expect(
+        FAELLE.some((f) => f.mechanic === mechanic && !f.speist),
+        `${mechanic} braucht einen Nicht-Einzahler`,
+      ).toBe(true);
+    }
+  });
+
+  it('MISST UEBERHAUPT etwas — die Gegenprobe, je Mechanik', () => {
+    // Ohne sie waere nicht gezeigt, dass die Zaehler Unterschiede sehen.
+    expect(zaehlerImKampf('kindle', 'heat')).not.toBe(zaehlerImKampf('pyre', 'heat'));
+    expect(zaehlerImKampf('bind', 'control')).not.toBe(zaehlerImKampf('stall', 'control'));
+    expect(zaehlerImKampf('canker', 'decay')).not.toBe(zaehlerImKampf('fester', 'decay'));
   });
 });
