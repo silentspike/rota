@@ -42,6 +42,7 @@ const COAGULATION_JSON: &str = "../data/spells/coagulation.json";
 const FIXATION_JSON: &str = "../data/spells/fixation.json";
 /// SUBLIMATION: der Verkuerzer und der Ruecksetzer (Issue #201).
 const SUBLIMATION_JSON: &str = "../data/spells/sublimation.json";
+const PUTREFACTION_JSON: &str = "../data/spells/putrefaction.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -70,6 +71,7 @@ fn main() {
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
     println!("cargo:rerun-if-changed={SUBLIMATION_JSON}");
+    println!("cargo:rerun-if-changed={PUTREFACTION_JSON}");
     // Auf das VERZEICHNIS horchen, nicht auf einzelne Dateien: Sonst merkt
     // Cargo einen neu hinzugefuegten Boss nicht und baut mit der alten Liste
     // weiter — der Fehler saehe aus, als fehle die Datei.
@@ -82,6 +84,7 @@ fn main() {
     let coagulation = read_json(COAGULATION_JSON);
     let fixation = read_json(FIXATION_JSON);
     let sublimation = read_json(SUBLIMATION_JSON);
+    let putrefaction = read_json(PUTREFACTION_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -99,6 +102,7 @@ fn main() {
         &coagulation,
         &fixation,
         &sublimation,
+        &putrefaction,
     );
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
@@ -249,6 +253,7 @@ fn emit_spells(
     coagulation: &Value,
     fixation: &Value,
     sublimation: &Value,
+    putrefaction: &Value,
 ) {
     let resource_id = text(
         spells.get("resource").expect("resource geprueft"),
@@ -281,6 +286,10 @@ fn emit_spells(
         .get("spells")
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("fixation.json: Liste \"spells\" fehlt"));
+    let zersetzung = putrefaction
+        .get("spells")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("putrefaction.json: Liste \"spells\" fehlt"));
     let sublimierung = sublimation
         .get("spells")
         .and_then(Value::as_array)
@@ -291,6 +300,7 @@ fn emit_spells(
         .chain(koagulation.iter())
         .chain(fixierung.iter())
         .chain(sublimierung.iter())
+        .chain(zersetzung.iter())
         .collect();
 
     let _ = writeln!(
@@ -392,6 +402,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str) {
     emit_dot(out, spell, &whose, resource_id);
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
+    emit_putrefaction(out, spell);
     emit_fixation(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
@@ -885,6 +896,21 @@ fn emit_player(out: &mut String, player: &Value) {
 /// Alle drei sind **optional**: Ein Zauber, der keiner von ihnen ist, nennt
 /// die Felder gar nicht. Die drei Kalzinations-Zauber und der Unterbrecher
 /// fuehren keines davon.
+/// Die Felder der PUTREFACTION (Issue #97). Fehlen sie, stehen sie auf 0.
+fn emit_putrefaction(out: &mut String, spell: &Value) {
+    let stapel = spell
+        .get("decay")
+        .and_then(|d| d.get("stacks"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let je_stapel = spell
+        .get("perDecayStackPercent")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        decay_stacks: {stapel},");
+    let _ = writeln!(out, "        per_decay_stack_percent: {je_stapel},");
+}
+
 fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
     match spell.get("shield") {
         None | Some(Value::Null) => {

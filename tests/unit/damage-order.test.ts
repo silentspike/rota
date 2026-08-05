@@ -38,6 +38,10 @@ const IN_REIHENFOLGE: DamageFactors = {
   buffs: 2.22,
   synergy: 1.091,
   resistance: 1.963,
+  // **Nicht 1,0.** Bei eins könnte dieser Prüffall die Position gar nicht
+  // prüfen, weil jede Stelle dasselbe Ergebnis gäbe. Der Wert ist gesucht,
+  // nicht gewählt: bei 2,036 kippt ein Tausch mit dem Widerstand die Rundung.
+  vulnerability: 2.036,
   crit: 0.834,
 };
 
@@ -61,9 +65,10 @@ describe('Die Reihenfolge der Multiplikationen steht fest', () => {
     erwartet *= 2.22; // aktive Verstärkungen
     erwartet *= 1.091; // Synergie
     erwartet *= 1.963; // Widerstand
+    erwartet *= 2.036; // Verwundbarkeit des Bosses
     erwartet *= 0.834; // Krit
     expect(computeDamage(GROSS, IN_REIHENFOLGE)).toBe(Math.round(erwartet));
-    expect(computeDamage(GROSS, IN_REIHENFOLGE)).toBe(21_241_229_171_569);
+    expect(computeDamage(GROSS, IN_REIHENFOLGE)).toBe(43_247_142_593_315);
   });
 
   it('fängt den REALISTISCHEN Fehler: zwei benachbarte Faktoren vertauscht', () => {
@@ -83,9 +88,10 @@ describe('Die Reihenfolge der Multiplikationen steht fest', () => {
     vertauscht *= 2.22;
     vertauscht *= 1.091;
     vertauscht *= 1.963;
+    vertauscht *= 2.036;
     vertauscht *= 0.834;
 
-    expect(Math.round(vertauscht)).toBe(21_241_229_171_570);
+    expect(Math.round(vertauscht)).toBe(43_247_142_593_316);
     expect(computeDamage(GROSS, IN_REIHENFOLGE)).not.toBe(Math.round(vertauscht));
   });
 
@@ -95,7 +101,7 @@ describe('Die Reihenfolge der Multiplikationen steht fest', () => {
     // nimmt ihm damit jede Wirkung.
     const klein = 100;
     let vertauscht = klein;
-    for (const f of [1.605, 1.348, 2.476, 2.22, 1.091, 1.963, 0.834]) vertauscht *= f;
+    for (const f of [1.605, 1.348, 2.476, 2.22, 1.091, 1.963, 2.036, 0.834]) vertauscht *= f;
     expect(computeDamage(klein, IN_REIHENFOLGE)).toBe(Math.round(vertauscht));
   });
 });

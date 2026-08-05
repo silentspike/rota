@@ -203,6 +203,13 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Wie viele Zersetzungs-Stapel der Zauber anlegt (PUTREFACTION, #97).
+    pub decay_stacks: u32,
+    /// Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.
+    ///
+    /// Traegt FESTER. **Nicht** die Verwundbarkeit des Bosses — die gilt fuer
+    /// alle Quellen. **Vorlaeufig, wird gemessen.**
+    pub per_decay_stack_percent: u32,
     /// Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, #100).
     ///
     /// Steht als eigenes Feld und nicht unter `resource_gain`: Der Kampf
@@ -555,6 +562,11 @@ mod tests {
                     // sie tragen keins der Merkmale darueber.
                     && s.cooldown_reduction_ms == 0
                     && !s.arms_cooldown_reset
+                    // Und seit Issue #97 die Zersetzung: CANKER legt Stapel an,
+                    // FESTER lebt von ihnen. Auch sie tragen keins der Merkmale
+                    // darueber und zaehlten sonst zu den drei aus Schritt 1.
+                    && s.decay_stacks == 0
+                    && s.per_decay_stack_percent == 0
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");

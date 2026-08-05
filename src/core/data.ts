@@ -14,6 +14,7 @@ import rawCommonSpells from '../../data/spells/common.json';
 import rawCoagulation from '../../data/spells/coagulation.json';
 import rawFixation from '../../data/spells/fixation.json';
 import rawSublimation from '../../data/spells/sublimation.json';
+import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import { TICK_MS } from './loop.js';
@@ -93,6 +94,16 @@ export interface SpellDef {
   readonly heal?: HealDef;
   /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
   readonly conversion?: ConversionDef;
+  /** Zersetzungs-Stapel, die der Zauber auf dem Boss anlegt (PUTREFACTION). */
+  readonly decay?: DecayDef;
+  /**
+   * Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.
+   *
+   * Trägt FESTER. Das ist **nicht** die Verwundbarkeit des Bosses — die gilt
+   * für alle Quellen und steht in der Schadensformel. **Vorläufig, wird
+   * gemessen.**
+   */
+  readonly perDecayStackPercent?: number;
   /**
    * Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, Issue #100).
    *
@@ -447,6 +458,36 @@ function parseSpender(raw: unknown, where: string, problems: string[]): SpenderD
  * weggelassen — ein Schild ohne Betrag schützt nichts, und ein stillschweigend
  * auf 0 gesetzter Wert sähe im Kampf wie ein Balance-Problem aus.
  */
+/**
+ * Was ein Zauber an Zersetzungs-Stapeln anlegt (GAME-DESIGN 4.1).
+ *
+ * **Vorläufig, wird gemessen** — der Balance-Läufer bestimmt die Zahlen.
+ */
+export interface DecayDef {
+  /** Wie viele Stapel eine Wirkung anlegt. */
+  readonly stacks: number;
+}
+
+/** Die Felder der PUTREFACTION (GAME-DESIGN 4.1, Issue #97). */
+function parsePutrefaction(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: string[],
+): Partial<SpellDef> {
+  const out: { decay?: DecayDef; perDecayStackPercent?: number } = {};
+  if (isRecord(raw['decay'])) {
+    const stacks = number(raw['decay']['stacks'], 0);
+    if (stacks <= 0) problems.push(`${where}: Ein Zersetzungs-Zauber ohne Stapel legt nichts an.`);
+    else out.decay = { stacks };
+  }
+  if (raw['perDecayStackPercent'] !== undefined) {
+    const percent = number(raw['perDecayStackPercent'], 0);
+    if (percent <= 0) problems.push(`${where}: perDecayStackPercent ${percent} bewirkt nichts.`);
+    else out.perDecayStackPercent = percent;
+  }
+  return out;
+}
+
 function parseCoagulation(
   raw: Record<string, unknown>,
   where: string,
@@ -574,6 +615,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     interrupt: unterbricht,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
+    ...parsePutrefaction(raw, where, problems),
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
@@ -854,6 +896,10 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       // einzufügen deutete jede alte Aufzeichnung still um.
       ...(Array.isArray((rawSublimation as Record<string, unknown>)['spells'])
         ? ((rawSublimation as Record<string, unknown>)['spells'] as unknown[])
+        : []),
+      // Ebenfalls hinten (Issue #97), aus demselben Grund.
+      ...(Array.isArray((rawPutrefaction as Record<string, unknown>)['spells'])
+        ? ((rawPutrefaction as Record<string, unknown>)['spells'] as unknown[])
         : []),
     ],
   };

@@ -52,6 +52,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Runde. Wer einen Zauber dazwischenschiebt, muss das hier sehen.
       'vapour',
       'reflux',
+      // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
+      // Grund wie oben: Die Reihenfolge IST hier die Aussage.
+      'canker',
+      'fester',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
