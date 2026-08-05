@@ -32,7 +32,19 @@ describe('Der Kollisions-Boss (AC1)', () => {
       const jetzt = timeline[i];
       if (vorher === undefined || jetzt === undefined) continue;
       const landet = vorher.atMs + (vorher.castTimeMs ?? 0);
-      if (landet === jetzt.atMs && (vorher.castTimeMs ?? 0) > 0) {
+      // **Beide müssen unterbrechbar sein**, und das ist die Bedingung, auf
+      // die es ankommt. Meine erste Fassung prüfte nur, dass der VORIGE eine
+      // Wirkzeit hat — der Fall war grün, und der Boss erzeugte trotzdem
+      // keine Kollision: `casting` wird nur bei einem `interruptibleCast`
+      // gesetzt, ein `strike` an derselben Stelle berührt es nicht.
+      //
+      // Ein Prüffall, der die halbe Bedingung prüft, ist grün und stumm.
+      if (
+        landet === jetzt.atMs &&
+        (vorher.castTimeMs ?? 0) > 0 &&
+        vorher.mechanic === 'interruptibleCast' &&
+        jetzt.mechanic === 'interruptibleCast'
+      ) {
         kollisionen.push(`${vorher.name} landet bei ${landet}, ${jetzt.name} beginnt dort`);
       }
     }
@@ -57,7 +69,12 @@ describe('Der Kollisions-Boss (AC1)', () => {
         const vorher = timeline[i - 1];
         const jetzt = timeline[i];
         if (vorher === undefined || jetzt === undefined) continue;
-        if ((vorher.castTimeMs ?? 0) > 0 && vorher.atMs + vorher.castTimeMs === jetzt.atMs) {
+        if (
+          (vorher.castTimeMs ?? 0) > 0 &&
+          vorher.atMs + vorher.castTimeMs === jetzt.atMs &&
+          vorher.mechanic === 'interruptibleCast' &&
+          jetzt.mechanic === 'interruptibleCast'
+        ) {
           andere.push(`${id}: ${vorher.name} -> ${jetzt.name}`);
         }
       }

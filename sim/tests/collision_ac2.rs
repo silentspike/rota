@@ -16,7 +16,14 @@ fn was_der_simulator_am_kollisions_boss_misst() {
         duration_ms: Some(30_000),
         ..FightConfig::default()
     });
-    let result = fight.run(rotation::good);
+    // **Keine Rotation.** Beide Seiten fahren dieselbe Druckfolge, naemlich
+    // gar keine — dann haengt der erlittene Schaden allein am Boss, und ein
+    // Unterschied kann nur aus der Reihenfolge kommen.
+    //
+    // Mein erster Anlauf verglich rotation::good gegen stumpf gedruecktes
+    // KINDLE und schrieb die Differenz der Kollision zu. Zwei verschiedene
+    // Dinge messen und den Unterschied der Sache zuschreiben, um die es geht.
+    let result = fight.run(|_| None);
     eprintln!(
         "SIMULATOR: schaden={} erlitten={} unterbrochen={}",
         result.damage,
