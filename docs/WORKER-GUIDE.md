@@ -2001,6 +2001,40 @@ Beschädigung anspringt, unterscheidet nicht mehr zwischen dem Fehler und dem Re
 rot färbt und die anderen zehn grün lässt, ist das zugleich der Beleg, dass die Fälle sich nicht
 gegenseitig abdecken.
 
+### 8.18 Wer die Zahl nachrechnet, prüft am Ende seine eigene Kopie
+
+_Von Worker-2 am 2026-08-05 bei #318 gefunden, beim ersten Anlauf für den Synergie-Prüffall._
+
+Der Fall sollte belegen, dass ein Bonus von 25 % ankommt. Der naheliegende Weg:
+
+```ts
+expect(mit.damage).toBe(Math.round(ohne.damage * 1.25)); // expected 77 to be 78
+```
+
+**Der Fall war richtig, die Rechnung daneben.** Der Faktor geht in die **gesamte** Schadensformel
+ein und wird **einmal am Ende** gerundet — nicht auf den fertigen Schaden aufgeschlagen. Die
+Erwartung war eine zweite, vereinfachte Fassung der Formel.
+
+> Wer die Zahl nachbaut, **dupliziert die Formel** — und prüft am Ende seine eigene Kopie gegen das
+> Original. Stimmen beide überein, weiß man nur, dass man zweimal dasselbe gedacht hat.
+
+**Die Gefahr ist nicht der falsche Prüffall.** Der fällt sofort auf, wie hier. Gefährlich ist der
+Fall, in dem die Kopie zufällig **stimmt**: Dann wandert die vereinfachte Formel als Erwartung in
+den Wächter — und wenn später jemand die echte Formel ändert (eine Rundungsstelle, ein Topf mehr),
+meldet der Wächter rot, obwohl die Änderung richtig ist. Er verteidigt dann die Kopie.
+
+**Was stattdessen zu prüfen ist:**
+
+| statt                                          | besser                                                                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------- |
+| den **Betrag** aus einer nachgebauten Rechnung | das **Verhältnis** zwischen zwei Läufen, mit Rundungsspielraum         |
+| „das Ergebnis ist 78"                          | „mit Bonus ist es messbar mehr als ohne, und zwar um etwa ein Viertel" |
+
+Dasselbe Prinzip trägt zwei andere Stellen in diesem Guide: den Prüffall, der die **Größe** eines
+Sprungs mit dem Betrag aus den Zauberdaten misst statt mit einem Literal (#295), und den, der bei
+einer unkalibrierten Konstante das Verhältnis prüft statt den Betrag, damit er der Kalibrierung
+nicht im Weg steht (#282).
+
 ---
 
 ## 9. Wie die Kommunikation läuft
