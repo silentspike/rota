@@ -341,6 +341,8 @@ export class Combat {
    * erzeugt.
    */
   private nextRunawayAtMs = 0;
+  /** Wie viel Fortschritt der Spieler insgesamt zurückgedrängt hat (#247). */
+  private stabilisedValue = 0;
 
   /** Kampfzeit des Spielertods, oder -1. */
   private diedAtMsValue = -1;
@@ -676,6 +678,11 @@ export class Combat {
     return true;
   }
 
+  /** Wie viel Fortschritt der Spieler zurückgedrängt hat (Baustein 6; #247). */
+  get stabilised(): number {
+    return this.stabilisedValue;
+  }
+
   /** Welcher Boss-Zauber gerade läuft, oder -1. */
   get casting(): number {
     return this.castingValue;
@@ -838,6 +845,11 @@ export class Combat {
       if (this.shieldStacksValue < shield.maxStacks) {
         this.shieldStacksValue++;
         this.shieldValue += shield.amount;
+        // **Der Schutz drängt die Reaktion zurück** (Baustein 6; #247), um
+        // seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim bloßen Erneuern:
+        // Sonst wäre die Obergrenze wirkungslos, und das gilt hier wie für den
+        // Schutz selbst.
+        this.stabilise(shield.amount);
       }
       this.shieldExpiresAtMs = seitBeginn + shield.durationMs;
     }
@@ -853,6 +865,10 @@ export class Combat {
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;
+        // Auch die Heilung drängt zurück — mit dem Betrag, der WIRKLICH
+        // angekommen ist. Was über die volle Anzeige hinausginge, verpufft
+        // hier wie dort.
+        this.stabilise(wirklich);
         this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
       }
     }
@@ -1108,6 +1124,7 @@ export class Combat {
     this.nextDoomAtMs = timeMs + (this.boss.doom?.perStepMs ?? 0);
     this.nextStackAtMs = timeMs + (this.boss.stacks?.perStepMs ?? 0);
     this.nextRunawayAtMs = timeMs + (this.boss.runaway?.perStepMs ?? 0);
+    this.stabilisedValue = 0;
     // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
     this.raceDone = false;
     this.raceEndsAtMs = -1;
@@ -1613,11 +1630,64 @@ export class Combat {
    */
   healBoss(): number {
     const heal = this.boss.bossHeal;
-    if (heal === null || this.damageDealtValue <= 0) return 0;
-    const wirklich = Math.min(heal.amount, this.damageDealtValue);
-    this.damageDealtValue -= wirklich;
+    if (heal === null) return 0;
+    const wirklich = this.undoProgress(heal.amount);
     this.bossHealedValue += wirklich;
     return wirklich;
+  }
+
+  /**
+   * Fortschritt am Ring zurückdrehen — **die einzige Stelle, die ihn senkt**.
+   *
+   * Zwei Dinge drehen zurück, und sie haben nichts miteinander zu tun außer
+   * dieser Zeile:
+   *
+   * | Wer | Warum |
+   * | --- | --- |
+   * | `healBoss` | Ein Fehler macht Fortschritt rückgängig (Baustein 5, #218) |
+   * | `stabilise` | Der Spieler hält die Reaktion (Baustein 6, #247) |
+   *
+   * Das eine ist Strafe, das andere Antwort — aber beide senken denselben
+   * Wert, und die Untergrenze gilt für beide. Sie zweimal zu schreiben wäre
+   * dasselbe Muster, das `bookProgress` seit #218 verhindert; der Prüffall
+   * `progress-writer-source` zählt die Schreibstellen und bleibt dadurch bei
+   * vier.
+   *
+   * **Nie unter null:** Ein Boss mit negativem Fortschritt hätte einen Ring
+   * über 100 %, und jede Prozentrechnung darüber wäre unsinnig.
+   *
+   * @returns wie viel wirklich zurückgedreht wurde
+   */
+  private undoProgress(amount: number): number {
+    if (amount <= 0 || this.damageDealtValue <= 0) return 0;
+    const wirklich = Math.min(amount, this.damageDealtValue);
+    this.damageDealtValue -= wirklich;
+    return wirklich;
+  }
+
+  /**
+   * Die davonlaufende Reaktion zurückdrängen (11.2, Baustein 6; Issue #247).
+   *
+   * > **Statt** Schaden zu machen muss eine kippende Reaktion stabilisiert
+   * > werden.
+   *
+   * **Schutz und Heilung heben den Ring um IHREN EIGENEN Betrag.** Eine zweite
+   * Zahl „stabilisiert um X" neben `shield.amount` wäre dieselbe Größe an zwei
+   * Orten, und die zweite liefe beim nächsten Balancing weg.
+   *
+   * TEMPER BLEIBT DRAUSSEN, und das ist die Grenze des Bausteins, keine Lücke:
+   * Er wandelt ausgeteilten Schaden in Schutz. Würde dieser Schutz
+   * stabilisieren, dann stabilisierte man **durch Schaden machen** — und die
+   * Bedingung, die den ganzen Kampf ausmacht, wäre aufgehoben. GAME-DESIGN 4.1
+   * nennt die drei Wege „nebeneinander": drei Spielweisen, nicht drei Antworten
+   * auf jede Frage.
+   *
+   * Ohne das Boss-Feld geschieht nichts — sonst hätte jeder gewöhnliche Kampf
+   * einen versteckten Weg, Fortschritt zu verlieren.
+   */
+  private stabilise(amount: number): void {
+    if (this.boss.runaway === null) return;
+    this.stabilisedValue += this.undoProgress(amount);
   }
 
   /**
