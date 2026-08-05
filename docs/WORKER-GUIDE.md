@@ -2286,13 +2286,19 @@ tun.
 
 Zwei Fälle an einem Tag, beide in derselben Form gemeldet:
 
-| gemeldet | tatsächlich                                                                           |
-| -------- | ------------------------------------------------------------------------------------- |
-| `LINT=1` | gesehen, im selben Aufruf weitergemacht und gepusht — der Code brach die Kette nicht  |
-| `SHOT=0` | `playwright-cli screenshot <pfad>` nimmt den Pfad **nicht** an; das Bild lag woanders |
+| gemeldet | tatsächlich                                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `LINT=1` | gesehen, im selben Aufruf weitergemacht und gepusht — der Code brach die Kette nicht                                        |
+| `SHOT=0` | der Pfad stand als **Positionsargument**; das ist `[ref]`, eine Element-Referenz — das Bild landete unter dem Standardnamen |
 
-Der zweite ist der lehrreichere: Der Befehl **ist gelaufen**, fehlerfrei. Er hat nur etwas
-anderes getan, als der Aufruf nahelegte — und ich habe den Beleg gemeldet, ohne ihn je
+Der zweite ist der lehrreichere: Der Befehl **ist gelaufen**, fehlerfrei — und er hat den
+Pfad nicht ignoriert, sondern als **etwas anderes verstanden**. `playwright-cli screenshot`
+nimmt an dieser Stelle eine Element-Referenz; einen Zielort gibt es über `--filename`, auch
+absolut. Kein solches Element also, folglich die ganze Seite, gespeichert unter dem
+Standardnamen.
+
+**Genau das ist die Überschrift, belegt:** Alles lief nach Plan — nur nicht nach meinem. Er
+hat etwas anderes getan, als der Aufruf nahelegte — und ich habe den Beleg gemeldet, ohne ihn je
 gesehen zu haben. Gefunden hat es der Orchestrator, drei Stunden später, beim Abnehmen.
 
 **Die Gegenmaßnahme ist kein zweiter Blick, sondern eine andere Frage.** Nicht „ist der
@@ -2301,7 +2307,13 @@ Befehl durchgelaufen", sondern „liegt das Ergebnis da, das ich behaupte":
 ```bash
 npm run lint && git commit … && git push      # && statt echo $?
 ls -la <zieldatei>                            # nach jedem Befehl, der etwas erzeugt
+<befehl> --help                               # bevor man behauptet, was er tut
 ```
+
+Der dritte Befehl steht dort, weil dieser Abschnitt selbst daran gescheitert ist: Sein
+erster Entwurf behauptete, das Werkzeug nehme keinen Zielpfad an. Es nimmt einen — über
+`--filename`. Eine Aussage **über ein Werkzeug** ist genauso zu messen wie eine Zahl, und
+`--help` kostet zwei Sekunden.
 
 Und für Belege, die in eine Meldung sollen: **einmal ansehen.** Ein Bild, das man nicht
 geöffnet hat, ist eine Behauptung über eine Datei — dieselbe Klasse wie ein Prüffall, den
