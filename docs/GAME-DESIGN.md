@@ -174,7 +174,7 @@ in die ihre zwölf Zauber einzahlen.
 | **FIXATION**     | **Kontroll-Punkte als Vorrat zum Ausgeben.** Fixierungs-Zauber bauen Punkte auf; der Spieler gibt sie gezielt aus, um Boss-Handlungen zu beeinflussen: einen Zauber verlangsamen, einen Schlag verzögern, eine Phase hinauszögern. Ein **Planungswerkzeug**, keine passive Wirkung                                                                  |
 | **SUBLIMATION**  | **Automatische Verkürzung aller Abklingzeiten.** Sublimations-Zauber verkürzen laufend alle Abklingzeiten um einen kleinen Betrag. Der **Cooldown-Rücksetzer** bleibt als eigener Zauber daneben bestehen: er setzt den _nächsten gewirkten_ Zauber zurück                                                                                          |
 | **COAGULATION**  | **Drei Wege nebeneinander:** (1) **Schutzschicht**, die eingehenden Schaden aufnimmt und sich stapeln lässt — belohnt Vorausschauen, weil sie VOR dem Schlag stehen muss; (2) **klassische Heilung**, die Fehler nachträglich verzeiht; (3) **Schaden-in-Schutz-Umwandlung**, die einen Teil des ausgeteilten Schadens laufend in Schutz verwandelt |
-| **PUTREFACTION** | **Zersetzungs-Stapel auf dem Boss.** Jede Wirkung legt einen Stapel an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen**. Stapel verfallen langsam, mit Obergrenze. Allein gespielt schwach — braucht immer Partner                                                                                                          |
+| **PUTREFACTION** | **Zersetzungs-Stapel auf dem Boss.** Jede Wirkung legt einen Stapel an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen** — **6 % je Stapel** (entschieden am 2026-08-05, Issue #224). Stapel verfallen langsam, mit Obergrenze. Allein gespielt schwach — braucht immer Partner                                              |
 
 > **Warum fünf Systeme statt 120 Einzelregeln:** Man lernt fünf Mechaniken; jede Schule fühlt sich
 > völlig anders an; und **ein neuer Zauber fügt sich automatisch ein**, weil er auf eine bestehende
@@ -217,6 +217,16 @@ benannt, damit das Ersetzen eine Zeile bleibt.
 ### 4.2 Ressourcen
 
 **Keine globale Ressource.** Kein Mana. Aber einzelne Schulen arbeiten mit **Ladungen**
+
+> **Warum 6 % und nicht 3 %.** Bei 4,5 s Abklingzeit und 12 s Haltbarkeit sind höchstens **drei**
+> Stapel gleichzeitig erreichbar. Mit 3 % ergäbe das 9 % mehr Schaden aus allen Quellen — und der
+> Break-even, ab dem sich der Leisten-Platz überhaupt rechnet, liegt bei **5,4 %** je Stapel. Bei
+> 3 % wäre PUTREFACTION also **nie** die beste Wahl, und das ist etwas anderes als „allein gespielt
+> schwach". Mit 6 % sind es 18 % — über dem Break-even, damit trägt der Platz.
+>
+> Gemessen in Issue #224, entschieden am 2026-08-05. Der Wert steht auf beiden Seiten:
+> `src/core/combat.ts` und `sim/src/fight.rs`.
+
 (Hitze-Stapel, Kontroll-Punkte, Zersetzungs-Stapel) — das gibt ihnen Tiefe und ein eigenes
 Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Schwierigkeit" anzutasten.
 
@@ -706,13 +716,14 @@ Y  X  C  V      =  26 Belegungen
    Leertaste
 ```
 
-| Aspekt                                 | Festlegung                                                                                                                                                                                                                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt** |
-| **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                    |
-| **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                      |
-| **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                |
-| **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                 |
+| Aspekt                                 | Festlegung                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt**                                                                                                                                                       |
+| **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                                                                                                                                                                          |
+| **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                                                                                                                                                                      |
+| **Keine Doppelbelegung**               | **Ein Zauber liegt auf höchstens einem Platz** (entschieden am 2026-08-05, Issue #287). Ein Platz ist knapp — 12 bis 16 bei 60 Zaubern —, und ihn zu verdoppeln verschenkt ihn. Die Auswahl bietet einen bereits gelegten Zauber nicht erneut an; ein Spielstand mit Doppelbelegung wird beim Laden bereinigt. **Folge für die Vorschau:** Die Zählung „wie viele Zauber zahlen je Mechanik ein" (Kapitel 16) stimmt damit von selbst |
+| **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                                                                                                                                                                       |
 
 ### 8.2 Fehleingabe
 
