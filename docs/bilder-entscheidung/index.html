@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="de" data-theme="dark"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ROTA &middot; Bilder zur Entscheidung</title>
+<style>
+:root {
+  --grund:#141110; --tafel:#1c1815; --linie:#2f2823; --text:#e8dfd2; --leise:#9a8c7c;
+  --messing:#c9963f; --kupfer:#b4633a; --gruen:#4f8f6a; --rot:#a8503f;
+}
+:root[data-theme="light"] {
+  --grund:#f2ece2; --tafel:#fbf7f0; --linie:#ddd2c2; --text:#241d17; --leise:#6b5d4e;
+  --messing:#8a6520; --kupfer:#8d4a29; --gruen:#2f6a49; --rot:#8c3a2b;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme]) {
+  --grund:#f2ece2; --tafel:#fbf7f0; --linie:#ddd2c2; --text:#241d17; --leise:#6b5d4e;
+  --messing:#8a6520; --kupfer:#8d4a29; --gruen:#2f6a49; --rot:#8c3a2b; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--grund); color:var(--text);
+  font:16px/1.6 ui-serif,'Iowan Old Style',Georgia,serif; }
+header { padding:3rem 2rem 2rem; border-bottom:1px solid var(--linie);
+  background:linear-gradient(180deg,var(--tafel),transparent); }
+h1 { margin:0 0 .4rem; font-size:2rem; letter-spacing:.02em; font-weight:600; }
+h1 small { display:block; font-size:.9rem; color:var(--leise); letter-spacing:.16em;
+  text-transform:uppercase; margin-bottom:.5rem; font-family:ui-monospace,monospace; }
+.wrap { max-width:1180px; margin:0 auto; padding:0 2rem 6rem; }
+section { margin-top:3.5rem; }
+h2 { font-size:1.35rem; border-bottom:2px solid var(--messing); padding-bottom:.4rem;
+  display:inline-block; margin:0 0 1rem; }
+h3 { font-size:1.1rem; margin:2.2rem 0 .4rem; color:var(--messing); }
+h4.schule { font-family:ui-monospace,monospace; font-size:.78rem; letter-spacing:.18em;
+  margin:1.6rem 0 .6rem; color:var(--leise); border-left:3px solid var(--kupfer); padding-left:.6rem; }
+.s-calcination { border-color:#c9702f; } .s-fixation { border-color:#6f9fcc; }
+.s-sublimation { border-color:#bd9130; } .s-coagulation { border-color:#35997e; }
+.s-putrefaction { border-color:#9b6fd0; }
+.anz { color:var(--leise); font-family:ui-monospace,monospace; font-size:.8rem; }
+p { max-width:62ch; color:var(--text); }
+p.hinweis { background:var(--tafel); border-left:3px solid var(--kupfer);
+  padding:.9rem 1.1rem; border-radius:0 4px 4px 0; max-width:70ch; }
+code { font-family:ui-monospace,monospace; font-size:.86em; color:var(--messing); }
+a { color:var(--messing); }
+.raster { display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(158px,1fr)); margin:1rem 0 2rem; }
+.raster.gross { grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
+.karte { background:var(--tafel); border:1px solid var(--linie); border-radius:6px;
+  padding:.7rem; display:flex; flex-direction:column; gap:.55rem; cursor:pointer; }
+.karte:has(input[value=ja]:checked)   { border-color:var(--gruen); box-shadow:inset 0 0 0 1px var(--gruen); }
+.karte:has(input[value=nein]:checked) { border-color:var(--rot); opacity:.55; }
+.bild { aspect-ratio:1; display:grid; place-items:center;
+  background:repeating-conic-gradient(#00000018 0% 25%, transparent 0% 50%) 50%/16px 16px; border-radius:4px; }
+.raster.gross .bild { aspect-ratio:16/10; }
+.bild img { max-width:100%; max-height:100%; }
+.meta { display:flex; flex-direction:column; gap:.15rem; }
+.name { font-family:ui-monospace,monospace; font-size:.82rem; }
+.unter { font-size:.72rem; color:var(--leise); line-height:1.4; }
+.badge { align-self:flex-start; font-family:ui-monospace,monospace; font-size:.62rem;
+  letter-spacing:.1em; text-transform:uppercase; background:var(--kupfer); color:#fff;
+  padding:.1rem .4rem; border-radius:3px; }
+.wahl { display:flex; gap:.4rem; font-size:.72rem; font-family:ui-monospace,monospace; }
+.wahl input { display:none; }
+.wahl span { flex:1; text-align:center; padding:.25rem; border:1px solid var(--linie);
+  border-radius:3px; color:var(--leise); }
+input[value=ja]:checked + .ja    { background:var(--gruen); border-color:var(--gruen); color:#fff; }
+input[value=nein]:checked + .nein { background:var(--rot); border-color:var(--rot); color:#fff; }
+.leiste { position:sticky; bottom:0; background:var(--tafel); border-top:1px solid var(--messing);
+  padding:.9rem 2rem; display:flex; gap:1rem; align-items:center; justify-content:space-between;
+  font-family:ui-monospace,monospace; font-size:.82rem; }
+button { font:inherit; background:var(--messing); color:#1a1613; border:0; padding:.5rem 1rem;
+  border-radius:4px; cursor:pointer; }
+#ausgabe { width:100%; min-height:9rem; margin-top:1rem; background:var(--grund); color:var(--text);
+  border:1px solid var(--linie); border-radius:4px; padding:.8rem; font-family:ui-monospace,monospace;
+  font-size:.76rem; display:none; }
+@media (prefers-reduced-motion:no-preference) { .karte { transition:border-color .15s, opacity .15s; } }
+</style></head><body>
+<header><div class="wrap" style="padding-bottom:0">
+<h1><small>ROTA &middot; Stand 05.08.2026, 14:59</small>
+Bilder zur Entscheidung</h1>
+<p>Alle <strong>68</strong> Bilddateien des Projekts, nach Zweck gegliedert. Zu jedem steht,
+woher es stammt, welche Lizenz gilt und wof&uuml;r es gedacht ist. Entscheide pro Bild
+<em>behalten</em> oder <em>raus</em> &mdash; am Ende erzeugt ein Knopf eine Liste, die du mir
+zur&uuml;ckgeben kannst.</p>
+<p class="hinweis"><strong>Zwei Dinge vorweg.</strong> Erstens: <strong>Nur zwei dieser Bilder sind
+KI-erzeugt</strong> &mdash; die beiden Rahmen unter A. Alles andere stammt aus freien Sammlungen
+(game-icons.net, OpenGameArt, Kenney, ambientCG) und ist CC0 oder CC&nbsp;BY. Zweitens:
+<strong>Fast nichts davon erscheint heute im Spiel</strong>; geladen wird allein die Textur, und
+zwar nur im Credits-Bereich.</p>
+</div></header>
+<div class="wrap"><section id="a"><h2>A · Ausgeliefert &mdash; liegt in <code>assets/</code></h2>
+<p class="hinweis"><strong>Keines dieser Bilder erscheint heute im Spiel.</strong>
+Gemessen: <code>grep -rn "img/icons" src/</code> findet nichts, und in den CSS-Dateien wird nur die
+Textur geladen (in den Credits). Die 24 Symbole und die zwei Rahmen liegen im Repository und sind
+nirgends verdrahtet &mdash; das ist ein eigener Befund, unabh&auml;ngig davon, wie du hier
+entscheidest.</p>
+<h3>Die 24 Zauber-Symbole</h3>
+<p>Einfarbige SVG von <a href="https://game-icons.net">game-icons.net</a>,
+<strong>CC BY 3.0</strong> &mdash; kommerziell nutzbar mit Namensnennung, die im Spiel unter CREDITS
+steht. Sie sollen in der Schulfarbe eingef&auml;rbt werden (GAME-DESIGN 9.3). <strong>Nicht
+KI-erzeugt.</strong> Es sind 24 f&uuml;r 15 gebaute Zauber &mdash; Version 1 braucht 60.</p>
+<h4 class="schule s-calcination">CALCINATION <span class="anz">5</span></h4><div class="raster">
+<label class="karte" data-id="icon-bellows">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/delapouite/bellows.svg" alt="bellows"></div>
+  <div class="meta"><span class="name">bellows</span>
+    <span class="unter">delapouite &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-bellows" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-bellows" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-furnace">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/delapouite/furnace.svg" alt="furnace"></div>
+  <div class="meta"><span class="name">furnace</span>
+    <span class="unter">delapouite &middot; CC BY 3.0 &middot; 793 B</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-furnace" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-furnace" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-boiling-bubbles">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/boiling-bubbles.svg" alt="boiling-bubbles"></div>
+  <div class="meta"><span class="name">boiling-bubbles</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 3 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-boiling-bubbles" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-boiling-bubbles" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-burning-embers">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/burning-embers.svg" alt="burning-embers"></div>
+  <div class="meta"><span class="name">burning-embers</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-burning-embers" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-burning-embers" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-fire-bowl">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/fire-bowl.svg" alt="fire-bowl"></div>
+  <div class="meta"><span class="name">fire-bowl</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-fire-bowl" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-fire-bowl" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h4 class="schule s-fixation">FIXATION <span class="anz">4</span></h4><div class="raster">
+<label class="karte" data-id="icon-dial-padlock">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/delapouite/dial-padlock.svg" alt="dial-padlock"></div>
+  <div class="meta"><span class="name">dial-padlock</span>
+    <span class="unter">delapouite &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-dial-padlock" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-dial-padlock" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-crystal-bars">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/crystal-bars.svg" alt="crystal-bars"></div>
+  <div class="meta"><span class="name">crystal-bars</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-crystal-bars" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-crystal-bars" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-hourglass">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/hourglass.svg" alt="hourglass"></div>
+  <div class="meta"><span class="name">hourglass</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 758 B</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-hourglass" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-hourglass" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-wax-seal">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/wax-seal.svg" alt="wax-seal"></div>
+  <div class="meta"><span class="name">wax-seal</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-wax-seal" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-wax-seal" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h4 class="schule s-sublimation">SUBLIMATION <span class="anz">4</span></h4><div class="raster">
+<label class="karte" data-id="icon-bottle-vapors">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/bottle-vapors.svg" alt="bottle-vapors"></div>
+  <div class="meta"><span class="name">bottle-vapors</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-bottle-vapors" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-bottle-vapors" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-dust-cloud">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/dust-cloud.svg" alt="dust-cloud"></div>
+  <div class="meta"><span class="name">dust-cloud</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-dust-cloud" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-dust-cloud" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-erlenmeyer">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/erlenmeyer.svg" alt="erlenmeyer"></div>
+  <div class="meta"><span class="name">erlenmeyer</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-erlenmeyer" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-erlenmeyer" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-oily-spiral">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/oily-spiral.svg" alt="oily-spiral"></div>
+  <div class="meta"><span class="name">oily-spiral</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-oily-spiral" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-oily-spiral" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h4 class="schule s-coagulation">COAGULATION <span class="anz">5</span></h4><div class="raster">
+<label class="karte" data-id="icon-mortar">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/delapouite/mortar.svg" alt="mortar"></div>
+  <div class="meta"><span class="name">mortar</span>
+    <span class="unter">delapouite &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-mortar" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-mortar" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-chalice-drops">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/chalice-drops.svg" alt="chalice-drops"></div>
+  <div class="meta"><span class="name">chalice-drops</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-chalice-drops" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-chalice-drops" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-crystal-growth">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/crystal-growth.svg" alt="crystal-growth"></div>
+  <div class="meta"><span class="name">crystal-growth</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 704 B</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-crystal-growth" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-crystal-growth" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-crystalize">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/crystalize.svg" alt="crystalize"></div>
+  <div class="meta"><span class="name">crystalize</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-crystalize" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-crystalize" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-gooey-molecule">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/gooey-molecule.svg" alt="gooey-molecule"></div>
+  <div class="meta"><span class="name">gooey-molecule</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-gooey-molecule" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-gooey-molecule" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h4 class="schule s-putrefaction">PUTREFACTION <span class="anz">4</span></h4><div class="raster">
+<label class="karte" data-id="icon-earth-worm">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/cathelineau/earth-worm.svg" alt="earth-worm"></div>
+  <div class="meta"><span class="name">earth-worm</span>
+    <span class="unter">cathelineau &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-earth-worm" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-earth-worm" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-acid-blob">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/acid-blob.svg" alt="acid-blob"></div>
+  <div class="meta"><span class="name">acid-blob</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-acid-blob" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-acid-blob" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-dripping-goo">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/dripping-goo.svg" alt="dripping-goo"></div>
+  <div class="meta"><span class="name">dripping-goo</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-dripping-goo" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-dripping-goo" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-molecule">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/molecule.svg" alt="molecule"></div>
+  <div class="meta"><span class="name">molecule</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 2 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-molecule" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-molecule" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h4 class="schule s-—">ohne Schul-Zuordnung <span class="anz">2</span></h4><div class="raster">
+<label class="karte" data-id="icon-clamp">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/delapouite/clamp.svg" alt="clamp"></div>
+  <div class="meta"><span class="name">clamp</span>
+    <span class="unter">delapouite &middot; CC BY 3.0 &middot; 1 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-clamp" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-clamp" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="icon-test-tubes">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/icons/lorc/test-tubes.svg" alt="test-tubes"></div>
+  <div class="meta"><span class="name">test-tubes</span>
+    <span class="unter">lorc &middot; CC BY 3.0 &middot; 3 KB</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-icon-test-tubes" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-icon-test-tubes" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h3>Die zwei erzeugten Rahmen &mdash; das sind die KI-Bilder</h3>
+<p><strong>Eigenerzeugung mit <code>gpt-image</code>, 28.07.2026.</strong> Die
+einzigen zwei Dateien im ganzen Repository, die eine Bildgenerierung erzeugt hat. Alles andere
+stammt aus freien Sammlungen.</p><div class="raster gross">
+<label class="karte" data-id="frame-slot-frame">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/frames/slot-frame.png" alt="slot-frame"></div>
+  <div class="meta"><span class="name">slot-frame</span><span class="badge">KI-erzeugt</span>
+    <span class="unter">gpt-image, 28.07.2026 &middot; 13 KB<br>Rahmen um ein Zauber-Symbol auf der Leiste (104 px)</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-frame-slot-frame" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-frame-slot-frame" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="frame-ring-mount">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/frames/ring-mount.png" alt="ring-mount"></div>
+  <div class="meta"><span class="name">ring-mount</span><span class="badge">KI-erzeugt</span>
+    <span class="unter">gpt-image, 28.07.2026 &middot; 139 KB<br>Fassung um das Reaktionsgefäß (den Boss-Ring)</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-frame-ring-mount" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-frame-ring-mount" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h3>Die Textur</h3><div class="raster gross">
+<label class="karte" data-id="tex-Metal036">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/assets/img/textures/metal036-blackened-iron-512.jpg" alt="Metal036"></div>
+  <div class="meta"><span class="name">Metal036</span><span class="badge">im Spiel</span>
+    <span class="unter">ambientCG &middot; CC0 &middot; 15 KB<br>Untergrund „geschwärztes Eisen" für Tafeln und Rahmen</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-tex-Metal036" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-tex-Metal036" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div></section>
+<section id="b"><h2>B &middot; Entscheidungsvorlage &mdash; liegt in <code>docs/style-candidates/</code></h2>
+<p class="hinweis">Diese Dateien wurden f&uuml;r die Stil-Entscheidung gesammelt
+(Issue E9-1) und <strong>nie ausgeliefert</strong>. Sie stehen hier, weil du sie f&uuml;r deine
+Entscheidung sehen sollst &mdash; nicht weil sie im Spiel w&auml;ren.</p>
+<h3>Painterly &mdash; die Alternative zu den einfarbigen Symbolen <span class="anz">28</span></h3>
+<p>Gemalte PNG von <strong>J. W. Bjerk (eleazzaar)</strong>, OpenGameArt,
+<strong>CC BY 3.0</strong>. Der Gegenentwurf: farbig und detailliert statt einfarbig und
+einf&auml;rbbar. <strong>Wer sie w&auml;hlt, gibt die Einf&auml;rbung nach Schulfarbe auf</strong>
+&mdash; die Farbe steckt dann im Bild und nicht in der Schule.</p><div class="raster">
+<label class="karte" data-id="paint-air-burst">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/air-burst-air-1.png" alt="air-burst"></div>
+  <div class="meta"><span class="name">air-burst</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; SUBLIMATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-air-burst" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-air-burst" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-beam">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/beam-red-1.png" alt="beam"></div>
+  <div class="meta"><span class="name">beam</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; CALCINATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-beam" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-beam" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-enchant">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/enchant-orange-1.png" alt="enchant"></div>
+  <div class="meta"><span class="name">enchant</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; SUBLIMATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-enchant" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-enchant" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-evil-eye">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/evil-eye-eerie-1.png" alt="evil-eye"></div>
+  <div class="meta"><span class="name">evil-eye</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; PUTREFACTION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-evil-eye" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-evil-eye" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-explosion">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/explosion-orange-1.png" alt="explosion"></div>
+  <div class="meta"><span class="name">explosion</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; CALCINATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-explosion" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-explosion" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-fireball">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/fireball-red-1.png" alt="fireball"></div>
+  <div class="meta"><span class="name">fireball</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; CALCINATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-fireball" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-fireball" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-fog">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/fog-orange-1.png" alt="fog"></div>
+  <div class="meta"><span class="name">fog</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; SUBLIMATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-fog" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-fog" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-frame-0-grey">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/frame-0-grey.png" alt="frame-0-grey"></div>
+  <div class="meta"><span class="name">frame-0-grey</span><span class="badge">Rahmen</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; — &middot; <strong>nicht im Manifest</strong></span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-frame-0-grey" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-frame-0-grey" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-frame-0-red">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/frame-0-red.png" alt="frame-0-red"></div>
+  <div class="meta"><span class="name">frame-0-red</span><span class="badge">Rahmen</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; — &middot; <strong>nicht im Manifest</strong></span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-frame-0-red" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-frame-0-red" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-frame-1-grey">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/frame-1-grey.png" alt="frame-1-grey"></div>
+  <div class="meta"><span class="name">frame-1-grey</span><span class="badge">Rahmen</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; — &middot; <strong>nicht im Manifest</strong></span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-frame-1-grey" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-frame-1-grey" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-frame-2-grey">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/frame-2-grey.png" alt="frame-2-grey"></div>
+  <div class="meta"><span class="name">frame-2-grey</span><span class="badge">Rahmen</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; — &middot; <strong>nicht im Manifest</strong></span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-frame-2-grey" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-frame-2-grey" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-heal">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/heal-jade-1.png" alt="heal"></div>
+  <div class="meta"><span class="name">heal</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; COAGULATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-heal" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-heal" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-horror">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/horror-eerie-1.png" alt="horror"></div>
+  <div class="meta"><span class="name">horror</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; PUTREFACTION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-horror" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-horror" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-ice">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/ice-sky-1.png" alt="ice"></div>
+  <div class="meta"><span class="name">ice</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; FIXATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-ice" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-ice" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-leaf">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/leaf-jade-1.png" alt="leaf"></div>
+  <div class="meta"><span class="name">leaf</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; COAGULATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-leaf" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-leaf" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-light">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/light-royal-1.png" alt="light"></div>
+  <div class="meta"><span class="name">light</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; SUBLIMATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-light" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-light" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-lightning">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/lightning-orange-1.png" alt="lightning"></div>
+  <div class="meta"><span class="name">lightning</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; CALCINATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-lightning" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-lightning" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-link">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/link-blue-1.png" alt="link"></div>
+  <div class="meta"><span class="name">link</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; FIXATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-link" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-link" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-needles">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/needles-fire-1.png" alt="needles"></div>
+  <div class="meta"><span class="name">needles</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; CALCINATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-needles" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-needles" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-protect">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/protect-sky-1.png" alt="protect"></div>
+  <div class="meta"><span class="name">protect</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; FIXATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-protect" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-protect" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-rip">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/rip-magenta-1.png" alt="rip"></div>
+  <div class="meta"><span class="name">rip</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; PUTREFACTION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-rip" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-rip" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-rock">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/rock-plain-1.png" alt="rock"></div>
+  <div class="meta"><span class="name">rock</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; COAGULATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-rock" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-rock" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-runes">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/runes-blue-1.png" alt="runes"></div>
+  <div class="meta"><span class="name">runes</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; FIXATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-runes" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-runes" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-shielding">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/shielding-spirit-1.png" alt="shielding"></div>
+  <div class="meta"><span class="name">shielding</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; COAGULATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-shielding" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-shielding" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-vines">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/vines-jade-1.png" alt="vines"></div>
+  <div class="meta"><span class="name">vines</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; COAGULATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-vines" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-vines" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-wild">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/wild-eerie-1.png" alt="wild"></div>
+  <div class="meta"><span class="name">wild</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; PUTREFACTION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-wild" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-wild" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-wind-grasp">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/wind-grasp-sky-1.png" alt="wind-grasp"></div>
+  <div class="meta"><span class="name">wind-grasp</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; FIXATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-wind-grasp" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-wind-grasp" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="paint-wind">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/icons/painterly/wind-sky-1.png" alt="wind"></div>
+  <div class="meta"><span class="name">wind</span>
+    <span class="unter">J. W. Bjerk &middot; CC BY 3.0 &middot; SUBLIMATION</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-paint-wind" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-paint-wind" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h3>Kenney &mdash; Oberfl&auml;chen-Bausteine <span class="anz">10</span></h3>
+<p><strong>CC0</strong>, keine Nennungspflicht. Kn&ouml;pfe und Rahmen f&uuml;r
+Men&uuml;s. Sie sind der Gegenentwurf zu selbst gezeichneten Rahmen: fertig und stimmig, aber mit
+eigenem Stil, der zum Rest passen muss.</p><div class="raster">
+<label class="karte" data-id="ken-button_square_depth_border.svg">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/button_square_depth_border.svg" alt="button_square_depth_border.svg"></div>
+  <div class="meta"><span class="name">button_square_depth_border.svg</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-button_square_depth_border.svg" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-button_square_depth_border.svg" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-button_square_border.svg">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/button_square_border.svg" alt="button_square_border.svg"></div>
+  <div class="meta"><span class="name">button_square_border.svg</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-button_square_border.svg" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-button_square_border.svg" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-button_square_depth_border.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/button_square_depth_border.png" alt="button_square_depth_border.png"></div>
+  <div class="meta"><span class="name">button_square_depth_border.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-button_square_depth_border.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-button_square_depth_border.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-fantasy-panel-005.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/fantasy-panel-005.png" alt="fantasy-panel-005.png"></div>
+  <div class="meta"><span class="name">fantasy-panel-005.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-fantasy-panel-005.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-fantasy-panel-005.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-fantasy-panel-010.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/fantasy-panel-010.png" alt="fantasy-panel-010.png"></div>
+  <div class="meta"><span class="name">fantasy-panel-010.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-fantasy-panel-010.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-fantasy-panel-010.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-fantasy-border-005.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/fantasy-border-005.png" alt="fantasy-border-005.png"></div>
+  <div class="meta"><span class="name">fantasy-border-005.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-fantasy-border-005.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-fantasy-border-005.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-adventure-panel-brown.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/adventure-panel-brown.png" alt="adventure-panel-brown.png"></div>
+  <div class="meta"><span class="name">adventure-panel-brown.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-adventure-panel-brown.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-adventure-panel-brown.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-adventure-panel-grey.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/adventure-panel-grey.png" alt="adventure-panel-grey.png"></div>
+  <div class="meta"><span class="name">adventure-panel-grey.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-adventure-panel-grey.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-adventure-panel-grey.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-rpg-panel-beige.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/rpg-panel-beige.png" alt="rpg-panel-beige.png"></div>
+  <div class="meta"><span class="name">rpg-panel-beige.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-rpg-panel-beige.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-rpg-panel-beige.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="ken-rpg-panel-inset-beige.png">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/ui/kenney/rpg-panel-inset-beige.png" alt="rpg-panel-inset-beige.png"></div>
+  <div class="meta"><span class="name">rpg-panel-inset-beige.png</span>
+    <span class="unter">Kenney &middot; CC0</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-ken-rpg-panel-inset-beige.png" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-ken-rpg-panel-inset-beige.png" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h3>Texturen zur Auswahl <span class="anz">2</span></h3>
+<p><strong>CC0</strong> von ambientCG. Eine davon (Metal036) ist bereits in <code>assets/</code> &uuml;bernommen.</p><div class="raster gross">
+<label class="karte" data-id="tk-Metal036_Color_512.jpg">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/textures/Metal036_Color_512.jpg" alt="Metal036_Color_512.jpg"></div>
+  <div class="meta"><span class="name">Metal036_Color_512.jpg</span>
+    <span class="unter">ambientCG &middot; CC0 &middot; Metal036</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-tk-Metal036_Color_512.jpg" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-tk-Metal036_Color_512.jpg" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+<label class="karte" data-id="tk-Metal009_Color_512.jpg">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/textures/Metal009_Color_512.jpg" alt="Metal009_Color_512.jpg"></div>
+  <div class="meta"><span class="name">Metal009_Color_512.jpg</span>
+    <span class="unter">ambientCG &middot; CC0 &middot; Metal009</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-tk-Metal009_Color_512.jpg" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-tk-Metal009_Color_512.jpg" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div>
+<h3>Verworfen</h3><p>Ein Kontaktbogen, der bei der Recherche ausgeschieden ist &mdash;
+er steht hier nur der Vollst&auml;ndigkeit halber.</p><div class="raster gross">
+<label class="karte" data-id="rej-pauliuw">
+  <div class="bild"><img loading="lazy" src="/rota-bilder/style/rejected/pauliuw-cc0-kontaktbogen.png" alt="pauliuw-kontaktbogen"></div>
+  <div class="meta"><span class="name">pauliuw-kontaktbogen</span><span class="badge">verworfen</span>
+    <span class="unter">bereits verworfen</span></div>
+  <div class="wahl">
+    <input type="radio" name="w-rej-pauliuw" value="ja"><span class="ja">behalten</span>
+    <input type="radio" name="w-rej-pauliuw" value="nein"><span class="nein">raus</span>
+  </div>
+</label>
+</div></section></div>
+<div class="leiste"><span id="zaehler">noch nichts entschieden</span>
+<span><button id="knopf">Entscheidung als Liste</button></span></div>
+<div class="wrap"><textarea id="ausgabe" readonly></textarea></div>
+<script>
+const karten = [...document.querySelectorAll('.karte')];
+const zaehler = document.getElementById('zaehler');
+function stand(){
+  const ja = karten.filter(k=>k.querySelector('input[value=ja]').checked).length;
+  const nein = karten.filter(k=>k.querySelector('input[value=nein]').checked).length;
+  zaehler.textContent = `${ja} behalten \u00b7 ${nein} raus \u00b7 ${karten.length-ja-nein} offen`;
+}
+document.addEventListener('change', stand);
+document.getElementById('knopf').addEventListener('click', () => {
+  const zeilen = [];
+  for (const k of karten) {
+    const id = k.dataset.id;
+    const ja = k.querySelector('input[value=ja]').checked;
+    const nein = k.querySelector('input[value=nein]').checked;
+    zeilen.push(`${ja ? 'BEHALTEN' : nein ? 'RAUS     ' : 'offen    '}  ${id}`);
+  }
+  const a = document.getElementById('ausgabe');
+  a.style.display = 'block';
+  a.value = zeilen.join('\n');
+  a.select();
+});
+stand();
+</script></body></html>
