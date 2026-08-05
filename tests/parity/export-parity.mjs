@@ -103,6 +103,8 @@ import {
   serialize,
   RUNAWAY_PROGRESS_NAME,
   runawayProgressPayload,
+  LEVEL_30_NAME,
+  level30Payload,
 } from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -138,6 +140,15 @@ writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
 const trialBlocks = trialBlocksPayload();
 const trialBlocksPath = join(here, 'recordings', `${TRIAL_BLOCKS_NAME}.json`);
 writeFileSync(trialBlocksPath, serialize(trialBlocks), 'utf8');
+
+const level30 = level30Payload();
+const level30Path = join(here, 'recordings', `${LEVEL_30_NAME}.json`);
+writeFileSync(level30Path, serialize(level30), 'utf8');
+console.log(`geschrieben: ${level30Path}`);
+console.log(
+  `  Stufe 30      vessel ${level30.player.vesselAtLevel} statt ${level30.player.vessel}` +
+    `, Schaden ${level30.expected.damage}`,
+);
 
 const runawayProgress = runawayProgressPayload();
 const runawayProgressPath = join(here, 'recordings', `${RUNAWAY_PROGRESS_NAME}.json`);

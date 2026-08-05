@@ -23,6 +23,7 @@ import {
   type WornValues,
 } from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
+import { statAtLevel } from '../../src/core/data.js';
 import { CombatLog, EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
@@ -844,6 +845,57 @@ export function raceHealPayload(): Record<string, unknown> {
     raceProgress: geladen,
     damageLostToRace: verloren,
     bossHealed: geheilt,
+  };
+}
+
+export const LEVEL_30_NAME = 'level-30';
+
+/**
+ * Derselbe Lauf auf STUFE 30 (Issue #289, AC5).
+ *
+ * **Warum diese Datei ueberhaupt entsteht:** Bis zum 2026-08-05 lag keine
+ * einzige Vergleichsdatei ueber Stufe 1 — und dort ist `statAtLevel` neutral.
+ * Die Bitgleichheit war fuer jede hoehere Stufe unbelegt, und ein
+ * Auseinanderlaufen waere unsichtbar geblieben.
+ *
+ * Das ist die Klasse „der Prueffall kann den Unterschied nicht zeigen", an
+ * der teuersten Stelle, an der sie stehen kann: Die Bitgleichheit ist das
+ * Fundament, auf dem der Balance-Laeufer ruht.
+ *
+ * **Stufe 30, nicht 2.** Der Faktor ist dort 4,116 und trennt die Zahlen
+ * deutlich; bei 1,05 saehe ein Rundungsfehler aus wie Uebereinstimmung.
+ *
+ * Die Stufe steht IN der Datei (`playerLevel`), nicht in der Annahme des
+ * Lesers — wer sie liest, weiss, womit gerechnet wurde.
+ */
+export function level30Payload(): Record<string, unknown> {
+  const recording = recordings().get(LEVEL_30_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${LEVEL_30_NAME}`);
+  const LEVEL = 30;
+  const result = replayRecording(recording, { checksumPerTick: true, level: LEVEL });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    playerLevel: LEVEL,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    player: {
+      vessel: PLAYER.vessel,
+      wardReduction: PLAYER.wardReduction,
+      // Der Wert DIESER Stufe — die Zahl, um die es geht.
+      vesselAtLevel: statAtLevel(PLAYER.vessel, LEVEL),
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
   };
 }
 
