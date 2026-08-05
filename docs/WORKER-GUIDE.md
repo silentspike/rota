@@ -448,6 +448,30 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Richtig bei der Entstehung heißt nicht dauerhaft richtig
+
+_Gefunden am 2026-08-05 beim Browser-Nachweis zu #248, AC6._
+
+Nach einem gewonnenen Kampf stand im Player Home weiterhin `0 / 200`. Der Bereich entsteht
+einmal beim Start und wurde nie neu gebaut — die Zahl war richtig, **als sie entstand**.
+
+```
+1048 Prüffälle grün, während der Bildschirm eine falsche Zahl zeigte
+```
+
+Prüffälle laufen ohne DOM. Sie messen die **Rechnung** — ob das Ergebnis auch ankommt, nachdem
+sich etwas geändert hat, messen sie nicht.
+
+> Das ist derselbe Fehler wie ein **gespeicherter statt gerechneter** Wert, nur eine Ebene
+> weiter außen. Im Spielstand ist eine veraltete Zahl persistent und fällt irgendwann auf. Im
+> DOM ist sie flüchtig — und genau deshalb fängt sie kein Wächter.
+
+**Die Frage bei jeder Anzeige:** Was passiert mit ihr, wenn sich der Wert dahinter ändert? Wird
+sie neu gebaut, oder steht sie noch da, wo sie beim Aufbau hingeschrieben wurde?
+
+Der Nachweis dafür braucht **zwei** Zustände im laufenden Bild: einmal vor der Änderung, einmal
+danach. Ein Screenshot nach dem Aufbau belegt nur, dass der Anfangswert stimmt.
+
 ### Woraus kommt die Zahl, gegen die verglichen wird?
 
 _Die gemeinsame Frage hinter drei Fällen aus einer Nacht._
