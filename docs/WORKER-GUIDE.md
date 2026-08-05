@@ -2510,3 +2510,34 @@ Deshalb reicht es nicht, dass ein Werkzeug ablehnt, was es nicht kann. **Es muss
 was es kann.** Eine Signatur, die weniger nennt als die Verdrahtung hergibt, ist kein Schutz,
 sondern eine falsche Auskunft — und die vierte Art, etwas nicht zu finden, das schon da ist
 (§ 8.23): **richtig gesucht, das Richtige gefunden, und es kann mehr, als es verspricht.**
+
+### 8.27 Ein Suchmuster misst, was es kennt
+
+_Von Worker-2 (#369, #372, #392) am 2026-08-05, in drei Stufen gelernt._
+
+**Erste Stufe: Das Muster findet zu viel.** Eine Suche nach handgeschriebenen
+Zauber-Indizes meldete 24 Stellen — achtzehn davon waren `gcd.isReady(2490)`, also
+Zeiten. Ein Muster mit drei Vierteln Fehlalarm verfehlt beides: Man baut Richtiges um
+und übersieht Echtes im Rauschen.
+
+**Zweite Stufe: Das Muster zählt etwas anderes, als man meint.** Eine spätere,
+eigene Suche fand 13 Stellen — aber nur 7 Ursachen: Ein ternärer Ausdruck erzeugte
+je zwei Nutzungen. Wer Vorkommen zählt und Ursachen meint, hält die Arbeit für
+doppelt so groß, wie sie ist.
+
+> Die 13 hier ist **nicht** der Rest der 24 von oben. Es sind zwei Messungen an
+> verschiedenen Tagen — und dass sich das im Beleg für genau diesen Fehler
+> beinahe vermischt hätte, ist der Fehler selbst.
+
+**Dritte Stufe: Auch die richtige Zahl kann die falsche Frage sein.** Nach einem
+Umbau stieg die Zahl der Markierungen von 57 auf 62 — und war Fortschritt: Elf waren
+von Nutzungsstellen an die Quellen gewandert, wo sie eine Bedeutung tragen.
+
+> **Das Maß gehört vor die Messung, nicht dahinter.** Wer es hinterher benennt, muss
+> jeden ungünstigen Verlauf erklären, statt ihn zu zeigen.
+
+**Und wo ein Muster grundsätzlich nicht reicht, antwortet der Übersetzer.** 23 der
+Fehler kamen aus einer einzigen Interface-Zeile — weder Aufruf noch Konstante, sondern
+ein Feld in einer Struktur. Danach sucht kein Muster. Auch die Frage „ist diese
+Markierung noch nötig" beantwortet er besser: jede einzeln entfernen und `tsc` fragen.
+Der Unterschied steht nicht im Text, sondern im Typsystem.
