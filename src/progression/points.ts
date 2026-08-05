@@ -65,6 +65,16 @@ export interface PointsBreakdown {
   readonly units: number;
   /** Was die Kurve daraus macht, vor dem Stufenabstand. */
   readonly base: number;
+  /**
+   * Was die Kurve aus dem bisherigen Bestwert macht, oder 0 (Issue #377).
+   *
+   * Der Abzug bei der Differenz-Auszahlung. 0 heißt: kein brauchbarer
+   * Bestwert — dann ist die Differenz der volle Wert, ohne dass es dafür einen
+   * Sonderfall bräuchte.
+   */
+  readonly previousBase: number;
+  /** Ob nur der Rest-Ertrag fürs Wiederholen gezahlt wurde (Issue #377). */
+  readonly repeatOnly: boolean;
   /** Der Abstandsfaktor in Promille, 1000 heißt voller Ertrag. */
   readonly falloffPerMille: number;
   /** Was ausgezahlt wird. */
@@ -75,39 +85,92 @@ export interface PointsBreakdown {
  * Die Einheit, aus der die Kurve rechnet.
  *
  * Sekunden bei einem gewöhnlichen Boss, umgerechnete Ring-Prozentpunkte bei
- * einem `runaway`. Eine Niederlage trägt nichts bei: 12.6 sagt „Restlaufzeit
- * beim Boss-**Sieg**".
+ * einem `runaway`. **Eine Funktion für den laufenden und den gespeicherten
+ * Wert**: Beide sind dieselbe Größe, und zwei Umrechnungen wären zwei
+ * Gelegenheiten, sie verschieden zu machen.
+ */
+function unitsFrom(istRing: boolean, wert: number): number {
+  if (istRing) return Math.max(0, wert) * REWARD.heldPointsPerPercent;
+  return Math.max(0, wert) / 1000;
+}
+
+/**
+ * Die Einheit dieses Laufs.
+ *
+ * Eine Niederlage trägt nichts bei: 12.6 sagt „Restlaufzeit beim
+ * Boss-**Sieg**".
  */
 function unitsOf(source: PointsSource): number {
   if (!source.victory) return 0;
-  if (source.heldPercent !== null) {
-    return Math.max(0, source.heldPercent) * REWARD.heldPointsPerPercent;
-  }
-  return Math.max(0, source.remainingMs) / 1000;
+  const istRing = source.heldPercent !== null;
+  return unitsFrom(istRing, istRing ? (source.heldPercent ?? 0) : source.remainingMs);
+}
+
+/** Was die Kurve aus einer Einheit macht. */
+function curve(units: number): number {
+  return Math.round(REWARD.pointsPerSecond * Math.pow(units, REWARD.pointsExponent));
 }
 
 /**
  * Was ein Lauf einbringt, in seine Teile zerlegt.
  *
- * Die Reihenfolge ist nicht beliebig: erst die Kurve, dann der Abstand. Wer
- * zuerst mindert und dann potenziert, verstärkt den Abstand mit dem Exponenten
- * und macht aus „ein Bruchteil bei 10 Stufen" ein Vielfaches davon.
+ * ZWEI REIHENFOLGEN, BEIDE NICHT BELIEBIG
+ * ---------------------------------------
+ * **Erst die Kurve, dann der Abstand.** Wer zuerst mindert und dann
+ * potenziert, verstärkt den Abstand mit dem Exponenten und macht aus „ein
+ * Bruchteil bei 10 Stufen" ein Vielfaches davon.
+ *
+ * **Die Differenz auf den ungeminderten Werten.** Der Abstandsfaktor kann
+ * sich zwischen zwei Läufen ändern, weil der Spieler aufsteigt. Auf
+ * geminderten Werten zu subtrahieren hiesse, einen Aufstieg als
+ * Verschlechterung zu verbuchen.
+ *
+ * @param previousBest Der bisherige Bestwert als ROHWERT (ms bzw. Prozent),
+ *   oder `null`. Nicht die Punkte daraus: Der Spielstand hält, was erreicht
+ *   wurde, nicht was gerechnet wurde (GAME-DESIGN 18.5).
  */
-export function pointsBreakdown(source: PointsSource, context: PointsContext): PointsBreakdown {
+export function pointsBreakdown(
+  source: PointsSource,
+  context: PointsContext,
+  previousBest: number | null = null,
+): PointsBreakdown {
   const units = unitsOf(source);
-  const base = Math.round(REWARD.pointsPerSecond * Math.pow(units, REWARD.pointsExponent));
+  const base = curve(units);
+
+  // **Ohne Bestwert ist der Abzug 0**, also die Differenz der volle Wert. Der
+  // erste Sieg braucht damit keinen Sonderfall — und ein Sonderfall wäre die
+  // Stelle, an der später „erster Lauf" und „Lauf ohne brauchbaren Eintrag"
+  // auseinanderliefen.
+  const previousBase =
+    previousBest === null || !source.victory
+      ? 0
+      : curve(unitsFrom(source.heldPercent !== null, previousBest));
+  const differenz = Math.max(0, base - previousBase);
+
+  // **Rest-Ertrag fürs blosse Wiederholen** (GAME-DESIGN 12.6). Anteilig am
+  // eigenen Lauf, nicht als fester Betrag: Ein guter Wiederholungslauf, der die
+  // Marke knapp verfehlt, soll mehr abwerfen als ein schwacher.
+  const repeatOnly = source.victory && differenz === 0;
+  const roh = repeatOnly ? Math.trunc((base * REWARD.repeatPerMille) / 1000) : differenz;
+
   return {
     units,
     base,
+    previousBase,
+    repeatOnly,
     // **Abgefragt, nicht zurückgerechnet.** `awarded / base` läge bei kleinen
     // Beträgen wegen der Ganzzahl-Division daneben, und der Prüffall zu den
     // beiden Währungen verglich dann Rundungsrauschen statt der Kurve.
     falloffPerMille: rewardFalloffPerMille(context.bossLevel, context.playerLevel),
-    awarded: applyRewardFalloff(base, context.bossLevel, context.playerLevel),
+    awarded: applyRewardFalloff(roh, context.bossLevel, context.playerLevel),
   };
 }
 
 /** Was ein Lauf einbringt. */
-export function pointsForRun(source: PointsSource, context: PointsContext): number {
-  return pointsBreakdown(source, context).awarded;
+export function pointsForRun(
+  source: PointsSource,
+  context: PointsContext,
+  previousBest: number | null = null,
+): number {
+  return pointsBreakdown(source, context, previousBest).awarded;
 }

@@ -14,6 +14,7 @@ import { PressQueue } from '../../src/input/queue.js';
 import { markFor } from '../../src/analysis/progress-mark.js';
 import { RunPersistence } from '../../src/analysis/run-persistence.js';
 import { findForbiddenFields } from '../../src/analysis/save-format.js';
+import { pointsForRun } from '../../src/progression/points.js';
 import {
   countsAsAttempt,
   recordRun,
@@ -22,9 +23,28 @@ import {
   type RecordedState,
 } from '../../src/analysis/run-recorder.js';
 
-const KINDLE = 0;
-const SMOULDER = 1;
-const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
+/**
+ * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
+ *
+ * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
+ * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
+ * rot, er misst etwas anderes.
+ */
+function indexVon(id: string): number {
+  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
+  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
+  return i;
+}
+
+const KINDLE = indexVon('kindle');
+const SMOULDER = indexVon('smoulder');
+const LEER: RecordedState = {
+  runHistory: [],
+  progressMarks: [],
+  bestRuns: [],
+  level: 1,
+  experience: 0,
+};
 
 const KONTEXT = {
   bossId: 'first-crucible',
@@ -192,7 +212,13 @@ describe('Der uebergebene Stand bleibt unangetastet', () => {
   it('gibt einen neuen zurueck', () => {
     // Ein halb geschriebener Spielstand darf keine Marke verfaelschen.
     const lauf = play(1500);
-    const stand: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
+    const stand: RecordedState = {
+      runHistory: [],
+      progressMarks: [],
+      bestRuns: [],
+      level: 1,
+      experience: 0,
+    };
     const kopie = JSON.stringify(stand);
     recordRun(stand, lauf.summary, lauf.outcome, KONTEXT);
     expect(JSON.stringify(stand)).toBe(kopie);
@@ -271,5 +297,131 @@ describe('Punkte am echten Lauf (Issue #276)', () => {
     expect(geschrieben).not.toContain('pointsGained');
     expect(geschrieben).not.toMatch(/"points"/);
     expect(findForbiddenFields(JSON.parse([...speicher.values()][0] as string))).toEqual([]);
+  });
+});
+
+describe('Bestwert am echten Lauf (Issue #377)', () => {
+  function warden(): Lauf {
+    const boss = bossById('test-warden') as BossDef;
+    const lauf = play(1500, 120_000, boss, [KINDLE]);
+    expect(lauf.summary.victory).toBe(true);
+    return lauf;
+  }
+
+  it('AC1 — ein gespielter Sieg schreibt den Bestwert, der vorher NIE geschrieben wurde', () => {
+    const lauf = warden();
+    const ergebnis = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+
+    expect(LEER.bestRuns).toEqual([]);
+    expect(ergebnis.bestRuns).toHaveLength(1);
+    expect(ergebnis.bestRuns[0]?.metric).toBe('reserve');
+    expect(ergebnis.bestRuns[0]?.value).toBe(lauf.summary.remainingMs);
+    expect(ergebnis.best?.previous).toBeNull();
+  });
+
+  it('ein gescheiterter Versuch setzt KEINEN Bestwert', () => {
+    // Er hat keine Reserve und keinen gehaltenen Ring. Eine 0 einzutragen
+    // hiesse, eine Marke zu behaupten, die es nicht gibt.
+    const lauf = play(3000);
+    expect(lauf.summary.victory).toBe(false);
+    const ergebnis = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+    expect(ergebnis.bestRuns).toEqual([]);
+    expect(ergebnis.best).toBeNull();
+  });
+
+  it('AC5 — der zweite gleiche Lauf zahlt weniger als der erste', () => {
+    const lauf = warden();
+    const erster = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+    const zweiter = recordRun(erster, lauf.summary, lauf.outcome, KONTEXT);
+
+    expect(erster.pointsGained).toBeGreaterThan(0);
+    expect(zweiter.pointsGained).toBeGreaterThan(0);
+    expect(zweiter.pointsGained).toBeLessThan(erster.pointsGained);
+    // Der Bestwert steht danach unveraendert da — derselbe Lauf verbessert nichts.
+    expect(zweiter.bestRuns[0]?.value).toBe(erster.bestRuns[0]?.value);
+    expect(zweiter.best?.improved).toBe(false);
+  });
+
+  it('DIE REIHENFOLGE-FALLE: die Differenz rechnet gegen den Wert VOR dem Lauf', () => {
+    // Wer den Bestwert fortschreibt und danach die Differenz rechnet, bekommt
+    // immer null — jeder Sieg zahlte dann nur den Rest-Ertrag, auch der erste.
+    const lauf = warden();
+    const erster = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+    expect(erster.pointsGained).toBe(
+      pointsForRun(lauf.summary, { bossLevel: KONTEXT.bossLevel, playerLevel: LEER.level }, null),
+    );
+    // Und die Gegenprobe: gegen den schon geschriebenen Wert waere es weniger.
+    expect(erster.pointsGained).toBeGreaterThan(
+      pointsForRun(
+        lauf.summary,
+        { bossLevel: KONTEXT.bossLevel, playerLevel: LEER.level },
+        erster.bestRuns[0]?.value ?? null,
+      ),
+    );
+  });
+
+  it('AC4 — der Bestwert steht im abgelegten Spielstand, die Punkte nicht', () => {
+    const speicher = new Map<string, string>();
+    const persistenz = new RunPersistence('0.1.0', () => KONTEXT.at, {
+      getItem: (k) => speicher.get(k) ?? null,
+      setItem: (k, v) => {
+        speicher.set(k, v);
+      },
+      removeItem: (k) => {
+        speicher.delete(k);
+      },
+    });
+
+    const lauf = warden();
+    const ergebnis = recordRun(persistenz.state, lauf.summary, lauf.outcome, KONTEXT);
+    expect(persistenz.persist(ergebnis)).toBe(true);
+
+    // **Am geparsten Stand, nicht am Rohtext**: Der Spielstand liegt doppelt
+    // serialisiert im Speicher (Nutzlast als Zeichenkette in einer Huelle mit
+    // Pruefsumme). Eine Suche im Rohtext haette hier auf escapte
+    // Anfuehrungszeichen geprueft — und waere rot geworden, obwohl der Wert
+    // korrekt drinstand.
+    const huelle = JSON.parse([...speicher.values()][0] as string) as { payload: string };
+    const stand = JSON.parse(huelle.payload) as Record<string, unknown>;
+    const beste = (stand['bestRuns'] as { metric: string; value: number }[])[0];
+
+    // Der Rohwert ist da — ERREICHT, nicht gerechnet.
+    expect(beste?.metric).toBe('reserve');
+    expect(beste?.value).toBe(lauf.summary.remainingMs);
+    // Die Punkte sind es nicht, und der Waechter bleibt still.
+    expect(huelle.payload).not.toContain('pointsGained');
+    expect(Object.keys(beste ?? {})).not.toContain('points');
+    expect(findForbiddenFields(stand)).toEqual([]);
+  });
+
+  it('der Bestwert ueberlebt einen Neustart und wird wiedergelesen', () => {
+    // Der eigentliche Zweck: Ohne das Lesen waere jeder Lauf ein erster, und
+    // die Differenz-Auszahlung zahlte fuer immer den vollen Ertrag.
+    const speicher = new Map<string, string>();
+    const laden = (): RunPersistence =>
+      new RunPersistence('0.1.0', () => KONTEXT.at, {
+        getItem: (k) => speicher.get(k) ?? null,
+        setItem: (k, v) => {
+          speicher.set(k, v);
+        },
+        removeItem: (k) => {
+          speicher.delete(k);
+        },
+      });
+
+    const lauf = warden();
+    const erste = laden();
+    erste.persist(recordRun(erste.state, lauf.summary, lauf.outcome, KONTEXT));
+
+    const zweite = laden();
+    expect(zweite.state.bestRuns).toHaveLength(1);
+    expect(zweite.state.bestRuns[0]?.value).toBe(lauf.summary.remainingMs);
+
+    // Und der naechste Lauf zahlt darum nur noch den Rest-Ertrag.
+    const nachher = recordRun(zweite.state, lauf.summary, lauf.outcome, KONTEXT);
+    expect(nachher.best?.previous).toBe(lauf.summary.remainingMs);
+    expect(nachher.pointsGained).toBeLessThan(
+      recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT).pointsGained,
+    );
   });
 });
