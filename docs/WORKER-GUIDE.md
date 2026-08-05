@@ -974,6 +974,94 @@ jemand einen Zauber vergisst? Wenn nein, hast du einen Wächter **entschärft** 
 > keine größere Zahl, sondern eine andere **Aussage** — und sie braucht beim nächsten Zauber keine
 > Pflege mehr.
 
+### Das Werkzeug, mit dem du misst, kann selbst das falsche sein
+
+Alle Abschnitte oben fragen, ob der **Fall** etwas zeigen kann. Dieser fragt etwas anderes: ob der
+**Läufer**, der ihn ausführt, überhaupt der ist, um den es geht.
+
+Gefunden am 2026-08-05 von Worker-2, an einer Aktualisierung, die längst gemacht schien:
+
+```
+package.json fordert       vite ^8.2.0     vitest ^4.1.10
+package-lock.json führt    vite 8.2.0      vitest 4.1.10
+INSTALLIERT ist            vite 6.4.3      vitest 3.2.7
+```
+
+Der Commit hatte beide Dateien geändert — 1522 Zeilen im Sperrverzeichnis. Nur `node_modules` war
+nie nachgezogen worden. Seine Basis-Messung lief grün: 1049 Prüffälle, Rückgabewert 0, Bau grün.
+**Über die Frage „laufen die Prüffälle unter dem neuen Läufer" sagte sie nichts** — sie lief unter
+dem alten.
+
+Beim Nachmessen zeigte sich, dass es kein Einzelfall war — und dass **zwei verschiedene Ursachen
+gleich aussehen**:
+
+| Worktree            | installiert   | Branch enthält die Aktualisierung? |                                   |
+| ------------------- | ------------- | ---------------------------------- | --------------------------------- |
+| `/work/rota` · `e2` | vitest 4.1.10 | ja                                 | in Ordnung                        |
+| `e1` · `e9`         | vitest 3.2.7  | **ja**                             | **falsches Werkzeug** → `npm ci`  |
+| `e8`                | vitest 3.2.7  | nein                               | in Ordnung — der Branch ist älter |
+
+Jeder Worktree hat sein eigenes `node_modules`; ein `npm install` in einem zieht die anderen nicht
+nach. In `e1` und `e9` wurde zu diesem Zeitpunkt gearbeitet.
+
+> **Der `e8`-Fall ist der lehrreichere.** Dort lief `npm ci` mit Rückgabewert 0 und brachte trotzdem
+> weiter vitest 3.2.7 — weil das Sperrverzeichnis dieses Branches noch `^3.0.4` fordert. Das ist
+> **kein Fehler**: `npm ci` installiert exakt nach dem Sperrverzeichnis, und für einen Branch, der
+> älter ist als die Aktualisierung, ist der alte Läufer der richtige.
+>
+> Zwei Ursachen, zwei Reparaturen — und wer sie verwechselt, fährt `npm ci` gegen ein Problem, das
+> es nicht hat:
+>
+> | Ursache                             | Prüfung                                              | Reparatur                    |
+> | ----------------------------------- | ---------------------------------------------------- | ---------------------------- |
+> | `node_modules` nicht nachgezogen    | `git merge-base --is-ancestor <commit> HEAD` sagt ja | `npm ci`                     |
+> | Branch älter als die Aktualisierung | dieselbe Prüfung sagt nein                           | `main` ziehen, dann `npm ci` |
+
+> **Warum es niemandem auffiel:** Die CI fährt `npm ci` und misst deshalb korrekt. Ein PR ist grün,
+> die lokale Messung ist grün — nur eben mit zwei verschiedenen Werkzeugen. Solange beide dasselbe
+> Ergebnis liefern, bleibt der Unterschied unsichtbar. Er wird erst sichtbar, wenn sie es nicht mehr
+> tun, und dann sieht es aus wie ein Fehler im Code.
+
+**Die Prüffrage:** Bevor du eine Aussage über ein Werkzeug machst — hast du gemessen, welche Fassung
+davon gerade läuft?
+
+```bash
+npx vitest --version          # nicht: was package.json fordert
+npx vite --version
+```
+
+Der Unterschied zu allen vorherigen Abschnitten in einem Satz: Dort war der Fall untauglich, hier ist
+er tauglich und wird nur mit dem falschen Werkzeug ausgeführt.
+
+### Ein Zauber, der auf dem GCD weniger macht als der Füller, wird nie gewirkt
+
+Nicht „selten" — **nie**. Eine Prioritätenliste wählt ihn unter keinen Umständen, solange der Füller
+bereitsteht und mehr macht. Gemessen von Worker-2 am 2026-08-05, bevor er entworfen hat:
+
+```json
+kindle: { "baseDamage": 100, "cooldownMs": 1500, "resourceGain": { "heat": 3 } }
+```
+
+`cooldownMs` **ist** der GCD. `KINDLE` ist damit in jedem freien Moment bereit, und jeder neue Zauber
+mit 1500 ms Abklingzeit unter 100 Schaden ist tot geboren — er erscheint in keiner gemessenen
+Rotation und wird von der Balance-Messung als toter Zauber benannt.
+
+**Drei Wege, den GCD zurückzuverdienen:**
+
+1. mehr Schaden als der Füller, dafür eine längere Abklingzeit
+2. die Schul-Ressource schneller aufbauen, damit der Entlade-Zauber früher kommt
+3. etwas geben, das der Füller nicht gibt — Zeit oder eine Bedingung
+
+> **Weg 2 hat eine Falle, die man nur mit den Daten sieht.** Die Hitze ist bei `cap: 20` gedeckelt,
+> die Bonus-Schwelle liegt bei 15. Zwischen beiden liegen fünf Punkte, gut drei Sekunden Aufbau. Der
+> Nutzen eines schnelleren Aufbaus ist deshalb **nicht** „mehr Ressource", sondern „die Schwelle
+> früher erreichen" — also den Entlade-Zauber öfter im Kampf. Wer gegen die Kappe entwirft statt
+> gegen die Zeit bis zur Schwelle, baut eine Zahl ohne Wirkung.
+
+Das ist die Regel, an der `#224` gescheitert ist: Vier neue Zauber verbesserten die Rotation in
+keiner Zusammenstellung, und die Ursache stand in zwei Zahlen, die niemand gegeneinander gehalten
+hatte.
+
 ### Formulierungen, die ohne Nachweis nicht vorkommen dürfen
 
 ```
