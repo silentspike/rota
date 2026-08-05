@@ -1889,6 +1889,11 @@ export function sublimationPayload(): Record<string, unknown> {
     },
   };
 }
+/** Die Leiste der Zeitleisten-Aufzeichnung — VOR der Funktion (Issue #405). */
+const TIMELINE_LOOP_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'quench' },
+] as const;
 
 export function timelineLoopPayload(): Record<string, unknown> {
   const boss = bossById('test-metronome');
@@ -1902,6 +1907,7 @@ export function timelineLoopPayload(): Record<string, unknown> {
   const quench = combat.indexOf('quench');
   const ticks = 3000; // 30 s = fünf Zyklen
 
+  const slots = slotMap(combat, TIMELINE_LOOP_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
   const timelineIndex: number[] = [];
@@ -1918,7 +1924,10 @@ export function timelineLoopPayload(): Record<string, unknown> {
     // Zeitpunkt des Treffers ab, nicht nur den des Beginns.
     const gewaehlt = combat.casting >= 0 && combat.isReady(quench, timeMs) ? quench : kindle;
     if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
-      presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });
+      // **Kein Vergleich mehr** (#405). Diese Zeile war die versteckte von elf:
+      // Eine Suche nach `slot: <Ziffer>` findet sie nicht, die Zuordnung steht
+      // trotzdem von Hand da.
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
     }
     checksums.push(combatChecksum(combat, timeMs));
     timelineIndex.push(combat.timelineIndex);
@@ -1932,10 +1941,7 @@ export function timelineLoopPayload(): Record<string, unknown> {
     tickMs: TICK_MS,
     timelineLoopMs: boss.timelineLoopMs,
     timelineLength: boss.timeline.length,
-    bindings: [
-      { slot: 0, spellId: 'kindle' },
-      { slot: 1, spellId: 'quench' },
-    ],
+    bindings: TIMELINE_LOOP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     checksums,
     /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
