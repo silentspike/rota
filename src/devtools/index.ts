@@ -23,7 +23,13 @@ import { EVENT_NAMES, type LogEntry } from '../core/log.js';
 import { EVENT_NAMES as COMBAT_EVENT_NAMES, NO_KEY, eventIndex } from '../core/events.js';
 import { buildSoundReport, type SoundReport } from './sound-report.js';
 import { RULE_DAMAGE, RULE_EVENT_COUNT, RULE_EVENT_NAMES, RuleEvents } from '../combat/events.js';
-import { recordingNames, recordings, replayRecording, type ReplayResult } from './recording.js';
+import {
+  recordingNames,
+  recordings,
+  replayRecording,
+  type ReplayOptions,
+  type ReplayResult,
+} from './recording.js';
 import type { RunSummary } from '../core/summary.js';
 import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
@@ -370,7 +376,7 @@ export interface DevTools {
    * volle Prüfsummenfolge mit; ohne nur die beiden Gesamtwerte, weil 6000
    * Zahlen selten gebraucht werden.
    */
-  replay(name: string, options?: { checksumPerTick?: boolean }): ReplayResult;
+  replay(name: string, options?: ReplayOptions): ReplayResult;
   /** Dieselbe Aufzeichnung im laufenden Spiel abspielen — für die Bildprüfung. */
   replayLive(name: string): boolean;
   /** Läuft gerade eine Wiedergabe im Spiel? */
@@ -802,7 +808,7 @@ export function installDevTools(app: App): void {
     timeScale: () => app.loop.timeScale,
 
     recordings: () => recordingNames(),
-    replay: (name: string, options = {}) => {
+    replay: (name: string, options: ReplayOptions = {}) => {
       const recording = recordings().get(name);
       if (recording === undefined) {
         throw new Error(
