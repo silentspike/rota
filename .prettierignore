@@ -9,3 +9,8 @@ package-lock.json
 # Sie entstehen aus dem Spielcode (tests/parity/export-parity.mjs) und werden
 # nie von Hand bearbeitet; eine Umformatierung wuerde nur den Diff verrauschen.
 tests/parity/recordings/
+
+# Die Bilder-Entscheidungsvorlage entsteht aus dem Dateibestand
+# (tools/bilder-entscheidung.py) und wird nie von Hand bearbeitet. Prettier
+# wuerde sie bei jedem Lauf neu umbrechen und den Diff verrauschen.
+docs/bilder-entscheidung/

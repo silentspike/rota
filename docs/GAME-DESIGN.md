@@ -100,15 +100,15 @@ Beim Entwerfen jeder Einzelheit gelten zusätzlich diese acht Sätze:
 
 ## 3. Spielkern
 
-| Thema            | Festlegung                                                                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Spieltiefe**   | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns |
-| **Synergien**    | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                              |
-| **Eingabe**      | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                           |
-| **Zauber-Typen** | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs. **Keine** Kanal-Zauber mit Tastenhalten                                       |
-| **Umfang V1**    | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                |
-| **Höchststufe**  | **100**                                                                                                                                    |
-| **Talentpunkte** | **~50** (etwa jede zweite Stufe einer)                                                                                                     |
+| Thema            | Festlegung                                                                                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Spieltiefe**   | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns                                                                                             |
+| **Synergien**    | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                                                                                                                          |
+| **Eingabe**      | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                                                                                                                       |
+| **Zauber-Typen** | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs · **Kanalisierungen** (Wirkung fällt laufend an, siehe 7.2). **Keine** Kanal-Zauber mit **Tastenhalten** — eine Kanalisierung startet mit einem Druck und läuft von selbst |
+| **Umfang V1**    | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                                                                                                            |
+| **Höchststufe**  | **100**                                                                                                                                                                                                                                |
+| **Talentpunkte** | **~50** (etwa jede zweite Stufe einer)                                                                                                                                                                                                 |
 
 **Erfahrungskurve** (entschieden am 2026-08-05, Issue #248):
 
@@ -174,7 +174,7 @@ in die ihre zwölf Zauber einzahlen.
 | **FIXATION**     | **Kontroll-Punkte als Vorrat zum Ausgeben.** Fixierungs-Zauber bauen Punkte auf; der Spieler gibt sie gezielt aus, um Boss-Handlungen zu beeinflussen: einen Zauber verlangsamen, einen Schlag verzögern, eine Phase hinauszögern. Ein **Planungswerkzeug**, keine passive Wirkung                                                                  |
 | **SUBLIMATION**  | **Automatische Verkürzung aller Abklingzeiten.** Sublimations-Zauber verkürzen laufend alle Abklingzeiten um einen kleinen Betrag. Der **Cooldown-Rücksetzer** bleibt als eigener Zauber daneben bestehen: er setzt den _nächsten gewirkten_ Zauber zurück                                                                                          |
 | **COAGULATION**  | **Drei Wege nebeneinander:** (1) **Schutzschicht**, die eingehenden Schaden aufnimmt und sich stapeln lässt — belohnt Vorausschauen, weil sie VOR dem Schlag stehen muss; (2) **klassische Heilung**, die Fehler nachträglich verzeiht; (3) **Schaden-in-Schutz-Umwandlung**, die einen Teil des ausgeteilten Schadens laufend in Schutz verwandelt |
-| **PUTREFACTION** | **Zersetzungs-Stapel auf dem Boss.** Jede Wirkung legt einen Stapel an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen**. Stapel verfallen langsam, mit Obergrenze. Allein gespielt schwach — braucht immer Partner                                                                                                          |
+| **PUTREFACTION** | **Zersetzungs-Stapel auf dem Boss.** Jede Wirkung legt einen Stapel an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen** — **6 % je Stapel** (entschieden am 2026-08-05, Issue #224). Stapel verfallen langsam, mit Obergrenze. Allein gespielt schwach — braucht immer Partner                                              |
 
 > **Warum fünf Systeme statt 120 Einzelregeln:** Man lernt fünf Mechaniken; jede Schule fühlt sich
 > völlig anders an; und **ein neuer Zauber fügt sich automatisch ein**, weil er auf eine bestehende
@@ -217,6 +217,16 @@ benannt, damit das Ersetzen eine Zeile bleibt.
 ### 4.2 Ressourcen
 
 **Keine globale Ressource.** Kein Mana. Aber einzelne Schulen arbeiten mit **Ladungen**
+
+> **Warum 6 % und nicht 3 %.** Bei 4,5 s Abklingzeit und 12 s Haltbarkeit sind höchstens **drei**
+> Stapel gleichzeitig erreichbar. Mit 3 % ergäbe das 9 % mehr Schaden aus allen Quellen — und der
+> Break-even, ab dem sich der Leisten-Platz überhaupt rechnet, liegt bei **5,4 %** je Stapel. Bei
+> 3 % wäre PUTREFACTION also **nie** die beste Wahl, und das ist etwas anderes als „allein gespielt
+> schwach". Mit 6 % sind es 18 % — über dem Break-even, damit trägt der Platz.
+>
+> Gemessen in Issue #224, entschieden am 2026-08-05. Der Wert steht auf beiden Seiten:
+> `src/core/combat.ts` und `sim/src/fight.rs`.
+
 (Hitze-Stapel, Kontroll-Punkte, Zersetzungs-Stapel) — das gibt ihnen Tiefe und ein eigenes
 Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Schwierigkeit" anzutasten.
 
@@ -586,10 +596,38 @@ mehr bringt.
 
 ### 7.1 Zauberbalken und Wirkungsdauer — zwei getrennte Dinge
 
-| Art                                              | Verhalten                                                                                                                                                                                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Zauberbalken (Wirkzeit)**                      | **Blockiert.** Während der Balken läuft, kann nichts anderes gewirkt werden. Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
-| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                            |
+| Art                                              | Verhalten                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zauberbalken (Wirkzeit)**                      | **Sperrt nichts — aber jede andere Wirkung bricht ihn ab.** Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Der Zauber wirkt **erst am Ende**; bricht er ab, ist die Wirkung **vollständig** verloren. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
+| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                                                                                                      |
+
+#### Was einen laufenden Zauber abbricht — entschieden am 2026-08-05
+
+**Jede Wirkung des Spielers bricht einen laufenden Cast oder eine Kanalisierung ab. Jede, ohne
+Ausnahme — auch das Unterbrechen.** Das ist das WoW-Prinzip, und es ist ausdrücklich so gewollt:
+
+> Wenn ein Spell z. B. 3 s gecastet werden muss, bis er gewirkt wird, dann wird — wenn der Spieler
+> während dem Casten einen anderen Spell wirkt — der Cast **abgebrochen**. Er verliert seine
+> vollständige Wirkung, da Cast-Spells immer erst wirken, wenn sie fertig gecastet sind.
+> **Das gilt auch für Unterbrechen. Egal welcher Spell.**
+
+**Der Spieler ist also nicht handlungsunfähig — er trifft eine Entscheidung, und sie kostet ihn den
+laufenden Zauber.** Das ist die Verpflichtung aus dem Absatz oben, nur an anderer Stelle: nicht
+„ich kann nicht", sondern „es kostet mich".
+
+**Zwei Typen, zwei Verluste:**
+
+| Typ                 | wann die Wirkung anfällt             | bei Abbruch                     |
+| ------------------- | ------------------------------------ | ------------------------------- |
+| **Cast** (Wirkzeit) | **am Ende**, vollständig             | **alles verloren**              |
+| **Kanalisierung**   | **laufend**, über die Dauer verteilt | **der erreichte Anteil bleibt** |
+
+> Beispiel des Auftraggebers: Eine Kanalisierung über 5 s für 500 Heilung, abgebrochen nach 3 s,
+> hat 300 Heilung gegeben. Dasselbe gilt für Schadens- und Ressourcen-Kanalisierungen.
+
+**Kanalisierungen sind damit ein eigener Zauber-Typ neben Sofort-Zauber, Wirkzeit und DoT.** Sie
+widersprechen Design-Gesetz 1 nicht: Verboten ist das **Tastenhalten**, nicht die Kanalisierung.
+Eine Kanalisierung startet mit einem Tastendruck und läuft von selbst.
 
 **Abbruch eines Zauberbalkens: nur durch bestimmte, vorher erkennbare Boss-Angriffe.** Normale
 Treffer stören nicht. Bei Abbruch geht der Zauber verloren, **die Abklingzeit läuft aber nicht an**.
@@ -706,13 +744,14 @@ Y  X  C  V      =  26 Belegungen
    Leertaste
 ```
 
-| Aspekt                                 | Festlegung                                                                                                                                                                                                                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt** |
-| **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                    |
-| **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                      |
-| **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                |
-| **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                 |
+| Aspekt                                 | Festlegung                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt**                                                                                                                                                       |
+| **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                                                                                                                                                                          |
+| **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                                                                                                                                                                      |
+| **Keine Doppelbelegung**               | **Ein Zauber liegt auf höchstens einem Platz** (entschieden am 2026-08-05, Issue #287). Ein Platz ist knapp — 12 bis 16 bei 60 Zaubern —, und ihn zu verdoppeln verschenkt ihn. Die Auswahl bietet einen bereits gelegten Zauber nicht erneut an; ein Spielstand mit Doppelbelegung wird beim Laden bereinigt. **Folge für die Vorschau:** Die Zählung „wie viele Zauber zahlen je Mechanik ein" (Kapitel 16) stimmt damit von selbst |
+| **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                                                                                                                                                                       |
 
 ### 8.2 Fehleingabe
 
@@ -1351,7 +1390,11 @@ Dann die **Kurzfassung**: Erfolg/Misserfolg, Restzeit, Punkte, drei Kennzahlen �
 
 **Die drei Kennzahlen:**
 
-- **Leerlauf pro Zauber** — wie viele Sekunden lag jeder Zauber ungenutzt bereit (nach Verlust sortiert)
+- **Leerlauf pro Zauber** — wie viele Sekunden lag jeder Zauber ungenutzt bereit (nach Verlust
+  sortiert). **Nur Zauber, die auf der Leiste liegen** (präzisiert am 2026-08-05, Issue #306): Ein
+  Zauber auf keinem Platz kann nicht ungenutzt bereitliegen — er ist nicht wirkbar, und die Zeile
+  wäre eine Falschaussage. Bei 60 Zaubern und 12–16 Plätzen stünden sonst über vierzig Zeilen mit
+  `0.0 s` in der Liste und verdünnten die Sortierung nach Verlust, die derselbe Satz verlangt
 - **Verlorene Zeit gesamt** — Sekunden und Prozent ohne aktiven Zauber
 - **Synergie-Ausbeute** — wie viel Prozent der möglichen Kombinationen genutzt wurden
 
