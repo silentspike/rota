@@ -174,6 +174,7 @@ describe('Zwei Haelften, eine Rundung', () => {
       victory: true,
       elapsedMs: 30_000,
       remainingMs: 0,
+      heldPercent: null,
       damage: 1000,
       bossHp: 5000,
       progressPercent: 20,

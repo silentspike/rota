@@ -65,6 +65,13 @@ export interface ResultView {
   readonly elapsedMs: number;
   /** Restzeit bis zum Überdruck in ms. Bei Sieg die Reserve. */
   readonly remainingMs: number;
+  /**
+   * Was einen Sieg vom anderen trennt, bei einem Boss mit umgekehrtem Ziel.
+   *
+   * `null` heißt: gewöhnlicher Boss — dort trennt die Restzeit, die schon
+   * dasteht (Issue #256).
+   */
+  readonly heldPercent: number | null;
   readonly damage: number;
   readonly bossHp: number;
   readonly casts: number;
@@ -304,7 +311,15 @@ export class Overlay {
       if (node !== undefined) node.textContent = text;
     };
     set('time', `${(view.elapsedMs / 1000).toFixed(2)} s`);
-    set('remaining', `${(view.remainingMs / 1000).toFixed(2)} s`);
+    // **Dieselbe Zeile, zwei Größen** — kein zweiter Satz Anzeigen (Auflage
+    // aus #256). Bei einem gewöhnlichen Boss steht dort die Reserve; bei einem
+    // mit umgekehrtem Ziel ist die immer 0,00 s, weil der Sieg das Ablaufen
+    // der Frist IST. Dort trennt der Ring-Rest die Siege.
+    if (view.heldPercent === null) {
+      set('remaining', `${(view.remainingMs / 1000).toFixed(2)} s`);
+    } else {
+      set('remaining', `${view.heldPercent.toFixed(1)} %`);
+    }
     set('damage', String(view.damage));
     const progress = view.bossHp > 0 ? (100 * view.damage) / view.bossHp : 0;
     set('progress', `${Math.min(100, progress).toFixed(1)} %`);
