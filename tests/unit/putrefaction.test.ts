@@ -176,6 +176,46 @@ describe('AC4 — die Obergrenze hält, und sie verbraucht nichts', () => {
   });
 });
 
+describe('Die Mechanik wird von ausgelieferten Zaubern benutzt', () => {
+  it('CANKER legt an, FESTER lebt davon — welche, nicht ob', () => {
+    // **Der Wächter, den diese Woche dreimal gefehlt hat.** Eine fertige
+    // Mechanik, die kein Zauber aufruft, gilt über die Prüfsumme als fertig
+    // und ist es nicht: `sublimation` wurde so zu #201, `energy` zu #219,
+    // `cooldown_reset` zu #223.
+    //
+    // Geprüft wird **welche** Zauber, nicht **ob** einer. Ein `> 0` wäre schon
+    // erfüllt, wenn irgendetwas irgendwo steht; die Namen halten fest, was die
+    // Referenz-Rechnung sieht.
+    //
+    // Die Gegenseite steht in `sim/tests/parity_putrefaction.rs` — ein Wächter
+    // allein auf einer Seite ist ein halber.
+    const spells = CALCINATION.value.spells;
+    const legenAn = spells.filter((s) => (s.decay?.stacks ?? 0) > 0).map((s) => s.id);
+    const lebenDavon = spells.filter((s) => (s.perDecayStackPercent ?? 0) > 0).map((s) => s.id);
+
+    expect(
+      legenAn,
+      'wer hier einen Zauber ergänzt, ändert die Referenz-Rechnung — dann ' +
+        'gehört sie nachgemessen, nicht diese Liste erweitert',
+    ).toEqual(['canker']);
+    expect(lebenDavon, 'CANKER legt an, FESTER lebt davon (GAME-DESIGN 4.1)').toEqual(['fester']);
+  });
+
+  it('und sie wirkt im Kampf, nicht nur in den Daten', () => {
+    // **Der zweite Teil, und er ist der wichtigere.** Die Listen oben zeigen,
+    // dass die Daten es sagen — nicht, dass der Kampf es tut. Genau diese
+    // Lücke hat die drei Fälle dieser Woche entstehen lassen.
+    const combat = bau();
+    expect(combat.decayStacks).toBe(0);
+    wirke(combat, 'canker', 0);
+    expect(
+      combat.decayStacks,
+      'CANKER kam nicht zum Zug oder die Mechanik ist nicht angeschlossen',
+    ).toBeGreaterThan(0);
+    expect(combat.vulnerability).toBeGreaterThan(1);
+  });
+});
+
 describe('AC6 — ohne Putrefaktions-Zauber bewegt sich nichts', () => {
   it('die Verwundbarkeit bleibt neutral', () => {
     // Die Referenz-Rechnung (4240 @ 40510) läuft gegen CALCINATION. Solange
