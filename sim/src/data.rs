@@ -570,6 +570,28 @@ pub struct PlayerBase {
     pub ward_reduction: f64,
 }
 
+/// Ein Grundwert auf einer Stufe (GAME-DESIGN 8.1; Issue #248).
+///
+/// Spiegelbild zu `statAtLevel` in `src/core/data.ts`. **Ganzzahl mal Promille
+/// durch tausend, mit Ganzzahl-Division** — in der ganzen Kette kommt keine
+/// Fliesskommazahl vor, damit beide Seiten dieselbe Zahl treffen (18.4).
+///
+/// Stufen ausserhalb der Tabelle werden geklemmt statt abgelehnt: Ein Lauf aus
+/// einer Fassung mit anderer Hoechststufe soll rechenbar bleiben.
+///
+/// **Die Erfahrungskurve steht hier bewusst NICHT.** Der Simulator misst
+/// Kaempfe, nicht Fortschritt; wie lange jemand fuer eine Stufe braucht,
+/// beruehrt keinen Takt und keine Pruefsumme.
+#[must_use]
+pub fn stat_at_level(base: u32, level: u32) -> u32 {
+    let stufe = level.clamp(1, MAX_LEVEL);
+    let promille = LEVEL_FACTOR_PER_MILLE
+        .get(stufe as usize - 1)
+        .copied()
+        .unwrap_or(1000);
+    u32::try_from(u64::from(base) * u64::from(promille) / 1000).unwrap_or(base)
+}
+
 impl PlayerBase {
     /// Wie viel Schaden nach WARD ankommt.
     ///

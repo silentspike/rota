@@ -51,6 +51,7 @@ const PUTREFACTION_JSON: &str = "../data/spells/putrefaction.json";
 const BOSSES_DIR: &str = "../data/bosses";
 /// Die Grundwerte des Spielers, relativ zum Paketverzeichnis `sim/`.
 const PLAYER_JSON: &str = "../data/player/base.json";
+const LEVELS_JSON: &str = "../data/player/levels.json";
 
 /// Welcher Boss der Standard ist, wenn keiner gewaehlt wird.
 ///
@@ -77,6 +78,7 @@ fn main() {
     // weiter — der Fehler saehe aus, als fehle die Datei.
     println!("cargo:rerun-if-changed={BOSSES_DIR}");
     println!("cargo:rerun-if-changed={PLAYER_JSON}");
+    println!("cargo:rerun-if-changed={LEVELS_JSON}");
     println!("cargo:rerun-if-changed=build.rs");
 
     let spells = read_json(SPELLS_JSON);
@@ -106,6 +108,7 @@ fn main() {
     );
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
+    emit_levels(&mut out, &read_json(LEVELS_JSON));
 
     let dest = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR fehlt")).join("data_generated.rs");
     fs::write(&dest, out).unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", dest.display()));
@@ -1067,6 +1070,69 @@ fn emit_player(out: &mut String, player: &Value) {
         out,
         "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?} }};\n"
     );
+}
+
+/// Das Wachstum der Grundwerte je Stufe (GAME-DESIGN 8.1; Issue #248).
+///
+/// **NUR die Wachstumstabelle, NICHT die Erfahrungskurve.** Der Simulator misst
+/// Kaempfe, nicht Fortschritt: Was auf Stufe 50 passiert, haengt an den
+/// Grundwerten; wie lange jemand fuer Stufe 50 braucht, an der Kurve — und das
+/// eine folgt nicht aus dem anderen. Eine gespiegelte Kurve waere eine zweite
+/// Stelle, die auseinanderlaufen kann, ohne dass irgendetwas davon abhinge.
+///
+/// Die Tabelle steht in Promille und ganzzahlig, weil `1,05^n` eine
+/// Fliesskomma-Potenz ist: `Math.pow` in JavaScript und `f64::powf` hier sind
+/// nicht garantiert bitgleich (GAME-DESIGN 18.4). Eine Tabelle rechnet gar
+/// nicht, sie steht da.
+fn emit_levels(out: &mut String, levels: &Value) {
+    let whose = "player/levels.json";
+    let max_level = uint(levels, "maxLevel", whose);
+    assert!(max_level >= 1, "{whose}: maxLevel muss mindestens 1 sein");
+
+    let faktoren: Vec<u64> = levels
+        .get("factorPerMille")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"factorPerMille\" fehlt"))
+        .iter()
+        .map(|v| {
+            v.as_u64()
+                .unwrap_or_else(|| panic!("{whose}: Faktor ist keine ganze Zahl"))
+        })
+        .collect();
+
+    assert!(
+        faktoren.len() as u64 == max_level,
+        "{whose}: {} Faktoren fuer {max_level} Stufen. Jede Stufe braucht genau einen — \
+         sonst waechst der Spieler ab einer Stelle nicht mehr",
+        faktoren.len()
+    );
+    assert!(
+        faktoren.first() == Some(&1000),
+        "{whose}: Stufe 1 traegt nicht 1000. Der Spieler startet mit den Werten aus \
+         base.json, nicht darueber oder darunter"
+    );
+    for paar in faktoren.windows(2) {
+        assert!(
+            paar[1] > paar[0],
+            "{whose}: die Faktoren steigen nicht durchgehend. Ein Aufstieg, der \
+             schwaecher macht, ist keiner"
+        );
+    }
+
+    let _ = writeln!(
+        out,
+        "/// Hoechste erreichbare Stufe (`data/player/levels.json`)."
+    );
+    let _ = writeln!(out, "pub const MAX_LEVEL: u32 = {max_level};\n");
+    let _ = writeln!(
+        out,
+        "/// Faktor je Stufe in Promille. Index 0 ist Stufe 1 und traegt 1000."
+    );
+    let _ = write!(out, "pub static LEVEL_FACTOR_PER_MILLE: &[u32] = &[");
+    for f in &faktoren {
+        let _ = write!(out, "{f}, ");
+    }
+    let _ = writeln!(out, "];\n");
 }
 
 /// Die drei Wege der Koagulation (GAME-DESIGN 4.1, Issue #79).

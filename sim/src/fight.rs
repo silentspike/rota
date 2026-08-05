@@ -68,8 +68,8 @@
 use crate::checksum::{mix_float, mix_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
-    stack_damage, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry, TimelineKind,
-    BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, stat_at_level, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
+    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -208,6 +208,15 @@ pub struct FightConfig {
     /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
     /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
     pub worn: WornValues,
+    /// Stufe des Spielers (Issue #248).
+    ///
+    /// Sie wirkt auf die Grundwerte: Ein Kampf auf Stufe 50 hat andere
+    /// Lebenspunkte als einer auf Stufe 1. Kennte der Simulator sie nicht,
+    /// rechnete er ab E10 gegen einen anderen Spieler als das Spiel.
+    ///
+    /// **Nicht die Erfahrung.** Wie lange jemand fuer diese Stufe gebraucht
+    /// hat, beruehrt keinen Takt.
+    pub player_level: u32,
 }
 
 impl Default for FightConfig {
@@ -220,6 +229,7 @@ impl Default for FightConfig {
             factors: NEUTRAL,
             boss: BOSS,
             worn: WornValues::none(),
+            player_level: 1,
         }
     }
 }
@@ -316,7 +326,14 @@ pub struct Fight {
     interrupts_landed: u32,
 
     // -- Spieler --
-    /// Verbleibende Lebenspunkte. Beginnt bei `PLAYER.vessel`.
+    /// Volle Lebenspunkte auf der Stufe dieses Laufs (Issue #248).
+    ///
+    /// **Einmal gerechnet, dreimal gebraucht**: Startwert, Zuruecksetzen und
+    /// die Obergrenze der Heilung. Die Rechnung an drei Stellen zu wiederholen
+    /// waere dieselbe Formel an drei Orten, und eine davon liefe irgendwann
+    /// weg.
+    vessel_max: u32,
+    /// Verbleibende Lebenspunkte. Beginnt bei `vessel_max`.
     player_hp: u32,
     /// Kampfzeit des Spielertods, oder `None`.
     ///
@@ -486,7 +503,8 @@ impl Fight {
             casting: None,
             interrupts_missed: 0,
             interrupts_landed: 0,
-            player_hp: PLAYER.vessel,
+            vessel_max: stat_at_level(PLAYER.vessel, config.player_level),
+            player_hp: stat_at_level(PLAYER.vessel, config.player_level),
             died_at: None,
             damage_taken: 0,
             shield: 0,
@@ -1007,7 +1025,7 @@ impl Fight {
         self.casting = None;
         self.interrupts_missed = 0;
         self.interrupts_landed = 0;
-        self.player_hp = PLAYER.vessel;
+        self.player_hp = self.vessel_max;
         self.died_at = None;
         self.damage_taken = 0;
         self.shield = 0;
@@ -1349,7 +1367,7 @@ impl Fight {
             // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
             // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
             // als er gebraucht hat.
-            let fehlend = PLAYER.vessel.saturating_sub(self.player_hp);
+            let fehlend = self.vessel_max.saturating_sub(self.player_hp);
             let wirklich = heal.amount.min(fehlend);
             if wirklich > 0 {
                 self.player_hp += wirklich;
