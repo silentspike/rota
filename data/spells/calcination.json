@@ -55,6 +55,38 @@
         "bonusMultiplier": 2,
         "consumesAll": true
       }
+    },
+    {
+      "id": "bellows",
+      "name": "Bellows",
+      "unlockLevel": 3,
+      "baseDamage": 40,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "resourceGain": {
+        "heat": 8
+      },
+      "_comment": "WEG A — ueber die Hitze. Er verliert 60 Sofortschaden gegen KINDLE und gibt dafuer 5 Hitze mehr. Bei erreichter Schwelle sind 5 Hitze 5*12*2 = 120 zusaetzlicher PYRE-Schaden, also netto +60 je GCD. Er lohnt NUR, wenn PYRE die Hitze auch verbraucht — steht PYRE auf Abklingzeit und laeuft die Hitze am Deckel (20) ueber, ist er ein 40er-Zauber und schlechter als KINDLE. Das ist die Entscheidung, die er dem Spieler stellt."
+    },
+    {
+      "id": "searing",
+      "name": "Searing",
+      "unlockLevel": 5,
+      "baseDamage": 0,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "dot": {
+        "tickDamage": 90,
+        "tickIntervalMs": 2000,
+        "durationMs": 6000,
+        "refreshMode": "reset",
+        "resourceGainPerTick": {
+          "heat": 1
+        }
+      },
+      "_comment": "WEG C — ueber den Brand, mit anderer KURVE als SMOULDER. Drei Ticks zu 90 in 6000 ms (270) gegen sechs Ticks zu 40 in 12000 ms (240). Er liefert mehr und frueher, laeuft aber halb so lang — er muss doppelt so oft nachgelegt werden und kostet damit doppelt so viele GCD. Im langen Kampf verliert er gegen SMOULDER, im kurzen Fenster gewinnt er. Genau die Entscheidung, die eine zweite Brand-Kurve rechtfertigt."
     }
   ]
 }

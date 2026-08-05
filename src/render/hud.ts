@@ -216,6 +216,7 @@ export class HudRenderer {
     casts: number;
     summary: RunSummary | null;
     mark: MarkDisplay | null;
+    points: number | null;
   } = {
     outcome: 0,
     elapsedMs: 0,
@@ -227,6 +228,7 @@ export class HudRenderer {
     casts: 0,
     summary: null,
     mark: null,
+    points: null,
   };
 
   constructor(
@@ -244,6 +246,14 @@ export class HudRenderer {
      * und die Vorgabe `null` haelt jeden bestehenden Aufruf gueltig.
      */
     private readonly markSource: () => MarkDisplay | null = () => null,
+    /**
+     * Die Punkte des zuletzt aufgezeichneten Laufs (Issue #276).
+     *
+     * Als Quelle und nicht als Wert: Sie entstehen in `recordRun`, und der
+     * läuft in `onFinish` — also erst, wenn die Sitzung endet. Ein zum
+     * Bauzeitpunkt übergebener Wert wäre immer der des vorigen Kampfes.
+     */
+    private readonly pointsSource: () => number | null = () => null,
   ) {
     this.mechanicSource = {
       slotCount: SLOT_COUNT,
@@ -398,6 +408,10 @@ export class HudRenderer {
     // je Bild. Sie aendert sich waehrend der Auswertung nicht.
     if (this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome) {
       view.mark = this.markSource();
+      // Beim selben Wechsel wie die Marke und aus demselben Grund: Der Wert
+      // ändert sich während der Auswertung nicht, und je Bild abzufragen hieße
+      // sechzig Mal in der Sekunde dieselbe Zahl zu holen.
+      view.points = this.pointsSource();
     }
     if (this.session.phase === PHASE_ENDED) this.lastSummaryOutcome = this.session.outcome;
     else this.lastSummaryOutcome = -1;
