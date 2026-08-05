@@ -65,8 +65,29 @@ export interface ResultView {
   readonly elapsedMs: number;
   /** Restzeit bis zum Überdruck in ms. Bei Sieg die Reserve. */
   readonly remainingMs: number;
+  /**
+   * Was einen Sieg vom anderen trennt, bei einem Boss mit umgekehrtem Ziel.
+   *
+   * `null` heißt: gewöhnlicher Boss — dort trennt die Restzeit, die schon
+   * dasteht (Issue #256).
+   */
+  readonly heldPercent: number | null;
   readonly damage: number;
-  readonly bossHp: number;
+  /**
+   * Der Fortschritt in Prozent, **fertig gerechnet**.
+   *
+   * Hier stand bis zum 2026-08-05 `bossHp`, und die Anzeige rechnete daraus
+   * ihren eigenen Fortschritt: `100 * damage / bossHp`. Das war eine zweite
+   * Stelle für dieselbe Entscheidung — und sie ist bei #256 stehen geblieben,
+   * während `progressOf` die Umkehrung schon kannte. Im Browser zeigte die
+   * Niederlage danach 100 %, obwohl die Kurzfassung 85 % meldete.
+   *
+   * **Die Zutat ist deshalb weg, nicht nur der Aufruf.** Wer die alte Formel
+   * hier wieder aufschreiben wollte, fände `bossHp` nicht mehr vor. Das ist
+   * derselbe Griff wie bei `applyBindings` (#264): Die Regel steht an EINER
+   * Stelle, und die anderen bekommen das Ergebnis.
+   */
+  readonly progressPercent: number;
   readonly casts: number;
   /** Die Kurzfassung mit den drei Kennzahlen (GAME-DESIGN 15.1). */
   readonly summary: RunSummary | null;
@@ -103,12 +124,17 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
   return node;
 }
 
-function row(label: string): { root: HTMLElement; value: HTMLElement } {
+function row(label: string): { root: HTMLElement; label: HTMLElement; value: HTMLElement } {
   const root = element('div', 'rota-row');
-  root.appendChild(element('span', 'rota-row-label', label));
+  // Die Beschriftung wird mitgegeben, weil sie bei einem Boss mit umgekehrtem
+  // Ziel eine andere Größe benennt (Issue #256). Zwei Zeilenpaare
+  // nebeneinander wären der „zweite Satz Anzeigen", den die Auflage verbietet
+  // — dieselbe Zeile mit der richtigen Beschriftung ist die Antwort.
+  const beschriftung = element('span', 'rota-row-label', label);
+  root.appendChild(beschriftung);
   const value = element('span', 'rota-row-value', '—');
   root.appendChild(value);
-  return { root, value };
+  return { root, label: beschriftung, value };
 }
 
 export class Overlay {
@@ -121,6 +147,8 @@ export class Overlay {
   private readonly markSentence: HTMLElement;
   private readonly markAttempts: HTMLElement;
   private readonly resultRows: Record<string, HTMLElement> = {};
+  /** Die Beschriftungen — sie wechseln bei einem umgekehrten Ziel (#256). */
+  private readonly resultLabels: Record<string, HTMLElement> = {};
   private readonly detail: HTMLElement;
   /** Die Werte-Karte des Vorbereitungs-Bildschirms (Issue E6-1, AC4). */
   private readonly gearCard: HTMLElement;
@@ -210,6 +238,7 @@ export class Overlay {
       const made = row(label);
       this.result.appendChild(made.root);
       this.resultRows[key] = made.value;
+      this.resultLabels[key] = made.label;
     }
 
     // Die Fortschrittsmarke steht VOR den Kennzahlen, direkt unter der
@@ -234,6 +263,7 @@ export class Overlay {
       const made = row(label);
       this.result.appendChild(made.root);
       this.resultRows[key] = made.value;
+      this.resultLabels[key] = made.label;
     }
 
     // "View Analysis" klappt den Leerlauf je Zauber auf. Die ausführliche
@@ -304,10 +334,19 @@ export class Overlay {
       if (node !== undefined) node.textContent = text;
     };
     set('time', `${(view.elapsedMs / 1000).toFixed(2)} s`);
-    set('remaining', `${(view.remainingMs / 1000).toFixed(2)} s`);
+    // **Dieselbe Zeile, zwei Größen** — kein zweiter Satz Anzeigen (Auflage
+    // aus #256). Bei einem gewöhnlichen Boss steht dort die Reserve; bei einem
+    // mit umgekehrtem Ziel ist die immer 0,00 s, weil der Sieg das Ablaufen
+    // der Frist IST. Dort trennt der Ring-Rest die Siege.
+    if (view.heldPercent === null) {
+      set('remaining', `${(view.remainingMs / 1000).toFixed(2)} s`);
+    } else {
+      set('remaining', `${view.heldPercent.toFixed(1)} %`);
+    }
     set('damage', String(view.damage));
-    const progress = view.bossHp > 0 ? (100 * view.damage) / view.bossHp : 0;
-    set('progress', `${Math.min(100, progress).toFixed(1)} %`);
+    // **Gerechnet wird woanders.** `progressOf` kennt die Umkehrung; diese
+    // Zeile stellt sie nur dar.
+    set('progress', `${view.progressPercent.toFixed(1)} %`);
     // Die Punkteformel ist noch nicht ausgearbeitet (GAME-DESIGN 22, vor Epic
     // E5). Eine erfundene Zahl wäre schlimmer als ein ehrlicher Strich.
     set('score', '—');
@@ -330,17 +369,49 @@ export class Overlay {
 
     const summary = view.summary;
     if (summary === null) return;
-    const worst = summary.idlePerSpell[0];
-    set(
-      'idleWorst',
-      worst === undefined
-        ? '—'
-        : `${worst.spellId} · ${(worst.idleMs / 1000).toFixed(1)} s (${(worst.share * 100).toFixed(0)} %)`,
-    );
-    set(
-      'lostTime',
-      `${(summary.lostTimeMs / 1000).toFixed(1)} s (${(summary.lostTimeShare * 100).toFixed(0)} %)`,
-    );
+
+    const beschriften = (key: string, text: string): void => {
+      const node = this.resultLabels[key];
+      if (node !== undefined) node.textContent = text;
+    };
+
+    if (summary.reversed) {
+      // **BEI EINEM UMGEKEHRTEN ZIEL SAGEN DIESE ZWEI ZEILEN DAS GEGENTEIL.**
+      // Gemessen an einem Lauf ohne einen einzigen Tastendruck:
+      //
+      //   Idle · worst spell   kindle · 17.0 s (100 %)
+      //   Time lost            17.0 s (100 %)
+      //
+      // Beides ist korrekt GEMESSEN und trotzdem verkehrt: Nichtstun war dort
+      // das Bestmögliche, und KINDLE ist der Zauber, der den Lauf 9,5 s früher
+      // kippt. Die Auswertung riet dem Spieler zu dem, was ihn umbringt.
+      //
+      // Dieselben zwei Zeilen tragen deshalb die Größen, die dort zählen —
+      // kein zweiter Satz Anzeigen.
+      beschriften('idleWorst', 'Ring damage by you');
+      set(
+        'idleWorst',
+        summary.playerDamage <= 0
+          ? 'none — you held it'
+          : `${summary.playerDamage.toLocaleString('en-US')} of ${summary.bossHp.toLocaleString('en-US')}`,
+      );
+      beschriften('lostTime', 'Time held');
+      set('lostTime', `${(summary.elapsedMs / 1000).toFixed(1)} s`);
+    } else {
+      beschriften('idleWorst', 'Idle · worst spell');
+      const worst = summary.idlePerSpell[0];
+      set(
+        'idleWorst',
+        worst === undefined
+          ? '—'
+          : `${worst.spellId} · ${(worst.idleMs / 1000).toFixed(1)} s (${(worst.share * 100).toFixed(0)} %)`,
+      );
+      beschriften('lostTime', 'Time lost');
+      set(
+        'lostTime',
+        `${(summary.lostTimeMs / 1000).toFixed(1)} s (${(summary.lostTimeShare * 100).toFixed(0)} %)`,
+      );
+    }
     set(
       'synergy',
       summary.synergyAvailable === 0
@@ -350,11 +421,41 @@ export class Overlay {
     this.fillDetail(summary);
   }
 
-  /** Der Leerlauf je Zauber, nach Verlust sortiert (GAME-DESIGN 15.1). */
+  /**
+   * Die Zeile je Zauber, nach dem sortiert, was zählt (GAME-DESIGN 15.1).
+   *
+   * **BEI EINEM UMGEKEHRTEN ZIEL IST ES NICHT DER LEERLAUF** (Issue #256).
+   * Diese Liste stand bis zum 2026-08-05 als „Idle time per spell" auch dort —
+   * dieselbe verkehrte Aussage wie die Zeile darüber, nur eine Ebene tiefer und
+   * hinter einem Knopf, den ich beim Umbau nicht gedrückt hatte.
+   *
+   * Gefunden hat es kein Prüffall, sondern ein Screenshot: `overlay.ts` braucht
+   * ein Dokument, und die Prüffälle laufen ohne DOM. Dieselbe Stelle, an der
+   * schon die eigene Fortschritts-Rechnung saß.
+   *
+   * Der Schaden je Zauber IST der schädliche Anteil: Stabilisierer drängen den
+   * Ring über `undoProgress` zurück, statt Schaden zu buchen, und stehen hier
+   * deshalb bei null.
+   */
   private fillDetail(summary: RunSummary): void {
     this.detail.replaceChildren();
-    this.detail.appendChild(element('p', 'rota-hint', 'Idle time per spell, worst first'));
-    for (const entry of summary.idlePerSpell) {
+    const umgekehrt = summary.reversed;
+    this.detail.appendChild(
+      element(
+        'p',
+        'rota-hint',
+        umgekehrt ? 'Ring damage per spell, worst first' : 'Idle time per spell, worst first',
+      ),
+    );
+    // Die Kurzfassung sortiert nach Leerlauf. Bei einem umgekehrten Ziel ist
+    // das die falsche Reihenfolge — hier steht der oben, der am meisten Ring
+    // gekostet hat. Eine Kopie, damit die Kurzfassung unberührt bleibt.
+    const zeilen = umgekehrt
+      ? [...summary.idlePerSpell].sort(
+          (a, b) => b.damage - a.damage || a.spellId.localeCompare(b.spellId),
+        )
+      : summary.idlePerSpell;
+    for (const entry of zeilen) {
       const line = element('div', 'rota-row');
       line.appendChild(
         element('span', 'rota-row-label', `${entry.spellId} · ${entry.casts} casts`),
@@ -363,7 +464,11 @@ export class Overlay {
         element(
           'span',
           'rota-row-value',
-          `${(entry.idleMs / 1000).toFixed(1)} s (${(entry.share * 100).toFixed(0)} %)`,
+          umgekehrt
+            ? entry.damage === 0
+              ? '—'
+              : `${entry.damage.toLocaleString('en-US')} ring damage`
+            : `${(entry.idleMs / 1000).toFixed(1)} s (${(entry.share * 100).toFixed(0)} %)`,
         ),
       );
       this.detail.appendChild(line);

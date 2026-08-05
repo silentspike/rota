@@ -219,7 +219,12 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     // `stabilisedCount` daran und ist herausgeschnitten worden. Eine gesenkte
     // Untergrenze ist genau der Fall, für den diese Zeile eine ausdrückliche
     // Entscheidung verlangt — hier ist sie.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(34);
+    //
+    // 35 seit #256: `playerDamage` trennt den Anteil des Spielers am
+    // Ring-Verlust vom Anteil der davonlaufenden Reaktion. Die Zahl mit der
+    // Liste mitzuziehen ist Absicht — bliebe sie auf 34, könnte ein Feld
+    // wegfallen, ohne dass jemand es merkt.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(35);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {

@@ -424,6 +424,33 @@ export class Combat {
    */
   private phaseHoldUntilMs = -1;
   private damageDealtValue = 0;
+  /**
+   * Wie viel Ring der SPIELER heruntergedrückt hat (Issue #256, AC3).
+   *
+   * **Ein zweiter Zähler, weil einer die Herkunft nicht mehr hergibt.** Seit
+   * #247 senkt die davonlaufende Reaktion den Ring von selbst, und beides
+   * landete in `damageDealtValue`. Gemessen am 2026-08-05 gegen
+   * `test-runaway`:
+   *
+   * | Lauf | damageDealt | davon Reaktion | davon Spieler |
+   * | --- | --- | --- | --- |
+   * | nichts gedrückt | 1020 | 1020 | 0 |
+   * | KINDLE auf Cooldown | 1020 | 420 | 600 |
+   *
+   * Ohne die Trennung meldete die Fehleranalyse dem Nichtstuer 1020 Punkte
+   * als seinen Fehler — dieselbe verkehrte Aussage, die AC1 eine Ebene höher
+   * gerade repariert hat.
+   *
+   * **Nur was ankommt.** Schaden, den das Unverwundbarkeits-Fenster schluckt,
+   * senkt den Ring nicht und steht deshalb nicht hier; er hat mit
+   * `damageLostToRaceValue` seine eigene Zahl.
+   *
+   * **Ein Stabilisierer senkt ihn nicht.** `undoProgress` drängt den Ring
+   * zurück, aber wer 600 Punkte angerichtet und 300 repariert hat, hat 600
+   * angerichtet — die Reparatur ist eine eigene Leistung und gehört in eine
+   * eigene Zeile, nicht in eine Verrechnung, die beides unsichtbar macht.
+   */
+  private playerDamageValue = 0;
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
   private fightStartedAtMs = 0;
@@ -494,6 +521,16 @@ export class Combat {
 
   get damageDealt(): number {
     return this.damageDealtValue;
+  }
+
+  /**
+   * Der Anteil am Ring-Verlust, der vom Spieler stammt (Issue #256).
+   *
+   * Bei einem gewöhnlichen Boss ist das der Fortschritt selbst; bei einem mit
+   * `runaway` ist es der Teil des Verlusts, den er sich selbst zugefügt hat.
+   */
+  get playerDamage(): number {
+    return this.playerDamageValue;
   }
 
   get bossHpRemaining(): number {
@@ -1607,6 +1644,9 @@ export class Combat {
     }
     void timeMs;
     this.damageDealtValue += damage;
+    // **Die Herkunft wird HIER festgehalten, nicht später erschlossen.** Nach
+    // der Buchung ist sie fort: Der Ring weiß nicht mehr, wer ihn gesenkt hat.
+    if (vomSpieler) this.playerDamageValue += damage;
     if (spellIndex >= 0) {
       this.damageBySpell[spellIndex] = (this.damageBySpell[spellIndex] ?? 0) + damage;
     }
@@ -2015,6 +2055,9 @@ export class Combat {
     if (!__ROTA_DEVTOOLS__) return;
     const clamped = hp < 0 ? 0 : hp > this.boss.hp ? this.boss.hp : hp;
     this.damageDealtValue = this.boss.hp - clamped;
+    // `playerDamageValue` bleibt, wo es ist: Wer den Ring per Werkzeug setzt,
+    // hat ihn nicht heruntergespielt. Ihn mitzuziehen hieße, dem Spieler einen
+    // Fehler zuzuschreiben, den ein Tastendruck in der Konsole gemacht hat.
   }
 
   /** Alle Abklingzeiten sofort bereit — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
@@ -2045,6 +2088,7 @@ export class Combat {
     this.resourceOverflowValue = 0;
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;
+    this.playerDamageValue = 0;
     this.stateValue = FIGHT_RUNNING;
     this.endedAtMs = NOT_ACTIVE;
     this.fightStartedAtMs = 0;

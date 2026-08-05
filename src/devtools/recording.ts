@@ -405,6 +405,23 @@ export function recordings(): Map<string, Recording> {
     // Der Prueffall zum Wettrennen und zur Boss-Heilung (Issue #218). 40 s in
     // Takten: Das Fenster liegt bei 10 s, der Boss-Zauber bei 30 s und trifft
     // nach 3 s — beide Bausteine kommen also in EINEM Lauf vor.
+    // Der Prueffall zur davonlaufenden Reaktion mit SPIELERSCHADEN (Issue
+    // #256, AC3). 2000 Takte sind 20 s — genau die Frist.
+    //
+    // **Es gab bis zum 2026-08-05 keine einzige Vergleichsdatei mit
+    // `runaway`.** `parity_runaway.rs` prueft Zahlen, keine Pruefsummen; die
+    // Pruefsummen-Dateien fahren alle Bosse ohne Reaktion. Damit war der
+    // Simulator an dieser Stelle ungeprueft — aufgefallen an einer Gegenprobe,
+    // die NICHT anschlug: Wer `runaway_tick` dort die falsche Herkunft
+    // mitgeben liess, brach keinen Test.
+    //
+    // Die gute Rotation ist hier bewusst dieselbe wie sonst: Sie macht
+    // Schaden, und der Ring faellt zusaetzlich von selbst. Beide Herkuenfte
+    // kommen damit in EINEM Lauf vor — was der ganze Zweck ist.
+    const runawayBoss = bossById('test-runaway');
+    if (runawayBoss !== undefined) {
+      builtIn.set('runaway-progress', recordGoodRotation('runaway-progress', 2000, runawayBoss));
+    }
     const racer = bossById('test-racer');
     if (racer !== undefined) {
       builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));
