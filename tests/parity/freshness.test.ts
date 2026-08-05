@@ -46,6 +46,7 @@ import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
 import eingecheckteWirkzeit from './recordings/cast-time.json';
 import eingecheckteWiderstaende from './recordings/resistances.json';
+import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
 // **Diese zwei fehlten hier**, und das ist ein Befund und keine Ergänzung:
 // `runaway-progress` (#256) und `level-30` (#289) stehen seit ihrer Entstehung
 // unter `recordings/`, aber in keinem Frische-Fall. Der Simulator prüft gegen
@@ -81,6 +82,7 @@ import {
   sourcesPayload,
   castTimePayload,
   resistancePayload,
+  resistanceMixedPayload,
   runawayProgressPayload,
   level30Payload,
 } from './payloads.js';
@@ -185,6 +187,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf gegen einen Boss mit WIDERSTAENDEN entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteWiderstaende, HINWEIS).toEqual(resistancePayload());
+  });
+
+  it('der Lauf mit GEMISCHTER Leiste entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteGemischteLeiste, HINWEIS).toEqual(resistanceMixedPayload());
   });
 
   it('der Lauf mit der davonlaufenden Reaktion entspricht dem heutigen Spielstand', () => {

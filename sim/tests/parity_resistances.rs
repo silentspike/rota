@@ -284,7 +284,7 @@ fn der_boss_widerstand_allein_ist_erlaubt() {
 /// **Der Fall ist der Waechter**, nicht der Kommentar: Wer die Multiplikation
 /// spaeter anders baut, bekommt hier eine rote Meldung mit den zwei Zahlen.
 #[test]
-#[should_panic(expected = "sind beide")]
+#[should_panic(expected = "beide gesetzt")]
 fn regler_und_boss_widerstand_zusammen_brechen_ab() {
     let hart = boss_by_id("test-resistant").expect("test-resistant fehlt");
     let _ = Fight::new(FightConfig {

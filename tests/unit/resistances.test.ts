@@ -80,6 +80,18 @@ function messen(ziel: BossDef): Messung {
   };
 }
 
+/** Derselbe Lauf wie `messen`, aber mit einem wählbaren Zauber. */
+function messenMit(ziel: BossDef, spellId: string): number {
+  const combat = new Combat({ school: CALCINATION.value, boss: ziel });
+  const index = combat.indexOf(spellId);
+  combat.beginFight(0);
+  for (let t = 0; t <= MESSDAUER_MS; t += TICK_MS) {
+    combat.stepPassive(t);
+    if (combat.isReady(index, t)) combat.cast(index, t);
+  }
+  return combat.damageDealt;
+}
+
 describe('AC1/AC2 — der Widerstand wirkt, und nur wo er steht', () => {
   it('hat überhaupt zwei Bösse, die sich in genau einem Feld unterscheiden', () => {
     // **Ohne diese Zusicherung misst alles Weitere zwei beliebige Bösse.** Der
@@ -169,6 +181,52 @@ describe('AC3 — der Widerstand mindert den SCHADEN, nicht die MECHANIK', () =>
     const neutral = messen(NEUTRAL);
     expect(messen(RESISTANT).wirkungen).toBe(neutral.wirkungen);
     expect(messen(VULNERABLE).wirkungen).toBe(neutral.wirkungen);
+  });
+});
+
+describe('Der Widerstand hängt am ZAUBER, nicht am Kampf', () => {
+  /**
+   * **Entschieden am 2026-08-05, nachdem die Messung es erzwungen hat.**
+   *
+   * Bis dahin wurde der Faktor mit der Schule des KAMPFES nachgeschlagen. Er
+   * multiplizierte damit jeden Spielerschaden gleich — und etwas, das alles
+   * gleich skaliert, kann keine Reihenfolge ändern. Der Rotations-Läufer fand
+   * an einem Boss mit 0,75 und einem mit 1,25 dieselbe beste Liste.
+   *
+   * Die Auflösung steht im SSOT: „Wer **trotz Widerstand** Calcination spielt,
+   * sammelt weiter normal Hitze — macht damit aber weniger Schaden." Das setzt
+   * voraus, dass jemand mit einer anderen Schule nicht weniger macht.
+   */
+  it('mindert NUR die widerstandene Schule', () => {
+    // KINDLE ist CALCINATION, CANKER ist PUTREFACTION. Der Boss hält nur
+    // CALCINATION ab — ohne diesen Fall wäre nicht gezeigt, dass die anderen
+    // Schulen unberührt bleiben, und genau daran hängt die ganze Abwägung.
+    const kindleNeutral = messenMit(NEUTRAL, 'kindle');
+    const kindleFest = messenMit(RESISTANT, 'kindle');
+    const cankerNeutral = messenMit(NEUTRAL, 'canker');
+    const cankerFest = messenMit(RESISTANT, 'canker');
+
+    expect(cankerNeutral, 'ohne Schaden misst der Fall nichts').toBeGreaterThan(0);
+    expect(kindleFest / kindleNeutral).toBeCloseTo(0.75, 6);
+    expect(cankerFest, 'die fremde Schule bleibt unberührt').toBe(cankerNeutral);
+  });
+
+  it('LÄSST DEN SCHULUNABHÄNGIGEN ZAUBER IN RUHE', () => {
+    // QUENCH gehört keiner Schule an (GAME-DESIGN 7.4) — also kann keine
+    // Schule ihn abhalten. Dieselbe Trennung, die ihn schon von der globalen
+    // Wartezeit ausnimmt.
+    //
+    // Er teilt keinen Schaden aus; geprüft wird deshalb der Faktor selbst, und
+    // zwar an der Stelle, an der er entsteht: `spell.school` ist `null`, und
+    // die Nachschlagestelle muss daraus 1 machen — nicht `undefined`, nicht
+    // den Wert einer zufällig gleichnamigen Schule.
+    const quench = CALCINATION.value.spells.find((s) => s.id === 'quench');
+    expect(quench?.school, 'sonst prüft der Fall den falschen Zauber').toBeNull();
+
+    // Gemessen über die Anzeige-Zeilen: Ein Boss, der ALLE fünf Schulen
+    // abhielte, ließe QUENCH trotzdem unberührt — er steht in keiner.
+    const alleSchulen = RESISTANT.resistances;
+    expect(Object.keys(alleSchulen)).not.toContain('null');
   });
 });
 

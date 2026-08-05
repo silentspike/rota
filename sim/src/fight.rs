@@ -69,7 +69,7 @@ use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
     stack_damage, stat_at_level, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
-    TimelineKind, BOSS, PLAYER, RESOURCE, SCHOOL, SPELLS, SPELL_COUNT,
+    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -331,6 +331,12 @@ pub struct Fight {
     /// `None` heisst: keiner. Solange einer laeuft, kann er unterbrochen
     /// werden — danach nicht mehr, auch nicht im Takt des Treffers.
     casting: Option<usize>,
+    /// Der Widerstands-Faktor je Zauber (Issue #328).
+    ///
+    /// Vorgerechnet beim Aufbau: Der Boss wechselt zwischen den Kaempfen, nicht
+    /// in ihnen. Eine Suche je Wirkung waere eine Abbildung im Schritt
+    /// (GAME-DESIGN 18.4).
+    resistance_by_spell: [f64; SPELL_COUNT],
     /// Welcher Zauber des SPIELERS gerade gewirkt wird (Issue #304).
     ///
     /// `None` heisst: keiner. Bis #304 gab es diesen Zustand nicht — `casting`
@@ -507,55 +513,76 @@ pub struct Fight {
     events: RuleEvents,
 }
 
-/// Der Widerstands-Faktor eines Kampfes (Issue #328).
+/// Der Widerstands-Faktor **je Zauber** (Issue #328).
 ///
-/// Zwei Dinge kommen hier zusammen, und sie haben nichts miteinander zu tun:
+/// # Am ZAUBER, nicht am Kampf — entschieden am 2026-08-05
+///
+/// Bis dahin war es eine einzelne Zahl: `boss.resistance_for(SCHOOL)`. Sie
+/// multiplizierte jeden Spielerschaden gleich, und etwas, das alles gleich
+/// skaliert, kann keine Reihenfolge aendern. Gemessen mit dem Rotations-Laeufer:
+/// An einem Boss mit 0,75 und einem mit 1,25 kam **dieselbe** beste Liste
+/// heraus, 23340 gegen 38900 — beides 31120 vor dem Faktor.
+///
+/// Die Aufloesung steht im SSOT: "Wer **trotz Widerstand** Calcination spielt,
+/// sammelt weiter normal Hitze — macht damit aber weniger Schaden." Das setzt
+/// voraus, dass jemand mit einer anderen Schule nicht weniger macht.
+///
+/// **Schulunabhaengige Zauber tragen 1,0** (GAME-DESIGN 7.4): Wer keiner Schule
+/// angehoert, den kann keine Schule abhalten.
+///
+/// # Zwei Dinge, die hier zusammenkommen
 ///
 /// | | |
 /// | --- | --- |
 /// | `regler` | der Faktor aus `BalanceConfig` — womit der Balance-Laeufer die Formel vermisst |
 /// | Boss | der Widerstand aus den Boss-Daten, den auch das Spiel anwendet |
 ///
-/// **Deshalb multipliziert und nicht gesetzt.** Das Spiel kennt keinen Regler;
-/// es beginnt bei NEUTRAL und setzt den Boss-Wert. Wuerde der Simulator hier
-/// ebenfalls setzen, naehme er dem Laeufer sein Werkzeug — ausgerechnet dem,
-/// der belegen soll, was die Widerstaende bewirken.
+/// **Deshalb multipliziert und nicht gesetzt.** Das Spiel kennt keinen Regler.
+/// Wuerde der Simulator ebenfalls setzen, naehme er dem Laeufer sein Werkzeug —
+/// ausgerechnet dem, der belegen soll, was die Widerstaende bewirken.
 ///
 /// # DIE BEDINGUNG, AUF DER DIE BITGLEICHHEIT RUHT
 ///
 /// Beide Rechnungen stimmen ueberein, **solange eine der zwei Zahlen 1,0 ist**.
 /// Sind es beide nicht, rechnet der Simulator `regler x boss` und das Spiel nur
-/// `boss` — und die Paritaet waere hin, ohne dass ein Prueffall es meldete: Kein
-/// Paritaets-Weg faehrt diese Kombination.
+/// `boss` — und kein Paritaets-Weg faehrt diese Kombination, also meldete sie
+/// niemand.
 ///
-/// Bis zum 2026-08-05 stand diese Bedingung als KOMMENTAR da. Ein Satz, auf den
+/// Bis zum 2026-08-05 stand die Bedingung als KOMMENTAR da. Ein Satz, auf den
 /// sich die Bitgleichheit stuetzt und den niemand prueft, ist dieselbe Klasse
-/// wie #331 — nur mit einer anderen Zahl. Deshalb bricht dieser Aufruf jetzt ab,
+/// wie #331 — nur mit einer anderen Zahl. Deshalb bricht dieser Aufruf ab,
 /// statt still etwas zu rechnen, das dem Spiel nicht entspricht.
 ///
-/// # Warum ein Abbruch und kein `debug_assert`
-///
-/// Der Balance-Laeufer ist genau die Stelle, die den Regler setzt, und er
-/// laeuft mit `--release`. Ein `debug_assert` schwiege dort — also an der
-/// einzigen Stelle, an der die Kombination ueberhaupt entstehen kann.
-fn combat_resistance(regler: f64, boss: &Boss) -> f64 {
-    let vom_boss = boss.resistance_for(SCHOOL);
-    // **Vergleich auf die exakte Eins, mit Absicht.** 1,0 ist in IEEE754 exakt
-    // darstellbar, und gemeint ist genau der neutrale Wert — nicht "ungefaehr
-    // neutral". Eine Umgebung waere hier die falsche Milde: Ein Regler von
-    // 1,0000001 IST eine Abweichung vom Spiel.
-    #[allow(clippy::float_cmp)]
-    let einer_ist_neutral = regler == 1.0 || vom_boss == 1.0;
-    assert!(
-        einer_ist_neutral,
-        "Balance-Regler ({regler}) UND Boss-Widerstand ({vom_boss}) sind beide \
-         gesetzt. Der Simulator rechnete dann {}, das Spiel nur {vom_boss} — die \
-         Bitgleichheit waere hin, und kein Paritaets-Weg wuerde es melden. \
-         Entweder den Regler auf 1,0 lassen oder gegen einen Boss ohne \
-         Widerstand messen.",
-        regler * vom_boss
-    );
-    regler * vom_boss
+/// **Kein `debug_assert`**: Der Balance-Laeufer ist genau die Stelle, die den
+/// Regler setzt, und er laeuft mit `--release`. Ein `debug_assert` schwiege
+/// dort — also an der einzigen Stelle, an der die Kombination entstehen kann.
+fn resistance_by_spell(regler: f64, boss: &Boss) -> [f64; SPELL_COUNT] {
+    let mut tabelle = [1.0_f64; SPELL_COUNT];
+    let mut i = 0;
+    while i < SPELL_COUNT {
+        let vom_boss = match SPELLS[i].school {
+            Some(schule) => boss.resistance_for(schule),
+            None => 1.0,
+        };
+        // **Vergleich auf die exakte Eins, mit Absicht.** 1,0 ist in IEEE754
+        // exakt darstellbar, und gemeint ist genau der neutrale Wert — nicht
+        // "ungefaehr neutral". Ein Regler von 1,0000001 IST eine Abweichung.
+        #[allow(clippy::float_cmp)]
+        let einer_ist_neutral = regler == 1.0 || vom_boss == 1.0;
+        assert!(
+            einer_ist_neutral,
+            "Balance-Regler ({regler}) UND Boss-Widerstand ({vom_boss}) sind bei \
+             Zauber \"{}\" beide gesetzt. Der Simulator rechnete dann {}, das \
+             Spiel nur {vom_boss} — die Bitgleichheit waere hin, und kein \
+             Paritaets-Weg wuerde es melden. Entweder den Regler auf 1,0 lassen \
+             oder gegen einen Boss ohne Widerstand messen.",
+            SPELLS[i].id,
+            regler * vom_boss
+        );
+        tabelle[i] = regler * vom_boss;
+        i += 1;
+    }
+    tabelle
 }
 
 impl Fight {
@@ -647,11 +674,13 @@ impl Fight {
                 // Kaempfen, nicht in ihnen — dieselbe Stelle wie im Spiel
                 // (`combat.ts`, `resistanceFactor`).
                 //
-                // Warum multipliziert und welche Bedingung daran haengt, steht
-                // bei `combat_resistance` — samt dem Abbruch, der sie haelt.
-                resistance: combat_resistance(config.factors.resistance, config.boss),
+                // **Der Widerstand steht hier NICHT mehr** (Issue #328). Er
+                // haengt am ZAUBER und wird vor jeder Rechnung gesetzt; was
+                // hier bleibt, gilt fuer den ganzen Kampf.
+                resistance: 1.0,
                 ..config.factors
             },
+            resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
@@ -1091,6 +1120,7 @@ impl Fight {
             interrupts_missed: self.interrupts_missed,
             casts_interrupted: self.casts_interrupted,
             casts_cancelled: self.casts_cancelled,
+            damage_by_spell: self.damage_by_spell,
             shield: shield_spur,
             afflicted: afflicted_trace,
             cast_lands_at: cast_lands_trace,
@@ -1863,6 +1893,11 @@ impl Fight {
         // entweder immer oder nie, und der Glueckanteil, den 6.5 ausdruecklich
         // will, verschwaende sich in einer einzigen Entscheidung.
         let kritet = self.roll_crit();
+        // Auch ein Brand-Tick gehoert seinem Zauber und damit dessen Schule
+        // (Issue #328). Ohne diese Zeile truege er den Widerstand des zuletzt
+        // gewirkten Zaubers — nicht falsch gerechnet, sondern falsch
+        // zugeordnet, und das verraet keine Summe.
+        self.factors.resistance = self.resistance_by_spell[index];
         let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
@@ -2283,6 +2318,9 @@ impl Fight {
         // folgenden Kampf auseinanderlaufen.
         let teilt_schaden_aus = spell.base_damage > 0 || spell.spender.is_some();
         let kritet = teilt_schaden_aus && self.roll_crit();
+        // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
+        // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
+        self.factors.resistance = self.resistance_by_spell[index];
         let factors = self.factors_for(kritet);
 
         if spell.base_damage > 0 {

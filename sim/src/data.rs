@@ -152,6 +152,12 @@ pub struct Spell {
     pub id: &'static str,
     /// Anzeigename im Spiel.
     pub name: &'static str,
+    /// Die Schule, aus deren Datei der Zauber stammt (Issue #328).
+    ///
+    /// `None` fuer die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4).
+    /// **Daran haengt der Boss-Widerstand**: Wer keiner Schule angehoert, den
+    /// kann keine Schule abhalten.
+    pub school: Option<&'static str>,
     /// Ab welcher Spielerstufe der Zauber verfuegbar ist.
     pub unlock_level: u16,
     /// Sofortschaden beim Wirken.
