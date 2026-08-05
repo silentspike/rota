@@ -13,6 +13,7 @@
  */
 import { combatChecksum, mixFloat, mixInt, recordFieldOrder } from '../../src/core/checksum.js';
 import { STEP1_BINDINGS } from '../../src/core/loadout.js';
+import { pressRecorder } from './press-recorder.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs, tickCount } from '../../src/core/haste.js';
 import {
@@ -29,7 +30,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat, alsSpellIndex, type SpellIndex } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -325,15 +326,14 @@ function recordMisplays(ticks: number): Recording {
   const kindle = combat.indexOf('kindle');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
-  const slotOf = new Map<number, number>();
-  for (const binding of STEP1_BINDINGS) slotOf.set(combat.indexOf(binding.spellId), binding.slot);
-
   const presses: RecordedPress[] = [];
   // Drückt einen Zauber, ob er darf oder nicht — und schreibt den Druck mit.
-  const press = (spell: SpellIndex, tick: number, timeMs: number): void => {
-    combat.cast(alsSpellIndex(spell), timeMs);
-    presses.push({ tick, slot: slotOf.get(spell) ?? 0 });
-  };
+  //
+  // **Über den gemeinsamen Helfer** (Issue #351): Hier stand
+  // `slotOf.get(spell) ?? 0`, während dieselbe Datei ein paar tausend Zeilen
+  // weiter unten bereits die Prüfung trug. Zwei Kopien, von denen eine sie
+  // hatte — genau der Zustand, der zu dem Fehler führte.
+  const press = pressRecorder(combat, STEP1_BINDINGS, presses);
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -2603,20 +2603,11 @@ function recordSynergy(ticks: number): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const canker = combat.indexOf('canker');
   const fester = combat.indexOf('fester');
-  const slotOf = new Map<number, number>();
-  for (const binding of SYNERGY_BINDINGS) slotOf.set(combat.indexOf(binding.spellId), binding.slot);
-
   const presses: RecordedPress[] = [];
-  const press = (spell: SpellIndex, tick: number, timeMs: number): void => {
-    const slot = slotOf.get(spell);
-    // **Kein `?? 0`.** Ein Druck auf einen ungebundenen Zauber landete sonst auf
-    // Platz 0 — die Datei sagte CANKER und der Simulator läse den Zauber, der
-    // dort liegt. Der Fehler wäre still, wenn beide zufällig dasselbe wirken
-    // (Issue #351).
-    if (slot === undefined) throw new Error(`Zauber ${spell} liegt auf keinem Platz`);
-    combat.cast(alsSpellIndex(spell), timeMs);
-    presses.push({ tick, slot });
-  };
+  // Die Prüfung stand hier zuerst, als Einzelstück (Issue #351). Sie ist jetzt
+  // im gemeinsamen Helfer — eine zweite Kopie war der Grund, warum die andere
+  // Stelle sie nie bekam.
+  const press = pressRecorder(combat, SYNERGY_BINDINGS, presses);
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
