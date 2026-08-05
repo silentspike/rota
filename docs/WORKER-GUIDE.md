@@ -2424,3 +2424,63 @@ hätte es gefunden. Der Name war das Hindernis, nicht die Suche.
 > hätte belegt, dass sie malbar ist, nicht dass sie erscheint. Das vorhandene Werkzeug war nicht
 > nur älter, es beantwortete die richtige Frage. **Wer sucht, findet manchmal nicht nur das Ding,
 > sondern auch, dass er die falsche Frage stellen wollte.**
+
+### 8.24 Die Richtung einer Behauptung entscheidet, ob ein Tippfehler auffällt
+
+_Gefunden von Worker-1 beim Bau von #391, am 2026-08-05._
+
+```ts
+expect(a.checksum).not.toBe(b.checksum); // das Feld heißt finalChecksum
+```
+
+Beide Seiten waren `undefined`. Mit `not.toBe` wurde der Fall **rot** — und der Tippfehler fiel
+auf. Mit `toBe` wäre er grün geworden und hätte **zwei Nichtse verglichen**.
+
+| Behauptung              | bei falschem Feldnamen |
+| ----------------------- | ---------------------- |
+| `expect(x).toBe(y)`     | **immer grün**         |
+| `expect(x).not.toBe(y)` | **immer rot**          |
+
+Das ist die präziseste Ursache für „eine Prüfung, die nichts prüft", die dieses Projekt bisher
+gefunden hat. Sie liegt nicht am Prüffall und nicht an einem Muster, sondern an der **Richtung**:
+Eine Gleichheits-Behauptung ist mit `undefined === undefined` bereits erfüllt.
+
+**Daraus folgt nicht „schreibe alles als Ungleichheit".** Es folgt: Wo eine
+Gleichheits-Behauptung steht, muss eine Zusicherung daneben, dass die Werte überhaupt existieren.
+
+```ts
+expect(a.finalChecksum).toBeDefined(); // erst das
+expect(a.finalChecksum).toBe(erwartet); // dann das
+```
+
+> Dieselbe Familie wie die Zusicherung gegen leere Mengen (`expect(liste.length).toBeGreaterThan(0)`
+> vor jeder Schleifenprüfung) und wie `all()` über eine leere Liste. **Der Vergleich zweier Nichtse
+> ist immer wahr** — hier ist die Variante, bei der schon ein Buchstabe genügt.
+
+### 8.25 Verschweigen ist teurer als Verwerfen
+
+_Gefunden von Worker-1 an sich selbst, am 2026-08-05._
+
+`DevTools.replay` reichte **alle** Optionen an `replayRecording` durch. Der Typ nannte nur eine:
+
+```ts
+replay(name: string, options?: { checksumPerTick?: boolean })
+```
+
+`boss`, `worn`, `level` und `bindings` kamen zur Laufzeit an und **wirkten** — in der
+Browser-Konsole, wo es keinen Übersetzer gibt, hat `level` die ganze Zeit funktioniert.
+
+Der Finder hatte für #371 einen Stufenaufstieg zu zeigen. Er suchte, fand `setLevel` und baute
+damit — **weil die Signatur ihm sagte, es gäbe nichts anderes.**
+
+> Das Werkzeug hat ihn nicht im Stich gelassen. **Seine Beschreibung hat gelogen.**
+
+|                                        | fällt auf, wenn …                                                |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| ein Wert wird **verworfen**            | irgendwann eine Zahl nicht stimmt                                |
+| eine Möglichkeit wird **verschwiegen** | **nie** — man nimmt den Umweg und merkt nicht, dass es einen gab |
+
+Deshalb reicht es nicht, dass ein Werkzeug ablehnt, was es nicht kann. **Es muss auch anbieten,
+was es kann.** Eine Signatur, die weniger nennt als die Verdrahtung hergibt, ist kein Schutz,
+sondern eine falsche Auskunft — und die vierte Art, etwas nicht zu finden, das schon da ist
+(§ 8.23): **richtig gesucht, das Richtige gefunden, und es kann mehr, als es verspricht.**
