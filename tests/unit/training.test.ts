@@ -48,8 +48,12 @@ describe('Die Puppe — unbegrenzt, ohne Zeitlimit', () => {
  */
 function runFor(boss: BossDef): RunSummary {
   const queue = new PressQueue();
-  const session = new Session(queue, new Combat({ school: CALCINATION.value, boss }));
-  session.bind(0, 0);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const session = new Session(queue, combat);
+  // **Über den Bezeichner, nicht über die Zahl** (Issue #369): Der Index steht
+  // in jeder Aufzeichnung; eine 0 hier zeigt auf den Zauber, der heute vorn
+  // steht, und morgen auf einen anderen.
+  session.bind(0, combat.indexOf('kindle'));
   // Ohne beginCountdown bleibt die Sitzung in der Vorbereitung, und dann wird
   // nichts gewirkt — der Schaden waere ueberall null.
   session.beginCountdown(0);
@@ -135,7 +139,7 @@ function uebeGegen(settings: DummySettings, dauerMs = 30_000): Combat {
     boss: buildDummy(settings, 'CALCINATION'),
   });
   const session = new Session(queue, combat);
-  session.bind(0, 0);
+  session.bind(0, combat.indexOf('kindle'));
   session.beginCountdown(0);
   let tick = 0;
   for (let t = 0; t <= COUNTDOWN_MS + dauerMs; t += 100) {
