@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "school": "CALCINATION",
+  "_comment": "DER PRUEF-ZAUBER ZUR WIRKZEIT (Issue #304). Er gehoert NICHT zum Spiel und wird nie ausgeliefert: 'unlockLevel' liegt ueber der Stufengrenze aus data/player/levels.json (maxLevel 100), und beide Stellen, die dem Spieler Zauber anbieten, filtern darueber — src/progression/composition-view.ts (die Auswahl) und src/progression/bindings.ts (das Belegen). Er ist damit unsichtbar und nicht auf die Leiste zu bringen, steht aber im Index-Raum und ist fuer Prueffaelle und Aufzeichnungen ueber combat.indexOf('test-cast') erreichbar. Dieselbe Konvention wie die elf test-*-Bosse in data/bosses/.\n\nWARUM EIN NEUER ZAUBER UND NICHT EIN BESTEHENDER: Welcher Zauber DES SPIELS eine Wirkzeit bekommt, entscheidet E10 (#268 und folgende) — das ist eine Design-Entscheidung und nicht Teil dieses Issues. Ausserdem nutzt der Referenzlauf (4240 @ 40510) KINDLE, SMOULDER und PYRE; eine Wirkzeit auf einem von ihnen wuerde ihn bewegen, ein neuer Zauber laesst ihn unberuehrt.\n\nDIE FOLGE, DIE NIEMAND UMGEHEN KANN: Die Zustands-Pruefsumme laeuft ueber ALLE Zauber (fuenf Werte je Zauber — src/core/checksum.ts und sim/src/fight.rs, checksum_at). Ein sechzehnter Zauber aendert damit jede Pruefsumme in jedem Takt, auf beiden Seiten identisch. Alle Vergleichsdateien unter tests/parity/recordings/ mussten deshalb neu exportiert werden. Dasselbe geschah zuletzt bei PUTREFACTION (e811de5).\n\nDIE ZAHLEN: Die Wirkzeit von 2000 ms liegt in dem Band, das GAME-DESIGN 7.1 nennt (1,5-2,5 s, 'ein bis knapp zwei globale Wartezeiten'). Der Rest ist so gewaehlt, dass sich etwas messen laesst, und nicht balanciert.",
+  "spells": [
+    {
+      "id": "test-cast",
+      "name": "Test Cast",
+      "unlockLevel": 101,
+      "baseDamage": 100,
+      "cooldownMs": 6000,
+      "castTimeMs": 2000,
+      "triggersGcd": true
+    }
+  ]
+}

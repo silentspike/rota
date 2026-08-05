@@ -36,7 +36,7 @@ import { isSpellUnlocked, barSlotsAtLevel } from './unlocks.js';
 export type Bindings = Readonly<Record<string, string>>;
 
 /** Warum eine Belegung nicht geht, oder `null`, wenn sie geht. */
-export type BindProblem = 'spell-locked' | 'slot-locked' | 'unknown-spell' | null;
+export type BindProblem = 'spell-locked' | 'slot-locked' | 'unknown-spell' | 'already-bound' | null;
 
 /**
  * Ob dieser Zauber auf diesen Platz darf.
@@ -50,11 +50,32 @@ export function bindProblem(
   slot: number,
   level: number,
   spells: readonly SpellDef[],
+  /**
+   * Die bestehende Belegung — **Pflicht, nicht optional** (Issue #287).
+   *
+   * Optional wäre dasselbe Muster, das bei #306 die Aufschlüsselung kaputt
+   * hielt: Die Sperre schwiege genau dann, wenn ein künftiger Aufrufer sie zu
+   * reichen vergisst. Ein leeres Objekt ist ein bewusster Aufrufer, ein
+   * fehlender Parameter ein vergesslicher — der Unterschied ist der ganze
+   * Zweck.
+   */
+  bindings: Bindings,
 ): BindProblem {
   const spell = spells.find((s) => s.id === spellId);
   if (spell === undefined) return 'unknown-spell';
   if (!isSpellUnlocked(spell, level)) return 'spell-locked';
   if (!Number.isInteger(slot) || slot < 0 || slot >= barSlotsAtLevel(level)) return 'slot-locked';
+  // **Ein Zauber liegt auf höchstens einem Platz** (GAME-DESIGN 715, Issue
+  // #287 AC3). Zwei Plätze mit demselben Zauber sind keine zwei Einzahler —
+  // der zweite gibt nur einen zweiten Knopf für dieselbe Quelle, und die
+  // Vorschau behauptete eine Vielfalt, die es nicht gibt.
+  //
+  // **Derselbe Platz ist kein Problem.** Wer einen Zauber dorthin legt, wo er
+  // schon liegt, ändert nichts — das als Fehler zu melden hieße, dem Spieler
+  // eine Sperre zu zeigen, die keine ist.
+  for (const [platz, gelegt] of Object.entries(bindings)) {
+    if (gelegt === spellId && Number.parseInt(platz, 10) !== slot) return 'already-bound';
+  }
   return null;
 }
 
@@ -64,8 +85,9 @@ export function canBind(
   slot: number,
   level: number,
   spells: readonly SpellDef[],
+  bindings: Bindings,
 ): boolean {
-  return bindProblem(spellId, slot, level, spells) === null;
+  return bindProblem(spellId, slot, level, spells, bindings) === null;
 }
 
 /**
@@ -86,7 +108,9 @@ export function bindSpell(
   level: number,
   spells: readonly SpellDef[],
 ): Bindings {
-  if (!canBind(spellId, slot, level, spells)) return bindings;
+  // **Gegen die bestehende Belegung** (Issue #287 AC3): Legt der Spieler einen
+  // Zauber auf einen zweiten Platz, kommt die unveraenderte Belegung zurueck.
+  if (!canBind(spellId, slot, level, spells, bindings)) return bindings;
   return { ...bindings, [String(slot)]: spellId };
 }
 
@@ -117,10 +141,21 @@ export function clearSlot(bindings: Bindings, slot: number): Bindings {
  */
 export function sanitize(bindings: Bindings, level: number, spells: readonly SpellDef[]): Bindings {
   const heil: Record<string, string> = {};
-  for (const [platz, spellId] of Object.entries(bindings)) {
-    const slot = Number.parseInt(platz, 10);
-    if (Number.isNaN(slot)) continue;
-    if (canBind(spellId, slot, level, spells)) heil[platz] = spellId;
+  // **Aufsteigend nach Platz**, damit die Bereinigung wiederholbar ist: Bei
+  // einer Doppelbelegung behält der KLEINERE Platz den Zauber. Object.entries
+  // gibt Zahlen-Schlüssel zwar aufsteigend zurück, aber das ist eine
+  // Eigenschaft der Laufzeit und keine Zusage dieser Funktion.
+  const plaetze = Object.keys(bindings)
+    .map((platz) => Number.parseInt(platz, 10))
+    .filter((slot) => !Number.isNaN(slot))
+    .sort((a, b) => a - b);
+  for (const slot of plaetze) {
+    const spellId = bindings[String(slot)];
+    if (spellId === undefined) continue;
+    // **Gegen das schon Bereinigte prüfen, nicht gegen die Eingabe** (Issue
+    // #287 AC3). Es gibt Spielstände, die unter der alten Regel entstanden
+    // sind — ein Nachweis, der nur die Auswahl prüft, lässt sie durch.
+    if (canBind(spellId, slot, level, spells, heil)) heil[String(slot)] = spellId;
   }
   return heil;
 }

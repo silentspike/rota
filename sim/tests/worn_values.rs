@@ -34,9 +34,10 @@
 //! ungedeckelt, und `unter_einem_takt_geht_es_nicht` in `crate::haste` prueft
 //! die einzige Grenze, die es heute gibt.
 
-use rota_sim::data::{boss_by_id, KINDLE, PYRE, SMOULDER, SPELLS};
+use rota_sim::data::{boss_by_id, index_of, KINDLE, PYRE, SMOULDER, SPELLS};
 use rota_sim::gear::WornValues;
 use rota_sim::haste::hasted_ms;
+use rota_sim::replay::{Binding, Press, Recording};
 use rota_sim::rotation;
 use rota_sim::{Fight, FightConfig, Millis, RunResult};
 
@@ -445,22 +446,58 @@ fn jeder_der_drei_werte_bewegt_etwas() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn kein_spieler_zauber_hat_ueberhaupt_eine_wirkzeit() {
-    // 6.7 fuehrt die **Wirkzeit** als dritten Wirkort ("Untergrenze: keine").
-    // Sie ist hier nicht verdrahtet, und das ist kein Versehen: Im heutigen
-    // Zauberkasten gibt es keine.
+fn tempo_verkuerzt_die_wirkzeit_des_spielers() {
+    // **Hier stand bis Issue #304 das Gegenteil:** ein Waechter namens
+    // `kein_spieler_zauber_hat_ueberhaupt_eine_wirkzeit`, der festhielt, dass
+    // es im Zauberkasten keine gibt — mit dem ausdruecklichen Hinweis, dass er
+    // faellt, sobald einer eine bekommt, und dass dann "auch der Wirkort
+    // dazugehoert".
     //
-    // Diese Pruefung haelt den Zustand fest, auf den sich das stuetzt. Bekommt
-    // ein Zauber je eine Wirkzeit (7.1 sieht 1,5 bis 2,5 s vor), faellt sie —
-    // und wer sie repariert, findet hier den Hinweis, dass dann auch der
-    // Wirkort dazugehoert.
-    for spell in SPELLS.iter() {
-        assert_eq!(
-            spell.cast_time_ms, 0,
-            "{} hat eine Wirkzeit — dann gehoert sie durch `hasted` (6.7)",
-            spell.id
-        );
-    }
+    // Genau das ist eingetreten. Der Hinweis hat getragen, und diese Pruefung
+    // ist das, was er verlangt hat: **die Messung statt der Platzhalter-
+    // Zusicherung.** 6.7 fuehrt die Wirkzeit als Wirkort mit "Untergrenze:
+    // keine"; sie geht deshalb durch dieselbe `hasted`-Stelle wie alles andere.
+    //
+    // GEMESSEN WIRD AN DER ZAHL DER AUFLOESUNGEN, nicht am Endzeitpunkt: Der
+    // steht im Simulator nicht oeffentlich, und ein Zugriff, den es nur fuer
+    // eine Pruefung gaebe, waere ein schlechter Tausch. Die Wirkzeit betraegt
+    // 2000 ms; mit 200 Promille Tempo sind es 1667 ms. In einem Fenster, das
+    // dazwischen endet, hat der beschleunigte Lauf eine Aufloesung mehr.
+    let index = index_of("test-cast").expect("test-cast fehlt");
+    let druck = Recording {
+        name: "wirkzeit".to_owned(),
+        seed: 0,
+        ticks: 190,
+        bindings: vec![Binding {
+            slot: 0,
+            spell: index,
+        }],
+        presses: vec![Press { tick: 0, slot: 0 }],
+    };
+
+    let mut ohne = Fight::new(FightConfig {
+        worn: WornValues::none(),
+        ..FightConfig::default()
+    });
+    let langsam = ohne.replay(&druck, false);
+
+    let mut schnell_fight = Fight::new(FightConfig {
+        worn: WornValues {
+            catalysis: 200,
+            ..WornValues::none()
+        },
+        ..FightConfig::default()
+    });
+    let schnell = schnell_fight.replay(&druck, false);
+
+    assert_eq!(
+        langsam.casts[index], 0,
+        "ohne Tempo darf der Zauber im 1890-ms-Fenster noch NICHT aufgeloest sein"
+    );
+    assert_eq!(
+        schnell.casts[index], 1,
+        "mit Tempo muss er es sein — sonst geht die Wirkzeit nicht durch `hasted`"
+    );
 }
 
 #[test]

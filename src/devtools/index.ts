@@ -99,6 +99,23 @@ export interface StateSnapshot {
   /** Restzeit der globalen Wartezeit in ms. */
   readonly gcdRemainingMs: number;
   readonly gcdLengthMs: number;
+  /**
+   * Der laufende Zauber des Spielers, oder `null` (Issue #304).
+   *
+   * **Damit ein Nachweis in EINEM Aufruf messbar wird.** Die Wirkzeit dauert
+   * zwei Sekunden; zwei getrennte Werkzeug-Aufrufe brauchen laenger, und ein
+   * Bild, das danach entsteht, zeigt einen Kampf, der weitergelaufen ist.
+   * Gemessen am 2026-08-05: zwischen zwei `playwright-cli`-Aufrufen lagen
+   * 6,5 Sekunden — der Zauber war laengst fertig, und der Nachweis haette das
+   * Gegenteil dessen belegt, was er behauptete.
+   */
+  readonly playerCasting: string | null;
+  /** Restzeit der laufenden Wirkzeit in ms, sonst 0. */
+  readonly playerCastRemainingMs: number;
+  /** Wie oft ein Boss-Angriff eine Wirkzeit abgebrochen hat. */
+  readonly castsInterrupted: number;
+  /** Wie oft ein eigener Druck eine Wirkzeit abgebrochen hat. */
+  readonly castsCancelled: number;
   /** Phase des Kampfablaufs (GAME-DESIGN 10). */
   readonly phase: string;
   readonly outcome: string;
@@ -405,8 +422,13 @@ export interface DevTools {
     receivers: Record<string, string[]>;
     measurementEmitted: number;
   };
-  /** Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten. */
-  bindSlot(slot: number, spellId: string): boolean;
+  /**
+   * Einen Zauber auf einen Platz legen — für die Prüfung wachsender Leisten.
+   *
+   * `null` **leert** den Platz (Issue #306). Ohne das lässt sich eine Leiste
+   * ohne einen zuvor gebundenen Zauber gar nicht herstellen.
+   */
+  bindSlot(slot: number, spellId: string | null): boolean;
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
   setResource(value: number): void;
   /** Verbleibende Lebenspunkte des Bosses setzen (GAME-DESIGN 19.1). */
@@ -536,6 +558,13 @@ export function installDevTools(app: App): void {
       alpha: app.loop.alpha,
       gcdRemainingMs: app.session.gcd.remainingMs(app.loop.timeMs),
       gcdLengthMs: app.session.gcd.lengthMs,
+      playerCasting: app.combat.spellAt(app.combat.playerCasting)?.id ?? null,
+      playerCastRemainingMs:
+        app.combat.playerCasting >= 0
+          ? Math.max(0, app.combat.playerCastEndsAtMs - app.loop.timeMs)
+          : 0,
+      castsInterrupted: app.combat.castsInterrupted,
+      castsCancelled: app.combat.castsCancelled,
       phase: PHASE_NAMES[app.session.phase] ?? '?',
       outcome: OUTCOME_NAMES[app.session.outcome] ?? '?',
       countdownRemainingMs: app.session.countdownRemainingMs(app.loop.timeMs),
@@ -876,7 +905,15 @@ export function installDevTools(app: App): void {
         measurementEmitted: ruleBus.emittedCount,
       };
     },
-    bindSlot: (slot: number, spellId: string) => {
+    bindSlot: (slot: number, spellId: string | null) => {
+      // **`null` leert den Platz** (Issue #306, AC7). Vorher lief das ueber
+      // `indexOf(null)`, das -1 lieferte und den Aufruf mit `false` abbrechen
+      // liess — der Platz blieb belegt, und AC4 war im Browser nicht
+      // nachweisbar: Man bekam nie eine Leiste OHNE den Zauber.
+      if (spellId === null) {
+        app.session.bind(slot, NO_SPELL);
+        return true;
+      }
       const index = app.combat.indexOf(spellId);
       if (index < 0) return false;
       app.session.bind(slot, index);

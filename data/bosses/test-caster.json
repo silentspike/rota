@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "id": "test-caster",
+  "name": "The Silencer",
+  "instance": "testing",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #304 (die Wirkzeit des Spielers) und sonst nichts.\n\nDIE ZWEI SCHLAEGE SIND DAS GANZE DATENBLATT, und ihr Abstand ist gerechnet, nicht geschaetzt:\n\n  8500 ms  Backhand   interruptsPlayer FEHLT  -> stoert nicht\n  9000 ms  Silence    interruptsPlayer true   -> bricht ab\n\nGAME-DESIGN 7.1 sagt: 'Abbruch eines Zauberbalkens: nur durch BESTIMMTE, vorher erkennbare Boss-Angriffe. Normale Treffer stoeren nicht.' Beide Haelften dieses Satzes brauchen einen Fall, und zwar im SELBEN Lauf: Ein Boss, der nur unterbrechende Schlaege hat, koennte auch von einer Umsetzung stammen, in der JEDER Treffer abbricht — und kein Prueffall saehe den Unterschied.\n\nDIE 500 MS DAZWISCHEN sind so gewaehlt, dass beide Schlaege in DIESELBE laufende Wirkzeit fallen: test-cast wird bei 8000 ms gewirkt (Abklingzeit 6000 ms, erster Wurf bei 0 ms, Wirkung bei 2000 ms) und liefe bis 10000 ms. Der erste Schlag trifft ihn und laesst ihn stehen, der zweite nimmt ihn.\n\nDER DRITTE SCHLAG bei 18000 ms belegt, dass es sich wiederholt und der erste Abbruch kein einmaliger Zustand war. Der Zeitpunkt ist NACHGEMESSEN und nicht geschaetzt: Nach dem Abbruch bei 9000 ms wird bei 9500 ms neu gewirkt (Abklingzeit lief nie an, die Wartezeit aus 8000 ms endet bei 9500), Wirkung bei 11500 ms, Abklingzeit bis 17500 ms — die dritte Wirkzeit laeuft also von 17500 bis 19500 ms. Mein erster Entwurf setzte den Schlag auf 15000 ms; dort lief keine Wirkzeit, und der Schlag brach nichts ab. Die Aufzeichnung hat es gezeigt (castsInterrupted stand auf 1 statt auf 2), der Kommentar haette es verschwiegen.\n\nDie Lebenspunkte sind absichtlich unerreichbar hoch und die Frist lang: Der Lauf soll an seiner Laenge enden, nicht am Sieg oder am Ueberdruck — sonst haengt die Aufzeichnung an einer Schadenszahl statt an der Mechanik.",
+  "hp": 100000,
+  "overpressureMs": 300000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    { "atMs": 8500, "mechanic": "strike", "name": "Backhand", "damage": 40 },
+    {
+      "atMs": 9000,
+      "mechanic": "strike",
+      "name": "Silence",
+      "damage": 40,
+      "interruptsPlayer": true
+    },
+    {
+      "atMs": 18000,
+      "mechanic": "strike",
+      "name": "Silence",
+      "damage": 40,
+      "interruptsPlayer": true
+    }
+  ],
+  "timelineLoopMs": null,
+  "resistances": {},
+  "signature": null
+}
