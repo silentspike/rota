@@ -67,6 +67,10 @@ export interface ReplayResult {
   readonly casts: Readonly<Record<string, number>>;
   /** Prüfsumme des Endzustands. */
   readonly finalChecksum: number;
+  /** Wie oft ein Synergie-Fenster genutzt wurde (Issue #318). */
+  readonly synergyUsed: number;
+  /** Wie oft eines offen stand, das der Partner hätte nutzen können. */
+  readonly synergyAvailable: number;
   /** Prüfsumme über die ganze Folge — ein Wert für den schnellen Vergleich. */
   readonly sequenceChecksum: number;
   /**
@@ -234,6 +238,8 @@ export function replayRecording(
       killedAtMs >= 0 ? killedAtMs : (recording.ticks - 1) * TICK_MS,
     ),
     sequenceChecksum: sequence,
+    synergyUsed: combat.synergyUsed,
+    synergyAvailable: combat.synergyAvailable,
     ruleSequenceChecksum: combat.events.sequenceChecksum,
     ruleEventCount: combat.events.emittedCount,
     checksums,
