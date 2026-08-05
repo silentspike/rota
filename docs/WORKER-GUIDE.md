@@ -1044,6 +1044,47 @@ In beiden Fällen war die Messung selbst korrekt. Rückgabewert, Zahlen, Ausgabe
 alles über etwas anderes als die Frage. Das ist der Grund, warum diese Klasse so schwer auffällt:
 Sie sieht bis zur letzten Stelle aus wie ein Nachweis.
 
+#### Die dritte Gestalt: der falsche Ausschnitt
+
+Worker-3s Satz nennt zwei. Am selben Tag kam eine dritte dazu, gefunden von Worker-1 in #236,
+nachdem die CI einen Lint-Fehler meldete, den ein lokaler `eslint`-Lauf kurz zuvor nicht gesehen
+hatte:
+
+```bash
+npx eslint src/core/checksum.ts tests/parity/payloads.ts   # ohne Ausgabe
+npx eslint .                                               # 1 error — in der dritten Datei
+```
+
+Die dritte Datei war die neu angelegte — die einzige mit dem Fehler. Sie fehlte nicht, weil sie für
+sauber gehalten wurde, sondern weil sie beim **Tippen des Befehls** nicht einfiel.
+
+> **Ein Prüfwerkzeug auf einzelne Pfade angesetzt prüft nicht das Projekt, sondern deine Erinnerung
+> daran, welche Dateien du angefasst hast.**
+
+Damit sind es drei, und erst zusammen ergeben sie das Bild:
+
+| Gestalt             | Beispiel                                | gefunden von   |
+| ------------------- | --------------------------------------- | -------------- |
+| falsches Werkzeug   | `vitest 3.2.7` statt `4.1.10`           | Worker-2, #150 |
+| falsche Stelle      | Gegenprobe an einem Ort ohne Prüffall   | Worker-3, #264 |
+| falscher Ausschnitt | `eslint` auf zwei Pfade statt auf alles | Worker-1, #236 |
+
+Alle drei melden grün, alle drei messen korrekt — und alle drei beantworten eine andere Frage als
+die gestellte. Das Werkzeug lügt nicht; es antwortet wahrheitsgemäß auf eine Frage, die man ihm
+versehentlich gestellt hat. Deshalb fällt die Rückmeldung **bestätigend** aus, und genau das macht
+die Klasse gefährlich.
+
+**Die Gegenprobe ist die billigste im ganzen Kapitel:** das Werkzeug ohne Pfadangabe laufen lassen.
+
+```bash
+npx eslint .        # nicht: npx eslint <was mir gerade einfällt>
+npx vitest run      # nicht: npx vitest run <die Datei, an der ich gearbeitet habe>
+```
+
+Das gilt für die **Aussage**, nicht für die Arbeit: Während des Bauens ist ein einzelner Pfad das
+richtige Werkzeug, weil er schnell ist. Nur darf daraus kein „lint ist sauber" werden — das ist eine
+Aussage über das Projekt, und die trägt nur ein Lauf über das Projekt.
+
 ### Ein Zauber, der auf dem GCD weniger macht als der Füller, wird nie gewirkt
 
 Nicht „selten" — **nie**. Eine Prioritätenliste wählt ihn unter keinen Umständen, solange der Füller
