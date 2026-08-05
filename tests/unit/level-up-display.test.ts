@@ -49,4 +49,22 @@ describe('Was eine Stufe bringt', () => {
       expect(levelUpDisplayFor(true, stufe, SPELLS)?.newBarSlots).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it('liefert die Zauber als LISTE, damit die Anzeige zaehlen kann', () => {
+    // **Der Anlass war ein echter Fehler in der Anzeige** (#371): Dort stand
+    // „New spell:" im Singular, auch bei vier Zaubern — auf Stufe 2 werden
+    // vier frei, und es ist der zweite Text, den das Spiel dem Spieler
+    // überhaupt zeigt.
+    //
+    // Dieser Fall prüft die Voraussetzung dafür, dass die Anzeige es richtig
+    // machen KANN: eine Liste, keine fertige Zeichenkette. Wer hier einen
+    // vorformatierten Satz zurückgäbe, nähme der Anzeige die Entscheidung ab
+    // — und mit ihr die Möglichkeit, sie richtig zu treffen.
+    const zwei = levelUpDisplayFor(true, 2, SPELLS);
+    expect(Array.isArray(zwei?.newSpells)).toBe(true);
+    expect(zwei?.newSpells.length).toBeGreaterThan(1);
+    for (const name of zwei?.newSpells ?? []) {
+      expect(name).not.toContain(',');
+    }
+  });
 });
