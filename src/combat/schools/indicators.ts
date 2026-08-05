@@ -158,11 +158,30 @@ export function mechanicsOfLoadout(source: LoadoutSource): MechanicInfo[] {
   // **Alle drei, nicht nur die der Schule** (Issue #270). Vorher stand hier
   // `source.resourceId` und damit genau eine — die anderen zwei rechneten im
   // Kampf mit, ohne dass es irgendwo ankam.
+  // **GEZÄHLT WERDEN QUELLEN, NICHT PLÄTZE** (Issue #287). Wer denselben
+  // Zauber auf zwei Plätze legt, hat eine Quelle auf zwei Knöpfen — keine
+  // zweite. Vorher zählte diese Schleife linear hoch, und damit waren zwei
+  // Zusammenstellungen nicht mehr zu unterscheiden:
+  //
+  //   KINDLE zweimal        Heat · 2 feeding
+  //   KINDLE + SMOULDER     Heat · 2 feeding
+  //
+  // Genau ihr Unterschied ist die Frage aus GAME-DESIGN 16 — „ob die
+  // Hitze-Mechanik mit nur einem Zauber trägt". Eine Anzeige, die beide gleich
+  // darstellt, ist an dieser Stelle nicht ungenau, sondern blind.
+  //
+  // **Entdoppelt wird über die KENNUNG, nicht über die Mechanik.** Wer die
+  // Mechanik nimmt, macht aus KINDLE + SMOULDER eine Eins — dann ist die
+  // Aussage wieder falsch, nur andersherum. Ein Prüffall misst beide
+  // Richtungen.
+  const belegt = new Set<number>();
+  for (let slot = 0; slot < source.slotCount; slot++) {
+    const spell = source.spellOnSlot(slot);
+    if (spell >= 0) belegt.add(spell);
+  }
   return MECHANICS.map((mechanic) => {
     let contributors = 0;
-    for (let slot = 0; slot < source.slotCount; slot++) {
-      const spell = source.spellOnSlot(slot);
-      if (spell < 0) continue;
+    for (const spell of belegt) {
       if (source.feedsMechanic(spell, mechanic.id)) contributors++;
     }
     return { id: mechanic.id, contributors };
