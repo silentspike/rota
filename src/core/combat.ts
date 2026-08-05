@@ -592,6 +592,7 @@ export class Combat {
   }
 
   /** Wie oft die Energieleiste ausgelöst hat. */
+  /** PRUEF-ZUGANG, erscheint nicht (Issue #294): Boss-Innenleben. */
   get bossEnergyTriggers(): number {
     return this.bossEnergyTriggersValue;
   }
@@ -711,6 +712,11 @@ export class Combat {
    * Wahrheit über dieselbe Größe — und die zweite läuft beim Nachziehen weg.
    * Der Zeiger weiß es bereits.
    */
+  /**
+   * PRUEF-ZUGANG, erscheint nicht (Issue #294).
+   *
+   * Boss-Innenleben. Was der Spieler davon braucht, zeigt der Ring im Kampf.
+   */
   get cycle(): number {
     const laenge = this.boss.timeline.length;
     if (laenge === 0 || this.boss.timelineLoopMs === null) return 0;
@@ -733,6 +739,7 @@ export class Combat {
   }
 
   /** Ob das Ziel zerstört wurde — der Erfolgsfall des Wettrennens. */
+  /** PRUEF-ZUGANG, erscheint nicht (Issue #294): Der Ausgang steht im Ergebnis. */
   get raceWon(): boolean {
     return this.raceWonValue;
   }
@@ -789,6 +796,7 @@ export class Combat {
   }
 
   /** Wie viel Fortschritt der Spieler zurückgedrängt hat (Baustein 6; #247). */
+  /** ANGEZEIGT seit #294: "Pushed back", nur bei einem `runaway`-Boss. */
   get stabilised(): number {
     return this.stabilisedValue;
   }
@@ -816,21 +824,30 @@ export class Combat {
   }
 
   /** Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3). */
+  /**
+   * PRUEF-ZUGANG, erscheint nicht (Issue #294).
+   *
+   * Der Tod steht als "VESSEL LOST" im Ergebnis — eine zweite Anzeige dafuer
+   * waere dieselbe Aussage zweimal.
+   */
   get playerDead(): boolean {
     return this.diedAtMsValue >= 0;
   }
 
   /** Kampfzeit des Spielertods, oder -1. */
+  /** PRUEF-ZUGANG, erscheint nicht (Issue #294): Die Zeit steht als `elapsedMs`. */
   get diedAtMs(): number {
     return this.diedAtMsValue;
   }
 
   /** Gesamter erlittener Schaden, **nach** WARD. */
+  /** ANGEZEIGT seit #294: "Damage taken" bei den Kennzahlen. */
   get damageTaken(): number {
     return this.damageTakenValue;
   }
 
   /** Wie oft der Spieler einen Boss-Zauber unterbrochen hat. */
+  /** ANGEZEIGT seit #294: "Interrupts landed" im aufgeklappten Bereich. */
   get interruptsLanded(): number {
     return this.interruptsLandedValue;
   }
@@ -858,6 +875,7 @@ export class Combat {
   }
 
   /** Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat. */
+  /** ANGEZEIGT seit #294: "Shield absorbed" im aufgeklappten Bereich. */
   get shieldAbsorbed(): number {
     return this.shieldAbsorbedValue;
   }
@@ -873,6 +891,7 @@ export class Combat {
   }
 
   /** Wie viel Schutz die Umwandlung erzeugt hat. */
+  /** ANGEZEIGT seit #294: "Converted" im aufgeklappten Bereich. */
   get converted(): number {
     return this.convertedValue;
   }
@@ -888,6 +907,7 @@ export class Combat {
   }
 
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
+  /** ANGEZEIGT seit #294: "Control wasted" im aufgeklappten Bereich. */
   get controlFailed(): number {
     return this.controlFailedValue;
   }
@@ -1179,6 +1199,7 @@ export class Combat {
   }
 
   /** Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet. */
+  /** PRUEF-ZUGANG, erscheint nicht (Issue #294): Der Ring zeigt es im Kampf. */
   get bossHpPercent(): number {
     if (this.boss.hp <= 0) return 0;
     const übrig = this.boss.hp - this.damageDealtValue;
@@ -1359,6 +1380,12 @@ export class Combat {
    * mit `factors` übereinstimmen. Weicht sie ab, rechnen gewöhnlicher und
    * kritischer Treffer mit verschiedenen Grundlagen — und der Unterschied
    * fällt nur bei einem Prüffall auf, der beides zugleich abdeckt.
+   */
+  /**
+   * PRUEF-ZUGANG, erscheint nicht (Issue #294).
+   *
+   * Der Name sagt es: Er vergleicht zwei interne Fassungen derselben
+   * Faktoren. Fuer den Spieler gibt es dazu nichts zu sehen.
    */
   get critFactorsMirrorBase(): boolean {
     for (const key of Object.keys(this.factors) as (keyof DamageFactors)[]) {

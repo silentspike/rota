@@ -286,3 +286,17 @@ canvas {
   color: #8b8579;
   font-size: 12px;
 }
+
+/**
+ * Eine versteckte Zeile ist versteckt (Issue #294).
+ *
+ * `hidden` setzt der Browser über eine User-Agent-Regel auf `display: none` —
+ * und jede Klassenregel überschreibt sie. `.rota-row` steht auf `display: flex`,
+ * also blieb die Zeile sichtbar, obwohl das Attribut gesetzt war.
+ *
+ * Gemessen im Browser: `hidden: true`, und „Pushed back —" stand trotzdem da.
+ * Im Prüfstand wäre es nicht aufgefallen — dort gibt es kein Layout.
+ */
+.rota-row[hidden] {
+  display: none;
+}
