@@ -114,7 +114,23 @@ fn neutrale_faktoren_aendern_am_gleichlauf_nichts() {
 #[test]
 fn alle_faktoren_wirken_gleich_stark() {
     // Die Schadensformel multipliziert sie alle an derselben Stelle; keiner ist
-    // bevorzugt. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
+    // bevorzugt.
+    //
+    // **`synergy` und `vulnerability` stehen NICHT in der Liste** — sie werden
+    // vom Kampf selbst geschrieben (#97 und #318) und ueberschreiben einen von
+    // aussen gesetzten Wert bei der naechsten Wirkung. Der Faktor waere in
+    // diesem Lauf also gar nicht der, den die Liste setzt; der Fall pruefte
+    // eine Zahl, die es nie gab.
+    //
+    // **Was damit auf der Rust-Seite NICHT mehr geprueft wird:** dass die
+    // Synergie ueberhaupt gleich stark wirkt wie die uebrigen Faktoren. Die
+    // Spielseite misst es in `tests/unit/synergy.test.ts` ueber den Kampf
+    // (Verhaeltnis 1,25 zwischen einer Wirkung im Fenster und einer danach);
+    // ein entsprechender Fall hier fehlt noch und ist als Luecke gemeldet.
+    //
+    // Die Pruefsumme faengt einen Unterschied trotzdem: `synergyUsed`,
+    // `synergyAvailable` und `synergyOpenUntil` stehen seit #318 darin, und
+    // `SYNERGY_BONUS_PERCENT` ist auf beiden Seiten dieselbe Zahl. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
     // von 6.3 — und der Grund, warum in Schritt 1 alle Skalierungswerte gleich
     // sind. Erst Krit und Tempo trennen sie (beides noch nicht umgesetzt).
     let referenz = lauf(DamageFactors {
@@ -130,10 +146,6 @@ fn alle_faktoren_wirken_gleich_stark() {
         },
         DamageFactors {
             buffs: 1.10,
-            ..NEUTRAL
-        },
-        DamageFactors {
-            synergy: 1.10,
             ..NEUTRAL
         },
         DamageFactors {

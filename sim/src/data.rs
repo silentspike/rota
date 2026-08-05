@@ -210,6 +210,14 @@ pub struct Spell {
     /// Traegt FESTER. **Nicht** die Verwundbarkeit des Bosses — die gilt fuer
     /// alle Quellen. **Vorlaeufig, wird gemessen.**
     pub per_decay_stack_percent: u32,
+    /// Kennung des Partners, der den Synergie-Bonus bekommt (#318). Leer heisst
+    /// keine Beziehung.
+    pub synergy_partner: &'static str,
+    /// Laenge des Fensters in globalen Wartezeiten (GAME-DESIGN 327).
+    ///
+    /// **Eine Anzahl, keine Millisekunden.** Die entstehen erst im Kampf, damit
+    /// das Fenster bei hohem Tempo mitschrumpft.
+    pub synergy_window_gcds: u32,
     /// Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, #100).
     ///
     /// Steht als eigenes Feld und nicht unter `resource_gain`: Der Kampf

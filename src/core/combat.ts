@@ -1193,6 +1193,27 @@ export class Combat {
     return this.synergyUsedCount;
   }
 
+  /**
+   * Die Summe aller offenen Fensterenden — für die Prüfsumme (Issue #318).
+   *
+   * **Eine Summe statt einer Schleife**, weil die Prüfsumme je Takt läuft und
+   * GAME-DESIGN 18.2 dort keine Erzeugung erlaubt. Sie unterscheidet dieselben
+   * Zustände wie die einzelnen Werte: Ein Fenster, das anderswo endet, ändert
+   * die Summe.
+   *
+   * Nicht offene Fenster tragen 0 und nicht `NOT_ACTIVE` — sonst hinge die
+   * Summe an einer Sentinel-Zahl, die auf den beiden Seiten verschieden sein
+   * dürfte.
+   */
+  get synergyWindowSum(): number {
+    let summe = 0;
+    for (let i = 0; i < this.synergyWindowEndsMs.length; i++) {
+      const endet = this.synergyWindowEndsMs[i] ?? NOT_ACTIVE;
+      if (endet !== NOT_ACTIVE) summe += endet;
+    }
+    return summe;
+  }
+
   private updateVulnerability(): void {
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
   }
