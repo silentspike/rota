@@ -111,6 +111,31 @@ export class PlayerHome {
     return true;
   }
 
+  /**
+   * Den Inhalt eines Bereichs austauschen.
+   *
+   * **Nötig, weil ein Bereich sonst zeigt, was beim Aufbau galt.** Der
+   * Bildschirm entsteht einmal beim Start; was sich danach ändert — Stufe,
+   * Erfahrung, Plätze — käme nie an. Im Browser gesehen: Nach einem gewonnenen
+   * Kampf stand dort weiterhin „0 / 200".
+   *
+   * Das ist derselbe Fehler wie ein gespeicherter statt gerechneter Wert, nur
+   * eine Ebene höher: Die Zahl war richtig, als sie entstand, und ist es
+   * seitdem nicht mehr.
+   *
+   * @returns ob der Bereich gefunden wurde
+   */
+  replaceSection(id: string, content: HTMLElement): boolean {
+    const box = this.sectionRoot.querySelector<HTMLElement>(`[data-section="${id}"]`);
+    if (box === null) return false;
+    // Die Überschrift bleibt: Sie gehört zum Bereich, nicht zum Inhalt.
+    const titel = box.querySelector('.home-section-title');
+    box.replaceChildren();
+    if (titel !== null) box.appendChild(titel);
+    box.appendChild(content);
+    return true;
+  }
+
   /** Die Kennungen der aufgenommenen Bereiche, in ihrer Reihenfolge. */
   get sectionIds(): string[] {
     return [...this.sectionRoot.querySelectorAll<HTMLElement>('[data-section]')].map(
