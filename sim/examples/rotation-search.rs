@@ -144,12 +144,25 @@ fn main() {
             ..rota_sim::FightConfig::default()
         });
         let lauf = fight.run_apl(&gefunden.best.apl);
-        let nie: Vec<&str> = (0..rota_sim::SPELL_COUNT)
-            .filter(|&i| lauf.casts[i] == 0)
-            .map(|i| SPELLS[i].id)
+        // **Nur spielbare Zauber.** Ein Pruef-Zauber, der gar nicht zur Wahl
+        // stand, als „nie gewirkt" zu melden, waere eine Zahl, die etwas
+        // anderes zaehlt als sie behauptet — sie wuerde die Zahl der toten
+        // Zauber um einen zu hoch ausweisen.
+        let spielbar: Vec<usize> = (0..rota_sim::SPELL_COUNT)
+            .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
             .collect();
-        println!("  nie gewirkt  {} von {}", nie.len(), rota_sim::SPELL_COUNT);
+        let nie: Vec<&str> = spielbar
+            .iter()
+            .filter(|&&i| lauf.casts[i] == 0)
+            .map(|&i| SPELLS[i].id)
+            .collect();
+        println!("  nie gewirkt  {} von {}", nie.len(), spielbar.len());
         println!("    {}", nie.join(", "));
+        println!(
+            "  (ausgenommen  {} Pruef-Zauber ueber Stufe {})",
+            rota_sim::SPELL_COUNT - spielbar.len(),
+            rota_sim::data::MAX_LEVEL
+        );
         println!();
     }
 
