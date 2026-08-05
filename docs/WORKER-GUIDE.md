@@ -1312,6 +1312,69 @@ Browser-Läufen genommen, statt eine saubere Tabelle zu liefern, die falsch ist.
 > Eine Tabelle, die zu der Frage passt, die der Empfänger selbst gestellt hat, wird nicht
 > nachgerechnet.
 
+#### Ein Vergleich zwischen zwei Größen belegt nichts über die Größen
+
+Bei #237 verglich eine Gegenprobe zwei Suchverfahren:
+
+```rust
+assert!(gierig >= erschoepfend);
+```
+
+**Grün heißt hier nur, dass die Ungleichung hält.** Beide bei `4000.0` wäre ebenfalls grün gewesen —
+und hätte bedeutet, dass die **erschöpfende** Suche kaputt ist, statt dass die gierige gut ist. Zwei
+kaputte Messungen sind gleich, und eine Ungleichung zwischen ihnen sagt nichts.
+
+Der Bearbeiter hat sich die Zahlen erzwungen, statt sie aus dem Grün zu schließen:
+
+> Ich habe ein `assert!(false)` eingesetzt, das die Zahlen ausgibt, sie abgelesen und es wieder
+> entfernt.
+
+Und dann standen sie da: **gierig 4000.0, erschöpfend 5960.0** — die Ungleichung hielt, und das
+Verfahren war trotzdem falsch.
+
+**Die Regel:** Wo eine Zusicherung zwei Messungen vergleicht, gehören beide Zahlen einmal gelesen.
+Ein `>=` ist eine Aussage über ihr Verhältnis, keine über ihren Wert.
+
+#### Dieselbe Beobachtung kann eine Annahme tragen und widerlegen
+
+Derselbe Fall, eine Ebene darüber. Das gierige Verfahren war so begründet:
+
+> Der Beitrag einer Position hängt fast nur von dem ab, was **über** ihr steht, nicht von dem
+> darunter.
+
+**Der Satz stimmt.** Und er ist genau der Grund, warum das Verfahren scheitert: Weil das, was oben
+steht, alles darunter verdeckt, ist die **erste** Wahl die folgenreichste — und sie wird mit der
+schlechtesten Information getroffen, nämlich einem Zauber allein, ohne Liste.
+
+> Ich habe das Argument für die Annahme gehalten, obwohl es dagegen spricht.
+
+**Eine Beobachtung ist keine Begründung.** Sie wird erst zu einer, wenn man sie in beide Richtungen
+liest — und die Richtung, die gegen die eigene Absicht spricht, fällt einem nicht von selbst ein.
+Die Gegenprobe schon: Sie hat den Fehler in Minuten gefunden, wo Nachdenken ihn eine Stunde lang
+bestätigt hatte.
+
+#### Ein Prüffall-Name kann eine Absicht sein statt einer Angabe
+
+Derselbe Bearbeiter, dieselbe Stunde. Sein Fall hieß:
+
+```rust
+fn gierig_findet_bei_SIEBEN_kandidaten_nicht_das_optimum()
+```
+
+Er maß **fünf**. Der Name stammte aus der Auflage („die Gegenprobe bei n=7 und n=8"), nicht aus einer
+Messung — und behauptete damit, die Auflage sei erfüllt, während sie es nicht war.
+
+**Gefunden hat er es nicht durch Nachdenken, sondern an einer Zahl in seiner eigenen Meldung:** 205
+erschöpfende Listen bei `max_len 4` gehen nur mit n=5 auf, nicht mit n=7.
+
+> Er sah aus wie eine Angabe und war eine Absicht.
+
+Das ist die **vierte Gestalt** (die falsche Quelle) an einer Stelle, an der niemand sie sucht: Ein
+Prüffall-Name wird beim Lesen wie ein Messergebnis behandelt, weil er neben Code steht, der misst.
+
+**Die Reparatur ist ein Fall, der die Zahl misst statt sie zu behaupten** — und der bei der alten
+Fassung rot gewesen wäre.
+
 #### Ein selbst gebauter Wächter ist erst belegt, wenn er einmal rot war
 
 Der Abschnitt oben handelt von einer Gegenprobe, die **das Falsche trifft**. Dieser hier von dem
