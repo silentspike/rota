@@ -289,12 +289,6 @@ pub struct Fight {
     damage_lost_to_race: u32,
     /// Wie viel Fortschritt der Boss zurueckgedreht hat.
     boss_healed: u32,
-    /// Stand der kippenden Reaktion (Baustein 6, Issue #240).
-    reaction: u32,
-    /// Ob sie gekippt ist — dann ist der Lauf vorbei.
-    reaction_failed: bool,
-    /// Wie oft der Spieler sie gehoben hat.
-    stabilised_count: u32,
     /// Ob die Schwaechung gerade liegt (Baustein 8, Issue #240).
     afflicted: bool,
     /// Wie oft sie entfernt wurde.
@@ -483,9 +477,6 @@ impl Fight {
             race_won: false,
             damage_lost_to_race: 0,
             boss_healed: 0,
-            reaction: config.boss.stabilise.map_or(0, |s| s.start_value),
-            reaction_failed: false,
-            stabilised_count: 0,
             afflicted: false,
             afflictions_cleared: 0,
             timeline_index: 0,
@@ -676,7 +667,6 @@ impl Fight {
         self.schedule_first_energy_tick();
         self.schedule_first_doom_tick();
         self.schedule_first_stack_tick();
-        self.schedule_first_reaction_drop();
         self.schedule_first_affliction();
         self.schedule_next_timeline_step();
         // Die erste Entscheidung faellt bei 0.
@@ -767,7 +757,6 @@ impl Fight {
         self.schedule_first_energy_tick();
         self.schedule_first_doom_tick();
         self.schedule_first_stack_tick();
-        self.schedule_first_reaction_drop();
         self.schedule_first_affliction();
         self.schedule_next_timeline_step();
 
@@ -783,7 +772,6 @@ impl Fight {
         let mut doom = Vec::with_capacity(checksums.capacity());
         let mut doom_charges = Vec::with_capacity(checksums.capacity());
         let mut stacks_trace = Vec::with_capacity(checksums.capacity());
-        let mut reaction_trace = Vec::with_capacity(checksums.capacity());
         let mut afflicted_trace = Vec::with_capacity(checksums.capacity());
         let mut cast_lands_trace: Vec<i64> = Vec::with_capacity(checksums.capacity());
         let mut timeline_index = Vec::with_capacity(checksums.capacity());
@@ -830,7 +818,6 @@ impl Fight {
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
-                    reaction_trace.push(self.reaction);
                     afflicted_trace.push(u32::from(self.afflicted));
                     cast_lands_trace
                         .push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
@@ -853,7 +840,6 @@ impl Fight {
                     timeline_index.push(self.timeline_index as u32);
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
-                    reaction_trace.push(self.reaction);
                     afflicted_trace.push(u32::from(self.afflicted));
                     cast_lands_trace
                         .push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
@@ -947,7 +933,6 @@ impl Fight {
                 timeline_index.push(self.timeline_index as u32);
                 player_hp.push(self.player_hp);
                 shield_spur.push(self.shield);
-                reaction_trace.push(self.reaction);
                 afflicted_trace.push(u32::from(self.afflicted));
                 cast_lands_trace.push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
             }
@@ -981,12 +966,8 @@ impl Fight {
             interrupts_landed: self.interrupts_landed,
             interrupts_missed: self.interrupts_missed,
             shield: shield_spur,
-            reaction: reaction_trace,
             afflicted: afflicted_trace,
             cast_lands_at: cast_lands_trace,
-            final_reaction: self.reaction,
-            reaction_failed: self.reaction_failed,
-            stabilised_count: self.stabilised_count,
             afflictions_cleared: self.afflictions_cleared,
             cycle: self.cycle(),
             shield_absorbed: self.shield_absorbed,
@@ -1013,9 +994,6 @@ impl Fight {
         self.race_won = false;
         self.damage_lost_to_race = 0;
         self.boss_healed = 0;
-        self.reaction = self.boss.stabilise.map_or(0, |s| s.start_value);
-        self.reaction_failed = false;
-        self.stabilised_count = 0;
         self.afflicted = false;
         self.afflictions_cleared = 0;
         self.timeline_index = 0;
@@ -1085,16 +1063,6 @@ impl Fight {
         if let Some(stacks) = self.boss.stacks {
             if stacks.per_step_ms > 0 && stacks.per_step_ms < self.duration_ms {
                 self.queue.push(stacks.per_step_ms, EventKind::StackTick);
-            }
-        }
-    }
-
-    /// Plant das erste Sinken der kippenden Reaktion ein (Issue #240).
-    fn schedule_first_reaction_drop(&mut self) {
-        if let Some(stab) = self.boss.stabilise {
-            if stab.drop_per_step_ms > 0 && stab.drop_per_step_ms < self.duration_ms {
-                self.queue
-                    .push(stab.drop_per_step_ms, EventKind::ReactionDrop);
             }
         }
     }
@@ -1312,13 +1280,6 @@ impl Fight {
             if self.shield_stacks < shield.max_stacks {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(shield.amount);
-                // **Die Reaktion stabilisieren** (Baustein 6, Issue #240). Der
-                // Schutz hebt sie um seinen EIGENEN Betrag — eine zweite Zahl
-                // "stabilisiert um X" waere dieselbe Groesse an zwei Orten.
-                //
-                // Nur beim Stapeln, nicht beim blossen Erneuern: Sonst waere
-                // die Obergrenze wirkungslos.
-                self.stabilise(shield.amount);
             }
             self.shield_expires_at = Some(self.time + shield.duration_ms);
             self.queue
@@ -1344,10 +1305,6 @@ impl Fight {
             if wirklich > 0 {
                 self.player_hp += wirklich;
                 self.healed = self.healed.saturating_add(wirklich);
-                // Auch die Heilung stabilisiert — mit dem Betrag, der WIRKLICH
-                // angekommen ist. Was ueber die volle Anzeige hinausginge,
-                // verpufft hier wie dort.
-                self.stabilise(wirklich);
                 self.log
                     .push(self.time, LogKind::Healed, index as u8, wirklich);
             }
@@ -1612,7 +1569,6 @@ impl Fight {
             EventKind::EnergyTick => self.energy_tick(),
             EventKind::DoomTick => self.doom_tick(),
             EventKind::StackTick => self.stack_tick(),
-            EventKind::ReactionDrop => self.reaction_drop(),
             EventKind::AfflictionTick => self.affliction_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
@@ -1859,26 +1815,6 @@ impl Fight {
         }
     }
 
-    /// Die kippende Reaktion heben (Baustein 6, Issue #240).
-    ///
-    /// **Die einzige Stelle, die sie hebt.** Schutz und Heilung rufen sie mit
-    /// ihrem eigenen Betrag; wer eine dritte Quelle anlegt, ruft hier ebenfalls
-    /// und muss sich nicht um die Obergrenze kuemmern.
-    ///
-    /// Ueber `max_value` hinaus wird nicht gehoben: Sonst liesse sich in
-    /// ruhigen Minuten ein Vorrat anlegen, und die Mechanik waere in der Phase,
-    /// in der sie zaehlt, schon gewonnen.
-    fn stabilise(&mut self, amount: u32) {
-        let Some(stab) = self.boss.stabilise else {
-            return;
-        };
-        if self.reaction_failed || amount == 0 {
-            return;
-        }
-        self.reaction = self.reaction.saturating_add(amount).min(stab.max_value);
-        self.stabilised_count += 1;
-    }
-
     /// Die Schwaechung entfernen (Baustein 8, Issue #240).
     ///
     /// **Heilung steht bewusst nicht in `cleared_by`** — das ist der ganze
@@ -1893,44 +1829,6 @@ impl Fight {
         }
         self.afflicted = false;
         self.afflictions_cleared += 1;
-    }
-
-    /// Die kippende Reaktion sinkt um einen Schritt (Baustein 6, Issue #240).
-    ///
-    /// Sie sinkt **unabhaengig vom Schaden des Spielers**, wie die
-    /// Energieleiste. Was sie hebt, sind Schutz und Heilung; wer nur Schaden
-    /// macht, verliert sie — das ist das "statt" aus 11.2.
-    ///
-    /// Das Kippen geht wie beim toedlichen Zaehler an WARD und Schutzschicht
-    /// vorbei: Eine Reaktion, die eine Schutzschicht ueberlebt, waere keine.
-    fn reaction_drop(&mut self) {
-        let Some(stab) = self.boss.stabilise else {
-            return;
-        };
-        if self.reaction_failed {
-            return;
-        }
-
-        // **In i64 gerechnet, nicht in u32.** Das Spiel laesst den Wert im
-        // Zwischenschritt unter die Schwelle fallen und erkennt daran das
-        // Kippen. Ein `saturating_sub` bliebe bei 0 stehen — die Bedingung
-        // `neu < fail_below` waere bei fail_below = 0 dann NIE erfuellt, und
-        // die Reaktion kippte im Simulator ueberhaupt nicht. Der Datensatz von
-        // #240 hat genau diese Schwelle.
-        let neu = i64::from(self.reaction) - i64::from(stab.drop_amount);
-        if neu < i64::from(stab.fail_below) {
-            self.reaction = stab.fail_below;
-            self.reaction_failed = true;
-            self.player_hp = 0;
-            self.died_at = Some(self.time);
-            return;
-        }
-        self.reaction = u32::try_from(neu).unwrap_or(stab.fail_below);
-
-        let next = self.time + stab.drop_per_step_ms;
-        if next < self.duration_ms {
-            self.queue.push(next, EventKind::ReactionDrop);
-        }
     }
 
     /// Die Schwaechung greift oder tickt (Baustein 8, Issue #240).
@@ -2509,13 +2407,6 @@ impl Fight {
         // **Angehaengt, nicht eingeschoben** (Issue #240, die letzten drei
         // Bausteine) — dieselbe Folge wie in `src/core/checksum.ts`.
         //
-        // Baustein 6: Ohne den Stand der Reaktion waere die Pruefsumme fuer
-        // einen Boss mit umgekehrtem Ziel blind. Zwei Laeufe kurz vor und weit
-        // vor dem Kippen saehen gleich aus, solange der Schaden uebereinstimmt
-        // — und er stimmt ueberein, denn das Halten kostet Schaden, statt ihn
-        // zu erzeugen.
-        h = mix_int(h, self.reaction as i32);
-        h = mix_int(h, self.stabilised_count as i32);
         // Baustein 7: Die Eskalation wirkt ausschliesslich auf diesen
         // Zeitpunkt. Ohne ihn fiele eine falsch gerechnete Verkuerzung erst
         // auf, wenn der Treffer faellt — Takte spaeter, an einer Stelle, die

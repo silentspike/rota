@@ -124,23 +124,10 @@ pub struct ReplayResult {
     pub player_hp: Vec<u32>,
     /// Stand der Schutzschicht je Takt (COAGULATION, Issue #79).
     pub shield: Vec<u32>,
-    /// Stand der kippenden Reaktion je Takt (Issue #240).
-    ///
-    /// Die drei folgenden Spuren gehen in die Pruefsumme ein — aber eine
-    /// abweichende Pruefsumme sagt nur *dass* etwas anders ist, nicht *welcher
-    /// der drei Bausteine* es war. Mit den Spuren zeigt ein Fehlschlag direkt
-    /// darauf.
-    pub reaction: Vec<u32>,
     /// Ob die Schwaechung je Takt liegt, als 0 oder 1.
     pub afflicted: Vec<u32>,
     /// Wann der laufende Boss-Zauber trifft, oder -1 — die Spur der Eskalation.
     pub cast_lands_at: Vec<i64>,
-    /// Stand der Reaktion am Ende.
-    pub final_reaction: u32,
-    /// Ob sie gekippt ist.
-    pub reaction_failed: bool,
-    /// Wie oft der Spieler sie gehoben hat.
-    pub stabilised_count: u32,
     /// Wie oft die Schwaechung entfernt wurde.
     pub afflictions_cleared: u32,
     /// Wie viele Zyklen die Zeitleiste gelaufen ist.

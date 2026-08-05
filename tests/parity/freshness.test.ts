@@ -128,7 +128,7 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckterWettlauf, HINWEIS).toEqual(raceHealPayload());
   });
 
-  it('der Lauf mit den letzten drei Bausteinen entspricht dem heutigen Spielstand', () => {
+  it('der Lauf mit den letzten beiden Bausteinen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteDreiBausteine, HINWEIS).toEqual(trialBlocksPayload());
   });
 

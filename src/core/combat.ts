@@ -321,18 +321,6 @@ export class Combat {
   /** Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218). */
   private bossHealedValue = 0;
 
-  /** Stand der kippenden Reaktion (Issue #240, Baustein 6). */
-  private reactionValue = 0;
-
-  /** Kampfzeit des naechsten Absinkens. */
-  private nextReactionDropAtMs = 0;
-
-  /** Ob die Reaktion gekippt ist — der Lauf endet dann. */
-  private reactionFailedValue = false;
-
-  /** Wie oft der Spieler sie gehoben hat. */
-  private stabilisedCountValue = 0;
-
   /** Ob die Schwaechung liegt (Baustein 8). */
   private afflictedValue = false;
 
@@ -455,16 +443,6 @@ export class Combat {
     // nicht, und ein Startwert von 0 ließe beide schon im Takt 0 steigen.
     this.nextDoomAtMs = options.boss.doom?.perStepMs ?? 0;
     this.nextStackAtMs = options.boss.stacks?.perStepMs ?? 0;
-    // Und dieselbe Begründung ein drittes Mal, für die kippende Reaktion
-    // (Issue #240). Sie wiegt hier schwerer als bei den Uhren darüber: Ohne
-    // Startwert stünde sie im Takt 0 auf 0, fiele im ersten Schritt darunter
-    // und der Lauf wäre **sofort vorbei** — im Replay, nicht im Spiel, wo
-    // `beginFight` sie setzt. Der Simulator setzt sie im Konstruktor aus den
-    // Boss-Daten; stünde sie hier nur in `beginFight`, liefen beide Seiten im
-    // ersten Takt auseinander. Gemessen: Die erste Vergleichsdatei hatte
-    // `reactionFailed: true` und eine Reihe aus lauter Nullen.
-    this.reactionValue = options.boss.stabilise?.startValue ?? 0;
-    this.nextReactionDropAtMs = options.boss.stabilise?.dropPerStepMs ?? 0;
     this.doomChargesValue = options.boss.doom?.clearCharges ?? 0;
     this.playerHpValue = PLAYER.vessel;
     this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
@@ -602,21 +580,6 @@ export class Combat {
    */
   get raceOpen(): boolean {
     return this.raceEndsAtMs >= 0;
-  }
-
-  /** Stand der kippenden Reaktion (Issue #240). */
-  get reaction(): number {
-    return this.reactionValue;
-  }
-
-  /** Ob die Reaktion gekippt ist. */
-  get reactionFailed(): boolean {
-    return this.reactionFailedValue;
-  }
-
-  /** Wie oft der Spieler sie gehoben hat. */
-  get stabilisedCount(): number {
-    return this.stabilisedCountValue;
   }
 
   /**
@@ -865,13 +828,6 @@ export class Combat {
       if (this.shieldStacksValue < shield.maxStacks) {
         this.shieldStacksValue++;
         this.shieldValue += shield.amount;
-        // **Die Reaktion stabilisieren** (11.2, Baustein 6; Issue #240). Der
-        // Schutz hebt sie um seinen EIGENEN Betrag — eine zweite Zahl
-        // "stabilisiert um X" waere dieselbe Groesse an zwei Orten.
-        //
-        // Nur beim Stapeln, nicht beim blossen Erneuern: Sonst waere die
-        // Obergrenze wirkungslos, und das gilt hier wie fuer den Schutz selbst.
-        this.stabilise(shield.amount);
       }
       this.shieldExpiresAtMs = seitBeginn + shield.durationMs;
     }
@@ -887,10 +843,6 @@ export class Combat {
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;
-        // Auch die Heilung stabilisiert — mit dem Betrag, der WIRKLICH
-        // angekommen ist. Was ueber die volle Anzeige hinausginge, verpufft
-        // hier wie dort.
-        this.stabilise(wirklich);
         this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
       }
     }
@@ -1148,10 +1100,6 @@ export class Combat {
     // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
     this.raceDone = false;
     this.raceEndsAtMs = -1;
-    // Die Reaktion beginnt mit ihrem Startwert und sinkt ab dem ersten Takt.
-    this.reactionValue = this.boss.stabilise?.startValue ?? 0;
-    this.nextReactionDropAtMs = timeMs + (this.boss.stabilise?.dropPerStepMs ?? 0);
-    this.reactionFailedValue = false;
     this.afflictedValue = false;
     this.nextAfflictionAtMs = 0;
   }
@@ -1400,29 +1348,6 @@ export class Combat {
       }
     }
 
-    // Die kippende Reaktion (11.2, Baustein 6; #240).
-    //
-    // Sie sinkt von selbst — unabhaengig vom Schaden des Spielers, wie die
-    // Energieleiste. Was sie hebt, sind Schutz und Heilung; wer nur Schaden
-    // macht, verliert sie.
-    const stab = this.boss.stabilise;
-    if (stab !== null && !this.reactionFailedValue) {
-      while (timeMs >= this.nextReactionDropAtMs) {
-        this.reactionValue -= stab.dropAmount;
-        this.nextReactionDropAtMs += stab.dropPerStepMs;
-        if (this.reactionValue < stab.failBelow) {
-          this.reactionValue = stab.failBelow;
-          this.reactionFailedValue = true;
-          // Der Lauf endet — wie beim toedlichen Zaehler an WARD und
-          // Schutzschicht vorbei. Eine Reaktion, die eine Schutzschicht
-          // ueberlebt, waere keine.
-          this.playerHpValue = 0;
-          this.diedAtMsValue = timeMs - this.fightStartedAtMs;
-          break;
-        }
-      }
-    }
-
     // Die Schwaechung ohne Heil-Loesung (11.2, Baustein 8; #240).
     const aff = this.boss.affliction;
     if (aff !== null) {
@@ -1661,25 +1586,6 @@ export class Combat {
     if (zyklus <= 0) return base;
     const gekuerzt = base - esc.castTimeShrinkMs * zyklus;
     return gekuerzt < esc.minCastTimeMs ? esc.minCastTimeMs : gekuerzt;
-  }
-
-  /**
-   * Die kippende Reaktion heben (11.2, Baustein 6; Issue #240).
-   *
-   * **Die einzige Stelle, die sie hebt.** Schutz und Heilung rufen sie mit
-   * ihrem eigenen Betrag; wer eine dritte Quelle anlegt, ruft hier ebenfalls
-   * und muss sich nicht um die Obergrenze kümmern.
-   *
-   * Über `maxValue` hinaus wird nicht gehoben: Sonst ließe sich in ruhigen
-   * Minuten ein Vorrat anlegen, und die Mechanik wäre in der Phase, in der sie
-   * zählt, schon gewonnen.
-   */
-  private stabilise(amount: number): void {
-    const def = this.boss.stabilise;
-    if (def === null || this.reactionFailedValue || amount <= 0) return;
-    const neu = this.reactionValue + amount;
-    this.reactionValue = neu > def.maxValue ? def.maxValue : neu;
-    this.stabilisedCountValue++;
   }
 
   /**

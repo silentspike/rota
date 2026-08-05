@@ -61,14 +61,6 @@ pub enum EventKind {
     /// anders als dort, laufen beide Seiten bei jedem Zusammentreffen
     /// auseinander — und zwar nur dann, was es schwer zu finden macht.
     DoomTick,
-    /// Die kippende Reaktion sinkt um einen Schritt (Baustein 6, Issue #240).
-    ///
-    /// **Zwischen Zaehler und Stapel**, weil sie im Spiel genau dort steht
-    /// (`Combat::tick`: Energieleiste, Zaehler, Reaktion, Schwaechung, Stapel).
-    /// Die Rangfolge ist kein Geschmack: Kippt die Reaktion im selben Takt, in
-    /// dem ein Stapel zuschlaegt, entscheidet sie darueber, welcher der beiden
-    /// den Tod eintraegt — und die beiden Seiten muessen sich einig sein.
-    ReactionDrop,
     /// Die Schwaechung ohne Heil-Loesung tickt (Baustein 8, Issue #240).
     AfflictionTick,
     /// Ein exponentieller Stapel kommt dazu (Baustein 3, Issue #216).
@@ -120,15 +112,14 @@ impl EventKind {
             // Raenge ruecken dadurch nach — ihre ABSTAENDE bleiben, und nur
             // die zaehlen.
             EventKind::DoomTick => 3,
-            // Reaktion und Schwaechung stehen zwischen Zaehler und Stapel,
-            // genau wie in `Combat::tick` (Issue #240) — die folgenden Raenge
-            // ruecken dadurch nach, ihre ABSTAENDE bleiben.
-            EventKind::ReactionDrop => 4,
-            EventKind::AfflictionTick => 5,
-            EventKind::StackTick => 6,
-            EventKind::TimelineStep { .. } => 7,
-            EventKind::BossCastLands { .. } => 8,
-            EventKind::Wakeup => 9,
+            // Die Schwaechung steht zwischen Zaehler und Stapel, genau wie in
+            // `Combat::tick` (Issue #240) — die folgenden Raenge ruecken
+            // dadurch nach, ihre ABSTAENDE bleiben.
+            EventKind::AfflictionTick => 4,
+            EventKind::StackTick => 5,
+            EventKind::TimelineStep { .. } => 6,
+            EventKind::BossCastLands { .. } => 7,
+            EventKind::Wakeup => 8,
         }
     }
 }

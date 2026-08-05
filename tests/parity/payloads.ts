@@ -837,34 +837,14 @@ export function raceHealPayload(): Record<string, unknown> {
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**
- * Die Belegung des Prüfstands für die letzten drei Bausteine (Issue #240).
+ * Die letzten beiden Bausteine, Takt für Takt (Issue #240, AC6).
  *
- * **Nicht `STEP1_BINDINGS`**: Die Zauberleiste aus Schritt 1 kennt CRUST
- * nicht, und ohne ihn ließe sich die Reaktion nie heben — die Parität prüfte
- * dann nur die passiven Hälften der drei Bausteine und keine der Handlungen,
- * mit denen der Spieler ihnen begegnet. Sie steht in der Vergleichsdatei, der
- * Simulator liest sie von dort.
- */
-const TRIAL_BINDINGS = [
-  { slot: 0, spellId: 'kindle' },
-  { slot: 1, spellId: 'smoulder' },
-  { slot: 2, spellId: 'crust' },
-  { slot: 3, spellId: 'quench' },
-] as const;
-
-/**
- * Die letzten drei Bausteine, Takt für Takt (Issue #240, AC6).
+ * **Beide in EINEM Lauf**: Die Schwächung greift bei 8 s und wird von QUENCH
+ * entfernt, die Wirkzeit der Zeitleiste schrumpft mit jedem der sieben Zyklen.
+ * Sie getrennt zu prüfen würde nicht zeigen, dass sie einander nicht ins
+ * Gehege kommen.
  *
- * **Alle drei in EINEM Lauf**: Die Schwächung greift bei 8 s und wird von
- * QUENCH entfernt, die Wirkzeit der Zeitleiste schrumpft mit jedem der sieben
- * Zyklen, und die Reaktion sinkt, bis CRUST sie hebt. Sie getrennt zu prüfen
- * würde nicht zeigen, dass sie einander nicht ins Gehege kommen.
- *
- * Was hier NICHT vorkommt, ist das Kippen — CRUST hat 6 s Abklingzeit, wer
- * stabilisiert, hält die Reaktion. Der Fall steht als eigener Prüffall auf
- * beiden Seiten, mit derselben gerechneten Zahl (51000 ms).
- *
- * Die drei Reihen gehen mit, nicht nur das Ergebnis: Weichen die Seiten ab,
+ * Die zwei Reihen gehen mit, nicht nur das Ergebnis: Weichen die Seiten ab,
  * sagt der erste unterschiedliche Eintrag, **welcher Baustein** es war.
  */
 export function trialBlocksPayload(): Record<string, unknown> {
@@ -873,13 +853,8 @@ export function trialBlocksPayload(): Record<string, unknown> {
   const boss = bossById('test-crucible-trial');
   if (boss === undefined) throw new Error('Der Boss test-crucible-trial fehlt.');
 
-  const result = replayRecording(recording, {
-    checksumPerTick: true,
-    boss,
-    bindings: TRIAL_BINDINGS,
-  });
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
 
-  const reaktion: number[] = [];
   const geschwaecht: number[] = [];
   const landet: number[] = [];
   const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
@@ -892,11 +867,10 @@ export function trialBlocksPayload(): Record<string, unknown> {
       const press = recording.presses[pressIndex];
       if (press === undefined || press.tick > tick) break;
       pressIndex++;
-      for (const binding of TRIAL_BINDINGS) {
+      for (const binding of STEP1_BINDINGS) {
         if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
       }
     }
-    reaktion.push(combat.reaction);
     geschwaecht.push(combat.afflicted ? 1 : 0);
     landet.push(combat.casting >= 0 ? combat.castLandsAtMs : -1);
   }
@@ -908,12 +882,11 @@ export function trialBlocksPayload(): Record<string, unknown> {
     seed: recording.seed,
     ticks: recording.ticks,
     tickMs: TICK_MS,
-    bindings: TRIAL_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     boss: {
       hp: boss.hp,
       overpressureMs: boss.overpressureMs,
-      stabilise: boss.stabilise,
       escalation: boss.escalation,
       affliction: boss.affliction,
       timelineLoopMs: boss.timelineLoopMs,
@@ -923,15 +896,11 @@ export function trialBlocksPayload(): Record<string, unknown> {
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      finalReaction: combat.reaction,
-      reactionFailed: combat.reactionFailed,
-      stabilisedCount: combat.stabilisedCount,
       afflictionsCleared: combat.afflictionsCleared,
       cycle: combat.cycle,
       diedAtMs: combat.diedAtMs,
     },
     checksums: result.checksums,
-    reaction: reaktion,
     afflicted: geschwaecht,
     castLandsAtMs: landet,
   };

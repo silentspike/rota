@@ -135,12 +135,6 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixInt(h, combat.bossHealed);
   // **Angehängt, nicht eingeschoben** (Issue #240, die letzten drei Bausteine).
   //
-  // Baustein 6: Ohne den Stand der Reaktion wäre die Prüfsumme für einen Boss
-  // mit umgekehrtem Ziel blind — zwei Läufe kurz vor und weit vor dem Kippen
-  // sähen gleich aus, solange der ausgeteilte Schaden übereinstimmt. Und er
-  // stimmt überein, denn das Halten kostet Schaden statt ihn zu erzeugen.
-  h = mixInt(h, combat.reaction);
-  h = mixInt(h, combat.stabilisedCount);
   // Baustein 7: Die Eskalation wirkt ausschließlich auf den Zeitpunkt, zu dem
   // der laufende Boss-Zauber trifft. Ohne ihn fiele eine falsch gerechnete
   // Verkürzung erst auf, wenn der Treffer fällt — also Takte später, an einer

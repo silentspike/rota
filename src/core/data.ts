@@ -293,61 +293,6 @@ export interface RaceDef {
 }
 
 /**
- * Das umgekehrte Ziel (GAME-DESIGN 11.2, Baustein 6; Issue #240).
- *
- * > Statt Schaden zu machen muss eine kippende Reaktion **stabilisiert**
- * > werden. Der Kampf, in dem COAGULATION glänzt.
- *
- * DER ERSTE ZWECK FÜR EINE GANZE SCHULE
- * -------------------------------------
- * Die drei Wege der Koagulation sind seit #79 gebaut, und **kein Boss
- * verlangte sie**: Wer sie mitnimmt, verliert Schaden und gewinnt nichts. Der
- * Befund aus #224 sagt, warum das nicht bloß Geschmackssache ist — jeder
- * Zauber ohne direkten Schaden kostet einen GCD und muss ihn zurückverdienen,
- * und für Koagulation gab es nichts zurückzuverdienen.
- *
- * WOMIT STABILISIERT WIRD, STEHT NICHT IN DIESEN DATEN
- * ---------------------------------------------------
- * Sondern in den **Zauberdaten**: Schutz und Heilung heben den Wert um ihren
- * eigenen Betrag. Eine zweite Zahl „stabilisiert um X" neben `shield.amount`
- * wäre dieselbe Größe an zwei Orten, und die zweite läuft beim Nachziehen weg.
- *
- * TEMPER BLEIBT DRAUSSEN — UND DAS IST DIE GRENZE DES BAUSTEINS, KEINE LÜCKE
- * ---------------------------------------------------------------------------
- * 11.2 sagt: „**Statt** Schaden zu machen muss eine kippende Reaktion
- * stabilisiert werden."
- *
- * TEMPER wandelt ausgeteilten Schaden laufend in Schutz. Würde dieser Schutz
- * stabilisieren, dann stabilisierte man **durch Schaden machen** — und die
- * Bedingung, die den ganzen Kampf ausmacht, wäre aufgehoben. Der Boss-Typ
- * verwandelte sich in einen normalen Kampf, bei dem man nebenbei stabilisiert.
- *
- * Es ist auch kein Mangel an TEMPER: GAME-DESIGN 4.1 nennt die drei Wege
- * ausdrücklich „drei Wege **nebeneinander**" — drei Spielweisen, nicht drei
- * Antworten auf jede Frage. Ein Boss, der Schutzschicht und Heilung belohnt,
- * muss nicht auch die Umwandlung belohnen.
- *
- * > **Offene Frage, damit sie niemand für ein Versehen hält:** Welcher
- * > Boss-Typ belohnt die Umwandlung? Vermutlich einer mit hohem Dauerschaden,
- * > bei dem laufender Schutz besser trägt als punktuelle Heilung. Der
- * > Orchestrator schneidet das als eigenes Issue, wenn #240 durch ist.
- *
- * Wer hier „die Lücke repariert", nimmt dem Baustein seinen Kern.
- */
-export interface StabiliseDef {
-  /** Womit die Reaktion beginnt. */
-  readonly startValue: number;
-  /** Takt, in dem sie sinkt. Auf dem 10-ms-Raster. */
-  readonly dropPerStepMs: number;
-  /** Wie viel sie je Takt verliert. */
-  readonly dropAmount: number;
-  /** Darunter kippt sie — der Lauf endet. */
-  readonly failBelow: number;
-  /** Obergrenze; darüber hinaus wird nicht stabilisiert. */
-  readonly maxValue: number;
-}
-
-/**
  * Die eskalierende Wiederholung (GAME-DESIGN 11.2, Baustein 7; Issue #240).
  *
  * > Dieselbe Phase kehrt mehrfach wieder — **kürzere Fenster**, mehr
@@ -536,8 +481,6 @@ export interface BossDef {
   readonly race: RaceDef | null;
   /** Was ein Fehler an Fortschritt zurückdreht, oder `null` (Issue #218). */
   readonly bossHeal: BossHealDef | null;
-  /** Die kippende Reaktion, oder `null` (Issue #240). */
-  readonly stabilise: StabiliseDef | null;
   /** Die Eskalation je Zyklus, oder `null` (Issue #240). */
   readonly escalation: EscalationDef | null;
   /** Die Schwächung ohne Heil-Lösung, oder `null` (Issue #240). */
@@ -1033,35 +976,6 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
   }
 
   // Die drei letzten Bausteine (Issue #240).
-  let stabilise: StabiliseDef | null = null;
-  if (isRecord(source['stabilise'])) {
-    const startValue = number(source['stabilise']['startValue'], 0);
-    const dropPerStepMs = number(source['stabilise']['dropPerStepMs'], 0);
-    const dropAmount = number(source['stabilise']['dropAmount'], 0);
-    const failBelow = number(source['stabilise']['failBelow'], 0);
-    const maxValue = number(source['stabilise']['maxValue'], 0);
-    if (dropPerStepMs <= 0 || dropPerStepMs % TICK_MS !== 0) {
-      problems.push(
-        `stabilise.dropPerStepMs ${dropPerStepMs} muss positiv und auf dem ` +
-          `${TICK_MS}-ms-Raster liegen — sonst kippte die Reaktion auf beiden Seiten ` +
-          'zu verschiedenen Zeitpunkten.',
-      );
-    }
-    if (dropAmount <= 0) problems.push('Die Reaktion sinkt nicht (dropAmount).');
-    // Startet sie schon unter der Schwelle, ist der Lauf im ersten Takt vorbei
-    // — und die Mechanik gäbe es nur auf dem Papier.
-    if (startValue <= failBelow) {
-      problems.push(
-        `stabilise.startValue ${startValue} liegt nicht über failBelow ${failBelow} — ` +
-          'der Lauf endete sofort.',
-      );
-    }
-    if (maxValue < startValue) {
-      problems.push(`stabilise.maxValue ${maxValue} liegt unter dem Startwert.`);
-    }
-    stabilise = { startValue, dropPerStepMs, dropAmount, failBelow, maxValue };
-  }
-
   let escalation: EscalationDef | null = null;
   if (isRecord(source['escalation'])) {
     const castTimeShrinkMs = number(source['escalation']['castTimeShrinkMs'], 0);
@@ -1183,7 +1097,6 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       stacks,
       race,
       bossHeal,
-      stabilise,
       escalation,
       affliction,
       timeline,
