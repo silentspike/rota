@@ -110,6 +110,20 @@ export function replayRecording(
      * nur für den Fall belegen, in dem die neuen Werte gar nichts tun.
      */
     readonly worn?: WornValues;
+    /**
+     * Die Stufe des Spielers (Issue #289, AC5).
+     *
+     * **Fehlt sie, ist es Stufe 1** — und daran hängt, dass keine bestehende
+     * Vergleichsdatei wandert. Dieselbe Bauart wie `boss` und `worn`.
+     *
+     * Wählbar, weil AC5 verlangt, dass beide Seiten DASSELBE liefern, nicht
+     * nur dieselbe Tabelle lesen. Bis zum 2026-08-05 lag keine einzige
+     * Aufzeichnung über Stufe 1 — dort ist `statAtLevel` neutral, und ein
+     * Auseinanderlaufen wäre unsichtbar geblieben. Genau das ist die Klasse
+     * „der Prüffall kann den Unterschied nicht zeigen", und bei der
+     * Bitgleichheit ist es die teuerste Stelle, an der sie stehen kann.
+     */
+    readonly level?: number;
   } = {},
 ): ReplayResult {
   const combat = new Combat({
@@ -117,6 +131,7 @@ export function replayRecording(
     boss: options.boss ?? FIRST_CRUCIBLE.value,
     seed: recording.seed,
     worn: options.worn ?? NOTHING_WORN,
+    level: options.level ?? 1,
   });
   const wantChecksums = options.checksumPerTick === true;
   const checksums: number[] = [];
@@ -422,6 +437,16 @@ export function recordings(): Map<string, Recording> {
     if (runawayBoss !== undefined) {
       builtIn.set('runaway-progress', recordGoodRotation('runaway-progress', 2000, runawayBoss));
     }
+    // Der Prueffall zur STUFE (Issue #289, AC5). 3000 Takte sind 30 s.
+    //
+    // **Bis zum 2026-08-05 lag keine einzige Aufzeichnung ueber Stufe 1** —
+    // und dort ist `statAtLevel` neutral. Die Bitgleichheit war damit fuer
+    // jede hoehere Stufe unbelegt: Ein Auseinanderlaufen waere unsichtbar
+    // geblieben, weil kein Fall es zeigen konnte.
+    //
+    // Stufe 30 und nicht 2: Der Faktor ist dort 4,116 und trennt deutlich.
+    // Bei 1,05 saehe ein Rundungsfehler aus wie Uebereinstimmung.
+    builtIn.set('level-30', recordGoodRotation('level-30', 3000));
     const racer = bossById('test-racer');
     if (racer !== undefined) {
       builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));
