@@ -42,6 +42,7 @@ import {
   type LoadoutSource,
 } from '../combat/schools/indicators.js';
 import { SLOT_COUNT } from '../input/keys.js';
+import type { PointsDisplay } from '../analysis/points-display.js';
 
 const BACKGROUND = '#0b0b0f';
 const LETTERBOX = '#000000';
@@ -217,7 +218,7 @@ export class HudRenderer {
     casts: number;
     summary: RunSummary | null;
     mark: MarkDisplay | null;
-    points: number | null;
+    points: PointsDisplay | null;
     xpGained: number | null;
     levelUp: LevelUpDisplay | null;
   } = {
@@ -258,7 +259,7 @@ export class HudRenderer {
      * läuft in `onFinish` — also erst, wenn die Sitzung endet. Ein zum
      * Bauzeitpunkt übergebener Wert wäre immer der des vorigen Kampfes.
      */
-    private readonly pointsSource: () => number | null = () => null,
+    private readonly pointsSource: () => PointsDisplay | null = () => null,
     /**
      * Erfahrung und Aufstieg (Issue #371) — auf demselben Weg wie die Marke.
      *
