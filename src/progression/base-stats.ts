@@ -15,14 +15,18 @@
  * Ausruestung ist der Zuschlag 0. Hier eine Zahl zu erfinden hiesse, dem
  * Spieler etwas vorzurechnen, das nirgends herkommt.
  */
-import { PLAYER } from '../core/data.js';
+import { PLAYER, statAtLevel } from '../core/data.js';
 import type { BaseStats } from './stat-overview.js';
 
-export function baseStats(): BaseStats {
+export function baseStats(level = 1): BaseStats {
   return {
     // Kein Grundwert in den Daten -- ohne Ausruestung ist er 0.
     essence: 0,
-    vessel: PLAYER.vessel,
+    // **Der Wert DIESER Stufe** (Issue #289). Vorher stand hier der Grundwert
+    // aus base.json, waehrend die Anzeige daneben "Stat growth x4.116"
+    // zeigte -- eine Zahl, die den Fortschritt behauptete, und eine, die ihn
+    // nicht abbildete.
+    vessel: statAtLevel(PLAYER.vessel, level),
     // Als Prozentsatz, wie ihn der Spieler liest: 0,2 heisst 20 % weniger
     // eingehender Schaden (combat.ts liest denselben Wert als Faktor).
     ward: PLAYER.wardReduction * 100,
