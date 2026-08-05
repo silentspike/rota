@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   resetRunPayload,
+  raceHealPayload,
   gearPayload,
   hastePayload,
   wornPayload,
@@ -63,6 +64,7 @@ import {
   VESSEL_NAME,
   DOOM_STACKS_NAME,
   RESET_RUN_NAME,
+  RACE_HEAL_NAME,
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
   FIXATION_NAME,
@@ -95,6 +97,10 @@ writeFileSync(doomStacksPath, serialize(doomStacks), 'utf8');
 const resetRun = resetRunPayload();
 const resetRunPath = join(here, 'recordings', `${RESET_RUN_NAME}.json`);
 writeFileSync(resetRunPath, serialize(resetRun), 'utf8');
+
+const raceHeal = raceHealPayload();
+const raceHealPath = join(here, 'recordings', `${RACE_HEAL_NAME}.json`);
+writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
 
 const playerDamage = playerDamagePayload();
 const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);

@@ -747,6 +747,93 @@ export function resetRunPayload(): Record<string, unknown> {
   };
 }
 
+/** Der Prueffall zum Wettrennen und zur Boss-Heilung (Issue #218). */
+export const RACE_HEAL_NAME = 'race-heal';
+
+/**
+ * Wettrennen und Boss-Heilung, Takt für Takt (Issue #218, AC6).
+ *
+ * **Beide Bausteine in EINEM Lauf**: Das Fenster liegt bei 10 s, der
+ * Boss-Zauber bei 30 s. Sie getrennt zu prüfen würde nicht zeigen, dass sie
+ * sich nicht ins Gehege kommen — und genau dort läuft so etwas auseinander.
+ *
+ * Vier Spuren neben den Prüfsummen. Sie gehen ohnehin in die Prüfsumme ein,
+ * aber eine abweichende Prüfsumme sagt nur, **dass** etwas anders ist; die
+ * Spuren sagen **was**: das offene Fenster, der geladene Zähler, der verlorene
+ * Schaden und der zurückgedrehte Fortschritt.
+ */
+export function raceHealPayload(): Record<string, unknown> {
+  const recording = recordings().get(RACE_HEAL_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RACE_HEAL_NAME}`);
+  const boss = bossById('test-racer');
+  if (boss === undefined) throw new Error('Der Boss test-racer fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  const offen: number[] = [];
+  const geladen: number[] = [];
+  const verloren: number[] = [];
+  const geheilt: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) {
+      offen.push(combat.raceOpen ? 1 : 0);
+      geladen.push(combat.raceProgress);
+      verloren.push(combat.damageLostToRace);
+      geheilt.push(combat.bossHealed);
+      break;
+    }
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of STEP1_BINDINGS) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    offen.push(combat.raceOpen ? 1 : 0);
+    geladen.push(combat.raceProgress);
+    verloren.push(combat.damageLostToRace);
+    geheilt.push(combat.bossHealed);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      race: boss.race,
+      bossHeal: boss.bossHeal,
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      raceWon: combat.raceWon,
+      finalRaceProgress: combat.raceProgress,
+      damageLostToRace: combat.damageLostToRace,
+      bossHealed: combat.bossHealed,
+      interruptsMissed: combat.interruptsMissed,
+    },
+    checksums: result.checksums,
+    raceOpen: offen,
+    raceProgress: geladen,
+    damageLostToRace: verloren,
+    bossHealed: geheilt,
+  };
+}
+
 /**
  * Eingehender Schaden, Spielertod und Unterbrechen (Issue #110).
  *
