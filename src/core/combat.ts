@@ -456,7 +456,7 @@ export class Combat {
    * 7.1). Er ist die einzige Stelle, an der eine Spieler-Handlung Zeit braucht;
    * alles andere geschieht im Takt des Tastendrucks.
    */
-  private playerCastingValue = -1;
+  private playerCastingValue: SpellIndex = alsSpellIndex(-1);
 
   /**
    * Uhrzeit des Spiels, zu der die laufende Wirkzeit endet.
@@ -1113,7 +1113,7 @@ export class Combat {
   }
 
   /** Welchen Zauber der Spieler gerade wirkt, oder -1 (Issue #304). */
-  get playerCasting(): number {
+  get playerCasting(): SpellIndex {
     return this.playerCastingValue;
   }
 
@@ -2140,7 +2140,7 @@ export class Combat {
     if (this.playerCastingValue >= 0 && timeMs >= this.playerCastEndsAtMsValue) {
       const index = this.playerCastingValue;
       const spell = this.spells[index];
-      this.playerCastingValue = -1;
+      this.playerCastingValue = alsSpellIndex(-1);
       this.playerCastEndsAtMsValue = -1;
       this.playerCastStartedAtMsValue = -1;
       if (spell !== undefined) {
@@ -2664,7 +2664,7 @@ export class Combat {
    */
   private cancelPlayerCast(): boolean {
     if (this.playerCastingValue < 0) return false;
-    this.playerCastingValue = -1;
+    this.playerCastingValue = alsSpellIndex(-1);
     this.playerCastEndsAtMsValue = -1;
     this.playerCastStartedAtMsValue = -1;
     return true;
@@ -2834,7 +2834,7 @@ export class Combat {
     // diese Zeilen bliebe der Zustand über den Versuch hinaus stehen: Der
     // erste Druck des nächsten Kampfes bräche einen Zauber ab, den es nicht
     // mehr gibt, und die Zahl der Abbrüche stimmte von Anfang an nicht.
-    this.playerCastingValue = -1;
+    this.playerCastingValue = alsSpellIndex(-1);
     this.playerCastEndsAtMsValue = -1;
     this.playerCastStartedAtMsValue = -1;
     this.castsInterruptedValue = 0;

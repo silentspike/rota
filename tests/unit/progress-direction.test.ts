@@ -36,13 +36,12 @@ if (RUNAWAY === undefined) throw new Error('data/bosses/test-runaway.json fehlt.
 /** Einen Lauf bis `bisMs` führen und den Kampf zurückgeben. */
 function laufen(boss: typeof FIRST_CRUCIBLE.value, bisMs: number, spellId?: string): Combat {
   const combat = new Combat({ school: CALCINATION.value, boss });
-  const index = spellId === undefined ? -1 : combat.indexOf(spellId);
+  const index = spellId === undefined ? alsSpellIndex(-1) : combat.indexOf(spellId);
   combat.beginFight(0);
   for (let t = 0; t <= bisMs; t += TICK_MS) {
     combat.stepPassive(t);
     if (combat.checkDefeat(t)) break;
-    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(alsSpellIndex(index), t))
-      combat.cast(alsSpellIndex(index), t);
+    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(index, t)) combat.cast(index, t);
   }
   return combat;
 }
