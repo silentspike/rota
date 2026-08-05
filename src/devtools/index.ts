@@ -410,6 +410,12 @@ export interface DevTools {
   /** Hitze setzen — erspart Wartezeit beim Prüfen (GAME-DESIGN 19.1). */
   setResource(value: number): void;
   /** Verbleibende Lebenspunkte des Bosses setzen (GAME-DESIGN 19.1). */
+  /**
+   * Die Stufe setzen — fuer Nachweise, die Plaetze oder Grundwerte brauchen.
+   *
+   * @returns die erreichte Stufe
+   */
+  setLevel(level: number): number;
   setBossHp(hp: number): void;
   /** Kampf von vorn beginnen. */
   resetFight(): void;
@@ -875,6 +881,18 @@ export function installDevTools(app: App): void {
       if (index < 0) return false;
       app.session.bind(slot, index);
       return true;
+    },
+    setLevel: (level: number) => {
+      // **Fuer Nachweise, die eine hoehere Stufe brauchen** (Issue #264): Die
+      // Leiste waechst mit ihr, und ohne Platz laesst sich nicht zeigen, dass
+      // ein Zauber darauf ankommt. Acht Kaempfe im Browser zu spielen, um
+      // Stufe 3 zu erreichen, waere ein Nachweis ueber die Erfahrungskurve —
+      // und die ist woanders belegt.
+      //
+      // Schreibt nur, WAS erreicht wurde (Stufe, Erfahrung auf null): Alles
+      // andere wird daraus gerechnet, wie im Spiel (#248, AC5).
+      app.setPlayerLevel(level);
+      return app.persistence.state.level;
     },
     setBossHp: (hp: number) => {
       app.combat.setBossHpRemaining(hp);

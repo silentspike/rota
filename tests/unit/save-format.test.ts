@@ -24,7 +24,7 @@ function save(): SaveData {
     experience: 128_400,
     talentPoints: { calcination: 5, fixation: 2 },
     items: [{ itemId: 'ember-band', upgradeSteps: 3, equippedSlot: 2 }],
-    bindings: { q: 0, w: 1, e: 2 },
+    bindings: { '0': 'kindle', '1': 'smoulder', '2': 'pyre' },
     unlockedSpells: ['kindle', 'smoulder', 'pyre'],
     unlockedInstances: ['first-crucible'],
     bestRuns: [
