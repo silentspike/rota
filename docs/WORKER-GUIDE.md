@@ -1149,10 +1149,23 @@ Unterschied genau:
 etwas anderes und weiß nicht, wer sich geirrt hat — und im schlechteren Fall sucht er den Fehler in
 der Rechnung statt im Lauf.
 
-| gehört in einen Kommentar                                        | gehört in einen Prüffall                       |
-| ---------------------------------------------------------------- | ---------------------------------------------- |
-| die **Bedingung**: „mit einem Cooldown über `GCD_MS` erreichbar" | die **Zahl**, mit dem Aufbau, der sie erzeugt  |
-| die **Rechnung**, aus der sie folgt                              | der Gegenfall, der zeigt, dass sie sich bewegt |
+| gehört in einen Kommentar                                        | gehört in einen Prüffall                                                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| die **Bedingung**: „mit einem Cooldown über `GCD_MS` erreichbar" | die **Messung** mit dem Aufbau, der sie erzeugt — als **Richtung** (`> 0` gegen einen Gegenfall mit `0`), nicht als feste Zahl |
+| die **Rechnung**, aus der sie folgt                              | der Gegenfall, der zeigt, dass sich etwas bewegt                                                                               |
+
+> **Die erste Fassung dieser Tabelle sagte „die Zahl gehört in einen Prüffall" — und widersprach
+> damit dem Fall, auf den derselbe Abschnitt verweist.** `idle-source-reachable.test.ts` enthält
+> keine Takt-Zahl; seine Zusicherungen lauten `toBeGreaterThan(0)` und `toBe(0)`. Das ist Absicht:
+> Eine feste Takt-Zahl wäre im Prüffall genauso spröde wie im Kommentar — sie bricht, sobald jemand
+> Kampfdauer oder Druckzeitpunkt ändert, **ohne dass etwas kaputt ist.**
+>
+> Gemeldet vom Bearbeiter des Falls, mit der Begründung, die den Fehler teuer gemacht hätte: _Wer
+> den Abschnitt liest und die Regel anwendet, trägt eine Zahl in seinen Prüffall ein, weil die
+> Tabelle es sagt. Dann steht sie wieder da, nur eine Datei weiter._
+>
+> **Was laufabhängig ist, gehört nirgends als Konstante hin** — auch nicht dorthin, wo Konstanten
+> sonst richtig sind.
 
 Der Vermerk trägt heute beides an seinem Ort — die Bedingung im Kommentar, die Zahl im Fall, und
 dazwischen den Satz, **warum** hier keine Zahl steht. Ohne ihn trägt der nächste sie wieder ein.
