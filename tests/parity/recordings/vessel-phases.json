@@ -11,9 +11,11 @@
     "test-metronome",
     "test-onslaught",
     "test-racer",
+    "test-resistant",
     "test-runaway",
     "test-stacked",
     "test-vessel",
+    "test-vulnerable",
     "test-warden"
   ],
   "seed": 0,

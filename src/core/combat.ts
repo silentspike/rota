@@ -270,7 +270,37 @@ export class Combat {
   private readonly dotTicksLost: Int32Array;
   private readonly dotTickCounts: Int32Array;
 
-  private readonly resistanceFactor: number;
+  /**
+   * Der Widerstands-Faktor **je Zauber** (GAME-DESIGN 11.4, Issue #328).
+   *
+   * # Am ZAUBER, nicht am Kampf — entschieden am 2026-08-05
+   *
+   * Bis dahin stand hier eine einzelne Zahl: `boss.resistances[school]` mit der
+   * Schule des KAMPFES. Sie multiplizierte jeden Spielerschaden gleich, und
+   * etwas, das alles gleich skaliert, kann keine Reihenfolge ändern. Gemessen:
+   * Der Rotations-Läufer fand an einem Boss mit 0,75 und einem mit 1,25
+   * **dieselbe** beste Liste, 23340 gegen 38900 — beides 31120 vor dem Faktor.
+   *
+   * Die Auflösung steht im SSOT, und sie ergibt nur so einen Sinn:
+   *
+   * > Wer **trotz Widerstand** Calcination spielt, sammelt weiter normal Hitze
+   * > — macht damit aber weniger Schaden.
+   *
+   * „Trotz" setzt voraus, dass jemand mit einer anderen Schule **nicht**
+   * weniger macht. Und Leitplanke 2 („jeder Zauber muss irgendwo die beste
+   * Wahl sein") braucht einen Faktor, der die Zauber verschieden trifft.
+   *
+   * # Vorgerechnet, nicht im Takt gesucht
+   *
+   * Eine Float64Array über die Zauber-Indizes: Der Boss wechselt zwischen den
+   * Kämpfen, nicht in ihnen. Eine Suche in `boss.resistances` je Wirkung wäre
+   * eine Abbildung im Takt (GAME-DESIGN 18.2/18.4).
+   *
+   * **Schulunabhängige Zauber tragen 1,0.** QUENCH gehört keiner Schule an
+   * (7.4), also kann keine Schule ihn abhalten — das ist dieselbe Trennung,
+   * die ihn schon von der globalen Wartezeit ausnimmt.
+   */
+  private readonly resistanceOfSpell: Float64Array;
   /**
    * Die Schadensfaktoren dieses Kampfes.
    *
@@ -627,17 +657,28 @@ export class Combat {
       (options.worn ?? NOTHING_WORN).vessel,
     );
     this.playerHpValue = this.vesselMax;
-    this.resistanceFactor = options.boss.resistances[options.school.school] ?? 1;
+    this.resistanceOfSpell = new Float64Array(this.spells.length);
+    for (let i = 0; i < this.spells.length; i++) {
+      const schule = this.spells[i]?.school;
+      this.resistanceOfSpell[i] =
+        schule === null || schule === undefined ? 1 : (options.boss.resistances[schule] ?? 1);
+    }
     this.worn = options.worn ?? NOTHING_WORN;
     // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt: Ausrüstung
     // wird zwischen den Kämpfen gewechselt (13.1). Ohne getragene Ausrüstung
     // ist der Faktor exakt 1,0 — die Multiplikation bewegt dann keine Zahl.
+    // **Der Widerstand steht hier NICHT mehr** (Issue #328). Er hängt am
+    // Zauber und wird deshalb vor jeder Wirkung gesetzt, nicht einmal beim
+    // Aufbau. Was hier bleibt, ist alles, was für den ganzen Kampf gilt.
     this.factors = {
       ...NEUTRAL_FACTORS,
-      resistance: this.resistanceFactor,
       // **Topf 1 ebenso**, und als EIGENER Faktor: Zwischen den Toepfen wird
       // multipliziert (13.1b). Waeren ESSENCE und Topf 4 derselbe Faktor,
       // waere die Rechnung additiv und die Abwaegung aus 13.5 gekippt.
+      //
+      // `resistance` stand hier bis #328 daneben und ist dort weggefallen —
+      // er haengt am Zauber, nicht am Kampf. ESSENCE bleibt, weil Ausruestung
+      // fuer den ganzen Kampf gilt.
       essence: NEUTRAL_FACTORS.essence * essenceFactor(this.worn),
       gearEffects: gearEffectFactor(this.worn),
     };
@@ -1625,6 +1666,11 @@ export class Combat {
       // oder nie, und der Glücksanteil, den 6.5 ausdrücklich will, verschwände
       // in einer einzigen Entscheidung.
       const kritet = this.rollCrit();
+      // Auch ein Brand-Tick gehört seinem Zauber und damit dessen Schule
+      // (Issue #328). Ohne diese Zeile trüge er den Widerstand des zuletzt
+      // gewirkten Zaubers — und das wäre nicht falsch berechnet, sondern
+      // falsch zugeordnet: ein Fehler, den keine Summe verrät.
+      this.setDamageFactor('resistance', this.resistanceOfSpell[i] ?? 1);
       const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
       this.bookProgress(damage, i, timeMs);
       // Auch ein Brand-Tick speist Weg 3 (Issue #79) — im Simulator läuft
@@ -2264,6 +2310,10 @@ export class Combat {
     // auseinanderlaufen.
     const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
     const kritet = teiltSchadenAus ? this.rollCrit() : false;
+    // **Der Widerstand dieses Zaubers, vor der Rechnung** (Issue #328). Über
+    // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
+    // die #196 als einzige Schreibstelle festgelegt hat.
+    this.setDamageFactor('resistance', this.resistanceOfSpell[index] ?? 1);
     const castFactors = this.factorsFor(kritet);
 
     let damage = 0;
