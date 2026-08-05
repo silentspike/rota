@@ -528,6 +528,37 @@ ist damit nicht belegt — sie könnte „einer und alles danach" heißen.
 > `npx vitest run` verhält sich anders: Es fährt alle Dateien und meldet `3 failed | 1246 passed`.
 > Dort ist die Zahl belastbar.
 
+#### Die Zahl der **Suiten** ist die Messung, nicht das Wort „ok"
+
+_Nachtrag vom 2026-08-06, derselbe Werker, derselbe Befehl, andere Ursache._
+
+Sein Lauf meldete **sechs** grüne Suiten. Das Verzeichnis hat **55** Test-Dateien (auf `main` gemessen; der Werker nannte 54 von seinem Zweig aus). Er hätte „alles
+grün" gemeldet.
+
+Zwei Abschneidungen hintereinander, und **beide sehen aus wie Erfolg**:
+
+```
+head -6          im eigenen Befehl        schneidet die AUSGABE ab
+cargo test       beim ersten Fehlschlag   schneidet den LAUF ab
+```
+
+Tatsächlich liefen neun Suiten, eine fiel. Nach der Reparatur: **56 Suiten, 437 Prüffälle, 0
+gefallen.**
+
+> Gefunden hat er es nur, weil er die Zahl der Suiten **gegen die Zahl der Dateien** gehalten hat
+> statt das Wort „ok" zu lesen. Ein abgeschnittener Lauf meldet für jede Suite, die er erreicht hat,
+> wahrheitsgemäß `ok` — die Lüge steht nicht in den Zeilen, sondern in ihrer **Anzahl**.
+
+**Vor jeder Abnahme eines Rust-Laufs:**
+
+```bash
+ls sim/tests/*.rs | wc -l     # wie viele Sammlungen gibt es?
+# gegen die Zahl der Suiten in der Ausgabe halten
+```
+
+Weichen sie ab, ist der Lauf unvollständig — unabhängig davon, wie viele `ok` darin stehen. Und wer
+die Ausgabe durch `head`, `tail` oder `grep` schickt, misst ab da sein eigenes Filter mit.
+
 **Und beim Zählen der roten Fälle nicht `grep -c` auf das Muster ansetzen:** `^test .*FAILED` trifft
 auch die Ergebniszeile `test result: FAILED` und zählt eine Sammlung als zusätzlichen Fall. Beim
 Nachmessen dieser Regel selbst passiert — die Namen auflisten, nicht die Zeilen zählen.
