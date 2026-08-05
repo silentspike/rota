@@ -1067,6 +1067,10 @@ export function resistanceMixedPayload(): Record<string, unknown> {
     { slot: 0, spellId: 'bind' },
     { slot: 1, spellId: 'canker' },
     { slot: 2, spellId: 'kindle' },
+    // Der einzige Zauber mit einem Effekt über Zeit. Er trägt den Fall, in dem
+    // ein Brand unter Widerstand tickt, WÄHREND ein Zauber einer anderen
+    // Schule dazwischen gewirkt wird.
+    { slot: 3, spellId: 'smoulder' },
   ];
 
   const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });

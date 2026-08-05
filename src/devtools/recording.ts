@@ -514,7 +514,14 @@ const MIXED_BINDINGS: readonly { slot: number; id: string }[] = [
   // der nur eine Schule vorkommt, prüft genau das, was sie prüfen soll, nicht.
   { slot: 0, id: 'bind' }, // FIXATION — unberührt, lange Abklingzeit
   { slot: 1, id: 'canker' }, // PUTREFACTION — unberührt
-  { slot: 2, id: 'kindle' }, // CALCINATION — vom Widerstand getroffen, Füller
+  { slot: 2, id: 'kindle' }, // CALCINATION — vom Widerstand getroffen
+  // **SMOULDER ist der wichtigste der vier**, und er hat zuerst gefehlt: Er
+  // ist der einzige Zauber mit einem Effekt über Zeit. Ohne ihn fährt diese
+  // Aufzeichnung drei Schulen und trotzdem keine Brand-Wirkung unter
+  // Widerstand — und die Zeile, die dem Tick die Schule SEINES Zaubers gibt,
+  // wäre von nichts bewacht. Gemessen: Ohne ihn ließ sich die Zuweisung aus
+  // `fight.rs` entfernen, ohne dass ein einziger Fall rot wurde.
+  { slot: 3, id: 'smoulder' }, // CALCINATION, mit Brand — tickt zwischen den anderen
 ];
 
 /**
