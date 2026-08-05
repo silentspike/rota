@@ -1232,17 +1232,18 @@ export function sublimationPayload(): Record<string, unknown> {
   const kindle = combat.indexOf('kindle');
   const vapour = combat.indexOf('vapour');
   const smoulder = combat.indexOf('smoulder');
+  const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
 
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
-  const kindleReadyAt: number[] = [];
+  const pyreReadyAt: number[] = [];
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.playerDead) {
       checksums.push(combatChecksum(combat, timeMs));
-      kindleReadyAt.push(combat.cooldownRemainingMs(kindle, timeMs));
+      pyreReadyAt.push(combat.cooldownRemainingMs(pyre, timeMs));
       break;
     }
     // VAPOUR, sobald er bereit ist — sonst SMOULDER für die Brand-Wirkung,
@@ -1252,15 +1253,23 @@ export function sublimationPayload(): Record<string, unknown> {
     if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
     else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
       gewaehlt = smoulder;
-    } else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+    } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(gewaehlt, timeMs).result === 0) {
-      const platz = gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : 2;
+      const platz =
+        gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : gewaehlt === smoulder ? 2 : 3;
       presses.push({ tick, slot: platz });
     }
     checksums.push(combatChecksum(combat, timeMs));
-    // Die Restzeit von KINDLE je Takt: Sie ist die Größe, die VAPOUR bewegt.
-    kindleReadyAt.push(combat.cooldownRemainingMs(kindle, timeMs));
+    // **Die Restzeit von PYRE**, nicht von KINDLE. Der erste Entwurf maß
+    // KINDLE — der hat 1500 ms Abklingzeit und ist beim VAPOUR-Wurf praktisch
+    // immer bereit, die Verkürzung um 1000 ms traf also eine Restzeit von 10 ms
+    // und wurde auf 0 gekappt. Drei Prüffälle waren grün und belegten, dass
+    // beide Seiten dasselbe Nichts rechnen.
+    //
+    // PYRE hat 8000 ms. Beim VAPOUR-Wurf läuft damit eine echte Restzeit.
+    pyreReadyAt.push(combat.cooldownRemainingMs(pyre, timeMs));
   }
 
   return {
@@ -1273,14 +1282,19 @@ export function sublimationPayload(): Record<string, unknown> {
       { slot: 0, spellId: 'kindle' },
       { slot: 1, spellId: 'vapour' },
       { slot: 2, spellId: 'smoulder' },
+      { slot: 3, spellId: 'pyre' },
     ],
     presses,
     checksums,
-    /** Restzeit von KINDLE je Takt — die Größe, die VAPOUR bewegt. */
-    kindleReadyAt,
+    /** Restzeit von PYRE je Takt — die Größe, die VAPOUR wirklich bewegt. */
+    pyreReadyAt,
     expected: {
       damageDealt: combat.damageDealt,
-      casts: combat.castCount(kindle) + combat.castCount(vapour) + combat.castCount(smoulder),
+      casts:
+        combat.castCount(kindle) +
+        combat.castCount(vapour) +
+        combat.castCount(smoulder) +
+        combat.castCount(pyre),
       vapourCasts: combat.castCount(vapour),
       kindleCasts: combat.castCount(kindle),
     },

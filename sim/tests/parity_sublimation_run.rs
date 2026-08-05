@@ -144,11 +144,11 @@ fn ac2_die_pruefsumme_stimmt_in_jedem_einzelnen_takt() {
 #[test]
 fn ac2_die_verkuerzung_ist_in_der_spur_wirklich_sichtbar() {
     // Die Gegenprobe zur Pruefsumme: Sie zeigt Gleichlauf, nicht WIRKUNG.
-    // Hier wird gemessen, dass die Restzeit von KINDLE zwischen zwei Takten
+    // Hier wird gemessen, dass die Restzeit von PYRE zwischen zwei Takten
     // um mehr faellt, als die Uhr weiterlaeuft — das kann nur die Verkuerzung
     // gewesen sein.
     let json = data();
-    let rest = zahlen(&json, "kindleReadyAt");
+    let rest = zahlen(&json, "pyreReadyAt");
     let mut spruenge = 0;
     for paar in rest.windows(2) {
         // Ohne Verkuerzung faellt die Restzeit je Takt um genau TICK_MS.
@@ -158,7 +158,7 @@ fn ac2_die_verkuerzung_ist_in_der_spur_wirklich_sichtbar() {
     }
     assert!(
         spruenge > 0,
-        "die Restzeit von KINDLE ist nie schneller gefallen als die Uhr — \
+        "die Restzeit von PYRE ist nie schneller gefallen als die Uhr — \
          dann hat VAPOUR nichts bewirkt, und die Pruefsumme belegt nur, dass \
          beide Seiten dasselbe Nichts rechnen"
     );
