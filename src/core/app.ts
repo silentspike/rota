@@ -17,7 +17,7 @@ import {
   defaultBindings,
   sanitize,
 } from '../progression/bindings.js';
-import { buildLoadout } from '../progression/loadout-view.js';
+import { buildComposition } from '../progression/composition-view.js';
 import { SLOT_COUNT } from '../input/keys.js';
 import { GameLoop } from './loop.js';
 import { Session } from './session.js';
@@ -40,7 +40,7 @@ import { NOTHING_WORN } from '../gear/worn.js';
 import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
 import '../progression/levels.css';
-import '../progression/loadout.css';
+import '../progression/composition.css';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -226,7 +226,10 @@ export class App {
     // Spieler hier ändert; die Werte darunter folgen daraus (Issue #264).
     this.home.addSection({
       id: 'loadout',
-      title: 'Spell bar',
+      // Der Bereich heißt jetzt nach dem, was er ist: Die Ansicht aus
+      // GAME-DESIGN 16 zeigt beide Seiten — die eigenen Zauber und die
+      // Leiste. „Spell bar" nannte nur die halbe Ansicht (Issue #270).
+      title: 'Composition',
       content: this.buildLoadoutSection(),
     });
     this.home.addSection({
@@ -372,7 +375,7 @@ export class App {
         ? gespeichert
         : defaultBindings(stand.level, this.combat.spells);
 
-    return buildLoadout({
+    return buildComposition({
       bindings: belegung,
       level: stand.level,
       spells: this.combat.spells,
