@@ -33,7 +33,31 @@ Zaubern), und ihn zu verdoppeln verschenkt ihn.
 
 Die Zählung „wie viele Zauber zahlen je Mechanik ein" (Kapitel 16) stimmt damit von selbst.
 
-## 2. Wie verläuft die Punktekurve? — OFFEN, und anders zugeschnitten
+## 2. Wie verläuft die Punktekurve? — ENTSCHIEDEN: quadratisch (2,0)
+
+**Entschieden am 2026-08-05**, an gerechneten Kurven statt an Vorschlägen — genau so, wie es der
+Auftraggeber verlangt hatte.
+
+| Exponent            | 5 s    | 20 s    | 50 s      | sehr gut (45 s) ÷ mittelmäßig (20 s) |
+| ------------------- | ------ | ------- | --------- | ------------------------------------ |
+| moderat 1,6         | 105    | 965     | 4.183     | 3,66×                                |
+| **quadratisch 2,0** | **50** | **800** | **5.000** | **5,06×**                            |
+| kubisch 3,0         | 6      | 400     | 6.250     | 11,39×                               |
+
+**Die Begründung ist die Mitte:** Feinoptimierung lohnt deutlich, ein mittelmäßiger Lauf ist nicht
+wertlos. Bei 1,6 lohnt die Feinoptimierung zu wenig — und genau dafür ist die Kurve da. Bei 3,0
+spielt umsonst, wer die letzten Sekunden nicht holt.
+
+**Dazu entschieden: der Rest-Ertrag bei 20 Promille** (GAME-DESIGN 12.6, „plus ein Rest-Ertrag fürs
+bloße Wiederholen"). Fünfzig Wiederholungen ohne Verbesserung wiegen einen ersten Sieg auf —
+spürbar weniger als Verbessern, aber nicht sinnlos.
+
+Beide Werte stehen in `data/player/reward.json` und sind dort **nicht mehr als vorläufig**
+gekennzeichnet.
+
+---
+
+_Der ursprüngliche Verlauf, zur Nachvollziehbarkeit:_
 
 **Blockiert:** #276 · **hält auf:** E5 insgesamt
 
