@@ -47,6 +47,26 @@
  */
 
 import { MAX_ITEM_LEVEL, QUALITY_EPIC, budgetOf, distributeBudget } from './budget.js';
+import { LEVELS } from '../core/data.js';
+
+/**
+ * Was ein Gegenstand auf Stufe 1 an je einem Grundwert trägt, in Promille.
+ *
+ * **UNKALIBRIERT.** Diese Zahl ist nicht gemessen, sie ist gesetzt, damit die
+ * Leitung überhaupt etwas transportiert. Das Design nennt keine Zahl dafür, und
+ * sie zu erfinden wäre eine Balance-Entscheidung unter dem Deckmantel einer
+ * Fehlerbehebung.
+ *
+ * Sie gehört kalibriert, sobald der Balance-Läufer den Skalierungsfaktor je
+ * Wert misst — dafür ist er da. Bis dahin steht sie hier an **einer** Stelle,
+ * damit die Kalibrierung eine Zeile ist und keine Suche.
+ *
+ * **Kein Prüffall prüft ihren Betrag.** Er prüft das Verhältnis: Ein
+ * Gegenstand doppelter Stufe trägt doppelt so viel. Ein Prüffall auf den
+ * Betrag würde rot melden, sobald jemand kalibriert — der Wächter arbeitete
+ * dann gegen die Balance-Arbeit statt für sie.
+ */
+export const BASE_STAT_AT_LEVEL_1 = 10;
 import { SLOT_COUNT } from './slots.js';
 import { SET_TIERS } from './sets.js';
 
@@ -131,6 +151,40 @@ export function affixPermille(itemLevel: number, quality: number): number {
   const count = distributeBudget(itemLevel, quality, slots);
   if (count === 0) return 0;
   return Math.floor((slots[0] ?? 0) / BUDGET_PER_PERMILLE);
+}
+
+/**
+ * Was ein Gegenstand dieser Stufe an **je einem Grundwert** trägt, in Promille
+ * (Issue #282).
+ *
+ * # Warum das neben `affixPermille` steht und nicht darin
+ *
+ * Grundwerte und Affixe sind zwei verschiedene Quellen (GAME-DESIGN 13.5):
+ *
+ * | Quelle | hängt ab von | Qualität |
+ * | --- | --- | --- |
+ * | Affixe | Budget, Stufe **und** Qualität | mehr Qualität, mehr Affixe |
+ * | Grundwerte | **nur** der Gegenstandsstufe | keine Wirkung |
+ *
+ * > „Ein Gegenstand trägt IMMER die drei Grundwerte … so wie ein
+ * > Diablo-Gegenstand immer Rüstung trägt." (GAME-DESIGN 1346, 1359)
+ *
+ * In Diablo skaliert die Rüstung mit der Gegenstandsstufe; die Qualität gibt
+ * Affixe, nicht mehr Rüstung. Deshalb nimmt diese Funktion **keine** Qualität
+ * entgegen — nicht aus Vergesslichkeit, sondern weil sie keine hat.
+ *
+ * # Die Kurve ist nicht erfunden
+ *
+ * Es ist dieselbe, mit der schon die Stufenwerte wachsen: `factorPerMille` aus
+ * `data/player/levels.json`. Eingang ist aber die **Gegenstandsstufe**, nicht
+ * die Spielerstufe — sonst bekäme ein Spieler auf Höchststufe in einer frühen
+ * Instanz plötzlich brauchbare Funde, und genau das soll der abnehmende Ertrag
+ * verhindern.
+ */
+export function basePermille(itemLevel: number): number {
+  if (!Number.isInteger(itemLevel) || itemLevel < 1 || itemLevel > MAX_ITEM_LEVEL) return 0;
+  const promille = LEVELS.factorPerMille[itemLevel - 1] ?? 1000;
+  return Math.trunc((BASE_STAT_AT_LEVEL_1 * promille) / 1000);
 }
 
 /**
