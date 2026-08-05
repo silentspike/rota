@@ -28,7 +28,7 @@
  * Spieltexte englisch (Design-Gesetz 5).
  */
 import type { SpellDef } from '../core/data.js';
-import { spellAtSlot, type Bindings } from './bindings.js';
+import { spellAtSlot, type Bindings, bindProblem } from './bindings.js';
 import { barSlotsAtLevel, isSpellUnlocked } from './unlocks.js';
 import { colourOfSchool, NO_SCHOOL_LABEL } from './schools.js';
 import { feedsMechanic, MECHANICS, spendsMechanic } from '../combat/schools/indicators.js';
@@ -256,6 +256,13 @@ export function buildComposition(options: CompositionViewOptions): HTMLElement {
     auswahl.appendChild(leer);
 
     for (const spell of waehlbar) {
+      // **Ein bereits gelegter Zauber wird nicht erneut angeboten** (Issue
+      // #287 AC3, GAME-DESIGN 715). Auf SEINEM Platz bleibt er stehen — sonst
+      // fiele die aktuelle Auswahl aus der Liste, und das Feld zeigte leer,
+      // obwohl der Zauber dort liegt.
+      if (bindProblem(spell.id, slot, options.level, options.spells, options.bindings) !== null) {
+        continue;
+      }
       const eintrag = document.createElement('option');
       eintrag.value = spell.id;
       eintrag.textContent = spell.name;
