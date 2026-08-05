@@ -13,19 +13,27 @@
 //! die Frage aus der vierten Gestalt, eine Ebene hoeher gestellt: Koennte diese
 //! Pruefung den Unterschied ueberhaupt zeigen?
 //!
-//! DREI DINGE IN EINEM LAUF
-//! ------------------------
+//! FUENF DINGE IN EINEM LAUF, alle an der Spur `playerCasting` ablesbar
+//! -------------------------------------------------------------------
 //! | Zeit | Was |
 //! | --- | --- |
 //! | 0 ms | Der Zauber beginnt; sein Schaden faellt bei 2000 ms, nicht sofort |
 //! | 8500 ms | Ein gewoehnlicher Schlag trifft die laufende Wirkzeit und stoert sie NICHT |
 //! | 9000 ms | Ein Schlag mit `interruptsPlayer` bricht sie ab |
 //! | 9500 ms | Neu gewirkt — die Abklingzeit ist beim Abbruch nie angelaufen |
+//! | 18000 ms | Derselbe Abbruch ein zweites Mal, damit er kein Einzelfall ist |
+//! | 20500 ms | **Der Spieler bricht selbst ab**, mit einem eigenen Druck |
 //!
-//! Die letzte Zeile ist die zweite Haelfte von GAME-DESIGN 7.1, und sie ist
+//! Die vierte Zeile ist die zweite Haelfte von GAME-DESIGN 7.1, und sie ist
 //! die, die gern vergessen wird: "Bei Abbruch geht der Zauber verloren, die
 //! Abklingzeit laeuft aber nicht an." Waere sie angelaufen, koennte bei 9500 ms
-//! nicht gewirkt werden — die Aufzeichnung zeigt es an der Spur `playerCasting`.
+//! nicht gewirkt werden.
+//!
+//! Die letzte Zeile kam am 2026-08-05 dazu, als der Auftraggeber die Regel
+//! umgedreht hat: Die Wirkzeit sperrt nichts, und **jede** Wirkung bricht sie
+//! ab — auch das Unterbrechen. Der Abbruch hat damit zwei Ausloeser, und beide
+//! muessen in der Vergleichsdatei vorkommen; sonst ist der haeufigere von
+//! beiden ungeprueft.
 
 use serde_json::Value;
 
@@ -139,7 +147,12 @@ fn der_fall_kann_den_unterschied_ueberhaupt_zeigen() {
     assert_eq!(
         erwartet["castsInterrupted"].as_u64(),
         Some(2),
-        "gemessen: zwei Abbrueche bei 9000 und 18000 ms"
+        "gemessen: zwei Abbrueche durch den Boss, bei 9000 und 18000 ms"
+    );
+    assert_eq!(
+        erwartet["castsCancelled"].as_u64(),
+        Some(1),
+        "gemessen: ein Abbruch durch den Spieler selbst, bei 20500 ms"
     );
 }
 
@@ -212,6 +225,38 @@ fn der_schluss_stand_stimmt() {
             .as_u64()
             .expect("finalChecksum fehlt"),
         "verschiedene Schluss-Pruefsumme"
+    );
+}
+
+#[test]
+fn beide_abbruch_arten_stimmen_auf_beiden_seiten() {
+    // **Die Pruefsumme fuehrt diese Zaehler nicht.** Sie traegt den ZUSTAND
+    // (`playerCasting`, `playerCastEndsAt`) — und ein Zustand, der geraeumt
+    // wird, sieht gleich aus, egal WER ihn geraeumt hat. Zwei Umsetzungen, die
+    // den Abbruch verschieden zuordnen, laufen in der Pruefsumme nie
+    // auseinander.
+    //
+    // Deshalb stehen die zwei Zahlen hier zusaetzlich, aus der Datei gegen den
+    // Simulator. Dieselbe Klasse Luecke wie bei den angenommenen Druecken, die
+    // in #223 gemessen wurde: "Die Pruefsumme merkte davon nichts — sie fuehrt
+    // die Zaehler nicht."
+    let json = data();
+    let result = replay(&json);
+    let erwartet = &json["expected"];
+
+    assert_eq!(
+        u64::from(result.casts_interrupted),
+        erwartet["castsInterrupted"]
+            .as_u64()
+            .expect("castsInterrupted fehlt"),
+        "Spiel und Simulator zaehlen die Abbrueche DURCH DEN BOSS verschieden"
+    );
+    assert_eq!(
+        u64::from(result.casts_cancelled),
+        erwartet["castsCancelled"]
+            .as_u64()
+            .expect("castsCancelled fehlt"),
+        "Spiel und Simulator zaehlen die Abbrueche DURCH DEN SPIELER verschieden"
     );
 }
 

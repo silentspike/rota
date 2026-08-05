@@ -1056,6 +1056,11 @@ export function castTimePayload(): Record<string, unknown> {
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
       castsInterrupted: combat.castsInterrupted,
+      // Seit der Umkehrung vom 2026-08-05 gibt es zwei Abbruch-Arten
+      // (GAME-DESIGN 7.1). Beide Zahlen stehen hier, weil eine Prüfsumme sie
+      // nicht führt: Zwei Umsetzungen können bei gleicher Summe verschieden
+      // oft abgebrochen haben, solange sich die Unterschiede aufheben.
+      castsCancelled: combat.castsCancelled,
       testCastCasts: combat.castCount(combat.indexOf('test-cast')),
     },
     checksums: result.checksums,

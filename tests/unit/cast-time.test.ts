@@ -26,7 +26,14 @@
  * Simulator steht in `sim/tests/parity_cast_time.rs`.
  */
 import { describe, expect, it } from 'vitest';
-import { CAST_BUSY, CAST_OK, CAST_STARTED, Combat, isCastAccepted } from '../../src/core/combat.js';
+import {
+  CAST_ON_COOLDOWN,
+  CAST_ON_GCD,
+  CAST_OK,
+  CAST_STARTED,
+  Combat,
+  isCastAccepted,
+} from '../../src/core/combat.js';
 import { bossById, FIRST_CRUCIBLE, parseSchool, type BossDef } from '../../src/core/data.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { TICK_MS } from '../../src/core/loop.js';
@@ -98,6 +105,21 @@ describe('AC2 — der Schaden fällt am ENDE der Wirkzeit', () => {
     expect(combat.playerCasting, 'und danach läuft nichts mehr').toBe(-1);
   });
 
+  it('AC3 — ein Sofort-Zauber hat nichts abzubrechen', () => {
+    // Der Gegenfall zu AC1, und er misst seit der Umkehrung etwas anderes als
+    // vorher: nicht mehr „er blockiert nicht", sondern „es gibt nichts, was er
+    // zerstören könnte". Ohne ihn wäre nicht gezeigt, dass der Abbruch an der
+    // laufenden WIRKZEIT hängt und nicht am Nachdrücken an sich.
+    const combat = aufbauen();
+    const sofort = combat.indexOf('sofort');
+    combat.cast(sofort, 0);
+    laufen(combat, 0, 1500);
+    // Ein zweiter Druck, dieselbe Lage wie in AC1 — nur ohne laufende Wirkzeit.
+    combat.cast(sofort, 4000);
+    expect(combat.castCount(sofort)).toBe(2);
+    expect(combat.castsCancelled, 'es gab nichts abzubrechen').toBe(0);
+  });
+
   it('lässt den Sofort-Zauber unverändert sofort wirken — der Gegenfall', () => {
     // Ohne ihn wäre nicht gezeigt, dass die Umstellung NUR Zauber mit Wirkzeit
     // betrifft. Ein Sofort-Zauber läuft seit #304 einen Aufruf tiefer durch
@@ -126,63 +148,117 @@ describe('AC2 — der Schaden fällt am ENDE der Wirkzeit', () => {
   });
 });
 
-describe('AC1 — die Wirkzeit blockiert', () => {
-  it('lehnt jeden weiteren Zauber ab, solange sie läuft', () => {
+describe('AC1 — die Wirkzeit sperrt nichts, und jede Wirkung bricht sie ab', () => {
+  /**
+   * **Diese Gruppe stand am 2026-08-05 einmal umgekehrt da.** Sie hieß „die
+   * Wirkzeit blockiert" und prüfte, dass ein zweiter Druck abgewiesen wird —
+   * gebaut nach GAME-DESIGN 7.1 in seiner damaligen Fassung („Blockiert.
+   * Während der Balken läuft, kann nichts anderes gewirkt werden").
+   *
+   * Der Auftraggeber hat die Regel umgedreht, und 7.1 trägt sie jetzt:
+   *
+   * > Jede Wirkung des Spielers bricht einen laufenden Cast oder eine
+   * > Kanalisierung ab. Jede, ohne Ausnahme — auch das Unterbrechen.
+   *
+   * Der Zustand blieb derselbe, nur die Antwort auf einen zweiten Druck hat
+   * sich gedreht: nicht „ich kann nicht", sondern „es kostet mich".
+   */
+  it('lässt den zweiten Druck DURCH und bricht den laufenden Zauber ab', () => {
     const combat = aufbauen();
     const lang = combat.indexOf('lang');
     const sofort = combat.indexOf('sofort');
     combat.cast(lang, 0);
 
-    // Bei 1600 ms ist die globale Wartezeit (1500 ms) längst um — der Zauber
-    // wird also von der WIRKZEIT gesperrt und nicht von ihr. Ohne diesen
-    // Zeitpunkt wäre der Fall grün, auch wenn die Wirkzeit gar nichts sperrte.
-    expect(combat.gcd.isReady(1600), 'sonst prüft der Fall die falsche Sperre').toBe(true);
-    expect(combat.cast(sofort, 1600).result).toBe(CAST_BUSY);
-    expect(combat.castCount(sofort)).toBe(0);
+    // Bei 1600 ms ist die globale Wartezeit (1500 ms) um — der zweite Druck
+    // scheitert also an nichts anderem. Ohne diesen Zeitpunkt wäre der Fall
+    // auch grün, wenn die Wartezeit ihn abgewiesen hätte.
+    expect(combat.gcd.isReady(1600), 'sonst prüft der Fall die falsche Regel').toBe(true);
+    expect(combat.cast(sofort, 1600).result).toBe(CAST_OK);
+    expect(combat.castCount(sofort), 'er ist gewirkt worden').toBe(1);
+
+    expect(combat.playerCasting, 'und der laufende ist weg').toBe(-1);
+    expect(combat.castsCancelled).toBe(1);
+    // Der abgebrochene wirkt auch später nicht nach.
+    laufen(combat, 1600, 4000);
+    expect(combat.castCount(lang), 'seine Wirkung ist vollständig verloren').toBe(0);
   });
 
-  it('meldet auch über `isReady` gesperrt — daran hängt die Zauberleiste', () => {
-    // Zwei Stellen, dieselbe Regel: `cast` entscheidet, `isReady` zeigt an.
-    // Fehlte die zweite, zeigte die Leiste während der Wirkzeit lauter bereite
-    // Zauber, und jeder Druck darauf ginge ins rote Blinken.
+  it('meldet über `isReady` KEINE Sperre — daran hängt die Zauberleiste', () => {
+    // Die Gegenrichtung zur alten Fassung: Zeigte die Leiste die anderen Zauber
+    // als gesperrt, wüsste der Spieler nicht, dass er sie drücken KANN — und
+    // die Entscheidung, um die es geht, stünde ihm gar nicht offen.
     const combat = aufbauen();
     combat.cast(combat.indexOf('lang'), 0);
-    expect(combat.isReady(combat.indexOf('sofort'), 1600)).toBe(false);
+    expect(combat.isReady(combat.indexOf('sofort'), 1600)).toBe(true);
   });
 
-  it('SPERRT AUCH DEN UNTERBRECHER, der von der Wartezeit ausgenommen ist', () => {
-    // **Die einzige Stelle, an der das Design ausgelegt werden musste**, und
-    // sie ist deshalb ausdrücklich festgehalten:
+  it('BRICHT AUCH DURCH DEN UNTERBRECHER AB — „egal welcher Spell"', () => {
+    // **Die Stelle, an der die Regel am 2026-08-05 gekippt ist.** Sie stand
+    // hier vorher als „SPERRT AUCH DEN UNTERBRECHER"; die Frage war offen und
+    // ist entschieden:
     //
+    //   GAME-DESIGN 7.1  „Das gilt auch für Unterbrechen. Egal welcher Spell."
     //   GAME-DESIGN 6.6  „Genau eine Ausnahme: Unterbrechen löst keine globale
     //                     Wartezeit aus."
-    //   GAME-DESIGN 7.1  „Blockiert. Während der Balken läuft, kann nichts
-    //                     anderes gewirkt werden."
     //
-    // Der erste Satz sagt, was der Unterbrecher nicht AUSLÖST — nicht, wovon er
-    // ausgenommen ist. Gebaut ist 7.1 wörtlich: Er wird mitgesperrt. Das ist
-    // auch der Grund, aus dem 7.1 von einer „echten Verpflichtung" spricht;
-    // bliebe der Unterbrecher frei, wäre ein Zauber mit Wirkzeit risikolos.
-    //
-    // Die Frage liegt beim Auftraggeber. Entscheidet er anders, ist dieser Fall
-    // die Stelle, an der es steht — und nicht eine Zeile im Kampfcode, die
-    // niemand findet.
+    // Die zwei vertragen sich: Der Unterbrecher löst keine Wartezeit aus UND
+    // bricht trotzdem ab. Er ist damit der einzige Zauber, der eine laufende
+    // Wirkzeit auch innerhalb der ersten 1500 ms abbrechen kann — alle anderen
+    // hängen so lange an der Wartezeit.
     const combat = aufbauen();
     const quench = combat.indexOf('quench');
     combat.cast(combat.indexOf('lang'), 0);
 
-    expect(combat.cast(quench, 1600).result).toBe(CAST_BUSY);
-    expect(combat.isReady(quench, 1600)).toBe(false);
+    // Bei 500 ms läuft die Wartezeit noch. Genau deshalb dieser Zeitpunkt: Er
+    // zeigt beides auf einmal — der Unterbrecher kommt durch, und er bricht ab.
+    expect(combat.gcd.isReady(500), 'sonst zeigt der Fall die Ausnahme nicht').toBe(false);
+    expect(combat.cast(quench, 500).result).toBe(CAST_OK);
+    expect(combat.playerCasting).toBe(-1);
+    expect(combat.castsCancelled).toBe(1);
   });
 
-  it('gibt danach wieder frei', () => {
-    // Sonst bliebe offen, ob die Sperre je endet — ein Kampf, in dem nach dem
-    // ersten Zauber mit Wirkzeit nichts mehr geht, bestünde jede Prüfung oben.
+  it('bricht NICHT ab, wenn der Druck an der Wartezeit scheitert', () => {
+    // **Die Grenze der Regel, und sie ist wichtiger als sie aussieht.** „Jede
+    // WIRKUNG bricht ab" — ein Druck, den die Wartezeit abweist, ist keine.
+    // Bräche er trotzdem ab, kostete ein Fehlgriff den laufenden Zauber, und
+    // aus einer Entscheidung würde eine Falle.
+    const combat = aufbauen();
+    const lang = combat.indexOf('lang');
+    const sofort = combat.indexOf('sofort');
+    combat.cast(lang, 0);
+
+    expect(combat.cast(sofort, 500).result).toBe(CAST_ON_GCD);
+    expect(combat.playerCasting, 'der Zauber läuft weiter').toBe(lang);
+    expect(combat.castsCancelled).toBe(0);
+  });
+
+  it('bricht NICHT ab, wenn der Druck an der Abklingzeit scheitert', () => {
+    // Dieselbe Grenze, der zweite Grund. Zwei Prüffälle und nicht einer, weil
+    // die zwei Bedingungen in `cast` getrennt stehen — und eine davon könnte
+    // vor den Abbruch rutschen, ohne dass die andere es meldet.
     const combat = aufbauen();
     const sofort = combat.indexOf('sofort');
+    const lang = combat.indexOf('lang');
+    // SOFORT wirken, damit er auf Abklingzeit liegt (4000 ms) …
+    combat.cast(sofort, 0);
+    laufen(combat, 0, 1500);
+    // … dann den langen anfangen und SOFORT nachdrücken, während er noch liegt.
+    expect(combat.cast(lang, 1500).result).toBe(CAST_STARTED);
+    laufen(combat, 1500, 3000);
+    expect(combat.cast(sofort, 3000).result).toBe(CAST_ON_COOLDOWN);
+    expect(combat.playerCasting, 'der Zauber läuft weiter').toBe(lang);
+    expect(combat.castsCancelled).toBe(0);
+  });
+
+  it('zählt den eigenen Abbruch GETRENNT vom Abbruch durch den Boss', () => {
+    // Für den Spieler sind das zwei verschiedene Dinge: Das eine hat der Boss
+    // getan, das andere er selbst. Eine Analyse, die beides zusammenzählte,
+    // könnte ihm nicht sagen, welches davon sein Fehler war.
+    const combat = aufbauen();
     combat.cast(combat.indexOf('lang'), 0);
-    laufen(combat, 0, 2000);
-    expect(combat.cast(sofort, 2000).result).toBe(CAST_OK);
+    combat.cast(combat.indexOf('sofort'), 1600);
+    expect(combat.castsCancelled).toBe(1);
+    expect(combat.castsInterrupted, 'der Boss war nicht beteiligt').toBe(0);
   });
 
   it('startet die globale Wartezeit beim BEGINN, nicht am Ende', () => {
@@ -260,6 +336,40 @@ describe('AC4 — der Abbruch durch einen Boss-Angriff, beide Hälften', () => {
     expect(combat.castsInterrupted).toBe(0);
   });
 
+  it('ZWEITER AUSLÖSER: der eigene Druck — Wirkung verloren', () => {
+    // Seit dem 2026-08-05 hat der Abbruch zwei Auslöser. Die drei Aussagen
+    // oben gelten für beide, und sie sind für beide einzeln zu belegen: Der
+    // Boss räumt `playerCasting` über `stepPassive`, der eigene Druck über
+    // `cast` — zwei Aufrufer derselben Stelle, und einer kann wegfallen, ohne
+    // dass der andere es meldet.
+    const combat = aufbauen();
+    const lang = combat.indexOf('lang');
+    combat.cast(lang, 0);
+    combat.cast(combat.indexOf('sofort'), 1600);
+
+    expect(combat.playerCasting).toBe(-1);
+    laufen(combat, 1600, 5000);
+    expect(combat.castCount(lang), 'er darf nicht doch noch wirken').toBe(0);
+  });
+
+  it('ZWEITER AUSLÖSER: der eigene Druck — die Abklingzeit läuft NICHT an', () => {
+    // **Dieselbe Auflage wie beim Boss-Abbruch**, und sie ist hier sogar
+    // wichtiger: Ein Spieler, der seinen Zauber selbst abbricht, hat eine
+    // Entscheidung getroffen. Sie soll ihn den laufenden Zauber kosten — nicht
+    // zusätzlich die Abklingzeit.
+    const combat = aufbauen();
+    const lang = combat.indexOf('lang');
+    combat.cast(lang, 0);
+    combat.cast(combat.indexOf('sofort'), 1600);
+
+    expect(combat.cooldownRemainingMs(lang, 1600)).toBe(0);
+    expect(combat.isOffCooldown(lang, 1600)).toBe(true);
+    // Und in der Handlung: Sobald die Wartezeit des Nachdrucks frei ist, geht
+    // er wieder an. 1600 + 1500 = 3100.
+    laufen(combat, 1600, 3100);
+    expect(combat.cast(lang, 3100).result).toBe(CAST_STARTED);
+  });
+
   it('trägt den Unterschied in den DATEN, nicht im Kampfcode', () => {
     // Sonst wäre „bestimmte Angriffe" eine Regel des Spiels statt eine
     // Eigenschaft dieses Bosses — und ein neuer Boss brauchte eine
@@ -281,6 +391,7 @@ describe('Der Ausgang eines Tastendrucks', () => {
     // `Session.apply` im Spiel und `replayRecording` in den Werkzeugen.
     expect(isCastAccepted(CAST_OK)).toBe(true);
     expect(isCastAccepted(CAST_STARTED)).toBe(true);
-    expect(isCastAccepted(CAST_BUSY)).toBe(false);
+    expect(isCastAccepted(CAST_ON_GCD)).toBe(false);
+    expect(isCastAccepted(CAST_ON_COOLDOWN)).toBe(false);
   });
 });

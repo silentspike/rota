@@ -448,15 +448,43 @@ function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Rec
   const wirkzeit = combat.indexOf('test-cast');
 
   const presses: RecordedPress[] = [];
+  let selbstAbgebrochen = false;
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
     if (!combat.gcd.isReady(timeMs)) continue;
-    // **Der Zauber mit Wirkzeit hat Vorrang**, sobald er bereit ist. Waere
-    // KINDLE zuerst dran, verschoebe sein GCD die Wirkzeit bei jedem Zyklus um
+
+    // **Während einer Wirkzeit wird gewartet, nicht gedrückt.** Seit der
+    // Umkehrung vom 2026-08-05 bräche jeder Fülldruck den laufenden Zauber ab
+    // — gemessen: Ein Rekorder, der KINDLE weiterdrückt, kommt auf 0 Wirkungen
+    // und 2 Abbrüche in 20 Sekunden. Genau das tut ein Spieler nicht, der
+    // seinen Zauber will.
+    if (combat.playerCasting >= 0) {
+      // **Genau EIN Abbruch von Hand**, damit die Vergleichsdatei auch den
+      // zweiten Auslöser trägt. Ohne ihn prüfte die Parität nur den Abbruch
+      // durch den Boss — und der eigene Druck ist der häufigere Fall.
+      // **Der Zeitpunkt ist gerechnet, nicht gewählt.** Ein Abbruch von Hand
+      // braucht ein Fenster, in dem eine Wirkzeit läuft UND die Wartezeit frei
+      // ist: bei 1500 ms Wartezeit und 2000 ms Wirkzeit sind das die letzten
+      // 500 ms jeder Wirkzeit. Die letzte dieser Gelegenheiten liegt bei
+      // 20500 ms — davor würde der Abbruch einen der beiden Boss-Schläge um
+      // seinen Fall bringen, weil die folgenden Wirkzeiten sich verschieben.
+      //
+      // Mein erster Entwurf stand auf 12000 ms und traf gar kein Fenster: Die
+      // Aufzeichnung meldete 0 Abbrüche von Hand, und der zweite Auslöser wäre
+      // in der Parität unbelegt geblieben.
+      if (selbstAbgebrochen || timeMs < 20_000) continue;
+      selbstAbgebrochen = true;
+      combat.cast(kindle, timeMs);
+      presses.push({ tick, slot: slotOf.get(kindle) ?? 0 });
+      continue;
+    }
+
+    // **Der Zauber mit Wirkzeit hat Vorrang**, sobald er bereit ist. Wäre
+    // KINDLE zuerst dran, verschöbe sein GCD die Wirkzeit bei jedem Zyklus um
     // einen anderen Betrag — und die gerechneten Zeitpunkte des Bosses
-    // (8500/9000 ms) traefen nichts Bestimmtes mehr.
+    // (8500/9000 ms) träfen nichts Bestimmtes mehr.
     const wahl = combat.isReady(wirkzeit, timeMs)
       ? wirkzeit
       : combat.isReady(kindle, timeMs)
@@ -541,7 +569,10 @@ export function recordings(): Map<string, Recording> {
     // gewirkt werden kann.
     const casterBoss = bossById('test-caster');
     if (casterBoss !== undefined) {
-      builtIn.set('cast-time', recordCastTimeRotation('cast-time', 2000, casterBoss));
+      // 2400 Takte sind 24 s. Die Laenge ist gerechnet: Der zweite Boss-Schlag
+      // faellt bei 18 s, und der einzige Abbruch VON HAND, der keinen der
+      // beiden Schlaege um seinen Fall bringt, liegt bei 20,5 s.
+      builtIn.set('cast-time', recordCastTimeRotation('cast-time', 2400, casterBoss));
     }
     const racer = bossById('test-racer');
     if (racer !== undefined) {

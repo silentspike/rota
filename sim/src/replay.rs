@@ -148,6 +148,15 @@ pub struct ReplayResult {
     pub interrupts_landed: u32,
     /// Wie oft einer durchgekommen ist.
     pub interrupts_missed: u32,
+    /// Wie oft ein Boss-Angriff eine Wirkzeit des SPIELERS abgebrochen hat
+    /// (Issue #304).
+    pub casts_interrupted: u32,
+    /// Wie oft ein eigener Druck eine laufende Wirkzeit abgebrochen hat.
+    ///
+    /// **Getrennt vom Zaehler darueber**, obwohl beide dasselbe Feld raeumen:
+    /// Fuer den Spieler sind "der Boss hat es genommen" und "ich habe es
+    /// weggeworfen" zwei verschiedene Dinge.
+    pub casts_cancelled: u32,
 }
 
 /// Wo zwei Prueffsummen-Folgen zum ersten Mal auseinanderlaufen.
