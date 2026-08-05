@@ -21,25 +21,13 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { spellIndex } from '../helpers/spell-index.js';
 import { COUNTDOWN_MS, PHASE_ENDED } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { NOTHING_WORN } from '../../src/gear/worn.js';
 
-/**
- * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
- *
- * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
- * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
- * rot, er misst etwas anderes.
- */
-function indexVon(id: string): number {
-  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
-  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
-  return i;
-}
-
-const KINDLE = indexVon('kindle');
+const KINDLE = spellIndex('kindle');
 /** Jeder Treffer kritet — critChance(worn) ist bei purity >= 1000 genau 1. */
 const IMMER_KRIT = { ...NOTHING_WORN, purity: 1000 };
 
