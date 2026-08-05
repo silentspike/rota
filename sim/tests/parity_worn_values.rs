@@ -82,6 +82,9 @@ fn worn(json: &Value) -> WornValues {
         catalysis: u32_at(node, "catalysis"),
         purity: u32_at(node, "purity"),
         yield_bonus: u32_at(node, "yieldBonus"),
+        essence: u32_at(node, "essence"),
+        vessel: u32_at(node, "vessel"),
+        ward: u32_at(node, "ward"),
         gear_effects: u32_at(node, "gearEffects"),
     }
 }
@@ -293,4 +296,200 @@ fn dieser_lauf_unterscheidet_sich_wirklich_von_dem_ohne_ausruestung() {
         "ohne Ausruestung darf kein Wurf fallen"
     );
     assert!(mit.random_draws > 0, "mit PURITY muss gewuerfelt werden");
+}
+
+#[test]
+fn essence_aus_der_ausruestung_wirkt_im_kampf() {
+    // Issue #282, AC2. **Der Nachweis, dass die Leitung etwas transportiert.**
+    // Ohne ihn belegte die Suite nur, dass ohne Ausrüstung nichts passiert —
+    // und das war vorher auch schon so.
+    use rota_sim::gear::WornValues;
+    use rota_sim::{rotation, Fight, FightConfig};
+
+    let ohne = Fight::new(FightConfig::default()).run(rotation::good);
+    let mit = Fight::new(FightConfig {
+        worn: WornValues {
+            essence: 500, // +50 %
+            ..WornValues::none()
+        },
+        ..FightConfig::default()
+    })
+    .run(rotation::good);
+
+    // **Nicht der Schaden — die ZEIT.** Mein erster Entwurf verglich
+    // `damage` und schlug fehl: 4230 gegen 4240, also WENIGER mit ESSENCE.
+    // Kein Fehler in der Leitung, sondern in der Messung — der Lauf endet mit
+    // dem Tod des Bosses, und wer härter schlägt, überschießt beim letzten
+    // Treffer weniger. Der Gesamtschaden ist dann fast die Boss-HP, egal wie
+    // stark der Spieler ist.
+    //
+    // `BalanceConfig` warnt vor genau dieser Verwechslung: `stop_on_kill`
+    // misst, OB der Boss fällt, nicht WIE VIEL Schaden entsteht.
+    let ohne_zeit = ohne.killed_at_ms.expect("ohne Ausruestung faellt der Boss");
+    let mit_zeit = mit.killed_at_ms.expect("mit Ausruestung faellt der Boss");
+
+    assert!(
+        mit_zeit < ohne_zeit,
+        "ESSENCE 500 aendert die Zeit bis zum Tod nicht: {mit_zeit} gegen \
+         {ohne_zeit} ms — die Leitung transportiert nichts"
+    );
+
+    // **Und zwar in der richtigen Groessenordnung.** Ein Faktor, der wirkt,
+    // aber falsch skaliert, waere oben ebenfalls gruen. +50 % Schaden heisst
+    // etwa zwei Drittel der Zeit; grosszuegig geprueft, weil die Rotation in
+    // Bloecken von 1500 ms arbeitet und der letzte Treffer ueberschiesst.
+    let verhaeltnis = f64::from(mit_zeit) / f64::from(ohne_zeit);
+    assert!(
+        (0.6..=0.75).contains(&verhaeltnis),
+        "ESSENCE 500 sollte die Zeit auf etwa zwei Drittel druecken, gemessen \
+         {verhaeltnis:.3} ({mit_zeit} gegen {ohne_zeit} ms)"
+    );
+}
+
+#[test]
+fn vessel_kommt_zur_stufen_basis_dazu_und_ersetzt_sie_nicht() {
+    // Issue #282, AC3. Zwei Aussagen, die einzeln beide zu schwach waeren.
+    use rota_sim::data::{stat_at_level, PLAYER};
+    use rota_sim::fight::vessel_with_gear;
+
+    let basis_stufe_1 = stat_at_level(PLAYER.vessel, 1);
+    let basis_stufe_100 = stat_at_level(PLAYER.vessel, 100);
+
+    // Der Gegenfall zuerst: Ohne Ausruestung exakt die Basis, kein
+    // Rundungsrest, kein Versatz (AC5).
+    assert_eq!(vessel_with_gear(basis_stufe_1, 0), basis_stufe_1);
+    assert_eq!(vessel_with_gear(basis_stufe_100, 0), basis_stufe_100);
+
+    // Erstens: Ausruestung WIRKT.
+    let mit = vessel_with_gear(basis_stufe_1, 500);
+    assert!(
+        mit > basis_stufe_1,
+        "VESSEL 500 aendert nichts: {mit} gegen {basis_stufe_1}"
+    );
+
+    // Zweitens — und das ist die eigentliche Falle: Sie ersetzt die
+    // Stufen-Basis NICHT. Ein Spieler auf Stufe 100 ohne Ausruestung muss
+    // mehr Leben haben als einer auf Stufe 1 mit einem sehr guten Fund.
+    //
+    // Wer statt zu addieren ersetzt, faellt genau hier durch: Dann haengt das
+    // Leben nur noch an der Ausruestung, und hundert Stufen sind umsonst.
+    assert!(
+        basis_stufe_100 > vessel_with_gear(basis_stufe_1, 1000),
+        "Stufe 100 ohne Ausruestung ({basis_stufe_100}) ist nicht mehr als \
+         Stufe 1 mit doppeltem VESSEL ({}) — die Stufen-Basis wurde ersetzt \
+         statt erhoeht",
+        vessel_with_gear(basis_stufe_1, 1000)
+    );
+
+    // Und die Basis waechst ueberhaupt mit der Stufe — sonst waere der
+    // Vergleich oben trivial erfuellt.
+    assert!(basis_stufe_100 > basis_stufe_1 * 10);
+
+    // **Der Vergleich oben genuegt NICHT, und das ist gemessen.** Ich habe die
+    // Funktion versuchsweise so gebrochen, dass sie die Basis ersetzt
+    // (`worn_permille * 100` statt der Rechnung) — und alle Faelle oben
+    // blieben gruen. Die Zahlen passten zufaellig: Stufe 100 hat so viel
+    // Leben, dass sie auch gegen einen erfundenen Wert gewinnt.
+    //
+    // Was die Ersetzung wirklich ausschliesst, ist die Abhaengigkeit von der
+    // BASIS: Dieselbe Ausruestung an zwei verschiedenen Basen muss zwei
+    // verschiedene Ergebnisse geben, und zwar im Verhaeltnis der Basen.
+    let klein = vessel_with_gear(basis_stufe_1, 500);
+    let gross = vessel_with_gear(basis_stufe_100, 500);
+    assert!(
+        gross > klein,
+        "dieselbe Ausruestung gibt an beiden Basen dasselbe ({gross} und \
+         {klein}) — dann haengt das Ergebnis nicht an der Basis, die \
+         Stufen-Basis ist ersetzt"
+    );
+
+    // Und zwar IM VERHAELTNIS der Basen, nicht bloss groesser. Ein Ergebnis,
+    // das mit der Basis waechst, aber nach einer anderen Regel, kaeme sonst
+    // durch.
+    let verhaeltnis_basen = f64::from(basis_stufe_100) / f64::from(basis_stufe_1);
+    let verhaeltnis_werte = f64::from(gross) / f64::from(klein);
+    assert!(
+        (verhaeltnis_basen - verhaeltnis_werte).abs() < 0.01,
+        "Basen stehen {verhaeltnis_basen:.3} zueinander, Ergebnisse \
+         {verhaeltnis_werte:.3} — die Ausruestung wirkt nicht als Faktor auf \
+         die Basis"
+    );
+}
+
+#[test]
+fn ward_aus_der_ausruestung_mindert_zusaetzlich() {
+    // Issue #282, AC4.
+    use rota_sim::data::PLAYER;
+
+    let roh = 1000;
+    let ohne = PLAYER.incoming_with_gear(roh, 0);
+
+    // Der Gegenfall zuerst (AC5): ohne Ausruestung exakt wie bisher.
+    assert_eq!(ohne, PLAYER.incoming(roh));
+
+    let mit = PLAYER.incoming_with_gear(roh, 300);
+    assert!(mit < ohne, "WARD 300 mindert nichts: {mit} gegen {ohne}");
+
+    // **Additiv, nicht multiplikativ** — und das ist der Unterschied, den ein
+    // blosser Groessenvergleich nicht zeigt. Multiplikativ ergaeben Basis und
+    // Zusatz ein anderes Ergebnis, und beide waeren "kleiner als ohne".
+    let erwartet_additiv = (f64::from(roh) * (1.0 - (PLAYER.ward_reduction + 0.3)))
+        .round()
+        .max(0.0) as u32;
+    assert_eq!(
+        mit, erwartet_additiv,
+        "WARD wirkt nicht additiv zur Basis — bei zwei Minderungen im selben \
+         Topf wird addiert (13.1b)"
+    );
+
+    // Der Deckel: Bei voller Minderung null Schaden, nicht negativ und keine
+    // Heilung. Das ist eine Rechenregel, keine Balance-Zahl.
+    assert_eq!(PLAYER.incoming_with_gear(roh, 5000), 0);
+
+    // Und der Gegenfall dazu: Ohne den Deckel waere das Ergebnis oben
+    // ebenfalls 0 (als u32 abgeschnitten) — deshalb zusaetzlich knapp
+    // darunter pruefen, wo die Rechnung noch etwas liefern muss.
+    assert!(
+        PLAYER.incoming_with_gear(roh, 700) > 0,
+        "knapp unter dem Deckel darf nicht schon null herauskommen"
+    );
+}
+
+#[test]
+fn der_paritaets_lauf_traegt_alle_drei_grundwerte() {
+    // **Die Bedingung, unter der der Gleichlauf-Waechter ueberhaupt wirkt.**
+    //
+    // Der Fehler, der #282 fast durchgerutscht waere, hing an einer Zeile:
+    // `player_hp` bekam die Basis OHNE Ausruestung, `vessel_max` die MIT.
+    // Gefunden hat ihn der Prüfsummen-Vergleich — aber nur, weil der
+    // Vergleichslauf VESSEL ungleich null trägt.
+    //
+    // Stünden die drei Werte hier auf null, liefe der Vergleich durch die
+    // neue Rechnung, ohne sie je zu benutzen. Er belegte dann, dass beide
+    // Seiten dasselbe tun, wenn nichts zu tun ist — und die nächste
+    // Asymmetrie fiele niemandem auf.
+    let json = data();
+    let worn = worn(&json);
+    for (name, wert) in [
+        ("essence", worn.essence),
+        ("vessel", worn.vessel),
+        ("ward", worn.ward),
+    ] {
+        assert!(
+            wert > 0,
+            "der Paritaets-Lauf traegt {name} = 0 — dann prueft der \
+             Gleichlauf diesen Wert nicht"
+        );
+    }
+
+    // Und drei VERSCHIEDENE Werte: Waeren sie gleich, blieben zwei
+    // vertauschte Felder unbemerkt.
+    assert!(
+        worn.essence != worn.vessel && worn.vessel != worn.ward && worn.essence != worn.ward,
+        "zwei der drei Grundwerte sind gleich ({}, {}, {}) — eine vertauschte \
+         Zuordnung faellt dann nicht auf",
+        worn.essence,
+        worn.vessel,
+        worn.ward
+    );
 }
