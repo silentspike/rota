@@ -39,6 +39,12 @@ use rota_sim::rotation_search::{candidates_for, exhaustive, greedy, Candidate};
 /// Erschöpfend geprüft werden alle Reihenfolgen aller Teilmengen **bis zu
 /// dieser Länge**, nicht alle überhaupt. Bei sieben Kandidaten sind das
 /// 7 + 42 + 210 + 840 = 1099 Listen statt 13.699.
+///
+/// Die Fälle liefen zunächst hinter `#[ignore]` mit der Begründung „misst
+/// tausende Kämpfe". Gemessen sind es **40 Millisekunden** — die Begründung
+/// war geschätzt und falsch, und die Fälle liefen deshalb in keinem Gate. Wer
+/// das Einfügen auf Anhängen zurückgedreht hätte, hätte einen grünen PR
+/// bekommen.
 const MAX_LEN: usize = 4;
 
 fn config(boss_id: &str) -> BalanceConfig {
@@ -131,7 +137,6 @@ fn die_teilmengen_erreichen_die_geforderte_groesse() {
 }
 
 #[test]
-#[ignore = "misst tausende Kaempfe; laeuft auf Anforderung, nicht in jedem Lauf"]
 fn einfuegen_findet_dasselbe_wie_die_erschoepfende_suche() {
     for (name, ids) in TEILMENGEN {
         let config = config("first-crucible");
@@ -189,7 +194,6 @@ fn gewirkte_zauber(boss_id: &str, apl: &rota_sim::Apl) -> Vec<usize> {
 }
 
 #[test]
-#[ignore = "misst hunderte Kaempfe; laeuft auf Anforderung"]
 fn ein_gewirkter_zauber_entfernt_veraendert_die_gefundene_rotation() {
     let config = config("first-crucible");
     let voller_pool = pool(TEILMENGEN[2].1);
@@ -240,7 +244,6 @@ fn ein_gewirkter_zauber_entfernt_veraendert_die_gefundene_rotation() {
 }
 
 #[test]
-#[ignore = "1546 Listen; einmal zur Absicherung der Laengengrenze"]
 fn die_laengengrenze_verschweigt_kein_besseres_ergebnis() {
     // MAX_LEN = 4 ist eine Abwaegung, keine Messung: Bei acht Kandidaten und
     // Laenge 5 waeren es ueber 20.000 Listen. Also einmal an der KLEINSTEN
@@ -274,7 +277,6 @@ fn miss_text(boss_id: &str, text: &str) -> f64 {
 }
 
 #[test]
-#[ignore = "misst hunderte Kaempfe; laeuft auf Anforderung"]
 fn die_ausgegebene_liste_bedeutet_dasselbe_wie_die_gefundene() {
     // **Nicht: „ist der Text parsebar".** Ein Text, der durchgeht und etwas
     // anderes bedeutet, ist schlimmer als einer, der nicht durchgeht — er
