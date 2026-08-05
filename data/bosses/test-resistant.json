@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "test-resistant",
+  "name": "The Cold Vessel",
+  "instance": "testing",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #328 (Widerstaende) und sonst nichts.\n\nER HAELT KALZINATION AB: Faktor 0,75, also 25 % weniger Schaden von dieser Schule. Der Wert liegt in dem Korridor, den das Design nennt (20-30 %), und er ist die eine Richtung; die andere traegt test-vulnerable.\n\nWARUM ZWEI DATEIEN UND NICHT EINE: Der Faktor wird mit der Schule des SPIELERS nachgeschlagen (combat.ts: boss.resistances[school]). Ein Boss kann deshalb gegenueber dem, der gerade spielt, entweder abhaltend ODER schwach sein — beide Richtungen an einem Boss zu zeigen setzte zwei Schulen voraus, und der Simulator kennt bis heute genau eine (SCHOOL = CALCINATION).\n\nWELCHER BOSS DES SPIELS Widerstaende bekommt, entscheidet E10 — dieselbe Sorte Entscheidung wie 'welcher Zauber eine Wirkzeit bekommt' (#304). Hier steht die MECHANIK, nicht der Inhalt.\n\nDie Lebenspunkte sind unerreichbar hoch und die Frist lang: Gemessen wird Schaden ueber eine feste Zeit, nicht bis zum Sieg — sonst haenge die Messung an der Kampfdauer statt am Faktor.",
+  "hp": 999999,
+  "overpressureMs": 300000,
+  "phases": [],
+  "energy": null,
+  "doom": null,
+  "stacks": null,
+  "race": null,
+  "bossHeal": null,
+  "runaway": null,
+  "escalation": null,
+  "affliction": null,
+  "timeline": [],
+  "timelineLoopMs": null,
+  "resistances": { "CALCINATION": 0.75 },
+  "signature": null
+}

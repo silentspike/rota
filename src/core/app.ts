@@ -41,6 +41,7 @@ import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
 import '../progression/levels.css';
 import '../progression/composition.css';
+import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -185,20 +186,28 @@ export class App {
     this.applyBindings();
     this.audio.bindSpells(this.combat.spells.map((spell) => spell.id));
 
-    this.overlay = new Overlay(parent, this.combat.boss.name, {
-      onReady: () => this.ready(),
-      onResume: () => this.resume(),
-      onWipe: () => this.wipe(),
-      onRestart: () => this.restart(),
-      onBackToMenu: () => this.backToMenu(),
-      onOpenHome: () => {
-        // **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim
-        // Start; ohne diesen Aufruf stünde dort, was damals galt. Im Browser
-        // gesehen: nach einem gewonnenen Kampf weiterhin „0 / 200".
-        this.refreshHome();
-        this.home.show();
+    this.overlay = new Overlay(
+      parent,
+      this.combat.boss.name,
+      {
+        onReady: () => this.ready(),
+        onResume: () => this.resume(),
+        onWipe: () => this.wipe(),
+        onRestart: () => this.restart(),
+        onBackToMenu: () => this.backToMenu(),
+        onOpenHome: () => {
+          // **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim
+          // Start; ohne diesen Aufruf stünde dort, was damals galt. Im Browser
+          // gesehen: nach einem gewonnenen Kampf weiterhin „0 / 200".
+          this.refreshHome();
+          this.home.show();
+        },
       },
-    });
+      // **Fertige Zeilen, nicht der Datensatz** (Issue #328): Ob ein Faktor
+      // „hält ab" oder „ist schwach" heißt, entscheidet `resistanceLines` an
+      // einer Stelle — nicht jeder Bildschirm für sich.
+      resistanceLines(this.combat.boss.resistances),
+    );
 
     // Das Player Home. Es fasst den Kampf NICHT an -- kein Anhalten, kein
     // Zuruecksetzen, kein Zugriff auf die Sitzung. Es zeigt und verbirgt sich.
