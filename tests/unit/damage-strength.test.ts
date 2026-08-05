@@ -47,7 +47,25 @@
  * WAS ER NICHT KANN
  * -----------------
  * Er prüft die Formel in `computeDamage`. Wer eine **zweite** Schadensstelle
- * baut, ist nicht erfasst. Auf der Rust-Seite gilt dasselbe; hier steht es.
+ * baut, ist nicht erfasst. Auf der Rust-Seite gilt dasselbe; seit #356 steht es
+ * auch dort (`alle_faktoren_wirken_gleich_stark`).
+ *
+ * DIE UNTERGRENZE IST ZWEIERLEI, UND DAS ZWEITE IST ABSICHT
+ * ---------------------------------------------------------
+ * `expect(…).toBeGreaterThanOrEqual(8)` im ersten Fall liest sich wie ein
+ * Schutz gegen leere Mengen — und ist zusätzlich eine **Untergrenze für die
+ * Zahl der Faktoren**. Wer einen Faktor entfernt, sieht deshalb einen Fall
+ * rot werden, dessen Name das nicht erklärt („liest überhaupt Namen aus
+ * beiden").
+ *
+ * **Das ist gewollt:** Ein Faktor, der wegfällt, ist eine Änderung, die jemand
+ * ansehen soll — dieselbe Begründung wie bei der Untergrenze des
+ * Prüfsummen-Wächters (`checksum-effectiveness.test.ts`: „Die Zahl darf
+ * steigen, aber nicht fallen"). Wer sie senkt, tut das ausdrücklich.
+ *
+ * Aufgefallen ist es dem Orchestrator bei der Abnahme: Seine Gegenprobe
+ * (`buffs` aus der Formel) färbte vier Fälle rot statt drei, und der vierte
+ * war dieser — mit einem Namen, der nichts erklärte.
  */
 import { describe, expect, it } from 'vitest';
 import { NEUTRAL_FACTORS, computeDamage, type DamageFactors } from '../../src/core/damage.js';
