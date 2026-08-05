@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT.\n\n=== factorPerMille: Wachstum der Grundwerte (GAME-DESIGN 8.1) ===\nErzeugende Formel: 1000 * 1,05^(n-1), gerundet. '~5 % je Stufe'.\nIN PROMILLE UND GANZZAHLIG, und das ist kein Format-Geschmack: 1,05^n ist eine Fliesskomma-Potenz, und Math.pow in JS ist gegenueber f64::powf in Rust nicht garantiert bitgleich. GAME-DESIGN 18.4 verlangt, dass beide Seiten dieselbe Zahl rechnen — eine Tabelle rechnet gar nicht, sie steht da. Angewandt als grundwert * promille / 1000 mit GANZZAHL-Division.\nStufe 1 ist 1000 (Faktor 1,0): Der Spieler startet mit den Werten aus base.json. Stufe 100 ist 125239 (Faktor 125,2) — das Design nennt '~130'; die Differenz ist genau eine Stufe, denn zwischen 1 und 100 liegen neunundneunzig Aufstiege.\n\n=== xpToNextLevel: die Erfahrungskurve (Issue #248) ===\nErzeugende Formel: 200 * n^1.5, gerundet. Eintrag n ist der Bedarf von Stufe n nach n+1; die Liste hat 99 Eintraege fuer 99 Aufstiege.\nZusammen mit xpPerBossLevel = 100 ergibt das 100 * Boss-Stufe je Sieg und damit 2 * Wurzel(n) Kaempfe je Stufe: 2 auf Stufe 1, 10 auf Stufe 25, 14 auf Stufe 50, 20 auf Stufe 99. Summe 7.900.245 Erfahrung, rund 1323 Kaempfe.\nGERECHNET, NICHT GERATEN — vier Varianten standen zur Wahl, gemessen an einem Kampfzyklus von ~60 s (Referenzlauf 40,51 s + 3 s Countdown + Ergebnis):\n  A konstant  (Bedarf 1000, Sieg 100)   10 Kaempfe je Stufe, Summe  990 = 16,5 h\n  B linear    (Bedarf 200n, Sieg 100)    2 bis 198,      Summe 9900 = 165 h\n  C GEWAEHLT  (Bedarf 200n^1.5, Sieg 100n)  2 bis 20,   Summe 1323 = 22,0 h\n  D quadrat.  (Bedarf 100n^2, Sieg 100n)    1 bis 99,   Summe 4950 = 82,5 h\nZiel aus dem Plan: ~24 h fuer Stufe 1 bis 100. A ist gleichfoermig (Stufe 99 dauert wie Stufe 2, was 12.2 widerspricht), B und D lassen die Kampfzahl explodieren. C ist robust gegen die einzige Schaetzung: 50 s je Zyklus ergaeben 18,4 h, 75 s ergaeben 27,6 h — beides im Zielbereich.\nWer diese Zahlen aendert, aendert diese Datei. Eine Zahl ohne ihre Herkunft ist eine Behauptung; deshalb steht die Rechnung hier und nicht in einer Nachricht.\n\n=== barSlotLevels: die Leisten-Plaetze (GAME-DESIGN 12.1, 9.1) ===\nStart mit ZWEI Plaetzen, je ein weiterer auf den genannten Stufen — zwoelf auf Stufe 90. 12.1 nennt 'schrittweise bis 12-16'; zwoelf, weil 4.2 dazu sagt: 'Zwoelf Zauber bei zwoelf Leisten-Plaetzen bedeutet: Man kann nicht alle mitnehmen' — genau die Abwaegung, die der Prototyp-Prueflauf messen soll. Mehr Plaetze als Zauber nehmen sie wieder weg.\nDIE ABSTAENDE WACHSEN (2, 3, 4, 5, 7, 8, 10, 15, 17, 18): Frueh kommt oft etwas dazu, weil 12.2 einen schnellen Einstieg verlangt; spaeter seltener, weil ein zusaetzlicher Platz dann mehr veraendert. Der letzte faellt auf Stufe 90 und nicht auf 100 — die letzten zehn Stufen sollen den Spieler mit seiner endgueltigen Leiste ueben lassen, bevor das Endgame beginnt.\nWAS HIER NICHT STEHT, WEIL ES NICHT DAZUGEHOERT: WELCHER Zauber auf welchem Platz liegt. 9.1 verlangt, dass Positionen von Anfang an fest vergeben sind, damit das Wachsen bestehende Plaetze nicht verschiebt — die Stufe sagt also nur, WIE VIELE Plaetze offen sind, nie welche.",
+  "growthPerLevelPercent": 5,
+  "maxLevel": 100,
+  "factorPerMille": [
+    1000, 1050, 1102, 1158, 1216, 1276, 1340, 1407, 1477, 1551, 1629, 1710, 1796, 1886, 1980, 2079,
+    2183, 2292, 2407, 2527, 2653, 2786, 2925, 3072, 3225, 3386, 3556, 3733, 3920, 4116, 4322, 4538,
+    4765, 5003, 5253, 5516, 5792, 6081, 6385, 6705, 7040, 7392, 7762, 8150, 8557, 8985, 9434, 9906,
+    10401, 10921, 11467, 12041, 12643, 13275, 13939, 14636, 15367, 16136, 16943, 17790, 18679,
+    19613, 20594, 21623, 22705, 23840, 25032, 26283, 27598, 28978, 30426, 31948, 33545, 35222,
+    36984, 38833, 40774, 42813, 44954, 47201, 49561, 52040, 54641, 57374, 60242, 63254, 66417,
+    69738, 73225, 76886, 80730, 84767, 89005, 93455, 98128, 103035, 108186, 113596, 119276, 125239
+  ],
+  "xpPerBossLevel": 100,
+  "xpToNextLevel": [
+    200, 566, 1039, 1600, 2236, 2939, 3704, 4525, 5400, 6325, 7297, 8314, 9374, 10477, 11619, 12800,
+    14019, 15274, 16564, 17889, 19247, 20638, 22061, 23515, 25000, 26515, 28059, 29632, 31234,
+    32863, 34520, 36204, 37914, 39650, 41413, 43200, 45012, 46850, 48711, 50596, 52506, 54438,
+    56394, 58373, 60374, 62397, 64443, 66511, 68600, 70711, 72843, 74995, 77169, 79363, 81578,
+    83813, 86068, 88343, 90638, 92952, 95285, 97638, 100009, 102400, 104809, 107237, 109684, 112148,
+    114631, 117132, 119651, 122188, 124742, 127314, 129904, 132511, 135134, 137775, 140433, 143108,
+    145800, 148508, 151233, 153975, 156732, 159506, 162296, 165103, 167925, 170763, 173617, 176487,
+    179372, 182273, 185189, 188121, 191068, 194030, 197008
+  ],
+  "startBarSlots": 2,
+  "barSlotLevels": [3, 6, 10, 15, 22, 30, 40, 55, 72, 90]
+}

@@ -25,10 +25,13 @@ import { markDisplayFor } from '../analysis/mark-display.js';
 import type { MarkDisplay } from '../render/overlay.js';
 import { PlayerHome } from '../progression/player-home.js';
 import { statOverview } from '../progression/stat-overview.js';
+import { levelBarFill, levelOverview } from '../progression/level-overview.js';
+import { buildLevelOverview } from '../progression/level-overview-view.js';
 import { buildStatOverview } from '../progression/stat-overview-view.js';
 import { NOTHING_WORN } from '../gear/worn.js';
 import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
+import '../progression/levels.css';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 
@@ -158,6 +161,9 @@ export class App {
         // Schritt 1 kennt eine Stufe. Die Zahl steht hier und nicht als
         // Vorgabe im Rechner: Sobald es mehrere gibt, ist es diese Zeile.
         difficulty: 1,
+        // Die Stufe des BOSSES, aus seinem Datensatz — nicht die des
+        // Spielers und nicht die Schwierigkeit (Issue #248).
+        bossLevel: this.combat.boss.level,
         gameVersion: __ROTA_VERSION__,
         at: Date.now(),
       });
@@ -180,6 +186,10 @@ export class App {
       onRestart: () => this.restart(),
       onBackToMenu: () => this.backToMenu(),
       onOpenHome: () => {
+        // **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim
+        // Start; ohne diesen Aufruf stünde dort, was damals galt. Im Browser
+        // gesehen: nach einem gewonnenen Kampf weiterhin „0 / 200".
+        this.refreshHome();
         this.home.show();
       },
     });
@@ -189,6 +199,22 @@ export class App {
     this.home = new PlayerHome(() => {
       // Zurueck heisst zurueck zum Bildschirm davor. Das Overlay steht
       // ohnehin dort, wo es stand -- es wurde nie angefasst.
+    });
+    // **Der Aufstieg steht vor den Werten.** Er ist das, was sich zwischen
+    // zwei Besuchen ändert; die Grundwerte folgen daraus (Issue #248, AC6).
+    this.home.addSection({
+      id: 'levels',
+      title: 'Progression',
+      content: buildLevelOverview(
+        levelOverview({
+          level: this.persistence.state.level,
+          xp: this.persistence.state.experience,
+        }),
+        levelBarFill({
+          level: this.persistence.state.level,
+          xp: this.persistence.state.experience,
+        }),
+      ),
     });
     this.home.addSection({
       id: 'stats',
@@ -251,6 +277,21 @@ export class App {
   // ------------------------------------------------------------ Kampfablauf
 
   /** „Ready" — der Countdown beginnt (GAME-DESIGN 10). */
+  /**
+   * Die Aufstiegs-Anzeige neu rechnen (Issue #248, AC6).
+   *
+   * **Gerechnet, nicht gespeichert — auch auf dem Bildschirm.** Der Spielstand
+   * trägt Stufe und Erfahrung; alles andere entsteht hier bei jedem Öffnen
+   * neu. Ein einmal gebauter Bereich zeigte sonst, was beim Start galt.
+   */
+  private refreshHome(): void {
+    const stand = { level: this.persistence.state.level, xp: this.persistence.state.experience };
+    this.home.replaceSection(
+      'levels',
+      buildLevelOverview(levelOverview(stand), levelBarFill(stand)),
+    );
+  }
+
   ready(): boolean {
     // „Ready" ist eine Nutzergeste, und zwar die erste des Kampfes. Erst danach
     // gibt der Browser den Klang-Kontext frei — geschähe das erst beim ersten
