@@ -834,6 +834,86 @@ export function raceHealPayload(): Record<string, unknown> {
   };
 }
 
+export const RUNAWAY_PROGRESS_NAME = 'runaway-progress';
+
+/**
+ * Die davonlaufende Reaktion mit SPIELERSCHADEN, Takt für Takt (Issue #256, AC3).
+ *
+ * **Bis zum 2026-08-05 hat keine einzige Vergleichsdatei einen Boss mit
+ * `runaway` gefahren.** `parity_runaway.rs` prüft Zahlen und keine
+ * Prüfsummen; alle Prüfsummen-Dateien laufen gegen Bosse ohne Reaktion. Der
+ * Simulator war an dieser Stelle also ungeprüft — und das fiel an einer
+ * Gegenprobe auf, die NICHT anschlug: Wer `runaway_tick` die falsche Herkunft
+ * mitgeben ließ, brach keinen Test.
+ *
+ * Das ist wörtlich die Frage aus der vierten Gestalt, einmal höher gestellt:
+ * Könnte diese Prüfung den Unterschied überhaupt zeigen?
+ *
+ * Zwei Spuren neben den Prüfsummen. Beide gehen ohnehin in die Prüfsumme ein,
+ * aber eine abweichende Prüfsumme sagt nur, **dass** etwas anders ist; die
+ * Spuren sagen **was** — der Ring-Verlust insgesamt und der Anteil des
+ * Spielers daran. Genau diese Trennung baut #256, und ohne sie sähen ein Lauf
+ * ohne Tastendruck und ein Lauf mit KINDLE gleich aus.
+ */
+export function runawayProgressPayload(): Record<string, unknown> {
+  const recording = recordings().get(RUNAWAY_PROGRESS_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RUNAWAY_PROGRESS_NAME}`);
+  const boss = bossById('test-runaway');
+  if (boss === undefined) throw new Error('Der Boss test-runaway fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  const ring: number[] = [];
+  const vomSpieler: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) {
+      ring.push(combat.damageDealt);
+      vomSpieler.push(combat.playerDamage);
+      break;
+    }
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of STEP1_BINDINGS) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    ring.push(combat.damageDealt);
+    vomSpieler.push(combat.playerDamage);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      runaway: boss.runaway,
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      finalPlayerDamage: combat.playerDamage,
+    },
+    checksums: result.checksums,
+    ringDamage: ring,
+    playerDamage: vomSpieler,
+  };
+}
+
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**

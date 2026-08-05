@@ -151,5 +151,13 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // „gelegen und entfernt" trägt — im Zustand sehen die beiden gleich aus.
   h = mixInt(h, combat.afflicted ? 1 : 0);
   h = mixInt(h, combat.afflictionsCleared);
+  // Issue #256: Der Anteil des SPIELERS am Ring-Verlust. `damageDealt` steht
+  // schon an Position 2, aber es mischt seit #247 zwei Herkünfte — die
+  // Reaktion senkt den Ring von selbst. Zwei Läufe mit gleichem `damageDealt`
+  // und verschiedenem Spieler-Anteil sähen ohne dieses Feld identisch aus,
+  // und ein Simulator, der die Trennung anders zieht, fiele nicht auf.
+  //
+  // **Angehängt, nicht eingeschoben** — wie jedes Feld seit #96.
+  h = mixFloat(h, combat.playerDamage);
   return h >>> 0;
 }

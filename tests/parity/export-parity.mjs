@@ -101,6 +101,8 @@ import {
   FIXATION_NAME,
   LOG_PARITY_NAME,
   serialize,
+  RUNAWAY_PROGRESS_NAME,
+  runawayProgressPayload,
 } from './payloads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -136,6 +138,15 @@ writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
 const trialBlocks = trialBlocksPayload();
 const trialBlocksPath = join(here, 'recordings', `${TRIAL_BLOCKS_NAME}.json`);
 writeFileSync(trialBlocksPath, serialize(trialBlocks), 'utf8');
+
+const runawayProgress = runawayProgressPayload();
+const runawayProgressPath = join(here, 'recordings', `${RUNAWAY_PROGRESS_NAME}.json`);
+writeFileSync(runawayProgressPath, serialize(runawayProgress), 'utf8');
+console.log(`geschrieben: ${runawayProgressPath}`);
+console.log(
+  `  Reaktion      Ring ${runawayProgress.expected.damage}, davon vom Spieler ` +
+    `${runawayProgress.expected.finalPlayerDamage}`,
+);
 
 const playerDamage = playerDamagePayload();
 const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);
