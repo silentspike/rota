@@ -428,6 +428,77 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > herstellen und sehen, ob er anschlägt. Beim `indexOf`-Fall heißt das konkret — einen Aufruf vor
 > die Definition setzen und prüfen, dass der Wächter **grün bleibt**.
 
+> **Und die Gegenprobe selbst ist der nächste blinde Fleck.** In der Nacht zum 2026-08-05 sind
+> sieben Gegenproben durchgelaufen, ohne etwas zu prüfen — dreimal beim Orchestrator, viermal
+> bei den Werkern. Jede war grün, keine war verdächtig.
+>
+> | Was die Gegenprobe anfasste                          | Warum sie nichts belegte                                    |
+> | ---------------------------------------------------- | ----------------------------------------------------------- |
+> | `arm()` innerhalb des Zweigs verschoben              | Dort folgenlos — `cast()` liest das Feld nicht              |
+> | Künstlicher Aufruf **hinter** die Definition gesetzt | Der Fehler wirkt nur davor                                  |
+> | Eine von zwei `println!`-Zeilen entfernt             | Der Begriff stand noch in der anderen                       |
+> | Syntaxfehler in `examples/`, Bau lief durch          | `cargo test --test X` baut nur diesen Test                  |
+> | `cooldownReductionMs` auf 0 gesetzt                  | Der Prüffall liest die **Aufzeichnung**, nicht die Rechnung |
+>
+> Der Satz, der es zusammenfasst, stammt von dem Werker, dem es dreimal in einer Stunde passierte:
+>
+> **„Dass eine Gegenprobe durchläuft, sagt nichts darüber, ob sie das Richtige angefasst hat."**
+>
+> Praktisch heißt das: Bevor die Gegenprobe zählt, muss belegt sein, dass sie überhaupt ankommt —
+> ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
+> Stelle, ein Begriff, der nur einmal vorkommt.
+
+### Eine Zahl ohne committeten Läufer ist eine Behauptung
+
+_Gefunden am 2026-08-05 beim Abnehmen von #224._
+
+Die Balance-Messung, auf der zwei Design-Entscheidungen des Auftraggebers beruhen, lässt sich
+nicht wiederholen:
+
+```
+$ git log --all --oneline -S "9892"        → nur Commits von heute
+$ git grep "best_affix_build("             → nur die Definition, kein Aufruf
+$ git log --all --diff-filter=D            → keine gelöschte Datei
+```
+
+Der Aufruf wurde **nie committet**. Durchgangszahl, Startwert, Kampfdauer und Boss sind
+unbekannt. Beim Abnehmen wurde versucht, die Durchgangszahl aus dem Fehlerbalken zurückzurechnen
+— und das Ergebnis passte nur bei einer bestimmten Annahme.
+
+> **Eine Zahl, die zufällig stimmt und nicht belegbar ist, ist keine gemessene Zahl.**
+>
+> Hätte der Rückschluss danebengelegen, wäre es genauso durchgegangen. Das ist der Punkt.
+
+**Die Regel:** Jede Zahl, die in einem Issue oder Bericht landet, braucht einen committeten
+Läufer mit festen Parametern — und der Läufer druckt sie in seiner Ausgabe mit, damit die Zahl
+ihre Herkunft mitträgt, auch wenn jemand sie herauskopiert.
+
+Der Werker, dem es passierte, hat die brauchbarste Einordnung geliefert: _„Dass es diesmal besser
+gemacht wurde, ist kein Verdienst — es ist die Folge davon, dass das Issue einen **Bericht
+verlangt** hat. Wäre er nicht in den Abnahme-Kriterien gestanden, wären wieder nur Zahlen
+gemeldet worden."_ Nicht Sorgfalt hat den Unterschied gemacht, sondern ein Kriterium, das den
+Läufer erzwang.
+
+### „Bereit zum Merge" ist keine Eigenschaft, sondern ein Zeitpunkt
+
+_Zwei Fundstellen in derselben Nacht, dieselbe Lücke von zwei Seiten._
+
+| Was gemeldet wurde   | Warum es überholt war                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| „bereit zur Abnahme" | Während die Nachricht rausging, wurde ein anderer PR gemergt — der eigene stand auf BEHIND, bevor sie ankam                  |
+| „bereit zum Merge"   | Der Melder arbeitete noch an derselben Datei; der Orchestrator mergte auf diese Freigabe hin, und die letzte Änderung fehlte |
+
+Einmal bewegte sich `main`, einmal der Melder selbst.
+
+> **Melde den Zustand mit dem Zeitpunkt seiner Messung** — „CLEAN um 02:04" statt „bereit". Und
+> sag „bereit zum Merge" erst, wenn die Datei nicht mehr offen ist: nicht wenn der letzte Lauf
+> grün war, sondern wenn die Arbeit fertig ist.
+
+Der zweite Fall fiel nur auf, weil der Push `[new branch]` meldete statt des üblichen
+Commit-Bereichs — der Zweig war nach dem Merge gelöscht, und der Push legte ihn neu an, ohne PR
+und ohne dass es jemand sieht. Diese Meldung steht weiter unten in der Tabelle der Messfehler,
+und sie wurde diesmal gelesen statt überblättert.
+
 ### Die Schwester davon: Prüfdaten, die den Fall unerreichbar machen
 
 _Fünf Fundstellen in der Nacht zum 2026-08-05, in drei verschiedenen Rollen, innerhalb von drei
