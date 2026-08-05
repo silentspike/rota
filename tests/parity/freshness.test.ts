@@ -40,6 +40,7 @@ import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
 import eingecheckteFixierung from './recordings/fixation.json';
+import eingecheckteNeueZauber from './recordings/new-calcination.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
@@ -59,6 +60,7 @@ import eingecheckteStufe from './recordings/level-30.json';
 import {
   bossStatePayload,
   doomStacksPayload,
+  newCalcinationPayload,
   resetRunPayload,
   raceHealPayload,
   trialBlocksPayload,
@@ -135,6 +137,7 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Zaehler und Stapel entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterZaehler, HINWEIS).toEqual(doomStacksPayload());
+    expect(eingecheckteNeueZauber, HINWEIS).toEqual(newCalcinationPayload());
   });
 
   it('der Lauf mit dem Auswahlmodus entspricht dem heutigen Spielstand', () => {

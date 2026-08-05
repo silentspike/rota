@@ -2663,3 +2663,76 @@ export function synergyPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+/** Die Aufzeichnung, in der die neuen Kalzinations-Zauber gewirkt werden. */
+export const NEW_CALCINATION_NAME = 'new-calcination';
+
+/**
+ * Der Paritäts-Weg für `bellows` und `searing` (Issue #268).
+ *
+ * # Warum es ihn gibt
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird. Ohne diesen Weg gälte die Bitgleichheit für
+ * die beiden neuen Zauber als *angenommen* — und eine Annahme ist genau das,
+ * was die Vergleichsdateien ersetzen sollen.
+ *
+ * # Was hier NICHT gemessen wird
+ *
+ * Nicht, ob die Rotation gut ist. Das beantwortet der Läufer aus #237. Hier
+ * zählt allein, dass beide Zauber **gewirkt** werden und beide Seiten dabei
+ * Takt für Takt dieselbe Prüfsumme rechnen.
+ */
+export function newCalcinationPayload(): Record<string, unknown> {
+  const recording = recordings().get(NEW_CALCINATION_NAME);
+  if (recording === undefined) {
+    throw new Error(`Unbekannte Aufzeichnung: ${NEW_CALCINATION_NAME}`);
+  }
+  const boss = FIRST_CRUCIBLE.value;
+  const bindings = [
+    { slot: 0, spellId: 'searing' },
+    { slot: 1, spellId: 'bellows' },
+  ];
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  const checksums: number[] = [];
+  let sequence = 0;
+  let pressIndex = 0;
+
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of bindings) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId: 'first-crucible',
+    bindings,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: combat.damageDealt,
+      finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
+      sequenceChecksum: sequence,
+      // **Je Zauber, damit sichtbar ist, dass BEIDE gewirkt wurden.** Eine
+      // Gesamtzahl verstiege sich zu der Aussage, dass überhaupt gedrückt
+      // wurde — nicht, dass beide dabei waren.
+      casts: Object.fromEntries(bindings.map((b) => [b.spellId, combat.castCount(combat.indexOf(b.spellId))])),
+    },
+    checksums,
+  };
+}
