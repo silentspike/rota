@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
+import { spellIndex } from '../helpers/spell-index.js';
 import { COUNTDOWN_MS, OUTCOME_WIPE, PHASE_ENDED } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import type { RunSummary } from '../../src/core/summary.js';
@@ -15,21 +16,8 @@ import { PressQueue } from '../../src/input/queue.js';
 import { markDisplayFor } from '../../src/analysis/mark-display.js';
 import { recordRun, type RecordedState } from '../../src/analysis/run-recorder.js';
 
-/**
- * Zauber-Indizes, **aus den Daten abgeleitet statt hingeschrieben** (Issue #369).
- *
- * Eine feste Zahl hier zeigt auf den Zauber, der heute an dieser Stelle steht.
- * Verschiebt sich die Liste, prüft der Fall still einen anderen — er wird nicht
- * rot, er misst etwas anderes.
- */
-function indexVon(id: string): number {
-  const i = CALCINATION.value.spells.findIndex((spell) => spell.id === id);
-  if (i < 0) throw new Error(`Zauber ${id} steht nicht in der Schule`);
-  return i;
-}
-
-const KINDLE = indexVon('kindle');
-const SMOULDER = indexVon('smoulder');
+const KINDLE = spellIndex('kindle');
+const SMOULDER = spellIndex('smoulder');
 const LEER: RecordedState = {
   runHistory: [],
   progressMarks: [],

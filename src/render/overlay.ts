@@ -21,6 +21,7 @@ import {
   PHASE_PREPARE,
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
+import type { LevelUpDisplay } from '../analysis/level-up-display.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import { buildLossView } from '../analysis/analysis-view.js';
 // Ohne diesen Import erscheint die Rangliste ungestylt: Die Datei wurde bis
@@ -131,6 +132,22 @@ export interface ResultView {
    * ohne dass er sie je zu sehen bekam.
    */
   readonly mark: MarkDisplay | null;
+  /**
+   * Die gewonnene Erfahrung, oder `null` ohne Sieg (Issue #371).
+   *
+   * **Getrennt von `summary`**, weil sie nicht aus dem Kampf stammt, sondern
+   * aus dem Fortschritt: Derselbe Kampf gibt auf einer höheren Stufe dieselbe
+   * Kurzfassung und andere Erfahrung.
+   */
+  readonly xpGained: number | null;
+  /**
+   * Was der Aufstieg gebracht hat, oder `null` ohne Aufstieg.
+   *
+   * **Ein eigenes Feld, keine Zeile in der Kurzfassung.** Der Aufstieg ist
+   * laut GAME-DESIGN 12.1 der Fortschrittsmoment; ihn zwischen „Damage taken"
+   * und „Pushed back" zu setzen, machte ihn zu einer Kennzahl unter anderen.
+   */
+  readonly levelUp: LevelUpDisplay | null;
 }
 
 const OUTCOME_HEADLINES: Readonly<Record<number, string>> = {
@@ -176,6 +193,9 @@ export class Overlay {
   private readonly result: HTMLElement;
   private readonly resultHeadline: HTMLElement;
   private readonly markPanel: HTMLElement;
+  private readonly levelUpPanel: HTMLElement;
+  private readonly levelUpTitle: HTMLElement;
+  private readonly levelUpList: HTMLElement;
   private readonly markSentence: HTMLElement;
   private readonly markAttempts: HTMLElement;
   private readonly resultRows: Record<string, HTMLElement> = {};
@@ -317,6 +337,20 @@ export class Overlay {
     this.markPanel.appendChild(this.markAttempts);
     this.result.appendChild(this.markPanel);
 
+    // **Der Aufstieg steht GANZ OBEN** (Issue #371). Laut GAME-DESIGN 12.1
+    // ist er der Fortschrittsmoment; unter den Kennzahlen wäre er eine Zeile
+    // neben anderen, und genau das schließt das Issue aus.
+    //
+    // Er blockiert nichts: Dieselbe Taste, die die Kurzfassung wegnimmt,
+    // nimmt ihn mit. GAME-DESIGN A.8 verlangt das für die Sieg-Inszenierung
+    // ausdrücklich — beim hundertsten Sieg will man zu den Zahlen.
+    this.levelUpPanel = element('div', 'rota-levelup');
+    this.levelUpTitle = element('p', 'rota-levelup-title', '');
+    this.levelUpList = element('ul', 'rota-levelup-list');
+    this.levelUpPanel.appendChild(this.levelUpTitle);
+    this.levelUpPanel.appendChild(this.levelUpList);
+    this.result.insertBefore(this.levelUpPanel, this.result.firstChild);
+
     // Die drei Kennzahlen aus GAME-DESIGN 15.1.
     this.result.appendChild(element('div', 'rota-divider'));
     for (const [key, label] of [
@@ -330,6 +364,10 @@ export class Overlay {
       // nebeneinander — eine in Sekunden, eine in Ringpunkten — liest sich
       // als dieselbe Größe. Der Name nennt deshalb die HANDLUNG.
       ['pushedBack', 'Pushed back'],
+      // Die gewonnene Erfahrung (Issue #371). Sie war berechnet und geprüft
+      // und kam beim Spieler nicht an — ein Fortschritt, den niemand sieht,
+      // ist keiner.
+      ['xp', 'Experience'],
     ] as const) {
       const made = row(label);
       this.result.appendChild(made.root);
@@ -424,6 +462,39 @@ export class Overlay {
     // Issue #276 stand hier immer einer, weil es die Rechnung nicht gab.
     set('score', view.points === null ? '—' : view.points.toLocaleString('en-US'));
 
+    // Der Aufstieg: ganz weg, wenn keiner stattfand — und **nur die Dinge,
+    // die eingetreten sind**. Auf Stufe 7 gibt es weder Zauber noch Platz;
+    // drei leere Zeilen wären schlechter als keine Einblendung.
+    const levelUp = view.levelUp;
+    this.levelUpPanel.classList.toggle('rota-visible', levelUp !== null);
+    this.levelUpList.replaceChildren();
+    if (levelUp === null) {
+      this.levelUpTitle.textContent = '';
+    } else {
+      this.levelUpTitle.textContent = `Level ${levelUp.level}`;
+      const zeile = (text: string): void => {
+        this.levelUpList.appendChild(element('li', 'rota-levelup-item', text));
+      };
+      // Die Grundwerte kommen auf JEDER Stufe — sie stehen deshalb immer.
+      zeile(`+${levelUp.statPercent} % to all base stats`);
+      if (levelUp.newSpells.length > 0) {
+        // **Einzahl und Mehrzahl.** Auf Stufe 2 werden VIER Zauber frei —
+        // „New spell: Pyre, Temper, Anchor, Reflux" ist falsch, und es ist
+        // der zweite Text, den das Spiel dem Spieler überhaupt zeigt.
+        //
+        // Dieselbe Sorgfalt wie eine Zeile tiefer bei den Plätzen: Wo eine
+        // Liste in eine Zeile fällt, entscheidet ihre Länge über das Wort.
+        zeile(
+          levelUp.newSpells.length === 1
+            ? `New spell: ${levelUp.newSpells[0]}`
+            : `New spells: ${levelUp.newSpells.join(', ')}`,
+        );
+      }
+      if (levelUp.newBarSlots > 0) {
+        zeile(levelUp.newBarSlots === 1 ? '+1 bar slot' : `+${levelUp.newBarSlots} bar slots`);
+      }
+    }
+
     // Die Marke: ganz weg, wenn es keine gibt. Ein leerer Block mit Trenner
     // saehe aus wie ein Fehler, eine „0 %" waere eine Luege (AC4).
     const mark = view.mark;
@@ -486,6 +557,9 @@ export class Overlay {
       );
     }
     set('taken', summary.damageTaken.toLocaleString('en-US'));
+    // **Kein Strich bei null.** Ohne Sieg gibt es keine Erfahrung, und eine
+    // „0" läse sich als Ergebnis statt als Abwesenheit.
+    set('xp', view.xpGained === null ? '—' : `+${view.xpGained.toLocaleString('en-US')}`);
     // **Nur bei einem umgekehrten Ziel** (AC5). Bei einem gewöhnlichen Boss
     // gibt es nichts zurückzudrängen — die Zahl stünde dort bei null und
     // sagte nichts.
