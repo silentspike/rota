@@ -110,58 +110,109 @@ function spellForSlot(
 }
 
 /**
+ * Die Optionen von [`replayRecording`] — **als benannter Typ** (Issue #391).
+ *
+ * # Warum er einen Namen hat
+ *
+ * Ein Inline-Typ lässt sich nicht abfragen. Für die Laufzeit-Prüfung braucht
+ * es `keyof` — und ohne die kommt die Liste der gültigen Schlüssel nicht aus
+ * der Struktur, sondern steht von Hand daneben.
+ *
+ * Der Anlass war schärfer als eine Formalie: `DevTools.replay` reichte
+ * **eine** dieser Optionen durch und verwarf die übrigen vier stillschweigend
+ * — darunter `boss`, `worn` und `level`, also genau die Schalter, die man für
+ * Nachweise braucht.
+ */
+export interface ReplayOptions {
+  readonly checksumPerTick?: boolean;
+  /**
+   * Gegen welchen Boss abgespielt wird. Fehlt er, ist es der erste
+   * (`FIRST_CRUCIBLE`) — so bleibt jeder bestehende Aufruf unverändert.
+   *
+   * Wählbar seit Issue #96: Der Simulator kann es über `FightConfig.boss`
+   * schon länger, und ein gemeinsamer Prüffall gegen einen Boss **mit**
+   * Phasen und Energieleiste braucht dieselbe Möglichkeit auf dieser Seite.
+   */
+  readonly boss?: BossDef;
+  /**
+   * Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
+   *
+   * Fehlt der Wert, wird nichts getragen — jeder bestehende Aufruf bleibt
+   * damit unverändert, und genau das verlangt AC7.
+   *
+   * Wählbar, weil AC8 eine Prüfsumme je Takt über einen Lauf **mit**
+   * Ausrüstung fordert. Ohne diesen Schalter ließe sich die Bitgleichheit
+   * nur für den Fall belegen, in dem die neuen Werte gar nichts tun.
+   */
+  readonly worn?: WornValues;
+  /**
+   * Die Stufe des Spielers (Issue #289, AC5).
+   *
+   * **Fehlt sie, ist es Stufe 1** — und daran hängt, dass keine bestehende
+   * Vergleichsdatei wandert. Dieselbe Bauart wie `boss` und `worn`.
+   *
+   * Wählbar, weil AC5 verlangt, dass beide Seiten DASSELBE liefern, nicht
+   * nur dieselbe Tabelle lesen. Bis zum 2026-08-05 lag keine einzige
+   * Aufzeichnung über Stufe 1 — dort ist `statAtLevel` neutral, und ein
+   * Auseinanderlaufen wäre unsichtbar geblieben. Genau das ist die Klasse
+   * „der Prüffall kann den Unterschied nicht zeigen", und bei der
+   * Bitgleichheit ist es die teuerste Stelle, an der sie stehen kann.
+   */
+  readonly level?: number;
+  /**
+   * Welcher Platz welchen Zauber trägt (Issue #304).
+   *
+   * Fehlt sie, ist es die Leiste aus Schritt 1 — jeder bestehende Aufruf
+   * bleibt damit unverändert. Dieselbe Bauart wie `boss`, `worn` und `level`.
+   */
+  readonly bindings?: readonly { readonly slot: number; readonly spellId: string }[];
+}
+
+/**
+ * Die gültigen Schlüssel von [`ReplayOptions`] — **zur Laufzeit** (Issue #391).
+ *
+ * Dieselbe Bauart wie in `reference-run.ts`: `Required<{ [K in keyof T]: true }>`
+ * zwingt den Übersetzer, jedes Feld zu verlangen. Kommt eines dazu, ist diese
+ * Stelle rot, bis es hier steht — die Liste kommt damit **aus** der Struktur
+ * statt daneben zu stehen.
+ */
+const GUELTIGE_OPTIONEN: Required<{ [K in keyof ReplayOptions]: true }> = {
+  checksumPerTick: true,
+  boss: true,
+  worn: true,
+  level: true,
+  bindings: true,
+};
+
+/**
+ * Meldet ein unbekanntes Feld — **mit seinem Namen**.
+ *
+ * # Warum eine Laufzeit-Prüfung, wo TypeScript das doch abfängt
+ *
+ * Weil die Dev-Werkzeuge **keine** TypeScript-Schnittstelle sind. Über
+ * `window.__rota` tippt ein Mensch in eine Browser-Konsole; dort gibt es
+ * keinen Übersetzer, der ihn korrigiert. Ein Tippfehler wie `bindigs` wäre
+ * bis hierher stumm durchgelaufen und hätte einen Lauf mit der Standard-
+ * Leiste gemessen — mit einer Zahl, die aussieht, als gehöre sie zum Aufruf.
+ */
+function pruefeOptionen(options: ReplayOptions): void {
+  const unbekannt = Object.keys(options).filter((key) => !(key in GUELTIGE_OPTIONEN));
+  if (unbekannt.length > 0) {
+    throw new Error(
+      `Unbekannte Option(en) fuer replay: ${unbekannt.join(', ')}. ` +
+        `Gueltig: ${Object.keys(GUELTIGE_OPTIONEN).join(', ')}.`,
+    );
+  }
+}
+
+/**
  * Eine Aufzeichnung abspielen — **ohne Browser, ohne Uhr, ohne Bild**.
  *
  * Damit ist das Ergebnis von Bildrate und Systemlast unabhängig; zwei Aufrufe
  * liefern byteweise dasselbe.
  */
-export function replayRecording(
-  recording: Recording,
-  options: {
-    readonly checksumPerTick?: boolean;
-    /**
-     * Gegen welchen Boss abgespielt wird. Fehlt er, ist es der erste
-     * (`FIRST_CRUCIBLE`) — so bleibt jeder bestehende Aufruf unverändert.
-     *
-     * Wählbar seit Issue #96: Der Simulator kann es über `FightConfig.boss`
-     * schon länger, und ein gemeinsamer Prüffall gegen einen Boss **mit**
-     * Phasen und Energieleiste braucht dieselbe Möglichkeit auf dieser Seite.
-     */
-    readonly boss?: BossDef;
-    /**
-     * Die getragenen Sonderwerte (GAME-DESIGN 6.7, Issue #177).
-     *
-     * Fehlt der Wert, wird nichts getragen — jeder bestehende Aufruf bleibt
-     * damit unverändert, und genau das verlangt AC7.
-     *
-     * Wählbar, weil AC8 eine Prüfsumme je Takt über einen Lauf **mit**
-     * Ausrüstung fordert. Ohne diesen Schalter ließe sich die Bitgleichheit
-     * nur für den Fall belegen, in dem die neuen Werte gar nichts tun.
-     */
-    readonly worn?: WornValues;
-    /**
-     * Die Stufe des Spielers (Issue #289, AC5).
-     *
-     * **Fehlt sie, ist es Stufe 1** — und daran hängt, dass keine bestehende
-     * Vergleichsdatei wandert. Dieselbe Bauart wie `boss` und `worn`.
-     *
-     * Wählbar, weil AC5 verlangt, dass beide Seiten DASSELBE liefern, nicht
-     * nur dieselbe Tabelle lesen. Bis zum 2026-08-05 lag keine einzige
-     * Aufzeichnung über Stufe 1 — dort ist `statAtLevel` neutral, und ein
-     * Auseinanderlaufen wäre unsichtbar geblieben. Genau das ist die Klasse
-     * „der Prüffall kann den Unterschied nicht zeigen", und bei der
-     * Bitgleichheit ist es die teuerste Stelle, an der sie stehen kann.
-     */
-    readonly level?: number;
-    /**
-     * Welcher Platz welchen Zauber trägt (Issue #304).
-     *
-     * Fehlt sie, ist es die Leiste aus Schritt 1 — jeder bestehende Aufruf
-     * bleibt damit unverändert. Dieselbe Bauart wie `boss`, `worn` und `level`.
-     */
-    readonly bindings?: readonly { readonly slot: number; readonly spellId: string }[];
-  } = {},
-): ReplayResult {
+export function replayRecording(recording: Recording, options: ReplayOptions = {}): ReplayResult {
+  pruefeOptionen(options);
   const combat = new Combat({
     school: CALCINATION.value,
     boss: options.boss ?? FIRST_CRUCIBLE.value,
