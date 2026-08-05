@@ -341,6 +341,35 @@ pub struct Fight {
     /// `None` heisst: keiner. Solange einer laeuft, kann er unterbrochen
     /// werden — danach nicht mehr, auch nicht im Takt des Treffers.
     casting: Option<usize>,
+    /// Der Widerstands-Faktor je Zauber (Issue #328).
+    ///
+    /// Vorgerechnet beim Aufbau: Der Boss wechselt zwischen den Kaempfen, nicht
+    /// in ihnen. Eine Suche je Wirkung waere eine Abbildung im Schritt
+    /// (GAME-DESIGN 18.4).
+    resistance_by_spell: [f64; SPELL_COUNT],
+    /// Welcher Zauber des SPIELERS gerade gewirkt wird (Issue #304).
+    ///
+    /// `None` heisst: keiner. Bis #304 gab es diesen Zustand nicht — `casting`
+    /// eine Zeile darueber gehoert dem Boss, und `cast_time_ms` am
+    /// Spieler-Zauber wurde eingelesen und nie gelesen.
+    player_casting: Option<usize>,
+    /// Wann die laufende Wirkzeit des Spielers endet.
+    ///
+    /// Ohne laufende Wirkzeit 0 und nicht -1: `Millis` ist vorzeichenlos.
+    /// Welcher Ruhewert hier steht, ist gleichgueltig — die Pruefsumme liest
+    /// ihn nur, solange `player_casting` gesetzt ist, genau wie bei
+    /// `cast_lands_at`.
+    player_cast_ends_at: Millis,
+    /// Welcher Wirkvorgang gemeint ist — gegen veraltete Weckrufe in der
+    /// Schlange, dieselbe Vorsichtsmassnahme wie `dot_generation`.
+    player_cast_generation: u16,
+    /// Wie oft ein Boss-Angriff eine Wirkzeit abgebrochen hat.
+    casts_interrupted: u32,
+    /// Wie oft ein eigener Druck eine laufende Wirkzeit abgebrochen hat.
+    ///
+    /// **Getrennt vom Zaehler des Boss-Abbruchs**, obwohl beide dasselbe Feld
+    /// raeumen: Das eine hat der Boss getan, das andere der Spieler selbst.
+    casts_cancelled: u32,
     /// Wie oft ein Boss-Zauber durchgekommen ist.
     interrupts_missed: u32,
     /// Wie oft der Spieler einen unterbrochen hat.
@@ -505,10 +534,89 @@ pub struct Fight {
     events: RuleEvents,
 }
 
+/// Der Widerstands-Faktor **je Zauber** (Issue #328).
+///
+/// # Am ZAUBER, nicht am Kampf — entschieden am 2026-08-05
+///
+/// Bis dahin war es eine einzelne Zahl: `boss.resistance_for(SCHOOL)`. Sie
+/// multiplizierte jeden Spielerschaden gleich, und etwas, das alles gleich
+/// skaliert, kann keine Reihenfolge aendern. Gemessen mit dem Rotations-Laeufer:
+/// An einem Boss mit 0,75 und einem mit 1,25 kam **dieselbe** beste Liste
+/// heraus, 23340 gegen 38900 — beides 31120 vor dem Faktor.
+///
+/// Die Aufloesung steht im SSOT: "Wer **trotz Widerstand** Calcination spielt,
+/// sammelt weiter normal Hitze — macht damit aber weniger Schaden." Das setzt
+/// voraus, dass jemand mit einer anderen Schule nicht weniger macht.
+///
+/// **Schulunabhaengige Zauber tragen 1,0** (GAME-DESIGN 7.4): Wer keiner Schule
+/// angehoert, den kann keine Schule abhalten.
+///
+/// # Zwei Dinge, die hier zusammenkommen
+///
+/// | | |
+/// | --- | --- |
+/// | `regler` | der Faktor aus `BalanceConfig` — womit der Balance-Laeufer die Formel vermisst |
+/// | Boss | der Widerstand aus den Boss-Daten, den auch das Spiel anwendet |
+///
+/// **Deshalb multipliziert und nicht gesetzt.** Das Spiel kennt keinen Regler.
+/// Wuerde der Simulator ebenfalls setzen, naehme er dem Laeufer sein Werkzeug —
+/// ausgerechnet dem, der belegen soll, was die Widerstaende bewirken.
+///
+/// # DIE BEDINGUNG, AUF DER DIE BITGLEICHHEIT RUHT
+///
+/// Beide Rechnungen stimmen ueberein, **solange eine der zwei Zahlen 1,0 ist**.
+/// Sind es beide nicht, rechnet der Simulator `regler x boss` und das Spiel nur
+/// `boss` — und kein Paritaets-Weg faehrt diese Kombination, also meldete sie
+/// niemand.
+///
+/// Bis zum 2026-08-05 stand die Bedingung als KOMMENTAR da. Ein Satz, auf den
+/// sich die Bitgleichheit stuetzt und den niemand prueft, ist dieselbe Klasse
+/// wie #331 — nur mit einer anderen Zahl. Deshalb bricht dieser Aufruf ab,
+/// statt still etwas zu rechnen, das dem Spiel nicht entspricht.
+///
+/// **Kein `debug_assert`**: Der Balance-Laeufer ist genau die Stelle, die den
+/// Regler setzt, und er laeuft mit `--release`. Ein `debug_assert` schwiege
+/// dort — also an der einzigen Stelle, an der die Kombination entstehen kann.
+fn resistance_by_spell(regler: f64, boss: &Boss) -> [f64; SPELL_COUNT] {
+    let mut tabelle = [1.0_f64; SPELL_COUNT];
+    let mut i = 0;
+    while i < SPELL_COUNT {
+        let vom_boss = match SPELLS[i].school {
+            Some(schule) => boss.resistance_for(schule),
+            None => 1.0,
+        };
+        // **Vergleich auf die exakte Eins, mit Absicht.** 1,0 ist in IEEE754
+        // exakt darstellbar, und gemeint ist genau der neutrale Wert — nicht
+        // "ungefaehr neutral". Ein Regler von 1,0000001 IST eine Abweichung.
+        #[allow(clippy::float_cmp)]
+        let einer_ist_neutral = regler == 1.0 || vom_boss == 1.0;
+        assert!(
+            einer_ist_neutral,
+            "Balance-Regler ({regler}) UND Boss-Widerstand ({vom_boss}) sind bei \
+             Zauber \"{}\" beide gesetzt. Der Simulator rechnete dann {}, das \
+             Spiel nur {vom_boss} — die Bitgleichheit waere hin, und kein \
+             Paritaets-Weg wuerde es melden. Entweder den Regler auf 1,0 lassen \
+             oder gegen einen Boss ohne Widerstand messen.",
+            SPELLS[i].id,
+            regler * vom_boss
+        );
+        tabelle[i] = regler * vom_boss;
+        i += 1;
+    }
+    tabelle
+}
+
 impl Fight {
     /// Legt einen Durchgang an. Fordert allen benoetigten Speicher **jetzt** an.
     #[must_use]
     pub fn new(config: FightConfig) -> Self {
+        // Einmal gerechnet, zweimal gebraucht — Startleben und Deckel sind
+        // derselbe Wert, und getrennte Ausdruecke waeren zwei Stellen, die
+        // auseinanderlaufen koennen.
+        let vessel_max = vessel_with_gear(
+            stat_at_level(PLAYER.vessel, config.player_level),
+            config.worn.vessel,
+        );
         let mut fight = Self {
             time: 0,
             duration_ms: config.duration_ms.unwrap_or(config.boss.overpressure_ms),
@@ -534,10 +642,36 @@ impl Fight {
             afflictions_cleared: 0,
             timeline_index: 0,
             casting: None,
+            player_casting: None,
+            player_cast_ends_at: 0,
+            player_cast_generation: 0,
+            casts_interrupted: 0,
+            casts_cancelled: 0,
             interrupts_missed: 0,
             interrupts_landed: 0,
-            vessel_max: stat_at_level(PLAYER.vessel, config.player_level),
-            player_hp: stat_at_level(PLAYER.vessel, config.player_level),
+            // **Ausruestung kommt DAZU, nicht davor** (Issue #282, AC3).
+            // Wer die Stufen-Basis ersetzt statt sie zu erhoehen, macht einen
+            // Spieler auf Stufe 100 ohne Ausruestung schwaecher als einen auf
+            // Stufe 1 mit einem Fund.
+            //
+            // Ohne getragene Ausruestung ist der Faktor exakt 1,0 und die
+            // Multiplikation bewegt keine Zahl — belegt in AC5.
+            vessel_max,
+            // **Derselbe Wert wie `vessel_max`, nicht die Basis darunter.**
+            //
+            // Hier stand `stat_at_level(...)` — die Lebenspunkte OHNE
+            // Ausruestung, waehrend `vessel_max` sie MIT bekam. Der Spieler
+            // startete also verwundeter, als er sein durfte, und weil
+            // `player_hp` in die Pruefsumme eingeht, brach der Gleichlauf in
+            // Takt 0.
+            //
+            // Die beiden Zeilen sahen aus wie ein Paar und WAREN eins, solange
+            // es keine Ausruestung gab. Auf der Spiel-Seite ist es eine
+            // einzige Zeile (`playerHpValue = vesselMax`) — dort gab es beim
+            // Uebertragen nichts zu vergessen. **Eine Asymmetrie, die auf
+            // einer Seite zwei Zeilen ist und auf der anderen eine, faellt
+            // beim Uebertragen durch.**
+            player_hp: vessel_max,
             died_at: None,
             damage_taken: 0,
             shield: 0,
@@ -585,9 +719,21 @@ impl Fight {
             // `is_neutral()` greift weiterhin, weil das Feld unveraendert bei
             // 1,0 steht.
             factors: DamageFactors {
+                essence: config.factors.essence * config.worn.essence_factor(),
                 gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
+                // **Der Widerstand des Bosses gegen die eigene Schule**
+                // (GAME-DESIGN 11.4, Issue #328). Er kommt beim Aufbau in die
+                // Faktoren, nicht im Schritt: Der Boss wechselt zwischen den
+                // Kaempfen, nicht in ihnen — dieselbe Stelle wie im Spiel
+                // (`combat.ts`, `resistanceFactor`).
+                //
+                // **Der Widerstand steht hier NICHT mehr** (Issue #328). Er
+                // haengt am ZAUBER und wird vor jeder Rechnung gesetzt; was
+                // hier bleibt, gilt fuer den ganzen Kampf.
+                resistance: 1.0,
                 ..config.factors
             },
+            resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
@@ -1025,6 +1171,9 @@ impl Fight {
             died_at_ms: self.died_at,
             interrupts_landed: self.interrupts_landed,
             interrupts_missed: self.interrupts_missed,
+            casts_interrupted: self.casts_interrupted,
+            casts_cancelled: self.casts_cancelled,
+            damage_by_spell: self.damage_by_spell,
             shield: shield_spur,
             afflicted: afflicted_trace,
             cast_lands_at: cast_lands_trace,
@@ -1059,6 +1208,14 @@ impl Fight {
         self.afflictions_cleared = 0;
         self.timeline_index = 0;
         self.casting = None;
+        // Ein neuer Lauf faengt ohne laufende Wirkzeit an (Issue #304). Ohne
+        // diese Zeilen bliebe der Zustand stehen, und der naechste Kampf
+        // begaenne dauerhaft blockiert.
+        self.player_casting = None;
+        self.player_cast_ends_at = 0;
+        self.player_cast_generation = 0;
+        self.casts_interrupted = 0;
+        self.casts_cancelled = 0;
         self.interrupts_missed = 0;
         self.interrupts_landed = 0;
         self.player_hp = self.vessel_max;
@@ -1260,11 +1417,33 @@ impl Fight {
             }
         }
 
+        // **Der Abbruch, und zwar nur durch bestimmte Angriffe** (GAME-DESIGN
+        // 7.1, Issue #304). Welche das sind, steht in den BOSS-Daten und nicht
+        // hier — dieselbe Stelle und dieselbe Reihenfolge wie in
+        // `Combat::stepPassive`: nach dem Schlag, vor dem Vorruecken.
+        if entry.interrupts_player && self.cancel_player_cast() {
+            self.casts_interrupted += 1;
+        }
+
         // Verbraucht: Der naechste Eintrag faengt wieder bei seinem eigenen
         // Zeitpunkt an.
         self.next_strike_delay = 0;
         self.timeline_index += 1;
         self.schedule_next_timeline_step();
+    }
+
+    /// Die laufende Wirkzeit des Spielers abbrechen (Issue #304, AC4).
+    ///
+    /// **Die Abklingzeit laeuft nicht an**, und das steht hier nicht als Zeile,
+    /// sondern als Abwesenheit einer: Sie wird in `resolve_player_cast`
+    /// gesetzt, und die laeuft bei einem Abbruch nie.
+    fn cancel_player_cast(&mut self) -> bool {
+        if self.player_casting.is_none() {
+            return false;
+        }
+        self.player_casting = None;
+        self.player_cast_ends_at = 0;
+        true
     }
 
     /// Ein Boss-Zauber ist fertig gewirkt.
@@ -1685,7 +1864,8 @@ impl Fight {
         if self.died_at.is_some() {
             return;
         }
-        let nach_ward = PLAYER.incoming(raw);
+        // WARD aus der getragenen Ausruestung kommt zur Basis dazu (#282, AC4).
+        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward);
 
         // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
         //
@@ -1747,6 +1927,9 @@ impl Fight {
             EventKind::AfflictionTick => self.affliction_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
+            EventKind::PlayerCastLands { spell, generation } => {
+                self.player_cast_lands(spell as usize, generation);
+            }
             // Ein Weckruf traegt keine Wirkung. Er sorgt nur dafuer, dass der
             // Simulator zu diesem Zeitpunkt ueberhaupt aufwacht — weil dann eine
             // Abklingzeit abgelaufen ist oder der Sieg zu pruefen war.
@@ -1832,6 +2015,11 @@ impl Fight {
         // entweder immer oder nie, und der Glueckanteil, den 6.5 ausdruecklich
         // will, verschwaende sich in einer einzigen Entscheidung.
         let kritet = self.roll_crit();
+        // Auch ein Brand-Tick gehoert seinem Zauber und damit dessen Schule
+        // (Issue #328). Ohne diese Zeile truege er den Widerstand des zuletzt
+        // gewirkten Zaubers — nicht falsch gerechnet, sondern falsch
+        // zugeordnet, und das verraet keine Summe.
+        self.factors.resistance = self.resistance_by_spell[index];
         let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
@@ -2129,6 +2317,80 @@ impl Fight {
         let spell: &Spell = &SPELLS[index];
         let now = self.time;
 
+        // **Jede Wirkung bricht einen laufenden Zauber ab** (GAME-DESIGN 7.1,
+        // entschieden am 2026-08-05) — auch das Unterbrechen.
+        //
+        // Die Stelle ist der Beginn von `cast` und nicht frueher: Die Aufrufer
+        // pruefen Wartezeit und Abklingzeit VOR diesem Aufruf (`is_ready` in
+        // `replay` und in der Rotation). Wer hier ankommt, wirkt auch — und ein
+        // Druck, der zu keiner Wirkung fuehrt, darf nichts abbrechen.
+        //
+        // Auf der Spielseite steht derselbe Aufruf in `Combat.cast`, dort NACH
+        // den zwei Pruefungen, weil sie in derselben Methode liegen.
+        if self.cancel_player_cast() {
+            self.casts_cancelled += 1;
+        }
+
+        // **Der Zauber mit Wirkzeit endet hier** (GAME-DESIGN 7.1, Issue #304).
+        //
+        // Die globale Wartezeit laeuft ab dem BEGINN — 7.1 misst die Wirkzeit
+        // in Wartezeiten, und dieser Vergleich ergibt nur einen Sinn, wenn
+        // beide zugleich laufen. Die ABKLINGZEIT laeuft dagegen nicht an; sie
+        // steht in `resolve_player_cast`, und daran haengt die zweite Haelfte
+        // von 7.1: "Bei Abbruch geht der Zauber verloren, die Abklingzeit
+        // laeuft aber nicht an."
+        let cast_time = self.hasted(spell.cast_time_ms);
+        if cast_time > 0 {
+            self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
+            self.player_casting = Some(index);
+            self.player_cast_ends_at = snap_up(now + cast_time);
+            if spell.triggers_gcd {
+                self.gcd_ready_at = snap_up(now + GCD_MS);
+                self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+            }
+            self.queue.push(
+                self.player_cast_ends_at,
+                EventKind::PlayerCastLands {
+                    spell: index as u8,
+                    generation: self.player_cast_generation,
+                },
+            );
+            return;
+        }
+
+        self.resolve_player_cast(index, false);
+    }
+
+    /// Die Wirkzeit eines Spieler-Zaubers ist um (Issue #304).
+    ///
+    /// Er wirkt **nur**, wenn er noch laeuft. Wurde er abgebrochen, steht
+    /// `player_casting` auf `None` oder auf einem anderen Vorgang, und dieser
+    /// Aufruf verpufft — dasselbe Vorgehen wie bei veralteten DoT-Ticks und
+    /// beim Boss-Zauber.
+    fn player_cast_lands(&mut self, index: usize, generation: u16) {
+        if self.player_casting != Some(index) || self.player_cast_generation != generation {
+            return;
+        }
+        if self.time < self.player_cast_ends_at {
+            return;
+        }
+        self.player_casting = None;
+        self.player_cast_ends_at = 0;
+        self.resolve_player_cast(index, true);
+    }
+
+    /// Die Wirkung eines Zaubers — der Teil, der bei einer Wirkzeit **am Ende**
+    /// faellt (Issue #304, AC2).
+    ///
+    /// Bis #304 stand das alles im Rumpf von `cast`. Herausgezogen und nicht
+    /// kopiert: Ein Sofort-Zauber und ein Zauber mit Wirkzeit teilen sich diese
+    /// eine Stelle. **Der Kritwurf gehoert hierher und nicht an den Beginn** —
+    /// ein Wurf beim Druecken drehte den Zufallsstrom zu einem anderen
+    /// Zeitpunkt als das Spiel.
+    fn resolve_player_cast(&mut self, index: usize, wirkzeit_lief: bool) {
+        let spell: &Spell = &SPELLS[index];
+        let now = self.time;
+
         self.casts[index] += 1;
 
         // **Erst der Schaden, dann die Wirkung.** Bis zu Issue E3-1b stand der
@@ -2183,6 +2445,9 @@ impl Fight {
         // folgenden Kampf auseinanderlaufen.
         let teilt_schaden_aus = spell.base_damage > 0 || spell.spender.is_some();
         let kritet = teilt_schaden_aus && self.roll_crit();
+        // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
+        // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
+        self.factors.resistance = self.resistance_by_spell[index];
         let factors = self.factors_for(kritet);
 
         if spell.base_damage > 0 {
@@ -2255,7 +2520,10 @@ impl Fight {
         self.cooldown_ready_at[index] = ready_at;
         self.queue.push(ready_at, EventKind::Wakeup);
 
-        if spell.triggers_gcd {
+        // **Nur wenn sie nicht schon laeuft** (Issue #304): Bei einer Wirkzeit
+        // ist die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start
+        // hier verlaengerte sie um die volle Laenge.
+        if spell.triggers_gcd && !wirkzeit_lief {
             self.gcd_ready_at = snap_up(now + GCD_MS);
             self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
         }
@@ -2384,6 +2652,11 @@ impl Fight {
     /// globale Wartezeit abgelaufen.
     #[must_use]
     pub fn is_ready(&self, index: usize) -> bool {
+        // **Hier stand bis zum 2026-08-05 eine Sperre** — "waehrend einer
+        // Wirkzeit ist keiner bereit". Sie ist mit der Regel entfallen: Die
+        // Wirkzeit sperrt nichts, jede Wirkung bricht sie ab (GAME-DESIGN 7.1,
+        // "Was einen laufenden Zauber abbricht"). Dieselbe Stelle wie in
+        // `Combat.isReady`.
         if self.cooldown_ready_at[index] > self.time {
             return false;
         }
@@ -2669,6 +2942,33 @@ impl Fight {
         // Name kommt aus #236 dazu, und er muss WOERTLICH derselbe sein wie
         // auf der Spielseite: Der Gleichlauf-Waechter vergleicht die Namen.
         h = mix_named_float(h, "playerDamage", f64::from(self.player_damage));
+        // Issue #304: die laufende Wirkzeit des SPIELERS. Bis hierher trug die
+        // Pruefsumme nur den Zustand des Bosses; fuer den Spieler gab es
+        // keinen, weil eine Wirkzeit nie lief.
+        //
+        // **Ohne diese zwei Felder waere die Pruefung an ihrer empfindlichsten
+        // Stelle blind:** Ein Zauber, der auf einer Seite eine Wirkzeit hat und
+        // auf der anderen sofort trifft, ergaebe in jedem Takt dazwischen
+        // dieselbe Summe — gleicher Schaden (noch keiner), gleiche Abklingzeit
+        // (noch keine), gleiche Wartezeit. Erst der Treffer liefe auseinander,
+        // und die Pruefsumme zeigte auf den Takt des Treffers statt auf den des
+        // Fehlers.
+        //
+        // **Angehaengt, nicht eingeschoben** — dieselbe Folge und dieselben
+        // Namen wie in `src/core/checksum.ts`.
+        h = mix_named_int(
+            h,
+            "playerCasting",
+            self.player_casting.map_or(-1, |i| i as i32),
+        );
+        // Dieselbe Konvention wie `castLandsAt`: ohne laufende Wirkzeit ein
+        // fester Wert auf beiden Seiten.
+        h = mix_named_int(
+            h,
+            "playerCastEndsAt",
+            self.player_casting
+                .map_or(-1, |_| self.player_cast_ends_at as i32),
+        );
         // Issue #318: Die Synergie-Fenster. Ohne sie liefe ein Simulator, der
         // das Fenster anders lang rechnet oder es nicht verbraucht, still
         // auseinander — der Schaden wiche erst dann ab, wenn der Partner
@@ -2795,4 +3095,23 @@ impl Fight {
     pub fn draws(&self, stream: Stream) -> u32 {
         self.rng.draws(stream)
     }
+}
+
+/// Die Lebenspunkte aus Stufe **und** Ausruestung (Issue #282, AC3).
+///
+/// # Warum eine eigene Funktion und keine Zeile im Aufbau
+///
+/// Beide Seiten muessen dieselbe Rundung treffen. Steht die Rechnung an einer
+/// Stelle, ist sie eine Zeile zum Vergleichen; steht sie zweimal im Aufbau,
+/// muss man sie suchen.
+///
+/// **Ganzzahlig gerundet, nicht in Fliesskomma gehalten:** Lebenspunkte sind
+/// ganze Zahlen, und ein Rest, der erst spaeter abgeschnitten wird, ist ein
+/// Rest, den die andere Seite anders abschneiden koennte.
+#[must_use]
+pub fn vessel_with_gear(base: u32, worn_permille: u32) -> u32 {
+    if worn_permille == 0 {
+        return base;
+    }
+    u32::try_from(u64::from(base) * (1000 + u64::from(worn_permille)) / 1000).unwrap_or(u32::MAX)
 }

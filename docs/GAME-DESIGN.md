@@ -634,6 +634,90 @@ Treffer stören nicht. Bei Abbruch geht der Zauber verloren, **die Abklingzeit l
 
 > Kein Zufallsärger, sondern lernbare Mechanik: Wer den Boss kennt, fängt den Zauber gar nicht erst an.
 
+#### Die Untergrenze von 1,5 s ist ein Grenzfall — gemessen am 2026-08-05
+
+**„Jede Wirkung bricht ab" heißt nicht „jeder Druck".** Ein Druck, den die globale Wartezeit oder
+eine Abklingzeit abweist, ist keine Wirkung und bricht deshalb nichts ab. Gemessen an einem Zauber
+mit 2000 ms Wirkzeit:
+
+```
+Druck  400 ms nach Beginn   die Wartezeit weist ihn ab   bricht NICHTS ab
+Druck 1600 ms nach Beginn   kommt durch                  bricht ab
+```
+
+Daraus folgt eine Grenze, die in der Zahl selbst steckt:
+
+| Wirkzeit                   | Wer kann sie abbrechen                                                      |
+| -------------------------- | --------------------------------------------------------------------------- |
+| über 1,5 s                 | jeder Zauber, im Fenster nach Ablauf der Wartezeit                          |
+| **genau oder unter 1,5 s** | **nur der Unterbrecher** — er ist der einzige Zauber ohne globale Wartezeit |
+
+Bei 2000 ms Wirkzeit bleiben allen anderen Zaubern genau **500 ms** Fenster.
+
+> **Der Grenzfall liegt auf der Untergrenze dieses Kapitels.** 1,5–2,5 s ist der Korridor; bei
+> genau 1,5 s existiert die Abbruch-Entscheidung für alle Zauber außer einem nicht mehr. Das ist
+> keine Fehlfunktion, sondern folgt zwingend aus der Regel — aber es ist die Zahl, an der die
+> Mechanik hängt.
+
+**Für E10 heißt das:** Ein Zauber, dessen Wirkzeit die Verpflichtung („kann ich mir das gerade
+leisten?") tatsächlich erzeugen soll, braucht **deutlich mehr als eine globale Wartezeit**. Wer ihm
+1,5 s gibt, gibt ihm einen Balken ohne Entscheidung dahinter.
+
+##### Und CATALYSIS schließt das Fenster mit der Zeit ganz
+
+Hier greifen zwei Regeln dieses Dokuments ineinander, die einzeln beide richtig sind:
+
+|         |                                                                                                                   |
+| ------- | ----------------------------------------------------------------------------------------------------------------- |
+| **6.6** | Die **Wirkzeit** skaliert mit Tempo                                                                               |
+| **6.2** | Die **globale Wartezeit** skaliert **nicht** mit Ausrüstungs-Tempo — sie sinkt ausschließlich über den Talentbaum |
+
+Das Fenster ist die Differenz der beiden. Wenn nur eine Seite schrumpft, schließt es sich.
+Gerechnet für einen Zauber mit 2000 ms Wirkzeit:
+
+```
+CATALYSIS   Wirkzeit   Fenster ohne Talent   mit GCD-Talent (1000 ms)
+   0 %        2000            500 ms                1000 ms
+  10 %        1820            320 ms                 820 ms
+  20 %        1670            170 ms                 670 ms
+  33 %        1510             10 ms                 510 ms
+  40 %        1430              0                    430 ms
+  50 %        1340              0                    340 ms      ← Deckel
+```
+
+**Ab 33,4 % CATALYSIS ist ein 2000-ms-Zauber von keinem anderen Zauber mehr abbrechbar** — nur noch
+vom Unterbrecher, der als einziger keine Wartezeit auslöst. Der Wert liegt weit unter dem Deckel von
+50 %, ist also im Endgame der Normalfall und nicht der Ausnahmefall.
+
+> **Das ist kein Fehler, sondern eine Folge, die niemand entschieden hat.** Sie entsteht aus zwei
+> Regeln, die getrennt voneinander festgelegt wurden — und sie kehrt sich mit dem GCD-Talent wieder
+> um, weil eine kürzere Wartezeit das Fenster öffnet statt es zu schließen. Ein Spieler, der Tempo
+> stapelt, verliert also eine Entscheidungsmöglichkeit; einer, der den GCD senkt, gewinnt sie zurück.
+
+**Der Korridor dieses Kapitels kann das nicht auffangen.** Gerechnet bei 50 % CATALYSIS:
+
+```
+Basis-Wirkzeit   bei 50 % Tempo   Fenster
+    2,25 s           1500 ms         0 ms
+    2,30 s           1540 ms        40 ms      vier Logik-Takte
+    2,50 s           1670 ms       170 ms      obere Grenze des Korridors
+```
+
+Selbst am **oberen** Ende von 1,5–2,5 s bleiben 170 ms — ein Neuntel dessen, was ohne Tempo zur
+Verfügung steht. Ein längerer Zauber ist also kein Ausweg, sondern nur eine Verzögerung des
+Problems.
+
+**Damit stehen zwei Wege offen, und keiner ist entschieden:**
+
+| Weg                                   | Was er kostet                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Das GCD-Talent trägt die Mechanik** | Wer Wirkzeit-Zauber spielen will, muss in den GCD investieren. Das ist eine echte Kopplung zwischen Talentbaum und Zauberwahl — reizvoll, aber sie schränkt die freie Zusammenstellung ein |
+| **Die Folge annehmen**                | Tempo-Ausrichtungen verlieren die Abbruch-Entscheidung. Wirkzeit-Zauber werden für sie zu reinen „langsamen Zaubern" ohne die Verpflichtung, die 7.1 beschreibt                            |
+
+**Gehört dem Auftraggeber, bevor E10 Wirkzeiten vergibt.** Bis dahin ist der Prüf-Zauber aus #304
+(2000 ms) die einzige Wirkzeit im Spiel, und für ihn spielt es keine Rolle — er ist für keinen
+Spieler erreichbar.
+
 ### 7.2 DoT-Regel: Erneuern setzt zurück
 
 Ein DoT läuft z. B. 5 Sekunden. Wird er innerhalb dieser Zeit erneut gewirkt, läuft er wieder volle
@@ -964,6 +1048,45 @@ Weg, nur unterschiedlich elegante.
 > **„Es muss möglich sein, nicht nötig."** Wer bei seiner Lieblingsschule bleibt, kommt durch —
 > nur langsamer.
 
+#### Der Widerstand hängt am ZAUBER, nicht am Kampf — präzisiert am 2026-08-05
+
+**Bis heute war die Frage nicht gestellt, weil es nur eine Schule gab.** Seit die Zauber ihre eigene
+Schule tragen (#270) und die Leiste frei aus allen fünf befüllt wird, sind es zwei verschiedene
+Dinge — und die Umsetzung hatte die falsche gewählt:
+
+```
+src/core/combat.ts:621   boss.resistances[options.school.school]   die Schule des KAMPFES
+```
+
+**Gemessen, was das bedeutet** (Worker-3, Balance-Läufer über 150 Listen je Boss):
+
+```
+test-resistant   Widerstand 0,75   gefunden 23340,0   pyre / smoulder / kindle
+test-vulnerable  Widerstand 1,25   gefunden 38900,0   pyre / smoulder / kindle
+
+23340 / 0,75 = 31120        38900 / 1,25 = 31120       DIESELBE Liste
+```
+
+Zwei Bösse, die sich um Faktor 1,67 unterscheiden, und beide Male dieselbe Rotation. **Ein Faktor
+auf allen Spielerschaden kann keine Reihenfolge ändern** — er skaliert das Ergebnis und lässt die
+Wahl unberührt. Das gilt für jede Zahl, die man einsetzt.
+
+**Es gilt die Schule des gewirkten Zaubers.** Das ist die einzige Lesart, unter der die Sätze dieses
+Kapitels etwas bedeuten:
+
+| Stelle                | Was sie voraussetzt                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 11.4, Zeile „Wirkung" | „Wer **trotz Widerstand** CALCINATION spielt, macht weniger Schaden" — setzt voraus, dass jemand mit einer anderen Schule **nicht** weniger macht    |
+| Leitplanke 2          | „Jeder Zauber muss irgendwo die beste Wahl sein" — ein Faktor, der alle gleich trifft, trägt dazu nichts bei                                         |
+| 4.2, freie Mischung   | Die Leiste wird aus allen Schulen befüllt. Ein Widerstand, der die Zusammenstellung nicht berührt, ist keine Vorbereitung, sondern eine Zahl am Ende |
+
+**Schulunabhängige Zauber (`school: null`) trifft kein Widerstand.** QUENCH steht außerhalb der
+Schulen; das ist dieselbe Sonderstellung, die ihm auch die globale Wartezeit erlässt.
+
+> **Was das dem Spieler gibt:** Gegen einen kalzinationsfesten Boss lohnen sich PUTREFACTION und
+> COAGULATION — nicht weil das Spiel es verlangt, sondern weil es sich rechnet. Genau der
+> „freiwillige Zwang", den der Auftraggeber als Grund für die Widerstände genannt hat.
+
 ### 11.5 Ankündigungen — eingebaut statt per Zusatzprogramm
 
 In WoW nutzt praktisch jeder Raid-Spieler DBM oder BigWigs. **Bei ROTA gehört das ins Spiel selbst.**
@@ -1279,6 +1402,48 @@ sich ein Wertebudget, das auf die Werte-Plätze verteilt wird. **Kein Gegenstand
 balanciert** — ein neuer Gegenstand ist ein Eintrag mit Stufe, Qualität und Werte-Arten.
 
 **Keine Werte-Streuung.** Kein „perfektes Exemplar"-Glücksspiel.
+
+#### Woher die drei Grundwerte ihre Höhe bekommen
+
+> **AUSGELEGT vom Orchestrator am 2026-08-05, nicht vom Auftraggeber entschieden.** Der Merksatz aus
+> 13.2 gilt auch hier: Eine Festlegung, die niemand angeordnet hat, sieht im Dokument genauso aus wie
+> eine, die entschieden wurde. Deshalb steht dieser Kasten davor.
+
+Die Frage kam bei #282 auf, wo gemessen wurde, dass ESSENCE, VESSEL und WARD im Kampf gar nicht
+ankommen: `BASE_STAT_IDS` steht auf beiden Seiten und **wird nirgends gelesen**. Kein vergessener
+Anschluss, sondern ein nie gebauter — und beim Bauen stellte sich heraus, dass die Höhe nirgends
+festgelegt ist.
+
+**Was das Dokument bereits hergibt:**
+
+| Frage                                  | Antwort                                           | Fundstelle  |
+| -------------------------------------- | ------------------------------------------------- | ----------- |
+| Hängt die Höhe am **Platz**?           | **Nein**, ausdrücklich — die Plätze sind Behälter | 13.2        |
+| Hängt sie an der **Gegenstandsstufe**? | Ja                                                | 13.2, 13.3  |
+| Steuert die **Qualität** sie mit?      | **Nein — sie steuert die Zahl der Affixe**        | siehe unten |
+
+**Die dritte Zeile ist die Auslegung.** 13.2 sagt „hängt an Seltenheit und Gegenstandsstufe", 13.3
+sagt „die Grundwerte kommen zusätzlich, so wie ein Diablo-Gegenstand immer Rüstung trägt". Beides
+zusammen ist nicht eindeutig. Gelesen wird es so:
+
+- **13.2 spricht über die Affix-Arten** — welche Werte ein Stück trägt. Die drei Grundwerte sind
+  ohnehin immer dieselben, dort gibt es nichts zu wählen.
+- **In Diablo skaliert die Rüstung mit der Gegenstandsstufe**; die Qualität gibt Affixe, nicht mehr
+  Rüstung. Genau dieser Vergleich steht in 13.3.
+
+**Die Kurve wird nicht neu erfunden.** Sie steht bereits in den Stufendaten und lässt VESSEL des
+Spielers wachsen (`LEVELS.factorPerMille`, `statAtLevel`). Für Gegenstände gilt dieselbe Kurve mit
+der **Gegenstandsstufe** als Eingang statt der Spielerstufe — der Unterschied ist wesentlich:
+
+> Die Gegenstandsstufe kommt vom **Inhalt**, nicht vom Spieler (13.2: „Die Schwierigkeit gehört zur
+> Instanz, nicht zur Spielerstufe"). Hinge sie an der Spielerstufe, bekäme ein Spieler auf
+> Höchststufe in einer frühen Instanz plötzlich brauchbare Funde — genau die Entwertung, die der
+> abnehmende Ertrag verhindern soll.
+
+**Was ausdrücklich NICHT ausgelegt ist: die Basiswerte selbst.** Wie viel ESSENCE ein Gegenstand auf
+Stufe 1 trägt, ist eine reine Balance-Zahl. Sie gehört gemessen, nicht gesetzt — der Balance-Läufer
+weist Skalierungsfaktoren je Wert aus. Bis dahin steht sie als benannte, ausdrücklich unkalibrierte
+Konstante an einer Stelle; siehe `docs/ENTSCHEIDUNGEN-OFFEN.md`.
 
 ### 13.4 Fallraten
 

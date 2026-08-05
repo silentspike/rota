@@ -148,6 +148,22 @@ pub struct ReplayResult {
     pub interrupts_landed: u32,
     /// Wie oft einer durchgekommen ist.
     pub interrupts_missed: u32,
+    /// Wie oft ein Boss-Angriff eine Wirkzeit des SPIELERS abgebrochen hat
+    /// (Issue #304).
+    pub casts_interrupted: u32,
+    /// Schaden je Zauber (Issue #328).
+    ///
+    /// **Die Pruefsumme traegt die SUMME, nicht die Zuordnung.** Seit der
+    /// Widerstand am Zauber haengt, koennen zwei Umsetzungen, die ihn
+    /// verschieden verteilen, auf dieselbe Summe kommen — diese Aufteilung
+    /// sagt, welcher Zauber gemeint war.
+    pub damage_by_spell: [u32; crate::data::SPELL_COUNT],
+    /// Wie oft ein eigener Druck eine laufende Wirkzeit abgebrochen hat.
+    ///
+    /// **Getrennt vom Zaehler darueber**, obwohl beide dasselbe Feld raeumen:
+    /// Fuer den Spieler sind "der Boss hat es genommen" und "ich habe es
+    /// weggeworfen" zwei verschiedene Dinge.
+    pub casts_cancelled: u32,
 }
 
 /// Wo zwei Prueffsummen-Folgen zum ersten Mal auseinanderlaufen.

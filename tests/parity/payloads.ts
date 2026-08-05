@@ -69,6 +69,10 @@ import {
   STAT_COUNT,
   STAT_NAMES,
   affixPermille,
+  basePermille,
+  ESSENCE_AT_LEVEL_1,
+  VESSEL_AT_LEVEL_1,
+  WARD_AT_LEVEL_1,
   isPermanent,
   maxOf,
   mixedBuild,
@@ -976,6 +980,235 @@ export function runawayProgressPayload(): Record<string, unknown> {
     checksums: result.checksums,
     ringDamage: ring,
     playerDamage: vomSpieler,
+  };
+}
+
+export const RESISTANCE_NAME = 'resistances';
+
+/**
+ * Ein Kampf gegen einen Boss mit WIDERSTAENDEN, Takt für Takt (Issue #328, AC7).
+ *
+ * **Bis zu diesem Issue hat der Simulator das Feld nicht gelesen.**
+ * `grep -c "resist" sim/build.rs` ergab 0; `factors.resistance` blieb dort auf
+ * 1,0, während das Spiel den Boss-Widerstand seit langem anwendet. Die
+ * Abweichung war unsichtbar, weil alle elf Boss-Dateien `resistances: {}`
+ * trugen und die Suche im Spiel dann ebenfalls 1,0 lieferte — eine Abweichung,
+ * die auf ihre erste Datenzeile gewartet hat.
+ *
+ * **Zwei Läufe, eine Druckfolge.** Dieselbe Aufzeichnung läuft zusätzlich gegen
+ * einen Boss OHNE Widerstände. Beide Zahlen stehen in der Datei, und der
+ * Rust-Prüffall verlangt, dass sie sich unterscheiden: Ohne diesen Vergleich
+ * wäre die Bitgleichheit auch dann grün, wenn der Widerstand auf BEIDEN Seiten
+ * nicht ankommt. Genau das war der Zustand vor diesem Issue.
+ */
+export function resistancePayload(): Record<string, unknown> {
+  const recording = recordings().get(RESISTANCE_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RESISTANCE_NAME}`);
+  const boss = bossById('test-resistant');
+  if (boss === undefined) throw new Error('Der Boss test-resistant fehlt.');
+  const ohne = bossById('test-metronome');
+  if (ohne === undefined) throw new Error('Der Boss test-metronome fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  // Derselbe Druckverlauf gegen den Boss ohne Widerstand — nur für den
+  // Vergleich, nicht für die Prüfsummen.
+  const neutral = replayRecording(recording, { boss: ohne });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      // Die Zahl steht in der Datei, damit der Rust-Prüffall sie nicht
+      // abschreiben muss: Beide Seiten lesen dieselbe Quelle.
+      resistances: boss.resistances,
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      // Derselbe Lauf ohne Widerstand. Der Unterschied IST die Aussage.
+      damageWithoutResistance: neutral.damage,
+    },
+    checksums: result.checksums,
+  };
+}
+
+export const RESISTANCE_MIXED_NAME = 'resistances-mixed';
+
+/**
+ * Ein Kampf mit Zaubern aus DREI Schulen gegen einen Boss, der eine davon
+ * abhält (Issue #328, AC7).
+ *
+ * **Der sechste Paritäts-Fall, und er misst als einziger die Zuordnung.** Seit
+ * der Widerstand am ZAUBER hängt und nicht am Kampf, belegt eine Aufzeichnung
+ * mit lauter Kalzinations-Zaubern nur den Fall, in dem alle dieselbe Schule
+ * haben — also genau den, in dem die Umstellung nichts ändert.
+ *
+ * Hier machen die Zauber verschieden viel Schaden, und beide Seiten müssen
+ * dieselbe **Zuordnung** treffen. Eine Umsetzung, die den Widerstand auf alles
+ * anwendet, käme auf eine andere Summe; eine, die ihn auf nichts anwendet,
+ * ebenfalls. Nur die richtige trifft die Zahl in dieser Datei.
+ *
+ * Die Schadens-Aufteilung je Zauber steht mit in der Datei: Weichen die Seiten
+ * ab, sagt sie **welcher** Zauber falsch gerechnet wurde, statt nur dass die
+ * Summe nicht stimmt.
+ */
+export function resistanceMixedPayload(): Record<string, unknown> {
+  const recording = recordings().get(RESISTANCE_MIXED_NAME);
+  if (recording === undefined) {
+    throw new Error(`Unbekannte Aufzeichnung: ${RESISTANCE_MIXED_NAME}`);
+  }
+  const boss = bossById('test-resistant');
+  if (boss === undefined) throw new Error('Der Boss test-resistant fehlt.');
+  const bindings = [
+    { slot: 0, spellId: 'bind' },
+    { slot: 1, spellId: 'canker' },
+    { slot: 2, spellId: 'kindle' },
+    // Der einzige Zauber mit einem Effekt über Zeit. Er trägt den Fall, in dem
+    // ein Brand unter Widerstand tickt, WÄHREND ein Zauber einer anderen
+    // Schule dazwischen gewirkt wird.
+    { slot: 3, spellId: 'smoulder' },
+  ];
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für den Schaden je Zauber. Er läuft mit denselben
+  // Eingaben und liefert deshalb denselben Kampf.
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of bindings) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+  }
+  const jeZauber: Record<string, number> = {};
+  for (const binding of bindings) {
+    jeZauber[binding.spellId] = combat.damageOf(combat.indexOf(binding.spellId));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: { resistances: boss.resistances },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    damageBySpell: jeZauber,
+    checksums: result.checksums,
+  };
+}
+
+export const CAST_TIME_NAME = 'cast-time';
+
+/**
+ * Die WIRKZEIT des Spielers, Takt für Takt (Issue #304, AC5).
+ *
+ * **Bis zu diesem Issue hat keine Vergleichsdatei eine Spieler-Wirkzeit
+ * gefahren** — es gab keine: Alle fünfzehn Zauber standen auf `castTimeMs: 0`,
+ * und `Combat.cast` fragte das Feld an keiner Stelle. Der ganze Zweig war
+ * damit unbelegt, und ein Auseinanderlaufen wäre unsichtbar geblieben, weil
+ * kein Fall es zeigen konnte. Dieselbe Lage wie bei `runaway` vor #256.
+ *
+ * **Die Belegung ist eine eigene** und nicht die aus Schritt 1: Der Prüf-Zauber
+ * steht in keiner Leiste des Spiels. Sie steht in der Datei, und der
+ * Rust-Prüffall liest sie von dort — beide Seiten haben damit dieselbe Quelle
+ * statt zweier Abschriften.
+ *
+ * Zwei Spuren neben den Prüfsummen. Beide gehen ohnehin in die Prüfsumme ein,
+ * aber eine abweichende Prüfsumme sagt nur, **dass** etwas anders ist; die
+ * Spuren sagen **was**: welcher Zauber gerade gewirkt wird und wann er fällig
+ * ist. Wer sie liest, sieht den Abbruch bei 9000 ms als Sprung auf -1.
+ */
+export function castTimePayload(): Record<string, unknown> {
+  const recording = recordings().get(CAST_TIME_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CAST_TIME_NAME}`);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('Der Boss test-caster fehlt.');
+  const bindings = [
+    { slot: 0, spellId: 'kindle' },
+    { slot: 1, spellId: 'test-cast' },
+  ];
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für die Spuren. Er läuft mit denselben Eingaben und
+  // liefert deshalb denselben Kampf — dieselbe Bauart wie in
+  // `runawayProgressPayload`.
+  const casting: number[] = [];
+  const endsAt: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) {
+      casting.push(combat.playerCasting);
+      endsAt.push(combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1);
+      break;
+    }
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of bindings) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    casting.push(combat.playerCasting);
+    endsAt.push(combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      castsInterrupted: combat.castsInterrupted,
+      // Seit der Umkehrung vom 2026-08-05 gibt es zwei Abbruch-Arten
+      // (GAME-DESIGN 7.1). Beide Zahlen stehen hier, weil eine Prüfsumme sie
+      // nicht führt: Zwei Umsetzungen können bei gleicher Summe verschieden
+      // oft abgebrochen haben, solange sich die Unterschiede aufheben.
+      castsCancelled: combat.castsCancelled,
+      testCastCasts: combat.castCount(combat.indexOf('test-cast')),
+    },
+    checksums: result.checksums,
+    playerCasting: casting,
+    playerCastEndsAt: endsAt,
   };
 }
 
@@ -2166,6 +2399,16 @@ const WORN_FOR_PARITY: WornValues = {
   catalysis: 170,
   purity: 375,
   yieldBonus: 250,
+  // **Nicht null** (Issue #282, AC6). Stünden die drei Grundwerte hier auf
+  // null, liefe der Gleichlauf-Lauf durch die neue Rechnung, ohne sie je zu
+  // benutzen — er belegte dann, dass beide Seiten dasselbe tun, wenn nichts
+  // zu tun ist.
+  //
+  // Drei verschiedene Werte, damit eine vertauschte Zuordnung auffällt: Wären
+  // sie gleich, blieben `essence` und `ward` vertauscht unbemerkt.
+  essence: 220,
+  vessel: 400,
+  ward: 90,
   gearEffects: 130,
 };
 
@@ -2204,6 +2447,9 @@ export function wornPayload(): Record<string, unknown> {
       catalysis: WORN_FOR_PARITY.catalysis,
       purity: WORN_FOR_PARITY.purity,
       yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      essence: WORN_FOR_PARITY.essence,
+      vessel: WORN_FOR_PARITY.vessel,
+      ward: WORN_FOR_PARITY.ward,
       gearEffects: WORN_FOR_PARITY.gearEffects,
     },
     // Topf 4 als Faktor: eins plus die Summe. Fliesskomma, also mit Bitmuster.
@@ -2277,6 +2523,24 @@ export function sourcesPayload(): Record<string, unknown> {
     }
   }
 
+  // Die Grundwerte je Stufe (Issue #282) — dieselben Stützstellen wie oben.
+  //
+  // **Die Basis wandert mit.** Sie ist unkalibriert; stünde nur das Ergebnis
+  // hier, meldete der Gleichlauf-Wächter beim nächsten Kalibrieren einen
+  // Unterschied zwischen den Seiten, wo nur eine Zahl bewegt wurde. Mit der
+  // Basis daneben kann die Rust-Seite dieselbe Rechnung machen statt dieselbe
+  // Zahl zu erwarten.
+  const baseStats = [];
+  for (const [name, basis] of [
+    ['essence', ESSENCE_AT_LEVEL_1],
+    ['vessel', VESSEL_AT_LEVEL_1],
+    ['ward', WARD_AT_LEVEL_1],
+  ] as const) {
+    for (const level of [1, 25, 50, 75, MAX_ITEM_LEVEL]) {
+      baseStats.push({ stat: name, level, base: basis, permille: basePermille(level, basis) });
+    }
+  }
+
   return {
     schema: SCHEMA,
     budgetPerPermille: BUDGET_PER_PERMILLE,
@@ -2285,5 +2549,6 @@ export function sourcesPayload(): Record<string, unknown> {
     permanent: Array.from({ length: SOURCE_COUNT }, (_, s) => isPermanent(s)),
     stats,
     affixes,
+    baseStats,
   };
 }

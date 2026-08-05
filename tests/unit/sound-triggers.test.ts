@@ -98,7 +98,12 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
    *
    * **Ist die Liste leer, fällt sie weg.** Genau das leisten #198 und #204.
    */
-  const STUMM = new Set(['canker', 'fester']);
+  // `test-cast` gehört NICHT zum Spiel (Issue #304): Er ist der Prüf-Zauber
+  // zur Wirkzeit, liegt über der Stufengrenze und ist für den Spieler weder
+  // sichtbar noch belegbar. Ein Klang für einen Zauber, den niemand wirken
+  // kann, wäre eine Datei ohne Fall — und die Liste hier ist genau der Ort,
+  // an dem das schwarz auf weiß steht statt in einer übersprungenen Prüfung.
+  const STUMM = new Set(['canker', 'fester', 'test-cast']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();

@@ -15,6 +15,7 @@ import rawCoagulation from '../../data/spells/coagulation.json';
 import rawFixation from '../../data/spells/fixation.json';
 import rawSublimation from '../../data/spells/sublimation.json';
 import rawPutrefaction from '../../data/spells/putrefaction.json';
+import rawTestCast from '../../data/spells/test-cast.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import rawLevels from '../../data/player/levels.json';
@@ -505,6 +506,18 @@ export interface TimelineEntryDef {
   readonly damage: number;
   /** Wirkzeit eines Boss-Zaubers. 0 bei allem, was sofort trifft. */
   readonly castTimeMs: number;
+  /**
+   * Ob dieser Angriff eine laufende Wirkzeit des SPIELERS abbricht
+   * (GAME-DESIGN 7.1, Issue #304).
+   *
+   * > Abbruch eines Zauberbalkens: **nur durch bestimmte, vorher erkennbare
+   * > Boss-Angriffe.** Normale Treffer stören nicht.
+   *
+   * Deshalb ein Feld am Eintrag und keine Regel im Kampfcode: „bestimmte"
+   * heißt, dass der Boss-Datensatz es sagt. Ohne Angabe `false` — ein
+   * bestehender Boss ändert sein Verhalten durch dieses Issue nicht.
+   */
+  readonly interruptsPlayer: boolean;
 }
 
 /**
@@ -1279,6 +1292,9 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
         name: typeof entry['name'] === 'string' ? entry['name'] : 'Unnamed',
         damage: number(entry['damage'], 0),
         castTimeMs,
+        // Ohne Angabe false: Ein Boss, der das Feld nicht kennt, bricht keine
+        // Wirkzeit ab (GAME-DESIGN 7.1, „normale Treffer stören nicht").
+        interruptsPlayer: entry['interruptsPlayer'] === true,
       });
     }
   }
@@ -1361,6 +1377,16 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...mitSchule(
         (rawPutrefaction as Record<string, unknown>)['spells'],
         rawPutrefaction as Record<string, unknown>,
+      ),
+      // **Ganz zuletzt der Prüf-Zauber** (Issue #304). Er gehört nicht zum
+      // Spiel — seine Stufe liegt über der Grenze, und beide Stellen, die dem
+      // Spieler Zauber anbieten, filtern darüber. Er steht trotzdem in dieser
+      // Liste, weil der Simulator dieselbe braucht: Was nicht in `SPELLS`
+      // steht, lässt sich in keiner Aufzeichnung drücken und damit nicht auf
+      // Gleichlauf prüfen.
+      ...mitSchule(
+        (rawTestCast as Record<string, unknown>)['spells'],
+        rawTestCast as Record<string, unknown>,
       ),
     ],
   };

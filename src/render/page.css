@@ -159,6 +159,38 @@ canvas {
   min-width: 18rem;
 }
 
+/* Die Widerstaende des Bosses, vor dem Kampf (Issue #328).
+
+   Dieselbe Karte wie die Werte-Karte darueber und bewusst KEINE eigene
+   Gestalt: Beide sagen "das gilt fuer diesen Lauf, sieh es dir an, bevor du
+   drueckst". Zwei verschiedene Kaesten fuer dieselbe Aussage waeren zwei
+   Dinge, die man einzeln lernen muss. */
+.rota-resistances {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 4px;
+  min-width: 18rem;
+}
+
+.rota-resist-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 55%);
+}
+
+/* Die Zeilen selbst tragen den Inhalt und deshalb die ruhige, helle Farbe.
+   KEINE Ampelfarben fuer "haelt ab" gegen "ist schwach": Die spielkritische
+   Aussage darf nicht allein an der Farbe haengen (GAME-DESIGN 21.2), und sie
+   steht ohnehin als Wort in der Zeile. */
+.rota-resist-line {
+  margin: 0.15rem 0;
+  font-size: 0.95rem;
+  color: #cfd6dd;
+}
+
 .rota-gear-title {
   margin: 0 0 0.5rem;
   font-size: 0.85rem;

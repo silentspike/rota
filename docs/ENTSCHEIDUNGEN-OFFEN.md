@@ -1,16 +1,20 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-05, 15:10: Vier der fünf Entscheidungen sind getroffen.** Sie stehen unten mit dem
-Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt. Offen ist
-nur noch eine — und sie hat sich dabei von einer Design- in eine Balance-Frage verwandelt.
+**Stand 2026-08-05, 17:05: Vier der ursprünglichen fünf Entscheidungen sind getroffen.** Sie stehen
+unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt.
+**Vier Punkte sind seither dazugekommen** — alle vier aus der Arbeit selbst, nicht aus dem Interview.
 
-|                             | Ergebnis                                                                 |
-| --------------------------- | ------------------------------------------------------------------------ |
-| **1** Doppelbelegung        | **verboten** — ein Zauber liegt auf höchstens einem Platz                |
-| **2** Punktekurve           | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden |
-| **3** `DECAY_STACK_PERCENT` | **auf 6 % anheben**                                                      |
-| **4** Stumme Zauber         | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**         |
-| **5** PUTREFACTION-Farbe    | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen        |
+|                                     | Ergebnis                                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                                   |
+| **2** Punktekurve                   | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden                                    |
+| **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                         |
+| **4** Stumme Zauber                 | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**                                            |
+| **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                           |
+| **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
+| **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
+| **8** Widerstand gegen Schul-Stärke | **OFFEN** — der Korridor 20–30 % kann die Rotation nicht drehen, solange die Schulen 67 % auseinanderliegen |
+| **9** WARD ohne Balance-Deckel      | **OFFEN** — eine hinreichend gute Ausrüstung kann den Spieler unverwundbar machen                           |
 
 ---
 
@@ -139,3 +143,191 @@ noch immer neue mit ki generieren."
   Messlatte für jeden weiteren Kalzinations-Zauber (#268).
 - **Alles aus GAME-DESIGN 21** — dort steht, was bereits verworfen wurde. Nichts davon wird ohne
   ausdrückliche Rücksprache wieder aufgemacht.
+
+---
+
+## 6. Wirkzeit gegen Tempo — OFFEN, und niemand hat es entschieden
+
+**Blockiert:** nichts heute · **hält auf:** E10, sobald Zauber Wirkzeiten bekommen (#268)
+
+Gemeldet von Worker-3 beim Bau von #304, vom Orchestrator nachgerechnet. Zwei Regeln des
+GAME-DESIGN, einzeln beide richtig:
+
+|         |                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------- |
+| **6.6** | die **Wirkzeit** skaliert mit Tempo                                                          |
+| **6.2** | die **globale Wartezeit** skaliert **nicht** mit Ausrüstungs-Tempo — nur über den Talentbaum |
+
+Ein laufender Zauber wird von jeder anderen Wirkung abgebrochen. Aber ein Druck, den die Wartezeit
+abweist, ist keine Wirkung — das Fenster für den Abbruch ist also die **Differenz** der beiden
+Zeiten. Schrumpft nur eine Seite, schließt es sich:
+
+```
+CATALYSIS   Wirkzeit (2000 ms Basis)   Fenster   mit GCD-Talent (1000 ms)
+   0 %              2000                500 ms         1000 ms
+  20 %              1670                170 ms          670 ms
+  33 %              1510                 10 ms          510 ms
+  40 %              1430                  0             430 ms
+  50 %              1340                  0             340 ms   ← Deckel
+```
+
+**Ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber von keinem anderen Zauber mehr abbrechbar** — nur
+noch vom Unterbrecher, der als einziger keine Wartezeit auslöst. Das liegt weit unter dem Deckel
+von 50 %, ist im Endgame also der Normalfall.
+
+**Ein längerer Zauber löst es nicht:** Selbst am oberen Ende des Korridors (2,5 s) bleiben bei
+vollem Tempo 170 ms.
+
+### Die Wahl
+
+|                                       | Was es bedeutet                                                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Das GCD-Talent trägt die Mechanik** | Wer Wirkzeit-Zauber spielen will, muss in den GCD investieren. Eine echte Kopplung zwischen Talentbaum und Zauberwahl — reizvoll, aber sie schränkt die freie Zusammenstellung ein |
+| **Die Folge annehmen**                | Tempo-Ausrichtungen verlieren die Abbruch-Entscheidung. Wirkzeit-Zauber werden für sie zu reinen „langsamen Zaubern" ohne die Verpflichtung aus 7.1                                |
+
+**Heute folgenlos:** Der Prüf-Zauber aus #304 ist die einzige Wirkzeit im Spiel und für keinen
+Spieler erreichbar. Die Frage wird scharf, sobald E10 Wirkzeiten vergibt.
+
+## 7. Wie viel trägt ein Fund? — OFFEN, aber als Messung, nicht als Entscheidung
+
+**Blockiert:** #282 teilweise · **hält auf:** E6 insgesamt
+
+Bei #282 gemessen: `BASE_STAT_IDS` steht auf beiden Seiten und **wird nirgends gelesen**.
+
+```
+WornValues (Rust und TS)   catalysis · purity · yield_bonus · gear_effects
+                           KEIN essence, vessel, ward
+data/gear/                 existiert nicht — es gibt keine Gegenstands-Daten
+```
+
+Ein Gegenstand kann ESSENCE tragen; im Kampf kommt davon nichts an. **Jeder Fund verbessert also
+spürbar nichts** — und das Gegenteil ist im Design der Grund, warum Grinden befriedigend sein soll.
+
+### Was bereits entschieden ist und nicht neu aufgemacht wird
+
+- **Nicht am Platz** — die Plätze sind Behälter (GAME-DESIGN 13.2, dort 2026-07-29 gestrichen)
+- **An der Gegenstandsstufe**, mit der Kurve, die es schon gibt (`LEVELS.factorPerMille`)
+- **Die Qualität steuert die Affix-Zahl**, nicht die Grundwerte — das ist eine **Auslegung** des
+  Orchestrators und im GAME-DESIGN als solche gekennzeichnet
+
+### Was offen ist
+
+**Die Basis: wie viel ESSENCE ein Gegenstand auf Stufe 1 trägt.** Eine reine Balance-Zahl.
+
+Sie geht denselben Weg wie Punkt 2: **nicht an den Auftraggeber zum Raten, sondern an den
+Balance-Läufer zum Messen.** Er weist Skalierungsfaktoren je Wert aus — die Frage lautet, bei
+welcher Basis ein Ausrüstungsstück spürbar etwas beiträgt, ohne die Sonderwerte zu erdrücken.
+
+Bis dahin steht die Zahl als benannte, ausdrücklich unkalibrierte Konstante an einer Stelle, und
+der Prüffall misst das **Verhältnis** (doppelte Stufe, doppelter Wert) statt des Betrags — sonst
+meldete er rot, sobald jemand kalibriert, und arbeitete gegen die Balance-Arbeit statt für sie.
+
+## 8. Der Widerstands-Korridor gegen die Schul-Stärke — OFFEN
+
+**Blockiert:** nichts unmittelbar · **hält auf:** die Absicht hinter den Widerständen (#328, #268)
+
+Gemessen von Worker-3 am 2026-08-05, nachdem die Widerstände auf beiden Seiten gebaut waren und
+am Zauber hingen. Sieben Faktoren in einem Lauf:
+
+```
+Widerstand   Schaden   beste Rotation
+1,00          31120    pyre / smoulder / kindle
+0,75          23340    pyre / smoulder / kindle     ← Korridor endet hier
+0,60          18668    pyre / smoulder / kindle
+0,50          13480    smoulder / bind              ← ANDERS
+0,20          12000    bind
+```
+
+**Die Mechanik wirkt. Der Korridor nicht.** Die Wahl kippt bei 0,50; das Design nennt 0,70–0,80.
+
+### Warum
+
+```
+CALCINATION    kindle 100 · smoulder 40/Tick · pyre 12/Hitzepunkt
+FIXATION       bind 60
+PUTREFACTION   fester 60 · canker 45
+```
+
+Zwischen den schadensfähigen Schulen liegen **67 %**. Auch um ein Viertel gemindert steht KINDLE
+vor BIND. Ein Widerstand von 25 % kann diesen Abstand nicht drehen — er müsste bei 40 % liegen.
+
+> **Die zehn Zauber ohne Schaden sind kein Balance-Fehler.** Koagulation ist Überleben, Sublimation
+> ist Cooldown-Manipulation. Sie kommen in einer Rotationssuche nicht vor, weil der Prüf-Boss ein
+> reiner Lebensbalken ist — gegen einen Boss, der nichts tut, ist ein Schutzschild wertlos. Das ist
+> ein Grund mehr für Bösse, die etwas verlangen, kein Grund, die Zauber zu ändern.
+
+### Die zwei Sätze, die zusammen nicht aufgehen
+
+|                      |                                                                                                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GAME-DESIGN 1048** | „Es muss möglich sein, nicht nötig." Wer bei seiner Lieblingsschule bleibt, kommt durch — nur langsamer. **Der Widerstand soll die Wahl nicht erzwingen** |
+| **Leitplanke 2**     | „Jeder Zauber muss irgendwo die beste Wahl sein." **Der Widerstand soll die Wahl beeinflussen**                                                           |
+
+Beide gelten, und beide sind richtig gemeint. Sie gehen nur zusammen, wenn die schadensfähigen
+Schulen **ähnlich stark** sind: Liegen sie eng beieinander, verschiebt ein Widerstand von 25 % die
+Rangfolge — liegen sie weit auseinander, verschiebt er gar nichts.
+
+### Die Wahl
+
+|                                      | Was es bedeutet                                                                                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Die Schulen enger zusammenrücken** | Ein Zauber der einen Schule ist etwa so stark wie der entsprechende der anderen. Dann greift der Korridor — aber die Schulen unterscheiden sich nur noch in der **Mechanik**, nicht mehr in der Stärke. Das ist vermutlich ohnehin gewollt |
+| **Den Korridor öffnen**              | 40–50 % statt 20–30 %. Dann dreht der Widerstand die Wahl auch bei ungleichen Schulen — aber „wer nicht umbaut, kommt durch, nur langsamer" wird zu „deutlich langsamer"                                                                   |
+| **Beides so lassen**                 | Der Widerstand bleibt eine Zahl am Ende, keine Entscheidung davor. Dann fehlt der Mechanismus, der die Zauber-Vielfalt tragen soll — und Leitplanke 2 braucht einen anderen                                                                |
+
+**Der Orchestrator neigt zur ersten Variante**, weil sie dem entspricht, was das Design ohnehin
+über die Schulen sagt: Sie sind **mechanische Rollen**, nicht Stärkestufen. Wenn CALCINATION
+grundsätzlich mehr Schaden macht als PUTREFACTION, ist die Schulwahl schon vor jedem Widerstand
+entschieden.
+
+**Das ist ein Verdacht, keine Entscheidung.** Die Frage wird scharf, sobald E10 die restlichen 45
+Zauber entwirft — dann werden die Werte gesetzt, und bis dahin sollte klar sein, gegen welche
+Messlatte.
+
+## 9. WARD hat keinen Balance-Deckel — OFFEN
+
+**Blockiert:** nichts heute · **hält auf:** E6, sobald Ausrüstung erspielt wird
+
+Gefunden von Worker-1 bei #282, als er WARD an den Kampf anschloss — und ausdrücklich **nicht**
+entschieden, sondern gemeldet. Das war richtig.
+
+### Was gebaut ist
+
+WARD mindert **additiv** zur Stufen-Basis; beides ist Minderung, also derselbe Topf (13.1b).
+
+> Multiplikativ wäre nicht nur eine andere Zahl, sondern eine andere **Aussage**: Zwei Minderungen
+> von je 50 % ergäben dann 75 % statt 100 %. Die Gegenprobe (auf multiplikativ umgestellt) färbt
+> genau diesen Fall rot — ein reiner Größenvergleich hätte es nicht gezeigt, weil beide Fassungen
+> „kleiner als ohne" sind.
+
+### Was fehlt
+
+Der einzige Deckel liegt bei **1,0**, und das ist eine **Rechenregel**, keine Balance-Grenze:
+Darüber würde der Spieler von jedem Treffer geheilt.
+
+**Ein Balance-Deckel darunter — etwa 80 % — steht nirgends im Design.** Solange er fehlt, kann eine
+hinreichend gute Ausrüstung den Spieler **unverwundbar** machen.
+
+### Die Ironie steht bereits im Quelltext
+
+`combat.ts:792` begründet, warum die WARD-**Basis** nicht mit der Stufe skaliert:
+
+> Ein Prozentsatz, der mitwächst, erreicht irgendwann 100 % und macht den Spieler unverwundbar.
+
+**Genau diese Sorge trifft jetzt die Ausrüstung — und dort ist sie nicht abgefangen.** Die
+Gefahr wurde einmal erkannt, an einer Stelle gelöst, und die zweite Stelle ist später dazugekommen.
+
+### Was zu entscheiden ist
+
+|                                 | Was es bedeutet                                                                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ein harter Deckel**           | Wie bei CATALYSIS (50 %) und PURITY (100 %) — sichtbar in der Werte-Übersicht, mit Warnhinweis. Passt zu 13.6: „Die Deckel sind sichtbar" |
+| **Abnehmende Erträge bei WARD** | Widerspricht 13.6 ausdrücklich („Keine abnehmenden Erträge. Jeder Prozentpunkt zählt gleich, bis zum Deckel")                             |
+| **Kein Deckel**                 | Unverwundbarkeit ist erreichbar. Das ist eine Entscheidung, keine Lücke — aber es muss eine sein                                          |
+
+**Der Orchestrator neigt zum harten Deckel**, weil das Design für die anderen zwei gedeckelten
+Werte bereits genau dieses Muster festlegt und die Sichtbarkeit mitbeschreibt. Die **Höhe** ist
+dann wieder eine Balance-Zahl und gehört gemessen — wie Punkt 7.
+
+**Heute folgenlos:** Es gibt keine erspielbare Ausrüstung. Die Frage wird scharf, sobald E6 die
+Fundstücke baut.

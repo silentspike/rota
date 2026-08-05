@@ -152,6 +152,12 @@ pub struct Spell {
     pub id: &'static str,
     /// Anzeigename im Spiel.
     pub name: &'static str,
+    /// Die Schule, aus deren Datei der Zauber stammt (Issue #328).
+    ///
+    /// `None` fuer die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4).
+    /// **Daran haengt der Boss-Widerstand**: Wer keiner Schule angehoert, den
+    /// kann keine Schule abhalten.
+    pub school: Option<&'static str>,
     /// Ab welcher Spielerstufe der Zauber verfuegbar ist.
     pub unlock_level: u16,
     /// Sofortschaden beim Wirken.
@@ -278,6 +284,34 @@ pub struct TimelineEntry {
     pub damage: u32,
     /// Wirkzeit eines Boss-Zaubers. 0 bei allem, was sofort trifft.
     pub cast_time_ms: Millis,
+    /// Ob dieser Angriff eine laufende Wirkzeit des SPIELERS abbricht
+    /// (GAME-DESIGN 7.1, Issue #304).
+    ///
+    /// > Abbruch eines Zauberbalkens: **nur durch bestimmte, vorher erkennbare
+    /// > Boss-Angriffe.** Normale Treffer stoeren nicht.
+    ///
+    /// Deshalb ein Feld am Eintrag und keine Regel im Kampf: "bestimmte" heisst,
+    /// dass der Boss-Datensatz es sagt.
+    pub interrupts_player: bool,
+}
+
+impl Boss {
+    /// Der Schadensfaktor dieses Bosses gegen eine Schule.
+    ///
+    /// 1,0, wenn nichts eingetragen ist — dieselbe Vorgabe wie im Spiel
+    /// (`boss.resistances[school] ?? 1`).
+    #[must_use]
+    pub fn resistance_for(&self, school: &str) -> f64 {
+        let mut i = 0;
+        while i < self.resistances.len() {
+            let (name, faktor) = self.resistances[i];
+            if name == school {
+                return faktor;
+            }
+            i += 1;
+        }
+        1.0
+    }
 }
 
 /// Was ein Zeitleisten-Eintrag tut.
@@ -482,7 +516,13 @@ pub struct Affliction {
 }
 
 /// Ein Boss.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// **Kein `Eq`, seit die Widerstaende dazugekommen sind** (Issue #328): Sie
+/// tragen `f64`, und Fliesskomma kennt keine vollstaendige Gleichheit (NaN ist
+/// sich selbst ungleich). `PartialEq` bleibt und genuegt — verglichen werden
+/// Bosse nur in Prueffaellen, und dort auf Gleichheit, nie als Schluessel einer
+/// Menge.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Boss {
     /// Bezeichner aus der Datei.
     pub id: &'static str,
@@ -524,6 +564,17 @@ pub struct Boss {
     /// Der Wert ist der Zeitversatz je Durchlauf, nicht die Zahl der Eintraege:
     /// Eintrag `i` im Zyklus `z` ist faellig bei `z * loop + at_ms`.
     pub timeline_loop_ms: Option<Millis>,
+    /// Widerstaende gegen die Schulen (GAME-DESIGN 11.4, Issue #328).
+    ///
+    /// Paar aus Schul-Kennung und Faktor: unter 1,0 haelt der Boss die Schule
+    /// ab, ueber 1,0 ist er ihr gegenueber schwach. Leer heisst: kein
+    /// Unterschied, und das ist heute der Normalfall.
+    ///
+    /// **Als Liste und nicht als Abbildung** — die Reihenfolge der Datei ist
+    /// Teil des Determinismus (GAME-DESIGN 18.3), und eine Hash-Abbildung ist
+    /// im Schritt ohnehin verboten (18.4). Bei zwei Eintraegen ist die lineare
+    /// Suche billiger als jede Struktur, und sie laeuft genau einmal je Kampf.
+    pub resistances: &'static [(&'static str, f64)],
 }
 
 impl Boss {
@@ -609,9 +660,35 @@ impl PlayerBase {
     /// auseinander.
     #[must_use]
     pub fn incoming(&self, raw: u32) -> u32 {
-        let gemindert = f64::from(raw) * (1.0 - self.ward_reduction);
-        // Nie unter null, und nie mehr als der Rohwert: Ein WARD ueber 1.0
-        // wuerde den Spieler sonst heilen.
+        self.incoming_with_gear(raw, 0)
+    }
+
+    /// Wie [`Self::incoming`], aber mit WARD aus der getragenen Ausruestung
+    /// (Issue #282, AC4).
+    ///
+    /// # Additiv zur Basis, nicht multiplikativ
+    ///
+    /// Beides ist Minderung, also derselbe Topf — und **innerhalb** eines
+    /// Topfes wird addiert (13.1b). Multiplikativ waere es nicht nur eine
+    /// andere Zahl, sondern eine andere Aussage: Zwei Minderungen von je 50 %
+    /// ergaeben dann 75 % statt 100 %.
+    ///
+    /// # Der Deckel ist eine Rechenregel, keine Balance-Zahl
+    ///
+    /// Bei einer Minderung von 1,0 nimmt der Spieler null Schaden; darueber
+    /// wuerde er geheilt. Der Deckel steht deshalb bei 1,0 und nicht bei einem
+    /// gewaehlten Prozentsatz.
+    ///
+    /// **Ob es einen BALANCE-Deckel darunter geben soll — etwa 80 % —, ist
+    /// offen und steht nirgends im Design.** Solange er fehlt, kann eine
+    /// hinreichend gute Ausruestung den Spieler unverwundbar machen. Das ist
+    /// mit dieser Zeile nicht entschieden, sondern nur nicht verhindert.
+    #[must_use]
+    pub fn incoming_with_gear(&self, raw: u32, ward_permille: u32) -> u32 {
+        let zusatz = f64::from(ward_permille) / 1000.0;
+        let minderung = (self.ward_reduction + zusatz).min(1.0);
+        let gemindert = f64::from(raw) * (1.0 - minderung);
+        // Nie unter null, und nie mehr als der Rohwert.
         gemindert.round().max(0.0) as u32
     }
 }
@@ -703,6 +780,11 @@ mod tests {
                     // darueber und zaehlten sonst zu den drei aus Schritt 1.
                     && s.decay_stacks == 0
                     && s.per_decay_stack_percent == 0
+                    // Und seit Issue #304 der Pruef-Zauber zur Wirkzeit. Er
+                    // wird ueber seine WIRKZEIT ausgeschlossen und nicht ueber
+                    // seinen Namen: Die drei aus Schritt 1 sind Sofort-Zauber,
+                    // und das ist eine Eigenschaft, keine Ausnahmeliste.
+                    && s.cast_time_ms == 0
             })
             .count();
         assert_eq!(schritt1, 3, "Schritt 1 hat genau drei Kampfzauber");
