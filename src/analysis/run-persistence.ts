@@ -146,6 +146,55 @@ export class RunPersistence {
   }
 
   /**
+   * Nur die Stufe ablegen — fuer Nachweise (Issue #264).
+   *
+   * Setzt die Erfahrung auf null: Ein Sprung auf Stufe 5 mit der Erfahrung von
+   * Stufe 1 waere ein Zustand, den das Spiel nie erreicht.
+   */
+  persistLevel(level: number): boolean {
+    this.data = {
+      ...this.data,
+      savedAt: this.now(),
+      level: Math.max(Math.trunc(level), 1),
+      experience: 0,
+    };
+    if (this.store === null) return false;
+    try {
+      this.store.save(this.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Nur die Belegung ablegen (Issue #264).
+   *
+   * **Getrennt von `persist`**, weil sie zu einem anderen Zeitpunkt entsteht:
+   * `persist` schreibt nach einem Kampf, die Belegung ändert der Spieler
+   * dazwischen. Beides in einen Aufruf zu legen hieße, dass eine Änderung an
+   * der Leiste erst nach dem nächsten Kampf ankäme — und ein Absturz davor
+   * nähme sie mit.
+   *
+   * Gibt zurück, ob es gelungen ist; der Aufrufer darf das ignorieren.
+   */
+  persistBindings(bindings: Readonly<Record<string, string>>): boolean {
+    this.data = { ...this.data, savedAt: this.now(), bindings };
+    if (this.store === null) {
+      this.lastErrorValue = 'Kein Browser-Speicher verfuegbar.';
+      return false;
+    }
+    try {
+      this.store.save(this.data);
+      this.lastErrorValue = null;
+      return true;
+    } catch (fehler) {
+      this.lastErrorValue = fehler instanceof Error ? fehler.message : String(fehler);
+      return false;
+    }
+  }
+
+  /**
    * Den fortgeschriebenen Stand ablegen.
    *
    * Gibt zurück, ob es gelungen ist. **Der Aufrufer darf das ignorieren** — ein
