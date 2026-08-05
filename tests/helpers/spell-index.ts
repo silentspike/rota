@@ -15,6 +15,12 @@ import { CALCINATION } from '../../src/core/data.js';
  * heute genau eine Schule. Die beiden Fassungen können also nirgends
  * verschiedene Ergebnisse liefern.
  *
+ * Schärfer noch: `CALCINATION` trägt die Zauber aus **allen sieben Dateien**
+ * (`data.ts` setzt coagulation, fixation, putrefaction und die übrigen
+ * zusammen). Die eine Schule ist heute kein Ausschnitt, sondern der ganze
+ * Bestand — es gibt derzeit nichts, wovon ein zweiter Kampf sich
+ * unterscheiden könnte.
+ *
  * **„Allgemeiner" ist damit keine belegbare Aussage, sondern eine über die
  * Zukunft.** Belegbar ist: Der Parameter nimmt die Annahme weg, dass es bei
  * einer Schule bleibt. Er ist keine Verbesserung, die man heute messen kann,
