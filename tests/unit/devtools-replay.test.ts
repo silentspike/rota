@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { combatChecksum, mixFloat, mixInt } from '../../src/core/checksum.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { GameLoop, TICK_MS, type Renderer, type Simulation } from '../../src/core/loop.js';
 import { recordingNames, recordings, replayRecording } from '../../src/devtools/recording.js';
 
@@ -283,5 +283,56 @@ describe('Zeitsteuerung (AC4)', () => {
     h.loop.advanceTicks(7);
     expect(h.sim.ticks).toBe(7);
     expect(h.loop.timeMs).toBe(70);
+  });
+});
+
+/**
+ * Issue #391 — die Optionen von `replay` sind ein **benannter** Typ, und die
+ * Wiedergabe lehnt ab, was sie nicht kennt.
+ *
+ * # Warum hier zwei verschiedene Bosse stehen und nicht ein Feld im Ergebnis
+ *
+ * Ein Prüffall, der nur nachsieht, ob `boss` im Ergebnis auftaucht, wäre grün
+ * und belegte nichts: Er zeigte, dass der Wert **angekommen** ist, nicht dass
+ * er **gewirkt** hat. Genau diese Klasse war der Fehler in Issue #338 — der
+ * Parameter wurde entgegengenommen, und die Zahl kam aus einem anderen Kampf.
+ *
+ * Deshalb wird hier zweimal dieselbe Aufzeichnung gegen **verschiedene** Bosse
+ * abgespielt. Kommen zwei gleiche Prüfsummen heraus, ist der Boss unterwegs
+ * verlorengegangen — egal, wie das Ergebnis beschriftet ist.
+ */
+describe('replay-Optionen (Issue #391)', () => {
+  it('lehnt ein unbekanntes Feld ab und NENNT es', () => {
+    const recording = recordings().get('cooldown-precision') as never;
+    expect(() => replayRecording(recording, { bindigs: [] } as never)).toThrow(/bindigs/);
+  });
+
+  it('nennt in derselben Meldung die gültigen Felder', () => {
+    const recording = recordings().get('cooldown-precision') as never;
+    expect(() => replayRecording(recording, { boos: 1 } as never)).toThrow(
+      /checksumPerTick.*boss/s,
+    );
+  });
+
+  it('lässt jedes der fünf bekannten Felder durch', () => {
+    const recording = recordings().get('cooldown-precision') as never;
+    // Keine Ausnahme — das ist die Gegenprobe zur Strenge: Eine Prüfung, die
+    // ALLES ablehnt, bestünde die beiden Fälle darüber ebenfalls.
+    expect(() =>
+      replayRecording(recording, {
+        checksumPerTick: false,
+        boss: bossById('first-crucible'),
+        worn: undefined,
+        level: 1,
+        bindings: undefined,
+      }),
+    ).not.toThrow();
+  });
+
+  it('spielt gegen zwei verschiedene Bosse zwei verschiedene Läufe', () => {
+    const recording = recordings().get('cooldown-precision') as never;
+    const a = replayRecording(recording, { boss: bossById('first-crucible') });
+    const b = replayRecording(recording, { boss: bossById('test-metronome') });
+    expect(a.finalChecksum).not.toBe(b.finalChecksum);
   });
 });
