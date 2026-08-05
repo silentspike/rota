@@ -83,6 +83,10 @@ function play(
     synergyBonusDamage: 0,
     missedInterrupts: interrupts.missed,
     damagePerLandedBossCast: interrupts.damagePerLandedCast,
+    // Was der Boss an Fortschritt zurückgedreht hat (Issue #218). Aus dem
+    // Kampf, nicht aus der Zusammenfassung: Es ist keine Kennzahl des
+    // Spielers.
+    bossHealed: combat.bossHealed,
   });
 }
 
@@ -227,4 +231,35 @@ line(
 line(
   'Ohne Prozentsatz in der Zeile',
   (zeile?.textContent ?? '').includes('damage taken') && !(zeile?.textContent ?? '').includes('%'),
+);
+
+// --- Die Boss-Heilung: die DRITTE Einheit (Issue #218) ---------------------
+
+line('');
+line('Zurückgedrehter Fortschritt — eigene Zeile, dritte Einheit');
+
+// `test-racer` wirkt einen unterbrechbaren Zauber bei 30 s und dreht bei einem
+// verpassten Unterbrecher 600 Fortschritt zurück. QUENCH liegt nicht auf der
+// Leiste — der Zauber kommt also durch.
+const mitHeilung = play([KINDLE, SMOULDER], 3000, bossById('test-racer') as BossDef);
+
+line(
+  `Gemessen: ${mitHeilung.losses.bossHeal?.detail ?? 'keine'}`,
+  (mitHeilung.losses.bossHeal?.amount ?? 0) > 0,
+);
+// **Drei Einheiten, drei Zeilen.** Die vier Quellen messen nicht ausgeteilten
+// Schaden, die Unterbrechungen genommenen, die Heilung rückgängig gemachten.
+line(
+  `Sie bleibt aus dem Prozentsatz heraus: ${Math.round(mitHeilung.losses.totalLost)} verloren, ` +
+    `${mitHeilung.losses.bossHeal?.amount ?? 0} zurückgedreht`,
+  !mitHeilung.losses.sources.some((s) => s.kind === ('bossHeal' as never)),
+);
+line(
+  'Und sie verdrängt keine Schadensquelle aus den drei größten',
+  mitHeilung.losses.top.every((s) => s.kind !== ('bossHeal' as never)),
+);
+// Der Gegenfall: Ein Boss ohne den Baustein hat die Zeile gar nicht.
+line(
+  `Ohne den Baustein steht die Zeile nicht da: ${String(sauber.losses.bossHeal)}`,
+  sauber.losses.bossHeal === null,
 );
