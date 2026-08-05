@@ -24,10 +24,27 @@ fn was_der_simulator_am_kollisions_boss_misst() {
     // KINDLE und schrieb die Differenz der Kollision zu. Zwei verschiedene
     // Dinge messen und den Unterschied der Sache zuschreiben, um die es geht.
     let result = fight.run(|_| None);
+    let erlitten = fight.damage_taken();
     eprintln!(
-        "SIMULATOR: schaden={} erlitten={} unterbrochen={}",
+        "SIMULATOR: schaden={} erlitten={erlitten} unterbrochen={}",
         result.damage,
-        fight.damage_taken(),
         fight.interrupts_landed()
+    );
+
+    // **Die Zahl, nicht nur die Ausgabe.** Ohne diese Zeile war der Fall ein
+    // Bericht und kein Waechter: Er lief durch, gab etwas aus, und haette
+    // jede beliebige Zahl durchgelassen.
+    //
+    // Vier Boss-Zauber zu 600, nach `PLAYER.wardReduction` (0,2) je 480.
+    // Alle vier muessen landen — auch die beiden, deren Nachfolger im selben
+    // Takt beginnt. Faellt einer aus, ist die Rangfolge aus `event.rs`
+    // zurueckgedreht, und der Spieler bekommt geschenkt, was er haette
+    // verhindern muessen.
+    assert_eq!(
+        erlitten,
+        1920,
+        "Der Spieler erleidet {erlitten} statt 1920 — es fallen {} Boss-Zauber \
+         aus. Steht BossCastLands in event.rs wieder HINTER TimelineStep?",
+        (1920 - erlitten) / 480
     );
 }
