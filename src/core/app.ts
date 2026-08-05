@@ -237,7 +237,9 @@ export class App {
       title: 'Stats',
       // Die Werte, wie sie heute gelten. Ohne Ausruestung sind es die
       // Grundwerte -- ein neuer Spielstand hat nichts angelegt (AC7).
-      content: buildStatOverview(statOverview(baseStats(), NOTHING_WORN)),
+      content: buildStatOverview(
+        statOverview(baseStats(this.persistence.state.level), NOTHING_WORN),
+      ),
     });
     parent.appendChild(this.home.root);
 
@@ -403,6 +405,8 @@ export class App {
    */
   setPlayerLevel(level: number): void {
     this.persistence.persistLevel(level);
+    // Der Kampf rechnet ab jetzt mit der neuen Stufe (Issue #289).
+    this.combat.setPlayerLevel(level);
     this.applyBindings();
     this.refreshLoadout();
     this.refreshHome();
@@ -445,6 +449,17 @@ export class App {
       'levels',
       buildLevelOverview(levelOverview(stand), levelBarFill(stand)),
     );
+    // **Die Werte-Übersicht gehört dazu** (Issue #289). Sie zeigt seit dieser
+    // Änderung die Werte DER STUFE — ein einmal gebauter Bereich zeigte, was
+    // beim Aufbau galt, und im Browser stand nach einem Aufstieg weiter der
+    // Grundwert.
+    //
+    // Genau dieser Fehler stand schon in #248 auf dem Bildschirm, während
+    // alle Prüffälle grün waren: Was ein Dokument braucht, sieht Vitest nicht.
+    this.home.replaceSection(
+      'stats',
+      buildStatOverview(statOverview(baseStats(this.persistence.state.level), NOTHING_WORN)),
+    );
   }
 
   ready(): boolean {
@@ -452,6 +467,11 @@ export class App {
     // gibt der Browser den Klang-Kontext frei — geschähe das erst beim ersten
     // Zauber, bliebe der Countdown stumm.
     this.audio.unlock();
+    // **Die Stufe gilt ab dem nächsten Kampf** (Issue #289). Der Kampf
+    // entsteht einmal beim Start des Spiels; ohne diese Zeile rechnete er mit
+    // der Stufe, die beim Programmstart galt, und der Aufstieg wäre erst nach
+    // einem Neuladen spürbar.
+    this.combat.setPlayerLevel(this.persistence.state.level);
     return this.session.beginCountdown(this.loop.timeMs);
   }
 
