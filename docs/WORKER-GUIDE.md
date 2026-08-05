@@ -1061,16 +1061,18 @@ sauber gehalten wurde, sondern weil sie beim **Tippen des Befehls** nicht einfie
 > **Ein Prüfwerkzeug auf einzelne Pfade angesetzt prüft nicht das Projekt, sondern deine Erinnerung
 > daran, welche Dateien du angefasst hast.**
 
-Damit sind es drei, und erst zusammen ergeben sie das Bild — eine vierte kam später dazu und steht
-im übernächsten Abschnitt:
+Damit sind es drei, und erst zusammen ergeben sie das Bild — zwei weitere kamen später dazu und
+stehen in den folgenden Abschnitten:
 
-| Gestalt             | Beispiel                                | gefunden von   |
-| ------------------- | --------------------------------------- | -------------- |
-| falsches Werkzeug   | `vitest 3.2.7` statt `4.1.10`           | Worker-2, #150 |
-| falsche Stelle      | Gegenprobe an einem Ort ohne Prüffall   | Worker-3, #264 |
-| falscher Ausschnitt | `eslint` auf zwei Pfade statt auf alles | Worker-1, #236 |
+| Gestalt             | Beispiel                                          | gefunden von   |
+| ------------------- | ------------------------------------------------- | -------------- |
+| falsches Werkzeug   | `vitest 3.2.7` statt `4.1.10`                     | Worker-2, #150 |
+| falsche Stelle      | Gegenprobe an einem Ort ohne Prüffall             | Worker-3, #264 |
+| falscher Ausschnitt | `eslint` auf zwei Pfade statt auf alles           | Worker-1, #236 |
+| falsche Quelle      | erinnert statt nachgesehen — gar kein Lauf        | Worker-1, #278 |
+| falscher Stand      | richtig gemessen, aber in einem Zweig ohne `main` | Worker-2, #318 |
 
-Alle drei melden grün, alle drei messen korrekt — und alle drei beantworten eine andere Frage als
+Alle fünf melden grün, alle fünf messen korrekt — und alle fünf beantworten eine andere Frage als
 die gestellte. Das Werkzeug lügt nicht; es antwortet wahrheitsgemäß auf eine Frage, die man ihm
 versehentlich gestellt hat. Deshalb fällt die Rückmeldung **bestätigend** aus, und genau das macht
 die Klasse gefährlich.
@@ -1165,6 +1167,46 @@ ein `wc -l`, dessen Ausgabe man abwartet.
 
 > Der Merksatz stammt aus der Sitzung, die ihn ausgelöst hat, und er ist der kürzeste im Kapitel:
 > **„Ich habe nicht nachgesehen, sondern erinnert."**
+
+#### Die fünfte Gestalt: der falsche Stand — richtig gemessen, am falschen Ort
+
+_Von Worker-2 am 2026-08-05 bei #318 an sich selbst gefunden und benannt._
+
+Er meldete als Blocker, das Spiel könne beim Abspielen nur eine einzige Leiste auflösen — mit
+Fundstelle und Zeilennummer. **Die Messung war richtig. Der Stand war es nicht:**
+
+```
+git merge-base --is-ancestor origin/main HEAD   →  MAIN FEHLT IM ZWEIG
+```
+
+Der Parameter, den er vermisste, war zwei Stunden vorher in `main` gelandet. Seine eigene
+Einordnung:
+
+> Nicht „ungeprüft behauptet", sondern **„geprüft, aber am falschen Stand"**. Der Befehl war
+> richtig, das Verzeichnis veraltet.
+
+**Der Orchestrator lief im selben Austausch in dieselbe Falle**, in die andere Richtung: Er zählte
+27 Aufzeichnungen mit `bindings`-Feld, der Bearbeiter 13. Beide Zahlen stimmten — für den jeweiligen
+Stand. **Keiner von beiden hatte dazugesagt, welchen.**
+
+| Die vier anderen Gestalten fragen                                   | Diese fragt        |
+| ------------------------------------------------------------------- | ------------------ |
+| Welches Werkzeug? Welche Stelle? Welcher Ausschnitt? Welche Quelle? | **Welcher Stand?** |
+
+**Warum sie schwerer zu sehen ist als die anderen:** Bei einem falschen Werkzeug hilft, das richtige
+zu kennen. Hier ist das Werkzeug richtig, der Befehl richtig, die Ausgabe richtig — und der
+Arbeitsordner beantwortet stillschweigend eine Frage, die niemand gestellt hat.
+
+**Zwei Gewohnheiten dagegen:**
+
+- **Vor jedem Befund über „das Projekt" den Stand messen**, nicht nur den Befund:
+  ```bash
+  git merge-base --is-ancestor origin/main HEAD && echo "main enthalten" || echo "MAIN FEHLT"
+  ```
+- **Den Stand mitschreiben**, wenn die Aussage über das Projekt geht und nicht über den eigenen
+  Zweig. „In `main` (a17278e) steht …" ist nachprüfbar; „in `recording.ts` steht …" ist es nicht.
+
+> Ein Zweig ist eine Meinung über den Code, kein Blick darauf.
 
 #### Belegt heißt nicht zitierfähig — eine laufabhängige Zahl gehört nicht in einen Kommentar
 
