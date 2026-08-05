@@ -18,21 +18,27 @@
  * | Grundwerte | jede Stufe (`growthPerLevelPercent`) |
  * | Leisten-Plätze | zehn von hundert (`barSlotLevels`) |
  * | neue Zauber | heute drei Stufen (`unlockLevel`) |
- * | Talentpunkte | **nirgends vergeben** — siehe unten |
+ * | Talentpunkte | **jede zweite Stufe** (`talentPointLevels`, seit #379) |
  *
  * Auf Stufe 7 gibt es nur die Grundwerte. Eine Einblendung mit vier Zeilen,
  * von denen drei leer sind, wäre schlechter als keine.
  *
- * # Talentpunkte fehlen, und das ist kein Versehen dieser Datei
+ * # Talentpunkte fehlten hier, bis Issue #379 sie vergab
  *
- * `talentPoints` steht im Spielstand (`save-format.ts`), aber
- * `data/player/levels.json` kennt kein `talentPointsPerLevel` — sie werden
- * **nirgends vergeben**. Deshalb steht hier keine Zeile dafür, auch keine
- * mit einer Null: Eine Null behauptet, es gäbe welche und diesmal seien es
- * keine. Das Fehlen ist ein eigener Befund und hat ein eigenes Issue.
+ * Bis dahin stand `talentPoints` im Spielstand, ohne dass irgendetwas welche
+ * verteilte — dieselben drei Treffer wie bei `bestRuns` vor #377: Feld da,
+ * Vergabe nicht. Deshalb stand hier keine Zeile dafür, auch keine mit einer
+ * Null: Eine Null hätte behauptet, es gäbe welche und diesmal seien es keine.
+ *
+ * Jetzt gibt es sie, und die Null ist eine Aussage geworden — auf jeder
+ * zweiten Stufe ist wirklich keiner dabei.
+ *
+ * **Verdient wird gerechnet, ausgegeben wird gespeichert** (GAME-DESIGN 18.6):
+ * `talentPointsAtLevel` folgt aus der Stufe wie die Leisten-Plätze; das Feld
+ * im Spielstand hält die AUSGABEN je Zweig. Wofür man sie ausgibt, ist #249.
  */
 import { LEVELS, type SpellDef } from '../core/data.js';
-import { barSlotsAtLevel } from '../progression/unlocks.js';
+import { barSlotsAtLevel, talentPointsAtLevel } from '../progression/unlocks.js';
 
 /** Was eine Stufe gebracht hat — leere Listen heißen: nichts davon. */
 export interface LevelUpDisplay {
@@ -44,6 +50,15 @@ export interface LevelUpDisplay {
   readonly newSpells: readonly string[];
   /** Wie viele Leisten-Plätze dazugekommen sind — 0, wenn keiner. */
   readonly newBarSlots: number;
+  /**
+   * Wie viele Talentpunkte diese Stufe gebracht hat — 0, wenn keiner (#379).
+   *
+   * **Eine 0 ist hier eine Aussage und keine Lücke**, anders als vor #379: Bis
+   * dahin gab es die Vergabe gar nicht, und eine Zeile mit einer Null hätte
+   * behauptet, es gäbe welche und diesmal seien es keine. Jetzt gibt es sie,
+   * und auf jeder zweiten Stufe ist keiner dabei.
+   */
+  readonly newTalentPoints: number;
 }
 
 /**
@@ -69,5 +84,8 @@ export function levelUpDisplayFor(
     // Die Differenz zur vorigen Stufe. `barSlotsAtLevel` sinkt nie, also ist
     // sie nie negativ.
     newBarSlots: barSlotsAtLevel(stufe) - barSlotsAtLevel(stufe - 1),
+    // Dieselbe Differenzbildung wie bei den Plätzen — und aus demselben Grund
+    // gerechnet statt gespeichert (GAME-DESIGN 18.6).
+    newTalentPoints: talentPointsAtLevel(stufe) - talentPointsAtLevel(stufe - 1),
   };
 }

@@ -300,7 +300,7 @@ export class RunPersistence {
       // **Was ERREICHT wurde, nicht was gerechnet wurde** (Issue #377): Der
       // Eintrag hält die Reserve bzw. den Ring-Rest als Rohwert, nicht die
       // Punkte daraus. Punkte wären ein berechneter Wert, der auf kommende
-      // Kämpfe zurückwirkt — genau das, was 18.5 verbietet.
+      // Kämpfe zurückwirkt — genau das, was 18.6 verbietet.
       bestRuns: next.bestRuns,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
