@@ -223,3 +223,77 @@ describe('Die Reihenfolge: erst die Kurve, dann der Abstand', () => {
     expect(teile.awarded).toBe(Math.trunc((teile.base * teile.falloffPerMille) / 1000));
   });
 });
+
+describe('AC5 (#377) — Differenz-Auszahlung statt voller Ertrag bei jedem Sieg', () => {
+  const ERSTER = 30_000;
+
+  it('der erste Sieg zahlt voll — ohne Bestwert ist die Differenz der ganze Wert', () => {
+    const ohne = pointsForRun(sieg(ERSTER), PASSEND, null);
+    expect(ohne).toBe(pointsBreakdown(sieg(ERSTER), PASSEND).base);
+  });
+
+  it('GEGENPROBE aus dem Issue: derselbe Lauf zweimal zahlt beim zweiten Mal nur den Rest-Ertrag', () => {
+    const erster = pointsForRun(sieg(ERSTER), PASSEND, null);
+    const zweiter = pointsForRun(sieg(ERSTER), PASSEND, ERSTER);
+
+    expect(zweiter).toBeGreaterThan(0);
+    expect(zweiter).toBeLessThan(erster);
+    // Und zwar genau der benannte Anteil, nicht irgendetwas Kleineres.
+    const teile = pointsBreakdown(sieg(ERSTER), PASSEND, ERSTER);
+    expect(teile.repeatOnly).toBe(true);
+    expect(zweiter).toBe(Math.trunc((teile.base * REWARD.repeatPerMille) / 1000));
+  });
+
+  it('eine Verbesserung zahlt die DIFFERENZ, nicht den vollen Wert', () => {
+    const teile = pointsBreakdown(sieg(40_000), PASSEND, ERSTER);
+    expect(teile.repeatOnly).toBe(false);
+    expect(teile.awarded).toBe(teile.base - teile.previousBase);
+    // Weniger als ein erster Sieg mit derselben Zeit — sonst wäre die
+    // Differenz-Auszahlung wirkungslos.
+    expect(teile.awarded).toBeLessThan(pointsForRun(sieg(40_000), PASSEND, null));
+  });
+
+  it('ein SCHLECHTERER Lauf zahlt auch nur den Rest-Ertrag', () => {
+    const teile = pointsBreakdown(sieg(10_000), PASSEND, ERSTER);
+    expect(teile.repeatOnly).toBe(true);
+    expect(teile.awarded).toBeGreaterThan(0);
+  });
+
+  it('der Rest-Ertrag ist anteilig — ein guter Wiederholungslauf bringt mehr als ein schwacher', () => {
+    // Der Grund, warum es ein Anteil ist und kein fester Betrag: Sonst wäre
+    // jeder Sieg gleich viel wert, sobald die Marke einmal steht.
+    const knapp = pointsForRun(sieg(29_000), PASSEND, ERSTER);
+    const schwach = pointsForRun(sieg(5_000), PASSEND, ERSTER);
+    expect(knapp).toBeGreaterThan(schwach);
+  });
+
+  it('die Differenz rechnet auf den UNGEMINDERTEN Werten', () => {
+    // Der Abstandsfaktor kann sich zwischen zwei Läufen ändern, weil der
+    // Spieler aufsteigt. Auf geminderten Werten zu subtrahieren hiesse, einen
+    // Aufstieg als Verschlechterung zu verbuchen — der Spieler verlöre Punkte
+    // dafür, dass er besser geworden ist.
+    const fern = { bossLevel: 10, playerLevel: 20 };
+    const teile = pointsBreakdown(sieg(40_000), fern, ERSTER);
+    const roh = teile.base - teile.previousBase;
+    expect(teile.awarded).toBe(Math.trunc((roh * teile.falloffPerMille) / 1000));
+  });
+
+  it('beim runaway-Boss rechnet die Differenz aus dem Ring, nicht aus der Zeit', () => {
+    const erster = pointsForRun(runawaySieg(50), PASSEND, null);
+    const gleich = pointsForRun(runawaySieg(50), PASSEND, 50);
+    const besser = pointsForRun(runawaySieg(70), PASSEND, 50);
+
+    expect(gleich).toBeLessThan(erster);
+    expect(besser).toBeGreaterThan(gleich);
+    // Die Differenz gegen den gespeicherten PROZENTWERT — hielte die Rechnung
+    // ihn für Millisekunden, wäre der Abzug praktisch null und `besser` läge
+    // beim vollen Ertrag.
+    expect(besser).toBeLessThan(pointsForRun(runawaySieg(70), PASSEND, null));
+  });
+
+  it('eine Niederlage zahlt weiterhin nichts — auch mit Bestwert', () => {
+    expect(
+      pointsForRun({ victory: false, remainingMs: 118_000, heldPercent: null }, PASSEND, 5_000),
+    ).toBe(0);
+  });
+});
