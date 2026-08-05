@@ -155,6 +155,21 @@ const EVENT_CAPACITY: usize = 256;
 /// an ihnen vorbeilaufen.
 pub const PHASE_HOLD_DURATION_MS: Millis = 8_000;
 
+// -- PUTREFACTION (Issue #97) --
+//
+// **Alle drei Werte sind vorlaeufig und werden gemessen** (GAME-DESIGN 4.1,
+// Teil F.6). Das Spiel fuehrt dieselben drei in `combat.ts`; die Pruefsumme je
+// Takt haelt beide Seiten zusammen.
+
+/// Wie viele Stapel hoechstens gleichzeitig liegen. Wird gemessen.
+pub const MAX_DECAY_STACKS: usize = 5;
+
+/// Um wie viel Prozent ein Stapel den Schaden aller Quellen erhoeht. Wird gemessen.
+pub const DECAY_STACK_PERCENT: u32 = 3;
+
+/// Wie lange ein einzelner Stapel haelt. Wird gemessen.
+pub const DECAY_STACK_DURATION_MS: Millis = 12_000;
+
 /// Einstellungen eines Durchgangs.
 #[derive(Debug, Clone, Copy)]
 pub struct FightConfig {
@@ -317,6 +332,13 @@ pub struct Fight {
     /// entscheidet. Das ist der Unterschied zwischen einem Planungswerkzeug
     /// und einer Ressource, die einen Rhythmus vorgibt.
     control: u32,
+    /// Ablaufzeiten der Zersetzungs-Stapel, **aufsteigend** — aeltester vorn.
+    ///
+    /// **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Feld fester
+    /// Laenge, kein Vec: Der Kampf fordert keinen Speicher an (18.2).
+    decay_expiry: [Millis; MAX_DECAY_STACKS],
+    /// Wie viele Stapel gerade liegen.
+    decay_count: usize,
     /// Wie viele Punkte insgesamt ausgegeben wurden.
     control_spent: u32,
     /// Um wie viel der **naechste** Zeitleisten-Eintrag nach hinten geschoben
@@ -449,6 +471,8 @@ impl Fight {
             phase_hold_until: None,
             cast_lands_at: 0,
             control_spent: 0,
+            decay_expiry: [0; MAX_DECAY_STACKS],
+            decay_count: 0,
             control_failed: 0,
             gcd_ready_at: 0,
             reset_mode: CooldownReset::new(),
@@ -652,6 +676,7 @@ impl Fight {
             }
             self.expire_coagulation();
             self.expire_fixation();
+            self.expire_putrefaction();
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
@@ -738,6 +763,7 @@ impl Fight {
 
             self.expire_coagulation();
             self.expire_fixation();
+            self.expire_putrefaction();
             self.check_phase();
 
             // Phase 2 — Sieg-Pruefung. Das Spiel bricht hier ab, und die
@@ -934,6 +960,8 @@ impl Fight {
         self.phase_hold_until = None;
         self.cast_lands_at = 0;
         self.control_spent = 0;
+        self.decay_expiry = [0; MAX_DECAY_STACKS];
+        self.decay_count = 0;
         self.control_failed = 0;
         self.gcd_ready_at = 0;
         self.reset_mode.reset();
@@ -1274,6 +1302,67 @@ impl Fight {
     ///
     /// Steht bei den passiven Wirkungen, weil beides allein an der Uhr haengt —
     /// wie die Energieleiste des Bosses.
+    /// Legt Zersetzungs-Stapel an (PUTREFACTION, GAME-DESIGN 4.1).
+    ///
+    /// **Die Obergrenze verbraucht nichts** — eine Wirkung darueber erneuert
+    /// insbesondere nicht die Uhr des aeltesten Stapels.
+    fn apply_putrefaction(&mut self, spell: &Spell) {
+        if spell.decay_stacks == 0 {
+            return;
+        }
+        for _ in 0..spell.decay_stacks {
+            if self.decay_count >= MAX_DECAY_STACKS {
+                break;
+            }
+            self.decay_expiry[self.decay_count] = self.time + DECAY_STACK_DURATION_MS;
+            self.decay_count += 1;
+            self.queue
+                .push(self.time + DECAY_STACK_DURATION_MS, EventKind::Wakeup);
+        }
+        self.update_vulnerability();
+    }
+
+    /// Laesst abgelaufene Stapel verfallen — **den aeltesten zuerst**.
+    fn expire_putrefaction(&mut self) {
+        let mut verfallen = 0;
+        while verfallen < self.decay_count && self.decay_expiry[verfallen] <= self.time {
+            verfallen += 1;
+        }
+        if verfallen == 0 {
+            return;
+        }
+        for i in verfallen..self.decay_count {
+            self.decay_expiry[i - verfallen] = self.decay_expiry[i];
+        }
+        self.decay_count -= verfallen;
+        self.update_vulnerability();
+    }
+
+    /// Rechnet die Verwundbarkeit aus den liegenden Stapeln.
+    ///
+    /// **Ganzzahlig bis zur letzten Teilung** — dieselbe Rechnung wie im Spiel
+    /// (18.4).
+    fn update_vulnerability(&mut self) {
+        let prozent = 100 + self.decay_count as u32 * DECAY_STACK_PERCENT;
+        self.factors.vulnerability = f64::from(prozent) / 100.0;
+    }
+
+    /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
+    #[must_use]
+    pub fn decay_stacks(&self) -> usize {
+        self.decay_count
+    }
+
+    /// Wann der Stapel an Platz `index` verfaellt. 0 fuer unbelegt.
+    #[must_use]
+    pub fn decay_expiry_at(&self, index: usize) -> Millis {
+        if index < self.decay_count {
+            self.decay_expiry[index]
+        } else {
+            0
+        }
+    }
+
     fn expire_fixation(&mut self) {
         // Die Frist ist um, ohne dass ein Wechsel stattgefunden hat.
         if self.phase_hold_until.is_some_and(|bis| self.time > bis) {
@@ -1665,6 +1754,7 @@ impl Fight {
         // zuschlagen soll — die Reihenfolge ist heute ohne Wirkung (keiner
         // macht beides) und deshalb jetzt festzulegen und nicht dann.
         self.apply_coagulation(index, spell);
+        self.apply_putrefaction(spell);
         self.apply_fixation(spell);
 
         // **Ein Wurf fuer die ganze Wirkung**, und er faellt genau dann, wenn
@@ -2054,6 +2144,20 @@ impl Fight {
         h = mix_int(h, self.doom as i32);
         h = mix_int(h, self.doom_charges as i32);
         h = mix_int(h, self.stacks as i32);
+        // **Angehaengt, nicht eingeschoben** (Issue #97) — und zwar ans ECHTE
+        // Ende. Mein erster Versuch setzte den Block hinter
+        // `phase_hold_percent`, also VOR doom/doom_charges/stacks aus #216;
+        // das Spiel haengt hinter stacks an. Dieselben Felder, andere
+        // Reihenfolge — die Pruefsumme wich schon in Takt 0 ab, ohne dass ein
+        // einziger Stapel lag.
+        //
+        // Die Zahl der Stapel allein genuegt nicht: Zwei Laeufe mit gleich
+        // vielen, aber verschieden alten Stapeln laufen gleich weiter, bis der
+        // erste verfaellt.
+        h = mix_int(h, self.decay_count as i32);
+        for i in 0..MAX_DECAY_STACKS {
+            h = mix_int(h, self.decay_expiry_at(i) as i32);
+        }
         h
     }
 

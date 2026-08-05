@@ -50,10 +50,25 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
             row.id
         );
     }
+    // **Abgeleitet, nicht abgezaehlt** (Issue #97, nach dem Vorbild von #201).
+    // Hier stand die Zahl 4 — eine Momentaufnahme des Zauberkastens, die bei
+    // jedem neuen Zauber hochzusetzen waere. CANKER und FESTER haben sie rot
+    // gemacht, obwohl nichts kaputt war.
+    //
+    // Gezaehlt wird ueber die Zauberdaten, NICHT ueber dieselbe Filterfunktion,
+    // die `spell_table` benutzt — sonst pruefte der Fall die Filterung gegen
+    // sich selbst. Die Schleife darueber prueft die Gegenrichtung: Jede Zeile
+    // der Tabelle kann auch wirklich Schaden machen.
+    let mit_schaden = data::SPELLS
+        .iter()
+        .filter(|s| s.base_damage > 0 || s.dot.is_some() || s.spender.is_some())
+        .count();
     assert_eq!(
         table.len(),
-        4,
-        "alle vier Schadenszauber muessen aufgefuehrt sein"
+        mit_schaden,
+        "alle Schadenszauber muessen aufgefuehrt sein — die Tabelle hat {} \
+         Zeilen, Schaden machen aber {mit_schaden}",
+        table.len()
     );
     assert!(
         table
