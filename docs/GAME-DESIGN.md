@@ -100,15 +100,15 @@ Beim Entwerfen jeder Einzelheit gelten zusätzlich diese acht Sätze:
 
 ## 3. Spielkern
 
-| Thema            | Festlegung                                                                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Spieltiefe**   | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns |
-| **Synergien**    | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                              |
-| **Eingabe**      | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                           |
-| **Zauber-Typen** | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs. **Keine** Kanal-Zauber mit Tastenhalten                                       |
-| **Umfang V1**    | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                |
-| **Höchststufe**  | **100**                                                                                                                                    |
-| **Talentpunkte** | **~50** (etwa jede zweite Stufe einer)                                                                                                     |
+| Thema            | Festlegung                                                                                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Spieltiefe**   | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns                                                                                             |
+| **Synergien**    | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                                                                                                                          |
+| **Eingabe**      | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                                                                                                                       |
+| **Zauber-Typen** | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs · **Kanalisierungen** (Wirkung fällt laufend an, siehe 7.2). **Keine** Kanal-Zauber mit **Tastenhalten** — eine Kanalisierung startet mit einem Druck und läuft von selbst |
+| **Umfang V1**    | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                                                                                                            |
+| **Höchststufe**  | **100**                                                                                                                                                                                                                                |
+| **Talentpunkte** | **~50** (etwa jede zweite Stufe einer)                                                                                                                                                                                                 |
 
 **Erfahrungskurve** (entschieden am 2026-08-05, Issue #248):
 
@@ -596,10 +596,38 @@ mehr bringt.
 
 ### 7.1 Zauberbalken und Wirkungsdauer — zwei getrennte Dinge
 
-| Art                                              | Verhalten                                                                                                                                                                                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Zauberbalken (Wirkzeit)**                      | **Blockiert.** Während der Balken läuft, kann nichts anderes gewirkt werden. Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
-| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                            |
+| Art                                              | Verhalten                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zauberbalken (Wirkzeit)**                      | **Sperrt nichts — aber jede andere Wirkung bricht ihn ab.** Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Der Zauber wirkt **erst am Ende**; bricht er ab, ist die Wirkung **vollständig** verloren. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
+| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                                                                                                      |
+
+#### Was einen laufenden Zauber abbricht — entschieden am 2026-08-05
+
+**Jede Wirkung des Spielers bricht einen laufenden Cast oder eine Kanalisierung ab. Jede, ohne
+Ausnahme — auch das Unterbrechen.** Das ist das WoW-Prinzip, und es ist ausdrücklich so gewollt:
+
+> Wenn ein Spell z. B. 3 s gecastet werden muss, bis er gewirkt wird, dann wird — wenn der Spieler
+> während dem Casten einen anderen Spell wirkt — der Cast **abgebrochen**. Er verliert seine
+> vollständige Wirkung, da Cast-Spells immer erst wirken, wenn sie fertig gecastet sind.
+> **Das gilt auch für Unterbrechen. Egal welcher Spell.**
+
+**Der Spieler ist also nicht handlungsunfähig — er trifft eine Entscheidung, und sie kostet ihn den
+laufenden Zauber.** Das ist die Verpflichtung aus dem Absatz oben, nur an anderer Stelle: nicht
+„ich kann nicht", sondern „es kostet mich".
+
+**Zwei Typen, zwei Verluste:**
+
+| Typ                 | wann die Wirkung anfällt             | bei Abbruch                     |
+| ------------------- | ------------------------------------ | ------------------------------- |
+| **Cast** (Wirkzeit) | **am Ende**, vollständig             | **alles verloren**              |
+| **Kanalisierung**   | **laufend**, über die Dauer verteilt | **der erreichte Anteil bleibt** |
+
+> Beispiel des Auftraggebers: Eine Kanalisierung über 5 s für 500 Heilung, abgebrochen nach 3 s,
+> hat 300 Heilung gegeben. Dasselbe gilt für Schadens- und Ressourcen-Kanalisierungen.
+
+**Kanalisierungen sind damit ein eigener Zauber-Typ neben Sofort-Zauber, Wirkzeit und DoT.** Sie
+widersprechen Design-Gesetz 1 nicht: Verboten ist das **Tastenhalten**, nicht die Kanalisierung.
+Eine Kanalisierung startet mit einem Tastendruck und läuft von selbst.
 
 **Abbruch eines Zauberbalkens: nur durch bestimmte, vorher erkennbare Boss-Angriffe.** Normale
 Treffer stören nicht. Bei Abbruch geht der Zauber verloren, **die Abklingzeit läuft aber nicht an**.
