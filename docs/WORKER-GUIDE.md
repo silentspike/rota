@@ -1312,6 +1312,30 @@ Browser-Läufen genommen, statt eine saubere Tabelle zu liefern, die falsch ist.
 > Eine Tabelle, die zu der Frage passt, die der Empfänger selbst gestellt hat, wird nicht
 > nachgerechnet.
 
+#### Ein selbst gebauter Wächter ist erst belegt, wenn er einmal rot war
+
+Der Abschnitt oben handelt von einer Gegenprobe, die **das Falsche trifft**. Dieser hier von dem
+Fall, in dem es **gar keine gab** — und er ist häufiger.
+
+In #300 baute der Bearbeiter einen Prüffall, sah ihn grün und meldete ihn. Der Orchestrator fuhr
+beim Abnehmen die Gegenprobe: `reflux.cooldownMs` von 45000 auf 1500, **alle drei Fälle fallen**,
+zurückgesetzt wieder grün. Erst damit war belegt, dass der Wächter etwas misst.
+
+Seine eigene Einordnung, und sie ist die Regel:
+
+> Ich habe den Fall gebaut und grün gesehen und ihn dann gemeldet. Dass er anschlägt, **wenn die
+> Sache kaputtgeht**, habe ich nicht geprüft.
+
+**Ein grüner Prüffall belegt zwei Dinge nicht:** dass die Umsetzung stimmt (er könnte an einer
+Stelle messen, an der nichts passiert), und dass er überhaupt fallen kann. Für das zweite gibt es
+genau einen Nachweis, und er kostet zwei Minuten: die Sache kaputtmachen, den Fall rot sehen,
+zurücknehmen.
+
+**Wie viele Fälle fallen, ist die zweite Auskunft.** Fielen im Beispiel nur zwei von dreien, wäre
+der dritte einer, der bloß zwei Zahlen vergleicht, die zufällig stimmen. Dass **alle drei** fielen,
+belegt, dass auch die Bedingung `cooldownMs > GCD_MS` wirklich geprüft wird und nicht nur
+danebensteht.
+
 ### „Im Bild geprüft" heißt nicht „das ganze Bild geprüft"
 
 Zwei der drei Befunde in #256 saßen in `overlay.ts` — beide Male eine **zweite Stelle mit derselben
