@@ -72,6 +72,12 @@ const WIE_118: WornValues = WornValues {
     catalysis: 0,
     purity: 800,
     yield_bonus: 330,
+    // Die #118-Ausruestung ist ein reiner AFFIX-Aufbau. Grundwerte gehoeren
+    // nicht dazu, sonst waere die Neumessung nicht mehr mit der alten
+    // vergleichbar (Issue #282 aendert die Struktur, nicht diese Messung).
+    essence: 0,
+    vessel: 0,
+    ward: 0,
     gear_effects: 0,
 };
 
