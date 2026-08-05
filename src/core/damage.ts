@@ -58,6 +58,19 @@ export interface DamageFactors {
   readonly synergy: number;
   /** Widerstand des Bosses gegen die Schule (GAME-DESIGN 11.4). */
   readonly resistance: number;
+  /**
+   * Verwundbarkeit des Bosses — der siebte Faktor (GAME-DESIGN 6.3).
+   *
+   * Trägt alles, was den Boss für Schaden **aus jeder Quelle** empfänglicher
+   * macht; heute sind das die Zersetzungs-Stapel der Putrefaktion (4.1).
+   *
+   * **Die Position ist eine Festlegung, keine Geschmacksfrage:**
+   * `… × resistance × vulnerability × crit`. Fließkomma-Multiplikation ist
+   * nicht assoziativ — eine andere Reihenfolge ergibt andere Bits und damit
+   * eine andere Zustands-Prüfsumme. Sie steht direkt neben dem Widerstand,
+   * weil beide Aussagen über den Boss sind und nicht über den Spieler.
+   */
+  readonly vulnerability: number;
   /** 1,0 ohne Krit, sonst der YIELD-Faktor. */
   readonly crit: number;
 }
@@ -70,6 +83,7 @@ export const NEUTRAL_FACTORS: DamageFactors = {
   buffs: 1,
   synergy: 1,
   resistance: 1,
+  vulnerability: 1,
   crit: 1,
 };
 
@@ -88,6 +102,7 @@ export function computeDamage(baseDamage: number, factors: DamageFactors): numbe
   value *= factors.buffs;
   value *= factors.synergy;
   value *= factors.resistance;
+  value *= factors.vulnerability;
   value *= factors.crit;
   return Math.round(value);
 }

@@ -1889,13 +1889,22 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 | Werkzeug                        | Zweck                                                                                                                                                                                                     |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Zeitsteuerung**               | Anhalten, Einzelschritt, Zeitlupe, Zeitraffer. **Muss sauber vom Logik-Takt getrennt sein**, sonst verfälscht es Messungen                                                                                |
-| **Zustand setzen**              | Boss-Leben, alle Abklingzeiten bereit, zu Phase springen, Hitze setzen. Erspart drei Minuten Spielzeit für eine Phase-3-Prüfung                                                                           |
+| **Zustand setzen**              | Boss-Leben, alle Abklingzeiten bereit, zu Phase springen, Hitze setzen, **Boss wechseln**. Erspart drei Minuten Spielzeit für eine Phase-3-Prüfung                                                        |
 | **Aufzeichnen und Abspielen**   | Runde mit Tastendrücken und Zufalls-Startwert aufzeichnen, exakt wiederholen. Grundlage für Regressionstests **und** für den Abgleich Spiel ↔ Simulator                                                   |
 | **Zustands-Prüfsumme je Takt**  | Weichen Spiel und Simulator ab, sieht man **in welchem Takt**. Abschaltbar (kostet Rechenzeit)                                                                                                            |
 | **Leistungs-Messwerte**         | Bildzeit, Zeit je Logik-Takt, Speicheranforderungen pro Bild, Eingabe-Verzögerung                                                                                                                         |
 | **Schadens-Herleitung**         | Bei jedem Treffer nachvollziehbar: Grundschaden × welcher Faktor × welcher Faktor. Nur auf Abruf für einen einzelnen Treffer                                                                              |
 | **Eingabe-Zeitmessung**         | Je Tastendruck: wie viele Millisekunden nach Ablauf des GCD. Beantwortet die Balance-Frage, wie viel ein Mensch gegenüber der perfekten Rechnung verliert. **Im fertigen Spiel bewusst nicht vorgesehen** |
 | **Kampfprotokoll als Klartext** | Ringpuffer als lesbare Liste, exportierbar                                                                                                                                                                |
+
+> **Warum der Boss-Wechsel dazugehört** (ergänzt am 2026-08-05, Issue #219): Die Liste nennt
+> Beispiele, keine abschließende Aufzählung — ihr gemeinsamer Zweck ist, einen Spielzustand
+> herzustellen, den zu erspielen unverhältnismäßig wäre. Beim Bau der Energieleiste fiel auf,
+> dass **nur einer von sieben Bossen** überhaupt eine hat und dass er im Spiel unerreichbar ist:
+> Das Spiel startet mit `FIRST_CRUCIBLE`, und weder `session.ts` noch `app.ts` rufen `bossById`.
+> Zwei Abnahme-Kriterien waren damit nicht belegbar — nicht weil die Anzeige fehlte, sondern
+> weil der Boss fehlte. Ein Werkzeug, mit dem sich jede Mechanik ohne Umweg ansehen lässt, ist
+> genau das, was 19.1 meint.
 
 ### 19.2 Für den Auftraggeber — sichtbar im „Player Home"
 
