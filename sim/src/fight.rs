@@ -1080,6 +1080,11 @@ impl Fight {
         self.control_spent = 0;
         self.decay_expiry = [0; MAX_DECAY_STACKS];
         self.decay_count = 0;
+        // **Die Synergie-Fenster und ihre Zaehler** (#318). Im Browser
+        // gemessen: Ohne das traegt der naechste Lauf die Ausbeute des vorigen.
+        self.synergy_window_ends = [0; SPELL_COUNT];
+        self.synergy_used = 0;
+        self.synergy_available = 0;
         self.control_failed = 0;
         self.gcd_ready_at = 0;
         self.reset_mode.reset();
