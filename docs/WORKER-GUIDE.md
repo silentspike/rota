@@ -1891,6 +1891,38 @@ viermal gescheitert.
 > **denselben Wert liefert wie ein echter Fehler** — `null`, `0`, „nichts passiert". Sie sieht nicht
 > aus wie ein Messfehler, sondern wie ein Befund.
 
+### 8.17 Die Gegenprobe muss die FEHLERART nachbauen, nicht irgendeinen Schaden
+
+_Von Worker-3 am 2026-08-05 bei #328 gemessen und selbst formuliert._
+
+Ein Wächter ist erst belegt, wenn er einmal rot war (§ 5). Aber **womit** man ihn rot macht,
+entscheidet, ob der Beleg etwas wert ist.
+
+Der Fall: Ein Prüffall soll sicherstellen, dass ein Boss-Widerstand den **Schaden** mindert und den
+**Vorrat** unberührt lässt. Die erste Gegenprobe senkte den Vorrat pauschal um ein Viertel — an
+**allen** Bössen.
+
+```
+Vorrat überall um ein Viertel gesenkt        →  Fall bleibt GRÜN
+Vorrat nur dort gesenkt, wo ein Widerstand
+steht — also die echte Fehlerart              →  Fall wird ROT, als einziger von elf
+```
+
+**Das erste Grün war richtig.** Der Fall vergleicht die drei Bösse miteinander; fehlt überall
+dasselbe, ist der Vergleich unverändert. Ein Wächter, der darauf angesprungen wäre, hätte nicht
+gemessen, was er behauptet.
+
+> Das ist eine Ebene tiefer als „kann der Prüffall den Unterschied überhaupt zeigen": **Kann die
+> Gegenprobe den Fehler überhaupt erzeugen, den sie zu erzeugen behauptet?**
+
+**Die Prüffrage vor jeder Gegenprobe:** Baue ich die Fehlerart nach, gegen die der Wächter schützen
+soll — oder mache ich nur irgendetwas kaputt und sehe, ob es piept? Ein Wächter, der auf jede
+Beschädigung anspringt, unterscheidet nicht mehr zwischen dem Fehler und dem Rest der Welt.
+
+**Ein Nebeneffekt, der die Sache lohnend macht:** Wenn die richtige Gegenprobe **genau einen** Fall
+rot färbt und die anderen zehn grün lässt, ist das zugleich der Beleg, dass die Fälle sich nicht
+gegenseitig abdecken.
+
 ---
 
 ## 9. Wie die Kommunikation läuft
