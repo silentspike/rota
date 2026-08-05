@@ -371,11 +371,11 @@ Schule auf einer Mechanik steht, die nie trägt. Das ist zu wichtig, um es dem Z
 
 ### Die Wahl
 
-|                                                | Was es bedeutet                                                                                                                                     |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Abwarten und bei 60 Zaubern erneut messen**   | Kostet nichts. Risiko: Die Schule ist dann gebaut, und ein Befund an der Wurzel trifft zwölf Zauber und drei Talentzweige                            |
-| **Die Mechanik jetzt schärfen**                 | Etwa: Verkürzung **prozentual** statt in Millisekunden, oder gezielt auf den **nächsten** Zauber statt auf alle. Dann hängt ihr Wert nicht daran, wie viel gerade läuft |
-| **Die Schul-Mechanik austauschen**              | Der härteste Schnitt. `SUBLIMATION` behielte ihren Namen und bekäme eine andere zentrale Mechanik                                                    |
+|                                               | Was es bedeutet                                                                                                                                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Abwarten und bei 60 Zaubern erneut messen** | Kostet nichts. Risiko: Die Schule ist dann gebaut, und ein Befund an der Wurzel trifft zwölf Zauber und drei Talentzweige                                               |
+| **Die Mechanik jetzt schärfen**               | Etwa: Verkürzung **prozentual** statt in Millisekunden, oder gezielt auf den **nächsten** Zauber statt auf alle. Dann hängt ihr Wert nicht daran, wie viel gerade läuft |
+| **Die Schul-Mechanik austauschen**            | Der härteste Schnitt. `SUBLIMATION` behielte ihren Namen und bekäme eine andere zentrale Mechanik                                                                       |
 
 **Bis zur Entscheidung:** `draught` ist aus #268 gestrichen — nicht wegen dieses Punktes,
 sondern weil er Sublimations-Mechanik in einem Kalzinations-Zauber war. Der Prüffall
