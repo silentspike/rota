@@ -1114,6 +1114,18 @@ meldete `2 passed; 0 failed; 4 ignored`, also grün.
 - **Beim Ausschließen die Begründung messen, nicht schätzen.** „Läuft zu lange" ist eine Behauptung
   über eine Zahl. Sie kostet einen Befehl, und dreimal am selben Tag war sie falsch.
 
+**Was die drei Fälle wirklich verbindet**, formuliert von Worker-1, nachdem alle drei ihm oder seinen
+Nachbarn an einem Tag passiert waren:
+
+> Jedes Werkzeug hat mir ein **grünes** Ergebnis gegeben, und jedes war für seine eigene Frage
+> richtig. Falsch war nur, welche Frage ich glaubte gestellt zu haben. Der Fehler ist nicht „zu wenig
+> geprüft", sondern **„die Antwort auf eine engere Frage als Antwort auf die weitere genommen"**.
+
+Der Unterschied ist praktisch: „Zu wenig geprüft" legt nahe, künftig mehr zu prüfen — also mehr
+Aufwand bei derselben Unsicherheit. Die zweite Formulierung sagt, was tatsächlich zu tun ist:
+**aufschreiben, welche Frage man beantworten will, bevor man das Werkzeug wählt.** Dann fällt beim
+Vergleich auf, dass `cargo test` die Frage „besteht das Projekt die Prüfungen?" nicht beantwortet.
+
 #### Die vierte Gestalt: die falsche Quelle — gar kein Werkzeug
 
 Die ersten drei führen ein Werkzeug aus, das die falsche Frage beantwortet. Die vierte führt
@@ -1462,6 +1474,44 @@ konnte, ohne dass es auffiel.
 > Eine Gegenprobe zeigt, dass der Wächter anschlägt, wenn man die Sache **bricht**. Dass er einer
 > vollständigen Erweiterung nicht im Weg steht, zeigt erst der Betrieb — und man kann es nicht
 > herbeiführen, nur abwarten und dann erkennen.
+
+#### Und er muss dort laufen, wo der Fehler entsteht
+
+_Von Worker-3 am 2026-08-05 bei #328 entschieden, gegen den naheliegenden Weg._
+
+Ein Wächter sollte die Bedingung festhalten, dass zwei Zahlen nicht gleichzeitig gesetzt sein
+dürfen. Der übliche Griff in Rust wäre `debug_assert!` — billig, im Auslieferungsbau kostenlos.
+
+**Er wäre wertlos gewesen:**
+
+> Der Balance-Läufer ist genau die Stelle, die den Regler setzt, und er läuft mit `--release`. Ein
+> `debug_assert` schwiege dort — also an der **einzigen** Stelle, an der die Kombination überhaupt
+> entstehen kann.
+
+Ein Wächter, der genau dort still ist, wo der Fehler entsteht, ist die Kommentar-Fassung mit mehr
+Zeremonie. Es wurde ein echtes `assert!`.
+
+**Die Prüffrage:** Läuft mein Wächter in dem Bau, in dem der Fehler auftritt? Nicht: Läuft er
+irgendwo?
+
+Dieselbe Frage trifft mehr als `debug_assert`:
+
+| Wächter                              | schweigt in                                                           |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| `debug_assert!`                      | jedem `--release`-Lauf — also im Balance-Läufer und in der CI-Messung |
+| ein Prüffall hinter `#[ignore]`      | jedem Lauf ohne `--ignored` (§ 8.14)                                  |
+| eine Prüfung nur im Entwicklungs-Bau | dem ausgelieferten Spiel                                              |
+
+**Und eine zweite Entscheidung aus demselben Fall:** Der Vergleich geht auf die **exakte** Eins, ohne
+Toleranz. `1.0` ist in IEEE754 exakt darstellbar, und gemeint ist der neutrale Wert — nicht
+„ungefähr neutral".
+
+> Ein Regler von `1.0000001` **ist** eine Abweichung vom Spiel. Eine Toleranz wäre hier die falsche
+> Milde: Sie erlaubt genau die Abweichung, gegen die der Wächter gebaut wurde, solange sie klein
+> genug ist.
+
+Das gilt nicht überall — wo eine Rechnung Rundungsfehler erzeugt, ist eine Umgebung richtig. Der
+Unterschied: Hier wird kein Rechenergebnis geprüft, sondern **ob jemand einen Regler angefasst hat**.
 
 **Und daraus folgt eine Regel, die über diesen Fall hinausgeht: Manche Belege haben ein
 Verfallsdatum.**
