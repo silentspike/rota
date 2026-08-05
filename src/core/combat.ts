@@ -90,10 +90,19 @@ export const CAST_FIGHT_OVER = 4;
  */
 export const CAST_STARTED = 5;
 /**
- * Es läuft bereits eine Wirkzeit (GAME-DESIGN 7.1: „Während der Balken läuft,
- * kann nichts anderes gewirkt werden").
+ * **Hier stand `CAST_BUSY`** — der Ausgang „es läuft bereits eine Wirkzeit".
+ *
+ * Er ist am 2026-08-05 entfallen, weil der Auftraggeber die Regel umgedreht
+ * hat: Die Wirkzeit sperrt **nichts**. Jede Wirkung bricht einen laufenden
+ * Zauber ab, auch das Unterbrechen (GAME-DESIGN 7.1, „Was einen laufenden
+ * Zauber abbricht"). Ein Druck während der Wirkzeit ist damit kein
+ * abgewiesener Druck mehr, sondern eine Entscheidung — und sie kostet den
+ * laufenden Zauber.
+ *
+ * Die Nummer 6 bleibt frei und wird nicht nachbesetzt: Diese Werte stehen in
+ * keiner eingecheckten Datei, aber eine wiederverwendete Nummer wäre bei der
+ * nächsten Suche eine falsche Fährte.
  */
-export const CAST_BUSY = 6;
 
 /** Ob dieser Ausgang ein angenommener Tastendruck ist (Issue #304). */
 export function isCastAccepted(result: number): boolean {
@@ -382,6 +391,18 @@ export class Combat {
    * Aussage wie „der Spieler hat ihn nie gedrückt".
    */
   private castsInterruptedValue = 0;
+
+  /**
+   * Wie oft der Spieler eine eigene laufende Wirkzeit durch einen weiteren
+   * Druck abgebrochen hat.
+   *
+   * **Getrennt vom Zähler des Boss-Abbruchs**, obwohl beide dasselbe Feld
+   * räumen: Die zwei sind für den Spieler völlig verschiedene Dinge. Das eine
+   * hat der Boss getan, das andere er selbst — und eine Fehleranalyse, die
+   * beides zusammenzählte, könnte ihm nicht sagen, welches davon ein Fehler
+   * war.
+   */
+  private castsCancelledValue = 0;
 
   /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
   private playerHpValue: number;
@@ -917,6 +938,11 @@ export class Combat {
   /** Wie oft ein Boss-Angriff eine Wirkzeit abgebrochen hat (Issue #304). */
   get castsInterrupted(): number {
     return this.castsInterruptedValue;
+  }
+
+  /** Wie oft ein eigener Druck eine Wirkzeit abgebrochen hat (Issue #304). */
+  get castsCancelled(): number {
+    return this.castsCancelledValue;
   }
 
   /**
@@ -1539,12 +1565,10 @@ export class Combat {
 
   /** Kann der Zauber jetzt gewirkt werden? */
   isReady(index: number, timeMs: number): boolean {
-    // **Während einer Wirkzeit ist KEINER bereit** (GAME-DESIGN 7.1) — dieselbe
-    // Sperre wie in `cast`, und aus demselben Grund wie die Ausnahme darunter
-    // ein zweites Mal aufgeschrieben: Die Zauberleiste fragt `isReady`, nicht
-    // `cast`. Ohne diese Zeile zeigte sie während der Wirkzeit lauter bereite
-    // Zauber, und jeder Druck darauf ginge ins rote Blinken.
-    if (this.playerCastingValue >= 0) return false;
+    // **Hier stand bis zum 2026-08-05 eine Sperre** — „während einer Wirkzeit
+    // ist keiner bereit". Sie ist mit der Regel entfallen: Die Wirkzeit sperrt
+    // nichts, und ein Zauber, der während ihr gedrückt wird, wirkt (GAME-DESIGN
+    // 7.1). Die Leiste zeigt deshalb weiter an, was wirklich drückbar ist.
     if (!this.isOffCooldown(index, timeMs)) return false;
     // Dieselbe Ausnahme wie in `cast` (GAME-DESIGN 6.6, Issue #110). Sie steht
     // hier ein zweites Mal, weil die Zauberleiste `isReady` fragt und nicht
@@ -2104,21 +2128,6 @@ export class Combat {
       outcome.result = CAST_FIGHT_OVER;
       return outcome;
     }
-    // **Die Wirkzeit sperrt ALLES** (GAME-DESIGN 7.1: „Während der Balken läuft,
-    // kann nichts anderes gewirkt werden") — auch den Unterbrecher, der von der
-    // globalen Wartezeit ausgenommen ist.
-    //
-    // Das ist kein Widerspruch zu 6.6/10.4, sondern die andere Größe: Dort geht
-    // es um die WARTEZEIT, hier um eine laufende eigene Handlung. Und es ist der
-    // Grund, aus dem 7.1 überhaupt von einer „echten Verpflichtung" spricht —
-    // wäre der Unterbrecher weiter frei, wäre ein Zauber mit Wirkzeit risikolos.
-    //
-    // **Steht VOR der Wartezeit-Prüfung**, damit ein Druck während der Wirkzeit
-    // diesen Grund meldet und nicht einen zufällig ebenfalls zutreffenden.
-    if (this.playerCastingValue >= 0) {
-      outcome.result = CAST_BUSY;
-      return outcome;
-    }
     // **Wer keine Wartezeit auslöst, wird auch von keiner gesperrt**
     // (GAME-DESIGN 6.6/10.4, Issue #110).
     //
@@ -2135,6 +2144,24 @@ export class Combat {
       outcome.result = CAST_ON_COOLDOWN;
       return outcome;
     }
+
+    // **Ab hier wird gewirkt — und jede Wirkung bricht einen laufenden Zauber
+    // ab** (GAME-DESIGN 7.1, „Was einen laufenden Zauber abbricht", entschieden
+    // am 2026-08-05):
+    //
+    // > Jede Wirkung des Spielers bricht einen laufenden Cast oder eine
+    // > Kanalisierung ab. Jede, ohne Ausnahme — auch das Unterbrechen.
+    //
+    // **Die Stelle ist mit Absicht HIER und nicht weiter oben.** Ein Druck, den
+    // die Wartezeit oder die Abklingzeit abweist, führt zu keiner Wirkung — er
+    // darf also auch nichts abbrechen. Stünde der Abbruch vor den zwei
+    // Prüfungen, kostete ein Fehlgriff den laufenden Zauber, und aus einer
+    // Entscheidung würde eine Falle.
+    //
+    // Folge, die man kennen muss: Solange die globale Wartezeit läuft, kann nur
+    // ein Zauber ohne sie (der Unterbrecher) abbrechen. Bei 1500 ms Wartezeit
+    // und 2000 ms Wirkzeit bleiben den übrigen 500 ms Fenster.
+    if (this.cancelPlayerCast()) this.castsCancelledValue++;
 
     // **Der Zauber mit Wirkzeit endet hier** (GAME-DESIGN 7.1, Issue #304).
     //
@@ -2301,6 +2328,26 @@ export class Combat {
    * beim Beginn setzte, müsste sie hier von Hand zurücknehmen — und genau das
    * wäre die Stelle, die man vergisst.
    *
+   * # ZWEI AUFRUFER, und der zweite ist der häufigere
+   *
+   * | Auslöser | wo |
+   * | --- | --- |
+   * | Ein Boss-Angriff mit `interruptsPlayer` | `stepPassive`, in der Zeitleiste |
+   * | **Jede eigene Wirkung** | `cast`, nach Wartezeit und Abklingzeit |
+   *
+   * Der zweite kam am 2026-08-05 dazu, als der Auftraggeber die Regel
+   * umgedreht hat. Beide räumen dasselbe Feld; **gezählt wird getrennt**, weil
+   * „der Boss hat es genommen" und „ich habe es weggeworfen" für den Spieler
+   * nichts miteinander zu tun haben.
+   *
+   * # Wo eine Kanalisierung ansetzen wird (Issue #323)
+   *
+   * Sie verliert bei Abbruch **nicht** alles, sondern behält den erreichten
+   * Anteil. Diese Methode ist die Stelle dafür: Sie kennt den Zauber und den
+   * Zeitpunkt, und `playerCastStartedAtMsValue` sagt, wie weit er gekommen ist.
+   * Ein Kanal löste hier anteilig auf, statt nur zu räumen — deshalb steht das
+   * Räumen an EINER Stelle und nicht an den zwei Aufrufern.
+   *
    * @returns true, wenn tatsächlich etwas abgebrochen wurde.
    */
   private cancelPlayerCast(): boolean {
@@ -2446,13 +2493,14 @@ export class Combat {
     this.dotTickCounts.fill(0);
     this.gcd.reset();
     // Ein neuer Versuch fängt ohne laufende Wirkzeit an (Issue #304). Ohne
-    // diese Zeile bliebe der Zustand über den Versuch hinaus stehen, und der
-    // nächste Kampf begänne dauerhaft blockiert — jeder Druck ginge in
-    // `CAST_BUSY`, und niemand könnte sagen, warum.
+    // diese Zeilen bliebe der Zustand über den Versuch hinaus stehen: Der
+    // erste Druck des nächsten Kampfes bräche einen Zauber ab, den es nicht
+    // mehr gibt, und die Zahl der Abbrüche stimmte von Anfang an nicht.
     this.playerCastingValue = -1;
     this.playerCastEndsAtMsValue = -1;
     this.playerCastStartedAtMsValue = -1;
     this.castsInterruptedValue = 0;
+    this.castsCancelledValue = 0;
     this.random.reset();
     this.resourceValue = 0;
     this.resourceOverflowValue = 0;

@@ -349,6 +349,11 @@ pub struct Fight {
     player_cast_generation: u16,
     /// Wie oft ein Boss-Angriff eine Wirkzeit abgebrochen hat.
     casts_interrupted: u32,
+    /// Wie oft ein eigener Druck eine laufende Wirkzeit abgebrochen hat.
+    ///
+    /// **Getrennt vom Zaehler des Boss-Abbruchs**, obwohl beide dasselbe Feld
+    /// raeumen: Das eine hat der Boss getan, das andere der Spieler selbst.
+    casts_cancelled: u32,
     /// Wie oft ein Boss-Zauber durchgekommen ist.
     interrupts_missed: u32,
     /// Wie oft der Spieler einen unterbrochen hat.
@@ -535,6 +540,7 @@ impl Fight {
             player_cast_ends_at: 0,
             player_cast_generation: 0,
             casts_interrupted: 0,
+            casts_cancelled: 0,
             interrupts_missed: 0,
             interrupts_landed: 0,
             vessel_max: stat_at_level(PLAYER.vessel, config.player_level),
@@ -1023,6 +1029,8 @@ impl Fight {
             died_at_ms: self.died_at,
             interrupts_landed: self.interrupts_landed,
             interrupts_missed: self.interrupts_missed,
+            casts_interrupted: self.casts_interrupted,
+            casts_cancelled: self.casts_cancelled,
             shield: shield_spur,
             afflicted: afflicted_trace,
             cast_lands_at: cast_lands_trace,
@@ -1064,6 +1072,7 @@ impl Fight {
         self.player_cast_ends_at = 0;
         self.player_cast_generation = 0;
         self.casts_interrupted = 0;
+        self.casts_cancelled = 0;
         self.interrupts_missed = 0;
         self.interrupts_landed = 0;
         self.player_hp = self.vessel_max;
@@ -2091,6 +2100,20 @@ impl Fight {
         let spell: &Spell = &SPELLS[index];
         let now = self.time;
 
+        // **Jede Wirkung bricht einen laufenden Zauber ab** (GAME-DESIGN 7.1,
+        // entschieden am 2026-08-05) — auch das Unterbrechen.
+        //
+        // Die Stelle ist der Beginn von `cast` und nicht frueher: Die Aufrufer
+        // pruefen Wartezeit und Abklingzeit VOR diesem Aufruf (`is_ready` in
+        // `replay` und in der Rotation). Wer hier ankommt, wirkt auch — und ein
+        // Druck, der zu keiner Wirkung fuehrt, darf nichts abbrechen.
+        //
+        // Auf der Spielseite steht derselbe Aufruf in `Combat.cast`, dort NACH
+        // den zwei Pruefungen, weil sie in derselben Methode liegen.
+        if self.cancel_player_cast() {
+            self.casts_cancelled += 1;
+        }
+
         // **Der Zauber mit Wirkzeit endet hier** (GAME-DESIGN 7.1, Issue #304).
         //
         // Die globale Wartezeit laeuft ab dem BEGINN — 7.1 misst die Wirkzeit
@@ -2404,12 +2427,11 @@ impl Fight {
     /// globale Wartezeit abgelaufen.
     #[must_use]
     pub fn is_ready(&self, index: usize) -> bool {
-        // **Waehrend einer Wirkzeit ist KEINER bereit** (GAME-DESIGN 7.1,
-        // Issue #304) — auch der Unterbrecher nicht, der von der globalen
-        // Wartezeit ausgenommen ist. Dieselbe Sperre wie in `Combat.isReady`.
-        if self.player_casting.is_some() {
-            return false;
-        }
+        // **Hier stand bis zum 2026-08-05 eine Sperre** — "waehrend einer
+        // Wirkzeit ist keiner bereit". Sie ist mit der Regel entfallen: Die
+        // Wirkzeit sperrt nichts, jede Wirkung bricht sie ab (GAME-DESIGN 7.1,
+        // "Was einen laufenden Zauber abbricht"). Dieselbe Stelle wie in
+        // `Combat.isReady`.
         if self.cooldown_ready_at[index] > self.time {
             return false;
         }
