@@ -293,6 +293,56 @@ export interface RaceDef {
 }
 
 /**
+ * Die eskalierende Wiederholung (GAME-DESIGN 11.2, Baustein 7; Issue #240).
+ *
+ * > Dieselbe Phase kehrt mehrfach wieder — **kürzere Fenster**, mehr
+ * > gleichzeitige Anforderungen.
+ *
+ * Sie setzt auf der vorhandenen Zeitleisten-Wiederholung auf (`timelineLoopMs`,
+ * #174) und macht sie **eskalierend**: Mit jedem Zyklus schrumpft die Wirkzeit
+ * unterbrechbarer Zauber, das Fenster zum Unterbrechen wird also enger.
+ *
+ * **Die Verkürzung steht in den Daten, nicht im Code** — sonst wäre sie eine
+ * Regel des Spiels statt eine Eigenschaft dieses Bosses.
+ *
+ * `minCastTimeMs` ist keine Feinheit: Ohne Untergrenze schrumpfte das Fenster
+ * irgendwann auf einen Takt, und der Baustein wäre kein Anspruch mehr, sondern
+ * eine Unmöglichkeit (11.7 verwirft genau das).
+ */
+export interface EscalationDef {
+  /** Um wie viel die Wirkzeit je Zyklus schrumpft. */
+  readonly castTimeShrinkMs: number;
+  /** Kürzer wird sie nicht. */
+  readonly minCastTimeMs: number;
+}
+
+/**
+ * Die Schwächung ohne Heil-Lösung (GAME-DESIGN 11.2, Baustein 8; Issue #240).
+ *
+ * > Ein Effekt lässt sich **nicht wegheilen**, sondern nur durch eine bestimmte
+ * > Handlung loswerden. **Braucht mehrere Lösungswege**, sonst ist man ohne den
+ * > richtigen Zauber hilflos.
+ *
+ * Das „mehrere" ist keine Empfehlung: `clearedBy` mit einem einzigen Eintrag
+ * wird beim Lesen beanstandet. Ein Boss, der genau einen Zauber verlangt,
+ * macht die Zusammenstellung zur Pflichtaufgabe — und 11.3 sagt ausdrücklich,
+ * dass kein Boss eine bestimmte Schule verlangen darf.
+ *
+ * **Heilung steht nicht darin, und das ist der ganze Baustein.** Wer sie
+ * einträgt, hat ihn in eine gewöhnliche Schwächung zurückverwandelt.
+ */
+export interface AfflictionDef {
+  /** Zeitpunkt seit Kampfbeginn, zu dem sie greift. Auf dem Raster. */
+  readonly atMs: number;
+  /** Takt, in dem sie Schaden macht. */
+  readonly perStepMs: number;
+  /** Schaden je Takt, **vor** WARD. */
+  readonly damage: number;
+  /** Kennungen der Zauber, die sie entfernen. Mindestens zwei. */
+  readonly clearedBy: readonly string[];
+}
+
+/**
  * Ein Fehler heilt den Boss (GAME-DESIGN 11.2, Baustein 5; #218).
  *
  * > Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz.
@@ -431,6 +481,10 @@ export interface BossDef {
   readonly race: RaceDef | null;
   /** Was ein Fehler an Fortschritt zurückdreht, oder `null` (Issue #218). */
   readonly bossHeal: BossHealDef | null;
+  /** Die Eskalation je Zyklus, oder `null` (Issue #240). */
+  readonly escalation: EscalationDef | null;
+  /** Die Schwächung ohne Heil-Lösung, oder `null` (Issue #240). */
+  readonly affliction: AfflictionDef | null;
   /** Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt. */
   readonly timeline: readonly TimelineEntryDef[];
   /**
@@ -921,6 +975,60 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     bossHeal = { amount };
   }
 
+  // Die drei letzten Bausteine (Issue #240).
+  let escalation: EscalationDef | null = null;
+  if (isRecord(source['escalation'])) {
+    const castTimeShrinkMs = number(source['escalation']['castTimeShrinkMs'], 0);
+    const minCastTimeMs = number(source['escalation']['minCastTimeMs'], 0);
+    if (castTimeShrinkMs <= 0 || castTimeShrinkMs % TICK_MS !== 0) {
+      problems.push(
+        `escalation.castTimeShrinkMs ${castTimeShrinkMs} muss positiv und auf dem ` +
+          `${TICK_MS}-ms-Raster liegen.`,
+      );
+    }
+    // Ohne Untergrenze schrumpfte das Fenster auf einen Takt — kein Anspruch
+    // mehr, sondern eine Unmöglichkeit (11.7).
+    if (minCastTimeMs <= 0 || minCastTimeMs % TICK_MS !== 0) {
+      problems.push(
+        `escalation.minCastTimeMs ${minCastTimeMs} muss positiv und auf dem ` +
+          `${TICK_MS}-ms-Raster liegen — ohne Untergrenze wäre der Baustein keine ` +
+          'Steigerung, sondern eine Unmöglichkeit.',
+      );
+    }
+    escalation = { castTimeShrinkMs, minCastTimeMs };
+  }
+
+  let affliction: AfflictionDef | null = null;
+  if (isRecord(source['affliction'])) {
+    const atMs = number(source['affliction']['atMs'], 0);
+    const perStepMs = number(source['affliction']['perStepMs'], 0);
+    const damage = number(source['affliction']['damage'], 0);
+    const roh = source['affliction']['clearedBy'];
+    const clearedBy = Array.isArray(roh)
+      ? roh.filter((x): x is string => typeof x === 'string')
+      : [];
+    if (atMs < 0 || atMs % TICK_MS !== 0) {
+      problems.push(`affliction.atMs ${atMs} liegt nicht auf dem ${TICK_MS}-ms-Raster.`);
+    }
+    if (perStepMs <= 0 || perStepMs % TICK_MS !== 0) {
+      problems.push(
+        `affliction.perStepMs ${perStepMs} muss positiv und auf dem ` +
+          `${TICK_MS}-ms-Raster liegen.`,
+      );
+    }
+    if (damage <= 0) problems.push('Die Schwächung richtet nichts an (damage).');
+    // **Das „mehrere" aus 11.2 ist keine Empfehlung.** Ein Boss, der genau
+    // einen Zauber verlangt, macht die Zusammenstellung zur Pflichtaufgabe —
+    // und 11.3 sagt, dass kein Boss eine bestimmte Schule verlangen darf.
+    if (clearedBy.length < 2) {
+      problems.push(
+        `affliction.clearedBy nennt ${clearedBy.length} Zauber — 11.2 verlangt ` +
+          'MEHRERE Lösungswege, sonst ist man ohne den richtigen Zauber hilflos.',
+      );
+    }
+    affliction = { atMs, perStepMs, damage, clearedBy };
+  }
+
   // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
   // still — ein Eintrag hinter einem späteren würde nie ausgelöst, und einer
   // neben dem Raster griffe hier später als im Simulator.
@@ -989,6 +1097,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       stacks,
       race,
       bossHeal,
+      escalation,
+      affliction,
       timeline,
       timelineLoopMs,
     },

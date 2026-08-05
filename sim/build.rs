@@ -583,6 +583,8 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     emit_stacks(out, boss, whose);
     emit_race(out, boss, whose);
     emit_boss_heal(out, boss, whose);
+    emit_escalation(out, boss, whose);
+    emit_affliction(out, boss, whose);
     emit_timeline(out, boss, whose);
     let _ = writeln!(out, "    }},");
 }
@@ -919,6 +921,90 @@ fn emit_boss_heal(out: &mut String, boss: &Value, whose: &str) {
     );
     let _ = writeln!(out, "        boss_heal: Some(BossHeal {{");
     let _ = writeln!(out, "            amount: {amount},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Die eskalierende Wiederholung (Baustein 7; Issue #240).
+fn emit_escalation(out: &mut String, boss: &Value, whose: &str) {
+    let esc = boss.get("escalation");
+    if esc.is_none() || esc == Some(&Value::Null) {
+        let _ = writeln!(out, "        escalation: None,");
+        return;
+    }
+    let esc = esc.expect("auf None geprueft");
+    let whose = format!("{whose}/escalation");
+
+    let shrink = uint(esc, "castTimeShrinkMs", &whose);
+    assert!(
+        shrink > 0 && shrink.is_multiple_of(RASTER_MS),
+        "{whose}: castTimeShrinkMs {shrink} muss groesser als null und auf dem \
+         {RASTER_MS}-ms-Raster sein"
+    );
+    let min_cast = uint(esc, "minCastTimeMs", &whose);
+    assert!(
+        min_cast > 0 && min_cast.is_multiple_of(RASTER_MS),
+        "{whose}: minCastTimeMs {min_cast} muss groesser als null und auf dem \
+         {RASTER_MS}-ms-Raster sein — ohne Untergrenze waere der Baustein keine \
+         Steigerung, sondern eine Unmoeglichkeit (11.7)"
+    );
+
+    let _ = writeln!(out, "        escalation: Some(Escalation {{");
+    let _ = writeln!(out, "            cast_time_shrink_ms: {shrink},");
+    let _ = writeln!(out, "            min_cast_time_ms: {min_cast},");
+    let _ = writeln!(out, "        }}),");
+}
+
+/// Die Schwaechung ohne Heil-Loesung (Baustein 8; Issue #240).
+fn emit_affliction(out: &mut String, boss: &Value, whose: &str) {
+    let aff = boss.get("affliction");
+    if aff.is_none() || aff == Some(&Value::Null) {
+        let _ = writeln!(out, "        affliction: None,");
+        return;
+    }
+    let aff = aff.expect("auf None geprueft");
+    let whose = format!("{whose}/affliction");
+
+    let at_ms = uint(aff, "atMs", &whose);
+    assert!(
+        at_ms.is_multiple_of(RASTER_MS),
+        "{whose}: atMs {at_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+    );
+    let per_step_ms = uint(aff, "perStepMs", &whose);
+    assert!(
+        per_step_ms > 0 && per_step_ms.is_multiple_of(RASTER_MS),
+        "{whose}: perStepMs {per_step_ms} muss groesser als null und auf dem \
+         {RASTER_MS}-ms-Raster sein"
+    );
+    let damage = uint(aff, "damage", &whose);
+    assert!(
+        damage > 0,
+        "{whose}: damage muss groesser als null sein, sonst richtet die Schwaechung nichts an"
+    );
+
+    let cleared: Vec<&str> = aff
+        .get("clearedBy")
+        .and_then(Value::as_array)
+        .map(|liste| liste.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    // **Das "mehrere" aus 11.2 ist keine Empfehlung.** Ein Boss, der genau
+    // einen Zauber verlangt, macht die Zusammenstellung zur Pflichtaufgabe —
+    // und 11.3 sagt, dass kein Boss eine bestimmte Schule verlangen darf.
+    assert!(
+        cleared.len() >= 2,
+        "{whose}: clearedBy nennt {} Zauber — 11.2 verlangt MEHRERE Loesungswege, \
+         sonst ist man ohne den richtigen Zauber hilflos",
+        cleared.len()
+    );
+
+    let _ = writeln!(out, "        affliction: Some(Affliction {{");
+    let _ = writeln!(out, "            at_ms: {at_ms},");
+    let _ = writeln!(out, "            per_step_ms: {per_step_ms},");
+    let _ = writeln!(out, "            damage: {damage},");
+    let _ = write!(out, "            cleared_by: &[");
+    for id in &cleared {
+        let _ = write!(out, "{id:?}, ");
+    }
+    let _ = writeln!(out, "],");
     let _ = writeln!(out, "        }}),");
 }
 

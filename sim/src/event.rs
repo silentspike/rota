@@ -61,6 +61,8 @@ pub enum EventKind {
     /// anders als dort, laufen beide Seiten bei jedem Zusammentreffen
     /// auseinander — und zwar nur dann, was es schwer zu finden macht.
     DoomTick,
+    /// Die Schwaechung ohne Heil-Loesung tickt (Baustein 8, Issue #240).
+    AfflictionTick,
     /// Ein exponentieller Stapel kommt dazu (Baustein 3, Issue #216).
     StackTick,
     /// Ein Eintrag der Boss-Zeitleiste wird faellig.
@@ -110,10 +112,14 @@ impl EventKind {
             // Raenge ruecken dadurch nach — ihre ABSTAENDE bleiben, und nur
             // die zaehlen.
             EventKind::DoomTick => 3,
-            EventKind::StackTick => 4,
-            EventKind::TimelineStep { .. } => 5,
-            EventKind::BossCastLands { .. } => 6,
-            EventKind::Wakeup => 7,
+            // Die Schwaechung steht zwischen Zaehler und Stapel, genau wie in
+            // `Combat::tick` (Issue #240) — die folgenden Raenge ruecken
+            // dadurch nach, ihre ABSTAENDE bleiben.
+            EventKind::AfflictionTick => 4,
+            EventKind::StackTick => 5,
+            EventKind::TimelineStep { .. } => 6,
+            EventKind::BossCastLands { .. } => 7,
+            EventKind::Wakeup => 8,
         }
     }
 }

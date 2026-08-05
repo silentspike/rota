@@ -124,6 +124,14 @@ pub struct ReplayResult {
     pub player_hp: Vec<u32>,
     /// Stand der Schutzschicht je Takt (COAGULATION, Issue #79).
     pub shield: Vec<u32>,
+    /// Ob die Schwaechung je Takt liegt, als 0 oder 1.
+    pub afflicted: Vec<u32>,
+    /// Wann der laufende Boss-Zauber trifft, oder -1 — die Spur der Eskalation.
+    pub cast_lands_at: Vec<i64>,
+    /// Wie oft die Schwaechung entfernt wurde.
+    pub afflictions_cleared: u32,
+    /// Wie viele Zyklen die Zeitleiste gelaufen ist.
+    pub cycle: u32,
     /// Wie viel die Schutzschicht insgesamt aufgefangen hat.
     pub shield_absorbed: u32,
     /// Wie viel Leben insgesamt zurueckgeholt wurde.

@@ -834,6 +834,78 @@ export function raceHealPayload(): Record<string, unknown> {
   };
 }
 
+export const TRIAL_BLOCKS_NAME = 'trial-blocks';
+
+/**
+ * Die letzten beiden Bausteine, Takt für Takt (Issue #240, AC6).
+ *
+ * **Beide in EINEM Lauf**: Die Schwächung greift bei 8 s und wird von QUENCH
+ * entfernt, die Wirkzeit der Zeitleiste schrumpft mit jedem der sieben Zyklen.
+ * Sie getrennt zu prüfen würde nicht zeigen, dass sie einander nicht ins
+ * Gehege kommen.
+ *
+ * Die zwei Reihen gehen mit, nicht nur das Ergebnis: Weichen die Seiten ab,
+ * sagt der erste unterschiedliche Eintrag, **welcher Baustein** es war.
+ */
+export function trialBlocksPayload(): Record<string, unknown> {
+  const recording = recordings().get(TRIAL_BLOCKS_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${TRIAL_BLOCKS_NAME}`);
+  const boss = bossById('test-crucible-trial');
+  if (boss === undefined) throw new Error('Der Boss test-crucible-trial fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  const geschwaecht: number[] = [];
+  const landet: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of STEP1_BINDINGS) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    geschwaecht.push(combat.afflicted ? 1 : 0);
+    landet.push(combat.casting >= 0 ? combat.castLandsAtMs : -1);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      escalation: boss.escalation,
+      affliction: boss.affliction,
+      timelineLoopMs: boss.timelineLoopMs,
+    },
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      afflictionsCleared: combat.afflictionsCleared,
+      cycle: combat.cycle,
+      diedAtMs: combat.diedAtMs,
+    },
+    checksums: result.checksums,
+    afflicted: geschwaecht,
+    castLandsAtMs: landet,
+  };
+}
+
 /**
  * Eingehender Schaden, Spielertod und Unterbrechen (Issue #110).
  *

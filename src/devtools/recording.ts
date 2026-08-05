@@ -321,6 +321,52 @@ function recordResetRotation(name: string, ticks: number): Recording {
 }
 
 /**
+ * Die beiden letzten Bausteine in EINEM Lauf (Issue #240, AC6).
+ *
+ * **Mit der Zauberleiste aus Schritt 1**, ohne eigene Belegung. Sie war einen
+ * Entwurf lang noetig, weil CRUST dort keinen Platz hat und die Reaktion sonst
+ * nie gehoben worden waere; mit dem Herausschneiden von Baustein 6 ist der
+ * Grund entfallen — und ein Sonderweg ohne Grund ist einer zu viel. QUENCH
+ * steht auf Platz 3 und entfernt die Schwaechung.
+ *
+ * Die Abfolge ist bewusst schlicht: QUENCH, sobald die Schwaechung liegt,
+ * sonst SMOULDER und KINDLE als Fueller. Damit steht neben den passiven
+ * Haelften (Verkuerzen, Schaden) auch die Handlung im Lauf, mit der der
+ * Spieler dem Baustein begegnet.
+ */
+function recordTrialRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const index = new Map(STEP1_BINDINGS.map(({ slot, spellId }) => [slot, combat.indexOf(spellId)]));
+
+  const presses: RecordedPress[] = [];
+  // **Kein `beginFight`** — die Wiedergabe (`replayRecording`) ruft es
+  // ebenfalls nicht, und Aufnahme und Wiedergabe müssen denselben Zustand
+  // erzeugen. Was `beginFight` an Uhren setzt, setzt der Konstruktor schon.
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    let slot = -1;
+    for (const kandidat of [3, 1, 0]) {
+      const i = index.get(kandidat) ?? -1;
+      if (i < 0 || !combat.isReady(i, timeMs)) continue;
+      // Platz 3 nur, wenn es etwas zu entfernen gibt — sonst waere der GCD
+      // verschenkt (#224).
+      if (kandidat === 3 && !combat.afflicted) continue;
+      if (kandidat === 1 && combat.dotRemainingMs(i, timeMs) >= GCD_MS) continue;
+      slot = kandidat;
+      break;
+    }
+    if (slot >= 0 && combat.cast(index.get(slot) ?? -1, timeMs)) {
+      presses.push({ tick, slot });
+    }
+  }
+  return { name, seed: 0, ticks, presses };
+}
+
+/**
  * Die eingebauten Aufzeichnungen.
  *
  * Erzeugt beim ersten Zugriff, nicht beim Laden: Wer die Werkzeuge nicht
@@ -362,6 +408,21 @@ export function recordings(): Map<string, Recording> {
     const racer = bossById('test-racer');
     if (racer !== undefined) {
       builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));
+    }
+    // Der Prueffall zu den letzten beiden Bausteinen (Issue #240, AC6). 90 s
+    // in Takten, und die Laenge ist gerechnet, nicht geschaetzt: Die
+    // Schwaechung greift bei 8 s, die Zeitleiste wiederholt sich alle 12 s
+    // (nach 90 s sind sieben Zyklen durch, und die Wirkzeit steht laengst auf
+    // ihrer Untergrenze). BEIDE Bausteine kommen damit in EINEM Lauf vor —
+    // getrennt geprueft zeigte sich nicht, dass sie einander nicht ins Gehege
+    // kommen.
+    //
+    // Baustein 6 stand hier bis zum 2026-08-05 mit dabei und ist herausgenommen:
+    // Der Boss-Ring IST die Reaktion (GAME-DESIGN 9.1), ein zweiter Wert daneben
+    // waere eine Dublette gewesen. Er bekommt ein eigenes Issue.
+    const trial = bossById('test-crucible-trial');
+    if (trial !== undefined) {
+      builtIn.set('trial-blocks', recordTrialRotation('trial-blocks', 9000, trial));
     }
   }
   return builtIn;
