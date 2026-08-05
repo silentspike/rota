@@ -92,6 +92,10 @@ pub struct ReplayResult {
     pub final_checksum: u32,
     /// Pruefsumme ueber die ganze Folge — ein Wert fuer den schnellen Vergleich.
     pub sequence_checksum: u32,
+    /// Wie oft ein Synergie-Fenster genutzt wurde (#318).
+    pub synergy_used: u32,
+    /// Wie oft eines offen stand, das der Partner haette nutzen koennen.
+    pub synergy_available: u32,
     /// Pruefsumme je Takt. Nur gefuellt, wenn ausdruecklich verlangt.
     pub checksums: Vec<u32>,
     /// Ziehungen aus den Zufallsstroemen.

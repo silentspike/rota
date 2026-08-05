@@ -1155,6 +1155,8 @@ impl Fight {
             casts: self.casts.to_vec(),
             final_checksum: self.checksum_at(final_time),
             sequence_checksum: sequence,
+            synergy_used: self.synergy_used,
+            synergy_available: self.synergy_available,
             checksums,
             random_draws: self.rng.total_draws(),
             phases,
