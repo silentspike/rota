@@ -2181,6 +2181,71 @@ statt des Verweises die **Lücke** dorthin:
 
 > Eine benannte Lücke ist ein Auftrag. Ein erfundener Verweis ist eine geschlossene Tür.
 
+### 8.21 Eine Feldliste, die niemand pflegt
+
+_Von Worker-1 (#346) und Worker-3 (#349) am 2026-08-05 unabhängig voneinander gefunden._
+
+Mehrere Wächter brauchen dieselbe Zutat: **alle Felder einer Struktur.** „Wird jeder Faktor
+gleich stark gerechnet?" (#346) und „überlebt ein Feld das Zurücksetzen?" (#349) sind
+verschiedene Fragen mit demselben Bedarf.
+
+Die naheliegende Antwort ist eine Liste im Prüffall — und sie ist die falsche:
+
+> Wer ein Feld hinzufügt und die Liste vergisst, hat genau den Fehler gebaut, den die Liste
+> verhindern sollte.
+
+**Auf der Spielseite gibt es die Liste geschenkt.** `private x = 0` ist in JavaScript eine
+gewöhnliche Eigenschaft; `Object.keys` sieht sie, auch die von morgen.
+
+**Im Simulator schreibt sie der Übersetzer**, wenn man ihn lässt:
+
+```rust
+#[derive(Debug)]
+pub struct Fight { … }
+```
+
+Zwei Gestalten, je nach Frage:
+
+| Was gebraucht wird | Wie                             | Fall                                  |
+| ------------------ | ------------------------------- | ------------------------------------- |
+| die **Namen**      | Debug-Ausgabe zerlegen          | #346, `alle_faktor_namen()`           |
+| die **Werte**      | zwei Debug-Ausgaben vergleichen | #349, `kein_einziges_feld_ueberlebt…` |
+
+Zur Laufzeit kostet es nichts: Die Auflistung entsteht nur, wenn sie jemand anfordert.
+
+#### Zwei Fallen, beide gemessen
+
+**Der Name aus der Tiefe.** Ein Wächter, der rückwärts zum nächsten `name:` geht, meldete bei
+einem Unterschied in `stack_gains: Cell { value: 40 }` das Feld **`value`** — den Namen aus dem
+`Cell`. Es gibt keine Stelle dieses Namens; der Suchende läuft ins Leere. Der Name muss von der
+**obersten Ebene** kommen, also über die Klammertiefe.
+
+Dieselbe Falle in anderer Gestalt auf der Spielseite: Wer rekursiv **in die Tiefe** geht, meldet
+`stacks.gains` als `events.entries.0.0.receiver.gains`, weil der Ereignis-Bus früher im
+Konstruktor steht. **In die Breite gehen**, dann trägt jeder Wert seinen kürzesten Pfad.
+
+> Ein Wächter muss nicht nur anschlagen, sondern **adressieren**.
+
+#### Die Grenze, und sie braucht ihren eigenen Fall
+
+Die Technik hängt daran, dass `Debug` **abgeleitet** ist. Ersetzt jemand `#[derive(Debug)]` durch
+eine eigene, kürzere Umsetzung, fällt die Namensliste weg oder wird unvollständig — und der
+Wächter wäre **still grün**. Das ist genau die Bauart, gegen die er gebaut ist.
+
+Deshalb prüft #346 die **Form** an bekannten Namen, nicht an ihrer Zahl:
+
+```rust
+for bekannt in ["essence", "talents", "crit"] {
+    assert!(alle.iter().any(|f| f == bekannt), "… Ist `Debug` noch abgeleitet?");
+}
+```
+
+Und #349 prüft, dass die Auflistung überhaupt etwas hergibt (`nach_reset.len() > 1000`), bevor
+sie verglichen wird. Zwei leere Zeichenketten sind gleich.
+
+**Die Regel:** Wer eine Feldliste braucht, nimmt die, die der Übersetzer schreibt — und sichert
+mit einem eigenen Fall ab, dass er sie noch schreibt.
+
 ```
     Worker-Sitzung                                      Orchestrator
          │                                                    │
