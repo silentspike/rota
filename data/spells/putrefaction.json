@@ -14,6 +14,11 @@
       "decay": {
         "_comment": "Wird gemessen.",
         "stacks": 1
+      },
+      "synergy": {
+        "_comment": "GAME-DESIGN 718 nennt CANKER und FESTER als Paar. CANKER oeffnet das Fenster, FESTER bekommt den Schadensfaktor — NEBEN dem Stapel-Bonus (perDecayStackPercent), nicht darin. windowGcds 2: GAME-DESIGN 327 sagt zwei bis drei globale Wartezeiten.",
+        "partner": "fester",
+        "windowGcds": 2
       }
     },
     {

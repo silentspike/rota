@@ -114,7 +114,23 @@ fn neutrale_faktoren_aendern_am_gleichlauf_nichts() {
 #[test]
 fn alle_faktoren_wirken_gleich_stark() {
     // Die Schadensformel multipliziert sie alle an derselben Stelle; keiner ist
-    // bevorzugt. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
+    // bevorzugt.
+    //
+    // **`synergy` und `vulnerability` stehen NICHT in der Liste** — sie werden
+    // vom Kampf selbst geschrieben (#97 und #318) und ueberschreiben einen von
+    // aussen gesetzten Wert bei der naechsten Wirkung. Der Faktor waere in
+    // diesem Lauf also gar nicht der, den die Liste setzt; der Fall pruefte
+    // eine Zahl, die es nie gab.
+    //
+    // **Was damit auf der Rust-Seite NICHT mehr geprueft wird:** dass die
+    // Synergie ueberhaupt gleich stark wirkt wie die uebrigen Faktoren. Die
+    // Spielseite misst es in `tests/unit/synergy.test.ts` ueber den Kampf
+    // (Verhaeltnis 1,25 zwischen einer Wirkung im Fenster und einer danach);
+    // ein entsprechender Fall hier fehlt noch und ist als Luecke gemeldet.
+    //
+    // Die Pruefsumme faengt einen Unterschied trotzdem: `synergyUsed`,
+    // `synergyAvailable` und `synergyOpenUntil` stehen seit #318 darin, und
+    // `SYNERGY_BONUS_PERCENT` ist auf beiden Seiten dieselbe Zahl. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
     // von 6.3 — und der Grund, warum in Schritt 1 alle Skalierungswerte gleich
     // sind.
     //
@@ -163,7 +179,6 @@ const GEPRUEFTE_FAKTOREN: &[&str] = &[
     "talents",
     "gear_effects",
     "buffs",
-    "synergy",
     "resistance",
     "crit",
 ];
@@ -260,11 +275,21 @@ fn alle_faktor_namen() -> Vec<String> {
 /// entsteht, ist ein Versehen — und genau das war der Zustand: `gear_effects`
 /// fiel bei Issue #195 aus der Pruefung, ohne dass jemand es bemerkte, weil
 /// Fehlen und Ausnahme identisch aussehen.
-const SCHREIBT_DER_KAMPF_SELBST: &[(&str, &str)] = &[(
-    "vulnerability",
-    "Der Kampf setzt ihn je Treffer aus dem Boss-Zustand (Issue #97). Ein \
-     fester Wert wuerde beim ersten Schritt ueberschrieben.",
-)];
+const SCHREIBT_DER_KAMPF_SELBST: &[(&str, &str)] = &[
+    (
+        "vulnerability",
+        "Der Kampf setzt ihn je Treffer aus dem Boss-Zustand (Issue #97). Ein \
+         fester Wert wuerde beim ersten Schritt ueberschrieben.",
+    ),
+    (
+        "synergy",
+        "Der Kampf setzt ihn bei jeder Wirkung aus dem offenen Fenster (Issue \
+         #318). Ein von aussen gesetzter Wert waere beim ersten Druck weg — \
+         der Fall pruefte eine Zahl, die es im Lauf nie gab. Seine Staerke \
+         misst dafuer sim/tests/parity_synergy_run.rs ueber den KAMPF, mit \
+         zwei Wirkungen im und nach dem Fenster.",
+    ),
+];
 
 #[test]
 fn kein_faktor_faellt_lautlos_aus_der_staerke_pruefung() {

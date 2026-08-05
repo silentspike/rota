@@ -40,6 +40,19 @@ export interface Recording {
   /** Dauer in Takten. */
   readonly ticks: number;
   readonly presses: readonly RecordedPress[];
+  /**
+   * Die Leiste, mit der diese Runde gespielt wurde (Issue #318).
+   *
+   * **Die Aufzeichnung bringt ihre Leiste mit** — so wie der Simulator es seit
+   * jeher tut (`replay.rs`, `spell_for_slot` liest `self.bindings`). Vorher
+   * musste der Aufrufer sie reichen; vergaß er es, fiel diese Seite still auf
+   * `STEP1_BINDINGS` zurück und las eine andere Leiste als der Simulator — aus
+   * derselben Datei.
+   *
+   * Fehlt das Feld, gilt weiter `STEP1_BINDINGS`. Damit bleibt jede bestehende
+   * Aufzeichnung unverändert.
+   */
+  readonly bindings?: readonly { readonly slot: number; readonly spellId: string }[];
 }
 
 export interface ReplayResult {
@@ -54,6 +67,10 @@ export interface ReplayResult {
   readonly casts: Readonly<Record<string, number>>;
   /** Prüfsumme des Endzustands. */
   readonly finalChecksum: number;
+  /** Wie oft ein Synergie-Fenster genutzt wurde (Issue #318). */
+  readonly synergyUsed: number;
+  /** Wie oft eines offen stand, das der Partner hätte nutzen können. */
+  readonly synergyAvailable: number;
   /** Prüfsumme über die ganze Folge — ein Wert für den schnellen Vergleich. */
   readonly sequenceChecksum: number;
   /**
@@ -178,7 +195,11 @@ export function replayRecording(
       const press = recording.presses[pressIndex];
       if (press === undefined || press.tick > tick) break;
       pressIndex++;
-      const spellIndex = spellForSlot(combat, press.slot, options.bindings);
+      // **Die Leiste der Aufzeichnung hat Vorrang vor gar keiner** (#318).
+      // `options.bindings` bleibt oben, weil ein Aufrufer sie bewusst
+      // überschreiben darf; fehlt sie, kommt die aus der Datei statt der
+      // festen aus `loadout.ts`.
+      const spellIndex = spellForSlot(combat, press.slot, options.bindings ?? recording.bindings);
       if (spellIndex < 0) {
         rejected++;
         continue;
@@ -217,6 +238,8 @@ export function replayRecording(
       killedAtMs >= 0 ? killedAtMs : (recording.ticks - 1) * TICK_MS,
     ),
     sequenceChecksum: sequence,
+    synergyUsed: combat.synergyUsed,
+    synergyAvailable: combat.synergyAvailable,
     ruleSequenceChecksum: combat.events.sequenceChecksum,
     ruleEventCount: combat.events.emittedCount,
     checksums,
