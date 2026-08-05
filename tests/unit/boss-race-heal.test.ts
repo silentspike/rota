@@ -111,14 +111,14 @@ describe('AC3 — ein durchgekommener Boss-Zauber dreht Fortschritt zurück', ()
     const combat = neuerKampf();
     // Bis nach dem Fenster schlagen, damit Fortschritt da ist, den man
     // zurückdrehen kann.
-    schlagen(combat, 30000);
+    schlagen(combat, 19990);
     const vorDemZauber = combat.damageDealt;
     const anteilVorher = combat.bossHpPercent;
     expect(vorDemZauber).toBeGreaterThan(RACER.bossHeal!.amount);
 
-    // Der Zauber beginnt bei 30 s und trifft nach 3 s Wirkzeit — niemand
+    // Der Zauber beginnt bei 20 s und trifft nach 3 s Wirkzeit — niemand
     // unterbricht ihn.
-    for (let t = 30000; t <= 34000; t += TICK_MS) combat.stepPassive(t);
+    for (let t = 20000; t <= 24000; t += TICK_MS) combat.stepPassive(t);
 
     expect(combat.interruptsMissed, 'der Zauber kam durch').toBe(1);
     expect(combat.bossHealed).toBe(RACER.bossHeal!.amount);
@@ -132,7 +132,7 @@ describe('AC3 — ein durchgekommener Boss-Zauber dreht Fortschritt zurück', ()
     // negativen Fortschritt — und jede Prozentrechnung darüber wäre unsinnig.
     const combat = neuerKampf();
     combat.beginFight(0);
-    for (let t = 0; t <= 34000; t += TICK_MS) combat.stepPassive(t);
+    for (let t = 0; t <= 24000; t += TICK_MS) combat.stepPassive(t);
 
     expect(combat.damageDealt).toBe(0);
     expect(combat.bossHealed).toBe(0);

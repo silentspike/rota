@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "test-racer",
-  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #218 (Wettrennen gegen einen Zauber und Fehler heilt den Boss) und sonst nichts. Wie lang das Fenster ist, wie viel Schaden das Ziel zerstoert und wie viel ein verpasster Unterbrecher zurueckdreht: wird gemessen. GEMESSENE GRUNDLAGE der beiden Zahlen: Vier KINDLE-Wirkungen passen in das 6-s-Fenster und ergeben 400 Schaden — die Schwelle 300 liegt darunter, damit der Erfolgsfall eintreten KANN, und ueber null, damit ein untaetiger Spieler ihn nicht erreicht. Die 20000 Lebenspunkte stehen so, dass 600 Heilung im Prozentwert sichtbar sind (drei Punkte); bei 999999 waren es null, und der Prueffall zum rueckwaerts laufenden Balken konnte nichts messen. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10 mit den Signatur-Regeln. Der eine unterbrechbare Zauber steht hier, damit die Heilung ueberhaupt ausloesbar ist.",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #218 (Wettrennen gegen einen Zauber und Fehler heilt den Boss) und sonst nichts. Wie lang das Fenster ist, wie viel Schaden das Ziel zerstoert und wie viel ein verpasster Unterbrecher zurueckdreht: wird gemessen. GEMESSENE GRUNDLAGE der beiden Zahlen: Vier KINDLE-Wirkungen passen in das 6-s-Fenster und ergeben 400 Schaden — die Schwelle 300 liegt darunter, damit der Erfolgsfall eintreten KANN, und ueber null, damit ein untaetiger Spieler ihn nicht erreicht. Die 20000 Lebenspunkte stehen so, dass 600 Heilung im Prozentwert sichtbar sind (drei Punkte); bei 999999 waren es null, und der Prueffall zum rueckwaerts laufenden Balken konnte nichts messen. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10 mit den Signatur-Regeln. Der eine unterbrechbare Zauber steht hier, damit die Heilung ueberhaupt ausloesbar ist. Der Zauber liegt bei 20 s und trifft bei 23 s: Ein Standard-Pruefdurchlauf dauert 30 s, bei atMs 30000 fiel der Treffer AUSSERHALB und die Heilung war in keinem Durchlauf zu sehen — gemessen am Pruefblatt, das 'Gemessen: keine' meldete.",
   "name": "The Racer",
   "instance": "test",
   "hp": 20000,
@@ -20,7 +20,7 @@
   },
   "timeline": [
     {
-      "atMs": 30000,
+      "atMs": 20000,
       "mechanic": "interruptibleCast",
       "name": "Setback",
       "damage": 100,
