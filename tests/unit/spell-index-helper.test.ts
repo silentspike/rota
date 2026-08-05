@@ -40,4 +40,24 @@ describe('spellIndex', () => {
     const combat = new Combat({ school: CALCINATION.value, boss });
     expect(() => spellIndex('gibtsnicht', combat)).toThrow('gibt es nicht');
   });
+
+  it('mit einer TEIL-Schule liefern die beiden Fassungen Verschiedenes (#403)', () => {
+    // **Der Fall, den ich für unmöglich gehalten hatte.** Ich hatte im
+    // Bestand gesucht, keinen Aufrufer gefunden und daraus geschlossen, es
+    // gebe keine Lage. Der Orchestrator hat stattdessen eine GEBAUT — in vier
+    // Zeilen, weil `Combat` jede `SchoolDef` nimmt, nicht nur `CALCINATION`.
+    //
+    // „Ich finde keine" und „es gibt keine" sind zwei Aussagen.
+    const boss = bossById('test-warden');
+    if (boss === undefined) throw new Error('test-warden fehlt');
+    const voll = CALCINATION.value;
+    const teil = { ...voll, spells: voll.spells.slice(1) } as typeof voll;
+    const combat = new Combat({ school: teil, boss });
+
+    const id = voll.spells[2]?.id;
+    if (id === undefined) throw new Error('die Schule hat weniger als drei Zauber');
+
+    expect(spellIndex(id), 'ohne Kampf zählt die Schule').toBe(2);
+    expect(spellIndex(id, combat), 'mit Kampf zählt DESSEN Leiste').toBe(1);
+  });
 });
