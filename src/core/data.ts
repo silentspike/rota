@@ -125,6 +125,13 @@ export interface SpellDef {
    */
   readonly perDecayStackPercent?: number;
   /**
+   * Die Synergie-Beziehung dieses Zaubers (GAME-DESIGN 5, Issue #318).
+   *
+   * Der Zauber ist der **Auslöser**: Nach seiner Wirkung steht dem Partner ein
+   * Fenster offen, in dem er den Bonus bekommt.
+   */
+  readonly synergy?: SynergyDef;
+  /**
    * Wie viele Kontroll-Punkte der Zauber **aufbaut** (FIXATION, Issue #100).
    *
    * Eigenes Feld und nicht unter `resourceGain`: Der Kampf führt genau eine
@@ -729,6 +736,57 @@ export interface DecayDef {
   readonly stacks: number;
 }
 
+/**
+ * Die Synergie-Beziehung lesen (Issue #318).
+ *
+ * **Schulübergreifend, deshalb keine Schul-Funktion.** GAME-DESIGN 5 nennt sie
+ * ausdrücklich „schulübergreifende Synergien" — sie an `parseCalcination` zu
+ * hängen hieße, sie auf eine Schule festzulegen.
+ */
+function parseSynergy(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: string[],
+): { synergy?: SynergyDef } {
+  if (!isRecord(raw['synergy'])) return {};
+  const partner = raw['synergy']['partner'];
+  const windowGcds = number(raw['synergy']['windowGcds'], 0);
+  if (typeof partner !== 'string' || partner.length === 0) {
+    problems.push(`${where}: Eine Synergie ohne Partner öffnet kein Fenster.`);
+    return {};
+  }
+  // **Null Wartezeiten sind kein Fenster.** Ein Fenster, das nie offen steht,
+  // wäre eine Beziehung, die im Kampf nichts tut — und die Auswertung führte
+  // sie als vorhanden.
+  if (windowGcds <= 0) {
+    problems.push(`${where}: windowGcds ${windowGcds} ergibt kein Fenster.`);
+    return {};
+  }
+  return { synergy: { partner, windowGcds } };
+}
+
+/**
+ * Eine Synergie-Beziehung zwischen zwei Zaubern (GAME-DESIGN 5, Issue #318).
+ *
+ * # Das Fenster steht in WARTEZEITEN, nicht in Millisekunden
+ *
+ * GAME-DESIGN 327 sagt es und begründet es: „In Wartezeiten gerechnet, nicht
+ * in Sekunden — sonst verschiebt sich das Verhältnis bei hohem Tempo." Wer das
+ * Fenster in Millisekunden ablegt, hat bei hohem CATALYSIS plötzlich vier
+ * Wartezeiten Zeit statt zwei, und die Fertigkeit, um die es geht
+ * („Cooldown-Alignment"), wird mit Tempo leichter statt gleich schwer.
+ *
+ * Deshalb steht hier eine **Anzahl**. Die Millisekunden entstehen erst im
+ * Kampf, durch dieselbe `hasted()`-Stelle wie jede andere Zeit — und schrumpfen
+ * damit von selbst mit.
+ */
+export interface SynergyDef {
+  /** Kennung des Zaubers, der den Bonus bekommt. */
+  readonly partner: string;
+  /** Länge des Fensters in globalen Wartezeiten (GAME-DESIGN 327: zwei bis drei). */
+  readonly windowGcds: number;
+}
+
 /** Die Felder der PUTREFACTION (GAME-DESIGN 4.1, Issue #97). */
 function parsePutrefaction(
   raw: Record<string, unknown>,
@@ -880,6 +938,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
     ...parsePutrefaction(raw, where, problems),
+    ...parseSynergy(raw, where, problems),
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
