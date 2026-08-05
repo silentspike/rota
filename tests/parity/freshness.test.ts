@@ -32,6 +32,7 @@ import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckterZaehler from './recordings/doom-stacks.json';
 import eingecheckterAuswahlLauf from './recordings/cooldown-reset-run.json';
 import eingecheckterWettlauf from './recordings/race-heal.json';
+import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckteAusruestung from './recordings/gear.json';
@@ -48,6 +49,7 @@ import {
   doomStacksPayload,
   resetRunPayload,
   raceHealPayload,
+  trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
   misplaysPayload,
@@ -124,6 +126,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Wettrennen und Boss-Heilung entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterWettlauf, HINWEIS).toEqual(raceHealPayload());
+  });
+
+  it('der Lauf mit den letzten drei Bausteinen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteDreiBausteine, HINWEIS).toEqual(trialBlocksPayload());
   });
 
   it('der Durchgang gegen die wiederholte Zeitleiste entspricht dem heutigen Spielstand', () => {
