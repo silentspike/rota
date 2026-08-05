@@ -448,6 +448,39 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Bei einer Gegenprobe zählt die Meldung, nicht der Rückgabewert
+
+_Gefunden am 2026-08-05 in Etappe 2 von #248._
+
+Eine Gegenprobe sollte belegen, dass ein Prüffall den Fall „steigt **mehrere** Stufen" wirklich
+hält. Dafür wurde `while` durch `if` ersetzt:
+
+```
+Rückgabewert 1 — sah nach Fehlschlag aus
+```
+
+Es war ein **Übersetzungsfehler**: Das `break` stand plötzlich ohne Schleife da. Der Prüffall
+lief kein einziges Mal.
+
+> **Rückgabewert 1 heißt nicht „der Prüffall hat angeschlagen", sondern nur „irgendetwas ging
+> schief"** — und beim Gegenproben sind das zwei sehr verschiedene Dinge.
+
+Eine Gegenprobe, die aus dem falschen Grund scheitert, sieht aus wie ein Erfolg. Man hakt sie ab
+und geht weiter — und der Prüffall, den man belegen wollte, ist weiterhin ungeprüft.
+
+Die richtige Fassung lieferte die Meldung, auf die es ankam:
+
+```
+expected 2 to be greater than 3
+```
+
+**Die Regel:** Bei einer Gegenprobe wird die **Meldung** gelesen, nicht der Rückgabewert. Sie
+muss den Prüffall nennen, den man treffen wollte, und die Zahl, die er beanstandet.
+
+Die Umkehrung desselben Fehlers steht weiter unten in der Messfehler-Tabelle: `RÜCKGABEWERT 0`
+durch `tail` — ein falscher **Erfolg**. Beide führen dazu, dass die Zahl gelesen wird statt
+ihrer Herkunft.
+
 ### Ein Prüffall hinter einem Wächter ist grün ohne Grund
 
 _Gefunden am 2026-08-05 bei der fünften Gegenprobe zu #248._
