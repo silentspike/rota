@@ -116,39 +116,211 @@ fn alle_faktoren_wirken_gleich_stark() {
     // Die Schadensformel multipliziert sie alle an derselben Stelle; keiner ist
     // bevorzugt. Das ist keine Selbstverstaendlichkeit, sondern eine Eigenschaft
     // von 6.3 — und der Grund, warum in Schritt 1 alle Skalierungswerte gleich
-    // sind. Erst Krit und Tempo trennen sie (beides noch nicht umgesetzt).
+    // sind.
+    //
+    // **Die Faktoren kommen aus GEPRUEFTE_FAKTOREN, nicht aus einer Liste
+    // hier** (Issue #346). Sonst gaebe es zwei Listen: die, die geprueft wird,
+    // und die, gegen die der Waechter vergleicht — und sie koennten
+    // auseinanderlaufen. Genau davor schuetzt dieser Umbau.
     let referenz = lauf(DamageFactors {
         essence: 1.10,
         ..NEUTRAL
     })
     .damage;
 
-    for factors in [
-        DamageFactors {
-            talents: 1.10,
-            ..NEUTRAL
-        },
-        DamageFactors {
-            buffs: 1.10,
-            ..NEUTRAL
-        },
-        DamageFactors {
-            synergy: 1.10,
-            ..NEUTRAL
-        },
-        DamageFactors {
-            resistance: 1.10,
-            ..NEUTRAL
-        },
-        DamageFactors {
-            crit: 1.10,
-            ..NEUTRAL
-        },
-    ] {
+    for name in GEPRUEFTE_FAKTOREN {
+        let factors = mit_faktor(name, 1.10);
         assert_eq!(
             lauf(factors).damage,
             referenz,
-            "ein Faktor wirkt anders als die uebrigen: {factors:?}"
+            "der Faktor {name} wirkt anders als die uebrigen: {factors:?}"
+        );
+    }
+}
+
+/// Die Faktoren, deren Staerke [`alle_faktoren_wirken_gleich_stark`] prueft.
+///
+/// **Diese Liste ist die einzige Quelle.** Der Prueffall liest sie, und der
+/// Waechter aus Issue #346 vergleicht sie gegen die Felder der Struktur. Zwei
+/// getrennte Listen koennten auseinanderlaufen — und ihr Auseinanderlaufen
+/// saehe aus wie Ruhe.
+const GEPRUEFTE_FAKTOREN: &[&str] = &[
+    "essence",
+    "talents",
+    "gear_effects",
+    "buffs",
+    "synergy",
+    "resistance",
+    "crit",
+];
+
+/// Setzt genau einen Faktor und laesst die uebrigen neutral.
+///
+/// **Der Uebersetzer erzwingt hier nichts** — ein unbekannter Name faellt
+/// durch in den `panic`. Das ist Absicht: Die Namen stammen aus
+/// [`GEPRUEFTE_FAKTOREN`], und ein Tippfehler dort soll laut scheitern statt
+/// still einen Faktor zu ueberspringen.
+fn mit_faktor(name: &str, wert: f64) -> DamageFactors {
+    match name {
+        "essence" => DamageFactors {
+            essence: wert,
+            ..NEUTRAL
+        },
+        "talents" => DamageFactors {
+            talents: wert,
+            ..NEUTRAL
+        },
+        "gear_effects" => DamageFactors {
+            gear_effects: wert,
+            ..NEUTRAL
+        },
+        "buffs" => DamageFactors {
+            buffs: wert,
+            ..NEUTRAL
+        },
+        "synergy" => DamageFactors {
+            synergy: wert,
+            ..NEUTRAL
+        },
+        "resistance" => DamageFactors {
+            resistance: wert,
+            ..NEUTRAL
+        },
+        "vulnerability" => DamageFactors {
+            vulnerability: wert,
+            ..NEUTRAL
+        },
+        "crit" => DamageFactors {
+            crit: wert,
+            ..NEUTRAL
+        },
+        anderer => panic!(
+            "mit_faktor kennt {anderer} nicht — steht er in GEPRUEFTE_FAKTOREN, \
+             fehlt hier ein Zweig"
+        ),
+    }
+}
+
+/// Die Namen aller Felder von [`DamageFactors`], zur Laufzeit aus der Struktur
+/// selbst (Issue #346).
+///
+/// # Warum aus der Debug-Ausgabe und nicht aus einer zweiten Liste
+///
+/// Die Debug-Ableitung **ist** die Struktur, nur als Text. Wer ein Feld
+/// ergaenzt, ergaenzt damit auch diese Liste — ohne es zu wollen und ohne es
+/// zu koennen. Eine handgefuehrte zweite Liste haette genau das Problem, das
+/// dieser Waechter loesen soll: Sie kann zurueckbleiben, und ihr Schweigen
+/// sieht aus wie Zustimmung.
+fn alle_faktor_namen() -> Vec<String> {
+    let text = format!("{NEUTRAL:?}");
+    let inhalt = text
+        .split_once('{')
+        .and_then(|(_, rest)| rest.rsplit_once('}'))
+        .map(|(mitte, _)| mitte)
+        .unwrap_or("");
+    inhalt
+        .split(',')
+        .filter_map(|teil| teil.split_once(':'))
+        .map(|(name, _)| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
+/// Faktoren, die der Kampf **selbst** schreibt — fuer sie ist ein
+/// Staerke-Vergleich mit festem Wert nicht sinnvoll.
+///
+/// # Woran man erkennt, dass ein Faktor hierhergehoert
+///
+/// **Der Kampf setzt ihn im Lauf selbst**, statt ihn beim Aufbau entgegen zu
+/// nehmen. Ein fester Wert wuerde dann beim ersten Schritt ueberschrieben, und
+/// der Staerke-Vergleich maesse nicht den Faktor, sondern den Zeitpunkt.
+///
+/// Das Kriterium steht hier und nicht die Aufzaehlung eines Zustands: Nimmt
+/// ein spaeterer Stand einen weiteren Faktor in die Hand des Kampfes — etwa
+/// `synergy`, das auf einem noch nicht gemergten Zweig herauswandert —, dann
+/// steht hier, wonach zu entscheiden ist, statt einer Liste, die zu keinem
+/// Stand mehr passt.
+///
+/// **Die Ausnahme muss hier stehen, sonst gibt es sie nicht.** Eine Ausnahme,
+/// die man nennen muss, ist eine Entscheidung; eine, die durch Weglassen
+/// entsteht, ist ein Versehen — und genau das war der Zustand: `gear_effects`
+/// fiel bei Issue #195 aus der Pruefung, ohne dass jemand es bemerkte, weil
+/// Fehlen und Ausnahme identisch aussehen.
+const SCHREIBT_DER_KAMPF_SELBST: &[(&str, &str)] = &[(
+    "vulnerability",
+    "Der Kampf setzt ihn je Treffer aus dem Boss-Zustand (Issue #97). Ein \
+     fester Wert wuerde beim ersten Schritt ueberschrieben.",
+)];
+
+#[test]
+fn kein_faktor_faellt_lautlos_aus_der_staerke_pruefung() {
+    // Issue #346. **Der Waechter zaehlt nicht, was er kennt — er vergleicht
+    // mit dem, was da ist.**
+    //
+    // Bis hierher stand die Pruefliste allein da. Faellt ein Faktor heraus
+    // oder kommt einer dazu, ohne dass jemand die Liste anfasst, schweigt
+    // sie. Genau das ist zweimal passiert:
+    //
+    //   vulnerability   seit #97   bewusst, aber unbenannt
+    //   gear_effects    seit #195  unbemerkt — von mir gebaut, von mir
+    //                              uebersehen
+    //
+    // Der Waechter war nicht falsch gebaut, er war nicht mitgewachsen. Das
+    // sieht identisch aus.
+    let alle = alle_faktor_namen();
+
+    // Der Gegenfall zuerst: Liefert die Namensliste nichts, ist unten alles
+    // trivial erfuellt.
+    assert!(
+        alle.len() >= 8,
+        "nur {} Faktornamen aus der Debug-Ausgabe gelesen — dann prueft der \
+         Rest nichts. Hat sich das Debug-Format geaendert?",
+        alle.len()
+    );
+
+    // **Die Anzahl allein genuegt nicht.** Die Namensliste haengt daran, dass
+    // `Debug` ABGELEITET ist. Ersetzt jemand `#[derive(Debug)]` durch eine
+    // eigene Umsetzung — etwa fuer eine kuerzere Ausgabe —, faellt die
+    // Namensliste weg oder wird unvollstaendig, und dieser Waechter waere
+    // still gruen.
+    //
+    // Das ist genau die Bauart, gegen die er gebaut ist: eine Aenderung
+    // anderswo, die eine Pruefung lautlos entwertet. Deshalb pruefen wir die
+    // FORM an bekannten Namen, nicht an ihrer Zahl.
+    for bekannt in ["essence", "talents", "crit"] {
+        assert!(
+            alle.iter().any(|f| f == bekannt),
+            "der Faktor {bekannt} steht nicht in der Debug-Ausgabe. Ist \
+             `Debug` fuer DamageFactors noch abgeleitet, oder wurde es von \
+             Hand umgesetzt? Dann traegt diese Pruefung ihre Namensliste nicht \
+             mehr."
+        );
+    }
+
+    let ausgenommen: Vec<&str> = SCHREIBT_DER_KAMPF_SELBST.iter().map(|(n, _)| *n).collect();
+    let fehlend: Vec<&String> = alle
+        .iter()
+        .filter(|name| !GEPRUEFTE_FAKTOREN.contains(&name.as_str()))
+        .filter(|name| !ausgenommen.contains(&name.as_str()))
+        .collect();
+
+    assert!(
+        fehlend.is_empty(),
+        "Diese Faktoren stehen in DamageFactors, werden aber weder in \
+         `alle_faktoren_wirken_gleich_stark` geprueft noch in \
+         SCHREIBT_DER_KAMPF_SELBST begruendet ausgenommen: {fehlend:?}\n\
+         Entweder gehoert der Faktor in die Pruefung — oder die Ausnahme \
+         gehoert benannt. Beides ist eine Entscheidung; ihn wegzulassen ist \
+         keine."
+    );
+
+    // Und die Gegenrichtung: Eine Ausnahme fuer einen Faktor, den es gar
+    // nicht mehr gibt, ist eine Zeile, die niemand mehr prueft.
+    for (name, _) in SCHREIBT_DER_KAMPF_SELBST {
+        assert!(
+            alle.iter().any(|f| f == name),
+            "SCHREIBT_DER_KAMPF_SELBST nennt {name}, aber DamageFactors hat \
+             kein solches Feld mehr"
         );
     }
 }
