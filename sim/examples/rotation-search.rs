@@ -30,12 +30,24 @@ const MAX_LEN: usize = 6;
 
 /// Die Bosse, gegen die gesucht wird (Schnitt 3 und AC1b).
 ///
+/// **Nicht irgendein zweiter Boss — einer mit anderer DAUER.** Mein erster
+/// Versuch nahm `test-warden`, weil er Schaden und einen unterbrechbaren
+/// Zauber hat. Beide Bosse lieferten exakt dieselbe Zahl, und der Grund stand
+/// in meiner eigenen Einstellung: Mit `stop_on_kill = false` läuft jeder
+/// Durchgang die volle Überdruckzeit, und `test-warden` hat dieselben 60 s wie
+/// `first-crucible`. HP und Zeitleiste formen die Rotation nicht, solange
+/// nicht gestoppt wird und der Spieler überlebt.
+///
+/// `test-metronome` hat 300 s. Dort kommt REFLUX (Abklingzeit 45 s) sechsmal
+/// zum Zug statt einmal — die Werkzeug-Zauber haben dort tatsächlich
+/// Gelegenheit.
+///
 /// **Mehr als einer, und das ist keine Gründlichkeit, sondern Notwendigkeit.**
 /// Gegen einen Boss ohne Schaden und ohne eigene Zauber können FIXATION,
 /// COAGULATION und QUENCH nichts beitragen; eine Suche dort würde sie zu Recht
 /// nie wählen und danach „tote Zauber" melden, wo in Wahrheit steht: ein Boss,
 /// an dem sie nichts zu tun haben.
-const BOSSES: &[&str] = &["first-crucible", "test-warden"];
+const BOSSES: &[&str] = &["first-crucible", "test-metronome"];
 
 fn config(boss_id: &str) -> BalanceConfig {
     let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
