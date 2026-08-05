@@ -511,6 +511,13 @@ impl Fight {
     /// Legt einen Durchgang an. Fordert allen benoetigten Speicher **jetzt** an.
     #[must_use]
     pub fn new(config: FightConfig) -> Self {
+        // Einmal gerechnet, zweimal gebraucht — Startleben und Deckel sind
+        // derselbe Wert, und getrennte Ausdruecke waeren zwei Stellen, die
+        // auseinanderlaufen koennen.
+        let vessel_max = vessel_with_gear(
+            stat_at_level(PLAYER.vessel, config.player_level),
+            config.worn.vessel,
+        );
         let mut fight = Self {
             time: 0,
             duration_ms: config.duration_ms.unwrap_or(config.boss.overpressure_ms),
@@ -550,11 +557,22 @@ impl Fight {
             //
             // Ohne getragene Ausruestung ist der Faktor exakt 1,0 und die
             // Multiplikation bewegt keine Zahl — belegt in AC5.
-            vessel_max: vessel_with_gear(
-                stat_at_level(PLAYER.vessel, config.player_level),
-                config.worn.vessel,
-            ),
-            player_hp: stat_at_level(PLAYER.vessel, config.player_level),
+            vessel_max,
+            // **Derselbe Wert wie `vessel_max`, nicht die Basis darunter.**
+            //
+            // Hier stand `stat_at_level(...)` — die Lebenspunkte OHNE
+            // Ausruestung, waehrend `vessel_max` sie MIT bekam. Der Spieler
+            // startete also verwundeter, als er sein durfte, und weil
+            // `player_hp` in die Pruefsumme eingeht, brach der Gleichlauf in
+            // Takt 0.
+            //
+            // Die beiden Zeilen sahen aus wie ein Paar und WAREN eins, solange
+            // es keine Ausruestung gab. Auf der Spiel-Seite ist es eine
+            // einzige Zeile (`playerHpValue = vesselMax`) — dort gab es beim
+            // Uebertragen nichts zu vergessen. **Eine Asymmetrie, die auf
+            // einer Seite zwei Zeilen ist und auf der anderen eine, faellt
+            // beim Uebertragen durch.**
+            player_hp: vessel_max,
             died_at: None,
             damage_taken: 0,
             shield: 0,
