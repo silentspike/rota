@@ -720,6 +720,53 @@ vergleichen bekommt. Es sind zwei unabhängige Regeln, und beide werden gebrauch
 Gefunden hat es der Werker selbst — an einem Befund, den der Orchestrator ihm als Lücke seiner
 Probe gemeldet hatte.
 
+#### Derselbe Fehler, elf Stunden später, im Werkzeug gegen ihn
+
+_Nachgetragen am 2026-08-05, abends._
+
+Der Abschnitt oben steht seit dem Vormittag. Am Abend hat der **Orchestrator** ein Prüfskript
+gebaut (`tools/ac6.sh`), das gegen `git show HEAD:` verglich — genau das, was hier beschrieben
+steht.
+
+```
+vor dem Commit    cast-time.json  playerCasting.*   doom-stacks.json  fieldOrder.*
+nach dem Commit   OK - kein bestehender Wert bewegt sich
+```
+
+Nach dem ersten Commit vergleicht es die Datei **mit sich selbst** und meldet ab da immer `OK`.
+Das Skript war als Beleg für ein Abnahme-Kriterium ausgegeben worden; wer es benutzt hätte wie
+vorgesehen, hätte das Kriterium mit einem Werkzeug belegt, das nach dem ersten Commit nie wieder
+rot wird — und die Abnahme hätte es durchgewinkt.
+
+**Warum der Abschnitt es nicht verhindert hat:** Er steht unter „Gegenproben". Beim Bauen eines
+_Prüfwerkzeugs_ war das für den Autor eine andere Sache — dieselbe Regel, ein anderes Wort.
+
+> Eine Regel, an die man sich erinnern muss, wird an dem Tag vergessen, an dem die Arbeit anders
+> heißt.
+
+**Die Gegenmaßnahme ist deshalb keine Regel, sondern eine Zeile Ausgabe:**
+
+```bash
+BASIS="${AC6_BASIS:-$(git merge-base origin/main HEAD)}"
+echo "Bezugspunkt: $(git rev-parse --short "$BASIS")  $(git log -1 --format=%s "$BASIS")"
+```
+
+Dazu ein Abbruch, wenn der Bezugspunkt gleich `HEAD` ist — ein Vergleich ohne Gegenstand meldet
+sonst „OK".
+
+**Und die Zeile hat sofort etwas gefangen, das sie nicht suchte.** Zwei Minuten nach dem Einbau
+las ein Werker dort den Namen eines _fremden_ Commits und stellte fest, dass drei seiner Commits
+auf dem Zweig eines anderen Issues lagen. Es blieb nur durch Timing folgenlos: Der zugehörige PR
+war bereits gemergt. Wäre er offen gewesen, hätte er still drei fremde Commits aufgenommen.
+
+> Ein Werkzeug, das seinen Bezugspunkt nennt, macht nicht nur sich selbst prüfbar. Es macht den
+> Kontext sichtbar, in dem es läuft — und manchmal ist der die eigentliche Nachricht.
+
+**Derselbe Fehler ein drittes Mal, am selben Abend:** Ein Werker verglich zwei Testläufe über
+`HEAD~1` und bekam „kein Unterschied". `HEAD~1` war bereits der neue Stand; erst `HEAD~2` lag
+davor. Gemerkt hat er es an einem `grep -c "const KINDLE = 0"`, das `0` zurückgab — **nicht am
+Ergebnis, sondern an einer Kontrollfrage nebenher.**
+
 ### Eine Zahl ohne committeten Läufer ist eine Behauptung
 
 _Gefunden am 2026-08-05 beim Abnehmen von #224._
