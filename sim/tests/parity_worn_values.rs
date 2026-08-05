@@ -297,3 +297,51 @@ fn dieser_lauf_unterscheidet_sich_wirklich_von_dem_ohne_ausruestung() {
     );
     assert!(mit.random_draws > 0, "mit PURITY muss gewuerfelt werden");
 }
+
+#[test]
+fn essence_aus_der_ausruestung_wirkt_im_kampf() {
+    // Issue #282, AC2. **Der Nachweis, dass die Leitung etwas transportiert.**
+    // Ohne ihn belegte die Suite nur, dass ohne Ausrüstung nichts passiert —
+    // und das war vorher auch schon so.
+    use rota_sim::gear::WornValues;
+    use rota_sim::{rotation, Fight, FightConfig};
+
+    let ohne = Fight::new(FightConfig::default()).run(rotation::good);
+    let mit = Fight::new(FightConfig {
+        worn: WornValues {
+            essence: 500, // +50 %
+            ..WornValues::none()
+        },
+        ..FightConfig::default()
+    })
+    .run(rotation::good);
+
+    // **Nicht der Schaden — die ZEIT.** Mein erster Entwurf verglich
+    // `damage` und schlug fehl: 4230 gegen 4240, also WENIGER mit ESSENCE.
+    // Kein Fehler in der Leitung, sondern in der Messung — der Lauf endet mit
+    // dem Tod des Bosses, und wer härter schlägt, überschießt beim letzten
+    // Treffer weniger. Der Gesamtschaden ist dann fast die Boss-HP, egal wie
+    // stark der Spieler ist.
+    //
+    // `BalanceConfig` warnt vor genau dieser Verwechslung: `stop_on_kill`
+    // misst, OB der Boss fällt, nicht WIE VIEL Schaden entsteht.
+    let ohne_zeit = ohne.killed_at_ms.expect("ohne Ausruestung faellt der Boss");
+    let mit_zeit = mit.killed_at_ms.expect("mit Ausruestung faellt der Boss");
+
+    assert!(
+        mit_zeit < ohne_zeit,
+        "ESSENCE 500 aendert die Zeit bis zum Tod nicht: {mit_zeit} gegen \
+         {ohne_zeit} ms — die Leitung transportiert nichts"
+    );
+
+    // **Und zwar in der richtigen Groessenordnung.** Ein Faktor, der wirkt,
+    // aber falsch skaliert, waere oben ebenfalls gruen. +50 % Schaden heisst
+    // etwa zwei Drittel der Zeit; grosszuegig geprueft, weil die Rotation in
+    // Bloecken von 1500 ms arbeitet und der letzte Treffer ueberschiesst.
+    let verhaeltnis = f64::from(mit_zeit) / f64::from(ohne_zeit);
+    assert!(
+        (0.6..=0.75).contains(&verhaeltnis),
+        "ESSENCE 500 sollte die Zeit auf etwa zwei Drittel druecken, gemessen \
+         {verhaeltnis:.3} ({mit_zeit} gegen {ohne_zeit} ms)"
+    );
+}

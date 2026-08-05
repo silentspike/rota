@@ -589,6 +589,7 @@ impl Fight {
             // `is_neutral()` greift weiterhin, weil das Feld unveraendert bei
             // 1,0 steht.
             factors: DamageFactors {
+                essence: config.factors.essence * config.worn.essence_factor(),
                 gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
                 ..config.factors
             },
