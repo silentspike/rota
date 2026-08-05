@@ -110,9 +110,10 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   //
   // Klaenge entstehen ueber Suno (docs/suno-sfx.md) und werden vom
   // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
-  // Nur noch `test-cast` — der Prüf-Zauber aus #304 (`unlockLevel: 101`), den
-  // kein Spieler je auf die Leiste legt. Alle 17 spielbaren Zauber klingen.
-  const STUMM = new Set(['test-cast']);
+  // Nur die beiden Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die
+  // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
+  // aus #420. Alle 17 spielbaren Zauber klingen.
+  const STUMM = new Set(['test-cast', 'test-buff']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
