@@ -31,7 +31,11 @@ function save(): SaveData {
       {
         bossId: 'first-crucible',
         difficulty: 1,
-        timeMs: 184_200,
+        // Seit Issue #377 traegt der Eintrag sein Mass mit: `reserve` ist die
+        // uebrige Frist in ms, `held` der Ring-Rest in Prozent. Ohne die
+        // Angabe liest eine spaetere Fassung dieselbe Zahl als das Falsche.
+        metric: 'reserve' as const,
+        value: 184_200,
         gameVersion: '0.1.0',
         achievedAt: 1_799_000_000_000,
       },

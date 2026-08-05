@@ -28,17 +28,47 @@
 export const SAVE_SCHEMA = 1;
 
 /**
+ * Welche Groesse ein Bestwert traegt (Issue #377).
+ *
+ * `reserve` ist die uebrige Frist beim Sieg in Millisekunden. `held` ist der
+ * Ring-Rest in Prozent — bei einem `runaway`-Boss ist die Frist IMMER voll
+ * ausgeschoepft, dort traennt die Reserve keine zwei Siege (Issue #256).
+ *
+ * BEI BEIDEN IST GROESSER BESSER, und das ist keine Nebensaechlichkeit: Eine
+ * Kampfdauer waere kleiner-ist-besser gewesen, und dann haette die
+ * Vergleichsrichtung am Mass gehangen. Genau dort entstehen die Fehler, die
+ * niemand sieht — eine Bestenliste, die den schlechtesten Lauf fuehrt, sieht
+ * aus wie eine Bestenliste.
+ */
+export const BEST_METRICS = ['reserve', 'held'] as const;
+export type BestMetric = (typeof BEST_METRICS)[number];
+
+/**
  * Ein erzielter Bestlauf.
  *
  * Die Fassung des Spiels steht dabei (Umfang von #83): Eine Bestzeit aus einer
  * anderen Balance ist keine vergleichbare Bestzeit, und ohne den Vermerk
  * verglichen man spaeter Aepfel mit Birnen.
+ *
+ * DAS MASS STEHT IM EINTRAG (Issue #377)
+ * --------------------------------------
+ * Ein gespeicherter Bestwert, dessen BEDEUTUNG vom Boss-Typ abhaengt, muss
+ * diese Bedeutung mitfuehren. Sonst liest ihn eine spaetere Fassung als das
+ * Falsche — und zwar still: Bekommt ein Boss `runaway` oder verliert es,
+ * traegt derselbe `bossId` plotzlich eine andere Groesse, und beide sind
+ * plausible Zahlen.
+ *
+ * ALS PAAR UND NICHT ALS ZWEI FELDER: `timeMs` und `heldPercent` nebeneinander,
+ * eines davon immer null, laedt zum Lesen des falschen ein. Ein benanntes Mass
+ * erzwingt die Frage, welches gemeint ist.
  */
 export interface BestRun {
   readonly bossId: string;
   readonly difficulty: number;
-  /** Die einzige Zahl, die zaehlt — erreicht, nicht gerechnet. */
-  readonly timeMs: number;
+  /** Welche Groesse `value` traegt — ohne sie ist der Eintrag unbrauchbar. */
+  readonly metric: BestMetric;
+  /** Die einzige Zahl, die zaehlt — erreicht, nicht gerechnet. Groesser ist besser. */
+  readonly value: number;
   /** Fassung des Spiels, unter der sie erzielt wurde. */
   readonly gameVersion: string;
   /** Zeitpunkt in ms seit 1970, damit der Verlauf eine Reihenfolge hat. */
