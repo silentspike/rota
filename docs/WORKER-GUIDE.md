@@ -1085,6 +1085,35 @@ Das gilt für die **Aussage**, nicht für die Arbeit: Während des Bauens ist ei
 richtige Werkzeug, weil er schnell ist. Nur darf daraus kein „lint ist sauber" werden — das ist eine
 Aussage über das Projekt, und die trägt nur ein Lauf über das Projekt.
 
+#### Bei zwei Seiten muss die Gegenprobe die LESENDE treffen
+
+Eine Verfeinerung der „falschen Stelle", die dem Orchestrator an einem Tag **zweimal** passiert ist —
+beide Male beim Abnehmen fremder Arbeit, beide Male mit demselben Ergebnis: Rückgabewert 0, alles
+grün, und die Gegenprobe hatte nichts getroffen.
+
+| Fall | geändert                   | wer liest das                                                  |
+| ---- | -------------------------- | -------------------------------------------------------------- |
+| #264 | `src/core/app.ts`          | **kein** Prüffall — `App` braucht ein Dokument                 |
+| #292 | `tests/parity/payloads.ts` | niemand; die Datei ist die **Quelle**, Rust liest ihr Ergebnis |
+
+Im zweiten Fall steht es in zwei Zeilen nebeneinander:
+
+```
+tests/parity/payloads.ts:883      playerLevel: LEVEL          ← schreibt
+sim/tests/parity_level_30.rs:69   json["playerLevel"]         ← liest
+```
+
+Die Änderung an der schreibenden Seite bewegt nichts, solange die Datei nicht neu erzeugt wird. Erst
+`cargo test --test parity_level_30` machte den Prüffall rot.
+
+> **Die Prüffrage vor jeder Gegenprobe:** Welcher Prüffall liest die Stelle, die ich gerade ändere?
+> Wenn die Antwort „keiner" oder „der, der sie erzeugt" lautet, misst die Gegenprobe nichts — auch
+> wenn sie sauber ausgeführt ist.
+
+Das Muster tritt überall dort auf, wo eine Seite **erzeugt** und eine andere **prüft**: Export und
+Vergleichsdatei, Prüfstand und Umsetzung, Sitzung und Spielstand. Die Gegenprobe gehört immer auf die
+Seite, die im Zweifel danebenliegen würde.
+
 ### Ein Zauber, der auf dem GCD weniger macht als der Füller, wird nie gewirkt
 
 Nicht „selten" — **nie**. Eine Prioritätenliste wählt ihn unter keinen Umständen, solange der Füller
