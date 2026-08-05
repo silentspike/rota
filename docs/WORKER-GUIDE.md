@@ -448,6 +448,119 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Richtig bei der Entstehung heißt nicht dauerhaft richtig
+
+_Gefunden am 2026-08-05 beim Browser-Nachweis zu #248, AC6._
+
+Nach einem gewonnenen Kampf stand im Player Home weiterhin `0 / 200`. Der Bereich entsteht
+einmal beim Start und wurde nie neu gebaut — die Zahl war richtig, **als sie entstand**.
+
+```
+1048 Prüffälle grün, während der Bildschirm eine falsche Zahl zeigte
+```
+
+Prüffälle laufen ohne DOM. Sie messen die **Rechnung** — ob das Ergebnis auch ankommt, nachdem
+sich etwas geändert hat, messen sie nicht.
+
+> Das ist derselbe Fehler wie ein **gespeicherter statt gerechneter** Wert, nur eine Ebene
+> weiter außen. Im Spielstand ist eine veraltete Zahl persistent und fällt irgendwann auf. Im
+> DOM ist sie flüchtig — und genau deshalb fängt sie kein Wächter.
+
+**Die Frage bei jeder Anzeige:** Was passiert mit ihr, wenn sich der Wert dahinter ändert? Wird
+sie neu gebaut, oder steht sie noch da, wo sie beim Aufbau hingeschrieben wurde?
+
+Der Nachweis dafür braucht **zwei** Zustände im laufenden Bild: einmal vor der Änderung, einmal
+danach. Ein Screenshot nach dem Aufbau belegt nur, dass der Anfangswert stimmt.
+
+### Woraus kommt die Zahl, gegen die verglichen wird?
+
+_Die gemeinsame Frage hinter drei Fällen aus einer Nacht._
+
+Drei Prüffälle sahen aus wie ein Beleg und waren keiner. Jedes Mal lag es an der **Quelle** der
+Vergleichszahl:
+
+| Fall                              | Woher die Zahl kam                  | Was daran falsch war                                                      |
+| --------------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| **Tautologie**                    | aus dem Prüflauf selbst             | `[0,1,2].slice(0,2)` gegen `[0,1]` — die eigene Erwartung mit sich selbst |
+| **Falscher Gegenfall**            | aus einer zweiten Ursache           | Der Vergleichslauf scheiterte an der Kampfdauer, nicht am fehlenden Feld  |
+| **Fehlschlag aus falschem Grund** | aus dem Werkzeug statt aus dem Fall | Der Übersetzer brach ab, der Prüffall lief nie                            |
+
+> **Die Frage vor jedem Nachweis:** Woraus kommt die Zahl, gegen die ich vergleiche? Aus einer
+> Quelle, die **unabhängig** von dem ist, was ich prüfe — oder aus derselben Rechnung, demselben
+> Lauf, demselben Werkzeug?
+
+Der erste Fall ist der heimtückischste, weil er eine **Auflage formal erfüllen** kann. Die
+Auflage lautete: _„Die Gegenprobe über zwei Zustände — Belegung auf Stufe 10 gegen Stufe 20,
+nicht nur die Zahl."_ Der Prüffall verglich zwei Zustände. Beide stellte er selbst her.
+
+**Eine Auflage, die die Form eines Nachweises beschreibt, sagt nichts über seine Quelle.** Wer
+die Form erfüllt, glaubt fertig zu sein — und liegt richtig, solange niemand fragt, woher die
+Zahlen stammen.
+
+### Bei einer Gegenprobe zählt die Meldung, nicht der Rückgabewert
+
+_Gefunden am 2026-08-05 in Etappe 2 von #248._
+
+Eine Gegenprobe sollte belegen, dass ein Prüffall den Fall „steigt **mehrere** Stufen" wirklich
+hält. Dafür wurde `while` durch `if` ersetzt:
+
+```
+Rückgabewert 1 — sah nach Fehlschlag aus
+```
+
+Es war ein **Übersetzungsfehler**: Das `break` stand plötzlich ohne Schleife da. Der Prüffall
+lief kein einziges Mal.
+
+> **Rückgabewert 1 heißt nicht „der Prüffall hat angeschlagen", sondern nur „irgendetwas ging
+> schief"** — und beim Gegenproben sind das zwei sehr verschiedene Dinge.
+
+Eine Gegenprobe, die aus dem falschen Grund scheitert, sieht aus wie ein Erfolg. Man hakt sie ab
+und geht weiter — und der Prüffall, den man belegen wollte, ist weiterhin ungeprüft.
+
+Die richtige Fassung lieferte die Meldung, auf die es ankam:
+
+```
+expected 2 to be greater than 3
+```
+
+**Die Regel:** Bei einer Gegenprobe wird die **Meldung** gelesen, nicht der Rückgabewert. Sie
+muss den Prüffall nennen, den man treffen wollte, und die Zahl, die er beanstandet.
+
+Die Umkehrung desselben Fehlers steht weiter unten in der Messfehler-Tabelle: `RÜCKGABEWERT 0`
+durch `tail` — ein falscher **Erfolg**. Beide führen dazu, dass die Zahl gelesen wird statt
+ihrer Herkunft.
+
+### Ein Prüffall hinter einem Wächter ist grün ohne Grund
+
+_Gefunden am 2026-08-05 bei der fünften Gegenprobe zu #248._
+
+Ein Leser für die Stufen-Tabelle prüft beim Einlesen mehrere Zusicherungen. Daneben steht ein
+Prüffall, der belegen soll, dass die Werte **gleichmäßig** wachsen. Vier Gegenproben liefen:
+
+```
+Stufe 1 nicht 1000        → Leser bricht ab, mit dem Grund
+Aufstieg macht schwächer  → Leser bricht ab, nennt die Stufe
+Tabelle zu kurz           → Leser bricht ab, nennt beide Zahlen
+Sprung, nicht monoton     → Leser bricht ab
+```
+
+**Alle vier fing der Leser ab.** Der Verlaufs-Prüffall kam kein einziges Mal zum Zug — er war
+grün, weil er nie erreicht wurde.
+
+Erst die fünfte Probe traf ihn:
+
+```
+Sprung, aber MONOTON      → Leser lässt ihn durch, und HIER greift der Prüffall
+```
+
+> **Eine Prüfung, die hinter einer strengeren liegt, wird von den naheliegenden Gegenproben nie
+> erreicht.** Sie ist dann grün, ohne je etwas gemessen zu haben — und der Bau sieht doppelt
+> abgesichert aus, wo nur eine Sicherung greift.
+
+**Die Gegenfrage:** Kommt der Fehler, den ich einbaue, überhaupt bis zu dem Prüffall, den ich
+prüfen will? Wo mehrere Prüfungen hintereinander stehen, braucht jede eine Gegenprobe, die
+**genau sie** trifft — und die früheren passieren lässt.
+
 ### Ein Wert, der bei der Niederlage fehlt, sagt nichts über den Sieg
 
 _Gefunden am 2026-08-05 beim Browser-Nachweis zu #247._

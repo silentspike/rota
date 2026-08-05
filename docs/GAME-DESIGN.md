@@ -100,16 +100,46 @@ Beim Entwerfen jeder Einzelheit gelten zusätzlich diese acht Sätze:
 
 ## 3. Spielkern
 
-| Thema              | Festlegung                                                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Spieltiefe**     | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns |
-| **Synergien**      | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                              |
-| **Eingabe**        | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                           |
-| **Zauber-Typen**   | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs. **Keine** Kanal-Zauber mit Tastenhalten                                       |
-| **Umfang V1**      | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                |
-| **Höchststufe**    | **100**                                                                                                                                    |
-| **Talentpunkte**   | **~50** (etwa jede zweite Stufe einer)                                                                                                     |
-| **Zauber-Bestand** | **60** (12 je Schule), davon **12–16 gleichzeitig auf der Leiste**                                                                         |
+| Thema            | Festlegung                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Spieltiefe**   | **Nur Abklingzeiten.** Keine globale Ressource, kein Mana. Die Schwierigkeit entsteht aus der Menge gleichzeitig zu verwaltender Cooldowns |
+| **Synergien**    | **Feste, planbare Kombinationen** — 100 % deterministisch. Zauber A verstärkt Zauber B, immer                                              |
+| **Eingabe**      | **Nur Tastatur.** Nur einfache Tasten und Umschalt-Kombinationen (kein Strg/Alt)                                                           |
+| **Zauber-Typen** | Sofort-Zauber · Zauber mit Wirkzeit (ab Mittelspiel) · DoTs. **Keine** Kanal-Zauber mit Tastenhalten                                       |
+| **Umfang V1**    | **68 Bosse in 14 Instanzen** — 8 Aufstiegs-Instanzen à 4 Bosse (32) plus 6 Endgame-Instanzen à 6 Bosse (36)                                |
+| **Höchststufe**  | **100**                                                                                                                                    |
+| **Talentpunkte** | **~50** (etwa jede zweite Stufe einer)                                                                                                     |
+
+**Erfahrungskurve** (entschieden am 2026-08-05, Issue #248):
+
+```
+Erfahrung je Sieg        100 × Boss-Stufe
+Bedarf Stufe n → n+1     200 × n^1.5
+Summe                    7.900.243 Erfahrung, ~1325 Kämpfe, ~22 Stunden
+```
+
+> **Wie die Summe nachzurechnen ist** (korrigiert am 2026-08-05): `7.900.243` ist die Summe der
+> **gerundeten** Tabelleneinträge — die ungerundete Reihe ergibt 7.900.245, und wer nachrechnet,
+> muss wissen, welche der beiden dasteht. Die `~1325` gelten bei **Übernahme** des Überschusses;
+> beim Verfallen wären es 1365. Die erste Fassung dieses Absatzes nannte „~1350" — das war ein
+> Mittelwert aus zwei Rechnungen und keine von beiden.
+
+Drei Alternativen wurden durchgerechnet und verworfen: konstant (16,5 h, aber Stufe 99 dauert so
+lange wie Stufe 2), linear (165 h) und quadratisch (82,5 h) — bei beiden letzten explodiert die
+Kampfzahl je Stufe auf 99 bzw. 198.
+
+Die Kurve liegt als **Tabelle in den Daten**, nicht als Formel: `n^1.5` ist eine
+Fließkomma-Potenz, und `Math.pow` in JS ist gegenüber `f64::powf` in Rust nicht garantiert
+bitgleich (18.4 verlangt Bitgleichheit). Die erzeugende Formel steht als Kommentar in der Datei.
+
+**Die Erfahrung hängt an der BOSS-Stufe**, nicht an der des Spielers. Der abnehmende Ertrag aus
+12.6 sinkt mit dem **Stufenabstand** — einen Abstand gibt es nur, wenn beide Seiten eine Stufe
+haben.
+
+**Erfahrung wird beim Aufstieg übernommen, nicht zurückgesetzt.** Verfallen bestrafte den, der
+einen starken Boss wählt: Wer mit 190 von 200 in einen Kampf geht und 1000 gewinnt, hätte 990
+verloren. Das kehrt 12.6 um, wo der Ertrag bei einem **zu leichten** Boss sinken soll. |
+| **Zauber-Bestand** | **60** (12 je Schule), davon **12–16 gleichzeitig auf der Leiste** |
 
 Man besitzt also deutlich mehr Zauber, als man mitnehmen kann. Das ist Absicht: Die Zusammenstellung
 ist eine der beiden Kernaufgaben (die andere ist die Reihenfolge).
@@ -847,10 +877,29 @@ räumlich** und damit für uns unbrauchbar.
 | 3   | **Exponentieller Stapel**         | 1 Stapel = X, 2 = 3X, 3 = 9X. Erzwingt eine Handlung an einem exakt bestimmten Punkt. **Muss gut angekündigt sein**                                                        |
 | 4   | **Wettrennen gegen einen Zauber** | Der Boss wird unverwundbar, während etwas anderes vor Ablauf zerstört werden muss. **Der beste Moment für Overdrive**                                                      |
 | 5   | **Fehler heilt den Boss**         | Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz. **Nur für einzelne Bosse**, sonst frustrierend                                                      |
-| 6   | **Umgekehrtes Ziel**              | Statt Schaden zu machen muss eine kippende Reaktion **stabilisiert** werden. Der Kampf, in dem COAGULATION glänzt                                                          |
+| 6   | **Umgekehrtes Ziel**              | Statt Schaden zu machen muss die kippende Reaktion **stabilisiert** werden — **am Boss-Ring selbst**, nicht an einem zweiten Wert. Der Kampf, in dem COAGULATION glänzt    |
 | 7   | **Eskalierende Wiederholung**     | Dieselbe Phase kehrt mehrfach wieder — kürzere Fenster, mehr gleichzeitige Anforderungen                                                                                   |
 | 8   | **Schwächung ohne Heil-Lösung**   | Ein Effekt lässt sich nicht wegheilen, sondern nur durch eine bestimmte **Handlung** loswerden. **Braucht mehrere Lösungswege**                                            |
 | 9   | **Unterbrechbarer Zauber**        | Boss beginnt einen Zauber, Balken läuft. Auf niedriger Schwierigkeit optional, auf hoher Pflicht                                                                           |
+
+> **Baustein 6 im Einzelnen** (entschieden am 2026-08-05, Issue #247): Er sitzt am **Boss-Ring**,
+> nicht an einem zweiten Wert daneben. Der Ring **ist** die Reaktion (9.1) — ein zweiter Wert wäre
+> eine Dublette, und erst dadurch wird die Umkehrung zur Umkehrung.
+>
+> |                   | Ring auf 0                      | Zeit abgelaufen               |
+> | ----------------- | ------------------------------- | ----------------------------- |
+> | gewöhnlicher Boss | **Sieg**                        | Niederlage (Überdruck tötet)  |
+> | Baustein 6        | Niederlage (die Reaktion kippt) | **Sieg** (sie ist eingedämmt) |
+>
+> **Beide Bedingungen kehren um.** Das ist kein Zuviel, sondern der Baustein: Wer das Ziel
+> umkehrt, kehrt zwangsläufig um, was daran hängt. Der Bildschirmtext „REACTION CONTAINED"
+> beschreibt genau das — eingedämmt, nicht zerstört.
+>
+> Das Datenfeld heißt `runaway`, nicht `stabilise`: Der Fachbegriff beschreibt die **Mechanik**
+> (die Reaktion läuft davon), nicht die Antwort des Spielers darauf. Schaden senkt den Ring
+> weiter; **Schutz und Heilung** heben ihn, um ihren eigenen Betrag aus den Zauberdaten. Die
+> Schaden-in-Schutz-Umwandlung bleibt außen vor — sie würde die Bedingung aufheben, die den
+> Kampf ausmacht.
 
 Die restlichen 6–11 Bausteine entstehen als **Varianten dieser neun** (z. B. unterbrechbarer Zauber
 mit Schild davor / zwei gleichzeitig, nur einer schaffbar / unterbrechen macht ihn beim nächsten
@@ -2116,7 +2165,7 @@ eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen
 | **Boss-Zeitleisten**           | Je Boss: welcher Baustein wann, Phasen-Schwellen, Energieleisten-Takt                                                                                                                  | E10                                                          |
 | **Talent-Inhalte**             | ~50 Punkte, 15 Zweige, Schlüsseltalente je Weg                                                                                                                                         | E5                                                           |
 | **Gegenstands-Katalog**        | Konkrete Gegenstände, Sätze, legendäre Effekte, Boss-Bindungen                                                                                                                         | E6                                                           |
-| **Erfahrungskurve**            | Wie viel Erfahrung je Stufe, woher sie kommt                                                                                                                                           | E5                                                           |
+| **Erfahrungskurve**            | ~~Wie viel Erfahrung je Stufe~~ — **entschieden am 2026-08-05**, siehe 12.2                                                                                                            | erledigt                                                     |
 | **Endlos-Leiter-Skalierung**   | Wachstum je Stufe, wo die Werte-Obergrenze liegt                                                                                                                                       | E10                                                          |
 | **Erfolge**                    | Je Boss die konkreten Ziele, 288 Zeitmarken                                                                                                                                            | E10                                                          |
 | **Instanz-Themen und Namen**   | 14 Instanzen mit Thema, Farbwelt, Klangteppich                                                                                                                                         | E10                                                          |
