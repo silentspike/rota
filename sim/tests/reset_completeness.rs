@@ -227,6 +227,101 @@ fn der_waechter_nennt_das_feld_und_nicht_nur_die_abweichung() {
     );
 }
 
+/// Der Feldname zu einer Stelle in der `Debug`-Auflistung.
+///
+/// Sie sieht aus wie `Fight { time: 0, damage: 4240, stack_gains: Cell { value: 40 }, ... }`.
+///
+/// **Gesucht ist der Name auf der OBERSTEN Ebene**, nicht der naechstgelegene.
+/// Mein erster Entwurf ging rueckwaerts bis zum letzten `name:` und meldete
+/// bei einem Unterschied in `stack_gains` das Feld `value` — der Name aus dem
+/// `Cell` darin. Ein Waechter, der "value" meldet, schickt den Suchenden ins
+/// Leere; es gibt keine Stelle dieses Namens.
+///
+/// Deshalb ueber die Klammertiefe: Gemerkt wird der letzte Name, der auf
+/// Tiefe 1 stand.
+fn feld_bei(text: &str, stelle: usize) -> String {
+    let mut tiefe = 0_i32;
+    let mut letzter = String::new();
+    let mut wort = String::new();
+    for (i, c) in text.char_indices() {
+        if i >= stelle {
+            break;
+        }
+        match c {
+            '{' | '[' | '(' => {
+                tiefe += 1;
+                wort.clear();
+            }
+            '}' | ']' | ')' => {
+                tiefe -= 1;
+                wort.clear();
+            }
+            ',' => wort.clear(),
+            ':' => {
+                if tiefe == 1 {
+                    letzter = wort.trim().to_owned();
+                }
+                wort.clear();
+            }
+            _ => wort.push(c),
+        }
+    }
+    if letzter.is_empty() {
+        "(unbekannt)".to_owned()
+    } else {
+        letzter
+    }
+}
+
+#[test]
+fn kein_einziges_feld_ueberlebt_das_zuruecksetzen() {
+    // **Der Waechter, der MITWAECHST** — das Gegenstueck zu `Object.keys` auf
+    // der Spielseite. Rust hat keine Reflexion, aber `#[derive(Debug)]` laesst
+    // den Uebersetzer die Auflistung schreiben: Sie enthaelt jedes Feld, auch
+    // das, das morgen dazukommt.
+    //
+    // Der Fall daneben (`der_waechter_nennt_das_feld_...`) prueft nur, was in
+    // der PRUEFSUMME steht. Dieser hier prueft alles.
+    let (rec, boss_id) = recording();
+    let mut wiederverwendet = fight_gegen(boss_id, rec.ticks);
+    let _ = wiederverwendet.replay(&rec, false);
+    wiederverwendet.reset(rec.seed);
+    let frisch = fight_gegen(boss_id, rec.ticks);
+
+    let nach_reset = format!("{wiederverwendet:?}");
+    let neu = format!("{frisch:?}");
+
+    // Ohne diese Zusicherung liefe der Vergleich ueber zwei leere
+    // Zeichenketten, und der Fall waere gruen, ohne etwas gesehen zu haben.
+    assert!(
+        nach_reset.len() > 1000,
+        "die Debug-Auflistung ist zu kurz ({} Zeichen) — sie greift nicht",
+        nach_reset.len()
+    );
+
+    if nach_reset != neu {
+        let stelle = nach_reset
+            .char_indices()
+            .zip(neu.char_indices())
+            .find(|((_, a), (_, b))| a != b)
+            .map_or(0, |((i, _), _)| i);
+        let feld = feld_bei(&nach_reset, stelle);
+        let fenster = |s: &str| {
+            let von = stelle.saturating_sub(20);
+            let bis = (stelle + 60).min(s.len());
+            s[von..bis].to_owned()
+        };
+        panic!(
+            "`Fight::reset` laesst Zustand stehen.\n  \
+             Feld:       {feld}\n  \
+             nach reset: ...{}...\n  \
+             frisch:     ...{}...",
+            fenster(&nach_reset),
+            fenster(&neu),
+        );
+    }
+}
+
 #[test]
 fn zaehler_ausserhalb_der_pruefsumme_gehen_ebenfalls_zurueck() {
     // **Die Grenze des Fall darueber, und sie ist der Grund fuer diesen hier.**
