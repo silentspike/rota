@@ -15,7 +15,7 @@
  * Aufruf es las — eine fertige Mechanik, die niemand benutzt.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { TICK_MS } from '../../src/core/loop.js';
@@ -67,7 +67,7 @@ describe('AC1 — im Fenster kommt kein Schaden am Boss an, aber er ist nicht we
     // gefunden werden.
     const combat = neuerKampf();
     schlagen(combat, 13000);
-    const summe = combat.spells.reduce((s, _, i) => s + combat.damageOf(i), 0);
+    const summe = combat.spells.reduce((s, _, i) => s + combat.damageOf(alsSpellIndex(i)), 0);
     expect(summe).toBe(combat.damageDealt);
     expect(combat.damageLostToRace).toBeGreaterThan(0);
   });

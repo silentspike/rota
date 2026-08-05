@@ -29,7 +29,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -331,7 +331,7 @@ function recordMisplays(ticks: number): Recording {
   const presses: RecordedPress[] = [];
   // Drückt einen Zauber, ob er darf oder nicht — und schreibt den Druck mit.
   const press = (spell: number, tick: number, timeMs: number): void => {
-    combat.cast(spell, timeMs);
+    combat.cast(alsSpellIndex(spell), timeMs);
     presses.push({ tick, slot: slotOf.get(spell) ?? 0 });
   };
 
@@ -1468,8 +1468,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
 
     // Der Verteidigungszauber hat Vorrang, wenn er bereit ist — sonst käme er
     // nie zum Zug, weil KINDLE jeden GCD belegt.
-    if (defence >= 0 && combat.isReady(defence, timeMs)) {
-      if (combat.cast(defence, timeMs).result === 0) presses.push({ tick, slot: 1 });
+    if (defence >= 0 && combat.isReady(alsSpellIndex(defence), timeMs)) {
+      if (combat.cast(alsSpellIndex(defence), timeMs).result === 0) presses.push({ tick, slot: 1 });
     } else if (combat.isReady(kindle, timeMs)) {
       if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
     }
@@ -1501,7 +1501,7 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
       shieldAbsorbed: combat.shieldAbsorbed,
       healed: combat.healed,
       converted: combat.converted,
-      castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
+      castsDefence: defence >= 0 ? combat.castCount(alsSpellIndex(defence)) : 0,
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
     },
@@ -1699,7 +1699,7 @@ export function logParityPayload(): Record<string, unknown> {
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
     if (gewaehlt < 0) continue;
 
-    if (combat.cast(gewaehlt, timeMs).result === 0) {
+    if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       const platz = gewaehlt === kindle ? 0 : gewaehlt === crust ? 1 : gewaehlt === quench ? 2 : 3;
       presses.push({ tick, slot: platz });
     }
@@ -1808,7 +1808,7 @@ export function sublimationPayload(): Record<string, unknown> {
     } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
-    if (gewaehlt >= 0 && combat.cast(gewaehlt, timeMs).result === 0) {
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       const platz =
         gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : gewaehlt === smoulder ? 2 : 3;
       presses.push({ tick, slot: platz });
@@ -1880,7 +1880,7 @@ export function timelineLoopPayload(): Record<string, unknown> {
     // späteren Zyklen ebenso wie im ersten und deckt damit auch den
     // Zeitpunkt des Treffers ab, nicht nur den des Beginns.
     const gewaehlt = combat.casting >= 0 && combat.isReady(quench, timeMs) ? quench : kindle;
-    if (combat.cast(gewaehlt, timeMs).result === 0) {
+    if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });
     }
     checksums.push(combatChecksum(combat, timeMs));
@@ -1958,7 +1958,7 @@ function analyzeMisplays(recording: Recording): {
         reasons['unknown'] = (reasons['unknown'] ?? 0) + 1;
         continue;
       }
-      const outcome = combat.cast(spell, timeMs);
+      const outcome = combat.cast(alsSpellIndex(spell), timeMs);
       const name = namen[outcome.result] ?? 'unknown';
       reasons[name] = (reasons[name] ?? 0) + 1;
     }
@@ -2099,7 +2099,7 @@ export function cooldownResetPayload(): Record<string, unknown> {
     hash = mixInt(hash, timeMs);
     for (let i = 0; i < combat.spells.length; i++) {
       hash = mixFloat(hash, combat.cooldownRemainingMs(i, timeMs));
-      hash = mixInt(hash, combat.castCount(i));
+      hash = mixInt(hash, combat.castCount(alsSpellIndex(i)));
     }
     hash = mixFloat(hash, combat.gcd.remainingMs(timeMs));
     hash = mixInt(hash, session.resetsAppliedCount);
@@ -2614,7 +2614,7 @@ function recordSynergy(ticks: number): Recording {
     // dort liegt. Der Fehler wäre still, wenn beide zufällig dasselbe wirken
     // (Issue #351).
     if (slot === undefined) throw new Error(`Zauber ${spell} liegt auf keinem Platz`);
-    combat.cast(spell, timeMs);
+    combat.cast(alsSpellIndex(spell), timeMs);
     presses.push({ tick, slot });
   };
 

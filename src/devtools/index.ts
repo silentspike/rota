@@ -1,3 +1,4 @@
+import { alsSpellIndex } from '../core/combat.js';
 /**
  * Entwicklungs-Werkzeuge (GAME-DESIGN 19.1).
  *
@@ -594,7 +595,7 @@ export function installDevTools(app: App): void {
       alpha: app.loop.alpha,
       gcdRemainingMs: app.session.gcd.remainingMs(app.loop.timeMs),
       gcdLengthMs: app.session.gcd.lengthMs,
-      playerCasting: app.combat.spellAt(app.combat.playerCasting)?.id ?? null,
+      playerCasting: app.combat.spellAt(alsSpellIndex(app.combat.playerCasting))?.id ?? null,
       playerCastRemainingMs:
         app.combat.playerCasting >= 0
           ? Math.max(0, app.combat.playerCastEndsAtMs - app.loop.timeMs)
@@ -662,10 +663,10 @@ export function installDevTools(app: App): void {
           slot,
           cooldownMs: spell.cooldownMs,
           cooldownRemainingMs: combat.cooldownRemainingMs(i, timeMs),
-          ready: combat.isReady(i, timeMs),
-          casts: combat.castCount(i),
-          damage: combat.damageOf(i),
-          dotRemainingMs: combat.dotRemainingMs(i, timeMs),
+          ready: combat.isReady(alsSpellIndex(i), timeMs),
+          casts: combat.castCount(alsSpellIndex(i)),
+          damage: combat.damageOf(alsSpellIndex(i)),
+          dotRemainingMs: combat.dotRemainingMs(alsSpellIndex(i), timeMs),
           dotTicks: combat.dotTickCount(i),
           lostDotTicks: combat.lostDotTicks(i),
         });
@@ -779,7 +780,8 @@ export function installDevTools(app: App): void {
       for (let i = from; i < entries.length; i++) {
         const e = entries[i];
         if (e === undefined) continue;
-        const spell = e.spell >= 0 ? (app.combat.spellAt(e.spell)?.id ?? String(e.spell)) : '-';
+        const spell =
+          e.spell >= 0 ? (app.combat.spellAt(alsSpellIndex(e.spell))?.id ?? String(e.spell)) : '-';
         out += `${(e.timeMs / 1000).toFixed(2)}  ${e.type.padEnd(10)} ${spell.padEnd(9)} ${e.value}\n`;
       }
       return out;
