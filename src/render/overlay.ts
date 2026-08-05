@@ -73,7 +73,21 @@ export interface ResultView {
    */
   readonly heldPercent: number | null;
   readonly damage: number;
-  readonly bossHp: number;
+  /**
+   * Der Fortschritt in Prozent, **fertig gerechnet**.
+   *
+   * Hier stand bis zum 2026-08-05 `bossHp`, und die Anzeige rechnete daraus
+   * ihren eigenen Fortschritt: `100 * damage / bossHp`. Das war eine zweite
+   * Stelle für dieselbe Entscheidung — und sie ist bei #256 stehen geblieben,
+   * während `progressOf` die Umkehrung schon kannte. Im Browser zeigte die
+   * Niederlage danach 100 %, obwohl die Kurzfassung 85 % meldete.
+   *
+   * **Die Zutat ist deshalb weg, nicht nur der Aufruf.** Wer die alte Formel
+   * hier wieder aufschreiben wollte, fände `bossHp` nicht mehr vor. Das ist
+   * derselbe Griff wie bei `applyBindings` (#264): Die Regel steht an EINER
+   * Stelle, und die anderen bekommen das Ergebnis.
+   */
+  readonly progressPercent: number;
   readonly casts: number;
   /** Die Kurzfassung mit den drei Kennzahlen (GAME-DESIGN 15.1). */
   readonly summary: RunSummary | null;
@@ -321,8 +335,9 @@ export class Overlay {
       set('remaining', `${view.heldPercent.toFixed(1)} %`);
     }
     set('damage', String(view.damage));
-    const progress = view.bossHp > 0 ? (100 * view.damage) / view.bossHp : 0;
-    set('progress', `${Math.min(100, progress).toFixed(1)} %`);
+    // **Gerechnet wird woanders.** `progressOf` kennt die Umkehrung; diese
+    // Zeile stellt sie nur dar.
+    set('progress', `${view.progressPercent.toFixed(1)} %`);
     // Die Punkteformel ist noch nicht ausgearbeitet (GAME-DESIGN 22, vor Epic
     // E5). Eine erfundene Zahl wäre schlimmer als ein ehrlicher Strich.
     set('score', '—');

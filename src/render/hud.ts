@@ -16,7 +16,7 @@
  * Ein Zeichenvorgang je Bild (GAME-DESIGN 18.2): `Surface.beginFrame` läuft genau
  * einmal, danach wird nur noch in dieselbe Fläche gezeichnet.
  */
-import { heldOf } from '../core/summary.js';
+import { heldOf, progressOf } from '../core/summary.js';
 import { TICK_MS } from '../core/loop.js';
 import type { Session } from '../core/session.js';
 import type { KeyLabels } from '../input/layout.js';
@@ -134,7 +134,7 @@ export class HudRenderer {
     remainingMs: number;
     heldPercent: number | null;
     damage: number;
-    bossHp: number;
+    progressPercent: number;
     casts: number;
     summary: RunSummary | null;
     mark: MarkDisplay | null;
@@ -144,7 +144,7 @@ export class HudRenderer {
     remainingMs: 0,
     heldPercent: null,
     damage: 0,
-    bossHp: 0,
+    progressPercent: 0,
     casts: 0,
     summary: null,
     mark: null,
@@ -244,7 +244,11 @@ export class HudRenderer {
     // die Reserve — die ist dort immer null (Issue #256).
     view.heldPercent = heldOf(combat);
     view.damage = combat.damageDealt;
-    view.bossHp = combat.boss.hp;
+    // **Fertig gerechnet statt als Zutat.** Die Anzeige bekam bis zum
+    // 2026-08-05 `bossHp` und rechnete daraus selbst — eine zweite Stelle für
+    // die Entscheidung aus #256, die im Browser 100 % zeigte, wo die
+    // Kurzfassung 85 % meldete.
+    view.progressPercent = progressOf(combat, view.elapsedMs);
     view.casts = this.session.acceptedCount;
     // Die Kurzfassung wird nur beim Wechsel in die Auswertung gerechnet, nicht
     // je Bild: Sie erzeugt Speicher und darf das auch (GAME-DESIGN 15.1).
