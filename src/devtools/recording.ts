@@ -356,6 +356,13 @@ export function recordings(): Map<string, Recording> {
     // 45 s Abklingzeit, ein kuerzerer Lauf zeigte ihn nur EINMAL. Gemessen —
     // bei 20 s stand genau ein Druck auf Platz 2 in der Aufzeichnung.
     builtIn.set('cooldown-reset-run', recordResetRotation('cooldown-reset-run', 6000));
+    // Der Prueffall zum Wettrennen und zur Boss-Heilung (Issue #218). 40 s in
+    // Takten: Das Fenster liegt bei 10 s, der Boss-Zauber bei 30 s und trifft
+    // nach 3 s — beide Bausteine kommen also in EINEM Lauf vor.
+    const racer = bossById('test-racer');
+    if (racer !== undefined) {
+      builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));
+    }
   }
   return builtIn;
 }

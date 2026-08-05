@@ -105,6 +105,13 @@ pub struct ReplayResult {
     pub phases: Vec<u32>,
     /// Stand der Energieleiste je Takt.
     pub energy: Vec<u32>,
+    /// Schaden, der im Unverwundbarkeits-Fenster verpuffte (Issue #218).
+    ///
+    /// **Verloren, nicht ausgeteilt** — die Zahl gehoert in die Fehleranalyse
+    /// (GAME-DESIGN 15.3) und ist deshalb ein eigenes Feld, kein Abzug.
+    pub damage_lost_to_race: u32,
+    /// Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218).
+    pub boss_healed: u32,
     /// Stand des toedlichen Zaehlers je Takt (Issue #216).
     pub doom: Vec<u32>,
     /// Verbleibende Ladungen der Ruecksetz-Handlung je Takt.

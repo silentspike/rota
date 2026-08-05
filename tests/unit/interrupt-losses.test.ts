@@ -79,6 +79,7 @@ function play(boss: BossDef, loadout: readonly number[], interruptAtMs: readonly
       synergyBonusDamage: 0,
       missedInterrupts: interrupts.missed,
       damagePerLandedBossCast: interrupts.damagePerLandedCast,
+      bossHealed: 0,
     }),
   };
 }
