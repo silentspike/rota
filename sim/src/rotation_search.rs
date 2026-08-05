@@ -431,19 +431,18 @@ mod tests {
         // ohne Kandidatenzeile kann in keiner gefundenen Rotation vorkommen —
         // und die Suche meldete ihn als „nie gewählt", obwohl sie ihn nie zur
         // Wahl hatte.
-        for index in 0..SPELL_COUNT {
+        for (index, spell) in SPELLS.iter().enumerate() {
             let zeilen = candidates_for(index);
             assert!(
                 !zeilen.is_empty(),
-                "Zauber {} ({}) hat keine Kandidatenzeile",
-                index,
-                SPELLS[index].id
+                "Zauber {index} ({}) hat keine Kandidatenzeile",
+                spell.id
             );
             assert!(
                 zeilen.iter().any(|k| k.origin == Origin::Always),
                 "Zauber {} hat keine unbedingte Zeile — dann kann die Suche \
                  nicht herausfinden, dass er ohne Bedingung besser laeuft",
-                SPELLS[index].id
+                spell.id
             );
         }
     }
@@ -493,15 +492,15 @@ mod tests {
         // dort die Schwelle, aendert sich die Bedingung mit — ohne dass hier
         // eine Zeile angefasst wird.
         let mut gefunden = 0;
-        for index in 0..SPELL_COUNT {
-            let Some(spender) = SPELLS[index].spender else {
+        for (index, spell) in SPELLS.iter().enumerate() {
+            let Some(spender) = spell.spender else {
                 continue;
             };
             gefunden += 1;
             let zeile = candidates_for(index)
                 .into_iter()
                 .find(|k| k.origin == Origin::SpenderThreshold)
-                .unwrap_or_else(|| panic!("{} hat keine Schwellen-Zeile", SPELLS[index].id));
+                .unwrap_or_else(|| panic!("{} hat keine Schwellen-Zeile", spell.id));
             assert_eq!(
                 zeile.condition,
                 single(
