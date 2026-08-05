@@ -471,6 +471,38 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 | **Schaden messen, wenn der Boss stirbt**     | „Schaden" klingt nach der Frage, die man gestellt hat         | Bei `stopOnKill` ist der Gesamtschaden ungefähr die Boss-HP — **unabhängig von der Spielerstärke**. Siehe unten                              |
 | **Einzelmessung nach einem Tastendruck**     | Der Befehl ist zurückgekommen, also ist er verarbeitet        | `playwright-cli press` läuft nicht im Takt der Logik. Fünfmal messen und den eingeschwungenen Wert nehmen                                    |
 
+### `cargo test` bricht nach der ersten gefallenen Sammlung ab
+
+_Von Worker-2 am 2026-08-05 gefunden, nachdem er eine halbe Stunde einen Widerspruch eingekreist
+hatte, den es nicht gab._
+
+Er fuhr eine Gegenprobe über die volle Suite. Seine Konstanten-Prüfung fiel **zuerst** — und die
+Sammlung, die er eigentlich messen wollte, **lief danach gar nicht mehr**. Er las die grünen Zeilen
+des vorigen Laufs und hielt sie für das Ergebnis.
+
+> **„Grün" hieß hier nicht „geprüft und bestanden", sondern „nicht ausgeführt".**
+
+Ohne einen Widerspruch daneben hätte er vier grüne Fälle als Nachweis gemeldet, **die nie gelaufen
+waren**.
+
+**Für Gegenproben heißt das:**
+
+```bash
+cargo test --test <name>          # die betroffene Sammlung EINZELN
+cargo test --all --no-fail-fast   # oder alle, ohne Abbruch
+```
+
+Eine Gegenprobe über `cargo test --all` **ohne** `--no-fail-fast` liefert eine **Untergrenze**, keine
+Zahl: Alles nach der ersten gefallenen Sammlung ist unbekannt. Die Aussage „genau ein Fall wird rot"
+ist damit nicht belegt — sie könnte „einer und alles danach" heißen.
+
+> `npx vitest run` verhält sich anders: Es fährt alle Dateien und meldet `3 failed | 1246 passed`.
+> Dort ist die Zahl belastbar.
+
+**Und beim Zählen der roten Fälle nicht `grep -c` auf das Muster ansetzen:** `^test .*FAILED` trifft
+auch die Ergebniszeile `test result: FAILED` und zählt eine Sammlung als zusätzlichen Fall. Beim
+Nachmessen dieser Regel selbst passiert — die Namen auflisten, nicht die Zeilen zählen.
+
 ### Die Kill-Falle — an einem Tag zweimal zugeschlagen
 
 **Wer misst, ob eine Verstärkung wirkt, darf nicht den Gesamtschaden nehmen, solange der Lauf mit
@@ -500,3 +532,63 @@ Schaden entsteht.** Der Satz stand da und ist beide Male gelesen worden — er h
 ihn beim **Formulieren der Messung** liest, nicht beim Deuten des Ergebnisses.
 
 <!-- Prüflauf Pfad-Filter, 2026-07-27T15:29:45Z -->
+
+### `git merge-tree` mit drei Argumenten misst etwas anderes
+
+Am 2026-08-05 habe ich einem Worker **vier Konflikte** gemeldet. Es war einer.
+
+```bash
+git merge-tree $(git merge-base origin/main origin/$B) origin/main origin/$B \
+  | grep "changed in both"
+```
+
+Der Befehl lief, die Ausgabe war eindeutig, der Stand war frisch gefetcht — und die
+Zahl trotzdem falsch. **Die Drei-Argument-Form ist der deprecated
+`--trivial-merge`-Modus.** Aus der Handbuchseite:
+
+> outputs trivial merge results **and** conflicting stages
+
+Sie listet also, was auf **beiden Seiten berührt** wurde, ohne zu unterscheiden, ob
+git es zusammenführen kann. Ein trivialer Merge kann eine beidseitig geänderte Datei
+grundsätzlich nicht auflösen; die `ort`-Strategie des echten Merges kann es, solange
+sich die Zeilen nicht überlappen.
+
+**Der Befehl, der Konflikte misst:**
+
+```bash
+git merge-tree --write-tree --name-only origin/main origin/<zweig> >/dev/null
+echo $?        # 0 = sauber, 1 = Konflikt (Namen stehen dann im Kopf der Ausgabe)
+```
+
+> **Warum das die erste Gestalt ist und nicht die fünfte.** Der Worker vermutete, ich
+> hätte gegen einen veralteten Stand gemessen — und weil wir an diesem Tag beide
+> genau diesen Fehler gemacht hatten, lag die Erklärung nahe. Sie war falsch. Es war
+> **das falsche Werkzeug**: ein Befehl, dessen Ausgabe ich gelesen habe, ohne zu
+> prüfen, was er misst.
+>
+> Eine Fehlerart, die man gerade oft gesehen hat, drängt sich als Erklärung für die
+> nächste auf. Die Zuordnung gehört genauso gemessen wie die Zahl.
+
+### Ein Prüfbefehl, der bei einem Fehler grün meldet, ist schlimmer als keiner
+
+Beim Bauen des AC6-Prüfbefehls für #268 ist mir dasselbe **zweimal in zehn Minuten**
+passiert:
+
+|                 | Was ich meldete                          | Was tatsächlich lief                                                                                                   |
+| --------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| erster Versuch  | „15 Dateien: nur Prüfsummen"             | `jq` stürzte ab (`Cannot iterate over null`), **beide** Seiten lieferten leere Ausgabe — und leer verglich sich gleich |
+| zweiter Versuch | „OK — kein bestehender Wert bewegt sich" | `jq` warf bei **jeder** Datei `Path must be specified as an array`                                                     |
+
+Ursache beim ersten Mal: Es liegen **zwei Aufzeichnungs-Formate** nebeneinander —
+`fixation.json` hat `runs[]`, `cast-time.json` ist flach. Ein Filter, der `.runs`
+voraussetzt, stirbt bei der Hälfte.
+
+**Regel:** Jeder Vergleichsbefehl bricht bei einem Fehler des Unterprogramms mit
+eigenem Exit-Code ab.
+
+```bash
+a=$(git show HEAD:"$p" | jq -S "$FILTER") || { echo "ABBRUCH $p"; exit 2; }
+```
+
+Dieselbe Klasse wie ein `all()` über eine leere Liste: **Der Vergleich zweier
+Nichtse ist immer wahr.** Sie sieht jedes Mal anders aus und ist jedes Mal dieselbe.

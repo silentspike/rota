@@ -1567,6 +1567,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
   const bind = combat.indexOf('bind');
   const stay = combat.indexOf('stay');
   const anchor = combat.indexOf('anchor');
+  const stall = combat.indexOf('stall');
   const ticks = 3000; // 30 s
 
   const checksums: number[] = [];
@@ -1599,6 +1600,11 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
       }
     } else if (mitAusgabe && combat.isReady(anchor, timeMs) && combat.control >= 6) {
       if (combat.cast(anchor, timeMs).result === 0) presses.push({ tick, slot: 2 });
+    } else if (mitAusgabe && combat.isReady(stall, timeMs) && combat.control >= 10) {
+      // **STALL vor BIND**, wenn Punkte da sind: Er kostet 4 und verlangsamt
+      // einen Boss-Zauber. Steht er hinter dem Aufbauer, kommt er nie zum Zug —
+      // BIND ist oefter bereit und verbraucht jede Gelegenheit.
+      if (combat.cast(stall, timeMs).result === 0) presses.push({ tick, slot: 3 });
     } else if (combat.isReady(bind, timeMs)) {
       if (combat.cast(bind, timeMs).result === 0) presses.push({ tick, slot: 0 });
     }
@@ -1618,6 +1624,15 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
       { slot: 0, spellId: 'bind' },
       { slot: 1, spellId: 'stay' },
       { slot: 2, spellId: 'anchor' },
+      // **Der vierte Kontroll-Zauber** (Issue #340). Er fehlte hier, und damit
+      // war STALL der einzige ausgelieferte Zauber, den KEIN Paritäts-Weg je
+      // wirkte — seine Bitgleichheit galt als angenommen, nicht als geprüft.
+      //
+      // Er gehört in diese Aufzeichnung und nicht in eine eigene: Sie deckt
+      // die FIXATION ab, und `slowCast` berührt `castLandsAt`, das sie ohnehin
+      // je Takt mitschreibt. Damit ist nicht nur der Druck aufgezeichnet,
+      // sondern seine Wirkung.
+      { slot: 3, spellId: 'stall' },
     ],
     presses,
     expected: {
@@ -2550,5 +2565,101 @@ export function sourcesPayload(): Record<string, unknown> {
     stats,
     affixes,
     baseStats,
+  };
+}
+
+/** Die Leiste der Synergie-Aufzeichnung (Issue #318). */
+export const SYNERGY_NAME = 'synergy-window';
+const SYNERGY_BINDINGS = [
+  { slot: 0, spellId: 'canker' },
+  { slot: 1, spellId: 'fester' },
+] as const;
+
+/**
+ * Eine Runde, in der die Synergie WIRKLICH GEWIRKT WIRD (Issue #318, AC7).
+ *
+ * # Warum es diese Aufzeichnung braucht
+ *
+ * Die dreizehn bestehenden belegen die Synergie nicht: CANKER und FESTER werden
+ * in keiner von ihnen gedrückt. Sie sind grün, **weil** die Mechanik dort nie
+ * anläuft — dieselbe Lage, in der eine fertige Mechanik ohne Nutzer als fertig
+ * gilt (#201, #219, #223).
+ *
+ * # Eigene Leiste, und deshalb ging es bis heute nicht
+ *
+ * `STEP1_BINDINGS` trägt kindle, smoulder, pyre und quench. Der Simulator liest
+ * die Leiste seit jeher aus der Aufzeichnung; das Spiel tat es nicht, sondern
+ * fiel auf `STEP1_BINDINGS` zurück. Eine Runde mit CANKER hätte im Spiel KINDLE
+ * gewirkt — beide Seiten wären auseinandergelaufen, und zwar nicht wegen der
+ * Synergie.
+ *
+ * # Die Tastenfolge
+ *
+ * CANKER bei 0, FESTER eine Wartezeit später — also mitten im Fenster, das zwei
+ * Wartezeiten offen steht. Danach beide, sobald sie bereit sind: Das prüft, dass
+ * ein verbrauchtes Fenster nicht doppelt zählt.
+ */
+function recordSynergy(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const canker = combat.indexOf('canker');
+  const fester = combat.indexOf('fester');
+  const slotOf = new Map<number, number>();
+  for (const binding of SYNERGY_BINDINGS) slotOf.set(combat.indexOf(binding.spellId), binding.slot);
+
+  const presses: RecordedPress[] = [];
+  const press = (spell: number, tick: number, timeMs: number): void => {
+    const slot = slotOf.get(spell);
+    // **Kein `?? 0`.** Ein Druck auf einen ungebundenen Zauber landete sonst auf
+    // Platz 0 — die Datei sagte CANKER und der Simulator läse den Zauber, der
+    // dort liegt. Der Fehler wäre still, wenn beide zufällig dasselbe wirken
+    // (Issue #351).
+    if (slot === undefined) throw new Error(`Zauber ${spell} liegt auf keinem Platz`);
+    combat.cast(spell, timeMs);
+    presses.push({ tick, slot });
+  };
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // Der erste Durchgang von Hand: CANKER, dann FESTER im Fenster.
+    if (timeMs === 0) press(canker, tick, timeMs);
+    else if (timeMs === GCD_MS) press(fester, tick, timeMs);
+    // Danach beide, sobald sie bereit sind. FESTER hat 9 s Abklingzeit und
+    // trifft damit mal ins Fenster und mal daneben — genau das soll die
+    // Aufzeichnung abdecken.
+    else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(fester, timeMs)) press(fester, tick, timeMs);
+  }
+
+  return { name: SYNERGY_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };
+}
+
+export function synergyPayload(): Record<string, unknown> {
+  const recording = recordSynergy(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: SYNERGY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      synergyUsed: result.synergyUsed,
+      synergyAvailable: result.synergyAvailable,
+    },
+    checksums: result.checksums,
   };
 }

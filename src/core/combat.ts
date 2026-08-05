@@ -37,7 +37,7 @@ import {
   type SpellDef,
   type TimelineEntryDef,
 } from './data.js';
-import { GlobalCooldown } from './gcd.js';
+import { GCD_MS, GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
 import { hastedMs } from './haste.js';
 import {
@@ -133,6 +133,20 @@ export const MAX_DECAY_STACKS = 5;
 
 /** Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht. Wird gemessen. */
 export const DECAY_STACK_PERCENT = 3;
+
+/**
+ * Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhöht
+ * (GAME-DESIGN 5 und 1193, Issue #318).
+ *
+ * **Gesetzt, nicht gemessen.** GAME-DESIGN regelt Fenster und Stapel-Regel und
+ * schweigt zur Höhe — die bestimmt der Balance-Läufer, wie die Punktekurve.
+ * 25 % liegt in der Mitte des Korridors, den die Widerstände benutzen (20–30 %),
+ * und ist damit vergleichbar.
+ *
+ * Prüfbar wird der Wert, sobald ein Boss die Schulwahl belohnt (#328); #237
+ * kann ihn dann fahren.
+ */
+export const SYNERGY_BONUS_PERCENT = 25;
 
 /** Wie lange ein einzelner Stapel hält. Wird gemessen. */
 export const DECAY_STACK_DURATION_MS = 12_000;
@@ -264,6 +278,15 @@ export class Combat {
   private readonly indexById = new Map<string, number>();
   private readonly cooldownReadyAtMs: Float64Array;
   private readonly castCounts: Int32Array;
+  /**
+   * Bis wann das Synergie-Fenster dieses Zaubers offen steht (Issue #318).
+   *
+   * Index ist der **Partner**, nicht der Auslöser: Gefragt wird beim Wirken
+   * „steht MIR ein Fenster offen", und das ist eine Abfrage ohne Suche.
+   */
+  private readonly synergyWindowEndsMs: Float64Array;
+  private synergyUsedCount = 0;
+  private synergyAvailableCount = 0;
   private readonly damageBySpell: Float64Array;
   private readonly dotExpiresAtMs: Float64Array;
   private readonly dotNextTickAtMs: Float64Array;
@@ -635,6 +658,7 @@ export class Combat {
     const count = this.spells.length;
     this.cooldownReadyAtMs = new Float64Array(count);
     this.castCounts = new Int32Array(count);
+    this.synergyWindowEndsMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.damageBySpell = new Float64Array(count);
     this.dotExpiresAtMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotNextTickAtMs = new Float64Array(count).fill(NOT_ACTIVE);
@@ -1367,6 +1391,105 @@ export class Combat {
    * beiden Seiten dieselbe Rechnung; `1 + n · p / 100` wäre es nicht zwingend
    * (18.4).
    */
+  /**
+   * Den Synergie-Faktor setzen, wenn diesem Zauber ein Fenster offen steht
+   * (GAME-DESIGN 5, Issue #318).
+   *
+   * # Der Faktor ist additiv im Topf „aktive Verstärkungen"
+   *
+   * GAME-DESIGN 1193 ordnet Synergien demselben Topf zu wie Overdrive und die
+   * Zersetzungs-Stapel, „additiv untereinander". Zwei offene Fenster addieren
+   * ihre Boni zu EINEM Faktor, statt übereinander zu multiplizieren — das ist
+   * die Stapel-Regel aus 327, angewandt.
+   *
+   * # Der Bonus liegt NEBEN dem Stapel-Bonus, nicht darin
+   *
+   * FESTER wird ohnehin stärker, je mehr Zersetzungs-Stapel liegen
+   * (`perDecayStackPercent`). Das ist eine andere Mechanik. Eine Gegenprobe,
+   * die den Stapelstand mitvariiert, misst die Stapel und nicht die Synergie.
+   */
+  private applySynergyBonus(index: number, timeMs: number): void {
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    const endet = this.synergyWindowEndsMs[index] ?? NOT_ACTIVE;
+    const offen = endet !== NOT_ACTIVE && seitBeginn <= endet;
+    // **Ganzzahlig bis zur letzten Teilung** (GAME-DESIGN 18.4): (100 + n) / 100
+    // und nicht 1 + n / 100 — sonst hängt das Ergebnis an der Reihenfolge der
+    // Gleitkomma-Schritte, und die beiden Seiten laufen auseinander.
+    this.setDamageFactor('synergy', offen ? (100 + SYNERGY_BONUS_PERCENT) / 100 : 1);
+    if (offen) {
+      this.synergyUsedCount++;
+      // **Das Fenster ist verbraucht.** Sonst zählte jede weitere Wirkung im
+      // selben Fenster erneut als genutzte Synergie, und die Ausbeute stiege
+      // über die Zahl der Gelegenheiten.
+      this.synergyWindowEndsMs[index] = NOT_ACTIVE;
+    }
+  }
+
+  /**
+   * Das Fenster für den Partner öffnen (Issue #318).
+   *
+   * # Die Länge steht in WARTEZEITEN, nicht in Millisekunden
+   *
+   * `windowGcds` ist eine Anzahl; die Millisekunden entstehen hier, durch
+   * dieselbe `hasted()`-Stelle wie jede andere Zeit. Damit schrumpft das
+   * Fenster bei hohem CATALYSIS mit — GAME-DESIGN 327: „In Wartezeiten
+   * gerechnet, nicht in Sekunden, sonst verschiebt sich das Verhältnis bei
+   * hohem Tempo."
+   *
+   * # Warum `synergyAvailable` an der Bereitschaft hängt
+   *
+   * Ein Fenster, das aufgeht, während der Partner auf Abklingzeit liegt und
+   * auch bis zum Ende nicht bereit wird, ist **keine Gelegenheit**. Zählte es
+   * mit, sänke die Ausbeute durch etwas, das der Spieler gar nicht hätte
+   * nutzen können — die Zahl bestrafte ihn für eine Abklingzeit statt für sein
+   * Spiel.
+   */
+  private openSynergyWindow(spell: SpellDef, timeMs: number): void {
+    const synergy = spell.synergy;
+    if (synergy === undefined) return;
+    const partner = this.indexOf(synergy.partner);
+    if (partner < 0) return;
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    const laenge = this.hasted(GCD_MS * synergy.windowGcds);
+    this.synergyWindowEndsMs[partner] = seitBeginn + laenge;
+    // **Wird der Partner im Fenster überhaupt bereit?** `cooldownReadyAtMs`
+    // steht in Kampfzeit wie `timeMs`, das Fensterende in Zeit seit
+    // Kampfbeginn — deshalb die Differenz und nicht der rohe Vergleich.
+    const bereitAb = this.cooldownReadyAtMs[partner] ?? 0;
+    if (bereitAb - timeMs <= laenge) this.synergyAvailableCount++;
+  }
+
+  /** Wie oft ein Fenster offen stand, das der Partner hätte nutzen können. */
+  get synergyAvailable(): number {
+    return this.synergyAvailableCount;
+  }
+
+  /** Wie oft der Partner im offenen Fenster gewirkt wurde. */
+  get synergyUsed(): number {
+    return this.synergyUsedCount;
+  }
+
+  /**
+   * Die Summe aller offenen Fensterenden — für die Prüfsumme (Issue #318).
+   *
+   * **Eine Summe statt einer Schleife**, weil die Prüfsumme je Takt läuft und
+   * GAME-DESIGN 18.2 dort keine Erzeugung erlaubt. Sie unterscheidet dieselben
+   * Zustände wie die einzelnen Werte: Ein Fenster, das anderswo endet, ändert
+   * die Summe.
+   *
+   * Nicht offene Fenster tragen 0 und nicht `NOT_ACTIVE` — sonst hinge die
+   * Summe an einer Sentinel-Zahl, die auf den beiden Seiten verschieden sein
+   * dürfte.
+   */
+  get synergyWindowSum(): number {
+    let summe = 0;
+    for (let i = 0; i < this.synergyWindowEndsMs.length; i++) {
+      const endet = this.synergyWindowEndsMs[i] ?? NOT_ACTIVE;
+      if (endet !== NOT_ACTIVE) summe += endet;
+    }
+    return summe;
+  }
+
   private updateVulnerability(): void {
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
   }
@@ -2373,6 +2496,7 @@ export class Combat {
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
     this.applyPutrefaction(spell, timeMs);
+    this.openSynergyWindow(spell, timeMs);
 
     // **Ein Wurf für die ganze Wirkung**, und er fällt genau dann, wenn der
     // Zauber **laut seinen Daten** Schaden austeilen kann — nicht danach, ob am
@@ -2385,6 +2509,10 @@ export class Combat {
     // Betrag wäre es nicht, und ein Zufallsstrom, der auf den zwei Seiten
     // verschieden oft gedreht wird, lässt den ganzen folgenden Kampf
     // auseinanderlaufen.
+    // **Erst prüfen, dann öffnen** (Issue #318). Ein Zauber, der sein eigener
+    // Partner wäre, nutzte sonst das Fenster, das er im selben Zug aufmacht.
+    this.applySynergyBonus(index, timeMs);
+
     const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
     const kritet = teiltSchadenAus ? this.rollCrit() : false;
     // **Der Widerstand dieses Zaubers, vor der Rechnung** (Issue #328). Über
@@ -2634,6 +2762,17 @@ export class Combat {
   reset(): void {
     this.cooldownReadyAtMs.fill(0);
     this.castCounts.fill(0);
+    // **Die Synergie-Fenster und ihre Zähler** (Issue #318). Ohne diese Zeilen
+    // trägt der nächste Lauf die Ausbeute des vorigen — im Browser gemessen:
+    // Eine Leiste OHNE das Paar zeigte weiter „1 of 1", weil `used` und
+    // `available` den Reset überlebten.
+    //
+    // Ein Prüffall findet das nicht: Er baut für jeden Fall eine frische
+    // Sitzung, und dort ist der Zustand ohnehin leer. Sichtbar wird es erst
+    // beim zweiten Lauf im selben Spiel.
+    this.synergyWindowEndsMs.fill(NOT_ACTIVE);
+    this.synergyUsedCount = 0;
+    this.synergyAvailableCount = 0;
     this.damageBySpell.fill(0);
     this.dotExpiresAtMs.fill(NOT_ACTIVE);
     this.dotNextTickAtMs.fill(NOT_ACTIVE);
@@ -2676,5 +2815,89 @@ export class Combat {
     // Nur die Folge, nicht die Anmeldungen: Ein neuer Versuch behält seine
     // Zauber und Talente — er beginnt lediglich wieder bei null Ereignissen.
     this.events.clearSequence();
+
+    // ------------------------------------------------------------------
+    // Der zweite Lauf (Issue #349)
+    // ------------------------------------------------------------------
+    //
+    // **Hier fehlten 26 Felder**, gefunden vom Wächter in
+    // `tests/unit/reset-completeness.test.ts` — nicht von Hand aufgezählt,
+    // sondern gemessen: Er vergleicht den zurückgesetzten Kampf gegen einen
+    // frisch gebauten und meldet jedes Feld, das abweicht.
+    //
+    // Und es war nicht latent. Das Spiel baut den Kampf genau einmal
+    // (`app.ts`), „Retry" führt hierher. Vor dieser Ergänzung begann der
+    // zweite Versuch mit angeschlagenem Leben, einer Zeitleiste bei Eintrag 2
+    // und liegenden Zersetzungs-Stapeln:
+    //
+    //     LAUF 1 Ende:  HP 4552  Zeitleiste 2  Zersetzung 5  erlitten 448
+    //     nach reset(): HP 4552  Zeitleiste 2  Zersetzung 5  erlitten 448
+    //     frisch:       HP 5000  Zeitleiste 0  Zersetzung 0  erlitten 0
+    //
+    // **Die Werte spiegeln den Konstruktor**, nicht die Null.** Mehrere Uhren
+    // beginnen bei ihrem Takt und nicht bei 0 — der Replay ruft `beginFight`
+    // nicht, und ein Startwert von 0 ließe sie schon im Takt 0 auslösen. Wer
+    // hier stumpf nullt, baut genau den Unterschied ein, den die Kommentare
+    // an den Feldern seit #96 verhindern.
+    this.bossPhaseValue = 0;
+    this.bossEnergyValue = 0;
+    this.bossEnergyTriggersValue = 0;
+    this.timelineIndexValue = 0;
+    this.nextEnergyAtMs = this.boss.energy?.perStepMs ?? 0;
+    this.nextDoomAtMs = this.boss.doom?.perStepMs ?? 0;
+    this.nextStackAtMs = this.boss.stacks?.perStepMs ?? 0;
+    this.nextRunawayAtMs = this.boss.runaway?.perStepMs ?? 0;
+    this.nextAfflictionAtMs = 0;
+    this.nextStrikeDelayMs = 0;
+
+    this.playerHpValue = this.vesselMax;
+    this.diedAtMsValue = -1;
+    this.damageTakenValue = 0;
+    this.interruptsLandedValue = 0;
+    this.interruptsMissedValue = 0;
+
+    this.doomValue = 0;
+    this.doomChargesValue = this.boss.doom?.clearCharges ?? 0;
+    this.stacksValue = 0;
+
+    this.raceDone = false;
+    this.raceWonValue = false;
+    this.raceEndsAtMs = -1;
+    this.raceProgressValue = 0;
+    this.damageLostToRaceValue = 0;
+    this.bossHealedValue = 0;
+    this.stabilisedValue = 0;
+
+    this.afflictedValue = false;
+    this.afflictionsClearedValue = 0;
+
+    this.decayCountValue = 0;
+    this.decayExpiryMs.fill(0);
+
+    this.shieldValue = 0;
+    this.shieldExpiresAtMs = -1;
+    this.shieldStacksValue = 0;
+    this.shieldAbsorbedValue = 0;
+    this.healedValue = 0;
+    this.conversionUntilMs = -1;
+    this.conversionPercentValue = 0;
+    this.convertedValue = 0;
+
+    this.controlValue = 0;
+    this.controlSpentValue = 0;
+    this.controlFailedValue = 0;
+    this.phaseHoldPercentValue = 0;
+    this.phaseHoldUntilMs = -1;
+
+    // **Über `setDamageFactor`, nicht über eine Zuweisung** (Issue #196): Die
+    // Krit-Fassung zieht mit. `resistance` steht nicht dabei — der Widerstand
+    // hängt seit #328 am Zauber und wird vor jeder Wirkung neu gesetzt.
+    this.setDamageFactor('vulnerability', 1);
+
+    // Die Schul-Mechaniken führen eigene Zähler. Sie hängen am Kampf und
+    // müssen mit ihm zurück — sonst zählt der zweite Lauf weiter, wo der erste
+    // aufgehört hat.
+    this.stacks.reset();
+    this.sublimation.reset();
   }
 }

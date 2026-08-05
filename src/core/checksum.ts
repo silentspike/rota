@@ -238,5 +238,21 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
     'playerCastEndsAt',
     combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1,
   );
+  // Issue #318: Die Synergie-Fenster. Ohne sie liefe ein Simulator, der das
+  // Fenster anders lang rechnet oder es nicht verbraucht, still auseinander —
+  // der Schaden wiche erst dann ab, wenn der Partner wirklich im Fenster
+  // wirkt, und das kann Takte später sein oder nie.
+  //
+  // **Der offene Zustand gehört dazu, nicht nur die Zähler.** Zwei Läufe mit
+  // gleicher Ausbeute können verschieden weit im Fenster stehen; ohne
+  // `synergyOpenUntil` sähen sie hier gleich aus, und der Unterschied schlüge
+  // erst beim nächsten Druck durch.
+  //
+  // **Angehängt, nicht eingeschoben** — wie jedes Feld seit #96. Ein
+  // eingefügter Wert verschiebt jede Prüfsumme danach, und die Abweichung
+  // zeigt dann auf die falsche Stelle.
+  h = mixNamedInt(h, 'synergyUsed', combat.synergyUsed);
+  h = mixNamedInt(h, 'synergyAvailable', combat.synergyAvailable);
+  h = mixNamedFloat(h, 'synergyOpenUntil', combat.synergyWindowSum);
   return h >>> 0;
 }

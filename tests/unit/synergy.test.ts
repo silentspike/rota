@@ -1,0 +1,273 @@
+import { describe, expect, it } from 'vitest';
+import { Combat, SYNERGY_BONUS_PERCENT } from '../../src/core/combat.js';
+import { bossById, CALCINATION } from '../../src/core/data.js';
+import { GCD_MS } from '../../src/core/gcd.js';
+import { hastedMs } from '../../src/core/haste.js';
+import { NOTHING_WORN } from '../../src/gear/worn.js';
+import { FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { COUNTDOWN_MS } from '../../src/core/phases.js';
+import { PressQueue } from '../../src/input/queue.js';
+import { Session } from '../../src/core/session.js';
+import type { RunSummary } from '../../src/core/summary.js';
+
+/**
+ * Synergie-Fenster im Kampf (GAME-DESIGN 5, Issue #318).
+ *
+ * # Der Bonus liegt NEBEN dem Stapel-Bonus, nicht darin
+ *
+ * FESTER wird ohnehin stärker, je mehr Zersetzungs-Stapel liegen
+ * (`perDecayStackPercent`) — und CANKER, der das Fenster öffnet, legt genau
+ * solche Stapel an. Beide Mechaniken feuern also bei derselben Wirkung.
+ *
+ * **Eine Gegenprobe, die den Stapelstand mitvariiert, misst die Stapel und
+ * nicht die Synergie.** Die Fälle hier halten ihn deshalb konstant und
+ * verschieben nur den Zeitpunkt: Ein Stapel liegt 30 s, das Fenster steht
+ * 3 s offen. Dazwischen ist Platz für beide Zustände.
+ */
+
+function bau(): Combat {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('test-warden fehlt');
+  return new Combat({ school: CALCINATION.value, boss });
+}
+
+/** Wirkt einen Zauber, sobald er bereit ist, und gibt die Kampfzeit zurück. */
+function wirke(combat: Combat, id: string, abMs: number): number {
+  const index = combat.indexOf(id);
+  for (let t = abMs; t < abMs + 30_000; t += 10) {
+    combat.stepPassive(t);
+    if (combat.cast(index, t).result === 0) return t;
+  }
+  throw new Error(`${id} kam nicht zum Zug`);
+}
+
+describe('AC2 — eine Gelegenheit wird gezählt', () => {
+  it('CANKER öffnet FESTER ein Fenster', () => {
+    const combat = bau();
+    expect(combat.synergyAvailable, 'vor dem ersten Auslöser gibt es keine Gelegenheit').toBe(0);
+
+    wirke(combat, 'canker', 0);
+
+    expect(
+      combat.synergyAvailable,
+      'CANKER hat gewirkt und FESTER ist bereit — das ist eine Gelegenheit',
+    ).toBe(1);
+    expect(combat.synergyUsed, 'genutzt wurde noch nichts').toBe(0);
+  });
+
+  it('ein Zauber ohne Beziehung öffnet keins', () => {
+    // **Der Gegenfall.** Ohne ihn bliebe offen, ob der Zähler bei JEDER
+    // Wirkung hochgeht.
+    const combat = bau();
+    wirke(combat, 'kindle', 0);
+    expect(combat.synergyAvailable).toBe(0);
+  });
+});
+
+describe('AC3 — genutzt zählt nur im Fenster', () => {
+  it('FESTER im Fenster zählt, FESTER danach nicht — ein Zeitpunkt Unterschied', () => {
+    // **Zwei Läufe, gleicher Stapelstand.** CANKER legt in beiden genau einen
+    // Stapel an, und der liegt 30 s. Der einzige Unterschied ist, WANN FESTER
+    // wirkt — im Fenster oder danach.
+    const fenster = 2 * GCD_MS;
+
+    const drin = bau();
+    const canker1 = wirke(drin, 'canker', 0);
+    expect(drin.decayStacks, 'ohne Stapel wäre der Vergleich unten sinnlos').toBe(1);
+    const festerDrin = wirke(drin, 'fester', canker1 + GCD_MS);
+    expect(festerDrin - canker1, 'FESTER wirkte außerhalb des Fensters').toBeLessThan(fenster);
+
+    const draussen = bau();
+    const canker2 = wirke(draussen, 'canker', 0);
+    expect(draussen.decayStacks, 'die beiden Läufe haben verschiedene Stapelstände').toBe(1);
+    const festerDraussen = wirke(draussen, 'fester', canker2 + fenster + 10);
+    expect(festerDraussen - canker2, 'FESTER wirkte doch noch im Fenster').toBeGreaterThan(fenster);
+
+    expect(drin.synergyUsed, 'die Wirkung im Fenster zählt nicht als genutzt').toBe(1);
+    expect(draussen.synergyUsed, 'eine Wirkung nach Fensterende zählt mit').toBe(0);
+  });
+
+  it('und der Schaden folgt dem Zähler', () => {
+    // **Die Zahl allein belegt nur die Buchführung.** Erst der Schaden zeigt,
+    // dass der Faktor auch in der Rechnung ankommt.
+    const fenster = 2 * GCD_MS;
+
+    const drin = bau();
+    const c1 = wirke(drin, 'canker', 0);
+    const a = drin.cast(drin.indexOf('fester'), c1 + GCD_MS);
+
+    const draussen = bau();
+    const c2 = wirke(draussen, 'canker', 0);
+    const b = draussen.cast(draussen.indexOf('fester'), c2 + fenster + 10);
+
+    expect(a.result).toBe(0);
+    expect(b.result).toBe(0);
+    expect(
+      a.damage,
+      `im Fenster ${a.damage}, danach ${b.damage} — der Faktor kommt in der ` +
+        'Schadensrechnung nicht an',
+    ).toBeGreaterThan(b.damage);
+    // **Um den gesetzten Anteil, nicht um irgendetwas** — aber als Verhältnis
+    // mit Rundungsspielraum, nicht als nachgebaute Zahl.
+    //
+    // Hier stand `toBe(Math.round(b.damage * 1.25))` und meldete „expected 77
+    // to be 78": Der Faktor geht in die GESAMTE Formel ein und wird einmal am
+    // Ende gerundet, nicht auf den fertigen Schaden aufgeschlagen. Wer die
+    // Zahl nachbaut, dupliziert die Formel — und prüft am Ende seine eigene
+    // Kopie gegen das Original.
+    const verhaeltnis = a.damage / b.damage;
+    const erwartet = (100 + SYNERGY_BONUS_PERCENT) / 100;
+    expect(verhaeltnis, `${a.damage} zu ${b.damage} ist ${verhaeltnis}`).toBeCloseTo(erwartet, 1);
+  });
+
+  it('das Fenster ist nach einer Nutzung verbraucht', () => {
+    // Sonst zählte jede weitere Wirkung darin erneut, und die Ausbeute stiege
+    // über die Zahl der Gelegenheiten.
+    const combat = bau();
+    const c = wirke(combat, 'canker', 0);
+    wirke(combat, 'fester', c + GCD_MS);
+    expect(combat.synergyUsed).toBe(1);
+    expect(combat.synergyUsed).toBeLessThanOrEqual(combat.synergyAvailable);
+  });
+});
+
+describe('AC4 — das Fenster steht in Wartezeiten, nicht in Millisekunden', () => {
+  it('bei hohem CATALYSIS schrumpft es in Millisekunden mit', () => {
+    // **Die Gegenprobe zur Einheit.** Wäre das Fenster als feste
+    // Millisekundenzahl abgelegt, bliebe es bei hohem Tempo gleich lang — und
+    // der Spieler hätte plötzlich vier Wartezeiten Zeit statt zwei
+    // (GAME-DESIGN 327).
+    //
+    // Gemessen wird an der Grenze: FESTER genau am Fensterende bei erhöhtem
+    // Tempo. Ist das Fenster mitgeschrumpft, liegt dieser Zeitpunkt draußen.
+    const boss = bossById('test-warden');
+    if (boss === undefined) throw new Error('test-warden fehlt');
+    const catalysis = 5000;
+    const schnell = new Combat({
+      school: CALCINATION.value,
+      boss,
+      worn: { ...NOTHING_WORN, catalysis },
+    });
+    const gehastet = hastedMs(2 * GCD_MS, catalysis);
+    expect(gehastet, 'CATALYSIS wirkt nicht — die Gegenprobe misst nichts').toBeLessThan(
+      2 * GCD_MS,
+    );
+
+    const c = wirke(schnell, 'canker', 0);
+    // Ein Zeitpunkt, der im UNGEHASTETEN Fenster läge, im gehasteten aber nicht.
+    const dazwischen = c + gehastet + 10;
+    expect(dazwischen - c).toBeLessThan(2 * GCD_MS);
+    wirke(schnell, 'fester', dazwischen);
+
+    expect(
+      schnell.synergyUsed,
+      'FESTER wirkte nach dem gehasteten Fensterende und zählte trotzdem — ' +
+        'dann steht das Fenster in Millisekunden statt in Wartezeiten',
+    ).toBe(0);
+  });
+});
+
+describe('AC5/AC6 — die Auswertung zeigt die gemessene Ausbeute', () => {
+  /** Ein Lauf über die Session, mit genau den genannten Zaubern auf der Leiste. */
+  function laufMit(spellIds: readonly string[], druecke: readonly string[]): RunSummary {
+    const boss = FIRST_CRUCIBLE.value;
+    const combat = new Combat({ school: CALCINATION.value, boss });
+    const queue = new PressQueue();
+    const session = new Session(queue, combat);
+    spellIds.forEach((id, slot) => session.bind(slot, combat.indexOf(id)));
+    session.beginCountdown(0);
+
+    const ende = COUNTDOWN_MS + boss.overpressureMs;
+    let tick = 0;
+    for (let t = 0; t <= ende; t += 10) {
+      for (const id of druecke) {
+        const slot = spellIds.indexOf(id);
+        // Jeden genannten Zauber drücken, sobald er bereit ist — die Rotation
+        // ist hier gleichgültig, gemessen wird die Buchführung.
+        if (slot >= 0 && combat.isReady(combat.indexOf(id), t)) queue.push(slot, tick, t, tick);
+      }
+      session.tick(t);
+      tick++;
+    }
+    return session.summary(ende);
+  }
+
+  it('mit dem Paar auf der Leiste stehen Zahlen statt „unbestimmt" — AC5', () => {
+    const s = laufMit(['canker', 'fester'], ['canker', 'fester']);
+    expect(
+      s.synergyAvailable,
+      'CANKER und FESTER liegen und werden gewirkt — es muss Gelegenheiten geben',
+    ).toBeGreaterThan(0);
+    expect(s.synergyUsed, 'genutzt wurde keine einzige').toBeGreaterThan(0);
+    expect(s.synergyUsed).toBeLessThanOrEqual(s.synergyAvailable);
+  });
+
+  it('ohne das Paar bleibt es unbestimmt, nicht null — AC6', () => {
+    // **Der Unterschied, um den es geht.** Wer keine Synergie mitführt, hat
+    // keine Ausbeute von 0 % — er hat gar keine. Die Anzeige entscheidet das
+    // an `synergyAvailable === 0` (overlay.ts), deshalb muss diese Zahl 0
+    // bleiben und darf nicht etwa auf 1 hochlaufen, weil ein Fenster
+    // theoretisch offen stünde.
+    const s = laufMit(['kindle', 'smoulder'], ['kindle', 'smoulder']);
+    expect(s.synergyAvailable, 'ohne Paar darf keine Gelegenheit entstehen').toBe(0);
+    expect(s.synergyUsed).toBe(0);
+  });
+
+  it('und das Paar liefert wirklich andere Zahlen als kein Paar', () => {
+    // Ohne diesen Vergleich zeigte AC6 nur, dass eine Zahl 0 ist — nicht, dass
+    // sie es aus dem richtigen Grund ist.
+    const mit = laufMit(['canker', 'fester'], ['canker', 'fester']);
+    const ohne = laufMit(['kindle', 'smoulder'], ['kindle', 'smoulder']);
+    expect(mit.synergyAvailable).not.toBe(ohne.synergyAvailable);
+  });
+});
+
+describe('Der Reset raeumt die Fenster mit weg (#318)', () => {
+  it('nach reset() zaehlt der naechste Lauf bei null an', () => {
+    // **Im Browser gefunden, nicht hier.** Die Auswertung zeigte nach einem
+    // Lauf mit CANKER und FESTER weiterhin „1 of 1", obwohl die Leiste
+    // gewechselt hatte und kein Fenster mehr aufging.
+    //
+    // Warum kein bestehender Fall das fing: Jeder baut sich eine frische
+    // Sitzung, und dort ist der Zustand ohnehin leer. Sichtbar wird es erst
+    // beim ZWEITEN Lauf im selben Spiel — also genau dort, wo der Spieler ist.
+    //
+    // Dieser Fall macht den einmaligen Browser-Nachweis wiederholbar.
+    const combat = bau();
+    const c = wirke(combat, 'canker', 0);
+    wirke(combat, 'fester', c + GCD_MS);
+    expect(combat.synergyUsed, 'ohne genutzte Synergie belegt der Reset nichts').toBe(1);
+    expect(combat.synergyAvailable).toBeGreaterThan(0);
+
+    combat.reset();
+
+    expect(combat.synergyUsed, 'die genutzten Synergien ueberleben den Reset').toBe(0);
+    expect(combat.synergyAvailable, 'die Gelegenheiten ueberleben den Reset').toBe(0);
+  });
+
+  it('und das offene Fenster ebenfalls', () => {
+    // **Der zweite Teil, und er ist der stillere.** Ein offenes Fenster, das
+    // den Reset ueberlebt, gaebe dem ersten Zauber des naechsten Laufs einen
+    // Bonus, den niemand ausgeloest hat — und der Schaden waere zu hoch, ohne
+    // dass eine Zahl es meldet.
+    const combat = bau();
+    wirke(combat, 'canker', 0);
+    combat.reset();
+
+    // **Gemessen wird der ZAEHLER, nicht der Schaden.** Mein erster Entwurf
+    // verglich FESTERs Schaden nach dem Reset gegen einen frischen Kampf und
+    // bekam 62 gegen 60. Der Unterschied kam aber NICHT von der Synergie: Er
+    // kommt vom Zersetzungs-Stapel, den CANKER angelegt hat und den
+    // `reset()` nicht wegräumt (`decayCountValue`, eine bestehende Lücke aus
+    // #97 — der Simulator räumt ihn auf, das Spiel nicht).
+    //
+    // Ein Fall, der beides zugleich misst, meldet den fremden Fehler unter
+    // meinem Namen. Der Zähler trennt sie sauber.
+    combat.cast(combat.indexOf('fester'), 0);
+    expect(
+      combat.synergyUsed,
+      'FESTER hat nach dem Reset eine Synergie genutzt — dann steht ein ' +
+        'Fenster offen, das niemand geöffnet hat',
+    ).toBe(0);
+  });
+});
