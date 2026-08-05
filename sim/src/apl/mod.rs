@@ -408,3 +408,101 @@ pub fn resource_names() -> [&'static str; 2] {
 pub fn spell_index(name: &str) -> Option<usize> {
     SPELLS.iter().position(|spell| spell.id == name)
 }
+
+use std::fmt;
+
+// ---------------------------------------------------------------------------
+// Die Gegenrichtung zum Parser (Issue #237, AC3)
+// ---------------------------------------------------------------------------
+//
+// Bis hierher war die APL-Seite eine EINBAHNSTRASSE: Text -> Struktur. Die
+// Rueckrichtung gab es nicht, weil sie nie gebraucht wurde — bisher hat immer
+// ein Mensch die Liste geschrieben.
+//
+// Mit der Rotations-Suche kehrt sich das um: Sie findet eine Struktur, und
+// wenn niemand sie in eine `.apl`-Datei schreiben kann, hat sie sie fuer
+// niemanden gefunden.
+//
+// **Geprueft wird diese Ausgabe ueber den Parser**, und zwar nicht auf
+// Parsebarkeit, sondern auf Bedeutung: Die zurueckgelesene Fassung muss
+// dieselbe Zahl messen. Ein Text, der durchgeht und etwas anderes bedeutet,
+// ist schlimmer als einer, der nicht durchgeht — er faellt niemandem auf.
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(n) => write!(f, "{n}"),
+            Self::Resource => write!(f, "{}", crate::data::RESOURCE.id),
+            Self::CooldownRemains(i) => {
+                write!(f, "cooldown.{}.remains", crate::data::SPELLS[*i].id)
+            }
+            Self::CooldownReady(i) => write!(f, "cooldown.{}.ready", crate::data::SPELLS[*i].id),
+            Self::DotRemains(i) => write!(f, "dot.{}.remains", crate::data::SPELLS[*i].id),
+            Self::DotActive(i) => write!(f, "dot.{}.active", crate::data::SPELLS[*i].id),
+            Self::DotTicks(i) => write!(f, "dot.{}.ticks", crate::data::SPELLS[*i].id),
+            Self::BossHp => write!(f, "boss.hp"),
+            Self::BossHpPercent => write!(f, "boss.hp_pct"),
+            Self::Time => write!(f, "time"),
+            Self::FightRemains => write!(f, "fight.remains"),
+            Self::Gcd => write!(f, "gcd"),
+        }
+    }
+}
+
+impl fmt::Display for Compare {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Less => "<",
+            Self::LessEqual => "<=",
+            Self::Greater => ">",
+            Self::GreaterEqual => ">=",
+            Self::Equal => "==",
+            Self::NotEqual => "!=",
+        })
+    }
+}
+
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.left, self.compare, self.right)
+    }
+}
+
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Die `or`-Gruppen werden mit `or` verbunden, die Vergleiche darin mit
+        // `and` — dieselbe Schachtelung wie beim Lesen, sonst bedeutet der
+        // ausgegebene Text etwas anderes als die Struktur.
+        for (i, group) in self.groups.iter().enumerate() {
+            if i > 0 {
+                f.write_str(" or ")?;
+            }
+            for (j, term) in group.iter().enumerate() {
+                if j > 0 {
+                    f.write_str(" and ")?;
+                }
+                write!(f, "{term}")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Rule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", crate::data::SPELLS[self.spell].id)?;
+        if !self.condition.is_always() {
+            write!(f, " if {}", self.condition)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Apl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for rule in &self.rules {
+            writeln!(f, "{rule}")?;
+        }
+        Ok(())
+    }
+}
