@@ -589,6 +589,13 @@ impl Fight {
     /// Legt einen Durchgang an. Fordert allen benoetigten Speicher **jetzt** an.
     #[must_use]
     pub fn new(config: FightConfig) -> Self {
+        // Einmal gerechnet, zweimal gebraucht — Startleben und Deckel sind
+        // derselbe Wert, und getrennte Ausdruecke waeren zwei Stellen, die
+        // auseinanderlaufen koennen.
+        let vessel_max = vessel_with_gear(
+            stat_at_level(PLAYER.vessel, config.player_level),
+            config.worn.vessel,
+        );
         let mut fight = Self {
             time: 0,
             duration_ms: config.duration_ms.unwrap_or(config.boss.overpressure_ms),
@@ -621,8 +628,29 @@ impl Fight {
             casts_cancelled: 0,
             interrupts_missed: 0,
             interrupts_landed: 0,
-            vessel_max: stat_at_level(PLAYER.vessel, config.player_level),
-            player_hp: stat_at_level(PLAYER.vessel, config.player_level),
+            // **Ausruestung kommt DAZU, nicht davor** (Issue #282, AC3).
+            // Wer die Stufen-Basis ersetzt statt sie zu erhoehen, macht einen
+            // Spieler auf Stufe 100 ohne Ausruestung schwaecher als einen auf
+            // Stufe 1 mit einem Fund.
+            //
+            // Ohne getragene Ausruestung ist der Faktor exakt 1,0 und die
+            // Multiplikation bewegt keine Zahl — belegt in AC5.
+            vessel_max,
+            // **Derselbe Wert wie `vessel_max`, nicht die Basis darunter.**
+            //
+            // Hier stand `stat_at_level(...)` — die Lebenspunkte OHNE
+            // Ausruestung, waehrend `vessel_max` sie MIT bekam. Der Spieler
+            // startete also verwundeter, als er sein durfte, und weil
+            // `player_hp` in die Pruefsumme eingeht, brach der Gleichlauf in
+            // Takt 0.
+            //
+            // Die beiden Zeilen sahen aus wie ein Paar und WAREN eins, solange
+            // es keine Ausruestung gab. Auf der Spiel-Seite ist es eine
+            // einzige Zeile (`playerHpValue = vesselMax`) — dort gab es beim
+            // Uebertragen nichts zu vergessen. **Eine Asymmetrie, die auf
+            // einer Seite zwei Zeilen ist und auf der anderen eine, faellt
+            // beim Uebertragen durch.**
+            player_hp: vessel_max,
             died_at: None,
             damage_taken: 0,
             shield: 0,
@@ -667,6 +695,7 @@ impl Fight {
             // `is_neutral()` greift weiterhin, weil das Feld unveraendert bei
             // 1,0 steht.
             factors: DamageFactors {
+                essence: config.factors.essence * config.worn.essence_factor(),
                 gear_effects: config.factors.gear_effects * config.worn.gear_effect_factor(),
                 // **Der Widerstand des Bosses gegen die eigene Schule**
                 // (GAME-DESIGN 11.4, Issue #328). Er kommt beim Aufbau in die
@@ -1743,7 +1772,8 @@ impl Fight {
         if self.died_at.is_some() {
             return;
         }
-        let nach_ward = PLAYER.incoming(raw);
+        // WARD aus der getragenen Ausruestung kommt zur Basis dazu (#282, AC4).
+        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward);
 
         // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
         //
@@ -2957,4 +2987,23 @@ impl Fight {
     pub fn draws(&self, stream: Stream) -> u32 {
         self.rng.draws(stream)
     }
+}
+
+/// Die Lebenspunkte aus Stufe **und** Ausruestung (Issue #282, AC3).
+///
+/// # Warum eine eigene Funktion und keine Zeile im Aufbau
+///
+/// Beide Seiten muessen dieselbe Rundung treffen. Steht die Rechnung an einer
+/// Stelle, ist sie eine Zeile zum Vergleichen; steht sie zweimal im Aufbau,
+/// muss man sie suchen.
+///
+/// **Ganzzahlig gerundet, nicht in Fliesskomma gehalten:** Lebenspunkte sind
+/// ganze Zahlen, und ein Rest, der erst spaeter abgeschnitten wird, ist ein
+/// Rest, den die andere Seite anders abschneiden koennte.
+#[must_use]
+pub fn vessel_with_gear(base: u32, worn_permille: u32) -> u32 {
+    if worn_permille == 0 {
+        return base;
+    }
+    u32::try_from(u64::from(base) * (1000 + u64::from(worn_permille)) / 1000).unwrap_or(u32::MAX)
 }

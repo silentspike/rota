@@ -44,6 +44,8 @@ import {
   NOTHING_WORN,
   critChance,
   critFactor,
+  essenceFactor,
+  vesselWithGear,
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
@@ -646,7 +648,14 @@ export class Combat {
     // **Aus der Stufe, nicht aus der Datei** (Issue #289). `statAtLevel` gibt
     // auf Stufe 1 exakt den Grundwert zurück — dort bewegt sich nichts.
     this.levelValue = options.level ?? 1;
-    this.vesselMax = statAtLevel(PLAYER.vessel, this.levelValue);
+    // **Ausrüstung kommt DAZU, nicht davor** (Issue #282, AC3). Wer die
+    // Stufen-Basis ersetzt statt sie zu erhöhen, macht einen Spieler auf
+    // Stufe 100 ohne Ausrüstung schwächer als einen auf Stufe 1 mit einem
+    // Fund. Ohne getragene Ausrüstung bewegt die Rechnung keine Zahl.
+    this.vesselMax = vesselWithGear(
+      statAtLevel(PLAYER.vessel, this.levelValue),
+      (options.worn ?? NOTHING_WORN).vessel,
+    );
     this.playerHpValue = this.vesselMax;
     this.resistanceOfSpell = new Float64Array(this.spells.length);
     for (let i = 0; i < this.spells.length; i++) {
@@ -663,6 +672,14 @@ export class Combat {
     // Aufbau. Was hier bleibt, ist alles, was für den ganzen Kampf gilt.
     this.factors = {
       ...NEUTRAL_FACTORS,
+      // **Topf 1 ebenso**, und als EIGENER Faktor: Zwischen den Toepfen wird
+      // multipliziert (13.1b). Waeren ESSENCE und Topf 4 derselbe Faktor,
+      // waere die Rechnung additiv und die Abwaegung aus 13.5 gekippt.
+      //
+      // `resistance` stand hier bis #328 daneben und ist dort weggefallen —
+      // er haengt am Zauber, nicht am Kampf. ESSENCE bleibt, weil Ausruestung
+      // fuer den ganzen Kampf gilt.
+      essence: NEUTRAL_FACTORS.essence * essenceFactor(this.worn),
       gearEffects: gearEffectFactor(this.worn),
     };
     this.factorsOnCrit = { ...this.factors, crit: critFactor(this.worn) };
@@ -1331,7 +1348,15 @@ export class Combat {
     // Schaden (GAME-DESIGN 6.3) und dieselbe Zeile wie `PlayerBase::incoming`
     // im Simulator. Zweimal zu runden ergäbe je nach Reihenfolge andere
     // Zahlen, und genau daran laufen zwei Umsetzungen auseinander.
-    const nachWard = Math.max(0, Math.round(raw * (1 - PLAYER.wardReduction)));
+    // WARD aus der getragenen Ausrüstung kommt zur Basis dazu (#282, AC4).
+    // **Additiv, nicht multiplikativ:** Beides ist Minderung, also derselbe
+    // Topf — innerhalb eines Topfes wird addiert (13.1b).
+    //
+    // Der Deckel bei 1 ist eine Rechenregel, keine Balance-Zahl: Darüber
+    // würde der Spieler geheilt. Ob es einen Balance-Deckel darunter geben
+    // soll, ist offen und steht nirgends im Design.
+    const minderung = Math.min(1, PLAYER.wardReduction + this.worn.ward / 1000);
+    const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
     // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
     // Issue #79).
