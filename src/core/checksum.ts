@@ -31,6 +31,61 @@ export function mixInt(hash: number, value: number): number {
 }
 
 /**
+ * Die Namensfolge des letzten Laufs — **nur für den Gleichlauf-Wächter**
+ * (Issue #236).
+ *
+ * # Warum zur Laufzeit und nicht aus dem Quelltext
+ *
+ * Eine Quelltext-Stelle ist nicht ein Wert. `combatChecksum` mischt in einer
+ * Schleife über die Zauber fünf Werte **je Zauber** — bei drei Zaubern sind
+ * das fünfzehn Mischungen aus fünf Zeilen. Wer die Namen aus dem Quelltext
+ * zieht, zählt Zeilen und nicht Werte, und bekommt 37 gegen 34, obwohl beide
+ * Seiten dasselbe tun.
+ *
+ * Zur Laufzeit ist außerdem gleichgültig, ob ein Wert direkt oder über eine
+ * lokale Variable hereinkommt: gemischt ist gemischt.
+ *
+ * # Im laufenden Spiel kostet das nichts
+ *
+ * Aufgezeichnet wird nur, wenn `recording` gesetzt ist — sonst ist es ein
+ * Vergleich gegen `null` und kein Eintrag. Der Kampf darf im Takt nichts
+ * erzeugen (18.2), und diese Liste entsteht ausschließlich im Prüffall.
+ */
+let recording: string[] | null = null;
+
+/** Zeichnet die Namensfolge des nächsten Aufrufs auf und gibt sie zurück. */
+export function recordFieldOrder(run: () => void): readonly string[] {
+  const names: string[] = [];
+  recording = names;
+  try {
+    run();
+  } finally {
+    recording = null;
+  }
+  return names;
+}
+
+/**
+ * Eine ganze Zahl einrühren, unter einem Namen.
+ *
+ * **Der Name geht NICHT in die Prüfsumme ein.** Täte er es, änderte sich jede
+ * Prüfsumme im Projekt, und jede eingecheckte Vergleichsdatei wäre falsch.
+ * Er dient allein dazu, die Reihenfolge benennbar zu machen: Meldet der
+ * Wächter „bei `damage` läuft es auseinander", ist die Stelle gefunden —
+ * statt „Prüfsumme stimmt nicht", was eine Stunde Suche bedeutet hat (#97).
+ */
+export function mixNamedInt(hash: number, name: string, value: number): number {
+  recording?.push(name);
+  return mixInt(hash, value);
+}
+
+/** Dasselbe für eine Fließkommazahl. Der Name geht auch hier nicht ein. */
+export function mixNamedFloat(hash: number, name: string, value: number): number {
+  recording?.push(name);
+  return mixFloat(hash, value);
+}
+
+/**
  * Eine Fließkommazahl einrühren.
  *
  * Über die Bit-Darstellung, nicht über den gerundeten Wert: Zwei Zahlen, die
@@ -53,21 +108,21 @@ export function mixFloat(hash: number, value: number): number {
  */
 export function combatChecksum(combat: Combat, timeMs: number): number {
   let h = FNV_OFFSET;
-  h = mixInt(h, timeMs);
-  h = mixFloat(h, combat.damageDealt);
-  h = mixInt(h, combat.resource);
-  h = mixInt(h, combat.resourceOverflow);
-  h = mixInt(h, combat.fightState);
-  h = mixFloat(h, combat.gcd.readyAt);
+  h = mixNamedInt(h, 'time', timeMs);
+  h = mixNamedFloat(h, 'damage', combat.damageDealt);
+  h = mixNamedInt(h, 'resource', combat.resource);
+  h = mixNamedInt(h, 'resourceOverflow', combat.resourceOverflow);
+  h = mixNamedInt(h, 'fightState', combat.fightState);
+  h = mixNamedFloat(h, 'gcdReadyAt', combat.gcd.readyAt);
   for (let i = 0; i < combat.spells.length; i++) {
-    h = mixFloat(h, combat.cooldownRemainingMs(i, timeMs));
-    h = mixFloat(h, combat.dotRemainingMs(i, timeMs));
-    h = mixInt(h, combat.castCount(i));
-    h = mixInt(h, combat.dotTickCount(i));
-    h = mixInt(h, combat.lostDotTicks(i));
+    h = mixNamedFloat(h, 'cooldownRemaining', combat.cooldownRemainingMs(i, timeMs));
+    h = mixNamedFloat(h, 'dotRemaining', combat.dotRemainingMs(i, timeMs));
+    h = mixNamedInt(h, 'casts', combat.castCount(i));
+    h = mixNamedInt(h, 'dotTicks', combat.dotTickCount(i));
+    h = mixNamedInt(h, 'lostDotTicks', combat.lostDotTicks(i));
   }
   const draws = combat.random.drawCounts();
-  for (let i = 0; i < draws.length; i++) h = mixInt(h, draws[i] as number);
+  for (let i = 0; i < draws.length; i++) h = mixNamedInt(h, 'randomDraws', draws[i] as number);
   // **Angehängt, nicht eingeschoben** (Issue #96, Boss-Phasen und
   // Energieleiste). Die bestehenden Positionen bleiben unverändert; die
   // Reihenfolge ist ohnehin willkürlich und muss nur auf beiden Seiten gleich
@@ -76,30 +131,30 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Ohne diese beiden Felder wäre die Prüfsumme für einen Boss mit Phasen
   // blind: Zwei Läufe in verschiedenen Phasen sähen gleich aus, und der
   // Abgleich meldete Übereinstimmung, wo keine ist.
-  h = mixInt(h, combat.bossPhase);
-  h = mixInt(h, combat.bossEnergy);
-  h = mixInt(h, combat.timelineIndex);
+  h = mixNamedInt(h, 'bossPhase', combat.bossPhase);
+  h = mixNamedInt(h, 'bossEnergy', combat.bossEnergy);
+  h = mixNamedInt(h, 'timelineIndex', combat.timelineIndex);
   // **Angehängt, nicht eingeschoben** (Issue #110). Ohne die Lebenspunkte wäre
   // die Prüfsumme für einen Boss, der Schaden austeilt, blind: Zwei Läufe mit
   // verschiedenem erlittenem Schaden sähen gleich aus.
-  h = mixInt(h, combat.playerHp);
+  h = mixNamedInt(h, 'playerHp', combat.playerHp);
   // Und der laufende Boss-Zauber, damit ein verpasstes Unterbrechen auffällt,
   // bevor der Treffer überhaupt fällt.
-  h = mixInt(h, combat.casting);
+  h = mixNamedInt(h, 'casting', combat.casting);
   // **Angehängt, nicht eingeschoben** (Issue #79). Ohne den Schutz wäre die
   // Prüfsumme für jeden Kampf mit Schutzschicht blind: Zwei Läufe mit
   // verschieden viel aufgefangenem Schaden sähen gleich aus, solange die
   // Lebenspunkte zufällig übereinstimmen.
-  h = mixInt(h, combat.shield);
-  h = mixInt(h, combat.shieldStacks);
+  h = mixNamedInt(h, 'shield', combat.shield);
+  h = mixNamedInt(h, 'shieldStacks', combat.shieldStacks);
   // Die laufende Umwandlung gehört dazu, nicht nur ihr Ergebnis: Sie
   // entscheidet über jeden künftigen Schlag.
-  h = mixInt(h, combat.conversionPercent);
+  h = mixNamedInt(h, 'conversionPercent', combat.conversionPercent);
   // **Angehängt, nicht eingeschoben** (Issue #100). Ohne den Kontroll-Vorrat
   // wäre die Prüfsumme für jeden Kampf mit Fixierung blind, und die gesenkte
   // Phasen-Schwelle entscheidet über jeden künftigen Wechsel.
-  h = mixInt(h, combat.control);
-  h = mixInt(h, combat.phaseHoldPercent);
+  h = mixNamedInt(h, 'control', combat.control);
+  h = mixNamedInt(h, 'phaseHoldPercent', combat.phaseHoldPercent);
   // **Angehängt, nicht eingeschoben** (Issue #216, Zähler und Stapel). Ohne
   // sie wäre die Prüfsumme für einen Boss mit diesen Bausteinen blind: Zwei
   // Läufe mit verschiedenem Zählerstand sähen gleich aus, solange die
@@ -108,9 +163,9 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   //
   // Die Ladungen gehören dazu: Sie sind der Unterschied zwischen „kann noch
   // senken" und „muss es aushalten", und sie stehen in keiner anderen Größe.
-  h = mixInt(h, combat.doom);
-  h = mixInt(h, combat.doomCharges);
-  h = mixInt(h, combat.bossStacks);
+  h = mixNamedInt(h, 'doom', combat.doom);
+  h = mixNamedInt(h, 'doomCharges', combat.doomCharges);
+  h = mixNamedInt(h, 'bossStacks', combat.bossStacks);
   // **Angehängt, nicht eingeschoben** (Issue #97). Die Feldfolge ist die
   // Schnittstelle zum Simulator; ein neues Feld in der Mitte verschöbe jede
   // eingecheckte Vergleichsdatei auf einen Schlag.
@@ -119,8 +174,9 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // aber verschieden alten Stapeln laufen gleich weiter — bis der erste
   // verfällt. Deshalb geht jede Restzeit einzeln ein, in fester Reihenfolge
   // (der älteste zuerst), und die unbelegten Plätze als 0.
-  h = mixInt(h, combat.decayStacks);
-  for (let i = 0; i < MAX_DECAY_STACKS; i++) h = mixInt(h, combat.decayExpiryAt(i));
+  h = mixNamedInt(h, 'decayStacks', combat.decayStacks);
+  for (let i = 0; i < MAX_DECAY_STACKS; i++)
+    h = mixNamedInt(h, 'decayExpiry', combat.decayExpiryAt(i));
   // **Angehängt, nicht eingeschoben** (Issue #218). Ohne sie wäre die
   // Prüfsumme für einen Boss mit Unverwundbarkeits-Fenster blind: Zwei Läufe
   // mit verschieden viel verlorenem Schaden sähen gleich aus, solange der
@@ -129,10 +185,10 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   //
   // Der geladene Zähler gehört dazu: Er entscheidet, ob das Fenster früh
   // endet, und steht in keiner anderen Größe.
-  h = mixInt(h, combat.raceOpen ? 1 : 0);
-  h = mixInt(h, combat.raceProgress);
-  h = mixInt(h, combat.damageLostToRace);
-  h = mixInt(h, combat.bossHealed);
+  h = mixNamedInt(h, 'raceOpen', combat.raceOpen ? 1 : 0);
+  h = mixNamedInt(h, 'raceProgress', combat.raceProgress);
+  h = mixNamedInt(h, 'damageLostToRace', combat.damageLostToRace);
+  h = mixNamedInt(h, 'bossHealed', combat.bossHealed);
   // **Angehängt, nicht eingeschoben** (Issue #240, die letzten drei Bausteine).
   //
   // Baustein 7: Die Eskalation wirkt ausschließlich auf den Zeitpunkt, zu dem
@@ -145,19 +201,21 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // -1 und im Simulator 0 — ein Unterschied, der nichts bedeutet, aber in jedem
   // Takt ohne Boss-Zauber eine Abweichung meldete. Der feste Wert steht deshalb
   // auf beiden Seiten.
-  h = mixInt(h, combat.casting >= 0 ? combat.castLandsAtMs : -1);
+  h = mixNamedInt(h, 'castLandsAt', combat.casting >= 0 ? combat.castLandsAtMs : -1);
   // Baustein 8: Ob die Schwächung liegt, entscheidet über jeden weiteren Takt.
   // Der Zähler gehört dazu, weil er den Unterschied zwischen „nie gelegen" und
   // „gelegen und entfernt" trägt — im Zustand sehen die beiden gleich aus.
-  h = mixInt(h, combat.afflicted ? 1 : 0);
-  h = mixInt(h, combat.afflictionsCleared);
-  // Issue #256: Der Anteil des SPIELERS am Ring-Verlust. `damageDealt` steht
-  // schon an Position 2, aber es mischt seit #247 zwei Herkünfte — die
-  // Reaktion senkt den Ring von selbst. Zwei Läufe mit gleichem `damageDealt`
-  // und verschiedenem Spieler-Anteil sähen ohne dieses Feld identisch aus,
-  // und ein Simulator, der die Trennung anders zieht, fiele nicht auf.
+  h = mixNamedInt(h, 'afflicted', combat.afflicted ? 1 : 0);
+  h = mixNamedInt(h, 'afflictionsCleared', combat.afflictionsCleared);
+  // Issue #256: Der Anteil des SPIELERS am Ring-Verlust. `damage` steht schon
+  // an Position 2, aber es mischt seit #247 zwei Herkünfte — die Reaktion
+  // senkt den Ring von selbst. Zwei Läufe mit gleichem `damage` und
+  // verschiedenem Spieler-Anteil sähen ohne dieses Feld identisch aus, und ein
+  // Simulator, der die Trennung anders zieht, fiele nicht auf.
   //
-  // **Angehängt, nicht eingeschoben** — wie jedes Feld seit #96.
-  h = mixFloat(h, combat.playerDamage);
+  // **Angehängt, nicht eingeschoben** — wie jedes Feld seit #96. Der Name
+  // kommt aus #236 dazu: Der Gleichlauf-Wächter nennt bei einer Abweichung die
+  // Stelle beim Namen, statt nur ihre Nummer zu melden.
+  h = mixNamedFloat(h, 'playerDamage', combat.playerDamage);
   return h >>> 0;
 }
