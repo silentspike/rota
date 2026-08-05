@@ -229,6 +229,18 @@ fn alle_faktor_namen() -> Vec<String> {
 /// Faktoren, die der Kampf **selbst** schreibt — fuer sie ist ein
 /// Staerke-Vergleich mit festem Wert nicht sinnvoll.
 ///
+/// # Woran man erkennt, dass ein Faktor hierhergehoert
+///
+/// **Der Kampf setzt ihn im Lauf selbst**, statt ihn beim Aufbau entgegen zu
+/// nehmen. Ein fester Wert wuerde dann beim ersten Schritt ueberschrieben, und
+/// der Staerke-Vergleich maesse nicht den Faktor, sondern den Zeitpunkt.
+///
+/// Das Kriterium steht hier und nicht die Aufzaehlung eines Zustands: Nimmt
+/// ein spaeterer Stand einen weiteren Faktor in die Hand des Kampfes — etwa
+/// `synergy`, das auf einem noch nicht gemergten Zweig herauswandert —, dann
+/// steht hier, wonach zu entscheiden ist, statt einer Liste, die zu keinem
+/// Stand mehr passt.
+///
 /// **Die Ausnahme muss hier stehen, sonst gibt es sie nicht.** Eine Ausnahme,
 /// die man nennen muss, ist eine Entscheidung; eine, die durch Weglassen
 /// entsteht, ist ein Versehen — und genau das war der Zustand: `gear_effects`
@@ -265,6 +277,25 @@ fn kein_faktor_faellt_lautlos_aus_der_staerke_pruefung() {
          Rest nichts. Hat sich das Debug-Format geaendert?",
         alle.len()
     );
+
+    // **Die Anzahl allein genuegt nicht.** Die Namensliste haengt daran, dass
+    // `Debug` ABGELEITET ist. Ersetzt jemand `#[derive(Debug)]` durch eine
+    // eigene Umsetzung — etwa fuer eine kuerzere Ausgabe —, faellt die
+    // Namensliste weg oder wird unvollstaendig, und dieser Waechter waere
+    // still gruen.
+    //
+    // Das ist genau die Bauart, gegen die er gebaut ist: eine Aenderung
+    // anderswo, die eine Pruefung lautlos entwertet. Deshalb pruefen wir die
+    // FORM an bekannten Namen, nicht an ihrer Zahl.
+    for bekannt in ["essence", "talents", "crit"] {
+        assert!(
+            alle.iter().any(|f| f == bekannt),
+            "der Faktor {bekannt} steht nicht in der Debug-Ausgabe. Ist \
+             `Debug` fuer DamageFactors noch abgeleitet, oder wurde es von \
+             Hand umgesetzt? Dann traegt diese Pruefung ihre Namensliste nicht \
+             mehr."
+        );
+    }
 
     let ausgenommen: Vec<&str> = SCHREIBT_DER_KAMPF_SELBST.iter().map(|(n, _)| *n).collect();
     let fehlend: Vec<&String> = alle
