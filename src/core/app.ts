@@ -173,7 +173,7 @@ export class App {
     }
     this.audio.bindSpells(this.combat.spells.map((spell) => spell.id));
 
-    this.overlay = new Overlay(parent, {
+    this.overlay = new Overlay(parent, this.combat.boss.name, {
       onReady: () => this.ready(),
       onResume: () => this.resume(),
       onWipe: () => this.wipe(),
