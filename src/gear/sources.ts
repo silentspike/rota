@@ -50,23 +50,50 @@ import { MAX_ITEM_LEVEL, QUALITY_EPIC, budgetOf, distributeBudget } from './budg
 import { LEVELS } from '../core/data.js';
 
 /**
- * Was ein Gegenstand auf Stufe 1 an je einem Grundwert trägt, in Promille.
+ * Was ein Gegenstand auf Stufe 1 an ESSENCE trägt, in Promille.
  *
- * **UNKALIBRIERT.** Diese Zahl ist nicht gemessen, sie ist gesetzt, damit die
- * Leitung überhaupt etwas transportiert. Das Design nennt keine Zahl dafür, und
- * sie zu erfinden wäre eine Balance-Entscheidung unter dem Deckmantel einer
- * Fehlerbehebung.
+ * **UNKALIBRIERT — und hier steht, woran.** Die Zahl ist nicht gemessen,
+ * sondern gesetzt, damit die Leitung überhaupt etwas transportiert.
  *
- * Sie gehört kalibriert, sobald der Balance-Läufer den Skalierungsfaktor je
- * Wert misst — dafür ist er da. Bis dahin steht sie hier an **einer** Stelle,
- * damit die Kalibrierung eine Zeile ist und keine Suche.
+ * > Kalibriert wird sie am Skalierungsfaktor je Wert aus dem Balance-Läufer.
+ * > Der Auftrag steht in `docs/ENTSCHEIDUNGEN-OFFEN.md`, Punkt 7 („Wie viel
+ * > trägt ein Fund? — OFFEN, aber als Messung, nicht als Entscheidung").
  *
- * **Kein Prüffall prüft ihren Betrag.** Er prüft das Verhältnis: Ein
- * Gegenstand doppelter Stufe trägt doppelt so viel. Ein Prüffall auf den
- * Betrag würde rot melden, sobald jemand kalibriert — der Wächter arbeitete
- * dann gegen die Balance-Arbeit statt für sie.
+ * „Unkalibriert" allein läse sich in zwei Wochen wie eine Entschuldigung; mit
+ * dem Verweis ist es ein Auftrag.
  */
-export const BASE_STAT_AT_LEVEL_1 = 10;
+export const ESSENCE_AT_LEVEL_1 = 10;
+
+/**
+ * Dasselbe für VESSEL — **eine eigene Zahl, kein gemeinsamer Wert**.
+ *
+ * # Warum drei Konstanten und nicht eine
+ *
+ * Dieselbe Zahl bedeutet an den drei Stellen etwas völlig Verschiedenes:
+ *
+ * | Wert | wirkt | eine Erhöhung um 10 % heißt |
+ * | --- | --- | --- |
+ * | ESSENCE | multiplikativ auf den Schaden | 10 % mehr Schaden |
+ * | VESSEL | additiv auf die Lebenspunkte | 10 % mehr Leben |
+ * | WARD | auf die Schadensminderung | je nach Basis sehr verschieden |
+ *
+ * Eine gemeinsame Konstante wäre die stillschweigende Behauptung, die drei
+ * seien gleich stark. Das ist eine Balance-Aussage, und sie steht nirgends im
+ * Design. Drei Konstanten kosten zwei Zeilen und behaupten nichts.
+ *
+ * Kalibrierung: wie bei [`ESSENCE_AT_LEVEL_1`].
+ */
+export const VESSEL_AT_LEVEL_1 = 10;
+
+/**
+ * Dasselbe für WARD. Siehe [`VESSEL_AT_LEVEL_1`], warum es drei sind.
+ *
+ * **Bei WARD ist die Getrenntheit am wichtigsten.** Schadensminderung hat
+ * einen Deckel; ein Wert, der bei ESSENCE harmlos ist, kann hier an die
+ * Grenze stoßen. Wer beide aus derselben Konstante speist, merkt das erst,
+ * wenn eine von beiden falsch aussieht.
+ */
+export const WARD_AT_LEVEL_1 = 10;
 import { SLOT_COUNT } from './slots.js';
 import { SET_TIERS } from './sets.js';
 
@@ -173,6 +200,16 @@ export function affixPermille(itemLevel: number, quality: number): number {
  * Affixe, nicht mehr Rüstung. Deshalb nimmt diese Funktion **keine** Qualität
  * entgegen — nicht aus Vergesslichkeit, sondern weil sie keine hat.
  *
+ * # Was sie NICHT tut
+ *
+ * **Sie ist nicht für Affixe.** Dafür steht [`affixPermille`] direkt daneben,
+ * und die beiden beantworten zwei verschiedene Fragen an dieselbe Stufe. Der
+ * Name hier ist kürzer — das ist der einzige Grund, aus dem jemand die falsche
+ * greifen würde, und deshalb steht dieser Absatz hier.
+ *
+ * Sie liefert auch **keine Summe über alle Plätze**: Es ist der Wert **eines**
+ * Gegenstands, je **einem** Grundwert.
+ *
  * # Die Kurve ist nicht erfunden
  *
  * Es ist dieselbe, mit der schon die Stufenwerte wachsen: `factorPerMille` aus
@@ -181,10 +218,10 @@ export function affixPermille(itemLevel: number, quality: number): number {
  * Instanz plötzlich brauchbare Funde, und genau das soll der abnehmende Ertrag
  * verhindern.
  */
-export function basePermille(itemLevel: number): number {
+export function basePermille(itemLevel: number, baseAtLevel1: number): number {
   if (!Number.isInteger(itemLevel) || itemLevel < 1 || itemLevel > MAX_ITEM_LEVEL) return 0;
   const promille = LEVELS.factorPerMille[itemLevel - 1] ?? 1000;
-  return Math.trunc((BASE_STAT_AT_LEVEL_1 * promille) / 1000);
+  return Math.trunc((baseAtLevel1 * promille) / 1000);
 }
 
 /**
