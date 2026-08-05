@@ -17,7 +17,9 @@
 //! KONSTANTE, nicht ueber einen Faktor, den niemand setzen kann.
 
 use rota_sim::data;
+use rota_sim::data::index_of;
 use rota_sim::fight::SYNERGY_BONUS_PERCENT;
+use rota_sim::{Fight, FightConfig, RunResult};
 
 #[test]
 fn ausgelieferte_zauber_benutzen_die_synergie() {
@@ -72,5 +74,73 @@ fn der_bonus_ist_auf_beiden_seiten_dieselbe_zahl() {
         SYNERGY_BONUS_PERCENT, 25,
         "der Bonus wurde geaendert — dann gehoert er im Spiel mitgeaendert \
          (SYNERGY_BONUS_PERCENT in src/core/combat.ts)"
+    );
+}
+
+/// CANKER, dann FESTER **sofort danach** — also im offenen Fenster.
+fn im_fenster(f: &Fight) -> Option<usize> {
+    let canker = index_of("canker")?;
+    let fester = index_of("fester")?;
+    if f.cast_count(canker) == 0 && f.is_ready(canker) {
+        return Some(canker);
+    }
+    if f.cast_count(fester) == 0 && f.is_ready(fester) {
+        return Some(fester);
+    }
+    None
+}
+
+/// CANKER, dann FESTER **nach dem Fensterende** — zwei Wartezeiten sind 3000 ms.
+fn nach_dem_fenster(f: &Fight) -> Option<usize> {
+    let canker = index_of("canker")?;
+    let fester = index_of("fester")?;
+    if f.cast_count(canker) == 0 && f.is_ready(canker) {
+        return Some(canker);
+    }
+    if f.time() >= 5_000 && f.cast_count(fester) == 0 && f.is_ready(fester) {
+        return Some(fester);
+    }
+    None
+}
+
+fn lauf(rotation: fn(&Fight) -> Option<usize>) -> RunResult {
+    Fight::new(FightConfig {
+        stop_on_kill: false,
+        ..FightConfig::default()
+    })
+    .run(rotation)
+}
+
+#[test]
+fn die_synergie_wirkt_ueber_den_kampf_gemessen() {
+    // **Die Luecke aus factors.rs, geschlossen wie auf der Spielseite.**
+    // Dort steht `synergy` nicht mehr in der Liste der gleich starken
+    // Faktoren, weil der Kampf ihn selbst schreibt. Gemessen wird er deshalb
+    // hier — ueber den KAMPF statt ueber einen von aussen gesetzten Wert.
+    //
+    // **Der Stapelstand bleibt gleich.** CANKER legt in beiden Laeufen genau
+    // einen Zersetzungs-Stapel an, und der liegt 30 s; das Fenster steht 3 s.
+    // Variiert wird nur, WANN FESTER wirkt. Ohne das maesse der Vergleich
+    // `per_decay_stack_percent` statt der Synergie.
+    let fester = index_of("fester").expect("FESTER fehlt");
+
+    let drin = lauf(im_fenster);
+    let draussen = lauf(nach_dem_fenster);
+
+    assert!(
+        drin.damage_by_spell[fester] > 0 && draussen.damage_by_spell[fester] > 0,
+        "FESTER kam in einem der beiden Laeufe nicht zum Zug — der Vergleich \
+         waere wertlos"
+    );
+
+    let verhaeltnis =
+        f64::from(drin.damage_by_spell[fester]) / f64::from(draussen.damage_by_spell[fester]);
+    let erwartet = f64::from(100 + SYNERGY_BONUS_PERCENT) / 100.0;
+    assert!(
+        (verhaeltnis - erwartet).abs() < 0.05,
+        "im Fenster {} gegen {} danach ergibt {verhaeltnis}, erwartet {erwartet} \
+         — der Synergie-Faktor kommt in der Schadensrechnung nicht an",
+        drin.damage_by_spell[fester],
+        draussen.damage_by_spell[fester]
     );
 }
