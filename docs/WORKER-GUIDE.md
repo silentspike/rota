@@ -430,18 +430,20 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 
 ### Die Schwester davon: Prüfdaten, die den Fall unerreichbar machen
 
-_Drei Fundstellen in der Nacht zum 2026-08-05, in zwei verschiedenen Rollen, innerhalb von zwei
+_Fünf Fundstellen in der Nacht zum 2026-08-05, in drei verschiedenen Rollen, innerhalb von drei
 Stunden._
 
 Oben ging es um Prüfungen, die den Fall nicht erreichen. Hier ist die Prüfung richtig gebaut — die
 **Zahlen im Datensatz** machen den geprüften Fall unmöglich. Das Kriterium ist grün und hat nie
 etwas berührt.
 
-| Gewählte Zahlen                                                     | Warum der Fall nie eintrat                                                                                                                 |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Stapel-Obergrenze **5**, bei 4,5 s Abklingzeit und 12 s Haltbarkeit | Höchstens **drei** Stapel sind gleichzeitig erreichbar. Das AC zur Obergrenze konnte nie anschlagen                                        |
-| Schwelle **1500** für das Wettrennen, Fenster 6 s                   | In sechs Sekunden passen vier Wirkungen à 100 Schaden. Der **Erfolgsfall** des Kriteriums war unerreichbar — belegt war nur der Fehlschlag |
-| **600** Heilung bei **999 999** Lebenspunkten                       | Null Prozentpunkte am Balken. Der Prüffall „der Balken läuft rückwärts" maß nichts                                                         |
+| Gewählte Zahlen                                                                                        | Warum der Fall nie eintrat                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stapel-Obergrenze **5**, bei 4,5 s Abklingzeit und 12 s Haltbarkeit                                    | Höchstens **drei** Stapel sind gleichzeitig erreichbar. Das AC zur Obergrenze konnte nie anschlagen                                                            |
+| Schwelle **1500** für das Wettrennen, Fenster 6 s                                                      | In sechs Sekunden passen vier Wirkungen à 100 Schaden. Der **Erfolgsfall** des Kriteriums war unerreichbar — belegt war nur der Fehlschlag                     |
+| **600** Heilung bei **999 999** Lebenspunkten                                                          | Null Prozentpunkte am Balken. Der Prüffall „der Balken läuft rückwärts" maß nichts                                                                             |
+| Die Rotation im Balance-Läufer kennt **3** Zauber, der Kasten hat **15**                               | Die Messung hätte exakt die alten Zahlen geliefert — und daraus wäre „die neuen Zauber verschieben nichts" geworden. Sie kann die Änderung gar nicht erreichen |
+| **1000 ms** Verkürzung auf eine Abklingzeit, die zum Zeitpunkt der Wirkung noch **10 ms** Restzeit hat | Die Verkürzung wird auf 0 gekappt. Drei grüne Prüffälle und eine Takt-für-Takt-Prüfsumme belegten, dass beide Seiten **dasselbe Nichts** rechnen               |
 
 > **Die gemeinsame Wurzel: Zahlen, die aussehen wie unabhängige Freiheitsgrade, sind es nicht.**
 > Obergrenze, Abklingzeit und Haltbarkeit sind zwei Größen plus eine Folge. Schwelle, Fensterdauer
@@ -454,6 +456,14 @@ etwas berührt.
 > Alle drei wurden von der Messung aufgedeckt, keiner beim Lesen. Und in allen drei Fällen hat der
 > Werker die Rechnung danach **in den Datensatz geschrieben** statt die Zahl stillschweigend zu
 > korrigieren — damit der nächste sie nicht erneut anfassen muss.
+
+> **Der fünfte Fall ist der schärfste, weil dort sogar die Prüfsumme zustimmte.** Sie vergleicht,
+> ob beide Seiten dasselbe rechnen — nicht, ob das Gerechnete etwas bewirkt. Wer nur auf sie sieht,
+> hält „identisch" für „richtig".
+>
+> Und alle fünf hat die **Messung** gefunden, keiner fiel beim Lesen auf. Der Werker, dem der fünfte
+> passierte, hat ihn selbst so eingeordnet: _„Hätte ich den vierten Prüffall nicht gebaut, wären die
+> drei grünen durchgegangen und das Issue wäre erledigt gewesen."_
 
 **Die gemeinsame Frage, die alle sieben beantwortet hätte:**
 

@@ -298,6 +298,29 @@ export class Combat {
   /** Zahl der Stapel (Issue #216). */
   private stacksValue = 0;
 
+  /** Kampfzeit, zu der das Unverwundbarkeits-Fenster endet, oder -1 (#218). */
+  private raceEndsAtMs = -1;
+
+  /** Ob das Fenster schon gelaufen ist — es beginnt genau einmal. */
+  private raceDone = false;
+
+  /** Schaden, der im Fenster verpuffte. Verloren, nicht ausgeteilt. */
+  private damageLostToRaceValue = 0;
+
+  /**
+   * Wie weit das Ziel im laufenden Fenster geladen ist (Issue #218).
+   *
+   * Es ist die Energieleiste mit umgekehrter Fuellrichtung: Dort steigt sie
+   * von selbst, hier fuellt der Spieler sie mit Schaden.
+   */
+  private raceProgressValue = 0;
+
+  /** Ob das Ziel zerstoert wurde, statt dass die Zeit ablief. */
+  private raceWonValue = false;
+
+  /** Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218). */
+  private bossHealedValue = 0;
+
   /** Kampfzeit des nächsten Stapel-Schritts. */
   private nextStackAtMs = 0;
 
@@ -537,6 +560,37 @@ export class Combat {
   /** Verbleibende Lebenspunkte des Spielers. */
   get playerHp(): number {
     return this.playerHpValue;
+  }
+
+  /**
+   * Ob das Unverwundbarkeits-Fenster gerade offen ist (Issue #218).
+   *
+   * **Der Spieler muss das sehen** — sonst hält er die ausbleibende Wirkung
+   * für einen Rechenfehler (GAME-DESIGN 11.7: Information vorzuenthalten ist
+   * die billigste Form von Schwierigkeit).
+   */
+  get raceOpen(): boolean {
+    return this.raceEndsAtMs >= 0;
+  }
+
+  /** Wie weit das Ziel im laufenden Fenster geladen ist (Issue #218). */
+  get raceProgress(): number {
+    return this.raceProgressValue;
+  }
+
+  /** Ob das Ziel zerstört wurde — der Erfolgsfall des Wettrennens. */
+  get raceWon(): boolean {
+    return this.raceWonValue;
+  }
+
+  /** Schaden, der im Fenster verpuffte — verloren, nicht ausgeteilt. */
+  get damageLostToRace(): number {
+    return this.damageLostToRaceValue;
+  }
+
+  /** Wie viel Fortschritt der Boss zurückgedreht hat. */
+  get bossHealed(): number {
+    return this.bossHealedValue;
   }
 
   /** Stand des tödlichen Zählers (Issue #216). 0, wenn der Boss keinen hat. */
@@ -994,6 +1048,9 @@ export class Combat {
     this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
     this.nextDoomAtMs = timeMs + (this.boss.doom?.perStepMs ?? 0);
     this.nextStackAtMs = timeMs + (this.boss.stacks?.perStepMs ?? 0);
+    // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
+    this.raceDone = false;
+    this.raceEndsAtMs = -1;
   }
 
   castCount(index: number): number {
@@ -1171,8 +1228,7 @@ export class Combat {
       // in einer einzigen Entscheidung.
       const kritet = this.rollCrit();
       const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
-      this.damageDealtValue += damage;
-      this.damageBySpell[i] = (this.damageBySpell[i] ?? 0) + damage;
+      this.bookProgress(damage, i, timeMs);
       // Auch ein Brand-Tick speist Weg 3 (Issue #79) — im Simulator läuft
       // jeder ausgeteilte Schaden durch `deal`, hier gibt es zwei Stellen.
       this.convertDamageToShield(damage, timeMs);
@@ -1241,6 +1297,25 @@ export class Combat {
       }
     }
 
+    // Das Wettrennen (11.2, Baustein 4; #218).
+    //
+    // Es beginnt GENAU EINMAL, zu dem Zeitpunkt aus den Daten. Ein Fenster,
+    // das sich wiederholt, waere die eskalierende Wiederholung (Baustein 7) —
+    // ein anderer Baustein mit anderer Wirkung.
+    const race = this.boss.race;
+    if (race !== null) {
+      const seitBeginnFuerRace = timeMs - this.fightStartedAtMs;
+      if (!this.raceDone && seitBeginnFuerRace >= race.atMs) {
+        this.raceDone = true;
+        this.raceEndsAtMs = timeMs + race.windowMs;
+      }
+      // Abgelaufen. Der andere Ausgang — vorzeitig beendet — laeuft ueber
+      // `endRace()`; beide muessen belegt sein (AC2).
+      if (this.raceEndsAtMs >= 0 && timeMs >= this.raceEndsAtMs) {
+        this.raceEndsAtMs = -1;
+      }
+    }
+
     // Der exponentielle Stapel (11.2, Baustein 3; #216).
     //
     // Anders als der Zähler tötet er nicht bei einem Wert, sondern macht den
@@ -1286,6 +1361,14 @@ export class Combat {
       this.castLandsAtMs = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
+      // **Ein Fehler macht Fortschritt rueckgaengig** (11.2, Baustein 5;
+      // Issue #218). Der Auslöser ist der durchgekommene Boss-Zauber — kein
+      // neuer Fehler-Begriff, und `interruptsMissed` zaehlt ihn ohnehin.
+      //
+      // Ob und wie viel er heilt, sagt der BOSS-Datensatz. Eine feste
+      // Kopplung gaelte fuer alle Bosse; 11.2 sagt "nur fuer einzelne, sonst
+      // frustrierend".
+      this.healBoss();
     }
 
     for (;;) {
@@ -1344,6 +1427,69 @@ export class Combat {
         this.log?.push(this.fightElapsedMs(timeMs), EVENT_PHASE, NO_SPELL_REF, neue);
       }
     }
+  }
+
+  /**
+   * Ausgeteilten Schaden auf den Fortschritt buchen (Issue #218).
+   *
+   * **Die einzige Stelle, die `damageDealtValue` erhöht.** Vorher waren es
+   * zwei — Wirkung und Brand-Tick —, und beide hätten die Fenster-Regel
+   * einzeln kennen müssen. Genau das Muster, das der Krit-Wächter (#196) für
+   * die Schadensfaktoren verhindert: Wer eine dritte Stelle anlegt, umgeht
+   * die Regel, und der Fehler ist still.
+   *
+   * Im Unverwundbarkeits-Fenster kommt der Schaden **nicht** am Boss an und
+   * zählt als verloren. Das ist nicht dasselbe wie `× 0`: Die Zahl bleibt
+   * erhalten und gehört in die Fehleranalyse (GAME-DESIGN 15.3) — wer sie
+   * verschwinden ließe, nähme dem Spieler die einzige Auskunft, die ihn beim
+   * nächsten Versuch besser macht.
+   *
+   * @returns ob der Schaden am Boss angekommen ist
+   */
+  private bookProgress(damage: number, spellIndex: number, timeMs: number): boolean {
+    if (this.raceEndsAtMs >= 0) {
+      // **Verloren am Boss, aber nicht wirkungslos.** Der Schaden laedt das
+      // Ziel; erreicht es die Schwelle, ist es zerstoert und das Fenster endet
+      // frueh. Genau das macht "der beste Moment fuer Overdrive" wahr.
+      this.damageLostToRaceValue += damage;
+      const race = this.boss.race;
+      if (race !== null) {
+        this.raceProgressValue += damage;
+        if (this.raceProgressValue >= race.threshold) {
+          this.raceWonValue = true;
+          this.raceEndsAtMs = -1;
+        }
+      }
+      return false;
+    }
+    void timeMs;
+    this.damageDealtValue += damage;
+    this.damageBySpell[spellIndex] = (this.damageBySpell[spellIndex] ?? 0) + damage;
+    return true;
+  }
+
+  /**
+   * Den Boss um den Betrag aus den Daten heilen (Baustein 5; Issue #218).
+   *
+   * > Ein Fehler macht Fortschritt rückgängig. Härteste Form von Konsequenz.
+   *
+   * **Ausgelöst vom durchgekommenen Boss-Zauber** — kein neuer Fehler-Begriff.
+   * Wie viel er heilt, sagt der Boss-Datensatz; fehlt das Feld, heilt nichts.
+   * Eine feste Kopplung gälte für alle Bosse, und 11.2 sagt „nur für einzelne".
+   *
+   * Der Fortschritt fällt nie unter null: Ein Boss, der mehr „geheilt" wird,
+   * als je Schaden gefallen ist, hätte negativen Fortschritt, und jede
+   * Prozentrechnung darüber wäre unsinnig.
+   *
+   * @returns wie viel wirklich zurückgedreht wurde
+   */
+  healBoss(): number {
+    const heal = this.boss.bossHeal;
+    if (heal === null || this.damageDealtValue <= 0) return 0;
+    const wirklich = Math.min(heal.amount, this.damageDealtValue);
+    this.damageDealtValue -= wirklich;
+    this.bossHealedValue += wirklich;
+    return wirklich;
   }
 
   /** Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken. */
@@ -1453,8 +1599,7 @@ export class Combat {
     }
 
     if (damage > 0) {
-      this.damageDealtValue += damage;
-      this.damageBySpell[index] = (this.damageBySpell[index] ?? 0) + damage;
+      this.bookProgress(damage, index, timeMs);
       this.convertDamageToShield(damage, timeMs);
       this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);

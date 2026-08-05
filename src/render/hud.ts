@@ -68,6 +68,9 @@ const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
 const LABEL_DOOM = 'DOOM';
 const LABEL_ENERGY = 'ENERGY';
 const LABEL_DOOM_CHARGES = 'CLEANSE';
+// Spieltexte englisch (Design-Gesetz 5).
+const LABEL_RACE = 'IMMUNE — BREAK THE SEAL';
+const LABEL_RACE_HINT = 'no damage lands';
 /** Ab diesem Anteil der Schwelle warnt die Farbe. Vorlaeufig, wird gemessen. */
 const THRESHOLD_WARN_AT = 0.7;
 const THRESHOLD_WIDTH = 190;
@@ -328,6 +331,7 @@ export class HudRenderer {
     // eine Zeile und kann nicht schiefgehen.
     let leistenTop = TIMER_TOP + 78;
     leistenTop = this.drawDoom(ctx, leistenTop);
+    leistenTop = this.drawRace(ctx, leistenTop);
     this.drawEnergy(ctx, leistenTop);
 
     // Überdruck-Timer oben links.
@@ -445,6 +449,32 @@ export class HudRenderer {
     this.drawThresholdBar(ctx, top, LABEL_DOOM, this.session.combat.doom, doom.threshold, {
       text: `${LABEL_DOOM_CHARGES} ${ladungen}`,
       dringend: ladungen === 0,
+    });
+    return top + THRESHOLD_STACK_STEP;
+  }
+
+  /**
+   * Das Unverwundbarkeits-Fenster (11.2, Baustein 4; Issue #218).
+   *
+   * **Der Spieler muss sehen, dass er gegen eine Wand schlägt.** Sonst hält er
+   * die ausbleibende Wirkung für einen Rechenfehler — und Information
+   * vorzuenthalten ist die billigste Form von Schwierigkeit (11.7).
+   *
+   * Es nutzt **dieselbe Schwellen-Leiste** wie Zähler und Energieleiste. Der
+   * geladene Zähler ist „ein Wert steigt auf eine Schwelle zu", genau wie
+   * jene; zwei Darstellungen für dieselbe Sache wären eine Regel mehr, die der
+   * Spieler lernen muss (11.5).
+   *
+   * Sie erscheint **nur, solange das Fenster offen ist** — anders als die
+   * beiden anderen, die den ganzen Kampf über stehen. Danach hat sie nichts
+   * mehr zu sagen, und der Stapel rückt wieder zusammen.
+   */
+  private drawRace(ctx: CanvasRenderingContext2D, top: number): number {
+    const race = this.session.combat.boss.race;
+    if (race === null || !this.session.combat.raceOpen) return top;
+    this.drawThresholdBar(ctx, top, LABEL_RACE, this.session.combat.raceProgress, race.threshold, {
+      text: LABEL_RACE_HINT,
+      dringend: true,
     });
     return top + THRESHOLD_STACK_STEP;
   }
