@@ -1115,7 +1115,7 @@ export class Combat {
    * beiden Seiten dieselbe Rechnung; `1 + n · p / 100` wäre es nicht zwingend
    * (18.4).
    */
-/**
+  /**
    * Den Synergie-Faktor setzen, wenn diesem Zauber ein Fenster offen steht
    * (GAME-DESIGN 5, Issue #318).
    *
