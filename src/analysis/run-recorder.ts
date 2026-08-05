@@ -35,8 +35,9 @@ import {
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
+import { recordBest, type BestUpdate } from './best-run.js';
 import { appendRun } from './run-history.js';
-import type { ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
+import type { BestRun, ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
 
 /**
  * Die Ausgänge, die als Versuch zählen.
@@ -91,6 +92,15 @@ export interface RecordContext {
 export interface RecordedState {
   readonly runHistory: readonly RunHistoryEntry[];
   readonly progressMarks: readonly ProgressMarkEntry[];
+  /**
+   * Der beste Lauf je Boss (Issue #377).
+   *
+   * Stand bis dahin im Spielstand-Format und wurde **nie geschrieben**. Er
+   * gehört hierher und nicht nur in `SaveData`, weil er hier ENTSTEHT: Die
+   * Differenz-Auszahlung aus 12.6 rechnet gegen ihn, und dafür muss er den
+   * Weg von der Aufzeichnung bis zum Speicher haben.
+   */
+  readonly bestRuns: readonly BestRun[];
   /** Erreichte Stufe (Issue #248). */
   readonly level: number;
   /** Erfahrung auf dieser Stufe, noch nicht verbraucht (Issue #248). */
@@ -119,6 +129,15 @@ export interface RecordResult extends RecordedState {
    * eigene Frage und ausdrücklich nicht hier beantwortet.
    */
   readonly pointsGained: number;
+  /**
+   * Was an diesem Lauf am Bestwert geschah, oder `null` bei einem Abbruch
+   * (Issue #377).
+   *
+   * Trägt `previous` MIT, und das ist die eigentliche Vorsorge: Wer die
+   * Differenz gegen den schon fortgeschriebenen Wert rechnete, bekäme immer
+   * null. Dieselbe Falle wie bei der Marke (#187).
+   */
+  readonly best: BestUpdate | null;
   /** Ob dieser Durchlauf die Stufe gehoben hat. */
   readonly leveledUp: boolean;
   /**
@@ -144,7 +163,15 @@ export function recordRun(
   context: RecordContext,
 ): RecordResult {
   if (!countsAsAttempt(outcome)) {
-    return { ...state, counted: false, mark: null, xpGained: 0, pointsGained: 0, leveledUp: false };
+    return {
+      ...state,
+      counted: false,
+      mark: null,
+      best: null,
+      xpGained: 0,
+      pointsGained: 0,
+      leveledUp: false,
+    };
   }
 
   // Die Umrechnung läuft über attemptFrom. Sie hier nachzubauen wäre die eine
@@ -181,18 +208,42 @@ export function recordRun(
   // **Die Stufe von VOR dem Aufstieg** (`state.level`, nicht `nachher.level`),
   // dieselbe wie bei der Erfahrung: Wer mit dem Sieg aufsteigt, hat den Kampf
   // noch auf der alten Stufe bestritten, und der Abstand gehört zum Kampf.
-  const pointsGained = pointsForRun(summary, {
-    bossLevel: context.bossLevel,
-    playerLevel: state.level,
-  });
+  // **Der Bestwert VOR den Punkten** (Issue #377): Erst nachsehen, was da war,
+  // dann fortschreiben, dann gegen den alten Wert rechnen. Die andere
+  // Reihenfolge zahlte jedem Sieg nur den Rest-Ertrag, weil die Differenz
+  // gegen sich selbst immer null ist.
+  //
+  // **Nur ein Sieg setzt einen Bestwert.** Ein gescheiterter Versuch hat keine
+  // Reserve und keinen gehaltenen Ring — er trüge eine 0 ein und würde damit
+  // eine Marke behaupten, die es nicht gibt.
+  const best = summary.victory
+    ? recordBest(state.bestRuns, {
+        bossId: context.bossId,
+        difficulty: context.difficulty,
+        // Die Verzweigung von #256, geerbt und nicht neu getroffen: Bei einem
+        // runaway-Boss ist die Reserve konstant null und trennt nichts.
+        metric: summary.heldPercent === null ? 'reserve' : 'held',
+        value: summary.heldPercent === null ? summary.remainingMs : summary.heldPercent,
+        gameVersion: context.gameVersion,
+        at: context.at,
+      })
+    : null;
+
+  const pointsGained = pointsForRun(
+    summary,
+    { bossLevel: context.bossLevel, playerLevel: state.level },
+    best?.previous ?? null,
+  );
 
   return {
     runHistory: appendRun(state.runHistory, entry),
     progressMarks: mark.marks,
+    bestRuns: best?.runs ?? state.bestRuns,
     level: nachher.level,
     experience: nachher.xp,
     counted: true,
     mark,
+    best,
     xpGained,
     pointsGained,
     leveledUp: nachher.level > state.level,
