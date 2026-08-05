@@ -18,7 +18,7 @@
  * abgelegt werden konnte, hat sein Verhältnis verkehrt. Der Fehler wird
  * gemeldet, nicht verschluckt — aber er beendet nichts.
  */
-import { SaveStore, type KeyValueStore } from './save-store.js';
+import { SaveStore, SLOT_COUNT, type KeyValueStore } from './save-store.js';
 import { SAVE_SCHEMA, type SaveData } from './save-format.js';
 import type { RecordedState } from './run-recorder.js';
 
@@ -71,16 +71,42 @@ function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): S
   return {
     ...leer,
     ...geladen,
-    // Die beiden aus #82. Sie stehen einzeln da, weil `...geladen` ein
-    // ausdrückliches `undefined` durchreichen würde — der Streu-Operator
-    // unterscheidet nicht zwischen „fehlt" und „ist undefined".
+    // **JEDES nicht primitive Feld steht hier einzeln**, weil der Streu-Operator
+    // ein `null` durchreicht.
+    //
+    // **Der Grund ist `null`, nicht `undefined`** — bis Issue #378 stand hier
+    // das Gegenteil, und es war beim Bau eines Wächters aufgefallen, der den
+    // falschen Fall nachbaute und deshalb grün blieb, ohne etwas zu prüfen:
+    //
+    //   Feld FEHLT           `{ ...leer, ...geladen }` nimmt den leeren Wert.
+    //                        Harmlos, diese Zeile wäre dafür nicht nötig.
+    //   Feld ist `null`      wird durchgereicht. DAS fängt die Zeile — und es
+    //                        ist der einzige Fall, den ein geladener Stand
+    //                        erzeugen kann.
+    //   Feld ist `undefined` würde auch durchgereicht, kommt aber nie an:
+    //                        `JSON.stringify({a: undefined})` ergibt `{}`.
+    //
+    // Die ersten beiden stammen aus #82, `bestRuns` kam in #377 dazu, als sie
+    // zum ersten Mal beschrieben wurde. Die übrigen sechs fehlten bis #378 —
+    // folgenlos, solange niemand sie las, und genau deshalb unbemerkt.
+    //
+    // **Was diese Liste vollständig hält, ist kein Vorsatz, sondern ein
+    // Wächter**: `tests/unit/save-shape.test.ts` baut für jedes nicht primitive
+    // Feld aus `emptySave()` einen Stand, in dem genau dieses fehlt, und nennt
+    // es beim Namen, wenn danach `undefined` herauskommt. Eine neue Liste ohne
+    // ihre Zeile macht ihn rot — der Anlass kommt mit, statt daran zu hängen,
+    // dass jemand diesen Kommentar liest.
     runHistory: geladen.runHistory ?? leer.runHistory,
     progressMarks: geladen.progressMarks ?? leer.progressMarks,
-    // **Seit Issue #377 die dritte.** Sie stand vorher nicht hier, und das war
-    // folgenlos, solange die Liste nie beschrieben wurde. Sobald sie es wird,
-    // ist ein Stand ohne das Feld ein `undefined` in der Kette — und der erste
-    // Sieg danach schriebe in nichts hinein.
     bestRuns: geladen.bestRuns ?? leer.bestRuns,
+    items: geladen.items ?? leer.items,
+    unlockedSpells: geladen.unlockedSpells ?? leer.unlockedSpells,
+    unlockedInstances: geladen.unlockedInstances ?? leer.unlockedInstances,
+    defeatedBosses: geladen.defeatedBosses ?? leer.defeatedBosses,
+    // **Die beiden sind keine Listen, haben aber dieselbe Krankheit.** Ein
+    // Wächter, der nur Arrays prüft, liesse sie stehen.
+    talentPoints: geladen.talentPoints ?? leer.talentPoints,
+    bindings: geladen.bindings ?? leer.bindings,
   };
 }
 
@@ -107,6 +133,20 @@ export class RunPersistence {
   private statusValue: string;
   private skippedValue: number;
   private lastErrorValue: string | null = null;
+  /**
+   * Der Platz im Ringpuffer, der GILT — `-1`, solange keiner geschrieben wurde.
+   *
+   * Beim Start der Platz, aus dem gelesen wurde; danach der zuletzt
+   * geschriebene. Beides beantwortet dieselbe Frage: wo der Stand steht,
+   * der zählt.
+   *
+   * **Gemerkt und nicht nachgeschlagen** (Issue #378): Wer ihn im Browser von
+   * Hand sucht, liest `rota.save.index` und muss wissen, dass es fünf Plätze
+   * gibt. Genau dabei sind an einem Abend zwei Sitzungen unabhängig
+   * voneinander auf den falschen Platz geraten und hielten einen ausgebliebenen
+   * Fortschritt für einen Befund.
+   */
+  private slotValue = -1;
 
   constructor(
     private readonly gameVersion: string,
@@ -126,6 +166,7 @@ export class RunPersistence {
     const gelesen = this.store.load();
     this.statusValue = gelesen.status;
     this.skippedValue = gelesen.skipped;
+    this.slotValue = gelesen.slot;
     this.data = ergaenzt(gelesen.data, gameVersion, now());
   }
 
@@ -141,6 +182,37 @@ export class RunPersistence {
 
   get save(): SaveData {
     return this.data;
+  }
+
+  /**
+   * Wo dieser Stand herkommt — für Dev-Werkzeuge und Prüffälle (Issue #378).
+   *
+   * `skippedSlots` nennt die übersprungenen Plätze beim Namen. Eine Zahl allein
+   * („2 übersprungen") ist eine Angabe ohne Bezugspunkt: Sie sagt nicht,
+   * WELCHE, und genau danach sucht man, wenn etwas fehlt.
+   */
+  get origin(): {
+    readonly slot: number;
+    readonly status: string;
+    readonly skipped: number;
+    readonly skippedSlots: readonly number[];
+    readonly healthy: number;
+  } {
+    const uebersprungen: number[] = [];
+    if (this.slotValue >= 0) {
+      // Rückwärts vom jüngsten Platz bis zu dem, der genommen wurde — dieselbe
+      // Richtung, in der `load()` gesucht hat.
+      for (let back = this.skippedValue; back > 0; back--) {
+        uebersprungen.push((this.slotValue + back) % SLOT_COUNT);
+      }
+    }
+    return {
+      slot: this.slotValue,
+      status: this.statusValue,
+      skipped: this.skippedValue,
+      skippedSlots: uebersprungen,
+      healthy: this.store?.healthySlots() ?? 0,
+    };
   }
 
   get status(): PersistenceStatus {
@@ -166,7 +238,11 @@ export class RunPersistence {
     };
     if (this.store === null) return false;
     try {
-      this.store.save(this.data);
+      // **Der geschriebene Platz zieht mit** (Issue #378): Sonst nennte
+      // `origin.slot` den Platz, aus dem beim Start GELESEN wurde — und wer
+      // danach nachsieht, liest einen alten Stand. Genau der Fehler, gegen den
+      // dieses Werkzeug gebaut ist, nur eine Ebene tiefer.
+      this.slotValue = this.store.save(this.data);
       return true;
     } catch {
       return false;
@@ -191,7 +267,11 @@ export class RunPersistence {
       return false;
     }
     try {
-      this.store.save(this.data);
+      // **Der geschriebene Platz zieht mit** (Issue #378): Sonst nennte
+      // `origin.slot` den Platz, aus dem beim Start GELESEN wurde — und wer
+      // danach nachsieht, liest einen alten Stand. Genau der Fehler, gegen den
+      // dieses Werkzeug gebaut ist, nur eine Ebene tiefer.
+      this.slotValue = this.store.save(this.data);
       this.lastErrorValue = null;
       return true;
     } catch (fehler) {
@@ -235,7 +315,11 @@ export class RunPersistence {
       return false;
     }
     try {
-      this.store.save(this.data);
+      // **Der geschriebene Platz zieht mit** (Issue #378): Sonst nennte
+      // `origin.slot` den Platz, aus dem beim Start GELESEN wurde — und wer
+      // danach nachsieht, liest einen alten Stand. Genau der Fehler, gegen den
+      // dieses Werkzeug gebaut ist, nur eine Ebene tiefer.
+      this.slotValue = this.store.save(this.data);
       this.lastErrorValue = null;
       return true;
     } catch (fehler) {
