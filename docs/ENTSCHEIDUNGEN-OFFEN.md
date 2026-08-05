@@ -226,6 +226,24 @@ Spieler erreichbar. Die Frage wird scharf, sobald E10 Wirkzeiten vergibt.
 
 **Blockiert:** #282 teilweise · **hält auf:** E6 insgesamt
 
+> **Der Befund darunter ist behoben, die Frage darüber nicht.** Nachgemessen am 2026-08-06:
+>
+> ```
+> WornValues (Rust)   catalysis · purity · yield_bonus · essence · vessel · ward · gear_effects
+> WornValues (TS)     dieselben sieben
+> combat.ts:767       essence: NEUTRAL_FACTORS.essence * essenceFactor(this.worn)
+> ```
+>
+> ESSENCE, VESSEL und WARD stehen seit #282 in `WornValues` und wirken im Kampf. **Was hier
+> ursprünglich als Befund stand, gilt nicht mehr** — der Text darunter beschreibt den Stand vom
+> 2026-08-05 und ist als Herleitung stehengeblieben, nicht als Lagebeschreibung.
+>
+> **Offen ist weiterhin die Zahl**, und nur sie: wie viel ESSENCE ein Gegenstand auf Stufe 1
+> trägt. Dass ein Fund im Kampf ankommt, ist inzwischen gebaut; dass er **etwas Bestimmtes**
+> trägt, nicht — es gibt weiterhin keine Gegenstands-Daten (#421).
+
+_Ursprüngliche Herleitung, Stand 2026-08-05:_
+
 Bei #282 gemessen: `BASE_STAT_IDS` steht auf beiden Seiten und **wird nirgends gelesen**.
 
 ```
@@ -344,7 +362,7 @@ hinreichend gute Ausrüstung den Spieler **unverwundbar** machen.
 
 ### Die Ironie steht bereits im Quelltext
 
-`combat.ts:792` begründet, warum die WARD-**Basis** nicht mit der Stufe skaliert:
+Der Kommentar an `wardFactor()` in `combat.ts` begründet, warum die WARD-**Basis** nicht mit der Stufe skaliert:
 
 > Ein Prozentsatz, der mitwächst, erreicht irgendwann 100 % und macht den Spieler unverwundbar.
 
@@ -435,7 +453,7 @@ immer verschenkt — er verbraucht einen der drei Stapel, ohne etwas zurückzudr
 ### Warum
 
 ```
-combat.ts:2294  (undoProgress)
+combat.ts, undoProgress()
   if (amount <= 0 || this.damageDealtValue <= 0) return 0;
   const wirklich = Math.min(amount, this.damageDealtValue);
 ```
