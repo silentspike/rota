@@ -23,8 +23,26 @@ import {
   type RunAnalysis,
 } from '../../src/analysis/run-analysis.js';
 
-const KINDLE = 0;
-const QUENCH = 3;
+
+/**
+ * Zauber-Indizes über den NAMEN, nicht als Zahl (Issue #268).
+ *
+ * Hier standen Zahlen: `QUENCH = 3` war richtig, solange `calcination.json`
+ * drei Zauber hatte. Mit zwei neuen zeigte die 3 auf `bellows` — und der
+ * Prüffall drückte einen Hitze-Zauber statt des Unterbrechers.
+ *
+ * **Das ist die gefährlichere Sorte Abschrift.** Sie macht den Fall nicht rot,
+ * sondern lässt ihn den falschen Zauber messen. Hier fiel es nur auf, weil
+ * `bellows` keine Unterbrechung landen kann; wäre an Index 3 ein anderer
+ * Unterbrecher gelandet, hätte niemand etwas gemerkt.
+ */
+function spellIndex(id: string): number {
+  const i = CALCINATION.value.spells.findIndex((s) => s.id === id);
+  if (i < 0) throw new Error(`Zauber ${id} gibt es nicht`);
+  return i;
+}
+const KINDLE = spellIndex('kindle');
+const QUENCH = spellIndex('quench');
 
 /** Ein Boss mit drei unterbrechbaren Zaubern zu je 2000 Schaden. */
 const ONSLAUGHT = bossById('test-onslaught') as BossDef;
