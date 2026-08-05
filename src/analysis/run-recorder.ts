@@ -26,6 +26,7 @@
  * Eintrag; als Bedingung wäre sie ein Umbau.
  */
 import { grantXp, xpForVictory } from '../progression/level.js';
+import { pointsForRun } from '../progression/points.js';
 import {
   OUTCOME_DEATH,
   OUTCOME_OVERPRESSURE,
@@ -107,6 +108,17 @@ export interface RecordResult extends RecordedState {
    * sonst wäre Verlieren eine Strategie.
    */
   readonly xpGained: number;
+  /**
+   * Punkte aus diesem Durchlauf, 0 ohne Sieg (Issue #276).
+   *
+   * **Eine Auszahlung, kein Konto.** Der Wert reist von hier zur Anzeige und
+   * wird nirgends abgelegt — GAME-DESIGN 18.5 verlangt, dass der Spielstand
+   * keine berechneten Werte hält, die auf kommende Kämpfe zurückwirken, und
+   * `save-format.ts` setzt das mit einem Wächter durch. Ein Punkte-KONTO,
+   * wie es 12.7 für die Freischaltungs-Schwelle braucht, ist deshalb eine
+   * eigene Frage und ausdrücklich nicht hier beantwortet.
+   */
+  readonly pointsGained: number;
   /** Ob dieser Durchlauf die Stufe gehoben hat. */
   readonly leveledUp: boolean;
   /**
@@ -132,7 +144,7 @@ export function recordRun(
   context: RecordContext,
 ): RecordResult {
   if (!countsAsAttempt(outcome)) {
-    return { ...state, counted: false, mark: null, xpGained: 0, leveledUp: false };
+    return { ...state, counted: false, mark: null, xpGained: 0, pointsGained: 0, leveledUp: false };
   }
 
   // Die Umrechnung läuft über attemptFrom. Sie hier nachzubauen wäre die eine
@@ -156,13 +168,23 @@ export function recordRun(
   };
 
   // **Erfahrung nur für den Sieg** (Issue #248). Sie hängt an der Stufe des
-  // BOSSES: GAME-DESIGN 12.6 sieht einen abnehmenden Ertrag über den
-  // Stufenabstand vor, und einen Abstand gibt es nur, wenn beide Seiten eine
-  // Stufe haben. Der Ertrag selbst ist noch nicht gebaut — die Unterschrift
-  // nimmt die Spieler-Stufe trotzdem schon auf, damit später nicht jede
-  // Aufrufstelle geändert werden muss.
+  // BOSSES; der abnehmende Ertrag über den Stufenabstand steckt seit Issue
+  // #276 in `xpForVictory` und stammt aus derselben Kurve wie bei den Punkten.
   const xpGained = summary.victory ? xpForVictory(context.bossLevel, state.level) : 0;
   const nachher = grantXp({ level: state.level, xp: state.experience }, xpGained);
+
+  // **Punkte hier und nicht in der Zusammenfassung** (Issue #276): Sie brauchen
+  // beide Stufen, und `RunSummary` kennt keine — sie beschreibt einen Kampf,
+  // nicht einen Spieler. Dies ist die einzige Stelle, an der Lauf, Boss-Stufe
+  // und Spieler-Stufe zusammenkommen.
+  //
+  // **Die Stufe von VOR dem Aufstieg** (`state.level`, nicht `nachher.level`),
+  // dieselbe wie bei der Erfahrung: Wer mit dem Sieg aufsteigt, hat den Kampf
+  // noch auf der alten Stufe bestritten, und der Abstand gehört zum Kampf.
+  const pointsGained = pointsForRun(summary, {
+    bossLevel: context.bossLevel,
+    playerLevel: state.level,
+  });
 
   return {
     runHistory: appendRun(state.runHistory, entry),
@@ -172,6 +194,7 @@ export function recordRun(
     counted: true,
     mark,
     xpGained,
+    pointsGained,
     leveledUp: nachher.level > state.level,
   };
 }

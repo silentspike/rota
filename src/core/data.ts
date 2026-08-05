@@ -19,6 +19,7 @@ import rawTestCast from '../../data/spells/test-cast.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import rawLevels from '../../data/player/levels.json';
+import rawReward from '../../data/player/reward.json';
 import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -1566,6 +1567,112 @@ export const LEVELS: LevelGrowthDef = (() => {
     xpToNextLevel,
     startBarSlots,
     barSlotLevels,
+  };
+})();
+
+/**
+ * Was ein Sieg einbringt (GAME-DESIGN 12.6; Issue #276).
+ *
+ * **Eine Datei für beide Währungen.** Der Abstandsfaktor gilt für Erfahrung
+ * UND Punkte — 12.6 sagt „der Ertrag", nicht „die Erfahrung". Läge er bei
+ * einer der beiden, gehörte er ihr, und die andere bekäme irgendwann einen
+ * zweiten daneben.
+ */
+export interface RewardDef {
+  /**
+   * Der abnehmende Ertrag als Tabelle in Promille, Index = Stufenabstand.
+   *
+   * 100 Einträge für die Abstände 0 bis 99. Als Tabelle statt als Potenz, weil
+   * ein Stufenabstand ganzzahlig ist — die erzeugende Formel steht im
+   * `_comment` der Datei.
+   */
+  readonly falloffPerMille: readonly number[];
+  /** Bis zu diesem Abstand voller Ertrag — zur Nachvollziehbarkeit der Tabelle. */
+  readonly fullRewardWithinLevels: number;
+  /** Halbwertszeit in Stufen — zur Nachvollziehbarkeit der Tabelle. */
+  readonly falloffHalfLifeLevels: number;
+  /** Punkte je Sekunde Restlaufzeit, vor dem Exponenten. */
+  readonly pointsPerSecond: number;
+  /**
+   * Der Exponent der Punktekurve.
+   *
+   * **Muss größer als 1 sein**, sonst ist die Kurve nicht überproportional und
+   * 12.6 wäre verfehlt. Die Prüfung steht unten und bricht hart ab: Eine
+   * lineare Punkteformel sähe im Spiel völlig normal aus.
+   */
+  readonly pointsExponent: number;
+  /** Was ein Prozentpunkt gehaltener Ring in Sekunden Restlaufzeit wiegt. */
+  readonly heldPointsPerPercent: number;
+}
+
+export const REWARD: RewardDef = (() => {
+  const roh = rawReward as Record<string, unknown>;
+  const falloffPerMille = Array.isArray(roh['falloffPerMille'])
+    ? (roh['falloffPerMille'] as unknown[]).map((x) => number(x, 0))
+    : [];
+  const fullRewardWithinLevels = number(roh['fullRewardWithinLevels'], 0);
+  const falloffHalfLifeLevels = number(roh['falloffHalfLifeLevels'], 0);
+  const pointsPerSecond = number(roh['pointsPerSecond'], 0);
+  const pointsExponent = number(roh['pointsExponent'], 0);
+  const heldPointsPerPercent = number(roh['heldPointsPerPercent'], 0);
+
+  // **Ein Eintrag je möglichem Abstand.** Bei 100 Stufen reicht der Abstand von
+  // 0 bis 99; eine kürzere Tabelle liefe irgendwo ins Leere und zahlte dort
+  // still den vollen Ertrag.
+  if (falloffPerMille.length !== LEVELS.maxLevel) {
+    throw new Error(
+      `data/player/reward.json: ${falloffPerMille.length} Einträge für ${LEVELS.maxLevel} ` +
+        'mögliche Stufenabstände. Jeder Abstand braucht genau einen.',
+    );
+  }
+  if (falloffPerMille[0] !== 1000) {
+    throw new Error(
+      `data/player/reward.json: Abstand 0 trägt ${String(falloffPerMille[0])} statt 1000. ` +
+        'Ein Boss auf der eigenen Stufe zahlt voll — das ist die Aussage von 12.6.',
+    );
+  }
+  // **Monoton fallend**, sonst gäbe es einen Abstand, der sich wieder lohnt.
+  for (let i = 1; i < falloffPerMille.length; i++) {
+    if ((falloffPerMille[i] ?? 0) > (falloffPerMille[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/reward.json: Abstand ${i} zahlt mehr als Abstand ${i - 1}. ` +
+          'Der Ertrag soll sinken, nicht schwanken.',
+      );
+    }
+    if ((falloffPerMille[i] ?? -1) < 0) {
+      throw new Error(
+        `data/player/reward.json: Abstand ${i} ist negativ. Ein Sieg darf nichts abwerfen, ` +
+          'aber nichts abziehen.',
+      );
+    }
+  }
+  if (pointsPerSecond <= 0) {
+    throw new Error('data/player/reward.json: pointsPerSecond muss positiv sein.');
+  }
+  // **Die Design-Aussage als Bedingung an die Daten.** „Überproportional" ist
+  // genau das: Exponent über 1. Bei 1 wäre die Kurve linear, bei weniger
+  // sänke der Wert der letzten Sekunden — das Gegenteil von 12.6, und im
+  // laufenden Spiel wäre es nicht zu sehen.
+  if (!(pointsExponent > 1)) {
+    throw new Error(
+      `data/player/reward.json: pointsExponent ist ${pointsExponent}. GAME-DESIGN 12.6 ` +
+        'verlangt eine überproportionale Kurve — das heißt größer als 1. Bei genau 1 wäre ' +
+        'die Formel linear und Feinoptimierung lohnte sich nicht mehr als grobe.',
+    );
+  }
+  if (heldPointsPerPercent <= 0) {
+    throw new Error(
+      'data/player/reward.json: heldPointsPerPercent muss positiv sein — sonst zahlte ein ' +
+        'runaway-Boss nie etwas, weil dort die Restzeit immer null ist.',
+    );
+  }
+  return {
+    falloffPerMille,
+    fullRewardWithinLevels,
+    falloffHalfLifeLevels,
+    pointsPerSecond,
+    pointsExponent,
+    heldPointsPerPercent,
   };
 })();
 
