@@ -36,7 +36,30 @@ export interface RunSummary {
   readonly remainingMs: number;
   readonly damage: number;
   readonly bossHp: number;
-  /** Fortschrittsmarke in Prozent (GAME-DESIGN 12.8). */
+  /**
+   * Fortschrittsmarke in Prozent (GAME-DESIGN 12.8; Issue #256).
+   *
+   * **Größer ist besser, bei jedem Boss** — nur die gemessene Größe wechselt:
+   *
+   * | | Fortschritt | 100 % heißt |
+   * | --- | --- | --- |
+   * | gewöhnlich | Schaden am Ring | der Boss ist gefallen |
+   * | mit `runaway` | überstandene Frist | die Frist ist überstanden |
+   *
+   * Beide Male sagt die Zahl dasselbe: **wie weit man kam.** Ein Spieler, der
+   * „85 %" liest, weiß bei beiden Boss-Arten, was er weiß — er muss keine
+   * zweite Lesart lernen.
+   *
+   * Das war vor #256 nicht so: Bei einem `runaway`-Boss zählte der Schaden am
+   * Ring, und der ist dort der Weg zur Niederlage. Ein verlorener Lauf stand
+   * bei 100 %, ein gewonnener bei 84 % — die Anzeige feierte, was den Lauf
+   * beendet hatte.
+   *
+   * **Die Gegenrichtung wurde geprüft und verworfen:** Der Ring-Rest als
+   * Fortschritt hätte den Sieg bei 16 % stehen lassen, also als schlechtestes
+   * Ergebnis der Anzeige. Er trennt stattdessen die SIEGE untereinander —
+   * dort, wo bei einem gewöhnlichen Boss die Restzeit steht.
+   */
   readonly progressPercent: number;
   readonly casts: number;
 
@@ -72,6 +95,29 @@ export interface RunSummary {
   readonly logDropped: number;
   readonly logOverflowed: boolean;
   readonly eventCounts: Readonly<Record<string, number>>;
+}
+
+/**
+ * Wie weit der Lauf kam, in Prozent (Issue #256).
+ *
+ * **Eine Entscheidung, an drei Stellen angewandt.** `progress-mark.ts` und
+ * `run-compare.ts` rechnen mit diesem Wert weiter und nehmen beide an, dass
+ * größer besser ist. Solange diese Funktion das einhält, stimmen sie mit —
+ * und niemand muss dreimal getrennt nachdenken.
+ *
+ * Bei einem Boss mit `runaway` ist es die überstandene Frist, sonst der
+ * Schaden am Ring. Beide Male: 100 % heißt, das Ziel ist erreicht.
+ */
+export function progressOf(combat: Combat, elapsedMs: number): number {
+  if (combat.boss.runaway !== null) {
+    const frist = combat.boss.overpressureMs;
+    // Ein Boss ohne Frist hätte kein Ziel — dann ist jeder Augenblick gleich
+    // weit, und 0 ist ehrlicher als eine Division durch null.
+    if (frist <= 0) return 0;
+    return Math.min(100, (100 * Math.max(elapsedMs, 0)) / frist);
+  }
+  if (combat.boss.hp <= 0) return 0;
+  return Math.min(100, (100 * combat.damageDealt) / combat.boss.hp);
 }
 
 export interface SummaryInput {
@@ -131,8 +177,7 @@ export function buildSummary(input: SummaryInput): RunSummary {
     remainingMs: input.remainingMs,
     damage: combat.damageDealt,
     bossHp: combat.boss.hp,
-    progressPercent:
-      combat.boss.hp > 0 ? Math.min(100, (100 * combat.damageDealt) / combat.boss.hp) : 0,
+    progressPercent: progressOf(combat, elapsedMs),
     casts: input.casts,
     idlePerSpell,
     lostTimeMs: input.lostTimeMs,
