@@ -32,24 +32,24 @@ describe('AC2 — was nicht darf, geht nicht', () => {
   it('nennt getrennte Gründe, statt nur nein zu sagen', () => {
     // Der Spieler soll lesen können, WARUM es nicht geht. Ein `false` ließe
     // die Anzeige raten, und sie riete beim nächsten Umbau anders.
-    expect(bindProblem('pyre', 0, 1, SPELLS), 'PYRE ist Stufe 2').toBe('spell-locked');
-    expect(bindProblem('kindle', 5, 1, SPELLS), 'Stufe 1 hat zwei Plätze').toBe('slot-locked');
-    expect(bindProblem('gibtsnicht', 0, 1, SPELLS)).toBe('unknown-spell');
-    expect(bindProblem('kindle', 0, 1, SPELLS), 'das geht').toBeNull();
+    expect(bindProblem('pyre', 0, 1, SPELLS, {}), 'PYRE ist Stufe 2').toBe('spell-locked');
+    expect(bindProblem('kindle', 5, 1, SPELLS, {}), 'Stufe 1 hat zwei Plätze').toBe('slot-locked');
+    expect(bindProblem('gibtsnicht', 0, 1, SPELLS, {})).toBe('unknown-spell');
+    expect(bindProblem('kindle', 0, 1, SPELLS, {}), 'das geht').toBeNull();
   });
 
   it('lässt einen Zauber unterhalb seiner Stufe nicht auf die Leiste', () => {
-    expect(canBind('pyre', 0, 1, SPELLS)).toBe(false);
-    expect(canBind('pyre', 0, 2, SPELLS)).toBe(true);
+    expect(canBind('pyre', 0, 1, SPELLS, {})).toBe(false);
+    expect(canBind('pyre', 0, 2, SPELLS, {})).toBe(true);
   });
 
   it('lässt einen nicht freigeschalteten Platz nicht belegen', () => {
     // Auf Stufe 1 gibt es zwei Plätze: 0 und 1.
     expect(barSlotsAtLevel(1)).toBe(2);
-    expect(canBind('kindle', 1, 1, SPELLS)).toBe(true);
-    expect(canBind('kindle', 2, 1, SPELLS)).toBe(false);
+    expect(canBind('kindle', 1, 1, SPELLS, {})).toBe(true);
+    expect(canBind('kindle', 2, 1, SPELLS, {})).toBe(false);
     // Auf Stufe 3 kommt der dritte dazu.
-    expect(canBind('kindle', 2, 3, SPELLS)).toBe(true);
+    expect(canBind('kindle', 2, 3, SPELLS, {})).toBe(true);
   });
 
   it('gibt bei einem verbotenen Zug die UNVERÄNDERTE Belegung zurück', () => {

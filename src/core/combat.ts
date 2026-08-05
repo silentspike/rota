@@ -76,6 +76,38 @@ export const CAST_UNKNOWN = 1;
 export const CAST_ON_COOLDOWN = 2;
 export const CAST_ON_GCD = 3;
 export const CAST_FIGHT_OVER = 4;
+/**
+ * Der Zauber hat **begonnen** — seine Wirkzeit läuft (Issue #304).
+ *
+ * Ein eigener Ausgang und nicht `CAST_OK`, weil die beiden verschiedene Dinge
+ * behaupten: `CAST_OK` heißt „gewirkt, Schaden steht", dieser hier heißt
+ * „angefangen, Ausgang offen". Wer sie zusammenlegte, bekäme ein `outcome.damage`
+ * von 0, das nach einem Treffer ohne Wirkung aussieht.
+ *
+ * **Für die Eingabe zählen beide als angenommen** — der Druck war richtig, und
+ * ein rotes Blinken wäre eine Lüge. Deshalb `CAST_ACCEPTED` als gemeinsame
+ * Prüfung an den zwei Stellen, die das entscheiden.
+ */
+export const CAST_STARTED = 5;
+/**
+ * **Hier stand `CAST_BUSY`** — der Ausgang „es läuft bereits eine Wirkzeit".
+ *
+ * Er ist am 2026-08-05 entfallen, weil der Auftraggeber die Regel umgedreht
+ * hat: Die Wirkzeit sperrt **nichts**. Jede Wirkung bricht einen laufenden
+ * Zauber ab, auch das Unterbrechen (GAME-DESIGN 7.1, „Was einen laufenden
+ * Zauber abbricht"). Ein Druck während der Wirkzeit ist damit kein
+ * abgewiesener Druck mehr, sondern eine Entscheidung — und sie kostet den
+ * laufenden Zauber.
+ *
+ * Die Nummer 6 bleibt frei und wird nicht nachbesetzt: Diese Werte stehen in
+ * keiner eingecheckten Datei, aber eine wiederverwendete Nummer wäre bei der
+ * nächsten Suche eine falsche Fährte.
+ */
+
+/** Ob dieser Ausgang ein angenommener Tastendruck ist (Issue #304). */
+export function isCastAccepted(result: number): boolean {
+  return result === CAST_OK || result === CAST_STARTED;
+}
 
 /** Stand des Kampfes. */
 export const FIGHT_RUNNING = 0;
@@ -208,6 +240,25 @@ export class Combat {
     bonusApplied: false,
   };
 
+  /**
+   * Ein ZWEITES Ergebnis-Objekt, für die Wirkung nach Ablauf einer Wirkzeit.
+   *
+   * Nicht dasselbe wie `outcome`: Beide fallen im selben Takt an — erst die
+   * Auflösung in `stepPassive`, dann der Tastendruck. Ein gemeinsames Objekt
+   * überschriebe das eine mit dem anderen, und der Aufrufer von `cast()`
+   * bekäme Zahlen aus einer fremden Wirkung.
+   *
+   * Wie `outcome` einmalig angelegt: Der Kampf darf im Takt nichts erzeugen
+   * (GAME-DESIGN 18.2).
+   */
+  private readonly deferredOutcome: CastOutcome = {
+    result: CAST_OK,
+    spellIndex: -1,
+    damage: 0,
+    resourceBefore: 0,
+    bonusApplied: false,
+  };
+
   private readonly indexById = new Map<string, number>();
   private readonly cooldownReadyAtMs: Float64Array;
   private readonly castCounts: Int32Array;
@@ -296,6 +347,62 @@ export class Combat {
 
   /** Kampfzeit, zu der der laufende Boss-Zauber trifft. */
   private castLandsAtMsValue = -1;
+
+  /**
+   * Welcher Zauber des SPIELERS gerade gewirkt wird, als Index in `spells`.
+   *
+   * `-1` heißt: keiner. **Bis Issue #304 gab es diesen Zustand nicht** — die
+   * beiden Felder darüber gehören dem Boss, und `castTimeMs` am Spieler-Zauber
+   * wurde geladen und nie gelesen (alle fünfzehn standen auf 0).
+   *
+   * Solange er gesetzt ist, blockiert er jede weitere Wirkung (GAME-DESIGN
+   * 7.1). Er ist die einzige Stelle, an der eine Spieler-Handlung Zeit braucht;
+   * alles andere geschieht im Takt des Tastendrucks.
+   */
+  private playerCastingValue = -1;
+
+  /**
+   * Uhrzeit des Spiels, zu der die laufende Wirkzeit endet.
+   *
+   * **Uhrzeit, nicht Kampfzeit** — anders als `castLandsAtMsValue`, das ab
+   * Kampfbeginn zählt. Der Unterschied ist Absicht: Die Spieler-Wirkzeit wird
+   * gegen `timeMs` verglichen, das durch `cast()` und `stepPassive` läuft, und
+   * eine zweite Zeitrechnung an derselben Stelle wäre die nächste stille
+   * Abweichung.
+   */
+  private playerCastEndsAtMsValue = -1;
+
+  /**
+   * Uhrzeit, zu der die laufende Wirkzeit begonnen hat.
+   *
+   * **Nur für den Balken**, und deshalb bewusst NICHT in der Prüfsumme: Der
+   * Wert ist vollständig aus `playerCastEndsAtMsValue` und der bereits
+   * verrechneten Dauer bestimmt und beeinflusst keine Rechnung. Ein Feld, das
+   * nichts entscheidet, macht die Prüfsumme nicht schärfer — es macht nur die
+   * Feldfolge länger, die beide Seiten gleich halten müssen.
+   */
+  private playerCastStartedAtMsValue = -1;
+
+  /**
+   * Wie oft ein Boss-Angriff eine laufende Wirkzeit abgebrochen hat.
+   *
+   * Ein Zähler und keine Vermutung: „Der Zauber ist verloren" lässt sich sonst
+   * nur daran ablesen, dass etwas NICHT geschehen ist — und das ist dieselbe
+   * Aussage wie „der Spieler hat ihn nie gedrückt".
+   */
+  private castsInterruptedValue = 0;
+
+  /**
+   * Wie oft der Spieler eine eigene laufende Wirkzeit durch einen weiteren
+   * Druck abgebrochen hat.
+   *
+   * **Getrennt vom Zähler des Boss-Abbruchs**, obwohl beide dasselbe Feld
+   * räumen: Die zwei sind für den Spieler völlig verschiedene Dinge. Das eine
+   * hat der Boss getan, das andere er selbst — und eine Fehleranalyse, die
+   * beides zusammenzählte, könnte ihm nicht sagen, welches davon ein Fehler
+   * war.
+   */
+  private castsCancelledValue = 0;
 
   /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
   private playerHpValue: number;
@@ -821,6 +928,53 @@ export class Combat {
    */
   get castLandsAtMs(): number {
     return this.castLandsAtMsValue;
+  }
+
+  /** Welchen Zauber der Spieler gerade wirkt, oder -1 (Issue #304). */
+  get playerCasting(): number {
+    return this.playerCastingValue;
+  }
+
+  /** Wie oft ein Boss-Angriff eine Wirkzeit abgebrochen hat (Issue #304). */
+  get castsInterrupted(): number {
+    return this.castsInterruptedValue;
+  }
+
+  /** Wie oft ein eigener Druck eine Wirkzeit abgebrochen hat (Issue #304). */
+  get castsCancelled(): number {
+    return this.castsCancelledValue;
+  }
+
+  /**
+   * Wann die laufende Wirkzeit endet — Uhrzeit des Spiels, oder -1.
+   *
+   * Geht wie `castLandsAtMs` in die Prüfsumme ein: Eine Wirkzeit, die auf einer
+   * Seite anders gerechnet wird (Tempo, Fixierung), fiele sonst erst auf, wenn
+   * der Schaden fällt — also Takte später, an einer Stelle, die nicht mehr auf
+   * die Ursache zeigt.
+   */
+  get playerCastEndsAtMs(): number {
+    return this.playerCastEndsAtMsValue;
+  }
+
+  /**
+   * Wie weit die laufende Wirkzeit fortgeschritten ist, 0 bis 1.
+   *
+   * **Für den Balken** (AC1). Er rechnet nicht selbst: Die Dauer steckt in
+   * `playerCastStartedAtMsValue`, und sie ist bereits mit Tempo verrechnet. Wer
+   * sie in der Anzeige aus `spell.castTimeMs` neu herleitete, hätte dieselbe
+   * Regel an zwei Orten — und der Balken liefe bei getragenem CATALYSIS anders
+   * als der Zauber.
+   *
+   * Ohne laufende Wirkzeit: 0.
+   */
+  playerCastProgress(nowMs: number): number {
+    if (this.playerCastingValue < 0) return 0;
+    const dauer = this.playerCastEndsAtMsValue - this.playerCastStartedAtMsValue;
+    if (dauer <= 0) return 1;
+    const vergangen = nowMs - this.playerCastStartedAtMsValue;
+    if (vergangen <= 0) return 0;
+    return vergangen >= dauer ? 1 : vergangen / dauer;
   }
 
   /** Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3). */
@@ -1411,6 +1565,10 @@ export class Combat {
 
   /** Kann der Zauber jetzt gewirkt werden? */
   isReady(index: number, timeMs: number): boolean {
+    // **Hier stand bis zum 2026-08-05 eine Sperre** — „während einer Wirkzeit
+    // ist keiner bereit". Sie ist mit der Regel entfallen: Die Wirkzeit sperrt
+    // nichts, und ein Zauber, der während ihr gedrückt wird, wirkt (GAME-DESIGN
+    // 7.1). Die Leiste zeigt deshalb weiter an, was wirklich drückbar ist.
     if (!this.isOffCooldown(index, timeMs)) return false;
     // Dieselbe Ausnahme wie in `cast` (GAME-DESIGN 6.6, Issue #110). Sie steht
     // hier ein zweites Mal, weil die Zauberleiste `isReady` fragt und nicht
@@ -1655,6 +1813,35 @@ export class Combat {
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
+      }
+      // **Der Abbruch, und zwar nur durch bestimmte Angriffe** (GAME-DESIGN
+      // 7.1: „nur durch bestimmte, vorher erkennbare Boss-Angriffe. Normale
+      // Treffer stören nicht"). Welche das sind, steht in den BOSS-Daten und
+      // nicht hier — sonst bräche jeder Schlag jeden Zauber ab, und aus einer
+      // lernbaren Mechanik würde Zufallsärger.
+      //
+      // Steht NACH dem Schlag: Der Treffer fällt in jedem Fall, der Abbruch ist
+      // seine Nebenwirkung.
+      if (eintrag.interruptsPlayer && this.cancelPlayerCast()) {
+        this.castsInterruptedValue++;
+      }
+    }
+
+    // **Die eigene Wirkzeit zuletzt** (Issue #304): nach allen Handlungen des
+    // Bosses und vor den Tastendrücken dieses Takts. Ein abbrechender Schlag im
+    // selben Takt muss den Zauber noch erwischen können — stünde die Auflösung
+    // davor, käme der Schaden durch und der Abbruch ginge ins Leere.
+    //
+    // Im Simulator ist es derselbe Platz: `PlayerCastLands` steht zwischen
+    // `BossCastLands` und `Wakeup` in der Rangfolge.
+    if (this.playerCastingValue >= 0 && timeMs >= this.playerCastEndsAtMsValue) {
+      const index = this.playerCastingValue;
+      const spell = this.spells[index];
+      this.playerCastingValue = -1;
+      this.playerCastEndsAtMsValue = -1;
+      this.playerCastStartedAtMsValue = -1;
+      if (spell !== undefined) {
+        this.resolvePlayerCast(index, spell, timeMs, this.deferredOutcome, true);
       }
     }
 
@@ -1916,6 +2103,12 @@ export class Combat {
   /**
    * Einen Zauber wirken.
    *
+   * Seit Issue #304 sind das **zwei** Wege: Ein Sofort-Zauber wirkt hier und
+   * jetzt, ein Zauber mit Wirkzeit beginnt nur — seine Wirkung fällt in
+   * `resolvePlayerCast`, wenn die Zeit um ist. Was dazwischen liegt, entscheidet
+   * allein `spell.castTimeMs`; im Code steht keine Liste, welcher Zauber wie
+   * läuft (Leitplanke 6).
+   *
    * @returns Das wiederverwendete Ergebnis-Objekt. Wer es behalten will, kopiert
    *   die Felder heraus — beim nächsten Aufruf steht etwas anderes darin.
    */
@@ -1952,6 +2145,75 @@ export class Combat {
       return outcome;
     }
 
+    // **Ab hier wird gewirkt — und jede Wirkung bricht einen laufenden Zauber
+    // ab** (GAME-DESIGN 7.1, „Was einen laufenden Zauber abbricht", entschieden
+    // am 2026-08-05):
+    //
+    // > Jede Wirkung des Spielers bricht einen laufenden Cast oder eine
+    // > Kanalisierung ab. Jede, ohne Ausnahme — auch das Unterbrechen.
+    //
+    // **Die Stelle ist mit Absicht HIER und nicht weiter oben.** Ein Druck, den
+    // die Wartezeit oder die Abklingzeit abweist, führt zu keiner Wirkung — er
+    // darf also auch nichts abbrechen. Stünde der Abbruch vor den zwei
+    // Prüfungen, kostete ein Fehlgriff den laufenden Zauber, und aus einer
+    // Entscheidung würde eine Falle.
+    //
+    // Folge, die man kennen muss: Solange die globale Wartezeit läuft, kann nur
+    // ein Zauber ohne sie (der Unterbrecher) abbrechen. Bei 1500 ms Wartezeit
+    // und 2000 ms Wirkzeit bleiben den übrigen 500 ms Fenster.
+    if (this.cancelPlayerCast()) this.castsCancelledValue++;
+
+    // **Der Zauber mit Wirkzeit endet hier** (GAME-DESIGN 7.1, Issue #304).
+    //
+    // Die globale Wartezeit läuft ab dem BEGINN — 7.1 misst die Wirkzeit in
+    // Wartezeiten („1,5–2,5 s, also ein bis knapp zwei globale Wartezeiten"),
+    // und dieser Vergleich ergibt nur einen Sinn, wenn beide zugleich laufen.
+    //
+    // Die ABKLINGZEIT läuft dagegen NICHT an. Sie gehört zur Wirkung und steht
+    // deshalb in `resolvePlayerCast` — daran hängt die zweite Hälfte von
+    // GAME-DESIGN 7.1: „Bei Abbruch geht der Zauber verloren, die Abklingzeit
+    // läuft aber nicht an."
+    const wirkzeit = this.hasted(spell.castTimeMs);
+    if (wirkzeit > 0) {
+      this.playerCastingValue = index;
+      this.playerCastStartedAtMsValue = timeMs;
+      this.playerCastEndsAtMsValue = timeMs + wirkzeit;
+      if (spell.triggersGcd) this.gcd.trigger(timeMs);
+      // **Kein Protokoll-Eintrag für den Beginn.** Das Protokoll trägt die
+      // Fehleranalyse und hat einen gemeinsamen Nummernraum mit dem Simulator
+      // (#134); eine neue Art dafür verschöbe jede eingecheckte
+      // Vergleichsdatei. Der Eintrag fällt mit der Wirkung — dort, wo auch der
+      // Schaden steht.
+      outcome.result = CAST_STARTED;
+      return outcome;
+    }
+
+    this.resolvePlayerCast(index, spell, timeMs, outcome);
+    outcome.result = CAST_OK;
+    return outcome;
+  }
+
+  /**
+   * Die Wirkung eines Zaubers — der Teil, der bei einer Wirkzeit **am Ende**
+   * fällt (Issue #304, AC2).
+   *
+   * Bis #304 stand das alles im Rumpf von `cast()`. Herausgezogen und nicht
+   * kopiert: Ein Sofort-Zauber und ein Zauber mit Wirkzeit teilen sich diese
+   * eine Stelle, sonst gäbe es zwei Schadensrechnungen, die auseinanderlaufen.
+   *
+   * **Der Kritwurf gehört hierher und nicht an den Beginn.** Ein Wurf beim
+   * Drücken drehte den Zufallsstrom zu einem anderen Zeitpunkt als der
+   * Simulator, und ein abgebrochener Zauber hätte einen Wurf verbraucht, dessen
+   * Ergebnis niemand je sieht — beides ließe jeden folgenden Kampf
+   * auseinanderlaufen.
+   */
+  private resolvePlayerCast(
+    index: number,
+    spell: SpellDef,
+    timeMs: number,
+    outcome: CastOutcome,
+    wirkzeitLief = false,
+  ): void {
     // Unterbrechen (GAME-DESIGN 11.2, Baustein 9).
     //
     // **Kein Sonderfall in der Wartezeit-Rechnung.** Dass dieser Zauber keine
@@ -2034,7 +2296,11 @@ export class Combat {
     // bei uns die alleinige Schwierigkeit (2.1); eine Liste, welcher Zauber
     // mitskaliert, wäre eine zweite Regel zum Auswendiglernen.
     this.cooldownReadyAtMs[index] = timeMs + this.hasted(spell.cooldownMs);
-    if (spell.triggersGcd) this.gcd.trigger(timeMs);
+    // **Nur wenn sie nicht schon läuft** (Issue #304): Bei einer Wirkzeit ist
+    // die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start hier
+    // verlängerte sie um die volle Länge, und aus „ein bis knapp zwei
+    // Wartezeiten" (7.1) würden drei.
+    if (spell.triggersGcd && !wirkzeitLief) this.gcd.trigger(timeMs);
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
     this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);
@@ -2047,9 +2313,49 @@ export class Combat {
     // bewusst NICHT, das ist der ganze Baustein.
     this.clearAffliction(spell.id);
 
-    outcome.result = CAST_OK;
     outcome.damage = damage;
-    return outcome;
+  }
+
+  /**
+   * Die laufende Wirkzeit abbrechen (GAME-DESIGN 7.1, Issue #304, AC4).
+   *
+   * > Bei Abbruch geht der Zauber verloren, **die Abklingzeit läuft aber nicht
+   * > an.**
+   *
+   * **Die zweite Hälfte ist die eigentliche Regel**, und sie steht hier nicht
+   * als Zeile, sondern als Abwesenheit einer: Die Abklingzeit wird in
+   * `resolvePlayerCast` gesetzt, und die läuft bei einem Abbruch nie. Wer sie
+   * beim Beginn setzte, müsste sie hier von Hand zurücknehmen — und genau das
+   * wäre die Stelle, die man vergisst.
+   *
+   * # ZWEI AUFRUFER, und der zweite ist der häufigere
+   *
+   * | Auslöser | wo |
+   * | --- | --- |
+   * | Ein Boss-Angriff mit `interruptsPlayer` | `stepPassive`, in der Zeitleiste |
+   * | **Jede eigene Wirkung** | `cast`, nach Wartezeit und Abklingzeit |
+   *
+   * Der zweite kam am 2026-08-05 dazu, als der Auftraggeber die Regel
+   * umgedreht hat. Beide räumen dasselbe Feld; **gezählt wird getrennt**, weil
+   * „der Boss hat es genommen" und „ich habe es weggeworfen" für den Spieler
+   * nichts miteinander zu tun haben.
+   *
+   * # Wo eine Kanalisierung ansetzen wird (Issue #323)
+   *
+   * Sie verliert bei Abbruch **nicht** alles, sondern behält den erreichten
+   * Anteil. Diese Methode ist die Stelle dafür: Sie kennt den Zauber und den
+   * Zeitpunkt, und `playerCastStartedAtMsValue` sagt, wie weit er gekommen ist.
+   * Ein Kanal löste hier anteilig auf, statt nur zu räumen — deshalb steht das
+   * Räumen an EINER Stelle und nicht an den zwei Aufrufern.
+   *
+   * @returns true, wenn tatsächlich etwas abgebrochen wurde.
+   */
+  private cancelPlayerCast(): boolean {
+    if (this.playerCastingValue < 0) return false;
+    this.playerCastingValue = -1;
+    this.playerCastEndsAtMsValue = -1;
+    this.playerCastStartedAtMsValue = -1;
+    return true;
   }
 
   /**
@@ -2186,6 +2492,15 @@ export class Combat {
     this.dotTicksLost.fill(0);
     this.dotTickCounts.fill(0);
     this.gcd.reset();
+    // Ein neuer Versuch fängt ohne laufende Wirkzeit an (Issue #304). Ohne
+    // diese Zeilen bliebe der Zustand über den Versuch hinaus stehen: Der
+    // erste Druck des nächsten Kampfes bräche einen Zauber ab, den es nicht
+    // mehr gibt, und die Zahl der Abbrüche stimmte von Anfang an nicht.
+    this.playerCastingValue = -1;
+    this.playerCastEndsAtMsValue = -1;
+    this.playerCastStartedAtMsValue = -1;
+    this.castsInterruptedValue = 0;
+    this.castsCancelledValue = 0;
     this.random.reset();
     this.resourceValue = 0;
     this.resourceOverflowValue = 0;
