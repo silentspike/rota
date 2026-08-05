@@ -8,6 +8,7 @@
     "test-gatekeeper",
     "test-metronome",
     "test-onslaught",
+    "test-stacked",
     "test-vessel",
     "test-warden"
   ],
