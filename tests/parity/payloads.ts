@@ -1554,6 +1554,18 @@ export function fixationPayload(): Record<string, unknown> {
     runs: [false, true].map((mitAusgabe) => controlRun(boss, mitAusgabe)),
   };
 }
+/**
+ * Die Leiste der Kontroll-Aufzeichnung (Issue #405).
+ *
+ * Als Konstante VOR der Funktion, damit `slotMap` sie sehen kann — im
+ * `return`-Objekt entsteht sie zu spät für die Drücke.
+ */
+const CONTROL_BINDINGS = [
+  { slot: 0, spellId: 'bind' },
+  { slot: 1, spellId: 'stay' },
+  { slot: 2, spellId: 'anchor' },
+  { slot: 3, spellId: 'stall' },
+] as const;
 
 /**
  * Ein Durchgang mit oder ohne Ausgabe der Kontroll-Punkte.
@@ -1574,6 +1586,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
   const control: number[] = [];
   const phase: number[] = [];
   const timelineIndex: number[] = [];
+  const slots = slotMap(combat, CONTROL_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   let sequence = 0;
   let stayGewirkt = false;
@@ -1595,18 +1608,21 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     const imFenster = !stayGewirkt && tick >= 1000 && tick < 1150;
     if (mitAusgabe && imFenster && combat.control >= 3 && combat.isReady(stay, timeMs)) {
       if (combat.cast(stay, timeMs).result === 0) {
-        presses.push({ tick, slot: 1 });
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(stay), combat) });
         stayGewirkt = true;
       }
     } else if (mitAusgabe && combat.isReady(anchor, timeMs) && combat.control >= 6) {
-      if (combat.cast(anchor, timeMs).result === 0) presses.push({ tick, slot: 2 });
+      if (combat.cast(anchor, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(anchor), combat) });
     } else if (mitAusgabe && combat.isReady(stall, timeMs) && combat.control >= 10) {
       // **STALL vor BIND**, wenn Punkte da sind: Er kostet 4 und verlangsamt
       // einen Boss-Zauber. Steht er hinter dem Aufbauer, kommt er nie zum Zug —
       // BIND ist oefter bereit und verbraucht jede Gelegenheit.
-      if (combat.cast(stall, timeMs).result === 0) presses.push({ tick, slot: 3 });
+      if (combat.cast(stall, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(stall), combat) });
     } else if (combat.isReady(bind, timeMs)) {
-      if (combat.cast(bind, timeMs).result === 0) presses.push({ tick, slot: 0 });
+      if (combat.cast(bind, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(bind), combat) });
     }
 
     const hash = combatChecksum(combat, timeMs);
@@ -1620,20 +1636,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
   return {
     withSpending: mitAusgabe,
     ticks,
-    bindings: [
-      { slot: 0, spellId: 'bind' },
-      { slot: 1, spellId: 'stay' },
-      { slot: 2, spellId: 'anchor' },
-      // **Der vierte Kontroll-Zauber** (Issue #340). Er fehlte hier, und damit
-      // war STALL der einzige ausgelieferte Zauber, den KEIN Paritäts-Weg je
-      // wirkte — seine Bitgleichheit galt als angenommen, nicht als geprüft.
-      //
-      // Er gehört in diese Aufzeichnung und nicht in eine eigene: Sie deckt
-      // die FIXATION ab, und `slowCast` berührt `castLandsAt`, das sie ohnehin
-      // je Takt mitschreibt. Damit ist nicht nur der Druck aufgezeichnet,
-      // sondern seine Wirkung.
-      { slot: 3, spellId: 'stall' },
-    ],
+    bindings: CONTROL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     expected: {
       control: combat.control,
