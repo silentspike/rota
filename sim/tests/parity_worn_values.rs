@@ -415,3 +415,42 @@ fn vessel_kommt_zur_stufen_basis_dazu_und_ersetzt_sie_nicht() {
          die Basis"
     );
 }
+
+#[test]
+fn ward_aus_der_ausruestung_mindert_zusaetzlich() {
+    // Issue #282, AC4.
+    use rota_sim::data::PLAYER;
+
+    let roh = 1000;
+    let ohne = PLAYER.incoming_with_gear(roh, 0);
+
+    // Der Gegenfall zuerst (AC5): ohne Ausruestung exakt wie bisher.
+    assert_eq!(ohne, PLAYER.incoming(roh));
+
+    let mit = PLAYER.incoming_with_gear(roh, 300);
+    assert!(mit < ohne, "WARD 300 mindert nichts: {mit} gegen {ohne}");
+
+    // **Additiv, nicht multiplikativ** — und das ist der Unterschied, den ein
+    // blosser Groessenvergleich nicht zeigt. Multiplikativ ergaeben Basis und
+    // Zusatz ein anderes Ergebnis, und beide waeren "kleiner als ohne".
+    let erwartet_additiv = (f64::from(roh) * (1.0 - (PLAYER.ward_reduction + 0.3)))
+        .round()
+        .max(0.0) as u32;
+    assert_eq!(
+        mit, erwartet_additiv,
+        "WARD wirkt nicht additiv zur Basis — bei zwei Minderungen im selben \
+         Topf wird addiert (13.1b)"
+    );
+
+    // Der Deckel: Bei voller Minderung null Schaden, nicht negativ und keine
+    // Heilung. Das ist eine Rechenregel, keine Balance-Zahl.
+    assert_eq!(PLAYER.incoming_with_gear(roh, 5000), 0);
+
+    // Und der Gegenfall dazu: Ohne den Deckel waere das Ergebnis oben
+    // ebenfalls 0 (als u32 abgeschnitten) — deshalb zusaetzlich knapp
+    // darunter pruefen, wo die Rechnung noch etwas liefern muss.
+    assert!(
+        PLAYER.incoming_with_gear(roh, 700) > 0,
+        "knapp unter dem Deckel darf nicht schon null herauskommen"
+    );
+}

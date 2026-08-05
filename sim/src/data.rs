@@ -610,9 +610,35 @@ impl PlayerBase {
     /// auseinander.
     #[must_use]
     pub fn incoming(&self, raw: u32) -> u32 {
-        let gemindert = f64::from(raw) * (1.0 - self.ward_reduction);
-        // Nie unter null, und nie mehr als der Rohwert: Ein WARD ueber 1.0
-        // wuerde den Spieler sonst heilen.
+        self.incoming_with_gear(raw, 0)
+    }
+
+    /// Wie [`Self::incoming`], aber mit WARD aus der getragenen Ausruestung
+    /// (Issue #282, AC4).
+    ///
+    /// # Additiv zur Basis, nicht multiplikativ
+    ///
+    /// Beides ist Minderung, also derselbe Topf — und **innerhalb** eines
+    /// Topfes wird addiert (13.1b). Multiplikativ waere es nicht nur eine
+    /// andere Zahl, sondern eine andere Aussage: Zwei Minderungen von je 50 %
+    /// ergaeben dann 75 % statt 100 %.
+    ///
+    /// # Der Deckel ist eine Rechenregel, keine Balance-Zahl
+    ///
+    /// Bei einer Minderung von 1,0 nimmt der Spieler null Schaden; darueber
+    /// wuerde er geheilt. Der Deckel steht deshalb bei 1,0 und nicht bei einem
+    /// gewaehlten Prozentsatz.
+    ///
+    /// **Ob es einen BALANCE-Deckel darunter geben soll — etwa 80 % —, ist
+    /// offen und steht nirgends im Design.** Solange er fehlt, kann eine
+    /// hinreichend gute Ausruestung den Spieler unverwundbar machen. Das ist
+    /// mit dieser Zeile nicht entschieden, sondern nur nicht verhindert.
+    #[must_use]
+    pub fn incoming_with_gear(&self, raw: u32, ward_permille: u32) -> u32 {
+        let zusatz = f64::from(ward_permille) / 1000.0;
+        let minderung = (self.ward_reduction + zusatz).min(1.0);
+        let gemindert = f64::from(raw) * (1.0 - minderung);
+        // Nie unter null, und nie mehr als der Rohwert.
         gemindert.round().max(0.0) as u32
     }
 }
