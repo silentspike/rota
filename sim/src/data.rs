@@ -413,6 +413,44 @@ pub struct BossHeal {
     pub amount: u32,
 }
 
+/// Die eskalierende Wiederholung (GAME-DESIGN 11.2, Baustein 7; #240).
+///
+/// > Dieselbe Phase kehrt mehrfach wieder — **kuerzere Fenster**, mehr
+/// > gleichzeitige Anforderungen.
+///
+/// Setzt auf `timeline_loop_ms` (#174) auf: Mit jedem Zyklus schrumpft die
+/// Wirkzeit unterbrechbarer Zauber. `min_cast_time_ms` ist keine Feinheit —
+/// ohne Untergrenze waere der Baustein kein Anspruch mehr, sondern eine
+/// Unmoeglichkeit, und 11.7 verwirft genau das.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Escalation {
+    /// Um wie viel die Wirkzeit je Zyklus schrumpft.
+    pub cast_time_shrink_ms: Millis,
+    /// Kuerzer wird sie nicht.
+    pub min_cast_time_ms: Millis,
+}
+
+/// Die Schwaechung ohne Heil-Loesung (GAME-DESIGN 11.2, Baustein 8; #240).
+///
+/// > Ein Effekt laesst sich **nicht wegheilen**, sondern nur durch eine
+/// > bestimmte Handlung loswerden. **Braucht mehrere Loesungswege**, sonst ist
+/// > man ohne den richtigen Zauber hilflos.
+///
+/// Das "mehrere" ist keine Empfehlung: Ein `cleared_by` mit einem einzigen
+/// Eintrag wird schon beim Lesen beanstandet, weil ein Boss mit genau einem Weg
+/// eine bestimmte Schule verlangte — was 11.3 ausschliesst.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Affliction {
+    /// Zeitpunkt seit Kampfbeginn, zu dem sie greift.
+    pub at_ms: Millis,
+    /// Takt, in dem sie Schaden macht.
+    pub per_step_ms: Millis,
+    /// Schaden je Takt, **vor** WARD.
+    pub damage: u32,
+    /// Kennungen der Zauber, die sie entfernen. Mindestens zwei.
+    pub cleared_by: &'static [&'static str],
+}
+
 /// Ein Boss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Boss {
@@ -438,6 +476,10 @@ pub struct Boss {
     pub race: Option<Race>,
     /// Was ein Fehler an Fortschritt zurueckdreht, falls ueberhaupt (#218).
     pub boss_heal: Option<BossHeal>,
+    /// Die eskalierende Wiederholung, falls dieser Boss eine hat (#240).
+    pub escalation: Option<Escalation>,
+    /// Die Schwaechung ohne Heil-Loesung, falls dieser Boss eine hat (#240).
+    pub affliction: Option<Affliction>,
     /// Die feste Abfolge der Boss-Handlungen, aufsteigend nach Zeitpunkt.
     pub timeline: &'static [TimelineEntry],
     /// Laenge eines Zyklus, wenn sich die Zeitleiste **wiederholt** (#174).

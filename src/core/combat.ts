@@ -281,7 +281,7 @@ export class Combat {
   private castingValue = -1;
 
   /** Kampfzeit, zu der der laufende Boss-Zauber trifft. */
-  private castLandsAtMs = -1;
+  private castLandsAtMsValue = -1;
 
   /** Verbleibende Lebenspunkte des Spielers (Issue #110). */
   private playerHpValue: number;
@@ -320,6 +320,15 @@ export class Combat {
 
   /** Wie viel Fortschritt der Boss zurueckgedreht hat (Issue #218). */
   private bossHealedValue = 0;
+
+  /** Ob die Schwaechung liegt (Baustein 8). */
+  private afflictedValue = false;
+
+  /** Kampfzeit des naechsten Schwaechungs-Ticks. */
+  private nextAfflictionAtMs = 0;
+
+  /** Wie oft sie entfernt wurde. */
+  private afflictionsClearedValue = 0;
 
   /** Kampfzeit des nächsten Stapel-Schritts. */
   private nextStackAtMs = 0;
@@ -573,6 +582,29 @@ export class Combat {
     return this.raceEndsAtMs >= 0;
   }
 
+  /**
+   * Wie viele Zyklen die Zeitleiste gelaufen ist (Baustein 7; Issue #240).
+   *
+   * **Abgeleitet, nicht mitgezählt.** Ein eigenes Feld wäre eine zweite
+   * Wahrheit über dieselbe Größe — und die zweite läuft beim Nachziehen weg.
+   * Der Zeiger weiß es bereits.
+   */
+  get cycle(): number {
+    const laenge = this.boss.timeline.length;
+    if (laenge === 0 || this.boss.timelineLoopMs === null) return 0;
+    return Math.floor(this.timelineIndexValue / laenge);
+  }
+
+  /** Ob die Schwächung gerade liegt (Baustein 8). */
+  get afflicted(): boolean {
+    return this.afflictedValue;
+  }
+
+  /** Wie oft sie entfernt wurde. */
+  get afflictionsCleared(): number {
+    return this.afflictionsClearedValue;
+  }
+
   /** Wie weit das Ziel im laufenden Fenster geladen ist (Issue #218). */
   get raceProgress(): number {
     return this.raceProgressValue;
@@ -637,6 +669,23 @@ export class Combat {
   /** Welcher Boss-Zauber gerade läuft, oder -1. */
   get casting(): number {
     return this.castingValue;
+  }
+
+  /**
+   * Wann der laufende Boss-Zauber trifft — Kampfzeit seit Beginn.
+   *
+   * **Nicht für die Anzeige, sondern für die Prüfsumme** (GAME-DESIGN 19.1).
+   * Ohne diesen Zugriff wäre sie für zwei Dinge blind, die beide genau hier
+   * wirken: die Eskalation, die das Fenster mit jedem Zyklus verkürzt
+   * (Baustein 7), und die Fixierung, die es verlängert. Bei beiden bliebe der
+   * Unterschied verborgen, bis der Treffer fällt — und dann sagt die Prüfsumme
+   * nicht mehr, in welchem Takt gerechnet wurde, sondern nur noch, dass am Ende
+   * etwas nicht stimmt.
+   *
+   * Der Wert ist bedeutungslos, solange `casting` auf -1 steht.
+   */
+  get castLandsAtMs(): number {
+    return this.castLandsAtMsValue;
   }
 
   /** Ist der Spieler tot? Der Versuch endet dann (GAME-DESIGN A.3). */
@@ -747,7 +796,7 @@ export class Combat {
     if (control.effect === 'slowCast') {
       // Der laufende Boss-Zauber trifft später; das Unterbrechen-Fenster wird
       // größer.
-      if (this.castingValue >= 0) this.castLandsAtMs += control.amount;
+      if (this.castingValue >= 0) this.castLandsAtMsValue += control.amount;
     } else if (control.effect === 'delayStrike') {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
@@ -975,7 +1024,7 @@ export class Combat {
   private interruptBossCast(timeMs: number): boolean {
     if (this.castingValue < 0) return false;
     this.castingValue = -1;
-    this.castLandsAtMs = -1;
+    this.castLandsAtMsValue = -1;
     this.interruptsLandedValue++;
     // **Das Spiel schreibt es jetzt selbst** (Issue #151). Bis dahin führte es
     // nur der Simulator — und die Fehleranalyse läuft im Browser, nicht im
@@ -1051,6 +1100,8 @@ export class Combat {
     // Das Fenster haengt an der KAMPFuhr, nicht an der durchlaufenden.
     this.raceDone = false;
     this.raceEndsAtMs = -1;
+    this.afflictedValue = false;
+    this.nextAfflictionAtMs = 0;
   }
 
   castCount(index: number): number {
@@ -1297,6 +1348,26 @@ export class Combat {
       }
     }
 
+    // Die Schwaechung ohne Heil-Loesung (11.2, Baustein 8; #240).
+    const aff = this.boss.affliction;
+    if (aff !== null) {
+      const seitBeginnFuerAff = timeMs - this.fightStartedAtMs;
+      if (
+        !this.afflictedValue &&
+        this.afflictionsClearedValue === 0 &&
+        seitBeginnFuerAff >= aff.atMs
+      ) {
+        this.afflictedValue = true;
+        this.nextAfflictionAtMs = timeMs + aff.perStepMs;
+      }
+      if (this.afflictedValue) {
+        while (timeMs >= this.nextAfflictionAtMs) {
+          this.hitPlayer(aff.damage, timeMs);
+          this.nextAfflictionAtMs += aff.perStepMs;
+        }
+      }
+    }
+
     // Das Wettrennen (11.2, Baustein 4; #218).
     //
     // Es beginnt GENAU EINMAL, zu dem Zeitpunkt aus den Daten. Ein Fenster,
@@ -1353,12 +1424,12 @@ export class Combat {
     // Eintrag im selben Takt in derselben Reihenfolge geschehen wie im
     // Simulator — dort steht `BossCastLands` vor `TimelineStep` in der
     // Rangfolge der Ereignisse.
-    if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMs) {
+    if (this.castingValue >= 0 && seitBeginn >= this.castLandsAtMsValue) {
       // Über `timelineAt`, nicht über den Platz in der Liste: Bei wiederholter
       // Zeitleiste liegt der Zähler darüber (#174).
       const laufend = this.timelineEntryAt(this.castingValue);
       this.castingValue = -1;
-      this.castLandsAtMs = -1;
+      this.castLandsAtMsValue = -1;
       this.interruptsMissedValue++;
       if (laufend !== undefined) this.hitPlayer(laufend.damage, timeMs);
       // **Ein Fehler macht Fortschritt rueckgaengig** (11.2, Baustein 5;
@@ -1389,7 +1460,11 @@ export class Combat {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
-        this.castLandsAtMs = faelligAtMs + eintrag.castTimeMs;
+        // **Die eskalierende Wiederholung** (11.2, Baustein 7; Issue #240):
+        // Mit jedem Zyklus schrumpft das Fenster zum Unterbrechen. Die
+        // Verkuerzung steht in den DATEN — sonst waere sie eine Regel des
+        // Spiels statt eine Eigenschaft dieses Bosses.
+        this.castLandsAtMsValue = faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index);
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
@@ -1490,6 +1565,45 @@ export class Combat {
     this.damageDealtValue -= wirklich;
     this.bossHealedValue += wirklich;
     return wirklich;
+  }
+
+  /**
+   * Die Wirkzeit nach der Zahl der Zyklen (11.2, Baustein 7; Issue #240).
+   *
+   * `minCastTimeMs` ist keine Feinheit: Ohne Untergrenze schrumpfte das
+   * Fenster irgendwann auf einen Takt, und der Baustein wäre kein Anspruch
+   * mehr, sondern eine Unmöglichkeit — 11.7 verwirft genau das.
+   */
+  private escalatedCastTime(base: number, eintragIndex: number): number {
+    const esc = this.boss.escalation;
+    const laenge = this.boss.timeline.length;
+    if (esc === null || laenge === 0 || this.boss.timelineLoopMs === null) return base;
+    // **Der Zyklus DIESES Eintrags**, nicht der Stand des Zeigers. Der ist an
+    // dieser Stelle bereits erhoeht — mein erster Entwurf las ihn und gab dem
+    // ERSTEN Zauber schon die Verkuerzung des zweiten Zyklus. Gemessen:
+    // [2500, 2000, 1500, 1000] statt [3000, 2500, 2000, 1500].
+    const zyklus = Math.floor(eintragIndex / laenge);
+    if (zyklus <= 0) return base;
+    const gekuerzt = base - esc.castTimeShrinkMs * zyklus;
+    return gekuerzt < esc.minCastTimeMs ? esc.minCastTimeMs : gekuerzt;
+  }
+
+  /**
+   * Die Schwächung entfernen (11.2, Baustein 8; Issue #240).
+   *
+   * **Heilung steht bewusst nicht in `clearedBy`** — das ist der ganze
+   * Baustein. Wer sie einträgt, hat ihn in eine gewöhnliche Schwächung
+   * zurückverwandelt.
+   *
+   * @returns ob etwas zu entfernen war
+   */
+  private clearAffliction(spellId: string): boolean {
+    const def = this.boss.affliction;
+    if (def === null || !this.afflictedValue) return false;
+    if (!def.clearedBy.includes(spellId)) return false;
+    this.afflictedValue = false;
+    this.afflictionsClearedValue++;
+    return true;
   }
 
   /** Prüft, ob der Boss gefallen ist. Nach `stepPassive`, vor dem Wirken. */
@@ -1640,6 +1754,11 @@ export class Combat {
     // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt über Zeit,
     // Vorrat, Abklingzeit und Wartezeit stehen.
     this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+
+    // **Die Schwaechung ohne Heil-Loesung** (11.2, Baustein 8; Issue #240).
+    // Steht dieser Zauber in `clearedBy`, ist sie weg — und Heilung steht dort
+    // bewusst NICHT, das ist der ganze Baustein.
+    this.clearAffliction(spell.id);
 
     outcome.result = CAST_OK;
     outcome.damage = damage;

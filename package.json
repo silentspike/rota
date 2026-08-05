@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:parity": "vitest run tests/parity"
+    "test:parity": "vitest run tests/parity",
+    "parity:export": "vite-node tests/parity/export-parity.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

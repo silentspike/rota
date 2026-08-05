@@ -133,5 +133,23 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixInt(h, combat.raceProgress);
   h = mixInt(h, combat.damageLostToRace);
   h = mixInt(h, combat.bossHealed);
+  // **Angehängt, nicht eingeschoben** (Issue #240, die letzten drei Bausteine).
+  //
+  // Baustein 7: Die Eskalation wirkt ausschließlich auf den Zeitpunkt, zu dem
+  // der laufende Boss-Zauber trifft. Ohne ihn fiele eine falsch gerechnete
+  // Verkürzung erst auf, wenn der Treffer fällt — also Takte später, an einer
+  // Stelle, die nicht mehr auf die Ursache zeigt. Denselben Wert verschiebt die
+  // Fixierung (#100), für die er bisher ebenfalls fehlte.
+  //
+  // **Nur solange einer läuft.** Ohne laufenden Zauber trägt das Feld im Spiel
+  // -1 und im Simulator 0 — ein Unterschied, der nichts bedeutet, aber in jedem
+  // Takt ohne Boss-Zauber eine Abweichung meldete. Der feste Wert steht deshalb
+  // auf beiden Seiten.
+  h = mixInt(h, combat.casting >= 0 ? combat.castLandsAtMs : -1);
+  // Baustein 8: Ob die Schwächung liegt, entscheidet über jeden weiteren Takt.
+  // Der Zähler gehört dazu, weil er den Unterschied zwischen „nie gelegen" und
+  // „gelegen und entfernt" trägt — im Zustand sehen die beiden gleich aus.
+  h = mixInt(h, combat.afflicted ? 1 : 0);
+  h = mixInt(h, combat.afflictionsCleared);
   return h >>> 0;
 }

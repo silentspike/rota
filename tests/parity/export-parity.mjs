@@ -2,16 +2,45 @@
  * Schreibt die gemeinsamen Vergleichsdateien für den Abgleich mit dem Simulator.
  *
  * ```text
- * npx vite-node tests/parity/export-parity.ts
+ * npm run parity:export
  * ```
  *
- * Fünf Dateien entstehen dabei, beide unter `tests/parity/recordings/`:
+ * Der Eintrag in `package.json` ist seit dem 2026-08-05 da, und zwar aus einem
+ * Grund, der über Bequemlichkeit hinausgeht: Der Befehl wurde in einer Nacht
+ * zweimal gesucht und stand beide Male nirgends, wo man sucht. Ein Skript kann
+ * nicht veralten wie ein Kommentar — dieser hier hatte es getan.
+ *
+ * Direkt geht es auch, und dann zeigt sich, warum es `vite-node` sein muss:
+ *
+ * ```text
+ * npx vite-node tests/parity/export-parity.mjs
+ * ```
+ *
+ * **`npx vite-node`, nicht `node` und nicht `npx tsx`.** Beide scheitern, und
+ * zwar verschieden — beides am 2026-08-05 gemessen:
+ *
+ * | Aufruf | Fehler |
+ * | --- | --- |
+ * | `node …` | `ERR_MODULE_NOT_FOUND`: sucht `src/core/checksum.js`, da liegt nur die `.ts` |
+ * | `npx tsx …` | `TypeError: (intermediate value).glob is not a function` |
+ *
+ * Das zweite ist das lehrreichere: `tsx` versteht TypeScript, aber
+ * `import.meta.glob` ist keine Sprache, sondern Vite — und daran hängt das
+ * Einlesen der Boss- und Zauber-Daten. Der Dateiname stand hier bis dahin mit
+ * der Endung `.ts`; die Datei heißt aber `.mjs`, und der abgetippte Befehl lief
+ * deshalb ins Leere.
+ *
+ * Alle Vergleichsdateien unter `tests/parity/recordings/` entstehen dabei neu,
+ * nicht nur die eine, an der man gerade arbeitet. Nach dem Lauf lohnt ein
+ * `git status`: Ändert sich mehr als erwartet, hat sich eine Regel bewegt.
+ * Ein paar davon zur Einordnung:
  *
  * | Datei | Inhalt |
  * | --- | --- |
  * | `cooldown-precision.json` | Eine aufgezeichnete Runde samt Ergebnis und Prüfsumme je Takt |
  * | `primitives.json` | Zufallsströme und Prüfsumme — die Bausteine darunter |
  * | `rule-events.json` | Eine feste Folge von Regel-Ereignissen samt Prüfsumme |
+ * | `trial-blocks.json` | Die letzten drei Boss-Bausteine in einem Lauf (#240) |
  *
  * **Nach jeder Regeländerung neu laufen lassen.** `freshness.test.ts` erzwingt
  * das: Er baut dieselben Inhalte und vergleicht sie mit dem, was hier liegt.
@@ -37,6 +66,8 @@ import {
   buffsPayload,
   resetRunPayload,
   raceHealPayload,
+  trialBlocksPayload,
+  TRIAL_BLOCKS_NAME,
   gearPayload,
   hastePayload,
   wornPayload,
@@ -101,6 +132,10 @@ writeFileSync(resetRunPath, serialize(resetRun), 'utf8');
 const raceHeal = raceHealPayload();
 const raceHealPath = join(here, 'recordings', `${RACE_HEAL_NAME}.json`);
 writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
+
+const trialBlocks = trialBlocksPayload();
+const trialBlocksPath = join(here, 'recordings', `${TRIAL_BLOCKS_NAME}.json`);
+writeFileSync(trialBlocksPath, serialize(trialBlocks), 'utf8');
 
 const playerDamage = playerDamagePayload();
 const playerDamagePath = join(here, 'recordings', `${PLAYER_DAMAGE_NAME}.json`);
