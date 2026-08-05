@@ -2541,3 +2541,64 @@ Fehler kamen aus einer einzigen Interface-Zeile — weder Aufruf noch Konstante,
 ein Feld in einer Struktur. Danach sucht kein Muster. Auch die Frage „ist diese
 Markierung noch nötig" beantwortet er besser: jede einzeln entfernen und `tsc` fragen.
 Der Unterschied steht nicht im Text, sondern im Typsystem.
+
+### 8.28 Der Fehler liegt im Sortieren, nicht im Zählen
+
+_Vom Orchestrator am 2026-08-06. Belegt durch Selbstmeldungen aus allen drei Worker-Sitzungen
+und aus dieser — Worker-1 zählte an diesem Tag allein **fünf** eigene Fälle._
+
+> Beim Schreiben dieses Abschnitts stand hier zuerst „sieben geschätzte Zahlen in vier
+> Sitzungen". Nachgezählt ließ sich das nicht belegen: Die Suche findet 36 **Nachrichten**,
+> die das Wort enthalten — Fälle sind das nicht, weil die meisten davon Rückverweise sind.
+> Die Zahl ist deshalb ersetzt durch das, was belegt ist. Der Abschnitt hat seinen eigenen
+> Fehler beim Schreiben produziert; das ist kein Zufall, sondern der Beleg.
+
+Worker-1 hat es an sich selbst gefunden und in einem Satz gefasst, der auf alle vier zutraf:
+
+> Bei inhaltlichen Zahlen ist mir das heute kein einziges Mal passiert: 110 Namen,
+> 21 Signaturen, 18 Zauber, 1426 Prüffälle. Alle gemessen. Was ich für den **Kern** halte,
+> messe ich. Was ich für **Beiwerk** halte, schätze ich — ohne zu merken, dass ich es tue.
+
+Die geschätzten Zahlen waren jedes Mal Nebensachen: die Zeilenzahl einer Übergabe (78 statt
+84), die Zahl der Abschnitte in einem Guide-Kapitel, die Dauer eines Stillstands, die Zahl
+der Aufrufstellen einer Funktion. Nichts davon trug eine Entscheidung — deshalb wurde
+nicht gemessen, und deshalb fiel es nicht auf.
+
+**Es fällt nur auf, wenn jemand nachrechnet.** Und dann steht die geschätzte Zahl neben
+den gemessenen und sieht genauso aus.
+
+#### Der Nebenschauplatz von heute wurde zum Hauptschauplatz
+
+Eine Zahl kann im selben Text ihre Rolle wechseln. In Issue #405 ging es um „zwölf feste
+Platznummern" — eine Nebenzahl, im Titel. Als daran eine Entscheidung hing (wer baut es,
+reicht dessen Kontext), wurde sie zur Hauptzahl. Der Verlauf:
+
+```
+12   Titel, geschätzt
+11   erste Korrektur — eine doppelt gezählt
+ 8   nachgemessen — nur die sichtbare Schreibweise
+ 9   ein Schnitt fand eine verkleidete (slot: x === quench ? 1 : 0)
+11   nachgemessen — zwei weitere in einer Zwischenvariable
+```
+
+Vier dieser fünf Zahlen waren **richtig gezählt** und maßen etwas anderes. Nur die erste
+war geschätzt — und genau sie stand in einem Titel, den alle lasen.
+
+#### Was daraus folgt
+
+**Wer eine Zahl nennt, hat sie entweder gemessen oder soll sie weglassen.** „Ungefähr" ist
+ein drittes Ding, das niemandem auffällt — es liest sich wie eine Messung und hat deren
+Verbindlichkeit nicht.
+
+Der Weg dahin ist nicht mehr Sorgfalt, sondern eine andere Sortierung: **Es gibt keine
+Nebenzahlen.** Eine Zahl, die man für Beiwerk hält, ist eine Zahl, deren Rolle man noch
+nicht kennt — und die Rolle entscheidet der Leser, nicht der Schreiber.
+
+Praktisch heißt das: Die Zahl kommt aus dem Befehl in den Text, nicht aus dem Kopf. Wer
+`wc -l` laufen lässt und die Zeilenzahl danach aus dem Gedächtnis tippt, hat den Befehl
+umsonst ausgeführt. Zweimal an diesem Abend stand die richtige Zahl in derselben Ausgabe,
+aus der die geschätzte gemeldet wurde.
+
+> **Und die Umkehrung, die den Aufwand rechtfertigt:** Eine gemessene Nebenzahl kostet
+> Sekunden. Eine geschätzte, die zufällig stimmt, kostet nichts — bis sie einmal nicht
+> stimmt und eine Entscheidung getragen hat, die niemand mehr zurückholt.

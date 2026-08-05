@@ -1,20 +1,29 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-05, 17:05: Vier der ursprünglichen fünf Entscheidungen sind getroffen.** Sie stehen
-unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt.
-**Vier Punkte sind seither dazugekommen** — alle vier aus der Arbeit selbst, nicht aus dem Interview.
+**Stand 2026-08-06, 00:35: Vier Punkte sind entschieden, sieben liegen offen.** Die
+entschiedenen stehen unten mit Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen,
+ist als Issue verlinkt. **Sechs der elf sind aus der Arbeit selbst entstanden, nicht aus dem
+Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 
 |                                     | Ergebnis                                                                                                    |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                                   |
-| **2** Punktekurve                   | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden                                    |
+| **2** Punktekurve                   | **quadratisch (2,0), Rest-Ertrag 20 Promille**                                                              |
 | **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                         |
-| **4** Stumme Zauber                 | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**                                            |
+| **4** Stumme Zauber                 | **OFFEN** — der Auftraggeber bestätigt Suno einmal im sichtbaren Browser (blockiert #198, #204)             |
 | **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                           |
 | **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
 | **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
 | **8** Widerstand gegen Schul-Stärke | **OFFEN** — der Korridor 20–30 % kann die Rotation nicht drehen, solange die Schulen 67 % auseinanderliegen |
 | **9** WARD ohne Balance-Deckel      | **OFFEN** — eine hinreichend gute Ausrüstung kann den Spieler unverwundbar machen                           |
+| **11** SUBLIMATION-Bauart           | **OFFEN** — zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot                                   |
+| **12** `runaway`-Timing             | **OFFEN** — seltener drücken ist besser: Tiefe oder Falle?                                                  |
+
+> **Es gibt keinen Punkt 10.** Er hat nie existiert — beim Anlegen von Punkt 11 wurde die Zahl
+> übersprungen. Die Lücke bleibt stehen, statt umzunummerieren: Die Nummern werden in Issues,
+> Nachrichten und Commits zitiert, und eine stille Verschiebung würde jeden dieser Verweise auf
+> einen anderen Punkt zeigen lassen. Eine sichtbare Lücke ist billiger als eine unsichtbare
+> Umdeutung.
 
 ---
 
