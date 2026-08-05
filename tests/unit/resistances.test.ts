@@ -230,6 +230,81 @@ describe('Der Widerstand hängt am ZAUBER, nicht am Kampf', () => {
   });
 });
 
+describe('Der BRAND-TICK trägt die Schule seines Zaubers', () => {
+  /**
+   * **Die Stelle, die man übersieht — und die zuerst von nichts bewacht war.**
+   *
+   * Ein Effekt über Zeit tickt lange nach seiner Wirkung. Wird dazwischen ein
+   * Zauber einer ANDEREN Schule gewirkt, trüge der Tick ohne eigene Zuweisung
+   * den Widerstand des zuletzt gewirkten Zaubers. Das ist nicht falsch
+   * gerechnet, sondern falsch zugeordnet — und die Gesamtsumme verrät es
+   * nicht, weil sie beide Beträge enthält.
+   *
+   * Ich hatte die Stelle beim Bauen benannt und trotzdem keinen Fall dafür
+   * gebaut: Die gemischte Leiste in der Vergleichsdatei fährt bind, canker und
+   * kindle — **keiner davon hat einen Effekt über Zeit**. Der Orchestrator hat
+   * die Zeile im Simulator ausgebaut, und kein einziger Prüffall wurde rot.
+   *
+   * Dieselbe Klasse wie der Befund, mit dem diese Datei anfing: eine
+   * „gemischte" Leiste, auf der das Gemischte nicht vorkommt.
+   */
+  const SMOULDER_TICKS_MS = 12_000;
+
+  /**
+   * SMOULDER legen, dann BIND wirken, dann ticken lassen.
+   *
+   * **Die Reihenfolge ist der ganze Fall.** BIND gehört FIXATION an und wird
+   * NACH dem Brand gewirkt; wer den Widerstand am „zuletzt gewirkten Zauber"
+   * festmacht, gibt den Ticks von da an 1,0 statt 0,75.
+   */
+  function brandUnter(ziel: BossDef): { brand: number; bind: number } {
+    const combat = new Combat({ school: CALCINATION.value, boss: ziel });
+    const smoulder = combat.indexOf('smoulder');
+    const bind = combat.indexOf('bind');
+    combat.beginFight(0);
+    combat.cast(smoulder, 0);
+    for (let t = 0; t <= SMOULDER_TICKS_MS; t += TICK_MS) {
+      combat.stepPassive(t);
+      // Genau EINMAL dazwischen, und früh: Ab hier ist BIND der zuletzt
+      // gewirkte Zauber, und alle folgenden Ticks stehen unter seiner Schule —
+      // falls die Zuordnung daran hinge.
+      if (t === 1500) combat.cast(bind, t);
+    }
+    return { brand: combat.damageOf(smoulder), bind: combat.damageOf(bind) };
+  }
+
+  it('mindert die Ticks um den Widerstand SEINER Schule', () => {
+    const neutral = brandUnter(NEUTRAL);
+    const fest = brandUnter(RESISTANT);
+
+    expect(neutral.brand, 'ohne Ticks misst der Fall nichts').toBeGreaterThan(0);
+    expect(fest.brand / neutral.brand, 'CALCINATION wird abgehalten').toBeCloseTo(0.75, 6);
+  });
+
+  it('LÄSST DEN ZAUBER DER ANDEREN SCHULE dabei unberührt', () => {
+    // Der Gegenfall im selben Lauf: BIND ist FIXATION und wird zwischen den
+    // Ticks gewirkt. Er darf nichts abbekommen — und die Ticks dürfen seine
+    // Schule nicht erben.
+    const neutral = brandUnter(NEUTRAL);
+    const fest = brandUnter(RESISTANT);
+
+    expect(neutral.bind, 'ohne Wirkung misst der Gegenfall nichts').toBeGreaterThan(0);
+    expect(fest.bind).toBe(neutral.bind);
+  });
+
+  it('hat den Zauber der anderen Schule WIRKLICH dazwischen', () => {
+    // **Ohne diese Zusicherung prüfen die zwei Fälle oben einen Lauf, in dem
+    // gar nichts dazwischenkommt** — und dann wären sie grün, egal woran die
+    // Zuordnung hängt. Die Ticks laufen bis 12000 ms, BIND fällt bei 1500.
+    const combat = new Combat({ school: CALCINATION.value, boss: RESISTANT });
+    const smoulder = combat.indexOf('smoulder');
+    combat.beginFight(0);
+    combat.cast(smoulder, 0);
+    for (let t = 0; t <= 1500; t += TICK_MS) combat.stepPassive(t);
+    expect(combat.dotRemainingMs(smoulder, 1500), 'der Brand muss noch laufen').toBeGreaterThan(0);
+  });
+});
+
 describe('AC4 — die Stärke liegt im Korridor des Designs', () => {
   it('mindert um 20 bis 30 Prozent — GEMESSEN, nicht abgeschrieben', () => {
     // **Die Zahl kommt aus zwei Kämpfen, nicht aus dem Datenfeld.** Ein Fall,

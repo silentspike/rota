@@ -110,7 +110,7 @@ fn der_fall_kann_den_unterschied_ueberhaupt_zeigen() {
         .as_object()
         .expect("damageBySpell fehlt");
 
-    assert_eq!(je_zauber.len(), 3, "drei Zauber, drei Schulen");
+    assert_eq!(je_zauber.len(), 4, "vier Zauber, drei Schulen, ein Brand");
     for (id, wert) in je_zauber {
         assert!(
             wert.as_u64().expect("Zahl") > 0,
@@ -120,11 +120,11 @@ fn der_fall_kann_den_unterschied_ueberhaupt_zeigen() {
 }
 
 #[test]
-fn die_drei_zauber_gehoeren_drei_verschiedenen_schulen() {
+fn die_zauber_gehoeren_drei_verschiedenen_schulen() {
     // Sonst waere es eine gemischte Leiste dem Namen nach. Ueber die
     // einkompilierten Daten geprueft, nicht ueber die Datei: Hier soll stehen,
     // dass der SIMULATOR die Schulen kennt.
-    let schulen: Vec<Option<&str>> = ["bind", "canker", "kindle"]
+    let schulen: Vec<Option<&str>> = ["bind", "canker", "kindle", "smoulder"]
         .iter()
         .map(|id| {
             let i = index_of(id).unwrap_or_else(|| panic!("Zauber {id} unbekannt"));
@@ -133,7 +133,55 @@ fn die_drei_zauber_gehoeren_drei_verschiedenen_schulen() {
         .collect();
     assert_eq!(
         schulen,
-        vec![Some("FIXATION"), Some("PUTREFACTION"), Some("CALCINATION")]
+        vec![
+            Some("FIXATION"),
+            Some("PUTREFACTION"),
+            Some("CALCINATION"),
+            Some("CALCINATION"),
+        ]
+    );
+}
+
+#[test]
+fn ein_brand_tickt_unter_widerstand_zwischen_fremden_schulen() {
+    // **Die Stelle, die zuerst von nichts bewacht war.** Ein Effekt ueber Zeit
+    // tickt lange nach seiner Wirkung; wird dazwischen ein Zauber einer
+    // ANDEREN Schule gewirkt, truege der Tick ohne eigene Zuweisung den
+    // Widerstand des zuletzt gewirkten Zaubers.
+    //
+    // Gemessen: Ohne SMOULDER in dieser Aufzeichnung liess sich
+    // `self.factors.resistance = self.resistance_by_spell[index]` aus
+    // `dot_tick` entfernen, ohne dass ein einziger Fall der gesamten Suite rot
+    // wurde. Die drei anderen Zauber haben keinen Brand.
+    let json = data();
+    let i = index_of("smoulder").expect("smoulder fehlt");
+    let je_zauber = json["damageBySpell"]
+        .as_object()
+        .expect("damageBySpell fehlt");
+
+    let brand = je_zauber["smoulder"].as_u64().expect("Zahl");
+    assert!(
+        brand > 0,
+        "SMOULDER hat nicht getickt — dann prueft der Fall seinen Brand nicht"
+    );
+
+    // SMOULDER teilt KEINEN Sofortschaden aus; was hier steht, sind
+    // ausschliesslich Tick-Betraege. Ohne diese Zusicherung koennte der Fall
+    // einen Zauber messen, dessen Zahl von woanders kommt.
+    assert_eq!(
+        rota_sim::data::SPELLS[i].base_damage,
+        0,
+        "SMOULDER macht Sofortschaden — dann misst dieser Fall nicht nur Ticks"
+    );
+
+    // Und der Simulator muss auf dieselbe Zahl kommen. Das ist die eigentliche
+    // Bewachung: Traegt der Tick die falsche Schule, steht hier eine andere.
+    let result = replay(&json);
+    assert_eq!(
+        u64::from(result.damage_by_spell[i]),
+        brand,
+        "Spiel und Simulator rechnen den BRAND verschieden — der Tick traegt \
+         die Schule des zuletzt gewirkten Zaubers statt seine eigene"
     );
 }
 
