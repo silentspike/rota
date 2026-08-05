@@ -62,6 +62,44 @@ function schreibstellen(quelle: string): string[] {
   );
 }
 
+/**
+ * Der Rumpf von `setDamageFactor`, aus dem Quelltext geschnitten (Issue #196).
+ *
+ * WARUM NICHT `indexOf` UND WARUM KEINE ZEICHENZAHL
+ * -------------------------------------------------
+ * Hier stand `quelle.indexOf('setDamageFactor(')` — das **erste** Vorkommen.
+ * Das ist die Definition nur so lange, wie die Methode **niemand aufruft**.
+ * Der erste Aufrufer steht in #97 (`updateVulnerability`), und zwar 266 Zeilen
+ * vor der Definition; der Wächter meldete daraufhin null Schreibstellen und
+ * damit rot — an einer Datei, die weiterhin genau zwei hat.
+ *
+ * Ein Wächter, der beim ersten echten Nutzer umkippt, ist schlimmer als
+ * keiner: Er meldet einen Fehler, den es nicht gibt, und lehrt damit, ihm
+ * nicht zu glauben.
+ *
+ * Deshalb zwei Änderungen:
+ *
+ * **Der Anker liegt am Zeilenanfang.** Eine Definition beginnt eine Zeile,
+ * ein Aufruf steht hinter `this.` — das trennt beide, ohne die Datei zu
+ * kennen.
+ *
+ * **Das Ende ist die schließende Klammer, keine Zeichenzahl.** `slice(i, i +
+ * 600)` traf bisher zufällig; wächst der Rumpf um einen Kommentar, schneidet
+ * es mitten hinein, und der Fall wird still zu klein. Dieselbe Falle wie eine
+ * `sed`-Zeilenspanne über das Funktionsende hinaus.
+ */
+export function definitionsRumpf(quelle: string): string {
+  const anker = /^[ \t]*setDamageFactor\(/m.exec(quelle);
+  if (anker === null) {
+    throw new Error('setDamageFactor ist nicht mehr als Definition zu finden');
+  }
+  const rest = quelle.slice(anker.index);
+  // Die erste Zeile, die auf Methoden-Ebene schliesst — zwei Leerzeichen und
+  // eine Klammer, nichts sonst.
+  const ende = /\n {2}\}/.exec(rest);
+  return ende === null ? rest : rest.slice(0, ende.index);
+}
+
 describe('Die Schadensfaktoren haben genau einen Schreiber', () => {
   it('findet den Quelltext ueberhaupt', () => {
     // Ohne diese Zusicherung liefe die Pruefung auch dann durch, wenn das
@@ -78,12 +116,9 @@ describe('Die Schadensfaktoren haben genau einen Schreiber', () => {
     // Zwei: die Basis und die Krit-Fassung, beide in derselben Methode.
     expect(stellen, stellen.join('\n')).toHaveLength(2);
 
-    // Und sie stehen wirklich dort. Gemessen am Abstand zur Methode, nicht
-    // vermutet: Der Rumpf ist kurz, beide Zeilen liegen dicht dahinter.
-    const beginn = quelle.indexOf('setDamageFactor(');
-    expect(beginn).toBeGreaterThan(0);
-    const rumpf = quelle.slice(beginn, beginn + 600);
-    expect(schreibstellen(rumpf)).toHaveLength(2);
+    // Und sie stehen wirklich dort — im Rumpf der DEFINITION, nicht in den
+    // ersten 600 Zeichen ab dem ersten Vorkommen des Namens.
+    expect(schreibstellen(definitionsRumpf(quelle))).toHaveLength(2);
   });
 
   it('haelt die Anzahl fest, damit eine dritte Stelle auffaellt', () => {
@@ -94,5 +129,41 @@ describe('Die Schadensfaktoren haben genau einen Schreiber', () => {
       expect.stringContaining('this.factors[kind] = value;'),
       expect.stringContaining('this.factorsOnCrit[kind] = value;'),
     ]);
+  });
+});
+
+describe('Der Wächter übersteht seinen ersten Aufrufer (Issue #196)', () => {
+  /** Ein Aufruf VOR der Definition — so, wie #97 ihn anlegt. */
+  function mitAufrufDavor(quelle: string): string {
+    const stelle = quelle.indexOf('  get resourceOverflow(): number {');
+    expect(stelle, 'Ankerstelle für die Gegenprobe nicht gefunden').toBeGreaterThan(0);
+    return (
+      quelle.slice(0, stelle) +
+      "  probe(): void {\n    this.setDamageFactor('buffs', 1);\n  }\n\n" +
+      quelle.slice(stelle)
+    );
+  }
+
+  it('findet die Definition auch dann, wenn ein Aufruf davorsteht', () => {
+    // **Die Gegenprobe, ohne die nur belegt wäre, dass er heute grün ist.**
+    // Gemessen an derselben Funktion, die der echte Fall benutzt — eine
+    // nachgebaute Suche bliebe grün, während die echte kippt.
+    const verändert = mitAufrufDavor(combatQuelle());
+    expect(schreibstellen(definitionsRumpf(verändert))).toHaveLength(2);
+  });
+
+  it('und die alte Suche wäre daran zerbrochen — der Beleg für den Umbau', () => {
+    // Ohne diesen Fall stünde die Begründung des Umbaus nur im Kommentar.
+    const verändert = mitAufrufDavor(combatQuelle());
+    const alterAnfang = verändert.indexOf('setDamageFactor(');
+    const altesFenster = verändert.slice(alterAnfang, alterAnfang + 600);
+    expect(schreibstellen(altesFenster)).toHaveLength(0);
+  });
+
+  it('meldet ehrlich, wenn die Definition wirklich verschwindet', () => {
+    // Der Fall, in dem der Wächter anschlagen MUSS: Wer die Methode entfernt,
+    // bekommt einen Fehler und keine leere Liste.
+    const ohne = combatQuelle().replace(/^[ \t]*setDamageFactor\(/m, '  entfernt(');
+    expect(() => definitionsRumpf(ohne)).toThrow('nicht mehr als Definition');
   });
 });
