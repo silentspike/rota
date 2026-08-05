@@ -21,7 +21,7 @@ import { combatChecksum } from '../core/checksum.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../core/data.js';
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
-import { STEP1_BINDINGS, type Binding } from '../core/loadout.js';
+import { STEP1_BINDINGS } from '../core/loadout.js';
 import { PressQueue } from '../input/queue.js';
 import { Session } from '../core/session.js';
 import { PHASE_FIGHTING } from '../core/phases.js';
@@ -73,8 +73,8 @@ export interface ReplayResult {
 }
 
 /** Belegung → Zauber-Kennung, wie in `loadout.ts` festgelegt. */
-function spellForSlot(combat: Combat, slot: number, bindings = STEP1_BINDINGS): number {
-  for (const binding of bindings) {
+function spellForSlot(combat: Combat, slot: number): number {
+  for (const binding of STEP1_BINDINGS) {
     if (binding.slot === slot) return combat.indexOf(binding.spellId);
   }
   return -1;
@@ -110,19 +110,6 @@ export function replayRecording(
      * nur für den Fall belegen, in dem die neuen Werte gar nichts tun.
      */
     readonly worn?: WornValues;
-    /**
-     * Welche Taste welchen Zauber auslöst.
-     *
-     * Fehlt sie, ist es die Zauberleiste aus Schritt 1 — jeder bestehende
-     * Aufruf bleibt damit unverändert.
-     *
-     * Wählbar seit Issue #240: Der Prüffall zu den letzten drei Bausteinen
-     * braucht CRUST auf einer Taste, und die Leiste aus Schritt 1 kennt ihn
-     * nicht. Sie deswegen zu erweitern wäre eine Design-Entscheidung — die
-     * Belegung eines Prüfstands ist keine. Sie wandert in der Vergleichsdatei
-     * mit, der Simulator liest sie von dort.
-     */
-    readonly bindings?: readonly Binding[];
   } = {},
 ): ReplayResult {
   const combat = new Combat({
@@ -157,7 +144,7 @@ export function replayRecording(
       const press = recording.presses[pressIndex];
       if (press === undefined || press.tick > tick) break;
       pressIndex++;
-      const spellIndex = spellForSlot(combat, press.slot, options.bindings ?? STEP1_BINDINGS);
+      const spellIndex = spellForSlot(combat, press.slot);
       if (spellIndex < 0) {
         rejected++;
         continue;
@@ -334,31 +321,22 @@ function recordResetRotation(name: string, ticks: number): Recording {
 }
 
 /**
- * Die drei letzten Bausteine in EINEM Lauf (Issue #240, AC6).
+ * Die beiden letzten Bausteine in EINEM Lauf (Issue #240, AC6).
  *
- * **Mit eigener Belegung, nicht mit `STEP1_BINDINGS`.** Die Zauberleiste aus
- * Schritt 1 kennt CRUST nicht, und ohne ihn liesse sich die Reaktion nie
- * heben — die Paritaet pruefte dann nur die passiven Haelften der Bausteine
- * (Sinken, Verkuerzen, Schaden) und keine der beiden Handlungen, mit denen der
- * Spieler ihnen begegnet. Die Belegung wandert in der Aufzeichnung mit, wie
- * beim Auswahlmodus (#223); die Zauberleiste des Spiels bleibt unberuehrt —
- * was dort steht, ist eine Design-Entscheidung und keine Sache eines
- * Prueffalls.
+ * **Mit der Zauberleiste aus Schritt 1**, ohne eigene Belegung. Sie war einen
+ * Entwurf lang noetig, weil CRUST dort keinen Platz hat und die Reaktion sonst
+ * nie gehoben worden waere; mit dem Herausschneiden von Baustein 6 ist der
+ * Grund entfallen — und ein Sonderweg ohne Grund ist einer zu viel. QUENCH
+ * steht auf Platz 3 und entfernt die Schwaechung.
  *
- * Die Abfolge ist bewusst schlicht und deckt beide Handlungen ab:
- * QUENCH, sobald die Schwaechung liegt; CRUST, sobald die Reaktion unter die
- * Haelfte faellt; sonst SMOULDER und KINDLE als Fueller.
+ * Die Abfolge ist bewusst schlicht: QUENCH, sobald die Schwaechung liegt,
+ * sonst SMOULDER und KINDLE als Fueller. Damit steht neben den passiven
+ * Haelften (Verkuerzen, Schaden) auch die Handlung im Lauf, mit der der
+ * Spieler dem Baustein begegnet.
  */
 function recordTrialRotation(name: string, ticks: number, boss: BossDef): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss });
-  const belegung = [
-    { slot: 0, id: 'kindle' },
-    { slot: 1, id: 'smoulder' },
-    { slot: 2, id: 'crust' },
-    { slot: 3, id: 'quench' },
-  ];
-  const index = new Map(belegung.map(({ slot, id }) => [slot, combat.indexOf(id)]));
-  const knapp = (boss.stabilise?.startValue ?? 0) / 4;
+  const index = new Map(STEP1_BINDINGS.map(({ slot, spellId }) => [slot, combat.indexOf(spellId)]));
 
   const presses: RecordedPress[] = [];
   // **Kein `beginFight`** — die Wiedergabe (`replayRecording`) ruft es
@@ -371,13 +349,12 @@ function recordTrialRotation(name: string, ticks: number, boss: BossDef): Record
     if (!combat.gcd.isReady(timeMs)) continue;
 
     let slot = -1;
-    for (const kandidat of [3, 2, 1, 0]) {
+    for (const kandidat of [3, 1, 0]) {
       const i = index.get(kandidat) ?? -1;
       if (i < 0 || !combat.isReady(i, timeMs)) continue;
-      // Platz 3 nur, wenn es etwas zu entfernen gibt; Platz 2 nur, wenn die
-      // Reaktion es braucht. Sonst waeren beide GCDs verschenkt (#224).
+      // Platz 3 nur, wenn es etwas zu entfernen gibt — sonst waere der GCD
+      // verschenkt (#224).
       if (kandidat === 3 && !combat.afflicted) continue;
-      if (kandidat === 2 && combat.reaction > knapp) continue;
       if (kandidat === 1 && combat.dotRemainingMs(i, timeMs) >= GCD_MS) continue;
       slot = kandidat;
       break;
@@ -432,21 +409,17 @@ export function recordings(): Map<string, Recording> {
     if (racer !== undefined) {
       builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));
     }
-    // Der Prueffall zu den letzten drei Bausteinen (Issue #240, AC6). 90 s in
-    // Takten, und die Laenge ist gerechnet, nicht geschaetzt: Die Schwaechung
-    // greift bei 8 s, die Zeitleiste wiederholt sich alle 12 s (nach 90 s sind
-    // sieben Zyklen durch, und die Wirkzeit steht laengst auf ihrer
-    // Untergrenze), und die Reaktion faellt zweimal so weit, dass der Spieler
-    // sie heben muss. Alle DREI Bausteine kommen damit in EINEM Lauf vor —
+    // Der Prueffall zu den letzten beiden Bausteinen (Issue #240, AC6). 90 s
+    // in Takten, und die Laenge ist gerechnet, nicht geschaetzt: Die
+    // Schwaechung greift bei 8 s, die Zeitleiste wiederholt sich alle 12 s
+    // (nach 90 s sind sieben Zyklen durch, und die Wirkzeit steht laengst auf
+    // ihrer Untergrenze). BEIDE Bausteine kommen damit in EINEM Lauf vor —
     // getrennt geprueft zeigte sich nicht, dass sie einander nicht ins Gehege
     // kommen.
     //
-    // **Was hier NICHT vorkommt, und warum das keine Luecke ist:** das Kippen.
-    // CRUST hat 6 s Abklingzeit — wer stabilisiert, haelt die Reaktion, und
-    // ein Lauf, der beides zeigte, muesste den Spieler mittendrin unmotiviert
-    // aufhoeren lassen. Der Kippfall steht deshalb als eigener Prueffall auf
-    // beiden Seiten, mit derselben gerechneten Zahl (51000 ms):
-    // `boss-trial-blocks.test.ts` AC1 und `sim/tests/parity_trial_blocks.rs`.
+    // Baustein 6 stand hier bis zum 2026-08-05 mit dabei und ist herausgenommen:
+    // Der Boss-Ring IST die Reaktion (GAME-DESIGN 9.1), ein zweiter Wert daneben
+    // waere eine Dublette gewesen. Er bekommt ein eigenes Issue.
     const trial = bossById('test-crucible-trial');
     if (trial !== undefined) {
       builtIn.set('trial-blocks', recordTrialRotation('trial-blocks', 9000, trial));

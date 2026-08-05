@@ -583,7 +583,6 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     emit_stacks(out, boss, whose);
     emit_race(out, boss, whose);
     emit_boss_heal(out, boss, whose);
-    emit_stabilise(out, boss, whose);
     emit_escalation(out, boss, whose);
     emit_affliction(out, boss, whose);
     emit_timeline(out, boss, whose);
@@ -922,57 +921,6 @@ fn emit_boss_heal(out: &mut String, boss: &Value, whose: &str) {
     );
     let _ = writeln!(out, "        boss_heal: Some(BossHeal {{");
     let _ = writeln!(out, "            amount: {amount},");
-    let _ = writeln!(out, "        }}),");
-}
-
-/// Die kippende Reaktion (Baustein 6; Issue #240).
-///
-/// Dieselben Bedingungen wie im Leser des Spiels (`src/core/data.ts`). Sie
-/// stehen zweimal, weil beide Seiten dieselbe Datei lesen und keine die andere
-/// einbinden kann — und ein Datensatz, den nur eine Seite beanstandet, waere
-/// schlimmer als einer, den keine beanstandet.
-fn emit_stabilise(out: &mut String, boss: &Value, whose: &str) {
-    let stab = boss.get("stabilise");
-    if stab.is_none() || stab == Some(&Value::Null) {
-        let _ = writeln!(out, "        stabilise: None,");
-        return;
-    }
-    let stab = stab.expect("auf None geprueft");
-    let whose = format!("{whose}/stabilise");
-
-    let start_value = uint(stab, "startValue", &whose);
-    let drop_per_step_ms = uint(stab, "dropPerStepMs", &whose);
-    assert!(
-        drop_per_step_ms > 0 && drop_per_step_ms.is_multiple_of(RASTER_MS),
-        "{whose}: dropPerStepMs {drop_per_step_ms} muss groesser als null und auf dem \
-         {RASTER_MS}-ms-Raster sein — sonst kippte die Reaktion auf beiden Seiten zu \
-         verschiedenen Zeitpunkten"
-    );
-    let drop_amount = uint(stab, "dropAmount", &whose);
-    assert!(
-        drop_amount > 0,
-        "{whose}: dropAmount muss groesser als null sein, sonst sinkt die Reaktion nie"
-    );
-    let fail_below = uint(stab, "failBelow", &whose);
-    // Startet sie schon unter der Schwelle, ist der Lauf im ersten Takt vorbei —
-    // und die Mechanik gaebe es nur auf dem Papier.
-    assert!(
-        start_value > fail_below,
-        "{whose}: startValue {start_value} liegt nicht ueber failBelow {fail_below} — \
-         der Lauf endete sofort"
-    );
-    let max_value = uint(stab, "maxValue", &whose);
-    assert!(
-        max_value >= start_value,
-        "{whose}: maxValue {max_value} liegt unter dem Startwert {start_value}"
-    );
-
-    let _ = writeln!(out, "        stabilise: Some(Stabilise {{");
-    let _ = writeln!(out, "            start_value: {start_value},");
-    let _ = writeln!(out, "            drop_per_step_ms: {drop_per_step_ms},");
-    let _ = writeln!(out, "            drop_amount: {drop_amount},");
-    let _ = writeln!(out, "            fail_below: {fail_below},");
-    let _ = writeln!(out, "            max_value: {max_value},");
     let _ = writeln!(out, "        }}),");
 }
 

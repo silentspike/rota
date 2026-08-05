@@ -1,14 +1,18 @@
 /**
- * Die letzten drei Bausteine (GAME-DESIGN 11.2, 6 bis 8; Issue #240).
+ * Die letzten beiden Bausteine (GAME-DESIGN 11.2, 7 und 8; Issue #240).
  *
- * WARUM BAUSTEIN 6 DER WICHTIGSTE IST, aus einem Grund, der nichts mit ihm zu
- * tun hat: 11.2 nennt ihn „der Kampf, in dem COAGULATION glänzt". Ihre drei
- * Wege sind seit #79 gebaut, und **kein Boss verlangte sie** — wer sie
- * mitnimmt, verliert Schaden und gewinnt nichts. Der Befund aus #224 sagt,
- * warum das mehr ist als Geschmackssache: Jeder Zauber ohne direkten Schaden
- * kostet einen GCD und muss ihn zurückverdienen.
+ * BAUSTEIN 6 STAND HIER MIT DABEI und ist am 2026-08-05 herausgeschnitten
+ * worden — nicht, weil er falsch gebaut war, sondern weil er den falschen Wert
+ * traf: Der Boss-Ring des Spiels IST die Reaktion (GAME-DESIGN 9.1, „es ist das
+ * Reaktionsgefäß"), und ein zweiter Wert daneben wäre eine Dublette gewesen.
  *
- * Hier gibt es zum ersten Mal etwas zurückzuverdienen.
+ * Aufgefallen ist es erst im Browser: Das HUD beschriftete den Ring mit
+ * REACTION, während mein Prüf-Boss eine zweite Größe desselben Namens trug.
+ * Kein Prüffall hätte das gemeldet — beide Zahlen waren für sich richtig.
+ *
+ * Baustein 6 bekommt ein eigenes Issue, und die Mechanik bleibt dieselbe: ein
+ * Wert sinkt, Schutz und Heilung heben ihn, unter einer Schwelle endet der
+ * Lauf. Was sich ändert, ist WELCHER Wert es ist.
  */
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
@@ -41,66 +45,6 @@ function laufen(combat: Combat, bisMs: number, spellId?: string, abMs = 0): void
     }
   }
 }
-
-describe('AC1 — Baustein 6: die Reaktion kippt, wenn niemand sie hält', () => {
-  it('endet den Lauf an der ausgerechneten Stelle', () => {
-    const def = TRIAL.stabilise!;
-    // 1000 bei 20 je Sekunde: Der einundfünfzigste Schritt fällt unter null.
-    const erwartetMs = (def.startValue / def.dropAmount + 1) * def.dropPerStepMs;
-    expect(erwartetMs).toBe(51000);
-
-    const combat = neuerKampf();
-    laufen(combat, 60000);
-
-    expect(combat.reactionFailed).toBe(true);
-    expect(combat.reaction).toBe(def.failBelow);
-    expect(combat.diedAtMs).toBe(erwartetMs);
-  });
-
-  it('kippt an WARD und Schutzschicht vorbei — sonst wäre es keine Reaktion', () => {
-    // Der Spieler baut Schutz auf und stirbt trotzdem, wenn er zu selten
-    // stabilisiert. Ein Kippen, das eine Schutzschicht überlebt, wäre keins.
-    const combat = neuerKampf();
-    laufen(combat, 60000);
-    expect(combat.playerHp).toBe(0);
-  });
-});
-
-describe('AC2 — der Gegenfall: Stabilisieren greift wirklich ein', () => {
-  it('hält die Reaktion über den ganzen Lauf, wenn CRUST gewirkt wird', () => {
-    // **Zwei Läufe, gleicher Boss, gleiche Zeit.** Der Unterschied ist genau
-    // eine Sache: Im zweiten wirkt der Spieler CRUST.
-    const ohne = neuerKampf();
-    const mit = neuerKampf();
-    laufen(ohne, 60000);
-    laufen(mit, 60000, 'crust');
-
-    expect(ohne.reactionFailed, 'ohne Eingriff kippt sie').toBe(true);
-    expect(mit.reactionFailed, 'mit CRUST nicht').toBe(false);
-    expect(mit.reaction).toBeGreaterThan(TRIAL.stabilise!.failBelow);
-    // Und der Nachweis, dass es WIRKLICH das Stabilisieren war:
-    expect(mit.stabilisedCount).toBeGreaterThan(0);
-    expect(ohne.stabilisedCount).toBe(0);
-  });
-
-  it('hebt um den EIGENEN Betrag des Zaubers, nicht um eine erfundene Zahl', () => {
-    const combat = neuerKampf();
-    const crust = combat.indexOf('crust');
-    const schutz = combat.spells[crust]!.shield!.amount;
-    combat.beginFight(0);
-    combat.stepPassive(0);
-    const vorher = combat.reaction;
-    combat.cast(crust, 0);
-    expect(combat.reaction - vorher).toBe(schutz);
-  });
-
-  it('hebt nicht über die Obergrenze — kein Vorrat in ruhigen Minuten', () => {
-    const def = TRIAL.stabilise!;
-    const combat = neuerKampf();
-    laufen(combat, 30000, 'crust');
-    expect(combat.reaction).toBeLessThanOrEqual(def.maxValue);
-  });
-});
 
 describe('AC3 — Baustein 7: das Fenster wird mit jedem Zyklus enger', () => {
   it('verkürzt die Wirkzeit messbar, und die Verkürzung steht in den Daten', () => {
@@ -192,17 +136,6 @@ describe('AC4 — Baustein 8: Heilung entfernt sie nicht, eine Handlung schon', 
 });
 
 describe('AC5 — die Wächter: der KAMPF wirkt sie, nicht die Daten', () => {
-  it('Baustein 6: derselbe Lauf endet mit und ohne den Datensatz verschieden', () => {
-    const mit = neuerKampf();
-    const ohne = neuerKampf(FIRST_CRUCIBLE.value);
-    laufen(mit, 60000);
-    laufen(ohne, 60000);
-
-    expect(mit.reactionFailed).toBe(true);
-    expect(ohne.reactionFailed).toBe(false);
-    expect(ohne.reaction).toBe(0);
-  });
-
   it('Baustein 7: ein Boss ohne Eskalation behält seine Wirkzeit', () => {
     const ohne = bossById('test-metronome');
     expect(ohne?.escalation ?? null).toBeNull();
@@ -224,7 +157,6 @@ describe('AC5 — die Wächter: der KAMPF wirkt sie, nicht die Daten', () => {
 describe('AC7 — ein Boss ohne die Felder bleibt unberührt', () => {
   it('trägt keinen der drei und verhält sich wie zuvor', () => {
     const ohne = FIRST_CRUCIBLE.value;
-    expect(ohne.stabilise).toBeNull();
     expect(ohne.escalation).toBeNull();
     expect(ohne.affliction).toBeNull();
 

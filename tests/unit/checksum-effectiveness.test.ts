@@ -209,12 +209,17 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
   });
 
   it('verliert kein Feld, ohne dass es jemand merkt', () => {
-    // **Die Untergrenze.** Gemessen am 2026-08-05: 36 Größen — 31 vor #240 und
-    // die fünf der letzten drei Bausteine. Sie darf steigen, jedes neue Feld
+    // **Die Untergrenze.** Gemessen am 2026-08-05: 34 Größen — 31 vor #240 und
+    // die drei der letzten beiden Bausteine. Sie darf steigen, jedes neue Feld
     // ist eine gute Nachricht. Fällt sie, hat jemand eine Zeile aus
     // `checksum.ts` verloren, und die aus dem Quelltext gelesene Liste hätte
     // das allein nicht gemeldet: Das Feld wäre einfach nicht mehr dabei.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(36);
+    //
+    // Kurz standen 36 hier: Baustein 6 hing mit `reaction` und
+    // `stabilisedCount` daran und ist herausgeschnitten worden. Eine gesenkte
+    // Untergrenze ist genau der Fall, für den diese Zeile eine ausdrückliche
+    // Entscheidung verlangt — hier ist sie.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(34);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {
@@ -226,11 +231,10 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     expect(combat.dotTickCount(combat.indexOf('smoulder'))).toBeGreaterThan(0);
     expect(combat.shield).toBeGreaterThan(0);
     expect(combat.resource).toBeGreaterThan(0);
-    // Und die drei Bausteine aus #240, jeder mit einem Wert, der sich von
+    // Und die beiden Bausteine aus #240, jeder mit einem Wert, der sich von
     // seinem Ruhestand unterscheidet:
     expect(combat.casting, 'ein Boss-Zauber laeuft').toBeGreaterThanOrEqual(0);
     expect(combat.castLandsAtMs).toBeGreaterThan(0);
-    expect(combat.stabilisedCount).toBeGreaterThan(0);
     expect(combat.afflicted).toBe(true);
   });
 

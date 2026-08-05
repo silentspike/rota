@@ -413,29 +413,6 @@ pub struct BossHeal {
     pub amount: u32,
 }
 
-/// Das umgekehrte Ziel (GAME-DESIGN 11.2, Baustein 6; #240).
-///
-/// > **Statt** Schaden zu machen muss eine kippende Reaktion stabilisiert
-/// > werden. Der Kampf, in dem COAGULATION glaenzt.
-///
-/// Das "statt" ist die ganze Mechanik: Die Reaktion sinkt von allein, und nur
-/// eine Handlung, die KEINEN Schaden macht, hebt sie wieder. Wer hier den
-/// Umwandlungs-Weg einhaengt, hebt die Bedingung auf, statt sie zu erfuellen —
-/// die Begruendung steht ausfuehrlich an `StabiliseDef` in `src/core/data.ts`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Stabilise {
-    /// Womit die Reaktion beginnt.
-    pub start_value: u32,
-    /// Takt, in dem sie sinkt.
-    pub drop_per_step_ms: Millis,
-    /// Wie viel sie je Takt verliert.
-    pub drop_amount: u32,
-    /// Darunter kippt sie — der Lauf endet.
-    pub fail_below: u32,
-    /// Obergrenze; darueber hinaus wird nicht stabilisiert.
-    pub max_value: u32,
-}
-
 /// Die eskalierende Wiederholung (GAME-DESIGN 11.2, Baustein 7; #240).
 ///
 /// > Dieselbe Phase kehrt mehrfach wieder — **kuerzere Fenster**, mehr
@@ -499,8 +476,6 @@ pub struct Boss {
     pub race: Option<Race>,
     /// Was ein Fehler an Fortschritt zurueckdreht, falls ueberhaupt (#218).
     pub boss_heal: Option<BossHeal>,
-    /// Die kippende Reaktion, falls dieser Boss eine hat (#240).
-    pub stabilise: Option<Stabilise>,
     /// Die eskalierende Wiederholung, falls dieser Boss eine hat (#240).
     pub escalation: Option<Escalation>,
     /// Die Schwaechung ohne Heil-Loesung, falls dieser Boss eine hat (#240).

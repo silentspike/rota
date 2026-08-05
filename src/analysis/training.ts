@@ -82,11 +82,9 @@ export function buildDummy(settings: DummySettings, school: string): BossDef {
     // nicht fallen soll, waere das ohne Bedeutung.
     race: null,
     bossHeal: null,
-    // Und keiner der drei letzten (Issue #240): Die kippende Reaktion
-    // beendete den Uebungsdurchgang, die Eskalation setzt eine Wiederholung
-    // mit Anspruch voraus, und eine Schwaechung ohne Heil-Loesung waere an
-    // einem Sandsack nur laestig.
-    stabilise: null,
+    // Und keiner der beiden letzten (Issue #240): Die Eskalation setzt eine
+    // Wiederholung mit Anspruch voraus, und eine Schwaechung ohne
+    // Heil-Loesung waere an einem Sandsack nur laestig.
     escalation: null,
     affliction: null,
     timeline: buildDummyTimeline(settings),
