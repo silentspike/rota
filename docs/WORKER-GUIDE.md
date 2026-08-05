@@ -2424,3 +2424,120 @@ hätte es gefunden. Der Name war das Hindernis, nicht die Suche.
 > hätte belegt, dass sie malbar ist, nicht dass sie erscheint. Das vorhandene Werkzeug war nicht
 > nur älter, es beantwortete die richtige Frage. **Wer sucht, findet manchmal nicht nur das Ding,
 > sondern auch, dass er die falsche Frage stellen wollte.**
+
+### 8.24 Die Richtung einer Behauptung entscheidet, ob ein Tippfehler auffällt
+
+_Gefunden von Worker-1 beim Bau von #391, am 2026-08-05._
+
+```ts
+expect(a.checksum).not.toBe(b.checksum); // das Feld heißt finalChecksum
+```
+
+Beide Seiten waren `undefined`. Mit `not.toBe` wurde der Fall **rot** — und der Tippfehler fiel
+auf. Mit `toBe` wäre er grün geworden und hätte **zwei Nichtse verglichen**.
+
+| Behauptung                  | bei falschem Feldnamen |
+| --------------------------- | ---------------------- |
+| `expect(a.x).toBe(b.x)`     | **immer grün**         |
+| `expect(a.x).not.toBe(b.x)` | **immer rot**          |
+
+**Die Falle entsteht nur, wenn BEIDE Seiten fehlschlagen können.** Bei `expect(x.feld).toBe(5)`
+fällt ein Tippfehler sofort auf — dort steht auf einer Seite ein Wert, der nicht mitverunglückt.
+Gefährlich wird es beim Vergleich **zweier Ausdrücke**, in denen dasselbe Missgeschick passieren
+kann. Das ist bei Vergleichen zweier Läufe der Normalfall — und genau dort stehen die
+Determinismus-Prüffälle dieses Projekts.
+
+Das ist die präziseste Ursache für „eine Prüfung, die nichts prüft", die dieses Projekt bisher
+gefunden hat. Sie liegt nicht am Prüffall und nicht an einem Muster, sondern an der **Richtung**:
+Eine Gleichheits-Behauptung ist mit `undefined === undefined` bereits erfüllt.
+
+**Daraus folgt nicht „nimm `not.toBe`".** Es folgt: Wo eine
+Gleichheits-Behauptung steht, muss eine Zusicherung daneben, dass die Werte überhaupt existieren.
+
+```ts
+expect(a.finalChecksum).toBeDefined(); // erst das
+expect(a.finalChecksum).toBe(erwartet); // dann das
+```
+
+> Dieselbe Familie wie die Zusicherung gegen leere Mengen (`expect(liste.length).toBeGreaterThan(0)`
+> vor jeder Schleifenprüfung) und wie `all()` über eine leere Liste. **Der Vergleich zweier Nichtse
+> ist immer wahr** — hier ist die Variante, bei der schon ein Buchstabe genügt.
+
+### 8.25 Im Worktree geht beides: `npm run build -- --base=/rota-eN/`
+
+_Gefunden von Worker-1 am 2026-08-05, nachdem die falsche Annahme darüber einen PR rot gemacht hatte._
+
+Der Doppelstrich reicht den Schalter an `vite` durch **und behält den `tsc`-Schritt**, der im
+Skript davorsteht.
+
+```bash
+npm run build -- --base=/rota-e1/     # Typen UND richtiger Pfad
+vite build --base=/rota-e1/           # richtiger Pfad, KEINE Typprüfung
+npm run build                         # Typen, aber Pfad zeigt auf /rota/
+```
+
+**Es sah nach einem Entweder-Oder aus**, und deshalb griff der Finder zum Werkzeug statt zum
+Skript — `tsc` lief nie, und der PR fiel in der CI.
+
+> Der Rat „fahr `npm run build`" allein hätte ihn **nicht** gerettet: Dann wäre er ohne `--base`
+> gebaut und in die andere Falle gelaufen, die in `CLAUDE.md` steht — richtige Seite, falsches
+> Programm. **Erst beide Hälften zusammen ergeben einen Befehl, den man befolgen kann.**
+
+### 8.26 Verschweigen ist teurer als Verwerfen
+
+_Gefunden von Worker-1 an sich selbst, am 2026-08-05._
+
+`DevTools.replay` reichte **alle** Optionen an `replayRecording` durch. Der Typ nannte nur eine:
+
+```ts
+replay(name: string, options?: { checksumPerTick?: boolean })
+```
+
+`boss`, `worn`, `level` und `bindings` kamen zur Laufzeit an und **wirkten** — in der
+Browser-Konsole, wo es keinen Übersetzer gibt, hat `level` die ganze Zeit funktioniert.
+
+Der Finder hatte für #371 einen Stufenaufstieg zu zeigen. Er suchte, fand `setLevel` und baute
+damit — **weil die Signatur ihm sagte, es gäbe nichts anderes.**
+
+> Das Werkzeug hat ihn nicht im Stich gelassen. **Seine Beschreibung hat gelogen.**
+
+|                                        | fällt auf, wenn …                                                |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| ein Wert wird **verworfen**            | irgendwann eine Zahl nicht stimmt                                |
+| eine Möglichkeit wird **verschwiegen** | **nie** — man nimmt den Umweg und merkt nicht, dass es einen gab |
+
+Deshalb reicht es nicht, dass ein Werkzeug ablehnt, was es nicht kann. **Es muss auch anbieten,
+was es kann.** Eine Signatur, die weniger nennt als die Verdrahtung hergibt, ist kein Schutz,
+sondern eine falsche Auskunft — und die vierte Art, etwas nicht zu finden, das schon da ist
+(§ 8.23): **richtig gesucht, das Richtige gefunden, und es kann mehr, als es verspricht.**
+
+### 8.27 Ein Suchmuster misst, was es kennt
+
+_Von Worker-2 (#369, #372, #392) am 2026-08-05, in drei Stufen gelernt._
+
+**Erste Stufe: Das Muster findet zu viel.** Eine Suche nach handgeschriebenen
+Zauber-Indizes meldete 24 Stellen — achtzehn davon waren `gcd.isReady(2490)`, also
+Zeiten. Ein Muster mit drei Vierteln Fehlalarm verfehlt beides: Man baut Richtiges um
+und übersieht Echtes im Rauschen.
+
+**Zweite Stufe: Das Muster zählt etwas anderes, als man meint.** Eine spätere,
+eigene Suche fand 13 Stellen — aber nur 7 Ursachen: Ein ternärer Ausdruck erzeugte
+je zwei Nutzungen. Wer Vorkommen zählt und Ursachen meint, hält die Arbeit für
+doppelt so groß, wie sie ist.
+
+> Die 13 hier ist **nicht** der Rest der 24 von oben. Es sind zwei Messungen an
+> verschiedenen Tagen — und dass sich das im Beleg für genau diesen Fehler
+> beinahe vermischt hätte, ist der Fehler selbst.
+
+**Dritte Stufe: Auch die richtige Zahl kann die falsche Frage sein.** Nach einem
+Umbau stieg die Zahl der Markierungen von 57 auf 62 — und war Fortschritt: Elf waren
+von Nutzungsstellen an die Quellen gewandert, wo sie eine Bedeutung tragen.
+
+> **Das Maß gehört vor die Messung, nicht dahinter.** Wer es hinterher benennt, muss
+> jeden ungünstigen Verlauf erklären, statt ihn zu zeigen.
+
+**Und wo ein Muster grundsätzlich nicht reicht, antwortet der Übersetzer.** 23 der
+Fehler kamen aus einer einzigen Interface-Zeile — weder Aufruf noch Konstante, sondern
+ein Feld in einer Struktur. Danach sucht kein Muster. Auch die Frage „ist diese
+Markierung noch nötig" beantwortet er besser: jede einzeln entfernen und `tsc` fragen.
+Der Unterschied steht nicht im Text, sondern im Typsystem.

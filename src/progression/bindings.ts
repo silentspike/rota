@@ -30,6 +30,7 @@
  * gelernt" und „noch kein Platz dafür" sind zwei Sachen.
  */
 import type { SpellDef } from '../core/data.js';
+import { alsSpellIndex } from '../core/combat.js';
 import { isSpellUnlocked, barSlotsAtLevel } from './unlocks.js';
 
 /** Die Belegung: Platz als Text auf Zauber-Kennung. */
@@ -218,7 +219,7 @@ export function applyBindings(
 ): void {
   for (let slot = 0; slot < slotCount; slot++) {
     const spellId = spellAtSlot(bindings, slot);
-    bind(slot, spellId === null ? -1 : indexOf(spellId));
+    bind(slot, spellId === null ? alsSpellIndex(-1) : indexOf(spellId));
   }
 }
 
