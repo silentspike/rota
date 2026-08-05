@@ -574,10 +574,10 @@ echo $?        # 0 = sauber, 1 = Konflikt (Namen stehen dann im Kopf der Ausgabe
 Beim Bauen des AC6-Prüfbefehls für #268 ist mir dasselbe **zweimal in zehn Minuten**
 passiert:
 
-| | Was ich meldete | Was tatsächlich lief |
-| --- | --- | --- |
-| erster Versuch | „15 Dateien: nur Prüfsummen" | `jq` stürzte ab (`Cannot iterate over null`), **beide** Seiten lieferten leere Ausgabe — und leer verglich sich gleich |
-| zweiter Versuch | „OK — kein bestehender Wert bewegt sich" | `jq` warf bei **jeder** Datei `Path must be specified as an array` |
+|                 | Was ich meldete                          | Was tatsächlich lief                                                                                                   |
+| --------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| erster Versuch  | „15 Dateien: nur Prüfsummen"             | `jq` stürzte ab (`Cannot iterate over null`), **beide** Seiten lieferten leere Ausgabe — und leer verglich sich gleich |
+| zweiter Versuch | „OK — kein bestehender Wert bewegt sich" | `jq` warf bei **jeder** Datei `Path must be specified as an array`                                                     |
 
 Ursache beim ersten Mal: Es liegen **zwei Aufzeichnungs-Formate** nebeneinander —
 `fixation.json` hat `runs[]`, `cast-time.json` ist flach. Ein Filter, der `.runs`
