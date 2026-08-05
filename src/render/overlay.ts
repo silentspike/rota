@@ -124,12 +124,17 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
   return node;
 }
 
-function row(label: string): { root: HTMLElement; value: HTMLElement } {
+function row(label: string): { root: HTMLElement; label: HTMLElement; value: HTMLElement } {
   const root = element('div', 'rota-row');
-  root.appendChild(element('span', 'rota-row-label', label));
+  // Die Beschriftung wird mitgegeben, weil sie bei einem Boss mit umgekehrtem
+  // Ziel eine andere Größe benennt (Issue #256). Zwei Zeilenpaare
+  // nebeneinander wären der „zweite Satz Anzeigen", den die Auflage verbietet
+  // — dieselbe Zeile mit der richtigen Beschriftung ist die Antwort.
+  const beschriftung = element('span', 'rota-row-label', label);
+  root.appendChild(beschriftung);
   const value = element('span', 'rota-row-value', '—');
   root.appendChild(value);
-  return { root, value };
+  return { root, label: beschriftung, value };
 }
 
 export class Overlay {
@@ -142,6 +147,8 @@ export class Overlay {
   private readonly markSentence: HTMLElement;
   private readonly markAttempts: HTMLElement;
   private readonly resultRows: Record<string, HTMLElement> = {};
+  /** Die Beschriftungen — sie wechseln bei einem umgekehrten Ziel (#256). */
+  private readonly resultLabels: Record<string, HTMLElement> = {};
   private readonly detail: HTMLElement;
   /** Die Werte-Karte des Vorbereitungs-Bildschirms (Issue E6-1, AC4). */
   private readonly gearCard: HTMLElement;
@@ -231,6 +238,7 @@ export class Overlay {
       const made = row(label);
       this.result.appendChild(made.root);
       this.resultRows[key] = made.value;
+      this.resultLabels[key] = made.label;
     }
 
     // Die Fortschrittsmarke steht VOR den Kennzahlen, direkt unter der
@@ -255,6 +263,7 @@ export class Overlay {
       const made = row(label);
       this.result.appendChild(made.root);
       this.resultRows[key] = made.value;
+      this.resultLabels[key] = made.label;
     }
 
     // "View Analysis" klappt den Leerlauf je Zauber auf. Die ausführliche
@@ -360,17 +369,49 @@ export class Overlay {
 
     const summary = view.summary;
     if (summary === null) return;
-    const worst = summary.idlePerSpell[0];
-    set(
-      'idleWorst',
-      worst === undefined
-        ? '—'
-        : `${worst.spellId} · ${(worst.idleMs / 1000).toFixed(1)} s (${(worst.share * 100).toFixed(0)} %)`,
-    );
-    set(
-      'lostTime',
-      `${(summary.lostTimeMs / 1000).toFixed(1)} s (${(summary.lostTimeShare * 100).toFixed(0)} %)`,
-    );
+
+    const beschriften = (key: string, text: string): void => {
+      const node = this.resultLabels[key];
+      if (node !== undefined) node.textContent = text;
+    };
+
+    if (summary.reversed) {
+      // **BEI EINEM UMGEKEHRTEN ZIEL SAGEN DIESE ZWEI ZEILEN DAS GEGENTEIL.**
+      // Gemessen an einem Lauf ohne einen einzigen Tastendruck:
+      //
+      //   Idle · worst spell   kindle · 17.0 s (100 %)
+      //   Time lost            17.0 s (100 %)
+      //
+      // Beides ist korrekt GEMESSEN und trotzdem verkehrt: Nichtstun war dort
+      // das Bestmögliche, und KINDLE ist der Zauber, der den Lauf 9,5 s früher
+      // kippt. Die Auswertung riet dem Spieler zu dem, was ihn umbringt.
+      //
+      // Dieselben zwei Zeilen tragen deshalb die Größen, die dort zählen —
+      // kein zweiter Satz Anzeigen.
+      beschriften('idleWorst', 'Ring damage by you');
+      set(
+        'idleWorst',
+        summary.playerDamage <= 0
+          ? 'none — you held it'
+          : `${summary.playerDamage.toLocaleString('en-US')} of ${summary.bossHp.toLocaleString('en-US')}`,
+      );
+      beschriften('lostTime', 'Time held');
+      set('lostTime', `${(summary.elapsedMs / 1000).toFixed(1)} s`);
+    } else {
+      beschriften('idleWorst', 'Idle · worst spell');
+      const worst = summary.idlePerSpell[0];
+      set(
+        'idleWorst',
+        worst === undefined
+          ? '—'
+          : `${worst.spellId} · ${(worst.idleMs / 1000).toFixed(1)} s (${(worst.share * 100).toFixed(0)} %)`,
+      );
+      beschriften('lostTime', 'Time lost');
+      set(
+        'lostTime',
+        `${(summary.lostTimeMs / 1000).toFixed(1)} s (${(summary.lostTimeShare * 100).toFixed(0)} %)`,
+      );
+    }
     set(
       'synergy',
       summary.synergyAvailable === 0

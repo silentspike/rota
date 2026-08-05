@@ -26,6 +26,7 @@ import {
   interruptSource,
   missedCastSource,
   rankLosses,
+  selfInflictedSource,
   synergySource,
   type DotTickLoss,
   type LossReport,
@@ -109,17 +110,39 @@ export function analyzeRun(input: RunAnalysisInput): RunAnalysis {
       damagePerTick: spell.damagePerTick,
     }));
 
-  const losses = rankLosses(
-    summary.damage,
-    [
-      missedCastSource(missedCastWindows, averageDamagePerCast),
-      idleSource(idleWindows, gcdMs, averageDamagePerCast),
-      synergySource(summary.synergyUsed, summary.synergyAvailable, input.synergyBonusDamage),
-      dotTickSource(dotLosses),
-      interruptSource(input.missedInterrupts, input.damagePerLandedBossCast),
-    ],
-    input.bossHealed,
-  );
+  // **DIE VIER SCHADENSQUELLEN GELTEN NUR BEI EINEM GEWOEHNLICHEN BOSS.**
+  // GAME-DESIGN 15.2 sagt es ausdruecklich: "Sie messen alle dasselbe:
+  // Schaden, den der Spieler NICHT AUSGETEILT hat." Bei einem Boss mit
+  // umgekehrtem Ziel ist ausgeteilter Schaden der Weg zur Niederlage — die
+  // vier messen dort das Gegenteil dessen, was zaehlt.
+  //
+  // Gemessen an einem Sieg gegen `test-runaway` stand in der Auswertung
+  // "Idle · worst spell kindle", und KINDLE setzt 600 Ring-Schaden. Die
+  // Analyse riet dem Spieler zu dem, was ihn umbringt.
+  //
+  // Die Unterbrechungen bleiben in BEIDEN Faellen: Sie messen EINGESTECKTEN
+  // Schaden, und der ist bei jedem Boss ein Fehler.
+  const losses = summary.reversed
+    ? rankLosses(
+        0,
+        [
+          selfInflictedSource(summary.playerDamage, summary.bossHp),
+          interruptSource(input.missedInterrupts, input.damagePerLandedBossCast),
+        ],
+        input.bossHealed,
+        summary.bossHp,
+      )
+    : rankLosses(
+        summary.damage,
+        [
+          missedCastSource(missedCastWindows, averageDamagePerCast),
+          idleSource(idleWindows, gcdMs, averageDamagePerCast),
+          synergySource(summary.synergyUsed, summary.synergyAvailable, input.synergyBonusDamage),
+          dotTickSource(dotLosses),
+          interruptSource(input.missedInterrupts, input.damagePerLandedBossCast),
+        ],
+        input.bossHealed,
+      );
 
   const table = buildEfficiencyTable({
     elapsedMs: summary.elapsedMs,

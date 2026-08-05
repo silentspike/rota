@@ -35,6 +35,9 @@ const LOSS_LABEL: Readonly<Record<LossKind, string>> = {
   missedSynergies: 'Missed synergies',
   lostDotTicks: 'Lost damage-over-time ticks',
   missedInterrupts: 'Missed interrupts',
+  // Nur bei einem Boss mit umgekehrtem Ziel. Dort ist der eigene Schaden der
+  // Fehler, nicht der Fortschritt (Issue #256).
+  selfInflicted: 'Damage you dealt to the ring',
 };
 
 function element(tag: string, className?: string, text?: string): HTMLElement {
