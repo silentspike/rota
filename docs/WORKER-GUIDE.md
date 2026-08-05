@@ -448,6 +448,47 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Ein Wächter, dessen Referenz im selben PR mitwächst, kann nicht anschlagen
+
+_Gefunden am 2026-08-05, nachdem derselbe Fall dreimal verschieden erklärt worden war._
+
+`sim/tests/parity_boss_state.rs` prüft seit Längerem, dass Spiel und Simulator dieselbe
+Boss-Menge sehen — das Spiel über `import.meta.glob`, der Simulator über `build.rs`. Sein
+Kommentar sagt: _„AC1 ist erst erfüllt, wenn eine neue Datendatei auf **beiden** ankommt."_
+
+Als in #250 ein neuer Prüf-Boss dazukam, blieb er **grün**. Nicht weil er falsch gebaut war,
+sondern weil die Vergleichsdatei im selben PR mitwuchs: Er verglich zwei Stände, die beide schon
+den neuen Boss kannten.
+
+> Der Wächter ist richtig gebaut, wird ausgeführt, ist grün — und kann in genau dem Moment
+> nichts sagen, in dem sich ändert, was er bewacht.
+
+Das ist gefährlicher als eine Prüfung, die den Fall nicht erreicht: Dort fehlt die Absicherung
+sichtbar. Hier ist sie vorhanden, läuft und meldet Erfolg.
+
+**Die Gegenfrage:** Wächst im selben PR auch das, wogegen geprüft wird? Dann muss die Gegenprobe
+**vor** dem Mitwachsen ansetzen — die Referenz aus `main` nehmen, nicht die neu erzeugte.
+
+### Ein Gegenfall, der aus dem falschen Grund anders ausgeht, belegt nichts
+
+_Vom selben Tag, an derselben Arbeit._
+
+Der Abschnitt oben behandelt Prüfdaten, die den Fall unerreichbar machen. Das hier ist die
+Umkehrung — der Gegenfall geht anders aus, aber aus dem falschen Grund:
+
+```
+Gegenfall: derselbe Lauf gegen den Ersten Schmelztiegel
+  4240 Lebenspunkte, 60 s Frist — KINDLE allein schafft rund 4000
+  Der Lauf endete weder als Sieg noch überhaupt
+```
+
+Er sah aus wie ein Beleg („mit dem Feld gewinnt man, ohne nicht") und belegte nichts: Der zweite
+Lauf scheiterte an der Kampfdauer, nicht am fehlenden Feld.
+
+> **Die Regel:** Zwischen Fall und Gegenfall darf sich **genau eine** Größe unterscheiden. Der
+> Werker hat es so gelöst: derselbe Boss-Datensatz, einmal mit `runaway`, einmal mit
+> `runaway: null`. Ein Feld, sonst nichts.
+
 ### Eine Probe braucht die Liste des Erlaubten, nicht des Verbotenen
 
 _Gefunden in der Nacht zum 2026-08-05, an derselben Probe zweimal._
