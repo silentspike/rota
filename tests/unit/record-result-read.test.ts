@@ -56,9 +56,10 @@ const NICHT_FUER_DEN_SPIELER: ReadonlyMap<string, string> = new Map([
 function felderVonRecordResult(): string[] {
   const leer: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
   const abbruch = -1;
-  expect(countsAsAttempt(abbruch), 'dieser Ausgang zaehlt doch — dann ist es der falsche Pfad').toBe(
-    false,
-  );
+  expect(
+    countsAsAttempt(abbruch),
+    'dieser Ausgang zaehlt doch — dann ist es der falsche Pfad',
+  ).toBe(false);
   const ergebnis: RecordResult = recordRun(leer, {} as never, abbruch, {
     bossId: 'first-crucible',
     difficulty: 1,
