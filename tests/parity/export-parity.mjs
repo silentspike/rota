@@ -2,6 +2,17 @@
  * Schreibt die gemeinsamen Vergleichsdateien für den Abgleich mit dem Simulator.
  *
  * ```text
+ * npm run parity:export
+ * ```
+ *
+ * Der Eintrag in `package.json` ist seit dem 2026-08-05 da, und zwar aus einem
+ * Grund, der über Bequemlichkeit hinausgeht: Der Befehl wurde in einer Nacht
+ * zweimal gesucht und stand beide Male nirgends, wo man sucht. Ein Skript kann
+ * nicht veralten wie ein Kommentar — dieser hier hatte es getan.
+ *
+ * Direkt geht es auch, und dann zeigt sich, warum es `vite-node` sein muss:
+ *
+ * ```text
  * npx vite-node tests/parity/export-parity.mjs
  * ```
  *
