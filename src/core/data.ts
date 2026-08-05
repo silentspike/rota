@@ -574,6 +574,23 @@ export interface LevelGrowthDef {
    * geraten statt gerechnet.
    */
   readonly xpToNextLevel: readonly number[];
+  /**
+   * Die Zielgröße: wie viele Talentpunkte über alle Stufen zusammenkommen.
+   *
+   * **Getrennt von der Verteilung, und das ist ihr Zweck.** Ein Wächter, der
+   * `talentPointLevels` summiert und mit der Summe derselben Liste vergleicht,
+   * prüft seine eigene Erwartung gegen sich selbst — genau davor warnt der
+   * Kommentar an `barSlotsAtLevel`. Diese Zahl ist die zweite, unabhängige
+   * Angabe: Wer die Liste ändert, ohne sie anzufassen, wird bemerkt (#379).
+   */
+  readonly talentPointTarget: number;
+  /**
+   * Stufen, auf denen je ein Talentpunkt anfällt (Issue #379).
+   *
+   * Wie `barSlotLevels` eine Liste von Stufen und keine Zahl je Stufe: Der
+   * Aufstieg gibt entweder einen Punkt oder keinen, nie zwei.
+   */
+  readonly talentPointLevels: readonly number[];
   /** Wie viele Leisten-Plätze der Spieler auf Stufe 1 hat. */
   readonly startBarSlots: number;
   /**
@@ -1569,6 +1586,40 @@ export const LEVELS: LevelGrowthDef = (() => {
       );
     }
   }
+  const talentPointTarget = number(roh['talentPointTarget'], 0);
+  const talentPointLevels = Array.isArray(roh['talentPointLevels'])
+    ? (roh['talentPointLevels'] as unknown[]).map((x) => number(x, 0))
+    : [];
+  if (talentPointTarget < 1) {
+    throw new Error('data/player/levels.json: talentPointTarget muss positiv sein.');
+  }
+  // **Die Zielgröße gegen die Verteilung**, nicht die Verteilung gegen sich
+  // selbst. Das ist die ganze Begründung dafür, dass beide Zahlen dastehen.
+  if (talentPointLevels.length !== talentPointTarget) {
+    throw new Error(
+      `data/player/levels.json: ${talentPointLevels.length} Stufen mit Talentpunkt für ein ` +
+        `Ziel von ${talentPointTarget}. Eine Verteilung, die das Ziel verfehlt, verschiebt ` +
+        'still, wie tief ein Spieler seine Bäume ausbauen kann.',
+    );
+  }
+  for (let i = 0; i < talentPointLevels.length; i++) {
+    const stufe = talentPointLevels[i] ?? 0;
+    if (stufe < 1 || stufe > maxLevel) {
+      throw new Error(
+        `data/player/levels.json: talentPointLevels[${i}] ist ${stufe} — erlaubt sind 1 bis ` +
+          `${maxLevel}. Ein Punkt jenseits der Höchststufe käme nie.`,
+      );
+    }
+    // **Aufsteigend und ohne Dubletten.** Zwei Punkte auf derselben Stufe
+    // wären als Liste nicht darstellbar — sie sähen aus wie einer.
+    if (i > 0 && stufe <= (talentPointLevels[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: talentPointLevels[${i}] (${stufe}) kommt nicht nach ` +
+          `talentPointLevels[${i - 1}]. Die Liste muss aufsteigen und darf keine Stufe ` +
+          'doppelt nennen.',
+      );
+    }
+  }
   const startBarSlots = number(roh['startBarSlots'], 0);
   const barSlotLevels = Array.isArray(roh['barSlotLevels'])
     ? (roh['barSlotLevels'] as unknown[]).map((x) => number(x, 0))
@@ -1601,6 +1652,8 @@ export const LEVELS: LevelGrowthDef = (() => {
     factorPerMille,
     xpPerBossLevel,
     xpToNextLevel,
+    talentPointTarget,
+    talentPointLevels,
     startBarSlots,
     barSlotLevels,
   };
@@ -1736,7 +1789,7 @@ export const REWARD: RewardDef = (() => {
 /**
  * Ein Grundwert auf einer Stufe (Issue #248).
  *
- * **Gerechnet, nicht gespeichert** — GAME-DESIGN 18.5 und AC5 des Issues. Der
+ * **Gerechnet, nicht gespeichert** — GAME-DESIGN 18.6 und AC5 des Issues. Der
  * Spielstand hält die Stufe; was daraus folgt, entsteht bei jedem Aufruf neu.
  * Wer den Wert stattdessen ablegte, machte jede künftige Balance-Änderung für
  * bestehende Spielstände wirkungslos — und niemand merkte es, weil nichts
