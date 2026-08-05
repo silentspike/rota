@@ -195,11 +195,7 @@ export function replayRecording(
       // `options.bindings` bleibt oben, weil ein Aufrufer sie bewusst
       // überschreiben darf; fehlt sie, kommt die aus der Datei statt der
       // festen aus `loadout.ts`.
-      const spellIndex = spellForSlot(
-        combat,
-        press.slot,
-        options.bindings ?? recording.bindings,
-      );
+      const spellIndex = spellForSlot(combat, press.slot, options.bindings ?? recording.bindings);
       if (spellIndex < 0) {
         rejected++;
         continue;
