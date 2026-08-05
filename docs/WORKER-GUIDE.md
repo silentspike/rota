@@ -1555,6 +1555,43 @@ Toleranz. `1.0` ist in IEEE754 exakt darstellbar, und gemeint ist der neutrale W
 Das gilt nicht überall — wo eine Rechnung Rundungsfehler erzeugt, ist eine Umgebung richtig. Der
 Unterschied: Hier wird kein Rechenergebnis geprüft, sondern **ob jemand einen Regler angefasst hat**.
 
+#### Eine Ausnahme muss benannt sein, sonst ist sie keine
+
+_Von Worker-1 am 2026-08-05 bei #346 formuliert._
+
+Ein Wächter prüfte, ob alle Faktoren der Schadensformel gleich stark wirken. Zwei standen nicht in
+seiner Liste — und niemand hatte entschieden, dass sie nicht hineingehören. Sie waren einfach nicht
+dazugekommen.
+
+> **Eine Ausnahme, die man nennen muss, ist eine Entscheidung. Eine, die durch Weglassen entsteht,
+> ist ein Versehen** — und genau das war der Zustand.
+
+Für einen der beiden gab es einen guten Grund (der Kampf schreibt den Faktor selbst, ein Vergleich
+mit festem Wert wäre sinnlos). Für den anderen gab es keinen; er stammte sogar vom selben
+Bearbeiter, der die Prüfung kannte:
+
+> Ich habe ihn gebaut, ich habe die Formel erweitert, und ich habe nicht bemerkt, dass er aus dieser
+> Prüfung herausfällt. **Der Wächter hat geschwiegen, und ich habe sein Schweigen für Zustimmung
+> gehalten.**
+
+**Von außen sehen beide Fälle gleich aus.** Ein fehlender Eintrag trägt nicht die Information, ob er
+fehlt oder ausgenommen ist — deshalb braucht ein Wächter, der etwas auslässt, eine **ausdrückliche
+Ausnahmeliste mit Begründung je Eintrag**.
+
+Dasselbe Muster liegt unter mehreren Befunden desselben Tages:
+
+|                                              | die Lücke entstand durch                                 |
+| -------------------------------------------- | -------------------------------------------------------- |
+| vier Prüffälle hinter `#[ignore]` (#237)     | Weglassen, begründet mit einer geschätzten Laufzeit      |
+| sieben Zauber ohne Paritäts-Abdeckung (#340) | Weglassen, weil die Wiedergabe sie nicht auflösen konnte |
+| vier Felder, die `reset()` vergisst (#349)   | Weglassen, ohne dass jemand über sie entschieden hätte   |
+
+**Jede sah aus wie Absicht.** Der Unterschied zwischen „ausgenommen" und „vergessen" steht nirgends
+im Code — er entsteht erst dadurch, dass jemand ihn hinschreibt.
+
+> Und die Begründung gehört **je Eintrag**, nicht als Sammelsatz darüber. Ein Sammelsatz erlaubt,
+> einen weiteren Eintrag hinzuzufügen, ohne ihn zu begründen.
+
 **Und daraus folgt eine Regel, die über diesen Fall hinausgeht: Manche Belege haben ein
 Verfallsdatum.**
 
