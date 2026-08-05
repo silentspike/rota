@@ -30,7 +30,13 @@ function indexVon(id: string): number {
 
 const KINDLE = indexVon('kindle');
 const SMOULDER = indexVon('smoulder');
-const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
+const LEER: RecordedState = {
+  runHistory: [],
+  progressMarks: [],
+  bestRuns: [],
+  level: 1,
+  experience: 0,
+};
 const KONTEXT = {
   bossId: 'first-crucible',
   difficulty: 1,
