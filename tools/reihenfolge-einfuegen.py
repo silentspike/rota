@@ -11,11 +11,22 @@ die Dateien vorher gesichert und danach zurückgestellt.
 import json
 import sys
 
-vorne = sys.argv[1] == 'vorne'
-# „vorne" muss in die ERSTE Quelle, „hinten" in die LETZTE. Beides in dieselbe
-# Datei zu schreiben wäre falsch: calcination.json steht in der Mitte der
-# Gesamtliste, ein Anhängen dort ist ein Einschub.
-pfad = 'data/spells/calcination.json' if vorne else 'data/spells/test-cast.json'
+modus = sys.argv[1]
+
+# Drei Fälle, und der dritte ist der lehrreiche (Issue #408):
+#
+#   vorne         an den Anfang der ERSTEN Quelle      -> Verstoß, offensichtlich
+#   hinten        an das Ende der LETZTEN Quelle       -> erlaubt
+#   eigene-datei  an das Ende von calcination.json     -> Verstoß, ÜBERRASCHEND
+#
+# Der dritte sieht aus wie der zweite und verhält sich wie der erste. Genau
+# diese Lesart von „hinten" hat die Kommentare in `data.ts` nahegelegt, und
+# genau sie verschiebt die Indizes: Nach `calcination` kommen noch sechs
+# Dateien.
+ANHAENGEN_ANS_ENDE = {'hinten', 'eigene-datei'}
+pfad = (
+    'data/spells/test-cast.json' if modus == 'hinten' else 'data/spells/calcination.json'
+)
 
 daten = json.load(open(pfad, encoding='utf8'))
 # Eine Kopie des ersten Eintrags, damit alle Pflichtfelder gesetzt sind — der
@@ -24,5 +35,8 @@ neu = dict(daten['spells'][0])
 neu['id'] = 'gegenprobe-zauber'
 neu['name'] = 'Gegenprobe'
 
-daten['spells'] = [neu] + daten['spells'] if vorne else daten['spells'] + [neu]
+if modus in ANHAENGEN_ANS_ENDE:
+    daten['spells'] = daten['spells'] + [neu]
+else:
+    daten['spells'] = [neu] + daten['spells']
 json.dump(daten, open(pfad, 'w', encoding='utf8'), ensure_ascii=False, indent=2)

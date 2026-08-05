@@ -1357,6 +1357,27 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
   };
   const zusammen = {
     ...roh,
+    // **Hier entsteht die Zauberreihenfolge — aus sieben Dateien in genau
+    // dieser Folge** (Issue #408):
+    //
+    //     calcination, common, coagulation, fixation,
+    //     sublimation, putrefaction, test-cast
+    //
+    // Die Reihenfolge bestimmt die Zauber-Indizes, und die Indizes stehen in
+    // jeder aufgezeichneten Runde (`tests/parity/recordings/`) und in jedem
+    // gespeicherten Spielstand.
+    //
+    // Zwei Dinge verschieben sie, und BEIDE tun es still:
+    //
+    //   1. ein Zauber, der nicht ganz am Ende dazukommt
+    //   2. eine andere Folge DIESER DATEIEN — auch ohne einen neuen Zauber
+    //
+    // Der zweite Fall sieht harmlos aus („nur umsortiert, nichts entfernt")
+    // und ist genauso schwer: Wer `coagulation` vor `common` zieht, deutet
+    // jede bestehende Aufzeichnung um.
+    //
+    // Bewacht von `tests/unit/spell-order.test.ts` (Issue #402); vorführbar
+    // mit `tools/reihenfolge-gegenprobe.sh`.
     spells: [
       ...mitSchule(roh['spells'], roh),
       // common.json trägt kein `school` — seine Zauber sind schulunabhängig
@@ -1367,19 +1388,34 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
         (rawFixation as Record<string, unknown>)['spells'],
         rawFixation as Record<string, unknown>,
       ),
-      // **Ganz hinten angefügt** (Issue #201). Die Reihenfolge bestimmt die
-      // Indizes, und die stehen in jeder aufgezeichneten Runde — vorne
-      // einzufügen deutete jede alte Aufzeichnung still um.
+      // **Ganz hinten angefügt** (Issue #201) — hinten in der GESAMTLISTE
+      // oben, nicht hinten in der eigenen Schuldatei (Issue #408).
+      //
+      // Der Unterschied ist der ganze Punkt: Ein Kalzinations-Zauber ans Ende
+      // von `calcination.json` gehängt ist in der Gesamtliste ein EINSCHUB,
+      // weil danach noch sechs Dateien kommen. Er verschiebt alle Indizes
+      // dahinter — genau das, was dieser Kommentar verhindern soll.
+      //
+      // Aufgefallen beim Bau des Wächters (#402): Die erste Fassung der
+      // Gegenprobe tat genau das, in gutem Glauben, und wurde zu Recht rot.
       ...mitSchule(
         (rawSublimation as Record<string, unknown>)['spells'],
         rawSublimation as Record<string, unknown>,
       ),
-      // Ebenfalls hinten (Issue #97), aus demselben Grund.
+      // Ebenfalls hinten (Issue #97), aus demselben Grund — und „hinten" heißt
+      // auch hier: am Ende der Gesamtliste, nicht am Ende von
+      // `putrefaction.json` (Issue #408).
       ...mitSchule(
         (rawPutrefaction as Record<string, unknown>)['spells'],
         rawPutrefaction as Record<string, unknown>,
       ),
-      // **Ganz zuletzt der Prüf-Zauber** (Issue #304). Er gehört nicht zum
+      // **Ganz zuletzt der Prüf-Zauber** (Issue #304) — und „zuletzt" ist hier
+      // wörtlich zu nehmen: `test-cast.json` ist die LETZTE der sieben Dateien.
+      // Ein neuer Zauber gehört deshalb hinter diesen Block, nicht davor
+      // (Issue #408). Wer ihn davorschiebt, verschiebt den Prüf-Zauber — und
+      // der steht in den Aufzeichnungen wie jeder andere.
+      //
+      // Er gehört nicht zum
       // Spiel — seine Stufe liegt über der Grenze, und beide Stellen, die dem
       // Spieler Zauber anbieten, filtern darüber. Er steht trotzdem in dieser
       // Liste, weil der Simulator dieselbe braucht: Was nicht in `SPELLS`
