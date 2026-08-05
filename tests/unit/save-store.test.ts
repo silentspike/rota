@@ -36,7 +36,7 @@ function save(level = 1): SaveData {
     experience: level * 1000,
     talentPoints: {},
     items: [],
-    bindings: { q: 0 },
+    bindings: { '0': 'kindle' },
     unlockedSpells: ['kindle'],
     unlockedInstances: [],
     bestRuns: [],
