@@ -27,10 +27,36 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
     // **Die Zahlen sind abgeschrieben, und das ist hier richtig.** Sie stehen
     // so in den Vergleichsdateien; eine Liste, die sich aus der Umsetzung
     // selbst herleitet, koennte jede Umstellung mitmachen, ohne rot zu werden.
+    //
+    // # Warum hier zwei Zauber IN DER MITTE dazugekommen sind (Issue #268)
+    //
+    // Bis #268 galt eine ungeschriebene Regel: Neue Zauber wurden **hinten
+    // angehaengt**, auch wenn sie logisch dazwischengehoerten. Der Grund steht
+    // dreimal als Kommentar in `data.ts` und nirgends sonst:
+    //
+    // > Die Reihenfolge bestimmt die Indizes, und die stehen in jeder
+    // > aufgezeichneten Runde — vorne einzufuegen deutete jede alte
+    // > Aufzeichnung STILL um.
+    //
+    // Das Wort ist **still**. Genau das ist es seit `tools/ac6.sh` nicht mehr:
+    // Der Befehl sagt Feld fuer Feld, was sich bewegt hat, und trennt
+    // Index-Verschiebungen von echten Verhaltensaenderungen.
+    //
+    // Deshalb stehen `bellows` und `searing` bei ihrer Schule statt hinten.
+    // Die Regel bestand aus einem Grund, der Grund ist abgedeckt — und eine
+    // Regel, die dafuer Kalzinations-Zauber hinter PUTREFACTION zwingt, waere
+    // teurer als das Problem.
+    //
+    // **Dieser Fall bleibt trotzdem, und er soll weiter rot werden.** Er ist
+    // die einzige Stelle, an der eine Umstellung ueberhaupt auffaellt; die
+    // Entscheidung war, sie zuzulassen, nicht sie unsichtbar zu machen.
     expect(SPELLS.map((s) => s.id)).toEqual([
       'kindle',
       'smoulder',
       'pyre',
+      // Issue #268 — bei ihrer Schule, siehe oben.
+      'bellows',
+      'searing',
       'quench',
       'crust',
       'salve',
