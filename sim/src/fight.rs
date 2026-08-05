@@ -1184,6 +1184,18 @@ impl Fight {
         self.afflictions_cleared = 0;
         self.timeline_index = 0;
         self.casting = None;
+        // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
+        // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
+        // `record_fields`, das die Pruefsumme mit ihren Namen aufzeichnet:
+        //
+        //     ABWEICHUNG [115] playerDamage: nach reset 4240, frisch 0
+        //
+        // Es ist das SPIEGELBILD des Falls, den Worker-2 gefunden hat: Dort
+        // raeumt der Simulator die Zersetzungs-Stapel und das Spiel nicht,
+        // hier raeumt das Spiel `playerDamageValue` und der Simulator nicht.
+        // Beide Male unsichtbar, weil kein Paritaets-Weg zweimal faehrt.
+        self.player_damage = 0;
+        self.stack_gains.set(0);
         // Ein neuer Lauf faengt ohne laufende Wirkzeit an (Issue #304). Ohne
         // diese Zeilen bliebe der Zustand stehen, und der naechste Kampf
         // begaenne dauerhaft blockiert.
