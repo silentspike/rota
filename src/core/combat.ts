@@ -2308,6 +2308,17 @@ export class Combat {
   reset(): void {
     this.cooldownReadyAtMs.fill(0);
     this.castCounts.fill(0);
+    // **Die Synergie-Fenster und ihre Zähler** (Issue #318). Ohne diese Zeilen
+    // trägt der nächste Lauf die Ausbeute des vorigen — im Browser gemessen:
+    // Eine Leiste OHNE das Paar zeigte weiter „1 of 1", weil `used` und
+    // `available` den Reset überlebten.
+    //
+    // Ein Prüffall findet das nicht: Er baut für jeden Fall eine frische
+    // Sitzung, und dort ist der Zustand ohnehin leer. Sichtbar wird es erst
+    // beim zweiten Lauf im selben Spiel.
+    this.synergyWindowEndsMs.fill(NOT_ACTIVE);
+    this.synergyUsedCount = 0;
+    this.synergyAvailableCount = 0;
     this.damageBySpell.fill(0);
     this.dotExpiresAtMs.fill(NOT_ACTIVE);
     this.dotNextTickAtMs.fill(NOT_ACTIVE);
