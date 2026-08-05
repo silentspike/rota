@@ -30,6 +30,8 @@ import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './p
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
+import { pointsDisplayFor } from '../analysis/points-display.js';
+import type { RunSummary } from './summary.js';
 import { markDisplayFor } from '../analysis/mark-display.js';
 import type { MarkDisplay } from '../render/overlay.js';
 import { PlayerHome } from '../progression/player-home.js';
@@ -132,6 +134,16 @@ export class App {
   lastRecord: RecordResult | null = null;
 
   /**
+   * Die Kurzfassung desselben Kampfes (Issue #387).
+   *
+   * **Neben `lastRecord` und nicht daraus**: Die Erklärung der Punktzahl
+   * braucht beides — den Bestwert von VOR dem Lauf aus der Aufzeichnung und
+   * das Mass aus dem Lauf selbst (`heldPercent !== null`). Beide zusammen
+   * entstehen nur hier, in `onFinish`.
+   */
+  lastSummary: RunSummary | null = null;
+
+  /**
    * Die Fortschrittsmarke, fertig zum Anzeigen (Issue #187).
    *
    * Hier gebildet und nicht in der Ansicht: Der Satz entsteht an EINER Stelle,
@@ -182,6 +194,7 @@ export class App {
       // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
       if (this.lastRecord.counted) this.persistence.persist(this.lastRecord);
       this.lastMark = markDisplayFor(this.lastRecord, summary, this.combat.boss.id);
+      this.lastSummary = summary;
     };
 
     this.applyBindings();
@@ -277,7 +290,11 @@ export class App {
       // `counted: false` und 0 Punkte zurück; eine 0 in der Anzeige hiesse
       // aber „dieser Lauf hat nichts eingebracht", und ein Abbruch hat gar
       // nicht stattgefunden. Der Strich ist die richtige Aussage.
-      () => (this.lastRecord?.counted === true ? this.lastRecord.pointsGained : null),
+      // **Die Struktur statt der nackten Zahl** (Issue #387): Eine Punktzahl
+      // ohne ihren Grund erklärt sich nicht — 87 statt 4.373 sieht aus wie ein
+      // Fehler. `pointsDisplayFor` entscheidet, OB es etwas zu erklären gibt;
+      // wie es dasteht, entscheidet die Anzeige.
+      () => pointsDisplayFor(this.lastRecord, this.lastSummary),
       // Erfahrung und Aufstieg (Issue #371), aus demselben Grund nur bei
       // einem gezaehlten Lauf: Ein Abbruch hat nicht stattgefunden, und eine
       // 0 hiesse „hat nichts eingebracht".
