@@ -346,6 +346,4 @@ console.log(
   `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
 );
 console.log(`geschrieben: ${newCalcinationPath}`);
-console.log(
-  `  neue Zauber   ${JSON.stringify(newCalcination["expected"]["casts"])}`,
-);
+console.log(`  neue Zauber   ${JSON.stringify(newCalcination['expected']['casts'])}`);

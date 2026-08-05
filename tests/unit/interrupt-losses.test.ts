@@ -23,7 +23,6 @@ import {
   type RunAnalysis,
 } from '../../src/analysis/run-analysis.js';
 
-
 /**
  * Zauber-Indizes über den NAMEN, nicht als Zahl (Issue #268).
  *
