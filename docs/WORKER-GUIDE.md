@@ -2035,9 +2035,72 @@ Sprungs mit dem Betrag aus den Zauberdaten misst statt mit einem Literal (#295),
 einer unkalibrierten Konstante das Verhältnis prüft statt den Betrag, damit er der Kalibrierung
 nicht im Weg steht (#282).
 
----
+### 8.19 Eine Zeile hier ist zwei Zeilen dort — die Asymmetrie beim Übertragen
 
-## 9. Wie die Kommunikation läuft
+_Bei #282 vom Orchestrator gefunden, nachdem der Bearbeiter eine Abweichung in Takt 0 gemeldet
+hatte._
+
+Die zwei Seiten sind **nicht** Zeile für Zeile ineinander übersetzbar. Wo das Spiel eine Zuweisung
+hat, kann der Simulator zwei haben — und wer die eine erweitert, hat die andere nicht vergessen,
+sondern **nie gesehen**:
+
+```rust
+// Simulator: ZWEI Zuweisungen, die aussehen wie ein Paar
+vessel_max: vessel_with_gear(stat_at_level(…), config.worn.vessel),   // erweitert
+player_hp:  stat_at_level(PLAYER.vessel, config.player_level),        // geblieben
+```
+
+```ts
+// Spiel: EINE Zuweisung — hier gibt es nichts zu vergessen
+this.vesselMax = vesselWithGear(statAtLevel(…), worn.vessel);
+this.playerHpValue = this.vesselMax;
+```
+
+**In der alten Fassung waren die zwei Rust-Zeilen eins**: Beide bekamen `stat_at_level(…)`, weil es
+keine Ausrüstung gab. Erst die neue Größe hat sie getrennt — und die Trennung ist auf der anderen
+Seite unsichtbar.
+
+> Die Prüffrage beim Übertragen: **Ist der Wert dort, wo ich ihn ändere, an genau einer Stelle
+> abgeleitet — oder gibt es eine zweite, die dieselbe Quelle liest?** Ein `grep` nach dem Namen des
+> Feldes kostet Sekunden und findet beide.
+
+**Warum die Prüfsumme das meldet und die Prüffälle nicht:** `playerHp` steht in der Prüfsumme
+(`checksum.ts:140`, `fight.rs:2651`). Die Abweichung erschien deshalb in **Takt 0**, vor jeder
+Handlung — der frühestmögliche Zeitpunkt, und damit der Beleg, dass es der Startzustand ist. Ohne
+Prüfsumme wäre sie erst beim ersten Treffer aufgefallen, mit einer Zahl, die man auch für einen
+Rundungsfehler halten könnte.
+
+### 8.20 Ein Verweis auf etwas, das man gerade erst versprochen hat
+
+_Von Worker-2 am 2026-08-05 bei #318 an sich selbst bemerkt._
+
+Ein bestehender Wächter fiel, weil die Synergie jetzt vom Kampf selbst geschrieben wird. Der
+Bearbeiter nahm den Faktor aus der Liste — richtig — und schrieb einen Kommentar dazu, der auf
+einen anderen Fall verwies:
+
+> „… das misst `synergy_wirkt_wie_die_uebrigen` weiter unten."
+
+**Diesen Fall gab es nicht.** Seine eigene Einordnung:
+
+> Ich hatte ihn im selben Zug erfunden, in dem ich ihn versprach.
+
+Der Verweis war keine Lüge, sondern eine **Absicht, die sich beim Schreiben in eine Tatsache
+verwandelt hat** — und das ist die gefährliche Form: Wer den Kommentar später liest, sucht den Fall
+nicht, weil er glaubt, dass er existiert. Die Lücke ist dann doppelt zu, statt nur einmal.
+
+**Die Regel:** Ein Kommentar, der auf einen anderen Prüffall verweist, nennt ihn **beim Namen**, und
+der Name wird **gegrept**, bevor der Kommentar stehen bleibt. Existiert der Fall noch nicht, gehört
+statt des Verweises die **Lücke** dorthin:
+
+```rust
+// synergy ist hier raus, weil der Kampf den Faktor selbst schreibt.
+// WAS DAMIT WEGFAELLT: Dass die Synergie gleich stark wirkt wie die
+// uebrigen Faktoren, misst auf DIESER Seite nichts mehr. Die Spielseite
+// tut es (tests/unit/synergy.test.ts, Verhaeltnis 1,25); ein Rust-Fall
+// dafuer FEHLT.
+```
+
+> Eine benannte Lücke ist ein Auftrag. Ein erfundener Verweis ist eine geschlossene Tür.
 
 ```
     Worker-Sitzung                                      Orchestrator
