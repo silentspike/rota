@@ -34,6 +34,27 @@ import { LEVELS, type SpellDef } from '../core/data.js';
  * Die Zahl steigt mit der Stufe und **sinkt nie**: Ein Spielstand, der eine
  * höhere Stufe trug, verliert keinen Platz, wenn die Tabelle später wächst.
  */
+/**
+ * Wie viele Talentpunkte diese Stufe insgesamt eingebracht hat (Issue #379).
+ *
+ * **Gerechnet, nicht gespeichert** — dieselbe Linie wie die Grundwerte, die
+ * Leisten-Plätze und die freigeschalteten Zauber (GAME-DESIGN 18.6). Der
+ * Spielstand hält die Stufe und die AUSGABEN je Zweig; wie viele Punkte
+ * verdient wurden, folgt daraus.
+ *
+ * Ein gespeichertes Guthaben ginge nicht kaputt, es würde nur alt: Eine
+ * geänderte Verteilung erreichte bestehende Spielstände nie mehr, und niemand
+ * merkte es.
+ */
+export function talentPointsAtLevel(level: number): number {
+  const stufe = Math.max(Math.trunc(level), 1);
+  let punkte = 0;
+  for (const ab of LEVELS.talentPointLevels) {
+    if (stufe >= ab) punkte++;
+  }
+  return punkte;
+}
+
 export function barSlotsAtLevel(level: number): number {
   const stufe = Math.max(Math.trunc(level), 1);
   let plaetze = LEVELS.startBarSlots;
