@@ -66,7 +66,12 @@ describe('Ohne Speicher laeuft das Spiel weiter', () => {
 
   it('meldet das Misslingen zurueck, ohne den Ablauf anzuhalten', () => {
     const p = new RunPersistence(FASSUNG, () => JETZT, null);
-    const gelungen = p.persist({ runHistory: [eintrag()], progressMarks: [] });
+    const gelungen = p.persist({
+      runHistory: [eintrag()],
+      progressMarks: [],
+      level: 1,
+      experience: 0,
+    });
     expect(gelungen).toBe(false);
     expect(p.status.lastError).not.toBeNull();
   });
@@ -81,7 +86,7 @@ describe('Ein voller Speicher', () => {
     let geworfen = false;
     let gelungen = true;
     try {
-      gelungen = p.persist({ runHistory: [eintrag()], progressMarks: [] });
+      gelungen = p.persist({ runHistory: [eintrag()], progressMarks: [], level: 1, experience: 0 });
     } catch {
       geworfen = true;
     }
@@ -93,7 +98,7 @@ describe('Ein voller Speicher', () => {
   it('behaelt den Stand im Arbeitsspeicher, damit der Spieler ihn noch sieht', () => {
     // Abgelegt ist er nicht -- verloren waere er aber erst beim Neuladen.
     const p = new RunPersistence(FASSUNG, () => JETZT, new FullStore());
-    p.persist({ runHistory: [eintrag()], progressMarks: [] });
+    p.persist({ runHistory: [eintrag()], progressMarks: [], level: 1, experience: 0 });
     expect(p.state.runHistory).toHaveLength(1);
   });
 });
@@ -103,7 +108,9 @@ describe('Der gewoehnliche Weg', () => {
     const store = new MemoryStore();
     const erste = new RunPersistence(FASSUNG, () => JETZT, store);
     expect(erste.status.status).toBe('empty');
-    expect(erste.persist({ runHistory: [eintrag()], progressMarks: [] })).toBe(true);
+    expect(
+      erste.persist({ runHistory: [eintrag()], progressMarks: [], level: 1, experience: 0 }),
+    ).toBe(true);
 
     // Ein FRISCHER Leser auf demselben Speicher -- so wie nach einem Neuladen.
     const zweite = new RunPersistence(FASSUNG, () => JETZT, store);
@@ -117,7 +124,9 @@ describe('Der gewoehnliche Weg', () => {
     // Ausnahme in save-format.ts. Ohne sie waere der ganze Anschluss unmoeglich.
     const store = new MemoryStore();
     const p = new RunPersistence(FASSUNG, () => JETZT, store);
-    expect(p.persist({ runHistory: [eintrag()], progressMarks: [] })).toBe(true);
+    expect(p.persist({ runHistory: [eintrag()], progressMarks: [], level: 1, experience: 0 })).toBe(
+      true,
+    );
     expect(findForbiddenFields(p.save)).toEqual([]);
   });
 
@@ -139,12 +148,19 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
     const store = new MemoryStore();
 
     const alt = new RunPersistence('0.1.0', () => JETZT, store);
-    alt.persist({ runHistory: [eintrag({ gameVersion: '0.1.0' })], progressMarks: [] });
+    alt.persist({
+      runHistory: [eintrag({ gameVersion: '0.1.0' })],
+      progressMarks: [],
+      level: 1,
+      experience: 0,
+    });
 
     const neu = new RunPersistence('0.2.0', () => JETZT + 1000, store);
     neu.persist({
       runHistory: [...neu.state.runHistory, eintrag({ gameVersion: '0.2.0', at: JETZT + 1000 })],
       progressMarks: [],
+      level: 1,
+      experience: 0,
     });
 
     const verlauf = new RunPersistence('0.2.0', () => JETZT, store).state.runHistory;
@@ -159,9 +175,11 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
     new RunPersistence('0.1.0', () => JETZT, store).persist({
       runHistory: [],
       progressMarks: [],
+      level: 1,
+      experience: 0,
     });
     const neu = new RunPersistence('0.2.0', () => JETZT, store);
-    neu.persist({ runHistory: [], progressMarks: [] });
+    neu.persist({ runHistory: [], progressMarks: [], level: 1, experience: 0 });
     expect(neu.save.gameVersion).toBe('0.2.0');
   });
 });
@@ -190,7 +208,9 @@ describe('Ein Stand aus einer aelteren Fassung', () => {
     expect(p.state.runHistory).toEqual([]);
     expect(p.state.progressMarks).toEqual([]);
     // Und der naechste Kampf laesst sich ablegen.
-    expect(p.persist({ runHistory: [eintrag()], progressMarks: [] })).toBe(true);
+    expect(p.persist({ runHistory: [eintrag()], progressMarks: [], level: 1, experience: 0 })).toBe(
+      true,
+    );
   });
 
   it('behaelt, was der alte Stand SEHR WOHL hatte', () => {
@@ -222,7 +242,7 @@ describe('Ein voller Verlauf', () => {
     const store = new MemoryStore();
     const p = new RunPersistence(FASSUNG, () => JETZT, store);
     const voll = Array.from({ length: 500 }, (_, i) => eintrag({ at: JETZT + i }));
-    expect(p.persist({ runHistory: voll, progressMarks: [] })).toBe(true);
+    expect(p.persist({ runHistory: voll, progressMarks: [], level: 1, experience: 0 })).toBe(true);
 
     const zurueck = new RunPersistence(FASSUNG, () => JETZT, store);
     expect(zurueck.state.runHistory).toHaveLength(500);

@@ -22,11 +22,12 @@ import {
 
 const KINDLE = 0;
 const SMOULDER = 1;
-const LEER: RecordedState = { runHistory: [], progressMarks: [] };
+const LEER: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
 
 const KONTEXT = {
   bossId: 'first-crucible',
   difficulty: 1,
+  bossLevel: 1,
   gameVersion: '0.1.0',
   at: 1_800_000_000_000,
 };
@@ -189,7 +190,7 @@ describe('Der uebergebene Stand bleibt unangetastet', () => {
   it('gibt einen neuen zurueck', () => {
     // Ein halb geschriebener Spielstand darf keine Marke verfaelschen.
     const lauf = play(1500);
-    const stand: RecordedState = { runHistory: [], progressMarks: [] };
+    const stand: RecordedState = { runHistory: [], progressMarks: [], level: 1, experience: 0 };
     const kopie = JSON.stringify(stand);
     recordRun(stand, lauf.summary, lauf.outcome, KONTEXT);
     expect(JSON.stringify(stand)).toBe(kopie);

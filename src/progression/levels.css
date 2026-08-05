@@ -1,0 +1,66 @@
+/**
+ * Die Aufstiegs-Übersicht (Issue #248).
+ *
+ * HIER GIBT ES EINEN BALKEN, bei der Werte-Übersicht nicht — und der
+ * Unterschied ist kein Geschmack: Ein Balken braucht ein Maximum. Vier der
+ * sechs Werte in `stats.css` haben keins (GAME-DESIGN 6.7); die Erfahrung bis
+ * zur nächsten Stufe hat eins, und es ist genau die Frage, mit der ein Spieler
+ * hier hereinschaut.
+ *
+ * Die Zahlen stehen trotzdem daneben. Ein Balken allein sagt „etwa halb" —
+ * wer wissen will, ob zwei oder zwanzig Kämpfe fehlen, braucht die Zahl.
+ *
+ * Farben und Maße folgen der Werte-Übersicht, damit beide Bereiche im Player
+ * Home wie ein Bildschirm aussehen und nicht wie zwei.
+ */
+
+.levels {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+}
+
+/* Der Balken steht oben: Er ist das, was gesucht wird. */
+.levels-bar {
+  height: 6px;
+  background: #241f1a;
+  border: 1px solid #3a332b;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.levels-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8a5a2b, #d08a3c);
+  /* Kein Übergang: Der Bildschirm wird beim Öffnen gebaut, nicht animiert.
+     Eine Bewegung beim Aufbau sähe nach Fortschritt aus, den es gerade nicht
+     gibt. */
+}
+
+.levels-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.levels-table td {
+  padding: 5px 12px 5px 0;
+  font-variant-numeric: tabular-nums;
+  vertical-align: baseline;
+}
+
+.levels-label {
+  color: #a09a8b;
+  letter-spacing: 0.08em;
+}
+
+.levels-value {
+  text-align: right;
+  color: #e6dfd1;
+  font-size: 16px;
+}
+
+/* Der Zusatz gehört zum Wert und tritt zurück — wie der Deckel in stats.css. */
+.levels-note {
+  color: #7d7768;
+  font-size: 12px;
+}

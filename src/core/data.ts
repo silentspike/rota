@@ -17,6 +17,7 @@ import rawSublimation from '../../data/spells/sublimation.json';
 import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
+import rawLevels from '../../data/player/levels.json';
 import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -496,8 +497,70 @@ export interface PlayerBaseDef {
   readonly wardReduction: number;
 }
 
+/**
+ * Das Wachstum der Grundwerte je Stufe (GAME-DESIGN 8.1; Issue #248).
+ *
+ * **In Promille und ganzzahlig, und das ist kein Format-Geschmack.** 1,05^n ist
+ * eine Fließkomma-Potenz; `Math.pow` in JavaScript und `f64::powf` in Rust sind
+ * nicht garantiert bitgleich. GAME-DESIGN 18.4 verlangt, dass beide Seiten
+ * dieselbe Zahl rechnen — eine Tabelle rechnet gar nicht, sie steht da.
+ *
+ * Angewandt wird sie als `grundwert * promille / 1000` mit **Ganzzahl-Division**.
+ * Damit kommt in der ganzen Kette keine Fließkommazahl vor.
+ */
+export interface LevelGrowthDef {
+  /** Der Prozentsatz, aus dem die Tabelle entstand — zur Nachvollziehbarkeit. */
+  readonly growthPerLevelPercent: number;
+  /** Die höchste erreichbare Stufe. */
+  readonly maxLevel: number;
+  /** Faktor je Stufe in Promille. Index 0 ist Stufe 1 und trägt 1000. */
+  readonly factorPerMille: readonly number[];
+  /**
+   * Erfahrung je Sieg, je Stufe des BOSSES.
+   *
+   * **Am Boss, nicht am Spieler**, und das ist keine Geschmacksfrage:
+   * GAME-DESIGN 12.6 sieht einen abnehmenden Ertrag über den STUFENABSTAND vor
+   * („voller Ertrag, solange der Boss zur eigenen Stufe passt"). Einen Abstand
+   * gibt es nur, wenn beide Seiten eine Stufe haben — hinge die Erfahrung am
+   * Spieler, wäre die schon beschlossene Regel gar nicht baubar.
+   */
+  readonly xpPerBossLevel: number;
+  /**
+   * Bedarf für den Aufstieg, Eintrag n von Stufe n nach n+1.
+   *
+   * 99 Einträge für 99 Aufstiege. Die erzeugende Formel und die vier
+   * geprüften Varianten stehen im `_comment` der Datei — eine Zahl ohne ihre
+   * Herkunft ist eine Behauptung, und die nächste Balance-Änderung würde
+   * geraten statt gerechnet.
+   */
+  readonly xpToNextLevel: readonly number[];
+  /** Wie viele Leisten-Plätze der Spieler auf Stufe 1 hat. */
+  readonly startBarSlots: number;
+  /**
+   * Stufen, auf denen je ein weiterer Leisten-Platz aufgeht.
+   *
+   * **Nur die ANZAHL, nie welcher Platz.** GAME-DESIGN 9.1 verlangt, dass
+   * Positionen von Anfang an fest vergeben sind, damit das Wachsen bestehende
+   * Plätze nicht verschiebt — sonst leidet das Muskelgedächtnis, und das ist
+   * das Einzige, was eine Rotation überhaupt spielbar macht.
+   */
+  readonly barSlotLevels: readonly number[];
+}
+
 export interface BossDef {
   readonly schema: number;
+  /**
+   * Stufe des Bosses — wovon die Erfahrung für einen Sieg abhängt (#248).
+   *
+   * **Am Boss, nicht am Spieler.** GAME-DESIGN 12.6 sieht einen abnehmenden
+   * Ertrag über den STUFENABSTAND vor; einen Abstand gibt es nur, wenn beide
+   * Seiten eine Stufe haben.
+   *
+   * Fehlt das Feld, ist es 1. Welcher Boss welche Stufe trägt, ist Inhalt und
+   * entscheidet E10 — 12.4 sagt nur, dass acht Instanzen à vier Bosse die
+   * Stufen 1 bis 100 tragen.
+   */
+  readonly level: number;
   readonly id: string;
   readonly name: string;
   readonly instance: string;
@@ -1154,6 +1217,9 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       stacks,
       race,
       bossHeal,
+      // Fehlt das Feld, ist es Stufe 1 — jeder heutige Datensatz kommt so
+      // durch, und E10 trägt sie nach.
+      level: Math.max(Math.trunc(number(source['level'], 1)), 1),
       runaway,
       escalation,
       affliction,
@@ -1273,6 +1339,124 @@ export const PLAYER: PlayerBaseDef = (() => {
   }
   return { vessel, wardReduction };
 })();
+
+export const LEVELS: LevelGrowthDef = (() => {
+  const roh = rawLevels as Record<string, unknown>;
+  const maxLevel = number(roh['maxLevel'], 0);
+  const growthPerLevelPercent = number(roh['growthPerLevelPercent'], 0);
+  const factorPerMille = Array.isArray(roh['factorPerMille'])
+    ? (roh['factorPerMille'] as unknown[]).map((x) => number(x, 0))
+    : [];
+
+  // Harter Abbruch wie bei `base.json`, aus demselben Grund: Das ist keine
+  // Inhaltsdatei, sondern eine Voraussetzung. Eine kaputte Tabelle ergäbe
+  // einen Spieler, dessen Werte auf halber Strecke einfrieren — und das fiele
+  // erst jemandem auf Stufe 60 auf.
+  if (maxLevel < 1) throw new Error('data/player/levels.json: maxLevel muss positiv sein.');
+  if (factorPerMille.length !== maxLevel) {
+    throw new Error(
+      `data/player/levels.json: ${factorPerMille.length} Faktoren für ${maxLevel} Stufen. ` +
+        'Jede Stufe braucht genau einen — sonst wächst der Spieler ab einer Stelle nicht mehr.',
+    );
+  }
+  if (factorPerMille[0] !== 1000) {
+    throw new Error(
+      `data/player/levels.json: Stufe 1 trägt ${String(factorPerMille[0])} statt 1000. ` +
+        'Der Spieler startet mit den Werten aus base.json, nicht darüber oder darunter.',
+    );
+  }
+  // **Monoton steigend**, sonst würde ein Aufstieg den Spieler schwächen.
+  for (let i = 1; i < factorPerMille.length; i++) {
+    if ((factorPerMille[i] ?? 0) <= (factorPerMille[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: Stufe ${i + 1} ist nicht größer als Stufe ${i}. ` +
+          'Ein Aufstieg, der schwächer macht, ist keiner.',
+      );
+    }
+  }
+  const xpPerBossLevel = number(roh['xpPerBossLevel'], 0);
+  const xpToNextLevel = Array.isArray(roh['xpToNextLevel'])
+    ? (roh['xpToNextLevel'] as unknown[]).map((x) => number(x, 0))
+    : [];
+  if (xpPerBossLevel <= 0) {
+    throw new Error('data/player/levels.json: xpPerBossLevel muss positiv sein.');
+  }
+  // **Ein Eintrag WENIGER als Stufen**: von 1 nach 2 bis von 99 nach 100.
+  // Ein Eintrag zu viel sähe aus wie ein Aufstieg über die Höchststufe hinaus.
+  if (xpToNextLevel.length !== maxLevel - 1) {
+    throw new Error(
+      `data/player/levels.json: ${xpToNextLevel.length} Bedarfe für ${maxLevel - 1} ` +
+        'Aufstiege. Der letzte Eintrag führt von der vorletzten Stufe zur höchsten.',
+    );
+  }
+  for (let i = 0; i < xpToNextLevel.length; i++) {
+    if ((xpToNextLevel[i] ?? 0) <= 0) {
+      throw new Error(
+        `data/player/levels.json: Bedarf für Stufe ${i + 1} ist nicht positiv — ` +
+          'eine Stufe ohne Bedarf würde beim ersten Sieg übersprungen.',
+      );
+    }
+    if (i > 0 && (xpToNextLevel[i] ?? 0) <= (xpToNextLevel[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: Stufe ${i + 1} verlangt nicht mehr als Stufe ${i}. ` +
+          'Die Kurve soll steigen; sonst geht der Aufstieg gegen Ende schneller.',
+      );
+    }
+  }
+  const startBarSlots = number(roh['startBarSlots'], 0);
+  const barSlotLevels = Array.isArray(roh['barSlotLevels'])
+    ? (roh['barSlotLevels'] as unknown[]).map((x) => number(x, 0))
+    : [];
+  if (startBarSlots < 1) {
+    throw new Error(
+      'data/player/levels.json: startBarSlots muss mindestens 1 sein — mit null Plätzen ' +
+        'ließe sich kein Zauber wirken.',
+    );
+  }
+  for (let i = 0; i < barSlotLevels.length; i++) {
+    const stufe = barSlotLevels[i] ?? 0;
+    if (stufe < 2 || stufe > maxLevel) {
+      throw new Error(
+        `data/player/levels.json: barSlotLevels[${i}] ist ${stufe} — erlaubt sind 2 bis ` +
+          `${maxLevel}. Ein Platz auf Stufe 1 gehörte in startBarSlots, einer darüber käme nie.`,
+      );
+    }
+    if (i > 0 && stufe <= (barSlotLevels[i - 1] ?? 0)) {
+      throw new Error(
+        `data/player/levels.json: barSlotLevels[${i}] (${stufe}) kommt nicht nach ` +
+          `barSlotLevels[${i - 1}]. Die Liste muss aufsteigen, sonst ist unklar, wie viele ` +
+          'Plätze eine Stufe hat.',
+      );
+    }
+  }
+  return {
+    growthPerLevelPercent,
+    maxLevel,
+    factorPerMille,
+    xpPerBossLevel,
+    xpToNextLevel,
+    startBarSlots,
+    barSlotLevels,
+  };
+})();
+
+/**
+ * Ein Grundwert auf einer Stufe (Issue #248).
+ *
+ * **Gerechnet, nicht gespeichert** — GAME-DESIGN 18.5 und AC5 des Issues. Der
+ * Spielstand hält die Stufe; was daraus folgt, entsteht bei jedem Aufruf neu.
+ * Wer den Wert stattdessen ablegte, machte jede künftige Balance-Änderung für
+ * bestehende Spielstände wirkungslos — und niemand merkte es, weil nichts
+ * kaputtgeht.
+ *
+ * Stufen außerhalb der Tabelle werden geklemmt statt abgelehnt: Ein Spielstand
+ * aus einer Fassung mit höherer Höchststufe soll spielbar bleiben.
+ */
+export function statAtLevel(base: number, level: number): number {
+  const stufe = Math.min(Math.max(Math.trunc(level), 1), LEVELS.maxLevel);
+  const promille = LEVELS.factorPerMille[stufe - 1] ?? 1000;
+  return Math.trunc((base * promille) / 1000);
+}
 
 /**
  * Ein Boss nach Bezeichner, oder `undefined`.
