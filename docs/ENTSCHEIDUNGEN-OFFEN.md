@@ -1,16 +1,18 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-05, 15:10: Vier der fünf Entscheidungen sind getroffen.** Sie stehen unten mit dem
-Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt. Offen ist
-nur noch eine — und sie hat sich dabei von einer Design- in eine Balance-Frage verwandelt.
+**Stand 2026-08-05, 17:05: Vier der ursprünglichen fünf Entscheidungen sind getroffen.** Sie stehen
+unten mit dem Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen, ist als Issue verlinkt.
+**Zwei Punkte sind seither dazugekommen** — beide aus der Arbeit selbst, nicht aus dem Interview.
 
-|                             | Ergebnis                                                                 |
-| --------------------------- | ------------------------------------------------------------------------ |
-| **1** Doppelbelegung        | **verboten** — ein Zauber liegt auf höchstens einem Platz                |
-| **2** Punktekurve           | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden |
-| **3** `DECAY_STACK_PERCENT` | **auf 6 % anheben**                                                      |
-| **4** Stumme Zauber         | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**         |
-| **5** PUTREFACTION-Farbe    | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen        |
+|                             | Ergebnis                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| **1** Doppelbelegung        | **verboten** — ein Zauber liegt auf höchstens einem Platz                     |
+| **2** Punktekurve           | **offen, und anders zugeschnitten** — gehört gemessen, nicht entschieden      |
+| **3** `DECAY_STACK_PERCENT` | **auf 6 % anheben**                                                           |
+| **4** Stumme Zauber         | **der Auftraggeber bestätigt Suno einmal im sichtbaren Browser**              |
+| **5** PUTREFACTION-Farbe    | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen             |
+| **6** Wirkzeit gegen Tempo  | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar |
+| **7** Grundwerte je Fund    | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1 |
 
 ---
 
@@ -139,3 +141,81 @@ noch immer neue mit ki generieren."
   Messlatte für jeden weiteren Kalzinations-Zauber (#268).
 - **Alles aus GAME-DESIGN 21** — dort steht, was bereits verworfen wurde. Nichts davon wird ohne
   ausdrückliche Rücksprache wieder aufgemacht.
+
+---
+
+## 6. Wirkzeit gegen Tempo — OFFEN, und niemand hat es entschieden
+
+**Blockiert:** nichts heute · **hält auf:** E10, sobald Zauber Wirkzeiten bekommen (#268)
+
+Gemeldet von Worker-3 beim Bau von #304, vom Orchestrator nachgerechnet. Zwei Regeln des
+GAME-DESIGN, einzeln beide richtig:
+
+|         |                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------- |
+| **6.6** | die **Wirkzeit** skaliert mit Tempo                                                          |
+| **6.2** | die **globale Wartezeit** skaliert **nicht** mit Ausrüstungs-Tempo — nur über den Talentbaum |
+
+Ein laufender Zauber wird von jeder anderen Wirkung abgebrochen. Aber ein Druck, den die Wartezeit
+abweist, ist keine Wirkung — das Fenster für den Abbruch ist also die **Differenz** der beiden
+Zeiten. Schrumpft nur eine Seite, schließt es sich:
+
+```
+CATALYSIS   Wirkzeit (2000 ms Basis)   Fenster   mit GCD-Talent (1000 ms)
+   0 %              2000                500 ms         1000 ms
+  20 %              1670                170 ms          670 ms
+  33 %              1510                 10 ms          510 ms
+  40 %              1430                  0             430 ms
+  50 %              1340                  0             340 ms   ← Deckel
+```
+
+**Ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber von keinem anderen Zauber mehr abbrechbar** — nur
+noch vom Unterbrecher, der als einziger keine Wartezeit auslöst. Das liegt weit unter dem Deckel
+von 50 %, ist im Endgame also der Normalfall.
+
+**Ein längerer Zauber löst es nicht:** Selbst am oberen Ende des Korridors (2,5 s) bleiben bei
+vollem Tempo 170 ms.
+
+### Die Wahl
+
+|                                       | Was es bedeutet                                                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Das GCD-Talent trägt die Mechanik** | Wer Wirkzeit-Zauber spielen will, muss in den GCD investieren. Eine echte Kopplung zwischen Talentbaum und Zauberwahl — reizvoll, aber sie schränkt die freie Zusammenstellung ein |
+| **Die Folge annehmen**                | Tempo-Ausrichtungen verlieren die Abbruch-Entscheidung. Wirkzeit-Zauber werden für sie zu reinen „langsamen Zaubern" ohne die Verpflichtung aus 7.1                                |
+
+**Heute folgenlos:** Der Prüf-Zauber aus #304 ist die einzige Wirkzeit im Spiel und für keinen
+Spieler erreichbar. Die Frage wird scharf, sobald E10 Wirkzeiten vergibt.
+
+## 7. Wie viel trägt ein Fund? — OFFEN, aber als Messung, nicht als Entscheidung
+
+**Blockiert:** #282 teilweise · **hält auf:** E6 insgesamt
+
+Bei #282 gemessen: `BASE_STAT_IDS` steht auf beiden Seiten und **wird nirgends gelesen**.
+
+```
+WornValues (Rust und TS)   catalysis · purity · yield_bonus · gear_effects
+                           KEIN essence, vessel, ward
+data/gear/                 existiert nicht — es gibt keine Gegenstands-Daten
+```
+
+Ein Gegenstand kann ESSENCE tragen; im Kampf kommt davon nichts an. **Jeder Fund verbessert also
+spürbar nichts** — und das Gegenteil ist im Design der Grund, warum Grinden befriedigend sein soll.
+
+### Was bereits entschieden ist und nicht neu aufgemacht wird
+
+- **Nicht am Platz** — die Plätze sind Behälter (GAME-DESIGN 13.2, dort 2026-07-29 gestrichen)
+- **An der Gegenstandsstufe**, mit der Kurve, die es schon gibt (`LEVELS.factorPerMille`)
+- **Die Qualität steuert die Affix-Zahl**, nicht die Grundwerte — das ist eine **Auslegung** des
+  Orchestrators und im GAME-DESIGN als solche gekennzeichnet
+
+### Was offen ist
+
+**Die Basis: wie viel ESSENCE ein Gegenstand auf Stufe 1 trägt.** Eine reine Balance-Zahl.
+
+Sie geht denselben Weg wie Punkt 2: **nicht an den Auftraggeber zum Raten, sondern an den
+Balance-Läufer zum Messen.** Er weist Skalierungsfaktoren je Wert aus — die Frage lautet, bei
+welcher Basis ein Ausrüstungsstück spürbar etwas beiträgt, ohne die Sonderwerte zu erdrücken.
+
+Bis dahin steht die Zahl als benannte, ausdrücklich unkalibrierte Konstante an einer Stelle, und
+der Prüffall misst das **Verhältnis** (doppelte Stufe, doppelter Wert) statt des Betrags — sonst
+meldete er rot, sobald jemand kalibriert, und arbeitete gegen die Balance-Arbeit statt für sie.
