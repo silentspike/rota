@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "id": "test-crucible-trial",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #240 (umgekehrtes Ziel, eskalierende Wiederholung, Schwaechung ohne Heil-Loesung) und sonst nichts. ZUR ERREICHBARKEIT, weil in dieser Nacht fuenfmal eine Pruefung richtig gebaut war und die Zahlen den Fall unmoeglich machten: Die Reaktion beginnt bei 1000, sinkt um 20 je Sekunde und kippt unter 0 — ohne Eingriff also nach 50 s, und ein 60-s-Lauf erreicht das Kippen. CRUST gibt 900 Schutz und hebt sie damit um 900; zwei Anwendungen halten sie ueber die ganze Kampfzeit, eine nicht. Die Zeitleiste wiederholt sich alle 12 s, die Wirkzeit beginnt bei 3000 ms und schrumpft je Zyklus um 500 auf mindestens 1000 — nach vier Zyklen ist die Untergrenze erreicht und damit auch SIE im Lauf sichtbar. Die Schwaechung greift bei 8 s und tickt jede Sekunde. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10.",
+  "name": "The Crucible Trial",
+  "instance": "test",
+  "hp": 999999,
+  "overpressureMs": 120000,
+  "phases": [],
+  "energy": null,
+  "doom": null,
+  "stacks": null,
+  "race": null,
+  "bossHeal": null,
+  "stabilise": {
+    "startValue": 1000,
+    "dropPerStepMs": 1000,
+    "dropAmount": 20,
+    "failBelow": 0,
+    "maxValue": 2000
+  },
+  "escalation": {
+    "castTimeShrinkMs": 500,
+    "minCastTimeMs": 1000
+  },
+  "affliction": {
+    "atMs": 8000,
+    "perStepMs": 1000,
+    "damage": 30,
+    "clearedBy": ["quench", "temper"]
+  },
+  "timeline": [
+    {
+      "atMs": 6000,
+      "mechanic": "interruptibleCast",
+      "name": "Cascade",
+      "damage": 200,
+      "castTimeMs": 3000
+    }
+  ],
+  "timelineLoopMs": 12000,
+  "resistances": {},
+  "signature": null
+}
