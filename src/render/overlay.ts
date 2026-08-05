@@ -478,7 +478,17 @@ export class Overlay {
       // Die Grundwerte kommen auf JEDER Stufe — sie stehen deshalb immer.
       zeile(`+${levelUp.statPercent} % to all base stats`);
       if (levelUp.newSpells.length > 0) {
-        zeile(`New spell: ${levelUp.newSpells.join(', ')}`);
+        // **Einzahl und Mehrzahl.** Auf Stufe 2 werden VIER Zauber frei —
+        // „New spell: Pyre, Temper, Anchor, Reflux" ist falsch, und es ist
+        // der zweite Text, den das Spiel dem Spieler überhaupt zeigt.
+        //
+        // Dieselbe Sorgfalt wie eine Zeile tiefer bei den Plätzen: Wo eine
+        // Liste in eine Zeile fällt, entscheidet ihre Länge über das Wort.
+        zeile(
+          levelUp.newSpells.length === 1
+            ? `New spell: ${levelUp.newSpells[0]}`
+            : `New spells: ${levelUp.newSpells.join(', ')}`,
+        );
       }
       if (levelUp.newBarSlots > 0) {
         zeile(levelUp.newBarSlots === 1 ? '+1 bar slot' : `+${levelUp.newBarSlots} bar slots`);
