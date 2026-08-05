@@ -285,8 +285,40 @@ export class Session implements Simulation {
   bind(slot: number, spellIndex: number): void {
     if (slot < 0 || slot >= SLOT_COUNT) return;
     this.bindings[slot] = spellIndex;
-    if (spellIndex >= 0 && spellIndex < this.boundSpells.length) {
-      this.boundSpells[spellIndex] = 1;
+    this.rebuildBoundSpells();
+  }
+
+  /**
+   * `boundSpells` aus den Plätzen neu aufbauen (Issue #306).
+   *
+   * # Warum abgeleitet und nicht fortgeschrieben
+   *
+   * Vorher setzte `bind` nur `boundSpells[neu] = 1` und **löschte nie**. Wer
+   * einen Zauber von einem Platz nahm, hatte ihn aus der Leiste entfernt und
+   * trotzdem weiter in der Leerlauf-Rechnung — die Aufschlüsselung führte ihn
+   * mit voller Zeit, obwohl er nirgends mehr lag.
+   *
+   * Die naheliegende Reparatur wäre, an derselben Stelle `boundSpells[alt] = 0`
+   * zu setzen. Sie ist falsch, sobald derselbe Zauber auf zwei Plätzen liegt:
+   * Dann löscht das Überschreiben des einen Platzes die Markierung, die der
+   * andere noch braucht. Seit GAME-DESIGN 715 ist Doppelbelegung zwar
+   * verboten — aber eine Reparatur, die nur unter einer Regel richtig ist,
+   * bricht still, wenn die Regel woanders verletzt wird.
+   *
+   * **Ableiten kann diesen Fehler nicht machen.** Die Plätze sind die einzige
+   * Wahrheit; `boundSpells` ist ihre Sicht für die Rechnung.
+   *
+   * Das ist kein Takt-Vorgang (GAME-DESIGN 18.2 verbietet Erzeugung nur im
+   * laufenden Bild): `bind` läuft beim Belegen der Leiste, nicht je Takt, und
+   * die Schleife benutzt zwei bestehende Felder ohne zu allozieren.
+   */
+  private rebuildBoundSpells(): void {
+    this.boundSpells.fill(0);
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const spellIndex = this.bindings[i] ?? NO_SPELL;
+      if (spellIndex >= 0 && spellIndex < this.boundSpells.length) {
+        this.boundSpells[spellIndex] = 1;
+      }
     }
   }
 
