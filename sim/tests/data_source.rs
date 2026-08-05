@@ -25,6 +25,10 @@ const SUBLIMATION_JSON: &str = include_str!("../../data/spells/sublimation.json"
 const PUTREFACTION_JSON: &str = include_str!("../../data/spells/putrefaction.json");
 /// Der Pruef-Zauber zur Wirkzeit (Issue #304) — ganz hinten, wie in `build.rs`.
 const TEST_CAST_JSON: &str = include_str!("../../data/spells/test-cast.json");
+/// Der Pruef-Zauber zur Verstaerkung (Issue #420) — die ACHTE Datei, und wie
+/// test-cast ganz am Ende: Die Reihenfolge dieser Liste ist die
+/// Zauberreihenfolge, und die steht in jeder Aufzeichnung.
+const TEST_BUFF_JSON: &str = include_str!("../../data/spells/test-buff.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
@@ -52,6 +56,7 @@ fn alle_zauber(
     sublimierung: &Value,
     zersetzung: &Value,
     pruef: &Value,
+    pruef_buff: &Value,
 ) -> Vec<Value> {
     let mut liste: Vec<Value> = schule["spells"]
         .as_array()
@@ -96,6 +101,15 @@ fn alle_zauber(
         pruef["spells"]
             .as_array()
             .expect("test-cast.json: spells fehlt")
+            .iter()
+            .cloned(),
+    );
+    // **Ganz zuletzt**, hinter test-cast (Issue #420): Dessen Index steht in
+    // sechs Aufzeichnungen. Wer die beiden vertauscht, deutet sie alle um.
+    liste.extend(
+        pruef_buff["spells"]
+            .as_array()
+            .expect("test-buff.json: spells fehlt")
             .iter()
             .cloned(),
     );
@@ -151,6 +165,8 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         serde_json::from_str(SUBLIMATION_JSON).expect("sublimation.json ist kein gueltiges JSON");
     let zersetzung: Value =
         serde_json::from_str(PUTREFACTION_JSON).expect("putrefaction.json ist kein gueltiges JSON");
+    let pruef_buff: Value =
+        serde_json::from_str(TEST_BUFF_JSON).expect("test-buff.json ist kein gueltiges JSON");
     let pruef: Value =
         serde_json::from_str(TEST_CAST_JSON).expect("test-cast.json ist kein gueltiges JSON");
     let liste = alle_zauber(
@@ -161,6 +177,7 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         &sublimierung,
         &zersetzung,
         &pruef,
+        &pruef_buff,
     );
 
     assert_eq!(
