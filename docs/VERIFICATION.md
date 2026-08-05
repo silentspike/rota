@@ -592,3 +592,37 @@ a=$(git show HEAD:"$p" | jq -S "$FILTER") || { echo "ABBRUCH $p"; exit 2; }
 
 Dieselbe Klasse wie ein `all()` über eine leere Liste: **Der Vergleich zweier
 Nichtse ist immer wahr.** Sie sieht jedes Mal anders aus und ist jedes Mal dieselbe.
+
+### Ein Kriterium, das eine Datei nennt, wird beim SCHREIBEN geprüft
+
+Am 2026-08-05 stand in einem Acceptance Criterion, das ich selbst formuliert hatte:
+
+> …und dem Hinweis, dass `tools/ac6.sh` heute sichtbar macht, was sie damals verhindern sollte
+
+```
+$ ls tools/              18 Dateien, kein ac6.sh
+$ find . -name "ac6*"    nichts
+```
+
+Das Werkzeug existierte — in einem **fremden, offenen Zweig**. Für den Werker, der das Kriterium
+erfüllen sollte, ist das dasselbe wie „existiert nicht": Er kann es nicht belegen, und das Issue
+hängt plötzlich an einem anderen.
+
+**Warum dieser Verweis-Fehler schwerer wiegt als die drei anderen desselben Tages** (`merge-tree`
+mit drei Argumenten, `playwright-cli screenshot <pfad>`, `data.ts:1362`): Die standen in Nachrichten
+und in einem Issue-Text — dort liest sie jemand und stolpert.
+
+> **Ein Kriterium wird abgehakt, nicht gelesen.** Abgehakt hätte ich es selbst, bei der Abnahme,
+> weil der geforderte Abschnitt ja dastand.
+
+Gefunden hat es der Werker, weil er das Werkzeug **suchte, bevor er darauf verwies** — obwohl drei
+plausible Kandidaten in `tools/` lagen und sich einer mit gutem Willen passend hätte erzählen lassen.
+
+**Beim Schreiben eines Issues, nicht beim Abnehmen:**
+
+```bash
+ls <jede im Kriterium genannte Datei>
+git ls-tree origin/main -- <pfad>      # liegt sie auf main, oder nur in einem Zweig?
+```
+
+Ein Kriterium darf nur auf Dinge zeigen, die auf `main` stehen oder im selben PR entstehen.
