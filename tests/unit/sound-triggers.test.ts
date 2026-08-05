@@ -103,7 +103,14 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // sichtbar noch belegbar. Ein Klang für einen Zauber, den niemand wirken
   // kann, wäre eine Datei ohne Fall — und die Liste hier ist genau der Ort,
   // an dem das schwarz auf weiß steht statt in einer übersprungenen Prüfung.
-  const STUMM = new Set(['canker', 'fester', 'test-cast']);
+  // `bellows` und `searing` sind neu (Issue #268) und SPIELBAR — anders als
+  // `test-cast`. Sie stehen hier aus dem Grund, den der Kopf nennt: Sie haben
+  // noch keinen Klang, und das gehoert namentlich in den Quelltext statt in
+  // eine uebersprungene Pruefung.
+  //
+  // Klaenge entstehen ueber Suno (docs/suno-sfx.md) und werden vom
+  // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
+  const STUMM = new Set(['canker', 'fester', 'bellows', 'searing', 'test-cast']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
