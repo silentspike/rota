@@ -35,7 +35,7 @@ import { CALCINATION } from '../../src/core/data.js';
  * gilt „über den Bezeichner auflösen, nie über die Zahl". Hier ist die Zahl der
  * Gegenstand der Prüfung.
  *
- * Wer einen Zauber ergänzt, hängt ihn **hinten** an (GAME-DESIGN 18.6). Wer
+ * Wer einen Zauber ergänzt, hängt ihn **hinten** an (GAME-DESIGN 18.7). Wer
  * ihn woanders einfügt, verschiebt jede Aufzeichnung — und muss diese Liste
  * ändern, was der Wächter zu einer bewussten Entscheidung macht statt zu einem
  * Versehen.
@@ -76,7 +76,7 @@ describe('AC1 — die Zauber-Reihenfolge ist festgeschrieben', () => {
       'Die Zauber-Reihenfolge hat sich verschoben. Sie steht als ZAHL in jeder ' +
         'Aufzeichnung unter tests/parity/recordings/ — dieselbe Zahl zeigt jetzt ' +
         'auf einen anderen Zauber.\n' +
-        'Neue Zauber gehören ans ENDE der Liste (GAME-DESIGN 18.6). Ist das ' +
+        'Neue Zauber gehören ans ENDE der Liste (GAME-DESIGN 18.7). Ist das ' +
         'geschehen und die Verschiebung gewollt, gehören die Aufzeichnungen neu ' +
         'erzeugt und diese Liste nachgezogen.',
     ).toEqual([]);
