@@ -41,6 +41,38 @@ bekommt ihren eigenen Befehl und ihre eigene Ausgabe — auch wenn zwei sich äh
 **Frische Nachweise.** „Das habe ich bei Issue 3 schon geprüft" zählt nicht. Der Code hat sich
 seitdem geändert.
 
+### Eine leere Prüfliste ist nicht dasselbe wie eine laufende
+
+_Von Worker-1 am 2026-08-05 bei #282 gemeldet, nachdem es ihm fast entgangen wäre._
+
+```
+$ gh pr checks 347
+no checks reported on the 'feat/...' branch
+```
+
+Das liest sich wie **„läuft noch"**. Es hieß **„startet nie"**: Der Zweig war `CONFLICTING`, und
+GitHub startet für einen Zweig mit Konflikt gar keine Läufe.
+
+> Kein Ergebnis sieht aus wie ein unauffälliges Ergebnis. Dieselbe Gestalt wie die leere Namensfolge
+> und wie ein Werkzeug, das ohne Fehlermeldung nichts tut.
+
+**Das trifft die Warteschleife dieser Checkliste unmittelbar.** Wer auf `ci-pass` wartet und nur auf
+`SUCCESS` oder `FAILURE` prüft, wartet bei einem Konflikt bis zum Abbruch — und weiß danach nicht,
+warum. Deshalb gehört `mergeable` in dieselbe Abfrage:
+
+```bash
+gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
+  -q '.mergeable+" | "+.mergeStateStatus+" | "+([.statusCheckRollup[]|select(.name=="ci-pass")|.conclusion//"laeuft"]|join(","))'
+```
+
+| Ausgabe                         | Bedeutung                                                |
+| ------------------------------- | -------------------------------------------------------- |
+| `MERGEABLE \| BLOCKED \|`       | Checks laufen — warten ist richtig                       |
+| `CONFLICTING \| DIRTY \|`       | **Es wird nie etwas kommen.** Zweig aktualisieren lassen |
+| `MERGEABLE \| CLEAN \| SUCCESS` | fertig                                                   |
+
+**Die Unterscheidung kostet nichts und spart das Warten auf etwas, das nicht kommt.**
+
 ---
 
 ## 2. Das Spiel starten und ansprechen
