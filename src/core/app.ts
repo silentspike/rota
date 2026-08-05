@@ -8,7 +8,7 @@
  */
 import { AudioFeedback } from './audio-bridge.js';
 import { Combat } from './combat.js';
-import { CALCINATION, FIRST_CRUCIBLE } from './data.js';
+import { CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import { STEP1_BINDINGS } from './loadout.js';
 import { GameLoop } from './loop.js';
@@ -31,6 +31,56 @@ import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
+
+/**
+ * Welcher Boss den Kampf traegt — normalerweise der erste Tiegel.
+ *
+ * # Der Startparameter `?boss=` ist ein Entwicklungs-Werkzeug (19.1)
+ *
+ * Die Werkzeugkiste nennt „Zustand setzen" mit vier Beispielen — Boss-Leben,
+ * Abklingzeiten, Phase, Hitze —, und alle vier haben denselben Zweck: einen
+ * Zustand herstellen, den zu erspielen unverhältnismäßig wäre. Einen Boss zu
+ * wählen ist derselbe Zweck eine Ebene höher: „zeig mir den, der die Mechanik
+ * überhaupt hat."
+ *
+ * Ohne ihn wäre die Energieleiste (#219) nicht prüfbar. Sechs der sieben Bosse
+ * haben keine; der einzige mit einer ist im Spiel nicht erreichbar, solange die
+ * Instanz-Auswahl (12.7) fehlt.
+ *
+ * # Warum ein Startparameter und kein Wechsel zur Laufzeit
+ *
+ * Ein `setBoss(id)` müsste `Combat` und `Session` **ersetzen** — beide sind in
+ * `App` unveränderlich, und an der Session hängt der Beobachter für den
+ * Spielstand. Ein verlorener Haken fiele erst auf, wenn ein Lauf nicht
+ * gespeichert wird, also an einer Stelle, die mit dem Boss nichts zu tun hat.
+ *
+ * Hier entsteht der Kampf **von Anfang an** mit dem richtigen Boss. Es wird
+ * nichts ersetzt, und der Haken wird zwei Zeilen später gesetzt wie immer.
+ * Das ist außerdem der Weg, den 12.7 ohnehin nimmt: Der Boss wird **vor** dem
+ * Kampf gewählt.
+ *
+ * # Ein Tippfehler scheitert sichtbar
+ *
+ * `?boss=tipfeler` startet **nicht** stillschweigend den Standard-Boss. Wer
+ * dann misst, misst die falsche Sache und hält sie für die richtige — genau
+ * die Klasse Fehler, gegen die dieses Werkzeug gebaut wird.
+ */
+function startBoss(): BossDef {
+  if (!__ROTA_DEVTOOLS__) return FIRST_CRUCIBLE.value;
+  const wunsch = new URLSearchParams(window.location.search).get('boss');
+  if (wunsch === null || wunsch === '') return FIRST_CRUCIBLE.value;
+
+  const gefunden = bossById(wunsch);
+  if (gefunden === undefined) {
+    throw new Error(
+      `Unbekannter Boss "${wunsch}" im Startparameter. ` +
+        `Ein Tippfehler darf nicht stillschweigend den Standard-Boss starten — ` +
+        `sonst misst man die falsche Sache und hält sie für die richtige.`,
+    );
+  }
+  console.info(`[rota] Boss aus dem Startparameter: ${wunsch}`);
+  return gefunden;
+}
 
 export class App {
   readonly surface: Surface;
@@ -89,9 +139,10 @@ export class App {
   readonly home: PlayerHome;
 
   constructor(parent: HTMLElement) {
+    const boss = startBoss();
     this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
     this.surface = new Surface(parent);
-    this.combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+    this.combat = new Combat({ school: CALCINATION.value, boss });
     this.session = new Session(this.pressQueue, this.combat, this.audio);
 
     // Erste Verwendung des Spielstands ueberhaupt: Rotation, Pruefsummen und
