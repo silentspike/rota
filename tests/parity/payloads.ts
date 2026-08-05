@@ -1432,6 +1432,19 @@ export function coagulationPayload(): Record<string, unknown> {
     runs: ['none', 'crust', 'salve', 'temper'].map((weg) => defenceRun(boss, weg)),
   };
 }
+/**
+ * Die Leiste der Verteidigungs-Aufzeichnung (Issue #405).
+ *
+ * **Sie hängt vom Lauf ab** — anders als die übrigen vier: Der zweite Platz
+ * trägt den Zauber, der gerade geprüft wird, und bei `'none'` bleibt er leer.
+ * Deshalb eine Funktion statt einer Konstante; die Bindung entsteht trotzdem
+ * VOR den Drücken und nicht erst im `return`.
+ */
+function defenceBindings(weg: string): { slot: number; spellId: string }[] {
+  const leiste = [{ slot: 0, spellId: 'kindle' }];
+  if (weg !== 'none') leiste.push({ slot: 1, spellId: weg });
+  return leiste;
+}
 
 /**
  * Ein Durchgang mit einem der drei Wege — oder ohne.
@@ -1445,6 +1458,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
   const defence = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
+  const bindings = defenceBindings(weg);
+  const slots = slotMap(combat, bindings);
   const ticks = 3000; // 30 s
 
   const checksums: number[] = [];
@@ -1469,9 +1484,11 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     // Der Verteidigungszauber hat Vorrang, wenn er bereit ist — sonst käme er
     // nie zum Zug, weil KINDLE jeden GCD belegt.
     if (defence >= 0 && combat.isReady(defence, timeMs)) {
-      if (combat.cast(defence, timeMs).result === 0) presses.push({ tick, slot: 1 });
+      if (combat.cast(defence, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, defence, combat) });
     } else if (combat.isReady(kindle, timeMs)) {
-      if (combat.cast(kindle, timeMs).result === 0) presses.push({ tick, slot: 0 });
+      if (combat.cast(kindle, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, kindle, combat) });
     }
 
     const hash = combatChecksum(combat, timeMs);
