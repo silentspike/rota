@@ -35,6 +35,8 @@ import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
 import { STAT_ADDITIVE, STAT_MULTIPLICATIVE } from '../gear/format.js';
 import { compareItems } from '../loot/compare.js';
+import { allocationProblem } from '../progression/talents.js';
+import { talentPointsAtLevel } from '../progression/unlocks.js';
 import { AllocationProbe, type AllocationResult } from './allocations.js';
 import {
   measureCooldown,
@@ -459,6 +461,19 @@ export interface DevTools {
    * @returns die erreichte Stufe
    */
   setLevel(level: number): number;
+  /**
+   * Talente verteilen (Issue #417).
+   *
+   * **Weil es noch keine Oberfläche zum Verteilen gibt**: Der Talentbaum-
+   * Bildschirm ist ein eigenes Issue. Ohne diesen Einstieg wäre der Weg vom
+   * Spielstand in den Kampf gebaut und im Browser nicht zu zeigen — genau die
+   * Klasse, gegen die AC7 geschrieben ist.
+   *
+   * Gibt zurück, was `allocationProblem` sagt: `null`, wenn die Verteilung
+   * zulässig war, sonst den Grund. Sie wird trotzdem gesetzt — ein Dev-Werkzeug
+   * soll auch einen Zustand herstellen können, den die Oberfläche verweigert.
+   */
+  setTalents(allocation: Readonly<Record<string, number>>): string | null;
   /**
    * Der Spielstand: WOHER er kommt und was drinsteht (Issue #378).
    *
@@ -982,6 +997,14 @@ export function installDevTools(app: App): void {
       return app.persistence.state.level;
     },
     save: () => ({ ...app.persistence.origin, data: app.persistence.save }),
+    setTalents: (allocation: Readonly<Record<string, number>>) => {
+      const problem = allocationProblem(
+        allocation,
+        talentPointsAtLevel(app.persistence.state.level),
+      );
+      app.setTalents(allocation);
+      return problem;
+    },
     setBossHp: (hp: number) => {
       app.combat.setBossHpRemaining(hp);
     },

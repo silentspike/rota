@@ -20,6 +20,7 @@ import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import rawLevels from '../../data/player/levels.json';
 import rawReward from '../../data/player/reward.json';
+import rawTalents from '../../data/player/talents.json';
 import { TICK_MS } from './loop.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -1700,6 +1701,91 @@ export interface RewardDef {
    */
   readonly repeatPerMille: number;
 }
+
+/**
+ * Ein Talent im Baum (Issue #417, GAME-DESIGN 12.5).
+ *
+ * **Promille je Rang, nicht ein Faktor je Rang** — wie `factorPerMille` in
+ * `levels.json` und aus demselben Grund (18.4): Der Faktor entsteht am Ende aus
+ * ganzen Zahlen, statt dass jede Stufe eine Fliesskommazahl mitbringt.
+ */
+export interface TalentDef {
+  readonly id: string;
+  readonly name: string;
+  /** `trunk` oder einer der drei Wege — die Struktur aus 12.5. */
+  readonly path: string;
+  readonly maxRanks: number;
+  readonly damagePerRankPerMille: number;
+  /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
+  readonly requires: string | null;
+}
+
+/**
+ * Alle Talente aller Bäume, flach.
+ *
+ * Flach und nicht je Baum verschachtelt: Gerechnet wird über alle, und eine
+ * zweite Ebene wäre eine Schleife mehr an jeder Stelle. Zu welchem Baum ein
+ * Talent gehört, steht in seiner Kennung und in `path`.
+ */
+export const TALENTS: readonly TalentDef[] = (() => {
+  const roh = rawTalents as { trees?: { talents?: unknown[] }[] };
+  const alle: TalentDef[] = [];
+  const gesehen = new Set<string>();
+
+  for (const tree of roh.trees ?? []) {
+    for (const eintrag of tree.talents ?? []) {
+      const t = eintrag as Record<string, unknown>;
+      const id = typeof t['id'] === 'string' ? t['id'] : '';
+      if (id.length === 0) {
+        throw new Error('data/player/talents.json: ein Talent ohne Kennung.');
+      }
+      // **Kennungen sind der Schlüssel im Spielstand.** Zwei gleiche wären dort
+      // ein Eintrag, und die Ränge des einen zählten für den anderen.
+      if (gesehen.has(id)) {
+        throw new Error(`data/player/talents.json: die Kennung "${id}" kommt zweimal vor.`);
+      }
+      gesehen.add(id);
+
+      const maxRanks = number(t['maxRanks'], 0);
+      if (maxRanks < 1) {
+        throw new Error(
+          `data/player/talents.json: "${id}" hat maxRanks ${maxRanks} — mindestens 1.`,
+        );
+      }
+      const damagePerRankPerMille = number(t['damagePerRankPerMille'], 0);
+      if (damagePerRankPerMille < 0) {
+        throw new Error(
+          `data/player/talents.json: "${id}" hat ${damagePerRankPerMille} Promille je Rang. ` +
+            'Ein Talent, das schwächer macht, ist keines.',
+        );
+      }
+      alle.push({
+        id,
+        name: typeof t['name'] === 'string' ? t['name'] : id,
+        path: typeof t['path'] === 'string' ? t['path'] : '',
+        maxRanks,
+        damagePerRankPerMille,
+        requires: typeof t['requires'] === 'string' ? t['requires'] : null,
+      });
+    }
+  }
+
+  // **Jede Vorbedingung muss es geben.** Ein `requires` auf eine Kennung, die
+  // nicht existiert, spärrte das Talent für immer — und zwar still: Es stünde
+  // im Baum und liesse sich nie steigern.
+  for (const talent of alle) {
+    if (talent.requires !== null && !gesehen.has(talent.requires)) {
+      throw new Error(
+        `data/player/talents.json: "${talent.id}" verlangt "${talent.requires}", ` +
+          'das es nicht gibt.',
+      );
+    }
+  }
+  if (alle.length === 0) {
+    throw new Error('data/player/talents.json: kein einziges Talent.');
+  }
+  return alle;
+})();
 
 export const REWARD: RewardDef = (() => {
   const roh = rawReward as Record<string, unknown>;

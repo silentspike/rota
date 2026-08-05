@@ -101,6 +101,13 @@ export interface RecordedState {
    * Weg von der Aufzeichnung bis zum Speicher haben.
    */
   readonly bestRuns: readonly BestRun[];
+  /**
+   * Die verteilten Talente (Issue #417).
+   *
+   * **Die Wahl des Spielers, nicht ihre Wirkung** (GAME-DESIGN 18.6): Was der
+   * Faktor daraus macht, wird bei jedem Kampf neu gerechnet.
+   */
+  readonly talentPoints: Readonly<Record<string, number>>;
   /** Erreichte Stufe (Issue #248). */
   readonly level: number;
   /** Erfahrung auf dieser Stufe, noch nicht verbraucht (Issue #248). */
@@ -239,6 +246,9 @@ export function recordRun(
     runHistory: appendRun(state.runHistory, entry),
     progressMarks: mark.marks,
     bestRuns: best?.runs ?? state.bestRuns,
+    // **Unverändert weitergereicht**: Ein Kampf verteilt keine Talente — das
+    // tut der Spieler zwischen den Kämpfen (GAME-DESIGN 12.4).
+    talentPoints: state.talentPoints,
     level: nachher.level,
     experience: nachher.xp,
     counted: true,

@@ -175,6 +175,7 @@ export class RunPersistence {
       runHistory: this.data.runHistory,
       progressMarks: this.data.progressMarks,
       bestRuns: this.data.bestRuns,
+      talentPoints: this.data.talentPoints,
       level: this.data.level,
       experience: this.data.experience,
     };
@@ -229,6 +230,24 @@ export class RunPersistence {
    * Setzt die Erfahrung auf null: Ein Sprung auf Stufe 5 mit der Erfahrung von
    * Stufe 1 waere ein Zustand, den das Spiel nie erreicht.
    */
+  /**
+   * Nur die Talent-Verteilung ablegen (Issue #417).
+   *
+   * **Getrennt von `persist`**, aus demselben Grund wie die Belegung (#264):
+   * Sie entsteht zu einem anderen Zeitpunkt — `persist` schreibt nach einem
+   * Kampf, verteilt wird dazwischen.
+   */
+  persistTalents(allocation: Readonly<Record<string, number>>): boolean {
+    this.data = { ...this.data, savedAt: this.now(), talentPoints: allocation };
+    if (this.store === null) return false;
+    try {
+      this.slotValue = this.store.save(this.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   persistLevel(level: number): boolean {
     this.data = {
       ...this.data,
@@ -302,6 +321,10 @@ export class RunPersistence {
       // Punkte daraus. Punkte wären ein berechneter Wert, der auf kommende
       // Kämpfe zurückwirkt — genau das, was 18.6 verbietet.
       bestRuns: next.bestRuns,
+      // **Nur die Verteilung** (Issue #417, GAME-DESIGN 18.6): Der Faktor, den
+      // der Kampf daraus bildet, ist ein berechneter Wert und gehoert nicht
+      // hierher.
+      talentPoints: next.talentPoints,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
       // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge
