@@ -29,7 +29,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat, alsSpellIndex } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex, type SpellIndex } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -330,7 +330,7 @@ function recordMisplays(ticks: number): Recording {
 
   const presses: RecordedPress[] = [];
   // Drückt einen Zauber, ob er darf oder nicht — und schreibt den Druck mit.
-  const press = (spell: number, tick: number, timeMs: number): void => {
+  const press = (spell: SpellIndex, tick: number, timeMs: number): void => {
     combat.cast(alsSpellIndex(spell), timeMs);
     presses.push({ tick, slot: slotOf.get(spell) ?? 0 });
   };
@@ -2607,7 +2607,7 @@ function recordSynergy(ticks: number): Recording {
   for (const binding of SYNERGY_BINDINGS) slotOf.set(combat.indexOf(binding.spellId), binding.slot);
 
   const presses: RecordedPress[] = [];
-  const press = (spell: number, tick: number, timeMs: number): void => {
+  const press = (spell: SpellIndex, tick: number, timeMs: number): void => {
     const slot = slotOf.get(spell);
     // **Kein `?? 0`.** Ein Druck auf einen ungebundenen Zauber landete sonst auf
     // Platz 0 — die Datei sagte CANKER und der Simulator läse den Zauber, der
