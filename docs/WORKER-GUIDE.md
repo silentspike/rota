@@ -2366,3 +2366,35 @@ Und für Belege, die in eine Meldung sollen: **einmal ansehen.** Ein Bild, das m
 geöffnet hat, ist eine Behauptung über eine Datei — dieselbe Klasse wie ein Prüffall, den
 man grün gemeldet hat, ohne zu sehen, dass er gar nicht gelaufen ist (VERIFICATION.md,
 `cargo test` bricht nach der ersten gefallenen Sammlung ab).
+
+### 8.23 Drei Arten, etwas nicht zu finden, das schon da ist
+
+_Am 2026-08-05 dreimal an einem Abend, von allen dreien._
+
+|              | wollte bauen                      | gab es schon                                       | warum nicht gefunden                                                                           |
+| ------------ | --------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Worker-2     | einen Reihenfolge-Wächter         | `spell-school.test.ts:26` bewachte sie             | **gar nicht gesucht**                                                                          |
+| Worker-1     | `showTestLevelUp()`               | `setLevel()` seit #264                             | nach `showTest*` gesucht — **dem Namen, den er erwartete**                                     |
+| Orchestrator | `pr-title` in `ci-pass` aufnehmen | die Trennung ist begründet, im Kopf von `meta.yml` | Jobs, Aggregat und Branch Protection gemessen — **den Kommentar über der Datei nicht gelesen** |
+
+Der dritte ist der teuerste, und zwar nicht wegen des Aufwands: Der Umbau war fertig geschrieben
+und wurde nur von einer Zusicherung im eigenen Skript gestoppt, die zufällig anschlug. Ohne sie
+wäre eine funktionierende, dokumentierte Entscheidung rückgängig gemacht worden — **gegen eine
+Begründung, die drei Zeilen über der Änderung stand.**
+
+**Die Gegenmaßnahme ist nicht „vorher suchen".** Alle drei hätten das unterschrieben. Sie ist
+enger:
+
+```bash
+grep -n "<was das Ding TUT>" <wo es liegen müsste>   # nicht: der Name, den ich erwarte
+head -30 <die Datei, die ich ändern will>            # bevor die erste Zeile geändert wird
+```
+
+Worker-1s Fall zeigt den Unterschied am schärfsten: `grep "showTest"` fand nichts, `grep "level"`
+hätte es gefunden. Der Name war das Hindernis, nicht die Suche.
+
+> **Und wenn die Antwort „gibt es schon" lautet, ist das kein verlorener Aufwand.** Worker-1s
+> Vorschlag hätte die Einblendung _gemalt_, statt einen Aufstieg _auszulösen_ — der Screenshot
+> hätte belegt, dass sie malbar ist, nicht dass sie erscheint. Das vorhandene Werkzeug war nicht
+> nur älter, es beantwortete die richtige Frage. **Wer sucht, findet manchmal nicht nur das Ding,
+> sondern auch, dass er die falsche Frage stellen wollte.**
