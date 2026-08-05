@@ -126,6 +126,9 @@ export const LOG_PARITY_NAME = 'log-parity';
 /** Vergleichsdatei für die wiederholte Zeitleiste (#174). */
 export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
+/** Vergleichsdatei für den Gleichlauf der Sublimation (#104). */
+export const SUBLIMATION_NAME = 'sublimation';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -1197,6 +1200,93 @@ export function logParityPayload(): Record<string, unknown> {
  * `sim/tests/parity_timeline_loop.rs` und ist hart: Weniger als zwei Zyklen
  * lässt der Fall nicht durchgehen.
  */
+/**
+ * Ein Durchlauf, in dem **wirklich verkürzt wird** (Issue #104).
+ *
+ * # Warum es diesen Payload gibt
+ *
+ * AC5 von #78 lautete „die Mechanik rechnet auf beiden Seiten gleich" und war
+ * damals nicht baubar: Kein ausgelieferter Zauber trug
+ * `cooldownReductionMs`, ein Prüffall hätte zwei Nullen verglichen. Worker-1
+ * hat das gemeldet, statt den AC trivial grün zu setzen — daraus wurde dieses
+ * Issue.
+ *
+ * Seit #201 trägt VAPOUR die Verkürzung. Der Lauf hier wirkt ihn wiederholt
+ * zwischen KINDLE-Würfen: Jede Wirkung nimmt allen laufenden Abklingzeiten
+ * denselben festen Betrag (GAME-DESIGN 4.1 — ein Betrag, kein Anteil, damit
+ * der Spieler abzählen kann).
+ *
+ * # Was die Prüfsumme je Takt hier leistet
+ *
+ * Eine Verkürzung verschiebt **Zeitpunkte**, nicht Beträge. Ein Vergleich nur
+ * am Ende sähe denselben Gesamtschaden auch dann, wenn beide Seiten die
+ * Zauber zu verschiedenen Zeiten wirken — solange am Schluss gleich viele
+ * durchgelaufen sind. Erst die Summe je Takt hält fest, dass sie es
+ * gleichzeitig tun.
+ */
+export function sublimationPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const vapour = combat.indexOf('vapour');
+  const smoulder = combat.indexOf('smoulder');
+  const ticks = 3000; // 30 s
+
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const kindleReadyAt: number[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      kindleReadyAt.push(combat.cooldownRemainingMs(kindle, timeMs));
+      break;
+    }
+    // VAPOUR, sobald er bereit ist — sonst SMOULDER für die Brand-Wirkung,
+    // sonst KINDLE. So laufen beim Verkürzen wirklich Abklingzeiten, statt
+    // dass die Wirkung ins Leere geht.
+    let gewaehlt = -1;
+    if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
+    else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
+      gewaehlt = smoulder;
+    } else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+
+    if (gewaehlt >= 0 && combat.cast(gewaehlt, timeMs).result === 0) {
+      const platz = gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : 2;
+      presses.push({ tick, slot: platz });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    // Die Restzeit von KINDLE je Takt: Sie ist die Größe, die VAPOUR bewegt.
+    kindleReadyAt.push(combat.cooldownRemainingMs(kindle, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: SUBLIMATION_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      { slot: 1, spellId: 'vapour' },
+      { slot: 2, spellId: 'smoulder' },
+    ],
+    presses,
+    checksums,
+    /** Restzeit von KINDLE je Takt — die Größe, die VAPOUR bewegt. */
+    kindleReadyAt,
+    expected: {
+      damageDealt: combat.damageDealt,
+      casts: combat.castCount(kindle) + combat.castCount(vapour) + combat.castCount(smoulder),
+      vapourCasts: combat.castCount(vapour),
+      kindleCasts: combat.castCount(kindle),
+    },
+  };
+}
+
 export function timelineLoopPayload(): Record<string, unknown> {
   const boss = bossById('test-metronome');
   if (boss === undefined) throw new Error('Der Boss test-metronome fehlt.');
