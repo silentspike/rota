@@ -1086,6 +1086,34 @@ Das gilt für die **Aussage**, nicht für die Arbeit: Während des Bauens ist ei
 richtige Werkzeug, weil er schnell ist. Nur darf daraus kein „lint ist sauber" werden — das ist eine
 Aussage über das Projekt, und die trägt nur ein Lauf über das Projekt.
 
+##### Der Ausschnitt steckt nicht immer in der Pfadangabe
+
+_Drei Fälle am 2026-08-05, alle drei von verschiedenen Sitzungen an sich selbst gemessen._
+
+Bei `eslint <pfad>` sieht man den Ausschnitt im Befehl. Die unangenehmeren Fälle sind die, wo der
+Befehl vollständig aussieht und das **Werkzeug** weniger prüft, als sein Name verspricht:
+
+| Befehl                   | prüft nicht                                   | gemeldet wurde     |
+| ------------------------ | --------------------------------------------- | ------------------ |
+| `cargo test`             | `clippy` — die CI fährt es zusätzlich         | „48 Suiten grün"   |
+| `cargo build`            | `examples/` — sie bauen erst bei `cargo test` | „build ist grün"   |
+| `cargo test` (ohne Flag) | alles mit `#[ignore]`                         | „alle Suiten grün" |
+
+**Die dritte ist die schärfste**, weil der Ausschnitt im **Quelltext** steht und in keinem Befehl
+sichtbar wird. Vier Prüffälle, die eine ganze Suche absicherten, lagen hinter `#[ignore]` mit der
+Begründung „misst tausende Kämpfe". Gemessen waren es **40 Millisekunden** — und `cargo test`
+meldete `2 passed; 0 failed; 4 ignored`, also grün.
+
+> Die Zeile mit `ignored` ist keine Randnotiz. **Sie ist die Liste dessen, was gerade nicht geprüft
+> wurde**, und sie steht in derselben Zeile wie das Wort `ok`.
+
+**Zwei Gewohnheiten dagegen:**
+
+- **Die Aussage an dem Werkzeug ausrichten, das die CI fährt** — nicht an dem, das schneller ist.
+  Wer `cargo test` fährt und „grün" meldet, hat über `clippy` nichts gesagt.
+- **Beim Ausschließen die Begründung messen, nicht schätzen.** „Läuft zu lange" ist eine Behauptung
+  über eine Zahl. Sie kostet einen Befehl, und dreimal am selben Tag war sie falsch.
+
 #### Die vierte Gestalt: die falsche Quelle — gar kein Werkzeug
 
 Die ersten drei führen ein Werkzeug aus, das die falsche Frage beantwortet. Die vierte führt
@@ -1890,6 +1918,38 @@ viermal gescheitert.
 > Der gefährliche Teil ist nicht, dass die Messung danebengeht. Es ist, dass die zu frühe Messung
 > **denselben Wert liefert wie ein echter Fehler** — `null`, `0`, „nichts passiert". Sie sieht nicht
 > aus wie ein Messfehler, sondern wie ein Befund.
+
+### 8.17 Die Gegenprobe muss die FEHLERART nachbauen, nicht irgendeinen Schaden
+
+_Von Worker-3 am 2026-08-05 bei #328 gemessen und selbst formuliert._
+
+Ein Wächter ist erst belegt, wenn er einmal rot war (§ 5). Aber **womit** man ihn rot macht,
+entscheidet, ob der Beleg etwas wert ist.
+
+Der Fall: Ein Prüffall soll sicherstellen, dass ein Boss-Widerstand den **Schaden** mindert und den
+**Vorrat** unberührt lässt. Die erste Gegenprobe senkte den Vorrat pauschal um ein Viertel — an
+**allen** Bössen.
+
+```
+Vorrat überall um ein Viertel gesenkt        →  Fall bleibt GRÜN
+Vorrat nur dort gesenkt, wo ein Widerstand
+steht — also die echte Fehlerart              →  Fall wird ROT, als einziger von elf
+```
+
+**Das erste Grün war richtig.** Der Fall vergleicht die drei Bösse miteinander; fehlt überall
+dasselbe, ist der Vergleich unverändert. Ein Wächter, der darauf angesprungen wäre, hätte nicht
+gemessen, was er behauptet.
+
+> Das ist eine Ebene tiefer als „kann der Prüffall den Unterschied überhaupt zeigen": **Kann die
+> Gegenprobe den Fehler überhaupt erzeugen, den sie zu erzeugen behauptet?**
+
+**Die Prüffrage vor jeder Gegenprobe:** Baue ich die Fehlerart nach, gegen die der Wächter schützen
+soll — oder mache ich nur irgendetwas kaputt und sehe, ob es piept? Ein Wächter, der auf jede
+Beschädigung anspringt, unterscheidet nicht mehr zwischen dem Fehler und dem Rest der Welt.
+
+**Ein Nebeneffekt, der die Sache lohnend macht:** Wenn die richtige Gegenprobe **genau einen** Fall
+rot färbt und die anderen zehn grün lässt, ist das zugleich der Beleg, dass die Fälle sich nicht
+gegenseitig abdecken.
 
 ---
 
