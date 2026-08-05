@@ -563,6 +563,22 @@ export function recordings(): Map<string, Recording> {
     // Stufe 30 und nicht 2: Der Faktor ist dort 4,116 und trennt deutlich.
     // Bei 1,05 saehe ein Rundungsfehler aus wie Uebereinstimmung.
     builtIn.set('level-30', recordGoodRotation('level-30', 3000));
+    // Der Prueffall zu den WIDERSTAENDEN (Issue #328, AC7). 2000 Takte sind
+    // 20 s.
+    //
+    // **Dieselbe gute Rotation wie sonst, nur gegen einen anderen Boss** —
+    // dieselbe Bauart wie `vessel-phases` (#96): Alles, was sich zwischen
+    // dieser Aufzeichnung und einer anderen unterscheidet, kommt damit aus den
+    // BOSS-Daten und aus nichts sonst.
+    //
+    // Bis zu diesem Issue hat keine Vergleichsdatei einen Boss mit
+    // Widerstaenden gefahren — es gab keinen. Der Simulator las das Feld gar
+    // nicht (`grep -c resist sim/build.rs` -> 0), und die Abweichung war
+    // unsichtbar, weil beide Seiten bei leeren Daten auf dieselbe Eins kamen.
+    const resistantBoss = bossById('test-resistant');
+    if (resistantBoss !== undefined) {
+      builtIn.set('resistances', recordGoodRotation('resistances', 2000, resistantBoss));
+    }
     // Der Prueffall zur WIRKZEIT des Spielers (Issue #304, AC5). 2000 Takte
     // sind 20 s: Der dritte Schlag des Bosses faellt bei 15 s, und die Zeit
     // danach gehoert dazu — sie belegt, dass nach einem Abbruch wieder
