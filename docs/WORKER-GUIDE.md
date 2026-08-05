@@ -448,6 +448,31 @@ tun hat.** Er wird dann nicht rot — er wird grün und bedeutet nichts.
 > ein `grep` auf die eingebaute Änderung, ein absichtlicher Kompilierfehler an der richtigen
 > Stelle, ein Begriff, der nur einmal vorkommt.
 
+### Woraus kommt die Zahl, gegen die verglichen wird?
+
+_Die gemeinsame Frage hinter drei Fällen aus einer Nacht._
+
+Drei Prüffälle sahen aus wie ein Beleg und waren keiner. Jedes Mal lag es an der **Quelle** der
+Vergleichszahl:
+
+| Fall                              | Woher die Zahl kam                  | Was daran falsch war                                                      |
+| --------------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| **Tautologie**                    | aus dem Prüflauf selbst             | `[0,1,2].slice(0,2)` gegen `[0,1]` — die eigene Erwartung mit sich selbst |
+| **Falscher Gegenfall**            | aus einer zweiten Ursache           | Der Vergleichslauf scheiterte an der Kampfdauer, nicht am fehlenden Feld  |
+| **Fehlschlag aus falschem Grund** | aus dem Werkzeug statt aus dem Fall | Der Übersetzer brach ab, der Prüffall lief nie                            |
+
+> **Die Frage vor jedem Nachweis:** Woraus kommt die Zahl, gegen die ich vergleiche? Aus einer
+> Quelle, die **unabhängig** von dem ist, was ich prüfe — oder aus derselben Rechnung, demselben
+> Lauf, demselben Werkzeug?
+
+Der erste Fall ist der heimtückischste, weil er eine **Auflage formal erfüllen** kann. Die
+Auflage lautete: _„Die Gegenprobe über zwei Zustände — Belegung auf Stufe 10 gegen Stufe 20,
+nicht nur die Zahl."_ Der Prüffall verglich zwei Zustände. Beide stellte er selbst her.
+
+**Eine Auflage, die die Form eines Nachweises beschreibt, sagt nichts über seine Quelle.** Wer
+die Form erfüllt, glaubt fertig zu sein — und liegt richtig, solange niemand fragt, woher die
+Zahlen stammen.
+
 ### Bei einer Gegenprobe zählt die Meldung, nicht der Rückgabewert
 
 _Gefunden am 2026-08-05 in Etappe 2 von #248._
