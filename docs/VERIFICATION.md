@@ -65,12 +65,13 @@ gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup \
   -q '.mergeable+" | "+.mergeStateStatus+" | "+([.statusCheckRollup[]|select(.name=="ci-pass")|.conclusion//"laeuft"]|join(","))'
 ```
 
-| Ausgabe                         | Bedeutung                                                |
-| ------------------------------- | -------------------------------------------------------- |
-| `MERGEABLE \| BLOCKED \|`       | Checks laufen — warten ist richtig                       |
-| `CONFLICTING \| DIRTY \|`       | **Es wird nie etwas kommen.** Zweig aktualisieren lassen |
-| `MERGEABLE \| CLEAN \| SUCCESS` | fertig                                                   |
-| `UNKNOWN \| UNKNOWN \|`         | **Zwei ganz verschiedene Lagen** — siehe unten           |
+| Ausgabe                          | Bedeutung                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `MERGEABLE \| BLOCKED \|`        | Checks laufen — warten ist richtig                                        |
+| `CONFLICTING \| DIRTY \|`        | **Es wird nie etwas kommen.** Zweig aktualisieren lassen                  |
+| `MERGEABLE \| CLEAN \| SUCCESS`  | fertig                                                                    |
+| `UNKNOWN \| UNKNOWN \|`          | **Zwei ganz verschiedene Lagen** — siehe unten                            |
+| `MERGEABLE \| BEHIND \| SUCCESS` | **Fertig, aber nicht mergefähig** — `strict` verlangt den aktuellen Stand |
 
 **`UNKNOWN` heißt entweder „GitHub rechnet noch" oder „der PR ist längst gemergt".** GitHub
 berechnet `mergeable` asynchron; bei einem geschlossenen PR steht dort dauerhaft nichts. Beim
@@ -79,6 +80,18 @@ Nachmessen an einem frischen PR: durchgehend `MERGEABLE | BLOCKED`, bei einem ge
 
 > Wer `UNKNOWN` sieht, fragt zuerst `gh pr view <n> --json state` — bei `MERGED` ist die Frage
 > beantwortet, bei `OPEN` wartet man ein paar Sekunden und misst erneut.
+
+**`BEHIND` ist der Zustand, der eine Warteschleife am längsten narrt.** Die Prüfungen sind grün,
+der Merge scheitert trotzdem — die Branch Protection steht auf `strict`, und **jeder** fremde Merge
+setzt alle offenen PRs zurück in diesen Zustand. Eine Schleife, die auf `CLEAN | SUCCESS` wartet,
+läuft dann bis zum Abbruch durch.
+
+```bash
+gh pr update-branch <n>   # holt main in den Zweig, danach laufen die Prüfungen erneut
+```
+
+> Gemessen am 2026-08-05: fünfzehn Runden gewartet, `SUCCESS` stand ab der dritten. Der eigene
+> Abbruch kam erst nach neun Minuten, und der Merge scheiterte danach sofort.
 
 **Die Unterscheidung kostet nichts und spart das Warten auf etwas, das nicht kommt.**
 
