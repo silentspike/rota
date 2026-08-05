@@ -413,6 +413,28 @@ pub struct BossHeal {
     pub amount: u32,
 }
 
+/// Das umgekehrte Ziel (GAME-DESIGN 11.2, Baustein 6; Issue #247).
+///
+/// > **Statt** Schaden zu machen muss eine kippende Reaktion stabilisiert
+/// > werden. Der Kampf, in dem COAGULATION glaenzt.
+///
+/// **AM BOSS-RING, NICHT AN EINEM ZWEITEN WERT.** Der Ring IST die Reaktion
+/// (GAME-DESIGN 9.1: "es ist das Reaktionsgefaess"). Erst dadurch wird die
+/// Umkehrung zur Umkehrung — beide Bedingungen drehen sich: Ring auf 0 ist die
+/// Niederlage, die abgelaufene Frist der Sieg. Ein zweiter Wert daneben waere
+/// eine Zusatzaufgabe gewesen, keine Umkehrung.
+///
+/// **Die Wertung steht nicht hier.** Der Simulator misst Schaden und Zeit; ob
+/// ein Ende Sieg oder Niederlage heisst, entscheidet das Spiel (`checkDefeat`).
+/// Was er braucht, ist der Tick — sonst laufen die Staende auseinander.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Runaway {
+    /// Takt, in dem der Ring von selbst sinkt.
+    pub per_step_ms: Millis,
+    /// Wie viel Fortschritt je Takt von selbst dazukommt.
+    pub amount: u32,
+}
+
 /// Die eskalierende Wiederholung (GAME-DESIGN 11.2, Baustein 7; #240).
 ///
 /// > Dieselbe Phase kehrt mehrfach wieder — **kuerzere Fenster**, mehr
@@ -476,6 +498,8 @@ pub struct Boss {
     pub race: Option<Race>,
     /// Was ein Fehler an Fortschritt zurueckdreht, falls ueberhaupt (#218).
     pub boss_heal: Option<BossHeal>,
+    /// Das umgekehrte Ziel, falls dieser Boss es traegt (#247).
+    pub runaway: Option<Runaway>,
     /// Die eskalierende Wiederholung, falls dieser Boss eine hat (#240).
     pub escalation: Option<Escalation>,
     /// Die Schwaechung ohne Heil-Loesung, falls dieser Boss eine hat (#240).

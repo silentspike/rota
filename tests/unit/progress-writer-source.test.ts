@@ -110,14 +110,25 @@ describe('Der Fortschritt hat genau einen Schreiber', () => {
     );
     // Die vier und ihre Rollen:
     //   bookProgress        bucht — die EINZIGE Stelle, die das Fenster kennt
-    //   healBoss            dreht zurueck
+    //   undoProgress        dreht zurueck — die EINZIGE Stelle mit der
+    //                       Untergrenze bei null
     //   reset               setzt auf null, kein Buchen
     //   setBossHpRemaining  Werkzeug (19.2), setzt einen Stand von aussen
+    //
+    // **Hier stand bis #247 `healBoss`.** Die Zahl ist dieselbe geblieben, die
+    // STELLE ist umgezogen: Mit Baustein 6 gibt es einen zweiten Grund
+    // zurueckzudrehen — der Spieler haelt die Reaktion —, und beide brauchen
+    // dieselbe Untergrenze. `healBoss` ruft jetzt `undoProgress`, `stabilise`
+    // ebenfalls.
+    //
+    // Der Waechter hat das gemeldet, und das ist sein Zweck: Wer eine
+    // Schreibstelle verschiebt, muss es hier ausdruecklich sagen. Was er
+    // verbietet, ist die ZAHL zu erhoehen, um eine neue Stelle durchzuwinken.
     expect([...methoden].sort()).toEqual([
       'bookProgress',
-      'healBoss',
       'reset',
       'setBossHpRemaining',
+      'undoProgress',
     ]);
   });
 
