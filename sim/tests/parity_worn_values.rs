@@ -454,3 +454,42 @@ fn ward_aus_der_ausruestung_mindert_zusaetzlich() {
         "knapp unter dem Deckel darf nicht schon null herauskommen"
     );
 }
+
+#[test]
+fn der_paritaets_lauf_traegt_alle_drei_grundwerte() {
+    // **Die Bedingung, unter der der Gleichlauf-Waechter ueberhaupt wirkt.**
+    //
+    // Der Fehler, der #282 fast durchgerutscht waere, hing an einer Zeile:
+    // `player_hp` bekam die Basis OHNE Ausruestung, `vessel_max` die MIT.
+    // Gefunden hat ihn der Prüfsummen-Vergleich — aber nur, weil der
+    // Vergleichslauf VESSEL ungleich null trägt.
+    //
+    // Stünden die drei Werte hier auf null, liefe der Vergleich durch die
+    // neue Rechnung, ohne sie je zu benutzen. Er belegte dann, dass beide
+    // Seiten dasselbe tun, wenn nichts zu tun ist — und die nächste
+    // Asymmetrie fiele niemandem auf.
+    let json = data();
+    let worn = worn(&json);
+    for (name, wert) in [
+        ("essence", worn.essence),
+        ("vessel", worn.vessel),
+        ("ward", worn.ward),
+    ] {
+        assert!(
+            wert > 0,
+            "der Paritaets-Lauf traegt {name} = 0 — dann prueft der \
+             Gleichlauf diesen Wert nicht"
+        );
+    }
+
+    // Und drei VERSCHIEDENE Werte: Waeren sie gleich, blieben zwei
+    // vertauschte Felder unbemerkt.
+    assert!(
+        worn.essence != worn.vessel && worn.vessel != worn.ward && worn.essence != worn.ward,
+        "zwei der drei Grundwerte sind gleich ({}, {}, {}) — eine vertauschte \
+         Zuordnung faellt dann nicht auf",
+        worn.essence,
+        worn.vessel,
+        worn.ward
+    );
+}
