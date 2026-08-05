@@ -126,6 +126,9 @@ export const LOG_PARITY_NAME = 'log-parity';
 /** Vergleichsdatei für die wiederholte Zeitleiste (#174). */
 export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
+/** Vergleichsdatei für den Gleichlauf der Sublimation (#104). */
+export const SUBLIMATION_NAME = 'sublimation';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -1284,6 +1287,107 @@ export function logParityPayload(): Record<string, unknown> {
  * `sim/tests/parity_timeline_loop.rs` und ist hart: Weniger als zwei Zyklen
  * lässt der Fall nicht durchgehen.
  */
+/**
+ * Ein Durchlauf, in dem **wirklich verkürzt wird** (Issue #104).
+ *
+ * # Warum es diesen Payload gibt
+ *
+ * AC5 von #78 lautete „die Mechanik rechnet auf beiden Seiten gleich" und war
+ * damals nicht baubar: Kein ausgelieferter Zauber trug
+ * `cooldownReductionMs`, ein Prüffall hätte zwei Nullen verglichen. Worker-1
+ * hat das gemeldet, statt den AC trivial grün zu setzen — daraus wurde dieses
+ * Issue.
+ *
+ * Seit #201 trägt VAPOUR die Verkürzung. Der Lauf hier wirkt ihn wiederholt
+ * zwischen KINDLE-Würfen: Jede Wirkung nimmt allen laufenden Abklingzeiten
+ * denselben festen Betrag (GAME-DESIGN 4.1 — ein Betrag, kein Anteil, damit
+ * der Spieler abzählen kann).
+ *
+ * # Was die Prüfsumme je Takt hier leistet
+ *
+ * Eine Verkürzung verschiebt **Zeitpunkte**, nicht Beträge. Ein Vergleich nur
+ * am Ende sähe denselben Gesamtschaden auch dann, wenn beide Seiten die
+ * Zauber zu verschiedenen Zeiten wirken — solange am Schluss gleich viele
+ * durchgelaufen sind. Erst die Summe je Takt hält fest, dass sie es
+ * gleichzeitig tun.
+ */
+export function sublimationPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const vapour = combat.indexOf('vapour');
+  const smoulder = combat.indexOf('smoulder');
+  const pyre = combat.indexOf('pyre');
+  const ticks = 3000; // 30 s
+
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const pyreReadyAt: number[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      pyreReadyAt.push(combat.cooldownRemainingMs(pyre, timeMs));
+      break;
+    }
+    // VAPOUR, sobald er bereit ist — sonst SMOULDER für die Brand-Wirkung,
+    // sonst KINDLE. So laufen beim Verkürzen wirklich Abklingzeiten, statt
+    // dass die Wirkung ins Leere geht.
+    let gewaehlt = -1;
+    if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
+    else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
+      gewaehlt = smoulder;
+    } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+
+    if (gewaehlt >= 0 && combat.cast(gewaehlt, timeMs).result === 0) {
+      const platz =
+        gewaehlt === kindle ? 0 : gewaehlt === vapour ? 1 : gewaehlt === smoulder ? 2 : 3;
+      presses.push({ tick, slot: platz });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    // **Die Restzeit von PYRE**, nicht von KINDLE. Der erste Entwurf maß
+    // KINDLE — der hat 1500 ms Abklingzeit und ist beim VAPOUR-Wurf praktisch
+    // immer bereit, die Verkürzung um 1000 ms traf also eine Restzeit von 10 ms
+    // und wurde auf 0 gekappt. Drei Prüffälle waren grün und belegten, dass
+    // beide Seiten dasselbe Nichts rechnen.
+    //
+    // PYRE hat 8000 ms. Beim VAPOUR-Wurf läuft damit eine echte Restzeit.
+    pyreReadyAt.push(combat.cooldownRemainingMs(pyre, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: SUBLIMATION_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: [
+      { slot: 0, spellId: 'kindle' },
+      { slot: 1, spellId: 'vapour' },
+      { slot: 2, spellId: 'smoulder' },
+      { slot: 3, spellId: 'pyre' },
+    ],
+    presses,
+    checksums,
+    /** Restzeit von PYRE je Takt — die Größe, die VAPOUR wirklich bewegt. */
+    pyreReadyAt,
+    expected: {
+      damageDealt: combat.damageDealt,
+      casts:
+        combat.castCount(kindle) +
+        combat.castCount(vapour) +
+        combat.castCount(smoulder) +
+        combat.castCount(pyre),
+      vapourCasts: combat.castCount(vapour),
+      kindleCasts: combat.castCount(kindle),
+    },
+  };
+}
+
 export function timelineLoopPayload(): Record<string, unknown> {
   const boss = bossById('test-metronome');
   if (boss === undefined) throw new Error('Der Boss test-metronome fehlt.');

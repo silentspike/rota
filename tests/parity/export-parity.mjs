@@ -53,6 +53,8 @@ import {
   fixationPayload,
   logParityPayload,
   timelineLoopPayload,
+  sublimationPayload,
+  SUBLIMATION_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -115,6 +117,10 @@ writeFileSync(fixationPath, serialize(fixation), 'utf8');
 const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
+
+const sublimation = sublimationPayload();
+const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
+writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
 
 const timelineLoop = timelineLoopPayload();
 const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);
