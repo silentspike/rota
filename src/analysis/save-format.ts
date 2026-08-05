@@ -107,8 +107,20 @@ export interface SaveData {
   /** Ausgegebene Talentpunkte je Zweig — die Wahl, nicht ihre Wirkung. */
   readonly talentPoints: Readonly<Record<string, number>>;
   readonly items: readonly OwnedItem[];
-  /** Welcher Zauber auf welchem Platz liegt. */
-  readonly bindings: Readonly<Record<string, number>>;
+  /**
+   * Welcher Zauber auf welchem Platz liegt — Platz auf **Kennung** (#264).
+   *
+   * **Kennung, nicht Index.** Bis #264 stand hier `Record<string, number>`,
+   * und das Feld war immer leer — niemand schrieb es, deshalb ließ es sich
+   * noch ändern. Ein Index ist eine berechnete Größe: die Position in einer
+   * Liste. Kommt ein Zauber dazu, und es kommen noch 45, zeigt jede
+   * gespeicherte Zahl auf einen anderen Zauber; der Spieler fände seine Leiste
+   * vertauscht, ohne dass etwas kaputtgegangen wäre.
+   *
+   * Dieselbe Regel wie bei Stufe und Erfahrung (#248): gespeichert wird, was
+   * der Spieler entschieden hat, nicht wo es gerade steht.
+   */
+  readonly bindings: Readonly<Record<string, string>>;
   readonly unlockedSpells: readonly string[];
   readonly unlockedInstances: readonly string[];
   readonly bestRuns: readonly BestRun[];
