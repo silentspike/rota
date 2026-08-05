@@ -288,6 +288,54 @@ function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Record
 }
 
 /**
+ * Eine Runde, in der **die neuen Kalzinations-Zauber** gewirkt werden
+ * (Issue #268).
+ *
+ * # Warum sie eine eigene Aufzeichnung braucht
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in **einem**
+ * Paritäts-Weg gewirkt wird — sonst gilt die Bitgleichheit zwischen Spiel und
+ * Simulator für ihn als *angenommen*, nicht als geprüft.
+ *
+ * Eine bestehende Aufzeichnung dafür umzubauen wäre die kürzere Lösung und
+ * die schlechtere: Eine Aufzeichnung ist der **Beleg eines bestimmten
+ * Issues**. Wer `cooldown-precision` erweitert, ändert den Beleg für #96 — und
+ * zwar so, dass er **grün bleibt**, weil die Prüfsummen mitexportiert werden.
+ * Der Fall bestünde weiter und belegte etwas anderes als vorher; niemand hätte
+ * einen Anlass nachzusehen.
+ *
+ * # Was sie drückt
+ *
+ * Eine feste, kurze Folge statt einer klugen Rotation: `searing` sobald sein
+ * Brand ausläuft, sonst `bellows`. Was hier zählt, ist **dass beide gewirkt
+ * werden**, nicht wie gut die Reihenfolge ist — die Frage nach der besten
+ * Rotation beantwortet der Läufer aus #237, nicht dieser Weg.
+ */
+function recordNewCalcination(name: string, ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const bellows = combat.indexOf('bellows');
+  const searing = combat.indexOf('searing');
+
+  const presses: RecordedPress[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    const choice =
+      combat.dotRemainingMs(searing, timeMs) < GCD_MS && combat.isReady(searing, timeMs)
+        ? searing
+        : bellows;
+    if (!combat.isReady(choice, timeMs)) continue;
+    combat.cast(choice, timeMs);
+    // Platz 0 und 1 — die Bindung steht im Payload, nicht hier.
+    presses.push({ tick, slot: choice === searing ? 0 : 1 });
+  }
+  return { name, seed: 0, ticks, presses };
+}
+
+/**
  * Eine Runde, die vor allem die Wischblenden bewegt.
  *
  * Für die Animationsprüfung (VERIFICATION § 4): PYRE wird gezündet, sobald es
@@ -604,6 +652,9 @@ export function recordings(): Map<string, Recording> {
     // 60 s Kampfdauer des Testbosses, in Takten.
     builtIn.set('cooldown-precision', recordGoodRotation('cooldown-precision', 6000));
     builtIn.set('cooldown-sweep', recordCooldownSweep('cooldown-sweep', 2000));
+    // Issue #268: die neuen Kalzinations-Zauber, damit coverage.test.ts sie
+    // als GEWIRKT sieht und nicht nur als vorhanden.
+    builtIn.set('new-calcination', recordNewCalcination('new-calcination', 3000));
     // Der gemeinsame Pruefall gegen einen Boss **mit** Phasen, Energieleiste und
     // Zeitleiste (Issue #96, AC4). 90 s Ueberdruck des Testgefaesses, in Takten.
     //
