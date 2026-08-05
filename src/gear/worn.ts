@@ -160,3 +160,21 @@ export function critChance(worn: WornValues): number {
 export function critFactor(worn: WornValues): number {
   return (CRIT_BASE_PERMILLE + worn.yieldBonus) / 1000;
 }
+
+/**
+ * Die Lebenspunkte aus Stufe **und** Ausrüstung (Issue #282, AC3).
+ *
+ * # Warum eine eigene Funktion und keine Zeile im Konstruktor
+ *
+ * Beide Seiten müssen dieselbe Rundung treffen. Steht die Rechnung an einer
+ * Stelle, ist sie eine Zeile zum Vergleichen; steht sie zweimal im Aufbau,
+ * muss man sie suchen.
+ *
+ * **Ganzzahlig gerundet, nicht in Fließkomma gehalten:** Lebenspunkte sind
+ * ganze Zahlen, und ein Rest, der erst später abgeschnitten wird, ist ein
+ * Rest, den die andere Seite anders abschneiden könnte.
+ */
+export function vesselWithGear(base: number, wornPermille: number): number {
+  if (wornPermille === 0) return base;
+  return Math.trunc((base * (1000 + wornPermille)) / 1000);
+}

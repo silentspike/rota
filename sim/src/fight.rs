@@ -543,7 +543,17 @@ impl Fight {
             casts_cancelled: 0,
             interrupts_missed: 0,
             interrupts_landed: 0,
-            vessel_max: stat_at_level(PLAYER.vessel, config.player_level),
+            // **Ausruestung kommt DAZU, nicht davor** (Issue #282, AC3).
+            // Wer die Stufen-Basis ersetzt statt sie zu erhoehen, macht einen
+            // Spieler auf Stufe 100 ohne Ausruestung schwaecher als einen auf
+            // Stufe 1 mit einem Fund.
+            //
+            // Ohne getragene Ausruestung ist der Faktor exakt 1,0 und die
+            // Multiplikation bewegt keine Zahl — belegt in AC5.
+            vessel_max: vessel_with_gear(
+                stat_at_level(PLAYER.vessel, config.player_level),
+                config.worn.vessel,
+            ),
             player_hp: stat_at_level(PLAYER.vessel, config.player_level),
             died_at: None,
             damage_taken: 0,
@@ -2860,4 +2870,23 @@ impl Fight {
     pub fn draws(&self, stream: Stream) -> u32 {
         self.rng.draws(stream)
     }
+}
+
+/// Die Lebenspunkte aus Stufe **und** Ausruestung (Issue #282, AC3).
+///
+/// # Warum eine eigene Funktion und keine Zeile im Aufbau
+///
+/// Beide Seiten muessen dieselbe Rundung treffen. Steht die Rechnung an einer
+/// Stelle, ist sie eine Zeile zum Vergleichen; steht sie zweimal im Aufbau,
+/// muss man sie suchen.
+///
+/// **Ganzzahlig gerundet, nicht in Fliesskomma gehalten:** Lebenspunkte sind
+/// ganze Zahlen, und ein Rest, der erst spaeter abgeschnitten wird, ist ein
+/// Rest, den die andere Seite anders abschneiden koennte.
+#[must_use]
+pub fn vessel_with_gear(base: u32, worn_permille: u32) -> u32 {
+    if worn_permille == 0 {
+        return base;
+    }
+    u32::try_from(u64::from(base) * (1000 + u64::from(worn_permille)) / 1000).unwrap_or(u32::MAX)
 }
