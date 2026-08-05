@@ -21,7 +21,7 @@
  * Unverwundbarkeits-Fenster; nach der Buchung war die Herkunft fort.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
@@ -36,7 +36,8 @@ function laufen(boss: typeof FIRST_CRUCIBLE.value, bisMs: number, spellId?: stri
   for (let t = 0; t <= bisMs; t += TICK_MS) {
     combat.stepPassive(t);
     if (combat.checkDefeat(t)) break;
-    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(index, t)) combat.cast(index, t);
+    if (index >= 0 && combat.gcd.isReady(t) && combat.isReady(alsSpellIndex(index), t))
+      combat.cast(alsSpellIndex(index), t);
   }
   return combat;
 }

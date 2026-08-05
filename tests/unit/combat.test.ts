@@ -9,6 +9,7 @@ import {
   FIGHT_OVERPRESSURE,
   FIGHT_RUNNING,
   FIGHT_WON,
+  alsSpellIndex,
 } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
@@ -269,7 +270,10 @@ describe('Combat — Wirken abweisen', () => {
     // **Die 99 bleibt eine Zahl, und das ist Absicht** (Issue #369): Sie soll
     // gerade KEINEN Zauber treffen. Ein Bezeichner wäre hier falsch — es gibt
     // keinen für „gibt es nicht".
-    expect(combat.cast(99, 0).result).toBe(CAST_UNKNOWN);
+    // **Die sichtbare Umgehung** (Issue #372): `alsSpellIndex` sagt, dass hier
+    // bewusst eine Zahl steht, die KEINEN Zauber trifft. Ein Bezeichner wäre
+    // falsch — es gibt keinen für „gibt es nicht".
+    expect(combat.cast(alsSpellIndex(99), 0).result).toBe(CAST_UNKNOWN);
     expect(combat.spells.length, 'die 99 ist keine unmögliche Zahl mehr').toBeLessThan(99);
   });
 

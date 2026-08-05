@@ -14,7 +14,7 @@
  * Die beiden Listen sind wortgleich zu `apl_good` und `apl_bad` der Referenz.
  */
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../core/data.js';
-import { Combat, FIGHT_RUNNING } from '../core/combat.js';
+import { Combat, FIGHT_RUNNING, type SpellIndex, alsSpellIndex } from '../core/combat.js';
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 
@@ -49,9 +49,9 @@ export interface ReferenceResult {
 }
 
 interface Indices {
-  readonly kindle: number;
-  readonly smoulder: number;
-  readonly pyre: number;
+  readonly kindle: SpellIndex;
+  readonly smoulder: SpellIndex;
+  readonly pyre: SpellIndex;
 }
 
 /**
@@ -215,7 +215,7 @@ export function runReference(
     if (combat.gcd.isReady(timeMs)) {
       const choice = apl(combat, index, timeMs);
       if (choice === IDLE) idleMs += TICK_MS;
-      else combat.cast(choice, timeMs);
+      else combat.cast(alsSpellIndex(choice), timeMs);
     }
     timeMs += TICK_MS;
   }
@@ -225,8 +225,8 @@ export function runReference(
   let lostDotTicks = 0;
   for (let i = 0; i < combat.spells.length; i++) {
     const id = combat.spells[i]?.id ?? String(i);
-    casts[id] = combat.castCount(i);
-    damageBySpell[id] = combat.damageOf(i);
+    casts[id] = combat.castCount(alsSpellIndex(i));
+    damageBySpell[id] = combat.damageOf(alsSpellIndex(i));
     lostDotTicks += combat.lostDotTicks(i);
   }
 

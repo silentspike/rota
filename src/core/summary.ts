@@ -15,7 +15,7 @@
  * das war eine Entscheidung, kein Leerlauf. Sonst bekäme der Spieler
  * Leerlauf angerechnet, gerade weil er etwas getan hat.
  */
-import type { Combat } from './combat.js';
+import { alsSpellIndex, type Combat } from './combat.js';
 import { EVENT_CAST, EVENT_CRIT, EVENT_DAMAGE, EVENT_DOT_TICK, type CombatLog } from './log.js';
 
 /** Leerlauf eines einzelnen Zaubers. */
@@ -281,8 +281,8 @@ export function buildSummary(input: SummaryInput): RunSummary {
       spellId: spell.id,
       idleMs,
       share: elapsedMs > 0 ? idleMs / elapsedMs : 0,
-      casts: combat.castCount(i),
-      damage: combat.damageOf(i),
+      casts: combat.castCount(alsSpellIndex(i)),
+      damage: combat.damageOf(alsSpellIndex(i)),
     });
   }
   // Nach Verlust sortiert (GAME-DESIGN 15.1). Bei Gleichstand nach Kennung,
