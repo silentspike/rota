@@ -207,6 +207,39 @@ Doppelzustellung ist der billigere Fehler als eine verlorene Nachricht.**
 > unmöglich, und am Beweiswert einer Erfolgsmeldung ändert er nichts: Sie belegt weiterhin nur, dass
 > die Datei geschrieben wurde. Nur die Antwort trägt.
 
+#### Wie viele Verluste es gab — und wofür die Zahl **nicht** gilt
+
+Weil jede Nachricht Bestätigungspflicht trägt, bleibt eine verlorene dauerhaft unbeantwortet und
+sammelt sich sichtbar in `rota-ipc offen` an. Gezählt am 2026-08-06:
+
+| Empfänger      | gesendet | ohne Antwort                            |
+| -------------- | -------- | --------------------------------------- |
+| `Worker-1`     | 172      | **0**                                   |
+| `Worker-2`     | 206      | **0**                                   |
+| `Worker-3`     | 210      | **0**                                   |
+| `Orchestrator` | 775      | 3 _(offene Rückstände, keine Verluste)_ |
+
+**Die Zahl deckt Antworten nicht ab, und das ist keine Kleinigkeit.** Antworten lösen ausdrücklich
+keine Pflicht aus — sie tragen _„erzeuge keine neue Antwortpflicht"_. Eine verlorene Antwort
+hinterlässt deshalb **keine Spur**: kein `offen`-Eintrag, keine Lücke, nichts.
+
+> Der Einwand kam von Worker-1, nachdem der Orchestrator „höchstens ein Verlust im ganzen Projekt"
+> geschrieben hatte:
+>
+> **„Für diese Art hast du keinen Detektor, also auch keine Zahl. Das ist ein Unterschied zu ‚es ist
+> keine verlorengegangen'."**
+>
+> Und zur Größenordnung: Von seinen acht Doppelzustellungen an diesem Tag waren **fünf Antworten**.
+> Die Art ist nicht selten, sie ist die häufigere.
+
+**Warum das trotzdem nicht der harmlosere Fall ist:** Eine Antwort trägt keinen Auftrag, aber
+gelegentlich eine **Entscheidung** — und dann wartet jemand auf etwas, das längst beantwortet ist.
+Am selben Abend zweimal beinahe passiert.
+
+**Der Detektor dafür wäre prospektiv, nicht rückwirkend:** Der Sender nennt beim nächsten regulären
+Kontakt die Nummer seiner letzten Antwort an diesen Empfänger; wer sie nicht kennt, meldet es. Das
+kostet eine Zeile, ist selbstheilend und braucht keine Historien-Suche. **Noch nicht gebaut.**
+
 | Beobachtung beim **Sender** | Was sie belegt              | Was sie **nicht** belegt     |
 | --------------------------- | --------------------------- | ---------------------------- |
 | `Nachricht NNNN zugestellt` | die Datei wurde geschrieben | dass der Empfänger sie kennt |
