@@ -131,5 +131,8 @@ export function compareBagItem(
     return besitz;
   });
 
-  return compareItems(estimateDamagePerHit(wornFrom(nachTausch)), estimateDamagePerHit(wornFrom(items)));
+  return compareItems(
+    estimateDamagePerHit(wornFrom(nachTausch)),
+    estimateDamagePerHit(wornFrom(items)),
+  );
 }

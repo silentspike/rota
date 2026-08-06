@@ -66,9 +66,9 @@ describe('AC2 — dasselbe Stück, andere Zusammenstellung, anderes Urteil', () 
   it('mehr PURITY ist besser, solange Krit nicht gedeckelt ist', () => {
     const getragen = worn({ purity: 100, yieldBonus: 500 });
     const mitFund = worn({ purity: 100 + FUND_PURITY, yieldBonus: 500 });
-    expect(compareItems(estimateDamagePerHit(mitFund), estimateDamagePerHit(getragen)).verdict).toBe(
-      COMPARE_BETTER,
-    );
+    expect(
+      compareItems(estimateDamagePerHit(mitFund), estimateDamagePerHit(getragen)).verdict,
+    ).toBe(COMPARE_BETTER);
   });
 
   it('GEGENPROBE: derselbe Fund bringt bei 100 % Krit EXAKT nichts', () => {
@@ -78,9 +78,9 @@ describe('AC2 — dasselbe Stück, andere Zusammenstellung, anderes Urteil', () 
     const getragen = worn({ purity: 1000, yieldBonus: 500 });
     const mitFund = worn({ purity: 1000 + FUND_PURITY, yieldBonus: 500 });
     expect(estimateDamagePerHit(mitFund)).toBe(estimateDamagePerHit(getragen));
-    expect(compareItems(estimateDamagePerHit(mitFund), estimateDamagePerHit(getragen)).verdict).toBe(
-      COMPARE_EQUAL,
-    );
+    expect(
+      compareItems(estimateDamagePerHit(mitFund), estimateDamagePerHit(getragen)).verdict,
+    ).toBe(COMPARE_EQUAL);
   });
 
   it('und dieselbe Kreuzprobe für YIELD — er wiegt nur, wenn überhaupt kritet wird', () => {
@@ -104,7 +104,10 @@ describe('AC3 — die Näherung bleibt als Näherung erkennbar', () => {
   it('auch wenn die Schätzung aus der echten Formel kommt', () => {
     // Die Kennzeichnung hängt NICHT daran, wie genau gerechnet wurde. Sie
     // steht, weil CATALYSIS fehlt — siehe die Tabelle in `estimate.ts`.
-    const c = compareItems(estimateDamagePerHit(worn({ essence: 300 })), estimateDamagePerHit(NOTHING_WORN));
+    const c = compareItems(
+      estimateDamagePerHit(worn({ essence: 300 })),
+      estimateDamagePerHit(NOTHING_WORN),
+    );
     expect(c.text.startsWith('~')).toBe(true);
     expect(c.caveat.length).toBeGreaterThan(0);
   });
