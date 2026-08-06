@@ -1932,6 +1932,68 @@ impl Fight {
     /// der Rechnung gesetzt und beim naechsten Zauber ueberschrieben — genau
     /// wie `resistance` (#328). Dieselbe Rechnung wie im Spiel
     /// (`applyDecayStackBonus`), ganzzahlig bis zur letzten Teilung (18.4).
+    /// Ueber alle Braende laufen, die **gerade brennen** (Issue #517).
+    ///
+    /// Der Baustein, den EMBER und PYROCLASM sich teilen — nicht ein
+    /// Rechenschritt, sondern diese Iteration. Bis hierher wurde
+    /// `dot_expires_at` ausschliesslich je Index gelesen und geschrieben.
+    fn active_dot_indices(&self) -> Vec<usize> {
+        (0..SPELL_COUNT)
+            .filter(|&i| SPELLS[i].dot.is_some() && self.dot_active(i))
+            .collect()
+    }
+
+    /// Jeden laufenden Brand um `ticks` Tick-Intervalle verlaengern (EMBER).
+    ///
+    /// # Die Tick-Folge bleibt unberuehrt — hier wie im Spiel
+    ///
+    /// Der Simulator plant Ticks ueber die Ereignis-Schlange, nicht ueber
+    /// einen Speicher: Beim Abarbeiten prueft er `next <= expires` und legt
+    /// nur dann den naechsten. Eine laengere Laufzeit ergibt damit von selbst
+    /// einen Tick mehr — dieselbe Wirkung wie das unberuehrte
+    /// `dotNextTickAtMs` im Spiel, ueber einen anderen Weg.
+    fn extend_active_dots(&mut self, ticks: u32) {
+        if ticks == 0 {
+            return;
+        }
+        for i in self.active_dot_indices() {
+            let Some(dot) = SPELLS[i].dot.as_ref() else {
+                continue;
+            };
+            let dazu = ticks * self.dot_interval(dot);
+            if let Some(expires) = self.dot_expires_at[i] {
+                self.dot_expires_at[i] = Some(expires + dazu);
+            }
+        }
+    }
+
+    /// Alle laufenden Braende verbrauchen und ihren Rest als Schaden geben
+    /// (PYROCLASM).
+    ///
+    /// Restdauer mal Schaden je Tick — genau das, was sie noch gemacht
+    /// haetten. Nach der Erneuerungsregel ist Restzeit verloren, wenn zu frueh
+    /// erneuert wird; dieser Zauber kehrt dieselbe Regel um.
+    ///
+    /// Ganzzahlig bis zur letzten Teilung (18.4): erst die offenen Ticks, dann
+    /// der Schaden — dieselbe Reihenfolge wie im Spiel.
+    fn consume_active_dots(&mut self) -> u32 {
+        let mut summe = 0;
+        for i in self.active_dot_indices() {
+            let Some(dot) = SPELLS[i].dot.as_ref() else {
+                continue;
+            };
+            let rest = self.dot_expires_at[i].map_or(0, |e| e.saturating_sub(self.time));
+            let offene_ticks = rest / self.dot_interval(dot);
+            let factors = self.factors_for(false);
+            summe += compute_damage(dot.tick_damage * offene_ticks, &factors);
+            // Der Brand ist weg. Ein Tick-Ereignis, das noch in der Schlange
+            // liegt, verfaellt beim Abarbeiten von selbst — `dot_active` ist
+            // dann falsch.
+            self.dot_expires_at[i] = None;
+        }
+        summe
+    }
+
     fn apply_decay_stack_bonus(&mut self, index: usize) {
         let pro_stapel = SPELLS[index].per_decay_stack_percent;
         let prozent = 100 + self.decay_count as u32 * (DECAY_STACK_PERCENT + pro_stapel);
@@ -2573,6 +2635,11 @@ impl Fight {
         // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
         // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
         self.apply_decay_stack_bonus(index);
+        // EMBER (Issue #517), VOR der Schadensrechnung: Ein Brand, den dieser
+        // Zauber selbst legt, soll nicht schon verlaengert werden.
+        if spell.dot_extend_ticks > 0 {
+            self.extend_active_dots(spell.dot_extend_ticks);
+        }
         let factors = self.factors_for(kritet);
         // **`factors` ist hier bereits kopiert.** Die Verstaerkung unten
         // aendert `self.factors.buffs`, aber nicht mehr diese Kopie — genau so
@@ -2598,6 +2665,15 @@ impl Fight {
                 .push(now, LogKind::Spend, index as u8, u32::from(spent));
             cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
             self.resource = 0;
+        }
+
+        // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
+        // Betrag wie der Grundschaden — dieselbe Stelle wie im Spiel.
+        if spell.consumes_dots {
+            let rest = self.consume_active_dots();
+            if rest > 0 {
+                cast_damage += self.deal(index, rest, LogKind::Damage);
+            }
         }
 
         // **Ein Schaden-Ereignis je Wirkung, mit der Summe** — nicht eines je
