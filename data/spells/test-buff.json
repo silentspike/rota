@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "school": "CALCINATION",
+  "_comment": "DER PRUEF-ZAUBER ZUR VERSTAERKUNG (Issue #420). Er gehoert NICHT zum Spiel und wird nie ausgeliefert: 'unlockLevel' liegt ueber der Stufengrenze aus data/player/levels.json (maxLevel 100), und beide Stellen, die dem Spieler Zauber anbieten, filtern darueber — src/progression/composition-view.ts (die Auswahl) und src/progression/bindings.ts (das Belegen). Er ist damit unsichtbar und nicht auf die Leiste zu bringen, steht aber im Index-Raum und ist fuer Prueffaelle und Aufzeichnungen ueber combat.indexOf('test-buff') erreichbar. Dieselbe Konvention wie test-cast (#304) und die elf test-*-Bosse in data/bosses/.\n\nWARUM EIN NEUER ZAUBER UND NICHT EIN BESTEHENDER: Welcher Zauber DES SPIELS eine Verstaerkung gewaehrt, ist eine Katalog-Entscheidung nach GAME-DESIGN 5 und gehoert zu E10 — sie hier mitzuentscheiden hiesse, sie ohne den Katalog zu treffen, in dem sie steht. Und warum nicht test-cast erweitern, der schon da ist: Der ist der WIRKZEIT-Prueffall aus #304 und wird in sechs Aufzeichnungen gewirkt. Ein Buff darauf vermischt zwei Pruefzwecke — wer spaeter die Wirkzeit prueft, haette still eine Verstaerkung dabei.\n\nDIE FOLGE, DIE NIEMAND UMGEHEN KANN: Die Zustands-Pruefsumme laeuft ueber ALLE Zauber (fuenf Werte je Zauber — src/core/checksum.ts und sim/src/fight.rs, checksum_at). Ein neunzehnter Zauber aendert damit jede Pruefsumme in jedem Takt, auf beiden Seiten identisch. Alle Vergleichsdateien unter tests/parity/recordings/ mussten deshalb neu exportiert werden. Dasselbe geschah zuletzt bei test-cast (#304) und davor bei PUTREFACTION.\n\nDER REFERENZLAUF BLEIBT UNBERUEHRT: Er nutzt KINDLE, SMOULDER und PYRE (4240 Schaden bei 40510 ms). Ein Zauber, den niemand druecken kann, bewegt ihn nicht.\n\nDIE ZAHLEN: 'kind' 0 ist die erste Verstaerkungs-Art im Vorrat von acht (BUFF_KIND_CAPACITY). Der Faktor 1,2 und drei Wartezeiten liegen in dem Band, das GAME-DESIGN 5 nennt ('zwei bis drei' Wartezeiten). Der Grundschaden ist so gewaehlt, dass sich der Unterschied mit und ohne Verstaerkung messen laesst, und nicht balanciert.",
+  "spells": [
+    {
+      "id": "test-buff",
+      "name": "Test Buff",
+      "unlockLevel": 101,
+      "baseDamage": 100,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 1.2,
+        "gcds": 3
+      }
+    }
+  ]
+}

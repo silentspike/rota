@@ -73,6 +73,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // nicht zum Spiel, steht aber im Index-Raum — und genau der ist hier die
       // Aussage.
       'test-cast',
+      'test-buff',
     ]);
   });
 

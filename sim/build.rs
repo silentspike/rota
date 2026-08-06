@@ -27,6 +27,26 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+/// Wie viele Verstaerkungs-Arten es gibt — **eine Kopie von
+/// `sim/src/buffs.rs`** (Issue #420).
+///
+/// # Warum sie doppelt dasteht
+///
+/// `build.rs` laeuft VOR dem Paket und kann nichts aus `src/` importieren. Die
+/// Zahl hier ist deshalb kein Verweis, sondern eine zweite Quelle — und zwei
+/// Quellen koennen auseinanderlaufen.
+///
+/// **Was das Auseinanderlaufen faengt:** Waechst der Vorrat in `buffs.rs` und
+/// nicht hier, lehnt dieser Bau eine gueltige Art ab — laut und beim Bauen.
+/// Waechst er hier und nicht dort, laesst dieser Bau eine Art durch, die
+/// `Buffs::apply` still verwirft; dagegen steht der Prueffall
+/// `buff_arten_liegen_im_vorrat` in `sim/src/data.rs`, der jeden Zauber gegen
+/// den ECHTEN Vorrat haelt.
+///
+/// Die zweite Richtung ist die gefaehrliche, und nur sie braucht einen
+/// Prueffall — die erste meldet sich von selbst.
+const BUFF_KIND_CAPACITY: usize = 8;
+
 /// Pfad zur Zauber-Datei, relativ zum Paketverzeichnis `sim/`.
 const SPELLS_JSON: &str = "../data/spells/calcination.json";
 /// Die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4), relativ zu `sim/`.
@@ -51,6 +71,10 @@ const PUTREFACTION_JSON: &str = "../data/spells/putrefaction.json";
 /// nicht in `SPELLS` steht, laesst sich in keiner Aufzeichnung druecken und
 /// damit nicht auf Gleichlauf pruefen.
 const TEST_CAST_JSON: &str = "../data/spells/test-cast.json";
+/// Der Pruef-Zauber zur Verstaerkung (Issue #420). Eigene Datei und nicht ein
+/// Feld auf `test-cast`, weil der dort der WIRKZEIT-Fall ist: Wer spaeter die
+/// Wirkzeit misst, haette sonst still eine Verstaerkung dabei.
+const TEST_BUFF_JSON: &str = "../data/spells/test-buff.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -77,6 +101,7 @@ fn main() {
     // weil er sich wie ein Rechenfehler anfuehlt.
     println!("cargo:rerun-if-changed={SPELLS_JSON}");
     println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
+    println!("cargo:rerun-if-changed={TEST_BUFF_JSON}");
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
     println!("cargo:rerun-if-changed={SUBLIMATION_JSON}");
@@ -97,6 +122,7 @@ fn main() {
     let sublimation = read_json(SUBLIMATION_JSON);
     let putrefaction = read_json(PUTREFACTION_JSON);
     let test_cast = read_json(TEST_CAST_JSON);
+    let test_buff = read_json(TEST_BUFF_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -120,6 +146,10 @@ fn main() {
             ("sublimation.json", &sublimation),
             ("putrefaction.json", &putrefaction),
             ("test-cast.json", &test_cast),
+            // **Ganz zuletzt**, hinter test-cast: Dessen Index steht in sechs
+            // Aufzeichnungen, und die Reihenfolge dieser Liste ist die
+            // Zauberreihenfolge (Issue #408, GAME-DESIGN 18.7).
+            ("test-buff.json", &test_buff),
         ],
     );
     emit_bosses(&mut out, &bosses);
@@ -414,12 +444,66 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
             .unwrap_or(false)
     );
     emit_dot(out, spell, &whose, resource_id);
+    emit_buff(out, spell, &whose);
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
     emit_putrefaction(out, spell);
     emit_synergy(out, spell);
     emit_fixation(out, spell, &whose);
     let _ = writeln!(out, "    }},");
+}
+
+/// Die Verstaerkung eines Zaubers (Issue #420).
+///
+/// # Warum hier geprueft wird und nicht erst im Kampf
+///
+/// `Buffs::apply` gibt `false` zurueck, wenn die Art ausserhalb des Vorrats
+/// liegt — und `false` ist im Kampf nicht zu sehen: Der Zauber wirkt, der
+/// Schaden faellt, nur die Verstaerkung bleibt aus. Ein Tippfehler in `kind`
+/// waere damit ein Zauber, der leise nichts tut.
+///
+/// Dieselbe Haltung wie bei `consumesAll` zwei Funktionen weiter: lieber beim
+/// Bauen scheitern als im Kampf still das Falsche rechnen. Die Gegenstelle im
+/// Spiel ist `parseBuff` in `src/core/data.ts`, und sie prueft dasselbe — sonst
+/// naehme eine Seite einen Datensatz an, den die andere ablehnt.
+fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
+    let Some(buff) = spell.get("buff") else {
+        let _ = writeln!(out, "        buff: None,");
+        return;
+    };
+    let whose = format!("{whose}/buff");
+
+    let kind = uint(buff, "kind", &whose);
+    assert!(
+        (kind as usize) < BUFF_KIND_CAPACITY,
+        "{whose}: Verstaerkungs-Art {kind} liegt ausserhalb von 0..{}",
+        BUFF_KIND_CAPACITY - 1
+    );
+
+    let factor = buff
+        .get("factor")
+        .and_then(Value::as_f64)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"factor\" fehlt oder ist keine Zahl"));
+    assert!(
+        factor > 0.0,
+        "{whose}: Verstaerkungs-Faktor {factor} muss groesser als 0 sein — ein \
+         Faktor von null loeschte den Schaden, ein negativer kehrte ihn um"
+    );
+
+    let gcds = uint(buff, "gcds", &whose);
+    assert!(
+        gcds > 0,
+        "{whose}: Fensterlaenge {gcds} muss eine positive Zahl von Wartezeiten sein"
+    );
+
+    let _ = writeln!(out, "        buff: Some(Buff {{");
+    let _ = writeln!(out, "            kind: {kind},");
+    // `{:?}` und nicht `{}`: Die Debug-Ausgabe eines f64 ist verlustfrei
+    // umkehrbar. Mit `{}` verlöre 1.0000000000000002 seine letzten Stellen, und
+    // die beiden Seiten rechneten ab da mit verschiedenen Zahlen.
+    let _ = writeln!(out, "            factor: {factor:?},");
+    let _ = writeln!(out, "            gcds: {gcds},");
+    let _ = writeln!(out, "        }}),");
 }
 
 fn emit_dot(out: &mut String, spell: &Value, whose: &str, resource_id: &str) {
