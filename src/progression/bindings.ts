@@ -30,7 +30,10 @@
  * gelernt" und „noch kein Platz dafür" sind zwei Sachen.
  */
 import type { SpellDef } from '../core/data.js';
-import { alsSpellIndex } from '../core/combat.js';
+import type { SpellIndex } from '../core/combat.js';
+// **`NO_SPELL` statt eines zweiten `alsSpellIndex(-1)`** (Issue #442): Zwei
+// Schreibweisen für denselben Wert laufen auseinander, sobald eine sich ändert.
+import { NO_SPELL } from '../core/session.js';
 import { isSpellUnlocked, barSlotsAtLevel } from './unlocks.js';
 
 /** Die Belegung: Platz als Text auf Zauber-Kennung. */
@@ -214,12 +217,12 @@ export function defaultBindings(level: number, spells: readonly SpellDef[]): Bin
 export function applyBindings(
   bindings: Bindings,
   slotCount: number,
-  indexOf: (spellId: string) => number,
-  bind: (slot: number, spellIndex: number) => void,
+  indexOf: (spellId: string) => SpellIndex,
+  bind: (slot: number, spellIndex: SpellIndex) => void,
 ): void {
   for (let slot = 0; slot < slotCount; slot++) {
     const spellId = spellAtSlot(bindings, slot);
-    bind(slot, spellId === null ? alsSpellIndex(-1) : indexOf(spellId));
+    bind(slot, spellId === null ? NO_SPELL : indexOf(spellId));
   }
 }
 

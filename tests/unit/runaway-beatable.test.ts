@@ -23,7 +23,7 @@
  * jemand für eine Sicherheitsprüfung hält und wegnimmt.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { alsSpellIndex, Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
 import { spellIndex } from '../helpers/spell-index.js';
 import { COUNTDOWN_MS, PHASE_ENDED } from '../../src/core/phases.js';
@@ -48,7 +48,7 @@ function spiele(ids: readonly string[], everyMs: number): Lauf {
   const combat = new Combat({ school: CALCINATION.value, boss });
   const session = new Session(queue, combat);
   ids.forEach((id, slot) => {
-    session.bind(slot, spellIndex(id, combat));
+    session.bind(slot, alsSpellIndex(spellIndex(id, combat)));
   });
   session.beginCountdown(0);
 
