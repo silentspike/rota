@@ -144,6 +144,30 @@ describe('AC4 — die Gegenprobe: ohne Verstärkung weniger Schaden, und die Pr�
     ).not.toBe(combatChecksum(ohne, 1500));
   });
 
+  it('schärfer: DIESELBE Zauberfolge, nur ein anderer Faktor', () => {
+    // **Der Vergleich oben stellt test-buff gegen smoulder** — die beiden Läufe
+    // unterscheiden sich damit in ZWEI Dingen, und die Prüfsumme könnte den
+    // anderen Zauber sehen statt die Verstärkung.
+    //
+    // Hier läuft beide Male dieselbe Folge, und nur der Faktor ist ein
+    // anderer. Was sich dann noch unterscheidet, kann nur die Verstärkung
+    // sein. (Vorschlag des Orchestrators bei der Abnahme von #420.)
+    const schwach = new Combat({ school: mitArt(0, 1.2), boss: BOSS });
+    schwach.cast(schwach.indexOf('test-buff'), 0);
+    schwach.cast(schwach.indexOf('kindle'), 1500);
+
+    const stark = new Combat({ school: mitArt(0, 1.9), boss: BOSS });
+    stark.cast(stark.indexOf('test-buff'), 0);
+    stark.cast(stark.indexOf('kindle'), 1500);
+
+    expect(
+      combatChecksum(stark, 1500),
+      'gleiche Folge, anderer Faktor — die Prüfsumme sieht die Verstärkung ' +
+        'nicht. Sie hat kein eigenes Feld dafür; die Wirkung geht über ' +
+        '`damage` ein.',
+    ).not.toBe(combatChecksum(schwach, 1500));
+  });
+
   it('Gegenfall: zwei gleiche Läufe liefern dieselbe Prüfsumme', () => {
     // Ohne diese Zeile hieße die Ungleichheit oben nur „zwei Zahlen sind
     // verschieden" — nicht, dass die Verstärkung die Ursache ist.

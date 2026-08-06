@@ -473,7 +473,7 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
     };
     let whose = format!("{whose}/buff");
 
-    let kind = uint(&buff, "kind", &whose);
+    let kind = uint(buff, "kind", &whose);
     assert!(
         (kind as usize) < BUFF_KIND_CAPACITY,
         "{whose}: Verstaerkungs-Art {kind} liegt ausserhalb von 0..{}",
@@ -490,7 +490,7 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
          Faktor von null loeschte den Schaden, ein negativer kehrte ihn um"
     );
 
-    let gcds = uint(&buff, "gcds", &whose);
+    let gcds = uint(buff, "gcds", &whose);
     assert!(
         gcds > 0,
         "{whose}: Fensterlaenge {gcds} muss eine positive Zahl von Wartezeiten sein"
