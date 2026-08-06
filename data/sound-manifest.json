@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 21
+        "present": 22
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 39,
+        "count": 38,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind elf ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) die vier der FIXATION (Issue #100) und BLIGHT als erster Fueller der PUTREFAKTION (Issue #479). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -220,6 +220,21 @@
       "trigger": {
         "on": "spell.cast",
         "key": "vapour"
+      }
+    },
+    {
+      "id": "spell-slag",
+      "group": "spells",
+      "purpose": "SLAG — hebt die Hitze-Grenze befristet an (Issue #490). Er macht KEINEN Schaden, er ermoeglicht ihn.\n\nDER PROMPT IST GEGEN VAPOUR UND WISP ANGELEGT: VAPOUR entweicht, WISP flackert, SLAG STAUT AUF. Das \"without release\" ist der Kern — der Zauber loest nichts aus, er bereitet vor.\n\nLEISE mit Absicht (-7,1 dB). Die Zauber mit Schaden liegen bei -0,9 bis -2,4 dB, die ohne bei -4,4 bis -7,6. Ein Vorbereiter, der laut ist wie ein Entlader, klingt nach mehr, als er tut. Aesthetisch abgenommen wird am Soundboard.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-slag.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 25,
+      "prompt": "deep furnace pressure building and holding, thick molten swell, low sustained rumble without release, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "slag"
       }
     },
     {
