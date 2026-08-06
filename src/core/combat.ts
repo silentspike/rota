@@ -3221,6 +3221,21 @@ export class Combat {
   }
 
   /**
+   * Die **Auswahl**, die dieser Zauber beim Verkürzen trifft (Issue #518).
+   *
+   * `shortenCooldowns` kennt den Auslöser nicht — sie bekommt einen Index
+   * zum Überspringen und sonst nichts. Ohne diesen Getter wären die zwei
+   * neuen Parameter vorhanden und unerreichbar: die Klasse aus #420/#421.
+   */
+  reductionScopeOfSpell(spellIndex: number): { belowMs: number; longestOnly: boolean } {
+    const spell = this.spells[spellIndex];
+    return {
+      belowMs: spell?.cooldownReductionBelowMs ?? 0,
+      longestOnly: spell?.cooldownReductionLongestOnly === true,
+    };
+  }
+
+  /**
    * Die Abklingzeit **eines** Zaubers auf null setzen.
    *
    * Für den Cooldown-Rücksetzer (SUBLIMATION, Issue E3-3c). Er ist ein
@@ -3247,13 +3262,50 @@ export class Combat {
    *
    * @returns wie viele Abklingzeiten tatsächlich verkürzt wurden
    */
-  shortenCooldowns(amount: number, timeMs: number, exceptIndex: number): number {
+  shortenCooldowns(
+    amount: number,
+    timeMs: number,
+    exceptIndex: number,
+    grenze = 0,
+    nurLaengste = false,
+  ): number {
     if (amount <= 0) return 0;
+
+    // **Die Auswahl VOR der Schleife** (Issue #518, DECANT). Wer den
+    // längsten treffen will, muss ihn erst finden — die Schleife selbst
+    // kann es nicht, sie sieht immer nur einen Eintrag.
+    //
+    // Bei Gleichstand gewinnt der NIEDRIGERE Index. Das ist eine
+    // Entscheidung, keine Selbstverständlichkeit: Ohne sie hinge das
+    // Ergebnis davon ab, ob die Schleife vorwärts oder rückwärts läuft, und
+    // das wäre ein stiller Paritäts-Bruch, sobald eine Seite umbaut.
+    let ziel = -1;
+    if (nurLaengste) {
+      let laengste = timeMs;
+      for (let i = 0; i < this.cooldownReadyAtMs.length; i++) {
+        if (i === exceptIndex) continue;
+        const readyAt = this.cooldownReadyAtMs[i] ?? 0;
+        if (readyAt > laengste) {
+          laengste = readyAt;
+          ziel = i;
+        }
+      }
+      if (ziel < 0) return 0;
+    }
+
     let touched = 0;
     for (let i = 0; i < this.cooldownReadyAtMs.length; i++) {
       if (i === exceptIndex) continue;
+      if (nurLaengste && i !== ziel) continue;
       const readyAt = this.cooldownReadyAtMs[i] ?? 0;
       if (readyAt <= timeMs) continue;
+
+      // **Die Schwelle ist ein STRENGES Kleiner** (Issue #518, ASCEND).
+      // Eine Abklingzeit GENAU auf der Schwelle bleibt unberührt. Die Regel
+      // musste in eine Richtung fallen; so gelesen heißt „unter 10 s"
+      // wörtlich unter, nicht „bis einschließlich".
+      if (grenze > 0 && readyAt - timeMs >= grenze) continue;
+
       const shortened = readyAt - amount;
       this.cooldownReadyAtMs[i] = shortened > timeMs ? shortened : timeMs;
       touched++;
