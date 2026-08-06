@@ -1619,6 +1619,26 @@ export class Combat {
    * gerechnet, nicht in Sekunden, sonst verschiebt sich das Verhältnis bei
    * hohem Tempo."
    *
+   * ## Die Klammerung ist der ganze Unterschied (Issue #428)
+   *
+   *     gcds × hasted(GCD_MS)     n echte Wartezeiten      <- richtig
+   *     hasted(gcds × GCD_MS)     eine beschleunigte Dauer <- war hier
+   *
+   * Beides liest sich wie „das Fenster in Wartezeiten", und dieser Kommentar
+   * behauptete es auch — nur rechnete die Zeile darunter das andere. `hasted`
+   * rundet **einmal** ab (`Math.floor`); wer erst multipliziert, verliert die
+   * Rundung der einzelnen Wartezeit und landet bis zu 10 ms zu tief.
+   *
+   * Zehn Millisekunden sind genau ein Takt — und damit die Grenze zwischen
+   * „der zweite Zauber ist noch drin" und „er ist draußen". Aus zwei Zaubern
+   * wurde bei Tempo einer, also genau die Verschiebung, die der Design-Satz
+   * verbietet.
+   *
+   * Bei 0, 376 und 500 ‰ ergeben beide Klammerungen dasselbe — dort trifft
+   * sich die Rundung zufällig. Ein Prüffall an einem dieser Werte wäre grün,
+   * ohne etwas zu belegen; deshalb misst `synergy-window.test.ts` bei 100 und
+   * 300 ‰.
+   *
    * # Warum `synergyAvailable` an der Bereitschaft hängt
    *
    * Ein Fenster, das aufgeht, während der Partner auf Abklingzeit liegt und
@@ -1633,7 +1653,7 @@ export class Combat {
     const partner = this.indexOf(synergy.partner);
     if (partner < 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
-    const laenge = this.hasted(GCD_MS * synergy.windowGcds);
+    const laenge = synergy.windowGcds * this.hasted(GCD_MS);
     this.synergyWindowEndsMs[partner] = seitBeginn + laenge;
     // **Wird der Partner im Fenster überhaupt bereit?** `cooldownReadyAtMs`
     // steht in Kampfzeit wie `timeMs`, das Fensterende in Zeit seit
