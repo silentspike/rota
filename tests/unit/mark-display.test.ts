@@ -6,7 +6,7 @@
  * einen Fortschritt, den es nicht gibt -- das ist schlechter als gar keine.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { alsSpellIndex, Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
 import { spellIndex } from '../helpers/spell-index.js';
 import { COUNTDOWN_MS, OUTCOME_WIPE, PHASE_ENDED } from '../../src/core/phases.js';
@@ -45,7 +45,7 @@ function play(
   const combat = new Combat({ school: CALCINATION.value, boss });
   const session = new Session(queue, combat);
   loadout.forEach((spell, slot) => {
-    session.bind(slot, spell);
+    session.bind(slot, alsSpellIndex(spell));
   });
   session.beginCountdown(0);
   let tick = 0;

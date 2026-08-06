@@ -2136,7 +2136,7 @@ export function cooldownResetPayload(): Record<string, unknown> {
   const queue = new PressQueue();
   const combat = new Combat({ school: school.value, boss: FIRST_CRUCIBLE.value });
   const session = new Session(queue, combat);
-  for (let slot = 0; slot < 3; slot++) session.bind(slot, slot);
+  for (let slot = 0; slot < 3; slot++) session.bind(slot, alsSpellIndex(slot));
   session.startFight(0);
 
   const steps: Record<string, unknown>[] = [];
