@@ -51,6 +51,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'reflux',
       'canker',
       'fester',
+      'blight',
       'test-cast',
       'test-buff',
     ]);
