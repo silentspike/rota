@@ -1,25 +1,25 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-06, 14:30: Fünf Punkte sind entschieden, neun liegen offen.** Die
+**Stand 2026-08-06, 15:40: Neun Punkte sind entschieden oder erledigt, zwei liegen noch offen.** Die
 entschiedenen stehen unten mit Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen,
 ist als Issue verlinkt. **Acht der vierzehn sind aus der Arbeit selbst entstanden, nicht aus dem
 Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 
-|                                     | Ergebnis                                                                                                    |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                                   |
-| **2** Punktekurve                   | **quadratisch (2,0), Rest-Ertrag 20 Promille**                                                              |
-| **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                         |
-| **4** Stumme Zauber                 | **ERLEDIGT ohne dein Zutun** — elf Klänge erzeugt, #198 und #204 geschlossen; nur das Hören bleibt          |
-| **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                           |
-| **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
-| **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
-| **8** Widerstand gegen Schul-Stärke | **OFFEN** — der Korridor 20–30 % kann die Rotation nicht drehen, solange die Schulen 67 % auseinanderliegen |
-| **9** WARD ohne Balance-Deckel      | **OFFEN** — eine hinreichend gute Ausrüstung kann den Spieler unverwundbar machen                           |
-| **11** SUBLIMATION-Bauart           | **OFFEN** — zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot                                   |
-| **12** `runaway`-Timing             | **OFFEN** — seltener drücken ist besser: Tiefe oder Falle?                                                  |
-| **13** Talentpunkt-Verteilung       | **OFFEN** — die Zahl 50 steht, ihre Verteilung über 100 Stufen nicht                                        |
-| **14** Fallrate der Beute           | **OFFEN** — 250 Promille vorläufig; wie oft soll ein Sieg überhaupt etwas fallen lassen?                    |
+|                                     | Ergebnis                                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                          |
+| **2** Punktekurve                   | **quadratisch (2,0), Rest-Ertrag 20 Promille**                                                     |
+| **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                |
+| **4** Stumme Zauber                 | **ERLEDIGT ohne dein Zutun** — elf Klänge erzeugt, #198 und #204 geschlossen; nur das Hören bleibt |
+| **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                  |
+| **6** Wirkzeit gegen Tempo          | **FAST ENTSCHIEDEN** — die Zauber-Zahlen lösen es, nicht die Regeln; die Spanne ist noch zu wählen |
+| **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                      |
+| **8** Widerstand gegen Schul-Stärke | **ENTSCHIEDEN: die Schulen angleichen** — nicht am Widerstand drehen                               |
+| **9** WARD-Deckel                   | **ENTSCHIEDEN: 75 %** — sichtbar in der Werte-Übersicht wie bei CATALYSIS und PURITY               |
+| **11** SUBLIMATION-Bauart           | **VERTAGT** — erneut messen, wenn es mehr als 15 Zauber gibt; die Bauart bleibt vorerst            |
+| **12** `runaway`-Timing             | **ENTSCHIEDEN: Tiefe** — bleibt, wie es ist                                                        |
+| **13** Talentpunkt-Verteilung       | **WAR NIE OFFEN** — „etwa jede zweite Stufe einer" steht im Plan und ist die Verteilung            |
+| **14** Fallrate der Beute           | **ENTSCHIEDEN: 1000 ‰** — jeder Sieg lässt etwas fallen, umgesetzt und gemergt                     |
 
 > **Es gibt keinen Punkt 10.** Er hat nie existiert — beim Anlegen von Punkt 11 wurde die Zahl
 > übersprungen. Die Lücke bleibt stehen, statt umzunummerieren: Die Nummern werden in Issues,
@@ -202,7 +202,28 @@ noch immer neue mit ki generieren."
 
 ---
 
-## 6. Wirkzeit gegen Tempo — OFFEN, und niemand hat es entschieden
+## 6. Wirkzeit gegen Tempo — die Zauber-Zahlen lösen es, nicht die Regeln
+
+**Der Auftraggeber hat die Frage zurückgewiesen und die bessere Antwort gegeben:** _„naja dann
+müssen wir doch eher die spells überarbeiten?"_ — statt an einer der beiden Design-Regeln zu
+drehen oder ein Mindest-Fenster zu erfinden.
+
+Nachgerechnet mit der echten `hastedMs`, nicht nachgebaut:
+
+| Basis-Wirkzeit | bei 50 ‰ Tempo | Fenster ohne Talent | mit GCD-Talent |
+| -------------- | -------------- | ------------------- | -------------- |
+| 1500 ms        | 1000 ms        | **−500**            | 0              |
+| 2000 ms        | 1340 ms        | **−160**            | +340           |
+| 2250 ms        | 1500 ms        | 0                   | +500           |
+| **2300 ms**    | 1540 ms        | **+40**             | +540           |
+| 3000 ms        | 2000 ms        | +500                | +1000          |
+
+**Ab etwa 2300 ms Basis bleibt das Fenster auch bei maximalem Tempo offen.** Keine Regel muss
+fallen, keine dritte muss dazukommen.
+
+**Was noch zu wählen ist:** GAME-DESIGN nennt heute **1,5–2,5 s**. Die Untergrenze ist genau der
+schlimmste Fall. Entweder wandert die Spanne auf **2,3–3,0 s**, oder kurze Wirkzeit-Zauber
+werden zu **Sofort-Zaubern** und die Wirkzeit bleibt den wuchtigen vorbehalten.
 
 **Blockiert:** nichts heute · **hält auf:** E10, sobald Zauber Wirkzeiten bekommen (#268)
 
@@ -296,7 +317,19 @@ Bis dahin steht die Zahl als benannte, ausdrücklich unkalibrierte Konstante an 
 der Prüffall misst das **Verhältnis** (doppelte Stufe, doppelter Wert) statt des Betrags — sonst
 meldete er rot, sobald jemand kalibriert, und arbeitete gegen die Balance-Arbeit statt für sie.
 
-## 8. Der Widerstands-Korridor gegen die Schul-Stärke — OFFEN
+## 8. Der Widerstands-Korridor — ENTSCHIEDEN: die Schulen angleichen
+
+**Ergebnis vom 2026-08-06:** Nicht am Widerstand drehen, sondern die **67 % Abstand zwischen den
+schadensfähigen Schulen** verkleinern. Dann greift der Korridor 20–30 % wie gedacht.
+
+Die Begründung liegt in der Sache: Ein Widerstand von 25 % kann eine Reihenfolge nicht kippen,
+wenn die Zauber ohnehin um zwei Drittel auseinanderliegen. **Das Problem ist der Abstand, nicht
+der Korridor** — und dass drei Schulen so weit auseinanderliegen, widerspricht ohnehin dem
+Grundsatz, dass jeder Zauber irgendwo die beste Wahl sein soll.
+
+> **Zusammen mit Punkt 6 anzufassen.** Beide berühren die Zauber-Zahlen; zwei gleichzeitige
+> Umbauten daran wären nicht mehr auseinanderzuhalten, wenn der Balance-Läufer danach etwas
+> anderes misst.
 
 **Blockiert:** nichts unmittelbar · **hält auf:** die Absicht hinter den Widerständen (#328, #268)
 
@@ -358,7 +391,17 @@ entschieden.
 Zauber entwirft — dann werden die Werte gesetzt, und bis dahin sollte klar sein, gegen welche
 Messlatte.
 
-## 9. WARD hat keinen Balance-Deckel — OFFEN
+## 9. WARD-Deckel — ENTSCHIEDEN: 75 %
+
+**Ergebnis vom 2026-08-06: Deckel bei 75 %.** Nicht 80 %, wie vorgeschlagen — der Auftraggeber
+hat die Zahl selbst gesetzt.
+
+Damit reiht sich WARD in die anderen Sonderwerte ein: **CATALYSIS 50 %, PURITY 100 %, WARD 75 %.**
+Der Deckel ist **sichtbar** wie dort auch — die Werte-Übersicht nennt Zahl und Warnhinweis, sonst
+verliert der Spieler Ausrüstungsplätze an einen Wert, der nichts mehr bringt.
+
+Der bisherige Deckel bei 1,0 bleibt als **Rechenregel** daneben bestehen: Darüber würde der
+Spieler von jedem Treffer geheilt. Das ist kein Balance-Wert, sondern eine Grenze der Formel.
 
 **Blockiert:** nichts heute · **hält auf:** E6, sobald Ausrüstung erspielt wird
 
@@ -408,7 +451,18 @@ Fundstücke baut.
 
 ---
 
-## 11. Zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot — OFFEN
+## 11. Zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot — VERTAGT
+
+**Ergebnis vom 2026-08-06: abwarten und erneut messen.** Die Bauart bleibt vorerst, wie sie im
+Design steht.
+
+Die Begründung steht im Abschnitt „Was die Messung NICHT sagt" weiter unten: Sie lief an **zwei**
+Bossen mit **15** Zaubern. Bei 60 Zaubern und Abklingzeiten bis 180 Sekunden laufen mehr lange
+Abklingzeiten gleichzeitig — genau die Bedingung, unter der die Verkürzung sich lohnt.
+
+> **Das Risiko ist benannt und angenommen:** Trägt die Bauart auch dann nicht, sind es nicht zwei
+> tote Zauber, sondern zwölf. Der Punkt bleibt deshalb in dieser Liste stehen und wird beim
+> nächsten Balance-Lauf mit mehr als 15 Zaubern erneut vorgelegt.
 
 Gemessen am 2026-08-05 von Worker-1 mit dem Balance-Läufer, an zwei Bossen mit
 verschiedener Dauer und verschiedener bester Rotation:
@@ -457,7 +511,14 @@ sondern weil er Sublimations-Mechanik in einem Kalzinations-Zauber war. Der Prü
 
 ---
 
-## 12. Bei `test-runaway` ist seltener drücken besser — Tiefe oder Falle? — OFFEN
+## 12. Bei `test-runaway` ist seltener drücken besser — ENTSCHIEDEN: Tiefe
+
+**Ergebnis vom 2026-08-06: Es bleibt, wie es ist.** Die Deckelung am angesammelten Verlust ist
+Tiefe, keine Falle — wer sie versteht, spielt besser, und sie ist deterministisch, also planbar.
+
+Damit ist auch die Nebenwirkung angenommen: **Der naheliegende Reflex — bedroht, also sofort
+drücken — ist falsch, und nichts im Spiel sagt das.** Ein Spieler, der es nie herausfindet, spielt
+schlechter, ohne zu wissen warum. Genau das meint „very hard to master".
 
 Gemessen von Worker-3 am 2026-08-05 mit dem Balance-Läufer, deterministisch:
 
@@ -504,7 +565,27 @@ eines ganzen Boss-Typs. Deshalb liegt sie hier.
 
 ---
 
-## 13. Wie verteilen sich die 50 Talentpunkte über 100 Stufen? — OFFEN
+## 13. Wie verteilen sich die 50 Talentpunkte über 100 Stufen? — WAR NIE OFFEN
+
+**Dieser Punkt hätte nie hier stehen dürfen.** Die Antwort steht seit jeher im Plan, an zwei
+Stellen, und im GAME-DESIGN ein drittes Mal:
+
+```
+Plan Zeile 117    Talentpunkte | ~50 (etwa jede zweite Stufe einer)
+Plan Zeile 945    ~50 bei 100 Stufen (etwa jede zweite Stufe einer)
+GAME-DESIGN 111   dasselbe
+```
+
+**„Etwa jede zweite Stufe einer" ist die Verteilung**, nicht bloß die Summe — das ist Variante A,
+und die ist eingebaut. Der Punkt entstand, weil drei Varianten durchgerechnet wurden, die alle 50
+treffen; über der Rechnerei wurde übersehen, dass der Satz den **Rhythmus** beschreibt.
+
+> **Was daraus folgt, und es betrifft diese ganze Liste:** Ein Punkt gehört erst hierher, wenn
+> nachgesehen wurde, ob Plan und GAME-DESIGN ihn nicht längst beantworten. Bei Punkt 4 stand eine
+> falsche Annahme, hier eine bereits beantwortete Frage — beide haben Zeit gekostet, die niemand
+> hatte.
+
+Die Rechnung von Worker-3 bleibt unten stehen: Sie ist nicht falsch, sie war nur nicht nötig.
 
 **Die Zahl ist entschieden, ihre Verteilung nicht.** GAME-DESIGN 12.1 nennt „~50 (etwa jede zweite
 Stufe einer)". Die Summe steht damit fest; wann die Punkte kommen, bestimmt den **Charakter** des
@@ -541,7 +622,22 @@ Es gibt keine falsche Antwort — die drei unterscheiden sich nicht in der Menge
 
 ---
 
-## 14. Wie oft lässt ein Sieg überhaupt etwas fallen? — OFFEN
+## 14. Wie oft lässt ein Sieg überhaupt etwas fallen? — ENTSCHIEDEN: jeder
+
+**Ergebnis vom 2026-08-06: 1000 ‰ — jeder Sieg lässt etwas fallen.** Umgesetzt und gemergt.
+
+Begründung des Auftraggebers, wörtlich: _„jeder sieg. in wow gibt es doch auch keine bosse die
+nichts droppen."_ Das trifft, und es trifft die Bauart, die schon stand: **In WoW liegt die
+Seltenheit in der Qualität, nicht im Ob.**
+
+`PROGRESS_WEIGHTS` verteilt bereits 60/30/9/1 im Endgame (13.4). Der Normalfall ist damit ein
+gewöhnliches Stück, das über die Materialumwandlung nicht wertlos ist; episch und legendär bleiben
+selten. Es war also **eine Zahl**, keine zweite Mechanik.
+
+> **Zwei Prüffall-Zeilen mussten dabei weichen** (`< 1000` und `treffer < 400`). Sie prüften nicht
+> die Mechanik, sondern hielten eine **Annahme über die Design-Entscheidung** fest. Der
+> Wirkungsnachweis läuft jetzt über die Gegenrichtung: Eine kleinere Rate **muss** weniger Treffer
+> ergeben.
 
 **Betrifft:** #447 (gebaut, Zahl vorläufig) · `data/items.json` → `dropChancePerMille`
 
