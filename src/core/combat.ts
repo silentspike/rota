@@ -699,6 +699,23 @@ export class Combat {
   private stateValue = FIGHT_RUNNING;
   private endedAtMs = NOT_ACTIVE;
   private fightStartedAtMs = 0;
+  /**
+   * Ob `beginFight` gelaufen ist (Issue #433).
+   *
+   * **Warum das nicht aus `fightStartedAtMs` ablesbar ist.** Dort steht die
+   * Startzeit, und `0` bedeutet zwei verschiedene Dinge: „noch nicht begonnen"
+   * und „bei Zeit 0 begonnen". Die Sperren gegen Ändern im Kampf lasen
+   * `fightStartedAtMs > 0` und ließen deshalb jeden Kampf durch, der bei 0
+   * anfängt.
+   *
+   * Im Spiel läuft vorher ein Countdown, also ist die Startzeit dort nie 0. Im
+   * Prüfstand ist 0 der naheliegende Wert — die Sperre war also genau dort
+   * offen, wo sie am ehesten gebraucht wird.
+   *
+   * `stateValue` allein reicht nicht: Es steht von Anfang an auf
+   * `FIGHT_RUNNING`, auch vor dem ersten Takt.
+   */
+  private fightHasBegun = false;
 
   constructor(options: CombatOptions) {
     this.school = options.school;
@@ -938,7 +955,11 @@ export class Combat {
    * heben hiesse, Punkte zu schenken.
    */
   setWorn(worn: WornValues): void {
-    if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
+    // **Vollsperre: im Kampf passiert hier gar nichts.** Getragene Werte
+    // ändern `essence` und `gearEffects`, und die gehen in jeden Treffer ein.
+    // Mitten im Kampf gesetzt, wären bereits gefallene Treffer anders
+    // gerechnet als die folgenden — derselbe Lauf mit zwei Rechnungen.
+    if (this.stateValue === FIGHT_RUNNING && this.fightHasBegun) return;
     this.worn = worn;
     this.setDamageFactor('essence', NEUTRAL_FACTORS.essence * essenceFactor(worn));
     this.setDamageFactor('gearEffects', gearEffectFactor(worn));
@@ -964,7 +985,10 @@ export class Combat {
   }
 
   setTalents(allocation: TalentAllocation): void {
-    if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
+    // **Vollsperre, aus demselben Grund wie bei `setWorn`:** Talente setzen
+    // einen Schadensfaktor, und ein Faktor, der sich mitten im Kampf ändert,
+    // teilt den Lauf in zwei Rechnungen.
+    if (this.stateValue === FIGHT_RUNNING && this.fightHasBegun) return;
     this.talents = allocation;
     // **Über `setDamageFactor`, nicht über eine Zuweisung** (Issue #196): Nur
     // so zieht die Krit-Fassung mit. Meine erste Fassung schrieb beide Felder
@@ -985,7 +1009,16 @@ export class Combat {
     this.levelValue = stufe;
     const vorher = this.vesselMax;
     this.vesselMax = statAtLevel(PLAYER.vessel, stufe);
-    if (this.stateValue === FIGHT_RUNNING && this.fightStartedAtMs > 0) return;
+    // **Teilsperre, und das ist Absicht.** Stufe und `vesselMax` sind oben
+    // schon gesetzt — sie beschreiben den Spieler und dürfen sich auch im
+    // Kampf ändern. Nur das Auffüllen unterbleibt: Mitten im Kampf die
+    // Obergrenze zu heben UND die Punkte mitzugeben hieße, dem Spieler Leben
+    // zu schenken, das er sich nicht erkämpft hat.
+    //
+    // Die Zeile sieht aus wie die beiden Vollsperren und wirkt anders, weil
+    // sie woanders steht. Wer sie nach oben zöge, machte daraus still eine
+    // Vollsperre.
+    if (this.stateValue === FIGHT_RUNNING && this.fightHasBegun) return;
     // Außerhalb des Kampfes: voll, wie beim Aufbau.
     if (this.playerHpValue >= vorher || this.playerHpValue === 0) {
       this.playerHpValue = this.vesselMax;
@@ -1788,6 +1821,7 @@ export class Combat {
    */
   beginFight(timeMs: number): void {
     this.fightStartedAtMs = timeMs;
+    this.fightHasBegun = true;
     this.nextDecayAtMs = timeMs + this.school.resource.decayPerStepMs;
     this.nextEnergyAtMs = timeMs + (this.boss.energy?.perStepMs ?? 0);
     this.nextDoomAtMs = timeMs + (this.boss.doom?.perStepMs ?? 0);
@@ -2936,6 +2970,7 @@ export class Combat {
     this.stateValue = FIGHT_RUNNING;
     this.endedAtMs = NOT_ACTIVE;
     this.fightStartedAtMs = 0;
+    this.fightHasBegun = false;
     // Nur die Folge, nicht die Anmeldungen: Ein neuer Versuch behält seine
     // Zauber und Talente — er beginnt lediglich wieder bei null Ereignissen.
     this.events.clearSequence();
