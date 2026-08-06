@@ -87,6 +87,12 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // der Absatz darueber warnt.
         || spell.cooldown_reduction_ms > 0
         || spell.arms_cooldown_reset
+        // **Zauber, die nur eine Verstaerkung tragen** (Issue #490, SLAG).
+        // Sie machen keinen Schaden — sie ermoeglichen ihn. In der Tabelle
+        // staenden sie dauerhaft mit "TOT", obwohl der Spieler sie perfekt
+        // einsetzt: dieselbe falsche Auskunft, vor der der Absatz ganz oben
+        // warnt.
+        || (spell.buff.is_some() && spell.base_damage == 0 && spell.dot.is_none())
         // **Zauber ueber der Stufengrenze** (Issue #489). Die Pruef-Zauber
         // liegen dort und gehoeren in keinen Spielerbericht: Sie sind nie
         // gewirkt, staenden also dauerhaft mit "TOT" in der Tabelle — genau
