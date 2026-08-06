@@ -546,6 +546,16 @@ pub struct Fight {
     dot_generation: [u16; SPELL_COUNT],
     /// Die laufenden Verstaerkungen (GAME-DESIGN 5, Issue #420).
     buffs: Buffs,
+    /// Verstaerkungen auf andere Groessen als Schaden (Issue #489).
+    ///
+    /// **Je Zielgroesse eine eigene Instanz.** Eine gemeinsame mit
+    /// Arten-Bereichen waere eine Verabredung, die beim dritten Zauber
+    /// bricht, ohne dass etwas rot wird. Getrennte Speicher machen die
+    /// Verwechslung unmoeglich statt verboten.
+    control_buffs: Buffs,
+    resource_buffs: Buffs,
+    tick_buffs: Buffs,
+    stack_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -728,6 +738,10 @@ impl Fight {
             shield: 0,
             shield_expires_at: None,
             buffs: Buffs::new(),
+            control_buffs: Buffs::new(),
+            resource_buffs: Buffs::new(),
+            tick_buffs: Buffs::new(),
+            stack_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -1278,6 +1292,10 @@ impl Fight {
         // (#318) — dort blieb nach einem Leistenwechsel "1 of 1" stehen, weil
         // der Zustand geraeumt wurde und die Rechnung nicht.
         self.buffs.reset();
+        self.control_buffs.reset();
+        self.resource_buffs.reset();
+        self.tick_buffs.reset();
+        self.stack_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1855,6 +1873,11 @@ impl Fight {
     /// Rest des Kampfes weiter.
     fn expire_buffs(&mut self) {
         let now = self.time;
+        // Alle fuenf, nicht nur die Schadens-Verstaerkungen (#489).
+        self.control_buffs.expire(now);
+        self.resource_buffs.expire(now);
+        self.tick_buffs.expire(now);
+        self.stack_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -3151,6 +3174,22 @@ impl Fight {
         h = mix_named_int(h, "synergyUsed", self.synergy_used as i32);
         h = mix_named_int(h, "synergyAvailable", self.synergy_available as i32);
         h = mix_named_float(h, "synergyOpenUntil", self.synergy_window_sum());
+        // **Angehaengt, nicht eingeschoben** (#493). Ohne dieses Feld ist die
+        // Pruefsumme fuer ein laufendes Verstaerkungs-Fenster blind: Zwei
+        // Laeufe mit gleichem Schaden, einer im Fenster und einer danach,
+        // ergaben dieselbe Summe. Gemessen auf der Spiel-Seite.
+        //
+        // Alle fuenf Fenster in EINER Zahl, wie dort — jedes weitere Feld
+        // verschoebe die Bit-Folge auf beiden Seiten.
+        h = mix_named_float(
+            h,
+            "buffSum",
+            self.buffs.window_sum()
+                + self.control_buffs.window_sum()
+                + self.resource_buffs.window_sum()
+                + self.tick_buffs.window_sum()
+                + self.stack_buffs.window_sum(),
+        );
         h
     }
 
