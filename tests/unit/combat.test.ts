@@ -62,6 +62,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
+      // Issue #479 — BLIGHT, der Fueller der Schule. Wieder bei seiner Schule
+      // statt hinten, aus demselben Grund wie #268: Die Umstellung geschieht
+      // nicht still, sondern hier und in spell-order.json sichtbar.
+      'blight',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER

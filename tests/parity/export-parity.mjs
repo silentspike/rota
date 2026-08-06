@@ -86,6 +86,8 @@ import {
   SYNERGY_HASTE_NAME,
   wardCapPayload,
   WARD_CAP_NAME,
+  putrefactionFillerPayload,
+  PUTREFACTION_FILLER_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -156,6 +158,12 @@ writeFileSync(synergyHastePath, serialize(synergyHaste), 'utf8');
 const wardCap = wardCapPayload();
 const wardCapPath = join(here, 'recordings', `${WARD_CAP_NAME}.json`);
 writeFileSync(wardCapPath, serialize(wardCap), 'utf8');
+
+// BLIGHT im Paritaets-Weg (Issue #479). Ohne ihn gilt die Bitgleichheit fuer
+// den neuen Zauber als angenommen, nicht als geprueft.
+const putrefactionFiller = putrefactionFillerPayload();
+const putrefactionFillerPath = join(here, 'recordings', `${PUTREFACTION_FILLER_NAME}.json`);
+writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);

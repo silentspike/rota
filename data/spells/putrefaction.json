@@ -30,6 +30,20 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "perDecayStackPercent": 20
+    },
+    {
+      "id": "blight",
+      "name": "Blight",
+      "_comment": "Der billige Fueller der Schule (Raster, Zauber 1 von 10). CANKER haelt 2 s Abklingzeit; dazwischen hatte die Schule NICHTS, was den Aufbau treibt. BLIGHT fuellt genau diese Luecke und legt dabei selbst einen Stapel.\n\nSTUFE 2, nicht 1: canker und fester stehen schon auf 1. Der Spieler soll den Aufbau erst mit dem Paar kennenlernen und dann das Werkzeug bekommen, das ihn schneller macht.\n\nWENIGER SCHADEN ALS CANKER, mit Absicht: Er ist der Fueller, nicht der bessere Erzeuger. Waere er staerker, ersetzte er canker, statt ihn zu ergaenzen — und die Synergie mit fester ginge verloren.\n\nALLE ZAHLEN VORLAEUFIG. Der Balance-Laeufer bestimmt sie (Issue #479).",
+      "unlockLevel": 2,
+      "baseDamage": 30,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "decay": {
+        "_comment": "Ein Stapel je Wirkung, wie canker. Wird gemessen.",
+        "stacks": 1
+      }
     }
   ]
 }

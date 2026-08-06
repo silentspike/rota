@@ -3104,3 +3104,86 @@ export function wardCapPayload(): Record<string, unknown> {
     runs,
   };
 }
+
+/** Der Name der Aufzeichnung, in der die PUTREFACTION-Füller gewirkt werden. */
+export const PUTREFACTION_FILLER_NAME = 'putrefaction-filler';
+
+/** Die Leiste dieser Aufzeichnung. */
+const PUTREFACTION_FILLER_BINDINGS = [
+  { slot: 0, spellId: 'canker' },
+  { slot: 1, spellId: 'blight' },
+] as const;
+
+/**
+ * BLIGHT im Paritäts-Weg (Issue #479).
+ *
+ * # Warum eine EIGENE Aufzeichnung und nicht `synergy-window` erweitert
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird — sonst gilt die Bitgleichheit für ihn als
+ * angenommen. BLIGHT musste also hinein.
+ *
+ * Der naheliegende Weg wäre gewesen, ihn in `synergy-window` mitlaufen zu
+ * lassen: die bestehende PUTREFACTION-Aufzeichnung. Dagegen sprach, dass deren
+ * Tastenfolge **die Aussage ist** — CANKER bei 0, FESTER eine Wartezeit
+ * später, mitten im Fenster. Ein dritter Zauber dazwischen verschiebt jeden
+ * folgenden Druck und damit den Nachweis, für den sie gebaut wurde.
+ *
+ * Dasselbe gilt für `synergy-haste` aus #456, wo der Druck bei `2 × GCD` der
+ * ganze Punkt ist.
+ *
+ * Eine eigene Datei kostet ein paar Zeilen und lässt beide Nachweise stehen.
+ *
+ * # Was sie zeigt
+ *
+ * BLIGHT und CANKER im Wechsel, jeder sobald er bereit ist. Das ist die
+ * Rotation, für die BLIGHT gebaut ist: CANKER hält 2 s Abklingzeit, BLIGHT
+ * füllt die Lücken und legt dabei selbst Stapel.
+ */
+function recordPutrefactionFiller(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const canker = combat.indexOf('canker');
+  const blight = combat.indexOf('blight');
+  const bindings = PUTREFACTION_FILLER_BINDINGS;
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, bindings, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // CANKER hat Vorrang: Er öffnet nebenbei das Synergie-Fenster. BLIGHT
+    // füllt, was übrig bleibt — genau seine Rolle.
+    if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(blight, timeMs)) press(blight, tick, timeMs);
+  }
+
+  return { name: PUTREFACTION_FILLER_NAME, seed: 0, ticks, presses, bindings };
+}
+
+export function putrefactionFillerPayload(): Record<string, unknown> {
+  const recording = recordPutrefactionFiller(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: PUTREFACTION_FILLER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
