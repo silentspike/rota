@@ -1650,9 +1650,21 @@ export class Combat {
    *
    * # Der Bonus liegt NEBEN dem Stapel-Bonus, nicht darin
    *
-   * FESTER wird ohnehin stärker, je mehr Zersetzungs-Stapel liegen
-   * (`perDecayStackPercent`). Das ist eine andere Mechanik. Eine Gegenprobe,
-   * die den Stapelstand mitvariiert, misst die Stapel und nicht die Synergie.
+   * Eine Gegenprobe, die den Stapelstand mitvariiert, misst die Stapel und
+   * nicht die Synergie: `vulnerability` hebt den Schaden **aller** Quellen,
+   * sobald Stapel liegen (`updateVulnerability`).
+   *
+   * **Hier stand bis Issue #484 zusätzlich, FESTER werde „ohnehin stärker, je
+   * mehr Zersetzungs-Stapel liegen (`perDecayStackPercent`)".** Das war falsch,
+   * und zwar nicht nur ungenau: Das Feld wird geladen, geprüft und für die
+   * Zuordnung gelesen (`indicators.ts`, `mechanicId === 'decay'`) — aber auf
+   * keiner der beiden Seiten je auf den Schaden angewandt. Es gibt kein
+   * „neben", weil es nichts gibt, wozu es danebenläge.
+   *
+   * Der Satz war gefährlich, weil er an genau der Stelle stand, an der jemand
+   * nachsieht — und die allgemeine Verwundbarkeit seinen Ausfall maskiert:
+   * „mit Stapeln macht FESTER mehr Schaden" ist wahr, kommt aber aus der
+   * anderen Mechanik.
    */
   private applySynergyBonus(index: number, timeMs: number): void {
     const seitBeginn = this.fightElapsedMs(timeMs);
