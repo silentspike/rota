@@ -120,6 +120,37 @@ Zeitleisten und Widerstände erzeugen keine.
 **Was fehlt, ist nicht Mechanik, sondern Anlass.** Die Bauteile sind da; es
 gibt nur fast nie einen Grund, sie zu benutzen.
 
+## Was daraus folgt
+
+Gemessen, nicht empfohlen:
+
+**Ein Boss ohne Todesgefahr erzeugt keine Rotations-Entscheidung.** Sieben
+von acht Bössen haben keine — bei ihnen ist die beste Rotation dieselbe wie
+gegen einen Boss ganz ohne Mechanik.
+
+Der Zusammenhang gilt in beide Richtungen und ist an derselben Datei
+belegt: `test-onslaught` mit Zeitleiste erzeugt eine Entscheidung, ohne
+Zeitleiste keine. Es ist nicht die Mechanik, die sie erzeugt, sondern der
+Umstand, dass sie den Spieler töten kann.
+
+**Daraus folgt:** Jede weitere Boss-Mechanik bleibt folgenlos, solange der
+Boss den Spieler nicht wirklich bedroht — so gut sie gebaut ist. Phasen,
+Zeitleisten und Widerstände sind vollständig verdrahtet, werden angezeigt,
+gehen in die Prüfsumme ein und haben Prüffälle. Sie ändern trotzdem nichts.
+
+### Das ist kein Versäumnis, sondern ein Hinweis
+
+GAME-DESIGN sieht Boss-Schaden ausdrücklich vor — *„ab Mittelspiel eigene
+Aktionen"*, *„Boss-Schaden: Ja, später"*. Es fehlt also keine Entscheidung,
+sondern die Umsetzung an sieben von acht **Prüf**-Bössen.
+
+Prüf-Bosse sind Werkzeug, kein Spielinhalt. Der Befund sagt deshalb nichts
+darüber, ob am Spiel etwas falsch ist — er sagt, worauf es bei den echten
+Bössen ankommt, damit die vorhandene Mechanik zur Wirkung kommt.
+
+Wie hart Bosse treffen sollen, ist eine Design-Entscheidung. Der
+Zusammenhang zwischen Bedrohung und Rotations-Tiefe ist gemessen.
+
 ## Was NICHT gemessen ist
 
 **Der Widerstands-Fall ist ungeprüft, nicht widerlegt.** Ein Widerstand
