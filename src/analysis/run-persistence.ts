@@ -39,8 +39,6 @@ export function emptySave(gameVersion: string, now: number): SaveData {
     talentPoints: {},
     items: [],
     bindings: {},
-    unlockedSpells: [],
-    unlockedInstances: [],
     bestRuns: [],
     defeatedBosses: [],
     runHistory: [],
@@ -100,8 +98,6 @@ function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): S
     progressMarks: geladen.progressMarks ?? leer.progressMarks,
     bestRuns: geladen.bestRuns ?? leer.bestRuns,
     items: geladen.items ?? leer.items,
-    unlockedSpells: geladen.unlockedSpells ?? leer.unlockedSpells,
-    unlockedInstances: geladen.unlockedInstances ?? leer.unlockedInstances,
     defeatedBosses: geladen.defeatedBosses ?? leer.defeatedBosses,
     // **Die beiden sind keine Listen, haben aber dieselbe Krankheit.** Ein
     // Wächter, der nur Arrays prüft, liesse sie stehen.

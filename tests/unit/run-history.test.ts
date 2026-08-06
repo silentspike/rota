@@ -49,8 +49,6 @@ function stand(over: Partial<SaveData> = {}): SaveData {
     talentPoints: {},
     items: [{ itemId: 'ember-band', upgradeSteps: 3, equippedSlot: 2 }],
     bindings: { '0': 'kindle' },
-    unlockedSpells: ['kindle'],
-    unlockedInstances: ['first-crucible'],
     bestRuns: [],
     defeatedBosses: [],
     runHistory: [eintrag()],
