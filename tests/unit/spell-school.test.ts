@@ -57,6 +57,9 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Issue #268 — bei ihrer Schule, siehe oben.
       'bellows',
       'searing',
+      // Issue #517 — EMBER und PYROCLASM, bei ihrer Schule.
+      'ember',
+      'pyroclasm',
       'quench',
       'crust',
       'salve',

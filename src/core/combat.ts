@@ -2937,8 +2937,15 @@ export class Combat {
     this.applyDecayStackBonus(index);
     const castFactors = this.factorsFor(kritet);
 
+    // EMBER und PYROCLASM (Issue #517). Beide VOR der Schadensrechnung: EMBER,
+    // damit ein Brand, den dieser Zauber selbst legt, nicht schon verlaengert
+    // wird; PYROCLASM, weil sein Beitrag in denselben Betrag gehoert wie der
+    // Grundschaden.
+    if (spell.dotExtendTicks !== undefined) this.extendActiveDots(timeMs, spell.dotExtendTicks);
+
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
+    if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
