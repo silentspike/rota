@@ -67,6 +67,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'temper',
       // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
       'scab',
+      'plate',
       'bind',
       'stall',
       'stay',
@@ -74,6 +75,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'wedge',
       'tether',
       'capstone',
+      'clasp',
+      'latch',
       'vapour',
       'reflux',
       'wisp',

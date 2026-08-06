@@ -95,6 +95,32 @@
         "effect": "allThree",
         "amountMs": 2000
       }
+    },
+    {
+      "id": "clasp",
+      "name": "Clasp",
+      "_comment": "CLASP — der zweite Punktesammler der Fixierung (Issue #519, Raster FIXATION 2).\n\nWARUM ER ZAEHLT: Bis hierher sammelte NUR bind Kontroll-Punkte. Wer FIXATION spielte, hatte genau einen Weg, seine Ausgeber zu bezahlen — und damit keine Entscheidung, sondern eine Pflichtfolge.\n\nDER ZUSATZ FEHLT NOCH: Das Raster gibt ihm zusaetzlich 'verlaengert laufende Verlangsamungen'. Dafuer gibt es heute keine Stelle — nichts im Kampf greift auf eine LAUFENDE Control-Wirkung zu, alles legt an oder ersetzt. Gemessen in der Mechanik-Matrix (#513), Buendel 'Zugriff auf laufende Wirkungen'; dort haengen ausserdem EMBER, PYROCLASM, SEPSIS und HARDEN.\n\nOHNE den Zusatz erfuellt er, wofuer er laut Raster da ist: 'Der Aufbau ist heute an bind allein gebunden.' Das leistet der Kern. ALLE ZAHLEN SIND PLATZHALTER.",
+      "unlockLevel": 3,
+      "baseDamage": 40,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "controlGain": 1
+    },
+    {
+      "id": "latch",
+      "name": "Latch",
+      "_comment": "LATCH — die Verteidigung der Fixierung (Issue #519, Raster FIXATION 4).\n\nWARUM ER ZAEHLT: 'Die Schule hat heute keine Verteidigung.' stall verlangsamt einen Zauber, stay verzoegert einen Schlag, anchor haelt die Phase — aber keiner davon schuetzt den Spieler, wenn der Schlag trotzdem kommt.\n\nER NUTZT delayStrike WIE stay, mit anderem Preis und anderer Dauer: kein neues Feld, kein neuer Effekt.\n\nDER ZUSATZ FEHLT NOCH: Das Raster sagt 'verzoegert UND schwaecher'. Die Abschwaechung haengt an der Stelle, an der Boss-Schaden ankommt (hitPlayer) — Mechanik-Matrix (#513), Buendel 'hitPlayer als Angriffspunkt', zusammen mit RIPOSTE und DECAY.\n\nOHNE den Zusatz ist er trotzdem Verteidigung: Eine Verzoegerung verschafft Zeit. ALLE ZAHLEN SIND PLATZHALTER.",
+      "unlockLevel": 4,
+      "baseDamage": 0,
+      "cooldownMs": 10000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 2,
+        "effect": "delayStrike",
+        "amountMs": 4000
+      }
     }
   ]
 }

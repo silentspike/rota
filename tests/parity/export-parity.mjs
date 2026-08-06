@@ -90,6 +90,8 @@ import {
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
   cinderPayload,
+  kernePayload,
+  KERNE_NAME,
   CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
@@ -173,6 +175,12 @@ writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
 const cinder = cinderPayload();
 const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
 writeFileSync(cinderPath, serialize(cinder), 'utf8');
+
+const kerne = kernePayload();
+const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
+writeFileSync(kernePath, `${JSON.stringify(kerne, null, 2)}\n`);
+console.log(`geschrieben: ${kernePath}`);
+console.log(`  gewirkt   ${JSON.stringify(kerne.expected.casts)}`);
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
