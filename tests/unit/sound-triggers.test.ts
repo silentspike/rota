@@ -113,10 +113,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // Nur die beiden Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die
   // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
   // aus #420. Alle 17 spielbaren Zauber klingen.
-  // **Die drei neuen aus #478 warten auf ihren Klang** (Issue #487). Der
-  // Eintrag meldet sich selbst ab: Sobald die Datei da ist, wird dieser Fall
-  // rot („steht in STUMM, hat aber einen Klang") und verlangt das Entfernen.
-  const STUMM = new Set(['test-cast', 'test-buff', 'wedge', 'tether', 'capstone']);
+  const STUMM = new Set(['test-cast', 'test-buff']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
