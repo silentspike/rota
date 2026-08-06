@@ -72,6 +72,7 @@ describe('Ohne Speicher laeuft das Spiel weiter', () => {
       bestRuns: [],
       talentPoints: {},
       items: [],
+      defeatedBosses: [],
       level: 1,
       experience: 0,
     });
@@ -95,6 +96,7 @@ describe('Ein voller Speicher', () => {
         bestRuns: [],
         talentPoints: {},
         items: [],
+        defeatedBosses: [],
         level: 1,
         experience: 0,
       });
@@ -115,6 +117,7 @@ describe('Ein voller Speicher', () => {
       bestRuns: [],
       talentPoints: {},
       items: [],
+      defeatedBosses: [],
       level: 1,
       experience: 0,
     });
@@ -134,6 +137,7 @@ describe('Der gewoehnliche Weg', () => {
         bestRuns: [],
         talentPoints: {},
         items: [],
+        defeatedBosses: [],
         level: 1,
         experience: 0,
       }),
@@ -158,6 +162,7 @@ describe('Der gewoehnliche Weg', () => {
         bestRuns: [],
         talentPoints: {},
         items: [],
+        defeatedBosses: [],
         level: 1,
         experience: 0,
       }),
@@ -189,6 +194,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       bestRuns: [],
       talentPoints: {},
       items: [],
+      defeatedBosses: [],
       level: 1,
       experience: 0,
     });
@@ -200,6 +206,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       bestRuns: [],
       talentPoints: {},
       items: [],
+      defeatedBosses: [],
       level: 1,
       experience: 0,
     });
@@ -219,6 +226,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       bestRuns: [],
       talentPoints: {},
       items: [],
+      defeatedBosses: [],
       level: 1,
       experience: 0,
     });
@@ -229,6 +237,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       bestRuns: [],
       talentPoints: {},
       items: [],
+      defeatedBosses: [],
       level: 1,
       experience: 0,
     });
@@ -267,6 +276,7 @@ describe('Ein Stand aus einer aelteren Fassung', () => {
         bestRuns: [],
         talentPoints: {},
         items: [],
+        defeatedBosses: [],
         level: 1,
         experience: 0,
       }),
@@ -309,6 +319,7 @@ describe('Ein voller Verlauf', () => {
         bestRuns: [],
         talentPoints: {},
         items: [],
+        defeatedBosses: [],
         level: 1,
         experience: 0,
       }),
