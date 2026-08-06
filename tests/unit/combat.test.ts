@@ -39,6 +39,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
       'bellows',
       'searing',
+      // Issue #479 — CINDER, am Ende von `calcination.json` und deshalb hier.
+      'cinder',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
@@ -55,6 +57,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'stall',
       'stay',
       'anchor',
+      // Issue #478 — die drei Zielgrößen-Zauber der Fixierung. Sie stehen am
+      // Ende von `fixation.json` und deshalb hier hinter ANCHOR.
+      'wedge',
+      'tether',
+      'capstone',
       // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
       //
       // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
@@ -68,13 +75,26 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
+      // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
+      'blight',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
       // Liste steht er trotzdem: Sie ist der Index-Raum, und der ist für
       // Aufzeichnungen und Simulator derselbe.
       'test-cast',
+      // **Die sieben Prüf-Zauber der Zielgrößen** (Issue #502). Einer je
+      // `BuffTarget` — sie stehen hier aus demselben Grund wie `test-cast`:
+      // Sie gehören nicht zum Spiel (Stufe über der Grenze), aber sie belegen
+      // Plätze im Index-Raum, und der ist für Aufzeichnungen und Simulator
+      // derselbe.
       'test-buff',
+      'test-control',
+      'test-heat',
+      'test-tick',
+      'test-stack',
+      'test-cdreduce',
+      'test-convert',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
