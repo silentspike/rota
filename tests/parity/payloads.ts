@@ -2065,6 +2065,79 @@ function analyzeMisplays(recording: Recording): {
  * `stepPassive` bliebe `factors.buffs` nach dem Fenster stehen, und der Lauf
  * sähe verstärkt aus, ohne es zu sein.
  */
+/**
+ * Die drei NEUEN Fixierungs-Zauber in einem Lauf (Issue #478).
+ *
+ * **Nicht zu verwechseln mit `fixationPayload`**: Der prüft die drei
+ * ursprünglichen Ausgeber gegen `test-warden` — einen Boss mit Mechanik, an
+ * dem sich Verlangsamen und Verzögern überhaupt zeigen lassen. Dieser hier
+ * prüft die neuen Zauber gegen FIRST_CRUCIBLE, wo es nichts zu kontrollieren
+ * gibt: genau die Lage, für die WEDGE gebaut wurde.
+ *
+ * # Wozu diese Aufzeichnung
+ *
+ * `coverage.test.ts` verlangt, dass jeder **ausgelieferte** Zauber in einem
+ * Paritäts-Weg gewirkt wird. Ein Zauber, der nur in der Datei steht, ist
+ * genau der Zustand, den dieses Projekt neunmal hatte: gebaut, geprüft, nicht
+ * angeschlossen.
+ *
+ * # Die Reihenfolge ist die Aussage
+ *
+ * TETHER und BIND laden Kontroll-Punkte auf, dann greift WEDGE (wandelt sie
+ * in Schaden) und später CAPSTONE (alle drei Wirkungen auf einmal). Wer die
+ * Reihenfolge umdreht, misst zwei Ausgeber ohne Vorrat — beide liefen ins
+ * Leere, und die Aufzeichnung wäre grün, ohne etwas zu zeigen.
+ */
+export function fixationSpellsPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 500;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  // Die Namen stehen in `presses`; `combat.indexOf` löst sie beim Wirken auf.
+  // So liest die Rust-Seite dieselbe Datei, ohne Indizes zu kennen.
+
+  const checksums: number[] = [];
+  const presses: { tick: number; spellId: string }[] = [];
+  const druecke = (tick: number, id: string): void => {
+    presses.push({ tick, spellId: id });
+  };
+
+  // Erst aufladen — sonst laufen die beiden Ausgeber ins Leere.
+  for (let n = 0; n < 4; n++) druecke(n * 150, 'tether');
+  for (let n = 0; n < 4; n++) druecke(600 + n * 150, 'bind');
+  druecke(1300, 'wedge');
+  // CAPSTONE braucht acht Punkte, also nach einer zweiten Ladephase.
+  for (let n = 0; n < 5; n++) druecke(1400 + n * 150, 'bind');
+  druecke(2200, 'capstone');
+
+  let naechster = 0;
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (naechster < presses.length && presses[naechster]!.tick <= tick) {
+      combat.cast(combat.indexOf(presses[naechster]!.spellId), timeMs);
+      naechster++;
+    }
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    presses,
+    checksums,
+    expected: {
+      damage: combat.damageDealt,
+      /**
+       * **Die Zusicherung im Datensatz:** Wären die Punkte nie ausgegeben
+       * worden, liefe die Aufzeichnung über zwei Zauber, die nichts tun.
+       */
+      controlSpent: combat.controlSpent,
+    },
+  };
+}
+
 export function buffCombatPayload(): Record<string, unknown> {
   const boss = FIRST_CRUCIBLE.value;
   const ticks = 600;
