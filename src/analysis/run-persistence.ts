@@ -177,6 +177,7 @@ export class RunPersistence {
       bestRuns: this.data.bestRuns,
       talentPoints: this.data.talentPoints,
       items: this.data.items,
+      defeatedBosses: this.data.defeatedBosses,
       level: this.data.level,
       experience: this.data.experience,
     };
@@ -339,6 +340,9 @@ export class RunPersistence {
       // hierher.
       talentPoints: next.talentPoints,
       items: next.items,
+      // **Die Tatsache des Siegs, nicht seine Güte** (Issue #434): Die Güte
+      // steht in `bestRuns`, und beide sehen heute zufällig gleich aus.
+      defeatedBosses: next.defeatedBosses,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
       // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge
