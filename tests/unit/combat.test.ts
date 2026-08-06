@@ -39,6 +39,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
       'bellows',
       'searing',
+      // Issue #477 — der kurze Brand, ebenfalls bei seiner Schule. Seit
+      // 2026-08-06 ist das der vorgesehene Ort: Ein Zauber am Ende der
+      // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
+      // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
+      'cinder',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
