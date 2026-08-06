@@ -117,7 +117,11 @@ fn lauf(
         presses,
     };
     let mut fight = Fight::new(FightConfig::default());
-    let result = fight.replay(&recording, false);
+    // **`true`, nicht `false`.** Der zweite Parameter schaltet die Verlaeufe je
+    // Takt ein (`shield`, `player_hp`, …). Mit `false` bleibt `r.shield` LEER,
+    // und ein Fall, der daraus den Hoechststand liest, misst 0 gegen 0 — er
+    // waere gruen und belegte nichts.
+    let result = fight.replay(&recording, true);
     let res = fight.resource();
     (result, res)
 }
@@ -196,3 +200,72 @@ wirkt!(
     60,
     92
 );
+
+/// Wie oft dieser Zauber gewirkt hat.
+///
+/// **`casts` zählt Wirkungen, nicht Drücke** (`replay.rs:89`) — Drücke stehen
+/// in `accepted`/`rejected`. Für die Abklingzeit ist das genau richtig: Ein
+/// Zauber, der noch im Cooldown steht, wird nicht gewirkt.
+fn wirkungen(r: &rota_sim::replay::ReplayResult, id: &str) -> u32 {
+    r.casts[index_of(id).unwrap_or_else(|| panic!("{id} fehlt"))]
+}
+
+/// Die zwei Zielgrößen aus E10 — mit **Träger** und **Zeuge** getrennt.
+///
+/// # Warum die Trennung nötig ist
+///
+/// Bei den vier Fällen oben sind Träger und Zeuge derselbe Zauber: KINDLE
+/// nutzt die Verstärkung und zeigt sie zugleich. Hier nicht:
+///
+/// - `vapour` **nutzt** die verstärkte Verkürzung — muss ins Fenster
+/// - `pyre` **zeigt** nur, ob er durchkam — muss DAHINTER liegen, weil seine
+///   Abklingzeit sonst gar nicht abgelaufen ist
+///
+/// Eine Zusicherung, die für jeden Druck das Fenster verlangt, lehnte den
+/// richtigen Aufbau ab.
+#[test]
+fn cdreduce_wirkt() {
+    // PYRE@1600 ms ist bereit ab 6600. VAPOUR@3200 verkürzt um 1000 → 5600,
+    // verdoppelt um 2000 → 4600. Der Druck bei 5000 ms fällt genau dazwischen
+    // — deshalb ist die Zahl der Wirkungen die Wirkung selbst.
+    let traeger = [("pyre", 160u32), ("vapour", 320u32), ("pyre", 500u32)];
+    im_fenster(320); // nur VAPOUR, der Träger
+    let mut vorher = 0;
+    for (_, takt) in traeger.iter() {
+        nach_dem_gcd(vorher, *takt);
+        vorher = *takt;
+    }
+
+    let ohne = wirkungen(&lauf(None, &traeger, 700).0, "pyre");
+    let mit = wirkungen(&lauf(Some("test-cdreduce"), &traeger, 700).0, "pyre");
+
+    assert_eq!(
+        ohne, 1,
+        "ohne Verstärkung kommt der zweite PYRE bereits durch — dann misst der \
+         Fall die Verkürzung nicht"
+    );
+    assert_eq!(mit, 2, "die cdreduce-Verstärkung wirkt nicht");
+}
+
+#[test]
+fn convert_wirkt() {
+    // TEMPER wandelt 25 % des AUSGETEILTEN Schadens — kein Boss-Schlag nötig.
+    // KINDLE@3200 muss vor dem Fensterende bei 4500 liegen.
+    let traeger = [("temper", 160u32), ("kindle", 320u32)];
+    let mut vorher = 0;
+    for (_, takt) in traeger.iter() {
+        im_fenster(*takt);
+        nach_dem_gcd(vorher, *takt);
+        vorher = *takt;
+    }
+
+    let hoechster = |r: rota_sim::replay::ReplayResult| r.shield.iter().copied().max().unwrap_or(0);
+    let ohne = hoechster(lauf(None, &traeger, 400).0);
+    let mit = hoechster(lauf(Some("test-convert"), &traeger, 400).0);
+
+    assert_eq!(ohne, 25, "ohne Verstärkung entsteht {ohne} Schutz statt 25");
+    assert_eq!(
+        mit, 50,
+        "die convert-Verstärkung wirkt nicht: {mit} statt 50"
+    );
+}
