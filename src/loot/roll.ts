@@ -82,13 +82,21 @@ export function candidatesFor(bossId: string, katalog: readonly ItemDef[] = ITEM
  * **Ein Wurf, der nichts ergibt, zieht trotzdem einmal.** Wer die erste Ziehung
  * überspränge, wenn der Katalog leer ist, bekäme bei gleichem Startwert eine
  * andere Folge, sobald ein Eintrag dazukommt.
+ *
+ * `rate` ist wie `katalog` ein Einhängepunkt für Prüffälle und steht im
+ * Produktionspfad auf dem Wert aus den Daten. Er wurde nötig, als die Rate auf
+ * **1000 ‰** ging: Der Wirkungsnachweis kann seitdem nicht mehr über „es fällt
+ * nicht immer etwas" laufen — „immer" ist der Sollzustand. Er läuft stattdessen
+ * über die Gegenrichtung, und dafür muss ein Prüffall eine zweite Rate setzen
+ * können.
  */
 export function rollLoot(
   stream: RandomStream,
   context: DropContext,
   katalog: readonly ItemDef[] = ITEMS,
+  rate: number = DROP_CHANCE_PER_MILLE,
 ): Drop | null {
-  const faellt = Math.floor(stream.next() * 1000) < DROP_CHANCE_PER_MILLE;
+  const faellt = Math.floor(stream.next() * 1000) < rate;
   const gewichte = new Int32Array(QUALITY_COUNT);
   weightsFor(context.instance, context.difficulty, context.endlessLevel, gewichte);
   const quality = qualityOfRoll(gewichte, stream.next());
