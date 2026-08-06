@@ -408,7 +408,22 @@ pub fn resource_names() -> [&'static str; 2] {
 pub fn spell_index(name: &str) -> Option<usize> {
     SPELLS
         .iter()
-        .position(|spell| spell.id == name && spell.unlock_level <= MAX_LEVEL as u16)
+        .position(|spell| spell.id == name && ist_spielbar(spell))
+}
+
+/// Gehoert dieser Zauber zum Spiel? (Issue #499)
+///
+/// **Die Bedingung steht genau hier und sonst nirgends.** Vorher trugen
+/// `spell_index` und `spielbare_zauber` denselben Vergleich zweimal — die
+/// Wirkung war richtig, aber wer `MAX_LEVEL` spaeter durch eine Funktion oder
+/// eine Konfiguration ersetzt, aendert vielleicht nur eine der beiden. Dann
+/// schlaegt die Liste Zauber vor, die das Wirken abweist, oder umgekehrt.
+///
+/// Gefunden hat es der Orchestrator bei der Abnahme: Sein `sed` traf nur eine
+/// der beiden Stellen, und trotzdem fiel nur ein Test.
+#[must_use]
+pub fn ist_spielbar(spell: &Spell) -> bool {
+    spell.unlock_level <= MAX_LEVEL as u16
 }
 
 /// Die Zauber, die eine Rotation ueberhaupt nennen darf.
@@ -422,7 +437,11 @@ pub fn spell_index(name: &str) -> Option<usize> {
 /// Kandidatenzaehlung der Rotationssuche. Alle drei fragen: gehoert dieser
 /// Eintrag zum Spiel?
 pub fn spielbare_zauber() -> impl Iterator<Item = &'static Spell> {
-    SPELLS.iter().filter(|s| s.unlock_level <= MAX_LEVEL as u16)
+    // **Nicht die Bedingung wiederholen** — sie steht in `ist_spielbar`.
+    // `position()` auf DIESEM Strom waere uebrigens falsch: Er gaebe den Platz
+    // im gefilterten Strom zurueck, nicht den Index in `SPELLS`. Deshalb teilen
+    // sich die beiden die Bedingung und nicht den Iterator.
+    SPELLS.iter().filter(|s| ist_spielbar(s))
 }
 
 use std::fmt;
