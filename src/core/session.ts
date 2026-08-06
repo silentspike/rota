@@ -17,6 +17,7 @@ import {
   FIGHT_WON,
   isCastAccepted,
   alsSpellIndex,
+  NO_SPELL,
   type SpellIndex,
 } from './combat.js';
 import { buildSummary, type RunSummary } from './summary.js';
@@ -65,16 +66,18 @@ import { TICK_MS } from './loop.js';
 import { SLOT_COUNT } from '../input/keys.js';
 import type { PressQueue } from '../input/queue.js';
 
-/** Kein Zauber auf diesem Platz. */
 /**
- * Der leere Platz — **mit der Marke, nicht als nackte `-1`** (Issue #442).
+ * Der leere Platz — **weitergereicht, nicht hier gebildet** (Issue #444).
  *
- * Er steht im selben Wertebereich wie ein Zauber-Index und wird an denselben
- * Stellen gereicht. Ohne die Marke müsste jeder Aufrufer von `bind(slot,
- * NO_SPELL)` ein `alsSpellIndex` schreiben — und eine Umgehung, die man an
- * fünfzehn Stellen wiederholt, hebt den Sinn des Typs auf.
+ * Er stand bis dahin in dieser Datei. `combat.ts` braucht ihn aber an fünf
+ * Stellen, und ein Import zurück wäre ein Zirkelbezug gewesen: `session.ts`
+ * holt bereits aus `combat.ts`.
+ *
+ * **Der Re-Export steht hier, damit jede bestehende Importstelle gilt.** Ihn
+ * ersatzlos zu verschieben hiesse, fünfzehn Aufrufer anzufassen für eine
+ * Änderung, die sie nichts angeht.
  */
-export const NO_SPELL = alsSpellIndex(-1);
+export { NO_SPELL };
 
 /** Nie gedrückt. */
 export const NEVER = -1;
