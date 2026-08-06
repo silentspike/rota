@@ -106,6 +106,22 @@
           "heat": 1
         }
       }
+    },
+    {
+      "_comment": "SLAG — hebt die Hitze-Grenze befristet an (Issue #490).\n\nBis hierher war die Obergrenze fest: Wer sie erreicht, verschwendet jeden weiteren Aufbau. SLAG macht daraus eine Entscheidung — vor einem Entlader die Grenze heben und mehr sammeln, statt am Deckel zu verlieren.\n\nDIE ZAHLEN SIND PLATZHALTER. factor 1.5 auf cap 20 ergibt 30.\n\nOFFEN (AC2, beim Auftraggeber): Was geschieht mit dem Vorrat OBERHALB der alten Grenze, wenn das Fenster ablaeuft? Abschneiden, stehen lassen oder verfallen — das ist Spiel-Design, nicht Mechanik.",
+      "id": "slag",
+      "name": "Slag",
+      "unlockLevel": 12,
+      "baseDamage": 0,
+      "cooldownMs": 30000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 1,
+        "factor": 1.5,
+        "gcds": 4,
+        "target": "cap"
+      }
     }
   ]
 }
