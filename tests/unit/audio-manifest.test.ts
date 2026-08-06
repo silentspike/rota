@@ -180,7 +180,8 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
     // `provisional` wird entfernt, nicht auf `undefined` gesetzt: Der Typ
     // lässt das nicht zu, und `npm run build` bricht daran ab, während
     // `vitest` grün bleibt — es transpiliert ohne Typprüfung.
-    const { provisional: _weg, ...ohneFeld } = platzhalter.sounds[0]!;
+    const ohneFeld = { ...platzhalter.sounds[0]! };
+    delete (ohneFeld as { provisional?: string }).provisional;
     const ohneMarke: Manifest = { ...platzhalter, sounds: [ohneFeld] };
     expect(eintraegeOhneDatei(ohneMarke, new Set(ASSET_FILES))).toEqual([
       'spell-noch-nicht -> audio/spell-noch-nicht.ogg',

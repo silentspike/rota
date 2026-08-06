@@ -115,11 +115,11 @@ jeder Versuch zu wenig, und die Wiederholung kostet nur Credits.
 
 Gemessen an `spell-bind` (Ziel 0,50 s), zweimal gescheitert:
 
-| Prompt | Kandidaten |
-| --- | --- |
-| `short binding snap, tight rope-pull click, restrained arcane grip, dry` | 0,33 s · 0,27 s |
-| dieselbe Zeile plus `long dark decay, slow fade out` | 0,33 s · 0,27 s — **unverändert** |
-| `arcane binding, tight rope-pull with resonant ringing tail, restrained magical grip, sustained decay, no percussion` | 2,72 s · 8,10 s |
+| Prompt                                                                                                                | Kandidaten                        |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `short binding snap, tight rope-pull click, restrained arcane grip, dry`                                              | 0,33 s · 0,27 s                   |
+| dieselbe Zeile plus `long dark decay, slow fade out`                                                                  | 0,33 s · 0,27 s — **unverändert** |
+| `arcane binding, tight rope-pull with resonant ringing tail, restrained magical grip, sustained decay, no percussion` | 2,72 s · 8,10 s                   |
 
 **Der Zusatz am Ende hat nichts bewirkt.** Wirksam wurde erst, `snap`, `click` und `dry` zu
 **entfernen** — die Wörter, die den Klang kurz machen. Ein Ausklang-Hinweis kämpft gegen sie an
