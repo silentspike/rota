@@ -2923,3 +2923,47 @@ gh api repos/silentspike/rota/issues/comments/<id> -q .body | head
 Am 2026-08-06 sind beide Fassungen des Fehlers an einem Abend aufgetreten, im Abstand von zehn
 Minuten: erst die Backticks in einem Kommentar, der zwei Dateinamen nennen sollte, dann der
 Terminator beim Aufschreiben eben dieses Befunds.
+
+### 8.34 Beim Umschreiben nach vorne gedacht, nicht nach hinten
+
+Ein Zweig wurde force-gepusht, um ein Wort in einem Kommentar zu berichtigen. Der Bauende hat dabei
+sauber gearbeitet: Sein eigener Folge-Zweig wurde mit `--onto` nachgezogen, die Kette blieb bei ihm
+heil.
+
+**Was er nicht bedacht hat: Eine fremde Sitzung saß ebenfalls auf dem alten Kopf.**
+
+```
+vorher                              nachher
+main ← 477 ← 482  (er)              main ← 477(neu) ← 482
+       ↑                                   477(alt) ← 493   ← verwaist
+       └── 493  (jemand anderes)
+```
+
+Der alte Commit lebte nur noch in der fremden Historie weiter — **mit dem falschen Wort darin**.
+Beim Merge wäre derselbe Inhalt zweimal gekommen, einmal berichtigt und einmal nicht. Das fällt
+nicht als Konflikt auf, weil es formal zwei verschiedene Commits sind.
+
+#### Die eine Zeile, die es gezeigt hätte
+
+```bash
+git branch -r --contains <alter Kopf>
+```
+
+Seine eigene Einordnung, und sie ist besser als jede Regel, die man daraus machen könnte:
+
+> Ich habe die Kette nur **nach vorne** gedacht — mein eigener Zweig muss nachgezogen werden — und
+> nicht **nach hinten**: wer sitzt auf dem, was ich verschiebe?
+
+#### Warum das keine Git-Regel ist, sondern eine über Nebenwirkungen
+
+Ein `force-push` ist der offensichtliche Fall, aber die Bewegung ist allgemeiner: **Wer etwas
+verschiebt, prüft, was daran hing.** Dasselbe gilt für eine umbenannte Funktion, ein entferntes
+Feld, eine geänderte Konstante.
+
+Der Unterschied zum sonst üblichen Vorgehen ist gering — man prüft ohnehin, was man selbst
+weiterbauen muss. Was fehlt, ist der Blick auf das, was **andere** davon abgeleitet haben, und der
+ist unbequem, weil man dafür aus dem eigenen Arbeitsbereich hinaussehen muss.
+
+> **Und die Zurechnung gehört dazu:** Freigegeben hatte die Korrektur der Orchestrator — ohne zu
+> prüfen, wer auf dem Zweig sitzt. Einen Befehl nicht zu kennen wiegt leichter, als eine Freigabe
+> ohne Prüfung zu erteilen. **Freigeben ist das Prüfen.**
