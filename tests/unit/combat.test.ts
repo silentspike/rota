@@ -68,6 +68,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Liste steht er trotzdem: Sie ist der Index-Raum, und der ist für
       // Aufzeichnungen und Simulator derselbe.
       'test-cast',
+      'test-buff',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);

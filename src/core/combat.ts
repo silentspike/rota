@@ -70,6 +70,7 @@ import {
   RULE_SPELL_CAST,
   RuleEvents,
 } from '../combat/events.js';
+import { Buffs } from '../combat/schools/buffs.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
@@ -417,6 +418,15 @@ export class Combat {
 
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
   private worn: WornValues;
+
+  /**
+   * Die laufenden Verstärkungen (GAME-DESIGN 5, Issue #420).
+   *
+   * **Vorab angelegt und nie ersetzt**, wie jede andere Mechanik hier: Ein
+   * `new Buffs()` im laufenden Takt verstieße gegen 18.2. `reset()` leert das
+   * Objekt, statt ein neues zu setzen.
+   */
+  private readonly buffs = new Buffs();
   /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
@@ -1581,6 +1591,26 @@ export class Combat {
    * Die Liste steht aufsteigend, also stehen die abgelaufenen vorn. Was bleibt,
    * rückt auf; die jüngeren behalten ihre eigene Restzeit.
    */
+  /**
+   * Abgelaufene Verstärkungen wegräumen und den Faktor nachziehen (#420).
+   *
+   * **Die zweite Zeile ist der ganze Punkt.** `buffs.expire` räumt nur den
+   * eigenen Zustand; ohne das Nachziehen bliebe `factors.buffs` auf dem alten
+   * Wert stehen, und eine abgelaufene Verstärkung wirkte für den Rest des
+   * Kampfes weiter. Der Prüffall dazu misst deshalb den Schaden **nach** dem
+   * Ablauf, nicht nur währenddessen — ein Messpunkt innerhalb des Fensters
+   * sähe genau gleich aus.
+   */
+  private expireBuffs(timeMs: number): void {
+    if (this.buffs.expire(timeMs) === 0) return;
+    this.updateBuffFactor(timeMs);
+  }
+
+  /** Trägt den Gesamtfaktor der laufenden Verstärkungen in die Rechnung. */
+  private updateBuffFactor(timeMs: number): void {
+    this.setDamageFactor('buffs', this.buffs.factor(timeMs));
+  }
+
   private expirePutrefaction(timeMs: number): void {
     const seitBeginn = this.fightElapsedMs(timeMs);
     let verfallen = 0;
@@ -2262,6 +2292,7 @@ export class Combat {
     //
     this.expireCoagulation(timeMs);
     this.expirePutrefaction(timeMs);
+    this.expireBuffs(timeMs);
 
     // `atMs` zählt **ab Kampfbeginn**, `timeMs` ist die Uhr des Spiels. Beginnt
     // ein Kampf nicht bei null, ist der Unterschied der ganze Versatz — und
@@ -2793,6 +2824,20 @@ export class Combat {
       if (kritet) this.events.emit(RULE_CRIT, index, damage, timeMs);
     }
 
+    // Die Verstärkung wird NACH dem Schaden angelegt (Issue #420): Ein Zauber
+    // verstärkt die folgenden, nicht sich selbst. Andernfalls trüge der
+    // auslösende Zauber seinen eigenen Bonus, und das Fenster wäre in Wahrheit
+    // einen Zauber länger als die Daten sagen.
+    const buff = spell.buff;
+    if (buff !== undefined) {
+      // **Die Fensterlänge geht durch `hasted`**, wie beim Synergie-Fenster
+      // (Zeile 1489). Genau darin liegt der Zweck der Zählung in Wartezeiten:
+      // Wer schneller wirkt, hat ein kürzeres Fenster in Sekunden — und
+      // trotzdem dieselbe Zahl Zauber darin (GAME-DESIGN 5).
+      this.buffs.applyForGcds(buff.kind, buff.factor, buff.gcds, timeMs, this.hasted(GCD_MS));
+      this.updateBuffFactor(timeMs);
+    }
+
     const dot = spell.dot;
     if (dot !== undefined) {
       // Erneuern setzt zurück: Die verbleibende Restzeit ist verloren, und mit
@@ -3048,6 +3093,13 @@ export class Combat {
     this.random.reset();
     this.resourceValue = 0;
     this.resourceOverflowValue = 0;
+    // **Und der Faktor dazu**, nicht nur der Zustand: `buffs.reset()` leert die
+    // Liste, die Rechnung stünde ohne die zweite Zeile weiter auf dem letzten
+    // Wert. Genau dieser Fehler ist beim Synergie-Fenster passiert (#318) —
+    // dort blieb nach einem Leistenwechsel „1 of 1" stehen, und kein Prüffall
+    // fand es, weil jeder frisch baut statt zurückzusetzen.
+    this.buffs.reset();
+    this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;
     this.playerDamageValue = 0;

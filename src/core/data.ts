@@ -16,12 +16,14 @@ import rawFixation from '../../data/spells/fixation.json';
 import rawSublimation from '../../data/spells/sublimation.json';
 import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawTestCast from '../../data/spells/test-cast.json';
+import rawTestBuff from '../../data/spells/test-buff.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawPlayer from '../../data/player/base.json';
 import rawLevels from '../../data/player/levels.json';
 import rawReward from '../../data/player/reward.json';
 import rawTalents from '../../data/player/talents.json';
 import { TICK_MS } from './loop.js';
+import { BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
 export interface ResourceDef {
@@ -42,6 +44,31 @@ export interface DotDef {
   readonly durationMs: number;
   readonly refreshMode: 'reset';
   readonly resourceGainPerTick: Readonly<Record<string, number>>;
+}
+
+/**
+ * Eine Verstärkung, die ein Zauber beim Wirken auslöst (GAME-DESIGN 5).
+ *
+ * **Die Dauer steht in Wartezeiten, nicht in Sekunden.** Das ist keine
+ * Bequemlichkeit, sondern die Design-Regel: Sinkt die globale Wartezeit per
+ * Talent, wird das Fenster in Sekunden kürzer — „drei Zauber" bleiben drei
+ * Zauber. Wer hier Millisekunden schriebe, machte aus einem Fenster von drei
+ * Zaubern eines von vier, sobald jemand schneller wirkt.
+ */
+export interface BuffDef {
+  /**
+   * Die Art der Verstärkung, `0` bis `BUFF_KIND_CAPACITY - 1`.
+   *
+   * Sie entscheidet über das Stapeln: **verschiedene Arten multiplizieren
+   * sich, gleiche ersetzen einander** (GAME-DESIGN 5). Zwei Zauber mit
+   * derselben Art überschreiben sich also gegenseitig, auch wenn der zweite
+   * schwächer ist.
+   */
+  readonly kind: number;
+  /** Der Faktor, mit dem der Schaden multipliziert wird — `1.2` heißt +20 %. */
+  readonly factor: number;
+  /** Länge des Fensters in globalen Wartezeiten (GAME-DESIGN 5: zwei bis drei). */
+  readonly gcds: number;
 }
 
 /** Ein Entlade-Zauber: verbraucht den Vorrat und schlägt entsprechend zu. */
@@ -84,6 +111,16 @@ export interface SpellDef {
   readonly resourceGain?: Readonly<Record<string, number>>;
   readonly dot?: DotDef;
   readonly spender?: SpenderDef;
+  /**
+   * Welche Verstärkung dieser Zauber auslöst (GAME-DESIGN 5, Issue #420).
+   *
+   * **Fehlt das Feld, löst er keine aus** — das ist der Fall für jeden Zauber
+   * des Spiels. Bis #420 gab es das Feld gar nicht, und deshalb stand
+   * `factors.buffs` in jedem Kampf dauerhaft auf 1, obwohl die Stapel-Regel
+   * auf beiden Seiten fertig gebaut und mit einem gemeinsamen Prüffall
+   * abgeglichen war: Beide Seiten taten dasselbe nicht.
+   */
+  readonly buff?: BuffDef;
   /**
    * Um wie viele Millisekunden dieser Zauber **alle laufenden Abklingzeiten**
    * verkürzt (SUBLIMATION, GAME-DESIGN 4.1, Issue E3-3).
@@ -712,6 +749,44 @@ function parseResource(raw: unknown, problems: string[]): ResourceDef {
   };
 }
 
+/**
+ * Die Verstärkung eines Zaubers aus den Daten (Issue #420).
+ *
+ * # Warum hier geprüft wird und nicht erst im Kampf
+ *
+ * `Buffs.apply` gibt `false` zurück, wenn die Art außerhalb des Vorrats liegt —
+ * und `false` ist im Kampf nicht zu sehen: Der Zauber wirkt, der Schaden fällt,
+ * nur die Verstärkung bleibt aus. Ein Tippfehler in `kind` wäre damit ein
+ * Zauber, der leise nichts tut.
+ *
+ * Deshalb bricht das Laden hier ab, statt still weiterzurechnen. Dasselbe
+ * Vorgehen wie bei `consumesAll` auf der Rust-Seite (`sim/build.rs:481`):
+ * lieber beim Bauen scheitern als im Kampf das Falsche rechnen.
+ */
+function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | undefined {
+  if (!isRecord(raw)) return undefined;
+  const kind = number(raw['kind'], -1);
+  if (!Number.isInteger(kind) || kind < 0 || kind >= BUFF_KIND_CAPACITY) {
+    problems.push(
+      `${where}: Verstärkungs-Art ${kind} liegt außerhalb von 0..${BUFF_KIND_CAPACITY - 1}.`,
+    );
+    return undefined;
+  }
+  const factor = number(raw['factor'], 0);
+  if (!(factor > 0)) {
+    // Ein Faktor von 0 löschte den Schaden, ein negativer kehrte ihn um.
+    // Beides ist keine Verstärkung, sondern ein Datenfehler.
+    problems.push(`${where}: Verstärkungs-Faktor ${factor} muss größer als 0 sein.`);
+    return undefined;
+  }
+  const gcds = number(raw['gcds'], 0);
+  if (!Number.isInteger(gcds) || gcds <= 0) {
+    problems.push(`${where}: Fensterlänge ${gcds} muss eine positive Zahl von Wartezeiten sein.`);
+    return undefined;
+  }
+  return { kind, factor, gcds };
+}
+
 function parseDot(raw: unknown, where: string, problems: string[]): DotDef | undefined {
   if (!isRecord(raw)) return undefined;
   const mode = raw['refreshMode'];
@@ -937,6 +1012,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
 
   const dot = parseDot(raw['dot'], where, problems);
   const spender = parseSpender(raw['spender'], where, problems);
+  const buff = parseBuff(raw['buff'], where, problems);
   const resourceGain = isRecord(raw['resourceGain']) ? gains(raw['resourceGain']) : undefined;
 
   const unterbricht = raw['interrupt'] === true;
@@ -974,6 +1050,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...(resourceGain !== undefined ? { resourceGain } : {}),
     ...(dot !== undefined ? { dot } : {}),
     ...(spender !== undefined ? { spender } : {}),
+    ...(buff !== undefined ? { buff } : {}),
     ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
     ...(raw['armsCooldownReset'] === true ? { armsCooldownReset: true } : {}),
   };
@@ -1442,6 +1519,18 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...mitSchule(
         (rawTestCast as Record<string, unknown>)['spells'],
         rawTestCast as Record<string, unknown>,
+      ),
+      // **Und danach der Prüf-Zauber zur Verstärkung** (Issue #420). Er steht
+      // hinter `test-cast`, weil dessen Index in sechs Aufzeichnungen steht —
+      // wer ihn davorschiebt, deutet sie alle um.
+      //
+      // Warum es überhaupt einen zweiten Prüf-Zauber braucht: `test-cast` ist
+      // der Wirkzeit-Fall aus #304. Ihm eine Verstärkung anzuhängen vermischte
+      // zwei Prüfzwecke, und wer später die Wirkzeit misst, hätte still einen
+      // Buff dabei.
+      ...mitSchule(
+        (rawTestBuff as Record<string, unknown>)['spells'],
+        rawTestBuff as Record<string, unknown>,
       ),
     ],
   };
