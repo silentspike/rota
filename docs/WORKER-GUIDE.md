@@ -3194,3 +3194,43 @@ lockern kostet beim nächsten Mal den Schutz, den man diesmal noch mitgedacht ha
 
 > **Der Anlass, bei dem es teuer wird:** Wer die Bedingung ändert, damit _sein_ Fall durchgeht, hat
 > danach keinen Anlass mehr zu prüfen, ob sie den nächsten noch fängt.
+
+### 8.40 Eine Bedingung, die nach der nächsten Verschärfung überflüssig wurde
+
+Ein Wächter suchte handvergebene Leisten-Plätze. Sein erster Entwurf meldete **41 Stellen statt
+einer** — 39 davon waren `slot: 0` in Tastenbelegungen, wo die Zahl die Belegung _definiert_.
+
+Der Bauende zog daraufhin drei Bedingungen ein:
+
+```
+1. nur innerhalb von presses.push(...)       ← der fehlende Kontext
+2. die Bedingung muss === enthalten          ← gegen die Fehlalarme
+3. der Ausdruck muss eine ZAHL auswählen     ← nicht bloß vorkommen
+```
+
+Danach war der Wächter still und fand die drei ursprünglichen Formen. **Bedingung 2 hat daran nie
+etwas getragen** — die Fehlalarme verschwanden durch 1 und 3. Was sie noch aussortierte, waren
+**echte Funde**: eine Handvergabe mit ausgelagerter Bedingung (`const platz = istErster ? 0 : 3`)
+rutschte durch.
+
+Gemessen, nachdem sie entfernt wurde: **0 Fehlalarme.** Sie kostete nichts und verdeckte etwas.
+
+> Die Einordnung des Bauenden: _„Ich habe sie mitgeschleppt, weil sie in meinem ersten Entwurf nötig
+> **schien**, und nicht nachgeprüft, ob sie nach den anderen beiden Verschärfungen noch etwas tut."_
+
+#### Warum das heimtückischer ist als 8.32
+
+Dort lag die überholte Begründung in einem **fremden** Issue, drei Wochen alt. Hier lag sie im
+**eigenen ersten Entwurf**, drei Verschärfungen früher — im selben Prüffall, in derselben Sitzung.
+
+Niemand hätte Anlass gehabt nachzusehen. Die Bedingung sah aus wie Sorgfalt, und sie war es auch
+gewesen — für zehn Minuten.
+
+#### Der Auslöser
+
+**Wer eine Prüfung schärft, nimmt danach jede ihrer bisherigen Bedingungen einzeln weg und sieht, ob
+sich etwas ändert.** Was nichts ändert, war eine Hürde und keine Bedingung.
+
+Das ist billig — es sind so viele Läufe, wie es Bedingungen gibt — und es ist der einzige Zeitpunkt,
+an dem man die Frage überhaupt stellt: Danach steht die Bedingung da, ist begründet, und niemand
+fasst sie mehr an.
