@@ -19,6 +19,25 @@
  *
  * # Die Entscheidung dahinter (GAME-DESIGN 1405)
  *
+ * # AC7 IST AUF DIESEM STAND NICHT PRUEFBAR — und das ist kein Versaeumnis
+ *
+ * Das Kriterium verlangt, dass `parity:export` **jede** Aufzeichnung mit FESTER
+ * und liegenden Stapeln bewegt — und **keine andere**. Die zweite Haelfte laesst
+ * sich hier nicht belegen:
+ *
+ * #481 (SCAB) liegt im selben Zweig und bewegt ueber die gestiegene Zauberzahl
+ * bereits **jede** Pruefsumme. Die Zielgenauigkeit dieser Aenderung ist damit
+ * nicht von der Breitenwirkung des anderen Vorhabens zu trennen.
+ *
+ * Ein eigener Zweig von main wuerde es nur unter einer Bedingung loesen, die
+ * niemand garantieren kann: dass #484 **vor** #481 gemergt wird. Kommt SCAB
+ * zuerst, tritt beim naechsten Export dasselbe auf.
+ *
+ * Deshalb steht das hier und nicht als Haken: Ein Kriterium, das man nicht
+ * erfuellen kann, wird sonst entweder abgehakt („die Tests sind gruen“) oder
+ * blockiert ein fertiges Vorhaben. Die dritte Moeglichkeit ist, die
+ * **Messbarkeit selbst zu messen** und das Ergebnis aufzuschreiben.
+ *
  * Der Zuschlag wird **additiv in denselben Topf** gerechnet, in dem die Stapel
  * schon liegen — nicht als eigener Multiplikator. *„Was multiplikativ ist, wird
  * gejagt."* Ein neunter Faktor nur für einen Zauber wäre der Diablo-IV-Fehler
