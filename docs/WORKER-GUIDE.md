@@ -3653,3 +3653,38 @@ beim zweiten Mal hat der Orchestrator sie beim Weitergeben trotzdem weggelassen.
 
 > Eine Zahl ohne Geltungsbereich ist eine Behauptung. Wer sie weitergibt, gibt beides weiter oder
 > keines.
+
+#### Die drei Befehle, die vor eine Zustandsaussage gehören
+
+Die vierte Frage — _beschreibe ich, was ich gesehen habe, oder was ich wollte?_ — hat eine praktische
+Fassung. An einem Abend sind drei Aussagen falsch gewesen, und alle drei hätten zwei Sekunden
+gekostet:
+
+| Die Aussage                   | Der Befehl, der sie belegt                                                  |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| „Arbeitsbaum sauber"          | `git -C <wurzel> status --porcelain` — **aus der Wurzel**, nicht aus `sim/` |
+| „keine offene Antwortpflicht" | `rota-ipc offen`                                                            |
+| „der Zweig ist grün"          | `npm run lint` — nicht nur `vitest run`                                     |
+
+Alle drei wurden aus der **Erinnerung** gesagt, gestützt darauf, dass man es getan zu haben glaubte.
+Zwei davon waren falsch; die dritte war es an vier von vier Zweigen.
+
+> **Der Satz, der es zusammenfasst** (Worker-2, nachdem er `rota-ipc offen` zum ersten Mal an diesem
+> Tag gefahren hatte und eine 134 Minuten alte Nummer fand):
+>
+> „Ich habe mehrfach gesagt _keine offene Antwortpflicht_ — gestützt darauf, dass ich alles
+> beantwortet hatte, was ankam. Das ist dieselbe Klasse wie _Arbeitsbaum sauber_ aus dem falschen
+> Verzeichnis: **eine Aussage über einen Zustand, die aus der Erinnerung kommt statt aus dem
+> Befehl.**"
+
+Der Befehl gehört deshalb nicht vor die Abnahme, sondern **vor jede Aussage über den Zustand** — auch
+vor die beiläufige am Ende einer Meldung.
+
+#### Warum das Melden den zweiten Fall aufdeckt
+
+Der Orchestrator hat seinen offenen Nummern-Fall gemeldet, statt ihn still zu schließen. Worker-2 hat
+daraufhin `rota-ipc offen` gefahren — und einen eigenen gefunden, der zweieinviertel Stunden lag.
+
+> Wer einen Fehler dieser Klasse still korrigiert, korrigiert einen. Wer ihn meldet, findet die
+> anderen, die dieselbe Bewegung gemacht haben — und bei einer Klasse, die aus Gewohnheit entsteht,
+> sind das fast immer mehrere.
