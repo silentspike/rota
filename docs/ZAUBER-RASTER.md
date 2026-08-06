@@ -24,6 +24,28 @@ Die Entscheidung des Auftraggebers dazu:
 
 ## Wie dieses Dokument zu lesen ist
 
+> ## Achtzehn dieser Zauber brauchen eine Mechanik, die es noch nicht gibt
+>
+> **Gemessen am 2026-08-06 von drei Sitzungen unabhängig voneinander**, nachdem dieses Raster
+> geschrieben war:
+>
+> | Schule       | brauchen neue Mechanik |
+> | ------------ | ---------------------- |
+> | CALCINATION  | **6 von 7**            |
+> | FIXATION     | 4 von 8                |
+> | PUTREFACTION | **8 von 10**           |
+>
+> **Der Grund ist ein Fehler in diesem Dokument:** Es wurde als _Design_ geschrieben — welche
+> Rolle in der Schul-Mechanik fehlt — **ohne zu prüfen, was das Datenmodell heute kann.** Hier
+> stehen Rollen, und einige davon heißen zu Unrecht „Zauber".
+>
+> **Deshalb wird in drei Ebenen gebaut:** die mit heutigen Feldern baubaren zuerst, dann die
+> Mechaniken als eigene Vorhaben (nach Gruppen, weil mehrere sich dieselbe Vorarbeit teilen),
+> dann die restlichen Zauber als reine Daten-Einträge.
+>
+> Wo eine Zeile eine fehlende Mechanik verlangt, ist das **kein schwieriger Zauber, sondern ein
+> eigenes Vorhaben.**
+
 **Alle Zahlen sind Platzhalter.** Sie stehen da, damit der Balance-Läufer etwas zu messen hat —
 nicht als Vorschlag. Was **entschieden** ist: welcher Zauber es gibt, welche Rolle er in der
 Schul-Mechanik spielt, und warum er fehlt.
@@ -146,18 +168,18 @@ Zauber würden das nicht ausgleichen.
 
 ## Vorschlag für die zehn neuen
 
-| #   | Name           | CD    | Rolle                                                      | Warum er fehlt                                      |
-| --- | -------------- | ----- | ---------------------------------------------------------- | --------------------------------------------------- |
-| 1   | `BLIGHT`       | 1,5 s | Füller, +1 Stapel                                          | Die Schule hat keinen billigen Füller               |
-| 2   | `MIASMA`       | 1,5 s | Füller, kein Stapel, dafür Schaden nach Stapelzahl         | Belohnt den Aufbau ohne ihn zu treiben              |
-| 3   | `ROT`          | 4 s   | DoT, legt bei jedem Tick einen Stapel                      | Der Aufbau läuft heute nur über Tastendrücke        |
-| 4   | `SEPSIS`       | 8 s   | Verdoppelt die Verfallszeit aller Stapel                   | Der Weg „länger halten"                             |
-| 5   | `NECROSIS`     | 12 s  | Verbraucht alle Stapel für einen harten Schlag             | Ein Entlader wie `pyre` — heute gibt es keinen      |
-| 6   | `PUTRID BLOOM` | 15 s  | Die Stapel-Obergrenze steigt, solange er läuft             | Wie `SLAG`/`MOOR` in den anderen Schulen            |
-| 7   | `CONTAGION`    | 20 s  | Stapel wirken zusätzlich auf **DoT-Ticks** anderer Schulen | Macht die Partner-Abhängigkeit zur Stärke           |
-| 8   | `VIRULENCE`    | 25 s  | Jeder Stapel zählt für vier Wartezeiten doppelt            | Der Höhepunkt vor einem Schadensfenster             |
-| 9   | `DECAY`        | 3 s   | Schwächt den Boss-Schaden nach Stapelzahl                  | Verbindet Schwächung mit Überleben                  |
-| 10  | `CARRION`      | 40 s  | Beim Boss-Phasenwechsel bleiben die Stapel erhalten        | Heute verliert die Schule beim Wechsel ihren Aufbau |
+| #      | Name           | CD    | Rolle                                                      | Warum er fehlt                                                                                                                                                                               |
+| ------ | -------------- | ----- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | `BLIGHT`       | 1,5 s | Füller, +1 Stapel                                          | Die Schule hat keinen billigen Füller                                                                                                                                                        |
+| 2      | `MIASMA`       | 1,5 s | Füller, kein Stapel, dafür Schaden nach Stapelzahl         | Belohnt den Aufbau ohne ihn zu treiben                                                                                                                                                       |
+| 3      | `ROT`          | 4 s   | DoT, legt bei jedem Tick einen Stapel                      | Der Aufbau läuft heute nur über Tastendrücke                                                                                                                                                 |
+| 4      | `SEPSIS`       | 8 s   | Verdoppelt die Verfallszeit aller Stapel                   | Der Weg „länger halten"                                                                                                                                                                      |
+| 5      | `NECROSIS`     | 12 s  | Verbraucht alle Stapel für einen harten Schlag             | Ein Entlader wie `pyre` — heute gibt es keinen                                                                                                                                               |
+| 6      | `PUTRID BLOOM` | 15 s  | Die Stapel-Obergrenze steigt, solange er läuft             | Wie `SLAG`/`MOOR` in den anderen Schulen                                                                                                                                                     |
+| 7      | `CONTAGION`    | 20 s  | Stapel wirken zusätzlich auf **DoT-Ticks** anderer Schulen | Macht die Partner-Abhängigkeit zur Stärke                                                                                                                                                    |
+| 8      | `VIRULENCE`    | 25 s  | Jeder Stapel zählt für vier Wartezeiten doppelt            | Der Höhepunkt vor einem Schadensfenster                                                                                                                                                      |
+| 9      | `DECAY`        | 3 s   | Schwächt den Boss-Schaden nach Stapelzahl                  | Verbindet Schwächung mit Überleben                                                                                                                                                           |
+| ~~10~~ | ~~`CARRION`~~  | —     | **GESTRICHEN am 2026-08-06**                               | Die Annahme war falsch: Die Stapel überleben den Phasenwechsel **bereits** — gemessen an `test-gatekeeper`, 3 vorher und 3 danach an zwei Wechseln. Der Zauber hätte keine messbare Wirkung. |
 
 ## Zwei Befunde, die beim Schreiben aufgefallen sind
 
@@ -166,8 +188,7 @@ die Stapel verfallen einfach. `NECROSIS` schließt das, und erst damit hat die S
 Rhythmus statt eines Dauerzustands.
 
 **Und sie verliert ihren Aufbau beim Phasenwechsel.** Ob das so gewollt ist, weiß ich nicht — es
-steht nirgends. `CARRION` wäre die Antwort, falls nicht. **Das ist eine Design-Frage, keine
-Zahl.**
+steht nirgends — **und die Frage hat sich beim Messen erledigt: Sie überleben ihn.** `CARRION` ist damit gestrichen. Die Annahme in der Tabelle oben war ungemessen, und das ist der Fehler, nicht der Zauber.
 
 ## SUBLIMATION — 2 vorhanden, 10 neu
 
