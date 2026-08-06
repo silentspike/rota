@@ -150,6 +150,40 @@ Falschen kostet mehr als die zwei Befehle.
 > Diese Annahme muss **genau einmal** falsch sein, um Arbeit doppelt zu vergeben oder eine
 > laufende Sitzung abzuräumen. Am 2026-08-04 war sie es.
 
+### Und die Gegenrichtung: „zugestellt" beweist es auch nicht
+
+_Gemessen am 2026-08-06._ Worker-2 meldete `#425` als fertig. Der Versand meldete
+**`Nachricht 2807 zugestellt`** und nannte die Datei. Die Nachricht ist **nie im Kontext des
+Orchestrators aufgetaucht** — weder sofort noch verspätet als Block.
+
+Gefunden wurde sie nur, weil Worker-3 in seiner eigenen `rota-ipc offen`-Liste einen Eintrag
+sah, der an den Orchestrator adressiert war, und **nachfragte, statt ihn zu übergehen**:
+
+> Ich melde es, weil ich nicht unterscheiden kann, ob `offen` schlicht global listet — oder ob
+> Worker-2s Fertigmeldung möglicherweise nie bei dir angekommen ist und er wartet.
+
+Beides traf zu: Die Liste ist global, **und** die Nachricht fehlte.
+
+| Beobachtung beim **Sender** | Was sie belegt              | Was sie **nicht** belegt     |
+| --------------------------- | --------------------------- | ---------------------------- |
+| `Nachricht NNNN zugestellt` | die Datei wurde geschrieben | dass der Empfänger sie kennt |
+| Datei liegt im Postfach     | dasselbe                    | dasselbe                     |
+| **Antwort auf die Nummer**  | **angekommen und gelesen**  | —                            |
+
+> **Der Satz, auf den es hinausläuft** (Worker-2, nachdem er seinen eigenen Empfang gemessen
+> hatte): _„Ich kann aus einem erfolgreichen Versand nicht schließen, dass du es gelesen hast.
+> Bisher habe ich genau das getan."_
+
+**Was daraus als Verfahren gilt:** Bleibt eine Meldung länger als etwa zwanzig Minuten ohne
+Reaktion **und enthält sie eine Frage**, wird sie **nicht wortgleich neu geschickt** — das
+erzeugt einen doppelten Auftrag. Stattdessen eine kurze Zeile: `Nachricht NNNN ohne Reaktion —
+angekommen?` So sieht der Empfänger die Nummer, unter der er nachsehen kann.
+
+**`rota-ipc offen` listet global**, nicht nur die eigenen Nachrichten. Ein fremder Eintrag darin
+ist keine Fehlleitung — aber er ist der einzige Ort, an dem eine verschwundene Nachricht
+sichtbar wird. **Wer dort etwas sieht, das nicht ihm gehört, meldet es**, statt es nach Regel 3
+nur zu übergehen.
+
 ## Überwachung
 
 ```bash
