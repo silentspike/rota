@@ -1439,7 +1439,15 @@ export function coagulationPayload(): Record<string, unknown> {
     bossId: boss.id,
     tickMs: TICK_MS,
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
-    runs: ['none', 'crust', 'salve', 'temper'].map((weg) => defenceRun(boss, weg)),
+    // **SCAB steht hier, weil er sonst nirgends gedrückt wird** (Issue #481).
+    // Er ist der vierte Weg der Koagulation, und `coverage.test.ts` hat genau
+    // das gemeldet: Für einen Zauber, den keine Aufzeichnung wirkt, gilt die
+    // Bitgleichheit als angenommen statt als geprüft.
+    //
+    // Aufgefallen ist es erst auf dem Sammelzweig — sein eigener Zweig war
+    // grün, weil dort die Liste kürzer war. Beim Zusammenführen entsteht keine
+    // Vereinigung, sondern eine Teilmenge, und die kennt niemand.
+    runs: ['none', 'crust', 'salve', 'temper', 'scab'].map((weg) => defenceRun(boss, weg)),
   };
 }
 /**
