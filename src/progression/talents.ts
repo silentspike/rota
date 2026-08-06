@@ -72,6 +72,23 @@ export function spentPoints(allocation: TalentAllocation): number {
  *
  * Das Muster ist `essenceFactor` in `src/gear/worn.ts`: `1 + promille / 1000`.
  */
+/**
+ * Die Kennung des ersten Schlüsseltalents (Issue #418).
+ *
+ * **Als Konstante und nicht als Zeichenkette an der Fundstelle**, damit ein
+ * Tippfehler beim Übersetzen auffällt statt im Kampf. Ein `hasKeystone('split-spener')`
+ * wäre still `false` — der Zauber wirkte weiter wie vorher, und niemand sähe,
+ * dass das Talent nichts tut.
+ */
+export const KEYSTONE_SPLIT_SPENDER = 'split-spender';
+
+/** Ob die Verteilung ein bestimmtes Verhalten freigeschaltet hat (#418). */
+export function hasKeystone(allocation: TalentAllocation, keystone: string): boolean {
+  return TALENTS.some(
+    (talent) => talent.keystone === keystone && effectiveRanks(allocation, talent) > 0,
+  );
+}
+
 export function talentFactor(allocation: TalentAllocation): number {
   let promille = 0;
   for (const talent of TALENTS) {
