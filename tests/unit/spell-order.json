@@ -12,10 +12,13 @@
   "stall",
   "stay",
   "anchor",
+  "wedge",
+  "tether",
+  "capstone",
   "vapour",
   "reflux",
   "canker",
   "fester",
-  "blight",
-  "test-cast"
+  "test-cast",
+  "test-buff"
 ]

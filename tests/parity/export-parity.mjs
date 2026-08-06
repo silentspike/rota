@@ -65,6 +65,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   buffCombatPayload,
+  fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
   trialBlocksPayload,
@@ -266,6 +267,15 @@ console.log(`geschrieben: ${buffCombatPath}`);
 console.log(
   `  Verstaerkung im Kampf  ${buffCombat.expected.damage} Schaden, aktiv: ` +
     `${buffCombat.expected.buffWasActive}`,
+);
+
+const fixationSpells = fixationSpellsPayload();
+const fixationSpellsPath = join(here, 'recordings', 'fixation-spells.json');
+writeFileSync(fixationSpellsPath, serialize(fixationSpells), 'utf8');
+console.log(`geschrieben: ${fixationSpellsPath}`);
+console.log(
+  `  Fixierung neu  ${fixationSpells.expected.damage} Schaden, ` +
+    `${fixationSpells.expected.controlSpent} Punkte ausgegeben`,
 );
 
 const logKinds = logKindsPayload();
