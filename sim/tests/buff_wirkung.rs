@@ -40,6 +40,30 @@ const FENSTER_MS: u32 = 4500;
 /// Der Logik-Takt des Spiels.
 const TAKT_MS: u32 = 10;
 
+/// Die globale Wartezeit: kein zweiter Druck davor.
+const GCD_MS: u32 = 1500;
+
+/// **Liegen die Traeger-Druecke weit genug auseinander?**
+///
+/// Der Pruef-Zauber loest bei Takt 0 selbst den GCD aus, und jeder Traeger
+/// ebenso. Ein Druck vor Ablauf wird ABGEWIESEN — der Lauf sieht dann aus
+/// wie einer, in dem die Verstaerkung nicht wirkt, obwohl der Zauber gar
+/// nicht gewirkt hat.
+///
+/// Mir ist das zweimal passiert: einmal in `buff-targets.test.ts` (0 gegen
+/// 2 Punkte, BIND hatte nie gewirkt) und einmal hier, nachdem ich die Falle
+/// selbst gemeldet hatte. Deshalb steht sie jetzt als Zusicherung da und
+/// nicht als Merksatz.
+fn nach_dem_gcd(vorher: u32, jetzt: u32) {
+    let abstand = (jetzt - vorher) * TAKT_MS;
+    assert!(
+        abstand >= GCD_MS,
+        "Zwei Traeger-Druecke liegen {abstand} ms auseinander, die Wartezeit ist \
+         {GCD_MS} ms — der zweite wird ABGEWIESEN, und der Fall misst einen Lauf, \
+         in dem der Zauber nie gewirkt hat"
+    );
+}
+
 /// **Liegt dieser Traeger-Druck noch im Fenster?**
 ///
 /// Als Zusicherung im Fall selbst, nicht als Kommentar: Wer die Zeitpunkte
@@ -104,8 +128,11 @@ macro_rules! wirkt {
      $groesse:expr, $ohne:literal, $mit:literal) => {
         #[test]
         fn $name() {
+            let mut vorher = 0u32;
             for (_, takt) in $traeger.iter() {
                 im_fenster(*takt);
+                nach_dem_gcd(vorher, *takt);
+                vorher = *takt;
             }
             let a = $groesse(lauf(None, &$traeger, $ticks));
             let b = $groesse(lauf(Some($verstaerker), &$traeger, $ticks));
