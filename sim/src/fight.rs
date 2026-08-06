@@ -1779,10 +1779,22 @@ impl Fight {
     /// **Die Obergrenze verbraucht nichts** — eine Wirkung darueber erneuert
     /// insbesondere nicht die Uhr des aeltesten Stapels.
     fn apply_putrefaction(&mut self, spell: &Spell) {
-        if spell.decay_stacks == 0 {
+        self.add_decay_stacks(spell.decay_stacks);
+    }
+
+    /// Stapel legen — die **eine** Stelle, an der das geschieht (Issue #498).
+    ///
+    /// Bis ROT gab es nur einen Weg: beim Wirken, ueber `spell.decay_stacks`.
+    /// Ein Effekt ueber Zeit legt sie jetzt auch, ueber `dot.decay_per_tick`.
+    /// Beide teilen sich diese Funktion, damit Obergrenze, Verfallszeit und
+    /// die Weckuhr **nicht zweimal** dastehen.
+    ///
+    /// Spiegelbild zu `addDecayStacks` in `src/core/combat.ts`.
+    fn add_decay_stacks(&mut self, anzahl: u32) {
+        if anzahl == 0 {
             return;
         }
-        for _ in 0..spell.decay_stacks {
+        for _ in 0..anzahl {
             if self.decay_count >= MAX_DECAY_STACKS {
                 break;
             }
@@ -2126,6 +2138,11 @@ impl Fight {
             self.emit_rule(RuleEvent::Crit, index as i16, f64::from(tick_damage));
         }
         self.dot_tick_counts[index] += 1;
+        // **Zersetzungs-Stapel je Tick** (Issue #498, ROT). Sie laufen NICHT
+        // ueber das Ereignis wie der Hitze-Gewinn: Stapel sind keine
+        // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
+        // sie beim Wirken legt, sitzt ebenfalls direkt hier.
+        self.add_decay_stacks(dot.decay_per_tick);
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
         // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`

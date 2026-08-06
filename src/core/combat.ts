@@ -1574,8 +1574,25 @@ export class Combat {
   private applyPutrefaction(spell: SpellDef, timeMs: number): void {
     const decay = spell.decay;
     if (decay === undefined) return;
+    this.addDecayStacks(decay.stacks, timeMs);
+  }
+
+  /**
+   * Stapel legen — die **eine** Stelle, an der das geschieht (Issue #498).
+   *
+   * Bis ROT gab es nur einen Weg: beim Wirken, über `spell.decay.stacks`. Ein
+   * Effekt über Zeit legt sie jetzt auch, über `dot.decayPerTick`. Beide Wege
+   * teilen sich diese Funktion, damit Obergrenze, Verfallszeit und die
+   * Neuberechnung der Verwundbarkeit **nicht zweimal** dastehen.
+   *
+   * Genau daran ist die Schule schon einmal gescheitert: `perDecayStackPercent`
+   * wird an einer Stelle gelesen und an keiner angewandt (#484). Eine zweite
+   * Kopie dieser Schleife wäre dieselbe Klasse Fehler mit einer anderen Zahl.
+   */
+  private addDecayStacks(anzahl: number, timeMs: number): void {
+    if (anzahl <= 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
-    for (let i = 0; i < decay.stacks; i++) {
+    for (let i = 0; i < anzahl; i++) {
       if (this.decayCountValue >= MAX_DECAY_STACKS) break;
       // Ans Ende, weil der neue am spätesten verfällt — die Liste bleibt damit
       // aufsteigend, ohne je zu sortieren.
@@ -2169,6 +2186,12 @@ export class Combat {
       // will, meldet sich für beide Arten an — so bleibt die Folge eindeutig.
       this.events.emit(RULE_DOT_TICK, i, damage, timeMs);
       this.dotTickCounts[i] = (this.dotTickCounts[i] ?? 0) + 1;
+      // **Zersetzungs-Stapel je Tick** (Issue #498, ROT). Sie laufen NICHT
+      // über das Ereignis wie der Hitze-Gewinn: Stapel sind keine
+      // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
+      // sie beim Wirken legt (`applyPutrefaction`), sitzt ebenfalls direkt im
+      // Kampf. Zwei Wege für dieselbe Größe wären eine Stelle zu viel.
+      this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
       // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
       // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
       // beisteuert, steht in seinen Daten, nicht im Kampfcode.

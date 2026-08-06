@@ -544,6 +544,15 @@ fn emit_dot(out: &mut String, spell: &Value, whose: &str, resource_id: &str) {
         "            resource_gain_per_tick: {},",
         resource_amount(dot, "resourceGainPerTick", &whose, resource_id)
     );
+    // `decayPerTick` darf fehlen — die meisten Braende legen keine Stapel.
+    // Null ist dann der neutrale Wert, und `add_decay_stacks` steigt bei null
+    // sofort aus.
+    let decay_per_tick = if dot.get("decayPerTick").is_some() {
+        uint(dot, "decayPerTick", &whose)
+    } else {
+        0
+    };
+    let _ = writeln!(out, "            decay_per_tick: {decay_per_tick},");
     let _ = writeln!(out, "        }}),");
 }
 
