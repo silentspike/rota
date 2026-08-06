@@ -541,11 +541,20 @@ eine Kommazahl im **Schaden**, also genau dort, wo Spiel und Simulator bitgleich
 
 #### Die Deckel
 
-| Wert                    | Deckel       | Woraus er folgt                                  |
-| ----------------------- | ------------ | ------------------------------------------------ |
-| **CATALYSIS** (Tempo)   | **gemessen** | der Balance-Läufer — siehe unten                 |
-| **PURITY** (Kritchance) | **100 %**    | jeder Treffer kritet; darüber hinaus wirkungslos |
-| **YIELD** (Kritschaden) | keiner       | wächst weiter, ohne eine Grenze zu berühren      |
+| Wert                    | Deckel       | Woraus er folgt                                         |
+| ----------------------- | ------------ | ------------------------------------------------------- |
+| **CATALYSIS** (Tempo)   | **gemessen** | der Balance-Läufer — siehe unten                        |
+| **PURITY** (Kritchance) | **100 %**    | jeder Treffer kritet; darüber hinaus wirkungslos        |
+| **YIELD** (Kritschaden) | keiner       | wächst weiter, ohne eine Grenze zu berühren             |
+| **WARD** (Minderung)    | **75 %**     | gesetzt vom Auftraggeber, 2026-08-06 — Begründung unten |
+
+**Der WARD-Deckel ist gesetzt, nicht abgeleitet.** Ohne ihn kann eine hinreichend gute Ausrüstung
+den Spieler **unverwundbar** machen — und damit verlöre nicht nur der Boss-Schaden seinen Sinn,
+sondern auch die COAGULATION-Schule, die vom Überleben handelt.
+
+> **Er ist nicht dasselbe wie der Deckel bei 100 %**, der im Kampfcode danebensteht. Der ist eine
+> **Rechenregel**: Darüber würde der Spieler von jedem Treffer geheilt. Beide bleiben nebeneinander
+> stehen, weil sie Verschiedenes sagen.
 
 **Der Tempo-Deckel wird gemessen, nicht gesetzt.** Die Frage lautet: Bei welchem Wert hört Tempo auf,
 sich gegen Kritchance und Kritschaden zu lohnen? Das beantwortet kein Überlegen, sondern der
@@ -1491,6 +1500,19 @@ Konstante an einer Stelle; siehe `docs/ENTSCHEIDUNGEN-OFFEN.md`.
 | **Richtwerte im Endgame**            | Common 60 %, Rare 30 %, Epic 9 %, **Legendary 1 %**                                                                                                                                                                 |
 | **Zwei getrennte Achsen**            | **Qualität** und **Gegenstandsstufe** laufen unabhängig. Ein episches Stück aus einer frühen Instanz ist schwächer als ein seltenes aus dem Endgame — alter Inhalt entwertet sich von selbst                        |
 | **Kein Pech-Schutz, keine Garantie** | Eine ehrliche Prozentzahl, kein versteckter Zähler                                                                                                                                                                  |
+| **JEDER Sieg lässt etwas fallen**    | 1000 ‰ — entschieden am 2026-08-06. Die Seltenheit liegt in der **Qualität**, nicht im **Ob**                                                                                                                       |
+
+**Ein Sieg geht nie leer aus.** Die Begründung des Auftraggebers ist der Vergleich, der auch die
+Bauart trägt: _„in wow gibt es doch auch keine bosse die nichts droppen."_ Dort fällt bei jedem
+Boss etwas — selten ist, **was** es ist.
+
+> Genau so steht es hier schon: Der Normalfall ist ein **gewöhnliches** Stück, das über die
+> Materialumwandlung nicht wertlos ist; Epic und Legendary bleiben bei 9 % und 1 %. Es war
+> deshalb **eine Zahl** (`dropChancePerMille` in `data/items.json`), keine zweite Mechanik.
+>
+> **Was das für die Beute-Inszenierung bedeutet** (13.6): Sie läuft jetzt bei jedem Sieg. Deshalb
+> ist die Staffelung dort keine Zierde, sondern die Bedingung — ein gewöhnlicher Fund erscheint
+> beiläufig, und nur der legendäre hält alles an.
 
 > **Bekannte, bewusst akzeptierte Folge (der lange Schwanz):** Bei 1 % Legendary haben nach 100
 > Siegen noch 37 % nichts, nach 300 noch 5 %. Die Minderheit im Schwanz erlebt ein anderes Spiel.
