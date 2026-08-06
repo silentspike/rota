@@ -2967,3 +2967,36 @@ ist unbequem, weil man dafür aus dem eigenen Arbeitsbereich hinaussehen muss.
 > **Und die Zurechnung gehört dazu:** Freigegeben hatte die Korrektur der Orchestrator — ohne zu
 > prüfen, wer auf dem Zweig sitzt. Einen Befehl nicht zu kennen wiegt leichter, als eine Freigabe
 > ohne Prüfung zu erteilen. **Freigeben ist das Prüfen.**
+
+### 8.35 Die Liste vor dem Push
+
+Sie ist an einem einzigen Abend entstanden, und jede Zeile steht für einen Fall, in dem etwas
+durchgerutscht wäre. Zusammengetragen von Worker-2, der sie selbst geführt und dreimal erweitert hat.
+
+```bash
+npx tsc --noEmit
+npx vitest run
+cargo remote -c -- test --no-fail-fast
+cargo remote -c -- clippy --all-targets -- -D warnings
+bash ~/bin/cargo-remote-fmt --check
+git merge-base --is-ancestor <Basis> HEAD       # nur wenn du auf fremder Basis sitzt
+```
+
+**Woher die letzten beiden Zeilen kommen:**
+
+| Zeile                      | Der Fall, der sie erzwungen hat                                                                                                                                                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cargo-remote-fmt --check` | Beim vorletzten Commit gab es Diffs. Gemeldet hätte sie erst die CI, Stunden später — und `fmt` ist eine eigene CI-Stufe, die dann rot steht, ohne dass am Code etwas falsch wäre.            |
+| `merge-base --is-ancestor` | Eine fremde Sitzung hat den Zweig force-gepusht, auf dem seiner saß. Der alte Commit lebte in seiner Historie weiter (siehe 8.32 und 8.34), und der Rebase kam erst, als es jemandem auffiel. |
+
+> Seine Einordnung zur letzten Zeile: _„Ich habe nicht damit gerechnet, dass sich ein fremder Zweig
+> **unter mir** bewegt."_
+
+**Der Rust-Teil ist der leicht vergessene**, und zwar aus einem nachvollziehbaren Grund: Wer
+überwiegend TypeScript schreibt, hat `tsc` und `vitest` im Griff und fährt `cargo` nur, wenn er
+Rust angefasst hat. Aber ein neues Feld, eine neue Wirkungsart oder eine geänderte Konstante berührt
+**immer beide Seiten** — und `build.rs` fängt nur einen Teil davon (siehe 8.33 und das
+`consumesAll`-Issue).
+
+**`--no-fail-fast` ist nicht optional.** Ohne es bricht `cargo test` nach der ersten roten Suite ab.
+Die Zahl darunter sieht plausibel aus, obwohl die Hälfte der Suiten nie lief.
