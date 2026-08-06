@@ -69,6 +69,32 @@
         "effect": "convertToDamage",
         "amountPerPoint": 8
       }
+    },
+    {
+      "_comment": "TETHER — der zweite Schadenszauber der Fixierung (Issue #478). Bis hierher machte NUR bind Schaden; wer FIXATION spielte, hatte eine Rotation aus einem Zauber und drei Werkzeugen.\n\nDIESELBE BAUART WIE bind: Grundschaden plus controlGain. Keine neue Mechanik — das ist der Grund, warum er in Ebene 1 steht.\n\nDIE ZAHLEN SIND PLATZHALTER (ZAUBER-RASTER.md): 1,5 s wie jeder Fueller, 45 Schaden (unter bind, weil er zwei Punkte statt einem gibt), controlGain 2. Was entschieden ist, ist die ROLLE: ein zweiter Fueller, damit der Aufbau nicht an einem einzigen Zauber haengt.",
+      "id": "tether",
+      "name": "Tether",
+      "unlockLevel": 1,
+      "baseDamage": 45,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "controlGain": 2
+    },
+    {
+      "_comment": "CAPSTONE — der grosse Moment der Fixierung (Issue #478). Alle drei Ausgeber-Wirkungen auf einmal: Zauber verlangsamen, Schlag verzoegern, Phase hinauszoegern.\n\nKEINE NEUE MECHANIK: 'allThree' ruft, was die drei Ausgeber je einzeln tun. Die Verzweigung in applyFixation ist dafuer von else-if auf einzelne if umgestellt — vorher schlossen sich die drei Wirkungen gegenseitig aus, was fuer je einen Zauber richtig war und fuer diesen falsch.\n\nDIE ZAHLEN SIND PLATZHALTER: 40 s Abklingzeit (Hoehepunkt-Band), 8 Punkte Einsatz, amountMs 2000 fuer alle drei Wirkungen. Was entschieden ist, ist die ROLLE.",
+      "id": "capstone",
+      "name": "Capstone",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 40000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 8,
+        "effect": "allThree",
+        "amountMs": 2000
+      }
     }
   ]
 }

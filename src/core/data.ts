@@ -1001,7 +1001,9 @@ function parseFixation(
       // Eine Wirkung ohne Kosten wäre keine Ausgabe von Kontroll-Punkten,
       // sondern eine passive Wirkung — und genau das ist FIXATION nicht.
       problems.push(`${where}: Eine Kontroll-Wirkung ohne Kosten ist keine Ausgabe.`);
-    } else if (!['slowCast', 'delayStrike', 'holdPhase', 'convertToDamage'].includes(effect)) {
+    } else if (
+      !['slowCast', 'delayStrike', 'holdPhase', 'convertToDamage', 'allThree'].includes(effect)
+    ) {
       problems.push(`${where}: unbekannte Kontroll-Wirkung "${effect}".`);
     } else if (amount <= 0) {
       problems.push(`${where}: Die Kontroll-Wirkung "${effect}" hat keinen Betrag.`);

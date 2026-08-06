@@ -58,8 +58,7 @@ describe('AC3 — ohne WEDGE ändert sich die gemessene Größe nicht', () => {
 
     expect(
       c.damageDealt - vorher,
-      'WEDGE teilt ohne Kontroll-Punkte Schaden aus — dann kommt er nicht ' +
-        'aus der Umwandlung',
+      'WEDGE teilt ohne Kontroll-Punkte Schaden aus — dann kommt er nicht ' + 'aus der Umwandlung',
     ).toBe(0);
   });
 
@@ -104,5 +103,67 @@ describe('Alle Punkte gehen mit, nicht nur die Kosten', () => {
     // 8 Schaden je Punkt (Platzhalter aus dem Raster), ohne Faktoren im
     // neutralen Kampf.
     expect(c.damageDealt - vorher).toBe(punkte * 8);
+  });
+});
+
+describe('TETHER — der zweite Schadenszauber der Schule (#478)', () => {
+  it('teilt Schaden aus UND gibt Kontroll-Punkte', () => {
+    // Bis hierher machte nur `bind` Schaden; wer FIXATION spielte, hatte eine
+    // Rotation aus einem Zauber und drei Werkzeugen.
+    const c = new Combat({ school: CALCINATION.value, boss: BOSS });
+    const vorher = c.damageDealt;
+
+    c.cast(c.indexOf('tether'), 0);
+
+    expect(c.damageDealt - vorher, 'TETHER teilt keinen Schaden aus').toBeGreaterThan(0);
+    expect(c.control, 'TETHER gibt keine Kontroll-Punkte').toBeGreaterThan(0);
+  });
+
+  it('die Gegenprobe: ein Ausgeber tut beides nicht', () => {
+    // Ohne diese Zeile zeigte der Fall oben nur, dass irgendein Zauber
+    // wirkt — nicht, dass TETHER die Lücke füllt, die die Ausgeber lassen.
+    const c = new Combat({ school: CALCINATION.value, boss: BOSS });
+    const bind = c.indexOf('bind');
+    for (let n = 0; n < 5; n++) c.cast(bind, n * 1500);
+    const vorher = c.damageDealt;
+
+    c.cast(c.indexOf('stall'), 10000);
+
+    expect(c.damageDealt - vorher, 'STALL teilt Schaden aus — dann ist er kein Ausgeber').toBe(0);
+  });
+});
+
+describe('CAPSTONE — alle drei Wirkungen auf einmal (#478)', () => {
+  it('setzt den Phasen-Halt, den sonst nur ANCHOR setzt', () => {
+    const c = new Combat({ school: CALCINATION.value, boss: BOSS });
+    const bind = c.indexOf('bind');
+    for (let n = 0; n < 8; n++) c.cast(bind, n * 1500);
+
+    c.cast(c.indexOf('capstone'), 20000);
+
+    expect(c.phaseHoldPercent, 'CAPSTONE hat den Phasen-Halt nicht gesetzt').toBeGreaterThan(0);
+  });
+
+  it('und verbraucht ALLE Punkte, nicht nur die Kosten', () => {
+    // **Sonst wäre der große Moment der Schule bei vollem Vorrat genauso
+    // viel wert wie bei knappem.** `cost` ist der Mindesteinsatz.
+    const c = new Combat({ school: CALCINATION.value, boss: BOSS });
+    const bind = c.indexOf('bind');
+    for (let n = 0; n < 8; n++) c.cast(bind, n * 1500);
+    const punkte = c.control;
+    expect(punkte, 'zu wenig Punkte für den Fall').toBeGreaterThan(8);
+
+    c.cast(c.indexOf('capstone'), 20000);
+
+    expect(c.control).toBe(0);
+  });
+
+  it('die Gegenprobe: ohne genug Punkte passiert nichts', () => {
+    const c = new Combat({ school: CALCINATION.value, boss: BOSS });
+    c.cast(c.indexOf('bind'), 0);
+
+    c.cast(c.indexOf('capstone'), 5000);
+
+    expect(c.phaseHoldPercent, 'CAPSTONE wirkte ohne genug Punkte').toBe(0);
   });
 });
