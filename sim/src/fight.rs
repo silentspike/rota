@@ -556,6 +556,8 @@ pub struct Fight {
     resource_buffs: Buffs,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
+    cd_reduce_buffs: Buffs,
+    convert_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -742,6 +744,8 @@ impl Fight {
             resource_buffs: Buffs::new(),
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
+            cd_reduce_buffs: Buffs::new(),
+            convert_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -1296,6 +1300,8 @@ impl Fight {
         self.resource_buffs.reset();
         self.tick_buffs.reset();
         self.stack_buffs.reset();
+        self.cd_reduce_buffs.reset();
+        self.convert_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1880,6 +1886,8 @@ impl Fight {
         self.resource_buffs.expire(now);
         self.tick_buffs.expire(now);
         self.stack_buffs.expire(now);
+        self.cd_reduce_buffs.expire(now);
+        self.convert_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -2707,6 +2715,8 @@ impl Fight {
                 BuffTarget::Resource => &mut self.resource_buffs,
                 BuffTarget::Tick => &mut self.tick_buffs,
                 BuffTarget::Stack => &mut self.stack_buffs,
+                BuffTarget::CdReduce => &mut self.cd_reduce_buffs,
+                BuffTarget::Convert => &mut self.convert_buffs,
             };
             vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
             // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
@@ -3230,7 +3240,9 @@ impl Fight {
                 + self.control_buffs.window_sum()
                 + self.resource_buffs.window_sum()
                 + self.tick_buffs.window_sum()
-                + self.stack_buffs.window_sum(),
+                + self.stack_buffs.window_sum()
+                + self.cd_reduce_buffs.window_sum()
+                + self.convert_buffs.window_sum(),
         );
         h
     }
