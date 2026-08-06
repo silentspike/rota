@@ -3279,3 +3279,76 @@ Am selben Abend ist dasselbe in die andere Richtung passiert: Ein gestoppter Con
 gemeldet, gestartet und repariert — und war für das Repository gar nicht zuständig, weil dessen
 Abläufe auf GitHubs eigenen Runnern liefen. **Auch das war eine Zustandsaussage ohne frische
 Messung**, nur mit umgekehrtem Vorzeichen.
+
+### 8.42 Ein Kommentar beschreibt die Datei, in der er steht — oder er täuscht
+
+`sim/tests/buff_targets.rs` trägt über seinen beiden Prüffällen diesen Satz:
+
+> Dass ein Faktor 2 den Punktegewinn hebt, zeigt nur, dass irgendein Faktor ankommt. Dass er den
+> SCHADEN dabei nicht bewegt, zeigt, dass die fünf Vorräte wirklich getrennt sind.
+
+Der Satz ist **wahr**, sorgfältig formuliert und trifft genau die richtige Unterscheidung. Er
+beschreibt nur eine andere Datei: `tests/unit/buff-targets.test.ts` auf der Spiel-Seite, die
+tatsächlich einen Kampf fährt und beide Hälften misst.
+
+Was unter dem Kommentar steht, prüft **die Daten**: dass `test-heat` das Feld `target: Resource`
+trägt, dass ein fehlendes Feld auf `Damage` fällt. Kein Kampf, kein Zauber, keine Wirkung.
+
+> Der Kommentar nennt die Spiel-Seite sogar ausdrücklich — als „Spiegelbild". Nur steht die
+> Beschreibung **davor** und die Zuordnung **dahinter**, und gelesen wird von oben.
+
+#### Warum das schwerer wiegt als ein falscher Kommentar
+
+Ein falscher Kommentar wird irgendwann bemerkt, weil er dem Code widerspricht. Dieser hier
+widerspricht nichts — er beschreibt etwas, das es gibt, nur woanders. Wer die Datei öffnet, um zu
+prüfen, ob die Zielgrößen abgesichert sind, liest die richtige Antwort auf seine Frage und geht
+weiter.
+
+**Bei der Abnahme ist genau das passiert.** Die Rust-Seite galt als geprüft. Gemessen wurde sie erst
+Tage später, bei der Nachprüfung eines ganz anderen Verdachts — und sie war in Ordnung. Das ist der
+glückliche Ausgang, nicht der wahrscheinliche.
+
+#### Die Prüffrage
+
+> **Beschreibt dieser Kommentar, was die Datei unter ihm tut — oder was jemand anderswo tut?**
+
+Beides darf dastehen. Aber ein Verweis auf fremde Arbeit gehört als Verweis formuliert, nicht als
+Beschreibung:
+
+```
+täuscht    Dass der Faktor den Schaden nicht bewegt, zeigt, dass die Vorräte getrennt sind.
+trägt      Diese Datei prüft nur die DATEN. Dass die Zielgrößen im Kampf wirken, prüft
+           tests/unit/buff-targets.test.ts — auf der Rust-Seite fehlt es (#502).
+```
+
+Die zweite Fassung ist unbequemer zu schreiben, weil sie eine Lücke eingesteht. Genau deshalb wirkt
+sie.
+
+#### Derselbe Abend, dieselbe Form: ein Beleg, der etwas anderes belegt
+
+Beim Nachmessen sollte `casts[stall] > 0` zeigen, dass die Kontroll-Wirkung stattgefunden hat.
+Gemessen:
+
+```
+CONTROL  stall: ganz-ohne-bind=1  ohne=1  mit=1 | anchor (Kosten 6): ohne=1 mit=1
+```
+
+**STALL „gelingt" ohne einen einzigen Kontroll-Punkt.** `casts` zählt den Tastendruck; der Zauber
+wird gewirkt, nur seine Kontroll-Wirkung bleibt aus. Der Beleg misst die Handlung, die Behauptung
+sprach von der Wirkung.
+
+Der Ausweg war, über eine Größe zu messen, die es ohne die Wirkung nicht gäbe — `WEDGE` wandelt
+Punkte in Schaden, also trägt der Schaden den Nachweis:
+
+```
+wedge-Schaden:  ohne BIND = 0    mit BIND = 60    mit BIND und Verstärkung = 92
+```
+
+Die 32 sind 4 Punkte à 8. Die Zahl stimmt mit den Daten überein, nicht nur die Richtung — und das
+unterscheidet einen Nachweis von einer plausiblen Bewegung.
+
+> **Und der Teil, der dieses Beispiel rettet:** Bevor daraus ein zweites Issue wurde, sind die sechs
+> Stellen nachgesehen worden, die `casts[…] > 0` verwenden. Alle sechs nutzen es als **Vorbedingung**,
+> alle mit Kommentar, alle messen die Wirkung separat. Der Befund schlägt heute nirgends zu. Ein
+> Issue darüber hätte eine Arbeit ausgelöst, die es nicht gibt — dieselbe Form wie #492, wo die
+> Messung fehlte und zwei Berichte zurückgenommen werden mussten.
