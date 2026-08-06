@@ -1655,7 +1655,9 @@ export class Combat {
     if (timeMs - this.fightStartedAtMs > this.conversionUntilMs) return;
     // **Der Faktor aus `convertBuffs`** (QUICKSILVER, E10). Gelesen bei jedem
     // Schaden, solange die Umwandlung läuft — dieselbe Lage wie oben.
-    const satz = Math.round(this.conversionPercentValue * this.convertBuffs.factor(this.nowMsForBuffs));
+    const satz = Math.round(
+      this.conversionPercentValue * this.convertBuffs.factor(this.nowMsForBuffs),
+    );
     const gewonnen = Math.floor((damage * satz) / 100);
     if (gewonnen <= 0) return;
     this.shieldValue += gewonnen;
