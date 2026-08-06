@@ -680,3 +680,78 @@ Wiederholens, und das ist Design.
 
 **Was der Wechsel kostet:** einen Zahlenwert in `data/items.json` — dieselbe Linie wie der Exponent
 in `reward.json`. Kein Umbau.
+
+## 15. Fällt eine Zauber-Schwächung des eingehenden Schadens in den WARD-Deckel? — OFFEN
+
+_Aufgekommen am 2026-08-06 beim Messen zweier Zauber, die dieselbe Mechanik brauchen._
+
+**Zwei Zauber aus dem Katalog wollen den eingehenden Schaden mindern:**
+
+| Zauber  | Schule       | Rolle                                                 |
+| ------- | ------------ | ----------------------------------------------------- |
+| `LATCH` | FIXATION     | der nächste Schlag trifft verzögert **und schwächer** |
+| `DECAY` | PUTREFACTION | schwächt den Boss-Schaden nach Stapelzahl             |
+
+**Gemessen:** Es gibt heute keine Stelle dafür. `hitPlayer` rechnet drei feste Summanden und einen
+Deckel — keine Faktoren-Kette, wie sie der ausgehende Schaden hat.
+
+```ts
+const roh = PLAYER.wardReduction + this.worn.ward / 1000;
+const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
+```
+
+### Die Frage
+
+Der WARD-Deckel steht seit dem 2026-08-05 bei **75 % für die Summe** (#466, deine Entscheidung).
+Fällt eine Zauber-Schwächung **in** diesen Deckel oder **daneben**?
+
+|             | Folge                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **hinein**  | Sie konkurriert mit Ausrüstung. Wer schon nah am Deckel ist, hat von `LATCH` und `DECAY` nichts — der Zauber wäre bei gutem Gear wertlos  |
+| **daneben** | Zauber können den Spieler **über** 75 % bringen. Fünf Zersetzungs-Stapel plus `LATCH` wären eine Minderung, die keine Ausrüstung erreicht |
+
+**Beides ist vertretbar, und die Wahl verändert, wofür die beiden Zauber gut sind.** Sie berührt
+außerdem die Begründung des Deckels selbst: Er wurde gesetzt, damit die Summe nicht ins Unbegrenzte
+wächst — ob das nur für Ausrüstung gilt oder für alles, steht nirgends.
+
+**Bis das entschieden ist, sind beide Zauber nicht baubar.** Die Mechanik ist klein; die Frage ist es
+nicht.
+
+### Nachtrag: wie die beiden Formen technisch aussehen
+
+_Gemessen von Worker-2 am 2026-08-06, damit die Entscheidung nicht abstrakt bleibt._
+
+Heute steht in beiden Fassungen dieselbe Reihenfolge:
+
+```
+roh       = Grundwert + Ausrüstung
+minderung = min(roh, DECKEL)         ← der Deckel greift HIER
+ergebnis  = raw * (1 - minderung)
+```
+
+| Wahl              | Was sich ändert                                                                | Folge                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **in den Deckel** | Die Zauber-Minderung wird zu `roh` addiert, **vor** dem `min()`                | Sie konkurriert mit Ausrüstung. Wer nahe 75 % ist, merkt von seinem Zauber **nichts**                       |
+| **daneben**       | Ein zweiter Faktor **nach** dem Deckel: `raw * (1 - minderung) * (1 - zauber)` | Zwei Faktoren multiplizieren sich. Die 75 % bleiben als **Ausrüstungs**-Grenze; der Gesamtwert kann darüber |
+
+> **Beide sind gleich teuer zu bauen.** Die zweite hält die gestern gesetzte Grenze als das, was sie
+> ist — eine Grenze für Ausrüstung — statt sie nachträglich zu einer Gesamtgrenze umzudeuten. Das ist
+> ein technisches Argument, keine Balance-Aussage; die Wahl bleibt eine Design-Entscheidung.
+
+**Ein Umbau kommt in jedem Fall dazu**, unabhängig von der Wahl:
+
+```
+Spiel       src/core/combat.ts:1975   INLINE in hitPlayer
+Simulator   sim/src/fight.rs:2039     ruft PLAYER.incoming_with_gear(...)
+                                      → sim/src/data.rs:775
+```
+
+Der Simulator hat bereits einen benannten Ort für die Rechnung, das Spiel nicht — die Spiel-Seite
+muss erst herausgelöst werden, sonst steht die neue Minderung einmal inline und einmal gekapselt,
+und die nächste Änderung trifft nur eine der beiden.
+
+Dazu: `incoming_with_gear(&self, ...)` hängt an `PLAYER`, einer **Konstante**. Sie kennt Ausrüstung,
+aber **keinen Kampfzustand** — und eine zeitweilige Minderung _ist_ Kampfzustand. Sie muss
+durchgereicht werden, was neben `fight.rs` auch sechs direkte Aufrufe in
+`sim/tests/parity_worn_values.rs` berührt. **Genau dort setzt ein unbedachter Parameter still eine 0
+ein, und die Prüfung läuft weiter grün.**

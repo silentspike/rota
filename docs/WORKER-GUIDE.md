@@ -2759,3 +2759,523 @@ Das ist heute **dreimal** passiert. Der Issue-Titel beschreibt das Problem, der 
 Issue   E6: Ein Fund landet im Beutel und bleibt dort
 PR      feat(gear): ein Fund lässt sich anlegen — ohne Dev-Werkzeuge
 ```
+
+### 8.32 Eine Regel, deren Begründung eine andere Sitzung beseitigt hat
+
+Am 2026-08-06 meldeten drei Sitzungen unabhängig denselben Blocker: Ein neuer Zauber am Ende seiner
+Schuldatei ist in der Gesamtliste ein **Einschub** und verschiebt jeden Index dahinter. Der Wächter
+aus #402 lehnte ihn ab, mit einer Begründung, die seit einem Monat im Quelltext stand:
+
+> Die Indizes stehen in **jeder aufgezeichneten Runde** — in `tests/parity/recordings/` genauso wie
+> in einem gespeicherten Spielstand.
+
+Alle drei akzeptierten das und legten Umgehungswege vor: eine Zweitdatei je Schule, ein Umbau der
+Ladereihenfolge, ein bewusster Neu-Export. **Keiner prüfte den Satz selbst.**
+
+Er war zu diesem Zeitpunkt in beiden Hälften falsch, und zwar durch Issue #264, das drei Wochen
+früher gemergt worden war:
+
+```
+save-format.ts:153   bindings: Readonly<Record<string, string>>     Kennung, nicht Index
+Aufzeichnungen       "spellId": "kindle"   — 69 Vorkommen, alle     Kennung, nicht Index
+grep SpellIndex src/ →  3 Treffer, alle drei Typdefinitionen        keine Serialisierung
+```
+
+`bindings.ts` schrieb es sogar hin: _„Die Vergleichsdateien der Parität führen die Belegung längst
+über `spellId` — die Form war also schon da, nur nicht im Spielstand."_ Der Satz stand da, während
+drei Sitzungen Umgehungswege für ein Problem entwarfen, das er beschreibt als gelöst.
+
+#### Die Messung, die zehn Minuten kostete
+
+Denselben Zauber zweimal einfügen — einmal mitten in die Gesamtliste, einmal ganz hinten. Beide Male
+`parity:export`, beide Male die volle Suite:
+
+|                         | Zauber MITTE | Zauber HINTEN |
+| ----------------------- | ------------ | ------------- |
+| bewegte Aufzeichnungen  | **23**       | **23**        |
+| rote Tests nach Export  | 4            | 3             |
+| Referenz `4240 @ 40510` | unverändert  | unverändert   |
+
+`checksum.ts` sagt, warum: Die Schleife läuft über `combat.spells.length` und rührt fünf Felder je
+Zauber ein. Ein Zauber mehr sind fünf Felder mehr — **an welcher Stelle, ist gleichgültig.**
+
+> Die Regel sparte keinen einzigen Neu-Export. Sie kostete den fachlich richtigen Ort.
+>
+> Der einzige Test, der zwischen „Mitte" und „hinten" unterschied, war der Wächter selbst.
+
+#### Was daraus zu lernen ist — und was ausdrücklich nicht
+
+**Nicht** zu lernen ist „prüfe jede Regel, bevor du sie befolgst". Das wäre in der Summe teurer als
+jeder Umweg, und die drei Sitzungen haben genau richtig gehandelt: gemessen, gestoppt, gemeldet,
+die Entscheidung nicht selbst getroffen.
+
+Zu lernen ist der Auslöser:
+
+> **Wenn eine Regel dich zwingt, etwas an einen Ort zu legen, der fachlich falsch ist, dann prüfe
+> ihre Begründung — nicht ihre Umgehung.**
+
+Drei Wege wurden vorgeschlagen, alle drei technisch gangbar. Keiner war nötig. Die zehn Minuten
+Messung standen gegen einen Umbau, der jede Schule auf zwei Dateien verteilt hätte.
+
+#### Die schärfere Fassung, von dem, der die Regel zuletzt angefasst hat
+
+Die vier Kommentarblöcke, die den fachlichen Ort verboten, stammen aus **#408 — vom selben Tag,
+sechs Stunden vorher**, aus einer der drei Sitzungen, die abends dagegenliefen. Deren eigene
+Einordnung, unverändert:
+
+> Ich habe damals gemessen, dass „hinten" mehrdeutig ist, und die Regel präzisiert: hinten in der
+> GESAMTLISTE, nicht in der Schuldatei. Das war richtig für die Regel, wie sie dastand. Nur war die
+> Regel selbst schon hinfällig.
+>
+> Ich habe die Formulierung präzisiert, den Prüffall dazu gebaut, den Wächter gegengeprobt — und
+> dabei nie gefragt, ob das Verbot überhaupt noch etwas schützt.
+>
+> **Eine falsche Regel schärfer zu machen ist schlimmer, als sie zu umgehen — die Umgehung fällt
+> auf, die Schärfung sieht aus wie Sorgfalt und macht den Irrtum haltbarer.**
+
+Das setzt früher an als die Regel oben. Wer eine Regel umgeht, weiß, dass er ihr ausweicht, und
+jemand fragt nach. Wer sie präzisiert, produziert Prüffälle, Gegenproben und Kommentare, die alle
+zutreffen — und befestigt damit genau das, was hätte fallen sollen. **Der Aufwand, den er
+hineinsteckt, ist das, was den Irrtum schwerer entfernbar macht.**
+
+Der praktische Auslöser ist derselbe wie oben, nur einen Schritt früher: Wenn du dabei bist, eine
+Regel zu **schärfen**, hast du sie gerade gelesen und verstanden. Das ist der günstigste Moment,
+den es je geben wird, um zu prüfen, ob ihre Begründung noch trägt.
+
+#### Die zweite Hälfte: eine Begründung altert schweigend
+
+Der Wächter war zum Zeitpunkt seines Baus **bereits überholt**. Niemand hat ihn falsch gebaut — die
+Begründung stammte aus einer Zeit, in der sie stimmte, und wurde beim Schreiben übernommen, statt
+nachgesehen zu werden.
+
+Das ist dieselbe Klasse wie [8.30](#830-ein-kommentar-der-die-falle-benennt-ist-keine-absicherung-gegen-sie),
+eine Stufe höher: Dort verhinderte ein zutreffender Kommentar die richtige Frage. Hier begründet ein
+**einmal zutreffender** Kommentar eine Regel, die ihn überlebt hat.
+
+**Praktische Folge:** Wenn du einen Wächter baust, schreibe in seinen Kopf, _woran_ seine Begründung
+hängt — welche Datei, welches Feld, welches Issue. Dann ist beim nächsten Mal nachprüfbar, ob sie
+noch trägt. `spell-order.test.ts` trägt diese Herkunft seit der Berichtigung.
+
+### 8.33 Die Shell führt aus, was du zitieren wolltest
+
+Ein Fehler mit einer besonders unangenehmen Eigenschaft: **Er meldet Erfolg.**
+
+```bash
+gh pr comment 486 --body "**1. `docs/WORKER-GUIDE.md` 8.32** — die schärfere Fassung..."
+```
+
+Die Rückgabe ist eine gültige Kommentar-URL. Auf GitHub steht dann:
+
+```
+**1.  8.32** — die schärfere Fassung...
+      ^^ hier stand einmal ein Dateiname
+```
+
+In doppelten Anführungszeichen ist ein Backtick **Kommando-Substitution**. Die Shell hat den
+Dateinamen als Befehl ausgeführt, `command not found` nach stderr geschrieben — und dessen leere
+Ausgabe in den Text eingesetzt. Die Fehlermeldung ging im Ausgabe-Rauschen unter; die
+Erfolgsmeldung stand darunter.
+
+> **Stiller Datenverlust mit Erfolgsmeldung.** Wer den Kommentar nicht nachliest, erfährt nie, dass
+> die Hälfte seiner Verweise fehlt. Und man liest ihn nicht nach — man hat ihn ja gerade
+> geschrieben.
+
+Dieselbe Falle greift bei `$(...)`, bei `$VARIABLE` und bei `!` in interaktiven Shells. Sie trifft
+**jeden** Text mit Markdown-Code-Auszeichnung, und das ist hier so gut wie jeder Text.
+
+#### Der naheliegende Ausweg hat eine zweite Falle
+
+Ein Here-Dokument mit Anführungszeichen am Terminator schützt vor der Substitution:
+
+```
+cat > /work/tmp/kommentar.md <<'SCHLUSS'
+**1. `docs/WORKER-GUIDE.md` 8.32** — bleibt wörtlich stehen
+SCHLUSS
+```
+
+**Aber nur, solange der Text den Terminator nicht selbst enthält.** Genau das ist beim Schreiben
+dieses Abschnitts passiert: Er handelt von Here-Dokumenten, führt also eines als Beispiel vor — und
+die Beispiel-Zeile hat das äußere Dokument vorzeitig beendet. Die Hälfte des Abschnitts landete in
+der Datei, die andere Hälfte in der Shell, wo sie als Befehle scheiterte.
+
+`tools/reihenfolge-einfuegen.py` warnt im Kopf vor genau diesem Fall — seit heute Nachmittag:
+
+> Steht als eigene Datei neben dem Skript und nicht als Here-Dokument darin: Ein eingebettetes
+> Python-Fragment endet auf `PY`, und genau dieser Terminator kollidiert mit dem Here-Dokument der
+> Shell, die es einbettet.
+
+#### Was tatsächlich trägt
+
+**Schreib die Datei mit dem Datei-Werkzeug, nicht mit der Shell.** Dann gibt es weder Substitution
+noch Terminator, weil kein Shell-Parser den Text je sieht:
+
+```
+Write(file_path="/work/tmp/kommentar.md", content="...")
+gh pr comment 486 --body-file /work/tmp/kommentar.md
+```
+
+**Und lies zurück, was angekommen ist** — die Erfolgsmeldung belegt es nicht:
+
+```bash
+gh api repos/silentspike/rota/issues/comments/<id> -q .body | head
+```
+
+Am 2026-08-06 sind beide Fassungen des Fehlers an einem Abend aufgetreten, im Abstand von zehn
+Minuten: erst die Backticks in einem Kommentar, der zwei Dateinamen nennen sollte, dann der
+Terminator beim Aufschreiben eben dieses Befunds.
+
+### 8.34 Beim Umschreiben nach vorne gedacht, nicht nach hinten
+
+Ein Zweig wurde force-gepusht, um ein Wort in einem Kommentar zu berichtigen. Der Bauende hat dabei
+sauber gearbeitet: Sein eigener Folge-Zweig wurde mit `--onto` nachgezogen, die Kette blieb bei ihm
+heil.
+
+**Was er nicht bedacht hat: Eine fremde Sitzung saß ebenfalls auf dem alten Kopf.**
+
+```
+vorher                              nachher
+main ← 477 ← 482  (er)              main ← 477(neu) ← 482
+       ↑                                   477(alt) ← 493   ← verwaist
+       └── 493  (jemand anderes)
+```
+
+Der alte Commit lebte nur noch in der fremden Historie weiter — **mit dem falschen Wort darin**.
+Beim Merge wäre derselbe Inhalt zweimal gekommen, einmal berichtigt und einmal nicht. Das fällt
+nicht als Konflikt auf, weil es formal zwei verschiedene Commits sind.
+
+#### Die eine Zeile, die es gezeigt hätte
+
+```bash
+git branch -r --contains <alter Kopf>
+```
+
+Seine eigene Einordnung, und sie ist besser als jede Regel, die man daraus machen könnte:
+
+> Ich habe die Kette nur **nach vorne** gedacht — mein eigener Zweig muss nachgezogen werden — und
+> nicht **nach hinten**: wer sitzt auf dem, was ich verschiebe?
+
+#### Warum das keine Git-Regel ist, sondern eine über Nebenwirkungen
+
+Ein `force-push` ist der offensichtliche Fall, aber die Bewegung ist allgemeiner: **Wer etwas
+verschiebt, prüft, was daran hing.** Dasselbe gilt für eine umbenannte Funktion, ein entferntes
+Feld, eine geänderte Konstante.
+
+Der Unterschied zum sonst üblichen Vorgehen ist gering — man prüft ohnehin, was man selbst
+weiterbauen muss. Was fehlt, ist der Blick auf das, was **andere** davon abgeleitet haben, und der
+ist unbequem, weil man dafür aus dem eigenen Arbeitsbereich hinaussehen muss.
+
+> **Und die Zurechnung gehört dazu:** Freigegeben hatte die Korrektur der Orchestrator — ohne zu
+> prüfen, wer auf dem Zweig sitzt. Einen Befehl nicht zu kennen wiegt leichter, als eine Freigabe
+> ohne Prüfung zu erteilen. **Freigeben ist das Prüfen.**
+
+### 8.35 Die Liste vor dem Push
+
+Sie ist an einem einzigen Abend entstanden, und jede Zeile steht für einen Fall, in dem etwas
+durchgerutscht wäre. Zusammengetragen von Worker-2, der sie selbst geführt und dreimal erweitert hat.
+
+```bash
+npx tsc --noEmit
+npx vitest run
+cargo remote -c -- test --no-fail-fast
+cargo remote -c -- clippy --all-targets -- -D warnings
+bash ~/bin/cargo-remote-fmt --check
+git merge-base --is-ancestor <Basis> HEAD       # nur wenn du auf fremder Basis sitzt
+```
+
+**Woher die letzten beiden Zeilen kommen:**
+
+| Zeile                      | Der Fall, der sie erzwungen hat                                                                                                                                                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cargo-remote-fmt --check` | Beim vorletzten Commit gab es Diffs. Gemeldet hätte sie erst die CI, Stunden später — und `fmt` ist eine eigene CI-Stufe, die dann rot steht, ohne dass am Code etwas falsch wäre.            |
+| `merge-base --is-ancestor` | Eine fremde Sitzung hat den Zweig force-gepusht, auf dem seiner saß. Der alte Commit lebte in seiner Historie weiter (siehe 8.32 und 8.34), und der Rebase kam erst, als es jemandem auffiel. |
+
+> Seine Einordnung zur letzten Zeile: _„Ich habe nicht damit gerechnet, dass sich ein fremder Zweig
+> **unter mir** bewegt."_
+
+**Der Rust-Teil ist der leicht vergessene**, und zwar aus einem nachvollziehbaren Grund: Wer
+überwiegend TypeScript schreibt, hat `tsc` und `vitest` im Griff und fährt `cargo` nur, wenn er
+Rust angefasst hat. Aber ein neues Feld, eine neue Wirkungsart oder eine geänderte Konstante berührt
+**immer beide Seiten** — und `build.rs` fängt nur einen Teil davon (siehe 8.33 und das
+`consumesAll`-Issue).
+
+**`--no-fail-fast` ist nicht optional.** Ohne es bricht `cargo test` nach der ersten roten Suite ab.
+Die Zahl darunter sieht plausibel aus, obwohl die Hälfte der Suiten nie lief.
+
+### 8.36 Der Pfad, der zu eng war — und die Bestätigung, die nichts bestätigt hat
+
+Eine Sitzung meldete einen Verdacht: Der Simulator kenne das Feld `consumesAll` nicht, die Parität
+sei latent gebrochen. Sie stellte ihn **ausdrücklich zur Nachprüfung**.
+
+Der Orchestrator prüfte nach:
+
+```bash
+grep -rn "consumes_all|consumesAll" sim/src/     # kein Treffer
+```
+
+Daraus wurde ein Issue mit einer Design-Frage, eine Meldung an den Auftraggeber und die Anweisung,
+das Feld zu entfernen. Eine dritte Sitzung ging vor dem Entfernen einer Fußnote nach — warum ein
+Kommentar in `data.ts` auf `sim/build.rs` verweist:
+
+```bash
+grep -rn "consumesAll" sim/                      # fünf Treffer
+```
+
+```
+sim/build.rs:564   let consumes_all = boolean(spender, "consumesAll", &whose);
+sim/build.rs:566   assert!(consumes_all, "consumesAll=false ist nicht umgesetzt");
+sim/tests/data_source.rs:246   assert!(spender_json["consumesAll"]...);
+```
+
+**`build.rs` liegt in `sim/`, nicht in `sim/src/`.** Die Auslassung in `fight.rs` war nicht
+vergessen, sondern bewusst: Ein Datensatz mit dem zweiten Wert kommt gar nicht erst durch die
+Datengenerierung.
+
+#### Was daran die eigentliche Lehre ist
+
+Nicht „grep breiter". Das wäre eine Regel, an die man sich erinnern muss, und die hilft beim
+nächsten Mal nicht, wenn die Datei anders heißt.
+
+> **Eine Nachprüfung, die dieselbe Methode benutzt wie die Vermutung, prüft nichts nach.** Sie kann
+> nur bestätigen, was die erste Messung schon gesehen hat — einschließlich ihres blinden Flecks.
+
+Der Verdacht kam aus einem `grep` über `sim/src/`. Die Nachmessung war dasselbe `grep` über
+denselben Pfad. Zwei übereinstimmende Ergebnisse sahen aus wie Bestätigung und waren eine
+Wiederholung.
+
+**Was tatsächlich nachgeprüft hätte:** von der anderen Seite kommen. Nicht „findet der Simulator das
+Feld?", sondern „was passiert, wenn ich einen Datensatz mit dem zweiten Wert baue?" — dann hätte der
+Bau abgebrochen, mit einer Meldung, die den Grund nennt.
+
+#### Die Kosten und wer sie fast getragen hätte
+
+Das Issue verlangte eine Design-Entscheidung, die Meldung an den Auftraggeber behauptete, ein
+geplanter Zauber sei nicht mehr baubar, und die Anweisung hätte funktionierenden Produktionscode
+entfernt — samt der Prüfung, die den unerlaubten Wert abweist.
+
+Aufgehalten hat es niemand, der misstrauisch war. Aufgehalten hat es jemand, der **einer Fußnote
+nachging, bevor er löschte** — mit einer Anweisung in der Hand, die eindeutig war.
+
+> Das ist der Unterschied zwischen einen Auftrag ausführen und ihn verantworten.
+
+#### Für die Nachprüfung von fremden Befunden
+
+Wer einen gemeldeten Verdacht bestätigt, macht ihn zur Tatsache — und trägt ihn ab da mit. Zwei
+Fragen davor:
+
+1. **Benutze ich dieselbe Methode wie der Melder?** Dann wiederhole ich, statt zu prüfen.
+2. **Gibt es einen Weg von der anderen Seite?** Ein Verhalten messen statt eine Stelle suchen; einen
+   Fall bauen statt einen Namen greppen.
+
+### 8.37 Ein Verweis auf eine Zeile altert, einer auf eine Datei nicht
+
+An einem Abend sind drei Verweise gealtert, und nur einer hat trotzdem funktioniert.
+
+| Verweis                                                                          | Zustand                           | Wirkung                                           |
+| -------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------- |
+| `GAME-DESIGN 221`: „bei 4,5 s Abklingzeit sind höchstens drei Stapel erreichbar" | Abklingzeit ist 2 s, Obergrenze 5 | **Entscheidung auf falscher Grundlage** getroffen |
+| ein AC-Verweis auf `#479` statt `#477`                                           | falsche Nummer                    | irreführend, folgenlos                            |
+| ein Kommentar: „siehe `sim/build.rs:481`"                                        | **Zeile falsch** (richtig: 564)   | **hat funktioniert**                              |
+
+Der dritte hat eine Sitzung davon abgehalten, funktionierenden Produktionscode zu löschen. Sie ging
+ihm nach, **weil die Zeilennummer nicht zu dem passte, was sie erwartete** — und fand in derselben
+Datei den `assert`, der den ganzen Vorgang widerlegte.
+
+> Die Zahl war falsch. Die **Datei** war richtig, und die Datei war die Information, auf die es
+> ankam.
+
+#### Was daraus folgt
+
+Ein Verweis auf eine **Zeile** ist eine Momentaufnahme: Er wird beim nächsten Einfügen darüber
+falsch, und niemand merkt es, weil Zeilennummern nicht getestet werden.
+
+Ein Verweis auf **Datei plus Symbolnamen** überlebt jede Umsortierung — die Funktion heißt weiter,
+wie sie heißt, und `grep` findet sie.
+
+```
+schlecht   siehe sim/build.rs:481
+besser     siehe sim/build.rs, `emit_spender` — der assert auf consumesAll
+```
+
+**Wer beides schreibt, verliert nichts, wenn die Zahl veraltet.** Sie ist dann nur noch ein Hinweis
+auf die Nähe, und der Name trägt.
+
+#### Der allgemeinere Fall: Verweise, die auf bewegliche Werte zeigen
+
+Dasselbe gilt jenseits von Zeilennummern. Die Design-Rechnung oben nannte „4,5 s Abklingzeit", ohne
+zu sagen, **woher** die Zahl kommt — sie stand in `canker.cooldownMs` und hat sich seitdem geändert.
+Hätte der Text die Quelle genannt, wäre die Prüfung zwei Minuten gewesen statt einer Messung.
+
+> Eine Herleitung, die fremde Werte benutzt, nennt ihre Quelle — sonst altert sie lautlos, weil
+> niemand sie nachrechnet. Sie wird gelesen und geglaubt.
+
+### 8.38 Der Zustand gehört dorthin abgelesen, wo die Wirkung eintritt
+
+Eine Messung sollte zeigen, ob Zersetzungs-Stapel auf DoT-Ticks fremder Schulen wirken. Gemessen
+wurde ein Tick-Schaden von 40 ohne Stapel und 44 mit — beschriftet mit „mit Stapeln (5)".
+
+Nachgerechnet ging das nicht auf. Die Formel ist `(100 + Stapel × 3) / 100`, bei fünf Stapeln also
+1,15 und damit 46.
+
+**Die Messung war richtig. Die Beschriftung war es nicht.**
+
+```
+Stapel beim CAST   (t=12010)   5    vulnerability 1.15
+Stapel beim TICK   (t=14010)   3    vulnerability 1.09
+40 × 1.09 = 43.6  →  44
+```
+
+Zwischen Cast und erstem Tick liegen zwei Sekunden, und darin waren die beiden ältesten Stapel
+verfallen. Abgelesen wurde `decayStacks` **vor dem Cast** — also dort, wo der Aufbau endete, und
+nicht dort, wo die Wirkung eintrat.
+
+> Der Schluss der messenden Sitzung: **Den Zustand dort ablesen, wo die Wirkung eintritt, nicht
+> dort, wo der Aufbau endet.**
+
+#### Warum das mehr ist als ein Etikettenfehler
+
+Die falsche Beschriftung hätte einen Befund erzeugt, den es nicht gibt: _„die Verwundbarkeit wirkt
+nur zu zwei Dritteln"_. Daraus wäre ein Issue geworden — an einem Abend, an dem bereits ein Issue
+auf einer Fehlmessung stand und beinahe funktionierenden Code gekostet hätte.
+
+**Aufgehalten hat es, dass die Sitzung beide Male von selbst dazuschrieb, der Beschriftung sei nicht
+zu trauen.** Beim ersten Mal (ein Skript, das zwei Läufe beide mit `true` beschriftete) war der
+Inhalt eindeutig genug; beim zweiten Mal nicht.
+
+#### Und das Nebenergebnis war wertvoller als die Messung
+
+Dass die Zahl über den Verfall aufging, belegt etwas, das niemand gefragt hatte: **Die
+Verwundbarkeit wird laufend neu gerechnet, nicht beim Wirken eingefroren.** Ein DoT, der über vier
+Sekunden tickt, während Stapel ablaufen, rechnet mit einer sinkenden Verwundbarkeit.
+
+Das ist eine Spielmechanik, keine Implementierungsfrage: Wer Stapel aufbaut und dann einen langen
+DoT legt, verliert den Bonus, während er läuft.
+
+### 8.39 Eine Zusicherung, die anschlägt, ist zuerst ein Befund über die Daten
+
+Der Bau bricht ab. Die Meldung nennt eine Bedingung, die nicht erfüllt ist. Die naheliegende Reaktion
+ist, die Bedingung zu lockern — sie steht ja im Weg.
+
+**An einem Abend ist das dreimal passiert, und dreimal war die Zusicherung im Recht.**
+
+| Fall                  | Die Meldung                                      | Was der erste Reflex war         | Was tatsächlich falsch war                           |
+| --------------------- | ------------------------------------------------ | -------------------------------- | ---------------------------------------------------- |
+| `consumesAll`         | (keine — es fehlte scheinbar)                    | das Feld entfernen               | **die Messung**, mit der es gesucht wurde            |
+| Reihenfolge-Wächter   | „Position 5: erwartet quench"                    | eine Zweitdatei anlegen          | **die Regel** dahinter, seit einem Monat             |
+| `resourceGainPerTick` | „nennt 0 Ressourcen; Schritt 1 kennt genau eine" | `object.len() <= 1` statt `== 1` | **die Daten**: ein leeres `{}` statt gar keinem Feld |
+
+Der dritte ist der lehrreichste, weil die Lösung **keine Zeile Code** kostete:
+
+```rust
+// sim/build.rs
+let Some(map) = node.get(field) else { return 0; };   // fehlendes Feld: erlaubt
+assert_eq!(object.len(), 1, ...);                     // vorhandenes Feld: geprüft
+```
+
+Ein DoT ohne Ressource lässt das Feld **weg**. Ein leeres Objekt ist etwas anderes als kein Objekt —
+es sagt „hier steht eine Liste, sie ist leer", und die Zusicherung nimmt das beim Wort.
+
+#### Die Reihenfolge, die trägt
+
+1. **Sind die Daten richtig?** Eine Zusicherung beschreibt, was gelten soll. Wenn sie anschlägt, ist
+   die erste Vermutung, dass die neuen Daten es verletzen — nicht, dass sie zu streng ist.
+2. **Gibt es einen Weg, der sie erfüllt?** Oft ja, und oft ist er kürzer als die Lockerung.
+3. **Erst dann:** Ist die Zusicherung selbst überholt? Dann gehört sie geändert — mit derselben
+   Sorgfalt wie ihre Einführung, und mit einer Rückfrage, wenn sie jemand bewusst gesetzt hat.
+
+#### Woran man erkennt, dass Schritt 3 wirklich dran ist
+
+Die Zusicherung trägt fast immer einen Kommentar, der sagt, **wovor** sie schützt. Hier:
+
+> Ein Zauber, der eine unbekannte Ressource füllt, wäre im Simulator sonst eine stille Null.
+
+Dieser Schutz muss nach der Änderung noch stehen. Lockert man `== 1` zu `<= 1`, bleibt er erhalten —
+das war ein vertretbarer Vorschlag. Nur war er nicht nötig, und eine Zusicherung ohne Not zu
+lockern kostet beim nächsten Mal den Schutz, den man diesmal noch mitgedacht hat.
+
+> **Der Anlass, bei dem es teuer wird:** Wer die Bedingung ändert, damit _sein_ Fall durchgeht, hat
+> danach keinen Anlass mehr zu prüfen, ob sie den nächsten noch fängt.
+
+### 8.40 Eine Bedingung, die nach der nächsten Verschärfung überflüssig wurde
+
+Ein Wächter suchte handvergebene Leisten-Plätze. Sein erster Entwurf meldete **41 Stellen statt
+einer** — 39 davon waren `slot: 0` in Tastenbelegungen, wo die Zahl die Belegung _definiert_.
+
+Der Bauende zog daraufhin drei Bedingungen ein:
+
+```
+1. nur innerhalb von presses.push(...)       ← der fehlende Kontext
+2. die Bedingung muss === enthalten          ← gegen die Fehlalarme
+3. der Ausdruck muss eine ZAHL auswählen     ← nicht bloß vorkommen
+```
+
+Danach war der Wächter still und fand die drei ursprünglichen Formen. **Bedingung 2 hat daran nie
+etwas getragen** — die Fehlalarme verschwanden durch 1 und 3. Was sie noch aussortierte, waren
+**echte Funde**: eine Handvergabe mit ausgelagerter Bedingung (`const platz = istErster ? 0 : 3`)
+rutschte durch.
+
+Gemessen, nachdem sie entfernt wurde: **0 Fehlalarme.** Sie kostete nichts und verdeckte etwas.
+
+> Die Einordnung des Bauenden: _„Ich habe sie mitgeschleppt, weil sie in meinem ersten Entwurf nötig
+> **schien**, und nicht nachgeprüft, ob sie nach den anderen beiden Verschärfungen noch etwas tut."_
+
+#### Warum das heimtückischer ist als 8.32
+
+Dort lag die überholte Begründung in einem **fremden** Issue, drei Wochen alt. Hier lag sie im
+**eigenen ersten Entwurf**, drei Verschärfungen früher — im selben Prüffall, in derselben Sitzung.
+
+Niemand hätte Anlass gehabt nachzusehen. Die Bedingung sah aus wie Sorgfalt, und sie war es auch
+gewesen — für zehn Minuten.
+
+#### Der Auslöser
+
+**Wer eine Prüfung schärft, nimmt danach jede ihrer bisherigen Bedingungen einzeln weg und sieht, ob
+sich etwas ändert.** Was nichts ändert, war eine Hürde und keine Bedingung.
+
+Das ist billig — es sind so viele Läufe, wie es Bedingungen gibt — und es ist der einzige Zeitpunkt,
+an dem man die Frage überhaupt stellt: Danach steht die Bedingung da, ist begründet, und niemand
+fasst sie mehr an.
+
+### 8.41 Eine Notiz über einen Zustand ist ein Messwert von damals
+
+Eine Sitzung meldete zwei Blocker. Der zweite lautete:
+
+> Klang erzeugen — **Suno ist gesperrt (Turnstile)**, ElevenLabs ohne Guthaben.
+
+Daraus folgte eine Frage an den Orchestrator, ob ein Spiel-Zauber ausnahmsweise auf die `STUMM`-Liste
+dürfe — eine Design-Entscheidung, die niemand treffen wollte.
+
+Gemessen, in einer Zeile:
+
+```
+python tools/suno_api.py auth-test
+  Account: backupslave | billing/info: HTTP 200
+  Credits: 1342 | Tier: True
+```
+
+Der Klang war zwei Minuten später fertig. Die Einordnung der Sitzung selbst: _„Meine Suno-Sperre war
+eine ungeprüfte Annahme aus einer alten Notiz."_
+
+#### Warum das eine eigene Klasse ist
+
+`8.37` handelt von **Verweisen**, die altern — eine Zeilennummer, eine Rechnung mit fremden Werten.
+Hier altert etwas anderes: die Notiz über einen **Zustand**.
+
+> „Suno ist gesperrt" war einmal wahr. Es ist keine Regel und keine Entscheidung, sondern ein
+> **Messwert** — und Messwerte über äußere Systeme haben eine Haltbarkeit von Minuten.
+
+Ein Cookie läuft ab, ein Dienst kommt zurück, ein Container wird gestartet. Was gestern nicht ging,
+geht heute vielleicht.
+
+#### Woran man es erkennt
+
+Der Verdacht gilt jeder Aussage der Form **„X geht nicht"**, wenn sie nicht in derselben Sitzung
+gemessen wurde. Zwei Fragen:
+
+1. **Wann wurde das zuletzt geprüft?** Steht kein Zeitpunkt dabei, ist es keine Messung.
+2. **Was kostet die Prüfung?** Bei äußeren Diensten meist ein Aufruf und Sekunden — weniger als die
+   Rückfrage, die man sonst stellt.
+
+Am selben Abend ist dasselbe in die andere Richtung passiert: Ein gestoppter Container wurde
+gemeldet, gestartet und repariert — und war für das Repository gar nicht zuständig, weil dessen
+Abläufe auf GitHubs eigenen Runnern liefen. **Auch das war eine Zustandsaussage ohne frische
+Messung**, nur mit umgekehrtem Vorzeichen.
