@@ -41,6 +41,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
       // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
       'cinder',
+      'slag',
       'quench',
       'crust',
       'salve',
