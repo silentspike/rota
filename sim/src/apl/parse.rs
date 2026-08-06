@@ -12,7 +12,6 @@
 use std::fmt;
 
 use super::{spell_index, Apl, Compare, Condition, Number, Rule, Term, Value};
-use crate::data::SPELLS;
 
 /// Was an einer Prioritätenliste nicht stimmt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +49,54 @@ struct Token {
     column: usize,
 }
 
+/// Der **Name** einer Rotation — kein beliebiger Text (Issue #499).
+///
+/// # Warum drei Zeilen sich lohnen
+///
+/// `parse(AplName(name), text)` nahm zweimal `&str`. Ein vertauschter Aufruf
+/// uebersetzte anstandslos, nahm den Dateiinhalt als Namen und parste das
+/// Wort "gut" als Rotation — die Fehlermeldung sprach dann von einem
+/// **unbekannten Zauber** und zeigte damit auf die falsche Stelle. Das ist
+/// teurer als ein Absturz: Sie schickt den Leser in die Daten, obwohl der
+/// Fehler im Aufruf steht.
+///
+/// # Der Beleg, nicht das Versprechen (AC5)
+///
+/// Der folgende Aufruf uebersetzt **nicht**. `compile_fail` heisst: Der
+/// Doctest schlaegt fehl, wenn er es DOCH tut — die Zusicherung kann also
+/// nicht still verfallen.
+///
+/// ```compile_fail
+/// use rota_sim::apl::parse;
+/// // Name und Text vertauscht — frueher lief das durch und meldete einen
+/// // "unbekannten Zauber".
+/// let _ = parse("kindle\n", "meine-rotation");
+/// ```
+///
+/// So herum ist es richtig:
+///
+/// ```
+/// use rota_sim::apl::{parse, AplName};
+/// let apl = parse(AplName("meine-rotation"), "kindle\n").expect("gueltig");
+/// assert_eq!(apl.name, "meine-rotation");
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AplName<'a>(pub &'a str);
+
+impl<'a> AplName<'a> {
+    /// Der Name als Text.
+    #[must_use]
+    pub fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
+impl fmt::Display for AplName<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
 /// Liest eine Prioritätenliste ein.
 ///
 /// # Errors
@@ -57,7 +104,7 @@ struct Token {
 /// Gibt den **ersten** Fehler zurück, mit Zeile, Spalte und Grund. Weitere
 /// Fehler werden nicht gesammelt: Nach einem Tippfehler ist der Rest der Datei
 /// oft Folgefehler, und eine lange Liste davon verdeckt die eigentliche Ursache.
-pub fn parse(name: &str, text: &str) -> Result<Apl, AplError> {
+pub fn parse(name: AplName<'_>, text: &str) -> Result<Apl, AplError> {
     let mut rules = Vec::new();
 
     for (index, raw) in text.lines().enumerate() {
@@ -80,7 +127,7 @@ pub fn parse(name: &str, text: &str) -> Result<Apl, AplError> {
 
     Ok(Apl {
         rules,
-        name: name.to_owned(),
+        name: name.as_str().to_owned(),
     })
 }
 
@@ -111,7 +158,15 @@ fn parse_rule(line: usize, raw: &str, content: &str) -> Result<Rule, AplError> {
             format!(
                 "Unbekannter Zauber \"{}\". Bekannt sind: {}.",
                 first.text,
-                SPELLS.iter().map(|s| s.id).collect::<Vec<_>>().join(", ")
+                // **Nur spielbare Zauber vorschlagen** (Issue #499). Vorher
+                // standen die Pruef-Zauber mit in der Liste: Wer sich
+                // vertippte, bekam `test-buff` angeboten und konnte damit
+                // eine Balance-Messung verfaelschen, ohne dass etwas rot
+                // wird. Die Liste bleibt — sie wird nur kuerzer.
+                crate::apl::spielbare_zauber()
+                    .map(|s| s.id)
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         )
     })?;
@@ -349,7 +404,15 @@ fn lookup_spell(
             token.column,
             format!(
                 "Unbekannter Zauber \"{name}\". Bekannt sind: {}.",
-                SPELLS.iter().map(|s| s.id).collect::<Vec<_>>().join(", ")
+                // **Nur spielbare Zauber vorschlagen** (Issue #499). Vorher
+                // standen die Pruef-Zauber mit in der Liste: Wer sich
+                // vertippte, bekam `test-buff` angeboten und konnte damit
+                // eine Balance-Messung verfaelschen, ohne dass etwas rot
+                // wird. Die Liste bleibt — sie wird nur kuerzer.
+                crate::apl::spielbare_zauber()
+                    .map(|s| s.id)
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         )
     })
@@ -516,7 +579,11 @@ mod tests {
 
     #[test]
     fn kommentare_und_leerzeilen_werden_uebergangen() {
-        let apl = parse("test", "# Kopfzeile\n\nkindle   # Fueller\n\n# Ende\n").expect("gültig");
+        let apl = parse(
+            AplName("test"),
+            "# Kopfzeile\n\nkindle   # Fueller\n\n# Ende\n",
+        )
+        .expect("gültig");
         assert_eq!(apl.rules.len(), 1);
         assert_eq!(apl.rules[0].line, 3);
     }

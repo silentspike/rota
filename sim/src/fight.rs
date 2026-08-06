@@ -570,6 +570,8 @@ pub struct Fight {
     resource_buffs: Buffs,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
+    cd_reduce_buffs: Buffs,
+    convert_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -757,6 +759,8 @@ impl Fight {
             resource_buffs: Buffs::new(),
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
+            cd_reduce_buffs: Buffs::new(),
+            convert_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -906,8 +910,20 @@ impl Fight {
         if gained > 0 {
             self.add_resource(gained);
         }
-        let order = self.pending_shorten.replace(PendingShorten::default());
+        let mut order = self.pending_shorten.replace(PendingShorten::default());
         if order.amount > 0 {
+            // **Der Faktor aus `cd_reduce_buffs`** (DISTIL, E10). Er greift
+            // HIER und nicht in `SublimationMechanic`: Die Mechanik liefert
+            // den ROHBETRAG aus ihrer Tabelle, angewandt wird er an dieser
+            // Stelle — genau wie `pending_gain` durch `add_resource` laeuft.
+            //
+            // Ein erster Befund hielt einen Schnittstellen-Umbau fuer noetig,
+            // weil `sublimation.rs` den Wert aus einer kopierten Tabelle holt
+            // und `Fight` nicht sieht. Das stimmt — aber es ist gleichgueltig,
+            // weil die WIRKUNG hier liegt. Ich hatte auf die Stelle gesehen,
+            // wo der Wert HERKOMMT, statt auf die, wo er WIRKT.
+            order.amount =
+                (f64::from(order.amount) * self.cd_reduce_buffs.factor(now)).round() as Millis;
             shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
@@ -1312,6 +1328,8 @@ impl Fight {
         self.resource_buffs.reset();
         self.tick_buffs.reset();
         self.stack_buffs.reset();
+        self.cd_reduce_buffs.reset();
+        self.convert_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1848,7 +1866,13 @@ impl Fight {
         if self.conversion_until.is_none_or(|bis| self.time > bis) {
             return;
         }
-        let gewonnen = damage * self.conversion_percent / 100;
+        // **Der Faktor aus `convert_buffs`** (QUICKSILVER, E10). Gelesen bei
+        // JEDEM Schaden, solange die Umwandlung laeuft — nur deshalb traegt
+        // ein zeitlich begrenzter Faktor hier. Spiegelbild von
+        // `Combat.applyConversion` im Spiel.
+        let satz = (f64::from(self.conversion_percent) * self.convert_buffs.factor(self.time))
+            .round() as u32;
+        let gewonnen = damage * satz / 100;
         if gewonnen == 0 {
             return;
         }
@@ -1896,6 +1920,8 @@ impl Fight {
         self.resource_buffs.expire(now);
         self.tick_buffs.expire(now);
         self.stack_buffs.expire(now);
+        self.cd_reduce_buffs.expire(now);
+        self.convert_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -2752,6 +2778,8 @@ impl Fight {
                 BuffTarget::Resource => &mut self.resource_buffs,
                 BuffTarget::Tick => &mut self.tick_buffs,
                 BuffTarget::Stack => &mut self.stack_buffs,
+                BuffTarget::CdReduce => &mut self.cd_reduce_buffs,
+                BuffTarget::Convert => &mut self.convert_buffs,
             };
             vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
             // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
@@ -3275,7 +3303,9 @@ impl Fight {
                 + self.control_buffs.window_sum()
                 + self.resource_buffs.window_sum()
                 + self.tick_buffs.window_sum()
-                + self.stack_buffs.window_sum(),
+                + self.stack_buffs.window_sum()
+                + self.cd_reduce_buffs.window_sum()
+                + self.convert_buffs.window_sum(),
         );
         h
     }
