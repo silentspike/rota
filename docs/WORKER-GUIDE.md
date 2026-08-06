@@ -3065,3 +3065,45 @@ Fragen davor:
 1. **Benutze ich dieselbe Methode wie der Melder?** Dann wiederhole ich, statt zu prüfen.
 2. **Gibt es einen Weg von der anderen Seite?** Ein Verhalten messen statt eine Stelle suchen; einen
    Fall bauen statt einen Namen greppen.
+
+### 8.37 Ein Verweis auf eine Zeile altert, einer auf eine Datei nicht
+
+An einem Abend sind drei Verweise gealtert, und nur einer hat trotzdem funktioniert.
+
+| Verweis                                                                          | Zustand                           | Wirkung                                           |
+| -------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------- |
+| `GAME-DESIGN 221`: „bei 4,5 s Abklingzeit sind höchstens drei Stapel erreichbar" | Abklingzeit ist 2 s, Obergrenze 5 | **Entscheidung auf falscher Grundlage** getroffen |
+| ein AC-Verweis auf `#479` statt `#477`                                           | falsche Nummer                    | irreführend, folgenlos                            |
+| ein Kommentar: „siehe `sim/build.rs:481`"                                        | **Zeile falsch** (richtig: 564)   | **hat funktioniert**                              |
+
+Der dritte hat eine Sitzung davon abgehalten, funktionierenden Produktionscode zu löschen. Sie ging
+ihm nach, **weil die Zeilennummer nicht zu dem passte, was sie erwartete** — und fand in derselben
+Datei den `assert`, der den ganzen Vorgang widerlegte.
+
+> Die Zahl war falsch. Die **Datei** war richtig, und die Datei war die Information, auf die es
+> ankam.
+
+#### Was daraus folgt
+
+Ein Verweis auf eine **Zeile** ist eine Momentaufnahme: Er wird beim nächsten Einfügen darüber
+falsch, und niemand merkt es, weil Zeilennummern nicht getestet werden.
+
+Ein Verweis auf **Datei plus Symbolnamen** überlebt jede Umsortierung — die Funktion heißt weiter,
+wie sie heißt, und `grep` findet sie.
+
+```
+schlecht   siehe sim/build.rs:481
+besser     siehe sim/build.rs, `emit_spender` — der assert auf consumesAll
+```
+
+**Wer beides schreibt, verliert nichts, wenn die Zahl veraltet.** Sie ist dann nur noch ein Hinweis
+auf die Nähe, und der Name trägt.
+
+#### Der allgemeinere Fall: Verweise, die auf bewegliche Werte zeigen
+
+Dasselbe gilt jenseits von Zeilennummern. Die Design-Rechnung oben nannte „4,5 s Abklingzeit", ohne
+zu sagen, **woher** die Zahl kommt — sie stand in `canker.cooldownMs` und hat sich seitdem geändert.
+Hätte der Text die Quelle genannt, wäre die Prüfung zwei Minuten gewesen statt einer Messung.
+
+> Eine Herleitung, die fremde Werte benutzt, nennt ihre Quelle — sonst altert sie lautlos, weil
+> niemand sie nachrechnet. Sie wird gelesen und geglaubt.
