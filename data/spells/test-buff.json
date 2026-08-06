@@ -80,6 +80,38 @@
         "gcds": 3,
         "target": "stack"
       }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER Abklingzeit-Verkuerzung (DISTIL) (E10, Buendel 1). unlockLevel 101 haelt ihn aus dem Spiel; seit #499 wird er auch im APL abgewiesen.\n\nGEMESSEN VOR DEM BAU: Beide Groessen werden LAUFEND gelesen — cooldownReductionMs bei jedem Wirken, conversion.sharePercent bei jedem Schaden. Nur dort traegt ein zeitlich begrenzter Faktor. shield.durationMs (HARDEN) wird EINMAL beim Anlegen verrechnet und gehoert deshalb NICHT hierher.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "test-cdreduce",
+      "name": "Test Cdreduce",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "cdreduce"
+      }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER Umwandlungsrate Schaden->Schild (QUICKSILVER) (E10, Buendel 1). unlockLevel 101 haelt ihn aus dem Spiel; seit #499 wird er auch im APL abgewiesen.\n\nGEMESSEN VOR DEM BAU: Beide Groessen werden LAUFEND gelesen — cooldownReductionMs bei jedem Wirken, conversion.sharePercent bei jedem Schaden. Nur dort traegt ein zeitlich begrenzter Faktor. shield.durationMs (HARDEN) wird EINMAL beim Anlegen verrechnet und gehoert deshalb NICHT hierher.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "test-convert",
+      "name": "Test Convert",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "convert"
+      }
     }
   ]
 }

@@ -480,6 +480,10 @@ export class Combat {
   private readonly resourceBuffs = new Buffs();
   private readonly tickBuffs = new Buffs();
   private readonly stackBuffs = new Buffs();
+  /** Verstärkt, was ein Zauber an Abklingzeit verkürzt (DISTIL, E10). */
+  private readonly cdReduceBuffs = new Buffs();
+  /** Verstärkt die Umwandlungsrate Schaden → Schild (QUICKSILVER, E10). */
+  private readonly convertBuffs = new Buffs();
   /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
@@ -1649,7 +1653,10 @@ export class Combat {
   private convertDamageToShield(damage: number, timeMs: number): void {
     if (this.conversionPercentValue === 0 || damage <= 0) return;
     if (timeMs - this.fightStartedAtMs > this.conversionUntilMs) return;
-    const gewonnen = Math.floor((damage * this.conversionPercentValue) / 100);
+    // **Der Faktor aus `convertBuffs`** (QUICKSILVER, E10). Gelesen bei jedem
+    // Schaden, solange die Umwandlung läuft — dieselbe Lage wie oben.
+    const satz = Math.round(this.conversionPercentValue * this.convertBuffs.factor(this.nowMsForBuffs));
+    const gewonnen = Math.floor((damage * satz) / 100);
     if (gewonnen <= 0) return;
     this.shieldValue += gewonnen;
     this.convertedValue += gewonnen;
@@ -1707,6 +1714,8 @@ export class Combat {
     this.resourceBuffs.expire(timeMs);
     this.tickBuffs.expire(timeMs);
     this.stackBuffs.expire(timeMs);
+    this.cdReduceBuffs.expire(timeMs);
+    this.convertBuffs.expire(timeMs);
     if (this.buffs.expire(timeMs) === 0) return;
     this.updateBuffFactor(timeMs);
   }
@@ -1723,6 +1732,10 @@ export class Combat {
         return this.tickBuffs;
       case 'stack':
         return this.stackBuffs;
+      case 'cdreduce':
+        return this.cdReduceBuffs;
+      case 'convert':
+        return this.convertBuffs;
       default:
         // `damage` und `undefined` — so waren alle Verstärkungen vor #489
         // gemeint, und ein fehlendes Feld soll weiter das Alte tun.
@@ -1884,7 +1897,9 @@ export class Combat {
       this.controlBuffs.windowSum() +
       this.resourceBuffs.windowSum() +
       this.tickBuffs.windowSum() +
-      this.stackBuffs.windowSum()
+      this.stackBuffs.windowSum() +
+      this.cdReduceBuffs.windowSum() +
+      this.convertBuffs.windowSum()
     );
   }
 
@@ -3156,7 +3171,12 @@ export class Combat {
 
   /** Was ein Zauber laut seinen Daten an Abklingzeit verkürzt (E3-3). */
   reductionOfSpell(spellIndex: number): number {
-    return this.spells[spellIndex]?.cooldownReductionMs ?? 0;
+    const roh = this.spells[spellIndex]?.cooldownReductionMs ?? 0;
+    // **Der Faktor aus `cdReduceBuffs`** (DISTIL, E10). Hier wird bei JEDEM
+    // Wirken neu geholt — deshalb trägt ein zeitlich begrenzter Faktor an
+    // dieser Stelle. Gemessen vor dem Bau: `shield.durationMs` tut das
+    // NICHT (einmal beim Anlegen), und HARDEN gehört deshalb nicht hierher.
+    return roh === 0 ? 0 : Math.round(roh * this.cdReduceBuffs.factor(this.nowMsForBuffs));
   }
 
   /**
@@ -3299,6 +3319,8 @@ export class Combat {
     this.resourceBuffs.reset();
     this.tickBuffs.reset();
     this.stackBuffs.reset();
+    this.cdReduceBuffs.reset();
+    this.convertBuffs.reset();
     this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;

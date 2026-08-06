@@ -63,6 +63,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'test-heat',
       'test-tick',
       'test-stack',
+      'test-cdreduce',
+      'test-convert',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
