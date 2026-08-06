@@ -66,7 +66,15 @@ import { SLOT_COUNT } from '../input/keys.js';
 import type { PressQueue } from '../input/queue.js';
 
 /** Kein Zauber auf diesem Platz. */
-export const NO_SPELL = -1;
+/**
+ * Der leere Platz — **mit der Marke, nicht als nackte `-1`** (Issue #442).
+ *
+ * Er steht im selben Wertebereich wie ein Zauber-Index und wird an denselben
+ * Stellen gereicht. Ohne die Marke müsste jeder Aufrufer von `bind(slot,
+ * NO_SPELL)` ein `alsSpellIndex` schreiben — und eine Umgehung, die man an
+ * fünfzehn Stellen wiederholt, hebt den Sinn des Typs auf.
+ */
+export const NO_SPELL = alsSpellIndex(-1);
 
 /** Nie gedrückt. */
 export const NEVER = -1;
@@ -289,7 +297,7 @@ export class Session implements Simulation {
     return this.idleTicksNothingReady * TICK_MS;
   }
 
-  bind(slot: number, spellIndex: number): void {
+  bind(slot: number, spellIndex: SpellIndex): void {
     if (slot < 0 || slot >= SLOT_COUNT) return;
     this.bindings[slot] = spellIndex;
     this.rebuildBoundSpells();
@@ -728,7 +736,7 @@ export class Session implements Simulation {
         // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
         // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
         if (this.combat.spellAt(alsSpellIndex(spellIndex))?.armsCooldownReset === true) {
-          this.resetArmedFor = spellIndex;
+          this.resetArmedFor = alsSpellIndex(spellIndex);
         }
       }
     } else {

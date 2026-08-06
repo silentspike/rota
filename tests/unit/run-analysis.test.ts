@@ -15,7 +15,7 @@
  * den DATEN. Beides kennt die Analyse nicht.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { alsSpellIndex, Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { spellIndex } from '../helpers/spell-index.js';
 import { GCD_MS } from '../../src/core/gcd.js';
@@ -50,7 +50,7 @@ function play(loadout: readonly number[], everyMs: number): Run {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const session = new Session(queue, combat);
   loadout.forEach((spell, slot) => {
-    session.bind(slot, spell);
+    session.bind(slot, alsSpellIndex(spell));
   });
   session.beginCountdown(0);
 
