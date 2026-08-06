@@ -663,6 +663,16 @@ export class Combat {
    * wie die Hitze, sondern warten darauf, dass der Spieler sich entscheidet.
    */
   private controlValue = 0;
+  /**
+   * Schaden aus umgewandelten Kontroll-Punkten, gemerkt bis zur Rechnung
+   * (Issue #478, WEDGE).
+   *
+   * **Warum gemerkt und nicht sofort ausgeteilt:** `applyFixation` läuft vor
+   * der Schadensrechnung, und dort stehen die Faktoren noch nicht. Ein Treffer
+   * an dieser Stelle ginge an Krit, Widerstand und Verstärkung vorbei — er
+   * wäre der einzige Schaden im Spiel, den kein Faktor berührt.
+   */
+  private pendingControlDamage = 0;
 
   /** Wie viele Punkte insgesamt ausgegeben wurden. */
   private controlSpentValue = 0;
@@ -1474,6 +1484,21 @@ export class Combat {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
       this.nextStrikeDelayMs += control.amount;
+    } else if (control.effect === 'convertToDamage') {
+      // **Der Notausgang** (Issue #478, WEDGE): Gegen einen Boss ohne
+      // Mechanik gibt es nichts zu verlangsamen, zu verzögern oder
+      // hinauszuzögern — die drei anderen Wirkungen laufen dort ins Leere,
+      // und FIXATION wäre die einzige Schule, die an manchen Bossen gar
+      // nicht spielbar ist.
+      //
+      // **Alle Punkte, nicht nur die Kosten.** `cost` ist der Mindesteinsatz
+      // — was darüber liegt, geht mit. Sonst wäre WEDGE ein Zauber, der bei
+      // vollem Vorrat genauso viel bringt wie bei knappem, und „aufsparen"
+      // hätte keinen Sinn.
+      const rest = this.controlValue;
+      this.controlValue = 0;
+      this.controlSpentValue += rest;
+      this.pendingControlDamage = (control.cost + rest) * control.amount;
     } else if (control.effect === 'holdPhase') {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
@@ -2802,7 +2827,10 @@ export class Combat {
     // Partner wäre, nutzte sonst das Fenster, das er im selben Zug aufmacht.
     this.applySynergyBonus(index, timeMs);
 
-    const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
+    // WEDGE teilt Schaden aus, ohne `baseDamage` oder `spender` zu führen —
+    // seine Quelle sind die Kontroll-Punkte (Issue #478).
+    const teiltSchadenAus =
+      spell.baseDamage > 0 || spell.spender !== undefined || this.pendingControlDamage > 0;
     const kritet = teiltSchadenAus ? this.rollCrit() : false;
     // **Der Widerstand dieses Zaubers, vor der Rechnung** (Issue #328). Über
     // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
@@ -2812,6 +2840,14 @@ export class Combat {
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
+    // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
+    // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
+    // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
+    // Schaden macht.
+    if (this.pendingControlDamage > 0) {
+      damage += computeDamage(this.pendingControlDamage, castFactors);
+      this.pendingControlDamage = 0;
+    }
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
@@ -3195,6 +3231,7 @@ export class Combat {
     this.convertedValue = 0;
 
     this.controlValue = 0;
+    this.pendingControlDamage = 0;
     this.controlSpentValue = 0;
     this.controlFailedValue = 0;
     this.phaseHoldPercentValue = 0;

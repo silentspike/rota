@@ -987,13 +987,21 @@ function parseFixation(
     const knoten = raw['control'];
     const cost = number(knoten['cost'], 0);
     const effect = typeof knoten['effect'] === 'string' ? knoten['effect'] : '';
-    const amount = number(knoten['amountMs'], 0) || number(knoten['amountPercent'], 0);
+    // **`amountPerPoint` ist der vierte Weg** (Issue #478, WEDGE): Die drei
+    // bisherigen Wirkungen kaufen einen MOMENT und messen ihn in Millisekunden
+    // oder Prozent. WEDGE kauft keinen Moment, sondern rechnet Punkte in
+    // Schaden um — deshalb ein eigener Name statt einer dritten Bedeutung für
+    // dasselbe Feld.
+    const amount =
+      number(knoten['amountMs'], 0) ||
+      number(knoten['amountPercent'], 0) ||
+      number(knoten['amountPerPoint'], 0);
 
     if (cost <= 0) {
       // Eine Wirkung ohne Kosten wäre keine Ausgabe von Kontroll-Punkten,
       // sondern eine passive Wirkung — und genau das ist FIXATION nicht.
       problems.push(`${where}: Eine Kontroll-Wirkung ohne Kosten ist keine Ausgabe.`);
-    } else if (!['slowCast', 'delayStrike', 'holdPhase'].includes(effect)) {
+    } else if (!['slowCast', 'delayStrike', 'holdPhase', 'convertToDamage'].includes(effect)) {
       problems.push(`${where}: unbekannte Kontroll-Wirkung "${effect}".`);
     } else if (amount <= 0) {
       problems.push(`${where}: Die Kontroll-Wirkung "${effect}" hat keinen Betrag.`);
