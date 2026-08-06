@@ -225,13 +225,13 @@
     {
       "id": "spell-wisp",
       "group": "spells",
-      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus. Klingt deshalb nach VAPOUR, nur kuerzer und mit einem Anschlag: das Entweichen bleibt, ein Funke kommt dazu.",
+      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus.\n\nDER PROMPT IST GEGEN VAPOUR ANGELEGT, nicht variiert: VAPOUR ist Druck, der entweicht (\"soft pressurised steam release\"), WISP ist etwas Duennes, das flackert. Beide sind 0,6 s und entweichen nach oben — ohne Absicht waeren sie sich zu aehnlich geworden.",
       "kind": "oneshot",
       "bus": "sfx",
       "file": "audio/spell-wisp.ogg",
       "targetSeconds": 0.6,
       "pitchJitterCents": 25,
-      "prompt": "brief airy hiss with a faint spark, quick dissipation, light impact",
+      "prompt": "thin ghostly air whisper, brief crystalline shimmer, weightless flicker upward, no impact, no percussion",
       "trigger": {
         "on": "spell.cast",
         "key": "wisp"
