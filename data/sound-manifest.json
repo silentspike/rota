@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 16
+        "present": 17
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 44,
+        "count": 43,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -295,6 +295,21 @@
       "trigger": {
         "on": "spell.cast",
         "key": "searing"
+      }
+    },
+    {
+      "id": "spell-cinder",
+      "group": "spells",
+      "purpose": "CINDER — der KURZE Brand der CALCINATION. Er tickt doppelt so dicht wie SMOULDER und SEARING (1000 ms statt 2000) und laeuft nur 4 s. Der Klang muss deshalb kurz und zurueckhaltend sein, weil er oft gesetzt wird, und sich hoerbar von KINDLE unterscheiden: Glut statt Funke.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-cinder.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "smouldering ember flare, dry ash crackle, warm low glow, short restrained one shot, fantasy fire spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "cinder"
       }
     },
     {
