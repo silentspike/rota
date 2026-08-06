@@ -1476,15 +1476,30 @@ export class Combat {
     // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
     // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
     // unterscheidet.
-    if (control.effect === 'slowCast') {
+    // **CAPSTONE loest alle drei aus** (Issue #478): der große Moment der
+    // Schule. Kein neuer Mechanismus — er ruft, was die drei Ausgeber je
+    // einzeln tun, und verbraucht dafür alle Punkte.
+    const alleDrei = control.effect === 'allThree';
+    if (alleDrei) {
+      // **Alle Punkte, wie bei WEDGE.** Das Raster sagt „verbraucht alle
+      // Punkte" — `cost` ist der Mindesteinsatz. Bliebe der Rest liegen,
+      // brächte der große Moment der Schule bei vollem Vorrat genauso viel
+      // wie bei knappem.
+      this.controlSpentValue += this.controlValue;
+      this.controlValue = 0;
+    }
+
+    if (control.effect === 'slowCast' || alleDrei) {
       // Der laufende Boss-Zauber trifft später; das Unterbrechen-Fenster wird
       // größer.
       if (this.castingValue >= 0) this.castLandsAtMsValue += control.amount;
-    } else if (control.effect === 'delayStrike') {
+    }
+    if (control.effect === 'delayStrike' || alleDrei) {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
       this.nextStrikeDelayMs += control.amount;
-    } else if (control.effect === 'convertToDamage') {
+    }
+    if (control.effect === 'convertToDamage') {
       // **Der Notausgang** (Issue #478, WEDGE): Gegen einen Boss ohne
       // Mechanik gibt es nichts zu verlangsamen, zu verzögern oder
       // hinauszuzögern — die drei anderen Wirkungen laufen dort ins Leere,
@@ -1499,7 +1514,8 @@ export class Combat {
       this.controlValue = 0;
       this.controlSpentValue += rest;
       this.pendingControlDamage = (control.cost + rest) * control.amount;
-    } else if (control.effect === 'holdPhase') {
+    }
+    if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
       this.phaseHoldPercentValue = control.amount;
