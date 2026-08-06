@@ -1917,6 +1917,27 @@ impl Fight {
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
 
+    /// Die Verwundbarkeit **fuer die Wirkung eines bestimmten Zaubers** — mit
+    /// seinem eigenen Zuschlag je Stapel (`per_decay_stack_percent`, #484).
+    ///
+    /// # Warum ADDITIV im selben Topf
+    ///
+    /// GAME-DESIGN 1405 fuehrt die Zersetzungs-Stapel ausdruecklich im
+    /// additiven Topf. Ein neunter Multiplikator nur fuer einen Zauber waere
+    /// der Fehler, den Diablo IV mit der Verwundbarkeit gemacht hat.
+    ///
+    /// # Warum JE WIRKUNG
+    ///
+    /// Der Topf ist global, das Feld gilt fuer EINEN Zauber. Deshalb hier vor
+    /// der Rechnung gesetzt und beim naechsten Zauber ueberschrieben — genau
+    /// wie `resistance` (#328). Dieselbe Rechnung wie im Spiel
+    /// (`applyDecayStackBonus`), ganzzahlig bis zur letzten Teilung (18.4).
+    fn apply_decay_stack_bonus(&mut self, index: usize) {
+        let pro_stapel = SPELLS[index].per_decay_stack_percent;
+        let prozent = 100 + self.decay_count as u32 * (DECAY_STACK_PERCENT + pro_stapel);
+        self.factors.vulnerability = f64::from(prozent) / 100.0;
+    }
+
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
     #[must_use]
     pub fn decay_stacks(&self) -> usize {
@@ -2118,6 +2139,9 @@ impl Fight {
         // gewirkten Zaubers — nicht falsch gerechnet, sondern falsch
         // zugeordnet, und das verraet keine Summe.
         self.factors.resistance = self.resistance_by_spell[index];
+        // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
+        // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
+        self.apply_decay_stack_bonus(index);
         let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
@@ -2546,6 +2570,9 @@ impl Fight {
         // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
         // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
         self.factors.resistance = self.resistance_by_spell[index];
+        // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
+        // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
+        self.apply_decay_stack_bonus(index);
         let factors = self.factors_for(kritet);
         // **`factors` ist hier bereits kopiert.** Die Verstaerkung unten
         // aendert `self.factors.buffs`, aber nicht mehr diese Kopie — genau so

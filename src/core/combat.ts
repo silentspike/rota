@@ -1772,6 +1772,39 @@ export class Combat {
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
   }
 
+  /**
+   * Die Verwundbarkeit **für die Wirkung eines bestimmten Zaubers** — mit
+   * seinem eigenen Zuschlag je Stapel (`perDecayStackPercent`, Issue #484).
+   *
+   * # Warum ADDITIV im selben Topf und nicht als eigener Faktor
+   *
+   * GAME-DESIGN 1405 führt die Zersetzungs-Stapel ausdrücklich im additiven
+   * Topf („Aktive Verstärkungen: Overdrive, Synergien, Zersetzungs-Stapel —
+   * additiv untereinander"). Ein zauber-eigener Zuschlag auf diese Stapel
+   * gehört in denselben Topf.
+   *
+   * Die Begründung dort ist die stärkere: *„Was multiplikativ ist, wird
+   * gejagt."* Ein neunter Faktor nur für einen Zauber wäre der Fehler, den
+   * Diablo IV mit der Verwundbarkeit gemacht und in Saison 2 zurückgenommen
+   * hat. Gemessen für FESTER bei fünf Stapeln: additiv 2,15 gegen
+   * multiplikativ 2,30 — bei zehn Stapeln wächst der Abstand.
+   *
+   * # Warum JE WIRKUNG und nicht je Kampf
+   *
+   * Der Verwundbarkeits-Topf ist **global** — er hebt den Schaden aller
+   * Quellen. `perDecayStackPercent` gilt aber für **einen** Zauber. Deshalb
+   * wird er hier vor der Rechnung gesetzt und beim nächsten Zauber wieder
+   * überschrieben, genau wie `resistance` (Issue #328). Wer ihn dauerhaft in
+   * `updateVulnerability` schriebe, gäbe den Zuschlag allen anderen mit.
+   */
+  private applyDecayStackBonus(index: number): void {
+    const proStapel = this.spells[index]?.perDecayStackPercent ?? 0;
+    this.setDamageFactor(
+      'vulnerability',
+      (100 + this.decayCountValue * (DECAY_STACK_PERCENT + proStapel)) / 100,
+    );
+  }
+
   /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
   get decayStacks(): number {
     return this.decayCountValue;
@@ -2161,6 +2194,9 @@ export class Combat {
       // gewirkten Zaubers — und das wäre nicht falsch berechnet, sondern
       // falsch zugeordnet: ein Fehler, den keine Summe verrät.
       this.setDamageFactor('resistance', this.resistanceOfSpell[i] ?? 1);
+      // Und derselbe Zuschlag wie beim Wirken: Ein Tick gehoert seinem Zauber
+      // (#328), also traegt er auch dessen perDecayStackPercent (#484).
+      this.applyDecayStackBonus(i);
       const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
       // **Der Schleifenindex trägt die Marke** (Issue #444): `i` läuft über
       // dieselbe Liste, aus der `indexOf` seine Werte nimmt — es IST ein
@@ -2820,6 +2856,9 @@ export class Combat {
     // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
     // die #196 als einzige Schreibstelle festgelegt hat.
     this.setDamageFactor('resistance', this.resistanceOfSpell[index] ?? 1);
+    // Der Stapel-Zuschlag DIESES Zaubers, aus demselben Grund wie der
+    // Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf (#484).
+    this.applyDecayStackBonus(index);
     const castFactors = this.factorsFor(kritet);
 
     let damage = 0;
