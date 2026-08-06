@@ -48,71 +48,28 @@ fn common_spells_json() -> Value {
 /// **Die Reihenfolge ist die Zusicherung**, nicht bloss die Menge. Sie
 /// bestimmt die Indizes, und die stehen in jeder aufgezeichneten Runde —
 /// neue Zauber kommen deshalb hinten dazu, nie dazwischen.
-fn alle_zauber(
-    schule: &Value,
-    gemeinsam: &Value,
-    koagulation: &Value,
-    fixierung: &Value,
-    sublimierung: &Value,
-    zersetzung: &Value,
-    pruef: &Value,
-    pruef_buff: &Value,
-) -> Vec<Value> {
-    let mut liste: Vec<Value> = schule["spells"]
-        .as_array()
-        .expect("calcination.json: spells fehlt")
-        .clone();
-    liste.extend(
-        gemeinsam["spells"]
-            .as_array()
-            .expect("common.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
-    liste.extend(
-        koagulation["spells"]
-            .as_array()
-            .expect("coagulation.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
-    liste.extend(
-        fixierung["spells"]
-            .as_array()
-            .expect("fixation.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
-    liste.extend(
-        sublimierung["spells"]
-            .as_array()
-            .expect("sublimation.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
-    liste.extend(
-        zersetzung["spells"]
-            .as_array()
-            .expect("putrefaction.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
-    liste.extend(
-        pruef["spells"]
-            .as_array()
-            .expect("test-cast.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
-    // **Ganz zuletzt**, hinter test-cast (Issue #420): Dessen Index steht in
-    // sechs Aufzeichnungen. Wer die beiden vertauscht, deutet sie alle um.
-    liste.extend(
-        pruef_buff["spells"]
-            .as_array()
-            .expect("test-buff.json: spells fehlt")
-            .iter()
-            .cloned(),
-    );
+fn alle_zauber(dateien: &[(&str, &Value)]) -> Vec<Value> {
+    // **Ein Slice statt eines Parameters je Datei** (Issue #420). Vorher stand
+    // hier eine Liste von acht Werten, und der achte hat die Clippy-Grenze
+    // gerissen (`too_many_arguments`, 8/7).
+    //
+    // Ein `allow` haette den Befund weggeschaltet, nicht behoben: Die neunte
+    // Datei bricht dieselbe Funktion wieder. Die Zahl 8 war das Symptom, die
+    // Bauart der Grund.
+    //
+    // Der Dateiname wandert mit, damit die Fehlermeldung weiter sagt, WELCHE
+    // Datei kein `spells` fuehrt — das war der einzige Vorteil der acht
+    // einzelnen Parameter.
+    let mut liste: Vec<Value> = Vec::new();
+    for (name, datei) in dateien {
+        liste.extend(
+            datei["spells"]
+                .as_array()
+                .unwrap_or_else(|| panic!("{name}: spells fehlt"))
+                .iter()
+                .cloned(),
+        );
+    }
     liste
 }
 
@@ -169,16 +126,19 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         serde_json::from_str(TEST_BUFF_JSON).expect("test-buff.json ist kein gueltiges JSON");
     let pruef: Value =
         serde_json::from_str(TEST_CAST_JSON).expect("test-cast.json ist kein gueltiges JSON");
-    let liste = alle_zauber(
-        &json,
-        &gemeinsam,
-        &koagulation,
-        &fixierung,
-        &sublimierung,
-        &zersetzung,
-        &pruef,
-        &pruef_buff,
-    );
+    // **Die Reihenfolge dieser Liste IST die Zauberreihenfolge** — sie bestimmt
+    // die Indizes, und die stehen in jeder aufgezeichneten Runde. Neue Dateien
+    // kommen hinten dazu, nie dazwischen.
+    let liste = alle_zauber(&[
+        ("calcination.json", &json),
+        ("common.json", &gemeinsam),
+        ("coagulation.json", &koagulation),
+        ("fixation.json", &fixierung),
+        ("sublimation.json", &sublimierung),
+        ("putrefaction.json", &zersetzung),
+        ("test-cast.json", &pruef),
+        ("test-buff.json", &pruef_buff),
+    ]);
 
     assert_eq!(
         SPELL_COUNT,
