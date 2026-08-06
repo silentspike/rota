@@ -33,6 +33,30 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "cooldownReductionMs": 500
+    },
+    {
+      "_comment": "ASCEND — bringt alle KURZEN Abklingzeiten sofort zurueck (Issue #518).\n\nDie Verkuerzung traf bisher alles gleich. ASCEND trifft nur, was unter der Grenze liegt: ein grosser Betrag auf viele kleine Wartezeiten, statt eines kleinen auf alle.\n\nDIE GRENZE IST EIN STRENGES KLEINER. Eine Abklingzeit GENAU auf 10 s bleibt unberuehrt — \"unter zehn Sekunden\" heisst woertlich unter. Die Regel musste in eine Richtung fallen; sie steht an der Rechenstelle in combat.ts und fight.rs.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "ascend",
+      "name": "Ascend",
+      "unlockLevel": 14,
+      "baseDamage": 0,
+      "cooldownMs": 30000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 10000,
+      "cooldownReductionBelowMs": 10000
+    },
+    {
+      "_comment": "DECANT — verkuerzt die LAENGSTE laufende Abklingzeit (Issue #518).\n\nDer Gegenentwurf zu VAPOUR: zielen statt streuen. Wer einen langen Cooldown zurueckholen will, verliert mit einer breiten Verkuerzung den groessten Teil an Zauber, die ohnehin gleich bereit waeren.\n\nBEI GLEICHSTAND GEWINNT DER NIEDRIGERE INDEX. Ohne diese Festlegung haengt das Ergebnis an der Laufrichtung der Schleife — und das waere ein stiller Paritaets-Bruch, sobald eine Seite umbaut. Die Regel steht an der Rechenstelle auf beiden Seiten.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "decant",
+      "name": "Decant",
+      "unlockLevel": 6,
+      "baseDamage": 15,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 2000,
+      "cooldownReductionLongestOnly": true
     }
   ]
 }

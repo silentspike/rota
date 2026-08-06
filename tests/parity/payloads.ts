@@ -1798,6 +1798,11 @@ const SUBLIMATION_BINDINGS = [
   // Er gehört in DIESE Aufzeichnung, weil sie die einzige ist, in der
   // Abklingzeiten wirklich laufen und verkürzt werden.
   { slot: 4, spellId: 'wisp' },
+  // ASCEND und DECANT (Issue #518) — die zwei Zauber, die gezielt statt
+  // breit verkürzen. Sie gehören hierher, weil in dieser Aufzeichnung als
+  // einziger wirklich Abklingzeiten laufen.
+  { slot: 5, spellId: 'ascend' },
+  { slot: 6, spellId: 'decant' },
 ] as const;
 
 /**
@@ -1846,6 +1851,14 @@ export function sublimationPayload(): Record<string, unknown> {
   const kindle = combat.indexOf('kindle');
   const vapour = combat.indexOf('vapour');
   const wisp = combat.indexOf('wisp');
+  const ascend = combat.indexOf('ascend');
+  const decant = combat.indexOf('decant');
+  // Die Träger für DECANTs Bedingung: REFLUX (45 s) und ASCEND (30 s).
+  //
+  // Ein erster Entwurf nannte nur REFLUX — der wird bloß zweimal gedrückt,
+  // die Bedingung griff nie, und DECANT stand wieder in der
+  // coverage-Meldung. Einer von beiden läuft dagegen fast immer.
+  const reflux = combat.indexOf('reflux');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
@@ -1874,7 +1887,28 @@ export function sublimationPayload(): Record<string, unknown> {
     // also dem reinen Füller vorzuziehen. Nur so kommt er überhaupt in die
     // Aufzeichnung — und ohne einen Druck bliebe seine Bitgleichheit
     // angenommen statt geprüft (`coverage.test.ts`).
-    else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
+    // **Die Auswahl folgt dem ZWECK, nicht der Reihenfolge** (Issue #518).
+    //
+    // Ein erster Entwurf setzte ASCEND und DECANT einfach vor WISP — beide
+    // kamen dran, und WISP nie. `coverage.test.ts` meldete ihn prompt als
+    // "in KEINER Aufzeichnung gewirkt". Die drei teilen sich eine
+    // Wartezeit, also verdrängt jede feste Ordnung die letzten.
+    //
+    // Stattdessen wird jeder gewählt, wo er etwas TUT:
+    //   ASCEND  wenn er bereit ist (30 s Abklingzeit, selten genug)
+    //   DECANT  nur wenn eine LANGE Abklingzeit läuft — sonst zielt er ins
+    //           Leere, und genau das ist sein Unterschied zu VAPOUR
+    //   WISP    sonst, als Füller
+    else if (combat.isReady(ascend, timeMs)) gewaehlt = ascend;
+    else if (
+      combat.isReady(decant, timeMs) &&
+      Math.max(
+        combat.cooldownRemainingMs(reflux, timeMs),
+        combat.cooldownRemainingMs(ascend, timeMs),
+      ) > 5_000
+    ) {
+      gewaehlt = decant;
+    } else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {

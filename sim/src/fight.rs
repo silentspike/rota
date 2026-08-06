@@ -2709,7 +2709,11 @@ impl Fight {
             let geteilt = self.split_spender;
             // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
             // zweimal 7, eine Hitze bleibt uebrig.
-            let pro_schlag = if geteilt { self.resource / 2 } else { self.resource };
+            let pro_schlag = if geteilt {
+                self.resource / 2
+            } else {
+                self.resource
+            };
             let schlaege = if geteilt { 2 } else { 1 };
 
             for _ in 0..schlaege {
@@ -2730,8 +2734,7 @@ impl Fight {
                 }
                 self.log
                     .push(now, LogKind::Spend, index as u8, u32::from(spent));
-                cast_damage +=
-                    self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
                 if geteilt {
                     self.resource -= spent;
                 } else {

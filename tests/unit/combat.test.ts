@@ -71,6 +71,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'vapour',
       'reflux',
       'wisp',
+      'ascend',
+      'decant',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
