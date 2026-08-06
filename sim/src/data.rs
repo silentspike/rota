@@ -662,6 +662,16 @@ pub struct PlayerBase {
     /// Design-Entscheidung, und die ist nicht gefallen. Ein Anteil traegt den
     /// Prueffall, ohne etwas vorwegzunehmen.
     pub ward_reduction: f64,
+    /// Der **Balance-Deckel** auf die Minderung, in Promille (Issue #466).
+    ///
+    /// Gilt fuer die Minderung INSGESAMT — Basis plus Ausruestung —, wie
+    /// GAME-DESIGN unter "Die Deckel" festhaelt: "WARD (Minderung) | 75 %".
+    ///
+    /// **Nicht zu verwechseln mit dem Deckel bei 1,0** in
+    /// [`Self::incoming_with_gear`]. Der ist eine Rechenregel: Darueber wuerde
+    /// der Spieler von jedem Treffer geheilt. Dieser hier ist eine gesetzte
+    /// Zahl, die auch anders stehen koennte.
+    pub ward_cap_permille: u32,
 }
 
 /// Ein Grundwert auf einer Stufe (GAME-DESIGN 8.1; Issue #248).
@@ -714,14 +724,24 @@ impl PlayerBase {
     /// wuerde er geheilt. Der Deckel steht deshalb bei 1,0 und nicht bei einem
     /// gewaehlten Prozentsatz.
     ///
-    /// **Ob es einen BALANCE-Deckel darunter geben soll — etwa 80 % —, ist
-    /// offen und steht nirgends im Design.** Solange er fehlt, kann eine
-    /// hinreichend gute Ausruestung den Spieler unverwundbar machen. Das ist
-    /// mit dieser Zeile nicht entschieden, sondern nur nicht verhindert.
+    /// # Und daneben der BALANCE-Deckel (Issue #466)
+    ///
+    /// Seit dem 2026-08-06 steht er im Design: 750 Promille, **gesetzt** vom
+    /// Auftraggeber. Ohne ihn kann eine hinreichend gute Ausruestung den
+    /// Spieler unverwundbar machen — und damit verloere die
+    /// COAGULATION-Schule ihren Gegenstand.
+    ///
+    /// Beide bleiben nebeneinander stehen, weil sie Verschiedenes sagen. Der
+    /// bei 1,0 ist heute wirkungslos, weil 750 darunter liegt; wer den
+    /// Balance-Deckel eines Tages ueber 1000 setzt, soll nicht erst durch
+    /// geheilte Spieler darauf stossen.
+    ///
+    /// Spiegelbild zu `hitPlayer` in `src/core/combat.ts`.
     #[must_use]
     pub fn incoming_with_gear(&self, raw: u32, ward_permille: u32) -> u32 {
         let zusatz = f64::from(ward_permille) / 1000.0;
-        let minderung = (self.ward_reduction + zusatz).min(1.0);
+        let roh = self.ward_reduction + zusatz;
+        let minderung = roh.min(f64::from(self.ward_cap_permille) / 1000.0).min(1.0);
         let gemindert = f64::from(raw) * (1.0 - minderung);
         // Nie unter null, und nie mehr als der Rohwert.
         gemindert.round().max(0.0) as u32
