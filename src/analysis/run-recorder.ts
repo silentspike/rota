@@ -36,6 +36,7 @@ import {
 import type { RunSummary } from '../core/summary.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
+import { recordDefeat } from './defeated.js';
 import { appendRun } from './run-history.js';
 import type { BestRun, OwnedItem, ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
 
@@ -115,6 +116,13 @@ export interface RecordedState {
    * getragenen Werte rechnet `wornFrom` bei jedem Kampf neu.
    */
   readonly items: readonly OwnedItem[];
+  /**
+   * Welche Bosse besiegt wurden, je Boss und Stufe (Issue #434).
+   *
+   * **Was ERREICHT wurde** (GAME-DESIGN 18.6) — und nicht aus `bestRuns`
+   * ableitbar: „beste Zeit" ist eine andere Aussage als „besiegt".
+   */
+  readonly defeatedBosses: readonly string[];
   /** Erreichte Stufe (Issue #248). */
   readonly level: number;
   /** Erfahrung auf dieser Stufe, noch nicht verbraucht (Issue #248). */
@@ -258,6 +266,15 @@ export function recordRun(
     talentPoints: state.talentPoints,
     // Ein Kampf findet noch keine Beute — das ist #421b.
     items: state.items,
+    // **Der Hauptpfad aus 12.7** (Issue #434). `recordDefeat` entscheidet
+    // selbst, ob der Lauf zählt — die Bedingung gehört zum Lauf, nicht zur
+    // Aufrufstelle.
+    defeatedBosses: recordDefeat(
+      state.defeatedBosses,
+      context.bossId,
+      context.difficulty,
+      summary.victory,
+    ),
     level: nachher.level,
     experience: nachher.xp,
     counted: true,
