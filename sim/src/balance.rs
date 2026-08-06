@@ -552,11 +552,28 @@ mod tests {
 /// Wie stark ein Faktor der Schadensformel auf den Schaden durchschlägt.
 ///
 /// Das ist die Antwort auf die Frage aus GAME-DESIGN 18.5 — *„Wie viel Schaden
-/// bringt ein Punkt CATALYSIS?"* — soweit sie heute beantwortbar ist. Gemessen
-/// wird die Empfindlichkeit gegenüber dem **Faktor**, nicht gegenüber dem
-/// **Punkt**: Die Umrechnung Punkt → Faktor ist im Design noch nicht festgelegt
-/// (GAME-DESIGN 22: Talent-Inhalte vor E5, Gegenstands-Katalog vor E6). Sobald
-/// sie feststeht, ist der Wert je Punkt eine Multiplikation dieser Zahl.
+/// bringt ein Punkt CATALYSIS?"*. Gemessen wird die Empfindlichkeit gegenüber
+/// dem **Faktor**, nicht gegenüber dem **Punkt**.
+///
+/// # Für GEGENSTÄNDE ist diese Umrechnung nicht offen — sie stellt sich nicht
+///
+/// Hier stand bis Issue #455, die Umrechnung Punkt → Faktor sei „im Design noch
+/// nicht festgelegt". Für Gegenstände ist das falsch, und zwar nicht seit
+/// gestern: GAME-DESIGN 483 sagt wörtlich *„Ein Fund trägt +3 % Tempo, nicht
+/// +120 Tempo. Was er bringt, hängt nicht von der Spielerstufe ab."*
+///
+/// Auf Gegenständen gibt es überhaupt keine Punkte. Die Werte stehen in
+/// **Promille**, und `worn.rs` beziehungsweise `src/gear/worn.ts` machen daraus
+/// `1 + promille/1000` — das *ist* die Umrechnung, und sie ist gebaut und
+/// geprüft.
+///
+/// # Für TALENTE gilt der Vorbehalt weiter
+///
+/// Ein Talentpunkt gibt eine Menge, die noch nicht feststeht — dort steht die
+/// Umrechnung tatsächlich aus. Der ursprüngliche Verweis auf GAME-DESIGN 22
+/// zeigte auf fehlende **Inhalte** (welche Talente, welche Gegenstände), nicht
+/// auf eine offene Umrechnung; das eine als das andere zu lesen, hat in #455
+/// beinahe einen Blocker erzeugt, den es nicht gibt.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScalingFactor {
     /// Feld der Schadensformel, das verändert wurde.
