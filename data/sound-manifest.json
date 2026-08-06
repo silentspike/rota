@@ -156,7 +156,7 @@
       "file": "audio/spell-bind.ogg",
       "targetSeconds": 0.5,
       "pitchJitterCents": 15,
-      "prompt": "short binding snap, tight rope-pull click, restrained arcane grip, dry",
+      "prompt": "arcane binding, tight rope-pull with resonant ringing tail, restrained magical grip, sustained decay, no percussion",
       "trigger": {
         "on": "spell.cast",
         "key": "bind"
