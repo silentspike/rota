@@ -1834,7 +1834,21 @@ impl Fight {
         let Some(partner) = SPELLS.iter().position(|s| s.id == spell.synergy_partner) else {
             return;
         };
-        let laenge = self.hasted(Millis::from(spell.synergy_window_gcds) * GCD_MS);
+        // **Die Klammerung ist der Unterschied** (Issue #456, gefunden bei
+        // #420): `gcds * hasted(GCD)` und `hasted(gcds * GCD)` sind bei
+        // ganzzahliger Rechnung NICHT dasselbe. `hasted` teilt und rastet auf
+        // die 10-ms-Marke auf; zwei aufgerundete Wartezeiten sind laenger als
+        // eine aufgerundete Doppel-Wartezeit.
+        //
+        // Bei CANKER (zwei Wartezeiten) fehlten dem Spieler dadurch zehn
+        // Millisekunden, und der zweite Zauber verpasste das Fenster, das ihm
+        // nach GAME-DESIGN 327 zusteht — aus "zwei Zauber" wurde einer.
+        //
+        // Bei Tempo 0, 376 und 500 Promille geht die Rundung zufaellig auf.
+        // Ein Prueffall, der einen dieser Werte waehlt, ist gruen ohne etwas
+        // zu belegen.
+        let laenge =
+            Millis::from(spell.synergy_window_gcds) * self.hasted(GCD_MS);
         self.synergy_window_ends[partner] = self.time + laenge;
         // **Wird der Partner im Fenster ueberhaupt bereit?** Ein Fenster, das
         // aufgeht waehrend er auf Abklingzeit liegt und bis zum Ende nicht
