@@ -71,6 +71,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'reflux',
       'canker',
       'fester',
+      'blight',
       'test-cast',
       'test-buff',
     ]);

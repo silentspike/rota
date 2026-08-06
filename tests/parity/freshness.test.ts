@@ -27,6 +27,7 @@ import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
 import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckterBuffKampf from './recordings/buff-combat.json';
+import eingecheckteNeueFixierung from './recordings/fixation-spells.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
@@ -105,6 +106,7 @@ import {
   buffCombatPayload,
   wardCapPayload,
   putrefactionFillerPayload,
+  fixationSpellsPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -131,6 +133,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Verstärkungen entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteVerstaerkungen, HINWEIS).toEqual(buffsPayload());
+  });
+
+  it('die neuen Fixierungs-Zauber entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteNeueFixierung, HINWEIS).toEqual(fixationSpellsPayload());
   });
 
   it('der Kampf mit aktiver Verstärkung entspricht dem heutigen Spielstand', () => {
@@ -486,6 +492,7 @@ describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {
  */
 const MIT_FRISCHE_FALL: readonly string[] = [
   'buff-combat',
+  'fixation-spells',
   'cooldown-precision',
   'primitives',
   'misplays',

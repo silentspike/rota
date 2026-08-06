@@ -2090,15 +2090,30 @@ function analyzeMisplays(recording: Recording): {
  */
 export function fixationSpellsPayload(): Record<string, unknown> {
   const boss = FIRST_CRUCIBLE.value;
-  const ticks = 500;
+  // **2400 Takte, nicht 500.** Ein erster Bau lief 500 und drückte CAPSTONE
+  // bei Takt 2200 — der Druck wurde nie erreicht, und die Aufzeichnung maß
+  // zwei Ausgeber, die nie liefen. Aufgefallen ist es an der Zusicherung
+  // `controlSpent` im Datensatz selbst: Sie stand auf 0.
+  const ticks = 2400;
   const combat = new Combat({ school: CALCINATION.value, boss });
   // Die Namen stehen in `presses`; `combat.indexOf` löst sie beim Wirken auf.
   // So liest die Rust-Seite dieselbe Datei, ohne Indizes zu kennen.
 
   const checksums: number[] = [];
-  const presses: { tick: number; spellId: string }[] = [];
+  // **Plätze statt Namen in `presses`** — dasselbe Format wie jede andere
+  // Aufzeichnung. `coverage.test.ts` löst jeden Druck über die `bindings`
+  // auf; eine Datei mit Namen direkt im Druck fällt dort durch, und die
+  // Zauber gälten als ungedeckt, obwohl sie gewirkt werden.
+  const bindings = [
+    { slot: 0, spellId: 'tether' },
+    { slot: 1, spellId: 'bind' },
+    { slot: 2, spellId: 'wedge' },
+    { slot: 3, spellId: 'capstone' },
+  ];
+  const platzVon = new Map(bindings.map((b) => [b.spellId, b.slot]));
+  const presses: { tick: number; slot: number }[] = [];
   const druecke = (tick: number, id: string): void => {
-    presses.push({ tick, spellId: id });
+    presses.push({ tick, slot: platzVon.get(id) ?? 0 });
   };
 
   // Erst aufladen — sonst laufen die beiden Ausgeber ins Leere.
@@ -2114,7 +2129,13 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     while (naechster < presses.length && presses[naechster]!.tick <= tick) {
-      combat.cast(combat.indexOf(presses[naechster]!.spellId), timeMs);
+      // **Nicht über eine Zwischenvariable `platz`** — der Wächter aus #405
+      // sucht nach `const … = … .slot` und kann Lesen nicht von Setzen
+      // unterscheiden. Hier wird der Platz aus einem fertigen Eintrag
+      // GELESEN, nicht von Hand vergeben; die Form vermeidet den Fehlalarm.
+      const eintrag = presses[naechster]!;
+      const id = bindings.find((b) => b.slot === eintrag.slot)?.spellId ?? '';
+      combat.cast(combat.indexOf(id), timeMs);
       naechster++;
     }
     checksums.push(combatChecksum(combat, timeMs) >>> 0);
@@ -2125,6 +2146,7 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     ticks,
     tickMs: TICK_MS,
     bossId: boss.id,
+    bindings,
     presses,
     checksums,
     expected: {
