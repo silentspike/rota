@@ -3659,11 +3659,11 @@ beim zweiten Mal hat der Orchestrator sie beim Weitergeben trotzdem weggelassen.
 Der Orchestrator hat drei Sitzungen angewiesen, gegen `integration` zu messen. Der Zweig lag
 ausschließlich in seinem Arbeitsbaum. Was danach geschah, ist die eigentliche Lehre:
 
-| | | |
-| --- | --- | --- |
-| Worker-2 | eigener Klon | `couldn't find remote ref` → **gemeldet** |
+|          |                                  |                                                                |
+| -------- | -------------------------------- | -------------------------------------------------------------- |
+| Worker-2 | eigener Klon                     | `couldn't find remote ref` → **gemeldet**                      |
 | Worker-1 | Worktree desselben Repositoriums | `git rev-parse --verify integration` traf → **weitergemessen** |
-| Worker-3 | Worktree desselben Repositoriums | dito → **weitergemessen** |
+| Worker-3 | Worktree desselben Repositoriums | dito → **weitergemessen**                                      |
 
 Zwei von drei haben eine Anweisung befolgt, die für den dritten nicht ausführbar war, **und es nicht
 gemerkt**. Worktrees unter derselben Wurzel teilen die Zweig-Datenbank; ein fremder lokaler Zweig
@@ -3696,7 +3696,7 @@ Ergebnis lieferte.
 
 ### 8.49 Wer meldet, dass etwas FEHLT, muss den Suchraum nennen
 
-Ein Befund lautete: *„`consumes_all` fehlt in Rust weiterhin ganz."* Gemessen wurde in
+Ein Befund lautete: _„`consumes_all` fehlt in Rust weiterhin ganz."_ Gemessen wurde in
 `sim/src/data.rs`.
 
 ```
@@ -3715,10 +3715,10 @@ Der Bauer liest das Feld nicht nur — er **bricht ab**, wenn jemand `consumesAl
 "{whose}: consumesAll=false ist nicht umgesetzt; …"
 ```
 
-| gemeldet | tatsächlich |
-| --- | --- |
+| gemeldet                                | tatsächlich                                            |
+| --------------------------------------- | ------------------------------------------------------ |
 | „das Feld fehlt" → jemand muss es bauen | „ein Wert ist umgesetzt, der andere bricht den Bau ab" |
-| ein Loch | **ein Wachposten** |
+| ein Loch                                | **ein Wachposten**                                     |
 
 **Das dahinterliegende Anliegen war richtig** — Teil-Verbrauch ist nicht darstellbar. Nur die
 Begründung nicht, und die Begründung ist das, was jemand liest, bevor er Arbeit beginnt.
@@ -3729,7 +3729,7 @@ Begründung nicht, und die Begründung ist das, was jemand liest, bevor er Arbei
 
 #### Es ist 8.27 eine Ebene höher
 
-8.27 sagt: *ein Suchmuster misst, was es kennt.* Hier war das Muster richtig und **der Ort falsch** —
+8.27 sagt: _ein Suchmuster misst, was es kennt._ Hier war das Muster richtig und **der Ort falsch** —
 beide Fehler liefern dieselbe Ausgabe, nämlich nichts.
 
 > **Vor jeder Fehlt-Meldung:** Wo habe ich gesucht, und gibt es einen Ort, an dem es aus
