@@ -22,6 +22,17 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "armsCooldownReset": true
+    },
+    {
+      "_comment": "WISP — der Füller, den die Schule nicht hatte (Issue #480).\n\nSUBLIMATION war gemessen tot: Beide vorhandenen Zauber machen KEINEN Schaden, also kam die Schule in keiner optimalen Rotation vor. Man konnte sie nicht spielen, nur einstreuen.\n\nWISP verkürzt wie VAPOUR, teilt dabei aber Schaden aus. Damit gibt es erstmals einen Grund, die Schule zu drücken, statt sie zu überspringen.\n\nDIE ZAHLEN SIND PLATZHALTER — 500 ms Verkürzung ist die Hälfte von VAPOUR, weil WISP dafür Schaden macht und auf der Wartezeit liegt.",
+      "id": "wisp",
+      "name": "Wisp",
+      "unlockLevel": 3,
+      "baseDamage": 20,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 500
     }
   ]
 }

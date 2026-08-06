@@ -1786,6 +1786,10 @@ const SUBLIMATION_BINDINGS = [
   { slot: 1, spellId: 'vapour' },
   { slot: 2, spellId: 'smoulder' },
   { slot: 3, spellId: 'pyre' },
+  // WISP (Issue #480) — der Füller, der SUBLIMATION erstmals spielbar macht.
+  // Er gehört in DIESE Aufzeichnung, weil sie die einzige ist, in der
+  // Abklingzeiten wirklich laufen und verkürzt werden.
+  { slot: 4, spellId: 'wisp' },
 ] as const;
 
 /**
@@ -1833,6 +1837,7 @@ export function sublimationPayload(): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
   const vapour = combat.indexOf('vapour');
+  const wisp = combat.indexOf('wisp');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
@@ -1857,6 +1862,11 @@ export function sublimationPayload(): Record<string, unknown> {
     else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
       gewaehlt = smoulder;
     } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    // **WISP vor KINDLE** (Issue #480): Er verkürzt UND macht Schaden, ist
+    // also dem reinen Füller vorzuziehen. Nur so kommt er überhaupt in die
+    // Aufzeichnung — und ohne einen Druck bliebe seine Bitgleichheit
+    // angenommen statt geprüft (`coverage.test.ts`).
+    else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
