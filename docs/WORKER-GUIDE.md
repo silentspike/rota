@@ -3736,3 +3736,63 @@ beide Fehler liefern dieselbe Ausgabe, nämlich nichts.
 > **architektonischen** Gründen liegen müsste statt aus stilistischen? Generierter Code, Bauskripte,
 > Makros und einkompilierte Daten stehen nie dort, wo man sie sucht — sie stehen dort, wo sie
 > entstehen.
+
+### 8.50 Ein Suchraum kann auch zu GROSS sein
+
+8.49 handelt vom Suchraum, der zu klein war: `sim/src/` statt `sim/`, und die Antwort lautete „gibt es
+nicht", obwohl es sie gab. Eine Stunde später kam derselbe Fehler in der Gegenrichtung.
+
+Eine Sitzung prüfte, ob ihre Rotationsdateien auf dem Build-Server angekommen sind:
+
+```bash
+ssh root@10.0.0.155 "ls /tmp/builds/*/sim/apl/"
+  step1-bad.apl   step1-good.apl   step3-good.apl
+```
+
+Daraus wurde der Schluss: _„Meine zwei Dateien sind dort nicht, obwohl sie im Repository liegen"_ —
+und daraus eine Diagnose, ein Blocker und drei Lösungswege.
+
+**Sie waren da.**
+
+```bash
+ssh root@10.0.0.155 "find /tmp/builds -name 'step517*'"
+  /tmp/builds/9932248061915886481/sim/apl/step517-mit.apl
+  /tmp/builds/9932248061915886481/sim/apl/step517-ohne.apl
+```
+
+Auf dem Server lagen **39 Build-Verzeichnisse**, eines je Arbeitsbaum. Der Glob listete sie alle, und
+die Ausgabe zeigte den Inhalt eines **fremden**.
+
+#### Die Frage, die der Glob beantwortet hat
+
+| gestellt                  | beantwortet              |
+| ------------------------- | ------------------------ |
+| Liegt **meine** Datei da? | Liegt **irgendeine** da? |
+
+Beide Male ist die Ausgabe eine Dateiliste, und beide Male sieht sie richtig aus. Der Unterschied ist
+nicht sichtbar — er steckt im Sternchen.
+
+#### Was daraus folgte, war teuer
+
+Der eigentliche Fehler war ein Pfadpräfix: Der Läufer startet im Workspace-Root, also `sim/apl/…`
+statt `apl/…`. Auf dem Weg dorthin entstanden eine falsche Ursache („`cargo remote` synct nicht"),
+ein gemeldeter Blocker und drei ausgearbeitete Lösungswege — von denen **alle drei funktioniert
+hätten** und alle drei teurer gewesen wären als vier Zeichen.
+
+> Dass keiner davon im Alleingang gegangen wurde, ist der Grund, warum es auffiel. Ein
+> `include_str!`-Umbau wäre grün geworden und hätte die falsche Ursache für immer bestätigt.
+
+#### Die Regel für beide Richtungen
+
+**Wer misst, ob etwas da ist, sucht nach dem, was es einzigartig macht** — nicht nach dem Ort, an dem
+es liegen sollte:
+
+```bash
+find <wurzel> -name 'meinname*'      # sucht meine Sache
+ls <wurzel>/*/unterordner/           # sucht irgendeine
+```
+
+Und bei jeder Fehlt-Meldung, zusätzlich zu 8.49:
+
+- **Zu klein?** Gibt es einen Ort, an dem es aus architektonischen Gründen liegen müsste?
+- **Zu groß?** Kann die Ausgabe von etwas stammen, das mir gar nicht gehört?
