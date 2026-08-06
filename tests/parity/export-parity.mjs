@@ -81,6 +81,8 @@ import {
   misplaysPayload,
   synergyPayload,
   SYNERGY_NAME,
+  synergyHastePayload,
+  SYNERGY_HASTE_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -138,6 +140,12 @@ writeFileSync(misplaysPath, serialize(misplays), 'utf8');
 const synergy = synergyPayload();
 const synergyPath = join(here, 'recordings', `${SYNERGY_NAME}.json`);
 writeFileSync(synergyPath, serialize(synergy), 'utf8');
+
+// Tempo UND Synergie zusammen (Issue #456, Schritt 2). Ohne diese Datei konnten
+// beide Seiten verschieden klammern, ohne dass die Paritaetspruefung es sah.
+const synergyHaste = synergyHastePayload();
+const synergyHastePath = join(here, 'recordings', `${SYNERGY_HASTE_NAME}.json`);
+writeFileSync(synergyHastePath, serialize(synergyHaste), 'utf8');
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
