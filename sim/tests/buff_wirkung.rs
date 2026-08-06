@@ -64,7 +64,36 @@ fn nach_dem_gcd(vorher: u32, jetzt: u32) {
     );
 }
 
-/// **Liegt dieser Traeger-Druck noch im Fenster?**
+/// **Drei Rollen, die ein Druck spielen kann** — und nur eine davon gehoert
+/// ins Fenster:
+///
+/// | Rolle | was sie tut | Auflage |
+/// | --- | --- | --- |
+/// | Vorbereitung | bringt den Zustand in die Ausgangslage | nur GCD-Abstand |
+/// | **Traeger** | **nutzt die verstaerkte Groesse** | **GCD UND im Fenster** |
+/// | Zeuge | zeigt, was dabei herauskam | nur GCD-Abstand |
+///
+/// **"Nicht im Fenster" hat zwei verschiedene Gruende:** noch nicht wirksam
+/// (Vorbereitung) gegen schon vorbei (Zeuge). Beide sind richtig.
+///
+/// # Warum das nicht offensichtlich ist
+///
+/// Bei `resource`, `tick`, `stack` und `control` fallen alle drei Rollen auf
+/// denselben Zauber: KINDLE nutzt die Verstaerkung und zeigt sie zugleich.
+/// Solange das so ist, sieht eine Zusicherung ueber "den Druck" wie eine
+/// vollstaendige Regel aus — sie ist aber ein Sonderfall.
+///
+/// `cdreduce` ist der erste Fall, der ihn verlaesst: `pyre` MUSS hinter dem
+/// Fenster liegen, weil seine Abklingzeit sonst gar nicht abgelaufen ist.
+/// Eine Zusicherung, die jeden Druck ins Fenster zwingt, lehnte den einzig
+/// richtigen Aufbau ab.
+///
+/// Dieselbe Form wie `casts` gegen "Wirkung": zwei Groessen, die im Normalfall
+/// zusammenfallen und im interessanten Fall auseinandergehen.
+///
+/// # Diese Zusicherung gilt nur fuer TRAEGER
+///
+/// Nur fuer Traeger aufrufen — fuer Vorbereitung und Zeuge waere es falsch.
 ///
 /// Als Zusicherung im Fall selbst, nicht als Kommentar: Wer die Zeitpunkte
 /// spaeter verschiebt, bekommt eine Meldung ueber den AUFBAU statt ein
@@ -228,8 +257,12 @@ fn cdreduce_wirkt() {
     // PYRE@1600 ms ist bereit ab 6600. VAPOUR@3200 verkürzt um 1000 → 5600,
     // verdoppelt um 2000 → 4600. Der Druck bei 5000 ms fällt genau dazwischen
     // — deshalb ist die Zahl der Wirkungen die Wirkung selbst.
+    // pyre@160   VORBEREITUNG — setzt die Abklingzeit erst in Gang
+    // vapour@320 TRÄGER       — nutzt die verstärkte Verkürzung
+    // pyre@500   ZEUGE        — kam er durch? Muss HINTER dem Fenster liegen,
+    //                           sonst wäre seine Abklingzeit gar nicht abgelaufen
     let traeger = [("pyre", 160u32), ("vapour", 320u32), ("pyre", 500u32)];
-    im_fenster(320); // nur VAPOUR, der Träger
+    im_fenster(320); // nur der Träger
     let mut vorher = 0;
     for (_, takt) in traeger.iter() {
         nach_dem_gcd(vorher, *takt);
@@ -251,6 +284,10 @@ fn cdreduce_wirkt() {
 fn convert_wirkt() {
     // TEMPER wandelt 25 % des AUSGETEILTEN Schadens — kein Boss-Schlag nötig.
     // KINDLE@3200 muss vor dem Fensterende bei 4500 liegen.
+    // temper@160 VORBEREITUNG — öffnet die Umwandlung
+    // kindle@320 TRÄGER       — teilt den Schaden aus, der gewandelt wird
+    // Kein Zeuge: Der Schutzwert wird direkt gelesen. Deshalb dürfen hier
+    // ausnahmsweise beide im Fenster liegen — und müssen es auch.
     let traeger = [("temper", 160u32), ("kindle", 320u32)];
     let mut vorher = 0;
     for (_, takt) in traeger.iter() {
