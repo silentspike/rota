@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 18
+        "present": 20
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 42,
+        "count": 40,
         "epic": "E10",
-        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE, NICHT ZAUBER (Issue #512). 42 = 60 Ziel minus 18 vorhandene Eintraege in der Gruppe 'spells' dieser Datei — nachzusehen an 'present' zwei Zeilen darueber, ohne eigene Messung.\n\nWARUM DAS HIER STEHT: Bis #512 erklaerte dieser Text die Zahl mit AUSGEARBEITETEN ZAUBERN ('von den 60 Zaubern sind zehn ausgearbeitet'). Das ist eine ANDERE GROESSE: Ein Zauber kann ausgearbeitet sein und noch keinen Klang haben. Gemessen am 2026-08-07 sind es 18 Klang-Eintraege gegen 18 spielbare Zauber — heute gleich, aber aus zwei verschiedenen Quellen, und zwischenzeitlich standen 16 gegen 17.\n\nWAS FEHLT UND WARUM: Namen, Schulen und Wirkung der uebrigen Zauber stehen in GAME-DESIGN 22 als noch nicht ausgeplant (Katalog-Vorhaben E10). Ein Klang-Slot ohne Zauber waere geraten.\n\nWER DIESE ZAHL AENDERT, aendert 'present' mit — ihre Summe muss 'target' ergeben, und genau das prueft src/audio/manifest.ts. Den Text hier prueft NICHTS: Er ist Prosa, und ein falsches Textfeld wird nie rot."
+        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE, NICHT ZAUBER (Issue #512). 40 = 60 Ziel minus 20 vorhandene Eintraege in der Gruppe 'spells' dieser Datei — nachzusehen an 'present' zwei Zeilen darueber, ohne eigene Messung.\n\nWARUM DAS HIER STEHT: Bis #512 erklaerte dieser Text die Zahl mit AUSGEARBEITETEN ZAUBERN ('von den 60 Zaubern sind zehn ausgearbeitet'). Das ist eine ANDERE GROESSE: Ein Zauber kann ausgearbeitet sein und noch keinen Klang haben. Gemessen am 2026-08-07 sind es 18 Klang-Eintraege gegen 18 spielbare Zauber — heute gleich, aber aus zwei verschiedenen Quellen, und zwischenzeitlich standen 16 gegen 17.\n\nWAS FEHLT UND WARUM: Namen, Schulen und Wirkung der uebrigen Zauber stehen in GAME-DESIGN 22 als noch nicht ausgeplant (Katalog-Vorhaben E10). Ein Klang-Slot ohne Zauber waere geraten.\n\nWER DIESE ZAHL AENDERT, aendert 'present' mit — ihre Summe muss 'target' ergeben, und genau das prueft src/audio/manifest.ts. Den Text hier prueft NICHTS: Er ist Prosa, und ein falsches Textfeld wird nie rot."
       },
       {
         "group": "music",
@@ -325,6 +325,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "searing"
+      }
+    },
+    {
+      "id": "spell-ember",
+      "group": "spells",
+      "purpose": "EMBER — der Fueller des Weges 'laenger halten'. Er macht KEINEN Schaden, sondern faechelt an, was schon brennt. Muss sich von KINDLE unterscheiden: KINDLE ZUENDET (sharp spark ignition), EMBER facht an — weicher, ohne Anzuenden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-ember.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "faint ember glow rekindling, soft breath on coals, low warm crackle swelling, no impact, no ignition",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "ember"
+      }
+    },
+    {
+      "id": "spell-pyroclasm",
+      "group": "spells",
+      "purpose": "PYROCLASM — der grosse Entlader des langen Kampfes. Er verbraucht Hitze UND alle laufenden Braende. Muss sich von PYRE unterscheiden: PYRE ist eine DETONATION (schlagartig), PYROCLASM BAUT SICH AUF und rollt — sonst sind es zwei Explosionen verschiedener Groesse statt zweier verschiedener Ereignisse.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-pyroclasm.ogg",
+      "targetSeconds": 1.8,
+      "pitchJitterCents": 10,
+      "prompt": "massive volcanic eruption building and rolling, deep sustained roar with debris tail, catastrophic fire release",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "pyroclasm"
       }
     },
     {
