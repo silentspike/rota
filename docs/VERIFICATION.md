@@ -629,6 +629,36 @@ echo $?        # 0 = sauber, 1 = Konflikt (Namen stehen dann im Kopf der Ausgabe
 > Eine Fehlerart, die man gerade oft gesehen hat, drängt sich als Erklärung für die
 > nächste auf. Die Zuordnung gehört genauso gemessen wie die Zahl.
 
+#### Und er sagt nichts über einen **Rebase**
+
+_Nachtrag vom 2026-08-06, gefunden von Worker-2 an sich selbst._
+
+Auch die richtige Form beantwortet nur eine Frage: **Kollidieren die beiden Endzustände?**
+
+Ein Rebase fragt etwas anderes. Er spielt die Commits des Zweigs **einzeln** auf den neuen
+Stand — und ein Konflikt kann an einem Zwischenstand entstehen, den der Merge nie sieht:
+
+```
+merge-tree --write-tree   →  0 Konflikte
+git rebase origin/main    →  Konflikt in Commit 2 von 6
+```
+
+Beim vorigen Rebase desselben Zweigs lag derselbe Trockenlauf richtig. **Er ist also nicht
+falsch, sondern beantwortet eine andere Frage als die, die ihm gestellt wurde** — dieselbe
+Form wie die drei Argumente oben, nur eine Ebene weiter.
+
+**Wer den Rebase meint, muss ihn fahren.** Er lässt sich folgenlos zurücknehmen:
+
+```bash
+git rebase origin/main    # und bei einem Konflikt:
+git rebase --abort
+```
+
+> Der Konflikt war in diesem Fall lehrreich: `main` hatte `private worn`, der Zweig
+> `private readonly worn`. **Das `readonly` musste weg**, weil #433 inzwischen `setWorn`
+> gebaut hatte. Wer hier die eigene Seite nimmt, bekommt einen scheiternden Bau — oder
+> schlimmer, jemand entfernt das `readonly` später still, ohne den Grund zu kennen.
+
 ### Ein Prüfbefehl, der bei einem Fehler grün meldet, ist schlimmer als keiner
 
 Beim Bauen des AC6-Prüfbefehls für #268 ist mir dasselbe **zweimal in zehn Minuten**
