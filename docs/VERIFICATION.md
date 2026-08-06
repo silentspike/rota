@@ -933,3 +933,61 @@ playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.logText().split(
 Es zeigt, was tatsächlich gewirkt wurde. Blieb es stehen, ist der Tastendruck nicht
 angekommen oder der Zauber lag nicht auf der aktiven Leiste — in beiden Fällen misst man
 gerade nichts.
+
+### Eine Auflage, die für einen Prüffall stimmt, kann für eine Aufzeichnung falsch sein
+
+_2026-08-06, eigener Fehler beim Zuschnitt von #464._
+
+Ich hatte in ein Issue geschrieben:
+
+> Wer hier einen Vergleich baut, prüft zuerst, dass sich die beiden Läufe wirklich
+> unterscheiden.
+
+Der Satz ist richtig — für einen **Prüffall**. Für eine **Paritäts-Aufzeichnung** ist er falsch,
+und der Unterschied ist grundsätzlich:
+
+|                           | vergleicht                                   |
+| ------------------------- | -------------------------------------------- |
+| **Prüffall**              | zwei Läufe gegeneinander, in einer Umsetzung |
+| **Paritäts-Aufzeichnung** | **Spiel gegen Simulator**, dieselbe Folge    |
+
+Ein „Vergleichslauf ohne die Wirkung" gehört in den Prüffall. In der Aufzeichnung hat er
+nichts zu suchen — dort ist die zweite Seite bereits die andere Umsetzung.
+
+**Was die Auflage angerichtet hat:** Der Werker baute einen zweiten Lauf in die Aufzeichnung
+(`test-buff` gegen `smoulder`, 220 gegen 100 Schaden). Die Prüfsummen liefen ab Takt 0
+auseinander — wegen des **anderen Zaubers**, nicht wegen der Verstärkung. Er stand dann vor drei
+Auswegen, von denen zwei einen neunzehnten Zauber oder einen Neu-Export aller Aufzeichnungen
+gekostet hätten.
+
+> **Er hat es selbst gemeldet, bevor ich es fand** — mit dem Satz: _„Melde es, bevor du es
+> findest."_ Das ist der Grund, warum es zehn Minuten gekostet hat und nicht einen halben Tag.
+
+**Die Prüffrage vor jeder Auflage an eine Aufzeichnung:** Verlangt sie etwas, das nur ein
+Prüffall leisten kann? Dann gehört sie nicht in dieses Issue.
+
+### Eine Zahl, die plausibel aussieht, weil die Hälfte gar nicht lief
+
+_2026-08-06, gemeldet von einem Werker bei #456._
+
+`cargo test` bricht nach der **ersten roten Suite** ab. Sein erster Lauf meldete:
+
+```
+349 bestanden in 43 Suiten
+```
+
+Fünfzehn Suiten liefen **gar nicht**. Er hätte daraus „keine bestehende Aufzeichnung bricht"
+geschlossen, ohne es geprüft zu haben — und die Zahl 349 sieht nach einem Ergebnis aus, nicht
+nach einem Abbruch.
+
+```
+mit --no-fail-fast:   441 bestanden, 3 gescheitert, 58 Suiten
+ohne                  349 bestanden,             43 Suiten
+```
+
+**Der Abschnitt weiter oben nennt diesen Abbruch bereits.** Was diese Fassung hinzufügt, ist der
+Grund, warum er trotzdem durchrutscht: Es gibt keine Fehlermeldung, nur eine **kleinere Zahl** —
+und wer die Suitenzahl nicht kennt, sieht ihr nicht an, dass sie unvollständig ist.
+
+> **Für jede Aussage der Form „nur X bricht" ist `--no-fail-fast` Pflicht.** Ohne es lautet die
+> Aussage in Wahrheit: „Bis zur ersten roten Suite brach nur X."
