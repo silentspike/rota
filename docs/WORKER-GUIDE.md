@@ -2855,3 +2855,71 @@ eine Stufe höher: Dort verhinderte ein zutreffender Kommentar die richtige Frag
 **Praktische Folge:** Wenn du einen Wächter baust, schreibe in seinen Kopf, _woran_ seine Begründung
 hängt — welche Datei, welches Feld, welches Issue. Dann ist beim nächsten Mal nachprüfbar, ob sie
 noch trägt. `spell-order.test.ts` trägt diese Herkunft seit der Berichtigung.
+
+### 8.33 Die Shell führt aus, was du zitieren wolltest
+
+Ein Fehler mit einer besonders unangenehmen Eigenschaft: **Er meldet Erfolg.**
+
+```bash
+gh pr comment 486 --body "**1. `docs/WORKER-GUIDE.md` 8.32** — die schärfere Fassung..."
+```
+
+Die Rückgabe ist eine gültige Kommentar-URL. Auf GitHub steht dann:
+
+```
+**1.  8.32** — die schärfere Fassung...
+      ^^ hier stand einmal ein Dateiname
+```
+
+In doppelten Anführungszeichen ist ein Backtick **Kommando-Substitution**. Die Shell hat den
+Dateinamen als Befehl ausgeführt, `command not found` nach stderr geschrieben — und dessen leere
+Ausgabe in den Text eingesetzt. Die Fehlermeldung ging im Ausgabe-Rauschen unter; die
+Erfolgsmeldung stand darunter.
+
+> **Stiller Datenverlust mit Erfolgsmeldung.** Wer den Kommentar nicht nachliest, erfährt nie, dass
+> die Hälfte seiner Verweise fehlt. Und man liest ihn nicht nach — man hat ihn ja gerade
+> geschrieben.
+
+Dieselbe Falle greift bei `$(...)`, bei `$VARIABLE` und bei `!` in interaktiven Shells. Sie trifft
+**jeden** Text mit Markdown-Code-Auszeichnung, und das ist hier so gut wie jeder Text.
+
+#### Der naheliegende Ausweg hat eine zweite Falle
+
+Ein Here-Dokument mit Anführungszeichen am Terminator schützt vor der Substitution:
+
+```
+cat > /work/tmp/kommentar.md <<'SCHLUSS'
+**1. `docs/WORKER-GUIDE.md` 8.32** — bleibt wörtlich stehen
+SCHLUSS
+```
+
+**Aber nur, solange der Text den Terminator nicht selbst enthält.** Genau das ist beim Schreiben
+dieses Abschnitts passiert: Er handelt von Here-Dokumenten, führt also eines als Beispiel vor — und
+die Beispiel-Zeile hat das äußere Dokument vorzeitig beendet. Die Hälfte des Abschnitts landete in
+der Datei, die andere Hälfte in der Shell, wo sie als Befehle scheiterte.
+
+`tools/reihenfolge-einfuegen.py` warnt im Kopf vor genau diesem Fall — seit heute Nachmittag:
+
+> Steht als eigene Datei neben dem Skript und nicht als Here-Dokument darin: Ein eingebettetes
+> Python-Fragment endet auf `PY`, und genau dieser Terminator kollidiert mit dem Here-Dokument der
+> Shell, die es einbettet.
+
+#### Was tatsächlich trägt
+
+**Schreib die Datei mit dem Datei-Werkzeug, nicht mit der Shell.** Dann gibt es weder Substitution
+noch Terminator, weil kein Shell-Parser den Text je sieht:
+
+```
+Write(file_path="/work/tmp/kommentar.md", content="...")
+gh pr comment 486 --body-file /work/tmp/kommentar.md
+```
+
+**Und lies zurück, was angekommen ist** — die Erfolgsmeldung belegt es nicht:
+
+```bash
+gh api repos/silentspike/rota/issues/comments/<id> -q .body | head
+```
+
+Am 2026-08-06 sind beide Fassungen des Fehlers an einem Abend aufgetreten, im Abstand von zehn
+Minuten: erst die Backticks in einem Kommentar, der zwei Dateinamen nennen sollte, dann der
+Terminator beim Aufschreiben eben dieses Befunds.
