@@ -888,6 +888,39 @@ export class Combat {
     return this.bossEnergyValue;
   }
 
+  /**
+   * Die acht Schadensfaktoren, wie sie gerade stehen (Issue #425).
+   *
+   * # Wozu ein Lesezugriff, den das Spiel nicht braucht
+   *
+   * Damit ein Prüffall je Topf messen kann, ob ein Aufbau ihn wirklich füllt.
+   * Über den Schaden geht das nicht: Der sagt, DASS etwas fehlt, nie WELCHES —
+   * und genau diese Unterscheidung ist der Zweck von #425.
+   *
+   * **Für einen EINZELNEN Faktor bleibt der Schaden der bessere Nachweis**
+   * (so gebaut in #417 und #433): Er belegt, dass der Wert ankommt, nicht nur
+   * dass er berechnet wurde. Dieser Zugriff beantwortet die andere Frage —
+   * „welcher Eingang wurde nie gefüllt" — und sollte nicht zum allgemeinen Weg
+   * werden, Faktoren zu prüfen.
+   *
+   * # Warum `DamageFactors` und nicht der interne Typ
+   *
+   * `this.factors` ist `MutableFactors` — dieselbe Form mit abgestreiften
+   * `readonly`-Markierungen, damit `setDamageFactor` schreiben kann. Gäbe
+   * dieser Zugriff sie unverändert heraus, könnte jeder Aufrufer von außen
+   * hineinschreiben (`combat.damageFactors.essence = 99`) — ein Loch in der
+   * Determinismus-Zusicherung, aufgerissen ausgerechnet von dem Zugriff, der
+   * sie prüfen soll.
+   *
+   * **Der Typ, nicht eine Kopie.** Eine Kopie schützte auch gegen Absicht,
+   * kostete aber ein Objekt je Aufruf, und GAME-DESIGN 18.2 verbietet
+   * Erzeugung im laufenden Bild. Wer die Markierung mit `as` umgeht, tut das
+   * sichtbar — derselbe Schutzgrad wie bei `SpellIndex`.
+   */
+  get damageFactors(): DamageFactors {
+    return this.factors;
+  }
+
   /** Wie oft die Energieleiste ausgelöst hat. */
   /** PRUEF-ZUGANG, erscheint nicht (Issue #294): Boss-Innenleben. */
   get bossEnergyTriggers(): number {
