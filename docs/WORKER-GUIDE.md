@@ -3149,3 +3149,48 @@ Sekunden tickt, während Stapel ablaufen, rechnet mit einer sinkenden Verwundbar
 
 Das ist eine Spielmechanik, keine Implementierungsfrage: Wer Stapel aufbaut und dann einen langen
 DoT legt, verliert den Bonus, während er läuft.
+
+### 8.39 Eine Zusicherung, die anschlägt, ist zuerst ein Befund über die Daten
+
+Der Bau bricht ab. Die Meldung nennt eine Bedingung, die nicht erfüllt ist. Die naheliegende Reaktion
+ist, die Bedingung zu lockern — sie steht ja im Weg.
+
+**An einem Abend ist das dreimal passiert, und dreimal war die Zusicherung im Recht.**
+
+| Fall                  | Die Meldung                                      | Was der erste Reflex war         | Was tatsächlich falsch war                           |
+| --------------------- | ------------------------------------------------ | -------------------------------- | ---------------------------------------------------- |
+| `consumesAll`         | (keine — es fehlte scheinbar)                    | das Feld entfernen               | **die Messung**, mit der es gesucht wurde            |
+| Reihenfolge-Wächter   | „Position 5: erwartet quench"                    | eine Zweitdatei anlegen          | **die Regel** dahinter, seit einem Monat             |
+| `resourceGainPerTick` | „nennt 0 Ressourcen; Schritt 1 kennt genau eine" | `object.len() <= 1` statt `== 1` | **die Daten**: ein leeres `{}` statt gar keinem Feld |
+
+Der dritte ist der lehrreichste, weil die Lösung **keine Zeile Code** kostete:
+
+```rust
+// sim/build.rs
+let Some(map) = node.get(field) else { return 0; };   // fehlendes Feld: erlaubt
+assert_eq!(object.len(), 1, ...);                     // vorhandenes Feld: geprüft
+```
+
+Ein DoT ohne Ressource lässt das Feld **weg**. Ein leeres Objekt ist etwas anderes als kein Objekt —
+es sagt „hier steht eine Liste, sie ist leer", und die Zusicherung nimmt das beim Wort.
+
+#### Die Reihenfolge, die trägt
+
+1. **Sind die Daten richtig?** Eine Zusicherung beschreibt, was gelten soll. Wenn sie anschlägt, ist
+   die erste Vermutung, dass die neuen Daten es verletzen — nicht, dass sie zu streng ist.
+2. **Gibt es einen Weg, der sie erfüllt?** Oft ja, und oft ist er kürzer als die Lockerung.
+3. **Erst dann:** Ist die Zusicherung selbst überholt? Dann gehört sie geändert — mit derselben
+   Sorgfalt wie ihre Einführung, und mit einer Rückfrage, wenn sie jemand bewusst gesetzt hat.
+
+#### Woran man erkennt, dass Schritt 3 wirklich dran ist
+
+Die Zusicherung trägt fast immer einen Kommentar, der sagt, **wovor** sie schützt. Hier:
+
+> Ein Zauber, der eine unbekannte Ressource füllt, wäre im Simulator sonst eine stille Null.
+
+Dieser Schutz muss nach der Änderung noch stehen. Lockert man `== 1` zu `<= 1`, bleibt er erhalten —
+das war ein vertretbarer Vorschlag. Nur war er nicht nötig, und eine Zusicherung ohne Not zu
+lockern kostet beim nächsten Mal den Schutz, den man diesmal noch mitgedacht hat.
+
+> **Der Anlass, bei dem es teuer wird:** Wer die Bedingung ändert, damit _sein_ Fall durchgeht, hat
+> danach keinen Anlass mehr zu prüfen, ob sie den nächsten noch fängt.
