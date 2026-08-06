@@ -3352,3 +3352,102 @@ unterscheidet einen Nachweis von einer plausiblen Bewegung.
 > alle mit Kommentar, alle messen die Wirkung separat. Der Befund schlägt heute nirgends zu. Ein
 > Issue darüber hätte eine Arbeit ausgelöst, die es nicht gibt — dieselbe Form wie #492, wo die
 > Messung fehlte und zwei Berichte zurückgenommen werden mussten.
+
+### 8.43 Eine wahre und nutzlose Prüfung meldet sich nie
+
+Ein Prüffall sollte belegen, dass eine Verstärkung den Schutzwert hebt. Er verglich den Höchststand
+aus einem Verlauf — und der Verlauf war leer, weil `replay(…, false)` ihn nicht füllt.
+
+```
+mit > ohne     →     0 > 0     →     falsch     →     Fall rot? Nein.
+```
+
+Der Fall prüfte `assert!(mit > ohne)`. Bei 0 gegen 0 ist das nicht erfüllt, also **wäre** er rot
+geworden. Die gefährliche Variante ist die andere Richtung — hätte der Fall `assert!(mit >= ohne)`
+oder eine Ungleichung mit umgekehrtem Vorzeichen getragen, wäre er **grün** gewesen und hätte
+belegt, dass null nicht größer als null ist.
+
+> Eine **falsche** Prüfung wird irgendwann rot. Eine **wahre und nutzlose** nie — sie hat keinen
+> Zustand, in dem sie sich meldet.
+
+#### Woran man sie erkennt
+
+Die Formulierung von Worker-2, nachdem sein Fall gefangen wurde:
+
+> **Die Zahl hat einen Zustand, in dem sie falsch wird. Die Richtung hat ihn nicht.**
+
+Das ist der ganze Unterschied zwischen
+
+```rust
+assert!(mit > ohne);                     // erfüllt, sobald sich irgendetwas bewegt
+assert_eq!(mit, 50, "…: {mit} statt 50"); // erfüllt nur bei genau dieser Rechnung
+```
+
+Die erste Fassung ist gegen **jede** Änderung immun, die den Wert irgendwie anhebt — auch gegen die
+falsche. Die zweite bricht bei jeder, und das ist ihr Zweck.
+
+#### Der Preis, und warum er sich lohnt
+
+Eine festgenagelte Zahl bricht auch, wenn jemand die Balance ändert. Das ist kein Nachteil, sondern
+die Meldung: _Hier hing eine Messung dran._ Wer sie anpasst, sieht wenigstens, dass er es tut.
+
+> **Der Anlass, bei dem es teuer wurde:** Der Fall lief nicht in eine falsche Rechnung, sondern in
+> einen leeren Verlauf. Kein Wert war falsch — es gab keinen. Nur die festgenagelte 25 hat es
+> aufgedeckt.
+
+---
+
+### 8.44 Wer eine Datendatei anfasst, hat beide Seiten geändert
+
+`data/spells/calcination.json` ist keine TypeScript-Datei und keine Rust-Datei. Sie ist die **Quelle
+für beide**: `sim/build.rs` erzeugt daraus Rust-Konstanten, `src/core/data.ts` liest sie zur Laufzeit.
+
+Eine Sitzung änderte darin einen `unlockLevel` und prüfte:
+
+```
+npm run build · npm run lint · npx vitest run
+```
+
+Alles TypeScript, alles grün. Die Rust-Seite wurde nie gefahren — und dort stand ein Wächter rot, der
+zählt, wie viele Zauber zu Schritt 1 gehören. Er fand vier statt drei.
+
+> Der Satz, mit dem die Sitzung es selbst einordnete:
+>
+> **„Ich habe die Kette gefahren, die zu MEINER Änderung passte, nicht die, die zur betroffenen
+> FLÄCHE passte."**
+
+#### Dieselbe Form, eine Ebene höher
+
+Am selben Tag war schon einmal die falsche Kette gelaufen: `vite build` statt `npm run build`. Das
+war der falsche **Befehl**. Hier ist es die falsche **Sprache** — und die ist schwerer zu bemerken,
+weil die Datei keiner von beiden angehört.
+
+```
+geändert:      eine .json
+gefahren:      die TypeScript-Kette
+betroffen:     TypeScript UND Rust
+```
+
+#### Die Prüffrage vor dem Melden
+
+> **Wer liest diese Datei außer mir?**
+
+Bei `.ts` und `.rs` ist die Antwort meist „meine Sprache". Bei allem unter `data/` ist sie **immer**
+„beide" — das ist der Zweck des Verzeichnisses. Dasselbe gilt für `tests/parity/recordings/`, die von
+beiden Seiten gelesen werden.
+
+#### Eine Erklärung, die bequem war und nicht stimmte
+
+Der rote Wächter wurde zunächst damit erklärt, er liege in `src/` und laufe „nur mit `--lib`". Das
+klang plausibel und machte ihn zum Sonderfall. **Gemessen war es falsch:**
+
+```
+cargo test --no-fail-fast
+  Zeile 79   Running unittests src/lib.rs      ← läuft mit
+```
+
+Die gewöhnliche Zeile fährt ihn. Die Erklärung hat niemand nachgemessen, bevor sie weitergereicht
+wurde — und sie verdeckte die eigentliche Frage: _Wurde `cargo test` überhaupt gefahren?_
+
+> Eine Erklärung, die den Fehler zu einem Sonderfall des Werkzeugs macht, ist bequemer als eine, die
+> nach der Arbeitsweise fragt. Genau deshalb gehört sie gemessen, bevor sie weitergegeben wird.
