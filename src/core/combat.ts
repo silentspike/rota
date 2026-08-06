@@ -130,11 +130,30 @@ export const NOT_ACTIVE = -1;
 // Der Simulator führt dieselben drei Werte in `fight.rs`; die Prüfsumme je
 // Takt hält beide Seiten zusammen.
 
-/** Wie viele Stapel höchstens gleichzeitig liegen. Wird gemessen. */
+/** Wie viele Stapel höchstens gleichzeitig liegen. Wird gemessen (#118). */
 export const MAX_DECAY_STACKS = 5;
 
-/** Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht. Wird gemessen. */
-export const DECAY_STACK_PERCENT = 3;
+/**
+ * Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht.
+ *
+ * **Entschieden, nicht offen** — Issue #224, 2026-08-05. Bis Issue #482 stand
+ * hier 3 mit dem Vermerk „Wird gemessen"; die Messung hatte längst
+ * stattgefunden, nur die Umsetzung fehlte.
+ *
+ * # Warum 6 und nicht 3
+ *
+ * GAME-DESIGN 221 rechnet es vor: Der Break-even, ab dem sich der Platz auf
+ * der Leiste überhaupt rechnet, liegt bei **5,4 %** je Stapel. Mit 3 % bliebe
+ * PUTREFACTION **nie** die beste Wahl — und das ist etwas anderes als „allein
+ * gespielt schwach", was das Design über die Schule sagt.
+ *
+ * # Der Wert steht auf BEIDEN Seiten
+ *
+ * `DECAY_STACK_PERCENT` in `sim/src/fight.rs` trägt dieselbe Zahl. Laufen sie
+ * auseinander, meldet es die Prüfsumme ab dem ersten Takt, in dem ein Stapel
+ * liegt — vier Aufzeichnungen kommen dorthin.
+ */
+export const DECAY_STACK_PERCENT = 6;
 
 /**
  * Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhöht
