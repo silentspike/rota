@@ -46,7 +46,7 @@
         "group": "spells",
         "count": 42,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten. WISP hat seinen Klang seit Issue #480 und SCAB seit #481 — deshalb 42 statt 44."
+        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE, NICHT ZAUBER (Issue #512). 42 = 60 Ziel minus 18 vorhandene Eintraege in der Gruppe 'spells' dieser Datei — nachzusehen an 'present' zwei Zeilen darueber, ohne eigene Messung.\n\nWARUM DAS HIER STEHT: Bis #512 erklaerte dieser Text die Zahl mit AUSGEARBEITETEN ZAUBERN ('von den 60 Zaubern sind zehn ausgearbeitet'). Das ist eine ANDERE GROESSE: Ein Zauber kann ausgearbeitet sein und noch keinen Klang haben. Gemessen am 2026-08-07 sind es 18 Klang-Eintraege gegen 18 spielbare Zauber — heute gleich, aber aus zwei verschiedenen Quellen, und zwischenzeitlich standen 16 gegen 17.\n\nWAS FEHLT UND WARUM: Namen, Schulen und Wirkung der uebrigen Zauber stehen in GAME-DESIGN 22 als noch nicht ausgeplant (Katalog-Vorhaben E10). Ein Klang-Slot ohne Zauber waere geraten.\n\nWER DIESE ZAHL AENDERT, aendert 'present' mit — ihre Summe muss 'target' ergeben, und genau das prueft src/audio/manifest.ts. Den Text hier prueft NICHTS: Er ist Prosa, und ein falsches Textfeld wird nie rot."
       },
       {
         "group": "music",
