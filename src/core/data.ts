@@ -1868,6 +1868,21 @@ export interface TalentDef {
   readonly damagePerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
+  /**
+   * Welches **Verhalten** dieses Talent umschaltet, oder `null` (Issue #418).
+   *
+   * **Das ist die Nicht-Zahl.** Die drei Wege aus GAME-DESIGN 12.5 tragen
+   * alle `damagePerRankPerMille` — sie erhöhen Zahlen. Ein Schlüsseltalent
+   * ändert stattdessen, WAS geschieht: GAME-DESIGN 13.09 nennt als Beispiel
+   * „Der Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+   * ZWEIMAL".
+   *
+   * Ein Schlüsseltalent, das sich als Faktor ausdrücken ließe, wäre keines —
+   * es wäre ein Faktor mit einem großen Namen. Der Nachweis dafür ist der
+   * Gegenfall: Ohne das Talent muss sich der Lauf in der **Reihenfolge** oder
+   * im **Verbrauch** unterscheiden, nicht nur in der Schadenszahl.
+   */
+  readonly keystone: string | null;
 }
 
 /**
@@ -1909,6 +1924,16 @@ export const TALENTS: readonly TalentDef[] = (() => {
             'Ein Talent, das schwächer macht, ist keines.',
         );
       }
+      // **Ein Verhalten hat keine Ränge.** Es ist an oder aus — „zur Hälfte
+      // verbraucht der Entlade-Zauber nur die halbe Hitze" ergibt keinen Sinn.
+      // Die Prüfung steht hier und nicht im Kampf, weil ein zweiter Rang dort
+      // stillschweigend wie der erste wirkte.
+      if (typeof t['keystone'] === 'string' && maxRanks !== 1) {
+        throw new Error(
+          `data/player/talents.json: "${id}" schaltet ein Verhalten um und hat ` +
+            `${maxRanks} Ränge. Ein Verhalten ist an oder aus — maxRanks muss 1 sein.`,
+        );
+      }
       alle.push({
         id,
         name: typeof t['name'] === 'string' ? t['name'] : id,
@@ -1916,6 +1941,7 @@ export const TALENTS: readonly TalentDef[] = (() => {
         maxRanks,
         damagePerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
+        keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });
     }
   }
