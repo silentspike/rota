@@ -1207,10 +1207,22 @@ fn emit_player(out: &mut String, player: &Value) {
          der Spieler unverwundbar, darueber wuerde ihn Schaden heilen"
     );
 
+    // Der Balance-Deckel auf die Minderung (Issue #466). Er gilt fuer die
+    // Minderung INSGESAMT — Basis plus Ausruestung —, und ein Deckel unter der
+    // Basis waere keine Grenze, sondern eine Absenkung: Ausruestung minderte
+    // dann weniger als gar keine.
+    let ward_cap = uint(player, "wardCapPermille", whose);
+    assert!(
+        ward_cap as f64 > ward * 1000.0,
+        "{whose}: wardCapPermille {ward_cap} muss ueber der Basis wardReduction \
+         ({} Promille) liegen — sonst mindert Ausruestung weniger als keine",
+        ward * 1000.0
+    );
+
     let _ = writeln!(out, "/// Die Grundwerte des Spielers aus `data/player/`.");
     let _ = writeln!(
         out,
-        "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?} }};\n"
+        "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?}, ward_cap_permille: {ward_cap} }};\n"
     );
 }
 
