@@ -77,7 +77,7 @@ export interface BuffDef {
    * Punktegewinn eine auf den Schaden nicht verdrängen, auch wenn beide
    * dieselbe Art tragen (GAME-DESIGN 328).
    */
-  readonly target?: 'damage' | 'control' | 'resource' | 'tick' | 'stack';
+  readonly target?: 'damage' | 'control' | 'resource' | 'tick' | 'stack' | 'cdreduce' | 'convert';
 }
 
 /** Ein Entlade-Zauber: verbraucht den Vorrat und schlägt entsprechend zu. */
@@ -806,7 +806,7 @@ function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | u
     return undefined;
   }
   const ziel = raw['target'];
-  const ZIELE = ['damage', 'control', 'resource', 'tick', 'stack'] as const;
+  const ZIELE = ['damage', 'control', 'resource', 'tick', 'stack', 'cdreduce', 'convert'] as const;
   if (ziel !== undefined && !ZIELE.includes(ziel as (typeof ZIELE)[number])) {
     // **Abbrechen statt durchreichen.** Eine unbekannte Zielgröße landete
     // sonst im Schadens-Speicher, und der Zauber wirkte auf etwas anderes

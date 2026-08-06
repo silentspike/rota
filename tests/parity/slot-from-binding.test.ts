@@ -1,70 +1,163 @@
 import { describe, expect, it } from 'vitest';
+import { handvergebenePlaetze } from './slot-from-binding.js';
 
 /**
- * Keine Platzangabe entsteht aus einem Vergleich mit einem Zauber (Issue #405).
+ * Keine Platzangabe entsteht aus einem Vergleich mit einem Zauber
+ * (Issue #405), und der Wächter unterscheidet dabei **Vergeben** von
+ * **Lesen** (Issue #488).
  *
- * # Warum drei Muster und nicht eines
+ * # Was #488 an dieser Prüfung berichtigt hat
  *
- * Die elf Stellen trugen ihre Zahl in drei Schreibweisen, und ein `grep` nach
- * `slot: <Ziffer>` fand nur die erste:
+ * Die erste Fassung suchte mit drei regulären Ausdrücken. Einer davon,
+ * `/const platz\s*=/`, traf die Zuweisung statt die Herkunft des Werts — und
+ * beanstandete damit auch eine Zeile, die einen bestehenden Platz **liest**.
+ * Gefunden hat ihn der Autor des Wächters am eigenen Wächter, beim Bau der
+ * Fixations-Aufzeichnung.
  *
- * ```
- * presses.push({ tick, slot: 3 })                       acht Stellen
- * presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 })   eine
- * const platz = gewaehlt === kindle ? 0 : … ? 1 : 3     zwei
- * ```
+ * Er hat die Stelle damals umgeschrieben, damit der Wächter schweigt. Das ist
+ * die Reihenfolge, gegen die #488 sich richtet: **Der Wächter hatte sich
+ * durchgesetzt, statt berichtigt zu werden.** AC3 unten hält fest, dass die
+ * ursprüngliche Form wieder durchgeht.
  *
- * Das Kriterium ist deshalb nicht die Schreibweise, sondern: **Entsteht der
- * Platz aus einem Vergleich mit einem Zauber?**
+ * # Warum die Gegenprobe hier mehr wiegt als sonst
  *
- * # Eine Suche, die nichts findet, belegt erst etwas, wenn sie etwas finden kann
- *
- * Der zweite Fall setzt die drei Formen testweise wieder ein und prüft, dass
- * jede gemeldet wird. Ohne ihn wäre der erste grün, sobald jemand das Muster
- * kaputtmacht.
+ * Die naheliegende Behebung — mehr Bedingungen ans Muster — kann den Wächter
+ * blind machen, ohne dass es auffällt: Er ist dann grün, und grün sieht aus
+ * wie in Ordnung. Deshalb steht unter AC2 jede Form, die er finden **muss**,
+ * neben jeder, bei der er schweigen muss.
  */
 
-const QUELLE = import.meta.glob('/tests/parity/payloads.ts', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
+/** Was der Wächter melden MUSS. */
+const MUSS_MELDEN: ReadonlyArray<readonly [string, string]> = [
+  ['Zahl beim Aufzeichnen', 'presses.push({ tick, slot: 3 });'],
+  ['Vergleich beim Aufzeichnen', 'presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });'],
+  ['Vergleich in Variable', 'const platz = gewaehlt === kindle ? 0 : 3;'],
+  ['Vergleich in Variable', 'const platz = gewaehlt === kindle ? 0 : gewaehlt === pyre ? 1 : 3;'],
+  // **Die Lücke, die der Orchestrator beim Nachmessen gefunden hat.** Die
+  // Bedingung ist ausgelagert, es steht kein `===` in der Zeile — und es ist
+  // dieselbe Handvergabe. Ein erster Entwurf verlangte den Vergleich in der
+  // Bedingung und ließ genau das durch.
+  ['Vergleich in Variable', 'const platz = istErster ? 0 : 3;'],
+];
 
-/** Die drei Formen, in denen eine Platzangabe von Hand entstehen kann. */
-const MUSTER = [/presses\.push\(\{\s*tick,\s*slot:\s*\d/, /slot:\s*\w+ ===/, /const platz\s*=/];
+/** Wobei er SCHWEIGEN muss — jede Zeile mit dem Grund. */
+const MUSS_SCHWEIGEN: ReadonlyArray<readonly [string, string]> = [
+  ['liest einen bestehenden Platz', 'const platz = presses[naechster]!.slot;'],
+  [
+    'eine Tastenbelegung DEFINIERT Plätze',
+    "const b = [{ slot: 0, key: 'q' }, { slot: 1, key: 'w' }];",
+  ],
+  ['leitet den Platz korrekt ab', 'presses.push({ tick, slot: slotFor(spells, idx) });'],
+  [
+    'sucht ÜBER den Platz, vergibt keinen',
+    'const id = bindings.find((b) => b.slot === eintrag.slot);',
+  ],
+];
 
-function quelle(): string {
-  const text = Object.values(QUELLE)[0];
-  if (text === undefined || text.length < 1000) {
-    throw new Error('payloads.ts nicht geladen — die Prüfung würde nichts messen');
-  }
-  return text;
-}
-
-function treffer(text: string): string[] {
-  return text
-    .split('\n')
-    .map((zeile, i) => ({ zeile: zeile.trim(), nummer: i + 1 }))
-    .filter(({ zeile }) => MUSTER.some((m) => m.test(zeile)))
-    .map(({ zeile, nummer }) => `${nummer}: ${zeile.slice(0, 60)}`);
-}
-
-describe('AC1 — kein Platz entsteht aus einem Vergleich mit einem Zauber', () => {
-  it('findet keine der drei Formen', () => {
-    expect(treffer(quelle()), 'diese Stellen setzen den Platz von Hand').toEqual([]);
+describe('AC1 — der Wächter trifft Vergeben und nicht Lesen', () => {
+  it.each(MUSS_MELDEN)('meldet (%s): %s', (_art, zeile) => {
+    expect(handvergebenePlaetze(zeile), 'nicht gemeldet').not.toHaveLength(0);
   });
 
-  it('und würde jede finden, wenn sie wiederkäme', () => {
-    // **Ohne diesen Fall belegt der erste nichts.** Eine Suche, die nichts
-    // findet, kann ebenso gut kaputt sein — das ist die Klasse, die uns heute
-    // mehrfach begegnet ist.
-    const wieder = [
+  it.each(MUSS_SCHWEIGEN)('schweigt, weil es %s: %s', (_grund, zeile) => {
+    expect(handvergebenePlaetze(zeile), 'Fehlalarm').toHaveLength(0);
+  });
+});
+
+describe('AC2 — die Gegenprobe: er hat das Problem nicht abgeschafft', () => {
+  it('findet nach der Verschärfung noch JEDE der drei ursprünglichen Formen', () => {
+    // **Der Kern der Auflage.** Ein Wächter, der nach der Verschärfung nichts
+    // mehr meldet, wäre grün — und grün sieht aus wie in Ordnung. Diese drei
+    // Formen sind die aus #405, wörtlich.
+    const urspruenglich = [
       'presses.push({ tick, slot: 3 });',
       'presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });',
       'const platz = gewaehlt === kindle ? 0 : 3;',
     ];
-    for (const zeile of wieder) {
-      expect(treffer(zeile), `nicht gemeldet: ${zeile}`).toHaveLength(1);
+    for (const zeile of urspruenglich) {
+      expect(handvergebenePlaetze(zeile), `verloren gegangen: ${zeile}`).toHaveLength(1);
     }
+  });
+
+  it('und meldet alle drei auch, wenn sie zusammen in einer Datei stehen', () => {
+    // Einzeln geprüft könnte jede Form für sich funktionieren und im
+    // Zusammenspiel doch nur eine gemeldet werden — etwa wenn der Durchlauf
+    // beim ersten Fund abbräche.
+    const zusammen = [
+      'export function bauen(presses, gewaehlt, kindle, quench) {',
+      '  presses.push({ tick, slot: 3 });',
+      '  presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });',
+      '  const platz = gewaehlt === kindle ? 0 : 3;',
+      '  return platz;',
+      '}',
+    ].join('\n');
+    expect(handvergebenePlaetze(zusammen)).toHaveLength(3);
+  });
+});
+
+describe('Die nachgereichte Lücke — ausgelagerte Bedingung (Nachmessung 3152)', () => {
+  it('findet die Handvergabe auch ohne === in der Zeile', () => {
+    // Wortlaut der Einschleusung des Orchestrators.
+    const seine = ['const istErster = true;', 'const platzOrch = istErster ? 0 : 3;'].join('\n');
+    const funde = handvergebenePlaetze(seine);
+    expect(funde, 'rutscht durch — die Bedingung muss nicht === sein').toHaveLength(1);
+    expect(funde[0]?.zeile, 'meldet die falsche Zeile').toBe(2);
+  });
+
+  it('und die vier Schweigefälle bleiben trotzdem still', () => {
+    // **Der Preis der Verschärfung, gemessen statt vermutet.** Beim ersten
+    // Entwurf kostete eine Lockerung 41 Fehlalarme; diese hier kostet keinen.
+    for (const [grund, zeile] of MUSS_SCHWEIGEN) {
+      expect(handvergebenePlaetze(zeile), `Fehlalarm (${grund})`).toHaveLength(0);
+    }
+  });
+});
+
+describe('AC3 — die umgestellte Stelle geht in ihrer ursprünglichen Form durch', () => {
+  it('const platz = presses[naechster]!.slot — Lesen, kein Vergeben', () => {
+    // **Sonst hätte sich der Wächter durchgesetzt, statt berichtigt zu
+    // werden.** Genau diese Zeile wurde wegen des Fehlalarms umgeschrieben.
+    expect(handvergebenePlaetze('const platz = presses[naechster]!.slot;')).toEqual([]);
+  });
+
+  it('auch mit anderem Variablennamen und in einer Schleife', () => {
+    const echt = [
+      'for (let i = 0; i < presses.length; i++) {',
+      '  const platz = presses[i]!.slot;',
+      '  const naechsterPlatz = presses[i + 1]?.slot ?? platz;',
+      '  benutze(platz, naechsterPlatz);',
+      '}',
+    ].join('\n');
+    expect(handvergebenePlaetze(echt)).toEqual([]);
+  });
+});
+
+describe('AC4 — die Meldung nennt, welche Form gefunden wurde', () => {
+  it.each(MUSS_MELDEN)('nennt die Art %s', (art, zeile) => {
+    const [fund] = handvergebenePlaetze(zeile);
+    expect(fund?.art, 'die Meldung sagt nicht, welche Form es ist').toBe(art);
+  });
+
+  it('und nennt die Zeilennummer, nicht nur die Datei', () => {
+    // Ohne Zeilennummer muss der Nächste die Stelle selbst suchen — bei über
+    // 3000 Zeilen ist das der Unterschied zwischen Hinweis und Rätsel.
+    const text = ['// eins', '// zwei', 'presses.push({ tick, slot: 3 });'].join('\n');
+    expect(handvergebenePlaetze(text)[0]?.zeile).toBe(3);
+  });
+});
+
+describe('Die Quelle selbst ist frei davon (die eigentliche Aussage)', () => {
+  it('payloads.ts enthält keine handvergebene Platzangabe', async () => {
+    const roh = (await import('./payloads.ts?raw')).default as string;
+    expect(
+      roh.length,
+      'payloads.ts nicht geladen — die Prüfung würde nichts messen',
+    ).toBeGreaterThan(1000);
+
+    const funde = handvergebenePlaetze(roh, 'payloads.ts');
+    expect(
+      funde.map((f) => `${f.zeile}: [${f.art}] ${f.text}`),
+      'diese Stellen setzen den Platz von Hand, statt ihn aus der Belegung abzuleiten',
+    ).toEqual([]);
   });
 });
