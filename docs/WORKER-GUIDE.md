@@ -2817,6 +2817,31 @@ Zu lernen ist der Auslöser:
 Drei Wege wurden vorgeschlagen, alle drei technisch gangbar. Keiner war nötig. Die zehn Minuten
 Messung standen gegen einen Umbau, der jede Schule auf zwei Dateien verteilt hätte.
 
+#### Die schärfere Fassung, von dem, der die Regel zuletzt angefasst hat
+
+Die vier Kommentarblöcke, die den fachlichen Ort verboten, stammen aus **#408 — vom selben Tag,
+sechs Stunden vorher**, aus einer der drei Sitzungen, die abends dagegenliefen. Deren eigene
+Einordnung, unverändert:
+
+> Ich habe damals gemessen, dass „hinten" mehrdeutig ist, und die Regel präzisiert: hinten in der
+> GESAMTLISTE, nicht in der Schuldatei. Das war richtig für die Regel, wie sie dastand. Nur war die
+> Regel selbst schon hinfällig.
+>
+> Ich habe die Formulierung präzisiert, den Prüffall dazu gebaut, den Wächter gegengeprobt — und
+> dabei nie gefragt, ob das Verbot überhaupt noch etwas schützt.
+>
+> **Eine falsche Regel schärfer zu machen ist schlimmer, als sie zu umgehen — die Umgehung fällt
+> auf, die Schärfung sieht aus wie Sorgfalt und macht den Irrtum haltbarer.**
+
+Das setzt früher an als die Regel oben. Wer eine Regel umgeht, weiß, dass er ihr ausweicht, und
+jemand fragt nach. Wer sie präzisiert, produziert Prüffälle, Gegenproben und Kommentare, die alle
+zutreffen — und befestigt damit genau das, was hätte fallen sollen. **Der Aufwand, den er
+hineinsteckt, ist das, was den Irrtum schwerer entfernbar macht.**
+
+Der praktische Auslöser ist derselbe wie oben, nur einen Schritt früher: Wenn du dabei bist, eine
+Regel zu **schärfen**, hast du sie gerade gelesen und verstanden. Das ist der günstigste Moment,
+den es je geben wird, um zu prüfen, ob ihre Begründung noch trägt.
+
 #### Die zweite Hälfte: eine Begründung altert schweigend
 
 Der Wächter war zum Zeitpunkt seines Baus **bereits überholt**. Niemand hat ihn falsch gebaut — die
