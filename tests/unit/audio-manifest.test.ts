@@ -108,6 +108,85 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
       expect(known.has(file), `${file} liegt im Ordner, steht aber in keinem Eintrag`).toBe(true);
     }
   });
+
+  // ------------------------------------------------------------------
+  // Die Gegenrichtung — Issue #204
+  //
+  // „Keine Waisen" oben fängt die eine Richtung: eine Datei ohne Eintrag.
+  // Die andere fiel bis heute nirgends auf. Ein Eintrag ohne Datei ist
+  // still in der Prüfung UND still im Spiel: `src/audio/library.ts` fängt
+  // den Ladefehler ab, der Zauber wird gewirkt, es passiert kein Klang.
+  //
+  // Gemessen am 2026-08-05 waren so **neun** Zauber stumm, ohne dass ein
+  // einziger Prüffall etwas sagte. Wer COAGULATION oder FIXATION spielte,
+  // hörte seine halbe Leiste nicht und hielt es für Absicht.
+  // ------------------------------------------------------------------
+
+  /** Welche Einträge verweisen auf eine Datei, die es nicht gibt? */
+  function eintraegeOhneDatei(manifest: Manifest, vorhanden: ReadonlySet<string>): string[] {
+    const fehlend: string[] = [];
+    for (const sound of manifest.sounds) {
+      // Vorläufige Einträge sind ausgenommen — sie sagen selbst, dass die
+      // Datei fehlt, und zählen nicht zur Abdeckung. Ohne diese Ausnahme
+      // schlüge der Wächter beim nächsten Platzhalter an und würde dann
+      // entschärft; danach wäre er weg.
+      if (sound.provisional) continue;
+      for (const file of [sound.file, sound.attackFile, sound.bodyFile, sound.releaseFile]) {
+        if (typeof file === 'string' && !vorhanden.has(`/assets/${file}`)) {
+          fehlend.push(`${sound.id} -> ${file}`);
+        }
+      }
+    }
+    return fehlend;
+  }
+
+  it('führt keinen Eintrag ohne Datei', () => {
+    expect(eintraegeOhneDatei(SOUND_MANIFEST, new Set(ASSET_FILES))).toEqual([]);
+  });
+
+  it('würde einen Eintrag ohne Datei auch finden', () => {
+    // Ohne diesen Fall wäre oben nicht zu unterscheiden, ob nichts fehlt
+    // oder ob die Prüfung nichts sieht. Eine Datei aus der Menge nehmen
+    // ist dasselbe, als wäre sie nie erzeugt worden.
+    const eine = SOUND_MANIFEST.sounds.find((sound) => sound.file && !sound.provisional);
+    expect(eine, 'kein Eintrag mit Datei — dann prüft der Wächter nichts').toBeDefined();
+    const ohne = new Set(ASSET_FILES.filter((file) => file !== `/assets/${eine!.file}`));
+    expect(eintraegeOhneDatei(SOUND_MANIFEST, ohne)).toEqual([`${eine!.id} -> ${eine!.file}`]);
+  });
+
+  it('nimmt vorläufige Einträge aus — auch das belegt', () => {
+    // Der Gegenfall zum Gegenfall: Ein Platzhalter darf den Wächter nicht
+    // auslösen, sonst steht er dem nächsten Manifest-Eintrag im Weg.
+    const platzhalter: Manifest = {
+      ...SOUND_MANIFEST,
+      sounds: [
+        {
+          id: 'spell-noch-nicht',
+          group: 'spells',
+          purpose: 'Platzhalter für diesen Prüffall',
+          kind: 'oneshot',
+          bus: 'sfx',
+          file: 'audio/spell-noch-nicht.ogg',
+          targetSeconds: 0.5,
+          prompt: 'placeholder',
+          provisional: 'Eintrag steht, Datei fehlt — Beispiel für diesen Prüffall.',
+        },
+      ],
+    };
+    expect(eintraegeOhneDatei(platzhalter, new Set(ASSET_FILES))).toEqual([]);
+
+    // Und ohne die Marke schlägt derselbe Eintrag an — sonst wäre nicht
+    // belegt, dass die Ausnahme greift und nicht etwas anderes.
+    // `provisional` wird entfernt, nicht auf `undefined` gesetzt: Der Typ
+    // lässt das nicht zu, und `npm run build` bricht daran ab, während
+    // `vitest` grün bleibt — es transpiliert ohne Typprüfung.
+    const ohneFeld = { ...platzhalter.sounds[0]! };
+    delete (ohneFeld as { provisional?: string }).provisional;
+    const ohneMarke: Manifest = { ...platzhalter, sounds: [ohneFeld] };
+    expect(eintraegeOhneDatei(ohneMarke, new Set(ASSET_FILES))).toEqual([
+      'spell-noch-nicht -> audio/spell-noch-nicht.ogg',
+    ]);
+  });
 });
 
 describe('parseManifest — Pruefung fehlerhafter Verzeichnisse', () => {
