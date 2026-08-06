@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { combatChecksum } from '../../src/core/checksum.js';
 import { KEYSTONE_SPLIT_SPENDER } from '../../src/progression/talents.js';
 
 /**
@@ -82,6 +83,49 @@ describe('AC2/AC3 — das Talent ändert den VERBRAUCH, nicht nur den Schaden', 
     const ohne = geladen();
     const mit = geladen(MIT_TALENT);
     expect(mit.resource, 'die beiden Läufe starten mit verschiedenem Vorrat').toBe(ohne.resource);
+  });
+});
+
+describe('AC5/AC6 — das Talent legt KEINEN Kampfzustand an, und das ist belegt', () => {
+  it('AC5 — die Prüfsumme bei Takt 0 ist mit und ohne Talent dieselbe', () => {
+    // **Belegt statt behauptet.** Das Talent führt keinen eigenen Zustand mit
+    // — `hasKeystone` leitet aus der Verteilung ab. Wäre es anders, müsste
+    // der Zustand in der Prüfsumme stehen (#240, angehängt), und dieser Fall
+    // wäre rot.
+    //
+    // Nach dem Wirken laufen die Prüfsummen selbstverständlich auseinander:
+    // Dann ist der VERBRAUCH verschieden, und genau das soll sie sehen.
+    const ohne = new Combat({ school: CALCINATION.value, boss: BOSS });
+    const mit = new Combat({ school: CALCINATION.value, boss: BOSS, talents: MIT_TALENT });
+
+    expect(
+      combatChecksum(mit, 0),
+      'die Prüfsumme unterscheidet sich schon vor dem ersten Wirken — dann ' +
+        'legt das Talent doch einen Zustand an, und der gehört angehängt',
+    ).toBe(combatChecksum(ohne, 0));
+  });
+
+  it('AC5 — nach dem Entladen sieht sie den Unterschied sehr wohl', () => {
+    // Der Gegenfall: Ohne ihn zeigte die Zeile oben nur, dass die Prüfsumme
+    // das Talent gar nicht bemerkt — auch dann nicht, wenn sie sollte.
+    const ohne = geladen();
+    const mit = geladen(MIT_TALENT);
+    ohne.cast(ohne.indexOf('pyre'), 20000);
+    mit.cast(mit.indexOf('pyre'), 20000);
+
+    expect(combatChecksum(mit, 20000)).not.toBe(combatChecksum(ohne, 20000));
+  });
+
+  it('AC6 — reset braucht nichts zurückzusetzen, weil nichts entsteht', () => {
+    // **Die Frage aus #349, die damals sechs Felder fand.** Hier gibt es
+    // keine: `hasKeystone` liest die Verteilung, und die überlebt ein
+    // `reset()` absichtlich — ein neuer Versuch behält seine Talente.
+    const c = geladen(MIT_TALENT);
+    c.cast(c.indexOf('pyre'), 20000);
+    c.reset();
+
+    expect(c.hasKeystone(KEYSTONE_SPLIT_SPENDER), 'das Talent ist nach reset weg').toBe(true);
+    expect(c.resource, 'der Vorrat ist nach reset nicht leer').toBe(0);
   });
 });
 
