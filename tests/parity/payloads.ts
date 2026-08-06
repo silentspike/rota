@@ -21,6 +21,7 @@ import {
   critChance,
   critFactor,
   gearEffectFactor,
+  NOTHING_WORN,
   type WornValues,
 } from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
@@ -2687,6 +2688,156 @@ export function synergyPayload(): Record<string, unknown> {
     seed: recording.seed,
     ticks: recording.ticks,
     tickMs: TICK_MS,
+    bindings: SYNERGY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      synergyUsed: result.synergyUsed,
+      synergyAvailable: result.synergyAvailable,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/** Der Name der Aufzeichnung, die Tempo und Synergie zusammenführt (Issue #456). */
+export const SYNERGY_HASTE_NAME = 'synergy-haste';
+
+/**
+ * Das Tempo dieser Aufzeichnung — und warum ausgerechnet dieser Wert.
+ *
+ * # Fast die Hälfte aller Werte taugt nicht
+ *
+ * `gcds × hasted(GCD)` und `hasted(gcds × GCD)` ergeben bei **499 von 1001**
+ * Promille-Werten dasselbe. Ausgerechnet, nicht geschätzt: über den ganzen
+ * Bereich, mit `hastedMs` aufgerufen statt nachgebaut.
+ *
+ * Wer einen Wert ohne diese Rechnung wählt, greift mit rund fünfzig Prozent
+ * Wahrscheinlichkeit daneben — und bekommt eine Aufzeichnung, die grün ist und
+ * nichts belegt. Bekannt waren 0, 376 und 500; die Zahl ist also nicht drei,
+ * sondern fast fünfhundert.
+ *
+ * Bei 300 ‰ unterscheiden sich beide Rechnungen: 2320 gegen 2310.
+ */
+const SYNERGY_HASTE_CATALYSIS = 300;
+
+/**
+ * Nur Tempo, sonst nichts.
+ *
+ * **Das ist der ganze Trick an dieser Aufzeichnung.** Nähme sie das volle
+ * `WORN_FOR_PARITY`, brächte sie Krit, Ertrag und Topf 4 mit — und bräche sie
+ * dann bei der alten Klammerung, bliebe offen, woran es lag. So ist der
+ * **einzige** Unterschied zur bestehenden `synergy-window.json` das Tempo.
+ */
+const WORN_FOR_SYNERGY_HASTE: WornValues = { ...NOTHING_WORN, catalysis: SYNERGY_HASTE_CATALYSIS };
+
+/**
+ * Eine Runde mit Tempo **und** offenem Synergie-Fenster (Issue #456, Schritt 2).
+ *
+ * # Warum keine bestehende Aufzeichnung das leistet
+ *
+ * Alle dreissig wurden durchgesehen. Zwei kommen nahe und keine trifft:
+ *
+ *   synergy-window.json   canker und fester auf der Leiste — aber kein `worn`
+ *   worn-values.json      catalysis 170 — aber die Leiste trägt kindle,
+ *                         smoulder, pyre, quench
+ *
+ * Jede Hälfte gibt es, nie zusammen. Deshalb konnten die beiden Seiten in
+ * Teil 1 verschieden klammern, ohne dass die Paritätsprüfung etwas sah: Sie
+ * vergleicht, was aufgezeichnet ist.
+ *
+ * # DER DRUCK BEI ZWEI WARTEZEITEN IST DER GANZE NACHWEIS
+ *
+ * Der Unterschied zwischen beiden Klammerungen ist **zehn Millisekunden** — bei
+ * 300 ‰ endet das Fenster neu bei 2320 und alt bei 2310. Ein Druck irgendwo im
+ * Fenster liegt bei **beiden** drin und zeigt gar nichts.
+ *
+ * Über den ganzen Lauf gibt es genau **einen** Takt, der nur im neuen Fenster
+ * liegt: `2 × GCD`, also 2320. Und das ist kein Zufall, sondern genau die
+ * Aussage der neuen Rechnung — das Fenster ist zwei **echte** Wartezeiten lang
+ * und endet deshalb exakt dann, wenn die zweite vorbei ist. Die alte Rechnung
+ * beschleunigt eine Doppellänge und verliert dabei durch Abrunden zehn
+ * Millisekunden; der Druck fällt heraus.
+ *
+ * Dieser eine Druck wird hier **gezielt gesetzt**, nicht dem Rhythmus
+ * überlassen. Eine Aufzeichnung, die ihn zufällig treffen müsste, wäre eine
+ * Aufzeichnung, die es meistens nicht tut.
+ */
+function recordSynergyHasted(ticks: number): Recording {
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: FIRST_CRUCIBLE.value,
+    worn: WORN_FOR_SYNERGY_HASTE,
+  });
+  const canker = combat.indexOf('canker');
+  const fester = combat.indexOf('fester');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, SYNERGY_BINDINGS, presses);
+
+  // Die beschleunigte Wartezeit. **Aus der Formel geholt, nicht abgeschrieben**
+  // — eine zweite Handrechnung liefe beim nächsten Nachziehen auseinander.
+  const gcd = hastedMs(GCD_MS, SYNERGY_HASTE_CATALYSIS);
+  const fensterEnde = 2 * gcd;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // CANKER öffnet das Fenster.
+    if (timeMs === 0) press(canker, tick, timeMs);
+    // **Der entscheidende Druck.** FESTER genau am Fensterende — im neuen
+    // Fenster drin, im alten zehn Millisekunden draussen. Bei `1 × gcd` wird
+    // bewusst nichts gewirkt: Ein Druck dort verbrauchte FESTER neun Sekunden
+    // lang und nähme diesem Takt seinen Zauber.
+    else if (timeMs === fensterEnde) press(fester, tick, timeMs);
+    // Danach der übliche Rhythmus, damit die Aufzeichnung Substanz hat und
+    // nicht nur aus dem einen Messpunkt besteht.
+    else if (timeMs > fensterEnde && combat.isOffCooldown(canker, timeMs)) {
+      press(canker, tick, timeMs);
+    } else if (timeMs > fensterEnde && combat.isOffCooldown(fester, timeMs)) {
+      press(fester, tick, timeMs);
+    }
+  }
+
+  return { name: SYNERGY_HASTE_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };
+}
+
+export function synergyHastePayload(): Record<string, unknown> {
+  const recording = recordSynergyHasted(3000);
+  const result = replayRecording(recording, {
+    checksumPerTick: true,
+    worn: WORN_FOR_SYNERGY_HASTE,
+  });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    // Nur `catalysis` weicht ab — die Rust-Seite baut daraus dasselbe `worn`.
+    worn: {
+      catalysis: WORN_FOR_SYNERGY_HASTE.catalysis,
+      purity: WORN_FOR_SYNERGY_HASTE.purity,
+      yieldBonus: WORN_FOR_SYNERGY_HASTE.yieldBonus,
+      essence: WORN_FOR_SYNERGY_HASTE.essence,
+      vessel: WORN_FOR_SYNERGY_HASTE.vessel,
+      ward: WORN_FOR_SYNERGY_HASTE.ward,
+      gearEffects: WORN_FOR_SYNERGY_HASTE.gearEffects,
+    },
+    // **Die Fensterlänge steht mit in der Datei**, und zwar beide Rechnungen.
+    // Sie ist der Grund für diese Aufzeichnung; sie nur implizit über die
+    // Prüfsumme zu vergleichen hiesse, den Nachweis zu verstecken.
+    synergyWindowMs: 2 * hastedMs(GCD_MS, SYNERGY_HASTE_CATALYSIS),
+    synergyWindowMsOldBracketing: hastedMs(2 * GCD_MS, SYNERGY_HASTE_CATALYSIS),
+    hastedGcdMs: hastedMs(GCD_MS, SYNERGY_HASTE_CATALYSIS),
     bindings: SYNERGY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {

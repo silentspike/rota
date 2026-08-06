@@ -57,6 +57,16 @@ import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
 // beschreibt. Gefunden beim Eintragen der dritten Datei.
 import eingecheckteReaktion from './recordings/runaway-progress.json';
 import eingecheckteStufe from './recordings/level-30.json';
+// **Und beim vierten Mal fehlten wieder zwei** (Issue #456). `synergy-window`
+// stand seit #318 unter `recordings/` und in keinem Frische-Fall; `synergy-haste`
+// kam mit diesem Issue dazu. Beide Male fiel es nur auf, weil jemand zufaellig
+// eintrug — genau wie oben bei `runaway-progress` und `level-30`.
+//
+// Deshalb steht unten jetzt ein Waechter, der die Liste selbst vergleicht.
+// Derselbe Fehler zweimal auf dieselbe Weise gefunden heisst: Der naechste wird
+// nicht gefunden.
+import eingecheckteSynergie from './recordings/synergy-window.json';
+import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -87,6 +97,8 @@ import {
   resistanceMixedPayload,
   runawayProgressPayload,
   level30Payload,
+  synergyPayload,
+  synergyHastePayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -113,6 +125,18 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Verstärkungen entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteVerstaerkungen, HINWEIS).toEqual(buffsPayload());
+  });
+
+  it('die Synergie-Runde entspricht dem heutigen Spielstand', () => {
+    // Stand seit #318 unter `recordings/` und in keinem Frische-Fall.
+    expect(eingecheckteSynergie, HINWEIS).toEqual(synergyPayload());
+  });
+
+  it('die Synergie-Runde MIT TEMPO entspricht dem heutigen Spielstand', () => {
+    // Die Aufzeichnung aus #456: Sie ist der einzige Ort, an dem beide Seiten
+    // die Klammerung des Synergie-Fensters unter Tempo vergleichen. Veraltet
+    // sie unbemerkt, ist genau der Nachweis wieder weg, für den sie entstand.
+    expect(eingecheckteSynergieMitTempo, HINWEIS).toEqual(synergyHastePayload());
   });
 
   it('die Ausrüstungs-Töpfe entsprechen dem heutigen Spielstand', () => {
@@ -393,3 +417,125 @@ describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {
     expect(checksums.length).toBe(payload['ticks']);
   });
 });
+
+/**
+ * Der Wächter über die Liste oben (Issue #456).
+ *
+ * # Warum es ihn braucht
+ *
+ * Diese Datei ist von Hand gepflegt, und **zweimal ist dabei etwas
+ * durchgerutscht**:
+ *
+ *   #256/#289   `runaway-progress` und `level-30` fehlten
+ *   #318/#456   `synergy-window` fehlte, `synergy-haste` kam dazu
+ *
+ * Beide Male fiel es nur auf, weil jemand zufällig eine neue Datei eintrug und
+ * dabei hinsah. Der Kommentar oben hält den ersten Fall fest — und hat den
+ * zweiten nicht verhindert. Ein Hinweis, der zum zweiten Mal überlesen wird,
+ * ist keine Prüfung.
+ *
+ * # Was eine fehlende Datei bedeutet
+ *
+ * Der Simulator prüft gegen sie weiter. Wandert die Regel im Spiel, prüft er
+ * gegen die alten Werte und **bleibt grün** — genau der Zustand, den der Kopf
+ * dieser Datei als „sagt nichts mehr aus, wenn er gebraucht wird" beschreibt.
+ * Eine unbewachte Aufzeichnung ist schlimmer als keine: Sie sieht aus wie
+ * Absicherung.
+ *
+ * # Über `import.meta.glob` und nicht über das Dateisystem
+ *
+ * Der Kopf dieser Datei hält fest, dass das Projekt **bewusst keine Node-Typen**
+ * führt. `readdirSync` schiede damit aus. Vite löst `import.meta.glob` beim
+ * Übersetzen auf — dieselbe Auskunft, ohne die Entscheidung umzustossen.
+ */
+/**
+ * Welche Aufzeichnungen oben einen Frische-Fall haben.
+ *
+ * **Als Tabelle und nicht als Kommentar**, damit der Wächter darunter sie
+ * vergleichen kann. Dieselbe Technik wie bei `LIST_GUARDS` in `entry-shape.ts`
+ * und `OHNE_AUSLOESER` in `factor-triggers.test.ts`: eine Liste, die eine
+ * Prüfung einfordert, statt einer, auf die man sich verlässt.
+ */
+const MIT_FRISCHE_FALL: readonly string[] = [
+  'cooldown-precision',
+  'primitives',
+  'misplays',
+  'rule-events',
+  'buffs',
+  'log-kinds',
+  'cooldown-reset',
+  'vessel-phases',
+  'doom-stacks',
+  'cooldown-reset-run',
+  'race-heal',
+  'trial-blocks',
+  'timeline-loop',
+  'sublimation',
+  'gear',
+  'sets',
+  'player-damage',
+  'coagulation',
+  'fixation',
+  'new-calcination',
+  'log-parity',
+  'haste',
+  'worn-values',
+  'sources',
+  'cast-time',
+  'resistances',
+  'resistances-mixed',
+  'runaway-progress',
+  'level-30',
+  'synergy-window',
+  'synergy-haste',
+];
+
+describe('Die Frische-Liste ist vollständig', () => {
+  it('jede Aufzeichnung unter recordings/ hat einen Frische-Fall', () => {
+    const imVerzeichnis = Object.keys(import.meta.glob('./recordings/*.json')).map((pfad) =>
+      pfad.replace('./recordings/', '').replace('.json', ''),
+    );
+
+    // **Die Zusicherung vor der Messung.** Fände das Muster nichts, wäre der
+    // Vergleich leer gegen leer und ginge durch, ohne etwas zu prüfen. Genau
+    // diese Zeile hat den ersten Entwurf dieses Wächters gefangen: Der Versuch,
+    // den eigenen Quelltext über `?raw` zu lesen, lieferte eine leere
+    // Zeichenkette — und ohne sie wäre er grün gewesen.
+    expect(imVerzeichnis.length, 'das Glob-Muster findet keine Aufzeichnungen').toBeGreaterThan(20);
+
+    const fehlen = imVerzeichnis.filter((name) => !MIT_FRISCHE_FALL.includes(name));
+    expect(
+      fehlen,
+      `Diese Aufzeichnungen stehen unter recordings/, aber in keinem Frische-Fall:\n` +
+        fehlen.map((n) => `  ${n}`).join('\n') +
+        `\n\nDer Simulator prüft gegen sie und bliebe grün, wenn die Regel im ` +
+        `Spiel wanderte. Einen Import und einen Vergleichsfall ergänzen und den ` +
+        `Namen in MIT_FRISCHE_FALL nachtragen.`,
+    ).toEqual([]);
+  });
+
+  it('und die Tabelle nennt keine Datei, die es nicht gibt', () => {
+    // Die andere Richtung: Ein Name, den niemand mehr exportiert, machte die
+    // Tabelle unzuverlässig — und der Wächter oben verliesse sich auf sie.
+    const imVerzeichnis = Object.keys(import.meta.glob('./recordings/*.json')).map((pfad) =>
+      pfad.replace('./recordings/', '').replace('.json', ''),
+    );
+    const uebrig = MIT_FRISCHE_FALL.filter((name) => !imVerzeichnis.includes(name));
+    expect(uebrig, `Diese Namen stehen in MIT_FRISCHE_FALL, aber unter recordings/ nicht`).toEqual(
+      [],
+    );
+  });
+});
+
+/**
+ * WAS DIESER WÄCHTER FÄNGT UND WAS NICHT
+ *
+ * Er fängt den Fall, der zweimal passiert ist: eine neue Aufzeichnung, die
+ * niemand einträgt. Er fängt **nicht**, dass jemand nur den Namen nachträgt und
+ * den Vergleichsfall vergisst — dafür müsste er den eigenen Quelltext lesen,
+ * und der Versuch scheiterte an Vites Auflösung.
+ *
+ * Das ist eine echte Lücke und steht hier, statt verschwiegen zu werden. Sie
+ * ist deutlich kleiner als die vorherige: Wer den Namen einträgt, hat die Datei
+ * vor Augen.
+ */
