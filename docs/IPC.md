@@ -184,6 +184,37 @@ ist keine Fehlleitung — aber er ist der einzige Ort, an dem eine verschwundene
 sichtbar wird. **Wer dort etwas sieht, das nicht ihm gehört, meldet es**, statt es nach Regel 3
 nur zu übergehen.
 
+### Eine Doppelzustellung ist harmlos — bis der Auftrag zählt statt setzt
+
+Die Zustellung spielt gelegentlich denselben Eintrag zweimal ein; der Sender schreibt nachweislich
+nur einmal. Deshalb steht in jeder Nachricht die Regel: **dieselbe Nummer zweimal heißt
+Doppelzustellung, nicht neuer Auftrag.**
+
+Am 2026-08-06 traf es eine Sitzung fünfmal an einem Abend. Ihre eigene Auswertung — die vier
+ersten Fälle waren folgenlos, der fünfte nicht:
+
+| Fall | Inhalt                                    | Schaden bei doppelter Ausführung        |
+| ---- | ----------------------------------------- | --------------------------------------- |
+| 1–4  | Meldungen, Anweisungen, ein Rundschreiben | Lesezeit, sonst nichts                  |
+| 5    | ein Rezept mit **zählenden** Schritten    | falsche Zahlen, ohne erkennbare Ursache |
+
+Der fünfte lautete sinngemäß _„erhöhe `present` um eins, verringere `placeholders` um eins"_. Zweimal
+ausgeführt ergibt das 18 statt 17 — und der Prüffall meldet dann `expected 131 to be 126`, also
+**dieselbe nichtssagende Zahl wie beim Vergessen, nur in die andere Richtung.** Wer die
+Doppelzustellung nicht bemerkt hat, sucht den Fehler in seiner eigenen Rechnung.
+
+> Der Satz, auf den es hinausläuft:
+>
+> **Der Schaden einer Doppelausführung hängt daran, ob der Auftrag ZÄHLT oder SETZT.** „Setz
+> `present` auf 17" wäre zweimal ausführbar gewesen, „erhöhe `present` um eins" nicht.
+
+**Wer Aufträge schreibt, formuliert sie deshalb setzend, nicht zählend** — der Empfänger kann eine
+Doppelzustellung nur erkennen, wenn er die Nummer im Blick hat, aber ein setzender Auftrag ist auch
+dann noch richtig, wenn er sie übersieht.
+
+Und die Begründung „ist ja bisher nie schiefgegangen" trägt nach diesem Abend nicht mehr: Bei vier
+von fünf Fällen war sie folgenlos, beim fünften nicht.
+
 ## Überwachung
 
 ```bash
