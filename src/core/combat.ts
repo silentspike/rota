@@ -36,6 +36,7 @@ import {
   type SchoolDef,
   type SpellDef,
   type TimelineEntryDef,
+  type DotDef,
 } from './data.js';
 import { GCD_MS, GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
@@ -2064,6 +2065,81 @@ export class Combat {
    */
   private dotInterval(dot: { readonly tickIntervalMs: number }): number {
     return this.hasted(dot.tickIntervalMs);
+  }
+
+  /**
+   * Über alle Brände laufen, die **gerade brennen** (Issue #517).
+   *
+   * # Warum es diese Schleife vorher nicht gab
+   *
+   * `dotExpiresAtMs` wurde bis hierher ausschliesslich **je Index** gelesen und
+   * geschrieben. Die einzige Sammel-Operation war `fill(NOT_ACTIVE)` beim
+   * Kampfende — und die kennt keine Bedingung. Wer etwas mit *allen laufenden*
+   * Bränden tun wollte, hatte keine Stelle dafür.
+   *
+   * Genau das teilen sich EMBER und PYROCLASM: **nicht** einen Rechenschritt,
+   * sondern diese Iteration. EMBER verlängert, was sie findet; PYROCLASM liest
+   * und räumt ab. Wer sie für einen baut, hat sie für den anderen.
+   */
+  private forEachActiveDot(
+    timeMs: number,
+    tue: (index: number, dot: DotDef, laeuftNochMs: number) => void,
+  ): void {
+    for (let i = 0; i < this.spells.length; i++) {
+      const dot = this.spells[i]?.dot;
+      if (dot === undefined) continue;
+      if (!this.isDotActive(i, timeMs)) continue;
+      tue(i, dot, this.dotRemainingMs(alsSpellIndex(i), timeMs));
+    }
+  }
+
+  /**
+   * Jeden laufenden Brand um ein Tick-Intervall verlängern (EMBER, #517).
+   *
+   * # `dotNextTickAtMs` bleibt bewusst unberührt
+   *
+   * Der Takt läuft **unabhängig** von der Laufzeit: Die Tick-Schleife setzt
+   * `nextTick + dotInterval` und fragt getrennt, ob der Brand noch aktiv ist.
+   * Wer beim Verlängern auch den Takt verschöbe, liesse den Brand länger
+   * brennen und dabei **seltener** ticken — der Zuwachs käme nie an.
+   *
+   * Nichts zu tun ist hier die richtige Handlung, und deshalb steht sie als
+   * Satz da statt als fehlende Zeile.
+   */
+  extendActiveDots(timeMs: number, ticks: number): void {
+    if (ticks <= 0) return;
+    this.forEachActiveDot(timeMs, (i, dot) => {
+      const bisher = this.dotExpiresAtMs[i] ?? NOT_ACTIVE;
+      this.dotExpiresAtMs[i] = bisher + ticks * this.dotInterval(dot);
+    });
+  }
+
+  /**
+   * Alle laufenden Brände verbrauchen und ihren Rest als Schaden geben
+   * (PYROCLASM, #517).
+   *
+   * # Restdauer × Schaden je Tick — und warum das keine neue Zahl ist
+   *
+   * Es ist genau der Schaden, den die Brände noch gemacht hätten. Nach der
+   * Erneuerungsregel ist verbleibende Restzeit **verloren**, wenn zu früh
+   * erneuert wird; PYROCLASM kehrt dieselbe Regel um. Der Spieler kennt sie
+   * bereits — früh zünden verschenkt, spät zünden riskiert das Auslaufen.
+   *
+   * Ein Brand, der schon abgelaufen ist, trägt **null** bei: `forEachActiveDot`
+   * sieht ihn gar nicht, und `dotRemainingMs` gäbe ohnehin 0.
+   */
+  consumeActiveDots(timeMs: number): number {
+    let summe = 0;
+    this.forEachActiveDot(timeMs, (i, dot, laeuftNochMs) => {
+      const abstand = this.dotInterval(dot);
+      // Ganzzahlig bis zur letzten Teilung (18.4): erst die Ticks, dann der
+      // Schaden. Andersherum trüge die Rundung sich durch jeden Brand.
+      const offeneTicks = Math.floor(laeuftNochMs / abstand);
+      summe += computeDamage(dot.tickDamage * offeneTicks, this.factorsFor(false));
+      this.dotExpiresAtMs[i] = NOT_ACTIVE;
+      this.dotNextTickAtMs[i] = NOT_ACTIVE;
+    });
+    return summe;
   }
 
   /**
