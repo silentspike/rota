@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 10
+        "present": 12
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 50,
+        "count": 48,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -237,6 +237,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "reflux"
+      }
+    },
+    {
+      "id": "spell-canker",
+      "group": "spells",
+      "purpose": "CANKER — der Faeulnisherd der PUTREFAKTION. Legt den ersten Stapel an und wird oft gedrueckt, muss also kurz und zurueckhaltend sein — wie KINDLE in der CALCINATION.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-canker.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "wet organic rupture, soft fleshy burst, damp membrane tear, short dry one shot, dark violet decay spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "canker"
+      }
+    },
+    {
+      "id": "spell-fester",
+      "group": "spells",
+      "purpose": "FESTER — wirkt staerker, je mehr Stapel liegen. DERSELBE Werkstoff wie CANKER, aber tiefer und voller: Die beiden gehoeren als Paar zusammen (GAME-DESIGN 4) und muessen als verwandt hoerbar sein, ohne verwechselbar zu werden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-fester.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 15,
+      "prompt": "deep festering swell, thick wet rot bloom, low gurgling decay surge, heavy organic putrefaction, dark violet",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "fester"
       }
     },
     {
