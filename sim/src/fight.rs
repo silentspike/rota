@@ -894,8 +894,20 @@ impl Fight {
         if gained > 0 {
             self.add_resource(gained);
         }
-        let order = self.pending_shorten.replace(PendingShorten::default());
+        let mut order = self.pending_shorten.replace(PendingShorten::default());
         if order.amount > 0 {
+            // **Der Faktor aus `cd_reduce_buffs`** (DISTIL, E10). Er greift
+            // HIER und nicht in `SublimationMechanic`: Die Mechanik liefert
+            // den ROHBETRAG aus ihrer Tabelle, angewandt wird er an dieser
+            // Stelle — genau wie `pending_gain` durch `add_resource` laeuft.
+            //
+            // Ein erster Befund hielt einen Schnittstellen-Umbau fuer noetig,
+            // weil `sublimation.rs` den Wert aus einer kopierten Tabelle holt
+            // und `Fight` nicht sieht. Das stimmt — aber es ist gleichgueltig,
+            // weil die WIRKUNG hier liegt. Ich hatte auf die Stelle gesehen,
+            // wo der Wert HERKOMMT, statt auf die, wo er WIRKT.
+            order.amount =
+                (f64::from(order.amount) * self.cd_reduce_buffs.factor(now)).round() as Millis;
             shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
