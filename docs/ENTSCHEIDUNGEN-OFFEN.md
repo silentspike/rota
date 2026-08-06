@@ -1,8 +1,8 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-06, 00:40: Vier Punkte sind entschieden, acht liegen offen.** Die
+**Stand 2026-08-06, 14:30: Fünf Punkte sind entschieden, neun liegen offen.** Die
 entschiedenen stehen unten mit Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen,
-ist als Issue verlinkt. **Sieben der zwölf sind aus der Arbeit selbst entstanden, nicht aus dem
+ist als Issue verlinkt. **Acht der vierzehn sind aus der Arbeit selbst entstanden, nicht aus dem
 Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 
 |                                     | Ergebnis                                                                                                    |
@@ -10,7 +10,7 @@ Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 | **1** Doppelbelegung                | **verboten** — ein Zauber liegt auf höchstens einem Platz                                                   |
 | **2** Punktekurve                   | **quadratisch (2,0), Rest-Ertrag 20 Promille**                                                              |
 | **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                         |
-| **4** Stumme Zauber                 | **OFFEN** — der Auftraggeber bestätigt Suno einmal im sichtbaren Browser (blockiert #198, #204)             |
+| **4** Stumme Zauber                 | **ERLEDIGT ohne dein Zutun** — elf Klänge erzeugt, #198 und #204 geschlossen; nur das Hören bleibt          |
 | **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                           |
 | **6** Wirkzeit gegen Tempo          | **OFFEN** — ab 33,4 % CATALYSIS ist ein Wirkzeit-Zauber nicht mehr abbrechbar                               |
 | **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                               |
@@ -19,6 +19,7 @@ Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 | **11** SUBLIMATION-Bauart           | **OFFEN** — zwei Zauber der Bauart „Abklingzeit verkürzen" sind beide tot                                   |
 | **12** `runaway`-Timing             | **OFFEN** — seltener drücken ist besser: Tiefe oder Falle?                                                  |
 | **13** Talentpunkt-Verteilung       | **OFFEN** — die Zahl 50 steht, ihre Verteilung über 100 Stufen nicht                                        |
+| **14** Fallrate der Beute           | **OFFEN** — 250 Promille vorläufig; wie oft soll ein Sieg überhaupt etwas fallen lassen?                    |
 
 > **Es gibt keinen Punkt 10.** Er hat nie existiert — beim Anlegen von Punkt 11 wurde die Zahl
 > übersprungen. Die Lücke bleibt stehen, statt umzunummerieren: Die Nummern werden in Issues,
@@ -123,9 +124,28 @@ Messung.** Als Auflage an #276 nachgetragen.
 `sim/src/fight.rs`) und muss dort gleichzeitig geändert werden; danach werden die Vergleichsdateien
 neu exportiert. Die Begründung steht in GAME-DESIGN, Kapitel 7.
 
-## 4. Wie kommen die sieben fehlenden Klänge zustande?
+## 4. Wie kommen die sieben fehlenden Klänge zustande? — ERLEDIGT, ohne Zutun des Auftraggebers
 
-**Blockiert:** #198 und #204 vollständig
+**#198 und #204 sind geschlossen.** Es waren nicht sieben, sondern **elf**: die sieben unten, dazu
+`spell-vapour` und `spell-reflux` (als vorläufig markiert und deshalb nicht mitgezählt) sowie
+`bellows` und `searing` aus #268. Kein spielbarer Zauber ist mehr stumm.
+
+**Der Punkt hat sich aufgelöst, weil die Annahme darunter falsch war.** Hier stand, es liege an
+der Bot-Erkennung und der Auftraggeber müsse einmal bestätigen. Tatsächlich verlangt Suno **je
+Generierung** einen Turnstile-Token, der nur in der echten Seite entsteht — ein Durchlauf dort
+stellt das Vertrauen für etwa **drei** Generierungen wieder her. Für elf Klänge waren das drei
+Aufwärm-Zyklen, keine einmalige Bestätigung. Das Werkzeug bringt sie als `suno_song.py warmup`
+bereits mit; ich hatte den Vorgang von Hand nachgebaut, statt ihn aufzurufen.
+
+> **Nichts davon umgeht die Prüfung.** Jeder Zyklus ist eine echte Generierung über die Seite,
+> die Credits kostet. Die Ablehnung, die Bot-Erkennung zu umgehen, steht unberührt.
+
+**Was der Auftraggeber trotzdem noch tun muss:** die elf Klänge **hören**. Technisch sind sie
+geprüft (Länge exakt, −16 bis −20 LUFS, keine Anfangsstille, 120 von 120 Paaren unterscheidbar),
+ästhetisch nicht — das kann ich nicht.
+
+<details>
+<summary>Der ursprüngliche Text, zur Nachvollziehbarkeit</summary>
 
 Sieben Zauber sind stumm, und das Manifest hält sie für fertig:
 
@@ -153,6 +173,8 @@ es** — hier steht nur, welche Wege offen sind:
 
 Der dritte Weg ist **kein Ersatz**, sondern ehrliche Buchführung: Er behebt, dass sieben unfertige
 Einträge als fertig gelten, und lässt den Mangel selbst bestehen.
+
+</details>
 
 ---
 
@@ -516,3 +538,49 @@ Es gibt keine falsche Antwort — die drei unterscheiden sich nicht in der Menge
 > **Was diese Entscheidung nicht ist:** eine Balance-Frage. Die Gesamtzahl bleibt in allen drei
 > Fällen 50, also ist keine Verteilung stärker als eine andere. Es geht allein um das Tempo, in dem
 > sich der Talentbaum öffnet.
+
+---
+
+## 14. Wie oft lässt ein Sieg überhaupt etwas fallen? — OFFEN
+
+**Betrifft:** #447 (gebaut, Zahl vorläufig) · `data/items.json` → `dropChancePerMille`
+
+Die Beute-Kette steht seit dem 2026-08-06: Ein Sieg würfelt aus einem eigenen Strom, der Fund
+landet im Besitz und übersteht das Neuladen. Was **fällt**, entscheidet `rates.ts` (Qualität über
+`weightsFor`, Stufe über `itemLevelOf`). **Ob** etwas fällt, entscheidet keine dieser zehn
+Funktionen — es ist eine eigene Zahl, und sie steht vorläufig auf **250 Promille**.
+
+GAME-DESIGN sagt zur Häufigkeit nichts. Kapitel 13.6 beschreibt die _Qualitätsverteilung_ im
+Endgame (gewöhnlich 60 %, selten 30 %, episch 9 %, legendär 1 %) — das ist die Frage, **was** ein
+Fund ist, nicht **wie oft** einer kommt.
+
+### Die Messung, nicht die Rechnung
+
+Worker-3 hat über **2000 Startwerte** gemessen, nicht hochgerechnet. Die Abweichung von der
+Nennzahl ist die Streuung des Stroms, kein Fehler:
+
+| Promille          | Anteil der Siege | im Schnitt     |
+| ----------------- | ---------------- | -------------- |
+| 100               | 10,2 %           | alle 9,9 Siege |
+| 150               | 15,8 %           | alle 6,3 Siege |
+| **250** (aktuell) | 26,5 %           | alle 3,8 Siege |
+| 400               | 39,4 %           | alle 2,5 Siege |
+| 500               | 48,9 %           | alle 2,0 Siege |
+
+### Worum es tatsächlich geht
+
+Bei einem Kampfzyklus von etwa 60 Sekunden bedeuten 100 Promille **zehn Minuten ohne Fund**. Bei
+500 fällt bei jedem zweiten Sieg etwas — und ein Fund hört auf, ein Ereignis zu sein.
+
+> Das ist genau die Spannung, die GAME-DESIGN 13.6 an anderer Stelle selbst beschreibt: _„Die
+> Inszenierung kostet nur Zeit, wenn sie es wert ist; 99 von 100 Siegen laufen schnell durch, der
+> eine legendäre Moment brennt sich ein."_ Der Satz setzt voraus, dass ein Fund **nicht** die Regel
+> ist — sagt aber nicht, wie selten die Ausnahme sein soll.
+
+**Warum das nicht der Balance-Läufer entscheiden kann:** Er kann ausrechnen, wie schnell die
+Ausrüstung wächst, und daraus eine Rate ableiten, die zur Stärkekurve passt. Er kann nicht
+ausrechnen, ob sich ein Sieg **belohnend** anfühlt. Die Zahl bestimmt den Charakter des
+Wiederholens, und das ist Design.
+
+**Was der Wechsel kostet:** einen Zahlenwert in `data/items.json` — dieselbe Linie wie der Exponent
+in `reward.json`. Kein Umbau.
