@@ -1827,8 +1827,16 @@ impl Fight {
     /// Setzt den Synergie-Faktor, wenn diesem Zauber ein Fenster offen steht
     /// (GAME-DESIGN 5, #318).
     ///
-    /// Der Bonus liegt **neben** `per_decay_stack_percent`, nicht darin: FESTER
-    /// wird ohnehin staerker, je mehr Stapel liegen. Das sind zwei Mechaniken.
+    /// Der Bonus liegt **neben** dem Stapel-Bonus, nicht darin: `vulnerability`
+    /// hebt den Schaden aller Quellen, sobald Stapel liegen. Eine Gegenprobe,
+    /// die den Stapelstand mitvariiert, misst also die Stapel und nicht die
+    /// Synergie.
+    ///
+    /// **Hier stand bis Issue #484, der Bonus liege neben
+    /// `per_decay_stack_percent`.** Das war falsch: Dieses Feld wird auf keiner
+    /// der beiden Seiten je auf den Schaden angewandt — es gibt kein „neben",
+    /// weil es nichts gibt, wozu es danebenlaege. Der Satz stand an genau der
+    /// Stelle, an der jemand nachsieht.
     fn apply_synergy_bonus(&mut self, index: usize) {
         let endet = self.synergy_window_ends[index];
         let offen = endet != 0 && self.time <= endet;
