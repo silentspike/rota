@@ -148,6 +148,21 @@
       }
     },
     {
+      "id": "spell-scab",
+      "group": "spells",
+      "purpose": "SCAB — der Fueller der COAGULATION und ihr erster Zauber MIT SCHADEN. Er laeuft am GCD, muss also kurz und zurueckhaltend sein wie KINDLE. Er muss sich von CRUST unterscheiden: SCAB ist schneller und ORGANISCH, CRUST mineralisch und setzend.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-scab.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 20,
+      "prompt": "quick dry organic scabbing snap, thin skin hardening fast, faint wet edge, very short, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "scab"
+      }
+    },
+    {
       "id": "spell-bind",
       "group": "spells",
       "purpose": "BIND — der Fueller der FIXATION. Baut Kontroll-Punkte auf; ein Greifen, kein Schlag. Wird oft gedrueckt, muss also kurz und zurueckhaltend sein.",
