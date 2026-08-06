@@ -3451,3 +3451,69 @@ wurde — und sie verdeckte die eigentliche Frage: _Wurde `cargo test` überhaup
 
 > Eine Erklärung, die den Fehler zu einem Sonderfall des Werkzeugs macht, ist bequemer als eine, die
 > nach der Arbeitsweise fragt. Genau deshalb gehört sie gemessen, bevor sie weitergegeben wird.
+
+### 8.45 Die Fläche bestimmt die Testzeile, nicht die bearbeitete Datei
+
+8.44 nennt den Fall: Eine `.json` unter `data/` geändert, die TypeScript-Kette gefahren, den roten
+Rust-Wächter übersehen. Hier steht, was stattdessen zu fahren ist.
+
+**Die Zuordnung ist nicht neu — sie steht seit Langem in `.github/workflows/ci.yml`**, gemessen:
+
+```yaml
+echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$)')"
+```
+
+Mit einem Kommentar darüber, der den Grund nennt: `sim/build.rs` kompiliert die Zauber- und
+Boss-Daten zur Bauzeit ein. Die CI **wusste** also, dass `data/` die Rust-Seite betrifft, und hat es
+begründet aufgeschrieben.
+
+> Der Satz, der den Befund trägt (Worker-1):
+>
+> **„Die Lücke liegt nicht in der CI. Sie liegt ZWISCHEN CI und Guide: Das Wissen steht in einer
+> Datei, die niemand liest, wenn er lokal misst."**
+>
+> Eine Regel, die nur dort steht, wo sie **durchgesetzt** wird, erreicht den nicht, der sie
+> **befolgen** soll.
+
+#### Die Tabelle
+
+| Geänderte Fläche     | Was zu fahren ist                                                         |
+| -------------------- | ------------------------------------------------------------------------- |
+| `src/**`, `tests/**` | `npm run lint` · `npm test` · `npm run build`                             |
+| **`data/**`**        | dasselbe **plus die ganze Rust-Kette**                                    |
+| `sim/**`             | `cargo clippy` · `cargo test --no-fail-fast` · `cargo-remote-fmt --check` |
+| `tests/parity/**`    | zusätzlich der Export-Diff und `cargo run --example parity`               |
+
+Zwei Zeilen, die man sich sparen kann — gemessen, nicht vermutet:
+
+```
+npm test        ist vitest run und fährt tests/parity MIT (test:parity ist eine Teilmenge)
+npm run build   ist tsc --noEmit && vite build und enthält den typecheck
+```
+
+#### Was nur die CI fährt
+
+Diese laufen in keiner lokalen Zeile, auch nicht in `npm test`:
+
+```
+python3 tools/step1-check.py          Referenz-Rechnung
+cargo run --example parity            der Rust-Paritätsläufer
+der Export-Diff                       parity:export fahren und prüfen, OB dabei ein Diff entsteht
+actionlint · secret-scan
+nightly: balance · codeql
+```
+
+**Der zweite ist der gefährlichste:** `cargo test` baut die `examples` nicht aus. Wer lokal grün ist
+und den Läufer nie fährt, kann in der CI an einer Stelle scheitern, die er nicht kennt.
+
+Und der dritte ergänzt `freshness.test.ts`, ersetzt ihn aber nicht: **Freshness prüft Prüfsummen, die
+CI prüft den tatsächlichen Datei-Diff.**
+
+#### Wo diese Tabelle altert
+
+`ci.yml` ist die Quelle, dieser Abschnitt die Abschrift — und eine von Hand geführte Abschrift kann
+nicht bemerken, dass ihr ein Eintrag fehlt. Genau das steht als Kommentar im Filter selbst, und dort
+ist die Konsequenz schon gezogen: `tests/unit/ci-sim-filter.test.ts` prüft die Liste gegen die
+`include_str!`-Zeilen.
+
+> Für diesen Guide-Abschnitt gibt es keinen solchen Wächter. **Bei einem Widerspruch gilt `ci.yml`.**
