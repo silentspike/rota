@@ -68,6 +68,7 @@ import eingecheckteStufe from './recordings/level-30.json';
 // nicht gefunden.
 import eingecheckteSynergie from './recordings/synergy-window.json';
 import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
+import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -101,6 +102,7 @@ import {
   synergyPayload,
   synergyHastePayload,
   buffCombatPayload,
+  wardCapPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -148,6 +150,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // die Klammerung des Synergie-Fensters unter Tempo vergleichen. Veraltet
     // sie unbemerkt, ist genau der Nachweis wieder weg, für den sie entstand.
     expect(eingecheckteSynergieMitTempo, HINWEIS).toEqual(synergyHastePayload());
+  });
+
+  it('der WARD-Deckel entspricht dem heutigen Spielstand', () => {
+    // Er ist eine REGEL, keine Zahl in den Daten — heute trägt kein Gegenstand
+    // genug WARD, um ihn zu erreichen. Veraltet diese Datei unbemerkt, ist der
+    // einzige beidseitige Vergleich des Deckels wieder weg (Issue #466).
+    expect(eingecheckterWardDeckel, HINWEIS).toEqual(wardCapPayload());
   });
 
   it('die Ausrüstungs-Töpfe entsprechen dem heutigen Spielstand', () => {
@@ -500,6 +509,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'level-30',
   'synergy-window',
   'synergy-haste',
+  'ward-cap',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

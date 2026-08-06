@@ -33,6 +33,7 @@
  * auseinander.
  */
 import { CRIT_BASE_PERMILLE, vesselWithGear, type WornValues } from '../gear/worn.js';
+import { PLAYER } from '../core/data.js';
 
 /** Wie ein Wert geschrieben wird. */
 export type StatUnit = 'percent' | 'flat';
@@ -74,7 +75,11 @@ export interface StatRow {
 export const STAT_CAPS: Readonly<Record<string, number | null>> = {
   essence: null,
   vessel: null,
-  ward: null,
+  // **Gesetzt, nicht abgeleitet** (Issue #466). 75 % ist die Entscheidung des
+  // Auftraggebers vom 2026-08-06; ohne Deckel kann Ausrüstung den Spieler
+  // unverwundbar machen. Die Zahl steht in `data/player/base.json` — hier
+  // steht sie in Prozent, weil dieser Bildschirm in Prozent rechnet.
+  ward: PLAYER.wardCapPermille / 10,
   // Der Deckel wird gemessen (Issue #118). Bis dahin: kein Deckel, keine
   // Warnung, nur der Wert.
   catalysis: null,
@@ -173,10 +178,16 @@ export function statOverview(base: BaseStats, worn: WornValues): StatRow[] {
     // vergliche eine Zahl mit einer anderen Wirklichkeit.
     essence: base.essence + worn.essence,
     vessel: vesselWithGear(base.vessel, worn.vessel),
-    // WARD ist eine Minderung in Prozent; der Kampf addiert den
-    // Ausrüstungsanteil auf `PLAYER.wardReduction` und deckelt bei 100 %
-    // (`combat.ts`). Dieselbe Rechnung, dieselbe Grenze.
-    ward: Math.min(100, base.ward + worn.ward / 10),
+    // **Ungedeckelt, und das ist seit #466 der Punkt.** Vorher stand hier
+    // `Math.min(100, …)`. Mit einem Deckel bei 75 % zeigte das bei 900 ‰ WARD
+    // „100 % — 25 % über dem Limit" statt „110 % — 35 % über": Der Hinweis
+    // nennte eine falsche Zahl, und der Spieler unterschätzte, wie viel er
+    // verschenkt.
+    //
+    // PURITY macht es genauso — `worn.purity / 10` ohne Deckel, die Grenze
+    // steht in `STAT_CAPS`. Der Kampf deckelt weiterhin selbst; die Anzeige
+    // sagt, was der Spieler TRÄGT, und daneben, was davon wirkt.
+    ward: base.ward + worn.ward / 10,
     // Promille im Kampf, Prozent auf dem Bildschirm. Die Umrechnung steht an
     // einer Stelle, nicht in jeder Zeile.
     catalysis: worn.catalysis / 10,

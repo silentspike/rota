@@ -84,6 +84,8 @@ import {
   SYNERGY_NAME,
   synergyHastePayload,
   SYNERGY_HASTE_NAME,
+  wardCapPayload,
+  WARD_CAP_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -147,6 +149,13 @@ writeFileSync(synergyPath, serialize(synergy), 'utf8');
 const synergyHaste = synergyHastePayload();
 const synergyHastePath = join(here, 'recordings', `${SYNERGY_HASTE_NAME}.json`);
 writeFileSync(synergyHastePath, serialize(synergyHaste), 'utf8');
+
+// Der WARD-Deckel (Issue #466). Er ist eine REGEL, keine Zahl in den Daten —
+// ohne eigene Aufzeichnung waere er auf beiden Seiten eingebaut und auf keiner
+// verglichen.
+const wardCap = wardCapPayload();
+const wardCapPath = join(here, 'recordings', `${WARD_CAP_NAME}.json`);
+writeFileSync(wardCapPath, serialize(wardCap), 'utf8');
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);

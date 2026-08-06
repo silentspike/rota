@@ -442,16 +442,44 @@ fn ward_aus_der_ausruestung_mindert_zusaetzlich() {
          Topf wird addiert (13.1b)"
     );
 
-    // Der Deckel: Bei voller Minderung null Schaden, nicht negativ und keine
-    // Heilung. Das ist eine Rechenregel, keine Balance-Zahl.
-    assert_eq!(PLAYER.incoming_with_gear(roh, 5000), 0);
-
-    // Und der Gegenfall dazu: Ohne den Deckel waere das Ergebnis oben
-    // ebenfalls 0 (als u32 abgeschnitten) — deshalb zusaetzlich knapp
-    // darunter pruefen, wo die Rechnung noch etwas liefern muss.
+    // **Seit Issue #466 greift der BALANCE-Deckel zuerst.** Bis dahin stand
+    // hier `assert_eq!(PLAYER.incoming_with_gear(roh, 5000), 0)` — voller
+    // Schutz bei genug WARD. Genau das ist jetzt ausgeschlossen: Ein
+    // unverwundbarer Spieler nimmt der COAGULATION-Schule ihren Gegenstand.
+    //
+    // Der Fall ist damit nicht weicher, sondern schaerfer: Er sagt nicht mehr
+    // "irgendwann null", sondern **welcher** Anteil uebrig bleibt.
+    let ueber_dem_deckel = PLAYER.incoming_with_gear(roh, 5000);
+    let am_deckel = f64::from(PLAYER.ward_cap_permille) / 1000.0;
+    let erwartet_gedeckelt = (f64::from(roh) * (1.0 - am_deckel)).round().max(0.0) as u32;
+    assert_eq!(
+        ueber_dem_deckel, erwartet_gedeckelt,
+        "ueber dem Balance-Deckel muss genau der ungedeckelte Rest durchkommen"
+    );
     assert!(
-        PLAYER.incoming_with_gear(roh, 700) > 0,
-        "knapp unter dem Deckel darf nicht schon null herauskommen"
+        ueber_dem_deckel > 0,
+        "der Balance-Deckel laesst Schaden durch — bei null waere der Spieler \
+         unverwundbar, und genau das verhindert er (#466)"
+    );
+
+    // Und der Rechenregel-Deckel bei 1,0 steht weiterhin daneben. Er ist
+    // heute UNERREICHBAR, weil der Balance-Deckel darunter liegt — deshalb
+    // wird er hier nicht mehr am Ergebnis geprueft, sondern an der Ordnung
+    // der beiden Zahlen. Ginge der Balance-Deckel eines Tages ueber 1000,
+    // faengt ihn diese Zeile.
+    assert!(
+        PLAYER.ward_cap_permille <= 1000,
+        "der Balance-Deckel liegt ueber der Rechenregel — dann wuerde der \
+         Spieler geheilt, und `min(1.0)` waere das Einzige, was es verhindert"
+    );
+
+    // Der Gegenfall: unter dem Deckel wirkt jeder Punkt (AC2 in #466).
+    let knapp_drunter = PLAYER.incoming_with_gear(roh, 300);
+    let noch_weniger = PLAYER.incoming_with_gear(roh, 400);
+    assert!(
+        noch_weniger < knapp_drunter,
+        "unter dem Deckel muss mehr WARD messbar weniger Schaden ergeben: \
+         {noch_weniger} gegen {knapp_drunter}"
     );
 }
 

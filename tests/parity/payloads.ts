@@ -121,6 +121,9 @@ export const VESSEL_NAME = 'vessel-phases';
 /** Der Prueffall zum eingehenden Schaden und zum Unterbrechen (Issue #110). */
 export const PLAYER_DAMAGE_NAME = 'player-damage';
 
+/** Der Name der Aufzeichnung, die ueber den WARD-Deckel geht (Issue #466). */
+export const WARD_CAP_NAME = 'ward-cap';
+
 /** Der Prueffall zu den drei Wegen der Koagulation (Issue #79). */
 export const COAGULATION_NAME = 'coagulation';
 
@@ -3007,5 +3010,97 @@ export function newCalcinationPayload(): Record<string, unknown> {
       ),
     },
     checksums,
+  };
+}
+
+/**
+ * Der WARD-Deckel, beidseitig nachgerechnet (Issue #466, AC3).
+ *
+ * # Warum es diese Aufzeichnung braucht
+ *
+ * Der Deckel ist eine **Regel, keine Zahl in den Daten**: Heute trägt kein
+ * Gegenstand genug WARD, um ihn zu erreichen. Ohne eigene Aufzeichnung wäre er
+ * damit auf beiden Seiten eingebaut und auf keiner verglichen — genau die Lage
+ * aus #456 Schritt 1, wo zwei Seiten monatelang verschieden rechneten, ohne
+ * dass die Paritätsprüfung etwas sah.
+ *
+ * Sobald der Katalog wächst (#421b), wird der Deckel erreicht. Dann soll der
+ * Vergleich schon stehen und nicht erst gebaut werden.
+ *
+ * # Vier Läufe, die sich in genau einer Sache unterscheiden
+ *
+ * Derselbe Boss, dieselbe Dauer, **keine** Tastendrücke — der Spieler wirkt
+ * nichts, der Boss schlägt zu. So misst der Lauf ausschliesslich die Minderung;
+ * ein Zauber brächte Schaden, Hitze und womöglich Heilung hinein.
+ *
+ *   400 ‰   Gesamtminderung 60 %   unter dem Deckel
+ *   550 ‰                   75 %   genau auf dem Deckel
+ *   900 ‰                  110 %   darüber — gedeckelt auf 75 %
+ *  5000 ‰                  520 %   weit darüber, gleiches Ergebnis
+ *
+ * **Die drei letzten müssen denselben Schaden ergeben, der erste einen
+ * anderen.** Beides steht als Zusicherung in der Datei, damit die Rust-Seite
+ * es prüfen kann, ohne die Zahlen zu kennen.
+ *
+ * # Gegen `test-onslaught` und nicht gegen den ersten Tiegel
+ *
+ * Der erste Tiegel hat keine Zeitleiste — dort verliert der Spieler in dreissig
+ * Sekunden null Leben, und alle vier Läufe wären identisch null. Ein Prüffall,
+ * der nichts misst und trotzdem grün ist.
+ */
+export function wardCapPayload(): Record<string, unknown> {
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('Der Boss test-onslaught fehlt.');
+  const ticks = 3000;
+
+  const runs = [400, 550, 900, 5000].map((wardPermille) => {
+    const combat = new Combat({
+      school: CALCINATION.value,
+      boss,
+      seed: 0,
+      worn: { ...NOTHING_WORN, ward: wardPermille },
+    });
+    const checksums: number[] = [];
+    const playerHp: number[] = [];
+    let sequence = 0;
+
+    for (let tick = 0; tick < ticks; tick++) {
+      const timeMs = tick * TICK_MS;
+      combat.stepPassive(timeMs);
+      const hash = combatChecksum(combat, timeMs);
+      sequence = (sequence * 31 + hash) >>> 0;
+      checksums.push(hash);
+      playerHp.push(combat.playerHp);
+      // Der Spielertod beendet den Versuch, wie in `playerDamagePayload`.
+      if (combat.playerDead) break;
+    }
+
+    return {
+      wardPermille,
+      // Die Gesamtminderung, wie der Kampf sie sieht — ungedeckelt. Sie steht
+      // dabei, weil sie erklärt, WARUM drei Läufe gleich ausgehen.
+      totalPermilleUncapped: PLAYER.wardReduction * 1000 + wardPermille,
+      expected: {
+        damageTaken: combat.damageTaken,
+        playerHp: combat.playerHp,
+        diedAtMs: combat.diedAtMs,
+        sequenceChecksum: sequence,
+      },
+      checksums,
+      playerHpPerTick: playerHp,
+    };
+  });
+
+  return {
+    schema: SCHEMA,
+    name: WARD_CAP_NAME,
+    bossId: boss.id,
+    tickMs: TICK_MS,
+    ticks,
+    // Die beiden Zahlen, um die es geht. Aus den Daten gelesen, nicht getippt:
+    // Ändert der Auftraggeber den Deckel, wandert er durch bis in diese Datei.
+    wardCapPermille: PLAYER.wardCapPermille,
+    wardReductionPermille: PLAYER.wardReduction * 1000,
+    runs,
   };
 }
