@@ -79,6 +79,9 @@ function felderVonRecordResult(): string[] {
     bossLevel: 1,
     gameVersion: '0.1.0',
     at: 1_800_000_000_000,
+    seed: 0,
+    instance: 1,
+    endlessLevel: 0,
   });
   return Object.keys(ergebnis);
 }

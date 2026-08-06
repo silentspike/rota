@@ -37,6 +37,8 @@ import type { RunSummary } from '../core/summary.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
 import { recordDefeat } from './defeated.js';
+import { lootStreamFor } from '../loot/stream.js';
+import { rollLoot, type Drop } from '../loot/roll.js';
 import { appendRun } from './run-history.js';
 import type { BestRun, OwnedItem, ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
 
@@ -87,6 +89,27 @@ export interface RecordContext {
   readonly gameVersion: string;
   /** Zeitpunkt in ms seit 1970. */
   readonly at: number;
+  /**
+   * Startwert der Zufallsströme dieses Kampfes (Issue #447).
+   *
+   * **Für die Beute, nicht für den Kampf.** `lootStreamFor` leitet daraus einen
+   * eigenen Strom ab — aus demselben Startwert, damit eine aufgezeichnete Runde
+   * auch ihre Beute wiederholt, aber getrennt, damit sie nichts verschiebt
+   * (`rng.ts`).
+   */
+  readonly seed: number;
+  /**
+   * Die Instanz als ZAHL, 1 bis 14 (`rates.ts`).
+   *
+   * **Ein Boss trägt seine Instanz als Kennung** (`'prologue'`), und es gibt
+   * keine Zuordnung von dort auf die Nummer — der Katalog der Instanzen ist
+   * E6-Inhalt (Kapitel 22). Bis dahin steht die Zahl an der Aufrufstelle,
+   * dieselbe Linie wie bei `difficulty`: „Sobald es mehrere gibt, ist es diese
+   * Zeile."
+   */
+  readonly instance: number;
+  /** Stufe im Endlos-Modus, 0 ausserhalb. */
+  readonly endlessLevel: number;
 }
 
 /** Der Stand, der fortgeschrieben wird. */
@@ -141,6 +164,13 @@ export interface RecordResult extends RecordedState {
    */
   readonly xpGained: number;
   /**
+   * Was dieser Lauf hat fallen lassen, oder `null` (Issue #447).
+   *
+   * **Auch bei einem Sieg meist `null`** — es fällt nicht nach jedem Kampf
+   * etwas. Der Unterschied zu „kein Sieg" steht in `counted`.
+   */
+  readonly drop: Drop | null;
+  /**
    * Punkte aus diesem Durchlauf, 0 ohne Sieg (Issue #276).
    *
    * **Eine Auszahlung, kein Konto.** Der Wert reist von hier zur Anzeige und
@@ -190,6 +220,7 @@ export function recordRun(
       counted: false,
       mark: null,
       best: null,
+      drop: null,
       xpGained: 0,
       pointsGained: 0,
       leveledUp: false,
@@ -251,6 +282,19 @@ export function recordRun(
       })
     : null;
 
+  // **Beute NACH dem Kampf, aus einem eigenen Strom** (Issue #447): `rng.ts`
+  // begründet die Trennung — „Beute wird beim Sieg gewürfelt, nicht im Kampf,
+  // sie kann nichts verschieben, und nichts kann sie verschieben". Wer hier
+  // einen Kampfstrom nähme, bräche die Bitgleichheit still.
+  const drop = summary.victory
+    ? rollLoot(lootStreamFor(context.seed), {
+        instance: context.instance,
+        difficulty: context.difficulty,
+        endlessLevel: context.endlessLevel,
+        bossId: context.bossId,
+      })
+    : null;
+
   const pointsGained = pointsForRun(
     summary,
     { bossLevel: context.bossLevel, playerLevel: state.level },
@@ -264,8 +308,12 @@ export function recordRun(
     // **Unverändert weitergereicht**: Ein Kampf verteilt keine Talente — das
     // tut der Spieler zwischen den Kämpfen (GAME-DESIGN 12.4).
     talentPoints: state.talentPoints,
-    // Ein Kampf findet noch keine Beute — das ist #421b.
-    items: state.items,
+    // **Der Fund landet im Besitz** (Issue #447), im Beutel und nicht
+    // ausgerüstet: Was der Spieler anlegt, entscheidet er selbst (421c).
+    items:
+      drop === null
+        ? state.items
+        : [...state.items, { itemId: drop.itemId, upgradeSteps: 0, equippedSlot: null }],
     // **Der Hauptpfad aus 12.7** (Issue #434). `recordDefeat` entscheidet
     // selbst, ob der Lauf zählt — die Bedingung gehört zum Lauf, nicht zur
     // Aufrufstelle.
@@ -280,6 +328,7 @@ export function recordRun(
     counted: true,
     mark,
     best,
+    drop,
     xpGained,
     pointsGained,
     leveledUp: nachher.level > state.level,
