@@ -3517,3 +3517,75 @@ ist die Konsequenz schon gezogen: `tests/unit/ci-sim-filter.test.ts` prüft die 
 `include_str!`-Zeilen.
 
 > Für diesen Guide-Abschnitt gibt es keinen solchen Wächter. **Bei einem Widerspruch gilt `ci.yml`.**
+
+### 8.46 Ein Vorgabewert macht aus Abwesenheit eine Zahl
+
+Eine Messung sollte zeigen, was die Zeitleiste eines Bosses zur gefundenen Rotation beiträgt. Die
+Tabelle sagte:
+
+```
+test-metronome   mit Zeitleiste 40854   ohne 40854
+test-vessel      mit Zeitleiste 12238   ohne     0
+```
+
+Die Null las sich als Befund — _ohne Zeitleiste geht bei diesem Boss gar nichts._ Sie hätte als
+„die Zeitleiste ist bei `test-vessel` existenziell" in ein Issue gehen können.
+
+**`test-vessel` war im zweiten Lauf gar nicht dabei.** Die Bossliste stand nach einem `git checkout`
+wieder auf ihren ursprünglichen zwei Einträgen. Die Auswertung las die Zahl mit
+
+```python
+ergebnis.get(name, 0)
+```
+
+und für einen Boss, der in der Ausgabe fehlt, liefert das eine Null.
+
+> **Eine fehlende Messung sah aus wie eine gemessene Null** — mit zwei Nachkommastellen
+> Ernsthaftigkeit, in einer Tabelle neben echten Werten.
+
+#### Warum das schwerer wiegt als die verwandten Fälle
+
+An einem Abend traten vier Formen derselben Klasse auf. Die ersten drei sind Aussagen über einen
+**Zustand** — falsch, aber als Behauptung erkennbar:
+
+|                       | Die Aussage kam aus                                     |
+| --------------------- | ------------------------------------------------------- |
+| „kein Export"         | der Gewohnheit                                          |
+| „statt zweier Filter" | der Absicht, nicht dem Code                             |
+| „Arbeitsbaum sauber"  | einem Befehl im falschen Verzeichnis                    |
+| **„test-vessel = 0"** | **einem Vorgabewert, der Abwesenheit als Zahl ausgibt** |
+
+Die vierte ist keine Behauptung, sondern ein **Messwert**. Sie steht in einer Spalte, sie lässt sich
+mitteln, vergleichen und zitieren — und sie bedeutet „hier wurde nicht gemessen".
+
+#### Es trifft auch `grep -c`
+
+Das Muster ist nicht auf `dict.get()` beschränkt. Jede Zählung, die bei leerem Eingang und bei
+fehlgeschlagenem Eingang **dieselbe** Zahl liefert, hat es:
+
+```bash
+git show --name-only HEAD -- gibtesnicht/ | grep -c "recordings/"
+0
+```
+
+Diese Null sagt nicht „keine Aufzeichnungen bewegt". Sie sagt „nichts kam an". Genauso `wc -l` auf
+eine Ausgabe, die nie entstand, und `jq` mit `// 0`.
+
+#### Was hilft
+
+**Die Abwesenheit muss lauter sein als die Null.** Zwei Wege, beide billig:
+
+1. **Krachen lassen.** `ergebnis[name]` statt `ergebnis.get(name, 0)` — ein `KeyError` ist ein
+   besseres Ergebnis als eine falsche Zahl.
+2. **Den Eingang prüfen, nicht das Ergebnis.** Eine Zusicherung, dass beide Läufe **dieselbe
+   Bossmenge** enthalten, hätte den Fall gefangen, bevor die Tabelle entstand.
+
+Der zweite ist derselbe Bau wie `im_fenster` und `nach_dem_gcd` aus #502: **eine Zusicherung über den
+Aufbau der Messung, nicht über ihr Ergebnis.** Wer sie einmal hat, braucht sie überall dort, wo eine
+Zahl aus einem Namen gelesen wird.
+
+> Und die Umkehrung als Prüffrage vor jeder Tabelle:
+>
+> **Gibt es einen Weg, auf dem hier eine Zahl steht, ohne dass gemessen wurde?** Wenn ja, ist die
+> Spalte keine Messung, sondern eine Mischung aus Messung und Schweigen — und man sieht ihr nicht
+> an, welches Feld welches ist.
