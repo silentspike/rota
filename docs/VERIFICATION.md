@@ -500,6 +500,29 @@ Erwarteter Verlauf eines Siegeslaufs (gemessen bei E1-9):
 | **Schaden messen, wenn der Boss stirbt**     | „Schaden" klingt nach der Frage, die man gestellt hat         | Bei `stopOnKill` ist der Gesamtschaden ungefähr die Boss-HP — **unabhängig von der Spielerstärke**. Siehe unten                              |
 | **Einzelmessung nach einem Tastendruck**     | Der Befehl ist zurückgekommen, also ist er verarbeitet        | `playwright-cli press` läuft nicht im Takt der Logik. Fünfmal messen und den eingeschwungenen Wert nehmen                                    |
 
+### Wo der Fehler steht, den du gerade hast
+
+_Kapitel 7 ist an einem Wochenende von zwei auf acht ausführliche Abschnitte gewachsen. Diese
+Tabelle steht hier, damit niemand sie liest, um seinen Fall zu finden — **sortiert nach dem, was
+man sieht**, nicht nach dem Titel._
+
+| Was du siehst                                             | Was tatsächlich los sein kann                                                                                              | Abschnitt                                                |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Ein Prüflauf ist **grün** und du traust ihm nicht         | Die Prüfung lief gar nicht — abgeschnittene Ausgabe, abgebrochener Lauf, nicht übersetzte Datei                            | `cargo test` bricht ab · Ein Prüfbefehl, der grün meldet |
+| Eine Prüfung meldet **nichts**                            | Bei einer Prüfung, die _bricht_ wenn sie greift, ist Schweigen der Erfolgsfall — und vom Ausfall nicht zu unterscheiden    | Vier eigene Fehler, Punkt 4                              |
+| Ein Wert **wirkt nicht**, obwohl er verdrahtet ist        | Der Messpunkt liegt hinter der Wirkung. `CATALYSIS` verkürzt eine Abklingzeit, die zum Messzeitpunkt längst abgelaufen ist | Ein Messpunkt hinter der Wirkung                         |
+| Zwei Rechnungen kommen auf **verschiedene Zahlen**        | Eine davon ist ein Nachbau der echten Funktion — mit `ceil` statt `floor`                                                  | Eine Formel nachbauen                                    |
+| Der **CI-Status** widerspricht dem Merge                  | Der Status gehört zum Commit _vor_ `update-branch`                                                                         | Vier eigene Fehler, Punkt 1                              |
+| `parity:export` **bewegt nichts**                         | Es wurde vorher schon exportiert — gemessen wird das eigene Ergebnis                                                       | Vier eigene Fehler, Punkt 2                              |
+| Der Code sieht **anders aus als beschrieben**             | Der lokale Stand ist mehrere Merges alt                                                                                    | Vier eigene Fehler, Punkt 3                              |
+| Ein **Konflikt-Trockenlauf** war sauber, der Rebase nicht | `merge-tree` prüft den Merge der Endzustände, nicht die Commits einzeln                                                    | `git merge-tree` · Und er sagt nichts über einen Rebase  |
+| Ein **Kriterium** nennt eine Datei, die es nicht gibt     | Sie liegt in einem fremden offenen Zweig                                                                                   | Ein Kriterium, das eine Datei nennt                      |
+| Der **Schaden** hängt nicht an der Spielerstärke          | `stopOnKill` — der Gesamtschaden ist ungefähr die Boss-HP                                                                  | Die Kill-Falle                                           |
+
+> **Die Abschnitte selbst sind ausführlich und bleiben es.** Sie tragen jeweils den Fall, an dem
+> der Fehler auffiel, samt Messwerten — das ist der Grund, warum sie beim zweiten Mal wiedererkannt
+> werden. Diese Tabelle ersetzt sie nicht, sie zeigt nur hin.
+
 ### `cargo test` bricht nach der ersten gefallenen Sammlung ab
 
 _Von Worker-2 am 2026-08-05 gefunden, nachdem er eine halbe Stunde einen Widerspruch eingekreist
