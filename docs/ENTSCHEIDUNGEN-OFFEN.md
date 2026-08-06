@@ -755,3 +755,20 @@ aber **keinen Kampfzustand** — und eine zeitweilige Minderung _ist_ Kampfzusta
 durchgereicht werden, was neben `fight.rs` auch sechs direkte Aufrufe in
 `sim/tests/parity_worn_values.rs` berührt. **Genau dort setzt ein unbedachter Parameter still eine 0
 ein, und die Prüfung läuft weiter grün.**
+
+> **Nachgemessen am 2026-08-06 — es ist die einzige Stelle dieser Art.** Der Verdacht lautete
+> zwischenzeitlich, eine ganze Bauart sei betroffen: drei Mechaniken, die ihre Daten beim Anlegen in
+> eine Tabelle kopieren und keinen Zugriff auf den Kampf haben. Zwei davon sind widerlegt.
+>
+> | Stelle                | Befund                                                                          |
+> | --------------------- | ------------------------------------------------------------------------------- |
+> | `StacksMechanic`      | legt nur den **Rohbetrag** ab; gebucht wird in `fight.rs`, wo der Faktor greift |
+> | `SublimationMechanic` | dasselbe — `pending_shorten` wird in `fight.rs` angewandt                       |
+> | `incoming_with_gear`  | **rechnet selbst, auf einer Konstante**                                         |
+>
+> Die Trennlinie ist nicht „kopiert Daten beim Anlegen", sondern **„wendet sie selbst an, ohne den
+> Kampf zu sehen"**. Nach diesem Maß bleibt eine Stelle — und die beiden anderen zeigen im selben
+> Haus, wie es geht: Rohbetrag ablegen, Anwendung dort, wo der Zustand sichtbar ist.
+>
+> Damit ist das hier **kein Bauart-Umbau**, sondern eine Rechenstelle, die mit dieser Entscheidung
+> ohnehin angefasst wird. Ein eigenes Issue dafür wäre sofort blockiert — der Befund gehört hierher.
