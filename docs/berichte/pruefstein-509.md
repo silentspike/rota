@@ -73,14 +73,27 @@ WARD, gegen 5000 Leben.
     smoulder / searing / pyre         smoulder / pyre / searing
     temper                            kindle
     bellows / kindle
-    7522 Schaden                      7882 Schaden
+    gefunden    7522                  gefunden    7882
+    step1-good  2400                  step1-good  5960
 
 **`temper` kommt in die Rotation** — ein Zauber, der keinen Schaden macht.
-Der Sucher nimmt 4,6 % weniger Schaden in Kauf, um zu überleben. Entfernt
-man die Zeitleiste, verschwindet er sofort.
+Entfernt man die Zeitleiste, verschwindet er sofort.
 
-Das ist wörtlich die Abwägung aus GAME-DESIGN: *„Überleben kostet Schaden
-und Zeit."*
+### Die zweite Spalte dreht die Abwägung
+
+`step1-good` ist die Referenz-Handschrift, und **sie kennt kein `temper`**.
+Mit Todesgefahr fällt sie von 5960 auf 2400 — sie stirbt.
+
+    temper kostet gegenüber dem Maximum         4,6 %   (7522 gegen 7882)
+    Wer temper weglässt und stirbt, verliert    68 %    (2400 gegen 7522)
+
+Die 4,6 % sind der Preis gegenüber einer Welt **ohne** Todesgefahr, also
+gegenüber etwas, das es an diesem Boss nicht gibt. Was der Spieler erlebt,
+ist die andere Zahl: **dreifacher Schaden dafür, dass er einen GCD abgibt.**
+
+GAME-DESIGN sagt *„Überleben kostet Schaden und Zeit."* Gemessen kostet es
+4,6 % und bringt 210 %. Das ist keine Abwägung mehr, sondern eine klare
+Entscheidung — **und das ist selbst ein Befund für die Balance.**
 
 ### Und es ist eine Wahl zwischen zwei Wegen
 
@@ -106,6 +119,30 @@ Zeitleisten und Widerstände erzeugen keine.
 
 **Was fehlt, ist nicht Mechanik, sondern Anlass.** Die Bauteile sind da; es
 gibt nur fast nie einen Grund, sie zu benutzen.
+
+## Was NICHT gemessen ist
+
+**Der Widerstands-Fall ist ungeprüft, nicht widerlegt.** Ein Widerstand
+könnte die Auswahl ändern, sobald ein Spieler Zauber aus mehreren Schulen
+gleichzeitig trägt. Ein solches Kit gibt es heute nicht, also konnte der
+Fall nicht entstehen.
+
+**Ob ein Boss existiert, bei dem Unterbrechen gewinnt.** Gemessen ist nur
+`test-onslaught`, wo Schlucken billiger ist. Ein Boss mit weiter
+auseinanderliegenden Zaubern könnte anders ausfallen.
+
+## Die Messung wiederholen
+
+    # Boss-Liste in sim/examples/rotation-search.rs auf die zu messenden
+    # Bosse setzen, dann:
+    cargo remote -c -- run --release --example rotation-search
+
+    # Für eine Mechanik-Messung: das Feld in data/bosses/<boss>.json leeren
+    # (timeline: [], resistances: {}), Zustand VOR dem Lauf prüfen,
+    # danach `git checkout data/bosses/` und erneut prüfen.
+
+**Vor jedem Lauf den Zustand prüfen, nicht danach** — und die Auswertung
+muss `assert set(mit) == set(ohne)` enthalten. Warum, steht unten.
 
 ## Zwei Messfehler, die zum Befund gehören
 
