@@ -366,6 +366,11 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         player_level: 1,
         // Das Protokoll kostet Speicher und wird hier von niemandem gelesen.
         log_capacity: 0,
+        // **Kein Schluesseltalent im Balance-Laeufer** (Issue #418), aus
+        // demselben Grund wie bei den Talenten: Er vergleicht Rotationen,
+        // nicht Ausbauten. Ein Verhalten, das eine Rotation umbaut, waere
+        // hier ein zweiter beweglicher Teil.
+        split_spender: false,
     });
 
     let mut out = Vec::with_capacity(len as usize);
