@@ -54,6 +54,21 @@
         "effect": "holdPhase",
         "amountPercent": 10
       }
+    },
+    {
+      "_comment": "WEDGE — der Notausgang der Fixierung (Issue #478). FIXATION ist heute gegen einen Boss OHNE Mechanik wertlos: Es gibt nichts zu verlangsamen, zu verzoegern oder hinauszuzoegern, und drei der vier Zauber machen keinen Schaden. WEDGE wandelt Kontroll-Punkte in Schaden und macht die Schule ueberall spielbar, ohne ihren Charakter zu aendern.\n\nDIE VIERTE WIRKUNG: 'convertToDamage' steht neben slowCast, delayStrike und holdPhase. Die drei kaufen einen MOMENT und messen ihn in Millisekunden oder Prozent; WEDGE rechnet Punkte in Schaden um — deshalb 'amountPerPoint' als eigenes Feld statt einer dritten Bedeutung fuer dasselbe.\n\nALLE PUNKTE, NICHT NUR DIE KOSTEN: 'cost' ist der Mindesteinsatz, was darueber liegt geht mit. Sonst braechte WEDGE bei vollem Vorrat genauso viel wie bei knappem, und 'aufsparen' haette keinen Sinn.\n\nDIE ZAHLEN SIND PLATZHALTER (ZAUBER-RASTER.md): 6 s Abklingzeit nach dem Muster der vorhandenen Wirkungen, 3 Punkte Mindesteinsatz wie stall, 8 Schaden je Punkt. Was entschieden ist, ist die ROLLE.",
+      "id": "wedge",
+      "name": "Wedge",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 3,
+        "effect": "convertToDamage",
+        "amountPerPoint": 8
+      }
     }
   ]
 }

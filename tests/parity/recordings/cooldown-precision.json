@@ -155,6 +155,7 @@
       "stall": 0,
       "stay": 0,
       "anchor": 0,
+      "wedge": 0,
       "vapour": 0,
       "reflux": 0,
       "canker": 0,
