@@ -3107,3 +3107,45 @@ Hätte der Text die Quelle genannt, wäre die Prüfung zwei Minuten gewesen stat
 
 > Eine Herleitung, die fremde Werte benutzt, nennt ihre Quelle — sonst altert sie lautlos, weil
 > niemand sie nachrechnet. Sie wird gelesen und geglaubt.
+
+### 8.38 Der Zustand gehört dorthin abgelesen, wo die Wirkung eintritt
+
+Eine Messung sollte zeigen, ob Zersetzungs-Stapel auf DoT-Ticks fremder Schulen wirken. Gemessen
+wurde ein Tick-Schaden von 40 ohne Stapel und 44 mit — beschriftet mit „mit Stapeln (5)".
+
+Nachgerechnet ging das nicht auf. Die Formel ist `(100 + Stapel × 3) / 100`, bei fünf Stapeln also
+1,15 und damit 46.
+
+**Die Messung war richtig. Die Beschriftung war es nicht.**
+
+```
+Stapel beim CAST   (t=12010)   5    vulnerability 1.15
+Stapel beim TICK   (t=14010)   3    vulnerability 1.09
+40 × 1.09 = 43.6  →  44
+```
+
+Zwischen Cast und erstem Tick liegen zwei Sekunden, und darin waren die beiden ältesten Stapel
+verfallen. Abgelesen wurde `decayStacks` **vor dem Cast** — also dort, wo der Aufbau endete, und
+nicht dort, wo die Wirkung eintrat.
+
+> Der Schluss der messenden Sitzung: **Den Zustand dort ablesen, wo die Wirkung eintritt, nicht
+> dort, wo der Aufbau endet.**
+
+#### Warum das mehr ist als ein Etikettenfehler
+
+Die falsche Beschriftung hätte einen Befund erzeugt, den es nicht gibt: _„die Verwundbarkeit wirkt
+nur zu zwei Dritteln"_. Daraus wäre ein Issue geworden — an einem Abend, an dem bereits ein Issue
+auf einer Fehlmessung stand und beinahe funktionierenden Code gekostet hätte.
+
+**Aufgehalten hat es, dass die Sitzung beide Male von selbst dazuschrieb, der Beschriftung sei nicht
+zu trauen.** Beim ersten Mal (ein Skript, das zwei Läufe beide mit `true` beschriftete) war der
+Inhalt eindeutig genug; beim zweiten Mal nicht.
+
+#### Und das Nebenergebnis war wertvoller als die Messung
+
+Dass die Zahl über den Verfall aufging, belegt etwas, das niemand gefragt hatte: **Die
+Verwundbarkeit wird laufend neu gerechnet, nicht beim Wirken eingefroren.** Ein DoT, der über vier
+Sekunden tickt, während Stapel ablaufen, rechnet mit einer sinkenden Verwundbarkeit.
+
+Das ist eine Spielmechanik, keine Implementierungsfrage: Wer Stapel aufbaut und dann einen langen
+DoT legt, verliert den Bonus, während er läuft.
