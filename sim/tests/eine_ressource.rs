@@ -24,6 +24,18 @@
 //! 1. die REGEL an erfundenen Eingaben (dass sie ueberhaupt ablehnt), und
 //! 2. den ZUSTAND der echten Daten (dass heute genau eine Ressource liegt).
 //!
+//! **Die beiden tragen nicht gleich viel.** Der ZUSTANDS-Fall ist die
+//! eigentliche Absicherung: Er bricht, sobald jemand eine Ressource
+//! hinzufuegt — auch dann, wenn der Regel-Nachbau inzwischen gedriftet ist.
+//! Der Regel-Fall ist die ERKLAERUNG: Er zeigt, was der Waechter im Bau
+//! ablehnt, und belegt, dass er ueberhaupt etwas ablehnt.
+//!
+//! Zwei Quellen sind hier deshalb ein Vorteil, kein Mangel: Beide brechen bei
+//! DERSELBEN Bedingung, und faellt eine aus, faengt die andere. Der Fall, vor
+//! dem sonst zu warnen ist, sieht anders aus — zwei Quellen, die
+//! VERSCHIEDENE Antworten geben koennen, und jemand glaubt der falschen.
+//! Diesen Zustand gibt es hier nicht.
+//!
 //! Ein Nachbau ist sonst eine zweite Quelle, die auseinanderlaufen kann.
 //! Hier ist er die einzige Moeglichkeit, die Regel ueberhaupt zu belegen —
 //! und die Handprobe steht im Commit: Ein zweiter `resource`-Abschnitt in
