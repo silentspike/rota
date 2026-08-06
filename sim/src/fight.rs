@@ -1718,8 +1718,7 @@ impl Fight {
                 let rest = self.control;
                 self.control = 0;
                 self.control_spent = self.control_spent.saturating_add(rest);
-                self.pending_control_damage =
-                    (control.cost + rest) * control.amount;
+                self.pending_control_damage = (control.cost + rest) * control.amount;
             }
             // Einen Boss-Zauber verlangsamen: Die Wirkzeit dehnt sich, und
             // damit wird das Fenster zum Unterbrechen groesser.

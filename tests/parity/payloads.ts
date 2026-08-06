@@ -3282,3 +3282,89 @@ export function putrefactionFillerPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+/** Der Name der Aufzeichnung, in der CINDER gewirkt wird. */
+export const CINDER_NAME = 'cinder-ticks';
+
+/** Die Leiste dieser Aufzeichnung. */
+const CINDER_BINDINGS = [
+  { slot: 0, spellId: 'cinder' },
+  { slot: 1, spellId: 'kindle' },
+] as const;
+
+/**
+ * CINDER im Paritäts-Weg (Issue #477, Rezept aus #479).
+ *
+ * # Warum es diese Aufzeichnung braucht
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird — sonst gilt seine Bitgleichheit als
+ * angenommen. CINDER wird in keiner bestehenden Aufzeichnung gedrückt; er war
+ * nach Worker-1s Arbeit der einzige ungedeckte Zauber.
+ *
+ * # Warum CINDER besonders lohnt
+ *
+ * Er ist ein **Brand mit dichten Ticks**: 1000 ms Abstand statt der 2000 ms von
+ * SMOULDER und SEARING, dafür nur 4 s Laufzeit. Das trifft gleich drei
+ * Rechenwege, die eine Aufzeichnung ohne ihn nie berührt:
+ *
+ *   der Tick-Abstand           bei doppelter Dichte
+ *   `resourceGainPerTick`      Hitze je Tick, viermal in vier Sekunden
+ *   `refreshMode: 'reset'`     das Nachlegen vor Ablauf
+ *
+ * Bei 3 s Abklingzeit und 4 s Laufzeit **überlappt** jedes Nachlegen die
+ * laufende Wirkung um eine Sekunde — der Fall, in dem `reset` überhaupt etwas
+ * tut. Ein Rezept, das ihn nur alle fünf Sekunden wirkte, ginge daran vorbei.
+ *
+ * # KINDLE als Füller, und warum überhaupt einer
+ *
+ * CINDER allein liesse zwei von drei Wartezeiten leer. Das wäre kein Lauf,
+ * sondern eine Pause mit Brand — und die Hitze aus `resourceGainPerTick` liefe
+ * ins Leere, statt sich mit der aus KINDLE zu mischen.
+ */
+function recordCinder(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const cinder = combat.indexOf('cinder');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, CINDER_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // CINDER hat Vorrang, sobald er bereit ist — sonst wäre die Aufzeichnung
+    // ein KINDLE-Lauf mit gelegentlichem Brand.
+    if (combat.isOffCooldown(cinder, timeMs)) press(cinder, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: CINDER_NAME, seed: 0, ticks, presses, bindings: CINDER_BINDINGS };
+}
+
+export function cinderPayload(): Record<string, unknown> {
+  const recording = recordCinder(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: CINDER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}

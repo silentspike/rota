@@ -89,6 +89,8 @@ import {
   WARD_CAP_NAME,
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
+  cinderPayload,
+  CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -165,6 +167,12 @@ writeFileSync(wardCapPath, serialize(wardCap), 'utf8');
 const putrefactionFiller = putrefactionFillerPayload();
 const putrefactionFillerPath = join(here, 'recordings', `${PUTREFACTION_FILLER_NAME}.json`);
 writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
+
+// CINDER im Paritaets-Weg (Issue #477). Ohne ihn gilt seine Bitgleichheit als
+// angenommen — er war nach Worker-1s Arbeit der einzige ungedeckte Zauber.
+const cinder = cinderPayload();
+const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
+writeFileSync(cinderPath, serialize(cinder), 'utf8');
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
