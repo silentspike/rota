@@ -110,7 +110,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   //
   // Klaenge entstehen ueber Suno (docs/suno-sfx.md) und werden vom
   // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
-  const STUMM = new Set(['canker', 'fester', 'bellows', 'searing', 'test-cast']);
+  const STUMM = new Set(['bellows', 'searing', 'test-cast']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
