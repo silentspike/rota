@@ -62,6 +62,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
+      // Issue #498 — ROT, bei seiner Schule statt hinten. Derselbe Grund wie
+      // bei #268 und #479: Die Umstellung geschieht nicht still, sondern hier
+      // und in `spell-order.json` sichtbar.
+      'rot',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER

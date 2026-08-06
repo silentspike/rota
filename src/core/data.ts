@@ -43,6 +43,19 @@ export interface DotDef {
   readonly tickIntervalMs: number;
   readonly durationMs: number;
   readonly refreshMode: 'reset';
+  /**
+   * Wie viele Zersetzungs-Stapel jeder Tick legt (Issue #498).
+   *
+   * **Getrennt von `resourceGainPerTick`, und das ist der Punkt.** Stapel sind
+   * keine Schul-Ressource: Sie liegen auf dem **Boss**, verfallen einzeln nach
+   * fester Zeit und haben eine eigene Obergrenze. `resourceGainPerTick` füllt
+   * den Vorrat des Spielers.
+   *
+   * Der Verdacht, ROT käme mit dem vorhandenen Feld aus, wurde gemessen und
+   * widerlegt: `canker` legt Stapel über `decay: { stacks }`, `cinder` gewinnt
+   * Hitze über `resourceGainPerTick`. Zwei Größen, zwei Wege.
+   */
+  readonly decayPerTick?: number;
   readonly resourceGainPerTick: Readonly<Record<string, number>>;
 }
 
@@ -801,6 +814,13 @@ function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | u
 
 function parseDot(raw: unknown, where: string, problems: string[]): DotDef | undefined {
   if (!isRecord(raw)) return undefined;
+  const decayPerTick = raw['decayPerTick'];
+  if (decayPerTick !== undefined) {
+    const zahl = number(decayPerTick, 0);
+    // Null wäre ein Feld, das dasteht und nichts tut — dieselbe Linie wie bei
+    // `perDecayStackPercent`.
+    if (zahl <= 0) problems.push(`${where}: decayPerTick ${zahl} bewirkt nichts.`);
+  }
   const mode = raw['refreshMode'];
   if (mode !== 'reset') {
     // GAME-DESIGN 7.2 und STEP1-SPEC § 5: "reset" ist für V1 der einzige zulässige
@@ -820,6 +840,7 @@ function parseDot(raw: unknown, where: string, problems: string[]): DotDef | und
     durationMs,
     refreshMode: 'reset',
     resourceGainPerTick: gains(raw['resourceGainPerTick']),
+    ...(decayPerTick === undefined ? {} : { decayPerTick: number(decayPerTick, 0) }),
   };
 }
 

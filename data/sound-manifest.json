@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 16
+        "present": 17
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 44,
+        "count": 43,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -295,6 +295,21 @@
       "trigger": {
         "on": "spell.cast",
         "key": "searing"
+      }
+    },
+    {
+      "id": "spell-rot",
+      "group": "spells",
+      "purpose": "ROT — der DoT der PUTREFAKTION, der bei JEDEM Tick einen Stapel legt. Er laeuft, waehrend andere Zauber gewirkt werden, und muss sich von BLIGHT (Kriechen) und CANKER (Aufplatzen) unterscheiden: Sickern.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-rot.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 25,
+      "prompt": "slow wet rot setting in, viscous bubbling seep, low organic gurgle with soft decay tail, dark violet putrefaction spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "rot"
       }
     },
     {
