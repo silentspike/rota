@@ -37,8 +37,6 @@ function save(level = 1): SaveData {
     talentPoints: {},
     items: [],
     bindings: { '0': 'kindle' },
-    unlockedSpells: ['kindle'],
-    unlockedInstances: [],
     bestRuns: [],
     defeatedBosses: [],
     runHistory: [],
