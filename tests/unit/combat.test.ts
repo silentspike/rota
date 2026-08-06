@@ -36,6 +36,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'pyre',
       'bellows',
       'searing',
+      // Issue #477 — der kurze Brand, ebenfalls bei seiner Schule. Seit
+      // 2026-08-06 ist das der vorgesehene Ort: Ein Zauber am Ende der
+      // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
+      // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
+      'cinder',
       'quench',
       'crust',
       'salve',
