@@ -888,6 +888,39 @@ export class Combat {
     return this.bossEnergyValue;
   }
 
+  /**
+   * Die acht Schadensfaktoren, wie sie gerade stehen (Issue #425).
+   *
+   * # Wozu ein Lesezugriff, den das Spiel nicht braucht
+   *
+   * Damit ein Prüffall je Topf messen kann, ob ein Aufbau ihn wirklich füllt.
+   * Über den Schaden geht das nicht: Der sagt, DASS etwas fehlt, nie WELCHES —
+   * und genau diese Unterscheidung ist der Zweck von #425.
+   *
+   * **Für einen EINZELNEN Faktor bleibt der Schaden der bessere Nachweis**
+   * (so gebaut in #417 und #433): Er belegt, dass der Wert ankommt, nicht nur
+   * dass er berechnet wurde. Dieser Zugriff beantwortet die andere Frage —
+   * „welcher Eingang wurde nie gefüllt" — und sollte nicht zum allgemeinen Weg
+   * werden, Faktoren zu prüfen.
+   *
+   * # Warum `DamageFactors` und nicht der interne Typ
+   *
+   * `this.factors` ist `MutableFactors` — dieselbe Form mit abgestreiften
+   * `readonly`-Markierungen, damit `setDamageFactor` schreiben kann. Gäbe
+   * dieser Zugriff sie unverändert heraus, könnte jeder Aufrufer von außen
+   * hineinschreiben (`combat.damageFactors.essence = 99`) — ein Loch in der
+   * Determinismus-Zusicherung, aufgerissen ausgerechnet von dem Zugriff, der
+   * sie prüfen soll.
+   *
+   * **Der Typ, nicht eine Kopie.** Eine Kopie schützte auch gegen Absicht,
+   * kostete aber ein Objekt je Aufruf, und GAME-DESIGN 18.2 verbietet
+   * Erzeugung im laufenden Bild. Wer die Markierung mit `as` umgeht, tut das
+   * sichtbar — derselbe Schutzgrad wie bei `SpellIndex`.
+   */
+  get damageFactors(): DamageFactors {
+    return this.factors;
+  }
+
   /** Wie oft die Energieleiste ausgelöst hat. */
   /** PRUEF-ZUGANG, erscheint nicht (Issue #294): Boss-Innenleben. */
   get bossEnergyTriggers(): number {
@@ -1619,6 +1652,26 @@ export class Combat {
    * gerechnet, nicht in Sekunden, sonst verschiebt sich das Verhältnis bei
    * hohem Tempo."
    *
+   * ## Die Klammerung ist der ganze Unterschied (Issue #428)
+   *
+   *     gcds × hasted(GCD_MS)     n echte Wartezeiten      <- richtig
+   *     hasted(gcds × GCD_MS)     eine beschleunigte Dauer <- war hier
+   *
+   * Beides liest sich wie „das Fenster in Wartezeiten", und dieser Kommentar
+   * behauptete es auch — nur rechnete die Zeile darunter das andere. `hasted`
+   * rundet **einmal** ab (`Math.floor`); wer erst multipliziert, verliert die
+   * Rundung der einzelnen Wartezeit und landet bis zu 10 ms zu tief.
+   *
+   * Zehn Millisekunden sind genau ein Takt — und damit die Grenze zwischen
+   * „der zweite Zauber ist noch drin" und „er ist draußen". Aus zwei Zaubern
+   * wurde bei Tempo einer, also genau die Verschiebung, die der Design-Satz
+   * verbietet.
+   *
+   * Bei 0, 376 und 500 ‰ ergeben beide Klammerungen dasselbe — dort trifft
+   * sich die Rundung zufällig. Ein Prüffall an einem dieser Werte wäre grün,
+   * ohne etwas zu belegen; deshalb misst `synergy-window.test.ts` bei 100 und
+   * 300 ‰.
+   *
    * # Warum `synergyAvailable` an der Bereitschaft hängt
    *
    * Ein Fenster, das aufgeht, während der Partner auf Abklingzeit liegt und
@@ -1633,7 +1686,7 @@ export class Combat {
     const partner = this.indexOf(synergy.partner);
     if (partner < 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
-    const laenge = this.hasted(GCD_MS * synergy.windowGcds);
+    const laenge = synergy.windowGcds * this.hasted(GCD_MS);
     this.synergyWindowEndsMs[partner] = seitBeginn + laenge;
     // **Wird der Partner im Fenster überhaupt bereit?** `cooldownReadyAtMs`
     // steht in Kampfzeit wie `timeMs`, das Fensterende in Zeit seit
