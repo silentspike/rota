@@ -62,7 +62,7 @@ function play(everyMs: number, fightMs = 60_000, boss: BossDef = FIRST_CRUCIBLE.
   const queue = new PressQueue();
   const combat = new Combat({ school: CALCINATION.value, boss });
   const session = new Session(queue, combat);
-  session.bind(0, 0);
+  session.bind(0, combat.indexOf('kindle'));
   session.beginCountdown(0);
   let tick = 0;
   let letzter = 0;
