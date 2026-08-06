@@ -1423,10 +1423,15 @@ fn emit_fixation(out: &mut String, spell: &Value, whose: &str) {
                 "slowCast" => ("ControlEffect::SlowCast", "amountMs"),
                 "delayStrike" => ("ControlEffect::DelayStrike", "amountMs"),
                 "holdPhase" => ("ControlEffect::HoldPhase", "amountPercent"),
+                // Die zwei neuen aus Issue #478: WEDGE rechnet Punkte in
+                // Schaden um (der Notausgang gegen Bosse ohne Mechanik),
+                // CAPSTONE loest alle drei bisherigen auf einmal aus.
+                "convertToDamage" => ("ControlEffect::ConvertToDamage", "amountPerPoint"),
+                "allThree" => ("ControlEffect::AllThree", "amountMs"),
                 other => panic!(
                     "{whose}: unbekannte Wirkung {other:?}. Bekannt sind \
-                     \"slowCast\", \"delayStrike\" und \"holdPhase\" \
-                     (GAME-DESIGN 4.1)."
+                     \"slowCast\", \"delayStrike\", \"holdPhase\", \
+                     \"convertToDamage\" und \"allThree\"."
                 ),
             };
             let amount = uint(node, feld, &whose);
