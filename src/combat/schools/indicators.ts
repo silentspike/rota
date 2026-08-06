@@ -1,3 +1,4 @@
+import type { SpellIndex } from '../../core/combat.js';
 /**
  * Welche Schul-Anzeigen über der Leiste erscheinen (GAME-DESIGN 5, Issue E3-5).
  *
@@ -174,7 +175,7 @@ export function mechanicsOfLoadout(source: LoadoutSource): MechanicInfo[] {
   // Mechanik nimmt, macht aus KINDLE + SMOULDER eine Eins — dann ist die
   // Aussage wieder falsch, nur andersherum. Ein Prüffall misst beide
   // Richtungen.
-  const belegt = new Set<number>();
+  const belegt = new Set<SpellIndex>();
   for (let slot = 0; slot < source.slotCount; slot++) {
     const spell = source.spellOnSlot(slot);
     if (spell >= 0) belegt.add(spell);
@@ -215,7 +216,7 @@ export function loadoutFingerprint(source: LoadoutSource): number {
 /** Woraus die Auswahl liest. Nur Abfragen — sie ändert nichts. */
 export interface LoadoutSource {
   readonly slotCount: number;
-  spellOnSlot(slot: number): number;
+  spellOnSlot(slot: number): SpellIndex;
   /**
    * Ob der Zauber auf diesem Platz die Mechanik speist.
    *
@@ -224,7 +225,7 @@ export interface LoadoutSource {
    * `decay` kamen zwei Mechaniken dazu, die keinen führen. Die Entscheidung
    * steht jetzt in `feedsMechanic`, an einer Stelle.
    */
-  feedsMechanic(spellIndex: number, mechanicId: string): boolean;
+  feedsMechanic(spellIndex: SpellIndex, mechanicId: string): boolean;
 }
 
 /**
