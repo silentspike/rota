@@ -26,31 +26,49 @@ function neu(): Combat {
   return new Combat({ school: CALCINATION.value, boss: BOSS });
 }
 
-/** Füllt den Vorrat bis über die Grenze. */
-function fuellen(c: Combat, abMs: number): void {
-  const kindle = c.indexOf('kindle');
+/**
+ * Füllt den Vorrat bis an die Grenze und liefert den HÖCHSTSTAND.
+ *
+ * **BELLOWS, nicht KINDLE.** KINDLE gibt 3 Hitze je Wurf, der Verfall nimmt
+ * 1 je 2000 ms — netto etwa 2 pro Wartezeit. Bis 20 wären das über zehn
+ * Würfe, und ein erster Entwurf mit acht kam nur auf 19.
+ *
+ * Der Fall hätte damit zwei Zahlen UNTER der Grenze verglichen und wäre
+ * grün gewesen mit der Aussage "SLAG wirkt nicht" — ein erfundener Fehler.
+ * BELLOWS gibt 8 und erreicht die Grenze in drei Würfen.
+ *
+ * Der Höchststand, nicht der Endstand: Der Vorrat verfällt zwischen den
+ * Würfen, und die Frage ist, wie hoch er KOMMT.
+ */
+function hoechsterVorrat(c: Combat, abMs: number): number {
+  const bellows = c.indexOf('bellows');
+  let hoch = c.resource;
   let t = abMs;
-  for (let n = 0; n < 30; n++) {
-    c.cast(kindle, t);
+  for (let n = 0; n < 6; n++) {
+    c.cast(bellows, t);
+    hoch = Math.max(hoch, c.resource);
     t += 1500;
-    for (let s = t - 1500; s <= t; s += 10) c.stepPassive(s);
+    for (let s = t - 1500; s <= t; s += 10) {
+      c.stepPassive(s);
+      hoch = Math.max(hoch, c.resource);
+    }
   }
+  return hoch;
 }
 
 describe('AC1 — die Grenze steigt, solange das Fenster offen ist', () => {
   it('ohne SLAG bleibt der Vorrat bei der Grenze stehen', () => {
     const c = neu();
-    fuellen(c, 0);
-    expect(c.resource, `ohne SLAG über die Grenze — dann misst der Fall nichts`).toBe(CAP);
+    expect(hoechsterVorrat(c, 0), 'ohne SLAG über die Grenze — dann misst der Fall nichts').toBe(
+      CAP,
+    );
   });
 
   it('mit SLAG steigt er darüber', () => {
     const c = neu();
     c.cast(c.indexOf('slag'), 0);
     for (let t = 0; t <= 1600; t += 10) c.stepPassive(t);
-    fuellen(c, 1600);
-
-    expect(c.resource, 'SLAG hebt die Grenze nicht').toBeGreaterThan(CAP);
+    expect(hoechsterVorrat(c, 1600), 'SLAG hebt die Grenze nicht').toBeGreaterThan(CAP);
   });
 });
 
@@ -60,9 +78,10 @@ describe('AC3 — die Gegenprobe: ein anderer Zauber hebt sie nicht', () => {
     const c = neu();
     c.cast(c.indexOf('kindle'), 0);
     for (let t = 0; t <= 1600; t += 10) c.stepPassive(t);
-    fuellen(c, 1600);
-
-    expect(c.resource, 'die Grenze steigt ohne SLAG — dann kommt es nicht von ihm').toBe(CAP);
+    expect(
+      hoechsterVorrat(c, 1600),
+      'die Grenze steigt ohne SLAG — dann kommt es nicht von ihm',
+    ).toBe(CAP);
   });
 });
 
