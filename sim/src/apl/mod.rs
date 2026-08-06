@@ -84,9 +84,9 @@
 
 mod parse;
 
-pub use parse::{parse, AplError};
+pub use parse::{parse, AplError, AplName};
 
-use crate::data::{RESOURCE, SPELLS, SPELL_COUNT};
+use crate::data::{Spell, MAX_LEVEL, RESOURCE, SPELLS, SPELL_COUNT};
 use crate::fight::Fight;
 use crate::time::{Millis, GCD_MS};
 
@@ -406,7 +406,23 @@ pub fn resource_names() -> [&'static str; 2] {
 /// Sucht einen Zauber für die Sprache.
 #[must_use]
 pub fn spell_index(name: &str) -> Option<usize> {
-    SPELLS.iter().position(|spell| spell.id == name)
+    SPELLS
+        .iter()
+        .position(|spell| spell.id == name && spell.unlock_level <= MAX_LEVEL as u16)
+}
+
+/// Die Zauber, die eine Rotation ueberhaupt nennen darf.
+///
+/// **Nicht `SPELLS` selbst** (Issue #499): Pruef-Zauber liegen ueber der
+/// Stufengrenze und kommen im Spiel nicht vor. Wer sie in einer Rotation
+/// nennt, misst mit dem Balance-Laeufer etwas, das es nicht gibt — und nichts
+/// wird dabei rot.
+///
+/// Dieselbe Grenze wie in der Schadens-Tabelle des Berichts und in der
+/// Kandidatenzaehlung der Rotationssuche. Alle drei fragen: gehoert dieser
+/// Eintrag zum Spiel?
+pub fn spielbare_zauber() -> impl Iterator<Item = &'static Spell> {
+    SPELLS.iter().filter(|s| s.unlock_level <= MAX_LEVEL as u16)
 }
 
 use std::fmt;

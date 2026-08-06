@@ -10,14 +10,14 @@
 
 use std::time::Instant;
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig, Statistics};
 
 /// Die gute Rotation, wie sie im Repository liegt.
 const GOOD: &str = include_str!("../apl/step1-good.apl");
 
 fn apl() -> Apl {
-    parse("step1-good", GOOD).expect("die eingebaute Liste ist gültig")
+    parse(AplName("step1-good"), GOOD).expect("die eingebaute Liste ist gültig")
 }
 
 #[test]

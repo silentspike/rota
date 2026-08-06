@@ -16,7 +16,7 @@
 use std::process::ExitCode;
 use std::time::Instant;
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, scaling, BalanceConfig, BalanceResult, ScalingFactor, Statistics};
 
 /// Die gute Rotation, wie sie im Repository liegt.
@@ -59,7 +59,7 @@ fn main() -> ExitCode {
 
     let listen: Vec<(String, Apl)> = match &options.apl_path {
         Some(path) => match std::fs::read_to_string(path) {
-            Ok(text) => match parse(path, &text) {
+            Ok(text) => match parse(AplName(path), &text) {
                 Ok(apl) => vec![(path.clone(), apl)],
                 Err(error) => {
                     eprintln!("{path} ist fehlerhaft:\n{error}");
@@ -143,7 +143,7 @@ fn main() -> ExitCode {
 }
 
 fn load(name: &str, text: &str) -> Apl {
-    parse(name, text).unwrap_or_else(|error| panic!("{name} ist fehlerhaft:\n{error}"))
+    parse(AplName(name), text).unwrap_or_else(|error| panic!("{name} ist fehlerhaft:\n{error}"))
 }
 
 fn parse_arguments() -> Result<Options, String> {
