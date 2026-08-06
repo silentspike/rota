@@ -2602,3 +2602,42 @@ aus der die geschätzte gemeldet wurde.
 > **Und die Umkehrung, die den Aufwand rechtfertigt:** Eine gemessene Nebenzahl kostet
 > Sekunden. Eine geschätzte, die zufällig stimmt, kostet nichts — bis sie einmal nicht
 > stimmt und eine Entscheidung getragen hat, die niemand mehr zurückholt.
+
+### 8.29 Ein Werkzeug antwortet — auf seine Frage, nicht auf deine
+
+_Von Worker-2 am 2026-08-06 systematisiert, nachdem ihm dieselbe Sache in einer Nacht **dreimal**
+begegnet war._
+
+| Werkzeug                  | gemeldet      | tatsächlich                                                                                  | Richtung          |
+| ------------------------- | ------------- | -------------------------------------------------------------------------------------------- | ----------------- |
+| `cargo test`              | 6 Suiten grün | **55** Dateien, Lauf brach beim ersten Fehlschlag ab — dazu ein `head -6` im eigenen Befehl  | zu **wenig**      |
+| `tsc \| wc -l`            | 30 Fehler     | **15** — zu jedem Fehler schreibt `tsc` eine Fortsetzungszeile                               | zu **viel**       |
+| `merge-tree --write-tree` | 0 Konflikte   | einer, im Rebase — der Befehl prüft den **Merge der Endzustände**, nicht die Commits einzeln | falsche **Frage** |
+
+**Alle drei Werkzeuge haben wahrheitsgemäß geantwortet.** Keines war kaputt, keines schwieg. Die
+Antwort bezog sich nur auf etwas anderes, als der Fragende meinte.
+
+> **Die beruhigende Richtung ist die gefährlichere.** „Alles grün" und „nichts am Spiel" haben beide
+> gestimmt — nur nicht für das, was gefragt war. Ein Werkzeug, das eine schlechte Nachricht
+> überbringt, wird nachgeprüft; eines mit einer guten nicht.
+
+#### Der Satz, der die drei zusammenfasst
+
+> **Vor jeder Zahl aus einem Werkzeug die Frage stellen, WAS es zählt — Zeilen sind keine Fehler,
+> Suiten sind keine Dateien, ein Merge ist kein Rebase.**
+
+#### Und die Gegenprobe dazu ist billig
+
+Sie besteht meist darin, die Zahl gegen eine **zweite, unabhängige** zu halten:
+
+```bash
+ls sim/tests/*.rs | wc -l          # gegen die Zahl der Suiten in der Ausgabe
+npx tsc --noEmit | grep -c "error" # statt wc -l über alle Zeilen
+git rebase origin/main             # statt eines Trockenlaufs, der etwas anderes prüft
+```
+
+Wer keine zweite Zahl hat, hat keine Messung — nur eine Ausgabe.
+
+_Verwandt: [8.27](#827-ein-suchmuster-misst-was-es-kennt) (das Muster findet, was es kennt) und
+[8.28](#828-der-fehler-liegt-im-sortieren-nicht-im-zählen) (Nebenzahlen werden geschätzt). Die drei
+zusammen decken ab, wie eine Zahl falsch werden kann, ohne dass jemand sich verrechnet._
