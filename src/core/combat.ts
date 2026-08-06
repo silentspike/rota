@@ -196,6 +196,25 @@ export function alsSpellIndex(zahl: number): SpellIndex {
   return zahl as SpellIndex;
 }
 
+/**
+ * Der leere Platz — **mit der Marke, nicht als nackte `-1`** (Issue #442).
+ *
+ * Er steht im selben Wertebereich wie ein Zauber-Index und wird an denselben
+ * Stellen gereicht. Ohne die Marke müsste jeder Aufrufer von `bind(slot,
+ * NO_SPELL)` ein `alsSpellIndex` schreiben — und eine Umgehung, die man an
+ * fünfzehn Stellen wiederholt, hebt den Sinn des Typs auf.
+ *
+ * **Er steht seit #444 HIER und nicht mehr in `session.ts`**, und das ist der
+ * Grund, warum dieses Issue überhaupt baubar war: `combat.ts` braucht ihn an
+ * fünf Stellen, an denen vorher `-1` stand. Ein Import aus `session.ts` wäre
+ * ein Zirkelbezug gewesen — die Datei holt bereits aus dieser hier. Eine rohe
+ * Umschreibung an jeder der fünf Stellen hätte die Umgehungen vermehrt statt
+ * sie zu verringern, also das Gegenteil des Ziels bewirkt.
+ *
+ * `session.ts` reicht ihn weiter, damit jede bestehende Importstelle gilt.
+ */
+export const NO_SPELL = alsSpellIndex(-1);
+
 export interface CombatOptions {
   readonly school: SchoolDef;
   readonly boss: BossDef;
@@ -238,7 +257,14 @@ export interface CombatOptions {
  */
 export interface CastOutcome {
   result: number;
-  spellIndex: number;
+  /**
+   * Welcher Zauber gewirkt wurde — **mit der Marke** (Issue #444).
+   *
+   * `NO_SPELL`, wenn der Versuch keinen Zauber traf. Bis hierher stand hier
+   * eine nackte Zahl, und ein Aufrufer konnte einen Platz-Index einsetzen,
+   * ohne dass etwas es gemeldet hätte.
+   */
+  spellIndex: SpellIndex;
   /** Zugefügter Schaden, Direkt- und Entladeschaden zusammen. */
   damage: number;
   /** Vorrat vor dem Wirken — für die Schadens-Herleitung (GAME-DESIGN 19.1). */
@@ -292,7 +318,7 @@ export class Combat {
   /** Wiederverwendetes Ergebnis-Objekt, siehe `CastOutcome`. */
   private readonly outcome: CastOutcome = {
     result: CAST_OK,
-    spellIndex: -1,
+    spellIndex: NO_SPELL,
     damage: 0,
     resourceBefore: 0,
     bonusApplied: false,
@@ -311,7 +337,7 @@ export class Combat {
    */
   private readonly deferredOutcome: CastOutcome = {
     result: CAST_OK,
-    spellIndex: -1,
+    spellIndex: NO_SPELL,
     damage: 0,
     resourceBefore: 0,
     bonusApplied: false,
@@ -474,7 +500,7 @@ export class Combat {
    * 7.1). Er ist die einzige Stelle, an der eine Spieler-Handlung Zeit braucht;
    * alles andere geschieht im Takt des Tastendrucks.
    */
-  private playerCastingValue: SpellIndex = alsSpellIndex(-1);
+  private playerCastingValue: SpellIndex = NO_SPELL;
 
   /**
    * Uhrzeit des Spiels, zu der die laufende Wirkzeit endet.
@@ -2025,7 +2051,12 @@ export class Combat {
       // falsch zugeordnet: ein Fehler, den keine Summe verrät.
       this.setDamageFactor('resistance', this.resistanceOfSpell[i] ?? 1);
       const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
-      this.bookProgress(damage, i, timeMs);
+      // **Der Schleifenindex trägt die Marke** (Issue #444): `i` läuft über
+      // dieselbe Liste, aus der `indexOf` seine Werte nimmt — es IST ein
+      // Zauber-Index, ihm fehlt nur der Typ. Die Umschreibung steht deshalb
+      // hier und nicht in der Schleifenbedingung: Dort bräuchte es zwei
+      // (Start und Fortschaltung) für dieselbe Aussage.
+      this.bookProgress(damage, alsSpellIndex(i), timeMs);
       // Auch ein Brand-Tick speist Weg 3 (Issue #79) — im Simulator läuft
       // jeder ausgeteilte Schaden durch `deal`, hier gibt es zwei Stellen.
       this.convertDamageToShield(damage, timeMs);
@@ -2108,7 +2139,7 @@ export class Combat {
     const runaway = this.boss.runaway;
     if (runaway !== null && runaway.perStepMs > 0 && this.stateValue === FIGHT_RUNNING) {
       while (timeMs >= this.nextRunawayAtMs) {
-        this.bookProgress(runaway.amount, -1, timeMs, false);
+        this.bookProgress(runaway.amount, NO_SPELL, timeMs, false);
         this.nextRunawayAtMs += runaway.perStepMs;
       }
     }
@@ -2262,7 +2293,7 @@ export class Combat {
     if (this.playerCastingValue >= 0 && timeMs >= this.playerCastEndsAtMsValue) {
       const index = this.playerCastingValue;
       const spell = this.spells[index];
-      this.playerCastingValue = alsSpellIndex(-1);
+      this.playerCastingValue = NO_SPELL;
       this.playerCastEndsAtMsValue = -1;
       this.playerCastStartedAtMsValue = -1;
       if (spell !== undefined) {
@@ -2338,7 +2369,7 @@ export class Combat {
    */
   private bookProgress(
     damage: number,
-    spellIndex: number,
+    spellIndex: SpellIndex,
     timeMs: number,
     vomSpieler = true,
   ): boolean {
@@ -2633,7 +2664,7 @@ export class Combat {
    * auseinanderlaufen.
    */
   private resolvePlayerCast(
-    index: number,
+    index: SpellIndex,
     spell: SpellDef,
     timeMs: number,
     outcome: CastOutcome,
@@ -2714,7 +2745,7 @@ export class Combat {
       // Erneuern setzt zurück: Die verbleibende Restzeit ist verloren, und mit
       // ihr die Ticks, die darin noch gekommen wären (GAME-DESIGN 7.2).
       if (this.isDotActive(index, timeMs)) {
-        const remaining = this.dotRemainingMs(alsSpellIndex(index), timeMs);
+        const remaining = this.dotRemainingMs(index, timeMs);
         this.dotTicksLost[index] =
           (this.dotTicksLost[index] ?? 0) + Math.floor(remaining / this.dotInterval(dot));
       }
@@ -2786,7 +2817,7 @@ export class Combat {
    */
   private cancelPlayerCast(): boolean {
     if (this.playerCastingValue < 0) return false;
-    this.playerCastingValue = alsSpellIndex(-1);
+    this.playerCastingValue = NO_SPELL;
     this.playerCastEndsAtMsValue = -1;
     this.playerCastStartedAtMsValue = -1;
     return true;
@@ -2956,7 +2987,7 @@ export class Combat {
     // diese Zeilen bliebe der Zustand über den Versuch hinaus stehen: Der
     // erste Druck des nächsten Kampfes bräche einen Zauber ab, den es nicht
     // mehr gibt, und die Zahl der Abbrüche stimmte von Anfang an nicht.
-    this.playerCastingValue = alsSpellIndex(-1);
+    this.playerCastingValue = NO_SPELL;
     this.playerCastEndsAtMsValue = -1;
     this.playerCastStartedAtMsValue = -1;
     this.castsInterruptedValue = 0;
