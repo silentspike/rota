@@ -79,6 +79,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'blight',
       'test-cast',
       'test-buff',
+      'test-control',
+      'test-heat',
+      'test-tick',
+      'test-stack',
     ]);
   });
 

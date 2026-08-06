@@ -69,8 +69,8 @@ use crate::buffs::Buffs;
 use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
-    stack_damage, stat_at_level, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
-    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, stat_at_level, Boss, BuffTarget, Control, ControlEffect, Dot, Resource, Spell,
+    TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -1801,7 +1801,9 @@ impl Fight {
             // Hitze), und eine Grenze waere eine Design-Entscheidung, die
             // nicht gefallen ist. Faellt sie spaeter, ist es eine Zahl in den
             // Daten.
-            self.control = self.control.saturating_add(spell.control_gain);
+            let faktor = self.control_buffs.factor(self.time);
+            let gewinn = (f64::from(spell.control_gain) * faktor).round() as u32;
+            self.control = self.control.saturating_add(gewinn);
         }
 
         let Some(control) = spell.control else {
@@ -1980,7 +1982,11 @@ impl Fight {
     /// **Ganzzahlig bis zur letzten Teilung** — dieselbe Rechnung wie im Spiel
     /// (18.4).
     fn update_vulnerability(&mut self) {
-        let prozent = 100 + self.decay_count as u32 * DECAY_STACK_PERCENT;
+        // Der Faktor wiegt den EINZELNEN Stapel schwerer, er legt keinen
+        // dazu — die Stapelzahl bleibt unberuehrt (Issue #489, VIRULENCE).
+        let je_stapel =
+            (f64::from(DECAY_STACK_PERCENT) * self.stack_buffs.factor(self.time)).round() as u32;
+        let prozent = 100 + self.decay_count as u32 * je_stapel;
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
 
@@ -2122,7 +2128,21 @@ impl Fight {
     /// derselben Rechnung waeren genau die Klasse Fehler, die #134, #138, #159
     /// und #173 hinterlassen haben.
     fn dot_interval(&self, dot: &Dot) -> Millis {
-        self.hasted(dot.tick_interval_ms)
+        // **Der Faktor TEILT hier, statt zu multiplizieren** (Issue #489,
+        // FORGE). Er verkuerzt den ABSTAND, macht die Ticks also HAEUFIGER:
+        // Ein Faktor 2 heisst "doppelt so oft", nicht "halb so oft".
+        //
+        // Die einzige der vier Zielgroessen, bei der das so ist. Wer die Zeile
+        // nach dem Muster der anderen drei liest, dreht die Wirkung um — und
+        // der Fehler faellt spaet auf, weil der Tick-SCHADEN unveraendert
+        // bleibt und nur die Gesamtsumme wandert.
+        let faktor = self.tick_buffs.factor(self.time);
+        let roh = if faktor == 1.0 {
+            dot.tick_interval_ms
+        } else {
+            (f64::from(dot.tick_interval_ms) / faktor).round() as Millis
+        };
+        self.hasted(roh)
     }
 
     /// Ein Kritwurf fuer **eine Wirkung** (GAME-DESIGN 6.5).
@@ -2676,8 +2696,22 @@ impl Fight {
             // rechnet `gcds * hasted(GCD_MS)` (`Combat.resolvePlayerCast`), und
             // eine andere Klammerung hier waere ein Gleichlauf-Bruch, den erst
             // ein Lauf mit Tempo zeigt.
-            self.buffs
-                .apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, self.hasted(GCD_MS));
+            // **Der Vorrat haengt an der Zielgroesse** (Issue #489). Die
+            // Stapel-Regel (GAME-DESIGN 328) gilt damit INNERHALB einer
+            // Groesse, nicht ueber alle hinweg: Eine Verstaerkung auf den
+            // Punktegewinn kann eine auf den Schaden nicht verdraengen.
+            let fenster = self.hasted(GCD_MS);
+            let vorrat = match buff.target {
+                BuffTarget::Damage => &mut self.buffs,
+                BuffTarget::Control => &mut self.control_buffs,
+                BuffTarget::Resource => &mut self.resource_buffs,
+                BuffTarget::Tick => &mut self.tick_buffs,
+                BuffTarget::Stack => &mut self.stack_buffs,
+            };
+            vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
+            // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
+            // an ihrer Rechenstelle gelesen, damit kein zweiter Zustand
+            // nachzuziehen ist.
             self.factors.buffs = self.buffs.factor(now);
         }
 
@@ -2802,6 +2836,14 @@ impl Fight {
     }
 
     fn add_resource(&mut self, amount: u16) {
+        // **Vor der Obergrenze, nicht danach** (Issue #489): Was ueber `cap`
+        // hinausgeht, zaehlt als Ueberlauf — die Verstaerkung darf also den
+        // Ueberlauf mit erhoehen, sonst verschwaende sie sich lautlos.
+        let amount = if amount == 0 {
+            0
+        } else {
+            (f64::from(amount) * self.resource_buffs.factor(self.time)).round() as u16
+        };
         let before = self.resource;
         self.resource = (before + amount).min(RESOURCE.cap);
         self.resource_overflow += u32::from(amount - (self.resource - before));

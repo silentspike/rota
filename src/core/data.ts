@@ -69,6 +69,15 @@ export interface BuffDef {
   readonly factor: number;
   /** Länge des Fensters in globalen Wartezeiten (GAME-DESIGN 5: zwei bis drei). */
   readonly gcds: number;
+  /**
+   * Worauf die Verstärkung wirkt (Issue #489). Fehlt sie, ist es der Schaden.
+   *
+   * **Die Zielgröße wählt den Speicher, nicht nur die Rechenstelle.** Jede
+   * hat eine eigene `Buffs`-Instanz; damit kann eine Verstärkung auf den
+   * Punktegewinn eine auf den Schaden nicht verdrängen, auch wenn beide
+   * dieselbe Art tragen (GAME-DESIGN 328).
+   */
+  readonly target?: 'damage' | 'control' | 'resource' | 'tick' | 'stack';
 }
 
 /** Ein Entlade-Zauber: verbraucht den Vorrat und schlägt entsprechend zu. */
@@ -796,7 +805,24 @@ function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | u
     problems.push(`${where}: Fensterlänge ${gcds} muss eine positive Zahl von Wartezeiten sein.`);
     return undefined;
   }
-  return { kind, factor, gcds };
+  const ziel = raw['target'];
+  const ZIELE = ['damage', 'control', 'resource', 'tick', 'stack'] as const;
+  if (ziel !== undefined && !ZIELE.includes(ziel as (typeof ZIELE)[number])) {
+    // **Abbrechen statt durchreichen.** Eine unbekannte Zielgröße landete
+    // sonst im Schadens-Speicher, und der Zauber wirkte auf etwas anderes
+    // als er sagt — leise, weil er ja trotzdem verstärkt.
+    problems.push(
+      `${where}: unbekannte Verstärkungs-Zielgröße "${String(ziel)}". ` +
+        `Bekannt sind ${ZIELE.join(', ')}.`,
+    );
+    return undefined;
+  }
+  return {
+    kind,
+    factor,
+    gcds,
+    ...(typeof ziel === 'string' ? { target: ziel as NonNullable<BuffDef['target']> } : {}),
+  };
 }
 
 function parseDot(raw: unknown, where: string, problems: string[]): DotDef | undefined {

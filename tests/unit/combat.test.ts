@@ -59,6 +59,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'blight',
       'test-cast',
       'test-buff',
+      'test-control',
+      'test-heat',
+      'test-tick',
+      'test-stack',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);

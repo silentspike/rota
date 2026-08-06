@@ -16,6 +16,70 @@
         "factor": 1.2,
         "gcds": 3
       }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER Punktegewinn (GRIPLOCK) (Issue #489). Er gehoert NICHT zum Spiel: unlockLevel 101 liegt ueber der Stufengrenze, beide Stellen die Zauber anbieten filtern darueber.\n\nWARUM VIER STATT EINEM: Die vier Zielgroessen haben je einen EIGENEN Speicher, damit eine Verstaerkung auf den Punktegewinn eine auf den Schaden nicht verdraengen kann. Vier Zauber, die alle dasselbe Fenster oeffnen, belegten das nicht — sie belegten vier Mal dasselbe.\n\nDIE ZAHLEN SIND PLATZHALTER. Was gepruft wird, ist die TRENNUNG der Speicher, nicht die Balance.",
+      "id": "test-control",
+      "name": "Test Control",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "control"
+      }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER Hitze-Aufbau (FLASHPOINT) (Issue #489). Er gehoert NICHT zum Spiel: unlockLevel 101 liegt ueber der Stufengrenze, beide Stellen die Zauber anbieten filtern darueber.\n\nWARUM VIER STATT EINEM: Die vier Zielgroessen haben je einen EIGENEN Speicher, damit eine Verstaerkung auf den Punktegewinn eine auf den Schaden nicht verdraengen kann. Vier Zauber, die alle dasselbe Fenster oeffnen, belegten das nicht — sie belegten vier Mal dasselbe.\n\nDIE ZAHLEN SIND PLATZHALTER. Was gepruft wird, ist die TRENNUNG der Speicher, nicht die Balance.",
+      "id": "test-heat",
+      "name": "Test Heat",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "resource"
+      }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER Tick-Haeufigkeit (FORGE) (Issue #489). Er gehoert NICHT zum Spiel: unlockLevel 101 liegt ueber der Stufengrenze, beide Stellen die Zauber anbieten filtern darueber.\n\nWARUM VIER STATT EINEM: Die vier Zielgroessen haben je einen EIGENEN Speicher, damit eine Verstaerkung auf den Punktegewinn eine auf den Schaden nicht verdraengen kann. Vier Zauber, die alle dasselbe Fenster oeffnen, belegten das nicht — sie belegten vier Mal dasselbe.\n\nDIE ZAHLEN SIND PLATZHALTER. Was gepruft wird, ist die TRENNUNG der Speicher, nicht die Balance.",
+      "id": "test-tick",
+      "name": "Test Tick",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "tick"
+      }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER Stapel-Wertigkeit (VIRULENCE) (Issue #489). Er gehoert NICHT zum Spiel: unlockLevel 101 liegt ueber der Stufengrenze, beide Stellen die Zauber anbieten filtern darueber.\n\nWARUM VIER STATT EINEM: Die vier Zielgroessen haben je einen EIGENEN Speicher, damit eine Verstaerkung auf den Punktegewinn eine auf den Schaden nicht verdraengen kann. Vier Zauber, die alle dasselbe Fenster oeffnen, belegten das nicht — sie belegten vier Mal dasselbe.\n\nDIE ZAHLEN SIND PLATZHALTER. Was gepruft wird, ist die TRENNUNG der Speicher, nicht die Balance.",
+      "id": "test-stack",
+      "name": "Test Stack",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "stack"
+      }
     }
   ]
 }
