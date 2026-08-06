@@ -13,8 +13,8 @@ Orchestrator.
 
 ## Die Frage hat sich beim Messen geändert
 
-Ursprünglich: *Findet der Balance-Läufer über verschiedene Bosse hinweg
-dieselbe Rotation?* Die erste Messung sagte ja — sieben Bosse, drei wörtlich
+Ursprünglich: _Findet der Balance-Läufer über verschiedene Bosse hinweg
+dieselbe Rotation?_ Die erste Messung sagte ja — sieben Bosse, drei wörtlich
 identische Kopfzeilen, der einzige Unterschied trennte nach Kampflänge.
 
 **Dieser Befund trug nicht.** Der Sucher konnte gar keine boss-spezifische
@@ -28,12 +28,12 @@ eine Rotation reagieren könnte?**
 
 ## Das Ergebnis
 
-| Mechanik | Wirkt auf die Zahl? | Ändert die Rotation? |
-| --- | --- | --- |
-| Phasen | nein | nein |
-| Zeitleiste | nein | nein — *solange der Spieler überlebt* |
-| Widerstände | **ja** | nein |
-| **Todesgefahr** | **ja** | **ja** |
+| Mechanik        | Wirkt auf die Zahl? | Ändert die Rotation?                  |
+| --------------- | ------------------- | ------------------------------------- |
+| Phasen          | nein                | nein                                  |
+| Zeitleiste      | nein                | nein — _solange der Spieler überlebt_ |
+| Widerstände     | **ja**              | nein                                  |
+| **Todesgefahr** | **ja**              | **ja**                                |
 
 ### Phasen sind eine Beschriftung
 
@@ -91,7 +91,7 @@ Die 4,6 % sind der Preis gegenüber einer Welt **ohne** Todesgefahr, also
 gegenüber etwas, das es an diesem Boss nicht gibt. Was der Spieler erlebt,
 ist die andere Zahl: **dreifacher Schaden dafür, dass er einen GCD abgibt.**
 
-GAME-DESIGN sagt *„Überleben kostet Schaden und Zeit."* Gemessen kostet es
+GAME-DESIGN sagt _„Überleben kostet Schaden und Zeit."_ Gemessen kostet es
 4,6 % und bringt 210 %. Das ist keine Abwägung mehr, sondern eine klare
 Entscheidung — **und das ist selbst ein Befund für die Balance.**
 
@@ -140,8 +140,8 @@ gehen in die Prüfsumme ein und haben Prüffälle. Sie ändern trotzdem nichts.
 
 ### Das ist kein Versäumnis, sondern ein Hinweis
 
-GAME-DESIGN sieht Boss-Schaden ausdrücklich vor — *„ab Mittelspiel eigene
-Aktionen"*, *„Boss-Schaden: Ja, später"*. Es fehlt also keine Entscheidung,
+GAME-DESIGN sieht Boss-Schaden ausdrücklich vor — _„ab Mittelspiel eigene
+Aktionen"_, _„Boss-Schaden: Ja, später"_. Es fehlt also keine Entscheidung,
 sondern die Umsetzung an sieben von acht **Prüf**-Bössen.
 
 Prüf-Bosse sind Werkzeug, kein Spielinhalt. Der Befund sagt deshalb nichts
