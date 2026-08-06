@@ -34,7 +34,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::data::SPELL_COUNT;
+use crate::data::{SPELLS, SPELL_COUNT};
 use crate::rules_event::{RuleEvent, RuleReceiver};
 use crate::time::Millis;
 
@@ -45,6 +45,10 @@ pub struct PendingShorten {
     pub amount: Millis,
     /// Dieser Zauber bleibt aussen vor — der wirkende.
     pub except: i16,
+    /// Nur Abklingzeiten unter dieser Grenze (ASCEND, #518). 0 = alle.
+    pub below: Millis,
+    /// Nur die laengste (DECANT, #518).
+    pub longest_only: bool,
 }
 
 /// Der angesetzte, noch nicht ausgefuehrte Auftrag. Geteilt mit dem Kampf.
@@ -54,6 +58,10 @@ pub type PendingSlot = Rc<Cell<PendingShorten>>;
 pub struct SublimationMechanic {
     /// Verkuerzung je Zauber, aus den Daten. 0 = dieser Zauber verkuerzt nichts.
     per_cast: [Millis; SPELL_COUNT],
+    /// Je Zauber: nur Abklingzeiten unter dieser Grenze (ASCEND, #518).
+    below: [Millis; SPELL_COUNT],
+    /// Je Zauber: nur die laengste (DECANT, #518).
+    longest_only: [bool; SPELL_COUNT],
     pending: PendingSlot,
     /// Wie oft die Mechanik angesetzt hat. Fuer die Pruefung.
     applications: Rc<Cell<u32>>,
@@ -67,8 +75,26 @@ impl SublimationMechanic {
         pending: PendingSlot,
         applications: Rc<Cell<u32>>,
     ) -> Self {
+        // **Die Auswahl-Tabellen entstehen HIER, nicht beim Aufrufer**
+        // (Issue #518). `per_cast` kommt von aussen, weil `fight.rs` es aus
+        // den Zauber-Daten fuellt; die zwei neuen kaemen aus derselben
+        // Quelle, und drei Tabellen durch die Signatur zu reichen macht
+        // jeden kuenftigen Aufrufer zum Mitwisser.
+        //
+        // Die Mechanik LIEFERT den Auftrag nur — angewandt wird er in
+        // `fight.rs`. Damit ist das Kopieren hier harmlos: kein
+        // Kampfzustand, keine Rechnung.
+        let mut below = [0; SPELL_COUNT];
+        let mut longest_only = [false; SPELL_COUNT];
+        for (index, spell) in SPELLS.iter().enumerate() {
+            below[index] = spell.cooldown_reduction_below_ms;
+            longest_only[index] = spell.cooldown_reduction_longest_only;
+        }
+
         Self {
             per_cast,
+            below,
+            longest_only,
             pending,
             applications,
         }
@@ -88,9 +114,14 @@ impl RuleReceiver for SublimationMechanic {
             return;
         }
         self.applications.set(self.applications.get() + 1);
+        // **Die Auswahl kommt vom ZAUBER** (Issue #518). `shorten_cooldowns`
+        // kennt den Ausloeser nicht — sie bekommt einen Index zum
+        // Ueberspringen und sonst nichts.
         self.pending.set(PendingShorten {
             amount,
             except: subject,
+            below: self.below.get(index).copied().unwrap_or(0),
+            longest_only: self.longest_only.get(index).copied().unwrap_or(false),
         });
     }
 }
@@ -115,9 +146,44 @@ pub fn shorten_cooldowns(
         return 0;
     }
     let except = usize::try_from(order.except).unwrap_or(usize::MAX);
+
+    // **Die Auswahl VOR der Schleife** (Issue #518, DECANT). Wer den
+    // laengsten treffen will, muss ihn erst finden — die Schleife sieht
+    // immer nur einen Eintrag.
+    //
+    // Bei Gleichstand gewinnt der NIEDRIGERE Index. Das ist eine
+    // Entscheidung, keine Selbstverstaendlichkeit: Ohne sie haenge das
+    // Ergebnis an der Laufrichtung, und das waere ein stiller
+    // Paritaets-Bruch, sobald eine Seite umbaut.
+    let mut ziel = usize::MAX;
+    if order.longest_only {
+        let mut laengste = now;
+        for (index, slot) in ready_at.iter().enumerate() {
+            if index == except {
+                continue;
+            }
+            if *slot > laengste {
+                laengste = *slot;
+                ziel = index;
+            }
+        }
+        if ziel == usize::MAX {
+            return 0;
+        }
+    }
+
     let mut touched = 0;
     for (index, slot) in ready_at.iter_mut().enumerate() {
         if index == except || *slot <= now {
+            continue;
+        }
+        if order.longest_only && index != ziel {
+            continue;
+        }
+        // **Ein STRENGES Kleiner** (Issue #518, ASCEND): Eine Abklingzeit
+        // GENAU auf der Grenze bleibt unberuehrt. "Unter 10 s" heisst
+        // woertlich unter, nicht "bis einschliesslich".
+        if order.below > 0 && slot.saturating_sub(now) >= order.below {
             continue;
         }
         *slot = slot.saturating_sub(order.amount).max(now);
@@ -154,7 +220,9 @@ mod tests {
             pending.get(),
             PendingShorten {
                 amount: 2000,
-                except: 0
+                except: 0,
+                below: 0,
+                longest_only: false,
             }
         );
         assert_eq!(applications.get(), 1);
@@ -181,6 +249,8 @@ mod tests {
             PendingShorten {
                 amount: 2000,
                 except: 2,
+                below: 0,
+                longest_only: false,
             },
             3000,
         );
@@ -199,6 +269,8 @@ mod tests {
             PendingShorten {
                 amount: 2000,
                 except: -1,
+                below: 0,
+                longest_only: false,
             },
             3000,
         );
@@ -215,6 +287,8 @@ mod tests {
             PendingShorten {
                 amount: 2000,
                 except: -1,
+                below: 0,
+                longest_only: false,
             },
             9000,
         );
