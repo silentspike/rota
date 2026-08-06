@@ -107,6 +107,30 @@ Zusätzliche Hebel im API-Payload:
 > Abklang). Verlängern geht nicht. Die Iteration wählt deshalb den **kürzesten Kandidaten,
 > der noch ≥ Ziel liegt**.
 
+##### Ein Prompt kann die Ziel-Länge unmöglich machen — dann hilft kein weiterer Versuch
+
+Die Iteration steuert über `negative_tags` nach, aber sie kann den **Basis-Prompt** nicht
+umschreiben. Nennt der Wörter, die ihrem Wesen nach einen kurzen Klang beschreiben, liefert
+jeder Versuch zu wenig, und die Wiederholung kostet nur Credits.
+
+Gemessen an `spell-bind` (Ziel 0,50 s), zweimal gescheitert:
+
+| Prompt | Kandidaten |
+| --- | --- |
+| `short binding snap, tight rope-pull click, restrained arcane grip, dry` | 0,33 s · 0,27 s |
+| dieselbe Zeile plus `long dark decay, slow fade out` | 0,33 s · 0,27 s — **unverändert** |
+| `arcane binding, tight rope-pull with resonant ringing tail, restrained magical grip, sustained decay, no percussion` | 2,72 s · 8,10 s |
+
+**Der Zusatz am Ende hat nichts bewirkt.** Wirksam wurde erst, `snap`, `click` und `dry` zu
+**entfernen** — die Wörter, die den Klang kurz machen. Ein Ausklang-Hinweis kämpft gegen sie an
+und verliert; das ist dieselbe Mechanik wie bei den Widersprüchen in 4.1, nur in der anderen
+Richtung.
+
+> **Faustregel:** Scheitert ein One-Shot zweimal an der Ziel-Länge, ist der nächste Versuch
+> keine Wiederholung, sondern eine **Prompt-Änderung** — und zwar durch Streichen, nicht durch
+> Anhängen. Der geänderte Prompt gehört zurück ins Manifest, sonst scheitert der nächste Lauf
+> aus demselben Grund erneut.
+
 **B) Sustained/Loop** — variable Länge, so lange wie der Spieleffekt: kanalisierte Zauber,
 Buff-Fenster („10 s erhöhter Schaden"), DoT-Brennen, Welt-Ambiente, Zeitdruck-Layer.
 
