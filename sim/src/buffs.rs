@@ -202,6 +202,56 @@ mod tests {
     use super::*;
     use crate::time::GCD_MS;
 
+    /// Die Fenstersumme traegt ERWARTETE ZAHLEN, nicht nur denselben Wert
+    /// wie die Spiel-Seite (Issue #493).
+    ///
+    /// **Warum das ein eigener Fall ist, obwohl die Paritaet es abdeckt:**
+    /// Ein Abgleich zweier Umsetzungen faengt keinen Fehler, den BEIDE
+    /// teilen. Genau diese Lage hielt `perDecayStackPercent` fuenf Wochen
+    /// verborgen — zwei identisch falsche Rechnungen, gruene Paritaet.
+    ///
+    /// Ein Fall mit ausgerechneten Zahlen kann das; ein Vergleich nicht.
+    #[test]
+    fn fenstersumme_zaehlt_offene_fenster_mit_ihrem_ende() {
+        let mut b = Buffs::new();
+        assert_eq!(b.window_sum(), 0.0, "ohne Verstaerkung ist die Summe 0");
+
+        // Ein Fenster ueber drei Wartezeiten endet bei 4500.
+        b.apply_for_gcds(0, 1.2, 3, 0, GCD_MS);
+        assert_eq!(b.window_sum(), 4500.0);
+
+        // Ein zweites, ueber zwei Wartezeiten: 4500 + 3000.
+        b.apply_for_gcds(1, 1.5, 2, 0, GCD_MS);
+        assert_eq!(b.window_sum(), 7500.0);
+
+        // Nach dem Ablauf des zweiten bleibt das erste.
+        b.expire(3000);
+        assert_eq!(b.window_sum(), 4500.0, "das abgelaufene zaehlt weiter mit");
+
+        // Und nach dem Ablauf beider ist sie wieder 0 — sonst wuechse sie
+        // ueber den Kampf hinweg und truege geschlossene Fenster mit.
+        b.expire(4500);
+        assert_eq!(b.window_sum(), 0.0);
+    }
+
+    /// **Die Gegenprobe zur Summe:** Zwei verschiedene Zustaende duerfen
+    /// nicht dieselbe Zahl ergeben. Sonst waere sie fuer die Pruefsumme
+    /// wertlos, obwohl sie sich bewegt.
+    #[test]
+    fn verschiedene_fenster_ergeben_verschiedene_summen() {
+        let mut frueh = Buffs::new();
+        frueh.apply_for_gcds(0, 1.2, 2, 0, GCD_MS);
+
+        let mut spaet = Buffs::new();
+        spaet.apply_for_gcds(0, 1.2, 3, 0, GCD_MS);
+
+        assert_ne!(
+            frueh.window_sum(),
+            spaet.window_sum(),
+            "zwei verschieden lange Fenster ergeben dieselbe Summe"
+        );
+    }
+
     #[test]
     fn fenster_haengt_an_der_wartezeit() {
         let mut voll = Buffs::new();
