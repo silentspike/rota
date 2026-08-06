@@ -3234,3 +3234,48 @@ sich etwas ändert.** Was nichts ändert, war eine Hürde und keine Bedingung.
 Das ist billig — es sind so viele Läufe, wie es Bedingungen gibt — und es ist der einzige Zeitpunkt,
 an dem man die Frage überhaupt stellt: Danach steht die Bedingung da, ist begründet, und niemand
 fasst sie mehr an.
+
+### 8.41 Eine Notiz über einen Zustand ist ein Messwert von damals
+
+Eine Sitzung meldete zwei Blocker. Der zweite lautete:
+
+> Klang erzeugen — **Suno ist gesperrt (Turnstile)**, ElevenLabs ohne Guthaben.
+
+Daraus folgte eine Frage an den Orchestrator, ob ein Spiel-Zauber ausnahmsweise auf die `STUMM`-Liste
+dürfe — eine Design-Entscheidung, die niemand treffen wollte.
+
+Gemessen, in einer Zeile:
+
+```
+python tools/suno_api.py auth-test
+  Account: backupslave | billing/info: HTTP 200
+  Credits: 1342 | Tier: True
+```
+
+Der Klang war zwei Minuten später fertig. Die Einordnung der Sitzung selbst: _„Meine Suno-Sperre war
+eine ungeprüfte Annahme aus einer alten Notiz."_
+
+#### Warum das eine eigene Klasse ist
+
+`8.37` handelt von **Verweisen**, die altern — eine Zeilennummer, eine Rechnung mit fremden Werten.
+Hier altert etwas anderes: die Notiz über einen **Zustand**.
+
+> „Suno ist gesperrt" war einmal wahr. Es ist keine Regel und keine Entscheidung, sondern ein
+> **Messwert** — und Messwerte über äußere Systeme haben eine Haltbarkeit von Minuten.
+
+Ein Cookie läuft ab, ein Dienst kommt zurück, ein Container wird gestartet. Was gestern nicht ging,
+geht heute vielleicht.
+
+#### Woran man es erkennt
+
+Der Verdacht gilt jeder Aussage der Form **„X geht nicht"**, wenn sie nicht in derselben Sitzung
+gemessen wurde. Zwei Fragen:
+
+1. **Wann wurde das zuletzt geprüft?** Steht kein Zeitpunkt dabei, ist es keine Messung.
+2. **Was kostet die Prüfung?** Bei äußeren Diensten meist ein Aufruf und Sekunden — weniger als die
+   Rückfrage, die man sonst stellt.
+
+Am selben Abend ist dasselbe in die andere Richtung passiert: Ein gestoppter Container wurde
+gemeldet, gestartet und repariert — und war für das Repository gar nicht zuständig, weil dessen
+Abläufe auf GitHubs eigenen Runnern liefen. **Auch das war eine Zustandsaussage ohne frische
+Messung**, nur mit umgekehrtem Vorzeichen.
