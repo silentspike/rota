@@ -171,6 +171,24 @@ impl Buffs {
     }
 
     /// Alles auf neutral zuruecksetzen.
+    /// Die Summe aller offenen Fensterenden — fuer die Pruefsumme (#493).
+    ///
+    /// **Eine Summe statt einzelner Felder**, weil die Pruefsumme je Takt
+    /// laeuft. Dieselbe Bauart wie `synergy_window_sum` (#318), und dieselbe
+    /// Rechnung wie `windowSum()` auf der Spiel-Seite — nicht offene Fenster
+    /// tragen 0 und nicht `NOT_ACTIVE`, sonst haenge die Summe an einer
+    /// Sentinel-Zahl, die auf beiden Seiten verschieden sein duerfte.
+    pub fn window_sum(&self) -> f64 {
+        let mut summe = 0.0;
+        for i in 0..BUFF_KIND_CAPACITY {
+            if self.expires_at[i] != NOT_ACTIVE {
+                summe += self.expires_at[i] as f64;
+            }
+        }
+        summe
+    }
+
+    /// Alles auf neutral zuruecksetzen.
     pub fn reset(&mut self) {
         self.factors = [1.0; BUFF_KIND_CAPACITY];
         self.expires_at = [NOT_ACTIVE; BUFF_KIND_CAPACITY];
