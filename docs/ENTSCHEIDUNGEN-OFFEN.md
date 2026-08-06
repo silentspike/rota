@@ -1,6 +1,6 @@
 # Was beim Auftraggeber liegt
 
-**Stand 2026-08-06, 15:40: Neun Punkte sind entschieden oder erledigt, zwei liegen noch offen.** Die
+**Stand 2026-08-06, 16:40: Dreizehn der vierzehn Punkte sind entschieden oder erledigt.** Die
 entschiedenen stehen unten mit Ergebnis und wandern ins GAME-DESIGN; was sie im Code auslösen,
 ist als Issue verlinkt. **Acht der vierzehn sind aus der Arbeit selbst entstanden, nicht aus dem
 Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
@@ -12,10 +12,10 @@ Interview** — sie kamen zutage, weil eine Abnahme etwas nachgemessen hat.
 | **3** `DECAY_STACK_PERCENT`         | **auf 6 % anheben**                                                                                |
 | **4** Stumme Zauber                 | **ERLEDIGT ohne dein Zutun** — elf Klänge erzeugt, #198 und #204 geschlossen; nur das Hören bleibt |
 | **5** PUTREFACTION-Farbe            | **hell-violett bleibt** — der ganze Bildbestand ist so abgenommen                                  |
-| **6** Wirkzeit gegen Tempo          | **FAST ENTSCHIEDEN** — die Zauber-Zahlen lösen es, nicht die Regeln; die Spanne ist noch zu wählen |
+| **6** Wirkzeit gegen Tempo          | **ENTSCHIEDEN: 2,3–3,0 s** — kürzere Zauber wirken sofort, die Regeln bleiben unangetastet         |
 | **7** Grundwerte je Fund            | **OFFEN, als Balance-Messung** — wie viel ESSENCE trägt ein Stück auf Stufe 1                      |
 | **8** Widerstand gegen Schul-Stärke | **ENTSCHIEDEN: die Schulen angleichen** — nicht am Widerstand drehen                               |
-| **9** WARD-Deckel                   | **ENTSCHIEDEN: 75 %** — sichtbar in der Werte-Übersicht wie bei CATALYSIS und PURITY               |
+| **9** WARD-Deckel                   | **ENTSCHIEDEN: 75 % auf die SUMME** — Grundwert plus Ausrüstung; nutzbarer Anteil damit 550 ‰      |
 | **11** SUBLIMATION-Bauart           | **VERTAGT** — erneut messen, wenn es mehr als 15 Zauber gibt; die Bauart bleibt vorerst            |
 | **12** `runaway`-Timing             | **ENTSCHIEDEN: Tiefe** — bleibt, wie es ist                                                        |
 | **13** Talentpunkt-Verteilung       | **WAR NIE OFFEN** — „etwa jede zweite Stufe einer" steht im Plan und ist die Verteilung            |
@@ -202,7 +202,7 @@ noch immer neue mit ki generieren."
 
 ---
 
-## 6. Wirkzeit gegen Tempo — die Zauber-Zahlen lösen es, nicht die Regeln
+## 6. Wirkzeit gegen Tempo — ENTSCHIEDEN: Spanne 2,3–3,0 s, kürzere wirken sofort
 
 **Der Auftraggeber hat die Frage zurückgewiesen und die bessere Antwort gegeben:** _„naja dann
 müssen wir doch eher die spells überarbeiten?"_ — statt an einer der beiden Design-Regeln zu
