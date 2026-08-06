@@ -573,6 +573,18 @@ export interface PlayerBaseDef {
   readonly vessel: number;
   /** WARD — Anteil, um den eingehender Schaden gemindert wird. */
   readonly wardReduction: number;
+  /**
+   * Der **Balance-Deckel** auf die Minderung, in Promille (Issue #466).
+   *
+   * Gilt für die Minderung **insgesamt** — Basis plus Ausrüstung —, wie es
+   * GAME-DESIGN unter „Die Deckel" festhält: „WARD (Minderung) | 75 %".
+   *
+   * **Nicht zu verwechseln mit dem Deckel bei 1,0** im Kampf. Der ist eine
+   * Rechenregel: Darüber würde der Spieler von jedem Treffer geheilt. Dieser
+   * hier ist eine gesetzte Zahl, die auch bei 0,4 oder 0,9 stehen könnte,
+   * ohne dass die Formel etwas dagegen hätte.
+   */
+  readonly wardCapPermille: number;
 }
 
 /**
@@ -1599,6 +1611,7 @@ export const PLAYER: PlayerBaseDef = (() => {
   const roh = rawPlayer as Record<string, unknown>;
   const vessel = number(roh['vessel'], 0);
   const wardReduction = number(roh['wardReduction'], 0);
+  const wardCapPermille = number(roh['wardCapPermille'], 0);
   // Kein `problems`-Kanal hier: Diese Datei ist keine Inhaltsdatei, die ein
   // Autor pflegt, sondern eine Voraussetzung des Spiels. Fehlt sie oder ist
   // sie unsinnig, ist nichts spielbar — dann ist ein harter Abbruch ehrlicher
@@ -1610,7 +1623,18 @@ export const PLAYER: PlayerBaseDef = (() => {
         'Spieler unverwundbar, darüber würde ihn Schaden heilen.',
     );
   }
-  return { vessel, wardReduction };
+  // **Ein Deckel unter der Basis wäre keine Grenze, sondern eine Absenkung.**
+  // Dann minderte getragene Ausrüstung weniger als gar keine, und jeder Punkt
+  // WARD wäre schädlich — ein Zustand, den niemand beabsichtigen kann und der
+  // sich still auswirkte.
+  if (wardCapPermille <= wardReduction * 1000) {
+    throw new Error(
+      `data/player/base.json: wardCapPermille (${wardCapPermille}) muss über der Basis ` +
+        `wardReduction (${wardReduction * 1000} ‰) liegen — sonst mindert Ausrüstung weniger ` +
+        `als keine.`,
+    );
+  }
+  return { vessel, wardReduction, wardCapPermille };
 })();
 
 export const LEVELS: LevelGrowthDef = (() => {

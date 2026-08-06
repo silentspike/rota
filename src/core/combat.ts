@@ -1809,10 +1809,26 @@ export class Combat {
     // **Additiv, nicht multiplikativ:** Beides ist Minderung, also derselbe
     // Topf — innerhalb eines Topfes wird addiert (13.1b).
     //
-    // Der Deckel bei 1 ist eine Rechenregel, keine Balance-Zahl: Darüber
-    // würde der Spieler geheilt. Ob es einen Balance-Deckel darunter geben
-    // soll, ist offen und steht nirgends im Design.
-    const minderung = Math.min(1, PLAYER.wardReduction + this.worn.ward / 1000);
+    // **Hier stehen ZWEI Deckel übereinander, und sie sagen Verschiedenes**
+    // (Issue #466, GAME-DESIGN „Die Deckel"):
+    //
+    //   wardCapPermille   750 ‰, GESETZT vom Auftraggeber. Eine Balance-Zahl.
+    //                     Sie könnte auch bei 400 oder 900 stehen, ohne dass
+    //                     die Formel etwas dagegen hätte. Ohne sie kann eine
+    //                     hinreichend gute Ausrüstung den Spieler
+    //                     unverwundbar machen — und damit verlöre die
+    //                     COAGULATION-Schule ihren Gegenstand.
+    //
+    //   1                 eine RECHENREGEL. Über eins würde der Spieler von
+    //                     jedem Treffer geheilt. Sie folgt aus der Formel und
+    //                     ist nicht verhandelbar.
+    //
+    // Der zweite ist heute wirkungslos, weil 750 ‰ darunter liegt — und steht
+    // trotzdem da. Wer den Balance-Deckel eines Tages über 1000 ‰ setzt, soll
+    // nicht erst durch geheilte Spieler darauf stossen. Ihn wegzulassen hiesse,
+    // sich auf den Wert einer Datendatei zu verlassen.
+    const roh = PLAYER.wardReduction + this.worn.ward / 1000;
+    const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
     const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
     // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
