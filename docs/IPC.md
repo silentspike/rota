@@ -164,6 +164,49 @@ sah, der an den Orchestrator adressiert war, und **nachfragte, statt ihn zu übe
 
 Beides traf zu: Die Liste ist global, **und** die Nachricht fehlte.
 
+#### Die Ursache — gefunden am selben Abend, aus einem ganz anderen Anlass
+
+Der Fall stand hier als ungeklärt. Er ist es nicht mehr, und er hatte dieselbe Wurzel wie die
+Doppelzustellungen: einen **Read-Modify-Write ohne Schutz gegen den Leser**.
+
+```python
+sperre.mkdir()                            # schützt gegen andere SENDER
+inhalt = json.loads(inbox.read_text())    # liest [A]
+                                          # <- hier leert der Poller: []
+inhalt.append(neu)                        # [A, B]
+tmp.replace(inbox)                        # schreibt A zurück
+```
+
+Der Leser — Claude Codes `InboxPoller` — kennt diese Sperre nicht. Je nachdem, wo er in seinem
+eigenen Lesen-und-Leeren steht, entsteht **eine von zwei Wirkungen**:
+
+| Reihenfolge                                                         | Wirkung                                                                            |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Poller leert zwischen `read` und `replace`                          | Der Sender schreibt eine **bereits abgeholte** Nachricht zurück → Doppelzustellung |
+| Poller leert **nach** dem `replace`, auf Basis eines älteren Lesens | Die **frisch geschriebene** Nachricht wird überschrieben → **Verlust**             |
+
+Gemessen an 60 Sendungen gegen einen nachgebildeten Poller:
+
+```
+                doppelt   VERLOREN
+alt (0,5 ms)      21         7
+neu (0,5 ms)      12         0
+alt (50 ms)       45         0
+neu (50 ms)        0         0
+```
+
+**Sieben von sechzig Nachrichten waren weg** — nicht doppelt, sondern nie angekommen, mit
+Erfolgsmeldung beim Sender. Genau der Fall oben.
+
+Die Zustellung wiederholt seitdem, wenn sich die Datei zwischen Lesen und Schreiben bewegt hat;
+alles Teure passiert vor der letzten Prüfung, sodass zwischen ihr und dem atomaren `replace` nur
+noch der Systemaufruf liegt. Nach acht erfolglosen Versuchen wird trotzdem geschrieben — **eine
+Doppelzustellung ist der billigere Fehler als eine verlorene Nachricht.**
+
+> **Die Tabelle darüber bleibt trotzdem gültig.** Der Fix macht den Verlust unwahrscheinlich, nicht
+> unmöglich, und am Beweiswert einer Erfolgsmeldung ändert er nichts: Sie belegt weiterhin nur, dass
+> die Datei geschrieben wurde. Nur die Antwort trägt.
+
 | Beobachtung beim **Sender** | Was sie belegt              | Was sie **nicht** belegt     |
 | --------------------------- | --------------------------- | ---------------------------- |
 | `Nachricht NNNN zugestellt` | die Datei wurde geschrieben | dass der Empfänger sie kennt |
