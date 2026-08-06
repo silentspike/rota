@@ -898,3 +898,38 @@ Anlass, kurz innezuhalten:
 
 **Ein Prüffall, der zehn Sekunden länger dauert, hat die richtige Zahl geliefert.** Ein Skript,
 das sofort antwortet, hat gegen etwas gemessen, das dem Programm nur ähnlich sieht.
+
+### Ein Werkzeug meldet Erfolg für etwas, das das Spiel gar nicht zulässt
+
+_2026-08-06, beim Nachweis, dass die neun neuen Zauber-Klänge im Spiel auslösen (#204 AC5)._
+
+`__rota.bindSlot(0, 'bellows')` gab **`true`** zurück. Danach passierte auf Taste `Q`
+nichts — kein `cast` im Protokoll, keine Klang-Anforderung. Vier Versuche mit anderen
+Tasten und längeren Pausen änderten daran nichts.
+
+Der Grund steht im Design: **Die Zusammenstellung wird nur zwischen Kämpfen geändert**
+(GAME-DESIGN, Trainingsraum). Der laufende Kampf arbeitet mit der Leiste, die beim
+Start galt. Das ist richtig so — die Rückgabe ist es nicht.
+
+```
+wipe() → bindSlot() → resetFight() → ready()   →  cast bellows 40, cast vapour 0
+bindSlot() im laufenden Kampf                  →  true, und nichts geschieht
+```
+
+> **`true` heißt hier „eingetragen", nicht „wirkt".** Wer damit misst, hält eine
+> Design-Regel für einen kaputten Klang — und sucht an der falschen Stelle. Mich hat es
+> drei Messrunden gekostet, und ich habe zwischendurch ernsthaft erwogen, die zwei
+> Klänge neu zu erzeugen.
+
+**Für die Abnahme heißt das:** Ein Dev-Werkzeug, das im falschen Zustand aufgerufen wird,
+antwortet nicht immer mit einem Fehler. Vor jeder Messung am laufenden Spiel gehört die
+Frage dazu, ob der Zustand das Gemessene überhaupt zulässt — und der Beleg dafür ist das
+**Kampfprotokoll**, nicht der Rückgabewert:
+
+```bash
+playwright-cli -s=rota eval "() => JSON.stringify(window.__rota.logText().split('\n').slice(-6))"
+```
+
+Es zeigt, was tatsächlich gewirkt wurde. Blieb es stehen, ist der Tastendruck nicht
+angekommen oder der Zauber lag nicht auf der aktiven Leiste — in beiden Fällen misst man
+gerade nichts.

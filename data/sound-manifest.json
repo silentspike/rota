@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 10
+        "present": 16
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 50,
+        "count": 44,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -156,7 +156,7 @@
       "file": "audio/spell-bind.ogg",
       "targetSeconds": 0.5,
       "pitchJitterCents": 15,
-      "prompt": "short binding snap, tight rope-pull click, restrained arcane grip, dry",
+      "prompt": "arcane binding, tight rope-pull with resonant ringing tail, restrained magical grip, sustained decay, no percussion",
       "trigger": {
         "on": "spell.cast",
         "key": "bind"
@@ -217,7 +217,6 @@
       "targetSeconds": 0.6,
       "pitchJitterCents": 25,
       "prompt": "soft pressurised steam release, airy upward hiss, quick dissipation, no impact",
-      "provisional": "Eintrag steht, Datei fehlt: die Klang-Erzeugung ist seit dem 2026-08-04 durch ein Cloudflare-Turnstile blockiert (Issue #204). Zaehlt nicht zur Abdeckung, solange die Datei fehlt.",
       "trigger": {
         "on": "spell.cast",
         "key": "vapour"
@@ -233,10 +232,69 @@
       "targetSeconds": 0.7,
       "pitchJitterCents": 25,
       "prompt": "reversed liquid gurgle drawing back into glass vessel, descending suction, wet",
-      "provisional": "Eintrag steht, Datei fehlt: die Klang-Erzeugung ist seit dem 2026-08-04 durch ein Cloudflare-Turnstile blockiert (Issue #204). Zaehlt nicht zur Abdeckung, solange die Datei fehlt.",
       "trigger": {
         "on": "spell.cast",
         "key": "reflux"
+      }
+    },
+    {
+      "id": "spell-canker",
+      "group": "spells",
+      "purpose": "CANKER — der Faeulnisherd der PUTREFAKTION. Legt den ersten Stapel an und wird oft gedrueckt, muss also kurz und zurueckhaltend sein — wie KINDLE in der CALCINATION.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-canker.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "wet organic rupture, soft fleshy burst, damp membrane tear, short dry one shot, dark violet decay spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "canker"
+      }
+    },
+    {
+      "id": "spell-fester",
+      "group": "spells",
+      "purpose": "FESTER — wirkt staerker, je mehr Stapel liegen. DERSELBE Werkstoff wie CANKER, aber tiefer und voller: Die beiden gehoeren als Paar zusammen (GAME-DESIGN 4) und muessen als verwandt hoerbar sein, ohne verwechselbar zu werden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-fester.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 15,
+      "prompt": "deep festering swell, thick wet rot bloom, low gurgling decay surge, heavy organic putrefaction, dark violet",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "fester"
+      }
+    },
+    {
+      "id": "spell-bellows",
+      "group": "spells",
+      "purpose": "BELLOWS — der zweite Hitze-Erzeuger der CALCINATION. Kurze Abklingzeit, wird oft gedrueckt: muss zurueckhaltend bleiben und darf sich neben KINDLE nicht in den Vordergrund draengen. Er facht an, er trifft nicht.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-bellows.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "forge bellows air push, rushing draft feeding embers, warm rising whoosh with glowing tail, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "bellows"
+      }
+    },
+    {
+      "id": "spell-searing",
+      "group": "spells",
+      "purpose": "SEARING — der Brand-Effekt der CALCINATION. Er setzt einen Zustand in Gang, statt sofort zu wirken: ein Anfassen der Hitze, kein Schlag. Muss sich klar von PYRE unterscheiden, das die Hitze entlaedt.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-searing.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 20,
+      "prompt": "searing heat taking hold, hot metal sizzling with sustained scorch, slow burning resonance, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "searing"
       }
     },
     {
