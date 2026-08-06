@@ -213,20 +213,36 @@ describe('AC5 — die Werte werden gerechnet, nicht gelesen', () => {
 });
 
 describe('Die Fallrate ist ein benannter Wert', () => {
+  // **Seit dem 2026-08-06 steht sie auf 1000 ‰ — jeder Sieg lässt etwas
+  // fallen.** Entscheidung des Auftraggebers, mit dem WoW-Vergleich begründet:
+  // Dort fällt bei jedem Boss etwas, die Seltenheit liegt in der **Qualität**,
+  // nicht im **Ob** (`PROGRESS_WEIGHTS` verteilt 60/30/9/1 im Endgame).
+  //
+  // Die vorherige Fassung verlangte hier `< 1000` und im Fall darunter
+  // `treffer < 400`. Beides war keine Prüfung der Mechanik, sondern eine
+  // **eingebaute Annahme über die Design-Entscheidung** — und die ist gefallen.
   it('sie steht in den Daten, nicht im Rumpf', () => {
     expect(DROP_CHANCE_PER_MILLE).toBeGreaterThan(0);
-    expect(DROP_CHANCE_PER_MILLE).toBeLessThan(1000);
+    expect(DROP_CHANCE_PER_MILLE).toBeLessThanOrEqual(1000);
   });
 
-  it('und sie wirkt: über viele Würfe fällt ungefähr so oft etwas', () => {
-    // Kein Balance-Nachweis, sondern ein Wirkungsnachweis: Wäre die Zahl
-    // unbenutzt, fiele entweder immer oder nie etwas.
-    let treffer = 0;
-    for (let seed = 0; seed < 400; seed++) {
-      if (rollLoot(lootStreamFor(seed), DROP_CONTEXT) !== null) treffer++;
-    }
-    expect(treffer).toBeGreaterThan(0);
-    expect(treffer).toBeLessThan(400);
+  it('und sie wirkt: die Zahl steuert wirklich, wie oft etwas fällt', () => {
+    // Kein Balance-Nachweis, sondern ein Wirkungsnachweis. Er kann heute nicht
+    // mehr über „nicht immer" laufen, weil „immer" der Sollzustand ist —
+    // deshalb misst er die **Gegenrichtung**: Eine kleinere Zahl muss weniger
+    // Treffer ergeben. Wäre der Wert unbenutzt, blieben beide gleich.
+    const treffer = (rate: number): number => {
+      let n = 0;
+      for (let seed = 0; seed < 400; seed++) {
+        if (rollLoot(lootStreamFor(seed), DROP_CONTEXT, ITEMS, rate) !== null) n++;
+      }
+      return n;
+    };
+
+    expect(treffer(DROP_CHANCE_PER_MILLE)).toBe(400);
+    expect(treffer(500)).toBeGreaterThan(0);
+    expect(treffer(500)).toBeLessThan(400);
+    expect(treffer(500)).toBeLessThan(treffer(DROP_CHANCE_PER_MILLE));
   });
 });
 
