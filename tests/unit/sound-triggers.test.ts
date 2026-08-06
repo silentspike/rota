@@ -113,15 +113,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // Nur die beiden Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die
   // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
   // aus #420. Alle 17 spielbaren Zauber klingen.
-  // `cinder` steht hier VORLAEUFIG (Issue #477): Der Zauber ist gebaut, sein
-  // Klang fehlt noch — die .ogg entsteht ueber Suno und ist Issue #487.
-  //
-  // Ein Manifest-Eintrag ohne Datei waere der naheliegende Umweg und geht
-  // NICHT durch (vom Orchestrator gemessen). Diese Liste ist deshalb der
-  // vorgesehene Weg, nicht die Abkuerzung: Die Gegenrichtung unten meldet den
-  // Eintrag von selbst ab, sobald der Klang kommt — er kann also nicht
-  // vergessen werden.
-  const STUMM = new Set(['test-cast', 'test-buff', 'cinder']);
+  const STUMM = new Set(['test-cast', 'test-buff']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
