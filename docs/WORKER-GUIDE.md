@@ -2646,15 +2646,27 @@ zusammen decken ab, wie eine Zahl falsch werden kann, ohne dass jemand sich verr
 
 _2026-08-06. Dreimal an einem Tag, in drei Sitzungen, an drei verschiedenen Stellen._
 
-| Wo                               | Der Kommentar sagte                                                  | Die Zeile darunter tat                                   |
-| -------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
-| `combat.ts` (#428)               | „in **Wartezeiten** gerechnet, nicht in Sekunden"                    | `hasted(gcds × GCD)` — eine beschleunigte Dauer          |
-| `factor-triggers.test.ts` (#425) | „`buff` gibt es im Typ noch nicht — deshalb über den **Rohbestand**" | las `CALCINATION.value.spells`, die **geparste** Fassung |
-| `VERIFICATION.md` (eigener)      | ein Abschnitt über Bezugspunkte, am Vormittag geschrieben            | am Abend ein Prüfskript, das genau dagegen verstieß      |
+| Wo                               | Der Kommentar sagte                                                  | Die Zeile darunter tat                                                              |
+| -------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `combat.ts` (#428)               | „in **Wartezeiten** gerechnet, nicht in Sekunden"                    | `hasted(gcds × GCD)` — eine beschleunigte Dauer                                     |
+| `factor-triggers.test.ts` (#425) | „`buff` gibt es im Typ noch nicht — deshalb über den **Rohbestand**" | las `CALCINATION.value.spells`, die **geparste** Fassung — **aus demselben Commit** |
+| `VERIFICATION.md` (eigener)      | ein Abschnitt über Bezugspunkte, am Vormittag geschrieben            | am Abend ein Prüfskript, das genau dagegen verstieß                                 |
 
-**Keiner dieser Kommentare war veraltet oder falsch.** Alle drei waren richtig, standen an der
-richtigen Stelle, und wurden gelesen — der zweite und dritte sogar vom selben Menschen, der sie
-geschrieben hatte.
+**Keiner dieser Kommentare war veraltet oder falsch.** Alle drei waren richtig und standen an der
+richtigen Stelle.
+
+**Beim zweiten Fall ist es sogar schärfer, als „gelesen und überlesen" es fasst** — nachgemessen am
+Commit vor der Reparatur (`1354f02`): **Kommentar und widersprechende Zeile stammen aus demselben
+Commit, von derselben Sitzung, im selben Arbeitsgang.**
+
+> Der Kommentar war also nicht einmal für den nächsten Leser da, sondern für **denselben, drei
+> Zeilen tiefer, in derselben Minute**. Zwischen „ich schreibe auf, worauf zu achten ist" und „ich
+> achte nicht darauf" lag kein Tag und kein Zuständigkeitswechsel — nur der Abstand von einer
+> Erklärung zu ihrer Anwendung.
+
+Diese Zuspitzung stammt von der Sitzung selbst, beim Gegenlesen dieses Abschnitts. Meine erste
+Fassung hatte sie aus ihrer _Meldung_ übernommen statt aus dem _Code_ — dieselbe Klasse Fehler, die
+weiter unten in diesem Guide steht.
 
 > **Der Satz, der es benennt** (Worker-2, nachdem es ihn zum zweiten Mal getroffen hatte):
 >
@@ -2679,7 +2691,71 @@ genügt.
 **Die Faustregel:** Wo ein Kommentar mit „Achtung", „nicht" oder „sonst" beginnt, steht ein
 Prüffall aus. Der Kommentar erklärt dann, **warum** es ihn gibt — statt seine Stelle einzunehmen.
 
-> Das ist dieselbe Bewegung wie bei einer Ausnahmeliste, die sich selbst abmeldet („Die
-> Gegenprobe prüft nicht nur die Umsetzung — sie prüft den Prüfstand"): Nicht
+> Das ist dieselbe Bewegung wie bei einer Ausnahmeliste, die sich selbst abmeldet
+> (Abschnitt: Eine Ausnahme muss benannt sein, sonst ist sie keine): Nicht
 > der Hinweis trägt, sondern der Fall, der rot wird. **Ein Hinweis, der zum zweiten Mal überlesen
 > wird, ist keine Prüfung.**
+
+### 8.31 Was die CI prüft, aber niemand lokal fährt
+
+_2026-08-06. Fünf rote Läufe an einem Tag, alle aus derselben Lücke._
+
+Zwei von drei Sitzungen haben unabhängig voneinander dasselbe gemeldet — die eine, bevor die
+Abnahme es fand:
+
+> **Der eigentliche Befund ist, dass ich clippy gar nicht gefahren habe.** Ich habe tsc,
+> prettier, vitest und cargo test gemessen — clippy nicht, auf keinem meiner Rust-Zweige heute.
+> Es ist reines Glück, dass es nur diese zwei Stellen waren.
+
+Und die andere, nach einem roten Lauf mit 452 von 452 grünen Prüffällen:
+
+> Ich hatte lokal nur getestet und formatiert — `sim` fiel rot, obwohl alles grün war.
+
+#### Die Lücke ist nicht Nachlässigkeit, sondern eine unvollständige Liste
+
+`npm test` und `cargo test` fühlen sich an wie „alles geprüft". Die CI prüft aber **fünf**
+Dinge, und zwei davon laufen in keinem Testlauf mit:
+
+|                                             | prüft                     | fällt auf durch |
+| ------------------------------------------- | ------------------------- | --------------- |
+| `npm test`                                  | Verhalten (TS)            | Testlauf        |
+| `cargo test`                                | Verhalten (Rust)          | Testlauf        |
+| `npm run lint`                              | ESLint **und** Prettier   | eigener Befehl  |
+| `cargo clippy --all-targets -- -D warnings` | Rust-Stil, **als Fehler** | eigener Befehl  |
+| `cargo fmt --all --check`                   | Rust-Format               | eigener Befehl  |
+
+**Die letzten drei melden sich nie von selbst.** Ein Zweig kann 1500 grüne Prüffälle haben und
+trotzdem an einer geschweiften Klammer scheitern.
+
+#### Der Ablauf vor dem Melden
+
+```bash
+npm run lint && npm test && npm run build        # TypeScript-Seite
+cargo remote -c -- clippy --all-targets -- -D warnings   # Rust: Stil
+bash ~/bin/cargo-remote-fmt --check              # Rust: Format, CI-Version
+cargo remote -c -- test --no-fail-fast           # Rust: Verhalten
+```
+
+> **`cargo-remote-fmt` statt `cargo remote -- fmt`:** Das Skript trifft die Stable-Version der
+> CI; `cargo remote -- fmt` synct nur `target/` zurück, nicht das formatierte `src/`. Steht in
+> `/work/.claude/CLAUDE.md`.
+
+**`npm run build` gehört dazu, auch wenn Vitest grün ist.** Vitest transpiliert **ohne
+Typprüfung** — ein Typfehler fällt dort nicht auf und im Bau sofort.
+
+#### Und der Titel des Pull Requests
+
+`pr-title` verlangt Conventional Commits. **Die Issue-Titel dieses Projekts beginnen mit `E1:`,
+`E6:`, `E10:`** — wer sie in den PR übernimmt, hat einen roten Check:
+
+```
+Unknown release type "E6" found in pull request title
+```
+
+Das ist heute **dreimal** passiert. Der Issue-Titel beschreibt das Problem, der PR-Titel die
+Änderung — sie sind ohnehin verschieden:
+
+```
+Issue   E6: Ein Fund landet im Beutel und bleibt dort
+PR      feat(gear): ein Fund lässt sich anlegen — ohne Dev-Werkzeuge
+```
