@@ -33,6 +33,11 @@ const MUSS_MELDEN: ReadonlyArray<readonly [string, string]> = [
   ['Vergleich beim Aufzeichnen', 'presses.push({ tick, slot: gewaehlt === quench ? 1 : 0 });'],
   ['Vergleich in Variable', 'const platz = gewaehlt === kindle ? 0 : 3;'],
   ['Vergleich in Variable', 'const platz = gewaehlt === kindle ? 0 : gewaehlt === pyre ? 1 : 3;'],
+  // **Die Lücke, die der Orchestrator beim Nachmessen gefunden hat.** Die
+  // Bedingung ist ausgelagert, es steht kein `===` in der Zeile — und es ist
+  // dieselbe Handvergabe. Ein erster Entwurf verlangte den Vergleich in der
+  // Bedingung und ließ genau das durch.
+  ['Vergleich in Variable', 'const platz = istErster ? 0 : 3;'],
 ];
 
 /** Wobei er SCHWEIGEN muss — jede Zeile mit dem Grund. */
@@ -87,6 +92,24 @@ describe('AC2 — die Gegenprobe: er hat das Problem nicht abgeschafft', () => {
       '}',
     ].join('\n');
     expect(handvergebenePlaetze(zusammen)).toHaveLength(3);
+  });
+});
+
+describe('Die nachgereichte Lücke — ausgelagerte Bedingung (Nachmessung 3152)', () => {
+  it('findet die Handvergabe auch ohne === in der Zeile', () => {
+    // Wortlaut der Einschleusung des Orchestrators.
+    const seine = ['const istErster = true;', 'const platzOrch = istErster ? 0 : 3;'].join('\n');
+    const funde = handvergebenePlaetze(seine);
+    expect(funde, 'rutscht durch — die Bedingung muss nicht === sein').toHaveLength(1);
+    expect(funde[0]?.zeile, 'meldet die falsche Zeile').toBe(2);
+  });
+
+  it('und die vier Schweigefälle bleiben trotzdem still', () => {
+    // **Der Preis der Verschärfung, gemessen statt vermutet.** Beim ersten
+    // Entwurf kostete eine Lockerung 41 Fehlalarme; diese hier kostet keinen.
+    for (const [grund, zeile] of MUSS_SCHWEIGEN) {
+      expect(handvergebenePlaetze(zeile), `Fehlalarm (${grund})`).toHaveLength(0);
+    }
   });
 });
 
