@@ -447,6 +447,24 @@ export class Combat {
    */
   private readonly buffs = new Buffs();
   /**
+   * Verstärkungen auf andere Größen als Schaden (Issue #489).
+   *
+   * **Je Zielgröße eine eigene Instanz, nicht eine gemeinsame mit mehr
+   * Arten.** GAME-DESIGN 328 sagt: gleiche Art ersetzt einander. Solange
+   * alles auf den Schaden wirkte, war „gleiche Art" eindeutig; mit mehreren
+   * Zielgrößen wäre es eine Verabredung („Arten 0–7 Schaden, 8–15 Punkte"),
+   * die am Tag ihrer Einführung stimmt und beim dritten Zauber gebrochen ist,
+   * ohne dass etwas rot wird.
+   *
+   * Getrennte Instanzen machen die Verwechslung **unmöglich** statt verboten:
+   * Eine Verstärkung auf den Punktegewinn kann eine auf den Schaden gar nicht
+   * verdrängen, weil sie in einem anderen Speicher liegt.
+   */
+  private readonly controlBuffs = new Buffs();
+  private readonly resourceBuffs = new Buffs();
+  private readonly tickBuffs = new Buffs();
+  private readonly stackBuffs = new Buffs();
+  /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
    * **Nur gelesen, nie geschrieben** — deshalb steht sie nicht in `reset()`:
@@ -1662,6 +1680,13 @@ export class Combat {
    * sähe genau gleich aus.
    */
   private expireBuffs(timeMs: number): void {
+    // **Alle fünf, nicht nur die Schadens-Verstärkungen** (Issue #489). Ein
+    // Fenster, das nie abläuft, wirkt für den Rest des Kampfes weiter — und
+    // bei den vier neuen Größen fiele das nicht am Schaden auf.
+    this.controlBuffs.expire(timeMs);
+    this.resourceBuffs.expire(timeMs);
+    this.tickBuffs.expire(timeMs);
+    this.stackBuffs.expire(timeMs);
     if (this.buffs.expire(timeMs) === 0) return;
     this.updateBuffFactor(timeMs);
   }
@@ -1807,6 +1832,24 @@ export class Combat {
    * Summe an einer Sentinel-Zahl, die auf den beiden Seiten verschieden sein
    * dürfte.
    */
+  /**
+   * Die Fenstersummen ALLER Verstärkungen, für die Prüfsumme (Issue #489).
+   *
+   * **Alle fünf zusammen in einer Zahl**, nicht fünf Felder: Die Prüfsumme
+   * unterscheidet dieselben Zustände, und jedes weitere Feld verschiebt die
+   * Bit-Folge auf beiden Seiten. Ein Fenster, das anderswo endet, ändert die
+   * Summe — gleich in welcher Zielgröße.
+   */
+  get buffWindowSum(): number {
+    return (
+      this.buffs.windowSum() +
+      this.controlBuffs.windowSum() +
+      this.resourceBuffs.windowSum() +
+      this.tickBuffs.windowSum() +
+      this.stackBuffs.windowSum()
+    );
+  }
+
   get synergyWindowSum(): number {
     let summe = 0;
     for (let i = 0; i < this.synergyWindowEndsMs.length; i++) {
@@ -3186,6 +3229,10 @@ export class Combat {
     // dort blieb nach einem Leistenwechsel „1 of 1" stehen, und kein Prüffall
     // fand es, weil jeder frisch baut statt zurückzusetzen.
     this.buffs.reset();
+    this.controlBuffs.reset();
+    this.resourceBuffs.reset();
+    this.tickBuffs.reset();
+    this.stackBuffs.reset();
     this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;

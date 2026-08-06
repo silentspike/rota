@@ -254,5 +254,21 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixNamedInt(h, 'synergyUsed', combat.synergyUsed);
   h = mixNamedInt(h, 'synergyAvailable', combat.synergyAvailable);
   h = mixNamedFloat(h, 'synergyOpenUntil', combat.synergyWindowSum);
+  // **Angehängt, nicht eingeschoben** (Issue #489). Ohne dieses Feld ist die
+  // Prüfsumme für laufende Verstärkungen BLIND — gemessen, nicht vermutet:
+  //
+  //   zwei Läufe, beide mit `test-buff` gewirkt, gleicher Schaden (100),
+  //   einer IM Fenster (Faktor 1,2), einer danach (1,0)
+  //   -> dieselbe Prüfsumme
+  //
+  // Indirekt sieht sie die Verstärkung erst, wenn der nächste Zauber fällt
+  // und der Schaden anders ausfällt. Bis dahin könnten die beiden Seiten
+  // verschieden weit im Fenster stehen, ohne dass der Abgleich es meldet.
+  //
+  // Mit den Verstärkungen auf andere Größen als Schaden (controlGain,
+  // Hitze-Aufbau, Tick-Abstand, Stapel-Wertigkeit) wird der blinde Fleck
+  // größer statt kleiner: Ein Fehler im Punktegewinn schlägt sich NIE direkt
+  // im Schaden nieder.
+  h = mixNamedFloat(h, 'buffSum', combat.buffWindowSum);
   return h >>> 0;
 }
