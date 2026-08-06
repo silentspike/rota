@@ -1,0 +1,85 @@
+/**
+ * Die Ausrüst-Ansicht (Issue #453).
+ *
+ * Folgt der Zusammenstellung Zeile für Zeile — dieselben Farben, dieselben
+ * Abstände, dieselbe Zwei-Spalten-Anordnung. Die beiden Bereiche stehen
+ * untereinander im selben Bildschirm; sähen sie verschieden aus, wirkten sie
+ * wie zwei Systeme statt wie ein Menü.
+ */
+
+.gear {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.gear-slots,
+.gear-bag {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.gear-heading {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a09a8b;
+  margin: 0 0 8px;
+}
+
+.gear-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.gear-table td {
+  padding: 4px 12px 4px 0;
+  vertical-align: baseline;
+}
+
+.gear-slot-name {
+  color: #a09a8b;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.gear-select {
+  font-family: inherit;
+  font-size: 14px;
+  color: #e6dfd1;
+  background: #1a1613;
+  border: 1px solid #3a332b;
+  padding: 3px 6px;
+  min-width: 22ch;
+  max-width: 100%;
+}
+
+.gear-select:focus {
+  outline: 1px solid #d08a3c;
+}
+
+/*
+ * Ein Platz ohne passendes Stück bleibt sichtbar, tritt aber zurück. Ihn zu
+ * verbergen nähme dem Spieler das Bild davon, was es zu füllen gibt — ihn
+ * gleich hell zu zeigen, machte zehn Aufforderungen aus zehn Auskünften.
+ */
+.gear-select:disabled {
+  color: #6d675b;
+  background: #151210;
+  border-color: #2a2520;
+}
+
+.gear-bag-item {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+/* Tritt zurück: eine Auskunft, keine Aufforderung. */
+.gear-bag-empty {
+  color: #7d7768;
+  font-size: 12px;
+  margin: 0;
+}
