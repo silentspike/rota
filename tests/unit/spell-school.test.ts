@@ -61,6 +61,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'crust',
       'salve',
       'temper',
+      // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
+      'scab',
       'bind',
       'stall',
       'stay',

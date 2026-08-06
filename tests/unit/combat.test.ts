@@ -45,6 +45,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'crust',
       'salve',
       'temper',
+      // Issue #481 — SCAB, bei seiner Schule. Er steht am Ende von
+      // `coagulation.json`, also hier direkt hinter TEMPER. Die
+      // Umstellung geschieht nicht still, sondern hier und in
+      // `spell-order.json` sichtbar (wie #268, #479).
+      'scab',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
