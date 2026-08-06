@@ -1838,7 +1838,13 @@ impl Fight {
         if self.conversion_until.is_none_or(|bis| self.time > bis) {
             return;
         }
-        let gewonnen = damage * self.conversion_percent / 100;
+        // **Der Faktor aus `convert_buffs`** (QUICKSILVER, E10). Gelesen bei
+        // JEDEM Schaden, solange die Umwandlung laeuft — nur deshalb traegt
+        // ein zeitlich begrenzter Faktor hier. Spiegelbild von
+        // `Combat.applyConversion` im Spiel.
+        let satz = (f64::from(self.conversion_percent) * self.convert_buffs.factor(self.time))
+            .round() as u32;
+        let gewonnen = damage * satz / 100;
         if gewonnen == 0 {
             return;
         }
