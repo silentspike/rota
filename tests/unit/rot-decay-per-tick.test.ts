@@ -146,9 +146,7 @@ describe('AC3 — die Verfallszeit je Stapel bleibt richtig', () => {
     // Vier Ticks bei 1000, 2000, 3000, 4000 ms — also vier Abläufe im selben
     // Abstand, jeder 12 s nach seinem Tick.
     for (let i = 0; i < 4; i++) {
-      expect(combat.decayExpiryAt(i), `Stapel ${i}`).toBe(
-        (i + 1) * 1000 + DECAY_STACK_DURATION_MS,
-      );
+      expect(combat.decayExpiryAt(i), `Stapel ${i}`).toBe((i + 1) * 1000 + DECAY_STACK_DURATION_MS);
     }
   });
 
