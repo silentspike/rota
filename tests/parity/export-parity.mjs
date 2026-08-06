@@ -64,6 +64,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buffsPayload,
+  buffCombatPayload,
   resetRunPayload,
   raceHealPayload,
   trialBlocksPayload,
@@ -240,6 +241,15 @@ writeFileSync(ruleEventsPath, serialize(ruleEvents), 'utf8');
 const buffs = buffsPayload();
 const buffsPath = join(here, 'recordings', 'buffs.json');
 writeFileSync(buffsPath, serialize(buffs), 'utf8');
+
+const buffCombat = buffCombatPayload();
+const buffCombatPath = join(here, 'recordings', 'buff-combat.json');
+writeFileSync(buffCombatPath, serialize(buffCombat), 'utf8');
+console.log(`geschrieben: ${buffCombatPath}`);
+console.log(
+  `  Verstaerkung im Kampf  ${buffCombat.expected.damage} Schaden, aktiv: ` +
+    `${buffCombat.expected.buffWasActive}`,
+);
 
 const logKinds = logKindsPayload();
 const logKindsPath = join(here, 'recordings', 'log-kinds.json');
