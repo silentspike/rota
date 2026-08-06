@@ -48,7 +48,40 @@ export interface ItemDef {
   readonly quality: number;
   /** Welche Töpfe die Affixe füllen — Namen aus `POOL_NAMES`. */
   readonly affixKinds: readonly string[];
+  /**
+   * An welchen Boss dieses Stück gebunden ist, oder `''` für „überall"
+   * (Issue #447).
+   *
+   * 13.3 nennt Boss-Bindungen als Teil des Katalogs. `mayDropAt` prüft sie
+   * seit E6-2 und hatte keinen Aufrufer — heute trägt kein Eintrag eine
+   * Bindung, und die Prüfung steht trotzdem: Wer sie erst mit dem ersten
+   * gebundenen Stück einbaut, hat bis dahin einen Katalog, in dem sie überall
+   * fallen.
+   */
+  readonly boundToBoss: string;
 }
+
+/**
+ * Wie oft ein Sieg überhaupt etwas fallen lässt, in Promille (Issue #447).
+ *
+ * **VORLÄUFIG.** Keine der zehn Funktionen in `src/loot/` sagt, ob etwas
+ * fällt — nur was. Die Häufigkeit bestimmt, wie sich ein Sieg anfühlt, und
+ * gehört dem Auftraggeber. Sie steht deshalb in den Daten und nicht im Code:
+ * Der Wechsel ist ein Zahlenwert, kein Umbau.
+ */
+export const DROP_CHANCE_PER_MILLE: number = (() => {
+  const wert = Math.trunc(
+    Number((rawItems as { dropChancePerMille?: unknown }).dropChancePerMille),
+  );
+  if (!Number.isFinite(wert) || wert < 0 || wert > 1000) {
+    throw new Error(
+      `data/items.json: dropChancePerMille ist ${String(wert)} — erlaubt sind 0 bis 1000. ` +
+        'Bei 0 fällt nie etwas, bei 1000 nach jedem Sieg; beides ist eine Aussage, ' +
+        'alles darüber hinaus ein Tippfehler.',
+    );
+  }
+  return wert;
+})();
 
 /**
  * Alle Gegenstände.
@@ -125,6 +158,7 @@ export const ITEMS: readonly ItemDef[] = (() => {
       itemLevel,
       quality,
       affixKinds,
+      boundToBoss: typeof t['boundToBoss'] === 'string' ? t['boundToBoss'] : '',
     });
   }
   return alle;
