@@ -3,6 +3,39 @@ import { Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { NEUTRAL_FACTORS, type DamageFactors } from '../../src/core/damage.js';
 import { NOTHING_WORN } from '../../src/gear/worn.js';
+// **Der ROHBESTAND, nicht die geparste Fassung** (Issue #425).
+//
+// `parseSpell` wirft unbekannte Felder weg: Solange `SpellDef` kein `buff`
+// kennt, kann `'buff' in spell` auf `CALCINATION.value.spells` NIE wahr
+// werden — auch dann nicht, wenn es in der Datei steht. Eine erste Fassung
+// dieses Wächters fragte genau dort und blieb deshalb grün, obwohl der
+// Auslöser da war.
+//
+// Alle sieben Dateien, nicht nur die Kalzination: Ein `buff` könnte in einer
+// anderen Schule auftauchen, und ein Wächter, der nur eine ansieht, meldet
+// die Lücke weiter, wenn sie längst geschlossen ist.
+import rawCalcination from '../../data/spells/calcination.json';
+import rawCommon from '../../data/spells/common.json';
+import rawCoagulation from '../../data/spells/coagulation.json';
+import rawFixation from '../../data/spells/fixation.json';
+import rawSublimation from '../../data/spells/sublimation.json';
+import rawPutrefaction from '../../data/spells/putrefaction.json';
+import rawTestCast from '../../data/spells/test-cast.json';
+
+const ROHE_SCHULEN: readonly { spells: readonly Record<string, unknown>[] }[] = [
+  rawCalcination,
+  rawCommon,
+  rawCoagulation,
+  rawFixation,
+  rawSublimation,
+  rawPutrefaction,
+  rawTestCast,
+] as never;
+
+/** Trägt IRGENDEIN Zauber in IRGENDEINER Datei ein `buff`-Feld? */
+function esGibtEinenBuffZauber(): boolean {
+  return ROHE_SCHULEN.some((datei) => datei.spells.some((spell) => 'buff' in spell));
+}
 
 /**
  * Je Schadensfaktor ein Aufbau, der ihn auslöst — und die Meldung, welcher in
@@ -171,8 +204,7 @@ describe('Je Faktoren-Topf ein Auslöser (Issue #425)', () => {
     // Eintrag verschwindet und ein Aufbau dazukommt.
     const ueberholt = Object.keys(OHNE_AUSLOESER).filter((topf) => {
       if (topf === 'crit') return false; // per Typ ausgeschlossen, kein Auslöser möglich
-      // `buff` gibt es im Typ noch nicht — deshalb über den Rohbestand.
-      return CALCINATION.value.spells.some((s) => 'buff' in s);
+      return esGibtEinenBuffZauber();
     });
 
     expect(
