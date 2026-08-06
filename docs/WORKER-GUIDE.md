@@ -2641,3 +2641,45 @@ Wer keine zweite Zahl hat, hat keine Messung — nur eine Ausgabe.
 _Verwandt: [8.27](#827-ein-suchmuster-misst-was-es-kennt) (das Muster findet, was es kennt) und
 [8.28](#828-der-fehler-liegt-im-sortieren-nicht-im-zählen) (Nebenzahlen werden geschätzt). Die drei
 zusammen decken ab, wie eine Zahl falsch werden kann, ohne dass jemand sich verrechnet._
+
+### 8.30 Ein Kommentar, der die Falle benennt, ist keine Absicherung gegen sie
+
+_2026-08-06. Dreimal an einem Tag, in drei Sitzungen, an drei verschiedenen Stellen._
+
+| Wo                               | Der Kommentar sagte                                                  | Die Zeile darunter tat                                   |
+| -------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `combat.ts` (#428)               | „in **Wartezeiten** gerechnet, nicht in Sekunden"                    | `hasted(gcds × GCD)` — eine beschleunigte Dauer          |
+| `factor-triggers.test.ts` (#425) | „`buff` gibt es im Typ noch nicht — deshalb über den **Rohbestand**" | las `CALCINATION.value.spells`, die **geparste** Fassung |
+| `VERIFICATION.md` (eigener)      | ein Abschnitt über Bezugspunkte, am Vormittag geschrieben            | am Abend ein Prüfskript, das genau dagegen verstieß      |
+
+**Keiner dieser Kommentare war veraltet oder falsch.** Alle drei waren richtig, standen an der
+richtigen Stelle, und wurden gelesen — der zweite und dritte sogar vom selben Menschen, der sie
+geschrieben hatte.
+
+> **Der Satz, der es benennt** (Worker-2, nachdem es ihn zum zweiten Mal getroffen hatte):
+>
+> _Ein Kommentar, der eine Falle benennt, ist keine Absicherung gegen sie. Er ist eine Notiz an
+> den nächsten Leser — und der bin offenbar nicht ich._
+
+#### Warum das nicht mit „sorgfältiger lesen" zu beheben ist
+
+Ein Kommentar wird gelesen, **wenn man die Stelle sucht**. Er wird nicht gelesen, wenn man drei
+Zeilen tiefer eine Klammer setzt oder einen Feldzugriff schreibt — genau dort, wo der Fehler
+entsteht. Der Abstand zwischen Erklärung und Fehlerstelle ist im Zweifel **eine Zeile**, und das
+genügt.
+
+#### Was stattdessen hilft
+
+| Statt                                     | Besser                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------- |
+| „Achtung: über den Rohbestand lesen"      | einen **Prüffall**, der bricht, sobald die geparste Fassung gelesen wird    |
+| „Achtung: in Wartezeiten rechnen"         | einen Fall bei einem Tempo, bei dem sich beide Rechnungen **unterscheiden** |
+| „Achtung: Bezugspunkt ist die Merge-Base" | das Werkzeug **druckt** seinen Bezugspunkt                                  |
+
+**Die Faustregel:** Wo ein Kommentar mit „Achtung", „nicht" oder „sonst" beginnt, steht ein
+Prüffall aus. Der Kommentar erklärt dann, **warum** es ihn gibt — statt seine Stelle einzunehmen.
+
+> Das ist dieselbe Bewegung wie bei einer Ausnahmeliste, die sich selbst abmeldet („Die
+> Gegenprobe prüft nicht nur die Umsetzung — sie prüft den Prüfstand"): Nicht
+> der Hinweis trägt, sondern der Fall, der rot wird. **Ein Hinweis, der zum zweiten Mal überlesen
+> wird, ist keine Prüfung.**
