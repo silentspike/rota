@@ -151,8 +151,29 @@ export interface SaveData {
    * der Spieler entschieden hat, nicht wo es gerade steht.
    */
   readonly bindings: Readonly<Record<string, string>>;
-  readonly unlockedSpells: readonly string[];
-  readonly unlockedInstances: readonly string[];
+  /**
+   * HIER STANDEN `unlockedSpells` UND `unlockedInstances` (bis Issue #435).
+   *
+   * Beide waren **berechenbar** und widersprachen damit GAME-DESIGN 18.6: „Der
+   * Spielstand speichert nur, WAS besessen und erreicht wurde — nie berechnete
+   * Werte." Die Zauber folgen aus der Stufe, und `unlocks.ts` rechnet sie
+   * bereits aus ihr; die Instanzen folgen aus besiegten Bossen und Punkten
+   * (12.7).
+   *
+   * **Solange sie leer blieben, fiel das niemandem auf.** Ein Feld, das einen
+   * berechenbaren Wert speichert, wird beim nächsten Balance-Wechsel falsch —
+   * und zwar still: Der gespeicherte Wert geht nicht kaputt, er wird nur alt.
+   * Der Fehler entsteht in dem Moment, in dem jemand das Feld füllt.
+   *
+   * **EIN ALTER SPIELSTAND BEHÄLT SIE TROTZDEM**, und das ist bewusst so:
+   * `ergaenzt()` bildet den Stand als `{ ...leer, ...geladen }`, reicht
+   * unbekannte Felder also durch und schreibt sie beim nächsten Ablegen wieder
+   * mit. Sie aktiv zu streichen wäre eine Änderung am Lesepfad — für zwei
+   * leere Arrays, die niemand liest. Das Verhältnis stimmt nicht.
+   *
+   * Ein Rest, den jemand kennt, ist etwas anderes als ein stiller. Deshalb
+   * steht dieser Absatz hier und nicht in einem Issue-Kommentar.
+   */
   readonly bestRuns: readonly BestRun[];
   readonly defeatedBosses: readonly string[];
   /**
@@ -181,8 +202,6 @@ export const ALLOWED_TOP_LEVEL: readonly string[] = [
   'talentPoints',
   'items',
   'bindings',
-  'unlockedSpells',
-  'unlockedInstances',
   'bestRuns',
   'defeatedBosses',
   'runHistory',

@@ -120,16 +120,21 @@ function echterWeg(stand: Record<string, unknown>): Record<string, unknown> {
 describe('AC4 — jedes zusammengesetzte Feld steht in ergaenzt() einzeln', () => {
   const FELDER = zusammengesetzteFelder();
 
-  it('es sind neun, und der Wächter kennt sie ohne Pflege', () => {
-    // Sieben Listen und zwei Objekte. Die Zahl steht hier, damit ein Zuwachs
+  it('es sind sieben, und der Wächter kennt sie ohne Pflege', () => {
+    // Fünf Listen und zwei Objekte. Die Zahl steht hier, damit ein Zuwachs
     // sichtbar wird — nicht als Bedingung, sondern als Merkposten: Wer sie
-    // ändert, hat gerade ein Feld hinzugefügt und liest die Prüfung darunter.
+    // ändert, hat gerade ein Feld hinzugefügt oder entfernt und liest die
+    // Prüfung darunter.
+    //
+    // **Und genau das ist hier passiert.** In #435 fielen `unlockedSpells` und
+    // `unlockedInstances` weg, weil sie berechenbare Werte speicherten
+    // (GAME-DESIGN 18.6). Dieser Fall ist dabei rot geworden — kein Schaden,
+    // sondern der Beleg, dass er tut, wofür er in #378 gebaut wurde. Wer ihn
+    // ohne Nachdenken anpasst, hat die Prüfung darunter nicht gelesen.
     expect(FELDER).toEqual([
       'talentPoints',
       'items',
       'bindings',
-      'unlockedSpells',
-      'unlockedInstances',
       'bestRuns',
       'defeatedBosses',
       'runHistory',
@@ -351,5 +356,59 @@ describe('AC3 — eine kaputte STRUKTUR führt zum letzten heilen Stand', () => 
     const geladen = new RunPersistence(FASSUNG, () => JETZT, alsStore(daten));
     expect(geladen.state.level).toBe(9);
     expect(geladen.status.status).toBe('ok');
+  });
+});
+
+describe('AC2/AC3 (#435) — ein alter Stand mit den entfernten Feldern', () => {
+  /**
+   * `unlockedSpells` und `unlockedInstances` sind seit #435 aus dem Format
+   * weg, weil sie berechenbare Werte speicherten (GAME-DESIGN 18.6).
+   *
+   * **Ein bestehender Spielstand trägt sie trotzdem weiter**, und das ist
+   * bewusst so: `ergaenzt()` bildet den Stand als `{ ...leer, ...geladen }`
+   * und reicht unbekannte Felder durch. Sie aktiv zu streichen wäre eine
+   * Änderung am Lesepfad — für zwei leere Arrays, die niemand liest.
+   *
+   * Diese Datei hält beides fest: dass er lädt, und dass der Rest bleibt. Ein
+   * vermerkter Rest ist etwas anderes als ein stiller.
+   */
+  function altenStandLaden(): { level: number; roh: Record<string, unknown> } {
+    const daten = speicher();
+    const stand = {
+      ...(emptySave(FASSUNG, JETZT) as unknown as Record<string, unknown>),
+      level: 12,
+      unlockedSpells: ['kindle', 'pyre'],
+      unlockedInstances: ['first-crucible'],
+    };
+    legeAb(daten, 0, stand);
+
+    const geladen = new RunPersistence(FASSUNG, () => JETZT, alsStore(daten));
+    return {
+      level: geladen.state.level,
+      roh: (geladen as unknown as { data: Record<string, unknown> }).data,
+    };
+  }
+
+  it('lädt fehlerfrei, und der Fortschritt kommt an', () => {
+    // Der eigentliche Nachweis: Ein Stand aus der Zeit vor #435 darf nicht
+    // verlorengehen. Die Stufe ist der sichtbare Beleg dafür, dass er nicht
+    // still verworfen und durch einen leeren ersetzt wurde.
+    expect(altenStandLaden().level).toBe(12);
+  });
+
+  it('AC3 — und die entfernten Felder bleiben darin stehen', () => {
+    // **Kein Versehen, sondern die Entscheidung.** Wer das ändern will, ändert
+    // den Lesepfad — und sollte vorher wissen, dass es hier gemessen wurde.
+    const roh = altenStandLaden().roh;
+    expect(roh['unlockedSpells']).toEqual(['kindle', 'pyre']);
+    expect(roh['unlockedInstances']).toEqual(['first-crucible']);
+  });
+
+  it('sie stehen aber nicht mehr im FORMAT', () => {
+    // Die andere Hälfte: Ein neuer Stand legt sie nicht mehr an. Damit
+    // verschwinden sie mit dem letzten alten Spielstand von selbst.
+    const leer = emptySave(FASSUNG, JETZT) as unknown as Record<string, unknown>;
+    expect(Object.keys(leer)).not.toContain('unlockedSpells');
+    expect(Object.keys(leer)).not.toContain('unlockedInstances');
   });
 });

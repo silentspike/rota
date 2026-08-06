@@ -111,8 +111,6 @@ export const LIST_GUARDS: Readonly<Record<string, (entry: unknown) => boolean>> 
   // Die drei einfachen: eine Liste von Kennungen. Ein leerer String wäre ein
   // Zauber ohne Namen — im besten Fall unsichtbar, im schlechteren ein
   // Nachschlagen ins Leere.
-  unlockedSpells: istKennung,
-  unlockedInstances: istKennung,
   defeatedBosses: istKennung,
 };
 
