@@ -3378,3 +3378,91 @@ export function cinderPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+export const KERNE_NAME = 'kern-zauber';
+
+/** Die Leiste dieser Aufzeichnung. */
+const KERNE_BINDINGS = [
+  { slot: 0, spellId: 'clasp' },
+  { slot: 1, spellId: 'latch' },
+  { slot: 2, spellId: 'plate' },
+] as const;
+
+/**
+ * CLASP, LATCH und PLATE im Paritäts-Weg (Issue #519).
+ *
+ * # Warum eine Aufzeichnung für alle drei
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber **gewirkt**
+ * wird — sonst gilt seine Bitgleichheit als angenommen, nicht als geprüft
+ * (#340). Die drei sind aus zwei verschiedenen Schulen, aber die Zauberliste
+ * ist eine einzige: Eine Leiste kann sie alle tragen.
+ *
+ * # Die Reihenfolge ist nicht beliebig
+ *
+ * LATCH kostet zwei Kontroll-Punkte, und die kommen hier nur aus CLASP (+1 je
+ * Wirkung). Ein Rezept, das LATCH zuerst drückt, drückt ins Leere: Der Zauber
+ * wird abgewiesen, der Prüffall bliebe rot, und die Aufzeichnung sähe aus wie
+ * ein Fehler im Kampf statt wie ein Fehler im Rezept.
+ *
+ * Deshalb steht LATCH hinter der Punkte-Prüfung und nicht vor ihr.
+ *
+ * # CLASP füllt selbst — gemessen, nicht angenommen
+ *
+ * Die erste Fassung band KINDLE auf Platz 3 als Füller. Der Export zeigte
+ * `kindle: 0`: CLASP hat 1,5 s Abklingzeit, ist also **jede** globale
+ * Wartezeit bereit und lässt keine Lücke. Der Füller wäre ein Zauber in der
+ * Leiste gewesen, den niemand je drückt — und der Kommentar hätte etwas
+ * behauptet, das der Lauf nicht tut.
+ *
+ * Gewirkt wird jetzt: CLASP 15, LATCH 3, PLATE 2 in 3000 Takten.
+ */
+function recordKerne(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const clasp = combat.indexOf('clasp');
+  const latch = combat.indexOf('latch');
+  const plate = combat.indexOf('plate');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, KERNE_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Die Seltenen zuerst.** Wer CLASP vorzieht, sobald er bereit ist,
+    // schiebt die 20-Sekunden-Zauber um je eine Wartezeit — bei 3000 Takten
+    // fällt PLATE dann um mehrere Wirkungen zurück.
+    if (combat.isOffCooldown(plate, timeMs)) press(plate, tick, timeMs);
+    else if (combat.isOffCooldown(latch, timeMs) && combat.control >= 2) press(latch, tick, timeMs);
+    else if (combat.isOffCooldown(clasp, timeMs)) press(clasp, tick, timeMs);
+  }
+
+  return { name: KERNE_NAME, seed: 0, ticks, presses, bindings: KERNE_BINDINGS };
+}
+
+export function kernePayload(): Record<string, unknown> {
+  const recording = recordKerne(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: KERNE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
