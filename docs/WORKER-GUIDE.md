@@ -2759,3 +2759,74 @@ Das ist heute **dreimal** passiert. Der Issue-Titel beschreibt das Problem, der 
 Issue   E6: Ein Fund landet im Beutel und bleibt dort
 PR      feat(gear): ein Fund lässt sich anlegen — ohne Dev-Werkzeuge
 ```
+
+### 8.32 Eine Regel, deren Begründung eine andere Sitzung beseitigt hat
+
+Am 2026-08-06 meldeten drei Sitzungen unabhängig denselben Blocker: Ein neuer Zauber am Ende seiner
+Schuldatei ist in der Gesamtliste ein **Einschub** und verschiebt jeden Index dahinter. Der Wächter
+aus #402 lehnte ihn ab, mit einer Begründung, die seit einem Monat im Quelltext stand:
+
+> Die Indizes stehen in **jeder aufgezeichneten Runde** — in `tests/parity/recordings/` genauso wie
+> in einem gespeicherten Spielstand.
+
+Alle drei akzeptierten das und legten Umgehungswege vor: eine Zweitdatei je Schule, ein Umbau der
+Ladereihenfolge, ein bewusster Neu-Export. **Keiner prüfte den Satz selbst.**
+
+Er war zu diesem Zeitpunkt in beiden Hälften falsch, und zwar durch Issue #264, das drei Wochen
+früher gemergt worden war:
+
+```
+save-format.ts:153   bindings: Readonly<Record<string, string>>     Kennung, nicht Index
+Aufzeichnungen       "spellId": "kindle"   — 69 Vorkommen, alle     Kennung, nicht Index
+grep SpellIndex src/ →  3 Treffer, alle drei Typdefinitionen        keine Serialisierung
+```
+
+`bindings.ts` schrieb es sogar hin: _„Die Vergleichsdateien der Parität führen die Belegung längst
+über `spellId` — die Form war also schon da, nur nicht im Spielstand."_ Der Satz stand da, während
+drei Sitzungen Umgehungswege für ein Problem entwarfen, das er beschreibt als gelöst.
+
+#### Die Messung, die zehn Minuten kostete
+
+Denselben Zauber zweimal einfügen — einmal mitten in die Gesamtliste, einmal ganz hinten. Beide Male
+`parity:export`, beide Male die volle Suite:
+
+|                         | Zauber MITTE | Zauber HINTEN |
+| ----------------------- | ------------ | ------------- |
+| bewegte Aufzeichnungen  | **23**       | **23**        |
+| rote Tests nach Export  | 4            | 3             |
+| Referenz `4240 @ 40510` | unverändert  | unverändert   |
+
+`checksum.ts` sagt, warum: Die Schleife läuft über `combat.spells.length` und rührt fünf Felder je
+Zauber ein. Ein Zauber mehr sind fünf Felder mehr — **an welcher Stelle, ist gleichgültig.**
+
+> Die Regel sparte keinen einzigen Neu-Export. Sie kostete den fachlich richtigen Ort.
+>
+> Der einzige Test, der zwischen „Mitte" und „hinten" unterschied, war der Wächter selbst.
+
+#### Was daraus zu lernen ist — und was ausdrücklich nicht
+
+**Nicht** zu lernen ist „prüfe jede Regel, bevor du sie befolgst". Das wäre in der Summe teurer als
+jeder Umweg, und die drei Sitzungen haben genau richtig gehandelt: gemessen, gestoppt, gemeldet,
+die Entscheidung nicht selbst getroffen.
+
+Zu lernen ist der Auslöser:
+
+> **Wenn eine Regel dich zwingt, etwas an einen Ort zu legen, der fachlich falsch ist, dann prüfe
+> ihre Begründung — nicht ihre Umgehung.**
+
+Drei Wege wurden vorgeschlagen, alle drei technisch gangbar. Keiner war nötig. Die zehn Minuten
+Messung standen gegen einen Umbau, der jede Schule auf zwei Dateien verteilt hätte.
+
+#### Die zweite Hälfte: eine Begründung altert schweigend
+
+Der Wächter war zum Zeitpunkt seines Baus **bereits überholt**. Niemand hat ihn falsch gebaut — die
+Begründung stammte aus einer Zeit, in der sie stimmte, und wurde beim Schreiben übernommen, statt
+nachgesehen zu werden.
+
+Das ist dieselbe Klasse wie [8.30](#830-ein-kommentar-der-die-falle-benennt-ist-keine-absicherung-gegen-sie),
+eine Stufe höher: Dort verhinderte ein zutreffender Kommentar die richtige Frage. Hier begründet ein
+**einmal zutreffender** Kommentar eine Regel, die ihn überlebt hat.
+
+**Praktische Folge:** Wenn du einen Wächter baust, schreibe in seinen Kopf, _woran_ seine Begründung
+hängt — welche Datei, welches Feld, welches Issue. Dann ist beim nächsten Mal nachprüfbar, ob sie
+noch trägt. `spell-order.test.ts` trägt diese Herkunft seit der Berichtigung.
