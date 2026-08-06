@@ -19,7 +19,7 @@
  * der manchmal misst, misst nichts.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { alsSpellIndex, Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { spellIndex } from '../helpers/spell-index.js';
 import { COUNTDOWN_MS, PHASE_ENDED } from '../../src/core/phases.js';
@@ -44,7 +44,7 @@ function neuerKampf(worn = IMMER_KRIT): Combat {
 function einTreffer(combat: Combat, vorbereiten?: (c: Combat) => void): number {
   const queue = new PressQueue();
   const session = new Session(queue, combat);
-  session.bind(0, KINDLE);
+  session.bind(0, alsSpellIndex(KINDLE));
   session.beginCountdown(0);
 
   let tick = 0;
