@@ -58,6 +58,32 @@ pub struct Buff {
     pub factor: f64,
     /// Laenge des Fensters in globalen Wartezeiten.
     pub gcds: u32,
+    /// **Worauf** der Faktor wirkt (Issue #489).
+    ///
+    /// Jede Zielgroesse hat einen EIGENEN Vorrat. Ohne das muesste die
+    /// Stapel-Regel (GAME-DESIGN 328, "gleiche Art ersetzt einander") ueber
+    /// Zielgroessen hinweg gelten — eine Verstaerkung auf den Punktegewinn
+    /// verdraengte eine auf den Schaden, obwohl das niemand beschlossen hat.
+    pub target: BuffTarget,
+}
+
+/// Worauf ein Verstaerkungs-Faktor wirkt (Issue #489).
+///
+/// **`Tick` ist der Sonderfall:** Dort TEILT der Faktor den Abstand, bei den
+/// anderen vier multipliziert er. Ein Faktor 2 heisst "doppelt so oft", nicht
+/// "halb so oft".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuffTarget {
+    /// Der ausgeteilte Schaden — das Verhalten vor #489.
+    Damage,
+    /// Der Kontroll-Punktegewinn je Zauber.
+    Control,
+    /// Der Ressourcen-Aufbau je Zauber.
+    Resource,
+    /// Der Abstand zwischen zwei Ticks. **Teilt, statt zu multiplizieren.**
+    Tick,
+    /// Die Wertigkeit eines einzelnen Stapels — nicht ihre Zahl.
+    Stack,
 }
 
 /// Ein Entlade-Zauber: verbraucht die Ressource und schlaegt dafuer zu.

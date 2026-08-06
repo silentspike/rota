@@ -36,6 +36,7 @@ import {
   type SchoolDef,
   type SpellDef,
   type TimelineEntryDef,
+  type BuffDef,
 } from './data.js';
 import { GCD_MS, GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
@@ -1711,6 +1712,24 @@ export class Combat {
   }
 
   /** Trägt den Gesamtfaktor der laufenden Verstärkungen in die Rechnung. */
+  /** Welcher Speicher zu einer Zielgröße gehört (Issue #489). */
+  private buffSpeicherFuer(ziel: BuffDef['target']): Buffs {
+    switch (ziel) {
+      case 'control':
+        return this.controlBuffs;
+      case 'resource':
+        return this.resourceBuffs;
+      case 'tick':
+        return this.tickBuffs;
+      case 'stack':
+        return this.stackBuffs;
+      default:
+        // `damage` und `undefined` — so waren alle Verstärkungen vor #489
+        // gemeint, und ein fehlendes Feld soll weiter das Alte tun.
+        return this.buffs;
+    }
+  }
+
   private updateBuffFactor(timeMs: number): void {
     this.setDamageFactor('buffs', this.buffs.factor(timeMs));
   }
@@ -2147,6 +2166,12 @@ export class Combat {
     // **Der Faktor aus `tickBuffs`** (Issue #489, FORGE). Er verkürzt den
     // ABSTAND, macht die Ticks also HÄUFIGER — deshalb geteilt, nicht
     // multipliziert. Ein Faktor 2 heißt „doppelt so oft", nicht „halb so oft".
+    //
+    // **Die einzige der vier Zielgrößen, bei der der Faktor teilt.** Bei
+    // Punktegewinn, Hitze-Aufbau und Stapel-Wert multipliziert er. Wer die
+    // Zeile nach dem Muster der anderen drei liest, dreht die Wirkung um —
+    // und ein Fehler hier fällt spät auf, weil der Tick-SCHADEN unverändert
+    // bleibt und nur die Gesamtsumme wandert.
     const faktor = this.tickBuffs.factor(this.nowMsForBuffs);
     const abstand = faktor === 1 ? dot.tickIntervalMs : Math.round(dot.tickIntervalMs / faktor);
     return this.hasted(abstand);
@@ -2996,8 +3021,13 @@ export class Combat {
       // (Zeile 1489). Genau darin liegt der Zweck der Zählung in Wartezeiten:
       // Wer schneller wirkt, hat ein kürzeres Fenster in Sekunden — und
       // trotzdem dieselbe Zahl Zauber darin (GAME-DESIGN 5).
-      this.buffs.applyForGcds(buff.kind, buff.factor, buff.gcds, timeMs, this.hasted(GCD_MS));
-      this.updateBuffFactor(timeMs);
+      // **Die Zielgröße wählt den Speicher** (Issue #489). Fehlt sie, ist es
+      // der Schaden — so waren alle Verstärkungen vor #489 gemeint.
+      const speicher = this.buffSpeicherFuer(buff.target);
+      speicher.applyForGcds(buff.kind, buff.factor, buff.gcds, timeMs, this.hasted(GCD_MS));
+      // Nur der Schadens-Faktor geht in `factors`; die drei anderen werden an
+      // ihrer Rechenstelle gelesen.
+      if (speicher === this.buffs) this.updateBuffFactor(timeMs);
     }
 
     const dot = spell.dot;

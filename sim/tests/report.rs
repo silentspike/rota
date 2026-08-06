@@ -59,8 +59,14 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     // die `spell_table` benutzt — sonst pruefte der Fall die Filterung gegen
     // sich selbst. Die Schleife darueber prueft die Gegenrichtung: Jede Zeile
     // der Tabelle kann auch wirklich Schaden machen.
+    //
+    // Die Stufengrenze darf der Fall dagegen selbst anlegen (Issue #489): Sie
+    // steht in den DATEN, nicht in der Filterfunktion des Berichts — ein
+    // Zauber ueber der Grenze gibt es im Spiel nicht, und ein Fall, der ihn
+    // mitzaehlte, forderte eine Zeile fuer etwas Nichtexistentes.
     let mit_schaden = data::SPELLS
         .iter()
+        .filter(|s| s.unlock_level <= data::MAX_LEVEL as u16)
         .filter(|s| s.base_damage > 0 || s.dot.is_some() || s.spender.is_some())
         .count();
     assert_eq!(

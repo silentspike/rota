@@ -503,6 +503,22 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
     // die beiden Seiten rechneten ab da mit verschiedenen Zahlen.
     let _ = writeln!(out, "            factor: {factor:?},");
     let _ = writeln!(out, "            gcds: {gcds},");
+    // **Ohne Feld bleibt es beim Schaden** — das Verhalten vor #489, damit
+    // bestehende Zauber unveraendert bleiben. Eine UNBEKANNTE Groesse bricht
+    // dagegen ab, statt still im Schadens-Vorrat zu landen: Ein Tippfehler
+    // gaebe sonst eine Verstaerkung, die wirkt, nur nicht dort, wo sie soll.
+    let target = match buff.get("target").and_then(Value::as_str) {
+        None | Some("damage") => "Damage",
+        Some("control") => "Control",
+        Some("resource") => "Resource",
+        Some("tick") => "Tick",
+        Some("stack") => "Stack",
+        Some(anderes) => panic!(
+            "{whose}: unbekannte Zielgroesse \"{anderes}\" — erlaubt sind \
+             damage, control, resource, tick, stack"
+        ),
+    };
+    let _ = writeln!(out, "            target: BuffTarget::{target},");
     let _ = writeln!(out, "        }}),");
 }
 

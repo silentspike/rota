@@ -553,11 +553,20 @@ mod tests {
         // Bedingung bekommen und die Ableitung liefe leer — grün, aber ohne
         // Wirkung.
         let alle = all_candidates();
+        // **Gegen die SPIELBAREN Zauber, nicht gegen alle Eintraege.**
+        // `SPELL_COUNT` zaehlt auch die Pruef-Zauber ueber der Stufengrenze
+        // (Issue #489) — und genau die leiten keine Bedingung ab, weil
+        // `all_candidates` sie ueberspringt. Mit dem rohen Zaehler waere die
+        // Pruefung mit jedem neuen Pruef-Zauber naeher an ihrem Schwellwert
+        // gefallen, ohne dass an der Ableitung etwas kaputt gewesen waere.
+        let spielbare = SPELLS
+            .iter()
+            .filter(|s| s.unlock_level <= MAX_LEVEL as u16)
+            .count();
         assert!(
-            alle.len() > SPELL_COUNT,
-            "{} Kandidaten fuer {} Zauber — keine einzige Bedingung abgeleitet",
-            alle.len(),
-            SPELL_COUNT
+            alle.len() > spielbare,
+            "{} Kandidaten fuer {spielbare} spielbare Zauber — keine einzige Bedingung abgeleitet",
+            alle.len()
         );
     }
 
