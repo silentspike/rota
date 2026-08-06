@@ -52,28 +52,38 @@ export interface Fund {
 }
 
 /**
- * Wählt der Ausdruck eine **Zahl** anhand eines Vergleichs aus?
+ * Wählt der Ausdruck eine **Zahl** über eine Bedingung aus?
  *
  * Das unterscheidet Vergeben von Suchen:
  * - `gewaehlt === kindle ? 0 : 3` — vergibt (die Zweige sind Zahlen)
  * - `bindings.find((b) => b.slot === x)` — sucht (kein Zahlen-Zweig)
+ *
+ * # Warum die Bedingung KEIN `===` enthalten muss
+ *
+ * Der erste Entwurf verlangte einen `===`-Vergleich in der Bedingung. Der
+ * Orchestrator hat beim Nachmessen die Lücke gefunden:
+ *
+ * ```ts
+ * const istErster = true;
+ * const platz = istErster ? 0 : 3;   // rutschte durch
+ * ```
+ *
+ * Das ist dieselbe Handvergabe — nur mit **ausgelagerter Bedingung**. Wer
+ * `gewaehlt === kindle` in eine Variable zieht, weil er sie zweimal braucht,
+ * fiele aus dem Netz.
+ *
+ * **Gemessen, bevor die Bedingung fiel:** Ohne den `===`-Teil meldet der
+ * Wächter in `payloads.ts` weiterhin **0** Stellen, und alle vier Fälle, bei
+ * denen er schweigen muss, bleiben still. Die Verschärfung ist hier also
+ * kostenlos — anders als beim ersten Entwurf, der 41 Fehlalarme brachte.
+ *
+ * Was zählt, ist allein: **Eine Bedingung wählt eine Zahl aus.** In einer
+ * Platzangabe ist das immer verdächtig, egal wie die Bedingung aussieht.
  */
-function waehltZahlPerVergleich(node: ts.Node): boolean {
+function waehltZahl(node: ts.Node): boolean {
   let ja = false;
   const gehe = (n: ts.Node): void => {
     if (ts.isConditionalExpression(n)) {
-      let bedingungVergleicht = false;
-      const inBedingung = (m: ts.Node): void => {
-        if (
-          ts.isBinaryExpression(m) &&
-          m.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
-        ) {
-          bedingungVergleicht = true;
-        }
-        ts.forEachChild(m, inBedingung);
-      };
-      inBedingung(n.condition);
-
       // Verschachtelte Ketten (`a ? 0 : b ? 1 : 3`) zählen mit — der innere
       // Zweig ist selbst wieder eine Auswahl.
       const istZahl = (z: ts.Node): boolean =>
@@ -81,7 +91,7 @@ function waehltZahlPerVergleich(node: ts.Node): boolean {
         ts.isConditionalExpression(z) ||
         (ts.isPrefixUnaryExpression(z) && ts.isNumericLiteral(z.operand));
 
-      if (bedingungVergleicht && (istZahl(n.whenTrue) || istZahl(n.whenFalse))) ja = true;
+      if (istZahl(n.whenTrue) || istZahl(n.whenFalse)) ja = true;
     }
     ts.forEachChild(n, gehe);
   };
@@ -115,7 +125,7 @@ export function handvergebenePlaetze(quelltext: string, dateiname = 'quelle.ts')
           if (eigenschaft.name.getText(sf) !== 'slot') continue;
           if (ts.isNumericLiteral(eigenschaft.initializer)) {
             merke('Zahl beim Aufzeichnen', eigenschaft);
-          } else if (waehltZahlPerVergleich(eigenschaft.initializer)) {
+          } else if (waehltZahl(eigenschaft.initializer)) {
             merke('Vergleich beim Aufzeichnen', eigenschaft);
           }
         }
@@ -127,7 +137,7 @@ export function handvergebenePlaetze(quelltext: string, dateiname = 'quelle.ts')
     // Ein Lesezugriff (`presses[n]!.slot`) hat keinen Vergleich, der eine Zahl
     // auswählt, und geht deshalb durch — das war der Fehlalarm aus #488.
     if (ts.isVariableDeclaration(n) && n.initializer !== undefined) {
-      if (waehltZahlPerVergleich(n.initializer)) merke('Vergleich in Variable', n);
+      if (waehltZahl(n.initializer)) merke('Vergleich in Variable', n);
     }
 
     ts.forEachChild(n, gehe);
