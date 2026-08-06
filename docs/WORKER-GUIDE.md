@@ -3589,3 +3589,67 @@ Zahl aus einem Namen gelesen wird.
 > **Gibt es einen Weg, auf dem hier eine Zahl steht, ohne dass gemessen wurde?** Wenn ja, ist die
 > Spalte keine Messung, sondern eine Mischung aus Messung und Schweigen — und man sieht ihr nicht
 > an, welches Feld welches ist.
+
+### 8.47 Vier Fragen an jede Zahl, die man weitergibt
+
+An einem Abend sind sechs Messungen falsch gewesen, und **in fünf davon lief der Befehl fehlerfrei
+und lieferte eine Zahl, die stimmte** — nur nicht für die gestellte Frage.
+
+| Die Zahl              | war richtig für           | gemeint war              |
+| --------------------- | ------------------------- | ------------------------ |
+| 26 Aufzeichnungen     | den ganzen **Zweig**      | den einzelnen **Commit** |
+| 0 geänderte Dateien   | das Verzeichnis `sim/`    | die Repository-Wurzel    |
+| `test-vessel = 0`     | „nicht in der Ausgabe"    | „gemessen und null"      |
+| 6 Suiten              | Suiten                    | Testdateien              |
+| 30 Fehler             | Zeilen der Ausgabe        | Fehler                   |
+| +0,46 % durch `phase` | eine **umbenannte** Größe | eine neue                |
+
+Keine davon war ein Tippfehler oder ein kaputtes Werkzeug. Jede war eine korrekte Antwort auf eine
+Frage, die nebenan lag.
+
+#### Die vier Fragen
+
+Sie stammen von Worker-2, aus der Durchsicht seiner eigenen fünf Fälle:
+
+> **Woran zähle ich es?** — Zweig oder Commit, Suite oder Datei, Zeile oder Treffer.
+>
+> **Wo zähle ich es?** — welches Arbeitsverzeichnis, welcher Bezugspunkt.
+>
+> **Kann die Zahl Abwesenheit bedeuten statt eines Werts?** — `.get(x, 0)`, `grep -c`, `wc -l` auf
+> eine Ausgabe, die nie entstand.
+>
+> **Beschreibe ich, was ich gesehen habe, oder was ich wollte?** — „kein Export gefahren" aus der
+> Gewohnheit, „Arbeitsbaum sauber" aus der Absicht.
+
+#### Die unbequeme Spalte
+
+Worker-2 hat seine Fälle mit drei Spalten aufgeschrieben: **was gemeldet, was falsch, woran gemerkt.**
+Die dritte ist die, die man weglässt — und sie sagt das Wichtigste:
+
+```
+"kein Export"          gemerkt: gar nicht — jemand anders fand es
+"statt zweier Filter"  gemerkt: nicht
+"Arbeitsbaum sauber"   gemerkt: beim nächsten Befehl, zufällig
+"test-vessel = 0"      gemerkt: durch eine Nachfrage
+```
+
+**In drei von vier Fällen hat der Melder es nicht selbst bemerkt.** Das ist kein Vorwurf, sondern
+das Maß dafür, wie zuverlässig Selbstprüfung bei dieser Klasse ist: kaum.
+
+Deshalb sind die vier Fragen vor dem Melden zu stellen und nicht danach. Nachher merkt es der andere.
+
+#### Und die Zahl trägt ihren Geltungsbereich mit
+
+Zwei Sitzungen haben an diesem Abend dieselbe Zahl gemessen — wie viele Paritäts-Suiten mehr prüfen
+als bloße Gleichheit — und beide haben ihre Grenze mitgeliefert:
+
+```
+"Die 15 ist eine Obergrenze mit vier bestätigten Fällen, keine geprüfte Zahl."
+"Für zwölf gelesen, für zwanzig nur gefiltert."
+```
+
+Beide Male hat **die Einschränkung des Melders** verhindert, dass die Zahl als hart durchging — und
+beim zweiten Mal hat der Orchestrator sie beim Weitergeben trotzdem weggelassen.
+
+> Eine Zahl ohne Geltungsbereich ist eine Behauptung. Wer sie weitergibt, gibt beides weiter oder
+> keines.
