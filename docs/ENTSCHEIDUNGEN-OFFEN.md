@@ -680,3 +680,39 @@ Wiederholens, und das ist Design.
 
 **Was der Wechsel kostet:** einen Zahlenwert in `data/items.json` — dieselbe Linie wie der Exponent
 in `reward.json`. Kein Umbau.
+
+## 15. Fällt eine Zauber-Schwächung des eingehenden Schadens in den WARD-Deckel? — OFFEN
+
+_Aufgekommen am 2026-08-06 beim Messen zweier Zauber, die dieselbe Mechanik brauchen._
+
+**Zwei Zauber aus dem Katalog wollen den eingehenden Schaden mindern:**
+
+| Zauber  | Schule       | Rolle                                                 |
+| ------- | ------------ | ----------------------------------------------------- |
+| `LATCH` | FIXATION     | der nächste Schlag trifft verzögert **und schwächer** |
+| `DECAY` | PUTREFACTION | schwächt den Boss-Schaden nach Stapelzahl             |
+
+**Gemessen:** Es gibt heute keine Stelle dafür. `hitPlayer` rechnet drei feste Summanden und einen
+Deckel — keine Faktoren-Kette, wie sie der ausgehende Schaden hat.
+
+```ts
+const roh = PLAYER.wardReduction + this.worn.ward / 1000;
+const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
+```
+
+### Die Frage
+
+Der WARD-Deckel steht seit dem 2026-08-05 bei **75 % für die Summe** (#466, deine Entscheidung).
+Fällt eine Zauber-Schwächung **in** diesen Deckel oder **daneben**?
+
+|             | Folge                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **hinein**  | Sie konkurriert mit Ausrüstung. Wer schon nah am Deckel ist, hat von `LATCH` und `DECAY` nichts — der Zauber wäre bei gutem Gear wertlos  |
+| **daneben** | Zauber können den Spieler **über** 75 % bringen. Fünf Zersetzungs-Stapel plus `LATCH` wären eine Minderung, die keine Ausrüstung erreicht |
+
+**Beides ist vertretbar, und die Wahl verändert, wofür die beiden Zauber gut sind.** Sie berührt
+außerdem die Begründung des Deckels selbst: Er wurde gesetzt, damit die Summe nicht ins Unbegrenzte
+wächst — ob das nur für Ausrüstung gilt oder für alles, steht nirgends.
+
+**Bis das entschieden ist, sind beide Zauber nicht baubar.** Die Mechanik ist klein; die Frage ist es
+nicht.
