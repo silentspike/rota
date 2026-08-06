@@ -1,3 +1,4 @@
+import { alsSpellIndex, type SpellIndex } from '../../src/core/combat.js';
 /**
  * Die Mechanik-Vorschau (Issue #270, AC2 und AC4).
  *
@@ -241,9 +242,9 @@ describe('AC2 (#287) — gezählt werden Quellen, nicht Plätze', () => {
     const ausDerVorschau = vorschau(bindings);
     const ausDerAuswahl = mechanicsOfLoadout({
       slotCount: 12,
-      spellOnSlot: (slot) => {
+      spellOnSlot: (slot): SpellIndex => {
         const id = bindings[String(slot) as keyof typeof bindings];
-        return id === undefined ? -1 : SPELLS.findIndex((s) => s.id === id);
+        return alsSpellIndex(id === undefined ? -1 : SPELLS.findIndex((s) => s.id === id));
       },
       feedsMechanic: (spellIndex, mechanicId) => {
         const spell = SPELLS[spellIndex];
