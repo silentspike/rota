@@ -67,6 +67,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'anchor',
       'vapour',
       'reflux',
+      'wisp',
       'canker',
       'fester',
       // Der Pruef-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehoert
