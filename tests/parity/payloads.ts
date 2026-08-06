@@ -2036,6 +2036,86 @@ function analyzeMisplays(recording: Recording): {
  * selbst: Ein Faktor wie 1,2 × 1,5 ist in JSON nicht verlustfrei zu
  * schreiben, seine Bit-Darstellung schon (`mixFloat`).
  */
+/**
+ * Ein KAMPF mit aktiver Verstärkung, Prüfsumme je Takt (Issue #464).
+ *
+ * # Was dieser Abgleich belegt — und was ausdrücklich nicht
+ *
+ * **Belegt:** Beide Seiten rechnen mit aktiver Verstärkung dasselbe. Verglichen
+ * wird die Zustands-Prüfsumme; sie trägt kein eigenes Feld für die
+ * Verstärkung, die Wirkung geht über `damage` ein.
+ *
+ * **Nicht belegt, und das ist Absicht:** Dass die Verstärkung überhaupt wirkt.
+ * Das ist ein Prüffall, kein Abgleich — er steht in
+ * `tests/unit/buff-in-combat.test.ts` (#420 AC4), mit zwei Läufen und einer
+ * Gegenprobe.
+ *
+ * **Eine Paritäts-Aufzeichnung vergleicht Spiel gegen Simulator, nicht zwei
+ * Läufe.** Ein erster Entwurf führte hier zusätzlich einen Lauf ohne
+ * Verstärkung — der hätte doppelt geprüft, was schon geprüft ist, und dabei
+ * einen zweiten Zauber ins Spiel gebracht, der die Prüfsummen aus einem
+ * anderen Grund auseinanderlaufen ließ.
+ *
+ * # Die Falle, die beim Bauen zuschlug
+ *
+ * **Der Takt muss laufen.** `expireBuffs` hängt am Takt, nicht am Wirken. Ohne
+ * `stepPassive` bliebe `factors.buffs` nach dem Fenster stehen, und der Lauf
+ * sähe verstärkt aus, ohne es zu sein.
+ */
+export function buffCombatPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 600;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const buff = combat.indexOf('test-buff');
+  const kindle = combat.indexOf('kindle');
+
+  const checksums: number[] = [];
+  /** Der Faktor an den Messpunkten — für AC1, damit „aktiv" nachweisbar ist. */
+  const factorAt: { tick: number; buffs: number }[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    // **Der Takt zuerst** — hier läuft die Verstärkung ab.
+    combat.stepPassive(timeMs);
+
+    if (tick === 0) combat.cast(buff, timeMs);
+    // Drei KINDLE: der erste im Fenster (drei Wartezeiten = 4500 ms), der
+    // letzte deutlich dahinter. So steht der Ablauf mit in der Datei.
+    if (tick === 150 || tick === 300 || tick === 500) combat.cast(kindle, timeMs);
+
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+    if (tick === 0 || tick === 150 || tick === 500) {
+      factorAt.push({ tick, buffs: combat.damageFactors.buffs });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    /** Die Folge, damit die Rust-Seite dieselbe fährt. */
+    presses: [
+      { tick: 0, spellId: 'test-buff' },
+      { tick: 150, spellId: 'kindle' },
+      { tick: 300, spellId: 'kindle' },
+      { tick: 500, spellId: 'kindle' },
+    ],
+    checksums,
+    factorAt,
+    expected: {
+      damage: combat.damageDealt,
+      /**
+       * **AC1 im Datensatz selbst:** Mindestens ein Messpunkt trägt einen
+       * Faktor über 1. Wäre das nicht so, prüften beide Seiten einen Lauf, in
+       * dem die Verstärkung gar nicht aktiv war — und wären einig darüber,
+       * nichts zu tun.
+       */
+      buffWasActive: factorAt.some((f) => f.buffs !== 1),
+    },
+  };
+}
+
 export function buffsPayload(): Record<string, unknown> {
   const buffs = new Buffs();
   const steps: Record<string, unknown>[] = [];
