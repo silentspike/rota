@@ -806,3 +806,42 @@ Abklingzeit  1500 gegen 1160     ← der Hebel
 
 Damit steht nicht nur, **dass** sich etwas unterscheidet, sondern **woran** es liegt — und man
 sieht sofort, wo der Messpunkt liegen muss.
+
+### Eine Formel nachbauen, statt sie aufzurufen
+
+_2026-08-06, eigener Fehler beim Vermessen von #428._
+
+Für eine schnelle Tabelle habe ich `hastedMs` in einem Wegwerf-Skript nachgebaut — mit
+`Math.ceil` beim Skalieren, wo die echte Funktion `Math.floor` hat:
+
+```ts
+const scaled = Math.floor((baseMs * PER_MILLE) / (PER_MILLE + permille));
+```
+
+Die Tabelle sah plausibel aus und wies bei 376 ‰ eine Abweichung aus, die es nicht gibt. Der
+Werker, der dieselbe Tabelle mit der **importierten** Funktion gerechnet hatte, kam auf andere
+Zahlen — und seine stimmten.
+
+> **Das ist heimtückischer als ein schweigendes Werkzeug**, denn der Nachbau **antwortet
+> plausibel**. Man vergleicht dann zwei Rechnungen, von denen nur eine im Programm steht.
+
+#### Die brauchbarste Fassung der Regel
+
+Sie stammt von Worker-2, der denselben Weg an diesem Abend andersherum gegangen ist:
+
+> Ich habe für die Tabelle ein Skript gebaut, das `hastedMs` und `GCD_MS` **importiert**. Nicht
+> aus Disziplin — es war schlicht kürzer, als die Formel abzuschreiben.
+>
+> **Die echte Funktion aufzurufen ist meistens auch der bequemere Weg. Wo er es nicht ist, lohnt
+> die Frage, warum.**
+
+Wo der Aufruf umständlich wirkt, liegt es fast immer an einem der beiden Gründe — und beide sind
+Anlass, kurz innezuhalten:
+
+| Der Aufruf ist umständlich, weil …       | dann                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| die Funktion nicht exportiert ist        | ein Prüffall statt eines Skripts — er läuft im Paket und darf importieren |
+| sie Aufbau braucht (ein `Combat`, Daten) | genau dieser Aufbau ist der Unterschied, den die Messung erfassen soll    |
+
+**Ein Prüffall, der zehn Sekunden länger dauert, hat die richtige Zahl geliefert.** Ein Skript,
+das sofort antwortet, hat gegen etwas gemessen, das dem Programm nur ähnlich sieht.
