@@ -35,6 +35,11 @@
  * verwerfen und damit genau den Schaden anrichten, vor dem die Rotation
  * schützen soll.
  */
+// Nur die ZAHL der Plätze, nicht der Katalog. Sie ist eine Design-Konstante
+// (GAME-DESIGN 13.4) und ändert sich nicht mit dem Gegenstands-Inhalt — anders
+// als `data/items.json`, das hier bewusst nicht hereinkommt (siehe
+// `fixSlotOccupancy`).
+import { SLOT_COUNT } from '../gear/slots.js';
 import { isWellFormed as isBestRunWellFormed } from './best-run.js';
 import type { ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
 
@@ -126,8 +131,83 @@ export interface CleanResult {
   readonly data: Record<string, unknown> | null;
   /** Wie viele Einträge je Liste verworfen wurden. Leer heißt: keiner. */
   readonly dropped: Readonly<Record<string, number>>;
+  /**
+   * Wie viele Stücke von einem Platz genommen wurden (Issue #453, AC4).
+   *
+   * Eigenes Feld und nicht in `dropped`: Ein abgelegtes Stück ist **nicht**
+   * verworfen — es liegt danach im Beutel und der Spieler kann es wieder
+   * anlegen. Die beiden zusammenzuzählen hiesse, Besitzverlust und
+   * Belegungskorrektur gleich zu benennen.
+   */
+  readonly unequipped: number;
   /** Warum der ganze Stand unbrauchbar ist, sonst `null`. */
   readonly rejected: string | null;
+}
+
+/**
+ * Doppelt und ausserhalb belegte Plätze auflösen (Issue #453, AC4).
+ *
+ * > Ein Platz trägt höchstens ein Stück, und ein Stück liegt auf höchstens
+ * > einem Platz. Ein Spielstand, der das verletzt, wird beim Laden bereinigt.
+ *
+ * # Warum das nicht in `LIST_GUARDS` passt
+ *
+ * Die Wächter dort prüfen jeden Eintrag **für sich** — `isOwnedItem` sieht nur
+ * sein eigenes Objekt und kann gar nicht wissen, ob ein anderer denselben
+ * Platz belegt. Die Regel ist listenübergreifend und braucht deshalb einen
+ * zweiten Schritt, nachdem gefiltert wurde.
+ *
+ * Die zweite Hälfte der Regel — ein Stück auf höchstens einem Platz — ist
+ * strukturell erfüllt: `equippedSlot` ist ein einzelner Wert. Sie zu prüfen
+ * wäre eine Prüfung ohne möglichen Fehlerfall.
+ *
+ * # Abgelegt, nicht verworfen
+ *
+ * Der Gegenstand ist besessen; falsch ist nur, wo er liegt. Ihn zu verwerfen
+ * nähme dem Spieler Besitz — genau der Schaden, gegen den der Kopf dieser
+ * Datei argumentiert. Er geht in den Beutel und kann wieder angelegt werden.
+ *
+ * # Was hier ABSICHTLICH NICHT geprüft wird
+ *
+ * **Ob das Stück auf seinem eigenen Platz liegt.** `wornFrom` vergleicht
+ * `equippedSlot` nicht mit `def.slot`, ein verschobenes Stück würde also
+ * mitgerechnet — der Befund ist echt und steht in `equip.ts`.
+ *
+ * Trotzdem gehört er nicht hierher: Die Prüfung bräuchte den **Katalog**, und
+ * damit hinge der Lesepfad des Spielstands an `data/items.json`. Ändert #421b
+ * dort einen Platz, würde beim nächsten Laden jede Belegung eines alten
+ * Standes aufgelöst — dieselbe Falle, vor der der Kopf dieser Datei warnt
+ * („würde bei der nächsten Fassung jeden alten Eintrag verwerfen").
+ *
+ * Weil `equip.ts` die einzige Schreibstelle ist, kann der Fall ohnehin nur aus
+ * einem von Hand bearbeiteten Stand kommen.
+ */
+function fixSlotOccupancy(items: readonly unknown[]): { items: unknown[]; unequipped: number } {
+  const belegt = new Set<number>();
+  let unequipped = 0;
+
+  // **Von hinten nach vorne.** Bei einer Doppelbelegung muss eines gewinnen,
+  // und `equippedBySlot` in `equip.ts` lässt das letzte gewinnen. Zwei
+  // Stellen, die sich verschieden entscheiden, zeigten dem Spieler ein anderes
+  // Stück als das, mit dem gerechnet wird.
+  const rueckwaerts = [...items].reverse().map((eintrag) => {
+    const roh = eintrag as Record<string, unknown>;
+    const slot = roh['equippedSlot'];
+    if (typeof slot !== 'number') return eintrag;
+
+    // Ein Platz ausserhalb der zehn ist kein Platz. `isOwnedItem` lässt jede
+    // Zahl durch — und `wornFrom` rechnete ein Stück auf Platz 99 mit, weil es
+    // den Bereich nicht prüft.
+    const gueltig = Number.isInteger(slot) && slot >= 0 && slot < SLOT_COUNT;
+    if (gueltig && !belegt.has(slot)) {
+      belegt.add(slot);
+      return eintrag;
+    }
+    unequipped++;
+    return { ...roh, equippedSlot: null };
+  });
+
+  return { items: rueckwaerts.reverse(), unequipped };
 }
 
 /**
@@ -140,7 +220,7 @@ export interface CleanResult {
  */
 export function cleanSave(data: unknown): CleanResult {
   if (data === null || typeof data !== 'object') {
-    return { data: null, dropped: {}, rejected: 'Stand ist kein Objekt' };
+    return { data: null, dropped: {}, unequipped: 0, rejected: 'Stand ist kein Objekt' };
   }
   const roh = { ...(data as Record<string, unknown>) };
   const dropped: Record<string, number> = {};
@@ -153,12 +233,24 @@ export function cleanSave(data: unknown): CleanResult {
     // den dieses Spiel je geschrieben hat.
     if (wert === undefined || wert === null) continue;
     if (!Array.isArray(wert)) {
-      return { data: null, dropped, rejected: `${name} ist keine Liste` };
+      return { data: null, dropped, unequipped: 0, rejected: `${name} ist keine Liste` };
     }
     const heil = wert.filter((eintrag) => guard(eintrag));
     if (heil.length !== wert.length) dropped[name] = wert.length - heil.length;
     roh[name] = heil;
   }
 
-  return { data: roh, dropped, rejected: null };
+  // **Nach dem Filtern, nicht davor.** Ein unbrauchbarer Eintrag hat keine
+  // Belegung, die zu korrigieren wäre — ihn vorher mitzuzählen liesse einen
+  // Platz als besetzt gelten, der nach dem Filtern frei ist, und nähme dem
+  // heilen Stück daneben die Belegung.
+  const besitz = roh['items'];
+  let unequipped = 0;
+  if (Array.isArray(besitz)) {
+    const geordnet = fixSlotOccupancy(besitz);
+    roh['items'] = geordnet.items;
+    unequipped = geordnet.unequipped;
+  }
+
+  return { data: roh, dropped, unequipped, rejected: null };
 }

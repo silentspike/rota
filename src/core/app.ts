@@ -18,6 +18,7 @@ import {
   sanitize,
 } from '../progression/bindings.js';
 import { buildComposition } from '../progression/composition-view.js';
+import { buildGearView } from '../progression/gear-view.js';
 import { SLOT_COUNT } from '../input/keys.js';
 import { GameLoop } from './loop.js';
 import { Session } from './session.js';
@@ -43,10 +44,12 @@ import { baseStats } from '../progression/base-stats.js';
 import '../progression/stats.css';
 import '../progression/levels.css';
 import '../progression/composition.css';
+import '../progression/gear.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 import { wornFrom } from '../gear/catalog.js';
+import { equip, equippedBySlot, unequip } from '../gear/equip.js';
 import type { OwnedItem } from '../analysis/save-format.js';
 
 /**
@@ -279,6 +282,14 @@ export class App {
       title: 'Composition',
       content: this.buildLoadoutSection(),
     });
+    // **Die Ausrüstung zwischen Leiste und Werten.** Sie ist wie die Leiste
+    // etwas, das der Spieler hier ändert; die Werte darunter folgen aus beidem
+    // (Issue #453).
+    this.home.addSection({
+      id: 'gear',
+      title: 'Equipment',
+      content: this.buildGearSection(),
+    });
     this.home.addSection({
       id: 'stats',
       title: 'Stats',
@@ -463,6 +474,34 @@ export class App {
   }
 
   /**
+   * Die Ausrüst-Ansicht (Issue #453).
+   *
+   * **Das fehlende Stück der Kette.** `setItems` gab es seit #421a, aber nur
+   * das Dev-Werkzeug rief es — und das wird im Auslieferungs-Bau
+   * herausgeschnitten (GAME-DESIGN 19, D.3). Ein Fund landete im Beutel und
+   * blieb dort, weil es keinen Weg gab, ihn anzulegen.
+   *
+   * Der Rückruf zeichnet **nicht selbst** neu: `setItems` ruft `refreshHome`,
+   * und das baut diesen Bereich mit. Zweimal neu zu bauen wäre nicht falsch,
+   * aber es liesse offen, welcher der beiden Wege der gemeinte ist.
+   */
+  private buildGearSection(): HTMLElement {
+    return buildGearView({
+      items: this.persistence.state.items,
+      onEquip: (index, slot) => {
+        const items = this.persistence.state.items;
+        // `slot` kommt aus der Zeile, in der gewählt wurde — beim Ablegen ist
+        // er die einzige Angabe, denn dort gibt es kein gewähltes Stück.
+        const neu =
+          index === null ? unequip(items, equippedBySlot(items)[slot] ?? -1) : equip(items, index);
+        if (neu === null) return false;
+        this.setItems(neu);
+        return true;
+      },
+    });
+  }
+
+  /**
    * Die Stufe setzen — nur fuer Nachweise (GAME-DESIGN 19.2; Issue #264).
    *
    * Schreibt **nur, was erreicht wurde**: Stufe und Erfahrung auf null. Alles
@@ -562,6 +601,12 @@ export class App {
         statOverview(baseStats(this.persistence.state.level), this.combat.wornValues),
       ),
     );
+    // **Die Ausrüstung gehört dazu** (Issue #453). Sie ist die einzige
+    // Ansicht, die den Spielstand ändert, während sie sichtbar ist — nach
+    // jedem Anlegen muss dastehen, was gilt, und der Beutel daneben muss das
+    // Stück verloren haben. Ohne diese Zeile zeigte die Liste weiter die alte
+    // Wahl, und die Werte darüber die neue.
+    this.home.replaceSection('gear', this.buildGearSection());
   }
 
   ready(): boolean {
