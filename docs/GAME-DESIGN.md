@@ -605,10 +605,10 @@ mehr bringt.
 
 ### 7.1 Zauberbalken und Wirkungsdauer — zwei getrennte Dinge
 
-| Art                                              | Verhalten                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Zauberbalken (Wirkzeit)**                      | **Sperrt nichts — aber jede andere Wirkung bricht ihn ab.** Länge **1,5–2,5 s**, also ein bis knapp zwei globale Wartezeiten. Der Zauber wirkt **erst am Ende**; bricht er ab, ist die Wirkung **vollständig** verloren. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
-| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                                                                                                      |
+| Art                                              | Verhalten                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Zauberbalken (Wirkzeit)**                      | **Sperrt nichts — aber jede andere Wirkung bricht ihn ab.** Länge **2,3–3,0 s** (entschieden 2026-08-06, siehe 7.1), also gut anderthalb bis zwei globale Wartezeiten. Kürzere Zauber haben **keine** Wirkzeit, sondern wirken sofort. Der Zauber wirkt **erst am Ende**; bricht er ab, ist die Wirkung **vollständig** verloren. Erzeugt eine echte Verpflichtung: „Kann ich mir das gerade leisten?" |
+| **Wirkungsdauer (DoT, Verstärkung, Schwächung)** | **Blockiert nicht.** Der Zauber ist gewirkt, seine Wirkung läuft weiter, während man normal weiterdrückt                                                                                                                                                                                                                                                                                               |
 
 #### Was einen laufenden Zauber abbricht — entschieden am 2026-08-05
 
@@ -723,9 +723,54 @@ Problems.
 | **Das GCD-Talent trägt die Mechanik** | Wer Wirkzeit-Zauber spielen will, muss in den GCD investieren. Das ist eine echte Kopplung zwischen Talentbaum und Zauberwahl — reizvoll, aber sie schränkt die freie Zusammenstellung ein |
 | **Die Folge annehmen**                | Tempo-Ausrichtungen verlieren die Abbruch-Entscheidung. Wirkzeit-Zauber werden für sie zu reinen „langsamen Zaubern" ohne die Verpflichtung, die 7.1 beschreibt                            |
 
-**Gehört dem Auftraggeber, bevor E10 Wirkzeiten vergibt.** Bis dahin ist der Prüf-Zauber aus #304
-(2000 ms) die einzige Wirkzeit im Spiel, und für ihn spielt es keine Rolle — er ist für keinen
-Spieler erreichbar.
+##### ENTSCHIEDEN am 2026-08-06: kurze Wirkzeiten entfallen, die Spanne wird 2,3–3,0 s
+
+**Keiner der beiden Wege oben wurde gewählt.** Der Auftraggeber hat die Frage zurückgewiesen und
+einen dritten genannt:
+
+> naja dann müssen wir doch eher die spells überarbeiten?
+
+**Das trifft, und es ist die bessere Antwort.** Beide Wege oben drehen an einer _Regel_ — an der
+Kopplung zum Talentbaum oder an der Verpflichtung selbst. Der dritte dreht an den _Zahlen_, und die
+gehören ohnehin noch niemandem: Es gibt bis heute keinen einzigen spielbaren Zauber mit Wirkzeit.
+
+Gerechnet mit der echten `hastedMs`, bei 50 % CATALYSIS (dem Deckel):
+
+| Basis-Wirkzeit | bei 50 % Tempo | Fenster ohne Talent | mit GCD-Talent |
+| -------------- | -------------- | ------------------- | -------------- |
+| 1,5 s          | 1000 ms        | **−500**            | 0              |
+| 2,0 s          | 1340 ms        | **−160**            | +340           |
+| 2,25 s         | 1500 ms        | 0                   | +500           |
+| **2,3 s**      | 1540 ms        | **+40**             | +540           |
+| **3,0 s**      | 2000 ms        | **+500**            | +1000          |
+
+**Bei 3,0 s bleibt bei vollem Tempo genau so viel Fenster wie bei 2,0 s ganz ohne Tempo.** Die
+obere Grenze der neuen Spanne löst das Problem also vollständig; die untere (2,3 s) hält es gerade
+eben offen.
+
+**Die Regel, die daraus folgt:**
+
+|                     |                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| **Wirkzeit-Zauber** | **2,3–3,0 s** — deutlich mehr als eine globale Wartezeit, damit die Verpflichtung aus 7.1 trägt |
+| **Alles darunter**  | **Sofort-Zauber.** Was nach altem Korridor 1,5–1,9 s bekommen hätte, bekommt gar keine Wirkzeit |
+
+> **Die Wirkzeit wird damit zum Merkmal weniger, besonderer Zauber statt zu einer Abstufung.** Ein
+> Balken bedeutet ab jetzt immer: „Das hier kostet dich zwei Aktionen, und es kann dir
+> abgebrochen werden."
+>
+> **Was das kostet, und es ist bewusst angenommen:** Zwischen „sofort" und „zwei Aktionen lang"
+> liegt nichts mehr. Der Katalog verliert eine Zwischenstufe — und gewinnt dafür, dass jeder
+> Balken etwas bedeutet.
+
+**Beide Regeln oben bleiben unangetastet.** 6.6 (Wirkzeit skaliert) und 6.2 (die Wartezeit nicht)
+gelten unverändert; sie stehen nicht mehr im Widerspruch, weil kein Zauber mehr in den Bereich
+fällt, in dem sie einander aufheben.
+
+---
+
+_Der Stand vor der Entscheidung:_ Bis heute war der Prüf-Zauber aus #304 (2000 ms) die einzige
+Wirkzeit im Spiel, und für ihn spielte es keine Rolle — er ist für keinen Spieler erreichbar.
 
 ### 7.2 DoT-Regel: Erneuern setzt zurück
 
