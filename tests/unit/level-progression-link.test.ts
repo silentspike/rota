@@ -102,6 +102,9 @@ function kontext(bossLevel: number) {
     bossLevel,
     gameVersion: '0.1.0',
     at: 1_700_000_000_000,
+    seed: 0,
+    instance: 1,
+    endlessLevel: 0,
   };
 }
 

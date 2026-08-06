@@ -203,6 +203,16 @@ export class App {
         bossLevel: this.combat.boss.level,
         gameVersion: __ROTA_VERSION__,
         at: Date.now(),
+        // **Der Startwert dieses Kampfes** (Issue #447): Aus ihm leitet
+        // `lootStreamFor` den Beute-Strom ab — getrennt von den Kampfströmen,
+        // aber aus derselben Wurzel, damit eine aufgezeichnete Runde ihre
+        // Beute wiederholt.
+        seed: 0,
+        // Wie `difficulty`: Ein Boss trägt seine Instanz als Kennung
+        // (`'prologue'`), die Zuordnung auf die Nummer aus `rates.ts` ist
+        // E6-Inhalt. Sobald es sie gibt, ist es diese Zeile.
+        instance: 1,
+        endlessLevel: 0,
       });
       // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
       // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
