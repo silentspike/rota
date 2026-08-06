@@ -87,6 +87,25 @@
         }
       },
       "_comment": "WEG C — ueber den Brand, mit anderer KURVE als SMOULDER. Drei Ticks zu 90 in 6000 ms (270) gegen sechs Ticks zu 40 in 12000 ms (240). Er liefert mehr und frueher, laeuft aber halb so lang — er muss doppelt so oft nachgelegt werden und kostet damit doppelt so viele GCD. Im langen Kampf verliert er gegen SMOULDER, im kurzen Fenster gewinnt er. Genau die Entscheidung, die eine zweite Brand-Kurve rechtfertigt."
+    },
+    {
+      "id": "cinder",
+      "name": "Cinder",
+      "_comment": "Der KURZE Brand mit dichten Ticks (Issue #477, ZAUBER-RASTER Zeile 4). Neu ist nicht die Laufzeit, sondern das INTERVALL: smoulder und searing ticken beide alle 2000 ms und unterscheiden sich nur in Dauer (12 s gegen 6 s). CINDER tickt alle 1000 ms — damit gibt es zum ersten Mal eine Entscheidung ueber die Tick-DICHTE. Das Raster begruendet ihn mit 'heute sind beide Braende gleich lang'; gemessen sind sie das nicht. Die Luecke, die er fuellt, ist die Frequenz. ALLE ZAHLEN SIND PLATZHALTER.",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 3000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "dot": {
+        "tickDamage": 30,
+        "tickIntervalMs": 1000,
+        "durationMs": 4000,
+        "refreshMode": "reset",
+        "resourceGainPerTick": {
+          "heat": 1
+        }
+      }
     }
   ]
 }
