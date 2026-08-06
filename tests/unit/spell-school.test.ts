@@ -69,6 +69,11 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'reflux',
       'canker',
       'fester',
+      // Issue #479 — BLIGHT, derselbe Weg wie #268: bei seiner Schule statt
+      // hinten. Die Verschiebung von `test-cast` und `test-buff` um eins ist
+      // mit `tools/ac6.sh` nachgemessen und betrifft nur Pruefsummen; die
+      // Aufzeichnungen speichern `spellId` und `slot`, keine Indizes.
+      'blight',
       // Der Pruef-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehoert
       // nicht zum Spiel, steht aber im Index-Raum — und genau der ist hier die
       // Aussage.
