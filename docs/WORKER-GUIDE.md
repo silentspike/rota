@@ -3000,3 +3000,68 @@ Rust angefasst hat. Aber ein neues Feld, eine neue Wirkungsart oder eine geände
 
 **`--no-fail-fast` ist nicht optional.** Ohne es bricht `cargo test` nach der ersten roten Suite ab.
 Die Zahl darunter sieht plausibel aus, obwohl die Hälfte der Suiten nie lief.
+
+### 8.36 Der Pfad, der zu eng war — und die Bestätigung, die nichts bestätigt hat
+
+Eine Sitzung meldete einen Verdacht: Der Simulator kenne das Feld `consumesAll` nicht, die Parität
+sei latent gebrochen. Sie stellte ihn **ausdrücklich zur Nachprüfung**.
+
+Der Orchestrator prüfte nach:
+
+```bash
+grep -rn "consumes_all|consumesAll" sim/src/     # kein Treffer
+```
+
+Daraus wurde ein Issue mit einer Design-Frage, eine Meldung an den Auftraggeber und die Anweisung,
+das Feld zu entfernen. Eine dritte Sitzung ging vor dem Entfernen einer Fußnote nach — warum ein
+Kommentar in `data.ts` auf `sim/build.rs` verweist:
+
+```bash
+grep -rn "consumesAll" sim/                      # fünf Treffer
+```
+
+```
+sim/build.rs:564   let consumes_all = boolean(spender, "consumesAll", &whose);
+sim/build.rs:566   assert!(consumes_all, "consumesAll=false ist nicht umgesetzt");
+sim/tests/data_source.rs:246   assert!(spender_json["consumesAll"]...);
+```
+
+**`build.rs` liegt in `sim/`, nicht in `sim/src/`.** Die Auslassung in `fight.rs` war nicht
+vergessen, sondern bewusst: Ein Datensatz mit dem zweiten Wert kommt gar nicht erst durch die
+Datengenerierung.
+
+#### Was daran die eigentliche Lehre ist
+
+Nicht „grep breiter". Das wäre eine Regel, an die man sich erinnern muss, und die hilft beim
+nächsten Mal nicht, wenn die Datei anders heißt.
+
+> **Eine Nachprüfung, die dieselbe Methode benutzt wie die Vermutung, prüft nichts nach.** Sie kann
+> nur bestätigen, was die erste Messung schon gesehen hat — einschließlich ihres blinden Flecks.
+
+Der Verdacht kam aus einem `grep` über `sim/src/`. Die Nachmessung war dasselbe `grep` über
+denselben Pfad. Zwei übereinstimmende Ergebnisse sahen aus wie Bestätigung und waren eine
+Wiederholung.
+
+**Was tatsächlich nachgeprüft hätte:** von der anderen Seite kommen. Nicht „findet der Simulator das
+Feld?", sondern „was passiert, wenn ich einen Datensatz mit dem zweiten Wert baue?" — dann hätte der
+Bau abgebrochen, mit einer Meldung, die den Grund nennt.
+
+#### Die Kosten und wer sie fast getragen hätte
+
+Das Issue verlangte eine Design-Entscheidung, die Meldung an den Auftraggeber behauptete, ein
+geplanter Zauber sei nicht mehr baubar, und die Anweisung hätte funktionierenden Produktionscode
+entfernt — samt der Prüfung, die den unerlaubten Wert abweist.
+
+Aufgehalten hat es niemand, der misstrauisch war. Aufgehalten hat es jemand, der **einer Fußnote
+nachging, bevor er löschte** — mit einer Anweisung in der Hand, die eindeutig war.
+
+> Das ist der Unterschied zwischen einen Auftrag ausführen und ihn verantworten.
+
+#### Für die Nachprüfung von fremden Befunden
+
+Wer einen gemeldeten Verdacht bestätigt, macht ihn zur Tatsache — und trägt ihn ab da mit. Zwei
+Fragen davor:
+
+1. **Benutze ich dieselbe Methode wie der Melder?** Dann wiederhole ich, statt zu prüfen.
+2. **Gibt es einen Weg von der anderen Seite?** Ein Verhalten messen statt eine Stelle suchen; einen
+   Fall bauen statt einen Namen greppen.
