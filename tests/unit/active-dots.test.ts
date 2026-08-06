@@ -12,7 +12,7 @@
  * laufenden* Bränden tun konnte.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, type SpellIndex } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 
 function kampf(): Combat {
@@ -20,7 +20,7 @@ function kampf(): Combat {
 }
 
 /** Einen Brand legen und den Kampf bis `bisMs` laufen lassen. */
-function mitBrand(bisMs: number): { combat: Combat; smoulder: number } {
+function mitBrand(bisMs: number): { combat: Combat; smoulder: SpellIndex } {
   const combat = kampf();
   const smoulder = combat.indexOf('smoulder');
   combat.cast(smoulder, 0);
@@ -107,5 +107,46 @@ describe('AC5 — ohne laufende Brände tun beide nichts und brechen nicht', () 
     const vorher = combat.dotRemainingMs(smoulder, 1000);
     combat.extendActiveDots(1000, 0);
     expect(combat.dotRemainingMs(smoulder, 1000)).toBe(vorher);
+  });
+});
+
+describe('Die Zauber sind ANGESCHLOSSEN, nicht nur die Mechanik', () => {
+  // **Der Baustein allein wäre die Klasse „gebaut, geprüft, nicht
+  // angeschlossen".** Diese Fälle prüfen den Weg vom Tastendruck bis zur
+  // Wirkung — nicht die Methode, sondern den Zauber.
+
+  it('EMBER verlängert beim WIRKEN, nicht erst beim Aufruf der Methode', () => {
+    // **Erst 1600 ms, nicht 1000.** Der GCD ist nach SMOULDER bis 1500 belegt;
+    // ein Wurf davor wird abgelehnt, und der Fall pruefte dann den Anschluss
+    // nicht, sondern die Wartezeit.
+    const { combat, smoulder } = mitBrand(1600);
+    const vorher = combat.dotRemainingMs(smoulder, 1600);
+    expect(combat.cast(combat.indexOf('ember'), 1600).result, 'EMBER wurde abgelehnt').toBe(0);
+    expect(combat.dotRemainingMs(smoulder, 1600)).toBeGreaterThan(vorher);
+  });
+
+  it('EMBER macht dabei KEINEN Schaden — das ist seine Aussage', () => {
+    const combat = kampf();
+    combat.cast(combat.indexOf('ember'), 0);
+    expect(combat.damageDealt).toBe(0);
+  });
+
+  it('PYROCLASM verbraucht die Brände beim Wirken', () => {
+    const { combat, smoulder } = mitBrand(1600);
+    const vorher = combat.damageDealt;
+    expect(combat.cast(combat.indexOf('pyroclasm'), 1600).result, 'PYROCLASM wurde abgelehnt').toBe(
+      0,
+    );
+    expect(combat.damageDealt, 'er muss den Rest als Schaden geben').toBeGreaterThan(vorher);
+    expect(combat.dotRemainingMs(smoulder, 1600), 'und den Brand abräumen').toBe(0);
+  });
+
+  it('GEGENPROBE: ein Zauber OHNE die Felder lässt Brände in Ruhe', () => {
+    // Ohne diese Zeile wäre nicht zu sehen, ob die Felder wirken oder ob
+    // jeder Zauber die Brände anfasst.
+    const { combat, smoulder } = mitBrand(1600);
+    const vorher = combat.dotRemainingMs(smoulder, 1600);
+    expect(combat.cast(combat.indexOf('kindle'), 1600).result, 'KINDLE wurde abgelehnt').toBe(0);
+    expect(combat.dotRemainingMs(smoulder, 1600)).toBe(vorher);
   });
 });

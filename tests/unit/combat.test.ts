@@ -39,6 +39,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
       'bellows',
       'searing',
+      // Issue #517 — EMBER und PYROCLASM, bei ihrer Schule (wie #268, #479,
+      // #481). Sie teilen sich die Schleife ueber laufende Braende.
+      'ember',
+      'pyroclasm',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
