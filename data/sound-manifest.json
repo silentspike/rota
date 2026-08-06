@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 12
+        "present": 14
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 48,
+        "count": 46,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -267,6 +267,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "fester"
+      }
+    },
+    {
+      "id": "spell-bellows",
+      "group": "spells",
+      "purpose": "BELLOWS — der zweite Hitze-Erzeuger der CALCINATION. Kurze Abklingzeit, wird oft gedrueckt: muss zurueckhaltend bleiben und darf sich neben KINDLE nicht in den Vordergrund draengen. Er facht an, er trifft nicht.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-bellows.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "forge bellows air push, rushing draft feeding embers, warm rising whoosh with glowing tail, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "bellows"
+      }
+    },
+    {
+      "id": "spell-searing",
+      "group": "spells",
+      "purpose": "SEARING — der Brand-Effekt der CALCINATION. Er setzt einen Zustand in Gang, statt sofort zu wirken: ein Anfassen der Hitze, kein Schlag. Muss sich klar von PYRE unterscheiden, das die Hitze entlaedt.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-searing.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 20,
+      "prompt": "searing heat taking hold, hot metal sizzling with sustained scorch, slow burning resonance, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "searing"
       }
     },
     {
