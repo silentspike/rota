@@ -175,8 +175,18 @@ pub const MAX_DECAY_STACKS: usize = 5;
 /// meldet es die Pruefsumme ab Takt 0.
 pub const SYNERGY_BONUS_PERCENT: u32 = 25;
 
-/// Um wie viel Prozent ein Stapel den Schaden aller Quellen erhoeht. Wird gemessen.
-pub const DECAY_STACK_PERCENT: u32 = 3;
+/// Um wie viel Prozent ein Stapel den Schaden aller Quellen erhoeht.
+///
+/// **Entschieden, nicht offen** — Issue #224, 2026-08-05. Bis Issue #482 stand
+/// hier 3 mit dem Vermerk "Wird gemessen"; die Messung hatte laengst
+/// stattgefunden, nur die Umsetzung fehlte.
+///
+/// GAME-DESIGN 221 rechnet vor: Der Break-even, ab dem sich der Platz auf der
+/// Leiste rechnet, liegt bei 5,4 % je Stapel. Mit 3 % waere PUTREFACTION nie
+/// die beste Wahl.
+///
+/// Spiegelbild zu `DECAY_STACK_PERCENT` in `src/core/combat.ts`.
+pub const DECAY_STACK_PERCENT: u32 = 6;
 
 /// Wie lange ein einzelner Stapel haelt. Wird gemessen.
 pub const DECAY_STACK_DURATION_MS: Millis = 12_000;
