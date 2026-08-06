@@ -452,6 +452,15 @@ pub struct Fight {
     /// entscheidet. Das ist der Unterschied zwischen einem Planungswerkzeug
     /// und einer Ressource, die einen Rhythmus vorgibt.
     control: u32,
+    /// Schaden aus umgewandelten Kontroll-Punkten, gemerkt bis zur Rechnung
+    /// (Issue #478, WEDGE).
+    ///
+    /// **Gemerkt und nicht sofort ausgeteilt:** Die Kontroll-Wirkung laeuft
+    /// vor der Schadensrechnung, dort stehen die Faktoren noch nicht. Ein
+    /// Treffer an dieser Stelle ginge an Krit, Widerstand und Verstaerkung
+    /// vorbei — er waere der einzige Schaden im Spiel, den kein Faktor
+    /// beruehrt.
+    pending_control_damage: u32,
     /// Ablaufzeiten der Zersetzungs-Stapel, **aufsteigend** — aeltester vorn.
     ///
     /// **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Feld fester
@@ -716,6 +725,7 @@ impl Fight {
             conversion_percent: 0,
             converted: 0,
             control: 0,
+            pending_control_damage: 0,
             next_strike_delay: 0,
             phase_hold_percent: 0,
             phase_hold_until: None,
@@ -1293,6 +1303,7 @@ impl Fight {
         self.conversion_percent = 0;
         self.converted = 0;
         self.control = 0;
+        self.pending_control_damage = 0;
         self.next_strike_delay = 0;
         self.phase_hold_percent = 0;
         self.phase_hold_until = None;
@@ -1677,7 +1688,39 @@ impl Fight {
     /// Hier greift FIXATION wirklich in den **Kampfverlauf** ein — das ist,
     /// was sie von jeder anderen Schule unterscheidet.
     fn apply_control_effect(&mut self, control: Control) {
+        // **CAPSTONE loest alle drei auf einmal aus** (Issue #478). Ein `match`
+        // waehlt genau einen Zweig — deshalb ruft `AllThree` die drei
+        // einzelnen auf, statt ihren Inhalt zu wiederholen. Wer den Inhalt
+        // kopierte, haette drei Stellen, die auseinanderlaufen koennen.
+        if control.effect == ControlEffect::AllThree {
+            for effekt in [
+                ControlEffect::SlowCast,
+                ControlEffect::DelayStrike,
+                ControlEffect::HoldPhase,
+            ] {
+                self.apply_control_effect(Control {
+                    effect: effekt,
+                    ..control
+                });
+            }
+            return;
+        }
+
         match control.effect {
+            // Ist oben schon behandelt; der Zweig haelt das `match`
+            // vollstaendig, ohne einen Auffangzweig zu brauchen.
+            ControlEffect::AllThree => {}
+            // **Der Notausgang** (Issue #478, WEDGE): Punkte in Schaden.
+            // Alle Punkte, nicht nur die Kosten — `cost` ist der
+            // Mindesteinsatz, sonst braechte er bei vollem Vorrat genauso
+            // viel wie bei knappem.
+            ControlEffect::ConvertToDamage => {
+                let rest = self.control;
+                self.control = 0;
+                self.control_spent = self.control_spent.saturating_add(rest);
+                self.pending_control_damage =
+                    (control.cost + rest) * control.amount;
+            }
             // Einen Boss-Zauber verlangsamen: Die Wirkzeit dehnt sich, und
             // damit wird das Fenster zum Unterbrechen groesser.
             ControlEffect::SlowCast => {
@@ -2544,6 +2587,15 @@ impl Fight {
         // soll es sein: Ein Zauber verstaerkt die FOLGENDEN, nicht sich selbst.
         // Im Spiel ergibt sich dasselbe daraus, dass der Buff nach dem Schaden
         // angelegt wird (`Combat.resolvePlayerCast`).
+
+        // **Der umgewandelte Schaden geht durch dieselben Faktoren** (#478):
+        // Krit, Widerstand, Verstaerkung. Ein Treffer, den kein Faktor
+        // beruehrt, waere der einzige im Spiel.
+        if self.pending_control_damage > 0 {
+            let roh = self.pending_control_damage;
+            self.pending_control_damage = 0;
+            cast_damage += self.deal(index, compute_damage(roh, &factors), LogKind::Damage);
+        }
 
         if spell.base_damage > 0 {
             cast_damage += self.deal(

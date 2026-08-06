@@ -161,6 +161,14 @@ pub enum ControlEffect {
     /// Fixierung waehrend einer hoeheren Phase aus, faellt der Boss nicht
     /// zurueck.
     HoldPhase,
+    /// Kontroll-Punkte in Schaden umwandeln (Issue #478, WEDGE).
+    ///
+    /// **Der Notausgang der Schule.** Gegen einen Boss ohne Mechanik gibt es
+    /// nichts zu verlangsamen, zu verzoegern oder hinauszuzoegern — die drei
+    /// anderen Wirkungen laufen dort ins Leere.
+    ConvertToDamage,
+    /// Alle drei bisherigen Wirkungen auf einmal (Issue #478, CAPSTONE).
+    AllThree,
 }
 
 /// Ein Zauber.
