@@ -460,6 +460,21 @@ export class Combat {
    * Eine Verstärkung auf den Punktegewinn kann eine auf den Schaden gar nicht
    * verdrängen, weil sie in einem anderen Speicher liegt.
    */
+  /**
+   * Die zuletzt gesehene Uhrzeit — für die Verstärkungs-Faktoren (#489).
+   *
+   * **Warum ein mitgeführtes Feld und nicht ein Parameter.** Die vier
+   * Zielgrößen werden an Stellen gelesen, die heute keine Zeit kennen:
+   * `gainOfSpell` ist eine Abfrage über Zauber-Daten, `dotInterval` rechnet
+   * einen Abstand, und `updateVulnerability` läuft aus mehreren Richtungen.
+   * Sie alle um einen Parameter zu erweitern hieße, ihn durch ein Dutzend
+   * Aufrufer zu fädeln — und jede vergessene Stelle wäre ein stiller
+   * Rückfall auf den Faktor 1.
+   *
+   * Der Preis ist ein Feld, das in `reset()` mitmuss. Das fängt der Wächter
+   * aus #349, der genau dafür gebaut ist.
+   */
+  private nowMsForBuffs = 0;
   private readonly controlBuffs = new Buffs();
   private readonly resourceBuffs = new Buffs();
   private readonly tickBuffs = new Buffs();
@@ -1498,7 +1513,11 @@ export class Combat {
    */
   private applyFixation(spell: SpellDef, timeMs: number): void {
     if (spell.controlGain !== undefined && spell.controlGain > 0) {
-      this.controlValue += spell.controlGain;
+      // **Der Faktor aus `controlBuffs`** (Issue #489, GRIPLOCK). Ganzzahlig
+      // gerundet, weil Kontroll-Punkte ganze Zahlen sind — ein halber Punkt
+      // wäre eine Größe, die das Spiel nirgends anzeigt.
+      const faktor = this.controlBuffs.factor(timeMs);
+      this.controlValue += Math.round(spell.controlGain * faktor);
     }
 
     const control = spell.control;
@@ -1860,7 +1879,11 @@ export class Combat {
   }
 
   private updateVulnerability(): void {
-    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
+    // **Der Faktor aus `stackBuffs`** (Issue #489, VIRULENCE): Er ändert, was
+    // ein Stapel WERT ist, nicht wie viele liegen. Ganzzahlig bis zur letzten
+    // Teilung (18.4) — deshalb auf die Prozentpunkte, nicht auf das Ergebnis.
+    const jeStapel = Math.round(DECAY_STACK_PERCENT * this.stackBuffs.factor(this.nowMsForBuffs));
+    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
   }
 
   /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
@@ -2121,7 +2144,12 @@ export class Combat {
    * Klasse Fehler, die #134, #138, #159 und #173 hinterlassen haben.
    */
   private dotInterval(dot: { readonly tickIntervalMs: number }): number {
-    return this.hasted(dot.tickIntervalMs);
+    // **Der Faktor aus `tickBuffs`** (Issue #489, FORGE). Er verkürzt den
+    // ABSTAND, macht die Ticks also HÄUFIGER — deshalb geteilt, nicht
+    // multipliziert. Ein Faktor 2 heißt „doppelt so oft", nicht „halb so oft".
+    const faktor = this.tickBuffs.factor(this.nowMsForBuffs);
+    const abstand = faktor === 1 ? dot.tickIntervalMs : Math.round(dot.tickIntervalMs / faktor);
+    return this.hasted(abstand);
   }
 
   /**
@@ -2231,6 +2259,9 @@ export class Combat {
    * festen Plan ab Kampfbeginn, nicht dem letzten Wirken.
    */
   stepPassive(timeMs: number): void {
+    // **Vor der Abbruchbedingung**, damit die Uhr auch dann stimmt, wenn der
+    // Kampf gerade endet — sonst rechneten die Faktoren mit einer alten Zeit.
+    this.nowMsForBuffs = timeMs;
     if (this.stateValue !== FIGHT_RUNNING) return;
 
     for (let i = 0; i < this.spells.length; i++) {
@@ -2772,6 +2803,7 @@ export class Combat {
    *   die Felder heraus — beim nächsten Aufruf steht etwas anderes darin.
    */
   cast(index: SpellIndex, timeMs: number): CastOutcome {
+    this.nowMsForBuffs = timeMs;
     const outcome = this.outcome;
     outcome.spellIndex = index;
     outcome.damage = 0;
@@ -3076,7 +3108,10 @@ export class Combat {
 
   /** Was ein Zauber bei einer Wirkung beisteuert — aus seinen Daten. */
   gainOfSpell(spellIndex: number, resourceId: string): number {
-    return this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
+    const roh = this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
+    // **Der Faktor aus `resourceBuffs`** (Issue #489, FLASHPOINT). Ganzzahlig,
+    // wie der Vorrat selbst.
+    return roh === 0 ? 0 : Math.round(roh * this.resourceBuffs.factor(this.nowMsForBuffs));
   }
 
   /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
@@ -3228,6 +3263,7 @@ export class Combat {
     // Wert. Genau dieser Fehler ist beim Synergie-Fenster passiert (#318) —
     // dort blieb nach einem Leistenwechsel „1 of 1" stehen, und kein Prüffall
     // fand es, weil jeder frisch baut statt zurückzusetzen.
+    this.nowMsForBuffs = 0;
     this.buffs.reset();
     this.controlBuffs.reset();
     this.resourceBuffs.reset();
