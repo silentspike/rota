@@ -21,6 +21,7 @@
  * Ereignis (`EventKind::ResourceDecay`). Ihn hierher zu ziehen hieße, eine
  * Zeitregel als Reaktion zu verkleiden.
  */
+import { alsSpellIndex, type SpellIndex } from '../../core/combat.js';
 import { RULE_DOT_TICK, RULE_SPELL_CAST, type Registration, type RuleReceiver } from '../events.js';
 import type { Combat } from '../../core/combat.js';
 
@@ -34,9 +35,9 @@ export interface StackSink {
   /** Kennung des Vorrats, den diese Schule führt. */
   readonly resourceId: string;
   /** Was ein Zauber bei einer Wirkung beisteuert. */
-  gainOfSpell(spellIndex: number, resourceId: string): number;
+  gainOfSpell(spellIndex: SpellIndex, resourceId: string): number;
   /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
-  gainOfTick(spellIndex: number, resourceId: string): number;
+  gainOfTick(spellIndex: SpellIndex, resourceId: string): number;
   /** Stapel hinzufügen. Deckelt selbst und zählt das Verpuffte mit. */
   gainResource(amount: number): void;
 }
@@ -83,10 +84,20 @@ export class StackMechanic implements RuleReceiver {
 
   onRuleEvent(event: number, subject: number, _value: number, _timeMs: number): void {
     if (subject < 0) return;
+    // **Die einzige neue Umgehung in `src`, und sie ist fachlich richtig.**
+    // `onRuleEvent` ist die allgemeine Ereignis-Schnittstelle; `subject`
+    // bedeutet je nach Ereignis etwas anderes. Nur bei RULE_SPELL_CAST und
+    // RULE_DOT_TICK ist es ein Zauber-Index — das steht in der Anmeldung
+    // (`RULE_SPELL_CAST`, `RULE_DOT_TICK` oben) und lässt sich am Typ nicht
+    // ablesen.
+    //
+    // Die Marke hier zu verlangen hieße, `subject` für ALLE Ereignisse zum
+    // Zauber-Index zu erklären — und das wäre falsch.
+    const spell = alsSpellIndex(subject);
     const amount =
       event === RULE_SPELL_CAST
-        ? this.sink.gainOfSpell(subject, this.sink.resourceId)
-        : this.sink.gainOfTick(subject, this.sink.resourceId);
+        ? this.sink.gainOfSpell(spell, this.sink.resourceId)
+        : this.sink.gainOfTick(spell, this.sink.resourceId);
     if (amount === 0) return;
     this.gains++;
     this.sink.gainResource(amount);
