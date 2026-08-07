@@ -147,7 +147,7 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     expect(analysis.losses.interrupts?.damageTaken).toBe(6000);
 
     // **Die Null stand hier schon vorher — aus dem falschen Grund** (#567,
-    // #581).
+    // #581, #585).
     //
     // Bis zum 2026-08-07 war sie 0, weil der tote Spieler WEITERWIRKTE: Es
     // blieb kein Fenster ungenutzt, weil in jedem gewirkt wurde. Der Fall war
@@ -170,14 +170,23 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     // Deshalb steht hier eine Zusicherung, die die alte Null NICHT erfüllt
     // hätte: Der Kampf muss beim Tod geendet sein. Ohne sie wäre dieser Fall
     // gegen den Ausgangszustand grün.
+    //
+    // **Zu #585:** Das Issue wurde für den mittleren Zustand angelegt — die
+    // Auswertung solle beim Tod enden, statt einem Toten Gelegenheiten
+    // anzurechnen. Es ist damit erfüllt, aber nicht dort, wo es gesucht hat:
+    // Nicht die Verlustrechnung wurde geändert, sondern der Kampf endet nun
+    // beim Tod, und die Rechnung bekommt gar nichts mehr zu sehen. Wer #585
+    // schließt, sollte das hier gelesen haben — sonst sucht er eine Änderung
+    // in `run-analysis.ts`, die es nicht gibt.
     expect(analysis.losses.totalLost).toBe(0);
     expect(analysis.losses.totalShare).toBe(0);
     expect(combat.fightState, 'der Kampf läuft nach dem Tod weiter').toBe(FIGHT_DIED);
 
     // Was die Überschrift dieses Falls behauptet, gilt unverändert: Die
-    // verpassten Unterbrechungen stehen NICHT in der Prozentrechnung. Die 400
-    // stammen aus `missedCasts`, nicht aus `missedInterrupts` — und das ist
-    // der Kern der Entscheidung vom 2026-08-04, nicht die nackte Null.
+    // verpassten Unterbrechungen stehen NICHT in der Prozentrechnung — das ist
+    // der Kern der Entscheidung vom 2026-08-04, und er hängt nicht an der
+    // nackten Null. Als der Wert kurzzeitig auf 400 stand, kam er aus
+    // `missedCasts`; auch damals nicht aus `missedInterrupts`.
     expect(analysis.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
     // Leer, weil der Kampf beim Tod endet und danach nichts mehr verstreicht.
     // **Diese Zeile allein trennt nichts** — vor #567 war die Liste ebenfalls
