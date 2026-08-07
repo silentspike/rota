@@ -1,0 +1,64 @@
+/*
+ * Die Boss-Wahl (Issue #613).
+ *
+ * Farben und Abstände sind aus `gear.css` und `stats.css` übernommen, nicht
+ * neu gewählt: Die drei Bereiche stehen untereinander im selben Bildschirm,
+ * und ein eigener Farbklang machte aus einem Menü drei Systeme. Insbesondere
+ * ist der laufende Boss genauso gedämpft wie ein leerer Ausrüst-Platz — er
+ * bleibt sichtbar und tritt zurück, statt zu verschwinden.
+ */
+
+.boss-select {
+  font-family: ui-monospace, monospace;
+  color: #cfc8ba;
+  max-width: 96ch;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.boss-select-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 22ch;
+}
+
+.boss-select-group-title {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #8b8478;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.boss-select-entry {
+  font: inherit;
+  text-align: left;
+  color: #cfc8ba;
+  background: #17171d;
+  border: 1px solid #3a3a42;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.boss-select-entry:hover:not(:disabled) {
+  border-color: #d8a24a;
+}
+
+.boss-select-entry:focus {
+  outline: 1px solid #d08a3c;
+}
+
+/*
+ * Der Boss, der gerade läuft. Er ist nicht anwählbar — ein Druck darauf
+ * startete denselben Kampf neu, ohne dass sich sichtbar etwas ändert, und das
+ * sähe aus wie ein toter Knopf.
+ */
+.boss-select-entry[data-current='yes'] {
+  color: #6d675b;
+  background: #151210;
+  border-color: #2a2520;
+  cursor: default;
+}
