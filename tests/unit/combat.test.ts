@@ -41,6 +41,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'searing',
       // Issue #479 — CINDER, am Ende von `calcination.json` und deshalb hier.
       'cinder',
+      'slag',
       'ember',
       'pyroclasm',
       'quench',

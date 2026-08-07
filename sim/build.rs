@@ -562,6 +562,7 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
         Some("stack") => "Stack",
         Some("cdreduce") => "CdReduce",
         Some("convert") => "Convert",
+        Some("cap") => "Cap",
         Some(anderes) => panic!(
             "{whose}: unbekannte Zielgroesse \"{anderes}\" — erlaubt sind \
              damage, control, resource, tick, stack, cdreduce, convert"

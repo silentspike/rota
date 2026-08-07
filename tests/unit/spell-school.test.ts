@@ -61,6 +61,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
       // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
       'cinder',
+      'slag',
       'ember',
       'pyroclasm',
       'quench',
