@@ -22,9 +22,14 @@ fn ausgelieferte_zauber_benutzen_die_zersetzung() {
         .filter(|spell| spell.decay_stacks > 0)
         .map(|spell| spell.id)
         .collect();
+    // **BLIGHT kam mit Issue #479 dazu, und die Auflage wurde befolgt:** Die
+    // Referenz-Rechnung IST nachgemessen, nicht die Liste einfach erweitert.
+    // `4240 @ 40510` steht unveraendert (step1.test.ts, 15 Faelle) — was zu
+    // erwarten war, aber nicht angenommen werden durfte: Die Referenz-Rotation
+    // ist reine CALCINATION und wirkt keinen der beiden.
     assert_eq!(
         legen_an,
-        vec!["canker"],
+        vec!["canker", "blight"],
         "Wer hier einen Zauber ergaenzt, aendert die Referenz-Rechnung — \
          dann gehoert sie nachgemessen, nicht diese Liste erweitert"
     );
