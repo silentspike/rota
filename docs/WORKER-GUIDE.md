@@ -4056,3 +4056,70 @@ nicht die erste Folge des Merges.
 > die Prüffälle halten, die jemand geschrieben hat. Die Abnahme fragt, ob es die **richtigen**
 > Prüffälle sind — und genau diese Frage hat bei #518 ein Kriterium gekippt, das in der CI
 > grün war.
+
+### 8.57 Eine Messung ohne ihren Bezugspunkt ist keine Messung
+
+Am 2026-08-07 haben in einer Stunde **vier** Messungen ein Ergebnis geliefert, das plausibel
+aussah und falsch war. Keine davon hatte einen Rechenfehler. Alle vier hatten den falschen
+oder gar keinen Bezugspunkt.
+
+| Wer          | Gemessen                                  | Was der Bezugspunkt tatsächlich war                                                                                                               |
+| ------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker-3     | „die fünf Verstärker kosten 72 %"         | Der Vergleich enthielt **sieben** zusätzliche Zeilen — zwei davon (`bind`, `canker`) sind keine Verstärker. Gegen den richtigen Bezugspunkt: 50 % |
+| Orchestrator | „elf von elf Hilfszaubern kosten Schaden" | Jeder Zauber stand an **erster** Stelle der Liste, wurde also blind gewirkt. Gemessen war die naive Nutzung, nicht der Zauber                     |
+| Worker-1     | „#507 ist 5 Commits vor main"             | `gh pr view` misst den Zweig **auf dem Server**, der lokale Stand war 144 Commits alt                                                             |
+| Worker-1     | „rot-decay läuft auseinander"             | Der rote Lauf war nie committet; mit seinem Worktree ist die Ursache verschwunden                                                                 |
+
+#### Die vier Prüffragen, jede aus einem der Fälle
+
+**1. Unterscheiden sich meine beiden Läufe um GENAU das, was ich messe?**
+
+```bash
+diff <(grep -v '^#' a.apl) <(grep -v '^#' b.apl)
+```
+
+Eine Zeile Unterschied heißt: Das Ergebnis gehört dieser Zeile. Sieben Zeilen Unterschied
+heißt: Das Ergebnis gehört sieben Dingen, und man weiß nicht, welchem wie viel. Worker-3 hat
+den `diff` **nachträglich** gefahren und dabei seine eigene Zahl korrigiert.
+
+**2. Misst mein Aufbau die Sache oder meinen Umgang mit ihr?**
+
+Ein Hilfszauber ohne Bedingung an erster Stelle ist per Bauart ein Verlust — dafür braucht es
+keine Messung. Wer wissen will, ob ein Zauber taugt, muss ihn so einsetzen, wie ein Spieler
+ihn einsetzen würde: mit Bedingung, an der Stelle, an der er hingehört.
+
+> Der schärfste Fall dazu: `ember` (1,5 s Abklingzeit) an erster Stelle ergab **Schaden 0**.
+> Er verdrängte alles. Das ist keine Aussage über EMBER.
+
+**3. Messe ich den Stand, den ich meine?**
+
+`gh pr view` misst den Server, `git status` den eigenen Baum, `git log origin/main` das, was
+der letzte `fetch` geholt hat. Drei Zahlen, drei Zeitpunkte. Vor jeder Aussage über einen
+Zweigstand gehört ein `git fetch` — nicht ein Blick in das Werkzeug, das gerade zur Hand ist.
+
+**4. Existiert mein Befund noch, wenn ich das Fenster schließe?**
+
+> Ein roter Lauf, den man nicht committet, ist kein Befund. Er ist eine **Erinnerung** an
+> einen Befund. _(Worker-1, nachdem sein rot-decay-Lauf mit seinem Worktree verschwunden war)_
+
+Dasselbe gilt für Messdateien: Zahlen im PR-Text ohne die Rotationen, die sie erzeugt haben,
+sind nicht wiederholbar. Deshalb liegen `step517-*.apl`, `step523-*.apl` und `step540-*.apl`
+im Repository — jede mit einem Kopfkommentar, **was sie misst und gegen welche andere sie zu
+lesen ist**.
+
+#### Und der Fall, der keine dieser vier Fragen beantwortet
+
+Ein Sollwert, der aus derselben Quelle stammt wie der Istwert, prüft nichts:
+
+```ts
+// Worker-1s erster Entwurf für #547
+erwartet = Math.round(CAP * slag.buff.factor); // liest den Faktor aus den Daten
+```
+
+Bei der Gegenprobe `factor 1.5 → 1.05` wäre er **grün geblieben**: erwartet `round(20 × 1.05) = 21`,
+gemessen 21. Die Formel gegen sich selbst.
+
+Das ist dieselbe Klasse wie _„eine Liste, die sich beim Laufen selbst herstellt, ist immer
+grün"_ aus `spell-order.test.ts` — nur bei einer Zahl statt bei einer Liste. **Der Sollwert
+gehört hart in den Prüffall, mit Begründung im Kommentar.** Wer ihn absichtlich ändert, ändert
+diese Zeile mit, und genau dann fällt auf, dass eine Entscheidung getroffen wurde.
