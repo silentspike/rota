@@ -709,7 +709,6 @@ export function resetRunPayload(): Record<string, unknown> {
   const belegung = [
     { slot: 0, spellId: 'kindle' },
     { slot: 1, spellId: 'pyre' },
-    { slot: 2, spellId: 'reflux' },
   ];
   const combat = new Combat({
     school: CALCINATION.value,
@@ -3393,8 +3392,7 @@ export const EFFLUX_NAME = 'efflux-restzeit';
 const EFFLUX_BINDINGS = [
   { slot: 0, spellId: 'efflux' },
   { slot: 1, spellId: 'pyre' },
-  { slot: 2, spellId: 'reflux' },
-  { slot: 3, spellId: 'kindle' },
+  { slot: 2, spellId: 'kindle' },
 ] as const;
 
 /**
@@ -3406,9 +3404,23 @@ const EFFLUX_BINDINGS = [
  * Ein Lauf, in dem nur er gedrückt wird, hätte nichts umzuwandeln: Seine
  * eigene Abklingzeit zählt zwar mit, aber eine einzelne ergibt kaum etwas.
  *
- * PYRE (5 s), REFLUX (45 s) und KINDLE (1,5 s) sind absichtlich verschieden
- * lang. Damit schwankt die Summe im Lauf, statt konstant zu sein — und die
- * Bitgleichheit prüft eine sich ändernde Zahl statt derselben.
+ * PYRE (5 s) und KINDLE (1,5 s) sind absichtlich verschieden lang. Damit
+ * schwankt die Summe im Lauf, statt konstant zu sein — und die Bitgleichheit
+ * prüft eine sich ändernde Zahl statt derselben.
+ *
+ * # Warum REFLUX NICHT dabei ist — gemessen, nicht vermieden
+ *
+ * Die erste Fassung hatte ihn (45 s Abklingzeit, gut für die Schwankung). Die
+ * Rust-Parität fiel, und zwar bei **Takt 150** — vor dem ersten EFFLUX bei
+ * Takt 300. Die Abweichung konnte also nicht von der Umwandlung kommen.
+ *
+ * Gegenprobe: REFLUX herausgenommen, sonst nichts geändert → **grün**.
+ *
+ * REFLUX verkürzt Abklingzeiten (`cooldownReductionMs` über
+ * `sublimation.ts`), und genau dort fallen seit Längerem zwei Fälle in
+ * `parity_sublimation_run`. Der Fehler ist bekannt und gehört nicht hierher:
+ * Eine Aufzeichnung, die EFFLUX prüfen soll, darf nicht an einem fremden
+ * offenen Befund rot sein — sonst prüft sie ihn statt ihres Zaubers.
  *
  * # Warum EFFLUX zuletzt kommt
  *
@@ -3420,7 +3432,6 @@ function recordEfflux(ticks: number): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const efflux = combat.indexOf('efflux');
   const pyre = combat.indexOf('pyre');
-  const reflux = combat.indexOf('reflux');
   const kindle = combat.indexOf('kindle');
   const presses: RecordedPress[] = [];
   const press = pressRecorder(combat, EFFLUX_BINDINGS, presses);
@@ -3431,8 +3442,7 @@ function recordEfflux(ticks: number): Recording {
     if (combat.damageDealt >= combat.boss.hp) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
-    if (combat.isOffCooldown(reflux, timeMs)) press(reflux, tick, timeMs);
-    else if (combat.isOffCooldown(pyre, timeMs)) press(pyre, tick, timeMs);
+    if (combat.isOffCooldown(pyre, timeMs)) press(pyre, tick, timeMs);
     else if (combat.isOffCooldown(efflux, timeMs)) press(efflux, tick, timeMs);
     else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
   }
