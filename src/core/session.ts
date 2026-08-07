@@ -130,6 +130,24 @@ export type { FeedbackSink };
  * Die übrigen Felder dieser Klasse sind Auswertung (`accepted`, `rejected`,
  * `idleTicks`, `resetsApplied`) oder Anzeige. Sie ändern den Kampfverlauf
  * nicht und können deshalb auch nicht von ihm abweichen.
+ *
+ * Vier davon wurden ausdrücklich als Kandidaten genannt und einzeln
+ * nachgesehen:
+ *
+ * ```text
+ * idleTicksWithReady      3 Stellen: Getter, Zählung, Reset      ZÄHLER
+ * idleTicksNothingReady   3 Stellen: dieselben                   ZÄHLER
+ * outcomeValue            5 Stellen: Getter, Anzeige, finish()   ZÄHLER
+ * phaseValue             18 Stellen, davon EINE mit Wirkung      REGEL
+ * ```
+ *
+ * Die drei Zähler werden nirgends in einer Bedingung gelesen, die den Kampf
+ * steuert. `phaseValue` steht oben in der Tabelle.
+ *
+ * **Die Einschränkung gehört dazu:** Für die drei Zähler ist das Nachsehen
+ * ausreichend — drei bis fünf Stellen, alle sichtbar. Bei `phaseValue` mit 18
+ * Stellen ist „eine mit Wirkung" das Ergebnis eines Filters; belastbarer wäre
+ * eine Mutation.
  */
 export class Session implements Simulation {
   readonly latency = new LatencyTrace();
