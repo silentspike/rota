@@ -92,6 +92,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'fester',
       // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
       'blight',
+      'rot',
       'sepsis',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
