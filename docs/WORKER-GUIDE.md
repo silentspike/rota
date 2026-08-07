@@ -3962,3 +3962,164 @@ gleich aus.
 **Das gilt auch außerhalb von Merges.** Wer einen Eintrag aus einer Ausnahmeliste
 übernimmt, weil er in einem anderen Zweig steht, holt möglicherweise eine bereits
 erledigte Ausnahme zurück. Der Weg dorthin ist derselbe: nachsehen, warum sie fehlt.
+
+### 8.55 Ein Konfliktblock wird abgelesen, nicht zusammengesetzt — und die Grenze ist messbar
+
+In der Nacht zum 2026-08-07 haben drei Sitzungen unabhängig voneinander denselben Fehler
+gemacht: einen Merge-Konflikt **textuell** aufgelöst — beide Seiten herausgeschnitten und
+wieder aneinandergesetzt. Alle drei Ergebnisse sahen vollständig aus. Keines war es.
+
+| Sitzung                  | Werkzeug              | Was herauskam                                                                                                     |
+| ------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Worker-3                 | Regex über die Blöcke | `sublimation` ohne `alembic`, `coagulation` ohne `harden` — **gültiges JSON**, nur mit fehlenden Zaubern          |
+| Worker-3, zweiter Anlauf | Zustandsautomat       | `payloads.ts`: Konstanten landeten **innerhalb** einer Funktion, damit außerhalb unsichtbar                       |
+| Worker-1                 | Regex                 | `sound-manifest.json` kaputt bei Zeichen 43565; `payloads.ts` und `freshness.test.ts` mit 190 Übersetzungsfehlern |
+| Orchestrator             | `--theirs`            | `sound-manifest.json`: `clasp`, `latch`, `plate` weg — die Liste stand nicht im Konfliktblock                     |
+
+**Die Grenze ist inzwischen gemessen** (Worker-1): Bei **einem** Konflikt je Datei trägt die
+textuelle Auflösung. Ab mehreren überlappen die Blöcke, und das Ergebnis ist strukturell
+falsch, ohne unbedingt ungültig zu sein.
+
+#### Der Weg, der trägt
+
+```bash
+git show :2:datei    # meine Seite, vollständig
+git show :3:datei    # ihre Seite, vollständig
+```
+
+Beide Seiten **als Ganzes** einlesen, auf der Datenstruktur vereinigen (über `id`, nicht über
+Zeilen), schreiben — und **vor** dem Schreiben zusichern, dass nichts fehlt:
+
+```python
+fehlt = (set(meine) | set(ihre)) - set(ergebnis)
+assert not fehlt, fehlt
+```
+
+Worker-3s zweiter Anlauf hat genau so funktioniert und alle fünf Zauber behalten, die der
+erste verschluckt hatte.
+
+#### Was die Gültigkeit NICHT belegt
+
+> **JSON hat keine Toleranz für eine verlorene Klammer, TypeScript meldet sie.** (Worker-1)
+
+Der Satz erklärt, warum bei `sound-manifest.json` zweimal derselbe Umweg nötig war — aus `main`
+holen und den eigenen Eintrag gezielt einsetzen — während die TypeScript-Dateien sich beim
+Übersetzen meldeten. **Ein `json.load`, das durchläuft, sagt nur, dass die Klammern stimmen.**
+Es sagt nichts darüber, ob noch alle Einträge da sind.
+
+Deshalb gehört nach jeder Auflösung eine Ausgabe des **Inhalts**, nicht der Gültigkeit:
+
+```bash
+python3 -c "import json;print([s['id'] for s in json.load(open('data/spells/sublimation.json'))['spells']])"
+```
+
+Worker-3 hat den verschluckten Zauber nur deshalb gefunden.
+
+#### Manches lässt sich überhaupt nicht zusammensetzen
+
+`tests/unit/spell-order.json` ist der klarste Fall. Die Reihenfolge **folgt** aus den
+Schuldateien und ihrer Ladereihenfolge; sie ist kein Inhalt, den man vereinigt. Ein Anhängen
+am Ende ergab:
+
+```
+Position 31: erwartet "canker", gefunden "efflux"
+```
+
+Der richtige Weg ist, den Ist-Zustand **abzulesen** — etwa mit einem Wegwerf-Prüffall, der die
+heutige Liste als Fehlermeldung ausgibt — und dann die Zusicherung zu fahren, dass kein Name
+aus `HEAD` oder `MERGE_HEAD` fehlt.
+
+> **Die Regel dahinter gilt über Merges hinaus:** Wo ein Wert aus etwas anderem folgt, wird er
+> abgelesen und nicht nachgebaut. Ein nachgebauter Wert stimmt genau so lange, wie niemand die
+> Quelle anfasst.
+
+### 8.56 Ein PR schließt kein Issue — die Abnahme steht dazwischen
+
+`Closes #NNN` im PR-Text schließt das Issue automatisch beim Merge. Damit fällt **Schritt 7**
+des Ablaufs aus: _Issue verifizieren_, und **erst dann** schließen.
+
+Am 2026-08-07 ist das dreimal passiert — #498, #499 und #519 wurden ohne eine einzige
+Abnahme-Notiz geschlossen. Alle drei haben die nachgeholte Prüfung bestanden. **Das war Glück,
+kein Verfahren.**
+
+Denn im selben Zeitraum gab es den Gegenfall: Bei **#518** war der PR grün, und die Abnahme
+ergab, dass **AC6 durchfiel** — die dokumentierte Schwellen-Regel war ungeschützt, eine
+Mutation von `>=` auf `>` ließ alle 1717 Tests grün. Hätte der PR das Issue automatisch
+geschlossen, wäre eine ungeprüfte Regel als „erledigt" abgelegt worden, und niemand hätte je
+wieder hingesehen.
+
+**Also:** Im PR-Text auf das Issue **verweisen** (`Teil von #NNN`, `Betrifft #NNN`), aber
+niemals `Closes`, `Fixes` oder `Resolves`. Das Schließen ist die letzte Handlung der Abnahme,
+nicht die erste Folge des Merges.
+
+> Der Unterschied ist keiner der Sorgfalt, sondern der Reihenfolge. Ein grüner PR belegt, dass
+> die Prüffälle halten, die jemand geschrieben hat. Die Abnahme fragt, ob es die **richtigen**
+> Prüffälle sind — und genau diese Frage hat bei #518 ein Kriterium gekippt, das in der CI
+> grün war.
+
+### 8.57 Eine Messung ohne ihren Bezugspunkt ist keine Messung
+
+Am 2026-08-07 haben in einer Stunde **vier** Messungen ein Ergebnis geliefert, das plausibel
+aussah und falsch war. Keine davon hatte einen Rechenfehler. Alle vier hatten den falschen
+oder gar keinen Bezugspunkt.
+
+| Wer          | Gemessen                                  | Was der Bezugspunkt tatsächlich war                                                                                                               |
+| ------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker-3     | „die fünf Verstärker kosten 72 %"         | Der Vergleich enthielt **sieben** zusätzliche Zeilen — zwei davon (`bind`, `canker`) sind keine Verstärker. Gegen den richtigen Bezugspunkt: 50 % |
+| Orchestrator | „elf von elf Hilfszaubern kosten Schaden" | Jeder Zauber stand an **erster** Stelle der Liste, wurde also blind gewirkt. Gemessen war die naive Nutzung, nicht der Zauber                     |
+| Worker-1     | „#507 ist 5 Commits vor main"             | `gh pr view` misst den Zweig **auf dem Server**, der lokale Stand war 144 Commits alt                                                             |
+| Worker-1     | „rot-decay läuft auseinander"             | Der rote Lauf war nie committet; mit seinem Worktree ist die Ursache verschwunden                                                                 |
+
+#### Die vier Prüffragen, jede aus einem der Fälle
+
+**1. Unterscheiden sich meine beiden Läufe um GENAU das, was ich messe?**
+
+```bash
+diff <(grep -v '^#' a.apl) <(grep -v '^#' b.apl)
+```
+
+Eine Zeile Unterschied heißt: Das Ergebnis gehört dieser Zeile. Sieben Zeilen Unterschied
+heißt: Das Ergebnis gehört sieben Dingen, und man weiß nicht, welchem wie viel. Worker-3 hat
+den `diff` **nachträglich** gefahren und dabei seine eigene Zahl korrigiert.
+
+**2. Misst mein Aufbau die Sache oder meinen Umgang mit ihr?**
+
+Ein Hilfszauber ohne Bedingung an erster Stelle ist per Bauart ein Verlust — dafür braucht es
+keine Messung. Wer wissen will, ob ein Zauber taugt, muss ihn so einsetzen, wie ein Spieler
+ihn einsetzen würde: mit Bedingung, an der Stelle, an der er hingehört.
+
+> Der schärfste Fall dazu: `ember` (1,5 s Abklingzeit) an erster Stelle ergab **Schaden 0**.
+> Er verdrängte alles. Das ist keine Aussage über EMBER.
+
+**3. Messe ich den Stand, den ich meine?**
+
+`gh pr view` misst den Server, `git status` den eigenen Baum, `git log origin/main` das, was
+der letzte `fetch` geholt hat. Drei Zahlen, drei Zeitpunkte. Vor jeder Aussage über einen
+Zweigstand gehört ein `git fetch` — nicht ein Blick in das Werkzeug, das gerade zur Hand ist.
+
+**4. Existiert mein Befund noch, wenn ich das Fenster schließe?**
+
+> Ein roter Lauf, den man nicht committet, ist kein Befund. Er ist eine **Erinnerung** an
+> einen Befund. _(Worker-1, nachdem sein rot-decay-Lauf mit seinem Worktree verschwunden war)_
+
+Dasselbe gilt für Messdateien: Zahlen im PR-Text ohne die Rotationen, die sie erzeugt haben,
+sind nicht wiederholbar. Deshalb liegen `step517-*.apl`, `step523-*.apl` und `step540-*.apl`
+im Repository — jede mit einem Kopfkommentar, **was sie misst und gegen welche andere sie zu
+lesen ist**.
+
+#### Und der Fall, der keine dieser vier Fragen beantwortet
+
+Ein Sollwert, der aus derselben Quelle stammt wie der Istwert, prüft nichts:
+
+```ts
+// Worker-1s erster Entwurf für #547
+erwartet = Math.round(CAP * slag.buff.factor); // liest den Faktor aus den Daten
+```
+
+Bei der Gegenprobe `factor 1.5 → 1.05` wäre er **grün geblieben**: erwartet `round(20 × 1.05) = 21`,
+gemessen 21. Die Formel gegen sich selbst.
+
+Das ist dieselbe Klasse wie _„eine Liste, die sich beim Laufen selbst herstellt, ist immer
+grün"_ aus `spell-order.test.ts` — nur bei einer Zahl statt bei einer Liste. **Der Sollwert
+gehört hart in den Prüffall, mit Begründung im Kommentar.** Wer ihn absichtlich ändert, ändert
+diese Zeile mit, und genau dann fällt auf, dass eine Entscheidung getroffen wurde.

@@ -122,3 +122,60 @@ fn mit_slag_steigt_er_darueber() {
         "mit SLAG bleibt der Vorrat bei {mit} — die cap-Verstaerkung wirkt im Simulator nicht"
     );
 }
+
+/// Ein Erzeuger nimmt nie weg — und nichts laeuft ueber (Issue #549).
+///
+/// # Der Fall, der den Simulator zum Absturz brachte
+///
+/// SLAG hebt die Grenze von 20 auf 30. Wer im Fenster ueber 20 sammelt und es
+/// ablaufen laesst, steht ueber dem dann wieder geltenden Deckel. Ein Wurf
+/// rechnete dort `self.resource - before` mit einem GROESSEREN `before` —
+/// u16-Subtraktion, Absturz.
+///
+/// Reproduziert mit Worker-1s Ticks: BELLOWS auf 610 stuerzte ab, derselbe
+/// Wurf auf 590 (Fenster noch offen) nicht. Die Gegenprobe steht unten als
+/// eigener Fall, damit sichtbar bleibt, dass das Fenster der Unterschied ist.
+#[test]
+fn ein_erzeuger_ueber_dem_deckel_nimmt_nicht_weg() {
+    // Drei BELLOWS im Fenster bringen den Vorrat ueber 20; der vierte faellt
+    // NACH dem Fensterende (4 GCDs = 6000 ms = Tick 600).
+    let mit = hoechster_vorrat(Some("slag"), &TRAEGER, 480);
+    assert!(
+        mit > 20,
+        "der Vorrat steht nicht ueber dem Grund-Deckel ({mit}) — dann prueft \
+         dieser Fall nichts"
+    );
+
+    let traeger_danach: [(&str, u32); 4] = [
+        ("bellows", 160),
+        ("bellows", 310),
+        ("bellows", 460),
+        ("bellows", 610),
+    ];
+    let danach = hoechster_vorrat(Some("slag"), &traeger_danach, 630);
+    assert!(
+        danach >= 20,
+        "nach dem Wurf steht der Vorrat bei {danach} — ein Erzeuger hat \
+         weggenommen"
+    );
+}
+
+/// Die Gegenprobe: derselbe Wurf INNERHALB des Fensters.
+///
+/// Ohne sie belegte der Fall darueber nur, dass irgendein Lauf durchlaeuft —
+/// nicht, dass das Fensterende der Unterschied ist.
+#[test]
+fn derselbe_wurf_innerhalb_des_fensters_laeuft_ebenso_durch() {
+    let traeger: [(&str, u32); 4] = [
+        ("bellows", 160),
+        ("bellows", 310),
+        ("bellows", 460),
+        ("bellows", 590),
+    ];
+    let vorrat = hoechster_vorrat(Some("slag"), &traeger, 610);
+    assert!(
+        vorrat > 20,
+        "im offenen Fenster muss der Vorrat ueber dem Grund-Deckel stehen, \
+         steht aber bei {vorrat}"
+    );
+}

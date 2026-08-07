@@ -3707,12 +3707,49 @@ export class Combat {
     return Math.round(this.school.resource.cap * this.capBuffs.factor(this.nowMsForBuffs));
   }
 
+  /**
+   * Vorrat erzeugen (Issue #549).
+   *
+   * # Ein Erzeuger nimmt NIE weg
+   *
+   * Das ist die Regel, und sie steht hier, weil sie nirgends geschrieben
+   * stand — sie folgte nur aus `min(before + amount, cap)` und war dort
+   * falsch, sobald der Deckel unter den stehenden Vorrat fällt.
+   *
+   * Dieser Zustand ist erreichbar: SLAG hebt die Grenze von 20 auf 30, wer im
+   * Fenster über 20 sammelt und es ablaufen lässt, steht darüber. Ein Wurf
+   * hätte dann **gesenkt**:
+   *
+   * ```text
+   * vorrat 24, Deckel wieder 20, BELLOWS gibt 8
+   *   min(24 + 8, 20) = 20      acht erzeugt, vier verloren, netto MINUS vier
+   *   max(24, min(...)) = 24    er bleibt, wo er ist
+   * ```
+   *
+   * Ein Aufbau-Zauber, nach dem der Spieler weniger hat als vorher, ist in
+   * keinem Regelwerk richtig. Der Verfall baut den Überstand ohnehin ab —
+   * gemessen: 24 auf 20 in vier Sekunden —, es braucht dafür keine zweite
+   * Mechanik.
+   *
+   * **Unter dem Deckel ändert sich nichts.** Dort ist `before` immer kleiner
+   * als das Ergebnis, das `max` also wirkungslos.
+   *
+   * # Was der Überlauf-Zähler zählt
+   *
+   * Nur, was von DIESER Erzeugung nicht ankam. Die vier Punkte, die der
+   * fallende Deckel kostet, waren bereits angekommen — sie gehen nicht durch
+   * die Erzeugung verloren, und „Überlauf" hat sie noch nie gemeint.
+   *
+   * Mit der Regel oben ist `this.resourceValue - before` nie negativ; vorher
+   * sprang der Zähler um 12, wo 8 erzeugt wurden.
+   */
   private addResource(amount: number): void {
     if (amount === 0) return;
     const cap = this.resourceCap;
     const before = this.resourceValue;
     const raised = before + amount;
-    this.resourceValue = raised > cap ? cap : raised;
+    const gekappt = raised > cap ? cap : raised;
+    this.resourceValue = gekappt > before ? gekappt : before;
     this.resourceOverflowValue += amount - (this.resourceValue - before);
   }
 

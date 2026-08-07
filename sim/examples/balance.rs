@@ -256,7 +256,22 @@ fn report(name: &str, result: &BalanceResult, sekunden: f64) {
     // Die zweite Haelfte des Spiels (Issue #525). Bis hierher mass der Laeufer
     // nur den ausgehenden Schaden — jeder Verteidigungszauber war damit
     // unmessbar, und COAGULATION ist die Schule, deren Zweck Ueberleben ist.
-    zeile_stat("Schaden eingesteckt", &result.damage_taken);
+    //
+    // # Vier Zeilen statt einer, und die erste hiess vorher falsch
+    //
+    // Ausgegeben wurde nur `damage_taken` unter dem Namen "Schaden
+    // eingesteckt". Das ist aber das DURCHGEKOMMENE: Die Rechnung in
+    // `fight.rs` legt die Schutzschicht VOR den Schlag, was sie auffaengt,
+    // kommt gar nicht erst an.
+    //
+    // Damit war ein Schild-Zauber am Ergebnis nicht zu erkennen — er senkt
+    // genau die Zahl, die als einzige ausgegeben wurde, und sein Beitrag
+    // stand nirgends. Die Summe darueber macht sichtbar, wie viel der Boss
+    // ueberhaupt geschickt hat.
+    zeile_stat("Schaden angekommen", &result.damage_incoming);
+    zeile_stat("  davon abgefangen", &result.absorbed);
+    zeile_stat("  davon durchgekommen", &result.damage_taken);
+    zeile_stat("Leben zurueckgeholt", &result.healed);
     zeile(
         "Tode",
         &format!("{} von {}", result.deaths, result.samples.len()),

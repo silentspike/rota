@@ -371,6 +371,17 @@ fn parse_value(
                 )),
             };
         }
+        ["buff", spell, field] => {
+            let index = lookup_spell(spell, token, fail)?;
+            return match *field {
+                "active" => Ok(Value::BuffActive(index)),
+                "remains" => Ok(Value::BuffRemains(index)),
+                other => Err(fail(
+                    token.column,
+                    format!("\"buff.{spell}.{other}\" gibt es nicht. Möglich: active, remains."),
+                )),
+            };
+        }
         ["dot", spell, field] => {
             let index = lookup_spell(spell, token, fail)?;
             return match *field {
@@ -394,7 +405,7 @@ fn parse_value(
             "Unbekannter Wert \"{text}\". Möglich sind: {}, resource, decay, shield, control, \
              gcd, time, boss.hp, boss.hp_pct, fight.remains, cooldown.<zauber>.ready, \
              cooldown.<zauber>.remains, dot.<zauber>.active, dot.<zauber>.remains, \
-             dot.<zauber>.ticks.",
+             dot.<zauber>.ticks, buff.<zauber>.active, buff.<zauber>.remains.",
             crate::data::RESOURCE.id
         ),
     ))

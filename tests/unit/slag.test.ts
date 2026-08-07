@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex, type SpellIndex } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 
 /**
@@ -187,5 +187,67 @@ describe('Die anderen Zielgrößen bleiben unberührt', () => {
     c.cast(c.indexOf('slag'), 0);
     for (let t = 0; t <= 1600; t += 10) c.stepPassive(t);
     expect(c.damageFactors.buffs, 'SLAG hat den Schaden bewegt').toBe(1);
+  });
+});
+
+/**
+ * Ein Erzeuger nimmt nie weg (Issue #549).
+ *
+ * # Der Zustand ist mit vier Tastendrücken erreichbar
+ *
+ * SLAG hebt die Grenze von 20 auf 30. Wer im Fenster über 20 sammelt und es
+ * ablaufen lässt, steht über dem dann wieder geltenden Deckel. Ein Wurf
+ * senkte den Vorrat dort — acht erzeugt, vier verloren, netto minus vier.
+ *
+ * Im Simulator stürzte dieselbe Stelle ab (`fight.rs`, u16-Subtraktion),
+ * während das Spiel still falsch zählte. Beide Fälle sind dieselbe Zeile.
+ */
+describe('AC2/AC3 (#549) — der Vorrat sinkt durch eine Erzeugung nicht', () => {
+  /** Bringt den Vorrat über den Deckel und lässt das Fenster ablaufen. */
+  function ueberDemDeckel(): { c: Combat; bellows: SpellIndex; vorher: number } {
+    const c = neu();
+    const bellows = alsSpellIndex(c.indexOf('bellows'));
+    c.cast(alsSpellIndex(c.indexOf('slag')), 0);
+    c.cast(bellows, 1600);
+    c.cast(bellows, 3100);
+    c.cast(bellows, 4600);
+    // Genau auf das Fensterende, bevor der Verfall viel getan hat: SLAG hält
+    // vier GCDs, also 6000 ms.
+    c.stepPassive(6000);
+    return { c, bellows, vorher: c.resource };
+  }
+
+  it('der Zustand ist überhaupt erreichbar — sonst prüfte der Fall nichts', () => {
+    const { c, vorher } = ueberDemDeckel();
+    expect(vorher, 'der Vorrat steht nicht über dem Grund-Deckel').toBeGreaterThan(CAP);
+    // Und das Fenster ist wirklich zu: Der Deckel gilt wieder in seiner
+    // Grundgröße. Ohne diese Zeile könnte der Fall bei offenem Fenster laufen
+    // und nichts belegen.
+    c.cast(alsSpellIndex(c.indexOf('kindle')), 6000);
+    expect(c.resource, 'der Deckel steht noch erhöht').toBeGreaterThanOrEqual(vorher);
+  });
+
+  it('ein Wurf über dem Deckel senkt den Vorrat NICHT', () => {
+    const { c, bellows, vorher } = ueberDemDeckel();
+    c.cast(bellows, 6100);
+    expect(
+      c.resource,
+      'der Erzeuger hat WEGGENOMMEN — mit min(before + amount, cap) fällt der ' +
+        'Vorrat auf den Deckel, und der Spieler hat nach einem Aufbau-Zauber ' +
+        'weniger als vorher',
+    ).toBeGreaterThanOrEqual(vorher);
+  });
+
+  it('und der Überlauf-Zähler nennt nur, was von der Erzeugung nicht ankam', () => {
+    const { c, bellows, vorher } = ueberDemDeckel();
+    const vorZaehler = c.resourceOverflow;
+    c.cast(bellows, 6100);
+    const erzeugt = c.resource - vorher;
+    const menge = c.resourceOverflow - vorZaehler + erzeugt;
+    expect(
+      c.resourceOverflow - vorZaehler,
+      `der Zähler nahm mehr als die ${menge} erzeugten Punkte — dann zählt er ` +
+        'die vom fallenden Deckel gekappten mit, und die waren schon angekommen',
+    ).toBe(menge);
   });
 });
