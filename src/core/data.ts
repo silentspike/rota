@@ -1668,6 +1668,38 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     }
   }
 
+  // **Die Zeitleiste muss in ihren Wiederholungs-Rahmen passen** (Issue #565).
+  //
+  // Ein Zyklus reicht vom ersten Eintrag bis zum letzten. Der letzte Eintrag
+  // eines Zyklus liegt bei `0·loop + max`, der erste des nächsten bei
+  // `1·loop + min`. Vorwärts geht es nur, wenn `loop > max − min`.
+  //
+  // **Die SPANNWEITE entscheidet, nicht der Höchstwert.** Ein erster Entwurf
+  // prüfte `loop > max` — das hätte `test-metronome` verurteilt (Einträge
+  // 2000, 4000, 6000 bei loop 6000), der dort einen tadellosen Takt alle zwei
+  // Sekunden schlägt. Ein Fehlalarm ist die teurere Richtung: Eine Prüfung,
+  // der man nicht traut, wird abgeschaltet.
+  //
+  // Bei Gleichheit fällt der erste Eintrag des neuen Zyklus auf den letzten
+  // des alten — kein Rückwärtslauf, aber zwei Ereignisse zur selben Zeit.
+  // Deshalb ist die Grenze strikt.
+  //
+  // Gefunden wurde die Lage als Paritätsbruch bei Takt 4800: Spiel und
+  // Simulator beantworten eine rückwärts laufende Leiste verschieden, und
+  // keine Antwort ist die richtige, weil die Lage nicht vorkommen darf.
+  if (timelineLoopMs !== null && timeline.length >= 2) {
+    const zeiten = timeline.map((e) => e.atMs);
+    const spannweite = Math.max(...zeiten) - Math.min(...zeiten);
+    if (timelineLoopMs <= spannweite) {
+      problems.push(
+        `timelineLoopMs ist ${timelineLoopMs}, die Einträge spannen aber ` +
+          `${spannweite} ms (${Math.min(...zeiten)} bis ${Math.max(...zeiten)}). ` +
+          `Der nächste Zyklus begänne vor dem Ende des laufenden — die Zeitleiste ` +
+          `liefe rückwärts. Entweder die Einträge in den Rahmen legen oder ` +
+          `timelineLoopMs auf mindestens ${spannweite + 1} erhöhen.`,
+      );
+    }
+  }
   return {
     value: {
       schema,
