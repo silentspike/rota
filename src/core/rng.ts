@@ -19,6 +19,22 @@
 
 /** Die Verwendungen, für die je ein eigener Strom geführt wird. */
 export const STREAM_CRIT = 0;
+/**
+ * Der Krit-Wurf eines **DoT-Ticks** — seit Issue #602, davor lag er in
+ * `STREAM_CRIT`.
+ *
+ * **Was er trennt:** Ohne ihn verschob jeder zusätzliche Tick die Krit-Würfe
+ * aller gewirkten Zauber. Beide Seiten taten das gleich, die Parität war
+ * intakt — und genau deshalb hat es zwei Monate niemand gesehen. Die Regel aus
+ * GAME-DESIGN 18.4 schützt nicht die Parität, sondern die **Vergleichbarkeit
+ * zweier Läufe mit verschiedenen Rotationen**: Wer einen DoT hinzufügte, maß
+ * im Balance-Vergleich teilweise verschobenen Zufall statt der Rotation.
+ *
+ * Gefunden wurde es an der Lücke, die dieser Kommentar jetzt schliesst:
+ * `STREAM_HEAL` darunter trug seine Begründung, dieser hier trug keine — und
+ * bei ihm war der Zufall vorhanden, er wurde nur aus dem falschen Strom
+ * gezogen. Zwei gleich aussehende leere Ströme, einer mit Grund, einer ohne.
+ */
 export const STREAM_DOT_TICK = 1;
 export const STREAM_HEAL = 2;
 /**
