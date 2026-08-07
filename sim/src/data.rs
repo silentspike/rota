@@ -266,6 +266,11 @@ pub struct Spell {
     /// falsch — ein Zauber ohne Sublimations-Wirkung soll es gar nicht erst
     /// nennen muessen.
     pub cooldown_reduction_ms: Millis,
+    /// Nur Abklingzeiten UNTER dieser Grenze verkuerzen (ASCEND, #518).
+    /// 0 heisst: alle, wie vorher.
+    pub cooldown_reduction_below_ms: Millis,
+    /// Nur die LAENGSTE laufende Abklingzeit verkuerzen (DECANT, #518).
+    pub cooldown_reduction_longest_only: bool,
     /// Ob dieser Zauber den **Auswahlmodus** scharf stellt (SUBLIMATION,
     /// Issue E3-3c; getragen seit Issue #201 von REFLUX).
     ///

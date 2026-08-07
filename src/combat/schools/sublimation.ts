@@ -36,12 +36,26 @@ export interface CooldownSink {
   /** Was ein Zauber laut seinen Daten verkürzt. 0, wenn er nichts verkürzt. */
   reductionOfSpell(spellIndex: number): number;
   /**
+   * Die **Auswahl**, die dieser Zauber trifft (Issue #518).
+   *
+   * Ohne sie verkürzt er alles — das Verhalten vor #518. `belowMs > 0`
+   * beschränkt auf kurze Abklingzeiten (ASCEND), `longestOnly` auf die
+   * längste (DECANT).
+   */
+  reductionScopeOfSpell(spellIndex: number): { belowMs: number; longestOnly: boolean };
+  /**
    * Alle laufenden Abklingzeiten um `amount` ms verkürzen.
    *
    * @param exceptIndex Dieser Zauber bleibt außen vor.
    * @returns wie viele Abklingzeiten tatsächlich verkürzt wurden
    */
-  shortenCooldowns(amount: number, timeMs: number, exceptIndex: number): number;
+  shortenCooldowns(
+    amount: number,
+    timeMs: number,
+    exceptIndex: number,
+    grenze?: number,
+    nurLaengste?: boolean,
+  ): number;
 }
 
 /**
@@ -93,7 +107,18 @@ export class SublimationMechanic implements RuleReceiver {
     const amount = this.sink.reductionOfSpell(subject);
     if (amount <= 0) return;
     this.applications++;
-    this.shortenedTotal += this.sink.shortenCooldowns(amount, timeMs, subject);
+    // **Die Auswahl kommt vom ZAUBER, nicht von der Methode** (Issue #518).
+    // `shortenCooldowns` kennt den Auslöser nicht — sie bekommt einen Index
+    // zum Überspringen und sonst nichts. Ein Parameter ohne diese Zeile wäre
+    // vorhanden und unerreichbar: die Klasse aus #420 und #421.
+    const scope = this.sink.reductionScopeOfSpell(subject);
+    this.shortenedTotal += this.sink.shortenCooldowns(
+      amount,
+      timeMs,
+      subject,
+      scope.belowMs,
+      scope.longestOnly,
+    );
   }
 }
 
