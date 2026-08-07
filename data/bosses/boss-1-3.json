@@ -1,0 +1,23 @@
+{
+  "_comment": "ARBEITSNAME (Issue #544). Der dritte Boss der ersten Instanz: er verlangt eine REINIGUNG. Ein Gift tickt weiter, bis der Spieler es abtraegt — und die Zauber, die das koennen, sind keine Schadenszauber.\n\nEr ist der erste der vier, bei dem eine Zusammenstellung OHNE Reinigung nicht bloss schlechter, sondern aussichtslos ist. Das ist seine Aufgabe im Bogen: Nach zwei Bossen, die Schaden und Zeiteinteilung verlangen, kostet dieser einen Platz auf der Leiste.",
+  "schema": 1,
+  "id": "boss-1-3",
+  "name": "Instance One, Third",
+  "instance": "instance-1",
+  "hp": 5800,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "affliction": {
+    "atMs": 9000,
+    "perStepMs": 1000,
+    "damage": 35,
+    "clearedBy": ["quench", "temper"]
+  },
+  "timeline": [
+    { "atMs": 20000, "mechanic": "strike", "name": "Blight Wash", "damage": 400 },
+    { "atMs": 44000, "mechanic": "strike", "name": "Blight Wash", "damage": 400 }
+  ],
+  "resistances": {},
+  "signature": "Ein Gift ab der neunten Sekunde, das jede Sekunde weiter zehrt und nur von QUENCH oder TEMPER abgetragen wird — beides Zauber, die keinen Schaden machen. Getragen von: affliction (clearedBy)."
+}

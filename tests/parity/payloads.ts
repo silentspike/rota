@@ -4759,3 +4759,105 @@ export function buffTargetsPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+/** Die vier Bosse der ersten Instanz, je eine Aufzeichnung (Issue #544, AC4). */
+export const INSTANCE1_NAMES = [
+  'instance1-boss-1',
+  'instance1-boss-2',
+  'instance1-boss-3',
+  'instance1-boss-4',
+] as const;
+
+const INSTANCE1_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+] as const;
+
+/**
+ * Eine Aufzeichnung je Boss der ersten Instanz.
+ *
+ * # Warum vier Aufzeichnungen aus EINER Funktion
+ *
+ * Die vier unterscheiden sich nur im Boss — dieselben Tasten, dieselbe Folge.
+ * Vier Kopien derselben Schleife wären vier Stellen, an denen sie
+ * auseinanderlaufen können, und der Unterschied zwischen ihnen wäre nicht mehr
+ * ablesbar.
+ *
+ * So steht in der Datei genau das, was die Aufzeichnungen unterscheidet: der
+ * Boss. Alles andere ist nachweislich gleich.
+ *
+ * # QUENCH liegt auf der Leiste, obwohl er keinen Schaden macht
+ *
+ * Ohne ihn zeichnete der Lauf für `boss-1-4` nie eine Unterbrechung auf — und
+ * dessen Signatur hängt genau daran (die Heilung folgt auf einen
+ * durchgekommenen Wirkzauber). Eine Aufzeichnung ohne QUENCH beträfe den Boss
+ * nur von außen.
+ */
+function recordInstance1(bossId: string, ticks: number): Recording {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE1_BINDINGS, presses);
+  const kindle = combat.indexOf('kindle');
+  const smoulder = combat.indexOf('smoulder');
+  const pyre = combat.indexOf('pyre');
+  const quench = combat.indexOf('quench');
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Unterbrechen geht vor.** Der Boss wirkt nur selten; wer den Moment
+    // verpasst, sieht die Folge erst viel später — bei boss-1-4 als
+    // zurückgedrehten Fortschritt.
+    if (combat.casting !== -1 && combat.isOffCooldown(quench, timeMs)) {
+      press(quench, tick, timeMs);
+    } else if (!combat.isDotActive(smoulder, timeMs) && combat.isOffCooldown(smoulder, timeMs)) {
+      press(smoulder, tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(pyre, timeMs)) {
+      press(pyre, tick, timeMs);
+    } else if (combat.isOffCooldown(kindle, timeMs)) {
+      press(kindle, tick, timeMs);
+    }
+  }
+
+  return {
+    name: `instance1-${bossId.slice(-5)}`,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: INSTANCE1_BINDINGS,
+  };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse. */
+export function instance1Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const recording = { ...recordInstance1(bossId, 6000), name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE1_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
