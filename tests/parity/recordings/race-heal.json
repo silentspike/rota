@@ -142,7 +142,8 @@
       "threshold": 300
     },
     "bossHeal": {
-      "amount": 600
+      "amount": 600,
+      "on": "interrupt"
     }
   },
   "expected": {

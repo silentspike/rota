@@ -116,6 +116,20 @@ export interface ReplayResult {
    */
   readonly diedAtMs: number;
   /**
+   * Wie viel Fortschritt der Boss zurückgedreht hat (Baustein 5, Issue #609).
+   *
+   * **Sie steht in der Tabelle von Guide 8.70 als erster der drei Fälle:**
+   * `boss_healed` wird seit #218 richtig gerechnet und war nicht abrufbar —
+   * gefunden in #564 und dort nicht behoben, weil die Mechanik-Fälle grün
+   * waren.
+   *
+   * Ohne dieses Feld kann eine Aufzeichnung nicht unterscheiden, ob wenig
+   * Schaden gefallen ist oder viel zurückgedreht wurde: `damage` sieht in
+   * beiden Fällen gleich aus. Bei einem Baustein, dessen ganzer Zweck das
+   * Zurückdrehen ist, ist das die unangenehmste Sorte Lücke.
+   */
+  readonly bossHealed: number;
+  /**
    * Die beiden Kontroll-Größen (Issue #605).
    *
    * `controlFailed` zählt die Kontroll-Zauber, deren Buchung mangels Punkten
@@ -431,6 +445,14 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     healed: combat.healed,
     converted: combat.converted,
     diedAtMs: combat.diedAtMs,
+    // **Die Heilung des Bosses** (#609, nach der Regel aus Guide 8.70). Sie
+    // wird seit #218 richtig gerechnet und war bis hierher nicht abrufbar —
+    // #564 hat genau das gefunden und die Leitung nicht gelegt. Eine Größe,
+    // die den Fortschritt ZURÜCKDREHT, ohne dass eine Aufzeichnung sie nennen
+    // kann, ist die unangenehmste Sorte: `damage` sieht dann einfach kleiner
+    // aus, und niemand weiß, ob weniger getroffen oder mehr zurückgedreht
+    // wurde.
+    bossHealed: combat.bossHealed,
     controlSpent: combat.controlSpent,
     controlFailed: combat.controlFailed,
     interruptsLanded: combat.interruptsLanded,

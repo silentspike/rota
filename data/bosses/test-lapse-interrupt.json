@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "id": "test-lapse-interrupt",
+  "name": "The Lapse, Unswitched",
+  "instance": "testing",
+  "_comment": "PRUEFBOSS, ZWILLING VON test-lapse (Issue #609). Identisch bis auf EIN Feld: bossHeal.on ist \"interrupt\" statt \"affliction\". SEIN ZWECK IST DER VERGLEICH. Der Kernsatz des Issues lautet: ohne das Feld gaelte die Kopplung fuer ALLE Bosse. Um das zu zeigen, braucht es zwei Bosse, die sich NUR im Feld unterscheiden — sonst misst der Vergleich den Boss und nicht das Feld. boss-2-4 taugte dafuer nicht, gemessen: Seine Schwaechung beginnt erst bei 20000 ms (bis dahin ist die Null eine Null ohne Lage), und faehrt man laenger, greift sein ALTER Ausloeser ueber durchgekommene Zauber — 1600 zurueckgedreht bei 2 verpassten Unterbrechungen. Eine Zusicherung auf 0 waere dort zu Recht rot geworden. DIESER BOSS HAT EINE LEERE ZEITLEISTE. Damit kommt nie ein Zauber durch, der alte Ausloeser kann also gar nicht greifen — bleibt trotzdem etwas haengen, kaeme es von der Schwaechung, und das Feld schaltete nicht.",
+  "hp": 999999,
+  "overpressureMs": 60000,
+  "timeline": [],
+  "affliction": {
+    "atMs": 5000,
+    "perStepMs": 1000,
+    "damage": 10,
+    "clearedBy": ["quench", "temper"]
+  },
+  "bossHeal": {
+    "amount": 50,
+    "on": "interrupt"
+  },
+  "resistances": {}
+}
