@@ -112,6 +112,22 @@
         "gcds": 3,
         "target": "convert"
       }
+    },
+    {
+      "_comment": "PRUEF-ZAUBER FUER die Vorrats-Obergrenze (SLAG) (Issue #562). unlockLevel 101 haelt ihn aus dem Spiel, wie bei den sechs darueber.\n\nER SCHLIESST EINE LUECKE IM MUSTER: Diese Datei fuehrte einen Pruef-Zauber je Zielgroesse — sieben von acht. 'cap' war die einzige ohne. Er ist damit keine Erfindung, sondern die fehlende achte Zeile.\n\nWARUM ER 'kind' 0 TRAEGT UND NICHT 1: Gemessen ueber alle Zauber-Dateien traegt von dreizehn Verstaerkern genau EINER 'kind' 1 — SLAG, und der sitzt allein im Speicher 'cap'. Deshalb war KEIN Speicher mit zwei verschiedenen Arten besetzt, und GAME-DESIGN 11.3 Satz 1 ('verschiedene Arten stapeln multiplikativ') war ueber einen ZAUBER ueberhaupt nicht pruefbar — nur ueber Buffs.applyForGcds direkt, also auf demselben Weg, dessen Luecke #555 geschlossen hat. Mit 'kind' 0 ist dieser Zauber der erste Partner fuer SLAG.\n\nDIE ZAHLEN, GEMESSEN AN DER ECHTEN Buffs-KLASSE (factor() multipliziert ueber die Arten):\n  nur SLAG (kind 1, 1.5)                  -> 1.5\n  + test-cap (kind 0, 2.0)                -> 3      Stapelung\n  SLAG auf kind 0 gesetzt, beide zusammen -> 2      Verdraengung, 1 Ersetzung\nDer Unterschied 3 gegen 2 ist die Zahl, an der die Regel haengt. Vorher blieb die Mutation slag.buff.kind 1 -> 0 ueber alle 1915 Faelle gruen.\n\nFAKTOR 2.0 UND DREI WARTEZEITEN sind die Fortsetzung der Reihe, keine eigene Wahl: sechs der sieben bestehenden Pruef-Zauber tragen genau das. baseDamage 0 wie bei den anderen sechs Ziel-Pruefern — ein Zauber ohne Schaden wuerfelt nicht (resolvePlayerCast) und verschiebt damit den Krit-Strom nicht.\n\nDASS ER NICHT SPIELBAR IST, IST DER PUNKT: Welcher Zauber DES SPIELS eine zweite Verstaerkung auf die Obergrenze gibt, ist eine Katalog-Entscheidung nach GAME-DESIGN 5. Sie hier zu treffen hiesse, Balance zu aendern, statt eine Regel zu pruefen. Entschieden am 2026-08-07 zu Issue #562.\n\nDIE FOLGE FUER DIE PRUEFSUMMEN: wie bei test-buff (#420) und test-cast (#304) laeuft die Zustands-Pruefsumme ueber ALLE Zauber. Ein weiterer Zauber aendert jede Pruefsumme in jedem Takt, auf beiden Seiten identisch — alle Dateien unter tests/parity/recordings/ sind deshalb neu exportiert.",
+      "id": "test-cap",
+      "name": "Test Cap",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 6000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2.0,
+        "gcds": 3,
+        "target": "cap"
+      }
     }
   ]
 }
