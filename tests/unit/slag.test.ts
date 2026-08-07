@@ -113,6 +113,59 @@ describe('AC1 — die Grenze steigt, solange das Fenster offen ist', () => {
       'SLAG hebt die Grenze zwar, aber nicht um die 50 % aus dem Design (#490)',
     ).toBe(Math.round(CAP * 1.5));
   });
+
+  /**
+   * **Der zweite Fall, und warum er keine Wiederholung ist.**
+   *
+   * Ein `buff` trägt ZWEI Größen: einen Betrag (`factor`) und eine Dauer
+   * (`gcds`). Der Fall darüber misst die Grenze — er sieht den Betrag und
+   * ist blind gegen die Dauer. Dieser hier misst, was im Fenster tatsächlich
+   * ankommt, und sieht beides.
+   *
+   * Gemessen, und die erste Vermutung war falsch. Erwartet hatte ich, der
+   * Grenz-Fall sei blind gegen `gcds` — er ist es nicht, weil er bei t=1600
+   * misst und das Fenster bei `gcds: 1` dann längst abgelaufen ist:
+   *
+   * ```text
+   *                factor 1.05   gcds 1   bellows.heat 8→4
+   *   Grenze           rot         rot         GRÜN      <- die Trennung
+   *   Erreichbar       rot         rot          rot
+   * ```
+   *
+   * Die Zelle „Grenze / heat → grün" ist der Grund für diesen Fall, und er
+   * ist ein anderer, als ich zuerst dachte: Der Grenz-Fall sieht nur SLAG,
+   * dieser sieht die ganze Kette bis zum Vorrat.
+   *
+   * # Und warum beide bleiben, obwohl dieser mehr fängt
+   *
+   * Nicht wegen der Fang-Kraft — der Erreichbar-Fall fängt nach diesen drei
+   * Messungen alles, was der Grenz-Fall fängt. Sondern wegen der DIAGNOSE:
+   * Ändert jemand den Verfall oder den GCD, wird dieser Fall rot, obwohl an
+   * SLAG nichts falsch ist. Dass der Grenz-Fall dann grün bleibt, ist die
+   * Auskunft „der Zauber stimmt, die Umgebung hat sich bewegt".
+   *
+   * Ein einzelner Fall müsste diese beiden Fälle mit einer Zahl beantworten
+   * und könnte es nicht.
+   *
+   * # Woher die 22 kommt
+   *
+   * Das Fenster ist 4 GCDs, der GCD 1500 ms — es passen drei BELLOWS-Würfe
+   * hinein (je 8), abzüglich Verfall (1 je 2000 ms) bleiben 22. Die oberen
+   * acht Punkte der angehobenen Grenze sind heute unerreichbar; das ist ein
+   * Balance-Befund (Worker-2 in #547), kein Fehler.
+   *
+   * Die 22 steht hart, aus demselben Grund wie die 1.5 oben: Ein Sollwert,
+   * der aus derselben Quelle stammt wie der Istwert, ist keiner.
+   */
+  it('und im Fenster kommen davon 22 an', () => {
+    const c = neu();
+    c.cast(c.indexOf('slag'), 0);
+    for (let t = 0; t <= 1600; t += 10) c.stepPassive(t);
+    expect(
+      hoechsterVorrat(c, 1600),
+      'im SLAG-Fenster kommt nicht mehr an — entweder ist der Faktor kleiner oder das Fenster kürzer',
+    ).toBe(22);
+  });
 });
 
 describe('AC3 — die Gegenprobe: ein anderer Zauber hebt sie nicht', () => {
