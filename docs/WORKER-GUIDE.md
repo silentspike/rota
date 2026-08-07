@@ -4679,3 +4679,41 @@ eine Lage, die eigens dafür gebaut worden war.
 > **Wer eine Messung wiederholt, nachdem sich der Bestand geändert hat, sagt vorher, welche Zahl
 > sich ändern MUSS.** Ändert sie sich nicht, ist das Werkzeug blind — nicht der Bestand
 > unverändert.
+
+---
+
+### 8.67 Gib eine zweite Zahl aus, die du nicht brauchst
+
+Am 2026-08-07 hat ein Worker vier eigene Nachweise verworfen, bevor sie in einen PR kamen. Alle
+vier waren **grün**, alle Zahlen stimmten, und alle hielten weniger fest, als sie behaupteten:
+
+|                                                                                  |                                                                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Der Prüffall stand auf `test-onslaught` und blieb bei **beiden** Mutationen grün | die Zeitleiste war dort ohnehin durch                                           |
+| `castsQuench` 0 / 0 / 1                                                          | QUENCH wurde ohne STALL gar nicht geworfen — zwei Unterschiede statt einem      |
+| Der QUENCH-Zeitpunkt lag im halben Fenster                                       | die halbierte Wirkung brach nichts; der Fall belegte _dass_, nicht _wie viel_   |
+| Die Gegenprobe verglich die Gesamtliste statt der Differenz                      | beim ersten echten Fund hätte sie einen zweiten Fehler gemeldet, der keiner ist |
+
+**Gefunden hat es jedes Mal dasselbe: eine Zahl NEBEN dem Ergebnis.** Die Wurfzahl, der
+Zeitleisten-Index, die Differenz zur Vorliste. Nie das Ergebnis selbst.
+
+> Seine Formulierung, und sie ist die kürzeste Fassung von allem, was in 8.59 bis 8.66 steht:
+>
+> **Nicht „prüfe dein Ergebnis", sondern „gib eine zweite Zahl aus, die du nicht brauchst".**
+
+#### Warum das Ergebnis sich nicht selbst prüfen kann
+
+Ein Nachweis ist darauf gebaut, seine Aussage zu zeigen. Stimmt die Aussage, stimmt das
+Ergebnis — auch dann, wenn der Weg dorthin ein anderer war als gedacht. Die Zahl daneben gehört
+zu keiner Aussage und ist deshalb die einzige, die widersprechen kann.
+
+Dieselben Fälle an anderer Stelle desselben Tages:
+
+```
+39 Aufzeichnungen gemessen, 52 im Verzeichnis   → die Differenz war der Befund
+47 Läufe vorher, 47 nachher                     → die Gleichheit war der Befund
+1293 slot + 4 spellId = 1297 gesamt             → die Summe schloss eine dritte Form aus
+```
+
+**Keine dieser Zahlen wurde für das Ergebnis gebraucht.** Jede hat einen Fehler gefunden, den
+das Ergebnis nicht zeigen konnte.
