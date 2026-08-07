@@ -115,6 +115,37 @@ export interface ReplayResult {
    * von einem, der die Zeit einfach auslief, nicht zu unterscheiden.
    */
   readonly diedAtMs: number;
+  /**
+   * Die beiden Kontroll-Größen (Issue #605).
+   *
+   * `controlFailed` zählt die Kontroll-Zauber, deren Buchung mangels Punkten
+   * abbrach (`combat.ts`, `if (this.controlValue < control.cost)`).
+   * `controlSpent` die tatsächlich ausgegebenen Punkte.
+   *
+   * # Warum sie gefehlt haben, und was das kostete
+   *
+   * **Es fehlte nicht die Größe, sondern die Leitung.** Beide werden im Kampf
+   * gezählt, `controlFailed` steht sogar im `RunSummary` und wird nach jedem
+   * Lauf als „Control wasted" angezeigt. Nur kam sie hier nicht an — und der
+   * Balance-Läufer wie jede Hebel-Messung lesen ausschliesslich dieses
+   * Ergebnis.
+   *
+   * Damit konnte **keine Aufzeichnung je belegen**, dass ein Kontroll-Zauber
+   * mangels Punkten scheiterte. Gemessen an `fixation.json`: `anchor`s Kosten
+   * von 6 auf 999 zu setzen ändert am Lauf-Ergebnis nichts — obwohl dann jede
+   * Buchung abbricht. Das erklärt, warum in #592 alle elf Kontroll-Grössen auf
+   * 0,00 % standen: Nicht weil die Kosten belanglos wären, sondern weil ihre
+   * einzige beobachtbare Folge nicht abrufbar war.
+   *
+   * **`casts` zählt einen gescheiterten Zauber weiter als gewirkt.** Ein
+   * Druck, der angenommen wurde und einen GCD ausgelöst hat, IST gewirkt — nur
+   * seine Wirkung blieb aus. Wer ihn nicht zählte, verlöre die Unterscheidung
+   * zwischen „nicht gedrückt" und „gedrückt, aber wirkungslos", und die zweite
+   * ist die interessantere. `controlFailed` steht deshalb daneben, nicht
+   * statt dessen.
+   */
+  readonly controlSpent: number;
+  readonly controlFailed: number;
   /** Kampfzeit des Sieges in ms, oder -1. */
   readonly killedAtMs: number;
   readonly casts: Readonly<Record<string, number>>;
@@ -362,6 +393,8 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     healed: combat.healed,
     converted: combat.converted,
     diedAtMs: combat.diedAtMs,
+    controlSpent: combat.controlSpent,
+    controlFailed: combat.controlFailed,
     killedAtMs,
     casts,
     finalChecksum: combatChecksum(
