@@ -106,7 +106,14 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
     //
     // Ein Zauber, der Schaden macht, steht nie dauerhaft mit "TOT" in der
     // Tabelle. Genau diese Sorge — und nur sie — traegt die Liste unten.
-    if spell.base_damage > 0 || spell.dot.is_some() || spell.spender.is_some() {
+    // `convert` ist die vierte Schadensquelle (Issue #520, EFFLUX). Sie
+    // gehoert hierher wie die drei anderen: Wer sie vergisst, laesst einen
+    // Zauber aus der Tabelle, der Schaden macht.
+    if spell.base_damage > 0
+        || spell.dot.is_some()
+        || spell.spender.is_some()
+        || spell.convert.is_some()
+    {
         return false;
     }
 

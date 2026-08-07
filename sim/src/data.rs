@@ -12,6 +12,18 @@
 
 use crate::time::Millis;
 
+/// Eine Umwandlung in Schaden aus einer schulfremden Quelle (Issue #520).
+///
+/// **Eigene Verpackung, geteilte Senke.** `Control` verlangt Kontroll-Punkte
+/// und verbraucht sie; ein SUBLIMATION-Zauber, der dort durchginge, löschte
+/// dem Spieler die Punkte. Die Senke `pending_control_damage` dagegen ist
+/// schulneutral — sie nimmt einen Betrag und macht Schaden daraus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Convert {
+    /// Schaden je **ganzer** Sekunde verbleibender Abklingzeit.
+    pub per_second: u32,
+}
+
 /// Eine Schul-Mechanik: die Ressource, die sich auflaedt und wieder verfaellt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resource {
@@ -339,6 +351,8 @@ pub struct Spell {
     pub control_gain: u32,
     /// Was der Zauber mit Kontroll-Punkten **anstellt**, falls er sie ausgibt.
     pub control: Option<Control>,
+    /// Umwandlung aus einer schulfremden Quelle (Issue #520).
+    pub convert: Option<Convert>,
 }
 
 /// Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten
