@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 29
+        "present": 32
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 31,
+        "count": 28,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -220,6 +220,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "vapour"
+      }
+    },
+    {
+      "id": "spell-decant",
+      "group": "spells",
+      "purpose": "DECANT — verkuerzt die LAENGSTE laufende Abklingzeit (Issue #518). Fueller mit Schaden, der zielt statt zu streuen.\n\nABGEGRENZT GEGEN WISP: Der ist ein Funke, der flackert; DECANT ist ein TROPFEN — praezise, klein, mit einem klaren Anschlag. \"no flicker\" trennt die beiden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-decant.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "single precise droplet, clean isolated impact, brief and contained, no flicker, no shimmer, no sustain",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "decant"
+      }
+    },
+    {
+      "id": "spell-ascend",
+      "group": "spells",
+      "purpose": "ASCEND — holt alle KURZEN Abklingzeiten sofort zurueck (Issue #518). Kein Schaden, ein grosser Moment.\n\nVIER VERBOTE IM PROMPT, eines je Nachbar-Eigenschaft. Ein erster Entwurf lautete \"weightless upward release, rising airy shimmer\" — drei dieser Woerter standen bereits in VAPOUR (airy) und WISP (shimmer, weightless). Er waere ein dritter Klang derselben Familie geworden.\n\nDer Unterschied: VAPOUR entweicht unter Druck, WISP flackert, ASCEND STEIGT — gerichtet und endgueltig.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-ascend.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 25,
+      "prompt": "deep resonant lift, a single sustained tone rising and departing upward, full-bodied release resolving into silence, no hiss, no flicker, no shimmer, no steam",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "ascend"
       }
     },
     {
@@ -1075,6 +1105,21 @@
       "trigger": {
         "on": "spell.cast",
         "key": "capstone"
+      }
+    },
+    {
+      "id": "spell-rot",
+      "group": "spells",
+      "purpose": "ROT — der DoT der PUTREFAKTION, der bei JEDEM Tick einen Stapel legt. Er laeuft, waehrend andere Zauber gewirkt werden, und muss sich von BLIGHT (Kriechen) und CANKER (Aufplatzen) unterscheiden: Sickern.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-rot.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 25,
+      "prompt": "slow wet rot setting in, viscous bubbling seep, low organic gurgle with soft decay tail, dark violet putrefaction spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "rot"
       }
     },
     {

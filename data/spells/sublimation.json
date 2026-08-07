@@ -46,6 +46,44 @@
       "cooldownResetCharges": 2
     },
     {
+      "_comment": "ASCEND — bringt alle KURZEN Abklingzeiten sofort zurueck (Issue #518).\n\nDie Verkuerzung traf bisher alles gleich. ASCEND trifft nur, was unter der Grenze liegt: ein grosser Betrag auf viele kleine Wartezeiten, statt eines kleinen auf alle.\n\nDIE GRENZE IST EIN STRENGES KLEINER. Eine Abklingzeit GENAU auf 10 s bleibt unberuehrt — \"unter zehn Sekunden\" heisst woertlich unter. Die Regel musste in eine Richtung fallen; sie steht an der Rechenstelle in combat.ts und fight.rs.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "ascend",
+      "name": "Ascend",
+      "unlockLevel": 14,
+      "baseDamage": 0,
+      "cooldownMs": 30000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 10000,
+      "cooldownReductionBelowMs": 10000
+    },
+    {
+      "_comment": "DECANT — verkuerzt die LAENGSTE laufende Abklingzeit (Issue #518).\n\nDer Gegenentwurf zu VAPOUR: zielen statt streuen. Wer einen langen Cooldown zurueckholen will, verliert mit einer breiten Verkuerzung den groessten Teil an Zauber, die ohnehin gleich bereit waeren.\n\nBEI GLEICHSTAND GEWINNT DER NIEDRIGERE INDEX. Ohne diese Festlegung haengt das Ergebnis an der Laufrichtung der Schleife — und das waere ein stiller Paritaets-Bruch, sobald eine Seite umbaut. Die Regel steht an der Rechenstelle auf beiden Seiten.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "decant",
+      "name": "Decant",
+      "unlockLevel": 6,
+      "baseDamage": 15,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 2000,
+      "cooldownReductionLongestOnly": true
+    },
+    {
+      "id": "efflux",
+      "name": "Efflux",
+      "_comment": "EFFLUX — der Notausgang der Sublimation (Issue #520, Raster SUBLIMATION 6).\n\nER IST KEINE COOLDOWN-MECHANIK, obwohl das Raster 'Abklingzeit' sagt: Nichts wird verkuerzt. Er teilt die SENKE mit WEDGE (#478), nicht die Verpackung: Beide schreiben in pendingConvertedDamage und gehen durch dieselben Faktoren. Der Weg dorthin ist verschieden — WEDGE ueber ControlDef mit Kontroll-Punkten, EFFLUX ueber ein eigenes convert-Feld.\n\nWARUM NICHT UEBER ControlDef: Dort laeuft FIXATIONs Punkte-Buchhaltung, und convertToDamage setzt controlValue auf null. Ein SUBLIMATION-Zauber haette dem Spieler auf einer gemischten Leiste die Kontroll-Punkte GELOESCHT. Gemessen von Worker-2; die Bauart stand seit #478.\n\nWARUM ER ZAEHLT: SUBLIMATION verkuerzt Abklingzeiten. Liegt keine an, hat die Schule nichts zu tun — dieselbe Lage, in der FIXATION vor WEDGE gegen einen Boss ohne Mechanik stand. EFFLUX dreht es um: Je mehr Restzeit liegt, desto mehr bringt er.\n\nDIE ZAHL 12 STATT 65 — DER VORSCHLAG WAR GEMESSEN FALSCH:\nDer Vorschlag lautete, sie an den Betrag zu koppeln, den der Spieler in dieser Zeit gemacht haette. Ueber zwanzig Paritaets-Aufzeichnungen sind das 32 bis 93 Schaden je Sekunde, im Mittel 65.\n\nGemessen im Lauf betraegt die SUMME der Restzeiten aber 25 bis 42 Sekunden — weil mehrere Zauber PARALLEL ablaufen. Sie ist kein Mass fuer verstrichene Zeit, sondern ein Vielfaches davon.\n\nMit 65 ergaebe das bis zu 2730 Schaden aus einem Druck. Derselbe Lauf macht in 25 Sekunden 1364 insgesamt; PYRE, der Entlader der CALCINATION, bringt je Wirkung 180 bis 360.\n\n12 setzt EFFLUX damit auf etwa 500 bei voller Restzeit — ueber PYRE, aber in derselben Groessenordnung. Auch das ist ein PLATZHALTER fuer den Balance-Laeufer; belegt ist nur, dass 65 es nicht sein kann.",
+      "unlockLevel": 5,
+      "baseDamage": 0,
+      "cooldownMs": 20000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "convert": {
+        "from": "cooldown",
+        "perSecond": 12
+      }
+    },
+    {
       "_comment": "DISTIL — Verkuerzungen wirken vier Wartezeiten lang doppelt (Issue #540).\n\nHoehepunkt fuer den Aufbau-Weg der Sublimation: WISP und REFLUX sparen\nZeit, DISTIL verdoppelt, was sie sparen. Er lohnt deshalb nur VOR einer\nKette von Verkuerzern, nie danach.\n\nVORLAEUFIGE ZAHLEN, wie bei den vier Geschwistern aus #540.",
       "id": "distil",
       "name": "Distil",

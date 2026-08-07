@@ -1833,6 +1833,29 @@ impl Fight {
     /// Zauber und nicht an einer Automatik. Reichen die Punkte nicht,
     /// geschieht nichts; der Zauber ist vertan, aber er nimmt sich nicht, was
     /// er nicht hat.
+    /// Eine Umwandlung aus einer schulfremden Quelle (Issue #520, EFFLUX).
+    ///
+    /// **Eigene Verpackung, geteilte Senke** — wie im Spiel
+    /// (`combat.ts`, `applyConversion`). `apply_fixation` verbraucht
+    /// Kontroll-Punkte; ein SUBLIMATION-Zauber dort loeschte sie dem Spieler.
+    /// Die Senke `pending_control_damage` dagegen ist schulneutral.
+    ///
+    /// **Ganze Sekunden**, wie drueben: `per_second` ist Schaden je Sekunde,
+    /// und Millisekunden ergaeben Nachkommastellen an einer Stelle, an der
+    /// GAME-DESIGN 18.4 ganze Zahlen verlangt.
+    fn apply_conversion(&mut self, spell: &Spell, now: Millis) {
+        let Some(convert) = spell.convert else {
+            return;
+        };
+        let mut rest_ms: Millis = 0;
+        for &bereit_ab in &self.cooldown_ready_at {
+            if bereit_ab > now {
+                rest_ms += bereit_ab - now;
+            }
+        }
+        self.pending_control_damage = (rest_ms / 1000) * convert.per_second;
+    }
+
     fn apply_fixation(&mut self, spell: &Spell) {
         if spell.control_gain > 0 {
             // Ohne Obergrenze: Kontroll-Punkte verfallen nicht (anders als
@@ -1895,10 +1918,22 @@ impl Fight {
     /// **Die Obergrenze verbraucht nichts** — eine Wirkung darueber erneuert
     /// insbesondere nicht die Uhr des aeltesten Stapels.
     fn apply_putrefaction(&mut self, spell: &Spell) {
-        if spell.decay_stacks == 0 {
+        self.add_decay_stacks(spell.decay_stacks);
+    }
+
+    /// Stapel legen — die **eine** Stelle, an der das geschieht (Issue #498).
+    ///
+    /// Bis ROT gab es nur einen Weg: beim Wirken, ueber `spell.decay_stacks`.
+    /// Ein Effekt ueber Zeit legt sie jetzt auch, ueber `dot.decay_per_tick`.
+    /// Beide teilen sich diese Funktion, damit Obergrenze, Verfallszeit und
+    /// die Weckuhr **nicht zweimal** dastehen.
+    ///
+    /// Spiegelbild zu `addDecayStacks` in `src/core/combat.ts`.
+    fn add_decay_stacks(&mut self, anzahl: u32) {
+        if anzahl == 0 {
             return;
         }
-        for _ in 0..spell.decay_stacks {
+        for _ in 0..anzahl {
             if self.decay_count >= MAX_DECAY_STACKS {
                 break;
             }
@@ -2421,6 +2456,11 @@ impl Fight {
             self.emit_rule(RuleEvent::Crit, index as i16, f64::from(tick_damage));
         }
         self.dot_tick_counts[index] += 1;
+        // **Zersetzungs-Stapel je Tick** (Issue #498, ROT). Sie laufen NICHT
+        // ueber das Ereignis wie der Hitze-Gewinn: Stapel sind keine
+        // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
+        // sie beim Wirken legt, sitzt ebenfalls direkt hier.
+        self.add_decay_stacks(dot.decay_per_tick);
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
         // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
@@ -2811,6 +2851,7 @@ impl Fight {
         self.apply_coagulation(index, spell);
         self.apply_putrefaction(spell);
         self.apply_fixation(spell);
+        self.apply_conversion(spell, now);
         // **Erst pruefen, dann oeffnen** (#318). Ein Zauber, der sein eigener
         // Partner waere, nutzte sonst das Fenster, das er im selben Zug
         // aufmacht.
@@ -2828,7 +2869,13 @@ impl Fight {
         // ausgerechneten Betrag waere es nicht, und ein Zufallsstrom, der auf
         // den zwei Seiten verschieden oft gedreht wird, laesst den ganzen
         // folgenden Kampf auseinanderlaufen.
-        let teilt_schaden_aus = spell.base_damage > 0 || spell.spender.is_some();
+        // **Die Umwandlung zaehlt mit** (Issue #520): WEDGE und EFFLUX
+        // fuehren weder base_damage noch spender, teilen aber Schaden aus.
+        // Fehlte sie hier, wuerde der Krit-Wurf auf dieser Seite nicht
+        // gezogen — und ein Wuerfel, der verschieden oft gedreht wird, laesst
+        // den ganzen folgenden Kampf auseinanderlaufen.
+        let teilt_schaden_aus =
+            spell.base_damage > 0 || spell.spender.is_some() || self.pending_control_damage > 0;
         let kritet = teilt_schaden_aus && self.roll_crit();
         // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
         // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).

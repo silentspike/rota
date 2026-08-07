@@ -90,6 +90,9 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // ALEMBIC (Issue #521) — der Rücksetzer, der zweimal fragt. Er steht
       // hinter WISP, weil er in `sublimation.json` dort steht.
       'alembic',
+      'ascend',
+      'decant',
+      'efflux',
       // Issue #540 — DISTIL, bei seiner Schule.
       'distil',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
@@ -98,6 +101,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'fester',
       // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
       'blight',
+      'rot',
       'sepsis',
       // Issue #540 — VIRULENCE, bei seiner Schule.
       'virulence',

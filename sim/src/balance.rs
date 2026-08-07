@@ -113,8 +113,18 @@ pub struct Sample {
     /// "zu schwach" war damit eine Aussage ueber die gemessene Haelfte —
     /// und jeder Verteidigungszauber unmessbar.
     pub damage_taken: u32,
-    /// Davon von der Schutzschicht abgefangen.
+    /// Davon von der Schutzschicht abgefangen (COAGULATION, Weg 1).
+    ///
+    /// **Kein Teil von `damage_taken`, sondern der Betrag DANEBEN.** Die
+    /// Rechnung in `fight.rs` legt die Schicht VOR den Schlag: was sie
+    /// auffaengt, kommt gar nicht erst an. Die Summe dessen, was auf den
+    /// Spieler zukam, ist deshalb `damage_taken + absorbed`.
     pub absorbed: u32,
+    /// Zurueckgeholtes Leben (COAGULATION, Weg 2).
+    ///
+    /// Steht neben den beiden anderen und nicht in ihrer Summe: Heilung
+    /// mindert keinen Schlag, sie macht ihn nachtraeglich wett.
+    pub healed: u32,
     /// Ob der Spieler gestorben ist.
     pub died: bool,
 }
@@ -230,8 +240,23 @@ pub struct BalanceResult {
     pub damage: Statistics,
     /// Wie oft der Boss gefallen ist.
     pub kills: usize,
-    /// **Eingesteckter** Schaden über alle Durchgänge (Issue #525).
+    /// **Durchgekommener** Schaden über alle Durchgänge (Issue #525).
+    ///
+    /// Der Name der Ausgabe hiess bis #525 "Schaden eingesteckt" und meinte
+    /// diese Zahl — das war irrefuehrend: Was die Schutzschicht abgefangen
+    /// hat, steckt der Spieler NICHT ein. Die Summe steht daneben.
     pub damage_taken: Statistics,
+    /// Was der Boss insgesamt geschickt hat: durchgekommen PLUS abgefangen.
+    ///
+    /// **Je Durchgang summiert, nicht aus den zwei Statistiken gerechnet.**
+    /// Mittelwerte addieren sich, Streuungen nicht — `stddev(a+b)` ist nur
+    /// dann `stddev(a)+stddev(b)`, wenn beide vollstaendig korreliert sind.
+    /// Hier wird deshalb erst je Kampf addiert und dann ausgewertet.
+    pub damage_incoming: Statistics,
+    /// Von der Schutzschicht abgefangen (Weg 1).
+    pub absorbed: Statistics,
+    /// Zurueckgeholtes Leben (Weg 2).
+    pub healed: Statistics,
     /// Wie oft der SPIELER gestorben ist.
     ///
     /// Bei einer Rotation, die ohne Verteidigung stirbt, ist das die
@@ -284,7 +309,9 @@ impl BalanceResult {
         format!(
             "{{\"apl\":{:?},\"iterations\":{},\"baseSeed\":{},\"threads\":{},\
              \"damage\":{},\"kills\":{},\"killRate\":{:?},\"killTimeMs\":{},\
-             \"damageTaken\":{},\"deaths\":{},\"casts\":{{{}}}}}",
+             \"damageIncoming\":{},\"damageTaken\":{},\
+             \"absorbed\":{},\"healed\":{},\
+             \"deaths\":{},\"casts\":{{{}}}}}",
             self.apl_name,
             self.iterations,
             self.base_seed,
@@ -293,7 +320,10 @@ impl BalanceResult {
             self.kills,
             self.kill_rate(),
             stats(&self.kill_time_ms),
+            stats(&self.damage_incoming),
             stats(&self.damage_taken),
+            stats(&self.absorbed),
+            stats(&self.healed),
             self.deaths,
             // Nur die Zauber, die WIRKLICH gedrueckt wurden — eine Liste mit
             // sechzig Nullen verdeckt die drei Zahlen, auf die es ankommt.
@@ -369,7 +399,18 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
 
     let damage_values: Vec<f64> = samples.iter().map(|s| f64::from(s.damage)).collect();
     let mut taken_values: Vec<f64> = samples.iter().map(|s| f64::from(s.damage_taken)).collect();
+    let mut incoming_values: Vec<f64> = samples
+        .iter()
+        .map(|s| f64::from(s.damage_taken.saturating_add(s.absorbed)))
+        .collect();
+    let mut absorbed_values: Vec<f64> = samples.iter().map(|s| f64::from(s.absorbed)).collect();
+    let mut healed_values: Vec<f64> = samples.iter().map(|s| f64::from(s.healed)).collect();
     taken_values.sort_by(f64::total_cmp);
+    // **Statistics::from_sorted verlangt sortierte Werte** — der Name sagt
+    // es, und ohne diese zwei Zeilen waere der Median still falsch.
+    incoming_values.sort_by(f64::total_cmp);
+    absorbed_values.sort_by(f64::total_cmp);
+    healed_values.sort_by(f64::total_cmp);
     let kill_values: Vec<f64> = samples
         .iter()
         .filter_map(|s| s.killed_at_ms.map(f64::from))
@@ -384,6 +425,9 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         kills: kill_values.len(),
         kill_time_ms: Statistics::from_sorted(&kill_values),
         damage_taken: Statistics::from_sorted(&taken_values),
+        damage_incoming: Statistics::from_sorted(&incoming_values),
+        absorbed: Statistics::from_sorted(&absorbed_values),
+        healed: Statistics::from_sorted(&healed_values),
         deaths: samples.iter().filter(|s| s.died).count(),
         casts: casts_total.to_vec(),
         samples,
@@ -442,6 +486,7 @@ fn run_range(
             killed_at_ms: result.killed_at_ms,
             damage_taken: fight.damage_taken(),
             absorbed: fight.shield_absorbed(),
+            healed: fight.healed(),
             died: fight.player_dead(),
         });
     }
