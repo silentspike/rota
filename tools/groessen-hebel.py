@@ -43,6 +43,35 @@ AUFZ = WURZEL / 'tests' / 'parity' / 'recordings'
 
 GROESSEN = ('damage', 'damageTaken', 'absorbed', 'healed', 'converted')
 
+# **`damageDealt` heißt anderswo `damage`.** Die vierte Bauart (`cases[].runs[]`,
+# eingeführt mit `kontrolle-wirkt.json`) schreibt den ausgeteilten Schaden unter
+# diesem Namen. Ohne die Zuordnung fiele er aus dem Vergleich — und die neue
+# Lage, für die die Datei gebaut wurde, wäre unsichtbar.
+GLEICHBEDEUTEND = {'damageDealt': 'damage'}
+
+
+def laeufe_in(knoten):
+    """Alle Läufe eines Aufzeichnungs-Baums — über ALLE vier Bauarten.
+
+    ```text
+      presses + expected   ein Lauf je Datei
+      runs                 mehrere Läufe je Datei
+      cases[].runs[]       Fälle mit je mehreren Läufen   (seit #593)
+      anders               kein Kampflauf
+    """
+    if not isinstance(knoten, dict):
+        return
+    if 'cases' in knoten:
+        for fall in knoten['cases']:
+            yield from laeufe_in(fall)
+        return
+    if 'runs' in knoten:
+        for lauf in knoten['runs']:
+            yield from laeufe_in(lauf)
+        return
+    if 'expected' in knoten:
+        yield knoten
+
 
 def wirkungsbild():
     """Alle fünf Größen je LAUF — über alle drei Bauarten.
@@ -62,9 +91,11 @@ def wirkungsbild():
     bild = {}
     for pfad in sorted(AUFZ.glob('*.json')):
         roh = json.loads(pfad.read_text(encoding='utf8'))
-        laeufe = roh['runs'] if 'runs' in roh else ([roh] if 'expected' in roh else [])
-        for n, lauf in enumerate(laeufe):
-            erwartet = lauf.get('expected', {})
+        for n, lauf in enumerate(laeufe_in(roh)):
+            erwartet = dict(lauf.get('expected', {}))
+            for fremd, unser in GLEICHBEDEUTEND.items():
+                if fremd in erwartet and unser not in erwartet:
+                    erwartet[unser] = erwartet[fremd]
             werte = {g: erwartet[g] for g in GROESSEN if g in erwartet}
             if werte:
                 bild[f'{pfad.stem}#{n}'] = werte

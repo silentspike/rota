@@ -10,6 +10,7 @@
 # siebenmal passiert.
 #
 # Spalten: Hebel · Feld · Zauber · Mutation · bewegte Größe · Lauf
+300.00%  control.amountMs           stall        2000 -> 1000     damageTaken  kontrolle-wirkt#5
  72.58%  dot.tickIntervalMs         searing      2000 -> 1000     damage       new-calcination#0
  56.00%  conversion.sharePercent    temper       25 -> 12       converted    coagulation#3
  50.00%  heal.amount                salve        1500 -> 750      healed       coagulation#2
@@ -24,6 +25,7 @@
  14.44%  dot.durationMs             cinder       4000 -> 2000     damage       cinder-ticks#0
  10.48%  spender.damagePerPoint     pyroclasm    12 -> 6        damage       dot-lifetime#0
  10.48%  spender.bonusMultiplier    pyroclasm    2 -> 1        damage       dot-lifetime#0
+  6.67%  control.cost               anchor       6 -> 3        damage       fixation#1
   1.15%  convert.perSecond          efflux       12 -> 6        damage       efflux-restzeit#0
   0.42%  buff.factor                virulence    2 -> 1        damage       buff-targets#0
   0.14%  buff.gcds                  virulence    4 -> 2        damage       buff-targets#0
@@ -37,10 +39,8 @@
   0.00%  control.cost               stall        4 -> 2        -            -
   0.00%  control.cost               latch        2 -> 1        -            -
   0.00%  control.cost               capstone     8 -> 4        -            -
-  0.00%  control.cost               anchor       6 -> 3        -            -
   0.00%  control.amountPercent      anchor       10 -> 5        -            -
   0.00%  control.amountMs           stay         3000 -> 1500     -            -
-  0.00%  control.amountMs           stall        2000 -> 1000     -            -
   0.00%  control.amountMs           latch        4000 -> 2000     -            -
   0.00%  control.amountMs           capstone     2000 -> 1000     -            -
   0.00%  buff.kind                  virulence    0 -> 1        -            -
