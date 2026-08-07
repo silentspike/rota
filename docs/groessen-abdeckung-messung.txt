@@ -1,0 +1,68 @@
+buff.factor                distil       2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.factor                flashpoint   2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.factor                griplock     2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.factor                quicksilver  2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.factor                slag         1.5 -> 0.75     geschuetzt (slag.test.ts)
+buff.factor                virulence    2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  distil       4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  flashpoint   3 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  griplock     4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  quicksilver  4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  slag         4 -> 2        geschuetzt (slag.test.ts)
+buff.gcds                  virulence    4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+buff.kind                  distil       0 -> 1        SCHWEIGT
+buff.kind                  flashpoint   0 -> 1        SCHWEIGT
+buff.kind                  griplock     0 -> 1        SCHWEIGT
+buff.kind                  quicksilver  0 -> 1        SCHWEIGT
+buff.kind                  slag         1 -> 0        SCHWEIGT
+buff.kind                  virulence    0 -> 1        SCHWEIGT
+control.amountMs           capstone     2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
+control.amountMs           latch        4000 -> 2000     SCHWEIGT
+control.amountMs           stall        2000 -> 1000     SCHWEIGT
+control.amountMs           stay         3000 -> 1500     NUR FRISCHE -> faktisch ungeschuetzt
+control.amountPercent      anchor       10 -> 5        NUR FRISCHE -> faktisch ungeschuetzt
+control.amountPerPoint     wedge        8 -> 4        geschuetzt (wedge.test.ts)
+control.cost               anchor       6 -> 3        NUR FRISCHE -> faktisch ungeschuetzt
+control.cost               capstone     8 -> 4        SCHWEIGT
+control.cost               latch        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+control.cost               stall        4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+control.cost               stay         3 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+control.cost               wedge        3 -> 1        SCHWEIGT
+conversion.durationMs      temper       10000 -> 5000     NUR FRISCHE -> faktisch ungeschuetzt
+conversion.sharePercent    temper       25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
+convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+decay.stacks               blight       1 -> 0        geschuetzt (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
+decay.stacks               canker       1 -> 0        geschuetzt (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
+dot.decayPerTick           rot          1 -> 0        geschuetzt (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
+dot.durationMs             cinder       4000 -> 2000     NUR FRISCHE -> faktisch ungeschuetzt
+dot.durationMs             rot          4000 -> 2000     geschuetzt (rot-decay-per-tick.test.ts)
+dot.durationMs             searing      6000 -> 3000     geschuetzt (combat.test.ts, data.test.ts)
+dot.durationMs             smoulder     12000 -> 6000     geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+dot.tickDamage             cinder       30 -> 15       NUR FRISCHE -> faktisch ungeschuetzt
+dot.tickDamage             rot          25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
+dot.tickDamage             searing      90 -> 45       NUR FRISCHE -> faktisch ungeschuetzt
+dot.tickDamage             smoulder     40 -> 20       geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+dot.tickIntervalMs         cinder       1000 -> 500      NUR FRISCHE -> faktisch ungeschuetzt
+dot.tickIntervalMs         rot          1000 -> 500      geschuetzt (rot-decay-per-tick.test.ts)
+dot.tickIntervalMs         searing      2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
+dot.tickIntervalMs         smoulder     2000 -> 1000     geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+heal.amount                salve        1500 -> 750      NUR FRISCHE -> faktisch ungeschuetzt
+resourceGain.heat          bellows      8 -> 4        geschuetzt (slag.test.ts)
+resourceGain.heat          ember        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+resourceGain.heat          kindle       3 -> 1        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+shield.amount              crust        900 -> 450      geschuetzt (runaway-beatable.test.ts)
+shield.amount              plate        2400 -> 1200     NUR FRISCHE -> faktisch ungeschuetzt
+shield.amount              scab         200 -> 100      NUR FRISCHE -> faktisch ungeschuetzt
+shield.durationMs          crust        12000 -> 6000     geschuetzt (checksum-effectiveness.test.ts)
+shield.durationMs          plate        15000 -> 7500     NUR FRISCHE -> faktisch ungeschuetzt
+shield.durationMs          scab         8000 -> 4000     SCHWEIGT
+shield.maxStacks           crust        3 -> 1        geschuetzt (boss-runaway.test.ts, progress-direction.test.ts, runaway-beatable.test.ts)
+shield.maxStacks           plate        1 -> 0        geschuetzt (combat.test.ts, data.test.ts)
+shield.maxStacks           scab         3 -> 1        geschuetzt (coagulation-scab.test.ts)
+spender.bonusMultiplier    pyre         2 -> 1        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+spender.bonusMultiplier    pyroclasm    2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+spender.bonusThreshold     pyre         15 -> 7        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+spender.bonusThreshold     pyroclasm    15 -> 7        SCHWEIGT
+spender.damagePerPoint     pyre         12 -> 6        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+spender.damagePerPoint     pyroclasm    12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+synergy.windowGcds         canker       2 -> 1        geschuetzt (synergy-window.test.ts)
