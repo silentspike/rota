@@ -7,7 +7,7 @@
 //! Er ist fuer Menschen geschrieben: Jede Zahl steht neben dem Satz, der sagt,
 //! was sie bedeutet — und neben dem, was sie **nicht** bedeutet.
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig};
 use rota_sim::gear::WornValues;
 
@@ -82,7 +82,7 @@ const WIE_118: WornValues = WornValues {
 };
 
 fn messe_mit(name: &str, text: &str, worn: WornValues) -> f64 {
-    let apl: Apl = parse(name, text).expect("die eingebaute Liste ist gueltig");
+    let apl: Apl = parse(AplName(name), text).expect("die eingebaute Liste ist gueltig");
     let r = run(
         &BalanceConfig {
             iterations: RUNS,

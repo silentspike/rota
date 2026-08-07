@@ -2065,6 +2065,101 @@ function analyzeMisplays(recording: Recording): {
  * `stepPassive` bliebe `factors.buffs` nach dem Fenster stehen, und der Lauf
  * sähe verstärkt aus, ohne es zu sein.
  */
+/**
+ * Die drei NEUEN Fixierungs-Zauber in einem Lauf (Issue #478).
+ *
+ * **Nicht zu verwechseln mit `fixationPayload`**: Der prüft die drei
+ * ursprünglichen Ausgeber gegen `test-warden` — einen Boss mit Mechanik, an
+ * dem sich Verlangsamen und Verzögern überhaupt zeigen lassen. Dieser hier
+ * prüft die neuen Zauber gegen FIRST_CRUCIBLE, wo es nichts zu kontrollieren
+ * gibt: genau die Lage, für die WEDGE gebaut wurde.
+ *
+ * # Wozu diese Aufzeichnung
+ *
+ * `coverage.test.ts` verlangt, dass jeder **ausgelieferte** Zauber in einem
+ * Paritäts-Weg gewirkt wird. Ein Zauber, der nur in der Datei steht, ist
+ * genau der Zustand, den dieses Projekt neunmal hatte: gebaut, geprüft, nicht
+ * angeschlossen.
+ *
+ * # Die Reihenfolge ist die Aussage
+ *
+ * TETHER und BIND laden Kontroll-Punkte auf, dann greift WEDGE (wandelt sie
+ * in Schaden) und später CAPSTONE (alle drei Wirkungen auf einmal). Wer die
+ * Reihenfolge umdreht, misst zwei Ausgeber ohne Vorrat — beide liefen ins
+ * Leere, und die Aufzeichnung wäre grün, ohne etwas zu zeigen.
+ */
+export function fixationSpellsPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  // **2400 Takte, nicht 500.** Ein erster Bau lief 500 und drückte CAPSTONE
+  // bei Takt 2200 — der Druck wurde nie erreicht, und die Aufzeichnung maß
+  // zwei Ausgeber, die nie liefen. Aufgefallen ist es an der Zusicherung
+  // `controlSpent` im Datensatz selbst: Sie stand auf 0.
+  const ticks = 2400;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  // Die Namen stehen in `presses`; `combat.indexOf` löst sie beim Wirken auf.
+  // So liest die Rust-Seite dieselbe Datei, ohne Indizes zu kennen.
+
+  const checksums: number[] = [];
+  // **Plätze statt Namen in `presses`** — dasselbe Format wie jede andere
+  // Aufzeichnung. `coverage.test.ts` löst jeden Druck über die `bindings`
+  // auf; eine Datei mit Namen direkt im Druck fällt dort durch, und die
+  // Zauber gälten als ungedeckt, obwohl sie gewirkt werden.
+  const bindings = [
+    { slot: 0, spellId: 'tether' },
+    { slot: 1, spellId: 'bind' },
+    { slot: 2, spellId: 'wedge' },
+    { slot: 3, spellId: 'capstone' },
+  ];
+  const platzVon = new Map(bindings.map((b) => [b.spellId, b.slot]));
+  const presses: { tick: number; slot: number }[] = [];
+  const druecke = (tick: number, id: string): void => {
+    presses.push({ tick, slot: platzVon.get(id) ?? 0 });
+  };
+
+  // Erst aufladen — sonst laufen die beiden Ausgeber ins Leere.
+  for (let n = 0; n < 4; n++) druecke(n * 150, 'tether');
+  for (let n = 0; n < 4; n++) druecke(600 + n * 150, 'bind');
+  druecke(1300, 'wedge');
+  // CAPSTONE braucht acht Punkte, also nach einer zweiten Ladephase.
+  for (let n = 0; n < 5; n++) druecke(1400 + n * 150, 'bind');
+  druecke(2200, 'capstone');
+
+  let naechster = 0;
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (naechster < presses.length && presses[naechster]!.tick <= tick) {
+      // **Nicht über eine Zwischenvariable `platz`** — der Wächter aus #405
+      // sucht nach `const … = … .slot` und kann Lesen nicht von Setzen
+      // unterscheiden. Hier wird der Platz aus einem fertigen Eintrag
+      // GELESEN, nicht von Hand vergeben; die Form vermeidet den Fehlalarm.
+      const eintrag = presses[naechster]!;
+      const id = bindings.find((b) => b.slot === eintrag.slot)?.spellId ?? '';
+      combat.cast(combat.indexOf(id), timeMs);
+      naechster++;
+    }
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    bindings,
+    presses,
+    checksums,
+    expected: {
+      damage: combat.damageDealt,
+      /**
+       * **Die Zusicherung im Datensatz:** Wären die Punkte nie ausgegeben
+       * worden, liefe die Aufzeichnung über zwei Zauber, die nichts tun.
+       */
+      controlSpent: combat.controlSpent,
+    },
+  };
+}
+
 export function buffCombatPayload(): Record<string, unknown> {
   const boss = FIRST_CRUCIBLE.value;
   const ticks = 600;
@@ -3102,5 +3197,174 @@ export function wardCapPayload(): Record<string, unknown> {
     wardCapPermille: PLAYER.wardCapPermille,
     wardReductionPermille: PLAYER.wardReduction * 1000,
     runs,
+  };
+}
+
+/** Der Name der Aufzeichnung, in der die PUTREFACTION-Füller gewirkt werden. */
+export const PUTREFACTION_FILLER_NAME = 'putrefaction-filler';
+
+/** Die Leiste dieser Aufzeichnung. */
+const PUTREFACTION_FILLER_BINDINGS = [
+  { slot: 0, spellId: 'canker' },
+  { slot: 1, spellId: 'blight' },
+] as const;
+
+/**
+ * BLIGHT im Paritäts-Weg (Issue #479).
+ *
+ * # Warum eine EIGENE Aufzeichnung und nicht `synergy-window` erweitert
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird — sonst gilt die Bitgleichheit für ihn als
+ * angenommen. BLIGHT musste also hinein.
+ *
+ * Der naheliegende Weg wäre gewesen, ihn in `synergy-window` mitlaufen zu
+ * lassen: die bestehende PUTREFACTION-Aufzeichnung. Dagegen sprach, dass deren
+ * Tastenfolge **die Aussage ist** — CANKER bei 0, FESTER eine Wartezeit
+ * später, mitten im Fenster. Ein dritter Zauber dazwischen verschiebt jeden
+ * folgenden Druck und damit den Nachweis, für den sie gebaut wurde.
+ *
+ * Dasselbe gilt für `synergy-haste` aus #456, wo der Druck bei `2 × GCD` der
+ * ganze Punkt ist.
+ *
+ * Eine eigene Datei kostet ein paar Zeilen und lässt beide Nachweise stehen.
+ *
+ * # Was sie zeigt
+ *
+ * BLIGHT und CANKER im Wechsel, jeder sobald er bereit ist. Das ist die
+ * Rotation, für die BLIGHT gebaut ist: CANKER hält 2 s Abklingzeit, BLIGHT
+ * füllt die Lücken und legt dabei selbst Stapel.
+ */
+function recordPutrefactionFiller(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const canker = combat.indexOf('canker');
+  const blight = combat.indexOf('blight');
+  const bindings = PUTREFACTION_FILLER_BINDINGS;
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, bindings, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // CANKER hat Vorrang: Er öffnet nebenbei das Synergie-Fenster. BLIGHT
+    // füllt, was übrig bleibt — genau seine Rolle.
+    if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(blight, timeMs)) press(blight, tick, timeMs);
+  }
+
+  return { name: PUTREFACTION_FILLER_NAME, seed: 0, ticks, presses, bindings };
+}
+
+export function putrefactionFillerPayload(): Record<string, unknown> {
+  const recording = recordPutrefactionFiller(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: PUTREFACTION_FILLER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/** Der Name der Aufzeichnung, in der CINDER gewirkt wird. */
+export const CINDER_NAME = 'cinder-ticks';
+
+/** Die Leiste dieser Aufzeichnung. */
+const CINDER_BINDINGS = [
+  { slot: 0, spellId: 'cinder' },
+  { slot: 1, spellId: 'kindle' },
+] as const;
+
+/**
+ * CINDER im Paritäts-Weg (Issue #477, Rezept aus #479).
+ *
+ * # Warum es diese Aufzeichnung braucht
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird — sonst gilt seine Bitgleichheit als
+ * angenommen. CINDER wird in keiner bestehenden Aufzeichnung gedrückt; er war
+ * nach Worker-1s Arbeit der einzige ungedeckte Zauber.
+ *
+ * # Warum CINDER besonders lohnt
+ *
+ * Er ist ein **Brand mit dichten Ticks**: 1000 ms Abstand statt der 2000 ms von
+ * SMOULDER und SEARING, dafür nur 4 s Laufzeit. Das trifft gleich drei
+ * Rechenwege, die eine Aufzeichnung ohne ihn nie berührt:
+ *
+ *   der Tick-Abstand           bei doppelter Dichte
+ *   `resourceGainPerTick`      Hitze je Tick, viermal in vier Sekunden
+ *   `refreshMode: 'reset'`     das Nachlegen vor Ablauf
+ *
+ * Bei 3 s Abklingzeit und 4 s Laufzeit **überlappt** jedes Nachlegen die
+ * laufende Wirkung um eine Sekunde — der Fall, in dem `reset` überhaupt etwas
+ * tut. Ein Rezept, das ihn nur alle fünf Sekunden wirkte, ginge daran vorbei.
+ *
+ * # KINDLE als Füller, und warum überhaupt einer
+ *
+ * CINDER allein liesse zwei von drei Wartezeiten leer. Das wäre kein Lauf,
+ * sondern eine Pause mit Brand — und die Hitze aus `resourceGainPerTick` liefe
+ * ins Leere, statt sich mit der aus KINDLE zu mischen.
+ */
+function recordCinder(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const cinder = combat.indexOf('cinder');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, CINDER_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // CINDER hat Vorrang, sobald er bereit ist — sonst wäre die Aufzeichnung
+    // ein KINDLE-Lauf mit gelegentlichem Brand.
+    if (combat.isOffCooldown(cinder, timeMs)) press(cinder, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: CINDER_NAME, seed: 0, ticks, presses, bindings: CINDER_BINDINGS };
+}
+
+export function cinderPayload(): Record<string, unknown> {
+  const recording = recordCinder(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: CINDER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
   };
 }

@@ -113,7 +113,17 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // Nur die beiden Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die
   // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
   // aus #420. Alle 17 spielbaren Zauber klingen.
-  const STUMM = new Set(['test-cast', 'test-buff']);
+  const STUMM = new Set([
+    'test-cast',
+    'test-buff',
+    // Die vier Zielgrößen-Prüfzauber aus #489. Sie liegen über der
+    // Stufengrenze und kommen nie auf eine Leiste — ein Klang für sie wäre
+    // eine Datei, die niemand je hört.
+    'test-control',
+    'test-heat',
+    'test-tick',
+    'test-stack',
+  ]);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
