@@ -4842,6 +4842,53 @@ zum nächsten Menschen, der die roten Aufzeichnungen für veraltet hält.
 Das ist die dritte Sorte aus #547 in einer neuen Form: **nicht „heute unprüfbar", sondern „heute
 geprüft und morgen weggerechnet".**
 
+#### Nachtrag: was einen Fall den Export überleben lässt — zwei Quellen, nicht zwei Bauarten
+
+_Ergänzt am 2026-08-07, nachdem ein Worker den Abschnitt an einem zweiten Fall nachgemessen und
+dabei seine eigene Erklärung widerlegt hat._
+
+Der zweite Beleg stammt aus #593, gegen den aktuellen Stand neu gefahren:
+
+```
+Mutation:  stall control.amountMs 2000 → 1000
+
+  OHNE parity:export     5 rot von 1876
+  MIT  parity:export     4 rot von 1876
+```
+
+Der eine, der beim Export grün wird, ist die Frischeprüfung — sie vergleicht die Datei mit sich
+selbst, nachdem der Export sie neu geschrieben hat.
+
+**Zwei unabhängige Belege aus zwei Händen:** Einer der vier überlebenden Fälle stammt nicht vom
+Messenden, sondern kam beim Nachziehen aus `main`.
+
+##### Die erste Erklärung war zu grob, und der Worker hat sie selbst kassiert
+
+Naheliegend wäre: _rechnende Fälle überleben, lesende nicht._ Er hat es über alle 172 Testdateien
+gemessen — und dabei seinen **eigenen** Prüffall falsch einsortiert:
+
+```ts
+expect(ergebnis.controlSpent).toBe(mitAusgabe.expected['controlSpent']);
+```
+
+Das sieht nach der lesenden Bauart aus: eine Zahl aus der Datei gegen den Lauf. Gemessen überlebt
+er den Export trotzdem. Der Grund ist die **Herkunft** der beiden Zahlen — `expected.controlSpent`
+entsteht in `payloads.ts` aus `combat.controlSpent`, die andere aus dem `ReplayResult`.
+
+> Seine Formulierung, und sie ersetzt die grobe:
+>
+> **Ein Fall überlebt den Export, wenn die beiden Zahlen, die er vergleicht, aus verschiedenen
+> Quellen stammen.**
+
+| Fall                      | die zwei Zahlen                        | überlebt |
+| ------------------------- | -------------------------------------- | -------- |
+| `kontrolle-senkt-schaden` | zwei gerechnete Läufe                  | ja       |
+| `kontroll-leitung`        | payload-Zahl gegen `ReplayResult`-Zahl | ja       |
+| Frischeprüfung            | zweimal dieselbe Datei                 | nein     |
+
+**Die Bauart sieht man der Form an, die Quelle nicht.** Wer nach „liest die Datei ja/nein"
+sortiert, sortiert nach dem, was im Prüffall steht — nicht nach dem, was die Zahlen bedeutet.
+
 ### 8.70 Ein Fall, der die Mechanik prüft, prüft nicht die Leitung
 
 Am 2026-08-07 bei #605. Die Aufgabe: `controlSpent` und `controlFailed` sollen im
