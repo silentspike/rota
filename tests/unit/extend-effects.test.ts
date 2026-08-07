@@ -8,6 +8,33 @@
  * | HARDEN | `shieldExpiresAtMs` | eine Zahl |
  * | SEPSIS | `decayExpiryMs` | ein Feld mit **Nachrücken** |
  *
+ * # AC6 IST FÜR HARDEN NICHT ANWENDBAR — und das ist kein Versäumnis
+ *
+ * Das Kriterium verlangt zu messen, ob die Zauber in einer Rotation vorkommen
+ * und was sie wert sind. Für SEPSIS ist das gefahren (er kostet 156 Schaden:
+ * 1545 ohne ihn, 1389 mit).
+ *
+ * Für HARDEN geht es nicht: Der Balance-Läufer misst **ausgehenden** Schaden
+ * und Siege. HARDEN wirkt auf **eingehenden** Schaden — sein Wert taucht dort
+ * gar nicht auf, und eine Zahl daraus wäre keine Aussage über ihn.
+ *
+ * Dafür bräuchte es eine Messung über `damage_taken` oder überlebte Kämpfe.
+ * Ob der Läufer das kann, ist **nicht geprüft** — das gehört zum Werkzeug und
+ * nicht in dieses Vorhaben.
+ *
+ * Wie bei AC7 in #484 steht das hier statt als Haken: Ein Kriterium, das man
+ * nicht erfüllen kann, wird sonst entweder abgehakt oder blockiert ein
+ * fertiges Vorhaben.
+ *
+ * # Ein Werkzeug-Befund am Rande, der PUTREFACTION insgesamt betrifft
+ *
+ * Die Messrotation für SEPSIS musste **ohne Bedingung** auskommen: Der
+ * APL-Parser kennt die Zersetzungs-Stapel nicht (möglich sind nur `heat`,
+ * `resource`, `gcd`, `time`, `boss.*`, `cooldown.*`, `dot.*`). Eine
+ * PUTREFACTION-Rotation kann damit nicht auf ihre eigene Kernmechanik
+ * bedingen — gemessen wurde also im Blindflug: SEPSIS wird gedrückt, sobald er
+ * bereit ist, statt wenn Stapel liegen.
+ *
  * # Warum SEPSIS ALLE Stapel trifft, und um denselben Betrag
  *
  * `decayExpiryMs` ist aufsteigend sortiert, und das Nachrücken beim Verfall
