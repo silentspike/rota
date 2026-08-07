@@ -52,6 +52,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Umstellung geschieht nicht still, sondern hier und in
       // `spell-order.json` sichtbar (wie #268, #479).
       'scab',
+      'plate',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
@@ -62,6 +63,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'wedge',
       'tether',
       'capstone',
+      // Issue #519 — CLASP (zweiter Punktesammler) und LATCH (Verteidigung),
+      // ebenfalls bei ihrer Schule und deshalb dahinter. Ihr jeweiliger Zusatz
+      // fehlt noch und steht als Grund im `_comment` des Zaubers, nicht hier.
+      'clasp',
+      'latch',
       // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
       //
       // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in

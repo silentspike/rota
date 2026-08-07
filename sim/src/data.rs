@@ -24,7 +24,6 @@ pub struct Convert {
     pub per_second: u32,
 }
 
-
 /// Eine Schul-Mechanik: die Ressource, die sich auflaedt und wieder verfaellt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resource {

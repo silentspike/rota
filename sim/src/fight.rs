@@ -2694,7 +2694,13 @@ impl Fight {
         // ausgerechneten Betrag waere es nicht, und ein Zufallsstrom, der auf
         // den zwei Seiten verschieden oft gedreht wird, laesst den ganzen
         // folgenden Kampf auseinanderlaufen.
-        let teilt_schaden_aus = spell.base_damage > 0 || spell.spender.is_some();
+        // **Die Umwandlung zaehlt mit** (Issue #520): WEDGE und EFFLUX
+        // fuehren weder base_damage noch spender, teilen aber Schaden aus.
+        // Fehlte sie hier, wuerde der Krit-Wurf auf dieser Seite nicht
+        // gezogen — und ein Wuerfel, der verschieden oft gedreht wird, laesst
+        // den ganzen folgenden Kampf auseinanderlaufen.
+        let teilt_schaden_aus =
+            spell.base_damage > 0 || spell.spender.is_some() || self.pending_control_damage > 0;
         let kritet = teilt_schaden_aus && self.roll_crit();
         // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
         // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
@@ -2733,7 +2739,11 @@ impl Fight {
             let geteilt = self.split_spender;
             // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
             // zweimal 7, eine Hitze bleibt uebrig.
-            let pro_schlag = if geteilt { self.resource / 2 } else { self.resource };
+            let pro_schlag = if geteilt {
+                self.resource / 2
+            } else {
+                self.resource
+            };
             let schlaege = if geteilt { 2 } else { 1 };
 
             for _ in 0..schlaege {
@@ -2754,8 +2764,7 @@ impl Fight {
                 }
                 self.log
                     .push(now, LogKind::Spend, index as u8, u32::from(spent));
-                cast_damage +=
-                    self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
                 if geteilt {
                     self.resource -= spent;
                 } else {
