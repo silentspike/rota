@@ -100,14 +100,17 @@
   },
   "expected": {
     "damage": 2120,
+    "damageTaken": 2800,
+    "absorbed": 0,
+    "healed": 0,
+    "converted": 0,
+    "diedAtMs": 20000,
     "finalChecksum": 337713404,
     "sequenceChecksum": 1570605218,
     "finalDoom": 100,
     "finalDoomCharges": 2,
     "finalStacks": 4,
-    "finalPlayerHp": 0,
-    "damageTaken": 2800,
-    "diedAtMs": 20000
+    "finalPlayerHp": 0
   },
   "player": {
     "vessel": 5000,
