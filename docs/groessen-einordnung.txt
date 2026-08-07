@@ -1,0 +1,34 @@
+(c) wirkt ohne Wirkung   spender.bonusThreshold     pyroclasm
+(c) wirkt ohne Wirkung   shield.durationMs          scab
+(c) wirkt ohne Wirkung   shield.durationMs          plate
+(c) wirkt ohne Wirkung   shield.amount              plate
+(c) wirkt ohne Wirkung   resourceGain.heat          ember
+(c) wirkt ohne Wirkung   control.cost               wedge
+(c) wirkt ohne Wirkung   control.cost               stay
+(c) wirkt ohne Wirkung   control.cost               stall
+(c) wirkt ohne Wirkung   control.cost               latch
+(c) wirkt ohne Wirkung   control.cost               capstone
+(c) wirkt ohne Wirkung   control.cost               anchor
+(c) wirkt ohne Wirkung   control.amountPercent      anchor
+(c) wirkt ohne Wirkung   control.amountMs           stay
+(c) wirkt ohne Wirkung   control.amountMs           stall
+(c) wirkt ohne Wirkung   control.amountMs           latch
+(c) wirkt ohne Wirkung   control.amountMs           capstone
+(c) wirkt ohne Wirkung   buff.kind                  virulence
+(c) wirkt ohne Wirkung   buff.kind                  slag
+(c) wirkt ohne Wirkung   buff.kind                  quicksilver
+(c) wirkt ohne Wirkung   buff.kind                  griplock
+(c) wirkt ohne Wirkung   buff.kind                  flashpoint
+(c) wirkt ohne Wirkung   buff.kind                  distil
+(c) wirkt ohne Wirkung   buff.gcds                  griplock
+(c) wirkt ohne Wirkung   buff.gcds                  flashpoint
+(c) wirkt ohne Wirkung   buff.gcds                  distil
+(c) wirkt ohne Wirkung   buff.factor                griplock
+(c) wirkt ohne Wirkung   buff.factor                flashpoint
+(c) wirkt ohne Wirkung   buff.factor                distil
+
+Hebel                    17
+(a) nie gewirkt          0
+(c) wirkt ohne Wirkung   28
+
+(b) falsche Messgröße    0  — strukturell ausgeschlossen, siehe Dateikopf
