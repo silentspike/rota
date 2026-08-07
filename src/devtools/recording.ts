@@ -78,6 +78,29 @@ export interface ReplayResult {
    *
    * Dieselbe Bauart wie `boss_healed` vor #564: geführt, paritätsgesichert,
    * und im Werkzeug nicht abrufbar.
+   *
+   * # Wo sie in den Aufzeichnungen stehen — und wo nicht
+   *
+   * In **31 von 52**. Die übrigen entstehen nicht über die erweiterten
+   * Payload-Funktionen; dort fehlen die Felder, und das ist kein Fehler.
+   * Der Bestand hat drei Bauarten:
+   *
+   * ```text
+   *   presses + expected   39   ein Lauf je Datei
+   *   runs                  4   mehrere Läufe je Datei
+   *   anders                9   kein Kampflauf (z. B. buffs.json: `steps`)
+   * ```
+   *
+   * Wer „über alle Aufzeichnungen" misst, misst je nach Werkzeug 39, 43 oder
+   * 52. Genau daran ist meine erste Messung gescheitert — sie las die erste
+   * Bauart und nannte das Ergebnis „keine Aufzeichnung".
+   *
+   * # Ein Risiko für später
+   *
+   * Die Rust-Seite nimmt die neuen Felder an, weil `deny_unknown_fields`
+   * nicht gesetzt ist (gemessen: 89 Sammlungen, keine `unknown field`-Panik).
+   * Wer es später setzt — etwa um Tippfehler in Aufzeichnungen zu fangen —,
+   * bricht damit alle Dateien auf einmal, die diese Felder tragen.
    */
   readonly damageTaken: number;
   readonly absorbed: number;
