@@ -86,6 +86,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'alembic',
       'ascend',
       'decant',
+      'efflux',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',

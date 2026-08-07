@@ -52,7 +52,13 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
                 .iter()
                 .find(|s| s.id == row.id)
                 .expect("Zeile ohne Zauber");
-            !(spell.base_damage > 0 || spell.dot.is_some() || spell.spender.is_some())
+            // `convert` ist die vierte Schadensquelle (Issue #520, EFFLUX).
+            // Diese Pruefung kam mit dem Nachzug dazu und kannte sie nicht —
+            // die drei anderen Stellen waren schon ergaenzt.
+            !(spell.base_damage > 0
+                || spell.dot.is_some()
+                || spell.spender.is_some()
+                || spell.convert.is_some())
         })
         .map(|row| row.id)
         .collect();
@@ -61,6 +67,20 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
         "diese Zeilen stehen in der Tabelle, koennen aber keinen Schaden \
          machen — sie staenden dauerhaft als TOT darin: {ohne_schadensquelle:?}"
     );
+    for row in &table {
+        let spell = data::SPELLS
+            .iter()
+            .find(|s| s.id == row.id)
+            .expect("Zeile ohne Zauber");
+        assert!(
+            spell.base_damage > 0
+                || spell.dot.is_some()
+                || spell.spender.is_some()
+                || spell.convert.is_some(),
+            "{}: steht in der Schadens-Tabelle, kann aber keinen Schaden machen",
+            row.id
+        );
+    }
     // **Abgeleitet, nicht abgezaehlt** (Issue #97, nach dem Vorbild von #201).
     // Hier stand die Zahl 4 — eine Momentaufnahme des Zauberkastens, die bei
     // jedem neuen Zauber hochzusetzen waere. CANKER und FESTER haben sie rot
@@ -91,7 +111,9 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     let mit_schaden = data::SPELLS
         .iter()
         .filter(|s| s.unlock_level <= data::MAX_LEVEL as u16)
-        .filter(|s| s.base_damage > 0 || s.dot.is_some() || s.spender.is_some())
+        .filter(|s| {
+            s.base_damage > 0 || s.dot.is_some() || s.spender.is_some() || s.convert.is_some()
+        })
         .count();
     assert_eq!(
         table.len(),
