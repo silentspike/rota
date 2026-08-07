@@ -86,7 +86,10 @@ impl State {
         if spell == RESET_SPELL {
             // **Erst nach der eigenen Wirkung** — sonst waehlte sein eigener
             // Druck bereits, und zwar sich selbst.
-            self.modus.arm(spell);
+            // Eine Ladung — dieser Prueffall bildet den Ruecksetzer von vor
+            // #521 nach, und genau daran haengt die AC1-Gegenprobe: Bei 1
+            // muss er sich exakt wie vorher verhalten.
+            self.modus.arm(spell, 1);
         }
     }
 }

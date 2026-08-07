@@ -108,6 +108,8 @@ import {
   SUBLIMATION_NAME,
   wispPayload,
   WISP_NAME,
+  alembicPayload,
+  ALEMBIC_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -283,6 +285,14 @@ const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
 
+const alembic = alembicPayload();
+const alembicPath = join(here, 'recordings', `${ALEMBIC_NAME}.json`);
+writeFileSync(alembicPath, serialize(alembic), 'utf8');
+console.log(`geschrieben: ${alembicPath}`);
+console.log(
+  `  ALEMBIC   ${alembic.expected.alembicCasts} Wurf, ` +
+    `${alembic.expected.auswahlen} greifende Auswahlen`,
+);
 // Die gezielten Verkuerzer (Issue #518) — eigene Aufzeichnung, weil die
 // Sublimations-Aufzeichnung ihren eigenen Zweck hat und mit sieben Zaubern
 // keinen mehr zeigte.

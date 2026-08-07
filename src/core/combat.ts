@@ -2069,6 +2069,18 @@ export class Combat {
    */
   private resetArmedForValue: number = -1;
 
+  /**
+   * Wie viele Auswahlen noch offen sind (Issue #521).
+   *
+   * # Warum ein Zähler neben dem Index und nicht statt seiner
+   *
+   * Der Index sagt, WER scharf gestellt hat — das braucht die Prüfung „der
+   * Rücksetzer wählt sich nicht selbst" (AC4), und zwar bei **jeder** der
+   * Auswahlen, nicht nur bei der ersten. Der Zähler sagt, wie oft noch
+   * gewählt werden darf. Zwei Fragen, zwei Felder.
+   */
+  private resetChargesLeftValue = 0;
+
   /** Steht der Auswahlmodus scharf? Für Anzeige und Prüfung. */
   get resetArmed(): boolean {
     return this.resetArmedForValue >= 0;
@@ -2079,6 +2091,11 @@ export class Combat {
     return this.resetArmedForValue;
   }
 
+  /** Wie viele Auswahlen noch offen sind (Issue #521). */
+  get resetChargesLeft(): number {
+    return this.resetChargesLeftValue;
+  }
+
   /**
    * Nach einer Wirkung scharf stellen, wenn der Zauber ein Rücksetzer ist.
    *
@@ -2086,19 +2103,32 @@ export class Combat {
    * und der Rücksetzer würde nie gewirkt.
    */
   armResetIfNeeded(index: number): void {
-    if (this.spells[index]?.armsCooldownReset === true) this.resetArmedForValue = index;
+    const ladungen = this.spells[index]?.cooldownResetCharges ?? 0;
+    if (ladungen <= 0) return;
+    this.resetArmedForValue = index;
+    // **Überschreiben, nicht aufaddieren.** Wer einen zweiten Rücksetzer
+    // wirkt, während der erste noch scharf steht, hat den ersten verschenkt —
+    // dieselbe Regel wie bisher, nur jetzt mit Zahl. Aufaddieren wäre eine
+    // Vorratshaltung, die es in diesem Spiel nirgends gibt.
+    this.resetChargesLeftValue = ladungen;
   }
 
   /**
    * Ein Druck im Auswahlmodus: Er WÄHLT, statt zu wirken.
    *
    * @returns ob die Wahl eine Abklingzeit zurückgesetzt hat. `false` heisst
-   *   verpufft — der Rücksetzer ist trotzdem verbraucht.
+   *   verpufft — die Ladung ist trotzdem verbraucht.
    */
   chooseForReset(index: SpellIndex, timeMs: number): boolean {
-    // **Jede Wahl verbraucht den Rücksetzer** — auch eine falsche.
+    // **Jede Wahl verbraucht eine Ladung** — auch eine falsche.
     const selbst = index === this.resetArmedForValue;
-    this.resetArmedForValue = -1;
+    this.resetChargesLeftValue--;
+    // Erst wenn keine Ladung mehr offen ist, fällt der Auswahlmodus. Bei einer
+    // einzigen Ladung ist das genau das Verhalten von vorher.
+    if (this.resetChargesLeftValue <= 0) {
+      this.resetArmedForValue = -1;
+      this.resetChargesLeftValue = 0;
+    }
     // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
     this.gcd.trigger(timeMs);
     if (selbst || this.isOffCooldown(index, timeMs)) return false;
@@ -3775,7 +3805,17 @@ export class Combat {
     this.decayCountValue = 0;
     this.decayExpiryMs.fill(0);
     // Der Auswahlmodus gehoert zum Kampf und endet mit ihm (#528).
+    //
+    // **Und offene Ladungen enden hier mit** (Issue #521, AC3). Es gibt
+    // KEINEN Zeitverfall — das ist die bestehende Regel, nicht eine neue für
+    // ALEMBIC: Schon vorher wurde der Auswahlmodus ausschliesslich hier
+    // gelöscht, nie durch Ablauf einer Frist. Wer eine zweite Ladung nicht
+    // nutzt, verliert sie also mit dem Kampf und nicht vorher.
+    //
+    // Das steht hier ausdrücklich, weil der nächste Leser sonst einen Timer
+    // sucht, den es nie gab.
     this.resetArmedForValue = -1;
+    this.resetChargesLeftValue = 0;
 
     this.shieldValue = 0;
     this.shieldExpiresAtMs = -1;

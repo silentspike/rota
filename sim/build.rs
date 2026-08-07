@@ -501,14 +501,25 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         "        cooldown_reduction_ms: {},",
         opt_uint(spell, "cooldownReductionMs", &whose, 0)
     );
-    let _ = writeln!(
-        out,
-        "        arms_cooldown_reset: {},",
-        spell
-            .get("armsCooldownReset")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+    // **Eine ANZAHL statt eines Ja/Nein** (Issue #521). Die alte Form
+    // `armsCooldownReset: true` liest sich weiter als 1 — sonst verlöre ein
+    // Datensatz aus der Zeit davor still seine Wirkung, und der Bau meldete
+    // nichts.
+    let ladungen = spell
+        .get("cooldownResetCharges")
+        .and_then(Value::as_u64)
+        .or_else(|| {
+            spell
+                .get("armsCooldownReset")
+                .and_then(Value::as_bool)
+                .and_then(|ja| ja.then_some(1))
+        })
+        .unwrap_or(0);
+    assert!(
+        ladungen <= u64::from(u8::MAX),
+        "{whose}: cooldownResetCharges {ladungen} passt nicht in u8"
     );
+    let _ = writeln!(out, "        cooldown_reset_charges: {ladungen},");
     emit_dot(out, spell, &whose, resource_id);
     emit_buff(out, spell, &whose);
     emit_spender(out, spell, &whose, resource_id);
