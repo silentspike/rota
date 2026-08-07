@@ -972,6 +972,34 @@ verschiebt sich, und die Begründung dafür stammt von Worker-1:
 Das macht aus einer allgemeinen Sorge eine terminierte: **Das Netz muss stehen, bevor die
 Balance-Arbeit beginnt** — nicht danach.
 
+### Nachtrag: der Preis des Wartens ist jetzt bezifferbar
+
+_Ergänzt am 2026-08-07, nachdem Worker-3 acht Bosse gebaut hatte._
+
+Bisher stand hier die **Lage**, nicht der **Preis**. Er lautet inzwischen:
+
+```
+acht gebaute Bosse tragen `phases` und `energy` als leere Felder
+```
+
+Jeder dieser acht sieht aus, als hätte er einen Baustein mehr, als er hat. Worker-3s Satz:
+
+> Acht Bosse tragen inzwischen leere Felder, die wie Bausteine aussehen. Wenn die Bindungen
+> kommen, wirken sie rückwirkend — dann müsste ich alle acht neu messen.
+>
+> **Je später die Entscheidung, desto teurer.**
+
+Das ist keine Vermutung über die Zukunft, sondern eine Multiplikation: Jede Instanz, die vor der
+Entscheidung gebaut wird, kostet bei einer Bindung vier weitere Bosse Nachmessung. Instanz 3 und
+4 würden den Preis auf sechzehn heben.
+
+> **Die Richtung, in der es billig ist, ist eindeutig.** Wird entschieden, dass die drei
+> Kulisse bleiben, kostet das heute nichts — die Felder fallen aus den Datensätzen, und niemand
+> muss messen. Nur der andere Weg wird mit jedem Boss teurer.
+>
+> Das heißt nicht, dass er falsch wäre. Es heißt, dass die Entscheidung nicht dadurch billiger
+> wird, dass man sie aufschiebt.
+
 ---
 
 ## 19. „Tempo" ist heute keine spielbare Entscheidung — OFFEN
