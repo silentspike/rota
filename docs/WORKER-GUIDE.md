@@ -5433,9 +5433,13 @@ Zweig weiter als die Meldung, hier ist die Messung hinter dem Zweig.
 
 ### 8.80 Ein Check-Rollup führt Läufe, keine Zustände
 
-`gh pr view --json statusCheckRollup` liefert **jeden** Lauf, der jemals zu diesem Zweig gehörte —
-nicht den aktuellen Zustand je Prüfung. Wer darin nach „gibt es einen roten" filtert, findet jeden
-Fehlschlag, der inzwischen behoben wurde.
+`gh pr view --json statusCheckRollup` liefert **jeden Lauf zum aktuellen HEAD-Commit** — nicht den
+aktuellen Zustand je Prüfung. Wer darin nach „gibt es einen roten" filtert, findet jeden Fehlschlag,
+der auf diesem Commit inzwischen behoben wurde.
+
+Mehrere Läufe derselben Prüfung entstehen ohne neuen Commit: bei einem Rerun, und bei jedem
+Workflow, der auf ein PR-Ereignis statt auf einen Push hört. `pr-title-check` läuft bei `edited`
+erneut — eine Titel-Korrektur erzeugt also einen zweiten Eintrag neben dem ersten.
 
 Gemessen am 2026-08-07 an PR #647:
 
@@ -5471,3 +5475,46 @@ Messung zu verdächtigen. Dieselbe Asymmetrie wie in
 Werkzeug den Fehler liefert und nicht das Gedächtnis.
 
 **Vor dem Vorhalten nachsehen, nicht vorhalten und nachsehen lassen.**
+
+### 8.81 Eine Nachbildung misst die nachgebildete Seite nicht
+
+Wer zwei Umsetzungen vergleicht, muss **beide laufen lassen**. Eine Nachbildung der einen Seite in
+der Sprache der anderen ist ein Modell der eigenen Annahme — sie kann bestätigen, was man erwartet,
+und nichts sonst.
+
+Am 2026-08-07 gemessen, zur Frage, ob `Math.round` und `f64::round` je auseinandergehen:
+
+```
+node:  Math.round(x)   gegen   Math.sign(x) * Math.floor(Math.abs(x) + 0.5)
+                                ^^^ die NACHBILDUNG von f64::round
+Rust lief dabei nie.
+```
+
+Nachgefahren mit `rustc -O` auf demselben Wertebereich: **0 abweichende Zeilen von 1800.** Die
+Aussage trug — aus dem richtigen Grund erst beim zweiten Mal.
+
+> Der Satz des Messenden, und er ist die eigentliche Regel:
+>
+> **„Wäre das Ergebnis anders ausgefallen, hätte ich es gemerkt. Weil es gleich ausfiel, hätte die
+> falsche Grundlage überlebt."**
+
+Das ist die unangenehme Hälfte: **Eine falsche Methode fällt nur auf, wenn sie ein falsches Ergebnis
+liefert.** Liefert sie zufällig das richtige, wird sie zitiert, wandert in ein Issue und ist von
+einer echten Messung nicht mehr zu unterscheiden. Dieselbe Sitzung hatte am selben Tag schon einmal
+„faktisch ungeschützt" gemeldet, ohne den Rust-Bau je gefahren zu haben — dort war das Ergebnis
+falsch und fiel sofort auf.
+
+**Deshalb gehört zu jeder sprachübergreifenden Zahl das Wie, nicht nur das Was:**
+
+```
+rustc -O, 6 Intervalle (1000..8000) × 300 Faktoren (1.01..4.00),
+zeilenweiser Diff gegen node — 0 von 1800
+```
+
+Ohne diesen Zusatz kann der nächste Leser nicht unterscheiden, ob dahinter zwei Sprachen standen
+oder eine. Verwandt mit [8.75](#875-eine-mutation-die-ins-leere-läuft-ist-von-einer-widerlegung-nicht-zu-unterscheiden):
+dort läuft die Probe ins Leere, hier läuft sie gegen ein Spiegelbild.
+
+**Und die Grenze gehört dazu.** Synthetische Werte belegen die Rundung, nicht die Faktoren, die im
+Spiel tatsächlich entstehen — genau deshalb bleibt der Gleichheitsvergleich auf Fließkomma die
+offene Frage und nicht die Rundung.
