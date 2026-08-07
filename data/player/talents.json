@@ -37,6 +37,16 @@
           "maxRanks": 5,
           "damagePerRankPerMille": 15,
           "requires": "calcination-trunk"
+        },
+        {
+          "_comment": "DAS ERSTE SCHLUESSELTALENT (Issue #418). Es traegt KEINE Zahl, sondern ein VERHALTEN — das ist der ganze Unterschied zu den drei Wegen darueber, die alle 'damagePerRankPerMille' fuehren.\n\nDER WORTLAUT AUS DEM DESIGN (GAME-DESIGN 13.09): 'Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt dafuer ZWEIMAL.' Das ist Fall c aus dem Schnitt zu #418: Verhalten, nicht Zahlen (Fall a) und nicht die Zauberliste (Fall b).\n\nWARUM 'keystone' UND NICHT EIN WEITERES ZAHLENFELD: Ein Schluesseltalent, das sich als Faktor ausdruecken laesst, ist keines — es waere ein Faktor mit einem grossen Namen. Der Nachweis dafuer ist AC3: Ohne das Talent muss sich der Lauf in der REIHENFOLGE oder im VERBRAUCH unterscheiden, nicht nur in der Schadenszahl.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge. Es ist an oder aus.",
+          "id": "calcination-keystone",
+          "name": "Split Release",
+          "path": "release",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "calcination-release",
+          "keystone": "split-spender"
         }
       ]
     }

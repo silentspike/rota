@@ -50,7 +50,13 @@ import {
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
-import { NO_TALENTS, talentFactor, type TalentAllocation } from '../progression/talents.js';
+import {
+  hasKeystone,
+  KEYSTONE_SPLIT_SPENDER,
+  NO_TALENTS,
+  talentFactor,
+  type TalentAllocation,
+} from '../progression/talents.js';
 
 /**
  * Die Faktoren, wie `Combat` sie INTERN haelt (Issue #196).
@@ -480,6 +486,12 @@ export class Combat {
   private readonly resourceBuffs = new Buffs();
   private readonly tickBuffs = new Buffs();
   private readonly stackBuffs = new Buffs();
+  /** Verstärkt, was ein Zauber an Abklingzeit verkürzt (DISTIL, E10). */
+  private readonly cdReduceBuffs = new Buffs();
+  /** Verstärkt die Umwandlungsrate Schaden → Schild (QUICKSILVER, E10). */
+  private readonly convertBuffs = new Buffs();
+  /** Hebt die Obergrenze des Vorrats befristet an (SLAG, Issue #490). */
+  private readonly capBuffs = new Buffs();
   /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
@@ -1116,6 +1128,18 @@ export class Combat {
     return this.worn;
   }
 
+  /**
+   * Ob ein Schlüsseltalent dieses Verhalten freigeschaltet hat (Issue #418).
+   *
+   * **Aus der Verteilung abgeleitet, nicht mitgeführt.** Ein zweites Feld
+   * `private splitSpender = false` müsste in `setTalents` und in `reset`
+   * nachgezogen werden — zwei Stellen, an denen es auseinanderlaufen kann.
+   * Die Ableitung kann das nicht: Sie liest immer den Stand, der gilt.
+   */
+  hasKeystone(keystone: string): boolean {
+    return hasKeystone(this.talents, keystone);
+  }
+
   setTalents(allocation: TalentAllocation): void {
     // **Vollsperre, aus demselben Grund wie bei `setWorn`:** Talente setzen
     // einen Schadensfaktor, und ein Faktor, der sich mitten im Kampf ändert,
@@ -1649,7 +1673,12 @@ export class Combat {
   private convertDamageToShield(damage: number, timeMs: number): void {
     if (this.conversionPercentValue === 0 || damage <= 0) return;
     if (timeMs - this.fightStartedAtMs > this.conversionUntilMs) return;
-    const gewonnen = Math.floor((damage * this.conversionPercentValue) / 100);
+    // **Der Faktor aus `convertBuffs`** (QUICKSILVER, E10). Gelesen bei jedem
+    // Schaden, solange die Umwandlung läuft — dieselbe Lage wie oben.
+    const satz = Math.round(
+      this.conversionPercentValue * this.convertBuffs.factor(this.nowMsForBuffs),
+    );
+    const gewonnen = Math.floor((damage * satz) / 100);
     if (gewonnen <= 0) return;
     this.shieldValue += gewonnen;
     this.convertedValue += gewonnen;
@@ -1707,6 +1736,9 @@ export class Combat {
     this.resourceBuffs.expire(timeMs);
     this.tickBuffs.expire(timeMs);
     this.stackBuffs.expire(timeMs);
+    this.cdReduceBuffs.expire(timeMs);
+    this.convertBuffs.expire(timeMs);
+    this.capBuffs.expire(timeMs);
     if (this.buffs.expire(timeMs) === 0) return;
     this.updateBuffFactor(timeMs);
   }
@@ -1723,6 +1755,12 @@ export class Combat {
         return this.tickBuffs;
       case 'stack':
         return this.stackBuffs;
+      case 'cdreduce':
+        return this.cdReduceBuffs;
+      case 'convert':
+        return this.convertBuffs;
+      case 'cap':
+        return this.capBuffs;
       default:
         // `damage` und `undefined` — so waren alle Verstärkungen vor #489
         // gemeint, und ein fehlendes Feld soll weiter das Alte tun.
@@ -1884,7 +1922,10 @@ export class Combat {
       this.controlBuffs.windowSum() +
       this.resourceBuffs.windowSum() +
       this.tickBuffs.windowSum() +
-      this.stackBuffs.windowSum()
+      this.stackBuffs.windowSum() +
+      this.cdReduceBuffs.windowSum() +
+      this.convertBuffs.windowSum() +
+      this.capBuffs.windowSum()
     );
   }
 
@@ -2986,15 +3027,36 @@ export class Combat {
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
-      const amount = this.resourceValue;
-      let raw = spender.damagePerPoint * amount;
-      if (amount >= spender.bonusThreshold) {
-        // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
-        raw *= spender.bonusMultiplier;
-        outcome.bonusApplied = true;
+      // **Das erste Schlüsseltalent** (Issue #418, GAME-DESIGN 13.09): „Der
+      // Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+      // ZWEIMAL."
+      //
+      // Es trägt keine Zahl, sondern schaltet ein Verhalten um — deshalb
+      // steht hier eine Verzweigung und kein Faktor. Ein Schlüsseltalent, das
+      // sich als Faktor ausdrücken ließe, wäre keines.
+      const geteilt = this.hasKeystone(KEYSTONE_SPLIT_SPENDER);
+      // **Ganzzahlig geteilt, und der Rest bleibt liegen** (GAME-DESIGN 18.4).
+      // Bei 15 Hitze verbraucht jede Hälfte 7, eine bleibt übrig — nicht 7,5.
+      const proSchlag = geteilt ? Math.floor(this.resourceValue / 2) : this.resourceValue;
+      const schlaege = geteilt ? 2 : 1;
+
+      for (let i = 0; i < schlaege; i++) {
+        // **Der Vorrat wird VOR dem zweiten Schlag verbraucht**, sonst
+        // rechnete der zweite mit demselben Stand wie der erste — und aus
+        // „halb, dafür zweimal" würde „ganz, dafür zweimal".
+        const amount = geteilt ? Math.min(proSchlag, this.resourceValue) : this.resourceValue;
+        if (geteilt && amount === 0) break;
+
+        let raw = spender.damagePerPoint * amount;
+        if (amount >= spender.bonusThreshold) {
+          // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
+          raw *= spender.bonusMultiplier;
+          outcome.bonusApplied = true;
+        }
+        damage += computeDamage(raw, castFactors);
+        if (geteilt) this.resourceValue -= amount;
+        else if (spender.consumesAll) this.resourceValue = 0;
       }
-      damage += computeDamage(raw, castFactors);
-      if (spender.consumesAll) this.resourceValue = 0;
     }
 
     if (damage > 0) {
@@ -3156,7 +3218,12 @@ export class Combat {
 
   /** Was ein Zauber laut seinen Daten an Abklingzeit verkürzt (E3-3). */
   reductionOfSpell(spellIndex: number): number {
-    return this.spells[spellIndex]?.cooldownReductionMs ?? 0;
+    const roh = this.spells[spellIndex]?.cooldownReductionMs ?? 0;
+    // **Der Faktor aus `cdReduceBuffs`** (DISTIL, E10). Hier wird bei JEDEM
+    // Wirken neu geholt — deshalb trägt ein zeitlich begrenzter Faktor an
+    // dieser Stelle. Gemessen vor dem Bau: `shield.durationMs` tut das
+    // NICHT (einmal beim Anlegen), und HARDEN gehört deshalb nicht hierher.
+    return roh === 0 ? 0 : Math.round(roh * this.cdReduceBuffs.factor(this.nowMsForBuffs));
   }
 
   /**
@@ -3200,9 +3267,21 @@ export class Combat {
     return touched;
   }
 
+  /**
+   * Die Obergrenze des Vorrats, wie sie JETZT gilt (SLAG, Issue #490).
+   *
+   * **Eine Stelle, nicht zwei.** `resource.cap` wurde an zwei Orten gelesen
+   * (Auffüllen und Setzen); ein Faktor an nur einem hätte eine Grenze
+   * ergeben, die beim Auffüllen anders ist als beim Setzen — und der
+   * Unterschied fiele erst auf, wenn jemand das Werkzeug benutzt.
+   */
+  private get resourceCap(): number {
+    return Math.round(this.school.resource.cap * this.capBuffs.factor(this.nowMsForBuffs));
+  }
+
   private addResource(amount: number): void {
     if (amount === 0) return;
-    const cap = this.school.resource.cap;
+    const cap = this.resourceCap;
     const before = this.resourceValue;
     const raised = before + amount;
     this.resourceValue = raised > cap ? cap : raised;
@@ -3237,7 +3316,7 @@ export class Combat {
   /** Vorrat setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
   setResource(value: number): void {
     if (!__ROTA_DEVTOOLS__) return;
-    const cap = this.school.resource.cap;
+    const cap = this.resourceCap;
     this.resourceValue = value < 0 ? 0 : value > cap ? cap : value;
   }
 
@@ -3299,6 +3378,9 @@ export class Combat {
     this.resourceBuffs.reset();
     this.tickBuffs.reset();
     this.stackBuffs.reset();
+    this.cdReduceBuffs.reset();
+    this.convertBuffs.reset();
+    this.capBuffs.reset();
     this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;
