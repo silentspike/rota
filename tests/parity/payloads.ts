@@ -310,6 +310,15 @@ export const WISP_NAME = 'wisp-verkuerzung';
  */
 export const ALEMBIC_NAME = 'alembic-zwei-ladungen';
 
+/**
+ * Vergleichsdatei für den Vorrat über dem gefallenen Deckel (#549).
+ *
+ * Keine der bisherigen Aufzeichnungen fährt diese Folge — sonst wäre der
+ * Simulator längst abgestürzt. Der Zustand ist im Spiel mit vier
+ * Tastendrücken erreichbar, und die Parität sah ihn nicht.
+ */
+export const DECKEL_NAME = 'deckel-gefallen';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -2187,6 +2196,106 @@ const ALEMBIC_BINDINGS = [
  * verpufft (die bestehende Regel) — sie stünde in der Spur, ohne etwas zu
  * bewegen, und der Fall belegte nichts.
  */
+/** Die Leiste der Deckel-Aufzeichnung — VOR der Funktion (Issue #405). */
+const DECKEL_BINDINGS = [
+  { slot: 0, spellId: 'slag' },
+  { slot: 1, spellId: 'bellows' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * Der Vorrat steht über dem Deckel, und es wird weiter erzeugt (Issue #549).
+ *
+ * # Warum es diese Aufzeichnung geben muss
+ *
+ * SLAG hebt die Hitze-Grenze von 20 auf 30. Wer im Fenster über 20 sammelt
+ * und es ablaufen lässt, steht über dem dann wieder geltenden Deckel — und
+ * genau dort rechneten beide Seiten verschieden: Der Simulator stürzte ab
+ * (u16-Subtraktion), das Spiel zählte still falsch.
+ *
+ * **Keine der 33 Aufzeichnungen fuhr diese Folge**, sonst wäre der Fehler
+ * längst aufgefallen. Der Zustand braucht vier Tastendrücke; die Parität sah
+ * ihn trotzdem nicht.
+ *
+ * # Die Takte sind nicht beliebig
+ *
+ * SLAGs Fenster hält vier GCDs, also 6000 ms. Der vierte BELLOWS-Wurf fällt
+ * **nach** Tick 600 — vorher greift der erhöhte Deckel und der Fall zeigt
+ * nichts. Ein Wurf kurz davor steht als Gegenprobe in
+ * `sim/tests/slag_wirkung.rs`.
+ *
+ * Und er darf nicht zu spät kommen: Der Verfall (1 je 2000 ms) zieht den
+ * Vorrat von selbst unter den Deckel. Genau daran ist der Versuch des
+ * Orchestrators über den Balance-Läufer gescheitert.
+ */
+export function deckelPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const slag = combat.indexOf('slag');
+  const bellows = combat.indexOf('bellows');
+  const kindle = combat.indexOf('kindle');
+  const ticks = 1200; // 12 s
+
+  const slots = slotMap(combat, DECKEL_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Vorrat je Takt — die Grösse, um die es hier geht. */
+  const vorrat: number[] = [];
+  /** Der Überlauf-Zähler je Takt; er sprang vor #549 um 12 statt um 8. */
+  const ueberlauf: number[] = [];
+
+  // **Feste Takte statt einer Auswahl-Kette.** Der Fall lebt davon, dass der
+  // vierte Wurf NACH dem Fensterende liegt; eine Bedingung wie „wenn bereit"
+  // träfe ihn nur zufällig.
+  const drueckt = new Map<number, number>([
+    [0, slag],
+    [160, bellows],
+    [310, bellows],
+    [460, bellows],
+    [610, bellows], // nach dem Fensterende (Tick 600)
+    [760, kindle],
+  ]);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      vorrat.push(combat.resource);
+      ueberlauf.push(combat.resourceOverflow);
+      break;
+    }
+    const gewaehlt = drueckt.get(tick);
+    if (gewaehlt !== undefined && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    vorrat.push(combat.resource);
+    ueberlauf.push(combat.resourceOverflow);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: DECKEL_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: DECKEL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    vorrat,
+    ueberlauf,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /** Höchster Vorrat im Lauf — er muss über den Grund-Deckel gekommen sein. */
+      hoechsterVorrat: Math.max(...vorrat),
+      resourceOverflow: combat.resourceOverflow,
+    },
+  };
+}
+
 export function alembicPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');

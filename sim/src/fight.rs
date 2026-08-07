@@ -3156,7 +3156,26 @@ impl Fight {
         // (`setResource`) existiert im Simulator nicht. Im Spiel sind es zwei,
         // und dort rechnet ein Getter sie an einer Stelle.
         let cap = (f64::from(RESOURCE.cap) * self.cap_buffs.factor(self.time)).round() as u16;
-        self.resource = (before + amount).min(cap);
+        // **Ein Erzeuger nimmt NIE weg** (Issue #549).
+        //
+        // Faellt der Deckel unter den stehenden Vorrat — SLAG hebt ihn von 20
+        // auf 30, das Fenster laeuft ab —, dann haette `min` gesenkt:
+        //
+        //     vorrat 24, Deckel wieder 20, BELLOWS gibt 8
+        //       min(24 + 8, 20) = 20      netto MINUS vier
+        //       max(24, min(...)) = 24    er bleibt, wo er ist
+        //
+        // Hier stuerzte der Simulator ab, waehrend das Spiel still falsch
+        // zaehlte: `self.resource - before` lief als u16 ueber. Reproduziert
+        // mit BELLOWS auf Tick 610 gegen 590.
+        //
+        // Der Absturz verschwindet damit als NEBENWIRKUNG, nicht als
+        // Behebung. Ein `saturating_sub` haette ihn auch abgefangen und die
+        // Frage offengelassen, was gelten soll — und die zwei Seiten haetten
+        // weiter verschiedene Zahlen fuehren koennen.
+        self.resource = (before + amount).min(cap).max(before);
+        // Der Zaehler nimmt nur, was von DIESER Erzeugung nicht ankam. Die
+        // Klammer ist mit der Regel oben nie mehr negativ.
         self.resource_overflow += u32::from(amount - (self.resource - before));
     }
 
