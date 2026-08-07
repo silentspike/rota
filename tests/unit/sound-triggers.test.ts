@@ -110,9 +110,14 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   //
   // Klaenge entstehen ueber Suno (docs/suno-sfx.md) und werden vom
   // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
-  // Nur die beiden Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die
-  // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
-  // aus #420. Alle 17 spielbaren Zauber klingen.
+  // Dazu die Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die kein
+  // Spieler je auf die Leiste legt: `test-cast` (#304), `test-buff` (#420),
+  // die sechs Ziel-Prüfer aus #489/E10 und `test-cap` (#562). Alle spielbaren
+  // Zauber klingen.
+  //
+  // Der Satz hier nannte bis #562 „die beiden Prüf-Zauber" und stand über einer
+  // Liste, die längst acht führte — wer ihn las, hielt die anderen für
+  // klingend.
   const STUMM = new Set([
     // VORLAEUFIG (Issue #523): HARDEN und SEPSIS sind gebaut, ihre Klaenge
     // entstehen ausserhalb dieses Zweigs (#487). Die Gegenrichtung unten holt
@@ -192,6 +197,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'test-stack',
     'test-cdreduce',
     'test-convert',
+    'test-cap',
   ]);
 
   it('findet für jeden Zauber genau einen Klang', () => {

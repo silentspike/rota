@@ -5410,3 +5410,111 @@ export function instance2Payload(bossId: string, name: string): Record<string, u
     checksums: result.checksums,
   };
 }
+
+export const CAP_STAPELUNG_NAME = 'cap-stapelung';
+
+const CAP_STAPELUNG_BINDINGS = [
+  { slot: 0, spellId: 'slag' },
+  { slot: 1, spellId: 'test-cap' },
+  { slot: 2, spellId: 'bellows' },
+  { slot: 3, spellId: 'pyre' },
+  { slot: 4, spellId: 'kindle' },
+] as const;
+
+/**
+ * Zwei Verstärkungen VERSCHIEDENER Art auf derselben Zielgröße (Issue #562).
+ *
+ * # Die erste Lage dieser Art im ganzen Bestand
+ *
+ * Von dreizehn Verstärkern trägt genau einer `kind: 1` — SLAG, allein im
+ * Speicher `cap`. `test-cap` (`kind: 0`) ist sein erster Partner. Vorher
+ * konnte keine Aufzeichnung zeigen, dass zwei verschiedene Arten in EINEM
+ * Speicher nebeneinander bestehen.
+ *
+ * # Was diese Aufzeichnung belegt — und was NICHT
+ *
+ * **Nicht den Deckel.** Gemessen: BELLOWS gibt 8 je Wartezeit, der Verfall
+ * nimmt 1 je 2000 ms. Bis zum gestapelten Deckel von 60 wären es rund neun
+ * Wartezeiten; das längste Fenster hält vier. Der Vorrat erreicht die
+ * angehobene Grenze also nie, und der Schaden ist mit und ohne Stapelung
+ * derselbe. Das ist ein Balance-Befund (schon in #547 als solcher notiert),
+ * kein Fehler dieser Aufzeichnung — und der Grund, warum die Wirkung im
+ * Unit-Fall `buff-stapelung-ueber-zauber.test.ts` über `setResource` gemessen
+ * wird und nicht hier.
+ *
+ * **Sondern die Fenstersumme.** `combatChecksum` mischt `buffWindowSum` ein,
+ * und die zählt `capBuffs.windowSum()` mit (`combat.ts`, `buffWindowSum`).
+ * Diese Summe ist die Summe der Ablaufzeiten ALLER offenen Arten:
+ *
+ * ```text
+ *   beide Arten offen (Stapelung)      6000 + 6000 = 12000
+ *   eine verdrängt die andere           6000
+ * ```
+ *
+ * Damit steht die Regel in der Prüfsumme — Takt für Takt, auf beiden Seiten.
+ * Legte der Simulator den zweiten Buff nicht an, oder unter derselben Art,
+ * liefen die Prüfsummen auseinander.
+ *
+ * # Warum die Kette fest steht
+ *
+ * Die Reihenfolge IST die Aussage: Beide Verstärker müssen offen sein, wenn
+ * BELLOWS erzeugt. Eine Auswahl nach Bereitschaft könnte sie umstellen, und
+ * die Überlappung wäre dahin — genau der Fehler, den `recordBuffTargets`
+ * beschreibt (dort fielen von fünf Umbiegungen nur drei auf, weil die
+ * Erzeuger hinten angehängt waren).
+ */
+function recordCapStapelung(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, CAP_STAPELUNG_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // SLAG hält vier Wartezeiten (bis 6000), test-cap drei ab seinem Wurf
+  // (1500 + 4500 = 6000). Ab 3000 sind beide offen, und dort erzeugt BELLOWS.
+  const kette = ['slag', 'test-cap', 'bellows', 'bellows', 'pyre'];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    const stelle = Math.floor(timeMs / 1500);
+    // Nach der Kette weiter mit den Erzeugern, damit der Lauf nicht leer
+    // ausklingt und die Prüfsumme über den Fenstern hinaus vergleicht.
+    const id = stelle < kette.length ? kette[stelle] : ['bellows', 'kindle'][stelle % 2];
+    const i = idx(id as string);
+    if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+  }
+
+  return { name: CAP_STAPELUNG_NAME, seed: 0, ticks, presses, bindings: CAP_STAPELUNG_BINDINGS };
+}
+
+export function capStapelungPayload(): Record<string, unknown> {
+  const recording = recordCapStapelung(1200);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: CAP_STAPELUNG_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}

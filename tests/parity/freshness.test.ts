@@ -87,6 +87,7 @@ import eingecheckterBoss2 from './recordings/instance1-boss-2.json';
 import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
 import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
+import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -136,6 +137,7 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   buffTargetsPayload,
+  capStapelungPayload,
   instance1Payload,
   instance2Payload,
   cinderPayload,
@@ -235,6 +237,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('die Verstärkungs-Runde entspricht dem heutigen Spielstand', () => {
     // Die fünf Zauber aus #540 werden nur hier gewirkt.
     expect(eingecheckteZielgroessen, HINWEIS).toEqual(buffTargetsPayload());
+  });
+
+  it('die Stapel-Runde entspricht dem heutigen Spielstand', () => {
+    // SLAG und `test-cap` treffen nur hier aufeinander (Issue #562) — die
+    // einzige Lage im Bestand, in der zwei verschiedene Verstaerkungs-Arten
+    // EINEN Speicher teilen.
+    expect(eingecheckteCapStapelung, HINWEIS).toEqual(capStapelungPayload());
   });
 
   it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
@@ -667,6 +676,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'buff-targets',
+  'cap-stapelung',
   'cinder-ticks',
   'instance2-boss-1',
   'instance2-boss-2',
