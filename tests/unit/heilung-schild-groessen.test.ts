@@ -34,7 +34,14 @@ import { CALCINATION, bossById, FIRST_CRUCIBLE } from '../../src/core/data.js';
  * vollen Betrag ab, ohne an der Obergrenze zu klemmen.
  */
 
-const NEHMEND = bossById('test-onslaught');
+// **Nicht `bossById(...)!`.** Fehlt der Boss, soll die Datei mit dieser
+// Meldung brechen statt mit „cannot read properties of undefined" tief im
+// Kampf — dort wäre die Ursache nicht mehr abzulesen.
+const NEHMEND =
+  bossById('test-onslaught') ??
+  (() => {
+    throw new Error('Boss test-onslaught fehlt — ohne ihn nimmt der Spieler keinen Schaden');
+  })();
 
 /** Der Zeitpunkt, an dem genug fehlt und noch Leben da ist. */
 const NACH_MS = 10000;
