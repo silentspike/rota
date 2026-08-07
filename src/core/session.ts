@@ -84,6 +84,89 @@ export const NEVER = -1;
 
 export type { FeedbackSink };
 
+/**
+ * WELCHE REGELN HIER LIEGEN, UND WAS DIE PARITÄT DAVON SIEHT (#528 AC5).
+ *
+ * Der Rücksetzer lag bis #528 hier — im Spiel eine Schicht über seiner eigenen
+ * Wirkung, im Simulator im Kampf. Die Frage von AC5 war, ob es weitere gibt.
+ *
+ * **Gemessen, nicht durchgesehen.** Für jeden Kandidaten wurde geprüft, ob
+ * eine Abweichung auffällt — indem sie eingebaut und die Suite gefahren wurde.
+ *
+ * | Regel | Ort | Sieht die Parität sie? |
+ * | --- | --- | --- |
+ * | Rücksetzer scharf stellen | `apply` ruft `combat.armResetIfNeeded` | **JA** |
+ * | Auswahl statt Wirkung | `apply`, `chose ? chooseForReset : cast` | **JA** |
+ * | Kampfende fortschreiben | `tick` ruft `combat.checkDefeat` | **NEIN — bewusst** |
+ * | Phase (Vorbereitung/Kampf) | `apply`, `phaseValue === PHASE_FIGHTING` | entfällt |
+ * | Belegung der Leiste | `bindings` | **JA** |
+ *
+ * # Die zwei, die die Parität sieht — und wie das gemessen wurde
+ *
+ * `armResetIfNeeded` wird HIER gerufen, nicht in `Combat.cast`. Eine
+ * Aufzeichnung, die `Combat` direkt fährt, muss den Aufruf nachbilden. Der
+ * Verdacht war, dass ein Vergessen unbemerkt bliebe — er ist **widerlegt**:
+ * Wird der Aufruf aus `alembicPayload` entfernt und neu exportiert, fallen
+ * vier von fünf Fällen in `sim/tests/parity_alembic.rs`, darunter die
+ * Prüfsumme je Takt.
+ *
+ * Seit es Aufzeichnungen mit Rücksetzer gibt (#521, #528), ist diese Regel
+ * also abgedeckt. Vorher war sie es nicht — nicht weil sie hier liegt,
+ * sondern weil keine Aufzeichnung sie fuhr.
+ *
+ * # Der eine blinde Fleck ist bekannt und gewollt
+ *
+ * `checkDefeat` schreibt den Kampfzustand fort. **Keine Aufzeichnung ruft
+ * es** — `sim/src/fight.rs` hält `FIGHT_RUNNING` deshalb bewusst konstant,
+ * und der Kommentar dort nennt den Grund: Die Zustands-Prüfsumme rührt das
+ * Feld ein, ein hier gesetzter Sieg-Zustand ergäbe ab dem Sieg-Takt eine
+ * abweichende Prüfsumme, ohne dass eine Regel anders gerechnet wäre.
+ *
+ * Das ist der Unterschied zum Rücksetzer: Dort war die Trennung gewachsen und
+ * unbemerkt, hier ist sie entschieden und aufgeschrieben.
+ *
+ * # Was NICHT hierher gehört, und warum die Liste kurz ist
+ *
+ * Die übrigen Felder dieser Klasse sind Auswertung (`accepted`, `rejected`,
+ * `idleTicks`, `resetsApplied`) oder Anzeige. Sie ändern den Kampfverlauf
+ * nicht und können deshalb auch nicht von ihm abweichen.
+ *
+ * Vier davon wurden ausdrücklich als Kandidaten genannt und einzeln
+ * nachgesehen:
+ *
+ * ```text
+ * idleTicksWithReady      3 Stellen: Getter, Zählung, Reset      ZÄHLER
+ * idleTicksNothingReady   3 Stellen: dieselben                   ZÄHLER
+ * outcomeValue            5 Stellen: Getter, Anzeige, finish()   ZÄHLER
+ * phaseValue             18 Stellen, MEHRERE steuernd            REGEL
+ * ```
+ *
+ * Die drei Zähler werden nirgends in einer Bedingung gelesen, die den Ablauf
+ * steuert.
+ *
+ * # `phaseValue`: meine erste Zahl war falsch, und die Mutation hat es gezeigt
+ *
+ * Ich hatte „eine von 18 Stellen mit Wirkung" gezählt — das Ergebnis eines
+ * Filters auf dieselbe Zeile, nicht einer Messung. Tatsächlich steuern
+ * mindestens vier: der Takt-Ablauf (`fighting`), die Flanken-Erkennung, die
+ * Leerlauf-Zählung und die Annahme eines Drucks in `apply`.
+ *
+ * Die Mutation an der `apply`-Stelle (Bedingung entfernt) **meldet**:
+ *
+ * ```text
+ * tests/unit/fight-flow.test.ts   3 Fälle fallen
+ * ```
+ *
+ * # Und sie zeigt zugleich, warum die Zeile oben „entfällt" sagt
+ *
+ * Gefangen hat es ein **Unit-Test**, kein Paritäts-Fall. Das ist kein Mangel:
+ * Der Simulator kennt keine Phasen — er beginnt im Kampf. Eine Regel, die es
+ * auf der anderen Seite gar nicht gibt, kann die Parität nicht prüfen, und
+ * sie muss es auch nicht.
+ *
+ * Der Unterschied zum Rücksetzer: Der hatte auf beiden Seiten eine
+ * Entsprechung und lag nur verschieden. `phaseValue` hat keine.
+ */
 export class Session implements Simulation {
   readonly latency = new LatencyTrace();
 
