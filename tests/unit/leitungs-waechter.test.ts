@@ -106,7 +106,6 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   endedAt: 'Uhrzeit — das Ende steht in killedAtMs und diedAtMs',
   castingStartedAtMs: 'Zwischenstand eines laufenden Zaubers',
   castingName: 'Anzeige-Text',
-  cycle: 'Anzeige der Zeitleisten-Runde',
   playerDead: 'gedeckt: diedAtMs sagt dasselbe und mehr',
 
   // ---- Absicht: Zwischenstand, am Laufende bedeutungslos -------------------
@@ -114,22 +113,32 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   resetArmedFor: 'Zwischenstand',
   resetChargesLeft: 'Zwischenstand',
   vulnerability: 'Zwischenstand',
-  stabilised: 'Zwischenstand des Rennens',
   raceWon: 'Zwischenstand des Rennens',
 
   // ---- OFFENE BEFUNDE: kumulative Zähler ohne Leitung ---------------------
   //
-  // **Das sind die, um die es geht.** Sie zählen über den ganzen Lauf und
-  // kommen nirgends an — dieselbe Sorte wie controlFailed vor #605.
-  interruptsMissed:
-    'OFFEN — verpasste Unterbrechungen. An dieser Grösse hängt bossHeal (#609), ' +
-    'und sie ist die einzige Anforderung, die heute JEDER Boss stellt. Dass sie in ' +
-    'keiner Aufzeichnung ankommt, ist der Grund, warum niemand messen kann, ob ein ' +
-    'Boss seine Unterbrechungen tatsächlich verlangt.',
-  interruptsLanded: 'OFFEN — Gegenstück zu interruptsMissed, steht nur im RunSummary',
-  castsInterrupted: 'OFFEN — abgebrochene Spieler-Zauber (#304), kein Weg ins Ergebnis',
-  castsCancelled: 'OFFEN — abgebrochene Wirkzeiten, kein Weg ins Ergebnis',
-  bossEnergyTriggers: 'OFFEN — wie oft die Energieleiste ausgelöst hat',
+  // **Hier standen bis #619 fünf Namen.** Sie haben jetzt eine Leitung, und
+  // ihre Einträge sind mit ihr verschwunden — `interruptsMissed`,
+  // `interruptsLanded`, `castsInterrupted`, `castsCancelled`, `cycle` und
+  // `stabilised`.
+  //
+  // Das war kein Aufräumen nebenbei: Der Fall „AC3 — die Gegenrichtung" wurde
+  // ROT, als die Leitungen lagen, und blieb es, bis die Einträge weg waren.
+  // Genau dafür gibt es ihn. Ohne ihn behaupteten sechs Zeilen weiter, es gebe
+  // keine Leitung.
+  // **„OFFEN" kann zwei Dinge heissen**, und das ist bei #619 aufgefallen:
+  //
+  //   KEINE LEITUNG        die Grösse kommt nicht ins ReplayResult
+  //   NIRGENDS VERGLICHEN  sie kommt nirgends an, auch nicht über ein
+  //                        von Hand eingetragenes `expected`
+  //
+  // Bei den sechs aus #619 galt das erste für alle, das zweite nur für
+  // `stabilised`. Ich hatte beides in einer Zeile zusammengezogen und dabei
+  // die schärfere Aussage verloren. Jeder Eintrag sagt deshalb, welches gilt.
+  bossEnergyTriggers:
+    'OFFEN (keine Leitung UND nirgends verglichen) — wie oft die Energieleiste ' +
+    'ausgelöst hat. Anders als die sechs aus #619 führt Rust ihn nicht, also ist ' +
+    'er auch dort keine Lücke: Er hat auf keiner Seite einen Weg.',
 };
 
 function getterVonCombat(): string[] {
@@ -224,9 +233,18 @@ describe('Jeder Combat-Getter hat einen Weg oder eine Begründung', () => {
       offen.length,
       'kein einziger offener Befund — dann ist die Liste geschönt',
     ).toBeGreaterThan(0);
-    expect(
-      EINORDNUNG['interruptsMissed'],
-      'interruptsMissed fehlt oder gilt als Absicht',
-    ).toContain('OFFEN');
+    // **Diese Zusicherung hing bis #619 an einem NAMEN** (`interruptsMissed`),
+    // und der ist gewandert, als er eine Leitung bekam — der Fall wurde rot
+    // und meldete einen Fehler, der keiner war.
+    //
+    // Eine Zusicherung, die einen konkreten offenen Befund nennt, altert mit
+    // seiner Behebung. Jetzt hängt sie an der EIGENSCHAFT: Jeder OFFEN-Eintrag
+    // muss sagen, was fehlt. Ein blosses „OFFEN" ohne Satz wäre eine beruhigte
+    // Liste mit anderem Wort.
+    for (const [name, grund] of offen) {
+      expect(grund.length, `${name} ist als OFFEN markiert, sagt aber nicht warum`).toBeGreaterThan(
+        30,
+      );
+    }
   });
 });
