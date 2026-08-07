@@ -265,3 +265,52 @@ describe('boss-1-4 — bedingtes Unterbrechen lohnt sich, unbedingtes nicht', ()
     expect(mit.damageDealt).toBeGreaterThan(roh.damageDealt);
   });
 });
+
+describe('boss-1-4 — AC2: bei 4900 gewinnt NUR, wer unterbricht', () => {
+  /**
+   * Beide Ränder, nicht nur der Sieg.
+   *
+   * Ein Fall, der allein prüft „mit QUENCH gewinnt man", hält auch dann noch,
+   * wenn jemand die Heilung entfernt — dann gewinnen beide, und die Signatur
+   * ist still verschwunden. **Der Verlierer-Fall ist der wichtigere.**
+   *
+   * Die 4900 sind gemessen, nicht gewählt. Das Fenster, in dem der Boss seine
+   * Signatur verlangt, ist 4569 bis 5195:
+   *
+   * ```text
+   * 4568 = 5368 (roh brutto) − 800 (Heilung)   darunter gewinnt auch die rohe
+   * 5196 = netto mit Unterbrechen              darüber gewinnt niemand
+   * ```
+   *
+   * Beide Ränder sind Kippgrenzen ohne Abstand — 4900 hat den größten Abstand
+   * zu beiden Fehlerarten.
+   */
+  function siegBei(mitQuench: boolean): number {
+    const b = boss('boss-1-4');
+    const c = new Combat({ school: CALCINATION.value, boss: b });
+    const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
+    for (let t = 0; t <= 60_000; t += 10) {
+      c.stepPassive(t);
+      if (c.damageDealt >= b.hp) return t;
+      if (!c.gcd.isReady(t)) continue;
+      if (mitQuench && c.casting !== -1 && c.isOffCooldown(i('quench'), t)) c.cast(i('quench'), t);
+      else if (!c.isDotActive(i('smoulder'), t) && c.isOffCooldown(i('smoulder'), t))
+        c.cast(i('smoulder'), t);
+      else if (c.resource >= 15 && c.isOffCooldown(i('pyre'), t)) c.cast(i('pyre'), t);
+      else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
+    }
+    return -1;
+  }
+
+  it('WER NICHT UNTERBRICHT, VERLIERT — der wichtigere der beiden Fälle', () => {
+    expect(boss('boss-1-4').hp, 'die Lebenspunkte sind nicht mehr 4900').toBe(4900);
+    expect(siegBei(false)).toBe(-1);
+  });
+
+  it('wer unterbricht, gewinnt — und nicht trivial (Restzeit unter 40 %)', () => {
+    const t = siegBei(true);
+    expect(t, 'auch mit Unterbrechen kein Sieg').toBeGreaterThan(0);
+    // AC2 verlangt Restzeit unter 40 %. Gemessen sind es 7 %.
+    expect((60_000 - t) / 60_000).toBeLessThan(0.4);
+  });
+});
