@@ -8,7 +8,8 @@
  */
 import { AudioFeedback } from './audio-bridge.js';
 import { Combat } from './combat.js';
-import { CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
+import { BOSSES, CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
+import { buildBossSelect, waehlbareBosse } from '../progression/boss-select.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
   applyBindings,
@@ -45,6 +46,7 @@ import '../progression/stats.css';
 import '../progression/levels.css';
 import '../progression/composition.css';
 import '../progression/gear.css';
+import '../progression/boss-select.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
@@ -64,20 +66,27 @@ import type { OwnedItem } from '../analysis/save-format.js';
  * überhaupt hat."
  *
  * Ohne ihn wäre die Energieleiste (#219) nicht prüfbar. Sechs der sieben Bosse
- * haben keine; der einzige mit einer ist im Spiel nicht erreichbar, solange die
- * Instanz-Auswahl (12.7) fehlt.
+ * haben keine; der einzige mit einer war im Spiel nicht erreichbar, solange die
+ * Instanz-Auswahl (12.7) fehlte — **seit Issue #613 gibt es sie** (`Targets`
+ * im Player Home). Der Startparameter bleibt trotzdem: Er trifft auch die
+ * Prüf-Bosse, die in der Auswahl bewusst nicht stehen.
  *
  * # Warum ein Startparameter und kein Wechsel zur Laufzeit
  *
- * Ein `setBoss(id)` müsste `Combat` und `Session` **ersetzen** — beide sind in
- * `App` unveränderlich, und an der Session hängt der Beobachter für den
- * Spielstand. Ein verlorener Haken fiele erst auf, wenn ein Lauf nicht
- * gespeichert wird, also an einer Stelle, die mit dem Boss nichts zu tun hat.
+ * _Diese Begründung galt bis #613 und stimmt in ihrer Annahme nicht mehr._
+ * Sie lautete: Ein `setBoss(id)` müsste `Combat` und `Session` **ersetzen**,
+ * beide sind in `App` unveränderlich, und an der Session hängt der Beobachter
+ * für den Spielstand — ein verlorener Haken fiele erst auf, wenn ein Lauf
+ * nicht gespeichert wird.
  *
- * Hier entsteht der Kampf **von Anfang an** mit dem richtigen Boss. Es wird
- * nichts ersetzt, und der Haken wird zwei Zeilen später gesetzt wie immer.
- * Das ist außerdem der Weg, den 12.7 ohnehin nimmt: Der Boss wird **vor** dem
- * Kampf gewählt.
+ * **Der Schluss war richtig, die Voraussetzung nicht.** Einen Boss zu wechseln
+ * heißt nicht zwangsläufig, den Kampf zu ersetzen: `Combat.switchBoss` behält
+ * die Identität des Objekts und tauscht nur den Gegner samt allem, was aus ihm
+ * folgt. `Session` wird dabei nicht angefasst, der Beobachter also auch nicht.
+ *
+ * Hier entsteht der Kampf weiterhin **von Anfang an** mit dem richtigen Boss —
+ * das ist für ein Werkzeug der kürzere Weg. Und es bleibt der Weg, den 12.7
+ * ohnehin nimmt: Der Boss wird **vor** dem Kampf gewählt, nicht in ihm.
  *
  * # Ein Tippfehler scheitert sichtbar
  *
@@ -274,6 +283,18 @@ export class App {
     });
     // **Die Leiste vor den Werten, nach dem Aufstieg.** Sie ist das, was der
     // Spieler hier ändert; die Werte darunter folgen daraus (Issue #264).
+    // **Die Boss-Wahl vor der Zusammenstellung** (Issue #613): Erst steht
+    // fest, gegen WEN man antritt — die Leiste stellt man danach darauf ein.
+    // Umgekehrt stellte man zusammen, ohne den Gegner zu kennen.
+    //
+    // Der Bereich meldet nur die Wahl; dass daraufhin ein Kampf beginnt,
+    // entscheidet diese Datei. So bleibt die Zusage von `player-home.ts`
+    // wörtlich gültig, dass jener Bildschirm den Kampf nicht anfasst.
+    this.home.addSection({
+      id: 'targets',
+      title: 'Targets',
+      content: this.buildBossSection(),
+    });
     this.home.addSection({
       id: 'loadout',
       // Der Bereich heißt jetzt nach dem, was er ist: Die Ansicht aus
@@ -451,6 +472,53 @@ export class App {
    * falsche Zahl auf dem Bildschirm stehen lassen, während alle Prüffälle grün
    * waren.
    */
+  /**
+   * Die Boss-Wahl (Issue #613).
+   *
+   * Der Bereich bekommt die Liste fertig gefiltert und meldet nur zurück,
+   * **welchen** Boss der Spieler will. Was daraufhin geschieht, steht in
+   * {@link selectBoss} — hier, nicht dort.
+   */
+  private buildBossSection(): HTMLElement {
+    return buildBossSelect(waehlbareBosse(BOSSES), this.combat.boss.id, (bossId) => {
+      this.selectBoss(bossId);
+    });
+  }
+
+  /**
+   * Einen anderen Boss übernehmen und in die Vorbereitung gehen (Issue #613).
+   *
+   * Derselbe Weg wie bei {@link setItems}: Der laufende Kampf wird
+   * mitgeführt, nicht erst beim nächsten Neuladen. Zusätzlich muss die Sitzung
+   * zurück — ein Wechsel mitten im Kampf ließe Zeit, Punkte und Phase des
+   * alten Gegners stehen.
+   *
+   * **Die Reihenfolge ist nicht beliebig.** `switchBoss` vor `backToMenu`:
+   * Ersteres setzt den Kampf zurück und leitet Zeitgeber und Widerstände aus
+   * dem NEUEN Boss ab, letzteres die Sitzung darum herum. Umgekehrt liefe die
+   * Sitzung kurz gegen den neuen Boss mit den Zählern des alten.
+   *
+   * **Was hier BEWUSST fehlt:** `dataProblems` bleibt stehen. Das Feld ist
+   * `readonly` und wird beim Aufbau aus Schule und Start-Boss gefüllt; nach
+   * einem Wechsel nennt es also weiterhin die Probleme des vorigen. Für die
+   * kleinste Fassung ist das hinnehmbar — kein ausgelieferter Boss hat welche
+   * (die Prüfung in `parseBoss` liefe sonst rot). Wer den Wechsel um eigene
+   * Bosse erweitert, muss das Feld beweglich machen.
+   *
+   * Unbekannte Kennungen werden still übergangen statt zu werfen: Die Liste
+   * entsteht aus `BOSSES`, ein Treffer daneben ist also kein Spielerfehler,
+   * sondern ein Programmfehler — und ein abgestürzter Bildschirm wäre die
+   * schlechtere Antwort darauf als ein Knopf, der nichts tut.
+   */
+  selectBoss(bossId: string): void {
+    const gewaehlt = bossById(bossId);
+    if (gewaehlt === undefined) return;
+    this.combat.switchBoss(gewaehlt);
+    this.backToMenu();
+    this.refreshHome();
+    this.home.hide();
+  }
+
   private buildLoadoutSection(): HTMLElement {
     const stand = this.persistence.state;
     const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
@@ -588,6 +656,11 @@ export class App {
       'levels',
       buildLevelOverview(levelOverview(stand), levelBarFill(stand)),
     );
+    // **Die Boss-Wahl gehört dazu** (Issue #613): Sie markiert den laufenden
+    // Boss und sperrt seinen Knopf. Ohne das Neuzeichnen zeigte die Markierung
+    // nach einem Wechsel weiter auf den vorigen — derselbe Fehler, den die
+    // beiden Kommentare darunter für Stufe und Werte beschreiben.
+    this.home.replaceSection('targets', this.buildBossSection());
     // **Die Werte-Übersicht gehört dazu** (Issue #289). Sie zeigt seit dieser
     // Änderung die Werte DER STUFE — ein einmal gebauter Bereich zeigte, was
     // beim Aufbau galt, und im Browser stand nach einem Aufstieg weiter der
