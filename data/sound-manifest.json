@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 17
+        "present": 22
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 43,
+        "count": 38,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "Von den 60 Zaubern sind elf ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) die vier der FIXATION (Issue #100) und BLIGHT als erster Fueller der PUTREFAKTION (Issue #479). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -298,18 +298,33 @@
       }
     },
     {
-      "id": "spell-rot",
+      "id": "spell-cinder",
       "group": "spells",
-      "purpose": "ROT — der DoT der PUTREFAKTION, der bei JEDEM Tick einen Stapel legt. Er laeuft, waehrend andere Zauber gewirkt werden, und muss sich von BLIGHT (Kriechen) und CANKER (Aufplatzen) unterscheiden: Sickern.",
+      "purpose": "CINDER — der KURZE Brand der CALCINATION. Er tickt doppelt so dicht wie SMOULDER und SEARING (1000 ms statt 2000) und laeuft nur 4 s. Der Klang muss deshalb kurz und zurueckhaltend sein, weil er oft gesetzt wird, und sich hoerbar von KINDLE unterscheiden: Glut statt Funke.",
       "kind": "oneshot",
       "bus": "sfx",
-      "file": "audio/spell-rot.ogg",
-      "targetSeconds": 0.7,
+      "file": "audio/spell-cinder.ogg",
+      "targetSeconds": 0.5,
       "pitchJitterCents": 25,
-      "prompt": "slow wet rot setting in, viscous bubbling seep, low organic gurgle with soft decay tail, dark violet putrefaction spell",
+      "prompt": "smouldering ember flare, dry ash crackle, warm low glow, short restrained one shot, fantasy fire spell",
       "trigger": {
         "on": "spell.cast",
-        "key": "rot"
+        "key": "cinder"
+      }
+    },
+    {
+      "id": "spell-blight",
+      "group": "spells",
+      "purpose": "BLIGHT — der Fueller der PUTREFAKTION. Legt einen Zersetzungs-Stapel, wird oft gedrueckt — und muss sich von CANKER unterscheiden: Kriechen statt Aufplatzen.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-blight.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "creeping blight spreading over surface, dry withering rasp, brittle organic decay, short one shot, dark violet rot spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "blight"
       }
     },
     {
@@ -1000,6 +1015,66 @@
         "layer": true,
         "on": "fight.start",
         "off": "fight.end"
+      }
+    },
+    {
+      "id": "spell-tether",
+      "group": "spells",
+      "purpose": "TETHER — Fueller der FIXATION, der zugleich Schaden austeilt und Vorrat aufbaut. Ein Schnappen, kein Schlag.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-tether.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "arcane tether snapping taut, whipping cord with bright ringing tail, brief cutting edge, restrained magical grip",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "tether"
+      }
+    },
+    {
+      "id": "spell-wedge",
+      "group": "spells",
+      "purpose": "WEDGE — der Entlader der FIXATION. Verbraucht den Kontroll-Vorrat auf einen Schlag, wie PYRE in der Kalzination.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wedge.ogg",
+      "targetSeconds": 1.0,
+      "pitchJitterCents": 25,
+      "prompt": "forceful arcane wedge driven home, sharp metallic impact, resonant ring of released tension, single decisive strike",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wedge"
+      }
+    },
+    {
+      "id": "spell-capstone",
+      "group": "spells",
+      "purpose": "CAPSTONE — der grosse Moment der FIXATION. Verbraucht ALLE Punkte und setzt den Phasen-Halt; muss nach Endgueltigkeit klingen.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-capstone.ogg",
+      "targetSeconds": 1.5,
+      "pitchJitterCents": 25,
+      "prompt": "massive stone capstone slamming into place, deep resonant lock, sustained arcane hum, powerful sense of finality",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "capstone"
+      }
+    },
+    {
+      "id": "spell-rot",
+      "group": "spells",
+      "purpose": "ROT — der DoT der PUTREFAKTION, der bei JEDEM Tick einen Stapel legt. Er laeuft, waehrend andere Zauber gewirkt werden, und muss sich von BLIGHT (Kriechen) und CANKER (Aufplatzen) unterscheiden: Sickern.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-rot.ogg",
+      "targetSeconds": 0.7,
+      "pitchJitterCents": 25,
+      "prompt": "slow wet rot setting in, viscous bubbling seep, low organic gurgle with soft decay tail, dark violet putrefaction spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "rot"
       }
     }
   ]

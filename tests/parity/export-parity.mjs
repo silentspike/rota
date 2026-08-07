@@ -65,6 +65,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   buffCombatPayload,
+  fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
   trialBlocksPayload,
@@ -88,6 +89,10 @@ import {
   WARD_CAP_NAME,
   rotPayload,
   ROT_NAME,
+  putrefactionFillerPayload,
+  PUTREFACTION_FILLER_NAME,
+  cinderPayload,
+  CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -165,6 +170,17 @@ writeFileSync(wardCapPath, serialize(wardCap), 'utf8');
 const rot = rotPayload();
 const rotPath = join(here, 'recordings', `${ROT_NAME}.json`);
 writeFileSync(rotPath, serialize(rot), 'utf8');
+// BLIGHT im Paritaets-Weg (Issue #479). Ohne ihn gilt die Bitgleichheit fuer
+// den neuen Zauber als angenommen, nicht als geprueft.
+const putrefactionFiller = putrefactionFillerPayload();
+const putrefactionFillerPath = join(here, 'recordings', `${PUTREFACTION_FILLER_NAME}.json`);
+writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
+
+// CINDER im Paritaets-Weg (Issue #477). Ohne ihn gilt seine Bitgleichheit als
+// angenommen — er war nach Worker-1s Arbeit der einzige ungedeckte Zauber.
+const cinder = cinderPayload();
+const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
+writeFileSync(cinderPath, serialize(cinder), 'utf8');
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
@@ -267,6 +283,15 @@ console.log(`geschrieben: ${buffCombatPath}`);
 console.log(
   `  Verstaerkung im Kampf  ${buffCombat.expected.damage} Schaden, aktiv: ` +
     `${buffCombat.expected.buffWasActive}`,
+);
+
+const fixationSpells = fixationSpellsPayload();
+const fixationSpellsPath = join(here, 'recordings', 'fixation-spells.json');
+writeFileSync(fixationSpellsPath, serialize(fixationSpells), 'utf8');
+console.log(`geschrieben: ${fixationSpellsPath}`);
+console.log(
+  `  Fixierung neu  ${fixationSpells.expected.damage} Schaden, ` +
+    `${fixationSpells.expected.controlSpent} Punkte ausgegeben`,
 );
 
 const logKinds = logKindsPayload();
