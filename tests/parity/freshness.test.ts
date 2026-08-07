@@ -37,6 +37,7 @@ import eingecheckterWettlauf from './recordings/race-heal.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
+import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -82,6 +83,7 @@ import {
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
+  wispPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -232,6 +234,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterWisp, HINWEIS).toEqual(wispPayload());
   });
 
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
@@ -523,6 +529,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'trial-blocks',
   'timeline-loop',
   'sublimation',
+  'wisp-verkuerzung',
   'gear',
   'sets',
   'player-damage',
