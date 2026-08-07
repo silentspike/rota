@@ -1,0 +1,19 @@
+{
+  "_comment": "ARBEITSNAME (Issue #574). Der dritte Boss der zweiten Instanz: TEMPO IST DIE ANFORDERUNG, nicht das Mittel.\n\nSIGNATUR: Der Boss draengt seinen eigenen Fortschritt voran — 80 Punkte je Sekunde, unabhaengig davon was der Spieler tut. Wer nicht schneller ist als der Zaehler, verliert, und dagegen hilft keine Taste. Getragen von: runaway.\n\nDER EINZIGE BAUSTEIN MIT NUR EINER ANTWORT. Gegen affliction hilft Reinigung, gegen stacks Schild ODER Tempo, gegen einen Wirkzauber die Unterbrechung. Gegen runaway hilft nur Schaden pro Sekunde — deshalb ist er der Boss, an dem sich die Rotation selbst misst.\n\nAC2 GEMESSEN VOR #581 — Vorbehalt toter Sieger.",
+  "schema": 1,
+  "id": "boss-2-3",
+  "name": "Instance Two, Third",
+  "instance": "instance-2",
+  "hp": 5400,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "runaway": { "perStepMs": 1000, "amount": 80 },
+  "timelineLoopMs": 10000,
+  "timeline": [
+    { "atMs": 3000, "mechanic": "interruptibleCast", "name": "Accelerate", "damage": 450, "castTimeMs": 2000 },
+    { "atMs": 9000, "mechanic": "strike", "name": "Surge", "damage": 200 }
+  ],
+  "resistances": {},
+  "signature": null
+}
