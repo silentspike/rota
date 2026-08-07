@@ -709,6 +709,7 @@ export function resetRunPayload(): Record<string, unknown> {
   const belegung = [
     { slot: 0, spellId: 'kindle' },
     { slot: 1, spellId: 'pyre' },
+    { slot: 2, spellId: 'reflux' },
   ];
   const combat = new Combat({
     school: CALCINATION.value,
