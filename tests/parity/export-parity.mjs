@@ -90,6 +90,10 @@ import {
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
   cinderPayload,
+  dotLifetimePayload,
+  DOT_LIFETIME_NAME,
+  extendEffectsPayload,
+  EXTEND_EFFECTS_NAME,
   kernePayload,
   KERNE_NAME,
   CINDER_NAME,
@@ -179,6 +183,17 @@ writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
 const cinder = cinderPayload();
 const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
 writeFileSync(cinderPath, serialize(cinder), 'utf8');
+
+// EMBER und PYROCLASM (#517) sowie HARDEN und SEPSIS (#523). Vor diesen vier
+// Zeilen wirkte KEINE Aufzeichnung sie — ihre Bitgleichheit galt fuer alle
+// vier als angenommen, und `coverage.test.ts` stand deshalb auf rot.
+const dotLifetime = dotLifetimePayload();
+const dotLifetimePath = join(here, 'recordings', `${DOT_LIFETIME_NAME}.json`);
+writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
+
+const extendEffects = extendEffectsPayload();
+const extendEffectsPath = join(here, 'recordings', `${EXTEND_EFFECTS_NAME}.json`);
+writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
 
 const kerne = kernePayload();
 const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
