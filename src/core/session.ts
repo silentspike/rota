@@ -138,16 +138,34 @@ export type { FeedbackSink };
  * idleTicksWithReady      3 Stellen: Getter, Zählung, Reset      ZÄHLER
  * idleTicksNothingReady   3 Stellen: dieselben                   ZÄHLER
  * outcomeValue            5 Stellen: Getter, Anzeige, finish()   ZÄHLER
- * phaseValue             18 Stellen, davon EINE mit Wirkung      REGEL
+ * phaseValue             18 Stellen, MEHRERE steuernd            REGEL
  * ```
  *
- * Die drei Zähler werden nirgends in einer Bedingung gelesen, die den Kampf
- * steuert. `phaseValue` steht oben in der Tabelle.
+ * Die drei Zähler werden nirgends in einer Bedingung gelesen, die den Ablauf
+ * steuert.
  *
- * **Die Einschränkung gehört dazu:** Für die drei Zähler ist das Nachsehen
- * ausreichend — drei bis fünf Stellen, alle sichtbar. Bei `phaseValue` mit 18
- * Stellen ist „eine mit Wirkung" das Ergebnis eines Filters; belastbarer wäre
- * eine Mutation.
+ * # `phaseValue`: meine erste Zahl war falsch, und die Mutation hat es gezeigt
+ *
+ * Ich hatte „eine von 18 Stellen mit Wirkung" gezählt — das Ergebnis eines
+ * Filters auf dieselbe Zeile, nicht einer Messung. Tatsächlich steuern
+ * mindestens vier: der Takt-Ablauf (`fighting`), die Flanken-Erkennung, die
+ * Leerlauf-Zählung und die Annahme eines Drucks in `apply`.
+ *
+ * Die Mutation an der `apply`-Stelle (Bedingung entfernt) **meldet**:
+ *
+ * ```text
+ * tests/unit/fight-flow.test.ts   3 Fälle fallen
+ * ```
+ *
+ * # Und sie zeigt zugleich, warum die Zeile oben „entfällt" sagt
+ *
+ * Gefangen hat es ein **Unit-Test**, kein Paritäts-Fall. Das ist kein Mangel:
+ * Der Simulator kennt keine Phasen — er beginnt im Kampf. Eine Regel, die es
+ * auf der anderen Seite gar nicht gibt, kann die Parität nicht prüfen, und
+ * sie muss es auch nicht.
+ *
+ * Der Unterschied zum Rücksetzer: Der hatte auf beiden Seiten eine
+ * Entsprechung und lag nur verschieden. `phaseValue` hat keine.
  */
 export class Session implements Simulation {
   readonly latency = new LatencyTrace();
