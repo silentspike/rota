@@ -1,5 +1,5 @@
 {
-  "_comment": "ARBEITSNAME (Issue #544). Der vierte und letzte Boss der ersten Instanz: er verlangt einen HOEHEPUNKT. Ein Fenster oeffnet sich, und wer in ihm nicht genug Schaden unterbringt, sieht den Boss sich heilen — der Fortschritt der letzten Minute ist dann weg.\n\nEr ist der Abschluss des Bogens: boss-1-1 verlangt eine Unterbrechung, boss-1-2 den Blick auf die Uhr, boss-1-3 einen Platz fuer die Reinigung. Dieser verlangt, alles davon zugunsten eines einzigen Fensters zurueckzustellen.",
+  "_comment": "ARBEITSNAME (Issue #544). Der vierte und letzte Boss der ersten Instanz: er verlangt einen HOEHEPUNKT. Ein Fenster oeffnet sich, und wer in ihm nicht genug Schaden unterbringt, sieht den Boss sich heilen — der Fortschritt der letzten Minute ist dann weg.\n\nEr ist der Abschluss des Bogens: boss-1-1 verlangt eine Unterbrechung, boss-1-2 den Blick auf die Uhr, boss-1-3 einen Platz fuer die Reinigung. Dieser verlangt, alles davon zugunsten eines einzigen Fensters zurueckzustellen.\n\nDAS RENNEN (race) IST EIN ZWEITER BAUSTEIN, NICHT DER TRAEGER. Gemessen (#544): Ohne race faellt der ausgeteilte Schaden von 4380 auf 5160 — es wirkt also. Aber die HEILUNG haengt nicht daran: Mit race auf null heilt der Boss weiterhin 800. Ausloeser ist combat.ts:2885, wo healBoss() nach einer verpassten Unterbrechung gerufen wird. Ein erster Entwurf der Signatur nannte race als Traeger — der AC6-Prueffall hat das widerlegt.",
   "schema": 1,
   "id": "boss-1-4",
   "name": "Instance One, Fourth",
@@ -8,8 +8,14 @@
   "overpressureMs": 60000,
   "phases": [],
   "energy": null,
-  "race": { "atMs": 14000, "windowMs": 6000, "threshold": 900 },
-  "bossHeal": { "amount": 800 },
+  "race": {
+    "atMs": 14000,
+    "windowMs": 6000,
+    "threshold": 900
+  },
+  "bossHeal": {
+    "amount": 800
+  },
   "timeline": [
     {
       "atMs": 30000,
@@ -20,5 +26,5 @@
     }
   ],
   "resistances": {},
-  "signature": "Ein Fenster von sechs Sekunden ab der vierzehnten, in dem 900 Schaden fallen muessen — sonst heilt sich der Boss um 800. Getragen von: race (threshold) zusammen mit bossHeal (amount)."
+  "signature": "Wer den Sealing Chant stehen laesst, verliert 800 FORTSCHRITT statt Leben — der Boss dreht zurueck, was in der letzten Minute erreicht wurde. Getragen von: bossHeal, ausgeloest durch eine verpasste Unterbrechung (timeline, mechanic interruptibleCast)."
 }
