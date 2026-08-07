@@ -4982,3 +4982,61 @@ murren.
 > plausibel aus.** Sie hätte gut zu einem Befund gepasst, der am selben Tag geschrieben wurde,
 > und hätte fast einen Eingriff gemeldet, den es nie gab. Siehe auch „Der Bezugspunkt ist die
 > Merge-Base, nicht HEAD" — dieselbe Wurzel, anderes Werkzeug.
+
+### 8.72 „Gemergt" sagt nichts über den letzten Push — prüfe jeden eigenen Commit einzeln
+
+Am 2026-08-07 ging ein Commit verloren, und niemand hat es beim Mergen bemerkt:
+
+```
+13:21:27   d25ded0 committet   (der gemessene Beleg im Kopf eines Wächters)
+13:22:42   PR #618 gemergt
+```
+
+Dazwischen lief ein `gh pr update-branch` auf demselben Zweig. Der Push des Workers wurde als
+nicht-fast-forward abgelehnt; als er nachgezogen und erneut gepusht hatte, war der PR schon zu.
+
+```
+git branch -r --contains d25ded0
+→ nur origin/feat/e2-612-leitungs-waechter
+```
+
+**In `main` fehlte der Beleg, und beide Seiten hielten die Sache für erledigt.** Der Worker hatte
+die Fertigmeldung geschrieben, als der PR grün war; der Merge lief auf einen Stand, der eine
+Minute alt war.
+
+#### Die Prüfung, die es gefangen hat
+
+```bash
+git merge-base --is-ancestor <commit> origin/main   # für JEDEN eigenen Commit
+```
+
+Nicht nur für den letzten, den man kennt — für jeden. Der Worker fuhr sie als Formalie nach jedem
+Merge; an diesem Tag hat sie zum ersten Mal etwas gefunden.
+
+Auf der Gegenseite dieselbe Regel für den, der mergt:
+
+```bash
+git log origin/<zweig> -1     # gegen den PR-HEAD, unmittelbar vor dem Merge
+```
+
+#### Warum das kein Randfall ist
+
+Der Auslöser war ein `update-branch`, und der ist die normale Antwort auf `BEHIND` bei strikter
+Branch-Protection. Wer ihn fährt, während jemand auf demselben Zweig arbeitet, erzeugt genau
+dieses Fenster — der fremde Push wird abgelehnt, und die Zeit bis zum erneuten Push ist die Zeit,
+in der ein Merge zu früh kommt.
+
+> **Wer `update-branch` auf einem fremden Zweig fährt, sagt es dem, der darauf arbeitet.** Dann
+> pusht der vorher oder gar nicht.
+
+#### Und die Regel für die Rettung
+
+Beide Seiten haben den verlorenen Commit **unabhängig** gefunden und **beide** einen
+Rettungs-PR aufgemacht — achtzehn Sekunden auseinander, inhaltlich identisch.
+
+Kosten war eine Minute. Aber wenn beide gemergt hätten, stünde die Änderung zweimal in `main`,
+und der zweite Merge sähe aus wie ein Konflikt, den niemand verursacht hat.
+
+> **Wer einen verlorenen Commit findet, meldet ihn zuerst und baut erst nach einer Antwort** —
+> auch wenn der Fix trivial scheint. Gerade dann: Trivialität ist der Grund, warum beide sofort
+> handeln.
