@@ -41,6 +41,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'searing',
       // Issue #479 — CINDER, am Ende von `calcination.json` und deshalb hier.
       'cinder',
+      'slag',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
