@@ -46,13 +46,22 @@ Verstärker mit ihren drei `buff`-Größen dazu).
 
 ---
 
-## Das Ergebnis: 45 von 68 sind faktisch ungeschützt
+## Das Ergebnis: 39 Lücken, 6 heute unprüfbar, von 68
 
-| Sorte           | Paare | Was anschlägt                                                  |
-| --------------- | ----- | -------------------------------------------------------------- |
-| **nur Frische** | 33    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie |
-| **schweigt**    | 12    | nichts; davon 6× `buff.kind` (siehe „heute unprüfbar")         |
-| **geschützt**   | 23    | mindestens ein Wirkungs-Fall                                   |
+| Sorte           | Paare | Was anschlägt                                                         |
+| --------------- | ----- | --------------------------------------------------------------------- |
+| **nur Frische** | 33    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie        |
+| **schweigt**    | 12    | nichts — aber nur 6 davon sind Lücken; die anderen 6 sind `buff.kind` |
+| **geschützt**   | 23    | mindestens ein Wirkungs-Fall                                          |
+
+**33 + 12 = 45 Paare melden keine Wirkungsprüfung. Sechs davon sind keine
+Lücke:** `buff.kind` ist heute unprüfbar, weil die Lage fehlt, in der die
+Größe entscheidet (siehe unten). Es bleiben **39**.
+
+Diese Unterscheidung gehört in die Überschrift und nicht nur in den Text. Eine
+Zahl, die Nicht-Lücken als Lücken führt, fordert zu Arbeit auf, die niemand
+tun kann — derselbe Fehler wie eine Rangfolge, die Ungemessenes als Null
+ausweist.
 
 Rohdaten je Paar mit gefahrener Mutation und roten Dateien:
 [`groessen-abdeckung-messung.txt`](groessen-abdeckung-messung.txt).
@@ -83,7 +92,8 @@ sie das Richtige rechnen.**
 Heute ist keine der 68 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
 Befund betrifft die Werte, die **morgen** geändert werden — und der
 Balance-Läufer (#118) ist genau dafür gebaut. Wenn er anfängt, Zahlen
-vorzuschlagen, ist bei 45 von 68 kein Netz da.
+vorzuschlagen, ist bei 39 von 68 kein Netz da (45 melden nichts, sechs davon
+sind keine Luecke).
 
 ---
 
