@@ -47,7 +47,7 @@ für ungeprüft, die es nicht sind.
 
 ## Die sieben Schweiger
 
-### Sechs gehören zu #547 — der Prüffall fehlt
+### Sechs gehören zu #547
 
 | Feld                     | Zauber    | Mutation    |
 | ------------------------ | --------- | ----------- |
@@ -58,15 +58,39 @@ für ungeprüft, die es nicht sind.
 | `shield.durationMs`      | scab      | 8000 → 4000 |
 | `spender.bonusThreshold` | pyroclasm | 15 → 7      |
 
-### Einer gehört zu #555 — es gibt nichts zu prüfen
+### Einer gehört zu #555
 
 | Feld        | Zauber | Mutation | Warum                                                                                     |
 | ----------- | ------ | -------- | ----------------------------------------------------------------------------------------- |
 | `buff.kind` | slag   | 1 → 0    | einziger Träger; die Ersetzungs-Regel aus GAME-DESIGN 328 hat heute keinen Anwendungsfall |
 
-Das sind **zwei verschiedene Sorten Schweigen**. Bei den sechs oben fehlt eine
-Prüfung. Bei `buff.kind` ist der Wert heute wirkungslos — ein Prüffall dafür
-würde nichts absichern, sondern nur den Ist-Zustand festschreiben.
+Das sind **drei verschiedene Sorten Schweigen**, und sie kosten verschieden
+viel. Gemessen wurde für jeden Schweiger, ob sein Zauber in einer Aufzeichnung
+überhaupt **gedrückt** wird:
+
+| Sorte                  | Paare                                                                                               | Was fehlt                                                               | Aufwand                                            |
+| ---------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
+| **keine Aufzeichnung** | control.amountMs/stall, shield.durationMs/scab                                                      | Der Zauber wird in keiner Aufzeichnung gewirkt.                         | eine Aufzeichnung                                  |
+| **keine Lage**         | control.amountMs/latch, control.cost/capstone, control.cost/wedge, spender.bonusThreshold/pyroclasm | Der Zauber **wird** gewirkt, aber sein Betrag ändert am Ausgang nichts. | eine Aufzeichnung, die die **Situation** herstellt |
+| **wirkungslos**        | buff.kind/slag                                                                                      | Es gibt nichts, wogegen der Wert sich auswirken könnte.                 | nichts — siehe #555                                |
+
+Die Belege für die zweite Sorte:
+
+```
+dot-lifetime.json      pyroclasm       gedrückt, bonusThreshold schweigt
+fixation-spells.json   capstone wedge  gedrückt, cost schweigt
+kern-zauber.json       latch           gedrückt, amountMs schweigt
+```
+
+**Die mittlere Sorte ist die teure.** Ein Prüffall an der Zahl behebt sie
+nicht: `slowCast` wirkt nur, während der Boss wirkt, `delayStrike` nur, wenn
+der verschobene Schlag den Verlauf ändert. Fehlt diese Lage, ist der Betrag
+korrekt gelesen und ohne Folge — und jede Prüfung sieht ihn als richtig an.
+
+Das ist heute die dritte Ausprägung derselben Klasse: `buff.kind` (kein
+zweiter Träger), `phases` (kein Ereignis hängt daran, #557) und diese vier.
+Dreimal steht der Code da, wird der Wert gelesen, und die Situation, in der er
+einen Unterschied macht, kommt nicht vor.
 
 ---
 
