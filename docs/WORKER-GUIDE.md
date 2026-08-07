@@ -5098,3 +5098,55 @@ in ein Issue darf oder als Vermutung gekennzeichnet gehört.
 > Verwandt mit 8.66 (eine Messung beantwortet nur ihre eigene Frage), aber schärfer: Dort
 > beantwortet die Messung eine Frage, die man nicht gestellt hat. Hier beantwortet sie ihre
 > eigene Frage korrekt, und die Deutung reicht darüber hinaus.
+
+### 8.74 Ein Wächter, der das Beruhigen verhindert, muss das Beheben aushalten
+
+Am 2026-08-07 bei #619. Der Wächter aus #612 listet Größen ohne Leitung ins `ReplayResult` und
+trägt zu jeder eine Einordnung — **offener Befund** oder **Absicht**. Ein eigener Fall sichert
+zu, dass mindestens ein OFFEN darin steht; sonst könnte jemand die Liste umschreiben und der
+Wächter bliebe grün.
+
+Als sechs Leitungen gelegt wurden, griff der Mechanismus wie gebaut: Die überholten Einträge
+färbten AC3 rot und blieben rot, bis sie weg waren.
+
+**Und dabei meldete eine zweite Zusicherung einen Fehler, der der Erfolgsfall war:**
+
+```ts
+expect(EINORDNUNG['interruptsMissed']).toContain('OFFEN');
+```
+
+Sie hing an einem **Namen**. Als `interruptsMissed` seine Leitung bekam, sollte der Eintrag
+verschwinden — und genau das machte den Fall rot.
+
+#### Der Unterschied zwischen Name und Eigenschaft
+
+|                 |                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **Name**        | „`interruptsMissed` muss OFFEN sein" — gilt nur, solange die Welt so bleibt        |
+| **Eigenschaft** | „jeder OFFEN-Eintrag muss sagen, WAS fehlt" — gilt, egal welche Namen darin stehen |
+
+Die zweite Fassung fängt dasselbe (ein bloßes `'OFFEN'` ohne Satz ist eine beruhigte Liste mit
+anderem Wort) und überlebt jede Behebung.
+
+#### Die Regel
+
+Ein Wächter über eine Liste hat zwei Gegner, und sie ziehen in verschiedene Richtungen:
+
+```
+jemand beruhigt die Liste       → die Einordnung wird weicher, ohne dass sich Code ändert
+jemand behebt einen Eintrag     → die Einordnung wird überholt, WEIL sich Code geändert hat
+```
+
+**Beides muss er unterscheiden können.** Wer nur den ersten fängt, blockiert den zweiten — und
+der zweite ist der, für den man arbeitet.
+
+Die Prüffrage beim Bauen:
+
+> **Was passiert mit diesem Fall, wenn der Befund, den er festhält, behoben wird?**
+
+Wird er rot, ist er an einen Namen gebunden. Bleibt er grün und meldet den überholten Eintrag,
+ist er an die Eigenschaft gebunden.
+
+> Verwandt mit 8.63 (richtige Antwort aus falschem Grund): Hier ist es die **falsche Antwort aus
+> richtigem Grund** — der Fall tut, was dasteht, und was dasteht war für eine Welt geschrieben,
+> die es nicht mehr gibt.
