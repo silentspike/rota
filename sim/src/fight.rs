@@ -2157,7 +2157,22 @@ impl Fight {
 
     fn apply_decay_stack_bonus(&mut self, index: usize) {
         let pro_stapel = SPELLS[index].per_decay_stack_percent;
-        let prozent = 100 + self.decay_count as u32 * (DECAY_STACK_PERCENT + pro_stapel);
+        // **Der Faktor aus `stack_buffs` gehoert auch hierher** (Issue #489).
+        // Diese Methode SETZT die Verwundbarkeit neu — ohne ihn wuerfe sie weg,
+        // was `update_vulnerability` eingerechnet hat, und eine
+        // Stapel-Verstaerkung verschwaende beim naechsten Wirken spurlos.
+        //
+        // Gemessen auf der Spiel-Seite beim Zusammenfuehren von #484 und #489:
+        // `buff-targets` mass 1,06 gegen 1,06. Beide Vorhaben waren fuer sich
+        // gruen; erst zusammen zeigte sich, dass das eine die Wirkung des
+        // anderen ueberschreibt. Hier stand derselbe Fehler.
+        //
+        // Ganzzahlig bis zur letzten Teilung (18.4) — auf die Prozentpunkte,
+        // nicht auf das Ergebnis, wie in `update_vulnerability`.
+        let je_stapel = (f64::from(DECAY_STACK_PERCENT + pro_stapel)
+            * self.stack_buffs.factor(self.time))
+        .round() as u32;
+        let prozent = 100 + self.decay_count as u32 * je_stapel;
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
 
