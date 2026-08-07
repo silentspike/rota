@@ -21,7 +21,7 @@
       "cooldownMs": 45000,
       "castTimeMs": 0,
       "triggersGcd": true,
-      "armsCooldownReset": true
+      "cooldownResetCharges": 1
     },
     {
       "_comment": "WISP — der Füller, den die Schule nicht hatte (Issue #480).\n\nSUBLIMATION war gemessen tot: Beide vorhandenen Zauber machen KEINEN Schaden, also kam die Schule in keiner optimalen Rotation vor. Man konnte sie nicht spielen, nur einstreuen.\n\nWISP verkürzt wie VAPOUR, teilt dabei aber Schaden aus. Damit gibt es erstmals einen Grund, die Schule zu drücken, statt sie zu überspringen.\n\nDIE ZAHLEN SIND PLATZHALTER — 500 ms Verkürzung ist die Hälfte von VAPOUR, weil WISP dafür Schaden macht und auf der Wartezeit liegt.",
@@ -33,6 +33,17 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "cooldownReductionMs": 500
+    },
+    {
+      "_comment": "ALEMBIC — der Ruecksetzer, der ZWEIMAL fragt (Issue #521, ZAUBER-RASTER 4).\n\nDas Raster sagt \"zwei Zauber gleichzeitig bereit machen\". Das ist kein groesserer Betrag, sondern DIESELBE FRAGE ZWEIMAL: Der Spieler waehlt zweimal, statt dass das Spiel zwei aussucht.\n\nWARUM DIESE LESART UND NICHT \"DIE ZWEI LAENGSTEN\": Die Auswahl-durch-den-Spieler existiert bereits als eigener Eingabepfad (Combat.chooseForReset). Eine Anzahl verdoppelt sie, ohne die Mechanik anzufassen. \"Die zwei laengsten\" wuerde dagegen dieselbe Frage beantworten, die DECANT (#518) schon beantwortet — zwei Zauber, die dasselbe entscheiden, sind einer zu viel. Und \"zwei feste Plaetze\" liesse dem Spieler nichts zu entscheiden.\n\nDIE ZAHLEN SIND PLATZHALTER — 10 s stammt aus dem Raster, alles Weitere aus REFLUX.",
+      "id": "alembic",
+      "name": "Alembic",
+      "unlockLevel": 4,
+      "baseDamage": 0,
+      "cooldownMs": 10000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownResetCharges": 2
     },
     {
       "_comment": "DISTIL — Verkuerzungen wirken vier Wartezeiten lang doppelt (Issue #540).\n\nHoehepunkt fuer den Aufbau-Weg der Sublimation: WISP und REFLUX sparen\nZeit, DISTIL verdoppelt, was sie sparen. Er lohnt deshalb nur VOR einer\nKette von Verkuerzern, nie danach.\n\nVORLAEUFIGE ZAHLEN, wie bei den vier Geschwistern aus #540.",

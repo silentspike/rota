@@ -123,7 +123,7 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // der Absatz darueber warnt. WISP faellt seit #480 NICHT mehr
         // hierunter: Er verkuerzt UND macht Schaden.
         || spell.cooldown_reduction_ms > 0
-        || spell.arms_cooldown_reset
+        || spell.cooldown_reset_charges > 0
         // **Zauber, die nur eine Verstaerkung tragen** (Issue #490, SLAG).
         // Sie machen keinen Schaden — sie ermoeglichen ihn. In der Tabelle
         // staenden sie dauerhaft mit "TOT", obwohl der Spieler sie perfekt
@@ -141,6 +141,27 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // die sieben anderen liegen ueber der Stufengrenze und fallen schon
         // oben heraus, `test-buff` traegt dabei sogar Grundschaden.
         || spell.buff.is_some()
+        // Die Verlaengerer (#517 und #523). EMBER schiebt die Laufzeit eines
+        // Brandes nach hinten, HARDEN die Schutzschicht, SEPSIS die
+        // Zersetzungs-Stapel — keiner von ihnen richtet selbst Schaden an.
+        //
+        // # Sie fehlten hier, und das war eine LUECKE, keine Absicht
+        //
+        // Die Liste nennt Merkmale, nicht Zauber. Verlaengern war keines davon,
+        // also fielen die drei durch und standen in der Tabelle — dauerhaft als
+        // "TOT", genau die falsche Auskunft, vor der der Absatz ganz oben warnt.
+        //
+        // Aufgefallen ist es erst, als `tests/report.rs` beim Einbau von #517
+        // umfiel. Vorher gab es keinen Zauber, der NUR verlaengert: Die drei
+        // sind die ersten ihrer Art.
+        //
+        // Die Bedingung darueber ("wer Schaden macht, traegt bei") steht
+        // weiterhin VOR dieser hier. Ein kuenftiger Zwitter, der verlaengert
+        // UND Schaden macht, bleibt also in der Tabelle — so wie SCAB und WISP
+        // es tun. Der Prueffall dazu steht in `tests/report.rs`.
+        || spell.dot_extend_ticks > 0
+        || spell.extend_shield_ms > 0
+        || spell.extend_decay_ms > 0
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

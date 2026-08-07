@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { FIRST_CRUCIBLE, parseSchool } from '../../src/core/data.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { TICK_MS } from '../../src/core/loop.js';
@@ -22,7 +22,7 @@ function pruefSchule(): ReturnType<typeof parseSchool> {
     spells: [
       { id: 'lang', name: 'Lang', cooldownMs: 30_000, baseDamage: 50 },
       { id: 'kurz', name: 'Kurz', cooldownMs: 1500, baseDamage: 10 },
-      { id: 'reset', name: 'Reset', cooldownMs: 60_000, baseDamage: 0, armsCooldownReset: true },
+      { id: 'reset', name: 'Reset', cooldownMs: 60_000, baseDamage: 0, cooldownResetCharges: 1 },
     ],
   });
 }
@@ -244,5 +244,108 @@ describe('Ohne Rücksetzer ändert sich nichts', () => {
     h.session.reset();
     expect(h.session.isResetArmed).toBe(false);
     expect(h.session.resetsAppliedCount).toBe(0);
+  });
+});
+
+/**
+ * ZWEI LADUNGEN — ALEMBIC (Issue #521).
+ *
+ * Dieselben Zusicherungen stehen im Simulator an `shorten`-Ebene
+ * (`sim/src/cooldown_reset.rs`). Sie hier zu wiederholen ist kein Duplikat,
+ * sondern der Sinn der Sache: Die Regel muss auf **beiden** Seiten gelten,
+ * und eine Aufzeichnung allein zeigt nur, dass beide dasselbe TUN — nicht,
+ * dass beide dasselbe SOLLEN.
+ */
+describe('ALEMBIC — zwei Ladungen (#521)', () => {
+  function zweiLadungen(): ReturnType<typeof parseSchool> {
+    return parseSchool({
+      schema: 1,
+      school: 'CALCINATION',
+      resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+      spells: [
+        { id: 'lang', name: 'Lang', cooldownMs: 30_000, baseDamage: 50 },
+        { id: 'kurz', name: 'Kurz', cooldownMs: 9000, baseDamage: 10 },
+        { id: 'reset', name: 'Reset', cooldownMs: 60_000, baseDamage: 0, cooldownResetCharges: 2 },
+      ],
+    });
+  }
+
+  function aufbau(): { combat: Combat; lang: number; kurz: number; reset: number } {
+    const school = zweiLadungen();
+    expect(school.problems).toEqual([]);
+    const combat = new Combat({ school: school.value, boss: FIRST_CRUCIBLE.value, seed: 0 });
+    return {
+      combat,
+      lang: combat.indexOf('lang'),
+      kurz: combat.indexOf('kurz'),
+      reset: combat.indexOf('reset'),
+    };
+  }
+
+  it('erlaubt ZWEI Auswahlen, und der Modus fällt erst nach der zweiten', () => {
+    const { combat, lang, kurz, reset } = aufbau();
+    combat.cast(alsSpellIndex(lang), 0);
+    combat.cast(alsSpellIndex(kurz), GCD_MS);
+    combat.cast(alsSpellIndex(reset), 2 * GCD_MS);
+    combat.armResetIfNeeded(reset);
+    expect(combat.resetChargesLeft).toBe(2);
+
+    expect(combat.chooseForReset(alsSpellIndex(lang), 3 * GCD_MS)).toBe(true);
+    expect(combat.resetArmed, 'nach der ERSTEN muss er scharf bleiben').toBe(true);
+    expect(combat.resetChargesLeft).toBe(1);
+
+    expect(combat.chooseForReset(alsSpellIndex(kurz), 4 * GCD_MS)).toBe(true);
+    expect(combat.resetArmed, 'nach der ZWEITEN fällt er').toBe(false);
+    expect(combat.resetChargesLeft).toBe(0);
+  });
+
+  it('AC4 — auch die ZWEITE Auswahl trifft nie den Rücksetzer selbst', () => {
+    // Der Index bleibt über beide Auswahlen stehen; genau dafür ist er ein
+    // eigenes Feld neben dem Zähler. Wäre er nach der ersten gelöscht, träfe
+    // die zweite den Rücksetzer und machte ihn sofort wieder bereit — eine
+    // endlose Kette.
+    const { combat, lang, reset } = aufbau();
+    combat.cast(alsSpellIndex(lang), 0);
+    combat.cast(alsSpellIndex(reset), GCD_MS);
+    combat.armResetIfNeeded(reset);
+
+    expect(combat.chooseForReset(alsSpellIndex(lang), 2 * GCD_MS)).toBe(true);
+    expect(
+      combat.chooseForReset(alsSpellIndex(reset), 3 * GCD_MS),
+      'die zweite Auswahl auf den Rücksetzer selbst muss verpuffen',
+    ).toBe(false);
+    expect(combat.cooldownRemainingMs(alsSpellIndex(reset), 3 * GCD_MS)).toBeGreaterThan(0);
+  });
+
+  it('AC3 — eine ungenutzte Ladung verfällt erst mit dem Kampf, nicht mit der Zeit', () => {
+    // **Es gibt keinen Zeitverfall, und das ist die BESTEHENDE Regel** — nicht
+    // eine neue für ALEMBIC. Schon vorher wurde der Auswahlmodus
+    // ausschliesslich beim Kampfende gelöscht, nie durch Ablauf einer Frist.
+    const { combat, lang, reset } = aufbau();
+    combat.cast(alsSpellIndex(lang), 0);
+    combat.cast(alsSpellIndex(reset), GCD_MS);
+    combat.armResetIfNeeded(reset);
+    combat.chooseForReset(alsSpellIndex(lang), 2 * GCD_MS);
+
+    // Beliebig viel später — es gibt keine Frist.
+    combat.stepPassive(29_000);
+    expect(combat.resetArmed, 'die zweite Ladung steht weiter scharf').toBe(true);
+    expect(combat.resetChargesLeft).toBe(1);
+  });
+
+  it('AC1 — bei EINER Ladung verhält er sich exakt wie vorher', () => {
+    // Die Gegenprobe zu AC1 in einem Satz: dieselbe Mechanik, Anzahl 1, und
+    // der Modus fällt nach der ersten Auswahl. Die 15 Fälle darüber fahren
+    // denselben Nachweis über die volle Sitzungs-Kette.
+    const school = pruefSchule();
+    const combat = new Combat({ school: school.value, boss: FIRST_CRUCIBLE.value, seed: 0 });
+    const lang = combat.indexOf('lang');
+    const reset = combat.indexOf('reset');
+    combat.cast(alsSpellIndex(lang), 0);
+    combat.cast(alsSpellIndex(reset), GCD_MS);
+    combat.armResetIfNeeded(reset);
+    expect(combat.resetChargesLeft).toBe(1);
+    expect(combat.chooseForReset(alsSpellIndex(lang), 2 * GCD_MS)).toBe(true);
+    expect(combat.resetArmed).toBe(false);
   });
 });

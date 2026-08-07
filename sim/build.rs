@@ -482,14 +482,25 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         "        cooldown_reduction_ms: {},",
         opt_uint(spell, "cooldownReductionMs", &whose, 0)
     );
-    let _ = writeln!(
-        out,
-        "        arms_cooldown_reset: {},",
-        spell
-            .get("armsCooldownReset")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+    // **Eine ANZAHL statt eines Ja/Nein** (Issue #521). Die alte Form
+    // `armsCooldownReset: true` liest sich weiter als 1 — sonst verlöre ein
+    // Datensatz aus der Zeit davor still seine Wirkung, und der Bau meldete
+    // nichts.
+    let ladungen = spell
+        .get("cooldownResetCharges")
+        .and_then(Value::as_u64)
+        .or_else(|| {
+            spell
+                .get("armsCooldownReset")
+                .and_then(Value::as_bool)
+                .and_then(|ja| ja.then_some(1))
+        })
+        .unwrap_or(0);
+    assert!(
+        ladungen <= u64::from(u8::MAX),
+        "{whose}: cooldownResetCharges {ladungen} passt nicht in u8"
     );
+    let _ = writeln!(out, "        cooldown_reset_charges: {ladungen},");
     emit_dot(out, spell, &whose, resource_id);
     emit_buff(out, spell, &whose);
     emit_spender(out, spell, &whose, resource_id);
@@ -1373,6 +1384,29 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .unwrap_or(0);
     let _ = writeln!(out, "        decay_stacks: {stapel},");
     let _ = writeln!(out, "        per_decay_stack_percent: {je_stapel},");
+    // EMBER und PYROCLASM (#517). Beide Felder fehlen bei jedem bisherigen
+    // Zauber — ein fehlendes Feld ist der Normalfall, nicht ein Mangel.
+    let extend = spell
+        .get("dotExtendTicks")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        dot_extend_ticks: {extend},");
+    let verbraucht = spell
+        .get("consumesDots")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        consumes_dots: {verbraucht},");
+    // HARDEN und SEPSIS (#523).
+    let schild_ms = spell
+        .get("extendShieldMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let stapel_ms = spell
+        .get("extendDecayMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        extend_shield_ms: {schild_ms},");
+    let _ = writeln!(out, "        extend_decay_ms: {stapel_ms},");
 }
 
 /// Die Synergie-Beziehung (Issue #318). Fehlt sie, steht sie auf "kein Partner".
