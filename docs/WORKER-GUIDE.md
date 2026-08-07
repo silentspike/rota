@@ -3916,3 +3916,49 @@ Und der Grund, warum es beim Anlegen nicht auffällt (Worker-1, über seine eige
 > „Bei EFFLUX habe ich den Paritätstest gebaut, weil ich eine Parität **erwartete** — er rechnet
 > etwas Neues auf beiden Seiten. CLASP, LATCH und PLATE sind Datenarbeit, sie rechnen nichts Neues,
 > also habe ich nicht daran gedacht. Die Lehre ist nicht ‚auch bei Datenarbeit daran denken'."
+
+### 8.54 Eine Ausnahmeliste wird nicht vereinigt — sie schrumpft
+
+Für Sammelstellen galt hier bisher: **bei einer Liste sind `--theirs` und `--ours`
+immer falsch, vereinigt wird auf Datenebene.** Die Regel stimmt — aber sie gilt nicht
+für jede Liste, und der Unterschied ist teuer.
+
+Gefunden von Worker-1 beim Nachzug von #539, unabhängig davon von Worker-2 beim
+Vormessen von #521. Beide stießen auf dieselbe Datei:
+
+```
+tests/unit/sound-triggers.test.ts   die STUMM-Liste
+
+  main       spell-clasp, spell-latch, spell-plate   ENTFERNT
+             spell-efflux                            fehlt
+  der Zweig  alle vier noch drin
+```
+
+**Eine Vereinigung hätte drei Zauber stumm gelassen, die inzwischen klingen.**
+`main` hatte sie nicht vergessen — es hatte sie herausgenommen, weil ihre Klänge
+gebaut wurden. Die richtige Auflösung war eine **Teilmenge**: nur `efflux` bleibt.
+
+| Art                                                                       | Ein Eintrag auf nur einer Seite bedeutet      | Auflösung                                             |
+| ------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------- |
+| **Wachsende Liste**<br>Zauber, Prüffälle, Reihenfolgen, Klang-Einträge    | er **fehlt** der anderen Seite                | vereinigen                                            |
+| **Ausnahmeliste**<br>STUMM, bekannte Fehler, Ignorier-Listen, `#[ignore]` | er ist auf der anderen Seite oft **erledigt** | Teilmenge — und die Frage lautet: _warum_ ist er weg? |
+
+Die Prüffrage vor jeder Auflösung: **Wächst diese Liste, wenn das Projekt wächst,
+oder schrumpft sie?** Eine Liste von Zaubern wird länger, je mehr es gibt. Eine Liste
+von Zaubern _ohne Klang_ wird kürzer, je mehr Klänge es gibt. Beide sehen im Konflikt
+gleich aus.
+
+> **Der wichtigere Teil des Befundes ist nicht die Unterscheidung, sondern was sie
+> gefangen hat.** Worker-1s Satz dazu:
+>
+> > Gefangen hätte es der Prüffall ohnehin (_„steht in STUMM, hat aber einen Klang"_).
+> > Die Regel allein hätte es nicht.
+>
+> Eine Regel im Kopf greift, wenn man an sie denkt. Ein Wächter greift, wenn man es
+> nicht tut. Deshalb ist die Konsequenz aus diesem Abschnitt nicht „genauer lesen",
+> sondern: **Wer eine Ausnahmeliste anlegt, baut den Wächter dazu, der ihre Einträge
+> selbst abmeldet.** Die STUMM-Liste hatte ihn — und sie hat sich gemeldet.
+
+**Das gilt auch außerhalb von Merges.** Wer einen Eintrag aus einer Ausnahmeliste
+übernimmt, weil er in einem anderen Zweig steht, holt möglicherweise eine bereits
+erledigte Ausnahme zurück. Der Weg dorthin ist derselbe: nachsehen, warum sie fehlt.
