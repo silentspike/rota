@@ -159,6 +159,7 @@ def main():
             # Angabe stünde in der Liste „0,00 %", wo in Wahrheit „gemessen
             # wurde die falsche Größe" gilt (#576 AC2).
             groesste, wo, welche = 0.0, '-', '-'
+            basis, neuer = 0, 0
             for lauf, werte in jetzt.items():
                 for groesse, wert in werte.items():
                     alt_wert = grund.get(lauf, {}).get(groesse, 0)
@@ -167,9 +168,15 @@ def main():
                     abweichung = abs(wert - alt_wert) / alt_wert
                     if abweichung > groesste:
                         groesste, wo, welche = abweichung, lauf, groesse
+                        basis, neuer = alt_wert, wert
+            # **Die Basis gehört daneben, sonst führt der Prozentsatz irre.**
+            # 72,58 % bei searing sind ein Anteil am GESAMTSCHADEN; 300 % bei
+            # stall ein Anteil an dem Teil, den er verhindert. Die Zahlen sind
+            # nicht vergleichbar, und ohne die Basis sieht „300 vor 72" aus wie
+            # „viermal so wichtig".
             print(
                 f'{groesste * 100:6.2f}%  {name:26} {zauber_id:12} '
-                f'{vorher} -> {neu_wert:<8} {welche:12} {wo}',
+                f'{vorher} -> {neu_wert:<8} {welche:12} {basis} -> {neuer:<8} {wo}',
                 flush=True,
             )
 
