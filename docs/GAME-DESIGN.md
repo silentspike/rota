@@ -218,14 +218,34 @@ benannt, damit das Ersetzen eine Zeile bleibt.
 
 **Keine globale Ressource.** Kein Mana. Aber einzelne Schulen arbeiten mit **Ladungen**
 
-> **Warum 6 % und nicht 3 %.** Bei 4,5 s Abklingzeit und 12 s Haltbarkeit sind höchstens **drei**
-> Stapel gleichzeitig erreichbar. Mit 3 % ergäbe das 9 % mehr Schaden aus allen Quellen — und der
-> Break-even, ab dem sich der Leisten-Platz überhaupt rechnet, liegt bei **5,4 %** je Stapel. Bei
-> 3 % wäre PUTREFACTION also **nie** die beste Wahl, und das ist etwas anderes als „allein gespielt
-> schwach". Mit 6 % sind es 18 % — über dem Break-even, damit trägt der Platz.
+> **Warum 6 % und nicht 3 %.** Der Break-even, ab dem sich der Leisten-Platz überhaupt
+> rechnet, liegt bei **5,4 %** je Stapel. Mit 3 % wäre PUTREFACTION **nie** die beste Wahl,
+> und das ist etwas anderes als „allein gespielt schwach".
 >
-> Gemessen in Issue #224, entschieden am 2026-08-05. Der Wert steht auf beiden Seiten:
-> `src/core/combat.ts` und `sim/src/fight.rs`.
+> **Die Gesamtwirkung folgt aus vier Werten — hier mit ihrer Quelle, damit die nächste
+> Prüfung zwei Minuten dauert statt einer Messung:**
+>
+> | Größe                     | Wert     | steht in                                             |
+> | ------------------------- | -------- | ---------------------------------------------------- |
+> | Obergrenze der Stapel     | **5**    | `MAX_DECAY_STACKS`, `src/core/combat.ts`             |
+> | je Stapel                 | **6 %**  | `DECAY_STACK_PERCENT`, ebenda                        |
+> | Haltbarkeit eines Stapels | **12 s** | `DECAY_STACK_DURATION_MS`, ebenda                    |
+> | Abklingzeit des Erzeugers | **2 s**  | `canker.cooldownMs`, `data/spells/putrefaction.json` |
+>
+> **Gesamtwirkung: 5 × 6 % = 30 %** mehr Schaden aus allen Quellen. Erreichbar mit `CANKER`
+> allein nach **acht Sekunden** (t = 0, 2, 4, 6, 8; der erste verfällt erst bei 12) — ohne
+> `BLIGHT`, der bei 1,5 s Abklingzeit noch schneller füllt.
+>
+> **Die 30 % sind nicht die Zahl, mit der entschieden wurde.** Issue #224 rechnete am
+> 2026-08-05 mit 4,5 s Abklingzeit und drei Stapeln und kam auf 18 %. Beide Werte stimmen
+> heute nicht mehr; die Entscheidung „6 %" bleibt trotzdem richtig, weil sie über dem
+> Break-even liegt — bei fünf Stapeln erst recht. Was **nicht** geprüft ist: ob 30 % zu
+> „allein gespielt schwach" (Kapitel 11) passen. Das ist eine Balance-Frage und liegt beim
+> Auftraggeber (Issue #496, AC3).
+>
+> Der Wert steht auf beiden Seiten: `src/core/combat.ts` und `sim/src/fight.rs`. Dass die
+> Tabelle oben zu den Konstanten passt, prüft `tests/unit/design-herleitung.test.ts` —
+> **diese Rechnung ist einmal still gealtert, und das soll sie nicht wieder.**
 
 (Hitze-Stapel, Kontroll-Punkte, Zersetzungs-Stapel) — das gibt ihnen Tiefe und ein eigenes
 Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Schwierigkeit" anzutasten.
