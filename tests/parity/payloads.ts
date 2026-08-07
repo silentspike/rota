@@ -1072,11 +1072,22 @@ export function raceHealPayload(): Record<string, unknown> {
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      raceWon: combat.raceWon,
+      // **Vier von fünf gehen jetzt über `result`** — denselben Weg, den die
+      // zehn Zeilen darüber nehmen und den ein Werkzeug nimmt. Sie standen
+      // hier auf `combat`, weil es das Feld im `ReplayResult` bei ihrer
+      // Aufnahme noch nicht gab; eine neue Leitung zu legen macht die alte
+      // Umgehung nicht automatisch weg, und niemand meldet das.
+      raceWon: result.raceWon,
+      // **`finalRaceProgress` BLEIBT bei `combat`, und das ist kein Versehen.**
+      // Es ist der Endstand eines MOMENTANWERTS: `raceProgress` ist Zustand
+      // während des Kampfes, kein Ergebnis danach. Das `ReplayResult` führt
+      // ihn nicht und soll ihn nicht führen — genau die Klasse, die bei #630
+      // aus 38 Kandidaten herausgefiltert wurde. Dasselbe gilt für alle
+      // übrigen `final*`-Felder dieser Datei.
       finalRaceProgress: combat.raceProgress,
-      damageLostToRace: combat.damageLostToRace,
-      bossHealed: combat.bossHealed,
-      interruptsMissed: combat.interruptsMissed,
+      damageLostToRace: result.damageLostToRace,
+      bossHealed: result.bossHealed,
+      interruptsMissed: result.interruptsMissed,
     },
     checksums: result.checksums,
     raceOpen: offen,

@@ -130,6 +130,25 @@ export interface ReplayResult {
    */
   readonly bossHealed: number;
   /**
+   * Ob der Spieler das Wettrennen gewonnen hat (Baustein 4).
+   *
+   * # Die Größe hatte eine SCHEINdeckung
+   *
+   * Sie steht in den `expected`-Blöcken der Aufzeichnungen und sah damit
+   * gedeckt aus. Aber `tests/parity/payloads.ts` holte sie aus `combat`,
+   * während die Nachbarzeilen desselben Blocks aus `result` lesen — sie ging
+   * also am Weg vorbei, den ein Werkzeug nimmt.
+   *
+   * Und die Rust-Seite **führt** `race_won` (`fight.rs`: Feld, Init, Reset,
+   * Setzen), vergleicht es aber nirgends — weder `replay.rs` noch eine
+   * Testdatei liest es. Eine gepflegte Zahl, die nichts belegt.
+   *
+   * Das ist die Klasse aus `gegenstueck.test.ts`, eine Ebene tiefer: dort
+   * ging es um Aufzeichnungen ohne Rust-Gegenstück, hier um ein **Feld** in
+   * einer Aufzeichnung, die sonst geprüft wird.
+   */
+  readonly raceWon: boolean;
+  /**
    * Acht kumulative Größen, die bis #630 keine eigene Zuweisung hatten.
    *
    * Alle standen in `combatChecksum` — und **genau deshalb schwieg der
@@ -475,6 +494,7 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     // aus, und niemand weiß, ob weniger getroffen oder mehr zurückgedreht
     // wurde.
     bossHealed: combat.bossHealed,
+    raceWon: combat.raceWon,
     // **Die acht kumulativen Größen aus #630.** Sie standen alle in
     // `combatChecksum` und hatten keine eigene Zuweisung — für den
     // Leitungs-Wächter galten sie damit als gedeckt, obwohl kein Werkzeug sie
