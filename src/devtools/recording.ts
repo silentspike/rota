@@ -130,6 +130,28 @@ export interface ReplayResult {
    */
   readonly bossHealed: number;
   /**
+   * Acht kumulative Größen, die bis #630 keine eigene Zuweisung hatten.
+   *
+   * Alle standen in `combatChecksum` — und **genau deshalb schwieg der
+   * Leitungs-Wächter**: Für ihn zählt „in der Prüfsumme" als Deckung, also
+   * meldete er nichts, obwohl kein Werkzeug sie abrufen konnte. Er beantwortet
+   * „gibt es einen Weg", nicht „kommt der Wert an".
+   *
+   * `playerDamage` trennt den Schaden des Spielers vom Fortschritt am Ring —
+   * bei einem Boss mit `runaway` zählt `damage` beide Richtungen zusammen.
+   * `damageLostToRace` und `phaseHoldPercent` beziffern, was ein verpasstes
+   * Fenster gekostet hat. Die übrigen sind Zähler und Summen, die eine
+   * Aufzeichnung belegen können soll.
+   */
+  readonly playerDamage: number;
+  readonly damageLostToRace: number;
+  readonly afflictionsCleared: number;
+  readonly resourceOverflow: number;
+  readonly conversionPercent: number;
+  readonly phaseHoldPercent: number;
+  readonly buffWindowSum: number;
+  readonly synergyWindowSum: number;
+  /**
    * Die beiden Kontroll-Größen (Issue #605).
    *
    * `controlFailed` zählt die Kontroll-Zauber, deren Buchung mangels Punkten
@@ -453,6 +475,24 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     // aus, und niemand weiß, ob weniger getroffen oder mehr zurückgedreht
     // wurde.
     bossHealed: combat.bossHealed,
+    // **Die acht kumulativen Größen aus #630.** Sie standen alle in
+    // `combatChecksum` und hatten keine eigene Zuweisung — für den
+    // Leitungs-Wächter galten sie damit als gedeckt, obwohl kein Werkzeug sie
+    // abrufen konnte. Dieselbe Lage wie `bossHealed` vor #609 und
+    // `controlSpent` vor #605.
+    //
+    // Auch die, die heute niemand liest: Acht der zehn hatten außerhalb von
+    // `combat.ts` null Treffer. Das war bei den elf Kontroll-Größen aus #605
+    // genauso — sie standen auf 0,00 %, **weil** ihre Leitung fehlte. Eine
+    // Größe ohne Leitung sieht immer unbenutzt aus.
+    playerDamage: combat.playerDamage,
+    damageLostToRace: combat.damageLostToRace,
+    afflictionsCleared: combat.afflictionsCleared,
+    resourceOverflow: combat.resourceOverflow,
+    conversionPercent: combat.conversionPercent,
+    phaseHoldPercent: combat.phaseHoldPercent,
+    buffWindowSum: combat.buffWindowSum,
+    synergyWindowSum: combat.synergyWindowSum,
     controlSpent: combat.controlSpent,
     controlFailed: combat.controlFailed,
     interruptsLanded: combat.interruptsLanded,
