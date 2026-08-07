@@ -196,12 +196,12 @@ def suite_rot():
         text=True,
         timeout=900,
     )
-    dateien = set()
+    dateien = []
     gemessen = False
     for zeile in (lauf.stdout + '\n' + lauf.stderr).splitlines():
         if zeile.startswith(' FAIL '):
             teil = zeile.split()[1].split('>')[0].strip()
-            dateien.add(teil)
+            dateien.append(teil)
         if 'Tests ' in zeile and ('failed' in zeile or 'passed' in zeile):
             gemessen = True
     if not gemessen:
@@ -245,6 +245,21 @@ def main():
             # Die drei Urteile, nach dem Befund vom 2026-08-07. Nur das erste
             # bedeutet Absicherung; die anderen beiden sehen wie eine aus.
             NUR_FRISCHE = {'tests/parity/freshness.test.ts'}
+            # **Die Spalte, die Worker-2s Frage beantwortet** (2026-08-07):
+            # Wie viele ECHTE Prüffälle tragen diese Größe? Die rohe Fallzahl
+            # taugt dafür nicht — `stay` und `quicksilver` haben beide zwei
+            # rote Fälle, aber bei `stay` sind es zweimal die Frischeprüfung
+            # und bei `quicksilver` einmal ein Fall, der die Größe kennt.
+            # Wer roh zählt, hält die beiden für gleich breit getragen.
+            #
+            # Eine 1 hier heißt: Fällt dieser eine Fall weg, ist die Größe
+            # wieder ungeschützt, und niemand merkt es. Eine 0 heißt: schon
+            # jetzt niemand.
+            echte_faelle = sum(1 for d in (rot or []) if d not in NUR_FRISCHE)
+            traegt = f' [{echte_faelle} Prueffall]' if echte_faelle == 1 else (
+                f' [{echte_faelle} Prueffaelle]' if echte_faelle else ''
+            )
+            rot = set(rot) if rot is not None else None
             if rot is None:
                 urteil = 'KEINE MESSUNG'
             elif not rot:
@@ -261,7 +276,8 @@ def main():
                 # stünde hier dasselbe Wort wie bei einem echt geprüften Feld.
                 art = ' [STRUKTUR, nicht Groesse]' if name in NUR_EIN_WERT else ''
                 urteil = (
-                    f'geschuetzt{art} ({", ".join(echte[:3])}{"..." if len(echte) > 3 else ""})'
+                    f'geschuetzt{art}{traegt} '
+                    f'({", ".join(echte[:3])}{"..." if len(echte) > 3 else ""})'
                 )
             print(
                 f'{name:26} {zauber_id:12} {vorher} -> {str(mutiere(name, vorher)):<8} {urteil}',
