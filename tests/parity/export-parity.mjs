@@ -94,6 +94,8 @@ import {
   buffTargetsPayload,
   BUFF_TARGETS_NAME,
   instance1Payload,
+  instance2Payload,
+  INSTANCE2_NAMES,
   INSTANCE1_NAMES,
   cinderPayload,
   dotLifetimePayload,
@@ -230,6 +232,13 @@ writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
 for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
   const name = INSTANCE1_NAMES[i];
   const datensatz = instance1Payload(`boss-1-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+}
+
+// Die vier Bosse der zweiten Instanz (#574, AC4).
+for (let i = 0; i < INSTANCE2_NAMES.length; i++) {
+  const name = INSTANCE2_NAMES[i];
+  const datensatz = instance2Payload(`boss-2-${i + 1}`, name);
   writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
 }
 
