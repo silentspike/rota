@@ -41,7 +41,28 @@ DATEN = sorted((WURZEL / 'data' / 'spells').glob('*.json'))
 AUFZ = WURZEL / 'tests' / 'parity' / 'recordings'
 
 
-GROESSEN = ('damage', 'damageTaken', 'absorbed', 'healed', 'converted')
+GROESSEN = (
+    'damage',
+    'damageTaken',
+    'absorbed',
+    'healed',
+    'converted',
+    # **`controlSpent` seit #605/#614** — die verbrauchten Kontroll-Punkte.
+    # Worker-2 hat die Leitung von `Combat` bis ins `ReplayResult` gelegt; ohne
+    # diesen Eintrag erreichte sie das Werkzeug trotzdem nicht, weil es
+    # `expected` liest und nicht das Ergebnis-Objekt.
+    #
+    # Das ist der Grund, warum `control.cost` bei allen sechs Trägern auf
+    # 0,00 % stand: nicht „die Größe wirkt nicht", sondern „ihre Wirkung kam
+    # hier nie an". Die elf Kontroll-Nullen waren teilweise gar keine Messung.
+    #
+    # ACHTUNG BEI DER BASIS: `controlSpent` steht in nur VIER Aufzeichnungen
+    # (fixation, fixation-spells, kontrolle-wirkt, log-kinds). Ein Hebel
+    # darauf stammt aus einer schmalen Grundlage — dieselbe Lage, die bei
+    # STALL zu 300 % geführt hat. Die Basis-Spalte zeigt es, aber man muss
+    # hinsehen.
+    'controlSpent',
+)
 
 # **`damageDealt` heißt anderswo `damage`.** Die vierte Bauart (`cases[].runs[]`,
 # eingeführt mit `kontrolle-wirkt.json`) schreibt den ausgeteilten Schaden unter

@@ -11,6 +11,24 @@
 #
 # Spalten: Hebel · Feld · Zauber · Mutation · bewegte Größe · Lauf
 #
+# controlSpent SEIT 2026-08-07 (#605/#614) — und was es aufgedeckt hat
+#
+# Worker-2 hat die Leitung von `Combat` bis ins ReplayResult gelegt. Dieses
+# Werkzeug liest `expected` und erreichte sie deshalb nicht. Nach der Aufnahme
+# in GROESSEN kommen drei Traeger aus der Null heraus:
+#
+#   50,00 %  control.cost  stall   controlSpent  4 -> 2   nur Groesse
+#   66,67 %  control.cost  stay    controlSpent  3 -> 1   Groesse+Rotation
+#    8,70 %  control.cost  anchor  controlSpent 23 -> 21  Groesse+Rotation
+#
+# DIE ELF KONTROLL-NULLEN WAREN TEILWEISE GAR KEINE MESSUNG, sondern eine
+# fehlende Leitung. Das ist eine andere Sorte als "keine Lage": Die Lage war
+# da, die Zahl kam nur nicht an.
+#
+# BASIS BEACHTEN: controlSpent steht in nur VIER Aufzeichnungen (fixation,
+# fixation-spells, kontrolle-wirkt, log-kinds), sechs Laeufe tragen einen Wert
+# groesser null. Ein Hebel darauf stammt aus schmaler Grundlage.
+#
 # SPALTE "nur Groesse" / "Groesse+Rotation" — seit 2026-08-07
 #
 # Verschiebt die Mutation die DRUECKE einer Aufzeichnung, misst die Zahl
@@ -38,12 +56,13 @@
 #
 # 2. OHNE BEZUGSLAUF ist "die Wirkung verschwindet ganz" nicht von "sie wird
 #    kleiner" zu unterscheiden. Nur kontrolle-wirkt.json fuehrt einen Lauf
-#    OHNE den Zauber (`way: none`) — und der hat zwei Faelle getragen, die es
 300.00%  control.amountMs           stall        2000 -> 1000     damageTaken  320 -> 1280     nur Groesse      kontrolle-wirkt#5
  72.58%  dot.tickIntervalMs         searing      2000 -> 1000     damage       1860 -> 3210     nur Groesse      new-calcination#0
+ 66.67%  control.cost               stay         3 -> 1        controlSpent 3 -> 1        Groesse+Rotation kontrolle-wirkt#1
  56.00%  conversion.sharePercent    temper       25 -> 12       converted    300 -> 132      Groesse+Rotation coagulation#3
  50.00%  heal.amount                salve        1500 -> 750      healed       3000 -> 1500     nur Groesse      coagulation#2
  50.00%  conversion.durationMs      temper       10000 -> 5000     converted    300 -> 150      Groesse+Rotation coagulation#3
+ 50.00%  control.cost               stall        4 -> 2        controlSpent 4 -> 2        nur Groesse      kontrolle-wirkt#2
  48.13%  dot.tickIntervalMs         cinder       1000 -> 500      damage       1870 -> 2770     nur Groesse      cinder-ticks#0
  33.87%  dot.tickDamage             searing      90 -> 45       damage       1860 -> 1230     nur Groesse      new-calcination#0
  33.33%  shield.amount              scab         200 -> 100      damageTaken  3000 -> 4000     nur Groesse      coagulation#4
@@ -54,7 +73,7 @@
  14.44%  dot.durationMs             cinder       4000 -> 2000     damage       1870 -> 1600     nur Groesse      cinder-ticks#0
  10.48%  spender.damagePerPoint     pyroclasm    12 -> 6        damage       2176 -> 1948     nur Groesse      dot-lifetime#0
  10.48%  spender.bonusMultiplier    pyroclasm    2 -> 1        damage       2176 -> 1948     nur Groesse      dot-lifetime#0
-  6.67%  control.cost               anchor       6 -> 3        damage       900 -> 840      Groesse+Rotation fixation#1
+  8.70%  control.cost               anchor       6 -> 3        controlSpent 23 -> 21       Groesse+Rotation fixation#1
   1.15%  convert.perSecond          efflux       12 -> 6        damage       1564 -> 1546     nur Groesse      efflux-restzeit#0
   0.42%  buff.factor                virulence    2 -> 1        damage       719 -> 716      nur Groesse      buff-targets#0
   0.14%  buff.gcds                  virulence    4 -> 2        damage       719 -> 718      nur Groesse      buff-targets#0
@@ -64,8 +83,6 @@
   0.00%  shield.amount              plate        2400 -> 1200     -            0 -> 0        nur Groesse      -
   0.00%  resourceGain.heat          ember        2 -> 1        -            0 -> 0        nur Groesse      -
   0.00%  control.cost               wedge        3 -> 1        -            0 -> 0        nur Groesse      -
-  0.00%  control.cost               stay         3 -> 1        -            0 -> 0        Groesse+Rotation -
-  0.00%  control.cost               stall        4 -> 2        -            0 -> 0        nur Groesse      -
   0.00%  control.cost               latch        2 -> 1        -            0 -> 0        nur Groesse      -
   0.00%  control.cost               capstone     8 -> 4        -            0 -> 0        nur Groesse      -
   0.00%  control.amountPercent      anchor       10 -> 5        -            0 -> 0        nur Groesse      -
