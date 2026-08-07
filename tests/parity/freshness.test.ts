@@ -41,6 +41,7 @@ import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.j
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckterDeckel from './recordings/deckel-gefallen.json';
+import eingecheckterPhasen from './recordings/phasen-bindung.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -76,6 +77,10 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckterBoss1 from './recordings/instance1-boss-1.json';
+import eingecheckterBoss2 from './recordings/instance1-boss-2.json';
+import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
+import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
@@ -96,6 +101,7 @@ import {
   wispPayload,
   alembicPayload,
   deckelPayload,
+  phasenPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -124,6 +130,7 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   buffTargetsPayload,
+  instance1Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -188,6 +195,20 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die vier Bosse der ersten Instanz entsprechen dem heutigen Spielstand', () => {
+    const erwartet = [
+      eingecheckterBoss1,
+      eingecheckterBoss2,
+      eingecheckterBoss3,
+      eingecheckterBoss4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance1Payload(`boss-1-${i + 1}`, `instance1-boss-${i + 1}`),
+      );
+    }
   });
 
   it('die Verstärkungs-Runde entspricht dem heutigen Spielstand', () => {
@@ -284,6 +305,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('der Phasenwechsel mit gebundenem Ereignis entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterPhasen, HINWEIS).toEqual(phasenPayload());
   });
 
   it('der Vorrat über dem gefallenen Deckel entspricht dem heutigen Spielstand', () => {
@@ -595,6 +620,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'wisp-verkuerzung',
   'alembic-zwei-ladungen',
   'deckel-gefallen',
+  'phasen-bindung',
   'gear',
   'sets',
   'player-damage',
@@ -616,6 +642,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'putrefaction-filler',
   'buff-targets',
   'cinder-ticks',
+  'instance1-boss-1',
+  'instance1-boss-2',
+  'instance1-boss-3',
+  'instance1-boss-4',
   'dot-lifetime',
   'extend-effects',
   'kern-zauber',

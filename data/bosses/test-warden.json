@@ -5,7 +5,12 @@
   "instance": "testing",
   "hp": 3000,
   "overpressureMs": 60000,
-  "phases": [{ "atHpPercent": 60, "name": "Unbound" }],
+  "phases": [
+    {
+      "atHpPercent": 60,
+      "name": "Unbound"
+    }
+  ],
   "energy": null,
   "timeline": [
     {
@@ -15,9 +20,18 @@
       "damage": 600,
       "castTimeMs": 3000
     },
-    { "atMs": 12000, "mechanic": "strike", "name": "Warden's Hand", "damage": 300 },
-    { "atMs": 19000, "mechanic": "strike", "name": "Warden's Hand", "damage": 300 }
+    {
+      "atMs": 12000,
+      "mechanic": "strike",
+      "name": "Warden's Hand",
+      "damage": 300
+    },
+    {
+      "atMs": 19000,
+      "mechanic": "strike",
+      "name": "Warden's Hand",
+      "damage": 300
+    }
   ],
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }

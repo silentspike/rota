@@ -8,8 +8,18 @@
   "phases": [],
   "energy": null,
   "timeline": [
-    { "atMs": 2000, "mechanic": "strike", "name": "Tick", "damage": 20 },
-    { "atMs": 4000, "mechanic": "strike", "name": "Tock", "damage": 20 },
+    {
+      "atMs": 2000,
+      "mechanic": "strike",
+      "name": "Tick",
+      "damage": 20
+    },
+    {
+      "atMs": 4000,
+      "mechanic": "strike",
+      "name": "Tock",
+      "damage": 20
+    },
     {
       "atMs": 6000,
       "mechanic": "interruptibleCast",
@@ -19,6 +29,5 @@
     }
   ],
   "timelineLoopMs": 6000,
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }

@@ -663,6 +663,36 @@ export interface TimelineEntryDef {
    * bestehender Boss ändert sein Verhalten durch dieses Issue nicht.
    */
   readonly interruptsPlayer: boolean;
+  /**
+   * An welche Phase dieses Ereignis gebunden ist (Issue #557).
+   *
+   * # Warum es dieses Feld geben muss
+   *
+   * Phasen waren bis hierher ein Zustand ohne Wirkung: `bossPhase` wurde
+   * gesetzt, in die Prüfsumme gerührt — und von keiner Regel gelesen. Ein
+   * Boss mit zwei Phasenschwellen verlief bitgleich zu demselben Boss mit
+   * `phases: []`, gemessen an 1000 Durchgängen.
+   *
+   * GAME-DESIGN 11.2 nennt Phasen einen „Verhaltenswechsel". Ein Wechsel, an
+   * dem sich nichts ändert, ist keiner.
+   *
+   * # Die Bindung ist eine UNTERGRENZE, kein Gleichheitstest
+   *
+   * `phase: 1` heisst „ab der zweiten Phase", nicht „nur in ihr". Phasen
+   * laufen in ROTA nur vorwärts (`combat.ts`: `if (neue > bossPhaseValue)`),
+   * ein Ereignis für eine übersprungene Phase gäbe es also nie wieder.
+   *
+   * Wer „nur in Phase 1" braucht, kann es heute nicht ausdrücken — das ist
+   * eine bewusste Grenze und keine Auslassung. Sie fällt auf, sobald jemand
+   * einen Boss baut, der sie braucht.
+   *
+   * # Ohne Angabe feuert das Ereignis immer
+   *
+   * Ein bestehender Boss ändert sein Verhalten durch dieses Issue nicht —
+   * dieselbe Regel wie bei `interruptsPlayer` darüber. Die vier Bosse aus
+   * #544 laufen unverändert weiter.
+   */
+  readonly phase?: number;
 }
 
 /**
@@ -1629,10 +1659,47 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
         // Ohne Angabe false: Ein Boss, der das Feld nicht kennt, bricht keine
         // Wirkzeit ab (GAME-DESIGN 7.1, „normale Treffer stören nicht").
         interruptsPlayer: entry['interruptsPlayer'] === true,
+        // **Ohne Angabe feuert das Ereignis immer** (Issue #557). `undefined`
+        // statt 0, damit „Phase 0" (die erste) sich von „keine Bindung"
+        // unterscheidet — sonst wäre ein Ereignis, das ausdrücklich an die
+        // Anfangsphase gebunden ist, nicht von einem ungebundenen zu trennen.
+        ...(typeof entry['phase'] === 'number' ? { phase: entry['phase'] } : {}),
       });
     }
   }
 
+  // **Die Zeitleiste muss in ihren Wiederholungs-Rahmen passen** (Issue #565).
+  //
+  // Ein Zyklus reicht vom ersten Eintrag bis zum letzten. Der letzte Eintrag
+  // eines Zyklus liegt bei `0·loop + max`, der erste des nächsten bei
+  // `1·loop + min`. Vorwärts geht es nur, wenn `loop > max − min`.
+  //
+  // **Die SPANNWEITE entscheidet, nicht der Höchstwert.** Ein erster Entwurf
+  // prüfte `loop > max` — das hätte `test-metronome` verurteilt (Einträge
+  // 2000, 4000, 6000 bei loop 6000), der dort einen tadellosen Takt alle zwei
+  // Sekunden schlägt. Ein Fehlalarm ist die teurere Richtung: Eine Prüfung,
+  // der man nicht traut, wird abgeschaltet.
+  //
+  // Bei Gleichheit fällt der erste Eintrag des neuen Zyklus auf den letzten
+  // des alten — kein Rückwärtslauf, aber zwei Ereignisse zur selben Zeit.
+  // Deshalb ist die Grenze strikt.
+  //
+  // Gefunden wurde die Lage als Paritätsbruch bei Takt 4800: Spiel und
+  // Simulator beantworten eine rückwärts laufende Leiste verschieden, und
+  // keine Antwort ist die richtige, weil die Lage nicht vorkommen darf.
+  if (timelineLoopMs !== null && timeline.length >= 2) {
+    const zeiten = timeline.map((e) => e.atMs);
+    const spannweite = Math.max(...zeiten) - Math.min(...zeiten);
+    if (timelineLoopMs <= spannweite) {
+      problems.push(
+        `timelineLoopMs ist ${timelineLoopMs}, die Einträge spannen aber ` +
+          `${spannweite} ms (${Math.min(...zeiten)} bis ${Math.max(...zeiten)}). ` +
+          `Der nächste Zyklus begänne vor dem Ende des laufenden — die Zeitleiste ` +
+          `liefe rückwärts. Entweder die Einträge in den Rahmen legen oder ` +
+          `timelineLoopMs auf mindestens ${spannweite + 1} erhöhen.`,
+      );
+    }
+  }
   return {
     value: {
       schema,

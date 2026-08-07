@@ -29,8 +29,12 @@
       "damage": 2000,
       "castTimeMs": 2000
     },
-    { "atMs": 24000, "mechanic": "strike", "name": "Ember Wash", "damage": 500 }
+    {
+      "atMs": 24000,
+      "mechanic": "strike",
+      "name": "Ember Wash",
+      "damage": 500
+    }
   ],
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }

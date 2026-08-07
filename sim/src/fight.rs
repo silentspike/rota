@@ -1534,6 +1534,26 @@ impl Fight {
         if self.time < at_ms + self.next_strike_delay {
             return;
         }
+        // **Die Phasen-Bindung** (Issue #557). Bis hierher war `phase` ein
+        // Zustand ohne Wirkung: gesetzt, in die Pruefsumme gerueht, von keiner
+        // Regel gelesen. Ein Boss mit zwei Phasenschwellen verlief bitgleich
+        // zu demselben Boss mit `phases: []`.
+        //
+        // **Das Ereignis VERFAELLT, es wird nicht nachgeholt** — der Index
+        // laeuft weiter, die Wirkung entfaellt. Ein aufgestautes Ereignis
+        // fiele beim Phasenwechsel gesammelt mit allen anderen, und aus einer
+        // lernbaren Abfolge wuerde eine Lawine zum Schwellenzeitpunkt.
+        //
+        // Dieselbe Stelle und dieselbe Reihenfolge wie in
+        // `Combat.stepPassive`: vor dem Log, damit ein uebersprungenes
+        // Ereignis nicht als gefeuert erscheint.
+        if entry.phase != u32::MAX && (self.phase as u32) < entry.phase {
+            self.timeline_index += 1;
+            self.next_strike_delay = 0;
+            self.schedule_next_timeline_step();
+            return;
+        }
+
         self.log
             .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
 
@@ -3698,6 +3718,16 @@ impl Fight {
     #[must_use]
     pub fn healed(&self) -> u32 {
         self.healed
+    }
+
+    /// Wie viel Fortschritt der BOSS zurueckgedreht hat (Baustein 5, #218).
+    ///
+    /// **Nicht zu verwechseln mit [`healed`](Self::healed)** — das ist die
+    /// Heilung des SPIELERS. Diese Verwechslung hat am 2026-08-07 zu der
+    /// Aussage gefuehrt, boss-1-4 heile nicht, weil der Laeufer fuer
+    /// "Leben zurueckgeholt" 0.0 zeigte: Er zeigte die Spielerzahl.
+    pub fn boss_healed(&self) -> u32 {
+        self.boss_healed
     }
 
     /// Wie viel Schutz die Umwandlung erzeugt hat (Weg 3).
