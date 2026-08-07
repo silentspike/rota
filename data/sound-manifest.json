@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 22
+        "present": 24
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 38,
+        "count": 36,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind elf ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) die vier der FIXATION (Issue #100) und BLIGHT als erster Fueller der PUTREFAKTION (Issue #479). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -1075,6 +1075,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "capstone"
+      }
+    },
+    {
+      "id": "spell-scab",
+      "group": "spells",
+      "purpose": "SCAB — der Fueller der COAGULATION und ihr erster Zauber MIT SCHADEN. Er laeuft am GCD, muss also kurz und zurueckhaltend sein wie KINDLE. Er muss sich von CRUST unterscheiden: SCAB ist schneller und ORGANISCH, CRUST mineralisch und setzend.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-scab.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 20,
+      "prompt": "quick dry organic scabbing snap, thin skin hardening fast, faint wet edge, very short, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "scab"
+      }
+    },
+    {
+      "id": "spell-wisp",
+      "group": "spells",
+      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus.\n\nDER PROMPT IST GEGEN VAPOUR ANGELEGT, nicht variiert: VAPOUR ist Druck, der entweicht (\"soft pressurised steam release\"), WISP ist etwas Duennes, das flackert. Beide sind 0,6 s und entweichen nach oben — ohne Absicht waeren sie sich zu aehnlich geworden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wisp.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "thin ghostly air whisper, brief crystalline shimmer, weightless flicker upward, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wisp"
       }
     }
   ]

@@ -50,7 +50,13 @@ import {
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
-import { NO_TALENTS, talentFactor, type TalentAllocation } from '../progression/talents.js';
+import {
+  hasKeystone,
+  KEYSTONE_SPLIT_SPENDER,
+  NO_TALENTS,
+  talentFactor,
+  type TalentAllocation,
+} from '../progression/talents.js';
 
 /**
  * Die Faktoren, wie `Combat` sie INTERN haelt (Issue #196).
@@ -1120,6 +1126,18 @@ export class Combat {
   /** Die getragenen Werte — für Anzeige und Prüfung. */
   get wornValues(): WornValues {
     return this.worn;
+  }
+
+  /**
+   * Ob ein Schlüsseltalent dieses Verhalten freigeschaltet hat (Issue #418).
+   *
+   * **Aus der Verteilung abgeleitet, nicht mitgeführt.** Ein zweites Feld
+   * `private splitSpender = false` müsste in `setTalents` und in `reset`
+   * nachgezogen werden — zwei Stellen, an denen es auseinanderlaufen kann.
+   * Die Ableitung kann das nicht: Sie liest immer den Stand, der gilt.
+   */
+  hasKeystone(keystone: string): boolean {
+    return hasKeystone(this.talents, keystone);
   }
 
   setTalents(allocation: TalentAllocation): void {
@@ -3009,15 +3027,36 @@ export class Combat {
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
-      const amount = this.resourceValue;
-      let raw = spender.damagePerPoint * amount;
-      if (amount >= spender.bonusThreshold) {
-        // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
-        raw *= spender.bonusMultiplier;
-        outcome.bonusApplied = true;
+      // **Das erste Schlüsseltalent** (Issue #418, GAME-DESIGN 13.09): „Der
+      // Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+      // ZWEIMAL."
+      //
+      // Es trägt keine Zahl, sondern schaltet ein Verhalten um — deshalb
+      // steht hier eine Verzweigung und kein Faktor. Ein Schlüsseltalent, das
+      // sich als Faktor ausdrücken ließe, wäre keines.
+      const geteilt = this.hasKeystone(KEYSTONE_SPLIT_SPENDER);
+      // **Ganzzahlig geteilt, und der Rest bleibt liegen** (GAME-DESIGN 18.4).
+      // Bei 15 Hitze verbraucht jede Hälfte 7, eine bleibt übrig — nicht 7,5.
+      const proSchlag = geteilt ? Math.floor(this.resourceValue / 2) : this.resourceValue;
+      const schlaege = geteilt ? 2 : 1;
+
+      for (let i = 0; i < schlaege; i++) {
+        // **Der Vorrat wird VOR dem zweiten Schlag verbraucht**, sonst
+        // rechnete der zweite mit demselben Stand wie der erste — und aus
+        // „halb, dafür zweimal" würde „ganz, dafür zweimal".
+        const amount = geteilt ? Math.min(proSchlag, this.resourceValue) : this.resourceValue;
+        if (geteilt && amount === 0) break;
+
+        let raw = spender.damagePerPoint * amount;
+        if (amount >= spender.bonusThreshold) {
+          // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
+          raw *= spender.bonusMultiplier;
+          outcome.bonusApplied = true;
+        }
+        damage += computeDamage(raw, castFactors);
+        if (geteilt) this.resourceValue -= amount;
+        else if (spender.consumesAll) this.resourceValue = 0;
       }
-      damage += computeDamage(raw, castFactors);
-      if (spender.consumesAll) this.resourceValue = 0;
     }
 
     if (damage > 0) {
