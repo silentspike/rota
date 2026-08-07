@@ -95,6 +95,9 @@ describe('AC2 — FESTER schlägt härter zu als die Verwundbarkeit allein', () 
       'FESTER trägt das Feld nicht mehr — dann prüft der Fall nichts',
     ).toBeGreaterThan(0);
 
+    // **FESTER legt selbst KEINE Stapel** — CANKER legt an, FESTER lebt davon
+    // (#484). Sein Basis-Lauf hat deshalb Verwundbarkeit 1,0, und das
+    // Verhältnis ist der volle Faktor.
     const additiv = 1 + (MAX_DECAY_STACKS * (DECAY_STACK_PERCENT + proStapel)) / 100;
     expect(verhaeltnis('fester')).toBeCloseTo(additiv, 1);
   });
@@ -106,7 +109,17 @@ describe('AC3 — Gegenprobe: ein Zauber OHNE das Feld bleibt bei der Verwundbar
     // Derselbe Aufbau, derselbe Stapelstand, ein Zauber ohne den Zuschlag.
     const c = kampf();
     expect(c.spellAt(c.indexOf('canker'))?.perDecayStackPercent ?? 0).toBe(0);
-    const nurVerwundbarkeit = 1 + (MAX_DECAY_STACKS * DECAY_STACK_PERCENT) / 100;
-    expect(verhaeltnis('canker')).toBeCloseTo(nurVerwundbarkeit, 1);
+    // **CANKER legt SELBST einen Stapel** (`decay.stacks: 1`), auch im
+    // Basis-Lauf — anders als FESTER oben. Dessen Verwundbarkeit ist deshalb
+    // nicht 1,0, und das Verhältnis misst volle Leiste GEGEN einen Stapel.
+    //
+    // Aufgefallen ist das erst, als DECAY_STACK_PERCENT von 3 auf 6 stieg
+    // (#494): Bei 3 % lag 1,03 nahe genug an 1,0, dass die Toleranz es
+    // verdeckte. **Die Verdopplung hat einen Fehler sichtbar gemacht, der die
+    // ganze Zeit dastand** — ein Prüffall, der nur bei einem bestimmten Wert
+    // grün ist, prüft nicht die Regel, sondern den Wert.
+    const voll = 1 + (MAX_DECAY_STACKS * DECAY_STACK_PERCENT) / 100;
+    const einer = 1 + DECAY_STACK_PERCENT / 100;
+    expect(verhaeltnis('canker')).toBeCloseTo(voll / einer, 1);
   });
 });

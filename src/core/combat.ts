@@ -2102,10 +2102,23 @@ export class Combat {
 
   private applyDecayStackBonus(index: number): void {
     const proStapel = this.spells[index]?.perDecayStackPercent ?? 0;
-    this.setDamageFactor(
-      'vulnerability',
-      (100 + this.decayCountValue * (DECAY_STACK_PERCENT + proStapel)) / 100,
+    // **Der Faktor aus `stackBuffs` gehört auch hierher** (Issue #489). Diese
+    // Methode SETZT die Verwundbarkeit neu — ohne ihn würfe sie weg, was
+    // `updateVulnerability` eingerechnet hat, und eine Stapel-Verstärkung
+    // verschwände beim nächsten Wirken spurlos.
+    //
+    // Gemessen: Genau das ist beim Zusammenführen von #484 und #489
+    // aufgefallen — `buff-targets.test.ts` mass 1,06 gegen 1,06. Beide
+    // Vorhaben waren für sich grün; erst zusammen zeigte sich, dass das eine
+    // die Wirkung des anderen überschreibt. Kein Merge-Werkzeug fängt das:
+    // Die Dateien berühren einander nicht.
+    //
+    // Ganzzahlig bis zur letzten Teilung (18.4) — auf die Prozentpunkte, nicht
+    // auf das Ergebnis, genau wie in `updateVulnerability`.
+    const jeStapel = Math.round(
+      (DECAY_STACK_PERCENT + proStapel) * this.stackBuffs.factor(this.nowMsForBuffs),
     );
+    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
   }
 
   /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
