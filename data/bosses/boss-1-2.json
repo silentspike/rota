@@ -1,0 +1,55 @@
+{
+  "_comment": "ARBEITSNAME (Issue #544). Der zweite Boss der ersten Instanz: er verlangt einen BLICK AUF DIE UHR. Ein Zaehler laeuft mit, und wer ihn nicht rechtzeitig senkt, verliert den Kampf unabhaengig vom Schaden.\n\nPHASES SIND HIER KULISSE, nicht Baustein. Gemessen (#544): Ein Phasenwechsel setzt einen Zaehler und schreibt ein Ereignis, aendert am Kampf aber NICHTS — mit und ohne Phasen kamen dieselben 1720 Schaden an. Sie stehen drin, weil sie dem Spieler den Fortschritt zeigen, nicht weil sie etwas tun.\n\nSiehe Issue #557: Dort wird entschieden, ob aus der Kulisse eine Mechanik wird (Timeline-Ereignisse an Phasen binden oder ein Schadensfaktor je Phase). Bis dahin NICHT als Baustein lesen — es gibt kein Feld, mit dem sich etwas daran haengen liesse.\n\nSEINE AUFZEICHNUNG IST HEUTE ROT, und das ist Absicht: Der Verhaengnis-Zaehler laeuft nach genau 17,0 s voll, der Spieler stirbt — und ab da beenden Simulator und Spiel den Lauf verschieden. Der Simulator hoert auf (GAME-DESIGN A.3, im Code zitiert), das Spiel schuetzt zwar den Spieler, laesst ihn aber weiterwirken (Schaden 1200 -> 2800, Zeitleiste 1 -> 3).\n\nSiehe Issue #567. Der doom-Wert ist richtig, der Tod ist richtig, und der Bruch ist der Befund — er verschwindet mit dem Fix, nicht mit einer Aenderung an diesem Boss.\n\nSIGNATUR-REGEL (GAME-DESIGN 11.1): Ein Verhaengnis-Zaehler mit KURZER Frist — er fuellt sich in gut 16 Sekunden, und es gibt nur zwei Senkungen. Wer die zweite zu frueh verbraucht, verliert. Getragen von: doom (amount 6 statt der 5 des Pruef-Bosses).",
+  "schema": 1,
+  "id": "boss-1-2",
+  "name": "Instance One, Second",
+  "instance": "instance-1",
+  "hp": 6400,
+  "overpressureMs": 60000,
+  "phases": [
+    {
+      "atHpPercent": 65,
+      "name": "Second Heat"
+    },
+    {
+      "atHpPercent": 30,
+      "name": "Final Fusion"
+    }
+  ],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 10000,
+      "mechanic": "strike",
+      "name": "Cinder Sweep",
+      "damage": 350
+    },
+    {
+      "atMs": 25000,
+      "mechanic": "interruptibleCast",
+      "name": "Fusion Call",
+      "damage": 1100,
+      "castTimeMs": 3000
+    },
+    {
+      "atMs": 40000,
+      "mechanic": "strike",
+      "name": "Cinder Sweep",
+      "damage": 350
+    },
+    {
+      "atMs": 52000,
+      "mechanic": "strike",
+      "name": "Cinder Sweep",
+      "damage": 350
+    }
+  ],
+  "resistances": {},
+  "doom": {
+    "perStepMs": 1000,
+    "amount": 6,
+    "threshold": 100,
+    "clearAmount": 40,
+    "clearCharges": 2
+  }
+}

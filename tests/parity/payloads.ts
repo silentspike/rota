@@ -319,6 +319,12 @@ export const ALEMBIC_NAME = 'alembic-zwei-ladungen';
  */
 export const DECKEL_NAME = 'deckel-gefallen';
 
+/**
+ * Vergleichsdatei für die Phasen-Bindung (#557) — ein Ereignis, das erst ab
+ * der zweiten Phase feuert.
+ */
+export const PHASEN_NAME = 'phasen-bindung';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -2228,6 +2234,87 @@ const DECKEL_BINDINGS = [
  * Vorrat von selbst unter den Deckel. Genau daran ist der Versuch des
  * Orchestrators über den Balance-Läufer gescheitert.
  */
+/** Die Leiste der Phasen-Aufzeichnung — VOR der Funktion (Issue #405). */
+const PHASEN_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'pyre' },
+] as const;
+
+/**
+ * Ein Phasenwechsel mit gebundenem Ereignis (Issue #557).
+ *
+ * # Was diese Aufzeichnung zeigt, das keine andere zeigt
+ *
+ * Bis #557 war `bossPhase` ein Zustand ohne Wirkung: gesetzt, in die
+ * Prüfsumme gerührt, von keiner Regel gelesen. Ein Boss mit Phasenschwellen
+ * verlief bitgleich zu demselben Boss mit `phases: []` — gemessen an 1000
+ * Durchgängen.
+ *
+ * `test-phasenbindung` trägt ein Ereignis mit `phase: 1`. Es feuert nur, wenn
+ * der Boss die Schwelle bei 50 % unterschritten hat, und verfällt sonst.
+ * Beide Seiten müssen an derselben Stelle dieselbe Entscheidung treffen.
+ *
+ * # Die Takte sind nicht beliebig
+ *
+ * Rupture liegt bei 36 s, die Schwelle fällt bei den hier gedrückten Zaubern
+ * davor. Ein früherer Zeitpunkt (12 s) wurde gemessen und verworfen: Dort ist
+ * der Boss noch über 50 %, das Ereignis verfällt, und die Aufzeichnung zeigte
+ * nur, dass nichts geschieht.
+ */
+export function phasenPayload(): Record<string, unknown> {
+  const boss = bossById('test-phasenbindung');
+  if (boss === undefined) throw new Error('Der Boss test-phasenbindung fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const pyre = combat.indexOf('pyre');
+  const ticks = 5000; // 50 s
+
+  const slots = slotMap(combat, PHASEN_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Die Phase je Takt — die Grösse, die #557 erst wirksam macht. */
+  const phase: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      phase.push(combat.bossPhase);
+      break;
+    }
+    let gewaehlt = -1;
+    if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    phase.push(combat.bossPhase);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: PHASEN_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: PHASEN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    phase,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /** Die höchste erreichte Phase — muss über 0 liegen, sonst zeigt der Lauf nichts. */
+      hoechstePhase: Math.max(...phase),
+      /** Eingesteckter Schaden: mit gebundenem Ereignis höher als ohne. */
+      damageTaken: combat.damageTaken,
+    },
+  };
+}
+
 export function deckelPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -4659,6 +4746,108 @@ export function buffTargetsPayload(): Record<string, unknown> {
     ticks: recording.ticks,
     tickMs: TICK_MS,
     bindings: BUFF_TARGETS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+/** Die vier Bosse der ersten Instanz, je eine Aufzeichnung (Issue #544, AC4). */
+export const INSTANCE1_NAMES = [
+  'instance1-boss-1',
+  'instance1-boss-2',
+  'instance1-boss-3',
+  'instance1-boss-4',
+] as const;
+
+const INSTANCE1_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+] as const;
+
+/**
+ * Eine Aufzeichnung je Boss der ersten Instanz.
+ *
+ * # Warum vier Aufzeichnungen aus EINER Funktion
+ *
+ * Die vier unterscheiden sich nur im Boss — dieselben Tasten, dieselbe Folge.
+ * Vier Kopien derselben Schleife wären vier Stellen, an denen sie
+ * auseinanderlaufen können, und der Unterschied zwischen ihnen wäre nicht mehr
+ * ablesbar.
+ *
+ * So steht in der Datei genau das, was die Aufzeichnungen unterscheidet: der
+ * Boss. Alles andere ist nachweislich gleich.
+ *
+ * # QUENCH liegt auf der Leiste, obwohl er keinen Schaden macht
+ *
+ * Ohne ihn zeichnete der Lauf für `boss-1-4` nie eine Unterbrechung auf — und
+ * dessen Signatur hängt genau daran (die Heilung folgt auf einen
+ * durchgekommenen Wirkzauber). Eine Aufzeichnung ohne QUENCH beträfe den Boss
+ * nur von außen.
+ */
+function recordInstance1(bossId: string, ticks: number): Recording {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE1_BINDINGS, presses);
+  const kindle = combat.indexOf('kindle');
+  const smoulder = combat.indexOf('smoulder');
+  const pyre = combat.indexOf('pyre');
+  const quench = combat.indexOf('quench');
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Unterbrechen geht vor.** Der Boss wirkt nur selten; wer den Moment
+    // verpasst, sieht die Folge erst viel später — bei boss-1-4 als
+    // zurückgedrehten Fortschritt.
+    if (combat.casting !== -1 && combat.isOffCooldown(quench, timeMs)) {
+      press(quench, tick, timeMs);
+    } else if (!combat.isDotActive(smoulder, timeMs) && combat.isOffCooldown(smoulder, timeMs)) {
+      press(smoulder, tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(pyre, timeMs)) {
+      press(pyre, tick, timeMs);
+    } else if (combat.isOffCooldown(kindle, timeMs)) {
+      press(kindle, tick, timeMs);
+    }
+  }
+
+  return {
+    name: `instance1-${bossId.slice(-5)}`,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: INSTANCE1_BINDINGS,
+  };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse. */
+export function instance1Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const recording = { ...recordInstance1(bossId, 6000), name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE1_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,

@@ -20,6 +20,5 @@
   "affliction": null,
   "timeline": [],
   "timelineLoopMs": null,
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }

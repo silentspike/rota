@@ -93,6 +93,8 @@ import {
   PUTREFACTION_FILLER_NAME,
   buffTargetsPayload,
   BUFF_TARGETS_NAME,
+  instance1Payload,
+  INSTANCE1_NAMES,
   cinderPayload,
   dotLifetimePayload,
   DOT_LIFETIME_NAME,
@@ -120,6 +122,8 @@ import {
   ALEMBIC_NAME,
   deckelPayload,
   DECKEL_NAME,
+  phasenPayload,
+  PHASEN_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -219,6 +223,13 @@ writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
 const buffTargets = buffTargetsPayload();
 const buffTargetsPath = join(here, 'recordings', `${BUFF_TARGETS_NAME}.json`);
 writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
+
+// Die vier Bosse der ersten Instanz (#544, AC4).
+for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
+  const name = INSTANCE1_NAMES[i];
+  const datensatz = instance1Payload(`boss-1-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+}
 
 const kerne = kernePayload();
 const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
@@ -321,6 +332,15 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+const phasen = phasenPayload();
+const phasenPath = join(here, 'recordings', `${PHASEN_NAME}.json`);
+writeFileSync(phasenPath, serialize(phasen), 'utf8');
+console.log(`geschrieben: ${phasenPath}`);
+console.log(
+  `  Phasen-Bindung         hoechste Phase ${phasen.expected.hoechstePhase}, ` +
+    `eingesteckt ${phasen.expected.damageTaken}`,
+);
 
 const deckel = deckelPayload();
 const deckelPath = join(here, 'recordings', `${DECKEL_NAME}.json`);
