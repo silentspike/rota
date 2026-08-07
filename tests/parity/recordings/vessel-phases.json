@@ -17,6 +17,7 @@
     "test-crucible-trial",
     "test-doomsayer",
     "test-gatekeeper",
+    "test-lapse-interrupt",
     "test-lapse",
     "test-metronome",
     "test-onslaught",
