@@ -31,6 +31,8 @@ struct Options {
     json: bool,
     /// Ob nur die Nutzung ausgegeben werden soll (Issue #525).
     help: bool,
+    /// Kennung des Bosses, gegen den gerechnet wird (Issue #525, AC3).
+    boss_id: Option<String>,
     apl_path: Option<String>,
 }
 
@@ -42,6 +44,7 @@ impl Default for Options {
             base_seed: 0,
             json: false,
             help: false,
+            boss_id: None,
             apl_path: None,
         }
     }
@@ -58,6 +61,8 @@ fn main() -> ExitCode {
                  [--iterations N] [--threads N] [--seed N] [--json] [--apl DATEI]\n\n\
                  --apl  Pfad zur Rotationsdatei, RELATIV ZUM WORKSPACE-ROOT\n       \
                  (also sim/apl/DATEI.apl, nicht apl/DATEI.apl)\n\
+                 --boss <id>  gegen welchen Boss gerechnet wird; ohne ihn gegen\n              \
+                 den Standard, der KEINEN Schaden austeilt\n\
                  --json Ausgabe als JSON statt als Text\n\n\
                  Ausgegeben werden: Schaden, Siege, eingesteckter Schaden, Tode\n\
                  und die Wirkungen je Zauber."
@@ -73,6 +78,28 @@ fn main() -> ExitCode {
             );
             return ExitCode::FAILURE;
         }
+    };
+
+    // Der Boss, gegen den gerechnet wird (Issue #525, AC3). Ohne `--boss` der
+    // Standard — und der teilt KEINEN Schaden aus, womit jeder
+    // Verteidigungszauber unmessbar bleibt.
+    let boss = match &options.boss_id {
+        Some(id) => match rota_sim::data::boss_by_id(id) {
+            Some(b) => b,
+            None => {
+                eprintln!("Unbekannter Boss: {id}");
+                eprintln!(
+                    "Moeglich sind: {}",
+                    rota_sim::data::BOSSES
+                        .iter()
+                        .map(|b| b.id)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return ExitCode::FAILURE;
+            }
+        },
+        None => BalanceConfig::default().boss,
     };
 
     let listen: Vec<(String, Apl)> = match &options.apl_path {
@@ -101,6 +128,7 @@ fn main() -> ExitCode {
             iterations: options.iterations,
             base_seed: options.base_seed,
             threads: options.threads,
+            boss,
             ..BalanceConfig::default()
         };
         let start = Instant::now();
@@ -123,6 +151,7 @@ fn main() -> ExitCode {
                     iterations: options.iterations,
                     base_seed: options.base_seed,
                     threads: options.threads,
+                    boss,
                     ..BalanceConfig::default()
                 },
                 &listen[index].1,
@@ -190,6 +219,11 @@ fn parse_arguments() -> Result<Options, String> {
                     .map_err(|_| "--seed braucht eine ganze Zahl.".to_owned())?;
             }
             "--apl" => options.apl_path = Some(wert("--apl")?),
+            // **Das Feld gab es schon** (BalanceConfig::boss), nur keinen Weg,
+            // es zu setzen. Ohne diesen Schalter rechnet der Laeufer immer
+            // gegen einen Boss, der NICHTS austeilt — und dann ist jeder
+            // Verteidigungszauber unmessbar (Issue #525, AC3).
+            "--boss" => options.boss_id = Some(wert("--boss")?),
             "--json" => options.json = true,
             // `--help` war bis Issue #525 eine "Unbekannte Angabe": Die
             // Nutzungszeile kam nur als FEHLER, und wer sie suchte, musste
