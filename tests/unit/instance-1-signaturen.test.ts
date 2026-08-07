@@ -149,3 +149,50 @@ describe('boss-1-4 — die Signatur trägt ZWEI Bausteine, getrennt geprüft', (
     expect(ohne.bossHealed).toBe(0);
   });
 });
+
+describe('boss-1-1 — die Verschärfung ist mit dem Balance-Läufer NICHT messbar', () => {
+  /**
+   * `escalation` verkürzt die Wirkzeit unterbrechbarer Zauber je Zyklus. Der
+   * Balance-Läufer zeigt davon **nichts**: Er fährt eine Rotation ohne
+   * Unterbrecher, der Zauber kommt so oder so durch, und ob seine Wirkzeit
+   * 2500 oder 1200 ms beträgt, ändert das Ergebnis nicht (1920 gegen 1920).
+   *
+   * Das ist der Unterschied zu `phases`, und er entscheidet, ob ein Baustein
+   * bleiben darf:
+   *
+   * | | wird gelesen? | wirkt? |
+   * | --- | --- | --- |
+   * | `phases` | nein | nie |
+   * | `escalation` | ja | nur für einen Spieler, der unterbricht |
+   *
+   * Beim ersten ist der Baustein eine Beschriftung. Beim zweiten war meine
+   * Messung zu grob. Deshalb wird hier die Größe gelesen, um die es geht —
+   * die Wirkzeit selbst — statt einer, die sich mitbewegt.
+   */
+  it('die Wirkzeit schrumpft mit jedem Zyklus', () => {
+    const b = boss('boss-1-1');
+    expect(b.escalation, 'ohne escalation misst der Fall nichts').not.toBeNull();
+    expect(b.timelineLoopMs, 'escalation wirkt nur mit timelineLoopMs').not.toBeNull();
+
+    // Die Wirkzeiten aller Zauber sammeln, die im Lauf angefangen werden.
+    const c = new Combat({ school: CALCINATION.value, boss: b });
+    const dauern: number[] = [];
+    let laufend = -1;
+    for (let t = 0; t <= 120_000; t += 10) {
+      c.stepPassive(t);
+      if (c.casting !== -1 && c.casting !== laufend) {
+        dauern.push(c.castLandsAtMs - c.castingStartedAtMs);
+        laufend = c.casting;
+      } else if (c.casting === -1) {
+        laufend = -1;
+      }
+    }
+
+    expect(dauern.length, 'kein Wirkzauber begonnen — dann prüft der Fall nichts').toBeGreaterThan(
+      2,
+    );
+    // **Die Aussage:** Später ist kürzer. Nicht jeder Schritt einzeln — die
+    // Untergrenze (`minCastTimeMs`) sorgt dafür, dass es irgendwann aufhört.
+    expect(dauern[dauern.length - 1]).toBeLessThan(dauern[0] as number);
+  });
+});
