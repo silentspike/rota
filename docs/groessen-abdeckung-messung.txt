@@ -12,7 +12,7 @@ buff.gcds                  slag         4 -> 2        geschuetzt (slag.test.ts)
 buff.gcds                  virulence    4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
 buff.kind                  distil       0 -> 1        SCHWEIGT
 buff.kind                  flashpoint   0 -> 1        SCHWEIGT
-buff.kind                  griplock     0 -> 1        SCHWEIGT
+buff.kind                  griplock     0 -> 1        geschuetzt [1 Prueffall] (buff-ersetzung-ueber-zauber.test.ts)
 buff.kind                  quicksilver  0 -> 1        SCHWEIGT
 buff.kind                  slag         1 -> 0        SCHWEIGT
 buff.kind                  virulence    0 -> 1        SCHWEIGT
