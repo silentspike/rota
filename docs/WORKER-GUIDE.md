@@ -4123,3 +4123,222 @@ Das ist dieselbe Klasse wie _„eine Liste, die sich beim Laufen selbst herstell
 grün"_ aus `spell-order.test.ts` — nur bei einer Zahl statt bei einer Liste. **Der Sollwert
 gehört hart in den Prüffall, mit Begründung im Kommentar.** Wer ihn absichtlich ändert, ändert
 diese Zeile mit, und genau dann fällt auf, dass eine Entscheidung getroffen wurde.
+
+### 8.58 Die Wirkung gesehen, die Ursache erfunden
+
+Der Satz stammt von Worker-3, am 2026-08-07, nachdem sein eigener Prüffall seine eigene
+Signatur widerlegt hatte. Er beschreibt eine Klasse, die an diesem Vormittag **fünf** von uns
+getroffen hat — in fünf verschiedenen Gestalten, mit einer gemeinsamen Form:
+
+> **Eine Aussage über einen Gegenstand, die nicht aus dem Gegenstand kommt.**
+
+| Wer          | Die Aussage                                          | Woher sie stattdessen kam                                                                                             |
+| ------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Worker-3     | „`race` und `bossHeal` tragen die Heilung gemeinsam" | Beide Wegnahmen änderten den **Schaden** — der Läufer gibt die Heilung gar nicht aus                                  |
+| Worker-2     | „ein reiner Doku-Merge, kein Zauber-Index betroffen" | Aus dem **Zweck** des Merges beschrieben, nicht aus seinem `--stat`                                                   |
+| Worker-1     | „#507 ist 5 Commits vor main"                        | `gh pr view` misst den **Server**, gearbeitet wurde lokal (144 Commits alt)                                           |
+| Orchestrator | „#553 ist durch, ich schließe es"                    | Aus der **Ausgabe** von `gh pr merge` geschlossen, nicht aus dem Zustand danach — zweimal, in beide Richtungen falsch |
+| Orchestrator | „jede Aufzeichnung fährt `Combat` direkt"            | Einen **Kommentar zitiert**, der ins Bild passte. Gemessen: 36 ja, 2 nein                                             |
+
+Keiner dieser Fälle war ein Rechenfehler. In allen fünf war die Zahl oder die Beobachtung
+richtig — falsch war, worauf sie sich bezog.
+
+#### Die Prüffrage
+
+**Misst mein Werkzeug die Größe, um die es geht — oder eine, die sich mitbewegt?**
+
+Worker-3s Fall ist der klarste: Der Balance-Läufer gibt `damage` aus. Nimmt man einen
+Baustein weg und der Schaden ändert sich, hat man gemessen, _dass_ etwas passiert — nicht
+_was_. Sein Prüffall liest `bossHealed` und sagt in einer Zeile, was drei Läufe nicht sagen
+konnten.
+
+Dasselbe bei SLAG (#547): Der erreichte Vorrat bewegt sich mit dem Faktor, aber auch mit der
+Fensterlänge, dem Verfall und der Abklingzeit des Erzeugers. Wer die **Anhebung** prüfen will,
+muss den Deckel messen, nicht den Vorrat.
+
+#### Die zweite Hälfte: eine Zusicherung, die den Fall vor sich selbst schützt
+
+Worker-3s erster Entwurf fuhr den Kampf **ohne Spieler**. Dann nimmt der Boss keinen Schaden,
+kann sich also nicht heilen, und beide Läufe zeigten 0 — grün, ohne zu prüfen. Gefangen hat es
+eine Zeile, die er davorgeschrieben hatte:
+
+```
+der Boss heilt sich nicht — dann misst dieser Fall nichts
+```
+
+Das ist dieselbe Bauart wie Worker-2s Wächter aus #424: _„Die Gegenprobe hat nicht den Code
+gerettet, sondern den Wächter vor sich selbst."_
+
+**Vor der eigentlichen Prüfung steht die Prüfung, ob überhaupt etwas zu prüfen ist.** Ohne sie
+ist Grün nicht von Blindheit zu unterscheiden — und das ist der Zustand, in dem ein Prüffall
+jahrelang unbemerkt nichts tut.
+
+#### Und die Unterscheidung, ohne die „schweigt" mehrdeutig bleibt
+
+Worker-3 hat am selben Tag zwei Bausteine gemessen, die beide schwiegen — aus völlig
+verschiedenen Gründen:
+
+```
+phases        1720 angekommen mit, 1720 ohne
+escalation    1920 angekommen mit, 1920 ohne
+```
+
+|              |                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `phases`     | wird gesetzt und **nirgends gelesen**. Keine Wirkung, egal wer spielt               |
+| `escalation` | wird gelesen und **wirkt** — nur nicht auf eine Größe, die das Messwerkzeug ausgibt |
+
+`escalation` verkürzt die Wirkzeit unterbrechbarer Zauber. Der Balance-Läufer fährt eine
+Rotation **ohne Unterbrecher** — der Zauber kommt so oder so durch, und ob seine Wirkzeit
+2500 oder 1200 ms beträgt, ändert am Ergebnis nichts.
+
+> **Beim ersten ist der Baustein die Beschriftung. Beim zweiten ist es meine Messung, die zu
+> grob ist.** Ich hätte beides „schweigt" genannt, wenn ich nicht nachgesehen hätte, _warum_.
+
+**Ein Schweigen ist erst dann ein Befund, wenn seine Ursache gemessen ist.** Sonst führt es zu
+einer von zwei falschen Handlungen: einen wirksamen Baustein wegzuwerfen, oder eine Kulisse
+für eine Mechanik zu halten.
+
+Der Weg im zweiten Fall ist nicht, das Werkzeug zu verbessern, sondern **die Größe zu messen,
+um die es geht** — hier `escalatedCastTime` in einem Unit-Test statt angekommener Schaden im
+Läufer. Das ist dieselbe Bewegung wie bei `bossHealed` weiter oben, nur eine Ebene früher: dort
+nach der falschen Deutung, hier davor.
+
+#### Ein dritter Grund fürs Schweigen, der weder Beschriftung noch Messgrenze ist
+
+Auf dem Weg dorthin fand Worker-3 noch einen: `escalation` steigt in `combat.ts:3135` aus,
+wenn `timelineLoopMs === null` ist. **Allein eingebaut hätte es geschwiegen, obwohl es wirkt** —
+ihm fehlte der Partner.
+
+Und selbst mit Partner braucht es passende Zahlen: Bei `timelineLoopMs: 20000` blieb keine Zeit
+für einen zweiten Zyklus (letzter Eintrag bei 48 s, Limit 60 s), und `escalation` greift erst
+**ab** Zyklus 1. Erst mit 15000 lief beides.
+
+**Ein Baustein, der einen anderen voraussetzt, schweigt genau wie ein toter** — und der
+Unterschied steht im Quelltext, nicht in der Messung.
+
+---
+
+### 8.59 Eine Liste, in der alle Zeilen gleich aussehen, ist verdächtig
+
+Der Satz stammt von Worker-1, am 2026-08-07, und er ist schärfer als 8.23. Dort ging es
+darum, dass eine Suche etwas **nicht findet**. Hier findet sie überall dasselbe.
+
+Er hatte sein Abdeckungs-Werkzeug umgebaut — statt der Zahl aus der Zusammenfassung sollte
+es die Namen der gefallenen Dateien sammeln. Der Probelauf über sechs Verstärker:
+
+```
+distil SCHWEIGT · flashpoint SCHWEIGT · griplock SCHWEIGT
+quicksilver SCHWEIGT · slag SCHWEIGT · virulence SCHWEIGT
+```
+
+**Alle sechs.** Das passte zur These, die wir in derselben Stunde belegt hatten — die
+Verstärker seien ungeschützt. Es wäre durchgegangen.
+
+Aufgefallen ist es nur, weil `slag` **dabeistand**: Für ihn hatte er zwei Stunden vorher
+selbst drei Prüffälle gebaut und mit Gegenprobe belegt. Er wusste, dass diese Zeile falsch
+sein muss.
+
+> **Die Ursache:** `vitest` schreibt die `FAIL`-Zeilen nach **stderr**, die Zusammenfassung
+> nach **stdout**. Die neue Fassung las nur stdout. Die alte hatte die Zahl aus der
+> Zusammenfassung gelesen und war deshalb nie betroffen — **der Umbau hat den Fehler erst
+> erzeugt.**
+
+Nachgemessen, mit einer Mutation an `slag`:
+
+```
+stdout FAIL: 0        stderr FAIL: 3
+```
+
+Drei gefallene Fälle, keine einzige Zeile auf stdout.
+
+**Die Regel:** Ein Ergebnis, in dem jede Zeile gleich lautet, ist zuerst ein Verdacht gegen
+das Werkzeug und erst danach ein Befund. Das gilt auch — besonders — wenn es zur Erwartung
+passt. Wer eine Liste erzeugt, braucht darin mindestens einen Fall, dessen Antwort er vorher
+kennt; ohne diesen Anker ist eine gleichförmige Liste nicht von einem stummen Werkzeug zu
+unterscheiden.
+
+> Dieselbe Familie wie `cargo remote | tail`, das 17 statt 510 Tests meldete: **Nicht die
+> Menge ist das Problem, sondern der Kanal.** Wer Ergebnisse filtert, muss wissen, wohin sie
+> geschrieben werden.
+
+---
+
+### 8.60 Eine Prüfregel braucht die Gegenprobe an den Gesunden
+
+Am 2026-08-07 lief eine Zeitleiste rückwärts, weil ihr Schleifenwert kleiner war als die
+Spannweite ihrer Einträge. Die vorgeschlagene Prüfung dagegen lautete:
+
+```
+max(atMs) < timelineLoopMs
+```
+
+Sie fängt den bekannten Fall. Gegen den Bestand gefahren, **bevor** sie in das Issue kam:
+
+```
+test-metronome   loop 6000,  Einträge 2000 / 4000 / 6000
+                 max(atMs) 6000 ≥ loop 6000   → würde anschlagen
+
+  index 0 → 2000    index 3 →  8000
+  index 1 → 4000    index 4 → 10000
+  index 2 → 6000    index 5 → 12000
+
+  0 Rückwärts-Sprünge — ein gleichmäßiger Takt alle 2000 ms
+```
+
+Der Boss ist kerngesund. Maßgeblich ist die **Spannweite**, nicht der Höchstwert:
+
+```
+letzter Eintrag eines Zyklus   0·loop + max
+erster des nächsten            1·loop + min
+
+vorwärts genau dann, wenn      loop > max − min
+```
+
+Die falsche Regel entstand als Verallgemeinerung des einen betrachteten Falls — dort begann
+die Leiste bei 12000, und der Unterschied zwischen Höchstwert und Spannweite fiel nicht auf.
+
+**Warum das die teurere Richtung ist:** Eine Regel, die etwas übersieht, lässt einen Fehler
+durch. Eine Regel, die etwas Gesundes verurteilt, erzeugt einen Fehlalarm — und ein Wächter,
+der ohne Grund anschlägt, wird irgendwann abgeschaltet. Danach fängt er auch die echten
+Fälle nicht mehr.
+
+> **Zu jeder Prüfregel gehören zwei Proben, nicht eine:**
+>
+> |                                       |                             |
+> | ------------------------------------- | --------------------------- |
+> | schlägt sie beim bekannten Fall an?   | sonst prüft sie nichts      |
+> | lässt sie **alle** bestehenden durch? | sonst ist sie ein Fehlalarm |
+>
+> Die zweite ist die, die vergessen wird. Sie kostet einen Lauf über den Bestand.
+
+---
+
+### 8.61 `git checkout <datei>` nimmt die Datei zurück, nicht die Mutation
+
+Ein Fehler des Orchestrators vom 2026-08-07, aufgeschrieben, weil er bei jeder
+Mutations-Gegenprobe lauert und dort besonders teuer ist.
+
+Ablauf: sieben Einfügungen in `sim/src/balance.rs` gebaut, nicht gestaged. Dann eine
+Mutation in dieselbe Datei gesetzt, den Prüffall gefahren — und die Mutation mit
+`git checkout sim/src/balance.rs` zurückgenommen.
+
+**Damit war die eigene Arbeit weg.** `git checkout` stellt den Stand aus dem **Index** her;
+was nie gestaged wurde, hat dort keinen Stand und fällt auf `HEAD` zurück.
+
+Gemerkt nur, weil der nächste Lauf `unknown field boss_healed` meldete — hätte die Mutation
+in einer Datei gelegen, an der nichts Eigenes stand, wäre es unbemerkt geblieben.
+
+```bash
+# Vor jeder Mutations-Gegenprobe:
+git add -A          # jetzt ist checkout ungefährlich
+
+# denn danach gilt:
+git checkout <datei>   # stellt den INDEX-Stand her, nicht HEAD
+```
+
+**Wer in einem Durchgang 68 Mutationen fährt, fährt 68 dieser Rücknahmen.** Eine davon trifft
+irgendwann eine Datei, an der ungestagte Arbeit steht.
+
+> Dieselbe Wurzel wie „Ein Test misst den Arbeitsbaum, ein Merge liefert den Index": **Index
+> und Arbeitsbaum sind zwei Stände**, und jedes Werkzeug spricht nur mit einem von beiden.

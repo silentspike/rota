@@ -125,6 +125,12 @@ pub struct Sample {
     /// Steht neben den beiden anderen und nicht in ihrer Summe: Heilung
     /// mindert keinen Schlag, sie macht ihn nachtraeglich wett.
     pub healed: u32,
+    /// Vom BOSS zurueckgedrehter Fortschritt (Baustein 5, #218).
+    ///
+    /// Steht getrennt von `healed`: Das eine ist die Heilung des Spielers,
+    /// das andere eine Strafe fuer sein Versaeumnis. Ohne diese Zeile war
+    /// die Groesse im Laeufer unerreichbar, obwohl `Fight` sie fuehrt.
+    pub boss_healed: u32,
     /// Ob der Spieler gestorben ist.
     pub died: bool,
 }
@@ -257,6 +263,8 @@ pub struct BalanceResult {
     pub absorbed: Statistics,
     /// Zurueckgeholtes Leben (Weg 2).
     pub healed: Statistics,
+    /// Vom BOSS zurueckgedrehter Fortschritt — **nicht** die Spielerheilung.
+    pub boss_healed: Statistics,
     /// Wie oft der SPIELER gestorben ist.
     ///
     /// Bei einer Rotation, die ohne Verteidigung stirbt, ist das die
@@ -310,7 +318,7 @@ impl BalanceResult {
             "{{\"apl\":{:?},\"iterations\":{},\"baseSeed\":{},\"threads\":{},\
              \"damage\":{},\"kills\":{},\"killRate\":{:?},\"killTimeMs\":{},\
              \"damageIncoming\":{},\"damageTaken\":{},\
-             \"absorbed\":{},\"healed\":{},\
+             \"absorbed\":{},\"healed\":{},\"bossHealed\":{},\
              \"deaths\":{},\"casts\":{{{}}}}}",
             self.apl_name,
             self.iterations,
@@ -324,6 +332,7 @@ impl BalanceResult {
             stats(&self.damage_taken),
             stats(&self.absorbed),
             stats(&self.healed),
+            stats(&self.boss_healed),
             self.deaths,
             // Nur die Zauber, die WIRKLICH gedrueckt wurden — eine Liste mit
             // sechzig Nullen verdeckt die drei Zahlen, auf die es ankommt.
@@ -405,12 +414,15 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         .collect();
     let mut absorbed_values: Vec<f64> = samples.iter().map(|s| f64::from(s.absorbed)).collect();
     let mut healed_values: Vec<f64> = samples.iter().map(|s| f64::from(s.healed)).collect();
+    let mut boss_healed_values: Vec<f64> =
+        samples.iter().map(|s| f64::from(s.boss_healed)).collect();
     taken_values.sort_by(f64::total_cmp);
     // **Statistics::from_sorted verlangt sortierte Werte** — der Name sagt
     // es, und ohne diese zwei Zeilen waere der Median still falsch.
     incoming_values.sort_by(f64::total_cmp);
     absorbed_values.sort_by(f64::total_cmp);
     healed_values.sort_by(f64::total_cmp);
+    boss_healed_values.sort_by(f64::total_cmp);
     let kill_values: Vec<f64> = samples
         .iter()
         .filter_map(|s| s.killed_at_ms.map(f64::from))
@@ -428,6 +440,7 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         damage_incoming: Statistics::from_sorted(&incoming_values),
         absorbed: Statistics::from_sorted(&absorbed_values),
         healed: Statistics::from_sorted(&healed_values),
+        boss_healed: Statistics::from_sorted(&boss_healed_values),
         deaths: samples.iter().filter(|s| s.died).count(),
         casts: casts_total.to_vec(),
         samples,
@@ -487,6 +500,7 @@ fn run_range(
             damage_taken: fight.damage_taken(),
             absorbed: fight.shield_absorbed(),
             healed: fight.healed(),
+            boss_healed: fight.boss_healed(),
             died: fight.player_dead(),
         });
     }
