@@ -97,6 +97,8 @@ import {
   logParityPayload,
   timelineLoopPayload,
   sublimationPayload,
+  gezielteVerkuerzungPayload,
+  GEZIELTE_VERKUERZUNG_NAME,
   SUBLIMATION_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
@@ -255,6 +257,15 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+// Die gezielten Verkuerzer (Issue #518) — eigene Aufzeichnung, weil die
+// Sublimations-Aufzeichnung ihren eigenen Zweck hat und mit sieben Zaubern
+// keinen mehr zeigte.
+const gezielteVerkuerzung = gezielteVerkuerzungPayload();
+const gezielteVerkuerzungPath = join(here, 'recordings', `${GEZIELTE_VERKUERZUNG_NAME}.json`);
+writeFileSync(gezielteVerkuerzungPath, serialize(gezielteVerkuerzung), 'utf8');
+console.log(`geschrieben: ${gezielteVerkuerzungPath}`);
+console.log(`  gezielt gewirkt ${JSON.stringify(gezielteVerkuerzung['expected']['casts'])}`);
 
 const timelineLoop = timelineLoopPayload();
 const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);
