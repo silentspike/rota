@@ -126,3 +126,46 @@ describe('boss-2-3 — das umgekehrte Ziel: wer nicht stabilisiert, verliert', (
     expect(r.ring, 'der Ring lief voll und der Kampf gilt trotzdem als gewonnen').toBeLessThan(1);
   });
 });
+
+describe('boss-2-4 — die Kollision: wer nicht unterbricht, kommt nie durch', () => {
+  /**
+   * Der Abschluss der Instanz. Rennen und Wirkzauber überlappen (12000–17000
+   * gegen 13000) — wer im Fenster unterbricht, verfehlt die Schwelle; wer die
+   * Schwelle schafft, lässt den Zauber durch.
+   *
+   * Der Unterschied zu `boss-1-4`: Dort lagen beide auseinander und waren
+   * einzeln zu bedienen.
+   */
+  function ausgang24(unterbrechen: boolean): { zustand: number; ende: number; geheilt: number } {
+    const b = boss('boss-2-4');
+    const c = new Combat({ school: CALCINATION.value, boss: b });
+    const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
+    for (let t = 0; t <= 60_000; t += 10) {
+      c.stepPassive(t);
+      if (c.checkDefeat(t)) return { zustand: c.fightState, ende: t, geheilt: c.bossHealed };
+      if (!c.gcd.isReady(t)) continue;
+      if (unterbrechen && c.casting !== -1 && c.isOffCooldown(i('quench'), t))
+        c.cast(i('quench'), t);
+      else if (!c.isDotActive(i('smoulder'), t) && c.isOffCooldown(i('smoulder'), t))
+        c.cast(i('smoulder'), t);
+      else if (c.resource >= 15 && c.isOffCooldown(i('pyre'), t)) c.cast(i('pyre'), t);
+      else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
+    }
+    return { zustand: c.fightState, ende: -1, geheilt: c.bossHealed };
+  }
+
+  it('WER NICHT UNTERBRICHT, KOMMT NIE DURCH — der Boss heilt sich zurück', () => {
+    const r = ausgang24(false);
+    expect(r.geheilt, 'der Boss heilt nicht — dann fordert die Signatur nichts').toBeGreaterThan(
+      1000,
+    );
+    expect(r.zustand).not.toBe(FIGHT_WON);
+  });
+
+  it('wer unterbricht, verhindert die Heilung ganz und gewinnt', () => {
+    const r = ausgang24(true);
+    expect(r.geheilt, 'trotz Unterbrechung heilt der Boss').toBe(0);
+    expect(r.zustand).toBe(FIGHT_WON);
+    expect((60_000 - r.ende) / 60_000, 'Restzeit über 40 % — zu leicht').toBeLessThan(0.4);
+  });
+});
