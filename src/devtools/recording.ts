@@ -160,6 +160,44 @@ export interface ReplayResult {
    */
   readonly controlSpent: number;
   readonly controlFailed: number;
+  /**
+   * Die sechs Grössen, die Rust seit jeher im Ergebnis führt und das Spiel
+   * nicht (Issue #619).
+   *
+   * # Der Befund ist Vollständigkeit, nicht Abwesenheit
+   *
+   * Fünf davon werden bereits verglichen — aber nur dort, wo jemand sie
+   * EINZELN in ein `expected` eingetragen hat:
+   *
+   * ```text
+   *   interruptsLanded   5 Aufzeichnungen
+   *   interruptsMissed   5
+   *   castsInterrupted   1   (cast-time)
+   *   castsCancelled     1   (cast-time)
+   *   cycle              1   (trial-blocks)
+   *   stabilised         IN KEINER
+   * ```
+   *
+   * Eine neue Aufzeichnung führt sie deshalb nicht mit. Wer eine baut und die
+   * Felder nicht von Hand nachträgt, bekommt einen Lauf, in dem der Simulator
+   * sechs Grössen rechnet, denen niemand widerspricht.
+   *
+   * **`stabilised` ist die eine echte Lücke:** Rust führt es, das Spiel führt
+   * es, und kein Paritäts-Fall vergleicht die beiden Werte.
+   *
+   * # Warum sie hier stehen und nicht in der Prüfsumme
+   *
+   * Es sind Zähler über den ganzen Lauf, keine Zustandsgrössen. Die
+   * Zustands-Prüfsumme vergleicht je Takt; ein Zähler, der nur am Ende etwas
+   * aussagt, hinge dort 6000-mal als unveränderte Zahl.
+   */
+  readonly interruptsLanded: number;
+  readonly interruptsMissed: number;
+  readonly castsInterrupted: number;
+  readonly castsCancelled: number;
+  readonly cycle: number;
+  /** Zahl, nicht Wahrheitswert — auf beiden Seiten (combat.ts:1323, replay.rs:120). */
+  readonly stabilised: number;
   /** Kampfzeit des Sieges in ms, oder -1. */
   readonly killedAtMs: number;
   readonly casts: Readonly<Record<string, number>>;
@@ -417,6 +455,12 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     bossHealed: combat.bossHealed,
     controlSpent: combat.controlSpent,
     controlFailed: combat.controlFailed,
+    interruptsLanded: combat.interruptsLanded,
+    interruptsMissed: combat.interruptsMissed,
+    castsInterrupted: combat.castsInterrupted,
+    castsCancelled: combat.castsCancelled,
+    cycle: combat.cycle,
+    stabilised: combat.stabilised,
     killedAtMs,
     casts,
     finalChecksum: combatChecksum(
