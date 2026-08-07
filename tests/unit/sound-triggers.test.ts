@@ -110,10 +110,31 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   //
   // Klaenge entstehen ueber Suno (docs/suno-sfx.md) und werden vom
   // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
-  // Nur die beiden Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die
-  // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
-  // aus #420. Alle 17 spielbaren Zauber klingen.
-  const STUMM = new Set(['test-cast', 'test-buff']);
+  // DIE LISTE HAT ZWEI ZWECKE, und sie sind verschieden lange gültig:
+  //
+  //   DAUERHAFT   die beiden Prüf-Zauber über der Stufengrenze
+  //               (`unlockLevel: 101`), die kein Spieler je auf die Leiste
+  //               legt: `test-cast` aus #304 und `test-buff` aus #420.
+  //
+  //   VORLÄUFIG   `harden` und `sepsis` aus #523. Beide sind gebaut und
+  //               spielbar, ihre Klänge fehlen noch.
+  //
+  // **Der Klang entsteht AUSSERHALB dieses Zweigs** — über Suno
+  // (`docs/suno-sfx.md`), mit anschliessender Abnahme durch den Auftraggeber.
+  // Deshalb steht der Bedarf hier namentlich statt in einer übersprungenen
+  // Prüfung.
+  //
+  // Die Begründung lautet bewusst NICHT „lässt sich in keiner Sitzung
+  // erzeugen". Genau dieser Satz stand hier einmal und war nacheinander wahr,
+  // falsch (in einer Nacht entstanden sieben Klänge) und wieder wahr (Suno
+  // verlangt seither einen Captcha-Token aus einer eingeloggten Seite) — ohne
+  // dass sich ein Wort geändert hätte. Wer ihn liest, zieht den richtigen
+  // Schluss aus einer überholten Begründung.
+  //
+  // **Ein vorläufiger Eintrag ist kein Schulden-Vermerk, sondern eine Prüfung,
+  // die auf ihren Anlass wartet:** Die Gegenrichtung unten holt ihn von selbst
+  // wieder heraus, sobald der Klang da ist.
+  const STUMM = new Set(['test-cast', 'test-buff', 'harden', 'sepsis']);
 
   it('findet für jeden Zauber genau einen Klang', () => {
     const map = realMap();
