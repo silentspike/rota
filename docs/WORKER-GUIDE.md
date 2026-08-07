@@ -4598,3 +4598,122 @@ Unterschieden wird am **Zweignamen**, nicht am Autor:
 
 `git worktree list` zeigt die Zuordnung in einer Zeile. Wer einen fremden Zweig auscheckt,
 merkt es dort sofort — und nicht erst, wenn zwei Sitzungen denselben Commit schreiben.
+
+---
+
+### 8.66 Eine Messung, die eine Frage beantwortet hat, beantwortet nicht die nächste
+
+Die Vorstufe zu 8.63. Dort war die Antwort richtig und der Beleg trug sie nicht; hier ist die
+Messung richtig und beantwortet eine **andere** Frage als die gestellte.
+
+Am 2026-08-07 hatte ein Worker die Wirkung von `STALL` in 250er-Schritten durchgemessen:
+
+```
++1500 bis +2250   auch ohne STALL unterbrochen
++2500 bis +3500   ohne STALL zu spät
+```
+
+Die Reihe war für ihre Frage vollständig richtig: **Gibt es eine Teilwirkung?** Nein, die
+Grenze ist scharf.
+
+Als der Orchestrator später fragte, ob sich der **Betrag** messen lässt, reichte er dieselbe
+Reihe weiter — und beide schlossen daraus, `boss-1-4` gebe den Betrag nicht her. Falsch:
+Zwischen halbem und vollem Fenster liegt ein Streifen, den 250er-Schritte nicht auffällig
+zeigen. Seine eigene Einordnung:
+
+> Ich hatte die Reihe gebaut, um zu zeigen, **dass** es keine Teilwirkung gibt. Für diese Frage
+> war sie richtig. Für die Frage nach dem Betrag war sie zu grob, und ich habe sie unverändert
+> weitergereicht, als danach gefragt wurde.
+>
+> **Eine Messung, die eine Frage beantwortet hat, beantwortet nicht die nächste — auch wenn sie
+> dieselben Zahlen betrifft.**
+
+#### Warum das schwerer zu sehen ist als ein Messfehler
+
+Ein falsch gemessener Wert fällt irgendwann auf, weil er zu etwas anderem nicht passt. Eine
+**richtig** gemessene Reihe passt zu allem — sie ist ja korrekt. Nur ihre Auflösung, ihr
+Ausschnitt oder ihre Bezugsgröße gehören zu einer Frage, die niemand mehr im Kopf hat, wenn die
+Zahlen weitergereicht werden.
+
+> Wer eine vorhandene Messung für eine neue Frage benutzt, prüft zuerst: **Wofür wurde sie
+> gebaut?** Steht es nicht dabei, ist es keine Antwort, sondern ein Fund.
+
+#### Dieselbe Klasse in der Testauswahl
+
+Am selben Tag, an einem anderen Worker: Er hatte seine vier Boss-Datensätze mit einem Lauf über
+die **eigene** Testdatei geprüft — grün. Die volle Suite fand zwei Dinge, die er dort nicht sehen
+konnte:
+
+```
+signature war noch in allen vier Bossen (als null)   → boss-signature-feld.test.ts (#570)
+vessel-phases.json brauchte einen Neu-Export         → seine Bosse stehen in der Kennungsliste
+```
+
+**Der Teil-Lauf war grün, und er war richtig grün** — für die Frage „funktionieren meine
+Prüffälle". Nicht für die Frage „ist der Bestand in Ordnung".
+
+#### Die Variante, die noch schwerer zu sehen ist: eine Zahl, die gleich BLEIBT
+
+Am selben Tag, dritter Fall. Ein Werkzeug hatte am Vormittag **47 Läufe** gefunden. Nachdem
+eine neue Aufzeichnung mit sechs Läufen in `main` gemergt war, sollte es erneut laufen — und der
+Orchestrator gab eine Vorprüfung mit:
+
+> Wie viele Läufe findet das Werkzeug jetzt? Vorher waren es 47. **Sind es immer noch 47, hast
+> du die neuen sechs nicht gesehen.**
+
+Gemessen: 47. Die neue Aufzeichnung war nicht dabei.
+
+```
+cases[].runs[]   eine VIERTE Bauart, das Werkzeug kannte drei
+damageDealt      die Datei schreibt so, das Werkzeug suchte `damage`
+```
+
+Nach der Korrektur: **58 Läufe.** Ohne die Vorprüfung wären alle Kontroll-Größen wieder auf
+0,00 % gelandet, und die Meldung hätte gelautet: _die neue Aufzeichnung ändert nichts_ — gegen
+eine Lage, die eigens dafür gebaut worden war.
+
+> Bei einer gleichförmigen **Liste** ist der Verdacht leicht zu wecken (8.59). Bei einer
+> einzelnen Zahl, die **gleich bleibt**, gibt es nichts zu bemerken: Sie passt zur Erwartung,
+> weil sie letztes Mal richtig war.
+>
+> **Wer eine Messung wiederholt, nachdem sich der Bestand geändert hat, sagt vorher, welche Zahl
+> sich ändern MUSS.** Ändert sie sich nicht, ist das Werkzeug blind — nicht der Bestand
+> unverändert.
+
+---
+
+### 8.67 Gib eine zweite Zahl aus, die du nicht brauchst
+
+Am 2026-08-07 hat ein Worker vier eigene Nachweise verworfen, bevor sie in einen PR kamen. Alle
+vier waren **grün**, alle Zahlen stimmten, und alle hielten weniger fest, als sie behaupteten:
+
+|                                                                                  |                                                                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Der Prüffall stand auf `test-onslaught` und blieb bei **beiden** Mutationen grün | die Zeitleiste war dort ohnehin durch                                           |
+| `castsQuench` 0 / 0 / 1                                                          | QUENCH wurde ohne STALL gar nicht geworfen — zwei Unterschiede statt einem      |
+| Der QUENCH-Zeitpunkt lag im halben Fenster                                       | die halbierte Wirkung brach nichts; der Fall belegte _dass_, nicht _wie viel_   |
+| Die Gegenprobe verglich die Gesamtliste statt der Differenz                      | beim ersten echten Fund hätte sie einen zweiten Fehler gemeldet, der keiner ist |
+
+**Gefunden hat es jedes Mal dasselbe: eine Zahl NEBEN dem Ergebnis.** Die Wurfzahl, der
+Zeitleisten-Index, die Differenz zur Vorliste. Nie das Ergebnis selbst.
+
+> Seine Formulierung, und sie ist die kürzeste Fassung von allem, was in 8.59 bis 8.66 steht:
+>
+> **Nicht „prüfe dein Ergebnis", sondern „gib eine zweite Zahl aus, die du nicht brauchst".**
+
+#### Warum das Ergebnis sich nicht selbst prüfen kann
+
+Ein Nachweis ist darauf gebaut, seine Aussage zu zeigen. Stimmt die Aussage, stimmt das
+Ergebnis — auch dann, wenn der Weg dorthin ein anderer war als gedacht. Die Zahl daneben gehört
+zu keiner Aussage und ist deshalb die einzige, die widersprechen kann.
+
+Dieselben Fälle an anderer Stelle desselben Tages:
+
+```
+39 Aufzeichnungen gemessen, 52 im Verzeichnis   → die Differenz war der Befund
+47 Läufe vorher, 47 nachher                     → die Gleichheit war der Befund
+1293 slot + 4 spellId = 1297 gesamt             → die Summe schloss eine dritte Form aus
+```
+
+**Keine dieser Zahlen wurde für das Ergebnis gebraucht.** Jede hat einen Fehler gefunden, den
+das Ergebnis nicht zeigen konnte.
