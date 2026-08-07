@@ -68,7 +68,9 @@ const FRAME_BUDGET_MS = 16.7;
 /** Die Schwelle der Eingabe-Verzögerung aus GAME-DESIGN 20.2 / VERIFICATION § 3.2. */
 const INPUT_BUDGET_MS = 16;
 /** Namen der Kampf-Zustände in der Reihenfolge aus `combat.ts`. */
-const FIGHT_STATE_NAMES: readonly string[] = ['running', 'won', 'overpressure'];
+// Der vierte kam mit #581 dazu; die Reihenfolge ist die der FIGHT_*-Werte in
+// `combat.ts`, nicht eine eigene.
+const FIGHT_STATE_NAMES: readonly string[] = ['running', 'won', 'overpressure', 'died'];
 
 export interface PerfSnapshot {
   /** Arbeitszeit je Bild in ms: Logik-Takte plus Zeichnen. Das Maß für Ruckelfreiheit. */

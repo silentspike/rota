@@ -4477,3 +4477,53 @@ Meldung ging hinaus, bevor die zweite Messung lief.
 Ein Widerruf, der sich als unnötig herausstellt, ist billiger als eine falsche Zahl in `main` —
 aber er ist nicht kostenlos. Wer eine gemergte Zahl widerruft, sollte im selben Zug messen, ob
 sie sich rettet: Die zweite Messung dauerte hier vier Minuten.
+
+---
+
+### 8.64 Standardwerte stellen den halben Kampf nicht her
+
+Am 2026-08-07 hätte eine Messung beinahe einen Paritätsbruch **erfunden** — die erste Fehlerart
+des Tages, bei der etwas dazukam statt ausgelassen zu werden.
+
+Worker-1 spielte 39 Aufzeichnungen ab, um zu prüfen, welche Größen sich bewegen. Ergebnis:
+`damageTaken` überall 0. Dann sah er in eine der Dateien:
+
+```
+cast-time.json sagt   damageTaken = 96
+sein Probelauf sagt   damageTaken =  0
+```
+
+Einen Moment lang sah das aus wie „das Spiel rechnet anders als die Aufzeichnung". Wer diesen
+Satz liest, sucht in der Schadensrechnung — nicht in den Optionen des Abspielers.
+
+**Die Ursache waren die Optionen.** `cast-time.json` bringt `bossId: test-caster` mit; der
+Probelauf rief `replayRecording(..., {})`, also gegen den Standard-Boss, der in diesem Lauf gar
+nicht zuschlägt:
+
+```
+Datei sagt          damageTaken = 96
+ohne Boss-Angabe    damageTaken =  0
+mit  bossId         damageTaken = 96
+```
+
+> **Eine Aufzeichnung bringt ihre Bedingungen mit** — `bossId`, `worn`, `level`. Wer sie ohne
+> abspielt, misst einen anderen Kampf und vergleicht ihn mit den Zahlen des richtigen.
+
+#### Der teurere Teil ist die Reihenfolge des Verdachts
+
+Worker-1s eigene Einordnung, und sie ist schärfer als die Regel darüber:
+
+> Der Fehler war nicht, die Optionen zu vergessen — es war, das **Ergebnis** nicht zu
+> hinterfragen. Eine Null bei `damageTaken` über 39 Aufzeichnungen hätte mich stutzig machen
+> müssen, **bevor** ich die Aufzeichnungen als Ursache verdächtigte.
+>
+> **Ich habe die Daten für verdächtig gehalten und mein Werkzeug für gegeben. Das ist die
+> Reihenfolge, die die teuren Fehler macht.**
+
+Das gilt über den Einzelfall hinaus. Ein Werkzeug ist neu, ein Datenbestand ist gewachsen und
+vielfach benutzt — die Wahrscheinlichkeit, dass der Fehler im Neuen sitzt, ist höher. Trotzdem
+fällt der Verdacht zuerst auf die Daten, weil man das eigene Werkzeug gerade selbst gebaut hat
+und seine Absicht kennt.
+
+**Bei jedem unerwarteten Ergebnis: erst das Werkzeug, dann die Daten.** Und dazu die Probe, die
+beide trennt — ein Fall, dessen Antwort man vorher kennt.
