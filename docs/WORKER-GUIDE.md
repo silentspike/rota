@@ -4571,3 +4571,30 @@ Empfänger sofort, ob es seiner ist:
 > „#589 gemergt — `83d2882`, enthält bis `30d84e4`."
 
 Der Worker vergleicht mit seinem `HEAD` und weiß es in einer Sekunde, statt es zu messen.
+
+#### Nachtrag: `gh pr list --author @me` trennt die Sitzungen nicht
+
+Dieselbe Klasse in der Gegenrichtung, gefunden von Worker-1 beim Abschluss-Check. Sein
+Befehl listete einen PR, den er nie geöffnet hatte:
+
+```
+git log --format='%an' -15 origin/main | sort | uniq -c
+     15 obtFusi
+```
+
+**Alle vier Sitzungen committen als derselbe Autor.** `--author @me` liefert damit die PRs
+_aller_, und wer die Liste als „meine offenen" liest, beansprucht einen fremden Zweig.
+
+> Nicht ein übersehener eigener PR, sondern ein fälschlich beanspruchter fremder — und
+> Weiterarbeit daran hätte den Zweig eines anderen mitten in dessen Arbeit verändert.
+
+Unterschieden wird am **Zweignamen**, nicht am Autor:
+
+|             |                            |
+| ----------- | -------------------------- |
+| `feat/e1-…` | Worker-1, Worktree `e1`    |
+| `feat/e2-…` | Worker-2, Worktree `e2`    |
+| ohne Präfix | Orchestrator, `/work/rota` |
+
+`git worktree list` zeigt die Zuordnung in einer Zeile. Wer einen fremden Zweig auscheckt,
+merkt es dort sofort — und nicht erst, wenn zwei Sitzungen denselben Commit schreiben.
