@@ -4342,3 +4342,92 @@ irgendwann eine Datei, an der ungestagte Arbeit steht.
 
 > Dieselbe Wurzel wie „Ein Test misst den Arbeitsbaum, ein Merge liefert den Index": **Index
 > und Arbeitsbaum sind zwei Stände**, und jedes Werkzeug spricht nur mit einem von beiden.
+
+### 8.62 Ein Baustein, den die Messung nicht erreicht, sieht aus wie einer, der nichts tut
+
+Beim Bau der ersten Instanz (#544) waren zwölf Boss-Bausteine zu prüfen. Vier Antworten auf
+„wirkt er?" sahen identisch aus — dieselbe Zahl vorher wie nachher — und bedeuteten vier
+verschiedene Dinge:
+
+| Baustein         | Messung     | tatsächlich                                                |
+| ---------------- | ----------- | ---------------------------------------------------------- |
+| `phases`         | 1720 → 1720 | **wirkt nie** — wird gesetzt, nirgends gelesen             |
+| `escalation`     | 1920 → 1920 | wirkt, aber auf die Wirkzeit — der Läufer gibt Schaden aus |
+| `overpressureMs` | 4100 → 4100 | wirkt, aber die Messschleife rief `checkDefeat` nicht      |
+| `energy`         | unverändert | wirkt nie (#568)                                           |
+
+Zwei davon hätte ich als Kulisse gemeldet und weggeworfen. **Ein Schweigen ist erst dann ein
+Befund, wenn seine Ursache gemessen ist** — sonst führt es zu einer von zwei falschen
+Handlungen: einen wirksamen Baustein verwerfen oder eine Beschriftung für Mechanik halten.
+
+#### Die fünfte Sorte: die Messung erreicht die Lage nicht
+
+Neben „keine Aufzeichnung", „keine Lage" und „wirkungslos" gibt es diesen Fall:
+
+```
+src/core/session.ts:119
+  "checkDefeat schreibt den Kampfzustand fort. KEINE AUFZEICHNUNG ruft checkDefeat."
+```
+
+`overpressureMs` beendet den Kampf in `checkDefeat()`. Eine Schleife aus `stepPassive` allein
+kann ihn nicht sehen — nicht weil er nicht wirkt, sondern weil die Messung nie dort ankommt, wo
+er wirkt. Mit `checkDefeat(t)` in der Schleife endet der Kampf punktgenau.
+
+Dieselbe Sorte in anderer Gestalt: **`escalation` braucht `timelineLoopMs`.** Ohne den Partner
+steigt der Code aus, und der Baustein schweigt — das steht nur im Quelltext, nicht in den Daten.
+
+> **Miss jeden Baustein in der Umgebung, in der er wirken soll.** Der nächste hat eine andere
+> Voraussetzung, und sie steht wieder nur im Quelltext.
+
+#### Vor dem Eintragen mutieren, nicht danach
+
+Bei `phases` war der Boss bereits gebaut und die Signatur formuliert, als die Messung kam. Hätte
+ich sie erst beim Schreiben des Prüffalls gefahren, stünde ein Boss auf einer Beschriftung.
+
+Die Reihenfolge ist billig und rettet zweimal: einmal vor dem Wegwerfen, einmal vor dem Einbauen.
+
+#### Harte Zahlen, nicht Anwesenheit
+
+Eine Zusicherung, die prüft **dass** ein Zauber gewirkt wird, fängt den Fall aus #340 — aber
+nicht, dass sich eine Aufzeichnung still verschoben hat. Die Zahlen sagen, **wie oft**:
+
+```rust
+assert_eq!(json["expected"]["casts"]["quench"].as_u64(), Some(6),
+    "quench wird nicht 6-mal gewirkt — die Aufzeichnung ist eine andere geworden");
+```
+
+Das hat sich sofort bezahlt: Nach einer HP-Änderung an `boss-1-4` fiel sein Gegenstück, weil die
+Zahlen nicht mehr stimmten. Ohne sie wäre eine Aufzeichnung weiterverglichen worden, die es so
+nicht mehr gibt.
+
+#### Drei Sorten von Bausteinen — und nur eine taugt als Signatur-Träger
+
+Beim Zuschnitt der zweiten Instanz (#574) stellte sich die Frage anders: Nicht „wirkt der
+Baustein?", sondern **„kann der Spieler ihn bedienen?"**. Ein Boss, dessen Anforderung niemand
+erfüllen kann, ist unschaffbar — `boss-1-2` ist genau daran gescheitert (#561).
+
+| Sorte               | Bausteine                                                   | „ohne die Signatur verliert man" heißt |
+| ------------------- | ----------------------------------------------------------- | -------------------------------------- |
+| **mit einer Taste** | `timeline` (QUENCH), `affliction` (`clearedBy`), `bossHeal` | wer die Taste nicht drückt, verliert   |
+| **durch Tempo**     | `race`, `runaway`, `overpressureMs`, `stacks`               | wer zu langsam ist, verliert           |
+| **nicht bedienbar** | `timelineLoopMs`, `escalation`                              | — ergibt keinen Sinn                   |
+
+Die dritte Sorte ist **kein Mangel**: Diese Bausteine verschärfen eine andere Anforderung, statt
+eine eigene zu stellen. Als Begleiter sind sie richtig, als Träger nicht. „Ohne `timelineLoopMs`
+verliert man" ist kein Satz, den man messen kann.
+
+`doom` steht in **keiner** der drei Sorten — er wirkt, aber `clearDoom()` hängt an keinem Zauber
+(#561). Das ist der Fall, den diese Einteilung verhindern soll.
+
+> Bevor du einen Baustein einsetzt, prüfe drei Dinge in dieser Reihenfolge:
+> **wirkt er**, **kann ihn jemand bedienen**, und **erreicht meine Messung ihn überhaupt**.
+
+#### Zwei gleiche Namen, zwei verschiedene Sachen
+
+`combat.stacks` ist die Stack-Mechanik der **Schule** (PUTREFACTION-Zersetzung, reagiert auf
+`RULE_SPELL_CAST`). `boss.stacks` ist der **Boss-Baustein** — ein wachsender Schaden je Takt, den
+nichts senkt.
+
+Ich habe die Mechanik der einen gelesen und sie der anderen zugeschrieben, und `stacks` deshalb
+zuerst in die falsche Sorte einsortiert. Nicht die falsche Größe, nicht die falsche Stelle — der
+falsche **Gegenstand**.
