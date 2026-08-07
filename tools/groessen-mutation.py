@@ -21,6 +21,30 @@ Am 2026-08-06 ist genau das passiert — ein Suchmuster passte nach einer
 Formatierung nicht mehr, der Aufruf lief ohne Fehler durch, und beide „Läufe"
 maßen denselben Code. Gemeldet wurde daraufhin eine Lücke, die keine war.
 
+# Der blinde Fleck: dieses Werkzeug fährt NUR die TypeScript-Suite
+
+`suite_rot()` ruft `npx vitest run`. Die Rust-Seite läuft dabei nicht — und
+`sim/build.rs` prüft die Spieldaten beim Erzeugen, mit harten Abbrüchen.
+
+Ein Feld, das dort geprüft wird und in TypeScript nicht, meldet dieses
+Werkzeug als „faktisch ungeschützt". **Das ist falsch, und es ist am
+2026-08-07 zweimal passiert** — beide Male bei `pyroclasm`:
+
+    spender.consumesAll  true -> false      build.rs:671 bricht ab
+    spender.resource     heat -> ungueltig  build.rs:664 bricht ab
+
+Gemessen mit `cargo remote -c -- build` nach der Mutation; die CI führt das
+bei Datenänderungen ebenfalls aus, denn ihr Pfad-Filter (`ci.yml:76`) enthält
+`data/`.
+
+Die Gegenprobe steht daneben: `distil buff.target -> tick` ist ein GÜLTIGER
+Wert, der Rust-Build läuft durch, und der Befund „ungeschützt" trägt. Die
+Trennlinie verläuft dort, wo die Mutation strukturell ungültig wird.
+
+**Wer hier „ungeschützt" liest, muss bei Feldern mit nur einem gültigen Wert
+den Rust-Bau gegenprüfen.** Automatisch geschieht das nicht: Ein
+Remote-Bau je Paar wäre teurer als die Suite.
+
 # Warum die volle Suite und nicht die naheliegende Testdatei
 
 „Ungeprüft" heißt: KEINE Prüfung meldet sich, nicht bloß die offensichtliche.
