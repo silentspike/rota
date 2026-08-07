@@ -99,15 +99,44 @@ fn welche_zauber_verkuerzen_und_warum_die_referenz_das_nicht_merkt() {
     assert_eq!(betrag("wisp"), 500, "WISP verkuerzt die Haelfte von VAPOUR");
 
     // **DIE NACHMESSUNG.** Der Referenzlauf bleibt unberuehrt, weil kein
-    // Zauber, den `rotation::good` werfen kann, etwas verkuerzt. Das ist der
-    // Grund — `der_referenzlauf_bleibt_unberuehrt` unten zeigt nur die Folge.
-    for index in [data::KINDLE, data::SMOULDER, data::PYRE] {
+    // Zauber, den er wirklich wirft, etwas verkuerzt. Das ist der Grund —
+    // `der_referenzlauf_bleibt_unberuehrt` unten zeigt nur die Folge.
+    //
+    // # Abgelesen, nicht abgeschrieben
+    //
+    // Hier stand zuerst `[data::KINDLE, data::SMOULDER, data::PYRE]` — eine
+    // ABSCHRIFT von `rotation::good`. Die haette einen vierten Zauber in der
+    // Rotation nicht bemerkt, und damit genau den Fall verschluckt, den diese
+    // Nachmessung abdecken soll. Dieselbe Klasse, vor der der alte Warnsatz
+    // warnte, nur eine Ebene versetzt: eine Liste, die neben der Sache liegt,
+    // statt aus ihr zu stammen.
+    //
+    // Jetzt wird der Referenzlauf GEFAHREN und abgelesen, welche Zauber
+    // wirklich zum Zug kamen. Wer die Rotation aendert, aendert damit
+    // automatisch, was hier geprueft wird.
+    let mut referenz = Fight::new(FightConfig::default());
+    let lauf = referenz.run(rotation::good);
+    let gewirkt: Vec<usize> = (0..data::SPELL_COUNT)
+        .filter(|&i| lauf.casts[i] > 0)
+        .collect();
+
+    // **Die Zusicherung in den Datensatz.** Ohne einen einzigen Wurf prueft
+    // die Schleife nichts und waere trotzdem gruen.
+    assert!(
+        gewirkt.len() >= 3,
+        "der Referenzlauf wirft nur {} Zauber — dann prueft diese Nachmessung \
+         fast nichts. Sie gehoert nicht gelockert, sondern gelesen: Ist die \
+         Referenz-Rotation kaputt?",
+        gewirkt.len()
+    );
+
+    for index in gewirkt {
         let spell = &data::SPELLS[index];
         assert_eq!(
             spell.cooldown_reduction_ms, 0,
-            "{} traegt jetzt eine Verkuerzung und steht in rotation::good — \
-             damit setzt die Mechanik im Referenzlauf an, und die Sollwerte \
-             in der_referenzlauf_bleibt_unberuehrt gehoeren nachgerechnet",
+            "{} traegt eine Verkuerzung und wird im Referenzlauf GEWIRKT — \
+             damit setzt die Mechanik dort an, und die Sollwerte in \
+             der_referenzlauf_bleibt_unberuehrt gehoeren nachgerechnet",
             spell.id
         );
     }
