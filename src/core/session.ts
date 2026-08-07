@@ -13,6 +13,8 @@
  */
 import {
   Combat,
+  FIGHT_DIED,
+  FIGHT_OVERPRESSURE,
   FIGHT_RUNNING,
   FIGHT_WON,
   isCastAccepted,
@@ -167,6 +169,32 @@ export type { FeedbackSink };
  * Der Unterschied zum Rücksetzer: Der hatte auf beiden Seiten eine
  * Entsprechung und lag nur verschieden. `phaseValue` hat keine.
  */
+/**
+ * Welcher Ausgang gehört zu welchem Kampfzustand (Issue #581).
+ *
+ * **Eine Abbildung statt einer Wenn-dann-Kette**, weil die Kette bis zum
+ * 2026-08-07 genau zwei Fälle kannte und der dritte still im `else` landete:
+ *
+ * ```ts
+ * this.combat.fightState === FIGHT_WON ? OUTCOME_VICTORY : OUTCOME_OVERPRESSURE
+ * ```
+ *
+ * Ein neuer Zustand hätte dort keinen Fehler erzeugt, sondern eine falsche
+ * Auskunft — der Tod wäre als Überdruck ausgewiesen worden, und niemand hätte
+ * es an einem Absturz gemerkt. `OUTCOME_DEATH` und die Überschrift
+ * `VESSEL LOST` gab es zu diesem Zeitpunkt bereits; erreichbar waren sie nie.
+ *
+ * Der unbekannte Zustand fällt jetzt auf: `OUTCOME_NONE` ist kein Ende, und
+ * ein Kampf, der mit „kein Ende" endet, zeigt sich sofort statt sich als
+ * plausible Niederlage zu tarnen.
+ */
+function ausgangFuer(fightState: number): number {
+  if (fightState === FIGHT_WON) return OUTCOME_VICTORY;
+  if (fightState === FIGHT_DIED) return OUTCOME_DEATH;
+  if (fightState === FIGHT_OVERPRESSURE) return OUTCOME_OVERPRESSURE;
+  return OUTCOME_NONE;
+}
+
 export class Session implements Simulation {
   readonly latency = new LatencyTrace();
 
@@ -463,10 +491,7 @@ export class Session implements Simulation {
 
     // 2. Kampfende
     if (fighting && this.combat.checkDefeat(timeMs)) {
-      this.finish(
-        this.combat.fightState === FIGHT_WON ? OUTCOME_VICTORY : OUTCOME_OVERPRESSURE,
-        timeMs,
-      );
+      this.finish(ausgangFuer(this.combat.fightState), timeMs);
     }
 
     // 3. Tastendrücke dieses Takts. Alles abarbeiten, was diesem Takt oder einem

@@ -10,7 +10,7 @@
  * zusammen zeigen sie, dass ueber die GELEGENHEIT gezaehlt wird.
  */
 import { describe, expect, it } from 'vitest';
-import { alsSpellIndex, Combat } from '../../src/core/combat.js';
+import { alsSpellIndex, Combat, FIGHT_DIED } from '../../src/core/combat.js';
 import { bossById, CALCINATION, FIRST_CRUCIBLE, type BossDef } from '../../src/core/data.js';
 import { spellIndex } from '../helpers/spell-index.js';
 import { GCD_MS } from '../../src/core/gcd.js';
@@ -143,40 +143,56 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     // Schaden gegen 2100 ausgeteilten -- in derselben Rechnung stuenden 74 %
     // 'liegen gelassen' da, obwohl der Spieler nichts liegen gelassen, sondern
     // etwas EINGESTECKT hat.
-    const { analysis } = play(ONSLAUGHT, [KINDLE, QUENCH], []);
+    const { analysis, combat } = play(ONSLAUGHT, [KINDLE, QUENCH], []);
     expect(analysis.losses.interrupts?.damageTaken).toBe(6000);
 
-    // **Die 400 sind kein Ergebnis, sondern ein Stand** (Issue #567).
+    // **Die Null stand hier schon vorher — aus dem falschen Grund** (#567,
+    // #581, #585).
     //
-    // Bis zum 2026-08-07 stand hier 0 — nicht, weil nichts liegen blieb,
-    // sondern weil der tote Spieler weiterwirkte und deshalb kein Fenster
-    // ungenutzt blieb. Seit ein toter Spieler nicht mehr wirkt, meldet die
-    // Rechnung, was in den neun Sekunden nach seinem Tod bei 24000 ms an
-    // KINDLE-Fenstern verstreicht:
+    // Bis zum 2026-08-07 war sie 0, weil der tote Spieler WEITERWIRKTE: Es
+    // blieb kein Fenster ungenutzt, weil in jedem gewirkt wurde. Der Fall war
+    // grün und belegte das Gegenteil dessen, was seine Überschrift sagt.
     //
-    //   missedCasts   4 windows with a ready spell and nothing cast — 400
+    // Dazwischen, mit #567 allein, stand sie kurz auf 400: Ein Toter wirkte
+    // nicht mehr, der LAUF lief aber weiter bis 33000 ms, und die Rechnung
+    // meldete die vier KINDLE-Fenster nach dem Tod bei 24000 ms als verpasst.
+    // Rechnerisch richtig und als Aussage irreführend — sie sagt dem Spieler
+    // „du hättest drücken können", und er konnte nicht.
     //
-    // Rechnerisch stimmt das und als Aussage ist es irreführend: Sie sagt dem
-    // Spieler „du hättest drücken können", und er konnte nicht. Die vier
-    // Fenster sind die FOLGE seines Todes; als eigener Verlust geführt
-    // verdecken sie die Ursache hinter ihrer Wirkung — gegen den Zweck der
-    // Verlustrechnung aus GAME-DESIGN A.2 („Versuch 20 ist klüger als
-    // Versuch 5").
+    // Seit #581 endet der KAMPF beim Tod, und damit endet auch die Auswertung.
+    // Die Null ist wieder da und trägt jetzt:
     //
-    // Die Entscheidung ist gefallen: Die Auswertung soll beim Tod enden. Sie
-    // gehört aber nicht in #567 — dort geht es darum, DASS ein Toter nicht
-    // mehr wirkt, nicht darum, was die Auswertung daraus macht. Bis das eigene
-    // Vorhaben gebaut ist, hält dieser Fall den Ist-Zustand fest, statt ihn
-    // wegzulassen: Ein fehlender Vergleich sähe aus wie ein vergessener.
-    expect(analysis.losses.totalLost).toBe(400);
-    expect(analysis.losses.totalShare).toBe(0.2);
+    //   vorher   0    der Tote wirkte weiter          falscher Grund
+    //   #567     400  der Lauf lief über den Tod      richtig gerechnet,
+    //                                                 irreführend
+    //   #581     0    der Kampf endet beim Tod        richtiger Grund
+    //
+    // Deshalb steht hier eine Zusicherung, die die alte Null NICHT erfüllt
+    // hätte: Der Kampf muss beim Tod geendet sein. Ohne sie wäre dieser Fall
+    // gegen den Ausgangszustand grün.
+    //
+    // **Zu #585:** Das Issue wurde für den mittleren Zustand angelegt — die
+    // Auswertung solle beim Tod enden, statt einem Toten Gelegenheiten
+    // anzurechnen. Es ist damit erfüllt, aber nicht dort, wo es gesucht hat:
+    // Nicht die Verlustrechnung wurde geändert, sondern der Kampf endet nun
+    // beim Tod, und die Rechnung bekommt gar nichts mehr zu sehen. Wer #585
+    // schließt, sollte das hier gelesen haben — sonst sucht er eine Änderung
+    // in `run-analysis.ts`, die es nicht gibt.
+    expect(analysis.losses.totalLost).toBe(0);
+    expect(analysis.losses.totalShare).toBe(0);
+    expect(combat.fightState, 'der Kampf läuft nach dem Tod weiter').toBe(FIGHT_DIED);
 
     // Was die Überschrift dieses Falls behauptet, gilt unverändert: Die
-    // verpassten Unterbrechungen stehen NICHT in der Prozentrechnung. Die 400
-    // stammen aus `missedCasts`, nicht aus `missedInterrupts` — und das ist
-    // der Kern der Entscheidung vom 2026-08-04, nicht die nackte Null.
+    // verpassten Unterbrechungen stehen NICHT in der Prozentrechnung — das ist
+    // der Kern der Entscheidung vom 2026-08-04, und er hängt nicht an der
+    // nackten Null. Als der Wert kurzzeitig auf 400 stand, kam er aus
+    // `missedCasts`; auch damals nicht aus `missedInterrupts`.
     expect(analysis.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
-    expect(analysis.losses.sources.map((s) => s.kind)).toEqual(['missedCasts']);
+    // Leer, weil der Kampf beim Tod endet und danach nichts mehr verstreicht.
+    // **Diese Zeile allein trennt nichts** — vor #567 war die Liste ebenfalls
+    // leer, nur weil der Tote weiterwirkte. Was trennt, ist die Zusicherung
+    // auf FIGHT_DIED darüber.
+    expect(analysis.losses.sources.map((s) => s.kind)).toEqual([]);
   });
 
   it('zaehlt ihn NICHT doppelt — weder als Leerlauf noch als verpasste Wirkung', () => {
