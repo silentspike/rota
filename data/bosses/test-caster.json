@@ -9,7 +9,12 @@
   "phases": [],
   "energy": null,
   "timeline": [
-    { "atMs": 8500, "mechanic": "strike", "name": "Backhand", "damage": 40 },
+    {
+      "atMs": 8500,
+      "mechanic": "strike",
+      "name": "Backhand",
+      "damage": 40
+    },
     {
       "atMs": 9000,
       "mechanic": "strike",
@@ -26,6 +31,5 @@
     }
   ],
   "timelineLoopMs": null,
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }
