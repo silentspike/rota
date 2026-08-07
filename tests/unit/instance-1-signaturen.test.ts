@@ -314,3 +314,59 @@ describe('boss-1-4 — AC2: bei 4900 gewinnt NUR, wer unterbricht', () => {
     expect((60_000 - t) / 60_000).toBeLessThan(0.4);
   });
 });
+
+describe('AC2 — der Sieger LEBT', () => {
+  /**
+   * Der Fall, der eine falsche Zahl in einem gemergten PR aufgedeckt hätte.
+   *
+   * `boss-1-1` meldete „Sieg nach 51010 ms, Restzeit 15 %". Der Spieler war
+   * zu diesem Zeitpunkt **seit 6,3 Sekunden tot** — `checkDefeat()` prüft den
+   * Tod nicht, und meine Messschleife brach bei `damageDealt >= boss.hp` ab,
+   * ohne nach dem Leben zu fragen. Ein toter Spieler wirkt weiter und legt
+   * den Boss irgendwann um.
+   *
+   * Die Zahl war trotzdem richtig — aber aus dem falschen Grund: Meine
+   * Rotation ließ QUENCH weg, obwohl `boss-1-1` die Unterbrechung **als
+   * Signatur** verlangt. Mit ihr überlebt der Spieler mit 3560 von 5000
+   * Lebenspunkten, und der Siegzeitpunkt verschiebt sich um 60 ms.
+   *
+   * **Ein AC2-Beleg, der gegen eine Rotation ohne die Signatur des Bosses
+   * gemessen wurde, ist kein Beleg.** Hier war das Ergebnis zufällig richtig.
+   */
+  function ausgang(bossId: string): { sieg: number; tot: number; hp: number } {
+    const b = boss(bossId);
+    const c = new Combat({ school: CALCINATION.value, boss: b });
+    const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
+    for (let t = 0; t <= 60_000; t += 10) {
+      c.stepPassive(t);
+      if (c.damageDealt >= b.hp) return { sieg: t, tot: c.diedAtMs, hp: c.playerHp };
+      if (!c.gcd.isReady(t)) continue;
+      // **QUENCH gehört in JEDE dieser Rotationen.** Drei der vier Bosse
+      // verlangen die Unterbrechung; ihn wegzulassen misst einen Spieler,
+      // der die Signatur ignoriert.
+      if (c.casting !== -1 && c.isOffCooldown(i('quench'), t)) c.cast(i('quench'), t);
+      else if (!c.isDotActive(i('smoulder'), t) && c.isOffCooldown(i('smoulder'), t))
+        c.cast(i('smoulder'), t);
+      else if (c.resource >= 15 && c.isOffCooldown(i('pyre'), t)) c.cast(i('pyre'), t);
+      else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
+    }
+    return { sieg: -1, tot: c.diedAtMs, hp: c.playerHp };
+  }
+
+  for (const id of ['boss-1-1', 'boss-1-3', 'boss-1-4']) {
+    it(`${id}: wer gewinnt, lebt auch`, () => {
+      const r = ausgang(id);
+      expect(r.sieg, `${id} ist mit dieser Rotation nicht besiegbar`).toBeGreaterThan(0);
+      expect(r.tot, 'der Sieger ist tot — die AC2-Zahl misst eine Leiche').toBe(-1);
+      expect(r.hp, 'der Sieger hat keine Lebenspunkte mehr').toBeGreaterThan(0);
+    });
+  }
+
+  it('boss-1-2 dagegen NICHT — und das ist der bekannte Blocker', () => {
+    // Er stirbt an `doom`, und dagegen hilft keine Rotation: `clearDoom()`
+    // hängt an keinem Zauber (#561). Der Fall hält den Zustand fest, statt
+    // ihn auszulassen — verschwindet er, ist der Blocker behoben.
+    const r = ausgang('boss-1-2');
+    expect(r.tot, 'boss-1-2 ist plötzlich überlebbar — dann ist #561 behoben').toBeGreaterThan(-1);
+  });
+});
