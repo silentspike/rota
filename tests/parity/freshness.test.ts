@@ -79,6 +79,10 @@ import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
 import eingecheckterBoss1 from './recordings/instance1-boss-1.json';
+import eingecheckterZwei1 from './recordings/instance2-boss-1.json';
+import eingecheckterZwei2 from './recordings/instance2-boss-2.json';
+import eingecheckterZwei3 from './recordings/instance2-boss-3.json';
+import eingecheckterZwei4 from './recordings/instance2-boss-4.json';
 import eingecheckterBoss2 from './recordings/instance1-boss-2.json';
 import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
 import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
@@ -133,6 +137,7 @@ import {
   fixationSpellsPayload,
   buffTargetsPayload,
   instance1Payload,
+  instance2Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -197,6 +202,20 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die vier Bosse der zweiten Instanz entsprechen dem heutigen Spielstand', () => {
+    const erwartet = [
+      eingecheckterZwei1,
+      eingecheckterZwei2,
+      eingecheckterZwei3,
+      eingecheckterZwei4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance2Payload(`boss-2-${i + 1}`, `instance2-boss-${i + 1}`),
+      );
+    }
   });
 
   it('die vier Bosse der ersten Instanz entsprechen dem heutigen Spielstand', () => {
@@ -649,6 +668,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'putrefaction-filler',
   'buff-targets',
   'cinder-ticks',
+  'instance2-boss-1',
+  'instance2-boss-2',
+  'instance2-boss-3',
+  'instance2-boss-4',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',
