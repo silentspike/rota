@@ -1,14 +1,16 @@
-//! Die vier Pruef-Zauber tragen verschiedene Zielgroessen (Issue #489).
+//! Die Pruef-Zauber tragen verschiedene Zielgroessen (Issue #489, #562).
 //!
 //! **Diese Datei prueft die DATEN, nicht die Wirkung.** Sie belegt, dass
 //! `test-heat` das Feld `target: Resource` traegt — nicht, dass der Faktor im
-//! Kampf etwas bewegt. Die Wirkungspruefung steht auf der Spiel-Seite
-//! (`tests/unit/buff-targets.test.ts`); das Rust-Gegenstueck fehlt und ist
-//! als **Issue #502** angelegt.
+//! Kampf etwas bewegt. Die Wirkungspruefung steht auf beiden Seiten:
+//! `tests/unit/buff-targets.test.ts` im Spiel und `sim/tests/buff_wirkung.rs`
+//! in Rust (Issue #502, seit dem 2026-08-07 geschlossen — der Kopf nannte es
+//! bis dahin als offen, und wer das las, hielt die Rust-Wirkung fuer
+//! ungeprueft).
 //!
-//! Kippte einer der vier per Tippfehler auf `damage` zurueck, maessen die
-//! Faelle dort stillschweigend viermal denselben Vorrat. Das ist der Zweck
-//! dieser Datei — und ihre Grenze.
+//! Kippte einer per Tippfehler auf `damage` zurueck, maessen die Faelle dort
+//! stillschweigend mehrfach denselben Vorrat. Das ist der Zweck dieser Datei —
+//! und ihre Grenze.
 //!
 //! # Warum der alte Kopf hier stand
 //!
@@ -28,17 +30,27 @@ fn zauber(id: &str) -> &'static rota_sim::data::Spell {
 }
 
 #[test]
-fn die_vier_pruef_zauber_tragen_verschiedene_zielgroessen() {
-    // **Vier Zauber, die alle dasselbe Fenster oeffnen, belegten vier Mal
-    // dasselbe.** Diese Pruefung faengt genau das: Kippt einer der vier
+fn die_pruef_zauber_tragen_verschiedene_zielgroessen() {
+    // **Zauber, die alle dasselbe Fenster oeffnen, belegten mehrfach
+    // dasselbe.** Diese Pruefung faengt genau das: Kippt einer
     // versehentlich auf `Damage` zurueck — etwa durch einen Tippfehler im
     // `target`-Feld, den der Parser dann als "fehlt, also Schaden" liest —
-    // messen die Faelle unten stillschweigend viermal denselben Vorrat.
+    // messen die Faelle unten stillschweigend mehrfach denselben Vorrat.
+    //
+    // **Die Liste war unvollstaendig, und das fiel beim Anbau von `test-cap`
+    // auf** (#562): Sie fuehrte vier von damals sechs Ziel-Pruefern —
+    // `test-cdreduce` und `test-convert` kamen mit E10 dazu, ohne hier
+    // einzutragen. Deshalb stehen jetzt alle sieben da, nicht nur der neue.
+    // Eine Liste, die einen Teil ihrer Gattung fuehrt, sieht aus wie ein
+    // Waechter und ist eine Stichprobe.
     let erwartet = [
         ("test-control", BuffTarget::Control),
         ("test-heat", BuffTarget::Resource),
         ("test-tick", BuffTarget::Tick),
         ("test-stack", BuffTarget::Stack),
+        ("test-cdreduce", BuffTarget::CdReduce),
+        ("test-convert", BuffTarget::Convert),
+        ("test-cap", BuffTarget::Cap),
     ];
     for (id, ziel) in erwartet {
         let buff = zauber(id)

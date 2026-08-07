@@ -106,6 +106,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'test-stack',
       'test-cdreduce',
       'test-convert',
+      'test-cap',
     ]);
   });
 
