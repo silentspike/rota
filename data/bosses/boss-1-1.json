@@ -1,5 +1,5 @@
 {
-  "_comment": "ARBEITSNAME (Issue #544). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile. Wer auf die Namen wartet, baut vier Monate keinen Boss.\n\nDer erste Boss der ersten Instanz: der EINSTIEG. Er verlangt nur, dass der Spieler eine Unterbrechung setzt — alles andere ist ein Schadensrennen.",
+  "_comment": "ARBEITSNAME (Issue #544). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile. Wer auf die Namen wartet, baut vier Monate keinen Boss.\n\nDer erste Boss der ersten Instanz: der EINSTIEG. Er verlangt nur, dass der Spieler eine Unterbrechung setzt — alles andere ist ein Schadensrennen.\n\nZWEI WEITERE BAUSTEINE, und sie gehoeren zusammen: escalation wirkt NUR, wenn timelineLoopMs gesetzt ist (combat.ts:3135 steigt sonst aus). Allein eingebaut haette escalation geschwiegen — dieselbe Falle wie bei phases, nur diesmal vor dem Eintragen gemessen. Die Wirkzeit sinkt je Zyklus um 400 ms bis auf 1200: Wer den Kampf in die Laenge zieht, muss schneller unterbrechen.",
   "schema": 1,
   "id": "boss-1-1",
   "name": "Instance One, First",
@@ -16,7 +16,12 @@
       "damage": 900,
       "castTimeMs": 2500
     },
-    { "atMs": 32000, "mechanic": "strike", "name": "Backlash", "damage": 300 },
+    {
+      "atMs": 32000,
+      "mechanic": "strike",
+      "name": "Backlash",
+      "damage": 300
+    },
     {
       "atMs": 48000,
       "mechanic": "interruptibleCast",
@@ -26,5 +31,10 @@
     }
   ],
   "resistances": {},
-  "signature": "Zwei unterbrechbare Zauber mit langer Wirkzeit — wer sie stehen laesst, verliert mehr Leben als der Rest des Kampfes kostet. Getragen von: timeline (mechanic interruptibleCast)."
+  "signature": "Zwei unterbrechbare Zauber mit langer Wirkzeit — und die Wirkzeit schrumpft mit jedem Zyklus. Wer sie stehen laesst, verliert mehr Leben als der Rest des Kampfes kostet, und wer lange braucht, bekommt weniger Zeit dafuer. Getragen von: timeline (mechanic interruptibleCast), verschaerft durch escalation.",
+  "timelineLoopMs": 15000,
+  "escalation": {
+    "castTimeShrinkMs": 400,
+    "minCastTimeMs": 1200
+  }
 }
