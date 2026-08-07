@@ -93,6 +93,8 @@ import {
   PUTREFACTION_FILLER_NAME,
   buffTargetsPayload,
   BUFF_TARGETS_NAME,
+  instance1Payload,
+  INSTANCE1_NAMES,
   cinderPayload,
   dotLifetimePayload,
   DOT_LIFETIME_NAME,
@@ -221,6 +223,13 @@ writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
 const buffTargets = buffTargetsPayload();
 const buffTargetsPath = join(here, 'recordings', `${BUFF_TARGETS_NAME}.json`);
 writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
+
+// Die vier Bosse der ersten Instanz (#544, AC4).
+for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
+  const name = INSTANCE1_NAMES[i];
+  const datensatz = instance1Payload(`boss-1-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+}
 
 const kerne = kernePayload();
 const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
