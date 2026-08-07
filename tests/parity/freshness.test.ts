@@ -75,6 +75,10 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckterBoss1 from './recordings/instance1-boss-1.json';
+import eingecheckterBoss2 from './recordings/instance1-boss-2.json';
+import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
+import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -120,6 +124,7 @@ import {
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
+  instance1Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -184,6 +189,22 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die vier Bosse der ersten Instanz entsprechen dem heutigen Spielstand', () => {
+    // Eine Aufzeichnung je Boss (#544). Veraltet eine, vergleicht ihr
+    // Rust-Gegenstück eine Runde, die es im Spiel nicht mehr gibt.
+    const erwartet = [
+      eingecheckterBoss1,
+      eingecheckterBoss2,
+      eingecheckterBoss3,
+      eingecheckterBoss4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance1Payload(`boss-1-${i + 1}`, `instance1-boss-${i + 1}`),
+      );
+    }
   });
 
   it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
@@ -601,6 +622,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'cinder-ticks',
+  'instance1-boss-1',
+  'instance1-boss-2',
+  'instance1-boss-3',
+  'instance1-boss-4',
   'dot-lifetime',
   'extend-effects',
   'kern-zauber',

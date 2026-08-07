@@ -91,6 +91,8 @@ import {
   ROT_NAME,
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
+  instance1Payload,
+  INSTANCE1_NAMES,
   cinderPayload,
   dotLifetimePayload,
   DOT_LIFETIME_NAME,
@@ -208,6 +210,15 @@ writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
 const extendEffects = extendEffectsPayload();
 const extendEffectsPath = join(here, 'recordings', `${EXTEND_EFFECTS_NAME}.json`);
 writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
+
+// Die vier Bosse der ersten Instanz (#544, AC4). Eine Aufzeichnung je Boss —
+// ohne sie ist ihre Bitgleichheit eine Annahme, und der Waechter aus #533
+// meldet sie, sobald ein Gegenstueck fehlt.
+for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
+  const name = INSTANCE1_NAMES[i];
+  const datensatz = instance1Payload(`boss-1-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+}
 
 const kerne = kernePayload();
 const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
