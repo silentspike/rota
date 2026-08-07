@@ -319,6 +319,12 @@ export const ALEMBIC_NAME = 'alembic-zwei-ladungen';
  */
 export const DECKEL_NAME = 'deckel-gefallen';
 
+/**
+ * Vergleichsdatei für die Phasen-Bindung (#557) — ein Ereignis, das erst ab
+ * der zweiten Phase feuert.
+ */
+export const PHASEN_NAME = 'phasen-bindung';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -2228,6 +2234,87 @@ const DECKEL_BINDINGS = [
  * Vorrat von selbst unter den Deckel. Genau daran ist der Versuch des
  * Orchestrators über den Balance-Läufer gescheitert.
  */
+/** Die Leiste der Phasen-Aufzeichnung — VOR der Funktion (Issue #405). */
+const PHASEN_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'pyre' },
+] as const;
+
+/**
+ * Ein Phasenwechsel mit gebundenem Ereignis (Issue #557).
+ *
+ * # Was diese Aufzeichnung zeigt, das keine andere zeigt
+ *
+ * Bis #557 war `bossPhase` ein Zustand ohne Wirkung: gesetzt, in die
+ * Prüfsumme gerührt, von keiner Regel gelesen. Ein Boss mit Phasenschwellen
+ * verlief bitgleich zu demselben Boss mit `phases: []` — gemessen an 1000
+ * Durchgängen.
+ *
+ * `test-phasenbindung` trägt ein Ereignis mit `phase: 1`. Es feuert nur, wenn
+ * der Boss die Schwelle bei 50 % unterschritten hat, und verfällt sonst.
+ * Beide Seiten müssen an derselben Stelle dieselbe Entscheidung treffen.
+ *
+ * # Die Takte sind nicht beliebig
+ *
+ * Rupture liegt bei 36 s, die Schwelle fällt bei den hier gedrückten Zaubern
+ * davor. Ein früherer Zeitpunkt (12 s) wurde gemessen und verworfen: Dort ist
+ * der Boss noch über 50 %, das Ereignis verfällt, und die Aufzeichnung zeigte
+ * nur, dass nichts geschieht.
+ */
+export function phasenPayload(): Record<string, unknown> {
+  const boss = bossById('test-phasenbindung');
+  if (boss === undefined) throw new Error('Der Boss test-phasenbindung fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const pyre = combat.indexOf('pyre');
+  const ticks = 5000; // 50 s
+
+  const slots = slotMap(combat, PHASEN_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Die Phase je Takt — die Grösse, die #557 erst wirksam macht. */
+  const phase: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      phase.push(combat.bossPhase);
+      break;
+    }
+    let gewaehlt = -1;
+    if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    phase.push(combat.bossPhase);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: PHASEN_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: PHASEN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    phase,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /** Die höchste erreichte Phase — muss über 0 liegen, sonst zeigt der Lauf nichts. */
+      hoechstePhase: Math.max(...phase),
+      /** Eingesteckter Schaden: mit gebundenem Ereignis höher als ohne. */
+      damageTaken: combat.damageTaken,
+    },
+  };
+}
+
 export function deckelPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');

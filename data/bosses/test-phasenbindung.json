@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "test-phasenbindung",
+  "name": "The Threshold",
+  "instance": "testing",
+  "hp": 6000,
+  "overpressureMs": 300000,
+  "_comment": "PRUEF-BOSS FUER DIE PHASEN-BINDUNG (Issue #557).\n\nBis #557 war 'phases' ein Zustand ohne Wirkung: Ein Boss mit Phasenschwellen verlief bitgleich zu demselben Boss mit 'phases: []'. Dieser Boss ist der Nachweis, dass es nicht mehr so ist.\n\nDIE ZEITLEISTE HAT ZWEI EREIGNISSE, und nur eines ist gebunden:\n\n  Backlash    ohne 'phase' — feuert immer, in jeder Phase\n  Rupture     'phase': 1  — erst ab der zweiten Phase\n\nDie Schwelle liegt bei 50 %. Wer den Boss schnell genug herunterbringt, sieht Rupture; wer es nicht tut, nie. Genau das ist der Verhaltenswechsel, den GAME-DESIGN 11.2 meint.\n\nDIE ZEITEN SIND NICHT BELIEBIG: Rupture liegt bei 36 s, die Schwelle wird bei den ueblichen Rotationen davor erreicht. Faellt sie spaeter, verfaellt das Ereignis — das ist die Regel und kein Fehler.",
+  "phases": [
+    {
+      "atHpPercent": 50,
+      "name": "Threshold"
+    }
+  ],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 6000,
+      "mechanic": "strike",
+      "name": "Backlash",
+      "damage": 200
+    },
+    {
+      "atMs": 18000,
+      "mechanic": "strike",
+      "name": "Backlash",
+      "damage": 200
+    },
+    {
+      "atMs": 36000,
+      "mechanic": "strike",
+      "name": "Rupture",
+      "damage": 900,
+      "phase": 1
+    }
+  ],
+  "resistances": {},
+  "signature": null
+}
