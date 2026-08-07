@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 23
+        "present": 27
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 37,
+        "count": 33,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -220,6 +220,21 @@
       "trigger": {
         "on": "spell.cast",
         "key": "vapour"
+      }
+    },
+    {
+      "id": "spell-slag",
+      "group": "spells",
+      "purpose": "SLAG — hebt die Hitze-Grenze befristet an (Issue #490). Er macht KEINEN Schaden, er ermoeglicht ihn.\n\nDER PROMPT IST GEGEN VAPOUR UND WISP ANGELEGT: VAPOUR entweicht, WISP flackert, SLAG STAUT AUF. Das \"without release\" ist der Kern — der Zauber loest nichts aus, er bereitet vor.\n\nLEISE mit Absicht (-7,1 dB). Die Zauber mit Schaden liegen bei -0,9 bis -2,4 dB, die ohne bei -4,4 bis -7,6. Ein Vorbereiter, der laut ist wie ein Entlader, klingt nach mehr, als er tut. Aesthetisch abgenommen wird am Soundboard.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-slag.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 25,
+      "prompt": "deep furnace pressure building and holding, thick molten swell, low sustained rumble without release, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "slag"
       }
     },
     {
@@ -1090,6 +1105,51 @@
       "trigger": {
         "on": "spell.cast",
         "key": "wisp"
+      }
+    },
+    {
+      "id": "spell-clasp",
+      "group": "spells",
+      "purpose": "CLASP — der zweite Punktesammler der Fixierung (Issue #519). Wird oft gedrueckt, muss also kurz und zurueckhaltend sein. ABGRENZUNG GEGEN BIND: Dessen Klang endet auf 'resonant ringing tail, sustained decay' — CLASP darf genau das NICHT haben, sonst klingen die beiden Punktesammler gleich und der Spieler hoert nicht, welchen er gedrueckt hat.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-clasp.ogg",
+      "targetSeconds": 0.4,
+      "pitchJitterCents": 20,
+      "prompt": "tight metallic snap, dry grip closing, NO RING and NO TAIL, very short, fantasy control spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "clasp"
+      }
+    },
+    {
+      "id": "spell-latch",
+      "group": "spells",
+      "purpose": "LATCH — die Verteidigung der Fixierung (Issue #519). ABGRENZUNG GEGEN STAY: Der klingt nach 'sudden arresting thud, abrupt stop' — ein AUFHALTEN. LATCH faengt ab, statt aufzuhalten; der Unterschied steht im Verb, nicht in der Tonhoehe.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-latch.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 20,
+      "prompt": "absorbing an incoming blow, soft heavy catch, dampened impact, no sharp stop, fantasy defensive spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "latch"
+      }
+    },
+    {
+      "id": "spell-plate",
+      "group": "spells",
+      "purpose": "PLATE — die grosse Schicht der Koagulation (Issue #519), 20 s Abklingzeit. ABGRENZUNG GEGEN CRUST: Der ist 'mineral crust, low crystalline settling, glassy' — PLATE ist METALL statt Kruste, also ausdruecklich ohne kristallinen Ton.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-plate.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 15,
+      "prompt": "heavy metal plate settling into place, thick armored layer, low weight, no crystalline tone, fantasy shield spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "plate"
       }
     }
   ]
