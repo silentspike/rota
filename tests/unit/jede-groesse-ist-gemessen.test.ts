@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 
 /**
- * Der Wächter zu Issue #547, AC5.
+ * Der Wächter zu Issue #547, AC5 — **er prüft die Vollständigkeit der
+ * MESSUNG, nicht den Schutz.**
  *
  * # Was er bewacht
  *
@@ -28,9 +29,16 @@ import { readdirSync, readFileSync } from 'node:fs';
  *
  * # Was er NICHT leistet
  *
- * Er misst nichts. Er stellt fest, dass etwas **ungemessen** ist. Ein Paar,
- * das in der Datei als „NUR FRISCHE" steht, ist weiterhin ungeschützt — der
- * Wächter ist damit zufrieden, weil die Lücke bekannt und aufgeschrieben ist.
+ * Er misst nichts. Er stellt fest, dass etwas **ungemessen** ist.
+ *
+ * **Ein Eintrag „NUR FRISCHE" erfüllt ihn genauso wie „geschützt".** Das Paar
+ * ist dann gemessen UND ungeschützt — der Wächter ist zufrieden, weil die
+ * Lücke bekannt und aufgeschrieben ist.
+ *
+ * Deshalb heißt die Datei nicht `groessen-abdeckung`: Wer den Namen liest,
+ * schlösse „die Größen sind abgedeckt", und das wäre genau die Sorte
+ * Täuschung, gegen die dieses Issue angetreten ist — ein Name, der Mechanik
+ * verspricht, die dahinter nicht steht.
  *
  * Das ist Absicht. Die 45 Lücken zu schließen ist Arbeit für mehrere Issues;
  * zu verhindern, dass unbemerkt eine sechsundvierzigste entsteht, ist dieser
