@@ -16,6 +16,7 @@
 //! Das ist die Ehrlichkeitsauflage aus AC4 — und sie ist kein Beiwerk: Ohne
 //! sie liest sich „gefunden" wie „bewiesen".
 
+use rota_sim::apl::AplName;
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, index_of, SPELLS};
 use rota_sim::factors::NEUTRAL;
@@ -104,7 +105,8 @@ fn main() {
     for boss_id in BOSSES {
         let config = config(boss_id);
         let gefunden = greedy(&config, &pool, MAX_LEN);
-        let hand = rota_sim::apl::parse("step1-good", STEP1_GOOD).expect("step1-good ist gueltig");
+        let hand = rota_sim::apl::parse(AplName("step1-good"), STEP1_GOOD)
+            .expect("step1-good ist gueltig");
         let hand_result = rota_sim::balance::run(&config, &hand);
 
         println!("Boss {boss_id}");

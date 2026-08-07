@@ -16,6 +16,7 @@
 use std::process::ExitCode;
 
 use rota_sim::apl::parse;
+use rota_sim::apl::AplName;
 use rota_sim::data::{KINDLE, PYRE, SMOULDER};
 use rota_sim::{Fight, FightConfig, RunResult, BOSS};
 
@@ -64,7 +65,7 @@ fn main() -> ExitCode {
         ),
         ("Liste ohne Regeln", "# nur ein Kommentar\n"),
     ] {
-        match parse("beispiel", text) {
+        match parse(AplName("beispiel"), text) {
             Ok(_) => {
                 println!("  {was}: KEIN FEHLER GEMELDET — das ist selbst der Fehler");
                 ok = false;
@@ -91,7 +92,7 @@ fn main() -> ExitCode {
 
 /// Rechnet eine Liste durch und hält sie gegen ihren Sollwert.
 fn show(name: &str, text: &str, expected_damage: u32, expected_kill: Option<u32>) -> bool {
-    let apl = match parse(name, text) {
+    let apl = match parse(AplName(name), text) {
         Ok(apl) => apl,
         Err(error) => {
             println!("{name} ist fehlerhaft:\n{error}\n");
@@ -135,7 +136,7 @@ fn show(name: &str, text: &str, expected_damage: u32, expected_kill: Option<u32>
 
 /// Führt eine Datei aus, ohne Sollwert — für eigene Listen.
 fn run_file(path: &str, text: &str) -> ExitCode {
-    match parse(path, text) {
+    match parse(AplName(path), text) {
         Ok(apl) => {
             let result = Fight::new(FightConfig::default()).run_apl(&apl);
             println!("  {path}");

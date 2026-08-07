@@ -74,19 +74,73 @@ impl SpellContribution {
 /// gar nicht. Ob er zu selten kam, sagen die verpassten Unterbrechungen und der
 /// erlittene Schaden (GAME-DESIGN 19.2) — nicht diese Tabelle.
 fn ist_hilfszauber(spell: &Spell) -> bool {
+    // **Zauber ueber der Stufengrenze** (Issue #489). Die Pruef-Zauber liegen
+    // dort und gehoeren in keinen Spielerbericht: Sie sind nie gewirkt,
+    // staenden also dauerhaft mit "TOT" in der Tabelle — genau die falsche
+    // Auskunft, vor der der Absatz ganz oben warnt.
+    //
+    // Diese Frage steht VOR allen anderen und kennt keine Ausnahme: Ein
+    // Pruef-Zauber gehoert auch dann nicht in den Bericht, wenn er Schaden
+    // macht (`test-buff` traegt Grundschaden).
+    if spell.unlock_level > crate::data::MAX_LEVEL as u16 {
+        return true;
+    }
+
+    // **Wer Schaden macht, traegt bei — und traegt damit in die Tabelle.**
+    //
+    // Das ist die Frage, die die Tabelle beantwortet, und sie schlaegt jedes
+    // Hilfs-Merkmal. Die Absicht stand von Anfang an in den Kommentaren
+    // darunter ("BIND gehoert NICHT dazu: Er macht Schaden und traegt damit
+    // zur Tabelle bei"), nur wurde sie nicht ausgesprochen — sie war ueber
+    // die Datenlage miterfuellt, solange kein Zauber BEIDES war.
+    //
+    // # Zwei Zwitter haben das aufgedeckt (gemessen, nicht vermutet)
+    //
+    //   SCAB   45 Schaden UND ein Schild
+    //   WISP   20 Schaden UND 500 ms Verkuerzung
+    //
+    // Beide fielen aus der Tabelle, obwohl sie beitragen: 12 Zeilen gegen 14
+    // Schadenszauber, gemeldet von `tests/report.rs`. Die Begruendung der
+    // Verkuerzer-Zeile unten — "sie sparen ZEIT, nicht Schaden" — traf auf
+    // VAPOUR und REFLUX zu (Grundschaden 0) und auf WISP nicht mehr.
+    //
+    // Ein Zauber, der Schaden macht, steht nie dauerhaft mit "TOT" in der
+    // Tabelle. Genau diese Sorge — und nur sie — traegt die Liste unten.
+    if spell.base_damage > 0 || spell.dot.is_some() || spell.spender.is_some() {
+        return false;
+    }
+
     spell.interrupt
         || spell.shield.is_some()
         || spell.heal.is_some()
         || spell.conversion.is_some()
         // Die drei Ausgabe-Zauber der Fixierung (#100). BIND gehoert NICHT
-        // dazu: Er macht Schaden und traegt damit zur Tabelle bei.
+        // dazu: Er macht Schaden — das faengt jetzt schon die Frage darueber.
         || spell.control.is_some()
         // Die zwei der Sublimation (#201). Sie sparen ZEIT, nicht Schaden —
         // die Tabelle wuerde sie dauerhaft als "TOT" melden, auch wenn der
         // Spieler sie perfekt einsetzt. Genau die falsche Auskunft, vor der
-        // der Absatz darueber warnt.
+        // der Absatz darueber warnt. WISP faellt seit #480 NICHT mehr
+        // hierunter: Er verkuerzt UND macht Schaden.
         || spell.cooldown_reduction_ms > 0
         || spell.arms_cooldown_reset
+        // **Zauber, die nur eine Verstaerkung tragen** (Issue #490, SLAG).
+        // Sie machen keinen Schaden — sie ermoeglichen ihn. In der Tabelle
+        // staenden sie dauerhaft mit "TOT", obwohl der Spieler sie perfekt
+        // einsetzt: dieselbe falsche Auskunft, vor der der Absatz ganz oben
+        // warnt.
+        //
+        // Der urspruengliche Ausdruck trug hier `&& base_damage == 0 &&
+        // dot.is_none()` mit. Das ist seit der Zwitter-Korrektur oben
+        // redundant — die Schadens-Frage steht VOR dieser Liste und laesst
+        // jeden Zauber mit Schaden durch, ehe eine dieser Zeilen greift.
+        // Stehen liesse man eine Bedingung, die als einzige doppelt prueft
+        // und den naechsten Leser fragen laesst, warum ausgerechnet hier.
+        //
+        // Gemessen: SLAG ist der einzige ausgelieferte Zauber mit `buff` —
+        // die sieben anderen liegen ueber der Stufengrenze und fallen schon
+        // oben heraus, `test-buff` traegt dabei sogar Grundschaden.
+        || spell.buff.is_some()
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

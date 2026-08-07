@@ -27,6 +27,7 @@ import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
 import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckterBuffKampf from './recordings/buff-combat.json';
+import eingecheckteNeueFixierung from './recordings/fixation-spells.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
 import eingecheckterBossZustand from './recordings/vessel-phases.json';
@@ -36,6 +37,7 @@ import eingecheckterWettlauf from './recordings/race-heal.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
+import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -69,6 +71,9 @@ import eingecheckteStufe from './recordings/level-30.json';
 import eingecheckteSynergie from './recordings/synergy-window.json';
 import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
+import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
+import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteKerne from './recordings/kern-zauber.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -78,6 +83,7 @@ import {
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
+  wispPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -103,6 +109,10 @@ import {
   synergyHastePayload,
   buffCombatPayload,
   wardCapPayload,
+  putrefactionFillerPayload,
+  fixationSpellsPayload,
+  cinderPayload,
+  kernePayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -131,6 +141,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteVerstaerkungen, HINWEIS).toEqual(buffsPayload());
   });
 
+  it('die neuen Fixierungs-Zauber entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckteNeueFixierung, HINWEIS).toEqual(fixationSpellsPayload());
+  });
+
   it('der Kampf mit aktiver Verstärkung entspricht dem heutigen Spielstand', () => {
     // **Der Name in MIT_FRISCHE_FALL allein reicht nicht** (Issue #463): Die
     // Liste sagt nur, dass ein Fall existieren SOLL. Ohne diesen Vergleich
@@ -150,6 +164,24 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // die Klammerung des Synergie-Fensters unter Tempo vergleichen. Veraltet
     // sie unbemerkt, ist genau der Nachweis wieder weg, für den sie entstand.
     expect(eingecheckteSynergieMitTempo, HINWEIS).toEqual(synergyHastePayload());
+  });
+
+  it('die Glut-Runde entspricht dem heutigen Spielstand', () => {
+    // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
+    // Paritäts-Nachweis für ihn wieder weg (Issue #477).
+    expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die Kern-Zauber entsprechen dem heutigen Spielstand', () => {
+    // CLASP, LATCH und PLATE werden nur hier gewirkt — veraltet die Datei,
+    // ist der einzige Paritäts-Nachweis für alle drei weg (Issue #519).
+    expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
+  });
+
+  it('die Fäulnis-Füller entsprechen dem heutigen Spielstand', () => {
+    // BLIGHT wird nur hier gewirkt — veraltet die Datei, ist der einzige
+    // Paritäts-Nachweis für ihn wieder weg (Issue #479).
+    expect(eingecheckteFaeulnisFueller, HINWEIS).toEqual(putrefactionFillerPayload());
   });
 
   it('der WARD-Deckel entspricht dem heutigen Spielstand', () => {
@@ -202,6 +234,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterWisp, HINWEIS).toEqual(wispPayload());
   });
 
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
@@ -478,6 +514,7 @@ describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {
  */
 const MIT_FRISCHE_FALL: readonly string[] = [
   'buff-combat',
+  'fixation-spells',
   'cooldown-precision',
   'primitives',
   'misplays',
@@ -492,6 +529,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'trial-blocks',
   'timeline-loop',
   'sublimation',
+  'wisp-verkuerzung',
   'gear',
   'sets',
   'player-damage',
@@ -510,6 +548,9 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'synergy-window',
   'synergy-haste',
   'ward-cap',
+  'putrefaction-filler',
+  'cinder-ticks',
+  'kern-zauber',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

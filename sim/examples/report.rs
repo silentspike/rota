@@ -11,7 +11,7 @@
 
 use std::process::ExitCode;
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
     AchievementCheck, Feasibility, SpellContribution,
@@ -24,7 +24,7 @@ const GOOD: &str = include_str!("../apl/step1-good.apl");
 fn main() -> ExitCode {
     let json = std::env::args().any(|a| a == "--json");
 
-    let apl = match parse("step1-good", GOOD) {
+    let apl = match parse(AplName("step1-good"), GOOD) {
         Ok(apl) => apl,
         Err(error) => {
             eprintln!("Die eingebaute Liste ist fehlerhaft:\n{error}");
