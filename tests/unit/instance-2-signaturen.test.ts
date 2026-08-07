@@ -1,0 +1,78 @@
+/**
+ * Jede Signatur der zweiten Instanz ändert den Ausgang (Issue #574, AC2/AC6).
+ *
+ * # Der Unterschied zu Instanz 1
+ *
+ * Dort genügte „ohne die Signatur verläuft der Kampf messbar anders". Hier
+ * verlangt AC2 mehr: **ohne die Signatur verliert man.** Ein Baustein, der
+ * nur kostet, erfüllt das nicht.
+ *
+ * Genau diese Unterscheidung hat `boss-2-1` in seinem ersten Entwurf
+ * verfehlt: Das Gift kostete 2088 Lebenspunkte und ließ den Siegzeitpunkt
+ * unverändert — es wirkte messbar und entschied nichts. Erst ab 60 Schaden je
+ * Tick kippt der Ausgang; die Datei trägt die Reihe im Kopfkommentar.
+ */
+import { describe, expect, it } from 'vitest';
+import { Combat, FIGHT_WON, FIGHT_DIED } from '../../src/core/combat.js';
+import { BOSSES, CALCINATION } from '../../src/core/data.js';
+import type { BossDef } from '../../src/core/data.js';
+
+function boss(id: string): BossDef {
+  const eintrag = BOSSES.get(id);
+  expect(eintrag, `${id} steht nicht in BOSSES`).toBeDefined();
+  return eintrag!.value;
+}
+
+/**
+ * Fährt einen Kampf bis zum Ende und gibt zurück, WIE er endete.
+ *
+ * **`checkDefeat` statt `damageDealt >= hp`.** Letzteres beantwortet nicht,
+ * wer gewonnen hat: Bei einem Boss mit umgekehrtem Ziel ist der volle Ring
+ * die Niederlage, und ein toter Spieler wirkt ohne diesen Aufruf weiter
+ * (#581).
+ */
+function ausgang(b: BossDef, reinigen: boolean): { zustand: number; ende: number; hp: number } {
+  const c = new Combat({ school: CALCINATION.value, boss: b });
+  const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
+  for (let t = 0; t <= 60_000; t += 10) {
+    c.stepPassive(t);
+    if (c.checkDefeat(t)) return { zustand: c.fightState, ende: t, hp: c.playerHp };
+    if (!c.gcd.isReady(t)) continue;
+    if (reinigen && c.afflicted && c.isOffCooldown(i('quench'), t)) c.cast(i('quench'), t);
+    else if (!c.isDotActive(i('smoulder'), t) && c.isOffCooldown(i('smoulder'), t))
+      c.cast(i('smoulder'), t);
+    else if (c.resource >= 15 && c.isOffCooldown(i('pyre'), t)) c.cast(i('pyre'), t);
+    else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
+  }
+  return { zustand: c.fightState, ende: -1, hp: c.playerHp };
+}
+
+describe('boss-2-1 — ohne Reinigung verliert man', () => {
+  it('WER NICHT REINIGT, STIRBT — der wichtigere der beiden Fälle', () => {
+    const r = ausgang(boss('boss-2-1'), false);
+    expect(r.zustand, 'ohne Reinigung wird der Kampf gewonnen — die Signatur fordert nichts').toBe(
+      FIGHT_DIED,
+    );
+  });
+
+  it('wer reinigt, gewinnt — und lebt dabei', () => {
+    const r = ausgang(boss('boss-2-1'), true);
+    expect(r.zustand).toBe(FIGHT_WON);
+    expect(r.hp, 'der Sieger ist tot').toBeGreaterThan(0);
+    // AC2 verlangt Restzeit unter 40 %.
+    expect((60_000 - r.ende) / 60_000).toBeLessThan(0.4);
+  });
+
+  it('und das Gift ist scharf genug, dass die Reinigung ENTSCHEIDET', () => {
+    // **Die Gegenprobe zur Schwelle.** Bei 30 Schaden je Tick gewinnt man
+    // auch ohne Reinigung — dann kostet der Baustein nur. Dieser Fall hält
+    // fest, dass die eingestellte Schärfe über der Schwelle liegt.
+    const b = boss('boss-2-1');
+    const schwach = { ...b, affliction: { ...b.affliction!, damage: 30 } };
+    expect(ausgang(schwach, false).zustand, 'bei 30 sollte man überleben').toBe(FIGHT_WON);
+    expect(
+      b.affliction!.damage,
+      'das Gift ist wieder unter die Schwelle gerutscht',
+    ).toBeGreaterThan(50);
+  });
+});

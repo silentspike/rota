@@ -1,5 +1,5 @@
 {
-  "_comment": "ARBEITSNAME (Issue #574). Der erste Boss der zweiten Instanz: REINIGUNG UNTER ZEITDRUCK.\n\nSIGNATUR: Ein Gift ab der sechsten Sekunde, das doppelt so schnell tickt wie das der ersten Instanz — und die Zeitleiste wiederholt sich alle acht Sekunden, sodass zwischen zwei Reinigungen kaum Platz bleibt. Getragen von: affliction (perStepMs 500).\n\nVERGLEICH ZU boss-1-3, damit der Unterschied ablesbar ist: Dort tickte das Gift jede Sekunde ab der neunten, und die Timeline war zweizeilig ohne Wiederholung. Hier ist derselbe Baustein schaerfer parametriert — GAME-DESIGN sagt, die Vielfalt kommt aus Kombination und Parametrierung, nicht aus neuen Mechanismen.\n\nAC2 GEMESSEN VOR #581 — Vorbehalt toter Sieger. Zum Zeitpunkt dieser Messung behandelt weder checkDefeat noch sonst eine Stelle den Tod des Spielers als Kampfende. Die Zahlen sind nachzuziehen, sobald #581 steht.",
+  "_comment": "ARBEITSNAME (Issue #574). Der erste Boss der zweiten Instanz: REINIGUNG UNTER ZEITDRUCK.\n\nSIGNATUR: Ein Gift ab der sechsten Sekunde, das doppelt so schnell tickt wie das der ersten Instanz — und die Zeitleiste wiederholt sich alle acht Sekunden, sodass zwischen zwei Reinigungen kaum Platz bleibt. Getragen von: affliction (perStepMs 500).\n\nVERGLEICH ZU boss-1-3, damit der Unterschied ablesbar ist: Dort tickte das Gift jede Sekunde ab der neunten, und die Timeline war zweizeilig ohne Wiederholung. Hier ist derselbe Baustein schaerfer parametriert — GAME-DESIGN sagt, die Vielfalt kommt aus Kombination und Parametrierung, nicht aus neuen Mechanismen.\n\nDIE 90 SIND GEMESSEN, nicht gewaehlt. Die Reihe zeigt eine scharfe Schwelle zwischen 30 und 60:\n\n  Gift | ohne Reinigung        | mit Reinigung\n    30 | SIEG 49510ms hp1184   | SIEG 49520ms hp3272\n    60 | TOT  42000ms          | SIEG 49520ms hp3272\n    90 | TOT  33000ms          | SIEG 49520ms hp3272\n   120 | TOT  27000ms          | SIEG 49520ms hp3272\n\nBei 30 gewinnt man auch ohne Reinigung — das Gift KOSTET dann (2088 Lebenspunkte), ohne zu ENTSCHEIDEN. Ein Baustein, der wirkt und den Ausgang nicht aendert, erfuellt AC2 nicht.\n\n90 liegt einen Schritt ueber der Schwelle, damit eine etwas bessere Rotation sie nicht zufaellig unterlaeuft. Wer reinigt, gewinnt bei jeder Schaerfe mit denselben 3272 Lebenspunkten — die Signatur entscheidet, nicht die Zahl.",
   "schema": 1,
   "id": "boss-2-1",
   "name": "Instance Two, First",
@@ -8,12 +8,26 @@
   "overpressureMs": 60000,
   "phases": [],
   "energy": null,
-  "affliction": { "atMs": 6000, "perStepMs": 500, "damage": 30, "clearedBy": ["quench", "temper"] },
+  "affliction": {
+    "atMs": 6000,
+    "perStepMs": 500,
+    "damage": 90,
+    "clearedBy": ["quench", "temper"]
+  },
   "timelineLoopMs": 8000,
   "timeline": [
-    { "atMs": 2000, "mechanic": "strike", "name": "Miasma", "damage": 180 },
-    { "atMs": 6000, "mechanic": "strike", "name": "Miasma", "damage": 180 }
+    {
+      "atMs": 2000,
+      "mechanic": "strike",
+      "name": "Miasma",
+      "damage": 180
+    },
+    {
+      "atMs": 6000,
+      "mechanic": "strike",
+      "name": "Miasma",
+      "damage": 180
+    }
   ],
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }
