@@ -179,7 +179,7 @@ fn ac1_ein_zwitter_aus_schaden_und_hilfe_steht_trotzdem_in_der_tabelle() {
                 || s.conversion.is_some()
                 || s.control.is_some()
                 || s.cooldown_reduction_ms > 0
-                || s.arms_cooldown_reset
+                || s.cooldown_reset_charges > 0
                 // Die drei Verlaengerer-Merkmale (#517, #523). Sie kamen in
                 // `ist_hilfszauber` dazu, weil EMBER, HARDEN und SEPSIS sonst
                 // dauerhaft als "TOT" in der Tabelle stuenden.

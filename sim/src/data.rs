@@ -282,7 +282,11 @@ pub struct Spell {
     /// in `Fight::replay` kennt nur "wirken oder ablehnen", nicht "waehlen".
     /// Das ist die offene Haelfte von Issue #201 (AC4) und ausdruecklich
     /// gemeldet — nicht uebersehen.
-    pub arms_cooldown_reset: bool,
+    /// **Wie viele** Abklingzeiten der Auswahlmodus zuruecksetzt (#521).
+    ///
+    /// 0 heisst: kein Ruecksetzer. Bei 1 verhaelt er sich exakt wie vor #521 —
+    /// das ist die Gegenprobe, die AC1 verlangt.
+    pub cooldown_reset_charges: u8,
     /// Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1).
     pub shield: Option<Shield>,
     /// Heilung, falls der Zauber eine ist (Weg 2).
@@ -887,7 +891,7 @@ mod tests {
                     // Filter sie zu den "drei Kampfzaubern aus Schritt 1" —
                     // sie tragen keins der Merkmale darueber.
                     && s.cooldown_reduction_ms == 0
-                    && !s.arms_cooldown_reset
+                    && s.cooldown_reset_charges == 0
                     // Und seit Issue #97 die Zersetzung: CANKER legt Stapel an,
                     // FESTER lebt von ihnen. Auch sie tragen keins der Merkmale
                     // darueber und zaehlten sonst zu den drei aus Schritt 1.

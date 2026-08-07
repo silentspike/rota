@@ -81,6 +81,9 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'vapour',
       'reflux',
       'wisp',
+      // ALEMBIC (Issue #521) — der Rücksetzer, der zweimal fragt. Er steht
+      // hinter WISP, weil er in `sublimation.json` dort steht.
+      'alembic',
       'ascend',
       'decant',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben

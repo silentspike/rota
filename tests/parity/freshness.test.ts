@@ -39,6 +39,7 @@ import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
+import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -88,6 +89,7 @@ import {
   sublimationPayload,
   gezielteVerkuerzungPayload,
   wispPayload,
+  alembicPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -250,6 +252,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckterAlembic, HINWEIS).toEqual(alembicPayload());
   });
 
   it('der Lauf mit GEZIELTEN Verkürzungen entspricht dem heutigen Spielstand', () => {
@@ -551,6 +557,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'sublimation',
   'gezielte-verkuerzung',
   'wisp-verkuerzung',
+  'alembic-zwei-ladungen',
   'gear',
   'sets',
   'player-damage',

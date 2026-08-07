@@ -173,6 +173,8 @@ export interface SpellDef {
    */
   readonly cooldownReductionMs?: number;
   /**
+   * **Wie viele** Abklingzeiten der Auswahlmodus zurücksetzt (SUBLIMATION,
+   * Issue E3-3c, erweitert in #521).
    * Nur Abklingzeiten UNTER dieser Grenze verkürzen (ASCEND, Issue #518).
    *
    * 0 oder fehlend heißt: alle, wie bisher.
@@ -190,8 +192,18 @@ export interface SpellDef {
    * Der Rücksetzer wirkt nicht auf den nächsten gewirkten Zauber, sondern
    * fragt: Welchen? Zwei Schritte, drei Aktionen — die Entscheidung des
    * Auftraggebers vom 2026-07-29.
+   *
+   * # Warum eine Anzahl und kein Ja/Nein mehr
+   *
+   * ALEMBIC (#521) macht **zwei** Zauber bereit. Das ist kein größerer
+   * Betrag, sondern dieselbe Frage zweimal — der Spieler wählt zweimal, statt
+   * dass das Spiel zwei aussucht.
+   *
+   * Bei `1` verhält sich der Schalter exakt wie vorher; das ist die
+   * Gegenprobe, die #521 AC1 verlangt und die `cooldown-reset.test.ts`
+   * unverändert fährt.
    */
-  readonly armsCooldownReset?: boolean;
+  readonly cooldownResetCharges?: number;
   /**
    * Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**
    * (GAME-DESIGN 11.2, Baustein 9, Issue #110).
@@ -1163,6 +1175,30 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     }
   }
 
+  // **Der Rücksetzer trägt eine ANZAHL** (Issue #521, AC1). Die alte Form war
+  // `armsCooldownReset: true`; sie liest sich hier weiter als 1, damit ein
+  // Datensatz aus der Zeit davor nicht still seine Wirkung verliert — ein
+  // fehlender Schalter und ein Schalter mit 0 sind sonst nicht zu
+  // unterscheiden.
+  const ladungenRoh = raw['cooldownResetCharges'];
+  const cooldownResetCharges =
+    typeof ladungenRoh === 'number'
+      ? ladungenRoh
+      : raw['armsCooldownReset'] === true
+        ? 1
+        : undefined;
+  if (cooldownResetCharges !== undefined) {
+    if (cooldownResetCharges < 1) {
+      problems.push(
+        `${where}: Rücksetzer-Ladungen ${cooldownResetCharges} — unter 1 ist ` +
+          `kein Rücksetzer, dann gehört das Feld weg.`,
+      );
+    }
+    if (!Number.isInteger(cooldownResetCharges)) {
+      problems.push(`${where}: Rücksetzer-Ladungen ${cooldownResetCharges} sind nicht ganzzahlig.`);
+    }
+  }
+
   return {
     ...(belowMs > 0 ? { cooldownReductionBelowMs: belowMs } : {}),
     ...(longestOnly ? { cooldownReductionLongestOnly: true } : {}),
@@ -1190,7 +1226,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...(spender !== undefined ? { spender } : {}),
     ...(buff !== undefined ? { buff } : {}),
     ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
-    ...(raw['armsCooldownReset'] === true ? { armsCooldownReset: true } : {}),
+    ...(cooldownResetCharges !== undefined ? { cooldownResetCharges } : {}),
   };
 }
 
