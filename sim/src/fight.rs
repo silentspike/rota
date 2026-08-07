@@ -3634,6 +3634,60 @@ impl Fight {
         self.shield_stacks
     }
 
+    /// Laeuft das Fenster der Verstaerkung, die dieser Zauber legt? (#553)
+    ///
+    /// # Die Uebersetzung, die es vorher nicht gab
+    ///
+    /// Verstaerkungen liegen nach ART und Zielgroesse (Issue #489) — acht
+    /// getrennte Vorraete, in jedem `factors[kind]`. Eine Rotation kennt aber
+    /// Zauber: `kindle if buff.flashpoint.active` ist die Frage, die ein
+    /// Spieler stellt, und sie war bis #553 nicht stellbar.
+    ///
+    /// Traegt der Zauber keine Verstaerkung, ist die Antwort `false`. Das ist
+    /// KEIN Fehler: Eine Bedingung auf einen Zauber ohne Fenster greift nie,
+    /// und das ist eine gueltige (wenn auch nutzlose) Rotation. Ein Fehler
+    /// waere hier eine Aussage ueber die Absicht des Schreibers, die der
+    /// Parser nicht treffen kann.
+    #[must_use]
+    pub fn buff_active(&self, spell: usize) -> bool {
+        let Some(buff) = SPELLS.get(spell).and_then(|s| s.buff) else {
+            return false;
+        };
+        self.buff_store(buff.target).is_active(buff.kind, self.time)
+    }
+
+    /// Wie lange das Fenster dieses Zaubers noch laeuft, in ms (#553).
+    ///
+    /// `0`, wenn es nicht laeuft oder der Zauber keines legt.
+    #[must_use]
+    pub fn buff_remaining_ms(&self, spell: usize) -> Millis {
+        let Some(buff) = SPELLS.get(spell).and_then(|s| s.buff) else {
+            return 0;
+        };
+        self.buff_store(buff.target)
+            .remaining_ms(buff.kind, self.time)
+    }
+
+    /// Der Vorrat zu einer Zielgroesse.
+    ///
+    /// Dieselbe Zuordnung wie beim Anlegen in `cast` — sie steht hier ein
+    /// zweites Mal, weil dort ein `&mut` gebraucht wird und hier ein `&`.
+    /// Wer eine Zielgroesse ergaenzt, muss BEIDE Stellen anfassen; der
+    /// Uebersetzer erzwingt es, weil `match` auf `BuffTarget` vollstaendig
+    /// sein muss.
+    const fn buff_store(&self, target: BuffTarget) -> &Buffs {
+        match target {
+            BuffTarget::Damage => &self.buffs,
+            BuffTarget::Control => &self.control_buffs,
+            BuffTarget::Resource => &self.resource_buffs,
+            BuffTarget::Tick => &self.tick_buffs,
+            BuffTarget::Stack => &self.stack_buffs,
+            BuffTarget::CdReduce => &self.cd_reduce_buffs,
+            BuffTarget::Convert => &self.convert_buffs,
+            BuffTarget::Cap => &self.cap_buffs,
+        }
+    }
+
     /// Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat.
     #[must_use]
     pub fn shield_absorbed(&self) -> u32 {
