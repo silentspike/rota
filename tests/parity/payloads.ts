@@ -145,6 +145,16 @@ export const SUBLIMATION_NAME = 'sublimation';
  */
 export const WISP_NAME = 'wisp-verkuerzung';
 
+/**
+ * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
+ *
+ * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
+ * und **jede Aufzeichnung fährt `Combat` direkt**. Eine Regel ausserhalb von
+ * `Combat` war für die Parität deshalb nicht schwer prüfbar, sondern
+ * unsichtbar.
+ */
+export const ALEMBIC_NAME = 'alembic-zwei-ladungen';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -1996,6 +2006,109 @@ const WISP_BINDINGS = [
  * kommen. Ein zweiter Verkürzer im Lauf verwässert die Aussage hier nicht,
  * er schärft sie.
  */
+/** Die Leiste der ALEMBIC-Aufzeichnung — VOR der Funktion (Issue #405). */
+const ALEMBIC_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'pyre' },
+  { slot: 2, spellId: 'vapour' },
+  { slot: 3, spellId: 'alembic' },
+] as const;
+
+/**
+ * ALEMBIC macht ZWEI Zauber bereit — und der Spieler wählt beide (#521).
+ *
+ * # Was diese Aufzeichnung zeigt, das keine andere zeigt
+ *
+ * Nach einem Rücksetzer ist der nächste Druck keine Wirkung, sondern eine
+ * **Auswahl**. Bei ALEMBIC sind es zwei hintereinander. Beide Seiten müssen
+ * an derselben Stelle vom Wirken aufs Wählen umschalten und nach genau zwei
+ * Auswahlen zurück — eine Seite, die nach der ersten zurückschaltet, macht
+ * aus der zweiten Auswahl eine Wirkung und wirft damit die ganze Rotation um.
+ *
+ * # Warum PYRE und VAPOUR die Ziele sind
+ *
+ * Beide tragen lange Abklingzeiten (5 s und 8 s), die zum Zeitpunkt des
+ * Rücksetzers wirklich laufen. Eine Auswahl auf einen **bereiten** Zauber
+ * verpufft (die bestehende Regel) — sie stünde in der Spur, ohne etwas zu
+ * bewegen, und der Fall belegte nichts.
+ */
+export function alembicPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const pyre = combat.indexOf('pyre');
+  const vapour = combat.indexOf('vapour');
+  const alembic = combat.indexOf('alembic');
+  const ticks = 3000; // 30 s
+
+  const slots = slotMap(combat, ALEMBIC_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Wie viele Auswahlen je Takt noch offen sind — die Grösse, die #521 bewegt. */
+  const ladungen: number[] = [];
+  let auswahlen = 0;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      ladungen.push(combat.resetChargesLeft);
+      break;
+    }
+
+    let gewaehlt = -1;
+    if (combat.resetArmed) {
+      // **Im Auswahlmodus wird gewählt, nicht gewirkt.** Zuerst PYRE, dann
+      // VAPOUR — beide laufen zu diesem Zeitpunkt, beide Auswahlen greifen
+      // also wirklich.
+      gewaehlt = combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs) > 0 ? pyre : vapour;
+      if (combat.chooseForReset(alsSpellIndex(gewaehlt), timeMs)) auswahlen++;
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+      checksums.push(combatChecksum(combat, timeMs));
+      ladungen.push(combat.resetChargesLeft);
+      continue;
+    }
+
+    // ALEMBIC erst, wenn beide Ziele wirklich laufen — sonst verpufft die
+    // Auswahl an einem bereiten Zauber, und der Lauf zeigt die Mechanik nicht.
+    const zieleLaufen =
+      combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs) > 0 &&
+      combat.cooldownRemainingMs(alsSpellIndex(vapour), timeMs) > 0;
+    if (zieleLaufen && combat.isReady(alembic, timeMs)) gewaehlt = alembic;
+    else if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
+    else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+      combat.armResetIfNeeded(gewaehlt);
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    ladungen.push(combat.resetChargesLeft);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: ALEMBIC_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: ALEMBIC_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    ladungen,
+    expected: {
+      damageDealt: combat.damageDealt,
+      alembicCasts: combat.castCount(alembic),
+      /** Auswahlen, die wirklich eine Abklingzeit gelöscht haben. */
+      auswahlen,
+    },
+  };
+}
+
 export function wispPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -2477,7 +2590,7 @@ export function cooldownResetPayload(): Record<string, unknown> {
       // Kurze Abklingzeit, damit die Folge ihn ZWEIMAL benutzen kann — einmal
       // in die Selbstwahl, einmal in den Treffer. Die echte Zahl steht noch
       // nicht fest (Issue #102, „eigene Abklingzeit: offen").
-      { id: 'reset', name: 'Reset', cooldownMs: 3000, baseDamage: 0, armsCooldownReset: true },
+      { id: 'reset', name: 'Reset', cooldownMs: 3000, baseDamage: 0, cooldownResetCharges: 1 },
     ],
   });
   if (school.problems.length > 0) throw new Error(school.problems.join(' '));
