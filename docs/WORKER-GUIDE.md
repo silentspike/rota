@@ -4717,3 +4717,74 @@ Dieselben Fälle an anderer Stelle desselben Tages:
 
 **Keine dieser Zahlen wurde für das Ergebnis gebraucht.** Jede hat einen Fehler gefunden, den
 das Ergebnis nicht zeigen konnte.
+
+### 8.68 Eine Zusicherung, die gröber ist als die Messung, wirft den Beweis weg
+
+Am 2026-08-07 bei der Abnahme von `boss-2-2`: Drei Prüffälle belegen, dass die Reihenfolge über
+den Kampf entscheidet. Der Boss legt ab 8 s ein Gift, ab 11 s beginnt ein Zauber mit 2200
+Schaden, und QUENCH bedient beides — aber nicht beides zugleich.
+
+**Sieben Mutationen, keine färbt einen Fall rot** — darunter das ersatzlose Löschen beider
+Signatur-Bausteine:
+
+```
+race.threshold  900 -> 99999      10 pass
+del race                          10 pass
+affliction.damage 120 -> 5        10 pass
+del affliction                    10 pass
+```
+
+Der naheliegende Schluss wäre gewesen, dass der Boss nichts tut. Er ist falsch. Dieselben drei
+Läufe, mit dem Todeszeitpunkt statt nur mit dem Ausgang gemessen:
+
+```
+nichts   DIED   quench=0   ende=27500
+gift     DIED   quench=1   ende=41500      ← vierzehn Sekunden länger
+zauber   WON    quench=3   ende=48020
+```
+
+Die Signatur wirkt, und zwar deutlich. Die Zusicherung lautete `toBe(FIGHT_DIED)`, und die ist
+bei `nichts` **und** bei `gift` erfüllt.
+
+#### Der Unterschied zu 8.62
+
+8.62 sagt: Ein Baustein, den die Messung nicht erreicht, sieht aus wie einer, der nichts tut.
+Dort fehlte der Messung ein Aufruf — `checkDefeat()` lief nicht mit.
+
+Hier erreicht die Messung den Baustein vollständig. Sie hat die Zahl. **Die Zusicherung wirft
+sie weg, bevor sie zählt** — aus 41500 wird `DIED`, aus 27500 wird `DIED`, und die vierzehn
+Sekunden dazwischen kommen nie in einem Vergleich an.
+
+Mit `del affliction` gemessen, fallen die beiden Läufe zusammen:
+
+```
+nichts   DIED   quench=0   ende=41500
+gift     DIED   quench=0   ende=41500      ← identisch, und der Fall bleibt grün
+```
+
+#### Die Regel
+
+**Eine Zusicherung darf nicht gröber sein als die Größe, die sie belegen soll.** Ein Ausgang
+(`gewonnen` / `verloren` / `gestorben`) hat drei Werte; eine Signatur, die den Kampf um vierzehn
+Sekunden verlängert, hat tausende. Wer den einen gegen die andere prüft, misst mit einem Maßstab,
+auf dem der Unterschied nicht abgebildet ist.
+
+Die Prüffrage vor jedem `toBe`:
+
+> **Wenn die Sache, die ich belege, verschwände — bliebe die Zusicherung wahr?**
+
+Bei `expect(gift.zustand).toBe(FIGHT_DIED)` lautet die Antwort ja. Beim Todeszeitpunkt nein.
+
+#### Warum es sich als Sorgfalt tarnt
+
+Der Ausgang ist die _wichtigere_ Größe — `AC2` verlangt ausdrücklich „ohne die Signatur verliert
+man", nicht „läuft es anders". Auf den Ausgang zu prüfen ist also die richtige Antwort auf die
+gestellte Frage.
+
+**Nur beantwortet sie eine zweite Frage nicht, die niemand gestellt hat: ob die Signatur die
+Ursache ist.** Der Verlierer-Fall belegt, dass man verliert; er belegt nicht, dass man an _diesem_
+Boss verliert.
+
+> Die Gegenmaßnahme ist wieder 8.67: eine zweite Zahl, die für die Aussage nicht gebraucht wird.
+> Hier der Todeszeitpunkt — 27500 gegen 41500, hart und weit auseinander. Er steht in keinem
+> Kriterium, und er ist der Einzige, der die Mutation gemeldet hätte.
