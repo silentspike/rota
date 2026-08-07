@@ -77,7 +77,8 @@ export interface BuffDef {
    * Punktegewinn eine auf den Schaden nicht verdrängen, auch wenn beide
    * dieselbe Art tragen (GAME-DESIGN 328).
    */
-  readonly target?: 'damage' | 'control' | 'resource' | 'tick' | 'stack' | 'cdreduce' | 'convert';
+  readonly target?:
+    'damage' | 'control' | 'resource' | 'tick' | 'stack' | 'cdreduce' | 'convert' | 'cap';
 }
 
 /** Ein Entlade-Zauber: verbraucht den Vorrat und schlägt entsprechend zu. */
@@ -806,7 +807,16 @@ function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | u
     return undefined;
   }
   const ziel = raw['target'];
-  const ZIELE = ['damage', 'control', 'resource', 'tick', 'stack', 'cdreduce', 'convert'] as const;
+  const ZIELE = [
+    'damage',
+    'control',
+    'resource',
+    'tick',
+    'stack',
+    'cdreduce',
+    'convert',
+    'cap',
+  ] as const;
   if (ziel !== undefined && !ZIELE.includes(ziel as (typeof ZIELE)[number])) {
     // **Abbrechen statt durchreichen.** Eine unbekannte Zielgröße landete
     // sonst im Schadens-Speicher, und der Zauber wirkte auf etwas anderes
@@ -1531,32 +1541,33 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
         (rawFixation as Record<string, unknown>)['spells'],
         rawFixation as Record<string, unknown>,
       ),
-      // **Ganz hinten angefügt** (Issue #201) — hinten in der GESAMTLISTE
-      // oben, nicht hinten in der eigenen Schuldatei (Issue #408).
+      // **HIER STAND DIE REGEL „nur ans Ende der GESAMTLISTE"** (Issues #201,
+      // #408). Sie ist am 2026-08-06 zurückgenommen worden, weil sie nachweislich
+      // nichts sparte — Einzelheiten in `tests/unit/spell-order.test.ts`.
       //
-      // Der Unterschied ist der ganze Punkt: Ein Kalzinations-Zauber ans Ende
-      // von `calcination.json` gehängt ist in der Gesamtliste ein EINSCHUB,
-      // weil danach noch sechs Dateien kommen. Er verschiebt alle Indizes
-      // dahinter — genau das, was dieser Kommentar verhindern soll.
+      // In einem Satz: Die Prüfsumme rührt fünf Felder JE ZAUBER ein, also
+      // bewegt ein Zauber ganz hinten genauso viele Aufzeichnungen wie einer in
+      // der Mitte. Gemessen 23 gegen 23. Die Regel kostete den fachlich
+      // richtigen Ort und kaufte dafür nichts.
       //
-      // Aufgefallen beim Bau des Wächters (#402): Die erste Fassung der
-      // Gegenprobe tat genau das, in gutem Glauben, und wurde zu Recht rot.
+      // **Ein neuer Zauber gehört in seine Schuldatei.** Was dazugehört:
+      // `spell-order.json` nachziehen und `npm run parity:export` fahren, im
+      // selben Commit. Das ist ohnehin bei jedem neuen Zauber nötig.
       ...mitSchule(
         (rawSublimation as Record<string, unknown>)['spells'],
         rawSublimation as Record<string, unknown>,
       ),
-      // Ebenfalls hinten (Issue #97), aus demselben Grund — und „hinten" heißt
-      // auch hier: am Ende der Gesamtliste, nicht am Ende von
-      // `putrefaction.json` (Issue #408).
+      // Steht hier aus historischen Gründen (Issue #97). Die Reihenfolge der
+      // Blöcke untereinander bleibt, wie sie ist — sie zu ändern bewegte jede
+      // Aufzeichnung ohne Gegenwert. Neue Zauber gehören in ihre Schuldatei,
+      // siehe den Block oben.
       ...mitSchule(
         (rawPutrefaction as Record<string, unknown>)['spells'],
         rawPutrefaction as Record<string, unknown>,
       ),
-      // **Ganz zuletzt der Prüf-Zauber** (Issue #304) — und „zuletzt" ist hier
-      // wörtlich zu nehmen: `test-cast.json` ist die LETZTE der sieben Dateien.
-      // Ein neuer Zauber gehört deshalb hinter diesen Block, nicht davor
-      // (Issue #408). Wer ihn davorschiebt, verschiebt den Prüf-Zauber — und
-      // der steht in den Aufzeichnungen wie jeder andere.
+      // **Der Prüf-Zauber** (Issue #304). Er steht am Ende, weil er hier
+      // entstanden ist — nicht, weil ein neuer Zauber hinter ihn müsste. Diese
+      // Auflage ist am 2026-08-06 zurückgenommen worden.
       //
       // Er gehört nicht zum
       // Spiel — seine Stufe liegt über der Grenze, und beide Stellen, die dem
@@ -1568,9 +1579,9 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
         (rawTestCast as Record<string, unknown>)['spells'],
         rawTestCast as Record<string, unknown>,
       ),
-      // **Und danach der Prüf-Zauber zur Verstärkung** (Issue #420). Er steht
-      // hinter `test-cast`, weil dessen Index in sechs Aufzeichnungen steht —
-      // wer ihn davorschiebt, deutet sie alle um.
+      // **Und danach der Prüf-Zauber zur Verstärkung** (Issue #420). Seine
+      // Stellung hinter `test-cast` bleibt, weil ein Tausch Aufzeichnungen
+      // bewegte, ohne etwas zu verbessern — nicht, weil sie geschützt wäre.
       //
       // Warum es überhaupt einen zweiten Prüf-Zauber braucht: `test-cast` ist
       // der Wirkzeit-Fall aus #304. Ihm eine Verstärkung anzuhängen vermischte
@@ -1867,6 +1878,21 @@ export interface TalentDef {
   readonly damagePerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
+  /**
+   * Welches **Verhalten** dieses Talent umschaltet, oder `null` (Issue #418).
+   *
+   * **Das ist die Nicht-Zahl.** Die drei Wege aus GAME-DESIGN 12.5 tragen
+   * alle `damagePerRankPerMille` — sie erhöhen Zahlen. Ein Schlüsseltalent
+   * ändert stattdessen, WAS geschieht: GAME-DESIGN 13.09 nennt als Beispiel
+   * „Der Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+   * ZWEIMAL".
+   *
+   * Ein Schlüsseltalent, das sich als Faktor ausdrücken ließe, wäre keines —
+   * es wäre ein Faktor mit einem großen Namen. Der Nachweis dafür ist der
+   * Gegenfall: Ohne das Talent muss sich der Lauf in der **Reihenfolge** oder
+   * im **Verbrauch** unterscheiden, nicht nur in der Schadenszahl.
+   */
+  readonly keystone: string | null;
 }
 
 /**
@@ -1908,6 +1934,16 @@ export const TALENTS: readonly TalentDef[] = (() => {
             'Ein Talent, das schwächer macht, ist keines.',
         );
       }
+      // **Ein Verhalten hat keine Ränge.** Es ist an oder aus — „zur Hälfte
+      // verbraucht der Entlade-Zauber nur die halbe Hitze" ergibt keinen Sinn.
+      // Die Prüfung steht hier und nicht im Kampf, weil ein zweiter Rang dort
+      // stillschweigend wie der erste wirkte.
+      if (typeof t['keystone'] === 'string' && maxRanks !== 1) {
+        throw new Error(
+          `data/player/talents.json: "${id}" schaltet ein Verhalten um und hat ` +
+            `${maxRanks} Ränge. Ein Verhalten ist an oder aus — maxRanks muss 1 sein.`,
+        );
+      }
       alle.push({
         id,
         name: typeof t['name'] === 'string' ? t['name'] : id,
@@ -1915,6 +1951,7 @@ export const TALENTS: readonly TalentDef[] = (() => {
         maxRanks,
         damagePerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
+        keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });
     }
   }

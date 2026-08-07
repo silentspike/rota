@@ -61,10 +61,14 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
       // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
       'cinder',
+      'slag',
       'quench',
       'crust',
       'salve',
       'temper',
+      // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
+      'scab',
+      'plate',
       'bind',
       'stall',
       'stay',
@@ -72,8 +76,11 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'wedge',
       'tether',
       'capstone',
+      'clasp',
+      'latch',
       'vapour',
       'reflux',
+      'wisp',
       'canker',
       'fester',
       'blight',
