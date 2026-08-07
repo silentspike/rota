@@ -3654,37 +3654,145 @@ beim zweiten Mal hat der Orchestrator sie beim Weitergeben trotzdem weggelassen.
 > Eine Zahl ohne Geltungsbereich ist eine Behauptung. Wer sie weitergibt, gibt beides weiter oder
 > keines.
 
-#### Die drei Befehle, die vor eine Zustandsaussage gehören
+### 8.48 Ein kurzer Zweigname löst zwei Dinge auf, und nur eines davon sehen die anderen
 
-Die vierte Frage — _beschreibe ich, was ich gesehen habe, oder was ich wollte?_ — hat eine praktische
-Fassung. An einem Abend sind drei Aussagen falsch gewesen, und alle drei hätten zwei Sekunden
-gekostet:
+Der Orchestrator hat drei Sitzungen angewiesen, gegen `integration` zu messen. Der Zweig lag
+ausschließlich in seinem Arbeitsbaum. Was danach geschah, ist die eigentliche Lehre:
 
-| Die Aussage                   | Der Befehl, der sie belegt                                                  |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| „Arbeitsbaum sauber"          | `git -C <wurzel> status --porcelain` — **aus der Wurzel**, nicht aus `sim/` |
-| „keine offene Antwortpflicht" | `rota-ipc offen`                                                            |
-| „der Zweig ist grün"          | `npm run lint` — nicht nur `vitest run`                                     |
+|          |                                  |                                                                |
+| -------- | -------------------------------- | -------------------------------------------------------------- |
+| Worker-2 | eigener Klon                     | `couldn't find remote ref` → **gemeldet**                      |
+| Worker-1 | Worktree desselben Repositoriums | `git rev-parse --verify integration` traf → **weitergemessen** |
+| Worker-3 | Worktree desselben Repositoriums | dito → **weitergemessen**                                      |
 
-Alle drei wurden aus der **Erinnerung** gesagt, gestützt darauf, dass man es getan zu haben glaubte.
-Zwei davon waren falsch; die dritte war es an vier von vier Zweigen.
+Zwei von drei haben eine Anweisung befolgt, die für den dritten nicht ausführbar war, **und es nicht
+gemerkt**. Worktrees unter derselben Wurzel teilen die Zweig-Datenbank; ein fremder lokaler Zweig
+sieht dort aus wie ein eigener.
 
-> **Der Satz, der es zusammenfasst** (Worker-2, nachdem er `rota-ipc offen` zum ersten Mal an diesem
-> Tag gefahren hatte und eine 134 Minuten alte Nummer fand):
+> **Worker-1s Formulierung, nachdem er es geprüft hatte:**
 >
-> „Ich habe mehrfach gesagt _keine offene Antwortpflicht_ — gestützt darauf, dass ich alles
-> beantwortet hatte, was ankam. Das ist dieselbe Klasse wie _Arbeitsbaum sauber_ aus dem falschen
-> Verzeichnis: **eine Aussage über einen Zustand, die aus der Erinnerung kommt statt aus dem
-> Befehl.**"
+> „Ein lokaler Zweig sieht in `git rev-parse` genauso aus wie ein gefetchter. Der Unterschied steht
+> im NAMEN: `integration` gegen `origin/integration`. Ich habe den kurzen Namen benutzt, und der
+> löst beides auf."
 
-Der Befehl gehört deshalb nicht vor die Abnahme, sondern **vor jede Aussage über den Zustand** — auch
-vor die beiläufige am Ende einer Meldung.
+**Die Regel:** Wer gegen einen Bezugsstand misst, den ein anderer genannt hat, nimmt den
+**Remote-Namen**. Trifft der kurze Name, kann es der eigene sein — und dann misst man etwas, das
+niemand sonst sieht.
 
-#### Warum das Melden den zweiten Fall aufdeckt
+#### Die unbequeme Hälfte
 
-Der Orchestrator hat seinen offenen Nummern-Fall gemeldet, statt ihn still zu schließen. Worker-2 hat
-daraufhin `rota-ipc offen` gefahren — und einen eigenen gefunden, der zweieinviertel Stunden lag.
+Beide Messungen waren am Ende richtig — `git rev-parse integration` und `git rev-parse
+origin/integration` ergaben denselben Stand. Das war Glück, und beide haben es so genannt:
 
-> Wer einen Fehler dieser Klasse still korrigiert, korrigiert einen. Wer ihn meldet, findet die
-> anderen, die dieselbe Bewegung gemacht haben — und bei einer Klasse, die aus Gewohnheit entsteht,
-> sind das fast immer mehrere.
+> „Das ist Glück, kein Verdienst. Hätte Worker-3 die Stelle angefasst, wäre meine Aussage falsch
+> gewesen und ich hätte es nicht gewusst." (Worker-2)
+>
+> „Mein Worktree hat den Mangel verdeckt. Das ist dieselbe Form wie das `provisional`-Flag: Es geht,
+> aber aus einem Grund, den man nicht kennt, und deshalb fällt nicht auf, dass es woanders nicht
+> geht." (Worker-3)
+
+**Wer melden konnte, dass es nicht geht, hatte den wertvolleren Befund** — nicht wer trotzdem ein
+Ergebnis lieferte.
+
+### 8.49 Wer meldet, dass etwas FEHLT, muss den Suchraum nennen
+
+Ein Befund lautete: _„`consumes_all` fehlt in Rust weiterhin ganz."_ Gemessen wurde in
+`sim/src/data.rs`.
+
+```
+grep -rn consumes_all sim/src/    0 Treffer     "nicht im Quellcode"
+grep -rn consumes_all sim/        4 Treffer     "es gibt es"
+```
+
+Es liegt in `sim/build.rs:629`, weil die Daten **einkompiliert** werden statt geladen. In `data.rs`
+kann es gar nicht stehen.
+
+#### Der Unterschied ist nicht kosmetisch
+
+Der Bauer liest das Feld nicht nur — er **bricht ab**, wenn jemand `consumesAll: false` setzt:
+
+```rust
+"{whose}: consumesAll=false ist nicht umgesetzt; …"
+```
+
+| gemeldet                                | tatsächlich                                            |
+| --------------------------------------- | ------------------------------------------------------ |
+| „das Feld fehlt" → jemand muss es bauen | „ein Wert ist umgesetzt, der andere bricht den Bau ab" |
+| ein Loch                                | **ein Wachposten**                                     |
+
+**Das dahinterliegende Anliegen war richtig** — Teil-Verbrauch ist nicht darstellbar. Nur die
+Begründung nicht, und die Begründung ist das, was jemand liest, bevor er Arbeit beginnt.
+
+> Ein falscher Befund in einem offenen Issue kostet jemanden Arbeit, die schon getan ist. Genau der
+> Fall, den derselbe Abend an anderer Stelle geliefert hat: ein Auftrag, dessen Antwort in einem
+> ungemergten Zweig fertig lag.
+
+#### Es ist 8.27 eine Ebene höher
+
+8.27 sagt: _ein Suchmuster misst, was es kennt._ Hier war das Muster richtig und **der Ort falsch** —
+beide Fehler liefern dieselbe Ausgabe, nämlich nichts.
+
+> **Vor jeder Fehlt-Meldung:** Wo habe ich gesucht, und gibt es einen Ort, an dem es aus
+> **architektonischen** Gründen liegen müsste statt aus stilistischen? Generierter Code, Bauskripte,
+> Makros und einkompilierte Daten stehen nie dort, wo man sie sucht — sie stehen dort, wo sie
+> entstehen.
+
+### 8.50 Ein Suchraum kann auch zu GROSS sein
+
+8.49 handelt vom Suchraum, der zu klein war: `sim/src/` statt `sim/`, und die Antwort lautete „gibt es
+nicht", obwohl es sie gab. Eine Stunde später kam derselbe Fehler in der Gegenrichtung.
+
+Eine Sitzung prüfte, ob ihre Rotationsdateien auf dem Build-Server angekommen sind:
+
+```bash
+ssh root@10.0.0.155 "ls /tmp/builds/*/sim/apl/"
+  step1-bad.apl   step1-good.apl   step3-good.apl
+```
+
+Daraus wurde der Schluss: _„Meine zwei Dateien sind dort nicht, obwohl sie im Repository liegen"_ —
+und daraus eine Diagnose, ein Blocker und drei Lösungswege.
+
+**Sie waren da.**
+
+```bash
+ssh root@10.0.0.155 "find /tmp/builds -name 'step517*'"
+  /tmp/builds/9932248061915886481/sim/apl/step517-mit.apl
+  /tmp/builds/9932248061915886481/sim/apl/step517-ohne.apl
+```
+
+Auf dem Server lagen **39 Build-Verzeichnisse**, eines je Arbeitsbaum. Der Glob listete sie alle, und
+die Ausgabe zeigte den Inhalt eines **fremden**.
+
+#### Die Frage, die der Glob beantwortet hat
+
+| gestellt                  | beantwortet              |
+| ------------------------- | ------------------------ |
+| Liegt **meine** Datei da? | Liegt **irgendeine** da? |
+
+Beide Male ist die Ausgabe eine Dateiliste, und beide Male sieht sie richtig aus. Der Unterschied ist
+nicht sichtbar — er steckt im Sternchen.
+
+#### Was daraus folgte, war teuer
+
+Der eigentliche Fehler war ein Pfadpräfix: Der Läufer startet im Workspace-Root, also `sim/apl/…`
+statt `apl/…`. Auf dem Weg dorthin entstanden eine falsche Ursache („`cargo remote` synct nicht"),
+ein gemeldeter Blocker und drei ausgearbeitete Lösungswege — von denen **alle drei funktioniert
+hätten** und alle drei teurer gewesen wären als vier Zeichen.
+
+> Dass keiner davon im Alleingang gegangen wurde, ist der Grund, warum es auffiel. Ein
+> `include_str!`-Umbau wäre grün geworden und hätte die falsche Ursache für immer bestätigt.
+
+#### Die Regel für beide Richtungen
+
+**Wer misst, ob etwas da ist, sucht nach dem, was es einzigartig macht** — nicht nach dem Ort, an dem
+es liegen sollte:
+
+```bash
+find <wurzel> -name 'meinname*'      # sucht meine Sache
+ls <wurzel>/*/unterordner/           # sucht irgendeine
+```
+
+Und bei jeder Fehlt-Meldung, zusätzlich zu 8.49:
+
+- **Zu klein?** Gibt es einen Ort, an dem es aus architektonischen Gründen liegen müsste?
+- **Zu groß?** Kann die Ausgabe von etwas stammen, das mir gar nicht gehört?

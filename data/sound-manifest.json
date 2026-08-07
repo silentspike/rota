@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 16
+        "present": 24
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 44,
+        "count": 36,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind zehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) und die vier der FIXATION (Issue #100). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -223,6 +223,21 @@
       }
     },
     {
+      "id": "spell-slag",
+      "group": "spells",
+      "purpose": "SLAG — hebt die Hitze-Grenze befristet an (Issue #490). Er macht KEINEN Schaden, er ermoeglicht ihn.\n\nDER PROMPT IST GEGEN VAPOUR UND WISP ANGELEGT: VAPOUR entweicht, WISP flackert, SLAG STAUT AUF. Das \"without release\" ist der Kern — der Zauber loest nichts aus, er bereitet vor.\n\nLEISE mit Absicht (-7,1 dB). Die Zauber mit Schaden liegen bei -0,9 bis -2,4 dB, die ohne bei -4,4 bis -7,6. Ein Vorbereiter, der laut ist wie ein Entlader, klingt nach mehr, als er tut. Aesthetisch abgenommen wird am Soundboard.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-slag.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 25,
+      "prompt": "deep furnace pressure building and holding, thick molten swell, low sustained rumble without release, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "slag"
+      }
+    },
+    {
       "id": "spell-reflux",
       "group": "spells",
       "purpose": "REFLUX — der Ruecksetzer der SUBLIMATION. Rueckfluss ins Gefaess: ein Zurueckstroemen, das hoerbar in die Gegenrichtung laeuft wie VAPOUR.",
@@ -295,6 +310,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "searing"
+      }
+    },
+    {
+      "id": "spell-cinder",
+      "group": "spells",
+      "purpose": "CINDER — der KURZE Brand der CALCINATION. Er tickt doppelt so dicht wie SMOULDER und SEARING (1000 ms statt 2000) und laeuft nur 4 s. Der Klang muss deshalb kurz und zurueckhaltend sein, weil er oft gesetzt wird, und sich hoerbar von KINDLE unterscheiden: Glut statt Funke.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-cinder.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "smouldering ember flare, dry ash crackle, warm low glow, short restrained one shot, fantasy fire spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "cinder"
+      }
+    },
+    {
+      "id": "spell-blight",
+      "group": "spells",
+      "purpose": "BLIGHT — der Fueller der PUTREFAKTION. Legt einen Zersetzungs-Stapel, wird oft gedrueckt — und muss sich von CANKER unterscheiden: Kriechen statt Aufplatzen.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-blight.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "creeping blight spreading over surface, dry withering rasp, brittle organic decay, short one shot, dark violet rot spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "blight"
       }
     },
     {
@@ -985,6 +1030,81 @@
         "layer": true,
         "on": "fight.start",
         "off": "fight.end"
+      }
+    },
+    {
+      "id": "spell-tether",
+      "group": "spells",
+      "purpose": "TETHER — Fueller der FIXATION, der zugleich Schaden austeilt und Vorrat aufbaut. Ein Schnappen, kein Schlag.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-tether.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "arcane tether snapping taut, whipping cord with bright ringing tail, brief cutting edge, restrained magical grip",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "tether"
+      }
+    },
+    {
+      "id": "spell-wedge",
+      "group": "spells",
+      "purpose": "WEDGE — der Entlader der FIXATION. Verbraucht den Kontroll-Vorrat auf einen Schlag, wie PYRE in der Kalzination.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wedge.ogg",
+      "targetSeconds": 1.0,
+      "pitchJitterCents": 25,
+      "prompt": "forceful arcane wedge driven home, sharp metallic impact, resonant ring of released tension, single decisive strike",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wedge"
+      }
+    },
+    {
+      "id": "spell-capstone",
+      "group": "spells",
+      "purpose": "CAPSTONE — der grosse Moment der FIXATION. Verbraucht ALLE Punkte und setzt den Phasen-Halt; muss nach Endgueltigkeit klingen.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-capstone.ogg",
+      "targetSeconds": 1.5,
+      "pitchJitterCents": 25,
+      "prompt": "massive stone capstone slamming into place, deep resonant lock, sustained arcane hum, powerful sense of finality",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "capstone"
+      }
+    },
+    {
+      "id": "spell-scab",
+      "group": "spells",
+      "purpose": "SCAB — der Fueller der COAGULATION und ihr erster Zauber MIT SCHADEN. Er laeuft am GCD, muss also kurz und zurueckhaltend sein wie KINDLE. Er muss sich von CRUST unterscheiden: SCAB ist schneller und ORGANISCH, CRUST mineralisch und setzend.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-scab.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 20,
+      "prompt": "quick dry organic scabbing snap, thin skin hardening fast, faint wet edge, very short, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "scab"
+      }
+    },
+    {
+      "id": "spell-wisp",
+      "group": "spells",
+      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus.\n\nDER PROMPT IST GEGEN VAPOUR ANGELEGT, nicht variiert: VAPOUR ist Druck, der entweicht (\"soft pressurised steam release\"), WISP ist etwas Duennes, das flackert. Beide sind 0,6 s und entweichen nach oben — ohne Absicht waeren sie sich zu aehnlich geworden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wisp.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "thin ghostly air whisper, brief crystalline shimmer, weightless flicker upward, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wisp"
       }
     }
   ]
