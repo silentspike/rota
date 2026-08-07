@@ -1054,6 +1054,27 @@ Keine Zwischenphase zum Durchatmen.
 | Bausteine           | 2–4 aus dem Baukasten, mit der Stufe wachsend   |
 | Signatur-Regel      | **eine Regel, die es nur bei diesem Boss gibt** |
 
+#### Was sich an eine Phase binden lässt (Issue #557)
+
+**Ein Zeitleisten-Ereignis, und sonst nichts.** Das Feld heißt `phase` und steht am Ereignis:
+
+```json
+{ "atMs": 36000, "mechanic": "strike", "name": "Rupture", "damage": 900, "phase": 1 }
+```
+
+| Regel                                                  | Warum so                                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `phase` ist eine **Untergrenze**, kein Gleichheitstest | Phasen laufen nur vorwärts; ein Ereignis für eine übersprungene Phase käme nie wieder      |
+| Ohne Angabe feuert das Ereignis **immer**              | Ein bestehender Boss ändert sein Verhalten nicht                                           |
+| Ein übersprungenes Ereignis **verfällt**               | Aufgestaut fiele es beim Wechsel gesammelt — aus einer lernbaren Abfolge würde eine Lawine |
+
+**Schadenswerte und Bausteine lassen sich heute NICHT binden.** Das ist eine Grenze, keine
+Auslassung: Sie fällt auf, sobald jemand einen Boss baut, der sie braucht.
+
+**Warum das hier steht:** Bis #557 war die Phase ein Zustand ohne Wirkung. Ein Boss mit zwei
+Phasenschwellen verlief bitgleich zu demselben Boss mit `phases: []` — gemessen an 1000
+Durchgängen. Ein „Verhaltenswechsel", an dem sich nichts ändert, ist keiner.
+
 **Der Ablauf ist fest und lernbar.** Der Boss reagiert **nicht** auf Spielerverhalten, und es gibt
 keine zufälligen Abweichungen — Voraussetzung für Planbarkeit, Simulierbarkeit und vergleichbare
 Bestzeiten.
