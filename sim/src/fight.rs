@@ -69,8 +69,8 @@ use crate::buffs::Buffs;
 use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
-    stack_damage, stat_at_level, Boss, Control, ControlEffect, Dot, Resource, Spell, TimelineEntry,
-    TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, stat_at_level, Boss, BuffTarget, Control, ControlEffect, Dot, Resource, Spell,
+    TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -175,8 +175,18 @@ pub const MAX_DECAY_STACKS: usize = 5;
 /// meldet es die Pruefsumme ab Takt 0.
 pub const SYNERGY_BONUS_PERCENT: u32 = 25;
 
-/// Um wie viel Prozent ein Stapel den Schaden aller Quellen erhoeht. Wird gemessen.
-pub const DECAY_STACK_PERCENT: u32 = 3;
+/// Um wie viel Prozent ein Stapel den Schaden aller Quellen erhoeht.
+///
+/// **Entschieden, nicht offen** — Issue #224, 2026-08-05. Bis Issue #482 stand
+/// hier 3 mit dem Vermerk "Wird gemessen"; die Messung hatte laengst
+/// stattgefunden, nur die Umsetzung fehlte.
+///
+/// GAME-DESIGN 221 rechnet vor: Der Break-even, ab dem sich der Platz auf der
+/// Leiste rechnet, liegt bei 5,4 % je Stapel. Mit 3 % waere PUTREFACTION nie
+/// die beste Wahl.
+///
+/// Spiegelbild zu `DECAY_STACK_PERCENT` in `src/core/combat.ts`.
+pub const DECAY_STACK_PERCENT: u32 = 6;
 
 /// Wie lange ein einzelner Stapel haelt. Wird gemessen.
 pub const DECAY_STACK_DURATION_MS: Millis = 12_000;
@@ -219,6 +229,19 @@ pub struct FightConfig {
     /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
     /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
     pub worn: WornValues,
+    /// Ob das Schluesseltalent "split-spender" verteilt ist (Issue #418).
+    ///
+    /// **Ein Wahrheitswert, keine Zahl.** Die Talente kommen sonst nur als
+    /// fertiger Faktor herein (`factors.talents`) — das reicht fuer die drei
+    /// Wege aus GAME-DESIGN 12.5, die alle Zahlen erhoehen. Ein
+    /// Schluesseltalent aendert stattdessen, WAS geschieht, und laesst sich
+    /// deshalb nicht als Faktor uebergeben.
+    ///
+    /// Dieselbe Bauart wie `worn`: ein Datenfeld, das durch Spiel, Simulator,
+    /// Aufzeichnung und Wiedergabe geht. Die Alternative — eine abgewandelte
+    /// Zauberliste — geht auf dieser Seite nicht: `SPELLS` ist statisch und
+    /// wird an vierzig Stellen direkt gelesen.
+    pub split_spender: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -252,6 +275,7 @@ impl Default for FightConfig {
             factors: NEUTRAL,
             boss: BOSS,
             worn: WornValues::none(),
+            split_spender: false,
             talent_permille: 0,
             player_level: 1,
         }
@@ -452,6 +476,15 @@ pub struct Fight {
     /// entscheidet. Das ist der Unterschied zwischen einem Planungswerkzeug
     /// und einer Ressource, die einen Rhythmus vorgibt.
     control: u32,
+    /// Schaden aus umgewandelten Kontroll-Punkten, gemerkt bis zur Rechnung
+    /// (Issue #478, WEDGE).
+    ///
+    /// **Gemerkt und nicht sofort ausgeteilt:** Die Kontroll-Wirkung laeuft
+    /// vor der Schadensrechnung, dort stehen die Faktoren noch nicht. Ein
+    /// Treffer an dieser Stelle ginge an Krit, Widerstand und Verstaerkung
+    /// vorbei — er waere der einzige Schaden im Spiel, den kein Faktor
+    /// beruehrt.
+    pending_control_damage: u32,
     /// Ablaufzeiten der Zersetzungs-Stapel, **aufsteigend** — aeltester vorn.
     ///
     /// **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Feld fester
@@ -527,6 +560,18 @@ pub struct Fight {
     dot_generation: [u16; SPELL_COUNT],
     /// Die laufenden Verstaerkungen (GAME-DESIGN 5, Issue #420).
     buffs: Buffs,
+    /// Verstaerkungen auf andere Groessen als Schaden (Issue #489).
+    ///
+    /// **Je Zielgroesse eine eigene Instanz.** Eine gemeinsame mit
+    /// Arten-Bereichen waere eine Verabredung, die beim dritten Zauber
+    /// bricht, ohne dass etwas rot wird. Getrennte Speicher machen die
+    /// Verwechslung unmoeglich statt verboten.
+    control_buffs: Buffs,
+    resource_buffs: Buffs,
+    tick_buffs: Buffs,
+    stack_buffs: Buffs,
+    cd_reduce_buffs: Buffs,
+    convert_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -540,6 +585,7 @@ pub struct Fight {
     factors: DamageFactors,
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
+    split_spender: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -709,6 +755,12 @@ impl Fight {
             shield: 0,
             shield_expires_at: None,
             buffs: Buffs::new(),
+            control_buffs: Buffs::new(),
+            resource_buffs: Buffs::new(),
+            tick_buffs: Buffs::new(),
+            stack_buffs: Buffs::new(),
+            cd_reduce_buffs: Buffs::new(),
+            convert_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -716,6 +768,7 @@ impl Fight {
             conversion_percent: 0,
             converted: 0,
             control: 0,
+            pending_control_damage: 0,
             next_strike_delay: 0,
             phase_hold_percent: 0,
             phase_hold_until: None,
@@ -775,6 +828,7 @@ impl Fight {
             },
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
+            split_spender: config.split_spender,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -856,8 +910,20 @@ impl Fight {
         if gained > 0 {
             self.add_resource(gained);
         }
-        let order = self.pending_shorten.replace(PendingShorten::default());
+        let mut order = self.pending_shorten.replace(PendingShorten::default());
         if order.amount > 0 {
+            // **Der Faktor aus `cd_reduce_buffs`** (DISTIL, E10). Er greift
+            // HIER und nicht in `SublimationMechanic`: Die Mechanik liefert
+            // den ROHBETRAG aus ihrer Tabelle, angewandt wird er an dieser
+            // Stelle — genau wie `pending_gain` durch `add_resource` laeuft.
+            //
+            // Ein erster Befund hielt einen Schnittstellen-Umbau fuer noetig,
+            // weil `sublimation.rs` den Wert aus einer kopierten Tabelle holt
+            // und `Fight` nicht sieht. Das stimmt — aber es ist gleichgueltig,
+            // weil die WIRKUNG hier liegt. Ich hatte auf die Stelle gesehen,
+            // wo der Wert HERKOMMT, statt auf die, wo er WIRKT.
+            order.amount =
+                (f64::from(order.amount) * self.cd_reduce_buffs.factor(now)).round() as Millis;
             shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
@@ -1258,6 +1324,12 @@ impl Fight {
         // (#318) — dort blieb nach einem Leistenwechsel "1 of 1" stehen, weil
         // der Zustand geraeumt wurde und die Rechnung nicht.
         self.buffs.reset();
+        self.control_buffs.reset();
+        self.resource_buffs.reset();
+        self.tick_buffs.reset();
+        self.stack_buffs.reset();
+        self.cd_reduce_buffs.reset();
+        self.convert_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1293,6 +1365,7 @@ impl Fight {
         self.conversion_percent = 0;
         self.converted = 0;
         self.control = 0;
+        self.pending_control_damage = 0;
         self.next_strike_delay = 0;
         self.phase_hold_percent = 0;
         self.phase_hold_until = None;
@@ -1677,7 +1750,38 @@ impl Fight {
     /// Hier greift FIXATION wirklich in den **Kampfverlauf** ein — das ist,
     /// was sie von jeder anderen Schule unterscheidet.
     fn apply_control_effect(&mut self, control: Control) {
+        // **CAPSTONE loest alle drei auf einmal aus** (Issue #478). Ein `match`
+        // waehlt genau einen Zweig — deshalb ruft `AllThree` die drei
+        // einzelnen auf, statt ihren Inhalt zu wiederholen. Wer den Inhalt
+        // kopierte, haette drei Stellen, die auseinanderlaufen koennen.
+        if control.effect == ControlEffect::AllThree {
+            for effekt in [
+                ControlEffect::SlowCast,
+                ControlEffect::DelayStrike,
+                ControlEffect::HoldPhase,
+            ] {
+                self.apply_control_effect(Control {
+                    effect: effekt,
+                    ..control
+                });
+            }
+            return;
+        }
+
         match control.effect {
+            // Ist oben schon behandelt; der Zweig haelt das `match`
+            // vollstaendig, ohne einen Auffangzweig zu brauchen.
+            ControlEffect::AllThree => {}
+            // **Der Notausgang** (Issue #478, WEDGE): Punkte in Schaden.
+            // Alle Punkte, nicht nur die Kosten — `cost` ist der
+            // Mindesteinsatz, sonst braechte er bei vollem Vorrat genauso
+            // viel wie bei knappem.
+            ControlEffect::ConvertToDamage => {
+                let rest = self.control;
+                self.control = 0;
+                self.control_spent = self.control_spent.saturating_add(rest);
+                self.pending_control_damage = (control.cost + rest) * control.amount;
+            }
             // Einen Boss-Zauber verlangsamen: Die Wirkzeit dehnt sich, und
             // damit wird das Fenster zum Unterbrechen groesser.
             ControlEffect::SlowCast => {
@@ -1731,7 +1835,9 @@ impl Fight {
             // Hitze), und eine Grenze waere eine Design-Entscheidung, die
             // nicht gefallen ist. Faellt sie spaeter, ist es eine Zahl in den
             // Daten.
-            self.control = self.control.saturating_add(spell.control_gain);
+            let faktor = self.control_buffs.factor(self.time);
+            let gewinn = (f64::from(spell.control_gain) * faktor).round() as u32;
+            self.control = self.control.saturating_add(gewinn);
         }
 
         let Some(control) = spell.control else {
@@ -1760,7 +1866,13 @@ impl Fight {
         if self.conversion_until.is_none_or(|bis| self.time > bis) {
             return;
         }
-        let gewonnen = damage * self.conversion_percent / 100;
+        // **Der Faktor aus `convert_buffs`** (QUICKSILVER, E10). Gelesen bei
+        // JEDEM Schaden, solange die Umwandlung laeuft — nur deshalb traegt
+        // ein zeitlich begrenzter Faktor hier. Spiegelbild von
+        // `Combat.applyConversion` im Spiel.
+        let satz = (f64::from(self.conversion_percent) * self.convert_buffs.factor(self.time))
+            .round() as u32;
+        let gewonnen = damage * satz / 100;
         if gewonnen == 0 {
             return;
         }
@@ -1803,6 +1915,13 @@ impl Fight {
     /// Rest des Kampfes weiter.
     fn expire_buffs(&mut self) {
         let now = self.time;
+        // Alle fuenf, nicht nur die Schadens-Verstaerkungen (#489).
+        self.control_buffs.expire(now);
+        self.resource_buffs.expire(now);
+        self.tick_buffs.expire(now);
+        self.stack_buffs.expire(now);
+        self.cd_reduce_buffs.expire(now);
+        self.convert_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -1913,7 +2032,11 @@ impl Fight {
     /// **Ganzzahlig bis zur letzten Teilung** — dieselbe Rechnung wie im Spiel
     /// (18.4).
     fn update_vulnerability(&mut self) {
-        let prozent = 100 + self.decay_count as u32 * DECAY_STACK_PERCENT;
+        // Der Faktor wiegt den EINZELNEN Stapel schwerer, er legt keinen
+        // dazu — die Stapelzahl bleibt unberuehrt (Issue #489, VIRULENCE).
+        let je_stapel =
+            (f64::from(DECAY_STACK_PERCENT) * self.stack_buffs.factor(self.time)).round() as u32;
+        let prozent = 100 + self.decay_count as u32 * je_stapel;
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
 
@@ -2182,7 +2305,21 @@ impl Fight {
     /// derselben Rechnung waeren genau die Klasse Fehler, die #134, #138, #159
     /// und #173 hinterlassen haben.
     fn dot_interval(&self, dot: &Dot) -> Millis {
-        self.hasted(dot.tick_interval_ms)
+        // **Der Faktor TEILT hier, statt zu multiplizieren** (Issue #489,
+        // FORGE). Er verkuerzt den ABSTAND, macht die Ticks also HAEUFIGER:
+        // Ein Faktor 2 heisst "doppelt so oft", nicht "halb so oft".
+        //
+        // Die einzige der vier Zielgroessen, bei der das so ist. Wer die Zeile
+        // nach dem Muster der anderen drei liest, dreht die Wirkung um — und
+        // der Fehler faellt spaet auf, weil der Tick-SCHADEN unveraendert
+        // bleibt und nur die Gesamtsumme wandert.
+        let faktor = self.tick_buffs.factor(self.time);
+        let roh = if faktor == 1.0 {
+            dot.tick_interval_ms
+        } else {
+            (f64::from(dot.tick_interval_ms) / faktor).round() as Millis
+        };
+        self.hasted(roh)
     }
 
     /// Ein Kritwurf fuer **eine Wirkung** (GAME-DESIGN 6.5).
@@ -2698,6 +2835,15 @@ impl Fight {
         // Im Spiel ergibt sich dasselbe daraus, dass der Buff nach dem Schaden
         // angelegt wird (`Combat.resolvePlayerCast`).
 
+        // **Der umgewandelte Schaden geht durch dieselben Faktoren** (#478):
+        // Krit, Widerstand, Verstaerkung. Ein Treffer, den kein Faktor
+        // beruehrt, waere der einzige im Spiel.
+        if self.pending_control_damage > 0 {
+            let roh = self.pending_control_damage;
+            self.pending_control_damage = 0;
+            cast_damage += self.deal(index, compute_damage(roh, &factors), LogKind::Damage);
+        }
+
         if spell.base_damage > 0 {
             cast_damage += self.deal(
                 index,
@@ -2707,15 +2853,47 @@ impl Fight {
         }
 
         if let Some(spender) = spell.spender {
-            let spent = self.resource;
-            let mut damage = spender.damage_per_point * u32::from(spent);
-            if spent >= spender.bonus_threshold {
-                damage *= spender.bonus_multiplier;
+            // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
+            // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
+            // dafuer ZWEIMAL."
+            //
+            // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
+            // sich als Faktor ausdruecken liesse, waere keines.
+            let geteilt = self.split_spender;
+            // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
+            // zweimal 7, eine Hitze bleibt uebrig.
+            let pro_schlag = if geteilt {
+                self.resource / 2
+            } else {
+                self.resource
+            };
+            let schlaege = if geteilt { 2 } else { 1 };
+
+            for _ in 0..schlaege {
+                // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
+                // rechnete der zweite mit demselben Stand wie der erste.
+                let spent = if geteilt {
+                    pro_schlag.min(self.resource)
+                } else {
+                    self.resource
+                };
+                if geteilt && spent == 0 {
+                    break;
+                }
+
+                let mut damage = spender.damage_per_point * u32::from(spent);
+                if spent >= spender.bonus_threshold {
+                    damage *= spender.bonus_multiplier;
+                }
+                self.log
+                    .push(now, LogKind::Spend, index as u8, u32::from(spent));
+                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                if geteilt {
+                    self.resource -= spent;
+                } else {
+                    self.resource = 0;
+                }
             }
-            self.log
-                .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
-            self.resource = 0;
         }
 
         // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
@@ -2754,8 +2932,24 @@ impl Fight {
             // rechnet `gcds * hasted(GCD_MS)` (`Combat.resolvePlayerCast`), und
             // eine andere Klammerung hier waere ein Gleichlauf-Bruch, den erst
             // ein Lauf mit Tempo zeigt.
-            self.buffs
-                .apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, self.hasted(GCD_MS));
+            // **Der Vorrat haengt an der Zielgroesse** (Issue #489). Die
+            // Stapel-Regel (GAME-DESIGN 328) gilt damit INNERHALB einer
+            // Groesse, nicht ueber alle hinweg: Eine Verstaerkung auf den
+            // Punktegewinn kann eine auf den Schaden nicht verdraengen.
+            let fenster = self.hasted(GCD_MS);
+            let vorrat = match buff.target {
+                BuffTarget::Damage => &mut self.buffs,
+                BuffTarget::Control => &mut self.control_buffs,
+                BuffTarget::Resource => &mut self.resource_buffs,
+                BuffTarget::Tick => &mut self.tick_buffs,
+                BuffTarget::Stack => &mut self.stack_buffs,
+                BuffTarget::CdReduce => &mut self.cd_reduce_buffs,
+                BuffTarget::Convert => &mut self.convert_buffs,
+            };
+            vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
+            // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
+            // an ihrer Rechenstelle gelesen, damit kein zweiter Zustand
+            // nachzuziehen ist.
             self.factors.buffs = self.buffs.factor(now);
         }
 
@@ -2880,6 +3074,14 @@ impl Fight {
     }
 
     fn add_resource(&mut self, amount: u16) {
+        // **Vor der Obergrenze, nicht danach** (Issue #489): Was ueber `cap`
+        // hinausgeht, zaehlt als Ueberlauf — die Verstaerkung darf also den
+        // Ueberlauf mit erhoehen, sonst verschwaende sie sich lautlos.
+        let amount = if amount == 0 {
+            0
+        } else {
+            (f64::from(amount) * self.resource_buffs.factor(self.time)).round() as u16
+        };
         let before = self.resource;
         self.resource = (before + amount).min(RESOURCE.cap);
         self.resource_overflow += u32::from(amount - (self.resource - before));
@@ -3252,6 +3454,24 @@ impl Fight {
         h = mix_named_int(h, "synergyUsed", self.synergy_used as i32);
         h = mix_named_int(h, "synergyAvailable", self.synergy_available as i32);
         h = mix_named_float(h, "synergyOpenUntil", self.synergy_window_sum());
+        // **Angehaengt, nicht eingeschoben** (#493). Ohne dieses Feld ist die
+        // Pruefsumme fuer ein laufendes Verstaerkungs-Fenster blind: Zwei
+        // Laeufe mit gleichem Schaden, einer im Fenster und einer danach,
+        // ergaben dieselbe Summe. Gemessen auf der Spiel-Seite.
+        //
+        // Alle fuenf Fenster in EINER Zahl, wie dort — jedes weitere Feld
+        // verschoebe die Bit-Folge auf beiden Seiten.
+        h = mix_named_float(
+            h,
+            "buffSum",
+            self.buffs.window_sum()
+                + self.control_buffs.window_sum()
+                + self.resource_buffs.window_sum()
+                + self.tick_buffs.window_sum()
+                + self.stack_buffs.window_sum()
+                + self.cd_reduce_buffs.window_sum()
+                + self.convert_buffs.window_sum(),
+        );
         h
     }
 

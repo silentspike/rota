@@ -193,11 +193,16 @@ describe('Die Mechanik wird von ausgelieferten Zaubern benutzt', () => {
     const legenAn = spells.filter((s) => (s.decay?.stacks ?? 0) > 0).map((s) => s.id);
     const lebenDavon = spells.filter((s) => (s.perDecayStackPercent ?? 0) > 0).map((s) => s.id);
 
+    // **`blight` kam mit Issue #479 dazu, und die Warnung wurde befolgt:**
+    // Die Referenz-Rechnung IST nachgemessen, nicht die Liste einfach
+    // erweitert. `4240 @ 40510` steht unverändert (step1.test.ts, 15 Fälle) —
+    // was hier zu erwarten war, aber nicht angenommen werden durfte: Die
+    // Referenz-Rotation ist reine CALCINATION und wirkt keinen der beiden.
     expect(
       legenAn,
       'wer hier einen Zauber ergänzt, ändert die Referenz-Rechnung — dann ' +
         'gehört sie nachgemessen, nicht diese Liste erweitert',
-    ).toEqual(['canker']);
+    ).toEqual(['canker', 'blight']);
     expect(lebenDavon, 'CANKER legt an, FESTER lebt davon (GAME-DESIGN 4.1)').toEqual(['fester']);
   });
 

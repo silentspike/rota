@@ -58,6 +58,21 @@
       }
     },
     {
+      "id": "plate",
+      "name": "Plate",
+      "_comment": "PLATE — die grosse Schicht (Issue #519, Raster COAGULATION 2, Weg 1).\n\nWARUM ER ZAEHLT: crust legt eine mittlere Schicht alle 6 s. Weg 1 der Schule hatte damit genau eine Lautstaerke — es gab keine Entscheidung zwischen 'oft und duenn' und 'selten und dick'.\n\nDER ZUSATZ FEHLT NOCH: Das Raster sagt 'erst nach zwei Wartezeiten wirksam'. ShieldDef kennt keine Verzoegerung bis zur Wirksamkeit; ein Schild wirkt ab dem Wirken. Gemessen in der Mechanik-Matrix (#513) — dieser Zusatz hat KEIN Buendel, er ist ein Einzelfall.\n\nOHNE den Zusatz erfuellt er Weg 1: eine grosse Schicht, seltener. Der Zusatz macht daraus eine Vorausplanung — das ist mehr Reiz, aber nicht der Zweck. ALLE ZAHLEN SIND PLATZHALTER.",
+      "unlockLevel": 4,
+      "baseDamage": 0,
+      "cooldownMs": 20000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "shield": {
+        "amount": 2400,
+        "durationMs": 15000,
+        "maxStacks": 1
+      }
+    },
+    {
       "_comment": "HARDEN — der Weg 'laenger halten' der COAGULATION (Raster 3 von 9, Issue #523).\n\nEIN FESTER ZUSCHLAG, KEINE VERDOPPLUNG: Das Raster sagt 'bestehende Schichten halten doppelt so lange'. Gebaut ist ein Zuschlag von 12000 ms — genau CRUSTs Laufzeit, also bei einer frischen Schicht exakt die Verdopplung. Der feste Betrag ist deterministisch und in beiden Umsetzungen trivial gleichzuhalten; eine Verdopplung der RESTZEIT haenge dagegen davon ab, wann genau gedrueckt wird, und waere auf zwei Seiten schwerer bitgleich zu bekommen (GAME-DESIGN 18.4).\n\nER SETZT DIE SCHICHT NICHT NEU: Der Ablauf rueckt nach hinten, der aufgebrauchte Betrag bleibt. Wer sie neu setzte, haette einen zweiten CRUST statt eines Verlaengerers.\n\nALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
       "id": "harden",
       "name": "Harden",

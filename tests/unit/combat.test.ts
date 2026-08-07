@@ -39,8 +39,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
       'bellows',
       'searing',
-      // Issue #517 — EMBER und PYROCLASM, bei ihrer Schule (wie #268, #479,
-      // #481). Sie teilen sich die Schleife ueber laufende Braende.
+      // Issue #479 — CINDER, am Ende von `calcination.json` und deshalb hier.
+      'cinder',
       'ember',
       'pyroclasm',
       'quench',
@@ -54,13 +54,23 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Umstellung geschieht nicht still, sondern hier und in
       // `spell-order.json` sichtbar (wie #268, #479).
       'scab',
-      // Issue #523 — HARDEN, bei seiner Schule.
+      'plate',
       'harden',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
       'stay',
       'anchor',
+      // Issue #478 — die drei Zielgrößen-Zauber der Fixierung. Sie stehen am
+      // Ende von `fixation.json` und deshalb hier hinter ANCHOR.
+      'wedge',
+      'tether',
+      'capstone',
+      // Issue #519 — CLASP (zweiter Punktesammler) und LATCH (Verteidigung),
+      // ebenfalls bei ihrer Schule und deshalb dahinter. Ihr jeweiliger Zusatz
+      // fehlt noch und steht als Grund im `_comment` des Zaubers, nicht hier.
+      'clasp',
+      'latch',
       // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
       //
       // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
@@ -74,7 +84,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
-      // Issue #523 — SEPSIS, bei seiner Schule.
+      // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
+      'blight',
       'sepsis',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
@@ -82,7 +93,18 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Liste steht er trotzdem: Sie ist der Index-Raum, und der ist für
       // Aufzeichnungen und Simulator derselbe.
       'test-cast',
+      // **Die sieben Prüf-Zauber der Zielgrößen** (Issue #502). Einer je
+      // `BuffTarget` — sie stehen hier aus demselben Grund wie `test-cast`:
+      // Sie gehören nicht zum Spiel (Stufe über der Grenze), aber sie belegen
+      // Plätze im Index-Raum, und der ist für Aufzeichnungen und Simulator
+      // derselbe.
       'test-buff',
+      'test-control',
+      'test-heat',
+      'test-tick',
+      'test-stack',
+      'test-cdreduce',
+      'test-convert',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);

@@ -65,6 +65,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   buffCombatPayload,
+  fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
   trialBlocksPayload,
@@ -86,6 +87,12 @@ import {
   SYNERGY_HASTE_NAME,
   wardCapPayload,
   WARD_CAP_NAME,
+  putrefactionFillerPayload,
+  PUTREFACTION_FILLER_NAME,
+  cinderPayload,
+  kernePayload,
+  KERNE_NAME,
+  CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
   fixationPayload,
@@ -93,6 +100,8 @@ import {
   timelineLoopPayload,
   sublimationPayload,
   SUBLIMATION_NAME,
+  wispPayload,
+  WISP_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -156,6 +165,24 @@ writeFileSync(synergyHastePath, serialize(synergyHaste), 'utf8');
 const wardCap = wardCapPayload();
 const wardCapPath = join(here, 'recordings', `${WARD_CAP_NAME}.json`);
 writeFileSync(wardCapPath, serialize(wardCap), 'utf8');
+
+// BLIGHT im Paritaets-Weg (Issue #479). Ohne ihn gilt die Bitgleichheit fuer
+// den neuen Zauber als angenommen, nicht als geprueft.
+const putrefactionFiller = putrefactionFillerPayload();
+const putrefactionFillerPath = join(here, 'recordings', `${PUTREFACTION_FILLER_NAME}.json`);
+writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
+
+// CINDER im Paritaets-Weg (Issue #477). Ohne ihn gilt seine Bitgleichheit als
+// angenommen — er war nach Worker-1s Arbeit der einzige ungedeckte Zauber.
+const cinder = cinderPayload();
+const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
+writeFileSync(cinderPath, serialize(cinder), 'utf8');
+
+const kerne = kernePayload();
+const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
+writeFileSync(kernePath, `${JSON.stringify(kerne, null, 2)}\n`);
+console.log(`geschrieben: ${kernePath}`);
+console.log(`  gewirkt   ${JSON.stringify(kerne.expected.casts)}`);
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
@@ -239,6 +266,15 @@ const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
 
+const wisp = wispPayload();
+const wispPath = join(here, 'recordings', `${WISP_NAME}.json`);
+writeFileSync(wispPath, serialize(wisp), 'utf8');
+console.log(`geschrieben: ${wispPath}`);
+console.log(
+  `  WISP-Verkuerzung       ${wisp.expected.wispCasts} Wuerfe, davon ` +
+    `${wisp.expected.wirkendeWuerfe} auf eine laufende VAPOUR-Abklingzeit`,
+);
+
 const timelineLoop = timelineLoopPayload();
 const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);
 writeFileSync(timelineLoopPath, serialize(timelineLoop), 'utf8');
@@ -258,6 +294,15 @@ console.log(`geschrieben: ${buffCombatPath}`);
 console.log(
   `  Verstaerkung im Kampf  ${buffCombat.expected.damage} Schaden, aktiv: ` +
     `${buffCombat.expected.buffWasActive}`,
+);
+
+const fixationSpells = fixationSpellsPayload();
+const fixationSpellsPath = join(here, 'recordings', 'fixation-spells.json');
+writeFileSync(fixationSpellsPath, serialize(fixationSpells), 'utf8');
+console.log(`geschrieben: ${fixationSpellsPath}`);
+console.log(
+  `  Fixierung neu  ${fixationSpells.expected.damage} Schaden, ` +
+    `${fixationSpells.expected.controlSpent} Punkte ausgegeben`,
 );
 
 const logKinds = logKindsPayload();
