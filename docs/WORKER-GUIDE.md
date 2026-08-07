@@ -4841,3 +4841,97 @@ zum nächsten Menschen, der die roten Aufzeichnungen für veraltet hält.
 
 Das ist die dritte Sorte aus #547 in einer neuen Form: **nicht „heute unprüfbar", sondern „heute
 geprüft und morgen weggerechnet".**
+
+### 8.70 Ein Fall, der die Mechanik prüft, prüft nicht die Leitung
+
+Am 2026-08-07 bei #605. Die Aufgabe: `controlSpent` und `controlFailed` sollen im
+`ReplayResult` ankommen, damit eine Aufzeichnung belegen kann, dass ein Kontroll-Zauber mangels
+Punkten gescheitert ist.
+
+Der Worker baute vier Prüffälle und stellte für die Gegenprobe die frisch gelegte Leitung wieder
+auf `0` zurück:
+
+```
+drei Fälle lesen combat.controlSpent DIREKT     GRÜN
+ein Fall geht über replayRecording              ROT
+```
+
+Seine Formulierung, und sie ist der Titel dieses Abschnitts:
+
+> **Ein Fall, der die Mechanik prüft, prüft nicht die Leitung.**
+
+#### Warum das die drei Vorgänger erklärt
+
+Dieselbe Lücke wurde 2026 dreimal einzeln gefunden — und jedes Mal war die Mechanik geprüft:
+
+|                                                  |                                                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `boss_healed`                                    | #564 — die Heilung des Bosses wurde korrekt gerechnet und kam im Ergebnis nicht an                   |
+| `damageTaken`, `absorbed`, `healed`, `converted` | #576 — vier Größen, alle richtig, keine abrufbar                                                     |
+| `controlSpent`, `controlFailed`                  | #605 — dieselbe Lage, und `controlFailed` steht sogar in `RunSummary` und wird dem Spieler angezeigt |
+
+**Niemand hat je die Leitung geprüft, weil die Mechanik-Fälle grün waren** — und grün sieht aus
+wie ein Beweis. Es waren drei Funde derselben Sache, verteilt über Wochen, weil die Frage
+zwischen den beiden Prüfungen nie gestellt wurde.
+
+#### Die zwei Fragen, die auseinanderfallen
+
+```
+Rechnet die Größe richtig?     → ein Fall, der Combat direkt befragt
+Kommt die Größe an?            → ein Fall, der den Weg geht, den ein Werkzeug geht
+```
+
+Die erste ist die interessantere und wird deshalb gebaut. Die zweite ist die, die schweigt.
+
+**Die Regel:** Wer eine Größe im Ergebnis verfügbar macht, braucht mindestens einen Fall, der sie
+**über den Weg abruft, den die Werkzeuge nehmen** — nicht über den Getter. Bei ROTA heißt das:
+über `replayRecording`, nicht über `new Combat(...)`.
+
+Die Prüffrage:
+
+> **Wenn ich die Zuweisung im Ergebnis-Objekt auf einen festen Wert setze — welcher Fall wird rot?**
+
+Wird nur ein Mechanik-Fall rot, prüft er die Rechnung. Wird gar keiner rot, ist die Leitung
+ungeprüft, und der nächste Umbau nimmt sie unbemerkt weg.
+
+> Verwandt mit 8.69, eine Ebene versetzt: Dort überlebt die **Parität** einen Export, hier
+> überlebt die **Mechanik-Prüfung** eine entfernte Leitung. Beide Male ist grün das Ergebnis
+> davon, dass die Prüfung woanders hinsieht als der Schaden entsteht.
+
+### 8.71 `git diff A..B` ist kein Vorher-Nachher — dafür braucht es drei Punkte
+
+Am 2026-08-07 wollte ein Worker wissen, ob zwei neue Commits auf `main` seine Arbeit berühren:
+
+```
+git diff --name-only HEAD..origin/main
+→ siebzehn Dateien, darunter alle vier Bossdateien und alle vier Paritäts-Fälle
+```
+
+Das sah nach einem fremden Eingriff aus — vier Bossdateien plus vier Paritäts-Fälle ist genau das
+Muster, das einer hinterlassen würde. Die richtige Frage stellt sich mit drei Punkten:
+
+```
+git diff --name-only HEAD...origin/main
+→ docs/WORKER-GUIDE.md
+```
+
+**Eine Datei. Reine Doku.**
+
+#### Warum zwei Punkte hier etwas anderes bedeuten als bei `log`
+
+|                  |                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `git log A..B`   | Commits, die von B aus erreichbar sind und von A nicht — genau die Frage „was ist dazugekommen?"                 |
+| `git diff A..B`  | **Endpunkt-Vergleich**, identisch zu `git diff A B` — zeigt auch alles, was **A** geändert hat und B nicht kennt |
+| `git diff A...B` | gegen die **merge-base** — „was hat B seit unserer Trennung geändert?"                                           |
+
+Die siebzehn Dateien waren der eigene Beitrag des Workers, von hinten gelesen.
+
+**Derselbe Bereichs-Operator, entgegengesetzte Bedeutung.** Bei `log` ist die Zwei-Punkt-Form die
+richtige, bei `diff` die Drei-Punkt-Form — und beide Befehle nehmen beide Formen an, ohne zu
+murren.
+
+> Der Grund, warum es gemeldet gehört und nicht nur korrigiert: **Die falsche Fassung sah
+> plausibel aus.** Sie hätte gut zu einem Befund gepasst, der am selben Tag geschrieben wurde,
+> und hätte fast einen Eingriff gemeldet, den es nie gab. Siehe auch „Der Bezugspunkt ist die
+> Merge-Base, nicht HEAD" — dieselbe Wurzel, anderes Werkzeug.
