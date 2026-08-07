@@ -174,14 +174,22 @@ describe('Zufallsströme', () => {
   });
 
   it('liefert je Strom eine andere Folge', () => {
-    // **Diese Zeile allein belegt die Trennung NICHT** — sie stand hier bis
-    // zum 2026-08-07 als einziger Nachweis und war es nicht. Gemessen: Werden
-    // alle Ströme gekoppelt (`stream(which) { return this.streams[0] }`),
-    // bleibt sie GRÜN, weil `a` und `b` dann zwei aufeinanderfolgende
-    // Ziehungen desselben Stroms sind — und die sind auch verschieden.
+    // **Dieser Fall und der darunter fangen VERSCHIEDENE Kopplungen** — beide
+    // werden gebraucht. Gemessen, je Mutation an `rng.ts`:
     //
-    // Sie prüft, dass der Zufallsgenerator sich bewegt. Der Fall darunter
-    // prüft, was der Kommentar behauptet.
+    // ```text
+    //   seedForStream ignoriert den Index   HIER rot,  unten grün
+    //   stream(which) gibt immer streams[0] hier grün, UNTEN rot
+    // ```
+    //
+    // Dieser prüft, dass die Ströme verschieden ANFANGEN. Der darunter, dass
+    // sie sich nicht gegenseitig BEWEGEN. Bis zum 2026-08-07 stand nur dieser
+    // hier — mit einem Kommentar, der 18.4 zitierte und die zweite Hälfte
+    // nicht prüfte.
+    //
+    // Der erste Entwurf dieser Richtigstellung nannte ihn „prüft nur, dass der
+    // Zufallsgenerator sich bewegt". Das war zu hart und selbst ungemessen:
+    // Bei gekoppelten Startwerten schlägt er als einziger Unit-Fall an.
     const streams = new RandomStreams(1234);
     const a = streams.stream(STREAM_CRIT).next();
     const b = streams.stream(STREAM_DOT_TICK).next();
@@ -198,10 +206,15 @@ describe('Zufallsströme', () => {
     // Zusicherung, die ihre eigene Begründung nicht einlöste, mit einem Zitat
     // aus dem Design-Dokument daneben. Wer sie las, hielt 18.4 für gesichert.
     //
-    // Gemessen mit gekoppelten Strömen: Von der ganzen TS-Suite schlug ein
-    // einziger Fall an, und der war eine Frischeprüfung — nach
-    // `parity:export` wurde auch er grün. Die Rust-Seite fing es, die
-    // Spiel-Seite nicht.
+    // Gemessen mit gekoppelten Strömen (`stream(which)` gibt immer
+    // `streams[0]`): Von der ganzen TS-Suite schlug ein einziger Fall an, und
+    // der war eine Frischeprüfung — nach `parity:export` wurde auch er grün.
+    // Die Rust-Seite fing es, die Spiel-Seite nicht.
+    //
+    // **Der Fall darüber fängt diese Kopplung NICHT**, und dieser fängt die
+    // andere nicht: Werden die Startwerte gekoppelt, bleibt er grün, weil die
+    // Ströme dann zwar identisch anfangen, sich aber immer noch nicht
+    // gegenseitig bewegen. Zwei Kopplungen, zwei Fälle.
     const ohne = new RandomStreams(7);
     const mit = new RandomStreams(7);
 
