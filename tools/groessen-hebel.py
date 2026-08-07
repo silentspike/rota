@@ -56,8 +56,10 @@ GROESSEN = (
     # 0,00 % stand: nicht „die Größe wirkt nicht", sondern „ihre Wirkung kam
     # hier nie an". Die elf Kontroll-Nullen waren teilweise gar keine Messung.
     #
-    # ACHTUNG BEI DER BASIS: `controlSpent` steht in nur VIER Aufzeichnungen
-    # (fixation, fixation-spells, kontrolle-wirkt, log-kinds). Ein Hebel
+    # ACHTUNG BEI DER BASIS: `controlSpent` steht in nur DREI Aufzeichnungen
+    # (fixation, fixation-spells, kontrolle-wirkt). Ein grep findet vier —
+    # `log-kinds.json` führt den Namen als Protokoll-Art, nicht als Größe in
+    # `expected`. Ein Hebel
     # darauf stammt aus einer schmalen Grundlage — dieselbe Lage, die bei
     # STALL zu 300 % geführt hat. Die Basis-Spalte zeigt es, aber man muss
     # hinsehen.
