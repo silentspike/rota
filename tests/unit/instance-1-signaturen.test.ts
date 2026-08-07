@@ -196,3 +196,72 @@ describe('boss-1-1 — die Verschärfung ist mit dem Balance-Läufer NICHT messb
     expect(dauern[dauern.length - 1]).toBeLessThan(dauern[0] as number);
   });
 });
+
+describe('boss-1-4 — bedingtes Unterbrechen lohnt sich, unbedingtes nicht', () => {
+  /**
+   * Der Kern von AC2 für diesen Boss — und der Fall, der einen umgekehrten
+   * Befund festhält.
+   *
+   * Am Balance-Läufer gemessen sah es so aus, als koste der Unterbrecher mehr
+   * als er bringt (4380 gegen 4204 ausgeteilt). Dort steht QUENCH aber ganz
+   * vorn und wird gewirkt, **sobald er bereit ist** — er verdrängt dann
+   * laufend Schadenszauber. Der Läufer kann ihn nicht bedingen (#553), misst
+   * also zwangsläufig die naive Nutzung.
+   *
+   * Wer nur drückt, **während der Boss wirkt**, drückt einmal statt zwanzigmal:
+   *
+   * ```text
+   * roh            netto 2900   geheilt 800   verpasst 1
+   * unterbrechen   netto 3600   geheilt   0   verpasst 0
+   * ```
+   *
+   * 700 mehr Schaden. Die Signatur verlangt also etwas, das sich lohnt — nur
+   * belegen lässt es sich mit dem Läufer nicht.
+   */
+  function lauf(mitQuench: boolean): Combat {
+    const c = new Combat({ school: CALCINATION.value, boss: boss('boss-1-4') });
+    const kindle = c.indexOf('kindle');
+    const quench = c.indexOf('quench');
+    for (let t = 0; t <= 60_000; t += 10) {
+      c.stepPassive(t);
+      if (c.damageDealt >= c.boss.hp) break;
+      if (!c.gcd.isReady(t)) continue;
+      // **Die Bedingung IST die Aussage.** Ohne sie misst der Fall die naive
+      // Nutzung und käme zum gegenteiligen Ergebnis.
+      if (mitQuench && c.casting !== -1 && c.isOffCooldown(quench, t)) c.cast(quench, t);
+      else if (c.isOffCooldown(kindle, t)) c.cast(kindle, t);
+    }
+    return c;
+  }
+
+  it('wer im richtigen Moment unterbricht, teilt mehr aus', () => {
+    const roh = lauf(false);
+    const mit = lauf(true);
+
+    // Die Zusicherungen zuerst: Ohne verpasste Unterbrechung und ohne Heilung
+    // vergliche der Fall zwei gleiche Läufe.
+    expect(roh.interruptsMissed, 'nichts verpasst — dann prüft der Fall nichts').toBeGreaterThan(0);
+    expect(roh.bossHealed, 'der Boss heilt nicht — dann fehlt der Anreiz').toBeGreaterThan(0);
+    expect(mit.interruptsMissed, 'auch mit QUENCH wurde etwas verpasst').toBe(0);
+    expect(mit.bossHealed).toBe(0);
+
+    expect(mit.damageDealt).toBeGreaterThan(roh.damageDealt);
+  });
+
+  it('und das Brutto zeigt, was das Unterbrechen KOSTET', () => {
+    // `undoProgress` senkt `damageDealt` selbst — die ausgeteilte Zahl ist
+    // bereits netto. Das Brutto ergibt sich erst durch Addition der Heilung,
+    // und ohne diese Unterscheidung zog eine frühere Rechnung die Heilung
+    // zweimal ab.
+    const roh = lauf(false);
+    const mit = lauf(true);
+
+    const bruttoRoh = roh.damageDealt + roh.bossHealed;
+    const bruttoMit = mit.damageDealt + mit.bossHealed;
+
+    // Der Unterbrecher kostet einen Leistenplatz — brutto steht er schlechter
+    // da. Erst die gesparte Heilung dreht es um.
+    expect(bruttoMit).toBeLessThan(bruttoRoh);
+    expect(mit.damageDealt).toBeGreaterThan(roh.damageDealt);
+  });
+});
