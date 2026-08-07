@@ -5098,3 +5098,164 @@ in ein Issue darf oder als Vermutung gekennzeichnet gehört.
 > Verwandt mit 8.66 (eine Messung beantwortet nur ihre eigene Frage), aber schärfer: Dort
 > beantwortet die Messung eine Frage, die man nicht gestellt hat. Hier beantwortet sie ihre
 > eigene Frage korrekt, und die Deutung reicht darüber hinaus.
+
+### 8.74 Ein Wächter, der das Beruhigen verhindert, muss das Beheben aushalten
+
+Am 2026-08-07 bei #619. Der Wächter aus #612 listet Größen ohne Leitung ins `ReplayResult` und
+trägt zu jeder eine Einordnung — **offener Befund** oder **Absicht**. Ein eigener Fall sichert
+zu, dass mindestens ein OFFEN darin steht; sonst könnte jemand die Liste umschreiben und der
+Wächter bliebe grün.
+
+Als sechs Leitungen gelegt wurden, griff der Mechanismus wie gebaut: Die überholten Einträge
+färbten AC3 rot und blieben rot, bis sie weg waren.
+
+**Und dabei meldete eine zweite Zusicherung einen Fehler, der der Erfolgsfall war:**
+
+```ts
+expect(EINORDNUNG['interruptsMissed']).toContain('OFFEN');
+```
+
+Sie hing an einem **Namen**. Als `interruptsMissed` seine Leitung bekam, sollte der Eintrag
+verschwinden — und genau das machte den Fall rot.
+
+#### Der Unterschied zwischen Name und Eigenschaft
+
+|                 |                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **Name**        | „`interruptsMissed` muss OFFEN sein" — gilt nur, solange die Welt so bleibt        |
+| **Eigenschaft** | „jeder OFFEN-Eintrag muss sagen, WAS fehlt" — gilt, egal welche Namen darin stehen |
+
+Die zweite Fassung fängt dasselbe (ein bloßes `'OFFEN'` ohne Satz ist eine beruhigte Liste mit
+anderem Wort) und überlebt jede Behebung.
+
+#### Die Regel
+
+Ein Wächter über eine Liste hat zwei Gegner, und sie ziehen in verschiedene Richtungen:
+
+```
+jemand beruhigt die Liste       → die Einordnung wird weicher, ohne dass sich Code ändert
+jemand behebt einen Eintrag     → die Einordnung wird überholt, WEIL sich Code geändert hat
+```
+
+**Beides muss er unterscheiden können.** Wer nur den ersten fängt, blockiert den zweiten — und
+der zweite ist der, für den man arbeitet.
+
+Die Prüffrage beim Bauen:
+
+> **Was passiert mit diesem Fall, wenn der Befund, den er festhält, behoben wird?**
+
+Wird er rot, ist er an einen Namen gebunden. Bleibt er grün und meldet den überholten Eintrag,
+ist er an die Eigenschaft gebunden.
+
+> Verwandt mit 8.63 (richtige Antwort aus falschem Grund): Hier ist es die **falsche Antwort aus
+> richtigem Grund** — der Fall tut, was dasteht, und was dasteht war für eine Welt geschrieben,
+> die es nicht mehr gibt.
+
+### 8.75 Eine Mutation, die ins Leere läuft, ist von einer Widerlegung nicht zu unterscheiden
+
+Am 2026-08-07 dreimal an einem Nachmittag, in drei verschiedenen Materialien:
+
+| gesetzt                                    | tatsächlich gelesen                    | Ergebnis         |
+| ------------------------------------------ | -------------------------------------- | ---------------- |
+| `putrefaction.json`                        | der Zauber steht in `calcination.json` | alles grün       |
+| `conversion.sharePercent`                  | EFFLUX trägt `convert.perSecond`       | 123 von 123 grün |
+| die erste von **sieben** `6 %`-Fundstellen | das Suchmuster liest Zeile 235         | 3 von 3 grün     |
+
+**Jedes Mal sah Grün aus wie ein Ergebnis.** Bei einer Gegenprobe ist Grün die Aussage „der
+Prüffall schützt den Wert nicht" — und genau diese Aussage war dreimal falsch.
+
+#### Warum es sich nicht selbst meldet
+
+Eine Mutation, die eine Datei ohne den Wert trifft, ist syntaktisch fehlerfrei. `json.dump`
+schreibt das Feld einfach neu hinein, `sed` findet sein Muster woanders, und der Testlauf startet
+sauber. Es gibt keine Stelle, an der etwas bricht.
+
+Der einzige Unterschied zwischen „der Wert ist ungeschützt" und „ich habe den Wert nicht
+angefasst" ist die Kenntnis darüber, wo er steht.
+
+#### Die Gewohnheit
+
+**Vor der Mutation nachsehen, was der Prüffall LIEST — nicht treffen, was man erwartet.**
+
+```
+Daten   den Datensatz VOLLSTÄNDIG ausgeben, nicht die Felder abfragen, die man vermutet
+Text    das Suchmuster des Wächters lesen, nicht die erste Fundstelle nehmen
+Code    die Zeile ausgeben, nachdem man sie geändert hat
+```
+
+Die dritte Zeile ist die billigste und fängt am meisten: Ein `sed -n '235p'` nach dem `sed -i`
+kostet nichts und zeigt sofort, ob der Eingriff dort gelandet ist, wo er sollte.
+
+#### Die Gegenprobe zur Gegenprobe
+
+Wenn eine Mutation grün bleibt, gibt es zwei Erklärungen, und die naheliegende ist die
+seltenere:
+
+```
+der Wert ist ungeschützt        ← was man vermutet
+die Mutation lief ins Leere     ← was meist zutrifft
+```
+
+**Bevor „ungeschützt" gemeldet wird, muss die zweite ausgeschlossen sein.** Am schnellsten geht
+das mit einer Mutation, von der man weiß, dass sie greifen muss — an derselben Datei, an
+derselben Größe, nur größer. Bleibt auch die grün, war der Weg falsch.
+
+### 8.76 Zwei Fälle dürfen sich in genau einer Sache unterscheiden
+
+Am 2026-08-07 bei #609. Ein Prüffall sollte belegen, dass das Feld `bossHeal.on` **schaltet** —
+also dass ein Boss ohne `on: 'affliction'` bei einer Schwächung nichts zurückdreht.
+
+Die naheliegende Anordnung: `test-lapse` (mit dem Feld) gegen `boss-2-4` (ohne). Gemessen, bevor
+sie eingetragen wurde:
+
+```
+boss-2-4 bis 12000 ms    geheilt=0     afflicted=FALSE   missed=0
+boss-2-4 bis 32000 ms    geheilt=1600  afflicted=true    missed=2
+```
+
+**Beide Enden sind falsch, auf entgegengesetzte Weise:**
+
+|         |                                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------------- |
+| zu früh | Die Null kommt daher, dass die Schwächung noch gar nicht steht — ein grüner Fall ohne Lage          |
+| zu spät | 1600 zurückgedreht, weil ohne QUENCH kein Zauber unterbrochen wird und der **alte** Auslöser greift |
+
+Es gibt kein Zeitfenster, in dem die Anordnung das gemessen hätte, was sie messen sollte.
+
+#### Der Grund ist nicht das Timing, sondern die Zahl der Unterschiede
+
+`boss-2-4` unterscheidet sich von `test-lapse` in allem: anderer Startzeitpunkt der Schwächung,
+andere Zeitleiste, unterbrechbare Zauber, anderer Betrag. Nur ein Feldname ist gleich benannt und
+verschieden gesetzt.
+
+> **Der Vergleich misst dann den Boss, nicht das Feld.**
+
+Die Regel dahinter gilt für jede Gegenprobe:
+
+```
+zwei Fälle, EIN Unterschied      der Vergleich misst diesen Unterschied
+zwei Fälle, viele Unterschiede   der Vergleich misst die Umgebung
+```
+
+Die Lösung war ein **Zwilling**: ein zweiter Prüfboss, identisch bis auf `on: 'interrupt'`.
+Gleiche Schwächung, gleicher Betrag, gleiche Zeitleiste — und der einzige Unterschied ist das
+Feld. Kosten: eine Datendatei und ein Export-Lauf.
+
+#### Zwei Zusätze, die dieselbe Falle ein zweites Mal verhindern
+
+**Die Lage zuerst zusichern.** `expect(afflicted).toBe(true)` bei **beiden** Läufen, bevor die
+Beträge verglichen werden. Sonst ist die Null beim Zwilling wieder eine Null ohne Lage — dieselbe
+Falle, nur an einer anderen Stelle.
+
+**Null gegen mehr-als-null, nicht Betrag gegen Betrag.** Bei `bossHeal` deckelt `undoProgress` auf
+den gefallenen Fortschritt, also sagt der Betrag nicht, wie oft ausgelöst wurde. Die
+Null-Erwartung umgeht den Deckel, statt gegen ihn zu messen.
+
+#### Und für den, der eine Zeile vorgibt
+
+Dieser Fall entstand aus einer Auflage, die zwei konkrete Codezeilen nannte — samt der Behauptung
+„damit färbt meine Mutation". **Eine vorgegebene Zeile ist eine Behauptung über ein Verhalten,
+das der Vorgebende nicht gemessen hat.**
+
+Wer sie bekommt, misst sie, bevor er sie einträgt. Wer sie gibt, sagt dazu, dass sie ungemessen
+ist.
