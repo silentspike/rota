@@ -84,6 +84,53 @@ export const NEVER = -1;
 
 export type { FeedbackSink };
 
+/**
+ * WELCHE REGELN HIER LIEGEN, UND WAS DIE PARITÄT DAVON SIEHT (#528 AC5).
+ *
+ * Der Rücksetzer lag bis #528 hier — im Spiel eine Schicht über seiner eigenen
+ * Wirkung, im Simulator im Kampf. Die Frage von AC5 war, ob es weitere gibt.
+ *
+ * **Gemessen, nicht durchgesehen.** Für jeden Kandidaten wurde geprüft, ob
+ * eine Abweichung auffällt — indem sie eingebaut und die Suite gefahren wurde.
+ *
+ * | Regel | Ort | Sieht die Parität sie? |
+ * | --- | --- | --- |
+ * | Rücksetzer scharf stellen | `apply` ruft `combat.armResetIfNeeded` | **JA** |
+ * | Auswahl statt Wirkung | `apply`, `chose ? chooseForReset : cast` | **JA** |
+ * | Kampfende fortschreiben | `tick` ruft `combat.checkDefeat` | **NEIN — bewusst** |
+ * | Phase (Vorbereitung/Kampf) | `apply`, `phaseValue === PHASE_FIGHTING` | entfällt |
+ * | Belegung der Leiste | `bindings` | **JA** |
+ *
+ * # Die zwei, die die Parität sieht — und wie das gemessen wurde
+ *
+ * `armResetIfNeeded` wird HIER gerufen, nicht in `Combat.cast`. Eine
+ * Aufzeichnung, die `Combat` direkt fährt, muss den Aufruf nachbilden. Der
+ * Verdacht war, dass ein Vergessen unbemerkt bliebe — er ist **widerlegt**:
+ * Wird der Aufruf aus `alembicPayload` entfernt und neu exportiert, fallen
+ * vier von fünf Fällen in `sim/tests/parity_alembic.rs`, darunter die
+ * Prüfsumme je Takt.
+ *
+ * Seit es Aufzeichnungen mit Rücksetzer gibt (#521, #528), ist diese Regel
+ * also abgedeckt. Vorher war sie es nicht — nicht weil sie hier liegt,
+ * sondern weil keine Aufzeichnung sie fuhr.
+ *
+ * # Der eine blinde Fleck ist bekannt und gewollt
+ *
+ * `checkDefeat` schreibt den Kampfzustand fort. **Keine Aufzeichnung ruft
+ * es** — `sim/src/fight.rs` hält `FIGHT_RUNNING` deshalb bewusst konstant,
+ * und der Kommentar dort nennt den Grund: Die Zustands-Prüfsumme rührt das
+ * Feld ein, ein hier gesetzter Sieg-Zustand ergäbe ab dem Sieg-Takt eine
+ * abweichende Prüfsumme, ohne dass eine Regel anders gerechnet wäre.
+ *
+ * Das ist der Unterschied zum Rücksetzer: Dort war die Trennung gewachsen und
+ * unbemerkt, hier ist sie entschieden und aufgeschrieben.
+ *
+ * # Was NICHT hierher gehört, und warum die Liste kurz ist
+ *
+ * Die übrigen Felder dieser Klasse sind Auswertung (`accepted`, `rejected`,
+ * `idleTicks`, `resetsApplied`) oder Anzeige. Sie ändern den Kampfverlauf
+ * nicht und können deshalb auch nicht von ihm abweichen.
+ */
 export class Session implements Simulation {
   readonly latency = new LatencyTrace();
 
