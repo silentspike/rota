@@ -1,0 +1,126 @@
+import { describe, expect, it } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+
+/**
+ * Der Wächter zu Issue #547, AC5.
+ *
+ * # Was er bewacht
+ *
+ * `docs/groessen-abdeckung-messung.txt` sagt für jedes Paar (Zauber, Größe),
+ * ob eine Änderung seines Wertes irgendeine Prüfung auslöst. Die Messung ist
+ * teuer — 68 volle Suiten-Läufe, gut vierzig Minuten — und sie veraltet in dem
+ * Moment, in dem jemand einen Zauber hinzufügt.
+ *
+ * Dieser Fall meldet genau das: **ein Paar, über das niemand etwas weiß.**
+ *
+ * # Warum nicht der naheliegende Wächter
+ *
+ * Das Kriterium schlug vor, ein `buff.factor` zu melden, das in keinem
+ * Prüffall mit seinem Wert vorkommt. Gemessen am 2026-08-07 wären das **45 von
+ * 68 Paaren** — alle echt ungeschützt, kein einziges falsch positiv. Ein
+ * Wächter, der 45 Ausnahmen mitführt, ist aber keine Prüfung mehr, sondern
+ * eine zweite Liste neben der ersten. Und er wäre an dem Tag rot, an dem
+ * jemand eine der 45 behebt, ohne die Ausnahmeliste zu pflegen.
+ *
+ * Die Auflage aus dem Kriterium lautete: *Ein Wächter, der 13 Falsch-Positive
+ * liefert, ist keiner.* Der hier liefert keine — er vergleicht zwei Mengen,
+ * die beide im Repository stehen.
+ *
+ * # Was er NICHT leistet
+ *
+ * Er misst nichts. Er stellt fest, dass etwas **ungemessen** ist. Ein Paar,
+ * das in der Datei als „NUR FRISCHE" steht, ist weiterhin ungeschützt — der
+ * Wächter ist damit zufrieden, weil die Lücke bekannt und aufgeschrieben ist.
+ *
+ * Das ist Absicht. Die 45 Lücken zu schließen ist Arbeit für mehrere Issues;
+ * zu verhindern, dass unbemerkt eine sechsundvierzigste entsteht, ist dieser
+ * Fall.
+ */
+
+const MESSUNG = 'docs/groessen-abdeckung-messung.txt';
+const SPELL_DIR = 'data/spells';
+
+/**
+ * Alle Zahlenfelder unter einem Unterknoten — dieselbe Regel wie im Werkzeug.
+ *
+ * **Aus den JSON-Dateien, nicht aus `data.ts`.** Der Wächter vergleicht eine
+ * Messung über die Datendateien mit ebendiesen Dateien; ginge er über die
+ * geladene Struktur, vergliche er zwei verschiedene Dinge und wäre bei jeder
+ * Umbenennung im Ladepfad grundlos rot.
+ */
+function gemesseneGroessen(): Set<string> {
+  const paare = new Set<string>();
+  for (const datei of readdirSync(SPELL_DIR).filter((d) => d.endsWith('.json'))) {
+    const inhalt = JSON.parse(readFileSync(`${SPELL_DIR}/${datei}`, 'utf8')) as {
+      spells: Record<string, unknown>[];
+    };
+    for (const zauber of inhalt.spells) {
+      if (((zauber['unlockLevel'] as number) ?? 0) > 100) continue; // Prüf-Zauber
+      for (const [gruppe, knoten] of Object.entries(zauber)) {
+        if (typeof knoten !== 'object' || knoten === null || Array.isArray(knoten)) continue;
+        for (const [feld, wert] of Object.entries(knoten as Record<string, unknown>)) {
+          if (typeof wert !== 'number') continue;
+          paare.add(`${gruppe}.${feld} ${zauber['id'] as string}`);
+        }
+      }
+    }
+  }
+  return paare;
+}
+
+function ausDerDatei(): Set<string> {
+  const zeilen = readFileSync(MESSUNG, 'utf8').split('\n');
+  const paare = new Set<string>();
+  for (const zeile of zeilen) {
+    const teile = zeile.trim().split(/\s+/);
+    if (teile.length < 2 || zeile.startsWith('#')) continue;
+    paare.add(`${teile[0]} ${teile[1]}`);
+  }
+  return paare;
+}
+
+describe('AC5 — keine Größe ohne Messung', () => {
+  /**
+   * **Die Zusicherung vor der Messung.** Fände das Einlesen nichts, wäre der
+   * Fall unten grün, weil beide Mengen leer sind — und niemand merkte, dass
+   * der Wächter gar nichts vergleicht.
+   */
+  it('die Messdatei ist lesbar und nicht leer', () => {
+    const gemessen = ausDerDatei();
+    expect(
+      gemessen.size,
+      `${MESSUNG} liefert keine Paare — der Wächter misst nichts`,
+    ).toBeGreaterThan(50);
+    expect(
+      gemesseneGroessen().size,
+      'kein einziges Größen-Feld im Bestand gefunden',
+    ).toBeGreaterThan(50);
+  });
+
+  it('jede Größe im Zauber-Bestand steht in der Messung', () => {
+    const fehlen = [...gemesseneGroessen()].filter((p) => !ausDerDatei().has(p)).sort();
+
+    expect(
+      fehlen,
+      `Diese Größen sind nie gemessen worden — es ist unbekannt, ob eine Änderung ` +
+        `ihres Wertes irgendeine Prüfung auslöst.\n\n` +
+        `  python3 tools/groessen-mutation.py 0 10   (in Blöcken, siehe Dateikopf)\n\n` +
+        `Das Ergebnis gehört in ${MESSUNG}. Ohne die Messung ist der Wert dieser ` +
+        `Größen so ungeschützt wie SLAGs Anhebung vor #547 — nur weiß es dann niemand.`,
+    ).toEqual([]);
+  });
+
+  it('die Messung nennt keine Größen, die es nicht mehr gibt', () => {
+    // Die Gegenrichtung, damit die Datei nicht zur Halde wird: Ein
+    // entfernter Zauber hinterlässt sonst eine Zeile, die für immer behauptet,
+    // etwas sei gemessen.
+    const verwaist = [...ausDerDatei()].filter((p) => !gemesseneGroessen().has(p)).sort();
+
+    expect(
+      verwaist,
+      `Diese Zeilen in ${MESSUNG} gehören zu Größen, die es im Bestand nicht ` +
+        `mehr gibt. Sie gehören entfernt — eine Messung ohne Gegenstück sieht aus ` +
+        `wie Abdeckung und ist keine.`,
+    ).toEqual([]);
+  });
+});
