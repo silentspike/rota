@@ -11,6 +11,7 @@
     "test-gatekeeper",
     "test-metronome",
     "test-onslaught",
+    "test-phasenbindung",
     "test-racer",
     "test-resistant",
     "test-runaway",
