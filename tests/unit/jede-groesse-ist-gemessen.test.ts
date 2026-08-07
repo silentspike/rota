@@ -94,6 +94,18 @@ describe('AC5 — keine Größe ohne Messung', () => {
    * der Wächter gar nichts vergleicht.
    */
   it('die Messdatei ist lesbar und nicht leer', () => {
+    // **Der Umfang gehört in die Ausgabe.** Bei der Abnahme hat der
+    // Orchestrator einen Prüf-Zauber (`unlockLevel: 101`) angehängt, drei
+    // grüne Fälle bekommen und beinahe „AC5 nicht erfüllt" gemeldet. Der
+    // Filter unten ist Absicht — aber der Wächter sagte nirgends, dass er
+    // filtert, und wie viel.
+    //
+    // Ein Wächter, dessen geprüfte Menge unsichtbar ist, lädt genau zu dieser
+    // Fehldeutung ein: Sein Schweigen sieht aus wie Blindheit.
+    // `console.log` taugt dafür nicht: vitest unterdrückt es bei grünen
+    // Fällen — gemessen, der erste Entwurf gab nichts aus. Die Zahl steht
+    // deshalb in den FEHLERMELDUNGEN, denn dort sieht sie, wer sie braucht.
+
     const gemessen = ausDerDatei();
     expect(
       gemessen.size,
@@ -101,7 +113,9 @@ describe('AC5 — keine Größe ohne Messung', () => {
     ).toBeGreaterThan(50);
     expect(
       gemesseneGroessen().size,
-      'kein einziges Größen-Feld im Bestand gefunden',
+      `Kein Größen-Feld im Bestand gefunden. Der Wächter überspringt Prüf-Zauber ` +
+        `(unlockLevel > 100) — wer einen solchen anhängt und Schweigen erwartet, ` +
+        `misst den Filter statt den Wächter.`,
     ).toBeGreaterThan(50);
   });
 
@@ -114,7 +128,9 @@ describe('AC5 — keine Größe ohne Messung', () => {
         `ihres Wertes irgendeine Prüfung auslöst.\n\n` +
         `  python3 tools/groessen-mutation.py 0 10   (in Blöcken, siehe Dateikopf)\n\n` +
         `Das Ergebnis gehört in ${MESSUNG}. Ohne die Messung ist der Wert dieser ` +
-        `Größen so ungeschützt wie SLAGs Anhebung vor #547 — nur weiß es dann niemand.`,
+        `Größen so ungeschützt wie SLAGs Anhebung vor #547 — nur weiß es dann niemand.\n\n` +
+        `Geprüft wurden ${gemesseneGroessen().size} Paare; Prüf-Zauber ` +
+        `(unlockLevel > 100) sind bewusst ausgenommen.`,
     ).toEqual([]);
   });
 
