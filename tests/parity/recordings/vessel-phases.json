@@ -3,6 +3,10 @@
   "name": "vessel-phases",
   "bossId": "test-vessel",
   "allBossIds": [
+    "boss-1-1",
+    "boss-1-2",
+    "boss-1-3",
+    "boss-1-4",
     "first-crucible",
     "test-caster",
     "test-collision",

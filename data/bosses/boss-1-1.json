@@ -1,0 +1,30 @@
+{
+  "_comment": "ARBEITSNAME (Issue #544). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile. Wer auf die Namen wartet, baut vier Monate keinen Boss.\n\nDer erste Boss der ersten Instanz: der EINSTIEG. Er verlangt nur, dass der Spieler eine Unterbrechung setzt — alles andere ist ein Schadensrennen.",
+  "schema": 1,
+  "id": "boss-1-1",
+  "name": "Instance One, First",
+  "instance": "instance-1",
+  "hp": 5200,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 12000,
+      "mechanic": "interruptibleCast",
+      "name": "Kindling Roar",
+      "damage": 900,
+      "castTimeMs": 2500
+    },
+    { "atMs": 32000, "mechanic": "strike", "name": "Backlash", "damage": 300 },
+    {
+      "atMs": 48000,
+      "mechanic": "interruptibleCast",
+      "name": "Kindling Roar",
+      "damage": 900,
+      "castTimeMs": 2500
+    }
+  ],
+  "resistances": {},
+  "signature": "Zwei unterbrechbare Zauber mit langer Wirkzeit — wer sie stehen laesst, verliert mehr Leben als der Rest des Kampfes kostet. Getragen von: timeline (mechanic interruptibleCast)."
+}
