@@ -1,15 +1,22 @@
-//! Eine Verstaerkung wirkt auf ihre Zielgroesse — und nur auf sie (Issue #489).
+//! Die vier Pruef-Zauber tragen verschiedene Zielgroessen (Issue #489).
 //!
-//! # Warum die Gegenprobe die wichtigere Haelfte ist
+//! **Diese Datei prueft die DATEN, nicht die Wirkung.** Sie belegt, dass
+//! `test-heat` das Feld `target: Resource` traegt — nicht, dass der Faktor im
+//! Kampf etwas bewegt. Die Wirkungspruefung steht auf der Spiel-Seite
+//! (`tests/unit/buff-targets.test.ts`); das Rust-Gegenstueck fehlt und ist
+//! als **Issue #502** angelegt.
 //!
-//! Dass ein Faktor 2 den Punktegewinn hebt, zeigt nur, dass irgendein Faktor
-//! ankommt. Dass er den SCHADEN dabei nicht bewegt, zeigt, dass die fuenf
-//! Vorraete wirklich getrennt sind — sonst muesste die Stapel-Regel
-//! (GAME-DESIGN 328) ueber Zielgroessen hinweg gelten, und eine Verstaerkung
-//! auf den Punktegewinn verdraengte eine auf den Schaden.
+//! Kippte einer der vier per Tippfehler auf `damage` zurueck, maessen die
+//! Faelle dort stillschweigend viermal denselben Vorrat. Das ist der Zweck
+//! dieser Datei — und ihre Grenze.
 //!
-//! Das Spiegelbild im Spiel ist `tests/unit/buff-targets.test.ts`.
-
+//! # Warum der alte Kopf hier stand
+//!
+//! Er beschrieb eine Wirkungspruefung ("dass er den SCHADEN dabei nicht
+//! bewegt, zeigt, dass die fuenf Vorraete wirklich getrennt sind") ueber
+//! einer Datei, die nichts davon tut. Der Satz war wahr und zeigte auf die
+//! falsche Datei — wer ihn las, hielt die Rust-Seite fuer geprueft. Genau so
+//! ist sie abgenommen worden.
 use rota_sim::data::{BuffTarget, SPELLS};
 
 /// Findet einen Zauber ueber seine Kennung.

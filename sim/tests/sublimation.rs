@@ -44,19 +44,41 @@ fn die_mechanik_ist_angemeldet_und_steht_hinter_der_stapel_mechanik() {
     );
 }
 
+/// Welche Zauber verkuerzen, um wie viel — und warum die Referenz das nicht merkt.
+///
+/// # Die Frage ist zweimal umgestellt worden, nie geloescht
+///
+/// Zuerst hiess dieser Fall `kein_ausgelieferter_zauber_verkuerzt_etwas` und
+/// verlangte ausdruecklich seine eigene Abloesung:
+///
+///   "Zauber {} traegt eine Verkuerzung; dann ist AC5 pruefbar und dieser
+///    Test gehoert ersetzt"
+///
+/// Mit VAPOUR (#201) wurde daraus `genau_ein_ausgelieferter_zauber_...`, und
+/// der trug die Auflage weiter: "Wer hier einen Zauber ergaenzt, aendert die
+/// Referenz-Rechnung — dann gehoert sie NACHGEMESSEN, nicht diese Liste
+/// erweitert."
+///
+/// # Mit WISP (#480) ist genau das eingetreten, und hier ist die Nachmessung
+///
+/// Die Liste steht inzwischen auf VIER Namen — WISP kam mit #480 dazu, ASCEND
+/// und DECANT mit #518. Beim Nachziehen von #518 hat dieser Fall genau das
+/// getan, wofuer er da ist: Er fiel mit
+/// `["vapour", "wisp", "ascend", "decant"]` gegen `["vapour", "wisp"]` und
+/// zwang dazu, die Nachmessung erneut zu lesen statt die Liste stillschweigend
+/// zu erweitern. Sie hielt: Keiner der vier wird im Referenzlauf gewirkt. Der Satz, den sie ersetzt, war aber
+/// nicht "es ist genau einer", sondern "die Referenz-Rechnung ist unberuehrt"
+/// — und der wird nicht laenger BEHAUPTET, sondern an den Daten geprueft:
+/// Keiner der drei Zauber, die `rotation::good` ueberhaupt werfen kann, traegt
+/// eine Verkuerzung. Deshalb kann die Mechanik im Referenzlauf gar nicht
+/// ansetzen, egal wie viele Verkuerzer es sonst im Spiel gibt.
+///
+/// Das ist die schaerfere Zusicherung: Sie faellt auch dann, wenn jemand
+/// KINDLE eine Verkuerzung gibt — der alte Listen-Vergleich haette das
+/// gemeldet, ohne den Grund zu nennen, und ein blosses Erweitern der Liste
+/// haette es verschluckt.
 #[test]
-fn genau_ein_ausgelieferter_zauber_verkuerzt_etwas() {
-    // **ERSETZT, nicht geloescht** (Issue #201). Vorher hiess dieser Fall
-    // `kein_ausgelieferter_zauber_verkuerzt_etwas` und verlangte ausdruecklich
-    // seine eigene Abloesung:
-    //
-    //   "Zauber {} traegt eine Verkuerzung; dann ist AC5 pruefbar und dieser
-    //    Test gehoert ersetzt"
-    //
-    // Seit VAPOUR traegt einer sie. Ihn zu loeschen haette die Absicherung
-    // herausgenommen, die #104 verlangt — geblieben ist deshalb die Frage,
-    // nur andersherum gestellt: WELCHE Zauber verkuerzen, und verkuerzen sie
-    // dasselbe wie im Spiel?
+fn welche_zauber_verkuerzen_und_warum_die_referenz_das_nicht_merkt() {
     let mit: Vec<&str> = data::SPELLS
         .iter()
         .filter(|spell| spell.cooldown_reduction_ms > 0)
@@ -64,18 +86,72 @@ fn genau_ein_ausgelieferter_zauber_verkuerzt_etwas() {
         .collect();
     assert_eq!(
         mit,
-        vec!["vapour"],
-        "Wer hier einen Zauber ergaenzt, aendert die Referenz-Rechnung — \
-         dann gehoert sie nachgemessen, nicht diese Liste erweitert"
+        vec!["vapour", "wisp", "ascend", "decant"],
+        "die Verkuerzer haben gewechselt — dann gehoert die Nachmessung \
+         darunter erneut gelesen, nicht nur diese Liste angepasst"
     );
 
-    // Und der Betrag stammt aus den Daten, nicht aus dem Code: Er muss dem
+    // Die Betraege stammen aus den Daten, nicht aus dem Code: Sie muessen dem
     // entsprechen, was `data/spells/sublimation.json` sagt.
-    let vapour = data::SPELLS
-        .iter()
-        .find(|spell| spell.id == "vapour")
-        .expect("vapour");
-    assert_eq!(vapour.cooldown_reduction_ms, 1000);
+    let betrag = |id: &str| {
+        data::SPELLS
+            .iter()
+            .find(|spell| spell.id == id)
+            .unwrap_or_else(|| panic!("{id} fehlt"))
+            .cooldown_reduction_ms
+    };
+    assert_eq!(betrag("vapour"), 1000);
+    assert_eq!(betrag("wisp"), 500, "WISP verkuerzt die Haelfte von VAPOUR");
+    // Die zwei GEZIELTEN (#518). Sie verkuerzen mehr als die breiten, treffen
+    // dafuer aber nicht alles: ASCEND nur Abklingzeiten UNTER seiner Schwelle,
+    // DECANT nur die laengste. Der Umfang steht in eigenen Feldern und wird in
+    // `parity_gezielte_verkuerzung.rs` geprueft — hier zaehlt nur, dass sie
+    // ueberhaupt in dieser Menge auftauchen und mit welchem Betrag.
+    assert_eq!(betrag("ascend"), 10_000);
+    assert_eq!(betrag("decant"), 2_000);
+
+    // **DIE NACHMESSUNG.** Der Referenzlauf bleibt unberuehrt, weil kein
+    // Zauber, den er wirklich wirft, etwas verkuerzt. Das ist der Grund —
+    // `der_referenzlauf_bleibt_unberuehrt` unten zeigt nur die Folge.
+    //
+    // # Abgelesen, nicht abgeschrieben
+    //
+    // Hier stand zuerst `[data::KINDLE, data::SMOULDER, data::PYRE]` — eine
+    // ABSCHRIFT von `rotation::good`. Die haette einen vierten Zauber in der
+    // Rotation nicht bemerkt, und damit genau den Fall verschluckt, den diese
+    // Nachmessung abdecken soll. Dieselbe Klasse, vor der der alte Warnsatz
+    // warnte, nur eine Ebene versetzt: eine Liste, die neben der Sache liegt,
+    // statt aus ihr zu stammen.
+    //
+    // Jetzt wird der Referenzlauf GEFAHREN und abgelesen, welche Zauber
+    // wirklich zum Zug kamen. Wer die Rotation aendert, aendert damit
+    // automatisch, was hier geprueft wird.
+    let mut referenz = Fight::new(FightConfig::default());
+    let lauf = referenz.run(rotation::good);
+    let gewirkt: Vec<usize> = (0..data::SPELL_COUNT)
+        .filter(|&i| lauf.casts[i] > 0)
+        .collect();
+
+    // **Die Zusicherung in den Datensatz.** Ohne einen einzigen Wurf prueft
+    // die Schleife nichts und waere trotzdem gruen.
+    assert!(
+        gewirkt.len() >= 3,
+        "der Referenzlauf wirft nur {} Zauber — dann prueft diese Nachmessung \
+         fast nichts. Sie gehoert nicht gelockert, sondern gelesen: Ist die \
+         Referenz-Rotation kaputt?",
+        gewirkt.len()
+    );
+
+    for index in gewirkt {
+        let spell = &data::SPELLS[index];
+        assert_eq!(
+            spell.cooldown_reduction_ms, 0,
+            "{} traegt eine Verkuerzung und wird im Referenzlauf GEWIRKT — \
+             damit setzt die Mechanik dort an, und die Sollwerte in \
+             der_referenzlauf_bleibt_unberuehrt gehoeren nachgerechnet",
+            spell.id
+        );
+    }
 }
 
 #[test]
@@ -88,7 +164,9 @@ fn der_referenzlauf_bleibt_unberuehrt() {
     assert_eq!(
         fight.sublimation_use_count(),
         0,
-        "die Mechanik hat angesetzt, obwohl kein Zauber etwas verkuerzt"
+        "die Mechanik hat angesetzt, obwohl kein Zauber der Referenz-Rotation \
+         etwas verkuerzt — seit #480 gibt es ZWEI Verkuerzer im Spiel, nur \
+         wirft rotation::good keinen davon (im Fall darueber nachgemessen)"
     );
 }
 

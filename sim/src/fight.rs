@@ -229,6 +229,19 @@ pub struct FightConfig {
     /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
     /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
     pub worn: WornValues,
+    /// Ob das Schluesseltalent "split-spender" verteilt ist (Issue #418).
+    ///
+    /// **Ein Wahrheitswert, keine Zahl.** Die Talente kommen sonst nur als
+    /// fertiger Faktor herein (`factors.talents`) — das reicht fuer die drei
+    /// Wege aus GAME-DESIGN 12.5, die alle Zahlen erhoehen. Ein
+    /// Schluesseltalent aendert stattdessen, WAS geschieht, und laesst sich
+    /// deshalb nicht als Faktor uebergeben.
+    ///
+    /// Dieselbe Bauart wie `worn`: ein Datenfeld, das durch Spiel, Simulator,
+    /// Aufzeichnung und Wiedergabe geht. Die Alternative — eine abgewandelte
+    /// Zauberliste — geht auf dieser Seite nicht: `SPELLS` ist statisch und
+    /// wird an vierzig Stellen direkt gelesen.
+    pub split_spender: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -262,6 +275,7 @@ impl Default for FightConfig {
             factors: NEUTRAL,
             boss: BOSS,
             worn: WornValues::none(),
+            split_spender: false,
             talent_permille: 0,
             player_level: 1,
         }
@@ -556,6 +570,9 @@ pub struct Fight {
     resource_buffs: Buffs,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
+    cd_reduce_buffs: Buffs,
+    convert_buffs: Buffs,
+    cap_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -569,6 +586,7 @@ pub struct Fight {
     factors: DamageFactors,
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
+    split_spender: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -742,6 +760,9 @@ impl Fight {
             resource_buffs: Buffs::new(),
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
+            cd_reduce_buffs: Buffs::new(),
+            convert_buffs: Buffs::new(),
+            cap_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -809,6 +830,7 @@ impl Fight {
             },
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
+            split_spender: config.split_spender,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -890,8 +912,20 @@ impl Fight {
         if gained > 0 {
             self.add_resource(gained);
         }
-        let order = self.pending_shorten.replace(PendingShorten::default());
+        let mut order = self.pending_shorten.replace(PendingShorten::default());
         if order.amount > 0 {
+            // **Der Faktor aus `cd_reduce_buffs`** (DISTIL, E10). Er greift
+            // HIER und nicht in `SublimationMechanic`: Die Mechanik liefert
+            // den ROHBETRAG aus ihrer Tabelle, angewandt wird er an dieser
+            // Stelle — genau wie `pending_gain` durch `add_resource` laeuft.
+            //
+            // Ein erster Befund hielt einen Schnittstellen-Umbau fuer noetig,
+            // weil `sublimation.rs` den Wert aus einer kopierten Tabelle holt
+            // und `Fight` nicht sieht. Das stimmt — aber es ist gleichgueltig,
+            // weil die WIRKUNG hier liegt. Ich hatte auf die Stelle gesehen,
+            // wo der Wert HERKOMMT, statt auf die, wo er WIRKT.
+            order.amount =
+                (f64::from(order.amount) * self.cd_reduce_buffs.factor(now)).round() as Millis;
             shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
@@ -1189,8 +1223,9 @@ impl Fight {
                             // Druck bereits, und der Ruecksetzer wuerde nie
                             // gewirkt. Dieselbe Reihenfolge wie in
                             // `Session.apply`; AC4 von #223 haelt sie fest.
-                            if SPELLS[index].arms_cooldown_reset {
-                                self.reset_mode.arm(index);
+                            if SPELLS[index].cooldown_reset_charges > 0 {
+                                self.reset_mode
+                                    .arm(index, SPELLS[index].cooldown_reset_charges);
                             }
                         } else {
                             // Zu frueh gedrueckt. Das Spiel merkt sich den Druck
@@ -1296,6 +1331,9 @@ impl Fight {
         self.resource_buffs.reset();
         self.tick_buffs.reset();
         self.stack_buffs.reset();
+        self.cd_reduce_buffs.reset();
+        self.convert_buffs.reset();
+        self.cap_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1832,7 +1870,13 @@ impl Fight {
         if self.conversion_until.is_none_or(|bis| self.time > bis) {
             return;
         }
-        let gewonnen = damage * self.conversion_percent / 100;
+        // **Der Faktor aus `convert_buffs`** (QUICKSILVER, E10). Gelesen bei
+        // JEDEM Schaden, solange die Umwandlung laeuft — nur deshalb traegt
+        // ein zeitlich begrenzter Faktor hier. Spiegelbild von
+        // `Combat.applyConversion` im Spiel.
+        let satz = (f64::from(self.conversion_percent) * self.convert_buffs.factor(self.time))
+            .round() as u32;
+        let gewonnen = damage * satz / 100;
         if gewonnen == 0 {
             return;
         }
@@ -1892,6 +1936,9 @@ impl Fight {
         self.resource_buffs.expire(now);
         self.tick_buffs.expire(now);
         self.stack_buffs.expire(now);
+        self.cd_reduce_buffs.expire(now);
+        self.convert_buffs.expire(now);
+        self.cap_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -1916,8 +1963,16 @@ impl Fight {
     /// Setzt den Synergie-Faktor, wenn diesem Zauber ein Fenster offen steht
     /// (GAME-DESIGN 5, #318).
     ///
-    /// Der Bonus liegt **neben** `per_decay_stack_percent`, nicht darin: FESTER
-    /// wird ohnehin staerker, je mehr Stapel liegen. Das sind zwei Mechaniken.
+    /// Der Bonus liegt **neben** dem Stapel-Bonus, nicht darin: `vulnerability`
+    /// hebt den Schaden aller Quellen, sobald Stapel liegen. Eine Gegenprobe,
+    /// die den Stapelstand mitvariiert, misst also die Stapel und nicht die
+    /// Synergie.
+    ///
+    /// **Hier stand bis Issue #484, der Bonus liege neben
+    /// `per_decay_stack_percent`.** Das war falsch: Dieses Feld wird auf keiner
+    /// der beiden Seiten je auf den Schaden angewandt — es gibt kein „neben",
+    /// weil es nichts gibt, wozu es danebenlaege. Der Satz stand an genau der
+    /// Stelle, an der jemand nachsieht.
     fn apply_synergy_bonus(&mut self, index: usize) {
         let endet = self.synergy_window_ends[index];
         let offen = endet != 0 && self.time <= endet;
@@ -2000,6 +2055,148 @@ impl Fight {
             (f64::from(DECAY_STACK_PERCENT) * self.stack_buffs.factor(self.time)).round() as u32;
         let prozent = 100 + self.decay_count as u32 * je_stapel;
         self.factors.vulnerability = f64::from(prozent) / 100.0;
+    }
+
+    /// Die Verwundbarkeit **fuer die Wirkung eines bestimmten Zaubers** — mit
+    /// seinem eigenen Zuschlag je Stapel (`per_decay_stack_percent`, #484).
+    ///
+    /// # Warum ADDITIV im selben Topf
+    ///
+    /// GAME-DESIGN 1405 fuehrt die Zersetzungs-Stapel ausdruecklich im
+    /// additiven Topf. Ein neunter Multiplikator nur fuer einen Zauber waere
+    /// der Fehler, den Diablo IV mit der Verwundbarkeit gemacht hat.
+    ///
+    /// # Warum JE WIRKUNG
+    ///
+    /// Der Topf ist global, das Feld gilt fuer EINEN Zauber. Deshalb hier vor
+    /// der Rechnung gesetzt und beim naechsten Zauber ueberschrieben — genau
+    /// wie `resistance` (#328). Dieselbe Rechnung wie im Spiel
+    /// (`applyDecayStackBonus`), ganzzahlig bis zur letzten Teilung (18.4).
+    /// Ueber alle Braende laufen, die **gerade brennen** (Issue #517).
+    ///
+    /// Der Baustein, den EMBER und PYROCLASM sich teilen — nicht ein
+    /// Rechenschritt, sondern diese Iteration. Bis hierher wurde
+    /// `dot_expires_at` ausschliesslich je Index gelesen und geschrieben.
+    /// Die Schutzschicht laenger halten (HARDEN, Issue #523).
+    ///
+    /// Der Ablauf rueckt nach hinten, der aufgebrauchte Betrag bleibt. Ein
+    /// abgelaufener oder nie gesetzter Schild wird NICHT wiederbelebt —
+    /// verlaengern ist nicht neu setzen.
+    ///
+    /// **Es gibt hier keinen Takt.** Bei den Braenden musste die Tick-Folge
+    /// mitgedacht werden (#517); der Schild haelt nur Betrag und Ablauf. Das
+    /// steht als Satz da, damit das Fehlen nicht wie ein Versehen aussieht.
+    fn extend_shield(&mut self, ms: Millis) {
+        if ms == 0 || self.shield == 0 {
+            return;
+        }
+        let Some(expires) = self.shield_expires_at else {
+            return;
+        };
+        if self.time > expires {
+            return;
+        }
+        self.shield_expires_at = Some(expires + ms);
+    }
+
+    /// Die Zersetzungs-Stapel laenger halten (SEPSIS, Issue #523).
+    ///
+    /// **Alle, und um denselben Betrag.** `decay_expiry` ist aufsteigend
+    /// sortiert, und das Nachruecken beim Verfall setzt das voraus. Ein
+    /// Zuschlag auf nur einen Eintrag stellte einen spaeteren Ablauf vor einen
+    /// frueheren — dann verfallen Stapel in falscher Reihenfolge, ohne dass
+    /// die Stapelzahl es verraet. Dieselbe Regel wie im Spiel.
+    fn extend_decay_stacks(&mut self, ms: Millis) {
+        if ms == 0 {
+            return;
+        }
+        for i in 0..self.decay_count {
+            self.decay_expiry[i] += ms;
+        }
+    }
+
+    fn active_dot_indices(&self) -> Vec<usize> {
+        (0..SPELL_COUNT)
+            .filter(|&i| SPELLS[i].dot.is_some() && self.dot_active(i))
+            .collect()
+    }
+
+    /// Jeden laufenden Brand um `ticks` Tick-Intervalle verlaengern (EMBER).
+    ///
+    /// # Die Tick-Folge bleibt unberuehrt — hier wie im Spiel
+    ///
+    /// Der Simulator plant Ticks ueber die Ereignis-Schlange, nicht ueber
+    /// einen Speicher: Beim Abarbeiten prueft er `next <= expires` und legt
+    /// nur dann den naechsten. Eine laengere Laufzeit ergibt damit von selbst
+    /// einen Tick mehr — dieselbe Wirkung wie das unberuehrte
+    /// `dotNextTickAtMs` im Spiel, ueber einen anderen Weg.
+    fn extend_active_dots(&mut self, ticks: u32) {
+        if ticks == 0 {
+            return;
+        }
+        for i in self.active_dot_indices() {
+            let Some(dot) = SPELLS[i].dot.as_ref() else {
+                continue;
+            };
+            let dazu = ticks * self.dot_interval(dot);
+            if let Some(expires) = self.dot_expires_at[i] {
+                self.dot_expires_at[i] = Some(expires + dazu);
+            }
+        }
+    }
+
+    /// Alle laufenden Braende verbrauchen und ihren Rest als Schaden geben
+    /// (PYROCLASM).
+    ///
+    /// Restdauer mal Schaden je Tick — genau das, was sie noch gemacht
+    /// haetten. Nach der Erneuerungsregel ist Restzeit verloren, wenn zu frueh
+    /// erneuert wird; dieser Zauber kehrt dieselbe Regel um.
+    ///
+    /// Ganzzahlig bis zur letzten Teilung (18.4): erst die offenen Ticks, dann
+    /// der Schaden — dieselbe Reihenfolge wie im Spiel.
+    fn consume_active_dots(&mut self) -> u32 {
+        let mut summe = 0;
+        for i in self.active_dot_indices() {
+            let Some(dot) = SPELLS[i].dot.as_ref() else {
+                continue;
+            };
+            let rest = self.dot_expires_at[i].map_or(0, |e| e.saturating_sub(self.time));
+            let offene_ticks = rest / self.dot_interval(dot);
+            let factors = self.factors_for(false);
+            summe += compute_damage(dot.tick_damage * offene_ticks, &factors);
+            // Der Brand ist weg. Ein Tick-Ereignis, das noch in der Schlange
+            // liegt, verfaellt beim Abarbeiten von selbst — `dot_active` ist
+            // dann falsch.
+            self.dot_expires_at[i] = None;
+        }
+        summe
+    }
+
+    fn apply_decay_stack_bonus(&mut self, index: usize) {
+        let pro_stapel = SPELLS[index].per_decay_stack_percent;
+        // **Der Faktor aus `stack_buffs` gehoert auch hierher** (Issue #489).
+        // Diese Methode SETZT die Verwundbarkeit neu — ohne ihn wuerfe sie weg,
+        // was `update_vulnerability` eingerechnet hat, und eine
+        // Stapel-Verstaerkung verschwaende beim naechsten Wirken spurlos.
+        //
+        // Gemessen auf der Spiel-Seite beim Zusammenfuehren von #484 und #489:
+        // `buff-targets` mass 1,06 gegen 1,06. Beide Vorhaben waren fuer sich
+        // gruen; erst zusammen zeigte sich, dass das eine die Wirkung des
+        // anderen ueberschreibt. Hier stand derselbe Fehler.
+        //
+        // Ganzzahlig bis zur letzten Teilung (18.4) — auf die Prozentpunkte,
+        // nicht auf das Ergebnis, wie in `update_vulnerability`.
+        let je_stapel = (f64::from(DECAY_STACK_PERCENT + pro_stapel)
+            * self.stack_buffs.factor(self.time))
+        .round() as u32;
+        let prozent = 100 + self.decay_count as u32 * je_stapel;
+        self.factors.vulnerability = f64::from(prozent) / 100.0;
+    }
+
+    /// Die Kontroll-Punkte der FIXATION (fuer die APL, Issue #526).
+    #[must_use]
+    pub fn control_points(&self) -> u32 {
+        self.control
     }
 
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
@@ -2217,6 +2414,9 @@ impl Fight {
         // gewirkten Zaubers — nicht falsch gerechnet, sondern falsch
         // zugeordnet, und das verraet keine Summe.
         self.factors.resistance = self.resistance_by_spell[index];
+        // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
+        // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
+        self.apply_decay_stack_bonus(index);
         let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
@@ -2650,6 +2850,21 @@ impl Fight {
         // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
         // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
         self.factors.resistance = self.resistance_by_spell[index];
+        // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
+        // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
+        self.apply_decay_stack_bonus(index);
+        // EMBER (Issue #517), VOR der Schadensrechnung: Ein Brand, den dieser
+        // Zauber selbst legt, soll nicht schon verlaengert werden.
+        if spell.dot_extend_ticks > 0 {
+            self.extend_active_dots(spell.dot_extend_ticks);
+        }
+        // HARDEN und SEPSIS (#523), aus demselben Grund an derselben Stelle.
+        if spell.extend_shield_ms > 0 {
+            self.extend_shield(spell.extend_shield_ms);
+        }
+        if spell.extend_decay_ms > 0 {
+            self.extend_decay_stacks(spell.extend_decay_ms);
+        }
         let factors = self.factors_for(kritet);
         // **`factors` ist hier bereits kopiert.** Die Verstaerkung unten
         // aendert `self.factors.buffs`, aber nicht mehr diese Kopie — genau so
@@ -2675,15 +2890,56 @@ impl Fight {
         }
 
         if let Some(spender) = spell.spender {
-            let spent = self.resource;
-            let mut damage = spender.damage_per_point * u32::from(spent);
-            if spent >= spender.bonus_threshold {
-                damage *= spender.bonus_multiplier;
+            // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
+            // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
+            // dafuer ZWEIMAL."
+            //
+            // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
+            // sich als Faktor ausdruecken liesse, waere keines.
+            let geteilt = self.split_spender;
+            // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
+            // zweimal 7, eine Hitze bleibt uebrig.
+            let pro_schlag = if geteilt {
+                self.resource / 2
+            } else {
+                self.resource
+            };
+            let schlaege = if geteilt { 2 } else { 1 };
+
+            for _ in 0..schlaege {
+                // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
+                // rechnete der zweite mit demselben Stand wie der erste.
+                let spent = if geteilt {
+                    pro_schlag.min(self.resource)
+                } else {
+                    self.resource
+                };
+                if geteilt && spent == 0 {
+                    break;
+                }
+
+                let mut damage = spender.damage_per_point * u32::from(spent);
+                if spent >= spender.bonus_threshold {
+                    damage *= spender.bonus_multiplier;
+                }
+                self.log
+                    .push(now, LogKind::Spend, index as u8, u32::from(spent));
+                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                if geteilt {
+                    self.resource -= spent;
+                } else {
+                    self.resource = 0;
+                }
             }
-            self.log
-                .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
-            self.resource = 0;
+        }
+
+        // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
+        // Betrag wie der Grundschaden — dieselbe Stelle wie im Spiel.
+        if spell.consumes_dots {
+            let rest = self.consume_active_dots();
+            if rest > 0 {
+                cast_damage += self.deal(index, rest, LogKind::Damage);
+            }
         }
 
         // **Ein Schaden-Ereignis je Wirkung, mit der Summe** — nicht eines je
@@ -2724,6 +2980,9 @@ impl Fight {
                 BuffTarget::Resource => &mut self.resource_buffs,
                 BuffTarget::Tick => &mut self.tick_buffs,
                 BuffTarget::Stack => &mut self.stack_buffs,
+                BuffTarget::CdReduce => &mut self.cd_reduce_buffs,
+                BuffTarget::Convert => &mut self.convert_buffs,
+                BuffTarget::Cap => &mut self.cap_buffs,
             };
             vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
             // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
@@ -2862,7 +3121,12 @@ impl Fight {
             (f64::from(amount) * self.resource_buffs.factor(self.time)).round() as u16
         };
         let before = self.resource;
-        self.resource = (before + amount).min(RESOURCE.cap);
+        // **Die Grenze, wie sie JETZT gilt** (SLAG, Issue #490). Auf dieser
+        // Seite gibt es nur EINE Lesestelle — das Entwickler-Werkzeug
+        // (`setResource`) existiert im Simulator nicht. Im Spiel sind es zwei,
+        // und dort rechnet ein Getter sie an einer Stelle.
+        let cap = (f64::from(RESOURCE.cap) * self.cap_buffs.factor(self.time)).round() as u16;
+        self.resource = (before + amount).min(cap);
         self.resource_overflow += u32::from(amount - (self.resource - before));
     }
 
@@ -3247,7 +3511,10 @@ impl Fight {
                 + self.control_buffs.window_sum()
                 + self.resource_buffs.window_sum()
                 + self.tick_buffs.window_sum()
-                + self.stack_buffs.window_sum(),
+                + self.stack_buffs.window_sum()
+                + self.cd_reduce_buffs.window_sum()
+                + self.convert_buffs.window_sum()
+                + self.cap_buffs.window_sum(),
         );
         h
     }

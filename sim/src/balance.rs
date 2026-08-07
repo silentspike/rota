@@ -107,6 +107,16 @@ pub struct Sample {
     pub damage: u32,
     /// Kampfzeit des Sieges, oder `None`.
     pub killed_at_ms: Option<Millis>,
+    /// **Eingesteckter** Schaden (Issue #525).
+    ///
+    /// Bis hierher mass der Laeufer nur die eine Haelfte. Jede Aussage
+    /// "zu schwach" war damit eine Aussage ueber die gemessene Haelfte —
+    /// und jeder Verteidigungszauber unmessbar.
+    pub damage_taken: u32,
+    /// Davon von der Schutzschicht abgefangen.
+    pub absorbed: u32,
+    /// Ob der Spieler gestorben ist.
+    pub died: bool,
 }
 
 /// Mittelwert und Streuung einer Messreihe.
@@ -220,6 +230,18 @@ pub struct BalanceResult {
     pub damage: Statistics,
     /// Wie oft der Boss gefallen ist.
     pub kills: usize,
+    /// **Eingesteckter** Schaden über alle Durchgänge (Issue #525).
+    pub damage_taken: Statistics,
+    /// Wie oft der SPIELER gestorben ist.
+    ///
+    /// Bei einer Rotation, die ohne Verteidigung stirbt, ist das die
+    /// aussagekräftigste Zahl des ganzen Laufs.
+    pub deaths: usize,
+    /// Wirkungen je Zauber, summiert über alle Durchgänge.
+    ///
+    /// Sie lagen in `RunResult.casts` schon vor und wurden weggeworfen. Ohne
+    /// sie braucht jede Zauber-Messung eine isolierende Rotation.
+    pub casts: Vec<u32>,
     /// Zeit bis zum Sieg, nur über die erfolgreichen Durchgänge.
     ///
     /// Getrennt vom Schaden, weil beide verschiedene Fragen beantworten: Der
@@ -261,7 +283,8 @@ impl BalanceResult {
         };
         format!(
             "{{\"apl\":{:?},\"iterations\":{},\"baseSeed\":{},\"threads\":{},\
-             \"damage\":{},\"kills\":{},\"killRate\":{:?},\"killTimeMs\":{}}}",
+             \"damage\":{},\"kills\":{},\"killRate\":{:?},\"killTimeMs\":{},\
+             \"damageTaken\":{},\"deaths\":{},\"casts\":{{{}}}}}",
             self.apl_name,
             self.iterations,
             self.base_seed,
@@ -269,7 +292,18 @@ impl BalanceResult {
             stats(&self.damage),
             self.kills,
             self.kill_rate(),
-            stats(&self.kill_time_ms)
+            stats(&self.kill_time_ms),
+            stats(&self.damage_taken),
+            self.deaths,
+            // Nur die Zauber, die WIRKLICH gedrueckt wurden — eine Liste mit
+            // sechzig Nullen verdeckt die drei Zahlen, auf die es ankommt.
+            self.casts
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| **n > 0)
+                .map(|(i, n)| format!("{:?}:{}", crate::data::SPELLS[i].id, n))
+                .collect::<Vec<_>>()
+                .join(",")
         )
     }
 }
@@ -285,8 +319,11 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
     let threads = config.threads.max(1);
     let iterations = config.iterations;
 
+    let mut casts_total = [0u32; crate::data::SPELL_COUNT];
     let mut samples: Vec<Sample> = if threads == 1 || iterations < 2 {
-        run_range(config, apl, 0, iterations)
+        let (s, c) = run_range(config, apl, 0, iterations);
+        casts_total = c;
+        s
     } else {
         // Gleichmäßig aufteilen; der Rest verteilt sich auf die vorderen
         // Stränge. Welcher Strang welchen Durchgang rechnet, ist für das
@@ -315,7 +352,11 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
             for handle in handles {
-                all.extend(handle.join().expect("ein Strang ist abgestuerzt"));
+                let (s, c) = handle.join().expect("ein Strang ist abgestuerzt");
+                for (i, n) in c.iter().enumerate() {
+                    casts_total[i] += *n;
+                }
+                all.extend(s);
             }
             all
         })
@@ -327,6 +368,8 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
     samples.sort_unstable_by_key(|sample| sample.seed);
 
     let damage_values: Vec<f64> = samples.iter().map(|s| f64::from(s.damage)).collect();
+    let mut taken_values: Vec<f64> = samples.iter().map(|s| f64::from(s.damage_taken)).collect();
+    taken_values.sort_by(f64::total_cmp);
     let kill_values: Vec<f64> = samples
         .iter()
         .filter_map(|s| s.killed_at_ms.map(f64::from))
@@ -340,6 +383,9 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         damage: Statistics::from_sorted(&damage_values),
         kills: kill_values.len(),
         kill_time_ms: Statistics::from_sorted(&kill_values),
+        damage_taken: Statistics::from_sorted(&taken_values),
+        deaths: samples.iter().filter(|s| s.died).count(),
+        casts: casts_total.to_vec(),
         samples,
     }
 }
@@ -348,7 +394,12 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
 ///
 /// Legt **einen** Kampf an und setzt ihn zurück, statt je Durchgang einen neuen
 /// zu bauen: So bleibt es bei einer Speicheranforderung für den ganzen Bereich.
-fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sample> {
+fn run_range(
+    config: &BalanceConfig,
+    apl: &Apl,
+    offset: u32,
+    len: u32,
+) -> (Vec<Sample>, [u32; crate::data::SPELL_COUNT]) {
     let mut fight = Fight::new(FightConfig {
         seed: config.base_seed.wrapping_add(offset),
         duration_ms: config.duration_ms,
@@ -366,20 +417,35 @@ fn run_range(config: &BalanceConfig, apl: &Apl, offset: u32, len: u32) -> Vec<Sa
         player_level: 1,
         // Das Protokoll kostet Speicher und wird hier von niemandem gelesen.
         log_capacity: 0,
+        // **Kein Schluesseltalent im Balance-Laeufer** (Issue #418), aus
+        // demselben Grund wie bei den Talenten: Er vergleicht Rotationen,
+        // nicht Ausbauten. Ein Verhalten, das eine Rotation umbaut, waere
+        // hier ein zweiter beweglicher Teil.
+        split_spender: false,
     });
 
     let mut out = Vec::with_capacity(len as usize);
+    // **Die Cast-Zahlen lagen schon vor** (Issue #525): `RunResult.casts`
+    // fuehrt sie je Zauber, der Laeufer hat sie bisher weggeworfen. Ohne sie
+    // brauchte jede Zauber-Messung eine isolierende Rotation (#517, #523).
+    let mut casts = [0u32; crate::data::SPELL_COUNT];
     for index in 0..len {
         let seed = config.base_seed.wrapping_add(offset + index);
         fight.reset(seed);
         let result = fight.run_apl(apl);
+        for (i, n) in result.casts.iter().enumerate() {
+            casts[i] += *n;
+        }
         out.push(Sample {
             seed,
             damage: result.damage,
             killed_at_ms: result.killed_at_ms,
+            damage_taken: fight.damage_taken(),
+            absorbed: fight.shield_absorbed(),
+            died: fight.player_dead(),
         });
     }
-    out
+    (out, casts)
 }
 
 #[cfg(test)]
@@ -552,11 +618,28 @@ mod tests {
 /// Wie stark ein Faktor der Schadensformel auf den Schaden durchschlägt.
 ///
 /// Das ist die Antwort auf die Frage aus GAME-DESIGN 18.5 — *„Wie viel Schaden
-/// bringt ein Punkt CATALYSIS?"* — soweit sie heute beantwortbar ist. Gemessen
-/// wird die Empfindlichkeit gegenüber dem **Faktor**, nicht gegenüber dem
-/// **Punkt**: Die Umrechnung Punkt → Faktor ist im Design noch nicht festgelegt
-/// (GAME-DESIGN 22: Talent-Inhalte vor E5, Gegenstands-Katalog vor E6). Sobald
-/// sie feststeht, ist der Wert je Punkt eine Multiplikation dieser Zahl.
+/// bringt ein Punkt CATALYSIS?"*. Gemessen wird die Empfindlichkeit gegenüber
+/// dem **Faktor**, nicht gegenüber dem **Punkt**.
+///
+/// # Für GEGENSTÄNDE ist diese Umrechnung nicht offen — sie stellt sich nicht
+///
+/// Hier stand bis Issue #455, die Umrechnung Punkt → Faktor sei „im Design noch
+/// nicht festgelegt". Für Gegenstände ist das falsch, und zwar nicht seit
+/// gestern: GAME-DESIGN 483 sagt wörtlich *„Ein Fund trägt +3 % Tempo, nicht
+/// +120 Tempo. Was er bringt, hängt nicht von der Spielerstufe ab."*
+///
+/// Auf Gegenständen gibt es überhaupt keine Punkte. Die Werte stehen in
+/// **Promille**, und `worn.rs` beziehungsweise `src/gear/worn.ts` machen daraus
+/// `1 + promille/1000` — das *ist* die Umrechnung, und sie ist gebaut und
+/// geprüft.
+///
+/// # Für TALENTE gilt der Vorbehalt weiter
+///
+/// Ein Talentpunkt gibt eine Menge, die noch nicht feststeht — dort steht die
+/// Umrechnung tatsächlich aus. Der ursprüngliche Verweis auf GAME-DESIGN 22
+/// zeigte auf fehlende **Inhalte** (welche Talente, welche Gegenstände), nicht
+/// auf eine offene Umrechnung; das eine als das andere zu lesen, hat in #455
+/// beinahe einen Blocker erzeugt, den es nicht gibt.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScalingFactor {
     /// Feld der Schadensformel, das verändert wurde.
