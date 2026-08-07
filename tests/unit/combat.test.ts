@@ -54,6 +54,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Umstellung geschieht nicht still, sondern hier und in
       // `spell-order.json` sichtbar (wie #268, #479).
       'scab',
+      // Issue #523 — HARDEN, bei seiner Schule.
+      'harden',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
@@ -72,6 +74,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
+      // Issue #523 — SEPSIS, bei seiner Schule.
+      'sepsis',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER

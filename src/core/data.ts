@@ -131,6 +131,19 @@ export interface SpellDef {
    */
   readonly consumesDots?: boolean;
   /**
+   * Um wie viele Millisekunden dieser Zauber eine **laufende Schutzschicht**
+   * verlängert (HARDEN, Issue #523). Fehlt das Feld, verlängert er keine.
+   */
+  readonly extendShieldMs?: number;
+  /**
+   * Um wie viele Millisekunden dieser Zauber **alle laufenden
+   * Zersetzungs-Stapel** verlängert (SEPSIS, Issue #523).
+   *
+   * Alle und um denselben Betrag — das erhält die aufsteigende Ordnung, auf
+   * der das Nachrücken beruht.
+   */
+  readonly extendDecayMs?: number;
+  /**
    * Welche Verstärkung dieser Zauber auslöst (GAME-DESIGN 5, Issue #420).
    *
    * **Fehlt das Feld, löst er keine aus** — das ist der Fall für jeden Zauber
@@ -1065,6 +1078,19 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     }
   }
   const consumesDots = raw['consumesDots'] === true;
+  // HARDEN und SEPSIS (#523).
+  const shieldMs = raw['extendShieldMs'];
+  const extendShieldMs = typeof shieldMs === 'number' ? shieldMs : undefined;
+  const decayMs = raw['extendDecayMs'];
+  const extendDecayMs = typeof decayMs === 'number' ? decayMs : undefined;
+  for (const [name, wert] of [
+    ['extendShieldMs', extendShieldMs],
+    ['extendDecayMs', extendDecayMs],
+  ] as const) {
+    if (wert === undefined) continue;
+    if (wert <= 0) problems.push(`${where}: ${name} ${wert} ist nicht positiv.`);
+    if (!Number.isInteger(wert)) problems.push(`${where}: ${name} ${wert} ist nicht ganzzahlig.`);
+  }
 
   const reduction = raw['cooldownReductionMs'];
   const cooldownReductionMs = typeof reduction === 'number' ? reduction : undefined;
@@ -1085,6 +1111,8 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     triggersGcd: raw['triggersGcd'] !== false,
     ...(dotExtendTicks !== undefined ? { dotExtendTicks } : {}),
     ...(consumesDots ? { consumesDots } : {}),
+    ...(extendShieldMs !== undefined ? { extendShieldMs } : {}),
+    ...(extendDecayMs !== undefined ? { extendDecayMs } : {}),
     // Kommt beim Zusammenlegen aus der Herkunftsdatei (siehe `CALCINATION`).
     // Fehlt es, ist der Zauber schulunabhängig — nicht fehlerhaft.
     school: typeof raw['school'] === 'string' ? raw['school'] : null,
