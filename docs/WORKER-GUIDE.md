@@ -4527,3 +4527,74 @@ und seine Absicht kennt.
 
 **Bei jedem unerwarteten Ergebnis: erst das Werkzeug, dann die Daten.** Und dazu die Probe, die
 beide trennt — ein Fall, dessen Antwort man vorher kennt.
+
+---
+
+### 8.65 „Gemergt" ist eine Aussage über einen PR, nicht über einen Zweig
+
+Ein Fehler des Orchestrators, dreimal an einem Tag (2026-08-07), jedes Mal gegenüber demselben
+Worker — und dreimal nur deshalb folgenlos, weil **er** nachgemessen hat.
+
+Der Ablauf ist immer gleich:
+
+```
+10:23  Worker pusht Commit A, meldet "PR ist bereit"
+10:24  Orchestrator merged den PR, meldet "ist gemergt"
+10:24  Worker hat inzwischen Commit B geschrieben und gepusht
+       → B ist nicht in main, und die Meldung sagt das Gegenteil
+```
+
+Der Orchestrator sagt die Wahrheit über den **PR**. Der Worker liest sie als Aussage über
+seinen **Zweig**. Beide haben recht, und der Commit fällt trotzdem hinten runter.
+
+> **Nach jeder Merge-Meldung, vom Empfänger:**
+>
+> ```bash
+> git merge-base --is-ancestor HEAD origin/main && echo "drin" || echo "NICHT drin"
+> ```
+>
+> Ein Befehl, er kostet nichts, und er hat an diesem Tag dreimal einen Commit gerettet.
+
+#### Warum das nicht durch Sorgfalt zu beheben ist
+
+Die Lücke entsteht **zwischen** zwei richtigen Aussagen, in einem Zeitfenster von Sekunden. Wer
+mergt, kann nicht wissen, ob der andere gerade weiterschreibt; wer schreibt, sieht die
+Merge-Meldung erst danach. Beim dritten Vorfall lagen zwischen Push und Merge-Meldung **eine
+Minute**.
+
+Die einzige Stelle, an der es auffällt, ist der Zweig selbst — und dort kann nur der Worker
+nachsehen. Deshalb liegt die Prüfung bei ihm, obwohl der Fehler beim Orchestrator entsteht.
+
+**Wer eine Merge-Meldung schickt, nennt den Commit**, den er gemergt hat. Dann sieht der
+Empfänger sofort, ob es seiner ist:
+
+> „#589 gemergt — `83d2882`, enthält bis `30d84e4`."
+
+Der Worker vergleicht mit seinem `HEAD` und weiß es in einer Sekunde, statt es zu messen.
+
+#### Nachtrag: `gh pr list --author @me` trennt die Sitzungen nicht
+
+Dieselbe Klasse in der Gegenrichtung, gefunden von Worker-1 beim Abschluss-Check. Sein
+Befehl listete einen PR, den er nie geöffnet hatte:
+
+```
+git log --format='%an' -15 origin/main | sort | uniq -c
+     15 obtFusi
+```
+
+**Alle vier Sitzungen committen als derselbe Autor.** `--author @me` liefert damit die PRs
+_aller_, und wer die Liste als „meine offenen" liest, beansprucht einen fremden Zweig.
+
+> Nicht ein übersehener eigener PR, sondern ein fälschlich beanspruchter fremder — und
+> Weiterarbeit daran hätte den Zweig eines anderen mitten in dessen Arbeit verändert.
+
+Unterschieden wird am **Zweignamen**, nicht am Autor:
+
+|             |                            |
+| ----------- | -------------------------- |
+| `feat/e1-…` | Worker-1, Worktree `e1`    |
+| `feat/e2-…` | Worker-2, Worktree `e2`    |
+| ohne Präfix | Orchestrator, `/work/rota` |
+
+`git worktree list` zeigt die Zuordnung in einer Zeile. Wer einen fremden Zweig auscheckt,
+merkt es dort sofort — und nicht erst, wenn zwei Sitzungen denselben Commit schreiben.
