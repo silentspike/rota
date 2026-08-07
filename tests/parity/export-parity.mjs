@@ -100,6 +100,8 @@ import {
   timelineLoopPayload,
   sublimationPayload,
   SUBLIMATION_NAME,
+  wispPayload,
+  WISP_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -263,6 +265,15 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+const wisp = wispPayload();
+const wispPath = join(here, 'recordings', `${WISP_NAME}.json`);
+writeFileSync(wispPath, serialize(wisp), 'utf8');
+console.log(`geschrieben: ${wispPath}`);
+console.log(
+  `  WISP-Verkuerzung       ${wisp.expected.wispCasts} Wuerfe, davon ` +
+    `${wisp.expected.wirkendeWuerfe} auf eine laufende VAPOUR-Abklingzeit`,
+);
 
 const timelineLoop = timelineLoopPayload();
 const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);
