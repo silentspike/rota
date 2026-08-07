@@ -271,7 +271,11 @@ fn report(name: &str, result: &BalanceResult, sekunden: f64) {
     zeile_stat("Schaden angekommen", &result.damage_incoming);
     zeile_stat("  davon abgefangen", &result.absorbed);
     zeile_stat("  davon durchgekommen", &result.damage_taken);
-    zeile_stat("Leben zurueckgeholt", &result.healed);
+    // **Beide Zeilen nennen ihren Traeger.** "Leben zurueckgeholt" allein hat
+    // am 2026-08-07 zu der Aussage gefuehrt, boss-1-4 heile sich nicht — die
+    // 0.0 war die SPIELER-Heilung, und die Boss-Zahl gab es hier gar nicht.
+    zeile_stat("Spieler geheilt", &result.healed);
+    zeile_stat("Boss zurueckgedreht", &result.boss_healed);
     zeile(
         "Tode",
         &format!("{} von {}", result.deaths, result.samples.len()),
