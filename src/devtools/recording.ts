@@ -116,6 +116,61 @@ export interface ReplayResult {
    */
   readonly diedAtMs: number;
   /**
+   * Wie viel Fortschritt der Boss zurückgedreht hat (Baustein 5, Issue #609).
+   *
+   * **Sie steht in der Tabelle von Guide 8.70 als erster der drei Fälle:**
+   * `boss_healed` wird seit #218 richtig gerechnet und war nicht abrufbar —
+   * gefunden in #564 und dort nicht behoben, weil die Mechanik-Fälle grün
+   * waren.
+   *
+   * Ohne dieses Feld kann eine Aufzeichnung nicht unterscheiden, ob wenig
+   * Schaden gefallen ist oder viel zurückgedreht wurde: `damage` sieht in
+   * beiden Fällen gleich aus. Bei einem Baustein, dessen ganzer Zweck das
+   * Zurückdrehen ist, ist das die unangenehmste Sorte Lücke.
+   */
+  readonly bossHealed: number;
+  /**
+   * Ob der Spieler das Wettrennen gewonnen hat (Baustein 4).
+   *
+   * # Die Größe hatte eine SCHEINdeckung
+   *
+   * Sie steht in den `expected`-Blöcken der Aufzeichnungen und sah damit
+   * gedeckt aus. Aber `tests/parity/payloads.ts` holte sie aus `combat`,
+   * während die Nachbarzeilen desselben Blocks aus `result` lesen — sie ging
+   * also am Weg vorbei, den ein Werkzeug nimmt.
+   *
+   * Und die Rust-Seite **führt** `race_won` (`fight.rs`: Feld, Init, Reset,
+   * Setzen), vergleicht es aber nirgends — weder `replay.rs` noch eine
+   * Testdatei liest es. Eine gepflegte Zahl, die nichts belegt.
+   *
+   * Das ist die Klasse aus `gegenstueck.test.ts`, eine Ebene tiefer: dort
+   * ging es um Aufzeichnungen ohne Rust-Gegenstück, hier um ein **Feld** in
+   * einer Aufzeichnung, die sonst geprüft wird.
+   */
+  readonly raceWon: boolean;
+  /**
+   * Acht kumulative Größen, die bis #630 keine eigene Zuweisung hatten.
+   *
+   * Alle standen in `combatChecksum` — und **genau deshalb schwieg der
+   * Leitungs-Wächter**: Für ihn zählt „in der Prüfsumme" als Deckung, also
+   * meldete er nichts, obwohl kein Werkzeug sie abrufen konnte. Er beantwortet
+   * „gibt es einen Weg", nicht „kommt der Wert an".
+   *
+   * `playerDamage` trennt den Schaden des Spielers vom Fortschritt am Ring —
+   * bei einem Boss mit `runaway` zählt `damage` beide Richtungen zusammen.
+   * `damageLostToRace` und `phaseHoldPercent` beziffern, was ein verpasstes
+   * Fenster gekostet hat. Die übrigen sind Zähler und Summen, die eine
+   * Aufzeichnung belegen können soll.
+   */
+  readonly playerDamage: number;
+  readonly damageLostToRace: number;
+  readonly afflictionsCleared: number;
+  readonly resourceOverflow: number;
+  readonly conversionPercent: number;
+  readonly phaseHoldPercent: number;
+  readonly buffWindowSum: number;
+  readonly synergyWindowSum: number;
+  /**
    * Die beiden Kontroll-Größen (Issue #605).
    *
    * `controlFailed` zählt die Kontroll-Zauber, deren Buchung mangels Punkten
@@ -431,6 +486,33 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     healed: combat.healed,
     converted: combat.converted,
     diedAtMs: combat.diedAtMs,
+    // **Die Heilung des Bosses** (#609, nach der Regel aus Guide 8.70). Sie
+    // wird seit #218 richtig gerechnet und war bis hierher nicht abrufbar —
+    // #564 hat genau das gefunden und die Leitung nicht gelegt. Eine Größe,
+    // die den Fortschritt ZURÜCKDREHT, ohne dass eine Aufzeichnung sie nennen
+    // kann, ist die unangenehmste Sorte: `damage` sieht dann einfach kleiner
+    // aus, und niemand weiß, ob weniger getroffen oder mehr zurückgedreht
+    // wurde.
+    bossHealed: combat.bossHealed,
+    raceWon: combat.raceWon,
+    // **Die acht kumulativen Größen aus #630.** Sie standen alle in
+    // `combatChecksum` und hatten keine eigene Zuweisung — für den
+    // Leitungs-Wächter galten sie damit als gedeckt, obwohl kein Werkzeug sie
+    // abrufen konnte. Dieselbe Lage wie `bossHealed` vor #609 und
+    // `controlSpent` vor #605.
+    //
+    // Auch die, die heute niemand liest: Acht der zehn hatten außerhalb von
+    // `combat.ts` null Treffer. Das war bei den elf Kontroll-Größen aus #605
+    // genauso — sie standen auf 0,00 %, **weil** ihre Leitung fehlte. Eine
+    // Größe ohne Leitung sieht immer unbenutzt aus.
+    playerDamage: combat.playerDamage,
+    damageLostToRace: combat.damageLostToRace,
+    afflictionsCleared: combat.afflictionsCleared,
+    resourceOverflow: combat.resourceOverflow,
+    conversionPercent: combat.conversionPercent,
+    phaseHoldPercent: combat.phaseHoldPercent,
+    buffWindowSum: combat.buffWindowSum,
+    synergyWindowSum: combat.synergyWindowSum,
     controlSpent: combat.controlSpent,
     controlFailed: combat.controlFailed,
     interruptsLanded: combat.interruptsLanded,

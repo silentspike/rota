@@ -113,7 +113,6 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   resetArmedFor: 'Zwischenstand',
   resetChargesLeft: 'Zwischenstand',
   vulnerability: 'Zwischenstand',
-  raceWon: 'Zwischenstand des Rennens',
 
   // ---- OFFENE BEFUNDE: kumulative Zähler ohne Leitung ---------------------
   //

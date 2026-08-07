@@ -580,6 +580,31 @@ export interface BossHealDef {
    * Vorläufig — wird gemessen.
    */
   readonly amount: number;
+  /**
+   * Woran die Heilung hängt (Issue #609).
+   *
+   * # Warum es dieses Feld geben muss
+   *
+   * Bis #609 hing sie fest am durchgekommenen Boss-Zauber. Damit verlangte
+   * **jeder** Boss, der Fortschritt kosten soll, dieselbe Taste — und
+   * GAME-DESIGN 11.2 sagt zu Baustein 5 ausdrücklich „nur für einzelne Bosse,
+   * sonst frustrierend". Mit einem einzigen Auslöser ist „nur für einzelne"
+   * keine Entscheidung mehr, sondern eine Folge der Bauart.
+   *
+   * Das Design ist dabei breiter als der Code war: Es sagt „**ein Fehler**
+   * macht Fortschritt rückgängig", nicht „eine verpasste Unterbrechung".
+   *
+   * | Wert | Der Fehler, der zurückdreht |
+   * | --- | --- |
+   * | `interrupt` | ein Boss-Zauber kam durch — der bisherige und weiterhin voreingestellte Fall |
+   * | `affliction` | die Schwächung wurde nicht geklärt und zehrt einen Schritt weiter |
+   *
+   * `affliction` koppelt Baustein 5 an Baustein 8 und gibt der Reinigung
+   * damit einen zweiten Ausgang. Ein Boss ohne `affliction` bekommt darüber
+   * nie Heilung — `parseBoss` meldet diese Zusammenstellung als Problem,
+   * statt sie still wirkungslos zu lassen.
+   */
+  readonly on: 'interrupt' | 'affliction';
 }
 
 /**
@@ -1535,7 +1560,18 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
     // Eine Heilung von 0 wäre eine Mechanik, die nichts tut — und sie sähe im
     // Datensatz aus wie eine, die etwas tut.
     if (amount <= 0) problems.push('Die Boss-Heilung dreht nichts zurück (amount).');
-    bossHeal = { amount };
+    // **`interrupt` ist die Voreinstellung, nicht `affliction`** (Issue #609):
+    // So bleibt jede bestehende Bossdatei ohne Änderung bei ihrem Verhalten.
+    // Ein Tippfehler im Feld fällt auf denselben Wert zurück und wird gemeldet
+    // — still auf `affliction` zu springen hieße, eine Datei zu ändern, ohne
+    // dass jemand es geschrieben hat.
+    const roh = source['bossHeal']['on'];
+    let on: 'interrupt' | 'affliction' = 'interrupt';
+    if (roh === 'affliction') on = 'affliction';
+    else if (roh !== undefined && roh !== 'interrupt') {
+      problems.push(`Unbekannter Auslöser der Boss-Heilung: ${String(roh)} (bossHeal.on).`);
+    }
+    bossHeal = { amount, on };
   }
 
   // Die drei letzten Bausteine (Issue #240).
@@ -1605,6 +1641,17 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       );
     }
     affliction = { atMs, perStepMs, damage, clearedBy };
+  }
+
+  // **Ein Auslöser, den es an diesem Boss nicht gibt** (Issue #609): Wer
+  // `bossHeal.on = "affliction"` schreibt, ohne dem Boss eine `affliction` zu
+  // geben, baut eine Heilung, die nie auslöst. Sie steht dann im Datensatz wie
+  // eine Mechanik und ist keine — genau die Sorte Feld, die `phases` zur
+  // Kulisse gemacht hat (#557), nur diesmal beim Eintragen gemeldet.
+  if (bossHeal !== null && bossHeal.on === 'affliction' && affliction === null) {
+    problems.push(
+      'Die Boss-Heilung hängt an der Schwächung, aber der Boss hat keine (bossHeal.on).',
+    );
   }
 
   // Die Zeitleiste: aufsteigend und auf dem Takt-Raster. Beide Verstöße wären
