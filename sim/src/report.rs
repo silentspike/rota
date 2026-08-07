@@ -124,6 +124,23 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // hierunter: Er verkuerzt UND macht Schaden.
         || spell.cooldown_reduction_ms > 0
         || spell.arms_cooldown_reset
+        // **Zauber, die nur eine Verstaerkung tragen** (Issue #490, SLAG).
+        // Sie machen keinen Schaden — sie ermoeglichen ihn. In der Tabelle
+        // staenden sie dauerhaft mit "TOT", obwohl der Spieler sie perfekt
+        // einsetzt: dieselbe falsche Auskunft, vor der der Absatz ganz oben
+        // warnt.
+        //
+        // Der urspruengliche Ausdruck trug hier `&& base_damage == 0 &&
+        // dot.is_none()` mit. Das ist seit der Zwitter-Korrektur oben
+        // redundant — die Schadens-Frage steht VOR dieser Liste und laesst
+        // jeden Zauber mit Schaden durch, ehe eine dieser Zeilen greift.
+        // Stehen liesse man eine Bedingung, die als einzige doppelt prueft
+        // und den naechsten Leser fragen laesst, warum ausgerechnet hier.
+        //
+        // Gemessen: SLAG ist der einzige ausgelieferte Zauber mit `buff` —
+        // die sieben anderen liegen ueber der Stufengrenze und fallen schon
+        // oben heraus, `test-buff` traegt dabei sogar Grundschaden.
+        || spell.buff.is_some()
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.
