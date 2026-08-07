@@ -83,3 +83,34 @@
   font-size: 12px;
   margin: 0;
 }
+
+/*
+ * Der Vergleich (13.6, Issue #455).
+ *
+ * DREI MERKMALE, NICHT EINS. Das Näherungszeichen steht im Text, der Zusatz in
+ * Worten im `title` — und die Richtung zusätzlich in der Farbe. Wer Farben
+ * nicht unterscheidet, liest das Vorzeichen; wer schnell überfliegt, sieht die
+ * Farbe. Dieselbe Linie wie bei additiv/multiplikativ (#114): Ein Merkmal
+ * allein wird übersehen.
+ *
+ * Gedeckt und nicht grell: Es ist eine SCHÄTZUNG. Ein leuchtendes Grün
+ * verspräche eine Sicherheit, die die Zahl nicht hat.
+ */
+.gear-bag-compare {
+  font-size: 12px;
+  /* Etwas Abstand zum Namen — sonst liest es sich als Teil des Titels. */
+  margin-left: 4px;
+}
+
+.gear-bag-compare[data-verdict='better'] {
+  color: #7d9a6b;
+}
+
+.gear-bag-compare[data-verdict='worse'] {
+  color: #9a6b6b;
+}
+
+/* Gleichstand tritt zurück: keine Entscheidung, keine Aufmerksamkeit. */
+.gear-bag-compare[data-verdict='equal'] {
+  color: #7d7768;
+}
