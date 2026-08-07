@@ -412,6 +412,13 @@ pub struct TimelineEntry {
     /// Deshalb ein Feld am Eintrag und keine Regel im Kampf: "bestimmte" heisst,
     /// dass der Boss-Datensatz es sagt.
     pub interrupts_player: bool,
+    /// An welche Phase dieses Ereignis gebunden ist (Issue #557).
+    ///
+    /// `u32::MAX` heisst: an keine — das Ereignis feuert immer. Eine
+    /// UNTERGRENZE, kein Gleichheitstest: `1` heisst „ab der zweiten Phase".
+    /// Phasen laufen nur vorwaerts, ein Ereignis fuer eine uebersprungene
+    /// Phase kaeme sonst nie wieder.
+    pub phase: u32,
 }
 
 impl Boss {

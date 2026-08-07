@@ -919,11 +919,20 @@ fn emit_timeline(out: &mut String, boss: &Value, whose: &str) {
             .and_then(Value::as_bool)
             .unwrap_or(false);
 
+        // **Die Phasen-Bindung** (Issue #557). Ohne Angabe `u32::MAX`: Das
+        // Ereignis feuert immer, ein bestehender Boss aendert sein Verhalten
+        // nicht. Dieselbe Regel wie bei `interruptsPlayer` darueber.
+        let phase = entry
+            .get("phase")
+            .and_then(Value::as_u64)
+            .and_then(|p| u32::try_from(p).ok())
+            .map_or("u32::MAX".to_owned(), |p| p.to_string());
+
         let _ = writeln!(
             out,
             "            TimelineEntry {{ at_ms: {at}, mechanic: {:?}, \
              name: {:?}, kind: {kind}, damage: {}, cast_time_ms: {cast_time}, \
-             interrupts_player: {interrupts_player} }},",
+             interrupts_player: {interrupts_player}, phase: {phase} }},",
             mechanic,
             text(entry, "name", &whose),
             opt_uint(entry, "damage", &whose, 0)
