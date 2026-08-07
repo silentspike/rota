@@ -7,7 +7,7 @@
 //! AC4 (Anbindung an `nightly.yml`) lässt sich nicht als Test formulieren — der
 //! Nachweis dafür ist der Workflow-Lauf selbst.
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::data;
 use rota_sim::report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
@@ -20,7 +20,7 @@ const GOOD: &str = include_str!("../apl/step1-good.apl");
 const BAD: &str = include_str!("../apl/step1-bad.apl");
 
 fn apl(text: &str, name: &str) -> Apl {
-    parse(name, text).expect("die eingebauten Listen sind gültig")
+    parse(AplName(name), text).expect("die eingebauten Listen sind gültig")
 }
 
 #[test]
@@ -59,8 +59,14 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     // die `spell_table` benutzt — sonst pruefte der Fall die Filterung gegen
     // sich selbst. Die Schleife darueber prueft die Gegenrichtung: Jede Zeile
     // der Tabelle kann auch wirklich Schaden machen.
+    //
+    // Die Stufengrenze darf der Fall dagegen selbst anlegen (Issue #489): Sie
+    // steht in den DATEN, nicht in der Filterfunktion des Berichts — ein
+    // Zauber ueber der Grenze gibt es im Spiel nicht, und ein Fall, der ihn
+    // mitzaehlte, forderte eine Zeile fuer etwas Nichtexistentes.
     let mit_schaden = data::SPELLS
         .iter()
+        .filter(|s| s.unlock_level <= data::MAX_LEVEL as u16)
         .filter(|s| s.base_damage > 0 || s.dot.is_some() || s.spender.is_some())
         .count();
     assert_eq!(

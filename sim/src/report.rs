@@ -87,6 +87,15 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // der Absatz darueber warnt.
         || spell.cooldown_reduction_ms > 0
         || spell.arms_cooldown_reset
+        // **Zauber ueber der Stufengrenze** (Issue #489). Die Pruef-Zauber
+        // liegen dort und gehoeren in keinen Spielerbericht: Sie sind nie
+        // gewirkt, staenden also dauerhaft mit "TOT" in der Tabelle — genau
+        // die falsche Auskunft, vor der der Absatz ganz oben warnt.
+        //
+        // Aufgefallen an `tests/report.rs`, als die vier neuen dazukamen. Der
+        // Filter fehlte schon vorher; `test-buff` fiel nur deshalb nicht auf,
+        // weil er Grundschaden traegt und die Pruefung dort nicht anschlaegt.
+        || spell.unlock_level > crate::data::MAX_LEVEL as u16
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

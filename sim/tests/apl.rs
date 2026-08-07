@@ -7,7 +7,7 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::data::{KINDLE, PYRE, SMOULDER};
 use rota_sim::{rotation, Fight, FightConfig, RunResult};
 
@@ -50,7 +50,7 @@ const GOOD: &str = include_str!("../apl/step1-good.apl");
 const BAD: &str = include_str!("../apl/step1-bad.apl");
 
 fn load(name: &str, text: &str) -> Apl {
-    parse(name, text).unwrap_or_else(|error| panic!("{name} ist fehlerhaft:\n{error}"))
+    parse(AplName(name), text).unwrap_or_else(|error| panic!("{name} ist fehlerhaft:\n{error}"))
 }
 
 fn run_apl(apl: &Apl, stop_on_kill: bool) -> RunResult {
@@ -116,7 +116,7 @@ fn die_apl_rechnet_genau_wie_die_rust_fassung() {
 #[test]
 fn ac3_ein_unbekannter_zauber_nennt_zeile_und_grund() {
     let text = "# Kopf\nsmoulder if dot.smoulder.remains < gcd\nfeuerball if heat > 3\nkindle\n";
-    let error = parse("kaputt", text).expect_err("muss scheitern");
+    let error = parse(AplName("kaputt"), text).expect_err("muss scheitern");
 
     assert_eq!(error.line, 3, "Zeilennummer");
     assert_eq!(error.column, 1, "Spalte");
@@ -155,7 +155,7 @@ fn ac3_jeder_fehlertyp_nennt_die_richtige_stelle() {
     ];
 
     for (text, zeile, teil) in faelle {
-        let error = match parse("kaputt", text) {
+        let error = match parse(AplName("kaputt"), text) {
             Ok(_) => panic!("haette scheitern muessen: {text:?}"),
             Err(error) => error,
         };
@@ -172,7 +172,7 @@ fn ac3_jeder_fehlertyp_nennt_die_richtige_stelle() {
 fn ac3_eine_leere_liste_ist_ein_fehler() {
     // Eine Liste aus lauter Kommentaren wuerde sonst zu einer Rotation, die nie
     // etwas wirkt — und der Kampf saehe nach einem Balance-Problem aus.
-    let error = parse("leer", "# nur ein Kommentar\n\n").expect_err("muss scheitern");
+    let error = parse(AplName("leer"), "# nur ein Kommentar\n\n").expect_err("muss scheitern");
     assert!(error.message.contains("keine einzige Regel"), "{error}");
 }
 
