@@ -51,6 +51,46 @@ describe('AC6 — ASCEND und die Schwelle', () => {
       'ASCEND hat eine LANGE Abklingzeit verkürzt — dann greift die Schwelle nicht',
     ).toBe(vorher);
   });
+
+  /**
+   * **Der Grenzwert selbst** — eine Restzeit von GENAU 10 000 ms.
+   *
+   * # Warum die zwei Fälle darüber nicht genügten
+   *
+   * Sie messen 5 000 ms (deutlich darunter) und 45 000 ms (weit darüber). Der
+   * dokumentierte Grenzfall kam in keinem vor, und das war nicht theoretisch:
+   * Eine Mutation von `>=` auf `>` in `combat.ts` liess ALLE 1717 Fälle grün.
+   *
+   * Die Regel im Code lautet „ein STRENGES Kleiner — eine Abklingzeit GENAU
+   * auf der Schwelle bleibt unberührt". Zwischen `<` und `<=` entscheidet
+   * genau dieser eine Wert, und nur er.
+   *
+   * # Wie die 10 000 zustande kommen
+   *
+   * REFLUX hat 45 000 ms. Wird ASCEND 35 000 ms später geworfen, steht die
+   * Restzeit exakt auf der Schwelle. Der Fall rechnet das nicht nach, sondern
+   * **misst es vorher** — sonst prüfte er bei einer Datenänderung schweigend
+   * einen anderen Wert.
+   */
+  it('lässt eine Abklingzeit GENAU auf der Schwelle unberührt', () => {
+    const c = neu();
+    const grenze = c.spellAt(c.indexOf('ascend'))?.cooldownReductionBelowMs ?? 0;
+    expect(grenze, 'ASCEND trägt keine Schwelle mehr — dann prüft dieser Fall nichts').toBe(10_000);
+
+    c.cast(c.indexOf('reflux'), 0);
+    const alsSchwelle = 45_000 - grenze;
+    const vorher = rest(c, 'reflux', alsSchwelle);
+    expect(vorher, 'die Restzeit liegt NICHT genau auf der Schwelle').toBe(grenze);
+
+    c.cast(c.indexOf('ascend'), alsSchwelle);
+
+    expect(
+      rest(c, 'reflux', alsSchwelle),
+      'eine Abklingzeit GENAU auf der Schwelle wurde verkürzt — das Kriterium ' +
+        'ist ein <= statt eines <, und der Kommentar an shortenCooldowns sagt ' +
+        'das Gegenteil',
+    ).toBe(vorher);
+  });
 });
 
 describe('AC5 — DECANT trifft den längsten', () => {

@@ -62,6 +62,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
       'cinder',
       'slag',
+      'ember',
+      'pyroclasm',
       'quench',
       'crust',
       'salve',
@@ -69,6 +71,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
       'scab',
       'plate',
+      'harden',
       'bind',
       'stall',
       'stay',
@@ -86,6 +89,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'canker',
       'fester',
       'blight',
+      'sepsis',
       'test-cast',
       'test-buff',
       'test-control',

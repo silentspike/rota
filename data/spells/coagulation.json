@@ -71,6 +71,17 @@
         "durationMs": 15000,
         "maxStacks": 1
       }
+    },
+    {
+      "_comment": "HARDEN — der Weg 'laenger halten' der COAGULATION (Raster 3 von 9, Issue #523).\n\nEIN FESTER ZUSCHLAG, KEINE VERDOPPLUNG: Das Raster sagt 'bestehende Schichten halten doppelt so lange'. Gebaut ist ein Zuschlag von 12000 ms — genau CRUSTs Laufzeit, also bei einer frischen Schicht exakt die Verdopplung. Der feste Betrag ist deterministisch und in beiden Umsetzungen trivial gleichzuhalten; eine Verdopplung der RESTZEIT haenge dagegen davon ab, wann genau gedrueckt wird, und waere auf zwei Seiten schwerer bitgleich zu bekommen (GAME-DESIGN 18.4).\n\nER SETZT DIE SCHICHT NICHT NEU: Der Ablauf rueckt nach hinten, der aufgebrauchte Betrag bleibt. Wer sie neu setzte, haette einen zweiten CRUST statt eines Verlaengerers.\n\nALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
+      "id": "harden",
+      "name": "Harden",
+      "unlockLevel": 5,
+      "baseDamage": 0,
+      "cooldownMs": 10000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "extendShieldMs": 12000
     }
   ]
 }

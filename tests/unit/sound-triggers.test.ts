@@ -114,17 +114,13 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
   // aus #420. Alle 17 spielbaren Zauber klingen.
   const STUMM = new Set([
+    // VORLAEUFIG (Issue #523): HARDEN und SEPSIS sind gebaut, ihre Klaenge
+    // entstehen ausserhalb dieses Zweigs (#487). Die Gegenrichtung unten holt
+    // sie von selbst heraus, sobald der Klang da ist.
+    'harden',
+    'sepsis',
     'test-cast',
     'test-buff',
-    // VORLAEUFIG (Issue #519): Die drei Zauber sind gebaut, ihre Klaenge
-    // fehlen. Der Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno
-    // (#487) und kann in keiner Claude-Sitzung entstehen.
-    //
-    // Die Gegenrichtung unten holt sie von selbst wieder heraus, sobald der
-    // Klang da ist — der Eintrag kann also nicht vergessen werden.
-    'clasp',
-    'latch',
-    'plate',
     // Die vier Zielgrößen-Prüfzauber aus #489. Sie liegen über der
     // Stufengrenze und kommen nie auf eine Leiste — ein Klang für sie wäre
     // eine Datei, die niemand je hört.
