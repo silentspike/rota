@@ -87,6 +87,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'alembic',
       'ascend',
       'decant',
+      'efflux',
       'canker',
       'fester',
       'blight',

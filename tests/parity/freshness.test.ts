@@ -79,6 +79,8 @@ import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
+import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
+import eingecheckteKrit from './recordings/krit-umwandlung.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -123,6 +125,8 @@ import {
   dotLifetimePayload,
   extendEffectsPayload,
   kernePayload,
+  effluxPayload,
+  kritPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -190,6 +194,17 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
     // HARDEN und SEPSIS werden nur hier gewirkt (Issue #523).
     expect(eingecheckteVerlaengerung, HINWEIS).toEqual(extendEffectsPayload());
+  });
+
+  it('der Krit-Lauf entspricht dem heutigen Spielstand', () => {
+    // Die einzige KAMPF-Aufzeichnung mit einer Krit-Chance über null
+    // (Issue #532). Veraltet sie, ist der Zufallsstrom wieder ungeprüft.
+    expect(eingecheckteKrit, HINWEIS).toEqual(kritPayload());
+  });
+
+  it('der Restzeit-Lauf entspricht dem heutigen Spielstand', () => {
+    // EFFLUX wird nur hier gewirkt (Issue #520).
+    expect(eingecheckteRestzeit, HINWEIS).toEqual(effluxPayload());
   });
 
   it('die Kern-Zauber entsprechen dem heutigen Spielstand', () => {
@@ -589,6 +604,8 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'dot-lifetime',
   'extend-effects',
   'kern-zauber',
+  'efflux-restzeit',
+  'krit-umwandlung',
   'rot-decay',
 ];
 
