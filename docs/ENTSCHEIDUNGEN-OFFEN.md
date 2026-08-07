@@ -755,3 +755,58 @@ aber **keinen Kampfzustand** — und eine zeitweilige Minderung _ist_ Kampfzusta
 durchgereicht werden, was neben `fight.rs` auch sechs direkte Aufrufe in
 `sim/tests/parity_worn_values.rs` berührt. **Genau dort setzt ein unbedachter Parameter still eine 0
 ein, und die Prüfung läuft weiter grün.**
+
+> **Nachgemessen am 2026-08-06 — es ist die einzige Stelle dieser Art.** Der Verdacht lautete
+> zwischenzeitlich, eine ganze Bauart sei betroffen: drei Mechaniken, die ihre Daten beim Anlegen in
+> eine Tabelle kopieren und keinen Zugriff auf den Kampf haben. Zwei davon sind widerlegt.
+>
+> | Stelle                | Befund                                                                          |
+> | --------------------- | ------------------------------------------------------------------------------- |
+> | `StacksMechanic`      | legt nur den **Rohbetrag** ab; gebucht wird in `fight.rs`, wo der Faktor greift |
+> | `SublimationMechanic` | dasselbe — `pending_shorten` wird in `fight.rs` angewandt                       |
+> | `incoming_with_gear`  | **rechnet selbst, auf einer Konstante**                                         |
+>
+> Die Trennlinie ist nicht „kopiert Daten beim Anlegen", sondern **„wendet sie selbst an, ohne den
+> Kampf zu sehen"**. Nach diesem Maß bleibt eine Stelle — und die beiden anderen zeigen im selben
+> Haus, wie es geht: Rohbetrag ablegen, Anwendung dort, wo der Zustand sichtbar ist.
+>
+> Damit ist das hier **kein Bauart-Umbau**, sondern eine Rechenstelle, die mit dieser Entscheidung
+> ohnehin angefasst wird. Ein eigenes Issue dafür wäre sofort blockiert — der Befund gehört hierher.
+
+---
+
+## 16. Sind 30 % Stapel-Wirkung gewollt, wo 18 % begründet wurden? — OFFEN
+
+_Eingetragen am 2026-08-06. Die Frage stand seit dem Vormittag als AC3 in #496 und **nicht hier** —
+genau die Zersplitterung, gegen die dieses Dokument angelegt wurde._
+
+**Nicht die Zahl 6 % steht zur Frage.** Sie liegt über dem Break-even von 5,4 %, und #482 setzt sie
+zu Recht um.
+
+**Sondern, wie stark die Schule dadurch wird.** Die Entscheidung für 6 % wurde getroffen, _weil_ die
+Gesamtwirkung bei 18 % lag. Gemessen sind es 30 %:
+
+| Größe                     | in der Herleitung (GAME-DESIGN 221) | tatsächlich | Quelle                    |
+| ------------------------- | ----------------------------------- | ----------- | ------------------------- |
+| `canker` Abklingzeit      | 4,5 s                               | **2,0 s**   | `canker.cooldownMs`       |
+| Haltbarkeit je Stapel     | 12 s                                | 12 s        | `DECAY_STACK_DURATION_MS` |
+| Obergrenze                | 3                                   | **5**       | `MAX_DECAY_STACKS`        |
+| **Gesamtwirkung bei 6 %** | **18 %**                            | **30 %**    |                           |
+
+Nach acht Sekunden liegen fünf Stapel — mit `canker` allein, ohne `BLIGHT`.
+
+> **Warum das eine Design-Frage ist und keine Zahl:** GAME-DESIGN 177 sagt, PUTREFACTION sei „allein
+> gespielt schwach" und brauche immer Partner. 30 % mehr Schaden aus **allen** Quellen ist eine
+> andere Aussage über die Schule als 18 % — es verschiebt, wie stark sie ohne Partner dasteht.
+
+**Zur Wahl stehen:** bei 6 % bleiben und die stärkere Schule annehmen · die Zahl senken, bis die
+Gesamtwirkung wieder bei ~18 % liegt (rechnerisch 3,6 %) · eine der drei gemessenen Größen ändern,
+statt der Prozentzahl.
+
+**Heute folgenlos:** #482 ist noch nicht gemergt, und PUTREFACTION hat erst zwei Zauber. Die Frage
+wird scharf, sobald die Schule auf zwölf wächst (#479).
+
+> Der Text in GAME-DESIGN 221 bleibt bis zur Entscheidung **unberichtigt stehen**. Worker-3 hat ihn
+> bewusst nicht angepasst, und das war richtig: Hätte er die Rechnung auf die neuen Zahlen gebracht,
+> wäre die Frage nach den 30 % nie gestellt worden — der Text hätte gestimmt, und die Entscheidung
+> wäre weiter auf 18 % begründet gewesen.
