@@ -134,6 +134,21 @@ pub enum Value {
     Shield,
     /// Die Kontroll-Punkte (FIXATION, Issue #526).
     Control,
+    /// Laeuft das Fenster der Verstaerkung, die dieser Zauber legt? (#553)
+    ///
+    /// # Warum nach ZAUBER und nicht nach Art
+    ///
+    /// Verstaerkungen liegen nach ART und Zielgroesse (Issue #489), nicht
+    /// nach Zauber — `buffs.factors[kind]` je Vorrat. Eine Rotation kennt
+    /// aber Zauber, keine Arten: `kindle if buff.flashpoint.active` ist die
+    /// Frage, die ein Spieler stellt.
+    ///
+    /// Der Zauber-Index wird deshalb beim Auswerten in (Vorrat, Art)
+    /// uebersetzt. Traegt der Zauber gar keine Verstaerkung, ist die Antwort
+    /// `false` — das ist kein Fehler, sondern eine Bedingung, die nie greift.
+    BuffActive(usize),
+    /// Wie lange das Fenster dieses Zaubers noch laeuft, in ms (#553).
+    BuffRemains(usize),
 }
 
 impl Value {
@@ -160,6 +175,8 @@ impl Value {
             Value::Decay => Number::from(u32::try_from(fight.decay_stacks()).unwrap_or(u32::MAX)),
             Value::Shield => Number::from(fight.shield()),
             Value::Control => Number::from(fight.control_points()),
+            Value::BuffActive(i) => Number::from(u8::from(fight.buff_active(i))),
+            Value::BuffRemains(i) => Number::from(fight.buff_remaining_ms(i)),
         }
     }
 
@@ -175,6 +192,10 @@ impl Value {
                 | Value::CooldownReady(_)
                 | Value::DotRemains(_)
                 | Value::DotActive(_)
+                // Ein Fenster laeuft mit der Uhr ab, ohne dass ein Ereignis
+                // eintritt — ohne Weckruf wuerde die Rotation es verpassen.
+                | Value::BuffActive(_)
+                | Value::BuffRemains(_)
                 | Value::Time
                 | Value::FightRemains
         )
@@ -496,6 +517,8 @@ impl fmt::Display for Value {
             Self::Decay => write!(f, "decay"),
             Self::Shield => write!(f, "shield"),
             Self::Control => write!(f, "control"),
+            Self::BuffActive(i) => write!(f, "buff.{}.active", crate::data::SPELLS[*i].id),
+            Self::BuffRemains(i) => write!(f, "buff.{}.remains", crate::data::SPELLS[*i].id),
         }
     }
 }
