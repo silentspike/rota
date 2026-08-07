@@ -663,6 +663,36 @@ export interface TimelineEntryDef {
    * bestehender Boss ändert sein Verhalten durch dieses Issue nicht.
    */
   readonly interruptsPlayer: boolean;
+  /**
+   * An welche Phase dieses Ereignis gebunden ist (Issue #557).
+   *
+   * # Warum es dieses Feld geben muss
+   *
+   * Phasen waren bis hierher ein Zustand ohne Wirkung: `bossPhase` wurde
+   * gesetzt, in die Prüfsumme gerührt — und von keiner Regel gelesen. Ein
+   * Boss mit zwei Phasenschwellen verlief bitgleich zu demselben Boss mit
+   * `phases: []`, gemessen an 1000 Durchgängen.
+   *
+   * GAME-DESIGN 11.2 nennt Phasen einen „Verhaltenswechsel". Ein Wechsel, an
+   * dem sich nichts ändert, ist keiner.
+   *
+   * # Die Bindung ist eine UNTERGRENZE, kein Gleichheitstest
+   *
+   * `phase: 1` heisst „ab der zweiten Phase", nicht „nur in ihr". Phasen
+   * laufen in ROTA nur vorwärts (`combat.ts`: `if (neue > bossPhaseValue)`),
+   * ein Ereignis für eine übersprungene Phase gäbe es also nie wieder.
+   *
+   * Wer „nur in Phase 1" braucht, kann es heute nicht ausdrücken — das ist
+   * eine bewusste Grenze und keine Auslassung. Sie fällt auf, sobald jemand
+   * einen Boss baut, der sie braucht.
+   *
+   * # Ohne Angabe feuert das Ereignis immer
+   *
+   * Ein bestehender Boss ändert sein Verhalten durch dieses Issue nicht —
+   * dieselbe Regel wie bei `interruptsPlayer` darüber. Die vier Bosse aus
+   * #544 laufen unverändert weiter.
+   */
+  readonly phase?: number;
 }
 
 /**
@@ -1629,6 +1659,11 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
         // Ohne Angabe false: Ein Boss, der das Feld nicht kennt, bricht keine
         // Wirkzeit ab (GAME-DESIGN 7.1, „normale Treffer stören nicht").
         interruptsPlayer: entry['interruptsPlayer'] === true,
+        // **Ohne Angabe feuert das Ereignis immer** (Issue #557). `undefined`
+        // statt 0, damit „Phase 0" (die erste) sich von „keine Bindung"
+        // unterscheidet — sonst wäre ein Ereignis, das ausdrücklich an die
+        // Anfangsphase gebunden ist, nicht von einem ungebundenen zu trennen.
+        ...(typeof entry['phase'] === 'number' ? { phase: entry['phase'] } : {}),
       });
     }
   }

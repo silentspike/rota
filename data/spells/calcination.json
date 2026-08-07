@@ -154,6 +154,22 @@
         "consumesAll": true
       },
       "consumesDots": true
+    },
+    {
+      "_comment": "FLASHPOINT — verdoppelt die Hitze-Erzeugung fuer drei Wartezeiten (Issue #540).\n\nDer Weg \"schneller aufbauen\" hatte bis hier keinen Hoehepunkt: Wer Hitze\nsammelt, sammelt sie gleichmaessig. FLASHPOINT macht daraus eine\nEntscheidung — er lohnt nur, wenn danach genug Aufbau-Zauber bereit sind,\num die doppelte Rate auch zu nutzen.\n\nVORLAEUFIGE ZAHLEN. Faktor und Fensterlaenge bestimmt der Balance-Laeufer;\nhier zaehlt, dass die Zielgroesse ankommt. Die Freischaltstufe ist ebenso\nvorlaeufig — sie liegt auf 9, weil Stufe 7 durch\ntests/unit/level-up-display.test.ts gesperrt ist und 8 an PYROCLASM geht.",
+      "id": "flashpoint",
+      "name": "Flashpoint",
+      "unlockLevel": 9,
+      "baseDamage": 0,
+      "cooldownMs": 12000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2,
+        "gcds": 3,
+        "target": "resource"
+      }
     }
   ]
 }

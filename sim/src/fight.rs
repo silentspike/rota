@@ -1534,6 +1534,26 @@ impl Fight {
         if self.time < at_ms + self.next_strike_delay {
             return;
         }
+        // **Die Phasen-Bindung** (Issue #557). Bis hierher war `phase` ein
+        // Zustand ohne Wirkung: gesetzt, in die Pruefsumme gerueht, von keiner
+        // Regel gelesen. Ein Boss mit zwei Phasenschwellen verlief bitgleich
+        // zu demselben Boss mit `phases: []`.
+        //
+        // **Das Ereignis VERFAELLT, es wird nicht nachgeholt** — der Index
+        // laeuft weiter, die Wirkung entfaellt. Ein aufgestautes Ereignis
+        // fiele beim Phasenwechsel gesammelt mit allen anderen, und aus einer
+        // lernbaren Abfolge wuerde eine Lawine zum Schwellenzeitpunkt.
+        //
+        // Dieselbe Stelle und dieselbe Reihenfolge wie in
+        // `Combat.stepPassive`: vor dem Log, damit ein uebersprungenes
+        // Ereignis nicht als gefeuert erscheint.
+        if entry.phase != u32::MAX && (self.phase as u32) < entry.phase {
+            self.timeline_index += 1;
+            self.next_strike_delay = 0;
+            self.schedule_next_timeline_step();
+            return;
+        }
+
         self.log
             .push(self.time, LogKind::BossTimeline, NO_SPELL, index as u32);
 
@@ -3156,7 +3176,26 @@ impl Fight {
         // (`setResource`) existiert im Simulator nicht. Im Spiel sind es zwei,
         // und dort rechnet ein Getter sie an einer Stelle.
         let cap = (f64::from(RESOURCE.cap) * self.cap_buffs.factor(self.time)).round() as u16;
-        self.resource = (before + amount).min(cap);
+        // **Ein Erzeuger nimmt NIE weg** (Issue #549).
+        //
+        // Faellt der Deckel unter den stehenden Vorrat — SLAG hebt ihn von 20
+        // auf 30, das Fenster laeuft ab —, dann haette `min` gesenkt:
+        //
+        //     vorrat 24, Deckel wieder 20, BELLOWS gibt 8
+        //       min(24 + 8, 20) = 20      netto MINUS vier
+        //       max(24, min(...)) = 24    er bleibt, wo er ist
+        //
+        // Hier stuerzte der Simulator ab, waehrend das Spiel still falsch
+        // zaehlte: `self.resource - before` lief als u16 ueber. Reproduziert
+        // mit BELLOWS auf Tick 610 gegen 590.
+        //
+        // Der Absturz verschwindet damit als NEBENWIRKUNG, nicht als
+        // Behebung. Ein `saturating_sub` haette ihn auch abgefangen und die
+        // Frage offengelassen, was gelten soll — und die zwei Seiten haetten
+        // weiter verschiedene Zahlen fuehren koennen.
+        self.resource = (before + amount).min(cap).max(before);
+        // Der Zaehler nimmt nur, was von DIESER Erzeugung nicht ankam. Die
+        // Klammer ist mit der Regel oben nie mehr negativ.
         self.resource_overflow += u32::from(amount - (self.resource - before));
     }
 
@@ -3615,6 +3654,60 @@ impl Fight {
         self.shield_stacks
     }
 
+    /// Laeuft das Fenster der Verstaerkung, die dieser Zauber legt? (#553)
+    ///
+    /// # Die Uebersetzung, die es vorher nicht gab
+    ///
+    /// Verstaerkungen liegen nach ART und Zielgroesse (Issue #489) — acht
+    /// getrennte Vorraete, in jedem `factors[kind]`. Eine Rotation kennt aber
+    /// Zauber: `kindle if buff.flashpoint.active` ist die Frage, die ein
+    /// Spieler stellt, und sie war bis #553 nicht stellbar.
+    ///
+    /// Traegt der Zauber keine Verstaerkung, ist die Antwort `false`. Das ist
+    /// KEIN Fehler: Eine Bedingung auf einen Zauber ohne Fenster greift nie,
+    /// und das ist eine gueltige (wenn auch nutzlose) Rotation. Ein Fehler
+    /// waere hier eine Aussage ueber die Absicht des Schreibers, die der
+    /// Parser nicht treffen kann.
+    #[must_use]
+    pub fn buff_active(&self, spell: usize) -> bool {
+        let Some(buff) = SPELLS.get(spell).and_then(|s| s.buff) else {
+            return false;
+        };
+        self.buff_store(buff.target).is_active(buff.kind, self.time)
+    }
+
+    /// Wie lange das Fenster dieses Zaubers noch laeuft, in ms (#553).
+    ///
+    /// `0`, wenn es nicht laeuft oder der Zauber keines legt.
+    #[must_use]
+    pub fn buff_remaining_ms(&self, spell: usize) -> Millis {
+        let Some(buff) = SPELLS.get(spell).and_then(|s| s.buff) else {
+            return 0;
+        };
+        self.buff_store(buff.target)
+            .remaining_ms(buff.kind, self.time)
+    }
+
+    /// Der Vorrat zu einer Zielgroesse.
+    ///
+    /// Dieselbe Zuordnung wie beim Anlegen in `cast` — sie steht hier ein
+    /// zweites Mal, weil dort ein `&mut` gebraucht wird und hier ein `&`.
+    /// Wer eine Zielgroesse ergaenzt, muss BEIDE Stellen anfassen; der
+    /// Uebersetzer erzwingt es, weil `match` auf `BuffTarget` vollstaendig
+    /// sein muss.
+    const fn buff_store(&self, target: BuffTarget) -> &Buffs {
+        match target {
+            BuffTarget::Damage => &self.buffs,
+            BuffTarget::Control => &self.control_buffs,
+            BuffTarget::Resource => &self.resource_buffs,
+            BuffTarget::Tick => &self.tick_buffs,
+            BuffTarget::Stack => &self.stack_buffs,
+            BuffTarget::CdReduce => &self.cd_reduce_buffs,
+            BuffTarget::Convert => &self.convert_buffs,
+            BuffTarget::Cap => &self.cap_buffs,
+        }
+    }
+
     /// Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat.
     #[must_use]
     pub fn shield_absorbed(&self) -> u32 {
@@ -3625,6 +3718,16 @@ impl Fight {
     #[must_use]
     pub fn healed(&self) -> u32 {
         self.healed
+    }
+
+    /// Wie viel Fortschritt der BOSS zurueckgedreht hat (Baustein 5, #218).
+    ///
+    /// **Nicht zu verwechseln mit [`healed`](Self::healed)** — das ist die
+    /// Heilung des SPIELERS. Diese Verwechslung hat am 2026-08-07 zu der
+    /// Aussage gefuehrt, boss-1-4 heile nicht, weil der Laeufer fuer
+    /// "Leben zurueckgeholt" 0.0 zeigte: Er zeigte die Spielerzahl.
+    pub fn boss_healed(&self) -> u32 {
+        self.boss_healed
     }
 
     /// Wie viel Schutz die Umwandlung erzeugt hat (Weg 3).
