@@ -12,6 +12,18 @@
 
 use crate::time::Millis;
 
+/// Eine Umwandlung in Schaden aus einer schulfremden Quelle (Issue #520).
+///
+/// **Eigene Verpackung, geteilte Senke.** `Control` verlangt Kontroll-Punkte
+/// und verbraucht sie; ein SUBLIMATION-Zauber, der dort durchginge, löschte
+/// dem Spieler die Punkte. Die Senke `pending_control_damage` dagegen ist
+/// schulneutral — sie nimmt einen Betrag und macht Schaden daraus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Convert {
+    /// Schaden je **ganzer** Sekunde verbleibender Abklingzeit.
+    pub per_second: u32,
+}
+
 /// Eine Schul-Mechanik: die Ressource, die sich auflaedt und wieder verfaellt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resource {
@@ -40,6 +52,14 @@ pub struct Dot {
     pub duration_ms: Millis,
     /// Ressourcen-Gewinn je Tick.
     pub resource_gain_per_tick: u16,
+    /// Wie viele Zersetzungs-Stapel jeder Tick legt (Issue #498).
+    ///
+    /// **Getrennt von `resource_gain_per_tick`, und das ist der Punkt.**
+    /// Stapel sind keine Schul-Ressource: Sie liegen auf dem BOSS, verfallen
+    /// einzeln nach fester Zeit und haben eine eigene Obergrenze
+    /// (`MAX_DECAY_STACKS`). Der Ressourcen-Gewinn fuellt den Vorrat des
+    /// Spielers.
+    pub decay_per_tick: u32,
 }
 
 /// Eine Verstaerkung, die ein Zauber beim Wirken ausloest (GAME-DESIGN 5).
@@ -266,6 +286,11 @@ pub struct Spell {
     /// falsch — ein Zauber ohne Sublimations-Wirkung soll es gar nicht erst
     /// nennen muessen.
     pub cooldown_reduction_ms: Millis,
+    /// Nur Abklingzeiten UNTER dieser Grenze verkuerzen (ASCEND, #518).
+    /// 0 heisst: alle, wie vorher.
+    pub cooldown_reduction_below_ms: Millis,
+    /// Nur die LAENGSTE laufende Abklingzeit verkuerzen (DECANT, #518).
+    pub cooldown_reduction_longest_only: bool,
     /// Ob dieser Zauber den **Auswahlmodus** scharf stellt (SUBLIMATION,
     /// Issue E3-3c; getragen seit Issue #201 von REFLUX).
     ///
@@ -326,6 +351,8 @@ pub struct Spell {
     pub control_gain: u32,
     /// Was der Zauber mit Kontroll-Punkten **anstellt**, falls er sie ausgibt.
     pub control: Option<Control>,
+    /// Umwandlung aus einer schulfremden Quelle (Issue #520).
+    pub convert: Option<Convert>,
 }
 
 /// Eine Phase: ab welchem Anteil der Lebenspunkte der Boss sein Verhalten

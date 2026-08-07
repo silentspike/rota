@@ -176,6 +176,13 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'distil',
     'griplock',
     'virulence',
+    // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
+    // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
+    //
+    // CLASP, LATCH und PLATE standen hier bis zum Merge mit main — dort
+    // liegen ihre Klaenge inzwischen, und die Gegenrichtung unten hat sie
+    // herausgeholt. Genau dafuer ist sie da.
+    'efflux',
     // Die vier Zielgrößen-Prüfzauber aus #489. Sie liegen über der
     // Stufengrenze und kommen nie auf eine Leiste — ein Klang für sie wäre
     // eine Datei, die niemand je hört.

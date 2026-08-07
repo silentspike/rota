@@ -37,6 +37,7 @@ import eingecheckterWettlauf from './recordings/race-heal.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
+import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckteAusruestung from './recordings/gear.json';
@@ -75,9 +76,12 @@ import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
+import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
+import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
+import eingecheckteKrit from './recordings/krit-umwandlung.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -87,6 +91,7 @@ import {
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
+  gezielteVerkuerzungPayload,
   wispPayload,
   alembicPayload,
   misplaysPayload,
@@ -118,9 +123,12 @@ import {
   fixationSpellsPayload,
   buffTargetsPayload,
   cinderPayload,
+  rotPayload,
   dotLifetimePayload,
   extendEffectsPayload,
   kernePayload,
+  effluxPayload,
+  kritPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -195,12 +203,29 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteVerlaengerung, HINWEIS).toEqual(extendEffectsPayload());
   });
 
+  it('der Krit-Lauf entspricht dem heutigen Spielstand', () => {
+    // Die einzige KAMPF-Aufzeichnung mit einer Krit-Chance über null
+    // (Issue #532). Veraltet sie, ist der Zufallsstrom wieder ungeprüft.
+    expect(eingecheckteKrit, HINWEIS).toEqual(kritPayload());
+  });
+
+  it('der Restzeit-Lauf entspricht dem heutigen Spielstand', () => {
+    // EFFLUX wird nur hier gewirkt (Issue #520).
+    expect(eingecheckteRestzeit, HINWEIS).toEqual(effluxPayload());
+  });
+
   it('die Kern-Zauber entsprechen dem heutigen Spielstand', () => {
     // CLASP, LATCH und PLATE werden nur hier gewirkt — veraltet die Datei,
     // ist der einzige Paritäts-Nachweis für alle drei weg (Issue #519).
     expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
   });
 
+  it('die Fäulnis über Zeit entspricht dem heutigen Spielstand', () => {
+    // ROT ist der einzige Zauber, der Zersetzungs-Stapel OHNE Tastendruck legt
+    // (Issue #498) — veraltet die Datei, ist der Nachweis dafür weg, dass das
+    // Legen je Tick auf beiden Seiten gleich rechnet.
+    expect(eingecheckteFaeulnis, HINWEIS).toEqual(rotPayload());
+  });
   it('die Fäulnis-Füller entsprechen dem heutigen Spielstand', () => {
     // BLIGHT wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #479).
@@ -261,6 +286,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckterAlembic, HINWEIS).toEqual(alembicPayload());
+  });
+
+  it('der Lauf mit GEZIELTEN Verkürzungen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteGezielteVerkuerzung, HINWEIS).toEqual(gezielteVerkuerzungPayload());
   });
 
   it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
@@ -556,6 +585,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'trial-blocks',
   'timeline-loop',
   'sublimation',
+  'gezielte-verkuerzung',
   'wisp-verkuerzung',
   'alembic-zwei-ladungen',
   'gear',
@@ -582,6 +612,9 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'dot-lifetime',
   'extend-effects',
   'kern-zauber',
+  'efflux-restzeit',
+  'krit-umwandlung',
+  'rot-decay',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

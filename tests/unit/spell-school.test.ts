@@ -60,7 +60,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'slag',
       'ember',
       'pyroclasm',
-      // Issue #540 — FLASHPOINT, bei seiner Schule (wie #477 und #481).
+      // Issue #540 — FLASHPOINT, bei seiner Schule.
       'flashpoint',
       'quench',
       'crust',
@@ -69,7 +69,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'scab',
       'plate',
       'harden',
-      // Issue #540 — QUICKSILVER, bei seiner Schule (wie #477 und #481).
+      // Issue #540 — QUICKSILVER, bei seiner Schule.
       'quicksilver',
       'bind',
       'stall',
@@ -80,19 +80,23 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'capstone',
       'clasp',
       'latch',
-      // Issue #540 — GRIPLOCK, bei seiner Schule (wie #477 und #481).
+      // Issue #540 — GRIPLOCK, bei seiner Schule.
       'griplock',
       'vapour',
       'reflux',
       'wisp',
       'alembic',
-      // Issue #540 — DISTIL, bei seiner Schule (wie #477 und #481).
+      'ascend',
+      'decant',
+      'efflux',
+      // Issue #540 — DISTIL, bei seiner Schule.
       'distil',
       'canker',
       'fester',
       'blight',
+      'rot',
       'sepsis',
-      // Issue #540 — VIRULENCE, bei seiner Schule (wie #477 und #481).
+      // Issue #540 — VIRULENCE, bei seiner Schule.
       'virulence',
       'test-cast',
       'test-buff',

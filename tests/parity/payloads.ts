@@ -4196,6 +4196,212 @@ export function rotPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+export const EFFLUX_NAME = 'efflux-restzeit';
+
+/** Die Leiste dieser Aufzeichnung. */
+const EFFLUX_BINDINGS = [
+  { slot: 0, spellId: 'efflux' },
+  { slot: 1, spellId: 'pyre' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * EFFLUX im Paritäts-Weg (Issue #520).
+ *
+ * # Warum drei andere Zauber dabei sind
+ *
+ * EFFLUX wandelt die **Summe der verbleibenden Abklingzeiten** in Schaden.
+ * Ein Lauf, in dem nur er gedrückt wird, hätte nichts umzuwandeln: Seine
+ * eigene Abklingzeit zählt zwar mit, aber eine einzelne ergibt kaum etwas.
+ *
+ * PYRE (5 s) und KINDLE (1,5 s) sind absichtlich verschieden lang. Damit
+ * schwankt die Summe im Lauf, statt konstant zu sein — und die Bitgleichheit
+ * prüft eine sich ändernde Zahl statt derselben.
+ *
+ * # Warum REFLUX NICHT dabei ist — gemessen, nicht vermieden
+ *
+ * Die erste Fassung hatte ihn (45 s Abklingzeit, gut für die Schwankung). Die
+ * Rust-Parität fiel, und zwar bei **Takt 150** — vor dem ersten EFFLUX bei
+ * Takt 300. Die Abweichung konnte also nicht von der Umwandlung kommen.
+ *
+ * Gegenprobe: REFLUX herausgenommen, sonst nichts geändert → **grün**.
+ *
+ * REFLUX verkürzt Abklingzeiten (`cooldownReductionMs` über
+ * `sublimation.ts`), und genau dort fallen seit Längerem zwei Fälle in
+ * `parity_sublimation_run`. Der Fehler ist bekannt und gehört nicht hierher:
+ * Eine Aufzeichnung, die EFFLUX prüfen soll, darf nicht an einem fremden
+ * offenen Befund rot sein — sonst prüft sie ihn statt ihres Zaubers.
+ *
+ * # Warum EFFLUX zuletzt kommt
+ *
+ * Er ist der einzige, dessen Ertrag davon abhängt, was die anderen
+ * hinterlassen haben. Wer ihn zuerst drückt, misst eine leere Summe — der
+ * Prüffall wäre grün und belegte nichts.
+ */
+function recordEfflux(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const efflux = combat.indexOf('efflux');
+  const pyre = combat.indexOf('pyre');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, EFFLUX_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.isOffCooldown(pyre, timeMs)) press(pyre, tick, timeMs);
+    else if (combat.isOffCooldown(efflux, timeMs)) press(efflux, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: EFFLUX_NAME, seed: 0, ticks, presses, bindings: EFFLUX_BINDINGS };
+}
+
+export function effluxPayload(): Record<string, unknown> {
+  const recording = recordEfflux(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: EFFLUX_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+export const KRIT_NAME = 'krit-umwandlung';
+
+/** Die Leiste dieser Aufzeichnung. */
+const KRIT_BINDINGS = [
+  { slot: 0, spellId: 'bind' },
+  { slot: 1, spellId: 'wedge' },
+] as const;
+
+/**
+ * Der Zufallsstrom unter Krit (Issue #532).
+ *
+ * # Was hier zum ersten Mal geprüft wird
+ *
+ * Alle bisherigen Kampf-Aufzeichnungen laufen mit Krit-Chance **null**. Sie
+ * belegen die Bitgleichheit also für den einen Fall, in dem der Zufallsstrom
+ * keine Rolle spielt — er wird nie gezogen, kann nicht auseinanderlaufen.
+ *
+ * Das ist keine Nachlässigkeit gewesen, sondern eine Lücke, die niemand sehen
+ * konnte: Ein Strom, der nie fließt, sieht aus wie einer, der gleich fließt.
+ *
+ * # Warum WEDGE und nicht irgendein Zauber
+ *
+ * WEDGE macht seinen Schaden **ausschließlich** über die Umwandlung —
+ * `baseDamage: 0`, kein `spender`. Genau bei dieser Sorte hat Rust den
+ * Krit-Wurf nicht gezogen (Issue #520): Die Bedingung fragte nach
+ * `base_damage` und `spender`, nicht nach der Umwandlung.
+ *
+ * Ein Zauber mit Grundschaden hätte den Wurf ohnehin gezogen und die Lücke
+ * verdeckt.
+ *
+ * # Die Krit-CHANCE steht in PURITY, nicht in YIELD
+ *
+ * Meine erste Fassung setzte `yieldBonus: 250` und war grün — auch mit dem
+ * Fehler aus #520 absichtlich wieder eingebaut. Gemessen:
+ *
+ *     critChance(NOTHING_WORN)                 0
+ *     critChance({ yieldBonus: 250 })          0
+ *     Schaden ohne / mit yieldBonus     1124 / 1124
+ *
+ * `critChance` liest `purity` (worn.ts:148). YIELD ist der Krit-FAKTOR — wie
+ * hart ein Krit trifft, nicht wie oft. Ein Lauf mit YIELD allein würfelt nie,
+ * und ein Strom, der nie gezogen wird, kann nicht auseinanderlaufen.
+ *
+ * `WORN_FOR_PARITY` trägt `purity: 375`, also 37,5 Prozent — deshalb steht es
+ * hier und nicht ein eigener Satz Werte.
+ *
+ * # Warum BIND daneben steht
+ *
+ * WEDGE kostet Kontroll-Punkte, und die kommen nur aus BIND. Ohne ihn würde
+ * WEDGE abgewiesen — die Aufzeichnung liefe, wirkte nichts, und wäre grün.
+ */
+function recordKrit(ticks: number): Recording {
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: FIRST_CRUCIBLE.value,
+    worn: WORN_FOR_PARITY,
+  });
+  const bind = combat.indexOf('bind');
+  const wedge = combat.indexOf('wedge');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, KRIT_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // WEDGE, sobald die Punkte reichen — sonst BIND. Damit wird die
+    // Umwandlung mehrfach gewirkt und nicht nur einmal am Ende.
+    if (combat.control >= 4 && combat.isOffCooldown(wedge, timeMs)) press(wedge, tick, timeMs);
+    else if (combat.isOffCooldown(bind, timeMs)) press(bind, tick, timeMs);
+  }
+
+  return { name: KRIT_NAME, seed: 0, ticks, presses, bindings: KRIT_BINDINGS };
+}
+
+export function kritPayload(): Record<string, unknown> {
+  const recording = recordKrit(3000);
+  const result = replayRecording(recording, { checksumPerTick: true, worn: WORN_FOR_PARITY });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    worn: WORN_FOR_PARITY,
+    bindings: KRIT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/**
+ * Derselbe Lauf ohne Krit-Chance — nur für die Zusicherung in
+ * `coverage.test.ts` (Issue #532).
+ *
+ * Er wird **nicht** eingecheckt: Es ist kein Paritäts-Nachweis, sondern der
+ * Vergleichswert, an dem sich zeigt, ob im Krit-Lauf überhaupt ein Krit fällt.
+ */
+export function kritPayloadOhneChance(): Record<string, unknown> {
+  const ohne = { ...WORN_FOR_PARITY, purity: 0 };
+  const recording = recordKrit(3000);
+  const result = replayRecording(recording, { worn: ohne });
+  return { expected: { damage: result.damage } };
+}
 /** Die Aufzeichnung, in der die fünf Verstärkungen aus #540 gewirkt werden. */
 export const BUFF_TARGETS_NAME = 'buff-targets';
 

@@ -1,3 +1,4 @@
+import { kritPayload, kritPayloadOhneChance } from './payloads.js';
 import { describe, expect, it } from 'vitest';
 import { CALCINATION, LEVELS } from '../../src/core/data.js';
 
@@ -154,5 +155,55 @@ describe('AC6 — die Ausnahme für Prüf-Zauber steht in den Daten', () => {
     );
     expect(pruefzauber.map((s) => s.id)).toContain('test-cast');
     expect(ausgeliefert.length).toBe(CALCINATION.value.spells.length - pruefzauber.length);
+  });
+});
+
+/**
+ * Der Zufallsstrom ist geprüft — mindestens eine Aufzeichnung würfelt
+ * (Issue #532).
+ *
+ * # Warum das ein eigener Fall ist
+ *
+ * Bis zum 2026-08-07 lief **keine** Kampf-Aufzeichnung mit einer Krit-Chance
+ * über null. Die Bitgleichheit war damit für den einen Fall belegt, in dem der
+ * Zufall keine Rolle spielt: Ein Strom, der nie gezogen wird, kann nicht
+ * auseinanderlaufen.
+ *
+ * Aufgefallen ist das erst, als ein echter Unterschied darunter lag — Rust zog
+ * für Umwandlungs-Zauber keinen Krit-Wurf (#520), seit #478 und unbemerkt.
+ *
+ * # Warum die Prüfung an `purity` hängt und nicht an `yieldBonus`
+ *
+ * `critChance` liest **PURITY** (worn.ts). YIELD ist der Krit-FAKTOR — wie
+ * hart ein Krit trifft, nicht wie oft. Eine Aufzeichnung mit YIELD allein
+ * würfelt nie; genau diese Verwechslung hat die erste Fassung von
+ * `krit-umwandlung.json` stumm gemacht.
+ */
+describe('AC5 — der Zufallsstrom wird in mindestens einer Aufzeichnung gezogen', () => {
+  it('mindestens ein Krit FÄLLT — nicht nur eine Chance steht da', () => {
+    // **Die Chance allein genügt nicht.** Meine erste Fassung forderte
+    // `purity > 0` in irgendeiner Datei und war grün, auch als die einzige
+    // Krit-Aufzeichnung auf `purity: 0` stand — `worn-values.json` trägt den
+    // Wert seit jeher. Die zweite Fassung forderte zusätzlich `presses` und
+    // war ebenfalls grün: `worn-values.json` hat 28 davon.
+    //
+    // Beides gemessen, beide Male mit belegter Änderung (`grep -c` vor dem
+    // Lauf). Die Unterscheidung „Kampf gegen Wertetabelle" gibt es nicht.
+    //
+    // **Was zählt, ist die Wirkung:** Fällt im Lauf ein Krit, unterscheidet
+    // sich sein Schaden von demselben Lauf ohne Chance. Fällt keiner — etwa
+    // weil ein Seed-Wechsel in die 9 Prozent gerät, in denen fünf Würfe bei
+    // 37,5 Prozent alle danebengehen —, sind beide gleich, und der Prüffall
+    // bricht.
+    const mitKrit = kritPayload();
+    const ohneKrit = kritPayloadOhneChance();
+
+    expect(
+      (mitKrit['expected'] as Record<string, number>)['damage'],
+      'Im Krit-Lauf fällt KEIN Krit: Sein Schaden ist derselbe wie ohne ' +
+        'Chance. Die Aufzeichnung trägt die Chance, zieht den Strom aber ' +
+        'wirkungslos — dann ist er ungeprüft (Issue #532). Ursache ist ' +
+        'meist ein Seed, bei dem alle Würfe danebengehen.',
+    ).not.toBe((ohneKrit['expected'] as Record<string, number>)['damage']);
   });
 });

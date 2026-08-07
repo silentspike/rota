@@ -479,6 +479,25 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     );
     let _ = writeln!(
         out,
+        "        cooldown_reduction_below_ms: {},",
+        // **Optional, nicht pflicht** (#518): Ohne das Feld verkuerzt der
+        // Zauber alles, wie vor der Aenderung. `uint` bricht bei fehlenden
+        // Feldern ab — das ist fuer Pflichtfelder richtig und hier falsch.
+        spell
+            .get("cooldownReductionBelowMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    );
+    let _ = writeln!(
+        out,
+        "        cooldown_reduction_longest_only: {},",
+        spell
+            .get("cooldownReductionLongestOnly")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    );
+    let _ = writeln!(
+        out,
         "        cooldown_reduction_ms: {},",
         opt_uint(spell, "cooldownReductionMs", &whose, 0)
     );
@@ -508,6 +527,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     emit_putrefaction(out, spell);
     emit_synergy(out, spell);
     emit_fixation(out, spell, &whose);
+    emit_convert(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
 
@@ -621,6 +641,15 @@ fn emit_dot(out: &mut String, spell: &Value, whose: &str, resource_id: &str) {
         "            resource_gain_per_tick: {},",
         resource_amount(dot, "resourceGainPerTick", &whose, resource_id)
     );
+    // `decayPerTick` darf fehlen — die meisten Braende legen keine Stapel.
+    // Null ist dann der neutrale Wert, und `add_decay_stacks` steigt bei null
+    // sofort aus.
+    let decay_per_tick = if dot.get("decayPerTick").is_some() {
+        uint(dot, "decayPerTick", &whose)
+    } else {
+        0
+    };
+    let _ = writeln!(out, "            decay_per_tick: {decay_per_tick},");
     let _ = writeln!(out, "        }}),");
 }
 
@@ -1488,6 +1517,34 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let _ = writeln!(
                 out,
                 "        conversion: Some(Conversion {{ share_percent: {share}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+}
+
+/// Die Umwandlung aus einer schulfremden Quelle (Issue #520, EFFLUX).
+///
+/// Steht neben `emit_fixation` und nicht darin: `Control` verlangt
+/// Kontroll-Punkte, `Convert` kommt ohne aus. Geteilt wird die Senke im
+/// Kampf, nicht die Verpackung in den Daten.
+fn emit_convert(out: &mut String, spell: &Value, whose: &str) {
+    match spell.get("convert") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        convert: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/convert");
+            let from = text(node, "from", &whose);
+            assert_eq!(
+                from, "cooldown",
+                "{whose}: unbekannte Umwandlungs-Quelle \"{from}\"; \
+                 umgesetzt ist nur \"cooldown\""
+            );
+            let per_second = uint(node, "perSecond", &whose);
+            assert!(per_second > 0, "{whose}: Die Umwandlung hat keinen Betrag");
+            let _ = writeln!(
+                out,
+                "        convert: Some(Convert {{ per_second: {per_second} }}),"
             );
         }
     }
