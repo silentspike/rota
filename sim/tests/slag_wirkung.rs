@@ -78,6 +78,42 @@ fn ohne_slag_steht_der_vorrat_an_der_grenze() {
     );
 }
 
+/// **Die GROESSE, nicht die Existenz** (Issue #547).
+///
+/// Der Fall darunter ist gegen eine Balance-Aenderung blind: Mit
+/// `factor: 1.05` statt `1.5` wird aus fuenfzig Prozent Anhebung eine von
+/// fuenf, und `> 20` bleibt wahr, weil 21 groesser als 20 ist.
+///
+/// # Warum 22 und nicht 30
+///
+/// Der angehobene Deckel liegt bei `round(20 * 1.5) = 30`, aber er wird hier
+/// nie beruehrt: Das Fenster ist 4 GCDs lang, der GCD 1500 ms, also passen
+/// drei BELLOWS-Wuerfe hinein — 3 x 8 = 24, abzueglich Verfall (1 je 2000 ms)
+/// bleiben 22. Die oberen acht Punkte der Anhebung sind heute unerreichbar;
+/// das ist ein Balance-Befund (Worker-2 in #547), kein Fehler.
+///
+/// Der Fall prueft die Groesse deshalb INDIREKT und trotzdem scharf: Bei
+/// `1.05` klemmt der Deckel bei 21 und schneidet die 22 ab. Gemessen, nicht
+/// hergeleitet — die Gegenprobe steht im PR.
+///
+/// Auf der Spiel-Seite geht es direkter: Dort klemmt `setResource` gegen
+/// `resourceCap`, und der Fall prueft die 30 selbst. Ein `set_resource` gibt
+/// es im Simulator nicht (fight.rs, Kommentar an der cap-Lesestelle).
+///
+/// # Die 22 steht HART und wird nicht gerechnet
+///
+/// Ein Sollwert aus derselben Quelle wie der Istwert ist keiner: Wer ihn aus
+/// `slag.buff.factor` herleitete, laese bei der Gegenprobe die mutierte Zahl
+/// mit und bliebe gruen.
+#[test]
+fn und_zwar_um_die_haelfte_nicht_nur_irgendwie() {
+    assert_eq!(
+        hoechster_vorrat(Some("slag"), &TRAEGER, 470),
+        22,
+        "SLAG hebt die Grenze zwar, aber nicht um die 50 % aus dem Design (#490)"
+    );
+}
+
 #[test]
 fn mit_slag_steigt_er_darueber() {
     let mit = hoechster_vorrat(Some("slag"), &TRAEGER, 470);
