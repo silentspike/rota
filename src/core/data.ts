@@ -122,6 +122,38 @@ export interface SpellDef {
   readonly dot?: DotDef;
   readonly spender?: SpenderDef;
   /**
+   * Um wie viele Tick-Intervalle dieser Zauber **laufende Brände verlängert**
+   * (EMBER, Issue #517).
+   *
+   * **Fehlt das Feld, verlängert er nichts** — das ist der Fall für jeden
+   * bisherigen Zauber. Der Weg „länger halten" hatte bis hierher keinen
+   * einzigen.
+   */
+  readonly dotExtendTicks?: number;
+  /**
+   * Ob dieser Zauber **alle laufenden Brände verbraucht** und ihren Rest als
+   * Schaden gibt (PYROCLASM, Issue #517).
+   *
+   * Der Betrag ist keine eigene Zahl: Es ist Restdauer mal Schaden je Tick,
+   * also genau das, was die Brände noch gemacht hätten. Nach der
+   * Erneuerungsregel ist Restzeit verloren, wenn zu früh erneuert wird —
+   * dieser Zauber kehrt dieselbe Regel um.
+   */
+  readonly consumesDots?: boolean;
+  /**
+   * Um wie viele Millisekunden dieser Zauber eine **laufende Schutzschicht**
+   * verlängert (HARDEN, Issue #523). Fehlt das Feld, verlängert er keine.
+   */
+  readonly extendShieldMs?: number;
+  /**
+   * Um wie viele Millisekunden dieser Zauber **alle laufenden
+   * Zersetzungs-Stapel** verlängert (SEPSIS, Issue #523).
+   *
+   * Alle und um denselben Betrag — das erhält die aufsteigende Ordnung, auf
+   * der das Nachrücken beruht.
+   */
+  readonly extendDecayMs?: number;
+  /**
    * Welche Verstärkung dieser Zauber auslöst (GAME-DESIGN 5, Issue #420).
    *
    * **Fehlt das Feld, löst er keine aus** — das ist der Fall für jeden Zauber
@@ -141,13 +173,24 @@ export interface SpellDef {
    */
   readonly cooldownReductionMs?: number;
   /**
-   * Setzt dieser Zauber den **Auswahlmodus** scharf (SUBLIMATION, Issue E3-3c)?
+   * **Wie viele** Abklingzeiten der Auswahlmodus zurücksetzt (SUBLIMATION,
+   * Issue E3-3c, erweitert in #521).
    *
    * Der Rücksetzer wirkt nicht auf den nächsten gewirkten Zauber, sondern
    * fragt: Welchen? Zwei Schritte, drei Aktionen — die Entscheidung des
    * Auftraggebers vom 2026-07-29.
+   *
+   * # Warum eine Anzahl und kein Ja/Nein mehr
+   *
+   * ALEMBIC (#521) macht **zwei** Zauber bereit. Das ist kein größerer
+   * Betrag, sondern dieselbe Frage zweimal — der Spieler wählt zweimal, statt
+   * dass das Spiel zwei aussucht.
+   *
+   * Bei `1` verhält sich der Schalter exakt wie vorher; das ist die
+   * Gegenprobe, die #521 AC1 verlangt und die `cooldown-reset.test.ts`
+   * unverändert fährt.
    */
-  readonly armsCooldownReset?: boolean;
+  readonly cooldownResetCharges?: number;
   /**
    * Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**
    * (GAME-DESIGN 11.2, Baustein 9, Issue #110).
@@ -1080,12 +1123,62 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // legen, und der ganze Baustein wäre tot.
     problems.push(`${where}: Ein Unterbrecher darf keine globale Wartezeit auslösen.`);
   }
+  // EMBER und PYROCLASM (Issue #517). Beide Felder fehlen bei jedem
+  // bisherigen Zauber — das ist der Normalfall und kein Mangel.
+  const extend = raw['dotExtendTicks'];
+  const dotExtendTicks = typeof extend === 'number' ? extend : undefined;
+  if (dotExtendTicks !== undefined) {
+    if (dotExtendTicks <= 0)
+      problems.push(`${where}: dotExtendTicks ${dotExtendTicks} ist nicht positiv.`);
+    if (!Number.isInteger(dotExtendTicks)) {
+      problems.push(`${where}: dotExtendTicks ${dotExtendTicks} ist nicht ganzzahlig.`);
+    }
+  }
+  const consumesDots = raw['consumesDots'] === true;
+  // HARDEN und SEPSIS (#523).
+  const shieldMs = raw['extendShieldMs'];
+  const extendShieldMs = typeof shieldMs === 'number' ? shieldMs : undefined;
+  const decayMs = raw['extendDecayMs'];
+  const extendDecayMs = typeof decayMs === 'number' ? decayMs : undefined;
+  for (const [name, wert] of [
+    ['extendShieldMs', extendShieldMs],
+    ['extendDecayMs', extendDecayMs],
+  ] as const) {
+    if (wert === undefined) continue;
+    if (wert <= 0) problems.push(`${where}: ${name} ${wert} ist nicht positiv.`);
+    if (!Number.isInteger(wert)) problems.push(`${where}: ${name} ${wert} ist nicht ganzzahlig.`);
+  }
+
   const reduction = raw['cooldownReductionMs'];
   const cooldownReductionMs = typeof reduction === 'number' ? reduction : undefined;
   if (cooldownReductionMs !== undefined) {
     if (cooldownReductionMs < 0) problems.push(`${where}: Verkürzung ist negativ.`);
     if (!Number.isInteger(cooldownReductionMs)) {
       problems.push(`${where}: Verkürzung ${cooldownReductionMs} ist nicht ganzzahlig.`);
+    }
+  }
+
+  // **Der Rücksetzer trägt eine ANZAHL** (Issue #521, AC1). Die alte Form war
+  // `armsCooldownReset: true`; sie liest sich hier weiter als 1, damit ein
+  // Datensatz aus der Zeit davor nicht still seine Wirkung verliert — ein
+  // fehlender Schalter und ein Schalter mit 0 sind sonst nicht zu
+  // unterscheiden.
+  const ladungenRoh = raw['cooldownResetCharges'];
+  const cooldownResetCharges =
+    typeof ladungenRoh === 'number'
+      ? ladungenRoh
+      : raw['armsCooldownReset'] === true
+        ? 1
+        : undefined;
+  if (cooldownResetCharges !== undefined) {
+    if (cooldownResetCharges < 1) {
+      problems.push(
+        `${where}: Rücksetzer-Ladungen ${cooldownResetCharges} — unter 1 ist ` +
+          `kein Rücksetzer, dann gehört das Feld weg.`,
+      );
+    }
+    if (!Number.isInteger(cooldownResetCharges)) {
+      problems.push(`${where}: Rücksetzer-Ladungen ${cooldownResetCharges} sind nicht ganzzahlig.`);
     }
   }
 
@@ -1097,6 +1190,10 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     cooldownMs,
     castTimeMs: number(raw['castTimeMs'], 0),
     triggersGcd: raw['triggersGcd'] !== false,
+    ...(dotExtendTicks !== undefined ? { dotExtendTicks } : {}),
+    ...(consumesDots ? { consumesDots } : {}),
+    ...(extendShieldMs !== undefined ? { extendShieldMs } : {}),
+    ...(extendDecayMs !== undefined ? { extendDecayMs } : {}),
     // Kommt beim Zusammenlegen aus der Herkunftsdatei (siehe `CALCINATION`).
     // Fehlt es, ist der Zauber schulunabhängig — nicht fehlerhaft.
     school: typeof raw['school'] === 'string' ? raw['school'] : null,
@@ -1110,7 +1207,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...(spender !== undefined ? { spender } : {}),
     ...(buff !== undefined ? { buff } : {}),
     ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
-    ...(raw['armsCooldownReset'] === true ? { armsCooldownReset: true } : {}),
+    ...(cooldownResetCharges !== undefined ? { cooldownResetCharges } : {}),
   };
 }
 

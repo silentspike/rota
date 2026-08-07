@@ -277,7 +277,11 @@ pub struct Spell {
     /// in `Fight::replay` kennt nur "wirken oder ablehnen", nicht "waehlen".
     /// Das ist die offene Haelfte von Issue #201 (AC4) und ausdruecklich
     /// gemeldet — nicht uebersehen.
-    pub arms_cooldown_reset: bool,
+    /// **Wie viele** Abklingzeiten der Auswahlmodus zuruecksetzt (#521).
+    ///
+    /// 0 heisst: kein Ruecksetzer. Bei 1 verhaelt er sich exakt wie vor #521 —
+    /// das ist die Gegenprobe, die AC1 verlangt.
+    pub cooldown_reset_charges: u8,
     /// Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1).
     pub shield: Option<Shield>,
     /// Heilung, falls der Zauber eine ist (Weg 2).
@@ -291,6 +295,19 @@ pub struct Spell {
     /// Traegt FESTER. **Nicht** die Verwundbarkeit des Bosses — die gilt fuer
     /// alle Quellen. **Vorlaeufig, wird gemessen.**
     pub per_decay_stack_percent: u32,
+    /// Um wie viele Tick-Intervalle dieser Zauber laufende Braende verlaengert
+    /// (EMBER, Issue #517). Null heisst: gar nicht — der Fall jedes bisherigen
+    /// Zaubers.
+    pub dot_extend_ticks: u32,
+    /// Ob dieser Zauber alle laufenden Braende verbraucht und ihren Rest als
+    /// Schaden gibt (PYROCLASM, Issue #517).
+    pub consumes_dots: bool,
+    /// Um wieviele Millisekunden dieser Zauber eine laufende Schutzschicht
+    /// verlaengert (HARDEN, #523). Null heisst: gar nicht.
+    pub extend_shield_ms: u32,
+    /// Um wieviele Millisekunden dieser Zauber ALLE laufenden
+    /// Zersetzungs-Stapel verlaengert (SEPSIS, #523).
+    pub extend_decay_ms: u32,
     /// Kennung des Partners, der den Synergie-Bonus bekommt (#318). Leer heisst
     /// keine Beziehung.
     pub synergy_partner: &'static str,
@@ -869,7 +886,7 @@ mod tests {
                     // Filter sie zu den "drei Kampfzaubern aus Schritt 1" —
                     // sie tragen keins der Merkmale darueber.
                     && s.cooldown_reduction_ms == 0
-                    && !s.arms_cooldown_reset
+                    && s.cooldown_reset_charges == 0
                     // Und seit Issue #97 die Zersetzung: CANKER legt Stapel an,
                     // FESTER lebt von ihnen. Auch sie tragen keins der Merkmale
                     // darueber und zaehlten sonst zu den drei aus Schritt 1.

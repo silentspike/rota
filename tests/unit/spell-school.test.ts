@@ -56,26 +56,20 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'pyre',
       'bellows',
       'searing',
-      // Issue #477 — der kurze Brand, ebenfalls bei seiner Schule. Seit
-      // 2026-08-06 ist das der vorgesehene Ort: Ein Zauber am Ende der
-      // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
-      // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
       'cinder',
       'slag',
-      // Issue #540 — FLASHPOINT, bei seiner Schule (wie #477 und #481): Ein Zauber
-      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
-      // ohnehin ueber alle Zauber laeuft.
+      'ember',
+      'pyroclasm',
+      // Issue #540 — FLASHPOINT, bei seiner Schule (wie #477 und #481).
       'flashpoint',
       'quench',
       'crust',
       'salve',
       'temper',
-      // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
       'scab',
       'plate',
-      // Issue #540 — QUICKSILVER, bei seiner Schule (wie #477 und #481): Ein Zauber
-      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
-      // ohnehin ueber alle Zauber laeuft.
+      'harden',
+      // Issue #540 — QUICKSILVER, bei seiner Schule (wie #477 und #481).
       'quicksilver',
       'bind',
       'stall',
@@ -86,23 +80,19 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'capstone',
       'clasp',
       'latch',
-      // Issue #540 — GRIPLOCK, bei seiner Schule (wie #477 und #481): Ein Zauber
-      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
-      // ohnehin ueber alle Zauber laeuft.
+      // Issue #540 — GRIPLOCK, bei seiner Schule (wie #477 und #481).
       'griplock',
       'vapour',
       'reflux',
       'wisp',
-      // Issue #540 — DISTIL, bei seiner Schule (wie #477 und #481): Ein Zauber
-      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
-      // ohnehin ueber alle Zauber laeuft.
+      'alembic',
+      // Issue #540 — DISTIL, bei seiner Schule (wie #477 und #481).
       'distil',
       'canker',
       'fester',
       'blight',
-      // Issue #540 — VIRULENCE, bei seiner Schule (wie #477 und #481): Ein Zauber
-      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
-      // ohnehin ueber alle Zauber laeuft.
+      'sepsis',
+      // Issue #540 — VIRULENCE, bei seiner Schule (wie #477 und #481).
       'virulence',
       'test-cast',
       'test-buff',

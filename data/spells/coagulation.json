@@ -73,6 +73,17 @@
       }
     },
     {
+      "_comment": "HARDEN — der Weg 'laenger halten' der COAGULATION (Raster 3 von 9, Issue #523).\n\nEIN FESTER ZUSCHLAG, KEINE VERDOPPLUNG: Das Raster sagt 'bestehende Schichten halten doppelt so lange'. Gebaut ist ein Zuschlag von 12000 ms — genau CRUSTs Laufzeit, also bei einer frischen Schicht exakt die Verdopplung. Der feste Betrag ist deterministisch und in beiden Umsetzungen trivial gleichzuhalten; eine Verdopplung der RESTZEIT haenge dagegen davon ab, wann genau gedrueckt wird, und waere auf zwei Seiten schwerer bitgleich zu bekommen (GAME-DESIGN 18.4).\n\nER SETZT DIE SCHICHT NICHT NEU: Der Ablauf rueckt nach hinten, der aufgebrauchte Betrag bleibt. Wer sie neu setzte, haette einen zweiten CRUST statt eines Verlaengerers.\n\nALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
+      "id": "harden",
+      "name": "Harden",
+      "unlockLevel": 5,
+      "baseDamage": 0,
+      "cooldownMs": 10000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "extendShieldMs": 12000
+    },
+    {
       "_comment": "QUICKSILVER — die Umwandlungsrate steigt fuer vier Wartezeiten (Issue #540).\n\nSCHULE: COAGULATION, nicht SUBLIMATION. Der Issue-Text nannte zunaechst\ndie falsche Schule; docs/ZAUBER-RASTER.md fuehrt ihn unter \"COAGULATION —\n3 vorhanden, 9 neu\", in derselben Tabelle wie SCAB, PLATE und SUTURE. Bei\nWiderspruch gewinnt das Design-Dokument. Sachlich passt es auch: convert\nist die Umwandlung Schaden zu Schild — in SUBLIMATION gaebe es nichts\numzuwandeln.\n\nVORLAEUFIGE ZAHLEN. Das Raster sagt \"steigt\" ohne Faktor; die 2 ist von\nden vier Geschwistern uebernommen und wartet auf den Balance-Laeufer.",
       "id": "quicksilver",
       "name": "Quicksilver",

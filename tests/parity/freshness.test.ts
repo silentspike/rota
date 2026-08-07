@@ -38,6 +38,7 @@ import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
+import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -73,6 +74,8 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
+import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
 import {
   bossStatePayload,
@@ -84,6 +87,7 @@ import {
   timelineLoopPayload,
   sublimationPayload,
   wispPayload,
+  alembicPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -112,6 +116,8 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   cinderPayload,
+  dotLifetimePayload,
+  extendEffectsPayload,
   kernePayload,
 } from './payloads.js';
 
@@ -170,6 +176,16 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
+    // EMBER und PYROCLASM werden nur hier gewirkt (Issue #517).
+    expect(eingecheckteBrandzeit, HINWEIS).toEqual(dotLifetimePayload());
+  });
+
+  it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
+    // HARDEN und SEPSIS werden nur hier gewirkt (Issue #523).
+    expect(eingecheckteVerlaengerung, HINWEIS).toEqual(extendEffectsPayload());
   });
 
   it('die Kern-Zauber entsprechen dem heutigen Spielstand', () => {
@@ -234,6 +250,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckterAlembic, HINWEIS).toEqual(alembicPayload());
   });
 
   it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
@@ -530,6 +550,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'timeline-loop',
   'sublimation',
   'wisp-verkuerzung',
+  'alembic-zwei-ladungen',
   'gear',
   'sets',
   'player-damage',
@@ -550,6 +571,8 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'cinder-ticks',
+  'dot-lifetime',
+  'extend-effects',
   'kern-zauber',
 ];
 
