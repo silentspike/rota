@@ -38,6 +38,7 @@ import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
+import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -73,6 +74,8 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
+import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
 import eingecheckteKrit from './recordings/krit-umwandlung.json';
@@ -86,6 +89,7 @@ import {
   timelineLoopPayload,
   sublimationPayload,
   wispPayload,
+  alembicPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -114,6 +118,8 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   cinderPayload,
+  dotLifetimePayload,
+  extendEffectsPayload,
   kernePayload,
   effluxPayload,
   kritPayload,
@@ -176,6 +182,16 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
   });
 
+  it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
+    // EMBER und PYROCLASM werden nur hier gewirkt (Issue #517).
+    expect(eingecheckteBrandzeit, HINWEIS).toEqual(dotLifetimePayload());
+  });
+
+  it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
+    // HARDEN und SEPSIS werden nur hier gewirkt (Issue #523).
+    expect(eingecheckteVerlaengerung, HINWEIS).toEqual(extendEffectsPayload());
+  });
+
   it('der Krit-Lauf entspricht dem heutigen Spielstand', () => {
     // Die einzige KAMPF-Aufzeichnung mit einer Krit-Chance über null
     // (Issue #532). Veraltet sie, ist der Zufallsstrom wieder ungeprüft.
@@ -183,9 +199,7 @@ describe('Gemeinsame Vergleichsdateien', () => {
   });
 
   it('der Restzeit-Lauf entspricht dem heutigen Spielstand', () => {
-    // EFFLUX wird nur hier gewirkt, und sein Ertrag hängt an der Summe der
-    // laufenden Abklingzeiten — veraltet die Datei, ist der einzige
-    // Paritäts-Nachweis für die Umwandlung weg (Issue #520).
+    // EFFLUX wird nur hier gewirkt (Issue #520).
     expect(eingecheckteRestzeit, HINWEIS).toEqual(effluxPayload());
   });
 
@@ -251,6 +265,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
+    expect(eingecheckterAlembic, HINWEIS).toEqual(alembicPayload());
   });
 
   it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
@@ -547,6 +565,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'timeline-loop',
   'sublimation',
   'wisp-verkuerzung',
+  'alembic-zwei-ladungen',
   'gear',
   'sets',
   'player-damage',
@@ -567,6 +586,8 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'cinder-ticks',
+  'dot-lifetime',
+  'extend-effects',
   'kern-zauber',
   'efflux-restzeit',
   'krit-umwandlung',

@@ -114,8 +114,24 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // kein Spieler je auf die Leiste legt: `test-cast` aus #304 und `test-buff`
   // aus #420. Alle 17 spielbaren Zauber klingen.
   const STUMM = new Set([
+    // VORLAEUFIG (Issue #523): HARDEN und SEPSIS sind gebaut, ihre Klaenge
+    // entstehen ausserhalb dieses Zweigs (#487). Die Gegenrichtung unten holt
+    // sie von selbst heraus, sobald der Klang da ist.
+    'harden',
+    'sepsis',
     'test-cast',
     'test-buff',
+    // VORLAEUFIG (Issue #521): ALEMBIC ist gebaut, sein Klang fehlt. Er
+    // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen —
+    // ein erfundener Prompt im Manifest waere schlimmer als ein fehlender,
+    // weil ihn niemand als Erfindung erkennt.
+    //
+    // Der Bedarf, wenn ihn jemand macht: ein UMSCHLAGEN, kein Entladen. Er ist
+    // gegen REFLUX abzugrenzen, den anderen Ruecksetzer derselben Schule —
+    // dessen Manifest-Prompt gehoert dabei GELESEN, nicht nur sein Name
+    // genannt. Die Woerter, die dort schon vergeben sind, duerfen nicht
+    // wiederkehren.
+    'alembic',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //

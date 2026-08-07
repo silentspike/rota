@@ -36,6 +36,7 @@ import {
   type SchoolDef,
   type SpellDef,
   type TimelineEntryDef,
+  type DotDef,
   type BuffDef,
 } from './data.js';
 import { GCD_MS, GlobalCooldown } from './gcd.js';
@@ -1845,9 +1846,21 @@ export class Combat {
    *
    * # Der Bonus liegt NEBEN dem Stapel-Bonus, nicht darin
    *
-   * FESTER wird ohnehin stärker, je mehr Zersetzungs-Stapel liegen
-   * (`perDecayStackPercent`). Das ist eine andere Mechanik. Eine Gegenprobe,
-   * die den Stapelstand mitvariiert, misst die Stapel und nicht die Synergie.
+   * Eine Gegenprobe, die den Stapelstand mitvariiert, misst die Stapel und
+   * nicht die Synergie: `vulnerability` hebt den Schaden **aller** Quellen,
+   * sobald Stapel liegen (`updateVulnerability`).
+   *
+   * **Hier stand bis Issue #484 zusätzlich, FESTER werde „ohnehin stärker, je
+   * mehr Zersetzungs-Stapel liegen (`perDecayStackPercent`)".** Das war falsch,
+   * und zwar nicht nur ungenau: Das Feld wird geladen, geprüft und für die
+   * Zuordnung gelesen (`indicators.ts`, `mechanicId === 'decay'`) — aber auf
+   * keiner der beiden Seiten je auf den Schaden angewandt. Es gibt kein
+   * „neben", weil es nichts gibt, wozu es danebenläge.
+   *
+   * Der Satz war gefährlich, weil er an genau der Stelle stand, an der jemand
+   * nachsieht — und die allgemeine Verwundbarkeit seinen Ausfall maskiert:
+   * „mit Stapeln macht FESTER mehr Schaden" ist wahr, kommt aber aus der
+   * anderen Mechanik.
    */
   private applySynergyBonus(index: number, timeMs: number): void {
     const seitBeginn = this.fightElapsedMs(timeMs);
@@ -1977,6 +1990,204 @@ export class Combat {
     // ein Stapel WERT ist, nicht wie viele liegen. Ganzzahlig bis zur letzten
     // Teilung (18.4) — deshalb auf die Prozentpunkte, nicht auf das Ergebnis.
     const jeStapel = Math.round(DECAY_STACK_PERCENT * this.stackBuffs.factor(this.nowMsForBuffs));
+    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
+  }
+
+  /**
+   * Die Verwundbarkeit **für die Wirkung eines bestimmten Zaubers** — mit
+   * seinem eigenen Zuschlag je Stapel (`perDecayStackPercent`, Issue #484).
+   *
+   * # Warum ADDITIV im selben Topf und nicht als eigener Faktor
+   *
+   * GAME-DESIGN 1405 führt die Zersetzungs-Stapel ausdrücklich im additiven
+   * Topf („Aktive Verstärkungen: Overdrive, Synergien, Zersetzungs-Stapel —
+   * additiv untereinander"). Ein zauber-eigener Zuschlag auf diese Stapel
+   * gehört in denselben Topf.
+   *
+   * Die Begründung dort ist die stärkere: *„Was multiplikativ ist, wird
+   * gejagt."* Ein neunter Faktor nur für einen Zauber wäre der Fehler, den
+   * Diablo IV mit der Verwundbarkeit gemacht und in Saison 2 zurückgenommen
+   * hat. Gemessen für FESTER bei fünf Stapeln: additiv 2,15 gegen
+   * multiplikativ 2,30 — bei zehn Stapeln wächst der Abstand.
+   *
+   * # Warum JE WIRKUNG und nicht je Kampf
+   *
+   * Der Verwundbarkeits-Topf ist **global** — er hebt den Schaden aller
+   * Quellen. `perDecayStackPercent` gilt aber für **einen** Zauber. Deshalb
+   * wird er hier vor der Rechnung gesetzt und beim nächsten Zauber wieder
+   * überschrieben, genau wie `resistance` (Issue #328). Wer ihn dauerhaft in
+   * `updateVulnerability` schriebe, gäbe den Zuschlag allen anderen mit.
+   */
+  /**
+   * Die Schutzschicht länger halten (HARDEN, Issue #523).
+   *
+   * # Verlängern ist nicht Neusetzen
+   *
+   * Der Ablauf rückt nach hinten, `shieldValue` bleibt unangetastet. Ein
+   * Schild, der schon die Hälfte abgefangen hat, behält seinen Rest — wer ihn
+   * neu setzte, machte aus einem Verlängerer einen zweiten CRUST.
+   *
+   * # Es gibt hier KEINEN Takt, den man mitdenken müsste
+   *
+   * Bei den Bränden musste `dotNextTickAtMs` beim Verlängern unberührt bleiben
+   * (#517) — sonst brennt ein Brand länger und tickt seltener. Der Schild hat
+   * keine Entsprechung: Er hält nur einen Betrag und einen Ablauf, und beim
+   * Ablauf wird der Betrag genullt.
+   *
+   * **Das steht hier als Satz, damit das Fehlen nicht wie ein Versehen
+   * aussieht.** Wer #517 kennt, sucht sonst nach der Zeile, die es nicht gibt.
+   *
+   * Ein abgelaufener oder nie gesetzter Schild wird NICHT wiederbelebt: Ohne
+   * laufende Schicht gibt es nichts zu verlängern.
+   */
+  extendShield(timeMs: number, ms: number): void {
+    if (ms <= 0) return;
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    if (this.shieldExpiresAtMs < 0 || seitBeginn > this.shieldExpiresAtMs) return;
+    if (this.shieldValue <= 0) return;
+    this.shieldExpiresAtMs += ms;
+  }
+
+  /**
+   * Die Zersetzungs-Stapel länger halten (SEPSIS, Issue #523).
+   *
+   * # WELCHE Stapel — die Antwort folgt aus der Struktur, nicht aus Geschmack
+   *
+   * **Alle, und um denselben Betrag.** Das ist keine Vorliebe, sondern die
+   * einzige Wahl, die die Ordnung erhält:
+   *
+   * `decayExpiryMs` ist **aufsteigend sortiert**, und das Nachrücken beim
+   * Verfall setzt das voraus (siehe die Schleife in `expireDecayStacks`: sie
+   * zählt von vorn, solange der vorderste abgelaufen ist). Verlängerte man nur
+   * den ältesten oder nur den jüngsten, stünde ein späterer Ablauf vor einem
+   * früheren — und dann verfallen Stapel in der falschen Reihenfolge, **ohne
+   * dass die Stapelzahl es verrät**.
+   *
+   * Genau diese Klasse hat der ROT-Prüffall aus #498 gefangen: Die Summe
+   * stimmt, die Abläufe nicht.
+   *
+   * Ein gleicher Zuschlag auf alle erhält die Ordnung dagegen zwingend — die
+   * Differenzen zwischen den Einträgen bleiben unverändert.
+   *
+   * # Auch hier gibt es keinen Takt
+   *
+   * Die Stapel ticken nicht; sie liegen und verfallen. Die
+   * `dotNextTickAtMs`-Falle aus #517 hat keine Entsprechung.
+   */
+  extendDecayStacks(ms: number): void {
+    if (ms <= 0) return;
+    for (let i = 0; i < this.decayCountValue; i++) {
+      this.decayExpiryMs[i] = (this.decayExpiryMs[i] ?? 0) + ms;
+    }
+  }
+
+  /**
+   * Der Auswahlmodus des Cooldown-Rücksetzers (Issue #528).
+   *
+   * # Warum die Regel HIER liegt und nicht mehr in `Session`
+   *
+   * Sie lag bis #528 in `src/core/session.ts` — im Spiel eine Schicht über
+   * ihrer eigenen Wirkung, im Simulator dagegen im Kampf (`fight.rs`,
+   * `reset_mode`). Die Reihenfolge war auf beiden Seiten sorgfältig
+   * gleichgehalten, die **Schicht** nicht.
+   *
+   * Das war kein Schönheitsfehler: **Jede Aufzeichnung fährt `Combat`
+   * direkt** (`tests/parity/payloads.ts`, `new Combat({...})` — `new Session`
+   * kommt in keiner vor). Eine Regel ausserhalb von `Combat` ist für die
+   * Parität deshalb nicht schwer prüfbar, sondern **unsichtbar**. Der Bruch
+   * fiel erst auf, als jemand REFLUX in eine Aufzeichnung nehmen wollte.
+   *
+   * Und die Wirkung tritt beim **nächsten gewirkten Zauber** ein — das ist ein
+   * Kampfereignis, kein Sitzungsereignis (WORKER-GUIDE 8.38: der Zustand
+   * gehört dorthin abgelesen, wo die Wirkung eintritt).
+   */
+  private resetArmedForValue: number = -1;
+
+  /**
+   * Wie viele Auswahlen noch offen sind (Issue #521).
+   *
+   * # Warum ein Zähler neben dem Index und nicht statt seiner
+   *
+   * Der Index sagt, WER scharf gestellt hat — das braucht die Prüfung „der
+   * Rücksetzer wählt sich nicht selbst" (AC4), und zwar bei **jeder** der
+   * Auswahlen, nicht nur bei der ersten. Der Zähler sagt, wie oft noch
+   * gewählt werden darf. Zwei Fragen, zwei Felder.
+   */
+  private resetChargesLeftValue = 0;
+
+  /** Steht der Auswahlmodus scharf? Für Anzeige und Prüfung. */
+  get resetArmed(): boolean {
+    return this.resetArmedForValue >= 0;
+  }
+
+  /** Welcher Rücksetzer scharf steht, oder -1. */
+  get resetArmedFor(): number {
+    return this.resetArmedForValue;
+  }
+
+  /** Wie viele Auswahlen noch offen sind (Issue #521). */
+  get resetChargesLeft(): number {
+    return this.resetChargesLeftValue;
+  }
+
+  /**
+   * Nach einer Wirkung scharf stellen, wenn der Zauber ein Rücksetzer ist.
+   *
+   * **NACH der Wirkung, nie davor** — sonst wählte sein eigener Druck bereits,
+   * und der Rücksetzer würde nie gewirkt.
+   */
+  armResetIfNeeded(index: number): void {
+    const ladungen = this.spells[index]?.cooldownResetCharges ?? 0;
+    if (ladungen <= 0) return;
+    this.resetArmedForValue = index;
+    // **Überschreiben, nicht aufaddieren.** Wer einen zweiten Rücksetzer
+    // wirkt, während der erste noch scharf steht, hat den ersten verschenkt —
+    // dieselbe Regel wie bisher, nur jetzt mit Zahl. Aufaddieren wäre eine
+    // Vorratshaltung, die es in diesem Spiel nirgends gibt.
+    this.resetChargesLeftValue = ladungen;
+  }
+
+  /**
+   * Ein Druck im Auswahlmodus: Er WÄHLT, statt zu wirken.
+   *
+   * @returns ob die Wahl eine Abklingzeit zurückgesetzt hat. `false` heisst
+   *   verpufft — die Ladung ist trotzdem verbraucht.
+   */
+  chooseForReset(index: SpellIndex, timeMs: number): boolean {
+    // **Jede Wahl verbraucht eine Ladung** — auch eine falsche.
+    const selbst = index === this.resetArmedForValue;
+    this.resetChargesLeftValue--;
+    // Erst wenn keine Ladung mehr offen ist, fällt der Auswahlmodus. Bei einer
+    // einzigen Ladung ist das genau das Verhalten von vorher.
+    if (this.resetChargesLeftValue <= 0) {
+      this.resetArmedForValue = -1;
+      this.resetChargesLeftValue = 0;
+    }
+    // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
+    this.gcd.trigger(timeMs);
+    if (selbst || this.isOffCooldown(index, timeMs)) return false;
+    this.clearCooldown(index);
+    return true;
+  }
+
+  private applyDecayStackBonus(index: number): void {
+    const proStapel = this.spells[index]?.perDecayStackPercent ?? 0;
+    // **Der Faktor aus `stackBuffs` gehört auch hierher** (Issue #489). Diese
+    // Methode SETZT die Verwundbarkeit neu — ohne ihn würfe sie weg, was
+    // `updateVulnerability` eingerechnet hat, und eine Stapel-Verstärkung
+    // verschwände beim nächsten Wirken spurlos.
+    //
+    // Gemessen: Genau das ist beim Zusammenführen von #484 und #489
+    // aufgefallen — `buff-targets.test.ts` mass 1,06 gegen 1,06. Beide
+    // Vorhaben waren für sich grün; erst zusammen zeigte sich, dass das eine
+    // die Wirkung des anderen überschreibt. Kein Merge-Werkzeug fängt das:
+    // Die Dateien berühren einander nicht.
+    //
+    // Ganzzahlig bis zur letzten Teilung (18.4) — auf die Prozentpunkte, nicht
+    // auf das Ergebnis, genau wie in `updateVulnerability`.
+    const jeStapel = Math.round(
+      (DECAY_STACK_PERCENT + proStapel) * this.stackBuffs.factor(this.nowMsForBuffs),
+    );
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
   }
 
@@ -2253,6 +2464,81 @@ export class Combat {
   }
 
   /**
+   * Über alle Brände laufen, die **gerade brennen** (Issue #517).
+   *
+   * # Warum es diese Schleife vorher nicht gab
+   *
+   * `dotExpiresAtMs` wurde bis hierher ausschliesslich **je Index** gelesen und
+   * geschrieben. Die einzige Sammel-Operation war `fill(NOT_ACTIVE)` beim
+   * Kampfende — und die kennt keine Bedingung. Wer etwas mit *allen laufenden*
+   * Bränden tun wollte, hatte keine Stelle dafür.
+   *
+   * Genau das teilen sich EMBER und PYROCLASM: **nicht** einen Rechenschritt,
+   * sondern diese Iteration. EMBER verlängert, was sie findet; PYROCLASM liest
+   * und räumt ab. Wer sie für einen baut, hat sie für den anderen.
+   */
+  private forEachActiveDot(
+    timeMs: number,
+    tue: (index: number, dot: DotDef, laeuftNochMs: number) => void,
+  ): void {
+    for (let i = 0; i < this.spells.length; i++) {
+      const dot = this.spells[i]?.dot;
+      if (dot === undefined) continue;
+      if (!this.isDotActive(i, timeMs)) continue;
+      tue(i, dot, this.dotRemainingMs(alsSpellIndex(i), timeMs));
+    }
+  }
+
+  /**
+   * Jeden laufenden Brand um ein Tick-Intervall verlängern (EMBER, #517).
+   *
+   * # `dotNextTickAtMs` bleibt bewusst unberührt
+   *
+   * Der Takt läuft **unabhängig** von der Laufzeit: Die Tick-Schleife setzt
+   * `nextTick + dotInterval` und fragt getrennt, ob der Brand noch aktiv ist.
+   * Wer beim Verlängern auch den Takt verschöbe, liesse den Brand länger
+   * brennen und dabei **seltener** ticken — der Zuwachs käme nie an.
+   *
+   * Nichts zu tun ist hier die richtige Handlung, und deshalb steht sie als
+   * Satz da statt als fehlende Zeile.
+   */
+  extendActiveDots(timeMs: number, ticks: number): void {
+    if (ticks <= 0) return;
+    this.forEachActiveDot(timeMs, (i, dot) => {
+      const bisher = this.dotExpiresAtMs[i] ?? NOT_ACTIVE;
+      this.dotExpiresAtMs[i] = bisher + ticks * this.dotInterval(dot);
+    });
+  }
+
+  /**
+   * Alle laufenden Brände verbrauchen und ihren Rest als Schaden geben
+   * (PYROCLASM, #517).
+   *
+   * # Restdauer × Schaden je Tick — und warum das keine neue Zahl ist
+   *
+   * Es ist genau der Schaden, den die Brände noch gemacht hätten. Nach der
+   * Erneuerungsregel ist verbleibende Restzeit **verloren**, wenn zu früh
+   * erneuert wird; PYROCLASM kehrt dieselbe Regel um. Der Spieler kennt sie
+   * bereits — früh zünden verschenkt, spät zünden riskiert das Auslaufen.
+   *
+   * Ein Brand, der schon abgelaufen ist, trägt **null** bei: `forEachActiveDot`
+   * sieht ihn gar nicht, und `dotRemainingMs` gäbe ohnehin 0.
+   */
+  consumeActiveDots(timeMs: number): number {
+    let summe = 0;
+    this.forEachActiveDot(timeMs, (i, dot, laeuftNochMs) => {
+      const abstand = this.dotInterval(dot);
+      // Ganzzahlig bis zur letzten Teilung (18.4): erst die Ticks, dann der
+      // Schaden. Andersherum trüge die Rundung sich durch jeden Brand.
+      const offeneTicks = Math.floor(laeuftNochMs / abstand);
+      summe += computeDamage(dot.tickDamage * offeneTicks, this.factorsFor(false));
+      this.dotExpiresAtMs[i] = NOT_ACTIVE;
+      this.dotNextTickAtMs[i] = NOT_ACTIVE;
+    });
+    return summe;
+  }
+
+  /**
    * Ein Kritwurf für **eine Wirkung** (GAME-DESIGN 6.5).
    *
    * > Echte Wahrscheinlichkeit pro Zauber, pro DoT-Tick und pro Heilung. Kein
@@ -2383,6 +2669,9 @@ export class Combat {
       // gewirkten Zaubers — und das wäre nicht falsch berechnet, sondern
       // falsch zugeordnet: ein Fehler, den keine Summe verrät.
       this.setDamageFactor('resistance', this.resistanceOfSpell[i] ?? 1);
+      // Und derselbe Zuschlag wie beim Wirken: Ein Tick gehoert seinem Zauber
+      // (#328), also traegt er auch dessen perDecayStackPercent (#484).
+      this.applyDecayStackBonus(i);
       const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
       // **Der Schleifenindex trägt die Marke** (Issue #444): `i` läuft über
       // dieselbe Liste, aus der `indexOf` seine Werte nimmt — es IST ein
@@ -3047,10 +3336,23 @@ export class Combat {
     // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
     // die #196 als einzige Schreibstelle festgelegt hat.
     this.setDamageFactor('resistance', this.resistanceOfSpell[index] ?? 1);
+    // Der Stapel-Zuschlag DIESES Zaubers, aus demselben Grund wie der
+    // Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf (#484).
+    this.applyDecayStackBonus(index);
     const castFactors = this.factorsFor(kritet);
+
+    // EMBER und PYROCLASM (Issue #517). Beide VOR der Schadensrechnung: EMBER,
+    // damit ein Brand, den dieser Zauber selbst legt, nicht schon verlaengert
+    // wird; PYROCLASM, weil sein Beitrag in denselben Betrag gehoert wie der
+    // Grundschaden.
+    if (spell.dotExtendTicks !== undefined) this.extendActiveDots(timeMs, spell.dotExtendTicks);
+    // HARDEN und SEPSIS (#523), aus demselben Grund an derselben Stelle.
+    if (spell.extendShieldMs !== undefined) this.extendShield(timeMs, spell.extendShieldMs);
+    if (spell.extendDecayMs !== undefined) this.extendDecayStacks(spell.extendDecayMs);
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
+    if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
     // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
     // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
     // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
@@ -3501,6 +3803,18 @@ export class Combat {
 
     this.decayCountValue = 0;
     this.decayExpiryMs.fill(0);
+    // Der Auswahlmodus gehoert zum Kampf und endet mit ihm (#528).
+    //
+    // **Und offene Ladungen enden hier mit** (Issue #521, AC3). Es gibt
+    // KEINEN Zeitverfall — das ist die bestehende Regel, nicht eine neue für
+    // ALEMBIC: Schon vorher wurde der Auswahlmodus ausschliesslich hier
+    // gelöscht, nie durch Ablauf einer Frist. Wer eine zweite Ladung nicht
+    // nutzt, verliert sie also mit dem Kampf und nicht vorher.
+    //
+    // Das steht hier ausdrücklich, weil der nächste Leser sonst einen Timer
+    // sucht, den es nie gab.
+    this.resetArmedForValue = -1;
+    this.resetChargesLeftValue = 0;
 
     this.shieldValue = 0;
     this.shieldExpiresAtMs = -1;
