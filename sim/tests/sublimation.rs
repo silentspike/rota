@@ -61,7 +61,12 @@ fn die_mechanik_ist_angemeldet_und_steht_hinter_der_stapel_mechanik() {
 ///
 /// # Mit WISP (#480) ist genau das eingetreten, und hier ist die Nachmessung
 ///
-/// Die Liste steht jetzt auf zwei Namen. Der Satz, den sie ersetzt, war aber
+/// Die Liste steht inzwischen auf VIER Namen — WISP kam mit #480 dazu, ASCEND
+/// und DECANT mit #518. Beim Nachziehen von #518 hat dieser Fall genau das
+/// getan, wofuer er da ist: Er fiel mit
+/// `["vapour", "wisp", "ascend", "decant"]` gegen `["vapour", "wisp"]` und
+/// zwang dazu, die Nachmessung erneut zu lesen statt die Liste stillschweigend
+/// zu erweitern. Sie hielt: Keiner der vier wird im Referenzlauf gewirkt. Der Satz, den sie ersetzt, war aber
 /// nicht "es ist genau einer", sondern "die Referenz-Rechnung ist unberuehrt"
 /// — und der wird nicht laenger BEHAUPTET, sondern an den Daten geprueft:
 /// Keiner der drei Zauber, die `rotation::good` ueberhaupt werfen kann, traegt
@@ -81,7 +86,7 @@ fn welche_zauber_verkuerzen_und_warum_die_referenz_das_nicht_merkt() {
         .collect();
     assert_eq!(
         mit,
-        vec!["vapour", "wisp"],
+        vec!["vapour", "wisp", "ascend", "decant"],
         "die Verkuerzer haben gewechselt — dann gehoert die Nachmessung \
          darunter erneut gelesen, nicht nur diese Liste angepasst"
     );
@@ -97,6 +102,13 @@ fn welche_zauber_verkuerzen_und_warum_die_referenz_das_nicht_merkt() {
     };
     assert_eq!(betrag("vapour"), 1000);
     assert_eq!(betrag("wisp"), 500, "WISP verkuerzt die Haelfte von VAPOUR");
+    // Die zwei GEZIELTEN (#518). Sie verkuerzen mehr als die breiten, treffen
+    // dafuer aber nicht alles: ASCEND nur Abklingzeiten UNTER seiner Schwelle,
+    // DECANT nur die laengste. Der Umfang steht in eigenen Feldern und wird in
+    // `parity_gezielte_verkuerzung.rs` geprueft — hier zaehlt nur, dass sie
+    // ueberhaupt in dieser Menge auftauchen und mit welchem Betrag.
+    assert_eq!(betrag("ascend"), 10_000);
+    assert_eq!(betrag("decant"), 2_000);
 
     // **DIE NACHMESSUNG.** Der Referenzlauf bleibt unberuehrt, weil kein
     // Zauber, den er wirklich wirft, etwas verkuerzt. Das ist der Grund —

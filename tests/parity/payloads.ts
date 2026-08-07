@@ -137,6 +137,161 @@ export const LOG_PARITY_NAME = 'log-parity';
 export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
 /** Vergleichsdatei für den Gleichlauf der Sublimation (#104). */
+export const GEZIELTE_VERKUERZUNG_NAME = 'gezielte-verkuerzung';
+
+/** Die Leiste der Aufzeichnung für die gezielten Verkürzer (Issue #518). */
+const GEZIELTE_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'ascend' },
+  { slot: 2, spellId: 'decant' },
+  { slot: 3, spellId: 'pyre' },
+  // **WISP stand hier und wurde NIE gedrückt.** Er kam herein, weil er in der
+  // Sublimations-Aufzeichnung KINDLE verdrängte — dort war er falsch, hier
+  // aber auch: KINDLE steht in der Auswahl vor ihm und lässt ihm keinen Zug.
+  //
+  // Eine Bindung ohne einen einzigen Druck belegt nichts. Sie sieht aus wie
+  // Absicherung und behauptet nur, dass der Zauber hier eine Rolle spielt.
+  //
+  // WISP hat seit #480 seine eigene Aufzeichnung (`wisp-verkuerzung`, VAPOUR
+  // als Träger, 13 Würfe). Dort ist er der Gegenstand, nicht ein Anhängsel.
+] as const;
+
+/**
+ * Ein Durchgang, der **gezieltes** Verkürzen zeigt (Issue #518).
+ *
+ * # Warum eine eigene Aufzeichnung
+ *
+ * ASCEND und DECANT gehörten zunächst in die Sublimations-Aufzeichnung. Die
+ * hatte vier Zauber; mit WISP, SLAG, ASCEND und DECANT wurden es sieben, und
+ * sie teilen sich eine Wartezeit. Jede Bedingung, die einem Platz macht,
+ * nimmt ihn einem anderen — vier Anläufe, und jedes Mal fiel ein anderer
+ * ganz aus.
+ *
+ * Am Ende meldete `parity_sublimation_run` zu Recht: „KINDLE kam nicht zum
+ * Zug — dann lief keine Abklingzeit, die VAPOUR hätte verkürzen können."
+ * Der Fall prüft die Sublimations-Mechanik, und die Erweiterung hatte ihm
+ * den Träger genommen.
+ *
+ * **Eine Aufzeichnung, die alles abdeckt, zeigt nichts mehr.** Diese hier
+ * zeigt eine Sache: dass ASCEND und DECANT anders verkürzen als VAPOUR.
+ *
+ * # Der Ablauf
+ *
+ * PYRE (5 s) und KINDLE (1,5 s) laufen als Träger — zwei Abklingzeiten von
+ * sehr verschiedener Länge. Genau daran wird sichtbar, dass ASCEND nur die
+ * kurze trifft und DECANT nur die lange.
+ */
+export function gezielteVerkuerzungPayload(): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const kindle = combat.indexOf('kindle');
+  const ascend = combat.indexOf('ascend');
+  const decant = combat.indexOf('decant');
+  const pyre = combat.indexOf('pyre');
+  // **60 s.** Vier Zauber teilen sich eine Wartezeit; bei 30 s fällt immer
+  // einer ganz aus, egal wie man die Bedingungen dreht — gemessen an drei
+  // Anläufen, bei denen abwechselnd DECANT und WISP mit null Drücken
+  // dastanden.
+  //
+  // Mehr Zauber brauchen mehr Zeit. Das ist billiger als Bedingungen, die
+  // sich gegenseitig ausschließen.
+  const ticks = 6000; // 60 s
+
+  const slots = slotMap(combat, GEZIELTE_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const pyreReadyAt: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    // **Auch beim TOD DES BOSSES abbrechen, nicht nur beim eigenen.**
+    //
+    // `first-crucible` hat 4200 Leben und fällt in diesem Lauf nach 5402
+    // Takten. Ohne den Abbruch zeichnete das Spiel weitere 598 Takte gegen
+    // einen toten Boss auf, während der Simulator den Kampf beendet — die
+    // Prüfsummen liefen ab genau diesem Takt auseinander (Spiel 3076587224,
+    // Simulator 0) und der Gesamtschaden ebenfalls (4448 gegen 4333).
+    //
+    // Gefunden hat es der Prüffall `parity_gezielte_verkuerzung.rs`, den es
+    // bis dahin nicht gab: Diese Aufzeichnung wurde exportiert und vom
+    // Frische-Fall geprüft, aber **von keinem Simulator-Fall nachgespielt**.
+    // Sie belegte damit nur, dass das Spiel mit sich selbst übereinstimmt.
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
+      break;
+    }
+
+    // **Die Reihenfolge folgt der Länge der Abklingzeit**, damit beide
+    // Verkürzer etwas zu tun haben: PYRE erzeugt die lange, KINDLE die
+    // kurze. ASCEND kommt selten (30 s), DECANT als Füller dazwischen.
+    let gewaehlt = -1;
+    if (combat.isReady(alsSpellIndex(pyre), timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(alsSpellIndex(ascend), timeMs)) gewaehlt = ascend;
+    // **DECANT nur, wenn PYRE wirklich lange läuft.** Sonst zielt er ins
+    // Leere — und verdrängt WISP vollständig, der dann in keiner
+    // Aufzeichnung mehr gewirkt wird.
+    else if (
+      combat.isReady(alsSpellIndex(decant), timeMs) &&
+      combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs) > 2000
+    ) {
+      gewaehlt = decant;
+    }
+    // **KINDLE vor WISP**, und das ist keine Vorliebe: KINDLE baut die
+    // Hitze auf, die PYRE braucht — und PYRE erzeugt die lange Abklingzeit,
+    // an der DECANT überhaupt etwas zu zielen hat.
+    //
+    // Umgekehrt fiel die ganze Kette aus: WISP verdrängte KINDLE, ohne
+    // Hitze kam PYRE nie dran, ohne PYRE lief nichts Langes, und DECANT
+    // stand mit null Drücken da. Drei Zauber, die an einem hingen.
+    //
+    // WISP kommt als Füller dahinter — er ist der einzige, der immer kann.
+    // **KINDLE solange Hitze fehlt, danach WISP.** Beide sind Füller mit
+    // derselben Wartezeit; ohne eine Trennung nach Zweck verdrängt einer den
+    // anderen vollständig.
+    //
+    // KINDLE baut die Hitze auf, die PYRE braucht — und PYRE erzeugt die
+    // lange Abklingzeit, an der DECANT etwas zu zielen hat. Drei Zauber, die
+    // an einem hängen: Ohne KINDLE zuerst standen in drei Anläufen
+    // abwechselnd DECANT und WISP mit null Drücken da.
+    //
+    // WISP steht seit #534 nicht mehr in dieser Leiste: KINDLE liess ihm
+    // ohnehin keinen Zug, und eine Bindung ohne Druck belegt nichts.
+    else if (combat.isReady(alsSpellIndex(kindle), timeMs) && combat.resource < 15) {
+      gewaehlt = kindle;
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
+  }
+
+  return {
+    schema: 1,
+    name: GEZIELTE_VERKUERZUNG_NAME,
+    bossId: FIRST_CRUCIBLE.value.id,
+    ticks,
+    tickMs: TICK_MS,
+    // **`spellId` als NAME, nicht als Index.** Ein erster Entwurf schrieb
+    // `spell: <index>` — das Format sah gültig aus, und `coverage.test.ts`
+    // meldete die zwei Zauber trotzdem als „in keiner Aufzeichnung
+    // gewirkt": Es liest die Namen, nicht die Zahlen.
+    bindings: GEZIELTE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    pyreReadyAt,
+    expected: {
+      damageDealt: combat.damageDealt,
+      casts: {
+        ascend: combat.castCount(alsSpellIndex(ascend)),
+        decant: combat.castCount(alsSpellIndex(decant)),
+      },
+    },
+  };
+}
+
 export const SUBLIMATION_NAME = 'sublimation';
 
 /**

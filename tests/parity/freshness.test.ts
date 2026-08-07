@@ -37,6 +37,7 @@ import eingecheckterWettlauf from './recordings/race-heal.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
+import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckteAusruestung from './recordings/gear.json';
@@ -88,6 +89,7 @@ import {
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
+  gezielteVerkuerzungPayload,
   wispPayload,
   alembicPayload,
   misplaysPayload,
@@ -269,6 +271,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckterAlembic, HINWEIS).toEqual(alembicPayload());
+  });
+
+  it('der Lauf mit GEZIELTEN Verkürzungen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteGezielteVerkuerzung, HINWEIS).toEqual(gezielteVerkuerzungPayload());
   });
 
   it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
@@ -564,6 +570,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'trial-blocks',
   'timeline-loop',
   'sublimation',
+  'gezielte-verkuerzung',
   'wisp-verkuerzung',
   'alembic-zwei-ladungen',
   'gear',

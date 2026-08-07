@@ -107,6 +107,8 @@ import {
   logParityPayload,
   timelineLoopPayload,
   sublimationPayload,
+  gezielteVerkuerzungPayload,
+  GEZIELTE_VERKUERZUNG_NAME,
   SUBLIMATION_NAME,
   wispPayload,
   WISP_NAME,
@@ -309,6 +311,14 @@ console.log(
   `  ALEMBIC   ${alembic.expected.alembicCasts} Wurf, ` +
     `${alembic.expected.auswahlen} greifende Auswahlen`,
 );
+// Die gezielten Verkuerzer (Issue #518) — eigene Aufzeichnung, weil die
+// Sublimations-Aufzeichnung ihren eigenen Zweck hat und mit sieben Zaubern
+// keinen mehr zeigte.
+const gezielteVerkuerzung = gezielteVerkuerzungPayload();
+const gezielteVerkuerzungPath = join(here, 'recordings', `${GEZIELTE_VERKUERZUNG_NAME}.json`);
+writeFileSync(gezielteVerkuerzungPath, serialize(gezielteVerkuerzung), 'utf8');
+console.log(`geschrieben: ${gezielteVerkuerzungPath}`);
+console.log(`  gezielt gewirkt ${JSON.stringify(gezielteVerkuerzung['expected']['casts'])}`);
 
 const wisp = wispPayload();
 const wispPath = join(here, 'recordings', `${WISP_NAME}.json`);
