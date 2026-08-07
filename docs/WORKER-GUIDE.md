@@ -4982,3 +4982,119 @@ murren.
 > plausibel aus.** Sie hätte gut zu einem Befund gepasst, der am selben Tag geschrieben wurde,
 > und hätte fast einen Eingriff gemeldet, den es nie gab. Siehe auch „Der Bezugspunkt ist die
 > Merge-Base, nicht HEAD" — dieselbe Wurzel, anderes Werkzeug.
+
+### 8.72 „Gemergt" sagt nichts über den letzten Push — prüfe jeden eigenen Commit einzeln
+
+Am 2026-08-07 ging ein Commit verloren, und niemand hat es beim Mergen bemerkt:
+
+```
+13:21:27   d25ded0 committet   (der gemessene Beleg im Kopf eines Wächters)
+13:22:42   PR #618 gemergt
+```
+
+Dazwischen lief ein `gh pr update-branch` auf demselben Zweig. Der Push des Workers wurde als
+nicht-fast-forward abgelehnt; als er nachgezogen und erneut gepusht hatte, war der PR schon zu.
+
+```
+git branch -r --contains d25ded0
+→ nur origin/feat/e2-612-leitungs-waechter
+```
+
+**In `main` fehlte der Beleg, und beide Seiten hielten die Sache für erledigt.** Der Worker hatte
+die Fertigmeldung geschrieben, als der PR grün war; der Merge lief auf einen Stand, der eine
+Minute alt war.
+
+#### Die Prüfung, die es gefangen hat
+
+```bash
+git merge-base --is-ancestor <commit> origin/main   # für JEDEN eigenen Commit
+```
+
+Nicht nur für den letzten, den man kennt — für jeden. Der Worker fuhr sie als Formalie nach jedem
+Merge; an diesem Tag hat sie zum ersten Mal etwas gefunden.
+
+Auf der Gegenseite dieselbe Regel für den, der mergt:
+
+```bash
+git log origin/<zweig> -1     # gegen den PR-HEAD, unmittelbar vor dem Merge
+```
+
+#### Warum das kein Randfall ist
+
+Der Auslöser war ein `update-branch`, und der ist die normale Antwort auf `BEHIND` bei strikter
+Branch-Protection. Wer ihn fährt, während jemand auf demselben Zweig arbeitet, erzeugt genau
+dieses Fenster — der fremde Push wird abgelehnt, und die Zeit bis zum erneuten Push ist die Zeit,
+in der ein Merge zu früh kommt.
+
+> **Wer `update-branch` auf einem fremden Zweig fährt, sagt es dem, der darauf arbeitet.** Dann
+> pusht der vorher oder gar nicht.
+
+#### Und die Regel für die Rettung
+
+Beide Seiten haben den verlorenen Commit **unabhängig** gefunden und **beide** einen
+Rettungs-PR aufgemacht — achtzehn Sekunden auseinander, inhaltlich identisch.
+
+Kosten war eine Minute. Aber wenn beide gemergt hätten, stünde die Änderung zweimal in `main`,
+und der zweite Merge sähe aus wie ein Konflikt, den niemand verursacht hat.
+
+> **Wer einen verlorenen Commit findet, meldet ihn zuerst und baut erst nach einer Antwort** —
+> auch wenn der Fix trivial scheint. Gerade dann: Trivialität ist der Grund, warum beide sofort
+> handeln.
+
+### 8.73 Ein Schluss aus einer fremden Zahl ist eine eigene Behauptung
+
+Am 2026-08-07 meldete ein Worker eine Messung:
+
+```
+Rust  ReplayResult   36 Felder
+TS    ReplayResult   21
+nur in Rust          15
+```
+
+Daraus wurde ein Issue, und darin stand ein Satz, den die Messung **nicht** hergab:
+
+> Wo Rust eine Größe führt und das Spiel nicht, kann kein Paritäts-Fall sie vergleichen.
+
+Klingt zwingend. Gemessen ist es falsch: Fünf der sechs strittigen Größen werden sehr wohl
+verglichen — nur nicht über das generische `ReplayResult`, sondern über **eigene
+`expected`-Felder in einzelnen Aufzeichnungen**, die `payloads.ts` von Hand dorthin schreibt.
+
+```
+interruptsLanded      5 Aufzeichnungen
+interruptsMissed      5
+castsInterrupted      1
+castsCancelled        1
+cycle                 1
+stabilised            0   ← die eine echte Lücke
+```
+
+**Die Zahl war richtig, der Schluss daraus war eine neue Behauptung.** „Nicht im
+`ReplayResult`" und „wird nirgends verglichen" sind zwei verschiedene Aussagen; die zweite folgt
+nicht aus der ersten, weil es einen zweiten Weg gibt, den niemand mitgedacht hat.
+
+#### Dieselbe Bewegung, zweimal an einem Tag
+
+Der Worker fand denselben Fehler bei sich selbst, eine Ebene tiefer:
+
+> Ich hatte „alle sechs stehen als OFFEN in meiner Ausnahmeliste" gemeldet. Das stimmt — aber
+> „offen" hieß dort **„keine Leitung ins ReplayResult"**, nicht **„wird nirgends verglichen"**.
+> Ich habe die beiden Fragen in einer Zeile zusammengezogen und dabei die schärfere verloren.
+
+Ein Wort, das für zwei Fragen steht, überträgt die Antwort der einen auf die andere — lautlos.
+
+#### Die Regel
+
+Wer eine fremde Messung weitergibt, gibt **die Messung** weiter, nicht seine Deutung davon. Wird
+daraus ein Schluss gezogen, ist der Schluss eine eigene Behauptung und braucht eine eigene
+Messung.
+
+Die Prüffrage vor jedem „das heißt also":
+
+> **Steht das in der Zahl, oder habe ich es ergänzt?**
+
+Ergänzt ist nicht falsch — ergänzt ist ungemessen. Der Unterschied entscheidet, ob es als Befund
+in ein Issue darf oder als Vermutung gekennzeichnet gehört.
+
+> Verwandt mit 8.66 (eine Messung beantwortet nur ihre eigene Frage), aber schärfer: Dort
+> beantwortet die Messung eine Frage, die man nicht gestellt hat. Hier beantwortet sie ihre
+> eigene Frage korrekt, und die Deutung reicht darüber hinaus.

@@ -318,7 +318,15 @@ export interface CastOutcome {
 
 export class Combat {
   readonly school: SchoolDef;
-  readonly boss: BossDef;
+  /**
+   * Der Boss dieses Kampfes.
+   *
+   * **Nicht mehr `readonly` seit Issue #613**, weil der Spieler zwischen den
+   * Kämpfen einen anderen wählt. Geändert wird er ausschließlich über
+   * {@link switchBoss} — direkt zuzuweisen ließe die Widerstände des alten
+   * stehen, siehe dort.
+   */
+  boss: BossDef;
   readonly spells: readonly SpellDef[];
   readonly gcd = new GlobalCooldown();
   readonly random: RandomStreams;
@@ -3908,6 +3916,38 @@ export class Combat {
     if (!__ROTA_DEVTOOLS__) return;
     const cap = this.resourceCap;
     this.resourceValue = value < 0 ? 0 : value > cap ? cap : value;
+  }
+
+  /**
+   * Einen anderen Boss übernehmen und den Kampf frisch aufsetzen (Issue #613).
+   *
+   * # Warum nicht einfach ein neuer `Combat`
+   *
+   * `Session` bekommt den Kampf im Konstruktor und hält ihn `readonly`; in
+   * `app.ts` steht `this.combat` an 29 Stellen. Ein Neuaufbau zöge Sitzung,
+   * Anzeige und Trefferanzeige mit — deutlich mehr, als der Wechsel wert ist.
+   *
+   * # Warum es trotzdem nicht bei `this.boss = boss` bleibt
+   *
+   * **`reset()` allein genügt nicht.** Es leitet die fünf Zeitgeber aus
+   * `this.boss` neu ab — also nach dem Umsetzen aus dem richtigen Boss. Die
+   * **Widerstände** stehen aber in `resistanceOfSpell`, und das wird nur im
+   * Konstruktor gefüllt. Ohne die Schleife hier trüge der neue Boss die
+   * Widerstände des alten: Jeder Zauber rechnete mit einem Faktor, der zu
+   * einem Kampf gehört, den der Spieler verlassen hat.
+   *
+   * Das ist die „zweite Wahrheit", die gegen einen Setter spricht — sie ist
+   * real, deshalb steht sie hier an einer Stelle statt beim Aufrufer.
+   * `tests/unit/boss-switch.test.ts` misst genau das.
+   */
+  switchBoss(boss: BossDef): void {
+    this.boss = boss;
+    for (let i = 0; i < this.spells.length; i++) {
+      const schule = this.spells[i]?.school;
+      this.resistanceOfSpell[i] =
+        schule === null || schule === undefined ? 1 : (boss.resistances[schule] ?? 1);
+    }
+    this.reset();
   }
 
   reset(): void {
