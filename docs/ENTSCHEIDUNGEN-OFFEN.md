@@ -844,3 +844,73 @@ für sich eine Wahl**, auch ohne den Zusatz; das war Worker-1s Befund zur Begrü
 > Wird **fest** entschieden, ist das kein Fehler — aber dann gehört geprüft, ob andere
 > Schlüsseltalente denselben Weg nehmen sollen. Eine Ausnahme für einen Zauber ist eine
 > Sonderregel; eine Linie für alle ist ein Entwurf.
+
+---
+
+## 17. Drei Bausteine sind gebaut und an nichts gebunden — OFFEN
+
+_Aufgenommen am 2026-08-07, nachdem der dritte Fall innerhalb von zwei Stunden auftrat._
+
+Diese drei Punkte stehen zusammen, weil sie **dieselbe Lage** sind, nicht weil sie
+zusammengehören. Jeder für sich wäre eine kleine Frage; zu dritt sind sie eine Aussage über
+unsere Bauweise.
+
+### Was in allen drei Fällen gilt
+
+Der Mechanismus ist gebaut, geprüft, auf beiden Seiten bitgleich und in der
+Zustands-Prüfsumme. Er läuft. Er bewirkt nichts, weil die **Bindung an eine Spieler-Handlung
+oder eine Folge** nie entschieden wurde.
+
+|                              | gebaut und messbar                                                    | es fehlt                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Verhängnis-Zähler** (#561) | steigt, erreicht 100, `clearDoom()` funktioniert                      | **kein Zauber löst die Senkung aus** — die Funktion wird nur von Prüffällen gerufen                          |
+| **Stapel-Regel** (#562)      | `kind` und `target` wählen Speicher und Platz, beide Seiten lesen sie | **kein Speicher hat zwei echte Bewohner** — die Regel „gleiche ersetzen, verschiedene stapeln" tritt nie ein |
+| **Energieleiste** (#568)     | steigt, erreicht die Schwelle, setzt zurück, zählt                    | **der Zähler wird nirgends gelesen** — die Schwelle löst nichts aus                                          |
+
+### Warum das eine Frage an den Auftraggeber ist und keine an den Balance-Läufer
+
+Die Prüffrage lautet: _Entscheidet die Antwort über den Charakter des Spiels oder über eine
+Zahl?_ Hier ist es dreimal der Charakter:
+
+- **Welcher Zauber senkt das Verhängnis** entscheidet, welche Schule die Antwort auf eine
+  tödliche Uhr besitzt. Wird es eine FIXATION-Wirkung, ist das die vierte neben verlangsamen,
+  verzögern, hinauszögern. Wird es COAGULATION, ist Überleben plötzlich mehr als Schild und
+  Heilung. Wird es ein schulunabhängiger Sonderzauber wie QUENCH, ist es niemandes Schule —
+  dann steigt die Zahl der Sonderfälle auf vier.
+- **Was die Energieleiste auslöst** entscheidet, ob sie eine zweite Uhr ist, die man im Blick
+  behält, oder ein Ereignis, auf das man antwortet. GAME-DESIGN nennt „bei manchen Bossen den
+  sofortigen Tod" — das ist die härteste Form und schließt die anderen nicht aus.
+- **Ob zwei Verstärker sich einen Speicher teilen sollen** entscheidet, ob das Zusammenlegen
+  großer Fähigkeiten — von GAME-DESIGN ausdrücklich als **Kernfertigkeit** benannt — überhaupt
+  vorkommt. Heute sitzt jeder Verstärker allein, und es gibt nichts zusammenzulegen.
+
+### Der Befund hinter den drei Befunden
+
+> Wir bauen den Mechanismus und verschieben die Bindung — und die Verschiebung wird nie
+> eingeholt, weil **nichts sie einfordert**.
+
+Der Kommentar über `clearDoom()` sagt es selbst: _„WELCHE TASTE SIE AUSLÖST, STEHT HIER NICHT.
+Dieses Issue baut den Mechanismus; die Bindung entscheidet E10."_ Das war richtig aufgeschrieben
+und ist trotzdem liegengeblieben, weil ein Kommentar niemanden erinnert.
+
+**Alle drei sind paritätsgesichert.** Beide Seiten zählen bitgleich dasselbe Nichts — die
+Absicherung, auf die wir uns verlassen, sagt über Wirkung nichts aus.
+
+### Was blockiert ist, solange die Antwort fehlt
+
+|                                           |                                                                                                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `boss-1-2` der ersten Instanz             | **unschaffbar**, nicht wegen der Zahlen: Der Zähler läuft in gut 16 Sekunden voll, und der Spieler hat kein Mittel dagegen. Keine Lebenspunktzahl ändert das |
+| AC2 und AC4 von #544                      | drei von vier statt vier von vier                                                                                                                            |
+| jeder künftige Boss mit diesen Bausteinen | dieselbe Lage, nur später bemerkt                                                                                                                            |
+
+### Was ausdrücklich **nicht** getan wird
+
+Eine Justierung, die den Boss schaffbar macht, ohne dass die Signatur zur Wirkung kommt. Bei
+`boss-1-2` hieße das, die Lebenspunkte zu senken, bis er vor dem Verhängnis fällt — dann wäre
+AC2 grün bei einem Boss, dessen Signatur nie eintritt.
+
+> **Ein Boss, den man ohne die verlangte Handlung besiegt, verlangt sie nicht.**
+
+Dasselbe gilt für die Energieleiste: Eine Schwelle, die absichtlich nie erreicht wird, ist eine
+Anzeige, die so tut als ob.
