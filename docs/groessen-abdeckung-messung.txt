@@ -81,10 +81,10 @@ spender.bonusMultiplier    pyroclasm    2 -> 1        NUR FRISCHE -> faktisch un
 spender.bonusThreshold     pyre         15 -> 7        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 spender.bonusThreshold     pyroclasm    15 -> 7        SCHWEIGT
 spender.consumesAll        pyre         True -> False    geschuetzt (combat.test.ts, devtools-replay.test.ts, instance-1-signaturen.test.ts...)
-spender.consumesAll        pyroclasm    True -> False    NUR FRISCHE -> faktisch ungeschuetzt
+spender.consumesAll        pyroclasm    True -> False    RUST-GEPRUEFT (sim/build.rs:671 bricht ab) — vitest schweigt
 spender.damagePerPoint     pyre         12 -> 6        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 spender.damagePerPoint     pyroclasm    12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
 spender.resource           pyre         heat -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, composition-preview.test.ts, devtools-replay.test.ts...)
-spender.resource           pyroclasm    heat -> rota-mutation-ungueltig NUR FRISCHE -> faktisch ungeschuetzt
+spender.resource           pyroclasm    heat -> rota-mutation-ungueltig RUST-GEPRUEFT (sim/build.rs:664 bricht ab) — vitest schweigt
 synergy.partner            canker       fester -> searing  geschuetzt (factor-triggers.test.ts, synergy.test.ts)
 synergy.windowGcds         canker       2 -> 1        geschuetzt (synergy-window.test.ts)
