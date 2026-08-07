@@ -4216,3 +4216,129 @@ für einen zweiten Zyklus (letzter Eintrag bei 48 s, Limit 60 s), und `escalatio
 
 **Ein Baustein, der einen anderen voraussetzt, schweigt genau wie ein toter** — und der
 Unterschied steht im Quelltext, nicht in der Messung.
+
+---
+
+### 8.59 Eine Liste, in der alle Zeilen gleich aussehen, ist verdächtig
+
+Der Satz stammt von Worker-1, am 2026-08-07, und er ist schärfer als 8.23. Dort ging es
+darum, dass eine Suche etwas **nicht findet**. Hier findet sie überall dasselbe.
+
+Er hatte sein Abdeckungs-Werkzeug umgebaut — statt der Zahl aus der Zusammenfassung sollte
+es die Namen der gefallenen Dateien sammeln. Der Probelauf über sechs Verstärker:
+
+```
+distil SCHWEIGT · flashpoint SCHWEIGT · griplock SCHWEIGT
+quicksilver SCHWEIGT · slag SCHWEIGT · virulence SCHWEIGT
+```
+
+**Alle sechs.** Das passte zur These, die wir in derselben Stunde belegt hatten — die
+Verstärker seien ungeschützt. Es wäre durchgegangen.
+
+Aufgefallen ist es nur, weil `slag` **dabeistand**: Für ihn hatte er zwei Stunden vorher
+selbst drei Prüffälle gebaut und mit Gegenprobe belegt. Er wusste, dass diese Zeile falsch
+sein muss.
+
+> **Die Ursache:** `vitest` schreibt die `FAIL`-Zeilen nach **stderr**, die Zusammenfassung
+> nach **stdout**. Die neue Fassung las nur stdout. Die alte hatte die Zahl aus der
+> Zusammenfassung gelesen und war deshalb nie betroffen — **der Umbau hat den Fehler erst
+> erzeugt.**
+
+Nachgemessen, mit einer Mutation an `slag`:
+
+```
+stdout FAIL: 0        stderr FAIL: 3
+```
+
+Drei gefallene Fälle, keine einzige Zeile auf stdout.
+
+**Die Regel:** Ein Ergebnis, in dem jede Zeile gleich lautet, ist zuerst ein Verdacht gegen
+das Werkzeug und erst danach ein Befund. Das gilt auch — besonders — wenn es zur Erwartung
+passt. Wer eine Liste erzeugt, braucht darin mindestens einen Fall, dessen Antwort er vorher
+kennt; ohne diesen Anker ist eine gleichförmige Liste nicht von einem stummen Werkzeug zu
+unterscheiden.
+
+> Dieselbe Familie wie `cargo remote | tail`, das 17 statt 510 Tests meldete: **Nicht die
+> Menge ist das Problem, sondern der Kanal.** Wer Ergebnisse filtert, muss wissen, wohin sie
+> geschrieben werden.
+
+---
+
+### 8.60 Eine Prüfregel braucht die Gegenprobe an den Gesunden
+
+Am 2026-08-07 lief eine Zeitleiste rückwärts, weil ihr Schleifenwert kleiner war als die
+Spannweite ihrer Einträge. Die vorgeschlagene Prüfung dagegen lautete:
+
+```
+max(atMs) < timelineLoopMs
+```
+
+Sie fängt den bekannten Fall. Gegen den Bestand gefahren, **bevor** sie in das Issue kam:
+
+```
+test-metronome   loop 6000,  Einträge 2000 / 4000 / 6000
+                 max(atMs) 6000 ≥ loop 6000   → würde anschlagen
+
+  index 0 → 2000    index 3 →  8000
+  index 1 → 4000    index 4 → 10000
+  index 2 → 6000    index 5 → 12000
+
+  0 Rückwärts-Sprünge — ein gleichmäßiger Takt alle 2000 ms
+```
+
+Der Boss ist kerngesund. Maßgeblich ist die **Spannweite**, nicht der Höchstwert:
+
+```
+letzter Eintrag eines Zyklus   0·loop + max
+erster des nächsten            1·loop + min
+
+vorwärts genau dann, wenn      loop > max − min
+```
+
+Die falsche Regel entstand als Verallgemeinerung des einen betrachteten Falls — dort begann
+die Leiste bei 12000, und der Unterschied zwischen Höchstwert und Spannweite fiel nicht auf.
+
+**Warum das die teurere Richtung ist:** Eine Regel, die etwas übersieht, lässt einen Fehler
+durch. Eine Regel, die etwas Gesundes verurteilt, erzeugt einen Fehlalarm — und ein Wächter,
+der ohne Grund anschlägt, wird irgendwann abgeschaltet. Danach fängt er auch die echten
+Fälle nicht mehr.
+
+> **Zu jeder Prüfregel gehören zwei Proben, nicht eine:**
+>
+> | | |
+> | --- | --- |
+> | schlägt sie beim bekannten Fall an? | sonst prüft sie nichts |
+> | lässt sie **alle** bestehenden durch? | sonst ist sie ein Fehlalarm |
+>
+> Die zweite ist die, die vergessen wird. Sie kostet einen Lauf über den Bestand.
+
+---
+
+### 8.61 `git checkout <datei>` nimmt die Datei zurück, nicht die Mutation
+
+Ein Fehler des Orchestrators vom 2026-08-07, aufgeschrieben, weil er bei jeder
+Mutations-Gegenprobe lauert und dort besonders teuer ist.
+
+Ablauf: sieben Einfügungen in `sim/src/balance.rs` gebaut, nicht gestaged. Dann eine
+Mutation in dieselbe Datei gesetzt, den Prüffall gefahren — und die Mutation mit
+`git checkout sim/src/balance.rs` zurückgenommen.
+
+**Damit war die eigene Arbeit weg.** `git checkout` stellt den Stand aus dem **Index** her;
+was nie gestaged wurde, hat dort keinen Stand und fällt auf `HEAD` zurück.
+
+Gemerkt nur, weil der nächste Lauf `unknown field boss_healed` meldete — hätte die Mutation
+in einer Datei gelegen, an der nichts Eigenes stand, wäre es unbemerkt geblieben.
+
+```bash
+# Vor jeder Mutations-Gegenprobe:
+git add -A          # jetzt ist checkout ungefährlich
+
+# denn danach gilt:
+git checkout <datei>   # stellt den INDEX-Stand her, nicht HEAD
+```
+
+**Wer in einem Durchgang 68 Mutationen fährt, fährt 68 dieser Rücknahmen.** Eine davon trifft
+irgendwann eine Datei, an der ungestagte Arbeit steht.
+
+> Dieselbe Wurzel wie „Ein Test misst den Arbeitsbaum, ein Merge liefert den Index": **Index
+> und Arbeitsbaum sind zwei Stände**, und jedes Werkzeug spricht nur mit einem von beiden.
