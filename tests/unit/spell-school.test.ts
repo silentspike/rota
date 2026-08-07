@@ -66,6 +66,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'temper',
       // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
       'scab',
+      // Issue #523 — HARDEN.
+      'harden',
       'bind',
       'stall',
       'stay',
@@ -75,6 +77,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'wisp',
       'canker',
       'fester',
+      // Issue #523 — SEPSIS, bei seiner Schule.
+      'sepsis',
       // Der Pruef-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehoert
       // nicht zum Spiel, steht aber im Index-Raum — und genau der ist hier die
       // Aussage.

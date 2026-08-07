@@ -1798,6 +1798,69 @@ export class Combat {
    * überschrieben, genau wie `resistance` (Issue #328). Wer ihn dauerhaft in
    * `updateVulnerability` schriebe, gäbe den Zuschlag allen anderen mit.
    */
+  /**
+   * Die Schutzschicht länger halten (HARDEN, Issue #523).
+   *
+   * # Verlängern ist nicht Neusetzen
+   *
+   * Der Ablauf rückt nach hinten, `shieldValue` bleibt unangetastet. Ein
+   * Schild, der schon die Hälfte abgefangen hat, behält seinen Rest — wer ihn
+   * neu setzte, machte aus einem Verlängerer einen zweiten CRUST.
+   *
+   * # Es gibt hier KEINEN Takt, den man mitdenken müsste
+   *
+   * Bei den Bränden musste `dotNextTickAtMs` beim Verlängern unberührt bleiben
+   * (#517) — sonst brennt ein Brand länger und tickt seltener. Der Schild hat
+   * keine Entsprechung: Er hält nur einen Betrag und einen Ablauf, und beim
+   * Ablauf wird der Betrag genullt.
+   *
+   * **Das steht hier als Satz, damit das Fehlen nicht wie ein Versehen
+   * aussieht.** Wer #517 kennt, sucht sonst nach der Zeile, die es nicht gibt.
+   *
+   * Ein abgelaufener oder nie gesetzter Schild wird NICHT wiederbelebt: Ohne
+   * laufende Schicht gibt es nichts zu verlängern.
+   */
+  extendShield(timeMs: number, ms: number): void {
+    if (ms <= 0) return;
+    const seitBeginn = this.fightElapsedMs(timeMs);
+    if (this.shieldExpiresAtMs < 0 || seitBeginn > this.shieldExpiresAtMs) return;
+    if (this.shieldValue <= 0) return;
+    this.shieldExpiresAtMs += ms;
+  }
+
+  /**
+   * Die Zersetzungs-Stapel länger halten (SEPSIS, Issue #523).
+   *
+   * # WELCHE Stapel — die Antwort folgt aus der Struktur, nicht aus Geschmack
+   *
+   * **Alle, und um denselben Betrag.** Das ist keine Vorliebe, sondern die
+   * einzige Wahl, die die Ordnung erhält:
+   *
+   * `decayExpiryMs` ist **aufsteigend sortiert**, und das Nachrücken beim
+   * Verfall setzt das voraus (siehe die Schleife in `expireDecayStacks`: sie
+   * zählt von vorn, solange der vorderste abgelaufen ist). Verlängerte man nur
+   * den ältesten oder nur den jüngsten, stünde ein späterer Ablauf vor einem
+   * früheren — und dann verfallen Stapel in der falschen Reihenfolge, **ohne
+   * dass die Stapelzahl es verrät**.
+   *
+   * Genau diese Klasse hat der ROT-Prüffall aus #498 gefangen: Die Summe
+   * stimmt, die Abläufe nicht.
+   *
+   * Ein gleicher Zuschlag auf alle erhält die Ordnung dagegen zwingend — die
+   * Differenzen zwischen den Einträgen bleiben unverändert.
+   *
+   * # Auch hier gibt es keinen Takt
+   *
+   * Die Stapel ticken nicht; sie liegen und verfallen. Die
+   * `dotNextTickAtMs`-Falle aus #517 hat keine Entsprechung.
+   */
+  extendDecayStacks(ms: number): void {
+    if (ms <= 0) return;
+    for (let i = 0; i < this.decayCountValue; i++) {
+      this.decayExpiryMs[i] = (this.decayExpiryMs[i] ?? 0) + ms;
+    }
+  }
+
   private applyDecayStackBonus(index: number): void {
     const proStapel = this.spells[index]?.perDecayStackPercent ?? 0;
     this.setDamageFactor(
@@ -2942,6 +3005,9 @@ export class Combat {
     // wird; PYROCLASM, weil sein Beitrag in denselben Betrag gehoert wie der
     // Grundschaden.
     if (spell.dotExtendTicks !== undefined) this.extendActiveDots(timeMs, spell.dotExtendTicks);
+    // HARDEN und SEPSIS (#523), aus demselben Grund an derselben Stelle.
+    if (spell.extendShieldMs !== undefined) this.extendShield(timeMs, spell.extendShieldMs);
+    if (spell.extendDecayMs !== undefined) this.extendDecayStacks(spell.extendDecayMs);
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
