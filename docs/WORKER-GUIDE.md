@@ -5306,3 +5306,56 @@ zweite nicht sucht, meldet eine Lücke, die gefüllt ist.
 
 > Verwandt mit 8.27 (ein Suchmuster misst, was es kennt) — dort fehlt dem Muster ein Treffer,
 > hier fehlt dem Sucher der zweite Ort.
+
+### 8.78 Die Prüfung des Mergenden ersetzt nicht die Meldung des Bearbeitenden
+
+Am 2026-08-07, zum zweiten Mal an einem Tag: Ein Commit ging beim Merge verloren, und diesmal
+war die Prüfung aus 8.72 **grün**.
+
+```
+vor dem Merge   git ls-remote origin <zweig>   a12d5a13
+                PR-HEAD                        a12d5a13
+                → identisch, also gemergt
+
+danach          git branch -r --contains a6dcf4d
+                → nur origin/feat/e1-633-textfelder
+```
+
+Der Korrektur-Commit war **eine Minute** nach dem Merge entstanden.
+
+#### Warum die Regel nicht getragen hat
+
+8.72 sagt: prüfe, ob der Zweig da ist, wo der PR ihn sieht. Beide Werte kamen aus derselben
+Quelle zum selben Zeitpunkt — sie können gar nicht auseinandergehen.
+
+> **Die Prüfung beantwortet „ist mein Bild aktuell?", nicht „ist die Arbeit fertig?"**
+
+Zwischen dem letzten Push des Bearbeitenden und dem Abruf des Mergenden liegt immer ein Fenster,
+und keine Abfrage auf der Seite des Mergenden kann es schließen. Wer gerade committet, weiß es;
+wer mergt, kann es nicht sehen.
+
+#### Was tatsächlich trägt
+
+Die Meldung des Bearbeitenden, wörtlich:
+
+> Ich melde das, damit du nicht einen Stand abnimmst, den du nicht gesehen hast.
+
+Das ist die einzige Nachricht, die die Lücke schließt — sie kommt von der Seite, die den Stand
+kennt.
+
+```
+der Mergende prüft    git ls-remote gegen den PR-HEAD          notwendig
+der Bearbeitende sagt „Stand X ist der letzte, nichts folgt"   hinreichend
+```
+
+#### Und die Regel für die Rettung gilt für beide Seiten
+
+Beim ersten Verlust desselben Tages entstanden zwei Rettungs-PRs achtzehn Sekunden auseinander.
+Daraus wurde in 8.72: _Wer einen verlorenen Commit findet, meldet ihn zuerst und baut erst nach
+einer Antwort._
+
+Beim zweiten Verlust hat der Orchestrator dieselbe Doppelarbeit erzeugt — er schrieb „ich mache
+den PR, du machst nichts" und baute im selben Werkzeugaufruf, ohne die Antwort abzuwarten.
+
+> **Eine Ankündigung mit Vorsprung ist keine Absprache.** Wer die Rettung übernimmt, wartet die
+> Bestätigung ab — sonst ist die Regel nur für die andere Seite geschrieben.
