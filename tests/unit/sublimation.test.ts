@@ -167,9 +167,17 @@ describe('Die Referenz bleibt unberührt (AC3)', () => {
     // **keinen** Verkürzer wirkt. Ob es einen gibt, ist dafür gleichgültig.
     const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
 
-    // Es GIBT jetzt einen — sonst prüfte der Fall unten eine leere Menge.
+    // Es GIBT welche — sonst prüfte der Fall unten eine leere Menge.
+    //
+    // **Nicht die vollständige Liste festnageln.** Sie wächst mit jedem
+    // neuen Verkürzer (Issue #480 brachte WISP), und die Zusicherung hier
+    // meint „es gibt mindestens einen", nicht „es gibt genau diese".
+    // Ein festgenagelter Name macht den Fall rot, ohne dass etwas kaputt ist.
     const mitVerkuerzung = combat.spells.filter((spell) => (spell.cooldownReductionMs ?? 0) > 0);
-    expect(mitVerkuerzung.map((spell) => spell.id)).toEqual(['vapour']);
+    expect(mitVerkuerzung.length, 'kein Verkürzer — der Fall unten misst nichts').toBeGreaterThan(
+      0,
+    );
+    expect(mitVerkuerzung.map((spell) => spell.id)).toContain('vapour');
 
     const kindle = combat.indexOf('kindle');
     for (let t = 0; t <= 20_000; t += TICK_MS) {

@@ -152,6 +152,18 @@ fn main() {
             ("test-buff.json", &test_buff),
         ],
     );
+
+    // **Vor allem anderen, was die Ressource betrifft** (Issue #506).
+    // `spells` ist calcination.json — die einzige Datei, die heute eine
+    // Ressource fuehrt. Die Liste enthaelt alle uebrigen Schulen.
+    pruefe_nur_eine_ressource(&[
+        ("calcination.json", &spells),
+        ("common.json", &common),
+        ("coagulation.json", &coagulation),
+        ("fixation.json", &fixation),
+        ("sublimation.json", &sublimation),
+        ("putrefaction.json", &putrefaction),
+    ]);
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
     emit_levels(&mut out, &read_json(LEVELS_JSON));
@@ -261,6 +273,41 @@ fn emit_school(out: &mut String, spells: &Value) {
     let school = text(spells, "school", "calcination.json");
     let _ = writeln!(out, "/// Schule, aus der die Zauber stammen.");
     let _ = writeln!(out, "pub const SCHOOL: &str = {school:?};\n");
+}
+
+/// Bricht ab, wenn mehr als eine Schule eine eigene Ressource fuehrt
+/// (Issue #506, gefunden von Worker-1).
+///
+/// # Die Bauart sieht nur EINE Ressource vor
+///
+/// `emit_resource` liest den Abschnitt fest aus `calcination.json` und
+/// erzeugt daraus ein einzelnes `pub static RESOURCE`. Das Spiel fuehrt
+/// dagegen eine Ressource JE SCHULE (`SchoolDef.resource`).
+///
+/// Solange nur CALCINATION eine hat, faellt der Unterschied nicht auf. Die
+/// zweite Schule mit eigener Ressource wuerde still ignoriert: Der Simulator
+/// rechnete weiter mit Hitze, das Spiel mit der neuen — und die Paritaet
+/// meldete eine Abweichung an einer Stelle, die nicht die Ursache ist.
+///
+/// **Dieser Waechter ist bei seiner Einfuehrung gruen**, weil es heute nur
+/// eine Ressource gibt. Belegt ist er deshalb durch die Gegenprobe in
+/// `tests/eine_ressource.rs`, die einen zweiten Abschnitt nachstellt.
+fn pruefe_nur_eine_ressource(dateien: &[(&str, &Value)]) {
+    let mit: Vec<&str> = dateien
+        .iter()
+        .filter(|(_, inhalt)| inhalt.get("resource").is_some())
+        .map(|(name, _)| *name)
+        .collect();
+
+    assert!(
+        mit.len() <= 1,
+        "Diese Schul-Dateien fuehren eine eigene Ressource: {mit:?}\n\
+         `emit_resource` sieht nur EINE vor — es liest calcination.json fest \
+         und erzeugt ein einzelnes RESOURCE. Jede weitere wuerde STILL \
+         ignoriert, und der Simulator rechnete mit der falschen Groesse.\n\
+         Vor der zweiten Ressource muss die Bauart auf eine Ressource JE \
+         SCHULE umgestellt werden (Issue #506)."
+    );
 }
 
 fn emit_resource(out: &mut String, spells: &Value) {
@@ -432,17 +479,47 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     );
     let _ = writeln!(
         out,
-        "        cooldown_reduction_ms: {},",
-        opt_uint(spell, "cooldownReductionMs", &whose, 0)
+        "        cooldown_reduction_below_ms: {},",
+        // **Optional, nicht pflicht** (#518): Ohne das Feld verkuerzt der
+        // Zauber alles, wie vor der Aenderung. `uint` bricht bei fehlenden
+        // Feldern ab — das ist fuer Pflichtfelder richtig und hier falsch.
+        spell
+            .get("cooldownReductionBelowMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
     );
     let _ = writeln!(
         out,
-        "        arms_cooldown_reset: {},",
+        "        cooldown_reduction_longest_only: {},",
         spell
-            .get("armsCooldownReset")
+            .get("cooldownReductionLongestOnly")
             .and_then(Value::as_bool)
             .unwrap_or(false)
     );
+    let _ = writeln!(
+        out,
+        "        cooldown_reduction_ms: {},",
+        opt_uint(spell, "cooldownReductionMs", &whose, 0)
+    );
+    // **Eine ANZAHL statt eines Ja/Nein** (Issue #521). Die alte Form
+    // `armsCooldownReset: true` liest sich weiter als 1 — sonst verlöre ein
+    // Datensatz aus der Zeit davor still seine Wirkung, und der Bau meldete
+    // nichts.
+    let ladungen = spell
+        .get("cooldownResetCharges")
+        .and_then(Value::as_u64)
+        .or_else(|| {
+            spell
+                .get("armsCooldownReset")
+                .and_then(Value::as_bool)
+                .and_then(|ja| ja.then_some(1))
+        })
+        .unwrap_or(0);
+    assert!(
+        ladungen <= u64::from(u8::MAX),
+        "{whose}: cooldownResetCharges {ladungen} passt nicht in u8"
+    );
+    let _ = writeln!(out, "        cooldown_reset_charges: {ladungen},");
     emit_dot(out, spell, &whose, resource_id);
     emit_buff(out, spell, &whose);
     emit_spender(out, spell, &whose, resource_id);
@@ -513,9 +590,12 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
         Some("resource") => "Resource",
         Some("tick") => "Tick",
         Some("stack") => "Stack",
+        Some("cdreduce") => "CdReduce",
+        Some("convert") => "Convert",
+        Some("cap") => "Cap",
         Some(anderes) => panic!(
             "{whose}: unbekannte Zielgroesse \"{anderes}\" — erlaubt sind \
-             damage, control, resource, tick, stack"
+             damage, control, resource, tick, stack, cdreduce, convert"
         ),
     };
     let _ = writeln!(out, "            target: BuffTarget::{target},");
@@ -1332,6 +1412,29 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .unwrap_or(0);
     let _ = writeln!(out, "        decay_stacks: {stapel},");
     let _ = writeln!(out, "        per_decay_stack_percent: {je_stapel},");
+    // EMBER und PYROCLASM (#517). Beide Felder fehlen bei jedem bisherigen
+    // Zauber — ein fehlendes Feld ist der Normalfall, nicht ein Mangel.
+    let extend = spell
+        .get("dotExtendTicks")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        dot_extend_ticks: {extend},");
+    let verbraucht = spell
+        .get("consumesDots")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        consumes_dots: {verbraucht},");
+    // HARDEN und SEPSIS (#523).
+    let schild_ms = spell
+        .get("extendShieldMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let stapel_ms = spell
+        .get("extendDecayMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        extend_shield_ms: {schild_ms},");
+    let _ = writeln!(out, "        extend_decay_ms: {stapel_ms},");
 }
 
 /// Die Synergie-Beziehung (Issue #318). Fehlt sie, steht sie auf "kein Partner".

@@ -15,14 +15,20 @@ modus = sys.argv[1]
 
 # Drei Fälle, und der dritte ist der lehrreiche (Issue #408):
 #
-#   vorne         an den Anfang der ERSTEN Quelle      -> Verstoß, offensichtlich
-#   hinten        an das Ende der LETZTEN Quelle       -> erlaubt
-#   eigene-datei  an das Ende von calcination.json     -> Verstoß, ÜBERRASCHEND
+#   vorne         an den Anfang der ERSTEN Quelle      -> meldet sich, immer falsch
+#   hinten        an das Ende der LETZTEN Quelle       -> geht ohne Nachziehen durch
+#   eigene-datei  an das Ende von calcination.json     -> meldet sich, ist aber
+#                                                         seit 2026-08-06 der
+#                                                         NORMALE Fall
 #
-# Der dritte sieht aus wie der zweite und verhält sich wie der erste. Genau
-# diese Lesart von „hinten" hat die Kommentare in `data.ts` nahegelegt, und
-# genau sie verschiebt die Indizes: Nach `calcination` kommen noch sechs
-# Dateien.
+# Der dritte sieht aus wie der zweite und verschiebt trotzdem die Indizes: Nach
+# `calcination` kommen noch sechs Dateien.
+#
+# **Er war bis 2026-08-06 ein Verstoß und ist seitdem der normale Weg.** Was
+# sich geändert hat, ist nicht das Verhalten, sondern die Bewertung: Der Wächter
+# meldet die Verschiebung weiterhin, aber sie ist jetzt der Anlass,
+# `spell-order.json` nachzuziehen — kein Verbot. Der fünfte Fall im Skript
+# belegt, dass danach grün ist.
 ANHAENGEN_ANS_ENDE = {'hinten', 'eigene-datei'}
 pfad = (
     'data/spells/test-cast.json' if modus == 'hinten' else 'data/spells/calcination.json'

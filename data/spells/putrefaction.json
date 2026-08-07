@@ -62,6 +62,17 @@
         "refreshMode": "reset",
         "decayPerTick": 1
       }
+    },
+    {
+      "_comment": "SEPSIS — der Weg 'laenger halten' der PUTREFAKTION (Raster 4 von 10, Issue #523).\n\nER TRIFFT ALLE STAPEL UND ALLE UM DENSELBEN BETRAG. Das ist keine Vorliebe, sondern die einzige Wahl, die die Ordnung erhaelt: decayExpiryMs ist aufsteigend sortiert, und das Nachruecken beim Verfall setzt das voraus. Wer nur den aeltesten oder nur den juengsten verlaengert, stellt einen spaeteren Ablauf vor einen frueheren — dann verfallen Stapel in falscher Reihenfolge, OHNE dass die Stapelzahl es verraet. Genau diese Klasse hat der ROT-Prueffall aus #498 gefangen.\n\n12000 MS SIND DIE VERFALLSZEIT EINES STAPELS (DECAY_STACK_DURATION_MS). Bei einem frisch gelegten Stapel ist der Zuschlag also die Verdopplung, die das Raster nennt.\n\nSTUFE 6, NICHT 7: Stufe 7 nennt laut tests/unit/level-up-display.test.ts ausdruecklich NUR die Grundwerte — sie ist bewusst ohne Zauber. ALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
+      "id": "sepsis",
+      "name": "Sepsis",
+      "unlockLevel": 6,
+      "baseDamage": 0,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "extendDecayMs": 12000
     }
   ]
 }

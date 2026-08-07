@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 22
+        "present": 32
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 38,
+        "count": 28,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind elf ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79) die vier der FIXATION (Issue #100) und BLIGHT als erster Fueller der PUTREFAKTION (Issue #479). Namen, Schulen und Wirkung der uebrigen 50 stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -220,6 +220,51 @@
       "trigger": {
         "on": "spell.cast",
         "key": "vapour"
+      }
+    },
+    {
+      "id": "spell-decant",
+      "group": "spells",
+      "purpose": "DECANT — verkuerzt die LAENGSTE laufende Abklingzeit (Issue #518). Fueller mit Schaden, der zielt statt zu streuen.\n\nABGEGRENZT GEGEN WISP: Der ist ein Funke, der flackert; DECANT ist ein TROPFEN — praezise, klein, mit einem klaren Anschlag. \"no flicker\" trennt die beiden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-decant.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "single precise droplet, clean isolated impact, brief and contained, no flicker, no shimmer, no sustain",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "decant"
+      }
+    },
+    {
+      "id": "spell-ascend",
+      "group": "spells",
+      "purpose": "ASCEND — holt alle KURZEN Abklingzeiten sofort zurueck (Issue #518). Kein Schaden, ein grosser Moment.\n\nVIER VERBOTE IM PROMPT, eines je Nachbar-Eigenschaft. Ein erster Entwurf lautete \"weightless upward release, rising airy shimmer\" — drei dieser Woerter standen bereits in VAPOUR (airy) und WISP (shimmer, weightless). Er waere ein dritter Klang derselben Familie geworden.\n\nDer Unterschied: VAPOUR entweicht unter Druck, WISP flackert, ASCEND STEIGT — gerichtet und endgueltig.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-ascend.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 25,
+      "prompt": "deep resonant lift, a single sustained tone rising and departing upward, full-bodied release resolving into silence, no hiss, no flicker, no shimmer, no steam",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "ascend"
+      }
+    },
+    {
+      "id": "spell-slag",
+      "group": "spells",
+      "purpose": "SLAG — hebt die Hitze-Grenze befristet an (Issue #490). Er macht KEINEN Schaden, er ermoeglicht ihn.\n\nDER PROMPT IST GEGEN VAPOUR UND WISP ANGELEGT: VAPOUR entweicht, WISP flackert, SLAG STAUT AUF. Das \"without release\" ist der Kern — der Zauber loest nichts aus, er bereitet vor.\n\nLEISE mit Absicht (-7,1 dB). Die Zauber mit Schaden liegen bei -0,9 bis -2,4 dB, die ohne bei -4,4 bis -7,6. Ein Vorbereiter, der laut ist wie ein Entlader, klingt nach mehr, als er tut. Aesthetisch abgenommen wird am Soundboard.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-slag.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 25,
+      "prompt": "deep furnace pressure building and holding, thick molten swell, low sustained rumble without release, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "slag"
       }
     },
     {
@@ -1075,6 +1120,111 @@
       "trigger": {
         "on": "spell.cast",
         "key": "rot"
+      }
+    },
+    {
+      "id": "spell-scab",
+      "group": "spells",
+      "purpose": "SCAB — der Fueller der COAGULATION und ihr erster Zauber MIT SCHADEN. Er laeuft am GCD, muss also kurz und zurueckhaltend sein wie KINDLE. Er muss sich von CRUST unterscheiden: SCAB ist schneller und ORGANISCH, CRUST mineralisch und setzend.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-scab.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 20,
+      "prompt": "quick dry organic scabbing snap, thin skin hardening fast, faint wet edge, very short, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "scab"
+      }
+    },
+    {
+      "id": "spell-wisp",
+      "group": "spells",
+      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus.\n\nDER PROMPT IST GEGEN VAPOUR ANGELEGT, nicht variiert: VAPOUR ist Druck, der entweicht (\"soft pressurised steam release\"), WISP ist etwas Duennes, das flackert. Beide sind 0,6 s und entweichen nach oben — ohne Absicht waeren sie sich zu aehnlich geworden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wisp.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "thin ghostly air whisper, brief crystalline shimmer, weightless flicker upward, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wisp"
+      }
+    },
+    {
+      "id": "spell-clasp",
+      "group": "spells",
+      "purpose": "CLASP — der zweite Punktesammler der Fixierung (Issue #519). Wird oft gedrueckt, muss also kurz und zurueckhaltend sein. ABGRENZUNG GEGEN BIND: Dessen Klang endet auf 'resonant ringing tail, sustained decay' — CLASP darf genau das NICHT haben, sonst klingen die beiden Punktesammler gleich und der Spieler hoert nicht, welchen er gedrueckt hat.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-clasp.ogg",
+      "targetSeconds": 0.4,
+      "pitchJitterCents": 20,
+      "prompt": "tight metallic snap, dry grip closing, NO RING and NO TAIL, very short, fantasy control spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "clasp"
+      }
+    },
+    {
+      "id": "spell-latch",
+      "group": "spells",
+      "purpose": "LATCH — die Verteidigung der Fixierung (Issue #519). ABGRENZUNG GEGEN STAY: Der klingt nach 'sudden arresting thud, abrupt stop' — ein AUFHALTEN. LATCH faengt ab, statt aufzuhalten; der Unterschied steht im Verb, nicht in der Tonhoehe.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-latch.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 20,
+      "prompt": "absorbing an incoming blow, soft heavy catch, dampened impact, no sharp stop, fantasy defensive spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "latch"
+      }
+    },
+    {
+      "id": "spell-plate",
+      "group": "spells",
+      "purpose": "PLATE — die grosse Schicht der Koagulation (Issue #519), 20 s Abklingzeit. ABGRENZUNG GEGEN CRUST: Der ist 'mineral crust, low crystalline settling, glassy' — PLATE ist METALL statt Kruste, also ausdruecklich ohne kristallinen Ton.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-plate.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 15,
+      "prompt": "heavy metal plate settling into place, thick armored layer, low weight, no crystalline tone, fantasy shield spell",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "plate"
+      }
+    },
+    {
+      "id": "spell-ember",
+      "group": "spells",
+      "purpose": "EMBER — der Fueller des Weges 'laenger halten'. Er macht KEINEN Schaden, sondern faechelt an, was schon brennt. Muss sich von KINDLE unterscheiden: KINDLE ZUENDET (sharp spark ignition), EMBER facht an — weicher, ohne Anzuenden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-ember.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "faint ember glow rekindling, soft breath on coals, low warm crackle swelling, no impact, no ignition",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "ember"
+      }
+    },
+    {
+      "id": "spell-pyroclasm",
+      "group": "spells",
+      "purpose": "PYROCLASM — der grosse Entlader des langen Kampfes. Er verbraucht Hitze UND alle laufenden Braende. Muss sich von PYRE unterscheiden: PYRE ist eine DETONATION (schlagartig), PYROCLASM BAUT SICH AUF und rollt — sonst sind es zwei Explosionen verschiedener Groesse statt zweier verschiedener Ereignisse.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-pyroclasm.ogg",
+      "targetSeconds": 1.8,
+      "pitchJitterCents": 10,
+      "prompt": "massive volcanic eruption building and rolling, deep sustained roar with debris tail, catastrophic fire release",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "pyroclasm"
       }
     }
   ]

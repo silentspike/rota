@@ -21,7 +21,53 @@
       "cooldownMs": 45000,
       "castTimeMs": 0,
       "triggersGcd": true,
-      "armsCooldownReset": true
+      "cooldownResetCharges": 1
+    },
+    {
+      "_comment": "WISP — der Füller, den die Schule nicht hatte (Issue #480).\n\nSUBLIMATION war gemessen tot: Beide vorhandenen Zauber machen KEINEN Schaden, also kam die Schule in keiner optimalen Rotation vor. Man konnte sie nicht spielen, nur einstreuen.\n\nWISP verkürzt wie VAPOUR, teilt dabei aber Schaden aus. Damit gibt es erstmals einen Grund, die Schule zu drücken, statt sie zu überspringen.\n\nDIE ZAHLEN SIND PLATZHALTER — 500 ms Verkürzung ist die Hälfte von VAPOUR, weil WISP dafür Schaden macht und auf der Wartezeit liegt.",
+      "id": "wisp",
+      "name": "Wisp",
+      "unlockLevel": 3,
+      "baseDamage": 20,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 500
+    },
+    {
+      "_comment": "ALEMBIC — der Ruecksetzer, der ZWEIMAL fragt (Issue #521, ZAUBER-RASTER 4).\n\nDas Raster sagt \"zwei Zauber gleichzeitig bereit machen\". Das ist kein groesserer Betrag, sondern DIESELBE FRAGE ZWEIMAL: Der Spieler waehlt zweimal, statt dass das Spiel zwei aussucht.\n\nWARUM DIESE LESART UND NICHT \"DIE ZWEI LAENGSTEN\": Die Auswahl-durch-den-Spieler existiert bereits als eigener Eingabepfad (Combat.chooseForReset). Eine Anzahl verdoppelt sie, ohne die Mechanik anzufassen. \"Die zwei laengsten\" wuerde dagegen dieselbe Frage beantworten, die DECANT (#518) schon beantwortet — zwei Zauber, die dasselbe entscheiden, sind einer zu viel. Und \"zwei feste Plaetze\" liesse dem Spieler nichts zu entscheiden.\n\nDIE ZAHLEN SIND PLATZHALTER — 10 s stammt aus dem Raster, alles Weitere aus REFLUX.",
+      "id": "alembic",
+      "name": "Alembic",
+      "unlockLevel": 4,
+      "baseDamage": 0,
+      "cooldownMs": 10000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownResetCharges": 2
+    },
+    {
+      "_comment": "ASCEND — bringt alle KURZEN Abklingzeiten sofort zurueck (Issue #518).\n\nDie Verkuerzung traf bisher alles gleich. ASCEND trifft nur, was unter der Grenze liegt: ein grosser Betrag auf viele kleine Wartezeiten, statt eines kleinen auf alle.\n\nDIE GRENZE IST EIN STRENGES KLEINER. Eine Abklingzeit GENAU auf 10 s bleibt unberuehrt — \"unter zehn Sekunden\" heisst woertlich unter. Die Regel musste in eine Richtung fallen; sie steht an der Rechenstelle in combat.ts und fight.rs.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "ascend",
+      "name": "Ascend",
+      "unlockLevel": 14,
+      "baseDamage": 0,
+      "cooldownMs": 30000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 10000,
+      "cooldownReductionBelowMs": 10000
+    },
+    {
+      "_comment": "DECANT — verkuerzt die LAENGSTE laufende Abklingzeit (Issue #518).\n\nDer Gegenentwurf zu VAPOUR: zielen statt streuen. Wer einen langen Cooldown zurueckholen will, verliert mit einer breiten Verkuerzung den groessten Teil an Zauber, die ohnehin gleich bereit waeren.\n\nBEI GLEICHSTAND GEWINNT DER NIEDRIGERE INDEX. Ohne diese Festlegung haengt das Ergebnis an der Laufrichtung der Schleife — und das waere ein stiller Paritaets-Bruch, sobald eine Seite umbaut. Die Regel steht an der Rechenstelle auf beiden Seiten.\n\nDIE ZAHLEN SIND PLATZHALTER.",
+      "id": "decant",
+      "name": "Decant",
+      "unlockLevel": 6,
+      "baseDamage": 15,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "cooldownReductionMs": 2000,
+      "cooldownReductionLongestOnly": true
     }
   ]
 }

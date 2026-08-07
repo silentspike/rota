@@ -90,7 +90,8 @@ export interface BuffDef {
    * Punktegewinn eine auf den Schaden nicht verdrängen, auch wenn beide
    * dieselbe Art tragen (GAME-DESIGN 328).
    */
-  readonly target?: 'damage' | 'control' | 'resource' | 'tick' | 'stack';
+  readonly target?:
+    'damage' | 'control' | 'resource' | 'tick' | 'stack' | 'cdreduce' | 'convert' | 'cap';
 }
 
 /** Ein Entlade-Zauber: verbraucht den Vorrat und schlägt entsprechend zu. */
@@ -134,6 +135,38 @@ export interface SpellDef {
   readonly dot?: DotDef;
   readonly spender?: SpenderDef;
   /**
+   * Um wie viele Tick-Intervalle dieser Zauber **laufende Brände verlängert**
+   * (EMBER, Issue #517).
+   *
+   * **Fehlt das Feld, verlängert er nichts** — das ist der Fall für jeden
+   * bisherigen Zauber. Der Weg „länger halten" hatte bis hierher keinen
+   * einzigen.
+   */
+  readonly dotExtendTicks?: number;
+  /**
+   * Ob dieser Zauber **alle laufenden Brände verbraucht** und ihren Rest als
+   * Schaden gibt (PYROCLASM, Issue #517).
+   *
+   * Der Betrag ist keine eigene Zahl: Es ist Restdauer mal Schaden je Tick,
+   * also genau das, was die Brände noch gemacht hätten. Nach der
+   * Erneuerungsregel ist Restzeit verloren, wenn zu früh erneuert wird —
+   * dieser Zauber kehrt dieselbe Regel um.
+   */
+  readonly consumesDots?: boolean;
+  /**
+   * Um wie viele Millisekunden dieser Zauber eine **laufende Schutzschicht**
+   * verlängert (HARDEN, Issue #523). Fehlt das Feld, verlängert er keine.
+   */
+  readonly extendShieldMs?: number;
+  /**
+   * Um wie viele Millisekunden dieser Zauber **alle laufenden
+   * Zersetzungs-Stapel** verlängert (SEPSIS, Issue #523).
+   *
+   * Alle und um denselben Betrag — das erhält die aufsteigende Ordnung, auf
+   * der das Nachrücken beruht.
+   */
+  readonly extendDecayMs?: number;
+  /**
    * Welche Verstärkung dieser Zauber auslöst (GAME-DESIGN 5, Issue #420).
    *
    * **Fehlt das Feld, löst er keine aus** — das ist der Fall für jeden Zauber
@@ -153,13 +186,37 @@ export interface SpellDef {
    */
   readonly cooldownReductionMs?: number;
   /**
+   * **Wie viele** Abklingzeiten der Auswahlmodus zurücksetzt (SUBLIMATION,
+   * Issue E3-3c, erweitert in #521).
+   * Nur Abklingzeiten UNTER dieser Grenze verkürzen (ASCEND, Issue #518).
+   *
+   * 0 oder fehlend heißt: alle, wie bisher.
+   */
+  readonly cooldownReductionBelowMs?: number;
+  /**
+   * Nur die LÄNGSTE laufende Abklingzeit verkürzen (DECANT, Issue #518).
+   *
+   * Ohne das Feld trifft die Verkürzung alle — das Verhalten vor #518.
+   */
+  readonly cooldownReductionLongestOnly?: boolean;
+  /**
    * Setzt dieser Zauber den **Auswahlmodus** scharf (SUBLIMATION, Issue E3-3c)?
    *
    * Der Rücksetzer wirkt nicht auf den nächsten gewirkten Zauber, sondern
    * fragt: Welchen? Zwei Schritte, drei Aktionen — die Entscheidung des
    * Auftraggebers vom 2026-07-29.
+   *
+   * # Warum eine Anzahl und kein Ja/Nein mehr
+   *
+   * ALEMBIC (#521) macht **zwei** Zauber bereit. Das ist kein größerer
+   * Betrag, sondern dieselbe Frage zweimal — der Spieler wählt zweimal, statt
+   * dass das Spiel zwei aussucht.
+   *
+   * Bei `1` verhält sich der Schalter exakt wie vorher; das ist die
+   * Gegenprobe, die #521 AC1 verlangt und die `cooldown-reset.test.ts`
+   * unverändert fährt.
    */
-  readonly armsCooldownReset?: boolean;
+  readonly cooldownResetCharges?: number;
   /**
    * Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**
    * (GAME-DESIGN 11.2, Baustein 9, Issue #110).
@@ -819,7 +876,16 @@ function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | u
     return undefined;
   }
   const ziel = raw['target'];
-  const ZIELE = ['damage', 'control', 'resource', 'tick', 'stack'] as const;
+  const ZIELE = [
+    'damage',
+    'control',
+    'resource',
+    'tick',
+    'stack',
+    'cdreduce',
+    'convert',
+    'cap',
+  ] as const;
   if (ziel !== undefined && !ZIELE.includes(ziel as (typeof ZIELE)[number])) {
     // **Abbrechen statt durchreichen.** Eine unbekannte Zielgröße landete
     // sonst im Schadens-Speicher, und der Zauber wirkte auf etwas anderes
@@ -1091,6 +1157,36 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // legen, und der ganze Baustein wäre tot.
     problems.push(`${where}: Ein Unterbrecher darf keine globale Wartezeit auslösen.`);
   }
+  // Die zwei Angaben, die aus "verkürze alles" eine Auswahl machen
+  // (Issue #518). Beide sind optional; fehlen sie, bleibt es beim Alten.
+  const belowMs = number(raw['cooldownReductionBelowMs'], 0);
+  const longestOnly = raw['cooldownReductionLongestOnly'] === true;
+  // EMBER und PYROCLASM (Issue #517). Beide Felder fehlen bei jedem
+  // bisherigen Zauber — das ist der Normalfall und kein Mangel.
+  const extend = raw['dotExtendTicks'];
+  const dotExtendTicks = typeof extend === 'number' ? extend : undefined;
+  if (dotExtendTicks !== undefined) {
+    if (dotExtendTicks <= 0)
+      problems.push(`${where}: dotExtendTicks ${dotExtendTicks} ist nicht positiv.`);
+    if (!Number.isInteger(dotExtendTicks)) {
+      problems.push(`${where}: dotExtendTicks ${dotExtendTicks} ist nicht ganzzahlig.`);
+    }
+  }
+  const consumesDots = raw['consumesDots'] === true;
+  // HARDEN und SEPSIS (#523).
+  const shieldMs = raw['extendShieldMs'];
+  const extendShieldMs = typeof shieldMs === 'number' ? shieldMs : undefined;
+  const decayMs = raw['extendDecayMs'];
+  const extendDecayMs = typeof decayMs === 'number' ? decayMs : undefined;
+  for (const [name, wert] of [
+    ['extendShieldMs', extendShieldMs],
+    ['extendDecayMs', extendDecayMs],
+  ] as const) {
+    if (wert === undefined) continue;
+    if (wert <= 0) problems.push(`${where}: ${name} ${wert} ist nicht positiv.`);
+    if (!Number.isInteger(wert)) problems.push(`${where}: ${name} ${wert} ist nicht ganzzahlig.`);
+  }
+
   const reduction = raw['cooldownReductionMs'];
   const cooldownReductionMs = typeof reduction === 'number' ? reduction : undefined;
   if (cooldownReductionMs !== undefined) {
@@ -1100,7 +1196,33 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     }
   }
 
+  // **Der Rücksetzer trägt eine ANZAHL** (Issue #521, AC1). Die alte Form war
+  // `armsCooldownReset: true`; sie liest sich hier weiter als 1, damit ein
+  // Datensatz aus der Zeit davor nicht still seine Wirkung verliert — ein
+  // fehlender Schalter und ein Schalter mit 0 sind sonst nicht zu
+  // unterscheiden.
+  const ladungenRoh = raw['cooldownResetCharges'];
+  const cooldownResetCharges =
+    typeof ladungenRoh === 'number'
+      ? ladungenRoh
+      : raw['armsCooldownReset'] === true
+        ? 1
+        : undefined;
+  if (cooldownResetCharges !== undefined) {
+    if (cooldownResetCharges < 1) {
+      problems.push(
+        `${where}: Rücksetzer-Ladungen ${cooldownResetCharges} — unter 1 ist ` +
+          `kein Rücksetzer, dann gehört das Feld weg.`,
+      );
+    }
+    if (!Number.isInteger(cooldownResetCharges)) {
+      problems.push(`${where}: Rücksetzer-Ladungen ${cooldownResetCharges} sind nicht ganzzahlig.`);
+    }
+  }
+
   return {
+    ...(belowMs > 0 ? { cooldownReductionBelowMs: belowMs } : {}),
+    ...(longestOnly ? { cooldownReductionLongestOnly: true } : {}),
     id,
     name: typeof raw['name'] === 'string' ? raw['name'] : id,
     unlockLevel: number(raw['unlockLevel'], 1),
@@ -1108,6 +1230,10 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     cooldownMs,
     castTimeMs: number(raw['castTimeMs'], 0),
     triggersGcd: raw['triggersGcd'] !== false,
+    ...(dotExtendTicks !== undefined ? { dotExtendTicks } : {}),
+    ...(consumesDots ? { consumesDots } : {}),
+    ...(extendShieldMs !== undefined ? { extendShieldMs } : {}),
+    ...(extendDecayMs !== undefined ? { extendDecayMs } : {}),
     // Kommt beim Zusammenlegen aus der Herkunftsdatei (siehe `CALCINATION`).
     // Fehlt es, ist der Zauber schulunabhängig — nicht fehlerhaft.
     school: typeof raw['school'] === 'string' ? raw['school'] : null,
@@ -1121,7 +1247,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     ...(spender !== undefined ? { spender } : {}),
     ...(buff !== undefined ? { buff } : {}),
     ...(cooldownReductionMs !== undefined ? { cooldownReductionMs } : {}),
-    ...(raw['armsCooldownReset'] === true ? { armsCooldownReset: true } : {}),
+    ...(cooldownResetCharges !== undefined ? { cooldownResetCharges } : {}),
   };
 }
 
@@ -1552,32 +1678,33 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
         (rawFixation as Record<string, unknown>)['spells'],
         rawFixation as Record<string, unknown>,
       ),
-      // **Ganz hinten angefügt** (Issue #201) — hinten in der GESAMTLISTE
-      // oben, nicht hinten in der eigenen Schuldatei (Issue #408).
+      // **HIER STAND DIE REGEL „nur ans Ende der GESAMTLISTE"** (Issues #201,
+      // #408). Sie ist am 2026-08-06 zurückgenommen worden, weil sie nachweislich
+      // nichts sparte — Einzelheiten in `tests/unit/spell-order.test.ts`.
       //
-      // Der Unterschied ist der ganze Punkt: Ein Kalzinations-Zauber ans Ende
-      // von `calcination.json` gehängt ist in der Gesamtliste ein EINSCHUB,
-      // weil danach noch sechs Dateien kommen. Er verschiebt alle Indizes
-      // dahinter — genau das, was dieser Kommentar verhindern soll.
+      // In einem Satz: Die Prüfsumme rührt fünf Felder JE ZAUBER ein, also
+      // bewegt ein Zauber ganz hinten genauso viele Aufzeichnungen wie einer in
+      // der Mitte. Gemessen 23 gegen 23. Die Regel kostete den fachlich
+      // richtigen Ort und kaufte dafür nichts.
       //
-      // Aufgefallen beim Bau des Wächters (#402): Die erste Fassung der
-      // Gegenprobe tat genau das, in gutem Glauben, und wurde zu Recht rot.
+      // **Ein neuer Zauber gehört in seine Schuldatei.** Was dazugehört:
+      // `spell-order.json` nachziehen und `npm run parity:export` fahren, im
+      // selben Commit. Das ist ohnehin bei jedem neuen Zauber nötig.
       ...mitSchule(
         (rawSublimation as Record<string, unknown>)['spells'],
         rawSublimation as Record<string, unknown>,
       ),
-      // Ebenfalls hinten (Issue #97), aus demselben Grund — und „hinten" heißt
-      // auch hier: am Ende der Gesamtliste, nicht am Ende von
-      // `putrefaction.json` (Issue #408).
+      // Steht hier aus historischen Gründen (Issue #97). Die Reihenfolge der
+      // Blöcke untereinander bleibt, wie sie ist — sie zu ändern bewegte jede
+      // Aufzeichnung ohne Gegenwert. Neue Zauber gehören in ihre Schuldatei,
+      // siehe den Block oben.
       ...mitSchule(
         (rawPutrefaction as Record<string, unknown>)['spells'],
         rawPutrefaction as Record<string, unknown>,
       ),
-      // **Ganz zuletzt der Prüf-Zauber** (Issue #304) — und „zuletzt" ist hier
-      // wörtlich zu nehmen: `test-cast.json` ist die LETZTE der sieben Dateien.
-      // Ein neuer Zauber gehört deshalb hinter diesen Block, nicht davor
-      // (Issue #408). Wer ihn davorschiebt, verschiebt den Prüf-Zauber — und
-      // der steht in den Aufzeichnungen wie jeder andere.
+      // **Der Prüf-Zauber** (Issue #304). Er steht am Ende, weil er hier
+      // entstanden ist — nicht, weil ein neuer Zauber hinter ihn müsste. Diese
+      // Auflage ist am 2026-08-06 zurückgenommen worden.
       //
       // Er gehört nicht zum
       // Spiel — seine Stufe liegt über der Grenze, und beide Stellen, die dem
@@ -1589,9 +1716,9 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
         (rawTestCast as Record<string, unknown>)['spells'],
         rawTestCast as Record<string, unknown>,
       ),
-      // **Und danach der Prüf-Zauber zur Verstärkung** (Issue #420). Er steht
-      // hinter `test-cast`, weil dessen Index in sechs Aufzeichnungen steht —
-      // wer ihn davorschiebt, deutet sie alle um.
+      // **Und danach der Prüf-Zauber zur Verstärkung** (Issue #420). Seine
+      // Stellung hinter `test-cast` bleibt, weil ein Tausch Aufzeichnungen
+      // bewegte, ohne etwas zu verbessern — nicht, weil sie geschützt wäre.
       //
       // Warum es überhaupt einen zweiten Prüf-Zauber braucht: `test-cast` ist
       // der Wirkzeit-Fall aus #304. Ihm eine Verstärkung anzuhängen vermischte
@@ -1888,6 +2015,21 @@ export interface TalentDef {
   readonly damagePerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
+  /**
+   * Welches **Verhalten** dieses Talent umschaltet, oder `null` (Issue #418).
+   *
+   * **Das ist die Nicht-Zahl.** Die drei Wege aus GAME-DESIGN 12.5 tragen
+   * alle `damagePerRankPerMille` — sie erhöhen Zahlen. Ein Schlüsseltalent
+   * ändert stattdessen, WAS geschieht: GAME-DESIGN 13.09 nennt als Beispiel
+   * „Der Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+   * ZWEIMAL".
+   *
+   * Ein Schlüsseltalent, das sich als Faktor ausdrücken ließe, wäre keines —
+   * es wäre ein Faktor mit einem großen Namen. Der Nachweis dafür ist der
+   * Gegenfall: Ohne das Talent muss sich der Lauf in der **Reihenfolge** oder
+   * im **Verbrauch** unterscheiden, nicht nur in der Schadenszahl.
+   */
+  readonly keystone: string | null;
 }
 
 /**
@@ -1929,6 +2071,16 @@ export const TALENTS: readonly TalentDef[] = (() => {
             'Ein Talent, das schwächer macht, ist keines.',
         );
       }
+      // **Ein Verhalten hat keine Ränge.** Es ist an oder aus — „zur Hälfte
+      // verbraucht der Entlade-Zauber nur die halbe Hitze" ergibt keinen Sinn.
+      // Die Prüfung steht hier und nicht im Kampf, weil ein zweiter Rang dort
+      // stillschweigend wie der erste wirkte.
+      if (typeof t['keystone'] === 'string' && maxRanks !== 1) {
+        throw new Error(
+          `data/player/talents.json: "${id}" schaltet ein Verhalten um und hat ` +
+            `${maxRanks} Ränge. Ein Verhalten ist an oder aus — maxRanks muss 1 sein.`,
+        );
+      }
       alle.push({
         id,
         name: typeof t['name'] === 'string' ? t['name'] : id,
@@ -1936,6 +2088,7 @@ export const TALENTS: readonly TalentDef[] = (() => {
         maxRanks,
         damagePerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
+        keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });
     }
   }

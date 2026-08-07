@@ -29,6 +29,10 @@ struct Options {
     threads: usize,
     base_seed: u32,
     json: bool,
+    /// Ob nur die Nutzung ausgegeben werden soll (Issue #525).
+    help: bool,
+    /// Kennung des Bosses, gegen den gerechnet wird (Issue #525, AC3).
+    boss_id: Option<String>,
     apl_path: Option<String>,
 }
 
@@ -39,6 +43,8 @@ impl Default for Options {
             threads: 4,
             base_seed: 0,
             json: false,
+            help: false,
+            boss_id: None,
             apl_path: None,
         }
     }
@@ -46,6 +52,23 @@ impl Default for Options {
 
 fn main() -> ExitCode {
     let options = match parse_arguments() {
+        Ok(options) if options.help => {
+            // Auf stdout, nicht stderr: Wer danach fragt, hat keinen Fehler
+            // gemacht. Und der PFAD ist relativ zum Workspace-Root, nicht zu
+            // `sim/` — daran bin ich bei #517 zweimal danebengegriffen.
+            println!(
+                "Aufruf: cargo run --release --example balance -- \
+                 [--iterations N] [--threads N] [--seed N] [--json] [--apl DATEI]\n\n\
+                 --apl  Pfad zur Rotationsdatei, RELATIV ZUM WORKSPACE-ROOT\n       \
+                 (also sim/apl/DATEI.apl, nicht apl/DATEI.apl)\n\
+                 --boss <id>  gegen welchen Boss gerechnet wird; ohne ihn gegen\n              \
+                 den Standard, der KEINEN Schaden austeilt\n\
+                 --json Ausgabe als JSON statt als Text\n\n\
+                 Ausgegeben werden: Schaden, Siege, eingesteckter Schaden, Tode\n\
+                 und die Wirkungen je Zauber."
+            );
+            return ExitCode::SUCCESS;
+        }
         Ok(options) => options,
         Err(message) => {
             eprintln!("{message}");
@@ -55,6 +78,28 @@ fn main() -> ExitCode {
             );
             return ExitCode::FAILURE;
         }
+    };
+
+    // Der Boss, gegen den gerechnet wird (Issue #525, AC3). Ohne `--boss` der
+    // Standard — und der teilt KEINEN Schaden aus, womit jeder
+    // Verteidigungszauber unmessbar bleibt.
+    let boss = match &options.boss_id {
+        Some(id) => match rota_sim::data::boss_by_id(id) {
+            Some(b) => b,
+            None => {
+                eprintln!("Unbekannter Boss: {id}");
+                eprintln!(
+                    "Moeglich sind: {}",
+                    rota_sim::data::BOSSES
+                        .iter()
+                        .map(|b| b.id)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return ExitCode::FAILURE;
+            }
+        },
+        None => BalanceConfig::default().boss,
     };
 
     let listen: Vec<(String, Apl)> = match &options.apl_path {
@@ -83,6 +128,7 @@ fn main() -> ExitCode {
             iterations: options.iterations,
             base_seed: options.base_seed,
             threads: options.threads,
+            boss,
             ..BalanceConfig::default()
         };
         let start = Instant::now();
@@ -105,6 +151,7 @@ fn main() -> ExitCode {
                     iterations: options.iterations,
                     base_seed: options.base_seed,
                     threads: options.threads,
+                    boss,
                     ..BalanceConfig::default()
                 },
                 &listen[index].1,
@@ -172,7 +219,17 @@ fn parse_arguments() -> Result<Options, String> {
                     .map_err(|_| "--seed braucht eine ganze Zahl.".to_owned())?;
             }
             "--apl" => options.apl_path = Some(wert("--apl")?),
+            // **Das Feld gab es schon** (BalanceConfig::boss), nur keinen Weg,
+            // es zu setzen. Ohne diesen Schalter rechnet der Laeufer immer
+            // gegen einen Boss, der NICHTS austeilt — und dann ist jeder
+            // Verteidigungszauber unmessbar (Issue #525, AC3).
+            "--boss" => options.boss_id = Some(wert("--boss")?),
             "--json" => options.json = true,
+            // `--help` war bis Issue #525 eine "Unbekannte Angabe": Die
+            // Nutzungszeile kam nur als FEHLER, und wer sie suchte, musste
+            // erst danebengreifen. Das ist die Art Huerde, an der ein Werkzeug
+            // ungenutzt bleibt.
+            "--help" | "-h" => options.help = true,
             other => return Err(format!("Unbekannte Angabe: {other}")),
         }
     }
@@ -196,6 +253,24 @@ fn report(name: &str, result: &BalanceResult, sekunden: f64) {
             result.kill_rate() * 100.0
         ),
     );
+    // Die zweite Haelfte des Spiels (Issue #525). Bis hierher mass der Laeufer
+    // nur den ausgehenden Schaden — jeder Verteidigungszauber war damit
+    // unmessbar, und COAGULATION ist die Schule, deren Zweck Ueberleben ist.
+    zeile_stat("Schaden eingesteckt", &result.damage_taken);
+    zeile(
+        "Tode",
+        &format!("{} von {}", result.deaths, result.samples.len()),
+    );
+    let gedrueckt: Vec<String> = result
+        .casts
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| **n > 0)
+        .map(|(i, n)| format!("{} {}", rota_sim::data::SPELLS[i].id, n))
+        .collect();
+    if !gedrueckt.is_empty() {
+        zeile("Wirkungen", &gedrueckt.join(", "));
+    }
     if result.kills > 0 {
         zeile_stat("Zeit bis Sieg (ms)", &result.kill_time_ms);
     }

@@ -92,6 +92,12 @@ import {
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
   cinderPayload,
+  dotLifetimePayload,
+  DOT_LIFETIME_NAME,
+  extendEffectsPayload,
+  EXTEND_EFFECTS_NAME,
+  kernePayload,
+  KERNE_NAME,
   CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
@@ -99,7 +105,13 @@ import {
   logParityPayload,
   timelineLoopPayload,
   sublimationPayload,
+  gezielteVerkuerzungPayload,
+  GEZIELTE_VERKUERZUNG_NAME,
   SUBLIMATION_NAME,
+  wispPayload,
+  WISP_NAME,
+  alembicPayload,
+  ALEMBIC_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -182,6 +194,23 @@ const cinder = cinderPayload();
 const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
 writeFileSync(cinderPath, serialize(cinder), 'utf8');
 
+// EMBER und PYROCLASM (#517) sowie HARDEN und SEPSIS (#523). Vor diesen vier
+// Zeilen wirkte KEINE Aufzeichnung sie — ihre Bitgleichheit galt fuer alle
+// vier als angenommen, und `coverage.test.ts` stand deshalb auf rot.
+const dotLifetime = dotLifetimePayload();
+const dotLifetimePath = join(here, 'recordings', `${DOT_LIFETIME_NAME}.json`);
+writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
+
+const extendEffects = extendEffectsPayload();
+const extendEffectsPath = join(here, 'recordings', `${EXTEND_EFFECTS_NAME}.json`);
+writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
+
+const kerne = kernePayload();
+const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
+writeFileSync(kernePath, `${JSON.stringify(kerne, null, 2)}\n`);
+console.log(`geschrieben: ${kernePath}`);
+console.log(`  gewirkt   ${JSON.stringify(kerne.expected.casts)}`);
+
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
 writeFileSync(bossStatePath, serialize(bossState), 'utf8');
@@ -263,6 +292,32 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+const alembic = alembicPayload();
+const alembicPath = join(here, 'recordings', `${ALEMBIC_NAME}.json`);
+writeFileSync(alembicPath, serialize(alembic), 'utf8');
+console.log(`geschrieben: ${alembicPath}`);
+console.log(
+  `  ALEMBIC   ${alembic.expected.alembicCasts} Wurf, ` +
+    `${alembic.expected.auswahlen} greifende Auswahlen`,
+);
+// Die gezielten Verkuerzer (Issue #518) — eigene Aufzeichnung, weil die
+// Sublimations-Aufzeichnung ihren eigenen Zweck hat und mit sieben Zaubern
+// keinen mehr zeigte.
+const gezielteVerkuerzung = gezielteVerkuerzungPayload();
+const gezielteVerkuerzungPath = join(here, 'recordings', `${GEZIELTE_VERKUERZUNG_NAME}.json`);
+writeFileSync(gezielteVerkuerzungPath, serialize(gezielteVerkuerzung), 'utf8');
+console.log(`geschrieben: ${gezielteVerkuerzungPath}`);
+console.log(`  gezielt gewirkt ${JSON.stringify(gezielteVerkuerzung['expected']['casts'])}`);
+
+const wisp = wispPayload();
+const wispPath = join(here, 'recordings', `${WISP_NAME}.json`);
+writeFileSync(wispPath, serialize(wisp), 'utf8');
+console.log(`geschrieben: ${wispPath}`);
+console.log(
+  `  WISP-Verkuerzung       ${wisp.expected.wispCasts} Wuerfe, davon ` +
+    `${wisp.expected.wirkendeWuerfe} auf eine laufende VAPOUR-Abklingzeit`,
+);
 
 const timelineLoop = timelineLoopPayload();
 const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);

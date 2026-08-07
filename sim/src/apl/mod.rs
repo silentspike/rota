@@ -124,6 +124,16 @@ pub enum Value {
     FightRemains,
     /// Die globale Wartezeit.
     Gcd,
+    /// Die Zahl der liegenden Zersetzungs-Stapel (PUTREFACTION, Issue #526).
+    ///
+    /// **Die Kernentscheidung dieser Schule** (GAME-DESIGN 13.1): Der Aufbau
+    /// vor einem grossen Schadensfenster. Ohne diesen Wert kann eine Rotation
+    /// sie nicht ausdruecken — sie drueckt Knoepfe in ihrer Reihenfolge.
+    Decay,
+    /// Der Stand der Schutzschicht (COAGULATION, Issue #526).
+    Shield,
+    /// Die Kontroll-Punkte (FIXATION, Issue #526).
+    Control,
 }
 
 impl Value {
@@ -147,6 +157,9 @@ impl Value {
             Value::Time => Number::from(fight.time()),
             Value::FightRemains => Number::from(fight.fight_remaining_ms()),
             Value::Gcd => Number::from(GCD_MS),
+            Value::Decay => Number::from(u32::try_from(fight.decay_stacks()).unwrap_or(u32::MAX)),
+            Value::Shield => Number::from(fight.shield()),
+            Value::Control => Number::from(fight.control_points()),
         }
     }
 
@@ -480,6 +493,9 @@ impl fmt::Display for Value {
             Self::Time => write!(f, "time"),
             Self::FightRemains => write!(f, "fight.remains"),
             Self::Gcd => write!(f, "gcd"),
+            Self::Decay => write!(f, "decay"),
+            Self::Shield => write!(f, "shield"),
+            Self::Control => write!(f, "control"),
         }
     }
 }
