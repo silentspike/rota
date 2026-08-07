@@ -91,6 +91,8 @@ import {
   ROT_NAME,
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
+  buffTargetsPayload,
+  BUFF_TARGETS_NAME,
   cinderPayload,
   dotLifetimePayload,
   DOT_LIFETIME_NAME,
@@ -208,6 +210,13 @@ writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
 const extendEffects = extendEffectsPayload();
 const extendEffectsPath = join(here, 'recordings', `${EXTEND_EFFECTS_NAME}.json`);
 writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
+
+// Die fuenf Verstaerkungen aus #540. Ohne sie wirkt KEINE Aufzeichnung
+// flashpoint, quicksilver, distil, griplock oder virulence — ihre
+// Bitgleichheit waere eine Annahme.
+const buffTargets = buffTargetsPayload();
+const buffTargetsPath = join(here, 'recordings', `${BUFF_TARGETS_NAME}.json`);
+writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
 
 const kerne = kernePayload();
 const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);

@@ -75,6 +75,7 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -120,6 +121,7 @@ import {
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
+  buffTargetsPayload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -184,6 +186,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die Verstärkungs-Runde entspricht dem heutigen Spielstand', () => {
+    // Die fünf Zauber aus #540 werden nur hier gewirkt.
+    expect(eingecheckteZielgroessen, HINWEIS).toEqual(buffTargetsPayload());
   });
 
   it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
@@ -600,6 +607,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'synergy-haste',
   'ward-cap',
   'putrefaction-filler',
+  'buff-targets',
   'cinder-ticks',
   'dot-lifetime',
   'extend-effects',
