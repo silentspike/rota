@@ -74,6 +74,8 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
+import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
 import {
   bossStatePayload,
@@ -114,6 +116,8 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   cinderPayload,
+  dotLifetimePayload,
+  extendEffectsPayload,
   kernePayload,
 } from './payloads.js';
 
@@ -172,6 +176,16 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
+    // EMBER und PYROCLASM werden nur hier gewirkt (Issue #517).
+    expect(eingecheckteBrandzeit, HINWEIS).toEqual(dotLifetimePayload());
+  });
+
+  it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
+    // HARDEN und SEPSIS werden nur hier gewirkt (Issue #523).
+    expect(eingecheckteVerlaengerung, HINWEIS).toEqual(extendEffectsPayload());
   });
 
   it('die Kern-Zauber entsprechen dem heutigen Spielstand', () => {
@@ -557,6 +571,8 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'cinder-ticks',
+  'dot-lifetime',
+  'extend-effects',
   'kern-zauber',
 ];
 

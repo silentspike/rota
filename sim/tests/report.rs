@@ -39,17 +39,28 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     // einmal aufgezaehlt, sondern an der Wirkung abgelesen: Ein Zauber ohne
     // Schadensquelle, der trotzdem in der Tabelle steht, waere dauerhaft
     // "TOT" und damit eine falsche Auskunft.
-    for row in &table {
-        let spell = data::SPELLS
-            .iter()
-            .find(|s| s.id == row.id)
-            .expect("Zeile ohne Zauber");
-        assert!(
-            spell.base_damage > 0 || spell.dot.is_some() || spell.spender.is_some(),
-            "{}: steht in der Schadens-Tabelle, kann aber keinen Schaden machen",
-            row.id
-        );
-    }
+    //
+    // **Alle sammeln, nicht beim ersten abbrechen.** Bis heute stand hier ein
+    // `assert!` in der Schleife; es meldete `ember` und verschwieg, dass es
+    // drei sind. Eine Liste, die beim ersten Treffer aufhoert, verbirgt die
+    // Groesse des Befunds — derselbe Bau wie in `coverage.test.ts`, das alle
+    // ungedeckten Zauber aufzaehlt statt nur einen.
+    let ohne_schadensquelle: Vec<&str> = table
+        .iter()
+        .filter(|row| {
+            let spell = data::SPELLS
+                .iter()
+                .find(|s| s.id == row.id)
+                .expect("Zeile ohne Zauber");
+            !(spell.base_damage > 0 || spell.dot.is_some() || spell.spender.is_some())
+        })
+        .map(|row| row.id)
+        .collect();
+    assert!(
+        ohne_schadensquelle.is_empty(),
+        "diese Zeilen stehen in der Tabelle, koennen aber keinen Schaden \
+         machen — sie staenden dauerhaft als TOT darin: {ohne_schadensquelle:?}"
+    );
     // **Abgeleitet, nicht abgezaehlt** (Issue #97, nach dem Vorbild von #201).
     // Hier stand die Zahl 4 — eine Momentaufnahme des Zauberkastens, die bei
     // jedem neuen Zauber hochzusetzen waere. CANKER und FESTER haben sie rot
@@ -169,6 +180,21 @@ fn ac1_ein_zwitter_aus_schaden_und_hilfe_steht_trotzdem_in_der_tabelle() {
                 || s.control.is_some()
                 || s.cooldown_reduction_ms > 0
                 || s.arms_cooldown_reset
+                // Die drei Verlaengerer-Merkmale (#517, #523). Sie kamen in
+                // `ist_hilfszauber` dazu, weil EMBER, HARDEN und SEPSIS sonst
+                // dauerhaft als "TOT" in der Tabelle stuenden.
+                //
+                // **Sie muessen hier mitwachsen, sonst waechst die Luecke
+                // mit.** Ein kuenftiger Zauber, der verlaengert UND Schaden
+                // macht, faellt sonst aus der Tabelle, ohne dass dieser Fall
+                // es merkt — er kennte das Merkmal nicht, ueber das der Zauber
+                // herausfaellt. Genau so ist WISP durchgerutscht.
+                //
+                // Heute trifft keiner der drei zu; die Zeilen sind fuer den
+                // Zwitter da, den es noch nicht gibt.
+                || s.dot_extend_ticks > 0
+                || s.extend_shield_ms > 0
+                || s.extend_decay_ms > 0
         })
         .map(|s| s.id)
         .collect();

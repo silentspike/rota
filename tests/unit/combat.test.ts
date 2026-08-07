@@ -42,6 +42,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Issue #479 — CINDER, am Ende von `calcination.json` und deshalb hier.
       'cinder',
       'slag',
+      'ember',
+      'pyroclasm',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
@@ -54,6 +56,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // `spell-order.json` sichtbar (wie #268, #479).
       'scab',
       'plate',
+      'harden',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
@@ -86,6 +89,7 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'fester',
       // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
       'blight',
+      'sepsis',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
