@@ -93,6 +93,8 @@ import {
   PUTREFACTION_FILLER_NAME,
   buffTargetsPayload,
   BUFF_TARGETS_NAME,
+  capStapelungPayload,
+  CAP_STAPELUNG_NAME,
   instance1Payload,
   instance2Payload,
   INSTANCE2_NAMES,
@@ -227,6 +229,14 @@ writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
 const buffTargets = buffTargetsPayload();
 const buffTargetsPath = join(here, 'recordings', `${BUFF_TARGETS_NAME}.json`);
 writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
+
+// Zwei Verstaerkungen VERSCHIEDENER Art auf derselben Zielgroesse (#562).
+// Die erste Lage dieser Art im Bestand: Vorher trug nur SLAG `kind: 1`, und
+// er sass allein im Speicher `cap`. Ohne diese Aufzeichnung ist die
+// Bitgleichheit der Stapel-Regel eine Annahme.
+const capStapelung = capStapelungPayload();
+const capStapelungPath = join(here, 'recordings', `${CAP_STAPELUNG_NAME}.json`);
+writeFileSync(capStapelungPath, serialize(capStapelung), 'utf8');
 
 // Die vier Bosse der ersten Instanz (#544, AC4).
 for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
