@@ -41,7 +41,30 @@ DATEN = sorted((WURZEL / 'data' / 'spells').glob('*.json'))
 AUFZ = WURZEL / 'tests' / 'parity' / 'recordings'
 
 
-GROESSEN = ('damage', 'damageTaken', 'absorbed', 'healed', 'converted')
+GROESSEN = (
+    'damage',
+    'damageTaken',
+    'absorbed',
+    'healed',
+    'converted',
+    # **`controlSpent` seit #605/#614** — die verbrauchten Kontroll-Punkte.
+    # Worker-2 hat die Leitung von `Combat` bis ins `ReplayResult` gelegt; ohne
+    # diesen Eintrag erreichte sie das Werkzeug trotzdem nicht, weil es
+    # `expected` liest und nicht das Ergebnis-Objekt.
+    #
+    # Das ist der Grund, warum `control.cost` bei allen sechs Trägern auf
+    # 0,00 % stand: nicht „die Größe wirkt nicht", sondern „ihre Wirkung kam
+    # hier nie an". Die elf Kontroll-Nullen waren teilweise gar keine Messung.
+    #
+    # ACHTUNG BEI DER BASIS: `controlSpent` steht in nur DREI Aufzeichnungen
+    # (fixation, fixation-spells, kontrolle-wirkt). Ein grep findet vier —
+    # `log-kinds.json` führt den Namen als Protokoll-Art, nicht als Größe in
+    # `expected`. Ein Hebel
+    # darauf stammt aus einer schmalen Grundlage — dieselbe Lage, die bei
+    # STALL zu 300 % geführt hat. Die Basis-Spalte zeigt es, aber man muss
+    # hinsehen.
+    'controlSpent',
+)
 
 # **`damageDealt` heißt anderswo `damage`.** Die vierte Bauart (`cases[].runs[]`,
 # eingeführt mit `kontrolle-wirkt.json`) schreibt den ausgeteilten Schaden unter
@@ -92,12 +115,22 @@ def wirkungsbild():
     for pfad in sorted(AUFZ.glob('*.json')):
         roh = json.loads(pfad.read_text(encoding='utf8'))
         for n, lauf in enumerate(laeufe_in(roh)):
+            # **Die Drücke gehören zum Bild.** Verschiebt eine Mutation sie,
+            # misst der Hebel Größe UND Rotation zusammen — die Zahl ist dann
+            # eine andere Aussage. Am 2026-08-07 hat das bei
+            # `control.cost/anchor` eine 0,00 % als 6,67 % ausgegeben.
+            #
+            # Die Angabe steht JE ZEILE und nicht als Spalte je Datei: Die
+            # Eigenschaft ist paarweise. Dieselbe Aufzeichnung kippt bei einer
+            # Mutation und bei einer anderen nicht — drei Anläufe über
+            # `payloads.ts` haben drei verschiedene Datei-Listen geliefert.
             erwartet = dict(lauf.get('expected', {}))
             for fremd, unser in GLEICHBEDEUTEND.items():
                 if fremd in erwartet and unser not in erwartet:
                     erwartet[unser] = erwartet[fremd]
             werte = {g: erwartet[g] for g in GROESSEN if g in erwartet}
             if werte:
+                werte['__druecke'] = json.dumps(lauf.get('presses', []))
                 bild[f'{pfad.stem}#{n}'] = werte
     if not bild:
         raise RuntimeError('keine einzige Aufzeichnung mit Wirkungs-Größen')
@@ -160,8 +193,14 @@ def main():
             # wurde die falsche Größe" gilt (#576 AC2).
             groesste, wo, welche = 0.0, '-', '-'
             basis, neuer = 0, 0
+            verschoben = any(
+                w.get('__druecke') != grund.get(k, {}).get('__druecke')
+                for k, w in jetzt.items()
+            )
             for lauf, werte in jetzt.items():
                 for groesse, wert in werte.items():
+                    if groesse == '__druecke':
+                        continue
                     alt_wert = grund.get(lauf, {}).get(groesse, 0)
                     if not alt_wert:
                         continue
@@ -176,7 +215,8 @@ def main():
             # „viermal so wichtig".
             print(
                 f'{groesste * 100:6.2f}%  {name:26} {zauber_id:12} '
-                f'{vorher} -> {neu_wert:<8} {welche:12} {basis} -> {neuer:<8} {wo}',
+                f'{vorher} -> {neu_wert:<8} {welche:12} {basis} -> {neuer:<8} '
+                f'{"Groesse+Rotation" if verschoben else "nur Groesse":16} {wo}',
                 flush=True,
             )
 
