@@ -2877,6 +2877,17 @@ export class Combat {
       if (this.afflictedValue) {
         while (timeMs >= this.nextAfflictionAtMs) {
           this.hitPlayer(aff.damage, timeMs);
+          // **Der zweite Auslöser von Baustein 5** (Issue #609): Wer die
+          // Schwächung nicht klärt, verliert nicht nur Leben, sondern
+          // Fortschritt. Das ist derselbe Satz aus 11.2 — „ein Fehler macht
+          // Fortschritt rückgängig" —, nur ist der Fehler hier eine verpasste
+          // REINIGUNG statt einer verpassten Unterbrechung.
+          //
+          // **Je Schritt, nicht einmal.** Ein einmaliges Zurückdrehen wäre
+          // eine Strafe für das Bekommen, nicht für das Nicht-Klären; wer
+          // sofort reinigt, zahlte dasselbe wie wer es laufen lässt. Der Preis
+          // muss mit der Zeit wachsen, sonst stellt er keine Wahl.
+          if (this.boss.bossHeal?.on === 'affliction') this.healBoss();
           this.nextAfflictionAtMs += aff.perStepMs;
         }
       }
@@ -2955,7 +2966,11 @@ export class Combat {
       // Ob und wie viel er heilt, sagt der BOSS-Datensatz. Eine feste
       // Kopplung gaelte fuer alle Bosse; 11.2 sagt "nur fuer einzelne, sonst
       // frustrierend".
-      this.healBoss();
+      //
+      // **Seit #609 sagt der Datensatz auch, WORAN sie haengt.** Bis dahin war
+      // dies die einzige Stelle — jeder Boss, der Fortschritt kosten sollte,
+      // verlangte damit dieselbe Taste.
+      if (this.boss.bossHeal?.on === 'interrupt') this.healBoss();
     }
 
     for (;;) {
