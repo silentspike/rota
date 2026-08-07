@@ -191,6 +191,11 @@
   ],
   "expected": {
     "damage": 5348,
+    "damageTaken": 1440,
+    "absorbed": 0,
+    "healed": 0,
+    "converted": 0,
+    "diedAtMs": -1,
     "killedAtMs": 51070,
     "accepted": 41,
     "rejected": 0,
