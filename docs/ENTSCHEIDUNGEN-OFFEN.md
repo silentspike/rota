@@ -924,14 +924,23 @@ Punkt 17 beschreibt Bausteine, deren **Bindung** fehlt. Am selben Tag kamen aus 
 Richtungen Befunde, die zuerst unverwandt aussahen — bis Worker-2 den Satz schrieb: _„Hier ist
 nicht einmal der Mechanismus da, nur die Absicht."_
 
-| Stufe |                                      | Fälle                                                                                            |
-| ----- | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| **1** | Absicht formuliert, kein Mechanismus | `signature` — vier Bosse tragen ihre Regel als Satz, keine Zeile Code liest ihn (#570)           |
-| **2** | Mechanismus gebaut, keine Bindung    | `doom`, `energy`, `buff.kind` — alles läuft, nichts löst aus (#561, #562, #568)                  |
-| **3** | Bindung da, keine Prüfung            | 45 von 68 Größen — die Zahl wirkt, aber man kann sie halbieren, ohne dass etwas anschlägt (#547) |
+| Stufe |                                      | Fälle                                                                                                |
+| ----- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| **1** | Absicht formuliert, kein Mechanismus | `signature` — vier Bosse tragen ihre Regel als Satz, keine Zeile Code liest ihn (#570)               |
+| **2** | Mechanismus gebaut, keine Bindung    | `doom`, `energy`, `buff.kind` — alles läuft, nichts löst aus (#561, #562, #568)                      |
+| **3** | Bindung da, keine Prüfung            | **39** von 68 Größen — die Zahl wirkt, aber man kann sie halbieren, ohne dass etwas anschlägt (#547) |
 
 Drei Stufen, drei Worker, ein Tag. **Jede sieht von außen aus wie Fortschritt:** Es steht
 etwas da, es läuft etwas, es ist bitgleich.
+
+> **Warum 39 und nicht 45.** Die Messung zu #547 nennt 45 Paare, die keine Wirkungsprüfung
+> auslösen. Sechs davon sind `buff.kind` — und die stehen bereits eine Zeile höher auf
+> **Stufe 2**: Es gibt im Bestand keine Lage, in der die Größe entscheidet, weil kein Speicher
+> zwei echte Bewohner hat. Sie zweimal zu zählen wäre derselbe Fehler, den dieses Dokument
+> beschreibt: eine Zahl, die zu einem Schluss einlädt, den sie nicht trägt.
+>
+> Gefunden hat es Worker-1 an meinem Text — nachdem ich ihn zwei Stunden vorher auf genau
+> diese Unterscheidung in _seinem_ Dokument hingewiesen hatte.
 
 > Was auf allen drei Stufen fehlt, ist dasselbe: **der Nachweis, dass es einen Unterschied
 > macht.**
