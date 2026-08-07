@@ -125,6 +125,21 @@ export function isCastAccepted(result: number): boolean {
 export const FIGHT_RUNNING = 0;
 export const FIGHT_WON = 1;
 export const FIGHT_OVERPRESSURE = 2;
+/**
+ * Der Spieler ist gestorben (GAME-DESIGN A.3, Issue #581).
+ *
+ * **Ein eigenes Ende, kein Sonderfall des Überdrucks.** GAME-DESIGN nennt in
+ * Kapitel 10 vier davon — „Sieg · Spieler-Tod · Zeitablauf (Überdruck) ·
+ * Abbruch" —, und der Tod steht dort neben dem Zeitablauf, nicht darunter.
+ *
+ * Der Kommentar an `checkDefeat` warnt vor einem eigenen Zustand („eine dritte
+ * Wahrheit über dasselbe Ende"). Er meint die Umkehrung durch `runaway`: Dort
+ * führen zwei Wege zu DEMSELBEN Ende, und ein eigener Zustand hätte nichts
+ * unterschieden. Hier ist es umgekehrt — ein anderes Ende, das die Auswertung
+ * bereits kennt: `OUTCOME_DEATH` und die Überschrift `VESSEL LOST` stehen seit
+ * jeher da und waren nur nie erreichbar.
+ */
+export const FIGHT_DIED = 3;
 
 export const NOT_ACTIVE = -1;
 
@@ -3244,6 +3259,29 @@ export class Combat {
     const umgekehrt = this.boss.runaway !== null;
     if (this.damageDealtValue >= this.boss.hp) {
       this.stateValue = umgekehrt ? FIGHT_OVERPRESSURE : FIGHT_WON;
+      this.endedAtMs = timeMs;
+      return true;
+    }
+    // **Der Spielertod, und er steht NACH dem Boss-Tod** (GAME-DESIGN A.3,
+    // Issue #581).
+    //
+    // Die Reihenfolge ist nicht frei: `Fight::replay` prüft in `fight.rs`
+    // erst `killed_at`, dann `died_at`. Fallen beide im selben Takt, gewinnt
+    // der Spieler — auf beiden Seiten dieselbe Entscheidung, sonst liefen sie
+    // genau in dem Takt auseinander, den niemand vorhersieht.
+    //
+    // Bis zum 2026-08-07 fehlte dieser Zweig ganz: `checkDefeat` hieß so und
+    // prüfte den Tod des Spielers nicht. Er wurde in `hitPlayer` gesetzt und
+    // von keiner Stelle als Ende gelesen — ein toter Spieler sammelte weiter
+    // Schaden und gewann. Gemessen an `boss-2-2`: Tod bei 15000 ms, Boss
+    // gefallen bei 52510.
+    //
+    // **Die Umkehrung durch `runaway` gilt hier nicht.** Sie dreht das ZIEL um
+    // (Ring auf 0 gegen Frist überstehen); der eigene Tod ist in beiden Fällen
+    // dasselbe Ende. Ein `umgekehrt ? … : …` an dieser Stelle hieße, dass ein
+    // toter Spieler gewinnen kann, wenn der Boss davonläuft.
+    if (this.diedAtMsValue >= 0) {
+      this.stateValue = FIGHT_DIED;
       this.endedAtMs = timeMs;
       return true;
     }
