@@ -1845,9 +1845,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
  * # Drei Läufe, weil zwei nicht reichen
  *
  * ```text
- *   none    kein Kontroll-Zauber          damageTaken 560, nicht unterbrochen
- *   stay    Kontrolle, gleiche GCD-Last   damageTaken 560, nicht unterbrochen
- *   stall   die Wirkung                   damageTaken   0, unterbrochen
+ *   boss-1-4      none  560   stay  560   stall    0
+ *   test-vessel   none 1280   stay 1280   stall  320
  * ```
  *
  * **Der `stay`-Lauf ist der Grund, dass diese Aufzeichnung etwas beweist.**
@@ -1866,16 +1865,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
  * Zauber mit 700 Schaden und 2500 ms Wirkzeit. Es gibt kein „ein Teil kommt
  * durch" — der Zauber trifft ganz (560 nach 20 % Ward) oder gar nicht.
  *
- * QUENCH wird in allen drei Läufen bei **32500 ms** gedrückt — dem Zeitpunkt,
- * zu dem der Zauber ohne STALL gerade gelandet ist. Gemessen, wo die Grenze
- * liegt (relativ zum Cast-Beginn bei 30000 ms):
- *
- * ```text
- *   +1500 … +2250   auch ohne STALL unterbrochen   (Fenster reicht)
- *   +2500 … +3500   ohne STALL zu spät, mit STALL rechtzeitig
- * ```
- *
- * Die Grenze liegt auf der Wirkzeit, nicht auf einer gewählten Zahl.
+ * Der QUENCH-Zeitpunkt je Boss steht bei `LAGEN` und ist so gewählt, dass
+ * eine HALBIERTE STALL-Wirkung nicht mehr reicht — die Begründung dort.
  *
  * # Warum `boss-1-4` und kein Prüfboss
  *
@@ -1887,50 +1878,75 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
  * dieselbe Zahl und hielte die Mechanik für wirkungslos.
  */
 export function kontrolleWirktPayload(): Record<string, unknown> {
-  const boss = bossById('boss-1-4');
-  if (boss === undefined) throw new Error('Der Boss boss-1-4 fehlt.');
-
   return {
     schema: SCHEMA,
     name: KONTROLLE_WIRKT_NAME,
-    bossId: boss.id,
     tickMs: TICK_MS,
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
-    boss: {
-      hp: boss.hp,
-      overpressureMs: boss.overpressureMs,
-      timeline: boss.timeline.map((e) => ({
-        atMs: e.atMs,
-        mechanic: e.mechanic,
-        name: e.name,
-        damage: e.damage,
-        castTimeMs: e.castTimeMs,
-      })),
-    },
-    /** Kampfzeit des QUENCH-Drucks — in allen drei Läufen dieselbe. */
-    quenchAtMs: QUENCH_BEI_MS,
-    runs: [kontrollLauf(boss, 'none'), kontrollLauf(boss, 'stay'), kontrollLauf(boss, 'stall')],
+    cases: LAGEN.map(({ bossId, quenchAtMs }) => {
+      const boss = bossById(bossId);
+      if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+      return {
+        bossId: boss.id,
+        /** Kampfzeit des QUENCH-Drucks — in allen drei Läufen dieselbe. */
+        quenchAtMs,
+        boss: {
+          hp: boss.hp,
+          overpressureMs: boss.overpressureMs,
+          timeline: boss.timeline.map((e) => ({
+            atMs: e.atMs,
+            mechanic: e.mechanic,
+            name: e.name,
+            damage: e.damage,
+            castTimeMs: e.castTimeMs,
+          })),
+        },
+        runs: ['none', 'stay', 'stall'].map((weg) => kontrollLauf(boss, weg, quenchAtMs)),
+      };
+    }),
   };
 }
 
 /**
- * Wann QUENCH gedrückt wird — **in allen drei Läufen zur selben Kampfzeit**.
+ * Die beiden Lagen — je Boss der Zeitpunkt, zu dem QUENCH gedrückt wird.
  *
- * `Sealing Chant` beginnt bei 30000 ms und wirkt 2500 ms; ohne STALL ist er
- * bei 32500 ms gelandet, mit STALL läuft er bis 34500 ms. Ein Druck bei
- * 32500 ms geht also ohne STALL ins Leere und unterbricht mit ihm.
+ * # Der Zeitpunkt ist der Kern der Bauart, und er wurde zweimal korrigiert
  *
- * **Der feste Zeitpunkt ist der Kern der Bauart.** Der erste Entwurf drückte
- * QUENCH relativ zum laufenden Cast — dadurch wurde er in den Läufen `none`
- * und `stay` GAR NICHT geworfen (`castsQuench: 0`), weil das Fenster schon zu
- * war, als die Bedingung greifen sollte. Die Läufe unterschieden sich dann in
- * zwei Dingen: ob STALL geworfen wurde UND ob QUENCH geworfen wurde. Die
- * Differenz wäre echt gewesen und der Nachweis trotzdem angreifbar.
+ * **Erster Fehler:** QUENCH relativ zum laufenden Cast gedrückt. Dadurch wurde
+ * er in den Läufen `none` und `stay` GAR NICHT geworfen (`castsQuench: 0`),
+ * weil das Fenster schon zu war. Die Läufe unterschieden sich in zwei Dingen
+ * statt in einem — die Differenz wäre echt gewesen, der Nachweis trotzdem
+ * angreifbar.
  *
- * Jetzt drücken alle drei Läufe QUENCH bei 32500 ms. Was sich unterscheidet,
- * ist allein, ob er etwas trifft.
+ * **Zweiter Fehler:** Zeitpunkt auf den Einschlag ohne STALL gelegt (32500 bei
+ * boss-1-4). Der Nachweis war grün und hielt zu wenig fest: Eine Mutation, die
+ * `stall`s `amountMs` von 2000 auf 1000 HALBIERT, brach ihn nicht. Der
+ * verlängerte Cast landete dann bei 33500 statt 34500, und ein Druck bei 32500
+ * war immer noch rechtzeitig. Geprüft war damit nur, DASS die Verlängerung
+ * wirkt — nicht, wie weit.
+ *
+ * Die Zeitpunkte unten liegen deshalb so spät, dass die **halbe** Wirkung
+ * nicht mehr reicht:
+ *
+ * ```text
+ *   boss-1-4     Cast 30000+2500   ohne 32500 · halb 33500 · voll 34500
+ *                QUENCH bei 34000  ->  nur die volle Wirkung trägt
+ *   test-vessel  Cast 20000+3000   ohne 23000 · halb 24000 · voll 25000
+ *                QUENCH bei 24500  ->  dasselbe
+ * ```
+ *
+ * # Zwei Bosse, weil einer den Nachweis allein trägt
+ *
+ * `boss-1-4` ist der einzige Boss aus dem Inhalt, der einen unterbrechbaren
+ * Zauber trägt UND den der Spieler überlebt — die Differenz endet dort auf 0,
+ * weil er genau einen Zeitleisten-Eintrag hat. `test-vessel` liefert dieselbe
+ * Aussage mit 1280 gegen 320: keine Randwert-Zahl, und ein Fehler in einem
+ * Boss trägt nicht den ganzen Nachweis.
  */
-const QUENCH_BEI_MS = 32_500;
+const LAGEN: readonly { bossId: string; quenchAtMs: number }[] = [
+  { bossId: 'boss-1-4', quenchAtMs: 34_000 },
+  { bossId: 'test-vessel', quenchAtMs: 24_500 },
+];
 
 function kontrollBindings(weg: string): { slot: number; spellId: string }[] {
   const leiste = [
@@ -1949,7 +1965,7 @@ function kontrollBindings(weg: string): { slot: number; spellId: string }[] {
  * sie nach, statt die Bedingung nachzubauen; ein Nachbau, der minimal
  * abweicht, ergäbe eine Abweichung, die wie ein Rechenfehler aussieht.
  */
-function kontrollLauf(boss: BossDef, weg: string): Record<string, unknown> {
+function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const bind = combat.indexOf('bind');
   const quench = combat.indexOf('quench');
@@ -1989,7 +2005,7 @@ function kontrollLauf(boss: BossDef, weg: string): Record<string, unknown> {
       werfe(kontrolle)
     ) {
       kontrolleGeworfen = timeMs;
-    } else if (quenchGeworfen < 0 && timeMs >= QUENCH_BEI_MS && werfe(quench)) {
+    } else if (quenchGeworfen < 0 && timeMs >= quenchAtMs && werfe(quench)) {
       quenchGeworfen = timeMs;
     } else {
       werfe(bind);
