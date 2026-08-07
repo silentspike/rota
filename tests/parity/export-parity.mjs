@@ -109,6 +109,7 @@ import {
   CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
+  kontrolleWirktPayload,
   fixationPayload,
   logParityPayload,
   timelineLoopPayload,
@@ -136,6 +137,7 @@ import {
   RACE_HEAL_NAME,
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
+  KONTROLLE_WIRKT_NAME,
   FIXATION_NAME,
   LOG_PARITY_NAME,
   serialize,
@@ -320,6 +322,10 @@ writeFileSync(playerDamagePath, serialize(playerDamage), 'utf8');
 const coagulation = coagulationPayload();
 const coagulationPath = join(here, 'recordings', `${COAGULATION_NAME}.json`);
 writeFileSync(coagulationPath, serialize(coagulation), 'utf8');
+
+const kontrolleWirkt = kontrolleWirktPayload();
+const kontrolleWirktPath = join(here, 'recordings', `${KONTROLLE_WIRKT_NAME}.json`);
+writeFileSync(kontrolleWirktPath, serialize(kontrolleWirkt), 'utf8');
 
 const fixation = fixationPayload();
 const fixationPath = join(here, 'recordings', `${FIXATION_NAME}.json`);

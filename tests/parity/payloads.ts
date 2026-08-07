@@ -129,6 +129,7 @@ export const COAGULATION_NAME = 'coagulation';
 
 /** Der Prueffall zur Fixierung — Kontroll-Punkte auf den Kampfverlauf (#100). */
 export const FIXATION_NAME = 'fixation';
+export const KONTROLLE_WIRKT_NAME = 'kontrolle-wirkt';
 
 /** Der Prueffall zu den Protokoll-Arten des Spiels (Issue #151). */
 export const LOG_PARITY_NAME = 'log-parity';
@@ -1819,6 +1820,225 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     checksums,
     playerHpPerTick: playerHp,
     shieldPerTick: shield,
+  };
+}
+
+/**
+ * Die Kontrolle senkt den erlittenen Schaden — mit eingebauter Gegenprobe
+ * (Issue #576, AC3).
+ *
+ * # Was hier gemessen wird, und warum es die Lage vorher nicht gab
+ *
+ * Zehn von zehn Fixations-Zaubern werden in den Aufzeichnungen gewirkt und
+ * bewegen **keine** der fünf Messgrößen. Das sah nach einer Mechanik aus, die
+ * nicht ankommt. Sie kommt an — nur nicht in einer Lage, die es gab.
+ *
+ * Der Weg, der wirkt, ist nicht der naheliegende. `delayStrike` (STAY, LATCH)
+ * bewegt `damageTaken` **bauartbedingt nie**: Es verschiebt den nächsten
+ * Zeitleisten-Eintrag und setzt danach zurück, die folgenden holen auf. Der
+ * Treffer kommt später, aber er kommt.
+ *
+ * Was wirkt, ist `slowCast` plus Unterbrechen: STALL verlängert den laufenden
+ * Boss-Zauber um 2000 ms, das Unterbrechen-Fenster wächst, und ein
+ * unterbrochener Zauber trifft **gar nicht**.
+ *
+ * # Drei Läufe, weil zwei nicht reichen
+ *
+ * ```text
+ *   boss-1-4      none  560   stay  560   stall    0
+ *   test-vessel   none 1280   stay 1280   stall  320
+ * ```
+ *
+ * **Der `stay`-Lauf ist der Grund, dass diese Aufzeichnung etwas beweist.**
+ * STALL verdrängt einen BIND-Wurf; ein Vergleich gegen „gar kein
+ * Kontroll-Zauber" unterschiede sich in zwei Dingen — der Wirkung UND einem
+ * GCD. STAY kostet Punkte, löst denselben GCD aus und verdrängt denselben
+ * BIND, wirkt aber auf die Zeitleiste statt auf den laufenden Cast. Er ändert
+ * nichts. Damit gehört die Differenz STALL, nicht der Verdrängung.
+ *
+ * Die BIND-Wurfzahl steht deshalb in `expected` — sie muss bei `stay` und
+ * `stall` gleich sein, sonst war die Last doch nicht dieselbe.
+ *
+ * # Warum die Null hier eine Aussage ist und kein Randwert
+ *
+ * `boss-1-4` trägt **einen** Zeitleisten-Eintrag: einen unterbrechbaren
+ * Zauber mit 700 Schaden und 2500 ms Wirkzeit. Es gibt kein „ein Teil kommt
+ * durch" — der Zauber trifft ganz (560 nach 20 % Ward) oder gar nicht.
+ *
+ * Der QUENCH-Zeitpunkt je Boss steht bei `LAGEN` und ist so gewählt, dass
+ * eine HALBIERTE STALL-Wirkung nicht mehr reicht — die Begründung dort.
+ *
+ * # Warum `boss-1-4` und kein Prüfboss
+ *
+ * Er ist der **einzige** Boss mit unterbrechbarem Zauber, den der Spieler
+ * überlebt. Das ist keine Vorliebe, sondern Bedingung: An `boss-1-1` steht
+ * `damageTaken` bei 5040, ob unterbrochen wird oder nicht — dort stirbt der
+ * Spieler, und dann misst die Größe seine Lebenspunkte statt der Wirkung der
+ * Kontrolle. Wer diesen Nachweis dort führte, bekäme in jeder Spalte
+ * dieselbe Zahl und hielte die Mechanik für wirkungslos.
+ */
+export function kontrolleWirktPayload(): Record<string, unknown> {
+  return {
+    schema: SCHEMA,
+    name: KONTROLLE_WIRKT_NAME,
+    tickMs: TICK_MS,
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    cases: LAGEN.map(({ bossId, quenchAtMs }) => {
+      const boss = bossById(bossId);
+      if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+      return {
+        bossId: boss.id,
+        /** Kampfzeit des QUENCH-Drucks — in allen drei Läufen dieselbe. */
+        quenchAtMs,
+        boss: {
+          hp: boss.hp,
+          overpressureMs: boss.overpressureMs,
+          timeline: boss.timeline.map((e) => ({
+            atMs: e.atMs,
+            mechanic: e.mechanic,
+            name: e.name,
+            damage: e.damage,
+            castTimeMs: e.castTimeMs,
+          })),
+        },
+        runs: ['none', 'stay', 'stall'].map((weg) => kontrollLauf(boss, weg, quenchAtMs)),
+      };
+    }),
+  };
+}
+
+/**
+ * Die beiden Lagen — je Boss der Zeitpunkt, zu dem QUENCH gedrückt wird.
+ *
+ * # Der Zeitpunkt ist der Kern der Bauart, und er wurde zweimal korrigiert
+ *
+ * **Erster Fehler:** QUENCH relativ zum laufenden Cast gedrückt. Dadurch wurde
+ * er in den Läufen `none` und `stay` GAR NICHT geworfen (`castsQuench: 0`),
+ * weil das Fenster schon zu war. Die Läufe unterschieden sich in zwei Dingen
+ * statt in einem — die Differenz wäre echt gewesen, der Nachweis trotzdem
+ * angreifbar.
+ *
+ * **Zweiter Fehler:** Zeitpunkt auf den Einschlag ohne STALL gelegt (32500 bei
+ * boss-1-4). Der Nachweis war grün und hielt zu wenig fest: Eine Mutation, die
+ * `stall`s `amountMs` von 2000 auf 1000 HALBIERT, brach ihn nicht. Der
+ * verlängerte Cast landete dann bei 33500 statt 34500, und ein Druck bei 32500
+ * war immer noch rechtzeitig. Geprüft war damit nur, DASS die Verlängerung
+ * wirkt — nicht, wie weit.
+ *
+ * Die Zeitpunkte unten liegen deshalb so spät, dass die **halbe** Wirkung
+ * nicht mehr reicht:
+ *
+ * ```text
+ *   boss-1-4     Cast 30000+2500   ohne 32500 · halb 33500 · voll 34500
+ *                QUENCH bei 34000  ->  nur die volle Wirkung trägt
+ *   test-vessel  Cast 20000+3000   ohne 23000 · halb 24000 · voll 25000
+ *                QUENCH bei 24500  ->  dasselbe
+ * ```
+ *
+ * # Zwei Bosse, weil einer den Nachweis allein trägt
+ *
+ * `boss-1-4` ist der einzige Boss aus dem Inhalt, der einen unterbrechbaren
+ * Zauber trägt UND den der Spieler überlebt — die Differenz endet dort auf 0,
+ * weil er genau einen Zeitleisten-Eintrag hat. `test-vessel` liefert dieselbe
+ * Aussage mit 1280 gegen 320: keine Randwert-Zahl, und ein Fehler in einem
+ * Boss trägt nicht den ganzen Nachweis.
+ */
+const LAGEN: readonly { bossId: string; quenchAtMs: number }[] = [
+  { bossId: 'boss-1-4', quenchAtMs: 34_000 },
+  { bossId: 'test-vessel', quenchAtMs: 24_500 },
+];
+
+function kontrollBindings(weg: string): { slot: number; spellId: string }[] {
+  const leiste = [
+    { slot: 0, spellId: 'bind' },
+    { slot: 1, spellId: 'quench' },
+  ];
+  if (weg !== 'none') leiste.push({ slot: 2, spellId: weg });
+  return leiste;
+}
+
+/**
+ * Ein Durchgang: BIND sammelt Punkte, der Kontroll-Zauber greift beim
+ * laufenden Boss-Zauber ein, QUENCH unterbricht — zu spät oder gerade noch.
+ *
+ * **Die Drücke stehen in der Datei**, nicht die Regel. Der Simulator spielt
+ * sie nach, statt die Bedingung nachzubauen; ein Nachbau, der minimal
+ * abweicht, ergäbe eine Abweichung, die wie ein Rechenfehler aussieht.
+ */
+function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const bind = combat.indexOf('bind');
+  const quench = combat.indexOf('quench');
+  const kontrolle = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
+  const bindings = kontrollBindings(weg);
+  const slots = slotMap(combat, bindings);
+  const ticks = 4000; // 40 s — der Boss-Zauber liegt bei 30 s
+
+  const checksums: number[] = [];
+  const presses: { tick: number; slot: number }[] = [];
+  let sequence = 0;
+  let castBegann = -1;
+  let kontrolleGeworfen = -1;
+  let quenchGeworfen = -1;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) break;
+
+    // Beginn des Boss-Zaubers merken — er ist der Bezugspunkt für beide Würfe.
+    if (combat.casting !== -1 && castBegann < 0) castBegann = timeMs;
+    if (combat.casting === -1 && castBegann >= 0) castBegann = -1;
+
+    const werfe = (index: number): boolean => {
+      if (!combat.isReady(alsSpellIndex(index), timeMs)) return false;
+      if (combat.cast(alsSpellIndex(index), timeMs).result !== 0) return false;
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(index), combat) });
+      return true;
+    };
+
+    if (
+      kontrolle >= 0 &&
+      castBegann >= 0 &&
+      kontrolleGeworfen < 0 &&
+      combat.control >= 4 &&
+      werfe(kontrolle)
+    ) {
+      kontrolleGeworfen = timeMs;
+    } else if (quenchGeworfen < 0 && timeMs >= quenchAtMs && werfe(quench)) {
+      quenchGeworfen = timeMs;
+    } else {
+      werfe(bind);
+    }
+
+    const hash = combatChecksum(combat, timeMs);
+    sequence = (sequence * 31 + hash) >>> 0;
+    checksums.push(hash);
+  }
+
+  return {
+    way: weg,
+    ticks,
+    bindings,
+    presses,
+    expected: {
+      damageTaken: combat.damageTaken,
+      // **Die Wirkung, nicht nur ihr Betrag.** Ein Nachweis über damageTaken
+      // allein liesse offen, ob nicht etwas anderes den Schaden gesenkt hat.
+      interruptsLanded: combat.interruptsLanded,
+      interruptsMissed: combat.interruptsMissed,
+      // Die Last, gegen die der `stay`-Lauf kontrolliert: gleich viele BINDs
+      // bei `stay` und `stall`, sonst war die Verdrängung doch verschieden.
+      castsBind: combat.castCount(alsSpellIndex(bind)),
+      castsQuench: combat.castCount(alsSpellIndex(quench)),
+      castsControl: kontrolle >= 0 ? combat.castCount(alsSpellIndex(kontrolle)) : 0,
+      controlSpent: combat.controlSpent,
+      damageDealt: combat.damageDealt,
+      playerHp: combat.playerHp,
+      diedAtMs: combat.diedAtMs,
+      sequenceChecksum: sequence,
+    },
+    checksums,
   };
 }
 
