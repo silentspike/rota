@@ -813,7 +813,7 @@ wird scharf, sobald die Schule auf zwölf wächst (#479).
 
 ---
 
-## Punkt 17 — Darf ein Zauber können, was ein Schlüsseltalent verleiht?
+## 17. Darf ein Zauber können, was ein Schlüsseltalent verleiht? — OFFEN
 
 _Aufgeworfen von Worker-1 am 2026-08-07 bei #519, ausdrücklich **nicht** selbst entschieden._
 
@@ -847,7 +847,7 @@ für sich eine Wahl**, auch ohne den Zusatz; das war Worker-1s Befund zur Begrü
 
 ---
 
-## 17. Drei Bausteine sind gebaut und an nichts gebunden — OFFEN
+## 18. Drei Bausteine sind gebaut und an nichts gebunden — OFFEN
 
 _Aufgenommen am 2026-08-07, nachdem der dritte Fall innerhalb von zwei Stunden auftrat._
 
@@ -920,7 +920,7 @@ Anzeige, die so tut als ob.
 _Ergänzt wenige Stunden später, nachdem eine vierte Suche einen Fall auf einer früheren
 Stufe fand und ein Worker die Verbindung benannte._
 
-Punkt 17 beschreibt Bausteine, deren **Bindung** fehlt. Am selben Tag kamen aus zwei anderen
+Punkt 18 beschreibt Bausteine, deren **Bindung** fehlt. Am selben Tag kamen aus zwei anderen
 Richtungen Befunde, die zuerst unverwandt aussahen — bis Worker-2 den Satz schrieb: _„Hier ist
 nicht einmal der Mechanismus da, nur die Absicht."_
 
@@ -972,9 +972,37 @@ verschiebt sich, und die Begründung dafür stammt von Worker-1:
 Das macht aus einer allgemeinen Sorge eine terminierte: **Das Netz muss stehen, bevor die
 Balance-Arbeit beginnt** — nicht danach.
 
+### Nachtrag: der Preis des Wartens ist jetzt bezifferbar
+
+_Ergänzt am 2026-08-07, nachdem Worker-3 acht Bosse gebaut hatte._
+
+Bisher stand hier die **Lage**, nicht der **Preis**. Er lautet inzwischen:
+
+```
+acht gebaute Bosse tragen `phases` und `energy` als leere Felder
+```
+
+Jeder dieser acht sieht aus, als hätte er einen Baustein mehr, als er hat. Worker-3s Satz:
+
+> Acht Bosse tragen inzwischen leere Felder, die wie Bausteine aussehen. Wenn die Bindungen
+> kommen, wirken sie rückwirkend — dann müsste ich alle acht neu messen.
+>
+> **Je später die Entscheidung, desto teurer.**
+
+Das ist keine Vermutung über die Zukunft, sondern eine Multiplikation: Jede Instanz, die vor der
+Entscheidung gebaut wird, kostet bei einer Bindung vier weitere Bosse Nachmessung. Instanz 3 und
+4 würden den Preis auf sechzehn heben.
+
+> **Die Richtung, in der es billig ist, ist eindeutig.** Wird entschieden, dass die drei
+> Kulisse bleiben, kostet das heute nichts — die Felder fallen aus den Datensätzen, und niemand
+> muss messen. Nur der andere Weg wird mit jedem Boss teurer.
+>
+> Das heißt nicht, dass er falsch wäre. Es heißt, dass die Entscheidung nicht dadurch billiger
+> wird, dass man sie aufschiebt.
+
 ---
 
-## 18. „Tempo" ist heute keine spielbare Entscheidung — OFFEN
+## 19. „Tempo" ist heute keine spielbare Entscheidung — OFFEN
 
 _Aufgenommen am 2026-08-07, gemessen beim Bau der zweiten Instanz (#598)._
 
@@ -1038,3 +1066,84 @@ zerbrechlicher?**
 `stacks` als Träger ist zurückgestellt (#574 nimmt stattdessen `timeline`). Kein Boss wird auf
 einer Abwägung gebaut, die es nicht gibt — das wäre die Kulisse in ihrer teuersten Form: nicht
 ein Feld ohne Wirkung, sondern eine **Anforderung ohne Alternative**.
+
+---
+
+## 20. Acht Bosse, eine Zusammenstellung — OFFEN
+
+_Aufgenommen am 2026-08-07 bei der Abnahme der zweiten Instanz (#574). Dies ist kein Befund über
+eine Zahl, sondern über eine Leitplanke des Auftraggebers._
+
+### Die Messung
+
+Die vier Aufzeichnungen der zweiten Instanz nebeneinander, gezählt nach `casts`:
+
+```
+boss-2-1   crust 5  kindle 25  pyre 4  quench 1  smoulder 5
+boss-2-2   crust 5  kindle 25  pyre 4  quench 4  smoulder 5
+boss-2-3   crust 4  kindle 22  pyre 3  quench 5  smoulder 4
+boss-2-4   crust 5  kindle 26  pyre 4  quench 5  smoulder 5
+```
+
+**Vier Bosse, fünf Zauber, dieselbe Zusammenstellung.** Der einzige Unterschied ist, wie oft
+QUENCH gedrückt wird. Für die erste Instanz gilt dasselbe.
+
+Der Balance-Läufer hatte die andere Hälfte schon am 2026-08-05 gemessen: **zwölf von fünfzehn
+Zaubern kommen in keiner besten Rotation vor**, an zwei Bössen mit verschiedener Dauer und
+verschiedener bester Rotation.
+
+### Warum das eine Frage an den Auftraggeber ist und keine an den Balance-Läufer
+
+Zwei seiner Leitplanken aus dem Interview stehen dazu im Widerspruch:
+
+|                                                    | Stand                                                                   |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| _„Jeder Zauber muss irgendwo die beste Wahl sein"_ | zwölf von fünfzehn sind es nirgends                                     |
+| _„Der Spieler soll spielen können, wie er will"_   | er kann nicht anders — es gibt keine zweite tragfähige Zusammenstellung |
+
+Die zweite ist die schwerere. Das Design sagt ausdrücklich: **„Es muss möglich sein, nicht
+nötig."** Die Widerstände wirken bewusst nur mit 20–30 %, damit niemand zum Umbauen gezwungen
+wird. Gemessen ist heute das Gegenteil des Gemeinten: Es ist nicht nötig, weil es nicht
+**möglich** ist.
+
+> Es ist also keine Verletzung der Regel, sondern ihr Leerlauf. Eine Freiheit, die keine
+> Alternative hat, ist keine.
+
+### Was das für das Kernrisiko heißt
+
+A.12 nennt das Kernrisiko: _„Wenn sich herausstellt, dass die optimale Rotation eine feste
+Prioritätenliste ist, die sich nie ändert, ist das Spiel nach etwa zwanzig Stunden nur noch
+Ausführung."_
+
+**Der Prüfstein dafür ist bestanden** — eine gute Rotation macht +48,2 % mehr Schaden als eine
+schlechte, das Kriterium verlangte 10 %. Was heute fehlt, ist die andere Achse: Nicht _ob_ man
+gut spielt, sondern _womit_.
+
+Acht Bosse haben daran nichts geändert, und das ist die eigentliche Nachricht. Worker-1s Satz
+vom 2026-08-05 lautete: _Es fehlen nicht Zauber, es fehlen Bosse, die etwas verlangen._ Nach
+#544 und #574 ist die andere Hälfte belegt: **Es fehlen auch Zauber, die etwas können.**
+
+### Warum „mehr Zauber bauen" nicht die Antwort ist
+
+Drei Befunde derselben Woche zeigen, wo es klemmt — und alle drei sind **Ausgänge**, nicht
+Zauber:
+
+|          |                                                                                                       |
+| -------- | ----------------------------------------------------------------------------------------------------- |
+| #598     | „Tempo" ist keine spielbare Entscheidung — die Schadensrate ist über alle Bosse konstant bei 88–104/s |
+| Punkt 18 | Drei Bausteine gebaut und an nichts gebunden (`doom`, `energy`, `signature`)                          |
+| #605     | Kontroll-Kosten wirken, sind aber im Ergebnis nicht abrufbar                                          |
+
+Ein neuer Zauber, der auf dieselben Ausgänge wirkt wie KINDLE, wäre der sechzehnte Weg, Schaden
+zu machen. Er änderte die Zusammenstellung nicht.
+
+### Was gebraucht wird
+
+**Keine Entscheidung heute.** #607 misst zuerst, worauf ein Zauber überhaupt wirken kann und
+welcher dieser Ausgänge je einen Kampf entschieden hat. Das Ergebnis kommt als Vorlage zurück,
+mit Zahlen.
+
+Die Frage, die dann beim Auftraggeber liegt, lautet voraussichtlich: **Wie viele tragfähige
+Zusammenstellungen soll ROTA haben — und ist eine zweite genug?** Das ist eine Aussage über den
+Charakter des Spiels, nicht über eine Zahl: Zwei Wege sind eine Wahl, fünf sind ein
+Optimierungs-Labor, und der Unterschied bestimmt, wie viel Inhalt die 300 Stunden tragen muss.
