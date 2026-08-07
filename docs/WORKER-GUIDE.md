@@ -5259,3 +5259,50 @@ das der Vorgebende nicht gemessen hat.**
 
 Wer sie bekommt, misst sie, bevor er sie einträgt. Wer sie gibt, sagt dazu, dass sie ungemessen
 ist.
+
+### 8.77 Ein Verweis nennt Datei und Symbol — die Zeilennummer altert
+
+Am 2026-08-07 bei der Bestandsmessung: Ein Issue wurde als OFFEN eingeordnet, mit dem Beleg
+
+```
+data.ts:1374   rohLoop > 0 ? rohLoop : null
+Die einzige Prüfung ist "größer null".
+```
+
+Der Befund war falsch, und der Grund liegt nicht beim Messenden. Zwei Dinge waren passiert:
+
+|                                                        |                                                                                                                                                                                                           |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Die Zeile ist gewandert**                            | An `1374` steht heute Schul-Code; die Datei ist seit dem Issue um dreihundert Zeilen gewachsen                                                                                                            |
+| **Die gefundene Stelle beantwortet eine andere Frage** | `rohLoop > 0` prüft, ob die **Zahl brauchbar** ist. Ob die Zeitleiste rückwärts läuft, prüft `data.ts:1737` — dreihundert Zeilen weiter, weil es die Einträge braucht, die es beim Parsen noch nicht gibt |
+
+Worker-3s Formulierung, und sie trifft den Kern:
+
+> Wer nur diese Zeile ansieht, schließt **richtig auf ihren Inhalt** und **falsch auf den
+> Bestand**.
+
+#### Die Regel
+
+```
+schlecht   data.ts:1374
+gut        data.ts, parseSchool()
+gut        data.ts, die Spannweiten-Prüfung in parseBoss()
+```
+
+**Die Zahl altert, der Name trägt.** Ein Symbolname überlebt jede Verschiebung und meldet sich,
+wenn er verschwindet — eine Zeilennummer zeigt nach der nächsten Einfügung ins Leere, ohne es zu
+sagen.
+
+#### Und für den, der eine Stelle findet
+
+Eine gefundene Stelle belegt, was **dort** steht. Sie belegt nicht, dass es die **einzige** ist.
+Die Prüffrage, bevor aus einer Fundstelle ein Befund wird:
+
+> **Gibt es eine zweite Stelle, an der dieselbe Sache anders behandelt wird?**
+
+Bei einer Datenprüfung ist die Antwort fast immer ja: einmal beim Einlesen (ist der Wert
+brauchbar?) und einmal nach dem Aufbau (ist die Struktur stimmig?). Wer die erste findet und die
+zweite nicht sucht, meldet eine Lücke, die gefüllt ist.
+
+> Verwandt mit 8.27 (ein Suchmuster misst, was es kennt) — dort fehlt dem Muster ein Treffer,
+> hier fehlt dem Sucher der zweite Ort.
