@@ -30,9 +30,29 @@ import { Combat, alsSpellIndex, CAST_OK } from '../../src/core/combat.js';
 import { bossById, CALCINATION } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
-const BOSS_ID = 'boss-1-4';
-/** Der Zauber landet ohne STALL bei 32500 ms; ein Druck genau dort geht ins Leere. */
-const QUENCH_BEI_MS = 32_500;
+/**
+ * Die beiden Lagen — je Boss der QUENCH-Zeitpunkt und die erwarteten Werte.
+ *
+ * **Die Zeitpunkte liegen so spät, dass die HALBE STALL-Wirkung nicht reicht.**
+ * Der erste Entwurf legte sie auf den Einschlag ohne STALL (32500 bei
+ * boss-1-4); der Fall war grün und hielt zu wenig fest: Eine Mutation, die
+ * `amountMs` von 2000 auf 1000 halbiert, brach ihn nicht — der verlängerte
+ * Cast landete bei 33500, und ein Druck bei 32500 war immer noch rechtzeitig.
+ * Geprüft war damit nur, DASS die Verlängerung wirkt, nicht wie weit.
+ *
+ * ```text
+ *   boss-1-4     Cast 30000+2500   ohne 32500 · halb 33500 · voll 34500
+ *   test-vessel  Cast 20000+3000   ohne 23000 · halb 24000 · voll 25000
+ * ```
+ *
+ * Zwei Bosse, weil einer den Nachweis allein trägt: `boss-1-4` endet auf 0
+ * (ein einziger Zeitleisten-Eintrag), `test-vessel` liefert dieselbe Aussage
+ * mit 1280 gegen 320 — keine Randwert-Zahl.
+ */
+const LAGEN = [
+  { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0 },
+  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1280, mitStall: 320 },
+] as const;
 const TAKTE = 4000;
 
 type Ergebnis = {
@@ -51,9 +71,9 @@ type Ergebnis = {
  * gar nicht geworfen, weil das Fenster schon zu war, und die Läufe
  * unterschieden sich in zwei Dingen statt in einem.
  */
-function lauf(kontrollZauber: string | null): Ergebnis {
-  const boss = bossById(BOSS_ID);
-  if (boss === undefined) throw new Error(`Der Boss ${BOSS_ID} fehlt.`);
+function lauf(bossId: string, kontrollZauber: string | null, quenchAtMs: number): Ergebnis {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const bind = alsSpellIndex(combat.indexOf('bind'));
   const quench = alsSpellIndex(combat.indexOf('quench'));
@@ -82,7 +102,7 @@ function lauf(kontrollZauber: string | null): Ergebnis {
       kontrolleGeworfen = true;
     } else if (
       !quenchGeworfen &&
-      timeMs >= QUENCH_BEI_MS &&
+      timeMs >= quenchAtMs &&
       combat.isReady(quench, timeMs) &&
       combat.cast(quench, timeMs).result === CAST_OK
     ) {
@@ -102,60 +122,74 @@ function lauf(kontrollZauber: string | null): Ergebnis {
 }
 
 describe('Die Kontrolle senkt den erlittenen Schaden', () => {
-  it('alle drei Läufe drücken QUENCH genau einmal', () => {
-    // **Die Zusicherung vor der Messung.** Würde QUENCH nur im STALL-Lauf
-    // geworfen, wäre die Differenz echt und der Nachweis trotzdem angreifbar:
-    // Die Läufe unterschieden sich in zwei Dingen.
-    for (const k of [null, 'stay', 'stall']) {
-      expect(lauf(k).quenchWuerfe, `Lauf ${k ?? 'ohne'} drückt QUENCH nicht einmal`).toBe(1);
-    }
-  });
+  for (const lage of LAGEN) {
+    const { bossId, quenchAtMs, ohne, mitStall } = lage;
 
-  it('ohne Kontrolle kommt der Zauber an', () => {
-    const ohne = lauf(null);
-    expect(ohne.damageTaken).toBe(560);
-    expect(ohne.unterbrochen).toBe(0);
-    expect(ohne.verpasst).toBe(1);
-  });
+    describe(bossId, () => {
+      it('alle drei Läufe drücken QUENCH genau einmal', () => {
+        // **Die Zusicherung vor der Messung.** Würde QUENCH nur im STALL-Lauf
+        // geworfen, wäre die Differenz echt und der Nachweis trotzdem
+        // angreifbar: Die Läufe unterschieden sich in zwei Dingen.
+        for (const k of [null, 'stay', 'stall']) {
+          expect(lauf(bossId, k, quenchAtMs).quenchWuerfe, `Lauf ${k ?? 'ohne'}`).toBe(1);
+        }
+      });
 
-  it('mit STALL trifft er gar nicht', () => {
-    const mit = lauf('stall');
-    expect(mit.damageTaken).toBe(0);
-    expect(mit.unterbrochen).toBe(1);
-    expect(mit.verpasst).toBe(0);
-  });
+      it('ohne Kontrolle kommt der Zauber an', () => {
+        const r = lauf(bossId, null, quenchAtMs);
+        expect(r.damageTaken).toBe(ohne);
+        expect(r.unterbrochen).toBe(0);
+        expect(r.verpasst).toBe(1);
+      });
 
-  it('STAY trägt dieselbe Last und ändert trotzdem nichts', () => {
-    // **Die Kontrolle.** STALL verdrängt einen BIND-Wurf; ein Vergleich gegen
-    // „gar kein Kontroll-Zauber" unterschiede sich in der Wirkung UND einem
-    // GCD. STAY kostet Punkte, löst denselben GCD aus, wirkt aber auf die
-    // Zeitleiste statt auf den laufenden Cast.
-    const ohne = lauf(null);
-    const kontrolle = lauf('stay');
-    const wirkung = lauf('stall');
+      it('mit STALL trifft er nicht', () => {
+        const r = lauf(bossId, 'stall', quenchAtMs);
+        expect(r.damageTaken).toBe(mitStall);
+        expect(r.unterbrochen).toBe(1);
+        expect(r.verpasst).toBe(0);
+        expect(r.damageTaken, 'STALL senkt den Schaden nicht').toBeLessThan(ohne);
+      });
 
-    expect(kontrolle.damageTaken, 'STAY senkt den Schaden — dann ist er keine Kontrolle').toBe(
-      ohne.damageTaken,
-    );
-    expect(kontrolle.unterbrochen).toBe(0);
+      it('STAY trägt dieselbe Last und ändert trotzdem nichts', () => {
+        // **Die Kontrolle.** STALL verdrängt einen BIND-Wurf; ein Vergleich
+        // gegen „gar kein Kontroll-Zauber" unterschiede sich in der Wirkung
+        // UND einem GCD. STAY kostet Punkte, löst denselben GCD aus, wirkt
+        // aber auf die Zeitleiste statt auf den laufenden Cast.
+        const ohneK = lauf(bossId, null, quenchAtMs);
+        const kontrolle = lauf(bossId, 'stay', quenchAtMs);
+        const wirkung = lauf(bossId, 'stall', quenchAtMs);
 
-    // Gleiche Last, gemessen statt behauptet.
-    expect(kontrolle.bindWuerfe, 'STAY und STALL verdrängen verschieden viele BINDs').toBe(
-      wirkung.bindWuerfe,
-    );
-    // Und beide verdrängen wirklich etwas — sonst wäre die Zeile darüber leer.
-    expect(ohne.bindWuerfe).toBeGreaterThan(kontrolle.bindWuerfe);
-  });
+        expect(kontrolle.damageTaken, 'STAY senkt den Schaden — dann ist er keine Kontrolle').toBe(
+          ohneK.damageTaken,
+        );
+        expect(kontrolle.unterbrochen).toBe(0);
 
-  it('und die Null ist die Struktur des Bosses, kein Randwert', () => {
-    // `Sealing Chant` ist der EINZIGE Zeitleisten-Eintrag von boss-1-4. Es gibt
-    // kein „ein Teil kommt durch" — der Zauber trifft ganz oder gar nicht.
-    // Käme ein zweiter Eintrag dazu, wäre die 0 oben ein Zufall statt einer
-    // Aussage, und dieser Fall meldet es.
-    const boss = bossById(BOSS_ID);
-    if (boss === undefined) throw new Error(`Der Boss ${BOSS_ID} fehlt.`);
+        // Gleiche Last, gemessen statt behauptet.
+        expect(kontrolle.bindWuerfe, 'STAY und STALL verdrängen verschieden viele BINDs').toBe(
+          wirkung.bindWuerfe,
+        );
+        // Und beide verdrängen wirklich etwas — sonst wäre die Zeile darüber leer.
+        expect(ohneK.bindWuerfe).toBeGreaterThan(kontrolle.bindWuerfe);
+      });
+    });
+  }
+
+  it('boss-1-4s Null ist die Struktur des Bosses, kein Randwert', () => {
+    // `Sealing Chant` ist der EINZIGE Zeitleisten-Eintrag. Es gibt kein „ein
+    // Teil kommt durch" — der Zauber trifft ganz oder gar nicht. Käme ein
+    // zweiter Eintrag dazu, wäre die 0 ein Zufall statt einer Aussage.
+    const boss = bossById('boss-1-4');
+    if (boss === undefined) throw new Error('Der Boss boss-1-4 fehlt.');
     expect(boss.timeline).toHaveLength(1);
     expect(boss.timeline[0]?.mechanic).toBe('interruptibleCast');
     expect(boss.timeline[0]?.castTimeMs).toBe(2500);
+  });
+
+  it('und der zweite Fall endet NICHT auf einer Null', () => {
+    // Der Grund, warum test-vessel danebensteht: Ein Nachweis, der auf einer
+    // Null endet, ist schwerer zu widerlegen, als er sein sollte.
+    const r = lauf('test-vessel', 'stall', 24_500);
+    expect(r.damageTaken).toBeGreaterThan(0);
+    expect(r.damageTaken).toBeLessThan(1280);
   });
 });
