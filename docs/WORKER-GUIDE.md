@@ -4399,3 +4399,35 @@ assert_eq!(json["expected"]["casts"]["quench"].as_u64(), Some(6),
 Das hat sich sofort bezahlt: Nach einer HP-Änderung an `boss-1-4` fiel sein Gegenstück, weil die
 Zahlen nicht mehr stimmten. Ohne sie wäre eine Aufzeichnung weiterverglichen worden, die es so
 nicht mehr gibt.
+
+#### Drei Sorten von Bausteinen — und nur eine taugt als Signatur-Träger
+
+Beim Zuschnitt der zweiten Instanz (#574) stellte sich die Frage anders: Nicht „wirkt der
+Baustein?", sondern **„kann der Spieler ihn bedienen?"**. Ein Boss, dessen Anforderung niemand
+erfüllen kann, ist unschaffbar — `boss-1-2` ist genau daran gescheitert (#561).
+
+| Sorte               | Bausteine                                                   | „ohne die Signatur verliert man" heißt |
+| ------------------- | ----------------------------------------------------------- | -------------------------------------- |
+| **mit einer Taste** | `timeline` (QUENCH), `affliction` (`clearedBy`), `bossHeal` | wer die Taste nicht drückt, verliert   |
+| **durch Tempo**     | `race`, `runaway`, `overpressureMs`, `stacks`               | wer zu langsam ist, verliert           |
+| **nicht bedienbar** | `timelineLoopMs`, `escalation`                              | — ergibt keinen Sinn                   |
+
+Die dritte Sorte ist **kein Mangel**: Diese Bausteine verschärfen eine andere Anforderung, statt
+eine eigene zu stellen. Als Begleiter sind sie richtig, als Träger nicht. „Ohne `timelineLoopMs`
+verliert man" ist kein Satz, den man messen kann.
+
+`doom` steht in **keiner** der drei Sorten — er wirkt, aber `clearDoom()` hängt an keinem Zauber
+(#561). Das ist der Fall, den diese Einteilung verhindern soll.
+
+> Bevor du einen Baustein einsetzt, prüfe drei Dinge in dieser Reihenfolge:
+> **wirkt er**, **kann ihn jemand bedienen**, und **erreicht meine Messung ihn überhaupt**.
+
+#### Zwei gleiche Namen, zwei verschiedene Sachen
+
+`combat.stacks` ist die Stack-Mechanik der **Schule** (PUTREFACTION-Zersetzung, reagiert auf
+`RULE_SPELL_CAST`). `boss.stacks` ist der **Boss-Baustein** — ein wachsender Schaden je Takt, den
+nichts senkt.
+
+Ich habe die Mechanik der einen gelesen und sie der anderen zugeschrieben, und `stacks` deshalb
+zuerst in die falsche Sorte einsortiert. Nicht die falsche Größe, nicht die falsche Stelle — der
+falsche **Gegenstand**.
