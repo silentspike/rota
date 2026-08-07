@@ -4788,3 +4788,56 @@ Boss verliert.
 > Die Gegenmaßnahme ist wieder 8.67: eine zweite Zahl, die für die Aussage nicht gebraucht wird.
 > Hier der Todeszeitpunkt — 27500 gegen 41500, hart und weit auseinander. Er steht in keinem
 > Kriterium, und er ist der Einzige, der die Mutation gemeldet hätte.
+
+### 8.69 Ein Paritäts-Fall schützt keine Entscheidung — der Export nimmt sie zurück
+
+Am 2026-08-07 bei der Abnahme von #602. Der Fix ist eine Zeile je Seite: Der Krit-Wurf eines
+DoT-Ticks zieht aus `STREAM_DOT_TICK` statt aus `STREAM_CRIT`.
+
+Die Gegenprobe des Workers war vollständig — Rücknahme gesetzt, zwei Unit-Fälle rot, ein
+Paritäts-Fall rot. Ich habe eine zweite gefahren, die in keinem Kriterium stand:
+
+```
+Mutation gesetzt, git add -A, dann npm run parity:export, dann beides neu
+
+  Parität nach dem Export    122 passed        wieder GRÜN
+  Unit     nach dem Export      2 failed        weiterhin ROT
+```
+
+**Der Export macht die Parität grün.** Er rechnet die Aufzeichnungen mit dem geänderten Regelwerk
+neu, und danach stimmen beide Seiten wieder überein — mit der zurückgenommenen Entscheidung.
+
+#### Warum das nicht dasselbe ist wie 8.44
+
+8.44 sagt: Wer eine Datendatei anfasst, hat beide Seiten geändert. Dort geht es um eine
+**versehentliche** Änderung, die man bemerken muss.
+
+Hier ist die Reihenfolge umgekehrt und der Vorgang **absichtlich**: Jemand ändert eine Regel,
+sieht rote Paritäts-Fälle, hält sie für veraltete Aufzeichnungen und fährt `parity:export`. Das
+ist der naheliegende, oft richtige Handgriff — und genau er macht die Rücknahme unsichtbar.
+
+> **Ein Paritäts-Fall sagt: beide Seiten rechnen dasselbe.** Er sagt nichts darüber, ob sie das
+> Richtige rechnen. Der Export ist die Maschine, die den ersten Satz jederzeit wiederherstellt.
+
+#### Die Regel
+
+Jede Entscheidung über das Regelwerk — welcher Strom, welche Reihenfolge, welcher Rundungsweg —
+braucht **mindestens einen Prüffall, der sie direkt befragt** und nicht über eine Aufzeichnung
+geht. Bei #602 sind das zwei:
+
+```
+ein DoT-Tick zieht aus STREAM_DOT_TICK, nicht aus STREAM_CRIT
+```
+
+Der Fall liest den Strom. Er hat keine erwarteten Zahlen, die ein Export neu schreiben könnte,
+und deshalb überlebt er ihn.
+
+#### Die Prüffrage, wenn ein PR eine Regel ändert
+
+> **Wenn jemand meine Änderung zurückstellt und `parity:export` fährt — was bleibt rot?**
+
+Bleibt nichts rot, ist die Entscheidung nicht festgehalten, sondern nur ausgeführt. Sie hält bis
+zum nächsten Menschen, der die roten Aufzeichnungen für veraltet hält.
+
+Das ist die dritte Sorte aus #547 in einer neuen Form: **nicht „heute unprüfbar", sondern „heute
+geprüft und morgen weggerechnet".**
