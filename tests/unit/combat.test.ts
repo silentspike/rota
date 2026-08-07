@@ -71,6 +71,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'vapour',
       'reflux',
       'wisp',
+      // Issue #520 — EFFLUX, der Notausgang der Sublimation. Er ist keine
+      // Cooldown-Mechanik, sondern `convertToDamage` mit Abklingzeit als
+      // Quelle (die Bauart steht seit #478).
+      'efflux',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',

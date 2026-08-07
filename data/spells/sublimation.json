@@ -33,6 +33,20 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "cooldownReductionMs": 500
+    },
+    {
+      "id": "efflux",
+      "name": "Efflux",
+      "_comment": "EFFLUX — der Notausgang der Sublimation (Issue #520, Raster SUBLIMATION 6).\n\nER IST KEINE COOLDOWN-MECHANIK, obwohl das Raster 'Abklingzeit' sagt: Nichts wird verkuerzt. Er teilt die SENKE mit WEDGE (#478), nicht die Verpackung: Beide schreiben in pendingConvertedDamage und gehen durch dieselben Faktoren. Der Weg dorthin ist verschieden — WEDGE ueber ControlDef mit Kontroll-Punkten, EFFLUX ueber ein eigenes convert-Feld.\n\nWARUM NICHT UEBER ControlDef: Dort laeuft FIXATIONs Punkte-Buchhaltung, und convertToDamage setzt controlValue auf null. Ein SUBLIMATION-Zauber haette dem Spieler auf einer gemischten Leiste die Kontroll-Punkte GELOESCHT. Gemessen von Worker-2; die Bauart stand seit #478.\n\nWARUM ER ZAEHLT: SUBLIMATION verkuerzt Abklingzeiten. Liegt keine an, hat die Schule nichts zu tun — dieselbe Lage, in der FIXATION vor WEDGE gegen einen Boss ohne Mechanik stand. EFFLUX dreht es um: Je mehr Restzeit liegt, desto mehr bringt er.\n\nDIE ZAHL 12 STATT 65 — DER VORSCHLAG WAR GEMESSEN FALSCH:\nDer Vorschlag lautete, sie an den Betrag zu koppeln, den der Spieler in dieser Zeit gemacht haette. Ueber zwanzig Paritaets-Aufzeichnungen sind das 32 bis 93 Schaden je Sekunde, im Mittel 65.\n\nGemessen im Lauf betraegt die SUMME der Restzeiten aber 25 bis 42 Sekunden — weil mehrere Zauber PARALLEL ablaufen. Sie ist kein Mass fuer verstrichene Zeit, sondern ein Vielfaches davon.\n\nMit 65 ergaebe das bis zu 2730 Schaden aus einem Druck. Derselbe Lauf macht in 25 Sekunden 1364 insgesamt; PYRE, der Entlader der CALCINATION, bringt je Wirkung 180 bis 360.\n\n12 setzt EFFLUX damit auf etwa 500 bei voller Restzeit — ueber PYRE, aber in derselben Groessenordnung. Auch das ist ein PLATZHALTER fuer den Balance-Laeufer; belegt ist nur, dass 65 es nicht sein kann.",
+      "unlockLevel": 5,
+      "baseDamage": 0,
+      "cooldownMs": 20000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "convert": {
+        "from": "cooldown",
+        "perSecond": 12
+      }
     }
   ]
 }

@@ -191,6 +191,8 @@ export interface SpellDef {
   readonly controlGain?: number;
   /** Was der Zauber mit Kontroll-Punkten **anstellt**, falls er sie ausgibt. */
   readonly control?: ControlDef;
+  /** Umwandlung aus einer schulfremden Quelle (Issue #520). */
+  readonly convert?: ConvertDef;
 }
 
 /**
@@ -203,6 +205,31 @@ export interface SpellDef {
  * verbraucht. Reichen sie nicht, geschieht **nichts** — der Zauber ist vertan,
  * aber er nimmt sich nicht, was er nicht hat.
  */
+/**
+ * Eine Umwandlung in Schaden — aus einer Quelle, die kein Schaden ist
+ * (Issue #520).
+ *
+ * # Warum das nicht in `ControlDef` steht
+ *
+ * `convertToDamage` gibt es dort seit #478, für WEDGE. Aber `ControlDef` ist
+ * die Verpackung für FIXATION: Sie verlangt Kosten in Kontroll-Punkten, und
+ * die Rechenstelle davor **verbraucht** sie — `this.controlValue = 0`.
+ *
+ * Ein SUBLIMATION-Zauber, der dort durchginge, würde dem Spieler seine
+ * Kontroll-Punkte löschen. Auf einer gemischten Leiste wäre das kein
+ * Buchungsfehler, sondern ein Verlust.
+ *
+ * Die **Senke** dagegen ist schulneutral: Sie nimmt einen Betrag und macht
+ * Schaden daraus, durch dieselben Faktoren wie jeder Treffer. Geteilt wird
+ * deshalb die Senke, nicht die Verpackung.
+ */
+export interface ConvertDef {
+  /** Woraus: `cooldown` nimmt die Summe der verbleibenden Abklingzeiten. */
+  readonly from: 'cooldown';
+  /** Schaden je **ganzer** Sekunde Restzeit. */
+  readonly perSecond: number;
+}
+
 export interface ControlDef {
   readonly cost: number;
   /** `slowCast`, `delayStrike` oder `holdPhase` — die drei aus 4.1. */
@@ -1004,10 +1031,26 @@ function parseFixation(
   where: string,
   problems: string[],
 ): Partial<SpellDef> {
-  const out: { controlGain?: number; control?: ControlDef } = {};
+  const out: { controlGain?: number; control?: ControlDef; convert?: ConvertDef } = {};
 
   const gain = number(raw['controlGain'], 0);
   if (gain > 0) out.controlGain = gain;
+
+  if (isRecord(raw['convert'])) {
+    // **Eigene Verpackung, geteilte Senke** (Issue #520). `convert` kommt
+    // ohne Kontroll-Punkte aus — die Prüfung darunter verlangt sie zu Recht,
+    // aber nur für FIXATION.
+    const knoten = raw['convert'];
+    const from = typeof knoten['from'] === 'string' ? knoten['from'] : '';
+    const perSecond = number(knoten['perSecond'], 0);
+    if (from !== 'cooldown') {
+      problems.push(`${where}: unbekannte Umwandlungs-Quelle "${from}".`);
+    } else if (perSecond <= 0) {
+      problems.push(`${where}: Die Umwandlung aus "${from}" hat keinen Betrag.`);
+    } else {
+      out.convert = { from, perSecond };
+    }
+  }
 
   if (isRecord(raw['control'])) {
     const knoten = raw['control'];

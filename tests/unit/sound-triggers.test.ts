@@ -116,6 +116,9 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   const STUMM = new Set([
     'test-cast',
     'test-buff',
+    // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
+    // Bedarf ist gemeldet; die .ogg entsteht ueber Suno (#487).
+    'efflux',
     // Die vier Zielgrößen-Prüfzauber aus #489. Sie liegen über der
     // Stufengrenze und kommen nie auf eine Leiste — ein Klang für sie wäre
     // eine Datei, die niemand je hört.

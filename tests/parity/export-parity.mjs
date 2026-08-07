@@ -90,6 +90,8 @@ import {
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
   cinderPayload,
+  effluxPayload,
+  EFFLUX_NAME,
   CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
@@ -198,6 +200,14 @@ const level30 = level30Payload();
 const level30Path = join(here, 'recordings', `${LEVEL_30_NAME}.json`);
 writeFileSync(level30Path, serialize(level30), 'utf8');
 console.log(`geschrieben: ${level30Path}`);
+
+const efflux = effluxPayload();
+const effluxPath = join(here, 'recordings', `${EFFLUX_NAME}.json`);
+writeFileSync(effluxPath, `${JSON.stringify(efflux, null, 2)}\n`);
+console.log(`geschrieben: ${effluxPath}`);
+console.log(
+  `  gewirkt   efflux ${efflux.expected.casts.efflux}, Schaden ${efflux.expected.damage}`,
+);
 console.log(
   `  Stufe 30      vessel ${level30.player.vesselAtLevel} statt ${level30.player.vessel}` +
     `, Schaden ${level30.expected.damage}`,
