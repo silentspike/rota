@@ -1948,6 +1948,10 @@ const SUBLIMATION_BINDINGS = [
   { slot: 1, spellId: 'vapour' },
   { slot: 2, spellId: 'smoulder' },
   { slot: 3, spellId: 'pyre' },
+  // SLAG (Issue #490) — hebt die Hitze-Grenze. Er gehört in DIESE
+  // Aufzeichnung, weil hier als einziger PYRE an einer Hitze-SCHWELLE hängt
+  // (`heat >= 15`); nur dort ist eine höhere Grenze überhaupt sichtbar.
+  { slot: 4, spellId: 'slag' },
   // **WISP steht hier NICHT** — er hat eine eigene Aufzeichnung (siehe
   // `wispPayload` weiter unten). Der Grund ist gemessen, nicht vermutet:
   //
@@ -2013,6 +2017,7 @@ export function sublimationPayload(): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
   const vapour = combat.indexOf('vapour');
+  const slag = combat.indexOf('slag');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
@@ -2033,7 +2038,11 @@ export function sublimationPayload(): Record<string, unknown> {
     // sonst KINDLE. So laufen beim Verkürzen wirklich Abklingzeiten, statt
     // dass die Wirkung ins Leere geht.
     let gewaehlt = -1;
-    if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
+    // **SLAG zuerst, solange er bereit ist** (Issue #490). Er kostet eine
+    // Wartezeit und hebt dafür die Grenze — ohne einen Druck bliebe seine
+    // Bitgleichheit angenommen statt geprüft (`coverage.test.ts`).
+    if (combat.isReady(slag, timeMs)) gewaehlt = slag;
+    else if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
     else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
       gewaehlt = smoulder;
     } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
@@ -2073,11 +2082,18 @@ export function sublimationPayload(): Record<string, unknown> {
     pyreReadyAt,
     expected: {
       damageDealt: combat.damageDealt,
+      // **SLAG gehört in die Summe** (Issue #490). Er stand in der Leiste und
+      // fehlte hier — das Feld hieß `casts` und zählte nur vier der fünf.
+      //
+      // Kein Prüffall liest es heute; gerade deshalb fällt so etwas nicht auf,
+      // und der Nächste nimmt es für die Gesamtzahl. Dieselbe Bauart hatte
+      // WISP hier hinterlassen, bevor er seine eigene Aufzeichnung bekam.
       casts:
         combat.castCount(kindle) +
         combat.castCount(vapour) +
         combat.castCount(smoulder) +
-        combat.castCount(pyre),
+        combat.castCount(pyre) +
+        combat.castCount(slag),
       vapourCasts: combat.castCount(vapour),
       kindleCasts: combat.castCount(kindle),
     },

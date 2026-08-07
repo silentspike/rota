@@ -572,6 +572,7 @@ pub struct Fight {
     stack_buffs: Buffs,
     cd_reduce_buffs: Buffs,
     convert_buffs: Buffs,
+    cap_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -761,6 +762,7 @@ impl Fight {
             stack_buffs: Buffs::new(),
             cd_reduce_buffs: Buffs::new(),
             convert_buffs: Buffs::new(),
+            cap_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -1330,6 +1332,7 @@ impl Fight {
         self.stack_buffs.reset();
         self.cd_reduce_buffs.reset();
         self.convert_buffs.reset();
+        self.cap_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1922,6 +1925,7 @@ impl Fight {
         self.stack_buffs.expire(now);
         self.cd_reduce_buffs.expire(now);
         self.convert_buffs.expire(now);
+        self.cap_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -2783,6 +2787,7 @@ impl Fight {
                 BuffTarget::Stack => &mut self.stack_buffs,
                 BuffTarget::CdReduce => &mut self.cd_reduce_buffs,
                 BuffTarget::Convert => &mut self.convert_buffs,
+                BuffTarget::Cap => &mut self.cap_buffs,
             };
             vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
             // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
@@ -2921,7 +2926,12 @@ impl Fight {
             (f64::from(amount) * self.resource_buffs.factor(self.time)).round() as u16
         };
         let before = self.resource;
-        self.resource = (before + amount).min(RESOURCE.cap);
+        // **Die Grenze, wie sie JETZT gilt** (SLAG, Issue #490). Auf dieser
+        // Seite gibt es nur EINE Lesestelle — das Entwickler-Werkzeug
+        // (`setResource`) existiert im Simulator nicht. Im Spiel sind es zwei,
+        // und dort rechnet ein Getter sie an einer Stelle.
+        let cap = (f64::from(RESOURCE.cap) * self.cap_buffs.factor(self.time)).round() as u16;
+        self.resource = (before + amount).min(cap);
         self.resource_overflow += u32::from(amount - (self.resource - before));
     }
 
@@ -3308,7 +3318,8 @@ impl Fight {
                 + self.tick_buffs.window_sum()
                 + self.stack_buffs.window_sum()
                 + self.cd_reduce_buffs.window_sum()
-                + self.convert_buffs.window_sum(),
+                + self.convert_buffs.window_sum()
+                + self.cap_buffs.window_sum(),
         );
         h
     }

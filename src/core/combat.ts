@@ -490,6 +490,8 @@ export class Combat {
   private readonly cdReduceBuffs = new Buffs();
   /** Verstärkt die Umwandlungsrate Schaden → Schild (QUICKSILVER, E10). */
   private readonly convertBuffs = new Buffs();
+  /** Hebt die Obergrenze des Vorrats befristet an (SLAG, Issue #490). */
+  private readonly capBuffs = new Buffs();
   /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
@@ -1736,6 +1738,7 @@ export class Combat {
     this.stackBuffs.expire(timeMs);
     this.cdReduceBuffs.expire(timeMs);
     this.convertBuffs.expire(timeMs);
+    this.capBuffs.expire(timeMs);
     if (this.buffs.expire(timeMs) === 0) return;
     this.updateBuffFactor(timeMs);
   }
@@ -1756,6 +1759,8 @@ export class Combat {
         return this.cdReduceBuffs;
       case 'convert':
         return this.convertBuffs;
+      case 'cap':
+        return this.capBuffs;
       default:
         // `damage` und `undefined` — so waren alle Verstärkungen vor #489
         // gemeint, und ein fehlendes Feld soll weiter das Alte tun.
@@ -1919,7 +1924,8 @@ export class Combat {
       this.tickBuffs.windowSum() +
       this.stackBuffs.windowSum() +
       this.cdReduceBuffs.windowSum() +
-      this.convertBuffs.windowSum()
+      this.convertBuffs.windowSum() +
+      this.capBuffs.windowSum()
     );
   }
 
@@ -3313,9 +3319,21 @@ export class Combat {
     return touched;
   }
 
+  /**
+   * Die Obergrenze des Vorrats, wie sie JETZT gilt (SLAG, Issue #490).
+   *
+   * **Eine Stelle, nicht zwei.** `resource.cap` wurde an zwei Orten gelesen
+   * (Auffüllen und Setzen); ein Faktor an nur einem hätte eine Grenze
+   * ergeben, die beim Auffüllen anders ist als beim Setzen — und der
+   * Unterschied fiele erst auf, wenn jemand das Werkzeug benutzt.
+   */
+  private get resourceCap(): number {
+    return Math.round(this.school.resource.cap * this.capBuffs.factor(this.nowMsForBuffs));
+  }
+
   private addResource(amount: number): void {
     if (amount === 0) return;
-    const cap = this.school.resource.cap;
+    const cap = this.resourceCap;
     const before = this.resourceValue;
     const raised = before + amount;
     this.resourceValue = raised > cap ? cap : raised;
@@ -3350,7 +3368,7 @@ export class Combat {
   /** Vorrat setzen — Entwicklungs-Werkzeug (GAME-DESIGN 19.1). */
   setResource(value: number): void {
     if (!__ROTA_DEVTOOLS__) return;
-    const cap = this.school.resource.cap;
+    const cap = this.resourceCap;
     this.resourceValue = value < 0 ? 0 : value > cap ? cap : value;
   }
 
@@ -3414,6 +3432,7 @@ export class Combat {
     this.stackBuffs.reset();
     this.cdReduceBuffs.reset();
     this.convertBuffs.reset();
+    this.capBuffs.reset();
     this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;
