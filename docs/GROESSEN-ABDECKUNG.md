@@ -41,11 +41,53 @@ Aussage auf Feld-Ebene ist in **beide** Richtungen falsch: Ein abgesicherter
 erster Träger verdeckt die Lücke dahinter, ein ungeschützter erklärt Zauber
 für ungeprüft, die es nicht sind.
 
-**53 Paare** über 24 Felder, alle gemessen.
+**68 Paare** über 24 Felder, alle gemessen (53 vor #540, dann kamen die fünf
+Verstärker mit ihren drei `buff`-Größen dazu).
 
 ---
 
-## Die sieben Schweiger
+## Das Ergebnis: 45 von 68 sind faktisch ungeschützt
+
+| Sorte           | Paare | Was anschlägt                                                  |
+| --------------- | ----- | -------------------------------------------------------------- |
+| **nur Frische** | 33    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie |
+| **schweigt**    | 12    | nichts; davon 6× `buff.kind` (siehe „heute unprüfbar")         |
+| **geschützt**   | 23    | mindestens ein Wirkungs-Fall                                   |
+
+Rohdaten je Paar mit gefahrener Mutation und roten Dateien:
+[`groessen-abdeckung-messung.txt`](groessen-abdeckung-messung.txt).
+
+### Die erste Antwort war „sieben von 53" — und sie war falsch
+
+Nicht weil schlechter gemessen worden wäre: Die Zahlen stimmten. Falsch war
+die **Deutung**. „1 rot" hieß geschützt — und in 33 Fällen ist dieses eine Rot
+`freshness.test.ts`.
+
+Eine Frische-Prüfung meldet, dass die eingecheckte Aufzeichnung nicht mehr zum
+Code passt. Gegen eine _unbeabsichtigte_ Änderung ist das genau richtig. Gegen
+eine _absichtliche_ Balance-Änderung ist es wirkungslos, weil
+`npm run parity:export` zum Arbeitsablauf gehört und keine Rückfrage stellt.
+
+Gemessen, beide Richtungen, mit `groessen-export-probe.py`:
+
+```
+dot.durationMs:searing    vor 3 Dateien / 1 Rust → nach 2 / 0   GESCHÜTZT
+convert.perSecond:efflux  vor 1 Datei   / 1 Rust → nach 0 / 0   nur Aufzeichnung
+```
+
+**Die Bitgleichheit sichert, dass beide Seiten dasselbe rechnen — nicht, dass
+sie das Richtige rechnen.**
+
+### Wann das zuschlägt
+
+Heute ist keine der 68 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
+Befund betrifft die Werte, die **morgen** geändert werden — und der
+Balance-Läufer (#118) ist genau dafür gebaut. Wenn er anfängt, Zahlen
+vorzuschlagen, ist bei 45 von 68 kein Netz da.
+
+---
+
+## Die zwölf Schweiger
 
 ### Sechs gehören zu #547
 
@@ -58,21 +100,40 @@ für ungeprüft, die es nicht sind.
 | `shield.durationMs`      | scab      | 8000 → 4000 |
 | `spender.bonusThreshold` | pyroclasm | 15 → 7      |
 
-### Einer gehört zu #555
+### Sechs sind heute unprüfbar — und zählen NICHT als Lücke
 
-| Feld        | Zauber | Mutation | Warum                                                                                     |
-| ----------- | ------ | -------- | ----------------------------------------------------------------------------------------- |
-| `buff.kind` | slag   | 1 → 0    | einziger Träger; die Ersetzungs-Regel aus GAME-DESIGN 328 hat heute keinen Anwendungsfall |
+`buff.kind` bei allen sechs Trägern (slag, flashpoint, quicksilver, distil,
+griplock, virulence).
 
-Das sind **drei verschiedene Sorten Schweigen**, und sie kosten verschieden
-viel. Gemessen wurde für jeden Schweiger, ob sein Zauber in einer Aufzeichnung
+`kind` ist der Platz **innerhalb** eines Verstärkungs-Speichers; zwei
+Verstärker mit gleichem `target` **und** gleichem `kind` verdrängen einander.
+Angeschlossen ist es auf beiden Seiten (`combat.ts` → `applyForGcds`,
+`fight.rs` → `apply_for_gcds`, `is_active`). Nur hat heute **kein Speicher
+zwei echte Bewohner** — die Zwillinge sind durchweg Prüf-Zauber auf Stufe 101.
+
+Ein Platz, um den sich niemand streitet, kann nicht falsch vergeben werden.
+Die Mutation bricht nichts, weil die Lage fehlt, in der `kind` entscheidet —
+nicht, weil eine Prüfung fehlt. Was fehlt, ist ein **zweiter echter Verstärker
+im selben Speicher**.
+
+> Diese Sorte darf nicht als Lücke gezählt werden. Sonst steht hier eine Zahl,
+> die zu Arbeit auffordert, die niemand tun kann.
+
+> Eine frühere Fassung führte hier „einen" Schweiger unter #555, mit der
+> Begründung „einziger Träger". Beides war zu grob: Es sind sechs Träger, und
+> entscheidend ist nicht ihre Zahl, sondern dass jeder allein in _seinem_
+> Speicher sitzt.
+
+### Warum die sechs echten Lücken verschieden teuer sind
+
+Gemessen wurde für jeden Schweiger, ob sein Zauber in einer Aufzeichnung
 überhaupt **gedrückt** wird:
 
 | Sorte                  | Paare                                                                                               | Was fehlt                                                               | Aufwand                                            |
 | ---------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
 | **keine Aufzeichnung** | control.amountMs/stall, shield.durationMs/scab                                                      | Der Zauber wird in keiner Aufzeichnung gewirkt.                         | eine Aufzeichnung                                  |
 | **keine Lage**         | control.amountMs/latch, control.cost/capstone, control.cost/wedge, spender.bonusThreshold/pyroclasm | Der Zauber **wird** gewirkt, aber sein Betrag ändert am Ausgang nichts. | eine Aufzeichnung, die die **Situation** herstellt |
-| **wirkungslos**        | buff.kind/slag                                                                                      | Es gibt nichts, wogegen der Wert sich auswirken könnte.                 | nichts — siehe #555                                |
+| **heute unprüfbar**    | buff.kind, alle sechs Träger                                                                        | Die Lage, in der die Größe entscheidet, gibt es im Bestand nicht.       | nichts — siehe oben und #555                       |
 
 Die Belege für die zweite Sorte:
 
@@ -88,7 +149,8 @@ der verschobene Schlag den Verlauf ändert. Fehlt diese Lage, ist der Betrag
 korrekt gelesen und ohne Folge — und jede Prüfung sieht ihn als richtig an.
 
 Das ist heute die dritte Ausprägung derselben Klasse: `buff.kind` (kein
-zweiter Träger), `phases` (kein Ereignis hängt daran, #557) und diese vier.
+zweiter Bewohner im selben Speicher), `phases` (kein Ereignis hängt daran,
+#557) und diese vier.
 Dreimal steht der Code da, wird der Wert gelesen, und die Situation, in der er
 einen Unterschied macht, kommt nicht vor.
 
