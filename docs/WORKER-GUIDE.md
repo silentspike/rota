@@ -3279,3 +3279,412 @@ Am selben Abend ist dasselbe in die andere Richtung passiert: Ein gestoppter Con
 gemeldet, gestartet und repariert — und war für das Repository gar nicht zuständig, weil dessen
 Abläufe auf GitHubs eigenen Runnern liefen. **Auch das war eine Zustandsaussage ohne frische
 Messung**, nur mit umgekehrtem Vorzeichen.
+
+### 8.42 Ein Kommentar beschreibt die Datei, in der er steht — oder er täuscht
+
+`sim/tests/buff_targets.rs` trägt über seinen beiden Prüffällen diesen Satz:
+
+> Dass ein Faktor 2 den Punktegewinn hebt, zeigt nur, dass irgendein Faktor ankommt. Dass er den
+> SCHADEN dabei nicht bewegt, zeigt, dass die fünf Vorräte wirklich getrennt sind.
+
+Der Satz ist **wahr**, sorgfältig formuliert und trifft genau die richtige Unterscheidung. Er
+beschreibt nur eine andere Datei: `tests/unit/buff-targets.test.ts` auf der Spiel-Seite, die
+tatsächlich einen Kampf fährt und beide Hälften misst.
+
+Was unter dem Kommentar steht, prüft **die Daten**: dass `test-heat` das Feld `target: Resource`
+trägt, dass ein fehlendes Feld auf `Damage` fällt. Kein Kampf, kein Zauber, keine Wirkung.
+
+> Der Kommentar nennt die Spiel-Seite sogar ausdrücklich — als „Spiegelbild". Nur steht die
+> Beschreibung **davor** und die Zuordnung **dahinter**, und gelesen wird von oben.
+
+#### Warum das schwerer wiegt als ein falscher Kommentar
+
+Ein falscher Kommentar wird irgendwann bemerkt, weil er dem Code widerspricht. Dieser hier
+widerspricht nichts — er beschreibt etwas, das es gibt, nur woanders. Wer die Datei öffnet, um zu
+prüfen, ob die Zielgrößen abgesichert sind, liest die richtige Antwort auf seine Frage und geht
+weiter.
+
+**Bei der Abnahme ist genau das passiert.** Die Rust-Seite galt als geprüft. Gemessen wurde sie erst
+Tage später, bei der Nachprüfung eines ganz anderen Verdachts — und sie war in Ordnung. Das ist der
+glückliche Ausgang, nicht der wahrscheinliche.
+
+#### Die Prüffrage
+
+> **Beschreibt dieser Kommentar, was die Datei unter ihm tut — oder was jemand anderswo tut?**
+
+Beides darf dastehen. Aber ein Verweis auf fremde Arbeit gehört als Verweis formuliert, nicht als
+Beschreibung:
+
+```
+täuscht    Dass der Faktor den Schaden nicht bewegt, zeigt, dass die Vorräte getrennt sind.
+trägt      Diese Datei prüft nur die DATEN. Dass die Zielgrößen im Kampf wirken, prüft
+           tests/unit/buff-targets.test.ts — auf der Rust-Seite fehlt es (#502).
+```
+
+Die zweite Fassung ist unbequemer zu schreiben, weil sie eine Lücke eingesteht. Genau deshalb wirkt
+sie.
+
+#### Derselbe Abend, dieselbe Form: ein Beleg, der etwas anderes belegt
+
+Beim Nachmessen sollte `casts[stall] > 0` zeigen, dass die Kontroll-Wirkung stattgefunden hat.
+Gemessen:
+
+```
+CONTROL  stall: ganz-ohne-bind=1  ohne=1  mit=1 | anchor (Kosten 6): ohne=1 mit=1
+```
+
+**STALL „gelingt" ohne einen einzigen Kontroll-Punkt.** `casts` zählt den Tastendruck; der Zauber
+wird gewirkt, nur seine Kontroll-Wirkung bleibt aus. Der Beleg misst die Handlung, die Behauptung
+sprach von der Wirkung.
+
+Der Ausweg war, über eine Größe zu messen, die es ohne die Wirkung nicht gäbe — `WEDGE` wandelt
+Punkte in Schaden, also trägt der Schaden den Nachweis:
+
+```
+wedge-Schaden:  ohne BIND = 0    mit BIND = 60    mit BIND und Verstärkung = 92
+```
+
+Die 32 sind 4 Punkte à 8. Die Zahl stimmt mit den Daten überein, nicht nur die Richtung — und das
+unterscheidet einen Nachweis von einer plausiblen Bewegung.
+
+> **Und der Teil, der dieses Beispiel rettet:** Bevor daraus ein zweites Issue wurde, sind die sechs
+> Stellen nachgesehen worden, die `casts[…] > 0` verwenden. Alle sechs nutzen es als **Vorbedingung**,
+> alle mit Kommentar, alle messen die Wirkung separat. Der Befund schlägt heute nirgends zu. Ein
+> Issue darüber hätte eine Arbeit ausgelöst, die es nicht gibt — dieselbe Form wie #492, wo die
+> Messung fehlte und zwei Berichte zurückgenommen werden mussten.
+
+### 8.43 Eine wahre und nutzlose Prüfung meldet sich nie
+
+Ein Prüffall sollte belegen, dass eine Verstärkung den Schutzwert hebt. Er verglich den Höchststand
+aus einem Verlauf — und der Verlauf war leer, weil `replay(…, false)` ihn nicht füllt.
+
+```
+mit > ohne     →     0 > 0     →     falsch     →     Fall rot? Nein.
+```
+
+Der Fall prüfte `assert!(mit > ohne)`. Bei 0 gegen 0 ist das nicht erfüllt, also **wäre** er rot
+geworden. Die gefährliche Variante ist die andere Richtung — hätte der Fall `assert!(mit >= ohne)`
+oder eine Ungleichung mit umgekehrtem Vorzeichen getragen, wäre er **grün** gewesen und hätte
+belegt, dass null nicht größer als null ist.
+
+> Eine **falsche** Prüfung wird irgendwann rot. Eine **wahre und nutzlose** nie — sie hat keinen
+> Zustand, in dem sie sich meldet.
+
+#### Woran man sie erkennt
+
+Die Formulierung von Worker-2, nachdem sein Fall gefangen wurde:
+
+> **Die Zahl hat einen Zustand, in dem sie falsch wird. Die Richtung hat ihn nicht.**
+
+Das ist der ganze Unterschied zwischen
+
+```rust
+assert!(mit > ohne);                     // erfüllt, sobald sich irgendetwas bewegt
+assert_eq!(mit, 50, "…: {mit} statt 50"); // erfüllt nur bei genau dieser Rechnung
+```
+
+Die erste Fassung ist gegen **jede** Änderung immun, die den Wert irgendwie anhebt — auch gegen die
+falsche. Die zweite bricht bei jeder, und das ist ihr Zweck.
+
+#### Der Preis, und warum er sich lohnt
+
+Eine festgenagelte Zahl bricht auch, wenn jemand die Balance ändert. Das ist kein Nachteil, sondern
+die Meldung: _Hier hing eine Messung dran._ Wer sie anpasst, sieht wenigstens, dass er es tut.
+
+> **Der Anlass, bei dem es teuer wurde:** Der Fall lief nicht in eine falsche Rechnung, sondern in
+> einen leeren Verlauf. Kein Wert war falsch — es gab keinen. Nur die festgenagelte 25 hat es
+> aufgedeckt.
+
+---
+
+### 8.44 Wer eine Datendatei anfasst, hat beide Seiten geändert
+
+`data/spells/calcination.json` ist keine TypeScript-Datei und keine Rust-Datei. Sie ist die **Quelle
+für beide**: `sim/build.rs` erzeugt daraus Rust-Konstanten, `src/core/data.ts` liest sie zur Laufzeit.
+
+Eine Sitzung änderte darin einen `unlockLevel` und prüfte:
+
+```
+npm run build · npm run lint · npx vitest run
+```
+
+Alles TypeScript, alles grün. Die Rust-Seite wurde nie gefahren — und dort stand ein Wächter rot, der
+zählt, wie viele Zauber zu Schritt 1 gehören. Er fand vier statt drei.
+
+> Der Satz, mit dem die Sitzung es selbst einordnete:
+>
+> **„Ich habe die Kette gefahren, die zu MEINER Änderung passte, nicht die, die zur betroffenen
+> FLÄCHE passte."**
+
+#### Dieselbe Form, eine Ebene höher
+
+Am selben Tag war schon einmal die falsche Kette gelaufen: `vite build` statt `npm run build`. Das
+war der falsche **Befehl**. Hier ist es die falsche **Sprache** — und die ist schwerer zu bemerken,
+weil die Datei keiner von beiden angehört.
+
+```
+geändert:      eine .json
+gefahren:      die TypeScript-Kette
+betroffen:     TypeScript UND Rust
+```
+
+#### Die Prüffrage vor dem Melden
+
+> **Wer liest diese Datei außer mir?**
+
+Bei `.ts` und `.rs` ist die Antwort meist „meine Sprache". Bei allem unter `data/` ist sie **immer**
+„beide" — das ist der Zweck des Verzeichnisses. Dasselbe gilt für `tests/parity/recordings/`, die von
+beiden Seiten gelesen werden.
+
+#### Eine Erklärung, die bequem war und nicht stimmte
+
+Der rote Wächter wurde zunächst damit erklärt, er liege in `src/` und laufe „nur mit `--lib`". Das
+klang plausibel und machte ihn zum Sonderfall. **Gemessen war es falsch:**
+
+```
+cargo test --no-fail-fast
+  Zeile 79   Running unittests src/lib.rs      ← läuft mit
+```
+
+Die gewöhnliche Zeile fährt ihn. Die Erklärung hat niemand nachgemessen, bevor sie weitergereicht
+wurde — und sie verdeckte die eigentliche Frage: _Wurde `cargo test` überhaupt gefahren?_
+
+> Eine Erklärung, die den Fehler zu einem Sonderfall des Werkzeugs macht, ist bequemer als eine, die
+> nach der Arbeitsweise fragt. Genau deshalb gehört sie gemessen, bevor sie weitergegeben wird.
+
+### 8.45 Die Fläche bestimmt die Testzeile, nicht die bearbeitete Datei
+
+8.44 nennt den Fall: Eine `.json` unter `data/` geändert, die TypeScript-Kette gefahren, den roten
+Rust-Wächter übersehen. Hier steht, was stattdessen zu fahren ist.
+
+**Die Zuordnung ist nicht neu — sie steht seit Langem in `.github/workflows/ci.yml`**, gemessen:
+
+```yaml
+echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$)')"
+```
+
+Mit einem Kommentar darüber, der den Grund nennt: `sim/build.rs` kompiliert die Zauber- und
+Boss-Daten zur Bauzeit ein. Die CI **wusste** also, dass `data/` die Rust-Seite betrifft, und hat es
+begründet aufgeschrieben.
+
+> Der Satz, der den Befund trägt (Worker-1):
+>
+> **„Die Lücke liegt nicht in der CI. Sie liegt ZWISCHEN CI und Guide: Das Wissen steht in einer
+> Datei, die niemand liest, wenn er lokal misst."**
+>
+> Eine Regel, die nur dort steht, wo sie **durchgesetzt** wird, erreicht den nicht, der sie
+> **befolgen** soll.
+
+#### Die Tabelle
+
+| Geänderte Fläche     | Was zu fahren ist                                                         |
+| -------------------- | ------------------------------------------------------------------------- |
+| `src/**`, `tests/**` | `npm run lint` · `npm test` · `npm run build`                             |
+| **`data/**`**        | dasselbe **plus die ganze Rust-Kette**                                    |
+| `sim/**`             | `cargo clippy` · `cargo test --no-fail-fast` · `cargo-remote-fmt --check` |
+| `tests/parity/**`    | zusätzlich der Export-Diff und `cargo run --example parity`               |
+
+Zwei Zeilen, die man sich sparen kann — gemessen, nicht vermutet:
+
+```
+npm test        ist vitest run und fährt tests/parity MIT (test:parity ist eine Teilmenge)
+npm run build   ist tsc --noEmit && vite build und enthält den typecheck
+```
+
+#### Was nur die CI fährt
+
+Diese laufen in keiner lokalen Zeile, auch nicht in `npm test`:
+
+```
+python3 tools/step1-check.py          Referenz-Rechnung
+cargo run --example parity            der Rust-Paritätsläufer
+der Export-Diff                       parity:export fahren und prüfen, OB dabei ein Diff entsteht
+actionlint · secret-scan
+nightly: balance · codeql
+```
+
+**Der zweite ist der gefährlichste:** `cargo test` baut die `examples` nicht aus. Wer lokal grün ist
+und den Läufer nie fährt, kann in der CI an einer Stelle scheitern, die er nicht kennt.
+
+Und der dritte ergänzt `freshness.test.ts`, ersetzt ihn aber nicht: **Freshness prüft Prüfsummen, die
+CI prüft den tatsächlichen Datei-Diff.**
+
+#### Wo diese Tabelle altert
+
+`ci.yml` ist die Quelle, dieser Abschnitt die Abschrift — und eine von Hand geführte Abschrift kann
+nicht bemerken, dass ihr ein Eintrag fehlt. Genau das steht als Kommentar im Filter selbst, und dort
+ist die Konsequenz schon gezogen: `tests/unit/ci-sim-filter.test.ts` prüft die Liste gegen die
+`include_str!`-Zeilen.
+
+> Für diesen Guide-Abschnitt gibt es keinen solchen Wächter. **Bei einem Widerspruch gilt `ci.yml`.**
+
+### 8.46 Ein Vorgabewert macht aus Abwesenheit eine Zahl
+
+Eine Messung sollte zeigen, was die Zeitleiste eines Bosses zur gefundenen Rotation beiträgt. Die
+Tabelle sagte:
+
+```
+test-metronome   mit Zeitleiste 40854   ohne 40854
+test-vessel      mit Zeitleiste 12238   ohne     0
+```
+
+Die Null las sich als Befund — _ohne Zeitleiste geht bei diesem Boss gar nichts._ Sie hätte als
+„die Zeitleiste ist bei `test-vessel` existenziell" in ein Issue gehen können.
+
+**`test-vessel` war im zweiten Lauf gar nicht dabei.** Die Bossliste stand nach einem `git checkout`
+wieder auf ihren ursprünglichen zwei Einträgen. Die Auswertung las die Zahl mit
+
+```python
+ergebnis.get(name, 0)
+```
+
+und für einen Boss, der in der Ausgabe fehlt, liefert das eine Null.
+
+> **Eine fehlende Messung sah aus wie eine gemessene Null** — mit zwei Nachkommastellen
+> Ernsthaftigkeit, in einer Tabelle neben echten Werten.
+
+#### Warum das schwerer wiegt als die verwandten Fälle
+
+An einem Abend traten vier Formen derselben Klasse auf. Die ersten drei sind Aussagen über einen
+**Zustand** — falsch, aber als Behauptung erkennbar:
+
+|                       | Die Aussage kam aus                                     |
+| --------------------- | ------------------------------------------------------- |
+| „kein Export"         | der Gewohnheit                                          |
+| „statt zweier Filter" | der Absicht, nicht dem Code                             |
+| „Arbeitsbaum sauber"  | einem Befehl im falschen Verzeichnis                    |
+| **„test-vessel = 0"** | **einem Vorgabewert, der Abwesenheit als Zahl ausgibt** |
+
+Die vierte ist keine Behauptung, sondern ein **Messwert**. Sie steht in einer Spalte, sie lässt sich
+mitteln, vergleichen und zitieren — und sie bedeutet „hier wurde nicht gemessen".
+
+#### Es trifft auch `grep -c`
+
+Das Muster ist nicht auf `dict.get()` beschränkt. Jede Zählung, die bei leerem Eingang und bei
+fehlgeschlagenem Eingang **dieselbe** Zahl liefert, hat es:
+
+```bash
+git show --name-only HEAD -- gibtesnicht/ | grep -c "recordings/"
+0
+```
+
+Diese Null sagt nicht „keine Aufzeichnungen bewegt". Sie sagt „nichts kam an". Genauso `wc -l` auf
+eine Ausgabe, die nie entstand, und `jq` mit `// 0`.
+
+#### Was hilft
+
+**Die Abwesenheit muss lauter sein als die Null.** Zwei Wege, beide billig:
+
+1. **Krachen lassen.** `ergebnis[name]` statt `ergebnis.get(name, 0)` — ein `KeyError` ist ein
+   besseres Ergebnis als eine falsche Zahl.
+2. **Den Eingang prüfen, nicht das Ergebnis.** Eine Zusicherung, dass beide Läufe **dieselbe
+   Bossmenge** enthalten, hätte den Fall gefangen, bevor die Tabelle entstand.
+
+Der zweite ist derselbe Bau wie `im_fenster` und `nach_dem_gcd` aus #502: **eine Zusicherung über den
+Aufbau der Messung, nicht über ihr Ergebnis.** Wer sie einmal hat, braucht sie überall dort, wo eine
+Zahl aus einem Namen gelesen wird.
+
+> Und die Umkehrung als Prüffrage vor jeder Tabelle:
+>
+> **Gibt es einen Weg, auf dem hier eine Zahl steht, ohne dass gemessen wurde?** Wenn ja, ist die
+> Spalte keine Messung, sondern eine Mischung aus Messung und Schweigen — und man sieht ihr nicht
+> an, welches Feld welches ist.
+
+### 8.47 Vier Fragen an jede Zahl, die man weitergibt
+
+An einem Abend sind sechs Messungen falsch gewesen, und **in fünf davon lief der Befehl fehlerfrei
+und lieferte eine Zahl, die stimmte** — nur nicht für die gestellte Frage.
+
+| Die Zahl              | war richtig für           | gemeint war              |
+| --------------------- | ------------------------- | ------------------------ |
+| 26 Aufzeichnungen     | den ganzen **Zweig**      | den einzelnen **Commit** |
+| 0 geänderte Dateien   | das Verzeichnis `sim/`    | die Repository-Wurzel    |
+| `test-vessel = 0`     | „nicht in der Ausgabe"    | „gemessen und null"      |
+| 6 Suiten              | Suiten                    | Testdateien              |
+| 30 Fehler             | Zeilen der Ausgabe        | Fehler                   |
+| +0,46 % durch `phase` | eine **umbenannte** Größe | eine neue                |
+
+Keine davon war ein Tippfehler oder ein kaputtes Werkzeug. Jede war eine korrekte Antwort auf eine
+Frage, die nebenan lag.
+
+#### Die vier Fragen
+
+Sie stammen von Worker-2, aus der Durchsicht seiner eigenen fünf Fälle:
+
+> **Woran zähle ich es?** — Zweig oder Commit, Suite oder Datei, Zeile oder Treffer.
+>
+> **Wo zähle ich es?** — welches Arbeitsverzeichnis, welcher Bezugspunkt.
+>
+> **Kann die Zahl Abwesenheit bedeuten statt eines Werts?** — `.get(x, 0)`, `grep -c`, `wc -l` auf
+> eine Ausgabe, die nie entstand.
+>
+> **Beschreibe ich, was ich gesehen habe, oder was ich wollte?** — „kein Export gefahren" aus der
+> Gewohnheit, „Arbeitsbaum sauber" aus der Absicht.
+
+#### Die unbequeme Spalte
+
+Worker-2 hat seine Fälle mit drei Spalten aufgeschrieben: **was gemeldet, was falsch, woran gemerkt.**
+Die dritte ist die, die man weglässt — und sie sagt das Wichtigste:
+
+```
+"kein Export"          gemerkt: gar nicht — jemand anders fand es
+"statt zweier Filter"  gemerkt: nicht
+"Arbeitsbaum sauber"   gemerkt: beim nächsten Befehl, zufällig
+"test-vessel = 0"      gemerkt: durch eine Nachfrage
+```
+
+**In drei von vier Fällen hat der Melder es nicht selbst bemerkt.** Das ist kein Vorwurf, sondern
+das Maß dafür, wie zuverlässig Selbstprüfung bei dieser Klasse ist: kaum.
+
+Deshalb sind die vier Fragen vor dem Melden zu stellen und nicht danach. Nachher merkt es der andere.
+
+#### Und die Zahl trägt ihren Geltungsbereich mit
+
+Zwei Sitzungen haben an diesem Abend dieselbe Zahl gemessen — wie viele Paritäts-Suiten mehr prüfen
+als bloße Gleichheit — und beide haben ihre Grenze mitgeliefert:
+
+```
+"Die 15 ist eine Obergrenze mit vier bestätigten Fällen, keine geprüfte Zahl."
+"Für zwölf gelesen, für zwanzig nur gefiltert."
+```
+
+Beide Male hat **die Einschränkung des Melders** verhindert, dass die Zahl als hart durchging — und
+beim zweiten Mal hat der Orchestrator sie beim Weitergeben trotzdem weggelassen.
+
+> Eine Zahl ohne Geltungsbereich ist eine Behauptung. Wer sie weitergibt, gibt beides weiter oder
+> keines.
+
+#### Die drei Befehle, die vor eine Zustandsaussage gehören
+
+Die vierte Frage — _beschreibe ich, was ich gesehen habe, oder was ich wollte?_ — hat eine praktische
+Fassung. An einem Abend sind drei Aussagen falsch gewesen, und alle drei hätten zwei Sekunden
+gekostet:
+
+| Die Aussage                   | Der Befehl, der sie belegt                                                  |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| „Arbeitsbaum sauber"          | `git -C <wurzel> status --porcelain` — **aus der Wurzel**, nicht aus `sim/` |
+| „keine offene Antwortpflicht" | `rota-ipc offen`                                                            |
+| „der Zweig ist grün"          | `npm run lint` — nicht nur `vitest run`                                     |
+
+Alle drei wurden aus der **Erinnerung** gesagt, gestützt darauf, dass man es getan zu haben glaubte.
+Zwei davon waren falsch; die dritte war es an vier von vier Zweigen.
+
+> **Der Satz, der es zusammenfasst** (Worker-2, nachdem er `rota-ipc offen` zum ersten Mal an diesem
+> Tag gefahren hatte und eine 134 Minuten alte Nummer fand):
+>
+> „Ich habe mehrfach gesagt _keine offene Antwortpflicht_ — gestützt darauf, dass ich alles
+> beantwortet hatte, was ankam. Das ist dieselbe Klasse wie _Arbeitsbaum sauber_ aus dem falschen
+> Verzeichnis: **eine Aussage über einen Zustand, die aus der Erinnerung kommt statt aus dem
+> Befehl.**"
+
+Der Befehl gehört deshalb nicht vor die Abnahme, sondern **vor jede Aussage über den Zustand** — auch
+vor die beiläufige am Ende einer Meldung.
+
+#### Warum das Melden den zweiten Fall aufdeckt
+
+Der Orchestrator hat seinen offenen Nummern-Fall gemeldet, statt ihn still zu schließen. Worker-2 hat
+daraufhin `rota-ipc offen` gefahren — und einen eigenen gefunden, der zweieinviertel Stunden lag.
+
+> Wer einen Fehler dieser Klasse still korrigiert, korrigiert einen. Wer ihn meldet, findet die
+> anderen, die dieselbe Bewegung gemacht haben — und bei einer Klasse, die aus Gewohnheit entsteht,
+> sind das fast immer mehrere.
