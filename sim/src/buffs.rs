@@ -171,6 +171,24 @@ impl Buffs {
     }
 
     /// Alles auf neutral zuruecksetzen.
+    /// Die Summe aller offenen Fensterenden — fuer die Pruefsumme (#493).
+    ///
+    /// **Eine Summe statt einzelner Felder**, weil die Pruefsumme je Takt
+    /// laeuft. Dieselbe Bauart wie `synergy_window_sum` (#318), und dieselbe
+    /// Rechnung wie `windowSum()` auf der Spiel-Seite — nicht offene Fenster
+    /// tragen 0 und nicht `NOT_ACTIVE`, sonst haenge die Summe an einer
+    /// Sentinel-Zahl, die auf beiden Seiten verschieden sein duerfte.
+    pub fn window_sum(&self) -> f64 {
+        let mut summe = 0.0;
+        for i in 0..BUFF_KIND_CAPACITY {
+            if self.expires_at[i] != NOT_ACTIVE {
+                summe += self.expires_at[i] as f64;
+            }
+        }
+        summe
+    }
+
+    /// Alles auf neutral zuruecksetzen.
     pub fn reset(&mut self) {
         self.factors = [1.0; BUFF_KIND_CAPACITY];
         self.expires_at = [NOT_ACTIVE; BUFF_KIND_CAPACITY];
@@ -183,6 +201,56 @@ impl Buffs {
 mod tests {
     use super::*;
     use crate::time::GCD_MS;
+
+    /// Die Fenstersumme traegt ERWARTETE ZAHLEN, nicht nur denselben Wert
+    /// wie die Spiel-Seite (Issue #493).
+    ///
+    /// **Warum das ein eigener Fall ist, obwohl die Paritaet es abdeckt:**
+    /// Ein Abgleich zweier Umsetzungen faengt keinen Fehler, den BEIDE
+    /// teilen. Genau diese Lage hielt `perDecayStackPercent` fuenf Wochen
+    /// verborgen — zwei identisch falsche Rechnungen, gruene Paritaet.
+    ///
+    /// Ein Fall mit ausgerechneten Zahlen kann das; ein Vergleich nicht.
+    #[test]
+    fn fenstersumme_zaehlt_offene_fenster_mit_ihrem_ende() {
+        let mut b = Buffs::new();
+        assert_eq!(b.window_sum(), 0.0, "ohne Verstaerkung ist die Summe 0");
+
+        // Ein Fenster ueber drei Wartezeiten endet bei 4500.
+        b.apply_for_gcds(0, 1.2, 3, 0, GCD_MS);
+        assert_eq!(b.window_sum(), 4500.0);
+
+        // Ein zweites, ueber zwei Wartezeiten: 4500 + 3000.
+        b.apply_for_gcds(1, 1.5, 2, 0, GCD_MS);
+        assert_eq!(b.window_sum(), 7500.0);
+
+        // Nach dem Ablauf des zweiten bleibt das erste.
+        b.expire(3000);
+        assert_eq!(b.window_sum(), 4500.0, "das abgelaufene zaehlt weiter mit");
+
+        // Und nach dem Ablauf beider ist sie wieder 0 — sonst wuechse sie
+        // ueber den Kampf hinweg und truege geschlossene Fenster mit.
+        b.expire(4500);
+        assert_eq!(b.window_sum(), 0.0);
+    }
+
+    /// **Die Gegenprobe zur Summe:** Zwei verschiedene Zustaende duerfen
+    /// nicht dieselbe Zahl ergeben. Sonst waere sie fuer die Pruefsumme
+    /// wertlos, obwohl sie sich bewegt.
+    #[test]
+    fn verschiedene_fenster_ergeben_verschiedene_summen() {
+        let mut frueh = Buffs::new();
+        frueh.apply_for_gcds(0, 1.2, 2, 0, GCD_MS);
+
+        let mut spaet = Buffs::new();
+        spaet.apply_for_gcds(0, 1.2, 3, 0, GCD_MS);
+
+        assert_ne!(
+            frueh.window_sum(),
+            spaet.window_sum(),
+            "zwei verschieden lange Fenster ergeben dieselbe Summe"
+        );
+    }
 
     #[test]
     fn fenster_haengt_an_der_wartezeit() {

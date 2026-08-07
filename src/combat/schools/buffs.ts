@@ -171,6 +171,31 @@ export class Buffs {
     return -1;
   }
 
+  /**
+   * Die Summe aller offenen Fensterenden — für die Prüfsumme (Issue #489).
+   *
+   * **Eine Summe statt einer Schleife über Einzelwerte**, weil die Prüfsumme
+   * je Takt läuft und GAME-DESIGN 18.2 dort keine Erzeugung erlaubt. Dieselbe
+   * Bauart wie `synergyWindowSum` (#318).
+   *
+   * Nicht offene Fenster tragen 0 und nicht `NOT_ACTIVE` — sonst hinge die
+   * Summe an einer Sentinel-Zahl, die auf den beiden Seiten verschieden sein
+   * dürfte.
+   *
+   * **Warum es sie braucht:** Ohne sie ist die Prüfsumme für ein laufendes
+   * Fenster blind. Gemessen: zwei Läufe mit demselben Zauber, gleicher
+   * Schaden, einer im Fenster (Faktor 1,2) und einer danach (1,0) — dieselbe
+   * Prüfsumme.
+   */
+  windowSum(): number {
+    let summe = 0;
+    for (let i = 0; i < BUFF_KIND_CAPACITY; i++) {
+      const endet = this.expiresAt[i] ?? NOT_ACTIVE;
+      if (endet !== NOT_ACTIVE) summe += endet;
+    }
+    return summe;
+  }
+
   reset(): void {
     this.factors.fill(1);
     this.expiresAt.fill(NOT_ACTIVE);

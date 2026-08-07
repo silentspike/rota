@@ -28,6 +28,7 @@
 //! Greedy zufällig gewinnen oder verlieren, und die Gegenprobe maße dann das
 //! Rauschen statt der Suche.
 
+use rota_sim::apl::AplName;
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::factors::NEUTRAL;
@@ -271,7 +272,8 @@ fn die_laengengrenze_verschweigt_kein_besseres_ergebnis() {
 
 /// Misst eine Liste, die als Text vorliegt.
 fn miss_text(boss_id: &str, text: &str) -> f64 {
-    let apl = rota_sim::apl::parse("rueckgelesen", text).expect("erzeugter Text ist kein APL");
+    let apl =
+        rota_sim::apl::parse(AplName("rueckgelesen"), text).expect("erzeugter Text ist kein APL");
     let config = config(boss_id);
     crate::greedy_hilfe::miss(&config, &apl)
 }

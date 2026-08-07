@@ -84,9 +84,9 @@
 
 mod parse;
 
-pub use parse::{parse, AplError};
+pub use parse::{parse, AplError, AplName};
 
-use crate::data::{RESOURCE, SPELLS, SPELL_COUNT};
+use crate::data::{Spell, MAX_LEVEL, RESOURCE, SPELLS, SPELL_COUNT};
 use crate::fight::Fight;
 use crate::time::{Millis, GCD_MS};
 
@@ -419,7 +419,42 @@ pub fn resource_names() -> [&'static str; 2] {
 /// Sucht einen Zauber für die Sprache.
 #[must_use]
 pub fn spell_index(name: &str) -> Option<usize> {
-    SPELLS.iter().position(|spell| spell.id == name)
+    SPELLS
+        .iter()
+        .position(|spell| spell.id == name && ist_spielbar(spell))
+}
+
+/// Gehoert dieser Zauber zum Spiel? (Issue #499)
+///
+/// **Die Bedingung steht genau hier und sonst nirgends.** Vorher trugen
+/// `spell_index` und `spielbare_zauber` denselben Vergleich zweimal — die
+/// Wirkung war richtig, aber wer `MAX_LEVEL` spaeter durch eine Funktion oder
+/// eine Konfiguration ersetzt, aendert vielleicht nur eine der beiden. Dann
+/// schlaegt die Liste Zauber vor, die das Wirken abweist, oder umgekehrt.
+///
+/// Gefunden hat es der Orchestrator bei der Abnahme: Sein `sed` traf nur eine
+/// der beiden Stellen, und trotzdem fiel nur ein Test.
+#[must_use]
+pub fn ist_spielbar(spell: &Spell) -> bool {
+    spell.unlock_level <= MAX_LEVEL as u16
+}
+
+/// Die Zauber, die eine Rotation ueberhaupt nennen darf.
+///
+/// **Nicht `SPELLS` selbst** (Issue #499): Pruef-Zauber liegen ueber der
+/// Stufengrenze und kommen im Spiel nicht vor. Wer sie in einer Rotation
+/// nennt, misst mit dem Balance-Laeufer etwas, das es nicht gibt — und nichts
+/// wird dabei rot.
+///
+/// Dieselbe Grenze wie in der Schadens-Tabelle des Berichts und in der
+/// Kandidatenzaehlung der Rotationssuche. Alle drei fragen: gehoert dieser
+/// Eintrag zum Spiel?
+pub fn spielbare_zauber() -> impl Iterator<Item = &'static Spell> {
+    // **Nicht die Bedingung wiederholen** — sie steht in `ist_spielbar`.
+    // `position()` auf DIESEM Strom waere uebrigens falsch: Er gaebe den Platz
+    // im gefilterten Strom zurueck, nicht den Index in `SPELLS`. Deshalb teilen
+    // sich die beiden die Bedingung und nicht den Iterator.
+    SPELLS.iter().filter(|s| ist_spielbar(s))
 }
 
 use std::fmt;

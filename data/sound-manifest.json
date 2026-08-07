@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 20
+        "present": 25
       },
       "special": {
         "target": 7,
@@ -44,9 +44,9 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 40,
+        "count": 35,
         "epic": "E10",
-        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE, NICHT ZAUBER (Issue #512). 40 = 60 Ziel minus 20 vorhandene Eintraege in der Gruppe 'spells' dieser Datei — nachzusehen an 'present' zwei Zeilen darueber, ohne eigene Messung.\n\nWARUM DAS HIER STEHT: Bis #512 erklaerte dieser Text die Zahl mit AUSGEARBEITETEN ZAUBERN ('von den 60 Zaubern sind zehn ausgearbeitet'). Das ist eine ANDERE GROESSE: Ein Zauber kann ausgearbeitet sein und noch keinen Klang haben. Gemessen am 2026-08-07 sind es 18 Klang-Eintraege gegen 18 spielbare Zauber — heute gleich, aber aus zwei verschiedenen Quellen, und zwischenzeitlich standen 16 gegen 17.\n\nWAS FEHLT UND WARUM: Namen, Schulen und Wirkung der uebrigen Zauber stehen in GAME-DESIGN 22 als noch nicht ausgeplant (Katalog-Vorhaben E10). Ein Klang-Slot ohne Zauber waere geraten.\n\nWER DIESE ZAHL AENDERT, aendert 'present' mit — ihre Summe muss 'target' ergeben, und genau das prueft src/audio/manifest.ts. Den Text hier prueft NICHTS: Er ist Prosa, und ein falsches Textfeld wird nie rot."
+        "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
@@ -148,21 +148,6 @@
       }
     },
     {
-      "id": "spell-scab",
-      "group": "spells",
-      "purpose": "SCAB — der Fueller der COAGULATION und ihr erster Zauber MIT SCHADEN. Er laeuft am GCD, muss also kurz und zurueckhaltend sein wie KINDLE. Er muss sich von CRUST unterscheiden: SCAB ist schneller und ORGANISCH, CRUST mineralisch und setzend.",
-      "kind": "oneshot",
-      "bus": "sfx",
-      "file": "audio/spell-scab.ogg",
-      "targetSeconds": 0.5,
-      "pitchJitterCents": 20,
-      "prompt": "quick dry organic scabbing snap, thin skin hardening fast, faint wet edge, very short, no impact, no percussion",
-      "trigger": {
-        "on": "spell.cast",
-        "key": "scab"
-      }
-    },
-    {
       "id": "spell-bind",
       "group": "spells",
       "purpose": "BIND — der Fueller der FIXATION. Baut Kontroll-Punkte auf; ein Greifen, kein Schlag. Wird oft gedrueckt, muss also kurz und zurueckhaltend sein.",
@@ -235,21 +220,6 @@
       "trigger": {
         "on": "spell.cast",
         "key": "vapour"
-      }
-    },
-    {
-      "id": "spell-wisp",
-      "group": "spells",
-      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus.\n\nDER PROMPT IST GEGEN VAPOUR ANGELEGT, nicht variiert: VAPOUR ist Druck, der entweicht (\"soft pressurised steam release\"), WISP ist etwas Duennes, das flackert. Beide sind 0,6 s und entweichen nach oben — ohne Absicht waeren sie sich zu aehnlich geworden.",
-      "kind": "oneshot",
-      "bus": "sfx",
-      "file": "audio/spell-wisp.ogg",
-      "targetSeconds": 0.6,
-      "pitchJitterCents": 25,
-      "prompt": "thin ghostly air whisper, brief crystalline shimmer, weightless flicker upward, no impact, no percussion",
-      "trigger": {
-        "on": "spell.cast",
-        "key": "wisp"
       }
     },
     {
@@ -328,33 +298,33 @@
       }
     },
     {
-      "id": "spell-ember",
+      "id": "spell-cinder",
       "group": "spells",
-      "purpose": "EMBER — der Fueller des Weges 'laenger halten'. Er macht KEINEN Schaden, sondern faechelt an, was schon brennt. Muss sich von KINDLE unterscheiden: KINDLE ZUENDET (sharp spark ignition), EMBER facht an — weicher, ohne Anzuenden.",
+      "purpose": "CINDER — der KURZE Brand der CALCINATION. Er tickt doppelt so dicht wie SMOULDER und SEARING (1000 ms statt 2000) und laeuft nur 4 s. Der Klang muss deshalb kurz und zurueckhaltend sein, weil er oft gesetzt wird, und sich hoerbar von KINDLE unterscheiden: Glut statt Funke.",
       "kind": "oneshot",
       "bus": "sfx",
-      "file": "audio/spell-ember.ogg",
+      "file": "audio/spell-cinder.ogg",
       "targetSeconds": 0.5,
       "pitchJitterCents": 25,
-      "prompt": "faint ember glow rekindling, soft breath on coals, low warm crackle swelling, no impact, no ignition",
+      "prompt": "smouldering ember flare, dry ash crackle, warm low glow, short restrained one shot, fantasy fire spell",
       "trigger": {
         "on": "spell.cast",
-        "key": "ember"
+        "key": "cinder"
       }
     },
     {
-      "id": "spell-pyroclasm",
+      "id": "spell-blight",
       "group": "spells",
-      "purpose": "PYROCLASM — der grosse Entlader des langen Kampfes. Er verbraucht Hitze UND alle laufenden Braende. Muss sich von PYRE unterscheiden: PYRE ist eine DETONATION (schlagartig), PYROCLASM BAUT SICH AUF und rollt — sonst sind es zwei Explosionen verschiedener Groesse statt zweier verschiedener Ereignisse.",
+      "purpose": "BLIGHT — der Fueller der PUTREFAKTION. Legt einen Zersetzungs-Stapel, wird oft gedrueckt — und muss sich von CANKER unterscheiden: Kriechen statt Aufplatzen.",
       "kind": "oneshot",
       "bus": "sfx",
-      "file": "audio/spell-pyroclasm.ogg",
-      "targetSeconds": 1.8,
-      "pitchJitterCents": 10,
-      "prompt": "massive volcanic eruption building and rolling, deep sustained roar with debris tail, catastrophic fire release",
+      "file": "audio/spell-blight.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "creeping blight spreading over surface, dry withering rasp, brittle organic decay, short one shot, dark violet rot spell",
       "trigger": {
         "on": "spell.cast",
-        "key": "pyroclasm"
+        "key": "blight"
       }
     },
     {
@@ -1045,6 +1015,111 @@
         "layer": true,
         "on": "fight.start",
         "off": "fight.end"
+      }
+    },
+    {
+      "id": "spell-tether",
+      "group": "spells",
+      "purpose": "TETHER — Fueller der FIXATION, der zugleich Schaden austeilt und Vorrat aufbaut. Ein Schnappen, kein Schlag.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-tether.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "arcane tether snapping taut, whipping cord with bright ringing tail, brief cutting edge, restrained magical grip",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "tether"
+      }
+    },
+    {
+      "id": "spell-wedge",
+      "group": "spells",
+      "purpose": "WEDGE — der Entlader der FIXATION. Verbraucht den Kontroll-Vorrat auf einen Schlag, wie PYRE in der Kalzination.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wedge.ogg",
+      "targetSeconds": 1.0,
+      "pitchJitterCents": 25,
+      "prompt": "forceful arcane wedge driven home, sharp metallic impact, resonant ring of released tension, single decisive strike",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wedge"
+      }
+    },
+    {
+      "id": "spell-capstone",
+      "group": "spells",
+      "purpose": "CAPSTONE — der grosse Moment der FIXATION. Verbraucht ALLE Punkte und setzt den Phasen-Halt; muss nach Endgueltigkeit klingen.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-capstone.ogg",
+      "targetSeconds": 1.5,
+      "pitchJitterCents": 25,
+      "prompt": "massive stone capstone slamming into place, deep resonant lock, sustained arcane hum, powerful sense of finality",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "capstone"
+      }
+    },
+    {
+      "id": "spell-scab",
+      "group": "spells",
+      "purpose": "SCAB — der Fueller der COAGULATION und ihr erster Zauber MIT SCHADEN. Er laeuft am GCD, muss also kurz und zurueckhaltend sein wie KINDLE. Er muss sich von CRUST unterscheiden: SCAB ist schneller und ORGANISCH, CRUST mineralisch und setzend.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-scab.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 20,
+      "prompt": "quick dry organic scabbing snap, thin skin hardening fast, faint wet edge, very short, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "scab"
+      }
+    },
+    {
+      "id": "spell-wisp",
+      "group": "spells",
+      "purpose": "WISP — der Fueller der SUBLIMATION (Issue #480). Er verkuerzt wie VAPOUR, teilt dabei aber Schaden aus.\n\nDER PROMPT IST GEGEN VAPOUR ANGELEGT, nicht variiert: VAPOUR ist Druck, der entweicht (\"soft pressurised steam release\"), WISP ist etwas Duennes, das flackert. Beide sind 0,6 s und entweichen nach oben — ohne Absicht waeren sie sich zu aehnlich geworden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-wisp.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 25,
+      "prompt": "thin ghostly air whisper, brief crystalline shimmer, weightless flicker upward, no impact, no percussion",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "wisp"
+      }
+    },
+    {
+      "id": "spell-ember",
+      "group": "spells",
+      "purpose": "EMBER — der Fueller des Weges 'laenger halten'. Er macht KEINEN Schaden, sondern faechelt an, was schon brennt. Muss sich von KINDLE unterscheiden: KINDLE ZUENDET (sharp spark ignition), EMBER facht an — weicher, ohne Anzuenden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-ember.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "faint ember glow rekindling, soft breath on coals, low warm crackle swelling, no impact, no ignition",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "ember"
+      }
+    },
+    {
+      "id": "spell-pyroclasm",
+      "group": "spells",
+      "purpose": "PYROCLASM — der grosse Entlader des langen Kampfes. Er verbraucht Hitze UND alle laufenden Braende. Muss sich von PYRE unterscheiden: PYRE ist eine DETONATION (schlagartig), PYROCLASM BAUT SICH AUF und rollt — sonst sind es zwei Explosionen verschiedener Groesse statt zweier verschiedener Ereignisse.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-pyroclasm.ogg",
+      "targetSeconds": 1.8,
+      "pitchJitterCents": 10,
+      "prompt": "massive volcanic eruption building and rolling, deep sustained roar with debris tail, catastrophic fire release",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "pyroclasm"
       }
     }
   ]
