@@ -3071,6 +3071,12 @@ export class Combat {
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
     if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
+    // **NACH der Wirkung scharf stellen, nie davor** (Issue #528): Vorher
+    // waehlte sein eigener Druck bereits, und der Ruecksetzer wuerde nie
+    // gewirkt. Dieselbe Reihenfolge wie in `fight.rs`, wo sie seit jeher im
+    // Kampf steht — hier stand sie bis #528 eine Schicht darueber, in
+    // `Session`, und war fuer jede Aufzeichnung unsichtbar.
+    this.armResetIfNeeded(index);
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
