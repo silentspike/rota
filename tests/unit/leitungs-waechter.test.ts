@@ -126,7 +126,19 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   // ROT, als die Leitungen lagen, und blieb es, bis die Einträge weg waren.
   // Genau dafür gibt es ihn. Ohne ihn behaupteten sechs Zeilen weiter, es gebe
   // keine Leitung.
-  bossEnergyTriggers: 'OFFEN — wie oft die Energieleiste ausgelöst hat, kein Weg ins Ergebnis',
+  // **„OFFEN" kann zwei Dinge heissen**, und das ist bei #619 aufgefallen:
+  //
+  //   KEINE LEITUNG        die Grösse kommt nicht ins ReplayResult
+  //   NIRGENDS VERGLICHEN  sie kommt nirgends an, auch nicht über ein
+  //                        von Hand eingetragenes `expected`
+  //
+  // Bei den sechs aus #619 galt das erste für alle, das zweite nur für
+  // `stabilised`. Ich hatte beides in einer Zeile zusammengezogen und dabei
+  // die schärfere Aussage verloren. Jeder Eintrag sagt deshalb, welches gilt.
+  bossEnergyTriggers:
+    'OFFEN (keine Leitung UND nirgends verglichen) — wie oft die Energieleiste ' +
+    'ausgelöst hat. Anders als die sechs aus #619 führt Rust ihn nicht, also ist ' +
+    'er auch dort keine Lücke: Er hat auf keiner Seite einen Weg.',
 };
 
 function getterVonCombat(): string[] {
