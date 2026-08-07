@@ -1282,6 +1282,8 @@ impl Fight {
             player_hp,
             damage_taken: self.damage_taken,
             died_at_ms: self.died_at,
+            control_spent: self.control_spent,
+            control_failed: self.control_failed,
             interrupts_landed: self.interrupts_landed,
             interrupts_missed: self.interrupts_missed,
             casts_interrupted: self.casts_interrupted,
