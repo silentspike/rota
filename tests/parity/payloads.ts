@@ -137,6 +137,161 @@ export const LOG_PARITY_NAME = 'log-parity';
 export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
 /** Vergleichsdatei für den Gleichlauf der Sublimation (#104). */
+export const GEZIELTE_VERKUERZUNG_NAME = 'gezielte-verkuerzung';
+
+/** Die Leiste der Aufzeichnung für die gezielten Verkürzer (Issue #518). */
+const GEZIELTE_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'ascend' },
+  { slot: 2, spellId: 'decant' },
+  { slot: 3, spellId: 'pyre' },
+  // **WISP stand hier und wurde NIE gedrückt.** Er kam herein, weil er in der
+  // Sublimations-Aufzeichnung KINDLE verdrängte — dort war er falsch, hier
+  // aber auch: KINDLE steht in der Auswahl vor ihm und lässt ihm keinen Zug.
+  //
+  // Eine Bindung ohne einen einzigen Druck belegt nichts. Sie sieht aus wie
+  // Absicherung und behauptet nur, dass der Zauber hier eine Rolle spielt.
+  //
+  // WISP hat seit #480 seine eigene Aufzeichnung (`wisp-verkuerzung`, VAPOUR
+  // als Träger, 13 Würfe). Dort ist er der Gegenstand, nicht ein Anhängsel.
+] as const;
+
+/**
+ * Ein Durchgang, der **gezieltes** Verkürzen zeigt (Issue #518).
+ *
+ * # Warum eine eigene Aufzeichnung
+ *
+ * ASCEND und DECANT gehörten zunächst in die Sublimations-Aufzeichnung. Die
+ * hatte vier Zauber; mit WISP, SLAG, ASCEND und DECANT wurden es sieben, und
+ * sie teilen sich eine Wartezeit. Jede Bedingung, die einem Platz macht,
+ * nimmt ihn einem anderen — vier Anläufe, und jedes Mal fiel ein anderer
+ * ganz aus.
+ *
+ * Am Ende meldete `parity_sublimation_run` zu Recht: „KINDLE kam nicht zum
+ * Zug — dann lief keine Abklingzeit, die VAPOUR hätte verkürzen können."
+ * Der Fall prüft die Sublimations-Mechanik, und die Erweiterung hatte ihm
+ * den Träger genommen.
+ *
+ * **Eine Aufzeichnung, die alles abdeckt, zeigt nichts mehr.** Diese hier
+ * zeigt eine Sache: dass ASCEND und DECANT anders verkürzen als VAPOUR.
+ *
+ * # Der Ablauf
+ *
+ * PYRE (5 s) und KINDLE (1,5 s) laufen als Träger — zwei Abklingzeiten von
+ * sehr verschiedener Länge. Genau daran wird sichtbar, dass ASCEND nur die
+ * kurze trifft und DECANT nur die lange.
+ */
+export function gezielteVerkuerzungPayload(): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const kindle = combat.indexOf('kindle');
+  const ascend = combat.indexOf('ascend');
+  const decant = combat.indexOf('decant');
+  const pyre = combat.indexOf('pyre');
+  // **60 s.** Vier Zauber teilen sich eine Wartezeit; bei 30 s fällt immer
+  // einer ganz aus, egal wie man die Bedingungen dreht — gemessen an drei
+  // Anläufen, bei denen abwechselnd DECANT und WISP mit null Drücken
+  // dastanden.
+  //
+  // Mehr Zauber brauchen mehr Zeit. Das ist billiger als Bedingungen, die
+  // sich gegenseitig ausschließen.
+  const ticks = 6000; // 60 s
+
+  const slots = slotMap(combat, GEZIELTE_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const pyreReadyAt: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    // **Auch beim TOD DES BOSSES abbrechen, nicht nur beim eigenen.**
+    //
+    // `first-crucible` hat 4200 Leben und fällt in diesem Lauf nach 5402
+    // Takten. Ohne den Abbruch zeichnete das Spiel weitere 598 Takte gegen
+    // einen toten Boss auf, während der Simulator den Kampf beendet — die
+    // Prüfsummen liefen ab genau diesem Takt auseinander (Spiel 3076587224,
+    // Simulator 0) und der Gesamtschaden ebenfalls (4448 gegen 4333).
+    //
+    // Gefunden hat es der Prüffall `parity_gezielte_verkuerzung.rs`, den es
+    // bis dahin nicht gab: Diese Aufzeichnung wurde exportiert und vom
+    // Frische-Fall geprüft, aber **von keinem Simulator-Fall nachgespielt**.
+    // Sie belegte damit nur, dass das Spiel mit sich selbst übereinstimmt.
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
+      break;
+    }
+
+    // **Die Reihenfolge folgt der Länge der Abklingzeit**, damit beide
+    // Verkürzer etwas zu tun haben: PYRE erzeugt die lange, KINDLE die
+    // kurze. ASCEND kommt selten (30 s), DECANT als Füller dazwischen.
+    let gewaehlt = -1;
+    if (combat.isReady(alsSpellIndex(pyre), timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(alsSpellIndex(ascend), timeMs)) gewaehlt = ascend;
+    // **DECANT nur, wenn PYRE wirklich lange läuft.** Sonst zielt er ins
+    // Leere — und verdrängt WISP vollständig, der dann in keiner
+    // Aufzeichnung mehr gewirkt wird.
+    else if (
+      combat.isReady(alsSpellIndex(decant), timeMs) &&
+      combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs) > 2000
+    ) {
+      gewaehlt = decant;
+    }
+    // **KINDLE vor WISP**, und das ist keine Vorliebe: KINDLE baut die
+    // Hitze auf, die PYRE braucht — und PYRE erzeugt die lange Abklingzeit,
+    // an der DECANT überhaupt etwas zu zielen hat.
+    //
+    // Umgekehrt fiel die ganze Kette aus: WISP verdrängte KINDLE, ohne
+    // Hitze kam PYRE nie dran, ohne PYRE lief nichts Langes, und DECANT
+    // stand mit null Drücken da. Drei Zauber, die an einem hingen.
+    //
+    // WISP kommt als Füller dahinter — er ist der einzige, der immer kann.
+    // **KINDLE solange Hitze fehlt, danach WISP.** Beide sind Füller mit
+    // derselben Wartezeit; ohne eine Trennung nach Zweck verdrängt einer den
+    // anderen vollständig.
+    //
+    // KINDLE baut die Hitze auf, die PYRE braucht — und PYRE erzeugt die
+    // lange Abklingzeit, an der DECANT etwas zu zielen hat. Drei Zauber, die
+    // an einem hängen: Ohne KINDLE zuerst standen in drei Anläufen
+    // abwechselnd DECANT und WISP mit null Drücken da.
+    //
+    // WISP steht seit #534 nicht mehr in dieser Leiste: KINDLE liess ihm
+    // ohnehin keinen Zug, und eine Bindung ohne Druck belegt nichts.
+    else if (combat.isReady(alsSpellIndex(kindle), timeMs) && combat.resource < 15) {
+      gewaehlt = kindle;
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
+  }
+
+  return {
+    schema: 1,
+    name: GEZIELTE_VERKUERZUNG_NAME,
+    bossId: FIRST_CRUCIBLE.value.id,
+    ticks,
+    tickMs: TICK_MS,
+    // **`spellId` als NAME, nicht als Index.** Ein erster Entwurf schrieb
+    // `spell: <index>` — das Format sah gültig aus, und `coverage.test.ts`
+    // meldete die zwei Zauber trotzdem als „in keiner Aufzeichnung
+    // gewirkt": Es liest die Namen, nicht die Zahlen.
+    bindings: GEZIELTE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    pyreReadyAt,
+    expected: {
+      damageDealt: combat.damageDealt,
+      casts: {
+        ascend: combat.castCount(alsSpellIndex(ascend)),
+        decant: combat.castCount(alsSpellIndex(decant)),
+      },
+    },
+  };
+}
+
 export const SUBLIMATION_NAME = 'sublimation';
 
 /**
@@ -3775,109 +3930,6 @@ function recordDotLifetime(ticks: number): Recording {
   const smoulder = combat.indexOf('smoulder');
   const presses: RecordedPress[] = [];
   const press = pressRecorder(combat, DOT_LIFETIME_BINDINGS, presses);
-/** Die Aufzeichnung, in der die fünf Verstärkungen aus #540 gewirkt werden. */
-export const BUFF_TARGETS_NAME = 'buff-targets';
-
-const BUFF_TARGETS_BINDINGS = [
-  { slot: 0, spellId: 'griplock' },
-  { slot: 1, spellId: 'virulence' },
-  { slot: 2, spellId: 'distil' },
-  { slot: 3, spellId: 'quicksilver' },
-  { slot: 4, spellId: 'flashpoint' },
-  { slot: 5, spellId: 'bind' },
-  { slot: 6, spellId: 'canker' },
-  { slot: 7, spellId: 'wisp' },
-  { slot: 8, spellId: 'temper' },
-  { slot: 9, spellId: 'kindle' },
-] as const;
-
-/**
- * Fünf Verstärkungen auf fünf getrennte Zielgrößen (Issue #540).
- *
- * # Warum EINE Aufzeichnung für fünf Zauber
- *
- * Eine einzelne zeigt, dass eine Zielgröße ankommt. Die gemeinsame zeigt, dass
- * sie ankommen, **ohne einander zu verdrängen** — und das kann kein Einzelfall
- * liefern. Alle fünf tragen `kind: 0`; GAME-DESIGN 328 („gleiche Art ersetzt
- * einander") gilt innerhalb einer Zielgröße, über Zielgrößen hinweg müssen sie
- * koexistieren.
- *
- * Es ist der umgekehrte Fall von EMBER und PYROCLASM (#517): Dort gehörten
- * zwei zusammen, weil sie **denselben** Speicher anfassen. Hier gehören fünf
- * zusammen, weil sie es **nicht** tun.
- *
- * # DREI gleichzeitig — die Zahl ist gemessen, nicht gegriffen
- *
- * Wer das hier liest und fünf Verstärkungen erwartet, soll nicht anfangen zu
- * „reparieren", was keine Lücke ist. Zwei Rechnungen begrenzen sie:
- *
- * **Fünf gleichzeitig sind arithmetisch unmöglich.** Fünf Drücke brauchen
- * 5 × 1500 = 7500 ms GCD-Zeit, das längste Fenster ist 6000 ms. Wer zuerst
- * gewirkt wird, ist abgelaufen, bevor der Fünfte gedrückt werden **kann** —
- * in jeder Reihenfolge.
- *
- * ```text
- * griplock     0 ms   Fenster bis  6000
- * virulence    1500   bis  7500
- * distil       3000   bis  9000
- * quicksilver  4500   bis 10500
- * flashpoint   6000   bis 10500
- * ```
- *
- * **Und vier sind zwar offen, aber nicht nutzbar.** Der letzte Kettendruck bei
- * 6000 ms löst den GCD aus; der erste Nutzer kann frühestens bei 7500 ms
- * wirken. Da ist GRIPLOCK abgelaufen und VIRULENCE läuft gerade aus — es sind
- * **drei**. Ein erster Anlauf maß hier `control 2 → 0`, `resource 3 → 0`,
- * `stack 1 → 0` und sah aus, als schadeten die Verstärkungen; tatsächlich
- * wurde der Nutzer gar nicht erst gewirkt.
- *
- * Drei getrennte Speicher gleichzeitig genügen für die Aussage: Sie kommen an,
- * ohne einander zu verdrängen. Das liefert kein Einzelfall.
- *
- * **FLASHPOINT steht am Ende, weil sein Fenster das kürzeste ist** (3 statt 4
- * Wartezeiten). Das ist kein Kniff, sondern folgt aus den Zahlen: Vorne
- * platziert wäre er abgelaufen, bevor die Kette steht.
- *
- * Nebenbei eine Beobachtung über die ZAUBER, nicht über diese Datei: Fünf
- * Verstärker, deren Fenster kürzer sind als die Zeit, sie alle zu wirken,
- * lassen sich nie zusammen halten. Ob die `gcds`-Werte stimmen, entscheidet
- * der Balance-Läufer — vermerkt in #540, damit es als gemessen gilt und nicht
- * als übersehen.
- *
- * # Die fünf Nutzer sind Erzeuger, nicht Ausgeber
- *
- * Jede Verstärkung braucht einen Zauber, an dem die verdoppelte Größe
- * **ankommt** — sonst zeichnet der Lauf fünf Fenster auf, die sich auf nichts
- * auswirken.
- *
- * ```text
- * griplock    control    bind     controlGain 2
- * virulence   stack      canker   decay.stacks 1
- * distil      cdreduce   wisp     cooldownReductionMs
- * quicksilver convert    temper   conversion
- * flashpoint  resource   kindle   resourceGain heat 3
- * ```
- *
- * Ein erster Versuch, sie über Feldnamen zu suchen, lieferte für `control`
- * STALL, STAY, ANCHOR, WEDGE, CAPSTONE und LATCH — die **Ausgeber** der
- * Punkte. BIND, der einzige Erzeuger, fehlte. Wären sie genommen worden, wäre
- * GRIPLOCK an sechs Zaubern gemessen worden, die Punkte ausgeben, und der
- * Prüffall wäre grün gewesen, ohne dass der Verstärker je gewirkt hätte.
- */
-function recordBuffTargets(ticks: number): Recording {
-  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
-  const presses: RecordedPress[] = [];
-  const press = pressRecorder(combat, BUFF_TARGETS_BINDINGS, presses);
-  // **Kein `: number` als Rückgabetyp.** `indexOf` liefert einen markierten
-  // `SpellIndex`; eine Annotation auf `number` nimmt die Marke weg, und
-  // `press` lehnt den Wert ab. Der Typ wird deshalb abgeleitet, nicht gesetzt.
-  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
-
-  // **Feste Kette statt Bedingungen.** Die Reihenfolge IST hier die Aussage;
-  // eine Auswahl nach Bereitschaft könnte sie umstellen, und die Überlappung
-  // wäre dahin.
-  const kette = ['griplock', 'virulence', 'distil', 'quicksilver', 'flashpoint'];
-  const nutzer = ['bind', 'canker', 'wisp', 'temper', 'kindle'];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -3911,24 +3963,6 @@ function recordBuffTargets(ticks: number): Recording {
  */
 export function dotLifetimePayload(): Record<string, unknown> {
   const recording = recordDotLifetime(6000);
-    const stelle = Math.floor(timeMs / 1500);
-    if (stelle < kette.length) {
-      // Die fünf Verstärkungen, eine je Wartezeit.
-      const i = idx(kette[stelle] as string);
-      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
-    } else {
-      // Danach die Erzeuger im Wechsel — die ersten von ihnen fallen in das
-      // Fenster, in dem vier Verstärkungen gleichzeitig offen sind.
-      const i = idx(nutzer[(stelle - kette.length) % nutzer.length] as string);
-      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
-    }
-  }
-
-  return { name: BUFF_TARGETS_NAME, seed: 0, ticks, presses, bindings: BUFF_TARGETS_BINDINGS };
-}
-
-export function buffTargetsPayload(): Record<string, unknown> {
-  const recording = recordBuffTargets(3000);
   const result = replayRecording(recording, { checksumPerTick: true });
   return {
     schema: SCHEMA,
@@ -4048,6 +4082,267 @@ export function extendEffectsPayload(): Record<string, unknown> {
     ticks: recording.ticks,
     tickMs: TICK_MS,
     bindings: EXTEND_EFFECTS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/** Der Name der Aufzeichnung, in der ROT gewirkt wird. */
+export const ROT_NAME = 'rot-decay';
+
+/** Die Leiste dieser Aufzeichnung. */
+const ROT_BINDINGS = [
+  { slot: 0, spellId: 'rot' },
+  { slot: 1, spellId: 'canker' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * ROT im Paritäts-Weg (Issue #498, AC5 und AC7).
+ *
+ * # Warum es diese Aufzeichnung braucht
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird — sonst gilt seine Bitgleichheit als
+ * angenommen. ROT ist nach dieser Änderung der einzige ungedeckte Zauber
+ * (gemessen: der Wächter nennt genau ihn).
+ *
+ * # Warum ROT eine eigene lohnt, statt ihn irgendwo mitlaufen zu lassen
+ *
+ * Er ist der erste Zauber, der Zersetzungs-Stapel **ohne Tastendruck** legt.
+ * Das trifft zwei Rechenwege, an die keine bestehende Aufzeichnung heranreicht:
+ *
+ *   `decayPerTick`        ein Stapel je Tick, viermal in vier Sekunden
+ *   das Nachrücken        `decayExpiryMs` wird viermal schneller gefüllt als
+ *                         von jedem bisherigen Zauber
+ *
+ * # CANKER ist kein Füller, sondern der zweite Weg
+ *
+ * KINDLE füllt die Wartezeiten; CANKER steht aus einem anderen Grund darin. Er
+ * legt Stapel per **Druck**, ROT per **Tick**.
+ *
+ * **Nicht, weil ROT allein die Obergrenze verfehlte** — das war meine
+ * Annahme beim Schreiben dieser Zeilen, und sie ist gemessen falsch: ROT
+ * erreicht die fünf Plätze auch ohne ihn. Bei 4 s Laufzeit und 4 s Abklingzeit
+ * tickt er durchgehend, also ein Stapel je Sekunde, während der Verfall erst
+ * nach zwölf greift.
+ *
+ * Was CANKER wirklich beiträgt, ist der **Andrang**: Mit ihm treffen in
+ * denselben Takten Stapel aus zwei Quellen ein, und der Lauf steht 1800 statt
+ * 1500 Takte am Anschlag. Dort wird mehr angeboten als Platz ist — genau die
+ * Stelle, an der zwei Umsetzungen sich unterscheiden können, weil sie
+ * verschieden entscheiden könnten, was dann fallen gelassen wird.
+ *
+ * # Die Länge ist gerechnet, nicht geraten
+ *
+ * 3000 Takte sind 30 s. Ein Stapel verfällt nach 12 s, und der Lauf muss über
+ * den ersten Verfall **hinaus** gehen: Vorher prüft er nur das Füllen, danach
+ * auch das Nachrücken. Bei 12 s wäre er genau an der Kante zu Ende.
+ */
+function recordRot(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const rot = combat.indexOf('rot');
+  const canker = combat.indexOf('canker');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, ROT_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // ROT hat Vorrang, damit der Brand durchgehend läuft und die Ticks nicht
+    // aussetzen — sonst wäre es ein CANKER-Lauf mit gelegentlichen Stapeln.
+    if (combat.isOffCooldown(rot, timeMs)) press(rot, tick, timeMs);
+    else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: ROT_NAME, seed: 0, ticks, presses, bindings: ROT_BINDINGS };
+}
+
+export function rotPayload(): Record<string, unknown> {
+  const recording = recordRot(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: ROT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+/** Die Aufzeichnung, in der die fünf Verstärkungen aus #540 gewirkt werden. */
+export const BUFF_TARGETS_NAME = 'buff-targets';
+
+const BUFF_TARGETS_BINDINGS = [
+  { slot: 0, spellId: 'griplock' },
+  { slot: 1, spellId: 'virulence' },
+  { slot: 2, spellId: 'distil' },
+  { slot: 3, spellId: 'quicksilver' },
+  { slot: 4, spellId: 'flashpoint' },
+  { slot: 5, spellId: 'bind' },
+  { slot: 6, spellId: 'canker' },
+  { slot: 7, spellId: 'wisp' },
+  { slot: 8, spellId: 'temper' },
+  { slot: 9, spellId: 'kindle' },
+] as const;
+
+/**
+ * Fünf Verstärkungen auf fünf getrennte Zielgrößen (Issue #540).
+ *
+ * # Warum EINE Aufzeichnung für fünf Zauber
+ *
+ * Eine einzelne zeigt, dass eine Zielgröße ankommt. Die gemeinsame zeigt, dass
+ * sie ankommen, **ohne einander zu verdrängen** — und das kann kein Einzelfall
+ * liefern. Alle fünf tragen `kind: 0`; GAME-DESIGN 328 („gleiche Art ersetzt
+ * einander") gilt innerhalb einer Zielgröße, über Zielgrößen hinweg müssen sie
+ * koexistieren.
+ *
+ * Es ist der umgekehrte Fall von EMBER und PYROCLASM (#517): Dort gehörten
+ * zwei zusammen, weil sie **denselben** Speicher anfassen. Hier gehören fünf
+ * zusammen, weil sie es **nicht** tun.
+ *
+ * # ZWEI gleichzeitig — und warum das reicht
+ *
+ * Der Aufbau wechselt Verstärkung und Erzeuger ab, damit jeder Erzeuger IM
+ * Fenster seiner Verstärkung liegt. Gemessen in den Momenten, in denen ein
+ * Erzeuger wirkt:
+ *
+ * ```text
+ *  1500 ms   1 offen   griplock
+ *  4500 ms   2 offen   griplock virulence
+ *  7500 ms   2 offen   virulence distil
+ * 10500 ms   2 offen   distil quicksilver
+ * 13500 ms   2 offen   quicksilver flashpoint
+ * ```
+ *
+ * Für die Aussage genügt das: Sie lautet, dass Verstärkungen auf verschiedene
+ * Zielgrößen **einander nicht verdrängen**, und dafür müssen mehr als eine
+ * gleichzeitig laufen — nicht alle fünf.
+ *
+ * # Der Aufbau davor war grün und maß zwei Zauber gar nicht
+ *
+ * Ein erster Versuch reihte alle fünf Verstärkungen aneinander und hängte die
+ * Erzeuger hinten an. Vier Fenster waren dann kurzzeitig offen — aber der GCD
+ * sperrte genau dieses Fenster, und der erste Erzeuger kam erst bei 7500 ms.
+ * GRIPLOCK (bis 6000) und VIRULENCE (bis 7500) waren da zu.
+ *
+ * Aufgefallen ist es **nicht am grünen Lauf**, sondern an der Mutationsprobe:
+ * Von fünf Umbiegungen im Simulator — jede Zielgröße einzeln in den
+ * Schadens-Speicher — fielen nur drei auf. Die beiden anderen standen mit
+ * `casts: 1` in der Aufzeichnung und maßen nichts.
+ *
+ * Nach dem Umbau fangen alle fünf. Die Zahlen stehen im PR.
+ *
+ * **FLASHPOINT steht am Ende, weil sein Fenster das kürzeste ist** (3 statt 4
+ * Wartezeiten). Das ist kein Kniff, sondern folgt aus den Zahlen: Vorne
+ * platziert wäre er abgelaufen, bevor die Kette steht.
+ *
+ * Nebenbei eine Beobachtung über die ZAUBER, nicht über diese Datei: Fünf
+ * Verstärker, deren Fenster kürzer sind als die Zeit, sie alle zu wirken,
+ * lassen sich nie zusammen halten. Ob die `gcds`-Werte stimmen, entscheidet
+ * der Balance-Läufer — vermerkt in #540, damit es als gemessen gilt und nicht
+ * als übersehen.
+ *
+ * # Die fünf Nutzer sind Erzeuger, nicht Ausgeber
+ *
+ * Jede Verstärkung braucht einen Zauber, an dem die verdoppelte Größe
+ * **ankommt** — sonst zeichnet der Lauf fünf Fenster auf, die sich auf nichts
+ * auswirken.
+ *
+ * ```text
+ * griplock    control    bind     controlGain 2
+ * virulence   stack      canker   decay.stacks 1
+ * distil      cdreduce   wisp     cooldownReductionMs
+ * quicksilver convert    temper   conversion
+ * flashpoint  resource   kindle   resourceGain heat 3
+ * ```
+ *
+ * Ein erster Versuch, sie über Feldnamen zu suchen, lieferte für `control`
+ * STALL, STAY, ANCHOR, WEDGE, CAPSTONE und LATCH — die **Ausgeber** der
+ * Punkte. BIND, der einzige Erzeuger, fehlte. Wären sie genommen worden, wäre
+ * GRIPLOCK an sechs Zaubern gemessen worden, die Punkte ausgeben, und der
+ * Prüffall wäre grün gewesen, ohne dass der Verstärker je gewirkt hätte.
+ */
+function recordBuffTargets(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, BUFF_TARGETS_BINDINGS, presses);
+  // **Kein `: number` als Rückgabetyp.** `indexOf` liefert einen markierten
+  // `SpellIndex`; eine Annotation auf `number` nimmt die Marke weg, und
+  // `press` lehnt den Wert ab. Der Typ wird deshalb abgeleitet, nicht gesetzt.
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // **Feste Kette statt Bedingungen.** Die Reihenfolge IST hier die Aussage;
+  // eine Auswahl nach Bereitschaft könnte sie umstellen, und die Überlappung
+  // wäre dahin.
+  const kette = ['griplock', 'virulence', 'distil', 'quicksilver', 'flashpoint'];
+  const nutzer = ['bind', 'canker', 'wisp', 'temper', 'kindle'];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Im Wechsel, nicht erst alle Verstärkungen.** Jeder Erzeuger folgt
+    // unmittelbar auf seine Verstärkung und liegt damit IN deren Fenster.
+    //
+    // Ein erster Aufbau hängte die Erzeuger hinten an. Er war grün, und die
+    // Mutationsprobe zeigte, was er wert war: Von fünf Umbiegungen im
+    // Simulator fielen nur drei auf. GRIPLOCK (Fenster bis 6000 ms) und
+    // VIRULENCE (bis 7500) waren zu, wenn der erste Erzeuger bei 7500 wirken
+    // durfte — ihre Zielgröße wurde nie berührt. Sie standen mit `casts: 1` in
+    // der Aufzeichnung und maßen nichts.
+    const stelle = Math.floor(timeMs / 1500);
+    const paar = Math.floor(stelle / 2);
+    if (paar < kette.length) {
+      const i = idx((stelle % 2 === 0 ? kette[paar] : nutzer[paar]) as string);
+      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+    } else {
+      // Danach weiter mit den Erzeugern, damit der Lauf nicht leer ausklingt.
+      const i = idx(nutzer[(stelle - 2 * kette.length) % nutzer.length] as string);
+      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+    }
+  }
+
+  return { name: BUFF_TARGETS_NAME, seed: 0, ticks, presses, bindings: BUFF_TARGETS_BINDINGS };
+}
+
+export function buffTargetsPayload(): Record<string, unknown> {
+  const recording = recordBuffTargets(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
     bindings: BUFF_TARGETS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
