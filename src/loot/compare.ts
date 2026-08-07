@@ -20,6 +20,17 @@
  * (#118) und stehen noch aus. Diese Datei nimmt sie entgegen; die Prüffälle
  * benutzen erfundene.
  *
+ * # Woher die Zahlen kommen, die hier ankommen
+ *
+ * **`estimate.ts`** — und die hängt über `progression/gear-view.ts` im
+ * Produktionspfad. Dieser Kopf hat vor #455 einen anderen Zustand beschrieben,
+ * und das ist teuer geworden: Wer hier anfängt zu lesen, findet als einzigen
+ * Aufrufer `compareItems(1234, 1000)` im Entwickler-Werkzeug und hält die
+ * Datei für gebaut-aber-nicht-angeschlossen. Der Orchestrator ist am
+ * 2026-08-07 genau diesen Weg gegangen.
+ *
+ * Die Näherung ist angeschlossen. Was fehlt, sind nur die echten Faktoren.
+ *
  * Alle Texte englisch (Design-Gesetz 5).
  */
 
