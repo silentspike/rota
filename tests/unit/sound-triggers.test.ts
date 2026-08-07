@@ -116,6 +116,15 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   const STUMM = new Set([
     'test-cast',
     'test-buff',
+    // VORLAEUFIG (Issue #519): Die drei Zauber sind gebaut, ihre Klaenge
+    // fehlen. Der Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno
+    // (#487) und kann in keiner Claude-Sitzung entstehen.
+    //
+    // Die Gegenrichtung unten holt sie von selbst wieder heraus, sobald der
+    // Klang da ist — der Eintrag kann also nicht vergessen werden.
+    'clasp',
+    'latch',
+    'plate',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist gemeldet; die .ogg entsteht ueber Suno (#487).
     'efflux',
