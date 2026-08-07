@@ -90,6 +90,8 @@ import {
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
   cinderPayload,
+  kernePayload,
+  KERNE_NAME,
   CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
@@ -100,6 +102,8 @@ import {
   gezielteVerkuerzungPayload,
   GEZIELTE_VERKUERZUNG_NAME,
   SUBLIMATION_NAME,
+  wispPayload,
+  WISP_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -175,6 +179,12 @@ writeFileSync(putrefactionFillerPath, serialize(putrefactionFiller), 'utf8');
 const cinder = cinderPayload();
 const cinderPath = join(here, 'recordings', `${CINDER_NAME}.json`);
 writeFileSync(cinderPath, serialize(cinder), 'utf8');
+
+const kerne = kernePayload();
+const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
+writeFileSync(kernePath, `${JSON.stringify(kerne, null, 2)}\n`);
+console.log(`geschrieben: ${kernePath}`);
+console.log(`  gewirkt   ${JSON.stringify(kerne.expected.casts)}`);
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
@@ -266,6 +276,15 @@ const gezielteVerkuerzungPath = join(here, 'recordings', `${GEZIELTE_VERKUERZUNG
 writeFileSync(gezielteVerkuerzungPath, serialize(gezielteVerkuerzung), 'utf8');
 console.log(`geschrieben: ${gezielteVerkuerzungPath}`);
 console.log(`  gezielt gewirkt ${JSON.stringify(gezielteVerkuerzung['expected']['casts'])}`);
+
+const wisp = wispPayload();
+const wispPath = join(here, 'recordings', `${WISP_NAME}.json`);
+writeFileSync(wispPath, serialize(wisp), 'utf8');
+console.log(`geschrieben: ${wispPath}`);
+console.log(
+  `  WISP-Verkuerzung       ${wisp.expected.wispCasts} Wuerfe, davon ` +
+    `${wisp.expected.wirkendeWuerfe} auf eine laufende VAPOUR-Abklingzeit`,
+);
 
 const timelineLoop = timelineLoopPayload();
 const timelineLoopPath = join(here, 'recordings', `${TIMELINE_LOOP_NAME}.json`);

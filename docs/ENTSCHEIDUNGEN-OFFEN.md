@@ -810,3 +810,37 @@ wird scharf, sobald die Schule auf zwölf wächst (#479).
 > bewusst nicht angepasst, und das war richtig: Hätte er die Rechnung auf die neuen Zahlen gebracht,
 > wäre die Frage nach den 30 % nie gestellt worden — der Text hätte gestimmt, und die Entscheidung
 > wäre weiter auf 18 % begründet gewesen.
+
+---
+
+## Punkt 17 — Darf ein Zauber können, was ein Schlüsseltalent verleiht?
+
+_Aufgeworfen von Worker-1 am 2026-08-07 bei #519, ausdrücklich **nicht** selbst entschieden._
+
+**Die konkrete Frage:** SCORIA soll ein zweiter Entlade-Zauber der Kalzination werden. Seine
+Beschreibung im Raster lautet „verbraucht nur die Hälfte der Hitze, schlägt zweimal".
+
+**Genau das gibt es schon** — als Schlüsseltalent `KEYSTONE_SPLIT_SPENDER` (#418), vollständig
+gebaut auf beiden Seiten, mitsamt Rundungsregel und Verbrauchsreihenfolge.
+
+| Lesart                 | Folge                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| **SCORIA erbt es**     | Wer das Talent hat, bekommt das Verhalten auch bei SCORIA. Das Talent behält seinen Wert |
+| **SCORIA hat es fest** | Der Zauber kann dauerhaft, wofür sonst ein Talentpunkt am Ende eines Zweigs nötig ist    |
+
+### Warum das keine Zahl ist, sondern Charakter
+
+GAME-DESIGN sagt über Schlüsseltalente: Sie sollen die Rotation umbauen, und _„ein neues
+Schlüsseltalent fühlt sich an wie eine neue Schule"_ — sie sind der Grund, warum 300 Stunden
+tragen. Ein Zauber, der dasselbe leistet, entwertet nicht nur dieses Talent, sondern die Gattung:
+Wenn ein Fund ersetzen kann, was ein Zweig-Ende verleiht, ist die Wahl am Zweig-Ende keine mehr.
+
+### Empfehlung: geerbt
+
+So bleibt das Talent das, was es sein soll — und SCORIA ist trotzdem ein eigener Zauber, weil er
+andere Zahlen trägt (Abklingzeit, Schaden je Punkt, Schwelle). **Der zweite Entlader ist bereits
+für sich eine Wahl**, auch ohne den Zusatz; das war Worker-1s Befund zur Begründungsspalte.
+
+> Wird **fest** entschieden, ist das kein Fehler — aber dann gehört geprüft, ob andere
+> Schlüsseltalente denselben Weg nehmen sollen. Eine Ausnahme für einen Zauber ist eine
+> Sonderregel; eine Linie für alle ist ein Entwurf.
