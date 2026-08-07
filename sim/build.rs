@@ -719,9 +719,69 @@ fn read_bosses() -> Vec<(String, Value)> {
         .map(|path| {
             let name = path.display().to_string();
             let value = read_json_at(&path);
+            pruefe_zeitleiste(&name, &value);
             (name, value)
         })
         .collect()
+}
+
+/// Die Zeitleiste eines Bosses muss in ihren Wiederholungs-Rahmen passen.
+///
+/// # Warum das hier steht und nicht im Prueffall
+///
+/// Diese Stelle erzeugt die Rust-Daten aus `data/bosses/`. Wer hier abbricht,
+/// verhindert, dass ein widerspruechlicher Boss ueberhaupt uebersetzt wird —
+/// statt ihn klaglos zu laden und den Fehler erst als Paritaetsbruch bei Takt
+/// 4800 zu zeigen, wenn ueberhaupt jemand eine Aufzeichnung baut, die so weit
+/// laeuft.
+///
+/// # Die SPANNWEITE entscheidet, nicht der Hoechstwert (Issue #565)
+///
+/// Ein Zyklus faengt beim ersten Eintrag an und hoert beim letzten auf. Der
+/// letzte Eintrag eines Zyklus liegt bei `0*loop + max`, der erste des
+/// naechsten bei `1*loop + min`. Vorwaerts geht es genau dann, wenn
+///
+/// ```text
+/// loop > max - min
+/// ```
+///
+/// Ein erster Entwurf der Regel lautete `loop > max` — sie haette
+/// `test-metronome` angeschwaerzt (Eintraege 2000, 4000, 6000 bei loop 6000),
+/// obwohl der dort einen tadellosen Takt alle zwei Sekunden schlaegt. Ein
+/// Fehlalarm ist die teurere Richtung: Er kostet Vertrauen, und eine Pruefung,
+/// der man nicht traut, wird abgeschaltet.
+///
+/// Bei GLEICHHEIT faellt der erste Eintrag des neuen Zyklus exakt auf den
+/// letzten des alten — kein Rueckwaertslauf, aber zwei Ereignisse zur selben
+/// Zeit. Deshalb ist die Grenze strikt.
+fn pruefe_zeitleiste(name: &str, boss: &Value) {
+    let Some(loop_ms) = boss.get("timelineLoopMs").and_then(Value::as_u64) else {
+        return; // ohne Wiederholung gibt es keinen Rahmen, in den etwas passen muesste
+    };
+    let Some(eintraege) = boss.get("timeline").and_then(Value::as_array) else {
+        return;
+    };
+    let zeiten: Vec<u64> = eintraege
+        .iter()
+        .filter_map(|e| e.get("atMs").and_then(Value::as_u64))
+        .collect();
+    if zeiten.len() < 2 {
+        return; // ein einzelner Eintrag hat keine Spannweite
+    }
+    let max = zeiten.iter().copied().max().unwrap_or(0);
+    let min = zeiten.iter().copied().min().unwrap_or(0);
+    let spannweite = max - min;
+
+    assert!(
+        loop_ms > spannweite,
+        "{name}: timelineLoopMs ist {loop_ms}, die Eintraege spannen aber \
+         {spannweite} ms ({min} bis {max}). Der naechste Zyklus beginnt dann \
+         VOR dem Ende des laufenden — die Zeitleiste laeuft rueckwaerts, und \
+         Spiel und Simulator beantworten diese Lage verschieden. Entweder die \
+         Eintraege in den Rahmen legen oder timelineLoopMs auf mindestens \
+         {} erhoehen.",
+        spannweite + 1
+    );
 }
 
 fn emit_bosses(out: &mut String, bosses: &[(String, Value)]) {
