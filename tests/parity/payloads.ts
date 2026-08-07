@@ -3699,3 +3699,106 @@ export function effluxPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+export const KRIT_NAME = 'krit-umwandlung';
+
+/** Die Leiste dieser Aufzeichnung. */
+const KRIT_BINDINGS = [
+  { slot: 0, spellId: 'bind' },
+  { slot: 1, spellId: 'wedge' },
+] as const;
+
+/**
+ * Der Zufallsstrom unter Krit (Issue #532).
+ *
+ * # Was hier zum ersten Mal geprüft wird
+ *
+ * Alle bisherigen Kampf-Aufzeichnungen laufen mit Krit-Chance **null**. Sie
+ * belegen die Bitgleichheit also für den einen Fall, in dem der Zufallsstrom
+ * keine Rolle spielt — er wird nie gezogen, kann nicht auseinanderlaufen.
+ *
+ * Das ist keine Nachlässigkeit gewesen, sondern eine Lücke, die niemand sehen
+ * konnte: Ein Strom, der nie fließt, sieht aus wie einer, der gleich fließt.
+ *
+ * # Warum WEDGE und nicht irgendein Zauber
+ *
+ * WEDGE macht seinen Schaden **ausschließlich** über die Umwandlung —
+ * `baseDamage: 0`, kein `spender`. Genau bei dieser Sorte hat Rust den
+ * Krit-Wurf nicht gezogen (Issue #520): Die Bedingung fragte nach
+ * `base_damage` und `spender`, nicht nach der Umwandlung.
+ *
+ * Ein Zauber mit Grundschaden hätte den Wurf ohnehin gezogen und die Lücke
+ * verdeckt.
+ *
+ * # Die Krit-CHANCE steht in PURITY, nicht in YIELD
+ *
+ * Meine erste Fassung setzte `yieldBonus: 250` und war grün — auch mit dem
+ * Fehler aus #520 absichtlich wieder eingebaut. Gemessen:
+ *
+ *     critChance(NOTHING_WORN)                 0
+ *     critChance({ yieldBonus: 250 })          0
+ *     Schaden ohne / mit yieldBonus     1124 / 1124
+ *
+ * `critChance` liest `purity` (worn.ts:148). YIELD ist der Krit-FAKTOR — wie
+ * hart ein Krit trifft, nicht wie oft. Ein Lauf mit YIELD allein würfelt nie,
+ * und ein Strom, der nie gezogen wird, kann nicht auseinanderlaufen.
+ *
+ * `WORN_FOR_PARITY` trägt `purity: 375`, also 37,5 Prozent — deshalb steht es
+ * hier und nicht ein eigener Satz Werte.
+ *
+ * # Warum BIND daneben steht
+ *
+ * WEDGE kostet Kontroll-Punkte, und die kommen nur aus BIND. Ohne ihn würde
+ * WEDGE abgewiesen — die Aufzeichnung liefe, wirkte nichts, und wäre grün.
+ */
+function recordKrit(ticks: number): Recording {
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: FIRST_CRUCIBLE.value,
+    worn: WORN_FOR_PARITY,
+  });
+  const bind = combat.indexOf('bind');
+  const wedge = combat.indexOf('wedge');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, KRIT_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // WEDGE, sobald die Punkte reichen — sonst BIND. Damit wird die
+    // Umwandlung mehrfach gewirkt und nicht nur einmal am Ende.
+    if (combat.control >= 4 && combat.isOffCooldown(wedge, timeMs)) press(wedge, tick, timeMs);
+    else if (combat.isOffCooldown(bind, timeMs)) press(bind, tick, timeMs);
+  }
+
+  return { name: KRIT_NAME, seed: 0, ticks, presses, bindings: KRIT_BINDINGS };
+}
+
+export function kritPayload(): Record<string, unknown> {
+  const recording = recordKrit(3000);
+  const result = replayRecording(recording, { checksumPerTick: true, worn: WORN_FOR_PARITY });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    worn: WORN_FOR_PARITY,
+    bindings: KRIT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
