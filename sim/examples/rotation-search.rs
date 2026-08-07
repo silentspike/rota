@@ -74,18 +74,22 @@ fn parameter_zeile() {
     println!("           stop_on_kill=false, Faktoren=NEUTRAL, threads=1");
 }
 
-fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize) {
+fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize) {
     let mut a = 0;
     let mut d = 0;
     let mut s = 0;
+    let mut b = 0;
     for k in pool {
         match k.origin {
             Origin::Always => a += 1,
             Origin::DotRefresh => d += 1,
             Origin::SpenderThreshold => s += 1,
+            // Neu mit #553 — vorher konnte die Suche diese Zeile gar nicht
+            // bilden, weil der Parser keine Buff-Fenster kannte.
+            Origin::BuffWindow => b += 1,
         }
     }
-    (a, d, s)
+    (a, d, s, b)
 }
 
 fn main() {
@@ -94,12 +98,13 @@ fn main() {
     println!();
 
     let pool = all_candidates();
-    let (a, d, s) = zeilen_nach_herkunft(&pool);
+    let (a, d, s, b) = zeilen_nach_herkunft(&pool);
     println!("Suchraum");
     println!("  Kandidatenzeilen  {}", pool.len());
     println!("    unbedingt       {a}");
     println!("    Brand nachlegen {d}");
     println!("    Entlade-Schwelle {s}");
+    println!("    Verstaerkungs-Fenster {b}");
     println!();
 
     for boss_id in BOSSES {
