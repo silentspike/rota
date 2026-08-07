@@ -52,6 +52,14 @@ pub struct Dot {
     pub duration_ms: Millis,
     /// Ressourcen-Gewinn je Tick.
     pub resource_gain_per_tick: u16,
+    /// Wie viele Zersetzungs-Stapel jeder Tick legt (Issue #498).
+    ///
+    /// **Getrennt von `resource_gain_per_tick`, und das ist der Punkt.**
+    /// Stapel sind keine Schul-Ressource: Sie liegen auf dem BOSS, verfallen
+    /// einzeln nach fester Zeit und haben eine eigene Obergrenze
+    /// (`MAX_DECAY_STACKS`). Der Ressourcen-Gewinn fuellt den Vorrat des
+    /// Spielers.
+    pub decay_per_tick: u32,
 }
 
 /// Eine Verstaerkung, die ein Zauber beim Wirken ausloest (GAME-DESIGN 5).

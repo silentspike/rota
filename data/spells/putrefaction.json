@@ -46,6 +46,24 @@
       }
     },
     {
+      "id": "rot",
+      "name": "Rot",
+      "_comment": "Der erste Zauber der Schule, der Stapel OHNE Tastendruck legt (Raster 3 von 10, Issue #498).\n\nWARUM DAS NEU IST: Bis hierher lief der Aufbau nur ueber Druecke — canker und blight. Wer die Leiste anderweitig braucht, verliert den Aufbau. ROT laeuft nebenher.\n\nDER TICK-ABSTAND IST DIE AUSSAGE: 1000 ms bei 4000 ms Dauer sind VIER Stapel je Wirkung, bei 4 s Abklingzeit also ein durchgehender Strom. Zusammen mit canker fuellt das die fuenf Plaetze schneller, als sie verfallen (12 s je Stapel).\n\nWENIGER TICK-SCHADEN ALS SMOULDER (25 gegen 40): Er zahlt fuer den Aufbau. Waere er gleich stark, waere er der bessere Brand UND der Stapel-Erzeuger.\n\nALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
+      "unlockLevel": 6,
+      "baseDamage": 0,
+      "cooldownMs": 4000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "dot": {
+        "_comment": "decayPerTick ist das neue Feld aus #498. Es steht statt resourceGainPerTick, nicht daneben, weil Stapel keine Schul-Ressource sind: Sie liegen auf dem Boss, verfallen einzeln und haben eine eigene Obergrenze.\n\nWARUM resourceGainPerTick HIER GANZ FEHLT: ROT ist der erste DoT einer Schule OHNE eigene Ressource. sim/build.rs sichert bei einem VORHANDENEN Feld zu, dass genau eine Ressource darin steht (assert_eq auf object.len()) — ein leeres Objekt bricht daran. Fehlt das Feld dagegen, liefert der Generator 0 und die Zusicherung greift gar nicht erst (build.rs, let-else auf node.get(field)). Kein Objekt ist also etwas anderes als ein leeres Objekt, und nur das Weglassen kommt ohne eine Aenderung am Generator aus.",
+        "tickDamage": 25,
+        "tickIntervalMs": 1000,
+        "durationMs": 4000,
+        "refreshMode": "reset",
+        "decayPerTick": 1
+      }
+    },
+    {
       "_comment": "SEPSIS — der Weg 'laenger halten' der PUTREFAKTION (Raster 4 von 10, Issue #523).\n\nER TRIFFT ALLE STAPEL UND ALLE UM DENSELBEN BETRAG. Das ist keine Vorliebe, sondern die einzige Wahl, die die Ordnung erhaelt: decayExpiryMs ist aufsteigend sortiert, und das Nachruecken beim Verfall setzt das voraus. Wer nur den aeltesten oder nur den juengsten verlaengert, stellt einen spaeteren Ablauf vor einen frueheren — dann verfallen Stapel in falscher Reihenfolge, OHNE dass die Stapelzahl es verraet. Genau diese Klasse hat der ROT-Prueffall aus #498 gefangen.\n\n12000 MS SIND DIE VERFALLSZEIT EINES STAPELS (DECAY_STACK_DURATION_MS). Bei einem frisch gelegten Stapel ist der Zuschlag also die Verdopplung, die das Raster nennt.\n\nSTUFE 6, NICHT 7: Stufe 7 nennt laut tests/unit/level-up-display.test.ts ausdruecklich NUR die Grundwerte — sie ist bewusst ohne Zauber. ALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
       "id": "sepsis",
       "name": "Sepsis",

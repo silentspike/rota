@@ -87,6 +87,8 @@ import {
   SYNERGY_HASTE_NAME,
   wardCapPayload,
   WARD_CAP_NAME,
+  rotPayload,
+  ROT_NAME,
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
   cinderPayload,
@@ -178,6 +180,12 @@ const wardCap = wardCapPayload();
 const wardCapPath = join(here, 'recordings', `${WARD_CAP_NAME}.json`);
 writeFileSync(wardCapPath, serialize(wardCap), 'utf8');
 
+// ROT ist der erste Zauber, der Zersetzungs-Stapel ohne Tastendruck legt
+// (Issue #498). Ohne eigene Aufzeichnung gaelte seine Bitgleichheit als
+// angenommen — `coverage.test.ts` nennt ihn dann beim Namen.
+const rot = rotPayload();
+const rotPath = join(here, 'recordings', `${ROT_NAME}.json`);
+writeFileSync(rotPath, serialize(rot), 'utf8');
 // BLIGHT im Paritaets-Weg (Issue #479). Ohne ihn gilt die Bitgleichheit fuer
 // den neuen Zauber als angenommen, nicht als geprueft.
 const putrefactionFiller = putrefactionFillerPayload();
@@ -470,6 +478,11 @@ console.log(
 console.log(`  Verstaerkungen ${buffs['steps'].length} Schritte, ${buffs['replacements']} ersetzt`);
 console.log(
   `  Ereignisse     ${ruleEvents['emitted']}, Folge-Summe ${ruleEvents['sequenceChecksum']}`,
+);
+console.log(`geschrieben: ${rotPath}`);
+console.log(
+  `  ROT           ${rot['presses'].length} Druecke, ${rot['checksums'].length} Takte, ` +
+    `Folge-Summe ${rot['expected']['sequenceChecksum']}`,
 );
 console.log(`geschrieben: ${newCalcinationPath}`);
 console.log(`  neue Zauber   ${JSON.stringify(newCalcination['expected']['casts'])}`);
