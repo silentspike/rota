@@ -174,12 +174,49 @@ describe('Zufallsströme', () => {
   });
 
   it('liefert je Strom eine andere Folge', () => {
-    // Aus einem gemeinsamen Strom würde eine zusätzliche Ziehung alles
-    // Nachfolgende verschieben (GAME-DESIGN 18.4).
+    // **Diese Zeile allein belegt die Trennung NICHT** — sie stand hier bis
+    // zum 2026-08-07 als einziger Nachweis und war es nicht. Gemessen: Werden
+    // alle Ströme gekoppelt (`stream(which) { return this.streams[0] }`),
+    // bleibt sie GRÜN, weil `a` und `b` dann zwei aufeinanderfolgende
+    // Ziehungen desselben Stroms sind — und die sind auch verschieden.
+    //
+    // Sie prüft, dass der Zufallsgenerator sich bewegt. Der Fall darunter
+    // prüft, was der Kommentar behauptet.
     const streams = new RandomStreams(1234);
     const a = streams.stream(STREAM_CRIT).next();
     const b = streams.stream(STREAM_DOT_TICK).next();
     expect(a).not.toBe(b);
+  });
+
+  it('eine Ziehung im einen Strom bewegt den anderen nicht (18.4)', () => {
+    // **Die Regel aus GAME-DESIGN 18.4 in ihrer kürzesten Form**, und das
+    // Gegenstück zu `stroeme_laufen_unabhaengig` in `sim/src/rng.rs`.
+    //
+    // Der Fall darüber trug bis zum 2026-08-07 den Kommentar „Aus einem
+    // gemeinsamen Strom würde eine zusätzliche Ziehung alles Nachfolgende
+    // verschieben" — und prüfte ihn nicht. Zwei Monate lang stand hier eine
+    // Zusicherung, die ihre eigene Begründung nicht einlöste, mit einem Zitat
+    // aus dem Design-Dokument daneben. Wer sie las, hielt 18.4 für gesichert.
+    //
+    // Gemessen mit gekoppelten Strömen: Von der ganzen TS-Suite schlug ein
+    // einziger Fall an, und der war eine Frischeprüfung — nach
+    // `parity:export` wurde auch er grün. Die Rust-Seite fing es, die
+    // Spiel-Seite nicht.
+    const ohne = new RandomStreams(7);
+    const mit = new RandomStreams(7);
+
+    const erwartet = Array.from({ length: 8 }, () => ohne.stream(STREAM_DOT_TICK).next());
+    for (let i = 0; i < 100; i++) mit.stream(STREAM_CRIT).next();
+    const tatsaechlich = Array.from({ length: 8 }, () => mit.stream(STREAM_DOT_TICK).next());
+
+    expect(tatsaechlich).toEqual(erwartet);
+
+    // **Die zweite Zahl, die niemand für die Aussage braucht** (Guide 8.67):
+    // Die 100 Ziehungen müssen wirklich stattgefunden haben. Zöge `next()`
+    // gar nicht — ein Zähler, der stehen bleibt —, wären die beiden Folgen
+    // trivial gleich und der Fall grün, ohne etwas berührt zu haben.
+    expect(mit.drawCounts()[STREAM_CRIT], 'die 100 Ziehungen fanden nicht statt').toBe(100);
+    expect(mit.drawCounts()[STREAM_DOT_TICK], 'aus DotTick wurde anders oft gezogen').toBe(8);
   });
 
   it('liefert bei gleichem Startwert dieselbe Folge', () => {
