@@ -41,22 +41,35 @@ DATEN = sorted((WURZEL / 'data' / 'spells').glob('*.json'))
 AUFZ = WURZEL / 'tests' / 'parity' / 'recordings'
 
 
-def schadensbild():
-    """`expected.damage` je Aufzeichnung — soweit vorhanden.
+GROESSEN = ('damage', 'damageTaken', 'absorbed', 'healed', 'converted')
 
-    **Nicht jede Aufzeichnung führt Schaden.** Ein erster Entwurf griff hart
-    auf `['expected']['damage']` zu und brach mit `KeyError` ab. Der Abbruch
-    war die richtige Reaktion: Hätte die Funktion stattdessen 0 geliefert,
-    stünde für jede solche Aufzeichnung eine Abweichung von 0 % in der
-    Rangfolge — nicht als „kein Schaden gemessen", sondern als „kein Hebel".
+
+def wirkungsbild():
+    """Alle fünf Größen je LAUF — über alle drei Bauarten.
+
+    **Nicht nur `damage`, und nicht nur eine Bauart.** Beides waren Fehler der
+    ersten Fassung, und beide sahen wie Ergebnisse aus:
+
+    - Der Schaden allein kann Heilungen, Schilde und Kontrolle nicht sehen.
+      `salve` heilt, `plate` schirmt ab — eine Null im Schadenshebel ist dort
+      die Definition des Zaubers, kein Befund (#576).
+    - Die Bauart `presses + expected` ist nur eine von dreien. Wer über „alle
+      Aufzeichnungen" misst, misst je nach Werkzeug 39, 43 oder 52.
+
+    Der Schlüssel ist `datei#lauf`, weil die `runs`-Bauart mehrere Läufe je
+    Datei führt — und genau dort liegen die Koagulations-Lagen.
     """
     bild = {}
-    for p in sorted(AUFZ.glob('*.json')):
-        erwartet = json.loads(p.read_text(encoding='utf8')).get('expected', {})
-        if 'damage' in erwartet:
-            bild[p.name] = erwartet['damage']
+    for pfad in sorted(AUFZ.glob('*.json')):
+        roh = json.loads(pfad.read_text(encoding='utf8'))
+        laeufe = roh['runs'] if 'runs' in roh else ([roh] if 'expected' in roh else [])
+        for n, lauf in enumerate(laeufe):
+            erwartet = lauf.get('expected', {})
+            werte = {g: erwartet[g] for g in GROESSEN if g in erwartet}
+            if werte:
+                bild[f'{pfad.stem}#{n}'] = werte
     if not bild:
-        raise RuntimeError('keine einzige Aufzeichnung mit expected.damage')
+        raise RuntimeError('keine einzige Aufzeichnung mit Wirkungs-Größen')
     return bild
 
 
@@ -85,7 +98,7 @@ def main():
     for a in AUFZ.glob('*.json'):
         shutil.copy(a, aufz_sicherung / a.name)
 
-    grund = schadensbild()
+    grund = wirkungsbild()
 
     try:
         for name, zauber_id in offen[von:bis]:
@@ -108,19 +121,24 @@ def main():
             datei.write_text(text, encoding='utf8')
 
             exportieren()
-            jetzt = schadensbild()
+            jetzt = wirkungsbild()
 
-            groesste = 0.0
-            wo = '-'
-            for aufzeichnung, schaden in jetzt.items():
-                alt = grund.get(aufzeichnung, 0)
-                if alt:
-                    abw = abs(schaden - alt) / alt
-                    if abw > groesste:
-                        groesste, wo = abw, aufzeichnung.replace('.json', '')
+            # Die größte relative Abweichung über ALLE Größen und ALLE Läufe —
+            # und festgehalten, WELCHE Größe sich bewegt hat. Ohne diese
+            # Angabe stünde in der Liste „0,00 %", wo in Wahrheit „gemessen
+            # wurde die falsche Größe" gilt (#576 AC2).
+            groesste, wo, welche = 0.0, '-', '-'
+            for lauf, werte in jetzt.items():
+                for groesse, wert in werte.items():
+                    alt_wert = grund.get(lauf, {}).get(groesse, 0)
+                    if not alt_wert:
+                        continue
+                    abweichung = abs(wert - alt_wert) / alt_wert
+                    if abweichung > groesste:
+                        groesste, wo, welche = abweichung, lauf, groesse
             print(
                 f'{groesste * 100:6.2f}%  {name:26} {zauber_id:12} '
-                f'{vorher} -> {neu_wert:<8} {wo}',
+                f'{vorher} -> {neu_wert:<8} {welche:12} {wo}',
                 flush=True,
             )
 

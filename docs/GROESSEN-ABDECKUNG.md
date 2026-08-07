@@ -141,7 +141,7 @@ Gemessen wurde für jeden Schweiger, ob sein Zauber in einer Aufzeichnung
 
 | Sorte                  | Paare                                                                                               | Was fehlt                                                               | Aufwand                                            |
 | ---------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
-| **keine Aufzeichnung** | control.amountMs/stall, shield.durationMs/scab                                                      | Der Zauber wird in keiner Aufzeichnung gewirkt.                         | eine Aufzeichnung                                  |
+| ~~keine Aufzeichnung~~ | ~~control.amountMs/stall, shield.durationMs/scab~~                                                  | **Widerlegt am 2026-08-07** — siehe unten.                              | —                                                  |
 | **keine Lage**         | control.amountMs/latch, control.cost/capstone, control.cost/wedge, spender.bonusThreshold/pyroclasm | Der Zauber **wird** gewirkt, aber sein Betrag ändert am Ausgang nichts. | eine Aufzeichnung, die die **Situation** herstellt |
 | **heute unprüfbar**    | buff.kind, alle sechs Träger                                                                        | Die Lage, in der die Größe entscheidet, gibt es im Bestand nicht.       | nichts — siehe oben und #555                       |
 
@@ -293,3 +293,34 @@ es je Träger eine Rotation, die ihn wirkt.
 100 → 50` bewegt die Schadenssumme über 48 Aufzeichnungen von 95562 auf 79749
 — 16,55 %. Ohne diesen Beleg wären 35 Nullen nicht von einem kaputten
 Werkzeug zu unterscheiden.
+
+---
+
+## Nachtrag 2026-08-07: die Sorte „keine Aufzeichnung" gibt es nicht
+
+Oben stand, `stall`, `scab`, `anchor` und `stay` kämen in **keiner**
+Aufzeichnung vor. Das war falsch, und der Fehler lag im Messwerkzeug, nicht in
+den Daten:
+
+```
+fixation.json runs[1]:  Slots gedrückt [0, 1, 2, 3]
+  Slot 0 = bind    Slot 1 = stay    Slot 2 = anchor    Slot 3 = stall
+```
+
+Zwei Gründe, beide dieselbe Klasse:
+
+1. **Zwei Press-Formen.** Der Bestand führt `{slot, tick}` **und**
+   `{spellId, tick}`. Die erste Messung las nur eine.
+2. **Bindungen je Lauf.** Bei der `runs`-Bauart steht `bindings` in jedem
+   einzelnen Lauf, nicht auf Dateiebene — dort liefert es `None`. Wer nur die
+   Dateiebene liest, findet keine Zuordnung und meldet null Drücke.
+
+**Damit sind alle sechs Lücken der Sorte „keine Lage".** Der Zauber wirkt, die
+Größe ändert nichts — es fehlt die Situation, nicht die Aufzeichnung. Das ist
+teurer zu beheben als gedacht: Es braucht keine neue Belegung, sondern einen
+Kampf, in dem der Betrag den Ausgang ändert.
+
+> Ein `.get('slot')` statt `p['slot']` hätte hier still `None` geliefert und
+> denselben falschen Befund erzeugt — ohne Fehlermeldung. Der Abbruch bei
+> unbekannter Form ist deshalb Absicht: Er ist die einzige Stelle, an der eine
+> dritte Bauart überhaupt auffällt.
