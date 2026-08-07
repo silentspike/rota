@@ -738,7 +738,7 @@ export class Combat {
    * an dieser Stelle ginge an Krit, Widerstand und Verstärkung vorbei — er
    * wäre der einzige Schaden im Spiel, den kein Faktor berührt.
    */
-  private pendingControlDamage = 0;
+  private pendingConvertedDamage = 0;
 
   /** Wie viele Punkte insgesamt ausgegeben wurden. */
   private controlSpentValue = 0;
@@ -1537,6 +1537,41 @@ export class Combat {
    * **Der Spieler entscheidet, wofür** — deshalb steht die Wirkung am Zauber
    * und nicht an einer Automatik. Reichen die Punkte nicht, geschieht nichts.
    */
+  /**
+   * Eine Umwandlung aus einer schulfremden Quelle (Issue #520, EFFLUX).
+   *
+   * # Warum das nicht in `applyFixation` steht
+   *
+   * Dort läuft FIXATIONs Punkte-Buchhaltung: `controlValue -= cost` und, bei
+   * `convertToDamage`, `this.controlValue = 0`. Ein SUBLIMATION-Zauber, der
+   * dort durchginge, würde dem Spieler auf einer gemischten Leiste die
+   * Kontroll-Punkte **löschen** — kein Buchungsfehler, sondern ein Verlust.
+   *
+   * # Was geteilt wird: die SENKE
+   *
+   * `pendingConvertedDamage` ist schulneutral — sie nimmt einen Betrag und
+   * macht Schaden daraus, durch dieselben Faktoren wie jeder Treffer
+   * (Krit, Widerstand, Verstärkung). Nur der Weg dorthin ist je Schule
+   * verschieden. Deshalb schreibt diese Stelle in dieselbe Senke statt eine
+   * zweite Rechnung aufzumachen.
+   */
+  private applyConversion(spell: SpellDef, timeMs: number): void {
+    const convert = spell.convert;
+    if (convert === undefined) return;
+
+    // **Ganze Sekunden.** `perSecond` ist Schaden je Sekunde; Millisekunden
+    // durchzureichen ergäbe Nachkommastellen an einer Stelle, an der
+    // GAME-DESIGN 18.4 ganze Zahlen verlangt — und der Simulator rechnet in
+    // `u32`.
+    //
+    // **Der leere Fall ist kein Sonderfall:** Liegt keine Abklingzeit an, ist
+    // die Summe null und der Schaden null. Der Zauber bricht nicht, er bringt
+    // nichts — genau das, was ein Notausgang tun soll, wenn es nichts
+    // umzuwandeln gibt.
+    const restMs = this.remainingCooldownSumMs(timeMs);
+    this.pendingConvertedDamage = Math.floor(restMs / 1000) * convert.perSecond;
+  }
+
   private applyFixation(spell: SpellDef, timeMs: number): void {
     if (spell.controlGain !== undefined && spell.controlGain > 0) {
       // **Der Faktor aus `controlBuffs`** (Issue #489, GRIPLOCK). Ganzzahlig
@@ -1587,7 +1622,6 @@ export class Combat {
       // hinauszuzögern — die drei anderen Wirkungen laufen dort ins Leere,
       // und FIXATION wäre die einzige Schule, die an manchen Bossen gar
       // nicht spielbar ist.
-      //
       // **Alle Punkte, nicht nur die Kosten.** `cost` ist der Mindesteinsatz
       // — was darüber liegt, geht mit. Sonst wäre WEDGE ein Zauber, der bei
       // vollem Vorrat genauso viel bringt wie bei knappem, und „aufsparen"
@@ -1595,7 +1629,7 @@ export class Combat {
       const rest = this.controlValue;
       this.controlValue = 0;
       this.controlSpentValue += rest;
-      this.pendingControlDamage = (control.cost + rest) * control.amount;
+      this.pendingConvertedDamage = (control.cost + rest) * control.amount;
     }
     if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
@@ -3297,6 +3331,7 @@ export class Combat {
     // festzulegen und nicht dann.
     this.applyCoagulation(spell, timeMs);
     this.applyFixation(spell, timeMs);
+    this.applyConversion(spell, timeMs);
     this.applyPutrefaction(spell, timeMs);
     this.openSynergyWindow(spell, timeMs);
 
@@ -3318,7 +3353,7 @@ export class Combat {
     // WEDGE teilt Schaden aus, ohne `baseDamage` oder `spender` zu führen —
     // seine Quelle sind die Kontroll-Punkte (Issue #478).
     const teiltSchadenAus =
-      spell.baseDamage > 0 || spell.spender !== undefined || this.pendingControlDamage > 0;
+      spell.baseDamage > 0 || spell.spender !== undefined || this.pendingConvertedDamage > 0;
     const kritet = teiltSchadenAus ? this.rollCrit() : false;
     // **Der Widerstand dieses Zaubers, vor der Rechnung** (Issue #328). Über
     // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
@@ -3345,9 +3380,9 @@ export class Combat {
     // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
     // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
     // Schaden macht.
-    if (this.pendingControlDamage > 0) {
-      damage += computeDamage(this.pendingControlDamage, castFactors);
-      this.pendingControlDamage = 0;
+    if (this.pendingConvertedDamage > 0) {
+      damage += computeDamage(this.pendingConvertedDamage, castFactors);
+      this.pendingConvertedDamage = 0;
     }
 
     const spender = spell.spender;
@@ -3593,6 +3628,22 @@ export class Combat {
    *
    * @returns wie viele Abklingzeiten tatsächlich verkürzt wurden
    */
+  /**
+   * Die Summe aller verbleibenden Abklingzeiten in Millisekunden (Issue #520).
+   *
+   * **Was NICHT mitzählt:** Zauber, die bereit sind. Ihre Restzeit ist null,
+   * nicht negativ — sonst zöge ein lange bereiter Zauber die Summe herunter,
+   * und EFFLUX brächte in einer ruhigen Phase weniger als mitten im Kampf.
+   */
+  remainingCooldownSumMs(timeMs: number): number {
+    let summe = 0;
+    for (let i = 0; i < this.cooldownReadyAtMs.length; i++) {
+      const bereitAb = this.cooldownReadyAtMs[i] ?? 0;
+      if (bereitAb > timeMs) summe += bereitAb - timeMs;
+    }
+    return summe;
+  }
+
   shortenCooldowns(
     amount: number,
     timeMs: number,
@@ -3850,7 +3901,7 @@ export class Combat {
     this.convertedValue = 0;
 
     this.controlValue = 0;
-    this.pendingControlDamage = 0;
+    this.pendingConvertedDamage = 0;
     this.controlSpentValue = 0;
     this.controlFailedValue = 0;
     this.phaseHoldPercentValue = 0;
