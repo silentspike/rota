@@ -8,14 +8,35 @@
   "overpressureMs": 60000,
   "phases": [],
   "energy": null,
-  "race": { "atMs": 12000, "windowMs": 5000, "threshold": 1400 },
-  "bossHeal": { "amount": 1600 },
-  "affliction": { "atMs": 20000, "perStepMs": 1500, "damage": 40, "clearedBy": ["quench", "temper"] },
+  "race": {
+    "atMs": 12000,
+    "windowMs": 5000,
+    "threshold": 1400
+  },
+  "bossHeal": {
+    "amount": 1600
+  },
+  "affliction": {
+    "atMs": 20000,
+    "perStepMs": 1500,
+    "damage": 40,
+    "clearedBy": ["quench", "temper"]
+  },
   "timelineLoopMs": 14000,
   "timeline": [
-    { "atMs": 5000, "mechanic": "strike", "name": "Fracture", "damage": 250 },
-    { "atMs": 13000, "mechanic": "interruptibleCast", "name": "Sealing Chant", "damage": 800, "castTimeMs": 2500 }
+    {
+      "atMs": 5000,
+      "mechanic": "strike",
+      "name": "Fracture",
+      "damage": 250
+    },
+    {
+      "atMs": 13000,
+      "mechanic": "interruptibleCast",
+      "name": "Sealing Chant",
+      "damage": 800,
+      "castTimeMs": 2500
+    }
   ],
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }

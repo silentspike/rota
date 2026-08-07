@@ -8,12 +8,25 @@
   "overpressureMs": 60000,
   "phases": [],
   "energy": null,
-  "runaway": { "perStepMs": 1000, "amount": 80 },
+  "runaway": {
+    "perStepMs": 1000,
+    "amount": 80
+  },
   "timelineLoopMs": 10000,
   "timeline": [
-    { "atMs": 3000, "mechanic": "interruptibleCast", "name": "Accelerate", "damage": 450, "castTimeMs": 2000 },
-    { "atMs": 9000, "mechanic": "strike", "name": "Surge", "damage": 200 }
+    {
+      "atMs": 3000,
+      "mechanic": "interruptibleCast",
+      "name": "Accelerate",
+      "damage": 450,
+      "castTimeMs": 2000
+    },
+    {
+      "atMs": 9000,
+      "mechanic": "strike",
+      "name": "Surge",
+      "damage": 200
+    }
   ],
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }
