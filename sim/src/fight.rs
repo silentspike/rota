@@ -1223,8 +1223,9 @@ impl Fight {
                             // Druck bereits, und der Ruecksetzer wuerde nie
                             // gewirkt. Dieselbe Reihenfolge wie in
                             // `Session.apply`; AC4 von #223 haelt sie fest.
-                            if SPELLS[index].arms_cooldown_reset {
-                                self.reset_mode.arm(index);
+                            if SPELLS[index].cooldown_reset_charges > 0 {
+                                self.reset_mode
+                                    .arm(index, SPELLS[index].cooldown_reset_charges);
                             }
                         } else {
                             // Zu frueh gedrueckt. Das Spiel merkt sich den Druck

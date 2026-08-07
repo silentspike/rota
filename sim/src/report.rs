@@ -123,7 +123,7 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // der Absatz darueber warnt. WISP faellt seit #480 NICHT mehr
         // hierunter: Er verkuerzt UND macht Schaden.
         || spell.cooldown_reduction_ms > 0
-        || spell.arms_cooldown_reset
+        || spell.cooldown_reset_charges > 0
         // **Zauber, die nur eine Verstaerkung tragen** (Issue #490, SLAG).
         // Sie machen keinen Schaden — sie ermoeglichen ihn. In der Tabelle
         // staenden sie dauerhaft mit "TOT", obwohl der Spieler sie perfekt

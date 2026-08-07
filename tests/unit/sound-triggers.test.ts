@@ -121,6 +121,17 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'sepsis',
     'test-cast',
     'test-buff',
+    // VORLAEUFIG (Issue #521): ALEMBIC ist gebaut, sein Klang fehlt. Er
+    // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen —
+    // ein erfundener Prompt im Manifest waere schlimmer als ein fehlender,
+    // weil ihn niemand als Erfindung erkennt.
+    //
+    // Der Bedarf, wenn ihn jemand macht: ein UMSCHLAGEN, kein Entladen. Er ist
+    // gegen REFLUX abzugrenzen, den anderen Ruecksetzer derselben Schule —
+    // dessen Manifest-Prompt gehoert dabei GELESEN, nicht nur sein Name
+    // genannt. Die Woerter, die dort schon vergeben sind, duerfen nicht
+    // wiederkehren.
+    'alembic',
     // Die vier Zielgrößen-Prüfzauber aus #489. Sie liegen über der
     // Stufengrenze und kommen nie auf eine Leiste — ein Klang für sie wäre
     // eine Datei, die niemand je hört.
