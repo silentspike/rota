@@ -84,6 +84,19 @@ function wirke(combat: Combat, id: string, timeMs: number): void {
  * Topf, und keiner verlässt sich darauf, dass ein anderer nebenbei mitläuft.
  */
 const AUFBAUTEN: Readonly<Record<string, () => number>> = {
+  // **Der Eintrag stand bis #490 in OHNE_AUSLOESER** mit der Begründung
+  // "kein Zauber des Spiels trägt ein `buff`-Feld". SLAG trägt eins, und die
+  // Ausnahme hat sich damit selbst abgemeldet — genau wozu sie gebaut war.
+  //
+  // Ein Kommentar an ihrer Stelle hätte das nicht getan: Er wäre stehen
+  // geblieben, und der Topf wäre ab da unbewacht gewesen.
+  buffs: () => {
+    const c = new Combat({ school: CALCINATION.value, boss: BOSS });
+    // `test-buff` wirkt auf `damage` — der Topf, um den es hier geht.
+    c.cast(c.indexOf('test-buff'), 0);
+    for (let t = 0; t <= 100; t += 10) c.stepPassive(t);
+    return c.damageFactors.buffs;
+  },
   essence: () => {
     const c = new Combat({
       school: CALCINATION.value,
@@ -151,9 +164,6 @@ const AUFBAUTEN: Readonly<Record<string, () => number>> = {
  * wäre ab da unbewacht.
  */
 const OHNE_AUSLOESER: Readonly<Record<string, string>> = {
-  buffs:
-    '#420 — kein Zauber des Spiels trägt ein `buff`-Feld. Der Prüf-Zauber ' +
-    '`test-buff` liegt auf fix/e3-420-buffs und ist noch nicht gemergt.',
   crit:
     'per Typ von `setDamageFactor` ausgeschlossen — er wird aus `worn` ' +
     'abgeleitet und lebt nur in `factorsOnCrit`. Kein fehlender Auslöser, ' +
