@@ -5359,3 +5359,37 @@ den PR, du machst nichts" und baute im selben Werkzeugaufruf, ohne die Antwort a
 
 > **Eine Ankündigung mit Vorsprung ist keine Absprache.** Wer die Rettung übernimmt, wartet die
 > Bestätigung ab — sonst ist die Regel nur für die andere Seite geschrieben.
+
+#### Nachtrag: Warten wäre hier die teurere Wahl gewesen
+
+Der Worker hat der Selbstkritik oben widersprochen, und er hat recht:
+
+> Hättest du gewartet, wäre die falsche Zeile länger in `main` geblieben — und meine Antwort
+> hätte dich früher erreicht als deine Nachricht mich. **Wir haben beide auf einen Stand hin
+> gehandelt, den der andere schon verlassen hatte.**
+
+Die Zeitstempel geben ihm recht:
+
+```
+Halt gesendet    15:54:48
+zweiter PR       15:58:04     drei Minuten später — und trotzdem ungelesen
+```
+
+**„Zugestellt" und „gelesen" sind zwei Zustände, und der Absender sieht nur den ersten.** Eine
+Reihenfolge über Nachrichten herzustellen, die Minuten brauchen, funktioniert bei Arbeit von
+zwei Minuten nicht.
+
+Die Rechnung entscheidet, nicht die Regel:
+
+```
+Doppelarbeit bei einem Cherry-Pick    zwei Minuten und ein geschlossener PR
+falsche Zeile in main                 bis jemand sie findet
+```
+
+Deshalb die präzisere Fassung, und sie stammt vom Worker:
+
+> **Wer den verlorenen Commit findet, sagt in derselben Nachricht, ob er schon baut oder noch
+> wartet.**
+
+Das ist billiger als jede Wartezeit und funktioniert auch dann, wenn die Nachricht spät ankommt —
+denn die Aussage gilt zum Zeitpunkt des Absendens und altert nicht.
