@@ -6,7 +6,7 @@
     "groups": {
       "spells": {
         "target": 60,
-        "present": 27
+        "present": 29
       },
       "special": {
         "target": 7,
@@ -44,7 +44,7 @@
     "placeholders": [
       {
         "group": "spells",
-        "count": 33,
+        "count": 31,
         "epic": "E10",
         "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
       },
@@ -1150,6 +1150,36 @@
       "trigger": {
         "on": "spell.cast",
         "key": "plate"
+      }
+    },
+    {
+      "id": "spell-ember",
+      "group": "spells",
+      "purpose": "EMBER — der Fueller des Weges 'laenger halten'. Er macht KEINEN Schaden, sondern faechelt an, was schon brennt. Muss sich von KINDLE unterscheiden: KINDLE ZUENDET (sharp spark ignition), EMBER facht an — weicher, ohne Anzuenden.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-ember.ogg",
+      "targetSeconds": 0.5,
+      "pitchJitterCents": 25,
+      "prompt": "faint ember glow rekindling, soft breath on coals, low warm crackle swelling, no impact, no ignition",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "ember"
+      }
+    },
+    {
+      "id": "spell-pyroclasm",
+      "group": "spells",
+      "purpose": "PYROCLASM — der grosse Entlader des langen Kampfes. Er verbraucht Hitze UND alle laufenden Braende. Muss sich von PYRE unterscheiden: PYRE ist eine DETONATION (schlagartig), PYROCLASM BAUT SICH AUF und rollt — sonst sind es zwei Explosionen verschiedener Groesse statt zweier verschiedener Ereignisse.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/spell-pyroclasm.ogg",
+      "targetSeconds": 1.8,
+      "pitchJitterCents": 10,
+      "prompt": "massive volcanic eruption building and rolling, deep sustained roar with debris tail, catastrophic fire release",
+      "trigger": {
+        "on": "spell.cast",
+        "key": "pyroclasm"
       }
     }
   ]
