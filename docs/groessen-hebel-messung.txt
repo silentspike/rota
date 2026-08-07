@@ -25,9 +25,19 @@
 # fehlende Leitung. Das ist eine andere Sorte als "keine Lage": Die Lage war
 # da, die Zahl kam nur nicht an.
 #
-# BASIS BEACHTEN: controlSpent steht in nur VIER Aufzeichnungen (fixation,
-# fixation-spells, kontrolle-wirkt, log-kinds), sechs Laeufe tragen einen Wert
-# groesser null. Ein Hebel darauf stammt aus schmaler Grundlage.
+# BASIS BEACHTEN: controlSpent steht in nur DREI Aufzeichnungen (fixation,
+# fixation-spells, kontrolle-wirkt), sechs Laeufe tragen einen Wert groesser
+# null. Ein Hebel darauf stammt aus schmaler Grundlage.
+#
+# NICHT VIER, auch wenn ein grep vier findet: log-kinds.json fuehrt
+# `controlSpent` als PROTOKOLL-ART ({"kind": 16, "name": "controlSpent"}),
+# nicht als Messgroesse in `expected`. Der Name eines Ereignisses in einer
+# Liste von Namen — kein Zaehler, kein Wert.
+#
+# Die Vier stammte aus einer Wortzaehlung ueber den Dateitext statt aus einer
+# Zaehlung von expected-Feldern. Sie stand hier, wurde weitergereicht und
+# korrigierte eine richtige Drei. Wer sie ohne diesen Absatz liest, greppt
+# und korrigiert zurueck.
 #
 # SPALTE "nur Groesse" / "Groesse+Rotation" — seit 2026-08-07
 #
