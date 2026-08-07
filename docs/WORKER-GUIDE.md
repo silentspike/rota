@@ -5199,3 +5199,63 @@ die Mutation lief ins Leere     ← was meist zutrifft
 **Bevor „ungeschützt" gemeldet wird, muss die zweite ausgeschlossen sein.** Am schnellsten geht
 das mit einer Mutation, von der man weiß, dass sie greifen muss — an derselben Datei, an
 derselben Größe, nur größer. Bleibt auch die grün, war der Weg falsch.
+
+### 8.76 Zwei Fälle dürfen sich in genau einer Sache unterscheiden
+
+Am 2026-08-07 bei #609. Ein Prüffall sollte belegen, dass das Feld `bossHeal.on` **schaltet** —
+also dass ein Boss ohne `on: 'affliction'` bei einer Schwächung nichts zurückdreht.
+
+Die naheliegende Anordnung: `test-lapse` (mit dem Feld) gegen `boss-2-4` (ohne). Gemessen, bevor
+sie eingetragen wurde:
+
+```
+boss-2-4 bis 12000 ms    geheilt=0     afflicted=FALSE   missed=0
+boss-2-4 bis 32000 ms    geheilt=1600  afflicted=true    missed=2
+```
+
+**Beide Enden sind falsch, auf entgegengesetzte Weise:**
+
+|         |                                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------------- |
+| zu früh | Die Null kommt daher, dass die Schwächung noch gar nicht steht — ein grüner Fall ohne Lage          |
+| zu spät | 1600 zurückgedreht, weil ohne QUENCH kein Zauber unterbrochen wird und der **alte** Auslöser greift |
+
+Es gibt kein Zeitfenster, in dem die Anordnung das gemessen hätte, was sie messen sollte.
+
+#### Der Grund ist nicht das Timing, sondern die Zahl der Unterschiede
+
+`boss-2-4` unterscheidet sich von `test-lapse` in allem: anderer Startzeitpunkt der Schwächung,
+andere Zeitleiste, unterbrechbare Zauber, anderer Betrag. Nur ein Feldname ist gleich benannt und
+verschieden gesetzt.
+
+> **Der Vergleich misst dann den Boss, nicht das Feld.**
+
+Die Regel dahinter gilt für jede Gegenprobe:
+
+```
+zwei Fälle, EIN Unterschied      der Vergleich misst diesen Unterschied
+zwei Fälle, viele Unterschiede   der Vergleich misst die Umgebung
+```
+
+Die Lösung war ein **Zwilling**: ein zweiter Prüfboss, identisch bis auf `on: 'interrupt'`.
+Gleiche Schwächung, gleicher Betrag, gleiche Zeitleiste — und der einzige Unterschied ist das
+Feld. Kosten: eine Datendatei und ein Export-Lauf.
+
+#### Zwei Zusätze, die dieselbe Falle ein zweites Mal verhindern
+
+**Die Lage zuerst zusichern.** `expect(afflicted).toBe(true)` bei **beiden** Läufen, bevor die
+Beträge verglichen werden. Sonst ist die Null beim Zwilling wieder eine Null ohne Lage — dieselbe
+Falle, nur an einer anderen Stelle.
+
+**Null gegen mehr-als-null, nicht Betrag gegen Betrag.** Bei `bossHeal` deckelt `undoProgress` auf
+den gefallenen Fortschritt, also sagt der Betrag nicht, wie oft ausgelöst wurde. Die
+Null-Erwartung umgeht den Deckel, statt gegen ihn zu messen.
+
+#### Und für den, der eine Zeile vorgibt
+
+Dieser Fall entstand aus einer Auflage, die zwei konkrete Codezeilen nannte — samt der Behauptung
+„damit färbt meine Mutation". **Eine vorgegebene Zeile ist eine Behauptung über ein Verhalten,
+das der Vorgebende nicht gemessen hat.**
+
+Wer sie bekommt, misst sie, bevor er sie einträgt. Wer sie gibt, sagt dazu, dass sie ungemessen
+ist.
