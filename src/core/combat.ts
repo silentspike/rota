@@ -1861,6 +1861,65 @@ export class Combat {
     }
   }
 
+  /**
+   * Der Auswahlmodus des Cooldown-Rücksetzers (Issue #528).
+   *
+   * # Warum die Regel HIER liegt und nicht mehr in `Session`
+   *
+   * Sie lag bis #528 in `src/core/session.ts` — im Spiel eine Schicht über
+   * ihrer eigenen Wirkung, im Simulator dagegen im Kampf (`fight.rs`,
+   * `reset_mode`). Die Reihenfolge war auf beiden Seiten sorgfältig
+   * gleichgehalten, die **Schicht** nicht.
+   *
+   * Das war kein Schönheitsfehler: **Jede Aufzeichnung fährt `Combat`
+   * direkt** (`tests/parity/payloads.ts`, `new Combat({...})` — `new Session`
+   * kommt in keiner vor). Eine Regel ausserhalb von `Combat` ist für die
+   * Parität deshalb nicht schwer prüfbar, sondern **unsichtbar**. Der Bruch
+   * fiel erst auf, als jemand REFLUX in eine Aufzeichnung nehmen wollte.
+   *
+   * Und die Wirkung tritt beim **nächsten gewirkten Zauber** ein — das ist ein
+   * Kampfereignis, kein Sitzungsereignis (WORKER-GUIDE 8.38: der Zustand
+   * gehört dorthin abgelesen, wo die Wirkung eintritt).
+   */
+  private resetArmedForValue: number = -1;
+
+  /** Steht der Auswahlmodus scharf? Für Anzeige und Prüfung. */
+  get resetArmed(): boolean {
+    return this.resetArmedForValue >= 0;
+  }
+
+  /** Welcher Rücksetzer scharf steht, oder -1. */
+  get resetArmedFor(): number {
+    return this.resetArmedForValue;
+  }
+
+  /**
+   * Nach einer Wirkung scharf stellen, wenn der Zauber ein Rücksetzer ist.
+   *
+   * **NACH der Wirkung, nie davor** — sonst wählte sein eigener Druck bereits,
+   * und der Rücksetzer würde nie gewirkt.
+   */
+  armResetIfNeeded(index: number): void {
+    if (this.spells[index]?.armsCooldownReset === true) this.resetArmedForValue = index;
+  }
+
+  /**
+   * Ein Druck im Auswahlmodus: Er WÄHLT, statt zu wirken.
+   *
+   * @returns ob die Wahl eine Abklingzeit zurückgesetzt hat. `false` heisst
+   *   verpufft — der Rücksetzer ist trotzdem verbraucht.
+   */
+  chooseForReset(index: SpellIndex, timeMs: number): boolean {
+    // **Jede Wahl verbraucht den Rücksetzer** — auch eine falsche.
+    const selbst = index === this.resetArmedForValue;
+    this.resetArmedForValue = -1;
+    // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
+    this.gcd.trigger(timeMs);
+    if (selbst || this.isOffCooldown(index, timeMs)) return false;
+    this.clearCooldown(index);
+    return true;
+  }
+
   private applyDecayStackBonus(index: number): void {
     const proStapel = this.spells[index]?.perDecayStackPercent ?? 0;
     this.setDamageFactor(
@@ -3384,6 +3443,8 @@ export class Combat {
 
     this.decayCountValue = 0;
     this.decayExpiryMs.fill(0);
+    // Der Auswahlmodus gehoert zum Kampf und endet mit ihm (#528).
+    this.resetArmedForValue = -1;
 
     this.shieldValue = 0;
     this.shieldExpiresAtMs = -1;

@@ -171,7 +171,6 @@ export class Session implements Simulation {
    * ihn zufällig abbekommt. Drei Aktionen — Rücksetzer, Auswahl, Nachdruck —
    * müssen sich gegen drei gewöhnliche Wirkungen rechnen.
    */
-  private resetArmedFor = NO_SPELL;
   /** Wie oft eine Auswahl eine Abklingzeit zurückgesetzt hat. */
   private resetsApplied = 0;
   /** Wie oft eine Auswahl verpufft ist — der Zauber lag nicht auf Abklingzeit. */
@@ -239,12 +238,13 @@ export class Session implements Simulation {
 
   /** Steht der Auswahlmodus scharf? Für die Anzeige und die Prüfung. */
   get isResetArmed(): boolean {
-    return this.resetArmedFor !== NO_SPELL;
+    return this.combat.resetArmed;
   }
 
   /** Welcher Rücksetzer scharf steht, sonst `NO_SPELL`. */
   get resetArmedBy(): number {
-    return this.resetArmedFor;
+    const armed = this.combat.resetArmedFor;
+    return armed >= 0 ? armed : NO_SPELL;
   }
 
   /** Wie oft eine Auswahl eine Abklingzeit zurückgesetzt hat. */
@@ -709,7 +709,7 @@ export class Session implements Simulation {
     // Platz ist eine Fehleingabe wie jede andere.
     let accepted = false;
     // Steht der Auswahlmodus scharf, WÄHLT dieser Druck, statt zu wirken.
-    const chose = this.resetArmedFor !== NO_SPELL;
+    const chose = this.combat.resetArmed;
     if (
       this.phaseValue === PHASE_FIGHTING &&
       spellIndex !== NO_SPELL &&
@@ -738,9 +738,7 @@ export class Session implements Simulation {
         this.emit(EV_SPELL_CAST, spellIndex, timeMs);
         // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
         // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
-        if (this.combat.spellAt(alsSpellIndex(spellIndex))?.armsCooldownReset === true) {
-          this.resetArmedFor = alsSpellIndex(spellIndex);
-        }
+        this.combat.armResetIfNeeded(spellIndex);
       }
     } else {
       this.rejectedAtMs[slot] = timeMs;
@@ -765,37 +763,17 @@ export class Session implements Simulation {
    * @returns true, wenn die Auswahl angenommen wurde (kein rotes Blinken)
    */
   private chooseForReset(spellIndex: SpellIndex, timeMs: number): boolean {
-    // **Jede Wahl verbraucht den Rücksetzer** — auch eine falsche.
-    const self = spellIndex === this.resetArmedFor;
-    this.resetArmedFor = NO_SPELL;
-    // Die Wartezeit läuft für die Auswahl wie für eine Wirkung.
-    this.combat.gcd.trigger(timeMs);
-
-    if (self || this.combat.isOffCooldown(alsSpellIndex(spellIndex), timeMs)) {
-      // **Verpufft.** Zwei Fälle, eine Regel: der Rücksetzer auf sich selbst
-      // (er wirkt nie auf sich — sonst ließe er sich endlos ketten, der erste
-      // Zug, den eine Optimums-Suche findet) und ein Zauber, der gar nicht
-      // auf Abklingzeit liegt.
-      //
-      // **Warum GAME-DESIGN 8.2 hier NICHT gilt** — die naheliegende
-      // Herleitung, und sie führt in die Irre: Dort geht es um eine Taste,
-      // auf der kein Zauber liegt, also um eine Eingabe ins Leere. Eine
-      // falsche Auswahl trifft dagegen einen Zauber, nur den falschen. Das
-      // ist ein Spielfehler, keine Fehleingabe, und der Auftraggeber hat ihn
-      // ausdrücklich so gewollt: „wenn er einen zauber wählt der gar keinen
-      // cooldown hat ist pech für den user, muss er lernen besser zu spielen
-      // oder timen" (2026-07-29).
-      //
-      // Und die einfachere Regel gewinnt: Wer sich merken müsste, welche
-      // Fehlgriffe teuer sind und welche umsonst, lernt eine Ausnahme statt
-      // einer Mechanik.
-      this.resetsWasted++;
-      return false;
-    }
-
-    this.combat.clearCooldown(spellIndex);
-    this.resetsApplied++;
-    return true;
+    // **Die Regel selbst liegt seit #528 in `Combat`** — dort, wo ihre Wirkung
+    // eintritt und wo die Parität sie sieht. Hier bleibt nur, was wirklich der
+    // Sitzung gehört: die zwei Zähler für die Auswertung.
+    //
+    // Der Grund steht ausführlich an `Combat.chooseForReset`: Jede
+    // Aufzeichnung fährt `Combat` direkt, eine Regel ausserhalb davon ist für
+    // die Parität unsichtbar.
+    const gesetzt = this.combat.chooseForReset(alsSpellIndex(spellIndex), timeMs);
+    if (gesetzt) this.resetsApplied++;
+    else this.resetsWasted++;
+    return gesetzt;
   }
 
   reset(): void {
@@ -825,7 +803,6 @@ export class Session implements Simulation {
     this.sawLowHealth = false;
     this.warnedOverpressure = false;
     this.countdownStep = -1;
-    this.resetArmedFor = NO_SPELL;
     this.resetsApplied = 0;
     this.resetsWasted = 0;
     // Erst das Kampfende, dann der Menü-Teppich — genau wie beim regulären
