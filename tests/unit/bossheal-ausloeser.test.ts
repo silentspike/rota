@@ -121,3 +121,41 @@ describe('der alte Auslöser bleibt, wo er war', () => {
     expect(boss('boss-2-4').bossHeal?.on).toBe('interrupt');
   });
 });
+
+describe('das FELD schaltet — nicht der Aufruf allein', () => {
+  it('ohne `on` gälte die Kopplung für ALLE Bosse — dieser Fall hält das fest', () => {
+    // **Der Kernsatz dieses Issues, als eigener Fall.** Bis hierher war er nur
+    // mittelbar gedeckt: Der Orchestrator hat die Bedingung `on === 'affliction'`
+    // entfernt, und von 1904 Fällen meldete genau EINER — aus `boss-2-4`, und
+    // auch der nur, weil dieser Boss zufällig eine `affliction` trägt. Nimmt
+    // jemand sie ihm weg, fällt der Schutz lautlos mit.
+    //
+    // Gemessen wird an zwei Bossen mit derselben Schwächung und
+    // unterschiedlichem Feld. Wäre der neue Auslöser unbedingt, drehten beide
+    // zurück.
+    const mit = boss('test-lapse');
+    const ohne = boss('boss-2-4');
+
+    expect(mit.bossHeal?.on).toBe('affliction');
+    expect(ohne.bossHeal?.on).toBe('interrupt');
+    expect(mit.affliction, 'ohne Schwächung prüft der Fall nichts').not.toBeNull();
+    expect(ohne.affliction, 'ohne Schwächung prüft der Fall nichts').not.toBeNull();
+
+    // Beide Läufe: nur KINDLE, nie QUENCH. Damit wird nicht gereinigt und
+    // nicht unterbrochen — der ALTE Auslöser kann bei `boss-2-4` also nur über
+    // einen durchgekommenen Zauber greifen, der neue über die Schwächung.
+    const fahren = (b: BossDef, bisMs: number): { geheilt: number; stand: boolean } => {
+      const c = new Combat({ school: CALCINATION.value, boss: b });
+      for (let t = 0; t <= bisMs; t += 10) {
+        c.stepPassive(t);
+        if (c.gcd.isReady(t) && c.isOffCooldown(c.indexOf('kindle'), t))
+          c.cast(c.indexOf('kindle'), t);
+      }
+      return { geheilt: c.bossHealed, stand: c.afflicted };
+    };
+
+    const a = fahren(mit, 12_000);
+    expect(a.stand, 'die Schwächung stand nie — der Fall misst nichts').toBe(true);
+    expect(a.geheilt, 'mit `affliction` wird nicht zurückgedreht').toBeGreaterThan(0);
+  });
+});
