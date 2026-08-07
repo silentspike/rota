@@ -2417,8 +2417,21 @@ impl Fight {
     /// unveraendert, und mit ihm die Zustands-Pruefsumme. **Daran haengt AC7**,
     /// und zwar an einer Stelle, die man leicht uebersieht: Ein Wurf, dessen
     /// Ergebnis feststeht, waere rechnerisch folgenlos und trotzdem sichtbar.
-    fn roll_crit(&mut self) -> bool {
-        self.rng.chance(Stream::Crit, self.worn.crit_chance())
+    ///
+    /// # Der Strom kommt vom Aufrufer, seit Issue #602
+    ///
+    /// Bis zum 2026-08-07 zog diese Funktion **immer** aus `Stream::Crit` —
+    /// auch fuer den Krit-Wurf eines DoT-Ticks. Beide Seiten taten das gleich,
+    /// die Paritaet war intakt, und genau deshalb hat es niemand gesehen.
+    ///
+    /// GAME-DESIGN 18.4 verlangt „je einen eigenen Strom", und der Nebensatz
+    /// sagt warum: „sonst verschiebt eine zusaetzliche Ziehung alles
+    /// Nachfolgende." Zog ein Tick aus `Stream::Crit`, verschob jeder
+    /// zusaetzliche Tick die Krit-Wuerfe aller Zauber. Die Regel schuetzt nicht
+    /// die Paritaet, sondern die Vergleichbarkeit zweier Laeufe mit
+    /// verschiedenen Rotationen.
+    fn roll_crit(&mut self, stream: Stream) -> bool {
+        self.rng.chance(stream, self.worn.crit_chance())
     }
 
     /// Die Faktoren fuer einen Treffer, je nachdem ob der Wurf sass.
@@ -2451,7 +2464,9 @@ impl Fight {
         // gesetzt hat — sonst kritete ein DoT ueber seine ganze Laufzeit
         // entweder immer oder nie, und der Glueckanteil, den 6.5 ausdruecklich
         // will, verschwaende sich in einer einzigen Entscheidung.
-        let kritet = self.roll_crit();
+        // **Aus Stream::DotTick, nicht aus Stream::Crit** (Issue #602): Ein
+        // Tick darf die Krit-Wuerfe der gewirkten Zauber nicht verschieben.
+        let kritet = self.roll_crit(Stream::DotTick);
         // Auch ein Brand-Tick gehoert seinem Zauber und damit dessen Schule
         // (Issue #328). Ohne diese Zeile truege er den Widerstand des zuletzt
         // gewirkten Zaubers — nicht falsch gerechnet, sondern falsch
@@ -2896,7 +2911,7 @@ impl Fight {
         // den ganzen folgenden Kampf auseinanderlaufen.
         let teilt_schaden_aus =
             spell.base_damage > 0 || spell.spender.is_some() || self.pending_control_damage > 0;
-        let kritet = teilt_schaden_aus && self.roll_crit();
+        let kritet = teilt_schaden_aus && self.roll_crit(Stream::Crit);
         // Der Widerstand dieses Zaubers, vor der Rechnung (Issue #328).
         // Dieselbe Stelle wie im Spiel (`Combat.resolvePlayerCast`).
         self.factors.resistance = self.resistance_by_spell[index];
