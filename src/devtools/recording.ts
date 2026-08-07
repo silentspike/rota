@@ -83,6 +83,15 @@ export interface ReplayResult {
   readonly absorbed: number;
   readonly healed: number;
   readonly converted: number;
+  /**
+   * Wann der Spieler gefallen ist, in ms — oder -1 (Issue #581, AC5).
+   *
+   * Das Gegenstück zu `killedAtMs`: Der eine sagt, wann der Boss fiel, der
+   * andere, wann der Spieler es tat. Bisher stand nur die eine Richtung in
+   * der Aufzeichnung, und ein Lauf, der mit dem Tod des Spielers endet, war
+   * von einem, der die Zeit einfach auslief, nicht zu unterscheiden.
+   */
+  readonly diedAtMs: number;
   /** Kampfzeit des Sieges in ms, oder -1. */
   readonly killedAtMs: number;
   readonly casts: Readonly<Record<string, number>>;
@@ -310,6 +319,7 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     absorbed: combat.shieldAbsorbed,
     healed: combat.healed,
     converted: combat.converted,
+    diedAtMs: combat.diedAtMs,
     killedAtMs,
     casts,
     finalChecksum: combatChecksum(

@@ -299,6 +299,11 @@
   },
   "expected": {
     "damage": 8080,
+    "damageTaken": 1600,
+    "absorbed": 0,
+    "healed": 0,
+    "converted": 0,
+    "diedAtMs": -1,
     "killedAtMs": 79510,
     "accepted": 54,
     "rejected": 0,
@@ -361,8 +366,6 @@
     "energyTriggers": 5,
     "finalTimelineIndex": 3,
     "finalPlayerHp": 3400,
-    "damageTaken": 1600,
-    "diedAtMs": -1,
     "interruptsLanded": 0,
     "interruptsMissed": 1
   },

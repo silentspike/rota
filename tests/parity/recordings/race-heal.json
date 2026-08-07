@@ -147,6 +147,11 @@
   },
   "expected": {
     "damage": 2860,
+    "damageTaken": 80,
+    "absorbed": 0,
+    "healed": 0,
+    "converted": 0,
+    "diedAtMs": -1,
     "killedAtMs": -1,
     "finalChecksum": 3609886312,
     "sequenceChecksum": 2207218907,
