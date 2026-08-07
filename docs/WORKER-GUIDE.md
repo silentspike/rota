@@ -4305,9 +4305,9 @@ Fälle nicht mehr.
 
 > **Zu jeder Prüfregel gehören zwei Proben, nicht eine:**
 >
-> | | |
-> | --- | --- |
-> | schlägt sie beim bekannten Fall an? | sonst prüft sie nichts |
+> |                                       |                             |
+> | ------------------------------------- | --------------------------- |
+> | schlägt sie beim bekannten Fall an?   | sonst prüft sie nichts      |
 > | lässt sie **alle** bestehenden durch? | sonst ist sie ein Fehlalarm |
 >
 > Die zweite ist die, die vergessen wird. Sie kostet einen Lauf über den Bestand.
