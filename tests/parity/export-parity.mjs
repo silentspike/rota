@@ -118,6 +118,8 @@ import {
   WISP_NAME,
   alembicPayload,
   ALEMBIC_NAME,
+  deckelPayload,
+  DECKEL_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -319,6 +321,15 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+const deckel = deckelPayload();
+const deckelPath = join(here, 'recordings', `${DECKEL_NAME}.json`);
+writeFileSync(deckelPath, serialize(deckel), 'utf8');
+console.log(`geschrieben: ${deckelPath}`);
+console.log(
+  `  Deckel gefallen        hoechster Vorrat ${deckel.expected.hoechsterVorrat}, ` +
+    `Ueberlauf ${deckel.expected.resourceOverflow}`,
+);
 
 const alembic = alembicPayload();
 const alembicPath = join(here, 'recordings', `${ALEMBIC_NAME}.json`);
