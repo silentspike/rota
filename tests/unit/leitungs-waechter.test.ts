@@ -18,6 +18,24 @@
  *
  * Ein Kommentar wird einmal gelesen. Ein Prüffall meldet sich wieder.
  *
+ * # Was eine fehlende Leitung kostet — gemessen, nicht argumentiert
+ *
+ * Nach #605, als `controlSpent` seinen Weg ins `ReplayResult` bekam, wurden
+ * dieselben Grössen neu vermessen:
+ *
+ * ```text
+ *   control.cost  stall   4 -> 2    0,00 %  ->  50,00 %
+ *   control.cost  stay    3 -> 1    0,00 %  ->  66,67 %
+ *   control.cost  anchor  6 -> 3    0,00 %  ->   8,70 %
+ * ```
+ *
+ * **Die Nullen waren keine Messung, sondern die fehlende Leitung.** Elf
+ * Kontroll-Grössen standen in #592 auf 0,00 % — nicht weil sie belanglos
+ * wären, sondern weil ihre einzige beobachtbare Folge nirgends ankam.
+ *
+ * Eine fehlende Leitung erzeugt eine 0,00 %, die aussieht wie ein Befund. Das
+ * ist der Grund, warum es diesen Wächter gibt.
+ *
  * # Er prüft, ob eine Grösse ANKOMMT — nicht, ob sie richtig ist
  *
  * Das sind zwei Fragen, und bisher hat nur die erste jemand gestellt. Genau
