@@ -62,6 +62,27 @@ export interface ReplayResult {
   readonly accepted: number;
   readonly rejected: number;
   readonly damage: number;
+  /**
+   * Die vier Größen **neben** dem Schaden (Issue #576).
+   *
+   * Das Spiel führt sie längst — `damageTaken`, `shieldAbsorbed`, `healed`
+   * und `converted` stehen als Getter in `Combat`. Nur kamen sie hier nicht
+   * an, und damit war jede Messung über einen Wiederholungslauf auf den
+   * Schaden beschränkt.
+   *
+   * Was das kostete, ist gemessen (#547): Der Schadenshebel von 35 Größen kam
+   * auf 0,00 % — bei zehn davon, weil ihr Träger gar keinen Schaden macht.
+   * `salve` heilt, `plate` und `scab` schirmen ab, `temper` wandelt um. Eine
+   * Heilung, die keinen Schaden bewegt, ist kein Befund; das ist die
+   * Definition einer Heilung.
+   *
+   * Dieselbe Bauart wie `boss_healed` vor #564: geführt, paritätsgesichert,
+   * und im Werkzeug nicht abrufbar.
+   */
+  readonly damageTaken: number;
+  readonly absorbed: number;
+  readonly healed: number;
+  readonly converted: number;
   /** Kampfzeit des Sieges in ms, oder -1. */
   readonly killedAtMs: number;
   readonly casts: Readonly<Record<string, number>>;
@@ -282,6 +303,13 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     accepted,
     rejected,
     damage: combat.damageDealt,
+    // Die vier Größen neben dem Schaden (#576) — aus denselben Gettern, die
+    // das HUD liest. Sie gehen NICHT in eine Prüfsumme ein: Die Feldfolge von
+    // `combatChecksum` bleibt unberührt, damit die Parität aus #54 gilt.
+    damageTaken: combat.damageTaken,
+    absorbed: combat.shieldAbsorbed,
+    healed: combat.healed,
+    converted: combat.converted,
     killedAtMs,
     casts,
     finalChecksum: combatChecksum(
