@@ -1319,6 +1319,17 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        consumes_dots: {verbraucht},");
+    // HARDEN und SEPSIS (#523).
+    let schild_ms = spell
+        .get("extendShieldMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let stapel_ms = spell
+        .get("extendDecayMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let _ = writeln!(out, "        extend_shield_ms: {schild_ms},");
+    let _ = writeln!(out, "        extend_decay_ms: {stapel_ms},");
 }
 
 /// Die Synergie-Beziehung (Issue #318). Fehlt sie, steht sie auf "kein Partner".

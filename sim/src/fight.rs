@@ -1937,6 +1937,44 @@ impl Fight {
     /// Der Baustein, den EMBER und PYROCLASM sich teilen — nicht ein
     /// Rechenschritt, sondern diese Iteration. Bis hierher wurde
     /// `dot_expires_at` ausschliesslich je Index gelesen und geschrieben.
+    /// Die Schutzschicht laenger halten (HARDEN, Issue #523).
+    ///
+    /// Der Ablauf rueckt nach hinten, der aufgebrauchte Betrag bleibt. Ein
+    /// abgelaufener oder nie gesetzter Schild wird NICHT wiederbelebt —
+    /// verlaengern ist nicht neu setzen.
+    ///
+    /// **Es gibt hier keinen Takt.** Bei den Braenden musste die Tick-Folge
+    /// mitgedacht werden (#517); der Schild haelt nur Betrag und Ablauf. Das
+    /// steht als Satz da, damit das Fehlen nicht wie ein Versehen aussieht.
+    fn extend_shield(&mut self, ms: Millis) {
+        if ms == 0 || self.shield == 0 {
+            return;
+        }
+        let Some(expires) = self.shield_expires_at else {
+            return;
+        };
+        if self.time > expires {
+            return;
+        }
+        self.shield_expires_at = Some(expires + ms);
+    }
+
+    /// Die Zersetzungs-Stapel laenger halten (SEPSIS, Issue #523).
+    ///
+    /// **Alle, und um denselben Betrag.** `decay_expiry` ist aufsteigend
+    /// sortiert, und das Nachruecken beim Verfall setzt das voraus. Ein
+    /// Zuschlag auf nur einen Eintrag stellte einen spaeteren Ablauf vor einen
+    /// frueheren — dann verfallen Stapel in falscher Reihenfolge, ohne dass
+    /// die Stapelzahl es verraet. Dieselbe Regel wie im Spiel.
+    fn extend_decay_stacks(&mut self, ms: Millis) {
+        if ms == 0 {
+            return;
+        }
+        for i in 0..self.decay_count {
+            self.decay_expiry[i] += ms;
+        }
+    }
+
     fn active_dot_indices(&self) -> Vec<usize> {
         (0..SPELL_COUNT)
             .filter(|&i| SPELLS[i].dot.is_some() && self.dot_active(i))
@@ -2639,6 +2677,13 @@ impl Fight {
         // Zauber selbst legt, soll nicht schon verlaengert werden.
         if spell.dot_extend_ticks > 0 {
             self.extend_active_dots(spell.dot_extend_ticks);
+        }
+        // HARDEN und SEPSIS (#523), aus demselben Grund an derselben Stelle.
+        if spell.extend_shield_ms > 0 {
+            self.extend_shield(spell.extend_shield_ms);
+        }
+        if spell.extend_decay_ms > 0 {
+            self.extend_decay_stacks(spell.extend_decay_ms);
         }
         let factors = self.factors_for(kritet);
         // **`factors` ist hier bereits kopiert.** Die Verstaerkung unten
