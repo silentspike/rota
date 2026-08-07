@@ -169,3 +169,58 @@ describe('boss-2-4 — die Kollision: wer nicht unterbricht, kommt nie durch', (
     expect((60_000 - r.ende) / 60_000, 'Restzeit über 40 % — zu leicht').toBeLessThan(0.4);
   });
 });
+
+describe('boss-2-2 — der Abschluss: die REIHENFOLGE entscheidet', () => {
+  /**
+   * Die drei anderen Bosse der Instanz verlangen je **eine** Handlung. Dieser
+   * verlangt eine **Reihenfolge**: Ab 8 s zehrt ein Gift, ab 10 s läuft ein
+   * Fenster, und ab 11 s beginnt ein Zauber mit 2200 Schaden.
+   *
+   * QUENCH bedient beides — er klärt das Gift **und** unterbricht. Bei fünf
+   * Sekunden Wartezeit reicht er nicht für beides.
+   *
+   * **Der Preis ist die Wartezeit, nicht der GCD.** Ein früherer Entwurf
+   * wollte die Wahl stellen, *wen* man unterbricht; das scheiterte, weil
+   * QUENCH `triggersGcd: false` trägt und blindes Drücken damit gratis ist.
+   * Ohne Preis für die falsche Antwort gibt es keine Wahl.
+   */
+  function reihenfolge(art: 'nichts' | 'gift' | 'zauber'): { zustand: number; hp: number } {
+    const b = boss('boss-2-2');
+    const c = new Combat({ school: CALCINATION.value, boss: b });
+    const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
+    for (let t = 0; t <= 60_000; t += 10) {
+      c.stepPassive(t);
+      if (c.checkDefeat(t)) return { zustand: c.fightState, hp: c.playerHp };
+      if (art === 'gift' && c.afflicted && c.isOffCooldown(i('quench'), t)) {
+        c.cast(i('quench'), t);
+        continue;
+      }
+      if (art === 'zauber' && c.casting !== -1 && c.isOffCooldown(i('quench'), t)) {
+        c.cast(i('quench'), t);
+        continue;
+      }
+      if (!c.gcd.isReady(t)) continue;
+      if (!c.isDotActive(i('smoulder'), t) && c.isOffCooldown(i('smoulder'), t))
+        c.cast(i('smoulder'), t);
+      else if (c.resource >= 15 && c.isOffCooldown(i('pyre'), t)) c.cast(i('pyre'), t);
+      else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
+    }
+    return { zustand: c.fightState, hp: c.playerHp };
+  }
+
+  it('wer QUENCH gar nicht nutzt, stirbt', () => {
+    expect(reihenfolge('nichts').zustand).toBe(FIGHT_DIED);
+  });
+
+  it('DIE FALSCHE REIHENFOLGE TÖTET — zuerst reinigen heißt, den Zauber durchzulassen', () => {
+    // Der eigentliche Nachweis. Ohne ihn wäre es ein Boss mit zwei
+    // Anforderungen, nicht einer mit einer Entscheidung.
+    expect(reihenfolge('gift').zustand).toBe(FIGHT_DIED);
+  });
+
+  it('die richtige gewinnt — erst unterbrechen, das Gift danach', () => {
+    const r = reihenfolge('zauber');
+    expect(r.zustand).toBe(FIGHT_WON);
+    expect(r.hp, 'der Sieger ist tot').toBeGreaterThan(0);
+  });
+});
