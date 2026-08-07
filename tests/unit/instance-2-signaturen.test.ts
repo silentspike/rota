@@ -76,3 +76,53 @@ describe('boss-2-1 — ohne Reinigung verliert man', () => {
     ).toBeGreaterThan(50);
   });
 });
+
+describe('boss-2-3 — das umgekehrte Ziel: wer nicht stabilisiert, verliert', () => {
+  /**
+   * Der erste Kampf im Spiel, den **Koagulation entscheidet**.
+   *
+   * Beide Ausgänge sind umgekehrt (GAME-DESIGN 11.2, Baustein 6): Ein voller
+   * Ring ist die Niederlage, der Sieg ist das Überstehen der Frist.
+   *
+   * **Der Spieler treibt den Ring mit.** `bookProgress` erhöht denselben
+   * Zähler für Spieler und Boss — eine reine Schadensrotation verliert
+   * deshalb früher als eine sparsame (30040 ms gegen 37000 ms). Zurückdrängen
+   * geht nur über `stabilise()`, das Schild und Heilung aufrufen.
+   *
+   * Ein erster Entwurf nannte als Signatur „wer nicht schneller ist,
+   * verliert". Das war genau verkehrt.
+   */
+  function ausgangRing(art: 'ohne' | 'crust'): { zustand: number; ring: number; stab: number } {
+    const b = boss('boss-2-3');
+    const c = new Combat({ school: CALCINATION.value, boss: b });
+    const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
+    let hoechster = 0;
+    for (let t = 0; t <= 60_000; t += 10) {
+      c.stepPassive(t);
+      hoechster = Math.max(hoechster, c.damageDealt / b.hp);
+      if (c.checkDefeat(t)) return { zustand: c.fightState, ring: hoechster, stab: c.stabilised };
+      if (!c.gcd.isReady(t)) continue;
+      if (art === 'crust' && c.shield <= 0 && c.isOffCooldown(i('crust'), t)) c.cast(i('crust'), t);
+      else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
+    }
+    return { zustand: c.fightState, ring: hoechster, stab: c.stabilised };
+  }
+
+  it('WER NICHT STABILISIERT, VERLIERT — die Reaktion kippt', () => {
+    const r = ausgangRing('ohne');
+    expect(r.stab, 'ohne Koagulation darf nichts stabilisiert werden').toBe(0);
+    expect(r.zustand, 'ohne Stabilisierung wird der Kampf gewonnen').not.toBe(FIGHT_WON);
+    expect(r.ring, 'der Ring läuft nicht voll — dann fordert die Signatur nichts').toBeGreaterThan(
+      1,
+    );
+  });
+
+  it('wer die Schicht legt, hält den Ring und übersteht die Frist', () => {
+    const r = ausgangRing('crust');
+    expect(r.stab, 'CRUST stabilisiert nicht — dann prüft der Fall nichts').toBeGreaterThan(0);
+    expect(r.zustand).toBe(FIGHT_WON);
+    // **Die eigentliche Aussage:** Der Ring bleibt unter 100 %. Ein Sieg mit
+    // vollem Ring wäre keiner — bei diesem Boss ist das die Niederlage.
+    expect(r.ring, 'der Ring lief voll und der Kampf gilt trotzdem als gewonnen').toBeLessThan(1);
+  });
+});
