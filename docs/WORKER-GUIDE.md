@@ -3796,3 +3796,123 @@ Und bei jeder Fehlt-Meldung, zusätzlich zu 8.49:
 
 - **Zu klein?** Gibt es einen Ort, an dem es aus architektonischen Gründen liegen müsste?
 - **Zu groß?** Kann die Ausgabe von etwas stammen, das mir gar nicht gehört?
+
+### 8.51 Der Filter erzeugt das Ergebnis
+
+An einem Abend dreimal, in drei Sitzungen, mit drei verschiedenen Werkzeugen:
+
+| Befehl                             | gemeldet                  | tatsächlich                 |
+| ---------------------------------- | ------------------------- | --------------------------- |
+| `ls sim/apl/*.apl \| head -8`      | drei Rotationen fehlen    | sie waren da, Position 9–11 |
+| `grep … \| head -12`               | null Treffer im Testmodul | **acht**                    |
+| `jq '…\|select(.name=="ci-pass")'` | Check fehlt               | er stand auf `pass`         |
+
+Keiner dieser Befehle ist fehlgeschlagen. Jeder hat eine Ausgabe geliefert, die plausibel aussah —
+und jeder hat einen Teil der Wahrheit vor der Messung abgeschnitten.
+
+> Die schärfste Formulierung dazu (Worker-2, nachdem seine zweite Messung acht sagte statt null):
+>
+> **„Die Schlussfolgerung stimmte, der Beleg war falsch."**
+
+Das ist der gefährliche Fall: Wer das Richtige aus einem falschen Beleg schließt, hat keinen Anlass
+nachzusehen.
+
+#### Woran man es erkennt
+
+`head`, `-m`, `--max-count`, ein `select` im `jq`, ein `[:10]` in Python — alles, was **kürzt**,
+gehört nicht in eine Messung, deren Ergebnis eine **Zahl** oder ein **Fehlt** ist. Es gehört in die
+Anzeige, wenn die Zahl schon feststeht:
+
+```bash
+grep -c muster datei              # zählt, dann anzeigen
+grep muster datei | head -5       # zeigt fünf, sagt nichts über die Menge
+```
+
+**Die Prüffrage:** Wenn hier doppelt so viele Treffer wären — sähe die Ausgabe anders aus? Wenn
+nein, misst der Filter und nicht das Werkzeug.
+
+### 8.52 Ein Werkzeug-Befund, der beim Finder bleibt, wird neu erarbeitet
+
+Zwei Sitzungen sind an derselben Stelle gescheitert, im Abstand von einer Stunde:
+
+```
+--apl apl/step517-mit.apl      "ist nicht lesbar: No such file or directory"
+--apl apl/efflux-probe.apl     dieselbe Meldung
+```
+
+Beide stellten dieselbe Diagnose — _„cargo remote überträgt die Datei nicht mit"_ — und beide lagen
+falsch. Der Läufer startet im **Workspace-Root**, der Pfad muss `sim/apl/…` lauten. Die
+Fehlermeldung nennt genau den übergebenen Pfad und sieht deshalb aus wie ein Sync-Problem.
+
+**Der erste Fall wurde aufgeklärt und die Aufklärung ging an eine Sitzung.** Sie stand in deren
+Übergabe — nicht im Guide, nicht in einer Nachricht an die anderen. Beim zweiten Mal kostete es
+zwanzig Minuten und zwang ein Kriterium auf einen anderen Messweg.
+
+> Das ist die Klasse aus 8.48 und 8.49 eine Ebene höher: Dort ging ein **Messergebnis** an der
+> falschen Stelle verloren, hier ein **Werkzeug-Wissen**. Der Unterschied: Ein Messergebnis
+> veraltet, ein Werkzeug-Befund nicht — er trifft jeden, der das Werkzeug das nächste Mal anfasst.
+
+#### Die drei Aufrufe, damit es kein drittes Mal gibt
+
+```bash
+cargo remote -c --manifest-path sim/Cargo.toml -- test --no-fail-fast
+cargo remote -c --manifest-path sim/Cargo.toml -- clippy --all-targets -- -D warnings
+cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+  --example balance -- --apl sim/apl/DATEI.apl --boss test-metronome --iterations 200 --json
+```
+
+`--manifest-path` statt `cd sim` ist dabei kein Stil, sondern eine Gegenmaßnahme: **Der Weg hin
+(`cd sim`) und der Weg zurück (nichts) sind asymmetrisch** — deshalb hilft die Erinnerung nicht.
+Ohne Weg hin gibt es nichts zu vergessen.
+
+`--help` kennt der Läufer inzwischen; vorher kam die Nutzungszeile **nur als Fehlermeldung**, wer
+sie suchte, musste erst danebengreifen.
+
+### 8.53 Eine Aufzeichnung ohne Gegenstück ist eine Behauptung ohne Prüfung
+
+Drei Aufzeichnungen lagen unter `recordings/`, wurden vom Export erzeugt, von der Frische-Liste
+geprüft — und von **keinem** Rust-Fall gelesen.
+
+```
+Aufzeichnungen                              39
+von einem Rust-Fall geladen (include_str)   37
+```
+
+Sie belegen, dass das Spiel mit sich selbst übereinstimmt, und über die Parität **nichts**.
+
+#### Warum keiner der bestehenden Wächter das sieht
+
+| Wächter     | prüft                         | sieht nicht          |
+| ----------- | ----------------------------- | -------------------- |
+| `coverage`  | wird der Zauber **gedrückt**? | ob jemand vergleicht |
+| `freshness` | ist die Datei **aktuell**?    | ob jemand vergleicht |
+
+**Beide sind grün, und keiner prüft, wozu die Aufzeichnung gebaut wurde.**
+
+Bei einer der drei verdeckte das einen **echten** Paritätsbruch: Rust zog für Umwandlungs-Zauber
+keinen Krit-Wurf, `fixation-spells.json` wirkt WEDGE und CAPSTONE, und nichts wurde rot — weil
+niemand die Datei nachspielt.
+
+> Die Frage hatte zwei Antworten vorgesehen: entweder ist sie bit-ungleich (dann warum grün?), oder
+> der Fehler wird nie gefahren. Es war die dritte: **Der Fehler wird gefahren, und niemand
+> vergleicht.**
+
+#### Und dieselbe Lücke stand schon einmal da
+
+Der Kopf von `parity_cinder.rs` zitiert den Befund aus **#456**:
+
+> _„synergy-window.json stand seit #318 da und in keinem Fall. Eine Aufzeichnung ohne Gegenstück
+> sieht aus wie Absicherung und ist keine."_
+
+Jemand hat die Gefahr gesehen, beschrieben — und keinen Wächter daraus gemacht. Ein halbes Jahr
+später stand sie dreimal wieder da.
+
+#### Die Regel
+
+**Wer eine Aufzeichnung anlegt, legt eine Behauptung an.** Eine Behauptung ohne Prüfung ist keine.
+
+Und der Grund, warum es beim Anlegen nicht auffällt (Worker-1, über seine eigene Lücke):
+
+> „Bei EFFLUX habe ich den Paritätstest gebaut, weil ich eine Parität **erwartete** — er rechnet
+> etwas Neues auf beiden Seiten. CLASP, LATCH und PLATE sind Datenarbeit, sie rechnen nichts Neues,
+> also habe ich nicht daran gedacht. Die Lehre ist nicht ‚auch bei Datenarbeit daran denken'."
