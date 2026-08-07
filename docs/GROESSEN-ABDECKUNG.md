@@ -382,3 +382,43 @@ Das Ergebnis war zu gleichförmig. Zehn von zehn Zaubern nie gedrückt, sechs vo
 sechs Größen „SCHWEIGT", 39 von 39 Aufzeichnungen ohne Heilung. Eine Liste, in
 der alle Zeilen gleich aussehen, ist verdächtig — auch wenn das Ergebnis zur
 Erwartung passt.
+
+---
+
+## Nachtrag 2026-08-07 (#592): die zehn teuersten Lücken sind geschlossen
+
+Aus **39 Lücken** werden **29**. Geschlossen wurde nach Hebel, nicht
+alphabetisch — wer bei 72,58 % anfängt, sichert mit drei Fällen mehr ab als mit
+zehn kleinen.
+
+| Hebel   | Größe                     | Träger      | Prüffall                          |
+| ------- | ------------------------- | ----------- | --------------------------------- |
+| 72,58 % | `dot.tickIntervalMs`      | searing     | `dot-groessen.test.ts`            |
+| 56,00 % | `conversion.sharePercent` | temper      | `umwandlung-groessen.test.ts`     |
+| 50,00 % | `heal.amount`             | salve       | `heilung-schild-groessen.test.ts` |
+| 50,00 % | `conversion.durationMs`   | temper      | `umwandlung-groessen.test.ts`     |
+| 48,13 % | `dot.tickIntervalMs`      | cinder      | `dot-groessen.test.ts`            |
+| 33,87 % | `dot.tickDamage`          | searing     | `dot-groessen.test.ts`            |
+| 33,33 % | `shield.amount`           | scab        | `heilung-schild-groessen.test.ts` |
+| 24,11 % | `buff.gcds`               | quicksilver | `umwandlung-groessen.test.ts`     |
+| 24,11 % | `buff.factor`             | quicksilver | `umwandlung-groessen.test.ts`     |
+| 23,26 % | `dot.tickDamage`          | cinder      | `dot-groessen.test.ts`            |
+
+**Der Nachweis ist das Werkzeug, nicht die Behauptung.**
+`tools/groessen-mutation.py` meldet für alle zehn jetzt `geschuetzt (…)` statt
+`NUR FRISCHE`.
+
+### Was dabei zweimal fast schiefging
+
+Beide Male hätte der Prüffall **grün** dagestanden und nichts geprüft:
+
+- **SALVE bei vollem Leben heilt null.** Gegen den Standard-Boss fällt in zehn
+  Sekunden kein Schaden, gegen `test-caster` genau 96 — und die Heilung deckte
+  96 statt 1500 ab, weil mehr nicht fehlte. Bei `heal.amount 1500 → 750` wäre
+  der Fall grün geblieben. Deshalb steht als eigener Fall daneben: Es müssen
+  mindestens 1500 fehlen.
+- **TEMPER wandelt AUSGETEILTEN Schaden um**, nicht erlittenen. Ein erster
+  Entwurf ließ den Spieler 1600 Schaden nehmen und bekam `converted: 0`.
+
+Beides ist dieselbe Klasse wie die Standardoptionen aus #576: **Ohne die
+richtige Lage misst ein Fall nichts und ist trotzdem grün.**

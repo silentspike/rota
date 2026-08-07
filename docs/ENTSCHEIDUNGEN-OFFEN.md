@@ -971,3 +971,70 @@ verschiebt sich, und die Begründung dafür stammt von Worker-1:
 
 Das macht aus einer allgemeinen Sorge eine terminierte: **Das Netz muss stehen, bevor die
 Balance-Arbeit beginnt** — nicht danach.
+
+---
+
+## 18. „Tempo" ist heute keine spielbare Entscheidung — OFFEN
+
+_Aufgenommen am 2026-08-07, gemessen beim Bau der zweiten Instanz (#598)._
+
+### Der Befund
+
+Die Schadensrate des Spielers ist über alle bekannten Kämpfe nahezu konstant:
+
+```
+boss-2-3 volle Rotation   5488 Schaden in 52,6 s = 104,4/s
+boss-1-1 mit quench       5200 Schaden in 51,1 s = 101,8/s
+boss-1-3                  5800 Schaden in 57,0 s = 101,7/s
+boss-1-4 mit quench       4900 Schaden in 55,5 s =  88,3/s
+```
+
+**Vier verschiedene Bosse, vier Rotationen, vier Signaturen — eine Zahl.**
+
+### Was daran hängt
+
+`boss-2-2` sollte die Entscheidung stellen, die GAME-DESIGN als Kern der Koagulations-Schule
+nennt: _„Auf hohen Schwierigkeitsstufen muss man Leisten-Plätze dafür opfern — echte Abwägung
+Schaden gegen Sicherheit."_
+
+Gemessen über vier Parametrierungen ist es keine Abwägung. Worker-3s Einordnung:
+
+> Beide Läufe fahren **dieselbe** Rotation. Der eine setzt zusätzlich CRUST, der andere nicht.
+> Der zweite hat also keinen Vorteil — er ist nicht schneller, sondern nur ungeschützt.
+>
+> Echtes Tempo hieße: eine Rotation, die **mehr** Schaden macht und deshalb früher fertig ist.
+> **Die gibt es nicht.**
+
+Für den Tempo-Weg an `boss-2-2` wären 352/s nötig. Der Zauberkasten gibt ein Drittel her.
+
+### Warum das eine Design-Frage ist und keine Balance-Zahl
+
+Es fällt eine der **drei Antworten** weg, die GAME-DESIGN 11.1 für jede Boss-Mechanik verlangt:
+
+> Ein Boss-Zauber lässt sich unterbrechen, **oder** durch Fixierung verlangsamen, **oder** durch
+> Koagulation aushalten. Kein Boss verlangt eine bestimmte Schule.
+
+Solange die Rate konstant ist, bleiben zwei Antworten statt drei — und jeder Boss, der eine
+Abwägung stellen soll, stellt eine Scheinwahl.
+
+**Die konstante Rate ist kein Fehler, sondern eine Folge:** Bei 1,5 s globaler Wartezeit und
+ganzzahligen Abklingzeiten füllt jede halbwegs vernünftige Rotation den Takt. GAME-DESIGN
+verlangt an anderer Stelle, dass eine **schlechte** Rotation mindestens 10 % weniger Schaden
+macht — das ist erfüllt und war der Prüfstein des Prototyps. Für eine Tempo-**Entscheidung**
+bräuchte es das Drei- bis Vierfache dieses Abstands.
+
+### Die Frage
+
+**Soll es Zusammenstellungen geben, die deutlich schneller sind als andere — und dafür
+zerbrechlicher?**
+
+|          |                                                                                                                                                                                                                                    |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ja**   | Dann braucht der Zauberkasten Zauber mit hohem Schaden und hohem Preis: lange Wirkzeit, hohe Abklingzeit, kein Schutz nebenher. Erst dann wird „Tempo gegen Sicherheit" eine echte Wahl, und Bosse wie `boss-2-2` sind baubar      |
+| **Nein** | Dann ist die Entscheidung eine andere — etwa zwischen Schulen, nicht zwischen Geschwindigkeiten. Dann gehört der Satz aus 13.5 („echte Abwägung Schaden gegen Sicherheit") umformuliert, und Bosse werden nicht mehr darauf gebaut |
+
+### Was bis dahin gilt
+
+`stacks` als Träger ist zurückgestellt (#574 nimmt stattdessen `timeline`). Kein Boss wird auf
+einer Abwägung gebaut, die es nicht gibt — das wäre die Kulisse in ihrer teuersten Form: nicht
+ein Feld ohne Wirkung, sondern eine **Anforderung ohne Alternative**.
