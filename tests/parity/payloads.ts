@@ -3802,3 +3802,17 @@ export function kritPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+/**
+ * Derselbe Lauf ohne Krit-Chance — nur für die Zusicherung in
+ * `coverage.test.ts` (Issue #532).
+ *
+ * Er wird **nicht** eingecheckt: Es ist kein Paritäts-Nachweis, sondern der
+ * Vergleichswert, an dem sich zeigt, ob im Krit-Lauf überhaupt ein Krit fällt.
+ */
+export function kritPayloadOhneChance(): Record<string, unknown> {
+  const ohne = { ...WORN_FOR_PARITY, purity: 0 };
+  const recording = recordKrit(3000);
+  const result = replayRecording(recording, { worn: ohne });
+  return { expected: { damage: result.damage } };
+}
