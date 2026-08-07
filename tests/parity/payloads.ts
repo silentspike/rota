@@ -4096,6 +4096,107 @@ export function extendEffectsPayload(): Record<string, unknown> {
   };
 }
 
+/** Der Name der Aufzeichnung, in der ROT gewirkt wird. */
+export const ROT_NAME = 'rot-decay';
+
+/** Die Leiste dieser Aufzeichnung. */
+const ROT_BINDINGS = [
+  { slot: 0, spellId: 'rot' },
+  { slot: 1, spellId: 'canker' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * ROT im Paritäts-Weg (Issue #498, AC5 und AC7).
+ *
+ * # Warum es diese Aufzeichnung braucht
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber in einem
+ * Paritäts-Weg **gewirkt** wird — sonst gilt seine Bitgleichheit als
+ * angenommen. ROT ist nach dieser Änderung der einzige ungedeckte Zauber
+ * (gemessen: der Wächter nennt genau ihn).
+ *
+ * # Warum ROT eine eigene lohnt, statt ihn irgendwo mitlaufen zu lassen
+ *
+ * Er ist der erste Zauber, der Zersetzungs-Stapel **ohne Tastendruck** legt.
+ * Das trifft zwei Rechenwege, an die keine bestehende Aufzeichnung heranreicht:
+ *
+ *   `decayPerTick`        ein Stapel je Tick, viermal in vier Sekunden
+ *   das Nachrücken        `decayExpiryMs` wird viermal schneller gefüllt als
+ *                         von jedem bisherigen Zauber
+ *
+ * # CANKER ist kein Füller, sondern der zweite Weg
+ *
+ * KINDLE füllt die Wartezeiten; CANKER steht aus einem anderen Grund darin. Er
+ * legt Stapel per **Druck**, ROT per **Tick**.
+ *
+ * **Nicht, weil ROT allein die Obergrenze verfehlte** — das war meine
+ * Annahme beim Schreiben dieser Zeilen, und sie ist gemessen falsch: ROT
+ * erreicht die fünf Plätze auch ohne ihn. Bei 4 s Laufzeit und 4 s Abklingzeit
+ * tickt er durchgehend, also ein Stapel je Sekunde, während der Verfall erst
+ * nach zwölf greift.
+ *
+ * Was CANKER wirklich beiträgt, ist der **Andrang**: Mit ihm treffen in
+ * denselben Takten Stapel aus zwei Quellen ein, und der Lauf steht 1800 statt
+ * 1500 Takte am Anschlag. Dort wird mehr angeboten als Platz ist — genau die
+ * Stelle, an der zwei Umsetzungen sich unterscheiden können, weil sie
+ * verschieden entscheiden könnten, was dann fallen gelassen wird.
+ *
+ * # Die Länge ist gerechnet, nicht geraten
+ *
+ * 3000 Takte sind 30 s. Ein Stapel verfällt nach 12 s, und der Lauf muss über
+ * den ersten Verfall **hinaus** gehen: Vorher prüft er nur das Füllen, danach
+ * auch das Nachrücken. Bei 12 s wäre er genau an der Kante zu Ende.
+ */
+function recordRot(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const rot = combat.indexOf('rot');
+  const canker = combat.indexOf('canker');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, ROT_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // ROT hat Vorrang, damit der Brand durchgehend läuft und die Ticks nicht
+    // aussetzen — sonst wäre es ein CANKER-Lauf mit gelegentlichen Stapeln.
+    if (combat.isOffCooldown(rot, timeMs)) press(rot, tick, timeMs);
+    else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: ROT_NAME, seed: 0, ticks, presses, bindings: ROT_BINDINGS };
+}
+
+export function rotPayload(): Record<string, unknown> {
+  const recording = recordRot(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: ROT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const EFFLUX_NAME = 'efflux-restzeit';
 
 /** Die Leiste dieser Aufzeichnung. */

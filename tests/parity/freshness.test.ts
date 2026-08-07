@@ -75,6 +75,7 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
@@ -120,6 +121,7 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   cinderPayload,
+  rotPayload,
   dotLifetimePayload,
   extendEffectsPayload,
   kernePayload,
@@ -211,6 +213,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
   });
 
+  it('die Fäulnis über Zeit entspricht dem heutigen Spielstand', () => {
+    // ROT ist der einzige Zauber, der Zersetzungs-Stapel OHNE Tastendruck legt
+    // (Issue #498) — veraltet die Datei, ist der Nachweis dafür weg, dass das
+    // Legen je Tick auf beiden Seiten gleich rechnet.
+    expect(eingecheckteFaeulnis, HINWEIS).toEqual(rotPayload());
+  });
   it('die Fäulnis-Füller entsprechen dem heutigen Spielstand', () => {
     // BLIGHT wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #479).
@@ -598,6 +606,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'kern-zauber',
   'efflux-restzeit',
   'krit-umwandlung',
+  'rot-decay',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {
