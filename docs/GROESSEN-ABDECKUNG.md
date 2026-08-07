@@ -97,7 +97,11 @@ sind keine Luecke).
 
 ---
 
-## Die zwölf Schweiger
+## Die Schweiger: zwölf im Lauf vom 2026-08-06, elf seit dem 2026-08-07
+
+Die Kopftabelle oben zeigt den Stand des Laufs (12). Seither hat
+`griplock.buff.kind` die Seite gewechselt — nachgemessen, siehe unten. Die
+Abschnitte hier zählen deshalb sechs plus fünf.
 
 ### Sechs gehören zu #547
 
@@ -110,10 +114,24 @@ sind keine Luecke).
 | `shield.durationMs`      | scab      | 8000 → 4000 |
 | `spender.bonusThreshold` | pyroclasm | 15 → 7      |
 
-### Sechs sind heute unprüfbar — und zählen NICHT als Lücke
+### Fünf sind heute unprüfbar — und zählen NICHT als Lücke
 
-`buff.kind` bei allen sechs Trägern (slag, flashpoint, quicksilver, distil,
-griplock, virulence).
+`buff.kind` bei fünf seiner sechs Träger: slag, flashpoint, quicksilver,
+distil, virulence.
+
+> **`griplock` ist seit dem 2026-08-07 heraus.** Worker-2s Fall in #555 stellt
+> die Lage her, die dem Feld dort gefehlt hat. Nachgemessen mit dem
+> Mutations-Werkzeug, nicht übernommen:
+>
+> ```text
+> buff.kind  griplock  0 -> 1  geschuetzt [1 Prueffall]
+>                              (buff-ersetzung-ueber-zauber.test.ts)
+> ```
+>
+> Genau **ein** tragender Fall — dieselbe dünne Stelle wie
+> `quicksilver.buff.target`. Fällt er weg, ist das Feld wieder dort, wo es
+> vorher stand, und diese Tabelle ist wieder richtig, ohne dass jemand sie
+> anfasst.
 
 `kind` ist der Platz **innerhalb** eines Verstärkungs-Speichers; zwei
 Verstärker mit gleichem `target` **und** gleichem `kind` verdrängen einander.
@@ -134,6 +152,15 @@ im selben Speicher**.
 > entscheidend ist nicht ihre Zahl, sondern dass jeder allein in _seinem_
 > Speicher sitzt.
 
+> **Die Kopfzahlen dieses Dokuments (39 Lücken, von 68) stammen aus dem Lauf
+> vom 2026-08-06 und sind NICHT nachgezogen.** Zwei Dinge haben sich seither
+> bewegt: `griplock.buff.kind` ist von „unprüfbar" nach „geschützt" gewandert,
+> und der Bestand umfasst seit #633 **90** Paare statt 68 — die Textfelder
+> kamen dazu. Für die neuen Zahlen bräuchte es einen vollständigen Neulauf
+> (90 Suite-Läufe, rund 45 Minuten); er ist nicht gefahren. Hier steht
+> deshalb nur, was gemessen wurde, und nicht, was sich daraus fortschreiben
+> ließe.
+
 ### Warum die sechs echten Lücken verschieden teuer sind
 
 Gemessen wurde für jeden Schweiger, ob sein Zauber in einer Aufzeichnung
@@ -143,7 +170,7 @@ Gemessen wurde für jeden Schweiger, ob sein Zauber in einer Aufzeichnung
 | ---------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
 | ~~keine Aufzeichnung~~ | ~~control.amountMs/stall, shield.durationMs/scab~~                                                  | **Widerlegt am 2026-08-07** — siehe unten.                              | —                                                  |
 | **keine Lage**         | control.amountMs/latch, control.cost/capstone, control.cost/wedge, spender.bonusThreshold/pyroclasm | Der Zauber **wird** gewirkt, aber sein Betrag ändert am Ausgang nichts. | eine Aufzeichnung, die die **Situation** herstellt |
-| **heute unprüfbar**    | buff.kind, alle sechs Träger                                                                        | Die Lage, in der die Größe entscheidet, gibt es im Bestand nicht.       | nichts — siehe oben und #555                       |
+| **heute unprüfbar**    | buff.kind, fünf der sechs Träger (nicht griplock)                                                   | Die Lage, in der die Größe entscheidet, gibt es im Bestand nicht.       | nichts — siehe oben und #555                       |
 
 Die Belege für die zweite Sorte:
 
