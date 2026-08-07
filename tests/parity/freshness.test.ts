@@ -37,6 +37,7 @@ import eingecheckterWettlauf from './recordings/race-heal.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
+import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -72,6 +73,7 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteKerne from './recordings/kern-zauber.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -81,6 +83,7 @@ import {
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
+  wispPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -109,6 +112,7 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   cinderPayload,
+  kernePayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -168,6 +172,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
   });
 
+  it('die Kern-Zauber entsprechen dem heutigen Spielstand', () => {
+    // CLASP, LATCH und PLATE werden nur hier gewirkt — veraltet die Datei,
+    // ist der einzige Paritäts-Nachweis für alle drei weg (Issue #519).
+    expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
+  });
+
   it('die Fäulnis-Füller entsprechen dem heutigen Spielstand', () => {
     // BLIGHT wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #479).
@@ -224,6 +234,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('WISPs Verkürzung entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterWisp, HINWEIS).toEqual(wispPayload());
   });
 
   it('der Kampf mit eingehendem Schaden entspricht dem heutigen Spielstand', () => {
@@ -515,6 +529,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'trial-blocks',
   'timeline-loop',
   'sublimation',
+  'wisp-verkuerzung',
   'gear',
   'sets',
   'player-damage',
@@ -535,6 +550,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'cinder-ticks',
+  'kern-zauber',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

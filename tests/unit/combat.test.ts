@@ -34,30 +34,66 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'kindle',
       'smoulder',
       'pyre',
+      // Issue #268 — bei ihrer Schule statt hinten. Die Begruendung steht in
+      // spell-school.test.ts: Die Hinten-anfuegen-Regel schuetzte davor, dass
+      // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
       'bellows',
       'searing',
-      // Issue #477 — der kurze Brand, ebenfalls bei seiner Schule. Seit
-      // 2026-08-06 ist das der vorgesehene Ort: Ein Zauber am Ende der
-      // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
-      // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
+      // Issue #479 — CINDER, am Ende von `calcination.json` und deshalb hier.
       'cinder',
       'quench',
+      // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
+      // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
       'crust',
       'salve',
       'temper',
+      // Issue #481 — SCAB, bei seiner Schule. Er steht am Ende von
+      // `coagulation.json`, also hier direkt hinter TEMPER. Die
+      // Umstellung geschieht nicht still, sondern hier und in
+      // `spell-order.json` sichtbar (wie #268, #479).
+      'scab',
+      'plate',
+      // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
       'stay',
       'anchor',
+      // Issue #478 — die drei Zielgrößen-Zauber der Fixierung. Sie stehen am
+      // Ende von `fixation.json` und deshalb hier hinter ANCHOR.
       'wedge',
       'tether',
       'capstone',
+      // Issue #519 — CLASP (zweiter Punktesammler) und LATCH (Verteidigung),
+      // ebenfalls bei ihrer Schule und deshalb dahinter. Ihr jeweiliger Zusatz
+      // fehlt noch und steht als Grund im `_comment` des Zaubers, nicht hier.
+      'clasp',
+      'latch',
+      // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
+      //
+      // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
+      // diesem Issue abgeleitet habe, IST hier die Reihenfolge die Aussage:
+      // Sie bestimmt die Indizes, und die stehen in jeder aufgezeichneten
+      // Runde. Wer einen Zauber dazwischenschiebt, muss das hier sehen.
       'vapour',
       'reflux',
+      'wisp',
+      // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
+      // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
+      // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
       'blight',
+      // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
+      // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
+      // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
+      // Liste steht er trotzdem: Sie ist der Index-Raum, und der ist für
+      // Aufzeichnungen und Simulator derselbe.
       'test-cast',
+      // **Die sieben Prüf-Zauber der Zielgrößen** (Issue #502). Einer je
+      // `BuffTarget` — sie stehen hier aus demselben Grund wie `test-cast`:
+      // Sie gehören nicht zum Spiel (Stufe über der Grenze), aber sie belegen
+      // Plätze im Index-Raum, und der ist für Aufzeichnungen und Simulator
+      // derselbe.
       'test-buff',
       'test-control',
       'test-heat',

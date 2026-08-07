@@ -20,23 +20,26 @@
  * wird ein Wunsch abgelehnt, springt die Liste zurück, statt einen Zustand zu
  * zeigen, den der nächste Kampf nicht kennt.
  *
- * WAS HIER (NOCH) NICHT STEHT: DER VERGLEICH
- * ------------------------------------------
+ * DER VERGLEICH — SEIT #455 MIT EINGABE
+ * -------------------------------------
  * GAME-DESIGN 13.6 verlangt, dass jeder Fund zeigt, ob er besser ist als das
- * Getragene. `compareItems` ist fertig (`src/loot/compare.ts`) — aber es nimmt
- * zwei **fertige DPS-Schätzungen** entgegen, und die Quelle dafür gibt es
- * nicht: Die Skalierungsfaktoren kommen aus dem Balance-Läufer (#118) und
- * stehen aus. Der einzige Aufrufer heute ist ein Dev-Werkzeug mit erfundenen
- * Zahlen.
+ * Getragene. `compareItems` war fertig und hatte keine Eingabe; sie steht jetzt
+ * in `src/loot/estimate.ts` und rechnet mit der **echten** Wertformel über die
+ * ganze getragene Ausrüstung.
  *
- * Eine Platzhalter-Zahl wäre schlimmer als keine Angabe: Der Spieler liest sie
- * als Messung, und genau davor warnt die Auflage in `compare.ts` („Ein
- * Spieler, der sie für exakt hält, trifft falsche Entscheidungen"). Die
- * Beutel-Zeile lässt deshalb Platz dafür — angezeigt wird nichts.
+ * **Was hier NICHT passiert: eine Platzhalter-Zahl.** Sie wäre schlimmer als
+ * keine Angabe, weil der Spieler sie als Messung liest — davor warnt die
+ * Auflage in `compare.ts`. Angezeigt wird deshalb nur, was gerechnet wurde,
+ * und mit beiden Merkmalen der Näherung: dem Zeichen `~` und dem Zusatz in
+ * Worten.
+ *
+ * Die Grenze der Näherung steht an der Rechenstelle (`estimate.ts`), nicht
+ * hier: Sie sieht CATALYSIS nicht, weil Tempo über die Rotation wirkt.
  *
  * Alle Spieltexte englisch (Design-Gesetz 5).
  */
 import { itemById, type OwnedItemLike } from '../gear/catalog.js';
+import { compareBagItem } from '../loot/estimate.js';
 import { equippedBySlot } from '../gear/equip.js';
 import { SLOT_COUNT, SLOT_NAMES } from '../gear/slots.js';
 
@@ -171,6 +174,21 @@ export function buildGearView(options: GearViewOptions): HTMLElement {
     zeile.dataset.index = String(index);
     const def = itemById(besitz.itemId);
     if (def !== undefined) zeile.dataset.slot = String(def.slot);
+
+    // Der Vergleich (13.6, Issue #455). **Beide Merkmale der Näherung stehen
+    // da** — das Zeichen im Text und der Zusatz in Worten als `title`; ein
+    // Zeichen allein wird übersehen, ein Wort allein überlesen (#114).
+    const urteil = compareBagItem(options.items, index);
+    if (urteil !== undefined) {
+      const marke = element('span', 'gear-bag-compare', urteil.text);
+      marke.title = urteil.caveat;
+      // Die Richtung steht als Merkmal daneben, nicht nur als Farbe: Wer
+      // Farben nicht unterscheidet, liest sonst nur eine Zahl.
+      marke.dataset.verdict =
+        urteil.verdict > 0 ? 'better' : urteil.verdict < 0 ? 'worse' : 'equal';
+      zeile.appendChild(document.createTextNode(' '));
+      zeile.appendChild(marke);
+    }
     rechts.appendChild(zeile);
   }
 

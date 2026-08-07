@@ -41,6 +41,36 @@
         "sharePercent": 25,
         "durationMs": 10000
       }
+    },
+    {
+      "_comment": "SCAB — der erste Zauber dieser Schule MIT SCHADEN (Raster 1 von 9, Issue #481).\n\nWARUM DAS ZAEHLT: COAGULATION hatte bis hierher keinen einzigen Zauber mit Schaden. Wer sie mitnimmt, gibt Leistenplaetze auf und bekommt dafuer nur Ueberleben. Das ist laut GAME-DESIGN gewollt ('echte Abwaegung Schaden gegen Sicherheit'), aber drei reine Verteidigungszauber sind die harte Fassung davon. SCAB ist der Fueller, der die Schule spielbar macht, ohne die Abwaegung aufzuheben.\n\nDIE DUENNE SCHICHT IST DIE AUSSAGE: 200 gegen CRUSTs 900. Er baut Schutz NEBENHER auf, waehrend er Schaden macht — wer die dicke Schicht will, druckt weiter CRUST. Bei 1500 ms Abklingzeit laeuft er faktisch am GCD, also ist die Summe ueber die Zeit betraechtlich; die Obergrenze aus maxStacks deckelt sie.\n\nWENIGER SCHADEN ALS EIN CALCINATION-FUELLER: Er zahlt fuer die Schicht. Waere er gleich stark, waere er der bessere Fueller UND ein Schutz.\n\nSTUFE 3, NICHT 1: Die Schule beginnt mit ihren drei Wegen (crust, salve, temper); SCAB kommt danach. ALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",
+      "id": "scab",
+      "name": "Scab",
+      "unlockLevel": 3,
+      "baseDamage": 45,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "shield": {
+        "amount": 200,
+        "durationMs": 8000,
+        "maxStacks": 3
+      }
+    },
+    {
+      "id": "plate",
+      "name": "Plate",
+      "_comment": "PLATE — die grosse Schicht (Issue #519, Raster COAGULATION 2, Weg 1).\n\nWARUM ER ZAEHLT: crust legt eine mittlere Schicht alle 6 s. Weg 1 der Schule hatte damit genau eine Lautstaerke — es gab keine Entscheidung zwischen 'oft und duenn' und 'selten und dick'.\n\nDER ZUSATZ FEHLT NOCH: Das Raster sagt 'erst nach zwei Wartezeiten wirksam'. ShieldDef kennt keine Verzoegerung bis zur Wirksamkeit; ein Schild wirkt ab dem Wirken. Gemessen in der Mechanik-Matrix (#513) — dieser Zusatz hat KEIN Buendel, er ist ein Einzelfall.\n\nOHNE den Zusatz erfuellt er Weg 1: eine grosse Schicht, seltener. Der Zusatz macht daraus eine Vorausplanung — das ist mehr Reiz, aber nicht der Zweck. ALLE ZAHLEN SIND PLATZHALTER.",
+      "unlockLevel": 4,
+      "baseDamage": 0,
+      "cooldownMs": 20000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "shield": {
+        "amount": 2400,
+        "durationMs": 15000,
+        "maxStacks": 1
+      }
     }
   ]
 }

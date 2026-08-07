@@ -152,6 +152,18 @@ fn main() {
             ("test-buff.json", &test_buff),
         ],
     );
+
+    // **Vor allem anderen, was die Ressource betrifft** (Issue #506).
+    // `spells` ist calcination.json — die einzige Datei, die heute eine
+    // Ressource fuehrt. Die Liste enthaelt alle uebrigen Schulen.
+    pruefe_nur_eine_ressource(&[
+        ("calcination.json", &spells),
+        ("common.json", &common),
+        ("coagulation.json", &coagulation),
+        ("fixation.json", &fixation),
+        ("sublimation.json", &sublimation),
+        ("putrefaction.json", &putrefaction),
+    ]);
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
     emit_levels(&mut out, &read_json(LEVELS_JSON));
@@ -261,6 +273,41 @@ fn emit_school(out: &mut String, spells: &Value) {
     let school = text(spells, "school", "calcination.json");
     let _ = writeln!(out, "/// Schule, aus der die Zauber stammen.");
     let _ = writeln!(out, "pub const SCHOOL: &str = {school:?};\n");
+}
+
+/// Bricht ab, wenn mehr als eine Schule eine eigene Ressource fuehrt
+/// (Issue #506, gefunden von Worker-1).
+///
+/// # Die Bauart sieht nur EINE Ressource vor
+///
+/// `emit_resource` liest den Abschnitt fest aus `calcination.json` und
+/// erzeugt daraus ein einzelnes `pub static RESOURCE`. Das Spiel fuehrt
+/// dagegen eine Ressource JE SCHULE (`SchoolDef.resource`).
+///
+/// Solange nur CALCINATION eine hat, faellt der Unterschied nicht auf. Die
+/// zweite Schule mit eigener Ressource wuerde still ignoriert: Der Simulator
+/// rechnete weiter mit Hitze, das Spiel mit der neuen — und die Paritaet
+/// meldete eine Abweichung an einer Stelle, die nicht die Ursache ist.
+///
+/// **Dieser Waechter ist bei seiner Einfuehrung gruen**, weil es heute nur
+/// eine Ressource gibt. Belegt ist er deshalb durch die Gegenprobe in
+/// `tests/eine_ressource.rs`, die einen zweiten Abschnitt nachstellt.
+fn pruefe_nur_eine_ressource(dateien: &[(&str, &Value)]) {
+    let mit: Vec<&str> = dateien
+        .iter()
+        .filter(|(_, inhalt)| inhalt.get("resource").is_some())
+        .map(|(name, _)| *name)
+        .collect();
+
+    assert!(
+        mit.len() <= 1,
+        "Diese Schul-Dateien fuehren eine eigene Ressource: {mit:?}\n\
+         `emit_resource` sieht nur EINE vor — es liest calcination.json fest \
+         und erzeugt ein einzelnes RESOURCE. Jede weitere wuerde STILL \
+         ignoriert, und der Simulator rechnete mit der falschen Groesse.\n\
+         Vor der zweiten Ressource muss die Bauart auf eine Ressource JE \
+         SCHULE umgestellt werden (Issue #506)."
+    );
 }
 
 fn emit_resource(out: &mut String, spells: &Value) {
