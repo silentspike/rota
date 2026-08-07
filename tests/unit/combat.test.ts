@@ -44,6 +44,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'slag',
       'ember',
       'pyroclasm',
+      // Issue #540 — FLASHPOINT, bei seiner Schule.
+      'flashpoint',
       'quench',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
@@ -57,6 +59,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'scab',
       'plate',
       'harden',
+      // Issue #540 — QUICKSILVER, bei seiner Schule.
+      'quicksilver',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
@@ -72,6 +76,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // fehlt noch und steht als Grund im `_comment` des Zaubers, nicht hier.
       'clasp',
       'latch',
+      // Issue #540 — GRIPLOCK, bei seiner Schule.
+      'griplock',
       // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
       //
       // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
@@ -84,6 +90,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // ALEMBIC (Issue #521) — der Rücksetzer, der zweimal fragt. Er steht
       // hinter WISP, weil er in `sublimation.json` dort steht.
       'alembic',
+      // Issue #540 — DISTIL, bei seiner Schule.
+      'distil',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
@@ -91,6 +99,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Issue #498 — BLIGHT, am Ende von `putrefaction.json`.
       'blight',
       'sepsis',
+      // Issue #540 — VIRULENCE, bei seiner Schule.
+      'virulence',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
