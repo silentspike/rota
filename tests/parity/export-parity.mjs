@@ -94,6 +94,8 @@ import {
   KERNE_NAME,
   effluxPayload,
   EFFLUX_NAME,
+  kritPayload,
+  KRIT_NAME,
   CINDER_NAME,
   playerDamagePayload,
   coagulationPayload,
@@ -218,6 +220,12 @@ console.log(`geschrieben: ${effluxPath}`);
 console.log(
   `  gewirkt   efflux ${efflux.expected.casts.efflux}, Schaden ${efflux.expected.damage}`,
 );
+
+const krit = kritPayload();
+const kritPath = join(here, 'recordings', `${KRIT_NAME}.json`);
+writeFileSync(kritPath, `${JSON.stringify(krit, null, 2)}\n`);
+console.log(`geschrieben: ${kritPath}`);
+console.log(`  gewirkt   wedge ${krit.expected.casts.wedge}, bind ${krit.expected.casts.bind}`);
 console.log(
   `  Stufe 30      vessel ${level30.player.vesselAtLevel} statt ${level30.player.vessel}` +
     `, Schaden ${level30.expected.damage}`,
