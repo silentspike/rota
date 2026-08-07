@@ -123,39 +123,57 @@ describe('der alte Auslöser bleibt, wo er war', () => {
 });
 
 describe('das FELD schaltet — nicht der Aufruf allein', () => {
-  it('ohne `on` gälte die Kopplung für ALLE Bosse — dieser Fall hält das fest', () => {
-    // **Der Kernsatz dieses Issues, als eigener Fall.** Bis hierher war er nur
-    // mittelbar gedeckt: Der Orchestrator hat die Bedingung `on === 'affliction'`
-    // entfernt, und von 1904 Fällen meldete genau EINER — aus `boss-2-4`, und
-    // auch der nur, weil dieser Boss zufällig eine `affliction` trägt. Nimmt
-    // jemand sie ihm weg, fällt der Schutz lautlos mit.
+  it('zwei Bosse, die sich NUR im Feld unterscheiden, verhalten sich verschieden', () => {
+    // **Der Kernsatz dieses Issues, als eigener Fall.** Die erste Fassung
+    // beschrieb ihn im Kommentar („beide Läufe") und fuhr nur einen — sie
+    // belegte damit, dass der Auslöser WIRKT, nicht dass er SCHALTET.
     //
-    // Gemessen wird an zwei Bossen mit derselben Schwächung und
-    // unterschiedlichem Feld. Wäre der neue Auslöser unbedingt, drehten beide
-    // zurück.
+    // **Und der naheliegende zweite Boss taugte nicht.** `boss-2-4` trägt
+    // ebenfalls `interrupt` und eine Schwächung, unterscheidet sich aber in
+    // allem übrigen. Gemessen:
+    //
+    //     bis 12000 ms   geheilt 0, afflicted FALSE   (seine Schwächung
+    //                    beginnt erst bei 20000 ms — eine Null ohne Lage)
+    //     bis 32000 ms   geheilt 1600, missed 2       (sein ALTER Auslöser
+    //                    greift, weil ohne QUENCH Zauber durchkommen)
+    //
+    // Ein Vergleich mit ihm misst den Boss, nicht das Feld. Deshalb der
+    // Zwilling: identisch bis auf `on`, mit leerer Zeitleiste, damit der alte
+    // Auslöser gar nicht greifen kann.
     const mit = boss('test-lapse');
-    const ohne = boss('boss-2-4');
+    const ohne = boss('test-lapse-interrupt');
 
     expect(mit.bossHeal?.on).toBe('affliction');
     expect(ohne.bossHeal?.on).toBe('interrupt');
-    expect(mit.affliction, 'ohne Schwächung prüft der Fall nichts').not.toBeNull();
-    expect(ohne.affliction, 'ohne Schwächung prüft der Fall nichts').not.toBeNull();
 
-    // Beide Läufe: nur KINDLE, nie QUENCH. Damit wird nicht gereinigt und
-    // nicht unterbrochen — der ALTE Auslöser kann bei `boss-2-4` also nur über
-    // einen durchgekommenen Zauber greifen, der neue über die Schwächung.
-    const fahren = (b: BossDef, bisMs: number): { geheilt: number; stand: boolean } => {
+    // Die Zusicherung, dass die beiden wirklich Zwillinge sind: Wäre etwas
+    // anderes verschieden, verglichen die Läufe unten zwei Bosse statt eines
+    // Feldes.
+    expect(ohne.affliction).toEqual(mit.affliction);
+    expect(ohne.bossHeal?.amount).toBe(mit.bossHeal?.amount);
+    expect(ohne.hp).toBe(mit.hp);
+    expect(ohne.timeline, 'mit Zeitleiste könnte der ALTE Auslöser greifen').toEqual([]);
+
+    const fahren = (b: BossDef): { geheilt: number; stand: boolean; verpasst: number } => {
       const c = new Combat({ school: CALCINATION.value, boss: b });
-      for (let t = 0; t <= bisMs; t += 10) {
+      for (let t = 0; t <= 12_000; t += 10) {
         c.stepPassive(t);
         if (c.gcd.isReady(t) && c.isOffCooldown(c.indexOf('kindle'), t))
           c.cast(c.indexOf('kindle'), t);
       }
-      return { geheilt: c.bossHealed, stand: c.afflicted };
+      return { geheilt: c.bossHealed, stand: c.afflicted, verpasst: c.interruptsMissed };
     };
 
-    const a = fahren(mit, 12_000);
+    const a = fahren(mit);
+    const b = fahren(ohne);
+
+    // Beide müssen dieselbe Lage haben — sonst vergleicht der Fall Äpfel mit
+    // einem leeren Korb.
     expect(a.stand, 'die Schwächung stand nie — der Fall misst nichts').toBe(true);
-    expect(a.geheilt, 'mit `affliction` wird nicht zurückgedreht').toBeGreaterThan(0);
+    expect(b.stand, 'beim Zwilling stand sie nicht — die Lage ist verschieden').toBe(true);
+    expect(b.verpasst, 'ein Zauber kam durch — dann greift der ALTE Auslöser').toBe(0);
+
+    expect(a.geheilt, 'mit `on: affliction` wird nicht zurückgedreht').toBeGreaterThan(0);
+    expect(b.geheilt, 'ohne `on: affliction` wird trotzdem zurückgedreht').toBe(0);
   });
 });
