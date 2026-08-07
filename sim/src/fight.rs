@@ -3700,6 +3700,16 @@ impl Fight {
         self.healed
     }
 
+    /// Wie viel Fortschritt der BOSS zurueckgedreht hat (Baustein 5, #218).
+    ///
+    /// **Nicht zu verwechseln mit [`healed`](Self::healed)** — das ist die
+    /// Heilung des SPIELERS. Diese Verwechslung hat am 2026-08-07 zu der
+    /// Aussage gefuehrt, boss-1-4 heile nicht, weil der Laeufer fuer
+    /// "Leben zurueckgeholt" 0.0 zeigte: Er zeigte die Spielerzahl.
+    pub fn boss_healed(&self) -> u32 {
+        self.boss_healed
+    }
+
     /// Wie viel Schutz die Umwandlung erzeugt hat (Weg 3).
     #[must_use]
     pub fn converted(&self) -> u32 {
