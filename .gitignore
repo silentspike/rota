@@ -11,7 +11,7 @@
 *.suno-state.json*
 
 # Abhängigkeiten und Bau-Ergebnisse
-node_modules/
+node_modules
 dist/
 .vite/
 venv/
