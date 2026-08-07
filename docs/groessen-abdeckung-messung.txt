@@ -16,6 +16,12 @@ buff.kind                  griplock     0 -> 1        SCHWEIGT
 buff.kind                  quicksilver  0 -> 1        SCHWEIGT
 buff.kind                  slag         1 -> 0        SCHWEIGT
 buff.kind                  virulence    0 -> 1        SCHWEIGT
+buff.target                distil       cdreduce -> tick     NUR FRISCHE -> faktisch ungeschuetzt
+buff.target                flashpoint   resource -> tick     NUR FRISCHE -> faktisch ungeschuetzt
+buff.target                griplock     control -> tick     geschuetzt (buff-ersetzung-ueber-zauber.test.ts)
+buff.target                quicksilver  convert -> tick     geschuetzt (umwandlung-groessen.test.ts)
+buff.target                slag         cap -> tick     geschuetzt (slag.test.ts)
+buff.target                virulence    stack -> tick     NUR FRISCHE -> faktisch ungeschuetzt
 control.amountMs           capstone     2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
 control.amountMs           latch        4000 -> 2000     SCHWEIGT
 control.amountMs           stall        2000 -> 1000     SCHWEIGT
@@ -28,8 +34,15 @@ control.cost               latch        2 -> 1        NUR FRISCHE -> faktisch un
 control.cost               stall        4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
 control.cost               stay         3 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
 control.cost               wedge        3 -> 1        SCHWEIGT
+control.effect             anchor       holdPhase -> slowCast NUR FRISCHE -> faktisch ungeschuetzt
+control.effect             capstone     allThree -> holdPhase geschuetzt (wedge.test.ts)
+control.effect             latch        delayStrike -> holdPhase NUR FRISCHE -> faktisch ungeschuetzt
+control.effect             stall        slowCast -> holdPhase geschuetzt (boss-cast-display.test.ts, kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
+control.effect             stay         delayStrike -> holdPhase NUR FRISCHE -> faktisch ungeschuetzt
+control.effect             wedge        convertToDamage -> holdPhase geschuetzt (efflux.test.ts, wedge.test.ts)
 conversion.durationMs      temper       10000 -> 5000     NUR FRISCHE -> faktisch ungeschuetzt
 conversion.sharePercent    temper       25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
+convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, efflux.test.ts...)
 convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
 decay.stacks               blight       1 -> 0        geschuetzt (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
 decay.stacks               canker       1 -> 0        geschuetzt (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
@@ -38,6 +51,10 @@ dot.durationMs             cinder       4000 -> 2000     NUR FRISCHE -> faktisch
 dot.durationMs             rot          4000 -> 2000     geschuetzt (rot-decay-per-tick.test.ts)
 dot.durationMs             searing      6000 -> 3000     geschuetzt (combat.test.ts, data.test.ts)
 dot.durationMs             smoulder     12000 -> 6000     geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+dot.refreshMode            cinder       reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, dot-groessen.test.ts)
+dot.refreshMode            rot          reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
+dot.refreshMode            searing      reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, dot-groessen.test.ts)
+dot.refreshMode            smoulder     reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (active-dots.test.ts, buff-targets.test.ts, checksum-effectiveness.test.ts...)
 dot.tickDamage             cinder       30 -> 15       NUR FRISCHE -> faktisch ungeschuetzt
 dot.tickDamage             rot          25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
 dot.tickDamage             searing      90 -> 45       NUR FRISCHE -> faktisch ungeschuetzt
@@ -63,6 +80,11 @@ spender.bonusMultiplier    pyre         2 -> 1        geschuetzt (combat.test.ts
 spender.bonusMultiplier    pyroclasm    2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
 spender.bonusThreshold     pyre         15 -> 7        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 spender.bonusThreshold     pyroclasm    15 -> 7        SCHWEIGT
+spender.consumesAll        pyre         True -> False    geschuetzt (combat.test.ts, devtools-replay.test.ts, instance-1-signaturen.test.ts...)
+spender.consumesAll        pyroclasm    True -> False    NUR FRISCHE -> faktisch ungeschuetzt
 spender.damagePerPoint     pyre         12 -> 6        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 spender.damagePerPoint     pyroclasm    12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+spender.resource           pyre         heat -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, composition-preview.test.ts, devtools-replay.test.ts...)
+spender.resource           pyroclasm    heat -> rota-mutation-ungueltig NUR FRISCHE -> faktisch ungeschuetzt
+synergy.partner            canker       fester -> searing  geschuetzt (factor-triggers.test.ts, synergy.test.ts)
 synergy.windowGcds         canker       2 -> 1        geschuetzt (synergy-window.test.ts)

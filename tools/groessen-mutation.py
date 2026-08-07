@@ -30,6 +30,7 @@ Datei seinen Namen trägt.
 
 import json
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -40,7 +41,23 @@ DATEN = sorted((WURZEL / 'data' / 'spells').glob('*.json'))
 
 # Ein Wert, der die Größe deutlich verändert, ohne die Struktur zu verletzen:
 # halbieren trifft jede Zahl, und bei 1 landet man auf 0 statt im Bruch.
-def mutiere(wert):
+def mutiere(name, wert):
+    """Ein anderer Wert für dieses Feld — bei Zahlen halbiert, bei Text getauscht."""
+    if isinstance(wert, bool):
+        return not wert  # `consumesAll`: die einzige sinnvolle Mutation eines Schalters
+    if isinstance(wert, str):
+        if name in TEXT_ALTERNATIVEN:
+            # **Der erste UNGLEICHE.** Trägt ein Zauber den Ersatzwert bereits,
+            # griffe die Mutation nicht — `control.effect` ist bei einem der
+            # fünf Träger selbst `holdPhase`. Die Zusicherung in main() würde
+            # den Lauf anhalten, statt still nichts zu messen.
+            return next(a for a in TEXT_ALTERNATIVEN[name] if a != wert)
+        # Kein gültiger anderer Wert vorhanden — siehe NUR_EIN_WERT oben.
+        return 'rota-mutation-ungueltig'
+    return mutiere_zahl(wert)
+
+
+def mutiere_zahl(wert):
     # **Der Nullfall.** `0 // 2` ist wieder 0 — die Mutation griffe nicht, und
     # das Schweigen der Suite hieße gar nichts. Am 2026-08-07 hat die
     # Zusicherung unten den Lauf genau daran angehalten (`buff.kind` ist bei
@@ -51,6 +68,56 @@ def mutiere(wert):
     if isinstance(wert, float):
         return round(wert / 2, 4)
     return max(0, wert // 2)
+
+
+# **Textfelder steuern, WO eine Wirkung landet** (Issue #633). `buff.target`
+# entscheidet, welcher Speicher den Verstärker bekommt; `control.effect`, was ein
+# Kontroll-Zauber tut. Das ist dieselbe Sorte wie `buff.kind` — nur als Wort.
+#
+# Bis zum 2026-08-07 hat dieses Werkzeug sie übersprungen: Der Filter ließ nur
+# Zahlen durch. Gemessen waren damit 24 Felder und 68 Paare.
+#
+# # Jede Alternative ist BELEGT, nicht ausgedacht
+#
+# Ein erster Entwurf dieser Tabelle enthielt `tick`, `extend`, `canker` und
+# `blight` — Werte, die plausibel klangen und die ich hingeschrieben hatte, ohne
+# nachzusehen. Drei davon gibt es nicht. Eine Mutation auf einen erfundenen Wert
+# misst nicht die Größe, sondern die Fehlerbehandlung; schweigt die Suite, hieße
+# der Befund „ungeprüft", obwohl gar nichts Gültiges eingesetzt wurde.
+#
+# Deshalb steht hinter jedem Eintrag seine Quelle. `tick` hat es zurück in die
+# Tabelle geschafft — aber erst, nachdem `data.ts:93` es belegt hat.
+TEXT_ALTERNATIVEN = {
+    # Typunion in data.ts:93 — 8 gültige Werte, 6 im Bestand belegt.
+    'buff.target': ['tick', 'damage'],
+    # Fünf Werte im Bestand gemessen; jeder ist für jeden Träger gültig.
+    'control.effect': ['holdPhase', 'slowCast'],
+    # Andere ausgelieferte Zauber (von 50 gemessenen).
+    'synergy.partner': ['searing', 'cinder'],
+}
+
+# **Diese drei tragen im ganzen Bestand nur EINEN Wert** — und ihr Typ lässt
+# auch nur diesen zu (`data.ts:45`, `:298`). Es gibt keine gültige Alternative,
+# also misst eine Mutation hier zwangsläufig etwas anderes: ob die
+# Laufzeit-Prüfung den ungültigen Wert bemerkt. Das ist ein echter Schutz, aber
+# ein struktureller — er sagt nichts darüber, ob die Größe selbst geprüft ist.
+# Wer das Urteil „geschützt" für die beiden Fragen gleich liest, täuscht sich.
+NUR_EIN_WERT = {'dot.refreshMode', 'convert.from', 'spender.resource'}
+
+
+def messbar(feld, wert):
+    """Trägt dieses Feld eine Größe oder eine Steuerung — oder nur Text für Menschen?
+
+    **`_comment` ist ausgeschlossen.** Es steht in den Datendateien als
+    Begründung für Leser und hat keine Wirkung; eine Mutation daran müsste
+    schweigen, und dieses Schweigen wäre kein Befund, sondern die Definition
+    eines Kommentars.
+    """
+    if feld.startswith('_'):
+        return False
+    # Ein Schalter ist eine Steuerung wie eine Zahl — `spender.consumesAll`
+    # entscheidet, ob der ganze Vorrat draufgeht. Mutation: negieren.
+    return isinstance(wert, (bool, int, float, str))
 
 
 def felder():
@@ -74,7 +141,7 @@ def felder():
                 if not isinstance(knoten, dict):
                     continue
                 for feld, wert in knoten.items():
-                    if isinstance(wert, bool) or not isinstance(wert, (int, float)):
+                    if not messbar(feld, wert):
                         continue
                     gefunden.append(
                         (f'{gruppe}.{feld}', (datei, zauber['id'], gruppe, feld))
@@ -129,12 +196,12 @@ def suite_rot():
         text=True,
         timeout=900,
     )
-    dateien = set()
+    dateien = []
     gemessen = False
     for zeile in (lauf.stdout + '\n' + lauf.stderr).splitlines():
         if zeile.startswith(' FAIL '):
             teil = zeile.split()[1].split('>')[0].strip()
-            dateien.add(teil)
+            dateien.append(teil)
         if 'Tests ' in zeile and ('failed' in zeile or 'passed' in zeile):
             gemessen = True
     if not gemessen:
@@ -143,6 +210,14 @@ def suite_rot():
 
 
 def main():
+    # **`finally` allein reicht nicht.** Am 2026-08-07 lief ein Block in einen
+    # Zeitüberlauf; der Abbruch kam als SIGTERM, und den behandelt Python nicht
+    # als Ausnahme — das `finally` unten lief nie. Zurück blieb
+    # `calcination.json` mit `consumesAll: false`, also mutierte Spieldaten im
+    # Arbeitsbaum. Wer danach misst, misst gegen einen verfälschten Bestand,
+    # ohne dass irgendetwas rot wird. Gefunden hat es nur ein `git status`.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit('# SIGTERM — stelle zurueck'))
+
     von, bis = int(sys.argv[1]), int(sys.argv[2])
     alle = felder()
     traeger = traegerzahl()
@@ -155,7 +230,7 @@ def main():
             roh = json.loads(datei.read_text(encoding='utf8'))
             ziel = next(s for s in roh['spells'] if s['id'] == zauber_id)
             vorher = ziel[gruppe][feld]
-            ziel[gruppe][feld] = mutiere(vorher)
+            ziel[gruppe][feld] = mutiere(name, vorher)
             neuer_text = json.dumps(roh, ensure_ascii=False, indent=2) + '\n'
 
             # **Die Zusicherung.** Greift die Mutation nicht, ist das Schweigen
@@ -170,6 +245,21 @@ def main():
             # Die drei Urteile, nach dem Befund vom 2026-08-07. Nur das erste
             # bedeutet Absicherung; die anderen beiden sehen wie eine aus.
             NUR_FRISCHE = {'tests/parity/freshness.test.ts'}
+            # **Die Spalte, die Worker-2s Frage beantwortet** (2026-08-07):
+            # Wie viele ECHTE Prüffälle tragen diese Größe? Die rohe Fallzahl
+            # taugt dafür nicht — `stay` und `quicksilver` haben beide zwei
+            # rote Fälle, aber bei `stay` sind es zweimal die Frischeprüfung
+            # und bei `quicksilver` einmal ein Fall, der die Größe kennt.
+            # Wer roh zählt, hält die beiden für gleich breit getragen.
+            #
+            # Eine 1 hier heißt: Fällt dieser eine Fall weg, ist die Größe
+            # wieder ungeschützt, und niemand merkt es. Eine 0 heißt: schon
+            # jetzt niemand.
+            echte_faelle = sum(1 for d in (rot or []) if d not in NUR_FRISCHE)
+            traegt = f' [{echte_faelle} Prueffall]' if echte_faelle == 1 else (
+                f' [{echte_faelle} Prueffaelle]' if echte_faelle else ''
+            )
+            rot = set(rot) if rot is not None else None
             if rot is None:
                 urteil = 'KEINE MESSUNG'
             elif not rot:
@@ -179,9 +269,18 @@ def main():
                 urteil = 'NUR FRISCHE -> faktisch ungeschuetzt'
             else:
                 echte = sorted(d.split('/')[-1] for d in rot - NUR_FRISCHE)
-                urteil = f'geschuetzt ({", ".join(echte[:3])}{"..." if len(echte) > 3 else ""})'
+                # **Bei diesen Feldern heißt „rot" etwas anderes.** Sie haben
+                # keine gültige Alternative, die Mutation setzt also einen
+                # ungültigen Wert ein. Was anschlägt, ist die Struktur-Prüfung —
+                # nicht ein Prüffall, der die Größe kennt. Ohne diesen Zusatz
+                # stünde hier dasselbe Wort wie bei einem echt geprüften Feld.
+                art = ' [STRUKTUR, nicht Groesse]' if name in NUR_EIN_WERT else ''
+                urteil = (
+                    f'geschuetzt{art}{traegt} '
+                    f'({", ".join(echte[:3])}{"..." if len(echte) > 3 else ""})'
+                )
             print(
-                f'{name:26} {zauber_id:12} {vorher} -> {mutiere(vorher):<8} {urteil}',
+                f'{name:26} {zauber_id:12} {vorher} -> {str(mutiere(name, vorher)):<8} {urteil}',
                 flush=True,
             )
     finally:
