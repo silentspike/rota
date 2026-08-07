@@ -46,6 +46,7 @@ import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
 import eingecheckteKoagulation from './recordings/coagulation.json';
+import eingecheckteKontrolle from './recordings/kontrolle-wirkt.json';
 import eingecheckteFixierung from './recordings/fixation.json';
 import eingecheckteNeueZauber from './recordings/new-calcination.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
@@ -105,6 +106,7 @@ import {
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
+  kontrolleWirktPayload,
   fixationPayload,
   logParityPayload,
   primitivesPayload,
@@ -333,6 +335,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die drei Wege der Koagulation entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteKoagulation, HINWEIS).toEqual(coagulationPayload());
+  });
+
+  it('die Kontroll-Lage entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteKontrolle, HINWEIS).toEqual(kontrolleWirktPayload());
   });
 
   it('die Fixierung entspricht dem heutigen Spielstand', () => {
@@ -625,6 +631,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'sets',
   'player-damage',
   'coagulation',
+  'kontrolle-wirkt',
   'fixation',
   'new-calcination',
   'log-parity',
