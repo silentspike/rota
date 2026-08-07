@@ -17,6 +17,7 @@
   "affliction": null,
   "timeline": [],
   "timelineLoopMs": null,
-  "resistances": { "CALCINATION": 0.75 },
-  "signature": null
+  "resistances": {
+    "CALCINATION": 0.75
+  }
 }
