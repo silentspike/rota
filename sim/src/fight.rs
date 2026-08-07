@@ -2038,6 +2038,12 @@ impl Fight {
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
 
+    /// Die Kontroll-Punkte der FIXATION (fuer die APL, Issue #526).
+    #[must_use]
+    pub fn control_points(&self) -> u32 {
+        self.control
+    }
+
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
     #[must_use]
     pub fn decay_stacks(&self) -> usize {

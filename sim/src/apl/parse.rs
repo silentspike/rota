@@ -292,6 +292,11 @@ fn parse_value(
     match text {
         "gcd" => return Ok(Value::Gcd),
         "time" => return Ok(Value::Time),
+        // Die Kernmechaniken der vier uebrigen Schulen (Issue #526). Bis
+        // hierher konnte nur CALCINATION bedingen — ueber `heat`.
+        "decay" => return Ok(Value::Decay),
+        "shield" => return Ok(Value::Shield),
+        "control" => return Ok(Value::Control),
         _ => {}
     }
 
@@ -331,9 +336,10 @@ fn parse_value(
     Err(fail(
         token.column,
         format!(
-            "Unbekannter Wert \"{text}\". Möglich sind: {}, resource, gcd, time, boss.hp, \
-             boss.hp_pct, fight.remains, cooldown.<zauber>.ready, cooldown.<zauber>.remains, \
-             dot.<zauber>.active, dot.<zauber>.remains, dot.<zauber>.ticks.",
+            "Unbekannter Wert \"{text}\". Möglich sind: {}, resource, decay, shield, control, \
+             gcd, time, boss.hp, boss.hp_pct, fight.remains, cooldown.<zauber>.ready, \
+             cooldown.<zauber>.remains, dot.<zauber>.active, dot.<zauber>.remains, \
+             dot.<zauber>.ticks.",
             crate::data::RESOURCE.id
         ),
     ))
