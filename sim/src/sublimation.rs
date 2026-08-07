@@ -260,6 +260,176 @@ mod tests {
         assert_eq!(ready_at[2], 1_500, "der wirkende Zauber bleibt unberuehrt");
     }
 
+    // ------------------------------------------------------------------
+    // Der UMFANG der Verkuerzung (Issue #518)
+    //
+    // Bis hierher setzt jeder Fall `below: 0` und `longest_only: false` — die
+    // zwei Felder kamen also in der Datei vor, ohne je scharf gestellt zu
+    // sein. Gemessen beim Nachziehen von #518 auf main: acht Vorkommen im
+    // Testmodul, alle mit dem Standardwert. Damit war die KERNMECHANIK des
+    // Issues auf der Simulator-Seite nur ueber die Aufzeichnung abgesichert,
+    // und die hatte bis dahin keinen eigenen Prueffall.
+    //
+    // Vorkommen ist keine Pruefung.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn ascend_trifft_nur_abklingzeiten_unter_der_schwelle() {
+        let mut ready_at = [0; SPELL_COUNT];
+        ready_at[0] = 5_000; // 2 000 ms Restzeit -> unter der Schwelle
+        ready_at[1] = 20_000; // 17 000 ms Restzeit -> darueber
+        let touched = shorten_cooldowns(
+            &mut ready_at,
+            PendingShorten {
+                amount: 1000,
+                except: -1,
+                below: 10_000,
+                longest_only: false,
+            },
+            3000,
+        );
+        assert_eq!(touched, 1, "nur die kurze darf getroffen sein");
+        assert_eq!(ready_at[0], 4_000);
+        assert_eq!(
+            ready_at[1], 20_000,
+            "die lange Abklingzeit liegt ueber der Schwelle und bleibt"
+        );
+    }
+
+    /// Die Grenze ist ein STRENGES Kleiner — genau darauf heisst unberuehrt.
+    ///
+    /// „Unter 10 s" steht so im Design und ist woertlich gemeint. Ein Fall,
+    /// der nur 2 000 gegen 17 000 prueft, laesst offen, wohin der Gleichstand
+    /// faellt — und genau dort trennen sich `<` und `<=`, ohne dass eine
+    /// Aufzeichnung es je zeigen wuerde.
+    #[test]
+    fn genau_auf_der_schwelle_bleibt_unberuehrt() {
+        let mut ready_at = [0; SPELL_COUNT];
+        ready_at[0] = 13_000; // Restzeit bei now = 3000 ist GENAU 10 000
+        ready_at[1] = 12_999; // eine Millisekunde darunter
+        let touched = shorten_cooldowns(
+            &mut ready_at,
+            PendingShorten {
+                amount: 1000,
+                except: -1,
+                below: 10_000,
+                longest_only: false,
+            },
+            3000,
+        );
+        assert_eq!(touched, 1, "nur der eine Takt unter der Grenze");
+        assert_eq!(ready_at[0], 13_000, "genau auf der Grenze: unberuehrt");
+        assert_eq!(ready_at[1], 11_999);
+    }
+
+    #[test]
+    fn decant_trifft_nur_die_laengste_abklingzeit() {
+        let mut ready_at = [0; SPELL_COUNT];
+        ready_at[0] = 10_000;
+        ready_at[1] = 30_000; // die laengste
+        ready_at[2] = 20_000;
+        let touched = shorten_cooldowns(
+            &mut ready_at,
+            PendingShorten {
+                amount: 2000,
+                except: -1,
+                below: 0,
+                longest_only: true,
+            },
+            3000,
+        );
+        assert_eq!(touched, 1, "genau eine, nicht alle drei");
+        assert_eq!(ready_at[1], 28_000, "die laengste wurde verkuerzt");
+        assert_eq!(ready_at[0], 10_000);
+        assert_eq!(ready_at[2], 20_000);
+    }
+
+    /// Bei Gleichstand gewinnt der NIEDRIGERE Index.
+    ///
+    /// Das ist eine Entscheidung, keine Selbstverstaendlichkeit: Ohne sie
+    /// haengt das Ergebnis an der Laufrichtung der Schleife, und das waere ein
+    /// stiller Paritaets-Bruch, sobald eine Seite umbaut. Der Kommentar an
+    /// `shorten_cooldowns` haelt die Regel fest — dieser Fall haelt sie fest,
+    /// wenn jemand den Kommentar nicht liest.
+    #[test]
+    fn bei_gleichstand_gewinnt_der_niedrigere_index() {
+        let mut ready_at = [0; SPELL_COUNT];
+        ready_at[2] = 30_000;
+        ready_at[5] = 30_000; // gleich lang
+        let touched = shorten_cooldowns(
+            &mut ready_at,
+            PendingShorten {
+                amount: 2000,
+                except: -1,
+                below: 0,
+                longest_only: true,
+            },
+            3000,
+        );
+        assert_eq!(touched, 1);
+        assert_eq!(ready_at[2], 28_000, "der niedrigere Index gewinnt");
+        assert_eq!(ready_at[5], 30_000);
+    }
+
+    /// Der wirkende Zauber ist auch dann ausgenommen, wenn er die laengste
+    /// Abklingzeit hat.
+    ///
+    /// Sonst verkuerzte DECANT sich selbst — und zwar ausgerechnet dann, wenn
+    /// er als einziger eine lange Wartezeit traegt. Die Ausnahme muss VOR der
+    /// Auswahl greifen, nicht erst in der Schleife: Sonst faende die Auswahl
+    /// ihn, die Schleife uebersprænge ihn, und es wuerde gar nichts verkuerzt.
+    #[test]
+    fn der_wirkende_zauber_gewinnt_die_auswahl_nicht() {
+        let mut ready_at = [0; SPELL_COUNT];
+        ready_at[0] = 40_000; // der wirkende, laengste
+        ready_at[1] = 30_000; // die laengste der uebrigen
+        let touched = shorten_cooldowns(
+            &mut ready_at,
+            PendingShorten {
+                amount: 2000,
+                except: 0,
+                below: 0,
+                longest_only: true,
+            },
+            3000,
+        );
+        assert_eq!(touched, 1, "die Auswahl darf nicht ins Leere laufen");
+        assert_eq!(ready_at[0], 40_000, "der wirkende bleibt unberuehrt");
+        assert_eq!(ready_at[1], 28_000);
+    }
+
+    /// Beides zusammen: nur die laengste, und nur wenn sie unter der Schwelle
+    /// liegt.
+    ///
+    /// Kein ausgelieferter Zauber traegt heute beide Felder — aber die
+    /// Rechnung kennt die Kombination, und was die Rechnung kann, gehoert
+    /// gemessen. Sonst steht die Antwort erst fest, wenn jemand den Zauber
+    /// baut, und dann ist sie zufaellig.
+    #[test]
+    fn schwelle_und_laengste_zusammen() {
+        let mut ready_at = [0; SPELL_COUNT];
+        ready_at[0] = 30_000; // die laengste, aber UEBER der Schwelle
+        ready_at[1] = 8_000; // darunter, aber nicht die laengste
+        let touched = shorten_cooldowns(
+            &mut ready_at,
+            PendingShorten {
+                amount: 1000,
+                except: -1,
+                below: 10_000,
+                longest_only: true,
+            },
+            3000,
+        );
+        assert_eq!(
+            touched, 0,
+            "die Auswahl nimmt die laengste, die Schwelle weist sie ab — dann \
+             bleibt nichts uebrig, und es wird auf die zweitlaengste NICHT \
+             ausgewichen"
+        );
+        assert_eq!(ready_at[0], 30_000);
+        assert_eq!(ready_at[1], 8_000);
+    }
+
     #[test]
     fn laesst_einen_bereiten_zauber_unberuehrt() {
         let mut ready_at = [0; SPELL_COUNT];

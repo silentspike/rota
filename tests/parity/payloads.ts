@@ -200,7 +200,19 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
-    if (combat.playerDead) {
+    // **Auch beim TOD DES BOSSES abbrechen, nicht nur beim eigenen.**
+    //
+    // `first-crucible` hat 4200 Leben und fällt in diesem Lauf nach 5402
+    // Takten. Ohne den Abbruch zeichnete das Spiel weitere 598 Takte gegen
+    // einen toten Boss auf, während der Simulator den Kampf beendet — die
+    // Prüfsummen liefen ab genau diesem Takt auseinander (Spiel 3076587224,
+    // Simulator 0) und der Gesamtschaden ebenfalls (4448 gegen 4333).
+    //
+    // Gefunden hat es der Prüffall `parity_gezielte_verkuerzung.rs`, den es
+    // bis dahin nicht gab: Diese Aufzeichnung wurde exportiert und vom
+    // Frische-Fall geprüft, aber **von keinem Simulator-Fall nachgespielt**.
+    // Sie belegte damit nur, dass das Spiel mit sich selbst übereinstimmt.
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
       checksums.push(combatChecksum(combat, timeMs));
       pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
       break;
@@ -274,6 +286,12 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
 }
 
 export const SUBLIMATION_NAME = 'sublimation';
+
+/**
+ * Vergleichsdatei für WISP (#480) — eigener Lauf, weil er nicht neben KINDLE
+ * passt. Die Begründung steht an `SUBLIMATION_BINDINGS`.
+ */
+export const WISP_NAME = 'wisp-verkuerzung';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
@@ -1930,6 +1948,24 @@ const SUBLIMATION_BINDINGS = [
   { slot: 1, spellId: 'vapour' },
   { slot: 2, spellId: 'smoulder' },
   { slot: 3, spellId: 'pyre' },
+  // **WISP steht hier NICHT** — er hat eine eigene Aufzeichnung (siehe
+  // `wispPayload` weiter unten). Der Grund ist gemessen, nicht vermutet:
+  //
+  // #480 legte ihn hierher, mit der richtigen Begründung („die einzige
+  // Aufzeichnung, in der Abklingzeiten wirklich laufen"), aber mit einer
+  // Nebenwirkung, die erst der Rust-Fall zeigte: **WISP und KINDLE sind
+  // beide Füller.** Wer von beiden in der Auswahl vorangeht, verdrängt den
+  // anderen vollständig — WISP hat 1500 ms Abklingzeit wie KINDLE und ist
+  // ihm sonst in jeder Hinsicht überlegen.
+  //
+  // Ergebnis: `parity_sublimation_run` fiel bei `casts[kindle] > 0`, und
+  // damit verlor dieser Lauf seinen TRÄGER. Er misst VAPOURs Verkürzung an
+  // KINDLEs Abklingzeit; ohne KINDLE-Würfe misst er nichts mehr.
+  //
+  // Vier Anläufe, die Reihenfolge zu drehen und die Bedingungen zu
+  // verfeinern, endeten jedes Mal damit, dass EINER der beiden bei null
+  // stand. Das ist kein Bedingungs-, sondern ein Zuschnittsproblem: Zwei
+  // Füller auf derselben Wartezeit passen nicht in einen Lauf.
 ] as const;
 
 /**
@@ -2001,6 +2037,10 @@ export function sublimationPayload(): Record<string, unknown> {
     else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
       gewaehlt = smoulder;
     } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    // KINDLE ist der Füller DIESES Laufs und damit sein Träger: An seiner
+    // Abklingzeit wird VAPOURs Verkürzung überhaupt erst sichtbar. WISP
+    // stand hier zwischenzeitlich davor und hat ihn auf null gedrückt —
+    // siehe die Begründung an `SUBLIMATION_BINDINGS`.
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
@@ -2043,6 +2083,124 @@ export function sublimationPayload(): Record<string, unknown> {
     },
   };
 }
+
+/** Die Leiste der WISP-Aufzeichnung — VOR der Funktion (Issue #405). */
+const WISP_BINDINGS = [
+  { slot: 0, spellId: 'wisp' },
+  { slot: 1, spellId: 'vapour' },
+  { slot: 2, spellId: 'smoulder' },
+] as const;
+
+/**
+ * WISPs Verkürzung an einer **langen** Abklingzeit (Issue #480).
+ *
+ * # Warum ein eigener Lauf und nicht die Sublimations-Aufzeichnung
+ *
+ * WISP hat dort gestanden und den Fall zerstört: Er ist Füller **und**
+ * Verkürzer, hat dieselbe Wartezeit wie KINDLE (1500 ms) und ist ihm sonst
+ * überlegen — er verdrängt ihn also vollständig. Ohne KINDLE-Würfe verliert
+ * `parity_sublimation_run` seinen Träger. Die ausführliche Begründung samt
+ * der vier Justier-Anläufe steht an `SUBLIMATION_BINDINGS`.
+ *
+ * Hier ist WISP der einzige Füller. Damit tritt er gegen niemanden an, und
+ * die Aufzeichnung zeigt genau eine Sache statt zwei halbe.
+ *
+ * # Warum VAPOUR der Träger ist — und warum nicht PYRE oder REFLUX
+ *
+ * Der Träger muss **ohne KINDLE** wirkbar sein: PYRE verlangt 15 Hitze, und
+ * Hitze kommt allein aus KINDLE (`resourceGain: { heat: 3 }`). In einem Lauf
+ * ohne KINDLE wäre PYRE nie bereit und seine Restzeit stünde konstant bei
+ * null — zwei Seiten, die dasselbe Nichts rechnen. Genau dieser Fehler ist
+ * dieser Aufzeichnungs-Familie schon einmal unterlaufen; der Kommentar an
+ * `pyreReadyAt` oben hält ihn fest.
+ *
+ * **REFLUX war der erste Entwurf und ist an einem echten Befund gescheitert.**
+ * Mit ihm als Träger lief die Prüfsumme ab Takt 150 auseinander, Schaden 880
+ * gegen 640. Ursache: Sein `armsCooldownReset` sitzt auf **verschiedenen
+ * Schichten** — im Spiel in `session.ts`, im Simulator in `fight.rs`. Eine
+ * Aufzeichnung fährt `Combat` direkt und sieht die Spiel-Seite deshalb nie,
+ * der Simulator schärft aber. Das ist gemeldet (verwandt mit #521) und hier
+ * umgangen, nicht behoben.
+ *
+ * **VAPOUR trägt sauber, gerade weil er selbst verkürzt.** Er nimmt sich beim
+ * Wirken nicht selbst (der wirkende Zauber ist von seiner eigenen Verkürzung
+ * ausgenommen) — jeder Sprung in SEINER Restzeit kann also nur von WISP
+ * kommen. Ein zweiter Verkürzer im Lauf verwässert die Aussage hier nicht,
+ * er schärft sie.
+ */
+export function wispPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const wisp = combat.indexOf('wisp');
+  const vapour = combat.indexOf('vapour');
+  const smoulder = combat.indexOf('smoulder');
+  const ticks = 3000; // 30 s
+
+  const slots = slotMap(combat, WISP_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const vapourReadyAt: number[] = [];
+  /**
+   * Wie oft WISP auf eine **laufende** VAPOUR-Abklingzeit traf.
+   *
+   * Nicht jeder Wurf verkürzt etwas: Ist VAPOUR gerade bereit, geht die
+   * Wirkung ins Leere. Ohne diese Zahl könnte der Simulator die Hälfte der
+   * Würfe verschlucken und der Fall bliebe grün — er sähe ja immer noch
+   * Sprünge der richtigen Größe.
+   */
+  let wirkendeWuerfe = 0;
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      vapourReadyAt.push(combat.cooldownRemainingMs(vapour, timeMs));
+      break;
+    }
+    // VAPOUR zuerst — er ist der Träger, an dessen Restzeit gemessen wird.
+    // SMOULDER hält den Brand wach, WISP füllt alles Übrige.
+    let gewaehlt = -1;
+    if (combat.isReady(vapour, timeMs)) gewaehlt = vapour;
+    else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
+      gewaehlt = smoulder;
+    } else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
+
+    // **Vor dem Wurf ablesen**, sonst zählt man das Ergebnis der eigenen
+    // Wirkung statt ihrer Voraussetzung.
+    const trafLaufende = gewaehlt === wisp && combat.cooldownRemainingMs(vapour, timeMs) > 0;
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+      if (trafLaufende) wirkendeWuerfe++;
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    vapourReadyAt.push(combat.cooldownRemainingMs(vapour, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: WISP_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: WISP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    /** Restzeit von VAPOUR je Takt — die Größe, die WISP wirklich bewegt. */
+    vapourReadyAt,
+    expected: {
+      damageDealt: combat.damageDealt,
+      casts: combat.castCount(wisp) + combat.castCount(vapour) + combat.castCount(smoulder),
+      wispCasts: combat.castCount(wisp),
+      vapourCasts: combat.castCount(vapour),
+      /** WISP-Würfe, die auf eine laufende VAPOUR-Abklingzeit trafen. */
+      wirkendeWuerfe,
+    },
+  };
+}
+
 /** Die Leiste der Zeitleisten-Aufzeichnung — VOR der Funktion (Issue #405). */
 const TIMELINE_LOOP_BINDINGS = [
   { slot: 0, spellId: 'kindle' },

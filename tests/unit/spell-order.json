@@ -10,6 +10,7 @@
   "salve",
   "temper",
   "scab",
+  "plate",
   "bind",
   "stall",
   "stay",
@@ -17,6 +18,8 @@
   "wedge",
   "tether",
   "capstone",
+  "clasp",
+  "latch",
   "vapour",
   "reflux",
   "wisp",
@@ -26,5 +29,11 @@
   "fester",
   "blight",
   "test-cast",
-  "test-buff"
+  "test-buff",
+  "test-control",
+  "test-heat",
+  "test-tick",
+  "test-stack",
+  "test-cdreduce",
+  "test-convert"
 ]
