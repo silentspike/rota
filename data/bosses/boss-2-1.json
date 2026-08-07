@@ -1,0 +1,19 @@
+{
+  "_comment": "ARBEITSNAME (Issue #574). Der erste Boss der zweiten Instanz: REINIGUNG UNTER ZEITDRUCK.\n\nSIGNATUR: Ein Gift ab der sechsten Sekunde, das doppelt so schnell tickt wie das der ersten Instanz — und die Zeitleiste wiederholt sich alle acht Sekunden, sodass zwischen zwei Reinigungen kaum Platz bleibt. Getragen von: affliction (perStepMs 500).\n\nVERGLEICH ZU boss-1-3, damit der Unterschied ablesbar ist: Dort tickte das Gift jede Sekunde ab der neunten, und die Timeline war zweizeilig ohne Wiederholung. Hier ist derselbe Baustein schaerfer parametriert — GAME-DESIGN sagt, die Vielfalt kommt aus Kombination und Parametrierung, nicht aus neuen Mechanismen.\n\nAC2 GEMESSEN VOR #581 — Vorbehalt toter Sieger. Zum Zeitpunkt dieser Messung behandelt weder checkDefeat noch sonst eine Stelle den Tod des Spielers als Kampfende. Die Zahlen sind nachzuziehen, sobald #581 steht.",
+  "schema": 1,
+  "id": "boss-2-1",
+  "name": "Instance Two, First",
+  "instance": "instance-2",
+  "hp": 5000,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "affliction": { "atMs": 6000, "perStepMs": 500, "damage": 30, "clearedBy": ["quench", "temper"] },
+  "timelineLoopMs": 8000,
+  "timeline": [
+    { "atMs": 2000, "mechanic": "strike", "name": "Miasma", "damage": 180 },
+    { "atMs": 6000, "mechanic": "strike", "name": "Miasma", "damage": 180 }
+  ],
+  "resistances": {},
+  "signature": null
+}

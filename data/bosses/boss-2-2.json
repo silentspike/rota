@@ -1,0 +1,20 @@
+{
+  "_comment": "ARBEITSNAME (Issue #574). Der zweite Boss der zweiten Instanz — und der erste im Spiel, der eine ENTSCHEIDUNG verlangt statt einer Handlung.\n\nSIGNATUR: Ein Stapel wachsenden Schadens, der sich nie senken laesst — nur ueberleben. Wer ihn aushalten will, opfert Leisten-Plaetze an CRUST oder SALVE und wird langsamer; wer auf Tempo geht, muss vor dem vierten Stapel fertig sein. Getragen von: stacks.\n\nZWEI ANTWORTEN, NICHT EINE (GAME-DESIGN 11.1). Der Baustein laesst beides zu, und genau darin unterscheidet er sich von runaway: Dort gibt es nur Tempo. Gemessen an test-doomsayer greifen beide Wege — CRUST faengt 2232 von 2800 ab, SALVE holt 3000 zurueck.\n\nKEIN doom, kein phases, kein energy. doom waere hier toedlich im Wortsinn: Er ist unbedienbar (#561), und ein Boss, der neben der Entscheidung eine unloesbare Uhr traegt, stellt die Entscheidung nicht mehr. Bei test-doomsayer starben ALLE drei Rotationen bei 20000 ms an doom, nicht an den Stapeln — das haette die Messung fast entwertet.",
+  "schema": 1,
+  "id": "boss-2-2",
+  "name": "Instance Two, Second",
+  "instance": "instance-2",
+  "hp": 5600,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "stacks": { "perStepMs": 2500, "baseDamage": 30, "factor": 3, "maxStacks": 5 },
+  "escalation": { "castTimeShrinkMs": 300, "minCastTimeMs": 1500 },
+  "timelineLoopMs": 12000,
+  "timeline": [
+    { "atMs": 4000, "mechanic": "strike", "name": "Sediment", "damage": 220 },
+    { "atMs": 10000, "mechanic": "interruptibleCast", "name": "Crystallise", "damage": 600, "castTimeMs": 2500 }
+  ],
+  "resistances": {},
+  "signature": null
+}
