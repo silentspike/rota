@@ -4172,3 +4172,47 @@ gerettet, sondern den Wächter vor sich selbst."_
 **Vor der eigentlichen Prüfung steht die Prüfung, ob überhaupt etwas zu prüfen ist.** Ohne sie
 ist Grün nicht von Blindheit zu unterscheiden — und das ist der Zustand, in dem ein Prüffall
 jahrelang unbemerkt nichts tut.
+
+#### Und die Unterscheidung, ohne die „schweigt" mehrdeutig bleibt
+
+Worker-3 hat am selben Tag zwei Bausteine gemessen, die beide schwiegen — aus völlig
+verschiedenen Gründen:
+
+```
+phases        1720 angekommen mit, 1720 ohne
+escalation    1920 angekommen mit, 1920 ohne
+```
+
+|              |                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `phases`     | wird gesetzt und **nirgends gelesen**. Keine Wirkung, egal wer spielt               |
+| `escalation` | wird gelesen und **wirkt** — nur nicht auf eine Größe, die das Messwerkzeug ausgibt |
+
+`escalation` verkürzt die Wirkzeit unterbrechbarer Zauber. Der Balance-Läufer fährt eine
+Rotation **ohne Unterbrecher** — der Zauber kommt so oder so durch, und ob seine Wirkzeit
+2500 oder 1200 ms beträgt, ändert am Ergebnis nichts.
+
+> **Beim ersten ist der Baustein die Beschriftung. Beim zweiten ist es meine Messung, die zu
+> grob ist.** Ich hätte beides „schweigt" genannt, wenn ich nicht nachgesehen hätte, _warum_.
+
+**Ein Schweigen ist erst dann ein Befund, wenn seine Ursache gemessen ist.** Sonst führt es zu
+einer von zwei falschen Handlungen: einen wirksamen Baustein wegzuwerfen, oder eine Kulisse
+für eine Mechanik zu halten.
+
+Der Weg im zweiten Fall ist nicht, das Werkzeug zu verbessern, sondern **die Größe zu messen,
+um die es geht** — hier `escalatedCastTime` in einem Unit-Test statt angekommener Schaden im
+Läufer. Das ist dieselbe Bewegung wie bei `bossHealed` weiter oben, nur eine Ebene früher: dort
+nach der falschen Deutung, hier davor.
+
+#### Ein dritter Grund fürs Schweigen, der weder Beschriftung noch Messgrenze ist
+
+Auf dem Weg dorthin fand Worker-3 noch einen: `escalation` steigt in `combat.ts:3135` aus,
+wenn `timelineLoopMs === null` ist. **Allein eingebaut hätte es geschwiegen, obwohl es wirkt** —
+ihm fehlte der Partner.
+
+Und selbst mit Partner braucht es passende Zahlen: Bei `timelineLoopMs: 20000` blieb keine Zeit
+für einen zweiten Zyklus (letzter Eintrag bei 48 s, Limit 60 s), und `escalation` greift erst
+**ab** Zyklus 1. Erst mit 15000 lief beides.
+
+**Ein Baustein, der einen anderen voraussetzt, schweigt genau wie ein toter** — und der
+Unterschied steht im Quelltext, nicht in der Messung.
