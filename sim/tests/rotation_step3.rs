@@ -21,14 +21,14 @@
 //! purity 800. Wer die beiden Messungen vermischt, vergleicht Ausruestung
 //! statt Rotationen.
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig};
 
 const ALT: &str = include_str!("../apl/step1-good.apl");
 const NEU: &str = include_str!("../apl/step3-good.apl");
 
 fn schaden(name: &str, text: &str) -> f64 {
-    let apl: Apl = parse(name, text).expect("die eingebaute Liste ist gueltig");
+    let apl: Apl = parse(AplName(name), text).expect("die eingebaute Liste ist gueltig");
     run(
         &BalanceConfig {
             iterations: 50,
@@ -46,8 +46,8 @@ fn beide_listen_sind_ueberhaupt_lesbar() {
     // Ohne diese Zeile koennte eine kaputte Liste als "gleichauf" durchgehen —
     // `parse` wuerde erst im Vergleich unten scheitern, und die Meldung zeigte
     // auf den Vergleich statt auf die Datei.
-    assert!(parse("step1-good", ALT).is_ok());
-    assert!(parse("step3-good", NEU).is_ok());
+    assert!(parse(AplName("step1-good"), ALT).is_ok());
+    assert!(parse(AplName("step3-good"), NEU).is_ok());
 }
 
 #[test]

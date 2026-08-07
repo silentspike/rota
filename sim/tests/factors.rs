@@ -11,6 +11,7 @@
 //! die Zahl nicht gegen eine Handrechnung hält, sieht nichts.
 
 use rota_sim::apl::parse;
+use rota_sim::apl::AplName;
 use rota_sim::data::{KINDLE, PYRE, SMOULDER};
 use rota_sim::{rotation, DamageFactors, Fight, FightConfig, RunResult, NEUTRAL};
 
@@ -23,7 +24,7 @@ fn lauf(factors: DamageFactors) -> RunResult {
         factors,
         ..FightConfig::default()
     })
-    .run_apl(&parse("gut", GOOD).expect("gueltig"))
+    .run_apl(&parse(AplName("gut"), GOOD).expect("gueltig"))
 }
 
 #[test]
@@ -103,7 +104,8 @@ fn neutrale_faktoren_aendern_am_gleichlauf_nichts() {
     // **Die Bedingung dafuer, dass #54 gueltig bleibt.** Mit neutralen Faktoren
     // muss der Simulator auf dieselben Zahlen kommen wie vorher — sonst waere
     // der Abgleich mit dem Spiel durch den Einbau der Formel gebrochen.
-    let mit_apl = Fight::new(FightConfig::default()).run_apl(&parse("gut", GOOD).expect("gueltig"));
+    let mit_apl =
+        Fight::new(FightConfig::default()).run_apl(&parse(AplName("gut"), GOOD).expect("gueltig"));
     let mit_funktion = Fight::new(FightConfig::default()).run(rotation::good);
 
     assert_eq!(mit_apl.damage, 4240);

@@ -7,7 +7,7 @@
 //! AC4 (Anbindung an `nightly.yml`) lässt sich nicht als Test formulieren — der
 //! Nachweis dafür ist der Workflow-Lauf selbst.
 
-use rota_sim::apl::{parse, Apl};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::data;
 use rota_sim::report::{
     achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
@@ -20,7 +20,7 @@ const GOOD: &str = include_str!("../apl/step1-good.apl");
 const BAD: &str = include_str!("../apl/step1-bad.apl");
 
 fn apl(text: &str, name: &str) -> Apl {
-    parse(name, text).expect("die eingebauten Listen sind gültig")
+    parse(AplName(name), text).expect("die eingebauten Listen sind gültig")
 }
 
 #[test]
