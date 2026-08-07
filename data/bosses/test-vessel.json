@@ -6,8 +6,14 @@
   "hp": 8000,
   "overpressureMs": 90000,
   "phases": [
-    { "atHpPercent": 70, "name": "Second Heat" },
-    { "atHpPercent": 40, "name": "Final Fusion" }
+    {
+      "atHpPercent": 70,
+      "name": "Second Heat"
+    },
+    {
+      "atHpPercent": 40,
+      "name": "Final Fusion"
+    }
   ],
   "energy": {
     "perStepMs": 1000,
@@ -16,7 +22,12 @@
     "resetTo": 0
   },
   "timeline": [
-    { "atMs": 5000, "mechanic": "strike", "name": "Backlash", "damage": 400 },
+    {
+      "atMs": 5000,
+      "mechanic": "strike",
+      "name": "Backlash",
+      "damage": 400
+    },
     {
       "atMs": 20000,
       "mechanic": "interruptibleCast",
@@ -24,8 +35,12 @@
       "damage": 1200,
       "castTimeMs": 3000
     },
-    { "atMs": 45000, "mechanic": "strike", "name": "Backlash", "damage": 400 }
+    {
+      "atMs": 45000,
+      "mechanic": "strike",
+      "name": "Backlash",
+      "damage": 400
+    }
   ],
-  "resistances": {},
-  "signature": null
+  "resistances": {}
 }
