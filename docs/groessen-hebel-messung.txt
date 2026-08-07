@@ -1,3 +1,15 @@
+# Schadenshebel je Größe — GEGEN DIE HEUTIGEN LAGEN gemessen (Issue #576).
+#
+# Eine 0,00 % heißt: keine der fünf Größen (damage, damageTaken, absorbed,
+# healed, converted) bewegt sich, wenn man den Wert halbiert. Sie heißt NICHT
+# "diese Größe ist belanglos" — sie heißt, dass der heutige Bestand an
+# Aufzeichnungen keine Lage herstellt, in der sie den Ausgang ändert.
+#
+# Kommt eine Aufzeichnung dazu, die eine solche Lage baut, kann aus einer Null
+# ein Hebel werden. Beim Umbau von "nur damage" auf alle fünf Größen ist das
+# siebenmal passiert.
+#
+# Spalten: Hebel · Feld · Zauber · Mutation · bewegte Größe · Lauf
  72.58%  dot.tickIntervalMs         searing      2000 -> 1000     damage       new-calcination#0
  56.00%  conversion.sharePercent    temper       25 -> 12       converted    coagulation#3
  50.00%  heal.amount                salve        1500 -> 750      healed       coagulation#2
