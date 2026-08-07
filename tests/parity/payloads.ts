@@ -137,6 +137,103 @@ export const LOG_PARITY_NAME = 'log-parity';
 export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
 /** Vergleichsdatei für den Gleichlauf der Sublimation (#104). */
+export const GEZIELTE_VERKUERZUNG_NAME = 'gezielte-verkuerzung';
+
+/** Die Leiste der Aufzeichnung für die gezielten Verkürzer (Issue #518). */
+const GEZIELTE_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'ascend' },
+  { slot: 2, spellId: 'decant' },
+  { slot: 3, spellId: 'pyre' },
+] as const;
+
+/**
+ * Ein Durchgang, der **gezieltes** Verkürzen zeigt (Issue #518).
+ *
+ * # Warum eine eigene Aufzeichnung
+ *
+ * ASCEND und DECANT gehörten zunächst in die Sublimations-Aufzeichnung. Die
+ * hatte vier Zauber; mit WISP, SLAG, ASCEND und DECANT wurden es sieben, und
+ * sie teilen sich eine Wartezeit. Jede Bedingung, die einem Platz macht,
+ * nimmt ihn einem anderen — vier Anläufe, und jedes Mal fiel ein anderer
+ * ganz aus.
+ *
+ * Am Ende meldete `parity_sublimation_run` zu Recht: „KINDLE kam nicht zum
+ * Zug — dann lief keine Abklingzeit, die VAPOUR hätte verkürzen können."
+ * Der Fall prüft die Sublimations-Mechanik, und die Erweiterung hatte ihm
+ * den Träger genommen.
+ *
+ * **Eine Aufzeichnung, die alles abdeckt, zeigt nichts mehr.** Diese hier
+ * zeigt eine Sache: dass ASCEND und DECANT anders verkürzen als VAPOUR.
+ *
+ * # Der Ablauf
+ *
+ * PYRE (5 s) und KINDLE (1,5 s) laufen als Träger — zwei Abklingzeiten von
+ * sehr verschiedener Länge. Genau daran wird sichtbar, dass ASCEND nur die
+ * kurze trifft und DECANT nur die lange.
+ */
+export function gezielteVerkuerzungPayload(): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const kindle = combat.indexOf('kindle');
+  const ascend = combat.indexOf('ascend');
+  const decant = combat.indexOf('decant');
+  const pyre = combat.indexOf('pyre');
+  const ticks = 3000; // 30 s
+
+  const slots = slotMap(combat, GEZIELTE_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  const pyreReadyAt: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
+      break;
+    }
+
+    // **Die Reihenfolge folgt der Länge der Abklingzeit**, damit beide
+    // Verkürzer etwas zu tun haben: PYRE erzeugt die lange, KINDLE die
+    // kurze. ASCEND kommt selten (30 s), DECANT als Füller dazwischen.
+    let gewaehlt = -1;
+    if (combat.isReady(alsSpellIndex(pyre), timeMs) && combat.resource >= 15) gewaehlt = pyre;
+    else if (combat.isReady(alsSpellIndex(ascend), timeMs)) gewaehlt = ascend;
+    else if (combat.isReady(alsSpellIndex(decant), timeMs)) gewaehlt = decant;
+    else if (combat.isReady(alsSpellIndex(kindle), timeMs)) gewaehlt = kindle;
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
+  }
+
+  return {
+    schema: 1,
+    name: GEZIELTE_VERKUERZUNG_NAME,
+    bossId: FIRST_CRUCIBLE.value.id,
+    ticks,
+    tickMs: TICK_MS,
+    // **`spellId` als NAME, nicht als Index.** Ein erster Entwurf schrieb
+    // `spell: <index>` — das Format sah gültig aus, und `coverage.test.ts`
+    // meldete die zwei Zauber trotzdem als „in keiner Aufzeichnung
+    // gewirkt": Es liest die Namen, nicht die Zahlen.
+    bindings: GEZIELTE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    pyreReadyAt,
+    expected: {
+      damageDealt: combat.damageDealt,
+      casts: {
+        ascend: combat.castCount(alsSpellIndex(ascend)),
+        decant: combat.castCount(alsSpellIndex(decant)),
+      },
+    },
+  };
+}
+
 export const SUBLIMATION_NAME = 'sublimation';
 
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
@@ -1798,11 +1895,6 @@ const SUBLIMATION_BINDINGS = [
   // Er gehört in DIESE Aufzeichnung, weil sie die einzige ist, in der
   // Abklingzeiten wirklich laufen und verkürzt werden.
   { slot: 4, spellId: 'wisp' },
-  // ASCEND und DECANT (Issue #518) — die zwei Zauber, die gezielt statt
-  // breit verkürzen. Sie gehören hierher, weil in dieser Aufzeichnung als
-  // einziger wirklich Abklingzeiten laufen.
-  { slot: 5, spellId: 'ascend' },
-  { slot: 6, spellId: 'decant' },
 ] as const;
 
 /**
@@ -1851,30 +1943,9 @@ export function sublimationPayload(): Record<string, unknown> {
   const kindle = combat.indexOf('kindle');
   const vapour = combat.indexOf('vapour');
   const wisp = combat.indexOf('wisp');
-  const ascend = combat.indexOf('ascend');
-  const decant = combat.indexOf('decant');
-  // Die Träger für DECANTs Bedingung: REFLUX (45 s) und ASCEND (30 s).
-  //
-  // Ein erster Entwurf nannte nur REFLUX — der wird bloß zweimal gedrückt,
-  // die Bedingung griff nie, und DECANT stand wieder in der
-  // coverage-Meldung.
-  //
-  // Die Schwelle liegt bei 20 s, nicht bei 5: Bei 5 s greift sie fast
-  // immer (ASCEND allein hat 30 s Abklingzeit), DECANT drängt sich vor
-  // alles andere, und KINDLE fällt aus. Eine Bedingung, die immer wahr
-  // ist, ist keine.
-  const reflux = combat.indexOf('reflux');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
-  // **60 s statt 30** (Issue #518). Die Leiste trägt jetzt sieben Zauber
-  // statt vier; bei 30 s teilen sie sich zu wenige Wartezeiten, und je
-  // nachdem, wie die Bedingungen stehen, fällt immer einer ganz aus —
-  // erst KINDLE, dann WISP. `coverage.test.ts` meldet ihn dann zu Recht
-  // als „in keiner Aufzeichnung gewirkt".
-  //
-  // Mehr Zauber brauchen mehr Zeit. Das ist billiger als Bedingungen, die
-  // sich gegenseitig ausschließen.
-  const ticks = 6000; // 60 s
+  const ticks = 3000; // 30 s
 
   const slots = slotMap(combat, SUBLIMATION_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
@@ -1900,44 +1971,8 @@ export function sublimationPayload(): Record<string, unknown> {
     // also dem reinen Füller vorzuziehen. Nur so kommt er überhaupt in die
     // Aufzeichnung — und ohne einen Druck bliebe seine Bitgleichheit
     // angenommen statt geprüft (`coverage.test.ts`).
-    // **Die Auswahl folgt dem ZWECK, nicht der Reihenfolge** (Issue #518).
-    //
-    // Ein erster Entwurf setzte ASCEND und DECANT einfach vor WISP — beide
-    // kamen dran, und WISP nie. `coverage.test.ts` meldete ihn prompt als
-    // "in KEINER Aufzeichnung gewirkt". Die drei teilen sich eine
-    // Wartezeit, also verdrängt jede feste Ordnung die letzten.
-    //
-    // Stattdessen wird jeder gewählt, wo er etwas TUT:
-    //   ASCEND  wenn er bereit ist (30 s Abklingzeit, selten genug)
-    //   DECANT  nur wenn eine LANGE Abklingzeit läuft — sonst zielt er ins
-    //           Leere, und genau das ist sein Unterschied zu VAPOUR
-    //   WISP    sonst, als Füller
-    else if (combat.isReady(ascend, timeMs)) gewaehlt = ascend;
-    else if (
-      combat.isReady(decant, timeMs) &&
-      Math.max(
-        combat.cooldownRemainingMs(reflux, timeMs),
-        combat.cooldownRemainingMs(ascend, timeMs),
-      ) > 5_000
-    ) {
-      gewaehlt = decant;
-    } else if (
-      // **WISP nur, wenn eine Verkürzung etwas bewirkt** (Issue #518).
-      // Er ist Füller UND Verkürzer; ohne laufende Abklingzeit ist er nur
-      // der schwächere KINDLE. Ohne diese Bedingung verdrängt er ihn
-      // vollständig — und `parity_sublimation_run` meldet zu Recht "KINDLE
-      // kam nicht zum Zug", weil dann keine Abklingzeit läuft, die VAPOUR
-      // verkürzen könnte.
-      //
-      // Als Träger dient VAPOURs eigene Abklingzeit (8 s). Ein erster
-      // Entwurf nannte PYRE — der wird in dieser Aufzeichnung selbst nicht
-      // mehr gedrückt, also war die Bedingung nie erfüllt und WISP fiel
-      // ganz aus.
-      combat.isReady(wisp, timeMs) &&
-      combat.cooldownRemainingMs(vapour, timeMs) > 0
-    ) {
-      gewaehlt = wisp;
-    } else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+    else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
+    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       // **Der Platz aus der Bindung, nicht aus einer Vergleichskette** (#405).
@@ -3435,6 +3470,94 @@ export function cinderPayload(): Record<string, unknown> {
     ticks: recording.ticks,
     tickMs: TICK_MS,
     bindings: CINDER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+export const KERNE_NAME = 'kern-zauber';
+
+/** Die Leiste dieser Aufzeichnung. */
+const KERNE_BINDINGS = [
+  { slot: 0, spellId: 'clasp' },
+  { slot: 1, spellId: 'latch' },
+  { slot: 2, spellId: 'plate' },
+] as const;
+
+/**
+ * CLASP, LATCH und PLATE im Paritäts-Weg (Issue #519).
+ *
+ * # Warum eine Aufzeichnung für alle drei
+ *
+ * `coverage.test.ts` verlangt, dass jeder ausgelieferte Zauber **gewirkt**
+ * wird — sonst gilt seine Bitgleichheit als angenommen, nicht als geprüft
+ * (#340). Die drei sind aus zwei verschiedenen Schulen, aber die Zauberliste
+ * ist eine einzige: Eine Leiste kann sie alle tragen.
+ *
+ * # Die Reihenfolge ist nicht beliebig
+ *
+ * LATCH kostet zwei Kontroll-Punkte, und die kommen hier nur aus CLASP (+1 je
+ * Wirkung). Ein Rezept, das LATCH zuerst drückt, drückt ins Leere: Der Zauber
+ * wird abgewiesen, der Prüffall bliebe rot, und die Aufzeichnung sähe aus wie
+ * ein Fehler im Kampf statt wie ein Fehler im Rezept.
+ *
+ * Deshalb steht LATCH hinter der Punkte-Prüfung und nicht vor ihr.
+ *
+ * # CLASP füllt selbst — gemessen, nicht angenommen
+ *
+ * Die erste Fassung band KINDLE auf Platz 3 als Füller. Der Export zeigte
+ * `kindle: 0`: CLASP hat 1,5 s Abklingzeit, ist also **jede** globale
+ * Wartezeit bereit und lässt keine Lücke. Der Füller wäre ein Zauber in der
+ * Leiste gewesen, den niemand je drückt — und der Kommentar hätte etwas
+ * behauptet, das der Lauf nicht tut.
+ *
+ * Gewirkt wird jetzt: CLASP 15, LATCH 3, PLATE 2 in 3000 Takten.
+ */
+function recordKerne(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const clasp = combat.indexOf('clasp');
+  const latch = combat.indexOf('latch');
+  const plate = combat.indexOf('plate');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, KERNE_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Die Seltenen zuerst.** Wer CLASP vorzieht, sobald er bereit ist,
+    // schiebt die 20-Sekunden-Zauber um je eine Wartezeit — bei 3000 Takten
+    // fällt PLATE dann um mehrere Wirkungen zurück.
+    if (combat.isOffCooldown(plate, timeMs)) press(plate, tick, timeMs);
+    else if (combat.isOffCooldown(latch, timeMs) && combat.control >= 2) press(latch, tick, timeMs);
+    else if (combat.isOffCooldown(clasp, timeMs)) press(clasp, tick, timeMs);
+  }
+
+  return { name: KERNE_NAME, seed: 0, ticks, presses, bindings: KERNE_BINDINGS };
+}
+
+export function kernePayload(): Record<string, unknown> {
+  const recording = recordKerne(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: KERNE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
