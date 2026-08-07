@@ -914,3 +914,51 @@ AC2 grün bei einem Boss, dessen Signatur nie eintritt.
 
 Dasselbe gilt für die Energieleiste: Eine Schwelle, die absichtlich nie erreicht wird, ist eine
 Anzeige, die so tut als ob.
+
+### Nachtrag: die drei Punkte sind eine Stufe in einer Kette
+
+_Ergänzt wenige Stunden später, nachdem eine vierte Suche einen Fall auf einer früheren
+Stufe fand und ein Worker die Verbindung benannte._
+
+Punkt 17 beschreibt Bausteine, deren **Bindung** fehlt. Am selben Tag kamen aus zwei anderen
+Richtungen Befunde, die zuerst unverwandt aussahen — bis Worker-2 den Satz schrieb: _„Hier ist
+nicht einmal der Mechanismus da, nur die Absicht."_
+
+| Stufe |                                      | Fälle                                                                                            |
+| ----- | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| **1** | Absicht formuliert, kein Mechanismus | `signature` — vier Bosse tragen ihre Regel als Satz, keine Zeile Code liest ihn (#570)           |
+| **2** | Mechanismus gebaut, keine Bindung    | `doom`, `energy`, `buff.kind` — alles läuft, nichts löst aus (#561, #562, #568)                  |
+| **3** | Bindung da, keine Prüfung            | 45 von 68 Größen — die Zahl wirkt, aber man kann sie halbieren, ohne dass etwas anschlägt (#547) |
+
+Drei Stufen, drei Worker, ein Tag. **Jede sieht von außen aus wie Fortschritt:** Es steht
+etwas da, es läuft etwas, es ist bitgleich.
+
+> Was auf allen drei Stufen fehlt, ist dasselbe: **der Nachweis, dass es einen Unterschied
+> macht.**
+
+### Warum die Bitgleichheit dagegen nicht hilft
+
+Alle drei Stufen sind paritätsgesichert. Beide Seiten rechnen dasselbe — deshalb meldet die
+Absicherung, auf die dieses Projekt seit Monaten baut, in keinem der Fälle etwas.
+
+```
+Sie sichert, dass Spiel und Simulator DASSELBE rechnen.
+Nicht, dass sie das RICHTIGE rechnen.
+```
+
+Gemessen an einem Beispiel: `distil buff.factor` von 2 auf 1 gesetzt — halbiert — und danach
+`npm run parity:export`. Ergebnis: **1776 von 1776 grün.** Der Faktor ist halbiert, und keine
+einzige Prüfung meldet sich, weil beide Seiten die neue Zahl gleich falsch verwenden.
+
+### Was daraus für die Entscheidung folgt
+
+Nichts an den drei Fragen selbst — sie bleiben, wie sie oben stehen. Aber die Dringlichkeit
+verschiebt sich, und die Begründung dafür stammt von Worker-1:
+
+> Der Befund betrifft nicht die Zahlen, die **heute** falsch sind — alle sind korrekt und
+> beide Seiten rechnen sie gleich. Er betrifft die Zahlen, die **morgen geändert werden**.
+> Der Balance-Läufer ist genau dafür gebaut, und wenn er anfängt, Werte vorzuschlagen, ist bei
+> 45 von 68 kein Netz da.
+
+Das macht aus einer allgemeinen Sorge eine terminierte: **Das Netz muss stehen, bevor die
+Balance-Arbeit beginnt** — nicht danach.
