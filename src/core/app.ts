@@ -514,6 +514,12 @@ export class App {
     const gewaehlt = bossById(bossId);
     if (gewaehlt === undefined) return;
     this.combat.switchBoss(gewaehlt);
+    // **Der Vorbereitungs-Bildschirm muss mit** (im Browser gefunden, nicht in
+    // einem Prüffall): Er nannte weiter den Boss, den der Spieler eben
+    // abgewählt hatte, während das HUD über dem Ring schon den neuen führte.
+    // Die Widerstandszeilen entstehen dabei über `resistanceLines` — dieselbe
+    // Stelle wie beim Aufbau, damit „hält ab" nicht zweimal entschieden wird.
+    this.overlay.setBoss(gewaehlt.name, resistanceLines(gewaehlt.resistances));
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
