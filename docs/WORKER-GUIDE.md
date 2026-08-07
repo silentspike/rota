@@ -4651,3 +4651,31 @@ vessel-phases.json brauchte einen Neu-Export         → seine Bosse stehen in d
 
 **Der Teil-Lauf war grün, und er war richtig grün** — für die Frage „funktionieren meine
 Prüffälle". Nicht für die Frage „ist der Bestand in Ordnung".
+
+#### Die Variante, die noch schwerer zu sehen ist: eine Zahl, die gleich BLEIBT
+
+Am selben Tag, dritter Fall. Ein Werkzeug hatte am Vormittag **47 Läufe** gefunden. Nachdem
+eine neue Aufzeichnung mit sechs Läufen in `main` gemergt war, sollte es erneut laufen — und der
+Orchestrator gab eine Vorprüfung mit:
+
+> Wie viele Läufe findet das Werkzeug jetzt? Vorher waren es 47. **Sind es immer noch 47, hast
+> du die neuen sechs nicht gesehen.**
+
+Gemessen: 47. Die neue Aufzeichnung war nicht dabei.
+
+```
+cases[].runs[]   eine VIERTE Bauart, das Werkzeug kannte drei
+damageDealt      die Datei schreibt so, das Werkzeug suchte `damage`
+```
+
+Nach der Korrektur: **58 Läufe.** Ohne die Vorprüfung wären alle Kontroll-Größen wieder auf
+0,00 % gelandet, und die Meldung hätte gelautet: _die neue Aufzeichnung ändert nichts_ — gegen
+eine Lage, die eigens dafür gebaut worden war.
+
+> Bei einer gleichförmigen **Liste** ist der Verdacht leicht zu wecken (8.59). Bei einer
+> einzelnen Zahl, die **gleich bleibt**, gibt es nichts zu bemerken: Sie passt zur Erwartung,
+> weil sie letztes Mal richtig war.
+>
+> **Wer eine Messung wiederholt, nachdem sich der Bestand geändert hat, sagt vorher, welche Zahl
+> sich ändern MUSS.** Ändert sie sich nicht, ist das Werkzeug blind — nicht der Bestand
+> unverändert.
