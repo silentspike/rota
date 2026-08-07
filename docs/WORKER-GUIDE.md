@@ -5150,3 +5150,52 @@ ist er an die Eigenschaft gebunden.
 > Verwandt mit 8.63 (richtige Antwort aus falschem Grund): Hier ist es die **falsche Antwort aus
 > richtigem Grund** — der Fall tut, was dasteht, und was dasteht war für eine Welt geschrieben,
 > die es nicht mehr gibt.
+
+### 8.75 Eine Mutation, die ins Leere läuft, ist von einer Widerlegung nicht zu unterscheiden
+
+Am 2026-08-07 dreimal an einem Nachmittag, in drei verschiedenen Materialien:
+
+| gesetzt                                    | tatsächlich gelesen                    | Ergebnis         |
+| ------------------------------------------ | -------------------------------------- | ---------------- |
+| `putrefaction.json`                        | der Zauber steht in `calcination.json` | alles grün       |
+| `conversion.sharePercent`                  | EFFLUX trägt `convert.perSecond`       | 123 von 123 grün |
+| die erste von **sieben** `6 %`-Fundstellen | das Suchmuster liest Zeile 235         | 3 von 3 grün     |
+
+**Jedes Mal sah Grün aus wie ein Ergebnis.** Bei einer Gegenprobe ist Grün die Aussage „der
+Prüffall schützt den Wert nicht" — und genau diese Aussage war dreimal falsch.
+
+#### Warum es sich nicht selbst meldet
+
+Eine Mutation, die eine Datei ohne den Wert trifft, ist syntaktisch fehlerfrei. `json.dump`
+schreibt das Feld einfach neu hinein, `sed` findet sein Muster woanders, und der Testlauf startet
+sauber. Es gibt keine Stelle, an der etwas bricht.
+
+Der einzige Unterschied zwischen „der Wert ist ungeschützt" und „ich habe den Wert nicht
+angefasst" ist die Kenntnis darüber, wo er steht.
+
+#### Die Gewohnheit
+
+**Vor der Mutation nachsehen, was der Prüffall LIEST — nicht treffen, was man erwartet.**
+
+```
+Daten   den Datensatz VOLLSTÄNDIG ausgeben, nicht die Felder abfragen, die man vermutet
+Text    das Suchmuster des Wächters lesen, nicht die erste Fundstelle nehmen
+Code    die Zeile ausgeben, nachdem man sie geändert hat
+```
+
+Die dritte Zeile ist die billigste und fängt am meisten: Ein `sed -n '235p'` nach dem `sed -i`
+kostet nichts und zeigt sofort, ob der Eingriff dort gelandet ist, wo er sollte.
+
+#### Die Gegenprobe zur Gegenprobe
+
+Wenn eine Mutation grün bleibt, gibt es zwei Erklärungen, und die naheliegende ist die
+seltenere:
+
+```
+der Wert ist ungeschützt        ← was man vermutet
+die Mutation lief ins Leere     ← was meist zutrifft
+```
+
+**Bevor „ungeschützt" gemeldet wird, muss die zweite ausgeschlossen sein.** Am schnellsten geht
+das mit einer Mutation, von der man weiß, dass sie greifen muss — an derselben Datei, an
+derselben Größe, nur größer. Bleibt auch die grün, war der Weg falsch.
