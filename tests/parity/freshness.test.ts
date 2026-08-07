@@ -40,6 +40,7 @@ import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
+import eingecheckterDeckel from './recordings/deckel-gefallen.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -93,6 +94,7 @@ import {
   gezielteVerkuerzungPayload,
   wispPayload,
   alembicPayload,
+  deckelPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -275,6 +277,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('der Vorrat über dem gefallenen Deckel entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterDeckel, HINWEIS).toEqual(deckelPayload());
   });
 
   it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
@@ -581,6 +587,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'gezielte-verkuerzung',
   'wisp-verkuerzung',
   'alembic-zwei-ladungen',
+  'deckel-gefallen',
   'gear',
   'sets',
   'player-damage',
