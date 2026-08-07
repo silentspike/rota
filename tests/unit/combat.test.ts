@@ -84,9 +84,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // ALEMBIC (Issue #521) — der Rücksetzer, der zweimal fragt. Er steht
       // hinter WISP, weil er in `sublimation.json` dort steht.
       'alembic',
-      // Issue #520 — EFFLUX, der Notausgang der Sublimation. Er ist keine
-      // Cooldown-Mechanik, sondern `convertToDamage` mit Abklingzeit als
-      // Quelle (die Bauart steht seit #478).
+      'ascend',
+      'decant',
       'efflux',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.

@@ -175,6 +175,19 @@ export interface SpellDef {
   /**
    * **Wie viele** Abklingzeiten der Auswahlmodus zurücksetzt (SUBLIMATION,
    * Issue E3-3c, erweitert in #521).
+   * Nur Abklingzeiten UNTER dieser Grenze verkürzen (ASCEND, Issue #518).
+   *
+   * 0 oder fehlend heißt: alle, wie bisher.
+   */
+  readonly cooldownReductionBelowMs?: number;
+  /**
+   * Nur die LÄNGSTE laufende Abklingzeit verkürzen (DECANT, Issue #518).
+   *
+   * Ohne das Feld trifft die Verkürzung alle — das Verhalten vor #518.
+   */
+  readonly cooldownReductionLongestOnly?: boolean;
+  /**
+   * Setzt dieser Zauber den **Auswahlmodus** scharf (SUBLIMATION, Issue E3-3c)?
    *
    * Der Rücksetzer wirkt nicht auf den nächsten gewirkten Zauber, sondern
    * fragt: Welchen? Zwei Schritte, drei Aktionen — die Entscheidung des
@@ -1166,6 +1179,10 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // legen, und der ganze Baustein wäre tot.
     problems.push(`${where}: Ein Unterbrecher darf keine globale Wartezeit auslösen.`);
   }
+  // Die zwei Angaben, die aus "verkürze alles" eine Auswahl machen
+  // (Issue #518). Beide sind optional; fehlen sie, bleibt es beim Alten.
+  const belowMs = number(raw['cooldownReductionBelowMs'], 0);
+  const longestOnly = raw['cooldownReductionLongestOnly'] === true;
   // EMBER und PYROCLASM (Issue #517). Beide Felder fehlen bei jedem
   // bisherigen Zauber — das ist der Normalfall und kein Mangel.
   const extend = raw['dotExtendTicks'];
@@ -1226,6 +1243,8 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   }
 
   return {
+    ...(belowMs > 0 ? { cooldownReductionBelowMs: belowMs } : {}),
+    ...(longestOnly ? { cooldownReductionLongestOnly: true } : {}),
     id,
     name: typeof raw['name'] === 'string' ? raw['name'] : id,
     unlockLevel: number(raw['unlockLevel'], 1),
