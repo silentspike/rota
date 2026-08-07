@@ -40,7 +40,7 @@ import {
   type BuffDef,
 } from './data.js';
 import { GCD_MS, GlobalCooldown } from './gcd.js';
-import { RandomStreams, STREAM_CRIT } from './rng.js';
+import { RandomStreams, STREAM_CRIT, STREAM_DOT_TICK } from './rng.js';
 import { hastedMs } from './haste.js';
 import {
   NOTHING_WORN,
@@ -2608,8 +2608,23 @@ export class Combat {
    * Stelle, die man leicht übersieht: Ein Wurf, dessen Ergebnis feststeht, wäre
    * rechnerisch folgenlos und trotzdem sichtbar.
    */
-  private rollCrit(): boolean {
-    return this.random.stream(STREAM_CRIT).chance(critChance(this.worn));
+  /**
+   * # Der Strom kommt vom Aufrufer, seit Issue #602
+   *
+   * Bis zum 2026-08-07 zog diese Funktion **immer** aus `STREAM_CRIT` — auch
+   * für den Krit-Wurf eines DoT-Ticks. Beide Seiten taten das gleich, die
+   * Parität war intakt, und genau deshalb hat es niemand gesehen.
+   *
+   * GAME-DESIGN 18.4 verlangt „je einen eigenen Strom", und der Nebensatz sagt
+   * warum: *„sonst verschiebt eine zusätzliche Ziehung alles Nachfolgende."*
+   * Zog ein Tick aus `STREAM_CRIT`, verschob **jeder zusätzliche Tick die
+   * Krit-Würfe aller Zauber**. Die Regel schützt nicht die Parität, sondern die
+   * Vergleichbarkeit zweier Läufe mit verschiedenen Rotationen — wer einen DoT
+   * hinzufügte, maß im Balance-Vergleich teilweise verschobenen Zufall statt
+   * der Rotation.
+   */
+  private rollCrit(stream: number): boolean {
+    return this.random.stream(stream).chance(critChance(this.worn));
   }
 
   /** Die Faktoren für einen Treffer, je nachdem ob der Wurf saß. */
@@ -2728,7 +2743,9 @@ export class Combat {
       // hat — sonst kritete ein DoT über seine ganze Laufzeit entweder immer
       // oder nie, und der Glücksanteil, den 6.5 ausdrücklich will, verschwände
       // in einer einzigen Entscheidung.
-      const kritet = this.rollCrit();
+      // **Aus STREAM_DOT_TICK, nicht aus STREAM_CRIT** (Issue #602): Ein Tick
+      // darf die Krit-Würfe der gewirkten Zauber nicht verschieben.
+      const kritet = this.rollCrit(STREAM_DOT_TICK);
       // Auch ein Brand-Tick gehört seinem Zauber und damit dessen Schule
       // (Issue #328). Ohne diese Zeile trüge er den Widerstand des zuletzt
       // gewirkten Zaubers — und das wäre nicht falsch berechnet, sondern
@@ -3462,7 +3479,7 @@ export class Combat {
     // seine Quelle sind die Kontroll-Punkte (Issue #478).
     const teiltSchadenAus =
       spell.baseDamage > 0 || spell.spender !== undefined || this.pendingConvertedDamage > 0;
-    const kritet = teiltSchadenAus ? this.rollCrit() : false;
+    const kritet = teiltSchadenAus ? this.rollCrit(STREAM_CRIT) : false;
     // **Der Widerstand dieses Zaubers, vor der Rechnung** (Issue #328). Über
     // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
     // die #196 als einzige Schreibstelle festgelegt hat.

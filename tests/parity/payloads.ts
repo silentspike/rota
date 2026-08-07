@@ -5300,3 +5300,102 @@ export function instance1Payload(bossId: string, name: string): Record<string, u
     checksums: result.checksums,
   };
 }
+
+/** Die vier Bosse der zweiten Instanz, je eine Aufzeichnung (Issue #574, AC4). */
+export const INSTANCE2_NAMES = [
+  'instance2-boss-1',
+  'instance2-boss-2',
+  'instance2-boss-3',
+  'instance2-boss-4',
+] as const;
+
+const INSTANCE2_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+  { slot: 4, spellId: 'crust' },
+] as const;
+
+/**
+ * Eine Aufzeichnung je Boss der zweiten Instanz.
+ *
+ * # Warum CRUST auf der Leiste liegt, obwohl er keinen Schaden macht
+ *
+ * `boss-2-3` trägt das umgekehrte Ziel: Ein voller Ring ist dort die
+ * Niederlage, und **Schild und Heilung drängen ihn zurück** (`stabilise`).
+ * Ohne CRUST zeichnete der Lauf für diesen Boss einen Kampf auf, den niemand
+ * gewinnen kann — und seine Signatur käme nie vor.
+ *
+ * # Warum QUENCH bedingt gedrückt wird, nicht durchgehend
+ *
+ * Bei `boss-2-2` entscheidet die **Reihenfolge**: Erst unterbrechen, das Gift
+ * danach. Ein blindes Drücken gäbe QUENCH für das Gift aus und ließe den
+ * Zauber durch — die Aufzeichnung zeigte dann die falsche Antwort.
+ */
+function recordInstance2(bossId: string, ticks: number): Recording {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE2_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+
+    // **Unterbrechen zuerst, und ohne GCD-Prüfung** — QUENCH trägt
+    // `triggersGcd: false`.
+    if (combat.casting !== -1 && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+      continue;
+    }
+    if (!combat.gcd.isReady(timeMs)) continue;
+    if (combat.afflicted && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+    } else if (combat.shield <= 0 && combat.isOffCooldown(idx('crust'), timeMs)) {
+      press(idx('crust'), tick, timeMs);
+    } else if (
+      !combat.isDotActive(idx('smoulder'), timeMs) &&
+      combat.isOffCooldown(idx('smoulder'), timeMs)
+    ) {
+      press(idx('smoulder'), tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(idx('pyre'), timeMs)) {
+      press(idx('pyre'), tick, timeMs);
+    } else if (combat.isOffCooldown(idx('kindle'), timeMs)) {
+      press(idx('kindle'), tick, timeMs);
+    }
+  }
+
+  return { name: bossId, seed: 0, ticks, presses, bindings: INSTANCE2_BINDINGS };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse der zweiten Instanz. */
+export function instance2Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const recording = { ...recordInstance2(bossId, 6000), name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE2_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
