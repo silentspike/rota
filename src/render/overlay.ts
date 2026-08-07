@@ -224,6 +224,10 @@ export function scoreText(points: PointsDisplay | null): string {
 export class Overlay {
   private readonly root: HTMLElement;
   private readonly prepare: HTMLElement;
+  /** Die Überschrift des Vorbereitungs-Bildschirms — der Bossname. */
+  private readonly title: HTMLElement;
+  /** Die Widerstandskarte. Leer und verborgen, wenn der Boss keine hat. */
+  private readonly resistCard: HTMLElement;
   private readonly pause: HTMLElement;
   private readonly result: HTMLElement;
   private readonly resultHeadline: HTMLElement;
@@ -270,6 +274,40 @@ export class Overlay {
    *   herleiten. Wer ihm `Record<string, number>` gäbe, verlagerte die
    *   Entscheidung „ab wann heißt ein Faktor Widerstand" in die Anzeige.
    */
+  /**
+   * Den angezeigten Boss wechseln (Issue #613).
+   *
+   * # Warum es das geben muss
+   *
+   * Name und Widerstände standen bis dahin fest, weil der Boss feststand — der
+   * Konstruktor setzte sie einmal. Seit der Spieler wählen kann, nannte der
+   * Vorbereitungs-Bildschirm den Boss, den er gerade **abgewählt** hatte,
+   * während das HUD über dem Ring bereits den neuen führte. Zwei Titel auf
+   * einem Bild, die sich widersprechen, und beide für sich richtig aussehend.
+   *
+   * # Die Widerstände gehören dazu, nicht nur der Name
+   *
+   * Sie hängen genauso am Boss. Ein Spieler, der von einem widerstandslosen
+   * auf einen widerstehenden wechselt, läse sonst weiter „keine" — und das
+   * Design nennt genau diesen Fall: „Vorher sichtbar in der Boss-Übersicht —
+   * die Zusammenstellung ist bewusste Vorbereitung, keine böse Überraschung"
+   * (11.4). Eine falsche Auskunft an dieser Stelle ist schlimmer als keine.
+   *
+   * `tests/unit/overlay-boss-switch.test.ts` misst beides.
+   */
+  setBoss(bossName: string, resistances: readonly string[] = []): void {
+    this.title.textContent = bossName.toUpperCase();
+
+    this.resistCard.replaceChildren();
+    if (resistances.length > 0) {
+      this.resistCard.appendChild(element('h3', 'rota-resist-heading', 'Resistances'));
+      for (const zeile of resistances) {
+        this.resistCard.appendChild(element('p', 'rota-resist-line', zeile));
+      }
+    }
+    this.resistCard.hidden = resistances.length === 0;
+  }
+
   constructor(
     parent: HTMLElement,
     bossName: string,
@@ -280,7 +318,8 @@ export class Overlay {
 
     // --- Vorbereitung: keine Uhr, kein Zeitdruck (GAME-DESIGN 10) -----------
     this.prepare = element('div', 'rota-panel');
-    this.prepare.appendChild(element('h1', 'rota-title', bossName.toUpperCase()));
+    this.title = element('h1', 'rota-title');
+    this.prepare.appendChild(this.title);
     this.prepare.appendChild(
       element('p', 'rota-note', 'Prologue · no target until the run begins'),
     );
@@ -303,14 +342,15 @@ export class Overlay {
     // **Nichts, solange nichts anzuzeigen ist.** Ein leerer Kasten für „dieser
     // Boss hat keine Widerstände" wäre eine Zeile, die bei zehn von elf Bössen
     // nur Platz kostet.
-    if (resistances.length > 0) {
-      const karte = element('div', 'rota-resistances');
-      karte.appendChild(element('h3', 'rota-resist-heading', 'Resistances'));
-      for (const zeile of resistances) {
-        karte.appendChild(element('p', 'rota-resist-line', zeile));
-      }
-      this.prepare.appendChild(karte);
-    }
+    // **Die Karte steht immer im Baum und verbirgt sich, wenn sie leer ist**
+    // (Issue #613). Sie erst beim Anzeigen zu erzeugen ginge, solange der Boss
+    // feststand; seit er gewechselt werden kann, müsste sie sonst zwischen
+    // `gearCard` und dem Ready-Knopf wieder eingefügt werden — und landete beim
+    // zweiten Wechsel an der falschen Stelle. Dasselbe Muster wie `gearCard`
+    // direkt darunter. Der Grundsatz von oben bleibt gewahrt: Wer nichts
+    // anzuzeigen hat, zeigt nichts.
+    this.resistCard = element('div', 'rota-resistances');
+    this.prepare.appendChild(this.resistCard);
 
     // Die Werte-Karte. **Leer, solange es keine Gegenstände gibt** — der
     // Katalog steht noch nicht (GAME-DESIGN 22, vor E6). Sie zeigt sich erst,
@@ -318,6 +358,8 @@ export class Overlay {
     this.gearCard = element('div', 'rota-gear-card');
     this.gearCard.hidden = true;
     this.prepare.appendChild(this.gearCard);
+
+    this.setBoss(bossName, resistances);
 
     this.prepare.appendChild(button('Ready', actions.onReady));
     // Das Player Home ist der Ort ZWISCHEN den Kaempfen -- erreichbar von
