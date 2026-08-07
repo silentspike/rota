@@ -47,8 +47,18 @@ def mutiere(wert):
 
 
 def felder():
-    """Alle (Datei, Zauber, Gruppe, Feld) über SPIELBARE Zauber."""
-    gefunden = {}
+    """Jedes PAAR (Zauber, Feld) über SPIELBARE Zauber.
+
+    **Nicht je Feld einmal.** Am 2026-08-07 gemessen: `control.amountMs`
+    schweigt bei `stall` und `latch`, meldet sich aber bei `stay` und
+    `capstone` — zwei von vier Trägern desselben Feldes sind ungeschützt.
+
+    Wer nur den ersten Träger misst, bekommt für dieses Feld eine Antwort, die
+    für die Hälfte der Zauber falsch ist. Und zwar in beide Richtungen: Ein
+    abgesicherter erster Träger verdeckt die Lücke dahinter, ein ungeschützter
+    erklärt Zauber für ungeprüft, die es nicht sind.
+    """
+    gefunden = []
     for datei in DATEN:
         for zauber in json.loads(datei.read_text(encoding='utf8'))['spells']:
             if zauber.get('unlockLevel', 0) > 100:
@@ -59,8 +69,24 @@ def felder():
                 for feld, wert in knoten.items():
                     if isinstance(wert, bool) or not isinstance(wert, (int, float)):
                         continue
-                    gefunden.setdefault(f'{gruppe}.{feld}', (datei, zauber['id'], gruppe, feld))
-    return sorted(gefunden.items())
+                    gefunden.append(
+                        (f'{gruppe}.{feld}', (datei, zauber['id'], gruppe, feld))
+                    )
+    return sorted(gefunden, key=lambda p: (p[0], p[1][1]))
+
+
+def traegerzahl():
+    """Wie viele spielbare Zauber jedes Feld überhaupt tragen.
+
+    Für die Trennung der zwei Sorten Schweigen (Issue #555): Schweigt die
+    Mutation bei einem Feld mit nur EINEM Träger, fehlt womöglich nicht der
+    Prüffall — dann ist das Feld heute schlicht wirkungslos, weil es nichts
+    gibt, wogegen es sich auswirken könnte.
+    """
+    zahl = {}
+    for name, _ in felder():
+        zahl[name] = zahl.get(name, 0) + 1
+    return zahl
 
 
 def suite_rot():
@@ -79,6 +105,7 @@ def suite_rot():
 def main():
     von, bis = int(sys.argv[1]), int(sys.argv[2])
     alle = felder()
+    traeger = traegerzahl()
     sicherung = Path(tempfile.mkdtemp(prefix='groessen-', dir='/work/tmp'))
     for d in DATEN:
         shutil.copy(d, sicherung / d.name)
@@ -100,8 +127,19 @@ def main():
             rot = suite_rot()
             shutil.copy(sicherung / datei.name, datei)
 
-            urteil = 'SCHWEIGT' if rot == 0 else ('KEINE MESSUNG' if rot < 0 else f'{rot} rot')
-            print(f'{name:26} {zauber_id:10} {vorher} -> {mutiere(vorher):<8} {urteil}', flush=True)
+            if rot < 0:
+                urteil = 'KEINE MESSUNG'
+            elif rot == 0:
+                # Ein Feld mit nur EINEM Träger, dessen Mutation schweigt, ist
+                # womöglich gar nicht ungeprüft, sondern wirkungslos (#555).
+                allein = ' [einziger Traeger -> #555 pruefen]' if traeger[name] == 1 else ''
+                urteil = f'SCHWEIGT{allein}'
+            else:
+                urteil = f'{rot} rot'
+            print(
+                f'{name:26} {zauber_id:10} {vorher} -> {mutiere(vorher):<8} {urteil}',
+                flush=True,
+            )
     finally:
         for d in DATEN:
             shutil.copy(sicherung / d.name, d)
