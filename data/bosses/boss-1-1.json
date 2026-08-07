@@ -1,0 +1,40 @@
+{
+  "_comment": "ARBEITSNAME (Issue #544). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile. Wer auf die Namen wartet, baut vier Monate keinen Boss.\n\nDer erste Boss der ersten Instanz: der EINSTIEG. Er verlangt nur, dass der Spieler eine Unterbrechung setzt — alles andere ist ein Schadensrennen.\n\nZWEI WEITERE BAUSTEINE, und sie gehoeren zusammen: escalation wirkt NUR, wenn timelineLoopMs gesetzt ist (combat.ts:3135 steigt sonst aus). Allein eingebaut haette escalation geschwiegen — dieselbe Falle wie bei phases, nur diesmal vor dem Eintragen gemessen. Die Wirkzeit sinkt je Zyklus um 400 ms bis auf 1200: Wer den Kampf in die Laenge zieht, muss schneller unterbrechen.\n\nDIE EINTRAEGE LIEGEN IM SCHLEIFEN-RAHMEN, und das ist keine Feinheit: timelineLoopMs ist die Laenge EINES Zyklus. Ein erster Entwurf hatte 12000, 32000 und 48000 bei einer Schleife von 15000 — der vierte Eintrag wurde dann bei 27000 faellig, also RUECKWAERTS, und Spiel und Simulator beantworteten diese Lage verschieden (Paritaetsbruch bei Takt 4800). Keine Seite rechnete falsch; die Daten waren widerspruechlich. Alle Eintraege muessen in den Rahmen passen, sonst ueberholt der naechste Zyklus den laufenden.",
+  "schema": 1,
+  "id": "boss-1-1",
+  "name": "Instance One, First",
+  "instance": "instance-1",
+  "hp": 5200,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 3000,
+      "mechanic": "interruptibleCast",
+      "name": "Kindling Roar",
+      "damage": 900,
+      "castTimeMs": 2500
+    },
+    {
+      "atMs": 8000,
+      "mechanic": "strike",
+      "name": "Backlash",
+      "damage": 300
+    },
+    {
+      "atMs": 13000,
+      "mechanic": "interruptibleCast",
+      "name": "Kindling Roar",
+      "damage": 900,
+      "castTimeMs": 2500
+    }
+  ],
+  "resistances": {},
+  "signature": "Zwei unterbrechbare Zauber mit langer Wirkzeit — und die Wirkzeit schrumpft mit jedem Zyklus. Wer sie stehen laesst, verliert mehr Leben als der Rest des Kampfes kostet, und wer lange braucht, bekommt weniger Zeit dafuer. Getragen von: timeline (mechanic interruptibleCast), verschaerft durch escalation.",
+  "timelineLoopMs": 15000,
+  "escalation": {
+    "castTimeShrinkMs": 400,
+    "minCastTimeMs": 1200
+  }
+}
