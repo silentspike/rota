@@ -60,6 +60,19 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     // sich selbst. Die Schleife darueber prueft die Gegenrichtung: Jede Zeile
     // der Tabelle kann auch wirklich Schaden machen.
     //
+    // # Diese Trennung ist duenner geworden, und das gehoert gesagt
+    //
+    // Seit die Regel in `report.rs` ausspricht "wer Schaden macht, traegt bei"
+    // (aufgedeckt durch SCAB und WISP, siehe dort), steht dieselbe Bedingung
+    // auf beiden Seiten. Der Vergleich bleibt also nur in EINER Richtung
+    // unabhaengig: Er faellt, wenn die Tabelle einen Zauber ohne Schaden
+    // fuehrt oder einen mit Schaden auslaesst — aber er faenge es nicht mehr,
+    // wenn beide Seiten GEMEINSAM eine falsche Vorstellung von "macht
+    // Schaden" bekaemen.
+    //
+    // Der Fall unter diesem faengt genau das ab: Er prueft die ABSICHT der
+    // Regel statt ihrer Zahl.
+    //
     // Die Stufengrenze darf der Fall dagegen selbst anlegen (Issue #489): Sie
     // steht in den DATEN, nicht in der Filterfunktion des Berichts — ein
     // Zauber ueber der Grenze gibt es im Spiel nicht, und ein Fall, der ihn
@@ -107,6 +120,78 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
     assert!((table[0].damage_per_cast - 100.0).abs() < 1e-9);
     assert!((table[1].damage_per_cast - 360.0).abs() < 1e-9);
     assert!((table[2].damage_per_cast - 200.0).abs() < 1e-9);
+}
+
+/// Ein Zauber, der Schaden macht, steht in der Tabelle — auch wenn er nebenbei
+/// schuetzt oder Zeit spart.
+///
+/// # Warum dieser Fall neben dem Zaehl-Vergleich noetig ist
+///
+/// Der Vergleich darueber zaehlt beide Seiten mit derselben Bedingung. Er
+/// faellt zuverlaessig, wenn eine Seite sich bewegt — aber nicht, wenn beide
+/// sich gemeinsam bewegen. Hier steht deshalb die Absicht selbst:
+///
+///   Die Tabelle beantwortet "welcher Zauber traegt wie viel bei". Ein
+///   Hilfs-Merkmal aendert daran nichts, solange der Zauber Schaden macht.
+///
+/// # Der Befund, aus dem der Fall entstand — gemessen, nicht vermutet
+///
+/// `spell_table` fuehrte 12 Zeilen, Schaden machten 14 Zauber. Die zwei
+/// fehlenden waren ZWITTER, und beide fielen ueber ein Hilfs-Merkmal heraus,
+/// obwohl sie beitragen:
+///
+/// ```text
+/// scab   base_damage 45   shield
+/// wisp   base_damage 20   cooldown_reduction_ms 500
+/// ```
+///
+/// Die Begruendung der Verkuerzer-Zeile ("sie sparen ZEIT, nicht Schaden")
+/// traf auf VAPOUR und REFLUX zu — beide mit Grundschaden 0 — und auf WISP
+/// seit #480 nicht mehr. Die Regel hatte die Absicht nie ausgesprochen; sie
+/// war ueber die Datenlage miterfuellt, solange kein Zauber BEIDES war.
+///
+/// Der Fall nennt die zwei nicht beim Namen: Er prueft die Eigenschaft, damit
+/// er auch den DRITTEN Zwitter faengt, den es noch nicht gibt.
+#[test]
+fn ac1_ein_zwitter_aus_schaden_und_hilfe_steht_trotzdem_in_der_tabelle() {
+    let result = Fight::new(FightConfig::default()).run_apl(&apl(GOOD, "gut"));
+    let table = spell_table(&result);
+
+    let zwitter: Vec<&str> = data::SPELLS
+        .iter()
+        .filter(|s| s.unlock_level <= data::MAX_LEVEL as u16)
+        .filter(|s| s.base_damage > 0 || s.dot.is_some() || s.spender.is_some())
+        .filter(|s| {
+            s.interrupt
+                || s.shield.is_some()
+                || s.heal.is_some()
+                || s.conversion.is_some()
+                || s.control.is_some()
+                || s.cooldown_reduction_ms > 0
+                || s.arms_cooldown_reset
+        })
+        .map(|s| s.id)
+        .collect();
+
+    // **Die Zusicherung in den Datensatz** (verwandt mit #295): Ohne einen
+    // einzigen Zwitter im Spiel pruefte die Schleife darunter nichts und
+    // waere trotzdem gruen.
+    assert!(
+        !zwitter.is_empty(),
+        "es gibt keinen Zauber mehr, der Schaden macht UND ein Hilfs-Merkmal \
+         traegt — dann prueft dieser Fall nichts. Er gehoert dann nicht \
+         gelockert, sondern gelesen: Ist die Zwitter-Bauart aus dem Spiel \
+         verschwunden, oder hat sich nur ein Merkmalsname geaendert?"
+    );
+
+    for id in &zwitter {
+        assert!(
+            table.iter().any(|r| &r.id == id),
+            "{id} macht Schaden, faellt aber ueber ein Hilfs-Merkmal aus der \
+             Tabelle — genau der Fehler, den SCAB und WISP aufgedeckt haben \
+             (12 Zeilen gegen 14 Schadenszauber)"
+        );
+    }
 }
 
 #[test]
