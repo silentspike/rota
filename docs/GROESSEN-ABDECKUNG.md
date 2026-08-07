@@ -324,3 +324,61 @@ Kampf, in dem der Betrag den Ausgang ändert.
 > denselben falschen Befund erzeugt — ohne Fehlermeldung. Der Abbruch bei
 > unbekannter Form ist deshalb Absicht: Er ist die einzige Stelle, an der eine
 > dritte Bauart überhaupt auffällt.
+
+---
+
+## Drei Fallen in dieser Datei-Sammlung — lies das, bevor du misst
+
+An einem einzigen Tag (2026-08-07) haben diese drei zusammen **vier
+Fehlmessungen** erzeugt, zwei bei jedem von zwei Messenden. Jede sah aus wie
+ein Befund, keine wurde von einem Wächter gefunden.
+
+### 1. Drei Aufzeichnungs-Bauarten
+
+```
+presses + expected   ein Lauf je Datei
+runs                 mehrere Läufe je Datei   (coagulation, ward-cap, fixation, player-damage)
+anders               kein Kampflauf           (buffs.json führt `steps`)
+```
+
+Wer „über alle Aufzeichnungen" misst, misst je nach Werkzeug **39, 43, 47
+oder 52** — und jede Zahl ist für eine andere Frage richtig:
+
+| Zahl | beantwortet                                                             |
+| ---- | ----------------------------------------------------------------------- |
+| 52   | Wie viele Dateien liegen im Verzeichnis?                                |
+| 43   | Wie viele davon sind abspielbar?                                        |
+| 38   | Wie viele führen mindestens eine Wirkungs-Größe?                        |
+| 47   | Wie viele **Läufe** sind das? (34 einzeln + 13 aus vier `runs`-Dateien) |
+
+_Erzeugte Fehlmessung:_ „In keiner Aufzeichnung wird geheilt" — gemessen
+waren 39 von 52, und `coagulation#2` heilt 3000.
+
+### 2. Zwei Press-Formen
+
+`{slot, tick}` **und** `{spellId, tick}`. Ein Werkzeug, das nur eine kennt,
+findet die Zauber der anderen nicht.
+
+_Erzeugte Fehlmessung:_ „`anchor`, `stall`, `stay` werden nie gedrückt."
+
+### 3. Bindungen stehen je LAUF, nicht auf Dateiebene
+
+Bei der `runs`-Bauart liegt `bindings` in jedem einzelnen Lauf; auf
+Dateiebene liefert es `None`. Wer dort nachsieht, findet keine Zuordnung von
+Slot zu Zauber — und meldet null Drücke.
+
+_Erzeugte Fehlmessung:_ dieselbe wie oben, aus dem anderen Grund. Zwei Wege
+zum selben falschen Ergebnis.
+
+### Was daraus folgt
+
+**Ein `.get()` ist hier gefährlicher als ein `KeyError`.** Ein fehlender
+Schlüssel liefert still `None`, der Zauber gilt als „nie gewirkt", und das
+Werkzeug meldet einen Befund statt eines Fehlers. Der Abbruch bei unbekannter
+Form ist die einzige Stelle, an der eine vierte Bauart überhaupt auffiele.
+
+**Und die Gegenprobe, die alle vier Fehlmessungen gefunden hat, war dieselbe:**
+Das Ergebnis war zu gleichförmig. Zehn von zehn Zaubern nie gedrückt, sechs von
+sechs Größen „SCHWEIGT", 39 von 39 Aufzeichnungen ohne Heilung. Eine Liste, in
+der alle Zeilen gleich aussehen, ist verdächtig — auch wenn das Ergebnis zur
+Erwartung passt.
