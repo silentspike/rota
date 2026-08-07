@@ -2108,11 +2108,30 @@ export class Combat {
    * `reset_mode`). Die Reihenfolge war auf beiden Seiten sorgfältig
    * gleichgehalten, die **Schicht** nicht.
    *
-   * Das war kein Schönheitsfehler: **Jede Aufzeichnung fährt `Combat`
-   * direkt** (`tests/parity/payloads.ts`, `new Combat({...})` — `new Session`
-   * kommt in keiner vor). Eine Regel ausserhalb von `Combat` ist für die
-   * Parität deshalb nicht schwer prüfbar, sondern **unsichtbar**. Der Bruch
-   * fiel erst auf, als jemand REFLUX in eine Aufzeichnung nehmen wollte.
+   * # Was hier stand, war beim Schreiben schon falsch (berichtigt in #528 AC5)
+   *
+   * Der Satz lautete: „Jede Aufzeichnung fährt `Combat` direkt — `new Session`
+   * kommt in keiner vor." Gemessen in `tests/parity/payloads.ts`:
+   *
+   * ```text
+   * new Combat(    36
+   * new Session(    2      resetRunPayload, cooldownResetPayload
+   * ```
+   *
+   * Die ältere der beiden stammt vom 2026-08-05, dieser Kommentar vom
+   * 2026-08-07 — er war zwei Tage zu spät und trotzdem falsch.
+   *
+   * **Und die Schlussfolgerung trägt nicht.** Eine Regel ausserhalb von
+   * `Combat` ist NICHT grundsätzlich unsichtbar — sie ist es, solange keine
+   * Aufzeichnung sie fährt. Gemessen: Wird der `armResetIfNeeded`-Aufruf aus
+   * `alembicPayload` entfernt und neu exportiert, fallen 4 von 5 Fällen in
+   * `sim/tests/parity_alembic.rs`, darunter die Prüfsumme je Takt.
+   *
+   * Der Rücksetzer war unsichtbar, WEIL ihn keine Aufzeichnung fuhr — nicht,
+   * weil er hier lag. Der Umzug war trotzdem richtig: Er macht die Regel dort
+   * prüfbar, wo sie wirkt. Nur die Begründung war es nicht.
+   *
+   * Der Bruch fiel auf, als jemand REFLUX in eine Aufzeichnung nehmen wollte.
    *
    * Und die Wirkung tritt beim **nächsten gewirkten Zauber** ein — das ist ein
    * Kampfereignis, kein Sitzungsereignis (WORKER-GUIDE 8.38: der Zustand
