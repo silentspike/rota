@@ -182,6 +182,11 @@
   ],
   "expected": {
     "damage": 3172,
+    "damageTaken": 0,
+    "absorbed": 0,
+    "healed": 0,
+    "converted": 0,
+    "diedAtMs": -1,
     "resetsApplied": 2,
     "resetsWasted": 0,
     "accepted": 38,

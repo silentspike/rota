@@ -356,6 +356,14 @@ export function recordingPayload(): Record<string, unknown> {
     presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -474,6 +482,11 @@ export function ruleEventsPayload(): Record<string, unknown> {
     recording: {
       name: RECORDING_NAME,
       damage: lauf.damage,
+      damageTaken: lauf.damageTaken,
+      absorbed: lauf.absorbed,
+      healed: lauf.healed,
+      converted: lauf.converted,
+      diedAtMs: lauf.diedAtMs,
       killedAtMs: lauf.killedAtMs,
       ruleEventCount: lauf.ruleEventCount,
       ruleSequenceChecksum: lauf.ruleSequenceChecksum,
@@ -593,6 +606,14 @@ export function misplaysPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -712,6 +733,14 @@ export function bossStatePayload(): Record<string, unknown> {
     },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -723,8 +752,6 @@ export function bossStatePayload(): Record<string, unknown> {
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
       finalPlayerHp: combat.playerHp,
-      damageTaken: combat.damageTaken,
-      diedAtMs: combat.diedAtMs,
       interruptsLanded: combat.interruptsLanded,
       interruptsMissed: combat.interruptsMissed,
     },
@@ -829,6 +856,11 @@ export function doomStacksPayload(): Record<string, unknown> {
     },
     expected: {
       damage: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      absorbed: combat.shieldAbsorbed,
+      healed: combat.healed,
+      converted: combat.converted,
+      diedAtMs: combat.diedAtMs,
       // **Nicht die letzte Takt-Prüfsumme.** Beide Seiten stempeln den
       // Schlusswert mit `(ticks - 1) * TICK_MS`, auch wenn der Lauf früher
       // endet — `Fight::replay` mit `final_time` und `replayRecording` mit
@@ -842,8 +874,6 @@ export function doomStacksPayload(): Record<string, unknown> {
       finalDoomCharges: combat.doomCharges,
       finalStacks: combat.bossStacks,
       finalPlayerHp: combat.playerHp,
-      damageTaken: combat.damageTaken,
-      diedAtMs: combat.diedAtMs,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
     // **Die Namensfolge der Prüfsumme** (Issue #236).
@@ -940,6 +970,11 @@ export function resetRunPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      absorbed: combat.shieldAbsorbed,
+      healed: combat.healed,
+      converted: combat.converted,
+      diedAtMs: combat.diedAtMs,
       // Wie oft der Modus gegriffen hat und wie oft er verpufft ist. Beide
       // Zahlen gehoeren dazu: Ein Lauf, in dem jede Wahl verpufft, saehe
       // ohne sie aus wie einer, in dem jede greift.
@@ -1025,6 +1060,14 @@ export function raceHealPayload(): Record<string, unknown> {
     },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
@@ -1085,6 +1128,14 @@ export function level30Payload(): Record<string, unknown> {
     },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
@@ -1162,6 +1213,14 @@ export function runawayProgressPayload(): Record<string, unknown> {
     },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
@@ -1220,6 +1279,14 @@ export function resistancePayload(): Record<string, unknown> {
     },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
@@ -1303,6 +1370,14 @@ export function resistanceMixedPayload(): Record<string, unknown> {
     boss: { resistances: boss.resistances },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
@@ -1383,6 +1458,14 @@ export function castTimePayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -1461,12 +1544,19 @@ export function trialBlocksPayload(): Record<string, unknown> {
     },
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
       afflictionsCleared: combat.afflictionsCleared,
       cycle: combat.cycle,
-      diedAtMs: combat.diedAtMs,
     },
     checksums: result.checksums,
     afflicted: geschwaecht,
@@ -2785,6 +2875,11 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     checksums,
     expected: {
       damage: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      absorbed: combat.shieldAbsorbed,
+      healed: combat.healed,
+      converted: combat.converted,
+      diedAtMs: combat.diedAtMs,
       /**
        * **Die Zusicherung im Datensatz:** Wären die Punkte nie ausgegeben
        * worden, liefe die Aufzeichnung über zwei Zauber, die nichts tun.
@@ -2837,6 +2932,11 @@ export function buffCombatPayload(): Record<string, unknown> {
     factorAt,
     expected: {
       damage: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      absorbed: combat.shieldAbsorbed,
+      healed: combat.healed,
+      converted: combat.converted,
+      diedAtMs: combat.diedAtMs,
       /**
        * **AC1 im Datensatz selbst:** Mindestens ein Messpunkt trägt einen
        * Faktor über 1. Wäre das nicht so, prüften beide Seiten einen Lauf, in
@@ -3345,6 +3445,14 @@ export function wornPayload(): Record<string, unknown> {
     presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -3504,6 +3612,14 @@ export function synergyPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -3654,6 +3770,14 @@ export function synergyHastePayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -3729,6 +3853,11 @@ export function newCalcinationPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      absorbed: combat.shieldAbsorbed,
+      healed: combat.healed,
+      converted: combat.converted,
+      diedAtMs: combat.diedAtMs,
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
       sequenceChecksum: sequence,
       // **Je Zauber, damit sichtbar ist, dass BEIDE gewirkt wurden.** Eine
@@ -3906,6 +4035,14 @@ export function putrefactionFillerPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -3992,6 +4129,14 @@ export function cinderPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4080,6 +4225,14 @@ export function kernePayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4170,6 +4323,14 @@ export function dotLifetimePayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4281,6 +4442,14 @@ export function extendEffectsPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4382,6 +4551,14 @@ export function rotPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4471,6 +4648,14 @@ export function effluxPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4574,6 +4759,14 @@ export function kritPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4749,6 +4942,14 @@ export function buffTargetsPayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
@@ -4851,6 +5052,14 @@ export function instance1Payload(bossId: string, name: string): Record<string, u
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
+      // Die fünf Größen neben dem Schaden (#576, #581 AC5). Sie gehen in
+      // KEINE Prüfsumme ein — die Feldfolge von `combatChecksum` bleibt
+      // unberührt, damit die Parität aus #54 gilt.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       killedAtMs: result.killedAtMs,
       accepted: result.accepted,
       rejected: result.rejected,
