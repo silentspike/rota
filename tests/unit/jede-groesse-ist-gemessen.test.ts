@@ -67,7 +67,16 @@ function gemesseneGroessen(): Set<string> {
       for (const [gruppe, knoten] of Object.entries(zauber)) {
         if (typeof knoten !== 'object' || knoten === null || Array.isArray(knoten)) continue;
         for (const [feld, wert] of Object.entries(knoten as Record<string, unknown>)) {
-          if (typeof wert !== 'number') continue;
+          // **Dieselbe Regel wie `messbar()` in `tools/groessen-mutation.py`.**
+          // Bis #633 stand hier `typeof wert !== 'number'` — Werkzeug und
+          // Wächter hatten damit zwei Begriffe von „Größe", und der des
+          // Wächters war der engere. Er hätte jede Textmessung als „Größe, die
+          // es nicht mehr gibt" gemeldet; genau das ist beim ersten Lauf
+          // passiert, mit 22 Zeilen auf einmal.
+          //
+          // `_comment` bleibt draußen: Freitext für Leser, ohne Wirkung.
+          if (feld.startsWith('_')) continue;
+          if (!['number', 'string', 'boolean'].includes(typeof wert)) continue;
           paare.add(`${gruppe}.${feld} ${zauber['id'] as string}`);
         }
       }
