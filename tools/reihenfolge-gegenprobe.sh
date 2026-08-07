@@ -24,9 +24,15 @@ cd "$(dirname "$0")/.."
 # putrefaction, test-cast). Ein Zauber am Ende von calcination.json ist in der
 # GESAMTLISTE ein Einschub und verschiebt alles danach.
 #
-# Damit ist die Regel „neue Zauber ans Ende" mehrdeutig, solange nicht dabei
-# steht, ans Ende WOVON. Die Gegenprobe hat das gefangen, bevor jemand danach
-# gehandelt hat.
+# **Was daraus folgte, gilt seit dem 2026-08-06 nicht mehr.** Die Regel „neue
+# Zauber ans Ende der Gesamtliste" ist zurückgenommen — sie sparte nachweislich
+# keinen Neu-Export (23 bewegte Aufzeichnungen in beiden Fällen) und kostete den
+# fachlich richtigen Ort. Einzelheiten im Kopf von `spell-order.test.ts`.
+#
+# Dieses Skript prüft deshalb jetzt fünf Fälle statt vier. Der fünfte ist der
+# neue: Nach dem Nachziehen von `spell-order.json` muss der Wächter wieder grün
+# sein. Ohne ihn belegte Fall D nur, dass der Wächter meckert — nicht, dass man
+# weiterkommt.
 ERSTE=data/spells/calcination.json
 LETZTE=data/spells/test-cast.json
 S1=$(mktemp /work/tmp/erste-XXXXXX.json)
@@ -71,28 +77,60 @@ C=$(waechter)
 echo "$C"
 cp "$S2" "$LETZTE"
 
-# **Der lehrreiche Fall** (Issue #408): ans Ende der EIGENEN Schuldatei. Das
-# ist die naheliegende Lesart von „hinten" — und sie ist falsch, weil nach
-# calcination.json noch sechs Dateien kommen. Er MUSS rot sein.
+# **Der Fall, dessen BEDEUTUNG sich geändert hat** (Issues #408 → 2026-08-06):
+# ans Ende der eigenen Schuldatei. Er ist weiterhin rot — die Reihenfolge
+# verschiebt sich ja tatsächlich —, aber er ist kein Verstoß mehr.
+#
+# Er ist der NORMALE Fall für einen neuen Zauber. Gemessen wurde: Ein Zauber
+# ganz hinten bewegt genauso viele Aufzeichnungen wie einer in der Mitte
+# (23 gegen 23), weil die Prüfsumme über alle Zauber läuft. Die alte Regel
+# sparte nichts und kostete den fachlich richtigen Ort.
+#
+# Was der Wächter hier leistet, ist eine **Meldung**: Zieh `spell-order.json`
+# nach und exportiere — im selben Commit. Fall E unten belegt, dass danach
+# grün ist.
 echo -n "  ans Ende der EIGENEN Datei   -> "
 einfuegen eigene-datei
 D=$(waechter)
 echo "$D"
 cp "$S1" "$ERSTE"
 
+# **Der Weg heraus** — und ohne ihn belegte Fall D nur, dass der Wächter meckert,
+# nicht dass man weiterkommt. Derselbe Einschub, aber mit nachgezogener Liste.
+echo -n "  ... und Liste nachgezogen    -> "
+S3=$(mktemp /work/tmp/order-XXXXXX.json)
+cp tests/unit/spell-order.json "$S3"
+einfuegen eigene-datei
+python3 -c "
+import json
+neu = [s['id'] for s in json.load(open('data/spells/calcination.json'))['spells']]
+alt = json.load(open('tests/unit/spell-order.json'))
+# Die Gesamtliste beginnt mit calcination; der Rest bleibt, wie er war.
+json.dump(neu + alt[len(neu) - 1:], open('tests/unit/spell-order.json', 'w'), indent=2)
+"
+E=$(waechter)
+echo "$E"
+cp "$S1" "$ERSTE"
+cp "$S3" tests/unit/spell-order.json
+rm -f "$S3"
+
 echo
-if [ "$A" = gruen ] && [ "$B" = rot ] && [ "$C" = gruen ] && [ "$D" = rot ]; then
-  echo "OK — der Waechter merkt beide Einschuebe und laesst nur das echte"
-  echo "     Anfuegen ans Ende der LETZTEN Datei durch."
+if [ "$A" = gruen ] && [ "$B" = rot ] && [ "$C" = gruen ] && [ "$D" = rot ] && [ "$E" = gruen ]; then
+  echo "OK — der Waechter merkt jede Verschiebung, laesst das reine Anhaengen"
+  echo "     durch, und die nachgezogene Liste macht ihn wieder gruen."
   exit 0
 fi
-echo "FEHLGESCHLAGEN — erwartet: gruen / rot / gruen / rot, gemessen: $A / $B / $C / $D"
+echo "FEHLGESCHLAGEN — erwartet: gruen / rot / gruen / rot / gruen,"
+echo "                 gemessen: $A / $B / $C / $D / $E"
 echo
 echo "  Ist der ERSTE Fall rot, misst nicht der Waechter, sondern dieses Skript"
 echo "  falsch — vor jeder anderen Deutung hier nachsehen."
-echo "  Ist der MITTLERE Fall gruen, prueft der Waechter nicht, was er behauptet."
+echo "  Ist der ZWEITE Fall gruen, prueft der Waechter nicht, was er behauptet."
 echo "  Ist der DRITTE Fall rot, ist der Waechter zu streng: Anfuegen ans Ende der"
-echo "  LETZTEN Datei MUSS erlaubt bleiben, sonst kann kein Zauber dazukommen."
-echo "  Ist der VIERTE Fall gruen, ist die Regel aus #408 verletzt: Ans Ende der"
-echo "  eigenen Schuldatei ist ein Einschub, weil danach sechs Dateien folgen."
+echo "  LETZTEN Datei MUSS ohne Nachziehen durchgehen."
+echo "  Ist der VIERTE Fall gruen, meldet der Waechter eine Verschiebung nicht mehr"
+echo "  — dann faellt eine UNBEABSICHTIGTE Umsortierung durch."
+echo "  Ist der FUENFTE Fall rot, gibt es keinen Weg heraus: Dann waere ein neuer"
+echo "  Zauber in seiner Schuldatei dauerhaft blockiert, und die Ruecknahme der"
+echo "  Regel vom 2026-08-06 haette nichts gebracht."
 exit 1
