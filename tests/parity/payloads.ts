@@ -310,6 +310,15 @@ export const WISP_NAME = 'wisp-verkuerzung';
  */
 export const ALEMBIC_NAME = 'alembic-zwei-ladungen';
 
+/**
+ * Vergleichsdatei für den Vorrat über dem gefallenen Deckel (#549).
+ *
+ * Keine der bisherigen Aufzeichnungen fährt diese Folge — sonst wäre der
+ * Simulator längst abgestürzt. Der Zustand ist im Spiel mit vier
+ * Tastendrücken erreichbar, und die Parität sah ihn nicht.
+ */
+export const DECKEL_NAME = 'deckel-gefallen';
+
 /** Anfangswert von FNV-1a über 32 Bit, wie in `src/core/checksum.ts`. */
 const FNV_OFFSET = 0x811c9dc5;
 
@@ -2187,6 +2196,106 @@ const ALEMBIC_BINDINGS = [
  * verpufft (die bestehende Regel) — sie stünde in der Spur, ohne etwas zu
  * bewegen, und der Fall belegte nichts.
  */
+/** Die Leiste der Deckel-Aufzeichnung — VOR der Funktion (Issue #405). */
+const DECKEL_BINDINGS = [
+  { slot: 0, spellId: 'slag' },
+  { slot: 1, spellId: 'bellows' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * Der Vorrat steht über dem Deckel, und es wird weiter erzeugt (Issue #549).
+ *
+ * # Warum es diese Aufzeichnung geben muss
+ *
+ * SLAG hebt die Hitze-Grenze von 20 auf 30. Wer im Fenster über 20 sammelt
+ * und es ablaufen lässt, steht über dem dann wieder geltenden Deckel — und
+ * genau dort rechneten beide Seiten verschieden: Der Simulator stürzte ab
+ * (u16-Subtraktion), das Spiel zählte still falsch.
+ *
+ * **Keine der 33 Aufzeichnungen fuhr diese Folge**, sonst wäre der Fehler
+ * längst aufgefallen. Der Zustand braucht vier Tastendrücke; die Parität sah
+ * ihn trotzdem nicht.
+ *
+ * # Die Takte sind nicht beliebig
+ *
+ * SLAGs Fenster hält vier GCDs, also 6000 ms. Der vierte BELLOWS-Wurf fällt
+ * **nach** Tick 600 — vorher greift der erhöhte Deckel und der Fall zeigt
+ * nichts. Ein Wurf kurz davor steht als Gegenprobe in
+ * `sim/tests/slag_wirkung.rs`.
+ *
+ * Und er darf nicht zu spät kommen: Der Verfall (1 je 2000 ms) zieht den
+ * Vorrat von selbst unter den Deckel. Genau daran ist der Versuch des
+ * Orchestrators über den Balance-Läufer gescheitert.
+ */
+export function deckelPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const slag = combat.indexOf('slag');
+  const bellows = combat.indexOf('bellows');
+  const kindle = combat.indexOf('kindle');
+  const ticks = 1200; // 12 s
+
+  const slots = slotMap(combat, DECKEL_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Vorrat je Takt — die Grösse, um die es hier geht. */
+  const vorrat: number[] = [];
+  /** Der Überlauf-Zähler je Takt; er sprang vor #549 um 12 statt um 8. */
+  const ueberlauf: number[] = [];
+
+  // **Feste Takte statt einer Auswahl-Kette.** Der Fall lebt davon, dass der
+  // vierte Wurf NACH dem Fensterende liegt; eine Bedingung wie „wenn bereit"
+  // träfe ihn nur zufällig.
+  const drueckt = new Map<number, number>([
+    [0, slag],
+    [160, bellows],
+    [310, bellows],
+    [460, bellows],
+    [610, bellows], // nach dem Fensterende (Tick 600)
+    [760, kindle],
+  ]);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead || combat.bossHpRemaining <= 0) {
+      checksums.push(combatChecksum(combat, timeMs));
+      vorrat.push(combat.resource);
+      ueberlauf.push(combat.resourceOverflow);
+      break;
+    }
+    const gewaehlt = drueckt.get(tick);
+    if (gewaehlt !== undefined && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    vorrat.push(combat.resource);
+    ueberlauf.push(combat.resourceOverflow);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: DECKEL_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: DECKEL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    vorrat,
+    ueberlauf,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /** Höchster Vorrat im Lauf — er muss über den Grund-Deckel gekommen sein. */
+      hoechsterVorrat: Math.max(...vorrat),
+      resourceOverflow: combat.resourceOverflow,
+    },
+  };
+}
+
 export function alembicPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -4401,4 +4510,165 @@ export function kritPayloadOhneChance(): Record<string, unknown> {
   const recording = recordKrit(3000);
   const result = replayRecording(recording, { worn: ohne });
   return { expected: { damage: result.damage } };
+}
+/** Die Aufzeichnung, in der die fünf Verstärkungen aus #540 gewirkt werden. */
+export const BUFF_TARGETS_NAME = 'buff-targets';
+
+const BUFF_TARGETS_BINDINGS = [
+  { slot: 0, spellId: 'griplock' },
+  { slot: 1, spellId: 'virulence' },
+  { slot: 2, spellId: 'distil' },
+  { slot: 3, spellId: 'quicksilver' },
+  { slot: 4, spellId: 'flashpoint' },
+  { slot: 5, spellId: 'bind' },
+  { slot: 6, spellId: 'canker' },
+  { slot: 7, spellId: 'wisp' },
+  { slot: 8, spellId: 'temper' },
+  { slot: 9, spellId: 'kindle' },
+] as const;
+
+/**
+ * Fünf Verstärkungen auf fünf getrennte Zielgrößen (Issue #540).
+ *
+ * # Warum EINE Aufzeichnung für fünf Zauber
+ *
+ * Eine einzelne zeigt, dass eine Zielgröße ankommt. Die gemeinsame zeigt, dass
+ * sie ankommen, **ohne einander zu verdrängen** — und das kann kein Einzelfall
+ * liefern. Alle fünf tragen `kind: 0`; GAME-DESIGN 328 („gleiche Art ersetzt
+ * einander") gilt innerhalb einer Zielgröße, über Zielgrößen hinweg müssen sie
+ * koexistieren.
+ *
+ * Es ist der umgekehrte Fall von EMBER und PYROCLASM (#517): Dort gehörten
+ * zwei zusammen, weil sie **denselben** Speicher anfassen. Hier gehören fünf
+ * zusammen, weil sie es **nicht** tun.
+ *
+ * # ZWEI gleichzeitig — und warum das reicht
+ *
+ * Der Aufbau wechselt Verstärkung und Erzeuger ab, damit jeder Erzeuger IM
+ * Fenster seiner Verstärkung liegt. Gemessen in den Momenten, in denen ein
+ * Erzeuger wirkt:
+ *
+ * ```text
+ *  1500 ms   1 offen   griplock
+ *  4500 ms   2 offen   griplock virulence
+ *  7500 ms   2 offen   virulence distil
+ * 10500 ms   2 offen   distil quicksilver
+ * 13500 ms   2 offen   quicksilver flashpoint
+ * ```
+ *
+ * Für die Aussage genügt das: Sie lautet, dass Verstärkungen auf verschiedene
+ * Zielgrößen **einander nicht verdrängen**, und dafür müssen mehr als eine
+ * gleichzeitig laufen — nicht alle fünf.
+ *
+ * # Der Aufbau davor war grün und maß zwei Zauber gar nicht
+ *
+ * Ein erster Versuch reihte alle fünf Verstärkungen aneinander und hängte die
+ * Erzeuger hinten an. Vier Fenster waren dann kurzzeitig offen — aber der GCD
+ * sperrte genau dieses Fenster, und der erste Erzeuger kam erst bei 7500 ms.
+ * GRIPLOCK (bis 6000) und VIRULENCE (bis 7500) waren da zu.
+ *
+ * Aufgefallen ist es **nicht am grünen Lauf**, sondern an der Mutationsprobe:
+ * Von fünf Umbiegungen im Simulator — jede Zielgröße einzeln in den
+ * Schadens-Speicher — fielen nur drei auf. Die beiden anderen standen mit
+ * `casts: 1` in der Aufzeichnung und maßen nichts.
+ *
+ * Nach dem Umbau fangen alle fünf. Die Zahlen stehen im PR.
+ *
+ * **FLASHPOINT steht am Ende, weil sein Fenster das kürzeste ist** (3 statt 4
+ * Wartezeiten). Das ist kein Kniff, sondern folgt aus den Zahlen: Vorne
+ * platziert wäre er abgelaufen, bevor die Kette steht.
+ *
+ * Nebenbei eine Beobachtung über die ZAUBER, nicht über diese Datei: Fünf
+ * Verstärker, deren Fenster kürzer sind als die Zeit, sie alle zu wirken,
+ * lassen sich nie zusammen halten. Ob die `gcds`-Werte stimmen, entscheidet
+ * der Balance-Läufer — vermerkt in #540, damit es als gemessen gilt und nicht
+ * als übersehen.
+ *
+ * # Die fünf Nutzer sind Erzeuger, nicht Ausgeber
+ *
+ * Jede Verstärkung braucht einen Zauber, an dem die verdoppelte Größe
+ * **ankommt** — sonst zeichnet der Lauf fünf Fenster auf, die sich auf nichts
+ * auswirken.
+ *
+ * ```text
+ * griplock    control    bind     controlGain 2
+ * virulence   stack      canker   decay.stacks 1
+ * distil      cdreduce   wisp     cooldownReductionMs
+ * quicksilver convert    temper   conversion
+ * flashpoint  resource   kindle   resourceGain heat 3
+ * ```
+ *
+ * Ein erster Versuch, sie über Feldnamen zu suchen, lieferte für `control`
+ * STALL, STAY, ANCHOR, WEDGE, CAPSTONE und LATCH — die **Ausgeber** der
+ * Punkte. BIND, der einzige Erzeuger, fehlte. Wären sie genommen worden, wäre
+ * GRIPLOCK an sechs Zaubern gemessen worden, die Punkte ausgeben, und der
+ * Prüffall wäre grün gewesen, ohne dass der Verstärker je gewirkt hätte.
+ */
+function recordBuffTargets(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, BUFF_TARGETS_BINDINGS, presses);
+  // **Kein `: number` als Rückgabetyp.** `indexOf` liefert einen markierten
+  // `SpellIndex`; eine Annotation auf `number` nimmt die Marke weg, und
+  // `press` lehnt den Wert ab. Der Typ wird deshalb abgeleitet, nicht gesetzt.
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // **Feste Kette statt Bedingungen.** Die Reihenfolge IST hier die Aussage;
+  // eine Auswahl nach Bereitschaft könnte sie umstellen, und die Überlappung
+  // wäre dahin.
+  const kette = ['griplock', 'virulence', 'distil', 'quicksilver', 'flashpoint'];
+  const nutzer = ['bind', 'canker', 'wisp', 'temper', 'kindle'];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Im Wechsel, nicht erst alle Verstärkungen.** Jeder Erzeuger folgt
+    // unmittelbar auf seine Verstärkung und liegt damit IN deren Fenster.
+    //
+    // Ein erster Aufbau hängte die Erzeuger hinten an. Er war grün, und die
+    // Mutationsprobe zeigte, was er wert war: Von fünf Umbiegungen im
+    // Simulator fielen nur drei auf. GRIPLOCK (Fenster bis 6000 ms) und
+    // VIRULENCE (bis 7500) waren zu, wenn der erste Erzeuger bei 7500 wirken
+    // durfte — ihre Zielgröße wurde nie berührt. Sie standen mit `casts: 1` in
+    // der Aufzeichnung und maßen nichts.
+    const stelle = Math.floor(timeMs / 1500);
+    const paar = Math.floor(stelle / 2);
+    if (paar < kette.length) {
+      const i = idx((stelle % 2 === 0 ? kette[paar] : nutzer[paar]) as string);
+      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+    } else {
+      // Danach weiter mit den Erzeugern, damit der Lauf nicht leer ausklingt.
+      const i = idx(nutzer[(stelle - 2 * kette.length) % nutzer.length] as string);
+      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+    }
+  }
+
+  return { name: BUFF_TARGETS_NAME, seed: 0, ticks, presses, bindings: BUFF_TARGETS_BINDINGS };
+}
+
+export function buffTargetsPayload(): Record<string, unknown> {
+  const recording = recordBuffTargets(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: BUFF_TARGETS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
 }

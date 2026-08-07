@@ -132,6 +132,50 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // genannt. Die Woerter, die dort schon vergeben sind, duerfen nicht
     // wiederkehren.
     'alembic',
+    // VORLAEUFIG (Issue #540): Die fuenf Verstaerkungen sind gebaut, ihre
+    // Klaenge entstehen ueber Suno (#487) und koennen in keiner
+    // Claude-Sitzung entstehen. Ein erfundener Prompt waere schlimmer als ein
+    // fehlender, weil ihn niemand als Erfindung erkennt.
+    //
+    // Der Bedarf je Zauber, mit der Abgrenzung gegen den NACHBARN derselben
+    // Schule — dessen Manifest-Prompt ist gelesen, nicht nur sein Name
+    // genannt. Die dort vergebenen Woerter stehen jeweils dabei und duerfen
+    // nicht wiederkehren:
+    //
+    //   flashpoint  | Hitze-Erzeugung verdoppelt | ~0,6 s
+    //     gegen SLAG (0,8 s): "building and holding", "sustained rumble
+    //     WITHOUT RELEASE". SLAG haelt Druck, FLASHPOINT loest ihn aus —
+    //     ein kurzes Auflodern mit Freigabe, nicht ein Schwellen.
+    //
+    //   quicksilver | Umwandlungsrate steigt | ~0,6 s
+    //     gegen TEMPER (0,8 s): "tempering hiss", "quenching steam",
+    //     "RISING NOT STRIKING". TEMPER wandelt selbst um, QUICKSILVER
+    //     beschleunigt nur — heller und fluessiger, kein Zischen, kein Dampf.
+    //
+    //   distil      | Verkuerzungen wirken doppelt | ~0,6 s
+    //     gegen WISP (0,6 s) "weightless flicker upward" und REFLUX (0,7 s)
+    //     "reversed gurgle DRAWING BACK". DISTIL geht in keine Richtung: es
+    //     verdichtet. Ein Zusammenziehen, weder aufwaerts noch rueckwaerts.
+    //
+    //   griplock    | Punktegewinn verdoppelt | ~0,7 s
+    //     gegen BIND (0,5 s) "tight rope-pull with resonant ringing tail" und
+    //     CAPSTONE (1,5 s) "massive stone SLAMMING into place". GRIPLOCK
+    //     schliesst nichts und schlaegt nicht zu — es zieht das Bestehende
+    //     fester. Kein Aufschlag, kein Nachklingen wie bei BIND.
+    //
+    //   virulence   | jeder Stapel zaehlt doppelt | ~0,7 s
+    //     gegen CANKER (0,5 s) "wet organic RUPTURE, fleshy burst" und FESTER
+    //     (0,9 s) "festering SWELL, wet rot BLOOM". Beide sind Wachstum;
+    //     VIRULENCE fuegt nichts hinzu, sondern macht das Vorhandene
+    //     giftiger — schaerfer und trockener statt nasser.
+    //
+    // Die Gegenrichtung unten holt jeden von selbst heraus, sobald sein Klang
+    // im Manifest steht.
+    'flashpoint',
+    'quicksilver',
+    'distil',
+    'griplock',
+    'virulence',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //

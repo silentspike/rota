@@ -73,6 +73,22 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "extendDecayMs": 12000
+    },
+    {
+      "_comment": "VIRULENCE — jeder Stapel zaehlt fuer vier Wartezeiten doppelt (Issue #540).\n\nDer Hoehepunkt vor einem Schadensfenster: Er erhoeht nicht die ZAHL der\nZersetzungs-Stapel, sondern ihr Gewicht. Wer ihn ohne volle Leiste wirkt,\nverdoppelt wenig — das ist die Entscheidung, die er stellt.\n\nStufe 15, nicht 14: Auf 14 liegt bereits ASCEND aus dem offenen Zweig zu\n#534. Gemessen ueber die Fernzweige, nicht nur ueber main — eine Kollision\nfaellt in KEINEM Prueffall auf, weil beide Zauber fuer sich gueltig sind;\nsie zeigt sich erst, wenn jemand die Progression spielt.\n\nVORLAEUFIGE ZAHLEN, wie bei den vier Geschwistern aus #540.",
+      "id": "virulence",
+      "name": "Virulence",
+      "unlockLevel": 15,
+      "baseDamage": 0,
+      "cooldownMs": 25000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2,
+        "gcds": 4,
+        "target": "stack"
+      }
     }
   ]
 }
