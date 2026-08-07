@@ -33,6 +33,22 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "cooldownReductionMs": 500
+    },
+    {
+      "_comment": "DISTIL — Verkuerzungen wirken vier Wartezeiten lang doppelt (Issue #540).\n\nHoehepunkt fuer den Aufbau-Weg der Sublimation: WISP und REFLUX sparen\nZeit, DISTIL verdoppelt, was sie sparen. Er lohnt deshalb nur VOR einer\nKette von Verkuerzern, nie danach.\n\nVORLAEUFIGE ZAHLEN, wie bei den vier Geschwistern aus #540.",
+      "id": "distil",
+      "name": "Distil",
+      "unlockLevel": 11,
+      "baseDamage": 0,
+      "cooldownMs": 15000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2,
+        "gcds": 4,
+        "target": "cdreduce"
+      }
     }
   ]
 }

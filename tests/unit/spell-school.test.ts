@@ -62,6 +62,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
       'cinder',
       'slag',
+      // Issue #540 — FLASHPOINT, bei seiner Schule (wie #477 und #481): Ein Zauber
+      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
+      // ohnehin ueber alle Zauber laeuft.
+      'flashpoint',
       'quench',
       'crust',
       'salve',
@@ -69,6 +73,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Issue #481 — SCAB, bei seiner Schule (wie #268, #479).
       'scab',
       'plate',
+      // Issue #540 — QUICKSILVER, bei seiner Schule (wie #477 und #481): Ein Zauber
+      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
+      // ohnehin ueber alle Zauber laeuft.
+      'quicksilver',
       'bind',
       'stall',
       'stay',
@@ -78,12 +86,24 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'capstone',
       'clasp',
       'latch',
+      // Issue #540 — GRIPLOCK, bei seiner Schule (wie #477 und #481): Ein Zauber
+      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
+      // ohnehin ueber alle Zauber laeuft.
+      'griplock',
       'vapour',
       'reflux',
       'wisp',
+      // Issue #540 — DISTIL, bei seiner Schule (wie #477 und #481): Ein Zauber
+      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
+      // ohnehin ueber alle Zauber laeuft.
+      'distil',
       'canker',
       'fester',
       'blight',
+      // Issue #540 — VIRULENCE, bei seiner Schule (wie #477 und #481): Ein Zauber
+      // am Ende der GESAMTLISTE spart keinen Neu-Export, weil die Pruefsumme
+      // ohnehin ueber alle Zauber laeuft.
+      'virulence',
       'test-cast',
       'test-buff',
       'test-control',

@@ -3626,3 +3626,153 @@ export function kernePayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+/** Die Aufzeichnung, in der die fünf Verstärkungen aus #540 gewirkt werden. */
+export const BUFF_TARGETS_NAME = 'buff-targets';
+
+const BUFF_TARGETS_BINDINGS = [
+  { slot: 0, spellId: 'griplock' },
+  { slot: 1, spellId: 'virulence' },
+  { slot: 2, spellId: 'distil' },
+  { slot: 3, spellId: 'quicksilver' },
+  { slot: 4, spellId: 'flashpoint' },
+  { slot: 5, spellId: 'bind' },
+  { slot: 6, spellId: 'canker' },
+  { slot: 7, spellId: 'wisp' },
+  { slot: 8, spellId: 'temper' },
+  { slot: 9, spellId: 'kindle' },
+] as const;
+
+/**
+ * Fünf Verstärkungen auf fünf getrennte Zielgrößen (Issue #540).
+ *
+ * # Warum EINE Aufzeichnung für fünf Zauber
+ *
+ * Eine einzelne zeigt, dass eine Zielgröße ankommt. Die gemeinsame zeigt, dass
+ * sie ankommen, **ohne einander zu verdrängen** — und das kann kein Einzelfall
+ * liefern. Alle fünf tragen `kind: 0`; GAME-DESIGN 328 („gleiche Art ersetzt
+ * einander") gilt innerhalb einer Zielgröße, über Zielgrößen hinweg müssen sie
+ * koexistieren.
+ *
+ * Es ist der umgekehrte Fall von EMBER und PYROCLASM (#517): Dort gehörten
+ * zwei zusammen, weil sie **denselben** Speicher anfassen. Hier gehören fünf
+ * zusammen, weil sie es **nicht** tun.
+ *
+ * # DREI gleichzeitig — die Zahl ist gemessen, nicht gegriffen
+ *
+ * Wer das hier liest und fünf Verstärkungen erwartet, soll nicht anfangen zu
+ * „reparieren", was keine Lücke ist. Zwei Rechnungen begrenzen sie:
+ *
+ * **Fünf gleichzeitig sind arithmetisch unmöglich.** Fünf Drücke brauchen
+ * 5 × 1500 = 7500 ms GCD-Zeit, das längste Fenster ist 6000 ms. Wer zuerst
+ * gewirkt wird, ist abgelaufen, bevor der Fünfte gedrückt werden **kann** —
+ * in jeder Reihenfolge.
+ *
+ * ```text
+ * griplock     0 ms   Fenster bis  6000
+ * virulence    1500   bis  7500
+ * distil       3000   bis  9000
+ * quicksilver  4500   bis 10500
+ * flashpoint   6000   bis 10500
+ * ```
+ *
+ * **Und vier sind zwar offen, aber nicht nutzbar.** Der letzte Kettendruck bei
+ * 6000 ms löst den GCD aus; der erste Nutzer kann frühestens bei 7500 ms
+ * wirken. Da ist GRIPLOCK abgelaufen und VIRULENCE läuft gerade aus — es sind
+ * **drei**. Ein erster Anlauf maß hier `control 2 → 0`, `resource 3 → 0`,
+ * `stack 1 → 0` und sah aus, als schadeten die Verstärkungen; tatsächlich
+ * wurde der Nutzer gar nicht erst gewirkt.
+ *
+ * Drei getrennte Speicher gleichzeitig genügen für die Aussage: Sie kommen an,
+ * ohne einander zu verdrängen. Das liefert kein Einzelfall.
+ *
+ * **FLASHPOINT steht am Ende, weil sein Fenster das kürzeste ist** (3 statt 4
+ * Wartezeiten). Das ist kein Kniff, sondern folgt aus den Zahlen: Vorne
+ * platziert wäre er abgelaufen, bevor die Kette steht.
+ *
+ * Nebenbei eine Beobachtung über die ZAUBER, nicht über diese Datei: Fünf
+ * Verstärker, deren Fenster kürzer sind als die Zeit, sie alle zu wirken,
+ * lassen sich nie zusammen halten. Ob die `gcds`-Werte stimmen, entscheidet
+ * der Balance-Läufer — vermerkt in #540, damit es als gemessen gilt und nicht
+ * als übersehen.
+ *
+ * # Die fünf Nutzer sind Erzeuger, nicht Ausgeber
+ *
+ * Jede Verstärkung braucht einen Zauber, an dem die verdoppelte Größe
+ * **ankommt** — sonst zeichnet der Lauf fünf Fenster auf, die sich auf nichts
+ * auswirken.
+ *
+ * ```text
+ * griplock    control    bind     controlGain 2
+ * virulence   stack      canker   decay.stacks 1
+ * distil      cdreduce   wisp     cooldownReductionMs
+ * quicksilver convert    temper   conversion
+ * flashpoint  resource   kindle   resourceGain heat 3
+ * ```
+ *
+ * Ein erster Versuch, sie über Feldnamen zu suchen, lieferte für `control`
+ * STALL, STAY, ANCHOR, WEDGE, CAPSTONE und LATCH — die **Ausgeber** der
+ * Punkte. BIND, der einzige Erzeuger, fehlte. Wären sie genommen worden, wäre
+ * GRIPLOCK an sechs Zaubern gemessen worden, die Punkte ausgeben, und der
+ * Prüffall wäre grün gewesen, ohne dass der Verstärker je gewirkt hätte.
+ */
+function recordBuffTargets(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, BUFF_TARGETS_BINDINGS, presses);
+  // **Kein `: number` als Rückgabetyp.** `indexOf` liefert einen markierten
+  // `SpellIndex`; eine Annotation auf `number` nimmt die Marke weg, und
+  // `press` lehnt den Wert ab. Der Typ wird deshalb abgeleitet, nicht gesetzt.
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // **Feste Kette statt Bedingungen.** Die Reihenfolge IST hier die Aussage;
+  // eine Auswahl nach Bereitschaft könnte sie umstellen, und die Überlappung
+  // wäre dahin.
+  const kette = ['griplock', 'virulence', 'distil', 'quicksilver', 'flashpoint'];
+  const nutzer = ['bind', 'canker', 'wisp', 'temper', 'kindle'];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    const stelle = Math.floor(timeMs / 1500);
+    if (stelle < kette.length) {
+      // Die fünf Verstärkungen, eine je Wartezeit.
+      const i = idx(kette[stelle] as string);
+      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+    } else {
+      // Danach die Erzeuger im Wechsel — die ersten von ihnen fallen in das
+      // Fenster, in dem vier Verstärkungen gleichzeitig offen sind.
+      const i = idx(nutzer[(stelle - kette.length) % nutzer.length] as string);
+      if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+    }
+  }
+
+  return { name: BUFF_TARGETS_NAME, seed: 0, ticks, presses, bindings: BUFF_TARGETS_BINDINGS };
+}
+
+export function buffTargetsPayload(): Record<string, unknown> {
+  const recording = recordBuffTargets(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: BUFF_TARGETS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
