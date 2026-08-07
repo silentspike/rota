@@ -4598,3 +4598,56 @@ Unterschieden wird am **Zweignamen**, nicht am Autor:
 
 `git worktree list` zeigt die Zuordnung in einer Zeile. Wer einen fremden Zweig auscheckt,
 merkt es dort sofort — und nicht erst, wenn zwei Sitzungen denselben Commit schreiben.
+
+---
+
+### 8.66 Eine Messung, die eine Frage beantwortet hat, beantwortet nicht die nächste
+
+Die Vorstufe zu 8.63. Dort war die Antwort richtig und der Beleg trug sie nicht; hier ist die
+Messung richtig und beantwortet eine **andere** Frage als die gestellte.
+
+Am 2026-08-07 hatte ein Worker die Wirkung von `STALL` in 250er-Schritten durchgemessen:
+
+```
++1500 bis +2250   auch ohne STALL unterbrochen
++2500 bis +3500   ohne STALL zu spät
+```
+
+Die Reihe war für ihre Frage vollständig richtig: **Gibt es eine Teilwirkung?** Nein, die
+Grenze ist scharf.
+
+Als der Orchestrator später fragte, ob sich der **Betrag** messen lässt, reichte er dieselbe
+Reihe weiter — und beide schlossen daraus, `boss-1-4` gebe den Betrag nicht her. Falsch:
+Zwischen halbem und vollem Fenster liegt ein Streifen, den 250er-Schritte nicht auffällig
+zeigen. Seine eigene Einordnung:
+
+> Ich hatte die Reihe gebaut, um zu zeigen, **dass** es keine Teilwirkung gibt. Für diese Frage
+> war sie richtig. Für die Frage nach dem Betrag war sie zu grob, und ich habe sie unverändert
+> weitergereicht, als danach gefragt wurde.
+>
+> **Eine Messung, die eine Frage beantwortet hat, beantwortet nicht die nächste — auch wenn sie
+> dieselben Zahlen betrifft.**
+
+#### Warum das schwerer zu sehen ist als ein Messfehler
+
+Ein falsch gemessener Wert fällt irgendwann auf, weil er zu etwas anderem nicht passt. Eine
+**richtig** gemessene Reihe passt zu allem — sie ist ja korrekt. Nur ihre Auflösung, ihr
+Ausschnitt oder ihre Bezugsgröße gehören zu einer Frage, die niemand mehr im Kopf hat, wenn die
+Zahlen weitergereicht werden.
+
+> Wer eine vorhandene Messung für eine neue Frage benutzt, prüft zuerst: **Wofür wurde sie
+> gebaut?** Steht es nicht dabei, ist es keine Antwort, sondern ein Fund.
+
+#### Dieselbe Klasse in der Testauswahl
+
+Am selben Tag, an einem anderen Worker: Er hatte seine vier Boss-Datensätze mit einem Lauf über
+die **eigene** Testdatei geprüft — grün. Die volle Suite fand zwei Dinge, die er dort nicht sehen
+konnte:
+
+```
+signature war noch in allen vier Bossen (als null)   → boss-signature-feld.test.ts (#570)
+vessel-phases.json brauchte einen Neu-Export         → seine Bosse stehen in der Kennungsliste
+```
+
+**Der Teil-Lauf war grün, und er war richtig grün** — für die Frage „funktionieren meine
+Prüffälle". Nicht für die Frage „ist der Bestand in Ordnung".
