@@ -41,6 +41,7 @@ import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.j
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckterDeckel from './recordings/deckel-gefallen.json';
+import eingecheckterPhasen from './recordings/phasen-bindung.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -96,6 +97,7 @@ import {
   wispPayload,
   alembicPayload,
   deckelPayload,
+  phasenPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -284,6 +286,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('der Phasenwechsel mit gebundenem Ereignis entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterPhasen, HINWEIS).toEqual(phasenPayload());
   });
 
   it('der Vorrat über dem gefallenen Deckel entspricht dem heutigen Spielstand', () => {
@@ -595,6 +601,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'wisp-verkuerzung',
   'alembic-zwei-ladungen',
   'deckel-gefallen',
+  'phasen-bindung',
   'gear',
   'sets',
   'player-damage',
