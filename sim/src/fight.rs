@@ -69,8 +69,8 @@ use crate::buffs::Buffs;
 use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
-    stack_damage, stat_at_level, Boss, BuffTarget, Control, ControlEffect, Dot, Resource, Spell,
-    TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, stat_at_level, Boss, BossHealTrigger, BuffTarget, Control, ControlEffect, Dot,
+    Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -1637,7 +1637,12 @@ impl Fight {
         // Issue #218). Derselbe Ausloeser wie auf der Spielseite: der
         // durchgekommene Boss-Zauber. WIE VIEL steht im Boss-Datensatz —
         // fehlt das Feld, heilt nichts.
-        self.heal_boss();
+        //
+        // **Seit #609 sagt der Datensatz auch, WORAN sie haengt** — bis dahin
+        // war dies die einzige Stelle.
+        if self.boss.boss_heal.map(|h| h.on) == Some(BossHealTrigger::Interrupt) {
+            self.heal_boss();
+        }
     }
 
     /// Das Unverwundbarkeits-Fenster fortschreiben (Baustein 4; Issue #218).
@@ -2701,6 +2706,17 @@ impl Fight {
             self.afflicted = true;
         } else {
             self.hit_player(aff.damage);
+            // **Der zweite Ausloeser von Baustein 5** (Issue #609). Dieselbe
+            // Stelle wie auf der Spielseite: neben dem Schaden der Schwaechung,
+            // je Schritt und nicht einmal.
+            //
+            // Die beiden Seiten sind hier verschieden GEBAUT — das Spiel
+            // schleift, der Simulator plant Ereignisse ein —, aber sie muessen
+            // gleich oft zurueckdrehen. Genau dafuer steht der Wert in der
+            // Aufzeichnung.
+            if self.boss.boss_heal.map(|h| h.on) == Some(BossHealTrigger::Affliction) {
+                self.heal_boss();
+            }
         }
 
         let next = self.time + aff.per_step_ms;

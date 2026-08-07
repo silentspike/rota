@@ -1240,8 +1240,26 @@ fn emit_boss_heal(out: &mut String, boss: &Value, whose: &str) {
         "{whose}: amount muss groesser als null sein — eine Heilung von 0 saehe im \
          Datensatz aus wie eine, die etwas tut"
     );
+    // **`interrupt` ist die Voreinstellung** (Issue #609): So bleibt jede
+    // bestehende Bossdatei ohne Aenderung bei ihrem Verhalten. Ein unbekannter
+    // Wert bricht den Bau, statt still auf den Standard zu fallen — dieselbe
+    // Entscheidung wie im Leser des Spiels, nur eine Stufe haerter, weil hier
+    // ein Panic zur Bauzeit moeglich ist.
+    let ausloeser = match heal.get("on").and_then(Value::as_str) {
+        None | Some("interrupt") => "Interrupt",
+        Some("affliction") => {
+            assert!(
+                boss.get("affliction").is_some_and(|a| !a.is_null()),
+                "{whose}: on ist \"affliction\", aber der Boss hat keine — die Heilung \
+                 loeste nie aus und saehe im Datensatz aus wie eine Mechanik"
+            );
+            "Affliction"
+        }
+        Some(anderer) => panic!("{whose}: unbekannter Ausloeser \"{anderer}\" (on)"),
+    };
     let _ = writeln!(out, "        boss_heal: Some(BossHeal {{");
     let _ = writeln!(out, "            amount: {amount},");
+    let _ = writeln!(out, "            on: BossHealTrigger::{ausloeser},");
     let _ = writeln!(out, "        }}),");
 }
 

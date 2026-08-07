@@ -577,8 +577,25 @@ pub struct Race {
 /// Umsetzung von "nur fuer einzelne": Eine Kopplung im Code gaelte fuer alle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BossHeal {
-    /// Wie viel Fortschritt ein durchgekommener Boss-Zauber zurueckdreht.
+    /// Wie viel Fortschritt ein Fehler zurueckdreht.
     pub amount: u32,
+    /// Woran die Heilung haengt (Issue #609).
+    ///
+    /// Bis dahin hing sie fest am durchgekommenen Boss-Zauber. Damit
+    /// verlangte JEDER Boss, der Fortschritt kosten soll, dieselbe Taste —
+    /// und GAME-DESIGN 11.2 sagt zu Baustein 5 "nur fuer einzelne Bosse,
+    /// sonst frustrierend". Das Design sagt "ein FEHLER macht Fortschritt
+    /// rueckgaengig", nicht "eine verpasste Unterbrechung".
+    pub on: BossHealTrigger,
+}
+
+/// Welcher Fehler die Heilung ausloest (Issue #609).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BossHealTrigger {
+    /// Ein Boss-Zauber kam durch — der bisherige und voreingestellte Fall.
+    Interrupt,
+    /// Die Schwaechung wurde nicht geklaert und zehrt einen Schritt weiter.
+    Affliction,
 }
 
 /// Das umgekehrte Ziel (GAME-DESIGN 11.2, Baustein 6; Issue #247).
