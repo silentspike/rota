@@ -2685,6 +2685,20 @@ export class Combat {
     // Kampf gerade endet — sonst rechneten die Faktoren mit einer alten Zeit.
     this.nowMsForBuffs = timeMs;
     if (this.stateValue !== FIGHT_RUNNING) return;
+    // **Der Spielertod beendet den Versuch** (GAME-DESIGN A.3: „Versuch vorbei,
+    // keine Strafe"), und zwar hier — nicht erst in den einzelnen Wirkungen.
+    //
+    // Bis zum 2026-08-07 setzte der Tod nur `diedAtMsValue`. Mehrere Stellen
+    // fragten es ab (`hitPlayer`, `doom` und weitere), das Wirken selbst nicht:
+    // hp, doom und erlittener Schaden standen, ausgeteilter Schaden wuchs
+    // weiter. Im `doom-stacks`-Lauf gemessen — 2120 bei 20000 ms, 2780 am Ende,
+    // 660 Schaden von einem toten Spieler (Issue #567).
+    //
+    // Die Rust-Seite tut dasselbe eine Ebene höher: `fight.rs` bricht die
+    // Takt-Schleife ab (`if self.died_at.is_some() { break; }`), also passiert
+    // dort nach dem Tod GAR nichts mehr. Diese Zeile ist ihr Spiegelbild — sie
+    // steht deshalb neben der Kampfende-Abfrage und nicht in `cast` allein.
+    if (this.diedAtMsValue >= 0) return;
 
     for (let i = 0; i < this.spells.length; i++) {
       const spell = this.spells[i] as SpellDef;
@@ -3271,6 +3285,19 @@ export class Combat {
       return outcome;
     }
     if (this.stateValue !== FIGHT_RUNNING) {
+      outcome.result = CAST_FIGHT_OVER;
+      return outcome;
+    }
+    // **Ein toter Spieler wirkt nicht** (GAME-DESIGN A.3, Issue #567) — und das
+    // Ergebnis ist `CAST_FIGHT_OVER`, weil es für den Drückenden dasselbe ist:
+    // Der Versuch ist vorbei. Ein eigenes Ergebnis dafür wäre eine
+    // Design-Entscheidung; A.3 verlangt sie nicht.
+    //
+    // Diese Abfrage steht ZUSÄTZLICH zu der in `stepPassive`, nicht statt ihr:
+    // `cast` kommt vom Tastendruck und läuft nicht über den Takt. Wer nur eine
+    // von beiden setzt, hat die Regel halb umgesetzt — genau das war der
+    // Befund, aus dem dieses Issue entstand.
+    if (this.diedAtMsValue >= 0) {
       outcome.result = CAST_FIGHT_OVER;
       return outcome;
     }

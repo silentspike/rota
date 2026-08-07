@@ -145,8 +145,38 @@ describe('AC6 — eine echte Gelegenheit ungenutzt', () => {
     // etwas EINGESTECKT hat.
     const { analysis } = play(ONSLAUGHT, [KINDLE, QUENCH], []);
     expect(analysis.losses.interrupts?.damageTaken).toBe(6000);
-    expect(analysis.losses.totalLost).toBe(0);
-    expect(analysis.losses.totalShare).toBe(0);
+
+    // **Die 400 sind kein Ergebnis, sondern ein Stand** (Issue #567).
+    //
+    // Bis zum 2026-08-07 stand hier 0 — nicht, weil nichts liegen blieb,
+    // sondern weil der tote Spieler weiterwirkte und deshalb kein Fenster
+    // ungenutzt blieb. Seit ein toter Spieler nicht mehr wirkt, meldet die
+    // Rechnung, was in den neun Sekunden nach seinem Tod bei 24000 ms an
+    // KINDLE-Fenstern verstreicht:
+    //
+    //   missedCasts   4 windows with a ready spell and nothing cast — 400
+    //
+    // Rechnerisch stimmt das und als Aussage ist es irreführend: Sie sagt dem
+    // Spieler „du hättest drücken können", und er konnte nicht. Die vier
+    // Fenster sind die FOLGE seines Todes; als eigener Verlust geführt
+    // verdecken sie die Ursache hinter ihrer Wirkung — gegen den Zweck der
+    // Verlustrechnung aus GAME-DESIGN A.2 („Versuch 20 ist klüger als
+    // Versuch 5").
+    //
+    // Die Entscheidung ist gefallen: Die Auswertung soll beim Tod enden. Sie
+    // gehört aber nicht in #567 — dort geht es darum, DASS ein Toter nicht
+    // mehr wirkt, nicht darum, was die Auswertung daraus macht. Bis das eigene
+    // Vorhaben gebaut ist, hält dieser Fall den Ist-Zustand fest, statt ihn
+    // wegzulassen: Ein fehlender Vergleich sähe aus wie ein vergessener.
+    expect(analysis.losses.totalLost).toBe(400);
+    expect(analysis.losses.totalShare).toBe(0.2);
+
+    // Was die Überschrift dieses Falls behauptet, gilt unverändert: Die
+    // verpassten Unterbrechungen stehen NICHT in der Prozentrechnung. Die 400
+    // stammen aus `missedCasts`, nicht aus `missedInterrupts` — und das ist
+    // der Kern der Entscheidung vom 2026-08-04, nicht die nackte Null.
+    expect(analysis.losses.sources.map((s) => s.kind)).not.toContain('missedInterrupts');
+    expect(analysis.losses.sources.map((s) => s.kind)).toEqual(['missedCasts']);
   });
 
   it('zaehlt ihn NICHT doppelt — weder als Leerlauf noch als verpasste Wirkung', () => {
