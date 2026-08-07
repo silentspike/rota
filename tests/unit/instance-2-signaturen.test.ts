@@ -184,13 +184,15 @@ describe('boss-2-2 — der Abschluss: die REIHENFOLGE entscheidet', () => {
    * QUENCH `triggersGcd: false` trägt und blindes Drücken damit gratis ist.
    * Ohne Preis für die falsche Antwort gibt es keine Wahl.
    */
-  function reihenfolge(art: 'nichts' | 'gift' | 'zauber'): { zustand: number; hp: number } {
-    const b = boss('boss-2-2');
+  function reihenfolge(
+    art: 'nichts' | 'gift' | 'zauber',
+    b: BossDef = boss('boss-2-2'),
+  ): { zustand: number; ende: number; hp: number } {
     const c = new Combat({ school: CALCINATION.value, boss: b });
     const i = (id: string): ReturnType<typeof c.indexOf> => c.indexOf(id);
     for (let t = 0; t <= 60_000; t += 10) {
       c.stepPassive(t);
-      if (c.checkDefeat(t)) return { zustand: c.fightState, hp: c.playerHp };
+      if (c.checkDefeat(t)) return { zustand: c.fightState, ende: t, hp: c.playerHp };
       if (art === 'gift' && c.afflicted && c.isOffCooldown(i('quench'), t)) {
         c.cast(i('quench'), t);
         continue;
@@ -205,22 +207,60 @@ describe('boss-2-2 — der Abschluss: die REIHENFOLGE entscheidet', () => {
       else if (c.resource >= 15 && c.isOffCooldown(i('pyre'), t)) c.cast(i('pyre'), t);
       else if (c.isOffCooldown(i('kindle'), t)) c.cast(i('kindle'), t);
     }
-    return { zustand: c.fightState, hp: c.playerHp };
+    return { zustand: c.fightState, ende: -1, hp: c.playerHp };
   }
 
-  it('wer QUENCH gar nicht nutzt, stirbt', () => {
-    expect(reihenfolge('nichts').zustand).toBe(FIGHT_DIED);
+  it('wer QUENCH gar nicht nutzt, stirbt — nach 27,5 s', () => {
+    const r = reihenfolge('nichts');
+    expect(r.zustand).toBe(FIGHT_DIED);
+    expect(r.ende).toBe(27_500);
   });
 
   it('DIE FALSCHE REIHENFOLGE TÖTET — zuerst reinigen heißt, den Zauber durchzulassen', () => {
     // Der eigentliche Nachweis. Ohne ihn wäre es ein Boss mit zwei
     // Anforderungen, nicht einer mit einer Entscheidung.
-    expect(reihenfolge('gift').zustand).toBe(FIGHT_DIED);
+    //
+    // **Der Zeitpunkt gehört dazu, nicht nur der Zustand.** Die erste Fassung
+    // prüfte allein `toBe(FIGHT_DIED)` — und blieb grün, als der Orchestrator
+    // die Signatur des Bosses vollständig entfernte, `race` wie `affliction`.
+    // Beide Läufe sterben eben, nur aus verschiedenen Gründen und 14 Sekunden
+    // auseinander. Eine Zusicherung, die den Abstand wegwirft, misst nicht die
+    // Reinigung, sondern nur, dass der Kampf schwer ist.
+    const r = reihenfolge('gift');
+    expect(r.zustand).toBe(FIGHT_DIED);
+    expect(r.ende).toBe(41_500);
+    expect(r.ende - reihenfolge('nichts').ende, 'das Gift verschiebt den Tod nicht').toBe(14_000);
+  });
+
+  it('die Gegenprobe: OHNE das Gift fallen „nichts" und „gift" zusammen', () => {
+    // Der Fall, der den Fall darüber prüft. Nimmt man `affliction` weg, hat
+    // die Reinigung nichts mehr zu reinigen — beide Läufe sterben dann zur
+    // selben Zeit am Zauber, und der 14-Sekunden-Abstand verschwindet.
+    //
+    // `affliction: null` statt `delete`, weil `parseBoss` genau das für einen
+    // Boss ohne Gift erzeugt. Ein gelöschtes Feld ergibt `undefined`, und die
+    // Abfrage in `combat.ts` lautet `!== null` — der Kampf liefe dann in einen
+    // Zustand, den das Spiel nie herstellt, und die Gegenprobe bewiese etwas
+    // über einen Boss, den es nicht gibt.
+    const ohneGift: BossDef = { ...boss('boss-2-2'), affliction: null };
+    expect(reihenfolge('gift', ohneGift).ende).toBe(reihenfolge('nichts', ohneGift).ende);
+
+    // Und beim echten Boss sind sie verschieden — sonst verglichen beide
+    // Zeilen oben nur zwei Zahlen, die ohnehin immer gleich sind.
+    expect(reihenfolge('gift').ende).not.toBe(reihenfolge('nichts').ende);
   });
 
   it('die richtige gewinnt — erst unterbrechen, das Gift danach', () => {
     const r = reihenfolge('zauber');
     expect(r.zustand).toBe(FIGHT_WON);
     expect(r.hp, 'der Sieger ist tot').toBeGreaterThan(0);
+
+    // **Hier hängt `race` dran, und nur hier.** Das Fenster kippt den Ausgang
+    // bei keiner Mutation — weder `threshold: 99999` noch `windowMs: 1` machen
+    // den Kampf unlösbar. Was es tut, sind drei Sekunden: ohne `race` steht
+    // der Sieg bei 45020. Der Kommentar der Bossdatei führt es deshalb als
+    // Zeitkosten und nicht als Anforderung, und diese Zeile hält den Betrag
+    // fest, damit ein späteres Entfernen nicht lautlos durchgeht.
+    expect(r.ende).toBe(48_020);
   });
 });
