@@ -1857,11 +1857,24 @@ export function sublimationPayload(): Record<string, unknown> {
   //
   // Ein erster Entwurf nannte nur REFLUX — der wird bloß zweimal gedrückt,
   // die Bedingung griff nie, und DECANT stand wieder in der
-  // coverage-Meldung. Einer von beiden läuft dagegen fast immer.
+  // coverage-Meldung.
+  //
+  // Die Schwelle liegt bei 20 s, nicht bei 5: Bei 5 s greift sie fast
+  // immer (ASCEND allein hat 30 s Abklingzeit), DECANT drängt sich vor
+  // alles andere, und KINDLE fällt aus. Eine Bedingung, die immer wahr
+  // ist, ist keine.
   const reflux = combat.indexOf('reflux');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
-  const ticks = 3000; // 30 s
+  // **60 s statt 30** (Issue #518). Die Leiste trägt jetzt sieben Zauber
+  // statt vier; bei 30 s teilen sie sich zu wenige Wartezeiten, und je
+  // nachdem, wie die Bedingungen stehen, fällt immer einer ganz aus —
+  // erst KINDLE, dann WISP. `coverage.test.ts` meldet ihn dann zu Recht
+  // als „in keiner Aufzeichnung gewirkt".
+  //
+  // Mehr Zauber brauchen mehr Zeit. Das ist billiger als Bedingungen, die
+  // sich gegenseitig ausschließen.
+  const ticks = 6000; // 60 s
 
   const slots = slotMap(combat, SUBLIMATION_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
@@ -1908,8 +1921,23 @@ export function sublimationPayload(): Record<string, unknown> {
       ) > 5_000
     ) {
       gewaehlt = decant;
-    } else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
-    else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
+    } else if (
+      // **WISP nur, wenn eine Verkürzung etwas bewirkt** (Issue #518).
+      // Er ist Füller UND Verkürzer; ohne laufende Abklingzeit ist er nur
+      // der schwächere KINDLE. Ohne diese Bedingung verdrängt er ihn
+      // vollständig — und `parity_sublimation_run` meldet zu Recht "KINDLE
+      // kam nicht zum Zug", weil dann keine Abklingzeit läuft, die VAPOUR
+      // verkürzen könnte.
+      //
+      // Als Träger dient VAPOURs eigene Abklingzeit (8 s). Ein erster
+      // Entwurf nannte PYRE — der wird in dieser Aufzeichnung selbst nicht
+      // mehr gedrückt, also war die Bedingung nie erfüllt und WISP fiel
+      // ganz aus.
+      combat.isReady(wisp, timeMs) &&
+      combat.cooldownRemainingMs(vapour, timeMs) > 0
+    ) {
+      gewaehlt = wisp;
+    } else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       // **Der Platz aus der Bindung, nicht aus einer Vergleichskette** (#405).
