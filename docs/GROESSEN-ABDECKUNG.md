@@ -223,3 +223,63 @@ schweigen. Am 2026-08-06 ist genau das passiert: Ein Suchmuster passte nach
 einer Formatierung nicht mehr, der Aufruf lief fehlerfrei durch, und beide
 „Läufe" maßen denselben Code. Gemeldet wurde daraufhin eine Lücke, die keine
 war.
+
+---
+
+## Wie schwer wöge ein Fehler? Der Schadenshebel
+
+Für die Rangfolge aus AC3 — welche Lücke zuerst? — je Größe gemessen: Wert
+halbieren, exportieren, `expected.damage` aller Aufzeichnungen vergleichen.
+Rohdaten: [`groessen-hebel-messung.txt`](groessen-hebel-messung.txt).
+
+| Hebel   | Größe                     | Träger    | Aufzeichnung    |
+| ------- | ------------------------- | --------- | --------------- |
+| 72,58 % | `dot.tickIntervalMs`      | searing   | new-calcination |
+| 48,13 % | `dot.tickIntervalMs`      | cinder    | cinder-ticks    |
+| 33,87 % | `dot.tickDamage`          | searing   | new-calcination |
+| 23,26 % | `dot.tickDamage`          | cinder    | cinder-ticks    |
+| 21,53 % | `dot.tickDamage`          | rot       | rot-decay       |
+| 14,44 % | `dot.durationMs`          | cinder    | cinder-ticks    |
+| 10,48 % | `spender.damagePerPoint`  | pyroclasm | dot-lifetime    |
+| 10,48 % | `spender.bonusMultiplier` | pyroclasm | dot-lifetime    |
+| 1,15 %  | `convert.perSecond`       | efflux    | efflux-restzeit |
+| 0,14 %  | `buff.gcds`               | virulence | buff-targets    |
+
+### Die übrigen 35 stehen auf 0,00 % — aus drei verschiedenen Gründen
+
+Und nur zwei davon sind Befunde.
+
+| Grund                                                    | Fälle                                                          | Was er bedeutet                              |
+| -------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
+| **(a) Träger wird nie gewirkt**                          | anchor, scab, stall, stay                                      | Befund: keine Aufzeichnung wirkt ihn         |
+| **(b) Träger macht gar keinen Schaden**                  | salve, plate, temper, die fünf Verstärker, die Kontroll-Zauber | **kein Befund — die Messgröße greift nicht** |
+| **(c) Träger macht Schaden, die Größe ändert ihn nicht** | Rest                                                           | Befund: die Lage fehlt                       |
+
+**(b) ist eine Grenze dieser Messung, kein Ergebnis.** Eine Heilung, die keinen
+Schaden bewegt, ist kein Fund — das ist die Definition einer Heilung. Für
+Schilde bräuchte es `absorbed`, für `salve` `healed`, für Kontrolle
+`damage_taken`. Alle drei stehen im `RunResult`, aber die Aufzeichnungen
+führen nur `expected.damage`.
+
+> Derselbe Fehler wie „1 rot heißt geschützt", eine Ebene weiter: eine Zahl
+> genommen, weil sie leicht zu holen war, ohne ihre Reichweite zu prüfen.
+
+### Was der Hebel NICHT misst
+
+Eine 0 heißt „in dieser Aufzeichnung", nicht „diese Größe". Gemessen am
+Gegenbeispiel:
+
+```
+Basislauf first-crucible      4240,0
+distil buff.factor 2 → 1      4240,0    exakt gleich
+```
+
+Nicht weil `distil` nichts bewegt — die Standard-APL wirkt ihn nicht. Wo der
+Träger nicht wirksam vorkommt, misst das Verfahren die **Aufzeichnung** statt
+die Größe. Die zehn oben sind davon nicht betroffen; für die übrigen bräuchte
+es je Träger eine Rotation, die ihn wirkt.
+
+**Die Gegenprobe, dass das Verfahren überhaupt misst:** `kindle baseDamage
+100 → 50` bewegt die Schadenssumme über 48 Aufzeichnungen von 95562 auf 79749
+— 16,55 %. Ohne diesen Beleg wären 35 Nullen nicht von einem kaputten
+Werkzeug zu unterscheiden.
