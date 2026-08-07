@@ -145,6 +145,10 @@ const GEZIELTE_BINDINGS = [
   { slot: 1, spellId: 'ascend' },
   { slot: 2, spellId: 'decant' },
   { slot: 3, spellId: 'pyre' },
+  // WISP gehört hierher, nicht in die Sublimations-Aufzeichnung: Er ist
+  // Füller UND Verkürzer und verdrängt dort KINDLE vollständig — womit
+  // keine Abklingzeit mehr läuft, die VAPOUR verkürzen könnte.
+  { slot: 4, spellId: 'wisp' },
 ] as const;
 
 /**
@@ -178,7 +182,15 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
   const ascend = combat.indexOf('ascend');
   const decant = combat.indexOf('decant');
   const pyre = combat.indexOf('pyre');
-  const ticks = 3000; // 30 s
+  const wisp = combat.indexOf('wisp');
+  // **60 s.** Vier Zauber teilen sich eine Wartezeit; bei 30 s fällt immer
+  // einer ganz aus, egal wie man die Bedingungen dreht — gemessen an drei
+  // Anläufen, bei denen abwechselnd DECANT und WISP mit null Drücken
+  // dastanden.
+  //
+  // Mehr Zauber brauchen mehr Zeit. Das ist billiger als Bedingungen, die
+  // sich gegenseitig ausschließen.
+  const ticks = 6000; // 60 s
 
   const slots = slotMap(combat, GEZIELTE_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
@@ -200,8 +212,35 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
     let gewaehlt = -1;
     if (combat.isReady(alsSpellIndex(pyre), timeMs) && combat.resource >= 15) gewaehlt = pyre;
     else if (combat.isReady(alsSpellIndex(ascend), timeMs)) gewaehlt = ascend;
-    else if (combat.isReady(alsSpellIndex(decant), timeMs)) gewaehlt = decant;
-    else if (combat.isReady(alsSpellIndex(kindle), timeMs)) gewaehlt = kindle;
+    // **DECANT nur, wenn PYRE wirklich lange läuft.** Sonst zielt er ins
+    // Leere — und verdrängt WISP vollständig, der dann in keiner
+    // Aufzeichnung mehr gewirkt wird.
+    else if (
+      combat.isReady(alsSpellIndex(decant), timeMs) &&
+      combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs) > 2000
+    ) {
+      gewaehlt = decant;
+    }
+    // **KINDLE vor WISP**, und das ist keine Vorliebe: KINDLE baut die
+    // Hitze auf, die PYRE braucht — und PYRE erzeugt die lange Abklingzeit,
+    // an der DECANT überhaupt etwas zu zielen hat.
+    //
+    // Umgekehrt fiel die ganze Kette aus: WISP verdrängte KINDLE, ohne
+    // Hitze kam PYRE nie dran, ohne PYRE lief nichts Langes, und DECANT
+    // stand mit null Drücken da. Drei Zauber, die an einem hingen.
+    //
+    // WISP kommt als Füller dahinter — er ist der einzige, der immer kann.
+    // **KINDLE solange Hitze fehlt, danach WISP.** Beide sind Füller mit
+    // derselben Wartezeit; ohne eine Trennung nach Zweck verdrängt einer den
+    // anderen vollständig.
+    //
+    // KINDLE baut die Hitze auf, die PYRE braucht — und PYRE erzeugt die
+    // lange Abklingzeit, an der DECANT etwas zu zielen hat. Drei Zauber, die
+    // an einem hängen: Ohne KINDLE zuerst standen in drei Anläufen
+    // abwechselnd DECANT und WISP mit null Drücken da.
+    else if (combat.isReady(alsSpellIndex(kindle), timeMs) && combat.resource < 15) {
+      gewaehlt = kindle;
+    } else if (combat.isReady(alsSpellIndex(wisp), timeMs)) gewaehlt = wisp;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
@@ -1891,10 +1930,6 @@ const SUBLIMATION_BINDINGS = [
   { slot: 1, spellId: 'vapour' },
   { slot: 2, spellId: 'smoulder' },
   { slot: 3, spellId: 'pyre' },
-  // WISP (Issue #480) — der Füller, der SUBLIMATION erstmals spielbar macht.
-  // Er gehört in DIESE Aufzeichnung, weil sie die einzige ist, in der
-  // Abklingzeiten wirklich laufen und verkürzt werden.
-  { slot: 4, spellId: 'wisp' },
 ] as const;
 
 /**
@@ -1942,7 +1977,6 @@ export function sublimationPayload(): Record<string, unknown> {
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
   const vapour = combat.indexOf('vapour');
-  const wisp = combat.indexOf('wisp');
   const smoulder = combat.indexOf('smoulder');
   const pyre = combat.indexOf('pyre');
   const ticks = 3000; // 30 s
@@ -1967,11 +2001,6 @@ export function sublimationPayload(): Record<string, unknown> {
     else if (combat.dotRemainingMs(smoulder, timeMs) < 1500 && combat.isReady(smoulder, timeMs)) {
       gewaehlt = smoulder;
     } else if (combat.isReady(pyre, timeMs) && combat.resource >= 15) gewaehlt = pyre;
-    // **WISP vor KINDLE** (Issue #480): Er verkürzt UND macht Schaden, ist
-    // also dem reinen Füller vorzuziehen. Nur so kommt er überhaupt in die
-    // Aufzeichnung — und ohne einen Druck bliebe seine Bitgleichheit
-    // angenommen statt geprüft (`coverage.test.ts`).
-    else if (combat.isReady(wisp, timeMs)) gewaehlt = wisp;
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
