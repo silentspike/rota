@@ -4841,3 +4841,260 @@ zum nächsten Menschen, der die roten Aufzeichnungen für veraltet hält.
 
 Das ist die dritte Sorte aus #547 in einer neuen Form: **nicht „heute unprüfbar", sondern „heute
 geprüft und morgen weggerechnet".**
+
+#### Nachtrag: was einen Fall den Export überleben lässt — zwei Quellen, nicht zwei Bauarten
+
+_Ergänzt am 2026-08-07, nachdem ein Worker den Abschnitt an einem zweiten Fall nachgemessen und
+dabei seine eigene Erklärung widerlegt hat._
+
+Der zweite Beleg stammt aus #593, gegen den aktuellen Stand neu gefahren:
+
+```
+Mutation:  stall control.amountMs 2000 → 1000
+
+  OHNE parity:export     5 rot von 1876
+  MIT  parity:export     4 rot von 1876
+```
+
+Der eine, der beim Export grün wird, ist die Frischeprüfung — sie vergleicht die Datei mit sich
+selbst, nachdem der Export sie neu geschrieben hat.
+
+**Zwei unabhängige Belege aus zwei Händen:** Einer der vier überlebenden Fälle stammt nicht vom
+Messenden, sondern kam beim Nachziehen aus `main`.
+
+##### Die erste Erklärung war zu grob, und der Worker hat sie selbst kassiert
+
+Naheliegend wäre: _rechnende Fälle überleben, lesende nicht._ Er hat es über alle 172 Testdateien
+gemessen — und dabei seinen **eigenen** Prüffall falsch einsortiert:
+
+```ts
+expect(ergebnis.controlSpent).toBe(mitAusgabe.expected['controlSpent']);
+```
+
+Das sieht nach der lesenden Bauart aus: eine Zahl aus der Datei gegen den Lauf. Gemessen überlebt
+er den Export trotzdem. Der Grund ist die **Herkunft** der beiden Zahlen — `expected.controlSpent`
+entsteht in `payloads.ts` aus `combat.controlSpent`, die andere aus dem `ReplayResult`.
+
+> Seine Formulierung, und sie ersetzt die grobe:
+>
+> **Ein Fall überlebt den Export, wenn die beiden Zahlen, die er vergleicht, aus verschiedenen
+> Quellen stammen.**
+
+| Fall                      | die zwei Zahlen                        | überlebt |
+| ------------------------- | -------------------------------------- | -------- |
+| `kontrolle-senkt-schaden` | zwei gerechnete Läufe                  | ja       |
+| `kontroll-leitung`        | payload-Zahl gegen `ReplayResult`-Zahl | ja       |
+| Frischeprüfung            | zweimal dieselbe Datei                 | nein     |
+
+**Die Bauart sieht man der Form an, die Quelle nicht.** Wer nach „liest die Datei ja/nein"
+sortiert, sortiert nach dem, was im Prüffall steht — nicht nach dem, was die Zahlen bedeutet.
+
+### 8.70 Ein Fall, der die Mechanik prüft, prüft nicht die Leitung
+
+Am 2026-08-07 bei #605. Die Aufgabe: `controlSpent` und `controlFailed` sollen im
+`ReplayResult` ankommen, damit eine Aufzeichnung belegen kann, dass ein Kontroll-Zauber mangels
+Punkten gescheitert ist.
+
+Der Worker baute vier Prüffälle und stellte für die Gegenprobe die frisch gelegte Leitung wieder
+auf `0` zurück:
+
+```
+drei Fälle lesen combat.controlSpent DIREKT     GRÜN
+ein Fall geht über replayRecording              ROT
+```
+
+Seine Formulierung, und sie ist der Titel dieses Abschnitts:
+
+> **Ein Fall, der die Mechanik prüft, prüft nicht die Leitung.**
+
+#### Warum das die drei Vorgänger erklärt
+
+Dieselbe Lücke wurde 2026 dreimal einzeln gefunden — und jedes Mal war die Mechanik geprüft:
+
+|                                                  |                                                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `boss_healed`                                    | #564 — die Heilung des Bosses wurde korrekt gerechnet und kam im Ergebnis nicht an                   |
+| `damageTaken`, `absorbed`, `healed`, `converted` | #576 — vier Größen, alle richtig, keine abrufbar                                                     |
+| `controlSpent`, `controlFailed`                  | #605 — dieselbe Lage, und `controlFailed` steht sogar in `RunSummary` und wird dem Spieler angezeigt |
+
+**Niemand hat je die Leitung geprüft, weil die Mechanik-Fälle grün waren** — und grün sieht aus
+wie ein Beweis. Es waren drei Funde derselben Sache, verteilt über Wochen, weil die Frage
+zwischen den beiden Prüfungen nie gestellt wurde.
+
+#### Die zwei Fragen, die auseinanderfallen
+
+```
+Rechnet die Größe richtig?     → ein Fall, der Combat direkt befragt
+Kommt die Größe an?            → ein Fall, der den Weg geht, den ein Werkzeug geht
+```
+
+Die erste ist die interessantere und wird deshalb gebaut. Die zweite ist die, die schweigt.
+
+**Die Regel:** Wer eine Größe im Ergebnis verfügbar macht, braucht mindestens einen Fall, der sie
+**über den Weg abruft, den die Werkzeuge nehmen** — nicht über den Getter. Bei ROTA heißt das:
+über `replayRecording`, nicht über `new Combat(...)`.
+
+Die Prüffrage:
+
+> **Wenn ich die Zuweisung im Ergebnis-Objekt auf einen festen Wert setze — welcher Fall wird rot?**
+
+Wird nur ein Mechanik-Fall rot, prüft er die Rechnung. Wird gar keiner rot, ist die Leitung
+ungeprüft, und der nächste Umbau nimmt sie unbemerkt weg.
+
+> Verwandt mit 8.69, eine Ebene versetzt: Dort überlebt die **Parität** einen Export, hier
+> überlebt die **Mechanik-Prüfung** eine entfernte Leitung. Beide Male ist grün das Ergebnis
+> davon, dass die Prüfung woanders hinsieht als der Schaden entsteht.
+
+### 8.71 `git diff A..B` ist kein Vorher-Nachher — dafür braucht es drei Punkte
+
+Am 2026-08-07 wollte ein Worker wissen, ob zwei neue Commits auf `main` seine Arbeit berühren:
+
+```
+git diff --name-only HEAD..origin/main
+→ siebzehn Dateien, darunter alle vier Bossdateien und alle vier Paritäts-Fälle
+```
+
+Das sah nach einem fremden Eingriff aus — vier Bossdateien plus vier Paritäts-Fälle ist genau das
+Muster, das einer hinterlassen würde. Die richtige Frage stellt sich mit drei Punkten:
+
+```
+git diff --name-only HEAD...origin/main
+→ docs/WORKER-GUIDE.md
+```
+
+**Eine Datei. Reine Doku.**
+
+#### Warum zwei Punkte hier etwas anderes bedeuten als bei `log`
+
+|                  |                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `git log A..B`   | Commits, die von B aus erreichbar sind und von A nicht — genau die Frage „was ist dazugekommen?"                 |
+| `git diff A..B`  | **Endpunkt-Vergleich**, identisch zu `git diff A B` — zeigt auch alles, was **A** geändert hat und B nicht kennt |
+| `git diff A...B` | gegen die **merge-base** — „was hat B seit unserer Trennung geändert?"                                           |
+
+Die siebzehn Dateien waren der eigene Beitrag des Workers, von hinten gelesen.
+
+**Derselbe Bereichs-Operator, entgegengesetzte Bedeutung.** Bei `log` ist die Zwei-Punkt-Form die
+richtige, bei `diff` die Drei-Punkt-Form — und beide Befehle nehmen beide Formen an, ohne zu
+murren.
+
+> Der Grund, warum es gemeldet gehört und nicht nur korrigiert: **Die falsche Fassung sah
+> plausibel aus.** Sie hätte gut zu einem Befund gepasst, der am selben Tag geschrieben wurde,
+> und hätte fast einen Eingriff gemeldet, den es nie gab. Siehe auch „Der Bezugspunkt ist die
+> Merge-Base, nicht HEAD" — dieselbe Wurzel, anderes Werkzeug.
+
+### 8.72 „Gemergt" sagt nichts über den letzten Push — prüfe jeden eigenen Commit einzeln
+
+Am 2026-08-07 ging ein Commit verloren, und niemand hat es beim Mergen bemerkt:
+
+```
+13:21:27   d25ded0 committet   (der gemessene Beleg im Kopf eines Wächters)
+13:22:42   PR #618 gemergt
+```
+
+Dazwischen lief ein `gh pr update-branch` auf demselben Zweig. Der Push des Workers wurde als
+nicht-fast-forward abgelehnt; als er nachgezogen und erneut gepusht hatte, war der PR schon zu.
+
+```
+git branch -r --contains d25ded0
+→ nur origin/feat/e2-612-leitungs-waechter
+```
+
+**In `main` fehlte der Beleg, und beide Seiten hielten die Sache für erledigt.** Der Worker hatte
+die Fertigmeldung geschrieben, als der PR grün war; der Merge lief auf einen Stand, der eine
+Minute alt war.
+
+#### Die Prüfung, die es gefangen hat
+
+```bash
+git merge-base --is-ancestor <commit> origin/main   # für JEDEN eigenen Commit
+```
+
+Nicht nur für den letzten, den man kennt — für jeden. Der Worker fuhr sie als Formalie nach jedem
+Merge; an diesem Tag hat sie zum ersten Mal etwas gefunden.
+
+Auf der Gegenseite dieselbe Regel für den, der mergt:
+
+```bash
+git log origin/<zweig> -1     # gegen den PR-HEAD, unmittelbar vor dem Merge
+```
+
+#### Warum das kein Randfall ist
+
+Der Auslöser war ein `update-branch`, und der ist die normale Antwort auf `BEHIND` bei strikter
+Branch-Protection. Wer ihn fährt, während jemand auf demselben Zweig arbeitet, erzeugt genau
+dieses Fenster — der fremde Push wird abgelehnt, und die Zeit bis zum erneuten Push ist die Zeit,
+in der ein Merge zu früh kommt.
+
+> **Wer `update-branch` auf einem fremden Zweig fährt, sagt es dem, der darauf arbeitet.** Dann
+> pusht der vorher oder gar nicht.
+
+#### Und die Regel für die Rettung
+
+Beide Seiten haben den verlorenen Commit **unabhängig** gefunden und **beide** einen
+Rettungs-PR aufgemacht — achtzehn Sekunden auseinander, inhaltlich identisch.
+
+Kosten war eine Minute. Aber wenn beide gemergt hätten, stünde die Änderung zweimal in `main`,
+und der zweite Merge sähe aus wie ein Konflikt, den niemand verursacht hat.
+
+> **Wer einen verlorenen Commit findet, meldet ihn zuerst und baut erst nach einer Antwort** —
+> auch wenn der Fix trivial scheint. Gerade dann: Trivialität ist der Grund, warum beide sofort
+> handeln.
+
+### 8.73 Ein Schluss aus einer fremden Zahl ist eine eigene Behauptung
+
+Am 2026-08-07 meldete ein Worker eine Messung:
+
+```
+Rust  ReplayResult   36 Felder
+TS    ReplayResult   21
+nur in Rust          15
+```
+
+Daraus wurde ein Issue, und darin stand ein Satz, den die Messung **nicht** hergab:
+
+> Wo Rust eine Größe führt und das Spiel nicht, kann kein Paritäts-Fall sie vergleichen.
+
+Klingt zwingend. Gemessen ist es falsch: Fünf der sechs strittigen Größen werden sehr wohl
+verglichen — nur nicht über das generische `ReplayResult`, sondern über **eigene
+`expected`-Felder in einzelnen Aufzeichnungen**, die `payloads.ts` von Hand dorthin schreibt.
+
+```
+interruptsLanded      5 Aufzeichnungen
+interruptsMissed      5
+castsInterrupted      1
+castsCancelled        1
+cycle                 1
+stabilised            0   ← die eine echte Lücke
+```
+
+**Die Zahl war richtig, der Schluss daraus war eine neue Behauptung.** „Nicht im
+`ReplayResult`" und „wird nirgends verglichen" sind zwei verschiedene Aussagen; die zweite folgt
+nicht aus der ersten, weil es einen zweiten Weg gibt, den niemand mitgedacht hat.
+
+#### Dieselbe Bewegung, zweimal an einem Tag
+
+Der Worker fand denselben Fehler bei sich selbst, eine Ebene tiefer:
+
+> Ich hatte „alle sechs stehen als OFFEN in meiner Ausnahmeliste" gemeldet. Das stimmt — aber
+> „offen" hieß dort **„keine Leitung ins ReplayResult"**, nicht **„wird nirgends verglichen"**.
+> Ich habe die beiden Fragen in einer Zeile zusammengezogen und dabei die schärfere verloren.
+
+Ein Wort, das für zwei Fragen steht, überträgt die Antwort der einen auf die andere — lautlos.
+
+#### Die Regel
+
+Wer eine fremde Messung weitergibt, gibt **die Messung** weiter, nicht seine Deutung davon. Wird
+daraus ein Schluss gezogen, ist der Schluss eine eigene Behauptung und braucht eine eigene
+Messung.
+
+Die Prüffrage vor jedem „das heißt also":
+
+> **Steht das in der Zahl, oder habe ich es ergänzt?**
+
+Ergänzt ist nicht falsch — ergänzt ist ungemessen. Der Unterschied entscheidet, ob es als Befund
+in ein Issue darf oder als Vermutung gekennzeichnet gehört.
+
+> Verwandt mit 8.66 (eine Messung beantwortet nur ihre eigene Frage), aber schärfer: Dort
+> beantwortet die Messung eine Frage, die man nicht gestellt hat. Hier beantwortet sie ihre
+> eigene Frage korrekt, und die Deutung reicht darüber hinaus.

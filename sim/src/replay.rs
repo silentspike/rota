@@ -148,6 +148,16 @@ pub struct ReplayResult {
     pub damage_taken: u32,
     /// Kampfzeit des Spielertods, oder `None`.
     pub died_at_ms: Option<Millis>,
+    /// Ausgegebene Kontroll-Punkte (Issue #605).
+    pub control_spent: u32,
+    /// Wie oft eine Kontroll-Buchung mangels Punkten abgebrochen ist.
+    ///
+    /// **Es fehlte nicht die Groesse, sondern die Leitung.** Beide Seiten
+    /// zaehlten sie im Kampf; im Spiel steht sie sogar im `RunSummary` und
+    /// wird als „Control wasted" angezeigt. Nur kam sie in KEINEM der beiden
+    /// Lauf-Ergebnisse an — und damit konnte keine Aufzeichnung je belegen,
+    /// dass ein Kontroll-Zauber mangels Punkten gescheitert ist.
+    pub control_failed: u32,
     /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
     pub interrupts_landed: u32,
     /// Wie oft einer durchgekommen ist.
