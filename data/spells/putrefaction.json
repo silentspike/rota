@@ -32,6 +32,20 @@
       "perDecayStackPercent": 20
     },
     {
+      "id": "blight",
+      "name": "Blight",
+      "_comment": "Der billige Fueller der Schule (Raster, Zauber 1 von 10). CANKER haelt 2 s Abklingzeit; dazwischen hatte die Schule NICHTS, was den Aufbau treibt. BLIGHT fuellt genau diese Luecke und legt dabei selbst einen Stapel.\n\nSTUFE 2, nicht 1: canker und fester stehen schon auf 1. Der Spieler soll den Aufbau erst mit dem Paar kennenlernen und dann das Werkzeug bekommen, das ihn schneller macht.\n\nWENIGER SCHADEN ALS CANKER, mit Absicht: Er ist der Fueller, nicht der bessere Erzeuger. Waere er staerker, ersetzte er canker, statt ihn zu ergaenzen — und die Synergie mit fester ginge verloren.\n\nALLE ZAHLEN VORLAEUFIG. Der Balance-Laeufer bestimmt sie (Issue #479).",
+      "unlockLevel": 2,
+      "baseDamage": 30,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "decay": {
+        "_comment": "Ein Stapel je Wirkung, wie canker. Wird gemessen.",
+        "stacks": 1
+      }
+    },
+    {
       "id": "rot",
       "name": "Rot",
       "_comment": "Der erste Zauber der Schule, der Stapel OHNE Tastendruck legt (Raster 3 von 10, Issue #498).\n\nWARUM DAS NEU IST: Bis hierher lief der Aufbau nur ueber Druecke — canker und blight. Wer die Leiste anderweitig braucht, verliert den Aufbau. ROT laeuft nebenher.\n\nDER TICK-ABSTAND IST DIE AUSSAGE: 1000 ms bei 4000 ms Dauer sind VIER Stapel je Wirkung, bei 4 s Abklingzeit also ein durchgehender Strom. Zusammen mit canker fuellt das die fuenf Plaetze schneller, als sie verfallen (12 s je Stapel).\n\nWENIGER TICK-SCHADEN ALS SMOULDER (25 gegen 40): Er zahlt fuer den Aufbau. Waere er gleich stark, waere er der bessere Brand UND der Stapel-Erzeuger.\n\nALLE ZAHLEN VORLAEUFIG — der Balance-Laeufer bestimmt sie.",

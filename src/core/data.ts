@@ -82,6 +82,15 @@ export interface BuffDef {
   readonly factor: number;
   /** Länge des Fensters in globalen Wartezeiten (GAME-DESIGN 5: zwei bis drei). */
   readonly gcds: number;
+  /**
+   * Worauf die Verstärkung wirkt (Issue #489). Fehlt sie, ist es der Schaden.
+   *
+   * **Die Zielgröße wählt den Speicher, nicht nur die Rechenstelle.** Jede
+   * hat eine eigene `Buffs`-Instanz; damit kann eine Verstärkung auf den
+   * Punktegewinn eine auf den Schaden nicht verdrängen, auch wenn beide
+   * dieselbe Art tragen (GAME-DESIGN 328).
+   */
+  readonly target?: 'damage' | 'control' | 'resource' | 'tick' | 'stack';
 }
 
 /** Ein Entlade-Zauber: verbraucht den Vorrat und schlägt entsprechend zu. */
@@ -809,7 +818,24 @@ function parseBuff(raw: unknown, where: string, problems: string[]): BuffDef | u
     problems.push(`${where}: Fensterlänge ${gcds} muss eine positive Zahl von Wartezeiten sein.`);
     return undefined;
   }
-  return { kind, factor, gcds };
+  const ziel = raw['target'];
+  const ZIELE = ['damage', 'control', 'resource', 'tick', 'stack'] as const;
+  if (ziel !== undefined && !ZIELE.includes(ziel as (typeof ZIELE)[number])) {
+    // **Abbrechen statt durchreichen.** Eine unbekannte Zielgröße landete
+    // sonst im Schadens-Speicher, und der Zauber wirkte auf etwas anderes
+    // als er sagt — leise, weil er ja trotzdem verstärkt.
+    problems.push(
+      `${where}: unbekannte Verstärkungs-Zielgröße "${String(ziel)}". ` +
+        `Bekannt sind ${ZIELE.join(', ')}.`,
+    );
+    return undefined;
+  }
+  return {
+    kind,
+    factor,
+    gcds,
+    ...(typeof ziel === 'string' ? { target: ziel as NonNullable<BuffDef['target']> } : {}),
+  };
 }
 
 function parseDot(raw: unknown, where: string, problems: string[]): DotDef | undefined {
@@ -1008,13 +1034,23 @@ function parseFixation(
     const knoten = raw['control'];
     const cost = number(knoten['cost'], 0);
     const effect = typeof knoten['effect'] === 'string' ? knoten['effect'] : '';
-    const amount = number(knoten['amountMs'], 0) || number(knoten['amountPercent'], 0);
+    // **`amountPerPoint` ist der vierte Weg** (Issue #478, WEDGE): Die drei
+    // bisherigen Wirkungen kaufen einen MOMENT und messen ihn in Millisekunden
+    // oder Prozent. WEDGE kauft keinen Moment, sondern rechnet Punkte in
+    // Schaden um — deshalb ein eigener Name statt einer dritten Bedeutung für
+    // dasselbe Feld.
+    const amount =
+      number(knoten['amountMs'], 0) ||
+      number(knoten['amountPercent'], 0) ||
+      number(knoten['amountPerPoint'], 0);
 
     if (cost <= 0) {
       // Eine Wirkung ohne Kosten wäre keine Ausgabe von Kontroll-Punkten,
       // sondern eine passive Wirkung — und genau das ist FIXATION nicht.
       problems.push(`${where}: Eine Kontroll-Wirkung ohne Kosten ist keine Ausgabe.`);
-    } else if (!['slowCast', 'delayStrike', 'holdPhase'].includes(effect)) {
+    } else if (
+      !['slowCast', 'delayStrike', 'holdPhase', 'convertToDamage', 'allThree'].includes(effect)
+    ) {
       problems.push(`${where}: unbekannte Kontroll-Wirkung "${effect}".`);
     } else if (amount <= 0) {
       problems.push(`${where}: Die Kontroll-Wirkung "${effect}" hat keinen Betrag.`);

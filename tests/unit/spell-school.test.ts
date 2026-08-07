@@ -54,9 +54,13 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'kindle',
       'smoulder',
       'pyre',
-      // Issue #268 — bei ihrer Schule, siehe oben.
       'bellows',
       'searing',
+      // Issue #477 — der kurze Brand, ebenfalls bei seiner Schule. Seit
+      // 2026-08-06 ist das der vorgesehene Ort: Ein Zauber am Ende der
+      // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
+      // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
+      'cinder',
       'quench',
       'crust',
       'salve',
@@ -65,17 +69,21 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'stall',
       'stay',
       'anchor',
+      'wedge',
+      'tether',
+      'capstone',
       'vapour',
       'reflux',
       'canker',
       'fester',
-      // Issue #498 — ROT, bei seiner Schule statt hinten (wie #268, #479).
+      'blight',
       'rot',
-      // Der Pruef-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehoert
-      // nicht zum Spiel, steht aber im Index-Raum — und genau der ist hier die
-      // Aussage.
       'test-cast',
       'test-buff',
+      'test-control',
+      'test-heat',
+      'test-tick',
+      'test-stack',
     ]);
   });
 

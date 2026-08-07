@@ -36,6 +36,7 @@ import {
   type SchoolDef,
   type SpellDef,
   type TimelineEntryDef,
+  type BuffDef,
 } from './data.js';
 import { GCD_MS, GlobalCooldown } from './gcd.js';
 import { RandomStreams, STREAM_CRIT } from './rng.js';
@@ -130,11 +131,30 @@ export const NOT_ACTIVE = -1;
 // Der Simulator führt dieselben drei Werte in `fight.rs`; die Prüfsumme je
 // Takt hält beide Seiten zusammen.
 
-/** Wie viele Stapel höchstens gleichzeitig liegen. Wird gemessen. */
+/** Wie viele Stapel höchstens gleichzeitig liegen. Wird gemessen (#118). */
 export const MAX_DECAY_STACKS = 5;
 
-/** Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht. Wird gemessen. */
-export const DECAY_STACK_PERCENT = 3;
+/**
+ * Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht.
+ *
+ * **Entschieden, nicht offen** — Issue #224, 2026-08-05. Bis Issue #482 stand
+ * hier 3 mit dem Vermerk „Wird gemessen"; die Messung hatte längst
+ * stattgefunden, nur die Umsetzung fehlte.
+ *
+ * # Warum 6 und nicht 3
+ *
+ * GAME-DESIGN 221 rechnet es vor: Der Break-even, ab dem sich der Platz auf
+ * der Leiste überhaupt rechnet, liegt bei **5,4 %** je Stapel. Mit 3 % bliebe
+ * PUTREFACTION **nie** die beste Wahl — und das ist etwas anderes als „allein
+ * gespielt schwach", was das Design über die Schule sagt.
+ *
+ * # Der Wert steht auf BEIDEN Seiten
+ *
+ * `DECAY_STACK_PERCENT` in `sim/src/fight.rs` trägt dieselbe Zahl. Laufen sie
+ * auseinander, meldet es die Prüfsumme ab dem ersten Takt, in dem ein Stapel
+ * liegt — vier Aufzeichnungen kommen dorthin.
+ */
+export const DECAY_STACK_PERCENT = 6;
 
 /**
  * Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhöht
@@ -428,6 +448,39 @@ export class Combat {
    */
   private readonly buffs = new Buffs();
   /**
+   * Verstärkungen auf andere Größen als Schaden (Issue #489).
+   *
+   * **Je Zielgröße eine eigene Instanz, nicht eine gemeinsame mit mehr
+   * Arten.** GAME-DESIGN 328 sagt: gleiche Art ersetzt einander. Solange
+   * alles auf den Schaden wirkte, war „gleiche Art" eindeutig; mit mehreren
+   * Zielgrößen wäre es eine Verabredung („Arten 0–7 Schaden, 8–15 Punkte"),
+   * die am Tag ihrer Einführung stimmt und beim dritten Zauber gebrochen ist,
+   * ohne dass etwas rot wird.
+   *
+   * Getrennte Instanzen machen die Verwechslung **unmöglich** statt verboten:
+   * Eine Verstärkung auf den Punktegewinn kann eine auf den Schaden gar nicht
+   * verdrängen, weil sie in einem anderen Speicher liegt.
+   */
+  /**
+   * Die zuletzt gesehene Uhrzeit — für die Verstärkungs-Faktoren (#489).
+   *
+   * **Warum ein mitgeführtes Feld und nicht ein Parameter.** Die vier
+   * Zielgrößen werden an Stellen gelesen, die heute keine Zeit kennen:
+   * `gainOfSpell` ist eine Abfrage über Zauber-Daten, `dotInterval` rechnet
+   * einen Abstand, und `updateVulnerability` läuft aus mehreren Richtungen.
+   * Sie alle um einen Parameter zu erweitern hieße, ihn durch ein Dutzend
+   * Aufrufer zu fädeln — und jede vergessene Stelle wäre ein stiller
+   * Rückfall auf den Faktor 1.
+   *
+   * Der Preis ist ein Feld, das in `reset()` mitmuss. Das fängt der Wächter
+   * aus #349, der genau dafür gebaut ist.
+   */
+  private nowMsForBuffs = 0;
+  private readonly controlBuffs = new Buffs();
+  private readonly resourceBuffs = new Buffs();
+  private readonly tickBuffs = new Buffs();
+  private readonly stackBuffs = new Buffs();
+  /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
    * **Nur gelesen, nie geschrieben** — deshalb steht sie nicht in `reset()`:
@@ -663,6 +716,16 @@ export class Combat {
    * wie die Hitze, sondern warten darauf, dass der Spieler sich entscheidet.
    */
   private controlValue = 0;
+  /**
+   * Schaden aus umgewandelten Kontroll-Punkten, gemerkt bis zur Rechnung
+   * (Issue #478, WEDGE).
+   *
+   * **Warum gemerkt und nicht sofort ausgeteilt:** `applyFixation` läuft vor
+   * der Schadensrechnung, und dort stehen die Faktoren noch nicht. Ein Treffer
+   * an dieser Stelle ginge an Krit, Widerstand und Verstärkung vorbei — er
+   * wäre der einzige Schaden im Spiel, den kein Faktor berührt.
+   */
+  private pendingControlDamage = 0;
 
   /** Wie viele Punkte insgesamt ausgegeben wurden. */
   private controlSpentValue = 0;
@@ -1451,7 +1514,11 @@ export class Combat {
    */
   private applyFixation(spell: SpellDef, timeMs: number): void {
     if (spell.controlGain !== undefined && spell.controlGain > 0) {
-      this.controlValue += spell.controlGain;
+      // **Der Faktor aus `controlBuffs`** (Issue #489, GRIPLOCK). Ganzzahlig
+      // gerundet, weil Kontroll-Punkte ganze Zahlen sind — ein halber Punkt
+      // wäre eine Größe, die das Spiel nirgends anzeigt.
+      const faktor = this.controlBuffs.factor(timeMs);
+      this.controlValue += Math.round(spell.controlGain * faktor);
     }
 
     const control = spell.control;
@@ -1466,15 +1533,46 @@ export class Combat {
     // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
     // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
     // unterscheidet.
-    if (control.effect === 'slowCast') {
+    // **CAPSTONE loest alle drei aus** (Issue #478): der große Moment der
+    // Schule. Kein neuer Mechanismus — er ruft, was die drei Ausgeber je
+    // einzeln tun, und verbraucht dafür alle Punkte.
+    const alleDrei = control.effect === 'allThree';
+    if (alleDrei) {
+      // **Alle Punkte, wie bei WEDGE.** Das Raster sagt „verbraucht alle
+      // Punkte" — `cost` ist der Mindesteinsatz. Bliebe der Rest liegen,
+      // brächte der große Moment der Schule bei vollem Vorrat genauso viel
+      // wie bei knappem.
+      this.controlSpentValue += this.controlValue;
+      this.controlValue = 0;
+    }
+
+    if (control.effect === 'slowCast' || alleDrei) {
       // Der laufende Boss-Zauber trifft später; das Unterbrechen-Fenster wird
       // größer.
       if (this.castingValue >= 0) this.castLandsAtMsValue += control.amount;
-    } else if (control.effect === 'delayStrike') {
+    }
+    if (control.effect === 'delayStrike' || alleDrei) {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
       this.nextStrikeDelayMs += control.amount;
-    } else if (control.effect === 'holdPhase') {
+    }
+    if (control.effect === 'convertToDamage') {
+      // **Der Notausgang** (Issue #478, WEDGE): Gegen einen Boss ohne
+      // Mechanik gibt es nichts zu verlangsamen, zu verzögern oder
+      // hinauszuzögern — die drei anderen Wirkungen laufen dort ins Leere,
+      // und FIXATION wäre die einzige Schule, die an manchen Bossen gar
+      // nicht spielbar ist.
+      //
+      // **Alle Punkte, nicht nur die Kosten.** `cost` ist der Mindesteinsatz
+      // — was darüber liegt, geht mit. Sonst wäre WEDGE ein Zauber, der bei
+      // vollem Vorrat genauso viel bringt wie bei knappem, und „aufsparen"
+      // hätte keinen Sinn.
+      const rest = this.controlValue;
+      this.controlValue = 0;
+      this.controlSpentValue += rest;
+      this.pendingControlDamage = (control.cost + rest) * control.amount;
+    }
+    if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
       this.phaseHoldPercentValue = control.amount;
@@ -1619,11 +1717,36 @@ export class Combat {
    * sähe genau gleich aus.
    */
   private expireBuffs(timeMs: number): void {
+    // **Alle fünf, nicht nur die Schadens-Verstärkungen** (Issue #489). Ein
+    // Fenster, das nie abläuft, wirkt für den Rest des Kampfes weiter — und
+    // bei den vier neuen Größen fiele das nicht am Schaden auf.
+    this.controlBuffs.expire(timeMs);
+    this.resourceBuffs.expire(timeMs);
+    this.tickBuffs.expire(timeMs);
+    this.stackBuffs.expire(timeMs);
     if (this.buffs.expire(timeMs) === 0) return;
     this.updateBuffFactor(timeMs);
   }
 
   /** Trägt den Gesamtfaktor der laufenden Verstärkungen in die Rechnung. */
+  /** Welcher Speicher zu einer Zielgröße gehört (Issue #489). */
+  private buffSpeicherFuer(ziel: BuffDef['target']): Buffs {
+    switch (ziel) {
+      case 'control':
+        return this.controlBuffs;
+      case 'resource':
+        return this.resourceBuffs;
+      case 'tick':
+        return this.tickBuffs;
+      case 'stack':
+        return this.stackBuffs;
+      default:
+        // `damage` und `undefined` — so waren alle Verstärkungen vor #489
+        // gemeint, und ein fehlendes Feld soll weiter das Alte tun.
+        return this.buffs;
+    }
+  }
+
   private updateBuffFactor(timeMs: number): void {
     this.setDamageFactor('buffs', this.buffs.factor(timeMs));
   }
@@ -1764,6 +1887,24 @@ export class Combat {
    * Summe an einer Sentinel-Zahl, die auf den beiden Seiten verschieden sein
    * dürfte.
    */
+  /**
+   * Die Fenstersummen ALLER Verstärkungen, für die Prüfsumme (Issue #489).
+   *
+   * **Alle fünf zusammen in einer Zahl**, nicht fünf Felder: Die Prüfsumme
+   * unterscheidet dieselben Zustände, und jedes weitere Feld verschiebt die
+   * Bit-Folge auf beiden Seiten. Ein Fenster, das anderswo endet, ändert die
+   * Summe — gleich in welcher Zielgröße.
+   */
+  get buffWindowSum(): number {
+    return (
+      this.buffs.windowSum() +
+      this.controlBuffs.windowSum() +
+      this.resourceBuffs.windowSum() +
+      this.tickBuffs.windowSum() +
+      this.stackBuffs.windowSum()
+    );
+  }
+
   get synergyWindowSum(): number {
     let summe = 0;
     for (let i = 0; i < this.synergyWindowEndsMs.length; i++) {
@@ -1774,7 +1915,11 @@ export class Combat {
   }
 
   private updateVulnerability(): void {
-    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * DECAY_STACK_PERCENT) / 100);
+    // **Der Faktor aus `stackBuffs`** (Issue #489, VIRULENCE): Er ändert, was
+    // ein Stapel WERT ist, nicht wie viele liegen. Ganzzahlig bis zur letzten
+    // Teilung (18.4) — deshalb auf die Prozentpunkte, nicht auf das Ergebnis.
+    const jeStapel = Math.round(DECAY_STACK_PERCENT * this.stackBuffs.factor(this.nowMsForBuffs));
+    this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
   }
 
   /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
@@ -2035,7 +2180,18 @@ export class Combat {
    * Klasse Fehler, die #134, #138, #159 und #173 hinterlassen haben.
    */
   private dotInterval(dot: { readonly tickIntervalMs: number }): number {
-    return this.hasted(dot.tickIntervalMs);
+    // **Der Faktor aus `tickBuffs`** (Issue #489, FORGE). Er verkürzt den
+    // ABSTAND, macht die Ticks also HÄUFIGER — deshalb geteilt, nicht
+    // multipliziert. Ein Faktor 2 heißt „doppelt so oft", nicht „halb so oft".
+    //
+    // **Die einzige der vier Zielgrößen, bei der der Faktor teilt.** Bei
+    // Punktegewinn, Hitze-Aufbau und Stapel-Wert multipliziert er. Wer die
+    // Zeile nach dem Muster der anderen drei liest, dreht die Wirkung um —
+    // und ein Fehler hier fällt spät auf, weil der Tick-SCHADEN unverändert
+    // bleibt und nur die Gesamtsumme wandert.
+    const faktor = this.tickBuffs.factor(this.nowMsForBuffs);
+    const abstand = faktor === 1 ? dot.tickIntervalMs : Math.round(dot.tickIntervalMs / faktor);
+    return this.hasted(abstand);
   }
 
   /**
@@ -2145,6 +2301,9 @@ export class Combat {
    * festen Plan ab Kampfbeginn, nicht dem letzten Wirken.
    */
   stepPassive(timeMs: number): void {
+    // **Vor der Abbruchbedingung**, damit die Uhr auch dann stimmt, wenn der
+    // Kampf gerade endet — sonst rechneten die Faktoren mit einer alten Zeit.
+    this.nowMsForBuffs = timeMs;
     if (this.stateValue !== FIGHT_RUNNING) return;
 
     for (let i = 0; i < this.spells.length; i++) {
@@ -2692,6 +2851,7 @@ export class Combat {
    *   die Felder heraus — beim nächsten Aufruf steht etwas anderes darin.
    */
   cast(index: SpellIndex, timeMs: number): CastOutcome {
+    this.nowMsForBuffs = timeMs;
     const outcome = this.outcome;
     outcome.spellIndex = index;
     outcome.damage = 0;
@@ -2825,7 +2985,10 @@ export class Combat {
     // Partner wäre, nutzte sonst das Fenster, das er im selben Zug aufmacht.
     this.applySynergyBonus(index, timeMs);
 
-    const teiltSchadenAus = spell.baseDamage > 0 || spell.spender !== undefined;
+    // WEDGE teilt Schaden aus, ohne `baseDamage` oder `spender` zu führen —
+    // seine Quelle sind die Kontroll-Punkte (Issue #478).
+    const teiltSchadenAus =
+      spell.baseDamage > 0 || spell.spender !== undefined || this.pendingControlDamage > 0;
     const kritet = teiltSchadenAus ? this.rollCrit() : false;
     // **Der Widerstand dieses Zaubers, vor der Rechnung** (Issue #328). Über
     // `setDamageFactor`, damit die Krit-Fassung mitzieht — dieselbe Stelle,
@@ -2835,6 +2998,14 @@ export class Combat {
 
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
+    // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
+    // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
+    // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
+    // Schaden macht.
+    if (this.pendingControlDamage > 0) {
+      damage += computeDamage(this.pendingControlDamage, castFactors);
+      this.pendingControlDamage = 0;
+    }
 
     const spender = spell.spender;
     if (spender !== undefined && spender.resource === this.school.resource.id) {
@@ -2873,8 +3044,13 @@ export class Combat {
       // (Zeile 1489). Genau darin liegt der Zweck der Zählung in Wartezeiten:
       // Wer schneller wirkt, hat ein kürzeres Fenster in Sekunden — und
       // trotzdem dieselbe Zahl Zauber darin (GAME-DESIGN 5).
-      this.buffs.applyForGcds(buff.kind, buff.factor, buff.gcds, timeMs, this.hasted(GCD_MS));
-      this.updateBuffFactor(timeMs);
+      // **Die Zielgröße wählt den Speicher** (Issue #489). Fehlt sie, ist es
+      // der Schaden — so waren alle Verstärkungen vor #489 gemeint.
+      const speicher = this.buffSpeicherFuer(buff.target);
+      speicher.applyForGcds(buff.kind, buff.factor, buff.gcds, timeMs, this.hasted(GCD_MS));
+      // Nur der Schadens-Faktor geht in `factors`; die drei anderen werden an
+      // ihrer Rechenstelle gelesen.
+      if (speicher === this.buffs) this.updateBuffFactor(timeMs);
     }
 
     const dot = spell.dot;
@@ -2985,7 +3161,10 @@ export class Combat {
 
   /** Was ein Zauber bei einer Wirkung beisteuert — aus seinen Daten. */
   gainOfSpell(spellIndex: number, resourceId: string): number {
-    return this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
+    const roh = this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
+    // **Der Faktor aus `resourceBuffs`** (Issue #489, FLASHPOINT). Ganzzahlig,
+    // wie der Vorrat selbst.
+    return roh === 0 ? 0 : Math.round(roh * this.resourceBuffs.factor(this.nowMsForBuffs));
   }
 
   /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
@@ -3137,7 +3316,12 @@ export class Combat {
     // Wert. Genau dieser Fehler ist beim Synergie-Fenster passiert (#318) —
     // dort blieb nach einem Leistenwechsel „1 of 1" stehen, und kein Prüffall
     // fand es, weil jeder frisch baut statt zurückzusetzen.
+    this.nowMsForBuffs = 0;
     this.buffs.reset();
+    this.controlBuffs.reset();
+    this.resourceBuffs.reset();
+    this.tickBuffs.reset();
+    this.stackBuffs.reset();
     this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;
@@ -3218,6 +3402,7 @@ export class Combat {
     this.convertedValue = 0;
 
     this.controlValue = 0;
+    this.pendingControlDamage = 0;
     this.controlSpentValue = 0;
     this.controlFailedValue = 0;
     this.phaseHoldPercentValue = 0;

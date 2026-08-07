@@ -4,6 +4,7 @@
   "pyre",
   "bellows",
   "searing",
+  "cinder",
   "quench",
   "crust",
   "salve",
@@ -12,10 +13,15 @@
   "stall",
   "stay",
   "anchor",
+  "wedge",
+  "tether",
+  "capstone",
   "vapour",
   "reflux",
   "canker",
   "fester",
+  "blight",
   "rot",
-  "test-cast"
+  "test-cast",
+  "test-buff"
 ]

@@ -34,45 +34,36 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'kindle',
       'smoulder',
       'pyre',
-      // Issue #268 — bei ihrer Schule statt hinten. Die Begruendung steht in
-      // spell-school.test.ts: Die Hinten-anfuegen-Regel schuetzte davor, dass
-      // eine Umstellung STILL geschieht, und tools/ac6.sh macht sie sichtbar.
       'bellows',
       'searing',
+      // Issue #477 — der kurze Brand, ebenfalls bei seiner Schule. Seit
+      // 2026-08-06 ist das der vorgesehene Ort: Ein Zauber am Ende der
+      // GESAMTLISTE spart keinen einzigen Neu-Export, weil die Prüfsumme
+      // ohnehin über alle Zauber läuft (gemessen: 23 gegen 23).
+      'cinder',
       'quench',
-      // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
-      // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
       'crust',
       'salve',
       'temper',
-      // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
       'stay',
       'anchor',
-      // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
-      //
-      // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
-      // diesem Issue abgeleitet habe, IST hier die Reihenfolge die Aussage:
-      // Sie bestimmt die Indizes, und die stehen in jeder aufgezeichneten
-      // Runde. Wer einen Zauber dazwischenschiebt, muss das hier sehen.
+      'wedge',
+      'tether',
+      'capstone',
       'vapour',
       'reflux',
-      // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
-      // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
       'fester',
-      // Issue #498 — ROT, bei seiner Schule statt hinten. Derselbe Grund wie
-      // bei #268 und #479: Die Umstellung geschieht nicht still, sondern hier
-      // und in `spell-order.json` sichtbar.
+      'blight',
       'rot',
-      // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
-      // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
-      // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
-      // Liste steht er trotzdem: Sie ist der Index-Raum, und der ist für
-      // Aufzeichnungen und Simulator derselbe.
       'test-cast',
       'test-buff',
+      'test-control',
+      'test-heat',
+      'test-tick',
+      'test-stack',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
