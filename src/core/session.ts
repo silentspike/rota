@@ -738,7 +738,8 @@ export class Session implements Simulation {
         this.emit(EV_SPELL_CAST, spellIndex, timeMs);
         // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
         // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
-        this.combat.armResetIfNeeded(spellIndex);
+        // Das Scharfstellen liegt seit #528 in `Combat.cast` — dort, wo die
+        // Wirkung eintritt und wo jede Aufzeichnung es sieht.
       }
     } else {
       this.rejectedAtMs[slot] = timeMs;
