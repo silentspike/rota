@@ -10,6 +10,24 @@
 # siebenmal passiert.
 #
 # Spalten: Hebel · Feld · Zauber · Mutation · bewegte Größe · Lauf
+#
+# ZWEI EINSCHRAENKUNGEN, ohne die eine Zahl hier irrefuehrt:
+#
+# 1. ERZEUGTE DRUECKE. Bei Aufzeichnungen, deren Druecke beim Export neu
+#    entstehen, misst die Zahl Groesse UND Rotation zusammen — die Mutation
+#    aendert die gewaehlte Reihenfolge, und der Unterschied stammt daraus.
+#    Gemessen an control.cost/anchor: stand mit 6,67 % hier, und bei FESTEN
+#    Druecken bewegt der Wert von 0 bis 999 gar nichts. Die Zeile steht
+#    jetzt auf 0,00 %.
+#
+# 2. OHNE BEZUGSLAUF ist "die Wirkung verschwindet ganz" nicht von "sie wird
+#    kleiner" zu unterscheiden. Nur kontrolle-wirkt.json fuehrt einen Lauf
+#    OHNE den Zauber (`way: none`) — und der hat zwei Faelle getragen, die es
+#    sonst nicht gaebe.
+#
+#    ANFORDERUNG AN KUENFTIGE AUFZEICHNUNGEN: einen Lauf ohne den Zauber
+#    mitliefern. Er kostet wenig und ist der einzige Weg, den vollstaendigen
+#    Wirkungsverlust zu belegen.
 300.00%  control.amountMs           stall        2000 -> 1000     damageTaken  kontrolle-wirkt#5
  72.58%  dot.tickIntervalMs         searing      2000 -> 1000     damage       new-calcination#0
  56.00%  conversion.sharePercent    temper       25 -> 12       converted    coagulation#3
@@ -25,7 +43,7 @@
  14.44%  dot.durationMs             cinder       4000 -> 2000     damage       cinder-ticks#0
  10.48%  spender.damagePerPoint     pyroclasm    12 -> 6        damage       dot-lifetime#0
  10.48%  spender.bonusMultiplier    pyroclasm    2 -> 1        damage       dot-lifetime#0
-  6.67%  control.cost               anchor       6 -> 3        damage       fixation#1
+  0.00%  control.cost               anchor       6 -> 3        -            0 -> 0        -   # war 6,67 %: Export-Artefakt, siehe Kopf
   1.15%  convert.perSecond          efflux       12 -> 6        damage       efflux-restzeit#0
   0.42%  buff.factor                virulence    2 -> 1        damage       buff-targets#0
   0.14%  buff.gcds                  virulence    4 -> 2        damage       buff-targets#0

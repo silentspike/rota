@@ -8,8 +8,28 @@ import { bossById } from '../../src/core/data.js';
  *
  * ```text
  *   control.amountMs  stall    300,00 %   damageTaken  320 → 1280
- *   control.cost      anchor     6,67 %   damage       900 → 840
  * ```
+ *
+ * # ANCHOR steht hier NICHT, und das ist der lehrreichere Teil
+ *
+ * `control.cost/anchor` stand mit 6,67 % in der Rangfolge. Ein erster Entwurf
+ * baute einen Prüffall darauf — und der prüfte die Größe **gar nicht**:
+ *
+ * ```text
+ *   anchor.cost = 0 … 999   der Fall bleibt grün, über den ganzen Bereich
+ *   fixation#0   bind 20                            damage 1200
+ *   fixation#1   bind 15, stall 2, stay 1, anchor 2  damage  900
+ *   1200 / 20 = 60 je bind      15 × 60 = 900
+ * ```
+ *
+ * Der Unterschied ist nicht die Ressource, sondern dass fünf Drücke keinen
+ * Schadenszauber tragen. Die 6,67 % stammten aus einem Export-Lauf, der bei
+ * halbierten Kosten eine andere Rotation wählte.
+ *
+ * **Ich hatte dieses Artefakt eine Stunde vorher selbst gemeldet — und im
+ * selben PR einen Prüffall daraus gebaut, als wäre die Zahl echt.** Ein Befund
+ * über ein Werkzeug wirkt nicht rückwirkend auf die Zahlen, die es schon
+ * geliefert hat; er muss auf jede einzelne angewandt werden.
  *
  * # Warum diese zwei erst jetzt messbar sind
  *
@@ -54,28 +74,6 @@ interface Lauf {
 
 function faelle(): { bossId: string; runs: Lauf[] }[] {
   return JSON.parse(readFileSync(DATEI, 'utf8')).cases;
-}
-
-function fixationsLauf(n: number): { bossId: string; lauf: Lauf } {
-  const d = JSON.parse(readFileSync('tests/parity/recordings/fixation.json', 'utf8'));
-  const lauf = d.runs[n];
-  if (!lauf) throw new Error(`fixation.json hat keinen Lauf ${n}`);
-  return { bossId: d.bossId, lauf };
-}
-
-function ausgeteilterSchaden(bossId: string, lauf: Lauf): number {
-  const boss = bossById(bossId);
-  if (!boss) throw new Error(`Boss ${bossId} fehlt`);
-  return replayRecording(
-    {
-      name: 'kontroll-kosten',
-      seed: 0,
-      ticks: lauf.ticks,
-      presses: lauf.presses,
-      bindings: lauf.bindings,
-    },
-    { boss },
-  ).damage;
 }
 
 function erlittenerSchaden(bossId: string, lauf: Lauf): number {
@@ -130,33 +128,5 @@ describe('STALL senkt den erlittenen Schaden von 1280 auf 320', () => {
       erlittenerSchaden(fall.bossId, weg('stay')),
       'STAY senkt den Schaden ebenfalls — dann sagt der Fall oben nichts über STALL',
     ).toBe(1280);
-  });
-});
-
-describe('ANCHORs Kosten bewegen den Schaden — 900 statt 1200', () => {
-  /**
-   * `control.cost` ist die Ressource, die ein Kontroll-Zauber verbraucht. Sie
-   * fehlt danach für Schaden — deshalb wirkt sie sich **über `damage`** aus
-   * und nicht über `damageTaken`.
-   *
-   * Der Hebel ist mit 6,67 % klein, und die Basis erklärt warum: 900 von 1200.
-   * Halbiert man ANCHORs Kosten, bleiben 60 mehr übrig. Das ist eine
-   * Verschiebung, kein Wirkungsverlust — der Unterschied zu STALL oben, und
-   * genau dafür steht die Basis in der Messdatei.
-   */
-  it('ohne Kontroll-Zauber sind es 1200', () => {
-    const { bossId, lauf } = fixationsLauf(0);
-    expect(
-      ausgeteilterSchaden(bossId, lauf),
-      'der Bezugslauf richtet nicht die 1200 an, gegen die unten gemessen wird',
-    ).toBe(1200);
-  });
-
-  it('mit ihnen 900 — die Kosten fehlen für Schaden', () => {
-    const { bossId, lauf } = fixationsLauf(1);
-    expect(
-      ausgeteilterSchaden(bossId, lauf),
-      'die Kontroll-Kosten schlagen nicht mit dem Betrag aus dem Design zu Buche',
-    ).toBe(900);
   });
 });
