@@ -4717,3 +4717,127 @@ Dieselben Fälle an anderer Stelle desselben Tages:
 
 **Keine dieser Zahlen wurde für das Ergebnis gebraucht.** Jede hat einen Fehler gefunden, den
 das Ergebnis nicht zeigen konnte.
+
+### 8.68 Eine Zusicherung, die gröber ist als die Messung, wirft den Beweis weg
+
+Am 2026-08-07 bei der Abnahme von `boss-2-2`: Drei Prüffälle belegen, dass die Reihenfolge über
+den Kampf entscheidet. Der Boss legt ab 8 s ein Gift, ab 11 s beginnt ein Zauber mit 2200
+Schaden, und QUENCH bedient beides — aber nicht beides zugleich.
+
+**Sieben Mutationen, keine färbt einen Fall rot** — darunter das ersatzlose Löschen beider
+Signatur-Bausteine:
+
+```
+race.threshold  900 -> 99999      10 pass
+del race                          10 pass
+affliction.damage 120 -> 5        10 pass
+del affliction                    10 pass
+```
+
+Der naheliegende Schluss wäre gewesen, dass der Boss nichts tut. Er ist falsch. Dieselben drei
+Läufe, mit dem Todeszeitpunkt statt nur mit dem Ausgang gemessen:
+
+```
+nichts   DIED   quench=0   ende=27500
+gift     DIED   quench=1   ende=41500      ← vierzehn Sekunden länger
+zauber   WON    quench=3   ende=48020
+```
+
+Die Signatur wirkt, und zwar deutlich. Die Zusicherung lautete `toBe(FIGHT_DIED)`, und die ist
+bei `nichts` **und** bei `gift` erfüllt.
+
+#### Der Unterschied zu 8.62
+
+8.62 sagt: Ein Baustein, den die Messung nicht erreicht, sieht aus wie einer, der nichts tut.
+Dort fehlte der Messung ein Aufruf — `checkDefeat()` lief nicht mit.
+
+Hier erreicht die Messung den Baustein vollständig. Sie hat die Zahl. **Die Zusicherung wirft
+sie weg, bevor sie zählt** — aus 41500 wird `DIED`, aus 27500 wird `DIED`, und die vierzehn
+Sekunden dazwischen kommen nie in einem Vergleich an.
+
+Mit `del affliction` gemessen, fallen die beiden Läufe zusammen:
+
+```
+nichts   DIED   quench=0   ende=41500
+gift     DIED   quench=0   ende=41500      ← identisch, und der Fall bleibt grün
+```
+
+#### Die Regel
+
+**Eine Zusicherung darf nicht gröber sein als die Größe, die sie belegen soll.** Ein Ausgang
+(`gewonnen` / `verloren` / `gestorben`) hat drei Werte; eine Signatur, die den Kampf um vierzehn
+Sekunden verlängert, hat tausende. Wer den einen gegen die andere prüft, misst mit einem Maßstab,
+auf dem der Unterschied nicht abgebildet ist.
+
+Die Prüffrage vor jedem `toBe`:
+
+> **Wenn die Sache, die ich belege, verschwände — bliebe die Zusicherung wahr?**
+
+Bei `expect(gift.zustand).toBe(FIGHT_DIED)` lautet die Antwort ja. Beim Todeszeitpunkt nein.
+
+#### Warum es sich als Sorgfalt tarnt
+
+Der Ausgang ist die _wichtigere_ Größe — `AC2` verlangt ausdrücklich „ohne die Signatur verliert
+man", nicht „läuft es anders". Auf den Ausgang zu prüfen ist also die richtige Antwort auf die
+gestellte Frage.
+
+**Nur beantwortet sie eine zweite Frage nicht, die niemand gestellt hat: ob die Signatur die
+Ursache ist.** Der Verlierer-Fall belegt, dass man verliert; er belegt nicht, dass man an _diesem_
+Boss verliert.
+
+> Die Gegenmaßnahme ist wieder 8.67: eine zweite Zahl, die für die Aussage nicht gebraucht wird.
+> Hier der Todeszeitpunkt — 27500 gegen 41500, hart und weit auseinander. Er steht in keinem
+> Kriterium, und er ist der Einzige, der die Mutation gemeldet hätte.
+
+### 8.69 Ein Paritäts-Fall schützt keine Entscheidung — der Export nimmt sie zurück
+
+Am 2026-08-07 bei der Abnahme von #602. Der Fix ist eine Zeile je Seite: Der Krit-Wurf eines
+DoT-Ticks zieht aus `STREAM_DOT_TICK` statt aus `STREAM_CRIT`.
+
+Die Gegenprobe des Workers war vollständig — Rücknahme gesetzt, zwei Unit-Fälle rot, ein
+Paritäts-Fall rot. Ich habe eine zweite gefahren, die in keinem Kriterium stand:
+
+```
+Mutation gesetzt, git add -A, dann npm run parity:export, dann beides neu
+
+  Parität nach dem Export    122 passed        wieder GRÜN
+  Unit     nach dem Export      2 failed        weiterhin ROT
+```
+
+**Der Export macht die Parität grün.** Er rechnet die Aufzeichnungen mit dem geänderten Regelwerk
+neu, und danach stimmen beide Seiten wieder überein — mit der zurückgenommenen Entscheidung.
+
+#### Warum das nicht dasselbe ist wie 8.44
+
+8.44 sagt: Wer eine Datendatei anfasst, hat beide Seiten geändert. Dort geht es um eine
+**versehentliche** Änderung, die man bemerken muss.
+
+Hier ist die Reihenfolge umgekehrt und der Vorgang **absichtlich**: Jemand ändert eine Regel,
+sieht rote Paritäts-Fälle, hält sie für veraltete Aufzeichnungen und fährt `parity:export`. Das
+ist der naheliegende, oft richtige Handgriff — und genau er macht die Rücknahme unsichtbar.
+
+> **Ein Paritäts-Fall sagt: beide Seiten rechnen dasselbe.** Er sagt nichts darüber, ob sie das
+> Richtige rechnen. Der Export ist die Maschine, die den ersten Satz jederzeit wiederherstellt.
+
+#### Die Regel
+
+Jede Entscheidung über das Regelwerk — welcher Strom, welche Reihenfolge, welcher Rundungsweg —
+braucht **mindestens einen Prüffall, der sie direkt befragt** und nicht über eine Aufzeichnung
+geht. Bei #602 sind das zwei:
+
+```
+ein DoT-Tick zieht aus STREAM_DOT_TICK, nicht aus STREAM_CRIT
+```
+
+Der Fall liest den Strom. Er hat keine erwarteten Zahlen, die ein Export neu schreiben könnte,
+und deshalb überlebt er ihn.
+
+#### Die Prüffrage, wenn ein PR eine Regel ändert
+
+> **Wenn jemand meine Änderung zurückstellt und `parity:export` fährt — was bleibt rot?**
+
+Bleibt nichts rot, ist die Entscheidung nicht festgehalten, sondern nur ausgeführt. Sie hält bis
+zum nächsten Menschen, der die roten Aufzeichnungen für veraltet hält.
+
+Das ist die dritte Sorte aus #547 in einer neuen Form: **nicht „heute unprüfbar", sondern „heute
+geprüft und morgen weggerechnet".**
