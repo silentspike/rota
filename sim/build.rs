@@ -497,6 +497,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     emit_putrefaction(out, spell);
     emit_synergy(out, spell);
     emit_fixation(out, spell, &whose);
+    emit_convert(out, spell, &whose);
     let _ = writeln!(out, "    }},");
 }
 
@@ -1453,6 +1454,34 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let _ = writeln!(
                 out,
                 "        conversion: Some(Conversion {{ share_percent: {share}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+}
+
+/// Die Umwandlung aus einer schulfremden Quelle (Issue #520, EFFLUX).
+///
+/// Steht neben `emit_fixation` und nicht darin: `Control` verlangt
+/// Kontroll-Punkte, `Convert` kommt ohne aus. Geteilt wird die Senke im
+/// Kampf, nicht die Verpackung in den Daten.
+fn emit_convert(out: &mut String, spell: &Value, whose: &str) {
+    match spell.get("convert") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        convert: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/convert");
+            let from = text(node, "from", &whose);
+            assert_eq!(
+                from, "cooldown",
+                "{whose}: unbekannte Umwandlungs-Quelle \"{from}\"; \
+                 umgesetzt ist nur \"cooldown\""
+            );
+            let per_second = uint(node, "perSecond", &whose);
+            assert!(per_second > 0, "{whose}: Die Umwandlung hat keinen Betrag");
+            let _ = writeln!(
+                out,
+                "        convert: Some(Convert {{ per_second: {per_second} }}),"
             );
         }
     }

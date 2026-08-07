@@ -1829,6 +1829,29 @@ impl Fight {
     /// Zauber und nicht an einer Automatik. Reichen die Punkte nicht,
     /// geschieht nichts; der Zauber ist vertan, aber er nimmt sich nicht, was
     /// er nicht hat.
+    /// Eine Umwandlung aus einer schulfremden Quelle (Issue #520, EFFLUX).
+    ///
+    /// **Eigene Verpackung, geteilte Senke** — wie im Spiel
+    /// (`combat.ts`, `applyConversion`). `apply_fixation` verbraucht
+    /// Kontroll-Punkte; ein SUBLIMATION-Zauber dort loeschte sie dem Spieler.
+    /// Die Senke `pending_control_damage` dagegen ist schulneutral.
+    ///
+    /// **Ganze Sekunden**, wie drueben: `per_second` ist Schaden je Sekunde,
+    /// und Millisekunden ergaeben Nachkommastellen an einer Stelle, an der
+    /// GAME-DESIGN 18.4 ganze Zahlen verlangt.
+    fn apply_conversion(&mut self, spell: &Spell, now: Millis) {
+        let Some(convert) = spell.convert else {
+            return;
+        };
+        let mut rest_ms: Millis = 0;
+        for &bereit_ab in &self.cooldown_ready_at {
+            if bereit_ab > now {
+                rest_ms += bereit_ab - now;
+            }
+        }
+        self.pending_control_damage = (rest_ms / 1000) * convert.per_second;
+    }
+
     fn apply_fixation(&mut self, spell: &Spell) {
         if spell.control_gain > 0 {
             // Ohne Obergrenze: Kontroll-Punkte verfallen nicht (anders als
@@ -2653,6 +2676,7 @@ impl Fight {
         self.apply_coagulation(index, spell);
         self.apply_putrefaction(spell);
         self.apply_fixation(spell);
+        self.apply_conversion(spell, now);
         // **Erst pruefen, dann oeffnen** (#318). Ein Zauber, der sein eigener
         // Partner waere, nutzte sonst das Fenster, das er im selben Zug
         // aufmacht.

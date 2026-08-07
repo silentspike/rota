@@ -20,9 +20,16 @@
   "vapour",
   "reflux",
   "wisp",
+  "efflux",
   "canker",
   "fester",
   "blight",
   "test-cast",
-  "test-buff"
+  "test-buff",
+  "test-control",
+  "test-heat",
+  "test-tick",
+  "test-stack",
+  "test-cdreduce",
+  "test-convert"
 ]

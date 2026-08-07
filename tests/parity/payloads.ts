@@ -3386,3 +3386,81 @@ export function cinderPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+export const EFFLUX_NAME = 'efflux-restzeit';
+
+/** Die Leiste dieser Aufzeichnung. */
+const EFFLUX_BINDINGS = [
+  { slot: 0, spellId: 'efflux' },
+  { slot: 1, spellId: 'pyre' },
+  { slot: 2, spellId: 'reflux' },
+  { slot: 3, spellId: 'kindle' },
+] as const;
+
+/**
+ * EFFLUX im Paritäts-Weg (Issue #520).
+ *
+ * # Warum drei andere Zauber dabei sind
+ *
+ * EFFLUX wandelt die **Summe der verbleibenden Abklingzeiten** in Schaden.
+ * Ein Lauf, in dem nur er gedrückt wird, hätte nichts umzuwandeln: Seine
+ * eigene Abklingzeit zählt zwar mit, aber eine einzelne ergibt kaum etwas.
+ *
+ * PYRE (5 s), REFLUX (45 s) und KINDLE (1,5 s) sind absichtlich verschieden
+ * lang. Damit schwankt die Summe im Lauf, statt konstant zu sein — und die
+ * Bitgleichheit prüft eine sich ändernde Zahl statt derselben.
+ *
+ * # Warum EFFLUX zuletzt kommt
+ *
+ * Er ist der einzige, dessen Ertrag davon abhängt, was die anderen
+ * hinterlassen haben. Wer ihn zuerst drückt, misst eine leere Summe — der
+ * Prüffall wäre grün und belegte nichts.
+ */
+function recordEfflux(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const efflux = combat.indexOf('efflux');
+  const pyre = combat.indexOf('pyre');
+  const reflux = combat.indexOf('reflux');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, EFFLUX_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.isOffCooldown(reflux, timeMs)) press(reflux, tick, timeMs);
+    else if (combat.isOffCooldown(pyre, timeMs)) press(pyre, tick, timeMs);
+    else if (combat.isOffCooldown(efflux, timeMs)) press(efflux, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: EFFLUX_NAME, seed: 0, ticks, presses, bindings: EFFLUX_BINDINGS };
+}
+
+export function effluxPayload(): Record<string, unknown> {
+  const recording = recordEfflux(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: EFFLUX_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}

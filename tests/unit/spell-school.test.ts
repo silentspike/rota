@@ -77,6 +77,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'vapour',
       'reflux',
       'wisp',
+      // Issue #520 — EFFLUX, der Notausgang der Sublimation. Er ist keine
+      // Cooldown-Mechanik, sondern `convertToDamage` mit Abklingzeit als
+      // Quelle (die Bauart steht seit #478).
+      'efflux',
       'canker',
       'fester',
       'blight',

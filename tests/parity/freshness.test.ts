@@ -72,6 +72,7 @@ import eingecheckteSynergieMitTempo from './recordings/synergy-haste.json';
 import eingecheckterWardDeckel from './recordings/ward-cap.json';
 import eingecheckteFaeulnisFueller from './recordings/putrefaction-filler.json';
 import eingecheckteGlut from './recordings/cinder-ticks.json';
+import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -109,6 +110,7 @@ import {
   putrefactionFillerPayload,
   fixationSpellsPayload,
   cinderPayload,
+  effluxPayload,
 } from './payloads.js';
 
 const HINWEIS =
@@ -166,6 +168,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CINDER wird nur hier gewirkt — veraltet die Datei, ist der einzige
     // Paritäts-Nachweis für ihn wieder weg (Issue #477).
     expect(eingecheckteGlut, HINWEIS).toEqual(cinderPayload());
+  });
+
+  it('der Restzeit-Lauf entspricht dem heutigen Spielstand', () => {
+    // EFFLUX wird nur hier gewirkt, und sein Ertrag hängt an der Summe der
+    // laufenden Abklingzeiten — veraltet die Datei, ist der einzige
+    // Paritäts-Nachweis für die Umwandlung weg (Issue #520).
+    expect(eingecheckteRestzeit, HINWEIS).toEqual(effluxPayload());
   });
 
   it('die Fäulnis-Füller entsprechen dem heutigen Spielstand', () => {
@@ -535,6 +544,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'ward-cap',
   'putrefaction-filler',
   'cinder-ticks',
+  'efflux-restzeit',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {
