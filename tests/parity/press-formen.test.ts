@@ -72,6 +72,23 @@ export interface Zaehlung {
  * `cases[].runs[]`. Wer nur die oberste Ebene liest, zählt je nach Datei
  * richtig oder null — und die Null sähe aus wie „keine Drücke".
  */
+/**
+ * **Gesucht wird gezielt der Schlüssel `presses`, nicht „Objekte mit `slot`".**
+ *
+ * Nachgemessen, welche Listen druckähnlich aussehen:
+ *
+ * ```text
+ *   presses     1465 Einträge, 43 Dateien   slot · spellId · tick
+ *   bindings     171 Einträge, 42 Dateien   slot · spellId
+ *   factorAt       3 Einträge,  1 Datei     buffs · tick
+ * ```
+ *
+ * `bindings` trägt **beide** Felder in DEMSELBEN Objekt — das ist dort kein
+ * Widerspruch, sondern seine Aufgabe: Platz und Zauber gehören zusammen. Eine
+ * Suche über „Objekte mit `slot` oder `spellId"` zählte sie mit und meldete
+ * damit **jede** Datei als gemischt. Der Wächter wäre rot, ohne dass etwas
+ * kaputt wäre — und würde entfernt statt verstanden.
+ */
 function allePressListen(wert: unknown, heraus: unknown[][] = []): unknown[][] {
   if (Array.isArray(wert)) {
     for (const eintrag of wert) allePressListen(eintrag, heraus);
