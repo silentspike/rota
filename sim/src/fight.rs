@@ -229,6 +229,19 @@ pub struct FightConfig {
     /// durch dieselben Zweige wie vorher — keine Zeit wird umgerechnet, kein
     /// Zufallsstrom gedreht, keine Pruefsumme bewegt.
     pub worn: WornValues,
+    /// Ob das Schluesseltalent "split-spender" verteilt ist (Issue #418).
+    ///
+    /// **Ein Wahrheitswert, keine Zahl.** Die Talente kommen sonst nur als
+    /// fertiger Faktor herein (`factors.talents`) — das reicht fuer die drei
+    /// Wege aus GAME-DESIGN 12.5, die alle Zahlen erhoehen. Ein
+    /// Schluesseltalent aendert stattdessen, WAS geschieht, und laesst sich
+    /// deshalb nicht als Faktor uebergeben.
+    ///
+    /// Dieselbe Bauart wie `worn`: ein Datenfeld, das durch Spiel, Simulator,
+    /// Aufzeichnung und Wiedergabe geht. Die Alternative — eine abgewandelte
+    /// Zauberliste — geht auf dieser Seite nicht: `SPELLS` ist statisch und
+    /// wird an vierzig Stellen direkt gelesen.
+    pub split_spender: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -262,6 +275,7 @@ impl Default for FightConfig {
             factors: NEUTRAL,
             boss: BOSS,
             worn: WornValues::none(),
+            split_spender: false,
             talent_permille: 0,
             player_level: 1,
         }
@@ -556,6 +570,9 @@ pub struct Fight {
     resource_buffs: Buffs,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
+    cd_reduce_buffs: Buffs,
+    convert_buffs: Buffs,
+    cap_buffs: Buffs,
 
     // -- Zaehlwerk --
     casts: [u32; SPELL_COUNT],
@@ -569,6 +586,7 @@ pub struct Fight {
     factors: DamageFactors,
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
+    split_spender: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -742,6 +760,9 @@ impl Fight {
             resource_buffs: Buffs::new(),
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
+            cd_reduce_buffs: Buffs::new(),
+            convert_buffs: Buffs::new(),
+            cap_buffs: Buffs::new(),
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
@@ -809,6 +830,7 @@ impl Fight {
             },
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
+            split_spender: config.split_spender,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -890,8 +912,20 @@ impl Fight {
         if gained > 0 {
             self.add_resource(gained);
         }
-        let order = self.pending_shorten.replace(PendingShorten::default());
+        let mut order = self.pending_shorten.replace(PendingShorten::default());
         if order.amount > 0 {
+            // **Der Faktor aus `cd_reduce_buffs`** (DISTIL, E10). Er greift
+            // HIER und nicht in `SublimationMechanic`: Die Mechanik liefert
+            // den ROHBETRAG aus ihrer Tabelle, angewandt wird er an dieser
+            // Stelle — genau wie `pending_gain` durch `add_resource` laeuft.
+            //
+            // Ein erster Befund hielt einen Schnittstellen-Umbau fuer noetig,
+            // weil `sublimation.rs` den Wert aus einer kopierten Tabelle holt
+            // und `Fight` nicht sieht. Das stimmt — aber es ist gleichgueltig,
+            // weil die WIRKUNG hier liegt. Ich hatte auf die Stelle gesehen,
+            // wo der Wert HERKOMMT, statt auf die, wo er WIRKT.
+            order.amount =
+                (f64::from(order.amount) * self.cd_reduce_buffs.factor(now)).round() as Millis;
             shorten_cooldowns(&mut self.cooldown_ready_at, order, now);
         }
     }
@@ -1296,6 +1330,9 @@ impl Fight {
         self.resource_buffs.reset();
         self.tick_buffs.reset();
         self.stack_buffs.reset();
+        self.cd_reduce_buffs.reset();
+        self.convert_buffs.reset();
+        self.cap_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
@@ -1832,7 +1869,13 @@ impl Fight {
         if self.conversion_until.is_none_or(|bis| self.time > bis) {
             return;
         }
-        let gewonnen = damage * self.conversion_percent / 100;
+        // **Der Faktor aus `convert_buffs`** (QUICKSILVER, E10). Gelesen bei
+        // JEDEM Schaden, solange die Umwandlung laeuft — nur deshalb traegt
+        // ein zeitlich begrenzter Faktor hier. Spiegelbild von
+        // `Combat.applyConversion` im Spiel.
+        let satz = (f64::from(self.conversion_percent) * self.convert_buffs.factor(self.time))
+            .round() as u32;
+        let gewonnen = damage * satz / 100;
         if gewonnen == 0 {
             return;
         }
@@ -1880,6 +1923,9 @@ impl Fight {
         self.resource_buffs.expire(now);
         self.tick_buffs.expire(now);
         self.stack_buffs.expire(now);
+        self.cd_reduce_buffs.expire(now);
+        self.convert_buffs.expire(now);
+        self.cap_buffs.expire(now);
         if self.buffs.expire(now) == 0 {
             return;
         }
@@ -2658,15 +2704,47 @@ impl Fight {
         }
 
         if let Some(spender) = spell.spender {
-            let spent = self.resource;
-            let mut damage = spender.damage_per_point * u32::from(spent);
-            if spent >= spender.bonus_threshold {
-                damage *= spender.bonus_multiplier;
+            // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
+            // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
+            // dafuer ZWEIMAL."
+            //
+            // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
+            // sich als Faktor ausdruecken liesse, waere keines.
+            let geteilt = self.split_spender;
+            // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
+            // zweimal 7, eine Hitze bleibt uebrig.
+            let pro_schlag = if geteilt {
+                self.resource / 2
+            } else {
+                self.resource
+            };
+            let schlaege = if geteilt { 2 } else { 1 };
+
+            for _ in 0..schlaege {
+                // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
+                // rechnete der zweite mit demselben Stand wie der erste.
+                let spent = if geteilt {
+                    pro_schlag.min(self.resource)
+                } else {
+                    self.resource
+                };
+                if geteilt && spent == 0 {
+                    break;
+                }
+
+                let mut damage = spender.damage_per_point * u32::from(spent);
+                if spent >= spender.bonus_threshold {
+                    damage *= spender.bonus_multiplier;
+                }
+                self.log
+                    .push(now, LogKind::Spend, index as u8, u32::from(spent));
+                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                if geteilt {
+                    self.resource -= spent;
+                } else {
+                    self.resource = 0;
+                }
             }
-            self.log
-                .push(now, LogKind::Spend, index as u8, u32::from(spent));
-            cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
-            self.resource = 0;
         }
 
         // **Ein Schaden-Ereignis je Wirkung, mit der Summe** — nicht eines je
@@ -2707,6 +2785,9 @@ impl Fight {
                 BuffTarget::Resource => &mut self.resource_buffs,
                 BuffTarget::Tick => &mut self.tick_buffs,
                 BuffTarget::Stack => &mut self.stack_buffs,
+                BuffTarget::CdReduce => &mut self.cd_reduce_buffs,
+                BuffTarget::Convert => &mut self.convert_buffs,
+                BuffTarget::Cap => &mut self.cap_buffs,
             };
             vorrat.apply_for_gcds(buff.kind, buff.factor, buff.gcds, now, fenster);
             // Nur der Schadens-Faktor wird gespiegelt; die anderen vier werden
@@ -2845,7 +2926,12 @@ impl Fight {
             (f64::from(amount) * self.resource_buffs.factor(self.time)).round() as u16
         };
         let before = self.resource;
-        self.resource = (before + amount).min(RESOURCE.cap);
+        // **Die Grenze, wie sie JETZT gilt** (SLAG, Issue #490). Auf dieser
+        // Seite gibt es nur EINE Lesestelle — das Entwickler-Werkzeug
+        // (`setResource`) existiert im Simulator nicht. Im Spiel sind es zwei,
+        // und dort rechnet ein Getter sie an einer Stelle.
+        let cap = (f64::from(RESOURCE.cap) * self.cap_buffs.factor(self.time)).round() as u16;
+        self.resource = (before + amount).min(cap);
         self.resource_overflow += u32::from(amount - (self.resource - before));
     }
 
@@ -3230,7 +3316,10 @@ impl Fight {
                 + self.control_buffs.window_sum()
                 + self.resource_buffs.window_sum()
                 + self.tick_buffs.window_sum()
-                + self.stack_buffs.window_sum(),
+                + self.stack_buffs.window_sum()
+                + self.cd_reduce_buffs.window_sum()
+                + self.convert_buffs.window_sum()
+                + self.cap_buffs.window_sum(),
         );
         h
     }

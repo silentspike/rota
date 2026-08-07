@@ -164,6 +164,82 @@ sah, der an den Orchestrator adressiert war, und **nachfragte, statt ihn zu übe
 
 Beides traf zu: Die Liste ist global, **und** die Nachricht fehlte.
 
+#### Die Ursache — gefunden am selben Abend, aus einem ganz anderen Anlass
+
+Der Fall stand hier als ungeklärt. Er ist es nicht mehr, und er hatte dieselbe Wurzel wie die
+Doppelzustellungen: einen **Read-Modify-Write ohne Schutz gegen den Leser**.
+
+```python
+sperre.mkdir()                            # schützt gegen andere SENDER
+inhalt = json.loads(inbox.read_text())    # liest [A]
+                                          # <- hier leert der Poller: []
+inhalt.append(neu)                        # [A, B]
+tmp.replace(inbox)                        # schreibt A zurück
+```
+
+Der Leser — Claude Codes `InboxPoller` — kennt diese Sperre nicht. Je nachdem, wo er in seinem
+eigenen Lesen-und-Leeren steht, entsteht **eine von zwei Wirkungen**:
+
+| Reihenfolge                                                         | Wirkung                                                                            |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Poller leert zwischen `read` und `replace`                          | Der Sender schreibt eine **bereits abgeholte** Nachricht zurück → Doppelzustellung |
+| Poller leert **nach** dem `replace`, auf Basis eines älteren Lesens | Die **frisch geschriebene** Nachricht wird überschrieben → **Verlust**             |
+
+Gemessen an 60 Sendungen gegen einen nachgebildeten Poller:
+
+```
+                doppelt   VERLOREN
+alt (0,5 ms)      21         7
+neu (0,5 ms)      12         0
+alt (50 ms)       45         0
+neu (50 ms)        0         0
+```
+
+**Sieben von sechzig Nachrichten waren weg** — nicht doppelt, sondern nie angekommen, mit
+Erfolgsmeldung beim Sender. Genau der Fall oben.
+
+Die Zustellung wiederholt seitdem, wenn sich die Datei zwischen Lesen und Schreiben bewegt hat;
+alles Teure passiert vor der letzten Prüfung, sodass zwischen ihr und dem atomaren `replace` nur
+noch der Systemaufruf liegt. Nach acht erfolglosen Versuchen wird trotzdem geschrieben — **eine
+Doppelzustellung ist der billigere Fehler als eine verlorene Nachricht.**
+
+> **Die Tabelle darüber bleibt trotzdem gültig.** Der Fix macht den Verlust unwahrscheinlich, nicht
+> unmöglich, und am Beweiswert einer Erfolgsmeldung ändert er nichts: Sie belegt weiterhin nur, dass
+> die Datei geschrieben wurde. Nur die Antwort trägt.
+
+#### Wie viele Verluste es gab — und wofür die Zahl **nicht** gilt
+
+Weil jede Nachricht Bestätigungspflicht trägt, bleibt eine verlorene dauerhaft unbeantwortet und
+sammelt sich sichtbar in `rota-ipc offen` an. Gezählt am 2026-08-06:
+
+| Empfänger      | gesendet | ohne Antwort                            |
+| -------------- | -------- | --------------------------------------- |
+| `Worker-1`     | 172      | **0**                                   |
+| `Worker-2`     | 206      | **0**                                   |
+| `Worker-3`     | 210      | **0**                                   |
+| `Orchestrator` | 775      | 3 _(offene Rückstände, keine Verluste)_ |
+
+**Die Zahl deckt Antworten nicht ab, und das ist keine Kleinigkeit.** Antworten lösen ausdrücklich
+keine Pflicht aus — sie tragen _„erzeuge keine neue Antwortpflicht"_. Eine verlorene Antwort
+hinterlässt deshalb **keine Spur**: kein `offen`-Eintrag, keine Lücke, nichts.
+
+> Der Einwand kam von Worker-1, nachdem der Orchestrator „höchstens ein Verlust im ganzen Projekt"
+> geschrieben hatte:
+>
+> **„Für diese Art hast du keinen Detektor, also auch keine Zahl. Das ist ein Unterschied zu ‚es ist
+> keine verlorengegangen'."**
+>
+> Und zur Größenordnung: Von seinen acht Doppelzustellungen an diesem Tag waren **fünf Antworten**.
+> Die Art ist nicht selten, sie ist die häufigere.
+
+**Warum das trotzdem nicht der harmlosere Fall ist:** Eine Antwort trägt keinen Auftrag, aber
+gelegentlich eine **Entscheidung** — und dann wartet jemand auf etwas, das längst beantwortet ist.
+Am selben Abend zweimal beinahe passiert.
+
+**Der Detektor dafür wäre prospektiv, nicht rückwirkend:** Der Sender nennt beim nächsten regulären
+Kontakt die Nummer seiner letzten Antwort an diesen Empfänger; wer sie nicht kennt, meldet es. Das
+kostet eine Zeile, ist selbstheilend und braucht keine Historien-Suche. **Noch nicht gebaut.**
+
 | Beobachtung beim **Sender** | Was sie belegt              | Was sie **nicht** belegt     |
 | --------------------------- | --------------------------- | ---------------------------- |
 | `Nachricht NNNN zugestellt` | die Datei wurde geschrieben | dass der Empfänger sie kennt |
@@ -183,6 +259,37 @@ angekommen?` So sieht der Empfänger die Nummer, unter der er nachsehen kann.
 ist keine Fehlleitung — aber er ist der einzige Ort, an dem eine verschwundene Nachricht
 sichtbar wird. **Wer dort etwas sieht, das nicht ihm gehört, meldet es**, statt es nach Regel 3
 nur zu übergehen.
+
+### Eine Doppelzustellung ist harmlos — bis der Auftrag zählt statt setzt
+
+Die Zustellung spielt gelegentlich denselben Eintrag zweimal ein; der Sender schreibt nachweislich
+nur einmal. Deshalb steht in jeder Nachricht die Regel: **dieselbe Nummer zweimal heißt
+Doppelzustellung, nicht neuer Auftrag.**
+
+Am 2026-08-06 traf es eine Sitzung fünfmal an einem Abend. Ihre eigene Auswertung — die vier
+ersten Fälle waren folgenlos, der fünfte nicht:
+
+| Fall | Inhalt                                    | Schaden bei doppelter Ausführung        |
+| ---- | ----------------------------------------- | --------------------------------------- |
+| 1–4  | Meldungen, Anweisungen, ein Rundschreiben | Lesezeit, sonst nichts                  |
+| 5    | ein Rezept mit **zählenden** Schritten    | falsche Zahlen, ohne erkennbare Ursache |
+
+Der fünfte lautete sinngemäß _„erhöhe `present` um eins, verringere `placeholders` um eins"_. Zweimal
+ausgeführt ergibt das 18 statt 17 — und der Prüffall meldet dann `expected 131 to be 126`, also
+**dieselbe nichtssagende Zahl wie beim Vergessen, nur in die andere Richtung.** Wer die
+Doppelzustellung nicht bemerkt hat, sucht den Fehler in seiner eigenen Rechnung.
+
+> Der Satz, auf den es hinausläuft:
+>
+> **Der Schaden einer Doppelausführung hängt daran, ob der Auftrag ZÄHLT oder SETZT.** „Setz
+> `present` auf 17" wäre zweimal ausführbar gewesen, „erhöhe `present` um eins" nicht.
+
+**Wer Aufträge schreibt, formuliert sie deshalb setzend, nicht zählend** — der Empfänger kann eine
+Doppelzustellung nur erkennen, wenn er die Nummer im Blick hat, aber ein setzender Auftrag ist auch
+dann noch richtig, wenn er sie übersieht.
+
+Und die Begründung „ist ja bisher nie schiefgegangen" trägt nach diesem Abend nicht mehr: Bei vier
+von fünf Fällen war sie folgenlos, beim fünften nicht.
 
 ## Überwachung
 
