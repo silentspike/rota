@@ -2894,6 +2894,30 @@ export class Combat {
       if (seitBeginn < faelligAtMs + this.nextStrikeDelayMs) break;
       const eintrag = this.timelineEntryAt(this.timelineIndexValue)!;
       const index = this.timelineIndexValue;
+
+      // **Die Phasen-Bindung** (Issue #557). Bis hierher war `bossPhase` ein
+      // Zustand ohne Wirkung: gesetzt, in die Prüfsumme gerührt, von keiner
+      // Regel gelesen. Ein Boss mit zwei Phasenschwellen verlief bitgleich zu
+      // demselben Boss mit `phases: []` — gemessen an 1000 Durchgängen.
+      //
+      // # Das Ereignis VERFÄLLT, es wird nicht nachgeholt
+      //
+      // Der Index läuft weiter, die Wirkung entfällt. Das ist die Regel, und
+      // sie folgt aus der Zeitleiste selbst: Ein aufgestautes Ereignis fiele
+      // beim Phasenwechsel gesammelt mit allen anderen, und aus einer
+      // lernbaren Abfolge würde eine Lawine zum Schwellenzeitpunkt.
+      //
+      // # Warum eine UNTERGRENZE und kein Gleichheitstest
+      //
+      // Phasen laufen nur vorwärts (`if (neue > this.bossPhaseValue)` weiter
+      // unten). Ein Ereignis, das an eine übersprungene Phase gebunden wäre,
+      // käme nie wieder — `phase: 1` heisst deshalb „ab der zweiten Phase".
+      if (eintrag.phase !== undefined && this.bossPhaseValue < eintrag.phase) {
+        this.timelineIndexValue++;
+        this.nextStrikeDelayMs = 0;
+        continue;
+      }
+
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_BOSS_TIMELINE_FIRED, NO_SPELL_REF, index);
       // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
       // Zeitpunkt an (STAY, Issue #100).

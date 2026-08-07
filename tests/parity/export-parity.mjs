@@ -120,6 +120,8 @@ import {
   ALEMBIC_NAME,
   deckelPayload,
   DECKEL_NAME,
+  phasenPayload,
+  PHASEN_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -321,6 +323,15 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+const phasen = phasenPayload();
+const phasenPath = join(here, 'recordings', `${PHASEN_NAME}.json`);
+writeFileSync(phasenPath, serialize(phasen), 'utf8');
+console.log(`geschrieben: ${phasenPath}`);
+console.log(
+  `  Phasen-Bindung         hoechste Phase ${phasen.expected.hoechstePhase}, ` +
+    `eingesteckt ${phasen.expected.damageTaken}`,
+);
 
 const deckel = deckelPayload();
 const deckelPath = join(here, 'recordings', `${DECKEL_NAME}.json`);
