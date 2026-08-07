@@ -84,6 +84,10 @@ pub enum BuffTarget {
     Tick,
     /// Die Wertigkeit eines einzelnen Stapels — nicht ihre Zahl.
     Stack,
+    /// Was ein Zauber an Abklingzeit verkuerzt (DISTIL, E10).
+    CdReduce,
+    /// Die Umwandlungsrate Schaden -> Schild (QUICKSILVER, E10).
+    Convert,
 }
 
 /// Ein Entlade-Zauber: verbraucht die Ressource und schlaegt dafuer zu.

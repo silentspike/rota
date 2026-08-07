@@ -83,6 +83,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'test-heat',
       'test-tick',
       'test-stack',
+      'test-cdreduce',
+      'test-convert',
     ]);
   });
 

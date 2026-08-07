@@ -513,9 +513,11 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
         Some("resource") => "Resource",
         Some("tick") => "Tick",
         Some("stack") => "Stack",
+        Some("cdreduce") => "CdReduce",
+        Some("convert") => "Convert",
         Some(anderes) => panic!(
             "{whose}: unbekannte Zielgroesse \"{anderes}\" — erlaubt sind \
-             damage, control, resource, tick, stack"
+             damage, control, resource, tick, stack, cdreduce, convert"
         ),
     };
     let _ = writeln!(out, "            target: BuffTarget::{target},");

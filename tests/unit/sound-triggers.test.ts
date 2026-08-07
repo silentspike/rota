@@ -123,6 +123,8 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'test-heat',
     'test-tick',
     'test-stack',
+    'test-cdreduce',
+    'test-convert',
   ]);
 
   it('findet für jeden Zauber genau einen Klang', () => {
