@@ -54,6 +54,15 @@ pub enum Choice {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CooldownReset {
     armed_for: i16,
+    /// Wie viele Auswahlen noch offen sind (Issue #521).
+    ///
+    /// # Warum ein Zaehler NEBEN dem Index und nicht statt seiner
+    ///
+    /// Der Index sagt, WER scharf gestellt hat — das braucht die Regel "der
+    /// Ruecksetzer waehlt sich nicht selbst", und zwar bei JEDER Auswahl,
+    /// nicht nur bei der ersten. Der Zaehler sagt, wie oft noch gewaehlt
+    /// werden darf. Zwei Fragen, zwei Felder.
+    charges_left: u8,
     applied: u32,
     wasted: u32,
 }
@@ -64,6 +73,7 @@ impl CooldownReset {
     pub const fn new() -> Self {
         Self {
             armed_for: NO_SPELL,
+            charges_left: 0,
             applied: 0,
             wasted: 0,
         }
@@ -93,11 +103,28 @@ impl CooldownReset {
         self.wasted
     }
 
+    /// Wie viele Auswahlen noch offen sind (Issue #521).
+    #[must_use]
+    pub const fn charges_left(&self) -> u8 {
+        self.charges_left
+    }
+
     /// Den Modus scharf stellen — **nach** der Wirkung des Ruecksetzers.
     ///
     /// Vorher waere falsch: Dann waehlte sein eigener Druck bereits.
-    pub fn arm(&mut self, spell: usize) {
+    ///
+    /// `charges` ist die Zahl der Auswahlen (Issue #521). Bei 1 ist das
+    /// Verhalten identisch mit dem vor #521; bei 0 geschieht nichts — ein
+    /// Zauber ohne Ladungen ist kein Ruecksetzer.
+    pub fn arm(&mut self, spell: usize, charges: u8) {
+        if charges == 0 {
+            return;
+        }
         self.armed_for = i16::try_from(spell).unwrap_or(NO_SPELL);
+        // **Ueberschreiben, nicht aufaddieren.** Wer einen zweiten Ruecksetzer
+        // wirkt, waehrend der erste noch scharf steht, hat den ersten
+        // verschenkt — dieselbe Regel wie vor #521, nur jetzt mit Zahl.
+        self.charges_left = charges;
     }
 
     /// Ein Druck im Auswahlmodus.
@@ -116,9 +143,14 @@ impl CooldownReset {
         if !self.is_armed() {
             return Choice::NotArmed;
         }
-        // **Jede Wahl verbraucht den Ruecksetzer** — auch eine falsche.
+        // **Jede Wahl verbraucht eine Ladung** — auch eine falsche.
         let selbst = i16::try_from(spell).unwrap_or(NO_SPELL) == self.armed_for;
-        self.armed_for = NO_SPELL;
+        self.charges_left = self.charges_left.saturating_sub(1);
+        // Erst wenn keine Ladung mehr offen ist, faellt der Auswahlmodus. Bei
+        // einer einzigen Ladung ist das genau das Verhalten von vorher.
+        if self.charges_left == 0 {
+            self.armed_for = NO_SPELL;
+        }
         // Die Auswahl kostet eine Aktion — sonst faellt der Nachdruck in
         // denselben Takt, und aus drei Aktionen werden zwei.
         *gcd_ready_at = now + gcd_length_ms;
@@ -166,7 +198,7 @@ mod tests {
     #[test]
     fn der_gewaehlte_zauber_ist_danach_bereit_und_ungewirkt() {
         let mut modus = CooldownReset::new();
-        modus.arm(2);
+        modus.arm(2, 1);
         let mut ready = leer();
         ready[0] = 10_000;
         let mut gcd = 0;
@@ -189,7 +221,7 @@ mod tests {
         // nur den falschen — ein Spielfehler. Der Auftraggeber hat die Linie
         // vorgegeben: "pech fuer den user".
         let mut modus = CooldownReset::new();
-        modus.arm(2);
+        modus.arm(2, 1);
         let mut ready = leer();
         ready[2] = 10_000;
         let mut gcd = 0;
@@ -206,7 +238,7 @@ mod tests {
     #[test]
     fn ein_bereiter_zauber_verpufft_ihn() {
         let mut modus = CooldownReset::new();
-        modus.arm(2);
+        modus.arm(2, 1);
         let mut ready = leer();
         let mut gcd = 0;
 
@@ -224,7 +256,7 @@ mod tests {
         // Folgt aus AC4 ("kein Doppel-Wirken im selben Takt") und aus der
         // Rechnung "drei Aktionen gegen drei gewoehnliche Wirkungen".
         let mut modus = CooldownReset::new();
-        modus.arm(2);
+        modus.arm(2, 1);
         let mut ready = leer();
         ready[0] = 10_000;
         let mut gcd = 0;
@@ -236,7 +268,7 @@ mod tests {
     #[test]
     fn die_wartezeit_wird_nicht_mit_zurueckgesetzt() {
         let mut modus = CooldownReset::new();
-        modus.arm(2);
+        modus.arm(2, 1);
         let mut ready = leer();
         ready[0] = 10_000;
         // Eine laufende Wartezeit bis 5000 — die Auswahl bei 3000 setzt sie
@@ -244,5 +276,121 @@ mod tests {
         let mut gcd = 5000;
         modus.choose(0, 3000, &mut ready, &mut gcd, GCD_MS);
         assert!(gcd > 3000, "die Wartezeit darf nicht verschwinden");
+    }
+
+    // ------------------------------------------------------------------
+    // ZWEI LADUNGEN (Issue #521, ALEMBIC)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn zwei_ladungen_erlauben_zwei_auswahlen() {
+        let mut modus = CooldownReset::new();
+        let mut ready = leer();
+        ready[3] = 10_000;
+        ready[4] = 20_000;
+        let mut gcd = 0;
+        modus.arm(2, 2);
+        assert_eq!(modus.charges_left(), 2);
+
+        assert_eq!(
+            modus.choose(3, 1000, &mut ready, &mut gcd, GCD_MS),
+            Choice::Applied
+        );
+        assert!(
+            modus.is_armed(),
+            "nach der ERSTEN Auswahl muss der Modus scharf bleiben — sonst \
+             waere die zweite Ladung verloren"
+        );
+        assert_eq!(modus.charges_left(), 1);
+
+        assert_eq!(
+            modus.choose(4, 2000, &mut ready, &mut gcd, GCD_MS),
+            Choice::Applied
+        );
+        assert!(!modus.is_armed(), "nach der ZWEITEN faellt er");
+        assert_eq!(modus.charges_left(), 0);
+        assert_eq!(ready[3], 0);
+        assert_eq!(ready[4], 0);
+    }
+
+    /// Auch die ZWEITE Auswahl darf nicht auf den Ruecksetzer selbst gehen
+    /// (Issue #521, AC4).
+    ///
+    /// Der Index bleibt ueber beide Auswahlen stehen — genau dafuer ist er ein
+    /// eigenes Feld neben dem Zaehler. Waere er nach der ersten Auswahl
+    /// geloescht, traefe die zweite den Ruecksetzer und machte ihn sofort
+    /// wieder bereit: eine endlose Kette, und der erste Zug, den eine
+    /// Optimums-Suche findet.
+    #[test]
+    fn auch_die_zweite_auswahl_trifft_nie_den_ruecksetzer_selbst() {
+        let mut modus = CooldownReset::new();
+        let mut ready = leer();
+        ready[2] = 45_000; // der Ruecksetzer selbst, auf Abklingzeit
+        ready[3] = 10_000;
+        let mut gcd = 0;
+        modus.arm(2, 2);
+
+        assert_eq!(
+            modus.choose(3, 1000, &mut ready, &mut gcd, GCD_MS),
+            Choice::Applied
+        );
+        assert_eq!(
+            modus.choose(2, 2000, &mut ready, &mut gcd, GCD_MS),
+            Choice::Wasted,
+            "die zweite Auswahl auf den Ruecksetzer selbst muss verpuffen"
+        );
+        assert_eq!(ready[2], 45_000, "er bleibt auf seiner Abklingzeit");
+    }
+
+    /// **Es gibt keinen Zeitverfall — das ist die bestehende Regel** (AC3).
+    ///
+    /// Wird nur EINE der zwei Auswahlen genutzt, bleibt die andere scharf, bis
+    /// der Kampf endet. Das ist keine neue Regel fuer ALEMBIC: Schon vor #521
+    /// wurde der Auswahlmodus ausschliesslich beim Kampfende geloescht, nie
+    /// durch Ablauf einer Frist.
+    ///
+    /// Der Fall steht hier, damit der naechste Leser keinen Timer sucht, den
+    /// es nie gab.
+    #[test]
+    fn eine_ungenutzte_ladung_verfaellt_erst_mit_dem_kampf() {
+        let mut modus = CooldownReset::new();
+        let mut ready = leer();
+        ready[3] = 10_000;
+        let mut gcd = 0;
+        modus.arm(2, 2);
+        modus.choose(3, 1000, &mut ready, &mut gcd, GCD_MS);
+
+        // Beliebig viel spaeter — es gibt keine Frist.
+        assert!(modus.is_armed(), "die zweite Ladung steht weiter scharf");
+        assert_eq!(modus.charges_left(), 1);
+
+        modus.reset();
+        assert!(!modus.is_armed(), "erst der neue Kampf loescht sie");
+        assert_eq!(modus.charges_left(), 0);
+    }
+
+    /// Ein zweiter Ruecksetzer UEBERSCHREIBT, er addiert nicht auf.
+    ///
+    /// Wer ALEMBIC wirkt, waehrend REFLUX noch scharf steht, hat REFLUX
+    /// verschenkt. Aufaddieren waere eine Vorratshaltung, die es in diesem
+    /// Spiel nirgends gibt — und sie waere der erste Zug, den eine
+    /// Optimums-Suche findet.
+    #[test]
+    fn ein_zweiter_ruecksetzer_ueberschreibt_statt_aufzuaddieren() {
+        let mut modus = CooldownReset::new();
+        modus.arm(2, 1);
+        modus.arm(5, 2);
+        assert_eq!(modus.charges_left(), 2, "nicht 3");
+        assert_eq!(modus.armed_for(), 5, "und der neue ist der Ruecksetzer");
+    }
+
+    #[test]
+    fn null_ladungen_stellen_nicht_scharf() {
+        let mut modus = CooldownReset::new();
+        modus.arm(2, 0);
+        assert!(
+            !modus.is_armed(),
+            "ein Zauber ohne Ladungen ist kein Ruecksetzer"
+        );
     }
 }
