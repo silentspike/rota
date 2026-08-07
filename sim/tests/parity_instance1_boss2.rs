@@ -78,33 +78,61 @@ fn recording(json: &Value) -> Recording {
 }
 
 /// **Die Zusicherung vor jeder Messung** — mit Zahlen, nicht mit Anwesenheit.
+///
+/// # Die Zahlen sind am 2026-08-07 gefallen, und zwar um mehr als die Haelfte
+///
+/// ```text
+///              vorher   jetzt
+///   kindle         30       9
+///   smoulder        5       2
+///   pyre            5       1
+///   quench          1       0
+///   damage       5952    1540
+/// ```
+///
+/// Das ist **kein Einbruch der Rotation**, sondern die Folge von #567: Der
+/// Spieler stirbt in diesem Kampf nach 17 s, und seither endet der Lauf dort,
+/// statt ueber den eigenen Tod hinaus weiterzuwirken. Aus 6000 aufgezeichneten
+/// Takten wurden 1701 — dieselbe Zahl, die im Befund von #567 als
+/// `matched_ticks` stand.
+///
+/// **Was dabei verloren geht, steht hier, damit es niemand fuer Absicht haelt:**
+/// QUENCH kommt in dieser Aufzeichnung nicht mehr vor. Sie war fuer den
+/// Unterbrecher gedacht (die Heilung des Bosses folgt auf einen durchgekommenen
+/// Wirkzauber). Gedeckt ist er weiter — `instance1-boss-1` wirkt ihn sechsmal,
+/// `instance1-boss-4` einmal, `coverage.test.ts` bleibt gruen —, aber HIER
+/// prueft er nichts mehr. Wer die Aufzeichnung wieder ueber 17 s hinaus haben
+/// will, braucht eine Rotation, die den Spieler am Leben haelt; das gehoert zu
+/// #544 und nicht hierher.
 #[test]
 fn die_aufzeichnung_ist_noch_dieselbe() {
     let json = data();
     assert_eq!(
         json["expected"]["casts"]["kindle"].as_u64(),
-        Some(30),
-        "kindle wird nicht 30-mal gewirkt — die Aufzeichnung ist eine andere geworden"
+        Some(9),
+        "kindle wird nicht 9-mal gewirkt — die Aufzeichnung ist eine andere geworden"
     );
     assert_eq!(
         json["expected"]["casts"]["pyre"].as_u64(),
-        Some(5),
-        "pyre wird nicht 5-mal gewirkt — die Aufzeichnung ist eine andere geworden"
-    );
-    assert_eq!(
-        json["expected"]["casts"]["quench"].as_u64(),
         Some(1),
-        "quench wird nicht 1-mal gewirkt — die Aufzeichnung ist eine andere geworden"
+        "pyre wird nicht 1-mal gewirkt — die Aufzeichnung ist eine andere geworden"
     );
     assert_eq!(
         json["expected"]["casts"]["smoulder"].as_u64(),
-        Some(5),
-        "smoulder wird nicht 5-mal gewirkt — die Aufzeichnung ist eine andere geworden"
+        Some(2),
+        "smoulder wird nicht 2-mal gewirkt — die Aufzeichnung ist eine andere geworden"
+    );
+    // **Die Null steht hier ausdruecklich** statt zu fehlen: Ein weggelassener
+    // Vergleich saehe aus wie ein vergessener, und die Null ist der Befund.
+    assert_eq!(
+        json["expected"]["casts"]["quench"].as_u64(),
+        Some(0),
+        "quench wird wieder gewirkt — dann endet der Lauf nicht mehr beim Tod"
     );
 
     assert_eq!(
         json["expected"]["damage"].as_u64(),
-        Some(5952),
+        Some(1540),
         "anderer Schaden — der Boss oder die Rotation hat sich geaendert"
     );
     assert_eq!(
@@ -115,11 +143,12 @@ fn die_aufzeichnung_ist_noch_dieselbe() {
 }
 
 #[test]
-#[ignore = "boss-1-2: das Spiel wirkt nach dem Tod des Spielers weiter, der \
-Simulator beendet den Lauf (GAME-DESIGN A.3). Siehe #567. Der Fall ist RICHTIG \
-gebaut und wird gruen, sobald #567 behoben ist — er darf bis dahin nicht rot \
-stehen, aber auch nicht verschwinden: Ein ignorierter Fall mit Grund ist eine \
-offene Rechnung, ein geloeschter ist weg."]
+// **Das `#[ignore]` ist am 2026-08-07 mit #567 gefallen** und der Fall lief
+// gruen, ohne dass eine Zeile an IHM geaendert wurde — genau der Zweck, aus dem
+// er ignoriert und nicht geloescht wurde. Das Spiel bricht jetzt beim
+// Spielertod ab, wie `Fight::replay` es immer getan hat; die Aufzeichnung endet
+// dadurch bei Takt 1701 statt 6000, und 1701 ist die Zahl, die als
+// `matched_ticks` im Befund von #567 stand.
 fn beide_seiten_rechnen_denselben_schaden() {
     let json = data();
     let aufzeichnung = recording(&json);
@@ -155,11 +184,12 @@ fn beide_seiten_rechnen_denselben_schaden() {
 
 /// Takt fuer Takt, nicht nur am Ende.
 #[test]
-#[ignore = "boss-1-2: das Spiel wirkt nach dem Tod des Spielers weiter, der \
-Simulator beendet den Lauf (GAME-DESIGN A.3). Siehe #567. Der Fall ist RICHTIG \
-gebaut und wird gruen, sobald #567 behoben ist — er darf bis dahin nicht rot \
-stehen, aber auch nicht verschwinden: Ein ignorierter Fall mit Grund ist eine \
-offene Rechnung, ein geloeschter ist weg."]
+// **Das `#[ignore]` ist am 2026-08-07 mit #567 gefallen** und der Fall lief
+// gruen, ohne dass eine Zeile an IHM geaendert wurde — genau der Zweck, aus dem
+// er ignoriert und nicht geloescht wurde. Das Spiel bricht jetzt beim
+// Spielertod ab, wie `Fight::replay` es immer getan hat; die Aufzeichnung endet
+// dadurch bei Takt 1701 statt 6000, und 1701 ist die Zahl, die als
+// `matched_ticks` im Befund von #567 stand.
 fn die_pruefsumme_stimmt_in_jedem_takt() {
     let json = data();
     let aufzeichnung = recording(&json);

@@ -4431,3 +4431,49 @@ nichts senkt.
 Ich habe die Mechanik der einen gelesen und sie der anderen zugeschrieben, und `stacks` deshalb
 zuerst in die falsche Sorte einsortiert. Nicht die falsche Größe, nicht die falsche Stelle — der
 falsche **Gegenstand**.
+
+### 8.63 Richtige Antwort aus falschem Grund
+
+Die AC2-Meldung für `boss-1-1` lautete: „Sieg nach 51010 ms, Restzeit 15 %". Die Zahl stimmt.
+Der Lauf, mit dem ich sie belegt hatte, trägt sie nicht — **der Spieler war zu diesem Zeitpunkt
+seit 6,3 Sekunden tot.**
+
+|             | Sieg     | tot bei  | hp   |
+| ----------- | -------- | -------- | ---- |
+| ohne QUENCH | 51010 ms | 44700 ms | 0    |
+| mit QUENCH  | 51070 ms | nie      | 3560 |
+
+Meine Messrotation ließ den Unterbrecher weg, obwohl `boss-1-1` ihn **als Signatur** verlangt.
+Mit ihm überlebt der Spieler; die Restzeit bleibt bei 15 %, der Siegzeitpunkt verschiebt sich um
+60 Millisekunden.
+
+> **Ein Beleg, der die Bedingung nicht herstellt, unter der die Zahl gilt, ist kein Beleg** —
+> auch wenn die Zahl stimmt.
+
+Das ist eine andere Klasse als 8.62. Dort misst eine Messung das Falsche und liefert eine falsche
+Zahl. Hier misst sie das Richtige, liefert die richtige Zahl, und belegt trotzdem nichts.
+Falsch-positiv fällt auf; **richtig-positiv aus falschem Grund prüft niemand nach.**
+
+#### Was die Einstellung dorthin gebracht hat
+
+`quench` stand in meinem Skript auf `false`, weil ich beim Schreiben an `boss-1-4` dachte — dort
+hängt die Heilung an der verpassten Unterbrechung, und ich wollte beide Fälle vergleichen. Für
+diesen einen Boss war die Einstellung richtig. Dann wurde sie zur Voreinstellung für alle vier.
+
+Dieselbe Wurzel hatte an einem Tag noch zweimal zugeschlagen:
+
+- eine Zeitleisten-Regel, aus dem eigenen Fall verallgemeinert (`loop > max` statt `loop > max − min`)
+- eine APL, die den Träger des gemessenen Bosses gar nicht wirkt
+
+**Was für den einen Fall stimmte, wurde zur Voreinstellung für alle.** Die Gegenfrage lautet nicht
+„ist die Einstellung richtig?", sondern **„für welchen Fall habe ich sie gewählt?"**.
+
+#### Der Widerruf war voreilig — und trotzdem richtig
+
+Zwischen zwei Meldungen lagen vier Minuten. In der ersten stand „meine AC2-Zahl ist wertlos", in
+der zweiten „sie stimmt doch". Beide Male stand die Messung vor der Deutung, aber die erste
+Meldung ging hinaus, bevor die zweite Messung lief.
+
+Ein Widerruf, der sich als unnötig herausstellt, ist billiger als eine falsche Zahl in `main` —
+aber er ist nicht kostenlos. Wer eine gemergte Zahl widerruft, sollte im selben Zug messen, ob
+sie sich rettet: Die zweite Messung dauerte hier vier Minuten.

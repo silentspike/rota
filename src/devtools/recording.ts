@@ -295,6 +295,25 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
       break;
     }
 
+    // **Der Spielertod endet genauso** (GAME-DESIGN A.3, Issue #567) — mit der
+    // Prüfsumme dieses Takts, damit beide Seiten denselben letzten Eintrag
+    // haben.
+    //
+    // Die Stelle ist nicht frei wählbar: NACH dem Boss-Tod und VOR den Drücken,
+    // wie `Fight::replay` in `sim/src/fight.rs`. Eine Zeile weiter oben oder
+    // unten ergäbe denselben Kampf und eine andere Prüfsummen-Folge — der
+    // Unterschied fiele erst in der Parität auf, und dort sähe er nach einem
+    // Rechenfehler aus statt nach einer Reihenfolge.
+    //
+    // Bis zum 2026-08-07 kannte diese Schleife nur den Tod des BOSSES; der
+    // Kommentar in `doomStacksPayload` hat genau deshalb auf sie verzichtet.
+    if (combat.playerDead) {
+      const hash = combatChecksum(combat, timeMs);
+      sequence = (sequence * 31 + hash) >>> 0;
+      if (wantChecksums) checksums.push(hash);
+      break;
+    }
+
     while (pressIndex < recording.presses.length) {
       const press = recording.presses[pressIndex];
       if (press === undefined || press.tick > tick) break;
@@ -379,6 +398,12 @@ function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Record
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
+    // **Und ebenso beim Spielertod** (GAME-DESIGN A.3, Issue #567). Bis zum
+    // 2026-08-07 stand hier nur der Boss-Tod: Eine Aufzeichnung lief über den
+    // eigenen Tod hinaus und schrieb Drücke weiter, die nichts mehr auslösen.
+    // Gemessen an `instance1-boss-2`: 41 Drücke wurden zu 4212, davon 4200
+    // abgelehnt. Der Versuch ist vorbei — die Aufzeichnung endet mit ihm.
+    if (combat.playerDead) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
     let choice = -1;
@@ -433,6 +458,12 @@ function recordNewCalcination(name: string, ticks: number): Recording {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
+    // **Und ebenso beim Spielertod** (GAME-DESIGN A.3, Issue #567). Bis zum
+    // 2026-08-07 stand hier nur der Boss-Tod: Eine Aufzeichnung lief über den
+    // eigenen Tod hinaus und schrieb Drücke weiter, die nichts mehr auslösen.
+    // Gemessen an `instance1-boss-2`: 41 Drücke wurden zu 4212, davon 4200
+    // abgelehnt. Der Versuch ist vorbei — die Aufzeichnung endet mit ihm.
+    if (combat.playerDead) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
     const choice =
@@ -569,6 +600,12 @@ function recordTrialRotation(name: string, ticks: number, boss: BossDef): Record
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
+    // **Und ebenso beim Spielertod** (GAME-DESIGN A.3, Issue #567). Bis zum
+    // 2026-08-07 stand hier nur der Boss-Tod: Eine Aufzeichnung lief über den
+    // eigenen Tod hinaus und schrieb Drücke weiter, die nichts mehr auslösen.
+    // Gemessen an `instance1-boss-2`: 41 Drücke wurden zu 4212, davon 4200
+    // abgelehnt. Der Versuch ist vorbei — die Aufzeichnung endet mit ihm.
+    if (combat.playerDead) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
     let slot = -1;
@@ -636,6 +673,12 @@ function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Rec
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
+    // **Und ebenso beim Spielertod** (GAME-DESIGN A.3, Issue #567). Bis zum
+    // 2026-08-07 stand hier nur der Boss-Tod: Eine Aufzeichnung lief über den
+    // eigenen Tod hinaus und schrieb Drücke weiter, die nichts mehr auslösen.
+    // Gemessen an `instance1-boss-2`: 41 Drücke wurden zu 4212, davon 4200
+    // abgelehnt. Der Versuch ist vorbei — die Aufzeichnung endet mit ihm.
+    if (combat.playerDead) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
     // **Während einer Wirkzeit wird gewartet, nicht gedrückt.** Seit der
@@ -740,6 +783,12 @@ function recordMixedRotation(name: string, ticks: number, boss: BossDef): Record
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
+    // **Und ebenso beim Spielertod** (GAME-DESIGN A.3, Issue #567). Bis zum
+    // 2026-08-07 stand hier nur der Boss-Tod: Eine Aufzeichnung lief über den
+    // eigenen Tod hinaus und schrieb Drücke weiter, die nichts mehr auslösen.
+    // Gemessen an `instance1-boss-2`: 41 Drücke wurden zu 4212, davon 4200
+    // abgelehnt. Der Versuch ist vorbei — die Aufzeichnung endet mit ihm.
+    if (combat.playerDead) break;
     if (!combat.gcd.isReady(timeMs)) continue;
     const wahl = plaetze[naechster % plaetze.length];
     if (wahl === undefined || wahl.index < 0 || !combat.isReady(wahl.index, timeMs)) continue;

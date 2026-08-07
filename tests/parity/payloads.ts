@@ -5010,6 +5010,16 @@ function recordInstance1(bossId: string, ticks: number): Recording {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
+    // **Und beim eigenen Tod ebenso** (GAME-DESIGN A.3, Issue #567): Der
+    // Versuch ist vorbei, die Aufzeichnung endet mit ihm — dieselbe Zeile wie
+    // in den Recordern von `recording.ts` und dasselbe, was `Fight::replay` auf
+    // der Rust-Seite tut.
+    //
+    // Ohne sie drückte die Rotation über den Tod hinaus weiter: 41 Drücke
+    // wurden zu 4212, davon 4200 abgelehnt. Der Kampf-Kern lehnt sie korrekt ab
+    // — aber eine Aufzeichnung, die zu 99,7 % aus wirkungslosen Drücken
+    // besteht, prüft nicht mehr, wofür es sie gibt.
+    if (combat.playerDead) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
     // **Unterbrechen geht vor.** Der Boss wirkt nur selten; wer den Moment
