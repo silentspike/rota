@@ -37,7 +37,12 @@ fn laden_und_entladen(split_spender: bool) -> (u16, u16) {
     });
 
     // Zwoelf KINDLE laden auf, dann ein PYRE.
-    let mut presses: Vec<Press> = (0..12).map(|n| Press { tick: n * 150, slot: 0 }).collect();
+    let mut presses: Vec<Press> = (0..12)
+        .map(|n| Press {
+            tick: n * 150,
+            slot: 0,
+        })
+        .collect();
     let vor_dem_entladen_tick = 12 * 150;
     presses.push(Press {
         tick: vor_dem_entladen_tick,
