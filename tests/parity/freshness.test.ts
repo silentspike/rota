@@ -40,6 +40,8 @@ import eingecheckteSublimation from './recordings/sublimation.json';
 import eingecheckteGezielteVerkuerzung from './recordings/gezielte-verkuerzung.json';
 import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
+import eingecheckterDeckel from './recordings/deckel-gefallen.json';
+import eingecheckterPhasen from './recordings/phasen-bindung.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -79,6 +81,7 @@ import eingecheckterBoss1 from './recordings/instance1-boss-1.json';
 import eingecheckterBoss2 from './recordings/instance1-boss-2.json';
 import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
 import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
+import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -97,6 +100,8 @@ import {
   gezielteVerkuerzungPayload,
   wispPayload,
   alembicPayload,
+  deckelPayload,
+  phasenPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -124,6 +129,7 @@ import {
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
+  buffTargetsPayload,
   instance1Payload,
   cinderPayload,
   rotPayload,
@@ -192,8 +198,6 @@ describe('Gemeinsame Vergleichsdateien', () => {
   });
 
   it('die vier Bosse der ersten Instanz entsprechen dem heutigen Spielstand', () => {
-    // Eine Aufzeichnung je Boss (#544). Veraltet eine, vergleicht ihr
-    // Rust-Gegenstück eine Runde, die es im Spiel nicht mehr gibt.
     const erwartet = [
       eingecheckterBoss1,
       eingecheckterBoss2,
@@ -205,6 +209,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
         instance1Payload(`boss-1-${i + 1}`, `instance1-boss-${i + 1}`),
       );
     }
+  });
+
+  it('die Verstärkungs-Runde entspricht dem heutigen Spielstand', () => {
+    // Die fünf Zauber aus #540 werden nur hier gewirkt.
+    expect(eingecheckteZielgroessen, HINWEIS).toEqual(buffTargetsPayload());
   });
 
   it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
@@ -296,6 +305,14 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Verkürzungen entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteSublimation, HINWEIS).toEqual(sublimationPayload());
+  });
+
+  it('der Phasenwechsel mit gebundenem Ereignis entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterPhasen, HINWEIS).toEqual(phasenPayload());
+  });
+
+  it('der Vorrat über dem gefallenen Deckel entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterDeckel, HINWEIS).toEqual(deckelPayload());
   });
 
   it('ALEMBICs zwei Ladungen entsprechen dem heutigen Spielstand', () => {
@@ -602,6 +619,8 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'gezielte-verkuerzung',
   'wisp-verkuerzung',
   'alembic-zwei-ladungen',
+  'deckel-gefallen',
+  'phasen-bindung',
   'gear',
   'sets',
   'player-damage',
@@ -621,6 +640,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'synergy-haste',
   'ward-cap',
   'putrefaction-filler',
+  'buff-targets',
   'cinder-ticks',
   'instance1-boss-1',
   'instance1-boss-2',

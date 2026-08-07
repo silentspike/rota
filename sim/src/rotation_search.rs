@@ -41,7 +41,7 @@
 
 use crate::apl::{Apl, Compare, Condition, Rule, Term, Value};
 use crate::balance::BalanceConfig;
-use crate::data::{Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
+use crate::data::{BuffTarget, Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
 use crate::time::GCD_MS;
 
 /// Ein Kandidat für eine Zeile der Prioritätenliste.
@@ -68,6 +68,19 @@ pub enum Origin {
     DotRefresh,
     /// Aus der Bonus-Schwelle eines Entladers.
     SpenderThreshold,
+    /// Aus dem Fenster einer Verstaerkung (Issue #553).
+    ///
+    /// # Warum diese Art gefehlt hat
+    ///
+    /// Bis #553 konnte der Parser keine Buff-Fenster lesen, und die Suche
+    /// baut ihre Kandidatenzeilen aus derselben Werteliste. Sie konnte
+    /// `kindle if buff.flashpoint.active` also gar nicht bilden — eine
+    /// Verstaerkung auf eine Nebengroesse war fuer sie unsichtbar.
+    ///
+    /// Das ist der Grund, warum #550 unter Vorbehalt stand: Ein Teil des
+    /// Befundes "drei von fuenf Schulen kommen in keiner besten Rotation vor"
+    /// konnte ein Werkzeug-Befund sein statt ein Balance-Befund.
+    BuffWindow,
 }
 
 impl Origin {
@@ -78,6 +91,7 @@ impl Origin {
             Self::Always => "unbedingt",
             Self::DotRefresh => "Brand nachlegen",
             Self::SpenderThreshold => "Entlade-Schwelle",
+            Self::BuffWindow => "Verstaerkungs-Fenster",
         }
     }
 }
@@ -169,6 +183,45 @@ pub fn candidates_for(index: usize) -> Vec<Candidate> {
                 Value::Literal(i64::from(spender.bonus_threshold)),
             ),
             origin: Origin::SpenderThreshold,
+        });
+    }
+
+    // **Im Fenster einer Verstaerkung** (Issue #553).
+    //
+    // Die Zuordnung kommt aus den DATEN, nicht aus einer Liste: Eine
+    // Verstaerkung auf `Resource` lohnt bei einem Zauber, der Vorrat gibt;
+    // eine auf `Stack` bei einem, der Stapel legt. Wer einen Verstaerker
+    // ergaenzt, bekommt die Kandidatenzeilen ohne Zutun.
+    //
+    // Der Verstaerker SELBST bekommt keine — `flashpoint if
+    // buff.flashpoint.remains < 1` ist gemessen wirkungslos (1200 gegen 1200),
+    // weil seine Abklingzeit laenger ist als sein Fenster. Eine Zeile, die
+    // nichts aendert, kostet die Suche nur Zeit.
+    for (verstaerker, spell_v) in SPELLS.iter().enumerate() {
+        let Some(buff) = spell_v.buff else { continue };
+        if spell_v.unlock_level > MAX_LEVEL as u16 || verstaerker == index {
+            continue;
+        }
+        let passt = match buff.target {
+            BuffTarget::Resource | BuffTarget::Cap => spell.resource_gain > 0,
+            BuffTarget::Stack => spell.decay_stacks > 0,
+            BuffTarget::Control => spell.control.is_some(),
+            BuffTarget::Tick => spell.dot.is_some(),
+            BuffTarget::CdReduce => spell.cooldown_reduction_ms > 0,
+            BuffTarget::Convert => spell.conversion.is_some(),
+            BuffTarget::Damage => spell.base_damage > 0,
+        };
+        if !passt {
+            continue;
+        }
+        out.push(Candidate {
+            spell: index,
+            condition: single(
+                Value::BuffActive(verstaerker),
+                Compare::GreaterEqual,
+                Value::Literal(1),
+            ),
+            origin: Origin::BuffWindow,
         });
     }
 

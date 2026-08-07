@@ -91,6 +91,8 @@ import {
   ROT_NAME,
   putrefactionFillerPayload,
   PUTREFACTION_FILLER_NAME,
+  buffTargetsPayload,
+  BUFF_TARGETS_NAME,
   instance1Payload,
   INSTANCE1_NAMES,
   cinderPayload,
@@ -118,6 +120,10 @@ import {
   WISP_NAME,
   alembicPayload,
   ALEMBIC_NAME,
+  deckelPayload,
+  DECKEL_NAME,
+  phasenPayload,
+  PHASEN_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -211,9 +217,14 @@ const extendEffects = extendEffectsPayload();
 const extendEffectsPath = join(here, 'recordings', `${EXTEND_EFFECTS_NAME}.json`);
 writeFileSync(extendEffectsPath, serialize(extendEffects), 'utf8');
 
-// Die vier Bosse der ersten Instanz (#544, AC4). Eine Aufzeichnung je Boss —
-// ohne sie ist ihre Bitgleichheit eine Annahme, und der Waechter aus #533
-// meldet sie, sobald ein Gegenstueck fehlt.
+// Die fuenf Verstaerkungen aus #540. Ohne sie wirkt KEINE Aufzeichnung
+// flashpoint, quicksilver, distil, griplock oder virulence — ihre
+// Bitgleichheit waere eine Annahme.
+const buffTargets = buffTargetsPayload();
+const buffTargetsPath = join(here, 'recordings', `${BUFF_TARGETS_NAME}.json`);
+writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
+
+// Die vier Bosse der ersten Instanz (#544, AC4).
 for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
   const name = INSTANCE1_NAMES[i];
   const datensatz = instance1Payload(`boss-1-${i + 1}`, name);
@@ -321,6 +332,24 @@ writeFileSync(logParityPath, serialize(logParity), 'utf8');
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
 writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
+
+const phasen = phasenPayload();
+const phasenPath = join(here, 'recordings', `${PHASEN_NAME}.json`);
+writeFileSync(phasenPath, serialize(phasen), 'utf8');
+console.log(`geschrieben: ${phasenPath}`);
+console.log(
+  `  Phasen-Bindung         hoechste Phase ${phasen.expected.hoechstePhase}, ` +
+    `eingesteckt ${phasen.expected.damageTaken}`,
+);
+
+const deckel = deckelPayload();
+const deckelPath = join(here, 'recordings', `${DECKEL_NAME}.json`);
+writeFileSync(deckelPath, serialize(deckel), 'utf8');
+console.log(`geschrieben: ${deckelPath}`);
+console.log(
+  `  Deckel gefallen        hoechster Vorrat ${deckel.expected.hoechsterVorrat}, ` +
+    `Ueberlauf ${deckel.expected.resourceOverflow}`,
+);
 
 const alembic = alembicPayload();
 const alembicPath = join(here, 'recordings', `${ALEMBIC_NAME}.json`);

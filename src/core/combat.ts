@@ -2108,11 +2108,30 @@ export class Combat {
    * `reset_mode`). Die Reihenfolge war auf beiden Seiten sorgfältig
    * gleichgehalten, die **Schicht** nicht.
    *
-   * Das war kein Schönheitsfehler: **Jede Aufzeichnung fährt `Combat`
-   * direkt** (`tests/parity/payloads.ts`, `new Combat({...})` — `new Session`
-   * kommt in keiner vor). Eine Regel ausserhalb von `Combat` ist für die
-   * Parität deshalb nicht schwer prüfbar, sondern **unsichtbar**. Der Bruch
-   * fiel erst auf, als jemand REFLUX in eine Aufzeichnung nehmen wollte.
+   * # Was hier stand, war beim Schreiben schon falsch (berichtigt in #528 AC5)
+   *
+   * Der Satz lautete: „Jede Aufzeichnung fährt `Combat` direkt — `new Session`
+   * kommt in keiner vor." Gemessen in `tests/parity/payloads.ts`:
+   *
+   * ```text
+   * new Combat(    36
+   * new Session(    2      resetRunPayload, cooldownResetPayload
+   * ```
+   *
+   * Die ältere der beiden stammt vom 2026-08-05, dieser Kommentar vom
+   * 2026-08-07 — er war zwei Tage zu spät und trotzdem falsch.
+   *
+   * **Und die Schlussfolgerung trägt nicht.** Eine Regel ausserhalb von
+   * `Combat` ist NICHT grundsätzlich unsichtbar — sie ist es, solange keine
+   * Aufzeichnung sie fährt. Gemessen: Wird der `armResetIfNeeded`-Aufruf aus
+   * `alembicPayload` entfernt und neu exportiert, fallen 4 von 5 Fällen in
+   * `sim/tests/parity_alembic.rs`, darunter die Prüfsumme je Takt.
+   *
+   * Der Rücksetzer war unsichtbar, WEIL ihn keine Aufzeichnung fuhr — nicht,
+   * weil er hier lag. Der Umzug war trotzdem richtig: Er macht die Regel dort
+   * prüfbar, wo sie wirkt. Nur die Begründung war es nicht.
+   *
+   * Der Bruch fiel auf, als jemand REFLUX in eine Aufzeichnung nehmen wollte.
    *
    * Und die Wirkung tritt beim **nächsten gewirkten Zauber** ein — das ist ein
    * Kampfereignis, kein Sitzungsereignis (WORKER-GUIDE 8.38: der Zustand
@@ -2894,6 +2913,30 @@ export class Combat {
       if (seitBeginn < faelligAtMs + this.nextStrikeDelayMs) break;
       const eintrag = this.timelineEntryAt(this.timelineIndexValue)!;
       const index = this.timelineIndexValue;
+
+      // **Die Phasen-Bindung** (Issue #557). Bis hierher war `bossPhase` ein
+      // Zustand ohne Wirkung: gesetzt, in die Prüfsumme gerührt, von keiner
+      // Regel gelesen. Ein Boss mit zwei Phasenschwellen verlief bitgleich zu
+      // demselben Boss mit `phases: []` — gemessen an 1000 Durchgängen.
+      //
+      // # Das Ereignis VERFÄLLT, es wird nicht nachgeholt
+      //
+      // Der Index läuft weiter, die Wirkung entfällt. Das ist die Regel, und
+      // sie folgt aus der Zeitleiste selbst: Ein aufgestautes Ereignis fiele
+      // beim Phasenwechsel gesammelt mit allen anderen, und aus einer
+      // lernbaren Abfolge würde eine Lawine zum Schwellenzeitpunkt.
+      //
+      // # Warum eine UNTERGRENZE und kein Gleichheitstest
+      //
+      // Phasen laufen nur vorwärts (`if (neue > this.bossPhaseValue)` weiter
+      // unten). Ein Ereignis, das an eine übersprungene Phase gebunden wäre,
+      // käme nie wieder — `phase: 1` heisst deshalb „ab der zweiten Phase".
+      if (eintrag.phase !== undefined && this.bossPhaseValue < eintrag.phase) {
+        this.timelineIndexValue++;
+        this.nextStrikeDelayMs = 0;
+        continue;
+      }
+
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_BOSS_TIMELINE_FIRED, NO_SPELL_REF, index);
       // Verbraucht: Der nächste Eintrag fängt wieder bei seinem eigenen
       // Zeitpunkt an (STAY, Issue #100).
@@ -3707,12 +3750,49 @@ export class Combat {
     return Math.round(this.school.resource.cap * this.capBuffs.factor(this.nowMsForBuffs));
   }
 
+  /**
+   * Vorrat erzeugen (Issue #549).
+   *
+   * # Ein Erzeuger nimmt NIE weg
+   *
+   * Das ist die Regel, und sie steht hier, weil sie nirgends geschrieben
+   * stand — sie folgte nur aus `min(before + amount, cap)` und war dort
+   * falsch, sobald der Deckel unter den stehenden Vorrat fällt.
+   *
+   * Dieser Zustand ist erreichbar: SLAG hebt die Grenze von 20 auf 30, wer im
+   * Fenster über 20 sammelt und es ablaufen lässt, steht darüber. Ein Wurf
+   * hätte dann **gesenkt**:
+   *
+   * ```text
+   * vorrat 24, Deckel wieder 20, BELLOWS gibt 8
+   *   min(24 + 8, 20) = 20      acht erzeugt, vier verloren, netto MINUS vier
+   *   max(24, min(...)) = 24    er bleibt, wo er ist
+   * ```
+   *
+   * Ein Aufbau-Zauber, nach dem der Spieler weniger hat als vorher, ist in
+   * keinem Regelwerk richtig. Der Verfall baut den Überstand ohnehin ab —
+   * gemessen: 24 auf 20 in vier Sekunden —, es braucht dafür keine zweite
+   * Mechanik.
+   *
+   * **Unter dem Deckel ändert sich nichts.** Dort ist `before` immer kleiner
+   * als das Ergebnis, das `max` also wirkungslos.
+   *
+   * # Was der Überlauf-Zähler zählt
+   *
+   * Nur, was von DIESER Erzeugung nicht ankam. Die vier Punkte, die der
+   * fallende Deckel kostet, waren bereits angekommen — sie gehen nicht durch
+   * die Erzeugung verloren, und „Überlauf" hat sie noch nie gemeint.
+   *
+   * Mit der Regel oben ist `this.resourceValue - before` nie negativ; vorher
+   * sprang der Zähler um 12, wo 8 erzeugt wurden.
+   */
   private addResource(amount: number): void {
     if (amount === 0) return;
     const cap = this.resourceCap;
     const before = this.resourceValue;
     const raised = before + amount;
-    this.resourceValue = raised > cap ? cap : raised;
+    const gekappt = raised > cap ? cap : raised;
+    this.resourceValue = gekappt > before ? gekappt : before;
     this.resourceOverflowValue += amount - (this.resourceValue - before);
   }
 
