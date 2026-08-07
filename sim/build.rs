@@ -479,6 +479,25 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     );
     let _ = writeln!(
         out,
+        "        cooldown_reduction_below_ms: {},",
+        // **Optional, nicht pflicht** (#518): Ohne das Feld verkuerzt der
+        // Zauber alles, wie vor der Aenderung. `uint` bricht bei fehlenden
+        // Feldern ab — das ist fuer Pflichtfelder richtig und hier falsch.
+        spell
+            .get("cooldownReductionBelowMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    );
+    let _ = writeln!(
+        out,
+        "        cooldown_reduction_longest_only: {},",
+        spell
+            .get("cooldownReductionLongestOnly")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    );
+    let _ = writeln!(
+        out,
         "        cooldown_reduction_ms: {},",
         opt_uint(spell, "cooldownReductionMs", &whose, 0)
     );

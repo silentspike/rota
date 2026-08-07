@@ -84,6 +84,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // ALEMBIC (Issue #521) — der Rücksetzer, der zweimal fragt. Er steht
       // hinter WISP, weil er in `sublimation.json` dort steht.
       'alembic',
+      'ascend',
+      'decant',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
