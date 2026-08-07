@@ -174,12 +174,62 @@ describe('Zufallsströme', () => {
   });
 
   it('liefert je Strom eine andere Folge', () => {
-    // Aus einem gemeinsamen Strom würde eine zusätzliche Ziehung alles
-    // Nachfolgende verschieben (GAME-DESIGN 18.4).
+    // **Dieser Fall und der darunter fangen VERSCHIEDENE Kopplungen** — beide
+    // werden gebraucht. Gemessen, je Mutation an `rng.ts`:
+    //
+    // ```text
+    //   seedForStream ignoriert den Index   HIER rot,  unten grün
+    //   stream(which) gibt immer streams[0] hier grün, UNTEN rot
+    // ```
+    //
+    // Dieser prüft, dass die Ströme verschieden ANFANGEN. Der darunter, dass
+    // sie sich nicht gegenseitig BEWEGEN. Bis zum 2026-08-07 stand nur dieser
+    // hier — mit einem Kommentar, der 18.4 zitierte und die zweite Hälfte
+    // nicht prüfte.
+    //
+    // Der erste Entwurf dieser Richtigstellung nannte ihn „prüft nur, dass der
+    // Zufallsgenerator sich bewegt". Das war zu hart und selbst ungemessen:
+    // Bei gekoppelten Startwerten schlägt er als einziger Unit-Fall an.
     const streams = new RandomStreams(1234);
     const a = streams.stream(STREAM_CRIT).next();
     const b = streams.stream(STREAM_DOT_TICK).next();
     expect(a).not.toBe(b);
+  });
+
+  it('eine Ziehung im einen Strom bewegt den anderen nicht (18.4)', () => {
+    // **Die Regel aus GAME-DESIGN 18.4 in ihrer kürzesten Form**, und das
+    // Gegenstück zu `stroeme_laufen_unabhaengig` in `sim/src/rng.rs`.
+    //
+    // Der Fall darüber trug bis zum 2026-08-07 den Kommentar „Aus einem
+    // gemeinsamen Strom würde eine zusätzliche Ziehung alles Nachfolgende
+    // verschieben" — und prüfte ihn nicht. Zwei Monate lang stand hier eine
+    // Zusicherung, die ihre eigene Begründung nicht einlöste, mit einem Zitat
+    // aus dem Design-Dokument daneben. Wer sie las, hielt 18.4 für gesichert.
+    //
+    // Gemessen mit gekoppelten Strömen (`stream(which)` gibt immer
+    // `streams[0]`): Von der ganzen TS-Suite schlug ein einziger Fall an, und
+    // der war eine Frischeprüfung — nach `parity:export` wurde auch er grün.
+    // Die Rust-Seite fing es, die Spiel-Seite nicht.
+    //
+    // **Der Fall darüber fängt diese Kopplung NICHT**, und dieser fängt die
+    // andere nicht: Werden die Startwerte gekoppelt, bleibt er grün, weil die
+    // Ströme dann zwar identisch anfangen, sich aber immer noch nicht
+    // gegenseitig bewegen. Zwei Kopplungen, zwei Fälle.
+    const ohne = new RandomStreams(7);
+    const mit = new RandomStreams(7);
+
+    const erwartet = Array.from({ length: 8 }, () => ohne.stream(STREAM_DOT_TICK).next());
+    for (let i = 0; i < 100; i++) mit.stream(STREAM_CRIT).next();
+    const tatsaechlich = Array.from({ length: 8 }, () => mit.stream(STREAM_DOT_TICK).next());
+
+    expect(tatsaechlich).toEqual(erwartet);
+
+    // **Die zweite Zahl, die niemand für die Aussage braucht** (Guide 8.67):
+    // Die 100 Ziehungen müssen wirklich stattgefunden haben. Zöge `next()`
+    // gar nicht — ein Zähler, der stehen bleibt —, wären die beiden Folgen
+    // trivial gleich und der Fall grün, ohne etwas berührt zu haben.
+    expect(mit.drawCounts()[STREAM_CRIT], 'die 100 Ziehungen fanden nicht statt').toBe(100);
+    expect(mit.drawCounts()[STREAM_DOT_TICK], 'aus DotTick wurde anders oft gezogen').toBe(8);
   });
 
   it('liefert bei gleichem Startwert dieselbe Folge', () => {
