@@ -4123,3 +4123,52 @@ Das ist dieselbe Klasse wie _„eine Liste, die sich beim Laufen selbst herstell
 grün"_ aus `spell-order.test.ts` — nur bei einer Zahl statt bei einer Liste. **Der Sollwert
 gehört hart in den Prüffall, mit Begründung im Kommentar.** Wer ihn absichtlich ändert, ändert
 diese Zeile mit, und genau dann fällt auf, dass eine Entscheidung getroffen wurde.
+
+### 8.58 Die Wirkung gesehen, die Ursache erfunden
+
+Der Satz stammt von Worker-3, am 2026-08-07, nachdem sein eigener Prüffall seine eigene
+Signatur widerlegt hatte. Er beschreibt eine Klasse, die an diesem Vormittag **fünf** von uns
+getroffen hat — in fünf verschiedenen Gestalten, mit einer gemeinsamen Form:
+
+> **Eine Aussage über einen Gegenstand, die nicht aus dem Gegenstand kommt.**
+
+| Wer          | Die Aussage                                          | Woher sie stattdessen kam                                                                                             |
+| ------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Worker-3     | „`race` und `bossHeal` tragen die Heilung gemeinsam" | Beide Wegnahmen änderten den **Schaden** — der Läufer gibt die Heilung gar nicht aus                                  |
+| Worker-2     | „ein reiner Doku-Merge, kein Zauber-Index betroffen" | Aus dem **Zweck** des Merges beschrieben, nicht aus seinem `--stat`                                                   |
+| Worker-1     | „#507 ist 5 Commits vor main"                        | `gh pr view` misst den **Server**, gearbeitet wurde lokal (144 Commits alt)                                           |
+| Orchestrator | „#553 ist durch, ich schließe es"                    | Aus der **Ausgabe** von `gh pr merge` geschlossen, nicht aus dem Zustand danach — zweimal, in beide Richtungen falsch |
+| Orchestrator | „jede Aufzeichnung fährt `Combat` direkt"            | Einen **Kommentar zitiert**, der ins Bild passte. Gemessen: 36 ja, 2 nein                                             |
+
+Keiner dieser Fälle war ein Rechenfehler. In allen fünf war die Zahl oder die Beobachtung
+richtig — falsch war, worauf sie sich bezog.
+
+#### Die Prüffrage
+
+**Misst mein Werkzeug die Größe, um die es geht — oder eine, die sich mitbewegt?**
+
+Worker-3s Fall ist der klarste: Der Balance-Läufer gibt `damage` aus. Nimmt man einen
+Baustein weg und der Schaden ändert sich, hat man gemessen, _dass_ etwas passiert — nicht
+_was_. Sein Prüffall liest `bossHealed` und sagt in einer Zeile, was drei Läufe nicht sagen
+konnten.
+
+Dasselbe bei SLAG (#547): Der erreichte Vorrat bewegt sich mit dem Faktor, aber auch mit der
+Fensterlänge, dem Verfall und der Abklingzeit des Erzeugers. Wer die **Anhebung** prüfen will,
+muss den Deckel messen, nicht den Vorrat.
+
+#### Die zweite Hälfte: eine Zusicherung, die den Fall vor sich selbst schützt
+
+Worker-3s erster Entwurf fuhr den Kampf **ohne Spieler**. Dann nimmt der Boss keinen Schaden,
+kann sich also nicht heilen, und beide Läufe zeigten 0 — grün, ohne zu prüfen. Gefangen hat es
+eine Zeile, die er davorgeschrieben hatte:
+
+```
+der Boss heilt sich nicht — dann misst dieser Fall nichts
+```
+
+Das ist dieselbe Bauart wie Worker-2s Wächter aus #424: _„Die Gegenprobe hat nicht den Code
+gerettet, sondern den Wächter vor sich selbst."_
+
+**Vor der eigentlichen Prüfung steht die Prüfung, ob überhaupt etwas zu prüfen ist.** Ohne sie
+ist Grün nicht von Blindheit zu unterscheiden — und das ist der Zustand, in dem ein Prüffall
+jahrelang unbemerkt nichts tut.
