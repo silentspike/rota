@@ -106,6 +106,17 @@ Issue #14 — E1-8 [FERTIG]
 ENDE
 ```
 
+### Nach einer Kontextverdichtung musst du nichts tun
+
+Ein lokaler Hook je Rollenverzeichnis (`SessionStart` mit `matcher: "compact"`) legt dir deinen
+Stand nach der Verdichtung wieder vor: deine Rolle und alles Unbeantwortete. Global ist er
+**nicht** eingetragen, und außerhalb einer ROTA-Rolle gibt er nichts aus.
+
+**Zwei Grenzen:** Nach einem **Neustart** der Sitzung reicht das nicht — dann fehlt der Anker, und
+`/rota-ipc` muss laufen. Und der Orchestrator muss aus `/work/rota` starten, nicht aus `/work`:
+Ein Hook in `/work` träfe jedes Projekt der Dev-Umgebung und wäre damit der globale Hook, der
+ausgeschlossen ist.
+
 ### Bestätigungspflicht
 
 **Jede Nachricht wird sofort bestätigt** — mit dem verstandenen Vorhaben in einem Satz,
@@ -241,15 +252,35 @@ hinterlässt deshalb **keine Spur**: kein `offen`-Eintrag, keine Lücke, nichts.
 gelegentlich eine **Entscheidung** — und dann wartet jemand auf etwas, das längst beantwortet ist.
 Am selben Abend zweimal beinahe passiert.
 
-**Der Detektor dafür wäre prospektiv, nicht rückwirkend:** Der Sender nennt beim nächsten regulären
-Kontakt die Nummer seiner letzten Antwort an diesen Empfänger; wer sie nicht kennt, meldet es. Das
-kostet eine Zeile, ist selbstheilend und braucht keine Historien-Suche. **Noch nicht gebaut.**
+**Der Detektor dafür ist gebaut** (2026-08-08). Jede neue Nachricht nennt die Nummer der letzten
+eigenen Antwort an diesen Empfänger:
+
+```
+[GEGENPROBE — VERLORENE ANTWORT]
+Meine letzte Antwort an dich galt Nachricht 4826. Ist die bei dir
+nie angekommen, sag es in deiner Bestaetigung ...
+```
+
+**Wer die genannte Nummer nicht kennt, sagt es in seiner Bestätigung** — dann ist die Antwort
+unterwegs verlorengegangen. Prüflauf-Nachrichten tragen den Block nicht.
+
+Technisch: `ARCHITEKTUR.md` § 10.
 
 | Beobachtung beim **Sender** | Was sie belegt              | Was sie **nicht** belegt     |
 | --------------------------- | --------------------------- | ---------------------------- |
 | `Nachricht NNNN zugestellt` | die Datei wurde geschrieben | dass der Empfänger sie kennt |
 | Datei liegt im Postfach     | dasselbe                    | dasselbe                     |
 | **Antwort auf die Nummer**  | **angekommen und gelesen**  | —                            |
+
+**Seit 2026-08-08 sagt der Sender auch, wenn er blind geschrieben hat:**
+
+```
+ACHTUNG: nach acht Versuchen ohne ruhigen Augenblick geschrieben.
+Eine Doppelzustellung ist moeglich.
+```
+
+Dasselbe steht als Feld `zustellung` an der Nachricht im Archiv. Vorher wusste niemand, dass eine
+Doppelzustellung entstanden war — der Empfänger musste sie an der Nummer erkennen.
 
 > **Der Satz, auf den es hinausläuft** (Worker-2, nachdem er seinen eigenen Empfang gemessen
 > hatte): _„Ich kann aus einem erfolgreichen Versand nicht schließen, dass du es gelesen hast.
