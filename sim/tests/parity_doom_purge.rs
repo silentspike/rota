@@ -21,7 +21,7 @@
 
 use serde_json::Value;
 
-use rota_sim::data::{boss_by_id, index_of, stack_damage};
+use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::replay::{Binding, Press, Recording};
 use rota_sim::{Fight, FightConfig, TICK_MS};
 
