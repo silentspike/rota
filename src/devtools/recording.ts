@@ -278,7 +278,16 @@ export interface ReplayResult {
 function spellForSlot(
   combat: Combat,
   slot: number,
-  bindings: readonly { readonly slot: number; readonly spellId: string }[] = STEP1_BINDINGS,
+  // **Kein Default mehr** (Issue #663). Bis zum 2026-08-09 stand hier
+  // `= STEP1_BINDINGS`. Wer ohne Belegung abspielte, bekam nicht etwa eine
+  // Fehlermeldung, sondern einen ANDEREN Kampf: Platz 0 meinte `searing`
+  // und bekam `kindle`. Gemessen an `new-calcination`: 660 Schaden statt
+  // 1860 — kein Fehler, keine Ausnahme, nur eine kleinere Zahl.
+  //
+  // Vier der sieben Aufzeichner waren betroffen. Die drei übrigen waren
+  // richtig, weil sie ihre Plätze aus derselben Konstante ableiten, auf die
+  // der Default zurückfiel — sie waren gedeckt, nicht abgesichert.
+  bindings: readonly { readonly slot: number; readonly spellId: string }[],
 ): number {
   for (const binding of bindings) {
     if (binding.slot === slot) return combat.indexOf(binding.spellId);
@@ -446,7 +455,18 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
       // `options.bindings` bleibt oben, weil ein Aufrufer sie bewusst
       // überschreiben darf; fehlt sie, kommt die aus der Datei statt der
       // festen aus `loadout.ts`.
-      const spellIndex = spellForSlot(combat, press.slot, options.bindings ?? recording.bindings);
+      // **Fehlt beides, ist das ein Fehler und keine Voreinstellung** (#663).
+      // Vorher fiel der Aufruf still auf `STEP1_BINDINGS` zurück und spielte
+      // einen anderen Kampf; jetzt sagt er, was ihm fehlt.
+      const belegung = options.bindings ?? recording.bindings;
+      if (belegung === undefined) {
+        throw new Error(
+          `Die Aufzeichnung "${recording.name}" hat keine bindings, und es wurden auch keine ` +
+            `übergeben. Ohne Belegung lässt sich ein Platz keinem Zauber zuordnen — früher ` +
+            `griff hier STEP1_BINDINGS, was einen ANDEREN Kampf spielte (Issue #663).`,
+        );
+      }
+      const spellIndex = spellForSlot(combat, press.slot, belegung);
       if (spellIndex < 0) {
         rejected++;
         continue;
