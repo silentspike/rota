@@ -753,8 +753,12 @@ export function bossStatePayload(): Record<string, unknown> {
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
       finalPlayerHp: combat.playerHp,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Der Wert stand
+      // hier direkt neben `result.checksums` — dieselbe Zeile, zwei Quellen.
+      // Wer aus `combat` liest, umgeht genau den Pfad, den die Aufzeichnung
+      // absichern soll: `replayRecording` ist das, was die Rust-Seite nachbaut.
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
     checksums: result.checksums,
@@ -1547,12 +1551,16 @@ export function castTimePayload(): Record<string, unknown> {
       rejected: result.rejected,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      castsInterrupted: combat.castsInterrupted,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637) — die Leitung
+      // lag hier ungenutzt, `result` steht zwei Zeilen darüber.
+      castsInterrupted: result.castsInterrupted,
       // Seit der Umkehrung vom 2026-08-05 gibt es zwei Abbruch-Arten
       // (GAME-DESIGN 7.1). Beide Zahlen stehen hier, weil eine Prüfsumme sie
       // nicht führt: Zwei Umsetzungen können bei gleicher Summe verschieden
       // oft abgebrochen haben, solange sich die Unterschiede aufheben.
-      castsCancelled: combat.castsCancelled,
+      castsCancelled: result.castsCancelled,
+      // `testCastCasts` BLEIBT bei `combat`: Das Ergebnis führt die Zahl je
+      // Zauber nicht, nur die Summe. Kein Versehen, sondern eine Grenze.
       testCastCasts: combat.castCount(combat.indexOf('test-cast')),
     },
     checksums: result.checksums,
@@ -1631,8 +1639,11 @@ export function trialBlocksPayload(): Record<string, unknown> {
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      afflictionsCleared: combat.afflictionsCleared,
-      cycle: combat.cycle,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Diese zwei
+      // waren die letzten in einem Block, dessen sechs Nachbarn schon aus
+      // `result` lasen — die Leitung lag da, sie wurde nur nicht benutzt.
+      afflictionsCleared: result.afflictionsCleared,
+      cycle: result.cycle,
     },
     checksums: result.checksums,
     afflicted: geschwaecht,
@@ -5588,7 +5599,8 @@ export const TICK_RUNDUNG_NAME = 'tick-rundung';
 const TICK_RUNDUNG_BINDINGS = [
   { slot: 0, spellId: 'test-tick' },
   { slot: 1, spellId: 'smoulder' },
-  { slot: 2, spellId: 'kindle' },
+  { slot: 2, spellId: 'cinder' },
+  { slot: 3, spellId: 'kindle' },
 ] as const;
 
 /**
@@ -5640,11 +5652,27 @@ function recordTickRundung(ticks: number): Recording {
   const press = pressRecorder(combat, TICK_RUNDUNG_BINDINGS, presses);
   const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
 
-  // **SMOULDER unmittelbar nach der Verstärkung**, nicht hinten angehängt.
-  // Sein DoT läuft 12000 ms; das Fenster von `test-tick` hält drei
-  // Wartezeiten. Die Ticks im Fenster liegen dichter, die danach wieder
-  // normal — beide Abschnitte stehen damit in derselben Aufzeichnung.
-  const kette = ['test-tick', 'smoulder'];
+  // **Die DoTs unmittelbar nach der Verstärkung**, nicht hinten angehängt.
+  // Das Fenster von `test-tick` hält drei Wartezeiten; die Ticks darin liegen
+  // dichter, die danach wieder normal — beide Abschnitte stehen damit in
+  // derselben Aufzeichnung.
+  //
+  // **ZWEI DoTs, und jeder trägt eine andere Gegenprobe** (Issue #640).
+  // Gemessen mit der echten `hastedMs` bei `catalysis: 170`:
+  //
+  // ```text
+  //            Intervall  Bestand  Rundung   Reihenfolge
+  //   SMOULDER      2000     1230     1220          1221
+  //   CINDER        1000      610      610           614
+  // ```
+  //
+  // Bei SMOULDER trennt die RUNDUNG (1230 gegen 1220), bei CINDER nicht —
+  // `round(1000/1.4)` und `floor(1000/1.4)` sind beide 714. Dafür trennt bei
+  // CINDER die REIHENFOLGE deutlicher, und sein kurzes Intervall lässt
+  // mehrere verstärkte Ticks ins Fenster fallen. Mit nur einem Tick fielen
+  // beide Varianten auf denselben 10-ms-Takt und die Aufzeichnung wäre grün
+  // gewesen, ohne etwas zu unterscheiden.
+  const kette = ['test-tick', 'smoulder', 'cinder'];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;

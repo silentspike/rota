@@ -23,22 +23,42 @@
 //! dann waere die REIHENFOLGE der Schritte folgenlos und ein Lauf ohne
 //! Ausruestung koennte sie nicht pruefen. Mit `catalysis: 170` trennt sie sich.
 //!
-//! # Was dieser Fall NICHT leistet, gemessen statt vermutet
+//! # Warum der Faktor krumm sein MUSS, und warum zwei DoTs
 //!
-//! Das Issue verlangte in AC3 eine Gegenprobe `round -> floor`. Die ist mit dem
-//! heutigen Bestand **rechnerisch unmoeglich**: Alle DoT-Intervalle sind gerade
-//! (SMOULDER und SEARING 2000, CINDER 1000), `test-tick` traegt Faktor 2.0, und
-//! `2000 / 2.0` geht exakt auf — `round` und `floor` liefern beide 1000.
+//! Ein erster Aufbau lief mit `test-tick` bei Faktor 2.0 und nur SMOULDER. Er
+//! war gruen und fing die Umkehrung — aber **keine** der beiden feineren
+//! Gegenproben, und zwar aus zwei verschiedenen Gruenden:
 //!
-//! AC4 (Tempo vor statt nach der Teilung) ergibt 855 statt 860 Millisekunden.
-//! Beide Tick-Zeitpunkte fallen in denselben 10-ms-Takt, und das Raster
-//! verschluckt den Unterschied.
+//! `2000 / 2.0` geht exakt auf. `round` und `floor` liefern beide 1000, jede
+//! denkbare Rechenweise kommt auf denselben Wert. Der Faktor traegt deshalb
+//! jetzt 1.4 (Begruendung in `data/spells/test-buff.json`). Gemessen ueber 17
+//! Kandidaten mit der echten Tempo-Rechnung bei `catalysis: 170`:
 //!
-//! **Das ist ein Befund, kein Mangel:** Solange beide Seiten dasselbe
-//! Takt-Raster benutzen und der Quotient aufgeht, KANN die Rundung nicht
-//! auseinanderlaufen. Was sehr wohl auseinanderlaufen kann, ist die Richtung
-//! der Rechnung — und die faengt dieser Fall: teilen statt multiplizieren
-//! bewegt den Schaden von 2040 auf 1888.
+//! ```text
+//!            Intervall  Bestand  Rundung  Reihenfolge
+//!   SMOULDER      2000     1230     1220         1221
+//!   CINDER        1000      610      610          614
+//! ```
+//!
+//! Bei SMOULDER trennt die RUNDUNG, bei CINDER nicht — `round(1000/1.4)` und
+//! `floor(1000/1.4)` sind beide 714. Dafuer laesst CINDERs kurzes Intervall
+//! MEHRERE verstaerkte Ticks ins Fenster fallen, und erst dadurch trennt die
+//! REIHENFOLGE: Bei nur einem Tick fielen 1230 und 1221 auf denselben
+//! 10-ms-Takt, und der Fall war gruen, ohne etwas unterschieden zu haben.
+//!
+//! Beide DoTs zusammen decken beide Gegenproben ab. Jede fuer sich nicht.
+//!
+//! # Die drei Mutationen, die dieser Fall faengt
+//!
+//! ```text
+//!   teilen -> multiplizieren        die Umkehrung, vor der combat.ts warnt
+//!   round  -> floor                 die Rundung
+//!   Tempo vor statt nach der Teilung  die Reihenfolge
+//! ```
+//!
+//! Alle drei faerben `die_pruefsumme_stimmt_in_jedem_takt`. Die Schluss-Summe
+//! allein sieht sie nicht immer: Am Ende sind die Fenster zu und die Werte
+//! gleichen sich wieder an.
 
 use serde_json::Value;
 
@@ -186,7 +206,10 @@ fn beide_seiten_rechnen_denselben_schaden() {
 
     // Der DoT-Beitrag steckt in dieser Summe: `tickDamage` mal Tickzahl, und
     // die Tickzahl ist die Dauer geteilt durch den ABSTAND. Dreht jemand die
-    // Rechenrichtung um, faellt sie von 2040 auf 1888.
+    // Rechenrichtung um, wandert sie — und ebenso bei einer anderen Rundung
+    // oder vertauschter Reihenfolge. Die Zahl steht in `expected.damage` der
+    // Aufzeichnung und wird hier nicht wiederholt, damit sie nicht an zwei
+    // Orten altert.
     assert_eq!(
         ergebnis.damage,
         u32_at(erwartet, "damage"),
