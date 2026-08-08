@@ -69,8 +69,8 @@ use crate::buffs::Buffs;
 use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
-    stack_damage, stat_at_level, Boss, BossHealTrigger, BuffTarget, Control, ControlEffect, Dot,
-    Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    stack_damage, stat_at_level, Boss, BossHealTrigger, BuffTarget, Control, ControlEffect, Doom,
+    Dot, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -360,6 +360,11 @@ pub struct Fight {
     doom: u32,
     /// Verbleibende Anwendungen der Ruecksetz-Handlung.
     doom_charges: u32,
+    /// Wann die naechste verbrauchte Senkungs-Ladung zurueckkommt (#561).
+    ///
+    /// `None` heisst: keine wartet. Wird beim VERBRAUCH gesetzt, nicht beim
+    /// Aufbau — ein Kampf ohne Senkung hat damit denselben Verlauf wie vorher.
+    next_doom_charge_at: Option<Millis>,
     /// Zahl der exponentiellen Stapel (Issue #216).
     stacks: u32,
     /// Kampfzeit, zu der das Unverwundbarkeits-Fenster endet (Issue #218).
@@ -709,6 +714,7 @@ impl Fight {
             energy_triggers: 0,
             doom: 0,
             doom_charges: config.boss.doom.map_or(0, |d| d.clear_charges),
+            next_doom_charge_at: None,
             stacks: 0,
             race_ends_at: None,
             race_done: false,
@@ -2565,6 +2571,27 @@ impl Fight {
             return;
         }
 
+        // **Verbrauchte Senkungs-Ladungen wachsen nach** (Issue #561). Bis
+        // dahin war `clear_charges` ein Vorrat fuer den ganzen Kampf: zwei
+        // Senkungen a 40 gegen 360 Anstieg — der Zauber waere wirkungslos
+        // gewesen, egal wie oft man ihn drueckt.
+        //
+        // **Die Pruefung sitzt IM DOOM-TAKT, nicht in einer eigenen Uhr.** Auf
+        // der Spielseite steht sie an derselben Stelle. Eine feinere Aufloesung
+        // auf einer der beiden Seiten liesse die Ladung dort frueher
+        // zurueckkommen — und zwei Seiten, die verschieden oft nachladen,
+        // rechnen ab dem ersten Unterschied verschiedenen Schaden.
+        if let Some(faellig) = self.next_doom_charge_at {
+            if self.time >= faellig && self.doom_charges < doom.clear_charges {
+                self.doom_charges += 1;
+                self.next_doom_charge_at = if self.doom_charges < doom.clear_charges {
+                    Some(faellig + Self::recharge_ms(doom))
+                } else {
+                    None
+                };
+            }
+        }
+
         self.doom = self.doom.saturating_add(doom.amount);
         if self.doom >= doom.threshold {
             self.doom = doom.threshold;
@@ -2741,8 +2768,33 @@ impl Fight {
             return false;
         }
         self.doom_charges -= 1;
+        // Die Uhr laeuft ab dem VERBRAUCH, nicht ab Kampfbeginn — sonst
+        // bekaeme ein Spieler, der lange nicht gedrueckt hat, seine Ladung
+        // sofort zurueck, und die Wartezeit waere keine.
+        if self.next_doom_charge_at.is_none() {
+            self.next_doom_charge_at = Some(self.time + Self::recharge_ms(doom));
+        }
         self.doom = self.doom.saturating_sub(doom.clear_amount);
         true
+    }
+
+    /// Wie lange eine verbrauchte Senkungs-Ladung zum Nachladen braucht
+    /// (Issue #561).
+    ///
+    /// **Abgeleitet, kein eigenes Datenfeld.** Es ist genau die Zeit, in der
+    /// der Zaehler um `clear_amount` steigt — bei `boss-1-2` also
+    /// 40/6 * 1000 = 6667 ms. Eine Zahl, die aus dem Gleichgewicht zwischen
+    /// Anstieg und Senkung folgt, gilt fuer JEDEN doom-Boss und kann nicht
+    /// vergessen werden; ein Feld haette bei jedem neuen von Hand passen
+    /// muessen (zu wenig: unschaffbar, zu viel: Kulisse).
+    ///
+    /// Spiegelbild zu `Combat.rechargeMs()` in `src/core/combat.ts`.
+    fn recharge_ms(doom: Doom) -> Millis {
+        if doom.amount == 0 {
+            return 0;
+        }
+        let genau = f64::from(doom.clear_amount) / f64::from(doom.amount) * f64::from(doom.per_step_ms);
+        genau.round() as Millis
     }
 
     /// Prueft, ob der Boss die Phase wechselt.
@@ -2896,6 +2948,16 @@ impl Fight {
                 index as u8,
                 self.interrupts_landed,
             );
+        }
+
+        // **Das Verhaengnis senken** (Baustein 2; Issue #561). Dieselbe Bauart
+        // wie das Unterbrechen daroeber: Ob der Zauber es tut, steht in den
+        // Daten; WIE VIEL er senkt, steht beim Boss (`clear_amount`).
+        //
+        // Spiegelbild zu `if (spell.clearsDoom === true) this.clearDoom();`
+        // in `src/core/combat.ts`.
+        if spell.clears_doom {
+            self.clear_doom();
         }
 
         // Die drei Wege der Koagulation (Issue #79). Sie stehen VOR dem

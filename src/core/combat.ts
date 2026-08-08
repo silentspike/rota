@@ -2871,19 +2871,25 @@ export class Combat {
       //
       // `clearCharges` bleibt die **Obergrenze**: Mehr als der Boss vorsieht
       // liegt nie bereit, gespart wird also nicht.
-      const nachladeMs = this.rechargeMs();
-      if (nachladeMs > 0) {
-        while (
-          this.doomChargesValue < doom.clearCharges &&
-          timeMs >= this.nextDoomChargeAtMs &&
-          this.nextDoomChargeAtMs > 0
-        ) {
-          this.doomChargesValue++;
-          this.nextDoomChargeAtMs += nachladeMs;
-        }
-        if (this.doomChargesValue >= doom.clearCharges) this.nextDoomChargeAtMs = 0;
-      }
       while (timeMs >= this.nextDoomAtMs) {
+        // **Die Prüfung sitzt IM Doom-Takt, nicht in einer eigenen Uhr.** Die
+        // Rust-Seite ist ereignisbasiert und kommt hier alle `perStepMs`
+        // vorbei; prüfte das Spiel bei jedem Zehntel-Takt, käme die Ladung
+        // dort früher zurück. **Zwei Seiten, die verschieden oft nachladen,
+        // rechnen ab dem ersten Unterschied verschiedenen Schaden** — und das
+        // ist genau die Stelle, an der Umbauten auseinanderlaufen.
+        //
+        // Die Nachladezeit wird damit auf den Takt gerundet: 6667 ms bei
+        // `perStepMs` 1000 heißt, die Ladung kommt beim Tick nach 7000 zurück.
+        if (this.nextDoomChargeAtMs > 0 && this.nextDoomAtMs >= this.nextDoomChargeAtMs) {
+          if (this.doomChargesValue < doom.clearCharges) {
+            this.doomChargesValue++;
+            this.nextDoomChargeAtMs =
+              this.doomChargesValue < doom.clearCharges
+                ? this.nextDoomChargeAtMs + this.rechargeMs()
+                : 0;
+          }
+        }
         this.doomValue += doom.amount;
         this.nextDoomAtMs += doom.perStepMs;
         if (this.doomValue >= doom.threshold) {
