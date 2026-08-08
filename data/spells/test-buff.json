@@ -50,7 +50,7 @@
       }
     },
     {
-      "_comment": "PRUEF-ZAUBER FUER Tick-Haeufigkeit (FORGE) (Issue #489). Er gehoert NICHT zum Spiel: unlockLevel 101 liegt ueber der Stufengrenze, beide Stellen die Zauber anbieten filtern darueber.\n\nWARUM VIER STATT EINEM: Die vier Zielgroessen haben je einen EIGENEN Speicher, damit eine Verstaerkung auf den Punktegewinn eine auf den Schaden nicht verdraengen kann. Vier Zauber, die alle dasselbe Fenster oeffnen, belegten das nicht — sie belegten vier Mal dasselbe.\n\nDIE ZAHLEN SIND PLATZHALTER. Was gepruft wird, ist die TRENNUNG der Speicher, nicht die Balance.",
+      "_comment": "PRUEF-ZAUBER FUER Tick-Haeufigkeit (FORGE) (Issue #489). Er gehoert NICHT zum Spiel: unlockLevel 101 liegt ueber der Stufengrenze, beide Stellen die Zauber anbieten filtern darueber.\n\nWARUM VIER STATT EINEM: Die vier Zielgroessen haben je einen EIGENEN Speicher, damit eine Verstaerkung auf den Punktegewinn eine auf den Schaden nicht verdraengen kann. Vier Zauber, die alle dasselbe Fenster oeffnen, belegten das nicht — sie belegten vier Mal dasselbe.\n\nDIE ZAHLEN SIND PLATZHALTER. Was gepruft wird, ist die TRENNUNG der Speicher, nicht die Balance.\n\nWARUM DER FAKTOR 1.4 IST UND NICHT MEHR 2.0 (Issue #640): Weil die Teilung NICHT aufgehen darf. 'tick' ist die einzige Zielgroesse, deren Faktor den Abstand TEILT, und alle DoT-Intervalle sind gerade (SMOULDER und SEARING 2000, CINDER 1000). Mit Faktor 2.0 kam JEDE denkbare Rechnung auf denselben Wert — 2000/2 = 1000, ob gerundet oder abgerundet, ob vor oder nach der Tempo-Rechnung. Eine Aufzeichnung damit waere gruen gewesen, ohne je etwas unterschieden zu haben.\n\nGEMESSEN UEBER 17 KANDIDATEN mit der echten hastedMs (catalysis 170), SMOULDER 2000 ms: 1.4 ist der EINZIGE Wert, bei dem beide Gegenproben faerben.\n  Bestand  round(2000/1.4) = 1429  -> hasted 1230\n  Rundung  floor(2000/1.4) = 1428  -> hasted 1220\n  Reihenfolge  round(hasted(2000)/1.4)      1221\nDie 10 ms Unterschied ueberleben das Aufrasten auf das Takt-Raster; bei allen anderen Kandidaten verschluckt snapUp die Rundungsdifferenz und nur die Reihenfolge faerbt.\n\nDie Wirkung bleibt dieselbe Aussage: Der Abstand sinkt, die Ticks werden dichter. Nur eben um einen Faktor, der eine Rechenweise von der anderen unterscheidbar macht.",
       "id": "test-tick",
       "name": "Test Tick",
       "unlockLevel": 101,
@@ -60,7 +60,7 @@
       "triggersGcd": true,
       "buff": {
         "kind": 0,
-        "factor": 2.0,
+        "factor": 1.4,
         "gcds": 3,
         "target": "tick"
       }

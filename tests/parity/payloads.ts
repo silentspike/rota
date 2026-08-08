@@ -5524,7 +5524,8 @@ export const TICK_RUNDUNG_NAME = 'tick-rundung';
 const TICK_RUNDUNG_BINDINGS = [
   { slot: 0, spellId: 'test-tick' },
   { slot: 1, spellId: 'smoulder' },
-  { slot: 2, spellId: 'kindle' },
+  { slot: 2, spellId: 'cinder' },
+  { slot: 3, spellId: 'kindle' },
 ] as const;
 
 /**
@@ -5576,11 +5577,27 @@ function recordTickRundung(ticks: number): Recording {
   const press = pressRecorder(combat, TICK_RUNDUNG_BINDINGS, presses);
   const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
 
-  // **SMOULDER unmittelbar nach der Verstärkung**, nicht hinten angehängt.
-  // Sein DoT läuft 12000 ms; das Fenster von `test-tick` hält drei
-  // Wartezeiten. Die Ticks im Fenster liegen dichter, die danach wieder
-  // normal — beide Abschnitte stehen damit in derselben Aufzeichnung.
-  const kette = ['test-tick', 'smoulder'];
+  // **Die DoTs unmittelbar nach der Verstärkung**, nicht hinten angehängt.
+  // Das Fenster von `test-tick` hält drei Wartezeiten; die Ticks darin liegen
+  // dichter, die danach wieder normal — beide Abschnitte stehen damit in
+  // derselben Aufzeichnung.
+  //
+  // **ZWEI DoTs, und jeder trägt eine andere Gegenprobe** (Issue #640).
+  // Gemessen mit der echten `hastedMs` bei `catalysis: 170`:
+  //
+  // ```text
+  //            Intervall  Bestand  Rundung   Reihenfolge
+  //   SMOULDER      2000     1230     1220          1221
+  //   CINDER        1000      610      610           614
+  // ```
+  //
+  // Bei SMOULDER trennt die RUNDUNG (1230 gegen 1220), bei CINDER nicht —
+  // `round(1000/1.4)` und `floor(1000/1.4)` sind beide 714. Dafür trennt bei
+  // CINDER die REIHENFOLGE deutlicher, und sein kurzes Intervall lässt
+  // mehrere verstärkte Ticks ins Fenster fallen. Mit nur einem Tick fielen
+  // beide Varianten auf denselben 10-ms-Takt und die Aufzeichnung wäre grün
+  // gewesen, ohne etwas zu unterscheiden.
+  const kette = ['test-tick', 'smoulder', 'cinder'];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
