@@ -580,7 +580,10 @@ function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Record
     combat.cast(alsSpellIndex(choice), timeMs);
     presses.push({ tick, slot: slotOf.get(choice) ?? 0 });
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663) — hier dieselbe, aus der
+  // `slotOf` oben abgeleitet wird. Der Rückfall auf `STEP1_BINDINGS` träfe
+  // zu; darauf soll sich aber niemand verlassen müssen.
+  return { name, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**
@@ -980,7 +983,22 @@ function recordMixedRotation(name: string, ticks: number, boss: BossDef): Record
     presses.push({ tick, slot: wahl.slot });
     naechster++;
   }
-  return { name, seed: 0, ticks, presses };
+  // **Der deutlichste Fall von #663.** `MIXED_BINDINGS` ist eine eigene,
+  // benannte Belegung — mit einem Kommentar darüber, der begründet, warum
+  // sie NICHT `STEP1_BINDINGS` sein darf: Ein früherer Entwurf mit KINDLE
+  // vorn ließ die beiden anderen Zauber in 20 Sekunden kein einziges Mal
+  // zum Zug kommen.
+  //
+  // Ohne diese Zeile fiel der Nachlauf auf genau die Belegung zurück, gegen
+  // die sie gebaut wurde. Eine gemischte Leiste, die im Nachlauf nur noch
+  // eine Schule spielt, prüft nicht, was sie prüfen soll.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: MIXED_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
 }
 
 /**
