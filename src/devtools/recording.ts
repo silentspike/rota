@@ -758,7 +758,17 @@ function recordResetRotation(name: string, ticks: number): Recording {
     }
     session.tick(timeMs);
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663). `reflux` steht in keiner
+  // Standardleiste — ohne diese Zeile spielte der Nachlauf auf Platz 2 einen
+  // anderen Zauber und die Rücksetz-Wirkung, um die es hier geht, käme nie
+  // vor.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: belegung.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
 }
 
 /**
@@ -810,7 +820,10 @@ function recordTrialRotation(name: string, ticks: number, boss: BossDef): Record
       presses.push({ tick, slot });
     }
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663). Diese hier leitet ihre
+  // Plätze aus `STEP1_BINDINGS` ab — der Rückfall träfe zu, und genau
+  // deshalb ist sie einer der drei Fälle, in denen der Fehler nie auffiel.
+  return { name, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**
@@ -907,7 +920,17 @@ function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Rec
     combat.cast(alsSpellIndex(wahl), timeMs);
     presses.push({ tick, slot: slotOf.get(wahl) ?? 0 });
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663). `test-cast` steht in
+  // keiner Standardleiste — ohne diese Zeile spielte der Nachlauf einen
+  // Zauber ohne Wirkzeit, und die Wirkzeit ist der ganze Zweck dieser
+  // Aufzeichnung.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: CAST_TIME_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
 }
 
 /**
