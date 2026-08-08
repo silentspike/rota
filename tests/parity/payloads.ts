@@ -1097,6 +1097,70 @@ export function raceHealPayload(): Record<string, unknown> {
   };
 }
 
+export const RACE_LOST_NAME = 'race-lost';
+
+/**
+ * Das VERLORENE Wettrennen (Issue #651).
+ *
+ * # Warum es diese zweite Aufzeichnung braucht
+ *
+ * Seit #648 wird `race_won` zwischen beiden Seiten verglichen — aber nur in
+ * **einer** Richtung. `race-heal` ist die einzige Aufzeichnung, die `raceWon`
+ * führt, und dort steht `true`. Der verlorene Pfad wurde von keiner berührt:
+ * Liefen die Seiten dort auseinander, meldete es nichts.
+ *
+ * # Der Unterschied, auf den es ankommt
+ *
+ * Ein Lauf, in dem **niemand drückt**, ergibt ebenfalls `raceWon: false` — aber
+ * aus dem falschen Grund. Dort findet das Rennen gar nicht statt, das Fenster
+ * läuft leer, und der Vergleich belegte nichts über das Verlieren.
+ *
+ * Gemessen ist der Unterschied `damageLostToRace`:
+ *
+ * ```text
+ *   raceWon=false, damageLostToRace=0    das Rennen fand NICHT statt
+ *   raceWon=false, damageLostToRace>0    es fand statt und ging verloren
+ * ```
+ *
+ * `boss-1-4` verlangt 900 im Fenster von 6 s; dieselbe gute Rotation, die bei
+ * `test-racer` (Schwelle 300) gewinnt, schafft hier 400. Der Rust-Prüffall
+ * verlangt beides: `raceWon` gleich **und** `damageLostToRace > 0`.
+ */
+export function raceLostPayload(): Record<string, unknown> {
+  const recording = recordings().get(RACE_LOST_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RACE_LOST_NAME}`);
+  const boss = bossById('boss-1-4');
+  if (boss === undefined) throw new Error('Der Boss boss-1-4 fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      race: boss.race,
+    },
+    expected: {
+      damage: result.damage,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      // Die beiden Größen, um die es geht — beide über `result`, also über den
+      // Weg, den ein Werkzeug nimmt (Guide 8.70).
+      raceWon: result.raceWon,
+      damageLostToRace: result.damageLostToRace,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const LEVEL_30_NAME = 'level-30';
 
 /**

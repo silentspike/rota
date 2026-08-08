@@ -34,6 +34,7 @@ import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckterZaehler from './recordings/doom-stacks.json';
 import eingecheckterAuswahlLauf from './recordings/cooldown-reset-run.json';
 import eingecheckterWettlauf from './recordings/race-heal.json';
+import eingecheckterVerlorenerWettlauf from './recordings/race-lost.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
@@ -101,6 +102,7 @@ import {
   newCalcinationPayload,
   resetRunPayload,
   raceHealPayload,
+  raceLostPayload,
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
@@ -331,6 +333,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Wettrennen und Boss-Heilung entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterWettlauf, HINWEIS).toEqual(raceHealPayload());
+  });
+
+  it('der Lauf mit dem VERLORENEN Wettrennen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterVerlorenerWettlauf, HINWEIS).toEqual(raceLostPayload());
   });
 
   it('der Lauf mit den letzten beiden Bausteinen entspricht dem heutigen Spielstand', () => {
@@ -655,6 +661,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'doom-stacks',
   'cooldown-reset-run',
   'race-heal',
+  'race-lost',
   'trial-blocks',
   'timeline-loop',
   'sublimation',
