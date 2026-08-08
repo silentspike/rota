@@ -1332,7 +1332,8 @@ export class Combat {
     // **Die Uhr läuft ab dem Verbrauch, nicht ab dem Kampfbeginn.** Wer spät
     // senkt, wartet ab dann — sonst bekäme ein Spieler, der lange nicht
     // gedrückt hat, seine Ladung sofort zurück und die Wartezeit wäre keine.
-    if (this.nextDoomChargeAtMs === 0) this.nextDoomChargeAtMs = this.nowMsForBuffs + this.rechargeMs();
+    if (this.nextDoomChargeAtMs === 0)
+      this.nextDoomChargeAtMs = this.nowMsForBuffs + this.rechargeMs();
     const left = this.doomValue - doom.clearAmount;
     this.doomValue = left > 0 ? left : 0;
     return true;
