@@ -952,6 +952,11 @@ mod tests {
                     // darueber und zaehlten sonst zu den drei aus Schritt 1.
                     && s.decay_stacks == 0
                     && s.per_decay_stack_percent == 0
+                    // Und seit Issue #561 der Verhaengnis-Senker: PURGE traegt
+                    // Stufe 1 und zaehlte sonst zu den drei aus Schritt 1. Er
+                    // wird ueber seine WIRKUNG ausgeschlossen wie alle anderen
+                    // hier — nicht ueber seinen Namen.
+                    && !s.clears_doom
                     // Und seit Issue #304 der Pruef-Zauber zur Wirkzeit. Er
                     // wird ueber seine WIRKZEIT ausgeschlossen und nicht ueber
                     // seinen Namen: Die drei aus Schritt 1 sind Sofort-Zauber,
