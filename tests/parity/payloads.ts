@@ -2349,23 +2349,35 @@ export function logParityPayload(): Record<string, unknown> {
     counts[EVENT_NAMES[kind] ?? String(kind)] = log.countOf(kind);
   }
 
+  const bindungen = LOG_PARITY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht.
+  const result = replayRecording(
+    { name: LOG_PARITY_NAME, seed: 0, ticks, presses, bindings: bindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: LOG_PARITY_NAME,
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: LOG_PARITY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: bindungen,
     presses,
     /** Anzahl je Protokoll-Art. Der Simulator muss dieselben Zahlen ergeben. */
     counts,
     expected: {
+      // `damageDealt`/`shieldAbsorbed` heißen im Ergebnis `damage`/`absorbed`
+      // — Umbenennungen, sie gehören zu #659 und bleiben hier.
       damageDealt: combat.damageDealt,
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
       shieldAbsorbed: combat.shieldAbsorbed,
-      interruptsLanded: combat.interruptsLanded,
-      healed: combat.healed,
+      interruptsLanded: result.interruptsLanded,
+      healed: result.healed,
       timelineIndex: combat.timelineIndex,
+      // `logEntries` zählt EINTRÄGE DIESES Protokolls, nicht des Nachlaufs —
+      // der führt ein eigenes. Bleibt bei `log`.
       logEntries: log.length,
     },
   };
