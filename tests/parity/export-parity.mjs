@@ -95,6 +95,8 @@ import {
   BUFF_TARGETS_NAME,
   capStapelungPayload,
   CAP_STAPELUNG_NAME,
+  tickRundungPayload,
+  TICK_RUNDUNG_NAME,
   instance1Payload,
   instance2Payload,
   INSTANCE2_NAMES,
@@ -237,6 +239,13 @@ writeFileSync(buffTargetsPath, serialize(buffTargets), 'utf8');
 const capStapelung = capStapelungPayload();
 const capStapelungPath = join(here, 'recordings', `${CAP_STAPELUNG_NAME}.json`);
 writeFileSync(capStapelungPath, serialize(capStapelung), 'utf8');
+
+// Der Tick-Abstand unter Verstaerkung UND Tempo (#640). `tick` war die einzige
+// Zielgroesse ohne Traeger in einer Aufzeichnung — und die einzige, deren
+// Faktor TEILT statt zu multiplizieren.
+const tickRundung = tickRundungPayload();
+const tickRundungPath = join(here, 'recordings', `${TICK_RUNDUNG_NAME}.json`);
+writeFileSync(tickRundungPath, serialize(tickRundung), 'utf8');
 
 // Die vier Bosse der ersten Instanz (#544, AC4).
 for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
