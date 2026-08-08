@@ -631,10 +631,29 @@ function recordNewCalcination(name: string, ticks: number): Recording {
         : bellows;
     if (!combat.isReady(choice, timeMs)) continue;
     combat.cast(alsSpellIndex(choice), timeMs);
-    // Platz 0 und 1 — die Bindung steht im Payload, nicht hier.
     presses.push({ tick, slot: choice === searing ? 0 : 1 });
   }
-  return { name, seed: 0, ticks, presses };
+  // **Hier stand: „die Bindung steht im Payload, nicht hier."** Genau diese
+  // Annahme war der Fehler (Issue #663). `payloads.ts` schreibt die Belegung
+  // zwar in die exportierte Datei — aber `replayRecording` bekommt die
+  // Aufzeichnung aus dieser Funktion, nicht aus der Datei. Ohne `bindings`
+  // fällt es auf `STEP1_BINDINGS` zurück:
+  //
+  //     Platz 0   hier gemeint: searing    STEP1 liefert: kindle
+  //     Platz 1   hier gemeint: bellows    STEP1 liefert: smoulder
+  //
+  // Der Nachlauf spielte damit einen anderen Kampf. Gemessen: 660 Schaden
+  // statt 1860 — kein Fehler, keine Ausnahme, nur eine kleinere Zahl.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: [
+      { slot: 0, spellId: 'searing' },
+      { slot: 1, spellId: 'bellows' },
+    ],
+  };
 }
 
 /**
