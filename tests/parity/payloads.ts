@@ -2759,22 +2759,37 @@ export function deckelPayload(): Record<string, unknown> {
     ueberlauf.push(combat.resourceOverflow);
   }
 
+  const bindungen = DECKEL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // **Der zweite Lauf** (Issue #653). Erst er führt den Wert über den Pfad,
+  // den die Rust-Seite nachbaut; ein `combat.x` daneben umgeht ihn.
+  //
+  // **`{ boss }` ist Pflicht.** Ohne die Angabe spielt `replayRecording`
+  // gegen den Standard-Boss — die Zahlen kämen aus einem anderen Kampf und
+  // sähen trotzdem plausibel aus.
+  const result = replayRecording(
+    { name: DECKEL_NAME, seed: 0, ticks, presses, bindings: bindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: DECKEL_NAME,
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: DECKEL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: bindungen,
     presses,
     checksums,
     vorrat,
     ueberlauf,
     expected: {
+      // `damageDealt` heißt im Ergebnis `damage` — eine Umbenennung, keine
+      // Namensgleichheit. Sie wartet auf eine Entscheidung und bleibt hier.
       damageDealt: combat.damageDealt,
       /** Höchster Vorrat im Lauf — er muss über den Grund-Deckel gekommen sein. */
       hoechsterVorrat: Math.max(...vorrat),
-      resourceOverflow: combat.resourceOverflow,
+      resourceOverflow: result.resourceOverflow,
     },
   };
 }
