@@ -156,6 +156,24 @@ describe('Die Trennung über Kreuz — vier Speicher, vier Größen', () => {
   });
 });
 
+/**
+ * **Die Grenze dieses Abschnitts: er prüft die RICHTUNG, nicht die Zahl**
+ * (Issue #640).
+ *
+ * `toBeGreaterThan(a.length)` sagt „dichter als ohne". Eine Richtung hat zwei
+ * Werte, eine Rundung hat viele — welcher Abstand herauskommt, steht hier
+ * nirgends. `dotInterval` verrechnet aber drei Dinge: den Buff-Faktor, eine
+ * Rundung und `hasted()`.
+ *
+ * Bis #640 hatte jede Seite genau so einen Richtungs-Wächter (hier und
+ * `sim/tests/buff_wirkung.rs`, `tick_wirkt`) und **kein Paritäts-Fall verglich
+ * die Zahlen** — `tick` war die einzige Zielgröße ohne Träger in einer
+ * Aufzeichnung. Die Zahl steht jetzt in `tests/parity/recordings/tick-rundung.json`
+ * und wird Takt für Takt gegen den Simulator geprüft.
+ *
+ * Dieser Abschnitt bleibt trotzdem: Er ist die Diagnose. Wird er rot und der
+ * Paritäts-Fall nicht, hat sich die Wirkung geändert und nicht der Gleichlauf.
+ */
 describe('tick — die Ticks werden dichter, der Tick-Schaden bleibt', () => {
   /**
    * Zeichnet die Sprünge im ausgeteilten Schaden auf: wann ein Tick fiel und

@@ -5518,3 +5518,129 @@ export function capStapelungPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+export const TICK_RUNDUNG_NAME = 'tick-rundung';
+
+const TICK_RUNDUNG_BINDINGS = [
+  { slot: 0, spellId: 'test-tick' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * Der Tick-Abstand unter Verstärkung UND Tempo (Issue #640).
+ *
+ * # Die einzige Zielgröße, deren Faktor TEILT
+ *
+ * Bei Punktegewinn, Hitze-Aufbau und Stapel-Wert multipliziert der Faktor.
+ * Bei `tick` teilt er den ABSTAND — ein Faktor 2 heißt „doppelt so oft", nicht
+ * „halb so oft". `combat.ts` trägt dazu einen ausdrücklichen Warnkommentar.
+ *
+ * **Und es war die einzige Zielgröße ohne Träger in einer Aufzeichnung.**
+ * Gemessen am 2026-08-07 über alle Aufzeichnungen: Die sieben anderen Ziele
+ * werden von `test-buff`, GRIPLOCK, FLASHPOINT, VIRULENCE, DISTIL,
+ * QUICKSILVER und SLAG gefahren; `test-tick` ist alleiniger Träger seines
+ * Ziels und wurde nie gedrückt. Jede Seite hatte einen eigenen Wächter, und
+ * beide prüften die RICHTUNG:
+ *
+ * ```ts
+ * expect(b.length, 'die Ticks werden nicht dichter').toBeGreaterThan(a.length)
+ * ```
+ *
+ * Eine Richtung hat zwei Werte, eine Rundung hat viele.
+ *
+ * # Warum diese Aufzeichnung Ausrüstung trägt
+ *
+ * `dotInterval` kombiniert DREI Dinge — den Buff-Faktor, eine Rundung und
+ * `hasted()`:
+ *
+ * ```ts
+ * const abstand = faktor === 1 ? dot.tickIntervalMs : Math.round(dot.tickIntervalMs / faktor);
+ * return this.hasted(abstand);
+ * ```
+ *
+ * Ohne Tempo gibt `hasted` seinen Wert unverändert zurück (`hastedMs`,
+ * `permille === 0`) — dann ist die REIHENFOLGE der beiden Rechenschritte
+ * folgenlos, und ein Lauf ohne Ausrüstung könnte sie nicht prüfen. Mit
+ * `catalysis: 170` trennt sie sich: erst teilen, dann tempo-rechnen ergibt
+ * einen anderen Wert als umgekehrt, weil `hastedMs` intern abrundet und aufs
+ * Takt-Raster aufrastet.
+ */
+function recordTickRundung(ticks: number): Recording {
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: FIRST_CRUCIBLE.value,
+    worn: WORN_FOR_PARITY,
+  });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, TICK_RUNDUNG_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // **SMOULDER unmittelbar nach der Verstärkung**, nicht hinten angehängt.
+  // Sein DoT läuft 12000 ms; das Fenster von `test-tick` hält drei
+  // Wartezeiten. Die Ticks im Fenster liegen dichter, die danach wieder
+  // normal — beide Abschnitte stehen damit in derselben Aufzeichnung.
+  const kette = ['test-tick', 'smoulder'];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    const stelle = Math.floor(timeMs / 1500);
+    const id = stelle < kette.length ? kette[stelle] : 'kindle';
+    const i = idx(id as string);
+    if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+  }
+
+  return { name: TICK_RUNDUNG_NAME, seed: 0, ticks, presses, bindings: TICK_RUNDUNG_BINDINGS };
+}
+
+export function tickRundungPayload(): Record<string, unknown> {
+  const recording = recordTickRundung(1500);
+  const result = replayRecording(recording, { checksumPerTick: true, worn: WORN_FOR_PARITY });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    worn: {
+      catalysis: WORN_FOR_PARITY.catalysis,
+      purity: WORN_FOR_PARITY.purity,
+      yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      essence: WORN_FOR_PARITY.essence,
+      vessel: WORN_FOR_PARITY.vessel,
+      ward: WORN_FOR_PARITY.ward,
+      // **Nicht weglassen.** Der Rust-Leser holt alle sieben Felder mit
+      // `expect("worn-Feld fehlt")`; ein fehlendes bricht dort, nicht hier.
+      gearEffects: WORN_FOR_PARITY.gearEffects,
+    },
+    bindings: TICK_RUNDUNG_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      // **Die Zahl, an der AC2 hängt, steht in `damage`.** SMOULDERs Beitrag
+      // ist `tickDamage` mal Tickzahl, und die Tickzahl ist die Dauer geteilt
+      // durch den ABSTAND. Eine andere Rundung oder eine vertauschte
+      // Reihenfolge bewegt sie — und damit die Gesamtsumme.
+      //
+      // Ein Feld je Zauber gibt es im `ReplayResult` nicht (39 Felder,
+      // nachgeschlagen statt geraten); `damage` trägt die Aussage, weil die
+      // übrigen Beiträge in dieser Aufzeichnung fest sind.
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}

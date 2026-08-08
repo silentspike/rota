@@ -88,6 +88,7 @@ import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
 import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
+import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -138,6 +139,7 @@ import {
   fixationSpellsPayload,
   buffTargetsPayload,
   capStapelungPayload,
+  tickRundungPayload,
   instance1Payload,
   instance2Payload,
   cinderPayload,
@@ -237,6 +239,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('die Verstärkungs-Runde entspricht dem heutigen Spielstand', () => {
     // Die fünf Zauber aus #540 werden nur hier gewirkt.
     expect(eingecheckteZielgroessen, HINWEIS).toEqual(buffTargetsPayload());
+  });
+
+  it('die Tick-Runde entspricht dem heutigen Spielstand', () => {
+    // `test-tick` wird nur hier gewirkt (Issue #640) — es war die einzige
+    // Zielgroesse ohne Traeger in einer Aufzeichnung.
+    expect(eingecheckteTickRundung, HINWEIS).toEqual(tickRundungPayload());
   });
 
   it('die Stapel-Runde entspricht dem heutigen Spielstand', () => {
@@ -677,6 +685,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'putrefaction-filler',
   'buff-targets',
   'cap-stapelung',
+  'tick-rundung',
   'cinder-ticks',
   'instance2-boss-1',
   'instance2-boss-2',
