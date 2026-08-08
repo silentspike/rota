@@ -5644,3 +5644,58 @@ dass die Zusicherung an der richtigen Stelle steht.
 
 Verwandt mit [8.75](#875-eine-mutation-die-ins-leere-läuft-ist-von-einer-widerlegung-nicht-zu-unterscheiden):
 dort läuft die Probe ins Leere, hier trifft sie den Falschen.
+
+### 8.87 Ein Filter ersetzt eine Abschrift, aber niemals eine Abgrenzung
+
+Eine feste Liste im Test durch einen Filter über den Datensatz zu ersetzen, ist die bessere Bauart —
+**wenn die Liste abschreibt, was der Datensatz führt.** Behauptet sie dagegen, was **nicht**
+irgendwo steht, kehrt sich der Vorteil um.
+
+Am 2026-08-08 an einem Abend beides, und der Orchestrator hat die Bauart übertragen, ohne die
+Richtung zu prüfen:
+
+| Fall                                      | Was die Liste tut                                                  | Filter?                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------- |
+| `buff_targets.rs`, `buff-targets.test.ts` | zählt auf, was der Datensatz **führt**                             | **richtig** — ersetzt eine Abschrift durch das Original |
+| `composition-view.test.ts`                | behauptet, dass QUENCH und `purge` **nicht** in den Schulen stehen | **falsch** — läse die Quelle, gegen die geprüft wird    |
+
+Im zweiten Fall wäre der Filter eine Tautologie: Wer versehentlich einen Schul-Zauber nach `common`
+verschiebt, ändert damit **auch die Erwartung**, und der Fall bliebe grün. Der Satz dazu steht seit
+Längerem in `spell-order.test.ts`:
+
+> **„Eine Liste, die sich beim Laufen selbst herstellt, ist immer grün — sie belegte nur, dass `map`
+> funktioniert."**
+
+**Die Prüffrage vor jedem Umbau auf einen Filter:** Liest der Filter dieselbe Quelle, gegen die der
+Fall prüft? Dann ist er ein Spiegel und keine Zusicherung.
+
+### 8.88 Ein Wächter ist nur so viel wert wie die Bereitschaft, seine Begründung zu Ende zu lesen
+
+Ein guter Wächter liefert mit dem roten Ergebnis auch den Grund und den Weg. Das nützt nur, wenn
+jemand beides liest.
+
+Am 2026-08-08 hat `spell-order.test.ts` **zweimal an einem Abend die vollständige Antwort gegeben**,
+und zweimal hat sie jemand nur halb mitgenommen:
+
+```
+1. Der Bauende las den NAMEN des Wächters und nicht den Kopfkommentar.
+   Er schlug einen Weg vor, den derselbe Kommentar zwei Tage zuvor
+   als gemessen-falsch verworfen hatte.
+
+2. Der Orchestrator las den Kopfkommentar, ZITIERTE ihn — und übernahm
+   die Schlussfolgerung ohne die Begründung. Den Satz, der den
+   Mechanismus erklärt, hatte er im eigenen Zitat überlesen.
+```
+
+Der Satz des Messenden, und er ist die Regel:
+
+> **„Der Text war nicht schwer zu finden. Er stand in der Datei, die rot war."**
+
+**Was daraus folgt, für beide Seiten:**
+
+- **Wer einen Wächter rot macht**, liest seinen Kopfkommentar, bevor er einen Weg vorschlägt. Die
+  Fehlermeldung nennt oft schon den Weg; der Kommentar nennt, warum es dieser ist und welcher
+  bereits verworfen wurde.
+- **Wer einen Wächter schreibt**, schreibt die Begründung an ihn — aber rechnet damit, dass sie halb
+  gelesen wird. Deshalb gehört das Wichtigste in die **Fehlermeldung**, nicht nur in den
+  Dateikopf: Was der Lauf ausgibt, sieht jeder; was darüber steht, nur wer nachschlägt.
