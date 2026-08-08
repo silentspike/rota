@@ -4265,15 +4265,28 @@ export function wardCapPayload(): Record<string, unknown> {
       if (combat.playerDead) break;
     }
 
+    // **Der zweite Lauf je Ward-Stufe** (Issue #653). Diese Payload ist einer
+    // der vier teuren: Sie baut VIER Läufe, der Nachlauf fällt also viermal
+    // an, nicht einmal.
+    //
+    // **`worn` muss mit.** Der ganze Fall dreht sich um die Ward-Stufe; ohne
+    // sie spielte der Nachlauf ungeschützt und läge bei jedem der vier Wege
+    // gleich — vier identische Zahlen, die nach einem Ergebnis aussähen.
+    // Keine Drücke und keine Bindungen, weil dieser Lauf rein passiv ist.
+    const result = replayRecording(
+      { name: WARD_CAP_NAME, seed: 0, ticks, presses: [], bindings: [] },
+      { boss, worn: { ...NOTHING_WORN, ward: wardPermille }, checksumPerTick: true },
+    );
+
     return {
       wardPermille,
       // Die Gesamtminderung, wie der Kampf sie sieht — ungedeckelt. Sie steht
       // dabei, weil sie erklärt, WARUM drei Läufe gleich ausgehen.
       totalPermilleUncapped: PLAYER.wardReduction * 1000 + wardPermille,
       expected: {
-        damageTaken: combat.damageTaken,
+        damageTaken: result.damageTaken,
         playerHp: combat.playerHp,
-        diedAtMs: combat.diedAtMs,
+        diedAtMs: result.diedAtMs,
         sequenceChecksum: sequence,
       },
       checksums,
