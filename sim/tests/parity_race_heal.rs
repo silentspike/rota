@@ -175,6 +175,45 @@ fn ac3_die_boss_heilung_stimmt_ueberein() {
     );
 }
 
+/// Der Ausgang des Wettrennens, beide Seiten (Issue #639).
+///
+/// **Bis #639 fuehrte `fight.rs` `race_won` und las es nie.** Vier Zeilen —
+/// Feld, Anlage, Ruecksetzen, Setzen — und kein einziger Leser; ein `grep`
+/// ohne diese vier kam leer zurueck. Die Spielseite liefert `raceWon` seit
+/// #638 ins `ReplayResult`, verglichen wurde also eine Haelfte gegen nichts.
+///
+/// # Warum hier und nicht in der Pruefsumme
+///
+/// Gemessen, nicht angenommen: `examples/parity.rs` vergleicht eine feste
+/// Liste von Feldern, und `stabilised` zeigt, dass ein Ergebnisfeld allein
+/// von niemandem gelesen wird — es haengt an genau einem handgeschriebenen
+/// Fall (`parity_runaway.rs:170`). Ein Anschluss ohne Leser waere derselbe
+/// tote Wert wie vorher, nur eine Ebene weiter.
+///
+/// Die Pruefsumme faerbt Takt fuer Takt und waere feiner. Bei einem Schalter,
+/// der einmal von `false` auf `true` kippt und nie zurueck, traegt der
+/// Endstand dieselbe Aussage — und er sagt sie an der Stelle, an der die
+/// Aufzeichnung sie fuehrt.
+#[test]
+fn ac_der_ausgang_des_wettrennens_stimmt_ueberein() {
+    let json = data();
+    let result = replay(&json);
+    let expected = &json["expected"];
+
+    // **Die Zusicherung vor der Messung.** Gewinnt in diesem Lauf niemand,
+    // vergliche der Fall darunter `false` mit `false` und bliebe gruen, auch
+    // wenn die Seiten auseinanderlaufen.
+    assert!(
+        expected["raceWon"].as_bool().expect("raceWon"),
+        "die Aufzeichnung fuehrt kein gewonnenes Rennen — dann prueft dieser Fall nichts"
+    );
+    assert_eq!(
+        result.race_won,
+        expected["raceWon"].as_bool().expect("raceWon"),
+        "die Seiten sind sich ueber den Ausgang des Wettrennens nicht einig"
+    );
+}
+
 #[test]
 fn ac5_ein_boss_ohne_die_felder_bleibt_unberuehrt() {
     // Der Gegenfall zum ganzen Issue: `first-crucible` traegt keinen der

@@ -118,6 +118,13 @@ pub struct ReplayResult {
     pub boss_healed: u32,
     /// Wie viel Fortschritt der Spieler zurueckgedraengt hat (Issue #247).
     pub stabilised: u32,
+    /// Ob der Spieler das Wettrennen gewonnen hat (Issue #639).
+    ///
+    /// **Bis #639 wurde das Feld in `fight.rs` gefuehrt und NIE gelesen** —
+    /// vier Zeilen Anlage, Ruecksetzen und Setzen, kein einziger Leser. Die
+    /// Spielseite liefert `raceWon` seit #638 ins `ReplayResult`, verglichen
+    /// wurde also eine Haelfte gegen nichts.
+    pub race_won: bool,
     /// Stand des toedlichen Zaehlers je Takt (Issue #216).
     pub doom: Vec<u32>,
     /// Verbleibende Ladungen der Ruecksetz-Handlung je Takt.
