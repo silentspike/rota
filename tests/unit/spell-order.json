@@ -10,6 +10,7 @@
   "pyroclasm",
   "flashpoint",
   "quench",
+  "purge",
   "crust",
   "salve",
   "temper",
@@ -48,5 +49,6 @@
   "test-tick",
   "test-stack",
   "test-cdreduce",
-  "test-convert"
+  "test-convert",
+  "test-cap"
 ]
