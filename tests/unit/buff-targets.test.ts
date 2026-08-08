@@ -147,9 +147,45 @@ describe('Die Trennung über Kreuz — vier Speicher, vier Größen', () => {
     expect(c.damageFactors.buffs).toBeGreaterThan(1);
   });
 
-  it('und jede der vier bewegt die Fenstersumme', () => {
+  /**
+   * **Der Fall ging vom Datensatz aus, nicht mehr von einer Abschrift**
+   * (Issue #660).
+   *
+   * Er führte vier Prüf-Zauber namentlich: `test-control`, `test-heat`,
+   * `test-tick`, `test-stack`. Inzwischen gibt es acht — `test-cdreduce` und
+   * `test-convert` kamen mit E10 dazu, `test-cap` mit #562, und `test-buff`
+   * stand nie darin.
+   *
+   * `capBuffs` war dadurch der einzige der acht Speicher **ohne einen Fall,
+   * der seine Wirkung behauptet**. Gemessen am 2026-08-08, je Speicher einzeln
+   * aus `buffWindowSum` entfernt und die volle Suite gefahren:
+   *
+   * ```text
+   *   buffs, controlBuffs, resourceBuffs, tickBuffs,
+   *   stackBuffs, cdReduceBuffs, convertBuffs      1–2 echte Wächter
+   *   capBuffs                                     KEINER
+   * ```
+   *
+   * Die Parität fing eine einseitige Änderung dreifach — aber sie prüft
+   * **Übereinstimmung, nicht Richtigkeit**: Wurden beide Seiten gleich
+   * geändert, war der Bestand vollständig grün (1941/1941 und 605/605).
+   *
+   * Die Schleife liest deshalb die Prüf-Zauber aus dem Datensatz, statt sie
+   * aufzuzählen. Ein neuer Prüf-Zauber ist damit automatisch erfasst; eine
+   * Abschrift wäre beim nächsten Mal wieder zurückgeblieben.
+   */
+  it('und JEDER Prüf-Zauber bewegt die Fenstersumme, nicht nur vier', () => {
     // Damit steht auch fest, dass sie in der Prüfsumme ankommen (#493).
-    for (const id of ['test-control', 'test-heat', 'test-tick', 'test-stack']) {
+    const pruefer = CALCINATION.value.spells
+      .filter((s) => s.unlockLevel > 100 && s.buff !== undefined)
+      .map((s) => s.id);
+
+    // **Die Zusicherung vor der Messung.** Griffe der Filter daneben — anderes
+    // Feld, andere Stufengrenze —, liefe die Schleife über eine leere Liste
+    // und wäre grün, ohne einen einzigen Speicher berührt zu haben.
+    expect(pruefer.length, 'keine Prüf-Zauber gefunden — der Filter greift nicht').toBe(8);
+
+    for (const id of pruefer) {
       const c = mitVerstaerkung(id);
       expect(c.buffWindowSum, `${id} öffnet kein Fenster`).toBeGreaterThan(0);
     }

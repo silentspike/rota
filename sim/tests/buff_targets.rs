@@ -39,8 +39,19 @@ fn zauber(id: &str) -> &'static rota_sim::data::Spell {
 /// Beide Male sah sie aus wie ein Waechter und war eine Stichprobe — gruen,
 /// mit dem Namen einer Pruefung, und ohne irgendwo zu sagen, dass sie nur
 /// einen Teil ihrer Gattung fuehrt.
+/// **Die Eintraege tragen ZWEI verschiedene Aussagen** — wer sie als vierzehn
+/// gleichartige Zeilen liest, verkennt eine davon:
+///
+/// * Fuer die dreizehn mit `target`-Feld ist der Eintrag eine Zusicherung ueber
+///   eine **gewaehlte Zuordnung**: SLAG wirkt auf `cap`, weil es so entschieden
+///   wurde.
+/// * Fuer `test-buff` ist er eine Zusicherung ueber den **Vorgabewert**. Er
+///   traegt gar kein `target`-Feld und faellt deshalb auf `Damage` zurueck.
+///   Kippt jemand diesen Rueckfall um, meldet es ohne diesen Eintrag kein Fall —
+///   der Default ist auch eine Zuordnung.
 const ERWARTET: &[(&str, BuffTarget)] = &[
-    // Die Pruef-Zauber.
+    // Die Pruef-Zauber. `test-buff` steht hier fuer den VORGABEWERT, nicht fuer
+    // eine gewaehlte Zuordnung — siehe oben.
     ("test-buff", BuffTarget::Damage),
     ("test-control", BuffTarget::Control),
     ("test-heat", BuffTarget::Resource),
