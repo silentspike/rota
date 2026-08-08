@@ -665,7 +665,13 @@ function recordCooldownSweep(name: string, ticks: number): Recording {
     combat.cast(alsSpellIndex(choice), timeMs);
     presses.push({ tick, slot: slotOf.get(choice) ?? 0 });
   }
-  return { name, seed: 0, ticks, presses };
+  // **Die Belegung gehört in die Aufzeichnung** (Issue #663). Fehlt sie,
+  // fällt `replayRecording` auf `STEP1_BINDINGS` zurück und spielt einen
+  // anderen Kampf — lautlos, mit einer kleineren Zahl. Hier wäre der
+  // Rückfall richtig, weil diese Aufzeichnung ihre Plätze aus derselben
+  // Konstante ableitet. Sie steht trotzdem dabei, damit die Aufzeichnung
+  // nicht davon abhängt, dass zwei Stellen zufällig dieselbe Liste meinen.
+  return { name, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**
