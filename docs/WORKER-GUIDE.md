@@ -5393,3 +5393,128 @@ Deshalb die präzisere Fassung, und sie stammt vom Worker:
 
 Das ist billiger als jede Wartezeit und funktioniert auch dann, wenn die Nachricht spät ankommt —
 denn die Aussage gilt zum Zeitpunkt des Absendens und altert nicht.
+
+### 8.79 Ein Arbeitsbaum ist kein Bezugspunkt, nur weil er der Hauptbaum ist
+
+Ein Merge landet auf `origin`. Er landet **nicht** im lokalen Verzeichnis, auch nicht in dem, aus
+dem heraus er ausgelöst wurde. Wer danach ohne `git fetch` und `git merge` misst, misst den Stand
+von vorher — und zwar mit einem Werkzeug, das keinerlei Anlass zur Beunruhigung gibt: `grep` findet
+Zeilen, `sed -n` zeigt sie, und beide schweigen darüber, aus welcher Zeit sie stammen.
+
+Am 2026-08-07 gemessen, unmittelbar nach einem selbst ausgelösten Merge:
+
+```
+grep -n raceWon tests/parity/payloads.ts
+  1075:      raceWon: combat.raceWon,       "also ist #638 gar nicht umgesetzt"
+
+git status -sb
+  ## main...origin/main [behind 66]
+```
+
+Nach dem Nachziehen steht dort `raceWon: result.raceWon` — genau das, was #638 gebaut hatte. Der
+Befund war kein Befund, sondern ein Blick in den Vormittag.
+
+**Die Zahl, auf die es ankommt, ist 66.** Ein Arbeitsbaum, der einen Tag lang nur zum Lesen benutzt
+wird, driftet unbemerkt, weil Lesen nie einen Konflikt erzeugt. Erst der Schreibversuch hätte
+gemeldet, was der Lesevorgang verschwiegen hat.
+
+> **Vor jeder Bestandsmessung: erst `git fetch`, dann den Abstand ausgeben, dann messen.** Nicht
+> „ich habe eben gemergt, also ist er aktuell" — der Merge lief auf dem Server.
+
+```bash
+git fetch origin
+git rev-list --count HEAD..origin/main    # muss 0 sein, sonst misst du die Vergangenheit
+```
+
+Der teure Fall ist nicht die falsche Zeile, sondern was daraus folgt: Eine fertige Arbeit als offen
+zu melden schickt jemanden los, sie ein zweites Mal zu bauen. Das ist dieselbe Klasse wie
+[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push), nur mit vertauschten Rollen — dort war der
+Zweig weiter als die Meldung, hier ist die Messung hinter dem Zweig.
+
+### 8.80 Ein Check-Rollup führt Läufe, keine Zustände
+
+`gh pr view --json statusCheckRollup` liefert **jeden Lauf zum aktuellen HEAD-Commit** — nicht den
+aktuellen Zustand je Prüfung. Wer darin nach „gibt es einen roten" filtert, findet jeden Fehlschlag,
+der auf diesem Commit inzwischen behoben wurde.
+
+Mehrere Läufe derselben Prüfung entstehen ohne neuen Commit: bei einem Rerun, und bei jedem
+Workflow, der auf ein PR-Ereignis statt auf einen Push hört. `pr-title-check` läuft bei `edited`
+erneut — eine Titel-Korrektur erzeugt also einen zweiten Eintrag neben dem ersten.
+
+Gemessen am 2026-08-07 an PR #647:
+
+```
+[.statusCheckRollup[] | select(.conclusion != "SUCCESS")] | length     ->  1
+    pr-title  FAILURE
+
+alle pr-title-Einträge:
+    FAILURE  14:20:23   runs/31187063171     vor der Titel-Korrektur
+    SUCCESS  14:21:28   runs/31187159883     danach
+```
+
+Der Bearbeitende hatte „CI vollständig grün" gemeldet und den Titel korrigiert, bevor er meldete.
+**Beide Zahlen waren richtig und beantworteten verschiedene Fragen** — seine „ist der jüngste Lauf
+je Prüfung grün", meine „gab es je einen roten".
+
+> **Die brauchbare Frage lautet: ist der JÜNGSTE Eintrag je Name grün?** Ein Filter, der nur nach
+> `conclusion` sortiert, kann sie nicht beantworten, weil ihm die Zeit fehlt.
+
+```bash
+gh pr view <n> --json statusCheckRollup --jq '
+  [.statusCheckRollup[] | select(.completedAt)]
+  | group_by(.name // .context)
+  | map(max_by(.completedAt))
+  | map(select(.conclusion != "SUCCESS"))'
+```
+
+Der eigentliche Schaden ist nicht die falsche Zahl. Er ist, dass sie **wie ein Widerspruch zur
+Meldung des Bearbeitenden aussieht** — und die kommt von der Stelle, die abnimmt. Wer sie
+weiterreicht, stellt eine richtige Meldung als falsch hin, und der Gemeldete beginnt, seine eigene
+Messung zu verdächtigen. Dieselbe Asymmetrie wie in
+[8.73](#873-ein-schluss-aus-einer-fremden-zahl-ist-eine-eigene-behauptung), nur dass hier das
+Werkzeug den Fehler liefert und nicht das Gedächtnis.
+
+**Vor dem Vorhalten nachsehen, nicht vorhalten und nachsehen lassen.**
+
+### 8.81 Eine Nachbildung misst die nachgebildete Seite nicht
+
+Wer zwei Umsetzungen vergleicht, muss **beide laufen lassen**. Eine Nachbildung der einen Seite in
+der Sprache der anderen ist ein Modell der eigenen Annahme — sie kann bestätigen, was man erwartet,
+und nichts sonst.
+
+Am 2026-08-07 gemessen, zur Frage, ob `Math.round` und `f64::round` je auseinandergehen:
+
+```
+node:  Math.round(x)   gegen   Math.sign(x) * Math.floor(Math.abs(x) + 0.5)
+                                ^^^ die NACHBILDUNG von f64::round
+Rust lief dabei nie.
+```
+
+Nachgefahren mit `rustc -O` auf demselben Wertebereich: **0 abweichende Zeilen von 1800.** Die
+Aussage trug — aus dem richtigen Grund erst beim zweiten Mal.
+
+> Der Satz des Messenden, und er ist die eigentliche Regel:
+>
+> **„Wäre das Ergebnis anders ausgefallen, hätte ich es gemerkt. Weil es gleich ausfiel, hätte die
+> falsche Grundlage überlebt."**
+
+Das ist die unangenehme Hälfte: **Eine falsche Methode fällt nur auf, wenn sie ein falsches Ergebnis
+liefert.** Liefert sie zufällig das richtige, wird sie zitiert, wandert in ein Issue und ist von
+einer echten Messung nicht mehr zu unterscheiden. Dieselbe Sitzung hatte am selben Tag schon einmal
+„faktisch ungeschützt" gemeldet, ohne den Rust-Bau je gefahren zu haben — dort war das Ergebnis
+falsch und fiel sofort auf.
+
+**Deshalb gehört zu jeder sprachübergreifenden Zahl das Wie, nicht nur das Was:**
+
+```
+rustc -O, 6 Intervalle (1000..8000) × 300 Faktoren (1.01..4.00),
+zeilenweiser Diff gegen node — 0 von 1800
+```
+
+Ohne diesen Zusatz kann der nächste Leser nicht unterscheiden, ob dahinter zwei Sprachen standen
+oder eine. Verwandt mit [8.75](#875-eine-mutation-die-ins-leere-läuft-ist-von-einer-widerlegung-nicht-zu-unterscheiden):
+dort läuft die Probe ins Leere, hier läuft sie gegen ein Spiegelbild.
+
+**Und die Grenze gehört dazu.** Synthetische Werte belegen die Rundung, nicht die Faktoren, die im
+Spiel tatsächlich entstehen — genau deshalb bleibt der Gleichheitsvergleich auf Fließkomma die
+offene Frage und nicht die Rundung.
