@@ -567,6 +567,39 @@ fn emit_buff(out: &mut String, spell: &Value, whose: &str) {
         "{whose}: Verstaerkungs-Faktor {factor} muss groesser als 0 sein — ein \
          Faktor von null loeschte den Schaden, ein negativer kehrte ihn um"
     );
+    // **Ein Faktor UNTER 1 macht eine Fliesskomma-Falle erreichbar** (Issue
+    // #656). Das ist keine Design-Aussage — ein abschwaechender Verstaerker
+    // waere voellig legitim. Es ist eine Rechen-Aussage, und sie steht hier,
+    // weil sie beim EINFUEHREN auffallen muss und nicht Monate spaeter.
+    //
+    // `Buffs::factor` bildet ein PRODUKT ueber alle offenen Arten. Solange
+    // jeder Einzelfaktor >= 1 ist, kann das Produkt nie knapp unter 1 landen —
+    // gemessen: von 14 Verstaerkern liegt heute keiner darunter. Mit einem
+    // Faktor < 1 wird es moeglich, und dann gilt (3999 Paare a * (1/a)
+    // durchgerechnet, IEEE754-double):
+    //
+    //   568 davon ergeben 0.9999999999999999 statt 1.0   (14 Prozent)
+    //
+    // Der Kurzschluss `faktor == 1.0` greift dann NICHT. Das allein waere
+    // folgenlos — die Rundung faengt es (0 Abweichungen ueber 100000 Werte).
+    // Folgenreich ist die eine Stelle, die den Faktor UNGERUNDET weitergibt:
+    // `update_buff_factor` -> `compute_damage`. Dort kippen 521 von 24000
+    // Schadenswerten, sobald ein zweiter krummer Faktor mitspielt
+    // (vulnerability 1.3: 221 von 4000, etwa base 5 -> 7 statt 6).
+    //
+    // WER HIER LANDET, weil er einen abschwaechenden Verstaerker bauen will:
+    // Das ist erlaubt und gewollt. Nimm diese Zusicherung heraus UND baue die
+    // Absicherung aus #656 AC2/AC3 — sonst zeigt sich der Fehler als
+    // 1-Schaden-Abweichung, die niemandem auffaellt.
+    assert!(
+        factor >= 1.0,
+        "{whose}: Verstaerkungs-Faktor {factor} liegt unter 1. Das ist nicht \
+         verboten, aber es macht die Fliesskomma-Falle aus Issue #656 \
+         erreichbar: Ein Produkt mit einem Faktor < 1 kann 0.9999999999999999 \
+         ergeben statt 1.0, der Kurzschluss greift dann nicht, und ueber \
+         update_buff_factor laeuft der Wert UNGERUNDET in compute_damage. \
+         Lies den Kommentar ueber dieser Zeile, bevor du sie entfernst"
+    );
 
     let gcds = uint(buff, "gcds", &whose);
     assert!(
