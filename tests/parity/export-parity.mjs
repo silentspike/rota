@@ -68,6 +68,7 @@ import {
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
+  raceLostPayload,
   trialBlocksPayload,
   TRIAL_BLOCKS_NAME,
   gearPayload,
@@ -141,6 +142,7 @@ import {
   DOOM_STACKS_NAME,
   RESET_RUN_NAME,
   RACE_HEAL_NAME,
+  RACE_LOST_NAME,
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
   KONTROLLE_WIRKT_NAME,
@@ -282,6 +284,12 @@ writeFileSync(resetRunPath, serialize(resetRun), 'utf8');
 const raceHeal = raceHealPayload();
 const raceHealPath = join(here, 'recordings', `${RACE_HEAL_NAME}.json`);
 writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
+
+// Die verlorene Richtung des Wettrennens (Issue #651). `race-heal` oben deckt
+// nur die gewonnene ab.
+const raceLost = raceLostPayload();
+const raceLostPath = join(here, 'recordings', `${RACE_LOST_NAME}.json`);
+writeFileSync(raceLostPath, serialize(raceLost), 'utf8');
 
 const trialBlocks = trialBlocksPayload();
 const trialBlocksPath = join(here, 'recordings', `${TRIAL_BLOCKS_NAME}.json`);
