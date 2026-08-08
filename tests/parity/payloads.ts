@@ -2691,22 +2691,33 @@ export function phasenPayload(): Record<string, unknown> {
     phase.push(combat.bossPhase);
   }
 
+  const bindungen = PHASEN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht, sonst spielt er gegen
+  // den Standard-Boss und liefert plausible Zahlen aus einem anderen Kampf.
+  const result = replayRecording(
+    { name: PHASEN_NAME, seed: 0, ticks, presses, bindings: bindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: PHASEN_NAME,
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: PHASEN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: bindungen,
     presses,
     checksums,
     phase,
     expected: {
+      // `damageDealt` heißt im Ergebnis `damage` — eine Umbenennung, kein
+      // gleicher Name. Sie gehört zu #659, nicht hierher.
       damageDealt: combat.damageDealt,
       /** Die höchste erreichte Phase — muss über 0 liegen, sonst zeigt der Lauf nichts. */
       hoechstePhase: Math.max(...phase),
       /** Eingesteckter Schaden: mit gebundenem Ereignis höher als ohne. */
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
     },
   };
 }
