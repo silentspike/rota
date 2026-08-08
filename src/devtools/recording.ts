@@ -1065,6 +1065,23 @@ export function recordings(): Map<string, Recording> {
     if (racer !== undefined) {
       builtIn.set('race-heal', recordGoodRotation('race-heal', 4000, racer));
     }
+    // **Das VERLORENE Wettrennen** (Issue #651). `race-heal` oben deckt nur die
+    // gewonnene Richtung ab — `test-racer` verlangt 300 im Fenster, und genau
+    // so viel fällt hinein.
+    //
+    // `boss-1-4` verlangt 900 bei 6 s Fenster. Dieselbe gute Rotation schafft
+    // dort 400 und verliert damit, **ohne dass das Fenster leer bliebe**. Genau
+    // darauf kommt es an: Ein Lauf, in dem niemand drückt, ergäbe zwar auch
+    // `raceWon: false`, aber aus dem falschen Grund — dort fände das Rennen gar
+    // nicht statt. Der Unterschied heißt `damageLostToRace`, und der
+    // Rust-Prüffall verlangt ihn ausdrücklich größer null.
+    //
+    // 3000 Takte sind 30 s: Das Fenster liegt bei 14 s und schließt bei 20 s,
+    // der Lauf reicht also sicher darüber hinaus.
+    const verlierer = bossById('boss-1-4');
+    if (verlierer !== undefined) {
+      builtIn.set('race-lost', recordGoodRotation('race-lost', 3000, verlierer));
+    }
     // Der Prueffall zu den letzten beiden Bausteinen (Issue #240, AC6). 90 s
     // in Takten, und die Laenge ist gerechnet, nicht geschaetzt: Die
     // Schwaechung greift bei 8 s, die Zeitleiste wiederholt sich alle 12 s

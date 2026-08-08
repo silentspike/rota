@@ -34,6 +34,7 @@ import eingecheckterBossZustand from './recordings/vessel-phases.json';
 import eingecheckterZaehler from './recordings/doom-stacks.json';
 import eingecheckterAuswahlLauf from './recordings/cooldown-reset-run.json';
 import eingecheckterWettlauf from './recordings/race-heal.json';
+import eingecheckterVerlorenerWettlauf from './recordings/race-lost.json';
 import eingecheckteDreiBausteine from './recordings/trial-blocks.json';
 import eingecheckteWiederholung from './recordings/timeline-loop.json';
 import eingecheckteSublimation from './recordings/sublimation.json';
@@ -88,6 +89,7 @@ import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
 import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
+import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -100,6 +102,7 @@ import {
   newCalcinationPayload,
   resetRunPayload,
   raceHealPayload,
+  raceLostPayload,
   trialBlocksPayload,
   timelineLoopPayload,
   sublimationPayload,
@@ -138,6 +141,7 @@ import {
   fixationSpellsPayload,
   buffTargetsPayload,
   capStapelungPayload,
+  tickRundungPayload,
   instance1Payload,
   instance2Payload,
   cinderPayload,
@@ -239,6 +243,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteZielgroessen, HINWEIS).toEqual(buffTargetsPayload());
   });
 
+  it('die Tick-Runde entspricht dem heutigen Spielstand', () => {
+    // `test-tick` wird nur hier gewirkt (Issue #640) — es war die einzige
+    // Zielgroesse ohne Traeger in einer Aufzeichnung.
+    expect(eingecheckteTickRundung, HINWEIS).toEqual(tickRundungPayload());
+  });
+
   it('die Stapel-Runde entspricht dem heutigen Spielstand', () => {
     // SLAG und `test-cap` treffen nur hier aufeinander (Issue #562) — die
     // einzige Lage im Bestand, in der zwei verschiedene Verstaerkungs-Arten
@@ -323,6 +333,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit Wettrennen und Boss-Heilung entspricht dem heutigen Spielstand', () => {
     expect(eingecheckterWettlauf, HINWEIS).toEqual(raceHealPayload());
+  });
+
+  it('der Lauf mit dem VERLORENEN Wettrennen entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckterVerlorenerWettlauf, HINWEIS).toEqual(raceLostPayload());
   });
 
   it('der Lauf mit den letzten beiden Bausteinen entspricht dem heutigen Spielstand', () => {
@@ -647,6 +661,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'doom-stacks',
   'cooldown-reset-run',
   'race-heal',
+  'race-lost',
   'trial-blocks',
   'timeline-loop',
   'sublimation',
@@ -677,6 +692,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'putrefaction-filler',
   'buff-targets',
   'cap-stapelung',
+  'tick-rundung',
   'cinder-ticks',
   'instance2-boss-1',
   'instance2-boss-2',

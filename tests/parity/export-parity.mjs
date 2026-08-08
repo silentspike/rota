@@ -68,6 +68,7 @@ import {
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
+  raceLostPayload,
   trialBlocksPayload,
   TRIAL_BLOCKS_NAME,
   gearPayload,
@@ -95,6 +96,8 @@ import {
   BUFF_TARGETS_NAME,
   capStapelungPayload,
   CAP_STAPELUNG_NAME,
+  tickRundungPayload,
+  TICK_RUNDUNG_NAME,
   instance1Payload,
   instance2Payload,
   INSTANCE2_NAMES,
@@ -139,6 +142,7 @@ import {
   DOOM_STACKS_NAME,
   RESET_RUN_NAME,
   RACE_HEAL_NAME,
+  RACE_LOST_NAME,
   PLAYER_DAMAGE_NAME,
   COAGULATION_NAME,
   KONTROLLE_WIRKT_NAME,
@@ -238,6 +242,13 @@ const capStapelung = capStapelungPayload();
 const capStapelungPath = join(here, 'recordings', `${CAP_STAPELUNG_NAME}.json`);
 writeFileSync(capStapelungPath, serialize(capStapelung), 'utf8');
 
+// Der Tick-Abstand unter Verstaerkung UND Tempo (#640). `tick` war die einzige
+// Zielgroesse ohne Traeger in einer Aufzeichnung — und die einzige, deren
+// Faktor TEILT statt zu multiplizieren.
+const tickRundung = tickRundungPayload();
+const tickRundungPath = join(here, 'recordings', `${TICK_RUNDUNG_NAME}.json`);
+writeFileSync(tickRundungPath, serialize(tickRundung), 'utf8');
+
 // Die vier Bosse der ersten Instanz (#544, AC4).
 for (let i = 0; i < INSTANCE1_NAMES.length; i++) {
   const name = INSTANCE1_NAMES[i];
@@ -273,6 +284,12 @@ writeFileSync(resetRunPath, serialize(resetRun), 'utf8');
 const raceHeal = raceHealPayload();
 const raceHealPath = join(here, 'recordings', `${RACE_HEAL_NAME}.json`);
 writeFileSync(raceHealPath, serialize(raceHeal), 'utf8');
+
+// Die verlorene Richtung des Wettrennens (Issue #651). `race-heal` oben deckt
+// nur die gewonnene ab.
+const raceLost = raceLostPayload();
+const raceLostPath = join(here, 'recordings', `${RACE_LOST_NAME}.json`);
+writeFileSync(raceLostPath, serialize(raceLost), 'utf8');
 
 const trialBlocks = trialBlocksPayload();
 const trialBlocksPath = join(here, 'recordings', `${TRIAL_BLOCKS_NAME}.json`);

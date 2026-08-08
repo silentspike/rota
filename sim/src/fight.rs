@@ -1275,6 +1275,7 @@ impl Fight {
             damage_lost_to_race: self.damage_lost_to_race,
             boss_healed: self.boss_healed,
             stabilised: self.stabilised,
+            race_won: self.race_won,
             doom,
             doom_charges,
             stacks: stacks_trace,
