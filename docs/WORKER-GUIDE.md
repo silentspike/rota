@@ -5518,3 +5518,129 @@ dort läuft die Probe ins Leere, hier läuft sie gegen ein Spiegelbild.
 **Und die Grenze gehört dazu.** Synthetische Werte belegen die Rundung, nicht die Faktoren, die im
 Spiel tatsächlich entstehen — genau deshalb bleibt der Gleichheitsvergleich auf Fließkomma die
 offene Frage und nicht die Rundung.
+
+### 8.82 „Bau nichts" heißt nicht „ändere nichts"
+
+Eine Änderung, die gesetzt, gemessen und **zurückgenommen** wird, ist eine **Messung**. Genau so
+läuft jede Mutationsprobe: Feld verstellen, Lauf ansehen, zurücknehmen. Wer das unter ein
+Bau-Verbot fasst, macht die Hälfte aller Abnahmen unmöglich.
+
+Gemeint ist mit „bau nichts" immer nur: **keine Änderung, die stehenbleibt** und in einen PR
+wandert, bevor eine offene Frage geklärt ist.
+
+Am 2026-08-08 hat ein Worker für zwei Minuten Messung um Erlaubnis gefragt, weil sein Auftrag
+„Ursache klären, bau nichts" lautete. Die Frage war richtig gestellt — aber sie hätte nicht nötig
+sein müssen:
+
+> An der Grenze zu fragen kostet zwei Minuten. Sie falsch zu überschreiten kostet einen Tag.
+
+**Die Rücknahme gehört zur Messung, nicht zur Höflichkeit.** Wer misst, hinterlässt einen sauberen
+Arbeitsbaum und sagt in der Meldung, dass er es getan hat — sonst ist von außen nicht zu
+unterscheiden, ob die Mutation noch steht.
+
+### 8.83 `cargo test` bricht ab — bei einer Mutationsprobe ausgerechnet dort, wo es zählt
+
+`cargo test` hält nach der **ersten gefallenen Testbinary** an. Bei einer Mutationsprobe fällt
+genau dort der gesuchte Test, und alles danach läuft **nie**.
+
+Am 2026-08-08 an derselben Mutation gemessen (`race_won` auf `true`, `fight.rs:1278`):
+
+```
+cargo remote -c --manifest-path sim/Cargo.toml -- test
+    67 Ergebniszeilen   435 Tests   1 gefallen
+dasselbe mit --no-fail-fast
+    97 Ergebniszeilen   605 Tests   1 gefallen
+```
+
+**28 Testdateien und 170 Tests blieben ungemessen.** Die Aussage „die Mutation färbt genau einen
+Test" war ohne den Schalter also nicht belegt — der Lauf hatte die anderen gar nicht erst erreicht.
+Sie stimmte am Ende, aber das war Glück und kein Beweis.
+
+```
+Mutationsprobe   cargo test --no-fail-fast
+normaler Lauf    ohne Schalter, dort ist Abbruch richtig
+```
+
+**Und die Zahl der roten SUITEN mitzählen, nicht nur die der gefallenen Tests.** Eine Mutation, die
+zwei Suiten färbt, misst die Nachbarn mit — das sieht man nur, wenn der Lauf bis zum Ende geht.
+
+Dieselbe Klasse in vitest: Ein `it()`, das mehrere `expect` prüft, hält beim ersten gefallenen an
+und meldet nur dieses. Wer daraus auf die Quelle schließt, ordnet den Diff der Datei zu, an der er
+gerade arbeitet — am 2026-08-08 geschehen, siehe [8.84](#884-eine-widerlegung-die-selbst-falsch-ist-räumt-eine-spur-ab-die-getragen-hätte).
+
+### 8.84 Eine Widerlegung, die selbst falsch ist, räumt eine Spur ab, die getragen hätte
+
+Eine Hypothese zu widerlegen fühlt sich nach Fortschritt an. Ist die **Widerlegung** falsch, ist der
+Schaden größer als bei einer falschen Hypothese: Die richtige Spur ist dann abgeräumt, und niemand
+sucht dort noch einmal.
+
+Am 2026-08-08, zur Frage, warum zwei Wege desselben Kampfes 660 gegen 1860 Schaden ergaben:
+
+|     |                                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------- |
+| 1.  | Vermutung: die Bindungen laufen auseinander — **richtig**                                          |
+| 2.  | Verglichen wurden die Bindungen der **JSON-Datei** mit den lokalen. Identisch. Hypothese verworfen |
+| 3.  | Neue Spur: die Abbruchbedingungen in `replayRecording` — **falsch**, keine greift                  |
+| 4.  | Erst die Messung von `recordings().get(...)` **statt der Datei** brachte es                        |
+
+Die Funktion liest nicht die Datei, sondern `recordings()`. Der Vergleich in Schritt 2 lief an der
+**falschen Quelle** — und nahm damit die einzige tragfähige Spur aus dem Rennen.
+
+> **„Gerettet hat es nur, dass ich weitergesucht habe, statt es auf sich beruhen zu lassen."**
+
+**Was daraus folgt:** Wer eine eigene Hypothese widerlegt, prüft zuerst, ob er die richtige Größe
+gemessen hat. Eine Widerlegung braucht dieselbe Sorgfalt wie ein Beleg — sie ist einer, nur mit
+umgekehrtem Vorzeichen.
+
+### 8.85 Ein grep-Muster misst die Formatierung, nicht die Struktur
+
+`grep` sieht Zeilen. Code hat Struktur. Wo beides auseinandergeht, liefert das Werkzeug ein
+korrektes Ergebnis auf eine Frage, die niemand stellen wollte.
+
+Am 2026-08-08 dreimal an einem Abend, in **beide** Richtungen:
+
+```
+falsch POSITIV   grep replayRecording   traf das Wort in einem KOMMENTAR
+                 -> 15 Zeilen gemeldet, tatsächlich 6
+
+falsch NEGATIV   Muster verlangte Funktionsname, `h` und String in DERSELBEN Zeile
+                 h = mix_named_float(
+                       h,
+                       "buffSum",        <- über vier Zeilen umbrochen
+                 -> "kein Feld für Verstärkungen" gemeldet, es gab eines
+
+falsch NEGATIV   Muster suchte indexOf('name')
+                 STEP1_BINDINGS.map(({slot, spellId}) => combat.indexOf(spellId))
+                 -> "wählt keine Zauber" gemeldet, es wählt über eine Liste
+```
+
+Der dritte Fall trägt die genaueste Diagnose, und sie stammt vom Empfänger der falschen Zahl:
+
+> **„Dein Muster war nicht zu eng, es suchte an der falschen Stelle."**
+
+**Was hilft:** Bei einer Menge unter etwa zwanzig ist Lesen billiger als ein Muster, dem man nicht
+trauen kann. Bei mehr gehört zu jeder grep-Zahl die Gegenprobe — ein bekannter Treffer, der
+gefunden werden **muss**, und ein bekannter Nicht-Treffer, der es nicht darf.
+
+### 8.86 „Ein Fehler fällt auf" ist nicht „der zuständige Wächter meldet ihn"
+
+Ein Fehler, den drei fremde Fälle melden und der eigene nicht, ist gedeckt — und schickt trotzdem
+jeden Sucher an die falsche Stelle.
+
+Am 2026-08-08 gemessen, `capBuffs` mit dem Schadens-Speicher zusammengelegt:
+
+```
+FAIL  buff-in-combat.test.ts
+FAIL  checksum-sees-buffs.test.ts
+FAIL  slag.test.ts
+      buff-targets.test.ts          GRÜN   <- die Prüfung, die genau diese Trennung behauptet
+```
+
+Die Sache war gedeckt. Nur nicht von dort, wo jemand nachsehen würde.
+
+**Deshalb zählt beim Abnehmen nicht, DASS etwas rot wird, sondern WAS.** Eine Mutationsprobe, die
+irgendeinen Fall färbt, belegt Abdeckung. Erst die Probe, die den **zuständigen** Fall färbt, belegt,
+dass die Zusicherung an der richtigen Stelle steht.
+
+Verwandt mit [8.75](#875-eine-mutation-die-ins-leere-läuft-ist-von-einer-widerlegung-nicht-zu-unterscheiden):
+dort läuft die Probe ins Leere, hier trifft sie den Falschen.
