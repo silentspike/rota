@@ -196,14 +196,32 @@ describe('tick — die Ticks werden dichter, der Tick-Schaden bleibt', () => {
     return hoehen;
   }
 
+  /**
+   * **Das Fenster endet bei 4600, nicht mehr bei 4400** (Issue #640).
+   *
+   * `test-tick` trug bis dahin Faktor 2.0 — damit lagen die verstärkten Ticks
+   * bei 2600/3600/4600 und der Vorsprung war schon bei 4400 sichtbar. Der
+   * Faktor musste auf 1.4 wechseln, weil `2000 / 2.0` exakt aufgeht und damit
+   * JEDE Rechenweise auf denselben Wert kam (Begründung in `test-buff.json`).
+   *
+   * Mit 1.4 ist der Abstand 1429 statt 1000, und der zweite verstärkte Tick
+   * fällt auf 4458 — vier Zehntelsekunden hinter dem alten Fensterende. Der
+   * Fall maß danach 1 gegen 1 und wurde rot, ohne dass an der Wirkung etwas
+   * falsch war.
+   *
+   * 4600 liegt hinter dem Fenster der Verstärkung (drei Wartezeiten, 4500 ms).
+   * Weiter zu messen brächte nichts: Danach gilt wieder der volle Abstand, und
+   * die Zahlen glichen sich an — bis 8000 ms käme beides auf drei Ticks. Der
+   * Unterschied lebt IM Fenster, und genau dort endet die Messung.
+   */
   it('SMOULDER tickt öfter, und jeder Tick trägt dasselbe', () => {
     const ohne = ohneVerstaerkung();
     ohne.cast(ohne.indexOf('smoulder'), 1600);
-    const a = sprunge(ohne, 1610, 4400);
+    const a = sprunge(ohne, 1610, 4600);
 
     const mit = mitVerstaerkung('test-tick');
     mit.cast(mit.indexOf('smoulder'), 1600);
-    const b = sprunge(mit, 1610, 4400);
+    const b = sprunge(mit, 1610, 4600);
 
     expect(a.length, 'ohne Verstärkung tickt nichts — dann misst der Fall nichts').toBeGreaterThan(
       0,
