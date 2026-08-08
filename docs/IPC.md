@@ -1,7 +1,12 @@
 # Nachrichtensystem zwischen Orchestrator und Workern
 
-> **SSOT der Planung:** `/work/rota-ipc/PLAN.md`. Diese Seite ist die Bedienanleitung.
-> Bei Widerspruch gewinnt der Plan.
+> Diese Seite ist die **Bedienanleitung** — Befehle, Schwellen, Störfall.
+>
+> | Frage | Dort steht die Antwort |
+> | --- | --- |
+> | Wie funktioniert es technisch, wie baue ich es nach? | `/work/rota-ipc/ARCHITEKTUR.md` |
+> | Warum wurde es so und nicht anders entschieden? | `/work/rota-ipc/PLAN.md` |
+> | Welcher Befehl, welche Schwelle, was bei einer Störung? | diese Seite |
 
 ## Wozu
 
