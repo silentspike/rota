@@ -1268,6 +1268,9 @@ impl Fight {
             sequence_checksum: sequence,
             synergy_used: self.synergy_used,
             synergy_available: self.synergy_available,
+            // Die Antwort auf Baustein 4 (Issue #639). Sie wurde bis hierher
+            // gefuehrt und weggeworfen — siehe die Begruendung am Feld.
+            race_won: self.race_won,
             checksums,
             random_draws: self.rng.total_draws(),
             phases,

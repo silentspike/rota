@@ -96,6 +96,25 @@ pub struct ReplayResult {
     pub synergy_used: u32,
     /// Wie oft eines offen stand, das der Partner haette nutzen koennen.
     pub synergy_available: u32,
+    /// Ob der Spieler das Wettrennen gewonnen hat (Baustein 4; Issue #639).
+    ///
+    /// # Warum das Feld gebraucht wird
+    ///
+    /// `race_won` wurde in `fight.rs` vollstaendig gefuehrt — Feld, Init,
+    /// Reset, Setzen — und **nirgends verglichen**. Weder stand es im
+    /// `ReplayResult` noch in der Pruefsumme (dort liegen `raceOpen`,
+    /// `raceProgress` und `damageLostToRace`, aber nicht dieses Feld).
+    ///
+    /// **Gemessen, nicht vermutet:** Wird `race_won` in `fight.rs` auf `false`
+    /// festgenagelt, bleiben 598 von 598 Rust-Faellen gruen. Die Vermutung, es
+    /// sei ueber `race_ends_at` indirekt gekoppelt — beide werden in derselben
+    /// Zeile gesetzt —, ist damit widerlegt: Der Zeitpunkt bleibt gleich, nur
+    /// die Antwort auf den Baustein verschwindet.
+    ///
+    /// Eine Bit-Paritaet, die alles vergleicht ausser der Frage, wie der Kampf
+    /// fuer diesen Baustein ausging, laesst genau die Aussage offen, um
+    /// derentwillen der Baustein existiert.
+    pub race_won: bool,
     /// Pruefsumme je Takt. Nur gefuellt, wenn ausdruecklich verlangt.
     pub checksums: Vec<u32>,
     /// Ziehungen aus den Zufallsstroemen.

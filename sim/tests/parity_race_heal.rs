@@ -183,3 +183,43 @@ fn ac5_ein_boss_ohne_die_felder_bleibt_unberuehrt() {
     assert!(boss.race.is_none());
     assert!(boss.boss_heal.is_none());
 }
+
+/// Die Antwort auf Baustein 4 wird VERGLICHEN, nicht nur gefuehrt (Issue #639).
+///
+/// # Was vorher fehlte
+///
+/// `race_won` stand in `fight.rs` vollstaendig — Feld, Init, Reset, Setzen —
+/// und wurde nirgends geprueft. Nicht im `ReplayResult`, nicht in der
+/// Pruefsumme (dort liegen `raceOpen`, `raceProgress` und `damageLostToRace`).
+///
+/// **Gemessen:** Nagelt man `race_won` in `fight.rs` auf `false` fest, bleiben
+/// **598 von 598** Rust-Faellen gruen. Die naheliegende Vermutung, das Feld sei
+/// ueber `race_ends_at` indirekt gedeckt — beide werden in derselben Zeile
+/// gesetzt —, ist damit widerlegt: Der Zeitpunkt bleibt gleich, nur die
+/// Antwort auf den Baustein verschwindet.
+///
+/// Auf der Spielseite steht `raceWon` seit #638 im `ReplayResult` und in der
+/// `expected`-Sektion dieser Aufzeichnung. Die TS-Seite war abrufbar und
+/// geprueft; die Rust-Seite rechnete den Wert und warf ihn weg.
+#[test]
+fn ac6_das_wettrennen_hat_auf_beiden_seiten_denselben_ausgang() {
+    let json = data();
+    let result = replay(&json);
+    let expected = &json["expected"];
+
+    assert_eq!(
+        result.race_won,
+        expected["raceWon"].as_bool().expect("raceWon"),
+        "die beiden Seiten sind sich nicht einig, ob das Wettrennen gewonnen wurde"
+    );
+
+    // **Die Zusicherung, die den Fall vor sich selbst schuetzt.** Stuende hier
+    // `false`, waere der Vergleich oben zwei Mal derselbe Anfangswert: Das Feld
+    // startet auf `false` und wird nur beim Erreichen der Schwelle gesetzt. Ein
+    // Lauf, der die Schwelle nie erreicht, belegt nichts ueber das Setzen.
+    assert!(
+        result.race_won,
+        "in diesem Lauf schlaegt race_won gar nicht um — dann prueft der \
+         Vergleich darueber nur den Anfangswert"
+    );
+}
