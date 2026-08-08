@@ -130,11 +130,36 @@ describe('stack — der Stapel-Wert steigt, die Stapelzahl nicht', () => {
 });
 
 describe('Die Trennung über Kreuz — vier Speicher, vier Größen', () => {
-  it('keine der vier Verstärkungen berührt den Schadens-Faktor', () => {
-    // **Sonst wäre die ganze Konstruktion umsonst.** Alle vier tragen
-    // `kind: 0` — in einem gemeinsamen Speicher würden sie einander und den
-    // Schadens-Buff verdrängen.
-    for (const id of ['test-control', 'test-heat', 'test-tick', 'test-stack']) {
+  /**
+   * **Auch dieser Fall zählte vier Namen auf** (Issue #660).
+   *
+   * Er stand zwei Zeilen über dem Fenstersummen-Fall, den ich beim selben
+   * Anlass umgebaut habe — und ich habe ihn dabei übersehen. Dieselbe Klasse,
+   * dieselbe Datei, ein paar Zeilen weiter oben.
+   *
+   * Gemessen, was er dadurch nicht sieht: `capBuffs` mit dem Schadens-Speicher
+   * zusammengelegt (`capBuffs = this.buffs`) färbt `buff-in-combat.test.ts`,
+   * `checksum-sees-buffs.test.ts` und `slag.test.ts` — aber **nicht diesen
+   * Fall**, obwohl genau er die Trennung behauptet.
+   *
+   * Die Sache war also gedeckt, nur nicht von der Prüfung, die dafür gedacht
+   * ist. Die Schleife liest die Prüf-Zauber deshalb aus dem Datensatz, wie
+   * der Fall darunter.
+   */
+  it('KEINE Verstärkung auf eine andere Größe berührt den Schadens-Faktor', () => {
+    // **Sonst wäre die ganze Konstruktion umsonst.** Alle tragen `kind: 0` —
+    // in einem gemeinsamen Speicher würden sie einander und den Schadens-Buff
+    // verdrängen.
+    const andere = CALCINATION.value.spells
+      .filter((s) => s.unlockLevel > 100 && s.buff?.target !== undefined)
+      .map((s) => s.id);
+
+    // **Die Zusicherung vor der Messung.** `test-buff` fällt hier heraus, weil
+    // er kein `target` trägt und den Schadens-Faktor bewegen SOLL — die
+    // Gegenprobe darunter misst ihn. Bleiben sieben.
+    expect(andere.length, 'die Prüf-Zauber mit eigener Zielgröße fehlen').toBe(7);
+
+    for (const id of andere) {
       const c = mitVerstaerkung(id);
       expect(c.damageFactors.buffs, `${id} hat den Schadens-Faktor bewegt`).toBe(1);
     }
