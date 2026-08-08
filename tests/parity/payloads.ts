@@ -753,8 +753,12 @@ export function bossStatePayload(): Record<string, unknown> {
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
       finalPlayerHp: combat.playerHp,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Der Wert stand
+      // hier direkt neben `result.checksums` — dieselbe Zeile, zwei Quellen.
+      // Wer aus `combat` liest, umgeht genau den Pfad, den die Aufzeichnung
+      // absichern soll: `replayRecording` ist das, was die Rust-Seite nachbaut.
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
     checksums: result.checksums,
@@ -1483,12 +1487,16 @@ export function castTimePayload(): Record<string, unknown> {
       rejected: result.rejected,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      castsInterrupted: combat.castsInterrupted,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637) — die Leitung
+      // lag hier ungenutzt, `result` steht zwei Zeilen darüber.
+      castsInterrupted: result.castsInterrupted,
       // Seit der Umkehrung vom 2026-08-05 gibt es zwei Abbruch-Arten
       // (GAME-DESIGN 7.1). Beide Zahlen stehen hier, weil eine Prüfsumme sie
       // nicht führt: Zwei Umsetzungen können bei gleicher Summe verschieden
       // oft abgebrochen haben, solange sich die Unterschiede aufheben.
-      castsCancelled: combat.castsCancelled,
+      castsCancelled: result.castsCancelled,
+      // `testCastCasts` BLEIBT bei `combat`: Das Ergebnis führt die Zahl je
+      // Zauber nicht, nur die Summe. Kein Versehen, sondern eine Grenze.
       testCastCasts: combat.castCount(combat.indexOf('test-cast')),
     },
     checksums: result.checksums,
@@ -1567,8 +1575,11 @@ export function trialBlocksPayload(): Record<string, unknown> {
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      afflictionsCleared: combat.afflictionsCleared,
-      cycle: combat.cycle,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Diese zwei
+      // waren die letzten in einem Block, dessen sechs Nachbarn schon aus
+      // `result` lasen — die Leitung lag da, sie wurde nur nicht benutzt.
+      afflictionsCleared: result.afflictionsCleared,
+      cycle: result.cycle,
     },
     checksums: result.checksums,
     afflicted: geschwaecht,
