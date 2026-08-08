@@ -2793,7 +2793,8 @@ impl Fight {
         if doom.amount == 0 {
             return 0;
         }
-        let genau = f64::from(doom.clear_amount) / f64::from(doom.amount) * f64::from(doom.per_step_ms);
+        let genau =
+            f64::from(doom.clear_amount) / f64::from(doom.amount) * f64::from(doom.per_step_ms);
         genau.round() as Millis
     }
 
