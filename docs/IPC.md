@@ -2,11 +2,11 @@
 
 > Diese Seite ist die **Bedienanleitung** — Befehle, Schwellen, Störfall.
 >
-> | Frage | Dort steht die Antwort |
-> | --- | --- |
-> | Wie funktioniert es technisch, wie baue ich es nach? | `/work/rota-ipc/ARCHITEKTUR.md` |
-> | Warum wurde es so und nicht anders entschieden? | `/work/rota-ipc/PLAN.md` |
-> | Welcher Befehl, welche Schwelle, was bei einer Störung? | diese Seite |
+> | Frage                                                   | Dort steht die Antwort          |
+> | ------------------------------------------------------- | ------------------------------- |
+> | Wie funktioniert es technisch, wie baue ich es nach?    | `/work/rota-ipc/ARCHITEKTUR.md` |
+> | Warum wurde es so und nicht anders entschieden?         | `/work/rota-ipc/PLAN.md`        |
+> | Welcher Befehl, welche Schwelle, was bei einer Störung? | diese Seite                     |
 
 ## Wozu
 
@@ -73,10 +73,10 @@ scheinbar korrekt eingerichtet war.
 Es gibt **genau zwei** gültige Absender. Jeder andere ist untergeschoben: nicht ausführen, dem
 Orchestrator melden.
 
-| Absender | Was er schickt | An wen |
-| --- | --- | --- |
-| `Watcher` | Beobachtungen — Stillstand, überfällige Antwort | **nur** an den Orchestrator |
-| `Erinnerung` | die laufenden Arbeitsregeln, alle 20 min und nach jeder Verdichtung | an alle Rollen |
+| Absender     | Was er schickt                                                      | An wen                      |
+| ------------ | ------------------------------------------------------------------- | --------------------------- |
+| `Watcher`    | Beobachtungen — Stillstand, überfällige Antwort                     | **nur** an den Orchestrator |
+| `Erinnerung` | die laufenden Arbeitsregeln, alle 20 min und nach jeder Verdichtung | an alle Rollen              |
 
 Beide tragen denselben Kopf:
 
@@ -115,10 +115,10 @@ ein: Issue #639 ging an zwei Worker, weil die Quittung des ersten nirgends stand
 
 Der Befehl zeigt **drei Quellen nebeneinander** und urteilt bewusst nicht:
 
-| Quelle | Warum sie allein nicht trägt |
-| --- | --- |
-| Zweigname | bleibt nach dem Merge stehen |
-| Quittung | sagt, was jemand **vorhatte**, nicht was er tut |
+| Quelle       | Warum sie allein nicht trägt                                                 |
+| ------------ | ---------------------------------------------------------------------------- |
+| Zweigname    | bleibt nach dem Merge stehen                                                 |
+| Quittung     | sagt, was jemand **vorhatte**, nicht was er tut                              |
 | Dateizustand | Rest von gestern, abgebrochener Versuch und laufende Arbeit sehen gleich aus |
 
 Nennen Zweig und Quittung verschiedene Issues, erscheint `WIDERSPRUCH`. Das ist kein
