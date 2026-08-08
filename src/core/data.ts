@@ -227,6 +227,30 @@ export interface SpellDef {
    * `triggersGcd: false` in denselben Daten.
    */
   readonly interrupt?: boolean;
+  /**
+   * Ob der Zauber den Verhängnis-Zähler senkt (Baustein 2; Issue #561).
+   *
+   * # Warum es dieses Feld geben muss
+   *
+   * `Combat.clearDoom()` gibt es seit #216 — und **kein Zauber rief es**.
+   * GAME-DESIGN 11.2 beschreibt Baustein 2 als „Zurücksetzen nur über eine
+   * begrenzt verfügbare Handlung"; ohne eine Taste dafür war der Zähler eine
+   * Uhr, die abläuft, und `boss-1-2` damit unschaffbar.
+   *
+   * # Wie viel gesenkt wird, sagt der BOSS
+   *
+   * `clearAmount` steht in seinen Daten, nicht hier — derselbe Aufbau wie bei
+   * `bossHeal.amount`. Ein Zauber, der überall gleich viel senkte, machte den
+   * Baustein an jedem Boss gleich stark; so entscheidet der Boss, was seine
+   * Handlung wert ist.
+   *
+   * # Die Begrenzung ist die Abklingzeit, nicht ein Vorrat
+   *
+   * Entschieden am 2026-08-08: Die Ladungen laden nach, gebremst wird über
+   * `cooldownMs`. Ein fester Vorrat hätte bei jedem neuen Boss von Hand passen
+   * müssen — zu wenig heißt unschaffbar, zu viel heißt Kulisse.
+   */
+  readonly clearsDoom?: boolean;
   /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
   readonly shield?: ShieldDef;
   /** Heilung, falls der Zauber eine ist (Weg 2). */
@@ -1249,6 +1273,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   const resourceGain = isRecord(raw['resourceGain']) ? gains(raw['resourceGain']) : undefined;
 
   const unterbricht = raw['interrupt'] === true;
+  const senktVerhaengnis = raw['clearsDoom'] === true;
   if (unterbricht && raw['triggersGcd'] !== false) {
     // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
     // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
@@ -1336,6 +1361,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // Fehlt es, ist der Zauber schulunabhängig — nicht fehlerhaft.
     school: typeof raw['school'] === 'string' ? raw['school'] : null,
     interrupt: unterbricht,
+    clearsDoom: senktVerhaengnis,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
     ...parsePutrefaction(raw, where, problems),

@@ -11,6 +11,17 @@
       "castTimeMs": 0,
       "triggersGcd": false,
       "interrupt": true
+    },
+    {
+      "id": "purge",
+      "name": "Purge",
+      "_comment": "SENKT DEN VERHAENGNIS-ZAEHLER (Baustein 2, Issue #561). Entschieden am 2026-08-08: schulunabhaengig, weil der Zauberkasten im Draft mit gelenktem Zufall entsteht — haenge die Senkung an einer Schule, sperrt der Draft boss-1-2 aus, und ein Boss, den ein Wuerfelwurf unspielbar macht, ist kein Boss. Das kostet Schulcharakter; der Tausch ist bewusst. MIT GCD, anders als quench: Der GCD haengt am ZAUBER, nicht an der Wirkung (ein Tastendruck, eine Aktion). Waere quench erweitert worden, haette das entweder den Unterbrecher verteuert oder die Senkung gratis gemacht — beides verworfen. WIE VIEL gesenkt wird, sagt der BOSS (clearAmount), nicht dieser Zauber. DIE BEGRENZUNG IST DIE NACHLADEZEIT DER LADUNG, nicht diese Abklingzeit. Sie wird ABGELEITET: clearAmount/amount*perStepMs, bei boss-1-2 also 40/6*1000 = 6667 ms — genau die Zeit, in der der Zaehler um clearAmount steigt. Eine Zahl, die aus dem Gleichgewicht folgt, gilt fuer JEDEN doom-Boss und kann nicht vergessen werden; ein eigenes Datenfeld haette bei jedem neuen von Hand passen muessen. DIESE 5000 MS BINDEN BEWUSST NICHT. Gemessen ueber sechs Werte: 3000 und 5000 liefern identische Zahlen (8 Senkungen, 5168 Schaden), weil die Ladung laenger fehlt als die Abklingzeit dauert. Ab 6667 binden ZWEI Groessen, und die schlechtere gewinnt: bei 7500 sind es nur noch 7 Senkungen und 5120 Schaden. Ab 10000 stirbt der Spieler. Der Wert bleibt unter 6667, damit das System genau EINE Grenze hat. Ein Vorrat haette bei jedem neuen doom-Boss von Hand passen muessen: zu wenig unschaffbar, zu viel Kulisse.",
+      "unlockLevel": 1,
+      "baseDamage": 0,
+      "cooldownMs": 5000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "clearsDoom": true
     }
   ]
 }
