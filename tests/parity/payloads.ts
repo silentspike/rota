@@ -3011,6 +3011,17 @@ export function timelineLoopPayload(): Record<string, unknown> {
     timelineIndex.push(combat.timelineIndex);
   }
 
+  const timelineBindungen = TIMELINE_LOOP_BINDINGS.map((b) => ({
+    slot: b.slot,
+    spellId: b.spellId,
+  }));
+
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht.
+  const result = replayRecording(
+    { name: TIMELINE_LOOP_NAME, seed: 0, ticks, presses, bindings: timelineBindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: TIMELINE_LOOP_NAME,
@@ -3019,16 +3030,17 @@ export function timelineLoopPayload(): Record<string, unknown> {
     tickMs: TICK_MS,
     timelineLoopMs: boss.timelineLoopMs,
     timelineLength: boss.timeline.length,
-    bindings: TIMELINE_LOOP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: timelineBindungen,
     presses,
     checksums,
     /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
     timelineIndex,
     expected: {
+      // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
       damageDealt: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      damageTaken: result.damageTaken,
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
       finalTimelineIndex: combat.timelineIndex,
       finalPlayerHp: combat.playerHp,
     },
