@@ -753,8 +753,12 @@ export function bossStatePayload(): Record<string, unknown> {
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
       finalPlayerHp: combat.playerHp,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Der Wert stand
+      // hier direkt neben `result.checksums` — dieselbe Zeile, zwei Quellen.
+      // Wer aus `combat` liest, umgeht genau den Pfad, den die Aufzeichnung
+      // absichern soll: `replayRecording` ist das, was die Rust-Seite nachbaut.
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
     checksums: result.checksums,
@@ -1094,6 +1098,70 @@ export function raceHealPayload(): Record<string, unknown> {
     raceProgress: geladen,
     damageLostToRace: verloren,
     bossHealed: geheilt,
+  };
+}
+
+export const RACE_LOST_NAME = 'race-lost';
+
+/**
+ * Das VERLORENE Wettrennen (Issue #651).
+ *
+ * # Warum es diese zweite Aufzeichnung braucht
+ *
+ * Seit #648 wird `race_won` zwischen beiden Seiten verglichen — aber nur in
+ * **einer** Richtung. `race-heal` ist die einzige Aufzeichnung, die `raceWon`
+ * führt, und dort steht `true`. Der verlorene Pfad wurde von keiner berührt:
+ * Liefen die Seiten dort auseinander, meldete es nichts.
+ *
+ * # Der Unterschied, auf den es ankommt
+ *
+ * Ein Lauf, in dem **niemand drückt**, ergibt ebenfalls `raceWon: false` — aber
+ * aus dem falschen Grund. Dort findet das Rennen gar nicht statt, das Fenster
+ * läuft leer, und der Vergleich belegte nichts über das Verlieren.
+ *
+ * Gemessen ist der Unterschied `damageLostToRace`:
+ *
+ * ```text
+ *   raceWon=false, damageLostToRace=0    das Rennen fand NICHT statt
+ *   raceWon=false, damageLostToRace>0    es fand statt und ging verloren
+ * ```
+ *
+ * `boss-1-4` verlangt 900 im Fenster von 6 s; dieselbe gute Rotation, die bei
+ * `test-racer` (Schwelle 300) gewinnt, schafft hier 400. Der Rust-Prüffall
+ * verlangt beides: `raceWon` gleich **und** `damageLostToRace > 0`.
+ */
+export function raceLostPayload(): Record<string, unknown> {
+  const recording = recordings().get(RACE_LOST_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${RACE_LOST_NAME}`);
+  const boss = bossById('boss-1-4');
+  if (boss === undefined) throw new Error('Der Boss boss-1-4 fehlt.');
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: STEP1_BINDINGS.map((binding) => ({ slot: binding.slot, spellId: binding.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      race: boss.race,
+    },
+    expected: {
+      damage: result.damage,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      // Die beiden Größen, um die es geht — beide über `result`, also über den
+      // Weg, den ein Werkzeug nimmt (Guide 8.70).
+      raceWon: result.raceWon,
+      damageLostToRace: result.damageLostToRace,
+    },
+    checksums: result.checksums,
   };
 }
 
@@ -1483,12 +1551,16 @@ export function castTimePayload(): Record<string, unknown> {
       rejected: result.rejected,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      castsInterrupted: combat.castsInterrupted,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637) — die Leitung
+      // lag hier ungenutzt, `result` steht zwei Zeilen darüber.
+      castsInterrupted: result.castsInterrupted,
       // Seit der Umkehrung vom 2026-08-05 gibt es zwei Abbruch-Arten
       // (GAME-DESIGN 7.1). Beide Zahlen stehen hier, weil eine Prüfsumme sie
       // nicht führt: Zwei Umsetzungen können bei gleicher Summe verschieden
       // oft abgebrochen haben, solange sich die Unterschiede aufheben.
-      castsCancelled: combat.castsCancelled,
+      castsCancelled: result.castsCancelled,
+      // `testCastCasts` BLEIBT bei `combat`: Das Ergebnis führt die Zahl je
+      // Zauber nicht, nur die Summe. Kein Versehen, sondern eine Grenze.
       testCastCasts: combat.castCount(combat.indexOf('test-cast')),
     },
     checksums: result.checksums,
@@ -1567,8 +1639,11 @@ export function trialBlocksPayload(): Record<string, unknown> {
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      afflictionsCleared: combat.afflictionsCleared,
-      cycle: combat.cycle,
+      // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Diese zwei
+      // waren die letzten in einem Block, dessen sechs Nachbarn schon aus
+      // `result` lasen — die Leitung lag da, sie wurde nur nicht benutzt.
+      afflictionsCleared: result.afflictionsCleared,
+      cycle: result.cycle,
     },
     checksums: result.checksums,
     afflicted: geschwaecht,
@@ -5512,6 +5587,149 @@ export function capStapelungPayload(): Record<string, unknown> {
       accepted: result.accepted,
       rejected: result.rejected,
       casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+export const TICK_RUNDUNG_NAME = 'tick-rundung';
+
+const TICK_RUNDUNG_BINDINGS = [
+  { slot: 0, spellId: 'test-tick' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'cinder' },
+  { slot: 3, spellId: 'kindle' },
+] as const;
+
+/**
+ * Der Tick-Abstand unter Verstärkung UND Tempo (Issue #640).
+ *
+ * # Die einzige Zielgröße, deren Faktor TEILT
+ *
+ * Bei Punktegewinn, Hitze-Aufbau und Stapel-Wert multipliziert der Faktor.
+ * Bei `tick` teilt er den ABSTAND — ein Faktor 2 heißt „doppelt so oft", nicht
+ * „halb so oft". `combat.ts` trägt dazu einen ausdrücklichen Warnkommentar.
+ *
+ * **Und es war die einzige Zielgröße ohne Träger in einer Aufzeichnung.**
+ * Gemessen am 2026-08-07 über alle Aufzeichnungen: Die sieben anderen Ziele
+ * werden von `test-buff`, GRIPLOCK, FLASHPOINT, VIRULENCE, DISTIL,
+ * QUICKSILVER und SLAG gefahren; `test-tick` ist alleiniger Träger seines
+ * Ziels und wurde nie gedrückt. Jede Seite hatte einen eigenen Wächter, und
+ * beide prüften die RICHTUNG:
+ *
+ * ```ts
+ * expect(b.length, 'die Ticks werden nicht dichter').toBeGreaterThan(a.length)
+ * ```
+ *
+ * Eine Richtung hat zwei Werte, eine Rundung hat viele.
+ *
+ * # Warum diese Aufzeichnung Ausrüstung trägt
+ *
+ * `dotInterval` kombiniert DREI Dinge — den Buff-Faktor, eine Rundung und
+ * `hasted()`:
+ *
+ * ```ts
+ * const abstand = faktor === 1 ? dot.tickIntervalMs : Math.round(dot.tickIntervalMs / faktor);
+ * return this.hasted(abstand);
+ * ```
+ *
+ * Ohne Tempo gibt `hasted` seinen Wert unverändert zurück (`hastedMs`,
+ * `permille === 0`) — dann ist die REIHENFOLGE der beiden Rechenschritte
+ * folgenlos, und ein Lauf ohne Ausrüstung könnte sie nicht prüfen. Mit
+ * `catalysis: 170` trennt sie sich: erst teilen, dann tempo-rechnen ergibt
+ * einen anderen Wert als umgekehrt, weil `hastedMs` intern abrundet und aufs
+ * Takt-Raster aufrastet.
+ */
+function recordTickRundung(ticks: number): Recording {
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss: FIRST_CRUCIBLE.value,
+    worn: WORN_FOR_PARITY,
+  });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, TICK_RUNDUNG_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // **Die DoTs unmittelbar nach der Verstärkung**, nicht hinten angehängt.
+  // Das Fenster von `test-tick` hält drei Wartezeiten; die Ticks darin liegen
+  // dichter, die danach wieder normal — beide Abschnitte stehen damit in
+  // derselben Aufzeichnung.
+  //
+  // **ZWEI DoTs, und jeder trägt eine andere Gegenprobe** (Issue #640).
+  // Gemessen mit der echten `hastedMs` bei `catalysis: 170`:
+  //
+  // ```text
+  //            Intervall  Bestand  Rundung   Reihenfolge
+  //   SMOULDER      2000     1230     1220          1221
+  //   CINDER        1000      610      610           614
+  // ```
+  //
+  // Bei SMOULDER trennt die RUNDUNG (1230 gegen 1220), bei CINDER nicht —
+  // `round(1000/1.4)` und `floor(1000/1.4)` sind beide 714. Dafür trennt bei
+  // CINDER die REIHENFOLGE deutlicher, und sein kurzes Intervall lässt
+  // mehrere verstärkte Ticks ins Fenster fallen. Mit nur einem Tick fielen
+  // beide Varianten auf denselben 10-ms-Takt und die Aufzeichnung wäre grün
+  // gewesen, ohne etwas zu unterscheiden.
+  const kette = ['test-tick', 'smoulder', 'cinder'];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    const stelle = Math.floor(timeMs / 1500);
+    const id = stelle < kette.length ? kette[stelle] : 'kindle';
+    const i = idx(id as string);
+    if (combat.isOffCooldown(i, timeMs)) press(i, tick, timeMs);
+  }
+
+  return { name: TICK_RUNDUNG_NAME, seed: 0, ticks, presses, bindings: TICK_RUNDUNG_BINDINGS };
+}
+
+export function tickRundungPayload(): Record<string, unknown> {
+  const recording = recordTickRundung(1500);
+  const result = replayRecording(recording, { checksumPerTick: true, worn: WORN_FOR_PARITY });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    worn: {
+      catalysis: WORN_FOR_PARITY.catalysis,
+      purity: WORN_FOR_PARITY.purity,
+      yieldBonus: WORN_FOR_PARITY.yieldBonus,
+      essence: WORN_FOR_PARITY.essence,
+      vessel: WORN_FOR_PARITY.vessel,
+      ward: WORN_FOR_PARITY.ward,
+      // **Nicht weglassen.** Der Rust-Leser holt alle sieben Felder mit
+      // `expect("worn-Feld fehlt")`; ein fehlendes bricht dort, nicht hier.
+      gearEffects: WORN_FOR_PARITY.gearEffects,
+    },
+    bindings: TICK_RUNDUNG_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      // **Die Zahl, an der AC2 hängt, steht in `damage`.** SMOULDERs Beitrag
+      // ist `tickDamage` mal Tickzahl, und die Tickzahl ist die Dauer geteilt
+      // durch den ABSTAND. Eine andere Rundung oder eine vertauschte
+      // Reihenfolge bewegt sie — und damit die Gesamtsumme.
+      //
+      // Ein Feld je Zauber gibt es im `ReplayResult` nicht (39 Felder,
+      // nachgeschlagen statt geraten); `damage` trägt die Aussage, weil die
+      // übrigen Beiträge in dieser Aufzeichnung fest sind.
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
     },

@@ -156,6 +156,24 @@ describe('Die Trennung über Kreuz — vier Speicher, vier Größen', () => {
   });
 });
 
+/**
+ * **Die Grenze dieses Abschnitts: er prüft die RICHTUNG, nicht die Zahl**
+ * (Issue #640).
+ *
+ * `toBeGreaterThan(a.length)` sagt „dichter als ohne". Eine Richtung hat zwei
+ * Werte, eine Rundung hat viele — welcher Abstand herauskommt, steht hier
+ * nirgends. `dotInterval` verrechnet aber drei Dinge: den Buff-Faktor, eine
+ * Rundung und `hasted()`.
+ *
+ * Bis #640 hatte jede Seite genau so einen Richtungs-Wächter (hier und
+ * `sim/tests/buff_wirkung.rs`, `tick_wirkt`) und **kein Paritäts-Fall verglich
+ * die Zahlen** — `tick` war die einzige Zielgröße ohne Träger in einer
+ * Aufzeichnung. Die Zahl steht jetzt in `tests/parity/recordings/tick-rundung.json`
+ * und wird Takt für Takt gegen den Simulator geprüft.
+ *
+ * Dieser Abschnitt bleibt trotzdem: Er ist die Diagnose. Wird er rot und der
+ * Paritäts-Fall nicht, hat sich die Wirkung geändert und nicht der Gleichlauf.
+ */
 describe('tick — die Ticks werden dichter, der Tick-Schaden bleibt', () => {
   /**
    * Zeichnet die Sprünge im ausgeteilten Schaden auf: wann ein Tick fiel und
@@ -178,14 +196,32 @@ describe('tick — die Ticks werden dichter, der Tick-Schaden bleibt', () => {
     return hoehen;
   }
 
+  /**
+   * **Das Fenster endet bei 4600, nicht mehr bei 4400** (Issue #640).
+   *
+   * `test-tick` trug bis dahin Faktor 2.0 — damit lagen die verstärkten Ticks
+   * bei 2600/3600/4600 und der Vorsprung war schon bei 4400 sichtbar. Der
+   * Faktor musste auf 1.4 wechseln, weil `2000 / 2.0` exakt aufgeht und damit
+   * JEDE Rechenweise auf denselben Wert kam (Begründung in `test-buff.json`).
+   *
+   * Mit 1.4 ist der Abstand 1429 statt 1000, und der zweite verstärkte Tick
+   * fällt auf 4458 — vier Zehntelsekunden hinter dem alten Fensterende. Der
+   * Fall maß danach 1 gegen 1 und wurde rot, ohne dass an der Wirkung etwas
+   * falsch war.
+   *
+   * 4600 liegt hinter dem Fenster der Verstärkung (drei Wartezeiten, 4500 ms).
+   * Weiter zu messen brächte nichts: Danach gilt wieder der volle Abstand, und
+   * die Zahlen glichen sich an — bis 8000 ms käme beides auf drei Ticks. Der
+   * Unterschied lebt IM Fenster, und genau dort endet die Messung.
+   */
   it('SMOULDER tickt öfter, und jeder Tick trägt dasselbe', () => {
     const ohne = ohneVerstaerkung();
     ohne.cast(ohne.indexOf('smoulder'), 1600);
-    const a = sprunge(ohne, 1610, 4400);
+    const a = sprunge(ohne, 1610, 4600);
 
     const mit = mitVerstaerkung('test-tick');
     mit.cast(mit.indexOf('smoulder'), 1600);
-    const b = sprunge(mit, 1610, 4400);
+    const b = sprunge(mit, 1610, 4600);
 
     expect(a.length, 'ohne Verstärkung tickt nichts — dann misst der Fall nichts').toBeGreaterThan(
       0,
