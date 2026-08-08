@@ -103,7 +103,26 @@ rota-ipc senden <Rolle> "<Text>"      # neue Nachricht
 rota-ipc antworten <Nummer> "<Text>"  # Antwort auf eine Nachricht
 rota-ipc offen                        # was noch unbeantwortet ist
 rota-ipc rollen                       # alle Rollen mit Lebendprüfung
+rota-ipc zuteilungen                  # wer arbeitet woran (Orchestrator)
 ```
+
+### `zuteilungen` — die Lücke, die aus der Bestätigungspflicht folgt
+
+Sobald ein Worker quittiert, gilt die Nachricht als beantwortet und verschwindet aus
+`offen` — **genau in dem Moment, in dem die Arbeit beginnt.** Am 2026-08-08 gemessen:
+53 bestätigte Zuteilungen, keine davon irgendwo sichtbar. Die Folge trat am selben Tag
+ein: Issue #639 ging an zwei Worker, weil die Quittung des ersten nirgends stand.
+
+Der Befehl zeigt **drei Quellen nebeneinander** und urteilt bewusst nicht:
+
+| Quelle | Warum sie allein nicht trägt |
+| --- | --- |
+| Zweigname | bleibt nach dem Merge stehen |
+| Quittung | sagt, was jemand **vorhatte**, nicht was er tut |
+| Dateizustand | Rest von gestern, abgebrochener Versuch und laufende Arbeit sehen gleich aus |
+
+Nennen Zweig und Quittung verschiedene Issues, erscheint `WIDERSPRUCH`. Das ist kein
+Werkzeugfehler — es ist die Aufforderung, nachzufragen oder den Diff zu messen.
 
 Langer Text über die Standardeingabe:
 
