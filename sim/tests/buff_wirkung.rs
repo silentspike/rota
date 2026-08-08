@@ -213,6 +213,15 @@ wirkt!(
 //
 // Dieser Fall bleibt als Diagnose: Wird er rot und der Paritaets-Fall nicht,
 // hat sich die Wirkung geaendert und nicht der Gleichlauf.
+// **200 -> 160, weil `test-tick` jetzt Faktor 1.4 traegt statt 2.0**
+// (Issue #640). Der alte Wert gehoerte zu einem Faktor, mit dem die Teilung
+// exakt aufging — und genau deshalb konnte die Paritaet weder eine andere
+// Rundung noch eine vertauschte Reihenfolge sehen. Die Begruendung fuer 1.4
+// steht in `data/spells/test-buff.json`.
+//
+// Der Nullpunkt (120) bleibt unberuehrt, und 160 liegt weiterhin deutlich
+// darueber: Der Fall trennt nach wie vor "wirkt" von "wirkt nicht", er misst
+// nur eine kleinere Verstaerkung.
 wirkt!(
     tick_wirkt,
     "test-tick",
@@ -220,7 +229,7 @@ wirkt!(
     900,
     |r: (rota_sim::replay::ReplayResult, u16)| r.0.damage,
     120,
-    200
+    160
 );
 
 wirkt!(
