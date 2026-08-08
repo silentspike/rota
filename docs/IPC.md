@@ -380,8 +380,14 @@ Prüfschritte:
 
 ```bash
 rota-ipc rollen                  # ist die Zielsitzung überhaupt am Leben?
-bash /work/rota-ipc/pruefen.sh   # 66 Prüfungen gegen die Testsitzung
+rota-ipc pruefe                  # Archiv auf Auffälligkeiten — braucht keine Gegenstelle
+bash /work/rota-ipc/pruefen.sh   # Prüflauf gegen eine Testsitzung (derzeit nicht lauffähig)
 ```
+
+`rota-ipc pruefe` sucht Nummernlücken, doppelte Nummern, verwaiste Platzhalter, blind zugestellte
+Nachrichten und lange Unbeantwortetes. Es ändert nichts — ein Befund ist ein Anlass nachzusehen.
+Beim ersten Lauf am 2026-08-08 fand es drei Auffälligkeiten, die seit dem 29.07. unbemerkt
+dalagen; alle folgenlos, aber das wusste bis dahin niemand.
 
 Häufige Fälle:
 
