@@ -1424,7 +1424,7 @@ export function runawayProgressPayload(): Record<string, unknown> {
       killedAtMs: result.killedAtMs,
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
-      finalPlayerDamage: combat.playerDamage,
+      finalPlayerDamage: result.playerDamage,
     },
     checksums: result.checksums,
     ringDamage: ring,
@@ -2040,8 +2040,8 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
       diedAtMs: result.diedAtMs,
       // `damageDealt`/`shieldAbsorbed` heißen im Ergebnis `damage`/`absorbed`
       // — Umbenennungen, siehe #659. `castsX` zählt je Zauber.
-      damageDealt: combat.damageDealt,
-      shieldAbsorbed: combat.shieldAbsorbed,
+      damageDealt: result.damage,
+      shieldAbsorbed: result.absorbed,
       healed: result.healed,
       converted: result.converted,
       castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
@@ -2281,7 +2281,7 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
       // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
       // Die drei `castsX` darüber zählen JE ZAUBER; das Ergebnis führt nur
       // die Gesamtzahl. Beide bleiben bei `combat`.
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       playerHp: combat.playerHp,
       diedAtMs: result.diedAtMs,
       sequenceChecksum: sequence,
@@ -2436,7 +2436,7 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
       finalPhase: combat.bossPhase,
       damageTaken: result.damageTaken,
       // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       sequenceChecksum: sequence,
     },
     checksums,
@@ -2549,9 +2549,9 @@ export function logParityPayload(): Record<string, unknown> {
     expected: {
       // `damageDealt`/`shieldAbsorbed` heißen im Ergebnis `damage`/`absorbed`
       // — Umbenennungen, sie gehören zu #659 und bleiben hier.
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       damageTaken: result.damageTaken,
-      shieldAbsorbed: combat.shieldAbsorbed,
+      shieldAbsorbed: result.absorbed,
       interruptsLanded: result.interruptsLanded,
       healed: result.healed,
       timelineIndex: combat.timelineIndex,
@@ -2984,7 +2984,7 @@ export function phasenPayload(): Record<string, unknown> {
     expected: {
       // `damageDealt` heißt im Ergebnis `damage` — eine Umbenennung, kein
       // gleicher Name. Sie gehört zu #659, nicht hierher.
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       /** Die höchste erreichte Phase — muss über 0 liegen, sonst zeigt der Lauf nichts. */
       hoechstePhase: Math.max(...phase),
       /** Eingesteckter Schaden: mit gebundenem Ereignis höher als ohne. */
@@ -3068,7 +3068,7 @@ export function deckelPayload(): Record<string, unknown> {
     expected: {
       // `damageDealt` heißt im Ergebnis `damage` — eine Umbenennung, keine
       // Namensgleichheit. Sie wartet auf eine Entscheidung und bleibt hier.
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       /** Höchster Vorrat im Lauf — er muss über den Grund-Deckel gekommen sein. */
       hoechsterVorrat: Math.max(...vorrat),
       resourceOverflow: result.resourceOverflow,
@@ -3228,7 +3228,7 @@ export function wispPayload(): Record<string, unknown> {
     /** Restzeit von VAPOUR je Takt — die Größe, die WISP wirklich bewegt. */
     vapourReadyAt,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       // **Diese Zeile hätte ich fast falsch ausgenommen** (Issue #653). Ich
       // hatte sie als „Summe dreier Zauber gegen ein Gesamtfeld" abgetan —
       // aber `ReplayResult.casts` ist kein Zähler, sondern eine Map von
@@ -3319,7 +3319,7 @@ export function timelineLoopPayload(): Record<string, unknown> {
     timelineIndex,
     expected: {
       // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
-      damageDealt: combat.damageDealt,
+      damageDealt: result.damage,
       damageTaken: result.damageTaken,
       interruptsLanded: result.interruptsLanded,
       interruptsMissed: result.interruptsMissed,
