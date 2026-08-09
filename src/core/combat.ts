@@ -652,6 +652,14 @@ export class Combat {
 
   /** Kampfzeit des nächsten Zähler-Schritts. */
   private nextDoomAtMs = 0;
+  /**
+   * Wann die nächste verbrauchte Senkungs-Ladung zurückkommt (Issue #561).
+   *
+   * `0` heißt: keine wartet — der Vorrat ist voll. Der Wert wird beim
+   * Verbrauch gesetzt, nicht beim Aufbau, damit ein Kampf ohne Senkung
+   * denselben Verlauf hat wie vorher.
+   */
+  private nextDoomChargeAtMs = 0;
 
   /** Wie oft die Rücksetz-Handlung noch zur Verfügung steht. */
   private doomChargesValue = 0;
@@ -1321,9 +1329,38 @@ export class Combat {
     const doom = this.boss.doom;
     if (doom === null || this.doomChargesValue <= 0 || this.diedAtMsValue >= 0) return false;
     this.doomChargesValue--;
+    // **Die Uhr läuft ab dem Verbrauch, nicht ab dem Kampfbeginn.** Wer spät
+    // senkt, wartet ab dann — sonst bekäme ein Spieler, der lange nicht
+    // gedrückt hat, seine Ladung sofort zurück und die Wartezeit wäre keine.
+    if (this.nextDoomChargeAtMs === 0)
+      this.nextDoomChargeAtMs = this.nowMsForBuffs + this.rechargeMs();
     const left = this.doomValue - doom.clearAmount;
     this.doomValue = left > 0 ? left : 0;
     return true;
+  }
+
+  /**
+   * Wie lange eine verbrauchte Senkungs-Ladung zum Nachladen braucht
+   * (Issue #561).
+   *
+   * # Warum die Zahl aus den Bossdaten FOLGT statt ein eigenes Feld zu sein
+   *
+   * Sie ist genau die Zeit, in der der Zähler um `clearAmount` steigt — also
+   * so lang, dass eine Ladung nachwächst, während der Schaden nachwächst, den
+   * sie abträgt. Damit ist der Vorrat selbstregulierend: Bei einem Boss, der
+   * schneller lädt, kommen die Ladungen schneller zurück.
+   *
+   * Ein eigenes Datenfeld hätte bei **jedem** neuen `doom`-Boss von Hand
+   * passen müssen — und genau das war der Einwand gegen den festen Vorrat:
+   * zu wenig heißt unschaffbar, zu viel heißt Kulisse. Eine abgeleitete Zahl
+   * kann nicht vergessen werden.
+   *
+   * Bei `boss-1-2` sind das 40/6 × 1000 ms ≈ **6667 ms**.
+   */
+  private rechargeMs(): number {
+    const doom = this.boss.doom;
+    if (doom === null || doom.amount <= 0) return 0;
+    return Math.round((doom.clearAmount / doom.amount) * doom.perStepMs);
   }
 
   /** Wie viel Fortschritt der Spieler zurückgedrängt hat (Baustein 6; #247). */
@@ -2826,7 +2863,33 @@ export class Combat {
     // würden. Ein Zähler, den eine Schutzschicht überlebt, wäre keiner.
     const doom = this.boss.doom;
     if (doom !== null && doom.perStepMs > 0 && this.diedAtMsValue < 0) {
+      // **Verbrauchte Ladungen wachsen nach** (Issue #561). Bis dahin war
+      // `clearCharges` ein Vorrat für den ganzen Kampf: zwei Senkungen à 40
+      // gegen 360 Anstieg — der Zauber wäre wirkungslos gewesen, egal wie oft
+      // man ihn drückt. Die Begrenzung liegt jetzt in der Wartezeit, nicht in
+      // einem Vorrat.
+      //
+      // `clearCharges` bleibt die **Obergrenze**: Mehr als der Boss vorsieht
+      // liegt nie bereit, gespart wird also nicht.
       while (timeMs >= this.nextDoomAtMs) {
+        // **Die Prüfung sitzt IM Doom-Takt, nicht in einer eigenen Uhr.** Die
+        // Rust-Seite ist ereignisbasiert und kommt hier alle `perStepMs`
+        // vorbei; prüfte das Spiel bei jedem Zehntel-Takt, käme die Ladung
+        // dort früher zurück. **Zwei Seiten, die verschieden oft nachladen,
+        // rechnen ab dem ersten Unterschied verschiedenen Schaden** — und das
+        // ist genau die Stelle, an der Umbauten auseinanderlaufen.
+        //
+        // Die Nachladezeit wird damit auf den Takt gerundet: 6667 ms bei
+        // `perStepMs` 1000 heißt, die Ladung kommt beim Tick nach 7000 zurück.
+        if (this.nextDoomChargeAtMs > 0 && this.nextDoomAtMs >= this.nextDoomChargeAtMs) {
+          if (this.doomChargesValue < doom.clearCharges) {
+            this.doomChargesValue++;
+            this.nextDoomChargeAtMs =
+              this.doomChargesValue < doom.clearCharges
+                ? this.nextDoomChargeAtMs + this.rechargeMs()
+                : 0;
+          }
+        }
         this.doomValue += doom.amount;
         this.nextDoomAtMs += doom.perStepMs;
         if (this.doomValue >= doom.threshold) {
@@ -3473,6 +3536,16 @@ export class Combat {
     // hängt, und zwei Stellen laufen auseinander.
     if (spell.interrupt === true) this.interruptBossCast(timeMs);
 
+    // **Das Verhängnis senken** (Baustein 2; Issue #561). Genau dieselbe Bauart
+    // eine Zeile höher: Ob der Zauber es tut, steht in den Daten; WIE VIEL er
+    // senkt, steht beim Boss (`clearAmount`).
+    //
+    // `clearDoom()` gab es seit #216 und niemand rief es. Der Zähler lief voll
+    // und tötete, ohne dass eine Taste dagegen existierte — `boss-1-2` war
+    // damit unschaffbar, und das ist kein Prüffall-Problem, sondern ein
+    // kaputtes Spiel.
+    if (spell.clearsDoom === true) this.clearDoom();
+
     // Die drei Wege der Koagulation (Issue #79). Sie stehen VOR dem Schaden,
     // weil ein Zauber, der beides täte, erst schützen und dann zuschlagen
     // soll — heute ohne Wirkung (keiner macht beides) und deshalb jetzt
@@ -4080,6 +4153,7 @@ export class Combat {
 
     this.doomValue = 0;
     this.doomChargesValue = this.boss.doom?.clearCharges ?? 0;
+    this.nextDoomChargeAtMs = 0;
     this.stacksValue = 0;
 
     this.raceDone = false;

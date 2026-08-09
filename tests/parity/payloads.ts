@@ -775,6 +775,81 @@ export function bossStatePayload(): Record<string, unknown> {
 }
 
 /** Der Prueffall zu Zaehler und exponentiellem Stapel (Issue #216). */
+export const DOOM_PURGE_NAME = 'doom-purge';
+
+/**
+ * Der Verhaengnis-Zaehler, BEDIENT (Issue #561, AC4).
+ *
+ * # Was diese Aufzeichnung belegt, das `doom-stacks` nicht kann
+ *
+ * Dort laeuft der Zaehler voll und toetet — der Lauf zeigt, dass beide Seiten
+ * dasselbe TUN, wenn niemand eingreift. Hier greift jemand ein: `purge` senkt,
+ * die Ladung waechst nach, und beide Seiten muessen denselben Verlauf rechnen.
+ *
+ * # Die Belegung ist eine eigene
+ *
+ * `STEP1_BINDINGS` kennt `purge` nicht. Sie zu erweitern haette jede andere
+ * Aufzeichnung umgedeutet; diese hier bringt ihre eigene mit.
+ *
+ * Die Spuren `doom` und `doomCharges` gehen ohnehin in die Pruefsumme ein —
+ * aber eine abweichende Summe sagt nur, DASS etwas anders ist. Die Spuren
+ * zeigen, ob es der Zaehler oder das Nachladen war.
+ */
+export function doomPurgePayload(): Record<string, unknown> {
+  const recording = recordings().get(DOOM_PURGE_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${DOOM_PURGE_NAME}`);
+  const boss = bossById('test-doomsayer');
+  if (boss === undefined) throw new Error('Der Boss test-doomsayer fehlt.');
+
+  const belegung = [
+    { slot: 0, spellId: 'kindle' },
+    { slot: 4, spellId: 'purge' },
+  ];
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  const zaehler: number[] = [];
+  const ladungen: number[] = [];
+  const checksums: number[] = [];
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (pressIndex < recording.presses.length) {
+      const press = recording.presses[pressIndex];
+      if (press === undefined || press.tick > tick) break;
+      pressIndex++;
+      for (const binding of belegung) {
+        if (binding.slot === press.slot) combat.cast(combat.indexOf(binding.spellId), timeMs);
+      }
+    }
+    zaehler.push(combat.doom);
+    ladungen.push(combat.doomCharges);
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    bossId: boss.id,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: belegung,
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    boss: { hp: boss.hp, overpressureMs: boss.overpressureMs, doom: boss.doom },
+    expected: {
+      damage: combat.damageDealt,
+      diedAtMs: combat.diedAtMs,
+      // Die Zahl, um die es geht: wie oft gesenkt wurde.
+      casts: combat.castCount(combat.indexOf('purge')),
+      finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
+    },
+    checksums,
+    doom: zaehler,
+    doomCharges: ladungen,
+  };
+}
+
 export const DOOM_STACKS_NAME = 'doom-stacks';
 
 /**

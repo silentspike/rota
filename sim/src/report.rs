@@ -118,6 +118,10 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
     }
 
     spell.interrupt
+        // Der Verhaengnis-Senker (Issue #561). Er macht keinen Schaden und
+        // staende sonst dauerhaft als TOT in der Tabelle — genau wie der
+        // Unterbrecher eine Zeile darueber.
+        || spell.clears_doom
         || spell.shield.is_some()
         || spell.heal.is_some()
         || spell.conversion.is_some()
