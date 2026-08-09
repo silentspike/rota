@@ -5699,3 +5699,239 @@ Der Satz des Messenden, und er ist die Regel:
 - **Wer einen Wächter schreibt**, schreibt die Begründung an ihn — aber rechnet damit, dass sie halb
   gelesen wird. Deshalb gehört das Wichtigste in die **Fehlermeldung**, nicht nur in den
   Dateikopf: Was der Lauf ausgibt, sieht jeder; was darüber steht, nur wer nachschlägt.
+
+---
+
+### 8.89 Parität prüft Übereinstimmung, nicht Richtigkeit
+
+Ein Paritäts-Fall vergleicht, ob Spiel und Simulator **dasselbe** rechnen. Er sagt nichts darüber,
+ob das Gemeinsame **richtig** ist. Der Unterschied ist folgenlos, solange niemand die Daten ändert —
+und genau dann wird er teuer.
+
+Gemessen am 2026-08-09 an der Kontroll-Wirkung von `STAY`:
+
+```
+DATEN-Mutation      stay.amountMs 3000 -> 100, danach npm run parity:export
+                    ALLE Rust-Paritätsfälle bleiben grün
+                    (der Export hat den falschen Wert auf beide Seiten getragen)
+
+CODE-Mutation       control.amount / 2 auf der Rust-Seite, Daten unverändert
+                    3 Paritätsfälle rot
+```
+
+**Nach einem `parity:export` kann kein Paritäts-Fall eine falsche Zahl im Datensatz mehr fangen.**
+Beide Seiten lesen dieselbe Datei; die Aufzeichnung wurde mit dem falschen Wert neu geschrieben.
+
+**Was daraus folgt für den Zuschnitt eines Prüffalls:**
+
+| Was geprüft werden soll                  | Womit                                          |
+| ---------------------------------------- | ---------------------------------------------- |
+| Rechnen beide Seiten gleich?             | Paritäts-Aufzeichnung                          |
+| Ist die **Größe** einer Wirkung richtig? | Unit-Fall mit **harter Zahl** auf einer Seite  |
+| Trägt der richtige Zauber die Wirkung?   | Zuordnungs-Liste plus Vollständigkeits-Wächter |
+
+Wer eine Wirkungsgröße absichern will und dafür eine Aufzeichnung baut, hat die Prüfung gebaut, die
+seine eigene Mutation nicht fängt. Das ist am 2026-08-09 passiert: Die Aufzeichnung stand, war grün,
+färbte bei der Code-Mutation mit — und meldete nichts, was zwei bestehende Fälle nicht schon
+meldeten. Sie wurde nach der Messung verworfen.
+
+**Vor dem Bau nach der Deckung suchen.** Ein `grep` nach dem Zaubernamen in `sim/tests/` hätte
+gereicht. An diesem einen Tag wurde viermal gebaut, was schon gedeckt war.
+
+---
+
+### 8.90 Ein grüner Lauf belegt nur, was er angesehen hat
+
+Zwei Schalter, zweimal am selben Tag, beide Male fehlte der Schalter **genau dort, wo die neue
+Arbeit lag**:
+
+```
+cargo test                    bricht nach der ersten roten Suite ab
+cargo test --no-fail-fast     67 statt 97 Ergebniszeilen, 435 statt 605 Tests
+
+cargo clippy                  0 Meldungen — sieht die Testdateien NICHT an
+cargo clippy --all-targets    error: unused import `stack_damage`
+                              in der Datei, die gerade geschrieben wurde
+```
+
+Das ist kein Zufall. Was man gerade geschrieben hat, ist das, was der gewohnte Aufruf am ehesten
+auslässt: bei Mutationsproben die Suiten **hinter** der ersten roten, bei `clippy` die **Testdateien**.
+
+Dazu ein dritter Fall derselben Klasse, aus einer Fehlmessung:
+
+```
+Gezählt wurden Zeilen mit FAILED.
+Bricht der BUILD ab, gibt es keine einzige Testzeile.
+Also: null gezählt, gelesen als "kein Test färbt".
+```
+
+**Ein abgebrochener Build und ein grüner Lauf sehen in dieser Zählung gleich aus.** Ein Issue ruhte
+zwei Tage auf dieser Null.
+
+**Die Regel:**
+
+> Fahre den Befehl, den die CI benutzt — nicht den, den du gewohnt bist.
+> `.github/workflows/ci.yml` ist die Quelle.
+
+Und zähle die **Suiten**, nicht die `FAILED`-Zeilen. Eine Suitenzahl, die kleiner ist als sonst,
+zeigt einen Abbruch; eine Zeilenzahl von null zeigt ihn nicht.
+
+---
+
+### 8.91 Ein roter Test beweist nicht, dass der Code falsch ist
+
+Der gefährlichste Moment beim Prüffall-Bauen ist der, in dem der neue Fall rot wird und man ihn
+für einen Fund hält. Er kann auch heißen, dass der **Fall** falsch misst — und dann repariert man
+Code, der in Ordnung war, bis der falsche Fall grün ist. Was danach festgenagelt ist, stimmt nicht.
+
+Am 2026-08-09 ist das beim Bau eines Prüffalls **zweimal hintereinander** passiert:
+
+```
+1.  toArray() liefert die Ereignisart als NAMEN, nicht als Zahl.
+    Der Vergleich gegen die Konstante (die 8) fand nichts — drei Fälle rot,
+    obwohl der Einbau stimmte.
+
+2.  Der Log führt den ANGEKOMMENEN Schaden, nicht den Rohwert.
+    Der Vergleich gegen onTrigger.damage (200) fand null Treffer, weil
+    Rüstung und Widerstände dazwischenliegen.
+```
+
+Beide Male sah es nach einem Befund aus. Beide Male war der Code richtig.
+
+**Was gerettet hat, war keine weitere Annahme, sondern eine Wegwerf-Probe**, die nur ausgab, was
+tatsächlich dasteht:
+
+```
+{"bossTimelineFired":3,"playerDamage":7,"bossEnergyTriggered":4}  t=4
+```
+
+Die 4 stand von Anfang an da. Die Frage war nie, ob der Code sie schreibt — sondern ob der Test
+sie zu lesen versteht.
+
+**Die Regel:**
+
+> Wird ein **neuer** Fall beim ersten Lauf rot, gib zuerst aus, was der gemessene Wert
+> **wirklich** ist. Erst wenn er von der Erwartung abweicht, ist es ein Befund.
+
+Das ist die Umkehrung von 8.84 (eine Widerlegung, die selbst falsch ist) und liegt eine Ebene
+tiefer als 8.90 (ein grüner Lauf belegt nur, was er angesehen hat): Hier ist der **rote** Lauf
+das Problem, weil er glaubwürdiger aussieht, als er ist.
+
+Ein roter neuer Fall hat drei Ursachen, und nur eine davon ist ein Fund:
+
+| Ursache                                     | Was zu tun ist                                         |
+| ------------------------------------------- | ------------------------------------------------------ |
+| Der Code ist falsch                         | der Befund — melden und beheben                        |
+| Der Fall liest die falsche Darstellung      | den Fall korrigieren, **nicht** den Code               |
+| Der Fall vergleicht gegen die falsche Größe | dito — und die Verwechslung als Kommentar hinterlassen |
+
+Die beiden Fallen aus dem Beispiel stehen jetzt als Kommentar in dem Fall, der sie ausgelöst hat.
+Das ist der Teil, der über den Tag hinaus wirkt: **Wer eine Falle bezahlt hat, stellt sie dem
+Nächsten nicht noch einmal.**
+
+---
+
+### 8.92 Die Vorsicht steckt im gebauten Fall, nicht im Messenden
+
+Wer einen Prüffall schreibt, baut selbstverständlich die Zusicherung ein, dass der Fall überhaupt
+etwas misst — `wurfBei >= 0`, `ausloeser > 0`, „die Ladungs-Spur darf nicht konstant sein". Wer
+für sich selbst misst, um ein Urteil zu fällen, lässt sie weg. Am 2026-08-09 ist das an einem Tag
+**dreimal** passiert, jedes Mal jemandem, der die Zusicherung Stunden vorher selbst gebaut hatte.
+
+Die Formulierung stammt von dem Worker, dem es zuletzt passiert ist:
+
+> Die Vorsicht steckt im gebauten Fall, nicht im Messenden. Wer eine Zusicherung schreibt, denkt an
+> den grünen Lauf ohne Aussage — wer für sich selbst misst, hält den ersten grünen Lauf für das
+> Ergebnis.
+>
+> Deshalb: **Die erste Messung, die dein Urteil trägt, braucht dieselbe Zusicherung wie ein
+> Prüffall** — den Beleg, dass der Versuch überhaupt etwas bewegt hat.
+
+**Die drei Fälle desselben Tages:**
+
+```
+1.  "Betrifft ein Sockel diesen Prüffall?"
+    Sockel 200 alle 15 s   ->  10 von 10 grün    "also unbetroffen"
+    Sockel 3000 alle 2 s   ->   2 von 10 rot     die kleine Leiste bewegte
+                                                 den Kampf zu wenig, um
+                                                 irgendwo aufzufallen
+
+2.  "Findet die gierige Suche ein Paar, das nur gemeinsam trägt?"
+    alle Messwerte exakt 5525.0                  sah nach einem Befund aus
+    Spanne dazugemessen: 9364.0 / 8287.0         die Messung lebt — die
+                                                 Basis endete auf einem
+                                                 Zauber ohne Bedingung, also
+                                                 war jede Zeile darunter tot
+
+3.  "Wird der Verlauf zwischen den Seiten verglichen?"
+    grep -l '"kind"' fand zwei Dateien           "also gibt es keinen dritten"
+    log-parity.json speichert Zähler je Name,    das Muster konnte sie nicht
+    keine Einträge mit "kind"                    finden
+```
+
+In allen drei Fällen war der erste Messwert **echt** und die Schlussfolgerung daraus **falsch**.
+
+**Warum es beim eigenen Messen ausfällt:** Beim Bauen eines Prüffalls ist die Zusicherung Teil des
+Handwerks — man schreibt sie, weil ein grüner Fall ohne Aussage der bekannteste Fehler ist. Beim
+Messen für sich selbst fühlt es sich nach „nur einer Messung" an, nach einem Zwischenschritt, der
+kein Artefakt hinterlässt. Genau deshalb wird er nicht abgesichert.
+
+**Die Gegenfrage, die alle drei gefangen hätte:**
+
+> Hat der Versuch überhaupt etwas bewegt? Und wenn nein — hätte er es können?
+
+Bei Fall 1: „Hat die Leiste überhaupt ausgelöst, und wie oft?" Bei Fall 2: „Wie weit streuen die
+Werte, wenn ich die Stelle ändere?" Bei Fall 3: „Was steht wirklich in den Dateien, die mein
+Muster verwirft?"
+
+Alle drei haben es **selbst** gefunden, bevor sie das Urteil abgegeben haben. Das ist der
+Unterschied zwischen einem teuren und einem lehrreichen Fehler — aber die Gegenfrage vorher zu
+stellen ist billiger als beides.
+
+### 8.93 Ein Wächter fängt, was er prüft — nicht, was danebensteht
+
+Der Fall ist unbequem, weil er in derselben Arbeit steckt, die den Fehler behoben hat.
+
+`data/sound-manifest.json`, Gruppe `music`. Der Grund enthält drei Zahlen:
+
+```
+"5 der 19 Slots … sind belegt, also fehlen 14. … dass GAME-DESIGN 22
+ ebenfalls 14 Instanzen kennt, ist Zufall."
+    19  Zielzahl        target
+     5  vorhanden       present
+    14  DIE GEFÄHRLICHE — 19 minus 5, und zugleich eine ganz andere Größe
+```
+
+Der Wächter dazu, `tests/unit/audio-manifest.test.ts:81-86`:
+
+```
+expect(placeholder!.reason).toContain(String(counts.target));    // "19"
+expect(placeholder!.reason).toContain(String(counts.present));   // "5"
+```
+
+Er nagelt beide Zahlen fest, die aus den Daten stammen. **Die 14 prüft er nicht** — und die 14 ist
+die Zahl, wegen der das Issue überhaupt existiert. Sie steht im selben Satz, sie trägt die
+Verwechslung, und sie ist die einzige, die der Wächter nicht kennt.
+
+**Warum das kein Versehen ist, sondern die Regel:** Ein Wächter kann nur ableiten, was aus Daten
+ableitbar ist. `target` und `present` stehen im Manifest; die 14 entsteht erst durch eine
+Subtraktion und fällt zufällig mit einer fremden Größe zusammen. Der Wächter greift genau so weit,
+wie die Daten reichen — der Rest ist Prosa und bleibt ungedeckt.
+
+|                                           |                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| was der Wächter hält                      | die beiden Zahlen, die aus den Daten kommen                          |
+| was der Text zusätzlich behauptet         | eine dritte Zahl und ihre Nicht-Beziehung zu einer vierten           |
+| was passiert, wenn `target` auf 20 steigt | 19 → 20 färbt. **Die 14 im Text bleibt stehen** und ist ab da falsch |
+
+**Was daraus folgt — und zwar nicht „mehr prüfen":** Eine Zahl, die ein Wächter nicht ableiten
+kann, gehört entweder nicht in den Text, oder der Text muss sagen, dass sie ungedeckt ist. Hier
+ist die zweite Form gewählt: der Satz nennt die Verwechslung ausdrücklich („ist Zufall", „laufen
+sie auseinander"). Das ist die ehrliche Lösung — sie behauptet keine Deckung, die es nicht gibt.
+
+> Beim Schreiben eines Wächters ist die letzte Frage nicht „prüft er, was ich behoben habe?",
+> sondern **„was steht im selben Satz, das er nicht anfassen kann?"**
+
+Gefunden hat es der, der beides gebaut hat — den Text und den Wächter darüber. Wer nur eins von
+beidem baut, sieht die Lücke gar nicht: Der Textschreiber hält den Wächter für zuständig, der
+Wächterbauer hält den Text für Beiwerk.

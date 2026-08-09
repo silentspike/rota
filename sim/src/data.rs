@@ -488,6 +488,31 @@ pub struct Energy {
     pub threshold: u32,
     /// Worauf sie nach dem Ausloesen faellt.
     pub reset_to: u32,
+    /// Was beim Erreichen der Schwelle geschieht (Issue #568).
+    ///
+    /// **Kein `Option`.** Eine Energieleiste ohne Wirkung war genau der
+    /// Zustand, den #568 behebt; `build.rs` bricht ab, wenn `onTrigger`
+    /// fehlt. Waere das Feld hier optional, koennte derselbe Zustand ueber
+    /// den Umweg `None` zurueckkehren.
+    pub on_trigger: EnergyTrigger,
+}
+
+/// Der Schlag, den die Energieleiste bei ihrer Schwelle fuehrt (Issue #568).
+///
+/// Vom Auftraggeber entschieden: **ein Boss-Schlag ausserhalb der
+/// Zeitleiste.** Keine neue Mechanik-Art, sondern derselbe Pfad wie in der
+/// Zeitleiste ([`TimelineKind::Strike`]) — nur kommt der Zeitpunkt aus der
+/// Leiste statt aus `at_ms`. Genau das ist der „innere Rhythmus, der nichts
+/// mit dem Lebensbalken zu tun hat" (GAME-DESIGN 11.2, Baustein 1).
+///
+/// Verworfen wurden: ein ausgeloester Boss-Zauber, und der sofortige Tod als
+/// eigene Bauart — letzterer ist ein `strike` mit hohem Schaden.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnergyTrigger {
+    /// Der Name, unter dem der Schlag im Verlauf erscheint.
+    pub name: &'static str,
+    /// Wie viel Schaden er anrichtet. `build.rs` erzwingt „groesser als null".
+    pub damage: u32,
 }
 
 /// Der Zaehler, der bei seiner Schwelle toetet (GAME-DESIGN 11.2, Baustein 2).

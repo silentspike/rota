@@ -402,6 +402,38 @@ export interface EnergyDef {
   readonly amount: number;
   readonly threshold: number;
   readonly resetTo: number;
+  /**
+   * Was beim Erreichen der Schwelle geschieht (Issue #568).
+   *
+   * **Pflichtfeld, nicht optional.** Eine Energieleiste ohne Wirkung war
+   * genau der Zustand, den #568 behebt: Der Zähler stieg, erreichte 100,
+   * setzte zurück — und keine Zeile im Kampf fragte danach. Wäre `onTrigger`
+   * optional, ließe sich derselbe Zustand jederzeit neu herstellen, und zwar
+   * ohne dass es auffällt. `build.rs` bricht deshalb ab, wenn `energy` ohne
+   * `onTrigger` steht.
+   */
+  readonly onTrigger: EnergyTriggerDef;
+}
+
+/**
+ * Der Schlag, den die Energieleiste bei ihrer Schwelle führt (Issue #568).
+ *
+ * Vom Auftraggeber entschieden: **ein Boss-Schlag außerhalb der Zeitleiste.**
+ * Die beiden anderen Kandidaten aus dem Issue — ein ausgelöster Boss-Zauber
+ * und der sofortige Tod als eigene Bauart — sind ausdrücklich verworfen. Der
+ * sofortige Tod braucht keine eigene Mechanik: Er ist ein `strike` mit hohem
+ * Schaden.
+ *
+ * Deshalb keine neue Mechanik-Art, sondern derselbe Pfad wie in der
+ * Zeitleiste (`mechanic: "strike"` mit `name` und `damage`). Nur der
+ * Zeitpunkt kommt aus der Leiste statt aus `atMs` — und genau das ist der
+ * „innere Rhythmus, der nichts mit dem Lebensbalken zu tun hat"
+ * (GAME-DESIGN 11.2, Baustein 1).
+ */
+export interface EnergyTriggerDef {
+  readonly mechanic: 'strike';
+  readonly name: string;
+  readonly damage: number;
 }
 
 /**
@@ -1483,11 +1515,43 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
         `resetTo ${resetTo} liegt nicht unter threshold ${threshold} — die Leiste käme nie herunter.`,
       );
     }
+    // **`onTrigger` ist Pflicht, sobald `energy` steht** (Issue #568). Eine
+    // optionale Wirkung wäre die Wiederholung genau des Fehlers, den das
+    // Issue behebt: ein Feld, das aussieht wie Mechanik und keines ist.
+    // `sim/build.rs` bricht dafür den Bau ab; hier wird es gemeldet, weil
+    // diese Seite zur Laufzeit liest.
+    const roh = source['energy']['onTrigger'];
+    let onTrigger: EnergyTriggerDef = { mechanic: 'strike', name: 'Overload', damage: 0 };
+    if (!isRecord(roh)) {
+      problems.push(
+        'Die Energieleiste hat keine Wirkung (onTrigger) — sie stiege wieder ins Leere.',
+      );
+    } else {
+      const schaden = number(roh['damage'], 0);
+      if (roh['mechanic'] !== 'strike') {
+        problems.push(
+          `onTrigger.mechanic ist ${String(roh['mechanic'])}, erwartet wird 'strike' — ` +
+            'der Auslöser führt einen Boss-Schlag außerhalb der Zeitleiste.',
+        );
+      }
+      // Ein Schlag über null Schaden ist wieder eine Leiste ohne Wirkung, nur
+      // eine Ebene tiefer versteckt.
+      if (schaden <= 0) {
+        problems.push(`onTrigger.damage ist ${schaden} — ein Schlag ohne Schaden bewirkt nichts.`);
+      }
+      onTrigger = {
+        mechanic: 'strike',
+        name: typeof roh['name'] === 'string' ? roh['name'] : 'Overload',
+        damage: schaden,
+      };
+    }
+
     energy = {
       perStepMs,
       amount: number(source['energy']['amount'], 0),
       threshold,
       resetTo,
+      onTrigger,
     };
   }
 

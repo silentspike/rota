@@ -134,6 +134,23 @@ export const KONTROLLE_WIRKT_NAME = 'kontrolle-wirkt';
 /** Der Prueffall zu den Protokoll-Arten des Spiels (Issue #151). */
 export const LOG_PARITY_NAME = 'log-parity';
 
+/**
+ * Der Verlauf **taktgenau**, an einem Boss mit Energieleiste (Issue #676).
+ *
+ * Zwei Dinge, die `log-parity` nicht leisten kann:
+ *
+ * 1. **Sie löst Ereignisart 8 aus.** `log-parity` fährt `test-warden` mit
+ *    `energy: null` — dort kam `bossEnergyTriggered` nie vor, beide Seiten
+ *    verglichen zwei Nullen, und deshalb fiel jahrelang nicht auf, dass das
+ *    Spiel die Art gar nicht schrieb. Eine Art, die kein Lauf hervorruft, ist
+ *    nicht geprüft, sondern unauslösbar — dieselbe Lage wie ANCHOR bei
+ *    `boss-1-2` in Issue #667.
+ * 2. **Sie vergleicht den ZEITPUNKT, nicht nur die Anzahl.** `counts` zeigt,
+ *    wie oft eine Art vorkommt. Zwei Seiten können dieselbe Zahl erreichen
+ *    und die Einträge an verschiedenen Takten schreiben.
+ */
+export const LOG_TAKTE_NAME = 'log-takte';
+
 /** Vergleichsdatei für die wiederholte Zeitleiste (#174). */
 export const TIMELINE_LOOP_NAME = 'timeline-loop';
 
@@ -2045,8 +2062,14 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
  *
  * ```text
  *   boss-1-4      none  560   stay  560   stall    0
- *   test-vessel   none 1280   stay 1280   stall  320
+ *   test-vessel   none 1600   stay 1600   stall  640
  * ```
+ *
+ * Unter den `test-vessel`-Zahlen liegt seit Issue #568 ein **Sockel von 320**
+ * aus dem Energie-Auslöser — zwei Auslöser im Fenster dieses Laufs, die jede
+ * Zeile gleich treffen. Vorher standen hier 1280 / 1280 / 320. Die gemessene
+ * Wirkung von STALL ist unverändert: 960, vor wie nach. `boss-1-4` hat keine
+ * Energieleiste und ist unberührt.
  *
  * **Der `stay`-Lauf ist der Grund, dass diese Aufzeichnung etwas beweist.**
  * STALL verdrängt einen BIND-Wurf; ein Vergleich gegen „gar kein
@@ -2139,7 +2162,7 @@ export function kontrolleWirktPayload(): Record<string, unknown> {
  * `boss-1-4` ist der einzige Boss aus dem Inhalt, der einen unterbrechbaren
  * Zauber trägt UND den der Spieler überlebt — die Differenz endet dort auf 0,
  * weil er genau einen Zeitleisten-Eintrag hat. `test-vessel` liefert dieselbe
- * Aussage mit 1280 gegen 320: keine Randwert-Zahl, und ein Fehler in einem
+ * Aussage mit 1600 gegen 640: keine Randwert-Zahl, und ein Fehler in einem
  * Boss trägt nicht den ganzen Nachweis.
  */
 const LAGEN: readonly { bossId: string; quenchAtMs: number }[] = [
@@ -2495,6 +2518,86 @@ export function logParityPayload(): Record<string, unknown> {
     },
   };
 }
+/**
+ * Der taktgenaue Verlauf gegen einen Boss mit Energieleiste (Issue #676).
+ *
+ * # Warum ohne einen einzigen Tastendruck neben KINDLE
+ *
+ * Die Aufzeichnung soll **den Takt** vergleichbar machen. Je mehr Zauber im
+ * Spiel sind, desto mehr Zeitpunkte hängen an Abklingzeiten, Ressourcen und
+ * Reihenfolge — und desto schwerer ist zu sagen, woran eine Abweichung liegt.
+ * KINDLE allein hält die Zeitachse lesbar; die Energieleiste steigt ohnehin
+ * von selbst, sie braucht keinen Druck.
+ */
+const LOG_TAKTE_BINDINGS = [{ slot: 0, spellId: 'kindle' }] as const;
+
+export function logTaktePayload(): Record<string, unknown> {
+  const boss = bossById('test-vessel');
+  if (boss === undefined) throw new Error('Der Boss test-vessel fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const log = new CombatLog();
+  combat.log = log;
+  const kindle = combat.indexOf('kindle');
+  const ticks = 6000; // 60 s — die Leiste löst alle 15 s aus, also viermal
+
+  // **Der Platz kommt aus der Bindung, nicht als Zahl** (#405). Ein
+  // eigener Wächter verbietet die handgeschriebene Angabe, und zu Recht: Eine
+  // feste `0` bliebe stehen, wenn die Leiste einmal anders belegt wird.
+  const slots = slotMap(combat, LOG_TAKTE_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.isReady(alsSpellIndex(kindle), timeMs)) {
+      if (combat.cast(alsSpellIndex(kindle), timeMs).result === 0) {
+        presses.push({ tick, slot: slotFor(slots, alsSpellIndex(kindle), combat) });
+      }
+    }
+  }
+
+  // Je Art die Anzahl — wie in `log-parity`, damit beide Dateien dieselbe
+  // Frage auf dieselbe Weise beantworten.
+  const counts: Record<string, number> = {};
+  for (const kind of EVENT_KINDS_WRITTEN_BY_GAME) {
+    counts[EVENT_NAMES[kind] ?? String(kind)] = log.countOf(kind);
+  }
+
+  // **Und je Art die Zeitpunkte.** Das ist der Teil, den `counts` nicht
+  // leisten kann: Zwei Seiten können gleich oft schreiben und trotzdem an
+  // verschiedenen Takten. Nur Arten mit Einträgen stehen hier — eine leere
+  // Liste belegt nichts und bläht die Datei.
+  const takte: Record<string, number[]> = {};
+  for (const eintrag of log.toArray()) {
+    (takte[eintrag.type] ??= []).push(eintrag.timeMs);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: LOG_TAKTE_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: LOG_TAKTE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    counts,
+    /** Zeitpunkte je Art, in Schreibreihenfolge. Der Simulator muss dieselben ergeben. */
+    takte,
+    expected: {
+      damageDealt: combat.damageDealt,
+      damageTaken: combat.damageTaken,
+      /**
+       * **Die Zusicherung, dass die Lage überhaupt misst.** Steht hier eine
+       * Null, hat die Energieleiste nie ausgelöst — dann vergleicht der
+       * Prüffall gegenüber zwei leere Listen und ist grün, ohne etwas über
+       * Art 8 zu sagen. Genau das war der Zustand vor diesem Issue.
+       */
+      bossEnergyTriggers: combat.bossEnergyTriggers,
+      logEntries: log.length,
+    },
+  };
+}
+
 /** Die Leiste der Sublimations-Aufzeichnung — VOR der Funktion (Issue #405). */
 const SUBLIMATION_BINDINGS = [
   { slot: 0, spellId: 'kindle' },
