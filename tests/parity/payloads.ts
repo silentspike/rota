@@ -2009,6 +2009,19 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     shield.push(combat.shield);
   }
 
+  // Der zweite Lauf (#653) — einmal je Weg. Diese Payload baut FÜNF Läufe
+  // (none, crust, salve, temper, scab); sie ist die teuerste der vier aus
+  // der Kostenmessung. Die Belegung hängt vom Weg ab und muss deshalb
+  // dieselbe sein wie unten im `bindings`-Block.
+  const belegung = [
+    { slot: 0, spellId: 'kindle' },
+    ...(weg === 'none' ? [] : [{ slot: 1, spellId: weg }]),
+  ];
+  const result = replayRecording(
+    { name: `defence-${weg}`, seed: 0, ticks, presses, bindings: belegung },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     way: weg,
     ticks,
@@ -2023,12 +2036,14 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     presses,
     expected: {
       playerHp: combat.playerHp,
-      damageTaken: combat.damageTaken,
-      diedAtMs: combat.diedAtMs,
+      damageTaken: result.damageTaken,
+      diedAtMs: result.diedAtMs,
+      // `damageDealt`/`shieldAbsorbed` heißen im Ergebnis `damage`/`absorbed`
+      // — Umbenennungen, siehe #659. `castsX` zählt je Zauber.
       damageDealt: combat.damageDealt,
       shieldAbsorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
+      healed: result.healed,
+      converted: result.converted,
       castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
