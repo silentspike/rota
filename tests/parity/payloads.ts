@@ -940,6 +940,17 @@ export function doomStacksPayload(): Record<string, unknown> {
     spielerHp.push(combat.playerHp);
   }
 
+  // **Der Grund gegen den Nachlauf ist weggefallen** (Issue #653). Oben steht
+  // noch, `replayRecording` kenne nur den Tod des BOSSES und liefe hier bis
+  // zum Ende weiter. Das galt bis zum 2026-08-07; seit #567 bricht die
+  // Schleife auch beim Spielertod ab (`recording.ts:443`), und der Kommentar
+  // dort verweist ausdrücklich auf diese Stelle hier.
+  //
+  // Ein Kommentar, der eine Umstellung verhindert, überlebt den Grund, aus
+  // dem er geschrieben wurde — deshalb steht der neue Stand daneben und der
+  // alte bleibt lesbar.
+  const result = replayRecording(recording, { boss, checksumPerTick: true });
+
   return {
     schema: SCHEMA,
     name: recording.name,
@@ -956,12 +967,12 @@ export function doomStacksPayload(): Record<string, unknown> {
       stacks: boss.stacks,
     },
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       // **Nicht die letzte Takt-Prüfsumme.** Beide Seiten stempeln den
       // Schlusswert mit `(ticks - 1) * TICK_MS`, auch wenn der Lauf früher
       // endet — `Fight::replay` mit `final_time` und `replayRecording` mit
@@ -1061,6 +1072,19 @@ export function resetRunPayload(): Record<string, unknown> {
     scharf.push(session.isResetArmed ? 1 : 0);
   }
 
+  // Der zweite Lauf (#653). `reflux` auf Platz 2 steht in keiner
+  // Standardleiste — bis #663 hätte dieser Nachlauf dort einen anderen
+  // Zauber gespielt und stillschweigend andere Zahlen geliefert.
+  // **`{ boss }` ist Pflicht, und der Boss steht hier nicht in einer
+  // Variablen** — er wird oben direkt an `new Combat` gereicht. Mein erster
+  // Versuch schrieb `{ boss }` und brach am typecheck: kein Wert im Gültig-
+  // keitsbereich. Der laute Fehler ist das bessere Ende — ein `??`-Default
+  // hätte hier gegen den falschen Boss gespielt.
+  const result = replayRecording(recording, {
+    boss: FIRST_CRUCIBLE.value,
+    checksumPerTick: true,
+  });
+
   return {
     schema: SCHEMA,
     name: recording.name,
@@ -1070,12 +1094,12 @@ export function resetRunPayload(): Record<string, unknown> {
     bindings: belegung,
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       // Wie oft der Modus gegriffen hat und wie oft er verpufft ist. Beide
       // Zahlen gehoeren dazu: Ein Lauf, in dem jede Wahl verpufft, saehe
       // ohne sie aus wie einer, in dem jede greift.
@@ -1851,16 +1875,26 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     playerHp.push(combat.playerHp);
   }
 
+  // Der zweite Lauf (#653), einmal je Lauf dieser Payload — sie baut zwei
+  // (mit und ohne Unterbrecher). `{ boss }` ist Pflicht: Der Boss kommt hier
+  // als Parameter herein, ein Standard-Boss spielte einen anderen Kampf.
+  const result = replayRecording(
+    { name: 'interrupt-run', seed: 0, ticks, presses, bindings: STEP1_BINDINGS },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     withInterrupt: mitQuench,
     ticks,
     presses,
     expected: {
       playerHp: combat.playerHp,
-      damageTaken: combat.damageTaken,
-      diedAtMs: combat.diedAtMs,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      damageTaken: result.damageTaken,
+      diedAtMs: result.diedAtMs,
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
+      // `castsQuench`/`castsKindle` zählen JE ZAUBER. Das Ergebnis führt nur
+      // die Gesamtzahl — gleicher Begriff, andere Größe. Bleibt bei `combat`.
       castsQuench: combat.castCount(quench),
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
@@ -1975,6 +2009,19 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     shield.push(combat.shield);
   }
 
+  // Der zweite Lauf (#653) — einmal je Weg. Diese Payload baut FÜNF Läufe
+  // (none, crust, salve, temper, scab); sie ist die teuerste der vier aus
+  // der Kostenmessung. Die Belegung hängt vom Weg ab und muss deshalb
+  // dieselbe sein wie unten im `bindings`-Block.
+  const belegung = [
+    { slot: 0, spellId: 'kindle' },
+    ...(weg === 'none' ? [] : [{ slot: 1, spellId: weg }]),
+  ];
+  const result = replayRecording(
+    { name: `defence-${weg}`, seed: 0, ticks, presses, bindings: belegung },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     way: weg,
     ticks,
@@ -1989,12 +2036,14 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     presses,
     expected: {
       playerHp: combat.playerHp,
-      damageTaken: combat.damageTaken,
-      diedAtMs: combat.diedAtMs,
+      damageTaken: result.damageTaken,
+      diedAtMs: result.diedAtMs,
+      // `damageDealt`/`shieldAbsorbed` heißen im Ergebnis `damage`/`absorbed`
+      // — Umbenennungen, siehe #659. `castsX` zählt je Zauber.
       damageDealt: combat.damageDealt,
       shieldAbsorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
+      healed: result.healed,
+      converted: result.converted,
       castsDefence: defence >= 0 ? combat.castCount(defence) : 0,
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
@@ -2204,26 +2253,37 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
     checksums.push(hash);
   }
 
+  // Der zweite Lauf (#653) — einmal je Weg. Diese Payload baut drei Läufe
+  // (none, stay, stall), der Nachlauf fällt also dreimal an. `{ boss }` ist
+  // Pflicht: Er kommt als Parameter herein.
+  const result = replayRecording(
+    { name: `kontrolle-${weg}`, seed: 0, ticks, presses, bindings },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     way: weg,
     ticks,
     bindings,
     presses,
     expected: {
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
       // **Die Wirkung, nicht nur ihr Betrag.** Ein Nachweis über damageTaken
       // allein liesse offen, ob nicht etwas anderes den Schaden gesenkt hat.
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
       // Die Last, gegen die der `stay`-Lauf kontrolliert: gleich viele BINDs
       // bei `stay` und `stall`, sonst war die Verdrängung doch verschieden.
       castsBind: combat.castCount(alsSpellIndex(bind)),
       castsQuench: combat.castCount(alsSpellIndex(quench)),
       castsControl: kontrolle >= 0 ? combat.castCount(alsSpellIndex(kontrolle)) : 0,
-      controlSpent: combat.controlSpent,
+      controlSpent: result.controlSpent,
+      // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
+      // Die drei `castsX` darüber zählen JE ZAUBER; das Ergebnis führt nur
+      // die Gesamtzahl. Beide bleiben bei `combat`.
       damageDealt: combat.damageDealt,
       playerHp: combat.playerHp,
-      diedAtMs: combat.diedAtMs,
+      diedAtMs: result.diedAtMs,
       sequenceChecksum: sequence,
     },
     checksums,
@@ -2352,18 +2412,30 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     timelineIndex.push(combat.timelineIndex);
   }
 
+  const belegung = CONTROL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // Der zweite Lauf (#653) — einmal je Lauf; diese Payload baut zwei
+  // (mit und ohne Ausgabe).
+  const result = replayRecording(
+    { name: `control-${mitAusgabe ? 'mit' : 'ohne'}`, seed: 0, ticks, presses, bindings: belegung },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     withSpending: mitAusgabe,
     ticks,
-    bindings: CONTROL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: belegung,
     presses,
     expected: {
+      // `control` ist ein MOMENTANWERT (der Vorrat am Ende), kein Endwert im
+      // Sinne des Ergebnisses — es führt ihn nicht. Bleibt bei `combat`.
       control: combat.control,
-      controlSpent: combat.controlSpent,
-      controlFailed: combat.controlFailed,
-      phaseHoldPercent: combat.phaseHoldPercent,
+      controlSpent: result.controlSpent,
+      controlFailed: result.controlFailed,
+      phaseHoldPercent: result.phaseHoldPercent,
       finalPhase: combat.bossPhase,
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
+      // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
       damageDealt: combat.damageDealt,
       sequenceChecksum: sequence,
     },
@@ -2456,23 +2528,35 @@ export function logParityPayload(): Record<string, unknown> {
     counts[EVENT_NAMES[kind] ?? String(kind)] = log.countOf(kind);
   }
 
+  const bindungen = LOG_PARITY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht.
+  const result = replayRecording(
+    { name: LOG_PARITY_NAME, seed: 0, ticks, presses, bindings: bindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: LOG_PARITY_NAME,
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: LOG_PARITY_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: bindungen,
     presses,
     /** Anzahl je Protokoll-Art. Der Simulator muss dieselben Zahlen ergeben. */
     counts,
     expected: {
+      // `damageDealt`/`shieldAbsorbed` heißen im Ergebnis `damage`/`absorbed`
+      // — Umbenennungen, sie gehören zu #659 und bleiben hier.
       damageDealt: combat.damageDealt,
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
       shieldAbsorbed: combat.shieldAbsorbed,
-      interruptsLanded: combat.interruptsLanded,
-      healed: combat.healed,
+      interruptsLanded: result.interruptsLanded,
+      healed: result.healed,
       timelineIndex: combat.timelineIndex,
+      // `logEntries` zählt EINTRÄGE DIESES Protokolls, nicht des Nachlaufs —
+      // der führt ein eigenes. Bleibt bei `log`.
       logEntries: log.length,
     },
   };
@@ -2878,22 +2962,33 @@ export function phasenPayload(): Record<string, unknown> {
     phase.push(combat.bossPhase);
   }
 
+  const bindungen = PHASEN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht, sonst spielt er gegen
+  // den Standard-Boss und liefert plausible Zahlen aus einem anderen Kampf.
+  const result = replayRecording(
+    { name: PHASEN_NAME, seed: 0, ticks, presses, bindings: bindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: PHASEN_NAME,
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: PHASEN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: bindungen,
     presses,
     checksums,
     phase,
     expected: {
+      // `damageDealt` heißt im Ergebnis `damage` — eine Umbenennung, kein
+      // gleicher Name. Sie gehört zu #659, nicht hierher.
       damageDealt: combat.damageDealt,
       /** Die höchste erreichte Phase — muss über 0 liegen, sonst zeigt der Lauf nichts. */
       hoechstePhase: Math.max(...phase),
       /** Eingesteckter Schaden: mit gebundenem Ereignis höher als ohne. */
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
     },
   };
 }
@@ -2946,22 +3041,37 @@ export function deckelPayload(): Record<string, unknown> {
     ueberlauf.push(combat.resourceOverflow);
   }
 
+  const bindungen = DECKEL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // **Der zweite Lauf** (Issue #653). Erst er führt den Wert über den Pfad,
+  // den die Rust-Seite nachbaut; ein `combat.x` daneben umgeht ihn.
+  //
+  // **`{ boss }` ist Pflicht.** Ohne die Angabe spielt `replayRecording`
+  // gegen den Standard-Boss — die Zahlen kämen aus einem anderen Kampf und
+  // sähen trotzdem plausibel aus.
+  const result = replayRecording(
+    { name: DECKEL_NAME, seed: 0, ticks, presses, bindings: bindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: DECKEL_NAME,
     bossId: boss.id,
     ticks,
     tickMs: TICK_MS,
-    bindings: DECKEL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: bindungen,
     presses,
     checksums,
     vorrat,
     ueberlauf,
     expected: {
+      // `damageDealt` heißt im Ergebnis `damage` — eine Umbenennung, keine
+      // Namensgleichheit. Sie wartet auf eine Entscheidung und bleibt hier.
       damageDealt: combat.damageDealt,
       /** Höchster Vorrat im Lauf — er muss über den Grund-Deckel gekommen sein. */
       hoechsterVorrat: Math.max(...vorrat),
-      resourceOverflow: combat.resourceOverflow,
+      resourceOverflow: result.resourceOverflow,
     },
   };
 }
@@ -3094,6 +3204,18 @@ export function wispPayload(): Record<string, unknown> {
     vapourReadyAt.push(combat.cooldownRemainingMs(vapour, timeMs));
   }
 
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht.
+  const result = replayRecording(
+    {
+      name: WISP_NAME,
+      seed: 0,
+      ticks,
+      presses,
+      bindings: WISP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: WISP_NAME,
@@ -3107,7 +3229,18 @@ export function wispPayload(): Record<string, unknown> {
     vapourReadyAt,
     expected: {
       damageDealt: combat.damageDealt,
-      casts: combat.castCount(wisp) + combat.castCount(vapour) + combat.castCount(smoulder),
+      // **Diese Zeile hätte ich fast falsch ausgenommen** (Issue #653). Ich
+      // hatte sie als „Summe dreier Zauber gegen ein Gesamtfeld" abgetan —
+      // aber `ReplayResult.casts` ist kein Zähler, sondern eine Map von
+      // Zauber-ID auf Wurfzahl (`recording.ts:489`). Damit lässt sich
+      // dieselbe Summe aus dem Ergebnis bilden.
+      //
+      // Gefunden, weil ich die Allaussage in meiner eigenen Begründung
+      // nachgemessen habe, statt sie stehen zu lassen.
+      casts:
+        (result.casts['wisp'] ?? 0) +
+        (result.casts['vapour'] ?? 0) +
+        (result.casts['smoulder'] ?? 0),
       wispCasts: combat.castCount(wisp),
       vapourCasts: combat.castCount(vapour),
       /** WISP-Würfe, die auf eine laufende VAPOUR-Abklingzeit trafen. */
@@ -3160,6 +3293,17 @@ export function timelineLoopPayload(): Record<string, unknown> {
     timelineIndex.push(combat.timelineIndex);
   }
 
+  const timelineBindungen = TIMELINE_LOOP_BINDINGS.map((b) => ({
+    slot: b.slot,
+    spellId: b.spellId,
+  }));
+
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht.
+  const result = replayRecording(
+    { name: TIMELINE_LOOP_NAME, seed: 0, ticks, presses, bindings: timelineBindungen },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: TIMELINE_LOOP_NAME,
@@ -3168,16 +3312,17 @@ export function timelineLoopPayload(): Record<string, unknown> {
     tickMs: TICK_MS,
     timelineLoopMs: boss.timelineLoopMs,
     timelineLength: boss.timeline.length,
-    bindings: TIMELINE_LOOP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: timelineBindungen,
     presses,
     checksums,
     /** Der Fortschrittszähler je Takt — er läuft über die Länge der Liste hinaus. */
     timelineIndex,
     expected: {
+      // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
       damageDealt: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      damageTaken: result.damageTaken,
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
       finalTimelineIndex: combat.timelineIndex,
       finalPlayerHp: combat.playerHp,
     },
@@ -3358,6 +3503,13 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs) >>> 0);
   }
 
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht, sonst spielt er gegen
+  // den Standard-Boss und liefert plausible Zahlen aus einem anderen Kampf.
+  const result = replayRecording(
+    { name: 'fixation-spells', seed: 0, ticks, presses, bindings },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     ticks,
@@ -3367,17 +3519,17 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     presses,
     checksums,
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       /**
        * **Die Zusicherung im Datensatz:** Wären die Punkte nie ausgegeben
        * worden, liefe die Aufzeichnung über zwei Zauber, die nichts tun.
        */
-      controlSpent: combat.controlSpent,
+      controlSpent: result.controlSpent,
     },
   };
 }
@@ -3423,6 +3575,15 @@ export function buffCombatPayload(): Record<string, unknown> {
     ],
     checksums,
     factorAt,
+    // **Diese Payload bleibt bei `combat`, und das ist gemessen** (Issue
+    // #653). Sie ist die einzige der 15, die keine slot-basierte Aufzeichnung
+    // führt: Die Zauber werden direkt geworfen (`combat.cast(buff, …)`), und
+    // die `presses` oben tragen `spellId` statt `slot` — für die Rust-Seite.
+    //
+    // `replayRecording` spielt Plätze ab, keine Zaubernamen. Eine Umstellung
+    // bräuchte also erst eine Aufzeichnung mit Plätzen UND Belegung, und
+    // damit einen anderen `presses`-Block — das ändert die Vergleichsdatei
+    // und ist kein Quellenwechsel mehr, sondern ein Umbau der Aufzeichnung.
     expected: {
       damage: combat.damageDealt,
       damageTaken: combat.damageTaken,
@@ -4335,6 +4496,14 @@ export function newCalcinationPayload(): Record<string, unknown> {
     checksums.push(hash);
   }
 
+  // **Der zweite Lauf, und er war der Grund für #663** (Issue #653). Als ich
+  // ihn zum ersten Mal setzte, lieferte er 660 statt 1860: `recordings()`
+  // gab die Aufzeichnung ohne Bindungen zurück, und `replayRecording` fiel
+  // still auf `STEP1_BINDINGS` zurück — Platz 0 meinte `searing` und bekam
+  // `kindle`. Seit #663 bringt die Aufzeichnung ihre Belegung mit, und der
+  // Nachlauf spielt denselben Kampf.
+  const result = replayRecording(recording, { boss, checksumPerTick: true });
+
   return {
     schema: SCHEMA,
     name: recording.name,
@@ -4345,12 +4514,14 @@ export function newCalcinationPayload(): Record<string, unknown> {
     bindings,
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      // Die Prüfsumme wird AM `combat` gezogen, nicht am Ergebnis: Sie greift
+      // den Zustand zu einem Zeitpunkt ab, sie ist kein Endwert.
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
       sequenceChecksum: sequence,
       // **Je Zauber, damit sichtbar ist, dass BEIDE gewirkt wurden.** Eine
@@ -4426,15 +4597,28 @@ export function wardCapPayload(): Record<string, unknown> {
       if (combat.playerDead) break;
     }
 
+    // **Der zweite Lauf je Ward-Stufe** (Issue #653). Diese Payload ist einer
+    // der vier teuren: Sie baut VIER Läufe, der Nachlauf fällt also viermal
+    // an, nicht einmal.
+    //
+    // **`worn` muss mit.** Der ganze Fall dreht sich um die Ward-Stufe; ohne
+    // sie spielte der Nachlauf ungeschützt und läge bei jedem der vier Wege
+    // gleich — vier identische Zahlen, die nach einem Ergebnis aussähen.
+    // Keine Drücke und keine Bindungen, weil dieser Lauf rein passiv ist.
+    const result = replayRecording(
+      { name: WARD_CAP_NAME, seed: 0, ticks, presses: [], bindings: [] },
+      { boss, worn: { ...NOTHING_WORN, ward: wardPermille }, checksumPerTick: true },
+    );
+
     return {
       wardPermille,
       // Die Gesamtminderung, wie der Kampf sie sieht — ungedeckelt. Sie steht
       // dabei, weil sie erklärt, WARUM drei Läufe gleich ausgehen.
       totalPermilleUncapped: PLAYER.wardReduction * 1000 + wardPermille,
       expected: {
-        damageTaken: combat.damageTaken,
+        damageTaken: result.damageTaken,
         playerHp: combat.playerHp,
-        diedAtMs: combat.diedAtMs,
+        diedAtMs: result.diedAtMs,
         sequenceChecksum: sequence,
       },
       checksums,
