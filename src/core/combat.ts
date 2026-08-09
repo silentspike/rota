@@ -752,6 +752,25 @@ export class Combat {
 
   /** Kampfzeit des Spielertods, oder -1. */
   private diedAtMsValue = -1;
+  /**
+   * **Der erste MERKER des Datenmodells** (SUBLIME, Issue #480).
+   *
+   * Steht auf `true`, wenn ein Zauber mit `freesNextGcd` geworfen wurde und
+   * der nächste deshalb keine globale Wartezeit auslöst. Er lebt genau bis zu
+   * diesem nächsten Wurf.
+   *
+   * # Warum er in der Prüfsumme steht
+   *
+   * Ein Kampfzustand, der nicht in der Prüfsumme steht, ist von der Parität
+   * **nicht erfasst**: Beide Seiten könnten ihn verschieden führen — einer
+   * verbraucht ihn beim nächsten Wurf, der andere beim übernächsten —, und
+   * keine Prüfung würde es bemerken. Die Zahlen stimmten weiter, bis
+   * irgendwann eine Rotation auseinanderliefe.
+   *
+   * Das gilt für jeden Merker, der noch kommt (CONDENSE, RETORT, PUTRID
+   * BLOOM, DECAY). Wer einen baut, hängt ihn dort an.
+   */
+  private nextCastFreeGcdValue = false;
 
   /** Gesamter erlittener Schaden, **nach** WARD. */
   private damageTakenValue = 0;
@@ -1775,6 +1794,33 @@ export class Combat {
   /** Wie viele Kontroll-Punkte insgesamt ausgegeben wurden. */
   get controlSpent(): number {
     return this.controlSpentValue;
+  }
+
+  /**
+   * Verbraucht den Merker aus SUBLIME, falls er steht (Issue #480).
+   *
+   * **Einmal gesetzt, einmal verbraucht**: Ein Merker, der stehen bliebe,
+   * machte aus einem einzelnen freien Wurf eine dauerhafte Befreiung.
+   */
+  private takeFreeGcd(): boolean {
+    if (!this.nextCastFreeGcdValue) return false;
+    this.nextCastFreeGcdValue = false;
+    return true;
+  }
+
+  /**
+   * Ob der nächste Wurf von der globalen Wartezeit befreit ist (#480).
+   *
+   * **Diese beiden stehen bewusst HIER und nicht bei `playerDead`.** Ein
+   * erster Entwurf setzte sie dorthin — und schnitt damit den Kommentarblock
+   * ab, den `measured-sizes-source.test.ts` über `get playerDead(` liest. Der
+   * Wächter wurde rot, ohne dass an `playerDead` etwas geändert war.
+   *
+   * Ein Einschub deutet nicht nur Reihenfolgen um, sondern auch Kommentare,
+   * die jemand als Datenquelle nutzt.
+   */
+  get nextCastFreeGcd(): boolean {
+    return this.nextCastFreeGcdValue;
   }
 
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
@@ -3992,7 +4038,8 @@ export class Combat {
       this.playerCastingValue = index;
       this.playerCastStartedAtMsValue = timeMs;
       this.playerCastEndsAtMsValue = timeMs + wirkzeit;
-      if (spell.triggersGcd) this.gcd.trigger(timeMs);
+      // **Der Merker geht VOR der Eigenschaft** (SUBLIME, #480).
+      if (spell.triggersGcd && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
       // **Kein Protokoll-Eintrag für den Beginn.** Das Protokoll trägt die
       // Fehleranalyse und hat einen gemeinsamen Nummernraum mit dem Simulator
       // (#134); eine neue Art dafür verschöbe jede eingecheckte
@@ -4209,7 +4256,14 @@ export class Combat {
     // die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start hier
     // verlängerte sie um die volle Länge, und aus „ein bis knapp zwei
     // Wartezeiten" (7.1) würden drei.
-    if (spell.triggersGcd && !wirkzeitLief) this.gcd.trigger(timeMs);
+    if (spell.triggersGcd && !wirkzeitLief && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
+
+    // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480). Bewusst HINTER beiden
+    // GCD-Stellen: Weiter oben hätte SUBLIME als Sofort-Zauber seinen eigenen
+    // Merker eine Zeile später verbraucht und sich selbst befreit statt den
+    // nächsten. Der Fehler wäre grün geblieben — die Wartezeit fiele ja aus,
+    // nur bei der falschen Zeile.
+    if (spell.freesNextGcd === true) this.nextCastFreeGcdValue = true;
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
     this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);

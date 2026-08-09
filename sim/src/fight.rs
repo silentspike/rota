@@ -618,6 +618,23 @@ pub struct Fight {
 
     // -- Spieler --
     gcd_ready_at: Millis,
+    /// **Der erste MERKER des Datenmodells** (SUBLIME, Issue #480).
+    ///
+    /// Steht auf `true`, wenn ein Zauber mit `frees_next_gcd` geworfen wurde
+    /// und der nächste deshalb keine globale Wartezeit auslöst. Er lebt
+    /// genau bis zu diesem nächsten Wurf.
+    ///
+    /// # Warum er in der Prüfsumme steht
+    ///
+    /// Ein Kampfzustand, der nicht in der Prüfsumme steht, ist von der
+    /// Parität **nicht erfasst**: Beide Seiten könnten ihn verschieden
+    /// führen — einer verbraucht ihn beim nächsten Wurf, der andere beim
+    /// übernächsten —, und keine Prüfung würde es bemerken. Die Zahlen
+    /// stimmten weiter, bis irgendwann eine Rotation auseinanderliefe.
+    ///
+    /// Das gilt für jeden Merker, der noch kommt (CONDENSE, RETORT,
+    /// PUTRID BLOOM, DECAY). Wer einen baut, hängt ihn dort an.
+    next_cast_free_gcd: bool,
     /// Der Auswahlmodus des Ruecksetzers (Issue #223).
     ///
     /// Bis heute war er gebaut und unbenutzt — `cooldown_reset.rs` stand
@@ -869,6 +886,7 @@ impl Fight {
             synergy_available: 0,
             control_failed: 0,
             gcd_ready_at: 0,
+            next_cast_free_gcd: false,
             reset_mode: CooldownReset::new(),
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -1506,6 +1524,7 @@ impl Fight {
         self.synergy_available = 0;
         self.control_failed = 0;
         self.gcd_ready_at = 0;
+        self.next_cast_free_gcd = false;
         self.reset_mode.reset();
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -1746,6 +1765,25 @@ impl Fight {
     /// **Die Abklingzeit laeuft nicht an**, und das steht hier nicht als Zeile,
     /// sondern als Abwesenheit einer: Sie wird in `resolve_player_cast`
     /// gesetzt, und die laeuft bei einem Abbruch nie.
+    /// Verbraucht den Merker aus SUBLIME, falls er steht (Issue #480).
+    ///
+    /// Gibt `true` zurück, wenn dieser Wurf von der Wartezeit befreit war —
+    /// und löscht ihn dabei. **Einmal gesetzt, einmal verbraucht**: Ein
+    /// Merker, der stehen bliebe, machte aus einem einzelnen freien Wurf eine
+    /// dauerhafte Befreiung.
+    ///
+    /// Er wird an genau zwei Stellen abgefragt, weil der GCD an genau zwei
+    /// Stellen gesetzt wird: einmal für Zauber mit Wirkzeit, einmal für
+    /// sofortige.
+    fn take_free_gcd(&mut self) -> bool {
+        if self.next_cast_free_gcd {
+            self.next_cast_free_gcd = false;
+            true
+        } else {
+            false
+        }
+    }
+
     fn cancel_player_cast(&mut self) -> bool {
         if self.player_casting.is_none() {
             return false;
@@ -3312,7 +3350,9 @@ impl Fight {
             self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
             self.player_casting = Some(index);
             self.player_cast_ends_at = snap_up(now + cast_time);
-            if spell.triggers_gcd {
+            // **Der Merker geht VOR der Eigenschaft** (SUBLIME, #480): Ein
+            // Zauber, der die Wartezeit sonst auslöste, tut es einmal nicht.
+            if spell.triggers_gcd && !self.take_free_gcd() {
                 self.gcd_ready_at = snap_up(now + GCD_MS);
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
             }
@@ -3621,9 +3661,22 @@ impl Fight {
         // **Nur wenn sie nicht schon laeuft** (Issue #304): Bei einer Wirkzeit
         // ist die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start
         // hier verlaengerte sie um die volle Laenge.
-        if spell.triggers_gcd && !wirkzeit_lief {
+        if spell.triggers_gcd && !wirkzeit_lief && !self.take_free_gcd() {
             self.gcd_ready_at = snap_up(now + GCD_MS);
             self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+        }
+
+        // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480).
+        //
+        // Diese Zeile steht bewusst HINTER beiden GCD-Stellen. Ein erster
+        // Entwurf setzte sie oben zu den übrigen Wirkungen — dort hätte
+        // SUBLIME als Sofort-Zauber seinen eigenen Merker eine Zeile später
+        // wieder verbraucht und sich selbst befreit statt den nächsten.
+        //
+        // Der Fehler wäre grün geblieben: Die Wartezeit fiele ja aus, nur bei
+        // der falschen Zeile.
+        if spell.frees_next_gcd {
+            self.next_cast_free_gcd = true;
         }
 
         // Der Sieg wird erst in der Pruef-Phase des **naechsten** Takts bemerkt,
@@ -4005,6 +4058,21 @@ impl Fight {
         // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
         // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
         h = mix_named_int(h, "conversionPercent", self.conversion_percent as i32);
+        // **Der erste Merker in der Prüfsumme** (SUBLIME, Issue #480).
+        //
+        // ANGEHÄNGT, nicht eingeschoben — dieselbe Regel wie bei `control`
+        // seit #100: Ein Einschub deutet jede bestehende Reihenfolge um.
+        //
+        // Warum ein Merker überhaupt hierher gehört: Er ist ein Kampfzustand,
+        // der zwischen zwei Würfen lebt. Stünde er nicht hier, könnten beide
+        // Seiten ihn verschieden führen — einer verbraucht ihn beim nächsten
+        // Wurf, der andere beim übernächsten —, und keine Prüfung bemerkte es.
+        // Die Zahlen stimmten weiter, bis irgendwann eine Rotation
+        // auseinanderliefe.
+        //
+        // Für die vier Merker, die folgen (CONDENSE, RETORT, PUTRID BLOOM,
+        // DECAY): hier anhängen, in derselben Reihenfolge auf beiden Seiten.
+        h = mix_named_int(h, "nextCastFreeGcd", i32::from(self.next_cast_free_gcd));
         // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
         // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
         // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden

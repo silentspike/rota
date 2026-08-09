@@ -54,6 +54,7 @@ import eingecheckteNeueZauber from './recordings/new-calcination.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
+import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -127,6 +128,7 @@ import {
   logParityPayload,
   logTaktePayload,
   aetherPayload,
+  sublimePayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -480,6 +482,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
     }
   });
 
+  it('SUBLIMEs Merker entspricht dem heutigen Spielstand', () => {
+    // Issue #480. Die Aufzeichnung traegt `merker` — den Zustand je Takt.
+    expect(eingecheckteSublimeRunde, HINWEIS).toEqual(sublimePayload());
+  });
+
   it('AETHERs Fenster entspricht dem heutigen Spielstand', () => {
     // Issue #480. Die Aufzeichnung traegt `kindleRest` — die Restzeit, an der
     // die verdoppelte Verkuerzung sichtbar wird.
@@ -783,6 +790,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'log-parity',
   'log-takte',
   'aether-fenster',
+  'sublime-merker',
   'haste',
   'worn-values',
   'sources',
