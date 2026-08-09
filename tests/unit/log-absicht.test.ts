@@ -183,6 +183,27 @@ function allesGeschriebene(): Set<string> {
     ),
   );
 
+  // **Ein Kontroll-Zauber, der Punkte ausgibt** (Issue #683). -> controlSpent
+  //
+  // STALL kostet vier Punkte. Der Vorrat muss erst wachsen, deshalb der
+  // längere Lauf: Ein Wurf, der am leeren Vorrat scheitert, schreibt nichts
+  // — und der Wächter sähe „kein Lauf tut es", obwohl die Stelle steht.
+  dazu(
+    mitDruecken(
+      'test-warden',
+      (c, timeMs) => {
+        // **BIND füllt den Vorrat, STALL gibt ihn aus.** Gemessen: Ohne
+        // einen Erzeuger bleibt `control` den ganzen Lauf über 0 — STALL
+        // käme nie durch, und der Wächter meldete „kein Lauf tut es",
+        // obwohl die Schreibstelle steht.
+        const stall = c.indexOf('stall');
+        if (stall >= 0 && c.control >= 4 && c.isReady(alsSpellIndex(stall), timeMs)) return stall;
+        return c.indexOf('bind');
+      },
+      6000,
+    ),
+  );
+
   // **Eine Verstärkung, die ausläuft** (Issue #682).  -> buffExpire
   //
   // Vorher trug die Art eine `bekannteLuecke` und fiel damit aus beiden

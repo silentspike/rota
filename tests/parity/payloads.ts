@@ -26,7 +26,12 @@ import {
 } from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { statAtLevel } from '../../src/core/data.js';
-import { CombatLog, EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
+import {
+  CombatLog,
+  EVENT_KIND_INTENT,
+  EVENT_KINDS_WRITTEN_BY_GAME,
+  EVENT_NAMES,
+} from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
@@ -2529,6 +2534,19 @@ export function logParityPayload(): Record<string, unknown> {
     }
   }
 
+  // **`controlSpent` bleibt hier auf null, und zwar benannt** (Issue #683).
+  //
+  // Diese Lage fährt KINDLE, CRUST, QUENCH, SALVE und SLAG — keiner davon
+  // ist ein Kontroll-Zauber, und der Vorrat wächst ohne Erzeuger auch nicht.
+  // Die Art ist damit **unerreicht**, nicht fehlend: Die Schreibstelle steht
+  // (`combat.ts`, drei Ausgabestellen), sie wird hier nur nicht angefahren.
+  //
+  // Ein sechster Zauber würde das ändern und wäre der falsche Preis: Die
+  // Rotation ist eine Waage, kein Vorrat. SLAG hat KINDLE schon einen GCD
+  // gekostet (`damage` 15 → 14); ein weiterer nähme dem nächsten Nachweis
+  // seinen. Wer den Verlauf von Art 16 messen will, findet ihn in
+  // `tests/unit/control-spent-log.test.ts` und im Wächter von #676.
+
   // Je Art zählen — das ist der Vergleichswert.
   const counts: Record<string, number> = {};
   for (const kind of EVENT_KINDS_WRITTEN_BY_GAME) {
@@ -3675,6 +3693,21 @@ export function logKindsPayload(): Record<string, unknown> {
       kind,
       name,
       writtenByGame: EVENT_KINDS_WRITTEN_BY_GAME.includes(kind),
+      /**
+       * **Die zweite Spalte der Absicht** (Issue #689).
+       *
+       * `EVENT_KIND_INTENT` trägt seit #676 zwei Spalten, geprüft wurde nur
+       * eine. Gemessen: Dreht man ALLE siebzehn `sim`-Werte um — die
+       * vollständige Umkehrung der Aussage, welche Arten der Simulator
+       * schreibt —, bleiben `tsc`, 1967 TS-Fälle und 110 Rust-Suiten grün.
+       * Das Feld war nicht ungedeckt, es war **dekorativ**.
+       *
+       * Der Wert geht denselben Weg wie `writtenByGame`: von hier über
+       * `log-kinds.json` nach `sim/tests/log_kinds_written_by_sim.rs`. Kein
+       * neuer Transportweg, keine zweite Liste — dieselbe Quelle, eine Zeile
+       * daneben. Damit erbt er auch die Frische-Deckung.
+       */
+      writtenBySim: EVENT_KIND_INTENT[name]?.sim ?? false,
     })),
     writtenByGame: [...EVENT_KINDS_WRITTEN_BY_GAME],
   };
