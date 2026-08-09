@@ -1055,6 +1055,19 @@ export function resetRunPayload(): Record<string, unknown> {
     scharf.push(session.isResetArmed ? 1 : 0);
   }
 
+  // Der zweite Lauf (#653). `reflux` auf Platz 2 steht in keiner
+  // Standardleiste — bis #663 hätte dieser Nachlauf dort einen anderen
+  // Zauber gespielt und stillschweigend andere Zahlen geliefert.
+  // **`{ boss }` ist Pflicht, und der Boss steht hier nicht in einer
+  // Variablen** — er wird oben direkt an `new Combat` gereicht. Mein erster
+  // Versuch schrieb `{ boss }` und brach am typecheck: kein Wert im Gültig-
+  // keitsbereich. Der laute Fehler ist das bessere Ende — ein `??`-Default
+  // hätte hier gegen den falschen Boss gespielt.
+  const result = replayRecording(recording, {
+    boss: FIRST_CRUCIBLE.value,
+    checksumPerTick: true,
+  });
+
   return {
     schema: SCHEMA,
     name: recording.name,
@@ -1064,12 +1077,12 @@ export function resetRunPayload(): Record<string, unknown> {
     bindings: belegung,
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       // Wie oft der Modus gegriffen hat und wie oft er verpufft ist. Beide
       // Zahlen gehoeren dazu: Ein Lauf, in dem jede Wahl verpufft, saehe
       // ohne sie aus wie einer, in dem jede greift.
