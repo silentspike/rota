@@ -3165,6 +3165,17 @@ impl Fight {
             }
         }
 
+        // NECROSIS (#479): raeumt NACH der eigenen Berechnung ab, dieselbe
+        // Stelle wie im Spiel (`combat.ts`, `consumeDecayStacks`). Der
+        // Schadensfaktor steht oben schon fest und traegt den Stapel-Bonus —
+        // der Entlader rechnet also MIT den Stapeln und nimmt sie erst dann
+        // weg. Er addiert nichts: Sein Ertrag steckt im Faktor, nicht in
+        // einem zweiten Betrag.
+        if spell.consumes_decay_stacks && self.decay_count > 0 {
+            self.decay_count = 0;
+            self.update_vulnerability();
+        }
+
         // **Ein Schaden-Ereignis je Wirkung, mit der Summe** — nicht eines je
         // Teilbetrag. Das Spiel rechnet Grund- und Entladeschaden zusammen und
         // meldet einmal; ein Zauber, der beides hat, ergaebe hier sonst zwei

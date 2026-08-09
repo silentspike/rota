@@ -203,7 +203,19 @@ describe('Die Mechanik wird von ausgelieferten Zaubern benutzt', () => {
       'wer hier einen Zauber ergänzt, ändert die Referenz-Rechnung — dann ' +
         'gehört sie nachgemessen, nicht diese Liste erweitert',
     ).toEqual(['canker', 'blight']);
-    expect(lebenDavon, 'CANKER legt an, FESTER lebt davon (GAME-DESIGN 4.1)').toEqual(['fester']);
+    // **MIASMA kam mit #479 dazu, und diese Zeile ist sein Nachweis.** Er ist
+    // der erste Zauber, der von den Stapeln lebt, ohne selbst welche zu
+    // legen: kein `decay`-Feld, aber `perDecayStackPercent`. Damit steht er
+    // in dieser Liste und NICHT in der darüber — genau das ist seine Rolle.
+    expect(lebenDavon, 'CANKER legt an, FESTER lebt davon (GAME-DESIGN 4.1)').toEqual([
+      'fester',
+      'miasma',
+      // **NECROSIS lebt nicht nur davon, er LOEST EIN** (Issue #479). Er
+      // steht aus demselben Grund hier wie MIASMA — `perDecayStackPercent`
+      // ohne `decay`-Feld. Was ihn von beiden Vorgaengern trennt, prueft der
+      // eigene Fall weiter unten: Nach ihm sind die Stapel WEG.
+      'necrosis',
+    ]);
   });
 
   it('und sie wirkt im Kampf, nicht nur in den Daten', () => {
