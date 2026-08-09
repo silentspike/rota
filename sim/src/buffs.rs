@@ -154,7 +154,23 @@ impl Buffs {
 
     /// Abgelaufene Verstaerkungen einsammeln.
     ///
-    /// @returns wie viele Arten in diesem Aufruf abgelaufen sind
+    /// Laeuft je Takt und erzeugt deshalb nichts. Der Rueckgabewert bleibt
+    /// eine Zahl — daran haelt sich auch die Maske: Sie sagt zusaetzlich,
+    /// WELCHE Arten abgelaufen sind, ohne dafuer etwas anzulegen.
+    ///
+    /// # Warum eine Maske und keine Anzahl (Issue #682)
+    ///
+    /// Der Aufrufer schreibt je abgelaufener Art einen Protokoll-Eintrag.
+    /// Eine blosse Anzahl truege dafuer zu wenig, und ein Eintrag, der immer
+    /// dieselbe Zahl traegt, ist von einem festen Wert nicht zu
+    /// unterscheiden. Das Protokoll bleibt ausserhalb dieser Datei.
+    ///
+    /// `count_ones()` ist die fruehere Anzahl, verlustfrei: `expires_at`
+    /// haelt je Art genau einen Eintrag, es kann also hoechstens eine
+    /// Verstaerkung je Art ablaufen.
+    ///
+    /// @returns Bitmaske der abgelaufenen Arten — Bit `k` gesetzt heisst
+    ///          „Art `k` ist abgelaufen". `0` heisst „keine", wie zuvor.
     pub fn expire(&mut self, now: Millis) -> u32 {
         let mut ended = 0;
         for kind in 0..BUFF_KIND_CAPACITY {
@@ -164,7 +180,7 @@ impl Buffs {
             }
             self.expires_at[kind] = NOT_ACTIVE;
             self.factors[kind] = 1.0;
-            ended += 1;
+            ended |= 1u32 << kind;
             self.expirations += 1;
         }
         ended

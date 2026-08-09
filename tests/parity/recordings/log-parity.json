@@ -20,6 +20,10 @@
     {
       "slot": 3,
       "spellId": "salve"
+    },
+    {
+      "slot": 4,
+      "spellId": "slag"
     }
   ],
   "presses": [
@@ -29,7 +33,7 @@
     },
     {
       "tick": 150,
-      "slot": 0
+      "slot": 4
     },
     {
       "tick": 300,
@@ -98,11 +102,11 @@
   ],
   "counts": {
     "cast": 18,
-    "damage": 15,
+    "damage": 14,
     "dotTick": 0,
     "crit": 0,
     "phase": 1,
-    "buffExpire": 0,
+    "buffExpire": 1,
     "bossEnergyTriggered": 0,
     "bossTimelineFired": 3,
     "playerDamage": 2,
@@ -111,7 +115,7 @@
     "healed": 1
   },
   "expected": {
-    "damageDealt": 1500,
+    "damageDealt": 1400,
     "damageTaken": 240,
     "shieldAbsorbed": 240,
     "interruptsLanded": 1,
