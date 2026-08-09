@@ -75,8 +75,16 @@ import { bossById } from '../../src/core/data.js';
  *
  * Das ist keine Verschiebung um einen Betrag, sondern der vollständige
  * Wirkungsverlust. Deshalb steht in `groessen-hebel-messung.txt` seit heute
- * die Basis neben dem Prozentsatz: Ohne sie liest sich „300 vor 72" wie
- * „viermal so wichtig", und das stimmt nicht.
+ * die Basis neben dem Prozentsatz: Ohne sie liest sich „150 vor 72" wie
+ * „doppelt so wichtig", und das stimmt nicht.
+ *
+ * **Dieser Absatz hat seitdem sein eigenes Beispiel bekommen.** Als er
+ * geschrieben wurde, stand dort 300 % — der Energie-Auslöser aus #568 legte
+ * einen Sockel unter beide Zahlen, der Nenner wuchs mit, und aus 300 wurden
+ * 150. Die absolute Wirkung von STALL hat sich dabei nicht bewegt.
+ *
+ * Genau davor warnt der Absatz: **Eine Verhältniszahl ohne ihre Basis sagt
+ * nichts.** Die 300 war nicht falsch, sie galt für einen anderen Stand.
  *
  * # Die Aufzeichnung liefert die Gegenprobe gleich mit
  *
