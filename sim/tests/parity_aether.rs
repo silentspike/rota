@@ -98,13 +98,40 @@ fn ac0_der_lauf_wirft_aether_ueberhaupt() {
         wuerfe > 0,
         "die Aufzeichnung wirft AETHER kein einziges Mal — sie belegt nichts über ihn"
     );
-    let verkuerzer = json["expected"]["vapourCasts"]
+    let verkuerzer = json["expected"]["wispCasts"]
         .as_u64()
-        .expect("vapourCasts fehlt");
+        .expect("wispCasts fehlt");
     assert!(
         verkuerzer > 0,
-        "die Aufzeichnung wirft VAPOUR nie — dann gibt es keine Verkürzung, \
+        "die Aufzeichnung wirft WISP nie — dann gibt es keine Verkürzung, \
          die AETHER verdoppeln könnte"
+    );
+
+    // **Die Auflage aus #480: der Zauber muss WIRKEN, nicht nur geworfen
+    // werden.** EFFLUX startet mit 20 s; jeder WISP-Wurf zieht 500 ms ab, in
+    // AETHERs Fenster 1000 ms. Steht die Restzeit noch auf dem Anfangswert,
+    // hat keine Verkürzung gegriffen und der Lauf belegt nichts.
+    //
+    // Gemessen: factor 2 -> 2510 ms, factor 1 -> 6010 ms. Ein erster Entwurf
+    // maß an KINDLE (1500 ms Abklingzeit) und ergab bei beiden Werten
+    // dieselbe Zahl — der Zauber wurde geworfen und bewirkte nichts.
+    // **Die Auflage aus #480: der Zauber muss WIRKEN, nicht nur geworfen
+    // werden.** EFFLUX startet mit 20 s; jeder WISP-Wurf zieht 500 ms ab, in
+    // AETHERs Fenster 1000 ms. Die SUMME der Restzeiten sinkt damit umso
+    // stärker, je größer `buff.factor` ist.
+    //
+    // Gemessen: factor 2 -> 13693500, factor 1 -> 16041500. Ein erster
+    // Entwurf maß an KINDLE (1500 ms Abklingzeit) und ergab bei beiden
+    // Werten dieselbe Zahl — der Zauber wurde geworfen und bewirkte nichts.
+    // Die Summe statt des Endwerts, weil letzterer bei factor 2 auf 0 fällt
+    // und eine 0 nicht von "nie gestartet" zu unterscheiden wäre.
+    let summe = json["expected"]["effluxRestSumme"]
+        .as_u64()
+        .expect("effluxRestSumme fehlt");
+    assert!(
+        summe > 0 && summe < 16_041_500,
+        "die Restzeit-Summe steht bei {summe} — bei 16041500 hat AETHER nichts \
+         verdoppelt, bei 0 lief nie eine Abklingzeit"
     );
 }
 

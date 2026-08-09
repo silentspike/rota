@@ -3038,8 +3038,9 @@ export function phasenPayload(): Record<string, unknown> {
 
 const AETHER_BINDINGS = [
   { slot: 0, spellId: 'aether' },
-  { slot: 1, spellId: 'vapour' },
+  { slot: 1, spellId: 'wisp' },
   { slot: 2, spellId: 'kindle' },
+  { slot: 3, spellId: 'efflux' },
 ] as const;
 
 /**
@@ -3067,15 +3068,27 @@ export function aetherPayload(): Record<string, unknown> {
 
   const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const aether = combat.indexOf('aether');
-  const vapour = combat.indexOf('vapour');
+  const wisp = combat.indexOf('wisp');
   const kindle = combat.indexOf('kindle');
-  const ticks = 3000; // 30 s
+  // EFFLUX ist der TRÄGER: 20 s Abklingzeit, lang genug, dass die
+  // Verkürzungen an ihr sichtbar werden.
+  //
+  // **Er muss EINMAL geworfen werden**, sonst läuft seine Abklingzeit nie und
+  // die Restzeit steht durchgehend auf 0. Gemessen: Ohne den Wurf ergaben
+  // `factor` 2 und 1 beide „EFFLUX-Rest am Ende = 0" — es gab nichts zu
+  // verkürzen.
+  const efflux = combat.indexOf('efflux');
+  // **15 s, nicht 30.** EFFLUX hat 20 s Abklingzeit: Nach 30 s ist er auch
+  // ohne jede Verkürzung wieder bereit, und die Restzeit stünde in beiden
+  // Fällen auf 0. Gemessen — der Träger muss am Ende noch laufen, sonst
+  // misst er nichts.
+  const ticks = 1500; // 15 s
 
   const slots = slotMap(combat, AETHER_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
   const checksums: number[] = [];
-  /** Restzeit von KINDLE je Takt — an ihr wird die Verkürzung sichtbar. */
-  const kindleRest: number[] = [];
+  /** Restzeit von EFFLUX je Takt — an ihr wird die Verkürzung sichtbar. */
+  const effluxRest: number[] = [];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -3084,13 +3097,21 @@ export function aetherPayload(): Record<string, unknown> {
     // AETHER zuerst, solange er bereit ist — sein Fenster soll über den
     // Verkürzungen liegen, nicht dahinter. Danach VAPOUR, der verkürzt.
     let gewaehlt = -1;
-    if (combat.isReady(alsSpellIndex(aether), timeMs)) gewaehlt = aether;
-    else if (combat.isReady(alsSpellIndex(vapour), timeMs)) gewaehlt = vapour;
+    // EFFLUX zuerst und nur einmal — er startet den Träger. Danach AETHER,
+    // dessen Fenster über den Verkürzungen liegen soll, dann WISP als
+    // Verkürzer.
+    if (
+      combat.castCount(alsSpellIndex(efflux)) === 0 &&
+      combat.isReady(alsSpellIndex(efflux), timeMs)
+    ) {
+      gewaehlt = efflux;
+    } else if (combat.isReady(alsSpellIndex(aether), timeMs)) gewaehlt = aether;
+    else if (combat.isReady(alsSpellIndex(wisp), timeMs)) gewaehlt = wisp;
     else if (combat.isReady(alsSpellIndex(kindle), timeMs)) gewaehlt = kindle;
 
     // **Die Restzeit VOR dem Wurf ablesen.** Sonst zählte man das Ergebnis
     // der eigenen Auswahl statt des Zustands, in dem sie getroffen wurde.
-    kindleRest.push(combat.cooldownRemainingMs(alsSpellIndex(kindle), timeMs));
+    effluxRest.push(combat.cooldownRemainingMs(alsSpellIndex(efflux), timeMs));
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
@@ -3111,16 +3132,38 @@ export function aetherPayload(): Record<string, unknown> {
     bindings: AETHER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses,
     checksums,
-    kindleRest,
+    effluxRest,
     expected: {
       damageDealt: combat.damageDealt,
+      /**
+       * **Die Größe, die AETHER BEWEGT** — nicht die, die zeigt, dass er
+       * geworfen wurde (Auflage aus #480/5646).
+       *
+       * EFFLUX startet mit 45 s Abklingzeit. Jeder WISP-Wurf zieht 500 ms
+       * ab, in AETHERs Fenster 1000 ms. Wie weit die Restzeit am Ende
+       * gesunken ist, hängt damit unmittelbar an `buff.factor`.
+       *
+       * Der erste Entwurf maß an KINDLE (1500 ms Abklingzeit) — dort lief
+       * die Verkürzung ins Leere, und `factor` 2 gegen 1 ergab exakt
+       * dieselben Zahlen. Der Zauber wurde geworfen und bewirkte nichts.
+       */
+      /**
+       * **Die Summe aller Restzeiten**, nicht die letzte. Bei `factor` 2 fällt
+       * die Restzeit am Ende auf 0 — und eine 0 ist nicht davon zu
+       * unterscheiden, dass der Träger nie gestartet wurde. Die Summe ist
+       * eindeutig: Sie sinkt mit jeder Verkürzung und kann nur dann klein
+       * sein, wenn eine Abklingzeit lief.
+       *
+       * Gemessen: `factor` 2 -> 82960, `factor` 1 -> 122460.
+       */
+      effluxRestSumme: effluxRest.reduce((a, b) => a + b, 0),
       /**
        * **Die Zusicherung, dass der Lauf AETHER überhaupt wirft.** Steht hier
        * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht —
        * und wäre grün, weil dann eben nichts zu verstärken war.
        */
       aetherCasts: combat.castCount(alsSpellIndex(aether)),
-      vapourCasts: combat.castCount(alsSpellIndex(vapour)),
+      wispCasts: combat.castCount(alsSpellIndex(wisp)),
     },
   };
 }
