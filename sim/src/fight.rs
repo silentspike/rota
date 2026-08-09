@@ -2648,6 +2648,31 @@ impl Fight {
             self.doom = doom.threshold;
             self.player_hp = 0;
             self.died_at = Some(self.time);
+            // **Auch dieser Tod steht im Protokoll** (Issue #693).
+            //
+            // Bis hierher setzten ZWEI Wege `died_at`, und nur einer schrieb
+            // den Eintrag: der Schadens-Tod in `hit_player`. Wer den Verlauf
+            // eines Verhängnis-Todes las, fand den Spieler tot und nirgends
+            // vermerkt, dass er gestorben war.
+            //
+            // **Der Wert ist derselbe wie am anderen Weg: `damage_taken`.**
+            // Das ist gewollt und war die Entscheidung an AC1. Der Eintrag
+            // sagt „der Spieler ist gestorben, mit so viel genommenem
+            // Schaden" — eine Aussage, die bei beiden Todesarten dasselbe
+            // bedeutet. Den Verhängnis-Stand hier einzusetzen wäre die
+            // Verwechslung, die #512 und #568 gekostet hat: dieselbe Zahl
+            // hieße je nach Todesart etwas anderes.
+            //
+            // Die TODESART steht damit nicht im Verlauf, und das ist bekannt:
+            // Es gibt überhaupt keine Protokoll-Art für das Verhängnis, auch
+            // nicht für Tick oder Schwelle. Soll sie hinein, braucht sie eine
+            // eigene Art — das ist ein eigenes Issue, nicht dieses.
+            //
+            // Der Wert ist nie 0: Gemessen an allen drei Bossen mit
+            // Verhängnis nimmt der Spieler vorher Schaden, nur keinen
+            // tödlichen (boss-1-2 280, test-doomsayer 2800, test-stacked 160).
+            self.log
+                .push(self.time, LogKind::PlayerDeath, NO_SPELL, self.damage_taken);
             return;
         }
 
