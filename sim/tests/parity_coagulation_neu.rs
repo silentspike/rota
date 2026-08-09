@@ -18,7 +18,7 @@
 
 use serde_json::Value;
 
-use rota_sim::data::index_of;
+use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::replay::{first_divergence, Binding, Press, Recording};
 use rota_sim::{Fight, FightConfig, TICK_MS};
 
@@ -107,8 +107,15 @@ fn crucible_skin_wird_in_dieser_aufzeichnung_wirklich_gewirkt() {
 fn die_pruefsumme_stimmt_in_jedem_takt() {
     let json = data();
     let aufzeichnung = recording(&json);
+    // **Der Boss kommt aus der Aufzeichnung, nicht aus der Vorgabe.**
+    // Gemessen: Mit `FightConfig::default()` lief dieser Fall gegen
+    // `first-crucible`, der nie austeilt — beide Seiten verglichen dann eine
+    // Wirkung von null gegen eine Wirkung von null und waren bitgleich.
+    let boss_id = json["bossId"].as_str().expect("bossId fehlt");
+    let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
     let mut fight = Fight::new(FightConfig {
         seed: aufzeichnung.seed,
+        boss,
         duration_ms: Some(aufzeichnung.ticks * TICK_MS),
         ..FightConfig::default()
     });
