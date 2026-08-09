@@ -5775,3 +5775,56 @@ zwei Tage auf dieser Null.
 
 Und zähle die **Suiten**, nicht die `FAILED`-Zeilen. Eine Suitenzahl, die kleiner ist als sonst,
 zeigt einen Abbruch; eine Zeilenzahl von null zeigt ihn nicht.
+
+---
+
+### 8.91 Ein roter Test beweist nicht, dass der Code falsch ist
+
+Der gefährlichste Moment beim Prüffall-Bauen ist der, in dem der neue Fall rot wird und man ihn
+für einen Fund hält. Er kann auch heißen, dass der **Fall** falsch misst — und dann repariert man
+Code, der in Ordnung war, bis der falsche Fall grün ist. Was danach festgenagelt ist, stimmt nicht.
+
+Am 2026-08-09 ist das beim Bau eines Prüffalls **zweimal hintereinander** passiert:
+
+```
+1.  toArray() liefert die Ereignisart als NAMEN, nicht als Zahl.
+    Der Vergleich gegen die Konstante (die 8) fand nichts — drei Fälle rot,
+    obwohl der Einbau stimmte.
+
+2.  Der Log führt den ANGEKOMMENEN Schaden, nicht den Rohwert.
+    Der Vergleich gegen onTrigger.damage (200) fand null Treffer, weil
+    Rüstung und Widerstände dazwischenliegen.
+```
+
+Beide Male sah es nach einem Befund aus. Beide Male war der Code richtig.
+
+**Was gerettet hat, war keine weitere Annahme, sondern eine Wegwerf-Probe**, die nur ausgab, was
+tatsächlich dasteht:
+
+```
+{"bossTimelineFired":3,"playerDamage":7,"bossEnergyTriggered":4}  t=4
+```
+
+Die 4 stand von Anfang an da. Die Frage war nie, ob der Code sie schreibt — sondern ob der Test
+sie zu lesen versteht.
+
+**Die Regel:**
+
+> Wird ein **neuer** Fall beim ersten Lauf rot, gib zuerst aus, was der gemessene Wert
+> **wirklich** ist. Erst wenn er von der Erwartung abweicht, ist es ein Befund.
+
+Das ist die Umkehrung von 8.84 (eine Widerlegung, die selbst falsch ist) und liegt eine Ebene
+tiefer als 8.90 (ein grüner Lauf belegt nur, was er angesehen hat): Hier ist der **rote** Lauf
+das Problem, weil er glaubwürdiger aussieht, als er ist.
+
+Ein roter neuer Fall hat drei Ursachen, und nur eine davon ist ein Fund:
+
+| Ursache                                     | Was zu tun ist                                         |
+| ------------------------------------------- | ------------------------------------------------------ |
+| Der Code ist falsch                         | der Befund — melden und beheben                        |
+| Der Fall liest die falsche Darstellung      | den Fall korrigieren, **nicht** den Code               |
+| Der Fall vergleicht gegen die falsche Größe | dito — und die Verwechslung als Kommentar hinterlassen |
+
+Die beiden Fallen aus dem Beispiel stehen jetzt als Kommentar in dem Fall, der sie ausgelöst hat.
+Das ist der Teil, der über den Tag hinaus wirkt: **Wer eine Falle bezahlt hat, stellt sie dem
+Nächsten nicht noch einmal.**
