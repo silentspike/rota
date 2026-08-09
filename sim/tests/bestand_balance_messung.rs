@@ -34,6 +34,14 @@
 //! Das sind Minuten, keine 40 Millisekunden — der Unterschied zu dort ist
 //! nicht die Haltung, sondern die Größenordnung.
 //!
+//! **Und die Bedingung gehört zu den Zahlen.** Sie entstanden am 2026-08-09
+//! auf `rustbuild` (CT 155, 8 Kerne) unter der damaligen Last. Wie stark das
+//! wiegt, steht in dieser Datei selbst: `ac4_was_kostet_eine_paar_runde` maß
+//! dieselbe Sache zweimal — 0,0425 s je Messung, als der Fall neben anderen
+//! lief, und 0,0206 s allein. **Faktor zwei.** Wer die 459,9 s nachfährt und
+//! die Hälfte misst, hat nicht die Zahl widerlegt, sondern unter anderer Last
+//! gemessen. Die Größenordnung trägt, die Nachkommastelle nicht.
+//!
 //! **2. Hier steht ein Werkzeug, dort standen Prüffälle.** Diese Datei sichert
 //! nichts zu: Ihre `assert!`-Zeilen prüfen ausschließlich, dass der Lauf
 //! überhaupt misst (nicht-leere Ergebnisse, bewegte Spannen, die erwartete

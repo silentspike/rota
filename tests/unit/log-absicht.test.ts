@@ -147,12 +147,28 @@ function allesGeschriebene(): Set<string> {
   // dran — das ist gewollt, der Lauf darüber deckt es ab.
   //     -> bossTimelineFired, interruptLanded, dotTick, shieldAbsorb
   //
-  // **Die Reihenfolge ist gemessen, nicht gewählt.** Sie nimmt den ERSTEN
-  // bereiten Zauber dieser festen Folge. Feiner gesteuerte Fassungen — etwa
-  // „SMOULDER nur, wenn der Brand ausläuft" — lieferten `dotTick` NICHT:
-  // gemessen 20 SMOULDER-Würfe und kein einziger Tick im Verlauf. Warum die
-  // grobe Folge ihn hervorruft und die gezielte nicht, ist offen; hier zählt,
-  // welche Lage die Art nachweislich erzeugt.
+  // **Die grobe Folge ist Absicht.** Sie nimmt den ERSTEN bereiten Zauber
+  // dieser festen Liste und fragt keine Restlaufzeit ab — genau das macht sie
+  // tragfähig.
+  //
+  // Eine gezielte Fassung („SMOULDER nur, wenn der Brand ausläuft") lieferte
+  // beim Bauen **keinen einzigen** `dotTick` bei 20 SMOULDER-Würfen, und der
+  // Grund war ein Aufruffehler von mir, kein Verhalten des Spiels:
+  //
+  // ```text
+  //   combat.ts   dotRemainingMs(index: SpellIndex, timeMs: number)
+  //   gerufen als dotRemainingMs(index)          -> timeMs undefined
+  //               expires - undefined = NaN,  NaN > 0 = false  -> immer 0
+  // ```
+  //
+  // Damit war „läuft aus" in jedem Takt wahr, SMOULDER wurde jeden GCD neu
+  // geworfen, und der Brand nie alt genug zum Ticken. Nachgemessen mit
+  // korrektem Aufruf: 12000, 11000, 10000, 9000 — die Methode ist in Ordnung.
+  //
+  // Der Satz stand hier zunächst als „warum, ist offen". **Ein Kommentar, der
+  // ein Nichtwissen behauptet, ist genauso ungeprüft wie einer, der eine
+  // Wirkung behauptet** — und dieser hätte den nächsten Leser auf die Suche
+  // nach einem Fehler im Brand-System geschickt, den es nicht gibt.
   dazu(
     mitDruecken(
       'test-warden',
@@ -166,6 +182,18 @@ function allesGeschriebene(): Set<string> {
       3000,
     ),
   );
+
+  // **Eine Verstärkung, die ausläuft** (Issue #682).  -> buffExpire
+  //
+  // Vorher trug die Art eine `bekannteLuecke` und fiel damit aus beiden
+  // Vergleichen; seit #682 schreiben beide Seiten sie, die Ausnahme ist weg
+  // — und ohne diesen Lauf stünde sie als „kein Lauf tut es" da.
+  //
+  // SLAG setzt die Verstärkung und hält vier Wartezeiten. Der Lauf muss
+  // deutlich länger sein als der Wurf, sonst endet er VOR dem Ablauf: Ein
+  // Lauf, der zu früh aufhört, belegt nur seine eigene Uhr.
+  dazu(mitDruecken('test-warden', (c) => c.indexOf('slag'), 9000));
+
   return alle;
 }
 
@@ -247,12 +275,17 @@ describe('AC2 — die Absicht stimmt mit der Wirklichkeit überein', () => {
       ).not.toMatch(/#676\b/);
     }
     // **Die Zusicherung gegen das stille Wachsen.** Wer eine Art hier
-    // einträgt, statt sie zu bauen, muss diese Zahl anfassen — und damit
-    // erklären, warum die Liste länger wird.
+    // einträgt, statt sie zu bauen, muss diese Liste anfassen — und damit
+    // erklären, warum sie länger wird.
+    //
+    // Sie ist seit #682 **leer**: `buffExpire` war der einzige Eintrag, und
+    // die Lücke ist geschlossen statt verwaltet. Dass die Liste schrumpfen
+    // kann, ist der Zweck — eine Ausnahme, die niemand je wieder entfernt,
+    // wäre eine Dauereinrichtung mit Issue-Nummer.
     expect(
       luecken.map(([name]) => name),
       'die Liste der bekannten Lücken hat sich geändert',
-    ).toEqual(['buffExpire']);
+    ).toEqual([]);
   });
 
   it('AC4-Probe — der Wächter erkennt Art 8 als geschrieben', () => {
