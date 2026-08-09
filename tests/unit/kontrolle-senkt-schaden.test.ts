@@ -62,9 +62,25 @@ import { TICK_MS } from '../../src/core/loop.js';
  * verändert. `boss-1-4` hat keine Energieleiste und ist davon unberührt —
  * genau dafür stehen hier zwei Bosse.
  */
+/**
+ * **`wirkung` ist die Zusicherung, die Absolutwerte sind Kulisse** (#678).
+ *
+ * Gemessen wird `ohne − mitStall`. Legt eine unbeteiligte Mechanik am selben
+ * Boss künftig einen Sockel unter beide Werte, wandern sie gemeinsam und die
+ * Differenz bleibt — der Fall meldet sich dann nicht mehr grundlos.
+ *
+ * Genau das ist bei #568 passiert: Die Energieleiste von `test-vessel` legte
+ * 320 unter beide Zahlen, fünf Fälle fielen, und gemessen hatte sich nichts.
+ *
+ * **Die Wirkung steht je Lage, nicht als eine Zahl über allem.** `boss-1-4`
+ * trägt 560, `test-vessel` 960 — eine gemeinsame Zahl wäre schlicht falsch.
+ * Der Unterschied hat einen Grund: `boss-1-4` hat einen einzigen
+ * Zeitleisten-Eintrag und endet deshalb auf 0, `test-vessel` trägt mehrere.
+ * Beide zusammen zeigen, dass der Nachweis nicht an einem Randwert hängt.
+ */
 const LAGEN = [
-  { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0 },
-  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1600, mitStall: 640 },
+  { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0, wirkung: 560 },
+  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1600, mitStall: 640, wirkung: 960 },
 ] as const;
 const TAKTE = 4000;
 
@@ -136,7 +152,11 @@ function lauf(bossId: string, kontrollZauber: string | null, quenchAtMs: number)
 
 describe('Die Kontrolle senkt den erlittenen Schaden', () => {
   for (const lage of LAGEN) {
-    const { bossId, quenchAtMs, ohne, mitStall } = lage;
+    // `ohne` und `mitStall` werden bewusst NICHT ausgelesen: Sie stehen in
+    // der Tabelle als Kulisse — als Anhalt, welche Größenordnung zu erwarten
+    // ist — und sind seit #678 keine Zusicherung mehr. Zugesichert ist
+    // `wirkung`, die Differenz.
+    const { bossId, quenchAtMs, wirkung } = lage;
 
     describe(bossId, () => {
       it('alle drei Läufe drücken QUENCH genau einmal', () => {
@@ -150,17 +170,37 @@ describe('Die Kontrolle senkt den erlittenen Schaden', () => {
 
       it('ohne Kontrolle kommt der Zauber an', () => {
         const r = lauf(bossId, null, quenchAtMs);
-        expect(r.damageTaken).toBe(ohne);
+        // Der Schadenswert ist hier KULISSE und keine Zusicherung — er darf
+        // wandern, sobald eine unbeteiligte Mechanik am Boss Schaden macht.
+        // Zugesichert sind die beiden Zähler: Der Zauber wurde nicht
+        // unterbrochen und ist angekommen.
         expect(r.unterbrochen).toBe(0);
         expect(r.verpasst).toBe(1);
       });
 
       it('mit STALL trifft er nicht', () => {
         const r = lauf(bossId, 'stall', quenchAtMs);
-        expect(r.damageTaken).toBe(mitStall);
         expect(r.unterbrochen).toBe(1);
         expect(r.verpasst).toBe(0);
-        expect(r.damageTaken, 'STALL senkt den Schaden nicht').toBeLessThan(ohne);
+      });
+
+      it(`STALL verhindert ${wirkung} Schaden — die Differenz, nicht die Absolutwerte`, () => {
+        // **Der Kern von #678.** Gemessen wird `ohne − mit`, weil nur diese
+        // Zahl die Wirkung von STALL ist. Beide Absolutwerte wandern
+        // gemeinsam, sobald jemand dem Boss eine weitere Mechanik gibt; die
+        // Differenz überlebt das.
+        const ohneKontrolle = lauf(bossId, null, quenchAtMs).damageTaken;
+        const mitKontrolle = lauf(bossId, 'stall', quenchAtMs).damageTaken;
+
+        expect(ohneKontrolle - mitKontrolle, 'die Wirkung von STALL hat sich verschoben').toBe(
+          wirkung,
+        );
+
+        // **Zusicherung gegen den stillen Nullfall:** Verhinderte STALL gar
+        // nichts, wäre die Differenz 0 — und eine erwartete 0 sähe genauso
+        // aus wie eine gemessene. Deshalb steht hier, dass überhaupt etwas
+        // verhindert wird.
+        expect(wirkung, 'eine Wirkung von 0 wäre keine Wirkung').toBeGreaterThan(0);
       });
 
       it('STAY trägt dieselbe Last und ändert trotzdem nichts', () => {
