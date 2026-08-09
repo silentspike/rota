@@ -34,6 +34,16 @@ sim/target/
 # (tools/sfx-post.sh <raw> <out> b), ohne neue Credits zu verbrauchen.
 assets/sfx/
 
+# Sitzungseigene Claude-Einstellungen.
+#
+# .claude/settings.json ist versioniert und gilt fuer ALLE vier Sitzungen —
+# auch fuer die drei Worktrees, die dieselbe Datei aus git bekommen. Ein Hook,
+# der nur zu einer Rolle passt, gehoert deshalb hierher und nicht dorthin:
+# der Orchestrator braucht beim Verdichten seinen Nachrichtenstand, ein Worker
+# nicht. Am 2026-07-29 hat ein Hook, der eine Ebene zu weit oben stand, fremde
+# Sitzungen blockiert.
+.claude/settings.local.json
+
 # Werkzeug-Ausgaben
 .playwright-cli/
 *.log
