@@ -75,6 +75,11 @@ const ERWARTET: &[(&str, BuffTarget)] = &[
     ("slag", BuffTarget::Cap),
     ("flashpoint", BuffTarget::Resource),
     ("distil", BuffTarget::CdReduce),
+    // AETHER (Issue #480) — dieselbe Zielgröße wie DISTIL, doppelte Dauer,
+    // viermal die Abklingzeit. Er steht hier, weil dieser Wächter jeden
+    // Verstärker des Datensatzes einfordert: Ohne den Eintrag wäre er beim
+    // Anlegen rot geworden, und genau das ist er auch.
+    ("aether", BuffTarget::CdReduce),
     ("griplock", BuffTarget::Control),
     ("virulence", BuffTarget::Stack),
     ("quicksilver", BuffTarget::Convert),

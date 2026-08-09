@@ -98,6 +98,22 @@
         "gcds": 4,
         "target": "cdreduce"
       }
+    },
+    {
+      "_comment": "AETHER — fuer acht Wartezeiten laufen die Verkuerzungen doppelt (Issue #480).\n\nDer grosse Moment der Schule, und die laengere Schwester von DISTIL: dieselbe\nBauart (buff auf cdreduce), doppelte Dauer, viermal die Abklingzeit. Wer DISTIL\nvor eine kurze Kette setzt, setzt AETHER vor die lange.\n\nWARUM KEINE EIGENE MECHANIK: Das Raster beschreibt ihn als 'alle Abklingzeiten\nlaufen doppelt schnell'. Gemessen traegt der Datensatz dafuer bereits\nBuffTarget::CdReduce — er verstaerkt, was die Verkuerzer abziehen. Das ist\ndieselbe Wirkung aus Sicht des Spielers und braucht kein neues Feld.\n\nVORLAEUFIGE ZAHLEN, wie bei DISTIL und den vier Geschwistern aus #540. Die\nWerte stammen aus docs/ZAUBER-RASTER.md (CD 60 s, acht Wartezeiten); balanciert\nist hier nichts.",
+      "id": "aether",
+      "name": "Aether",
+      "unlockLevel": 16,
+      "baseDamage": 0,
+      "cooldownMs": 60000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "buff": {
+        "kind": 0,
+        "factor": 2,
+        "gcds": 8,
+        "target": "cdreduce"
+      }
     }
   ]
 }

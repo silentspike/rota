@@ -327,6 +327,24 @@ export const SUBLIMATION_NAME = 'sublimation';
 export const WISP_NAME = 'wisp-verkuerzung';
 
 /**
+ * AETHER verdoppelt, was die Verkürzer abziehen (Issue #480).
+ *
+ * **Warum eine eigene Aufzeichnung und nicht `sublimation`.** Dort steht
+ * VAPOUR als Träger, und der Fall `parity_sublimation_run` misst an seiner
+ * Restzeit einen Sprung von genau 1010 ms (10 ms Uhr + 1000 ms VAPOUR).
+ *
+ * AETHER verdoppelt genau diesen Betrag — mit ihm in derselben Runde ist der
+ * Sprung nicht mehr 1010, und der Fall verliert seinen Träger. Gemessen, nicht
+ * vermutet: „kein einziger Fall der Restzeit beträgt 1010 ms".
+ *
+ * Das ist dieselbe Nebenwirkung, die WISP aus jener Aufzeichnung vertrieben
+ * hat — der Kommentar an `SUBLIMATION_BINDINGS` beschreibt sie, und ich bin
+ * trotzdem hineingelaufen, weil AETHER anders wirkt als WISP: nicht durch
+ * Verdrängung, sondern indem er die gemessene Größe selbst verändert.
+ */
+export const AETHER_NAME = 'aether-fenster';
+
+/**
  * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
  *
  * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
@@ -3014,6 +3032,95 @@ export function phasenPayload(): Record<string, unknown> {
       hoechstePhase: Math.max(...phase),
       /** Eingesteckter Schaden: mit gebundenem Ereignis höher als ohne. */
       damageTaken: result.damageTaken,
+    },
+  };
+}
+
+const AETHER_BINDINGS = [
+  { slot: 0, spellId: 'aether' },
+  { slot: 1, spellId: 'vapour' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * AETHERs Fenster über einer laufenden Verkürzung (Issue #480).
+ *
+ * # Was der Lauf zeigt
+ *
+ * AETHER wird **einmal am Anfang** geworfen — 60 s Abklingzeit gegen 30 s
+ * Laufzeit lassen nichts anderes zu. Danach läuft VAPOUR wiederholt, und
+ * seine Verkürzung fällt in AETHERs Fenster (acht Wartezeiten) doppelt aus.
+ *
+ * Gemessen wird die Restzeit von KINDLE: Sie sinkt je Takt um die Uhr, und
+ * bei einem VAPOUR-Wurf zusätzlich um dessen Betrag — verdoppelt, solange
+ * AETHER steht.
+ *
+ * # Warum KINDLE der Träger ist und nicht VAPOUR
+ *
+ * VAPOUR verkürzt sich nicht selbst. Wer an seiner eigenen Restzeit misst,
+ * sieht die Wirkung nie — dieselbe Falle, die `parity_sublimation_run` mit
+ * einem eigenen Träger löst.
+ */
+export function aetherPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const aether = combat.indexOf('aether');
+  const vapour = combat.indexOf('vapour');
+  const kindle = combat.indexOf('kindle');
+  const ticks = 3000; // 30 s
+
+  const slots = slotMap(combat, AETHER_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Restzeit von KINDLE je Takt — an ihr wird die Verkürzung sichtbar. */
+  const kindleRest: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // AETHER zuerst, solange er bereit ist — sein Fenster soll über den
+    // Verkürzungen liegen, nicht dahinter. Danach VAPOUR, der verkürzt.
+    let gewaehlt = -1;
+    if (combat.isReady(alsSpellIndex(aether), timeMs)) gewaehlt = aether;
+    else if (combat.isReady(alsSpellIndex(vapour), timeMs)) gewaehlt = vapour;
+    else if (combat.isReady(alsSpellIndex(kindle), timeMs)) gewaehlt = kindle;
+
+    // **Die Restzeit VOR dem Wurf ablesen.** Sonst zählte man das Ergebnis
+    // der eigenen Auswahl statt des Zustands, in dem sie getroffen wurde.
+    kindleRest.push(combat.cooldownRemainingMs(alsSpellIndex(kindle), timeMs));
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    // **Die Prüfsumme NACH dem Wurf.** Die Rust-Seite nimmt sie am Ende des
+    // Taktes; wer sie hier davor nimmt, vergleicht zwei verschiedene
+    // Zeitpunkte und weicht schon in Takt 0 ab — gemessen, nicht vermutet.
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: AETHER_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: AETHER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    kindleRest,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /**
+       * **Die Zusicherung, dass der Lauf AETHER überhaupt wirft.** Steht hier
+       * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht —
+       * und wäre grün, weil dann eben nichts zu verstärken war.
+       */
+      aetherCasts: combat.castCount(alsSpellIndex(aether)),
+      vapourCasts: combat.castCount(alsSpellIndex(vapour)),
     },
   };
 }
