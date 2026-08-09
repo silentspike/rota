@@ -183,6 +183,15 @@ pub struct Heal {
     /// `0` heisst: Der Betrag haengt nicht am fehlenden Leben — so wie SALVE
     /// es seit jeher haelt.
     pub per_missing_percent: u32,
+    /// Wie viel Prozent der liegenden Schutzschicht in Heilung uebergehen
+    /// (Issue #481, SUTURE).
+    ///
+    /// Steht ein Wert ueber `0`, **verbraucht der Zauber die ganze Schicht**
+    /// und rechnet den angegebenen Anteil davon auf `amount` drauf. Bei 100
+    /// geht sie eins zu eins ueber.
+    ///
+    /// `0` heisst: Der Zauber laesst die Schicht in Ruhe — so wie SALVE.
+    pub from_shield_percent: u32,
 }
 
 /// Schaden-in-Schutz-Umwandlung (COAGULATION, Weg 3).

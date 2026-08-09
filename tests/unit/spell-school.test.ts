@@ -80,6 +80,9 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Er schiebt CRUCIBLE SKIN um eins nach hinten; das geschieht hier und
       // in `spell-order.json` sichtbar, nicht still (wie #268, #479).
       'mend',
+      // Issue #481 — SUTURE verbindet Weg 1 und Weg 2; er steht hinter MEND,
+      // weil er in `coagulation.json` dort steht.
+      'suture',
       // Issue #481 — CRUCIBLE SKIN, hinter QUICKSILVER wie in
       // `coagulation.json`. Diese Liste und `spell-order.json` führen
       // dieselbe Reihenfolge; sie steht an zwei Stellen, damit eine

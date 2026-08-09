@@ -129,6 +129,20 @@
       }
     },
     {
+      "_comment": "SUTURE — wandelt Schicht in Heilung um (Raster 6 von 9, Issue #481).\n\nDER ERSTE ZAUBER DER SCHULE, DER ZWEI WEGE VERBINDET. Weg 1 legt eine\nSchicht, Weg 2 holt Leben zurueck; SUTURE nimmt die liegende Schicht und\nmacht daraus Heilung. Die Abwaegung: Eine Schicht, die man nicht mehr\nbraucht, ist verloren — er holt sie zurueck, kostet dafuer aber den\nSchutz gegen den naechsten Schlag.\n\nKEIN EIGENES FELD, sondern ein vierter Zusatz an `heal`:\n`fromShieldPercent` sagt, wie viel von der Schicht als Heilung ANKOMMT.\nVerbraucht wird sie IMMER ganz — eine halbe Schicht stehen zu lassen\nwaere ein anderer Zauber.\n\nDIE 100 SIND EINE ANNAHME, nicht aus dem Raster. Das Raster nennt zu\nSUTURE nur \"18 s\" und \"wandelt Schicht in Heilung um\", keinen Kurs. Bei\n100 geht sie eins zu eins ueber; darunter kostet die Umwandlung, darueber\nlohnt sie. Eins zu eins ist die Fassung ohne Zusatzbehauptung — wer einen\nVerlust oder Gewinn will, entscheidet das beim Balancieren.\n\nVORLAEUFIGE ZAHLEN. 18 s Abklingzeit stehen im Raster. 400 Grundbetrag,\ndamit er ohne Schicht nicht voellig ins Leere geht; die Aussage ist die\nUmwandlung, nicht der Grundbetrag.",
+      "id": "suture",
+      "name": "Suture",
+      "unlockLevel": 9,
+      "baseDamage": 0,
+      "cooldownMs": 18000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "heal": {
+        "amount": 400,
+        "fromShieldPercent": 100
+      }
+    },
+    {
       "_comment": "CRUCIBLE SKIN — alle drei Wege gleichzeitig, kurz und stark (Issue #481).\n\nKEIN NEUES FELD. Er ist die Summe der drei vorhandenen Wirkungen der\nSchule: `shield` (Weg 1), `heal` (Weg 2) und `conversion` (Weg 3). Das\nRaster nennt ihn \"alle drei Wege gleichzeitig\" — genau so ist er gebaut,\naus Bausteinen, die der Kampf schon kennt.\n\nDamit ist er auch der einzige der fuenf neuen, der ohne Eingriff in\ncombat.ts und fight.rs auskommt.\n\nVORLAEUFIGE ZAHLEN. 45 s Abklingzeit stehen im Raster; die Werte sind\n\"kurz und stark\" umgesetzt: mehr als CRUST (900) und SALVE (1500) je\nEinzelwurf, dafuer nur ein Stapel und die halbe Dauer. Getunt wird, wenn\nder Katalog vollstaendig ist — nicht Zauber fuer Zauber.",
       "id": "crucible-skin",
       "name": "Crucible Skin",
