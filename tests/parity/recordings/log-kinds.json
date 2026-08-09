@@ -44,7 +44,7 @@
     {
       "kind": 8,
       "name": "bossEnergyTriggered",
-      "writtenByGame": false
+      "writtenByGame": true
     },
     {
       "kind": 9,
@@ -94,6 +94,7 @@
     3,
     6,
     7,
+    8,
     9,
     10,
     12,
