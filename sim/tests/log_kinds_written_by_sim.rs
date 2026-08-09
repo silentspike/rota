@@ -62,10 +62,15 @@ const JSON: &str = include_str!("../../tests/parity/recordings/log-kinds.json");
 ///
 /// Sie sind vom Soll-Ist-Vergleich ausgenommen und werden trotzdem genannt.
 /// Eine stille Ausnahme wäre die Bauart, die in #666 und #667 der Fehler war.
-const BEKANNTE_LUECKEN: &[(&str, &str)] = &[(
-    "buffExpire",
-    "#682 — der Simulator kennt die Variante nicht, sie wurde nie angelegt",
-)];
+/// **Zurzeit leer — und das ist das Ergebnis, nicht der Anfangszustand.**
+///
+/// Beim Bau stand hier `buffExpire` mit dem Vermerk „der Simulator kennt die
+/// Variante nicht, sie wurde nie angelegt". Issue #682 hat sie angelegt
+/// (`LogKind::BuffExpire = 7`) samt Schreibstelle in `fight.rs`, und damit ist
+/// die Lücke keine mehr. Der Eintrag wurde entfernt, nicht stehen gelassen:
+/// Eine Ausnahme, deren Grund weggefallen ist, nimmt eine Art vom Vergleich,
+/// die er prüfen kann.
+const BEKANNTE_LUECKEN: &[(&str, &str)] = &[];
 
 /// Arten, die keiner der Läufe unten auslöst — mit dem Grund (AC8).
 ///
@@ -256,6 +261,30 @@ fn geschriebene_arten() -> BTreeSet<&'static str> {
         fight.run(ohne_schild as fn(&Fight) -> Option<usize>);
         sammeln(&fight);
     }
+
+    // **Ein Lauf, der eine Verstärkung wirft und ablaufen lässt** (#682).
+    //
+    // Keine der Rotationen oben wirft einen Verstärker, also lief auch keine
+    // Verstärkung je aus — `buffExpire` blieb unerreicht, obwohl #682 die
+    // Variante und die Schreibstelle angelegt hat. Ein fehlender Lauf ist
+    // kein Grund für eine Ausnahme, sondern für einen Lauf.
+    //                                                       -> buffExpire
+    let mut fight = Fight::new(FightConfig {
+        duration_ms: Some(60_000),
+        ..FightConfig::default()
+    });
+    fn mit_verstaerker(f: &Fight) -> Option<usize> {
+        for name in ["flashpoint", "temper", "distil", "slag", "kindle"] {
+            if let Some(i) = index_of(name) {
+                if f.is_ready(i) {
+                    return Some(i);
+                }
+            }
+        }
+        None
+    }
+    fight.run(mit_verstaerker as fn(&Fight) -> Option<usize>);
+    sammeln(&fight);
     gesehen
 }
 
