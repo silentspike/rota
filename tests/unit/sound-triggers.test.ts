@@ -140,6 +140,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // VORLAEUFIG (Issue #481): POULTICE und MEND ebenso — Klaenge sind E8.
     'poultice',
     'mend',
+    'suture',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.

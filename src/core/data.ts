@@ -415,6 +415,24 @@ export interface HealDef {
    * man aus Gewohnheit wirft, soll wenig bringen.
    */
   readonly perMissingPercent?: number;
+  /**
+   * Wie viel Prozent der liegenden Schutzschicht in Heilung übergehen
+   * (Issue #481, SUTURE).
+   *
+   * Steht das Feld, **verbraucht der Zauber die ganze Schicht** und rechnet
+   * den angegebenen Anteil davon auf `amount` drauf. Bei 100 geht sie eins zu
+   * eins über; darunter kostet die Umwandlung, darüber lohnt sie.
+   *
+   * Das Raster nennt SUTURE „wandelt Schicht in Heilung um" — er ist damit der
+   * erste Zauber der Schule, der ZWEI ihrer Wege verbindet statt einen zu
+   * bedienen. Die Abwägung dahinter: Eine Schicht, die man nicht mehr braucht,
+   * ist verloren; er holt sie zurück, kostet dafür aber den Schutz gegen den
+   * nächsten Schlag.
+   *
+   * Ganzzahlig und in Prozent, aus demselben Grund wie bei
+   * [`perMissingPercent`](HealDef#perMissingPercent).
+   */
+  readonly fromShieldPercent?: number;
 }
 
 /**
@@ -1319,10 +1337,21 @@ function parseCoagulation(
         // Ein Bruch müsste von beiden Seiten unabhängig gerundet werden.
         problems.push(`${where}: perMissingPercent ${perMissingPercent} ist keine ganze Zahl.`);
       }
+      // **Der Anteil aus der Schutzschicht** (SUTURE, #481). Über 100 Prozent
+      // wäre kein Umwandeln mehr, sondern eine Vervielfachung — dieselbe
+      // Grenze wie bei `conversion.sharePercent` eine Ebene darunter.
+      const fromShieldPercent = number(raw['heal']['fromShieldPercent'], 0);
+      if (fromShieldPercent < 0 || fromShieldPercent > 100) {
+        problems.push(
+          `${where}: fromShieldPercent ${fromShieldPercent} liegt außerhalb von 0 bis 100.`,
+        );
+      } else if (!Number.isInteger(fromShieldPercent)) {
+        problems.push(`${where}: fromShieldPercent ${fromShieldPercent} ist keine ganze Zahl.`);
+      }
       out.heal =
         overMs > 0
-          ? { amount, overMs, tickIntervalMs, perMissingPercent }
-          : { amount, perMissingPercent };
+          ? { amount, overMs, tickIntervalMs, perMissingPercent, fromShieldPercent }
+          : { amount, perMissingPercent, fromShieldPercent };
     }
   }
 

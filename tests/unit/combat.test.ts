@@ -71,6 +71,9 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Er schiebt CRUCIBLE SKIN um eins nach hinten; das geschieht hier und
       // in `spell-order.json` sichtbar, nicht still (wie #268, #479).
       'mend',
+      // Issue #481 — SUTURE verbindet Weg 1 und Weg 2; er steht hinter MEND,
+      // weil er in `coagulation.json` dort steht.
+      'suture',
       // Issue #481 — CRUCIBLE SKIN, alle drei Wege der Schule zugleich. Er
       // steht hinter QUICKSILVER, weil er in `coagulation.json` dort steht;
       // die Reihenfolge dieser Liste ist die der Schul-Dateien.

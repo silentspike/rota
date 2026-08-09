@@ -1677,6 +1677,13 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             // nicht am fehlenden Leben. `opt_uint` weist eine negative Zahl
             // von selbst ab; die TypeScript-Seite meldet sie beim Lesen.
             let per_missing_percent = opt_uint(node, "perMissingPercent", &whose, 0);
+            let from_shield_percent = opt_uint(node, "fromShieldPercent", &whose, 0);
+            // Ueber 100 Prozent waere kein Umwandeln mehr, sondern eine
+            // Vervielfachung. Die TypeScript-Seite prueft dasselbe beim Lesen.
+            assert!(
+                from_shield_percent <= 100,
+                "{whose}: fromShieldPercent={from_shield_percent} liegt ueber 100"
+            );
             if over_ms > 0 {
                 // **Auf dem Raster, sonst bliebe ein Reststueck liegen.** Die
                 // TypeScript-Seite prueft dieselben drei Bedingungen beim Lesen
@@ -1708,7 +1715,8 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
                 out,
                 "        heal: Some(Heal {{ amount: {amount}, over_ms: {over_ms}, \
                  tick_interval_ms: {tick_interval_ms}, \
-                 per_missing_percent: {per_missing_percent} }}),"
+                 per_missing_percent: {per_missing_percent}, \
+                 from_shield_percent: {from_shield_percent} }}),"
             );
         }
     }

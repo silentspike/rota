@@ -1262,6 +1262,26 @@ export class Combat {
   }
 
   /**
+   * Nimmt die liegende Schutzschicht weg und gibt zurück, was davon als
+   * Heilung ankommt (SUTURE, Issue #481).
+   *
+   * **Die Schicht ist danach ganz weg, nicht anteilig.** Das Raster sagt
+   * „wandelt Schicht in Heilung um"; eine halbe Schicht stehen zu lassen wäre
+   * ein anderer Zauber. Der Prozentsatz bestimmt, wie viel bei der Umwandlung
+   * ANKOMMT — nicht, wie viel verbraucht wird.
+   *
+   * Ganzzahlig abgerundet, damit Spiel und Simulator dieselbe Zahl bekommen.
+   */
+  private verbraucheSchichtFuerHeilung(prozent: number): number {
+    const liegend = this.shieldValue;
+    if (liegend <= 0) return 0;
+    this.shieldValue = 0;
+    this.shieldStacksValue = 0;
+    this.shieldExpiresAtMs = -1;
+    return Math.floor((liegend * prozent) / 100);
+  }
+
+  /**
    * Wie viel Prozent der Anzeige gerade fehlen, abgerundet (MEND, Issue #481).
    *
    * **Ganzzahlig und abgerundet, nicht gerundet.** Beide Umsetzungen müssen
@@ -1801,8 +1821,18 @@ export class Combat {
     // Anders herum müsste jeder Heil-Takt den Zustand von damals kennen — und
     // ein Zauber, der über sechs Sekunden heilt, würde unterwegs stärker,
     // während der Boss zuschlägt.
+    //
+    // **Die Schutzschicht geht als Ganzes über** (SUTURE, Issue #481). Sie
+    // wird verbraucht, BEVOR der Betrag feststeht — stünde sie noch, wenn die
+    // Heilung ankommt, gäbe der Zauber beides.
+    const ausSchicht =
+      heal !== undefined && heal.fromShieldPercent !== undefined && heal.fromShieldPercent > 0
+        ? this.verbraucheSchichtFuerHeilung(heal.fromShieldPercent)
+        : 0;
     const gewirkterBetrag =
-      heal === undefined ? 0 : heal.amount + this.fehlendProzent() * (heal.perMissingPercent ?? 0);
+      heal === undefined
+        ? 0
+        : heal.amount + this.fehlendProzent() * (heal.perMissingPercent ?? 0) + ausSchicht;
     // **Heilung über Zeit läuft an, statt sofort anzukommen** (POULTICE,
     // Issue #481). Sie ersetzt die Sofortheilung für diesen Zauber; beides
     // zugleich wäre doppelt.

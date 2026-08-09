@@ -69,6 +69,8 @@ heal.amount                crucible-skin 2000 -> 1000     geschuetzt [4 Prueffae
 heal.amount                mend         800 -> 400      geschuetzt [3 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, mend.test.ts)
 heal.amount                poultice     1800 -> 900      geschuetzt [4 Prueffaelle] (poultice.test.ts)
 heal.amount                salve        1500 -> 750      NUR FRISCHE -> faktisch ungeschuetzt
+heal.amount                suture       400 -> 200      geschuetzt [5 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, suture.test.ts)
+heal.fromShieldPercent     suture       100 -> 50       geschuetzt [4 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, suture.test.ts)
 heal.overMs                poultice     6000 -> 3000     geschuetzt [2 Prueffaelle] (poultice.test.ts)
 heal.perMissingPercent     mend         30 -> 15       geschuetzt [4 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, mend.test.ts)
 heal.tickIntervalMs        poultice     1000 -> 500      geschuetzt [1 Prueffall] (poultice.test.ts)

@@ -1802,8 +1802,17 @@ impl Fight {
         // die Verteilung. Anders herum muesste jeder Heil-Takt den Zustand von
         // damals kennen — und ein Zauber, der ueber sechs Sekunden heilt,
         // wuerde unterwegs staerker, waehrend der Boss zuschlaegt.
+        // **Die Schutzschicht geht als Ganzes ueber** (SUTURE, Issue #481). Sie
+        // wird verbraucht, BEVOR der Betrag feststeht — stuende sie noch, wenn
+        // die Heilung ankommt, gaebe der Zauber beides.
+        let aus_schicht = spell
+            .heal
+            .filter(|h| h.from_shield_percent > 0)
+            .map_or(0, |h| {
+                self.verbrauche_schicht_fuer_heilung(h.from_shield_percent)
+            });
         let gewirkter_betrag = spell.heal.map_or(0, |heal| {
-            heal.amount + self.fehlend_prozent() * heal.per_missing_percent
+            heal.amount + self.fehlend_prozent() * heal.per_missing_percent + aus_schicht
         });
         // **Heilung ueber Zeit laeuft an, statt sofort anzukommen** (POULTICE,
         // Issue #481). Sie ersetzt die Sofortheilung fuer diesen Zauber; beides
@@ -2632,6 +2641,24 @@ impl Fight {
                 },
             );
         }
+    }
+
+    /// Nimmt die liegende Schutzschicht weg und gibt zurueck, was davon als
+    /// Heilung ankommt (SUTURE, Issue #481).
+    ///
+    /// **Die Schicht ist danach ganz weg, nicht anteilig.** Das Raster sagt
+    /// „wandelt Schicht in Heilung um"; eine halbe Schicht stehen zu lassen
+    /// waere ein anderer Zauber. Der Prozentsatz bestimmt, wie viel bei der
+    /// Umwandlung ANKOMMT — nicht, wie viel verbraucht wird.
+    fn verbrauche_schicht_fuer_heilung(&mut self, prozent: u32) -> u32 {
+        let liegend = self.shield;
+        if liegend == 0 {
+            return 0;
+        }
+        self.shield = 0;
+        self.shield_stacks = 0;
+        self.shield_expires_at = None;
+        liegend * prozent / 100
     }
 
     /// Wie viel Prozent der Anzeige gerade fehlen, abgerundet (MEND, #481).

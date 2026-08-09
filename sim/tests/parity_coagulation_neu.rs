@@ -44,7 +44,7 @@ const JSON_TEXT: &str = include_str!("../../tests/parity/recordings/coagulation-
 /// waere auch dann gruen, wenn ein Lauf verschwaende. Wer einen der fuenf
 /// neuen Zauber baut, traegt ihn hier ein — und bekommt einen roten Fall,
 /// solange die Aufzeichnung ihn nicht wirkt.
-const NEUE_ZAUBER: [&str; 3] = ["crucible-skin", "poultice", "mend"];
+const NEUE_ZAUBER: [&str; 4] = ["crucible-skin", "poultice", "mend", "suture"];
 
 fn data() -> Value {
     let value: Value = serde_json::from_str(JSON_TEXT).expect("coagulation-neu.json ist kein JSON");
@@ -182,10 +182,15 @@ fn jeder_zauber_bewegt_in_seinem_lauf_die_groesse_seines_weges() {
 
     // Was jeder Zauber bewegen MUSS. Die Zuordnung ist die Aussage: CRUCIBLE
     // SKIN traegt alle drei Wege, POULTICE und MEND nur die Heilung.
-    let pflicht: [(&str, &[&str]); 3] = [
+    let pflicht: [(&str, &[&str]); 4] = [
         ("crucible-skin", &["absorbed", "healed", "converted"]),
         ("poultice", &["healed"]),
         ("mend", &["healed"]),
+        // SUTURE wandelt die Schicht in Heilung um — geprueft wird also die
+        // Heilung, nicht `absorbed`. Dass die Schicht dabei VERSCHWINDET,
+        // haelt `tests/unit/suture.test.ts` fest; hier zeigt sich nur, dass
+        // sie nichts mehr abfaengt.
+        ("suture", &["healed"]),
     ];
 
     for (zauber, groessen) in pflicht {
@@ -228,7 +233,7 @@ fn der_lauf_ohne_zauber_zeigt_dass_der_boss_ueberhaupt_austeilt() {
 fn simulator_und_spiel_kommen_je_lauf_auf_dieselben_zahlen() {
     let json = data();
 
-    for weg in ["none", "crucible-skin", "poultice", "mend"] {
+    for weg in ["none", "crucible-skin", "poultice", "mend", "suture"] {
         let ergebnis = replay(&json, weg);
         for (feld, gemessen) in [
             ("damage", ergebnis.damage),
@@ -251,7 +256,7 @@ fn simulator_und_spiel_kommen_je_lauf_auf_dieselben_zahlen() {
 fn die_pruefsumme_stimmt_in_jedem_takt_jedes_laufs() {
     let json = data();
 
-    for weg in ["none", "crucible-skin", "poultice", "mend"] {
+    for weg in ["none", "crucible-skin", "poultice", "mend", "suture"] {
         let ergebnis = replay(&json, weg);
         let erwartete: Vec<u32> = lauf(&json, weg)["checksums"]
             .as_array()

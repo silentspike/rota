@@ -6367,10 +6367,27 @@ const COAGULATION_NEU_WURFZEIT: Readonly<Record<string, number>> = {
   'crucible-skin': 6100,
   poultice: 19_100,
   mend: 12_200,
+  suture: 16_700,
+};
+
+/**
+ * Zauber, die einen VORBEREITER brauchen, damit sie überhaupt wirken können.
+ *
+ * SUTURE wandelt eine liegende Schutzschicht in Heilung um. Ohne Schicht heilt
+ * er nur seinen Grundbetrag — die Aufzeichnung hielte dann einen Zauber fest,
+ * dessen eigentliche Wirkung nie eintritt, und `heal.fromShieldPercent`
+ * bewegte keine Größe.
+ *
+ * SCAB legt 200 je Anwendung bei 1500 ms Abklingzeit; drei Stapel stehen nach
+ * 3000 ms. CRUST bräuchte für zwei Stapel über 7,5 s ohne Treffer, und dieses
+ * Fenster gibt es bei `test-onslaught` nicht.
+ */
+const COAGULATION_NEU_VORBEREITER: Readonly<Record<string, string>> = {
+  suture: 'scab',
 };
 
 /** Die Läufe der Sammelstelle: einer ohne Zauber, dann einer je Zauber. */
-const COAGULATION_NEU_WEGE = ['none', 'crucible-skin', 'poultice', 'mend'] as const;
+const COAGULATION_NEU_WEGE = ['none', 'crucible-skin', 'poultice', 'mend', 'suture'] as const;
 
 /**
  * Ein Durchgang mit genau EINEM der neuen Zauber — oder ohne.
@@ -6384,9 +6401,13 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
   const kindle = combat.indexOf('kindle');
   const neu = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
   const abMs = COAGULATION_NEU_WURFZEIT[weg] ?? 0;
+  const vorbereiterId = COAGULATION_NEU_VORBEREITER[weg];
+  const vorbereiter =
+    vorbereiterId === undefined ? alsSpellIndex(-1) : combat.indexOf(vorbereiterId);
   const bindings = [
     { slot: 0, spellId: 'kindle' },
     ...(weg === 'none' ? [] : [{ slot: 1, spellId: weg }]),
+    ...(vorbereiterId === undefined ? [] : [{ slot: 2, spellId: vorbereiterId }]),
   ];
   const slots = slotMap(combat, bindings);
   const ticks = 2450;
@@ -6407,6 +6428,17 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
     if (neu >= 0 && timeMs >= abMs && combat.isReady(neu, timeMs)) {
       if (combat.cast(neu, timeMs).result === 0)
         presses.push({ tick, slot: slotFor(slots, neu, combat) });
+    } else if (
+      // Der Vorbereiter läuft NUR im Fenster VOR dem Wurf. Danach legte er
+      // eine neue Schicht, und der Lauf zeigte nicht mehr, dass SUTURE sie
+      // verbraucht hat.
+      vorbereiter >= 0 &&
+      timeMs < abMs &&
+      timeMs >= abMs - 4500 &&
+      combat.isReady(vorbereiter, timeMs)
+    ) {
+      if (combat.cast(vorbereiter, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, vorbereiter, combat) });
     } else if (combat.isReady(kindle, timeMs)) {
       if (combat.cast(kindle, timeMs).result === 0)
         presses.push({ tick, slot: slotFor(slots, kindle, combat) });
