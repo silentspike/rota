@@ -100,6 +100,18 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "perDecayStackPercent": 12
+    },
+    {
+      "_comment": "NECROSIS — der ERSTE ENTLADER der Schule (Issue #479, dort namentlich beauftragt).\n\nDie Schule konnte bis hierher aufbauen (canker, blight legen Stapel) und mit den Stapeln schlagen (fester, miasma), aber sie nie EINLOESEN. Damit war jeder Stapel nur ein Zwischenwert, der irgendwann verfaellt — 12 s, und niemand konnte etwas dagegen tun. NECROSIS macht den Aufbau zu einer Entscheidung.\n\nZWEI FELDER, EIN ZAUBER: perDecayStackPercent 40 laesst ihn mit den Stapeln rechnen, consumesDecayStacks raeumt sie danach ab. Jedes Feld fuer sich ergaebe einen halben Entlader — eines schlaegt ohne Kosten, das andere kostet ohne Ertrag.\n\nNICHT ueber `spender`: PUTREFACTION fuehrt gar keine Ressource. Die Stapel liegen am BOSS, nicht beim Spieler. sim/build.rs:706 bricht den Bau ab, wenn ein Zauber eine Ressource verbraucht, die seine Schule nicht hat — der Abbruch hat den falschen Weg gefunden, bevor ich ihn zu Ende gebaut habe.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 8 s, Entlader). baseDamage 60 ueber allen Fuellern, weil er auf Wartezeit steht; perDecayStackPercent 40 doppelt so hoch wie festers 20, weil er den Stapel VERBRAUCHT statt ihn stehen zu lassen. Bei 5 Stapeln also das Dreifache. Ordnung, keine Balance.\n\nSTEHT AM ENDE DER DATEI — Reihenfolge ist Index-Raum. Siehe MIASMA darueber; mein Einschub in der Mitte hatte genau das verletzt.",
+      "id": "necrosis",
+      "name": "Necrosis",
+      "unlockLevel": 5,
+      "baseDamage": 60,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "perDecayStackPercent": 40,
+      "consumesDecayStacks": true
     }
   ]
 }

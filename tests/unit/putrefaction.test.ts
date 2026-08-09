@@ -210,6 +210,11 @@ describe('Die Mechanik wird von ausgelieferten Zaubern benutzt', () => {
     expect(lebenDavon, 'CANKER legt an, FESTER lebt davon (GAME-DESIGN 4.1)').toEqual([
       'fester',
       'miasma',
+      // **NECROSIS lebt nicht nur davon, er LOEST EIN** (Issue #479). Er
+      // steht aus demselben Grund hier wie MIASMA — `perDecayStackPercent`
+      // ohne `decay`-Feld. Was ihn von beiden Vorgaengern trennt, prueft der
+      // eigene Fall weiter unten: Nach ihm sind die Stapel WEG.
+      'necrosis',
     ]);
   });
 

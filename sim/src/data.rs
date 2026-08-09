@@ -336,6 +336,11 @@ pub struct Spell {
     /// Ob dieser Zauber alle laufenden Braende verbraucht und ihren Rest als
     /// Schaden gibt (PYROCLASM, Issue #517).
     pub consumes_dots: bool,
+    /// Ob dieser Zauber ALLE Faeulnis-Stapel abraeumt (NECROSIS, Issue #479).
+    ///
+    /// Zahlt sich ueber `per_decay_stack_percent` aus, das derselbe Zauber
+    /// traegt: Der Schlag rechnet mit den Stapeln, dann sind sie weg.
+    pub consumes_decay_stacks: bool,
     /// Um wieviele Millisekunden dieser Zauber eine laufende Schutzschicht
     /// verlaengert (HARDEN, #523). Null heisst: gar nicht.
     pub extend_shield_ms: u32,

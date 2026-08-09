@@ -108,6 +108,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // und verschob damit den Index-Raum. Dieser Fall und
       // `spell-order.test.ts` haben es sofort gemeldet.
       'miasma',
+      // Issue #479 — NECROSIS, der Entlader, ebenfalls am Ende.
+      'necrosis',
       'test-cast',
       'test-buff',
       'test-control',
