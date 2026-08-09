@@ -41,7 +41,16 @@ fn ausgelieferte_zauber_benutzen_die_zersetzung() {
         .collect();
     assert_eq!(
         leben_davon,
-        vec!["fester"],
+        // MIASMA und NECROSIS kamen mit #479 dazu. Beide tragen
+        // `per_decay_stack_percent` ohne eigenes `decay`-Feld — sie leben von
+        // den Stapeln, ohne welche zu legen. NECROSIS raeumt sie zusaetzlich
+        // ab; das prueft `consumes_decay_stacks` an seiner eigenen Stelle.
+        //
+        // **Diese Liste ist der Rust-Gegenpart zu `putrefaction.test.ts`.** Ich
+        // habe die TypeScript-Seite ergaenzt und diese hier uebersehen — sie
+        // stand nicht auf meiner Liste der sieben Anschlussstellen. Jetzt sind
+        // es acht, und die achte faellt NUR in der CI-Stufe `sim` auf.
+        vec!["fester", "miasma", "necrosis"],
         "CANKER legt an, FESTER lebt davon — die beiden gehoeren als Paar \
          zusammen (GAME-DESIGN 4.1)"
     );
