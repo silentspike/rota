@@ -44,7 +44,7 @@ const JSON_TEXT: &str = include_str!("../../tests/parity/recordings/coagulation-
 /// waere auch dann gruen, wenn ein Lauf verschwaende. Wer einen der fuenf
 /// neuen Zauber baut, traegt ihn hier ein — und bekommt einen roten Fall,
 /// solange die Aufzeichnung ihn nicht wirkt.
-const NEUE_ZAUBER: [&str; 4] = ["crucible-skin", "poultice", "mend", "suture"];
+const NEUE_ZAUBER: [&str; 5] = ["crucible-skin", "poultice", "mend", "suture", "riposte"];
 
 fn data() -> Value {
     let value: Value = serde_json::from_str(JSON_TEXT).expect("coagulation-neu.json ist kein JSON");
@@ -182,7 +182,7 @@ fn jeder_zauber_bewegt_in_seinem_lauf_die_groesse_seines_weges() {
 
     // Was jeder Zauber bewegen MUSS. Die Zuordnung ist die Aussage: CRUCIBLE
     // SKIN traegt alle drei Wege, POULTICE und MEND nur die Heilung.
-    let pflicht: [(&str, &[&str]); 4] = [
+    let pflicht: [(&str, &[&str]); 5] = [
         ("crucible-skin", &["absorbed", "healed", "converted"]),
         ("poultice", &["healed"]),
         ("mend", &["healed"]),
@@ -191,6 +191,11 @@ fn jeder_zauber_bewegt_in_seinem_lauf_die_groesse_seines_weges() {
         // haelt `tests/unit/suture.test.ts` fest; hier zeigt sich nur, dass
         // sie nichts mehr abfaengt.
         ("suture", &["healed"]),
+        // RIPOSTE gibt eingehenden Schaden zurueck — geprueft wird `reflected`,
+        // und `damage` gleich mit: Der Rueckschlag laeuft durch dieselbe
+        // Buchung wie jeder andere Schaden des Spielers. Stuende er nur in
+        // seinem eigenen Zaehler, waere er eine Zahl ohne Wirkung.
+        ("riposte", &["reflected", "damage"]),
     ];
 
     for (zauber, groessen) in pflicht {
@@ -201,6 +206,13 @@ fn jeder_zauber_bewegt_in_seinem_lauf_die_groesse_seines_weges() {
             );
             // Und dieselbe Groesse steht im Lauf OHNE Zauber auf null. Ohne
             // diese Haelfte koennte sie von etwas anderem stammen.
+            // `damage` steht in JEDEM Lauf ueber null, weil KINDLE jede
+            // Wartezeit fuellt. Die Gegenrichtung „ohne Zauber ist es null"
+            // gilt fuer ihn also nicht — sie gilt fuer die Groessen, die es
+            // OHNE den Zauber nicht gibt.
+            if *feld == "damage" {
+                continue;
+            }
             if *feld != "healed" || zauber == "crucible-skin" {
                 assert_eq!(
                     erwartet(&json, "none", feld),
@@ -220,12 +232,22 @@ fn der_lauf_ohne_zauber_zeigt_dass_der_boss_ueberhaupt_austeilt() {
         erwartet(&json, "none", "damageTaken") > 0,
         "der Boss teilt gar nicht aus — dann belegt kein Lauf etwas"
     );
-    for zauber in NEUE_ZAUBER {
+    // **Woran „besser" sich zeigt, haengt vom Zauber ab.** Vier von fuenf
+    // halten den Spieler am Leben; RIPOSTE tut das NICHT — er gibt Schaden
+    // zurueck, waehrend der Spieler genauso viel einsteckt wie ohne ihn.
+    // Beide ueber `playerHp` zu pruefen hiesse, ihm eine Wirkung zuzuschreiben,
+    // die er nicht hat, und der Fall waere zu Recht rot geworden. Er WAR es,
+    // und das ist der Grund fuer diese Unterscheidung.
+    for zauber in ["crucible-skin", "poultice", "mend", "suture"] {
         assert!(
             erwartet(&json, zauber, "playerHp") > erwartet(&json, "none", "playerHp"),
             "{zauber} laesst den Spieler nicht besser dastehen als gar nichts"
         );
     }
+    assert!(
+        erwartet(&json, "riposte", "damage") > erwartet(&json, "none", "damage"),
+        "riposte teilt nicht mehr aus als gar nichts — dann wirkt er nirgends"
+    );
 }
 
 /// Die Groessen stimmen auf beiden Seiten — je Lauf.
@@ -233,7 +255,14 @@ fn der_lauf_ohne_zauber_zeigt_dass_der_boss_ueberhaupt_austeilt() {
 fn simulator_und_spiel_kommen_je_lauf_auf_dieselben_zahlen() {
     let json = data();
 
-    for weg in ["none", "crucible-skin", "poultice", "mend", "suture"] {
+    for weg in [
+        "none",
+        "crucible-skin",
+        "poultice",
+        "mend",
+        "suture",
+        "riposte",
+    ] {
         let ergebnis = replay(&json, weg);
         for (feld, gemessen) in [
             ("damage", ergebnis.damage),
@@ -241,6 +270,7 @@ fn simulator_und_spiel_kommen_je_lauf_auf_dieselben_zahlen() {
             ("absorbed", ergebnis.shield_absorbed),
             ("healed", ergebnis.healed),
             ("converted", ergebnis.converted),
+            ("reflected", ergebnis.reflected),
         ] {
             assert_eq!(
                 gemessen,
@@ -256,7 +286,14 @@ fn simulator_und_spiel_kommen_je_lauf_auf_dieselben_zahlen() {
 fn die_pruefsumme_stimmt_in_jedem_takt_jedes_laufs() {
     let json = data();
 
-    for weg in ["none", "crucible-skin", "poultice", "mend", "suture"] {
+    for weg in [
+        "none",
+        "crucible-skin",
+        "poultice",
+        "mend",
+        "suture",
+        "riposte",
+    ] {
         let ergebnis = replay(&json, weg);
         let erwartete: Vec<u32> = lauf(&json, weg)["checksums"]
             .as_array()

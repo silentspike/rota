@@ -779,6 +779,29 @@ export class Combat {
   /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
   private convertedValue = 0;
 
+  /**
+   * Der Rückschlag (RIPOSTE, Issue #481) — bis wann er läuft, sein Anteil,
+   * und was er insgesamt zurückgegeben hat.
+   *
+   * Getrennt von der Umwandlung, obwohl beide zu Weg 3 gehören: Sie hängen an
+   * entgegengesetzten Enden (ausgeteilter Schaden gegen eingehenden), und ein
+   * gemeinsamer Zustand hieße, dass ein Zauber nicht nur einen von beiden
+   * anschalten könnte.
+   */
+  private reflectUntilMs = -1;
+  private reflectPercentValue = 0;
+  private reflectedValue = 0;
+  /**
+   * Welchem Zauber der zurückgegebene Schaden gehört.
+   *
+   * **Er braucht einen Träger, keinen Platzhalter.** Der erste Entwurf buchte
+   * ihn auf `-1`; im Simulator hätte dieselbe Zeile `damage_by_spell[index]`
+   * über die Array-Grenze geschickt, und hier wäre er in `damageOf` gar nicht
+   * aufgetaucht. Ein Schaden ohne Urheber ist in der Fehleranalyse (GAME-DESIGN
+   * 15.3) nicht wiederzufinden.
+   */
+  private reflectSpellIndex = alsSpellIndex(0);
+
   // -- FIXATION (Issue #100) --
 
   /**
@@ -1635,6 +1658,16 @@ export class Combat {
     return this.convertedValue;
   }
 
+  /** Anteil des laufenden Rückschlags in Prozent; 0 heißt: keiner (RIPOSTE). */
+  get reflectPercent(): number {
+    return this.reflectPercentValue;
+  }
+
+  /** Wie viel Schaden der Rückschlag insgesamt an den Boss zurückgegeben hat. */
+  get reflected(): number {
+    return this.reflectedValue;
+  }
+
   /** Vorrat an Kontroll-Punkten (FIXATION, Issue #100). */
   get control(): number {
     return this.controlValue;
@@ -1789,7 +1822,7 @@ export class Combat {
    * Weg 3 wirkt hier nur als **Anschalter**: Die Umwandlung selbst geschieht
    * später, bei jedem ausgeteilten Schaden.
    */
-  private applyCoagulation(spell: SpellDef, timeMs: number): void {
+  private applyCoagulation(spell: SpellDef, timeMs: number, index: SpellIndex): void {
     const seitBeginn = timeMs - this.fightStartedAtMs;
 
     // Weg 1 — Schutzschicht aufbauen.
@@ -1871,6 +1904,14 @@ export class Combat {
     if (conversion !== undefined) {
       this.conversionPercentValue = conversion.sharePercent;
       this.conversionUntilMs = seitBeginn + conversion.durationMs;
+    }
+
+    // Weg 3, andere Richtung — den Rückschlag anschalten (RIPOSTE, #481).
+    const reflect = spell.reflect;
+    if (reflect !== undefined) {
+      this.reflectPercentValue = reflect.sharePercent;
+      this.reflectUntilMs = seitBeginn + reflect.durationMs;
+      this.reflectSpellIndex = index;
     }
   }
 
@@ -2500,6 +2541,12 @@ export class Combat {
       this.conversionPercentValue = 0;
       this.conversionUntilMs = -1;
     }
+    // Dasselbe für den Rückschlag (RIPOSTE, #481). Ohne diese vier Zeilen
+    // liefe er bis zum Ende der Runde weiter — ein Fenster, das nie zugeht.
+    if (this.reflectUntilMs >= 0 && seitBeginn > this.reflectUntilMs) {
+      this.reflectPercentValue = 0;
+      this.reflectUntilMs = -1;
+    }
   }
 
   private hitPlayer(raw: number, timeMs: number): void {
@@ -2564,6 +2611,32 @@ export class Combat {
     if (this.playerHpValue === 0) {
       this.diedAtMsValue = timeMs - this.fightStartedAtMs;
     }
+    // **Der Rückschlag hängt am ANGEKOMMENEN Schaden**, nicht am rohen
+    // (RIPOSTE, Issue #481). Ein Schlag, den die Schicht ganz auffängt, gibt
+    // nichts zurück: Sonst wären Schicht und Rückschlag zusammen doppelt
+    // stark, und ein Spieler mit voller Schicht bekäme Schaden geschenkt, den
+    // er gar nicht genommen hat.
+    this.reflectDamage(angekommen, timeMs);
+  }
+
+  /**
+   * Gibt einen Teil des eingehenden Schadens an den Boss zurück (RIPOSTE).
+   *
+   * **Ganzzahlig und abgerundet**, wie bei der Umwandlung nebenan: Der Anteil
+   * steht als Prozentzahl in den Daten, damit hier
+   * `Math.floor(schaden * prozent / 100)` möglich ist.
+   *
+   * Der zurückgegebene Schaden zählt als Schaden des SPIELERS — er geht durch
+   * `bookProgress` wie jeder andere und bewegt damit auch den Fortschritt.
+   * Ein zweiter Weg an der Buchung vorbei wäre eine Stelle zu viel.
+   */
+  private reflectDamage(angekommen: number, timeMs: number): void {
+    if (this.reflectPercentValue === 0 || angekommen <= 0) return;
+    if (timeMs - this.fightStartedAtMs > this.reflectUntilMs) return;
+    const zurueck = Math.floor((angekommen * this.reflectPercentValue) / 100);
+    if (zurueck <= 0) return;
+    this.reflectedValue += zurueck;
+    this.bookProgress(zurueck, this.reflectSpellIndex, timeMs);
   }
 
   /**
@@ -3790,7 +3863,7 @@ export class Combat {
     // weil ein Zauber, der beides täte, erst schützen und dann zuschlagen
     // soll — heute ohne Wirkung (keiner macht beides) und deshalb jetzt
     // festzulegen und nicht dann.
-    this.applyCoagulation(spell, timeMs);
+    this.applyCoagulation(spell, timeMs, index);
     this.applyFixation(spell, timeMs);
     this.applyConversion(spell, timeMs);
     this.applyPutrefaction(spell, timeMs);
@@ -4451,6 +4524,10 @@ export class Combat {
     this.conversionUntilMs = -1;
     this.conversionPercentValue = 0;
     this.convertedValue = 0;
+    this.reflectUntilMs = -1;
+    this.reflectPercentValue = 0;
+    this.reflectedValue = 0;
+    this.reflectSpellIndex = alsSpellIndex(0);
 
     this.controlValue = 0;
     this.pendingConvertedDamage = 0;

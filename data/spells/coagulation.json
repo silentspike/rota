@@ -143,6 +143,20 @@
       }
     },
     {
+      "_comment": "RIPOSTE — ein Teil des eingehenden Schadens geht zurueck (Raster 8 von 9, Issue #481).\n\nDER GEGENENTWURF ZU TEMPER. Beide gehoeren zu Weg 3 und haengen an\nentgegengesetzten Enden:\n\n    conversion  AUSGETEILTER Schaden  ->  Schutz\n    reflect     EINGEHENDER Schaden   ->  Schaden am Boss\n\nEIN EIGENES FELD, kein Zusatz an `conversion`: Ein gemeinsames\n`sharePercent` bedeutete an zwei Stellen etwas anderes, und ein Zauber\nkoennte nicht nur eines von beiden anschalten.\n\nER HAENGT AM ANGEKOMMENEN SCHADEN, nicht am rohen. Ein Schlag, den die\nSchicht ganz auffaengt, gibt nichts zurueck — sonst waeren Schicht und\nRueckschlag zusammen doppelt stark, und der Spieler bekaeme Schaden\ngeschenkt, den er gar nicht genommen hat. DAS IST EINE ANNAHME: Das\nRaster sagt nur \"ein Teil des eingehenden Schadens\".\n\nVORLAEUFIGE ZAHLEN. 30 s Abklingzeit stehen im Raster. 50 Prozent ueber\n8000 ms sind gesetzt, nicht gemessen — er ist der einzige Zauber der\nSchule, der SCHADEN aus Verteidigung macht, und damit der heikelste beim\nBalancieren.",
+      "id": "riposte",
+      "name": "Riposte",
+      "unlockLevel": 11,
+      "baseDamage": 0,
+      "cooldownMs": 30000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "reflect": {
+        "sharePercent": 50,
+        "durationMs": 8000
+      }
+    },
+    {
       "_comment": "CRUCIBLE SKIN — alle drei Wege gleichzeitig, kurz und stark (Issue #481).\n\nKEIN NEUES FELD. Er ist die Summe der drei vorhandenen Wirkungen der\nSchule: `shield` (Weg 1), `heal` (Weg 2) und `conversion` (Weg 3). Das\nRaster nennt ihn \"alle drei Wege gleichzeitig\" — genau so ist er gebaut,\naus Bausteinen, die der Kampf schon kennt.\n\nDamit ist er auch der einzige der fuenf neuen, der ohne Eingriff in\ncombat.ts und fight.rs auskommt.\n\nVORLAEUFIGE ZAHLEN. 45 s Abklingzeit stehen im Raster; die Werte sind\n\"kurz und stark\" umgesetzt: mehr als CRUST (900) und SALVE (1500) je\nEinzelwurf, dafuer nur ein Stapel und die halbe Dauer. Getunt wird, wenn\nder Katalog vollstaendig ist — nicht Zauber fuer Zauber.",
       "id": "crucible-skin",
       "name": "Crucible Skin",

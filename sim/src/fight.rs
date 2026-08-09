@@ -488,6 +488,21 @@ pub struct Fight {
     conversion_percent: u32,
     /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
     converted: u32,
+    /// Der Rueckschlag (RIPOSTE, Issue #481) — bis wann er laeuft, sein Anteil,
+    /// und was er insgesamt zurueckgegeben hat.
+    ///
+    /// Getrennt von der Umwandlung, obwohl beide zu Weg 3 gehoeren: Sie haengen
+    /// an entgegengesetzten Enden (ausgeteilter Schaden gegen eingehenden).
+    reflect_until: Option<Millis>,
+    reflect_percent: u32,
+    reflected: u32,
+    /// Welchem Zauber der zurueckgegebene Schaden gehoert.
+    ///
+    /// **Er braucht einen Traeger, keinen Platzhalter.** Der erste Entwurf
+    /// buchte ihn auf `usize::MAX` — das haette `damage_by_spell[index]` zur
+    /// Laufzeit ueber die Grenze geschickt. Der Bau war gruen; gefunden wurde
+    /// es beim Lesen von `deal`.
+    reflect_spell: usize,
 
     // -- FIXATION (Issue #100) --
     /// Vorrat an Kontroll-Punkten.
@@ -797,6 +812,10 @@ impl Fight {
             conversion_until: None,
             conversion_percent: 0,
             converted: 0,
+            reflect_until: None,
+            reflect_percent: 0,
+            reflected: 0,
+            reflect_spell: 0,
             control: 0,
             pending_control_damage: 0,
             next_strike_delay: 0,
@@ -1326,6 +1345,7 @@ impl Fight {
             shield_absorbed: self.shield_absorbed,
             healed: self.healed,
             converted: self.converted,
+            reflected: self.reflected,
         }
     }
 
@@ -1416,6 +1436,10 @@ impl Fight {
         self.conversion_until = None;
         self.conversion_percent = 0;
         self.converted = 0;
+        self.reflect_until = None;
+        self.reflect_percent = 0;
+        self.reflected = 0;
+        self.reflect_spell = 0;
         self.control = 0;
         self.pending_control_damage = 0;
         self.next_strike_delay = 0;
@@ -1859,6 +1883,38 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+
+        // Weg 3, andere Richtung — den Rueckschlag anschalten (RIPOSTE, #481).
+        if let Some(reflect) = spell.reflect {
+            self.reflect_percent = reflect.share_percent;
+            self.reflect_until = Some(self.time + reflect.duration_ms);
+            self.reflect_spell = index;
+            self.queue
+                .push(self.time + reflect.duration_ms, EventKind::Wakeup);
+        }
+    }
+
+    /// Gibt einen Teil des eingehenden Schadens an den Boss zurueck (RIPOSTE).
+    ///
+    /// **Ganzzahlig und abgerundet**, wie bei der Umwandlung: Der Anteil steht
+    /// als Prozentzahl in den Daten, damit hier `schaden * prozent / 100`
+    /// moeglich ist.
+    ///
+    /// Der zurueckgegebene Schaden laeuft durch `deal` wie jeder andere — ein
+    /// zweiter Weg an der Buchung vorbei waere eine Stelle zu viel.
+    fn reflect_damage(&mut self, angekommen: u32) {
+        if self.reflect_percent == 0 || angekommen == 0 {
+            return;
+        }
+        if self.reflect_until.is_none_or(|bis| self.time > bis) {
+            return;
+        }
+        let zurueck = angekommen * self.reflect_percent / 100;
+        if zurueck == 0 {
+            return;
+        }
+        self.reflected = self.reflected.saturating_add(zurueck);
+        self.deal(self.reflect_spell, zurueck, LogKind::Damage);
     }
 
     /// Die drei Wirkungen aus GAME-DESIGN 4.1.
@@ -2404,6 +2460,10 @@ impl Fight {
             self.conversion_percent = 0;
             self.conversion_until = None;
         }
+        if self.reflect_until.is_some_and(|bis| self.time > bis) {
+            self.reflect_percent = 0;
+            self.reflect_until = None;
+        }
     }
 
     /// Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
@@ -2451,6 +2511,11 @@ impl Fight {
             self.log
                 .push(self.time, LogKind::PlayerDeath, NO_SPELL, self.damage_taken);
         }
+        // **Der Rueckschlag haengt am ANGEKOMMENEN Schaden**, nicht am rohen
+        // (RIPOSTE, Issue #481). Ein Schlag, den die Schicht ganz auffaengt,
+        // gibt nichts zurueck: Sonst waeren Schicht und Rueckschlag zusammen
+        // doppelt stark.
+        self.reflect_damage(angekommen);
     }
 
     /// Bricht einen laufenden Boss-Zauber ab (GAME-DESIGN 11.2, Baustein 9).
@@ -3918,6 +3983,13 @@ impl Fight {
                 + self.convert_buffs.window_sum()
                 + self.cap_buffs.window_sum(),
         );
+        // **Angehaengt, nicht eingeschoben** (RIPOSTE, Issue #481). Das
+        // laufende Rueckschlag-Fenster gehoert hierher aus demselben Grund wie
+        // `conversionPercent`: Es entscheidet ueber jeden kuenftigen Schlag.
+        //
+        // Der ZAEHLER `reflected` steht hier NICHT — er ist kumulativ und hat
+        // eine eigene Leitung ins Ergebnis, genau wie `converted`.
+        h = mix_named_int(h, "reflectPercent", self.reflect_percent as i32);
         h
     }
 

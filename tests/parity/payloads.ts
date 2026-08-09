@@ -6368,6 +6368,10 @@ const COAGULATION_NEU_WURFZEIT: Readonly<Record<string, number>> = {
   poultice: 19_100,
   mend: 12_200,
   suture: 16_700,
+  // Vor dem Treffer bei 12_000, damit sein Fenster (8000 ms) offen steht, wenn
+  // der Schlag landet — und nach dem bei 5000, damit der Lauf zeigt, dass er
+  // vorher NICHTS zurückgibt.
+  riposte: 11_000,
 };
 
 /**
@@ -6387,7 +6391,14 @@ const COAGULATION_NEU_VORBEREITER: Readonly<Record<string, string>> = {
 };
 
 /** Die Läufe der Sammelstelle: einer ohne Zauber, dann einer je Zauber. */
-const COAGULATION_NEU_WEGE = ['none', 'crucible-skin', 'poultice', 'mend', 'suture'] as const;
+const COAGULATION_NEU_WEGE = [
+  'none',
+  'crucible-skin',
+  'poultice',
+  'mend',
+  'suture',
+  'riposte',
+] as const;
 
 /**
  * Ein Durchgang mit genau EINEM der neuen Zauber — oder ohne.
@@ -6470,6 +6481,12 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
       absorbed: result.absorbed,
       healed: result.healed,
       converted: result.converted,
+      // **Aus dem Aufnahme-Lauf, nicht aus `replayRecording`** (RIPOSTE,
+      // Issue #481). `ReplayResult` führt den Rückschlag nicht; die beiden
+      // Läufe sind aber deckungsgleich — dieselbe Bindung, dieselben Drücke,
+      // derselbe Boss. Dass sie es sind, hält die Takt-Prüfsumme darunter
+      // fest: Liefen sie auseinander, wäre sie es auch.
+      reflected: combat.reflected,
       diedAtMs: result.diedAtMs,
       casts: weg === 'none' ? 0 : combat.castCount(neu),
       castsKindle: combat.castCount(kindle),

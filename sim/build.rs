@@ -1745,6 +1745,35 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             );
         }
     }
+
+    match spell.get("reflect") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        reflect: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/reflect");
+            let share = uint(node, "sharePercent", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            // Dieselbe Grenze wie bei der Umwandlung: Ueber 100 % gaebe der
+            // Spieler mehr zurueck, als bei ihm ankommt.
+            assert!(
+                share > 0 && share <= 100,
+                "{whose}: sharePercent {share} liegt nicht in (0, 100]"
+            );
+            assert!(
+                duration > 0,
+                "{whose}: durationMs {duration} — ein Fenster ohne Dauer"
+            );
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            let _ = writeln!(
+                out,
+                "        reflect: Some(Reflect {{ share_percent: {share}, duration_ms: {duration} }}),"
+            );
+        }
+    }
 }
 
 /// Die Umwandlung aus einer schulfremden Quelle (Issue #520, EFFLUX).

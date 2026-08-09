@@ -215,6 +215,30 @@ pub struct Conversion {
     pub duration_ms: Millis,
 }
 
+/// Rueckschlag: ein Teil des EINGEHENDEN Schadens geht an den Boss
+/// (RIPOSTE, Issue #481).
+///
+/// # Der Gegenentwurf zu [`Conversion`]
+///
+/// Beide gehoeren zu Weg 3 und sehen gleich aus — sie haengen aber an
+/// entgegengesetzten Enden:
+///
+/// ```text
+///   Conversion   AUSGETEILTER Schaden  ->  Schutz
+///   Reflect      EINGEHENDER Schaden   ->  Schaden am Boss
+/// ```
+///
+/// Deshalb ein eigenes Feld: Ein gemeinsames `share_percent` bedeutete an zwei
+/// Stellen etwas anderes, und ein Zauber koennte nicht nur eines von beiden
+/// anschalten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reflect {
+    /// Anteil des angekommenen Schadens in **Prozent**, ganzzahlig.
+    pub share_percent: u32,
+    /// Wie lange das Fenster nach dem Wirken offen steht.
+    pub duration_ms: Millis,
+}
+
 /// Was ein Fixierungs-Zauber mit Kontroll-Punkten anstellt (FIXATION,
 /// GAME-DESIGN 4.1, Issue #100).
 ///
@@ -363,6 +387,8 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Rueckschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet.
+    pub reflect: Option<Reflect>,
     /// Wie viele Zersetzungs-Stapel der Zauber anlegt (PUTREFACTION, #97).
     pub decay_stacks: u32,
     /// Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.

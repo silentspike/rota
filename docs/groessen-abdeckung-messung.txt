@@ -74,6 +74,8 @@ heal.fromShieldPercent     suture       100 -> 50       geschuetzt [4 Prueffaell
 heal.overMs                poultice     6000 -> 3000     geschuetzt [2 Prueffaelle] (poultice.test.ts)
 heal.perMissingPercent     mend         30 -> 15       geschuetzt [4 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, mend.test.ts)
 heal.tickIntervalMs        poultice     1000 -> 500      geschuetzt [1 Prueffall] (poultice.test.ts)
+reflect.durationMs         riposte      8000 -> 4000     geschuetzt [2 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, riposte.test.ts)
+reflect.sharePercent       riposte      50 -> 25       geschuetzt [5 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, riposte.test.ts)
 resourceGain.heat          bellows      8 -> 4        geschuetzt (slag.test.ts)
 resourceGain.heat          ember        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
 resourceGain.heat          kindle       3 -> 1        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
