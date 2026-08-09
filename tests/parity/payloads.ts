@@ -359,6 +359,16 @@ export const AETHER_NAME = 'aether-fenster';
 export const SUBLIME_NAME = 'sublime-merker';
 
 /**
+ * Vergleichsdatei für CONDENSE (#480) — der zweite Merker-Zauber.
+ *
+ * Eigene Aufzeichnung statt eines Anbaus an `sublime-merker`, und zwar aus
+ * dem Grund, der bei AETHER einmal zugeschlagen hat: Ein zweiter Zauber in
+ * einer bestehenden Runde verändert die gemessene Größe der ersten. Dort
+ * verdoppelte sich der Sprung des Trägers, und der Fall blieb grün.
+ */
+export const CONDENSE_NAME = 'condense-merker';
+
+/**
  * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
  *
  * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
@@ -3251,6 +3261,95 @@ export function sublimePayload(): Record<string, unknown> {
        * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
        */
       sublimeCasts: combat.castCount(alsSpellIndex(sublime)),
+      /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
+      merkerTakte: merker.reduce((a, b) => a + b, 0),
+    },
+  };
+}
+
+const CONDENSE_BINDINGS = [
+  { slot: 0, spellId: 'condense' },
+  { slot: 1, spellId: 'kindle' },
+  { slot: 2, spellId: 'wisp' },
+  { slot: 3, spellId: 'decant' },
+] as const;
+
+export function condensePayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const condense = combat.indexOf('condense');
+  /**
+   * 30 s — CONDENSE hat 25 s Abklingzeit, kommt also zweimal dran.
+   *
+   * **Nicht länger.** Ein erster Entwurf lief 60 s und kam auf 4000 Schaden;
+   * `test-warden` hat 3000 Trefferpunkte. Der Simulator brach beim Tod des
+   * Bosses ab (4352 Takte), diese Seite lief die vollen 6000 weiter — und der
+   * Paritätsfall meldete „verschieden viele Takte" und „der Schaden geht
+   * auseinander", als wäre CONDENSE falsch gebaut. Er war es nicht: Die
+   * Aufzeichnung war zu lang.
+   */
+  const ticks = 3000;
+
+  const slots = slotMap(combat, CONDENSE_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Ob der Merker in diesem Takt stand — die Größe, um die es geht. */
+  const merker: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // CONDENSE zuerst, danach die drei Schadenszauber in fester Folge. Die
+    // Verdopplung fällt auf den, der gerade bereit ist.
+    let gewaehlt = -1;
+    for (const name of ['condense', 'kindle', 'wisp', 'decant']) {
+      const i = combat.indexOf(name);
+      if (i >= 0 && combat.isReady(alsSpellIndex(i), timeMs)) {
+        gewaehlt = i;
+        break;
+      }
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    // **Nach dem Wurf**, wie bei jeder Aufzeichnung: Die Rust-Seite nimmt die
+    // Prüfsumme am Ende des Taktes.
+    merker.push(combat.nextCastDoubles ? 1 : 0);
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: CONDENSE_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: CONDENSE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    merker,
+    expected: {
+      /**
+       * **Die Größe, die CONDENSE bewegt** — der Schaden, nicht die Prüfsumme.
+       * Die änderte sich auch, wenn der Merker nur gesetzt und nie verbraucht
+       * würde.
+       *
+       * Am Einzelfall gemessen: 200 gegen 100, also exakt verdoppelt. Die
+       * Kontrolle setzt VAPOUR an dieselbe Stelle statt den Zauber wegzulassen
+       * — sonst unterschieden sich die Läufe um CONDENSE **und** um eine
+       * globale Wartezeit.
+       */
+      damageDealt: combat.damageDealt,
+      /**
+       * Die Zusicherung, dass der Lauf CONDENSE überhaupt wirft. Steht hier
+       * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
+       */
+      condenseCasts: combat.castCount(alsSpellIndex(condense)),
       /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
       merkerTakte: merker.reduce((a, b) => a + b, 0),
     },

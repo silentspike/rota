@@ -246,6 +246,16 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     //     Zusammenziehen — eine Luecke, ein uebersprungener Schlag. Die
     //     Woerter der beiden duerfen nicht wiederkehren.
     'sublime',
+    //
+    //   condense    | der naechste Wurf wirkt zweimal | ~0,5 s
+    //     gegen DISTIL (0,6 s, "verdichten, ein Zusammenziehen") — beide
+    //     ziehen zusammen, und genau deshalb duerfen die Woerter sich nicht
+    //     wiederholen. DISTIL verdichtet die ZEIT, CONDENSE den SCHLAG: ein
+    //     Doppelschlag, zwei Anschlaege so dicht beieinander, dass sie fast
+    //     einer sind. Nicht "Echo" und nicht "Hall" — die klingen nach einer
+    //     Wiederholung, die schwaecher ist als das Original, und hier ist die
+    //     zweite Wirkung genauso stark wie die erste.
+    'condense',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //

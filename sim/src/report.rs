@@ -203,6 +203,15 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // ihm folgen sollen (CONDENSE, RETORT, PUTRID BLOOM, DECAY), sind
         // davon mitgedeckt — sie tragen dasselbe Feld.
         || spell.frees_next_gcd
+        // Der zweite Merker (CONDENSE, #480). Er macht selbst keinen Schaden —
+        // er verdoppelt den des nächsten Wurfs, und der steht mit seinem
+        // eigenen Beitrag in der Tabelle.
+        //
+        // Dass beide Merker hier stehen müssen, ist kein Zufall: Ein Zauber,
+        // der auf die ROTATION wirkt statt auf den Boss, hat nie eine eigene
+        // Zeile. Für die zwei, die noch folgen (RETORT, PUTRID BLOOM), gilt
+        // dasselbe, sobald sie ein eigenes Feld bekommen.
+        || spell.doubles_next_cast
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

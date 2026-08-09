@@ -772,6 +772,15 @@ export class Combat {
    */
   private nextCastFreeGcdValue = false;
 
+  /**
+   * Der zweite Merker (CONDENSE, #480): Der nächste Wurf wirkt zweimal.
+   *
+   * Steht neben seinem Nachbarn darüber und nicht am Ende der Felder —
+   * Merker sind eine eigene Sorte Zustand, und vier verstreute wären
+   * schwerer zu pflegen als eine Gruppe.
+   */
+  private nextCastDoublesValue = false;
+
   /** Gesamter erlittener Schaden, **nach** WARD. */
   private damageTakenValue = 0;
 
@@ -1821,6 +1830,23 @@ export class Combat {
    */
   get nextCastFreeGcd(): boolean {
     return this.nextCastFreeGcdValue;
+  }
+
+  /**
+   * Verbraucht den Merker aus CONDENSE, falls er steht (#480).
+   *
+   * Einmal gesetzt, einmal verbraucht — wie bei SUBLIME. Ein Merker, der
+   * stehen bliebe, machte aus einer einzelnen Verdopplung eine dauerhafte.
+   */
+  private takeDoubleCast(): boolean {
+    if (!this.nextCastDoublesValue) return false;
+    this.nextCastDoublesValue = false;
+    return true;
+  }
+
+  /** Ob der nächste Wurf zweimal wirkt (#480). */
+  get nextCastDoubles(): boolean {
+    return this.nextCastDoublesValue;
   }
 
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
@@ -4081,6 +4107,16 @@ export class Combat {
     // globale Wartezeit auslöst, steht weiter unten als `spell.triggersGcd` und
     // kommt aus den Daten — hier wäre eine zweite Stelle, an der dieselbe Regel
     // hängt, und zwei Stellen laufen auseinander.
+    // **Wirkt dieser Wurf zweimal?** (CONDENSE, Issue #480.)
+    //
+    // Der Merker wird HIER verbraucht, vor jeder Wirkung — das Setzen steht
+    // wie bei SUBLIME weit unten, hinter allem. Stünden beide beieinander,
+    // verdoppelte CONDENSE sich selbst statt den nächsten.
+    //
+    // Die Wurfzahl bleibt bei EINS: ein Wurf, der zweimal wirkt, kein zweiter
+    // Wurf. Eine Abklingzeit, eine Wartezeit, ein Cast-Eintrag im Log.
+    const anwendungen = this.takeDoubleCast() ? 2 : 1;
+
     if (spell.interrupt === true) this.interruptBossCast(timeMs);
 
     // **Das Verhängnis senken** (Baustein 2; Issue #561). Genau dieselbe Bauart
@@ -4141,68 +4177,108 @@ export class Combat {
     if (spell.extendShieldMs !== undefined) this.extendShield(timeMs, spell.extendShieldMs);
     if (spell.extendDecayMs !== undefined) this.extendDecayStacks(spell.extendDecayMs);
 
-    let damage = 0;
-    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
-    if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
+    // **Die Schleife für CONDENSE** (#480): einmal, oder zweimal wenn der
+    // Merker stand.
+    //
+    // Sie umschliesst genau die MENGEN — die vier Schadensquellen und ihre
+    // Buchung. Die ZUSTÄNDE davor (unterbrechen, Verhängnis, Synergie-Fenster)
+    // und danach (Verstärkung, Brand) bleiben ausserhalb: Zweimal zu
+    // unterbrechen unterbricht nicht doppelt, und ein Fenster zweimal zu
+    // öffnen verschöbe seine Dauer.
+    //
+    // **Der Krit-Wurf fällt oben, EINMAL für beide Anwendungen** — dieselbe
+    // Regel wie beim Schlüsseltalent aus #418, das denselben Satz trägt.
+    //
+    // **Warum die Buchung mit hineingehört, obwohl sie hier eine Summe
+    // bucht**: Der Simulator ruft `deal` je Schadensquelle einzeln und legt
+    // damit je Quelle einen Log-Eintrag an. Dass beide Seiten heute gleich
+    // viele Einträge schreiben, liegt allein daran, dass kein Zauber ZWEI
+    // Quellen führt — der Kommentar über dem Schadens-Ereignis im Simulator
+    // sagt es ausdrücklich. CONDENSE erzeugt genau diesen Fall zum ersten Mal.
+    // Bliebe die Buchung draussen, schriebe der Simulator zwei Einträge und
+    // das Spiel einen.
+    let gesamtschaden = 0;
+    for (let anwendung = 0; anwendung < anwendungen; anwendung++) {
+      let damage = 0;
+      if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
+      if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
+      // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
+      // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
+      // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
+      // Schaden macht.
+      if (this.pendingConvertedDamage > 0) {
+        damage += computeDamage(this.pendingConvertedDamage, castFactors);
+        this.pendingConvertedDamage = 0;
+      }
+
+      const spender = spell.spender;
+      if (spender !== undefined && spender.resource === this.school.resource.id) {
+        // **Das erste Schlüsseltalent** (Issue #418, GAME-DESIGN 13.09): „Der
+        // Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+        // ZWEIMAL."
+        //
+        // Es trägt keine Zahl, sondern schaltet ein Verhalten um — deshalb
+        // steht hier eine Verzweigung und kein Faktor. Ein Schlüsseltalent, das
+        // sich als Faktor ausdrücken ließe, wäre keines.
+        const geteilt = this.hasKeystone(KEYSTONE_SPLIT_SPENDER);
+        // **Ganzzahlig geteilt, und der Rest bleibt liegen** (GAME-DESIGN 18.4).
+        // Bei 15 Hitze verbraucht jede Hälfte 7, eine bleibt übrig — nicht 7,5.
+        const proSchlag = geteilt ? Math.floor(this.resourceValue / 2) : this.resourceValue;
+        const schlaege = geteilt ? 2 : 1;
+
+        for (let i = 0; i < schlaege; i++) {
+          // **Der Vorrat wird VOR dem zweiten Schlag verbraucht**, sonst
+          // rechnete der zweite mit demselben Stand wie der erste — und aus
+          // „halb, dafür zweimal" würde „ganz, dafür zweimal".
+          const amount = geteilt ? Math.min(proSchlag, this.resourceValue) : this.resourceValue;
+          if (geteilt && amount === 0) break;
+
+          let raw = spender.damagePerPoint * amount;
+          if (amount >= spender.bonusThreshold) {
+            // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
+            raw *= spender.bonusMultiplier;
+            outcome.bonusApplied = true;
+          }
+          damage += computeDamage(raw, castFactors);
+          if (geteilt) this.resourceValue -= amount;
+          else if (spender.consumesAll) this.resourceValue = 0;
+        }
+      }
+
+      if (damage > 0) {
+        this.bookProgress(damage, index, timeMs);
+        this.convertDamageToShield(damage, timeMs);
+        this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
+      }
+      gesamtschaden += damage;
+    }
+
     // **NECROSIS räumt NACH seiner eigenen Berechnung ab** (Issue #479).
     //
-    // `castFactors` steht eine Zeile höher schon fest und trägt den
-    // Stapel-Bonus aus `perDecayStackPercent`. Der Entlader rechnet also MIT
-    // den Stapeln und nimmt sie erst danach weg — andersherum wäre er der
-    // einzige Zauber der Schule, der von der Fäulnis nichts hat.
+    // `castFactors` steht oben schon fest und trägt den Stapel-Bonus aus
+    // `perDecayStackPercent`. Der Entlader rechnet also MIT den Stapeln und
+    // nimmt sie erst danach weg — andersherum wäre er der einzige Zauber der
+    // Schule, der von der Fäulnis nichts hat.
     //
     // Er addiert nichts zu `damage`: Sein Ertrag steckt bereits im Faktor,
-    // nicht in einem zweiten Betrag. Das unterscheidet ihn von PYROCLASM
-    // eine Zeile höher, dessen Brände einen eigenen Betrag beisteuern.
+    // nicht in einem zweiten Betrag. Das unterscheidet ihn von PYROCLASM in
+    // der Schleife, dessen Brände einen eigenen Betrag beisteuern.
+    //
+    // **Er steht NACH der CONDENSE-Schleife und nicht darin** (#480): Stapel
+    // abzuräumen ist ein ZUSTAND, keine Menge. Ein zweiter Durchlauf fände
+    // ohnehin nichts mehr vor — aber die Stelle folgt der Regel, nicht dem
+    // Zufall, dass es hier egal wäre. Stünde er DAVOR, rechnete keine der
+    // beiden Anwendungen mit den Stapeln, und der Absatz oben wäre verletzt.
     if (spell.consumesDecayStacks === true) this.consumeDecayStacks();
-    // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
-    // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
-    // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
-    // Schaden macht.
-    if (this.pendingConvertedDamage > 0) {
-      damage += computeDamage(this.pendingConvertedDamage, castFactors);
-      this.pendingConvertedDamage = 0;
-    }
 
-    const spender = spell.spender;
-    if (spender !== undefined && spender.resource === this.school.resource.id) {
-      // **Das erste Schlüsseltalent** (Issue #418, GAME-DESIGN 13.09): „Der
-      // Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
-      // ZWEIMAL."
-      //
-      // Es trägt keine Zahl, sondern schaltet ein Verhalten um — deshalb
-      // steht hier eine Verzweigung und kein Faktor. Ein Schlüsseltalent, das
-      // sich als Faktor ausdrücken ließe, wäre keines.
-      const geteilt = this.hasKeystone(KEYSTONE_SPLIT_SPENDER);
-      // **Ganzzahlig geteilt, und der Rest bleibt liegen** (GAME-DESIGN 18.4).
-      // Bei 15 Hitze verbraucht jede Hälfte 7, eine bleibt übrig — nicht 7,5.
-      const proSchlag = geteilt ? Math.floor(this.resourceValue / 2) : this.resourceValue;
-      const schlaege = geteilt ? 2 : 1;
-
-      for (let i = 0; i < schlaege; i++) {
-        // **Der Vorrat wird VOR dem zweiten Schlag verbraucht**, sonst
-        // rechnete der zweite mit demselben Stand wie der erste — und aus
-        // „halb, dafür zweimal" würde „ganz, dafür zweimal".
-        const amount = geteilt ? Math.min(proSchlag, this.resourceValue) : this.resourceValue;
-        if (geteilt && amount === 0) break;
-
-        let raw = spender.damagePerPoint * amount;
-        if (amount >= spender.bonusThreshold) {
-          // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
-          raw *= spender.bonusMultiplier;
-          outcome.bonusApplied = true;
-        }
-        damage += computeDamage(raw, castFactors);
-        if (geteilt) this.resourceValue -= amount;
-        else if (spender.consumesAll) this.resourceValue = 0;
-      }
-    }
-
+    // **Ein Schaden-Ereignis je WURF, mit der Summe** — nicht eines je
+    // Anwendung. Genau so steht es im Simulator, und der Kommentar dort
+    // begründet es: Das Spiel meldet einmal, auch wenn mehrere Quellen
+    // beigetragen haben. Deshalb steht dieses Ereignis ausserhalb der
+    // Schleife, während die Treffer-Buchung darin bleibt.
+    const damage = gesamtschaden;
     if (damage > 0) {
-      this.bookProgress(damage, index, timeMs);
-      this.convertDamageToShield(damage, timeMs);
-      this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
-      this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
       this.events.emit(RULE_DAMAGE, index, damage, timeMs);
       // **Hier stand bis #177: „Krit ruht in Schritt 1, ein Auslöser wäre
       // toter Code — die Kennung steht bereit, der Ort ist benannt."** Der Ort
@@ -4264,12 +4340,22 @@ export class Combat {
     // nächsten. Der Fehler wäre grün geblieben — die Wartezeit fiele ja aus,
     // nur bei der falschen Zeile.
     if (spell.freesNextGcd === true) this.nextCastFreeGcdValue = true;
+    if (spell.doublesNextCast === true) this.nextCastDoublesValue = true;
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
     this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);
     // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt über Zeit,
     // Vorrat, Abklingzeit und Wartezeit stehen.
-    this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+    //
+    // **Das Ereignis feuert so oft, wie der Wurf gewirkt hat** (CONDENSE,
+    // #480) — der Cast-Eintrag darüber genau einmal. Daran hängen die beiden
+    // Mechaniken, die Mengen aufbauen: der Vorrat und die Verkürzung aller
+    // Abklingzeiten. Sie zweimal ansetzen zu lassen ist dieselbe Regel wie
+    // beim Schaden, und sie kostet keine Aufzählung — sie setzt dort an, wo
+    // die Mengen ohnehin entstehen.
+    for (let anwendung = 0; anwendung < anwendungen; anwendung++) {
+      this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+    }
 
     // **Die Schwaechung ohne Heil-Loesung** (11.2, Baustein 8; Issue #240).
     // Steht dieser Zauber in `clearedBy`, ist sie weg — und Heilung steht dort
