@@ -124,6 +124,10 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // sie von selbst heraus, sobald der Klang da ist.
     'harden',
     'sepsis',
+    // VORLAEUFIG (Issue #479): MIASMA ist gebaut, sein Klang entsteht ueber
+    // Suno (#487) und kann in keiner Claude-Sitzung entstehen — Claude kann
+    // nicht hoeren. Die Gegenrichtung unten holt ihn heraus, sobald er da ist.
+    'miasma',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
