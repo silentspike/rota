@@ -5724,11 +5724,11 @@ Beide Seiten lesen dieselbe Datei; die Aufzeichnung wurde mit dem falschen Wert 
 
 **Was daraus folgt für den Zuschnitt eines Prüffalls:**
 
-| Was geprüft werden soll | Womit |
-| --- | --- |
-| Rechnen beide Seiten gleich? | Paritäts-Aufzeichnung |
-| Ist die **Größe** einer Wirkung richtig? | Unit-Fall mit **harter Zahl** auf einer Seite |
-| Trägt der richtige Zauber die Wirkung? | Zuordnungs-Liste plus Vollständigkeits-Wächter |
+| Was geprüft werden soll                  | Womit                                          |
+| ---------------------------------------- | ---------------------------------------------- |
+| Rechnen beide Seiten gleich?             | Paritäts-Aufzeichnung                          |
+| Ist die **Größe** einer Wirkung richtig? | Unit-Fall mit **harter Zahl** auf einer Seite  |
+| Trägt der richtige Zauber die Wirkung?   | Zuordnungs-Liste plus Vollständigkeits-Wächter |
 
 Wer eine Wirkungsgröße absichern will und dafür eine Aufzeichnung baut, hat die Prüfung gebaut, die
 seine eigene Mutation nicht fängt. Das ist am 2026-08-09 passiert: Die Aufzeichnung stand, war grün,
