@@ -397,6 +397,24 @@ export interface HealDef {
    * Kampfcode.
    */
   readonly tickIntervalMs?: number;
+  /**
+   * Zuschlag auf `amount` je **Prozent** fehlendem Leben (Issue #481, MEND).
+   *
+   * ```text
+   *   fehlendProzent = (vesselMax - hp) * 100 / vesselMax   (abgerundet)
+   *   betrag         = amount + fehlendProzent * perMissingPercent
+   * ```
+   *
+   * **Ganzzahlig und in Prozent, nicht als Anteil.** Ein `0.3` in der Datei
+   * wäre eine Fließkommazahl, die Spiel und Simulator unabhängig runden
+   * müssten — GAME-DESIGN 18.4 schließt das aus, und `ConversionDef`
+   * daneben trägt aus demselben Grund `sharePercent` statt eines Bruchs.
+   *
+   * Das Raster nennt MEND „heilt nach verlorenem Leben — je weniger, desto
+   * mehr". Bei voller Anzeige bleibt nur `amount`: Ein Rettungszauber, den
+   * man aus Gewohnheit wirft, soll wenig bringen.
+   */
+  readonly perMissingPercent?: number;
 }
 
 /**
@@ -1286,7 +1304,25 @@ function parseCoagulation(
             'das letzte Stück bliebe ohne Schritt liegen.',
         );
       }
-      out.heal = overMs > 0 ? { amount, overMs, tickIntervalMs } : { amount };
+      // **Der Zuschlag je fehlendem Prozent** (MEND, #481) — ebenfalls ein
+      // Zusatz, kein eigenes Feld. Er verträgt sich mit `overMs`, auch wenn
+      // heute kein Zauber beides trägt: Der Betrag wird beim WIRKEN bestimmt,
+      // die Verteilung geschieht danach.
+      const perMissingPercent = number(raw['heal']['perMissingPercent'], 0);
+      if (perMissingPercent < 0) {
+        problems.push(
+          `${where}: perMissingPercent ${perMissingPercent} ist negativ — ` +
+            'der Zauber heilte dann umso weniger, je mehr fehlt.',
+        );
+      } else if (!Number.isInteger(perMissingPercent)) {
+        // Ganzzahlig ist die erste Determinismus-Regel (GAME-DESIGN 18.4).
+        // Ein Bruch müsste von beiden Seiten unabhängig gerundet werden.
+        problems.push(`${where}: perMissingPercent ${perMissingPercent} ist keine ganze Zahl.`);
+      }
+      out.heal =
+        overMs > 0
+          ? { amount, overMs, tickIntervalMs, perMissingPercent }
+          : { amount, perMissingPercent };
     }
   }
 

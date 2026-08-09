@@ -1262,6 +1262,23 @@ export class Combat {
   }
 
   /**
+   * Wie viel Prozent der Anzeige gerade fehlen, abgerundet (MEND, Issue #481).
+   *
+   * **Ganzzahlig und abgerundet, nicht gerundet.** Beide Umsetzungen müssen
+   * dieselbe Zahl bekommen, und `Math.floor` hat in Rust eine exakte
+   * Entsprechung: die ganzzahlige Division. `Math.round` hätte bei `.5` eine
+   * eigene Regel, die dort nachzubauen wäre.
+   *
+   * Am Wert DIESER Stufe gemessen, nicht am Grundwert — sonst zeigte ein
+   * Spieler auf Stufe 30 mit vollem Leben ein Defizit an.
+   */
+  private fehlendProzent(): number {
+    if (this.vesselMax <= 0) return 0;
+    const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
+    return Math.floor((fehlend * 100) / this.vesselMax);
+  }
+
+  /**
    * Ob das Unverwundbarkeits-Fenster gerade offen ist (Issue #218).
    *
    * **Der Spieler muss das sehen** — sonst hält er die ausbleibende Wirkung
@@ -1775,6 +1792,17 @@ export class Combat {
 
     // Weg 2 — Heilung.
     const heal = spell.heal;
+    // **Der Betrag steht beim WIRKEN fest** (MEND, Issue #481). Fehlt dem
+    // Spieler nichts, bleibt es beim Grundbetrag; je mehr fehlt, desto mehr
+    // kommt dazu. Ganzzahlig gerechnet und in Prozent, damit Spiel und
+    // Simulator dieselbe Zahl bekommen (GAME-DESIGN 18.4).
+    //
+    // Die Reihenfolge ist die Aussage: erst der Betrag, dann die Verteilung.
+    // Anders herum müsste jeder Heil-Takt den Zustand von damals kennen — und
+    // ein Zauber, der über sechs Sekunden heilt, würde unterwegs stärker,
+    // während der Boss zuschlägt.
+    const gewirkterBetrag =
+      heal === undefined ? 0 : heal.amount + this.fehlendProzent() * (heal.perMissingPercent ?? 0);
     // **Heilung über Zeit läuft an, statt sofort anzukommen** (POULTICE,
     // Issue #481). Sie ersetzt die Sofortheilung für diesen Zauber; beides
     // zugleich wäre doppelt.
@@ -1782,7 +1810,7 @@ export class Combat {
       // Abgeleitet, nicht konfiguriert: Die Schrittzahl folgt aus Dauer und
       // Takt. Eine eigene Zahl dafür könnte still von beiden abweichen.
       const abstand = Math.max(TICK_MS, heal.tickIntervalMs ?? TICK_MS);
-      this.healOverTimeAmount = heal.amount;
+      this.healOverTimeAmount = gewirkterBetrag;
       this.healOverTimeSteps = Math.max(1, Math.round(heal.overMs / abstand));
       this.healOverTimeIntervalMs = abstand;
       this.healOverTimeDone = 0;
@@ -1796,7 +1824,7 @@ export class Combat {
       // nur bis zum Grundwert, und die gewonnenen Punkte wären nach dem
       // ersten Schaden fort.
       const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
-      const wirklich = Math.min(heal.amount, fehlend);
+      const wirklich = Math.min(gewirkterBetrag, fehlend);
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;

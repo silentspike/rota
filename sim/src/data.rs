@@ -168,6 +168,21 @@ pub struct Heal {
     /// `TICK_MS`-Takt, also alle 10 ms, und ein einzelner POULTICE schriebe 600
     /// Protokoll-Eintraege statt sechs.
     pub tick_interval_ms: u32,
+    /// Zuschlag auf `amount` je **Prozent** fehlendem Leben (Issue #481, MEND).
+    ///
+    /// ```text
+    ///   fehlend_prozent = (vessel_max - hp) * 100 / vessel_max
+    ///   betrag          = amount + fehlend_prozent * per_missing_percent
+    /// ```
+    ///
+    /// Ganzzahlig und in Prozent, nicht als Anteil: Ein Bruch muesste von
+    /// beiden Seiten unabhaengig gerundet werden (GAME-DESIGN 18.4). Die
+    /// ganzzahlige Division entspricht dabei genau dem `Math.floor` der
+    /// TypeScript-Seite.
+    ///
+    /// `0` heisst: Der Betrag haengt nicht am fehlenden Leben — so wie SALVE
+    /// es seit jeher haelt.
+    pub per_missing_percent: u32,
 }
 
 /// Schaden-in-Schutz-Umwandlung (COAGULATION, Weg 3).

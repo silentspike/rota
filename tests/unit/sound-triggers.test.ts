@@ -137,8 +137,9 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // dringend einen — ein Entlader, den man nicht HOERT, ist im Spiel nicht
     // vom Fueller zu unterscheiden.
     'necrosis',
-    // VORLAEUFIG (Issue #481): POULTICE ebenso — Klaenge sind E8.
+    // VORLAEUFIG (Issue #481): POULTICE und MEND ebenso — Klaenge sind E8.
     'poultice',
+    'mend',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
