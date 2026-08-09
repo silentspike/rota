@@ -5887,3 +5887,51 @@ Muster verwirft?"
 Alle drei haben es **selbst** gefunden, bevor sie das Urteil abgegeben haben. Das ist der
 Unterschied zwischen einem teuren und einem lehrreichen Fehler — aber die Gegenfrage vorher zu
 stellen ist billiger als beides.
+
+### 8.93 Ein Wächter fängt, was er prüft — nicht, was danebensteht
+
+Der Fall ist unbequem, weil er in derselben Arbeit steckt, die den Fehler behoben hat.
+
+`data/sound-manifest.json`, Gruppe `music`. Der Grund enthält drei Zahlen:
+
+```
+"5 der 19 Slots … sind belegt, also fehlen 14. … dass GAME-DESIGN 22
+ ebenfalls 14 Instanzen kennt, ist Zufall."
+    19  Zielzahl        target
+     5  vorhanden       present
+    14  DIE GEFÄHRLICHE — 19 minus 5, und zugleich eine ganz andere Größe
+```
+
+Der Wächter dazu, `tests/unit/audio-manifest.test.ts:81-86`:
+
+```
+expect(placeholder!.reason).toContain(String(counts.target));    // "19"
+expect(placeholder!.reason).toContain(String(counts.present));   // "5"
+```
+
+Er nagelt beide Zahlen fest, die aus den Daten stammen. **Die 14 prüft er nicht** — und die 14 ist
+die Zahl, wegen der das Issue überhaupt existiert. Sie steht im selben Satz, sie trägt die
+Verwechslung, und sie ist die einzige, die der Wächter nicht kennt.
+
+**Warum das kein Versehen ist, sondern die Regel:** Ein Wächter kann nur ableiten, was aus Daten
+ableitbar ist. `target` und `present` stehen im Manifest; die 14 entsteht erst durch eine
+Subtraktion und fällt zufällig mit einer fremden Größe zusammen. Der Wächter greift genau so weit,
+wie die Daten reichen — der Rest ist Prosa und bleibt ungedeckt.
+
+|                                           |                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| was der Wächter hält                      | die beiden Zahlen, die aus den Daten kommen                          |
+| was der Text zusätzlich behauptet         | eine dritte Zahl und ihre Nicht-Beziehung zu einer vierten           |
+| was passiert, wenn `target` auf 20 steigt | 19 → 20 färbt. **Die 14 im Text bleibt stehen** und ist ab da falsch |
+
+**Was daraus folgt — und zwar nicht „mehr prüfen":** Eine Zahl, die ein Wächter nicht ableiten
+kann, gehört entweder nicht in den Text, oder der Text muss sagen, dass sie ungedeckt ist. Hier
+ist die zweite Form gewählt: der Satz nennt die Verwechslung ausdrücklich („ist Zufall", „laufen
+sie auseinander"). Das ist die ehrliche Lösung — sie behauptet keine Deckung, die es nicht gibt.
+
+> Beim Schreiben eines Wächters ist die letzte Frage nicht „prüft er, was ich behoben habe?",
+> sondern **„was steht im selben Satz, das er nicht anfassen kann?"**
+
+Gefunden hat es der, der beides gebaut hat — den Text und den Wächter darüber. Wer nur eins von
+beidem baut, sieht die Lücke gar nicht: Der Textschreiber hält den Wächter für zuständig, der
+Wächterbauer hält den Text für Beiwerk.
