@@ -28,6 +28,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { bossById } from '../../src/core/data.js';
+import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { replayRecording } from '../../src/devtools/recording.js';
 
 /** Der Prüf-Boss aus #609: Schwächung ab 5000 ms, 50 zurück je Schritt. */
@@ -46,7 +47,15 @@ function lauf(ticks: number): ReturnType<typeof replayRecording> {
   // Schwächung bleibt stehen, und der zweite Auslöser zehrt.
   const presses: { tick: number; slot: number }[] = [];
   for (let tick = 0; tick < ticks; tick += 100) presses.push({ tick, slot: 0 });
-  return replayRecording({ name: 'lapse-leitung', seed: 0, ticks, presses }, { boss });
+  // **Die Belegung steht jetzt dabei** (Issue #663). Sie war nie anders
+  // gemeint — der Kommentar oben nennt KINDLE, und `STEP1_BINDINGS` bindet
+  // KINDLE auf Platz 0. Bis heute kam sie aus einem Default in
+  // `spellForSlot`; dieser Fall war also richtig, weil zwei Stellen
+  // zufällig dasselbe meinten.
+  return replayRecording(
+    { name: 'lapse-leitung', seed: 0, ticks, presses, bindings: STEP1_BINDINGS },
+    { boss },
+  );
 }
 
 describe('die Größe kommt im Ergebnis an, nicht nur im Kampf', () => {

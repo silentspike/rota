@@ -63,9 +63,16 @@ describe('AC1 — nach Schule gruppiert', () => {
     }
   });
 
-  it('haelt QUENCH aus den Schulen heraus', () => {
+  it('haelt die schulunabhaengigen Zauber aus den Schulen heraus', () => {
+    // **Seit #561 sind es zwei.** `purge` senkt das Verhaengnis und ist aus
+    // demselben Grund schulunabhaengig wie `quench`: Der Zauberkasten entsteht
+    // im Draft mit gelenktem Zufall, und ein Boss, den der Draft aussperren
+    // kann, ist kein Boss.
+    //
+    // Der Fall zählt sie beim Namen auf statt nur ihre Zahl zu prüfen —
+    // sonst bliebe er grün, wenn ein Schul-Zauber versehentlich hier landete.
     const ohne = groupBySchool(SPELLS).find((g) => g.school === null);
-    expect(ohne?.spells.map((s) => s.id)).toEqual(['quench']);
+    expect(ohne?.spells.map((s) => s.id)).toEqual(['quench', 'purge']);
   });
 });
 
