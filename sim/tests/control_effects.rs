@@ -67,6 +67,10 @@ const ERWARTET: &[(&str, ControlEffect)] = &[
     ("wedge", ControlEffect::ConvertToDamage),
     ("capstone", ControlEffect::AllThree),
     ("latch", ControlEffect::DelayStrike),
+    // PIN (Issue #478) — die sechste Wirkung. Sie ist die einzige, die die ART
+    // eines Zeitleisten-Eintrags aendert statt seinen Zeitpunkt oder seine
+    // Wucht: Ein `Strike` wird zu etwas, das man abbrechen kann.
+    ("pin", ControlEffect::MakeInterruptible),
 ];
 
 /// AC1 — die Zuordnung selbst.

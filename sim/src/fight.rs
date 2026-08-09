@@ -558,6 +558,16 @@ pub struct Fight {
     /// gedraengt, ohne dass es etwas kostet ausser Punkten — ein anderer
     /// Zauber.
     next_strike_delay: Millis,
+    /// Wie lange der NAECHSTE Boss-Zauber unterbrechbar ist (PIN, Issue #478).
+    ///
+    /// `0` heisst "kein Merker". Der Wert ist eine FENSTERLAENGE: Ein `Strike`
+    /// traegt keine Wirkzeit, also gibt PIN ihm eine — sonst waere er
+    /// unterbrechbar auf dem Papier und nie in der Hand.
+    ///
+    /// Dieselbe Bauart wie `next_strike_delay` (STAY): beim Ausloesen des
+    /// naechsten Eintrags gelesen und verbraucht, nicht waehrend eines
+    /// laufenden.
+    pin_window: Millis,
     /// Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR).
     phase_hold_percent: u32,
     /// Bis wann die Senkung gilt (GAME-DESIGN 4.2b).
@@ -819,6 +829,7 @@ impl Fight {
             control: 0,
             pending_control_damage: 0,
             next_strike_delay: 0,
+            pin_window: 0,
             phase_hold_percent: 0,
             phase_hold_until: None,
             cast_lands_at: 0,
@@ -1443,6 +1454,9 @@ impl Fight {
         self.control = 0;
         self.pending_control_damage = 0;
         self.next_strike_delay = 0;
+        // PIN (#478) — ein Merker, der einen Kampf ueberlebte, machte im
+        // naechsten einen Zauber unterbrechbar, den niemand bezahlt hat.
+        self.pin_window = 0;
         self.phase_hold_percent = 0;
         self.phase_hold_until = None;
         self.cast_lands_at = 0;
@@ -1631,11 +1645,38 @@ impl Fight {
 
         // **Hier bekommt die Zeitleiste ihre Wirkung** (Issue #110). In #96
         // wurde der Zeitpunkt nur angesteuert und protokolliert.
+        // **PIN wird HIER gelesen und HIER verbraucht** (#478) — im
+        // Ausloese-Moment, nicht waehrend einer laufenden Wirkzeit. Eine Stelle
+        // frueher gelesen, befreite PIN den gerade laufenden Zauber: sich
+        // selbst statt den naechsten, und der Fall bliebe GRUEN, weil ja etwas
+        // unterbrechbar wurde.
+        //
+        // Verbraucht wird er in BEIDEN Zweigen. Traf er einen ohnehin
+        // unterbrechbaren Eintrag, ist er verpufft — das ist die Entscheidung,
+        // die der Zauber abverlangt, und keine Buchhaltung, die davor bewahrt.
+        let pin_fenster = self.pin_window;
+        self.pin_window = 0;
         match entry.kind {
+            // Trifft sofort — es sei denn, PIN hat ihm ein Fenster gegeben.
+            // Dann laeuft er wie ein Zauber und ist zu unterbrechen.
+            TimelineKind::Strike if pin_fenster > 0 => {
+                self.casting = Some(index);
+                self.cast_lands_at = self.time + pin_fenster;
+                self.queue.push(
+                    self.cast_lands_at,
+                    EventKind::BossCastLands {
+                        index: u32::try_from(index).unwrap_or(u32::MAX),
+                    },
+                );
+            }
             // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
             TimelineKind::Strike => self.hit_player(entry.damage),
             // Beginnt zu wirken. Ob er trifft, entscheidet sich erst, wenn die
             // Wirkzeit um ist — bis dahin kann der Spieler ihn abbrechen.
+            //
+            // **Die eigene Wirkzeit bleibt, auch unter PIN.** Ein
+            // schrumpfendes Fenster (#240) ist eine Eigenschaft des Bosses;
+            // PIN darf es nicht heimlich verlaengern.
             TimelineKind::InterruptibleCast => {
                 self.casting = Some(index);
                 self.cast_lands_at =
@@ -1976,6 +2017,17 @@ impl Fight {
                 // gewirkt summiert sich — das ist derselbe Schlag, nicht zwei.
                 self.next_strike_delay = self.next_strike_delay.saturating_add(control.amount);
                 self.schedule_next_timeline_step();
+                self.log
+                    .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
+            }
+            // Den naechsten Boss-Zauber unterbrechbar machen (PIN, #478).
+            //
+            // **Kein `schedule_next_timeline_step`.** Anders als DelayStrike
+            // verschiebt PIN keinen Zeitpunkt — der Eintrag faellt, wann er
+            // faellt, und aendert nur seine Art. Ein Neu-Ansteuern haette hier
+            // nichts zu tun und koennte die Warteschlange stoeren.
+            ControlEffect::MakeInterruptible => {
+                self.pin_window = control.amount;
                 self.log
                     .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
             }

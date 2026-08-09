@@ -5103,6 +5103,120 @@ function recordKerne(ticks: number): Recording {
   return { name: KERNE_NAME, seed: 0, ticks, presses, bindings: KERNE_BINDINGS };
 }
 
+export const PIN_NAME = 'pin-befreiung';
+
+/** Die Leiste dieser Aufzeichnung. */
+const PIN_BINDINGS = [
+  { slot: 0, spellId: 'tether' },
+  { slot: 1, spellId: 'pin' },
+  { slot: 2, spellId: 'quench' },
+] as const;
+
+/**
+ * PIN macht einen Schlag unterbrechbar, und QUENCH unterbricht ihn (#478).
+ *
+ * # Warum `test-caster` und kein anderer Boss
+ *
+ * Seine Zeitleiste besteht aus **drei `strike`-Einträgen und keinem einzigen
+ * `interruptibleCast`** (8500, 9000, 18000, je 40 Schaden). Damit ist die
+ * Aussage eindeutig: Wird hier etwas unterbrochen, kann es nur PIN gewesen
+ * sein. Gegen einen Boss, der ohnehin wirkt, ließe sich das nicht trennen —
+ * QUENCH hätte dort auch ohne PIN etwas zu tun.
+ *
+ * `first-crucible`, den die anderen FIXATION-Wege nehmen, hat **null**
+ * Einträge. PIN wäre dort gedrückt worden und hätte nichts befreit, und der
+ * Lauf wäre grün gewesen.
+ *
+ * # Die gemessene Größe ist `damageTaken`, nicht die Prüfsumme
+ *
+ * Ohne PIN fällt jeder der drei Schläge: 3 × 40. Mit PIN wird der erste zu
+ * einem Zauber mit 2000 ms Fenster, und was QUENCH davon abbricht, trifft
+ * nicht. Die Differenz steht in einer Zahl, die das Spiel ohnehin führt.
+ *
+ * # Die Reihenfolge ist die Aussage
+ *
+ * TETHER gibt zwei Punkte je Wirkung, PIN kostet drei — er muss also zweimal
+ * vorgelegt haben. Und PIN muss **vor** 8500 liegen: Sein Merker gilt dem
+ * nächsten Eintrag, nicht einem laufenden. Ein Rezept, das ihn später drückt,
+ * befreite den Schlag bei 18000 statt den bei 8500 — auch eine Wirkung, aber
+ * eine andere als die beschriebene.
+ */
+function recordPin(ticks: number): Recording {
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('test-caster fehlt');
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const tether = combat.indexOf('tether');
+  const pin = combat.indexOf('pin');
+  const quench = combat.indexOf('quench');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, PIN_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **QUENCH nur, wenn wirklich etwas läuft.** Sonst verpufft er auf
+    // Abklingzeit, und beim befreiten Schlag wäre er nicht bereit — der Lauf
+    // sähe aus, als hätte PIN nichts bewirkt.
+    if (combat.casting !== -1 && combat.isOffCooldown(quench, timeMs)) {
+      press(quench, tick, timeMs);
+    }
+    // PIN vor dem ersten Schlag (8500), sobald die Punkte reichen.
+    else if (timeMs < 8500 && combat.control >= 3 && combat.isOffCooldown(pin, timeMs)) {
+      press(pin, tick, timeMs);
+    } else if (combat.isOffCooldown(tether, timeMs)) {
+      press(tether, tick, timeMs);
+    }
+  }
+
+  return { name: PIN_NAME, seed: 0, ticks, presses, bindings: PIN_BINDINGS };
+}
+
+export function pinPayload(): Record<string, unknown> {
+  // 2500 Takte = 25 s. Der letzte Eintrag von `test-caster` liegt bei 18000;
+  // ein kürzerer Lauf schnitte ihn ab, und `damageTaken` wäre eine Zahl über
+  // zwei Schläge statt über drei.
+  const recording = recordPin(2500);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('test-caster fehlt');
+  // **Der Boss gehört in die OPTIONEN, nicht in die Aufzeichnung** — und ohne
+  // ihn fällt `replayRecording` still auf `FIRST_CRUCIBLE` zurück, der keine
+  // Zeitleiste hat. Die erste Fassung meldete deshalb `damageTaken: 0`,
+  // während derselbe Ablauf direkt gespielt 64 ergab. Kein Fehler im Kampf,
+  // kein Fehler im Rezept: ein nicht gereichter Boss (dieselbe Klasse wie die
+  // stillen Bindungen aus #663).
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: PIN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      // **`damageTaken` ist hier die tragende Zahl**, nicht `damage`: PIN macht
+      // keinen Schaden, er verhindert welchen.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export function kernePayload(): Record<string, unknown> {
   const recording = recordKerne(3000);
   const result = replayRecording(recording, { checksumPerTick: true });

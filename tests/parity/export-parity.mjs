@@ -112,6 +112,8 @@ import {
   coagulationNeuPayload,
   kernePayload,
   KERNE_NAME,
+  pinPayload,
+  PIN_NAME,
   effluxPayload,
   EFFLUX_NAME,
   kritPayload,
@@ -282,6 +284,13 @@ const kernePath = join(here, 'recordings', `${KERNE_NAME}.json`);
 writeFileSync(kernePath, `${JSON.stringify(kerne, null, 2)}\n`);
 console.log(`geschrieben: ${kernePath}`);
 console.log(`  gewirkt   ${JSON.stringify(kerne.expected.casts)}`);
+
+const pin = pinPayload();
+const pinPath = join(here, 'recordings', `${PIN_NAME}.json`);
+writeFileSync(pinPath, `${JSON.stringify(pin, null, 2)}\n`);
+console.log(`geschrieben: ${pinPath}`);
+console.log(`  gewirkt   ${JSON.stringify(pin.expected.casts)}`);
+console.log(`  erlitten  ${pin.expected.damageTaken}`);
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
