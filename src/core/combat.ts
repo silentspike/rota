@@ -17,6 +17,7 @@
 import { computeDamage, NEUTRAL_FACTORS, stackDamage, type DamageFactors } from './damage.js';
 import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
 import {
+  EVENT_BOSS_ENERGY_TRIGGERED,
   EVENT_BOSS_TIMELINE_FIRED,
   EVENT_CAST,
   EVENT_DAMAGE,
@@ -2849,6 +2850,43 @@ export class Combat {
         if (this.bossEnergyValue >= energy.threshold) {
           this.bossEnergyTriggersValue++;
           this.bossEnergyValue = energy.resetTo;
+          // **Und hier tut sie etwas** (Issue #568). Bis dahin endete der
+          // Zweig mit dem Hochzählen: Die Leiste stieg, erreichte 100, sprang
+          // zurück — und keine Zeile im Kampf fragte danach. `test-vessel`
+          // lieferte mit und ohne `energy` bitgleich 8080/1600/0.
+          //
+          // Der Auftraggeber hat entschieden: ein **Boss-Schlag außerhalb der
+          // Zeitleiste**. Deshalb derselbe Weg wie ein `strike` dort
+          // (`hitPlayer`) — nur kommt der Zeitpunkt aus der Leiste statt aus
+          // `atMs`. Genau das ist der „innere Rhythmus, der nichts mit dem
+          // Lebensbalken zu tun hat" (GAME-DESIGN 11.2, Baustein 1).
+          //
+          // # Der Eintrag steht VOR dem Schlag, und das aus zwei Gründen
+          //
+          // Erstens fachlich: Tötet der Schlag den Spieler, steht der Grund
+          // im Verlauf davor und nicht dahinter.
+          //
+          // Zweitens Parität: `fight.rs` schreibt ihn an genau dieser Stelle.
+          // Wichen die Seiten hier ab, färbte die Prüfung takt-genau — und
+          // man suchte den Fehler dort, wo er sich zeigt, statt dort, wo er
+          // sitzt.
+          //
+          // **Diese Ereignisart wurde bis #568 auf dieser Seite NIE
+          // geschrieben.** Art 8 war vergeben, in `log.ts` dokumentiert, von
+          // `log-kinds` gedeckt und von `freshness` gezählt — nur schrieb sie
+          // niemand. Die Parität kann das nicht fangen: Der Verlauf steht in
+          // keiner Aufzeichnung, die diesen Boss fährt. Deshalb hängt an
+          // dieser Zeile ein eigener Prüffall
+          // (`tests/unit/energie-ausloeser.test.ts`), nicht die Parität.
+          // Wie viele andere Arten dasselbe Bild zeigen, ist ungemessen und
+          // steht als Issue #676.
+          this.log?.push(
+            this.fightElapsedMs(timeMs),
+            EVENT_BOSS_ENERGY_TRIGGERED,
+            NO_SPELL_REF,
+            this.bossEnergyTriggersValue,
+          );
+          this.hitPlayer(energy.onTrigger.damage, timeMs);
         }
         this.nextEnergyAtMs += energy.perStepMs;
       }

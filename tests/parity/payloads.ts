@@ -2011,8 +2011,14 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
  *
  * ```text
  *   boss-1-4      none  560   stay  560   stall    0
- *   test-vessel   none 1280   stay 1280   stall  320
+ *   test-vessel   none 1600   stay 1600   stall  640
  * ```
+ *
+ * Unter den `test-vessel`-Zahlen liegt seit Issue #568 ein **Sockel von 320**
+ * aus dem Energie-Auslöser — zwei Auslöser im Fenster dieses Laufs, die jede
+ * Zeile gleich treffen. Vorher standen hier 1280 / 1280 / 320. Die gemessene
+ * Wirkung von STALL ist unverändert: 960, vor wie nach. `boss-1-4` hat keine
+ * Energieleiste und ist unberührt.
  *
  * **Der `stay`-Lauf ist der Grund, dass diese Aufzeichnung etwas beweist.**
  * STALL verdrängt einen BIND-Wurf; ein Vergleich gegen „gar kein
@@ -2105,7 +2111,7 @@ export function kontrolleWirktPayload(): Record<string, unknown> {
  * `boss-1-4` ist der einzige Boss aus dem Inhalt, der einen unterbrechbaren
  * Zauber trägt UND den der Spieler überlebt — die Differenz endet dort auf 0,
  * weil er genau einen Zeitleisten-Eintrag hat. `test-vessel` liefert dieselbe
- * Aussage mit 1280 gegen 320: keine Randwert-Zahl, und ein Fehler in einem
+ * Aussage mit 1600 gegen 640: keine Randwert-Zahl, und ein Fehler in einem
  * Boss trägt nicht den ganzen Nachweis.
  */
 const LAGEN: readonly { bossId: string; quenchAtMs: number }[] = [
