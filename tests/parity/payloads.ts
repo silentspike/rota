@@ -6347,181 +6347,117 @@ export function tickRundungPayload(): Record<string, unknown> {
  */
 export const COAGULATION_NEU_NAME = 'coagulation-neu';
 
-const COAGULATION_NEU_BINDINGS = [
-  { slot: 0, spellId: 'crucible-skin' },
-  { slot: 1, spellId: 'poultice' },
-  // **KINDLE ist kein Beiwerk, er ist die Messung von Weg 3.** Die Umwandlung
-  // wandelt AUSGETEILTEN Schaden in Schutz — ohne einen Zauber, der austeilt,
-  // steht `converted` auf null, und die Aufzeichnung vergleicht an dieser
-  // Stelle zwei Nullen. Genau das war sie bis hierher: `converted: 0`, obwohl
-  // der Kopfkommentar „die drei Wege stehen wirklich in der Parität"
-  // behauptete.
-  { slot: 2, spellId: 'kindle' },
-] as const;
+/**
+ * Wann jeder der neuen Zauber geworfen wird — und warum genau dann.
+ *
+ * Die Zahlen sind gemessen, nicht gegriffen. `test-onslaught` trifft bei 5000,
+ * 12_000 und 19_000 mit je 1600 (nach WARD); der Lauf endet nach 2450 Takten.
+ *
+ * ```text
+ *   crucible-skin  6100   Die Schicht hält 6000 ms — ab hier steht sie, wenn
+ *                         der Treffer bei 12_000 kommt. Und die Sofortheilung
+ *                         trifft auf das Loch des ersten Treffers.
+ *   poultice      19_100  Der Lauf endet MITTEN in seiner Heilung. Erst
+ *                         dadurch entscheidet die Dauer, wie viel ankommt.
+ *   mend          12_200  Der tiefste Stand: zwei Treffer sind gefallen, und
+ *                         sein Betrag hängt am fehlenden Leben.
+ * ```
+ */
+const COAGULATION_NEU_WURFZEIT: Readonly<Record<string, number>> = {
+  'crucible-skin': 6100,
+  poultice: 19_100,
+  mend: 12_200,
+};
+
+/** Die Läufe der Sammelstelle: einer ohne Zauber, dann einer je Zauber. */
+const COAGULATION_NEU_WEGE = ['none', 'crucible-skin', 'poultice', 'mend'] as const;
 
 /**
- * Der Lauf, in dem die neuen Zauber gewirkt werden.
+ * Ein Durchgang mit genau EINEM der neuen Zauber — oder ohne.
  *
- * **Der Wurf liegt spät, nicht am Anfang.** CRUCIBLE SKIN legt eine Schicht
- * von 6 s; bei Kampfbeginn geworfen wäre sie abgelaufen, bevor
- * `first-crucible` das erste Mal zuschlägt — die Aufzeichnung hielte dann
- * einen Zauber fest, der nachweislich nichts abfängt. Dieselbe Eigenart wie
- * bei `extend-effects`: Eine Schutzschicht muss VOR dem Schlag stehen.
+ * KINDLE liegt in jedem Lauf auf Platz 0 und füllt jede Wartezeit. Er ist kein
+ * Beiwerk: Ohne ausgeteilten Schaden hat CRUCIBLE SKINs Umwandlung nichts
+ * umzuwandeln, und `converted` stünde auf null.
  */
-function recordCoagulationNeu(ticks: number): Recording {
-  // **Ein Boss, der AUSTEILT** — und das ist gemessen, nicht gewählt.
-  //
-  // Der erste Entwurf fuhr `first-crucible`, wie die meisten Aufzeichnungen.
-  // Ergebnis: `casts.crucible-skin = 1`, aber `absorbed`, `healed` und
-  // `converted` alle **null**. Der Grund steht in seinen Daten — er hat
-  // KEINE Zeitleiste und keine Energieleiste, teilt also nie aus. Es gab
-  // nichts abzufangen, nichts zu heilen und nichts umzuwandeln.
-  //
-  // `coverage` wäre trotzdem grün gewesen: Der Zauber WIRD gewirkt. Geprüft
-  // hätten beide Seiten dann eine Wirkung von null gegen eine Wirkung von
-  // null — dieselbe Klasse wie die Energieleiste vor #568 und Art 7 vor
-  // #682, wo der Mechanismus lief und die Zahl nichts sagte.
-  //
-  // **`test-onslaught` statt `test-warden`, und auch das ist gemessen.** Der
-  // zweite Entwurf fuhr `test-warden` (600 bei 4000, je 300 bei 12000 und
-  // 19000). Die Größen bewegten sich — aber nur, weil überhaupt etwas fehlte:
-  // Bei 720 erlittenem Schaden deckelt jede Heilung am fehlenden Leben, und
-  // POULTICEs 1800 kamen nie ganz an. Die Probe war eindeutig: `heal.amount`
-  // von 1800 auf 1200 gesetzt ließ `healed` bei 720 STEHEN. Eine Aufzeichnung,
-  // in der eine Zahl des Zaubers sich ändern kann, ohne dass die Aufzeichnung
-  // es merkt, prüft ihn nicht.
-  //
-  // `test-onslaught` teilt 2000 auf einmal aus (bei 5000, 12000 und 19000).
-  // Damit fehlt mehr, als POULTICE zurückholt, und dieselbe Probe bewegt
-  // `healed` von 2800 auf 1900.
-  //
-  // # Alle acht Zahlen der beiden Zauber bewegen eine GRÖSSE
-  //
-  // Nicht die Prüfsumme — die ändert sich auch bei einem Zauber, der nichts
-  // bewirkt, weil sein Zustand darin steht. Gemessen auf diesem Stand
-  // (`damage 1500, damageTaken 3600, absorbed 1600, healed 2800,
-  // converted 200`):
-  //
-  // ```text
-  //   poultice.heal.amount           900 -> healed
-  //   poultice.heal.overMs          3000 -> healed
-  //   poultice.heal.tickIntervalMs   500 -> healed
-  //   crucible-skin.shield.amount    900 -> damageTaken, absorbed
-  //   crucible-skin.shield.durationMs 3000 -> damageTaken, absorbed
-  //   crucible-skin.heal.amount     1000 -> healed
-  //   crucible-skin.conversion.sharePercent 25 -> converted
-  //   crucible-skin.conversion.durationMs 3000 -> converted
-  // ```
-  const boss = bossById('test-onslaught') ?? FIRST_CRUCIBLE.value;
-  const combat = new Combat({ school: CALCINATION.value, boss: boss as never });
-  const crucibleSkin = combat.indexOf('crucible-skin');
-  const poultice = combat.indexOf('poultice');
+function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
   const kindle = combat.indexOf('kindle');
-  const presses: RecordedPress[] = [];
-  const press = pressRecorder(combat, COAGULATION_NEU_BINDINGS, presses);
+  const neu = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
+  const abMs = COAGULATION_NEU_WURFZEIT[weg] ?? 0;
+  const bindings = [
+    { slot: 0, spellId: 'kindle' },
+    ...(weg === 'none' ? [] : [{ slot: 1, spellId: weg }]),
+  ];
+  const slots = slotMap(combat, bindings);
+  const ticks = 2450;
+
+  const checksums: number[] = [];
+  const presses: { tick: number; slot: number }[] = [];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
-    if (combat.damageDealt >= combat.boss.hp) break;
-    if (!combat.gcd.isReady(timeMs)) continue;
-
-    // **CRUCIBLE SKIN zuerst, und zwar bei 6100.** Drei Bedingungen treffen
-    // sich in dieser Zahl, und jede einzelne wurde gemessen:
-    //
-    //   Weg 1  Die Schicht hält 6000 ms. Ab 6100 steht sie, wenn der Boss
-    //          bei 12_000 zuschlägt — bei 7000 geworfen war sie 100 ms zu
-    //          früh abgelaufen und `absorbed` blieb null.
-    //   Weg 2  Die Sofortheilung deckelt am fehlenden Leben. Nach dem
-    //          Treffer bei 5000 fehlen 1600, also kommt sie an. Lief
-    //          POULTICE vorher, war die Anzeige längst wieder voll — und
-    //          `heal.amount` von 2000 auf 1000 gesetzt bewegte KEINE Größe,
-    //          nur die Folge-Prüfsumme.
-    //   Weg 3  Die Umwandlung läuft 6000 ms ab dem Wurf; KINDLE füllt diese
-    //          Zeit mit ausgeteiltem Schaden.
-    if (timeMs >= 6100 && combat.isOffCooldown(crucibleSkin, timeMs)) {
-      press(crucibleSkin, tick, timeMs);
-      continue;
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      break;
     }
 
-    // **POULTICE erst nach dem DRITTEN Treffer (19_000).** Auch das ist
-    // gemessen und nicht gewählt: Der Treffer bei 12_000 läuft in CRUCIBLE
-    // SKINs Schicht, danach fehlt nichts — eine Heilung dort verpuffte.
-    // Nach 19_000 fehlen 1600, und die Probe `heal.amount` 1800 auf 1200
-    // bewegt `healed`.
-    //
-    // Die Reihenfolge der beiden Blöcke IST die Aussage: Sie teilen dieselbe
-    // globale Wartezeit, und jeder von ihnen braucht seinen eigenen Platz im
-    // Lauf, damit seine Größe sich einzeln bewegen kann.
-    if (timeMs >= 19_100 && combat.isOffCooldown(poultice, timeMs)) {
-      press(poultice, tick, timeMs);
-      continue;
+    // Der neue Zauber hat Vorrang ab seiner Zeit — sonst käme er nie zum Zug,
+    // weil KINDLE jeden GCD belegt.
+    if (neu >= 0 && timeMs >= abMs && combat.isReady(neu, timeMs)) {
+      if (combat.cast(neu, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, neu, combat) });
+    } else if (combat.isReady(kindle, timeMs)) {
+      if (combat.cast(kindle, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, kindle, combat) });
     }
 
-    // KINDLE fuellt jede uebrige Wartezeit — siehe die Begruendung an seiner
-    // Bindung: Ohne ausgeteilten Schaden gibt es nichts umzuwandeln.
-    if (combat.isOffCooldown(kindle, timeMs)) {
-      press(kindle, tick, timeMs);
-    }
+    checksums.push(combatChecksum(combat, timeMs));
   }
 
-  return {
-    name: COAGULATION_NEU_NAME,
-    seed: 0,
-    ticks,
-    presses,
-    bindings: COAGULATION_NEU_BINDINGS,
-  };
-}
+  // **Der zweite Lauf über dieselben Drücke.** Er liefert die Größen, die in
+  // die Datei gehen — und er fährt denselben Weg, den der Simulator fährt.
+  // Der Boss muss dabei ausdrücklich mit: Ohne ihn nimmt `replayRecording`
+  // die Vorgabe `first-crucible`, der nie austeilt. Gemessen am 2026-08-09 —
+  // die Aufzeichnung trug `bossId: undefined`, alle Größen standen auf null,
+  // und der Rust-Fall war grün, weil beide Seiten dasselbe Nichts rechneten.
+  const result = replayRecording(
+    { name: `coagulation-neu-${weg}`, seed: 0, ticks, presses, bindings },
+    { boss, checksumPerTick: true },
+  );
 
-export function coagulationNeuPayload(): Record<string, unknown> {
-  // **Der Boss muss auch in die WIEDERGABE**, nicht nur in die Aufnahme.
-  // `replayRecording` nimmt sonst `FIRST_CRUCIBLE` als Vorgabe — gemessen:
-  // Die Aufzeichnung trug `bossId: undefined`, und alle drei Größen standen
-  // auf null, obwohl der Zauber gewirkt wurde. Der Lauf lief gegen einen
-  // Boss, der nie austeilt.
-  const boss = bossById('test-onslaught') ?? FIRST_CRUCIBLE.value;
-  // **2200 Takte, nicht 3000 — und die Zahl ist gemessen.** Bei 3000 lief
-  // POULTICEs Heilung immer ganz durch, und was fehlte, kam vollstaendig
-  // zurueck: `healed` stand auf 3600, genau dem erlittenen Schaden. Die Probe
-  // `overMs` von 6000 auf 3000 bewegte deshalb KEINE Groesse, nur die
-  // Folge-Pruefsumme — und eine Pruefsumme belegt keine Wirkung, sie zeigt
-  // nur, dass der Zustand anders aussieht.
-  //
-  // Bei 2450 Takten (24_500 ms) endet der Lauf MITTEN in der Heilung, die bei
-  // 19_100 anlaeuft. Jetzt entscheidet die Dauer, wie viel ankommt — und zwar
-  // in BEIDE Richtungen: Ein groesserer Abstand laesst weniger Schritte
-  // hineinfallen, ein kleinerer mehr.
-  //
-  // Zwischen 2200 und 2450 liegt genau dieser Unterschied. Bei 2200 bewegte
-  // eine HALBIERUNG des Abstands (1000 auf 500) keine Groesse: Der kumulativ
-  // faellige Betrag war zum Abbruch derselbe. Der Waechter halbiert, und ein
-  // Feld, das nur bei Verdopplung faerbt, waere fuer ihn stumm.
-  const recording = recordCoagulationNeu(2450);
-  const result = replayRecording(recording, { checksumPerTick: true, boss: boss as never });
   return {
-    schema: SCHEMA,
-    name: recording.name,
-    bossId: boss.id,
-    seed: recording.seed,
-    ticks: recording.ticks,
-    tickMs: TICK_MS,
-    bindings: COAGULATION_NEU_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
-    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    way: weg,
+    ticks,
+    bindings,
+    presses,
     expected: {
+      playerHp: combat.playerHp,
       damage: result.damage,
       damageTaken: result.damageTaken,
       absorbed: result.absorbed,
       healed: result.healed,
       converted: result.converted,
       diedAtMs: result.diedAtMs,
-      killedAtMs: result.killedAtMs,
-      accepted: result.accepted,
-      rejected: result.rejected,
-      casts: result.casts,
+      casts: weg === 'none' ? 0 : combat.castCount(neu),
+      castsKindle: combat.castCount(kindle),
       finalChecksum: result.finalChecksum,
       sequenceChecksum: result.sequenceChecksum,
     },
-    checksums: result.checksums,
+    checksums,
+  };
+}
+
+export function coagulationNeuPayload(): Record<string, unknown> {
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('Der Boss test-onslaught fehlt.');
+
+  return {
+    schema: SCHEMA,
+    name: COAGULATION_NEU_NAME,
+    bossId: boss.id,
+    tickMs: TICK_MS,
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    runs: COAGULATION_NEU_WEGE.map((weg) => coagulationNeuRun(boss, weg)),
   };
 }

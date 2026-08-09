@@ -1673,6 +1673,10 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             // `overMs` darf fehlen — die meisten Heilungen kommen sofort an.
             let over_ms = opt_uint(node, "overMs", &whose, 0);
             let tick_interval_ms = opt_uint(node, "tickIntervalMs", &whose, 0);
+            // `perMissingPercent` darf fehlen — die meisten Heilungen haengen
+            // nicht am fehlenden Leben. `opt_uint` weist eine negative Zahl
+            // von selbst ab; die TypeScript-Seite meldet sie beim Lesen.
+            let per_missing_percent = opt_uint(node, "perMissingPercent", &whose, 0);
             if over_ms > 0 {
                 // **Auf dem Raster, sonst bliebe ein Reststueck liegen.** Die
                 // TypeScript-Seite prueft dieselben drei Bedingungen beim Lesen
@@ -1703,7 +1707,8 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let _ = writeln!(
                 out,
                 "        heal: Some(Heal {{ amount: {amount}, over_ms: {over_ms}, \
-                 tick_interval_ms: {tick_interval_ms} }}),"
+                 tick_interval_ms: {tick_interval_ms}, \
+                 per_missing_percent: {per_missing_percent} }}),"
             );
         }
     }

@@ -67,6 +67,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'quicksilver',
       // Issue #481 — POULTICE, Heilung ueber Zeit (Weg 2 der Schule).
       'poultice',
+      // Issue #481 — MEND, ebenfalls Weg 2 und in der Reihenfolge des Rasters.
+      // Er schiebt CRUCIBLE SKIN um eins nach hinten; das geschieht hier und
+      // in `spell-order.json` sichtbar, nicht still (wie #268, #479).
+      'mend',
       // Issue #481 — CRUCIBLE SKIN, alle drei Wege der Schule zugleich. Er
       // steht hinter QUICKSILVER, weil er in `coagulation.json` dort steht;
       // die Reihenfolge dieser Liste ist die der Schul-Dateien.

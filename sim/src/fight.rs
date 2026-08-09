@@ -1796,12 +1796,21 @@ impl Fight {
 
         // Weg 2 — Heilung.
         //
+        // **Der Betrag steht beim WIRKEN fest** (MEND, Issue #481). Fehlt dem
+        // Spieler nichts, bleibt es beim Grundbetrag; je mehr fehlt, desto mehr
+        // kommt dazu. Die Reihenfolge ist die Aussage: erst der Betrag, dann
+        // die Verteilung. Anders herum muesste jeder Heil-Takt den Zustand von
+        // damals kennen — und ein Zauber, der ueber sechs Sekunden heilt,
+        // wuerde unterwegs staerker, waehrend der Boss zuschlaegt.
+        let gewirkter_betrag = spell.heal.map_or(0, |heal| {
+            heal.amount + self.fehlend_prozent() * heal.per_missing_percent
+        });
         // **Heilung ueber Zeit laeuft an, statt sofort anzukommen** (POULTICE,
         // Issue #481). Sie ersetzt die Sofortheilung fuer diesen Zauber; beides
         // zugleich waere doppelt.
         if let Some(heal) = spell.heal.filter(|h| h.over_ms > 0) {
             let abstand = heal.tick_interval_ms.max(TICK_MS);
-            self.heal_over_time_amount = heal.amount;
+            self.heal_over_time_amount = gewirkter_betrag;
             // Abgeleitet, nicht konfiguriert: Die Schrittzahl folgt aus Dauer
             // und Abstand. Eine eigene Zahl dafuer koennte still von beiden
             // abweichen. `build.rs` haelt fest, dass die Teilung aufgeht.
@@ -1816,13 +1825,13 @@ impl Fight {
                     generation: self.heal_over_time_generation,
                 },
             );
-        } else if let Some(heal) = spell.heal {
+        } else if spell.heal.is_some() {
             // **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist
             // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
             // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
             // als er gebraucht hat.
             let fehlend = self.vessel_max.saturating_sub(self.player_hp);
-            let wirklich = heal.amount.min(fehlend);
+            let wirklich = gewirkter_betrag.min(fehlend);
             if wirklich > 0 {
                 self.player_hp += wirklich;
                 self.healed = self.healed.saturating_add(wirklich);
@@ -2623,6 +2632,21 @@ impl Fight {
                 },
             );
         }
+    }
+
+    /// Wie viel Prozent der Anzeige gerade fehlen, abgerundet (MEND, #481).
+    ///
+    /// **Ganzzahlige Division, kein Runden.** Sie entspricht genau dem
+    /// `Math.floor` der TypeScript-Seite; `round` haette bei `.5` eine eigene
+    /// Regel, die dort nachzubauen waere.
+    ///
+    /// Am Wert DIESER Stufe gemessen, nicht am Grundwert — sonst zeigte ein
+    /// Spieler auf Stufe 30 mit vollem Leben ein Defizit an.
+    fn fehlend_prozent(&self) -> u32 {
+        if self.vessel_max == 0 {
+            return 0;
+        }
+        self.vessel_max.saturating_sub(self.player_hp) * 100 / self.vessel_max
     }
 
     /// Ein Schritt einer Heilung ueber Zeit kommt an (POULTICE, Issue #481).
