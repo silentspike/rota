@@ -2412,18 +2412,30 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     timelineIndex.push(combat.timelineIndex);
   }
 
+  const belegung = CONTROL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId }));
+
+  // Der zweite Lauf (#653) — einmal je Lauf; diese Payload baut zwei
+  // (mit und ohne Ausgabe).
+  const result = replayRecording(
+    { name: `control-${mitAusgabe ? 'mit' : 'ohne'}`, seed: 0, ticks, presses, bindings: belegung },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     withSpending: mitAusgabe,
     ticks,
-    bindings: CONTROL_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    bindings: belegung,
     presses,
     expected: {
+      // `control` ist ein MOMENTANWERT (der Vorrat am Ende), kein Endwert im
+      // Sinne des Ergebnisses — es führt ihn nicht. Bleibt bei `combat`.
       control: combat.control,
-      controlSpent: combat.controlSpent,
-      controlFailed: combat.controlFailed,
-      phaseHoldPercent: combat.phaseHoldPercent,
+      controlSpent: result.controlSpent,
+      controlFailed: result.controlFailed,
+      phaseHoldPercent: result.phaseHoldPercent,
       finalPhase: combat.bossPhase,
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
+      // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
       damageDealt: combat.damageDealt,
       sequenceChecksum: sequence,
     },
