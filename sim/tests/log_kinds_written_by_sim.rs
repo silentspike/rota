@@ -364,10 +364,40 @@ fn ac8_die_ausnahmen_sind_benannt_und_begruendet() {
 }
 
 #[test]
-fn ac7_wie_viele_arten_haben_wirklich_eine_variante() {
-    // Der eigentliche Befund des Issues, als Zahl festgehalten. Ändert sie
-    // sich, ist entweder eine Art dazugekommen oder eine Lücke geschlossen —
-    // beides gehört bemerkt, statt still zu geschehen.
+fn ac2a_kennt_der_simulator_jede_art_die_er_schreiben_soll() {
+    // **Stufe 1: Datenstruktur gegen Datenstruktur.** `LogKind::ALL` entsteht
+    // im Makro aus derselben Liste wie die Varianten; `writtenBySim` kommt aus
+    // `EVENT_KIND_INTENT`. Kein Text, kein Lauf — und deshalb deckt dieser
+    // Fall ALLE 16 Arten ab, nicht nur die, die ein Lauf hervorruft.
+    let fehlend: Vec<String> = absicht()
+        .into_iter()
+        .filter(|(_, soll)| *soll)
+        .map(|(name, _)| name)
+        .filter(|name| variante_fuer(name).is_none())
+        .filter(|name| !BEKANNTE_LUECKEN.iter().any(|(n, _)| *n == name.as_str()))
+        .collect();
+
+    assert!(
+        fehlend.is_empty(),
+        "der Simulator soll diese Arten schreiben, kennt sie aber nicht \
+         einmal — es fehlt die LogKind-Variante: {}",
+        fehlend.join(", ")
+    );
+}
+
+#[test]
+fn ac7_der_befund_als_eigenschaft_nicht_als_zahl() {
+    // Der eigentliche Befund des Issues.
+    //
+    // **Die Zahl steht hier NICHT hart.** Ein erster Entwurf nagelte „15 von
+    // 16" fest — und wäre in dem Moment rot geworden, in dem Issue #682 die
+    // fehlende Variante anlegt. Ein Prüffall, der das Schließen einer Lücke
+    // bestraft, erzieht dazu, ihn anzupassen statt ihn zu lesen.
+    //
+    // Geprüft wird stattdessen die EIGENSCHAFT: Jede Art mit `sim: true` ist
+    // entweder als Variante vorhanden **oder** als bekannte Lücke geführt.
+    // Ein Drittes gibt es nicht. Die Zahl steht in der Fehlermeldung und ist
+    // damit ablesbar, ohne den Fall zu binden.
     let soll: Vec<String> = absicht()
         .into_iter()
         .filter(|(_, s)| *s)
@@ -375,16 +405,29 @@ fn ac7_wie_viele_arten_haben_wirklich_eine_variante() {
         .collect();
     let mit_variante = soll.iter().filter(|n| variante_fuer(n).is_some()).count();
 
+    // **Nicht die Summe, sondern die Eigenschaft je Art.** Eine Summe aus
+    // „hat Variante" und „ist bekannte Lücke" zählt doppelt, sobald eine
+    // Lücke geschlossen wird: Die Art bekommt ihre Variante, steht aber noch
+    // in der Liste — und der Fall würde ausgerechnet dann rot, wenn jemand
+    // das Richtige getan hat. Nachgemessen, indem `BuffExpire` versuchsweise
+    // angelegt wurde: 16 + 1 = 17, Fall rot.
+    let weder_noch: Vec<&String> = soll
+        .iter()
+        .filter(|n| variante_fuer(n).is_none())
+        .filter(|n| !BEKANNTE_LUECKEN.iter().any(|(b, _)| *b == n.as_str()))
+        .collect();
+
     assert_eq!(
         soll.len(),
         16,
-        "die Zahl der Arten mit sim:true hat sich geändert"
+        "die Zahl der Arten mit sim:true hat sich geändert — am 2026-08-09 waren es 16"
     );
-    assert_eq!(
-        mit_variante,
-        15,
-        "von {} Arten mit sim:true haben {mit_variante} eine LogKind-Variante — \
-         erwartet waren 15, die Ausnahme ist buffExpire (#682)",
+    assert!(
+        weder_noch.is_empty(),
+        "diese Arten mit sim:true haben weder eine LogKind-Variante noch stehen \
+         sie als bekannte Lücke: {:?}\n  (zur Einordnung: {mit_variante} von {} \
+         haben eine Variante)",
+        weder_noch,
         soll.len()
     );
 }
