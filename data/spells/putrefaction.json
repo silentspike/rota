@@ -89,6 +89,17 @@
         "gcds": 4,
         "target": "stack"
       }
+    },
+    {
+      "_comment": "MIASMA — Fueller, der den Aufbau BELOHNT statt ihn zu treiben (Issue #479).\n\nDie Schule hatte zwei Sorten: canker und blight LEGEN Stapel, fester SCHLAEGT nach Stapelzahl. Was fehlte, ist ein Fueller auf 1,5 s, der die Stapel nutzt ohne neue zu legen — sonst ist jeder Druck entweder Aufbau oder Hoehepunkt, und dazwischen liegt nichts.\n\nKEIN decay-Feld, und das ist der Punkt: Wer MIASMA drueckt, verzichtet auf einen Stapel und bekommt dafuer Schaden aus den vorhandenen.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 1,5 s, Fueller). baseDamage 25 liegt unter blights 30, weil MIASMA zusaetzlich nach Stapeln skaliert; perDecayStackPercent 12 unter festers 20, weil er oefter drankommt. Beides ist Ordnung, keine Balance.\n\nSTEHT AM ENDE DER DATEI, nicht bei den Fuellern: Die Reihenfolge ist der Index-Raum, und der steht in JEDER Aufzeichnung. Ein Einschub in der Mitte verschiebt alle folgenden Zauber — gemessen, spell-order.test.ts und spell-school.test.ts melden es sofort.",
+      "id": "miasma",
+      "name": "Miasma",
+      "unlockLevel": 4,
+      "baseDamage": 25,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "perDecayStackPercent": 12
     }
   ]
 }

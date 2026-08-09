@@ -4387,6 +4387,12 @@ export const SYNERGY_NAME = 'synergy-window';
 const SYNERGY_BINDINGS = [
   { slot: 0, spellId: 'canker' },
   { slot: 1, spellId: 'fester' },
+  // **MIASMA auf Platz 2** (Issue #479). Er gehört in DIESE Aufzeichnung,
+  // weil sie die einzige ist, die Stapel aufbaut: Er lebt von ihnen
+  // (`perDecayStackPercent`), ohne selbst welche zu legen. In einer Runde
+  // ohne CANKER wäre er ein Füller mit 25 Schaden und nichts sonst — der
+  // Lauf würde grün und sagte über seine Rolle nichts aus.
+  { slot: 2, spellId: 'miasma' },
 ] as const;
 
 /**
@@ -4417,6 +4423,7 @@ function recordSynergy(ticks: number): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const canker = combat.indexOf('canker');
   const fester = combat.indexOf('fester');
+  const miasma = combat.indexOf('miasma');
   const presses: RecordedPress[] = [];
   // Die Prüfung stand hier zuerst, als Einzelstück (Issue #351). Sie ist jetzt
   // im gemeinsamen Helfer — eine zweite Kopie war der Grund, warum die andere
@@ -4437,6 +4444,11 @@ function recordSynergy(ticks: number): Recording {
     // Aufzeichnung abdecken.
     else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
     else if (combat.isOffCooldown(fester, timeMs)) press(fester, tick, timeMs);
+    // **MIASMA füllt die Lücken** (Issue #479) — und genau dafür ist er
+    // gebaut: 1,5 s Abklingzeit, kein eigener Stapel, Schaden nach der Zahl
+    // der liegenden. Er steht ZULETZT in der Kette, weil er die beiden
+    // anderen nicht verdrängen darf; sie bauen auf, er lebt davon.
+    else if (combat.isOffCooldown(miasma, timeMs)) press(miasma, tick, timeMs);
   }
 
   return { name: SYNERGY_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };

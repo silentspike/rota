@@ -113,6 +113,9 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'sepsis',
       // Issue #540 — VIRULENCE, bei seiner Schule.
       'virulence',
+      // Issue #479 — MIASMA, am ENDE seiner Schul-Datei: Ein Einschub in der
+      // Mitte verschiebt den Index-Raum, und der steht in jeder Aufzeichnung.
+      'miasma',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
