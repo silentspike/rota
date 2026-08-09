@@ -21,6 +21,7 @@ import {
   EVENT_BUFF_EXPIRE,
   EVENT_BOSS_TIMELINE_FIRED,
   EVENT_CAST,
+  EVENT_CONTROL_SPENT,
   EVENT_DAMAGE,
   EVENT_DOT_TICK,
   EVENT_HEALED,
@@ -1651,6 +1652,10 @@ export class Combat {
     }
     this.controlValue -= control.cost;
     this.controlSpentValue += control.cost;
+    // **Der Mindesteinsatz** (Issue #683). Jeder Kontroll-Zauber geht hier
+    // durch; die beiden Stellen weiter unten nehmen bei zwei Wirkungen
+    // zusätzlich den REST und schreiben ihn eigens.
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, control.cost);
 
     // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
     // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
@@ -1664,6 +1669,15 @@ export class Combat {
       // Punkte" — `cost` ist der Mindesteinsatz. Bliebe der Rest liegen,
       // brächte der große Moment der Schule bei vollem Vorrat genauso viel
       // wie bei knappem.
+      // **Der Rest bei ALLE DREI** (Issue #683). Eigener Eintrag, nicht mit
+      // dem Mindesteinsatz verrechnet: Wer den Verlauf liest, soll sehen,
+      // dass hier über die Kosten hinaus geleert wurde.
+      this.log?.push(
+        this.fightElapsedMs(timeMs),
+        EVENT_CONTROL_SPENT,
+        NO_SPELL_REF,
+        this.controlValue,
+      );
       this.controlSpentValue += this.controlValue;
       this.controlValue = 0;
     }
@@ -1691,6 +1705,11 @@ export class Combat {
       const rest = this.controlValue;
       this.controlValue = 0;
       this.controlSpentValue += rest;
+      // **Der Rest bei UMWANDLUNG** (Issue #683). Dieselbe Überlegung wie
+      // oben — und `rest` kann 0 sein, wenn der Vorrat genau den Kosten
+      // entsprach. Dann steht hier eine 0, und das ist richtig: Der Weg
+      // wurde genommen, er hat nur nichts mehr vorgefunden.
+      this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, rest);
       this.pendingConvertedDamage = (control.cost + rest) * control.amount;
     }
     if (control.effect === 'holdPhase' || alleDrei) {

@@ -265,7 +265,20 @@ export const EVENT_KIND_INTENT: Readonly<Record<string, KindIntent>> = {
   shieldAbsorb: { game: true, sim: true },
   healed: { game: true, sim: true },
   convertedToShield: { game: false, sim: true },
-  controlSpent: { game: false, sim: true },
+  /**
+   * **Seit #683 schreibt das Spiel sie ebenfalls** — vorher nur der Simulator.
+   *
+   * Es zählte die ausgegebenen Kontrollpunkte längst (`controlSpentValue`),
+   * schrieb sie aber nicht in den Verlauf. Damit fehlte der Fehleranalyse
+   * genau die Größe, an der sich eine vertane Gelegenheit zeigt — und die
+   * Analyse läuft im Browser, nicht im Simulator (GAME-DESIGN 15.2, #81).
+   *
+   * `value` ist die Zahl der Punkte dieser einen Ausgabe, nicht der Stand
+   * danach. Ausgegeben wird an drei Stellen: dem Mindesteinsatz jedes
+   * Kontroll-Zaubers und den beiden Wegen, die zusätzlich den REST nehmen
+   * (`allThree` und `convertToDamage`).
+   */
+  controlSpent: { game: true, sim: true },
 };
 
 /**

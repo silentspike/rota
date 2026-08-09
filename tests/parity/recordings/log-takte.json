@@ -184,7 +184,8 @@
     "playerDamage": 6,
     "interruptLanded": 0,
     "shieldAbsorb": 0,
-    "healed": 0
+    "healed": 0,
+    "controlSpent": 0
   },
   "takte": {
     "damage": [
