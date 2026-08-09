@@ -126,8 +126,14 @@ fn jede_art_des_simulators_im_raum(raum: &[Art]) -> Result<(), String> {
 ///
 /// Eine Art, die das Spiel NICHT schreibt, muss der Simulator schreiben —
 /// sonst schriebe sie niemand, und sie waere eine tote Nummer. Arten, die das
-/// Spiel schreibt, darf der Simulator dagegen fehlen: `crit` und `buffExpire`
-/// gehoeren ihm nicht.
+/// Spiel schreibt, darf der Simulator dagegen fehlen: `crit` gehoert ihm
+/// nicht.
+///
+/// **`buffExpire` stand hier bis Issue #682 daneben** — zu Recht, denn die
+/// Art fehlte dieser Seite vollstaendig (die Aufzaehlung sprang von 6 auf 8).
+/// Seit #682 schreiben BEIDE Seiten sie, und der Satz galt nur noch zur
+/// Haelfte. Er ist nachgezogen, statt stehen zu bleiben und ab jetzt falsch
+/// zu sein.
 fn jede_art_des_raums_dem_simulator_bekannt(raum: &[Art]) -> Result<(), String> {
     for art in raum.iter().filter(|art| !art.vom_spiel) {
         if !LogKind::ALL

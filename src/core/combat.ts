@@ -18,6 +18,7 @@ import { computeDamage, NEUTRAL_FACTORS, stackDamage, type DamageFactors } from 
 import { BIG_HIT_HP_SHARE, HIT_DIRECT, HIT_DOT, type HitFn } from './hits.js';
 import {
   EVENT_BOSS_ENERGY_TRIGGERED,
+  EVENT_BUFF_EXPIRE,
   EVENT_BOSS_TIMELINE_FIRED,
   EVENT_CAST,
   EVENT_DAMAGE,
@@ -79,7 +80,7 @@ import {
   RULE_SPELL_CAST,
   RuleEvents,
 } from '../combat/events.js';
-import { Buffs } from '../combat/schools/buffs.js';
+import { Buffs, BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
@@ -1845,15 +1846,47 @@ export class Combat {
     // **Alle fünf, nicht nur die Schadens-Verstärkungen** (Issue #489). Ein
     // Fenster, das nie abläuft, wirkt für den Rest des Kampfes weiter — und
     // bei den vier neuen Größen fiele das nicht am Schaden auf.
-    this.controlBuffs.expire(timeMs);
-    this.resourceBuffs.expire(timeMs);
-    this.tickBuffs.expire(timeMs);
-    this.stackBuffs.expire(timeMs);
-    this.cdReduceBuffs.expire(timeMs);
-    this.convertBuffs.expire(timeMs);
-    this.capBuffs.expire(timeMs);
-    if (this.buffs.expire(timeMs) === 0) return;
+    this.logExpired(this.controlBuffs.expire(timeMs), timeMs);
+    this.logExpired(this.resourceBuffs.expire(timeMs), timeMs);
+    this.logExpired(this.tickBuffs.expire(timeMs), timeMs);
+    this.logExpired(this.stackBuffs.expire(timeMs), timeMs);
+    this.logExpired(this.cdReduceBuffs.expire(timeMs), timeMs);
+    this.logExpired(this.convertBuffs.expire(timeMs), timeMs);
+    this.logExpired(this.capBuffs.expire(timeMs), timeMs);
+
+    // **Die achte, und sie liest ihren Rückgabewert schon immer.** `=== 0`
+    // heisst weiterhin „nichts abgelaufen" — die Maske hat dieselbe Null wie
+    // die frühere Anzahl, deshalb bleibt der Vergleich richtig (#682).
+    const abgelaufen = this.buffs.expire(timeMs);
+    this.logExpired(abgelaufen, timeMs);
+    if (abgelaufen === 0) return;
     this.updateBuffFactor(timeMs);
+  }
+
+  /**
+   * Schreibt je abgelaufener Verstärkung einen Eintrag der Art 7 (Issue #682).
+   *
+   * # Warum hier und nicht in `Buffs.expire`
+   *
+   * `expire` läuft je Takt und darf **nichts erzeugen** — das steht über der
+   * Methode und ist der Grund, warum sie eine Zahl zurückgibt statt einer
+   * Liste. Die Klasse kennt das Protokoll nicht und soll es nicht kennen.
+   * Also liest der Aufrufer die Maske und schreibt hier.
+   *
+   * # Ein Eintrag JE ART, nicht einer je Sammlung
+   *
+   * Acht Sammlungen rufen `expire` auf. Ein Eintrag je Aufruf trüge eine
+   * Zahl, die von der Sammlung abhängt statt vom Ereignis — wer den Verlauf
+   * liest, sähe „drei liefen aus" und wüsste nicht, welche. Der Wert ist
+   * deshalb die ART, und die bewegt sich: Ein Eintrag, der immer dieselbe
+   * Zahl trägt, ist von einem festen Wert nicht zu unterscheiden.
+   */
+  private logExpired(maske: number, timeMs: number): void {
+    if (maske === 0 || this.log === null) return;
+    for (let kind = 0; kind < BUFF_KIND_CAPACITY; kind++) {
+      if ((maske & (1 << kind)) === 0) continue;
+      this.log.push(this.fightElapsedMs(timeMs), EVENT_BUFF_EXPIRE, NO_SPELL_REF, kind);
+    }
   }
 
   /** Trägt den Gesamtfaktor der laufenden Verstärkungen in die Rechnung. */
