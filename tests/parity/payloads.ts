@@ -578,7 +578,11 @@ function recordMisplays(ticks: number): Recording {
     if (combat.isReady(kindle, timeMs)) press(kindle, tick, timeMs);
   }
 
-  return { name: MISPLAY_NAME, seed: 0, ticks, presses };
+  // **Der achte Fall aus #663**, und der einzige in dieser Datei: Die
+  // übrigen 15 Aufzeichner hier geben ihre Belegung längst mit. Dieser
+  // nimmt sie oben für `pressRecorder` (STEP1_BINDINGS) und reichte sie
+  // nicht weiter — der Nachlauf holte sie sich still aus demselben Default.
+  return { name: MISPLAY_NAME, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**

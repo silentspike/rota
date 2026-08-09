@@ -278,7 +278,16 @@ export interface ReplayResult {
 function spellForSlot(
   combat: Combat,
   slot: number,
-  bindings: readonly { readonly slot: number; readonly spellId: string }[] = STEP1_BINDINGS,
+  // **Kein Default mehr** (Issue #663). Bis zum 2026-08-09 stand hier
+  // `= STEP1_BINDINGS`. Wer ohne Belegung abspielte, bekam nicht etwa eine
+  // Fehlermeldung, sondern einen ANDEREN Kampf: Platz 0 meinte `searing`
+  // und bekam `kindle`. Gemessen an `new-calcination`: 660 Schaden statt
+  // 1860 — kein Fehler, keine Ausnahme, nur eine kleinere Zahl.
+  //
+  // Vier der sieben Aufzeichner waren betroffen. Die drei übrigen waren
+  // richtig, weil sie ihre Plätze aus derselben Konstante ableiten, auf die
+  // der Default zurückfiel — sie waren gedeckt, nicht abgesichert.
+  bindings: readonly { readonly slot: number; readonly spellId: string }[],
 ): number {
   for (const binding of bindings) {
     if (binding.slot === slot) return combat.indexOf(binding.spellId);
@@ -446,7 +455,18 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
       // `options.bindings` bleibt oben, weil ein Aufrufer sie bewusst
       // überschreiben darf; fehlt sie, kommt die aus der Datei statt der
       // festen aus `loadout.ts`.
-      const spellIndex = spellForSlot(combat, press.slot, options.bindings ?? recording.bindings);
+      // **Fehlt beides, ist das ein Fehler und keine Voreinstellung** (#663).
+      // Vorher fiel der Aufruf still auf `STEP1_BINDINGS` zurück und spielte
+      // einen anderen Kampf; jetzt sagt er, was ihm fehlt.
+      const belegung = options.bindings ?? recording.bindings;
+      if (belegung === undefined) {
+        throw new Error(
+          `Die Aufzeichnung "${recording.name}" hat keine bindings, und es wurden auch keine ` +
+            `übergeben. Ohne Belegung lässt sich ein Platz keinem Zauber zuordnen — früher ` +
+            `griff hier STEP1_BINDINGS, was einen ANDEREN Kampf spielte (Issue #663).`,
+        );
+      }
+      const spellIndex = spellForSlot(combat, press.slot, belegung);
       if (spellIndex < 0) {
         rejected++;
         continue;
@@ -580,7 +600,10 @@ function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Record
     combat.cast(alsSpellIndex(choice), timeMs);
     presses.push({ tick, slot: slotOf.get(choice) ?? 0 });
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663) — hier dieselbe, aus der
+  // `slotOf` oben abgeleitet wird. Der Rückfall auf `STEP1_BINDINGS` träfe
+  // zu; darauf soll sich aber niemand verlassen müssen.
+  return { name, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**
@@ -672,10 +695,29 @@ function recordNewCalcination(name: string, ticks: number): Recording {
         : bellows;
     if (!combat.isReady(choice, timeMs)) continue;
     combat.cast(alsSpellIndex(choice), timeMs);
-    // Platz 0 und 1 — die Bindung steht im Payload, nicht hier.
     presses.push({ tick, slot: choice === searing ? 0 : 1 });
   }
-  return { name, seed: 0, ticks, presses };
+  // **Hier stand: „die Bindung steht im Payload, nicht hier."** Genau diese
+  // Annahme war der Fehler (Issue #663). `payloads.ts` schreibt die Belegung
+  // zwar in die exportierte Datei — aber `replayRecording` bekommt die
+  // Aufzeichnung aus dieser Funktion, nicht aus der Datei. Ohne `bindings`
+  // fällt es auf `STEP1_BINDINGS` zurück:
+  //
+  //     Platz 0   hier gemeint: searing    STEP1 liefert: kindle
+  //     Platz 1   hier gemeint: bellows    STEP1 liefert: smoulder
+  //
+  // Der Nachlauf spielte damit einen anderen Kampf. Gemessen: 660 Schaden
+  // statt 1860 — kein Fehler, keine Ausnahme, nur eine kleinere Zahl.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: [
+      { slot: 0, spellId: 'searing' },
+      { slot: 1, spellId: 'bellows' },
+    ],
+  };
 }
 
 /**
@@ -706,7 +748,13 @@ function recordCooldownSweep(name: string, ticks: number): Recording {
     combat.cast(alsSpellIndex(choice), timeMs);
     presses.push({ tick, slot: slotOf.get(choice) ?? 0 });
   }
-  return { name, seed: 0, ticks, presses };
+  // **Die Belegung gehört in die Aufzeichnung** (Issue #663). Fehlt sie,
+  // fällt `replayRecording` auf `STEP1_BINDINGS` zurück und spielt einen
+  // anderen Kampf — lautlos, mit einer kleineren Zahl. Hier wäre der
+  // Rückfall richtig, weil diese Aufzeichnung ihre Plätze aus derselben
+  // Konstante ableitet. Sie steht trotzdem dabei, damit die Aufzeichnung
+  // nicht davon abhängt, dass zwei Stellen zufällig dieselbe Liste meinen.
+  return { name, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**
@@ -771,7 +819,17 @@ function recordResetRotation(name: string, ticks: number): Recording {
     }
     session.tick(timeMs);
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663). `reflux` steht in keiner
+  // Standardleiste — ohne diese Zeile spielte der Nachlauf auf Platz 2 einen
+  // anderen Zauber und die Rücksetz-Wirkung, um die es hier geht, käme nie
+  // vor.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: belegung.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
 }
 
 /**
@@ -823,7 +881,10 @@ function recordTrialRotation(name: string, ticks: number, boss: BossDef): Record
       presses.push({ tick, slot });
     }
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663). Diese hier leitet ihre
+  // Plätze aus `STEP1_BINDINGS` ab — der Rückfall träfe zu, und genau
+  // deshalb ist sie einer der drei Fälle, in denen der Fehler nie auffiel.
+  return { name, seed: 0, ticks, presses, bindings: STEP1_BINDINGS };
 }
 
 /**
@@ -920,7 +981,17 @@ function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Rec
     combat.cast(alsSpellIndex(wahl), timeMs);
     presses.push({ tick, slot: slotOf.get(wahl) ?? 0 });
   }
-  return { name, seed: 0, ticks, presses };
+  // Die Belegung gehört in die Aufzeichnung (#663). `test-cast` steht in
+  // keiner Standardleiste — ohne diese Zeile spielte der Nachlauf einen
+  // Zauber ohne Wirkzeit, und die Wirkzeit ist der ganze Zweck dieser
+  // Aufzeichnung.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: CAST_TIME_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
 }
 
 /**
@@ -996,7 +1067,22 @@ function recordMixedRotation(name: string, ticks: number, boss: BossDef): Record
     presses.push({ tick, slot: wahl.slot });
     naechster++;
   }
-  return { name, seed: 0, ticks, presses };
+  // **Der deutlichste Fall von #663.** `MIXED_BINDINGS` ist eine eigene,
+  // benannte Belegung — mit einem Kommentar darüber, der begründet, warum
+  // sie NICHT `STEP1_BINDINGS` sein darf: Ein früherer Entwurf mit KINDLE
+  // vorn ließ die beiden anderen Zauber in 20 Sekunden kein einziges Mal
+  // zum Zug kommen.
+  //
+  // Ohne diese Zeile fiel der Nachlauf auf genau die Belegung zurück, gegen
+  // die sie gebaut wurde. Eine gemischte Leiste, die im Nachlauf nur noch
+  // eine Schule spielt, prüft nicht, was sie prüfen soll.
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: MIXED_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
 }
 
 /**
