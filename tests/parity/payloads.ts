@@ -3389,6 +3389,15 @@ export function buffCombatPayload(): Record<string, unknown> {
     ],
     checksums,
     factorAt,
+    // **Diese Payload bleibt bei `combat`, und das ist gemessen** (Issue
+    // #653). Sie ist die einzige der 15, die keine slot-basierte Aufzeichnung
+    // führt: Die Zauber werden direkt geworfen (`combat.cast(buff, …)`), und
+    // die `presses` oben tragen `spellId` statt `slot` — für die Rust-Seite.
+    //
+    // `replayRecording` spielt Plätze ab, keine Zaubernamen. Eine Umstellung
+    // bräuchte also erst eine Aufzeichnung mit Plätzen UND Belegung, und
+    // damit einen anderen `presses`-Block — das ändert die Vergleichsdatei
+    // und ist kein Quellenwechsel mehr, sondern ein Umbau der Aufzeichnung.
     expected: {
       damage: combat.damageDealt,
       damageTaken: combat.damageTaken,
