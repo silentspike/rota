@@ -132,6 +132,8 @@ import {
   LOG_TAKTE_NAME,
   aetherPayload,
   AETHER_NAME,
+  sublimePayload,
+  SUBLIME_NAME,
   timelineLoopPayload,
   sublimationPayload,
   gezielteVerkuerzungPayload,
@@ -413,6 +415,14 @@ writeFileSync(fixationPath, serialize(fixation), 'utf8');
 const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
+
+const sublime = sublimePayload();
+const sublimePath = join(here, 'recordings', `${SUBLIME_NAME}.json`);
+writeFileSync(sublimePath, serialize(sublime), 'utf8');
+console.log(
+  `  SUBLIME-Merker  ${sublime.expected.sublimeCasts} Wuerfe, ` +
+    `${sublime.expected.merkerTakte} Merker-Takte, Schaden ${sublime.expected.damageDealt}`,
+);
 
 const aether = aetherPayload();
 const aetherPath = join(here, 'recordings', `${AETHER_NAME}.json`);

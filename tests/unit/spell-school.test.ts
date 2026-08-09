@@ -116,6 +116,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'distil',
       // Issue #480 — AETHER, hinten in `sublimation.json`.
       'aether',
+      // Issue #480 — SUBLIME, hinter AETHER in derselben Schuldatei.
+      'sublime',
       'canker',
       'fester',
       'blight',

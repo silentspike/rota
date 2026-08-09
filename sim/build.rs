@@ -470,6 +470,21 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        clears_doom: {senkt_verhaengnis},");
+    // **Den NAECHSTEN Zauber von der Wartezeit befreien** (SUBLIME, #480).
+    //
+    // Unterscheidet sich von `triggersGcd` in dem, worauf es zeigt:
+    // `triggersGcd` sagt, ob DIESER Zauber die Wartezeit ausloest — eine
+    // Eigenschaft, die in den Daten steht und sich nie aendert. Dieses Feld
+    // setzt einen MERKER, der bis zum naechsten Wurf lebt.
+    //
+    // Merker sind neu im Datenmodell, und sie haben eine Bedingung: Sie
+    // gehoeren in die Pruefsumme. Die Begruendung steht an der Stelle, an der
+    // sie dort eingehaengt sind (`src/core/checksum.ts`).
+    let befreit_naechsten = spell
+        .get("freesNextGcd")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        frees_next_gcd: {befreit_naechsten},");
     // Ein Unterbrecher, der die globale Wartezeit ausloest, waere die Ausnahme
     // aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Er koennte nicht mehr
     // zwischen zwei Zauber gelegt werden, und der ganze Baustein waere tot.

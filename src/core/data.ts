@@ -268,6 +268,15 @@ export interface SpellDef {
    * müssen — zu wenig heißt unschaffbar, zu viel heißt Kulisse.
    */
   readonly clearsDoom?: boolean;
+  /**
+   * Ob dieser Zauber den **nächsten** von der globalen Wartezeit befreit
+   * (SUBLIME, Issue #480).
+   *
+   * Anders als `triggersGcd`, das eine Eigenschaft dieses Zaubers ist, setzt
+   * dieses Feld einen **Merker**: einen Zustand, der bis zum nächsten Wurf
+   * lebt. Merker gehören in die Prüfsumme — warum, steht dort.
+   */
+  readonly freesNextGcd?: boolean;
   /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
   readonly shield?: ShieldDef;
   /** Heilung, falls der Zauber eine ist (Weg 2). */
@@ -1596,6 +1605,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
 
   const unterbricht = raw['interrupt'] === true;
   const senktVerhaengnis = raw['clearsDoom'] === true;
+  const befreitNaechsten = raw['freesNextGcd'] === true;
   if (unterbricht && raw['triggersGcd'] !== false) {
     // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
     // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
@@ -1689,6 +1699,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     school: typeof raw['school'] === 'string' ? raw['school'] : null,
     interrupt: unterbricht,
     clearsDoom: senktVerhaengnis,
+    freesNextGcd: befreitNaechsten,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
     ...parsePutrefaction(raw, where, problems),

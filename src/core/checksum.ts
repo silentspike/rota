@@ -150,6 +150,20 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Die laufende Umwandlung gehört dazu, nicht nur ihr Ergebnis: Sie
   // entscheidet über jeden künftigen Schlag.
   h = mixNamedInt(h, 'conversionPercent', combat.conversionPercent);
+  // **Der erste Merker in der Prüfsumme** (SUBLIME, Issue #480).
+  //
+  // ANGEHÄNGT, nicht eingeschoben — dieselbe Regel wie bei `control` seit
+  // #100: Ein Einschub deutet jede bestehende Reihenfolge um.
+  //
+  // Warum ein Merker überhaupt hierher gehört: Er ist ein Kampfzustand, der
+  // zwischen zwei Würfen lebt. Stünde er nicht hier, könnten beide Seiten ihn
+  // verschieden führen — einer verbraucht ihn beim nächsten Wurf, der andere
+  // beim übernächsten —, und keine Prüfung bemerkte es. Die Zahlen stimmten
+  // weiter, bis irgendwann eine Rotation auseinanderliefe.
+  //
+  // Für die vier Merker, die folgen (CONDENSE, RETORT, PUTRID BLOOM, DECAY):
+  // hier anhängen, in derselben Reihenfolge auf beiden Seiten.
+  h = mixNamedInt(h, 'nextCastFreeGcd', combat.nextCastFreeGcd ? 1 : 0);
   // **Angehängt, nicht eingeschoben** (Issue #100). Ohne den Kontroll-Vorrat
   // wäre die Prüfsumme für jeden Kampf mit Fixierung blind, und die gesenkte
   // Phasen-Schwelle entscheidet über jeden künftigen Wechsel.
