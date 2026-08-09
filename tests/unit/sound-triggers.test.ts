@@ -126,6 +126,13 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'sepsis',
     'test-cast',
     'test-buff',
+    // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
+    // Er entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung
+    // entstehen — Claude kann nicht hoeren, und ein erfundener Prompt im
+    // Manifest waere schlimmer als ein fehlender, weil ihn niemand als
+    // Erfindung erkennt. Die Gegenrichtung unten holt ihn von selbst heraus,
+    // sobald der Klang da ist.
+    'purge',
     // VORLAEUFIG (Issue #521): ALEMBIC ist gebaut, sein Klang fehlt. Er
     // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen —
     // ein erfundener Prompt im Manifest waere schlimmer als ein fehlender,

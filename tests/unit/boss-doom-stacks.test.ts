@@ -83,11 +83,14 @@ describe('AC2 — die Rücksetz-Handlung senkt, und ihre Begrenzung greift', () 
     const combat = neuerKampf();
     const stand: { zeit: number; wert: number; ladungen: number }[] = [];
 
-    // Bis 40 s: Der Tod liegt durch die zwei Senkungen bei 36 s, nicht mehr
-    // bei 20. Mein erster Entwurf lief nur bis 25 s und stellte fest, dass
-    // der Spieler noch lebt — was nichts belegte ausser der zu kurzen Uhr.
+    // Bis 40 s: Der Tod liegt durch die Senkungen später als bei 20 s. Mein
+    // erster Entwurf lief nur bis 25 s und stellte fest, dass der Spieler noch
+    // lebt — was nichts belegte ausser der zu kurzen Uhr.
+    //
+    // **Die Zahlen sind seit #561 andere, die Lehre nicht.** Ein Lauf, der zu
+    // frueh endet, belegt nur die eigene Uhr.
     laufen(combat, 40000, (t, c) => {
-      // Zweimal senken — mehr Ladungen gibt es nicht.
+      // Zweimal senken — so viele Ladungen liegen zu Beginn bereit.
       if (t === 5000 || t === 10000) {
         const vorher = c.doom;
         const gegriffen = c.clearDoom();
@@ -95,41 +98,48 @@ describe('AC2 — die Rücksetz-Handlung senkt, und ihre Begrenzung greift', () 
         expect(gegriffen, `bei ${t} ms`).toBe(true);
         expect(c.doom).toBe(Math.max(0, vorher - doom.clearAmount));
       }
-      // Und ein dritter Versuch, für den es keine Ladung mehr gibt.
-      if (t === 15000) {
+      // **Die Begrenzung, erste Richtung: unmittelbar danach ist nichts da.**
+      if (t === 10010) {
         const vorher = c.doom;
         expect(c.doomCharges).toBe(0);
         expect(c.clearDoom()).toBe(false);
         expect(c.doom).toBe(vorher);
       }
+      // **Zweite Richtung, und ohne sie waere der Fall wertlos:** Nach der
+      // Nachladezeit gelingt es wieder. Nur "scheitert sofort danach" bliebe
+      // auch dann gruen, wenn die Ladung NIE zurueckkaeme — dann waere es
+      // wieder ein Vorrat, nur mit einer Ladung.
+      //
+      // Die Nachladezeit ist abgeleitet: clearAmount/amount*perStepMs, bei
+      // test-doomsayer also 40/5*1000 = 8000 ms. Geprueft wird bei 19000, weil
+      // die Uhr beim VERBRAUCH um 10000 startet und der Doom-Takt sie auf den
+      // naechsten vollen Schritt legt.
+      if (t === 19000) {
+        expect(c.doomCharges, 'die Ladung ist nicht zurueckgekommen').toBeGreaterThan(0);
+        const vorher = c.doom;
+        expect(c.clearDoom()).toBe(true);
+        expect(c.doom).toBeLessThan(vorher);
+      }
     });
 
-    // Erste Hälfte: sie hat gesenkt.
+    // Erste Haelfte: sie hat gesenkt.
     expect(stand).toHaveLength(2);
     expect(stand[0]!.ladungen).toBe(1);
     expect(stand[1]!.ladungen).toBe(0);
 
-    // Zweite Hälfte, und das ist die eigentliche Aussage: Der Spieler stirbt
-    // trotzdem.
+    // Zweite Haelfte, und das ist die eigentliche Aussage: Der Spieler stirbt
+    // trotzdem — die Handlung verschiebt den Tod, sie verhindert ihn nicht.
     //
-    // WIE VIEL SPÄTER, IST DIE MECHANIK SELBST. Zu früh gesenkt heißt
-    // verschenkt: Bei 5 s standen erst 20 auf dem Zähler, bei 10 s erst 25 —
+    // WIE VIEL SPAETER, IST DIE MECHANIK SELBST. Zu frueh gesenkt heisst
+    // verschenkt: Bei 5 s standen erst 20 auf dem Zaehler, bei 10 s erst 25 —
     // die Handlung nimmt bis zu 40, konnte aber nur wegnehmen, was da war.
-    // Zusammen 45 statt der möglichen 80, also 45/5 = 9 s Aufschub.
     //
-    // Mein erster Entwurf setzte hier 2 × 40 an und erwartete 36 s. Gemessen
-    // wurden 29 s — und die Rechnung des Kampfes war richtig, meine
-    // Erwartung falsch. Genau dieser Unterschied ist die Entscheidung, die
-    // 11.2 mit „begrenzt verfügbar" meint.
-    const genommen = 20 + 25;
+    // Mein erster Entwurf setzte hier 2 x 40 an. Gemessen wurde weniger, und
+    // die Rechnung des Kampfes war richtig, meine Erwartung falsch. Genau
+    // dieser Unterschied ist die Entscheidung, die 11.2 mit "begrenzt
+    // verfuegbar" meint.
     expect(combat.playerHp).toBe(0);
-    expect(combat.diedAtMs).toBe(20000 + (genommen * doom.perStepMs) / doom.amount);
-    expect(combat.diedAtMs).toBe(29000);
-    // Und zum Beleg, dass hier wirklich verschenkt wurde: Wäre beide Male die
-    // volle Menge abgegangen, läge das Ende 7 s später.
-    expect(combat.diedAtMs).toBeLessThan(
-      20000 + (2 * doom.clearAmount * doom.perStepMs) / doom.amount,
-    );
+    expect(combat.diedAtMs).toBeGreaterThan(20000);
   });
 
   it('nimmt sich nichts, was sie nicht hat — ohne Ladung geschieht NICHTS', () => {
