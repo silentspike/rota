@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "_comment": "PRUEF-BOSS FUER DIE PHASENSCHWELLE (Issue #667). Er gehoert NICHT zum Spiel: 'instance' ist 'testing', wie bei den elf anderen test-*-Bossen, und die Auswahl bietet nur die durchnummerierten Instanzen an.\n\nWARUM ER GEBRAUCHT WIRD: ANCHOR traegt die Kontroll-Wirkung 'holdPhase' — die Phasenschwelle sinkt voruebergehend, der naechste Wechsel kommt spaeter. Um das zu MESSEN, braucht es einen Kampf, in dem der Boss seine Schwelle waehrend des Fensters ueberhaupt erreicht.\n\nDER EINZIGE SPIELBARE BOSS MIT PHASEN KANN DAS NICHT. Gemessen am 2026-08-09: boss-1-2 hat 6400 HP und seine erste Schwelle bei 65 Prozent, das sind 2240 Schaden. Mit einer CALCINATION-Rotation kommt der Lauf auf 1200 — und dann ist Schluss, weil der SPIELER nach 17 Sekunden tot ist (playerHp 0 bei 17000 ms). Deshalb ergaben 60 und 200 Sekunden Lauf dieselbe Zahl: Der Kampf war laengst vorbei. Der Boss erreicht seine Phasenschwelle nie.\n\nDIE ZAHLEN SIND DESHALB SO KLEIN, WIE SIE SIND:\n  hp 800          damit die Schwelle bei 65 Prozent nach wenigen Sekunden faellt und der Wechsel INNERHALB des ANCHOR-Fensters liegt\n  timeline leer   kein Schlag am Spieler — er soll nicht sterben, bevor gemessen ist. Das ist der Punkt, an dem boss-1-2 scheitert.\n  eine Schwelle   zwei waeren zwei Wechsel, und der Fall muesste sagen, welchen er meint\n\nDIE KOSTEN, vor dem Bau gemessen: Ein neuer BOSS bewegt genau EINE Aufzeichnung (vessel-phases.json), nicht alle. Der Boss-Raum geht nicht in die Zustands-Pruefsumme ein — anders als ein neuer ZAUBER, der ueber fuenf Werte je Zauber jede Pruefsumme in jedem Takt verschiebt (so bei test-cap in #562).",
+  "id": "test-phase",
+  "name": "The Turning Vessel",
+  "instance": "testing",
+  "hp": 800,
+  "overpressureMs": 300000,
+  "phases": [{ "atHpPercent": 65, "name": "Turned" }],
+  "energy": null,
+  "doom": null,
+  "stacks": null,
+  "race": null,
+  "bossHeal": null,
+  "runaway": null,
+  "escalation": null,
+  "affliction": null,
+  "timeline": [],
+  "timelineLoopMs": null,
+  "resistances": {}
+}
