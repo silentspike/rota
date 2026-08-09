@@ -106,13 +106,20 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
     //
     // Ein Zauber, der Schaden macht, steht nie dauerhaft mit "TOT" in der
     // Tabelle. Genau diese Sorge — und nur sie — traegt die Liste unten.
-    // `convert` ist die vierte Schadensquelle (Issue #520, EFFLUX). Sie
-    // gehoert hierher wie die drei anderen: Wer sie vergisst, laesst einen
-    // Zauber aus der Tabelle, der Schaden macht.
+    // `convert` ist die vierte Schadensquelle (Issue #520, EFFLUX), `reflect`
+    // die fuenfte (Issue #481, RIPOSTE). Sie gehoeren hierher wie die drei
+    // anderen: Wer eine vergisst, laesst einen Zauber aus der Tabelle, der
+    // Schaden macht.
+    //
+    // RIPOSTE ist dabei der ungewoehnlichste Fall — sein Schaden entsteht aus
+    // dem, was der BOSS austeilt. Der Fall `ac1_...` in `tests/report.rs` hat
+    // ihn gefunden, und nur dort: In der TypeScript-Suite faellt diese Luecke
+    // nicht auf.
     if spell.base_damage > 0
         || spell.dot.is_some()
         || spell.spender.is_some()
         || spell.convert.is_some()
+        || spell.reflect.is_some()
     {
         return false;
     }

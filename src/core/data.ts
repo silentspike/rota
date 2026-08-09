@@ -274,6 +274,8 @@ export interface SpellDef {
   readonly heal?: HealDef;
   /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
   readonly conversion?: ConversionDef;
+  /** Rückschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet. */
+  readonly reflect?: ReflectDef;
   /** Zersetzungs-Stapel, die der Zauber auf dem Boss anlegt (PUTREFACTION). */
   readonly decay?: DecayDef;
   /**
@@ -444,6 +446,32 @@ export interface HealDef {
  * auseinander.
  */
 export interface ConversionDef {
+  readonly sharePercent: number;
+  readonly durationMs: number;
+}
+
+/**
+ * Rückschlag: ein Teil des EINGEHENDEN Schadens geht an den Boss (RIPOSTE,
+ * Issue #481).
+ *
+ * # Der Gegenentwurf zu `ConversionDef`
+ *
+ * Beide gehören zu Weg 3 und sehen gleich aus — sie hängen aber an
+ * entgegengesetzten Enden:
+ *
+ * ```text
+ *   ConversionDef   AUSGETEILTER Schaden  ->  Schutz
+ *   ReflectDef      EINGEHENDER Schaden   ->  Schaden am Boss
+ * ```
+ *
+ * Deshalb ein eigenes Feld und kein Zusatz an `conversion`: Ein Zauber, der
+ * beides trüge, müsste zwei Quellen und zwei Senken unterscheiden — und ein
+ * gemeinsames `sharePercent` bedeutete an zwei Stellen etwas anderes.
+ *
+ * `sharePercent` ist ganzzahlig und in Prozent, aus demselben Grund wie
+ * nebenan.
+ */
+export interface ReflectDef {
   readonly sharePercent: number;
   readonly durationMs: number;
 }
@@ -1271,6 +1299,7 @@ function parseCoagulation(
     shield?: ShieldDef;
     heal?: HealDef;
     conversion?: ConversionDef;
+    reflect?: ReflectDef;
   } = {};
 
   if (isRecord(raw['shield'])) {
@@ -1363,6 +1392,18 @@ function parseCoagulation(
     if (sharePercent <= 0 || sharePercent > 100) {
       problems.push(`${where}: sharePercent ${sharePercent} liegt nicht in (0, 100].`);
     } else out.conversion = { sharePercent, durationMs };
+  }
+
+  if (isRecord(raw['reflect'])) {
+    const sharePercent = number(raw['reflect']['sharePercent'], 0);
+    const durationMs = number(raw['reflect']['durationMs'], 0);
+    // Dieselbe Grenze wie bei der Umwandlung: Über 100 % gäbe der Spieler mehr
+    // zurück, als bei ihm ankommt, und ein Boss brächte sich am Ende selbst um.
+    if (sharePercent <= 0 || sharePercent > 100) {
+      problems.push(`${where}: reflect.sharePercent ${sharePercent} liegt nicht in (0, 100].`);
+    } else if (durationMs <= 0) {
+      problems.push(`${where}: reflect.durationMs ${durationMs} — ein Fenster ohne Dauer.`);
+    } else out.reflect = { sharePercent, durationMs };
   }
 
   return out;

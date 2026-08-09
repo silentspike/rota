@@ -58,7 +58,8 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
             !(spell.base_damage > 0
                 || spell.dot.is_some()
                 || spell.spender.is_some()
-                || spell.convert.is_some())
+                || spell.convert.is_some()
+                || spell.reflect.is_some())
         })
         .map(|row| row.id)
         .collect();
@@ -76,7 +77,8 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
             spell.base_damage > 0
                 || spell.dot.is_some()
                 || spell.spender.is_some()
-                || spell.convert.is_some(),
+                || spell.convert.is_some()
+                || spell.reflect.is_some(),
             "{}: steht in der Schadens-Tabelle, kann aber keinen Schaden machen",
             row.id
         );
@@ -112,7 +114,11 @@ fn ac1_die_tabelle_nennt_alle_drei_zauber_mit_beitrag() {
         .iter()
         .filter(|s| s.unlock_level <= data::MAX_LEVEL as u16)
         .filter(|s| {
-            s.base_damage > 0 || s.dot.is_some() || s.spender.is_some() || s.convert.is_some()
+            s.base_damage > 0
+                || s.dot.is_some()
+                || s.spender.is_some()
+                || s.convert.is_some()
+                || s.reflect.is_some()
         })
         .count();
     assert_eq!(

@@ -151,6 +151,14 @@ pub struct ReplayResult {
     pub healed: u32,
     /// Wie viel Schutz die Umwandlung erzeugt hat.
     pub converted: u32,
+    /// Wie viel Schaden der Rueckschlag an den Boss zurueckgegeben hat
+    /// (RIPOSTE, Issue #481).
+    ///
+    /// Er steckt bereits in `damage` — hier steht er noch einmal einzeln, weil
+    /// eine Summe nicht zeigt, WOHER sie kommt. Ein Paritaets-Fall, der nur
+    /// `damage` vergliche, waere auch dann gruen, wenn beide Seiten denselben
+    /// Betrag auf verschiedenen Wegen erreichten.
+    pub reflected: u32,
     /// Gesamter erlittener Schaden, **nach** WARD.
     pub damage_taken: u32,
     /// Kampfzeit des Spielertods, oder `None`.

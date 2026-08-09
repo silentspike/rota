@@ -83,6 +83,9 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Issue #481 — SUTURE verbindet Weg 1 und Weg 2; er steht hinter MEND,
       // weil er in `coagulation.json` dort steht.
       'suture',
+      // Issue #481 — RIPOSTE gibt eingehenden Schaden zurueck; er steht hinter
+      // SUTURE, weil er in `coagulation.json` dort steht.
+      'riposte',
       // Issue #481 — CRUCIBLE SKIN, hinter QUICKSILVER wie in
       // `coagulation.json`. Diese Liste und `spell-order.json` führen
       // dieselbe Reihenfolge; sie steht an zwei Stellen, damit eine

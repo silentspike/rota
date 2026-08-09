@@ -141,6 +141,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'poultice',
     'mend',
     'suture',
+    'riposte',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
