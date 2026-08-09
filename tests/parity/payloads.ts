@@ -3199,6 +3199,18 @@ export function wispPayload(): Record<string, unknown> {
     vapourReadyAt.push(combat.cooldownRemainingMs(vapour, timeMs));
   }
 
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht.
+  const result = replayRecording(
+    {
+      name: WISP_NAME,
+      seed: 0,
+      ticks,
+      presses,
+      bindings: WISP_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     name: WISP_NAME,
@@ -3212,7 +3224,18 @@ export function wispPayload(): Record<string, unknown> {
     vapourReadyAt,
     expected: {
       damageDealt: combat.damageDealt,
-      casts: combat.castCount(wisp) + combat.castCount(vapour) + combat.castCount(smoulder),
+      // **Diese Zeile hätte ich fast falsch ausgenommen** (Issue #653). Ich
+      // hatte sie als „Summe dreier Zauber gegen ein Gesamtfeld" abgetan —
+      // aber `ReplayResult.casts` ist kein Zähler, sondern eine Map von
+      // Zauber-ID auf Wurfzahl (`recording.ts:489`). Damit lässt sich
+      // dieselbe Summe aus dem Ergebnis bilden.
+      //
+      // Gefunden, weil ich die Allaussage in meiner eigenen Begründung
+      // nachgemessen habe, statt sie stehen zu lassen.
+      casts:
+        (result.casts['wisp'] ?? 0) +
+        (result.casts['vapour'] ?? 0) +
+        (result.casts['smoulder'] ?? 0),
       wispCasts: combat.castCount(wisp),
       vapourCasts: combat.castCount(vapour),
       /** WISP-Würfe, die auf eine laufende VAPOUR-Abklingzeit trafen. */
