@@ -1858,16 +1858,26 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     playerHp.push(combat.playerHp);
   }
 
+  // Der zweite Lauf (#653), einmal je Lauf dieser Payload — sie baut zwei
+  // (mit und ohne Unterbrecher). `{ boss }` ist Pflicht: Der Boss kommt hier
+  // als Parameter herein, ein Standard-Boss spielte einen anderen Kampf.
+  const result = replayRecording(
+    { name: 'interrupt-run', seed: 0, ticks, presses, bindings: STEP1_BINDINGS },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     withInterrupt: mitQuench,
     ticks,
     presses,
     expected: {
       playerHp: combat.playerHp,
-      damageTaken: combat.damageTaken,
-      diedAtMs: combat.diedAtMs,
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      damageTaken: result.damageTaken,
+      diedAtMs: result.diedAtMs,
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
+      // `castsQuench`/`castsKindle` zählen JE ZAUBER. Das Ergebnis führt nur
+      // die Gesamtzahl — gleicher Begriff, andere Größe. Bleibt bei `combat`.
       castsQuench: combat.castCount(quench),
       castsKindle: combat.castCount(kindle),
       sequenceChecksum: sequence,
