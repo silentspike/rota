@@ -40,6 +40,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { bossById } from '../../src/core/data.js';
+import { STEP1_BINDINGS } from '../../src/core/loadout.js';
 import { replayRecording } from '../../src/devtools/recording.js';
 
 /** Ein Lauf mit Rotation gegen den Prüfboss mit Zeitleiste und Fenster. */
@@ -49,7 +50,13 @@ function lauf(bossId: string, ticks: number): ReturnType<typeof replayRecording>
   const presses: { tick: number; slot: number }[] = [];
   for (let tick = 0; tick < ticks; tick += 90)
     presses.push({ tick, slot: tick % 180 === 0 ? 0 : 1 });
-  return replayRecording({ name: 'kumulativ', seed: 0, ticks, presses }, { boss });
+  // Die Belegung steht jetzt dabei (Issue #663). Gedrückt werden die Plätze
+  // 0 und 1; bis heute kamen die Zauber dazu aus einem Default in
+  // `spellForSlot`, der still `STEP1_BINDINGS` einsetzte.
+  return replayRecording(
+    { name: 'kumulativ', seed: 0, ticks, presses, bindings: STEP1_BINDINGS },
+    { boss },
+  );
 }
 
 const FELDER = [
