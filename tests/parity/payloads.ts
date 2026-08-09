@@ -923,6 +923,17 @@ export function doomStacksPayload(): Record<string, unknown> {
     spielerHp.push(combat.playerHp);
   }
 
+  // **Der Grund gegen den Nachlauf ist weggefallen** (Issue #653). Oben steht
+  // noch, `replayRecording` kenne nur den Tod des BOSSES und liefe hier bis
+  // zum Ende weiter. Das galt bis zum 2026-08-07; seit #567 bricht die
+  // Schleife auch beim Spielertod ab (`recording.ts:443`), und der Kommentar
+  // dort verweist ausdrücklich auf diese Stelle hier.
+  //
+  // Ein Kommentar, der eine Umstellung verhindert, überlebt den Grund, aus
+  // dem er geschrieben wurde — deshalb steht der neue Stand daneben und der
+  // alte bleibt lesbar.
+  const result = replayRecording(recording, { boss, checksumPerTick: true });
+
   return {
     schema: SCHEMA,
     name: recording.name,
@@ -939,12 +950,12 @@ export function doomStacksPayload(): Record<string, unknown> {
       stacks: boss.stacks,
     },
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       // **Nicht die letzte Takt-Prüfsumme.** Beide Seiten stempeln den
       // Schlusswert mit `(ticks - 1) * TICK_MS`, auch wenn der Lauf früher
       // endet — `Fight::replay` mit `final_time` und `replayRecording` mit
