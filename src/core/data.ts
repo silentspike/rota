@@ -1462,7 +1462,18 @@ function parseFixation(
       // sondern eine passive Wirkung — und genau das ist FIXATION nicht.
       problems.push(`${where}: Eine Kontroll-Wirkung ohne Kosten ist keine Ausgabe.`);
     } else if (
-      !['slowCast', 'delayStrike', 'holdPhase', 'convertToDamage', 'allThree'].includes(effect)
+      // `makeInterruptible` kam mit PIN dazu (Issue #478). Sein Betrag ist die
+      // LÄNGE des Fensters — die Prüfung `amount <= 0` darunter greift damit
+      // auch für ihn, und ein PIN ohne Fenster wäre genau der Zauber, der
+      // nichts tut und trotzdem durchgeht.
+      ![
+        'slowCast',
+        'delayStrike',
+        'holdPhase',
+        'convertToDamage',
+        'allThree',
+        'makeInterruptible',
+      ].includes(effect)
     ) {
       problems.push(`${where}: unbekannte Kontroll-Wirkung "${effect}".`);
     } else if (amount <= 0) {
