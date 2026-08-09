@@ -6147,3 +6147,90 @@ export function tickRundungPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+/**
+ * Die Sammelstelle für die NEUEN Zauber der COAGULATION (Issue #481).
+ *
+ * # Warum eine eigene und nicht `extend-effects`
+ *
+ * Jene wirkt bewusst je **einen** CRUST und **einen** HARDEN — ihr
+ * Kopfkommentar sagt warum: „Solange alle 10 s nachgelegt wird, läuft die
+ * Schicht nie ab, und ein verschobener Ablauf, der nie eintritt,
+ * hinterlässt keine Spur." Ein dritter Schild-Zauber könnte genau das
+ * kippen.
+ *
+ * **Eine fremde Messung fasst man nicht an, um die eigene unterzubringen.**
+ * Dieselbe Abwägung wie bei `log-parity`, wo ein sechster Zauber zwei
+ * Ereignisarten auf null gebracht hätte.
+ *
+ * # Warum SAMMELSTELLE und nicht eine Datei je Zauber
+ *
+ * Von den fünf neuen der Schule ist bisher CRUCIBLE SKIN gebaut; POULTICE,
+ * MEND, SUTURE und RIPOSTE folgen. Sie kommen hier hinein, ohne dass eine
+ * neue Datei, ein neues Rust-Gegenstück und ein neuer Frische-Eintrag
+ * entstehen — einmal gebaut statt fünfmal.
+ */
+export const COAGULATION_NEU_NAME = 'coagulation-neu';
+
+const COAGULATION_NEU_BINDINGS = [{ slot: 0, spellId: 'crucible-skin' }] as const;
+
+/**
+ * Der Lauf, in dem die neuen Zauber gewirkt werden.
+ *
+ * **Der Wurf liegt spät, nicht am Anfang.** CRUCIBLE SKIN legt eine Schicht
+ * von 6 s; bei Kampfbeginn geworfen wäre sie abgelaufen, bevor
+ * `first-crucible` das erste Mal zuschlägt — die Aufzeichnung hielte dann
+ * einen Zauber fest, der nachweislich nichts abfängt. Dieselbe Eigenart wie
+ * bei `extend-effects`: Eine Schutzschicht muss VOR dem Schlag stehen.
+ */
+function recordCoagulationNeu(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const crucibleSkin = combat.indexOf('crucible-skin');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, COAGULATION_NEU_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+    if (combat.isOffCooldown(crucibleSkin, timeMs)) press(crucibleSkin, tick, timeMs);
+  }
+
+  return {
+    name: COAGULATION_NEU_NAME,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: COAGULATION_NEU_BINDINGS,
+  };
+}
+
+export function coagulationNeuPayload(): Record<string, unknown> {
+  const recording = recordCoagulationNeu(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: COAGULATION_NEU_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}

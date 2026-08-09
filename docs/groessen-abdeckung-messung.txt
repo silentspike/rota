@@ -40,7 +40,9 @@ control.effect             latch        delayStrike -> holdPhase NUR FRISCHE -> 
 control.effect             stall        slowCast -> holdPhase geschuetzt (boss-cast-display.test.ts, kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
 control.effect             stay         delayStrike -> holdPhase NUR FRISCHE -> faktisch ungeschuetzt
 control.effect             wedge        convertToDamage -> holdPhase geschuetzt (efflux.test.ts, wedge.test.ts)
+conversion.durationMs      crucible-skin 6000 -> 3000     geschuetzt [4 Prueffaelle] (coverage.test.ts, jede-groesse-ist-gemessen.test.ts, sound-triggers.test.ts...)
 conversion.durationMs      temper       10000 -> 5000     NUR FRISCHE -> faktisch ungeschuetzt
+conversion.sharePercent    crucible-skin 50 -> 25       geschuetzt [4 Prueffaelle] (coverage.test.ts, jede-groesse-ist-gemessen.test.ts, sound-triggers.test.ts...)
 conversion.sharePercent    temper       25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
 convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, efflux.test.ts...)
 convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
@@ -63,16 +65,20 @@ dot.tickIntervalMs         cinder       1000 -> 500      NUR FRISCHE -> faktisch
 dot.tickIntervalMs         rot          1000 -> 500      geschuetzt (rot-decay-per-tick.test.ts)
 dot.tickIntervalMs         searing      2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
 dot.tickIntervalMs         smoulder     2000 -> 1000     geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+heal.amount                crucible-skin 2000 -> 1000     geschuetzt [4 Prueffaelle] (coverage.test.ts, jede-groesse-ist-gemessen.test.ts, sound-triggers.test.ts...)
 heal.amount                salve        1500 -> 750      NUR FRISCHE -> faktisch ungeschuetzt
 resourceGain.heat          bellows      8 -> 4        geschuetzt (slag.test.ts)
 resourceGain.heat          ember        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
 resourceGain.heat          kindle       3 -> 1        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
+shield.amount              crucible-skin 1800 -> 900      geschuetzt [4 Prueffaelle] (coverage.test.ts, jede-groesse-ist-gemessen.test.ts, sound-triggers.test.ts...)
 shield.amount              crust        900 -> 450      geschuetzt (runaway-beatable.test.ts)
 shield.amount              plate        2400 -> 1200     NUR FRISCHE -> faktisch ungeschuetzt
 shield.amount              scab         200 -> 100      NUR FRISCHE -> faktisch ungeschuetzt
+shield.durationMs          crucible-skin 6000 -> 3000     geschuetzt [5 Prueffaelle] (coverage.test.ts, crucible-skin.test.ts, jede-groesse-ist-gemessen.test.ts...)
 shield.durationMs          crust        12000 -> 6000     geschuetzt (checksum-effectiveness.test.ts)
 shield.durationMs          plate        15000 -> 7500     NUR FRISCHE -> faktisch ungeschuetzt
 shield.durationMs          scab         8000 -> 4000     SCHWEIGT
+shield.maxStacks           crucible-skin 1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, coverage.test.ts, crucible-skin.test.ts...)
 shield.maxStacks           crust        3 -> 1        geschuetzt (boss-runaway.test.ts, progress-direction.test.ts, runaway-beatable.test.ts)
 shield.maxStacks           plate        1 -> 0        geschuetzt (combat.test.ts, data.test.ts)
 shield.maxStacks           scab         3 -> 1        geschuetzt (coagulation-scab.test.ts)

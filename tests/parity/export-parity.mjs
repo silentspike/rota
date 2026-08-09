@@ -108,6 +108,8 @@ import {
   DOT_LIFETIME_NAME,
   extendEffectsPayload,
   EXTEND_EFFECTS_NAME,
+  COAGULATION_NEU_NAME,
+  coagulationNeuPayload,
   kernePayload,
   KERNE_NAME,
   effluxPayload,
@@ -226,6 +228,12 @@ writeFileSync(cinderPath, serialize(cinder), 'utf8');
 const dotLifetime = dotLifetimePayload();
 const dotLifetimePath = join(here, 'recordings', `${DOT_LIFETIME_NAME}.json`);
 writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
+
+// Die neuen Zauber der COAGULATION (#481). Ohne sie waere ihre
+// Bitgleichheit eine Annahme — `coverage` sagt es woertlich.
+const coagulationNeu = coagulationNeuPayload();
+const coagulationNeuPath = join(here, 'recordings', `${COAGULATION_NEU_NAME}.json`);
+writeFileSync(coagulationNeuPath, serialize(coagulationNeu), 'utf8');
 
 const extendEffects = extendEffectsPayload();
 const extendEffectsPath = join(here, 'recordings', `${EXTEND_EFFECTS_NAME}.json`);
