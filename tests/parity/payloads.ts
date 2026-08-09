@@ -2238,23 +2238,34 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
     checksums.push(hash);
   }
 
+  // Der zweite Lauf (#653) — einmal je Weg. Diese Payload baut drei Läufe
+  // (none, stay, stall), der Nachlauf fällt also dreimal an. `{ boss }` ist
+  // Pflicht: Er kommt als Parameter herein.
+  const result = replayRecording(
+    { name: `kontrolle-${weg}`, seed: 0, ticks, presses, bindings },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     way: weg,
     ticks,
     bindings,
     presses,
     expected: {
-      damageTaken: combat.damageTaken,
+      damageTaken: result.damageTaken,
       // **Die Wirkung, nicht nur ihr Betrag.** Ein Nachweis über damageTaken
       // allein liesse offen, ob nicht etwas anderes den Schaden gesenkt hat.
-      interruptsLanded: combat.interruptsLanded,
-      interruptsMissed: combat.interruptsMissed,
+      interruptsLanded: result.interruptsLanded,
+      interruptsMissed: result.interruptsMissed,
       // Die Last, gegen die der `stay`-Lauf kontrolliert: gleich viele BINDs
       // bei `stay` und `stall`, sonst war die Verdrängung doch verschieden.
       castsBind: combat.castCount(alsSpellIndex(bind)),
       castsQuench: combat.castCount(alsSpellIndex(quench)),
       castsControl: kontrolle >= 0 ? combat.castCount(alsSpellIndex(kontrolle)) : 0,
-      controlSpent: combat.controlSpent,
+      controlSpent: result.controlSpent,
+      // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
+      // Die drei `castsX` darüber zählen JE ZAUBER; das Ergebnis führt nur
+      // die Gesamtzahl. Beide bleiben bei `combat`.
       damageDealt: combat.damageDealt,
       playerHp: combat.playerHp,
       diedAtMs: combat.diedAtMs,
