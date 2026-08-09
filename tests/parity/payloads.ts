@@ -2527,6 +2527,19 @@ export function logParityPayload(): Record<string, unknown> {
     }
   }
 
+  // **`controlSpent` bleibt hier auf null, und zwar benannt** (Issue #683).
+  //
+  // Diese Lage fährt KINDLE, CRUST, QUENCH, SALVE und SLAG — keiner davon
+  // ist ein Kontroll-Zauber, und der Vorrat wächst ohne Erzeuger auch nicht.
+  // Die Art ist damit **unerreicht**, nicht fehlend: Die Schreibstelle steht
+  // (`combat.ts`, drei Ausgabestellen), sie wird hier nur nicht angefahren.
+  //
+  // Ein sechster Zauber würde das ändern und wäre der falsche Preis: Die
+  // Rotation ist eine Waage, kein Vorrat. SLAG hat KINDLE schon einen GCD
+  // gekostet (`damage` 15 → 14); ein weiterer nähme dem nächsten Nachweis
+  // seinen. Wer den Verlauf von Art 16 messen will, findet ihn in
+  // `tests/unit/control-spent-log.test.ts` und im Wächter von #676.
+
   // Je Art zählen — das ist der Vergleichswert.
   const counts: Record<string, number> = {};
   for (const kind of EVENT_KINDS_WRITTEN_BY_GAME) {

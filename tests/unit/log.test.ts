@@ -195,15 +195,19 @@ describe('Kampfprotokoll — was der Kampf hineinschreibt', () => {
     // Art aber nicht in dieser Liste. Sie wurde also geschrieben und trotzdem
     // nie verglichen, weil `logKindsPayload()` nur über diese Liste zählt.
     //
-    // **Die 7 bleibt**, obwohl `buffExpire` auf keiner Seite eine
-    // Schreibstelle hat. Sie steht hier für die ABSICHT, nicht für den
-    // Ist-Zustand; die fehlende Umsetzung ist als `bekannteLuecke` in
-    // `EVENT_KIND_INTENT` vermerkt und wird dort geführt.
+    // **Die 7 stand hier für die ABSICHT**, als `buffExpire` auf keiner
+    // Seite eine Schreibstelle hatte — vermerkt als `bekannteLuecke`. Seit
+    // #682 schreiben beide Seiten sie, die Ausnahme ist entfallen.
+    //
+    // **Die 16 kam mit #683 dazu**: `controlSpent`. Das Spiel zählte die
+    // ausgegebenen Kontrollpunkte längst, schrieb sie aber nicht — dieselbe
+    // Lage wie bei der 8, nur eine Größe weiter. Der Beschluss, dass es sie
+    // künftig schreibt, steht als `game: true` in `EVENT_KIND_INTENT`.
     //
     // Die Liste wird seit #676 aus `EVENT_KIND_INTENT` **abgeleitet**. Diese
     // Zeile bleibt trotzdem hart: Sie ist die Stelle, an der eine Änderung der
     // Absicht sichtbar wird, statt still durch die Ableitung zu rutschen.
-    expect(EVENT_KINDS_WRITTEN_BY_GAME).toEqual([0, 1, 2, 3, 6, 7, 8, 9, 10, 12, 13, 14]);
+    expect(EVENT_KINDS_WRITTEN_BY_GAME).toEqual([0, 1, 2, 3, 6, 7, 8, 9, 10, 12, 13, 14, 16]);
   });
 });
 
