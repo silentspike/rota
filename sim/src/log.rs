@@ -114,6 +114,26 @@ log_kinds! {
     /// schreibt sie seit Issue #96 ebenfalls — dieselbe Bedeutung, dieselbe
     /// Zahl. Genau dafuer wurde der gemeinsame Raum eingerichtet.
     BossPhase = 6 => "phase",
+    /// Eine Verstaerkung ist abgelaufen. `value` ist ihre ART (`kind`), nicht
+    /// ihre Anzahl.
+    ///
+    /// **Bis Issue #682 gab es diese Art hier gar nicht** — die Aufzaehlung
+    /// sprang von 6 auf 8. Im Spiel war sie vergeben, dokumentiert und
+    /// gezaehlt, auf dieser Seite fehlte sie vollstaendig. Dieselbe Klasse
+    /// wie #568: Beide Seiten fuehrten dieselbe Nummer, und geschrieben hat
+    /// sie keine.
+    ///
+    /// # Warum die ART und nicht die Anzahl
+    ///
+    /// Acht Sammlungen lassen Verstaerkungen ablaufen. Ein Eintrag je
+    /// Sammlung truege eine Zahl, die von der Sammlung abhaengt statt vom
+    /// Ereignis — wer den Verlauf liest, saehe „drei liefen aus" und wuesste
+    /// nicht, welche. Und ein Eintrag, der immer dieselbe Zahl traegt, ist
+    /// von einem festen Wert nicht zu unterscheiden.
+    ///
+    /// Deshalb gibt [`Buffs::expire`] eine Bitmaske zurueck, und der
+    /// Aufrufer schreibt je gesetztem Bit einen Eintrag.
+    BuffExpire = 7 => "buffExpire",
     /// Die Energieleiste des Bosses hat **ausgeloest**. `value` zaehlt die
     /// Ausloesungen.
     ///

@@ -131,10 +131,16 @@ describe('Ablauf und Vorrat', () => {
     buffs.applyForGcds(0, 1.2, 1, 0, GCD_MS);
     buffs.applyForGcds(1, 1.5, 2, 0, GCD_MS);
 
-    expect(buffs.expire(1000)).toBe(0);
-    expect(buffs.expire(1500)).toBe(1);
-    expect(buffs.expire(1500)).toBe(0);
-    expect(buffs.expire(3000)).toBe(1);
+    // **Der Rückgabewert ist seit #682 eine BITMASKE, keine Anzahl:**
+    // Bit `k` gesetzt heisst „Art `k` ist abgelaufen". Deshalb liefert der
+    // Ablauf von Art 0 eine 1 und der von Art 1 eine 2 — vorher stand hier
+    // zweimal die 1, weil beide Male genau eine Art ablief.
+    //
+    // `0` heisst weiterhin „keine", und `popcount` ist die frühere Anzahl.
+    expect(buffs.expire(1000), 'noch läuft keine ab').toBe(0);
+    expect(buffs.expire(1500), 'Art 0 läuft ab — Bit 0').toBe(0b01);
+    expect(buffs.expire(1500), 'zweimal derselbe Ablauf zählt nicht doppelt').toBe(0);
+    expect(buffs.expire(3000), 'Art 1 läuft ab — Bit 1, nicht wieder eine 1').toBe(0b10);
     expect(buffs.expirationCount).toBe(2);
   });
 

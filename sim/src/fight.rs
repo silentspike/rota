@@ -65,7 +65,7 @@
 //! `tests/edge_cases.rs` haelt beide Seiten fest: dass eine Funktion die Grenze
 //! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
-use crate::buffs::Buffs;
+use crate::buffs::{Buffs, BUFF_KIND_CAPACITY};
 use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
@@ -1989,17 +1989,53 @@ impl Fight {
     fn expire_buffs(&mut self) {
         let now = self.time;
         // Alle fuenf, nicht nur die Schadens-Verstaerkungen (#489).
-        self.control_buffs.expire(now);
-        self.resource_buffs.expire(now);
-        self.tick_buffs.expire(now);
-        self.stack_buffs.expire(now);
-        self.cd_reduce_buffs.expire(now);
-        self.convert_buffs.expire(now);
-        self.cap_buffs.expire(now);
-        if self.buffs.expire(now) == 0 {
+        let masken = [
+            self.control_buffs.expire(now),
+            self.resource_buffs.expire(now),
+            self.tick_buffs.expire(now),
+            self.stack_buffs.expire(now),
+            self.cd_reduce_buffs.expire(now),
+            self.convert_buffs.expire(now),
+            self.cap_buffs.expire(now),
+            self.buffs.expire(now),
+        ];
+        for maske in masken {
+            self.log_expired(maske);
+        }
+
+        // **Die achte liest ihren Rueckgabewert schon immer.** `== 0` heisst
+        // weiterhin „nichts abgelaufen" — die Maske hat dieselbe Null wie die
+        // fruehere Anzahl, deshalb bleibt der Vergleich richtig (#682).
+        if masken[7] == 0 {
             return;
         }
         self.factors.buffs = self.buffs.factor(now);
+    }
+
+    /// Schreibt je abgelaufener Verstaerkung einen Eintrag der Art 7 (#682).
+    ///
+    /// Steht hier und nicht in [`Buffs::expire`]: Die Klasse laeuft je Takt,
+    /// darf nichts erzeugen und kennt das Protokoll nicht. Sie gibt eine
+    /// Maske zurueck, der Aufrufer schreibt.
+    ///
+    /// Der Wert ist die ART, nicht die Anzahl — sie bewegt sich, und ein
+    /// Eintrag, der immer dieselbe Zahl traegt, ist von einem festen Wert
+    /// nicht zu unterscheiden.
+    fn log_expired(&mut self, maske: u32) {
+        if maske == 0 {
+            return;
+        }
+        for kind in 0..BUFF_KIND_CAPACITY {
+            if maske & (1u32 << kind) == 0 {
+                continue;
+            }
+            self.log.push(
+                self.time,
+                LogKind::BuffExpire,
+                NO_SPELL,
+                u32::try_from(kind).unwrap_or(0),
+            );
+        }
     }
 
     fn expire_putrefaction(&mut self) {

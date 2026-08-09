@@ -399,6 +399,53 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteProtokollParitaet, HINWEIS).toEqual(logParityPayload());
   });
 
+  /**
+   * **Keine Art, die einmal Einträge trug, darf still auf null fallen**
+   * (Issue #682, AC11).
+   *
+   * Der Fall darüber vergleicht die Aufzeichnung mit dem Spiel — er bliebe
+   * grün, wenn beide gemeinsam ärmer würden. Genau das droht hier: Die
+   * Rotation dieser Aufzeichnung ist eine **Waage**, kein Zauber-Vorrat. Wer
+   * einen Zauber hinzufügt, nimmt GCDs weg, die heute KINDLE bekommt — und
+   * davon hängt ab, wie lange der Boss lebt, wie oft er schlägt und ob SALVE
+   * überhaupt gebraucht wird.
+   *
+   * Vier der zwölf Arten stehen bereits auf null; vier weitere auf genau
+   * eins und kippen beim nächsten Eingriff. Deshalb stehen die Untergrenzen
+   * hier im Code und nicht im Kommentar: Eine Zahl im Fliesstext wird beim
+   * Umbau nicht gelesen.
+   *
+   * Bei `parity:export` fällt so etwas nicht auf — er trägt den neuen Stand
+   * auf beide Seiten, und hinterher ist alles grün und ärmer als vorher.
+   */
+  it('keine Protokoll-Art verliert ihre Einträge', () => {
+    const counts = (logParityPayload() as { counts: Record<string, number> }).counts;
+
+    // Der Stand vom 2026-08-09, als `buffExpire` dazukam (#682). Die vier
+    // Arten auf null fehlen hier bewusst — sie sind ein eigener Befund und
+    // dürfen nicht durch eine Untergrenze von 0 als „geprüft" erscheinen.
+    const untergrenzen: Record<string, number> = {
+      cast: 18,
+      damage: 14,
+      phase: 1,
+      buffExpire: 1,
+      bossTimelineFired: 3,
+      playerDamage: 2,
+      interruptLanded: 1,
+      shieldAbsorb: 1,
+      healed: 1,
+    };
+
+    for (const [art, mindestens] of Object.entries(untergrenzen)) {
+      expect(
+        counts[art],
+        `Die Art '${art}' trug ${mindestens} Einträge und trägt jetzt ${counts[art]}. ` +
+          'Wurde die Rotation verschoben? Ein Zauber mehr nimmt GCDs weg, und eine ' +
+          'Art mit null Einträgen belegt nichts mehr.',
+      ).toBeGreaterThanOrEqual(mindestens);
+    }
+  });
+
   it('die Protokoll-ZEITPUNKTE entsprechen dem heutigen Spielstand', () => {
     // Issue #676. Diese Aufzeichnung traegt zusaetzlich `takte` — die
     // Zeitpunkte je Art. Wandert eine Schreibstelle im Spiel um einen Takt,
