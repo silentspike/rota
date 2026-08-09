@@ -6393,7 +6393,25 @@ function recordCoagulationNeu(ticks: number): Recording {
   //
   // `test-onslaught` teilt 2000 auf einmal aus (bei 5000, 12000 und 19000).
   // Damit fehlt mehr, als POULTICE zurückholt, und dieselbe Probe bewegt
-  // `healed` von 3600 auf 2998.
+  // `healed` von 2800 auf 1900.
+  //
+  // # Alle acht Zahlen der beiden Zauber bewegen eine GRÖSSE
+  //
+  // Nicht die Prüfsumme — die ändert sich auch bei einem Zauber, der nichts
+  // bewirkt, weil sein Zustand darin steht. Gemessen auf diesem Stand
+  // (`damage 1500, damageTaken 3600, absorbed 1600, healed 2800,
+  // converted 200`):
+  //
+  // ```text
+  //   poultice.heal.amount           900 -> healed
+  //   poultice.heal.overMs          3000 -> healed
+  //   poultice.heal.tickIntervalMs   500 -> healed
+  //   crucible-skin.shield.amount    900 -> damageTaken, absorbed
+  //   crucible-skin.shield.durationMs 3000 -> damageTaken, absorbed
+  //   crucible-skin.heal.amount     1000 -> healed
+  //   crucible-skin.conversion.sharePercent 25 -> converted
+  //   crucible-skin.conversion.durationMs 3000 -> converted
+  // ```
   const boss = bossById('test-onslaught') ?? FIRST_CRUCIBLE.value;
   const combat = new Combat({ school: CALCINATION.value, boss: boss as never });
   const crucibleSkin = combat.indexOf('crucible-skin');
@@ -6408,30 +6426,35 @@ function recordCoagulationNeu(ticks: number): Recording {
     if (combat.damageDealt >= combat.boss.hp) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
-    // **POULTICE liegt NACH dem ersten Schlag, nicht davor** — und aus dem
-    // umgekehrten Grund wie die Schicht darunter. Eine Heilung deckelt an der
-    // vollen Anzeige: Bei Kampfbeginn geworfen fehlte nichts, jeder ihrer
-    // sechs Schritte verpuffte, und die Aufzeichnung hielte `healed = 0` fest,
-    // obwohl der Zauber sechsmal angeschlagen hat. `test-warden` schlägt bei
-    // 4000 zu; ab 5000 ist etwas da, das zurückzuholen wäre.
+    // **CRUCIBLE SKIN zuerst, und zwar bei 6100.** Drei Bedingungen treffen
+    // sich in dieser Zahl, und jede einzelne wurde gemessen:
     //
-    // Er steht VOR der Abfrage von CRUCIBLE SKIN, weil beide dieselbe globale
-    // Wartezeit teilen — und in dieser Reihenfolge kommt jeder von beiden zum
-    // Zug: POULTICE bei 5000, CRUCIBLE SKIN ab 8000, wenn die Wartezeit des
-    // ersten längst abgelaufen ist.
-    if (timeMs >= 5100 && combat.isOffCooldown(poultice, timeMs)) {
-      press(poultice, tick, timeMs);
+    //   Weg 1  Die Schicht hält 6000 ms. Ab 6100 steht sie, wenn der Boss
+    //          bei 12_000 zuschlägt — bei 7000 geworfen war sie 100 ms zu
+    //          früh abgelaufen und `absorbed` blieb null.
+    //   Weg 2  Die Sofortheilung deckelt am fehlenden Leben. Nach dem
+    //          Treffer bei 5000 fehlen 1600, also kommt sie an. Lief
+    //          POULTICE vorher, war die Anzeige längst wieder voll — und
+    //          `heal.amount` von 2000 auf 1000 gesetzt bewegte KEINE Größe,
+    //          nur die Folge-Prüfsumme.
+    //   Weg 3  Die Umwandlung läuft 6000 ms ab dem Wurf; KINDLE füllt diese
+    //          Zeit mit ausgeteiltem Schaden.
+    if (timeMs >= 6100 && combat.isOffCooldown(crucibleSkin, timeMs)) {
+      press(crucibleSkin, tick, timeMs);
       continue;
     }
 
-    // **Der Wurf liegt VOR dem Treffer, nicht am Kampfbeginn.** Gemessen:
-    // Bei Tick 0 geworfen ist die Schicht (6 s) abgelaufen, wenn
-    // `test-warden` bei 12000 zuschlägt — `absorbed` blieb 0, obwohl der
-    // Boss 960 Schaden austeilte. Eine Schutzschicht muss vor dem Schlag
-    // stehen; eine Aufzeichnung, die sie zu früh legt, hält ihren Ablauf
-    // fest statt ihrer Wirkung.
-    if (timeMs >= 7000 && combat.isOffCooldown(crucibleSkin, timeMs)) {
-      press(crucibleSkin, tick, timeMs);
+    // **POULTICE erst nach dem DRITTEN Treffer (19_000).** Auch das ist
+    // gemessen und nicht gewählt: Der Treffer bei 12_000 läuft in CRUCIBLE
+    // SKINs Schicht, danach fehlt nichts — eine Heilung dort verpuffte.
+    // Nach 19_000 fehlen 1600, und die Probe `heal.amount` 1800 auf 1200
+    // bewegt `healed`.
+    //
+    // Die Reihenfolge der beiden Blöcke IST die Aussage: Sie teilen dieselbe
+    // globale Wartezeit, und jeder von ihnen braucht seinen eigenen Platz im
+    // Lauf, damit seine Größe sich einzeln bewegen kann.
+    if (timeMs >= 19_100 && combat.isOffCooldown(poultice, timeMs)) {
+      press(poultice, tick, timeMs);
       continue;
     }
 
@@ -6458,7 +6481,23 @@ export function coagulationNeuPayload(): Record<string, unknown> {
   // auf null, obwohl der Zauber gewirkt wurde. Der Lauf lief gegen einen
   // Boss, der nie austeilt.
   const boss = bossById('test-onslaught') ?? FIRST_CRUCIBLE.value;
-  const recording = recordCoagulationNeu(3000);
+  // **2200 Takte, nicht 3000 — und die Zahl ist gemessen.** Bei 3000 lief
+  // POULTICEs Heilung immer ganz durch, und was fehlte, kam vollstaendig
+  // zurueck: `healed` stand auf 3600, genau dem erlittenen Schaden. Die Probe
+  // `overMs` von 6000 auf 3000 bewegte deshalb KEINE Groesse, nur die
+  // Folge-Pruefsumme — und eine Pruefsumme belegt keine Wirkung, sie zeigt
+  // nur, dass der Zustand anders aussieht.
+  //
+  // Bei 2450 Takten (24_500 ms) endet der Lauf MITTEN in der Heilung, die bei
+  // 19_100 anlaeuft. Jetzt entscheidet die Dauer, wie viel ankommt — und zwar
+  // in BEIDE Richtungen: Ein groesserer Abstand laesst weniger Schritte
+  // hineinfallen, ein kleinerer mehr.
+  //
+  // Zwischen 2200 und 2450 liegt genau dieser Unterschied. Bei 2200 bewegte
+  // eine HALBIERUNG des Abstands (1000 auf 500) keine Groesse: Der kumulativ
+  // faellige Betrag war zum Abbruch derselbe. Der Waechter halbiert, und ein
+  // Feld, das nur bei Verdopplung faerbt, waere fuer ihn stumm.
+  const recording = recordCoagulationNeu(2450);
   const result = replayRecording(recording, { checksumPerTick: true, boss: boss as never });
   return {
     schema: SCHEMA,

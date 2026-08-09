@@ -66,10 +66,10 @@ dot.tickIntervalMs         rot          1000 -> 500      geschuetzt (rot-decay-p
 dot.tickIntervalMs         searing      2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
 dot.tickIntervalMs         smoulder     2000 -> 1000     geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 heal.amount                crucible-skin 2000 -> 1000     geschuetzt [4 Prueffaelle] (coverage.test.ts, jede-groesse-ist-gemessen.test.ts, sound-triggers.test.ts...)
-heal.amount                poultice     1800 -> 900      geschuetzt [5 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, poultice.test.ts)
+heal.amount                poultice     1800 -> 900      geschuetzt [4 Prueffaelle] (poultice.test.ts)
 heal.amount                salve        1500 -> 750      NUR FRISCHE -> faktisch ungeschuetzt
-heal.overMs                poultice     6000 -> 3000     geschuetzt [3 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, poultice.test.ts)
-heal.tickIntervalMs        poultice     1000 -> 500      geschuetzt [2 Prueffaelle] (jede-groesse-ist-gemessen.test.ts, poultice.test.ts)
+heal.overMs                poultice     6000 -> 3000     geschuetzt [2 Prueffaelle] (poultice.test.ts)
+heal.tickIntervalMs        poultice     1000 -> 500      geschuetzt [1 Prueffall] (poultice.test.ts)
 resourceGain.heat          bellows      8 -> 4        geschuetzt (slag.test.ts)
 resourceGain.heat          ember        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
 resourceGain.heat          kindle       3 -> 1        geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
