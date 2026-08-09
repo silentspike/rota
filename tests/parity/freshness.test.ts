@@ -53,6 +53,7 @@ import eingecheckteFixierung from './recordings/fixation.json';
 import eingecheckteNeueZauber from './recordings/new-calcination.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteProtokollTakte from './recordings/log-takte.json';
+import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -121,6 +122,7 @@ import {
   fixationPayload,
   logParityPayload,
   logTaktePayload,
+  aetherPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -446,6 +448,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     }
   });
 
+  it('AETHERs Fenster entspricht dem heutigen Spielstand', () => {
+    // Issue #480. Die Aufzeichnung traegt `kindleRest` — die Restzeit, an der
+    // die verdoppelte Verkuerzung sichtbar wird.
+    expect(eingecheckteAetherRunde, HINWEIS).toEqual(aetherPayload());
+  });
+
   it('die Protokoll-ZEITPUNKTE entsprechen dem heutigen Spielstand', () => {
     // Issue #676. Diese Aufzeichnung traegt zusaetzlich `takte` — die
     // Zeitpunkte je Art. Wandert eine Schreibstelle im Spiel um einen Takt,
@@ -742,6 +750,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'new-calcination',
   'log-parity',
   'log-takte',
+  'aether-fenster',
   'haste',
   'worn-values',
   'sources',

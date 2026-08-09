@@ -88,3 +88,7 @@ spender.resource           pyre         heat -> rota-mutation-ungueltig geschuet
 spender.resource           pyroclasm    heat -> rota-mutation-ungueltig RUST-GEPRUEFT (sim/build.rs:664 bricht ab) — vitest schweigt
 synergy.partner            canker       fester -> searing  geschuetzt (factor-triggers.test.ts, synergy.test.ts)
 synergy.windowGcds         canker       2 -> 1        geschuetzt (synergy-window.test.ts)
+buff.factor                aether       2 -> 1        RUST-GEPRUEFT (sim/tests/parity_aether.rs, Pruefsumme Takt 150) — vitest meldet nur den Mess-Waechter
+buff.gcds                  aether       8 -> 4        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
+buff.kind                  aether       0 -> 1        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
+buff.target                aether       cdreduce -> tick     RUST-GEPRUEFT (sim/tests/parity_aether.rs; zusaetzlich sim/tests/buff_targets.rs) — vitest meldet nur den Mess-Waechter
