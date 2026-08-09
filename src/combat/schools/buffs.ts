@@ -42,6 +42,21 @@
  */
 export const BUFF_KIND_CAPACITY = 8;
 
+/**
+ * **Die Obergrenze, ab der [`Buffs.expire`] still falsch rechnete** (#682).
+ *
+ * `expire` gibt eine BITMASKE zurück, ein Bit je Art. JavaScript rechnet
+ * Bitoperationen mit 32-bit-Vorzeichenzahlen: Bit 31 ist das Vorzeichen, ab
+ * Bit 32 fällt alles weg. Stünde `BUFF_KIND_CAPACITY` auf 40, entstünden für
+ * die hohen Arten **keine Protokoll-Einträge mehr** — ohne Fehler, ohne
+ * Warnung, ohne roten Test.
+ *
+ * Genau deshalb steht die Grenze hier und nicht im Kopf des Nächsten: Die
+ * Kapazität hochzusetzen ist eine Ein-Zeilen-Änderung, die harmlos aussieht.
+ * `tests/unit/buff-expire-log.test.ts` hält sie fest.
+ */
+export const BUFF_KIND_MASK_LIMIT = 31;
+
 /** Keine Verstärkung dieser Art. */
 const NOT_ACTIVE = -1;
 
@@ -144,10 +159,30 @@ export class Buffs {
   /**
    * Abgelaufene Verstärkungen einsammeln.
    *
-   * Läuft je Takt und darf deshalb nichts erzeugen. Wer wissen will, **welche**
-   * abgelaufen ist, fragt danach — der Rückgabewert ist eine Zahl, kein Objekt.
+   * Läuft je Takt und darf deshalb nichts erzeugen. Der Rückgabewert bleibt
+   * eine Zahl, kein Objekt — daran hält sich auch die Maske: Sie sagt
+   * zusätzlich, **welche** Arten abgelaufen sind, ohne dafür etwas anzulegen.
    *
-   * @returns wie viele Arten in diesem Aufruf abgelaufen sind
+   * # Warum eine Maske und keine Anzahl (Issue #682)
+   *
+   * Der Aufrufer schreibt je abgelaufener Art einen Protokoll-Eintrag. Eine
+   * blosse Anzahl trüge dafür zu wenig: Wer den Verlauf liest, sähe „drei
+   * Verstärkungen liefen aus" und wüsste nicht, welche. Und ein Eintrag, der
+   * immer dieselbe Zahl trägt, ist von einem festen Wert nicht zu
+   * unterscheiden.
+   *
+   * Das Protokoll bleibt dabei **ausserhalb** dieser Klasse: Sie kennt es
+   * nicht und soll es nicht kennen. Sie gibt nur her, was der Aufrufer
+   * braucht.
+   *
+   * **`popcount(maske)` ist die frühere Anzahl, verlustfrei** — und das ist
+   * kein Zufall: `expiresAt` hält je Art genau einen Eintrag, es kann also
+   * höchstens eine Verstärkung je Art ablaufen. Wären mehrere derselben Art
+   * möglich, wäre die Maske eine Verkürzung.
+   *
+   * @returns Bitmaske der abgelaufenen Arten — Bit `k` gesetzt heisst
+   *          „Art `k` ist in diesem Aufruf abgelaufen". `0` heisst „keine",
+   *          genau wie die frühere Anzahl.
    */
   expire(nowMs: number): number {
     let ended = 0;
@@ -156,7 +191,7 @@ export class Buffs {
       if (until === NOT_ACTIVE || until > nowMs) continue;
       this.expiresAt[kind] = NOT_ACTIVE;
       this.factors[kind] = 1;
-      ended++;
+      ended |= 1 << kind;
       this.expirations++;
     }
     return ended;
