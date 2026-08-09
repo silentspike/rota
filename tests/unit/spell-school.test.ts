@@ -63,6 +63,9 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Issue #540 — FLASHPOINT, bei seiner Schule.
       'flashpoint',
       'quench',
+      // Issue #561 — PURGE senkt das Verhaengnis, neben quench weil beide
+      // schulunabhaengig sind.
+      'purge',
       'crust',
       'salve',
       'temper',
@@ -143,7 +146,7 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
     // Ohne diesen Fall koennte ein neuer Zauber ohne Schule durchrutschen und
     // in der Ansicht lautlos in der falschen Gruppe landen.
     const ohne = SPELLS.filter((s) => s.school === null).map((s) => s.id);
-    expect(ohne, 'nur die schulunabhaengigen duerfen null tragen').toEqual(['quench']);
+    expect(ohne, 'nur die schulunabhaengigen duerfen null tragen').toEqual(['quench', 'purge']);
   });
 
   it('nennt fuenf Schulen, nicht eine', () => {
