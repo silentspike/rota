@@ -54,6 +54,36 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
       expect(placeholder!.count).toBe(counts.target - counts.present);
       expect(placeholder!.epic.length).toBeGreaterThan(1);
       expect(placeholder!.reason.length).toBeGreaterThan(30);
+
+      // **Der Grund muss die Zahlen NENNEN, die er erklärt** (Issue #512).
+      //
+      // Die Länge allein hat nicht getragen: Über 30 Zeichen erfüllt jeder
+      // Satz, auch der falsche. Gemessen — der Text beschrieb 2026-08-07
+      // korrekt Klang-Einträge (98d5563), und heute stand dort wieder
+      // „Von den 60 Zaubern sind dreizehn ausgearbeitet".
+      //
+      // Der Rückfall entstand nicht aus Nachlässigkeit: Jemand hat die ZAHL
+      // gepflegt (zehn → dreizehn) und dabei den Satz neu geschrieben. **Eine
+      // Korrektur an einem Text, der aus einem anderen Grund gepflegt wird,
+      // überlebt die nächste Pflege nicht** — es sei denn, sie ist geprüft.
+      //
+      // Geprüft wird, was dastehen MUSS, nicht was verboten wäre: Wer
+      // umformuliert, darf umformulieren; wer die Größe wechselt, verliert
+      // eine der beiden Zahlen und fällt auf.
+      //
+      // **Was dieser Fall NICHT fängt:** „60 Zauber, davon 32 ausgearbeitet"
+      // — beide Zahlen richtig, die Bedeutung falsch. Dagegen hilft nur der
+      // Text selbst, und deshalb nennt er die Größe im ersten Satz.
+      expect(
+        placeholder!.reason,
+        `Der Grund für '${group}' nennt die Zielzahl ${counts.target} nicht — ` +
+          'dann beschreibt er eine andere Größe als die, die er erklären soll',
+      ).toContain(String(counts.target));
+      expect(
+        placeholder!.reason,
+        `Der Grund für '${group}' nennt die vorhandenen ${counts.present} nicht — ` +
+          'genau diese Zahl ging beim Rückfall von #512 verloren',
+      ).toContain(String(counts.present));
     }
   });
 
