@@ -3324,6 +3324,13 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs) >>> 0);
   }
 
+  // Der zweite Lauf (#653) — `{ boss }` ist Pflicht, sonst spielt er gegen
+  // den Standard-Boss und liefert plausible Zahlen aus einem anderen Kampf.
+  const result = replayRecording(
+    { name: 'fixation-spells', seed: 0, ticks, presses, bindings },
+    { boss, checksumPerTick: true },
+  );
+
   return {
     schema: SCHEMA,
     ticks,
@@ -3333,17 +3340,17 @@ export function fixationSpellsPayload(): Record<string, unknown> {
     presses,
     checksums,
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
       /**
        * **Die Zusicherung im Datensatz:** Wären die Punkte nie ausgegeben
        * worden, liefe die Aufzeichnung über zwei Zauber, die nichts tun.
        */
-      controlSpent: combat.controlSpent,
+      controlSpent: result.controlSpent,
     },
   };
 }
