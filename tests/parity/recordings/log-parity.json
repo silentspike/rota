@@ -112,7 +112,8 @@
     "playerDamage": 2,
     "interruptLanded": 1,
     "shieldAbsorb": 1,
-    "healed": 1
+    "healed": 1,
+    "controlSpent": 0
   },
   "expected": {
     "damageDealt": 1400,

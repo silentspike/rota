@@ -84,7 +84,7 @@
     {
       "kind": 16,
       "name": "controlSpent",
-      "writtenByGame": false
+      "writtenByGame": true
     }
   ],
   "writtenByGame": [
@@ -99,6 +99,7 @@
     10,
     12,
     13,
-    14
+    14,
+    16
   ]
 }
