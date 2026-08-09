@@ -1,7 +1,40 @@
-# Das Zauber-Raster — 44 fehlende Zauber
+# Das Zauber-Raster — 18 fehlende Zauber
 
 > **Freigegeben vom Auftraggeber am 2026-08-06**, vollständig und ohne Änderung: _„wir übernehmen
 > alle deine vorschläge. wir müssen sowieso ja dann das ganze tuning, balancing, usw machen."_
+
+> ### ⚠ Bestandszahlen sind ein Datum, keine Wahrheit
+>
+> **Vor jeder Planung nach diesem Dokument den Ist-Stand messen:**
+>
+> ```bash
+> for f in data/spells/*.json; do
+>   echo -n "$(basename $f .json): "
+>   python3 -c "import json,sys;d=json.load(open('$f'));print(len(d.get('spells',d)))"
+> done
+> ```
+>
+> **Stand 2026-08-09**, gemessen und in die Abschnitts-Überschriften eingetragen:
+>
+> | Schule       | vorhanden | fehlen |
+> | ------------ | --------: | -----: |
+> | CALCINATION  |        10 |      2 |
+> | FIXATION     |        10 |      2 |
+> | PUTREFACTION |         6 |      5 |
+> | SUBLIMATION  |         8 |      4 |
+> | COAGULATION  |         7 |      5 |
+> |              |           | **18** |
+>
+> Am 2026-08-09 nannte dieses Dokument bei PUTREFACTION _zwei_ vorhandene Zauber — es waren
+> **sechs**. Vier der zehn Vorschläge waren längst gebaut. Wer die Liste abgearbeitet hätte, hätte
+> vier Zauber doppelt angelegt.
+>
+> **Die Vorschlagslisten selbst bleiben gültig** — Namen, Wirkung, Abklingzeit, Bauart. Nur die
+> Bestandszahlen altern, weil jeder gebaute Zauber sie ändert und niemand sie nachträgt.
+>
+> Weitere Zahlen im folgenden Kopfabschnitt („Kandidaten aus N Zaubern") stammen aus derselben
+> Analyse und sind ebenso alt. Sie tragen die Aussage über die **Rotationsfähigkeit** der Schulen,
+> nicht über den Bestand — für die Planung ist der Messbefehl oben maßgeblich.
 
 **Warum dieses Dokument jetzt entsteht.** Die Balance-Arbeit an #472 wurde gestoppt, weil sie auf
 einer Grundlage stand, die sich noch bewegt:
@@ -61,7 +94,7 @@ Schlüsseltalenten aus #418), `RIPOSTE` → `RIPOSTE` (der Design-Plan nennt „
 
 ---
 
-## CALCINATION — 5 vorhanden, 7 neu
+## CALCINATION — 10 vorhanden, 2 neu
 
 **Mechanik (GAME-DESIGN 173):** Hitze sammeln und entladen. Jede Wirkung erzeugt Hitze; ein
 Entlade-Zauber verbraucht die gesamte angesammelte Hitze. Der Entlade-Zauber ist Pflichtzauber
@@ -104,7 +137,7 @@ für Wirkungen, 30–45 s für Höhepunkte).
 Zaubername steht auf einem Symbol von 48 Pixeln"). `FORGE` und `PYROCLASM` brechen das
 — falls Ihnen das wichtig ist, ersetze ich sie durch `FORGE` und `PYROCLASM`.
 
-## FIXATION — 4 vorhanden, 8 neu
+## FIXATION — 10 vorhanden, 2 neu
 
 **Mechanik (GAME-DESIGN 174):** Kontroll-Punkte als Vorrat zum Ausgeben. Fixierungs-Zauber bauen
 Punkte auf; der Spieler gibt sie gezielt aus, um Boss-Handlungen zu beeinflussen. Ein
@@ -149,7 +182,7 @@ Das ist keine Balance-Zahl, sondern eine Lücke in der Mechanik: **Die Schule ha
 **Der Name `KEYSTONE` kollidiert** mit dem Begriff für Schlüsseltalente (`#418`). Falls er bleiben
 soll, benenne ich das andere um — sonst heißt der Zauber `CAPSTONE`.
 
-## PUTREFACTION — 2 vorhanden, 10 neu
+## PUTREFACTION — 6 vorhanden, 5 neu
 
 **Mechanik (GAME-DESIGN 177):** Zersetzungs-Stapel auf dem Boss. Jede Wirkung legt einen Stapel
 an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen** — 6 % je Stapel.
@@ -190,7 +223,7 @@ Rhythmus statt eines Dauerzustands.
 **Und sie verliert ihren Aufbau beim Phasenwechsel.** Ob das so gewollt ist, weiß ich nicht — es
 steht nirgends — **und die Frage hat sich beim Messen erledigt: Sie überleben ihn.** `CARRION` ist damit gestrichen. Die Annahme in der Tabelle oben war ungemessen, und das ist der Fehler, nicht der Zauber.
 
-## SUBLIMATION — 2 vorhanden, 10 neu
+## SUBLIMATION — 8 vorhanden, 4 neu
 
 **Mechanik (GAME-DESIGN 175):** Automatische Verkürzung aller Abklingzeiten. Sublimations-Zauber
 verkürzen laufend alle Abklingzeiten um einen kleinen Betrag. Der **Cooldown-Rücksetzer** bleibt
@@ -243,7 +276,7 @@ behielte ihren Namen und ihr Thema, aber nicht ihre zentrale Mechanik.
 **Das gehört Ihnen, nicht mir.** Ich schreibe es dazu, damit es nicht als Nebeneffekt eines
 Katalogs passiert.
 
-## COAGULATION — 3 vorhanden, 9 neu
+## COAGULATION — 7 vorhanden, 5 neu
 
 **Mechanik (GAME-DESIGN 176):** Drei Wege nebeneinander — **Schutzschicht** (nimmt Schaden auf,
 stapelt, muss VOR dem Schlag stehen), **klassische Heilung** (verzeiht Fehler nachträglich),
