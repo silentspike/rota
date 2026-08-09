@@ -2283,7 +2283,7 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
       // die Gesamtzahl. Beide bleiben bei `combat`.
       damageDealt: combat.damageDealt,
       playerHp: combat.playerHp,
-      diedAtMs: combat.diedAtMs,
+      diedAtMs: result.diedAtMs,
       sequenceChecksum: sequence,
     },
     checksums,
