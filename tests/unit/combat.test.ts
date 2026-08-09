@@ -103,6 +103,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'efflux',
       // Issue #540 — DISTIL, bei seiner Schule.
       'distil',
+      // Issue #480 — AETHER, hinten in `sublimation.json` und damit VOR den
+      // Zaubern der Zersetzung. Die Stelle ist nicht gewählt, sondern folgt
+      // aus der Ladereihenfolge der Schuldateien.
+      'aether',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
@@ -113,6 +117,11 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'sepsis',
       // Issue #540 — VIRULENCE, bei seiner Schule.
       'virulence',
+      // Issue #479 — MIASMA, am ENDE seiner Schul-Datei: Ein Einschub in der
+      // Mitte verschiebt den Index-Raum, und der steht in jeder Aufzeichnung.
+      'miasma',
+      // Issue #479 — NECROSIS, aus demselben Grund am Ende.
+      'necrosis',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
