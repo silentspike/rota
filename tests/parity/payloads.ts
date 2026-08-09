@@ -2400,6 +2400,7 @@ const LOG_PARITY_BINDINGS = [
   { slot: 1, spellId: 'crust' },
   { slot: 2, spellId: 'quench' },
   { slot: 3, spellId: 'salve' },
+  { slot: 4, spellId: 'slag' },
 ] as const;
 
 export function logParityPayload(): Record<string, unknown> {
@@ -2413,10 +2414,12 @@ export function logParityPayload(): Record<string, unknown> {
   const crust = combat.indexOf('crust');
   const salve = combat.indexOf('salve');
   const quench = combat.indexOf('quench');
+  const slag = combat.indexOf('slag');
   const ticks = 2500; // 25 s
 
   const slots = slotMap(combat, LOG_PARITY_BINDINGS);
   const presses: { tick: number; slot: number }[] = [];
+  let slagGeworfen = false;
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
@@ -2433,11 +2436,13 @@ export function logParityPayload(): Record<string, unknown> {
     let gewaehlt = -1;
     if (combat.casting >= 0 && combat.isReady(quench, timeMs)) gewaehlt = quench;
     else if (tick < 100 && combat.isReady(crust, timeMs)) gewaehlt = crust;
+    else if (!slagGeworfen && combat.isReady(slag, timeMs)) gewaehlt = slag;
     else if (combat.playerHp < PLAYER.vessel && combat.isReady(salve, timeMs)) gewaehlt = salve;
     else if (combat.isReady(kindle, timeMs)) gewaehlt = kindle;
     if (gewaehlt < 0) continue;
 
     if (combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      if (gewaehlt === slag) slagGeworfen = true;
       // **Der Platz kommt aus der Bindung, nicht aus einem Vergleich** (#405).
       // `slotFor` wirft, wenn der Zauber auf keinem Platz liegt — die Zahl 3
       // als stiller Rückfall für „alles andere" ist damit weg.
