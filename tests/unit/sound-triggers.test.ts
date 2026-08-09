@@ -128,6 +128,10 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // Suno (#487) und kann in keiner Claude-Sitzung entstehen — Claude kann
     // nicht hoeren. Die Gegenrichtung unten holt ihn heraus, sobald er da ist.
     'miasma',
+    // VORLAEUFIG (Issue #479): NECROSIS ebenso. Er braucht sogar besonders
+    // dringend einen — ein Entlader, den man nicht HOERT, ist im Spiel nicht
+    // vom Fueller zu unterscheiden.
+    'necrosis',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.

@@ -1595,6 +1595,14 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        consumes_dots: {verbraucht},");
+    // NECROSIS (#479) — der Entlader raeumt die Faeulnis-Stapel ab. Kein
+    // `spender`: PUTREFACTION fuehrt keine Ressource, und die Pruefung weiter
+    // unten (Zeile 706) haette den Bau zu Recht abgebrochen.
+    let stapel_weg = spell
+        .get("consumesDecayStacks")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        consumes_decay_stacks: {stapel_weg},");
     // HARDEN und SEPSIS (#523).
     let schild_ms = spell
         .get("extendShieldMs")
