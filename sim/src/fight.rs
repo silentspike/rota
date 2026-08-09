@@ -635,6 +635,13 @@ pub struct Fight {
     /// Das gilt für jeden Merker, der noch kommt (CONDENSE, RETORT,
     /// PUTRID BLOOM, DECAY). Wer einen baut, hängt ihn dort an.
     next_cast_free_gcd: bool,
+    /// **Der zweite MERKER** (CONDENSE, Issue #480).
+    ///
+    /// Steht auf `true`, wenn ein Zauber mit `doubles_next_cast` geworfen
+    /// wurde und der nächste deshalb zweimal wirkt. Er lebt genau bis zu
+    /// diesem nächsten Wurf, wie sein Nachbar darüber — und aus demselben
+    /// Grund steht er in der Prüfsumme.
+    next_cast_doubles: bool,
     /// Der Auswahlmodus des Ruecksetzers (Issue #223).
     ///
     /// Bis heute war er gebaut und unbenutzt — `cooldown_reset.rs` stand
@@ -887,6 +894,7 @@ impl Fight {
             control_failed: 0,
             gcd_ready_at: 0,
             next_cast_free_gcd: false,
+            next_cast_doubles: false,
             reset_mode: CooldownReset::new(),
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -1525,6 +1533,7 @@ impl Fight {
         self.control_failed = 0;
         self.gcd_ready_at = 0;
         self.next_cast_free_gcd = false;
+        self.next_cast_doubles = false;
         self.reset_mode.reset();
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -1778,6 +1787,23 @@ impl Fight {
     fn take_free_gcd(&mut self) -> bool {
         if self.next_cast_free_gcd {
             self.next_cast_free_gcd = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Verbraucht den Merker aus CONDENSE, falls er steht (Issue #480).
+    ///
+    /// **Er wird auch dann verbraucht, wenn der Zauber gar keinen Schaden
+    /// macht.** Ein Hilfszauber wirkt dann zweimal ohne sichtbaren
+    /// Unterschied — und der Merker ist weg. Die Alternative wäre, ihn über
+    /// Hilfszauber hinweg aufzuheben, bis ein Schadenszauber kommt: Das hiesse
+    /// "der nächste SCHADENSZAUBER wirkt zweimal", und das steht so weder im
+    /// Raster noch auf der Zauberleiste.
+    fn take_double_cast(&mut self) -> bool {
+        if self.next_cast_doubles {
+            self.next_cast_doubles = false;
             true
         } else {
             false
@@ -3401,6 +3427,18 @@ impl Fight {
 
         self.casts[index] += 1;
 
+        // **Wirkt dieser Wurf zweimal?** (CONDENSE, Issue #480.)
+        //
+        // Der Merker wird HIER verbraucht, vor jeder Wirkung — und das Setzen
+        // steht wie bei SUBLIME weit unten, hinter allem. Stünde beides
+        // beieinander, verdoppelte CONDENSE sich selbst statt den nächsten.
+        //
+        // `casts` bleibt bei EINS. Es ist ein Wurf, der zweimal wirkt, kein
+        // zweiter Wurf: eine Abklingzeit, eine Wartezeit, ein Cast-Eintrag im
+        // Log. Wer hier mitzählte, machte aus CONDENSE einen Rücksetzer — und
+        // genau davon unterscheidet ihn das Raster.
+        let anwendungen = if self.take_double_cast() { 2 } else { 1 };
+
         // **Erst der Schaden, dann die Wirkung.** Bis zu Issue E3-1b stand der
         // Cast-Eintrag hier oben und damit VOR dem Schaden — das Spiel
         // (`src/core/combat.ts`) schreibt seit E1-7 umgekehrt. Zwei
@@ -3498,70 +3536,87 @@ impl Fight {
         // **Der umgewandelte Schaden geht durch dieselben Faktoren** (#478):
         // Krit, Widerstand, Verstaerkung. Ein Treffer, den kein Faktor
         // beruehrt, waere der einzige im Spiel.
-        if self.pending_control_damage > 0 {
-            let roh = self.pending_control_damage;
-            self.pending_control_damage = 0;
-            cast_damage += self.deal(index, compute_damage(roh, &factors), LogKind::Damage);
-        }
+        // **Die Schleife für CONDENSE** (#480). Sie läuft einmal, oder zweimal
+        // wenn der Merker stand.
+        //
+        // Sie umschliesst genau die MENGEN — die vier Schadensquellen. Die
+        // ZUSTÄNDE darüber (unterbrechen, Verhängnis senken, Synergie-Fenster)
+        // und darunter (Verstärkung, Brand) stehen bewusst ausserhalb: Zweimal
+        // zu unterbrechen unterbricht nicht doppelt, und ein Fenster zweimal zu
+        // öffnen verschöbe seine Dauer.
+        //
+        // **Ein Krit-Wurf für beide Anwendungen**, nicht zwei. Er fällt oben
+        // vor der Schleife — dieselbe Regel, nach der das Schlüsseltalent aus
+        // Issue #418 gebaut ist, das denselben Satz trägt ("wirkt dafür
+        // ZWEIMAL"). Ein Zufallsstrom, der auf den zwei Seiten verschieden oft
+        // gedreht wird, lässt den ganzen folgenden Kampf auseinanderlaufen.
+        for _ in 0..anwendungen {
+            if self.pending_control_damage > 0 {
+                let roh = self.pending_control_damage;
+                self.pending_control_damage = 0;
+                cast_damage += self.deal(index, compute_damage(roh, &factors), LogKind::Damage);
+            }
 
-        if spell.base_damage > 0 {
-            cast_damage += self.deal(
-                index,
-                compute_damage(spell.base_damage, &factors),
-                LogKind::Damage,
-            );
-        }
+            if spell.base_damage > 0 {
+                cast_damage += self.deal(
+                    index,
+                    compute_damage(spell.base_damage, &factors),
+                    LogKind::Damage,
+                );
+            }
 
-        if let Some(spender) = spell.spender {
-            // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
-            // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
-            // dafuer ZWEIMAL."
-            //
-            // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
-            // sich als Faktor ausdruecken liesse, waere keines.
-            let geteilt = self.split_spender;
-            // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
-            // zweimal 7, eine Hitze bleibt uebrig.
-            let pro_schlag = if geteilt {
-                self.resource / 2
-            } else {
-                self.resource
-            };
-            let schlaege = if geteilt { 2 } else { 1 };
-
-            for _ in 0..schlaege {
-                // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
-                // rechnete der zweite mit demselben Stand wie der erste.
-                let spent = if geteilt {
-                    pro_schlag.min(self.resource)
+            if let Some(spender) = spell.spender {
+                // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
+                // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
+                // dafuer ZWEIMAL."
+                //
+                // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
+                // sich als Faktor ausdruecken liesse, waere keines.
+                let geteilt = self.split_spender;
+                // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
+                // zweimal 7, eine Hitze bleibt uebrig.
+                let pro_schlag = if geteilt {
+                    self.resource / 2
                 } else {
                     self.resource
                 };
-                if geteilt && spent == 0 {
-                    break;
-                }
+                let schlaege = if geteilt { 2 } else { 1 };
 
-                let mut damage = spender.damage_per_point * u32::from(spent);
-                if spent >= spender.bonus_threshold {
-                    damage *= spender.bonus_multiplier;
-                }
-                self.log
-                    .push(now, LogKind::Spend, index as u8, u32::from(spent));
-                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
-                if geteilt {
-                    self.resource -= spent;
-                } else {
-                    self.resource = 0;
+                for _ in 0..schlaege {
+                    // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
+                    // rechnete der zweite mit demselben Stand wie der erste.
+                    let spent = if geteilt {
+                        pro_schlag.min(self.resource)
+                    } else {
+                        self.resource
+                    };
+                    if geteilt && spent == 0 {
+                        break;
+                    }
+
+                    let mut damage = spender.damage_per_point * u32::from(spent);
+                    if spent >= spender.bonus_threshold {
+                        damage *= spender.bonus_multiplier;
+                    }
+                    self.log
+                        .push(now, LogKind::Spend, index as u8, u32::from(spent));
+                    cast_damage +=
+                        self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                    if geteilt {
+                        self.resource -= spent;
+                    } else {
+                        self.resource = 0;
+                    }
                 }
             }
-        }
 
-        // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
-        // Betrag wie der Grundschaden — dieselbe Stelle wie im Spiel.
-        if spell.consumes_dots {
-            let rest = self.consume_active_dots();
-            if rest > 0 {
-                cast_damage += self.deal(index, rest, LogKind::Damage);
+            // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
+            // Betrag wie der Grundschaden — dieselbe Stelle wie im Spiel.
+            if spell.consumes_dots {
+                let rest = self.consume_active_dots();
+                if rest > 0 {
+                    cast_damage += self.deal(index, rest, LogKind::Damage);
+                }
             }
         }
 
@@ -3679,6 +3734,13 @@ impl Fight {
             self.next_cast_free_gcd = true;
         }
 
+        // **Den NÄCHSTEN Wurf verdoppeln** (CONDENSE, #480), aus demselben
+        // Grund an derselben Stelle wie der Merker darüber: hinter allem, was
+        // ihn verbrauchen könnte.
+        if spell.doubles_next_cast {
+            self.next_cast_doubles = true;
+        }
+
         // Der Sieg wird erst in der Pruef-Phase des **naechsten** Takts bemerkt,
         // weil die Pruefung vor der Wirk-Phase steht. Ohne diesen Weckruf
         // koennte der Simulator bis zum naechsten regulaeren Ereignis
@@ -3690,7 +3752,17 @@ impl Fight {
         // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt ueber Zeit,
         // Vorrat, Abklingzeit und Wartezeit stehen.
         self.log.push(now, LogKind::Cast, index as u8, 0);
-        self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
+        // **Das Ereignis feuert so oft, wie der Wurf gewirkt hat** (CONDENSE,
+        // #480) — der Log-Eintrag darüber genau einmal.
+        //
+        // Daran hängen die beiden Mechaniken, die Mengen aufbauen: `stacks:heat`
+        // (der Vorrat) und `sublimation` (die Verkürzung aller Abklingzeiten).
+        // Sie zweimal ansetzen zu lassen ist dieselbe Regel wie beim Schaden
+        // oben — und sie kostet keine Aufzählung, weil sie an der Stelle
+        // ansetzt, an der die Mengen ohnehin entstehen.
+        for _ in 0..anwendungen {
+            self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
+        }
 
         // **Die Schwaechung ohne Heil-Loesung** (Baustein 8, Issue #240).
         // Steht dieser Zauber in `cleared_by`, ist sie weg — und Heilung steht
@@ -4073,6 +4145,8 @@ impl Fight {
         // Für die vier Merker, die folgen (CONDENSE, RETORT, PUTRID BLOOM,
         // DECAY): hier anhängen, in derselben Reihenfolge auf beiden Seiten.
         h = mix_named_int(h, "nextCastFreeGcd", i32::from(self.next_cast_free_gcd));
+        // Der zweite Merker, unmittelbar neben dem ersten (CONDENSE, #480).
+        h = mix_named_int(h, "nextCastDoubles", i32::from(self.next_cast_doubles));
         // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
         // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
         // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden

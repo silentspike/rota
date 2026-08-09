@@ -134,6 +134,8 @@ import {
   AETHER_NAME,
   sublimePayload,
   SUBLIME_NAME,
+  condensePayload,
+  CONDENSE_NAME,
   timelineLoopPayload,
   sublimationPayload,
   gezielteVerkuerzungPayload,
@@ -422,6 +424,14 @@ writeFileSync(sublimePath, serialize(sublime), 'utf8');
 console.log(
   `  SUBLIME-Merker  ${sublime.expected.sublimeCasts} Wuerfe, ` +
     `${sublime.expected.merkerTakte} Merker-Takte, Schaden ${sublime.expected.damageDealt}`,
+);
+
+const condense = condensePayload();
+const condensePath = join(here, 'recordings', `${CONDENSE_NAME}.json`);
+writeFileSync(condensePath, serialize(condense), 'utf8');
+console.log(
+  `  CONDENSE-Merker ${condense.expected.condenseCasts} Wuerfe, ` +
+    `${condense.expected.merkerTakte} Merker-Takte, Schaden ${condense.expected.damageDealt}`,
 );
 
 const aether = aetherPayload();
