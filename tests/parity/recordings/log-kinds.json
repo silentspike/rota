@@ -4,87 +4,104 @@
     {
       "kind": 0,
       "name": "cast",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 1,
       "name": "damage",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 2,
       "name": "dotTick",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 3,
       "name": "crit",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": false
     },
     {
       "kind": 4,
       "name": "spend",
-      "writtenByGame": false
+      "writtenByGame": false,
+      "writtenBySim": true
     },
     {
       "kind": 5,
       "name": "kill",
-      "writtenByGame": false
+      "writtenByGame": false,
+      "writtenBySim": true
     },
     {
       "kind": 6,
       "name": "phase",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 7,
       "name": "buffExpire",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 8,
       "name": "bossEnergyTriggered",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 9,
       "name": "bossTimelineFired",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 10,
       "name": "playerDamage",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 11,
       "name": "playerDeath",
-      "writtenByGame": false
+      "writtenByGame": false,
+      "writtenBySim": true
     },
     {
       "kind": 12,
       "name": "interruptLanded",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 13,
       "name": "shieldAbsorb",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 14,
       "name": "healed",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     },
     {
       "kind": 15,
       "name": "convertedToShield",
-      "writtenByGame": false
+      "writtenByGame": false,
+      "writtenBySim": true
     },
     {
       "kind": 16,
       "name": "controlSpent",
-      "writtenByGame": true
+      "writtenByGame": true,
+      "writtenBySim": true
     }
   ],
   "writtenByGame": [
