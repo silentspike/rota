@@ -6003,3 +6003,49 @@ Zahl, wenn man an 64 Bit denkt), bliebe er grün und der Code wäre kaputt.
 selbst — an dem Verhalten, das bei Überschreitung kippt. Das ist dieselbe Unterscheidung wie in
 8.93: dort „der Text nennt `target`" gegen „`target` ist richtig", hier „die Konstante ist ≤ 31"
 gegen „ab 32 bricht die Rechnung".
+
+### 8.96 Eine Suche endet dort, wo die Form sich ändert
+
+Drei Fälle an einem Tag, von drei verschiedenen Leuten, mit demselben Bauplan: Die Messung war
+**richtig**, und ihre Grenze war **unsichtbar**.
+
+```
+1  acht expire-Aufrufe        sieben gezählt.  Die achte stand in einer
+                              BEDINGUNG statt als eigene Zeile:
+                                 if (this.buffs.expire(timeMs) === 0) return;
+
+2  acht Buff-Sammlungen       zwei erreichbar in calcination.json.
+                              Die anderen sechs stehen in einer ANDEREN DATEI
+                              (data/spells/test-buff.json), die genau dafür da ist
+
+3  zehn Acceptance Criteria   sieben gefunden.  Bei AC2a, AC2b und AC7 läuft
+                              der Text nach der Nummer anders weiter, als das
+                              Muster erwartete
+```
+
+Jedes Mal endete die Suche an einer **Formgrenze**: einer Zeilenform, einem Dateinamen, einer
+Textfortsetzung. Und jedes Mal sah das Ergebnis vollständig aus, weil innerhalb der Form nichts
+fehlte.
+
+**Warum das nicht dasselbe ist wie 8.85** („ein grep-Muster misst die Formatierung, nicht die
+Struktur"): Dort ist das Muster zu eng für die Sache. Hier ist es **genau richtig für den Bereich,
+den es absucht** — der Bereich ist zu klein. Ein besseres Muster hätte in allen drei Fällen nichts
+geändert.
+
+|      |                                                    |
+| ---- | -------------------------------------------------- |
+| 8.85 | _Was_ ich suche, passt nicht zu dem, was da steht  |
+| 8.96 | _Wo_ ich suche, ist nicht alles, wo es stehen kann |
+
+**Die Gegenfrage, die alle drei gefangen hätte:**
+
+> Kann das, was ich suche, auch in einer anderen **Form** vorkommen — andere Zeile, andere Datei,
+> andere Schreibweise? Und wenn ja: habe ich dort nachgesehen oder nur angenommen, dass es dort
+> nicht steht?
+
+Konkret: Bei einer Aufzählung von _n_ gleichartigen Aufrufen zählt man die Aufrufe, nicht die
+Zeilen. Bei einer Frage über einen Datensatz sucht man in `data/`, nicht in der einen Datei, die
+man gerade offen hat. Bei einer Liste von Nummern liest man die Liste, statt sie zu greppen.
+
+Der billigste Test ist eine **zweite Zahl aus einer anderen Richtung**: Wenn acht Sammlungen
+existieren und die Suche sieben findet, ist nicht die Suche zu prüfen, sondern die Acht.
