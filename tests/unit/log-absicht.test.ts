@@ -147,12 +147,28 @@ function allesGeschriebene(): Set<string> {
   // dran — das ist gewollt, der Lauf darüber deckt es ab.
   //     -> bossTimelineFired, interruptLanded, dotTick, shieldAbsorb
   //
-  // **Die Reihenfolge ist gemessen, nicht gewählt.** Sie nimmt den ERSTEN
-  // bereiten Zauber dieser festen Folge. Feiner gesteuerte Fassungen — etwa
-  // „SMOULDER nur, wenn der Brand ausläuft" — lieferten `dotTick` NICHT:
-  // gemessen 20 SMOULDER-Würfe und kein einziger Tick im Verlauf. Warum die
-  // grobe Folge ihn hervorruft und die gezielte nicht, ist offen; hier zählt,
-  // welche Lage die Art nachweislich erzeugt.
+  // **Die grobe Folge ist Absicht.** Sie nimmt den ERSTEN bereiten Zauber
+  // dieser festen Liste und fragt keine Restlaufzeit ab — genau das macht sie
+  // tragfähig.
+  //
+  // Eine gezielte Fassung („SMOULDER nur, wenn der Brand ausläuft") lieferte
+  // beim Bauen **keinen einzigen** `dotTick` bei 20 SMOULDER-Würfen, und der
+  // Grund war ein Aufruffehler von mir, kein Verhalten des Spiels:
+  //
+  // ```text
+  //   combat.ts   dotRemainingMs(index: SpellIndex, timeMs: number)
+  //   gerufen als dotRemainingMs(index)          -> timeMs undefined
+  //               expires - undefined = NaN,  NaN > 0 = false  -> immer 0
+  // ```
+  //
+  // Damit war „läuft aus" in jedem Takt wahr, SMOULDER wurde jeden GCD neu
+  // geworfen, und der Brand nie alt genug zum Ticken. Nachgemessen mit
+  // korrektem Aufruf: 12000, 11000, 10000, 9000 — die Methode ist in Ordnung.
+  //
+  // Der Satz stand hier zunächst als „warum, ist offen". **Ein Kommentar, der
+  // ein Nichtwissen behauptet, ist genauso ungeprüft wie einer, der eine
+  // Wirkung behauptet** — und dieser hätte den nächsten Leser auf die Suche
+  // nach einem Fehler im Brand-System geschickt, den es nicht gibt.
   dazu(
     mitDruecken(
       'test-warden',
