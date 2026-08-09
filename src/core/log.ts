@@ -234,21 +234,24 @@ export const EVENT_KIND_INTENT: Readonly<Record<string, KindIntent>> = {
   /** Seit #96 führt der Simulator Boss-Phasen ebenfalls. */
   phase: { game: true, sim: true },
   /**
-   * **Die Absicht steht, die Umsetzung fehlt** — gemessen am 2026-08-09 (#676).
+   * **Seit #682 schreiben beide Seiten sie** — vorher tat es keine.
    *
-   * Das Auslaufen einer Verstärkung wird auf beiden Seiten sehr wohl bemerkt:
+   * Die Art war vergeben, hier dokumentiert, von `log-kinds` gedeckt und von
+   * `freshness` gezählt; `EVENT_BUFF_EXPIRE` hatte ausserhalb dieser Datei
+   * keinen einzigen Treffer, und in `sim/src/log.rs` fehlte die Art ganz —
+   * die Aufzählung sprang von 6 auf 8.
    *
-   * ```text
-   *   src/core/combat.ts        this.buffs.expire(timeMs)
-   *   src/combat/schools/buffs.ts   lastExpiredKind() — speist buff.expired
-   *   sim/src/rules_event.rs    BuffExpired als REGEL-Ereignis
-   * ```
+   * Sie trug deshalb bis #682 eine `bekannteLuecke`. **Die Zeile ist mit dem
+   * Bau entfallen**, und das war kein Nebenschritt: Der Wächter aus #676
+   * nimmt jede Art mit `bekannteLuecke` aus dem Vergleich. Wäre sie
+   * stehengeblieben, prüfte er Art 7 weiterhin nicht — der ganze Bau wäre
+   * auf Wächter-Ebene unsichtbar, und der Text behauptete „keine
+   * Schreibstelle", während beide Seiten schreiben.
    *
-   * Ins Protokoll schreibt es niemand — `LogKind::BuffExpire` kommt in
-   * `sim/src/` nicht vor, `EVENT_BUFF_EXPIRE` außerhalb dieser Datei nicht.
-   * Dieselbe Klasse wie #568: vergeben, dokumentiert, gezählt — und nicht da.
+   * Geschrieben wird je abgelaufener Verstärkung ein Eintrag, dessen `value`
+   * die **Art** ist (`kind`), nicht ihre Anzahl.
    */
-  buffExpire: { game: true, sim: true, bekannteLuecke: '#682 — keine Schreibstelle, beide Seiten' },
+  buffExpire: { game: true, sim: true },
   /** Seit #679 schreibt das Spiel sie ebenfalls (Energieleiste, #568). */
   bossEnergyTriggered: { game: true, sim: true },
   // **Seit Issue #151 schreibt das Spiel diese fünf ebenfalls.** Bis dahin
