@@ -81,19 +81,25 @@ const BEKANNTE_LUECKEN: &[(&str, &str)] = &[];
 /// eine Nachmessung zeigte, dass der Standard-Lauf den Boss sehr wohl fällt.
 /// Die Ausnahme hätte eine Art vom Vergleich genommen, die der Wächter prüfen
 /// kann. Wer hier etwas einträgt, misst es vorher.
-const UNERREICHT: &[(&str, &str)] = &[
-    (
-        "convertedToShield",
-        "verlangt eine laufende Umwandlung UND einen Treffer im selben Fenster \
-         — keiner der Läufe stellt beides zugleich her",
-    ),
-    (
-        "playerDeath",
-        "in keinem Lauf sinkt der Spieler auf null: mit CRUST fängt die \
-         Schutzschicht den Schlag ab (damage_taken stand auf 0), ohne CRUST \
-         heilt SALVE schneller, als die Zeitleiste zuschlägt",
-    ),
-];
+/// **Zurzeit leer — und jeder Eintrag, der hier stand, war falsch.**
+///
+/// Beim Bau standen drei Arten hier. Alle drei ließen sich bei genauerem
+/// Hinsehen auslösen; die Begründungen waren plausibel und ungemessen:
+///
+/// ```text
+///   kill               "die Läufe enden vor dem Boss-Tod"
+///                      -> der Standard-Lauf fällt den Boss sehr wohl
+///   convertedToShield  "verlangt Umwandlung und Treffer im selben Fenster"
+///                      -> TEMPER stellt genau das her, an drei Bossen
+///   playerDeath        "in keinem Lauf sinkt der Spieler auf null"
+///                      -> boss-2-4 ohne Heilung, 300 s: hp 0, 5288 genommen
+/// ```
+///
+/// **Eine Ausnahmeliste, die zu viel herausnimmt, ist dieselbe Bauart wie
+/// eine Prüfliste, die einen Teil ihrer Gattung führt** — nur eine Ebene
+/// höher und schwerer zu sehen, weil sie wie Sorgfalt aussieht. Wer hier
+/// etwas einträgt, misst vorher, ob es sich nicht doch auslösen lässt.
+const UNERREICHT: &[(&str, &str)] = &[];
 
 fn data() -> Value {
     let value: Value = serde_json::from_str(JSON).expect("log-kinds.json ist kein JSON");
@@ -285,6 +291,58 @@ fn geschriebene_arten() -> BTreeSet<&'static str> {
     }
     fight.run(mit_verstaerker as fn(&Fight) -> Option<usize>);
     sammeln(&fight);
+
+    // **TEMPER wandelt Schaden in Schutz** (25 % für 10 s). Ohne einen Lauf,
+    // der ihn wirft, bleibt `convertedToShield` unerreicht — eine Zeit lang
+    // stand die Art deshalb als Ausnahme hier, mit der plausiblen und
+    // ungemessenen Begründung, sie verlange „Umwandlung und Treffer im selben
+    // Fenster". TEMPER stellt genau das her, an jedem Boss mit Zeitleiste.
+    //                                                 -> convertedToShield
+    for boss_id in ["boss-2-4", "test-warden"] {
+        let Some(boss) = boss_by_id(boss_id) else {
+            continue;
+        };
+        let mut fight = Fight::new(FightConfig {
+            boss,
+            duration_ms: Some(60_000),
+            ..FightConfig::default()
+        });
+        fn mit_temper(f: &Fight) -> Option<usize> {
+            for name in ["temper", "kindle"] {
+                if let Some(i) = index_of(name) {
+                    if f.is_ready(i) {
+                        return Some(i);
+                    }
+                }
+            }
+            None
+        }
+        fight.run(mit_temper as fn(&Fight) -> Option<usize>);
+        sammeln(&fight);
+    }
+
+    // **Ein Lauf, der den Spieler wirklich sterben lässt.**
+    //
+    // `playerDeath` stand als unerreicht hier, weil die kürzeren Läufe den
+    // Spieler durchbringen: mit CRUST fängt der Schild ab, mit SALVE heilt er
+    // schneller als die Zeitleiste zuschlägt. Ohne beides und über fünf
+    // Minuten fällt er — gemessen an boss-2-4: hp 0, 5288 genommen, Eintrag da.
+    //
+    // Der Lauf steht bewusst am Ende: Ein toter Spieler beendet den Kampf,
+    // und was danach käme, gäbe es ohnehin nicht mehr.
+    //                                                       -> playerDeath
+    if let Some(boss) = boss_by_id("boss-2-4") {
+        let mut fight = Fight::new(FightConfig {
+            boss,
+            duration_ms: Some(300_000),
+            ..FightConfig::default()
+        });
+        fn nur_angriff(f: &Fight) -> Option<usize> {
+            index_of("kindle").filter(|i| f.is_ready(*i))
+        }
+        fight.run(nur_angriff as fn(&Fight) -> Option<usize>);
+        sammeln(&fight);
+    }
     gesehen
 }
 
