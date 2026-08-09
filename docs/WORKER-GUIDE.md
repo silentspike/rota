@@ -5828,3 +5828,62 @@ Ein roter neuer Fall hat drei Ursachen, und nur eine davon ist ein Fund:
 Die beiden Fallen aus dem Beispiel stehen jetzt als Kommentar in dem Fall, der sie ausgelöst hat.
 Das ist der Teil, der über den Tag hinaus wirkt: **Wer eine Falle bezahlt hat, stellt sie dem
 Nächsten nicht noch einmal.**
+
+---
+
+### 8.92 Die Vorsicht steckt im gebauten Fall, nicht im Messenden
+
+Wer einen Prüffall schreibt, baut selbstverständlich die Zusicherung ein, dass der Fall überhaupt
+etwas misst — `wurfBei >= 0`, `ausloeser > 0`, „die Ladungs-Spur darf nicht konstant sein". Wer
+für sich selbst misst, um ein Urteil zu fällen, lässt sie weg. Am 2026-08-09 ist das an einem Tag
+**dreimal** passiert, jedes Mal jemandem, der die Zusicherung Stunden vorher selbst gebaut hatte.
+
+Die Formulierung stammt von dem Worker, dem es zuletzt passiert ist:
+
+> Die Vorsicht steckt im gebauten Fall, nicht im Messenden. Wer eine Zusicherung schreibt, denkt an
+> den grünen Lauf ohne Aussage — wer für sich selbst misst, hält den ersten grünen Lauf für das
+> Ergebnis.
+>
+> Deshalb: **Die erste Messung, die dein Urteil trägt, braucht dieselbe Zusicherung wie ein
+> Prüffall** — den Beleg, dass der Versuch überhaupt etwas bewegt hat.
+
+**Die drei Fälle desselben Tages:**
+
+```
+1.  "Betrifft ein Sockel diesen Prüffall?"
+    Sockel 200 alle 15 s   ->  10 von 10 grün    "also unbetroffen"
+    Sockel 3000 alle 2 s   ->   2 von 10 rot     die kleine Leiste bewegte
+                                                 den Kampf zu wenig, um
+                                                 irgendwo aufzufallen
+
+2.  "Findet die gierige Suche ein Paar, das nur gemeinsam trägt?"
+    alle Messwerte exakt 5525.0                  sah nach einem Befund aus
+    Spanne dazugemessen: 9364.0 / 8287.0         die Messung lebt — die
+                                                 Basis endete auf einem
+                                                 Zauber ohne Bedingung, also
+                                                 war jede Zeile darunter tot
+
+3.  "Wird der Verlauf zwischen den Seiten verglichen?"
+    grep -l '"kind"' fand zwei Dateien           "also gibt es keinen dritten"
+    log-parity.json speichert Zähler je Name,    das Muster konnte sie nicht
+    keine Einträge mit "kind"                    finden
+```
+
+In allen drei Fällen war der erste Messwert **echt** und die Schlussfolgerung daraus **falsch**.
+
+**Warum es beim eigenen Messen ausfällt:** Beim Bauen eines Prüffalls ist die Zusicherung Teil des
+Handwerks — man schreibt sie, weil ein grüner Fall ohne Aussage der bekannteste Fehler ist. Beim
+Messen für sich selbst fühlt es sich nach „nur einer Messung" an, nach einem Zwischenschritt, der
+kein Artefakt hinterlässt. Genau deshalb wird er nicht abgesichert.
+
+**Die Gegenfrage, die alle drei gefangen hätte:**
+
+> Hat der Versuch überhaupt etwas bewegt? Und wenn nein — hätte er es können?
+
+Bei Fall 1: „Hat die Leiste überhaupt ausgelöst, und wie oft?" Bei Fall 2: „Wie weit streuen die
+Werte, wenn ich die Stelle ändere?" Bei Fall 3: „Was steht wirklich in den Dateien, die mein
+Muster verwirft?"
+
+Alle drei haben es **selbst** gefunden, bevor sie das Urteil abgegeben haben. Das ist der
+Unterschied zwischen einem teuren und einem lehrreichen Fehler — aber die Gegenfrage vorher zu
+stellen ist billiger als beides.
