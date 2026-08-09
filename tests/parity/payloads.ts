@@ -4387,6 +4387,18 @@ export const SYNERGY_NAME = 'synergy-window';
 const SYNERGY_BINDINGS = [
   { slot: 0, spellId: 'canker' },
   { slot: 1, spellId: 'fester' },
+  // **MIASMA auf Platz 2** (Issue #479). Er gehört in DIESE Aufzeichnung,
+  // weil sie die einzige ist, die Stapel aufbaut: Er lebt von ihnen
+  // (`perDecayStackPercent`), ohne selbst welche zu legen. In einer Runde
+  // ohne CANKER wäre er ein Füller mit 25 Schaden und nichts sonst — der
+  // Lauf würde grün und sagte über seine Rolle nichts aus.
+  { slot: 2, spellId: 'miasma' },
+  // **NECROSIS auf Platz 3** (Issue #479), aus demselben Grund wie MIASMA und
+  // einem zusätzlichen: Er ist der einzige Zauber, der Stapel WEGNIMMT. Nur
+  // in einer Runde, die welche aufbaut, kann sich das überhaupt zeigen —
+  // anderswo räumte er eine leere Zählung ab, und der Lauf wäre grün, ohne
+  // dass sein Verbrauch je stattgefunden hätte.
+  { slot: 3, spellId: 'necrosis' },
 ] as const;
 
 /**
@@ -4417,6 +4429,8 @@ function recordSynergy(ticks: number): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const canker = combat.indexOf('canker');
   const fester = combat.indexOf('fester');
+  const miasma = combat.indexOf('miasma');
+  const necrosis = combat.indexOf('necrosis');
   const presses: RecordedPress[] = [];
   // Die Prüfung stand hier zuerst, als Einzelstück (Issue #351). Sie ist jetzt
   // im gemeinsamen Helfer — eine zweite Kopie war der Grund, warum die andere
@@ -4437,6 +4451,17 @@ function recordSynergy(ticks: number): Recording {
     // Aufzeichnung abdecken.
     else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
     else if (combat.isOffCooldown(fester, timeMs)) press(fester, tick, timeMs);
+    // **MIASMA füllt die Lücken** (Issue #479) — und genau dafür ist er
+    // gebaut: 1,5 s Abklingzeit, kein eigener Stapel, Schaden nach der Zahl
+    // der liegenden. Er steht ZULETZT in der Kette, weil er die beiden
+    // anderen nicht verdrängen darf; sie bauen auf, er lebt davon.
+    // **NECROSIS steht VOR MIASMA in der Kette** (Issue #479) und hinter den
+    // beiden Aufbauern. Mit 8 s Abklingzeit kommt er selten dran; wenn er
+    // drankommt, soll er es tun, statt hinter einem 1,5-s-Füller zu warten,
+    // der immer bereit ist. Andersherum stünde er in der Aufzeichnung und
+    // löste nie aus — und dass er nichts tut, sähe genauso aus.
+    else if (combat.isOffCooldown(necrosis, timeMs)) press(necrosis, tick, timeMs);
+    else if (combat.isOffCooldown(miasma, timeMs)) press(miasma, tick, timeMs);
   }
 
   return { name: SYNERGY_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };
