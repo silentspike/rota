@@ -47,6 +47,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Issue #540 — FLASHPOINT, bei seiner Schule.
       'flashpoint',
       'quench',
+      // Issue #561 — PURGE senkt das Verhaengnis. Neben quench, weil beide
+      // schulunabhaengig sind: Der Draft darf sie nicht aussperren, sonst
+      // waere boss-1-2 ein Wuerfelwurf.
+      'purge',
       // Die drei Wege der Koagulation (Issue #79). Sie stehen HINTEN, damit
       // die Plätze 0 bis 3 weiterhin dasselbe bedeuten.
       'crust',

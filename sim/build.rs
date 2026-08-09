@@ -462,6 +462,14 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        interrupt: {unterbricht},");
+    // Das Verhaengnis senken (Baustein 2; Issue #561) — dieselbe Bauart eine
+    // Zeile hoeher: Ob der Zauber es tut, steht in den Daten; WIE VIEL er
+    // senkt, steht beim Boss.
+    let senkt_verhaengnis = spell
+        .get("clearsDoom")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        clears_doom: {senkt_verhaengnis},");
     // Ein Unterbrecher, der die globale Wartezeit ausloest, waere die Ausnahme
     // aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Er koennte nicht mehr
     // zwischen zwei Zauber gelegt werden, und der ganze Baustein waere tot.

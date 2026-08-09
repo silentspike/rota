@@ -630,6 +630,47 @@ function recordGoodRotation(name: string, ticks: number, boss?: BossDef): Record
  * werden**, nicht wie gut die Reihenfolge ist — die Frage nach der besten
  * Rotation beantwortet der Läufer aus #237, nicht dieser Weg.
  */
+/**
+ * Der Verhängnis-Zähler, bedient (Issue #561, AC4).
+ *
+ * # Warum eine eigene Aufzeichnung und keine Erweiterung der bestehenden
+ *
+ * `doom-stacks` fährt denselben Boss, drückt aber nur die Standard-Belegung —
+ * `purge` steht dort nicht drin. Sie zu erweitern hieße, eine bestehende
+ * Aufzeichnung umzudeuten; diese hier kommt hinzu.
+ *
+ * # Die Rotation ist bedarfsgesteuert, nicht so-oft-wie-möglich
+ *
+ * Gesenkt wird erst, wenn der Zähler `clearAmount` erreicht hat. Wer früher
+ * drückt, verschenkt: Die Handlung nimmt bis zu 40, kann aber nur wegnehmen,
+ * was dasteht. Genau das hält `boss-doom-stacks.test.ts` fest.
+ */
+function recordPurgeRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const kindle = combat.indexOf('kindle');
+  const purge = combat.indexOf('purge');
+  const clearAmount = boss.doom?.clearAmount ?? 40;
+
+  const presses: RecordedPress[] = [];
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.doom >= clearAmount && combat.isReady(purge, timeMs)) {
+      combat.cast(alsSpellIndex(purge), timeMs);
+      presses.push({ tick, slot: 4 });
+      continue;
+    }
+    if (!combat.isReady(kindle, timeMs)) continue;
+    combat.cast(alsSpellIndex(kindle), timeMs);
+    presses.push({ tick, slot: 0 });
+  }
+  return { name, seed: 0, ticks, presses };
+}
+
 function recordNewCalcination(name: string, ticks: number): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const bellows = combat.indexOf('bellows');
@@ -1078,6 +1119,10 @@ export function recordings(): Map<string, Recording> {
     const doomsayer = bossById('test-doomsayer');
     if (doomsayer !== undefined) {
       builtIn.set('doom-stacks', recordGoodRotation('doom-stacks', 3000, doomsayer));
+      // Der Zaehler, BEDIENT (Issue #561, AC4). `doom-stacks` daroeber laesst
+      // ihn volllaufen — diese hier drueckt `purge` und belegt damit, dass
+      // beide Seiten die Senkung gleich rechnen.
+      builtIn.set('doom-purge', recordPurgeRotation('doom-purge', 3000, doomsayer));
     }
     // Der Prueffall zum Auswahlmodus (Issue #223). 60 s in Takten: REFLUX hat
     // 45 s Abklingzeit, ein kuerzerer Lauf zeigte ihn nur EINMAL. Gemessen —
