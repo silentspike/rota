@@ -103,6 +103,7 @@
     "crit": 0,
     "phase": 1,
     "buffExpire": 0,
+    "bossEnergyTriggered": 0,
     "bossTimelineFired": 3,
     "playerDamage": 2,
     "interruptLanded": 1,

@@ -34,37 +34,33 @@
  * E7 liest aber genau diese Daten, und eine verschobene Bedeutung ergäbe eine
  * Fehleranalyse, die plausibel aussieht und falsch ist.
  *
- * **Jede Seite benutzt nur ihre Teilmenge**, statt leere Einträge zu führen:
+ * **Jede Seite benutzt nur ihre Teilmenge**, statt leere Einträge zu führen.
+ * Welche Seite welche Art schreiben soll, steht in [`EVENT_KIND_INTENT`] —
+ * **dort und nur dort**.
  *
- * | Nr. | Art          | Spiel | Simulator |
- * | --- | ------------ | ----- | --------- |
- * | 0   | `cast`       | ja    | ja        |
- * | 1   | `damage`     | ja    | ja        |
- * | 2   | `dotTick`    | ja    | ja        |
- * | 3   | `crit`       | ja    | —         |
- * | 4   | `spend`      | —     | ja        |
- * | 5   | `kill`       | —     | ja        |
- * | 6   | `phase`      | ja    | —         |
- * | 7   | `buffExpire` | ja    | —         |
- * | 8   | `bossEnergyTriggered` | — | ja     |
- * | 9   | `bossTimelineFired`   | — | ja     |
- * | 10  | `playerDamage`        | — | ja     |
- * | 11  | `playerDeath`         | — | ja     |
- * | 12  | `interruptLanded`     | — | ja     |
- * | 13  | `shieldAbsorb`        | — | ja     |
- * | 14  | `healed`              | — | ja     |
- * | 15  | `convertedToShield`   | — | ja     |
+ * # Warum hier keine Tabelle mehr steht (Issue #676)
  *
- * Nummer 6 hat mit Issue #96 eine zweite Schreiberin bekommen: Der Simulator
- * führt Boss-Phasen jetzt ebenfalls. Dieselbe Zahl, dieselbe Bedeutung — genau
- * dafür ist der gemeinsame Raum da. 8 und 9 sind neu und gehören vorerst allein
- * dem Simulator, wie `spend` und `kill` auch.
+ * Bis zu diesem Issue stand an dieser Stelle dieselbe Aussage ein zweites
+ * Mal, als Markdown-Tabelle. Sie lief mit der Wirklichkeit auseinander, und
+ * niemand konnte es bemerken, weil keine Maschine sie liest:
+ *
+ * ```text
+ *   Art  6  phase        stand auf "nur Spiel"      Simulator schreibt seit #96
+ *   Art  7  buffExpire   stand auf "Spiel: ja"      keine Seite schreibt sie
+ *   Art  8  bossEnergy   stand auf "nur Simulator"  Spiel schreibt seit #679
+ *   Art 16  controlSpent fehlte ganz                die Tabelle endete bei 15
+ * ```
+ *
+ * Vier Zeilen von siebzehn falsch, und der Text unter der Tabelle nannte die
+ * Änderung an Nummer 6 sogar selbst — die Tabellenzeile darüber wurde beim
+ * Schreiben dieses Satzes nicht mitgezogen.
  *
  * Die Namen stehen auch für die Arten, die diese Seite nie schreibt: Wer ein
  * fremdes Protokoll liest, soll denselben Namen sehen und nicht ein Fragezeichen.
  *
- * `tests/parity/recordings/log-kinds.json` hält die Tabelle fest, und
- * `sim/tests/log_kinds.rs` prüft die andere Seite dagegen.
+ * `tests/parity/recordings/log-kinds.json` hält den Nummernraum fest,
+ * `sim/tests/log_kinds.rs` prüft die andere Seite dagegen, und
+ * `tests/unit/log-absicht.test.ts` prüft die Absicht gegen echte Läufe.
  */
 /**
  * **Die eine Quelle des Nummernraums** (Issue #138).
@@ -177,24 +173,110 @@ export const EVENT_NAMES: readonly string[] = (() => {
   return namen;
 })();
 
-/** Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator. */
-export const EVENT_KINDS_WRITTEN_BY_GAME: readonly number[] = [
-  EVENT_CAST,
-  EVENT_DAMAGE,
-  EVENT_DOT_TICK,
-  EVENT_CRIT,
-  EVENT_PHASE,
-  EVENT_BUFF_EXPIRE,
+/**
+ * **Wer soll welche Art schreiben** — die Absicht als Datenstruktur (#676).
+ *
+ * # Warum das nicht länger ein Kommentar sein darf
+ *
+ * Bis zu diesem Issue stand dieselbe Aussage an drei Stellen: in der
+ * Markdown-Tabelle oben, in `EVENT_KINDS_WRITTEN_BY_GAME` als handgeführte
+ * Nummernliste, und im Code als tatsächliche Schreibstelle. Drei Wahrheiten,
+ * die niemand gegeneinander prüfte — und alle drei liefen auseinander:
+ *
+ * ```text
+ *   Art  6  phase          Tabelle "nur Spiel", Simulator schreibt seit #96
+ *   Art  7  buffExpire     Tabelle "Spiel: ja", KEINE Seite schreibt sie
+ *   Art  8  bossEnergy     Tabelle "nur Simulator", Spiel schreibt seit #679
+ *   Art 16  controlSpent   in der Tabelle gar nicht geführt
+ * ```
+ *
+ * Art 8 ist der Fall, der das Issue ausgelöst hat, und er zeigt die Klasse
+ * am deutlichsten: #679 hat die Schreibstelle gebaut
+ * (`combat.ts`, `EVENT_BOSS_ENERGY_TRIGGERED`) — die Nummernliste darunter
+ * blieb unverändert, also zählt `logKindsPayload()` die Art bis heute nicht
+ * mit. **Geschrieben und trotzdem nicht verglichen.**
+ *
+ * Deshalb ist die Absicht jetzt eine Struktur, die eine Maschine lesen kann,
+ * und `EVENT_KINDS_WRITTEN_BY_GAME` wird daraus **abgeleitet** statt daneben
+ * geführt. Wer eine Art einträgt, kann die Ableitung nicht vergessen.
+ *
+ * `tests/unit/log-absicht.test.ts` prüft diese Tabelle gegen die
+ * Wirklichkeit: Steht hier `true` und schreibt niemand, wird er rot — und
+ * umgekehrt.
+ */
+export interface KindIntent {
+  /** Soll **das Spiel** diese Art schreiben? */
+  readonly game: boolean;
+  /** Soll **der Simulator** sie schreiben? */
+  readonly sim: boolean;
+  /**
+   * Gesetzt, wenn die Absicht feststeht, die Umsetzung aber fehlt.
+   *
+   * **Das ist kein Freibrief, sondern eine Meldung.** Der Wächter in
+   * `tests/unit/log-absicht.test.ts` nimmt eine so markierte Art vom
+   * Soll-Ist-Vergleich aus — und nennt sie in seiner Ausgabe. Ohne dieses
+   * Feld gäbe es nur zwei Möglichkeiten: die Absicht verbiegen, bis sie zum
+   * Ist-Zustand passt (dann ist die Lücke unsichtbar), oder einen dauerhaft
+   * roten Prüffall (dann ist der Zweig nicht mehr abnehmbar).
+   *
+   * Der Text muss das Issue nennen, unter dem die Lücke geführt wird.
+   */
+  readonly bekannteLuecke?: string;
+}
+
+export const EVENT_KIND_INTENT: Readonly<Record<string, KindIntent>> = {
+  cast: { game: true, sim: true },
+  damage: { game: true, sim: true },
+  dotTick: { game: true, sim: true },
+  crit: { game: true, sim: false },
+  spend: { game: false, sim: true },
+  kill: { game: false, sim: true },
+  /** Seit #96 führt der Simulator Boss-Phasen ebenfalls. */
+  phase: { game: true, sim: true },
+  /**
+   * **Die Absicht steht, die Umsetzung fehlt** — gemessen am 2026-08-09 (#676).
+   *
+   * Das Auslaufen einer Verstärkung wird auf beiden Seiten sehr wohl bemerkt:
+   *
+   * ```text
+   *   src/core/combat.ts        this.buffs.expire(timeMs)
+   *   src/combat/schools/buffs.ts   lastExpiredKind() — speist buff.expired
+   *   sim/src/rules_event.rs    BuffExpired als REGEL-Ereignis
+   * ```
+   *
+   * Ins Protokoll schreibt es niemand — `LogKind::BuffExpire` kommt in
+   * `sim/src/` nicht vor, `EVENT_BUFF_EXPIRE` außerhalb dieser Datei nicht.
+   * Dieselbe Klasse wie #568: vergeben, dokumentiert, gezählt — und nicht da.
+   */
+  buffExpire: { game: true, sim: true, bekannteLuecke: '#682 — keine Schreibstelle, beide Seiten' },
+  /** Seit #679 schreibt das Spiel sie ebenfalls (Energieleiste, #568). */
+  bossEnergyTriggered: { game: true, sim: true },
   // **Seit Issue #151 schreibt das Spiel diese fünf ebenfalls.** Bis dahin
   // führte sie nur der Simulator — und die Fehleranalyse läuft im Browser,
   // nicht im Simulator. Ein Protokoll, in dem die Größe überall fehlt, kann
   // eine Gelegenheit nicht belegen (GAME-DESIGN 15.2, Issue #81).
-  EVENT_BOSS_TIMELINE_FIRED,
-  EVENT_PLAYER_DAMAGE,
-  EVENT_INTERRUPT_LANDED,
-  EVENT_SHIELD_ABSORB,
-  EVENT_HEALED,
-];
+  bossTimelineFired: { game: true, sim: true },
+  playerDamage: { game: true, sim: true },
+  playerDeath: { game: false, sim: true },
+  interruptLanded: { game: true, sim: true },
+  shieldAbsorb: { game: true, sim: true },
+  healed: { game: true, sim: true },
+  convertedToShield: { game: false, sim: true },
+  controlSpent: { game: false, sim: true },
+};
+
+/**
+ * Welche Arten **diese** Seite schreibt. Der Rest gehört dem Simulator.
+ *
+ * **Abgeleitet aus [`EVENT_KIND_INTENT`]**, nicht von Hand geführt (#676).
+ * Die frühere Liste war eine zweite Wahrheit neben der Tabelle im Kopf, und
+ * genau dort ging Art 8 verloren: Die Schreibstelle kam mit #679, die Liste
+ * blieb stehen, und `logKindsPayload()` verglich die Art deshalb nie.
+ */
+export const EVENT_KINDS_WRITTEN_BY_GAME: readonly number[] = Object.entries(EVENT_KIND_INTENT)
+  .filter(([, absicht]) => absicht.game)
+  .map(([name]) => EVENT_KINDS[name as keyof typeof EVENT_KINDS])
+  .sort((a, b) => a - b);
 
 /** Kein Zauber-Bezug. */
 export const NO_SPELL_REF = -1;
