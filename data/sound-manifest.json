@@ -52,7 +52,7 @@
         "group": "music",
         "count": 14,
         "epic": "E10",
-        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE (Issue #512). 5 der 19 Slots der Gruppe 'music' sind belegt, also fehlen 14 — ein Grundklang je Instanz. Thema, Farbwelt und Klangteppich der 19 Instanzen entstehen mit E10 (GAME-DESIGN 22); offen ist dort auch, ob es eigenstaendige Stuecke werden oder Varianten der fuenf Prozess-Themen."
+        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE (Issue #512). 5 der 19 Slots der Gruppe 'music' sind belegt, also fehlen 14. ACHTUNG, ZWEI GROESSEN MIT DERSELBEN ZAHL: Die fehlenden 14 sind 19 minus 5 — dass GAME-DESIGN 22 ebenfalls 14 Instanzen kennt, ist Zufall. Aendert sich eine der beiden, laufen sie auseinander, und ein Satz ueber '14 Instanzen' waere weiter richtig und trotzdem die falsche Groesse. Thema, Farbwelt und Klangteppich entstehen mit E10; offen ist dort auch, ob es eigenstaendige Stuecke werden oder Varianten der fuenf Prozess-Themen."
       }
     ]
   },
