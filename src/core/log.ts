@@ -248,7 +248,7 @@ export const EVENT_KIND_INTENT: Readonly<Record<string, KindIntent>> = {
    * `sim/src/` nicht vor, `EVENT_BUFF_EXPIRE` außerhalb dieser Datei nicht.
    * Dieselbe Klasse wie #568: vergeben, dokumentiert, gezählt — und nicht da.
    */
-  buffExpire: { game: true, sim: true, bekannteLuecke: '#676 — keine Schreibstelle, beide Seiten' },
+  buffExpire: { game: true, sim: true, bekannteLuecke: '#682 — keine Schreibstelle, beide Seiten' },
   /** Seit #679 schreibt das Spiel sie ebenfalls (Energieleiste, #568). */
   bossEnergyTriggered: { game: true, sim: true },
   // **Seit Issue #151 schreibt das Spiel diese fünf ebenfalls.** Bis dahin

@@ -236,6 +236,15 @@ describe('AC2 — die Absicht stimmt mit der Wirklichkeit überein', () => {
         absicht.bekannteLuecke,
         `"${name}" ist als bekannte Lücke markiert, nennt aber kein Issue`,
       ).toMatch(/#\d+/);
+      // **Und nicht auf dieses Issue hier.** Mein erster Entwurf verwies auf
+      // #676 — also auf das Issue, das diesen Wächter baut. Ein solcher
+      // Verweis sieht gültig aus und führt nirgendwohin: Wird #676
+      // geschlossen, bleibt die Lücke stehen und zeigt auf etwas Erledigtes.
+      // Eine bekannte Lücke braucht den Zeiger auf ihre AUFLÖSUNG.
+      expect(
+        absicht.bekannteLuecke,
+        `"${name}" verweist auf #676 — das ist der Wächter selbst, nicht der Weg hinaus`,
+      ).not.toMatch(/#676\b/);
     }
     // **Die Zusicherung gegen das stille Wachsen.** Wer eine Art hier
     // einträgt, statt sie zu bauen, muss diese Zahl anfassen — und damit
