@@ -1118,6 +1118,44 @@ fn emit_energy(out: &mut String, boss: &Value, whose: &str) {
          die Leiste kaeme nie wieder herunter"
     );
 
+    // **`onTrigger` ist PFLICHT, sobald `energy` steht** (Issue #568, AC2).
+    //
+    // Nicht optional, und das ist der ganze Punkt: Bis #568 stieg die Leiste,
+    // erreichte ihre Schwelle, setzte zurueck — und keine Zeile im Kampf
+    // fragte danach. Waere die Wirkung optional, liesse sich derselbe Zustand
+    // jederzeit neu herstellen, ohne dass es auffiele. Der Bau bricht hier
+    // ab, damit eine Leiste ohne Wirkung gar nicht erst entstehen kann.
+    let trigger = energy.get("onTrigger").unwrap_or_else(|| {
+        panic!(
+            "{whose}: `energy` steht, aber `onTrigger` fehlt — eine Energieleiste \
+             ohne Wirkung stiege wieder ins Leere (Issue #568). Trage \
+             \"onTrigger\": {{ \"mechanic\": \"strike\", \"name\": ..., \"damage\": ... }} nach."
+        )
+    });
+    let mechanic = trigger
+        .get("mechanic")
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("{whose}/onTrigger: `mechanic` fehlt oder ist kein Text"));
+    assert_eq!(
+        mechanic, "strike",
+        "{whose}/onTrigger: mechanic ist {mechanic:?}, erwartet wird \"strike\" — \
+         der Ausloeser fuehrt einen Boss-Schlag ausserhalb der Zeitleiste. Ein \
+         ausgeloester Boss-Zauber und der sofortige Tod als eigene Bauart sind \
+         verworfen (der Tod ist ein strike mit hohem Schaden)."
+    );
+    let trigger_damage = uint(trigger, "damage", &format!("{whose}/onTrigger"));
+    // Ein Schlag ueber null Schaden ist wieder eine Leiste ohne Wirkung, nur
+    // eine Ebene tiefer versteckt — er bestuende jede Feldpruefung.
+    assert!(
+        trigger_damage > 0,
+        "{whose}/onTrigger: damage ist 0 — ein Schlag ohne Schaden bewirkt nichts, \
+         und die Leiste stiege wieder ins Leere"
+    );
+    let trigger_name = trigger
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("Overload");
+
     let _ = writeln!(out, "        energy: Some(Energy {{");
     let _ = writeln!(out, "            per_step_ms: {per_step},");
     let _ = writeln!(
@@ -1127,6 +1165,10 @@ fn emit_energy(out: &mut String, boss: &Value, whose: &str) {
     );
     let _ = writeln!(out, "            threshold: {threshold},");
     let _ = writeln!(out, "            reset_to: {reset_to},");
+    let _ = writeln!(out, "            on_trigger: EnergyTrigger {{");
+    let _ = writeln!(out, "                name: {trigger_name:?},");
+    let _ = writeln!(out, "                damage: {trigger_damage},");
+    let _ = writeln!(out, "            }},");
     let _ = writeln!(out, "        }}),");
 }
 

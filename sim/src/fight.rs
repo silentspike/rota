@@ -2549,6 +2549,21 @@ impl Fight {
                 NO_SPELL,
                 self.energy_triggers,
             );
+            // **Und hier tut sie etwas** (Issue #568). Bis dahin endete der
+            // Zweig mit dem Zaehler und dem Eintrag im Verlauf: Die Leiste
+            // stieg, erreichte 100, sprang zurueck — und keine Zeile im Kampf
+            // fragte danach. `test-vessel` lieferte mit und ohne `energy`
+            // bitgleich 8080/1600/0.
+            //
+            // Der Auftraggeber hat entschieden: ein **Boss-Schlag ausserhalb
+            // der Zeitleiste**. Deshalb derselbe Weg wie ein `Strike` dort
+            // (`hit_player`) — nur kommt der Zeitpunkt aus der Leiste statt
+            // aus `at_ms`.
+            //
+            // **Nach dem Log-Eintrag**, damit der Verlauf den Ausloeser vor
+            // seiner Wirkung zeigt: Toetet der Schlag den Spieler, steht der
+            // Grund davor und nicht dahinter.
+            self.hit_player(energy.on_trigger.damage);
         }
 
         let next = self.time + energy.per_step_ms;

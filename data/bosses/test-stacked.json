@@ -11,7 +11,12 @@
     "perStepMs": 1000,
     "amount": 7,
     "threshold": 100,
-    "resetTo": 0
+    "resetTo": 0,
+    "onTrigger": {
+      "mechanic": "strike",
+      "name": "Overload",
+      "damage": 200
+    }
   },
   "doom": {
     "perStepMs": 1000,
