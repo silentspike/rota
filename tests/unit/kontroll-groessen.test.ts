@@ -136,18 +136,26 @@ describe('STALL senkt den erlittenen Schaden von 1600 auf 640', () => {
    * misst der Fall darunter nichts und wäre grün mit der Aussage „STALL
    * wirkt" — auch wenn er gar nichts täte.
    */
-  it('ohne Kontrolle fallen 1600', () => {
-    expect(
-      erlittenerSchaden(fall.bossId, weg('none')),
-      'der Boss teilt nicht die 1600 aus, gegen die STALL unten gemessen wird',
-    ).toBe(1600);
-  });
+  /**
+   * **Seit #678 misst dieser Fall die DIFFERENZ, nicht zwei Absolutwerte.**
+   *
+   * Der Grund steht im Kopf: Ein Sockel aus einer unbeteiligten Mechanik
+   * verschiebt beide Zahlen gemeinsam und ließ hier fünf Fälle fallen,
+   * obwohl sich das Gemessene nicht bewegt hatte. Die Differenz überlebt
+   * jeden künftigen Sockel.
+   *
+   * Die 1600 und 640 stehen weiter in den Meldungen — als **Kulisse**, damit
+   * die Größenordnung lesbar bleibt. Zugesichert ist allein die 960.
+   */
+  it('STALL verhindert 960 Schaden — gegen `none` gemessen', () => {
+    const ohne = erlittenerSchaden(fall.bossId, weg('none'));
+    const mit = erlittenerSchaden(fall.bossId, weg('stall'));
 
-  it('mit STALL nur noch 640', () => {
     expect(
-      erlittenerSchaden(fall.bossId, weg('stall')),
-      'STALL verhindert nicht die drei Viertel aus dem Design — sein amountMs ist zu klein',
-    ).toBe(640);
+      ohne - mit,
+      `die Wirkung von STALL hat sich verschoben (heute ${ohne} gegen ${mit}, ` +
+        'zur Zeit von #678 waren es 1600 gegen 640)',
+    ).toBe(960);
   });
 
   /**
@@ -155,10 +163,14 @@ describe('STALL senkt den erlittenen Schaden von 1600 auf 640', () => {
    * **keine** Wirkung auf den erlittenen Schaden. Ohne ihn bliebe offen, ob
    * die 640 von STALL kommen oder davon, dass überhaupt jemand etwas wirkt.
    */
-  it('mit STAY dagegen weiterhin 1600 — es liegt an STALL', () => {
+  it('mit STAY verhindert er NICHTS — es liegt an STALL', () => {
+    const ohne = erlittenerSchaden(fall.bossId, weg('none'));
+    const mitStay = erlittenerSchaden(fall.bossId, weg('stay'));
+
     expect(
-      erlittenerSchaden(fall.bossId, weg('stay')),
-      'STAY senkt den Schaden ebenfalls — dann sagt der Fall oben nichts über STALL',
-    ).toBe(1600);
+      ohne - mitStay,
+      `STAY senkt den Schaden ebenfalls (${ohne} gegen ${mitStay}) — dann sagt ` +
+        'der Fall oben nichts über STALL',
+    ).toBe(0);
   });
 });
