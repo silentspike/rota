@@ -6003,3 +6003,99 @@ Zahl, wenn man an 64 Bit denkt), bliebe er grün und der Code wäre kaputt.
 selbst — an dem Verhalten, das bei Überschreitung kippt. Das ist dieselbe Unterscheidung wie in
 8.93: dort „der Text nennt `target`" gegen „`target` ist richtig", hier „die Konstante ist ≤ 31"
 gegen „ab 32 bricht die Rechnung".
+
+### 8.96 Eine Suche endet dort, wo die Form sich ändert
+
+Drei Fälle an einem Tag, von drei verschiedenen Leuten, mit demselben Bauplan: Die Messung war
+**richtig**, und ihre Grenze war **unsichtbar**.
+
+```
+1  acht expire-Aufrufe        sieben gezählt.  Die achte stand in einer
+                              BEDINGUNG statt als eigene Zeile:
+                                 if (this.buffs.expire(timeMs) === 0) return;
+
+2  acht Buff-Sammlungen       zwei erreichbar in calcination.json.
+                              Die anderen sechs stehen in einer ANDEREN DATEI
+                              (data/spells/test-buff.json), die genau dafür da ist
+
+3  zehn Acceptance Criteria   sieben gefunden.  Bei AC2a, AC2b und AC7 läuft
+                              der Text nach der Nummer anders weiter, als das
+                              Muster erwartete
+```
+
+Jedes Mal endete die Suche an einer **Formgrenze**: einer Zeilenform, einem Dateinamen, einer
+Textfortsetzung. Und jedes Mal sah das Ergebnis vollständig aus, weil innerhalb der Form nichts
+fehlte.
+
+**Warum das nicht dasselbe ist wie 8.85** („ein grep-Muster misst die Formatierung, nicht die
+Struktur"): Dort ist das Muster zu eng für die Sache. Hier ist es **genau richtig für den Bereich,
+den es absucht** — der Bereich ist zu klein. Ein besseres Muster hätte in allen drei Fällen nichts
+geändert.
+
+|      |                                                    |
+| ---- | -------------------------------------------------- |
+| 8.85 | _Was_ ich suche, passt nicht zu dem, was da steht  |
+| 8.96 | _Wo_ ich suche, ist nicht alles, wo es stehen kann |
+
+**Die Gegenfrage, die alle drei gefangen hätte:**
+
+> Kann das, was ich suche, auch in einer anderen **Form** vorkommen — andere Zeile, andere Datei,
+> andere Schreibweise? Und wenn ja: habe ich dort nachgesehen oder nur angenommen, dass es dort
+> nicht steht?
+
+Konkret: Bei einer Aufzählung von _n_ gleichartigen Aufrufen zählt man die Aufrufe, nicht die
+Zeilen. Bei einer Frage über einen Datensatz sucht man in `data/`, nicht in der einen Datei, die
+man gerade offen hat. Bei einer Liste von Nummern liest man die Liste, statt sie zu greppen.
+
+Der billigste Test ist eine **zweite Zahl aus einer anderen Richtung**: Wenn acht Sammlungen
+existieren und die Suche sieben findet, ist nicht die Suche zu prüfen, sondern die Acht.
+
+### 8.97 Eine Ausnahmeliste sieht aus wie Sorgfalt
+
+Der unangenehmste Befund des 2026-08-09, und er trifft eine Einrichtung, die an diesem Tag als
+**Lösung** eingeführt wurde.
+
+`sim/tests/log_kinds_written_by_sim.rs` führte drei Arten als unerreichbar — jede benannt, jede mit
+Begründung, keine still übergangen. Genau die Form, die 8.85 und #666 verlangen. Nachgemessen:
+
+```
+kill               "die Läufe enden vor dem Boss-Tod"
+                   → der Standard-Lauf fällt den Boss sehr wohl
+
+convertedToShield  "verlangt Umwandlung und Treffer im selben Fenster"
+                   → TEMPER stellt genau das her, an drei Bossen
+
+playerDeath        "in keinem Lauf sinkt der Spieler auf null"
+                   → boss-2-4 ohne Heilung, 300 s: hp 0, 5288 genommen
+```
+
+**Von drei Ausnahmen war keine gemessen. Alle drei waren plausibel. Keine war wahr.**
+
+Statt der Ausnahmen stehen dort jetzt Läufe. Beide Listen — `UNERREICHT` und `BEKANNTE_LUECKEN` —
+sind leer, und der Wächter deckt alle sechzehn Arten ohne eine einzige Ausnahme.
+
+**Warum das schwerer zu sehen ist als eine stille Lücke:**
+
+|                                 | wie es wirkt                        | was es ist                                |
+| ------------------------------- | ----------------------------------- | ----------------------------------------- |
+| stille Auslassung               | verdächtig, sobald jemand nachzählt | eine Lücke                                |
+| **benannte Ausnahme mit Grund** | **wie das Gegenteil einer Lücke**   | eine Lücke, wenn der Grund ungemessen ist |
+
+Ein Eintrag, der seinen Grund mitbringt, lädt niemanden zum Nachmessen ein — er sieht bereits
+geprüft aus. Das ist dieselbe Klasse wie „eine Liste führt einen Teil ihrer Gattung", nur eine Ebene
+höher: **Hier führt die Ausnahmeliste zu viel**, und jeder Eintrag zu viel nimmt eine Art aus dem
+Vergleich, die der Wächter prüfen könnte.
+
+> Ein Grund macht eine Ausnahme nachvollziehbar. Er macht sie nicht wahr.
+
+**Die Regel:** Jeder Eintrag in einer Ausnahmeliste braucht einen **gefahrenen Befehl**, nicht einen
+Satz. „Kein Lauf löst das aus" ist eine Behauptung über alle Läufe — dieselbe Sorte Allaussage wie
+in 8.94, und sie wird genauso geprüft: Ist sie wirklich unerreichbar, oder ist der Lauf, der sie
+erreichen würde, nur nicht gebaut?
+
+Ein fehlender Lauf ist kein Grund für eine Ausnahme, sondern für einen Lauf.
+
+**Zur Herkunft:** Die `bekannteLuecke` mit Issue-Verweis wurde in #676 vom Zuschneider als
+tragfähige Form eingeführt und vom Bauenden umgesetzt. Beide hielten sie danach für sicher — der
+Bauende hat es so gesagt: _„sonst hätte ich meine drei Einträge gemessen statt sie zu begründen."_
+Wer eine Vorsichtsmaßnahme selbst einrichtet, prüft sie am seltensten.
