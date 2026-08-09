@@ -301,6 +301,9 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
     checksums,
     pyreReadyAt,
     expected: {
+      // `damageDealt` heisst im Ergebnis `damage` (recording.ts:500) — die
+      // Gleichheit ist belegt. Diese Funktion hat aber KEINEN Nachlauf; eine
+      // Umstellung waere der Einbau eines zweiten Laufs, also #653-Arbeit.
       damageDealt: combat.damageDealt,
       casts: {
         ascend: combat.castCount(alsSpellIndex(ascend)),
@@ -771,6 +774,10 @@ export function bossStatePayload(): Record<string, unknown> {
       sequenceChecksum: result.sequenceChecksum,
       randomDraws: result.randomDraws,
       finalPhase: phasen[phasen.length - 1] ?? 0,
+      // `energyTriggers` und `bossEnergyTriggers` (logTaktePayload) zeigen auf
+      // dieselbe combat-Groesse — aber in VERSCHIEDENEN Vergleichsdateien.
+      // Umbenennen hiesse, eine Paritaets-Aufzeichnung zu aendern; die
+      // Verwechslungsgefahr entsteht nur, wenn zwei Namen nebeneinander stehen.
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
       finalPlayerHp: combat.playerHp,
