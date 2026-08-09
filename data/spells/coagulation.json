@@ -98,6 +98,28 @@
         "gcds": 4,
         "target": "convert"
       }
+    },
+    {
+      "_comment": "CRUCIBLE SKIN — alle drei Wege gleichzeitig, kurz und stark (Issue #481).\n\nKEIN NEUES FELD. Er ist die Summe der drei vorhandenen Wirkungen der\nSchule: `shield` (Weg 1), `heal` (Weg 2) und `conversion` (Weg 3). Das\nRaster nennt ihn \"alle drei Wege gleichzeitig\" — genau so ist er gebaut,\naus Bausteinen, die der Kampf schon kennt.\n\nDamit ist er auch der einzige der fuenf neuen, der ohne Eingriff in\ncombat.ts und fight.rs auskommt.\n\nVORLAEUFIGE ZAHLEN. 45 s Abklingzeit stehen im Raster; die Werte sind\n\"kurz und stark\" umgesetzt: mehr als CRUST (900) und SALVE (1500) je\nEinzelwurf, dafuer nur ein Stapel und die halbe Dauer. Getunt wird, wenn\nder Katalog vollstaendig ist — nicht Zauber fuer Zauber.",
+      "id": "crucible-skin",
+      "name": "Crucible Skin",
+      "unlockLevel": 12,
+      "baseDamage": 0,
+      "cooldownMs": 45000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "shield": {
+        "amount": 1800,
+        "durationMs": 6000,
+        "maxStacks": 1
+      },
+      "heal": {
+        "amount": 2000
+      },
+      "conversion": {
+        "sharePercent": 50,
+        "durationMs": 6000
+      }
     }
   ]
 }

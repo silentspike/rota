@@ -65,6 +65,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'harden',
       // Issue #540 — QUICKSILVER, bei seiner Schule.
       'quicksilver',
+      // Issue #481 — CRUCIBLE SKIN, alle drei Wege der Schule zugleich. Er
+      // steht hinter QUICKSILVER, weil er in `coagulation.json` dort steht;
+      // die Reihenfolge dieser Liste ist die der Schul-Dateien.
+      'crucible-skin',
       // Die vier der Fixierung (Issue #100), ebenfalls hinten.
       'bind',
       'stall',
