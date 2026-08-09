@@ -124,6 +124,8 @@ import {
   logParityPayload,
   logTaktePayload,
   LOG_TAKTE_NAME,
+  aetherPayload,
+  AETHER_NAME,
   timelineLoopPayload,
   sublimationPayload,
   gezielteVerkuerzungPayload,
@@ -388,6 +390,14 @@ writeFileSync(fixationPath, serialize(fixation), 'utf8');
 const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
+
+const aether = aetherPayload();
+const aetherPath = join(here, 'recordings', `${AETHER_NAME}.json`);
+writeFileSync(aetherPath, serialize(aether), 'utf8');
+console.log(
+  `  AETHER-Fenster  ${aether.expected.aetherCasts} Wuerfe, ` +
+    `${aether.expected.wispCasts} WISP, EFFLUX-Restsumme ${aether.expected.effluxRestSumme}`,
+);
 
 const logTakte = logTaktePayload();
 const logTaktePath = join(here, 'recordings', `${LOG_TAKTE_NAME}.json`);

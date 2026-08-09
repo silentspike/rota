@@ -129,6 +129,14 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // kann nicht hoeren. Die Gegenrichtung unten holt ihn von selbst heraus,
     // sobald der Klang da ist.
     'crucible-skin',
+    // VORLAEUFIG (Issue #479): MIASMA ist gebaut, sein Klang entsteht ueber
+    // Suno (#487) und kann in keiner Claude-Sitzung entstehen — Claude kann
+    // nicht hoeren. Die Gegenrichtung unten holt ihn heraus, sobald er da ist.
+    'miasma',
+    // VORLAEUFIG (Issue #479): NECROSIS ebenso. Er braucht sogar besonders
+    // dringend einen — ein Entlader, den man nicht HOERT, ist im Spiel nicht
+    // vom Fueller zu unterscheiden.
+    'necrosis',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
@@ -193,6 +201,23 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'distil',
     'griplock',
     'virulence',
+    // VORLAEUFIG (Issue #480): AETHER ist gebaut, sein Klang fehlt. Er
+    // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen —
+    // ein erfundener Prompt waere schlimmer als ein fehlender, weil ihn
+    // niemand als Erfindung erkennt.
+    //
+    //   aether      | Verkuerzungen wirken acht Wartezeiten lang doppelt | ~0,9 s
+    //     gegen DISTIL, seinen naechsten Verwandten: dieselbe Wirkung, doppelte
+    //     Dauer, viermal die Abklingzeit. DISTILs Bedarf steht oben und ist
+    //     gelesen, nicht nur genannt — "es verdichtet, ein Zusammenziehen,
+    //     weder aufwaerts noch rueckwaerts", ~0,6 s.
+    //
+    //     AETHER ist das Gegenteil dieser Kuerze: kein Zusammenziehen, sondern
+    //     ein OFFENHALTEN. Wo DISTIL zupackt und loslaesst, bleibt AETHER
+    //     stehen — ein getragener, luftiger Raum, der laenger klingt als er
+    //     einsetzt. Die Woerter aus DISTILs Zeile duerfen nicht wiederkehren:
+    //     kein "verdichten", kein "Zusammenziehen".
+    'aether',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //

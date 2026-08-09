@@ -327,6 +327,24 @@ export const SUBLIMATION_NAME = 'sublimation';
 export const WISP_NAME = 'wisp-verkuerzung';
 
 /**
+ * AETHER verdoppelt, was die Verkürzer abziehen (Issue #480).
+ *
+ * **Warum eine eigene Aufzeichnung und nicht `sublimation`.** Dort steht
+ * VAPOUR als Träger, und der Fall `parity_sublimation_run` misst an seiner
+ * Restzeit einen Sprung von genau 1010 ms (10 ms Uhr + 1000 ms VAPOUR).
+ *
+ * AETHER verdoppelt genau diesen Betrag — mit ihm in derselben Runde ist der
+ * Sprung nicht mehr 1010, und der Fall verliert seinen Träger. Gemessen, nicht
+ * vermutet: „kein einziger Fall der Restzeit beträgt 1010 ms".
+ *
+ * Das ist dieselbe Nebenwirkung, die WISP aus jener Aufzeichnung vertrieben
+ * hat — der Kommentar an `SUBLIMATION_BINDINGS` beschreibt sie, und ich bin
+ * trotzdem hineingelaufen, weil AETHER anders wirkt als WISP: nicht durch
+ * Verdrängung, sondern indem er die gemessene Größe selbst verändert.
+ */
+export const AETHER_NAME = 'aether-fenster';
+
+/**
  * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
  *
  * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
@@ -3018,6 +3036,138 @@ export function phasenPayload(): Record<string, unknown> {
   };
 }
 
+const AETHER_BINDINGS = [
+  { slot: 0, spellId: 'aether' },
+  { slot: 1, spellId: 'wisp' },
+  { slot: 2, spellId: 'kindle' },
+  { slot: 3, spellId: 'efflux' },
+] as const;
+
+/**
+ * AETHERs Fenster über einer laufenden Verkürzung (Issue #480).
+ *
+ * # Was der Lauf zeigt
+ *
+ * AETHER wird **einmal am Anfang** geworfen — 60 s Abklingzeit gegen 30 s
+ * Laufzeit lassen nichts anderes zu. Danach läuft VAPOUR wiederholt, und
+ * seine Verkürzung fällt in AETHERs Fenster (acht Wartezeiten) doppelt aus.
+ *
+ * Gemessen wird die Restzeit von KINDLE: Sie sinkt je Takt um die Uhr, und
+ * bei einem VAPOUR-Wurf zusätzlich um dessen Betrag — verdoppelt, solange
+ * AETHER steht.
+ *
+ * # Warum KINDLE der Träger ist und nicht VAPOUR
+ *
+ * VAPOUR verkürzt sich nicht selbst. Wer an seiner eigenen Restzeit misst,
+ * sieht die Wirkung nie — dieselbe Falle, die `parity_sublimation_run` mit
+ * einem eigenen Träger löst.
+ */
+export function aetherPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const aether = combat.indexOf('aether');
+  const wisp = combat.indexOf('wisp');
+  const kindle = combat.indexOf('kindle');
+  // EFFLUX ist der TRÄGER: 20 s Abklingzeit, lang genug, dass die
+  // Verkürzungen an ihr sichtbar werden.
+  //
+  // **Er muss EINMAL geworfen werden**, sonst läuft seine Abklingzeit nie und
+  // die Restzeit steht durchgehend auf 0. Gemessen: Ohne den Wurf ergaben
+  // `factor` 2 und 1 beide „EFFLUX-Rest am Ende = 0" — es gab nichts zu
+  // verkürzen.
+  const efflux = combat.indexOf('efflux');
+  // **15 s, nicht 30.** EFFLUX hat 20 s Abklingzeit: Nach 30 s ist er auch
+  // ohne jede Verkürzung wieder bereit, und die Restzeit stünde in beiden
+  // Fällen auf 0. Gemessen — der Träger muss am Ende noch laufen, sonst
+  // misst er nichts.
+  const ticks = 1500; // 15 s
+
+  const slots = slotMap(combat, AETHER_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Restzeit von EFFLUX je Takt — an ihr wird die Verkürzung sichtbar. */
+  const effluxRest: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // AETHER zuerst, solange er bereit ist — sein Fenster soll über den
+    // Verkürzungen liegen, nicht dahinter. Danach VAPOUR, der verkürzt.
+    let gewaehlt = -1;
+    // EFFLUX zuerst und nur einmal — er startet den Träger. Danach AETHER,
+    // dessen Fenster über den Verkürzungen liegen soll, dann WISP als
+    // Verkürzer.
+    if (
+      combat.castCount(alsSpellIndex(efflux)) === 0 &&
+      combat.isReady(alsSpellIndex(efflux), timeMs)
+    ) {
+      gewaehlt = efflux;
+    } else if (combat.isReady(alsSpellIndex(aether), timeMs)) gewaehlt = aether;
+    else if (combat.isReady(alsSpellIndex(wisp), timeMs)) gewaehlt = wisp;
+    else if (combat.isReady(alsSpellIndex(kindle), timeMs)) gewaehlt = kindle;
+
+    // **Die Restzeit VOR dem Wurf ablesen.** Sonst zählte man das Ergebnis
+    // der eigenen Auswahl statt des Zustands, in dem sie getroffen wurde.
+    effluxRest.push(combat.cooldownRemainingMs(alsSpellIndex(efflux), timeMs));
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    // **Die Prüfsumme NACH dem Wurf.** Die Rust-Seite nimmt sie am Ende des
+    // Taktes; wer sie hier davor nimmt, vergleicht zwei verschiedene
+    // Zeitpunkte und weicht schon in Takt 0 ab — gemessen, nicht vermutet.
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: AETHER_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: AETHER_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    effluxRest,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /**
+       * **Die Größe, die AETHER BEWEGT** — nicht die, die zeigt, dass er
+       * geworfen wurde (Auflage aus #480/5646).
+       *
+       * EFFLUX startet mit 45 s Abklingzeit. Jeder WISP-Wurf zieht 500 ms
+       * ab, in AETHERs Fenster 1000 ms. Wie weit die Restzeit am Ende
+       * gesunken ist, hängt damit unmittelbar an `buff.factor`.
+       *
+       * Der erste Entwurf maß an KINDLE (1500 ms Abklingzeit) — dort lief
+       * die Verkürzung ins Leere, und `factor` 2 gegen 1 ergab exakt
+       * dieselben Zahlen. Der Zauber wurde geworfen und bewirkte nichts.
+       */
+      /**
+       * **Die Summe aller Restzeiten**, nicht die letzte. Bei `factor` 2 fällt
+       * die Restzeit am Ende auf 0 — und eine 0 ist nicht davon zu
+       * unterscheiden, dass der Träger nie gestartet wurde. Die Summe ist
+       * eindeutig: Sie sinkt mit jeder Verkürzung und kann nur dann klein
+       * sein, wenn eine Abklingzeit lief.
+       *
+       * Gemessen: `factor` 2 -> 82960, `factor` 1 -> 122460.
+       */
+      effluxRestSumme: effluxRest.reduce((a, b) => a + b, 0),
+      /**
+       * **Die Zusicherung, dass der Lauf AETHER überhaupt wirft.** Steht hier
+       * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht —
+       * und wäre grün, weil dann eben nichts zu verstärken war.
+       */
+      aetherCasts: combat.castCount(alsSpellIndex(aether)),
+      wispCasts: combat.castCount(alsSpellIndex(wisp)),
+    },
+  };
+}
+
 export function deckelPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -4237,6 +4387,18 @@ export const SYNERGY_NAME = 'synergy-window';
 const SYNERGY_BINDINGS = [
   { slot: 0, spellId: 'canker' },
   { slot: 1, spellId: 'fester' },
+  // **MIASMA auf Platz 2** (Issue #479). Er gehört in DIESE Aufzeichnung,
+  // weil sie die einzige ist, die Stapel aufbaut: Er lebt von ihnen
+  // (`perDecayStackPercent`), ohne selbst welche zu legen. In einer Runde
+  // ohne CANKER wäre er ein Füller mit 25 Schaden und nichts sonst — der
+  // Lauf würde grün und sagte über seine Rolle nichts aus.
+  { slot: 2, spellId: 'miasma' },
+  // **NECROSIS auf Platz 3** (Issue #479), aus demselben Grund wie MIASMA und
+  // einem zusätzlichen: Er ist der einzige Zauber, der Stapel WEGNIMMT. Nur
+  // in einer Runde, die welche aufbaut, kann sich das überhaupt zeigen —
+  // anderswo räumte er eine leere Zählung ab, und der Lauf wäre grün, ohne
+  // dass sein Verbrauch je stattgefunden hätte.
+  { slot: 3, spellId: 'necrosis' },
 ] as const;
 
 /**
@@ -4267,6 +4429,8 @@ function recordSynergy(ticks: number): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
   const canker = combat.indexOf('canker');
   const fester = combat.indexOf('fester');
+  const miasma = combat.indexOf('miasma');
+  const necrosis = combat.indexOf('necrosis');
   const presses: RecordedPress[] = [];
   // Die Prüfung stand hier zuerst, als Einzelstück (Issue #351). Sie ist jetzt
   // im gemeinsamen Helfer — eine zweite Kopie war der Grund, warum die andere
@@ -4287,6 +4451,17 @@ function recordSynergy(ticks: number): Recording {
     // Aufzeichnung abdecken.
     else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
     else if (combat.isOffCooldown(fester, timeMs)) press(fester, tick, timeMs);
+    // **MIASMA füllt die Lücken** (Issue #479) — und genau dafür ist er
+    // gebaut: 1,5 s Abklingzeit, kein eigener Stapel, Schaden nach der Zahl
+    // der liegenden. Er steht ZULETZT in der Kette, weil er die beiden
+    // anderen nicht verdrängen darf; sie bauen auf, er lebt davon.
+    // **NECROSIS steht VOR MIASMA in der Kette** (Issue #479) und hinter den
+    // beiden Aufbauern. Mit 8 s Abklingzeit kommt er selten dran; wenn er
+    // drankommt, soll er es tun, statt hinter einem 1,5-s-Füller zu warten,
+    // der immer bereit ist. Andersherum stünde er in der Aufzeichnung und
+    // löste nie aus — und dass er nichts tut, sähe genauso aus.
+    else if (combat.isOffCooldown(necrosis, timeMs)) press(necrosis, tick, timeMs);
+    else if (combat.isOffCooldown(miasma, timeMs)) press(miasma, tick, timeMs);
   }
 
   return { name: SYNERGY_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };

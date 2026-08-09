@@ -89,6 +89,29 @@
         "gcds": 4,
         "target": "stack"
       }
+    },
+    {
+      "_comment": "MIASMA — Fueller, der den Aufbau BELOHNT statt ihn zu treiben (Issue #479).\n\nDie Schule hatte zwei Sorten: canker und blight LEGEN Stapel, fester SCHLAEGT nach Stapelzahl. Was fehlte, ist ein Fueller auf 1,5 s, der die Stapel nutzt ohne neue zu legen — sonst ist jeder Druck entweder Aufbau oder Hoehepunkt, und dazwischen liegt nichts.\n\nKEIN decay-Feld, und das ist der Punkt: Wer MIASMA drueckt, verzichtet auf einen Stapel und bekommt dafuer Schaden aus den vorhandenen.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 1,5 s, Fueller). baseDamage 25 liegt unter blights 30, weil MIASMA zusaetzlich nach Stapeln skaliert; perDecayStackPercent 12 unter festers 20, weil er oefter drankommt. Beides ist Ordnung, keine Balance.\n\nSTEHT AM ENDE DER DATEI, nicht bei den Fuellern: Die Reihenfolge ist der Index-Raum, und der steht in JEDER Aufzeichnung. Ein Einschub in der Mitte verschiebt alle folgenden Zauber — gemessen, spell-order.test.ts und spell-school.test.ts melden es sofort.",
+      "id": "miasma",
+      "name": "Miasma",
+      "unlockLevel": 4,
+      "baseDamage": 25,
+      "cooldownMs": 1500,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "perDecayStackPercent": 12
+    },
+    {
+      "_comment": "NECROSIS — der ERSTE ENTLADER der Schule (Issue #479, dort namentlich beauftragt).\n\nDie Schule konnte bis hierher aufbauen (canker, blight legen Stapel) und mit den Stapeln schlagen (fester, miasma), aber sie nie EINLOESEN. Damit war jeder Stapel nur ein Zwischenwert, der irgendwann verfaellt — 12 s, und niemand konnte etwas dagegen tun. NECROSIS macht den Aufbau zu einer Entscheidung.\n\nZWEI FELDER, EIN ZAUBER: perDecayStackPercent 40 laesst ihn mit den Stapeln rechnen, consumesDecayStacks raeumt sie danach ab. Jedes Feld fuer sich ergaebe einen halben Entlader — eines schlaegt ohne Kosten, das andere kostet ohne Ertrag.\n\nNICHT ueber `spender`: PUTREFACTION fuehrt gar keine Ressource. Die Stapel liegen am BOSS, nicht beim Spieler. sim/build.rs:706 bricht den Bau ab, wenn ein Zauber eine Ressource verbraucht, die seine Schule nicht hat — der Abbruch hat den falschen Weg gefunden, bevor ich ihn zu Ende gebaut habe.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 8 s, Entlader). baseDamage 60 ueber allen Fuellern, weil er auf Wartezeit steht; perDecayStackPercent 40 doppelt so hoch wie festers 20, weil er den Stapel VERBRAUCHT statt ihn stehen zu lassen. Bei 5 Stapeln also das Dreifache. Ordnung, keine Balance.\n\nSTEHT AM ENDE DER DATEI — Reihenfolge ist Index-Raum. Siehe MIASMA darueber; mein Einschub in der Mitte hatte genau das verletzt.",
+      "id": "necrosis",
+      "name": "Necrosis",
+      "unlockLevel": 5,
+      "baseDamage": 60,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "perDecayStackPercent": 40,
+      "consumesDecayStacks": true
     }
   ]
 }

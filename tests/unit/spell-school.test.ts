@@ -99,6 +99,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'efflux',
       // Issue #540 — DISTIL, bei seiner Schule.
       'distil',
+      // Issue #480 — AETHER, hinten in `sublimation.json`.
+      'aether',
       'canker',
       'fester',
       'blight',
@@ -106,6 +108,13 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'sepsis',
       // Issue #540 — VIRULENCE, bei seiner Schule.
       'virulence',
+      // Issue #479 — MIASMA, am ENDE von `putrefaction.json`. Mein erster
+      // Einbau setzte ihn zwischen die Füller, wo er fachlich hingehört —
+      // und verschob damit den Index-Raum. Dieser Fall und
+      // `spell-order.test.ts` haben es sofort gemeldet.
+      'miasma',
+      // Issue #479 — NECROSIS, der Entlader, ebenfalls am Ende.
+      'necrosis',
       'test-cast',
       'test-buff',
       'test-control',

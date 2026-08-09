@@ -1952,6 +1952,33 @@ export class Combat {
   }
 
   /**
+   * Räumt ALLE Fäulnis-Stapel ab — der Entlader der Schule (NECROSIS,
+   * Issue #479).
+   *
+   * # Warum das kein neues Zustandsfeld braucht
+   *
+   * Die Stapel sind ein **Boss-Zustand**, kein Spieler-Guthaben: Sie stehen
+   * schon in `decayCountValue` und damit in der Prüfsumme. Der erste Entwurf
+   * ging über `spender` — den Weg, den Ressourcen nehmen — und scheiterte an
+   * `sim/build.rs:706`, weil PUTREFACTION überhaupt keine Ressource führt.
+   * Der Abbruch war richtig: Er hat eine Mechanik verhindert, die es an der
+   * Stelle nicht gibt.
+   *
+   * # Warum hier nichts verschoben wird
+   *
+   * Anders als beim Verfall (`expirePutrefaction`) fallen nicht die ältesten
+   * Stapel weg, sondern alle. Die Ablaufzeiten in `decayExpiryMs` bleiben
+   * stehen und werden nie gelesen, solange `decayCountValue` auf 0 steht —
+   * jede Schleife darüber läuft gegen die Zählung, nicht gegen die Länge des
+   * Feldes.
+   */
+  private consumeDecayStacks(): void {
+    if (this.decayCountValue === 0) return;
+    this.decayCountValue = 0;
+    this.updateVulnerability();
+  }
+
+  /**
    * Rechnet die Verwundbarkeit aus den liegenden Stapeln.
    *
    * **Über `setDamageFactor`** (Issue #196): Nur so zieht die vorab angelegte
@@ -3687,6 +3714,17 @@ export class Combat {
     let damage = 0;
     if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
     if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
+    // **NECROSIS räumt NACH seiner eigenen Berechnung ab** (Issue #479).
+    //
+    // `castFactors` steht eine Zeile höher schon fest und trägt den
+    // Stapel-Bonus aus `perDecayStackPercent`. Der Entlader rechnet also MIT
+    // den Stapeln und nimmt sie erst danach weg — andersherum wäre er der
+    // einzige Zauber der Schule, der von der Fäulnis nichts hat.
+    //
+    // Er addiert nichts zu `damage`: Sein Ertrag steckt bereits im Faktor,
+    // nicht in einem zweiten Betrag. Das unterscheidet ihn von PYROCLASM
+    // eine Zeile höher, dessen Brände einen eigenen Betrag beisteuern.
+    if (spell.consumesDecayStacks === true) this.consumeDecayStacks();
     // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
     // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
     // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem

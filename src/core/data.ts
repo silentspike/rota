@@ -154,6 +154,23 @@ export interface SpellDef {
    */
   readonly consumesDots?: boolean;
   /**
+   * Ob dieser Zauber **alle Fäulnis-Stapel abräumt** — der Entlader der
+   * Schule (NECROSIS, Issue #479).
+   *
+   * Er zahlt sich über `perDecayStackPercent` aus, das der Zauber ebenfalls
+   * trägt: Der Schlag rechnet mit den Stapeln, dann sind sie weg. Beide
+   * Felder zusammen ergeben den Entlader; jedes für sich ergibt einen
+   * halben.
+   *
+   * # Warum nicht `spender`
+   *
+   * Weil PUTREFACTION keine Ressource führt. Die Stapel liegen am Boss, nicht
+   * beim Spieler — `sim/build.rs:706` bricht den Bau ab, wenn ein Zauber eine
+   * Ressource verbraucht, die seine Schule nicht hat. Das war kein Hindernis,
+   * sondern der richtige Befund.
+   */
+  readonly consumesDecayStacks?: boolean;
+  /**
    * Um wie viele Millisekunden dieser Zauber eine **laufende Schutzschicht**
    * verlängert (HARDEN, Issue #523). Fehlt das Feld, verlängert er keine.
    */
@@ -267,6 +284,7 @@ export interface SpellDef {
    * gemessen.**
    */
   readonly perDecayStackPercent?: number;
+  /**
   /**
    * Die Synergie-Beziehung dieses Zaubers (GAME-DESIGN 5, Issue #318).
    *
@@ -1163,7 +1181,10 @@ function parsePutrefaction(
   where: string,
   problems: string[],
 ): Partial<SpellDef> {
-  const out: { decay?: DecayDef; perDecayStackPercent?: number } = {};
+  const out: {
+    decay?: DecayDef;
+    perDecayStackPercent?: number;
+  } = {};
   if (isRecord(raw['decay'])) {
     const stacks = number(raw['decay']['stacks'], 0);
     if (stacks <= 0) problems.push(`${where}: Ein Zersetzungs-Zauber ohne Stapel legt nichts an.`);
@@ -1328,6 +1349,10 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     }
   }
   const consumesDots = raw['consumesDots'] === true;
+  // NECROSIS (#479). `=== true` wie bei `consumesDots`: Ein fehlendes Feld und
+  // ein falsches Feld sollen dasselbe tun, und ein Tippfehler im Wert soll
+  // nicht still zu „ja" werden.
+  const consumesDecayStacks = raw['consumesDecayStacks'] === true;
   // HARDEN und SEPSIS (#523).
   const shieldMs = raw['extendShieldMs'];
   const extendShieldMs = typeof shieldMs === 'number' ? shieldMs : undefined;
@@ -1387,6 +1412,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     triggersGcd: raw['triggersGcd'] !== false,
     ...(dotExtendTicks !== undefined ? { dotExtendTicks } : {}),
     ...(consumesDots ? { consumesDots } : {}),
+    ...(consumesDecayStacks ? { consumesDecayStacks } : {}),
     ...(extendShieldMs !== undefined ? { extendShieldMs } : {}),
     ...(extendDecayMs !== undefined ? { extendDecayMs } : {}),
     // Kommt beim Zusammenlegen aus der Herkunftsdatei (siehe `CALCINATION`).
