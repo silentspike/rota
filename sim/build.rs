@@ -1670,7 +1670,41 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let whose = format!("{whose}/heal");
             let amount = uint(node, "amount", &whose);
             assert!(amount > 0, "{whose}: Eine Heilung ohne Betrag heilt nichts");
-            let _ = writeln!(out, "        heal: Some(Heal {{ amount: {amount} }}),");
+            // `overMs` darf fehlen — die meisten Heilungen kommen sofort an.
+            let over_ms = opt_uint(node, "overMs", &whose, 0);
+            let tick_interval_ms = opt_uint(node, "tickIntervalMs", &whose, 0);
+            if over_ms > 0 {
+                // **Auf dem Raster, sonst bliebe ein Reststueck liegen.** Die
+                // TypeScript-Seite prueft dieselben drei Bedingungen beim Lesen
+                // (`src/core/data.ts`); hier stehen sie ein zweites Mal, weil
+                // ein Datensatz, der die eine Seite passiert und die andere
+                // nicht, erst in der Paritaets-Pruefung auffiele — und dort als
+                // Rechenfehler aussaehe statt als Datenfehler.
+                assert!(
+                    over_ms.is_multiple_of(RASTER_MS),
+                    "{whose}: overMs={over_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+                );
+                assert!(
+                    tick_interval_ms > 0,
+                    "{whose}: overMs={over_ms} steht, tickIntervalMs fehlt — ohne Abstand \
+                     liefe die Heilung in jedem {RASTER_MS}-ms-Takt an"
+                );
+                assert!(
+                    tick_interval_ms.is_multiple_of(RASTER_MS),
+                    "{whose}: tickIntervalMs={tick_interval_ms} liegt nicht auf dem \
+                     {RASTER_MS}-ms-Raster"
+                );
+                assert!(
+                    over_ms.is_multiple_of(tick_interval_ms),
+                    "{whose}: overMs={over_ms} ist kein Vielfaches von \
+                     tickIntervalMs={tick_interval_ms} — das letzte Stueck bliebe ohne Schritt"
+                );
+            }
+            let _ = writeln!(
+                out,
+                "        heal: Some(Heal {{ amount: {amount}, over_ms: {over_ms}, \
+                 tick_interval_ms: {tick_interval_ms} }}),"
+            );
         }
     }
 

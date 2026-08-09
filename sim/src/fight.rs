@@ -466,6 +466,22 @@ pub struct Fight {
     shield_absorbed: u32,
     /// Wie viel Leben insgesamt zurueckgeholt wurde.
     healed: u32,
+    /// Heilung ueber Zeit (POULTICE, Issue #481) — Gesamtbetrag, Schrittzahl,
+    /// Abstand, getane Schritte, schon gutgeschriebener Betrag, Anwendung.
+    ///
+    /// **Kumulativ statt „Betrag je Schritt".** `amount * getan / schritte`,
+    /// ganzzahlig geteilt, minus dem schon Gutgeschriebenen — so bleibt die
+    /// Summe exakt `amount` und jeder Schritt ganzzahlig, auch wenn der Betrag
+    /// nicht glatt durch die Schrittzahl geht. Ein vorab gerechneter Betrag je
+    /// Schritt waere bei 1800/6 zufaellig glatt und beim naechsten Zauber eine
+    /// Fliesskommazahl, die beide Seiten unabhaengig runden muessten
+    /// (GAME-DESIGN 18.4).
+    heal_over_time_amount: u32,
+    heal_over_time_steps: u32,
+    heal_over_time_interval_ms: Millis,
+    heal_over_time_done: u32,
+    heal_over_time_credited: u32,
+    heal_over_time_generation: u16,
     /// Bis wann die Schaden-in-Schutz-Umwandlung laeuft (Weg 3).
     conversion_until: Option<Millis>,
     /// Anteil, den sie umwandelt, in Prozent. 0 heisst: keine laeuft.
@@ -772,6 +788,12 @@ impl Fight {
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
+            heal_over_time_amount: 0,
+            heal_over_time_steps: 0,
+            heal_over_time_interval_ms: 0,
+            heal_over_time_done: 0,
+            heal_over_time_credited: 0,
+            heal_over_time_generation: 0,
             conversion_until: None,
             conversion_percent: 0,
             converted: 0,
@@ -1374,6 +1396,23 @@ impl Fight {
         self.shield_stacks = 0;
         self.shield_absorbed = 0;
         self.healed = 0;
+        // **Auch die laufende Heilung endet mit der Runde.** Ohne diese Zeilen
+        // liefe ein POULTICE aus der vorigen Runde in die naechste hinein und
+        // heilte dort weiter — sichtbar erst an einer Anzeige, die ohne Zauber
+        // steigt.
+        //
+        // Die Anwendungsnummer geht dabei auf 0 zurueck, nicht hoch: `reset`
+        // leert die Schlange (`self.queue.clear()`), es kann also kein Weckruf
+        // aus der alten Runde uebrig sein. Genauso halten es `dot_generation`
+        // und `player_cast_generation` — und `reset_completeness` besteht
+        // darauf, dass nach dem Zuruecksetzen KEIN Feld anders steht als in
+        // einem frischen Kampf.
+        self.heal_over_time_amount = 0;
+        self.heal_over_time_steps = 0;
+        self.heal_over_time_interval_ms = 0;
+        self.heal_over_time_done = 0;
+        self.heal_over_time_credited = 0;
+        self.heal_over_time_generation = 0;
         self.conversion_until = None;
         self.conversion_percent = 0;
         self.converted = 0;
@@ -1756,7 +1795,28 @@ impl Fight {
         }
 
         // Weg 2 — Heilung.
-        if let Some(heal) = spell.heal {
+        //
+        // **Heilung ueber Zeit laeuft an, statt sofort anzukommen** (POULTICE,
+        // Issue #481). Sie ersetzt die Sofortheilung fuer diesen Zauber; beides
+        // zugleich waere doppelt.
+        if let Some(heal) = spell.heal.filter(|h| h.over_ms > 0) {
+            let abstand = heal.tick_interval_ms.max(TICK_MS);
+            self.heal_over_time_amount = heal.amount;
+            // Abgeleitet, nicht konfiguriert: Die Schrittzahl folgt aus Dauer
+            // und Abstand. Eine eigene Zahl dafuer koennte still von beiden
+            // abweichen. `build.rs` haelt fest, dass die Teilung aufgeht.
+            self.heal_over_time_steps = (heal.over_ms / abstand).max(1);
+            self.heal_over_time_interval_ms = abstand;
+            self.heal_over_time_done = 0;
+            self.heal_over_time_credited = 0;
+            self.heal_over_time_generation = self.heal_over_time_generation.wrapping_add(1);
+            self.queue.push(
+                self.time + abstand,
+                EventKind::HealTick {
+                    generation: self.heal_over_time_generation,
+                },
+            );
+        } else if let Some(heal) = spell.heal {
             // **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist
             // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
             // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
@@ -2393,6 +2453,7 @@ impl Fight {
         match kind {
             EventKind::DotTick { spell, generation } => self.dot_tick(spell as usize, generation),
             EventKind::ResourceDecay => self.decay(),
+            EventKind::HealTick { generation } => self.heal_tick(generation),
             EventKind::EnergyTick => self.energy_tick(),
             EventKind::DoomTick => self.doom_tick(),
             EventKind::StackTick => self.stack_tick(),
@@ -2560,6 +2621,43 @@ impl Fight {
                     spell: index as u8,
                     generation,
                 },
+            );
+        }
+    }
+
+    /// Ein Schritt einer Heilung ueber Zeit kommt an (POULTICE, Issue #481).
+    ///
+    /// Deckelt an der vollen Anzeige — was darueber hinausginge, verpufft, genau
+    /// wie bei der Sofortheilung. Und derselbe Nachlauf: zurueckdraengen
+    /// (Baustein 6) und ins Protokoll, mit dem Betrag, der WIRKLICH angekommen
+    /// ist.
+    fn heal_tick(&mut self, generation: u16) {
+        // Ein Weckruf aus einer frueheren Anwendung — ein zweiter Wurf hat die
+        // Heilung inzwischen neu aufgesetzt, oder die Runde ist vorbei.
+        if generation != self.heal_over_time_generation
+            || self.heal_over_time_done >= self.heal_over_time_steps
+        {
+            return;
+        }
+        self.heal_over_time_done += 1;
+        let soll =
+            self.heal_over_time_amount * self.heal_over_time_done / self.heal_over_time_steps;
+        let faellig = soll - self.heal_over_time_credited;
+        self.heal_over_time_credited = soll;
+        let fehlend = self.vessel_max.saturating_sub(self.player_hp);
+        let wirklich = faellig.min(fehlend);
+        if wirklich > 0 {
+            self.player_hp += wirklich;
+            self.healed = self.healed.saturating_add(wirklich);
+            self.stabilise(wirklich);
+            self.log
+                .push(self.time, LogKind::Healed, NO_SPELL, wirklich);
+        }
+        // Der naechste Schritt nur, solange noch einer aussteht.
+        if self.heal_over_time_done < self.heal_over_time_steps {
+            self.queue.push(
+                self.time + self.heal_over_time_interval_ms,
+                EventKind::HealTick { generation },
             );
         }
     }

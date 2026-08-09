@@ -74,6 +74,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'harden',
       // Issue #540 — QUICKSILVER, bei seiner Schule.
       'quicksilver',
+      // Issue #481 — POULTICE, Heilung ueber Zeit (Weg 2 der Schule).
+      'poultice',
       // Issue #481 — CRUCIBLE SKIN, hinter QUICKSILVER wie in
       // `coagulation.json`. Diese Liste und `spell-order.json` führen
       // dieselbe Reihenfolge; sie steht an zwei Stellen, damit eine

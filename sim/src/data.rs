@@ -151,6 +151,23 @@ pub struct Shield {
 pub struct Heal {
     /// Wie viele Lebenspunkte zurueckkommen.
     pub amount: u32,
+    /// Ueber wie viele Millisekunden `amount` verteilt ankommt (Issue #481).
+    ///
+    /// `0` heisst **sofort** — so wie SALVE es seit jeher tut. Ein Wert darueber
+    /// laesst den Betrag in Schritten von [`tick_interval_ms`](Self::tick_interval_ms)
+    /// eintreffen, gleichmaessig ueber die Dauer verteilt; das ist der Zweck von
+    /// POULTICE.
+    ///
+    /// `0` statt `Option<u32>`, weil die erzeugte Tabelle eine Konstante ist und
+    /// die Abwesenheit hier keine andere Bedeutung hat als „keine Dauer".
+    pub over_ms: u32,
+    /// In welchem Abstand die Schritte ankommen (Issue #481).
+    ///
+    /// `build.rs` besteht darauf, sobald `over_ms > 0` steht — ein stiller
+    /// Vorgabewert waere hier teuer: Ohne Abstand liefe die Heilung im
+    /// `TICK_MS`-Takt, also alle 10 ms, und ein einzelner POULTICE schriebe 600
+    /// Protokoll-Eintraege statt sechs.
+    pub tick_interval_ms: u32,
 }
 
 /// Schaden-in-Schutz-Umwandlung (COAGULATION, Weg 3).

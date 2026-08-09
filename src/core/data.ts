@@ -369,6 +369,34 @@ export interface ShieldDef {
 /** Eine Heilung (Weg 2): holt verlorenes Leben zurück. */
 export interface HealDef {
   readonly amount: number;
+  /**
+   * Über wie viele Millisekunden die Heilung verteilt ankommt (Issue #481).
+   *
+   * **Fehlt das Feld, heilt der Zauber sofort** — so wie SALVE es seit jeher
+   * tut. Steht es, kommt `amount` in Schritten von `tickIntervalMs` an,
+   * gleichmäßig über die Dauer verteilt.
+   *
+   * Der Unterschied ist der Zweck von POULTICE: Sofortheilung verzeiht einen
+   * Fehler, der schon passiert ist. Heilung über Zeit muss VORHER stehen und
+   * verpufft, wenn nichts passiert — dieselbe Abwägung wie zwischen Schild
+   * und Heilung, eine Ebene weiter.
+   */
+  readonly overMs?: number;
+  /**
+   * In welchem Abstand die Schritte ankommen (Issue #481).
+   *
+   * **Pflicht, sobald `overMs` steht** — und ohne stillen Vorgabewert. Der
+   * erste Entwurf hatte keinen: Er ließ die Heilung im Takt des Spiels laufen,
+   * also alle `TICK_MS` = 10 ms. Bei POULTICE (1800 über 6000 ms) wären das
+   * **600 Schritte à 3** gewesen, jeder mit einem eigenen Protokoll-Eintrag —
+   * ein einzelner Wurf hätte das Kampfprotokoll gefüllt, während ein
+   * Brand-Tick daneben alle 1000 oder 2000 ms einen Eintrag schreibt.
+   *
+   * Dasselbe Feld gibt es bei `DotDef` und aus demselben Grund: Wie oft eine
+   * wiederkehrende Wirkung anschlägt, gehört in den Datensatz, nicht in den
+   * Kampfcode.
+   */
+  readonly tickIntervalMs?: number;
 }
 
 /**
@@ -1221,7 +1249,45 @@ function parseCoagulation(
   if (isRecord(raw['heal'])) {
     const amount = number(raw['heal']['amount'], 0);
     if (amount <= 0) problems.push(`${where}: Eine Heilung ohne Betrag heilt nichts.`);
-    else out.heal = { amount };
+    else {
+      // **Heilung über Zeit ist ein Zusatz, kein eigenes Feld** (#481). Ohne
+      // `overMs` bleibt alles wie bisher: `heal` kommt sofort an.
+      const overMs = number(raw['heal']['overMs'], 0);
+      const tickIntervalMs = number(raw['heal']['tickIntervalMs'], 0);
+      if (overMs < 0) {
+        problems.push(`${where}: overMs ${overMs} ist negativ — eine Heilung läuft vorwärts.`);
+      } else if (overMs > 0 && overMs % TICK_MS !== 0) {
+        // Dieselbe Raster-Auflage wie bei jeder anderen wiederkehrenden
+        // Größe: Das Spiel kann nur zu Takt-Grenzen handeln, der Simulator
+        // springt frei — bei 333 ms liefen beide mit jedem Schritt weiter
+        // auseinander.
+        problems.push(
+          `${where}: overMs ${overMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+            'Spiel und Simulator liefen mit jedem Schritt weiter auseinander.',
+        );
+      } else if (overMs > 0 && tickIntervalMs <= 0) {
+        // **Kein stiller Vorgabewert.** Ohne Abstand liefe die Heilung im Takt
+        // des Spiels, also alle 10 ms — bei 6000 ms wären das 600 Schritte und
+        // 600 Protokoll-Einträge für einen einzigen Wurf.
+        problems.push(
+          `${where}: overMs ${overMs} steht, tickIntervalMs fehlt — ` +
+            'ohne Abstand liefe die Heilung in jedem 10-ms-Takt an.',
+        );
+      } else if (overMs > 0 && tickIntervalMs % TICK_MS !== 0) {
+        problems.push(
+          `${where}: tickIntervalMs ${tickIntervalMs} liegt nicht auf dem ${TICK_MS}-ms-Raster.`,
+        );
+      } else if (overMs > 0 && overMs % tickIntervalMs !== 0) {
+        // Sonst bliebe ein Reststück ohne Schritt liegen, und die Summe der
+        // Schritte wäre kleiner als `amount` — eine Heilung, die weniger heilt,
+        // als in ihrem Datensatz steht.
+        problems.push(
+          `${where}: overMs ${overMs} ist kein Vielfaches von tickIntervalMs ${tickIntervalMs} — ` +
+            'das letzte Stück bliebe ohne Schritt liegen.',
+        );
+      }
+      out.heal = overMs > 0 ? { amount, overMs, tickIntervalMs } : { amount };
+    }
   }
 
   if (isRecord(raw['conversion'])) {
