@@ -5699,3 +5699,79 @@ Der Satz des Messenden, und er ist die Regel:
 - **Wer einen Wächter schreibt**, schreibt die Begründung an ihn — aber rechnet damit, dass sie halb
   gelesen wird. Deshalb gehört das Wichtigste in die **Fehlermeldung**, nicht nur in den
   Dateikopf: Was der Lauf ausgibt, sieht jeder; was darüber steht, nur wer nachschlägt.
+
+---
+
+### 8.89 Parität prüft Übereinstimmung, nicht Richtigkeit
+
+Ein Paritäts-Fall vergleicht, ob Spiel und Simulator **dasselbe** rechnen. Er sagt nichts darüber,
+ob das Gemeinsame **richtig** ist. Der Unterschied ist folgenlos, solange niemand die Daten ändert —
+und genau dann wird er teuer.
+
+Gemessen am 2026-08-09 an der Kontroll-Wirkung von `STAY`:
+
+```
+DATEN-Mutation      stay.amountMs 3000 -> 100, danach npm run parity:export
+                    ALLE Rust-Paritätsfälle bleiben grün
+                    (der Export hat den falschen Wert auf beide Seiten getragen)
+
+CODE-Mutation       control.amount / 2 auf der Rust-Seite, Daten unverändert
+                    3 Paritätsfälle rot
+```
+
+**Nach einem `parity:export` kann kein Paritäts-Fall eine falsche Zahl im Datensatz mehr fangen.**
+Beide Seiten lesen dieselbe Datei; die Aufzeichnung wurde mit dem falschen Wert neu geschrieben.
+
+**Was daraus folgt für den Zuschnitt eines Prüffalls:**
+
+| Was geprüft werden soll                  | Womit                                          |
+| ---------------------------------------- | ---------------------------------------------- |
+| Rechnen beide Seiten gleich?             | Paritäts-Aufzeichnung                          |
+| Ist die **Größe** einer Wirkung richtig? | Unit-Fall mit **harter Zahl** auf einer Seite  |
+| Trägt der richtige Zauber die Wirkung?   | Zuordnungs-Liste plus Vollständigkeits-Wächter |
+
+Wer eine Wirkungsgröße absichern will und dafür eine Aufzeichnung baut, hat die Prüfung gebaut, die
+seine eigene Mutation nicht fängt. Das ist am 2026-08-09 passiert: Die Aufzeichnung stand, war grün,
+färbte bei der Code-Mutation mit — und meldete nichts, was zwei bestehende Fälle nicht schon
+meldeten. Sie wurde nach der Messung verworfen.
+
+**Vor dem Bau nach der Deckung suchen.** Ein `grep` nach dem Zaubernamen in `sim/tests/` hätte
+gereicht. An diesem einen Tag wurde viermal gebaut, was schon gedeckt war.
+
+---
+
+### 8.90 Ein grüner Lauf belegt nur, was er angesehen hat
+
+Zwei Schalter, zweimal am selben Tag, beide Male fehlte der Schalter **genau dort, wo die neue
+Arbeit lag**:
+
+```
+cargo test                    bricht nach der ersten roten Suite ab
+cargo test --no-fail-fast     67 statt 97 Ergebniszeilen, 435 statt 605 Tests
+
+cargo clippy                  0 Meldungen — sieht die Testdateien NICHT an
+cargo clippy --all-targets    error: unused import `stack_damage`
+                              in der Datei, die gerade geschrieben wurde
+```
+
+Das ist kein Zufall. Was man gerade geschrieben hat, ist das, was der gewohnte Aufruf am ehesten
+auslässt: bei Mutationsproben die Suiten **hinter** der ersten roten, bei `clippy` die **Testdateien**.
+
+Dazu ein dritter Fall derselben Klasse, aus einer Fehlmessung:
+
+```
+Gezählt wurden Zeilen mit FAILED.
+Bricht der BUILD ab, gibt es keine einzige Testzeile.
+Also: null gezählt, gelesen als "kein Test färbt".
+```
+
+**Ein abgebrochener Build und ein grüner Lauf sehen in dieser Zählung gleich aus.** Ein Issue ruhte
+zwei Tage auf dieser Null.
+
+**Die Regel:**
+
+> Fahre den Befehl, den die CI benutzt — nicht den, den du gewohnt bist.
+> `.github/workflows/ci.yml` ist die Quelle.
+
+Und zähle die **Suiten**, nicht die `FAILED`-Zeilen. Eine Suitenzahl, die kleiner ist als sonst,
+zeigt einen Abbruch; eine Zeilenzahl von null zeigt ihn nicht.
