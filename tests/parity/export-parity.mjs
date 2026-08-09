@@ -114,6 +114,8 @@ import {
   KERNE_NAME,
   pinPayload,
   PIN_NAME,
+  decayWardPayload,
+  DECAY_WARD_NAME,
   effluxPayload,
   EFFLUX_NAME,
   kritPayload,
@@ -291,6 +293,11 @@ writeFileSync(pinPath, `${JSON.stringify(pin, null, 2)}\n`);
 console.log(`geschrieben: ${pinPath}`);
 console.log(`  gewirkt   ${JSON.stringify(pin.expected.casts)}`);
 console.log(`  erlitten  ${pin.expected.damageTaken}`);
+const decayWard = decayWardPayload();
+const decayWardPath = join(here, 'recordings', `${DECAY_WARD_NAME}.json`);
+writeFileSync(decayWardPath, `${JSON.stringify(decayWard, null, 2)}\n`);
+console.log(`geschrieben: ${decayWardPath}`);
+console.log(`  erlitten  ${decayWard.expected.damageTaken}`);
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);

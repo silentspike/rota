@@ -142,6 +142,10 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'mend',
     'suture',
     'riposte',
+    // VORLAEUFIG (Issue #479): DECAY ebenso. Eine Schwaechung, die man nicht
+    // hoert, ist im Kampf nur an kleineren Zahlen zu erkennen — und die liest
+    // niemand mitten im Schlagabtausch.
+    'decay',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.

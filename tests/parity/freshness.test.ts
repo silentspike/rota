@@ -99,6 +99,7 @@ import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
 import eingecheckterPin from './recordings/pin-befreiung.json';
+import eingecheckterDecayWard from './recordings/decay-ward.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
 import eingecheckteKrit from './recordings/krit-umwandlung.json';
 import {
@@ -159,6 +160,7 @@ import {
   coagulationNeuPayload,
   kernePayload,
   pinPayload,
+  decayWardPayload,
   effluxPayload,
   kritPayload,
 } from './payloads.js';
@@ -304,6 +306,10 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // `test-caster` besteht aus drei `strike`-Eintraegen, also kann das, was
     // QUENCH dort abbricht, nur PIN freigelegt haben (Issue #478).
     expect(eingecheckterPin, HINWEIS).toEqual(pinPayload());
+  it('DECAYs Schwaechung entspricht dem heutigen Spielstand', () => {
+    // DECAY wird NUR hier gewirkt, und nur hier zeigt sich seine Wirkung:
+    // `test-onslaught` teilt am haertesten aus (Issue #479).
+    expect(eingecheckterDecayWard, HINWEIS).toEqual(decayWardPayload());
   });
 
   it('die Fäulnis über Zeit entspricht dem heutigen Spielstand', () => {
@@ -797,6 +803,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'coagulation-neu',
   'kern-zauber',
   'pin-befreiung',
+  'decay-ward',
   'efflux-restzeit',
   'krit-umwandlung',
   'rot-decay',

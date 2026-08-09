@@ -776,6 +776,19 @@ export class Combat {
   /** Anteil, den sie umwandelt, in Prozent. 0 heißt: keine läuft. */
   private conversionPercentValue = 0;
 
+  /**
+   * Bis wann DECAYs Schwächung läuft. -1 = keine (Issue #479).
+   *
+   * **Dieselbe Bauart wie `conversionUntilMs`** (TEMPER): ein Zustand für eine
+   * Weile, gemessen in Kampfzeit. Er steht in keiner Prüfsumme und muss es
+   * nicht — seine Wirkung zeigt sich in `playerHp`, und das mischt
+   * (`checksum.ts`). Genau so trägt `conversionUntilMs` seit #79.
+   */
+  private decayWardUntilMs = -1;
+
+  /** Promille je Stapel, solange die Schwächung läuft. 0 heißt: keine. */
+  private decayWardPermilleValue = 0;
+
   /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
   private convertedValue = 0;
 
@@ -1952,6 +1965,15 @@ export class Combat {
       this.reflectPercentValue = reflect.sharePercent;
       this.reflectUntilMs = seitBeginn + reflect.durationMs;
       this.reflectSpellIndex = index;
+    // DECAY (Issue #479) — die Schwächung anschalten. Die STAPELZAHL wird
+    // hier NICHT festgehalten: Sie wird beim Treffer gelesen, nicht beim
+    // Wirken. Wer sie hier einfröre, machte aus „schwächt nach Stapelzahl"
+    // ein „schwächt nach der Stapelzahl von vorhin" — und der Aufbau nach dem
+    // Wurf zählte nicht mehr.
+    const decayWard = spell.decayWard;
+    if (decayWard !== undefined) {
+      this.decayWardPermilleValue = decayWard.permillePerStack;
+      this.decayWardUntilMs = seitBeginn + decayWard.durationMs;
     }
   }
 
@@ -2617,7 +2639,27 @@ export class Combat {
     // trotzdem da. Wer den Balance-Deckel eines Tages über 1000 ‰ setzt, soll
     // nicht erst durch geheilte Spieler darauf stossen. Ihn wegzulassen hiesse,
     // sich auf den Wert einer Datendatei zu verlassen.
-    const roh = PLAYER.wardReduction + this.worn.ward / 1000;
+    // **DECAY geht in dieselbe Summe** (Issue #479) — und damit auch unter
+    // denselben Deckel. Das ist die Entscheidung: Die Schwächung ist kein
+    // eigener Faktor neben WARD, sondern mehr WARD. Andernfalls ließe sich der
+    // Balance-Deckel (`wardCapPermille`) über die Fäulnis umgehen, und die
+    // Grenze, die COAGULATION ihren Gegenstand lässt, wäre für PUTREFACTION
+    // aufgehoben.
+    //
+    // **Die Stapelzahl wird HIER gelesen, nicht beim Wirken.** Wer nach dem
+    // Wurf weiter aufbaut, mindert mehr — „nach Stapelzahl" heißt nach der
+    // jetzigen, nicht nach der von damals.
+    // **In EINE Promille-Summe, dann EINMAL geteilt.** `(a + b) / 1000` und
+    // `a/1000 + b/1000` sind in Fliesskomma nicht dasselbe, und die Rust-Seite
+    // rechnet die erste Form (`incoming_with_gear` nimmt EINEN Promille-Wert).
+    // Zwei Divisionen hier ergäben eine Abweichung, die erst in der Prüfsumme
+    // auffiele und wie ein Rechenfehler im Kampf aussähe.
+    const seitBeginnFuerDecay = this.fightElapsedMs(timeMs);
+    const decayPermille =
+      this.decayWardUntilMs >= 0 && seitBeginnFuerDecay <= this.decayWardUntilMs
+        ? this.decayWardPermilleValue * this.decayCountValue
+        : 0;
+    const roh = PLAYER.wardReduction + (this.worn.ward + decayPermille) / 1000;
     const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
     const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
@@ -4586,6 +4628,10 @@ export class Combat {
     this.healOverTimeNextAtMs = 0;
     this.conversionUntilMs = -1;
     this.conversionPercentValue = 0;
+    // DECAY (#479) — eine Schwächung, die einen Kampf überlebte, schützte im
+    // nächsten gratis.
+    this.decayWardUntilMs = -1;
+    this.decayWardPermilleValue = 0;
     this.convertedValue = 0;
     this.reflectUntilMs = -1;
     this.reflectPercentValue = 0;

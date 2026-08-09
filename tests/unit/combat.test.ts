@@ -136,6 +136,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'miasma',
       // Issue #479 — NECROSIS, aus demselben Grund am Ende.
       'necrosis',
+      // Issue #479 — DECAY, am Ende der PUTREFACTION-Datei.
+      'decay',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
