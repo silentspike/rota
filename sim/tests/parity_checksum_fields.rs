@@ -4,8 +4,14 @@
 //!
 //! Die Prüfsumme entsteht an zwei Orten: `combatChecksum` in
 //! `src/core/checksum.ts` und `Fight::checksum_at` in `sim/src/fight.rs`. Beide
-//! rühren vierunddreißig Werte nacheinander ein. Die **Reihenfolge** geht in
+//! rühren dieselben Einzelwerte nacheinander ein. Die **Reihenfolge** geht in
 //! das Ergebnis ein — FNV-1a ist kein Sortierverfahren.
+//!
+//! Hier stand eine Zahl ("vierunddreißig Werte"), und Issue #480 hat sie
+//! veralten lassen: `nextCastFreeGcd` ist der fünfunddreißigste. Sie stand in
+//! keiner Bedingung, also blieb der Lauf grün und der Satz wurde still falsch.
+//! Die Zahl trägt an dieser Stelle nichts — der Satz sagt dasselbe ohne sie,
+//! und die vier Merker-Zauber nach SUBLIME lassen sie ohnehin weiterwandern.
 //!
 //! Wer auf einer Seite ein Feld ergänzt und auf der anderen vergisst, bekommt
 //! keine Fehlermeldung, sondern eine Zahl. Sie ist falsch, aber sie sieht aus
@@ -16,7 +22,7 @@
 //! # Warum das ein Wächter bleibt und keine gemeinsame Quelle wird
 //!
 //! Richtig wäre eine Liste, aus der beide Seiten entstehen. Das hiesse
-//! Codegenerierung über zwei Sprachen — für vierunddreissig Felder ein
+//! Codegenerierung über zwei Sprachen — für gut drei Dutzend Felder ein
 //! Aufwand, der den Fehler teurer macht als er ist. Dieser Wächter kostet eine
 //! Datei und meldet dieselbe Sorte Fehler, nur später und mit Namen. Das ist
 //! die bewusste Wahl, nicht die bequeme.
