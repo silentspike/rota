@@ -6184,7 +6184,23 @@ const COAGULATION_NEU_BINDINGS = [{ slot: 0, spellId: 'crucible-skin' }] as cons
  * bei `extend-effects`: Eine Schutzschicht muss VOR dem Schlag stehen.
  */
 function recordCoagulationNeu(ticks: number): Recording {
-  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  // **Ein Boss, der AUSTEILT** — und das ist gemessen, nicht gewählt.
+  //
+  // Der erste Entwurf fuhr `first-crucible`, wie die meisten Aufzeichnungen.
+  // Ergebnis: `casts.crucible-skin = 1`, aber `absorbed`, `healed` und
+  // `converted` alle **null**. Der Grund steht in seinen Daten — er hat
+  // KEINE Zeitleiste und keine Energieleiste, teilt also nie aus. Es gab
+  // nichts abzufangen, nichts zu heilen und nichts umzuwandeln.
+  //
+  // `coverage` wäre trotzdem grün gewesen: Der Zauber WIRD gewirkt. Geprüft
+  // hätten beide Seiten dann eine Wirkung von null gegen eine Wirkung von
+  // null — dieselbe Klasse wie die Energieleiste vor #568 und Art 7 vor
+  // #682, wo der Mechanismus lief und die Zahl nichts sagte.
+  //
+  // `test-warden` schlägt bei 4000 und 12000 zu. Damit bewegen sich die
+  // Größen, und die drei Wege stehen wirklich in der Parität.
+  const boss = bossById('test-warden') ?? FIRST_CRUCIBLE.value;
+  const combat = new Combat({ school: CALCINATION.value, boss: boss as never });
   const crucibleSkin = combat.indexOf('crucible-skin');
   const presses: RecordedPress[] = [];
   const press = pressRecorder(combat, COAGULATION_NEU_BINDINGS, presses);
@@ -6194,7 +6210,16 @@ function recordCoagulationNeu(ticks: number): Recording {
     combat.stepPassive(timeMs);
     if (combat.damageDealt >= combat.boss.hp) break;
     if (!combat.gcd.isReady(timeMs)) continue;
-    if (combat.isOffCooldown(crucibleSkin, timeMs)) press(crucibleSkin, tick, timeMs);
+
+    // **Der Wurf liegt VOR dem Treffer, nicht am Kampfbeginn.** Gemessen:
+    // Bei Tick 0 geworfen ist die Schicht (6 s) abgelaufen, wenn
+    // `test-warden` bei 12000 zuschlägt — `absorbed` blieb 0, obwohl der
+    // Boss 960 Schaden austeilte. Eine Schutzschicht muss vor dem Schlag
+    // stehen; eine Aufzeichnung, die sie zu früh legt, hält ihren Ablauf
+    // fest statt ihrer Wirkung.
+    if (timeMs >= 8000 && combat.isOffCooldown(crucibleSkin, timeMs)) {
+      press(crucibleSkin, tick, timeMs);
+    }
   }
 
   return {
@@ -6207,11 +6232,18 @@ function recordCoagulationNeu(ticks: number): Recording {
 }
 
 export function coagulationNeuPayload(): Record<string, unknown> {
+  // **Der Boss muss auch in die WIEDERGABE**, nicht nur in die Aufnahme.
+  // `replayRecording` nimmt sonst `FIRST_CRUCIBLE` als Vorgabe — gemessen:
+  // Die Aufzeichnung trug `bossId: undefined`, und alle drei Größen standen
+  // auf null, obwohl der Zauber gewirkt wurde. Der Lauf lief gegen einen
+  // Boss, der nie austeilt.
+  const boss = bossById('test-warden') ?? FIRST_CRUCIBLE.value;
   const recording = recordCoagulationNeu(3000);
-  const result = replayRecording(recording, { checksumPerTick: true });
+  const result = replayRecording(recording, { checksumPerTick: true, boss: boss as never });
   return {
     schema: SCHEMA,
     name: recording.name,
+    bossId: boss.id,
     seed: recording.seed,
     ticks: recording.ticks,
     tickMs: TICK_MS,
