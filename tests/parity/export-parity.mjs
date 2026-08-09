@@ -120,6 +120,8 @@ import {
   kontrolleWirktPayload,
   fixationPayload,
   logParityPayload,
+  logTaktePayload,
+  LOG_TAKTE_NAME,
   timelineLoopPayload,
   sublimationPayload,
   gezielteVerkuerzungPayload,
@@ -378,6 +380,14 @@ writeFileSync(fixationPath, serialize(fixation), 'utf8');
 const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
+
+const logTakte = logTaktePayload();
+const logTaktePath = join(here, 'recordings', `${LOG_TAKTE_NAME}.json`);
+writeFileSync(logTaktePath, serialize(logTakte), 'utf8');
+console.log(
+  `  Takte je Art   ${Object.keys(logTakte.takte).length} Arten, ` +
+    `${logTakte.expected.bossEnergyTriggers} Energie-Ausloeser`,
+);
 
 const sublimation = sublimationPayload();
 const sublimationPath = join(here, 'recordings', `${SUBLIMATION_NAME}.json`);
