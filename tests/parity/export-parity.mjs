@@ -80,6 +80,7 @@ import {
   logKindsPayload,
   bossStatePayload,
   doomStacksPayload,
+  doomPurgePayload,
   cooldownResetPayload,
   misplaysPayload,
   synergyPayload,
@@ -140,6 +141,7 @@ import {
   RECORDING_NAME,
   VESSEL_NAME,
   DOOM_STACKS_NAME,
+  DOOM_PURGE_NAME,
   RESET_RUN_NAME,
   RACE_HEAL_NAME,
   RACE_LOST_NAME,
@@ -276,6 +278,12 @@ writeFileSync(bossStatePath, serialize(bossState), 'utf8');
 const doomStacks = doomStacksPayload();
 const doomStacksPath = join(here, 'recordings', `${DOOM_STACKS_NAME}.json`);
 writeFileSync(doomStacksPath, serialize(doomStacks), 'utf8');
+
+// Der Zaehler, BEDIENT (Issue #561, AC4). `doom-stacks` daneben laesst ihn
+// volllaufen.
+const doomPurge = doomPurgePayload();
+const doomPurgePath = join(here, 'recordings', `${DOOM_PURGE_NAME}.json`);
+writeFileSync(doomPurgePath, serialize(doomPurge), 'utf8');
 
 const resetRun = resetRunPayload();
 const resetRunPath = join(here, 'recordings', `${RESET_RUN_NAME}.json`);

@@ -130,11 +130,36 @@ describe('stack — der Stapel-Wert steigt, die Stapelzahl nicht', () => {
 });
 
 describe('Die Trennung über Kreuz — vier Speicher, vier Größen', () => {
-  it('keine der vier Verstärkungen berührt den Schadens-Faktor', () => {
-    // **Sonst wäre die ganze Konstruktion umsonst.** Alle vier tragen
-    // `kind: 0` — in einem gemeinsamen Speicher würden sie einander und den
-    // Schadens-Buff verdrängen.
-    for (const id of ['test-control', 'test-heat', 'test-tick', 'test-stack']) {
+  /**
+   * **Auch dieser Fall zählte vier Namen auf** (Issue #660).
+   *
+   * Er stand zwei Zeilen über dem Fenstersummen-Fall, den ich beim selben
+   * Anlass umgebaut habe — und ich habe ihn dabei übersehen. Dieselbe Klasse,
+   * dieselbe Datei, ein paar Zeilen weiter oben.
+   *
+   * Gemessen, was er dadurch nicht sieht: `capBuffs` mit dem Schadens-Speicher
+   * zusammengelegt (`capBuffs = this.buffs`) färbt `buff-in-combat.test.ts`,
+   * `checksum-sees-buffs.test.ts` und `slag.test.ts` — aber **nicht diesen
+   * Fall**, obwohl genau er die Trennung behauptet.
+   *
+   * Die Sache war also gedeckt, nur nicht von der Prüfung, die dafür gedacht
+   * ist. Die Schleife liest die Prüf-Zauber deshalb aus dem Datensatz, wie
+   * der Fall darunter.
+   */
+  it('KEINE Verstärkung auf eine andere Größe berührt den Schadens-Faktor', () => {
+    // **Sonst wäre die ganze Konstruktion umsonst.** Alle tragen `kind: 0` —
+    // in einem gemeinsamen Speicher würden sie einander und den Schadens-Buff
+    // verdrängen.
+    const andere = CALCINATION.value.spells
+      .filter((s) => s.unlockLevel > 100 && s.buff?.target !== undefined)
+      .map((s) => s.id);
+
+    // **Die Zusicherung vor der Messung.** `test-buff` fällt hier heraus, weil
+    // er kein `target` trägt und den Schadens-Faktor bewegen SOLL — die
+    // Gegenprobe darunter misst ihn. Bleiben sieben.
+    expect(andere.length, 'die Prüf-Zauber mit eigener Zielgröße fehlen').toBe(7);
+
+    for (const id of andere) {
       const c = mitVerstaerkung(id);
       expect(c.damageFactors.buffs, `${id} hat den Schadens-Faktor bewegt`).toBe(1);
     }
@@ -147,9 +172,45 @@ describe('Die Trennung über Kreuz — vier Speicher, vier Größen', () => {
     expect(c.damageFactors.buffs).toBeGreaterThan(1);
   });
 
-  it('und jede der vier bewegt die Fenstersumme', () => {
+  /**
+   * **Der Fall ging vom Datensatz aus, nicht mehr von einer Abschrift**
+   * (Issue #660).
+   *
+   * Er führte vier Prüf-Zauber namentlich: `test-control`, `test-heat`,
+   * `test-tick`, `test-stack`. Inzwischen gibt es acht — `test-cdreduce` und
+   * `test-convert` kamen mit E10 dazu, `test-cap` mit #562, und `test-buff`
+   * stand nie darin.
+   *
+   * `capBuffs` war dadurch der einzige der acht Speicher **ohne einen Fall,
+   * der seine Wirkung behauptet**. Gemessen am 2026-08-08, je Speicher einzeln
+   * aus `buffWindowSum` entfernt und die volle Suite gefahren:
+   *
+   * ```text
+   *   buffs, controlBuffs, resourceBuffs, tickBuffs,
+   *   stackBuffs, cdReduceBuffs, convertBuffs      1–2 echte Wächter
+   *   capBuffs                                     KEINER
+   * ```
+   *
+   * Die Parität fing eine einseitige Änderung dreifach — aber sie prüft
+   * **Übereinstimmung, nicht Richtigkeit**: Wurden beide Seiten gleich
+   * geändert, war der Bestand vollständig grün (1941/1941 und 605/605).
+   *
+   * Die Schleife liest deshalb die Prüf-Zauber aus dem Datensatz, statt sie
+   * aufzuzählen. Ein neuer Prüf-Zauber ist damit automatisch erfasst; eine
+   * Abschrift wäre beim nächsten Mal wieder zurückgeblieben.
+   */
+  it('und JEDER Prüf-Zauber bewegt die Fenstersumme, nicht nur vier', () => {
     // Damit steht auch fest, dass sie in der Prüfsumme ankommen (#493).
-    for (const id of ['test-control', 'test-heat', 'test-tick', 'test-stack']) {
+    const pruefer = CALCINATION.value.spells
+      .filter((s) => s.unlockLevel > 100 && s.buff !== undefined)
+      .map((s) => s.id);
+
+    // **Die Zusicherung vor der Messung.** Griffe der Filter daneben — anderes
+    // Feld, andere Stufengrenze —, liefe die Schleife über eine leere Liste
+    // und wäre grün, ohne einen einzigen Speicher berührt zu haben.
+    expect(pruefer.length, 'keine Prüf-Zauber gefunden — der Filter greift nicht').toBe(8);
+
+    for (const id of pruefer) {
       const c = mitVerstaerkung(id);
       expect(c.buffWindowSum, `${id} öffnet kein Fenster`).toBeGreaterThan(0);
     }

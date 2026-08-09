@@ -264,6 +264,15 @@ pub struct Spell {
     /// — aber auch das steht als `triggers_gcd: false` in denselben Daten und
     /// nicht als Sonderfall in der Kampfschleife.
     pub interrupt: bool,
+    /// Ob der Zauber den Verhaengnis-Zaehler senkt (Baustein 2; Issue #561).
+    ///
+    /// `Fight::clear_doom()` gab es seit #216 — und **kein Zauber rief es**.
+    /// Der Zaehler lief voll und toetete, ohne dass eine Taste dagegen
+    /// existierte; `boss-1-2` war damit unschaffbar.
+    ///
+    /// WIE VIEL gesenkt wird, sagt der BOSS (`clear_amount`), nicht dieser
+    /// Zauber — derselbe Aufbau wie bei `boss_heal.amount`.
+    pub clears_doom: bool,
     /// Ressourcen-Gewinn beim Wirken.
     pub resource_gain: u16,
     /// Brand-Effekt, falls der Zauber einen hat.
@@ -943,6 +952,11 @@ mod tests {
                     // darueber und zaehlten sonst zu den drei aus Schritt 1.
                     && s.decay_stacks == 0
                     && s.per_decay_stack_percent == 0
+                    // Und seit Issue #561 der Verhaengnis-Senker: PURGE traegt
+                    // Stufe 1 und zaehlte sonst zu den drei aus Schritt 1. Er
+                    // wird ueber seine WIRKUNG ausgeschlossen wie alle anderen
+                    // hier — nicht ueber seinen Namen.
+                    && !s.clears_doom
                     // Und seit Issue #304 der Pruef-Zauber zur Wirkzeit. Er
                     // wird ueber seine WIRKZEIT ausgeschlossen und nicht ueber
                     // seinen Namen: Die drei aus Schritt 1 sind Sofort-Zauber,
