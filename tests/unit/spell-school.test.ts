@@ -130,6 +130,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'miasma',
       // Issue #479 — NECROSIS, der Entlader, ebenfalls am Ende.
       'necrosis',
+      // Issue #479 — DECAY, der neunte der Schule, ebenfalls am Ende.
+      'decay',
       'test-cast',
       'test-buff',
       'test-control',

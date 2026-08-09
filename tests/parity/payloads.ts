@@ -5150,6 +5150,44 @@ function recordPin(ticks: number): Recording {
   const quench = combat.indexOf('quench');
   const presses: RecordedPress[] = [];
   const press = pressRecorder(combat, PIN_BINDINGS, presses);
+export const DECAY_WARD_NAME = 'decay-ward';
+
+/** Die Leiste dieser Aufzeichnung. */
+const DECAY_WARD_BINDINGS = [
+  { slot: 0, spellId: 'canker' },
+  { slot: 1, spellId: 'decay' },
+  { slot: 2, spellId: 'blight' },
+] as const;
+
+/**
+ * DECAY schwächt den Boss-Schaden nach Stapelzahl (Issue #479).
+ *
+ * # Warum `test-onslaught`
+ *
+ * Er teilt am härtesten aus: drei Wirkzeiten à 2000 Schaden und ein Schlag
+ * mit 500. Eine Minderung um ein paar Promille wäre bei kleinen Zahlen im
+ * Rundungsrauschen; hier steht sie deutlich in `damageTaken`.
+ *
+ * `first-crucible`, den die meisten Wege nehmen, teilt **gar nicht** aus. Dort
+ * wäre DECAY gedrückt worden und hätte nichts gemindert — der Lauf grün, die
+ * Aussage leer.
+ *
+ * # Die Reihenfolge ist die Aussage
+ *
+ * CANKER und BLIGHT legen die Stapel, DECAY macht aus ihnen Schutz. Ein
+ * Rezept, das DECAY zuerst drückt, mindert um **null** Promille: Die
+ * Stapelzahl wird beim Treffer gelesen, und zu dem Zeitpunkt läge nichts.
+ * Deshalb steht er hinter den beiden Erzeugern.
+ */
+function recordDecayWard(ticks: number): Recording {
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('test-onslaught fehlt');
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const canker = combat.indexOf('canker');
+  const decay = combat.indexOf('decay');
+  const blight = combat.indexOf('blight');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, DECAY_WARD_BINDINGS, presses);
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -5187,6 +5225,23 @@ export function pinPayload(): Record<string, unknown> {
   // während derselbe Ablauf direkt gespielt 64 ergab. Kein Fehler im Kampf,
   // kein Fehler im Rezept: ein nicht gereichter Boss (dieselbe Klasse wie die
   // stillen Bindungen aus #663).
+    // **Erst Stapel, dann Schutz.** DECAY erst ab dem zweiten Stapel — vorher
+    // mindert er um 40 Promille und wäre kaum von null zu unterscheiden.
+    if (combat.decayStacks >= 2 && combat.isOffCooldown(decay, timeMs)) {
+      press(decay, tick, timeMs);
+    } else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(blight, timeMs)) press(blight, tick, timeMs);
+  }
+
+  return { name: DECAY_WARD_NAME, seed: 0, ticks, presses, bindings: DECAY_WARD_BINDINGS };
+}
+
+export function decayWardPayload(): Record<string, unknown> {
+  const recording = recordDecayWard(3000);
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('test-onslaught fehlt');
+  // **Der Boss gehört in die OPTIONEN**, sonst spielt der Abspieler still
+  // gegen `FIRST_CRUCIBLE` — der teilt nicht aus, und `damageTaken` bliebe 0.
   const result = replayRecording(recording, { checksumPerTick: true, boss });
 
   return {
@@ -5201,6 +5256,11 @@ export function pinPayload(): Record<string, unknown> {
       damage: result.damage,
       // **`damageTaken` ist hier die tragende Zahl**, nicht `damage`: PIN macht
       // keinen Schaden, er verhindert welchen.
+    bindings: DECAY_WARD_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      // **Die tragende Zahl.** DECAY macht keinen Schaden, er nimmt welchen weg.
       damageTaken: result.damageTaken,
       absorbed: result.absorbed,
       healed: result.healed,

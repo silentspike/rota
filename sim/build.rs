@@ -1721,6 +1721,32 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
         }
     }
 
+    match spell.get("decayWard") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        decay_ward: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/decayWard");
+            let permille = uint(node, "permillePerStack", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            // Null bewirkt nichts, und eine Schwaechung ohne Laufzeit endet in
+            // dem Augenblick, in dem sie beginnt.
+            assert!(
+                permille > 0,
+                "{whose}: permillePerStack {permille} bewirkt nichts"
+            );
+            assert!(duration > 0, "{whose}: decayWard ohne Laufzeit wirkt nie");
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            let _ = writeln!(
+                out,
+                "        decay_ward: Some(DecayWard {{ permille_per_stack: {permille}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+
     match spell.get("conversion") {
         None | Some(Value::Null) => {
             let _ = writeln!(out, "        conversion: None,");
