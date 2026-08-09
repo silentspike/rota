@@ -26,7 +26,12 @@ import {
 } from '../../src/gear/worn.js';
 import { GCD_MS } from '../../src/core/gcd.js';
 import { statAtLevel } from '../../src/core/data.js';
-import { CombatLog, EVENT_KINDS_WRITTEN_BY_GAME, EVENT_NAMES } from '../../src/core/log.js';
+import {
+  CombatLog,
+  EVENT_KIND_INTENT,
+  EVENT_KINDS_WRITTEN_BY_GAME,
+  EVENT_NAMES,
+} from '../../src/core/log.js';
 import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
@@ -3668,6 +3673,21 @@ export function logKindsPayload(): Record<string, unknown> {
       kind,
       name,
       writtenByGame: EVENT_KINDS_WRITTEN_BY_GAME.includes(kind),
+      /**
+       * **Die zweite Spalte der Absicht** (Issue #689).
+       *
+       * `EVENT_KIND_INTENT` trägt seit #676 zwei Spalten, geprüft wurde nur
+       * eine. Gemessen: Dreht man ALLE siebzehn `sim`-Werte um — die
+       * vollständige Umkehrung der Aussage, welche Arten der Simulator
+       * schreibt —, bleiben `tsc`, 1967 TS-Fälle und 110 Rust-Suiten grün.
+       * Das Feld war nicht ungedeckt, es war **dekorativ**.
+       *
+       * Der Wert geht denselben Weg wie `writtenByGame`: von hier über
+       * `log-kinds.json` nach `sim/tests/log_kinds_written_by_sim.rs`. Kein
+       * neuer Transportweg, keine zweite Liste — dieselbe Quelle, eine Zeile
+       * daneben. Damit erbt er auch die Frische-Deckung.
+       */
+      writtenBySim: EVENT_KIND_INTENT[name]?.sim ?? false,
     })),
     writtenByGame: [...EVENT_KINDS_WRITTEN_BY_GAME],
   };
