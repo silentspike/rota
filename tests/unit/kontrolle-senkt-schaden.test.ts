@@ -76,7 +76,20 @@ import { TICK_MS } from '../../src/core/loop.js';
  * trägt 560, `test-vessel` 960 — eine gemeinsame Zahl wäre schlicht falsch.
  * Der Unterschied hat einen Grund: `boss-1-4` hat einen einzigen
  * Zeitleisten-Eintrag und endet deshalb auf 0, `test-vessel` trägt mehrere.
- * Beide zusammen zeigen, dass der Nachweis nicht an einem Randwert hängt.
+ * Beide zusammen zeigen, dass der Nachweis nicht an einem Randwert hängt —
+ * genau dafür stehen hier zwei Bosse, und das gilt nach der Umstellung auf
+ * die Differenz unverändert.
+ *
+ * # Ein Sonderfall bei `boss-1-4`, der wie ein Widerspruch aussieht
+ *
+ * Dort fällt der Wert MIT Kontrolle auf **0**. Die Differenz ist deshalb
+ * heute dieselbe Zahl wie der Ausgangswert — es sieht aus, als stünde hier
+ * ein Absolutwert in Verkleidung.
+ *
+ * **Er bleibt es nicht.** Ein Sockel hebt BEIDE Werte: Aus 560/0 würde etwa
+ * 880/320, und die Differenz bliebe 560. Genau darauf beruht der Schutz.
+ * Dass die beiden Zahlen heute zufällig zusammenfallen, ist eine Eigenschaft
+ * dieser Lage und kein Rückfall in die alte Form.
  */
 const LAGEN = [
   { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0, wirkung: 560 },
