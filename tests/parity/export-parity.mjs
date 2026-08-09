@@ -388,7 +388,7 @@ const aetherPath = join(here, 'recordings', `${AETHER_NAME}.json`);
 writeFileSync(aetherPath, serialize(aether), 'utf8');
 console.log(
   `  AETHER-Fenster  ${aether.expected.aetherCasts} Wuerfe, ` +
-    `${aether.expected.vapourCasts} VAPOUR`,
+    `${aether.expected.wispCasts} WISP, EFFLUX-Restsumme ${aether.expected.effluxRestSumme}`,
 );
 
 const logTakte = logTaktePayload();
