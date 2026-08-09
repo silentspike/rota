@@ -66,7 +66,13 @@
 #
 # 2. OHNE BEZUGSLAUF ist "die Wirkung verschwindet ganz" nicht von "sie wird
 #    kleiner" zu unterscheiden. Nur kontrolle-wirkt.json fuehrt einen Lauf
-300.00%  control.amountMs           stall        2000 -> 1000     damageTaken  320 -> 1280     nur Groesse      kontrolle-wirkt#5
+150.00%  control.amountMs           stall        2000 -> 1000     damageTaken  640 -> 1600     nur Groesse      kontrolle-wirkt#5
+         ^ seit dem Energie-Ausloeser (#568). Vorher 300.00% bei 320 -> 1280.
+           Die alte Zahl war gegen die damalige Lage RICHTIG gemessen: Der
+           Ausloeser legt 320 unter beide Werte, der Nenner waechst mit, und
+           das Verhaeltnis halbiert sich — waehrend die absolute Wirkung von
+           STALL unveraendert bei 960 liegt. Genau der Fall, den der Kopf
+           dieser Datei ankuendigt.
  72.58%  dot.tickIntervalMs         searing      2000 -> 1000     damage       1860 -> 3210     nur Groesse      new-calcination#0
  66.67%  control.cost               stay         3 -> 1        controlSpent 3 -> 1        Groesse+Rotation kontrolle-wirkt#1
  56.00%  conversion.sharePercent    temper       25 -> 12       converted    300 -> 132      Groesse+Rotation coagulation#3

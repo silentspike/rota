@@ -47,11 +47,53 @@ import { TICK_MS } from '../../src/core/loop.js';
  *
  * Zwei Bosse, weil einer den Nachweis allein trägt: `boss-1-4` endet auf 0
  * (ein einziger Zeitleisten-Eintrag), `test-vessel` liefert dieselbe Aussage
- * mit 1280 gegen 320 — keine Randwert-Zahl.
+ * mit 1600 gegen 640 — keine Randwert-Zahl.
+ *
+ * # Unter den Zahlen von `test-vessel` liegt ein SOCKEL
+ *
+ * Seit Issue #568 löst dessen Energieleiste einen Boss-Schlag außerhalb der
+ * Zeitleiste aus — im Fenster dieses Falls zwei Auslöser zu zusammen **320
+ * Schaden**, die jeden Lauf gleich treffen. Die Werte sind deshalb von
+ * 1280/320 auf 1600/640 gewandert; die **gemessene Wirkung ist unverändert:
+ * 960, vor wie nach**.
+ *
+ * Wer sie wieder wandern sieht, prüft ZUERST die Differenz. Bewegt sie sich
+ * nicht, hat jemand einen Sockel eingezogen und nicht die Kontrolle
+ * verändert. `boss-1-4` hat keine Energieleiste und ist davon unberührt —
+ * genau dafür stehen hier zwei Bosse.
+ */
+/**
+ * **`wirkung` ist die Zusicherung, die Absolutwerte sind Kulisse** (#678).
+ *
+ * Gemessen wird `ohne − mitStall`. Legt eine unbeteiligte Mechanik am selben
+ * Boss künftig einen Sockel unter beide Werte, wandern sie gemeinsam und die
+ * Differenz bleibt — der Fall meldet sich dann nicht mehr grundlos.
+ *
+ * Genau das ist bei #568 passiert: Die Energieleiste von `test-vessel` legte
+ * 320 unter beide Zahlen, fünf Fälle fielen, und gemessen hatte sich nichts.
+ *
+ * **Die Wirkung steht je Lage, nicht als eine Zahl über allem.** `boss-1-4`
+ * trägt 560, `test-vessel` 960 — eine gemeinsame Zahl wäre schlicht falsch.
+ * Der Unterschied hat einen Grund: `boss-1-4` hat einen einzigen
+ * Zeitleisten-Eintrag und endet deshalb auf 0, `test-vessel` trägt mehrere.
+ * Beide zusammen zeigen, dass der Nachweis nicht an einem Randwert hängt —
+ * genau dafür stehen hier zwei Bosse, und das gilt nach der Umstellung auf
+ * die Differenz unverändert.
+ *
+ * # Ein Sonderfall bei `boss-1-4`, der wie ein Widerspruch aussieht
+ *
+ * Dort fällt der Wert MIT Kontrolle auf **0**. Die Differenz ist deshalb
+ * heute dieselbe Zahl wie der Ausgangswert — es sieht aus, als stünde hier
+ * ein Absolutwert in Verkleidung.
+ *
+ * **Er bleibt es nicht.** Ein Sockel hebt BEIDE Werte: Aus 560/0 würde etwa
+ * 880/320, und die Differenz bliebe 560. Genau darauf beruht der Schutz.
+ * Dass die beiden Zahlen heute zufällig zusammenfallen, ist eine Eigenschaft
+ * dieser Lage und kein Rückfall in die alte Form.
  */
 const LAGEN = [
-  { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0 },
-  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1280, mitStall: 320 },
+  { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0, wirkung: 560 },
+  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1600, mitStall: 640, wirkung: 960 },
 ] as const;
 const TAKTE = 4000;
 
@@ -123,7 +165,11 @@ function lauf(bossId: string, kontrollZauber: string | null, quenchAtMs: number)
 
 describe('Die Kontrolle senkt den erlittenen Schaden', () => {
   for (const lage of LAGEN) {
-    const { bossId, quenchAtMs, ohne, mitStall } = lage;
+    // `ohne` und `mitStall` werden bewusst NICHT ausgelesen: Sie stehen in
+    // der Tabelle als Kulisse — als Anhalt, welche Größenordnung zu erwarten
+    // ist — und sind seit #678 keine Zusicherung mehr. Zugesichert ist
+    // `wirkung`, die Differenz.
+    const { bossId, quenchAtMs, wirkung } = lage;
 
     describe(bossId, () => {
       it('alle drei Läufe drücken QUENCH genau einmal', () => {
@@ -137,17 +183,37 @@ describe('Die Kontrolle senkt den erlittenen Schaden', () => {
 
       it('ohne Kontrolle kommt der Zauber an', () => {
         const r = lauf(bossId, null, quenchAtMs);
-        expect(r.damageTaken).toBe(ohne);
+        // Der Schadenswert ist hier KULISSE und keine Zusicherung — er darf
+        // wandern, sobald eine unbeteiligte Mechanik am Boss Schaden macht.
+        // Zugesichert sind die beiden Zähler: Der Zauber wurde nicht
+        // unterbrochen und ist angekommen.
         expect(r.unterbrochen).toBe(0);
         expect(r.verpasst).toBe(1);
       });
 
       it('mit STALL trifft er nicht', () => {
         const r = lauf(bossId, 'stall', quenchAtMs);
-        expect(r.damageTaken).toBe(mitStall);
         expect(r.unterbrochen).toBe(1);
         expect(r.verpasst).toBe(0);
-        expect(r.damageTaken, 'STALL senkt den Schaden nicht').toBeLessThan(ohne);
+      });
+
+      it(`STALL verhindert ${wirkung} Schaden — die Differenz, nicht die Absolutwerte`, () => {
+        // **Der Kern von #678.** Gemessen wird `ohne − mit`, weil nur diese
+        // Zahl die Wirkung von STALL ist. Beide Absolutwerte wandern
+        // gemeinsam, sobald jemand dem Boss eine weitere Mechanik gibt; die
+        // Differenz überlebt das.
+        const ohneKontrolle = lauf(bossId, null, quenchAtMs).damageTaken;
+        const mitKontrolle = lauf(bossId, 'stall', quenchAtMs).damageTaken;
+
+        expect(ohneKontrolle - mitKontrolle, 'die Wirkung von STALL hat sich verschoben').toBe(
+          wirkung,
+        );
+
+        // **Zusicherung gegen den stillen Nullfall:** Verhinderte STALL gar
+        // nichts, wäre die Differenz 0 — und eine erwartete 0 sähe genauso
+        // aus wie eine gemessene. Deshalb steht hier, dass überhaupt etwas
+        // verhindert wird.
+        expect(wirkung, 'eine Wirkung von 0 wäre keine Wirkung').toBeGreaterThan(0);
       });
 
       it('STAY trägt dieselbe Last und ändert trotzdem nichts', () => {
@@ -190,6 +256,6 @@ describe('Die Kontrolle senkt den erlittenen Schaden', () => {
     // Null endet, ist schwerer zu widerlegen, als er sein sollte.
     const r = lauf('test-vessel', 'stall', 24_500);
     expect(r.damageTaken).toBeGreaterThan(0);
-    expect(r.damageTaken).toBeLessThan(1280);
+    expect(r.damageTaken).toBeLessThan(1600);
   });
 });

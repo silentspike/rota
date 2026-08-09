@@ -46,13 +46,13 @@
         "group": "spells",
         "count": 28,
         "epic": "E10",
-        "reason": "Von den 60 Zaubern sind dreizehn ausgearbeitet: die drei aus Schritt 1 (STEP1-SPEC 1), die drei Wege der COAGULATION (Issue #79), die vier der FIXATION (Issue #100), BLIGHT als erster Fueller der PUTREFAKTION (#479), WISP (#480) und SCAB (#481). Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant. Ein Klang-Slot ohne Zauber waere geraten."
+        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE, NICHT AUSGEARBEITETE ZAUBER (Issue #512). 32 der 60 Slots der Gruppe 'spells' sind belegt, also fehlen 28. Die Zahl der ausgearbeiteten ZAUBER ist eine andere Groesse und steht hier nicht: Ein Zauber kann ausgearbeitet sein, ohne dass sein Klang existiert. Namen, Schulen und Wirkung der uebrigen stehen in GAME-DESIGN 22 als noch nicht ausgeplant; ein Klang-Slot ohne Zauber waere geraten."
       },
       {
         "group": "music",
         "count": 14,
         "epic": "E10",
-        "reason": "Ein Grundklang je Instanz. Thema, Farbwelt und Klangteppich der 14 Instanzen entstehen mit E10 (GAME-DESIGN 22); offen ist dort auch, ob es eigenstaendige Stuecke werden oder Varianten der fuenf Prozess-Schwerpunkte."
+        "reason": "DIE ZAHL ZAEHLT KLANG-EINTRAEGE (Issue #512). 5 der 19 Slots der Gruppe 'music' sind belegt, also fehlen 14. ACHTUNG, ZWEI GROESSEN MIT DERSELBEN ZAHL: Die fehlenden 14 sind 19 minus 5 — dass GAME-DESIGN 22 ebenfalls 14 Instanzen kennt, ist Zufall. Aendert sich eine der beiden, laufen sie auseinander, und ein Satz ueber '14 Instanzen' waere weiter richtig und trotzdem die falsche Groesse. Thema, Farbwelt und Klangteppich entstehen mit E10; offen ist dort auch, ob es eigenstaendige Stuecke werden oder Varianten der fuenf Prozess-Themen."
       }
     ]
   },

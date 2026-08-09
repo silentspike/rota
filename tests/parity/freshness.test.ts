@@ -52,6 +52,7 @@ import eingecheckteKontrolle from './recordings/kontrolle-wirkt.json';
 import eingecheckteFixierung from './recordings/fixation.json';
 import eingecheckteNeueZauber from './recordings/new-calcination.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
+import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -119,6 +120,7 @@ import {
   kontrolleWirktPayload,
   fixationPayload,
   logParityPayload,
+  logTaktePayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -395,6 +397,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('die Protokoll-Arten des Spiels entsprechen dem heutigen Spielstand', () => {
     expect(eingecheckteProtokollParitaet, HINWEIS).toEqual(logParityPayload());
+  });
+
+  it('die Protokoll-ZEITPUNKTE entsprechen dem heutigen Spielstand', () => {
+    // Issue #676. Diese Aufzeichnung traegt zusaetzlich `takte` — die
+    // Zeitpunkte je Art. Wandert eine Schreibstelle im Spiel um einen Takt,
+    // faerbt der Vergleich hier, nicht erst in der Rust-Gegenseite.
+    expect(eingecheckteProtokollTakte, HINWEIS).toEqual(logTaktePayload());
   });
 
   it('die Tempo-Umrechnung entspricht dem heutigen Spielstand', () => {
@@ -685,6 +694,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'fixation',
   'new-calcination',
   'log-parity',
+  'log-takte',
   'haste',
   'worn-values',
   'sources',
