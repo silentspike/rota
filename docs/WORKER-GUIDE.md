@@ -5935,3 +5935,71 @@ sie auseinander"). Das ist die ehrliche Lösung — sie behauptet keine Deckung,
 Gefunden hat es der, der beides gebaut hat — den Text und den Wächter darüber. Wer nur eins von
 beidem baut, sieht die Lücke gar nicht: Der Textschreiber hält den Wächter für zuständig, der
 Wächterbauer hält den Text für Beiwerk.
+
+### 8.94 Eine AC mit zwei Lesarten wird in der billigeren erfüllt
+
+Die AC2 von #676 lautete:
+
+> „Ein Wächter prüft Absicht gegen Wirklichkeit, **in beide Richtungen**: steht ‚ja' und niemand
+> schreibt → rot; steht ‚—' und jemand schreibt → rot."
+
+Gemeint war **fehlend/unerwartet**. Genauso gut lesbar war **game/sim** — die beiden Spalten, die
+`EVENT_KIND_INTENT` führt. Gebaut wurde die erste Lesart, abgenommen wurde sie auch, und das
+Ergebnis erfüllt den Wortlaut vollständig:
+
+```
+EVENT_KIND_INTENT   17 Arten
+  game: true        12   geprüft
+  sim:  true        16   ← keine einzige geprüft (#689)
+```
+
+`grep -n "sim" tests/unit/log-absicht.test.ts` liefert **keinen Treffer**. Eine ganze Spalte der
+Absichtstabelle stand ohne Deckung, während drei Wächter den Eindruck erweckten, die Sache sei
+abgedeckt.
+
+**Niemand hat gelogen.** Der Zuschneider hat eine Formulierung geschrieben, die er eindeutig fand.
+Der Bauende hat sie gelesen und die naheliegende Lesart gebaut. Der Abnehmende hat gegen denselben
+Wortlaut geprüft, den er selbst geschrieben hatte — und deshalb dieselbe Lesart wiederholt.
+
+> Der Zuschneider prüft seine AC gegen das, was er **meinte**. Damit ist er der Einzige, der die
+> zweite Lesart nie sieht.
+
+**Was daraus für dich folgt — du bist die einzige Stelle, an der es auffallen kann:** Wenn eine AC
+zwei Lesarten hat, ist die billigere fast immer die gemeinte, und die teurere fast immer die
+richtige. Melde die Beobachtung **vor** dem Bau, in einem Satz: „AC2 kann X oder Y heißen, ich baue
+X." Dann entscheidet der Zuschneider, und wenn er Y meinte, kostet es eine Nachricht statt eines
+Wächters, der ein halbes Jahr das Falsche bewacht.
+
+Erkennungsmerkmal: eine AC, die ein **Zahlwort** oder ein **Mengenwort** enthält — „beide", „alle",
+„je", „vollständig". Diese Wörter beziehen sich immer auf eine Menge, und die Menge steht selten
+dabei.
+
+### 8.95 Eine Zusicherung über eine Konstante ist keine Zusicherung über die Grenze
+
+Bei #682 wurde der Rückgabewert von `Buffs.expire()` zu einer Bitmaske. Damit hängt die Richtigkeit
+an einer Konstante:
+
+```
+BUFF_KIND_CAPACITY = 8       heute wahr
+                             ab 32 passt die Maske nicht mehr in eine JS-Zahl
+```
+
+Verlangt war eine Zusicherung `BUFF_KIND_CAPACITY <= 31` samt Gegenprobe. Gebaut wurden **zwei**
+Fälle:
+
+| Fall             | prüft                                 |
+| ---------------- | ------------------------------------- |
+| die Zahl         | `BUFF_KIND_CAPACITY` gegen die Grenze |
+| die **Rechnung** | `1 << 31` ist negativ, `1 << 7` nicht |
+
+Der zweite war nicht verlangt und ist der wichtigere. Fall eins belegt, dass jemand eine Zahl
+aufgeschrieben hat — nicht, dass es die richtige ist. Stünde dort fälschlich **63** (eine plausible
+Zahl, wenn man an 64 Bit denkt), bliebe er grün und der Code wäre kaputt.
+
+> Eine Konstante mit Testabdeckung ist eine Meinung mit Testabdeckung, solange kein Fall die
+> Wirklichkeit misst, gegen die sie behauptet wird.
+
+**Regel für jede Grenzwert-AC:** zwei Fälle. Einer hält die Zahl fest, einer misst die Grenze
+selbst — an dem Verhalten, das bei Überschreitung kippt. Das ist dieselbe Unterscheidung wie in
+8.93: dort „der Text nennt `target`" gegen „`target` ist richtig", hier „die Konstante ist ≤ 31"
+gegen „ab 32 bricht die Rechnung".
