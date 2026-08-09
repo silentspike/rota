@@ -82,6 +82,7 @@ import {
   RuleEvents,
 } from '../combat/events.js';
 import { Buffs, BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
+import { TICK_MS } from './loop.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
@@ -735,6 +736,30 @@ export class Combat {
 
   /** Wann sie verfällt, wenn sie nicht vorher aufgebraucht wird. -1 = keine. */
   private shieldExpiresAtMs = -1;
+
+  /**
+   * Heilung über Zeit (POULTICE, Issue #481) — Gesamtbetrag, Anzahl der
+   * Schritte, wie viele davon getan sind, nächster Takt.
+   *
+   * Vier Felder statt eines Objekts: Im Takt entsteht damit nichts (GAME-DESIGN
+   * 18.2), und der Zustand ist an derselben Stelle sichtbar wie die
+   * Schutzschicht darüber.
+   *
+   * **Warum ein Zähler statt eines Betrags je Takt.** Der erste Entwurf trug
+   * `perTick = amount / schritte` — bei POULTICE (1800 über 6000 ms) ergibt das
+   * glatte 30, und der Fall war grün. Beim nächsten Zauber mit einem nicht
+   * teilbaren Betrag wäre daraus eine Fließkommazahl geworden, die beide Seiten
+   * unabhängig hätten runden müssen: genau der Fall, den GAME-DESIGN 18.4
+   * ausschließt. Kumulativ gerechnet — `amount * getan / schritte`, ganzzahlig
+   * geteilt, minus dem schon Gutgeschriebenen — bleibt die Summe exakt `amount`
+   * und jeder einzelne Schritt ganzzahlig, für jeden Betrag und jede Dauer.
+   */
+  private healOverTimeAmount = 0;
+  private healOverTimeSteps = 0;
+  private healOverTimeIntervalMs = 0;
+  private healOverTimeDone = 0;
+  private healOverTimeCredited = 0;
+  private healOverTimeNextAtMs = 0;
 
   /** Wie viele Anwendungen gerade übereinanderliegen. */
   private shieldStacksValue = 0;
@@ -1750,7 +1775,20 @@ export class Combat {
 
     // Weg 2 — Heilung.
     const heal = spell.heal;
-    if (heal !== undefined) {
+    // **Heilung über Zeit läuft an, statt sofort anzukommen** (POULTICE,
+    // Issue #481). Sie ersetzt die Sofortheilung für diesen Zauber; beides
+    // zugleich wäre doppelt.
+    if (heal !== undefined && heal.overMs !== undefined && heal.overMs > 0) {
+      // Abgeleitet, nicht konfiguriert: Die Schrittzahl folgt aus Dauer und
+      // Takt. Eine eigene Zahl dafür könnte still von beiden abweichen.
+      const abstand = Math.max(TICK_MS, heal.tickIntervalMs ?? TICK_MS);
+      this.healOverTimeAmount = heal.amount;
+      this.healOverTimeSteps = Math.max(1, Math.round(heal.overMs / abstand));
+      this.healOverTimeIntervalMs = abstand;
+      this.healOverTimeDone = 0;
+      this.healOverTimeCredited = 0;
+      this.healOverTimeNextAtMs = seitBeginn + abstand;
+    } else if (heal !== undefined) {
       // **Nur bis zur vollen Anzeige.** Was darüber hinausginge, verpufft — es
       // als Heilung zu zählen ließe einen Lauf mit voller Anzeige nach mehr
       // Wirkung aussehen, als er gebraucht hat.
@@ -2916,6 +2954,33 @@ export class Combat {
       const left = this.resourceValue - resource.decayAmount;
       this.resourceValue = left > 0 ? left : 0;
       this.nextDecayAtMs += resource.decayPerStepMs;
+    }
+
+    // **Heilung über Zeit** (POULTICE, Issue #481). Sie läuft im selben Takt
+    // wie die übrigen wiederkehrenden Größen und deckelt an der vollen
+    // Anzeige — was darüber hinausginge, verpufft, genau wie bei der
+    // Sofortheilung.
+    while (this.healOverTimeDone < this.healOverTimeSteps && timeMs >= this.healOverTimeNextAtMs) {
+      this.healOverTimeDone++;
+      const soll = Math.floor(
+        (this.healOverTimeAmount * this.healOverTimeDone) / this.healOverTimeSteps,
+      );
+      const faellig = soll - this.healOverTimeCredited;
+      this.healOverTimeCredited = soll;
+      const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
+      const wirklich = Math.min(faellig, fehlend);
+      if (wirklich > 0) {
+        this.playerHpValue += wirklich;
+        this.healedValue += wirklich;
+        // **Derselbe Nachlauf wie bei der Sofortheilung**, mit dem Betrag, der
+        // WIRKLICH angekommen ist: zurückdrängen (Baustein 6) und ins
+        // Protokoll. Ein Heil-Takt ist damit ein Ereignis wie ein Brand-Takt —
+        // ihn stumm zu lassen hieße, dieselbe Wirkung je nach Zauber einmal zu
+        // melden und einmal nicht.
+        this.stabilise(wirklich);
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
+      }
+      this.healOverTimeNextAtMs += this.healOverTimeIntervalMs;
     }
 
     // Die zweite Uhr (GAME-DESIGN 11.2, Baustein 1). Sie steigt **unabhängig
@@ -4315,6 +4380,16 @@ export class Combat {
     this.shieldStacksValue = 0;
     this.shieldAbsorbedValue = 0;
     this.healedValue = 0;
+    // **Auch die laufende Heilung endet mit der Runde** (POULTICE, Issue #481).
+    // Ohne diese vier Zeilen liefe ein POULTICE aus der vorigen Runde in die
+    // nächste hinein und heilte dort weiter — sichtbar erst an einer Anzeige,
+    // die ohne Zauber steigt.
+    this.healOverTimeAmount = 0;
+    this.healOverTimeSteps = 0;
+    this.healOverTimeIntervalMs = 0;
+    this.healOverTimeDone = 0;
+    this.healOverTimeCredited = 0;
+    this.healOverTimeNextAtMs = 0;
     this.conversionUntilMs = -1;
     this.conversionPercentValue = 0;
     this.convertedValue = 0;

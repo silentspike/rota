@@ -100,6 +100,21 @@
       }
     },
     {
+      "_comment": "POULTICE — Heilung ueber Zeit statt sofort (Issue #481).\n\nKEIN EIGENES FELD, sondern ein Zusatz an `heal`: `overMs` verteilt den\nBetrag ueber die Dauer, `tickIntervalMs` sagt in welchem Abstand. Fehlen\nsie, heilt der Zauber sofort — so wie SALVE es seit jeher tut. Damit\nbleibt eine Heilung eine Heilung, und der Unterschied steht an der\nStelle, an der er gilt.\n\nDer Zweck ist die Abwaegung: Sofortheilung verzeiht einen Fehler, der\nschon passiert ist. Heilung ueber Zeit muss VORHER stehen und verpufft,\nwenn nichts passiert.\n\nVORLAEUFIGE ZAHLEN. 8 s Abklingzeit stehen im Raster. 1800 ueber 6000 ms\nsind sechs Schritte zu 300 — in der Summe mehr als SALVEs 1500 auf\neinmal, dafuer nur, wenn der Schaden ueber die Dauer verteilt kommt.\n\nDIE 1000 ms SIND EINE ANNAHME, nicht aus dem Raster. Das Raster nennt zu\nPOULTICE nur \"8 s\" und \"Heilung ueber Zeit\", keinen Abstand. 1000 ms ist\nder Wert, den die Braende der anderen Schulen tragen (putrefaction 1000,\ncalcination 1000 und 2000). Ohne ihn liefe die Heilung im 10-ms-Takt des\nSpiels: 600 Schritte zu 3, jeder mit einem eigenen Protokoll-Eintrag.",
+      "id": "poultice",
+      "name": "Poultice",
+      "unlockLevel": 6,
+      "baseDamage": 0,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "heal": {
+        "amount": 1800,
+        "overMs": 6000,
+        "tickIntervalMs": 1000
+      }
+    },
+    {
       "_comment": "CRUCIBLE SKIN — alle drei Wege gleichzeitig, kurz und stark (Issue #481).\n\nKEIN NEUES FELD. Er ist die Summe der drei vorhandenen Wirkungen der\nSchule: `shield` (Weg 1), `heal` (Weg 2) und `conversion` (Weg 3). Das\nRaster nennt ihn \"alle drei Wege gleichzeitig\" — genau so ist er gebaut,\naus Bausteinen, die der Kampf schon kennt.\n\nDamit ist er auch der einzige der fuenf neuen, der ohne Eingriff in\ncombat.ts und fight.rs auskommt.\n\nVORLAEUFIGE ZAHLEN. 45 s Abklingzeit stehen im Raster; die Werte sind\n\"kurz und stark\" umgesetzt: mehr als CRUST (900) und SALVE (1500) je\nEinzelwurf, dafuer nur ein Stapel und die halbe Dauer. Getunt wird, wenn\nder Katalog vollstaendig ist — nicht Zauber fuer Zauber.",
       "id": "crucible-skin",
       "name": "Crucible Skin",

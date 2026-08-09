@@ -102,6 +102,82 @@ fn crucible_skin_wird_in_dieser_aufzeichnung_wirklich_gewirkt() {
     );
 }
 
+/// Dieselbe Zusicherung fuer POULTICE (Issue #481).
+#[test]
+fn poultice_wird_in_dieser_aufzeichnung_wirklich_gewirkt() {
+    let json = data();
+    let aufzeichnung = recording(&json);
+
+    let zauber = index_of("poultice").expect("poultice fehlt im Simulator");
+    let slot = aufzeichnung
+        .bindings
+        .iter()
+        .find(|b| b.spell == zauber)
+        .map(|b| b.slot)
+        .expect("poultice liegt auf keinem Platz");
+
+    assert!(
+        aufzeichnung.presses.iter().any(|p| p.slot == slot),
+        "poultice wird in dieser Aufzeichnung nie gedrueckt — dann belegt sie fuer ihn nichts"
+    );
+    assert!(
+        json["expected"]["casts"]["poultice"].as_u64().unwrap_or(0) > 0,
+        "die Aufzeichnung zaehlt keinen einzigen Wurf von poultice"
+    );
+}
+
+/// **Gewirkt heisst nicht gewirkt HAT.**
+///
+/// Der Fall darueber belegt, dass die Zauber gedrueckt werden. Er waere auch
+/// dann gruen, wenn jeder von ihnen ins Leere liefe — und genau das war der
+/// erste Entwurf dieser Aufzeichnung: `casts.crucible-skin = 1` bei
+/// `absorbed = healed = converted = 0`, weil der gewaehlte Boss nie austeilt.
+///
+/// Die fuenf Groessen hier sind die, welche die beiden Zauber bewegen. Jede
+/// steht ungleich null, und jede wird gegen die Aufzeichnung geprueft: Der
+/// Simulator muss dieselbe Zahl erreichen wie das Spiel, nicht irgendeine.
+#[test]
+fn die_wirkungen_stehen_auf_beiden_seiten_gleich_und_ungleich_null() {
+    let json = data();
+    let aufzeichnung = recording(&json);
+    let boss_id = json["bossId"].as_str().expect("bossId fehlt");
+    let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
+    let mut fight = Fight::new(FightConfig {
+        seed: aufzeichnung.seed,
+        boss,
+        duration_ms: Some(aufzeichnung.ticks * TICK_MS),
+        ..FightConfig::default()
+    });
+    let ergebnis = fight.replay(&aufzeichnung, true);
+
+    let erwartet = |feld: &str| -> u32 {
+        u32::try_from(
+            json["expected"][feld]
+                .as_u64()
+                .unwrap_or_else(|| panic!("{feld} fehlt in expected")),
+        )
+        .expect("zu gross")
+    };
+
+    for (feld, gemessen) in [
+        ("damage", ergebnis.damage),
+        ("damageTaken", ergebnis.damage_taken),
+        ("absorbed", ergebnis.shield_absorbed),
+        ("healed", ergebnis.healed),
+        ("converted", ergebnis.converted),
+    ] {
+        assert!(
+            erwartet(feld) > 0,
+            "{feld} steht in der Aufzeichnung auf null — dann vergleicht dieser Fall zwei Nullen"
+        );
+        assert_eq!(
+            gemessen,
+            erwartet(feld),
+            "{feld}: Simulator und Spiel kommen auf verschiedene Werte"
+        );
+    }
+}
+
 /// Takt fuer Takt, nicht nur am Ende.
 #[test]
 fn die_pruefsumme_stimmt_in_jedem_takt() {
