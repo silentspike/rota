@@ -4277,6 +4277,14 @@ export function newCalcinationPayload(): Record<string, unknown> {
     checksums.push(hash);
   }
 
+  // **Der zweite Lauf, und er war der Grund für #663** (Issue #653). Als ich
+  // ihn zum ersten Mal setzte, lieferte er 660 statt 1860: `recordings()`
+  // gab die Aufzeichnung ohne Bindungen zurück, und `replayRecording` fiel
+  // still auf `STEP1_BINDINGS` zurück — Platz 0 meinte `searing` und bekam
+  // `kindle`. Seit #663 bringt die Aufzeichnung ihre Belegung mit, und der
+  // Nachlauf spielt denselben Kampf.
+  const result = replayRecording(recording, { boss, checksumPerTick: true });
+
   return {
     schema: SCHEMA,
     name: recording.name,
@@ -4287,12 +4295,14 @@ export function newCalcinationPayload(): Record<string, unknown> {
     bindings,
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
-      damage: combat.damageDealt,
-      damageTaken: combat.damageTaken,
-      absorbed: combat.shieldAbsorbed,
-      healed: combat.healed,
-      converted: combat.converted,
-      diedAtMs: combat.diedAtMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      // Die Prüfsumme wird AM `combat` gezogen, nicht am Ergebnis: Sie greift
+      // den Zustand zu einem Zeitpunkt ab, sie ist kein Endwert.
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
       sequenceChecksum: sequence,
       // **Je Zauber, damit sichtbar ist, dass BEIDE gewirkt wurden.** Eine
