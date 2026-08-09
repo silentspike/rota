@@ -99,6 +99,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'efflux',
       // Issue #540 — DISTIL, bei seiner Schule.
       'distil',
+      // Issue #480 — AETHER, hinten in `sublimation.json` und damit VOR den
+      // Zaubern der Zersetzung. Die Stelle ist nicht gewählt, sondern folgt
+      // aus der Ladereihenfolge der Schuldateien.
+      'aether',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',

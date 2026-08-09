@@ -94,6 +94,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'efflux',
       // Issue #540 — DISTIL, bei seiner Schule.
       'distil',
+      // Issue #480 — AETHER, hinten in `sublimation.json`.
+      'aether',
       'canker',
       'fester',
       'blight',
