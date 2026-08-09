@@ -10,6 +10,30 @@ import { bossById } from '../../src/core/data.js';
  *   control.amountMs  stall    300,00 %   damageTaken  320 → 1280
  * ```
  *
+ * # Unter diesen Zahlen liegt ein SOCKEL, der mit STALL nichts zu tun hat
+ *
+ * Seit Issue #568 löst die Energieleiste von `test-vessel` einen Boss-Schlag
+ * außerhalb der Zeitleiste aus. Im Fenster dieser Fälle sind das zwei
+ * Auslöser, zusammen **320 Schaden** — sie treffen jeden Lauf gleich, ob mit
+ * STALL, mit STAY oder ohne Kontrolle.
+ *
+ * Deshalb sind die Absolutwerte hier um 320 gewandert:
+ *
+ * ```text
+ *                    vorher   jetzt   Differenz
+ *   ohne Kontrolle    1280     1600      +320
+ *   mit STALL          320      640      +320
+ *   ------------------------------------------
+ *   Wirkung von STALL  960      960         0
+ * ```
+ *
+ * **Die 960 sind der Zweck dieser Datei; die Absolutwerte sind Kulisse.**
+ *
+ * Wer sie das nächste Mal wandern sieht, prüft deshalb ZUERST die Differenz.
+ * Bewegt sie sich nicht, hat jemand einen Sockel eingezogen und nicht die
+ * Kontrolle verändert — dann sind die Zahlen nachzuziehen und dieser Absatz
+ * zu ergänzen, nicht STALL zu verdächtigen.
+ *
  * # ANCHOR steht hier NICHT, und das ist der lehrreichere Teil
  *
  * `control.cost/anchor` stand mit 6,67 % in der Rangfolge. Ein erster Entwurf
@@ -46,8 +70,8 @@ import { bossById } from '../../src/core/data.js';
  *
  * Bei den Brand-Größen ist die Basis der **Gesamtschaden**: 72,58 % bei
  * SEARING heißen „ein Viertel mehr". Bei STALL ist die Basis der **verhinderte
- * Teil**: 320 von 1280. Halbiert man seine Verzögerung, steigt der erlittene
- * Schaden auf 1280 — also **exakt auf den Wert ohne STALL**.
+ * Teil**: 640 von 1600. Halbiert man seine Verzögerung, steigt der erlittene
+ * Schaden auf 1600 — also **exakt auf den Wert ohne STALL**.
  *
  * Das ist keine Verschiebung um einen Betrag, sondern der vollständige
  * Wirkungsverlust. Deshalb steht in `groessen-hebel-messung.txt` seit heute
@@ -57,7 +81,7 @@ import { bossById } from '../../src/core/data.js';
  * # Die Aufzeichnung liefert die Gegenprobe gleich mit
  *
  * Derselbe Fall enthält drei Läufe — `none`, `stay`, `stall`. Die ersten
- * beiden kommen auf 1280, der dritte auf 320. Ein Prüffall, der nur `stall`
+ * beiden kommen auf 1600, der dritte auf 640. Ein Prüffall, der nur `stall`
  * misst, könnte einen Boss erwischen, der ohnehin wenig austeilt; mit `none`
  * daneben ist das ausgeschlossen.
  */
@@ -91,7 +115,7 @@ function erlittenerSchaden(bossId: string, lauf: Lauf): number {
   ).damageTaken;
 }
 
-describe('STALL senkt den erlittenen Schaden von 1280 auf 320', () => {
+describe('STALL senkt den erlittenen Schaden von 1600 auf 640', () => {
   const fall = faelle()[1]!;
   const weg = (name: string): Lauf => {
     const l = fall.runs.find((r) => r.way === name);
@@ -104,29 +128,29 @@ describe('STALL senkt den erlittenen Schaden von 1280 auf 320', () => {
    * misst der Fall darunter nichts und wäre grün mit der Aussage „STALL
    * wirkt" — auch wenn er gar nichts täte.
    */
-  it('ohne Kontrolle fallen 1280', () => {
+  it('ohne Kontrolle fallen 1600', () => {
     expect(
       erlittenerSchaden(fall.bossId, weg('none')),
-      'der Boss teilt nicht die 1280 aus, gegen die STALL unten gemessen wird',
-    ).toBe(1280);
+      'der Boss teilt nicht die 1600 aus, gegen die STALL unten gemessen wird',
+    ).toBe(1600);
   });
 
-  it('mit STALL nur noch 320', () => {
+  it('mit STALL nur noch 640', () => {
     expect(
       erlittenerSchaden(fall.bossId, weg('stall')),
       'STALL verhindert nicht die drei Viertel aus dem Design — sein amountMs ist zu klein',
-    ).toBe(320);
+    ).toBe(640);
   });
 
   /**
    * STAY ist der Gegenbeleg: derselbe Kampf, ein anderer Kontroll-Zauber,
    * **keine** Wirkung auf den erlittenen Schaden. Ohne ihn bliebe offen, ob
-   * die 320 von STALL kommen oder davon, dass überhaupt jemand etwas wirkt.
+   * die 640 von STALL kommen oder davon, dass überhaupt jemand etwas wirkt.
    */
-  it('mit STAY dagegen weiterhin 1280 — es liegt an STALL', () => {
+  it('mit STAY dagegen weiterhin 1600 — es liegt an STALL', () => {
     expect(
       erlittenerSchaden(fall.bossId, weg('stay')),
       'STAY senkt den Schaden ebenfalls — dann sagt der Fall oben nichts über STALL',
-    ).toBe(1280);
+    ).toBe(1600);
   });
 });

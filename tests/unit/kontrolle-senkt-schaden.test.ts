@@ -47,11 +47,24 @@ import { TICK_MS } from '../../src/core/loop.js';
  *
  * Zwei Bosse, weil einer den Nachweis allein trägt: `boss-1-4` endet auf 0
  * (ein einziger Zeitleisten-Eintrag), `test-vessel` liefert dieselbe Aussage
- * mit 1280 gegen 320 — keine Randwert-Zahl.
+ * mit 1600 gegen 640 — keine Randwert-Zahl.
+ *
+ * # Unter den Zahlen von `test-vessel` liegt ein SOCKEL
+ *
+ * Seit Issue #568 löst dessen Energieleiste einen Boss-Schlag außerhalb der
+ * Zeitleiste aus — im Fenster dieses Falls zwei Auslöser zu zusammen **320
+ * Schaden**, die jeden Lauf gleich treffen. Die Werte sind deshalb von
+ * 1280/320 auf 1600/640 gewandert; die **gemessene Wirkung ist unverändert:
+ * 960, vor wie nach**.
+ *
+ * Wer sie wieder wandern sieht, prüft ZUERST die Differenz. Bewegt sie sich
+ * nicht, hat jemand einen Sockel eingezogen und nicht die Kontrolle
+ * verändert. `boss-1-4` hat keine Energieleiste und ist davon unberührt —
+ * genau dafür stehen hier zwei Bosse.
  */
 const LAGEN = [
   { bossId: 'boss-1-4', quenchAtMs: 34_000, ohne: 560, mitStall: 0 },
-  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1280, mitStall: 320 },
+  { bossId: 'test-vessel', quenchAtMs: 24_500, ohne: 1600, mitStall: 640 },
 ] as const;
 const TAKTE = 4000;
 
@@ -190,6 +203,6 @@ describe('Die Kontrolle senkt den erlittenen Schaden', () => {
     // Null endet, ist schwerer zu widerlegen, als er sein sollte.
     const r = lauf('test-vessel', 'stall', 24_500);
     expect(r.damageTaken).toBeGreaterThan(0);
-    expect(r.damageTaken).toBeLessThan(1280);
+    expect(r.damageTaken).toBeLessThan(1600);
   });
 });
