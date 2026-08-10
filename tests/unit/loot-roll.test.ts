@@ -247,8 +247,57 @@ describe('Die Fallrate ist ein benannter Wert', () => {
 });
 
 describe('Bossgebundene Stücke', () => {
-  it('ein ungebundenes Stück fällt überall', () => {
-    expect(candidatesFor('irgendein-boss')).toHaveLength(ITEMS.length);
+  /**
+   * **Der Fall maß bis #421b an `test-relic`** — mit `candidatesFor(…)` gegen
+   * `ITEMS.length`, was nur stimmte, solange kein Eintrag gebunden war.
+   *
+   * Seit `test-relic` an `test-warden` hängt (siehe unten), misst er an einem
+   * Gegenstand, den das Spiel **wirklich ausliefert**. Das ist keine Anpassung
+   * an die Änderung, sondern die bessere Messung: Ein Prüf-Gegenstand sagt
+   * nichts darüber, ob echte Beute überall fällt.
+   */
+  it('ein ungebundenes Stück fällt überall — gemessen an einem echten Fundstück', () => {
+    const echte = ITEMS.filter((item) => item.boundToBoss === '');
+    expect(echte.length, 'kein einziger ungebundener Eintrag — dann sagt der Fall nichts').toBe(20);
+
+    const hier = candidatesFor('irgendein-boss').map((i) => i.id);
+    for (const item of echte) {
+      expect(hier, `${item.id} ist ungebunden und fällt trotzdem nicht`).toContain(item.id);
+    }
+  });
+
+  it('der Prüf-Gegenstand fällt NICHT mehr im Spiel', () => {
+    // **Er tat es**, und das war der Befund: 14 von 200 Läufen ließen „Test
+    // Relic" fallen, gleichverteilt unter 21 Kandidaten. Der Kopfkommentar von
+    // `data/items.json` sagt aber, `test-`-Einträge seien „ausserhalb dessen,
+    // was das Spiel je ausliefert".
+    //
+    // `candidatesFor` filtert nach `boundToBoss`, **nicht** nach dem Präfix —
+    // deshalb hängt er jetzt an `test-warden`, einem Boss, den das Spiel nicht
+    // ausliefert.
+    expect(candidatesFor('first-crucible').map((i) => i.id)).not.toContain('test-relic');
+    expect(candidatesFor('irgendein-boss').map((i) => i.id)).not.toContain('test-relic');
+
+    // Die Gegenprobe: Bei SEINEM Boss ist er dabei. Ohne diese Zeile wäre der
+    // Fall auch grün, wenn der Eintrag ganz verschwände.
+    expect(candidatesFor('test-warden').map((i) => i.id)).toContain('test-relic');
+  });
+
+  it('und über 200 Läufe fällt er kein einziges Mal', () => {
+    // Die Wirkung, nicht nur die Kandidatenliste: `candidatesFor` könnte
+    // richtig filtern und `rollLoot` trotzdem anders ziehen.
+    let testRelics = 0;
+    let funde = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const drop = rollLoot(lootStreamFor(seed), DROP_CONTEXT);
+      if (drop === null) continue;
+      funde++;
+      if (drop.itemId === 'test-relic') testRelics++;
+    }
+    expect(funde, 'keine Funde in 200 Läufen — dann misst die Zeile unten nichts').toBeGreaterThan(
+      0,
+    );
+    expect(testRelics).toBe(0);
   });
 
   it('ein gebundenes nur beim richtigen Boss', () => {
