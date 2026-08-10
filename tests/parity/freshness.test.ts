@@ -57,6 +57,7 @@ import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
 import eingecheckteCondenseRunde from './recordings/condense-merker.json';
 import eingecheckteKontrollFehlschlagRunde from './recordings/kontrolle-fehlschlag.json';
+import eingecheckteRetortRunde from './recordings/retort-erstattung.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -133,6 +134,7 @@ import {
   sublimePayload,
   condensePayload,
   kontrollFehlschlagPayload,
+  retortPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -486,6 +488,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
     }
   });
 
+  it('RETORTs Erstattung entspricht dem heutigen Spielstand', () => {
+    // Issue #480, der dritte Merker — der erste mit einer Zahl.
+    expect(eingecheckteRetortRunde, HINWEIS).toEqual(retortPayload());
+  });
+
   it('der Kontroll-Fehlschlag entspricht dem heutigen Spielstand', () => {
     // Die einzige Runde, in der eine Kontroll-Ausgabe scheitert.
     expect(eingecheckteKontrollFehlschlagRunde, HINWEIS).toEqual(kontrollFehlschlagPayload());
@@ -808,6 +815,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'sublime-merker',
   'condense-merker',
   'kontrolle-fehlschlag',
+  'retort-erstattung',
   'haste',
   'worn-values',
   'sources',

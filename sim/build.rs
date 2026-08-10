@@ -494,6 +494,17 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        doubles_next_cast: {verdoppelt_naechsten},");
+    // RETORT (#480), der dritte Merker — hier aus demselben Grund wie der
+    // zweite: nebeneinander, nicht verstreut. Sein Zustand traegt allerdings
+    // eine ZAHL statt eines Ja/Nein, das Datenfeld bleibt ein Schalter.
+    let erstattet_wartezeit = spell
+        .get("refundsInterruptedGcd")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(
+        out,
+        "        refunds_interrupted_gcd: {erstattet_wartezeit},"
+    );
     // Ein Unterbrecher, der die globale Wartezeit ausloest, waere die Ausnahme
     // aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Er koennte nicht mehr
     // zwischen zwei Zauber gelegt werden, und der ganze Baustein waere tot.
