@@ -19,6 +19,7 @@ import { KEYS_PER_LAYER, SLOT_CODES, SLOT_COUNT } from '../input/keys.js';
 import { NO_SPELL } from '../core/session.js';
 import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
 import { combatChecksum } from '../core/checksum.js';
+import type { DamageFactors } from '../core/damage.js';
 import { EVENT_NAMES, type LogEntry } from '../core/log.js';
 import { EVENT_NAMES as COMBAT_EVENT_NAMES, NO_KEY, eventIndex } from '../core/events.js';
 import { buildSoundReport, type SoundReport } from './sound-report.js';
@@ -550,6 +551,56 @@ export interface DevTools {
   measureAllocations(frames?: number): Promise<AllocationResult>;
 }
 
+/**
+ * Die acht Schadensfaktoren als benannte Liste, in der Reihenfolge, in der
+ * `computeDamage` sie anwendet.
+ *
+ * # Warum das eine eigene Funktion ist und nicht acht Zeilen im Aufriss
+ *
+ * Bis zum 2026-08-10 stand in `explainDamage` eine Liste aus **Konstanten**:
+ * fünf von sechs Einträgen fest auf `1`, nur `resistance` gelesen. Das
+ * Werkzeug heißt „erklär mir den Schaden" und gab Zahlen aus, die mit dem
+ * Kampf nichts zu tun hatten.
+ *
+ * **Was das gekostet hat:** Es zeigte mit angelegtem Gegenstand `essence: 1`,
+ * während derselbe Wurf von 100 auf 221 stieg. Das sah nach dem Befund
+ * „Ausrüstung kommt im Spiel nicht an" aus — der wäre falsch gewesen und
+ * hätte drei Sitzungen auf die Suche geschickt. Gefangen hat es nur, dass
+ * `setItems` daneben `essence: 474` zurückgab: zwei Auskünfte desselben
+ * Programms, die sich widersprachen.
+ *
+ * Als eigene Funktion ist sie **prüfbar**, ohne eine ganze `App` aufzubauen —
+ * und ein Rückfall auf Konstanten färbt `tests/unit/explain-damage.test.ts`.
+ * Ein Werkzeug, das nur von Menschen gelesen wird, hat sonst keinen Wächter.
+ *
+ * # Acht, nicht sechs
+ *
+ * Die alte Liste ließ `gearEffects` und `vulnerability` ganz aus. Sie war
+ * also nicht nur falsch, sondern unvollständig: `computeDamage` multipliziert
+ * acht Faktoren, und wer sechs zeigt, erklärt einen anderen Schaden als den
+ * gefallenen.
+ *
+ * # `crit` zeigt den Nicht-Krit-Fall, und das ist Absicht
+ *
+ * `crit` ist in `setDamageFactor` ausdrücklich ausgenommen und lebt nur in
+ * `factorsOnCrit`. Ein Aufriss, der den Krit einrechnete, zeigte einen
+ * Schaden, den der nächste Wurf nur mit Glück trifft.
+ */
+export function damageFactorList(
+  factors: DamageFactors,
+): { readonly name: string; readonly value: number }[] {
+  return [
+    { name: 'essence', value: factors.essence },
+    { name: 'talents', value: factors.talents },
+    { name: 'gearEffects', value: factors.gearEffects },
+    { name: 'buffs', value: factors.buffs },
+    { name: 'synergy', value: factors.synergy },
+    { name: 'resistance', value: factors.resistance },
+    { name: 'vulnerability', value: factors.vulnerability },
+    { name: 'crit', value: factors.crit },
+  ];
+}
+
 export function installDevTools(app: App): void {
   if (!__ROTA_DEVTOOLS__) return;
 
@@ -925,14 +976,7 @@ export function installDevTools(app: App): void {
         spender === undefined
           ? 0
           : spender.damagePerPoint * resource * (bonusApplied ? spender.bonusMultiplier : 1);
-      const factors = [
-        { name: 'essence', value: 1 },
-        { name: 'talents', value: 1 },
-        { name: 'buffs', value: 1 },
-        { name: 'synergy', value: 1 },
-        { name: 'resistance', value: app.combat.boss.resistances[app.combat.school.school] ?? 1 },
-        { name: 'crit', value: 1 },
-      ];
+      const factors = damageFactorList(app.combat.damageFactors);
       let total = spell.baseDamage + spenderRaw;
       for (const factor of factors) total *= factor.value;
       return {
