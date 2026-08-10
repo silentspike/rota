@@ -98,6 +98,7 @@ import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
+import eingecheckterPin from './recordings/pin-befreiung.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
 import eingecheckteKrit from './recordings/krit-umwandlung.json';
 import {
@@ -157,6 +158,7 @@ import {
   extendEffectsPayload,
   coagulationNeuPayload,
   kernePayload,
+  pinPayload,
   effluxPayload,
   kritPayload,
 } from './payloads.js';
@@ -295,6 +297,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CLASP, LATCH und PLATE werden nur hier gewirkt — veraltet die Datei,
     // ist der einzige Paritäts-Nachweis für alle drei weg (Issue #519).
     expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
+  });
+
+  it('PINs Befreiung entspricht dem heutigen Spielstand', () => {
+    // PIN wird NUR hier gewirkt, und nur hier zeigt sich seine Wirkung:
+    // `test-caster` besteht aus drei `strike`-Eintraegen, also kann das, was
+    // QUENCH dort abbricht, nur PIN freigelegt haben (Issue #478).
+    expect(eingecheckterPin, HINWEIS).toEqual(pinPayload());
   });
 
   it('die Fäulnis über Zeit entspricht dem heutigen Spielstand', () => {
@@ -787,6 +796,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'extend-effects',
   'coagulation-neu',
   'kern-zauber',
+  'pin-befreiung',
   'efflux-restzeit',
   'krit-umwandlung',
   'rot-decay',

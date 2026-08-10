@@ -270,6 +270,17 @@ pub enum ControlEffect {
     SlowCast,
     /// Einen Schlag verzoegern: Der Zeitleisten-Eintrag rueckt nach hinten.
     DelayStrike,
+    /// Den NAECHSTEN Boss-Zauber unterbrechbar machen (PIN, Issue #478).
+    ///
+    /// **Der Betrag ist die FENSTERLAENGE, nicht eine Verzoegerung.** Ein
+    /// `Strike` traegt keine Wirkzeit; ein Schlag, den PIN nur umetikettierte,
+    /// waere im selben Augenblick vorbei, in dem er beginnt. Also gibt PIN ihm
+    /// ein Fenster, und dessen Laenge steht in den Daten.
+    ///
+    /// **Dem naechsten, nicht dem laufenden.** Gelesen wird der Merker im
+    /// Ausloese-Moment eines Eintrags — eine Stelle frueher befreite der Zauber
+    /// sich selbst statt den folgenden.
+    MakeInterruptible,
     /// Eine Phase hinauszoegern: Die Schwelle sinkt voruebergehend.
     ///
     /// **Sie nimmt einen Wechsel nicht zurueck.** Die Phase kann nur steigen

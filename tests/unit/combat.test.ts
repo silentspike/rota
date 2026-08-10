@@ -98,6 +98,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'latch',
       // Issue #540 — GRIPLOCK, bei seiner Schule.
       'griplock',
+      // Issue #478 — PIN, am Ende der FIXATION-Datei.
+      'pin',
       // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
       //
       // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in

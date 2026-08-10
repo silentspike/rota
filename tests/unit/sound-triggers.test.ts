@@ -205,6 +205,11 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'quicksilver',
     'distil',
     'griplock',
+    // VORLAEUFIG (Issue #478): PIN ist gebaut, sein Klang entsteht ueber Suno
+    // (#487). Bei ihm haengt besonders viel daran — er macht einen Schlag
+    // unterbrechbar, und der Spieler muss HOEREN, dass jetzt ein Fenster offen
+    // ist. Ohne Klang bleibt nur der Balken.
+    'pin',
     'virulence',
     // VORLAEUFIG (Issue #480): AETHER ist gebaut, sein Klang fehlt. Er
     // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen —
