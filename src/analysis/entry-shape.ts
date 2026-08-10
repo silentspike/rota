@@ -97,6 +97,13 @@ export function isOwnedItem(entry: unknown): boolean {
   // `equippedSlot` ist ausdrücklich `number | null` — nicht ausgerüstet ist
   // ein Zustand, kein fehlender Wert.
   if (roh['equippedSlot'] !== null && !istZahl(roh['equippedSlot'])) return false;
+  // **Fehlen ist erlaubt, Unsinn nicht** (Issue #480). Stufe und Qualität des
+  // Fundes kamen mit Fassung 2 dazu; ein älterer Stand hat sie nicht, und
+  // `cleanSave` würde jeden Eintrag ohne sie WEGFILTERN — der Spieler verlöre
+  // seine Ausrüstung beim Laden, still. Ein vorhandenes Feld muss dagegen
+  // stimmen: eine `"85"` als Zeichenkette rechnet sich nicht, sie verkettet.
+  if (roh['itemLevel'] !== undefined && !istZahl(roh['itemLevel'])) return false;
+  if (roh['quality'] !== undefined && !istZahl(roh['quality'])) return false;
   return true;
 }
 
