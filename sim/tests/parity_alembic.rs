@@ -172,6 +172,36 @@ fn ac2_die_zwei_ladungen_stehen_in_der_spur() {
         "kein Takt zeigt GENAU EINE offene Auswahl — dann wurden beide \
          Ladungen in einem Druck verbraucht, statt in zweien"
     );
+
+    // **Und jetzt gegen die andere Seite** (gemessen bei #480).
+    //
+    // Alles darüber prüft die Spur gegen sich selbst: „kommt eine 2 vor,
+    // kommt eine 1 vor". Das ist eine Aussage über das SPIEL und keine über
+    // die Parität — der Simulator kam darin bis hierher nicht vor.
+    //
+    // Die Lücke hat eine Verzögerung: Der Auswahlmodus steht in KEINER der
+    // beiden Prüfsummen. Er wirkt nur mittelbar, über eine Abklingzeit, die er
+    // zurücksetzt. Liefen beide Seiten im Zustand auseinander, fiele es erst
+    // auf, wenn er greift — und dann an einer anderen Stelle als der, an der
+    // es entstand.
+    let (_, result) = nachspielen(&json);
+    assert_eq!(
+        result.reset_charges_left.len(),
+        spur.len(),
+        "verschieden viele Takte in der Spur der offenen Auswahlen"
+    );
+    for (tick, (links, rechts)) in result
+        .reset_charges_left
+        .iter()
+        .zip(spur.iter())
+        .enumerate()
+    {
+        assert_eq!(
+            links, rechts,
+            "die offenen Auswahlen gehen im Takt {tick} auseinander: \
+             Simulator {links}, Spiel {rechts}"
+        );
+    }
 }
 
 /// Die Auswahlen haben wirklich Abklingzeiten geloescht, nicht bloss
