@@ -1,4 +1,4 @@
-# Das Talent-Raster — zwölf Wege, neun entschieden
+# Das Talent-Raster — zwölf Wege, alle entschieden
 
 > **Zweck:** Dieses Dokument hält fest, **welche Größe** jeder Talentweg bewegt und **wo** sie
 > steht. Ohne es entsteht bei jedem Bau dieselbe Frage neu, und sie wurde bereits dreimal
@@ -41,7 +41,9 @@ mehrerer Fehlgriffe.
 | **COAGULATION**  | dicker      | `shield.amount`                          |     2 |     2 | keine neue    |
 |                  | länger      | `shield.durationMs`                      |     1 |     2 | keine neue    |
 |                  | mehr Stapel | `shield.maxStacks`                       |     1 |     1 | keine neue    |
-| **SUBLIMATION**  | —           | wartet auf RETORT                        |       |       |               |
+| **SUBLIMATION**  | Abzug       | `cooldownReductionMs`                    |     ? |     ? | keine neue    |
+|                  | Rücksetzer  | `cooldownResetCharges`                   |     ? |     ? | keine neue    |
+|                  | Schwelle    | `cooldownReductionBelowMs`               |     ? |     ? | keine neue    |
 
 **Keiner der zwölf Wege braucht eine neue Prüfsummen-Zeile.** Gemessen: Alle bewegen Größen, die
 bereits in beiden Prüfsummen stehen.
@@ -121,9 +123,24 @@ der sie referenziert, existiert noch nicht.
 
 ## Was noch offen ist
 
-- **SUBLIMATIONs drei Wege.** Die Schule steht bei elf Zaubern, ihr Größen-Vorrat aber unverändert
-  bei vier — und drei davon liegen in je **einem** Zauber. Ein Weg träfe dort einen Zauber statt
-  einen Stil. RETORT soll eine fünfte Größe bringen, nicht einen zwölften Zauber.
+- **SUBLIMATIONs drei Wege.** In Arbeit — sie waren **nie blockiert**, und die gegenteilige Aussage
+  in diesem Dokument war zwei Stunden lang falsch. Sechs der zwölf Zauber tragen Zahlen:
+
+  ```
+  cooldownReductionMs        vapour 1000 · wisp 500 · decant 2000 · ascend 10000
+  cooldownResetCharges       reflux 1 · alembic 2
+  cooldownReductionBelowMs   ascend 10000
+  ```
+
+  > **Wie der Irrtum entstand — und warum er hier steht.** Gemessen wurden die **letzten zwei** der
+  > Liste (`sublime`, `condense`); beide tragen Schalter statt Zahlen, und daraus wurde auf alle
+  > geschlossen. **Zwei von elf sind keine Messung über elf.** Die Aussage stand danach in diesem
+  > Dokument, wurde dem Auftraggeber vorgelegt und trug eine Entscheidung — RETORTs Wiederaufnahme.
+  > Ein Irrtum in einer Arbeitsgrundlage wandert weiter als einer im Code.
+
+  RETORT (`#733`) ist trotzdem richtig gebaut worden: Er ist der erste Zauber, der die **Wartezeit
+  selbst** anfasst, und damit eine vierte Größe — nicht nur ein zwölfter Zauber.
+
 - **Die Schlüsseltalente** je Schule. Nur CALCINATION hat eines (`calcination-keystone`).
   `keystone: string` und `hasKeystone()` sind wiederverwendbar; jedes Schlüsseltalent ist ein
   eigenes Verhalten, kein Zahlendreher.

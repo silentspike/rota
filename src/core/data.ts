@@ -286,6 +286,17 @@ export interface SpellDef {
    * doppelter Schaden.
    */
   readonly doublesNextCast?: boolean;
+  /**
+   * Ob dieser Zauber die Wartezeit erstattet, die ein **Boss-Abbruch**
+   * gekostet hat (RETORT, #480).
+   *
+   * Der dritte Merker, neben den zwei anderen. Sein Zustand trägt eine ZAHL
+   * statt eines Ja/Nein: die offenen Millisekunden beim Abbruch.
+   *
+   * Nicht die Abklingzeit — die ist nach einem Abbruch gemessen schon null.
+   * Nur der Boss-Abbruch, nicht der Selbst-Abbruch.
+   */
+  readonly refundsInterruptedGcd?: boolean;
   /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
   readonly shield?: ShieldDef;
   /** Heilung, falls der Zauber eine ist (Weg 2). */
@@ -1616,6 +1627,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   const senktVerhaengnis = raw['clearsDoom'] === true;
   const befreitNaechsten = raw['freesNextGcd'] === true;
   const verdoppeltNaechsten = raw['doublesNextCast'] === true;
+  const erstattetWartezeit = raw['refundsInterruptedGcd'] === true;
   if (unterbricht && raw['triggersGcd'] !== false) {
     // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
     // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
@@ -1711,6 +1723,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     clearsDoom: senktVerhaengnis,
     freesNextGcd: befreitNaechsten,
     doublesNextCast: verdoppeltNaechsten,
+    refundsInterruptedGcd: erstattetWartezeit,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
     ...parsePutrefaction(raw, where, problems),

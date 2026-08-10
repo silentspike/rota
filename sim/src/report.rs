@@ -209,9 +209,16 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         //
         // Dass beide Merker hier stehen müssen, ist kein Zufall: Ein Zauber,
         // der auf die ROTATION wirkt statt auf den Boss, hat nie eine eigene
-        // Zeile. Für die zwei, die noch folgen (RETORT, PUTRID BLOOM), gilt
-        // dasselbe, sobald sie ein eigenes Feld bekommen.
+        // Zeile.
         || spell.doubles_next_cast
+        // Der dritte Merker (RETORT, #480), und die Vorhersage der Zeile
+        // darüber hat sich bestätigt: Er gibt Wartezeit zurück, macht selbst
+        // keinen Schaden und stünde sonst dauerhaft als „TOT" in der Tabelle.
+        //
+        // Damit sind es drei von drei — jeder Merker-Zauber landet hier. Wer
+        // den vierten baut, braucht diese Zeile ebenso, und `tests/report.rs`
+        // wird ihn beim Einbau daran erinnern.
+        || spell.refunds_interrupted_gcd
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

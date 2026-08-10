@@ -120,6 +120,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'sublime',
       // Issue #480 — CONDENSE, hinter SUBLIME in derselben Schuldatei.
       'condense',
+      // Issue #480 — RETORT, hinter CONDENSE in derselben Schuldatei.
+      'retort',
       'canker',
       'fester',
       'blight',

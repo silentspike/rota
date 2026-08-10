@@ -256,6 +256,15 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     //     Wiederholung, die schwaecher ist als das Original, und hier ist die
     //     zweite Wirkung genauso stark wie die erste.
     'condense',
+    //
+    //   retort      | die verlorene Wartezeit kommt zurueck | ~0,5 s
+    //     gegen CONDENSE (0,5 s, "ein Doppelschlag") — beide sind kurz, und
+    //     genau deshalb muessen die Woerter auseinanderliegen. CONDENSE ist
+    //     ein Zuschlag, RETORT eine RUECKNAHME: etwas, das schon verloren
+    //     schien, kommt zurueck. Ein Zurueckschnappen, kein Aufprall. Nicht
+    //     "Echo" und nicht "Hall" — die klingen nach Wiederholung; hier wird
+    //     nichts wiederholt, sondern etwas ungeschehen gemacht.
+    'retort',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //
