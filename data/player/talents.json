@@ -5,6 +5,7 @@
     {
       "id": "calcination",
       "school": "CALCINATION",
+      "paths": ["trunk", "build", "release", "hold"],
       "talents": [
         {
           "id": "calcination-trunk",
@@ -58,6 +59,7 @@
     {
       "id": "fixation",
       "school": "FIXATION",
+      "paths": ["trunk", "build", "cost", "effect"],
       "talents": [
         {
           "id": "fixation-trunk",
@@ -69,33 +71,40 @@
         },
         {
           "id": "fixation-build",
-          "name": "Deeper Reserve",
+          "name": "Faster Buildup",
           "path": "build",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "fixation-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "fixation-trunk",
+          "controlGainPerRankPerMille": 100,
+          "_comment": "WEG 1 VON DREI (#419): schneller aufbauen. Die WIRKSTELLE gab es schon — combat.ts multipliziert controlGain seit GRIPLOCK (#489) mit controlBuffs. Was fehlte, war die SPEISUNG aus einem Talent statt aus einem Zauber; genau die ist dieses Feld. 100 Promille je Rang, fuenf Raenge: BINDs 2 Punkte werden bei vollem Weg zu 3. ALLE ZAHLEN VORLAEUFIG."
         },
         {
-          "id": "fixation-release",
-          "name": "Sharper Spending",
-          "path": "release",
+          "id": "fixation-cost",
+          "name": "Cheaper Spending",
+          "path": "cost",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "fixation-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "fixation-trunk",
+          "controlCostPerRankPerMille": 80,
+          "_comment": "WEG 2 VON DREI (#419): billiger ausgeben. **Als einziger der zwoelf TEILT er** — ein Weg, der den Preis senkt, kann kein Multiplikator sein. Geklemmt auf mindestens 1 Punkt: Ein Ausgeber, der nichts kostet, waere keiner. 80 Promille je Rang, fuenf Raenge: STALLs 4 Punkte werden zu 3. ALLE ZAHLEN VORLAEUFIG."
         },
         {
-          "id": "fixation-hold",
-          "name": "Longer Grip",
-          "path": "hold",
+          "id": "fixation-effect",
+          "name": "Stronger Control",
+          "path": "effect",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "fixation-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "fixation-trunk",
+          "controlEffectPerRankPerMille": 60,
+          "_comment": "WEG 3 VON DREI (#419): staerker wirken. Der Faktor liegt am EINGANG von applyFixation und gilt damit fuer alle fuenf Wirkungen samt CAPSTONEs 'alle drei' — eine Stelle statt fuenf, die auseinanderlaufen koennen. ALLE ZAHLEN VORLAEUFIG."
         }
       ]
     },
     {
       "id": "sublimation",
       "school": "SUBLIMATION",
+      "paths": ["trunk", "build", "release", "hold"],
       "talents": [
         {
           "id": "sublimation-trunk",
@@ -134,6 +143,7 @@
     {
       "id": "coagulation",
       "school": "COAGULATION",
+      "paths": ["trunk", "thicker", "longer", "stacks"],
       "talents": [
         {
           "id": "coagulation-trunk",
@@ -144,34 +154,41 @@
           "requires": null
         },
         {
-          "id": "coagulation-build",
-          "name": "Thicker Crust",
-          "path": "build",
+          "id": "coagulation-thicker",
+          "name": "Thicker Ward",
+          "path": "thicker",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "coagulation-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "coagulation-trunk",
+          "shieldAmountPerRankPerMille": 100,
+          "_comment": "WEG 1 VON DREI (#419): dickere Schicht. **INNERHALB der Mechanik, nicht zwischen den dreien** — Schicht/Heilung/Umwandlung sind die MECHANIK-Wege aus 4.1 und hat der Spieler ohnehin alle; eine Wahl zwischen ihnen waere keine. Der Betrag wird ZWEIMAL gelesen (Schicht und stabilise), beide Stellen nehmen die gehobene Dicke. ALLE ZAHLEN VORLAEUFIG."
         },
         {
-          "id": "coagulation-release",
-          "name": "Deeper Mending",
-          "path": "release",
+          "id": "coagulation-longer",
+          "name": "Lasting Ward",
+          "path": "longer",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "coagulation-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "coagulation-trunk",
+          "shieldDurationPerRankPerMille": 80,
+          "_comment": "WEG 2 VON DREI (#419): laengere Schicht. In Rust schiebt die Dauer ein WAKEUP — Dauer und Wakeup nehmen denselben Wert, sonst haelt die Schicht im Simulator laenger als im Spiel. Genau dieser Fehler ist mir bei DECAY unterlaufen. ALLE ZAHLEN VORLAEUFIG."
         },
         {
-          "id": "coagulation-hold",
-          "name": "Richer Conversion",
-          "path": "hold",
+          "id": "coagulation-stacks",
+          "name": "Layered Ward",
+          "path": "stacks",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "coagulation-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "coagulation-trunk",
+          "shieldStacksPerRank": 1,
+          "_comment": "WEG 3 VON DREI (#419): mehr Stapel. **Ein ganzzahliger ZUSCHLAG, kein Faktor** — als einziger der zwoelf. Ein Faktor 1,5 auf maxStacks 3 ergaebe 4,5, und eine halbe Stapel-Erlaubnis gibt es nicht; jede Rundung waere eine zweite Entscheidung, die im Spiel anders fallen koennte als im Simulator. Dieselbe Wahl wie bei PUTRID BLOOMs decayCap.bonus. 1 je Rang, fuenf Raenge: CRUSTs 3 Stapel werden zu 8. ALLE ZAHLEN VORLAEUFIG."
         }
       ]
     },
     {
       "id": "putrefaction",
       "school": "PUTREFACTION",
+      "paths": ["trunk", "build", "effect", "duration"],
       "talents": [
         {
           "id": "putrefaction-trunk",
@@ -183,33 +200,40 @@
         },
         {
           "id": "putrefaction-build",
-          "name": "Faster Decay",
+          "name": "Faster Rot",
           "path": "build",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "putrefaction-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "putrefaction-trunk",
+          "decayStackPerRankPerMille": 100,
+          "_comment": "WEG 1 VON DREI (#419): schneller aufbauen. Er wirkt an der SAMMELSTELLE addDecayStacks, nicht an den zwei Aufrufern — decay.stacks und dot.decayPerTick laufen beide durch sie, und ein dritter Weg waere sonst vergessen. Abgerundet: Aufrunden hiesse, dass jeder erste Rang einen Stapel schenkt. ALLE ZAHLEN VORLAEUFIG."
         },
         {
-          "id": "putrefaction-release",
-          "name": "Heavier Stacks",
-          "path": "release",
+          "id": "putrefaction-effect",
+          "name": "Deeper Rot",
+          "path": "effect",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "putrefaction-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "putrefaction-trunk",
+          "decayEffectPerRankPerMille": 80,
+          "_comment": "WEG 2 VON DREI (#419): staerker wirken. Die WIRKSTELLE gab es schon — stackBuffs multipliziert seit VIRULENCE (#540). Der Faktor liegt auf DECAY_STACK_PERCENT + perDecayStackPercent, also auf der SUMME; ein Talent hebt damit auch die Schul-Basis. Vom Orchestrator entschieden (6023), weil alle acht Buff-Ziele auf die fertige Groesse wirken. ALLE ZAHLEN VORLAEUFIG."
         },
         {
-          "id": "putrefaction-hold",
-          "name": "Slower Falloff",
-          "path": "hold",
+          "id": "putrefaction-duration",
+          "name": "Lasting Rot",
+          "path": "duration",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "putrefaction-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "putrefaction-trunk",
+          "decayDurationPerRankPerMille": 60,
+          "_comment": "WEG 3 VON DREI (#419): laenger halten. Er verlaengert die Uhr JEDES neu gelegten Stapels; liegende bleiben, wie sie sind — sonst wirkte ein Talent rueckwirkend. ALLE ZAHLEN VORLAEUFIG."
         }
       ]
     },
     {
       "id": "global",
       "school": "GLOBAL",
+      "paths": ["trunk", "build", "release", "hold"],
       "talents": [
         {
           "id": "global-trunk",
