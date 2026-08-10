@@ -98,6 +98,85 @@
         "gcds": 4,
         "target": "convert"
       }
+    },
+    {
+      "_comment": "POULTICE — Heilung ueber Zeit statt sofort (Issue #481).\n\nKEIN EIGENES FELD, sondern ein Zusatz an `heal`: `overMs` verteilt den\nBetrag ueber die Dauer, `tickIntervalMs` sagt in welchem Abstand. Fehlen\nsie, heilt der Zauber sofort — so wie SALVE es seit jeher tut. Damit\nbleibt eine Heilung eine Heilung, und der Unterschied steht an der\nStelle, an der er gilt.\n\nDer Zweck ist die Abwaegung: Sofortheilung verzeiht einen Fehler, der\nschon passiert ist. Heilung ueber Zeit muss VORHER stehen und verpufft,\nwenn nichts passiert.\n\nVORLAEUFIGE ZAHLEN. 8 s Abklingzeit stehen im Raster. 1800 ueber 6000 ms\nsind sechs Schritte zu 300 — in der Summe mehr als SALVEs 1500 auf\neinmal, dafuer nur, wenn der Schaden ueber die Dauer verteilt kommt.\n\nDIE 1000 ms SIND EINE ANNAHME, nicht aus dem Raster. Das Raster nennt zu\nPOULTICE nur \"8 s\" und \"Heilung ueber Zeit\", keinen Abstand. 1000 ms ist\nder Wert, den die Braende der anderen Schulen tragen (putrefaction 1000,\ncalcination 1000 und 2000). Ohne ihn liefe die Heilung im 10-ms-Takt des\nSpiels: 600 Schritte zu 3, jeder mit einem eigenen Protokoll-Eintrag.",
+      "id": "poultice",
+      "name": "Poultice",
+      "unlockLevel": 6,
+      "baseDamage": 0,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "heal": {
+        "amount": 1800,
+        "overMs": 6000,
+        "tickIntervalMs": 1000
+      }
+    },
+    {
+      "_comment": "MEND — heilt nach verlorenem Leben (Raster 5 von 9, Issue #481).\n\nKEIN EIGENES FELD, sondern ein dritter Zusatz an `heal`, wie schon bei\nPOULTICE: `perMissingPercent` legt einen Betrag JE PROZENT fehlendem\nLeben auf den Grundbetrag.\n\n    fehlendProzent = (vesselMax - hp) * 100 / vesselMax   (abgerundet)\n    betrag         = amount + fehlendProzent * perMissingPercent\n\nIN PROZENT UND GANZZAHLIG, nicht als Anteil: Ein 0.3 in der Datei waere\neine Fliesskommazahl, die beide Seiten unabhaengig runden muessten\n(GAME-DESIGN 18.4). `conversion.sharePercent` steht aus demselben Grund\nso da.\n\nDER BETRAG STEHT BEIM WIRKEN FEST, nicht beim Ankommen. Sonst muesste\nein Zauber, der ueber Zeit heilt, unterwegs staerker werden, waehrend\nder Boss zuschlaegt — und jeder Heil-Takt muesste den Zustand von damals\nkennen.\n\nVORLAEUFIGE ZAHLEN. 25 s Abklingzeit stehen im Raster; 800 und 30 sind\ngesetzt, nicht gemessen. Sie ergeben 800 bei voller Anzeige, 2300 bei\nhalbem Leben und 3500 bei 90 Prozent fehlend — ein Rettungszauber, kein\nFueller. Zum Vergleich: SALVE 1500 bei 12 s, POULTICE 1800 bei 8 s.",
+      "id": "mend",
+      "name": "Mend",
+      "unlockLevel": 8,
+      "baseDamage": 0,
+      "cooldownMs": 25000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "heal": {
+        "amount": 800,
+        "perMissingPercent": 30
+      }
+    },
+    {
+      "_comment": "SUTURE — wandelt Schicht in Heilung um (Raster 6 von 9, Issue #481).\n\nDER ERSTE ZAUBER DER SCHULE, DER ZWEI WEGE VERBINDET. Weg 1 legt eine\nSchicht, Weg 2 holt Leben zurueck; SUTURE nimmt die liegende Schicht und\nmacht daraus Heilung. Die Abwaegung: Eine Schicht, die man nicht mehr\nbraucht, ist verloren — er holt sie zurueck, kostet dafuer aber den\nSchutz gegen den naechsten Schlag.\n\nKEIN EIGENES FELD, sondern ein vierter Zusatz an `heal`:\n`fromShieldPercent` sagt, wie viel von der Schicht als Heilung ANKOMMT.\nVerbraucht wird sie IMMER ganz — eine halbe Schicht stehen zu lassen\nwaere ein anderer Zauber.\n\nDIE 100 SIND EINE ANNAHME, nicht aus dem Raster. Das Raster nennt zu\nSUTURE nur \"18 s\" und \"wandelt Schicht in Heilung um\", keinen Kurs. Bei\n100 geht sie eins zu eins ueber; darunter kostet die Umwandlung, darueber\nlohnt sie. Eins zu eins ist die Fassung ohne Zusatzbehauptung — wer einen\nVerlust oder Gewinn will, entscheidet das beim Balancieren.\n\nVORLAEUFIGE ZAHLEN. 18 s Abklingzeit stehen im Raster. 400 Grundbetrag,\ndamit er ohne Schicht nicht voellig ins Leere geht; die Aussage ist die\nUmwandlung, nicht der Grundbetrag.",
+      "id": "suture",
+      "name": "Suture",
+      "unlockLevel": 9,
+      "baseDamage": 0,
+      "cooldownMs": 18000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "heal": {
+        "amount": 400,
+        "fromShieldPercent": 100
+      }
+    },
+    {
+      "_comment": "RIPOSTE — ein Teil des eingehenden Schadens geht zurueck (Raster 8 von 9, Issue #481).\n\nDER GEGENENTWURF ZU TEMPER. Beide gehoeren zu Weg 3 und haengen an\nentgegengesetzten Enden:\n\n    conversion  AUSGETEILTER Schaden  ->  Schutz\n    reflect     EINGEHENDER Schaden   ->  Schaden am Boss\n\nEIN EIGENES FELD, kein Zusatz an `conversion`: Ein gemeinsames\n`sharePercent` bedeutete an zwei Stellen etwas anderes, und ein Zauber\nkoennte nicht nur eines von beiden anschalten.\n\nER HAENGT AM ANGEKOMMENEN SCHADEN, nicht am rohen. Ein Schlag, den die\nSchicht ganz auffaengt, gibt nichts zurueck — sonst waeren Schicht und\nRueckschlag zusammen doppelt stark, und der Spieler bekaeme Schaden\ngeschenkt, den er gar nicht genommen hat. DAS IST EINE ANNAHME: Das\nRaster sagt nur \"ein Teil des eingehenden Schadens\".\n\nVORLAEUFIGE ZAHLEN. 30 s Abklingzeit stehen im Raster. 50 Prozent ueber\n8000 ms sind gesetzt, nicht gemessen — er ist der einzige Zauber der\nSchule, der SCHADEN aus Verteidigung macht, und damit der heikelste beim\nBalancieren.",
+      "id": "riposte",
+      "name": "Riposte",
+      "unlockLevel": 11,
+      "baseDamage": 0,
+      "cooldownMs": 30000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "reflect": {
+        "sharePercent": 50,
+        "durationMs": 8000
+      }
+    },
+    {
+      "_comment": "CRUCIBLE SKIN — alle drei Wege gleichzeitig, kurz und stark (Issue #481).\n\nKEIN NEUES FELD. Er ist die Summe der drei vorhandenen Wirkungen der\nSchule: `shield` (Weg 1), `heal` (Weg 2) und `conversion` (Weg 3). Das\nRaster nennt ihn \"alle drei Wege gleichzeitig\" — genau so ist er gebaut,\naus Bausteinen, die der Kampf schon kennt.\n\nDamit ist er auch der einzige der fuenf neuen, der ohne Eingriff in\ncombat.ts und fight.rs auskommt.\n\nVORLAEUFIGE ZAHLEN. 45 s Abklingzeit stehen im Raster; die Werte sind\n\"kurz und stark\" umgesetzt: mehr als CRUST (900) und SALVE (1500) je\nEinzelwurf, dafuer nur ein Stapel und die halbe Dauer. Getunt wird, wenn\nder Katalog vollstaendig ist — nicht Zauber fuer Zauber.",
+      "id": "crucible-skin",
+      "name": "Crucible Skin",
+      "unlockLevel": 12,
+      "baseDamage": 0,
+      "cooldownMs": 45000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "shield": {
+        "amount": 1800,
+        "durationMs": 6000,
+        "maxStacks": 1
+      },
+      "heal": {
+        "amount": 2000
+      },
+      "conversion": {
+        "sharePercent": 50,
+        "durationMs": 6000
+      }
     }
   ]
 }

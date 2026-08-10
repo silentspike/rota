@@ -151,6 +151,47 @@ pub struct Shield {
 pub struct Heal {
     /// Wie viele Lebenspunkte zurueckkommen.
     pub amount: u32,
+    /// Ueber wie viele Millisekunden `amount` verteilt ankommt (Issue #481).
+    ///
+    /// `0` heisst **sofort** — so wie SALVE es seit jeher tut. Ein Wert darueber
+    /// laesst den Betrag in Schritten von [`tick_interval_ms`](Self::tick_interval_ms)
+    /// eintreffen, gleichmaessig ueber die Dauer verteilt; das ist der Zweck von
+    /// POULTICE.
+    ///
+    /// `0` statt `Option<u32>`, weil die erzeugte Tabelle eine Konstante ist und
+    /// die Abwesenheit hier keine andere Bedeutung hat als „keine Dauer".
+    pub over_ms: u32,
+    /// In welchem Abstand die Schritte ankommen (Issue #481).
+    ///
+    /// `build.rs` besteht darauf, sobald `over_ms > 0` steht — ein stiller
+    /// Vorgabewert waere hier teuer: Ohne Abstand liefe die Heilung im
+    /// `TICK_MS`-Takt, also alle 10 ms, und ein einzelner POULTICE schriebe 600
+    /// Protokoll-Eintraege statt sechs.
+    pub tick_interval_ms: u32,
+    /// Zuschlag auf `amount` je **Prozent** fehlendem Leben (Issue #481, MEND).
+    ///
+    /// ```text
+    ///   fehlend_prozent = (vessel_max - hp) * 100 / vessel_max
+    ///   betrag          = amount + fehlend_prozent * per_missing_percent
+    /// ```
+    ///
+    /// Ganzzahlig und in Prozent, nicht als Anteil: Ein Bruch muesste von
+    /// beiden Seiten unabhaengig gerundet werden (GAME-DESIGN 18.4). Die
+    /// ganzzahlige Division entspricht dabei genau dem `Math.floor` der
+    /// TypeScript-Seite.
+    ///
+    /// `0` heisst: Der Betrag haengt nicht am fehlenden Leben — so wie SALVE
+    /// es seit jeher haelt.
+    pub per_missing_percent: u32,
+    /// Wie viel Prozent der liegenden Schutzschicht in Heilung uebergehen
+    /// (Issue #481, SUTURE).
+    ///
+    /// Steht ein Wert ueber `0`, **verbraucht der Zauber die ganze Schicht**
+    /// und rechnet den angegebenen Anteil davon auf `amount` drauf. Bei 100
+    /// geht sie eins zu eins ueber.
+    ///
+    /// `0` heisst: Der Zauber laesst die Schicht in Ruhe — so wie SALVE.
+    pub from_shield_percent: u32,
 }
 
 /// Schaden-in-Schutz-Umwandlung (COAGULATION, Weg 3).
@@ -171,6 +212,30 @@ pub struct Conversion {
     /// und genau daran laufen zwei Umsetzungen auseinander.
     pub share_percent: u32,
     /// Wie lange die Umwandlung nach dem Wirken laeuft.
+    pub duration_ms: Millis,
+}
+
+/// Rueckschlag: ein Teil des EINGEHENDEN Schadens geht an den Boss
+/// (RIPOSTE, Issue #481).
+///
+/// # Der Gegenentwurf zu [`Conversion`]
+///
+/// Beide gehoeren zu Weg 3 und sehen gleich aus — sie haengen aber an
+/// entgegengesetzten Enden:
+///
+/// ```text
+///   Conversion   AUSGETEILTER Schaden  ->  Schutz
+///   Reflect      EINGEHENDER Schaden   ->  Schaden am Boss
+/// ```
+///
+/// Deshalb ein eigenes Feld: Ein gemeinsames `share_percent` bedeutete an zwei
+/// Stellen etwas anderes, und ein Zauber koennte nicht nur eines von beiden
+/// anschalten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reflect {
+    /// Anteil des angekommenen Schadens in **Prozent**, ganzzahlig.
+    pub share_percent: u32,
+    /// Wie lange das Fenster nach dem Wirken offen steht.
     pub duration_ms: Millis,
 }
 
@@ -322,6 +387,8 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Rueckschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet.
+    pub reflect: Option<Reflect>,
     /// Wie viele Zersetzungs-Stapel der Zauber anlegt (PUTREFACTION, #97).
     pub decay_stacks: u32,
     /// Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.

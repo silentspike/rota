@@ -6322,3 +6322,191 @@ export function tickRundungPayload(): Record<string, unknown> {
     checksums: result.checksums,
   };
 }
+
+/**
+ * Die Sammelstelle für die NEUEN Zauber der COAGULATION (Issue #481).
+ *
+ * # Warum eine eigene und nicht `extend-effects`
+ *
+ * Jene wirkt bewusst je **einen** CRUST und **einen** HARDEN — ihr
+ * Kopfkommentar sagt warum: „Solange alle 10 s nachgelegt wird, läuft die
+ * Schicht nie ab, und ein verschobener Ablauf, der nie eintritt,
+ * hinterlässt keine Spur." Ein dritter Schild-Zauber könnte genau das
+ * kippen.
+ *
+ * **Eine fremde Messung fasst man nicht an, um die eigene unterzubringen.**
+ * Dieselbe Abwägung wie bei `log-parity`, wo ein sechster Zauber zwei
+ * Ereignisarten auf null gebracht hätte.
+ *
+ * # Warum SAMMELSTELLE und nicht eine Datei je Zauber
+ *
+ * Von den fünf neuen der Schule ist bisher CRUCIBLE SKIN gebaut; POULTICE,
+ * MEND, SUTURE und RIPOSTE folgen. Sie kommen hier hinein, ohne dass eine
+ * neue Datei, ein neues Rust-Gegenstück und ein neuer Frische-Eintrag
+ * entstehen — einmal gebaut statt fünfmal.
+ */
+export const COAGULATION_NEU_NAME = 'coagulation-neu';
+
+/**
+ * Wann jeder der neuen Zauber geworfen wird — und warum genau dann.
+ *
+ * Die Zahlen sind gemessen, nicht gegriffen. `test-onslaught` trifft bei 5000,
+ * 12_000 und 19_000 mit je 1600 (nach WARD); der Lauf endet nach 2450 Takten.
+ *
+ * ```text
+ *   crucible-skin  6100   Die Schicht hält 6000 ms — ab hier steht sie, wenn
+ *                         der Treffer bei 12_000 kommt. Und die Sofortheilung
+ *                         trifft auf das Loch des ersten Treffers.
+ *   poultice      19_100  Der Lauf endet MITTEN in seiner Heilung. Erst
+ *                         dadurch entscheidet die Dauer, wie viel ankommt.
+ *   mend          12_200  Der tiefste Stand: zwei Treffer sind gefallen, und
+ *                         sein Betrag hängt am fehlenden Leben.
+ * ```
+ */
+const COAGULATION_NEU_WURFZEIT: Readonly<Record<string, number>> = {
+  'crucible-skin': 6100,
+  poultice: 19_100,
+  mend: 12_200,
+  suture: 16_700,
+  // Vor dem Treffer bei 12_000, damit sein Fenster (8000 ms) offen steht, wenn
+  // der Schlag landet — und nach dem bei 5000, damit der Lauf zeigt, dass er
+  // vorher NICHTS zurückgibt.
+  riposte: 11_000,
+};
+
+/**
+ * Zauber, die einen VORBEREITER brauchen, damit sie überhaupt wirken können.
+ *
+ * SUTURE wandelt eine liegende Schutzschicht in Heilung um. Ohne Schicht heilt
+ * er nur seinen Grundbetrag — die Aufzeichnung hielte dann einen Zauber fest,
+ * dessen eigentliche Wirkung nie eintritt, und `heal.fromShieldPercent`
+ * bewegte keine Größe.
+ *
+ * SCAB legt 200 je Anwendung bei 1500 ms Abklingzeit; drei Stapel stehen nach
+ * 3000 ms. CRUST bräuchte für zwei Stapel über 7,5 s ohne Treffer, und dieses
+ * Fenster gibt es bei `test-onslaught` nicht.
+ */
+const COAGULATION_NEU_VORBEREITER: Readonly<Record<string, string>> = {
+  suture: 'scab',
+};
+
+/** Die Läufe der Sammelstelle: einer ohne Zauber, dann einer je Zauber. */
+const COAGULATION_NEU_WEGE = [
+  'none',
+  'crucible-skin',
+  'poultice',
+  'mend',
+  'suture',
+  'riposte',
+] as const;
+
+/**
+ * Ein Durchgang mit genau EINEM der neuen Zauber — oder ohne.
+ *
+ * KINDLE liegt in jedem Lauf auf Platz 0 und füllt jede Wartezeit. Er ist kein
+ * Beiwerk: Ohne ausgeteilten Schaden hat CRUCIBLE SKINs Umwandlung nichts
+ * umzuwandeln, und `converted` stünde auf null.
+ */
+function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> {
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const kindle = combat.indexOf('kindle');
+  const neu = weg === 'none' ? alsSpellIndex(-1) : combat.indexOf(weg);
+  const abMs = COAGULATION_NEU_WURFZEIT[weg] ?? 0;
+  const vorbereiterId = COAGULATION_NEU_VORBEREITER[weg];
+  const vorbereiter =
+    vorbereiterId === undefined ? alsSpellIndex(-1) : combat.indexOf(vorbereiterId);
+  const bindings = [
+    { slot: 0, spellId: 'kindle' },
+    ...(weg === 'none' ? [] : [{ slot: 1, spellId: weg }]),
+    ...(vorbereiterId === undefined ? [] : [{ slot: 2, spellId: vorbereiterId }]),
+  ];
+  const slots = slotMap(combat, bindings);
+  const ticks = 2450;
+
+  const checksums: number[] = [];
+  const presses: { tick: number; slot: number }[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.playerDead) {
+      checksums.push(combatChecksum(combat, timeMs));
+      break;
+    }
+
+    // Der neue Zauber hat Vorrang ab seiner Zeit — sonst käme er nie zum Zug,
+    // weil KINDLE jeden GCD belegt.
+    if (neu >= 0 && timeMs >= abMs && combat.isReady(neu, timeMs)) {
+      if (combat.cast(neu, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, neu, combat) });
+    } else if (
+      // Der Vorbereiter läuft NUR im Fenster VOR dem Wurf. Danach legte er
+      // eine neue Schicht, und der Lauf zeigte nicht mehr, dass SUTURE sie
+      // verbraucht hat.
+      vorbereiter >= 0 &&
+      timeMs < abMs &&
+      timeMs >= abMs - 4500 &&
+      combat.isReady(vorbereiter, timeMs)
+    ) {
+      if (combat.cast(vorbereiter, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, vorbereiter, combat) });
+    } else if (combat.isReady(kindle, timeMs)) {
+      if (combat.cast(kindle, timeMs).result === 0)
+        presses.push({ tick, slot: slotFor(slots, kindle, combat) });
+    }
+
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  // **Der zweite Lauf über dieselben Drücke.** Er liefert die Größen, die in
+  // die Datei gehen — und er fährt denselben Weg, den der Simulator fährt.
+  // Der Boss muss dabei ausdrücklich mit: Ohne ihn nimmt `replayRecording`
+  // die Vorgabe `first-crucible`, der nie austeilt. Gemessen am 2026-08-09 —
+  // die Aufzeichnung trug `bossId: undefined`, alle Größen standen auf null,
+  // und der Rust-Fall war grün, weil beide Seiten dasselbe Nichts rechneten.
+  const result = replayRecording(
+    { name: `coagulation-neu-${weg}`, seed: 0, ticks, presses, bindings },
+    { boss, checksumPerTick: true },
+  );
+
+  return {
+    way: weg,
+    ticks,
+    bindings,
+    presses,
+    expected: {
+      playerHp: combat.playerHp,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      // **Aus dem Aufnahme-Lauf, nicht aus `replayRecording`** (RIPOSTE,
+      // Issue #481). `ReplayResult` führt den Rückschlag nicht; die beiden
+      // Läufe sind aber deckungsgleich — dieselbe Bindung, dieselben Drücke,
+      // derselbe Boss. Dass sie es sind, hält die Takt-Prüfsumme darunter
+      // fest: Liefen sie auseinander, wäre sie es auch.
+      reflected: combat.reflected,
+      diedAtMs: result.diedAtMs,
+      casts: weg === 'none' ? 0 : combat.castCount(neu),
+      castsKindle: combat.castCount(kindle),
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums,
+  };
+}
+
+export function coagulationNeuPayload(): Record<string, unknown> {
+  const boss = bossById('test-onslaught');
+  if (boss === undefined) throw new Error('Der Boss test-onslaught fehlt.');
+
+  return {
+    schema: SCHEMA,
+    name: COAGULATION_NEU_NAME,
+    bossId: boss.id,
+    tickMs: TICK_MS,
+    player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
+    runs: COAGULATION_NEU_WEGE.map((weg) => coagulationNeuRun(boss, weg)),
+  };
+}

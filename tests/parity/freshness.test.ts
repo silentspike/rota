@@ -96,6 +96,7 @@ import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
+import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
 import eingecheckteKrit from './recordings/krit-umwandlung.json';
@@ -154,6 +155,7 @@ import {
   rotPayload,
   dotLifetimePayload,
   extendEffectsPayload,
+  coagulationNeuPayload,
   kernePayload,
   effluxPayload,
   kritPayload,
@@ -270,6 +272,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
     // HARDEN und SEPSIS werden nur hier gewirkt (Issue #523).
     expect(eingecheckteVerlaengerung, HINWEIS).toEqual(extendEffectsPayload());
+  });
+
+  it('die neuen COAGULATION-Zauber entsprechen dem heutigen Spielstand', () => {
+    // Die Sammelstelle aus #481. Sie wächst mit jedem neuen Zauber der
+    // Schule, statt je Zauber eine eigene Aufzeichnung zu verlangen.
+    expect(eingecheckteCoagulationNeu, HINWEIS).toEqual(coagulationNeuPayload());
   });
 
   it('der Krit-Lauf entspricht dem heutigen Spielstand', () => {
@@ -777,6 +785,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance1-boss-4',
   'dot-lifetime',
   'extend-effects',
+  'coagulation-neu',
   'kern-zauber',
   'efflux-restzeit',
   'krit-umwandlung',

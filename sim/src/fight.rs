@@ -466,12 +466,43 @@ pub struct Fight {
     shield_absorbed: u32,
     /// Wie viel Leben insgesamt zurueckgeholt wurde.
     healed: u32,
+    /// Heilung ueber Zeit (POULTICE, Issue #481) — Gesamtbetrag, Schrittzahl,
+    /// Abstand, getane Schritte, schon gutgeschriebener Betrag, Anwendung.
+    ///
+    /// **Kumulativ statt „Betrag je Schritt".** `amount * getan / schritte`,
+    /// ganzzahlig geteilt, minus dem schon Gutgeschriebenen — so bleibt die
+    /// Summe exakt `amount` und jeder Schritt ganzzahlig, auch wenn der Betrag
+    /// nicht glatt durch die Schrittzahl geht. Ein vorab gerechneter Betrag je
+    /// Schritt waere bei 1800/6 zufaellig glatt und beim naechsten Zauber eine
+    /// Fliesskommazahl, die beide Seiten unabhaengig runden muessten
+    /// (GAME-DESIGN 18.4).
+    heal_over_time_amount: u32,
+    heal_over_time_steps: u32,
+    heal_over_time_interval_ms: Millis,
+    heal_over_time_done: u32,
+    heal_over_time_credited: u32,
+    heal_over_time_generation: u16,
     /// Bis wann die Schaden-in-Schutz-Umwandlung laeuft (Weg 3).
     conversion_until: Option<Millis>,
     /// Anteil, den sie umwandelt, in Prozent. 0 heisst: keine laeuft.
     conversion_percent: u32,
     /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
     converted: u32,
+    /// Der Rueckschlag (RIPOSTE, Issue #481) — bis wann er laeuft, sein Anteil,
+    /// und was er insgesamt zurueckgegeben hat.
+    ///
+    /// Getrennt von der Umwandlung, obwohl beide zu Weg 3 gehoeren: Sie haengen
+    /// an entgegengesetzten Enden (ausgeteilter Schaden gegen eingehenden).
+    reflect_until: Option<Millis>,
+    reflect_percent: u32,
+    reflected: u32,
+    /// Welchem Zauber der zurueckgegebene Schaden gehoert.
+    ///
+    /// **Er braucht einen Traeger, keinen Platzhalter.** Der erste Entwurf
+    /// buchte ihn auf `usize::MAX` — das haette `damage_by_spell[index]` zur
+    /// Laufzeit ueber die Grenze geschickt. Der Bau war gruen; gefunden wurde
+    /// es beim Lesen von `deal`.
+    reflect_spell: usize,
 
     // -- FIXATION (Issue #100) --
     /// Vorrat an Kontroll-Punkten.
@@ -772,9 +803,19 @@ impl Fight {
             shield_stacks: 0,
             shield_absorbed: 0,
             healed: 0,
+            heal_over_time_amount: 0,
+            heal_over_time_steps: 0,
+            heal_over_time_interval_ms: 0,
+            heal_over_time_done: 0,
+            heal_over_time_credited: 0,
+            heal_over_time_generation: 0,
             conversion_until: None,
             conversion_percent: 0,
             converted: 0,
+            reflect_until: None,
+            reflect_percent: 0,
+            reflected: 0,
+            reflect_spell: 0,
             control: 0,
             pending_control_damage: 0,
             next_strike_delay: 0,
@@ -1304,6 +1345,7 @@ impl Fight {
             shield_absorbed: self.shield_absorbed,
             healed: self.healed,
             converted: self.converted,
+            reflected: self.reflected,
         }
     }
 
@@ -1374,9 +1416,30 @@ impl Fight {
         self.shield_stacks = 0;
         self.shield_absorbed = 0;
         self.healed = 0;
+        // **Auch die laufende Heilung endet mit der Runde.** Ohne diese Zeilen
+        // liefe ein POULTICE aus der vorigen Runde in die naechste hinein und
+        // heilte dort weiter — sichtbar erst an einer Anzeige, die ohne Zauber
+        // steigt.
+        //
+        // Die Anwendungsnummer geht dabei auf 0 zurueck, nicht hoch: `reset`
+        // leert die Schlange (`self.queue.clear()`), es kann also kein Weckruf
+        // aus der alten Runde uebrig sein. Genauso halten es `dot_generation`
+        // und `player_cast_generation` — und `reset_completeness` besteht
+        // darauf, dass nach dem Zuruecksetzen KEIN Feld anders steht als in
+        // einem frischen Kampf.
+        self.heal_over_time_amount = 0;
+        self.heal_over_time_steps = 0;
+        self.heal_over_time_interval_ms = 0;
+        self.heal_over_time_done = 0;
+        self.heal_over_time_credited = 0;
+        self.heal_over_time_generation = 0;
         self.conversion_until = None;
         self.conversion_percent = 0;
         self.converted = 0;
+        self.reflect_until = None;
+        self.reflect_percent = 0;
+        self.reflected = 0;
+        self.reflect_spell = 0;
         self.control = 0;
         self.pending_control_damage = 0;
         self.next_strike_delay = 0;
@@ -1756,13 +1819,52 @@ impl Fight {
         }
 
         // Weg 2 — Heilung.
-        if let Some(heal) = spell.heal {
+        //
+        // **Der Betrag steht beim WIRKEN fest** (MEND, Issue #481). Fehlt dem
+        // Spieler nichts, bleibt es beim Grundbetrag; je mehr fehlt, desto mehr
+        // kommt dazu. Die Reihenfolge ist die Aussage: erst der Betrag, dann
+        // die Verteilung. Anders herum muesste jeder Heil-Takt den Zustand von
+        // damals kennen — und ein Zauber, der ueber sechs Sekunden heilt,
+        // wuerde unterwegs staerker, waehrend der Boss zuschlaegt.
+        // **Die Schutzschicht geht als Ganzes ueber** (SUTURE, Issue #481). Sie
+        // wird verbraucht, BEVOR der Betrag feststeht — stuende sie noch, wenn
+        // die Heilung ankommt, gaebe der Zauber beides.
+        let aus_schicht = spell
+            .heal
+            .filter(|h| h.from_shield_percent > 0)
+            .map_or(0, |h| {
+                self.verbrauche_schicht_fuer_heilung(h.from_shield_percent)
+            });
+        let gewirkter_betrag = spell.heal.map_or(0, |heal| {
+            heal.amount + self.fehlend_prozent() * heal.per_missing_percent + aus_schicht
+        });
+        // **Heilung ueber Zeit laeuft an, statt sofort anzukommen** (POULTICE,
+        // Issue #481). Sie ersetzt die Sofortheilung fuer diesen Zauber; beides
+        // zugleich waere doppelt.
+        if let Some(heal) = spell.heal.filter(|h| h.over_ms > 0) {
+            let abstand = heal.tick_interval_ms.max(TICK_MS);
+            self.heal_over_time_amount = gewirkter_betrag;
+            // Abgeleitet, nicht konfiguriert: Die Schrittzahl folgt aus Dauer
+            // und Abstand. Eine eigene Zahl dafuer koennte still von beiden
+            // abweichen. `build.rs` haelt fest, dass die Teilung aufgeht.
+            self.heal_over_time_steps = (heal.over_ms / abstand).max(1);
+            self.heal_over_time_interval_ms = abstand;
+            self.heal_over_time_done = 0;
+            self.heal_over_time_credited = 0;
+            self.heal_over_time_generation = self.heal_over_time_generation.wrapping_add(1);
+            self.queue.push(
+                self.time + abstand,
+                EventKind::HealTick {
+                    generation: self.heal_over_time_generation,
+                },
+            );
+        } else if spell.heal.is_some() {
             // **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist
             // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
             // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
             // als er gebraucht hat.
             let fehlend = self.vessel_max.saturating_sub(self.player_hp);
-            let wirklich = heal.amount.min(fehlend);
+            let wirklich = gewirkter_betrag.min(fehlend);
             if wirklich > 0 {
                 self.player_hp += wirklich;
                 self.healed = self.healed.saturating_add(wirklich);
@@ -1781,6 +1883,38 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+
+        // Weg 3, andere Richtung — den Rueckschlag anschalten (RIPOSTE, #481).
+        if let Some(reflect) = spell.reflect {
+            self.reflect_percent = reflect.share_percent;
+            self.reflect_until = Some(self.time + reflect.duration_ms);
+            self.reflect_spell = index;
+            self.queue
+                .push(self.time + reflect.duration_ms, EventKind::Wakeup);
+        }
+    }
+
+    /// Gibt einen Teil des eingehenden Schadens an den Boss zurueck (RIPOSTE).
+    ///
+    /// **Ganzzahlig und abgerundet**, wie bei der Umwandlung: Der Anteil steht
+    /// als Prozentzahl in den Daten, damit hier `schaden * prozent / 100`
+    /// moeglich ist.
+    ///
+    /// Der zurueckgegebene Schaden laeuft durch `deal` wie jeder andere — ein
+    /// zweiter Weg an der Buchung vorbei waere eine Stelle zu viel.
+    fn reflect_damage(&mut self, angekommen: u32) {
+        if self.reflect_percent == 0 || angekommen == 0 {
+            return;
+        }
+        if self.reflect_until.is_none_or(|bis| self.time > bis) {
+            return;
+        }
+        let zurueck = angekommen * self.reflect_percent / 100;
+        if zurueck == 0 {
+            return;
+        }
+        self.reflected = self.reflected.saturating_add(zurueck);
+        self.deal(self.reflect_spell, zurueck, LogKind::Damage);
     }
 
     /// Die drei Wirkungen aus GAME-DESIGN 4.1.
@@ -2326,6 +2460,10 @@ impl Fight {
             self.conversion_percent = 0;
             self.conversion_until = None;
         }
+        if self.reflect_until.is_some_and(|bis| self.time > bis) {
+            self.reflect_percent = 0;
+            self.reflect_until = None;
+        }
     }
 
     /// Schaden am Spieler, **nach** WARD (GAME-DESIGN 6.1).
@@ -2373,6 +2511,11 @@ impl Fight {
             self.log
                 .push(self.time, LogKind::PlayerDeath, NO_SPELL, self.damage_taken);
         }
+        // **Der Rueckschlag haengt am ANGEKOMMENEN Schaden**, nicht am rohen
+        // (RIPOSTE, Issue #481). Ein Schlag, den die Schicht ganz auffaengt,
+        // gibt nichts zurueck: Sonst waeren Schicht und Rueckschlag zusammen
+        // doppelt stark.
+        self.reflect_damage(angekommen);
     }
 
     /// Bricht einen laufenden Boss-Zauber ab (GAME-DESIGN 11.2, Baustein 9).
@@ -2393,6 +2536,7 @@ impl Fight {
         match kind {
             EventKind::DotTick { spell, generation } => self.dot_tick(spell as usize, generation),
             EventKind::ResourceDecay => self.decay(),
+            EventKind::HealTick { generation } => self.heal_tick(generation),
             EventKind::EnergyTick => self.energy_tick(),
             EventKind::DoomTick => self.doom_tick(),
             EventKind::StackTick => self.stack_tick(),
@@ -2560,6 +2704,76 @@ impl Fight {
                     spell: index as u8,
                     generation,
                 },
+            );
+        }
+    }
+
+    /// Nimmt die liegende Schutzschicht weg und gibt zurueck, was davon als
+    /// Heilung ankommt (SUTURE, Issue #481).
+    ///
+    /// **Die Schicht ist danach ganz weg, nicht anteilig.** Das Raster sagt
+    /// „wandelt Schicht in Heilung um"; eine halbe Schicht stehen zu lassen
+    /// waere ein anderer Zauber. Der Prozentsatz bestimmt, wie viel bei der
+    /// Umwandlung ANKOMMT — nicht, wie viel verbraucht wird.
+    fn verbrauche_schicht_fuer_heilung(&mut self, prozent: u32) -> u32 {
+        let liegend = self.shield;
+        if liegend == 0 {
+            return 0;
+        }
+        self.shield = 0;
+        self.shield_stacks = 0;
+        self.shield_expires_at = None;
+        liegend * prozent / 100
+    }
+
+    /// Wie viel Prozent der Anzeige gerade fehlen, abgerundet (MEND, #481).
+    ///
+    /// **Ganzzahlige Division, kein Runden.** Sie entspricht genau dem
+    /// `Math.floor` der TypeScript-Seite; `round` haette bei `.5` eine eigene
+    /// Regel, die dort nachzubauen waere.
+    ///
+    /// Am Wert DIESER Stufe gemessen, nicht am Grundwert — sonst zeigte ein
+    /// Spieler auf Stufe 30 mit vollem Leben ein Defizit an.
+    fn fehlend_prozent(&self) -> u32 {
+        if self.vessel_max == 0 {
+            return 0;
+        }
+        self.vessel_max.saturating_sub(self.player_hp) * 100 / self.vessel_max
+    }
+
+    /// Ein Schritt einer Heilung ueber Zeit kommt an (POULTICE, Issue #481).
+    ///
+    /// Deckelt an der vollen Anzeige — was darueber hinausginge, verpufft, genau
+    /// wie bei der Sofortheilung. Und derselbe Nachlauf: zurueckdraengen
+    /// (Baustein 6) und ins Protokoll, mit dem Betrag, der WIRKLICH angekommen
+    /// ist.
+    fn heal_tick(&mut self, generation: u16) {
+        // Ein Weckruf aus einer frueheren Anwendung — ein zweiter Wurf hat die
+        // Heilung inzwischen neu aufgesetzt, oder die Runde ist vorbei.
+        if generation != self.heal_over_time_generation
+            || self.heal_over_time_done >= self.heal_over_time_steps
+        {
+            return;
+        }
+        self.heal_over_time_done += 1;
+        let soll =
+            self.heal_over_time_amount * self.heal_over_time_done / self.heal_over_time_steps;
+        let faellig = soll - self.heal_over_time_credited;
+        self.heal_over_time_credited = soll;
+        let fehlend = self.vessel_max.saturating_sub(self.player_hp);
+        let wirklich = faellig.min(fehlend);
+        if wirklich > 0 {
+            self.player_hp += wirklich;
+            self.healed = self.healed.saturating_add(wirklich);
+            self.stabilise(wirklich);
+            self.log
+                .push(self.time, LogKind::Healed, NO_SPELL, wirklich);
+        }
+        // Der naechste Schritt nur, solange noch einer aussteht.
+        if self.heal_over_time_done < self.heal_over_time_steps {
+            self.queue.push(
+                self.time + self.heal_over_time_interval_ms,
+                EventKind::HealTick { generation },
             );
         }
     }
@@ -3769,6 +3983,13 @@ impl Fight {
                 + self.convert_buffs.window_sum()
                 + self.cap_buffs.window_sum(),
         );
+        // **Angehaengt, nicht eingeschoben** (RIPOSTE, Issue #481). Das
+        // laufende Rueckschlag-Fenster gehoert hierher aus demselben Grund wie
+        // `conversionPercent`: Es entscheidet ueber jeden kuenftigen Schlag.
+        //
+        // Der ZAEHLER `reflected` steht hier NICHT — er ist kumulativ und hat
+        // eine eigene Leitung ins Ergebnis, genau wie `converted`.
+        h = mix_named_int(h, "reflectPercent", self.reflect_percent as i32);
         h
     }
 

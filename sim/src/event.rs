@@ -113,6 +113,21 @@ pub enum EventKind {
         /// versehentlich frueh aus.
         generation: u16,
     },
+    /// Ein Schritt einer Heilung ueber Zeit kommt an (POULTICE, Issue #481).
+    ///
+    /// Steht **zwischen Ressourcen-Verfall und Energieleiste**, weil der Block
+    /// in `Combat::stepPassive` genau dort steht. Diese Reihenfolge ist keine
+    /// Geschmacksfrage: Sie entscheidet, was bei gleichem Zeitpunkt zuerst
+    /// laeuft — und ein Heil-Schritt, der vor statt nach dem Schlag des Bosses
+    /// ankommt, ergibt eine andere Anzeige und damit eine andere Pruefsumme.
+    HealTick {
+        /// Welche Anwendung gemeint ist.
+        ///
+        /// Dieselbe Vorsichtsmassnahme wie bei `DotTick`: Ein zweiter Wurf
+        /// setzt die Heilung neu auf, seine Vorgaenger liegen aber noch in der
+        /// Schlange. Ohne diesen Zaehler heilten beide nebeneinander weiter.
+        generation: u16,
+    },
     /// Nur aufwachen: Zu diesem Zeitpunkt kann sich eine Entscheidung ergeben
     /// (Abklingzeit oder globale Wartezeit ist abgelaufen), oder es ist zu
     /// pruefen, ob der Boss gefallen ist.
@@ -129,18 +144,23 @@ impl EventKind {
         match self {
             EventKind::DotTick { .. } => 0,
             EventKind::ResourceDecay => 1,
-            EventKind::EnergyTick => 2,
+            // **Der Heil-Schritt zwischen Verfall und Energieleiste**
+            // (POULTICE, Issue #481) — genau wie in `Combat::stepPassive`. Die
+            // folgenden Raenge ruecken dadurch nach; ihre ABSTAENDE bleiben,
+            // und nur die zaehlen.
+            EventKind::HealTick { .. } => 2,
+            EventKind::EnergyTick => 3,
             // Zaehler und Stapel stehen zwischen Energieleiste und Zeitleiste,
             // genau wie in `Combat::tick` (Issue #216). Die drei folgenden
             // Raenge ruecken dadurch nach — ihre ABSTAENDE bleiben, und nur
             // die zaehlen.
-            EventKind::DoomTick => 3,
+            EventKind::DoomTick => 4,
             // Die Schwaechung steht zwischen Zaehler und Stapel, genau wie in
             // `Combat::tick` (Issue #240) — die folgenden Raenge ruecken
             // dadurch nach, ihre ABSTAENDE bleiben.
-            EventKind::RunawayTick => 4,
-            EventKind::AfflictionTick => 5,
-            EventKind::StackTick => 6,
+            EventKind::RunawayTick => 5,
+            EventKind::AfflictionTick => 6,
+            EventKind::StackTick => 7,
             // **Der landende Boss-Zauber VOR dem Vorruecken der Zeitleiste**
             // (Issue #331). Bis hierher war es umgekehrt, und beide Seiten
             // loesten dieselbe Lage entgegengesetzt auf.
@@ -159,12 +179,12 @@ impl EventKind {
             // Gemessen an `test-collision`: Der Simulator liess zwei von vier
             // Zaubern ausfallen (960 statt 1920 erlittener Schaden). Der
             // Spieler bekam geschenkt, was er haette verhindern muessen.
-            EventKind::BossCastLands { .. } => 7,
-            EventKind::TimelineStep { .. } => 8,
+            EventKind::BossCastLands { .. } => 8,
+            EventKind::TimelineStep { .. } => 9,
             // Die eigene Wirkzeit zuletzt unter den Zeit-Ereignissen und vor
             // dem Weckruf (Issue #304) — dieselbe Stelle wie im Spiel.
-            EventKind::PlayerCastLands { .. } => 9,
-            EventKind::Wakeup => 10,
+            EventKind::PlayerCastLands { .. } => 10,
+            EventKind::Wakeup => 11,
         }
     }
 }

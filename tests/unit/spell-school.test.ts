@@ -74,6 +74,23 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'harden',
       // Issue #540 — QUICKSILVER, bei seiner Schule.
       'quicksilver',
+      // Issue #481 — POULTICE, Heilung ueber Zeit (Weg 2 der Schule).
+      'poultice',
+      // Issue #481 — MEND, ebenfalls Weg 2 und in der Reihenfolge des Rasters.
+      // Er schiebt CRUCIBLE SKIN um eins nach hinten; das geschieht hier und
+      // in `spell-order.json` sichtbar, nicht still (wie #268, #479).
+      'mend',
+      // Issue #481 — SUTURE verbindet Weg 1 und Weg 2; er steht hinter MEND,
+      // weil er in `coagulation.json` dort steht.
+      'suture',
+      // Issue #481 — RIPOSTE gibt eingehenden Schaden zurueck; er steht hinter
+      // SUTURE, weil er in `coagulation.json` dort steht.
+      'riposte',
+      // Issue #481 — CRUCIBLE SKIN, hinter QUICKSILVER wie in
+      // `coagulation.json`. Diese Liste und `spell-order.json` führen
+      // dieselbe Reihenfolge; sie steht an zwei Stellen, damit eine
+      // Verschiebung nicht nur dort auffällt, wo sie gemacht wurde.
+      'crucible-skin',
       'bind',
       'stall',
       'stay',
