@@ -82,6 +82,30 @@ fn ac0_der_lauf_enthaelt_beide_richtungen() {
         "in dieser Runde gelingt keine einzige Ausgabe — dann zeigt der Lauf \
          nur die eine Richtung"
     );
+
+    // **Und die zwei Wurfzahlen, die dieser Fall selbst in die Aufzeichnung
+    // geschrieben hat.**
+    //
+    // Sie standen dort zuerst ungelesen — als Zusicherung gemeint, aber von
+    // keiner Zeile geprüft. Eine Zahl, die niemand liest, ist Zierrat: Sie
+    // sieht aus wie Deckung und ist keine. Gefunden bei der Suche nach genau
+    // dieser Sorte Feld, und der erste Treffer war der eigene.
+    let latch = json["expected"]["latchCasts"]
+        .as_u64()
+        .expect("latchCasts fehlt");
+    let bind = json["expected"]["bindCasts"]
+        .as_u64()
+        .expect("bindCasts fehlt");
+    assert!(
+        latch >= 2,
+        "LATCH wird nur {latch}-mal geworfen — für Fehlschlag UND Erfolg \
+         braucht es mindestens zwei Würfe"
+    );
+    assert!(
+        bind > 0,
+        "BIND wird nie geworfen — dann kann kein Punkt aufgebaut worden sein, \
+         und die gelungene Ausgabe darüber hat eine andere Ursache"
+    );
 }
 
 #[test]
