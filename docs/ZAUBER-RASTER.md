@@ -16,13 +16,13 @@
 >
 > **Stand 2026-08-10**, gemessen an `main`:
 >
-> | Schule       | 09.08. | heute | Zuwachs |
-> | ------------ | -----: | ----: | ------: |
-> | CALCINATION  |     10 |    10 |       — |
-> | FIXATION     |     10 |    11 |      +1 |
-> | PUTREFACTION |      6 |    10 |      +4 |
-> | SUBLIMATION  |      8 |    11 |      +3 |
-> | COAGULATION  |      7 |    12 |      +5 |
+> | Schule       | 09.08. |  heute | Zuwachs |
+> | ------------ | -----: | -----: | ------: |
+> | CALCINATION  |     10 |     10 |       — |
+> | FIXATION     |     10 |     11 |      +1 |
+> | PUTREFACTION |      6 |     10 |      +4 |
+> | SUBLIMATION  |      8 |     11 |      +3 |
+> | COAGULATION  |      7 |     12 |      +5 |
 > |              | **41** | **54** | **+13** |
 >
 > Dazu zwei schulübergreifende in `common.json`.
@@ -30,13 +30,13 @@
 > **Die achtzehn sind abgearbeitet, nicht offen.** Dreizehn gebaut, vier mit gemessenem Grund
 > verworfen, einer offen:
 >
-> | Vorschlag | Ausgang | Grund — gemessen, nicht geschätzt |
-> | --------- | ------- | --------------------------------- |
-> | CONTAGION | gestrichen | Die Wirkung existiert bereits; ein zweiter Zauber dafür verdoppelt sie nur |
-> | SCORIA    | gestrichen | ebenso — `split_spender` steht in `fight.rs:3122`, das Talent behält die Idee |
-> | MOOR      | verworfen | `BuffTarget::Cap` wirkt auf `school.resource.cap`, und **nur CALCINATION führt eine Ressource**. `controlValue` hat keinen Deckel — die Größe, die MOOR bewegen sollte, gibt es nicht |
-> | FORGE     | verworfen | dieselbe Klasse: die Größe existiert nicht |
-> | RETORT    | **offen** | Abklingzeit nach Abbruch ist bereits 0. Tragfähig ist nur die **Wartezeit**-Lesart: Der Abbruch kostet 1500 ms GCD, von denen bei 9000 noch 500 übrig sind. Zugeteilt an Worker-2 |
+> | Vorschlag | Ausgang    | Grund — gemessen, nicht geschätzt                                                                                                                                                     |
+> | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | CONTAGION | gestrichen | Die Wirkung existiert bereits; ein zweiter Zauber dafür verdoppelt sie nur                                                                                                            |
+> | SCORIA    | gestrichen | ebenso — `split_spender` steht in `fight.rs:3122`, das Talent behält die Idee                                                                                                         |
+> | MOOR      | verworfen  | `BuffTarget::Cap` wirkt auf `school.resource.cap`, und **nur CALCINATION führt eine Ressource**. `controlValue` hat keinen Deckel — die Größe, die MOOR bewegen sollte, gibt es nicht |
+> | FORGE     | verworfen  | dieselbe Klasse: die Größe existiert nicht                                                                                                                                            |
+> | RETORT    | **offen**  | Abklingzeit nach Abbruch ist bereits 0. Tragfähig ist nur die **Wartezeit**-Lesart: Der Abbruch kostet 1500 ms GCD, von denen bei 9000 noch 500 übrig sind. Zugeteilt an Worker-2     |
 >
 > Am 2026-08-09 nannte dieses Dokument bei PUTREFACTION _zwei_ vorhandene Zauber — es waren
 > **sechs**. Vier der zehn Vorschläge waren längst gebaut. Wer die Liste abgearbeitet hätte, hätte
