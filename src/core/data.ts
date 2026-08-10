@@ -268,12 +268,32 @@ export interface SpellDef {
    * müssen — zu wenig heißt unschaffbar, zu viel heißt Kulisse.
    */
   readonly clearsDoom?: boolean;
+  /**
+   * Ob dieser Zauber den **nächsten** von der globalen Wartezeit befreit
+   * (SUBLIME, Issue #480).
+   *
+   * Anders als `triggersGcd`, das eine Eigenschaft dieses Zaubers ist, setzt
+   * dieses Feld einen **Merker**: einen Zustand, der bis zum nächsten Wurf
+   * lebt. Merker gehören in die Prüfsumme — warum, steht dort.
+   */
+  readonly freesNextGcd?: boolean;
+  /**
+   * Ob dieser Zauber den **nächsten** zweimal wirken lässt (CONDENSE, #480).
+   *
+   * Der zweite Merker, neben dem ersten statt am Ende — Merker sind eine
+   * eigene Sorte Feld, und vier verstreute wären schwerer zu pflegen als eine
+   * Gruppe. „Zweimal" heißt die volle Wirkung ein zweites Mal, nicht bloß
+   * doppelter Schaden.
+   */
+  readonly doublesNextCast?: boolean;
   /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
   readonly shield?: ShieldDef;
   /** Heilung, falls der Zauber eine ist (Weg 2). */
   readonly heal?: HealDef;
   /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
   readonly conversion?: ConversionDef;
+  /** Die Anhebung der Stapel-Grenze (PUTRID BLOOM, Issue #479). */
+  readonly decayCap?: DecayCapDef;
   /** Rückschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet. */
   readonly reflect?: ReflectDef;
   /** Die Schwächung des Boss-Schadens nach Stapelzahl (DECAY, Issue #479). */
@@ -447,6 +467,26 @@ export interface HealDef {
  * Seiten unabhängig gerundet werden — und genau daran laufen zwei Umsetzungen
  * auseinander.
  */
+/**
+ * Die Anhebung der Stapel-Grenze (PUTRID BLOOM, Issue #479).
+ *
+ * > „Die Stapel-Obergrenze steigt, solange er läuft" (ZAUBER-RASTER,
+ * > PUTREFACTION 6)
+ *
+ * # Warum der Zuschlag begrenzt ist
+ *
+ * Die Struktur — Feldlänge und Prüfsummen-Schleife — ist fest
+ * (`DECAY_STACK_CAPACITY`). Ein Zuschlag darüber hinaus hätte keinen Platz,
+ * und die Prüfsumme läse Werte, die es nicht gibt. Der Parser weist ihn
+ * deshalb zurück, statt ihn stillschweigend zu kappen.
+ */
+export interface DecayCapDef {
+  /** Um wie viele Plätze die Grenze steigt. */
+  readonly bonus: number;
+  /** Wie lange die Anhebung nach dem Wirken gilt. */
+  readonly durationMs: number;
+}
+
 export interface ConversionDef {
   readonly sharePercent: number;
   readonly durationMs: number;
@@ -1327,6 +1367,7 @@ function parseCoagulation(
     heal?: HealDef;
     conversion?: ConversionDef;
     reflect?: ReflectDef;
+    decayCap?: DecayCapDef;
     decayWard?: DecayWardDef;
   } = {};
 
@@ -1448,6 +1489,27 @@ function parseCoagulation(
     } else out.decayWard = { permillePerStack, durationMs };
   }
 
+  // PUTRID BLOOM (Issue #479).
+  //
+  // **Die Kapazitätsgrenze wird hier NICHT geprüft**, obwohl sie hierher
+  // gehörte: `MAX_DECAY_STACKS` und `DECAY_STACK_CAPACITY` stehen in
+  // `combat.ts`, und das importiert aus dieser Datei (Zeile 44). Ein Import in
+  // die Gegenrichtung wäre ein Zirkelbezug.
+  //
+  // Sie steht deshalb als eigener Fall in `tests/unit/decay-cap.test.ts` — an
+  // der Stelle, wo die Konstanten erreichbar sind. Die Zahlen hier zweimal zu
+  // führen wäre die schlechtere Wahl: Eine zweite Quelle antwortet plausibel
+  // und falsch, sobald jemand nur eine von beiden ändert.
+  if (isRecord(raw['decayCap'])) {
+    const bonus = number(raw['decayCap']['bonus'], 0);
+    const durationMs = number(raw['decayCap']['durationMs'], 0);
+    if (bonus <= 0) {
+      problems.push(`${where}: decayCap-Zuschlag ${bonus} bewirkt nichts.`);
+    } else if (durationMs <= 0) {
+      problems.push(`${where}: decayCap ohne Laufzeit wirkt nie.`);
+    } else out.decayCap = { bonus, durationMs };
+  }
+
   return out;
 }
 
@@ -1552,6 +1614,8 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
 
   const unterbricht = raw['interrupt'] === true;
   const senktVerhaengnis = raw['clearsDoom'] === true;
+  const befreitNaechsten = raw['freesNextGcd'] === true;
+  const verdoppeltNaechsten = raw['doublesNextCast'] === true;
   if (unterbricht && raw['triggersGcd'] !== false) {
     // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
     // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
@@ -1645,6 +1709,8 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     school: typeof raw['school'] === 'string' ? raw['school'] : null,
     interrupt: unterbricht,
     clearsDoom: senktVerhaengnis,
+    freesNextGcd: befreitNaechsten,
+    doublesNextCast: verdoppeltNaechsten,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
     ...parsePutrefaction(raw, where, problems),
