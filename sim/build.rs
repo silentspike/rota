@@ -470,6 +470,30 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        clears_doom: {senkt_verhaengnis},");
+    // **Den NAECHSTEN Zauber von der Wartezeit befreien** (SUBLIME, #480).
+    //
+    // Unterscheidet sich von `triggersGcd` in dem, worauf es zeigt:
+    // `triggersGcd` sagt, ob DIESER Zauber die Wartezeit ausloest — eine
+    // Eigenschaft, die in den Daten steht und sich nie aendert. Dieses Feld
+    // setzt einen MERKER, der bis zum naechsten Wurf lebt.
+    //
+    // Merker sind neu im Datenmodell, und sie haben eine Bedingung: Sie
+    // gehoeren in die Pruefsumme. Die Begruendung steht an der Stelle, an der
+    // sie dort eingehaengt sind (`src/core/checksum.ts`).
+    let befreit_naechsten = spell
+        .get("freesNextGcd")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        frees_next_gcd: {befreit_naechsten},");
+    // CONDENSE (#480), der zweite Merker. Er steht bewusst NEBEN dem ersten
+    // und nicht am Ende der Datei: Merker sind eine eigene Sorte Feld, und
+    // vier von ihnen einzeln verstreut waeren schwerer zu pflegen als eine
+    // Gruppe. Dieselbe Ueberlegung wie in beiden Pruefsummen.
+    let verdoppelt_naechsten = spell
+        .get("doublesNextCast")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        doubles_next_cast: {verdoppelt_naechsten},");
     // Ein Unterbrecher, der die globale Wartezeit ausloest, waere die Ausnahme
     // aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Er koennte nicht mehr
     // zwischen zwei Zauber gelegt werden, und der ganze Baustein waere tot.
@@ -1743,6 +1767,40 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let _ = writeln!(
                 out,
                 "        decay_ward: Some(DecayWard {{ permille_per_stack: {permille}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+
+    match spell.get("decayCap") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        decay_cap: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/decayCap");
+            let bonus = uint(node, "bonus", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            assert!(bonus > 0, "{whose}: Zuschlag {bonus} bewirkt nichts");
+            assert!(duration > 0, "{whose}: decayCap ohne Laufzeit wirkt nie");
+            // **Die Kapazitaetsgrenze, und sie bricht den BAU.** Ein Zuschlag
+            // ueber die feste Struktur hinaus haette keinen Platz im Feld, und
+            // die Pruefsumme laese Werte, die es nicht gibt. Lieber hier
+            // abbrechen als still das Falsche rechnen — dieselbe Haltung wie
+            // bei `consumesAll` (Zeile 709).
+            //
+            // Die Zahlen stehen in `fight.rs` und werden hier abgeschrieben;
+            // `tests/decay_cap.rs` haelt beide gegeneinander fest.
+            assert!(
+                5 + bonus <= 8,
+                "{whose}: Zuschlag {bonus} fuehrt ueber die Kapazitaet 8 hinaus \
+                 (Grenze 5)"
+            );
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            let _ = writeln!(
+                out,
+                "        decay_cap: Some(DecayCap {{ bonus: {bonus}, duration_ms: {duration} }}),"
             );
         }
     }

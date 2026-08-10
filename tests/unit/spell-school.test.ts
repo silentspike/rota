@@ -116,6 +116,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'distil',
       // Issue #480 — AETHER, hinten in `sublimation.json`.
       'aether',
+      // Issue #480 — SUBLIME, hinter AETHER in derselben Schuldatei.
+      'sublime',
+      // Issue #480 — CONDENSE, hinter SUBLIME in derselben Schuldatei.
+      'condense',
       'canker',
       'fester',
       'blight',
@@ -132,6 +136,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'necrosis',
       // Issue #479 — DECAY, der neunte der Schule, ebenfalls am Ende.
       'decay',
+      // Issue #479 — PUTRID BLOOM, ebenfalls am Ende.
+      'putrid-bloom',
       'test-cast',
       'test-buff',
       'test-control',
