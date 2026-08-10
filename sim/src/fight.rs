@@ -4744,6 +4744,18 @@ impl Fight {
         self.shield_absorbed
     }
 
+    /// Der Verwundbarkeits-Faktor aus den Faeulnis-Stapeln (Issue #738).
+    ///
+    /// **Das Gegenstueck zu `combat.vulnerability`** auf der Spiel-Seite
+    /// (`combat.ts:2868`), das dort von drei Pruefdateien gelesen wird. Auf
+    /// dieser Seite gab es keines — und die Paritaet uebertraegt `buffs`
+    /// takt-fuer-takt, `vulnerability` gar nicht. Zwei Faktoren derselben
+    /// Familie, einer verglichen, der andere nicht.
+    #[must_use]
+    pub fn vulnerability(&self) -> f64 {
+        self.factors.vulnerability
+    }
+
     /// Wie viel Leben insgesamt zurueckgeholt wurde (Weg 2).
     #[must_use]
     pub fn healed(&self) -> u32 {
