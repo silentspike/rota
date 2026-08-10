@@ -24,8 +24,22 @@
  *                "Talent Z erhoeht um 5 %"
  */
 
-/** Fassung des Speicherformats. Steigt nur, wenn sich die Struktur aendert. */
-export const SAVE_SCHEMA = 1;
+/**
+ * Fassung des Speicherformats. Steigt nur, wenn sich die Struktur aendert.
+ *
+ * 1 -> 2 (Issue #480): `OwnedItem` traegt `itemLevel` und `quality` des
+ * einzelnen Fundes. Beide sind optional, ein Stand der Fassung 1 laedt also
+ * unveraendert weiter — die Zahl steigt trotzdem, weil ein Stand der Fassung 2
+ * in einer aelteren Fassung des Spiels seine Instanz-Zahlen still verloere,
+ * und `save-store.ts` weist einen zu neuen Stand nur ab, wenn er sich als
+ * solcher zu erkennen gibt.
+ *
+ * Dass die zwei Zahlen hier ueberhaupt hingehoeren, folgt der Faustregel
+ * darueber: Die gewuerfelte Stufe ist etwas, das der Spieler HAT — wie der
+ * Platz, auf dem ein Stueck liegt. Was sie BEWIRKT (407 Katalyse), wird
+ * weiterhin bei jedem Laden aus data/ gerechnet und nie gespeichert.
+ */
+export const SAVE_SCHEMA = 2;
 
 /**
  * Welche Groesse ein Bestwert traegt (Issue #377).
@@ -75,13 +89,38 @@ export interface BestRun {
   readonly achievedAt: number;
 }
 
-/** Ein Gegenstand im Besitz — WAS er ist, nicht was er bewirkt. */
+/**
+ * Ein Gegenstand im Besitz — WAS er ist, nicht was er bewirkt.
+ *
+ * DIE INSTANZ IST NICHT DIE VORLAGE (Issue #480, Worker-3s Befund)
+ * ---------------------------------------------------------------
+ * `itemId` benennt den Katalog-Eintrag, aber ein Fund ist nicht sein Eintrag:
+ * `rollLoot` wuerfelt Stufe und Qualitaet pro Fund (`itemLevelOf`,
+ * `qualityOfRoll`), und der Eintrag ist dabei ausdruecklich nur die Vorlage.
+ * Standen die zwei Zahlen hier nicht, war der Wurf umsonst — jeder Fund
+ * derselben Kennung rechnete mit der Vorlage und war gleich stark.
+ *
+ * **Beide Felder sind OPTIONAL, und das ist keine Bequemlichkeit.** Ein
+ * Spielstand aus einer frueheren Fassung hat sie nicht, und `cleanSave`
+ * FILTERT Eintraege, die ihre Formpruefung nicht bestehen (`entry-shape.ts`,
+ * `wert.filter(guard)`) — verlangte `isOwnedItem` sie, verloere ein alter
+ * Spieler seine gesamte Ausruestung, still und ohne Meldung. Wer sie liest,
+ * loest sie ueber `instanceLevelOf`/`instanceQualityOf` auf; fehlen sie, gilt
+ * die Vorlage und damit exakt das bisherige Verhalten.
+ */
 export interface OwnedItem {
   readonly itemId: string;
   /** Gegenstandsstufe als ERREICHTE Aufwertung, nicht als Wirkung. */
   readonly upgradeSteps: number;
   /** Auf welchem Ausruestungsplatz er liegt, oder null im Beutel. */
   readonly equippedSlot: number | null;
+  /**
+   * Gewuerfelte Stufe DIESES Fundes. Fehlt in Staenden vor Fassung 2 —
+   * dann gilt die Stufe der Vorlage.
+   */
+  readonly itemLevel?: number;
+  /** Gewuerfelte Qualitaet DIESES Fundes. Fehlt wie `itemLevel`. */
+  readonly quality?: number;
 }
 
 /**
