@@ -161,39 +161,84 @@ fn der_weg_build_sammelt_mehr_punkte() {
     );
 }
 
-// **OFFEN: der Weg `effect` hat hier keinen Fall — und `converted()` ist der
-// falsche Getter** (#738).
-//
-// Gemessen, nicht vermutet. Der Wandler wird gewirkt, und trotzdem bleibt
-// `converted()` null:
-//
-// ```text
-// wandler idx=28 wedge unlock=1 cd=6000 cost=3
-// level 1:  sammler 11x, wandler 3x, punkte=6, converted=0
-// level 60: sammler 11x, wandler 3x, punkte=6, converted=0
-// ```
-//
-// Der Grund steht in `fight.rs:2409`:
-//
-// ```rust
-// self.shield = self.shield.saturating_add(gewonnen);
-// self.converted = self.converted.saturating_add(gewonnen);
-// ```
-//
-// **`converted` zaehlt Schaden, der in SCHILD umgewandelt wurde**
-// (`LogKind::ConvertedToShield`, QUICKSILVER) — nicht Kontroll-Punkte, die in
-// Schaden umgewandelt werden. Zwei Umwandlungen in entgegengesetzte
-// Richtungen, ein Wort.
-//
-// Der Weg `effect` wirkt bei `fight.rs:2240` auf `control.amount`, bei `wedge`
-// also auf `amountPerPoint`. Sichtbar waere er am Schaden dieses einen Wurfs;
-// dafuer braucht es einen Getter je Zauber oder eine Auswertung der
-// Schadens-Spur, und beides ist mehr als dieser Fall.
-//
-// **Drei Anlaeufe, drei verschiedene Ursachen** — erst der falsche Sammler
-// (`control` statt `control_gain`), dann der falsche Takt (Sammeln gegen
-// Ausgeben), jetzt der falsche Getter. Jede Stufe war ein echter Fund, und
-// keine davon lag am Talent.
+/// Der Schaden EINES Zaubers, nicht der Gesamtschaden.
+///
+/// **`damage_by_spell` statt `converted()`.** Der naheliegende Getter zaehlt
+/// die Gegenrichtung: `fight.rs:2409` addiert dort Schaden, der in SCHILD
+/// umgewandelt wurde (QUICKSILVER) — nicht Kontroll-Punkte, die in Schaden
+/// werden. Zwei Umwandlungen in entgegengesetzte Richtungen, ein Wort.
+///
+/// Und nicht der Gesamtschaden: Der haengt an einem Dutzend Groessen, ein
+/// Unterschied dort sagte nichts ueber DIESEN Weg. `damage_by_spell` ist je
+/// Zauber und existiert samt Leser in `ReplayResult` — kein Feld, das nur fuer
+/// diese Probe gebaut wurde.
+fn schaden_des_wandlers(permille: u32) -> u32 {
+    let mut fight = Fight::new(FightConfig {
+        talent_control_effect_permille: permille,
+        duration_ms: Some(20_000),
+        ..FightConfig::default()
+    });
+    let ergebnis = fight.run(wandel_takt);
+    ergebnis.damage_by_spell[wandler()]
+}
+
+#[test]
+fn der_weg_effect_wandelt_mehr_um() {
+    let ohne = schaden_des_wandlers(0);
+    let mit = schaden_des_wandlers(1000);
+
+    assert!(
+        ohne > 0,
+        "der Wandler hat keinen Schaden gemacht — entweder kam er nicht zum \
+         Zug oder seine Umwandlung erreicht die Schadensrechnung nicht; in \
+         beiden Faellen misst der Vergleich unten zwei Nullen"
+    );
+    // Faktor 2 auf den Beitrag je Punkt. Dass es GENAU das Doppelte ist und
+    // nicht nur mehr, trennt den Faktor von einem festen Zuschlag.
+    assert_eq!(
+        mit,
+        ohne * 2,
+        "der Weg effect wirkt nicht wie ein Faktor: {ohne} Schaden ohne \
+         Talent, {mit} mit doppelter Wirkung"
+    );
+}
+
+#[test]
+fn der_weg_cost_senkt_den_preis_messbar() {
+    // **Der Wirkungsfall, der lange gefehlt hat.** Die Kreuzprobe unten faengt
+    // eine UMKEHRUNG (teurer statt billiger), nicht das Fehlen der Wirkung —
+    // ihr `>=` laesst eine Null durch. Gemessen: Streicht man den Teiler
+    // ersatzlos, blieb sie gruen.
+    //
+    // Sichtbar wird der gesenkte Preis am Schaden des Wandlers: Er wandelt je
+    // PUNKT um, und wer weniger je Wurf zahlt, bringt mehr Punkte durch. Der
+    // Zusammenhang ist mittelbar, aber er ist die Groesse, die der Spieler
+    // spuert — im Sammel-Takt, wo nichts ausgegeben wird, zeigt sich nichts.
+    let voll = schaden_des_wandlers_mit_preis(0);
+    let halb = schaden_des_wandlers_mit_preis(1000);
+    let drittel = schaden_des_wandlers_mit_preis(3000);
+
+    assert!(
+        voll > 0,
+        "der Wandler hat keinen Schaden gemacht — der Vergleich maesse Nullen"
+    );
+    assert!(
+        halb > voll && drittel > halb,
+        "der Weg cost wirkt nicht: {voll} Schaden bei vollem Preis, {halb} bei \
+         halbem, {drittel} bei einem Drittel — die Reihe muss steigen"
+    );
+}
+
+/// Wie `schaden_des_wandlers`, aber der Talent-Weg ist der PREIS.
+fn schaden_des_wandlers_mit_preis(permille: u32) -> u32 {
+    let mut fight = Fight::new(FightConfig {
+        talent_control_cost_permille: permille,
+        duration_ms: Some(20_000),
+        ..FightConfig::default()
+    });
+    let ergebnis = fight.run(wandel_takt);
+    ergebnis.damage_by_spell[wandler()]
+}
 
 #[test]
 fn der_weg_cost_laesst_den_aufbau_unberuehrt() {
