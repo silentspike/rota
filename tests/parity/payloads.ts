@@ -5150,6 +5150,73 @@ function recordPin(ticks: number): Recording {
   const quench = combat.indexOf('quench');
   const presses: RecordedPress[] = [];
   const press = pressRecorder(combat, PIN_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **QUENCH nur, wenn wirklich etwas läuft.** Sonst verpufft er auf
+    // Abklingzeit, und beim befreiten Schlag wäre er nicht bereit — der Lauf
+    // sähe aus, als hätte PIN nichts bewirkt.
+    if (combat.casting !== -1 && combat.isOffCooldown(quench, timeMs)) {
+      press(quench, tick, timeMs);
+    }
+    // PIN vor dem ersten Schlag (8500), sobald die Punkte reichen.
+    else if (timeMs < 8500 && combat.control >= 3 && combat.isOffCooldown(pin, timeMs)) {
+      press(pin, tick, timeMs);
+    } else if (combat.isOffCooldown(tether, timeMs)) {
+      press(tether, tick, timeMs);
+    }
+  }
+
+  return { name: PIN_NAME, seed: 0, ticks, presses, bindings: PIN_BINDINGS };
+}
+
+export function pinPayload(): Record<string, unknown> {
+  // 2500 Takte = 25 s. Der letzte Eintrag von `test-caster` liegt bei 18000;
+  // ein kürzerer Lauf schnitte ihn ab, und `damageTaken` wäre eine Zahl über
+  // zwei Schläge statt über drei.
+  const recording = recordPin(2500);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('test-caster fehlt');
+  // **Der Boss gehört in die OPTIONEN, nicht in die Aufzeichnung** — und ohne
+  // ihn fällt `replayRecording` still auf `FIRST_CRUCIBLE` zurück, der keine
+  // Zeitleiste hat. Die erste Fassung meldete deshalb `damageTaken: 0`,
+  // während derselbe Ablauf direkt gespielt 64 ergab. Kein Fehler im Kampf,
+  // kein Fehler im Rezept: ein nicht gereichter Boss (dieselbe Klasse wie die
+  // stillen Bindungen aus #663).
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: PIN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      // **`damageTaken` ist hier die tragende Zahl**, nicht `damage`: PIN macht
+      // keinen Schaden, er verhindert welchen.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const DECAY_WARD_NAME = 'decay-ward';
 
 /** Die Leiste dieser Aufzeichnung. */
@@ -5195,36 +5262,6 @@ function recordDecayWard(ticks: number): Recording {
     if (combat.damageDealt >= combat.boss.hp) break;
     if (!combat.gcd.isReady(timeMs)) continue;
 
-    // **QUENCH nur, wenn wirklich etwas läuft.** Sonst verpufft er auf
-    // Abklingzeit, und beim befreiten Schlag wäre er nicht bereit — der Lauf
-    // sähe aus, als hätte PIN nichts bewirkt.
-    if (combat.casting !== -1 && combat.isOffCooldown(quench, timeMs)) {
-      press(quench, tick, timeMs);
-    }
-    // PIN vor dem ersten Schlag (8500), sobald die Punkte reichen.
-    else if (timeMs < 8500 && combat.control >= 3 && combat.isOffCooldown(pin, timeMs)) {
-      press(pin, tick, timeMs);
-    } else if (combat.isOffCooldown(tether, timeMs)) {
-      press(tether, tick, timeMs);
-    }
-  }
-
-  return { name: PIN_NAME, seed: 0, ticks, presses, bindings: PIN_BINDINGS };
-}
-
-export function pinPayload(): Record<string, unknown> {
-  // 2500 Takte = 25 s. Der letzte Eintrag von `test-caster` liegt bei 18000;
-  // ein kürzerer Lauf schnitte ihn ab, und `damageTaken` wäre eine Zahl über
-  // zwei Schläge statt über drei.
-  const recording = recordPin(2500);
-  const boss = bossById('test-caster');
-  if (boss === undefined) throw new Error('test-caster fehlt');
-  // **Der Boss gehört in die OPTIONEN, nicht in die Aufzeichnung** — und ohne
-  // ihn fällt `replayRecording` still auf `FIRST_CRUCIBLE` zurück, der keine
-  // Zeitleiste hat. Die erste Fassung meldete deshalb `damageTaken: 0`,
-  // während derselbe Ablauf direkt gespielt 64 ergab. Kein Fehler im Kampf,
-  // kein Fehler im Rezept: ein nicht gereichter Boss (dieselbe Klasse wie die
-  // stillen Bindungen aus #663).
     // **Erst Stapel, dann Schutz.** DECAY erst ab dem zweiten Stapel — vorher
     // mindert er um 40 Promille und wäre kaum von null zu unterscheiden.
     if (combat.decayStacks >= 2 && combat.isOffCooldown(decay, timeMs)) {
@@ -5250,12 +5287,6 @@ export function decayWardPayload(): Record<string, unknown> {
     seed: recording.seed,
     ticks: recording.ticks,
     tickMs: TICK_MS,
-    bindings: PIN_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
-    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
-    expected: {
-      damage: result.damage,
-      // **`damageTaken` ist hier die tragende Zahl**, nicht `damage`: PIN macht
-      // keinen Schaden, er verhindert welchen.
     bindings: DECAY_WARD_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
