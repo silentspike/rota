@@ -52,14 +52,20 @@ Das ist der häufigste Einzelbefund dieser Arbeit und er ist dreimal aufgetreten
 FIXATION, dann PUTREFACTION):
 
 ```ts
-// combat.ts:1838 — FIXATIONs AUFBAU
-this.controlValue += Math.round(spell.controlGain * this.controlBuffs.factor(timeMs));
+// combat.ts — FIXATIONs AUFBAU, in `applyFixation`
+this.controlValue += Math.round(spell.controlGain * faktor);
 
-// combat.ts:2637 — PUTREFACTIONs WIRKUNG
-const jeStapel = Math.round(
-  (DECAY_STACK_PERCENT + proStapel) * this.stackBuffs.factor(...)
-);
+// combat.ts — PUTREFACTIONs WIRKUNG, in `applyDecayStackBonus`
+(DECAY_STACK_PERCENT + proStapel) * this.stackBuffs.factor(this.nowMsForBuffs);
 ```
+
+> **Hier standen Zeilennummern, und sie waren nach zwei Stunden falsch.**
+> `combat.ts:1838` zeigte auf 1912, `:2637` auf 2743 — verschoben durch #723 und
+> die Merges danach. Auch der zitierte Code stimmte nicht mehr wörtlich
+> (`this.controlBuffs.factor(timeMs)` heißt inzwischen `faktor`).
+>
+> Deshalb stehen hier jetzt **Datei plus Symbol**: Die Zeile altert bei jedem
+> Einschub darüber, der Funktionsname trägt.
 
 Beide Faktoren stehen seit einem früheren Zauber (`GRIPLOCK` #489, `VIRULENCE` #540) auf beiden
 Seiten und paritätisch. Ein Talent braucht dort **keine neue Wirkstelle** — nur einen Weg, den
@@ -101,10 +107,11 @@ der sie referenziert, existiert noch nicht.
 
 ## Drei Fallen, jede einmal bezahlt
 
-1. **`fight.rs:1887` schiebt ein Wakeup auf `shield.duration_ms`.** Wer die Dauer hebt und das
-   Wakeup vergisst, bekommt eine Schicht, die im Simulator länger hält als im Spiel. Derselbe
-   Fehler ist bei DECAY schon einmal passiert.
-2. **`stabilise(shield.amount)` (`combat.ts:1952`) liest denselben Wert ein zweites Mal.** Ein
+1. **`fight.rs` schiebt in `apply_coagulation` ein Wakeup auf `shield.duration_ms`.** Wer die
+   Dauer hebt und das Wakeup vergisst, bekommt eine Schicht, die im Simulator länger hält als im
+   Spiel. Derselbe Fehler ist bei DECAY schon einmal passiert. (Stand 2026-08-10: zwei Stellen
+   im selben Block, `shield_expires_at` und der `EventKind::Wakeup` direkt darunter.)
+2. **`stabilise(shield.amount)` in `combat.ts` liest denselben Wert ein zweites Mal.** Ein
    Talent auf „dicker" muss beide Stellen treffen, sonst stabilisiert die Schicht nach dem alten
    Wert — beide Tests grün, beide Werte falsch.
 3. **Die Kreuzprobe ist der eigentliche Wächter.** Jeder Weg muss die **fremden** Größen unberührt
@@ -120,6 +127,7 @@ der sie referenziert, existiert noch nicht.
 - **Die Schlüsseltalente** je Schule. Nur CALCINATION hat eines (`calcination-keystone`).
   `keystone: string` und `hasKeystone()` sind wiederverwendbar; jedes Schlüsseltalent ist ein
   eigenes Verhalten, kein Zahlendreher.
-- **Die Verteilung der 50 Talentpunkte** über die Stufen (`data/player/levels.json:26`). Die Zahl
+- **Die Verteilung der 50 Talentpunkte** über die Stufen (`talentPointTarget` in
+  `data/player/levels.json`). Die Zahl
   ist entschieden, ihre Verteilung nicht. Warnung für den Wächter: Wer die Verteilung summiert und
   mit der Summe **derselben** Verteilung vergleicht, prüft seine eigene Erwartung gegen sich selbst.
