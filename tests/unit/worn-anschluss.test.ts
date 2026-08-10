@@ -174,6 +174,81 @@ describe('Der Kampf trägt es wirklich', () => {
     expect(combat.playerHp).toBeGreaterThan(vorher);
   });
 
+  /**
+   * **Richtung ist nicht Größe — und darin lag eine echte Lücke.**
+   *
+   * Der Fall darüber prüft `toBeGreaterThan`. Verdoppelt man den Wert, den
+   * `setWorn` einsetzt, ist das Ergebnis immer noch „größer": Die Mutation
+   *
+   * ```ts
+   * this.vesselMax = vesselWithGear(…, worn.vessel * 2);   // in setWorn
+   * ```
+   *
+   * ließ **2047 von 2047** Fällen grün — gemessen am 2026-08-10. `vesselMax`
+   * wird an zwei Stellen gerechnet, im Aufbau und in `setWorn`; die Parität
+   * deckt nur den Aufbau, weil keine Aufzeichnung `setWorn` fährt.
+   *
+   * Dieselbe Klasse wie Falle 2 im TALENT-RASTER: dieselbe Größe zweimal
+   * gelesen, nur eine Lesestelle bewacht.
+   *
+   * # Warum gegen den Aufbau und nicht gegen eine Zahl
+   *
+   * Die Aussage, die zählt, ist **„beide Wege führen zum selben Zustand"** —
+   * wer die Ausrüstung zwischen zwei Kämpfen anlegt, muss dastehen wie
+   * jemand, der sie von Anfang an trug. Eine feste Zahl hier hätte einen
+   * zweiten Ort geschaffen, an dem die Formel steht, und wäre bei jeder
+   * Balance-Änderung fällig geworden, ohne je etwas anderes zu sagen.
+   *
+   * Die Kette schließt sich so: Dieser Fall bindet `setWorn` an den Aufbau,
+   * und die Paritäts-Aufzeichnungen binden den Aufbau an einen festen Stand.
+   *
+   * # Erst gekämpft, dann verglichen — und das war ein eigener Messfehler
+   *
+   * Meine erste Fassung verglich die Prüfsumme bei **Takt 0** und behauptete
+   * im Kommentar, sie binde auch `essence`, `gearEffects` und den
+   * Krit-Faktor, deren Wirkstellen ebenfalls in `setWorn` liegen. Gemessen:
+   *
+   * ```text
+   *   gearEffectFactor(worn) * 2   in setWorn   ->   2048 von 2048 grün
+   * ```
+   *
+   * Bei Takt 0 ist kein Treffer gefallen, `damage` steht auf 0, und ein
+   * Schadensfaktor bewegt nichts, was die Prüfsumme sähe. VESSEL fiel nur
+   * auf, weil es `playerHp` hebt — und das steht schon vor dem ersten Zauber
+   * fest. **Genau davor warnt der Kopf dieser Datei** („bei VESSEL sieht man
+   * den Unterschied schon bei Takt 0, bei CATALYSIS erst mit laufender
+   * Abklingzeit"); ich habe die Warnung gelesen und den Fehler trotzdem
+   * gemacht.
+   *
+   * Deshalb kämpfen jetzt beide Seiten ein Stück weit, bevor verglichen wird.
+   * `setWorn` läuft davor, weil es mitten im Kampf ausdrücklich sperrt.
+   */
+  it('setWorn führt in DENSELBEN Zustand wie der Aufbau — nicht bloß in einen besseren', () => {
+    const ueberAufbau = kampf([getragen()]);
+    const nachtraeglich = kampf([]);
+    nachtraeglich.setWorn(wornFrom([getragen()]));
+
+    // Zusicherung, dass hier überhaupt etwas anliegt: Wäre `worn` leer,
+    // vergliche die Zeile unten zwei nackte Spieler und wäre grün, ohne etwas
+    // zu zeigen.
+    const werte = wornFrom([getragen()]);
+    expect(werte.vessel, 'der Prüf-Gegenstand trägt kein VESSEL').toBeGreaterThan(0);
+    expect(werte.essence, 'der Prüf-Gegenstand trägt kein ESSENCE').toBeGreaterThan(0);
+
+    for (const combat of [ueberAufbau, nachtraeglich]) {
+      combat.beginFight(1);
+      // **Ein Treffer muss fallen**, sonst bleiben die Schadensfaktoren
+      // unsichtbar — siehe Kopf dieses Falls.
+      expect(combat.cast(combat.indexOf('kindle'), 10).damage).toBeGreaterThan(0);
+      combat.stepPassive(2000);
+    }
+    expect(
+      ueberAufbau.damageDealt,
+      'ohne gefallenen Schaden sagt der Vergleich nichts',
+    ).toBeGreaterThan(0);
+    expect(combatChecksum(nachtraeglich, 2000)).toBe(combatChecksum(ueberAufbau, 2000));
+  });
+
   it('GEGENPROBE: mitten im Kampf nicht', () => {
     // Dieselbe Linie wie beim Umskillen (12.4): Wer die Werte mitten im Kampf
     // wechselte, rechnete den Schaden rückwirkend anders als die bereits
