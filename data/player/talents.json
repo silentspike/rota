@@ -19,8 +19,10 @@
           "name": "Faster Buildup",
           "path": "build",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "calcination-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "calcination-trunk",
+          "resourceGainPerRankPerMille": 100,
+          "_comment": "WEG 1 VON DREI, und seit #419 mit EIGENER Groesse: Hitze-Gewinn statt Schaden. 12.5 nennt ihn 'schneller aufbauen' — genau das tut er jetzt. 100 Promille je Rang, fuenf Raenge: KINDLEs 3 Hitze werden zu 4 (gerundet), bei vollem Ausbau. VORLAEUFIGE ZAHL."
         },
         {
           "id": "calcination-release",
@@ -28,15 +30,18 @@
           "path": "release",
           "maxRanks": 5,
           "damagePerRankPerMille": 25,
-          "requires": "calcination-trunk"
+          "requires": "calcination-trunk",
+          "_comment": "WEG 2 VON DREI — der einzige, der schon vor #419 seine eigene Groesse hatte: den Schaden. Er bleibt unveraendert; die anderen beiden haben ihre bekommen."
         },
         {
           "id": "calcination-hold",
           "name": "Longer Hold",
           "path": "hold",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "calcination-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "calcination-trunk",
+          "dotDurationPerRankPerMille": 100,
+          "_comment": "WEG 3 VON DREI, seit #419 mit EIGENER Groesse: die Laufzeit der Brand-Effekte. 12.5 nennt ihn 'laenger halten'. 100 Promille je Rang: SMOULDERs 12000 ms werden bei vollem Ausbau zu 18000 — und laenger heisst MEHR TICKS, nicht laengere Abstaende. VORLAEUFIGE ZAHL."
         },
         {
           "_comment": "DAS ERSTE SCHLUESSELTALENT (Issue #418). Es traegt KEINE Zahl, sondern ein VERHALTEN — das ist der ganze Unterschied zu den drei Wegen darueber, die alle 'damagePerRankPerMille' fuehren.\n\nDER WORTLAUT AUS DEM DESIGN (GAME-DESIGN 13.09): 'Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt dafuer ZWEIMAL.' Das ist Fall c aus dem Schnitt zu #418: Verhalten, nicht Zahlen (Fall a) und nicht die Zauberliste (Fall b).\n\nWARUM 'keystone' UND NICHT EIN WEITERES ZAHLENFELD: Ein Schluesseltalent, das sich als Faktor ausdruecken laesst, ist keines — es waere ein Faktor mit einem grossen Namen. Der Nachweis dafuer ist AC3: Ohne das Talent muss sich der Lauf in der REIHENFOLGE oder im VERBRAUCH unterscheiden, nicht nur in der Schadenszahl.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge. Es ist an oder aus.",
