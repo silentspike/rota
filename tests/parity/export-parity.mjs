@@ -112,6 +112,12 @@ import {
   coagulationNeuPayload,
   kernePayload,
   KERNE_NAME,
+  pinPayload,
+  PIN_NAME,
+  decayWardPayload,
+  DECAY_WARD_NAME,
+  putridBloomPayload,
+  PUTRID_BLOOM_NAME,
   effluxPayload,
   EFFLUX_NAME,
   kritPayload,
@@ -126,6 +132,10 @@ import {
   LOG_TAKTE_NAME,
   aetherPayload,
   AETHER_NAME,
+  sublimePayload,
+  SUBLIME_NAME,
+  condensePayload,
+  CONDENSE_NAME,
   timelineLoopPayload,
   sublimationPayload,
   gezielteVerkuerzungPayload,
@@ -283,6 +293,23 @@ writeFileSync(kernePath, `${JSON.stringify(kerne, null, 2)}\n`);
 console.log(`geschrieben: ${kernePath}`);
 console.log(`  gewirkt   ${JSON.stringify(kerne.expected.casts)}`);
 
+const pin = pinPayload();
+const pinPath = join(here, 'recordings', `${PIN_NAME}.json`);
+writeFileSync(pinPath, `${JSON.stringify(pin, null, 2)}\n`);
+console.log(`geschrieben: ${pinPath}`);
+console.log(`  gewirkt   ${JSON.stringify(pin.expected.casts)}`);
+console.log(`  erlitten  ${pin.expected.damageTaken}`);
+const decayWard = decayWardPayload();
+const decayWardPath = join(here, 'recordings', `${DECAY_WARD_NAME}.json`);
+writeFileSync(decayWardPath, `${JSON.stringify(decayWard, null, 2)}\n`);
+console.log(`geschrieben: ${decayWardPath}`);
+console.log(`  erlitten  ${decayWard.expected.damageTaken}`);
+const bloom = putridBloomPayload();
+const bloomPath = join(here, 'recordings', `${PUTRID_BLOOM_NAME}.json`);
+writeFileSync(bloomPath, `${JSON.stringify(bloom, null, 2)}\n`);
+console.log(`geschrieben: ${bloomPath}`);
+console.log(`  Schaden   ${bloom.expected.damage}`);
+
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
 writeFileSync(bossStatePath, serialize(bossState), 'utf8');
@@ -390,6 +417,22 @@ writeFileSync(fixationPath, serialize(fixation), 'utf8');
 const logParity = logParityPayload();
 const logParityPath = join(here, 'recordings', `${LOG_PARITY_NAME}.json`);
 writeFileSync(logParityPath, serialize(logParity), 'utf8');
+
+const sublime = sublimePayload();
+const sublimePath = join(here, 'recordings', `${SUBLIME_NAME}.json`);
+writeFileSync(sublimePath, serialize(sublime), 'utf8');
+console.log(
+  `  SUBLIME-Merker  ${sublime.expected.sublimeCasts} Wuerfe, ` +
+    `${sublime.expected.merkerTakte} Merker-Takte, Schaden ${sublime.expected.damageDealt}`,
+);
+
+const condense = condensePayload();
+const condensePath = join(here, 'recordings', `${CONDENSE_NAME}.json`);
+writeFileSync(condensePath, serialize(condense), 'utf8');
+console.log(
+  `  CONDENSE-Merker ${condense.expected.condenseCasts} Wuerfe, ` +
+    `${condense.expected.merkerTakte} Merker-Takte, Schaden ${condense.expected.damageDealt}`,
+);
 
 const aether = aetherPayload();
 const aetherPath = join(here, 'recordings', `${AETHER_NAME}.json`);

@@ -112,6 +112,34 @@
       "triggersGcd": true,
       "perDecayStackPercent": 40,
       "consumesDecayStacks": true
+    },
+    {
+      "_comment": "DECAY — schwaecht den Boss-Schaden nach Stapelzahl (Issue #479, Raster PUTREFACTION 9).\n\nDas Raster nennt den Zweck: 'Verbindet Schwaechung mit Ueberleben'. Bis hierher war jeder Stapel reiner Angriff; wer aufbaut, gewinnt Schaden und sonst nichts. DECAY macht den Aufbau auch zur Verteidigung.\n\nPROMILLE, NICHT PROZENT: Die Minderung steht in DERSELBEN Summe wie worn.ward, und die rechnet in Promille (combat.ts, incoming). Zwei Einheiten in einer Summe fallen erst auf, wenn die Zahlen gross werden — das ist die teuerste Sorte Fehler.\n\nDIESELBE SUMME HEISST DERSELBE DECKEL: DECAY geht unter wardCapPermille wie jede andere Minderung. Ein eigener Faktor daneben liesse den Balance-Deckel ueber die Faeulnis umgehen, und die Grenze, die COAGULATION ihren Gegenstand laesst, waere fuer PUTREFACTION aufgehoben.\n\nDIE STAPELZAHL WIRD BEIM TREFFER GELESEN, nicht beim Wirken. Wer nach dem Wurf weiter aufbaut, mindert mehr — 'nach Stapelzahl' heisst nach der jetzigen, nicht nach der von damals.\n\nEIN FENSTER, KEIN DAUERZUSTAND, nach dem Vorbild von TEMPER (conversion): Ohne Laufzeit wirkte der Zauber nur im Augenblick des Druckes, und ob dann gerade ein Schlag faellt, waere Zufall.\n\nDER NAME IST DREIFACH BELEGT und das ist bekannt: 'decay' heisst die Mechanik (MAX_DECAY_STACKS), das Feld (canker, blight legen damit an) und jetzt dieser Zauber. Das Raster fuehrt ihn so; gemeldet an den Orchestrator, entschieden wird es beim Aufgreifen.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 3 s). permillePerStack 40 heisst bei fuenf Stapeln 200 Promille, also ein Fuenftel weniger Schaden — spuerbar, aber weit unter dem Deckel. durationMs 6000 ist das Doppelte der Abklingzeit, damit er sich ueberlappen laesst.\n\nSTEHT AM ENDE DER DATEI — die Reihenfolge ist der Index-Raum.",
+      "id": "decay",
+      "name": "Decay",
+      "unlockLevel": 8,
+      "baseDamage": 0,
+      "cooldownMs": 3000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "decayWard": {
+        "permillePerStack": 40,
+        "durationMs": 6000
+      }
+    },
+    {
+      "_comment": "PUTRID BLOOM — die Stapel-Obergrenze steigt, solange er laeuft (Issue #479, Raster PUTREFACTION 6).\n\nDas Raster fuehrt ihn als 'wie SLAG/MOOR in den anderen Schulen'. Der Vergleich traegt aber NICHT technisch: SLAG hebt school.resource.cap ueber BuffTarget::Cap, und PUTREFACTION fuehrt gar keine Ressource — die Stapel liegen am BOSS. Gemessen; MOOR ist an genau dieser Stelle gescheitert und zurueckgestellt.\n\nDESHALB EIN EIGENES FELD: decayCap hebt die Grenze, an der kein Zauber mehr nachlegt (combat.ts, decayCap).\n\nDIE STRUKTUR BLEIBT FEST, DIE GRENZE WIRD BEWEGLICH. Das ist der Kern und der Grund, warum er lange zurueckgestellt war: MAX_DECAY_STACKS bestimmte BEIDES — die Feldlaenge und die Laenge der Pruefsummen-Schleife. Eine Pruefsumme, deren LAENGE vom Spielverlauf abhaengt, ist keine mehr. Seit #479 sind es zwei Konstanten: DECAY_STACK_CAPACITY (8, fest) traegt die Struktur, MAX_DECAY_STACKS (5) ist die Grenze, die dieser Zauber hebt.\n\nLIEGENDE STAPEL BLEIBEN LIEGEN, wenn die Anhebung auslaeuft. Die Grenze entscheidet nur, ob NACHGELEGT werden darf; sie wirft nichts weg. Sonst waere das Auslaufen ein zweiter, unsichtbarer Verfall, und die Uhren am Stapel logen.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 15 s). bonus 2 hebt von 5 auf 7 — spuerbar, und mit Luft zur Kapazitaet 8. durationMs 10000 ist kuerzer als die Abklingzeit, damit der Zauber ein FENSTER ist und kein Dauerzustand.\n\nSTEHT AM ENDE DER DATEI — die Reihenfolge ist der Index-Raum.",
+      "id": "putrid-bloom",
+      "name": "Putrid Bloom",
+      "unlockLevel": 9,
+      "baseDamage": 0,
+      "cooldownMs": 15000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "decayCap": {
+        "bonus": 2,
+        "durationMs": 10000
+      }
     }
   ]
 }

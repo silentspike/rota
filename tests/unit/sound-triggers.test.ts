@@ -142,6 +142,14 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'mend',
     'suture',
     'riposte',
+    // VORLAEUFIG (Issue #479): DECAY ebenso. Eine Schwaechung, die man nicht
+    // hoert, ist im Kampf nur an kleineren Zahlen zu erkennen — und die liest
+    // niemand mitten im Schlagabtausch.
+    'decay',
+    // VORLAEUFIG (Issue #479): PUTRID BLOOM ebenso. Bei ihm haengt viel am
+    // Klang — die Anhebung ist im HUD nur eine groessere Zahl hinter dem
+    // Schraegstrich, und die sieht im Kampf niemand.
+    'putrid-bloom',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
@@ -205,6 +213,11 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'quicksilver',
     'distil',
     'griplock',
+    // VORLAEUFIG (Issue #478): PIN ist gebaut, sein Klang entsteht ueber Suno
+    // (#487). Bei ihm haengt besonders viel daran — er macht einen Schlag
+    // unterbrechbar, und der Spieler muss HOEREN, dass jetzt ein Fenster offen
+    // ist. Ohne Klang bleibt nur der Balken.
+    'pin',
     'virulence',
     // VORLAEUFIG (Issue #480): AETHER ist gebaut, sein Klang fehlt. Er
     // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen —
@@ -223,6 +236,26 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     //     einsetzt. Die Woerter aus DISTILs Zeile duerfen nicht wiederkehren:
     //     kein "verdichten", kein "Zusammenziehen".
     'aether',
+    // VORLAEUFIG (Issue #480): SUBLIME ist gebaut, sein Klang fehlt. Er
+    // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen.
+    //
+    //   sublime     | der naechste Wurf kostet keine Wartezeit | ~0,4 s
+    //     gegen AETHER (0,9 s, "offenhalten, getragen und luftig") und DISTIL
+    //     (0,6 s, "verdichten, ein Zusammenziehen"). SUBLIME ist kuerzer als
+    //     beide und tut etwas Drittes: ein AUSLASSEN. Kein Aufbau, kein
+    //     Zusammenziehen — eine Luecke, ein uebersprungener Schlag. Die
+    //     Woerter der beiden duerfen nicht wiederkehren.
+    'sublime',
+    //
+    //   condense    | der naechste Wurf wirkt zweimal | ~0,5 s
+    //     gegen DISTIL (0,6 s, "verdichten, ein Zusammenziehen") — beide
+    //     ziehen zusammen, und genau deshalb duerfen die Woerter sich nicht
+    //     wiederholen. DISTIL verdichtet die ZEIT, CONDENSE den SCHLAG: ein
+    //     Doppelschlag, zwei Anschlaege so dicht beieinander, dass sie fast
+    //     einer sind. Nicht "Echo" und nicht "Hall" — die klingen nach einer
+    //     Wiederholung, die schwaecher ist als das Original, und hier ist die
+    //     zweite Wirkung genauso stark wie die erste.
+    'condense',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //

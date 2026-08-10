@@ -98,6 +98,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'latch',
       // Issue #540 — GRIPLOCK, bei seiner Schule.
       'griplock',
+      // Issue #478 — PIN, am Ende der FIXATION-Datei.
+      'pin',
       // Die zwei der Sublimation (Issue #201), ebenfalls hinten.
       //
       // **Diese Liste bleibt eine Liste.** Anders als die Zahlen, die ich in
@@ -119,6 +121,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Zaubern der Zersetzung. Die Stelle ist nicht gewählt, sondern folgt
       // aus der Ladereihenfolge der Schuldateien.
       'aether',
+      // Issue #480 — SUBLIME, hinter AETHER in derselben Schuldatei.
+      'sublime',
+      // Issue #480 — CONDENSE, hinter SUBLIME in derselben Schuldatei.
+      'condense',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
@@ -134,6 +140,10 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'miasma',
       // Issue #479 — NECROSIS, aus demselben Grund am Ende.
       'necrosis',
+      // Issue #479 — DECAY, am Ende der PUTREFACTION-Datei.
+      'decay',
+      // Issue #479 — PUTRID BLOOM, am Ende der PUTREFACTION-Datei.
+      'putrid-bloom',
       // Der Prüf-Zauber zur Wirkzeit (Issue #304), ganz hinten. Er gehört
       // nicht zum Spiel — seine Stufe liegt über der Grenze, und beide
       // Stellen, die dem Spieler Zauber anbieten, filtern darüber. In DIESER
