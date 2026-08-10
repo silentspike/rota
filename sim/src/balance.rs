@@ -481,6 +481,8 @@ fn run_range(
         talent_permille: 0,
         // Die sieben aus #419, zweite Runde. Der Balance-Laeufer misst den
         // Bestand OHNE Talente — wer sie messen will, setzt sie hier.
+        talent_control_gain_permille: 0,
+        talent_decay_effect_permille: 0,
         talent_control_cost_permille: 0,
         talent_control_effect_permille: 0,
         talent_decay_stack_permille: 0,

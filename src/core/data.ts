@@ -2604,11 +2604,27 @@ export interface TalentDef {
    * mindestens 1 Punkt steht im Kampf — ein Ausgeber, der nichts kostet,
    * wäre kein Ausgeber.
    */
+  /**
+   * Promille je Rang auf den **Aufbau** der Kontroll-Punkte (FIXATION).
+   *
+   * **Die Wirkstelle gab es schon** — `combat.ts` multipliziert `controlGain`
+   * seit GRIPLOCK (#489) mit `controlBuffs`. Was fehlte, war die Speisung aus
+   * einem TALENT statt aus einem Zauber; genau die ist dieses Feld.
+   */
+  readonly controlGainPerRankPerMille: number;
   readonly controlCostPerRankPerMille: number;
   /** Promille je Rang auf die **Stärke** der Kontroll-Wirkungen (FIXATION). */
   readonly controlEffectPerRankPerMille: number;
   /** Promille je Rang auf die Zahl gelegter **Fäulnis-Stapel** (PUTREFACTION). */
   readonly decayStackPerRankPerMille: number;
+  /**
+   * Promille je Rang auf die **Wertigkeit** eines Fäulnis-Stapels
+   * (PUTREFACTION).
+   *
+   * Wie oben: Die Wirkstelle steht seit VIRULENCE (#540, `stackBuffs`), die
+   * Speisung aus einem Talent fehlte.
+   */
+  readonly decayEffectPerRankPerMille: number;
   /** Promille je Rang auf die **Haltbarkeit** der Stapel (PUTREFACTION). */
   readonly decayDurationPerRankPerMille: number;
   /** Promille je Rang auf die **Dicke** der Schutzschicht (COAGULATION). */
@@ -2684,6 +2700,8 @@ export const TALENTS: readonly TalentDef[] = (() => {
       const dotDurationPerRankPerMille = number(t['dotDurationPerRankPerMille'], 0);
       // Die sieben aus #419, zweite Runde (FIXATION, PUTREFACTION,
       // COAGULATION). Dieselbe Auflage wie oben: kein negativer Wert.
+      const controlGainPerRankPerMille = number(t['controlGainPerRankPerMille'], 0);
+      const decayEffectPerRankPerMille = number(t['decayEffectPerRankPerMille'], 0);
       const controlCostPerRankPerMille = number(t['controlCostPerRankPerMille'], 0);
       const controlEffectPerRankPerMille = number(t['controlEffectPerRankPerMille'], 0);
       const decayStackPerRankPerMille = number(t['decayStackPerRankPerMille'], 0);
@@ -2694,6 +2712,8 @@ export const TALENTS: readonly TalentDef[] = (() => {
       for (const [feld, wert] of [
         ['resourceGainPerRankPerMille', resourceGainPerRankPerMille],
         ['dotDurationPerRankPerMille', dotDurationPerRankPerMille],
+        ['controlGainPerRankPerMille', controlGainPerRankPerMille],
+        ['decayEffectPerRankPerMille', decayEffectPerRankPerMille],
         ['controlCostPerRankPerMille', controlCostPerRankPerMille],
         ['controlEffectPerRankPerMille', controlEffectPerRankPerMille],
         ['decayStackPerRankPerMille', decayStackPerRankPerMille],
@@ -2733,6 +2753,8 @@ export const TALENTS: readonly TalentDef[] = (() => {
         damagePerRankPerMille,
         resourceGainPerRankPerMille,
         dotDurationPerRankPerMille,
+        controlGainPerRankPerMille,
+        decayEffectPerRankPerMille,
         controlCostPerRankPerMille,
         controlEffectPerRankPerMille,
         decayStackPerRankPerMille,

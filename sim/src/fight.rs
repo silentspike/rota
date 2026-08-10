@@ -279,6 +279,11 @@ pub struct FightConfig {
     /// Sie verlaengert die DAUER, nicht den Abstand: Ein laengerer Brand tickt
     /// OEFTER, er tickt nicht langsamer.
     pub talent_dot_duration_permille: u32,
+    /// Promille auf den Aufbau der Kontroll-Punkte (FIXATION, #419).
+    /// Die Wirkstelle steht seit GRIPLOCK; dies ist die Talent-Speisung.
+    pub talent_control_gain_permille: u32,
+    /// Promille auf die Wertigkeit eines Faeulnis-Stapels (PUTREFACTION).
+    pub talent_decay_effect_permille: u32,
     /// Promille je Rang auf den Preis der Kontroll-Wirkungen (FIXATION, #419).
     /// **Er TEILT** — siehe `talent_control_cost_factor`.
     pub talent_control_cost_permille: u32,
@@ -323,6 +328,8 @@ impl Default for FightConfig {
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
+            talent_control_gain_permille: 0,
+            talent_decay_effect_permille: 0,
             talent_control_cost_permille: 0,
             talent_control_effect_permille: 0,
             talent_decay_stack_permille: 0,
@@ -712,6 +719,8 @@ pub struct Fight {
     /// Kampf stehen, nicht in der Konfiguration.
     talent_resource_factor: f64,
     talent_dot_duration_factor: f64,
+    talent_control_gain_factor: f64,
+    talent_decay_effect_factor: f64,
     talent_control_cost_factor: f64,
     talent_control_effect_factor: f64,
     talent_decay_stack_factor: f64,
@@ -913,6 +922,10 @@ impl Fight {
             talent_resource_factor: 1.0 + f64::from(config.talent_resource_permille) / 1000.0,
             talent_dot_duration_factor: 1.0
                 + f64::from(config.talent_dot_duration_permille) / 1000.0,
+            talent_control_gain_factor: 1.0
+                + f64::from(config.talent_control_gain_permille) / 1000.0,
+            talent_decay_effect_factor: 1.0
+                + f64::from(config.talent_decay_effect_permille) / 1000.0,
             talent_control_cost_factor: 1.0
                 + f64::from(config.talent_control_cost_permille) / 1000.0,
             talent_control_effect_factor: 1.0
@@ -2301,7 +2314,8 @@ impl Fight {
             // Hitze), und eine Grenze waere eine Design-Entscheidung, die
             // nicht gefallen ist. Faellt sie spaeter, ist es eine Zahl in den
             // Daten.
-            let faktor = self.control_buffs.factor(self.time);
+            // **Zauber-Buff UND Talent** (#419), multiplikativ: zwei Toepfe.
+            let faktor = self.control_buffs.factor(self.time) * self.talent_control_gain_factor;
             let gewinn = (f64::from(spell.control_gain) * faktor).round() as u32;
             self.control = self.control.saturating_add(gewinn);
         }
@@ -2603,8 +2617,9 @@ impl Fight {
     fn update_vulnerability(&mut self) {
         // Der Faktor wiegt den EINZELNEN Stapel schwerer, er legt keinen
         // dazu — die Stapelzahl bleibt unberuehrt (Issue #489, VIRULENCE).
-        let je_stapel =
-            (f64::from(DECAY_STACK_PERCENT) * self.stack_buffs.factor(self.time)).round() as u32;
+        let je_stapel = (f64::from(DECAY_STACK_PERCENT)
+            * (self.stack_buffs.factor(self.time) * self.talent_decay_effect_factor))
+            .round() as u32;
         let prozent = 100 + self.decay_count as u32 * je_stapel;
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
@@ -2739,8 +2754,8 @@ impl Fight {
         // Ganzzahlig bis zur letzten Teilung (18.4) — auf die Prozentpunkte,
         // nicht auf das Ergebnis, wie in `update_vulnerability`.
         let je_stapel = (f64::from(DECAY_STACK_PERCENT + pro_stapel)
-            * self.stack_buffs.factor(self.time))
-        .round() as u32;
+            * (self.stack_buffs.factor(self.time) * self.talent_decay_effect_factor))
+            .round() as u32;
         let prozent = 100 + self.decay_count as u32 * je_stapel;
         self.factors.vulnerability = f64::from(prozent) / 100.0;
     }
