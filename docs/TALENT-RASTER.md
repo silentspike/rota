@@ -1,4 +1,4 @@
-# Das Talent-Raster — zwölf Wege, neun entschieden
+# Das Talent-Raster — zwölf Wege, alle entschieden
 
 > **Zweck:** Dieses Dokument hält fest, **welche Größe** jeder Talentweg bewegt und **wo** sie
 > steht. Ohne es entsteht bei jedem Bau dieselbe Frage neu, und sie wurde bereits dreimal
