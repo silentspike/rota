@@ -120,12 +120,28 @@ TEXT_ALTERNATIVEN = {
     'synergy.partner': ['searing', 'cinder'],
 }
 
-# **Diese drei tragen im ganzen Bestand nur EINEN Wert** — und ihr Typ lässt
-# auch nur diesen zu (`data.ts:45`, `:298`). Es gibt keine gültige Alternative,
-# also misst eine Mutation hier zwangsläufig etwas anderes: ob die
+# **Diese drei tragen im ganzen Bestand nur EINEN Wert.** Es gibt keine gültige
+# Alternative, also misst eine Mutation hier zwangsläufig etwas anderes: ob die
 # Laufzeit-Prüfung den ungültigen Wert bemerkt. Das ist ein echter Schutz, aber
 # ein struktureller — er sagt nichts darüber, ob die Größe selbst geprüft ist.
 # Wer das Urteil „geschützt" für die beiden Fragen gleich liest, täuscht sich.
+#
+# **Die Ursache ist NICHT bei allen dreien dieselbe** — und bis zum 2026-08-10
+# stand hier pauschal „ihr Typ lässt auch nur diesen zu":
+#
+#     dot.refreshMode   `refreshMode: 'reset'`   Literaltyp  -> der TYP
+#     convert.from      `from: 'cooldown'`       Literaltyp  -> der TYP
+#     spender.resource  `resource: string`       frei        -> der BESTAND
+#
+# Bei `spender.resource` ist der Typ ein freier String; dass es nur `heat` gibt,
+# liegt daran, dass es heute nur eine Ressource gibt. **Kommt eine zweite Schule
+# mit eigener Ressource, wird das Feld messbar und dieser Eintrag muss fallen** —
+# nur sieht das niemand, wenn die Begründung auf den Typ zeigt statt auf den
+# Bestand. Wer den Typ prüft, findet nichts, und der Bestand ändert sich still.
+#
+# (Die alte Fassung nannte `data.ts:45` und `:298`. Die 45 stimmt bis heute,
+# die 298 zeigt ins Leere: `from` steht inzwischen auf 342. Eine Zeilennummer
+# überlebt ihren Code — deshalb stehen oben die Feldnamen und nicht die Zeilen.)
 NUR_EIN_WERT = {'dot.refreshMode', 'convert.from', 'spender.resource'}
 
 
