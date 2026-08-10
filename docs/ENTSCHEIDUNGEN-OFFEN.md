@@ -1147,3 +1147,85 @@ Die Frage, die dann beim Auftraggeber liegt, lautet voraussichtlich: **Wie viele
 Zusammenstellungen soll ROTA haben — und ist eine zweite genug?** Das ist eine Aussage über den
 Charakter des Spiels, nicht über eine Zahl: Zwei Wege sind eine Wahl, fünf sind ein
 Optimierungs-Labor, und der Unterschied bestimmt, wie viel Inhalt die 300 Stunden tragen muss.
+
+---
+
+## 21. Darf `gearEffects` ein Affix sein? — ENTSCHIEDEN: nein
+
+_Eingetragen am 2026-08-10, entschieden am selben Tag. Aufgekommen beim Ausrüstungs-Raster
+([`AUSRUESTUNGS-RASTER.md`](AUSRUESTUNGS-RASTER.md)), nicht aus dem Interview._
+
+**Die Frage entstand aus einer Messung, nicht aus dem Dokument.** `catalog.ts` prüft Affix-Arten
+gegen `POOL_NAMES` und lässt damit **alle sechs Topf-Namen** zu — auch `gearEffects`. Ein Eintrag
+damit lädt anstandslos und füllt Topf 4, ganz ohne Sätze:
+
+```text
+{"catalysis":0,"purity":0,"yieldBonus":0,"essence":473,
+ "vessel":67,"ward":67,"gearEffects":407,"active":406}
+```
+
+Damit war offen, was 13.1b nicht sagt: Topf 4 wird dort als „legendäre Effekte **und** Satz-Boni
+gemeinsam" beschrieben — ein gewöhnlicher Affix wäre eine **dritte** Quelle.
+
+### Das Ergebnis
+
+**Nein.** Die Begründung des Auftraggebers ist die Lehre, die 13.1b selbst zitiert:
+
+> Was multiplikativ ist, wird gejagt — und alles andere wird liegen gelassen.
+
+Ein multiplikativer Faktor über **gewöhnliche** Beute entwertet jeden anderen Affix. Genau dieses
+Muster musste Diablo 4 in Saison 2 zurückdrehen; 13.1b führt es als Warnung, nicht als Vorbild.
+
+Die Größenordnung ist gemessen — derselbe Lauf, nur die Affixe getauscht:
+
+| Ausrichtung                                    |  Schaden |
+| ---------------------------------------------- | -------: |
+| `catalysis, purity, yield` (drei Sonderwerte)  |     2812 |
+| `essence, purity, catalysis` (ein Faktor)      |     3458 |
+| `essence, gearEffects, purity` (zwei Faktoren) | **4868** |
+
+> Die **Rangfolge** ist ein Artefakt des Messaufbaus (fester 1500-ms-Takt benachteiligt Tempo) —
+> die **Größenordnung** des Abstands ist es nicht.
+
+### Was daraus folgt
+
+- **Topf 4 bleibt legendären Effekten und Satz-Boni vorbehalten.**
+- Das Ausrüstungs-Raster geht von 30 auf **20 Einträge** (die Ausrichtung `-core` entfällt).
+- **Eine Code-Sperre dafür gibt es nicht.** `gearEffects` ist technisch weiterhin eine gültige
+  Affix-Art, weil sie ein Feld füllt. Wer die Entscheidung absichern will, braucht eine eigene
+  Prüfung — das ist bewusst nicht Teil des Katalogs.
+
+---
+
+## 22. Bleibt `active` in `POOL_NAMES`? — OFFEN
+
+_Eingetragen am 2026-08-10. Die **Folge** ist bereits behoben, die **Frage** nicht._
+
+`POOL_NAMES` führt die sechs Töpfe aus 13.1b, `WornValues` die Werte, die der Kampf liest. `active`
+ist ein Topf **ohne** Wert: Aktive Verstärkungen entstehen im Kampf — Overdrive, Synergien,
+Zersetzungs-Stapel — und stehen nicht auf einem Gegenstand.
+
+### Was bereits geschlossen ist, unabhängig von dieser Frage
+
+Bis zum 2026-08-10 benutzte `wornFrom` die Art **direkt** als Schlüssel. Ein Eintrag mit `active`
+lud fehlerfrei, bestand jede Prüfung — und legte seinen Anteil in ein Feld, das niemand liest:
+gemessen **406 von 1219 Promille**, ohne Ausnahme, ohne roten Fall, ohne Log. Der Gegenstand sah
+vollwertig aus und war ein Drittel schwächer.
+
+**Der Auftraggeber hat die Sperre dieser Design-Frage ausdrücklich vorgeordnet:** Jeder Affix-Name,
+der kein Feld trifft, muss laut scheitern statt Promille zu verschlucken. Das gilt unabhängig von
+`active`, weil es **jeden** künftigen Tippfehler in einer Affix-Liste trifft. Umgesetzt in
+`feldFuerAffixArt` (`src/gear/worn.ts`) und `pruefeAffixArten` (`src/gear/catalog.ts`).
+
+### Was offen bleibt
+
+**Fliegt `active` aus `POOL_NAMES`, oder bekommt es ein Feld?**
+
+|                        | dafür                                                                | dagegen                                                                      |
+| ---------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **raus aus der Liste** | Die Töpfe wären dann genau die Arten, die ein Gegenstand tragen kann | 13.1b führt vier Töpfe; einer davon verschwände aus der Aufzählung im Code   |
+| **ein Feld geben**     | Ausrüstung könnte aktive Verstärkungen mitbringen                    | 13.1b nennt für Topf 3 nur Kampf-Quellen — das wäre eine neue Design-Aussage |
+
+Bis zur Entscheidung bleibt `active` in der Liste und fällt beim Ladeversuch auf. **Das ist ein
+tragfähiger Zwischenzustand**, kein Provisorium: Der Schaden ist abgestellt, nur die Aufräumfrage
+ist offen.
