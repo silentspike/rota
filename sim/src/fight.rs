@@ -165,6 +165,17 @@ pub const PHASE_HOLD_DURATION_MS: Millis = 8_000;
 /// Wie viele Stapel hoechstens gleichzeitig liegen. Wird gemessen.
 pub const MAX_DECAY_STACKS: usize = 5;
 
+/// Wie viele Stapel die **Struktur** fasst — Feldlaenge und Pruefsummen-Schleife
+/// (PUTRID BLOOM, Issue #479).
+///
+/// `MAX_DECAY_STACKS` ist die GRENZE, ab der kein Zauber mehr nachlegt; PUTRID
+/// BLOOM hebt sie fuer eine Weile. Waere sie zugleich die Feldlaenge, aenderte
+/// sich mit ihr die Zahl der Werte in der Pruefsumme — und eine Pruefsumme,
+/// deren Laenge vom Spielverlauf abhaengt, ist keine mehr.
+///
+/// Muss mit `DECAY_STACK_CAPACITY` im Spiel uebereinstimmen (`combat.ts`).
+pub const DECAY_STACK_CAPACITY: usize = 8;
+
 /// Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhoeht
 /// (GAME-DESIGN 5 und 1193, #318).
 ///
@@ -533,7 +544,12 @@ pub struct Fight {
     ///
     /// **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Feld fester
     /// Laenge, kein Vec: Der Kampf fordert keinen Speicher an (18.2).
-    decay_expiry: [Millis; MAX_DECAY_STACKS],
+    // **Die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479).
+    decay_expiry: [Millis; DECAY_STACK_CAPACITY],
+    /// Um wie viele Plaetze die Grenze angehoben ist. 0 = keine Anhebung.
+    decay_cap_bonus: usize,
+    /// Bis wann die Anhebung gilt.
+    decay_cap_until: Option<Millis>,
     /// Wie viele Stapel gerade liegen.
     decay_count: usize,
     /// Bis wann das Synergie-Fenster dieses Zaubers offen steht (#318).
@@ -844,7 +860,9 @@ impl Fight {
             phase_hold_until: None,
             cast_lands_at: 0,
             control_spent: 0,
-            decay_expiry: [0; MAX_DECAY_STACKS],
+            decay_expiry: [0; DECAY_STACK_CAPACITY],
+            decay_cap_bonus: 0,
+            decay_cap_until: None,
             decay_count: 0,
             synergy_window_ends: [0; SPELL_COUNT],
             synergy_used: 0,
@@ -1475,7 +1493,11 @@ impl Fight {
         self.phase_hold_until = None;
         self.cast_lands_at = 0;
         self.control_spent = 0;
-        self.decay_expiry = [0; MAX_DECAY_STACKS];
+        self.decay_expiry = [0; DECAY_STACK_CAPACITY];
+        // PUTRID BLOOM (#479) — eine Anhebung, die einen Kampf ueberlebte, gaebe
+        // im naechsten Plaetze, die niemand bezahlt hat.
+        self.decay_cap_bonus = 0;
+        self.decay_cap_until = None;
         self.decay_count = 0;
         // **Die Synergie-Fenster und ihre Zaehler** (#318). Im Browser
         // gemessen: Ohne das traegt der naechste Lauf die Ausbeute des vorigen.
@@ -1938,6 +1960,15 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+        // PUTRID BLOOM (Issue #479) — die Grenze anheben. Liegende Stapel
+        // bleiben liegen, wenn sie auslaeuft: Die Grenze entscheidet nur, ob
+        // NACHGELEGT werden darf.
+        if let Some(decay_cap) = spell.decay_cap {
+            self.decay_cap_bonus = decay_cap.bonus as usize;
+            self.decay_cap_until = Some(self.time + decay_cap.duration_ms);
+            self.queue
+                .push(self.time + decay_cap.duration_ms, EventKind::Wakeup);
+        }
         // DECAY (Issue #479) — die Schwaechung anschalten. Die STAPELZAHL wird
         // hier NICHT festgehalten: Sie wird beim Treffer gelesen, sonst zaehlte
         // der Aufbau nach dem Wurf nicht mehr.
@@ -2183,7 +2214,7 @@ impl Fight {
             return;
         }
         for _ in 0..anzahl {
-            if self.decay_count >= MAX_DECAY_STACKS {
+            if self.decay_count >= self.decay_cap() {
                 break;
             }
             self.decay_expiry[self.decay_count] = self.time + DECAY_STACK_DURATION_MS;
@@ -2251,6 +2282,16 @@ impl Fight {
                 u32::try_from(kind).unwrap_or(0),
             );
         }
+    }
+
+    /// Die Stapel-Grenze, die JETZT gilt (PUTRID BLOOM, Issue #479).
+    ///
+    /// **Gedeckelt auf die Kapazitaet** — darueber hinaus gaebe es keinen Platz
+    /// im Feld. Das Spiel rechnet dieselbe Zeile (`combat.ts`, `decayCap`).
+    fn decay_cap(&self) -> usize {
+        let offen = matches!(self.decay_cap_until, Some(bis) if self.time <= bis);
+        let gehoben = MAX_DECAY_STACKS + if offen { self.decay_cap_bonus } else { 0 };
+        gehoben.min(DECAY_STACK_CAPACITY)
     }
 
     fn expire_putrefaction(&mut self) {
@@ -3989,7 +4030,8 @@ impl Fight {
         // vielen, aber verschieden alten Stapeln laufen gleich weiter, bis der
         // erste verfaellt.
         h = mix_named_int(h, "decayStacks", self.decay_count as i32);
-        for i in 0..MAX_DECAY_STACKS {
+        // **Ueber die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479).
+        for i in 0..DECAY_STACK_CAPACITY {
             h = mix_named_int(h, "decayExpiry", self.decay_expiry_at(i) as i32);
         }
         // **Angehaengt, nicht eingeschoben** (Issue #218). Ohne sie waere die

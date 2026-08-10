@@ -13,7 +13,7 @@
  * und in jeder Sprache in zehn Zeilen nachzubauen. Das ist die Bedingung dafür,
  * dass der Rust-Simulator dieselbe Folge erzeugt (GAME-DESIGN 18.4).
  */
-import { MAX_DECAY_STACKS, type Combat, alsSpellIndex } from './combat.js';
+import { DECAY_STACK_CAPACITY, type Combat, alsSpellIndex } from './combat.js';
 
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
@@ -175,7 +175,10 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // verfällt. Deshalb geht jede Restzeit einzeln ein, in fester Reihenfolge
   // (der älteste zuerst), und die unbelegten Plätze als 0.
   h = mixNamedInt(h, 'decayStacks', combat.decayStacks);
-  for (let i = 0; i < MAX_DECAY_STACKS; i++)
+  // **Ueber die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479). Die
+  // Laenge dieser Schleife darf nicht vom Spielverlauf abhaengen — sonst
+  // waeren zwei Laeufe unvergleichbar, sobald einer die Grenze hebt.
+  for (let i = 0; i < DECAY_STACK_CAPACITY; i++)
     h = mixNamedInt(h, 'decayExpiry', combat.decayExpiryAt(i));
   // **Angehängt, nicht eingeschoben** (Issue #218). Ohne sie wäre die
   // Prüfsumme für einen Boss mit Unverwundbarkeits-Fenster blind: Zwei Läufe
