@@ -164,6 +164,8 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Für die vier Merker, die folgen (CONDENSE, RETORT, PUTRID BLOOM, DECAY):
   // hier anhängen, in derselben Reihenfolge auf beiden Seiten.
   h = mixNamedInt(h, 'nextCastFreeGcd', combat.nextCastFreeGcd ? 1 : 0);
+  // Der zweite Merker, unmittelbar neben dem ersten (CONDENSE, #480).
+  h = mixNamedInt(h, 'nextCastDoubles', combat.nextCastDoubles ? 1 : 0);
   // **Angehängt, nicht eingeschoben** (Issue #100). Ohne den Kontroll-Vorrat
   // wäre die Prüfsumme für jeden Kampf mit Fixierung blind, und die gesenkte
   // Phasen-Schwelle entscheidet über jeden künftigen Wechsel.

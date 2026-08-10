@@ -118,6 +118,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'aether',
       // Issue #480 — SUBLIME, hinter AETHER in derselben Schuldatei.
       'sublime',
+      // Issue #480 — CONDENSE, hinter SUBLIME in derselben Schuldatei.
+      'condense',
       'canker',
       'fester',
       'blight',

@@ -55,6 +55,7 @@ import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
+import eingecheckteCondenseRunde from './recordings/condense-merker.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -129,6 +130,7 @@ import {
   logTaktePayload,
   aetherPayload,
   sublimePayload,
+  condensePayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -482,6 +484,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     }
   });
 
+  it('CONDENSEs Merker entspricht dem heutigen Spielstand', () => {
+    // Issue #480, der zweite Merker. Die Aufzeichnung trägt `merker` — den
+    // Zustand je Takt — und den Schaden, den die Verdopplung bewegt.
+    expect(eingecheckteCondenseRunde, HINWEIS).toEqual(condensePayload());
+  });
+
   it('SUBLIMEs Merker entspricht dem heutigen Spielstand', () => {
     // Issue #480. Die Aufzeichnung traegt `merker` — den Zustand je Takt.
     expect(eingecheckteSublimeRunde, HINWEIS).toEqual(sublimePayload());
@@ -791,6 +799,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'log-takte',
   'aether-fenster',
   'sublime-merker',
+  'condense-merker',
   'haste',
   'worn-values',
   'sources',
