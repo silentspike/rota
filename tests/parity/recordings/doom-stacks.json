@@ -466,7 +466,7 @@
     "conversionPercent",
     "nextCastFreeGcd",
     "nextCastDoubles",
-    "interruptedGcdMs",
+    "retortArmed",
     "control",
     "phaseHoldPercent",
     "doom",

@@ -443,8 +443,8 @@ const retortPath = join(here, 'recordings', `${RETORT_NAME}.json`);
 writeFileSync(retortPath, serialize(retort), 'utf8');
 console.log(
   `  RETORT          ${retort.expected.retortCasts} Wuerfe, ` +
-    `${retort.expected.merkerTakte} Merker-Takte, hoechster Betrag ` +
-    `${retort.expected.merkerMax} ms, Schaden ${retort.expected.damageDealt}`,
+    `${retort.expected.merkerTakte} geruestete Takte, ` +
+    `${retort.expected.einloesungen} eingeloest, Schaden ${retort.expected.damageDealt}`,
 );
 
 const kontrollFehlschlag = kontrollFehlschlagPayload();

@@ -145,7 +145,7 @@
       "baseDamage": 0,
       "cooldownMs": 12000,
       "castTimeMs": 0,
-      "triggersGcd": false,
+      "triggersGcd": true,
       "refundsInterruptedGcd": true
     }
   ]

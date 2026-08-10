@@ -784,17 +784,19 @@ export class Combat {
   private nextCastDoublesValue = false;
 
   /**
-   * **Der dritte Merker — und der erste mit einer Zahl** (RETORT, #480).
+   * **Der dritte Merker** (RETORT, #480): Ist gerüstet.
    *
-   * Wie viele Millisekunden Wartezeit offen standen, als der Boss zuletzt
-   * einen Wurf abgebrochen hat. `0` heisst: nichts zu erstatten.
+   * Steht auf `true`, wenn RETORT geworfen wurde und der nächste vom BOSS
+   * abgebrochene Wurf deshalb keine Wartezeit kostet.
    *
-   * Die zwei anderen tragen ein Ja/Nein, weil ihre Wirkung fest ist. Hier
-   * hängt sie am Zeitpunkt — ein Abbruch kurz vor Ablauf kostet weniger als
-   * einer kurz danach. Ein Ja/Nein müsste den Betrag beim Verbrauch neu
-   * erfinden, und dann rechneten beide Seiten ihn unabhängig.
+   * **Vorbereitung statt Rettung** — bewusst anders als das Raster, das ihn
+   * reaktiv beschreibt. Reaktiv gebaut bräuchte er eine zweite Ausnahme von
+   * Design-Gesetz 6.6; gemessen wurde sein Druck dann abgelehnt. Die
+   * ausführliche Begründung steht am Gegenstück in `sim/src/fight.rs`.
+   *
+   * Ein Ja/Nein, keine Zahl: Zweimal rüsten ist einmal gerüstet.
    */
-  private interruptedGcdMsValue = 0;
+  private retortArmedValue = false;
 
   /** Gesamter erlittener Schaden, **nach** WARD. */
   private damageTakenValue = 0;
@@ -1865,21 +1867,21 @@ export class Combat {
   }
 
   /**
-   * Verbraucht die erstattbare Wartezeit, falls welche offen steht (#480).
+   * Verbraucht die Rüstung, falls sie steht (#480).
    *
-   * Einmal gemerkt, einmal erstattet — wie bei den zwei Merkern darüber. Ein
-   * Betrag, der stehen bliebe, machte aus einer Erstattung eine dauerhafte
-   * Vergünstigung.
+   * Einmal gerüstet, einmal verbraucht — wie bei den zwei Merkern darüber.
+   * Eine Rüstung, die stehen bliebe, machte aus einer Vorbereitung eine
+   * dauerhafte Vergünstigung.
    */
-  private takeInterruptedGcd(): number {
-    const offen = this.interruptedGcdMsValue;
-    this.interruptedGcdMsValue = 0;
-    return offen;
+  private takeRetortArmed(): boolean {
+    if (!this.retortArmedValue) return false;
+    this.retortArmedValue = false;
+    return true;
   }
 
-  /** Die gemerkte Wartezeit aus einem Boss-Abbruch, für die Prüfsumme (#480). */
-  get interruptedGcdMs(): number {
-    return this.interruptedGcdMsValue;
+  /** Ob RETORTs Rüstung steht — für die Prüfsumme und für Prüffälle (#480). */
+  get retortArmed(): boolean {
+    return this.retortArmedValue;
   }
 
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
@@ -3737,12 +3739,14 @@ export class Combat {
       // seine Nebenwirkung.
       if (eintrag.interruptsPlayer && this.cancelPlayerCast()) {
         this.castsInterruptedValue++;
-        // **Was der Abbruch gekostet hat, merken** (RETORT, #480).
+        // **Die Rüstung greift** (RETORT, #480): Der Rest der Wartezeit wird
+        // erlassen, nicht die volle — die verstrichene Zeit hat der Spieler
+        // durchlebt.
         //
         // Hier und NICHT in `cancelPlayerCast`: Die Methode wird auch vom
-        // Selbst-Abbruch gerufen. Wer selbst abbricht, hat entschieden statt
-        // gestört zu werden — die Begründung steht am Simulator-Gegenstück.
-        this.interruptedGcdMsValue = this.gcd.remainingMs(timeMs);
+        // Selbst-Abbruch gerufen. Wer sich rüstet und dann selbst abbricht,
+        // hätte sich die Wartezeit gekauft.
+        if (this.takeRetortArmed()) this.gcd.refund(this.gcd.remainingMs(timeMs));
       }
     }
 
@@ -4411,19 +4415,14 @@ export class Combat {
     // Wartezeiten" (7.1) würden drei.
     if (spell.triggersGcd && !wirkzeitLief && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
 
-    // **Die Wartezeit erstatten, die ein Boss-Abbruch gekostet hat**
-    // (RETORT, #480).
+    // **Rüsten** (RETORT, #480): Der nächste vom BOSS abgebrochene Wurf
+    // kostet keine Wartezeit.
     //
-    // Steht NACH der Zeile darüber, und das ist der ganze Trick: Löste RETORT
-    // selbst eine Wartezeit aus, zöge sie sein eigener Wurf sofort wieder auf
-    // die volle Länge — der Zauber wäre wirkungslos und der Fehler grün.
-    // (Er tut es nicht: `triggersGcd` steht bei ihm auf `false`, weil er sonst
-    // während der Wartezeit, die er verkürzen soll, gar nicht werfbar wäre.)
-    //
-    // Spiegelbild zu `refunds_interrupted_gcd` in `sim/src/fight.rs`.
-    if (spell.refundsInterruptedGcd === true) {
-      this.gcd.refund(this.takeInterruptedGcd());
-    }
+    // Steht bei den zwei anderen Merkern, hinter allem, was sie verbrauchen
+    // könnte. RETORTs eigene Wartezeit ist eine Zeile höher schon gestartet
+    // und bleibt — er zahlt wie jeder andere Zauber, und genau deshalb bleibt
+    // Design-Gesetz 6.6 unberührt.
+    if (spell.refundsInterruptedGcd === true) this.retortArmedValue = true;
 
     // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480). Bewusst HINTER beiden
     // GCD-Stellen: Weiter oben hätte SUBLIME als Sofort-Zauber seinen eigenen
