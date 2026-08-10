@@ -53,6 +53,8 @@ conversion.sharePercent    crucible-skin 50 -> 25       geschuetzt [1 Prueffall]
 conversion.sharePercent    temper       25 -> 12       geschuetzt [4 Prueffaelle] (umwandlung-groessen.test.ts)
 convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [3 Prueffaelle] (combat.test.ts, data.test.ts, efflux.test.ts)
 convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+decayWard.durationMs       decay        6000 -> 3000     SCHWEIGT -> die Aufzeichnung faerbt NICHT: ihr Fenster reicht auch halbiert fuer jeden Treffer
+decayWard.permillePerStack decay        40 -> 20       NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_decay_ward.rs: damageTaken)
 decay.stacks               blight       1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
 decay.stacks               canker       1 -> 0        geschuetzt [24 Prueffaelle] (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
 dot.decayPerTick           rot          1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)

@@ -112,6 +112,20 @@ pub enum BuffTarget {
     Cap,
 }
 
+/// Die Schwaechung des Boss-Schadens nach Stapelzahl (DECAY, Issue #479).
+///
+/// **Promille, nicht Prozent** — sie steht in derselben Summe wie `worn.ward`,
+/// und die rechnet in Promille. Damit faellt sie auch unter denselben Deckel
+/// (`ward_cap_permille`): Die Schwaechung ist kein eigener Faktor neben WARD,
+/// sondern mehr WARD.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecayWard {
+    /// Um wie viel Promille der eingehende Schaden je liegendem Stapel sinkt.
+    pub permille_per_stack: u32,
+    /// Wie lange die Schwaechung nach dem Wirken anhaelt.
+    pub duration_ms: Millis,
+}
+
 /// Ein Entlade-Zauber: verbraucht die Ressource und schlaegt dafuer zu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spender {
@@ -400,6 +414,8 @@ pub struct Spell {
     pub conversion: Option<Conversion>,
     /// Rueckschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet.
     pub reflect: Option<Reflect>,
+    /// Die Schwaechung nach Stapelzahl (DECAY, Issue #479).
+    pub decay_ward: Option<DecayWard>,
     /// Wie viele Zersetzungs-Stapel der Zauber anlegt (PUTREFACTION, #97).
     pub decay_stacks: u32,
     /// Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.

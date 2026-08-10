@@ -276,6 +276,8 @@ export interface SpellDef {
   readonly conversion?: ConversionDef;
   /** Rückschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet. */
   readonly reflect?: ReflectDef;
+  /** Die Schwächung des Boss-Schadens nach Stapelzahl (DECAY, Issue #479). */
+  readonly decayWard?: DecayWardDef;
   /** Zersetzungs-Stapel, die der Zauber auf dem Boss anlegt (PUTREFACTION). */
   readonly decay?: DecayDef;
   /**
@@ -473,6 +475,31 @@ export interface ConversionDef {
  */
 export interface ReflectDef {
   readonly sharePercent: number;
+  readonly durationMs: number;
+}
+
+/**
+ * Die Schwächung des Boss-Schadens nach Stapelzahl (DECAY, Issue #479).
+ *
+ * > „Schwächt den Boss-Schaden nach Stapelzahl — verbindet Schwächung mit
+ * > Überleben" (ZAUBER-RASTER, PUTREFACTION 9)
+ *
+ * # Warum PROMILLE und nicht Prozent
+ *
+ * Die Minderung steht in derselben Summe wie `worn.ward`, und die rechnet in
+ * Promille (`combat.ts`, `incoming`). Zwei Einheiten in einer Summe sind die
+ * teuerste Sorte Fehler: Sie fällt erst auf, wenn die Zahlen groß werden.
+ *
+ * # Warum ein Fenster und kein Dauerzustand
+ *
+ * Ohne Laufzeit wirkte der Zauber nur in dem Augenblick, in dem er gedrückt
+ * wird — und ob dann gerade ein Boss-Schlag fällt, ist Zufall. Dieselbe Bauart
+ * wie `ConversionDef` (TEMPER): ein Zustand, der eine Weile anhält.
+ */
+export interface DecayWardDef {
+  /** Um wie viel Promille der eingehende Schaden je liegendem Stapel sinkt. */
+  readonly permillePerStack: number;
+  /** Wie lange die Schwächung nach dem Wirken anhält. */
   readonly durationMs: number;
 }
 
@@ -1300,6 +1327,7 @@ function parseCoagulation(
     heal?: HealDef;
     conversion?: ConversionDef;
     reflect?: ReflectDef;
+    decayWard?: DecayWardDef;
   } = {};
 
   if (isRecord(raw['shield'])) {
@@ -1404,6 +1432,20 @@ function parseCoagulation(
     } else if (durationMs <= 0) {
       problems.push(`${where}: reflect.durationMs ${durationMs} — ein Fenster ohne Dauer.`);
     } else out.reflect = { sharePercent, durationMs };
+  }
+
+  // DECAY (Issue #479). Die Prüfungen spiegeln die von `conversion`: Ein Wert
+  // von null oder darunter ist kein „aus", sondern ein Feld, das jemand für
+  // wirksam hält — und eine Laufzeit von null ließe den Zauber in dem
+  // Augenblick enden, in dem er beginnt.
+  if (isRecord(raw['decayWard'])) {
+    const permillePerStack = number(raw['decayWard']['permillePerStack'], 0);
+    const durationMs = number(raw['decayWard']['durationMs'], 0);
+    if (permillePerStack <= 0) {
+      problems.push(`${where}: permillePerStack ${permillePerStack} bewirkt nichts.`);
+    } else if (durationMs <= 0) {
+      problems.push(`${where}: decayWard ohne Laufzeit wirkt nie.`);
+    } else out.decayWard = { permillePerStack, durationMs };
   }
 
   return out;
