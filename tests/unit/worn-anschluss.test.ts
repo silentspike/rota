@@ -64,8 +64,16 @@ describe('Der Katalog trägt keine Zahlen', () => {
     expect(Object.keys(relic ?? {})).not.toContain('catalysis');
   });
 
-  it('es gibt nur den Prüf-Gegenstand — der Katalog ist #421b', () => {
-    expect(ITEMS.map((item) => item.id)).toEqual([RELIC]);
+  it('der Prüf-Gegenstand ist noch da — an ihm hängen die Fälle dieser Datei', () => {
+    // **Bis #421b stand hier `toEqual([RELIC])`** — „es gibt nur den
+    // Prüf-Gegenstand". Das war richtig, solange der Katalog leer war, und ist
+    // mit den zwanzig Einträgen aus `docs/AUSRUESTUNGS-RASTER.md` hinfällig.
+    //
+    // Was bleibt, ist die Aussage, die diese Datei wirklich braucht: `RELIC`
+    // existiert und trägt seine Werte-Arten unverändert. Wer ihn löscht, macht
+    // jeden Fall hier grün, ohne dass etwas geprüft wäre.
+    expect(ITEMS.map((item) => item.id)).toContain(RELIC);
+    expect(itemById(RELIC)?.affixKinds).toEqual(['catalysis', 'purity', 'yield']);
   });
 });
 
