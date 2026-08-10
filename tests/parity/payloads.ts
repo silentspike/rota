@@ -36,7 +36,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat, alsSpellIndex } from '../../src/core/combat.js';
+import { Combat, alsSpellIndex, isCastAccepted } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -5492,6 +5492,174 @@ export function pinPayload(): Record<string, unknown> {
       sequenceChecksum: result.sequenceChecksum,
     },
     checksums: result.checksums,
+  };
+}
+
+export const RETORT_NAME = 'retort-erstattung';
+
+/** Die Leiste dieser Aufzeichnung. */
+const RETORT_BINDINGS = [
+  { slot: 0, spellId: 'test-cast' },
+  { slot: 1, spellId: 'retort' },
+  { slot: 2, spellId: 'kindle' },
+] as const;
+
+/**
+ * RETORT gibt die Wartezeit zurück, die ein **Boss-Abbruch** gekostet hat
+ * (Issue #480).
+ *
+ * `test-caster` unterbricht bei 9000 ms. `test-cast` hat 2000 ms Wirkzeit —
+ * wer bei 8000 drückt, wird mittendrin getroffen und hat bei 9000 noch
+ * 500 ms Wartezeit offen, die er bezahlt und nicht bekommen hat.
+ *
+ * **Warum KINDLE dazugehört**: Die Wirkung ist eine gesparte halbe Sekunde,
+ * und die sieht man nur, wenn danach etwas gewirkt wird. Ohne einen dritten
+ * Zauber bliebe die Ersparnis eine Zahl ohne Folge — dieselbe Falle wie bei
+ * SUBLIME, wo die Probe erst mit zwei Zaubern im Wechsel etwas zeigte.
+ */
+export function retortPayload(): Record<string, unknown> {
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('test-caster fehlt');
+
+  // **Stufe 101, damit `test-cast` überhaupt auf der Leiste liegt.**
+  //
+  // Er trägt `unlockLevel: 101` — er ist ein Prüf-Zauber über der
+  // Stufengrenze, und ohne die Stufe wird jeder Wurf abgelehnt. Gemessen:
+  // ohne sie null RETORT-Würfe, weil der Zauber, den der Boss unterbrechen
+  // soll, nie zustande kam. `cast-time.json` löst dasselbe über
+  // `replayRecording`; hier spielt das Rezept selbst, also braucht es die
+  // Stufe ausdrücklich.
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0, level: 101 });
+  const testCast = combat.indexOf('test-cast');
+  const retort = combat.indexOf('retort');
+  const kindle = combat.indexOf('kindle');
+  const ticks = 1500; // 15 s — der Abbruch liegt bei 9000
+
+  const slots = slotMap(combat, RETORT_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Der gemerkte Betrag je Takt — die Größe, um die es geht. */
+  const merker: number[] = [];
+  /**
+   * **Eigene Merkung statt `castCount`.** Während einer Wirkzeit steht der
+   * Zähler noch auf null — der Zauber hat begonnen, nicht gewirkt. Eine
+   * Bedingung über `castCount` feuerte deshalb in jedem Takt neu und brach
+   * den eigenen laufenden Wurf ab; der Boss fand bei 9000 nichts mehr vor.
+   */
+  let testCastGeworfen = false;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // **Der Merker VOR dem Wurf.** RETORT verbraucht ihn im selben Takt, in
+    // dem er gesetzt wurde — wer danach misst, sieht überall null und hält
+    // einen wirkenden Zauber für tot. Gemessen: `merkerTakte` stand auf null,
+    // während `retortCasts` bereits eins war.
+    merker.push(combat.interruptedGcdMs);
+
+    let gewaehlt = -1;
+    // **In den Abbruch hinein — aber nur, wenn er auch geworfen werden kann.**
+    //
+    // Ein erster Entwurf drückte bei genau Takt 800. Dort lief KINDLEs
+    // Wartezeit noch, der Wurf wurde abgelehnt, und der Lauf enthielt am Ende
+    // NULL RETORT-Würfe und NULL Merker-Takte. Die Zusicherungen unten haben
+    // es gemeldet; ohne sie wäre eine Aufzeichnung entstanden, die den Zauber
+    // gar nicht zeigt und trotzdem grün vergleicht.
+    //
+    // **Das Fenster hat ZWEI Kanten, und beide sind gemessen.**
+    //
+    // Der Boss unterbricht bei 9000, `test-cast` braucht 2000 ms Wirkzeit,
+    // die Wartezeit läuft 1500 ms ab dem Beginn.
+    //
+    //   Start ≤ 7000  →  der Wurf LANDET bei 9000, es gibt nichts abzubrechen
+    //   Start ≤ 7500  →  die Wartezeit ist bei 9000 ABGELAUFEN, und der
+    //                    Merker ist rechnerisch null: `gcd_ready_at - now`
+    //                    ist dann 9000 − 9000
+    //   Start ≥ 7600  →  beides passt: Wirkzeit läuft noch, 100 ms offen
+    //
+    // Die zweite Kante hat mich fünf Anläufe gekostet. Ein Start bei 7500
+    // wurde abgebrochen, der Abbruch war echt, und der Merker stand
+    // trotzdem auf null — weil es zu diesem Zeitpunkt wirklich nichts mehr
+    // zu erstatten gab. Der Zauber war nicht kaputt, die Probe war es.
+    if (
+      timeMs >= 7600 &&
+      timeMs < 8800 &&
+      !testCastGeworfen &&
+      combat.isReady(alsSpellIndex(testCast), timeMs)
+    ) {
+      gewaehlt = testCast;
+    } else if (combat.interruptedGcdMs > 0 && combat.isReady(alsSpellIndex(retort), timeMs)) {
+      // Sobald etwas zu erstatten ist.
+      gewaehlt = retort;
+    } else if (combat.isReady(alsSpellIndex(kindle), timeMs) && (timeMs < 7100 || timeMs > 9600)) {
+      // Und die gesparte Zeit sichtbar machen.
+      //
+      // **Aber zwischen 7100 und 9100 schweigen.** Zwei Gründe, beide
+      // gemessen:
+      //
+      //   1. KINDLE liegt auf 1500 ms und belegt die Wartezeit lückenlos —
+      //      `test-cast` käme sonst nie an die Reihe. **Er muss VOR 7500
+      //      schweigen, nicht erst ab 7600**: Ein KINDLE bei 7500 hält die
+      //      Wartezeit bis 9000, und `test-cast` wäre im ganzen Fenster nicht
+      //      bereit. Gemessen mit `isReady=false` bei Takt 760.
+      //   2. Und schlimmer: Ein Druck WÄHREND der Wirkzeit bricht sie SELBST
+      //      ab (#304). Ein KINDLE bei 8500 nähme dem Boss den Zauber weg,
+      //      den er bei 9000 unterbrechen soll — und RETORT stünde wieder
+      //      mit null Würfen da. Der Selbst-Abbruch setzt seinen Merker
+      //      nicht, genau wie es sein soll.
+      gewaehlt = kindle;
+    }
+
+    // **`isCastAccepted`, nicht `=== 0`.** Ein Zauber mit Wirkzeit meldet
+    // CAST_STARTED (5), nicht CAST_OK (0) — er hat begonnen, nicht gewirkt.
+    // Gemessen: Mit `=== 0` startete `test-cast` im Kampf, aber sein Druck
+    // fehlte in der Aufzeichnung. Beim Nachspielen gab es dann nichts zu
+    // unterbrechen, und RETORT stand mit null Würfen da.
+    if (gewaehlt >= 0 && isCastAccepted(combat.cast(alsSpellIndex(gewaehlt), timeMs).result)) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+      if (gewaehlt === testCast) testCastGeworfen = true;
+    }
+
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: RETORT_NAME,
+    bossId: boss.id,
+    /**
+     * **Die Stufe gehört in die Datei**, nicht nur ins Rezept (#480).
+     *
+     * `test-cast` trägt `unlockLevel: 101`; ohne Stufe 101 lehnt `cast` jeden
+     * Wurf ab. Sie ändert aber auch die Lebenspunkte und damit die Prüfsumme
+     * — wer nachspielt und sie nicht setzt, weicht schon in Takt 0 ab.
+     * Gemessen: genau das ist beim ersten Rust-Gegenstück passiert.
+     */
+    playerLevel: 101,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: RETORT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    merker,
+    expected: {
+      /**
+       * **Die Größe, die RETORT bewegt.** Eine gesparte halbe Sekunde heisst
+       * einen Wurf mehr in derselben Zeit — nicht die Prüfsumme, die änderte
+       * sich auch, wenn der Merker nur gesetzt und nie verbraucht würde.
+       */
+      damageDealt: combat.damageDealt,
+      /** Die Zusicherung, dass der Lauf RETORT überhaupt wirft. */
+      retortCasts: combat.castCount(alsSpellIndex(retort)),
+      /**
+       * Wie viele Takte lang ein Betrag offen stand. Null hiesse: Es gab
+       * keinen Boss-Abbruch, und der Fall misst eine Runde ohne die Sache.
+       */
+      merkerTakte: merker.filter((m) => m > 0).length,
+      /** Der höchste gemerkte Betrag — bei 9000 ms Abbruch sind es 500. */
+      merkerMax: Math.max(...merker),
+    },
   };
 }
 

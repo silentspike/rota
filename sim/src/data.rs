@@ -403,6 +403,27 @@ pub struct Spell {
     /// beide Anwendungen — dieselbe Regel, nach der das Schlüsseltalent aus
     /// Issue #418 gebaut ist, das denselben Satz trägt.
     pub doubles_next_cast: bool,
+    /// Ob dieser Zauber die Wartezeit erstattet, die ein **Boss-Abbruch**
+    /// gekostet hat (RETORT, Issue #480).
+    ///
+    /// Der dritte Merker, neben den zwei anderen und mit derselben Bedingung.
+    /// Sein Zustand ist allerdings der erste, der eine **Zahl** trägt statt
+    /// eines Ja/Nein: wie viele Millisekunden beim Abbruch noch offen standen.
+    ///
+    /// # Warum nicht die Abklingzeit, wie das Raster sagt
+    ///
+    /// Gemessen: Nach einem Abbruch ist sie bereits null — sie wird in
+    /// `resolve_player_cast` gesetzt, und die läuft bei einem Abbruch nie.
+    /// Ein Zauber, der sie zurücksetzt, wäre messbar wirkungslos.
+    ///
+    /// Was der Abbruch wirklich kostet, ist die globale Wartezeit: Sie startet
+    /// bei einer Wirkzeit mit dem BEGINN (#304) und läuft weiter, auch wenn
+    /// der Wurf nie landet.
+    ///
+    /// **Nur der Boss-Abbruch.** Der Selbst-Abbruch ist eine Entscheidung des
+    /// Spielers, keine Störung. Das ist eine Annahme des Bauenden, keine
+    /// Design-Entscheidung — sie steht im PR-Text und ist widerlegbar.
+    pub refunds_interrupted_gcd: bool,
     /// Ressourcen-Gewinn beim Wirken.
     pub resource_gain: u16,
     /// Brand-Effekt, falls der Zauber einen hat.

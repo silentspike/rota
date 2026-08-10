@@ -136,6 +136,17 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "doublesNextCast": true
+    },
+    {
+      "_comment": "RETORT — gibt die Wartezeit zurueck, die ein Boss-Abbruch gekostet hat (Issue #480).\n\nDER DRITTE MERKER-ZAUBER, und der erste, dessen Merker eine ZAHL traegt statt\neines Ja/Nein: wie viele Millisekunden globale Wartezeit beim Abbruch noch\noffen standen.\n\nWARUM NICHT 'DIE ABKLINGZEIT ZURUECKSETZEN', wie das Raster sagt:\nGEMESSEN, dass sie nach einem Abbruch bereits null ist. Aufbau: test-caster\nunterbricht bei 9000 ms, test-cast hat 2000 ms Wirkzeit und 6000 ms\nAbklingzeit, Druck bei 8000 ms. Ergebnis: gewirkt 0, Abklingzeit-Restzeit 0,\ncooldown_ready true. Ein RETORT nach der Raster-Lesart setzte etwas zurueck,\ndas gar nicht gesetzt ist — er waere messbar wirkungslos, und AC2/AC3 des\nIssues waeren nicht erfuellbar.\n\nWAS DER ABBRUCH TATSAECHLICH KOSTET: die globale Wartezeit. Sie startet bei\neiner Wirkzeit mit dem BEGINN (Issue #304) und laeuft weiter, auch wenn der\nWurf nie landet. Im Messaufbau oben: Wurf bei 8000, Wartezeit bis 9500,\nAbbruch bei 9000 — 500 ms bezahlt und nichts dafuer bekommen. Genau die gibt\nRETORT zurueck.\n\nNUR DER BOSS-ABBRUCH, NICHT DER SELBST-ABBRUCH. Der Code kennt beide\n(fight.rs: `entry.interrupts_player` gegen den Druck-Pfad), und das Raster\nsagt 'ein UNTERBROCHENER Zauber'. Ein Spieler, der selbst abbricht, hat\nentschieden statt gestoert zu werden; ihm die Zeit zu schenken kehrte die\nAbsicht um. Das ist eine ANNAHME des Bauenden, keine Design-Entscheidung —\nsie steht so im PR-Text und ist widerlegbar.\n\nER LOEST KEINE WARTEZEIT AUS, und das ist keine Wahl, sondern zwingend:\nGEMESSEN mit triggersGcd true wurde sein Druck ABGELEHNT — 1 angenommen,\n1 abgelehnt, null RETORT-Wuerfe. Er soll eine laufende Wartezeit\nverkuerzen, kann aber waehrend ihr nicht geworfen werden. Erst\n`triggersGcd: false` macht ihn werfbar; die Regel dazu steht in\nfight.rs::is_ready: 'Wer keine Wartezeit ausloest, wird auch von keiner\ngesperrt' (GAME-DESIGN 6.6/10.4, Issue #110) — dieselbe Eigenschaft wie\nbeim Unterbrecher, aus demselben Grund.\n\nVORLAEUFIGE ZAHLEN aus docs/ZAUBER-RASTER.md (CD 12 s); balanciert ist nichts.",
+      "id": "retort",
+      "name": "Retort",
+      "unlockLevel": 19,
+      "baseDamage": 0,
+      "cooldownMs": 12000,
+      "castTimeMs": 0,
+      "triggersGcd": false,
+      "refundsInterruptedGcd": true
     }
   ]
 }

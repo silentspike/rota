@@ -136,6 +136,8 @@ import {
   SUBLIME_NAME,
   condensePayload,
   CONDENSE_NAME,
+  retortPayload,
+  RETORT_NAME,
   kontrollFehlschlagPayload,
   KONTROLL_FEHLSCHLAG_NAME,
   timelineLoopPayload,
@@ -434,6 +436,15 @@ writeFileSync(condensePath, serialize(condense), 'utf8');
 console.log(
   `  CONDENSE-Merker ${condense.expected.condenseCasts} Wuerfe, ` +
     `${condense.expected.merkerTakte} Merker-Takte, Schaden ${condense.expected.damageDealt}`,
+);
+
+const retort = retortPayload();
+const retortPath = join(here, 'recordings', `${RETORT_NAME}.json`);
+writeFileSync(retortPath, serialize(retort), 'utf8');
+console.log(
+  `  RETORT          ${retort.expected.retortCasts} Wuerfe, ` +
+    `${retort.expected.merkerTakte} Merker-Takte, hoechster Betrag ` +
+    `${retort.expected.merkerMax} ms, Schaden ${retort.expected.damageDealt}`,
 );
 
 const kontrollFehlschlag = kontrollFehlschlagPayload();
