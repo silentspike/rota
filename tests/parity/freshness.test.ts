@@ -56,6 +56,7 @@ import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
 import eingecheckteCondenseRunde from './recordings/condense-merker.json';
+import eingecheckteKontrollFehlschlagRunde from './recordings/kontrolle-fehlschlag.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -131,6 +132,7 @@ import {
   aetherPayload,
   sublimePayload,
   condensePayload,
+  kontrollFehlschlagPayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -484,6 +486,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
     }
   });
 
+  it('der Kontroll-Fehlschlag entspricht dem heutigen Spielstand', () => {
+    // Die einzige Runde, in der eine Kontroll-Ausgabe scheitert.
+    expect(eingecheckteKontrollFehlschlagRunde, HINWEIS).toEqual(kontrollFehlschlagPayload());
+  });
+
   it('CONDENSEs Merker entspricht dem heutigen Spielstand', () => {
     // Issue #480, der zweite Merker. Die Aufzeichnung trägt `merker` — den
     // Zustand je Takt — und den Schaden, den die Verdopplung bewegt.
@@ -800,6 +807,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'aether-fenster',
   'sublime-merker',
   'condense-merker',
+  'kontrolle-fehlschlag',
   'haste',
   'worn-values',
   'sources',
