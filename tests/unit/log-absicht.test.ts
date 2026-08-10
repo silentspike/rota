@@ -62,9 +62,15 @@ const UNERREICHT: Readonly<Record<string, string>> = {
   // würde sie erreichen — das ist eine eigene Lage und gehört zu den
   // Ausrüstungs-Fällen, nicht hierher.
   crit: 'die Krit-Chance ohne getragene Werte löst in diesen Läufen keinen aus',
-  // SALVE heilt nur, wenn der Spieler Schaden genommen hat UND der Zauber
-  // bereit ist. In den Läufen unten fällt beides nicht zusammen.
-  healed: 'verlangt verletzten Spieler und bereiten SALVE im selben Fenster',
+  // Eine Heilung wirkt nur, wenn der Spieler Schaden genommen hat UND ein
+  // Heiler bereit ist. In den Läufen unten fällt beides nicht zusammen.
+  //
+  // **„ein Heiler", nicht „SALVE".** Bis zum 2026-08-10 stand hier SALVE als
+  // der Weg — seit #481 heilen auch POULTICE, MEND, SUTURE und CRUCIBLE SKIN.
+  // Die Ausnahme gilt weiter (gemessen), aber eine Begründung, die einen
+  // einzelnen Zauber nennt, altert mit jedem neuen: Wer sie prüft, sieht bei
+  // SALVE nach und schließt daraus auf die Art.
+  healed: 'verlangt verletzten Spieler und einen bereiten Heiler im selben Fenster',
 };
 
 /** Ein Lauf und die Arten, die er geschrieben hat. */
@@ -273,6 +279,30 @@ describe('AC2 — die Absicht stimmt mit der Wirklichkeit überein', () => {
     expect(
       fehlend,
       `laut Absicht schreibt das Spiel diese Arten — kein Lauf tut es: ${fehlend.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('DIE GEGENRICHTUNG: ein UNERREICHT-Eintrag für eine geschriebene Art ist überholt', () => {
+    // **Ohne diesen Fall verrottet die Liste** — genau das sagt „AC3 — die
+    // Gegenrichtung" in `leitungs-waechter.test.ts`, und dort hat er sich
+    // bewährt: Er wurde rot, als die Leitungen lagen, und blieb es, bis die
+    // Einträge weg waren.
+    //
+    // `UNERREICHT` hatte diese Richtung bis hierher NICHT. Der Kopfkommentar
+    // sagt „Wer einen Lauf ergänzt, der eine davon auslöst, streicht sie hier"
+    // — er verlässt sich also darauf, dass jemand daran denkt. Ein Eintrag,
+    // der überflüssig geworden ist, behauptet weiter eine Lücke, die es nicht
+    // gibt, und nimmt die Art dauerhaft aus dem Vergleich.
+    //
+    // Gemessen am 2026-08-10: Beide Einträge tragen noch (einzeln entfernt →
+    // je ein roter Fall). Dieser Fall ist die Zusicherung, dass das so bleibt
+    // oder auffällt.
+    const geschrieben = allesGeschriebene();
+    const ueberholt = Object.keys(UNERREICHT).filter((name) => geschrieben.has(name));
+    expect(
+      ueberholt,
+      'Diese Arten stehen in UNERREICHT und werden inzwischen geschrieben — ' +
+        `die Einträge gehören entfernt: ${ueberholt.join(', ')}`,
     ).toEqual([]);
   });
 
