@@ -136,6 +136,8 @@ import {
   SUBLIME_NAME,
   condensePayload,
   CONDENSE_NAME,
+  kontrollFehlschlagPayload,
+  KONTROLL_FEHLSCHLAG_NAME,
   timelineLoopPayload,
   sublimationPayload,
   gezielteVerkuerzungPayload,
@@ -432,6 +434,15 @@ writeFileSync(condensePath, serialize(condense), 'utf8');
 console.log(
   `  CONDENSE-Merker ${condense.expected.condenseCasts} Wuerfe, ` +
     `${condense.expected.merkerTakte} Merker-Takte, Schaden ${condense.expected.damageDealt}`,
+);
+
+const kontrollFehlschlag = kontrollFehlschlagPayload();
+const kontrollFehlschlagPath = join(here, 'recordings', `${KONTROLL_FEHLSCHLAG_NAME}.json`);
+writeFileSync(kontrollFehlschlagPath, serialize(kontrollFehlschlag), 'utf8');
+console.log(
+  `  Kontroll-Fehlschlag ${kontrollFehlschlag.expected.controlFailed} fehlgeschlagen, ` +
+    `${kontrollFehlschlag.expected.controlSpent} Punkte ausgegeben, ` +
+    `${kontrollFehlschlag.expected.latchCasts} LATCH / ${kontrollFehlschlag.expected.bindCasts} BIND`,
 );
 
 const aether = aetherPayload();
