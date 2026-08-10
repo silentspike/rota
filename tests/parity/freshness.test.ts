@@ -54,6 +54,8 @@ import eingecheckteNeueZauber from './recordings/new-calcination.json';
 import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
+import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
+import eingecheckteCondenseRunde from './recordings/condense-merker.json';
 import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
@@ -98,6 +100,7 @@ import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
+import eingecheckterBloom from './recordings/putrid-bloom.json';
 import eingecheckterPin from './recordings/pin-befreiung.json';
 import eingecheckterDecayWard from './recordings/decay-ward.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
@@ -126,6 +129,8 @@ import {
   logParityPayload,
   logTaktePayload,
   aetherPayload,
+  sublimePayload,
+  condensePayload,
   primitivesPayload,
   recordingPayload,
   ruleEventsPayload,
@@ -159,6 +164,7 @@ import {
   extendEffectsPayload,
   coagulationNeuPayload,
   kernePayload,
+  putridBloomPayload,
   pinPayload,
   decayWardPayload,
   effluxPayload,
@@ -299,6 +305,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CLASP, LATCH und PLATE werden nur hier gewirkt — veraltet die Datei,
     // ist der einzige Paritäts-Nachweis für alle drei weg (Issue #519).
     expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
+  });
+
+  it('PUTRID BLOOMs Anhebung entspricht dem heutigen Spielstand', () => {
+    // PUTRID BLOOM wird NUR hier gewirkt (Issue #479).
+    expect(eingecheckterBloom, HINWEIS).toEqual(putridBloomPayload());
   });
 
   it('PINs Befreiung entspricht dem heutigen Spielstand', () => {
@@ -471,6 +482,17 @@ describe('Gemeinsame Vergleichsdateien', () => {
           'Art mit null Einträgen belegt nichts mehr.',
       ).toBeGreaterThanOrEqual(mindestens);
     }
+  });
+
+  it('CONDENSEs Merker entspricht dem heutigen Spielstand', () => {
+    // Issue #480, der zweite Merker. Die Aufzeichnung trägt `merker` — den
+    // Zustand je Takt — und den Schaden, den die Verdopplung bewegt.
+    expect(eingecheckteCondenseRunde, HINWEIS).toEqual(condensePayload());
+  });
+
+  it('SUBLIMEs Merker entspricht dem heutigen Spielstand', () => {
+    // Issue #480. Die Aufzeichnung traegt `merker` — den Zustand je Takt.
+    expect(eingecheckteSublimeRunde, HINWEIS).toEqual(sublimePayload());
   });
 
   it('AETHERs Fenster entspricht dem heutigen Spielstand', () => {
@@ -776,6 +798,8 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'log-parity',
   'log-takte',
   'aether-fenster',
+  'sublime-merker',
+  'condense-merker',
   'haste',
   'worn-values',
   'sources',
@@ -804,6 +828,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'extend-effects',
   'coagulation-neu',
   'kern-zauber',
+  'putrid-bloom',
   'pin-befreiung',
   'decay-ward',
   'efflux-restzeit',
