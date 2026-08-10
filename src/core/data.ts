@@ -274,6 +274,8 @@ export interface SpellDef {
   readonly heal?: HealDef;
   /** Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3). */
   readonly conversion?: ConversionDef;
+  /** Rückschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet. */
+  readonly reflect?: ReflectDef;
   /** Zersetzungs-Stapel, die der Zauber auf dem Boss anlegt (PUTREFACTION). */
   readonly decay?: DecayDef;
   /**
@@ -369,6 +371,70 @@ export interface ShieldDef {
 /** Eine Heilung (Weg 2): holt verlorenes Leben zurück. */
 export interface HealDef {
   readonly amount: number;
+  /**
+   * Über wie viele Millisekunden die Heilung verteilt ankommt (Issue #481).
+   *
+   * **Fehlt das Feld, heilt der Zauber sofort** — so wie SALVE es seit jeher
+   * tut. Steht es, kommt `amount` in Schritten von `tickIntervalMs` an,
+   * gleichmäßig über die Dauer verteilt.
+   *
+   * Der Unterschied ist der Zweck von POULTICE: Sofortheilung verzeiht einen
+   * Fehler, der schon passiert ist. Heilung über Zeit muss VORHER stehen und
+   * verpufft, wenn nichts passiert — dieselbe Abwägung wie zwischen Schild
+   * und Heilung, eine Ebene weiter.
+   */
+  readonly overMs?: number;
+  /**
+   * In welchem Abstand die Schritte ankommen (Issue #481).
+   *
+   * **Pflicht, sobald `overMs` steht** — und ohne stillen Vorgabewert. Der
+   * erste Entwurf hatte keinen: Er ließ die Heilung im Takt des Spiels laufen,
+   * also alle `TICK_MS` = 10 ms. Bei POULTICE (1800 über 6000 ms) wären das
+   * **600 Schritte à 3** gewesen, jeder mit einem eigenen Protokoll-Eintrag —
+   * ein einzelner Wurf hätte das Kampfprotokoll gefüllt, während ein
+   * Brand-Tick daneben alle 1000 oder 2000 ms einen Eintrag schreibt.
+   *
+   * Dasselbe Feld gibt es bei `DotDef` und aus demselben Grund: Wie oft eine
+   * wiederkehrende Wirkung anschlägt, gehört in den Datensatz, nicht in den
+   * Kampfcode.
+   */
+  readonly tickIntervalMs?: number;
+  /**
+   * Zuschlag auf `amount` je **Prozent** fehlendem Leben (Issue #481, MEND).
+   *
+   * ```text
+   *   fehlendProzent = (vesselMax - hp) * 100 / vesselMax   (abgerundet)
+   *   betrag         = amount + fehlendProzent * perMissingPercent
+   * ```
+   *
+   * **Ganzzahlig und in Prozent, nicht als Anteil.** Ein `0.3` in der Datei
+   * wäre eine Fließkommazahl, die Spiel und Simulator unabhängig runden
+   * müssten — GAME-DESIGN 18.4 schließt das aus, und `ConversionDef`
+   * daneben trägt aus demselben Grund `sharePercent` statt eines Bruchs.
+   *
+   * Das Raster nennt MEND „heilt nach verlorenem Leben — je weniger, desto
+   * mehr". Bei voller Anzeige bleibt nur `amount`: Ein Rettungszauber, den
+   * man aus Gewohnheit wirft, soll wenig bringen.
+   */
+  readonly perMissingPercent?: number;
+  /**
+   * Wie viel Prozent der liegenden Schutzschicht in Heilung übergehen
+   * (Issue #481, SUTURE).
+   *
+   * Steht das Feld, **verbraucht der Zauber die ganze Schicht** und rechnet
+   * den angegebenen Anteil davon auf `amount` drauf. Bei 100 geht sie eins zu
+   * eins über; darunter kostet die Umwandlung, darüber lohnt sie.
+   *
+   * Das Raster nennt SUTURE „wandelt Schicht in Heilung um" — er ist damit der
+   * erste Zauber der Schule, der ZWEI ihrer Wege verbindet statt einen zu
+   * bedienen. Die Abwägung dahinter: Eine Schicht, die man nicht mehr braucht,
+   * ist verloren; er holt sie zurück, kostet dafür aber den Schutz gegen den
+   * nächsten Schlag.
+   *
+   * Ganzzahlig und in Prozent, aus demselben Grund wie bei
+   * [`perMissingPercent`](HealDef#perMissingPercent).
+   */
+  readonly fromShieldPercent?: number;
 }
 
 /**
@@ -380,6 +446,32 @@ export interface HealDef {
  * auseinander.
  */
 export interface ConversionDef {
+  readonly sharePercent: number;
+  readonly durationMs: number;
+}
+
+/**
+ * Rückschlag: ein Teil des EINGEHENDEN Schadens geht an den Boss (RIPOSTE,
+ * Issue #481).
+ *
+ * # Der Gegenentwurf zu `ConversionDef`
+ *
+ * Beide gehören zu Weg 3 und sehen gleich aus — sie hängen aber an
+ * entgegengesetzten Enden:
+ *
+ * ```text
+ *   ConversionDef   AUSGETEILTER Schaden  ->  Schutz
+ *   ReflectDef      EINGEHENDER Schaden   ->  Schaden am Boss
+ * ```
+ *
+ * Deshalb ein eigenes Feld und kein Zusatz an `conversion`: Ein Zauber, der
+ * beides trüge, müsste zwei Quellen und zwei Senken unterscheiden — und ein
+ * gemeinsames `sharePercent` bedeutete an zwei Stellen etwas anderes.
+ *
+ * `sharePercent` ist ganzzahlig und in Prozent, aus demselben Grund wie
+ * nebenan.
+ */
+export interface ReflectDef {
   readonly sharePercent: number;
   readonly durationMs: number;
 }
@@ -1207,6 +1299,7 @@ function parseCoagulation(
     shield?: ShieldDef;
     heal?: HealDef;
     conversion?: ConversionDef;
+    reflect?: ReflectDef;
   } = {};
 
   if (isRecord(raw['shield'])) {
@@ -1221,7 +1314,74 @@ function parseCoagulation(
   if (isRecord(raw['heal'])) {
     const amount = number(raw['heal']['amount'], 0);
     if (amount <= 0) problems.push(`${where}: Eine Heilung ohne Betrag heilt nichts.`);
-    else out.heal = { amount };
+    else {
+      // **Heilung über Zeit ist ein Zusatz, kein eigenes Feld** (#481). Ohne
+      // `overMs` bleibt alles wie bisher: `heal` kommt sofort an.
+      const overMs = number(raw['heal']['overMs'], 0);
+      const tickIntervalMs = number(raw['heal']['tickIntervalMs'], 0);
+      if (overMs < 0) {
+        problems.push(`${where}: overMs ${overMs} ist negativ — eine Heilung läuft vorwärts.`);
+      } else if (overMs > 0 && overMs % TICK_MS !== 0) {
+        // Dieselbe Raster-Auflage wie bei jeder anderen wiederkehrenden
+        // Größe: Das Spiel kann nur zu Takt-Grenzen handeln, der Simulator
+        // springt frei — bei 333 ms liefen beide mit jedem Schritt weiter
+        // auseinander.
+        problems.push(
+          `${where}: overMs ${overMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+            'Spiel und Simulator liefen mit jedem Schritt weiter auseinander.',
+        );
+      } else if (overMs > 0 && tickIntervalMs <= 0) {
+        // **Kein stiller Vorgabewert.** Ohne Abstand liefe die Heilung im Takt
+        // des Spiels, also alle 10 ms — bei 6000 ms wären das 600 Schritte und
+        // 600 Protokoll-Einträge für einen einzigen Wurf.
+        problems.push(
+          `${where}: overMs ${overMs} steht, tickIntervalMs fehlt — ` +
+            'ohne Abstand liefe die Heilung in jedem 10-ms-Takt an.',
+        );
+      } else if (overMs > 0 && tickIntervalMs % TICK_MS !== 0) {
+        problems.push(
+          `${where}: tickIntervalMs ${tickIntervalMs} liegt nicht auf dem ${TICK_MS}-ms-Raster.`,
+        );
+      } else if (overMs > 0 && overMs % tickIntervalMs !== 0) {
+        // Sonst bliebe ein Reststück ohne Schritt liegen, und die Summe der
+        // Schritte wäre kleiner als `amount` — eine Heilung, die weniger heilt,
+        // als in ihrem Datensatz steht.
+        problems.push(
+          `${where}: overMs ${overMs} ist kein Vielfaches von tickIntervalMs ${tickIntervalMs} — ` +
+            'das letzte Stück bliebe ohne Schritt liegen.',
+        );
+      }
+      // **Der Zuschlag je fehlendem Prozent** (MEND, #481) — ebenfalls ein
+      // Zusatz, kein eigenes Feld. Er verträgt sich mit `overMs`, auch wenn
+      // heute kein Zauber beides trägt: Der Betrag wird beim WIRKEN bestimmt,
+      // die Verteilung geschieht danach.
+      const perMissingPercent = number(raw['heal']['perMissingPercent'], 0);
+      if (perMissingPercent < 0) {
+        problems.push(
+          `${where}: perMissingPercent ${perMissingPercent} ist negativ — ` +
+            'der Zauber heilte dann umso weniger, je mehr fehlt.',
+        );
+      } else if (!Number.isInteger(perMissingPercent)) {
+        // Ganzzahlig ist die erste Determinismus-Regel (GAME-DESIGN 18.4).
+        // Ein Bruch müsste von beiden Seiten unabhängig gerundet werden.
+        problems.push(`${where}: perMissingPercent ${perMissingPercent} ist keine ganze Zahl.`);
+      }
+      // **Der Anteil aus der Schutzschicht** (SUTURE, #481). Über 100 Prozent
+      // wäre kein Umwandeln mehr, sondern eine Vervielfachung — dieselbe
+      // Grenze wie bei `conversion.sharePercent` eine Ebene darunter.
+      const fromShieldPercent = number(raw['heal']['fromShieldPercent'], 0);
+      if (fromShieldPercent < 0 || fromShieldPercent > 100) {
+        problems.push(
+          `${where}: fromShieldPercent ${fromShieldPercent} liegt außerhalb von 0 bis 100.`,
+        );
+      } else if (!Number.isInteger(fromShieldPercent)) {
+        problems.push(`${where}: fromShieldPercent ${fromShieldPercent} ist keine ganze Zahl.`);
+      }
+      out.heal =
+        overMs > 0
+          ? { amount, overMs, tickIntervalMs, perMissingPercent, fromShieldPercent }
+          : { amount, perMissingPercent, fromShieldPercent };
+    }
   }
 
   if (isRecord(raw['conversion'])) {
@@ -1232,6 +1392,18 @@ function parseCoagulation(
     if (sharePercent <= 0 || sharePercent > 100) {
       problems.push(`${where}: sharePercent ${sharePercent} liegt nicht in (0, 100].`);
     } else out.conversion = { sharePercent, durationMs };
+  }
+
+  if (isRecord(raw['reflect'])) {
+    const sharePercent = number(raw['reflect']['sharePercent'], 0);
+    const durationMs = number(raw['reflect']['durationMs'], 0);
+    // Dieselbe Grenze wie bei der Umwandlung: Über 100 % gäbe der Spieler mehr
+    // zurück, als bei ihm ankommt, und ein Boss brächte sich am Ende selbst um.
+    if (sharePercent <= 0 || sharePercent > 100) {
+      problems.push(`${where}: reflect.sharePercent ${sharePercent} liegt nicht in (0, 100].`);
+    } else if (durationMs <= 0) {
+      problems.push(`${where}: reflect.durationMs ${durationMs} — ein Fenster ohne Dauer.`);
+    } else out.reflect = { sharePercent, durationMs };
   }
 
   return out;

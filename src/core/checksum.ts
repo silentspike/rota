@@ -270,5 +270,14 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // größer statt kleiner: Ein Fehler im Punktegewinn schlägt sich NIE direkt
   // im Schaden nieder.
   h = mixNamedFloat(h, 'buffSum', combat.buffWindowSum);
+  // **Angehängt, nicht eingeschoben** (RIPOSTE, Issue #481). Das laufende
+  // Rückschlag-Fenster gehört hierher aus demselben Grund wie
+  // `conversionPercent` weiter oben: Es entscheidet über jeden künftigen
+  // Schlag. Zwei Läufe mit gleichem Schaden, einer im Fenster und einer
+  // danach, ergäben sonst dieselbe Summe.
+  //
+  // Der ZÄHLER `reflected` steht hier NICHT — er ist kumulativ und hat eine
+  // eigene Leitung ins Ergebnis, genau wie `converted`.
+  h = mixNamedInt(h, 'reflectPercent', combat.reflectPercent);
   return h >>> 0;
 }

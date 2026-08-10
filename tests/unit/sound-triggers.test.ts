@@ -124,6 +124,11 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // sie von selbst heraus, sobald der Klang da ist.
     'harden',
     'sepsis',
+    // VORLAEUFIG (Issue #481): CRUCIBLE SKIN ist gebaut, sein Klang entsteht
+    // ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen — Claude
+    // kann nicht hoeren. Die Gegenrichtung unten holt ihn von selbst heraus,
+    // sobald der Klang da ist.
+    'crucible-skin',
     // VORLAEUFIG (Issue #479): MIASMA ist gebaut, sein Klang entsteht ueber
     // Suno (#487) und kann in keiner Claude-Sitzung entstehen — Claude kann
     // nicht hoeren. Die Gegenrichtung unten holt ihn heraus, sobald er da ist.
@@ -132,6 +137,11 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // dringend einen — ein Entlader, den man nicht HOERT, ist im Spiel nicht
     // vom Fueller zu unterscheiden.
     'necrosis',
+    // VORLAEUFIG (Issue #481): POULTICE und MEND ebenso — Klaenge sind E8.
+    'poultice',
+    'mend',
+    'suture',
+    'riposte',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.

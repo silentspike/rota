@@ -82,6 +82,7 @@ import {
   RuleEvents,
 } from '../combat/events.js';
 import { Buffs, BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
+import { TICK_MS } from './loop.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
 
@@ -736,6 +737,30 @@ export class Combat {
   /** Wann sie verfällt, wenn sie nicht vorher aufgebraucht wird. -1 = keine. */
   private shieldExpiresAtMs = -1;
 
+  /**
+   * Heilung über Zeit (POULTICE, Issue #481) — Gesamtbetrag, Anzahl der
+   * Schritte, wie viele davon getan sind, nächster Takt.
+   *
+   * Vier Felder statt eines Objekts: Im Takt entsteht damit nichts (GAME-DESIGN
+   * 18.2), und der Zustand ist an derselben Stelle sichtbar wie die
+   * Schutzschicht darüber.
+   *
+   * **Warum ein Zähler statt eines Betrags je Takt.** Der erste Entwurf trug
+   * `perTick = amount / schritte` — bei POULTICE (1800 über 6000 ms) ergibt das
+   * glatte 30, und der Fall war grün. Beim nächsten Zauber mit einem nicht
+   * teilbaren Betrag wäre daraus eine Fließkommazahl geworden, die beide Seiten
+   * unabhängig hätten runden müssen: genau der Fall, den GAME-DESIGN 18.4
+   * ausschließt. Kumulativ gerechnet — `amount * getan / schritte`, ganzzahlig
+   * geteilt, minus dem schon Gutgeschriebenen — bleibt die Summe exakt `amount`
+   * und jeder einzelne Schritt ganzzahlig, für jeden Betrag und jede Dauer.
+   */
+  private healOverTimeAmount = 0;
+  private healOverTimeSteps = 0;
+  private healOverTimeIntervalMs = 0;
+  private healOverTimeDone = 0;
+  private healOverTimeCredited = 0;
+  private healOverTimeNextAtMs = 0;
+
   /** Wie viele Anwendungen gerade übereinanderliegen. */
   private shieldStacksValue = 0;
 
@@ -753,6 +778,29 @@ export class Combat {
 
   /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
   private convertedValue = 0;
+
+  /**
+   * Der Rückschlag (RIPOSTE, Issue #481) — bis wann er läuft, sein Anteil,
+   * und was er insgesamt zurückgegeben hat.
+   *
+   * Getrennt von der Umwandlung, obwohl beide zu Weg 3 gehören: Sie hängen an
+   * entgegengesetzten Enden (ausgeteilter Schaden gegen eingehenden), und ein
+   * gemeinsamer Zustand hieße, dass ein Zauber nicht nur einen von beiden
+   * anschalten könnte.
+   */
+  private reflectUntilMs = -1;
+  private reflectPercentValue = 0;
+  private reflectedValue = 0;
+  /**
+   * Welchem Zauber der zurückgegebene Schaden gehört.
+   *
+   * **Er braucht einen Träger, keinen Platzhalter.** Der erste Entwurf buchte
+   * ihn auf `-1`; im Simulator hätte dieselbe Zeile `damage_by_spell[index]`
+   * über die Array-Grenze geschickt, und hier wäre er in `damageOf` gar nicht
+   * aufgetaucht. Ein Schaden ohne Urheber ist in der Fehleranalyse (GAME-DESIGN
+   * 15.3) nicht wiederzufinden.
+   */
+  private reflectSpellIndex = alsSpellIndex(0);
 
   // -- FIXATION (Issue #100) --
 
@@ -1237,6 +1285,43 @@ export class Combat {
   }
 
   /**
+   * Nimmt die liegende Schutzschicht weg und gibt zurück, was davon als
+   * Heilung ankommt (SUTURE, Issue #481).
+   *
+   * **Die Schicht ist danach ganz weg, nicht anteilig.** Das Raster sagt
+   * „wandelt Schicht in Heilung um"; eine halbe Schicht stehen zu lassen wäre
+   * ein anderer Zauber. Der Prozentsatz bestimmt, wie viel bei der Umwandlung
+   * ANKOMMT — nicht, wie viel verbraucht wird.
+   *
+   * Ganzzahlig abgerundet, damit Spiel und Simulator dieselbe Zahl bekommen.
+   */
+  private verbraucheSchichtFuerHeilung(prozent: number): number {
+    const liegend = this.shieldValue;
+    if (liegend <= 0) return 0;
+    this.shieldValue = 0;
+    this.shieldStacksValue = 0;
+    this.shieldExpiresAtMs = -1;
+    return Math.floor((liegend * prozent) / 100);
+  }
+
+  /**
+   * Wie viel Prozent der Anzeige gerade fehlen, abgerundet (MEND, Issue #481).
+   *
+   * **Ganzzahlig und abgerundet, nicht gerundet.** Beide Umsetzungen müssen
+   * dieselbe Zahl bekommen, und `Math.floor` hat in Rust eine exakte
+   * Entsprechung: die ganzzahlige Division. `Math.round` hätte bei `.5` eine
+   * eigene Regel, die dort nachzubauen wäre.
+   *
+   * Am Wert DIESER Stufe gemessen, nicht am Grundwert — sonst zeigte ein
+   * Spieler auf Stufe 30 mit vollem Leben ein Defizit an.
+   */
+  private fehlendProzent(): number {
+    if (this.vesselMax <= 0) return 0;
+    const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
+    return Math.floor((fehlend * 100) / this.vesselMax);
+  }
+
+  /**
    * Ob das Unverwundbarkeits-Fenster gerade offen ist (Issue #218).
    *
    * **Der Spieler muss das sehen** — sonst hält er die ausbleibende Wirkung
@@ -1573,6 +1658,16 @@ export class Combat {
     return this.convertedValue;
   }
 
+  /** Anteil des laufenden Rückschlags in Prozent; 0 heißt: keiner (RIPOSTE). */
+  get reflectPercent(): number {
+    return this.reflectPercentValue;
+  }
+
+  /** Wie viel Schaden der Rückschlag insgesamt an den Boss zurückgegeben hat. */
+  get reflected(): number {
+    return this.reflectedValue;
+  }
+
   /** Vorrat an Kontroll-Punkten (FIXATION, Issue #100). */
   get control(): number {
     return this.controlValue;
@@ -1727,7 +1822,7 @@ export class Combat {
    * Weg 3 wirkt hier nur als **Anschalter**: Die Umwandlung selbst geschieht
    * später, bei jedem ausgeteilten Schaden.
    */
-  private applyCoagulation(spell: SpellDef, timeMs: number): void {
+  private applyCoagulation(spell: SpellDef, timeMs: number, index: SpellIndex): void {
     const seitBeginn = timeMs - this.fightStartedAtMs;
 
     // Weg 1 — Schutzschicht aufbauen.
@@ -1750,7 +1845,41 @@ export class Combat {
 
     // Weg 2 — Heilung.
     const heal = spell.heal;
-    if (heal !== undefined) {
+    // **Der Betrag steht beim WIRKEN fest** (MEND, Issue #481). Fehlt dem
+    // Spieler nichts, bleibt es beim Grundbetrag; je mehr fehlt, desto mehr
+    // kommt dazu. Ganzzahlig gerechnet und in Prozent, damit Spiel und
+    // Simulator dieselbe Zahl bekommen (GAME-DESIGN 18.4).
+    //
+    // Die Reihenfolge ist die Aussage: erst der Betrag, dann die Verteilung.
+    // Anders herum müsste jeder Heil-Takt den Zustand von damals kennen — und
+    // ein Zauber, der über sechs Sekunden heilt, würde unterwegs stärker,
+    // während der Boss zuschlägt.
+    //
+    // **Die Schutzschicht geht als Ganzes über** (SUTURE, Issue #481). Sie
+    // wird verbraucht, BEVOR der Betrag feststeht — stünde sie noch, wenn die
+    // Heilung ankommt, gäbe der Zauber beides.
+    const ausSchicht =
+      heal !== undefined && heal.fromShieldPercent !== undefined && heal.fromShieldPercent > 0
+        ? this.verbraucheSchichtFuerHeilung(heal.fromShieldPercent)
+        : 0;
+    const gewirkterBetrag =
+      heal === undefined
+        ? 0
+        : heal.amount + this.fehlendProzent() * (heal.perMissingPercent ?? 0) + ausSchicht;
+    // **Heilung über Zeit läuft an, statt sofort anzukommen** (POULTICE,
+    // Issue #481). Sie ersetzt die Sofortheilung für diesen Zauber; beides
+    // zugleich wäre doppelt.
+    if (heal !== undefined && heal.overMs !== undefined && heal.overMs > 0) {
+      // Abgeleitet, nicht konfiguriert: Die Schrittzahl folgt aus Dauer und
+      // Takt. Eine eigene Zahl dafür könnte still von beiden abweichen.
+      const abstand = Math.max(TICK_MS, heal.tickIntervalMs ?? TICK_MS);
+      this.healOverTimeAmount = gewirkterBetrag;
+      this.healOverTimeSteps = Math.max(1, Math.round(heal.overMs / abstand));
+      this.healOverTimeIntervalMs = abstand;
+      this.healOverTimeDone = 0;
+      this.healOverTimeCredited = 0;
+      this.healOverTimeNextAtMs = seitBeginn + abstand;
+    } else if (heal !== undefined) {
       // **Nur bis zur vollen Anzeige.** Was darüber hinausginge, verpufft — es
       // als Heilung zu zählen ließe einen Lauf mit voller Anzeige nach mehr
       // Wirkung aussehen, als er gebraucht hat.
@@ -1758,7 +1887,7 @@ export class Combat {
       // nur bis zum Grundwert, und die gewonnenen Punkte wären nach dem
       // ersten Schaden fort.
       const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
-      const wirklich = Math.min(heal.amount, fehlend);
+      const wirklich = Math.min(gewirkterBetrag, fehlend);
       if (wirklich > 0) {
         this.playerHpValue += wirklich;
         this.healedValue += wirklich;
@@ -1775,6 +1904,14 @@ export class Combat {
     if (conversion !== undefined) {
       this.conversionPercentValue = conversion.sharePercent;
       this.conversionUntilMs = seitBeginn + conversion.durationMs;
+    }
+
+    // Weg 3, andere Richtung — den Rückschlag anschalten (RIPOSTE, #481).
+    const reflect = spell.reflect;
+    if (reflect !== undefined) {
+      this.reflectPercentValue = reflect.sharePercent;
+      this.reflectUntilMs = seitBeginn + reflect.durationMs;
+      this.reflectSpellIndex = index;
     }
   }
 
@@ -2404,6 +2541,12 @@ export class Combat {
       this.conversionPercentValue = 0;
       this.conversionUntilMs = -1;
     }
+    // Dasselbe für den Rückschlag (RIPOSTE, #481). Ohne diese vier Zeilen
+    // liefe er bis zum Ende der Runde weiter — ein Fenster, das nie zugeht.
+    if (this.reflectUntilMs >= 0 && seitBeginn > this.reflectUntilMs) {
+      this.reflectPercentValue = 0;
+      this.reflectUntilMs = -1;
+    }
   }
 
   private hitPlayer(raw: number, timeMs: number): void {
@@ -2468,6 +2611,32 @@ export class Combat {
     if (this.playerHpValue === 0) {
       this.diedAtMsValue = timeMs - this.fightStartedAtMs;
     }
+    // **Der Rückschlag hängt am ANGEKOMMENEN Schaden**, nicht am rohen
+    // (RIPOSTE, Issue #481). Ein Schlag, den die Schicht ganz auffängt, gibt
+    // nichts zurück: Sonst wären Schicht und Rückschlag zusammen doppelt
+    // stark, und ein Spieler mit voller Schicht bekäme Schaden geschenkt, den
+    // er gar nicht genommen hat.
+    this.reflectDamage(angekommen, timeMs);
+  }
+
+  /**
+   * Gibt einen Teil des eingehenden Schadens an den Boss zurück (RIPOSTE).
+   *
+   * **Ganzzahlig und abgerundet**, wie bei der Umwandlung nebenan: Der Anteil
+   * steht als Prozentzahl in den Daten, damit hier
+   * `Math.floor(schaden * prozent / 100)` möglich ist.
+   *
+   * Der zurückgegebene Schaden zählt als Schaden des SPIELERS — er geht durch
+   * `bookProgress` wie jeder andere und bewegt damit auch den Fortschritt.
+   * Ein zweiter Weg an der Buchung vorbei wäre eine Stelle zu viel.
+   */
+  private reflectDamage(angekommen: number, timeMs: number): void {
+    if (this.reflectPercentValue === 0 || angekommen <= 0) return;
+    if (timeMs - this.fightStartedAtMs > this.reflectUntilMs) return;
+    const zurueck = Math.floor((angekommen * this.reflectPercentValue) / 100);
+    if (zurueck <= 0) return;
+    this.reflectedValue += zurueck;
+    this.bookProgress(zurueck, this.reflectSpellIndex, timeMs);
   }
 
   /**
@@ -2916,6 +3085,33 @@ export class Combat {
       const left = this.resourceValue - resource.decayAmount;
       this.resourceValue = left > 0 ? left : 0;
       this.nextDecayAtMs += resource.decayPerStepMs;
+    }
+
+    // **Heilung über Zeit** (POULTICE, Issue #481). Sie läuft im selben Takt
+    // wie die übrigen wiederkehrenden Größen und deckelt an der vollen
+    // Anzeige — was darüber hinausginge, verpufft, genau wie bei der
+    // Sofortheilung.
+    while (this.healOverTimeDone < this.healOverTimeSteps && timeMs >= this.healOverTimeNextAtMs) {
+      this.healOverTimeDone++;
+      const soll = Math.floor(
+        (this.healOverTimeAmount * this.healOverTimeDone) / this.healOverTimeSteps,
+      );
+      const faellig = soll - this.healOverTimeCredited;
+      this.healOverTimeCredited = soll;
+      const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
+      const wirklich = Math.min(faellig, fehlend);
+      if (wirklich > 0) {
+        this.playerHpValue += wirklich;
+        this.healedValue += wirklich;
+        // **Derselbe Nachlauf wie bei der Sofortheilung**, mit dem Betrag, der
+        // WIRKLICH angekommen ist: zurückdrängen (Baustein 6) und ins
+        // Protokoll. Ein Heil-Takt ist damit ein Ereignis wie ein Brand-Takt —
+        // ihn stumm zu lassen hieße, dieselbe Wirkung je nach Zauber einmal zu
+        // melden und einmal nicht.
+        this.stabilise(wirklich);
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
+      }
+      this.healOverTimeNextAtMs += this.healOverTimeIntervalMs;
     }
 
     // Die zweite Uhr (GAME-DESIGN 11.2, Baustein 1). Sie steigt **unabhängig
@@ -3667,7 +3863,7 @@ export class Combat {
     // weil ein Zauber, der beides täte, erst schützen und dann zuschlagen
     // soll — heute ohne Wirkung (keiner macht beides) und deshalb jetzt
     // festzulegen und nicht dann.
-    this.applyCoagulation(spell, timeMs);
+    this.applyCoagulation(spell, timeMs, index);
     this.applyFixation(spell, timeMs);
     this.applyConversion(spell, timeMs);
     this.applyPutrefaction(spell, timeMs);
@@ -4315,9 +4511,23 @@ export class Combat {
     this.shieldStacksValue = 0;
     this.shieldAbsorbedValue = 0;
     this.healedValue = 0;
+    // **Auch die laufende Heilung endet mit der Runde** (POULTICE, Issue #481).
+    // Ohne diese vier Zeilen liefe ein POULTICE aus der vorigen Runde in die
+    // nächste hinein und heilte dort weiter — sichtbar erst an einer Anzeige,
+    // die ohne Zauber steigt.
+    this.healOverTimeAmount = 0;
+    this.healOverTimeSteps = 0;
+    this.healOverTimeIntervalMs = 0;
+    this.healOverTimeDone = 0;
+    this.healOverTimeCredited = 0;
+    this.healOverTimeNextAtMs = 0;
     this.conversionUntilMs = -1;
     this.conversionPercentValue = 0;
     this.convertedValue = 0;
+    this.reflectUntilMs = -1;
+    this.reflectPercentValue = 0;
+    this.reflectedValue = 0;
+    this.reflectSpellIndex = alsSpellIndex(0);
 
     this.controlValue = 0;
     this.pendingConvertedDamage = 0;

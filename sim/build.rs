@@ -1670,7 +1670,54 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let whose = format!("{whose}/heal");
             let amount = uint(node, "amount", &whose);
             assert!(amount > 0, "{whose}: Eine Heilung ohne Betrag heilt nichts");
-            let _ = writeln!(out, "        heal: Some(Heal {{ amount: {amount} }}),");
+            // `overMs` darf fehlen — die meisten Heilungen kommen sofort an.
+            let over_ms = opt_uint(node, "overMs", &whose, 0);
+            let tick_interval_ms = opt_uint(node, "tickIntervalMs", &whose, 0);
+            // `perMissingPercent` darf fehlen — die meisten Heilungen haengen
+            // nicht am fehlenden Leben. `opt_uint` weist eine negative Zahl
+            // von selbst ab; die TypeScript-Seite meldet sie beim Lesen.
+            let per_missing_percent = opt_uint(node, "perMissingPercent", &whose, 0);
+            let from_shield_percent = opt_uint(node, "fromShieldPercent", &whose, 0);
+            // Ueber 100 Prozent waere kein Umwandeln mehr, sondern eine
+            // Vervielfachung. Die TypeScript-Seite prueft dasselbe beim Lesen.
+            assert!(
+                from_shield_percent <= 100,
+                "{whose}: fromShieldPercent={from_shield_percent} liegt ueber 100"
+            );
+            if over_ms > 0 {
+                // **Auf dem Raster, sonst bliebe ein Reststueck liegen.** Die
+                // TypeScript-Seite prueft dieselben drei Bedingungen beim Lesen
+                // (`src/core/data.ts`); hier stehen sie ein zweites Mal, weil
+                // ein Datensatz, der die eine Seite passiert und die andere
+                // nicht, erst in der Paritaets-Pruefung auffiele — und dort als
+                // Rechenfehler aussaehe statt als Datenfehler.
+                assert!(
+                    over_ms.is_multiple_of(RASTER_MS),
+                    "{whose}: overMs={over_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+                );
+                assert!(
+                    tick_interval_ms > 0,
+                    "{whose}: overMs={over_ms} steht, tickIntervalMs fehlt — ohne Abstand \
+                     liefe die Heilung in jedem {RASTER_MS}-ms-Takt an"
+                );
+                assert!(
+                    tick_interval_ms.is_multiple_of(RASTER_MS),
+                    "{whose}: tickIntervalMs={tick_interval_ms} liegt nicht auf dem \
+                     {RASTER_MS}-ms-Raster"
+                );
+                assert!(
+                    over_ms.is_multiple_of(tick_interval_ms),
+                    "{whose}: overMs={over_ms} ist kein Vielfaches von \
+                     tickIntervalMs={tick_interval_ms} — das letzte Stueck bliebe ohne Schritt"
+                );
+            }
+            let _ = writeln!(
+                out,
+                "        heal: Some(Heal {{ amount: {amount}, over_ms: {over_ms}, \
+                 tick_interval_ms: {tick_interval_ms}, \
+                 per_missing_percent: {per_missing_percent}, \
+                 from_shield_percent: {from_shield_percent} }}),"
+            );
         }
     }
 
@@ -1695,6 +1742,35 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
             let _ = writeln!(
                 out,
                 "        conversion: Some(Conversion {{ share_percent: {share}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+
+    match spell.get("reflect") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        reflect: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/reflect");
+            let share = uint(node, "sharePercent", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            // Dieselbe Grenze wie bei der Umwandlung: Ueber 100 % gaebe der
+            // Spieler mehr zurueck, als bei ihm ankommt.
+            assert!(
+                share > 0 && share <= 100,
+                "{whose}: sharePercent {share} liegt nicht in (0, 100]"
+            );
+            assert!(
+                duration > 0,
+                "{whose}: durationMs {duration} — ein Fenster ohne Dauer"
+            );
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            let _ = writeln!(
+                out,
+                "        reflect: Some(Reflect {{ share_percent: {share}, duration_ms: {duration} }}),"
             );
         }
     }

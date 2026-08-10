@@ -107,6 +107,16 @@ export interface ReplayResult {
   readonly healed: number;
   readonly converted: number;
   /**
+   * Wie viel Schaden der Rückschlag an den Boss zurückgegeben hat (RIPOSTE,
+   * Issue #481).
+   *
+   * Er steckt bereits in `damage` — hier steht er noch einmal einzeln, weil
+   * eine Summe nicht zeigt, WOHER sie kommt. Ein Paritäts-Fall, der nur
+   * `damage` verglichen hätte, wäre auch dann grün, wenn beide Seiten
+   * denselben Betrag auf verschiedenen Wegen erreichten.
+   */
+  readonly reflected: number;
+  /**
    * Wann der Spieler gefallen ist, in ms — oder -1 (Issue #581, AC5).
    *
    * Das Gegenstück zu `killedAtMs`: Der eine sagt, wann der Boss fiel, der
@@ -505,6 +515,7 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     absorbed: combat.shieldAbsorbed,
     healed: combat.healed,
     converted: combat.converted,
+    reflected: combat.reflected,
     diedAtMs: combat.diedAtMs,
     // **Die Heilung des Bosses** (#609, nach der Regel aus Guide 8.70). Sie
     // wird seit #218 richtig gerechnet und war bis hierher nicht abrufbar —
