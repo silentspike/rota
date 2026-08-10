@@ -115,7 +115,12 @@ const AUFBAUTEN: Readonly<Record<string, () => number>> = {
   },
   talents: () => {
     const c = neu();
-    c.setTalents({ 'calcination-build': 3 });
+    // **`release`, nicht `build`** (seit #419). Dieser Aufbau misst den
+    // SCHADENS-Topf, und seit die drei Wege verschiedene Größen bewegen,
+    // trägt nur `release` noch Schaden: `build` erhöht den Hitze-Gewinn,
+    // `hold` die Laufzeit. Mit `build` blieb `talents` auf 1 — der Fall war
+    // rot und hatte recht.
+    c.setTalents({ 'calcination-release': 3 });
     return c.damageFactors.talents;
   },
   synergy: () => {
