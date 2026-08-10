@@ -165,6 +165,17 @@ pub const PHASE_HOLD_DURATION_MS: Millis = 8_000;
 /// Wie viele Stapel hoechstens gleichzeitig liegen. Wird gemessen.
 pub const MAX_DECAY_STACKS: usize = 5;
 
+/// Wie viele Stapel die **Struktur** fasst — Feldlaenge und Pruefsummen-Schleife
+/// (PUTRID BLOOM, Issue #479).
+///
+/// `MAX_DECAY_STACKS` ist die GRENZE, ab der kein Zauber mehr nachlegt; PUTRID
+/// BLOOM hebt sie fuer eine Weile. Waere sie zugleich die Feldlaenge, aenderte
+/// sich mit ihr die Zahl der Werte in der Pruefsumme — und eine Pruefsumme,
+/// deren Laenge vom Spielverlauf abhaengt, ist keine mehr.
+///
+/// Muss mit `DECAY_STACK_CAPACITY` im Spiel uebereinstimmen (`combat.ts`).
+pub const DECAY_STACK_CAPACITY: usize = 8;
+
 /// Um wie viel Prozent ein offenes Synergie-Fenster den Schaden erhoeht
 /// (GAME-DESIGN 5 und 1193, #318).
 ///
@@ -484,6 +495,14 @@ pub struct Fight {
     heal_over_time_generation: u16,
     /// Bis wann die Schaden-in-Schutz-Umwandlung laeuft (Weg 3).
     conversion_until: Option<Millis>,
+    /// Bis wann DECAYs Schwaechung laeuft (Issue #479).
+    ///
+    /// Dieselbe Bauart wie `conversion_until` (TEMPER): ein Zustand fuer eine
+    /// Weile. Er steht in keiner Pruefsumme und muss es nicht — seine Wirkung
+    /// zeigt sich im Leben des Spielers, und das mischt.
+    decay_ward_until: Option<Millis>,
+    /// Promille je Stapel, solange sie laeuft.
+    decay_ward_permille: u32,
     /// Anteil, den sie umwandelt, in Prozent. 0 heisst: keine laeuft.
     conversion_percent: u32,
     /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
@@ -525,7 +544,12 @@ pub struct Fight {
     ///
     /// **Jeder Stapel hat seine eigene Uhr** (GAME-DESIGN 4.1). Feld fester
     /// Laenge, kein Vec: Der Kampf fordert keinen Speicher an (18.2).
-    decay_expiry: [Millis; MAX_DECAY_STACKS],
+    // **Die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479).
+    decay_expiry: [Millis; DECAY_STACK_CAPACITY],
+    /// Um wie viele Plaetze die Grenze angehoben ist. 0 = keine Anhebung.
+    decay_cap_bonus: usize,
+    /// Bis wann die Anhebung gilt.
+    decay_cap_until: Option<Millis>,
     /// Wie viele Stapel gerade liegen.
     decay_count: usize,
     /// Bis wann das Synergie-Fenster dieses Zaubers offen steht (#318).
@@ -558,6 +582,16 @@ pub struct Fight {
     /// gedraengt, ohne dass es etwas kostet ausser Punkten — ein anderer
     /// Zauber.
     next_strike_delay: Millis,
+    /// Wie lange der NAECHSTE Boss-Zauber unterbrechbar ist (PIN, Issue #478).
+    ///
+    /// `0` heisst "kein Merker". Der Wert ist eine FENSTERLAENGE: Ein `Strike`
+    /// traegt keine Wirkzeit, also gibt PIN ihm eine — sonst waere er
+    /// unterbrechbar auf dem Papier und nie in der Hand.
+    ///
+    /// Dieselbe Bauart wie `next_strike_delay` (STAY): beim Ausloesen des
+    /// naechsten Eintrags gelesen und verbraucht, nicht waehrend eines
+    /// laufenden.
+    pin_window: Millis,
     /// Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR).
     phase_hold_percent: u32,
     /// Bis wann die Senkung gilt (GAME-DESIGN 4.2b).
@@ -584,6 +618,30 @@ pub struct Fight {
 
     // -- Spieler --
     gcd_ready_at: Millis,
+    /// **Der erste MERKER des Datenmodells** (SUBLIME, Issue #480).
+    ///
+    /// Steht auf `true`, wenn ein Zauber mit `frees_next_gcd` geworfen wurde
+    /// und der nächste deshalb keine globale Wartezeit auslöst. Er lebt
+    /// genau bis zu diesem nächsten Wurf.
+    ///
+    /// # Warum er in der Prüfsumme steht
+    ///
+    /// Ein Kampfzustand, der nicht in der Prüfsumme steht, ist von der
+    /// Parität **nicht erfasst**: Beide Seiten könnten ihn verschieden
+    /// führen — einer verbraucht ihn beim nächsten Wurf, der andere beim
+    /// übernächsten —, und keine Prüfung würde es bemerken. Die Zahlen
+    /// stimmten weiter, bis irgendwann eine Rotation auseinanderliefe.
+    ///
+    /// Das gilt für jeden Merker, der noch kommt (CONDENSE, RETORT,
+    /// PUTRID BLOOM, DECAY). Wer einen baut, hängt ihn dort an.
+    next_cast_free_gcd: bool,
+    /// **Der zweite MERKER** (CONDENSE, Issue #480).
+    ///
+    /// Steht auf `true`, wenn ein Zauber mit `doubles_next_cast` geworfen
+    /// wurde und der nächste deshalb zweimal wirkt. Er lebt genau bis zu
+    /// diesem nächsten Wurf, wie sein Nachbar darüber — und aus demselben
+    /// Grund steht er in der Prüfsumme.
+    next_cast_doubles: bool,
     /// Der Auswahlmodus des Ruecksetzers (Issue #223).
     ///
     /// Bis heute war er gebaut und unbenutzt — `cooldown_reset.rs` stand
@@ -810,6 +868,8 @@ impl Fight {
             heal_over_time_credited: 0,
             heal_over_time_generation: 0,
             conversion_until: None,
+            decay_ward_until: None,
+            decay_ward_permille: 0,
             conversion_percent: 0,
             converted: 0,
             reflect_until: None,
@@ -819,17 +879,22 @@ impl Fight {
             control: 0,
             pending_control_damage: 0,
             next_strike_delay: 0,
+            pin_window: 0,
             phase_hold_percent: 0,
             phase_hold_until: None,
             cast_lands_at: 0,
             control_spent: 0,
-            decay_expiry: [0; MAX_DECAY_STACKS],
+            decay_expiry: [0; DECAY_STACK_CAPACITY],
+            decay_cap_bonus: 0,
+            decay_cap_until: None,
             decay_count: 0,
             synergy_window_ends: [0; SPELL_COUNT],
             synergy_used: 0,
             synergy_available: 0,
             control_failed: 0,
             gcd_ready_at: 0,
+            next_cast_free_gcd: false,
+            next_cast_doubles: false,
             reset_mode: CooldownReset::new(),
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -1435,6 +1500,10 @@ impl Fight {
         self.heal_over_time_generation = 0;
         self.conversion_until = None;
         self.conversion_percent = 0;
+        // DECAY (#479) — eine Schwaechung, die einen Kampf ueberlebte,
+        // schuetzte im naechsten gratis.
+        self.decay_ward_until = None;
+        self.decay_ward_permille = 0;
         self.converted = 0;
         self.reflect_until = None;
         self.reflect_percent = 0;
@@ -1443,11 +1512,18 @@ impl Fight {
         self.control = 0;
         self.pending_control_damage = 0;
         self.next_strike_delay = 0;
+        // PIN (#478) — ein Merker, der einen Kampf ueberlebte, machte im
+        // naechsten einen Zauber unterbrechbar, den niemand bezahlt hat.
+        self.pin_window = 0;
         self.phase_hold_percent = 0;
         self.phase_hold_until = None;
         self.cast_lands_at = 0;
         self.control_spent = 0;
-        self.decay_expiry = [0; MAX_DECAY_STACKS];
+        self.decay_expiry = [0; DECAY_STACK_CAPACITY];
+        // PUTRID BLOOM (#479) — eine Anhebung, die einen Kampf ueberlebte, gaebe
+        // im naechsten Plaetze, die niemand bezahlt hat.
+        self.decay_cap_bonus = 0;
+        self.decay_cap_until = None;
         self.decay_count = 0;
         // **Die Synergie-Fenster und ihre Zaehler** (#318). Im Browser
         // gemessen: Ohne das traegt der naechste Lauf die Ausbeute des vorigen.
@@ -1456,6 +1532,8 @@ impl Fight {
         self.synergy_available = 0;
         self.control_failed = 0;
         self.gcd_ready_at = 0;
+        self.next_cast_free_gcd = false;
+        self.next_cast_doubles = false;
         self.reset_mode.reset();
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -1631,11 +1709,38 @@ impl Fight {
 
         // **Hier bekommt die Zeitleiste ihre Wirkung** (Issue #110). In #96
         // wurde der Zeitpunkt nur angesteuert und protokolliert.
+        // **PIN wird HIER gelesen und HIER verbraucht** (#478) — im
+        // Ausloese-Moment, nicht waehrend einer laufenden Wirkzeit. Eine Stelle
+        // frueher gelesen, befreite PIN den gerade laufenden Zauber: sich
+        // selbst statt den naechsten, und der Fall bliebe GRUEN, weil ja etwas
+        // unterbrechbar wurde.
+        //
+        // Verbraucht wird er in BEIDEN Zweigen. Traf er einen ohnehin
+        // unterbrechbaren Eintrag, ist er verpufft — das ist die Entscheidung,
+        // die der Zauber abverlangt, und keine Buchhaltung, die davor bewahrt.
+        let pin_fenster = self.pin_window;
+        self.pin_window = 0;
         match entry.kind {
+            // Trifft sofort — es sei denn, PIN hat ihm ein Fenster gegeben.
+            // Dann laeuft er wie ein Zauber und ist zu unterbrechen.
+            TimelineKind::Strike if pin_fenster > 0 => {
+                self.casting = Some(index);
+                self.cast_lands_at = self.time + pin_fenster;
+                self.queue.push(
+                    self.cast_lands_at,
+                    EventKind::BossCastLands {
+                        index: u32::try_from(index).unwrap_or(u32::MAX),
+                    },
+                );
+            }
             // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
             TimelineKind::Strike => self.hit_player(entry.damage),
             // Beginnt zu wirken. Ob er trifft, entscheidet sich erst, wenn die
             // Wirkzeit um ist — bis dahin kann der Spieler ihn abbrechen.
+            //
+            // **Die eigene Wirkzeit bleibt, auch unter PIN.** Ein
+            // schrumpfendes Fenster (#240) ist eine Eigenschaft des Bosses;
+            // PIN darf es nicht heimlich verlaengern.
             TimelineKind::InterruptibleCast => {
                 self.casting = Some(index);
                 self.cast_lands_at =
@@ -1669,6 +1774,42 @@ impl Fight {
     /// **Die Abklingzeit laeuft nicht an**, und das steht hier nicht als Zeile,
     /// sondern als Abwesenheit einer: Sie wird in `resolve_player_cast`
     /// gesetzt, und die laeuft bei einem Abbruch nie.
+    /// Verbraucht den Merker aus SUBLIME, falls er steht (Issue #480).
+    ///
+    /// Gibt `true` zurück, wenn dieser Wurf von der Wartezeit befreit war —
+    /// und löscht ihn dabei. **Einmal gesetzt, einmal verbraucht**: Ein
+    /// Merker, der stehen bliebe, machte aus einem einzelnen freien Wurf eine
+    /// dauerhafte Befreiung.
+    ///
+    /// Er wird an genau zwei Stellen abgefragt, weil der GCD an genau zwei
+    /// Stellen gesetzt wird: einmal für Zauber mit Wirkzeit, einmal für
+    /// sofortige.
+    fn take_free_gcd(&mut self) -> bool {
+        if self.next_cast_free_gcd {
+            self.next_cast_free_gcd = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Verbraucht den Merker aus CONDENSE, falls er steht (Issue #480).
+    ///
+    /// **Er wird auch dann verbraucht, wenn der Zauber gar keinen Schaden
+    /// macht.** Ein Hilfszauber wirkt dann zweimal ohne sichtbaren
+    /// Unterschied — und der Merker ist weg. Die Alternative wäre, ihn über
+    /// Hilfszauber hinweg aufzuheben, bis ein Schadenszauber kommt: Das hiesse
+    /// "der nächste SCHADENSZAUBER wirkt zweimal", und das steht so weder im
+    /// Raster noch auf der Zauberleiste.
+    fn take_double_cast(&mut self) -> bool {
+        if self.next_cast_doubles {
+            self.next_cast_doubles = false;
+            true
+        } else {
+            false
+        }
+    }
+
     fn cancel_player_cast(&mut self) -> bool {
         if self.player_casting.is_none() {
             return false;
@@ -1883,6 +2024,30 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+        // PUTRID BLOOM (Issue #479) — die Grenze anheben. Liegende Stapel
+        // bleiben liegen, wenn sie auslaeuft: Die Grenze entscheidet nur, ob
+        // NACHGELEGT werden darf.
+        if let Some(decay_cap) = spell.decay_cap {
+            self.decay_cap_bonus = decay_cap.bonus as usize;
+            self.decay_cap_until = Some(self.time + decay_cap.duration_ms);
+            self.queue
+                .push(self.time + decay_cap.duration_ms, EventKind::Wakeup);
+        }
+        // DECAY (Issue #479) — die Schwaechung anschalten. Die STAPELZAHL wird
+        // hier NICHT festgehalten: Sie wird beim Treffer gelesen, sonst zaehlte
+        // der Aufbau nach dem Wurf nicht mehr.
+        //
+        // **Das Wakeup gehoert dazu**, wie bei der Umwandlung darueber: Ohne
+        // es wuerde der Ablauf erst beim naechsten Ereignis bemerkt, und die
+        // Schwaechung haelte laenger als die Daten sagen — im Spiel dagegen
+        // laeuft die Uhr Takt fuer Takt. Genau daran liefen die Seiten
+        // auseinander.
+        if let Some(decay_ward) = spell.decay_ward {
+            self.decay_ward_permille = decay_ward.permille_per_stack;
+            self.decay_ward_until = Some(self.time + decay_ward.duration_ms);
+            self.queue
+                .push(self.time + decay_ward.duration_ms, EventKind::Wakeup);
+        }
 
         // Weg 3, andere Richtung — den Rueckschlag anschalten (RIPOSTE, #481).
         if let Some(reflect) = spell.reflect {
@@ -1976,6 +2141,17 @@ impl Fight {
                 // gewirkt summiert sich — das ist derselbe Schlag, nicht zwei.
                 self.next_strike_delay = self.next_strike_delay.saturating_add(control.amount);
                 self.schedule_next_timeline_step();
+                self.log
+                    .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
+            }
+            // Den naechsten Boss-Zauber unterbrechbar machen (PIN, #478).
+            //
+            // **Kein `schedule_next_timeline_step`.** Anders als DelayStrike
+            // verschiebt PIN keinen Zeitpunkt — der Eintrag faellt, wann er
+            // faellt, und aendert nur seine Art. Ein Neu-Ansteuern haette hier
+            // nichts zu tun und koennte die Warteschlange stoeren.
+            ControlEffect::MakeInterruptible => {
+                self.pin_window = control.amount;
                 self.log
                     .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
             }
@@ -2102,7 +2278,7 @@ impl Fight {
             return;
         }
         for _ in 0..anzahl {
-            if self.decay_count >= MAX_DECAY_STACKS {
+            if self.decay_count >= self.decay_cap() {
                 break;
             }
             self.decay_expiry[self.decay_count] = self.time + DECAY_STACK_DURATION_MS;
@@ -2170,6 +2346,16 @@ impl Fight {
                 u32::try_from(kind).unwrap_or(0),
             );
         }
+    }
+
+    /// Die Stapel-Grenze, die JETZT gilt (PUTRID BLOOM, Issue #479).
+    ///
+    /// **Gedeckelt auf die Kapazitaet** — darueber hinaus gaebe es keinen Platz
+    /// im Feld. Das Spiel rechnet dieselbe Zeile (`combat.ts`, `decayCap`).
+    fn decay_cap(&self) -> usize {
+        let offen = matches!(self.decay_cap_until, Some(bis) if self.time <= bis);
+        let gehoben = MAX_DECAY_STACKS + if offen { self.decay_cap_bonus } else { 0 };
+        gehoben.min(DECAY_STACK_CAPACITY)
     }
 
     fn expire_putrefaction(&mut self) {
@@ -2476,7 +2662,31 @@ impl Fight {
             return;
         }
         // WARD aus der getragenen Ausruestung kommt zur Basis dazu (#282, AC4).
-        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward);
+        // **DECAY geht in DIESELBE Promille-Summe** (Issue #479) — und damit
+        // unter denselben Deckel. Die Schwaechung ist kein eigener Faktor
+        // neben WARD, sondern mehr WARD; sonst liesse sich `ward_cap_permille`
+        // ueber die Faeulnis umgehen.
+        //
+        // **Die Stapelzahl wird HIER gelesen, nicht beim Wirken.**
+        // **Erst verfallen lassen, dann zaehlen** (Issue #479, Weg c).
+        //
+        // Das Spiel ruft `expirePutrefaction` VOR der Zeitleiste, der
+        // Simulator DANACH (fight.rs, Ereignisschleife). Bei Gleichstand —
+        // 12000 ms ist zugleich Verfallszeit und Landepunkt — zaehlte der
+        // Simulator hier einen Stapel mehr.
+        //
+        // Der Aufruf steht LOKAL an der Lesestelle, nicht in der Schleife:
+        // Eine Umstellung dort bricht `parity_rot_decay`, weil ROT seine
+        // Stapel ueber DoT-Ticks legt und die andere Reihenfolge erwartet.
+        // Gemessen, nicht vermutet.
+        self.expire_putrefaction();
+        let decay_permille = match self.decay_ward_until {
+            Some(bis) if self.time <= bis => {
+                self.decay_ward_permille * u32::try_from(self.decay_count).unwrap_or(0)
+            }
+            _ => 0,
+        };
+        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward + decay_permille);
 
         // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
         //
@@ -3166,7 +3376,9 @@ impl Fight {
             self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
             self.player_casting = Some(index);
             self.player_cast_ends_at = snap_up(now + cast_time);
-            if spell.triggers_gcd {
+            // **Der Merker geht VOR der Eigenschaft** (SUBLIME, #480): Ein
+            // Zauber, der die Wartezeit sonst auslöste, tut es einmal nicht.
+            if spell.triggers_gcd && !self.take_free_gcd() {
                 self.gcd_ready_at = snap_up(now + GCD_MS);
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
             }
@@ -3214,6 +3426,18 @@ impl Fight {
         let now = self.time;
 
         self.casts[index] += 1;
+
+        // **Wirkt dieser Wurf zweimal?** (CONDENSE, Issue #480.)
+        //
+        // Der Merker wird HIER verbraucht, vor jeder Wirkung — und das Setzen
+        // steht wie bei SUBLIME weit unten, hinter allem. Stünde beides
+        // beieinander, verdoppelte CONDENSE sich selbst statt den nächsten.
+        //
+        // `casts` bleibt bei EINS. Es ist ein Wurf, der zweimal wirkt, kein
+        // zweiter Wurf: eine Abklingzeit, eine Wartezeit, ein Cast-Eintrag im
+        // Log. Wer hier mitzählte, machte aus CONDENSE einen Rücksetzer — und
+        // genau davon unterscheidet ihn das Raster.
+        let anwendungen = if self.take_double_cast() { 2 } else { 1 };
 
         // **Erst der Schaden, dann die Wirkung.** Bis zu Issue E3-1b stand der
         // Cast-Eintrag hier oben und damit VOR dem Schaden — das Spiel
@@ -3312,70 +3536,87 @@ impl Fight {
         // **Der umgewandelte Schaden geht durch dieselben Faktoren** (#478):
         // Krit, Widerstand, Verstaerkung. Ein Treffer, den kein Faktor
         // beruehrt, waere der einzige im Spiel.
-        if self.pending_control_damage > 0 {
-            let roh = self.pending_control_damage;
-            self.pending_control_damage = 0;
-            cast_damage += self.deal(index, compute_damage(roh, &factors), LogKind::Damage);
-        }
+        // **Die Schleife für CONDENSE** (#480). Sie läuft einmal, oder zweimal
+        // wenn der Merker stand.
+        //
+        // Sie umschliesst genau die MENGEN — die vier Schadensquellen. Die
+        // ZUSTÄNDE darüber (unterbrechen, Verhängnis senken, Synergie-Fenster)
+        // und darunter (Verstärkung, Brand) stehen bewusst ausserhalb: Zweimal
+        // zu unterbrechen unterbricht nicht doppelt, und ein Fenster zweimal zu
+        // öffnen verschöbe seine Dauer.
+        //
+        // **Ein Krit-Wurf für beide Anwendungen**, nicht zwei. Er fällt oben
+        // vor der Schleife — dieselbe Regel, nach der das Schlüsseltalent aus
+        // Issue #418 gebaut ist, das denselben Satz trägt ("wirkt dafür
+        // ZWEIMAL"). Ein Zufallsstrom, der auf den zwei Seiten verschieden oft
+        // gedreht wird, lässt den ganzen folgenden Kampf auseinanderlaufen.
+        for _ in 0..anwendungen {
+            if self.pending_control_damage > 0 {
+                let roh = self.pending_control_damage;
+                self.pending_control_damage = 0;
+                cast_damage += self.deal(index, compute_damage(roh, &factors), LogKind::Damage);
+            }
 
-        if spell.base_damage > 0 {
-            cast_damage += self.deal(
-                index,
-                compute_damage(spell.base_damage, &factors),
-                LogKind::Damage,
-            );
-        }
+            if spell.base_damage > 0 {
+                cast_damage += self.deal(
+                    index,
+                    compute_damage(spell.base_damage, &factors),
+                    LogKind::Damage,
+                );
+            }
 
-        if let Some(spender) = spell.spender {
-            // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
-            // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
-            // dafuer ZWEIMAL."
-            //
-            // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
-            // sich als Faktor ausdruecken liesse, waere keines.
-            let geteilt = self.split_spender;
-            // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
-            // zweimal 7, eine Hitze bleibt uebrig.
-            let pro_schlag = if geteilt {
-                self.resource / 2
-            } else {
-                self.resource
-            };
-            let schlaege = if geteilt { 2 } else { 1 };
-
-            for _ in 0..schlaege {
-                // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
-                // rechnete der zweite mit demselben Stand wie der erste.
-                let spent = if geteilt {
-                    pro_schlag.min(self.resource)
+            if let Some(spender) = spell.spender {
+                // **Das erste Schluesseltalent** (Issue #418, GAME-DESIGN 13.09):
+                // "Der Entlade-Zauber verbraucht nur die HAELFTE der Hitze, wirkt
+                // dafuer ZWEIMAL."
+                //
+                // Eine Verzweigung und kein Faktor — ein Schluesseltalent, das
+                // sich als Faktor ausdruecken liesse, waere keines.
+                let geteilt = self.split_spender;
+                // Ganzzahlig geteilt, der Rest bleibt liegen (18.4): Aus 15 werden
+                // zweimal 7, eine Hitze bleibt uebrig.
+                let pro_schlag = if geteilt {
+                    self.resource / 2
                 } else {
                     self.resource
                 };
-                if geteilt && spent == 0 {
-                    break;
-                }
+                let schlaege = if geteilt { 2 } else { 1 };
 
-                let mut damage = spender.damage_per_point * u32::from(spent);
-                if spent >= spender.bonus_threshold {
-                    damage *= spender.bonus_multiplier;
-                }
-                self.log
-                    .push(now, LogKind::Spend, index as u8, u32::from(spent));
-                cast_damage += self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
-                if geteilt {
-                    self.resource -= spent;
-                } else {
-                    self.resource = 0;
+                for _ in 0..schlaege {
+                    // Der Vorrat wird VOR dem zweiten Schlag verbraucht, sonst
+                    // rechnete der zweite mit demselben Stand wie der erste.
+                    let spent = if geteilt {
+                        pro_schlag.min(self.resource)
+                    } else {
+                        self.resource
+                    };
+                    if geteilt && spent == 0 {
+                        break;
+                    }
+
+                    let mut damage = spender.damage_per_point * u32::from(spent);
+                    if spent >= spender.bonus_threshold {
+                        damage *= spender.bonus_multiplier;
+                    }
+                    self.log
+                        .push(now, LogKind::Spend, index as u8, u32::from(spent));
+                    cast_damage +=
+                        self.deal(index, compute_damage(damage, &factors), LogKind::Damage);
+                    if geteilt {
+                        self.resource -= spent;
+                    } else {
+                        self.resource = 0;
+                    }
                 }
             }
-        }
 
-        // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
-        // Betrag wie der Grundschaden — dieselbe Stelle wie im Spiel.
-        if spell.consumes_dots {
-            let rest = self.consume_active_dots();
-            if rest > 0 {
-                cast_damage += self.deal(index, rest, LogKind::Damage);
+            // PYROCLASM (#517): der Rest der laufenden Braende, in denselben
+            // Betrag wie der Grundschaden — dieselbe Stelle wie im Spiel.
+            if spell.consumes_dots {
+                let rest = self.consume_active_dots();
+                if rest > 0 {
+                    cast_damage += self.deal(index, rest, LogKind::Damage);
+                }
             }
         }
 
@@ -3475,9 +3716,29 @@ impl Fight {
         // **Nur wenn sie nicht schon laeuft** (Issue #304): Bei einer Wirkzeit
         // ist die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start
         // hier verlaengerte sie um die volle Laenge.
-        if spell.triggers_gcd && !wirkzeit_lief {
+        if spell.triggers_gcd && !wirkzeit_lief && !self.take_free_gcd() {
             self.gcd_ready_at = snap_up(now + GCD_MS);
             self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+        }
+
+        // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480).
+        //
+        // Diese Zeile steht bewusst HINTER beiden GCD-Stellen. Ein erster
+        // Entwurf setzte sie oben zu den übrigen Wirkungen — dort hätte
+        // SUBLIME als Sofort-Zauber seinen eigenen Merker eine Zeile später
+        // wieder verbraucht und sich selbst befreit statt den nächsten.
+        //
+        // Der Fehler wäre grün geblieben: Die Wartezeit fiele ja aus, nur bei
+        // der falschen Zeile.
+        if spell.frees_next_gcd {
+            self.next_cast_free_gcd = true;
+        }
+
+        // **Den NÄCHSTEN Wurf verdoppeln** (CONDENSE, #480), aus demselben
+        // Grund an derselben Stelle wie der Merker darüber: hinter allem, was
+        // ihn verbrauchen könnte.
+        if spell.doubles_next_cast {
+            self.next_cast_doubles = true;
         }
 
         // Der Sieg wird erst in der Pruef-Phase des **naechsten** Takts bemerkt,
@@ -3491,7 +3752,17 @@ impl Fight {
         // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt ueber Zeit,
         // Vorrat, Abklingzeit und Wartezeit stehen.
         self.log.push(now, LogKind::Cast, index as u8, 0);
-        self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
+        // **Das Ereignis feuert so oft, wie der Wurf gewirkt hat** (CONDENSE,
+        // #480) — der Log-Eintrag darüber genau einmal.
+        //
+        // Daran hängen die beiden Mechaniken, die Mengen aufbauen: `stacks:heat`
+        // (der Vorrat) und `sublimation` (die Verkürzung aller Abklingzeiten).
+        // Sie zweimal ansetzen zu lassen ist dieselbe Regel wie beim Schaden
+        // oben — und sie kostet keine Aufzählung, weil sie an der Stelle
+        // ansetzt, an der die Mengen ohnehin entstehen.
+        for _ in 0..anwendungen {
+            self.emit_rule(RuleEvent::SpellCast, index as i16, f64::from(cast_damage));
+        }
 
         // **Die Schwaechung ohne Heil-Loesung** (Baustein 8, Issue #240).
         // Steht dieser Zauber in `cleared_by`, ist sie weg — und Heilung steht
@@ -3859,6 +4130,23 @@ impl Fight {
         // entscheidet ueber jeden kuenftigen Schlag, und ein Unterschied darin
         // faellt sonst erst auf, wenn er sich in Zahlen niedergeschlagen hat.
         h = mix_named_int(h, "conversionPercent", self.conversion_percent as i32);
+        // **Der erste Merker in der Prüfsumme** (SUBLIME, Issue #480).
+        //
+        // ANGEHÄNGT, nicht eingeschoben — dieselbe Regel wie bei `control`
+        // seit #100: Ein Einschub deutet jede bestehende Reihenfolge um.
+        //
+        // Warum ein Merker überhaupt hierher gehört: Er ist ein Kampfzustand,
+        // der zwischen zwei Würfen lebt. Stünde er nicht hier, könnten beide
+        // Seiten ihn verschieden führen — einer verbraucht ihn beim nächsten
+        // Wurf, der andere beim übernächsten —, und keine Prüfung bemerkte es.
+        // Die Zahlen stimmten weiter, bis irgendwann eine Rotation
+        // auseinanderliefe.
+        //
+        // Für die vier Merker, die folgen (CONDENSE, RETORT, PUTRID BLOOM,
+        // DECAY): hier anhängen, in derselben Reihenfolge auf beiden Seiten.
+        h = mix_named_int(h, "nextCastFreeGcd", i32::from(self.next_cast_free_gcd));
+        // Der zweite Merker, unmittelbar neben dem ersten (CONDENSE, #480).
+        h = mix_named_int(h, "nextCastDoubles", i32::from(self.next_cast_doubles));
         // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
         // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
         // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden
@@ -3884,7 +4172,8 @@ impl Fight {
         // vielen, aber verschieden alten Stapeln laufen gleich weiter, bis der
         // erste verfaellt.
         h = mix_named_int(h, "decayStacks", self.decay_count as i32);
-        for i in 0..MAX_DECAY_STACKS {
+        // **Ueber die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479).
+        for i in 0..DECAY_STACK_CAPACITY {
             h = mix_named_int(h, "decayExpiry", self.decay_expiry_at(i) as i32);
         }
         // **Angehaengt, nicht eingeschoben** (Issue #218). Ohne sie waere die
