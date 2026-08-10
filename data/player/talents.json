@@ -5,12 +5,7 @@
     {
       "id": "calcination",
       "school": "CALCINATION",
-      "paths": [
-        "trunk",
-        "build",
-        "release",
-        "hold"
-      ],
+      "paths": ["trunk", "build", "release", "hold"],
       "talents": [
         {
           "id": "calcination-trunk",
@@ -64,12 +59,7 @@
     {
       "id": "fixation",
       "school": "FIXATION",
-      "paths": [
-        "trunk",
-        "build",
-        "cost",
-        "effect"
-      ],
+      "paths": ["trunk", "build", "cost", "effect"],
       "talents": [
         {
           "id": "fixation-trunk",
@@ -114,12 +104,7 @@
     {
       "id": "sublimation",
       "school": "SUBLIMATION",
-      "paths": [
-        "trunk",
-        "build",
-        "release",
-        "hold"
-      ],
+      "paths": ["trunk", "build", "release", "hold"],
       "talents": [
         {
           "id": "sublimation-trunk",
@@ -158,12 +143,7 @@
     {
       "id": "coagulation",
       "school": "COAGULATION",
-      "paths": [
-        "trunk",
-        "thicker",
-        "longer",
-        "stacks"
-      ],
+      "paths": ["trunk", "thicker", "longer", "stacks"],
       "talents": [
         {
           "id": "coagulation-trunk",
@@ -208,12 +188,7 @@
     {
       "id": "putrefaction",
       "school": "PUTREFACTION",
-      "paths": [
-        "trunk",
-        "build",
-        "effect",
-        "duration"
-      ],
+      "paths": ["trunk", "build", "effect", "duration"],
       "talents": [
         {
           "id": "putrefaction-trunk",
@@ -258,12 +233,7 @@
     {
       "id": "global",
       "school": "GLOBAL",
-      "paths": [
-        "trunk",
-        "build",
-        "release",
-        "hold"
-      ],
+      "paths": ["trunk", "build", "release", "hold"],
       "talents": [
         {
           "id": "global-trunk",
