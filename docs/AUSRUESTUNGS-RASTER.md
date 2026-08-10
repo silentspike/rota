@@ -1,7 +1,13 @@
-# Das Ausrüstungs-Raster — 30 Einträge, und zwei Fehler auf dem Weg dahin
+# Das Ausrüstungs-Raster — 20 Einträge, und zwei Fehler auf dem Weg dahin
 
-> **Noch nicht freigegeben.** Der Orchestrator legt dieses Dokument dem Auftraggeber vor. Bis dahin
-> ist jede Zeile ein Vorschlag, keine Festlegung.
+> **Stand 2026-08-10: eine Frage ist entschieden, eine bleibt offen.**
+>
+> | Frage                              | Ergebnis                                                        |
+> | ---------------------------------- | --------------------------------------------------------------- |
+> | Darf `gearEffects` ein Affix sein? | **NEIN** — entschieden vom Auftraggeber, Begründung unten       |
+> | Bleibt `active` in `POOL_NAMES`?   | **offen** — der stille Verlust ist unabhängig davon geschlossen |
+>
+> Der Rest ist Vorschlag, keine Festlegung. Der Orchestrator legt vor.
 
 > ### ⚠ Bestandszahlen sind ein Datum, keine Wahrheit
 >
@@ -43,8 +49,9 @@ sie zuerst gesucht habe.**
 | der **Reihenfolge** der `affixKinds`    | **welche** der fünf wirksamen Arten ein Eintrag nennt |
 | der Qualität (wird beim Fall gewürfelt) | dem Platz                                             |
 
-Vorgeschlagen werden **30 Einträge**: zehn Plätze mal drei Ausrichtungen. Dazu zwei Befunde, die
-beim Messen aufgefallen sind und beide ein eigenes Vorhaben sind.
+Vorgeschlagen werden **20 Einträge**: zehn Plätze mal zwei Ausrichtungen. Es waren einmal drei —
+die dritte setzte auf `gearEffects`, und das ist seit dem 2026-08-10 kein Affix mehr. Dazu zwei
+Befunde, die beim Messen aufgefallen sind und beide ein eigenes Vorhaben sind.
 
 ---
 
@@ -118,45 +125,50 @@ verschiedene Größen füllen.
 
 ---
 
-## Die Zahl: 30 — zehn Plätze mal drei Ausrichtungen
+## Die Zahl: 20 — zehn Plätze mal zwei Ausrichtungen
 
-Die fünf wirksamen Arten zerfallen in zwei Klassen, und daraus folgt die Achse:
+Die wirksamen Arten zerfallen in zwei Klassen, und daraus folgt die Achse:
 
-| Klasse               | Arten                          | Wirkung                                             |
-| -------------------- | ------------------------------ | --------------------------------------------------- |
-| **Sonderwerte**      | `catalysis`, `purity`, `yield` | je ein eigener Weg: Tempo, Krit-Chance, Krit-Stärke |
-| **Schadensfaktoren** | `essence`, `gearEffects`       | multiplizieren den Schaden direkt (Topf 1, Topf 4)  |
+| Klasse               | Arten                          | Wirkung                                                      |
+| -------------------- | ------------------------------ | ------------------------------------------------------------ |
+| **Sonderwerte**      | `catalysis`, `purity`, `yield` | je ein eigener Weg: Tempo, Krit-Chance, Krit-Stärke          |
+| **Schadensfaktoren** | `essence`                      | multipliziert den Schaden direkt (Topf 1)                    |
+| ~~Topf 4~~           | ~~`gearEffects`~~              | **kein Affix** — entschieden am 2026-08-10, Begründung unten |
 
-**Die Ausrichtung ist, wie viele Plätze an die Schadensfaktoren gehen.** Das ist eine echte
-Abwägung: Sonderwerte wirken über Umwege (schneller wirken, öfter kritisch treffen), Faktoren
-wirken unmittelbar auf jede Zahl.
+**Die Ausrichtung ist, ob ein Platz an den Schadensfaktor geht oder an die Sonderwerte.** Das ist
+eine echte Abwägung: Sonderwerte wirken über Umwege (schneller wirken, öfter kritisch treffen),
+der Faktor wirkt unmittelbar auf jede Zahl.
 
-| Ausrichtung  | `affixKinds`                   | Was sie ist                               |
-| ------------ | ------------------------------ | ----------------------------------------- |
-| **`-mix`**   | `catalysis, purity, yield`     | drei Sonderwerte — die Mischung aus 13.1b |
-| **`-drive`** | `essence, purity, catalysis`   | ein Faktor, zwei Sonderwerte              |
-| **`-core`**  | `essence, gearEffects, purity` | zwei Faktoren, ein Sonderwert             |
+| Ausrichtung  | `affixKinds`                 | Was sie ist                               |
+| ------------ | ---------------------------- | ----------------------------------------- |
+| **`-mix`**   | `catalysis, purity, yield`   | drei Sonderwerte — die Mischung aus 13.1b |
+| **`-drive`** | `essence, purity, catalysis` | ein Faktor, zwei Sonderwerte              |
 
-Je Platz eine von jeder → **30 Einträge**. Kein Platz bleibt leer, und auf jedem Platz gibt es
+Je Platz eine von beiden → **20 Einträge**. Kein Platz bleibt leer, und auf jedem Platz gibt es
 etwas zu entscheiden.
 
 > **Die Auswahl der Ausrichtungen ist meine Auslegung**, kein Design-Satz. Was gemessen ist: dass
-> die fünf Arten wirken und sich unterscheiden. Dass genau **diese drei** Zusammenstellungen die
+> die Arten wirken und sich unterscheiden. Dass genau **diese beiden** Zusammenstellungen die
 > interessanten sind, ist eine Setzung — wer sie anders schneidet, ändert die Tabelle unten, nicht
-> die Zahl 30.
+> die Zahl 20.
 
-### Die drei Ausrichtungen ergeben messbar verschiedene Kämpfe
+### Die Ausrichtungen ergeben messbar verschiedene Kämpfe
 
 Derselbe Lauf (20 × KINDLE, Startwert 0, `test-crucible-trial`), nur die `affixKinds` getauscht:
 
-| Ausrichtung | getragene Werte                            |  Schaden |
-| ----------- | ------------------------------------------ | -------: |
-| `-mix`      | `catalysis 407, purity 406, yield 406`     | **2812** |
-| `-drive`    | `essence 474, purity 406, catalysis 406`   | **3458** |
-| `-core`     | `essence 474, gearEffects 406, purity 406` | **4868** |
+| Ausrichtung        | getragene Werte                            |  Schaden |
+| ------------------ | ------------------------------------------ | -------: |
+| `-mix`             | `catalysis 407, purity 406, yield 406`     | **2812** |
+| `-drive`           | `essence 474, purity 406, catalysis 406`   | **3458** |
+| ~~`-core`~~ (raus) | `essence 474, gearEffects 406, purity 406` | **4868** |
 
 **Damit ist belegt, worum es hier geht:** Die Auswahl der Arten verändert den Kampf, die
-Reihenfolge nicht. Ein Katalog mit diesen drei Ausrichtungen bietet eine Wahl.
+Reihenfolge nicht. Ein Katalog mit diesen Ausrichtungen bietet eine Wahl.
+
+**Die dritte Zeile steht noch da, obwohl `-core` gestrichen ist** — sie ist der Beleg für die
+Entscheidung, nicht für den Vorschlag. Zwei Faktoren schlagen jede Mischung aus Sonderwerten, und
+zwar deutlich. Genau das ist die Diablo-Lehre, die 13.1b als **Warnung** führt: „Was multiplikativ
+ist, wird gejagt."
 
 > ### ⚠ Diese Zahlen sagen NICHTS über Balance
 >
@@ -173,25 +185,25 @@ Reihenfolge nicht. Ein Katalog mit diesen drei Ausrichtungen bietet eine Wahl.
 > war. **Was die Ausrichtungen wirklich wert sind, misst der Balance-Läufer** — mit einer
 > Rotation, die wirkt, sobald etwas bereit ist.
 
-### Gruppe A — die 30 Einträge
+### Gruppe A — die 20 Einträge
 
-`-mix` ist auf jedem Platz identisch aufgebaut, `-drive` und `-core` ebenso; die Vielfalt liegt in
-der Ausrichtung, nicht in der Variation je Platz.
+`-mix` ist auf jedem Platz identisch aufgebaut, `-drive` ebenso; die Vielfalt liegt in der
+Ausrichtung, nicht in der Variation je Platz.
 
-| Platz          | `…-mix`                    | `…-drive`                    | `…-core`                       |
-| -------------- | -------------------------- | ---------------------------- | ------------------------------ |
-| **Focus**      | `catalysis, purity, yield` | `essence, purity, catalysis` | `essence, gearEffects, purity` |
-| **Catalyst**   | dito                       | dito                         | dito                           |
-| **Sigil**      | dito                       | dito                         | dito                           |
-| **Relic**      | dito                       | dito                         | dito                           |
-| **Grimoire**   | dito                       | dito                         | dito                           |
-| **Shard**      | dito                       | dito                         | dito                           |
-| **Talisman**   | dito                       | dito                         | dito                           |
-| **Phylactery** | dito                       | dito                         | dito                           |
-| **Anchor**     | dito                       | dito                         | dito                           |
-| **Prism**      | dito                       | dito                         | dito                           |
+| Platz          | `…-mix`                    | `…-drive`                    |
+| -------------- | -------------------------- | ---------------------------- |
+| **Focus**      | `catalysis, purity, yield` | `essence, purity, catalysis` |
+| **Catalyst**   | dito                       | dito                         |
+| **Sigil**      | dito                       | dito                         |
+| **Relic**      | dito                       | dito                         |
+| **Grimoire**   | dito                       | dito                         |
+| **Shard**      | dito                       | dito                         |
+| **Talisman**   | dito                       | dito                         |
+| **Phylactery** | dito                       | dito                         |
+| **Anchor**     | dito                       | dito                         |
+| **Prism**      | dito                       | dito                         |
 
-Kennungen nach dem Muster `focus-mix`, `focus-drive`, `focus-core`.
+Kennungen nach dem Muster `focus-mix`, `focus-drive`.
 
 **Die drei Grundwerte stehen bei keinem dabei, und das ist richtig.** ESSENCE, VESSEL und WARD
 trägt **jeder** Gegenstand (13.3); `wornFrom` addiert sie aus `basePermille(itemLevel, …)`, ohne
@@ -205,22 +217,27 @@ damit Balance-Zahlen, keine Katalog-Entscheidung. **Unter dem Vorbehalt von Befu
 
 ---
 
-## Die eine Design-Frage, die ich nicht selbst entscheide
+## ENTSCHIEDEN am 2026-08-10: `gearEffects` ist kein Affix
 
-**Darf `gearEffects` ein Affix sein?**
+Die Frage lautete: Es **geht** und es **wirkt** — gemessen, ein Eintrag damit füllt Topf 4 ohne
+jeden Satz. Darf man es?
 
-Gemessen: Es geht, und es wirkt. Aber 13.1b beschreibt Topf 4 als „legendäre Effekte **und**
-Satz-Boni gemeinsam" — ein gewöhnlicher Affix darauf ist eine **dritte** Quelle, die dort nicht
-steht.
+**Der Auftraggeber sagt nein**, und die Begründung steht in 13.1b selbst:
 
-|                    | dafür                                              | dagegen                                                                                                                      |
-| ------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Wirkung            | Topf 4 kommt im Spiel an, ohne auf Sätze zu warten | 13.1b nennt nur zwei Quellen                                                                                                 |
-| Balance            | gibt der Ausrichtung `-core` ihren zweiten Faktor  | „Was multiplikativ ist, wird gejagt" — die Lehre aus Diablo, die 13.1b zitiert                                               |
-| Verhältnis zu 13.5 | —                                                  | der Vergleich „bester Satz-Aufbau gegen besten Affix-Aufbau" (#118) wird unschärfer, wenn beide Seiten denselben Topf füllen |
+> Was multiplikativ ist, wird gejagt — und alles andere wird liegen gelassen.
 
-**Fällt die Antwort „nein", entfällt die Ausrichtung `-core`** und es bleiben 20 Einträge. Die
-übrige Rechnung ändert sich nicht.
+Ein multiplikativer Faktor über **gewöhnliche** Beute entwertet jeden anderen Affix. Das ist genau
+das Muster, das Diablo 4 in Saison 2 zurückdrehen musste; 13.1b führt es als **Warnung**, nicht als
+Vorbild. Die Messung oben (`-core` mit 4868 gegen `-mix` mit 2812) zeigt die Größenordnung, um die
+es dabei geht — auch wenn die Zahl selbst aus einem verzerrten Aufbau stammt.
+
+**Topf 4 bleibt legendären Effekten und Satz-Boni vorbehalten.** Die Ausrichtung `-core` entfällt,
+es bleiben 20 Einträge; die übrige Rechnung ändert sich nicht.
+
+> **Für die Umsetzung heißt das:** `gearEffects` darf im Katalog nicht vorkommen. Eine Sperre im
+> Code gibt es dafür **nicht** — die Art ist technisch weiterhin gültig, weil sie ein Feld füllt.
+> Wer das absichern will, braucht eine eigene Prüfung; sie steht nicht in diesem Raster, weil sie
+> eine Entscheidung über den Katalog ist und nicht über den Katalog-Inhalt.
 
 ---
 
@@ -245,7 +262,7 @@ nicht einlöst.
 
 ---
 
-## Befund 1: `active` ist ein stiller Wertverlust
+## Befund 1: `active` war ein stiller Wertverlust — GESCHLOSSEN
 
 `POOL_NAMES` lässt `active` als Affix zu. `WornValues` hat aber **kein Feld dafür**. Gemessen:
 
@@ -254,16 +271,27 @@ nicht einlöst.
                        ^^^^^^^^^^^^ ein Feld, das der Kampf nicht kennt
 ```
 
-`wornFrom` schreibt über `summe[feld]` in einen frei benannten Schlüssel. Ein Eintrag mit `active`
-lädt ohne Fehler, besteht jede Prüfung — und **406 von 1219 Promille verfallen**, ohne dass irgendwo
-etwas auffällt.
+`wornFrom` schrieb über `summe[feld]` in einen frei benannten Schlüssel. Ein Eintrag mit `active`
+lud ohne Fehler, bestand jede Prüfung — und **406 von 1219 Promille verfielen**, ohne dass irgendwo
+etwas auffiel. Der Gegenstand sah vollwertig aus und war ein Drittel schwächer.
 
-Das ist die gefährliche Sorte: Der Gegenstand sieht vollwertig aus und ist ein Drittel schwächer.
-Zwei Wege stehen offen — `active` aus `POOL_NAMES` entfernen, oder ihm ein Feld geben. Welcher
-richtig ist, hängt daran, ob „aktive Verstärkungen" je aus Ausrüstung kommen sollen (13.1b nennt
-dort Overdrive, Synergien und Zersetzungs-Stapel, also Kampf-Quellen).
+**Geschlossen am 2026-08-10** (`feldFuerAffixArt` in `worn.ts`, `pruefeAffixArten` in `catalog.ts`):
+Ein Affix-Name, der keinen Wert füllt, bricht jetzt den Ladeversuch — mit dem Namen und dem Grund
+in der Meldung. Gemessen: Ein Katalog mit `active` lässt den Import abbrechen, bevor ein einziger
+Test anläuft.
 
-**Eigenes Vorhaben.** Es berührt `pools.ts`, `worn.ts` und die Katalog-Prüfung — nicht den Katalog.
+> **Der Auftraggeber hat diese Sperre der Design-Frage ausdrücklich VORGEORDNET.** Ob `active`
+> überhaupt aus Ausrüstung kommen soll, ist noch offen — 13.1b nennt dort Overdrive, Synergien und
+> Zersetzungs-Stapel, also Kampf-Quellen. Die Sperre gilt unabhängig davon, weil sie **jeden**
+> künftigen Tippfehler in einer Affix-Liste trifft und nicht nur diesen einen Namen.
+>
+> **Offen bleibt:** ob `active` aus `POOL_NAMES` fliegt oder ein Feld bekommt. Bis dahin bleibt es
+> drin und fällt beim Ladeversuch auf. Steht als offener Punkt in
+> [`ENTSCHEIDUNGEN-OFFEN.md`](ENTSCHEIDUNGEN-OFFEN.md).
+
+**Die Ursache war eine doppelte Wahrheit**, nicht ein falscher Wert: Die Abbildung von Art auf Feld
+stand faktisch zweimal — einmal als Prüfung gegen `POOL_NAMES`, einmal als Ternary beim Rechnen.
+Dass die beiden auseinanderliefen, war der Fehler.
 
 ## Befund 2: Der Fund verliert seine Stufe und seine Qualität
 
