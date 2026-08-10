@@ -116,6 +116,8 @@ import {
   PIN_NAME,
   decayWardPayload,
   DECAY_WARD_NAME,
+  putridBloomPayload,
+  PUTRID_BLOOM_NAME,
   effluxPayload,
   EFFLUX_NAME,
   kritPayload,
@@ -298,6 +300,11 @@ const decayWardPath = join(here, 'recordings', `${DECAY_WARD_NAME}.json`);
 writeFileSync(decayWardPath, `${JSON.stringify(decayWard, null, 2)}\n`);
 console.log(`geschrieben: ${decayWardPath}`);
 console.log(`  erlitten  ${decayWard.expected.damageTaken}`);
+const bloom = putridBloomPayload();
+const bloomPath = join(here, 'recordings', `${PUTRID_BLOOM_NAME}.json`);
+writeFileSync(bloomPath, `${JSON.stringify(bloom, null, 2)}\n`);
+console.log(`geschrieben: ${bloomPath}`);
+console.log(`  Schaden   ${bloom.expected.damage}`);
 
 const bossState = bossStatePayload();
 const bossStatePath = join(here, 'recordings', `${VESSEL_NAME}.json`);
