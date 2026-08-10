@@ -90,8 +90,13 @@ fn faktor_am_ende(json: &serde_json::Value) -> f64 {
         presses,
         bindings,
     };
+    // **Die Talent-Promille kommen AUS der Aufzeichnung**, nicht aus dem Test.
+    // Fehlt das Feld, laeuft der Kampf ohne Talente — so bleibt `decay-factor`
+    // die Gegenprobe, ohne dass sie einen eigenen Zweig braucht.
+    let permille = json["talentPermille"]["decayEffect"].as_u64().unwrap_or(0);
     let mut fight = Fight::new(FightConfig {
         boss,
+        talent_decay_effect_permille: u32::try_from(permille).expect("zu gross"),
         ..FightConfig::default()
     });
     fight.replay(&recording, true);
@@ -150,37 +155,32 @@ fn die_talent_aufzeichnung_liegt_hoeher_als_die_ohne() {
     );
 }
 
-// **OFFEN, und der Befund ist scharf** (#738).
+// **Der Befund aus Meldung 6189 war MEIN Aufbau, kein Paritaetsbruch.**
 //
-// Der Vergleich MIT Talent ist rot, und zwar so:
+// Der Vergleich meldete einmal "Simulator 1.12, Spiel 1.16" — der Wert ohne
+// Talent gegen den mit. Das sah nach einem Abspieler aus, der die Verteilung
+// ignoriert, und es waere ein schwerer Fehler gewesen: Ignorierte `replay` die
+// Talente, verglichen beide Seiten zwei verschiedene Kaempfe, und jede
+// Aufzeichnung mit Talenten waere still wertlos.
 //
-// ```text
-// mit Talent rechnet der Simulator 1.12, das Spiel 1.16
-// ```
-//
-// 1.12 ist der Wert OHNE Talent bei zwei Stapeln (1 + 2 * 0,06), 1.16 der MIT
-// (1 + 2 * 0,08). Der Simulator wendet die Verteilung im Abspieler also nicht
-// an — obwohl `FightConfig.talent_decay_effect_permille` gesetzt ist.
-//
-// **Und es liegt nicht am Talent-Feld selbst.** Dieselbe Konfiguration ueber
-// `Fight::run` statt `Fight::replay`:
+// Gemessen an genau einer Stelle — dem Wert, kurz bevor `Fight` gebaut wird:
 //
 // ```text
-// run(): permille 0   -> vulnerability 1.18, 3 Stapel
-// run(): permille 400 -> vulnerability 1.24, 3 Stapel
+// permille aus JSON:        400
+// config vor Fight::new:    400
+// nach replay:              vulnerability=1.16, 2 Stapel
 // ```
 //
-// Dort wirkt sie. Der Unterschied liegt zwischen den beiden Wegen, und welcher
-// von beiden recht hat, ist ungeprueft: Es kann ein Paritaetsbruch im
-// Abspieler sein oder ein Fehler in meinem Aufbau. Ich habe es nicht zu Ende
-// gemessen und melde es deshalb als Befund, nicht als Fehler.
+// Der Abspieler rechnet ihn also. Die rote Messung stammte aus einem Lauf, in
+// dem die Aufzeichnung das Feld `talentPermille` noch nicht trug — ich hatte
+// es erst danach ergaenzt und den Vergleich nicht wiederholt.
 //
-// Der Fall steht auskommentiert statt rot im Zweig — ein roter Test, den
-// niemand erklaeren kann, wird nach zwei Tagen auskommentiert; einer, der mit
-// seinem Grund dasteht, wird aufgegriffen.
-/*
+// **Ein gemeldeter Befund, der sich in Luft aufloest, ist billiger als ein
+// stiller Fehler** — aber diese Runde haette ich mir gespart, wenn ich nach
+// der Aenderung am Datensatz neu gemessen haette statt das alte Ergebnis zu
+// deuten.
 #[test]
-fn beide_seiten_rechnen_denselben_faktor_MIT_talent() {
+fn beide_seiten_rechnen_denselben_faktor_mit_talent() {
     let json = daten_mit_talent();
     assert!(
         json["talentPermille"]["decayEffect"].as_u64().unwrap_or(0) > 0,
@@ -196,7 +196,6 @@ fn beide_seiten_rechnen_denselben_faktor_MIT_talent() {
         "mit Talent rechnet der Simulator {gemessen}, das Spiel {erwartet}"
     );
 }
-*/
 
 fn letzter_faktor(json: &serde_json::Value) -> f64 {
     json["factorAt"]
