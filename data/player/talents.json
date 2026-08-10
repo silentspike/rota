@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Der Talentbaum von CALCINATION (Issue #417, GAME-DESIGN 12.5).\n\nEIN BAUM, KEIN SCHLUESSELTALENT: Dieses Issue baut den FAKTOR-Weg. Die drei Wege erhoehen Zahlen; ein Talent, das die Rotation umbaut ('der Entlade-Zauber verbraucht nur die Haelfte der Hitze, wirkt dafuer zweimal'), ist Issue #418 und braucht einen Mechanismus, den es noch nicht gibt: einen Weg, Zauberdaten je Kampf zu ueberschreiben.\n\n=== WAS HIER EHRLICH GESAGT WERDEN MUSS ===\n12.5 nennt fuer CALCINATION die drei Wege 'schneller aufbauen / staerker entladen / laenger halten'. Nur der mittlere ist ein Schadensfaktor. 'Schneller aufbauen' waere mehr Ressourcengewinn, 'laenger halten' eine laengere DoT-Dauer — beides sind andere Groessen als der Topf `talents`, und beide brauchten je einen eigenen Weg durch Kampf, Pruefsumme und Simulator.\nDESHALB TRAGEN DIE DREI WEGE HIER IHRE NAMEN UND WIRKEN ALLE UEBER DEN SCHADEN. Das ist eine Zwischenstufe und keine Umsetzung von 12.5: Die Namen halten die Absicht fest, die Wirkung ist einheitlich. Wer #418 und #419 baut, ersetzt die Wirkung, nicht die Struktur.\n\n=== WARUM PROMILLE JE RANG ===\nWie factorPerMille in levels.json und aus demselben Grund (GAME-DESIGN 18.4): Der Faktor entsteht als 1 + Summe/1000 aus ganzen Zahlen. Eine Fliesskomma-Angabe je Rang waere eine Zahl, bei der Spiel und Simulator auseinanderlaufen koennten, bevor die Multiplikation ueberhaupt beginnt.\n\n=== WARUM DER STAMM ZUERST ===\n12.5: 'Gemeinsamer Stamm -> drei Wege'. Der Stamm hat keine Vorbedingung, die Wege verlangen ihn — sonst waere die Struktur eine Liste und kein Baum. Die Bedingung steht als `requires` am Talent und wird beim Verteilen geprueft, nicht beim Rechnen: Ein Spielstand aus einer aelteren Fassung koennte eine Verteilung tragen, die heute nicht mehr erlaubt waere, und ein Kampf, der deswegen abbricht, waere schlimmer als einer, der die alte Verteilung zu Ende rechnet.",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Der Talentbaum von CALCINATION (Issue #417, GAME-DESIGN 12.5).\n\nEIN BAUM, KEIN SCHLUESSELTALENT: Dieses Issue baut den FAKTOR-Weg. Die drei Wege erhoehen Zahlen; ein Talent, das die Rotation umbaut ('der Entlade-Zauber verbraucht nur die Haelfte der Hitze, wirkt dafuer zweimal'), ist Issue #418 und braucht einen Mechanismus, den es noch nicht gibt: einen Weg, Zauberdaten je Kampf zu ueberschreiben.\n\n=== WAS HIER EHRLICH GESAGT WERDEN MUSS ===\n12.5 nennt fuer CALCINATION die drei Wege 'schneller aufbauen / staerker entladen / laenger halten'. Nur der mittlere ist ein Schadensfaktor. 'Schneller aufbauen' waere mehr Ressourcengewinn, 'laenger halten' eine laengere DoT-Dauer — beides sind andere Groessen als der Topf `talents`, und beide brauchten je einen eigenen Weg durch Kampf, Pruefsumme und Simulator.\nDESHALB TRAGEN DIE DREI WEGE HIER IHRE NAMEN UND WIRKEN ALLE UEBER DEN SCHADEN. Das ist eine Zwischenstufe und keine Umsetzung von 12.5: Die Namen halten die Absicht fest, die Wirkung ist einheitlich. Wer #418 und #419 baut, ersetzt die Wirkung, nicht die Struktur.\n\n=== WARUM PROMILLE JE RANG ===\nWie factorPerMille in levels.json und aus demselben Grund (GAME-DESIGN 18.4): Der Faktor entsteht als 1 + Summe/1000 aus ganzen Zahlen. Eine Fliesskomma-Angabe je Rang waere eine Zahl, bei der Spiel und Simulator auseinanderlaufen koennten, bevor die Multiplikation ueberhaupt beginnt.\n\n=== WARUM DER STAMM ZUERST ===\n12.5: 'Gemeinsamer Stamm -> drei Wege'. Der Stamm hat keine Vorbedingung, die Wege verlangen ihn — sonst waere die Struktur eine Liste und kein Baum. Die Bedingung steht als `requires` am Talent und wird beim Verteilen geprueft, nicht beim Rechnen: Ein Spielstand aus einer aelteren Fassung koennte eine Verteilung tragen, die heute nicht mehr erlaubt waere, und ein Kampf, der deswegen abbricht, waere schlimmer als einer, der die alte Verteilung zu Ende rechnet.\n\n=== SECHS BAEUME SEIT #419 — UND WAS DAS NICHT HEISST ===\nSeit Issue #419 stehen alle sechs Baeume aus 12.5: die fuenf Schulen und\nder globale. Je Stamm plus drei Wege, mit `requires`.\n\nWER HIER SECHS BAEUME MIT JE DREI WEGEN SIEHT, HAELT 12.5 LEICHT FUER\nUMGESETZT. Ist es nicht. Was oben fuer CALCINATION steht, gilt fuer ALLE\nsechs: Die drei Wege tragen ihre Namen aus dem Design, wirken aber alle\nueber denselben Topf `damagePerRankPerMille`. Die Namen halten die\nABSICHT fest, die Wirkung ist einheitlich.\n\nDIE FOLGE IST MESSBAR UND STEHT IM ISSUE: Solange alle Wege dieselbe\nGroesse bewegen, ist der mit der hoechsten Zahl immer die beste Wahl.\nBei CALCINATION (15/25/15) sind damit zwei von drei Wegen tot — nicht\nzufaellig, sondern zwingend. AC3 von #419 (\"kein Weg ist tot\") ist\ndeshalb heute nicht erfuellbar, und zwar aus zwei unabhaengigen Gruenden:\n\n  1. Die Wege bewegen dieselbe Groesse.\n  2. `sim/src/balance.rs` setzt `talent_permille: 0` — der Balance-\n     Laeufer blendet Talente ausdruecklich aus (#417).\n\nDIE NEUEN FUENF TRAGEN DESHALB 15/15/15 statt 15/25/15. Gleichwertig\nstatt still ungleich: Wenn die Wege ohnehin dasselbe tun, ist eine\nhoehere Zahl bei einem von ihnen keine Wahl, sondern eine Falle. Wer die\nWirkung ersetzt, setzt die Zahlen neu — sie sind kein Balance-Stand.\n\nWAS DER NAECHSTE ZU TUN HAT, der hier weiterbaut: die WIRKUNG ersetzen,\nnicht die Struktur. Je Schule drei Wege, die verschiedene Groessen\nbewegen (Ressourcengewinn, Schaden, Laufzeit). Jede davon braucht einen\neigenen Weg durch Kampf, Pruefsumme und Simulator.",
   "trees": [
     {
       "id": "calcination",
@@ -47,6 +47,196 @@
           "damagePerRankPerMille": 0,
           "requires": "calcination-release",
           "keystone": "split-spender"
+        }
+      ]
+    },
+    {
+      "id": "fixation",
+      "school": "FIXATION",
+      "talents": [
+        {
+          "id": "fixation-trunk",
+          "name": "Fixed Point",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "fixation-build",
+          "name": "Deeper Reserve",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "fixation-trunk"
+        },
+        {
+          "id": "fixation-release",
+          "name": "Sharper Spending",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "fixation-trunk"
+        },
+        {
+          "id": "fixation-hold",
+          "name": "Longer Grip",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "fixation-trunk"
+        }
+      ]
+    },
+    {
+      "id": "sublimation",
+      "school": "SUBLIMATION",
+      "talents": [
+        {
+          "id": "sublimation-trunk",
+          "name": "Rising Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "sublimation-build",
+          "name": "Steeper Ascent",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "sublimation-trunk"
+        },
+        {
+          "id": "sublimation-release",
+          "name": "Cleaner Reset",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "sublimation-trunk"
+        },
+        {
+          "id": "sublimation-hold",
+          "name": "Wider Draw",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "sublimation-trunk"
+        }
+      ]
+    },
+    {
+      "id": "coagulation",
+      "school": "COAGULATION",
+      "talents": [
+        {
+          "id": "coagulation-trunk",
+          "name": "Set Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "coagulation-build",
+          "name": "Thicker Crust",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "coagulation-trunk"
+        },
+        {
+          "id": "coagulation-release",
+          "name": "Deeper Mending",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "coagulation-trunk"
+        },
+        {
+          "id": "coagulation-hold",
+          "name": "Richer Conversion",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "coagulation-trunk"
+        }
+      ]
+    },
+    {
+      "id": "putrefaction",
+      "school": "PUTREFACTION",
+      "talents": [
+        {
+          "id": "putrefaction-trunk",
+          "name": "Rotten Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "putrefaction-build",
+          "name": "Faster Decay",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "putrefaction-trunk"
+        },
+        {
+          "id": "putrefaction-release",
+          "name": "Heavier Stacks",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "putrefaction-trunk"
+        },
+        {
+          "id": "putrefaction-hold",
+          "name": "Slower Falloff",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "putrefaction-trunk"
+        }
+      ]
+    },
+    {
+      "id": "global",
+      "school": "GLOBAL",
+      "talents": [
+        {
+          "id": "global-trunk",
+          "name": "Adept",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "global-build",
+          "name": "Greater Catalysis",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "global-trunk"
+        },
+        {
+          "id": "global-release",
+          "name": "Greater Purity",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "global-trunk"
+        },
+        {
+          "id": "global-hold",
+          "name": "Greater Vessel",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "global-trunk"
         }
       ]
     }
