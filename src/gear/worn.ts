@@ -97,6 +97,45 @@ export const NOTHING_WORN: WornValues = {
   gearEffects: 0,
 };
 
+/**
+ * Welches Feld eine Affix-Art füllt — oder `null`, wenn es keines gibt.
+ *
+ * # Warum diese Funktion existiert
+ *
+ * `POOL_NAMES` (`pools.ts`) führt die **Töpfe** aus GAME-DESIGN 13.1b, und
+ * `WornValues` führt die **Werte**, die der Kampf liest. Das ist fast, aber
+ * nicht ganz dasselbe: `active` ist ein Topf ohne Wert, weil aktive
+ * Verstärkungen im Kampf entstehen (Overdrive, Synergien, Zersetzungs-Stapel)
+ * und nicht auf einem Gegenstand stehen.
+ *
+ * Bis #421b hat `wornFrom` die Art **direkt** als Schlüssel benutzt. Ein
+ * Eintrag mit `active` lud dann fehlerfrei, bestand jede Prüfung — und legte
+ * seinen Anteil in ein Feld, das niemand liest. Gemessen am 2026-08-10 an
+ * einem Epic der Stufe 40:
+ *
+ * ```text
+ * {… "gearEffects":407, "active":406}
+ *                        ^^^^^^^^^^^^ kennt der Kampf nicht
+ * ```
+ *
+ * **406 von 1219 Promille verfielen, ohne dass irgendwo etwas auffiel.** Der
+ * Gegenstand sah vollwertig aus und war ein Drittel schwächer.
+ *
+ * # Die Abbildung steht hier und nicht in `catalog.ts`
+ *
+ * Sie wird an zwei Stellen gebraucht — beim Prüfen des Katalogs und beim
+ * Rechnen der Werte. Stünde sie zweimal, könnte die eine Stelle eine Art
+ * erlauben, welche die andere nicht kennt; genau diese Lücke hat den stillen
+ * Verlust erzeugt.
+ *
+ * `yield` heißt im Wertesatz `yieldBonus`, weil `yield` in JavaScript ein
+ * reserviertes Wort ist.
+ */
+export function feldFuerAffixArt(kind: string): keyof WornValues | null {
+  const feld = kind === 'yield' ? 'yieldBonus' : kind;
+  return feld in NOTHING_WORN ? (feld as keyof WornValues) : null;
+}
+
 /** Ob überhaupt etwas getragen wird. */
 export function isNothingWorn(worn: WornValues): boolean {
   return (
