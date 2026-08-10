@@ -24,6 +24,7 @@ import { describe, expect, it } from 'vitest';
 import { BOSSES, bossById, INSTANCES, instanceById, type BossDef } from '../../src/core/data.js';
 import { runReference } from '../../src/devtools/reference-run.js';
 import { freigeschalteteInstanzen } from '../../src/progression/boss-select.js';
+import { itemLevelOf, qualityCapOf } from '../../src/loot/rates.js';
 
 /** Die vier der dritten Instanz, in der Reihenfolge des Kampfes. */
 const VIER = ['boss-3-1', 'boss-3-2', 'boss-3-3', 'boss-3-4'] as const;
@@ -216,5 +217,69 @@ describe('Das Instanz-Objekt und die Freischaltung (12.7)', () => {
         true,
       );
     }
+  });
+});
+
+/**
+ * Die Instanz-Nummer erreicht den Beute-Wurf (#421c).
+ *
+ * # Warum das einen eigenen Wächter braucht
+ *
+ * `app.ts` übergab dem Beute-Wurf eine **feste 1**, mit dem Vermerk „sobald
+ * es die Zuordnung gibt, ist es diese Zeile". Die Folge war unsichtbar: Ein
+ * Boss aus `instance-2` ließ dieselbe Beutestufe fallen wie der Prolog-Boss,
+ * und `qualityCapOf` bekam überall dieselbe 1.
+ *
+ * **Die Zeile ist in keinem Prüflauf erreichbar** — `app.ts` braucht einen
+ * DOM, und die Prüfungen laufen ohne. Nach dem Umstellen blieben alle 2142
+ * Fälle grün; eine Änderung, die nichts bewegt, geht sonst unbemerkt durch.
+ *
+ * Deshalb dieselbe Bauart wie bei `setWorn` in `worn-anschluss.test.ts`: der
+ * **Quelltext** als Wächter, dazu die Wirkung an der Rechenstelle selbst.
+ */
+describe('Die Instanz-Nummer erreicht den Beute-Wurf', () => {
+  const QUELLE = import.meta.glob('/src/core/app.ts', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+
+  function appQuelle(): string {
+    const text = Object.values(QUELLE)[0];
+    if (text === undefined || text.length === 0) {
+      throw new Error('app.ts nicht geladen — die Prüfung würde nichts messen');
+    }
+    return text;
+  }
+
+  it('app.ts liest die Nummer aus der Instanz des Bosses', () => {
+    expect(appQuelle()).toMatch(/instance: instanceById\(this\.combat\.boss\.instance\)\?\.number/);
+  });
+
+  it('und übergibt NICHT mehr die feste 1', () => {
+    // Der Wächter, der den Rückfall fängt. Ohne ihn stünde in einem Monat
+    // wieder `instance: 1` da, und alle Prüfungen blieben grün.
+    expect(appQuelle()).not.toMatch(/^\s*instance: 1,\s*$/m);
+  });
+
+  it('die Nummern ergeben verschiedene Beutestufen — sonst wäre die Zeile Zierde', () => {
+    // **Die Wirkung, nicht nur die Schreibweise.** `itemLevelOf` ist die
+    // Stelle, an der die Nummer ankommt; verschiedene Instanzen müssen dort
+    // verschiedene Stufen ergeben, sonst ändert die Umstellung nichts.
+    const stufen = INSTANCES.map((i) => itemLevelOf(i.number, 0, 0));
+    expect(
+      new Set(stufen).size,
+      `alle Instanzen ergeben dieselbe Stufe: ${stufen.join(', ')}`,
+    ).toBeGreaterThan(1);
+  });
+
+  it('und verschiedene Qualitäts-Obergrenzen (13.4)', () => {
+    // „Obergrenze durch Inhalt": Frühe Instanzen lassen nur Common und Rare
+    // fallen. Mit der festen 1 war diese Grenze überall dieselbe.
+    const drei = instanceById('instance-3');
+    const eins = instanceById('instance-1');
+    expect(drei, 'instance-3 fehlt').toBeDefined();
+    expect(eins, 'instance-1 fehlt').toBeDefined();
+    expect(qualityCapOf(drei?.number ?? 1)).toBeGreaterThanOrEqual(qualityCapOf(eins?.number ?? 1));
   });
 });
