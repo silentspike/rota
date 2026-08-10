@@ -137,6 +137,21 @@
         "gcds": 4,
         "target": "control"
       }
+    },
+    {
+      "_comment": "PIN — der naechste Boss-Zauber wird UNTERBRECHBAR, auch wenn er es nicht war (Issue #478, Raster Nr. 3).\n\nDas Raster nennt den Zweck: 'Verbindet die Schule mit quench'. Wer unterbrechen kann, braucht etwas zum Unterbrechen — heute entscheidet allein der Boss darueber, ob es das gibt. Gegen einen Boss aus lauter strike-Eintraegen ist QUENCH eine Taste ohne Verwendung.\n\namountMs IST DIE FENSTERLAENGE, nicht eine Verzoegerung. Das steht so nicht im Raster; ich habe die Luecke geschlossen und den Grund gemessen: Ein strike traegt castTimeMs 0, und der Parser verlangt fuer interruptibleCast ausdruecklich mehr als null (data.ts). Ein Schlag, den PIN nur umetikettierte, waere im selben Augenblick vorbei, in dem er beginnt — unterbrechbar auf dem Papier, nie unterbrechbar in der Hand.\n\nDER MERKER GILT DEM NAECHSTEN, NICHT DEM LAUFENDEN. Gelesen wird er im Ausloese-Moment eines Zeitleisten-Eintrags. Eine Zeile frueher gelesen, befreite PIN den gerade laufenden Zauber — also sich selbst statt den folgenden, und der Fall bliebe GRUEN, weil ja etwas unterbrechbar wurde. Dieselbe Falle hat Worker-2 bei seinem Merker getroffen.\n\nTRAF ER EINEN OHNEHIN UNTERBRECHBAREN, verpufft er, und dessen eigene Wirkzeit samt Eskalation bleibt stehen (#240): PIN darf einen schrumpfenden Zauber nicht heimlich verlaengern.\n\nDIE ZAHLEN SIND PLATZHALTER (Raster: 4 s). cost 3 wie stay, amountMs 2000 wie capstone. Was entschieden ist, ist die ROLLE.\n\nSTEHT AM ENDE DER DATEI — die Reihenfolge ist der Index-Raum und steht in jeder Aufzeichnung.",
+      "id": "pin",
+      "name": "Pin",
+      "unlockLevel": 5,
+      "baseDamage": 0,
+      "cooldownMs": 4000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "control": {
+        "cost": 3,
+        "effect": "makeInterruptible",
+        "amountMs": 2000
+      }
     }
   ]
 }

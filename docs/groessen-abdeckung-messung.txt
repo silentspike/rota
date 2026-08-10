@@ -29,6 +29,7 @@ buff.target                virulence    stack -> tick     NUR FRISCHE -> faktisc
 control.amountMs           capstone     2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
 control.amountMs           latch        4000 -> 2000     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.amountMs           stall        2000 -> 1000     geschuetzt [6 Prueffaelle] (kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
+control.amountMs           pin          2000 -> 1000     NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs)
 control.amountMs           stay         3000 -> 1500     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.amountPerPoint     wedge        8 -> 4        geschuetzt [1 Prueffall] (wedge.test.ts)
 control.amountPercent      anchor       10 -> 5        NUR FRISCHE -> faktisch ungeschuetzt
@@ -36,12 +37,14 @@ control.cost               anchor       6 -> 3        geschuetzt [1 Prueffall] (
 control.cost               capstone     8 -> 4        geschuetzt [1 Prueffall] (control-spent-log.test.ts)
 control.cost               latch        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
 control.cost               stall        4 -> 2        geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, kontroll-leitung.test.ts)
+control.cost               pin          3 -> 6        NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs)
 control.cost               stay         3 -> 1        geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)
 control.cost               wedge        3 -> 1        SCHWEIGT
 control.effect             anchor       holdPhase -> slowCast geschuetzt [1 Prueffall] (anchor-phasenschwelle.test.ts)
 control.effect             capstone     allThree -> holdPhase geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, wedge.test.ts)
 control.effect             latch        delayStrike -> holdPhase geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.effect             stall        slowCast -> holdPhase geschuetzt [7 Prueffaelle] (boss-cast-display.test.ts, kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
+control.effect             pin          makeInterruptible -> delayStrike NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs: damageTaken 96 statt 64)
 control.effect             stay         delayStrike -> holdPhase geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.effect             wedge        convertToDamage -> holdPhase geschuetzt [6 Prueffaelle] (control-spent-log.test.ts, efflux.test.ts, wedge.test.ts)
 conversion.durationMs      crucible-skin 6000 -> 3000     geschuetzt [1 Prueffall] (crucible-skin.test.ts)
@@ -50,6 +53,10 @@ conversion.sharePercent    crucible-skin 50 -> 25       geschuetzt [1 Prueffall]
 conversion.sharePercent    temper       25 -> 12       geschuetzt [4 Prueffaelle] (umwandlung-groessen.test.ts)
 convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [3 Prueffaelle] (combat.test.ts, data.test.ts, efflux.test.ts)
 convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+decayWard.durationMs       decay        6000 -> 3000     SCHWEIGT -> die Aufzeichnung faerbt NICHT: ihr Fenster reicht auch halbiert fuer jeden Treffer
+decayWard.permillePerStack decay        40 -> 20       NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_decay_ward.rs: damageTaken)
+decayCap.bonus             putrid-bloom 2 -> 1        NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_putrid_bloom.rs: Schaden 1985 gegen 1914) und durch mechanic-numbers-source.test.ts (Kapazitaetsgrenze)
+decayCap.durationMs        putrid-bloom 10000 -> 5000   NUR FRISCHE (vitest) -> beide Faelle faerben, weil das kuerzere Fenster den Aufbau frueher abschneidet
 decay.stacks               blight       1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
 decay.stacks               canker       1 -> 0        geschuetzt [24 Prueffaelle] (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
 dot.decayPerTick           rot          1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
