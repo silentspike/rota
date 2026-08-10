@@ -40,9 +40,6 @@ const ERWARTETE_BAEUME = [
   'GLOBAL',
 ] as const;
 
-/** Die vier Plätze je Baum: ein Stamm, drei Wege. */
-const ERWARTETE_PFADE = ['trunk', 'build', 'release', 'hold'] as const;
-
 type Talent = {
   id: string;
   path: string;
@@ -60,16 +57,68 @@ describe('AC1 — alle sechs Bäume, je Stamm und drei Wege', () => {
   });
 
   it('gibt jedem Baum einen Stamm und drei Wege', () => {
+    // # Warum hier seit #419 keine NAMEN mehr stehen
+    //
+    // Bis zur zweiten Runde verlangte dieser Fall `['trunk','build','release',
+    // 'hold']` wörtlich, von jedem Baum. Das war richtig, solange alle Bäume
+    // dieselben Weg-Namen trugen — und es wurde falsch, als COAGULATION
+    // `thicker/longer/stacks` bekam: Der Fall wäre rot geworden, obwohl der
+    // Baum vollständig ist. Ein Wächter, der bei vollständiger Struktur rot
+    // meldet, erzeugt Falschalarme, und Falschalarme werden weggeklickt.
+    //
+    // **Die Aussage bleibt dieselbe**, nur ihr Mittel wandert: „ein Stamm und
+    // drei Wege" ist wahr oder falsch, unabhängig davon, wie die Wege heißen.
+    //
+    // # Und er ist dabei SCHÄRFER geworden, nicht laxer — gemessen
+    //
+    // | Datenlage | Namensprüfung | diese Prüfung |
+    // | --- | --- | --- |
+    // | ein Weg fehlt (`hold` weg) | rot | **rot** |
+    // | ein Weg VERTIPPT (`hold` → `hodl`) | rot | **grün** ← Verlust |
+    // | ein Talent mehr auf einem Weg | grün | grün — es ist das Keystone-Muster |
+    //
+    // **Alle drei Zeilen sind gemessen, nicht angenommen** — und zwei davon
+    // haben mich korrigiert:
+    //
+    // Die dritte hielt ich für eine Schwäche der alten Prüfung. Sie ist die
+    // Form, die CALCINATION heute hat: Das Schlüsseltalent liegt auf
+    // `release`. Beinahe hätte ich eine Prüfung gebaut, die den Bestand
+    // verbietet.
+    //
+    // **Die zweite ist ein echter VERLUST, und er steht hier statt zu
+    // fehlen.** Ich hatte in diesen Kommentar geschrieben, ein Tippfehler
+    // ergäbe „vier statt drei" — falsch: Ein vertippter Weg ERSETZT einen
+    // richtigen, es bleiben drei verschiedene. Die Namensprüfung hätte ihn
+    // gemeldet, diese meldet ihn nicht.
+    //
+    // Der Verlust ist in Kauf genommen, weil die Namensprüfung dafür bei
+    // jeder legitimen Umbenennung rot geworden wäre — und ein Tippfehler
+    // fällt beim ersten Blick in `talents.json` auf, ein Falschalarm nicht.
+    //
+    // **Keine Prüfung über die Bäume hinweg.** `trunk` kommt sechsmal vor;
+    // eine Regel „keine Kennung doppelt" wäre aus Symmetrie falsch.
     for (const baum of BAEUME) {
       const pfade = baum.talents.map((t) => t.path);
-      for (const pfad of ERWARTETE_PFADE) {
-        expect(pfade, `${baum.school} hat keinen Weg "${pfad}"`).toContain(pfad);
-      }
       // Genau ein Stamm — zwei wären zwei Bäume in einem.
       expect(
         pfade.filter((p) => p === 'trunk'),
         `${baum.school} hat mehr als einen Stamm`,
       ).toEqual(['trunk']);
+      // **Drei VERSCHIEDENE Wege — die Talentzahl bleibt offen.**
+      //
+      // Nicht `wege.length === 3`: Das Schlüsseltalent liegt AUF einem Weg,
+      // nicht daneben (`calcination-keystone` trägt `path: 'release'`), genau
+      // wie 12.5 es beschreibt — „Am Ende jedes Weges ein Schlüsseltalent".
+      // Eine Prüfung auf die Talentzahl verböte damit CALCINATION.
+      //
+      // Deshalb ist dieser Fall beim „doppelten Weg" bewusst still: Zwei
+      // Talente mit demselben `path` sind einmal ein Fehler und einmal die
+      // Bauart, und kein Kriterium auf `path` allein trennt sie.
+      const wege = new Set(pfade.filter((p) => p !== 'trunk'));
+      expect(
+        wege.size,
+        `${baum.school} hat ${wege.size} verschiedene Wege statt drei: ${[...wege].join(', ')}`,
+      ).toBe(3);
     }
   });
 

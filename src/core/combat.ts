@@ -66,6 +66,8 @@ import {
   talentShieldStacksBonus,
   talentControlCostFactor,
   talentControlEffectFactor,
+  talentControlGainFactor,
+  talentDecayEffectFactor,
   talentDecayStackFactor,
   talentDecayDurationFactor,
   type TalentAllocation,
@@ -1915,7 +1917,10 @@ export class Combat {
       // **Der Faktor aus `controlBuffs`** (Issue #489, GRIPLOCK). Ganzzahlig
       // gerundet, weil Kontroll-Punkte ganze Zahlen sind — ein halber Punkt
       // wäre eine Größe, die das Spiel nirgends anzeigt.
-      const faktor = this.controlBuffs.factor(timeMs);
+      // **Zauber-Buff UND Talent** (Issue #419). GRIPLOCK speist den einen,
+      // der Aufbau-Weg den anderen — multiplikativ, weil sie aus zwei Töpfen
+      // kommen (13.1b): ein Verstärker im Kampf und eine dauerhafte Wahl.
+      const faktor = this.controlBuffs.factor(timeMs) * talentControlGainFactor(this.talents);
       this.controlValue += Math.round(spell.controlGain * faktor);
     }
 
@@ -2572,7 +2577,11 @@ export class Combat {
     // **Der Faktor aus `stackBuffs`** (Issue #489, VIRULENCE): Er ändert, was
     // ein Stapel WERT ist, nicht wie viele liegen. Ganzzahlig bis zur letzten
     // Teilung (18.4) — deshalb auf die Prozentpunkte, nicht auf das Ergebnis.
-    const jeStapel = Math.round(DECAY_STACK_PERCENT * this.stackBuffs.factor(this.nowMsForBuffs));
+    const jeStapel = Math.round(
+      DECAY_STACK_PERCENT *
+        this.stackBuffs.factor(this.nowMsForBuffs) *
+        talentDecayEffectFactor(this.talents),
+    );
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
   }
 
@@ -2788,7 +2797,9 @@ export class Combat {
     // Ganzzahlig bis zur letzten Teilung (18.4) — auf die Prozentpunkte, nicht
     // auf das Ergebnis, genau wie in `updateVulnerability`.
     const jeStapel = Math.round(
-      (DECAY_STACK_PERCENT + proStapel) * this.stackBuffs.factor(this.nowMsForBuffs),
+      (DECAY_STACK_PERCENT + proStapel) *
+        this.stackBuffs.factor(this.nowMsForBuffs) *
+        talentDecayEffectFactor(this.talents),
     );
     this.setDamageFactor('vulnerability', (100 + this.decayCountValue * jeStapel) / 100);
   }

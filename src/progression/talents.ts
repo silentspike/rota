@@ -121,6 +121,21 @@ export function talentControlCostFactor(allocation: TalentAllocation): number {
   return faktorAus(allocation, (t) => t.controlCostPerRankPerMille);
 }
 
+/**
+ * Der Faktor auf den **Aufbau** der Kontroll-Punkte (FIXATION, Issue #419).
+ *
+ * Die Wirkstelle steht seit GRIPLOCK (#489); dies ist die Speisung aus einem
+ * Talent.
+ */
+export function talentControlGainFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.controlGainPerRankPerMille);
+}
+
+/** Der Faktor auf die **Wertigkeit** eines Fäulnis-Stapels (PUTREFACTION). */
+export function talentDecayEffectFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.decayEffectPerRankPerMille);
+}
+
 /** Der Faktor auf die **Stärke** der Kontroll-Wirkungen (FIXATION). */
 export function talentControlEffectFactor(allocation: TalentAllocation): number {
   return faktorAus(allocation, (t) => t.controlEffectPerRankPerMille);
