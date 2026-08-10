@@ -2563,6 +2563,18 @@ impl Fight {
         // ueber die Faeulnis umgehen.
         //
         // **Die Stapelzahl wird HIER gelesen, nicht beim Wirken.**
+        // **Erst verfallen lassen, dann zaehlen** (Issue #479, Weg c).
+        //
+        // Das Spiel ruft `expirePutrefaction` VOR der Zeitleiste, der
+        // Simulator DANACH (fight.rs, Ereignisschleife). Bei Gleichstand —
+        // 12000 ms ist zugleich Verfallszeit und Landepunkt — zaehlte der
+        // Simulator hier einen Stapel mehr.
+        //
+        // Der Aufruf steht LOKAL an der Lesestelle, nicht in der Schleife:
+        // Eine Umstellung dort bricht `parity_rot_decay`, weil ROT seine
+        // Stapel ueber DoT-Ticks legt und die andere Reihenfolge erwartet.
+        // Gemessen, nicht vermutet.
+        self.expire_putrefaction();
         let decay_permille = match self.decay_ward_until {
             Some(bis) if self.time <= bis => {
                 self.decay_ward_permille * u32::try_from(self.decay_count).unwrap_or(0)
