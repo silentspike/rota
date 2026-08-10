@@ -16,6 +16,7 @@ import { markFor } from '../../src/analysis/progress-mark.js';
 import { RunPersistence } from '../../src/analysis/run-persistence.js';
 import { findForbiddenFields } from '../../src/analysis/save-format.js';
 import { pointsForRun } from '../../src/progression/points.js';
+import { itemById } from '../../src/gear/catalog.js';
 import {
   countsAsAttempt,
   recordRun,
@@ -420,5 +421,72 @@ describe('Bestwert am echten Lauf (Issue #377)', () => {
     expect(nachher.pointsGained).toBeLessThan(
       recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT).pointsGained,
     );
+  });
+});
+
+/**
+ * Der Fund behält seine gewürfelten Zahlen (Issue #480).
+ *
+ * `rollLoot` würfelt Stufe und Qualität pro Fund — bis hierher übernahm die
+ * Verbuchung nur `drop.itemId`, und beide Zahlen starben in dieser einen Zeile.
+ * Der Verlust war unsichtbar: Es fehlte kein Feld, es wurde nur keines
+ * geschrieben. Die Prüffälle zur WIRKUNG stehen in `fundstufe.test.ts`; hier
+ * geht es allein darum, dass der Wurf überhaupt ankommt.
+ */
+describe('#480 — die Verbuchung verliert Stufe und Qualität nicht mehr', () => {
+  const SIEG = () => {
+    const boss = bossById('test-warden') as BossDef;
+    const lauf = play(1500, 120_000, boss, [KINDLE]);
+    expect(lauf.summary.victory).toBe(true);
+    return lauf;
+  };
+
+  it('schreibt die Zahlen des Wurfs in den Besitz', () => {
+    const lauf = SIEG();
+    const ergebnis = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
+
+    // ZUSICHERUNG: Es gab überhaupt einen Fund. Ohne sie wäre der Fall grün,
+    // sobald der Wurf ausbleibt — und prüfte dann nichts.
+    expect(ergebnis.drop).not.toBeNull();
+    expect(ergebnis.items).toHaveLength(1);
+
+    expect(ergebnis.items[0]?.itemLevel).toBe(ergebnis.drop?.itemLevel);
+    expect(ergebnis.items[0]?.quality).toBe(ergebnis.drop?.quality);
+  });
+
+  it('und die Stufe ist die des Wurfs, nicht die der Vorlage', () => {
+    // Der eigentliche Befund. Vorher fiel jeder Fund über die Kennung auf die
+    // Vorlage zurück; stimmte die Stufe des Wurfs zufällig mit ihr überein,
+    // sähe man keinen Unterschied. Instanz 1 wirft Stufe 1, die Vorlage steht
+    // auf 40 — sie können sich hier nicht decken.
+    const lauf = SIEG();
+    const ergebnis = recordRun(LEER, lauf.summary, lauf.outcome, {
+      ...KONTEXT,
+      instance: 1,
+      difficulty: 0,
+    });
+
+    const vorlage = itemById(ergebnis.drop?.itemId ?? '')?.itemLevel;
+    expect(ergebnis.items[0]?.itemLevel).toBe(1);
+    expect(ergebnis.items[0]?.itemLevel).not.toBe(vorlage);
+  });
+
+  it('eine höhere Instanz wirft eine höhere Stufe — mit Zahlen', () => {
+    // Instanz 14 mythisch gegen Instanz 1 normal: 85 gegen 1. Dieselben zwei
+    // Zahlen, an denen Worker-3 den Verlust gemessen hat.
+    const lauf = SIEG();
+    const niedrig = recordRun(LEER, lauf.summary, lauf.outcome, {
+      ...KONTEXT,
+      instance: 1,
+      difficulty: 0,
+    });
+    const hoch = recordRun(LEER, lauf.summary, lauf.outcome, {
+      ...KONTEXT,
+      instance: 14,
+      difficulty: 2,
+    });
+
+    expect(niedrig.items[0]?.itemLevel).toBe(1);
+    expect(hoch.items[0]?.itemLevel).toBe(85);
   });
 });

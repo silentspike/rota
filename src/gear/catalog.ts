@@ -36,6 +36,7 @@ import { POOL_NAMES } from './pools.js';
 import { SLOT_COUNT } from './slots.js';
 import { basePermille, ESSENCE_AT_LEVEL_1, VESSEL_AT_LEVEL_1, WARD_AT_LEVEL_1 } from './sources.js';
 import { feldFuerAffixArt, NOTHING_WORN, type WornValues } from './worn.js';
+import { effectiveLevelOf, instanceQualityOf } from './instance.js';
 
 /**
  * Die Arten, die wirklich einen Wert am Spieler füllen.
@@ -222,6 +223,10 @@ export interface OwnedItemLike {
   readonly itemId: string;
   readonly upgradeSteps: number;
   readonly equippedSlot: number | null;
+  /** Gewürfelte Stufe dieses Stücks. Fehlt in Ständen vor Fassung 2. */
+  readonly itemLevel?: number;
+  /** Gewürfelte Qualität dieses Stücks. Fehlt wie `itemLevel`. */
+  readonly quality?: number;
 }
 
 /**
@@ -252,13 +257,23 @@ export function wornFrom(items: readonly OwnedItemLike[]): WornValues {
     if (def === undefined) continue;
     getragen++;
 
+    // **Die Stufe DIESES Stücks, nicht die seiner Vorlage** (Issue #480).
+    // Bis hierher stand `def.itemLevel` an allen vier Stellen — damit rechnete
+    // jedes Stück derselben Kennung gleich, und zwei Achsen waren wirkungslos:
+    // die gewürfelte Fundstufe (`rollLoot` erhob sie, niemand verbuchte sie)
+    // und die Aufwertung (`upgradeSteps` wurde verbucht und angezeigt, aber
+    // nie gelesen). `effectiveLevelOf` fügt beide zusammen; fehlen sie, gibt
+    // es die Zahl der Vorlage zurück und alles rechnet wie zuvor.
+    const stufe = effectiveLevelOf(besitz, def.itemLevel);
+    const guete = instanceQualityOf(besitz, def.quality);
+
     // Die drei Grundwerte trägt JEDER Gegenstand (13.5) — sie stehen nicht im
     // Eintrag und werden deshalb hier addiert, nicht dort gelesen.
-    summe['essence'] = (summe['essence'] ?? 0) + basePermille(def.itemLevel, ESSENCE_AT_LEVEL_1);
-    summe['vessel'] = (summe['vessel'] ?? 0) + basePermille(def.itemLevel, VESSEL_AT_LEVEL_1);
-    summe['ward'] = (summe['ward'] ?? 0) + basePermille(def.itemLevel, WARD_AT_LEVEL_1);
+    summe['essence'] = (summe['essence'] ?? 0) + basePermille(stufe, ESSENCE_AT_LEVEL_1);
+    summe['vessel'] = (summe['vessel'] ?? 0) + basePermille(stufe, VESSEL_AT_LEVEL_1);
+    summe['ward'] = (summe['ward'] ?? 0) + basePermille(stufe, WARD_AT_LEVEL_1);
 
-    const anzahl = distributeBudget(def.itemLevel, def.quality, anteile);
+    const anzahl = distributeBudget(stufe, guete, anteile);
     for (let i = 0; i < anzahl && i < def.affixKinds.length; i++) {
       const kind = def.affixKinds[i] ?? '';
       // **Dieselbe Abbildung wie in der Katalog-Prüfung** — eine Wahrheit,

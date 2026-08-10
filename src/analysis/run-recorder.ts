@@ -310,10 +310,26 @@ export function recordRun(
     talentPoints: state.talentPoints,
     // **Der Fund landet im Besitz** (Issue #447), im Beutel und nicht
     // ausgerüstet: Was der Spieler anlegt, entscheidet er selbst (421c).
+    //
+    // **MIT Stufe und Qualität** (Issue #480). Bis dahin wurde hier nur
+    // `drop.itemId` übernommen, obwohl `rollLoot` beide Zahlen längst gewürfelt
+    // hatte — sie starben in dieser Zeile. Ein mythischer Fund aus Instanz 14
+    // war danach exakt so stark wie der erste aus Instanz 1, weil beide über
+    // die Kennung auf dieselbe Vorlage zurückfielen. Der Verlust war nirgends
+    // sichtbar: Es fehlte kein Feld, es wurde nur keines geschrieben.
     items:
       drop === null
         ? state.items
-        : [...state.items, { itemId: drop.itemId, upgradeSteps: 0, equippedSlot: null }],
+        : [
+            ...state.items,
+            {
+              itemId: drop.itemId,
+              upgradeSteps: 0,
+              equippedSlot: null,
+              itemLevel: drop.itemLevel,
+              quality: drop.quality,
+            },
+          ],
     // **Der Hauptpfad aus 12.7** (Issue #434). `recordDefeat` entscheidet
     // selbst, ob der Lauf zählt — die Bedingung gehört zum Lauf, nicht zur
     // Aufrufstelle.
