@@ -27,21 +27,21 @@ mehrerer Fehlgriffe.
 
 ## Die zwölf Wege
 
-| Schule | Weg | Größe | TS | Rust | Prüfsumme |
-| ------ | --- | ----- | -: | ---: | --------- |
-| **CALCINATION** | build | `resourceGainPerRankPerMille` | — | — | gebaut (#723) |
-| | release | `damagePerRankPerMille` | — | — | gebaut |
-| | hold | `dotDurationPerRankPerMille` | — | — | gebaut |
-| **FIXATION** | Aufbau | `controlGain` | **0** | **0** | keine neue |
-| | Preis | `control.cost` | 3 | 3 | keine neue |
-| | Wirkung | `control.amount` | 5 | 5 | keine neue |
-| **PUTREFACTION** | Aufbau | `decay.stacks` · `dot.decayPerTick` | 2 | 2 | keine neue |
-| | Wirkung | `perDecayStackPercent` | **0** | **0** | keine neue |
-| | Haltbarkeit | `extendDecayMs` · `decayWard.durationMs` | 2 | 2 | keine neue |
-| **COAGULATION** | dicker | `shield.amount` | 2 | 2 | keine neue |
-| | länger | `shield.durationMs` | 1 | 2 | keine neue |
-| | mehr Stapel | `shield.maxStacks` | 1 | 1 | keine neue |
-| **SUBLIMATION** | — | wartet auf RETORT | | | |
+| Schule           | Weg         | Größe                                    |    TS |  Rust | Prüfsumme     |
+| ---------------- | ----------- | ---------------------------------------- | ----: | ----: | ------------- |
+| **CALCINATION**  | build       | `resourceGainPerRankPerMille`            |     — |     — | gebaut (#723) |
+|                  | release     | `damagePerRankPerMille`                  |     — |     — | gebaut        |
+|                  | hold        | `dotDurationPerRankPerMille`             |     — |     — | gebaut        |
+| **FIXATION**     | Aufbau      | `controlGain`                            | **0** | **0** | keine neue    |
+|                  | Preis       | `control.cost`                           |     3 |     3 | keine neue    |
+|                  | Wirkung     | `control.amount`                         |     5 |     5 | keine neue    |
+| **PUTREFACTION** | Aufbau      | `decay.stacks` · `dot.decayPerTick`      |     2 |     2 | keine neue    |
+|                  | Wirkung     | `perDecayStackPercent`                   | **0** | **0** | keine neue    |
+|                  | Haltbarkeit | `extendDecayMs` · `decayWard.durationMs` |     2 |     2 | keine neue    |
+| **COAGULATION**  | dicker      | `shield.amount`                          |     2 |     2 | keine neue    |
+|                  | länger      | `shield.durationMs`                      |     1 |     2 | keine neue    |
+|                  | mehr Stapel | `shield.maxStacks`                       |     1 |     1 | keine neue    |
+| **SUBLIMATION**  | —           | wartet auf RETORT                        |       |       |               |
 
 **Keiner der zwölf Wege braucht eine neue Prüfsummen-Zeile.** Gemessen: Alle bewegen Größen, die
 bereits in beiden Prüfsummen stehen.
@@ -75,10 +75,10 @@ kennt.
 
 Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei sind gestrichen:
 
-| Gruppe | Größe | Warum nicht |
-| ------ | ----- | ----------- |
-| Obergrenze | `decayCap.bonus` | **das ist PUTRID BLOOM** — ein Weg, der die Obergrenze hebt, ist derselbe Zauber ohne Tastendruck |
-| Schutz | `decayWard.permillePerStack` | **das ist DECAY** |
+| Gruppe     | Größe                        | Warum nicht                                                                                       |
+| ---------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| Obergrenze | `decayCap.bonus`             | **das ist PUTRID BLOOM** — ein Weg, der die Obergrenze hebt, ist derselbe Zauber ohne Tastendruck |
+| Schutz     | `decayWard.permillePerStack` | **das ist DECAY**                                                                                 |
 
 Beide wären technisch baubar (je 1–2 Stellen, keine neue Prüfsummen-Zeile). Der Einwand ist
 fachlich: Ein Weg, der einen Zauber verdoppelt, ist so wenig eine Wahl wie einer, der eine Mechanik
