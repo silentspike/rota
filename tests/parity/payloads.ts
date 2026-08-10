@@ -369,6 +369,20 @@ export const SUBLIME_NAME = 'sublime-merker';
 export const CONDENSE_NAME = 'condense-merker';
 
 /**
+ * Vergleichsdatei für die **fehlgeschlagene** Kontroll-Ausgabe.
+ *
+ * `controlFailed` stand bis hierher in genau einer Aufzeichnung, und dort mit
+ * null. Gemessen über alle 50 nachspielbaren Runden: In keiner einzigen
+ * schlägt eine Kontrolle fehl — die Größe war also nicht bloss unverglichen,
+ * sondern gar nicht erreichbar.
+ *
+ * Hier wird LATCH (Kosten 2) geworfen, bevor ein einziger Punkt aufgebaut
+ * ist. Danach die Gegenrichtung: aufbauen, dann ausgeben. Eine Aufzeichnung,
+ * die nur den Fehlschlag zeigte, liesse offen, ob überhaupt je etwas gelingt.
+ */
+export const KONTROLL_FEHLSCHLAG_NAME = 'kontrolle-fehlschlag';
+
+/**
  * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
  *
  * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
@@ -3352,6 +3366,82 @@ export function condensePayload(): Record<string, unknown> {
       condenseCasts: combat.castCount(alsSpellIndex(condense)),
       /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
       merkerTakte: merker.reduce((a, b) => a + b, 0),
+    },
+  };
+}
+
+const KONTROLL_FEHLSCHLAG_BINDINGS = [
+  { slot: 0, spellId: 'latch' },
+  { slot: 1, spellId: 'bind' },
+] as const;
+
+export function kontrollFehlschlagPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const latch = combat.indexOf('latch');
+  const bind = combat.indexOf('bind');
+  const ticks = 2000; // 20 s
+
+  const slots = slotMap(combat, KONTROLL_FEHLSCHLAG_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Der Vorrat je Takt — die Größe, an der der Fehlschlag hängt. */
+  const vorrat: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // **Erst der Fehlschlag, dann der Erfolg.**
+    //
+    // Takt 0: LATCH kostet 2 Punkte, der Vorrat steht auf 0 — er schlägt fehl.
+    // Danach baut BIND auf (2 je Wurf), und ab dem zweiten LATCH-Versuch
+    // gelingt die Ausgabe. Eine Aufzeichnung mit nur einem Fehlschlag liesse
+    // offen, ob überhaupt je etwas gelingt.
+    let gewaehlt = -1;
+    if (tick === 0) {
+      gewaehlt = latch;
+    } else if (combat.control >= 2 && combat.isReady(alsSpellIndex(latch), timeMs)) {
+      gewaehlt = latch;
+    } else if (combat.isReady(alsSpellIndex(bind), timeMs)) {
+      gewaehlt = bind;
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    vorrat.push(combat.control);
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: KONTROLL_FEHLSCHLAG_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: KONTROLL_FEHLSCHLAG_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    vorrat,
+    expected: {
+      damageDealt: combat.damageDealt,
+      /**
+       * **Die Größe, um die es geht.** Sie stand bis hierher in genau einer
+       * Aufzeichnung und dort mit null — und über alle 50 nachspielbaren
+       * Runden gemessen schlug in keiner eine Kontrolle fehl.
+       */
+      controlFailed: combat.controlFailed,
+      /**
+       * Die Gegenrichtung: Ohne sie belegte der Fall nur, dass Ausgaben
+       * scheitern — nicht, dass sie je gelingen.
+       */
+      controlSpent: combat.controlSpent,
+      latchCasts: combat.castCount(alsSpellIndex(latch)),
+      bindCasts: combat.castCount(alsSpellIndex(bind)),
     },
   };
 }
