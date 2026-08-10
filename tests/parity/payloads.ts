@@ -3996,7 +3996,7 @@ export function buffCombatPayload(): Record<string, unknown> {
 
   const checksums: number[] = [];
   /** Der Faktor an den Messpunkten — für AC1, damit „aktiv" nachweisbar ist. */
-  const factorAt: { tick: number; buffs: number }[] = [];
+  const factorAt: { tick: number; buffs: number; vulnerability: number }[] = [];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -4010,7 +4010,15 @@ export function buffCombatPayload(): Record<string, unknown> {
 
     checksums.push(combatChecksum(combat, timeMs) >>> 0);
     if (tick === 0 || tick === 150 || tick === 500) {
-      factorAt.push({ tick, buffs: combat.damageFactors.buffs });
+      // **`vulnerability` gehört dazu, seit #738.** Beide sind Faktoren
+      // derselben Familie; bis dahin wurde nur `buffs` übertragen und
+      // verglichen, `vulnerability` gar nicht — obwohl die Spiel-Seite ihn
+      // seit Langem als Getter führt und drei Prüfdateien ihn lesen.
+      factorAt.push({
+        tick,
+        buffs: combat.damageFactors.buffs,
+        vulnerability: combat.vulnerability,
+      });
     }
   }
 
