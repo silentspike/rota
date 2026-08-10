@@ -4833,6 +4833,95 @@ export function decayFactorPayload(): Record<string, unknown> {
   };
 }
 
+/**
+ * Dieselbe Runde wie {@link decayFactorPayload}, aber MIT einer
+ * Talent-Verteilung (Issue #738).
+ *
+ * # Der Export-Weg, den es bis dahin nicht gab
+ *
+ * `combat.setTalents` existiert seit #419, und die Rust-Seite führt zwölf
+ * `talent_*`-Felder in `FightConfig`. Zwischen beiden fehlte jede Verbindung:
+ * Keine der 71 Aufzeichnungen trug eine Verteilung, also verglichen beide
+ * Seiten ausschließlich Läufe ohne Talente. Eine Streich-Mutation an einer
+ * Talent-Rechnung blieb deshalb grün — die Parität fuhr den Fall nie.
+ *
+ * # Warum eine eigene Datei statt eines Feldes in `decay-factor`
+ *
+ * `decay-factor.json` ist die **Gegenprobe**: ein Lauf ohne Talente, der grün
+ * bleiben muss. Trüge sie selbst eine Verteilung, gäbe es keine mehr — dieselbe
+ * Überlegung, aus der `buff-combat` neben ihr stehen bleibt.
+ *
+ * # Die Verteilung ist bewusst EIN Weg, nicht alle
+ *
+ * `putrefaction-effect` mit vollem Rang hebt die Verwundbarkeit je Stapel. Wer
+ * hier mehrere Wege setzte, bekäme eine Datei, die bei jeder beliebigen
+ * Talent-Änderung rot wird und nicht sagt, welche.
+ */
+export function decayTalentPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 600;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const canker = combat.indexOf('canker');
+
+  /** Voller Rang auf dem Wirkungs-Weg — fünf Ränge à 80 Promille. */
+  const talents = { 'putrefaction-effect': 5 };
+  // **VOR `beginFight`** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(talents);
+
+  const checksums: number[] = [];
+  const factorAt: { tick: number; buffs: number; vulnerability: number }[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (tick === 0 || tick === 100 || tick === 200) combat.cast(canker, timeMs);
+
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+    if (tick === 0 || tick === 250 || tick === 599) {
+      factorAt.push({
+        tick,
+        buffs: combat.damageFactors.buffs,
+        vulnerability: combat.vulnerability,
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    /**
+     * **Die Verteilung in BEIDEN Formen — und das ist eine Einschränkung.**
+     *
+     * `talents` sind die Ränge, wie der Spieler sie verteilt. `talentPermille`
+     * ist, was daraus folgt. Die zweite Form steht nur da, weil der Simulator
+     * die Talent-Daten **nicht kennt**: `sim/src/data.rs` führt keine
+     * `TALENTS`-Struktur, `build.rs` erzeugt keine, und ohne sie kann die
+     * Rust-Seite aus einem Rang keine Promille machen.
+     *
+     * Was dieser Vergleich deshalb NICHT prüft: ob beide Seiten Ränge gleich
+     * in Promille umrechnen. Er prüft, ob beide mit DENSELBEN Promille dasselbe
+     * rechnen. Die Umrechnung ist auf der Spiel-Seite durch
+     * `tests/unit/talent-wirkungen-2.test.ts` gedeckt, auf der Rust-Seite gibt
+     * es sie nicht — dort beginnt die Rechnung bei den Promille.
+     */
+    talents,
+    talentPermille: { decayEffect: 5 * 80 },
+    presses: [
+      { tick: 0, spellId: 'canker' },
+      { tick: 100, spellId: 'canker' },
+      { tick: 200, spellId: 'canker' },
+    ],
+    checksums,
+    factorAt,
+    expected: {
+      /** Die Zusicherung: ohne diese Differenz misst der Vergleich nichts. */
+      hoeherAlsOhneTalent: true,
+    },
+  };
+}
+
 export function synergyPayload(): Record<string, unknown> {
   const recording = recordSynergy(3000);
   const result = replayRecording(recording, { checksumPerTick: true });
