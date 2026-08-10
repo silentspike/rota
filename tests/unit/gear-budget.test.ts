@@ -148,6 +148,47 @@ describe('Die Qualitäten (13.3)', () => {
     expect(falschHerum).toEqual([]);
   });
 
+  /**
+   * **Legendary fehlt in der Kette darüber, und das ist kein Versehen.**
+   *
+   * Der Fall prüft `Rare > Common` und `Epic > Rare` und hört dort auf. Diese
+   * Lücke war erkannt, aber nirgends benannt — deshalb steht sie jetzt hier
+   * als eigene Aussage statt als Auslassung.
+   */
+  it('gibt Legendary DASSELBE Budget wie Epic — 13.3 zahlt den Unterschied in einem Effekt, nicht in Werten', () => {
+    // GAME-DESIGN 13.3: Epic „3 Affixe, —", Legendary „3+, ECHTER
+    // SONDEREFFEKT, der die Rotation ändert". Das Pluszeichen meint den
+    // Effekt, nicht einen vierten Affix — `QUALITY_AFFIX_SLOTS` führt
+    // deshalb [1, 2, 3, 3].
+    //
+    // **Über die ganze Spanne, nicht an einem Punkt.** Am 2026-08-10 wurde
+    // die Gleichheit auf Stufe 40 entdeckt und für einen Tippfehler in
+    // `QUALITY_BASE_BUDGET` gehalten; eine Messung an einer Stufe hätte auch
+    // ein echtes Loch übersehen können, das nur anderswo klafft.
+    const abweichend: string[] = [];
+    for (let level = 1; level <= MAX_ITEM_LEVEL; level++) {
+      const epic = budgetOf(level, QUALITY_EPIC);
+      const legendary = budgetOf(level, QUALITY_LEGENDARY);
+      if (epic !== legendary) {
+        abweichend.push(`Stufe ${level}: Epic ${epic} gegen Legendary ${legendary}`);
+      }
+    }
+    expect(
+      abweichend,
+      'Legendary trägt ein anderes Budget als Epic — 13.3 sieht dafür keinen Grund vor. ' +
+        'Wer den Unterschied bauen wollte: Legendarys Merkmal ist QUALITY_HAS_EFFECT, ' +
+        'und das hat im Kampf keinen Leser (Gruppe B in docs/AUSRUESTUNGS-RASTER.md).',
+    ).toEqual([]);
+  });
+
+  it('und der Unterschied liegt allein im Effekt-Flag', () => {
+    // Die Gegenprobe zur Zeile darüber: Gäbe es GAR keinen Unterschied
+    // zwischen Epic und Legendary, wäre die Qualität eine Attrappe. Es gibt
+    // einen — er ist nur (noch) nicht verdrahtet.
+    expect(QUALITY_AFFIX_SLOTS[QUALITY_LEGENDARY]).toBe(QUALITY_AFFIX_SLOTS[QUALITY_EPIC]);
+    expect(QUALITY_HAS_EFFECT[QUALITY_LEGENDARY]).not.toBe(QUALITY_HAS_EFFECT[QUALITY_EPIC]);
+  });
+
   it('lässt Qualität und Gegenstandsstufe unabhängig laufen (13.4)', () => {
     // „Ein episches Stück aus einer frühen Instanz ist schwächer als ein
     // seltenes aus dem Endgame — alter Inhalt entwertet sich von selbst."
