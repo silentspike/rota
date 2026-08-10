@@ -377,6 +377,19 @@ pub struct Spell {
     /// WIE VIEL gesenkt wird, sagt der BOSS (`clear_amount`), nicht dieser
     /// Zauber — derselbe Aufbau wie bei `boss_heal.amount`.
     pub clears_doom: bool,
+    /// Ob dieser Zauber den **nächsten** von der globalen Wartezeit befreit
+    /// (SUBLIME, Issue #480).
+    ///
+    /// # Der Unterschied zu `triggers_gcd`
+    ///
+    /// `triggers_gcd` ist eine **Eigenschaft**: Sie steht in den Daten und
+    /// gilt für jeden Wurf dieses Zaubers gleich. Dieses Feld erzeugt einen
+    /// **Merker** — einen Zustand, der nach dem Wurf weiterlebt und beim
+    /// nächsten Zauber verbraucht wird.
+    ///
+    /// Merker sind neu im Datenmodell (Issue #480), und sie haben eine
+    /// Bedingung: Sie müssen in die Prüfsumme. Warum, steht dort.
+    pub frees_next_gcd: bool,
     /// Ressourcen-Gewinn beim Wirken.
     pub resource_gain: u16,
     /// Brand-Effekt, falls der Zauber einen hat.
