@@ -56,6 +56,24 @@ export class GlobalCooldown {
     return this.readyAtMs;
   }
 
+  /**
+   * Zieht Millisekunden von der laufenden Wartezeit ab (RETORT, Issue #480).
+   *
+   * **Nicht dasselbe wie `reset`**: Der räumt sie ganz weg, das hier gibt
+   * einen bestimmten Betrag zurück — nämlich den, den ein Boss-Abbruch
+   * gekostet hat.
+   *
+   * Bei null landet sie, nie darunter. Ein Betrag, der grösser wäre als die
+   * Restzeit, macht sie sofort bereit; eine negative Bereitschaftszeit hätte
+   * keine Bedeutung und ginge in die Prüfsumme ein.
+   *
+   * Spiegelbild zu `gcd_ready_at.saturating_sub(...)` in `sim/src/fight.rs`.
+   */
+  refund(ms: number): void {
+    if (ms <= 0) return;
+    this.readyAtMs = Math.max(0, this.readyAtMs - ms);
+  }
+
   reset(): void {
     this.readyAtMs = 0;
   }

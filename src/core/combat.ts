@@ -783,6 +783,19 @@ export class Combat {
    */
   private nextCastDoublesValue = false;
 
+  /**
+   * **Der dritte Merker — und der erste mit einer Zahl** (RETORT, #480).
+   *
+   * Wie viele Millisekunden Wartezeit offen standen, als der Boss zuletzt
+   * einen Wurf abgebrochen hat. `0` heisst: nichts zu erstatten.
+   *
+   * Die zwei anderen tragen ein Ja/Nein, weil ihre Wirkung fest ist. Hier
+   * hängt sie am Zeitpunkt — ein Abbruch kurz vor Ablauf kostet weniger als
+   * einer kurz danach. Ein Ja/Nein müsste den Betrag beim Verbrauch neu
+   * erfinden, und dann rechneten beide Seiten ihn unabhängig.
+   */
+  private interruptedGcdMsValue = 0;
+
   /** Gesamter erlittener Schaden, **nach** WARD. */
   private damageTakenValue = 0;
 
@@ -1849,6 +1862,24 @@ export class Combat {
   /** Ob der nächste Wurf zweimal wirkt (#480). */
   get nextCastDoubles(): boolean {
     return this.nextCastDoublesValue;
+  }
+
+  /**
+   * Verbraucht die erstattbare Wartezeit, falls welche offen steht (#480).
+   *
+   * Einmal gemerkt, einmal erstattet — wie bei den zwei Merkern darüber. Ein
+   * Betrag, der stehen bliebe, machte aus einer Erstattung eine dauerhafte
+   * Vergünstigung.
+   */
+  private takeInterruptedGcd(): number {
+    const offen = this.interruptedGcdMsValue;
+    this.interruptedGcdMsValue = 0;
+    return offen;
+  }
+
+  /** Die gemerkte Wartezeit aus einem Boss-Abbruch, für die Prüfsumme (#480). */
+  get interruptedGcdMs(): number {
+    return this.interruptedGcdMsValue;
   }
 
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
@@ -3706,6 +3737,12 @@ export class Combat {
       // seine Nebenwirkung.
       if (eintrag.interruptsPlayer && this.cancelPlayerCast()) {
         this.castsInterruptedValue++;
+        // **Was der Abbruch gekostet hat, merken** (RETORT, #480).
+        //
+        // Hier und NICHT in `cancelPlayerCast`: Die Methode wird auch vom
+        // Selbst-Abbruch gerufen. Wer selbst abbricht, hat entschieden statt
+        // gestört zu werden — die Begründung steht am Simulator-Gegenstück.
+        this.interruptedGcdMsValue = this.gcd.remainingMs(timeMs);
       }
     }
 
@@ -4373,6 +4410,20 @@ export class Combat {
     // verlängerte sie um die volle Länge, und aus „ein bis knapp zwei
     // Wartezeiten" (7.1) würden drei.
     if (spell.triggersGcd && !wirkzeitLief && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
+
+    // **Die Wartezeit erstatten, die ein Boss-Abbruch gekostet hat**
+    // (RETORT, #480).
+    //
+    // Steht NACH der Zeile darüber, und das ist der ganze Trick: Löste RETORT
+    // selbst eine Wartezeit aus, zöge sie sein eigener Wurf sofort wieder auf
+    // die volle Länge — der Zauber wäre wirkungslos und der Fehler grün.
+    // (Er tut es nicht: `triggersGcd` steht bei ihm auf `false`, weil er sonst
+    // während der Wartezeit, die er verkürzen soll, gar nicht werfbar wäre.)
+    //
+    // Spiegelbild zu `refunds_interrupted_gcd` in `sim/src/fight.rs`.
+    if (spell.refundsInterruptedGcd === true) {
+      this.gcd.refund(this.takeInterruptedGcd());
+    }
 
     // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480). Bewusst HINTER beiden
     // GCD-Stellen: Weiter oben hätte SUBLIME als Sofort-Zauber seinen eigenen

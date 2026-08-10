@@ -658,6 +658,20 @@ pub struct Fight {
     /// diesem nächsten Wurf, wie sein Nachbar darüber — und aus demselben
     /// Grund steht er in der Prüfsumme.
     next_cast_doubles: bool,
+    /// **Der dritte MERKER — und der erste mit einer Zahl** (RETORT, #480).
+    ///
+    /// Wie viele Millisekunden globale Wartezeit offen standen, als der Boss
+    /// zuletzt einen Wurf abgebrochen hat. `0` heisst: nichts zu erstatten.
+    ///
+    /// Die zwei anderen Merker tragen ein Ja/Nein, weil ihre Wirkung fest
+    /// ist. Hier hängt sie am Zeitpunkt: Ein Abbruch kurz vor Ablauf der
+    /// Wartezeit kostet weniger als einer kurz danach. Ein Ja/Nein müsste den
+    /// Betrag beim Verbrauch neu erfinden — und dann wäre er auf beiden
+    /// Seiten unabhängig gerechnet, genau die Stelle, an der zwei Umsetzungen
+    /// auseinanderlaufen.
+    ///
+    /// Steht aus demselben Grund in der Prüfsumme wie seine zwei Nachbarn.
+    interrupted_gcd_ms: Millis,
     /// Der Auswahlmodus des Ruecksetzers (Issue #223).
     ///
     /// Bis heute war er gebaut und unbenutzt — `cooldown_reset.rs` stand
@@ -922,6 +936,7 @@ impl Fight {
             gcd_ready_at: 0,
             next_cast_free_gcd: false,
             next_cast_doubles: false,
+            interrupted_gcd_ms: 0,
             reset_mode: CooldownReset::new(),
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -1566,6 +1581,7 @@ impl Fight {
         self.gcd_ready_at = 0;
         self.next_cast_free_gcd = false;
         self.next_cast_doubles = false;
+        self.interrupted_gcd_ms = 0;
         self.reset_mode.reset();
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -1792,6 +1808,17 @@ impl Fight {
         // `Combat::stepPassive`: nach dem Schlag, vor dem Vorruecken.
         if entry.interrupts_player && self.cancel_player_cast() {
             self.casts_interrupted += 1;
+            // **Was der Abbruch gekostet hat, merken** (RETORT, #480).
+            //
+            // Die globale Wartezeit läuft bei einer Wirkzeit ab dem BEGINN
+            // (#304) und läuft weiter, auch wenn der Wurf nie landet. Was
+            // davon jetzt noch offen steht, ist bezahlt und nicht bekommen.
+            //
+            // **Hier und nicht in `cancel_player_cast`**: Die Funktion wird
+            // auch vom Selbst-Abbruch gerufen (ein zweiter Druck während der
+            // Wirkzeit). Wer selbst abbricht, hat entschieden statt gestört zu
+            // werden — ihm die Zeit zu erstatten kehrte die Absicht um.
+            self.interrupted_gcd_ms = self.gcd_ready_at.saturating_sub(self.time);
         }
 
         // Verbraucht: Der naechste Eintrag faengt wieder bei seinem eigenen
@@ -1842,6 +1869,43 @@ impl Fight {
         }
     }
 
+    /// Verbraucht die erstattbare Wartezeit, falls welche offen steht
+    /// (RETORT, Issue #480).
+    ///
+    /// **Einmal gemerkt, einmal erstattet** — wie bei den zwei anderen
+    /// Merkern. Ein Betrag, der stehen bliebe, machte aus einer Erstattung
+    /// eine dauerhafte Vergünstigung.
+    fn take_interrupted_gcd(&mut self) -> Millis {
+        let offen = self.interrupted_gcd_ms;
+        self.interrupted_gcd_ms = 0;
+        offen
+    }
+
+    /// Bricht eine laufende Wirkzeit ab. **Von zwei Wegen gerufen, und der
+    /// Unterschied ist Absicht** (RETORT, Issue #480).
+    ///
+    /// | Aufrufer | was er ist | setzt RETORTs Merker |
+    /// |---|---|---|
+    /// | `timeline_step`, bei `entry.interrupts_player` | der Boss stört | **ja** |
+    /// | `cast`, bei einem zweiten Druck | der Spieler entscheidet | **nein** |
+    ///
+    /// Deshalb steht `interrupted_gcd_ms` **beim Aufrufer** und nicht hier
+    /// drin: Von hier aus liesse sich nicht unterscheiden, wer gerufen hat.
+    ///
+    /// # Warum der Selbst-Abbruch leer ausgeht
+    ///
+    /// RETORT ist ein Gegenmittel gegen den Boss, kein Werkzeug zum
+    /// Umdisponieren. Bekäme der Spieler die Wartezeit auch für den eigenen
+    /// Abbruch zurück, wäre die beste Spielweise, sich selbst zu
+    /// unterbrechen — ein Zauber, der das Ausnutzen der eigenen Fehlplanung
+    /// belohnt, ist kein Gegenmittel. Der Boss-Abbruch ist ein äusseres
+    /// Ereignis, auf das reagiert wird; der Selbst-Abbruch ist eine Wahl,
+    /// und dafür gibt es keine Entschädigung.
+    ///
+    /// **Das ist kein vergessener Fall.** Wer hier eine Zeile ergänzt, die
+    /// den Merker für beide Wege setzt, kehrt die Entscheidung um.
+    /// `sim/tests/retort_wirkung.rs` hält sie fest: Ein Fall fährt den
+    /// Selbst-Abbruch und belegt, dass RETORT danach nichts erstattet.
     fn cancel_player_cast(&mut self) -> bool {
         if self.player_casting.is_none() {
             return false;
@@ -3789,6 +3853,25 @@ impl Fight {
             self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
         }
 
+        // **Die Wartezeit erstatten, die ein Boss-Abbruch gekostet hat**
+        // (RETORT, #480).
+        //
+        // Steht NACH der Zeile darüber, und das ist der ganze Trick: RETORT
+        // löst selbst eine Wartezeit aus (`triggersGcd`), und erst danach
+        // wird sie um den gemerkten Betrag verkürzt. Stünde die Erstattung
+        // davor, zöge sein eigener Wurf sie sofort wieder auf die volle
+        // Länge — der Zauber wäre wirkungslos und der Fehler grün.
+        //
+        // `saturating_sub` statt einer Prüfung: Ein Betrag, der grösser wäre
+        // als die laufende Wartezeit, macht sie null und nicht negativ.
+        if spell.refunds_interrupted_gcd {
+            let erstattet = self.take_interrupted_gcd();
+            if erstattet > 0 {
+                self.gcd_ready_at = self.gcd_ready_at.saturating_sub(erstattet);
+                self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+            }
+        }
+
         // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480).
         //
         // Diese Zeile steht bewusst HINTER beiden GCD-Stellen. Ein erster
@@ -4224,6 +4307,9 @@ impl Fight {
         h = mix_named_int(h, "nextCastFreeGcd", i32::from(self.next_cast_free_gcd));
         // Der zweite Merker, unmittelbar neben dem ersten (CONDENSE, #480).
         h = mix_named_int(h, "nextCastDoubles", i32::from(self.next_cast_doubles));
+        // Der dritte Merker, neben den zwei anderen (RETORT, #480). Als
+        // Millisekunden-Zahl statt Ja/Nein — die Begründung steht am Feld.
+        h = mix_named_int(h, "interruptedGcdMs", self.interrupted_gcd_ms as i32);
         // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
         // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
         // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden
