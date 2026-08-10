@@ -21,7 +21,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { compareBagItem, estimateDamagePerHit, estimatedGain } from '../../src/loot/estimate.js';
-import { compareItems, COMPARE_BETTER, COMPARE_EQUAL } from '../../src/loot/compare.js';
+import {
+  compareItems,
+  COMPARE_BETTER,
+  COMPARE_EQUAL,
+  COMPARE_WORSE,
+} from '../../src/loot/compare.js';
 import { NOTHING_WORN, type WornValues } from '../../src/gear/worn.js';
 
 function worn(werte: Partial<WornValues>): WornValues {
@@ -127,16 +132,24 @@ describe('Die Grenze der Näherung — gemessen, nicht behauptet', () => {
 });
 
 describe('Der Tausch auf der echten Datenstruktur', () => {
-  // **Was hier NICHT prüfbar ist, und warum:** Der Katalog trägt heute genau
-  // einen Eintrag (`test-relic`, Platz 0 — data/items.json, Issue #421a), und
-  // `upgradeSteps` fliesst nicht in `wornFrom` ein. Zwei Stücke sind damit
-  // zwangsläufig gleichwertig; ein Fall „besserer Fund verdrängt schlechteres
-  // Stück" lässt sich nicht bauen, ohne einen Gegenstand zu erfinden.
+  // **Diese Einschränkung ist seit Issue #480 weggefallen.** Hier stand, ein
+  // Fall „besserer Fund verdrängt schlechteres Stück" lasse sich nicht bauen,
+  // weil der Katalog nur einen Eintrag trägt UND `upgradeSteps` nicht in
+  // `wornFrom` einfliesst — zwei Stücke derselben Kennung seien damit
+  // zwangsläufig gleichwertig.
   //
-  // Das ist keine Lücke dieser Prüfung, sondern der Stand des Katalogs (#421b,
-  // Kapitel 22). Die Rechnung selbst ist oben auf `WornValues` vollständig
-  // geprüft, mitsamt Mutations-Gegenprobe. Hier steht nur, dass der TAUSCH
-  // richtig gebildet wird.
+  // Beide Halbsätze sind inzwischen überholt, jeder auf eigene Weise. Der
+  // Katalog trägt seit #741 einundzwanzig Einträge statt einem — allerdings
+  // alle auf Stufe 40 in Qualität 2, die Vorlagen unterscheiden sich also nach
+  // wie vor nicht in ihrer STÄRKE. Und `upgradeSteps` fliesst jetzt sehr wohl
+  // in `wornFrom` ein, zusammen mit der gewürfelten Fundstufe.
+  //
+  // Zwei Stücke derselben Kennung sind damit verschieden stark, und die drei
+  // Fälle unten waren vorher nicht baubar.
+  //
+  // Der Rest der Begründung steht: Die Rechnung selbst ist oben auf
+  // `WornValues` geprüft, mitsamt Mutations-Gegenprobe. Hier geht es um den
+  // TAUSCH.
   const RELIC = 'test-relic';
 
   it('ein Fund auf einen LEEREN Platz ist besser', () => {
@@ -160,5 +173,43 @@ describe('Der Tausch auf der echten Datenstruktur', () => {
   it('ein angelegtes Stück ist kein Fund — es gibt kein Urteil', () => {
     const c = compareBagItem([{ itemId: RELIC, upgradeSteps: 0, equippedSlot: 0 }], 0);
     expect(c).toBeUndefined();
+  });
+
+  // Die drei Fälle, die der Kommentar oben bis #480 für unbaubar erklärt hat.
+  it('ein höher aufgewerteter Fund ist BESSER als das getragene Stück', () => {
+    const c = compareBagItem(
+      [
+        { itemId: RELIC, upgradeSteps: 0, equippedSlot: 0 },
+        { itemId: RELIC, upgradeSteps: 20, equippedSlot: null },
+      ],
+      1,
+    );
+    expect(c?.verdict).toBe(COMPARE_BETTER);
+  });
+
+  it('und ein schwächerer Fund ist SCHLECHTER — nicht bloss „nicht besser"', () => {
+    // Der Gegenpol. Ohne ihn wäre auch eine Rechnung grün, die jeden Fund mit
+    // abweichender Stufe für besser hält.
+    const c = compareBagItem(
+      [
+        { itemId: RELIC, upgradeSteps: 20, equippedSlot: 0 },
+        { itemId: RELIC, upgradeSteps: 0, equippedSlot: null },
+      ],
+      1,
+    );
+    expect(c?.verdict).toBe(COMPARE_WORSE);
+  });
+
+  it('dasselbe über die FUNDSTUFE statt über die Aufwertung', () => {
+    // Beide Achsen laufen in `effectiveLevelOf` zusammen; dass der Tausch auch
+    // die zweite sieht, ist damit nicht selbstverständlich, sondern gemessen.
+    const c = compareBagItem(
+      [
+        { itemId: RELIC, upgradeSteps: 0, equippedSlot: 0, itemLevel: 20 },
+        { itemId: RELIC, upgradeSteps: 0, equippedSlot: null, itemLevel: 85 },
+      ],
+      1,
+    );
+    expect(c?.verdict).toBe(COMPARE_BETTER);
   });
 });
