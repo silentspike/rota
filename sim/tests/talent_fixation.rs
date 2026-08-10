@@ -9,7 +9,7 @@
 //! `cost` ist der einzige der zwoelf Wege, der **teilt** statt zu vervielfachen,
 //! und der einzige mit einer unteren Klemme. Beides steht in den Faellen.
 
-use rota_sim::data::SPELLS;
+use rota_sim::data::{ControlEffect, SPELLS};
 use rota_sim::fight::{Fight, FightConfig};
 
 /// Der Zauber mit dem hoechsten Preis — an ihm zeigt sich eine Senkung.
@@ -28,17 +28,29 @@ fn teurer_zauber() -> usize {
 
 /// Der Zauber, der Punkte in Schaden umwandelt.
 ///
-/// Gehoert zum zurueckgezogenen `effect`-Fall (siehe unten). Bleibt stehen,
-/// weil die naechste Sitzung an genau dieser Stelle weitermacht.
-#[allow(dead_code)]
+/// **Gewaehlt am EFFEKT, nicht an einer Zahl.** Der erste Aufbau suchte "den
+/// mit dem kleinsten `control.amount`" — ein Feld, das es so nicht gibt. Die
+/// Daten fuehren drei getrennte Felder mit ihrer Einheit im Namen
+/// (`amountMs`, `amountPercent`, `amountPerPoint`), und die Zahlen 8 und 10
+/// gegen 2000-4000 sahen nur deshalb nach zwei Einheiten in einem Feld aus.
+///
+/// `ConvertToDamage` ist die Eigenschaft, die den Wandler ausmacht, und sie
+/// ueberlebt jede Zahlenaenderung — dieselbe Regel wie bei den
+/// SUBLIMATION-Helfern, die "der erste mit einer Schwelle" suchen.
+///
+/// **`AllThree` ist bewusst NICHT dabei.** `capstone` traegt ihn und wandelt
+/// damit auch um; er kostet aber 8 statt 3, und ein Fall, der je nach
+/// Katalogreihenfolge mal den einen und mal den anderen naehme, vergliche zwei
+/// verschiedene Dinge.
 fn wandler() -> usize {
     SPELLS
         .iter()
-        .enumerate()
-        .filter_map(|(i, s)| s.control.as_ref().map(|c| (i, c.amount)))
-        .min_by_key(|&(_, amount)| amount)
-        .map(|(i, _)| i)
-        .expect("kein Zauber wandelt um")
+        .position(|s| {
+            s.control
+                .as_ref()
+                .is_some_and(|c| c.effect == ControlEffect::ConvertToDamage)
+        })
+        .expect("kein Zauber wandelt Punkte in Schaden um")
 }
 
 /// Der Zauber, der Kontroll-Punkte AUFBAUT.
@@ -149,24 +161,40 @@ fn der_weg_build_sammelt_mehr_punkte() {
     );
 }
 
-// **OFFEN: der Weg `effect` hat hier keinen Fall** (#738).
+// **OFFEN: der Weg `effect` hat hier keinen Fall — und `converted()` ist der
+// falsche Getter** (#738).
 //
-// `converted()` bleibt in DREI Aufbauten null — mit dem Sammel-Takt, mit einem
-// Takt, der jeden bereiten Zauber wirft, und mit einem, der den Wandler
-// gezielt waehlt, sobald die Punkte reichen:
+// Gemessen, nicht vermutet. Der Wandler wird gewirkt, und trotzdem bleibt
+// `converted()` null:
 //
 // ```text
-// ohne Talent 0 umgewandelt · mit doppelter Wirkung 0
+// wandler idx=28 wedge unlock=1 cd=6000 cost=3
+// level 1:  sammler 11x, wandler 3x, punkte=6, converted=0
+// level 60: sammler 11x, wandler 3x, punkte=6, converted=0
 // ```
 //
-// Die Null liegt also nicht am Talent. Offen ist, ob `wandler()` den falschen
-// Zauber waehlt (er nimmt den mit dem KLEINSTEN `control.amount`, und die
-// Werte 8/10 gegen 2000-4000 sehen nach zwei verschiedenen Einheiten aus) oder
-// ob `converted()` etwas anderes zaehlt als die umgewandelte Menge.
+// Der Grund steht in `fight.rs:2409`:
 //
-// **Nicht weiter geraten.** Drei Anlaeufe ohne Messung, die es entscheidet,
-// sind genug — beim ersten SUBLIMATION-Versuch haben vier Vermutungen nichts
-// beigetragen, und die Antwort kam erst von einer gezielten Gegenprobe.
+// ```rust
+// self.shield = self.shield.saturating_add(gewonnen);
+// self.converted = self.converted.saturating_add(gewonnen);
+// ```
+//
+// **`converted` zaehlt Schaden, der in SCHILD umgewandelt wurde**
+// (`LogKind::ConvertedToShield`, QUICKSILVER) — nicht Kontroll-Punkte, die in
+// Schaden umgewandelt werden. Zwei Umwandlungen in entgegengesetzte
+// Richtungen, ein Wort.
+//
+// Der Weg `effect` wirkt bei `fight.rs:2240` auf `control.amount`, bei `wedge`
+// also auf `amountPerPoint`. Sichtbar waere er am Schaden dieses einen Wurfs;
+// dafuer braucht es einen Getter je Zauber oder eine Auswertung der
+// Schadens-Spur, und beides ist mehr als dieser Fall.
+//
+// **Drei Anlaeufe, drei verschiedene Ursachen** — erst der falsche Sammler
+// (`control` statt `control_gain`), dann der falsche Takt (Sammeln gegen
+// Ausgeben), jetzt der falsche Getter. Jede Stufe war ein echter Fund, und
+// keine davon lag am Talent.
+
 #[test]
 fn der_weg_cost_laesst_den_aufbau_unberuehrt() {
     // Kreuzprobe: `cost` senkt den Preis, `build` hebt den Aufbau. Der Weg
