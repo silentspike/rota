@@ -43,24 +43,33 @@ Aussage auf Feld-Ebene ist in **beide** Richtungen falsch: Ein abgesicherter
 erster Träger verdeckt die Lücke dahinter, ein ungeschützter erklärt Zauber
 für ungeprüft, die es nicht sind.
 
-**109 Paare** über 37 Felder und 35 Zauber, alle gemessen. Der Bestand ist
+**116 Paare** über 41 Felder, alle gemessen. Der Bestand ist
 seit der ersten Messung gewachsen: 53 vor #540, 68 mit den fünf Verstärkern,
 90 mit den Textfeldern aus #633, 109 mit den fünf COAGULATION-Zaubern aus
-#481.
+#481, 116 mit den Zaubern aus #479 und #480.
+
+> **Die Zahl altert mit jedem neuen Zauber, und zwar still.** Sie stand hier
+> zweimal an einem Tag falsch: erst auf 68, während 109 gemessen waren; dann
+> auf 109, während sieben neue Paare aus fremden Zweigen dazugekommen waren.
+> Beide Male war das Merge grün — die Zahl steht in einem Text, den kein Test
+> liest.
+>
+> Wer hier eine Zahl liest, prüft sie gegen `groessen-abdeckung-messung.txt`,
+> bevor er sich auf sie stützt.
 
 ---
 
-## Das Ergebnis: 14 Lücken von 109
+## Das Ergebnis: 21 Lücken von 116
 
 | Sorte            | Paare | Was anschlägt                                                   |
 | ---------------- | ----- | --------------------------------------------------------------- |
 | **geschützt**    | 83    | mindestens ein Wirkungs-Fall                                    |
-| **nur Frische**  | 10    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie  |
-| **schweigt**     | 4     | nichts                                                          |
+| **nur Frische**  | 16    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie  |
+| **schweigt**     | 5     | nichts                                                          |
 | **strukturell**  | 6     | die Laufzeit-Prüfung, weil es keinen zweiten gültigen Wert gibt |
 | **rust-geprüft** | 6     | der Rust-Bau; vitest allein schweigt (siehe Kasten unten)       |
 
-**10 + 4 = 14 Paare melden keine Wirkungsprüfung.** Die sechs strukturellen
+**16 + 5 = 21 Paare melden keine Wirkungsprüfung.** Die sechs strukturellen
 und die sechs rust-geprüften sind keine Lücken: Bei den einen erzwingt der
 Typ den einzigen gültigen Wert, bei den anderen prüft die Rust-Seite, was
 vitest nicht sieht.
@@ -131,10 +140,10 @@ sie das Richtige rechnen.**
 
 ### Wann das zuschlägt
 
-Heute ist keine der 109 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
+Heute ist keine der 116 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
 Befund betrifft die Werte, die **morgen** geändert werden — und der
 Balance-Läufer (#118) ist genau dafür gebaut. Wenn er anfängt, Zahlen
-vorzuschlagen, ist bei **14 von 109** kein Netz da.
+vorzuschlagen, ist bei **21 von 116** kein Netz da.
 
 ---
 
