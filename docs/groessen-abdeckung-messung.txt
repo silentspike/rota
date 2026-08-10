@@ -53,6 +53,8 @@ conversion.sharePercent    crucible-skin 50 -> 25       geschuetzt [1 Prueffall]
 conversion.sharePercent    temper       25 -> 12       geschuetzt [4 Prueffaelle] (umwandlung-groessen.test.ts)
 convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [3 Prueffaelle] (combat.test.ts, data.test.ts, efflux.test.ts)
 convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+decayWard.durationMs       decay        6000 -> 3000     SCHWEIGT -> die Aufzeichnung faerbt NICHT: ihr Fenster reicht auch halbiert fuer jeden Treffer
+decayWard.permillePerStack decay        40 -> 20       NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_decay_ward.rs: damageTaken)
 decay.stacks               blight       1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
 decay.stacks               canker       1 -> 0        geschuetzt [24 Prueffaelle] (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
 dot.decayPerTick           rot          1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
@@ -65,20 +67,6 @@ dot.refreshMode            rot          reset -> rota-mutation-ungueltig geschue
 dot.refreshMode            searing      reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [5 Prueffaelle] (bindungen-im-nachlauf.test.ts, combat.test.ts, data.test.ts...)
 dot.refreshMode            smoulder     reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [66 Prueffaelle] (active-dots.test.ts, buff-targets.test.ts, checksum-effectiveness.test.ts...)
 dot.tickDamage             cinder       30 -> 15       geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)
-decayWard.durationMs       decay        6000 -> 3000     SCHWEIGT -> die Aufzeichnung faerbt NICHT: ihr Fenster reicht auch halbiert fuer jeden Treffer
-decayWard.permillePerStack decay        40 -> 20       NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_decay_ward.rs: damageTaken)
-decay.stacks               blight       1 -> 0        geschuetzt (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
-decay.stacks               canker       1 -> 0        geschuetzt (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
-dot.decayPerTick           rot          1 -> 0        geschuetzt (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
-dot.durationMs             cinder       4000 -> 2000     NUR FRISCHE -> faktisch ungeschuetzt
-dot.durationMs             rot          4000 -> 2000     geschuetzt (rot-decay-per-tick.test.ts)
-dot.durationMs             searing      6000 -> 3000     geschuetzt (combat.test.ts, data.test.ts)
-dot.durationMs             smoulder     12000 -> 6000     geschuetzt (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-dot.refreshMode            cinder       reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, dot-groessen.test.ts)
-dot.refreshMode            rot          reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
-dot.refreshMode            searing      reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (combat.test.ts, data.test.ts, dot-groessen.test.ts)
-dot.refreshMode            smoulder     reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] (active-dots.test.ts, buff-targets.test.ts, checksum-effectiveness.test.ts...)
-dot.tickDamage             cinder       30 -> 15       NUR FRISCHE -> faktisch ungeschuetzt
 dot.tickDamage             rot          25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
 dot.tickDamage             searing      90 -> 45       geschuetzt [3 Prueffaelle] (bindungen-im-nachlauf.test.ts, dot-groessen.test.ts)
 dot.tickDamage             smoulder     40 -> 20       geschuetzt [27 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)

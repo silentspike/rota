@@ -475,6 +475,10 @@ export interface ConversionDef {
  */
 export interface ReflectDef {
   readonly sharePercent: number;
+  readonly durationMs: number;
+}
+
+/**
  * Die Schwächung des Boss-Schadens nach Stapelzahl (DECAY, Issue #479).
  *
  * > „Schwächt den Boss-Schaden nach Stapelzahl — verbindet Schwächung mit
@@ -1428,6 +1432,8 @@ function parseCoagulation(
     } else if (durationMs <= 0) {
       problems.push(`${where}: reflect.durationMs ${durationMs} — ein Fenster ohne Dauer.`);
     } else out.reflect = { sharePercent, durationMs };
+  }
+
   // DECAY (Issue #479). Die Prüfungen spiegeln die von `conversion`: Ein Wert
   // von null oder darunter ist kein „aus", sondern ein Feld, das jemand für
   // wirksam hält — und eine Laufzeit von null ließe den Zauber in dem

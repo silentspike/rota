@@ -1965,6 +1965,8 @@ export class Combat {
       this.reflectPercentValue = reflect.sharePercent;
       this.reflectUntilMs = seitBeginn + reflect.durationMs;
       this.reflectSpellIndex = index;
+    }
+
     // DECAY (Issue #479) — die Schwächung anschalten. Die STAPELZAHL wird
     // hier NICHT festgehalten: Sie wird beim Treffer gelesen, nicht beim
     // Wirken. Wer sie hier einfröre, machte aus „schwächt nach Stapelzahl"
