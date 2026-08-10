@@ -783,6 +783,21 @@ export class Combat {
    */
   private nextCastDoublesValue = false;
 
+  /**
+   * **Der dritte Merker** (RETORT, #480): Ist gerüstet.
+   *
+   * Steht auf `true`, wenn RETORT geworfen wurde und der nächste vom BOSS
+   * abgebrochene Wurf deshalb keine Wartezeit kostet.
+   *
+   * **Vorbereitung statt Rettung** — bewusst anders als das Raster, das ihn
+   * reaktiv beschreibt. Reaktiv gebaut bräuchte er eine zweite Ausnahme von
+   * Design-Gesetz 6.6; gemessen wurde sein Druck dann abgelehnt. Die
+   * ausführliche Begründung steht am Gegenstück in `sim/src/fight.rs`.
+   *
+   * Ein Ja/Nein, keine Zahl: Zweimal rüsten ist einmal gerüstet.
+   */
+  private retortArmedValue = false;
+
   /** Gesamter erlittener Schaden, **nach** WARD. */
   private damageTakenValue = 0;
 
@@ -1849,6 +1864,24 @@ export class Combat {
   /** Ob der nächste Wurf zweimal wirkt (#480). */
   get nextCastDoubles(): boolean {
     return this.nextCastDoublesValue;
+  }
+
+  /**
+   * Verbraucht die Rüstung, falls sie steht (#480).
+   *
+   * Einmal gerüstet, einmal verbraucht — wie bei den zwei Merkern darüber.
+   * Eine Rüstung, die stehen bliebe, machte aus einer Vorbereitung eine
+   * dauerhafte Vergünstigung.
+   */
+  private takeRetortArmed(): boolean {
+    if (!this.retortArmedValue) return false;
+    this.retortArmedValue = false;
+    return true;
+  }
+
+  /** Ob RETORTs Rüstung steht — für die Prüfsumme und für Prüffälle (#480). */
+  get retortArmed(): boolean {
+    return this.retortArmedValue;
   }
 
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
@@ -3706,6 +3739,14 @@ export class Combat {
       // seine Nebenwirkung.
       if (eintrag.interruptsPlayer && this.cancelPlayerCast()) {
         this.castsInterruptedValue++;
+        // **Die Rüstung greift** (RETORT, #480): Der Rest der Wartezeit wird
+        // erlassen, nicht die volle — die verstrichene Zeit hat der Spieler
+        // durchlebt.
+        //
+        // Hier und NICHT in `cancelPlayerCast`: Die Methode wird auch vom
+        // Selbst-Abbruch gerufen. Wer sich rüstet und dann selbst abbricht,
+        // hätte sich die Wartezeit gekauft.
+        if (this.takeRetortArmed()) this.gcd.refund(this.gcd.remainingMs(timeMs));
       }
     }
 
@@ -4373,6 +4414,15 @@ export class Combat {
     // verlängerte sie um die volle Länge, und aus „ein bis knapp zwei
     // Wartezeiten" (7.1) würden drei.
     if (spell.triggersGcd && !wirkzeitLief && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
+
+    // **Rüsten** (RETORT, #480): Der nächste vom BOSS abgebrochene Wurf
+    // kostet keine Wartezeit.
+    //
+    // Steht bei den zwei anderen Merkern, hinter allem, was sie verbrauchen
+    // könnte. RETORTs eigene Wartezeit ist eine Zeile höher schon gestartet
+    // und bleibt — er zahlt wie jeder andere Zauber, und genau deshalb bleibt
+    // Design-Gesetz 6.6 unberührt.
+    if (spell.refundsInterruptedGcd === true) this.retortArmedValue = true;
 
     // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480). Bewusst HINTER beiden
     // GCD-Stellen: Weiter oben hätte SUBLIME als Sofort-Zauber seinen eigenen
