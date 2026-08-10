@@ -144,6 +144,37 @@ pub const QUALITY_AFFIX_SLOTS: [usize; QUALITY_COUNT] = [1, 2, 3, 3];
 pub const QUALITY_HAS_EFFECT: [bool; QUALITY_COUNT] = [false, false, false, true];
 
 /// Das Budget einer Qualitaet auf Gegenstandsstufe 1. **Vorlaeufig (#118).**
+///
+/// # Die 190 steht zweimal, und das ist Absicht
+///
+/// **Epic und Legendary tragen dasselbe Budget** — auf jeder Stufe von 1 bis
+/// 100, nicht nur zufaellig auf einer. GAME-DESIGN 13.3 gibt Legendary keine
+/// zusaetzlichen Werte:
+///
+/// ```text
+///   Epic        3 Affixe    —
+///   Legendary   3+          ECHTER SONDEREFFEKT, der die Rotation aendert
+/// ```
+///
+/// Das Pluszeichen meint den **Effekt**, nicht einen vierten Affix — siehe
+/// [`QUALITY_AFFIX_SLOTS`], das `[1, 2, 3, 3]` fuehrt. Legendary unterscheidet
+/// sich durch etwas, das der Gegenstand **kann**, nicht durch mehr Zahlen.
+///
+/// # Wer das hier "repariert", macht es kaputt
+///
+/// Am 2026-08-10 haben zwei Sitzungen die doppelte 190 unabhaengig
+/// voneinander fuer einen Fehler gehalten. Der Kommentar sagte damals nur
+/// "vorlaeufig", und die Begruendung stand bei den Affix-Plaetzen — wo sie
+/// beim Aendern des Budgets niemand liest.
+///
+/// **Die Sorge dahinter ist berechtigt und trifft eine andere Stelle:**
+/// [`QUALITY_HAS_EFFECT`] hat im Kampf **keinen Leser**, auf keiner der beiden
+/// Seiten. Der Sondereffekt ist Legendarys einziges Merkmal, und er ist nicht
+/// gebaut — er braeuchte Topf 4, dessen Zuleitung fehlt.
+///
+/// Wer q3 hier anhebt, baut einen **zweiten** Unterschied ein, den 13.3 nicht
+/// vorsieht, und verdeckt den echten. Das TS-Gegenstueck traegt denselben
+/// Kommentar, und `tests/unit/gear-budget.test.ts` haelt die Gleichheit fest.
 const QUALITY_BASE_BUDGET: [u64; QUALITY_COUNT] = [100, 140, 190, 190];
 
 /// Zaehler und Nenner des Stufen-Wachstums — 21/20 sind +5 %. **Vorlaeufig.**
