@@ -254,6 +254,20 @@ pub struct FightConfig {
     /// `worn`: Ohne Talente laeuft der Kampf durch dieselben Zweige wie vorher,
     /// und keine Pruefsumme bewegt sich.
     pub talent_permille: u32,
+    /// Promille-Summe der Talente auf den **Ressourcen-Gewinn** (Issue #419).
+    ///
+    /// Die zweite von drei Talent-Groessen. Wie `talent_permille` kommt die
+    /// Summe von aussen: Der Baum steht im Spiel, und eine zweite Nachbildung
+    /// waere eine zweite Fehlerquelle.
+    ///
+    /// **Voreinstellung 0**, also Faktor 1,0 — ohne Talente laeuft der Kampf
+    /// durch dieselben Zweige wie vorher, und keine Pruefsumme bewegt sich.
+    pub talent_resource_permille: u32,
+    /// Promille-Summe der Talente auf die **Laufzeit** der Brand-Effekte.
+    ///
+    /// Sie verlaengert die DAUER, nicht den Abstand: Ein laengerer Brand tickt
+    /// OEFTER, er tickt nicht langsamer.
+    pub talent_dot_duration_permille: u32,
     /// Stufe des Spielers (Issue #248).
     ///
     /// Sie wirkt auf die Grundwerte: Ein Kampf auf Stufe 50 hat andere
@@ -277,6 +291,8 @@ impl Default for FightConfig {
             worn: WornValues::none(),
             split_spender: false,
             talent_permille: 0,
+            talent_resource_permille: 0,
+            talent_dot_duration_permille: 0,
             player_level: 1,
         }
     }
@@ -622,6 +638,14 @@ pub struct Fight {
     /// Verwechslung unmoeglich statt verboten.
     control_buffs: Buffs,
     resource_buffs: Buffs,
+    /// Die beiden Talent-Faktoren, die ZUR LAUFZEIT gebraucht werden (#419).
+    ///
+    /// Anders als `talent_permille`, das einmal beim Aufbau in die
+    /// Schadensfaktoren eingeht: Diese beiden wirken bei jedem
+    /// Ressourcen-Gewinn und bei jedem gesetzten Brand — sie muessen also im
+    /// Kampf stehen, nicht in der Konfiguration.
+    talent_resource_factor: f64,
+    talent_dot_duration_factor: f64,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
     cd_reduce_buffs: Buffs,
@@ -813,6 +837,9 @@ impl Fight {
             buffs: Buffs::new(),
             control_buffs: Buffs::new(),
             resource_buffs: Buffs::new(),
+            talent_resource_factor: 1.0 + f64::from(config.talent_resource_permille) / 1000.0,
+            talent_dot_duration_factor: 1.0
+                + f64::from(config.talent_dot_duration_permille) / 1000.0,
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
             cd_reduce_buffs: Buffs::new(),
@@ -3557,7 +3584,12 @@ impl Fight {
             // die Ticks dichter, nicht das Fenster kuerzer — sonst verschoebe
             // sich der beste Erneuerungszeitpunkt (7.2) bei jedem
             // Ausruestungswechsel.
-            self.dot_expires_at[index] = Some(now + dot.duration_ms);
+            // **Die Laufzeit traegt den Talent-Faktor** (#419, Weg „hold").
+            // Laenger heisst MEHR Ticks, nicht langsamere — den Abstand
+            // bewegt `tick_buffs` an anderer Stelle. Abgerundet, wie im Spiel:
+            // `Math.floor` und `as u32` sind hier dasselbe.
+            let dauer = (f64::from(dot.duration_ms) * self.talent_dot_duration_factor) as Millis;
+            self.dot_expires_at[index] = Some(now + dauer);
             let first = snap_up(now + self.dot_interval(&dot));
             self.queue.push(
                 first,
@@ -3671,7 +3703,16 @@ impl Fight {
         let amount = if amount == 0 {
             0
         } else {
-            (f64::from(amount) * self.resource_buffs.factor(self.time)).round() as u16
+            // **Zwei Faktoren, EINE Rundung** (#419). Der Buff ist ein
+            // zeitlich begrenztes Fenster (FLASHPOINT), der Talent-Faktor die
+            // dauerhafte Verteilung des Spielers. Zweimal nacheinander zu
+            // runden ergaebe bei 3 x 1,5 x 1,5 je nach Reihenfolge 6 oder 7 —
+            // und das Spiel muesste dieselbe Reihenfolge treffen. Dort steht
+            // dieselbe Zeile (`combat.ts`, `gainOfSpell`).
+            (f64::from(amount)
+                * self.resource_buffs.factor(self.time)
+                * self.talent_resource_factor)
+                .round() as u16
         };
         let before = self.resource;
         // **Die Grenze, wie sie JETZT gilt** (SLAG, Issue #490). Auf dieser

@@ -2511,6 +2511,24 @@ export interface TalentDef {
   readonly path: string;
   readonly maxRanks: number;
   readonly damagePerRankPerMille: number;
+  /**
+   * Promille je Rang auf den **Ressourcen-Gewinn** (Issue #419, Weg „build").
+   *
+   * Die zweite von drei Größen, die ein Talentweg bewegen kann. Bis #419
+   * trugen alle drei Wege `damagePerRankPerMille` — die Namen hielten die
+   * Absicht aus GAME-DESIGN 12.5 fest, die Wirkung war einheitlich. Damit war
+   * der Weg mit der höchsten Zahl immer die beste Wahl und die beiden anderen
+   * zwingend tot.
+   */
+  readonly resourceGainPerRankPerMille: number;
+  /**
+   * Promille je Rang auf die **Laufzeit** der Effekte über Zeit (Weg „hold").
+   *
+   * Die dritte Größe. Sie verlängert die Dauer, nicht den Abstand: Ein
+   * längerer Brand tickt ÖFTER, er tickt nicht langsamer. Das ist der
+   * Unterschied zu `BuffTarget.Tick`, der den Abstand teilt.
+   */
+  readonly dotDurationPerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
   /**
@@ -2563,6 +2581,23 @@ export const TALENTS: readonly TalentDef[] = (() => {
         );
       }
       const damagePerRankPerMille = number(t['damagePerRankPerMille'], 0);
+      // **Die beiden anderen Größen, mit derselben Auflage** (#419): kein
+      // negativer Wert. Ein Talent, das den Hitze-Gewinn SENKT oder die
+      // Laufzeit KÜRZT, ist keines — dieselbe Begründung wie beim Schaden
+      // eine Zeile weiter.
+      const resourceGainPerRankPerMille = number(t['resourceGainPerRankPerMille'], 0);
+      const dotDurationPerRankPerMille = number(t['dotDurationPerRankPerMille'], 0);
+      for (const [feld, wert] of [
+        ['resourceGainPerRankPerMille', resourceGainPerRankPerMille],
+        ['dotDurationPerRankPerMille', dotDurationPerRankPerMille],
+      ] as const) {
+        if (wert < 0) {
+          throw new Error(
+            `data/player/talents.json: "${id}" hat ${wert} Promille je Rang in ${feld}. ` +
+              'Ein Talent, das schwächer macht, ist keines.',
+          );
+        }
+      }
       if (damagePerRankPerMille < 0) {
         throw new Error(
           `data/player/talents.json: "${id}" hat ${damagePerRankPerMille} Promille je Rang. ` +
@@ -2585,6 +2620,8 @@ export const TALENTS: readonly TalentDef[] = (() => {
         path: typeof t['path'] === 'string' ? t['path'] : '',
         maxRanks,
         damagePerRankPerMille,
+        resourceGainPerRankPerMille,
+        dotDurationPerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
         keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });
