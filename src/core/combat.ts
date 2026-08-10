@@ -842,6 +842,34 @@ export class Combat {
    */
   private nextStrikeDelayMs = 0;
 
+  /**
+   * Ob der **nächste** Boss-Zauber unterbrechbar wird, auch wenn er es von
+   * Haus aus nicht ist (PIN, Issue #478).
+   *
+   * # Warum „der nächste" wörtlich zu nehmen ist
+   *
+   * Gelesen wird der Merker in `stepTimeline`, im Moment, in dem ein Eintrag
+   * **auslöst** — nicht während einer laufenden Wirkzeit. Wer ihn eine Zeile
+   * früher läse, machte den GERADE LAUFENDEN Zauber unterbrechbar; PIN
+   * befreite dann sich selbst statt den folgenden, und der Fall bliebe grün,
+   * weil ja etwas unterbrechbar wurde. Worker-2 hat genau diese Falle bei
+   * seinem Merker getroffen.
+   *
+   * **Dieselbe Bauart wie `nextStrikeDelayMs`** (STAY, Issue #100): ein Merker
+   * auf dem nächsten Zeitleisten-Eintrag, beim Auslösen verbraucht.
+   *
+   * # Warum eine ZEIT und kein Ja/Nein
+   *
+   * Ein `strike` trägt `castTimeMs: 0` — der Parser verlangt für
+   * `interruptibleCast` ausdrücklich mehr als null (`data.ts`). Ein Schlag,
+   * den PIN nur umetikettierte, wäre im selben Augenblick vorbei, in dem er
+   * beginnt: unterbrechbar auf dem Papier, nie unterbrechbar in der Hand.
+   * Also gibt PIN ihm ein Fenster, und dessen Länge steht in den DATEN.
+   *
+   * `0` heißt „kein Merker".
+   */
+  private pinWindowMsValue = 0;
+
   /** Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR). */
   private phaseHoldPercentValue = 0;
 
@@ -1786,6 +1814,18 @@ export class Combat {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
       this.nextStrikeDelayMs += control.amount;
+    }
+    if (control.effect === 'makeInterruptible') {
+      // **PIN** (Issue #478): Der nächste Boss-Zauber wird unterbrechbar, auch
+      // wenn er es nicht war. Damit verbindet sich die Schule mit QUENCH — wer
+      // unterbrechen kann, braucht etwas zum Unterbrechen.
+      //
+      // **NICHT gegen den laufenden.** Der Merker wird erst gelesen, wenn der
+      // nächste Eintrag auslöst; ein `castingValue >= 0` wie bei `slowCast`
+      // wäre hier falsch. Ein Zauber, der schon läuft, ist entweder ohnehin
+      // unterbrechbar oder trifft sofort — in beiden Fällen kommt PIN zu spät,
+      // und das ist die Entscheidung, die er dem Spieler abverlangt.
+      this.pinWindowMsValue = control.amount;
     }
     if (control.effect === 'convertToDamage') {
       // **Der Notausgang** (Issue #478, WEDGE): Gegen einen Boss ohne
@@ -3387,7 +3427,19 @@ export class Combat {
       // Zeitpunkt an (STAY, Issue #100).
       this.nextStrikeDelayMs = 0;
       this.timelineIndexValue++;
-      if (eintrag.mechanic === 'interruptibleCast') {
+      // **PIN wird HIER gelesen und HIER verbraucht** (Issue #478) — im
+      // Auslöse-Moment des Eintrags, nicht während einer laufenden Wirkzeit.
+      // Eine Zeile früher gelesen, machte er den gerade laufenden Zauber
+      // unterbrechbar: PIN befreite sich selbst statt den nächsten, und der
+      // Fall bliebe GRÜN, weil ja etwas unterbrechbar wurde.
+      //
+      // Verbraucht wird er unabhängig davon, ob er etwas bewirkt hat. Traf er
+      // einen Eintrag, der ohnehin unterbrechbar ist, ist er verpufft — das
+      // ist die Entscheidung, die der Zauber dem Spieler abverlangt, und
+      // keine Buchhaltung, die ihn davor bewahrt.
+      const pinFenster = this.pinWindowMsValue;
+      this.pinWindowMsValue = 0;
+      if (eintrag.mechanic === 'interruptibleCast' || pinFenster > 0) {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
@@ -3399,7 +3451,15 @@ export class Combat {
         // Mit jedem Zyklus schrumpft das Fenster zum Unterbrechen. Die
         // Verkuerzung steht in den DATEN — sonst waere sie eine Regel des
         // Spiels statt eine Eigenschaft dieses Bosses.
-        this.castLandsAtMsValue = faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index);
+        // **Das Fenster von PIN gilt nur für einen Eintrag, der KEINES hat.**
+        // Traf er einen ohnehin unterbrechbaren, bleibt dessen eigene Wirkzeit
+        // samt Eskalation stehen — PIN darf einen schrumpfenden Zauber nicht
+        // heimlich wieder verlängern (#240: die Verkürzung ist eine Eigenschaft
+        // des Bosses, keine Regel des Spiels).
+        this.castLandsAtMsValue =
+          eintrag.mechanic === 'interruptibleCast'
+            ? faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index)
+            : faelligAtMs + pinFenster;
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
@@ -4468,6 +4528,9 @@ export class Combat {
     this.nextRunawayAtMs = this.boss.runaway?.perStepMs ?? 0;
     this.nextAfflictionAtMs = 0;
     this.nextStrikeDelayMs = 0;
+    // PIN (#478) — ein Merker, der einen Kampf überlebte, machte im nächsten
+    // einen Zauber unterbrechbar, den niemand dafür bezahlt hat.
+    this.pinWindowMsValue = 0;
 
     this.playerHpValue = this.vesselMax;
     this.diedAtMsValue = -1;

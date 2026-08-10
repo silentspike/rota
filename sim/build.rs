@@ -1839,10 +1839,15 @@ fn emit_fixation(out: &mut String, spell: &Value, whose: &str) {
                 // CAPSTONE loest alle drei bisherigen auf einmal aus.
                 "convertToDamage" => ("ControlEffect::ConvertToDamage", "amountPerPoint"),
                 "allThree" => ("ControlEffect::AllThree", "amountMs"),
+                // PIN (Issue #478): amountMs ist hier die FENSTERLAENGE, mit
+                // der ein Schlag ohne Wirkzeit unterbrechbar wird — nicht eine
+                // Verzoegerung wie bei delayStrike. Dasselbe Feld, andere
+                // Bedeutung; deshalb steht der Grund im Zauber-Kommentar.
+                "makeInterruptible" => ("ControlEffect::MakeInterruptible", "amountMs"),
                 other => panic!(
                     "{whose}: unbekannte Wirkung {other:?}. Bekannt sind \
                      \"slowCast\", \"delayStrike\", \"holdPhase\", \
-                     \"convertToDamage\" und \"allThree\"."
+                     \"convertToDamage\", \"allThree\" und \"makeInterruptible\"."
                 ),
             };
             let amount = uint(node, feld, &whose);

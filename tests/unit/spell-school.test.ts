@@ -102,6 +102,9 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'latch',
       // Issue #540 — GRIPLOCK, bei seiner Schule.
       'griplock',
+      // Issue #478 — PIN, am ENDE von `fixation.json`. Er schiebt damit alle
+      // folgenden Schulen um einen Index; jede Aufzeichnung wird neu erzeugt.
+      'pin',
       'vapour',
       'reflux',
       'wisp',
