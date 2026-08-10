@@ -47,7 +47,7 @@ type Talent = {
   requires: string | null;
   keystone?: string;
 };
-type Baum = { id: string; school: string; talents: Talent[] };
+type Baum = { id: string; school: string; paths: string[]; talents: Talent[] };
 
 const BAEUME = (rawTalents as { trees: Baum[] }).trees;
 
@@ -74,7 +74,7 @@ describe('AC1 — alle sechs Bäume, je Stamm und drei Wege', () => {
     // | Datenlage | Namensprüfung | diese Prüfung |
     // | --- | --- | --- |
     // | ein Weg fehlt (`hold` weg) | rot | **rot** |
-    // | ein Weg VERTIPPT (`hold` → `hodl`) | rot | **grün** ← Verlust |
+    // | ein Weg VERTIPPT (`hold` → `hodl`) | rot | **rot** |
     // | ein Talent mehr auf einem Weg | grün | grün — es ist das Keystone-Muster |
     //
     // **Alle drei Zeilen sind gemessen, nicht angenommen** — und zwei davon
@@ -104,21 +104,39 @@ describe('AC1 — alle sechs Bäume, je Stamm und drei Wege', () => {
         pfade.filter((p) => p === 'trunk'),
         `${baum.school} hat mehr als einen Stamm`,
       ).toEqual(['trunk']);
-      // **Drei VERSCHIEDENE Wege — die Talentzahl bleibt offen.**
+      // **Die DEKLARATION gegen die VERWENDUNG**, in beide Richtungen.
       //
-      // Nicht `wege.length === 3`: Das Schlüsseltalent liegt AUF einem Weg,
-      // nicht daneben (`calcination-keystone` trägt `path: 'release'`), genau
-      // wie 12.5 es beschreibt — „Am Ende jedes Weges ein Schlüsseltalent".
-      // Eine Prüfung auf die Talentzahl verböte damit CALCINATION.
+      // Der Baum sagt in `paths`, welche Wege er hat; die Talente sagen mit
+      // `path`, welchen sie belegen. Zwei Stellen, die übereinstimmen müssen —
+      // ein Tippfehler steht nur an einer davon.
       //
-      // Deshalb ist dieser Fall beim „doppelten Weg" bewusst still: Zwei
-      // Talente mit demselben `path` sind einmal ein Fehler und einmal die
-      // Bauart, und kein Kriterium auf `path` allein trennt sie.
-      const wege = new Set(pfade.filter((p) => p !== 'trunk'));
+      // Ohne `paths` gab es diese zweite Stelle nicht: Die Wege entstanden als
+      // Nebenwirkung daraus, welche Zeichenketten in den Talenten vorkommen.
+      // Deshalb war ein vertippter Weg von einem neuen nicht zu unterscheiden.
+      expect(baum.paths[0], `${baum.school}: der erste Weg ist nicht der Stamm`).toBe('trunk');
       expect(
-        wege.size,
-        `${baum.school} hat ${wege.size} verschiedene Wege statt drei: ${[...wege].join(', ')}`,
-      ).toBe(3);
+        baum.paths.length,
+        `${baum.school} deklariert ${baum.paths.length} Wege statt vier (Stamm + drei)`,
+      ).toBe(4);
+      expect(
+        new Set(baum.paths).size,
+        `${baum.school} deklariert einen Weg doppelt: ${baum.paths.join(', ')}`,
+      ).toBe(4);
+      // Richtung 1 — jeder DEKLARIERTE Weg hat mindestens ein Talent.
+      for (const weg of baum.paths) {
+        expect(pfade, `${baum.school}: der Weg "${weg}" hat kein Talent`).toContain(weg);
+      }
+      // Richtung 2 — jedes Talent liegt auf einem deklarierten Weg.
+      //
+      // **Das ist der Gewinn gegenüber der alten Namensprüfung.** Ein
+      // vertippter `path` steht nicht in `paths` und fällt hier auf; vorher
+      // war er ein gültiger dritter Weg.
+      for (const t of baum.talents) {
+        expect(
+          baum.paths,
+          `${baum.school}/${t.id} liegt auf "${t.path}" — nicht deklariert`,
+        ).toContain(t.path);
+      }
     }
   });
 
