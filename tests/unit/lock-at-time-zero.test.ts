@@ -95,7 +95,8 @@ describe('AC1/AC2 — setTalents ist im Kampf ab Zeit 0 gesperrt', () => {
     const combat = imKampfAbZeitNull();
     const vorher = schadenEinesWirkens(combat, 0);
 
-    combat.setTalents({ 'calcination-build': 3 });
+    // `release` trägt den Schaden — siehe die Begründung im zweiten Fall.
+    combat.setTalents({ 'calcination-release': 3 });
 
     expect(
       schadenEinesWirkens(combat, 1500),
@@ -109,7 +110,11 @@ describe('AC1/AC2 — setTalents ist im Kampf ab Zeit 0 gesperrt', () => {
     const vorher = schadenEinesWirkens(ohne, 0);
 
     const mit = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
-    mit.setTalents({ 'calcination-build': 3 }); // VOR beginFight
+    // **`release`, nicht `build`** (seit #419): Dieser Fall misst den
+    // Schaden eines Wirkens. Seit die drei Wege verschiedene Größen bewegen,
+    // ändert `build` den Hitze-Gewinn und lässt den Schaden unberührt — der
+    // Fall wurde rot und hat damit die Umstellung selbst gemeldet.
+    mit.setTalents({ 'calcination-release': 3 }); // VOR beginFight
     mit.beginFight(0);
 
     expect(schadenEinesWirkens(mit, 0)).not.toBe(vorher);

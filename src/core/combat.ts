@@ -59,6 +59,8 @@ import {
   KEYSTONE_SPLIT_SPENDER,
   NO_TALENTS,
   talentFactor,
+  talentResourceFactor,
+  talentDotDurationFactor,
   type TalentAllocation,
 } from '../progression/talents.js';
 
@@ -4113,7 +4115,14 @@ export class Combat {
       // **Die Dauer bleibt unangetastet** (GAME-DESIGN 6.7). Tempo macht die
       // Ticks dichter, nicht das Fenster kürzer — sonst verschöbe sich der
       // beste Erneuerungszeitpunkt (7.2) bei jedem Ausrüstungswechsel.
-      this.dotExpiresAtMs[index] = timeMs + dot.durationMs;
+      // **Die Laufzeit trägt den Talent-Faktor** (#419, Weg „hold"). Länger
+      // heißt MEHR Ticks, nicht langsamere — der Abstand bleibt unberührt,
+      // den bewegt `tickBuffs` an anderer Stelle.
+      //
+      // Ganzzahlig abgerundet: Eine Laufzeit ist eine Zeit auf dem Takt-Raster,
+      // und `Math.floor` hat in Rust eine exakte Entsprechung.
+      this.dotExpiresAtMs[index] =
+        timeMs + Math.floor(dot.durationMs * talentDotDurationFactor(this.talents));
       this.dotNextTickAtMs[index] = timeMs + this.dotInterval(dot);
     }
 
@@ -4212,7 +4221,18 @@ export class Combat {
     const roh = this.spells[spellIndex]?.resourceGain?.[resourceId] ?? 0;
     // **Der Faktor aus `resourceBuffs`** (Issue #489, FLASHPOINT). Ganzzahlig,
     // wie der Vorrat selbst.
-    return roh === 0 ? 0 : Math.round(roh * this.resourceBuffs.factor(this.nowMsForBuffs));
+    if (roh === 0) return 0;
+    // **Zwei Faktoren, und sie kommen aus verschiedenen Welten** (#419).
+    // `resourceBuffs` ist ein zeitlich begrenztes Fenster aus einem Zauber
+    // (FLASHPOINT); `talentResourceFactor` ist die dauerhafte Verteilung des
+    // Spielers. Sie multiplizieren sich, wie alle Faktoren dieses Spiels.
+    //
+    // **Einmal gerundet, nicht zweimal.** Zwei Rundungen nacheinander ergeben
+    // bei 3 × 1,5 × 1,5 je nach Reihenfolge 6 oder 7 — und der Simulator
+    // müsste dieselbe Reihenfolge treffen. Ein Produkt, eine Rundung.
+    const faktor =
+      this.resourceBuffs.factor(this.nowMsForBuffs) * talentResourceFactor(this.talents);
+    return Math.round(roh * faktor);
   }
 
   /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
