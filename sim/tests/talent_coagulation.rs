@@ -153,7 +153,7 @@ fn der_weg_longer_laesst_die_schicht_laenger_halten() {
 }
 
 #[test]
-fn die_wege_bewegen_VERSCHIEDENE_groessen() {
+fn die_wege_bewegen_verschiedene_groessen() {
     // Die Kreuzprobe: `thicker` darf die Lagenzahl nicht heben, `stacks` nicht
     // die Dicke je Lage. Wer beide auf dieselbe Groesse legte, kaeme hier
     // durch — ohne diesen Fall.
