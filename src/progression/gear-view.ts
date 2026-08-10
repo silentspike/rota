@@ -39,6 +39,7 @@
  * Alle Spieltexte englisch (Design-Gesetz 5).
  */
 import { itemById, type OwnedItemLike } from '../gear/catalog.js';
+import { effectiveLevelOf, instanceQualityOf } from '../gear/instance.js';
 import { compareBagItem } from '../loot/estimate.js';
 import { equippedBySlot } from '../gear/equip.js';
 import { SLOT_COUNT, SLOT_NAMES } from '../gear/slots.js';
@@ -74,8 +75,17 @@ export function itemLabel(item: OwnedItemLike): string {
   const def = itemById(item.itemId);
   if (def === undefined) return `${item.itemId} (unknown)`;
   const stufe = item.upgradeSteps > 0 ? ` +${item.upgradeSteps}` : '';
-  const qualitaet = QUALITY_NAMES[def.quality] ?? 'common';
-  return `${def.name}${stufe} · ilvl ${def.itemLevel} · ${qualitaet}`;
+  // **Die Zahl DIESES Stücks, nicht die der Vorlage** (Issue #480). Solange
+  // `wornFrom` ebenfalls mit `def.itemLevel` rechnete, war `def` hier richtig —
+  // beide waren gemeinsam falsch, und der Widerspruch fiel nicht auf. Seit die
+  // Rechnung Fundstufe und Aufwertung berücksichtigt, zeigte diese Zeile
+  // „ilvl 40" auf einem Stück, das wie Stufe 85 rechnet.
+  //
+  // Eine Anzeige, die der Rechnung widerspricht, ist schlimmer als eine, die
+  // fehlt: Der Spieler vergleicht zwei Stücke an einer Zahl, die nicht die ist,
+  // nach der sie wirken.
+  const qualitaet = QUALITY_NAMES[instanceQualityOf(item, def.quality)] ?? 'common';
+  return `${def.name}${stufe} · ilvl ${effectiveLevelOf(item, def.itemLevel)} · ${qualitaet}`;
 }
 
 export interface GearViewOptions {
