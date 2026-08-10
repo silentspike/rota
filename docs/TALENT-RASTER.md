@@ -1,4 +1,4 @@
-# Das Talent-Raster — zwölf Wege, alle entschieden
+# Das Talent-Raster — fünfzehn Wege beschrieben, achtzehn gebaut
 
 > **Zweck:** Dieses Dokument hält fest, **welche Größe** jeder Talentweg bewegt und **wo** sie
 > steht. Ohne es entsteht bei jedem Bau dieselbe Frage neu, und sie wurde bereits dreimal
@@ -17,15 +17,46 @@
 > | Struktur je Schul-Baum | Gemeinsamer Stamm → drei Wege
 > (bei CALCINATION etwa: schneller aufbauen / stärker entladen / länger halten) |
 
-Das „etwa" ist kein Füllwort. **Neun der zwölf Wege stehen nirgends im Design** — sie sind hier
-entschieden worden, nicht dort nachgelesen. Wer sie ändern will, ändert dieses Dokument, nicht
-`GAME-DESIGN.md`.
+Das „etwa" ist kein Füllwort. **Nur die drei von CALCINATION stehen im Design** — alle übrigen
+sind hier entschieden worden, nicht dort nachgelesen. Wer sie ändern will, ändert dieses Dokument,
+nicht `GAME-DESIGN.md`.
+
+> Hier stand „neun der zwölf". Die Zahl folgte der Überschrift, und beide waren gealtert: Die
+> Tabelle unten führt fünfzehn Wege, gebaut sind achtzehn. **Die Aussage selbst bleibt richtig** —
+> was aus dem Design stammt, sind drei; alles andere ist Auslegung. Nur ihr Bezug war falsch.
 
 Und `GAME-DESIGN.md:176` nennt für COAGULATION ebenfalls „drei Wege", meint dort aber die drei
 **Mechaniken** (shield, heal, conversion). Dieselbe Zeichenkette, zwei Bedeutungen — die Quelle
 mehrerer Fehlgriffe.
 
-## Die zwölf Wege
+## Die Wege — fünfzehn hier beschrieben, achtzehn gebaut
+
+> ### ⚠ Diese Überschrift hieß „Die zwölf Wege" und stimmte dreifach nicht
+>
+> Gemessen am 2026-08-11 an `data/player/talents.json`:
+>
+> ```text
+>   CALCINATION    trunk build release hold  (+ Schlüsseltalent)
+>   FIXATION       trunk build cost effect
+>   SUBLIMATION    trunk build release hold
+>   COAGULATION    trunk thicker longer stacks
+>   PUTREFACTION   trunk build effect duration
+>   GLOBAL         trunk build release hold
+> ```
+>
+> |                            |                                    |
+> | -------------------------- | ---------------------------------- |
+> | Überschrift sagte          | zwölf                              |
+> | die Tabelle darunter führt | **fünfzehn** — fünf Schulen à drei |
+> | gebaut sind                | **achtzehn** — sechs Bäume à drei  |
+>
+> **Die Überschrift stimmte nicht einmal mit ihrer eigenen Tabelle überein.** Die zwölf stammten
+> aus der Zeit, als SUBLIMATION noch fehlte; die Tabelle wuchs, die Zahl darüber nicht.
+>
+> **Der GLOBAL-Baum fehlt hier weiterhin ganz** — nicht aus Versehen, sondern weil dieses Dokument
+> die Wege je **Schule** beschreibt und GLOBAL keine ist. Er trägt trotzdem dieselben drei Wege,
+> und wer „achtzehn" mit „fünfzehn beschriebenen" verwechselt, sucht drei Zeilen, die es hier nie
+> gab.
 
 | Schule           | Weg         | Größe                                    |    TS |  Rust | Prüfsumme     |
 | ---------------- | ----------- | ---------------------------------------- | ----: | ----: | ------------- |
@@ -45,8 +76,13 @@ mehrerer Fehlgriffe.
 |                  | Rücksetzer  | `cooldownResetCharges`                   |     ? |     ? | keine neue    |
 |                  | Schwelle    | `cooldownReductionBelowMs`               |     ? |     ? | keine neue    |
 
-**Keiner der zwölf Wege braucht eine neue Prüfsummen-Zeile.** Gemessen: Alle bewegen Größen, die
-bereits in beiden Prüfsummen stehen.
+**Keiner der hier beschriebenen fünfzehn Wege braucht eine neue Prüfsummen-Zeile.** Gemessen: Alle
+bewegen Größen, die bereits in beiden Prüfsummen stehen.
+
+> **Für GLOBAL ist das nicht gemessen.** Der Baum steht nicht in der Tabelle, und seine drei Wege
+> tragen heute alle `damagePerRankPerMille` — denselben Topf wie der Stamm. Solange das so ist,
+> braucht auch er keine neue Zeile; sobald jemand ihm eigene Größen gibt, gehört die Frage neu
+> gestellt.
 
 ## Zwei Wege sind schon gebaut — nur der Schalter davor fehlt
 
@@ -123,8 +159,16 @@ der sie referenziert, existiert noch nicht.
 
 ## Was noch offen ist
 
-- **SUBLIMATIONs drei Wege.** In Arbeit — sie waren **nie blockiert**, und die gegenteilige Aussage
-  in diesem Dokument war zwei Stunden lang falsch. Sechs der zwölf Zauber tragen Zahlen:
+- **SUBLIMATIONs drei Wege — die STRUKTUR steht, die WIRKUNG nicht.** Gemessen am 2026-08-11:
+  Der Baum trägt `trunk/build/release/hold`, und alle vier bewegen `damagePerRankPerMille` — denselben
+  Topf. Dasselbe gilt für GLOBAL.
+
+  Das ist genau die Trennung, die dieses Dokument sonst macht (Struktur #721, Wirkung #723): Wer
+  „die Wege sind gebaut" liest, hält die vier Plätze für vier Entscheidungen. Sie sind heute
+  vier Wege zu derselben Zahl.
+
+  Sie waren **nie blockiert**, und die gegenteilige Aussage in diesem Dokument war zwei Stunden
+  lang falsch. Sechs der zwölf Zauber tragen Zahlen:
 
   ```
   cooldownReductionMs        vapour 1000 · wisp 500 · decant 2000 · ascend 10000
