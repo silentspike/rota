@@ -236,6 +236,16 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     //     einsetzt. Die Woerter aus DISTILs Zeile duerfen nicht wiederkehren:
     //     kein "verdichten", kein "Zusammenziehen".
     'aether',
+    // VORLAEUFIG (Issue #480): SUBLIME ist gebaut, sein Klang fehlt. Er
+    // entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung entstehen.
+    //
+    //   sublime     | der naechste Wurf kostet keine Wartezeit | ~0,4 s
+    //     gegen AETHER (0,9 s, "offenhalten, getragen und luftig") und DISTIL
+    //     (0,6 s, "verdichten, ein Zusammenziehen"). SUBLIME ist kuerzer als
+    //     beide und tut etwas Drittes: ein AUSLASSEN. Kein Aufbau, kein
+    //     Zusammenziehen — eine Luecke, ein uebersprungener Schlag. Die
+    //     Woerter der beiden duerfen nicht wiederkehren.
+    'sublime',
     // VORLAEUFIG (Issue #520): EFFLUX ist gebaut, sein Klang fehlt. Der
     // Bedarf ist als Zeile gemeldet; die .ogg entsteht ueber Suno (#487).
     //

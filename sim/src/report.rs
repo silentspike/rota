@@ -188,6 +188,21 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         || spell.dot_extend_ticks > 0
         || spell.extend_shield_ms > 0
         || spell.extend_decay_ms > 0
+        // **Der Merker-Zauber** (Issue #480, SUBLIME). Er befreit den naechsten
+        // Wurf von der globalen Wartezeit — er spart also ZEIT wie VAPOUR und
+        // REFLUX zwei Bloecke weiter oben, nur an einer anderen Uhr.
+        //
+        // Er ist der erste seiner Art, und damit wiederholt sich, was der
+        // Block darueber ueber die Verlaengerer festhaelt: **Die Liste nennt
+        // Merkmale, nicht Zauber.** Wer ein neues Merkmal baut, dessen Zauber
+        // faellt durch die ganze Liste und landet in der Tabelle — dauerhaft
+        // als "TOT", weil er nie Schaden macht.
+        //
+        // Aufgefallen ist es hier genauso wie bei #517: `tests/report.rs` fiel
+        // beim Einbau um und nannte `["sublime"]`. Die vier Merker-Zauber, die
+        // ihm folgen sollen (CONDENSE, RETORT, PUTRID BLOOM, DECAY), sind
+        // davon mitgedeckt — sie tragen dasselbe Feld.
+        || spell.frees_next_gcd
 }
 
 /// Beitrag und Häufigkeit jedes Zaubers.

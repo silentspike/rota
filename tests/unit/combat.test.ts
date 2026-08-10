@@ -121,6 +121,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       // Zaubern der Zersetzung. Die Stelle ist nicht gewählt, sondern folgt
       // aus der Ladereihenfolge der Schuldateien.
       'aether',
+      // Issue #480 — SUBLIME, hinter AETHER in derselben Schuldatei.
+      'sublime',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',

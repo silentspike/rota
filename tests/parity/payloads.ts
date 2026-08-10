@@ -345,6 +345,20 @@ export const WISP_NAME = 'wisp-verkuerzung';
 export const AETHER_NAME = 'aether-fenster';
 
 /**
+ * SUBLIMEs Merker über zwei Würfen (Issue #480).
+ *
+ * **Warum zwei Schadenszauber im Wechsel und nicht einer.** Ein freier GCD
+ * nützt nur, wenn ein Zauber bereit ist, den man werfen könnte. Gemessen mit
+ * KINDLE allein (1500 ms Abklingzeit, genau die GCD-Länge): `freesNextGcd`
+ * auf `true` und `false` ergaben beide 1500 Schaden — die Wirkung hatte
+ * keinen Platz.
+ *
+ * Mit WISP und DECANT daneben, die ebenfalls Schaden tragen und eigene
+ * Abklingzeiten haben, wird der geschenkte Wurf sichtbar: 1520 gegen 1500.
+ */
+export const SUBLIME_NAME = 'sublime-merker';
+
+/**
  * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
  *
  * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
@@ -3164,6 +3178,81 @@ export function aetherPayload(): Record<string, unknown> {
        */
       aetherCasts: combat.castCount(alsSpellIndex(aether)),
       wispCasts: combat.castCount(alsSpellIndex(wisp)),
+    },
+  };
+}
+
+const SUBLIME_BINDINGS = [
+  { slot: 0, spellId: 'sublime' },
+  { slot: 1, spellId: 'kindle' },
+  { slot: 2, spellId: 'wisp' },
+  { slot: 3, spellId: 'decant' },
+] as const;
+
+export function sublimePayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const sublime = combat.indexOf('sublime');
+  const ticks = 3000; // 30 s
+
+  const slots = slotMap(combat, SUBLIME_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Ob der Merker in diesem Takt stand — die Größe, um die es geht. */
+  const merker: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // SUBLIME zuerst, danach die drei Schadenszauber in fester Folge. Der
+    // geschenkte Wurf fällt auf den, der gerade bereit ist.
+    let gewaehlt = -1;
+    for (const name of ['sublime', 'kindle', 'wisp', 'decant']) {
+      const i = combat.indexOf(name);
+      if (i >= 0 && combat.isReady(alsSpellIndex(i), timeMs)) {
+        gewaehlt = i;
+        break;
+      }
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    // **Nach dem Wurf**, wie bei jeder Aufzeichnung: Die Rust-Seite nimmt die
+    // Prüfsumme am Ende des Taktes.
+    merker.push(combat.nextCastFreeGcd ? 1 : 0);
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: SUBLIME_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: SUBLIME_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    merker,
+    expected: {
+      /**
+       * **Die Größe, die SUBLIME bewegt.** Mit `freesNextGcd` fällt ein Wurf
+       * mehr in dieselbe Zeit — gemessen 1520 gegen 1500. Nicht die
+       * Prüfsumme: Die änderte sich auch, wenn der Merker nur gesetzt und nie
+       * verbraucht würde.
+       */
+      damageDealt: combat.damageDealt,
+      /**
+       * Die Zusicherung, dass der Lauf SUBLIME überhaupt wirft. Steht hier
+       * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
+       */
+      sublimeCasts: combat.castCount(alsSpellIndex(sublime)),
+      /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
+      merkerTakte: merker.reduce((a, b) => a + b, 0),
     },
   };
 }
