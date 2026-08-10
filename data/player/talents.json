@@ -49,6 +49,196 @@
           "keystone": "split-spender"
         }
       ]
+    },
+    {
+      "id": "fixation",
+      "school": "FIXATION",
+      "talents": [
+        {
+          "id": "fixation-trunk",
+          "name": "Fixed Point",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "fixation-build",
+          "name": "Deeper Reserve",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "fixation-trunk"
+        },
+        {
+          "id": "fixation-release",
+          "name": "Sharper Spending",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "fixation-trunk"
+        },
+        {
+          "id": "fixation-hold",
+          "name": "Longer Grip",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "fixation-trunk"
+        }
+      ]
+    },
+    {
+      "id": "sublimation",
+      "school": "SUBLIMATION",
+      "talents": [
+        {
+          "id": "sublimation-trunk",
+          "name": "Rising Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "sublimation-build",
+          "name": "Steeper Ascent",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "sublimation-trunk"
+        },
+        {
+          "id": "sublimation-release",
+          "name": "Cleaner Reset",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "sublimation-trunk"
+        },
+        {
+          "id": "sublimation-hold",
+          "name": "Wider Draw",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "sublimation-trunk"
+        }
+      ]
+    },
+    {
+      "id": "coagulation",
+      "school": "COAGULATION",
+      "talents": [
+        {
+          "id": "coagulation-trunk",
+          "name": "Set Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "coagulation-build",
+          "name": "Thicker Crust",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "coagulation-trunk"
+        },
+        {
+          "id": "coagulation-release",
+          "name": "Deeper Mending",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "coagulation-trunk"
+        },
+        {
+          "id": "coagulation-hold",
+          "name": "Richer Conversion",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "coagulation-trunk"
+        }
+      ]
+    },
+    {
+      "id": "putrefaction",
+      "school": "PUTREFACTION",
+      "talents": [
+        {
+          "id": "putrefaction-trunk",
+          "name": "Rotten Core",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "putrefaction-build",
+          "name": "Faster Decay",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "putrefaction-trunk"
+        },
+        {
+          "id": "putrefaction-release",
+          "name": "Heavier Stacks",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "putrefaction-trunk"
+        },
+        {
+          "id": "putrefaction-hold",
+          "name": "Slower Falloff",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "putrefaction-trunk"
+        }
+      ]
+    },
+    {
+      "id": "global",
+      "school": "GLOBAL",
+      "talents": [
+        {
+          "id": "global-trunk",
+          "name": "Adept",
+          "path": "trunk",
+          "maxRanks": 3,
+          "damagePerRankPerMille": 20,
+          "requires": null
+        },
+        {
+          "id": "global-build",
+          "name": "Greater Catalysis",
+          "path": "build",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "global-trunk"
+        },
+        {
+          "id": "global-release",
+          "name": "Greater Purity",
+          "path": "release",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "global-trunk"
+        },
+        {
+          "id": "global-hold",
+          "name": "Greater Vessel",
+          "path": "hold",
+          "maxRanks": 5,
+          "damagePerRankPerMille": 15,
+          "requires": "global-trunk"
+        }
+      ]
     }
   ]
 }
