@@ -1226,6 +1226,7 @@ impl Fight {
         let mut doom_charges = Vec::with_capacity(checksums.capacity());
         let mut stacks_trace = Vec::with_capacity(checksums.capacity());
         let mut afflicted_trace = Vec::with_capacity(checksums.capacity());
+        let mut reset_charges_trace = Vec::with_capacity(checksums.capacity());
         let mut cast_lands_trace: Vec<i64> = Vec::with_capacity(checksums.capacity());
         let mut timeline_index = Vec::with_capacity(checksums.capacity());
         let mut player_hp = Vec::with_capacity(checksums.capacity());
@@ -1273,6 +1274,7 @@ impl Fight {
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
                     afflicted_trace.push(u32::from(self.afflicted));
+                    reset_charges_trace.push(u32::from(self.reset_mode.charges_left()));
                     cast_lands_trace
                         .push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
                 }
@@ -1295,6 +1297,7 @@ impl Fight {
                     player_hp.push(self.player_hp);
                     shield_spur.push(self.shield);
                     afflicted_trace.push(u32::from(self.afflicted));
+                    reset_charges_trace.push(u32::from(self.reset_mode.charges_left()));
                     cast_lands_trace
                         .push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
                 }
@@ -1389,6 +1392,7 @@ impl Fight {
                 player_hp.push(self.player_hp);
                 shield_spur.push(self.shield);
                 afflicted_trace.push(u32::from(self.afflicted));
+                reset_charges_trace.push(u32::from(self.reset_mode.charges_left()));
                 cast_lands_trace.push(self.casting.map_or(-1, |_| i64::from(self.cast_lands_at)));
             }
         }
@@ -1431,6 +1435,7 @@ impl Fight {
             damage_by_spell: self.damage_by_spell,
             shield: shield_spur,
             afflicted: afflicted_trace,
+            reset_charges_left: reset_charges_trace,
             cast_lands_at: cast_lands_trace,
             afflictions_cleared: self.afflictions_cleared,
             cycle: self.cycle(),
