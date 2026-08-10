@@ -168,7 +168,7 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   h = mixNamedInt(h, 'nextCastDoubles', combat.nextCastDoubles ? 1 : 0);
   // Der dritte Merker, neben den zwei anderen (RETORT, #480). Als
   // Millisekunden-Zahl statt Ja/Nein — die Begründung steht am Feld.
-  h = mixNamedInt(h, 'interruptedGcdMs', combat.interruptedGcdMs);
+  h = mixNamedInt(h, 'retortArmed', combat.retortArmed ? 1 : 0);
   // **Angehängt, nicht eingeschoben** (Issue #100). Ohne den Kontroll-Vorrat
   // wäre die Prüfsumme für jeden Kampf mit Fixierung blind, und die gesenkte
   // Phasen-Schwelle entscheidet über jeden künftigen Wechsel.

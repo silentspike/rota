@@ -5552,11 +5552,8 @@ export function retortPayload(): Record<string, unknown> {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
 
-    // **Der Merker VOR dem Wurf.** RETORT verbraucht ihn im selben Takt, in
-    // dem er gesetzt wurde — wer danach misst, sieht überall null und hält
-    // einen wirkenden Zauber für tot. Gemessen: `merkerTakte` stand auf null,
-    // während `retortCasts` bereits eins war.
-    merker.push(combat.interruptedGcdMs);
+    // Die Rüstung je Takt — die Größe, um die es geht.
+    merker.push(combat.retortArmed ? 1 : 0);
 
     let gewaehlt = -1;
     // **In den Abbruch hinein — aber nur, wenn er auch geworfen werden kann.**
@@ -5589,8 +5586,8 @@ export function retortPayload(): Record<string, unknown> {
       combat.isReady(alsSpellIndex(testCast), timeMs)
     ) {
       gewaehlt = testCast;
-    } else if (combat.interruptedGcdMs > 0 && combat.isReady(alsSpellIndex(retort), timeMs)) {
-      // Sobald etwas zu erstatten ist.
+    } else if (!combat.retortArmed && combat.isReady(alsSpellIndex(retort), timeMs)) {
+      // **Erst rüsten, dann in den Abbruch** — die Bauart ist präventiv.
       gewaehlt = retort;
     } else if (combat.isReady(alsSpellIndex(kindle), timeMs) && (timeMs < 7100 || timeMs > 9600)) {
       // Und die gesparte Zeit sichtbar machen.
@@ -5653,12 +5650,22 @@ export function retortPayload(): Record<string, unknown> {
       /** Die Zusicherung, dass der Lauf RETORT überhaupt wirft. */
       retortCasts: combat.castCount(alsSpellIndex(retort)),
       /**
-       * Wie viele Takte lang ein Betrag offen stand. Null hiesse: Es gab
-       * keinen Boss-Abbruch, und der Fall misst eine Runde ohne die Sache.
+       * Wie viele Takte lang die Rüstung stand. Null hiesse: RETORT wurde
+       * geworfen und sie verschwand sofort — dann misst der Fall nichts.
        */
       merkerTakte: merker.filter((m) => m > 0).length,
-      /** Der höchste gemerkte Betrag — bei 9000 ms Abbruch sind es 500. */
-      merkerMax: Math.max(...merker),
+      /**
+       * **Wie oft die Rüstung eingelöst wurde** — gezählt an den Flanken, an
+       * denen sie von 1 auf 0 fällt.
+       *
+       * Das ist der Beleg, der zählt. „Steht am Ende" sagt nichts: RETORT
+       * rüstet nach dem Verbrauch erneut, und eine Rüstung, die NIE
+       * eingelöst wird, wäre von einer wirkungslosen nicht zu unterscheiden.
+       */
+      einloesungen: merker.reduce(
+        (summe, jetzt, i) => (i > 0 && merker[i - 1] === 1 && jetzt === 0 ? summe + 1 : summe),
+        0,
+      ),
     },
   };
 }

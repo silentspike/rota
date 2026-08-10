@@ -80,6 +80,20 @@ fn ac0_der_lauf_wirft_retort_und_setzt_den_merker() {
         .expect("merkerTakte fehlt");
     assert!(
         takte > 0,
+        "die Rüstung stand in keinem einzigen Takt — dann misst der Fall eine \
+         Runde, in der RETORT nichts bewirkt hat"
+    );
+
+    let eingeloest = json["expected"]["einloesungen"]
+        .as_u64()
+        .expect("einloesungen fehlt");
+    assert!(
+        eingeloest > 0,
+        "die Rüstung wurde nie eingelöst — dann belegt der Lauf nur, dass \
+         RETORT rüstet, nicht dass sie beim Boss-Abbruch greift"
+    );
+    assert!(
+        takte > 0,
         "der Merker stand in keinem einzigen Takt — dann ist er nie gesetzt \
          worden, und die Prüfsumme trägt überall dieselbe Null"
     );

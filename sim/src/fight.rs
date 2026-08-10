@@ -658,20 +658,36 @@ pub struct Fight {
     /// diesem nächsten Wurf, wie sein Nachbar darüber — und aus demselben
     /// Grund steht er in der Prüfsumme.
     next_cast_doubles: bool,
-    /// **Der dritte MERKER — und der erste mit einer Zahl** (RETORT, #480).
+    /// **Der dritte MERKER** (RETORT, Issue #480): Ist gerüstet.
     ///
-    /// Wie viele Millisekunden globale Wartezeit offen standen, als der Boss
-    /// zuletzt einen Wurf abgebrochen hat. `0` heisst: nichts zu erstatten.
+    /// Steht auf `true`, wenn RETORT geworfen wurde und der nächste vom BOSS
+    /// abgebrochene Wurf deshalb keine Wartezeit kostet.
     ///
-    /// Die zwei anderen Merker tragen ein Ja/Nein, weil ihre Wirkung fest
-    /// ist. Hier hängt sie am Zeitpunkt: Ein Abbruch kurz vor Ablauf der
-    /// Wartezeit kostet weniger als einer kurz danach. Ein Ja/Nein müsste den
-    /// Betrag beim Verbrauch neu erfinden — und dann wäre er auf beiden
-    /// Seiten unabhängig gerechnet, genau die Stelle, an der zwei Umsetzungen
-    /// auseinanderlaufen.
+    /// # Vorbereitung statt Rettung — bewusst anders als das Raster
+    ///
+    /// `docs/ZAUBER-RASTER.md` beschreibt ihn reaktiv: „ein unterbrochener
+    /// Zauber ist sofort wieder bereit". Gebaut ist er präventiv, und das ist
+    /// eine Entscheidung des Auftraggebers, keine Ungenauigkeit.
+    ///
+    /// Der Grund ist Design-Gesetz 6.6: Es lässt **genau eine** Ausnahme von
+    /// der globalen Wartezeit zu, und die heisst Unterbrechen. Reaktiv gebaut
+    /// bräuchte RETORT dieselbe Ausnahme — er müsste während der Wartezeit
+    /// werfbar sein, die er verkürzen soll. Gemessen: mit `triggersGcd: true`
+    /// wurde sein Druck abgelehnt (1 angenommen, 1 abgelehnt, 0 Würfe).
+    ///
+    /// Präventiv gebaut löst er selbst eine Wartezeit aus wie jeder andere
+    /// Zauber, und die Regel bleibt unberührt. Spielbar ist das wegen
+    /// Design-Gesetz 6 (Determinismus): Der Spieler SIEHT die Unterbrechung
+    /// kommen, also ist es eine Planungsaufgabe und kein Reflex.
+    ///
+    /// # Ein Ja/Nein, keine Zahl
+    ///
+    /// Zweimal rüsten ist einmal gerüstet — der Merker zählt nicht hoch. Beim
+    /// Rüsten ist der abgebrochene Wurf noch gar nicht gelaufen; es gibt also
+    /// keinen Betrag, den man sich merken könnte.
     ///
     /// Steht aus demselben Grund in der Prüfsumme wie seine zwei Nachbarn.
-    interrupted_gcd_ms: Millis,
+    retort_armed: bool,
     /// Der Auswahlmodus des Ruecksetzers (Issue #223).
     ///
     /// Bis heute war er gebaut und unbenutzt — `cooldown_reset.rs` stand
@@ -936,7 +952,7 @@ impl Fight {
             gcd_ready_at: 0,
             next_cast_free_gcd: false,
             next_cast_doubles: false,
-            interrupted_gcd_ms: 0,
+            retort_armed: false,
             reset_mode: CooldownReset::new(),
             cooldown_ready_at: [0; SPELL_COUNT],
             resource: 0,
@@ -1581,7 +1597,7 @@ impl Fight {
         self.gcd_ready_at = 0;
         self.next_cast_free_gcd = false;
         self.next_cast_doubles = false;
-        self.interrupted_gcd_ms = 0;
+        self.retort_armed = false;
         self.reset_mode.reset();
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
@@ -1808,17 +1824,22 @@ impl Fight {
         // `Combat::stepPassive`: nach dem Schlag, vor dem Vorruecken.
         if entry.interrupts_player && self.cancel_player_cast() {
             self.casts_interrupted += 1;
-            // **Was der Abbruch gekostet hat, merken** (RETORT, #480).
+            // **Die Rüstung greift** (RETORT, #480).
             //
-            // Die globale Wartezeit läuft bei einer Wirkzeit ab dem BEGINN
-            // (#304) und läuft weiter, auch wenn der Wurf nie landet. Was
-            // davon jetzt noch offen steht, ist bezahlt und nicht bekommen.
+            // **Der Rest der Wartezeit wird erlassen, nicht die volle.** Die
+            // schon verstrichene Zeit hat der Spieler durchlebt — sie ist
+            // nicht verloren. Verloren ist nur, was er ohne Gegenleistung
+            // noch abwarten müsste. „Der Abbruch kostet keine Wartezeit"
+            // heisst: ab hier ist er frei.
             //
             // **Hier und nicht in `cancel_player_cast`**: Die Funktion wird
-            // auch vom Selbst-Abbruch gerufen (ein zweiter Druck während der
-            // Wirkzeit). Wer selbst abbricht, hat entschieden statt gestört zu
-            // werden — ihm die Zeit zu erstatten kehrte die Absicht um.
-            self.interrupted_gcd_ms = self.gcd_ready_at.saturating_sub(self.time);
+            // auch vom Selbst-Abbruch gerufen. Wer sich rüstet und dann selbst
+            // abbricht, hätte sich die Wartezeit gekauft — die Rüstung bleibt
+            // dort stehen und wird nicht verbraucht.
+            if self.take_retort_armed() {
+                self.gcd_ready_at = self.time;
+                self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+            }
         }
 
         // Verbraucht: Der naechste Eintrag faengt wieder bei seinem eigenen
@@ -1869,16 +1890,18 @@ impl Fight {
         }
     }
 
-    /// Verbraucht die erstattbare Wartezeit, falls welche offen steht
-    /// (RETORT, Issue #480).
+    /// Verbraucht die Rüstung, falls sie steht (RETORT, Issue #480).
     ///
-    /// **Einmal gemerkt, einmal erstattet** — wie bei den zwei anderen
-    /// Merkern. Ein Betrag, der stehen bliebe, machte aus einer Erstattung
-    /// eine dauerhafte Vergünstigung.
-    fn take_interrupted_gcd(&mut self) -> Millis {
-        let offen = self.interrupted_gcd_ms;
-        self.interrupted_gcd_ms = 0;
-        offen
+    /// **Einmal gerüstet, einmal verbraucht** — wie bei den zwei anderen
+    /// Merkern. Eine Rüstung, die stehen bliebe, machte aus einer einzelnen
+    /// Vorbereitung eine dauerhafte Vergünstigung.
+    fn take_retort_armed(&mut self) -> bool {
+        if self.retort_armed {
+            self.retort_armed = false;
+            true
+        } else {
+            false
+        }
     }
 
     /// Bricht eine laufende Wirkzeit ab. **Von zwei Wegen gerufen, und der
@@ -3853,23 +3876,16 @@ impl Fight {
             self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
         }
 
-        // **Die Wartezeit erstatten, die ein Boss-Abbruch gekostet hat**
-        // (RETORT, #480).
+        // **Rüsten** (RETORT, #480): Der nächste vom BOSS abgebrochene Wurf
+        // kostet keine Wartezeit.
         //
-        // Steht NACH der Zeile darüber, und das ist der ganze Trick: RETORT
-        // löst selbst eine Wartezeit aus (`triggersGcd`), und erst danach
-        // wird sie um den gemerkten Betrag verkürzt. Stünde die Erstattung
-        // davor, zöge sein eigener Wurf sie sofort wieder auf die volle
-        // Länge — der Zauber wäre wirkungslos und der Fehler grün.
-        //
-        // `saturating_sub` statt einer Prüfung: Ein Betrag, der grösser wäre
-        // als die laufende Wartezeit, macht sie null und nicht negativ.
+        // Steht bei den zwei anderen Merkern, hinter allem, was sie
+        // verbrauchen könnte — aus demselben Grund wie dort. RETORTs eigene
+        // Wartezeit ist eine Zeile höher schon gestartet und bleibt: Er zahlt
+        // wie jeder andere Zauber, und genau deshalb bleibt Design-Gesetz 6.6
+        // unberührt.
         if spell.refunds_interrupted_gcd {
-            let erstattet = self.take_interrupted_gcd();
-            if erstattet > 0 {
-                self.gcd_ready_at = self.gcd_ready_at.saturating_sub(erstattet);
-                self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
-            }
+            self.retort_armed = true;
         }
 
         // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480).
@@ -4219,6 +4235,27 @@ impl Fight {
         self.resource_overflow
     }
 
+    /// Wie oft ein eigener Druck eine Wirkzeit abgebrochen hat.
+    ///
+    /// Für Prüffälle, die belegen wollen, dass ein Selbst-Abbruch WIRKLICH
+    /// stattgefunden hat. Ohne diese Zusicherung misst ein solcher Fall
+    /// womöglich einen Boss-Abbruch — und wäre rot aus dem falschen Grund.
+    #[must_use]
+    pub fn self_cancelled_count(&self) -> u32 {
+        self.casts_cancelled
+    }
+
+    /// Ob RETORTs Rüstung gerade steht (Issue #480).
+    ///
+    /// Für Prüffälle: Die Rüstung ist von aussen sonst nur mittelbar sichtbar
+    /// — über eine Wartezeit, die beim nächsten Boss-Abbruch ausfällt. Ein
+    /// Fall, der belegen will, dass sie NICHT verbraucht wurde, käme damit
+    /// nicht aus.
+    #[must_use]
+    pub fn retort_armed(&self) -> bool {
+        self.retort_armed
+    }
+
     /// Wann die globale Wartezeit ablaeuft.
     #[must_use]
     pub fn gcd_ready_at(&self) -> Millis {
@@ -4309,7 +4346,7 @@ impl Fight {
         h = mix_named_int(h, "nextCastDoubles", i32::from(self.next_cast_doubles));
         // Der dritte Merker, neben den zwei anderen (RETORT, #480). Als
         // Millisekunden-Zahl statt Ja/Nein — die Begründung steht am Feld.
-        h = mix_named_int(h, "interruptedGcdMs", self.interrupted_gcd_ms as i32);
+        h = mix_named_int(h, "retortArmed", i32::from(self.retort_armed));
         // **Angehaengt, nicht eingeschoben** (Issue #100). Ohne den
         // Kontroll-Vorrat waere die Pruefsumme fuer jeden Kampf mit Fixierung
         // blind, und die gesenkte Phasen-Schwelle entscheidet ueber jeden
