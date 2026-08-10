@@ -484,6 +484,14 @@ pub struct Fight {
     heal_over_time_generation: u16,
     /// Bis wann die Schaden-in-Schutz-Umwandlung laeuft (Weg 3).
     conversion_until: Option<Millis>,
+    /// Bis wann DECAYs Schwaechung laeuft (Issue #479).
+    ///
+    /// Dieselbe Bauart wie `conversion_until` (TEMPER): ein Zustand fuer eine
+    /// Weile. Er steht in keiner Pruefsumme und muss es nicht — seine Wirkung
+    /// zeigt sich im Leben des Spielers, und das mischt.
+    decay_ward_until: Option<Millis>,
+    /// Promille je Stapel, solange sie laeuft.
+    decay_ward_permille: u32,
     /// Anteil, den sie umwandelt, in Prozent. 0 heisst: keine laeuft.
     conversion_percent: u32,
     /// Wie viel Schutz die Umwandlung insgesamt erzeugt hat.
@@ -820,6 +828,8 @@ impl Fight {
             heal_over_time_credited: 0,
             heal_over_time_generation: 0,
             conversion_until: None,
+            decay_ward_until: None,
+            decay_ward_permille: 0,
             conversion_percent: 0,
             converted: 0,
             reflect_until: None,
@@ -1446,6 +1456,10 @@ impl Fight {
         self.heal_over_time_generation = 0;
         self.conversion_until = None;
         self.conversion_percent = 0;
+        // DECAY (#479) — eine Schwaechung, die einen Kampf ueberlebte,
+        // schuetzte im naechsten gratis.
+        self.decay_ward_until = None;
+        self.decay_ward_permille = 0;
         self.converted = 0;
         self.reflect_until = None;
         self.reflect_percent = 0;
@@ -1923,6 +1937,21 @@ impl Fight {
             self.conversion_until = Some(self.time + conversion.duration_ms);
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
+        }
+        // DECAY (Issue #479) — die Schwaechung anschalten. Die STAPELZAHL wird
+        // hier NICHT festgehalten: Sie wird beim Treffer gelesen, sonst zaehlte
+        // der Aufbau nach dem Wurf nicht mehr.
+        //
+        // **Das Wakeup gehoert dazu**, wie bei der Umwandlung darueber: Ohne
+        // es wuerde der Ablauf erst beim naechsten Ereignis bemerkt, und die
+        // Schwaechung haelte laenger als die Daten sagen — im Spiel dagegen
+        // laeuft die Uhr Takt fuer Takt. Genau daran liefen die Seiten
+        // auseinander.
+        if let Some(decay_ward) = spell.decay_ward {
+            self.decay_ward_permille = decay_ward.permille_per_stack;
+            self.decay_ward_until = Some(self.time + decay_ward.duration_ms);
+            self.queue
+                .push(self.time + decay_ward.duration_ms, EventKind::Wakeup);
         }
 
         // Weg 3, andere Richtung — den Rueckschlag anschalten (RIPOSTE, #481).
@@ -2528,7 +2557,31 @@ impl Fight {
             return;
         }
         // WARD aus der getragenen Ausruestung kommt zur Basis dazu (#282, AC4).
-        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward);
+        // **DECAY geht in DIESELBE Promille-Summe** (Issue #479) — und damit
+        // unter denselben Deckel. Die Schwaechung ist kein eigener Faktor
+        // neben WARD, sondern mehr WARD; sonst liesse sich `ward_cap_permille`
+        // ueber die Faeulnis umgehen.
+        //
+        // **Die Stapelzahl wird HIER gelesen, nicht beim Wirken.**
+        // **Erst verfallen lassen, dann zaehlen** (Issue #479, Weg c).
+        //
+        // Das Spiel ruft `expirePutrefaction` VOR der Zeitleiste, der
+        // Simulator DANACH (fight.rs, Ereignisschleife). Bei Gleichstand —
+        // 12000 ms ist zugleich Verfallszeit und Landepunkt — zaehlte der
+        // Simulator hier einen Stapel mehr.
+        //
+        // Der Aufruf steht LOKAL an der Lesestelle, nicht in der Schleife:
+        // Eine Umstellung dort bricht `parity_rot_decay`, weil ROT seine
+        // Stapel ueber DoT-Ticks legt und die andere Reihenfolge erwartet.
+        // Gemessen, nicht vermutet.
+        self.expire_putrefaction();
+        let decay_permille = match self.decay_ward_until {
+            Some(bis) if self.time <= bis => {
+                self.decay_ward_permille * u32::try_from(self.decay_count).unwrap_or(0)
+            }
+            _ => 0,
+        };
+        let nach_ward = PLAYER.incoming_with_gear(raw, self.worn.ward + decay_permille);
 
         // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1).
         //

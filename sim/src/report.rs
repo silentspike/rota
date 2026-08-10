@@ -132,6 +132,10 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         || spell.shield.is_some()
         || spell.heal.is_some()
         || spell.conversion.is_some()
+        // DECAY (Issue #479) — er schwaecht den EINGEHENDEN Schaden und macht
+        // selbst keinen. Ohne diese Zeile stuende er dauerhaft mit "TOT" in
+        // der Tabelle, und `tests/report.rs` meldet das auch genau so.
+        || spell.decay_ward.is_some()
         // Die drei Ausgabe-Zauber der Fixierung (#100). BIND gehoert NICHT
         // dazu: Er macht Schaden — das faengt jetzt schon die Frage darueber.
         || spell.control.is_some()
