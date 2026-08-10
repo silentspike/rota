@@ -30,7 +30,7 @@ import type { MarkDisplay, Overlay } from './overlay.js';
 import type { RunSummary } from '../core/summary.js';
 import type { Impact } from './impact.js';
 import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numerals.js';
-import { MAX_DECAY_STACKS, alsSpellIndex } from '../core/combat.js';
+import { alsSpellIndex } from '../core/combat.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
@@ -927,7 +927,9 @@ export class HudRenderer {
 
     if (sichtbar.includes('control')) zeichne(LABEL_CONTROL, String(combat.control));
     if (sichtbar.includes('decay')) {
-      zeichne(LABEL_DECAY, `${combat.decayStacks} / ${MAX_DECAY_STACKS}`);
+      // **Die GEHOBENE Grenze, nicht die feste** (PUTRID BLOOM, #479). Stuende
+      // hier MAX_DECAY_STACKS, zeigte das HUD unter dem Zauber "6 / 5".
+      zeichne(LABEL_DECAY, `${combat.decayStacks} / ${combat.decayStackCap}`);
     }
   }
 
