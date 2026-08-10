@@ -136,6 +136,63 @@ fn ac1_die_pruefsumme_stimmt_takt_fuer_takt() {
         );
     }
 
+    // **Der Auswahlmodus selbst, Takt für Takt** (Issue #223, gemessen #480).
+    //
+    // Das Feld `armed` steht seit #223 in der Aufzeichnung und wurde bis
+    // hierher **nur in der Fehlermeldung oben** verwendet — als Zusatz, wenn
+    // eine Prüfsumme abwich. Verglichen hat es niemand.
+    //
+    // Das ist eine Lücke, und zwar eine mit Verzögerung: Der Auswahlmodus
+    // steht in KEINER der beiden Prüfsummen. Er wirkt nur mittelbar, über eine
+    // Abklingzeit, die er zurücksetzt — die steht darin. Liefen beide Seiten
+    // im Zustand auseinander, fiele es erst auf, wenn er greift, und dann an
+    // einer anderen Stelle als der, an der es entstand.
+    //
+    // **Warum sich `armed` (0 oder 1) mit einer Ladungszahl vergleichen
+    // lässt**: REFLUX trägt genau EINE Auswahl. Solange das gilt, ist "scharf"
+    // dasselbe wie "eine Ladung offen". Der Fall darunter hält das fest —
+    // bekäme REFLUX je zwei, verglichen wir 2 gegen 1 und der Fall meldete es,
+    // statt still falsch zu werden.
+    //
+    // **Die Zusicherung zuerst**: Steht die Spur überall auf 0, misst der
+    // Vergleich eine Runde, in der der Rücksetzer nie scharf war — und wäre
+    // grün. Gemessen sind es 300 von 6000 Takten.
+    let ladungen_von_reflux = u32::from(
+        rota_sim::data::SPELLS[index_of("reflux").expect("reflux")].cooldown_reset_charges,
+    );
+    assert_eq!(
+        ladungen_von_reflux, 1,
+        "REFLUX trägt {ladungen_von_reflux} Auswahlen statt einer — dann ist \
+         `armed` (0 oder 1) nicht mehr dasselbe wie die Ladungszahl, und der \
+         Vergleich darunter prüft zwei verschiedene Größen gegeneinander"
+    );
+    let scharfe_takte: u32 = scharf.iter().sum();
+    assert!(
+        scharfe_takte > 0,
+        "der Rücksetzer stand in keinem einzigen Takt scharf — dann vergleicht \
+         der Fall darunter überall dieselbe Null"
+    );
+    assert_eq!(
+        result.reset_charges_left.len(),
+        scharf.len(),
+        "verschieden viele Takte in der Spur des Auswahlmodus"
+    );
+    for (tick, (links, rechts)) in result
+        .reset_charges_left
+        .iter()
+        .zip(scharf.iter())
+        .enumerate()
+    {
+        assert_eq!(
+            links,
+            rechts,
+            "der Auswahlmodus geht im Takt {tick} ({} ms) auseinander: \
+             Simulator {links}, Spiel {rechts}. Er steht in keiner Prüfsumme — \
+             ohne diesen Vergleich fiele es erst auf, wenn er greift",
+            tick as u32 * TICK_MS
+        );
+    }
+
     let expected = &json["expected"];
     assert_eq!(
         u64::from(result.final_checksum),

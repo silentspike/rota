@@ -90,9 +90,41 @@ export function hasKeystone(allocation: TalentAllocation, keystone: string): boo
 }
 
 export function talentFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.damagePerRankPerMille);
+}
+
+/**
+ * Der Faktor auf den **Ressourcen-Gewinn** (Issue #419, Weg „build").
+ *
+ * Eine eigene Funktion und kein zweiter Parameter an `talentFactor`: Die drei
+ * Größen landen an drei verschiedenen Stellen im Kampf, und eine gemeinsame
+ * Funktion mit einem Schalter läse sich an jeder Aufrufstelle wie ein Zufall.
+ */
+export function talentResourceFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.resourceGainPerRankPerMille);
+}
+
+/** Der Faktor auf die **Laufzeit** der Effekte über Zeit (Weg „hold"). */
+export function talentDotDurationFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.dotDurationPerRankPerMille);
+}
+
+/**
+ * Summiert die Promille EINER Größe über alle verteilten Ränge.
+ *
+ * **Der Faktor entsteht als `1 + Summe/1000` aus ganzen Zahlen** — die
+ * Determinismus-Regel aus GAME-DESIGN 18.4, dieselbe wie bei
+ * `factorPerMille` in `levels.json`. Eine Fließkomma-Angabe je Rang wäre eine
+ * Zahl, bei der Spiel und Simulator auseinanderlaufen könnten, bevor die
+ * Multiplikation überhaupt beginnt.
+ */
+function faktorAus(
+  allocation: TalentAllocation,
+  promilleVon: (talent: (typeof TALENTS)[number]) => number,
+): number {
   let promille = 0;
   for (const talent of TALENTS) {
-    promille += effectiveRanks(allocation, talent) * talent.damagePerRankPerMille;
+    promille += effectiveRanks(allocation, talent) * promilleVon(talent);
   }
   return 1 + promille / 1000;
 }
