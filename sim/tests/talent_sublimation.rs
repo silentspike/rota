@@ -128,23 +128,103 @@ fn der_weg_reduction_waechst_gleichmaessig() {
     );
 }
 
-// **OFFEN: der Weg `threshold` hat hier keinen Wirkungsfall.** Gemessen mit
-// derselben Mutation, die den `reduction`-Faktor faengt:
+/// Der Verkuerzer MIT Schwelle — nur an ihm kann `threshold` etwas bewegen.
+fn schwellen_verkuerzer() -> usize {
+    SPELLS
+        .iter()
+        .position(|s| s.cooldown_reduction_below_ms > 0)
+        .expect("kein Zauber traegt cooldown_reduction_below_ms")
+}
+
+/// Ein Ziel, dessen Restzeit zwischen alter und gehobener Schwelle liegt.
+///
+/// **Das ist der ganze Trick des Wirkungsfalls.** Die Schwelle sagt, WELCHE
+/// Abklingzeiten gekuerzt werden: nur die unter ihr. Ein Ziel weit darunter
+/// wird immer gekuerzt, eines weit darueber nie — beide zeigen nichts. Es
+/// braucht eines dazwischen.
+fn schwellen_ziel() -> usize {
+    let grenze = SPELLS[schwellen_verkuerzer()].cooldown_reduction_below_ms;
+    SPELLS
+        .iter()
+        .position(|s| s.cooldown_ms > grenze && s.cooldown_ms < grenze + 3_000)
+        .expect("kein Ziel mit Abklingzeit knapp ueber der Schwelle")
+}
+
+/// Erst das Ziel, dann den Schwellen-Verkuerzer, sonst nichts.
+fn schwellen_takt(fight: &Fight) -> Option<usize> {
+    let (ziel, kurz) = (schwellen_ziel(), schwellen_verkuerzer());
+    if fight.cast_count(ziel) == 0 {
+        return Some(ziel);
+    }
+    if fight.cast_count(kurz) == 0 && fight.cooldown_remaining_ms(kurz) == 0 {
+        return Some(kurz);
+    }
+    None
+}
+
+fn restzeit_des_schwellen_ziels(permille: u32) -> u32 {
+    let mut fight = Fight::new(FightConfig {
+        talent_cooldown_threshold_permille: permille,
+        duration_ms: Some(5_000),
+        ..FightConfig::default()
+    });
+    fight.run(schwellen_takt);
+    fight.cooldown_remaining_ms(schwellen_ziel())
+}
+
+#[test]
+fn der_traeger_der_schwelle_bewegt_ueberhaupt_etwas() {
+    let mut fight = Fight::new(FightConfig {
+        duration_ms: Some(5_000),
+        ..FightConfig::default()
+    });
+    fight.run(schwellen_takt);
+    assert!(
+        fight.cast_count(schwellen_verkuerzer()) > 0,
+        "der Schwellen-Verkuerzer wurde nie gewirkt"
+    );
+    assert!(
+        fight.cast_count(schwellen_ziel()) > 0,
+        "das Ziel wurde nie gewirkt, steht also gar nicht auf Abklingzeit"
+    );
+}
+
+#[test]
+fn der_weg_threshold_laesst_den_abzug_auf_mehr_zauber_greifen() {
+    // Ohne Talent liegt die Restzeit des Ziels UEBER der Schwelle — es wird
+    // uebersprungen. Mit vollem Weg liegt sie darunter, und derselbe Wurf
+    // kuerzt es. Der Abzug selbst ist in beiden Laeufen gleich; nur die
+    // AUSWAHL aendert sich, und genau das ist der Weg.
+    let ohne = restzeit_des_schwellen_ziels(0);
+    let mit = restzeit_des_schwellen_ziels(500);
+
+    assert!(
+        mit < ohne,
+        "der Weg threshold wirkt im Simulator nicht: Restzeit {ohne} ohne \
+         Talent, {mit} mit gehobener Schwelle"
+    );
+}
+
+// **OFFEN: der Weg `charges` hat hier keinen Fall** (#738).
+//
+// Gemessen, nicht vermutet: Ein Lauf, der den Ruecksetzer wirkt und danach
+// zwei Zauber auf Abklingzeit drueckt, ergibt mit und ohne Zuschlag dieselben
+// Restzeiten — **und ohne Zuschlag wurde ebenfalls nichts zurueckgesetzt**:
 //
 // ```text
-// Faktor reduction ersatzlos gestrichen  -> rot
-// Schwellen-Faktor gestrichen            -> GRUEN   <- ungedeckt
+// ohne Bonus: (6000, 7500)   Ruecksetzer 1x gewirkt
+// mit +5:     (6000, 7500)   Ruecksetzer 1x gewirkt
 // ```
 //
-// Der Grund ist inhaltlich, nicht handwerklich: `verkuerzer()` waehlt den
-// ersten Zauber mit einem Abzug, und der traegt `below = 0` — also "keine
-// Beschraenkung". Auf ihn kann eine Schwelle gar nicht wirken. Ein
-// Wirkungsfall braucht einen Verkuerzer MIT Schwelle (`ascend`) und ein Ziel,
-// dessen Restzeit ueber der alten und unter der gehobenen Schwelle liegt.
+// Die zweite Zeile allein saehe nach einem wirkungslosen Talent aus. Die
+// erste sagt, dass der Aufbau den Mechanismus gar nicht ausloest: Der
+// Ruecksetzer ist ein AUSWAHLMODUS — er stellt scharf, und der Spieler sagt
+// mit dem naechsten Druck, welchen Zauber er meint. Ein Takt, der einfach
+// weiterdrueckt, trifft die Wahl nicht.
 //
-// Das ist dieselbe Lage wie bei `coagulation-longer`: eine Kreuzprobe, die
-// belegt, dass ein Weg nichts Fremdes anfasst, waehrend niemand prueft, ob er
-// das Eigene bewegt. Steht in #738.
+// Es fehlt also derselbe Traeger wie bei den anderen: ein Lauf, in dem die
+// Groesse ueberhaupt etwas bewegt. Zwei Nullen gegeneinander zu messen ist
+// woertlich AC8 aus #676.
 #[test]
 fn die_schwelle_laesst_den_abzug_unberuehrt() {
     // Die Kreuzprobe, die auf der Spiel-Seite die schaerfste ist: Schwelle und
