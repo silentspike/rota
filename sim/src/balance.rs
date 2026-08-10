@@ -81,6 +81,14 @@ pub struct BalanceConfig {
     /// „Satz gegen Affix" konnte deshalb nur eine Modellrechnung sein (#166).
     /// Mit diesem Feld bekommt der Laeufer etwas zu messen.
     pub worn: WornValues,
+    /// Talent-Promille auf den **Ressourcen-Gewinn** (Issue #419).
+    ///
+    /// Zusammen mit `talent_dot_duration_permille` macht es AC3 messbar:
+    /// Anders als der Schadensfaktor wirken diese beiden NICHT auf alle
+    /// Rotationen gleich, also kann jeder Weg irgendwo die beste Wahl sein.
+    pub talent_resource_permille: u32,
+    /// Talent-Promille auf die **Laufzeit** der Brand-Effekte (Issue #419).
+    pub talent_dot_duration_permille: u32,
 }
 
 impl Default for BalanceConfig {
@@ -92,6 +100,9 @@ impl Default for BalanceConfig {
             duration_ms: None,
             stop_on_kill: true,
             factors: NEUTRAL,
+            // Ohne Talente — dieselbe Voreinstellung wie in `FightConfig`.
+            talent_resource_permille: 0,
+            talent_dot_duration_permille: 0,
             boss: BOSS,
             worn: WornValues::none(),
         }
@@ -464,11 +475,23 @@ fn run_range(
         factors: config.factors,
         boss: config.boss,
         worn: config.worn,
-        // **Keine Talente im Balance-Laeufer** (Issue #417): Er vergleicht
-        // Rotationen gegeneinander, und ein Faktor, der auf alle gleich wirkt,
-        // verschoebe nur die Achse. Wer Talente messen will, setzt die Achse
-        // `talents` in `config.factors` — die gibt es dafuer.
+        // **Der Talent-Faktor auf den SCHADEN bleibt bei 0** (Issue #417):
+        // Er wirkt auf alle Rotationen gleich und verschoebe nur die Achse.
+        // Wer ihn messen will, setzt `talents` in `config.factors`.
         talent_permille: 0,
+        // **Die beiden ANDEREN Talent-Groessen kommen durch** (Issue #419) —
+        // und das ist der Unterschied, der AC3 ueberhaupt erst messbar macht.
+        //
+        // Ein Faktor auf den Ressourcen-Gewinn oder auf die Brand-Laufzeit
+        // wirkt NICHT auf alle Rotationen gleich: Eine Rotation, die den
+        // Entlader oft wirft, gewinnt an mehr Hitze; eine mit vielen Braenden
+        // gewinnt an laengerer Laufzeit. Genau deshalb kann hier ein Weg die
+        // beste Wahl sein und dort ein anderer — die Frage von GAME-DESIGN 4.6.
+        //
+        // Voreinstellung ist 0, also Faktor 1,0: Wer sie nicht setzt, rechnet
+        // wie vorher, und keine bestehende Messung verschiebt sich.
+        talent_resource_permille: config.talent_resource_permille,
+        talent_dot_duration_permille: config.talent_dot_duration_permille,
         // Der Balance-Laeufer misst auf Stufe 1: Er vergleicht Rotationen, und
         // die Stufe wirkt auf beide gleich (Issue #248).
         player_level: 1,
