@@ -292,6 +292,27 @@ fn beide_seiten_rechnen_denselben_schaden() {
         u32_at(erwartet, "finalChecksum"),
         "die Schluss-Pruefsumme weicht ab"
     );
+
+    // **Der umgewandelte Schaden** — gemessen ungeprüft bis hierher.
+    //
+    // `converted` steht in 34 Aufzeichnungen und wurde in keinem einzigen
+    // Paritätsfall verglichen. Belegt mit einer Mutation: Die Zeile, die ihn
+    // aufbaut, wird von 8 Testfällen durchlaufen, und ihn dort um 5 zu
+    // verfälschen ließ die ganze Suite grün.
+    //
+    // Diese Aufzeichnung eignet sich, weil sie einen Wert UNGLEICH NULL trägt
+    // (112). Die meisten anderen führen eine 0 — dort wäre der Vergleich
+    // erfüllt, ohne etwas zu belegen; deshalb steht die Zusicherung darunter.
+    let umgewandelt = u32_at(erwartet, "converted");
+    assert!(
+        umgewandelt > 0,
+        "diese Aufzeichnung wandelt keinen Schaden um — dann vergleicht die \
+         Zeile darunter zwei Nullen und belegt nichts"
+    );
+    assert_eq!(
+        ergebnis.converted, umgewandelt,
+        "Simulator und Spiel wandeln verschieden viel Schaden um"
+    );
 }
 
 /// Takt fuer Takt, nicht nur am Ende.
