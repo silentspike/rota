@@ -223,6 +223,27 @@ fn beide_seiten_rechnen_denselben_schaden() {
         u32_at(&json["expected"], "damage"),
         "Simulator und Spiel rechnen verschiedenen Schaden"
     );
+
+    // **Die ausgegebenen Kontroll-Punkte** — gemessen ungeprüft bis hierher.
+    //
+    // `controlSpent` steht in drei Aufzeichnungen und wurde in keinem
+    // Paritätsfall verglichen. Belegt mit einer Mutation: Die Zeile, die ihn
+    // aufbaut, wird von 23 Testfällen durchlaufen, und sie um 3 zu
+    // verfälschen ließ die ganze Suite grün.
+    //
+    // Von den dreien trägt nur diese einen Wert ungleich null (24). In den
+    // beiden anderen steht 0 — dort wäre der Vergleich erfüllt, ohne etwas zu
+    // belegen; deshalb die Zusicherung darüber.
+    let ausgegeben = u32_at(&json["expected"], "controlSpent");
+    assert!(
+        ausgegeben > 0,
+        "diese Aufzeichnung gibt keine Kontroll-Punkte aus — dann vergleicht \
+         die Zeile darunter zwei Nullen und belegt nichts"
+    );
+    assert_eq!(
+        ergebnis.control_spent, ausgegeben,
+        "Simulator und Spiel geben verschieden viele Kontroll-Punkte aus"
+    );
 }
 
 /// Takt fuer Takt, nicht nur am Ende.
