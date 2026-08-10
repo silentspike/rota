@@ -306,6 +306,8 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // `test-caster` besteht aus drei `strike`-Eintraegen, also kann das, was
     // QUENCH dort abbricht, nur PIN freigelegt haben (Issue #478).
     expect(eingecheckterPin, HINWEIS).toEqual(pinPayload());
+  });
+
   it('DECAYs Schwaechung entspricht dem heutigen Spielstand', () => {
     // DECAY wird NUR hier gewirkt, und nur hier zeigt sich seine Wirkung:
     // `test-onslaught` teilt am haertesten aus (Issue #479).
