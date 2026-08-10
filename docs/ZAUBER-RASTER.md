@@ -5,6 +5,12 @@
 
 > ### ⚠ Bestandszahlen sind ein Datum, keine Wahrheit
 >
+> **Die Schul-Überschriften tragen bewusst keine Zahl mehr.** Sie lautete viermal „N vorhanden,
+> M neu" und war viermal falsch — zuletzt am 2026-08-10, als bei SUBLIMATION noch „8 vorhanden,
+> 4 neu" stand und zwölf gebaut waren. Eine Zahl an fünf Stellen zu pflegen scheitert immer an
+> derselben Stelle: Wer einen Zauber baut, ändert die Überschrift einer Schule, an der er nicht
+> arbeitet. **Der Bestand steht nur noch hier, und nur als Messbefehl.**
+>
 > **Vor jeder Planung nach diesem Dokument den Ist-Stand messen:**
 >
 > ```bash
@@ -132,7 +138,7 @@ Schlüsseltalenten aus #418), `RIPOSTE` → `RIPOSTE` (der Design-Plan nennt „
 
 ---
 
-## CALCINATION — 10 vorhanden, 2 neu
+## CALCINATION
 
 **Mechanik (GAME-DESIGN 173):** Hitze sammeln und entladen. Jede Wirkung erzeugt Hitze; ein
 Entlade-Zauber verbraucht die gesamte angesammelte Hitze. Der Entlade-Zauber ist Pflichtzauber
@@ -195,7 +201,7 @@ für Wirkungen, 30–45 s für Höhepunkte).
 Zaubername steht auf einem Symbol von 48 Pixeln"). `FORGE` und `PYROCLASM` brechen das
 — falls Ihnen das wichtig ist, ersetze ich sie durch `FORGE` und `PYROCLASM`.
 
-## FIXATION — 10 vorhanden, 2 neu
+## FIXATION
 
 **Mechanik (GAME-DESIGN 174):** Kontroll-Punkte als Vorrat zum Ausgeben. Fixierungs-Zauber bauen
 Punkte auf; der Spieler gibt sie gezielt aus, um Boss-Handlungen zu beeinflussen. Ein
@@ -240,7 +246,7 @@ Das ist keine Balance-Zahl, sondern eine Lücke in der Mechanik: **Die Schule ha
 **Der Name `KEYSTONE` kollidiert** mit dem Begriff für Schlüsseltalente (`#418`). Falls er bleiben
 soll, benenne ich das andere um — sonst heißt der Zauber `CAPSTONE`.
 
-## PUTREFACTION — 6 vorhanden, 5 neu
+## PUTREFACTION
 
 **Mechanik (GAME-DESIGN 177):** Zersetzungs-Stapel auf dem Boss. Jede Wirkung legt einen Stapel
 an; je mehr Stapel, desto mehr Schaden nimmt der Boss **von allen Quellen** — 6 % je Stapel.
@@ -281,7 +287,7 @@ Rhythmus statt eines Dauerzustands.
 **Und sie verliert ihren Aufbau beim Phasenwechsel.** Ob das so gewollt ist, weiß ich nicht — es
 steht nirgends — **und die Frage hat sich beim Messen erledigt: Sie überleben ihn.** `CARRION` ist damit gestrichen. Die Annahme in der Tabelle oben war ungemessen, und das ist der Fehler, nicht der Zauber.
 
-## SUBLIMATION — 8 vorhanden, 4 neu
+## SUBLIMATION
 
 **Mechanik (GAME-DESIGN 175):** Automatische Verkürzung aller Abklingzeiten. Sublimations-Zauber
 verkürzen laufend alle Abklingzeiten um einen kleinen Betrag. Der **Cooldown-Rücksetzer** bleibt
@@ -334,7 +340,7 @@ behielte ihren Namen und ihr Thema, aber nicht ihre zentrale Mechanik.
 **Das gehört Ihnen, nicht mir.** Ich schreibe es dazu, damit es nicht als Nebeneffekt eines
 Katalogs passiert.
 
-## COAGULATION — 7 vorhanden, 5 neu
+## COAGULATION
 
 **Mechanik (GAME-DESIGN 176):** Drei Wege nebeneinander — **Schutzschicht** (nimmt Schaden auf,
 stapelt, muss VOR dem Schlag stehen), **klassische Heilung** (verzeiht Fehler nachträglich),

@@ -145,6 +145,34 @@ etwas zu entscheiden.
 > interessanten sind, ist eine Setzung — wer sie anders schneidet, ändert die Tabelle unten, nicht
 > die Zahl 30.
 
+### Die drei Ausrichtungen ergeben messbar verschiedene Kämpfe
+
+Derselbe Lauf (20 × KINDLE, Startwert 0, `test-crucible-trial`), nur die `affixKinds` getauscht:
+
+| Ausrichtung | getragene Werte                            |  Schaden |
+| ----------- | ------------------------------------------ | -------: |
+| `-mix`      | `catalysis 407, purity 406, yield 406`     | **2812** |
+| `-drive`    | `essence 474, purity 406, catalysis 406`   | **3458** |
+| `-core`     | `essence 474, gearEffects 406, purity 406` | **4868** |
+
+**Damit ist belegt, worum es hier geht:** Die Auswahl der Arten verändert den Kampf, die
+Reihenfolge nicht. Ein Katalog mit diesen drei Ausrichtungen bietet eine Wahl.
+
+> ### ⚠ Diese Zahlen sagen NICHTS über Balance
+>
+> Der Lauf wirkt zwanzigmal KINDLE **im festen Takt von 1500 ms** — und KINDLEs Abklingzeit ist
+> genau 1500 ms. CATALYSIS verkürzt Abklingzeiten; wer trotzdem 1500 ms wartet, verschenkt jede
+> Verkürzung. **Der Lauf benachteiligt also strukturell die Ausrichtung, die am meisten Tempo
+> trägt** — ausgerechnet `-mix`, die mit der niedrigsten Zahl.
+>
+> Die Rangfolge oben ist damit ein Artefakt des Messaufbaus, keine Aussage über Stärke. Wer sie
+> als Balance liest, zieht genau den falschen Schluss.
+>
+> Dieselbe Falle hat bei `DISTIL` schon einmal zugeschlagen (`tests/unit/buff-groessen-540.test.ts`
+> dokumentiert sie): Ein Verstärker wurde an KINDLE gemessen, dessen Abklingzeit schon am Boden
+> war. **Was die Ausrichtungen wirklich wert sind, misst der Balance-Läufer** — mit einer
+> Rotation, die wirkt, sobald etwas bereit ist.
+
 ### Gruppe A — die 30 Einträge
 
 `-mix` ist auf jedem Platz identisch aufgebaut, `-drive` und `-core` ebenso; die Vielfalt liegt in
