@@ -9,7 +9,9 @@ affects: [tests/unit, sim/tests, tests/parity]
 
 # Welche Größen im Zauber-Bestand geprüft sind — und welche nicht
 
-Gemessen am 2026-08-07 für Issue #547, Werkzeug `tools/groessen-mutation.py`.
+Zuletzt vollständig gemessen am **2026-08-10** (alle 109 Paare), Werkzeug
+`tools/groessen-mutation.py`. Erstmals erhoben am 2026-08-07 für Issue #547;
+die datierten Nachträge am Ende halten die Zwischenstände fest.
 
 **Die Frage.** Ein Prüffall, der nur die _Existenz_ einer Wirkung feststellt
 (`toBeGreaterThan(CAP)`), bleibt grün, wenn jemand ihre _Größe_ auf ein
@@ -41,27 +43,48 @@ Aussage auf Feld-Ebene ist in **beide** Richtungen falsch: Ein abgesicherter
 erster Träger verdeckt die Lücke dahinter, ein ungeschützter erklärt Zauber
 für ungeprüft, die es nicht sind.
 
-**68 Paare** über 24 Felder, alle gemessen (53 vor #540, dann kamen die fünf
-Verstärker mit ihren drei `buff`-Größen dazu).
+**109 Paare** über 37 Felder und 35 Zauber, alle gemessen. Der Bestand ist
+seit der ersten Messung gewachsen: 53 vor #540, 68 mit den fünf Verstärkern,
+90 mit den Textfeldern aus #633, 109 mit den fünf COAGULATION-Zaubern aus
+#481.
 
 ---
 
-## Das Ergebnis: 39 Lücken, 6 heute unprüfbar, von 68
+## Das Ergebnis: 26 Lücken von 109
 
-| Sorte           | Paare | Was anschlägt                                                         |
-| --------------- | ----- | --------------------------------------------------------------------- |
-| **nur Frische** | 33    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie        |
-| **schweigt**    | 12    | nichts — aber nur 6 davon sind Lücken; die anderen 6 sind `buff.kind` |
-| **geschützt**   | 23    | mindestens ein Wirkungs-Fall                                          |
+| Sorte            | Paare | Was anschlägt                                                   |
+| ---------------- | ----- | --------------------------------------------------------------- |
+| **geschützt**    | 71    | mindestens ein Wirkungs-Fall                                    |
+| **nur Frische**  | 19    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie  |
+| **schweigt**     | 7     | nichts                                                          |
+| **strukturell**  | 6     | die Laufzeit-Prüfung, weil es keinen zweiten gültigen Wert gibt |
+| **rust-geprüft** | 6     | der Rust-Bau; vitest allein schweigt (siehe Kasten unten)       |
 
-**33 + 12 = 45 Paare melden keine Wirkungsprüfung. Sechs davon sind keine
-Lücke:** `buff.kind` ist heute unprüfbar, weil die Lage fehlt, in der die
-Größe entscheidet (siehe unten). Es bleiben **39**.
+**19 + 7 = 26 Paare melden keine Wirkungsprüfung.** Die sechs strukturellen
+und die sechs rust-geprüften sind keine Lücken: Bei den einen erzwingt der
+Typ den einzigen gültigen Wert, bei den anderen prüft die Rust-Seite, was
+vitest nicht sieht.
 
 Diese Unterscheidung gehört in die Überschrift und nicht nur in den Text. Eine
 Zahl, die Nicht-Lücken als Lücken führt, fordert zu Arbeit auf, die niemand
 tun kann — derselbe Fehler wie eine Rangfolge, die Ungemessenes als Null
 ausweist.
+
+### `buff.kind` ist NICHT mehr unprüfbar
+
+Bis zum Lauf vom 2026-08-10 stand hier, das Feld sei „heute unprüfbar, weil
+die Lage fehlt, in der die Größe entscheidet". Das ist widerlegt — von zwei
+Trägern:
+
+```text
+buff.kind  griplock     geschuetzt [1 Prueffall]  (buff-ersetzung-ueber-zauber.test.ts)
+buff.kind  slag         geschuetzt [4 Prueffaelle] (buff-expire-log, buff-stapelung-ueber-zauber)
+```
+
+Die Lage gibt es also. Sie fehlt nur bei vier der sieben Träger (`distil`,
+`flashpoint`, `quicksilver`, `virulence`) — und das ist eine Lücke, keine
+Unmöglichkeit. Der Unterschied entscheidet darüber, ob jemand die Arbeit
+anfängt.
 
 Rohdaten je Paar mit gefahrener Mutation und roten Dateien:
 [`groessen-abdeckung-messung.txt`](groessen-abdeckung-messung.txt).
@@ -89,19 +112,20 @@ sie das Richtige rechnen.**
 
 ### Wann das zuschlägt
 
-Heute ist keine der 68 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
+Heute ist keine der 109 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
 Befund betrifft die Werte, die **morgen** geändert werden — und der
 Balance-Läufer (#118) ist genau dafür gebaut. Wenn er anfängt, Zahlen
-vorzuschlagen, ist bei 39 von 68 kein Netz da (45 melden nichts, sechs davon
-sind keine Luecke).
+vorzuschlagen, ist bei **26 von 109** kein Netz da.
 
 ---
 
-## Die Schweiger: zwölf im Lauf vom 2026-08-06, elf seit dem 2026-08-07
+## Die Schweiger: sieben im Lauf vom 2026-08-10
 
-Die Kopftabelle oben zeigt den Stand des Laufs (12). Seither hat
-`griplock.buff.kind` die Seite gewechselt — nachgemessen, siehe unten. Die
-Abschnitte hier zählen deshalb sechs plus fünf.
+Die Abschnitte unter dieser Überschrift stammen aus den Läufen vom 2026-08-06
+und 2026-08-07 und beschreiben die damaligen zwölf. **Fünf von ihnen sind
+inzwischen geschützt** — der volle Lauf vom 2026-08-10 hat es gemessen. Die
+Begründungen bleiben stehen, weil sie die SORTE Lücke erklären; welche Paare
+heute noch offen sind, sagt die Rohdaten-Datei, nicht dieser Text.
 
 ### Sechs gehören zu #547
 
@@ -144,22 +168,37 @@ Die Mutation bricht nichts, weil die Lage fehlt, in der `kind` entscheidet —
 nicht, weil eine Prüfung fehlt. Was fehlt, ist ein **zweiter echter Verstärker
 im selben Speicher**.
 
-> Diese Sorte darf nicht als Lücke gezählt werden. Sonst steht hier eine Zahl,
-> die zu Arbeit auffordert, die niemand tun kann.
+> **Dieser Absatz galt bis zum 2026-08-10 und gilt nicht mehr allgemein.**
+> `griplock` und `slag` haben inzwischen tragende Fälle: Die Lage lässt sich
+> herstellen. Sie fehlt nur noch bei vier Trägern — und damit ist es eine
+> Lücke, keine Unmöglichkeit.
+>
+> Die alte Fassung zählte `buff.kind` deshalb aus den Lücken heraus. Das war
+> zum damaligen Stand richtig und ist heute falsch; eine Ausnahme, die sich
+> selbst überlebt, hält Arbeit auf, die getan werden kann.
 
 > Eine frühere Fassung führte hier „einen" Schweiger unter #555, mit der
 > Begründung „einziger Träger". Beides war zu grob: Es sind sechs Träger, und
 > entscheidend ist nicht ihre Zahl, sondern dass jeder allein in _seinem_
 > Speicher sitzt.
 
-> **Die Kopfzahlen dieses Dokuments (39 Lücken, von 68) stammen aus dem Lauf
-> vom 2026-08-06 und sind NICHT nachgezogen.** Zwei Dinge haben sich seither
-> bewegt: `griplock.buff.kind` ist von „unprüfbar" nach „geschützt" gewandert,
-> und der Bestand umfasst seit #633 **90** Paare statt 68 — die Textfelder
-> kamen dazu. Für die neuen Zahlen bräuchte es einen vollständigen Neulauf
-> (90 Suite-Läufe, rund 45 Minuten); er ist nicht gefahren. Hier steht
-> deshalb nur, was gemessen wurde, und nicht, was sich daraus fortschreiben
-> ließe.
+> **Dieser Kasten stand hier bis zum 2026-08-10 und ist eingelöst.** Er sagte:
+> „Die Kopfzahlen (39 Lücken, von 68) stammen aus dem Lauf vom 2026-08-06 und
+> sind NICHT nachgezogen … Für die neuen Zahlen bräuchte es einen
+> vollständigen Neulauf; er ist nicht gefahren."
+>
+> Der Lauf ist gefahren: alle **109** Paare, in zwei Blöcken, rund achtzig
+> Minuten. Die Kopfzahlen oben stammen daraus.
+>
+> **Eine Auflage für den nächsten Lauf.** Das Werkzeug fährt NUR vitest — das
+> steht in seinem eigenen Kopf. Die sechs Zeilen mit `RUST-GEPRUEFT` hat
+> jemand von Hand ergänzt, nachdem er den Rust-Bau gegengeprüft hatte; ein
+> neuer Lauf kann sie nicht kennen und setzt sie zwangsläufig auf „NUR
+> FRISCHE" oder „SCHWEIGT" zurück.
+>
+> Wer die Rohausgabe ungeprüft in `groessen-abdeckung-messung.txt` schreibt,
+> **löscht diese Erkenntnisse** und behauptet sechs Lücken, die es nicht gibt.
+> Gemessen am 2026-08-10: vier Zeilen `aether`, zwei `pyroclasm`.
 
 ### Warum die sechs echten Lücken verschieden teuer sind
 
@@ -247,11 +286,17 @@ drei. Eine Zeile „`dot.tickDamage` ist geschützt" lässt offen, ob
 ## Das Werkzeug
 
 ```bash
-python3 tools/groessen-mutation.py 0 13     # Paare 0 bis 12
-python3 tools/groessen-mutation.py 39 53    # der Rest
+python3 tools/groessen-mutation.py 0 40     # Paare 0 bis 39
+python3 tools/groessen-mutation.py 40 109   # der Rest
 ```
 
-In Blöcken, weil ein Lauf über alle 53 Paare rund vierzig Minuten braucht.
+In Blöcken, weil ein Lauf über alle 109 Paare rund achtzig Minuten braucht —
+gemessen am 2026-08-10: zwanzig Minuten für vierzig Paare, knapp eine Stunde
+für die übrigen 69.
+
+**Die Ausgabe gehört nicht ungeprüft in die Datei.** Ein Lauf kennt die
+`RUST-GEPRUEFT`-Vermerke nicht und setzt sie zurück; siehe den Kasten weiter
+oben.
 
 **Die Zusicherung darin ist kein Beiwerk:** Vor jeder Messung prüft das
 Skript, dass die Mutation die Datei _wirklich_ verändert hat. Ohne sie sieht
@@ -449,3 +494,54 @@ Beide Male hätte der Prüffall **grün** dagestanden und nichts geprüft:
 
 Beides ist dieselbe Klasse wie die Standardoptionen aus #576: **Ohne die
 richtige Lage misst ein Fall nichts und ist trotzdem grün.**
+
+---
+
+## Nachtrag 2026-08-10 (#481): der erste vollständige Neulauf
+
+Der Kasten weiter oben verlangte ihn seit dem 2026-08-06 („er ist nicht
+gefahren"). Jetzt ist er gefahren — **109 von 109 Paaren**, in zwei Blöcken,
+rund achtzig Minuten.
+
+|              | vorher (fortgeschrieben) | jetzt (gemessen) |
+| ------------ | ------------------------ | ---------------- |
+| geschützt    | 47                       | **71**           |
+| nur Frische  | 39                       | **19**           |
+| schweigt     | 11                       | **7**            |
+| strukturell  | 6                        | 6                |
+| rust-geprüft | 6                        | 6                |
+
+**24 Paare sind besser geworden, 4 schlechter.** Die vier waren CRUCIBLE SKIN
+(#481) — und sie sind der Grund, warum dieser Lauf sich gelohnt hat.
+
+### Was die vier gezeigt haben
+
+`crucible-skin.test.ts` prüfte RICHTUNG statt GRÖSSE:
+
+```ts
+expect(mit.absorbiert).toBeGreaterThan(ohne.absorbiert);
+```
+
+Halbiert man `shield.amount`, fängt die Schicht immer noch mehr ab als gar
+keine. Grün. Die vier Prüffälle hinter dem alten Vermerk „geschuetzt [4]"
+waren `coverage`, `jede-groesse-ist-gemessen`, `sound-triggers` und die
+Frische — **Listen und Frische, nicht Wirkung.** Sie werden rot, weil die
+Aufzeichnung nicht mehr zur Datei passt; wer sie neu erzeugt, ist die Meldung
+los.
+
+> „Geschützt" hieß dort _irgendetwas wird rot_, nicht _die Größe ist geprüft_.
+
+### Und was die Behebung gezeigt hat
+
+Der erste Nachtrag zum Prüffall färbte bei jeder Halbierung — aber nur über
+abgeschriebene Datensatz-Zeilen (`expect(zauber!.shield!.amount).toBe(1800)`).
+Ohne sie blieb er bei allen vier Halbierungen grün.
+
+Die Ursache war der **Träger**, nicht die Zusicherung: `test-warden` teilt 720
+aus, da hat keine der drei Größen Platz. Mit `test-onslaught` (1600 je
+Treffer) und KINDLE als Füller fängt der Wirkungsteil allein alle fünf
+Halbierungen.
+
+Damit steht diese Lehre zum dritten Mal in diesem Dokument, jedes Mal aus
+einer anderen Richtung: **Eine Probe braucht einen Träger, bei dem die Wirkung
+Platz hat.**
