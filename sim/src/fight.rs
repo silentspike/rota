@@ -2461,6 +2461,37 @@ impl Fight {
     ///
     /// **Ganzzahlig bis zur letzten Teilung** — dieselbe Rechnung wie im Spiel
     /// (18.4).
+    ///
+    /// # Ihr Ergebnis erreicht heute KEINE Schadensrechnung
+    ///
+    /// Gemessen mit einer Mutation: Setzt man hier `99.0` statt der Rechnung,
+    /// bleiben bei 121 gelaufenen Suiten **null** Fälle rot. Dieselbe Mutation
+    /// in [`Self::apply_decay_stack_bonus`] färbt 274 — der Kontrollversuch
+    /// schliesst also aus, dass die Verwundbarkeit gar nicht geprüft würde.
+    ///
+    /// **Die beiden Zahlen altern, das Verhältnis nicht.** Beim Schreiben
+    /// dieses Kommentars standen 116 Suiten und 262 rote Fälle da; zwei
+    /// gemergte Zauber später sind es 121 und 274. Die Suitenzahl ist die
+    /// Zusicherung, dass der Lauf stattgefunden hat — ein Bau, der gar nicht
+    /// läuft, meldet null rote Fälle genauso wie ein grüner. Was trägt, ist
+    /// **null gegen alles andere**.
+    ///
+    /// Der Grund ist die Reihenfolge: `apply_decay_stack_bonus` setzt dasselbe
+    /// Feld **unbedingt neu** und rechnet es von Grund auf, und sie läuft vor
+    /// jeder Schadensrechnung — in `resolve_player_cast` wie in `dot_tick`.
+    /// Der hier gesetzte Wert steht nur zwischen einem Stapel-Ereignis und dem
+    /// nächsten Wurf, und in dieser Zeit fällt kein Schaden.
+    ///
+    /// # Warum sie trotzdem bleibt
+    ///
+    /// Auf der Spiel-Seite hält `updateVulnerability` den Getter
+    /// `combat.vulnerability` aktuell, den zwei Prüffälle lesen
+    /// (`putrefaction.test.ts`, `rot-decay-per-tick.test.ts`). Sie zu
+    /// entfernen wäre ein Eingriff auf beiden Seiten für null Gewinn —
+    /// entschieden nach der Messung, nicht nach Gefühl (Issue #480).
+    ///
+    /// **Wer hier etwas ändert, ändert nichts am Schaden.** Wer den Schaden
+    /// treffen will, ändert `apply_decay_stack_bonus`.
     fn update_vulnerability(&mut self) {
         // Der Faktor wiegt den EINZELNEN Stapel schwerer, er legt keinen
         // dazu — die Stapelzahl bleibt unberuehrt (Issue #489, VIRULENCE).

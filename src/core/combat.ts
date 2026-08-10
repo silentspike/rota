@@ -2487,6 +2487,37 @@ export class Combat {
     return summe;
   }
 
+  /**
+   * Rechnet die Verwundbarkeit aus den liegenden Stapeln.
+   *
+   * # Ihr Ergebnis erreicht heute KEINE Schadensrechnung
+   *
+   * Gemessen mit einer Mutation: Setzt man hier `99` statt der Rechnung,
+   * werden genau **zwei** Fälle rot — und beide lesen den Getter
+   * `combat.vulnerability`, keiner rechnet Schaden damit
+   * (`putrefaction.test.ts`, `rot-decay-per-tick.test.ts`). Dieselbe Mutation
+   * in `applyDecayStackBonus` färbt 214 Fälle.
+   *
+   * **Die 214 altert, die 2 nicht.** Beim Schreiben waren es 210; jeder neue
+   * Prüffall hebt sie. Die 2 dagegen sind namentlich bekannt und bleiben, bis
+   * jemand einen dritten Leser des Getters baut.
+   *
+   * Der Grund ist die Reihenfolge: `applyDecayStackBonus` setzt dasselbe Feld
+   * **unbedingt neu** und rechnet es von Grund auf, und sie läuft vor jeder
+   * Schadensrechnung. Der hier gesetzte Wert steht nur zwischen einem
+   * Stapel-Ereignis und dem nächsten Wurf, und in dieser Zeit fällt kein
+   * Schaden.
+   *
+   * # Warum sie trotzdem bleibt
+   *
+   * Sie hält den Getter aktuell, den die zwei Prüffälle lesen. Sie zu
+   * entfernen wäre ein Eingriff auf beiden Seiten für null Gewinn —
+   * entschieden nach der Messung, nicht nach Gefühl (Issue #480). Der
+   * Simulator trägt denselben Hinweis an `update_vulnerability`.
+   *
+   * **Wer hier etwas ändert, ändert nichts am Schaden.** Wer den Schaden
+   * treffen will, ändert `applyDecayStackBonus`.
+   */
   private updateVulnerability(): void {
     // **Der Faktor aus `stackBuffs`** (Issue #489, VIRULENCE): Er ändert, was
     // ein Stapel WERT ist, nicht wie viele liegen. Ganzzahlig bis zur letzten
