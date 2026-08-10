@@ -1,4 +1,4 @@
-# Das Ausrüstungs-Raster — 10 Einträge sind heute sinnvoll, nicht 30
+# Das Ausrüstungs-Raster — 30 Einträge, und zwei Fehler auf dem Weg dahin
 
 > **Noch nicht freigegeben.** Der Orchestrator legt dieses Dokument dem Auftraggeber vor. Bis dahin
 > ist jede Zeile ein Vorschlag, keine Festlegung.
@@ -15,10 +15,13 @@
 >
 > # Wie viele Plätze kennt der Code?
 > grep -oP 'SLOT_COUNT = \K\d+' src/gear/slots.ts
+>
+> # Welche Affix-Arten lässt der Katalog zu?
+> grep -A 8 'POOL_NAMES: readonly' src/gear/pools.ts
 > ```
 >
 > **Stand 2026-08-10**, gemessen an `main`: **1 Eintrag** (`test-relic`), auf Platz **0**.
-> **10 Plätze** im Code.
+> **10 Plätze** im Code. **6 zugelassene Affix-Arten**, davon 5 mit Wirkung.
 >
 > **Der zweite Befehl ist mit Absicht ein Ablesen und kein Zählen.** Mein erster Versuch war
 > `grep -c 'export const SLOT_[A-Z]* ='` und meldete **11** — er zählte `SLOT_COUNT` mit. Eine
@@ -32,18 +35,16 @@ nicht als Vorschlag.
 
 ## Die kurze Fassung
 
-**Die Maschine ist fertig, der Katalog ist leer — aber ein größerer Katalog bringt heute nichts.**
+**Die Maschine ist fertig, der Katalog ist leer, und die Wahl ist baubar — aber nicht dort, wo ich
+sie zuerst gesucht habe.**
 
-Gemessen: Zwei Einträge derselben Qualität und Stufe sind praktisch **gleich stark und gleich
-verteilt**, egal welche Werte in welcher Reihenfolge darin stehen. Ein Katalog mit dreißig
-Einträgen hätte dreißig Namen und eine einzige Wirkung.
+| Woraus die Wahl **nicht** besteht       | Woraus sie besteht                                    |
+| --------------------------------------- | ----------------------------------------------------- |
+| der **Reihenfolge** der `affixKinds`    | **welche** der fünf wirksamen Arten ein Eintrag nennt |
+| der Qualität (wird beim Fall gewürfelt) | dem Platz                                             |
 
-Deshalb schlägt dieses Raster **10 Einträge** vor — einen je Platz, damit kein Platz leer bleibt —
-und benennt die **drei Entscheidungen**, die vorher fallen müssen, damit ein größerer Katalog
-überhaupt eine Wahl anbietet.
-
-Das ist die unbequemere Antwort. Die bequeme wäre eine Tabelle mit dreißig Zeilen gewesen, die
-sich in der Spalte „Rolle in der Wahl" unterscheiden und sonst nirgends.
+Vorgeschlagen werden **30 Einträge**: zehn Plätze mal drei Ausrichtungen. Dazu zwei Befunde, die
+beim Messen aufgefallen sind und beide ein eigenes Vorhaben sind.
 
 ---
 
@@ -60,14 +61,13 @@ der Zählung zu Kapitel 13 (Nachricht 6061):
 | Der Katalog      | **ein** Eintrag                                                  |
 
 Es ist ein Katalog, der in eine fertige Maschine gefüllt wird. **Die Maschine bestimmt aber, wie
-viel Vielfalt ein Katalog überhaupt tragen kann** — und genau das war die Überraschung.
+viel Vielfalt ein Katalog tragen kann** — und das musste gemessen werden, nicht gelesen.
 
 ---
 
-## Der Befund, der die Zahl bestimmt: das Budget verteilt gleichmäßig
+## Was gemessen wurde, und was dabei zweimal umfiel
 
-Ein Eintrag nennt `affixKinds`, und `distributeBudget` verteilt das Wertebudget darauf. Gemessen
-am 2026-08-10 für einen Gegenstand der Stufe 40:
+### Messung 1: Das Budget verteilt gleichmäßig
 
 ```text
 Q0 common     slots=1  budget= 620  ->  [620]
@@ -76,143 +76,168 @@ Q2 epic       slots=3  budget=1219  ->  [407, 406, 406]
 Q3 legendary  slots=3  budget=1219  ->  [407, 406, 406]
 ```
 
-Die Formel ist `shareOfSlot = floor((budget + slots - 1 - index) / slots)` (`src/gear/budget.ts`).
-Der Unterschied zwischen dem ersten und dem letzten Platz ist **ein Promille von 407** — das ist
-die Verteilung des Rundungsrestes, keine Betonung.
+`shareOfSlot = floor((budget + slots - 1 - index) / slots)` (`src/gear/budget.ts`). Der Unterschied
+zwischen erstem und letztem Platz ist **ein Promille von 407** — Rundungsrest, keine Betonung.
 
-**Daraus folgen zwei Dinge, die ich beide zuerst falsch angenommen hatte:**
+> **Damit fiel mein erster Entwurf.** Er baute dreißig Einträge auf der _Reihenfolge_ auf: je Platz
+> eine CATALYSIS-, eine PURITY- und eine YIELD-betonte Fassung.
+> `['catalysis','purity','yield']` gegen `['yield','purity','catalysis']` ist gemessen
+> **407/406/406 gegen 407/406/406** — dieselbe Sache mit vertauschten Etiketten.
 
-### 1. Die Reihenfolge der `affixKinds` bedeutet nichts
-
-Mein erster Entwurf dieses Dokuments baute darauf dreißig Einträge auf: je Platz eine
-CATALYSIS-betonte, eine PURITY-betonte und eine YIELD-betonte Fassung, unterschieden durch die
-Reihenfolge. `['catalysis','purity','yield']` gegen `['yield','purity','catalysis']` — gemessen
-sind das **407/406/406 gegen 407/406/406**. Dieselbe Sache mit vertauschten Etiketten.
-
-### 2. Weniger Affixe machen einen Gegenstand schwächer, nicht konzentrierter
-
-Der naheliegende Ausweg wäre ein Eintrag, der nur **einen** Wert nennt und dafür alles hineinlegt.
-Das tut er nicht:
+Auch der naheliegende Ausweg trägt nicht: Wer **weniger** Arten nennt, als die Qualität Plätze
+gibt, verliert den Rest ersatzlos.
 
 ```text
-Epic-Budget gesamt:                  1219
-  Eintrag mit 1 affixKind bekommt:    407
-  Eintrag mit 3 affixKinds bekommt:  1219
+Epic-Budget gesamt:                 1219
+  Eintrag mit 1 affixKind bekommt:   407
+  Eintrag mit 3 affixKinds bekommt: 1219
 ```
 
-`wornFrom` läuft `i < anzahl && i < def.affixKinds.length` — wer weniger Arten nennt, als die
-Qualität Plätze gibt, **verliert den Rest ersatzlos**. Ein „reiner Tempo-Fokus" wäre nicht
-spezialisiert, sondern um zwei Drittel schwächer.
+Ein „reiner Tempo-Fokus" wäre nicht spezialisiert, sondern um zwei Drittel schwächer.
 
-### Was das für 13.1b bedeutet
+### Messung 2: Es gibt fünf wirksame Affix-Arten, nicht drei
 
-13.1b begründet die drei getrennten Faktoren so:
+**Damit fiel mein zweiter Entwurf**, der aus Messung 1 geschlossen hatte, es gebe überhaupt keine
+Wahl und zehn Einträge genügten.
 
-> Weil sie sich multiplizieren, will man alle drei mischen statt einen zu stapeln. Das ist der
-> eigentliche Designwert — nicht „mehr Zahl", sondern **keine Monokultur**.
+`catalog.ts` prüft `POOL_NAMES.includes(kind)` und lässt damit **alle sechs Topf-Namen** zu. Ein
+Eintrag mit `["gearEffects","essence","active"]` lädt anstandslos und ergibt:
 
-**Heute ist die Mischung nicht gewählt, sondern erzwungen.** Es gibt genau drei Sonderwerte und bei
-Epic genau drei Plätze; jeder vollwertige Gegenstand trägt alle drei zu gleichen Teilen. Eine
-Monokultur ist gar nicht baubar — und damit ist auch die Entscheidung dagegen keine.
+```text
+{"catalysis":0,"purity":0,"yieldBonus":0,"essence":473,"vessel":67,"ward":67,
+ "gearEffects":407,"active":406}
+```
 
-Das ist kein Fehler im Code: `budget.ts` tut genau, was 13.3 sagt („feste Formel, Qualität als
-Faktor", „keine Werte-Streuung"). Es ist eine Lücke im **Design**: Woraus die Wahl zwischen zwei
-Gegenständen besteht, steht dort nicht.
+- **`essence` wirkt** — 473 = 407 aus dem Affix plus 66 aus dem Grundwert. Topf 1.
+- **`gearEffects` wirkt** — 407. **Topf 4 ist über einen Affix erreichbar**, ganz ohne Sätze.
+- **`active` erzeugt ein Feld, das es nicht gibt** — siehe Befund 1 unten.
+
+**Die Wahl besteht also aus der Auswahl, nicht aus der Sortierung.** Bei fünf wirksamen Arten und
+drei Plätzen (Epic) gibt es 10 echte Kombinationen — und sie unterscheiden sich wirklich, weil sie
+verschiedene Größen füllen.
 
 ---
 
-## Gruppe A — heute baubar und sinnvoll: 10 Einträge
+## Die Zahl: 30 — zehn Plätze mal drei Ausrichtungen
 
-Einer je Platz, damit kein Platz leer bleibt. Alle drei Sonderwerte, weil alles andere gemessen
-schwächer ist.
+Die fünf wirksamen Arten zerfallen in zwei Klassen, und daraus folgt die Achse:
 
-**Stufe und Qualität stehen mit Absicht nicht in der Tabelle.** Sie gehören zum Eintrag
-(`itemLevel`, `quality`), werden aber beim Fall ohnehin neu gewürfelt — und sind damit
-Balance-Zahlen, keine Katalog-Entscheidung. Welchen Wert sie tragen sollen, misst der
-Balance-Läufer.
+| Klasse               | Arten                          | Wirkung                                             |
+| -------------------- | ------------------------------ | --------------------------------------------------- |
+| **Sonderwerte**      | `catalysis`, `purity`, `yield` | je ein eigener Weg: Tempo, Krit-Chance, Krit-Stärke |
+| **Schadensfaktoren** | `essence`, `gearEffects`       | multiplizieren den Schaden direkt (Topf 1, Topf 4)  |
 
-| #   | Platz          | Kennung         | `affixKinds`               |
-| --- | -------------- | --------------- | -------------------------- |
-| 1   | **Focus**      | `focus-01`      | `catalysis, purity, yield` |
-| 2   | **Catalyst**   | `catalyst-01`   | `catalysis, purity, yield` |
-| 3   | **Sigil**      | `sigil-01`      | `catalysis, purity, yield` |
-| 4   | **Relic**      | `relic-01`      | `catalysis, purity, yield` |
-| 5   | **Grimoire**   | `grimoire-01`   | `catalysis, purity, yield` |
-| 6   | **Shard**      | `shard-01`      | `catalysis, purity, yield` |
-| 7   | **Talisman**   | `talisman-01`   | `catalysis, purity, yield` |
-| 8   | **Phylactery** | `phylactery-01` | `catalysis, purity, yield` |
-| 9   | **Anchor**     | `anchor-01`     | `catalysis, purity, yield` |
-| 10  | **Prism**      | `prism-01`      | `catalysis, purity, yield` |
+**Die Ausrichtung ist, wie viele Plätze an die Schadensfaktoren gehen.** Das ist eine echte
+Abwägung: Sonderwerte wirken über Umwege (schneller wirken, öfter kritisch treffen), Faktoren
+wirken unmittelbar auf jede Zahl.
 
-**Dass alle zehn Zeilen gleich aussehen, ist das Ergebnis, nicht die Nachlässigkeit.** Solange die
-Verteilung gleichmäßig ist, gibt es zwischen zwei Einträgen derselben Qualität nichts zu
-unterscheiden außer dem Platz.
+| Ausrichtung  | `affixKinds`                   | Was sie ist                               |
+| ------------ | ------------------------------ | ----------------------------------------- |
+| **`-mix`**   | `catalysis, purity, yield`     | drei Sonderwerte — die Mischung aus 13.1b |
+| **`-drive`** | `essence, purity, catalysis`   | ein Faktor, zwei Sonderwerte              |
+| **`-core`**  | `essence, gearEffects, purity` | zwei Faktoren, ein Sonderwert             |
+
+Je Platz eine von jeder → **30 Einträge**. Kein Platz bleibt leer, und auf jedem Platz gibt es
+etwas zu entscheiden.
+
+> **Die Auswahl der Ausrichtungen ist meine Auslegung**, kein Design-Satz. Was gemessen ist: dass
+> die fünf Arten wirken und sich unterscheiden. Dass genau **diese drei** Zusammenstellungen die
+> interessanten sind, ist eine Setzung — wer sie anders schneidet, ändert die Tabelle unten, nicht
+> die Zahl 30.
+
+### Gruppe A — die 30 Einträge
+
+`-mix` ist auf jedem Platz identisch aufgebaut, `-drive` und `-core` ebenso; die Vielfalt liegt in
+der Ausrichtung, nicht in der Variation je Platz.
+
+| Platz          | `…-mix`                    | `…-drive`                    | `…-core`                       |
+| -------------- | -------------------------- | ---------------------------- | ------------------------------ |
+| **Focus**      | `catalysis, purity, yield` | `essence, purity, catalysis` | `essence, gearEffects, purity` |
+| **Catalyst**   | dito                       | dito                         | dito                           |
+| **Sigil**      | dito                       | dito                         | dito                           |
+| **Relic**      | dito                       | dito                         | dito                           |
+| **Grimoire**   | dito                       | dito                         | dito                           |
+| **Shard**      | dito                       | dito                         | dito                           |
+| **Talisman**   | dito                       | dito                         | dito                           |
+| **Phylactery** | dito                       | dito                         | dito                           |
+| **Anchor**     | dito                       | dito                         | dito                           |
+| **Prism**      | dito                       | dito                         | dito                           |
+
+Kennungen nach dem Muster `focus-mix`, `focus-drive`, `focus-core`.
 
 **Die drei Grundwerte stehen bei keinem dabei, und das ist richtig.** ESSENCE, VESSEL und WARD
 trägt **jeder** Gegenstand (13.3); `wornFrom` addiert sie aus `basePermille(itemLevel, …)`, ohne
-dass sie im Eintrag stehen. Wer sie in die `affixKinds` schriebe, zählte sie doppelt.
+dass sie im Eintrag stehen. Ein `essence`-Affix kommt **zusätzlich** dazu (gemessen: 473 = 407 + 66)
+— das ist kein Doppelzählen, sondern Topf 1, der laut 13.1b „alle Quellen des Grundwerts" additiv
+sammelt.
 
-**Die Qualität ist keine Achse dieses Katalogs.** Sie wird beim Fall gewürfelt (`qualityOfRoll` in
-`src/loot/rates.ts`) und beschneidet die Affixe: Ein Eintrag mit drei `affixKinds` bedient Common,
-Rare und Epic aus einer Vorlage. Vier Einträge je Platz wären vier Kopien. Dasselbe gilt für die
-Gegenstandsstufe — `itemLevelOf(instance, difficulty, endlessLevel)` rechnet sie beim Fall aus.
-**Beides steht allerdings unter dem Vorbehalt des Befundes weiter unten.**
-
----
-
-## Die drei Entscheidungen, die einen größeren Katalog erst möglich machen
-
-Alle drei sind **Design-Fragen**, keine Bau-Aufgaben. Ich lege sie vor, statt sie zu beantworten.
-
-### A. Mehr Affix-Arten als Plätze
-
-Heute: drei Sonderwerte, drei Plätze bei Epic. Gäbe es **mehr** wählbare Arten als Plätze, wäre die
-Auswahl eine Wahl. Das ist die Bauart von WoW und Diablo, auf die sich 13.1b beruft.
-
-Die vorhandenen Töpfe (`src/gear/pools.ts`) nennen sechs Kennnummern — `essence`, `catalysis`,
-`purity`, `yield`, `active`, `gearEffects`. Vier davon sind heute als Affix wählbar.
-
-### B. Konzentration ohne Verlust
-
-Alternativ: Ein Eintrag mit weniger Arten legt das **ganze** Budget auf sie. Dann wäre „reiner
-Tempo-Fokus" eine echte Ausrichtung statt einer Strafe. Das ist eine Änderung an
-`distributeBudget`, und sie berührt die Prüfsummen — anders als der Katalog selbst.
-
-**Vorsicht, und 13.1b sagt es selbst:** Genau so entsteht die Monokultur, die dort abgelehnt wird.
-Die Entscheidung gehört deshalb dem Auftraggeber, nicht dem Bau.
-
-### C. Die Zuleitung zu Topf 4 (siehe Gruppe B)
-
-Sätze und legendäre Effekte sind die Vielfalt, die das Design ohnehin vorsieht — sie kommen nur
-nicht an.
+**Stufe und Qualität stehen mit Absicht nicht in der Tabelle.** Sie gehören zum Eintrag, werden
+aber beim Fall neu gewürfelt (`qualityOfRoll`, `itemLevelOf` in `src/loot/rates.ts`) — und sind
+damit Balance-Zahlen, keine Katalog-Entscheidung. **Unter dem Vorbehalt von Befund 2.**
 
 ---
 
-## Gruppe B — heute NICHT baubar: alles, was `gearEffects` braucht
+## Die eine Design-Frage, die ich nicht selbst entscheide
 
-**Gesperrt heißt:** Der Faktor existiert und ist paritätisch geprüft, aber **nichts füllt ihn**.
-Gemessen: `gearEffectsPermille(legendaries, setTiers)` (`src/gear/sources.ts`) und `valueShareOf`
-(`src/gear/sets.ts`) werden von **niemandem** gerufen; `worn.gearEffects` ist im Spiel immer 0.
+**Darf `gearEffects` ein Affix sein?**
 
-| Was                                      | Design | Warum gesperrt                                                                |
-| ---------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| **Legendäre Sondereffekte**              | 13.3   | „Echter Sondereffekt, der die Rotation verändert" — das ist Topf 4            |
-| **Satz-Boni**, 6 Sätze × 2/4/6           | 13.5   | `SET_COUNT = 6` und `SET_TIERS = [2,4,6]` stehen im Code, die Zuleitung fehlt |
-| **Rotations-Effekte** höherer Satzstufen | 13.5   | `activeRotationEffects()` in `sets.ts` ruft ebenfalls niemand                 |
+Gemessen: Es geht, und es wirkt. Aber 13.1b beschreibt Topf 4 als „legendäre Effekte **und**
+Satz-Boni gemeinsam" — ein gewöhnlicher Affix darauf ist eine **dritte** Quelle, die dort nicht
+steht.
+
+|                    | dafür                                              | dagegen                                                                                                                      |
+| ------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Wirkung            | Topf 4 kommt im Spiel an, ohne auf Sätze zu warten | 13.1b nennt nur zwei Quellen                                                                                                 |
+| Balance            | gibt der Ausrichtung `-core` ihren zweiten Faktor  | „Was multiplikativ ist, wird gejagt" — die Lehre aus Diablo, die 13.1b zitiert                                               |
+| Verhältnis zu 13.5 | —                                                  | der Vergleich „bester Satz-Aufbau gegen besten Affix-Aufbau" (#118) wird unschärfer, wenn beide Seiten denselben Topf füllen |
+
+**Fällt die Antwort „nein", entfällt die Ausrichtung `-core`** und es bleiben 20 Einträge. Die
+übrige Rechnung ändert sich nicht.
+
+---
+
+## Gruppe B — heute NICHT baubar
+
+**Nicht der Topf-4-Faktor ist gesperrt, sondern seine beiden Design-Quellen.** Das ist die
+Korrektur gegenüber meinem zweiten Entwurf, der den ganzen Topf für unerreichbar hielt.
+
+| Was                                      | Design | Warum gesperrt                                                                  |
+| ---------------------------------------- | ------ | ------------------------------------------------------------------------------- |
+| **Legendäre Sondereffekte**              | 13.3   | „Echter Sondereffekt, der die Rotation verändert" — es gibt keinen Träger dafür |
+| **Satz-Boni**, 6 Sätze × 2/4/6           | 13.5   | `gearEffectsPermille` in `src/gear/sources.ts` ruft **niemand**                 |
+| **Rotations-Effekte** höherer Satzstufen | 13.5   | `activeRotationEffects()` und `valueShareOf()` in `sets.ts` ruft **niemand**    |
 
 **Ein Eintrag der Qualität `legendary` wäre heute ein Epic mit anderem Namen** — gemessen: `Q3`
 bekommt dieselben `slots=3` und dasselbe `budget=1219` wie `Q2`. Deshalb steht in Gruppe A **kein**
 legendärer Eintrag: nicht aus Vorsicht, sondern weil das Wort sonst etwas verspräche, was der Code
 nicht einlöst.
 
-**Das ist der Grund, warum der Balance-Vergleich aus 13.5 („bester Satz-Aufbau gegen besten
-Affix-Aufbau", #118) heute nicht laufen kann.** Die Satz-Seite kommt im Kampf nicht an.
+**Der Balance-Vergleich aus 13.5 (#118) kann deshalb weiterhin nicht laufen**, auch wenn Topf 4
+über Affixe erreichbar ist: Die **Satz-Seite** kommt nicht an.
 
 ---
 
-## Zwei weitere Befunde
+## Befund 1: `active` ist ein stiller Wertverlust
 
-### Der Fund verliert seine Stufe und seine Qualität
+`POOL_NAMES` lässt `active` als Affix zu. `WornValues` hat aber **kein Feld dafür**. Gemessen:
+
+```text
+{… "gearEffects":407, "active":406}
+                       ^^^^^^^^^^^^ ein Feld, das der Kampf nicht kennt
+```
+
+`wornFrom` schreibt über `summe[feld]` in einen frei benannten Schlüssel. Ein Eintrag mit `active`
+lädt ohne Fehler, besteht jede Prüfung — und **406 von 1219 Promille verfallen**, ohne dass irgendwo
+etwas auffällt.
+
+Das ist die gefährliche Sorte: Der Gegenstand sieht vollwertig aus und ist ein Drittel schwächer.
+Zwei Wege stehen offen — `active` aus `POOL_NAMES` entfernen, oder ihm ein Feld geben. Welcher
+richtig ist, hängt daran, ob „aktive Verstärkungen" je aus Ausrüstung kommen sollen (13.1b nennt
+dort Overdrive, Synergien und Zersetzungs-Stapel, also Kampf-Quellen).
+
+**Eigenes Vorhaben.** Es berührt `pools.ts`, `worn.ts` und die Katalog-Prüfung — nicht den Katalog.
+
+## Befund 2: Der Fund verliert seine Stufe und seine Qualität
 
 `rollLoot` liefert einen Fund mit **gewürfelter** Stufe und Qualität. Verbucht wird er in
 `recordRun` (`src/analysis/run-recorder.ts`) so:
@@ -222,7 +247,7 @@ Affix-Aufbau", #118) heute nicht laufen kann.** Die Satz-Seite kommt im Kampf ni
 ```
 
 `drop.itemLevel` und `drop.quality` werden **nicht übernommen** — `OwnedItem` hat keine Felder
-dafür. `wornFrom` liest die Stufe danach aus dem **Katalog**. Gemessen am 2026-08-10:
+dafür. `wornFrom` liest die Stufe danach aus dem **Katalog**. Gemessen:
 
 ```text
 FUND  aus Instanz 1        {"itemId":"test-relic","itemLevel":1, "quality":0}
@@ -238,24 +263,21 @@ Damit kommt 13.4 („Zwei getrennte Achsen: Qualität und Gegenstandsstufe laufe
 episches Stück aus einer frühen Instanz ist schwächer als ein seltenes aus dem Endgame — **alter
 Inhalt entwertet sich von selbst**") im Spiel nicht an. Beide Achsen werden gewürfelt und verworfen.
 
-**Für dieses Raster heißt das:** Die Begründung, warum Qualität und Stufe keine Katalog-Achsen
-sind, steht und fällt damit. Wird der Befund behoben, trägt sie. Wird er es nicht, müsste die
-Vielfalt doch aus der Zahl der Einträge kommen — und dann bräuchte jede Qualität und jede
-Instanz-Stufe ihren eigenen Eintrag.
+**Für dieses Raster heißt das:** Die Begründung, warum Qualität und Stufe keine Katalog-Achsen sind,
+steht und fällt damit. Wird der Befund behoben, trägt sie.
 
-**Das ist ein eigenes Vorhaben**, kein Teil des Katalogs: Es berührt `OwnedItem`, das
-Spielstand-Format und `wornFrom`, also auch die Fassung des Spielstands.
+**Eigenes Vorhaben**, kein Teil des Katalogs: Es berührt `OwnedItem`, das Spielstand-Format und
+`wornFrom`, also auch die Fassung des Spielstands.
 
-### `boundToBoss` ist gebaut und wartet auf einen Träger
+## Befund 3: `boundToBoss` ist gebaut und wartet auf einen Träger
 
 `mayDropAt(item.boundToBoss, bossId)` steht in `src/loot/roll.ts` und wird bei jedem Fund geprüft.
 Der Kommentar dort sagt: „Heute trägt kein Eintrag eine Bindung; die Prüfung steht trotzdem, weil
 sie sonst beim ersten gebundenen Stück vergessen würde."
 
 **Der Katalog kann davon Gebrauch machen, ohne dass etwas gebaut werden muss.** Ich schlage es hier
-**nicht** vor, weil die Bosse noch nicht stehen (der Auftraggeber hat „erst eine Instanz
-vollständig" entschieden) — aber wer diese Instanz baut, sollte wissen, dass die Bindung schon da
-ist.
+**nicht** vor, weil die Bosse noch nicht stehen — aber wer die erste Instanz baut, sollte wissen,
+dass die Bindung schon da ist.
 
 ---
 
@@ -263,7 +285,7 @@ ist.
 
 - **Die Basiswerte selbst.** Wie viel ESSENCE ein Gegenstand auf Stufe 1 trägt, ist laut 13.3
   ausdrücklich eine Balance-Zahl, die gemessen und nicht gesetzt wird.
-- **Die Anzeige-Namen.** `focus-01` und so weiter sind Kennungen. Spieltexte sind englisch
+- **Die Anzeige-Namen.** `focus-mix` und so weiter sind Kennungen. Spieltexte sind englisch
   (Design-Gesetz 5); die Namen gehören zum Katalog-Bau, nicht zum Raster.
 - **Wie viele Einträge je Instanz fallen dürfen.** Das ist 13.4 („Obergrenze durch Inhalt") und
   hängt an den Instanzen, die es noch nicht gibt.
