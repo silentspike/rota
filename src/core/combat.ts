@@ -834,7 +834,6 @@ export class Combat {
     return Math.min(DECAY_STACK_CAPACITY, MAX_DECAY_STACKS + (offen ? this.decayCapBonusValue : 0));
   }
 
-
   /**
    * Bis wann DECAYs Schwächung läuft. -1 = keine (Issue #479).
    *

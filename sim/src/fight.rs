@@ -1960,6 +1960,15 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+        // PUTRID BLOOM (Issue #479) — die Grenze anheben. Liegende Stapel
+        // bleiben liegen, wenn sie auslaeuft: Die Grenze entscheidet nur, ob
+        // NACHGELEGT werden darf.
+        if let Some(decay_cap) = spell.decay_cap {
+            self.decay_cap_bonus = decay_cap.bonus as usize;
+            self.decay_cap_until = Some(self.time + decay_cap.duration_ms);
+            self.queue
+                .push(self.time + decay_cap.duration_ms, EventKind::Wakeup);
+        }
         // DECAY (Issue #479) — die Schwaechung anschalten. Die STAPELZAHL wird
         // hier NICHT festgehalten: Sie wird beim Treffer gelesen, sonst zaehlte
         // der Aufbau nach dem Wurf nicht mehr.
@@ -2007,15 +2016,6 @@ impl Fight {
         }
         self.reflected = self.reflected.saturating_add(zurueck);
         self.deal(self.reflect_spell, zurueck, LogKind::Damage);
-        // PUTRID BLOOM (Issue #479) — die Grenze anheben. Liegende Stapel
-        // bleiben liegen, wenn sie auslaeuft: Die Grenze entscheidet nur, ob
-        // NACHGELEGT werden darf.
-        if let Some(decay_cap) = spell.decay_cap {
-            self.decay_cap_bonus = decay_cap.bonus as usize;
-            self.decay_cap_until = Some(self.time + decay_cap.duration_ms);
-            self.queue
-                .push(self.time + decay_cap.duration_ms, EventKind::Wakeup);
-        }
     }
 
     /// Die drei Wirkungen aus GAME-DESIGN 4.1.
