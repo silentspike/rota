@@ -96,6 +96,68 @@ fn ac2_die_ruestung_erlaesst_den_rest_der_wartezeit() {
 }
 
 #[test]
+fn ac2b_erlassen_wird_nur_der_rest_egal_wann_abgebrochen_wird() {
+    // **Beide Fälle, wie in der Zuteilung verlangt** — und sie zeigen
+    // dasselbe Ergebnis aus zwei sehr verschiedenen Lagen:
+    //
+    //   Wurf bei 7600  ->  Wartezeit bis  9100  ->  100 ms offen bei 9000
+    //   Wurf bei 8800  ->  Wartezeit bis 10300  -> 1300 ms offen bei 9000
+    //
+    // In beiden Fällen endet sie beim Abbruch, nicht davor. Das ist der
+    // Unterschied zur anderen Lesart: „die VOLLE Wartezeit erstatten" hiesse
+    // im zweiten Fall 10300 − 1500 = 8800 — der Spieler wäre schon VOR dem
+    // Abbruch frei gewesen und bekäme Zeit geschenkt, die er nie verloren hat.
+    let test_cast = index_of("test-cast").expect("test-cast");
+    let retort = index_of("retort").expect("retort");
+    let boss = boss_by_id("test-caster").expect("test-caster");
+
+    for (start_tick, offen) in [(760_u32, 100_u32), (880, 1300)] {
+        let recording = Recording {
+            name: "retort-frueh-spaet".to_owned(),
+            seed: 0,
+            ticks: 1000,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: test_cast,
+                },
+                Binding {
+                    slot: 1,
+                    spell: retort,
+                },
+            ],
+            presses: vec![
+                Press { tick: 10, slot: 1 },
+                Press {
+                    tick: start_tick,
+                    slot: 0,
+                },
+            ],
+        };
+        let mut fight = Fight::new(FightConfig {
+            seed: 0,
+            boss,
+            player_level: 101,
+            duration_ms: Some(1000 * TICK_MS),
+            ..FightConfig::default()
+        });
+        let ergebnis = fight.replay(&recording, false);
+
+        // Zusicherung: Es gab wirklich einen Abbruch.
+        assert_eq!(
+            ergebnis.casts[test_cast], 0,
+            "bei Start {start_tick} ist test-cast durchgekommen — kein Abbruch"
+        );
+        assert_eq!(
+            fight.gcd_ready_at(),
+            9000,
+            "bei Start {start_tick} (offen waren {offen} ms) endet die Wartezeit \
+             nicht beim Abbruch — wird mehr als der Rest erlassen?"
+        );
+    }
+}
+
+#[test]
 fn ac3_der_selbst_abbruch_verbraucht_die_ruestung_nicht() {
     // **Die Gegenrichtung, und sie wiegt unter dieser Bauart schwerer.**
     // Wer sich rüstet und dann selbst abbricht, hätte sich die Wartezeit
