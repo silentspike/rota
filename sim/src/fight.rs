@@ -279,6 +279,25 @@ pub struct FightConfig {
     /// Sie verlaengert die DAUER, nicht den Abstand: Ein laengerer Brand tickt
     /// OEFTER, er tickt nicht langsamer.
     pub talent_dot_duration_permille: u32,
+    /// Promille je Rang auf den Preis der Kontroll-Wirkungen (FIXATION, #419).
+    /// **Er TEILT** — siehe `talent_control_cost_factor`.
+    pub talent_control_cost_permille: u32,
+    /// Promille auf die Staerke der Kontroll-Wirkungen (FIXATION).
+    pub talent_control_effect_permille: u32,
+    /// Promille auf die Zahl gelegter Faeulnis-Stapel (PUTREFACTION).
+    pub talent_decay_stack_permille: u32,
+    /// Promille auf die Haltbarkeit der Faeulnis-Stapel (PUTREFACTION).
+    pub talent_decay_duration_permille: u32,
+    /// Promille auf die Dicke der Schutzschicht (COAGULATION).
+    pub talent_shield_amount_permille: u32,
+    /// Promille auf die Dauer der Schutzschicht (COAGULATION).
+    pub talent_shield_duration_permille: u32,
+    /// ZUSCHLAG auf die Stapel-Grenze der Schutzschicht (COAGULATION).
+    ///
+    /// **Eine ganze Zahl, kein Promille-Wert** — als einziger der sieben. Ein
+    /// Faktor auf `max_stacks: 3` ergaebe Bruchteile, und eine halbe
+    /// Stapel-Erlaubnis gibt es nicht.
+    pub talent_shield_stacks_bonus: u32,
     /// Stufe des Spielers (Issue #248).
     ///
     /// Sie wirkt auf die Grundwerte: Ein Kampf auf Stufe 50 hat andere
@@ -304,6 +323,13 @@ impl Default for FightConfig {
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
+            talent_control_cost_permille: 0,
+            talent_control_effect_permille: 0,
+            talent_decay_stack_permille: 0,
+            talent_decay_duration_permille: 0,
+            talent_shield_amount_permille: 0,
+            talent_shield_duration_permille: 0,
+            talent_shield_stacks_bonus: 0,
             player_level: 1,
         }
     }
@@ -686,6 +712,13 @@ pub struct Fight {
     /// Kampf stehen, nicht in der Konfiguration.
     talent_resource_factor: f64,
     talent_dot_duration_factor: f64,
+    talent_control_cost_factor: f64,
+    talent_control_effect_factor: f64,
+    talent_decay_stack_factor: f64,
+    talent_decay_duration_factor: f64,
+    talent_shield_amount_factor: f64,
+    talent_shield_duration_factor: f64,
+    talent_shield_stacks_bonus: u32,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
     cd_reduce_buffs: Buffs,
@@ -880,6 +913,18 @@ impl Fight {
             talent_resource_factor: 1.0 + f64::from(config.talent_resource_permille) / 1000.0,
             talent_dot_duration_factor: 1.0
                 + f64::from(config.talent_dot_duration_permille) / 1000.0,
+            talent_control_cost_factor: 1.0
+                + f64::from(config.talent_control_cost_permille) / 1000.0,
+            talent_control_effect_factor: 1.0
+                + f64::from(config.talent_control_effect_permille) / 1000.0,
+            talent_decay_stack_factor: 1.0 + f64::from(config.talent_decay_stack_permille) / 1000.0,
+            talent_decay_duration_factor: 1.0
+                + f64::from(config.talent_decay_duration_permille) / 1000.0,
+            talent_shield_amount_factor: 1.0
+                + f64::from(config.talent_shield_amount_permille) / 1000.0,
+            talent_shield_duration_factor: 1.0
+                + f64::from(config.talent_shield_duration_permille) / 1000.0,
+            talent_shield_stacks_bonus: config.talent_shield_stacks_bonus,
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
             cd_reduce_buffs: Buffs::new(),
@@ -1970,17 +2015,27 @@ impl Fight {
             // **Stapeln bis zur Grenze, dann nicht weiter.** Ein vierter Druck
             // auf eine volle Schicht erneuert die Laufzeit, erhoeht aber den
             // Betrag nicht — sonst waere die Obergrenze wirkungslos.
-            if self.shield_stacks < shield.max_stacks {
+            // **Die drei COAGULATION-Wege** (Issue #419). Einmal gerechnet:
+            // `shield.amount` wird zweimal gelesen (Schicht und Stabilisierung).
+            let dicke = (f64::from(shield.amount) * self.talent_shield_amount_factor) as u32;
+            let grenze = shield.max_stacks + self.talent_shield_stacks_bonus;
+            if self.shield_stacks < grenze {
                 self.shield_stacks += 1;
-                self.shield = self.shield.saturating_add(shield.amount);
+                self.shield = self.shield.saturating_add(dicke);
                 // **Der Schutz draengt die Reaktion zurueck** (Baustein 6,
                 // #247), um seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim
                 // blossen Erneuern — sonst waere die Obergrenze wirkungslos.
-                self.stabilise(shield.amount);
+                // Mit der GEHOBENEN Dicke — sonst stabilisiert die Schicht
+                // nach dem alten Wert (beides gruen, beides falsch).
+                self.stabilise(dicke);
             }
-            self.shield_expires_at = Some(self.time + shield.duration_ms);
-            self.queue
-                .push(self.time + shield.duration_ms, EventKind::Wakeup);
+            // **Dauer UND Wakeup mit demselben Wert** (#419). Wer nur die Dauer
+            // hebt, bekommt eine Schicht, die im Simulator laenger haelt als im
+            // Spiel — mein DECAY-Fehler, eine Schule weiter.
+            let dauer =
+                (f64::from(shield.duration_ms) * self.talent_shield_duration_factor) as Millis;
+            self.shield_expires_at = Some(self.time + dauer);
+            self.queue.push(self.time + dauer, EventKind::Wakeup);
             // **Kein eigener Cast-Eintrag hier** (Issue #151). Er stand bis
             // dahin daneben und ergab fuer CRUST ZWEI Zeilen: diese und die
             // regulaere am Ende von `cast`. Das Spiel schreibt nur eine —
@@ -2119,6 +2174,14 @@ impl Fight {
     /// Hier greift FIXATION wirklich in den **Kampfverlauf** ein — das ist,
     /// was sie von jeder anderen Schule unterscheidet.
     fn apply_control_effect(&mut self, control: Control) {
+        // **Der Wirkungs-Weg wirkt am EINGANG** (Issue #419, FIXATION). Der
+        // Faktor auf `amount` gilt damit fuer alle fuenf Wirkungen und fuer
+        // `AllThree`, das drei davon nacheinander aufruft — eine Zeile statt
+        // fuenf, die auseinanderlaufen koennen.
+        let control = Control {
+            amount: (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32,
+            ..control
+        };
         // **CAPSTONE loest alle drei auf einmal aus** (Issue #478). Ein `match`
         // waehlt genau einen Zweig — deshalb ruft `AllThree` die drei
         // einzelnen auf, statt ihren Inhalt zu wiederholen. Wer den Inhalt
@@ -2246,12 +2309,16 @@ impl Fight {
         let Some(control) = spell.control else {
             return;
         };
-        if self.control < control.cost {
+        // **Der Preis-Weg TEILT** (#419) und wird auf mindestens 1 geklemmt —
+        // ein Ausgeber, der nichts kostet, waere keiner.
+        let preis =
+            ((f64::from(control.cost) / self.talent_control_cost_factor).round() as u32).max(1);
+        if self.control < preis {
             self.control_failed += 1;
             return;
         }
-        self.control -= control.cost;
-        self.control_spent = self.control_spent.saturating_add(control.cost);
+        self.control -= preis;
+        self.control_spent = self.control_spent.saturating_add(preis);
         self.apply_control_effect(control);
     }
 
@@ -2306,6 +2373,11 @@ impl Fight {
     ///
     /// Spiegelbild zu `addDecayStacks` in `src/core/combat.ts`.
     fn add_decay_stacks(&mut self, anzahl: u32) {
+        // **Der Aufbau-Weg wirkt HIER** (#419), nicht an den zwei Aufrufern:
+        // `decay.stacks` und `dot.decay_per_tick` laufen beide durch diese
+        // Stelle. Abgerundet — aufrunden hiesse, dass jeder erste Rang sofort
+        // einen Stapel schenkt.
+        let anzahl = (f64::from(anzahl) * self.talent_decay_stack_factor) as u32;
         if anzahl == 0 {
             return;
         }
@@ -2313,7 +2385,11 @@ impl Fight {
             if self.decay_count >= self.decay_cap() {
                 break;
             }
-            self.decay_expiry[self.decay_count] = self.time + DECAY_STACK_DURATION_MS;
+            // **Der Haltbarkeits-Weg** (#419) — er verlaengert die Uhr JEDES neu
+            // gelegten Stapels; liegende bleiben, wie sie sind.
+            let haltbar =
+                (f64::from(DECAY_STACK_DURATION_MS) * self.talent_decay_duration_factor) as Millis;
+            self.decay_expiry[self.decay_count] = self.time + haltbar;
             self.decay_count += 1;
             self.queue
                 .push(self.time + DECAY_STACK_DURATION_MS, EventKind::Wakeup);

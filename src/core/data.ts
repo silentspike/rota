@@ -2595,6 +2595,35 @@ export interface TalentDef {
    * Unterschied zu `BuffTarget.Tick`, der den Abstand teilt.
    */
   readonly dotDurationPerRankPerMille: number;
+  /**
+   * Promille je Rang auf den **Preis** der Kontroll-Wirkungen (FIXATION).
+   *
+   * **Er SENKT den Preis, und deshalb ist die Rechnung eine andere.** Bei den
+   * drei Größen oben hebt der Faktor einen Wert; hier teilt er ihn, sonst
+   * würde ein „billiger ausgeben"-Talent teurer machen. Die Klemmung auf
+   * mindestens 1 Punkt steht im Kampf — ein Ausgeber, der nichts kostet,
+   * wäre kein Ausgeber.
+   */
+  readonly controlCostPerRankPerMille: number;
+  /** Promille je Rang auf die **Stärke** der Kontroll-Wirkungen (FIXATION). */
+  readonly controlEffectPerRankPerMille: number;
+  /** Promille je Rang auf die Zahl gelegter **Fäulnis-Stapel** (PUTREFACTION). */
+  readonly decayStackPerRankPerMille: number;
+  /** Promille je Rang auf die **Haltbarkeit** der Stapel (PUTREFACTION). */
+  readonly decayDurationPerRankPerMille: number;
+  /** Promille je Rang auf die **Dicke** der Schutzschicht (COAGULATION). */
+  readonly shieldAmountPerRankPerMille: number;
+  /** Promille je Rang auf die **Dauer** der Schutzschicht (COAGULATION). */
+  readonly shieldDurationPerRankPerMille: number;
+  /**
+   * Wie viele **zusätzliche Stapel** die Schutzschicht je Rang verträgt.
+   *
+   * **Ein ganzzahliger ZUSCHLAG, kein Faktor** — und das ist kein Stilbruch,
+   * sondern Notwendigkeit: Ein Faktor 1,5 auf `maxStacks: 3` ergäbe 4,5, und
+   * eine halbe Stapel-Erlaubnis gibt es nicht. Dieselbe Wahl wie bei PUTRID
+   * BLOOMs `decayCap.bonus`, aus demselben Grund.
+   */
+  readonly shieldStacksPerRank: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
   /**
@@ -2653,9 +2682,25 @@ export const TALENTS: readonly TalentDef[] = (() => {
       // eine Zeile weiter.
       const resourceGainPerRankPerMille = number(t['resourceGainPerRankPerMille'], 0);
       const dotDurationPerRankPerMille = number(t['dotDurationPerRankPerMille'], 0);
+      // Die sieben aus #419, zweite Runde (FIXATION, PUTREFACTION,
+      // COAGULATION). Dieselbe Auflage wie oben: kein negativer Wert.
+      const controlCostPerRankPerMille = number(t['controlCostPerRankPerMille'], 0);
+      const controlEffectPerRankPerMille = number(t['controlEffectPerRankPerMille'], 0);
+      const decayStackPerRankPerMille = number(t['decayStackPerRankPerMille'], 0);
+      const decayDurationPerRankPerMille = number(t['decayDurationPerRankPerMille'], 0);
+      const shieldAmountPerRankPerMille = number(t['shieldAmountPerRankPerMille'], 0);
+      const shieldDurationPerRankPerMille = number(t['shieldDurationPerRankPerMille'], 0);
+      const shieldStacksPerRank = number(t['shieldStacksPerRank'], 0);
       for (const [feld, wert] of [
         ['resourceGainPerRankPerMille', resourceGainPerRankPerMille],
         ['dotDurationPerRankPerMille', dotDurationPerRankPerMille],
+        ['controlCostPerRankPerMille', controlCostPerRankPerMille],
+        ['controlEffectPerRankPerMille', controlEffectPerRankPerMille],
+        ['decayStackPerRankPerMille', decayStackPerRankPerMille],
+        ['decayDurationPerRankPerMille', decayDurationPerRankPerMille],
+        ['shieldAmountPerRankPerMille', shieldAmountPerRankPerMille],
+        ['shieldDurationPerRankPerMille', shieldDurationPerRankPerMille],
+        ['shieldStacksPerRank', shieldStacksPerRank],
       ] as const) {
         if (wert < 0) {
           throw new Error(
@@ -2688,6 +2733,13 @@ export const TALENTS: readonly TalentDef[] = (() => {
         damagePerRankPerMille,
         resourceGainPerRankPerMille,
         dotDurationPerRankPerMille,
+        controlCostPerRankPerMille,
+        controlEffectPerRankPerMille,
+        decayStackPerRankPerMille,
+        decayDurationPerRankPerMille,
+        shieldAmountPerRankPerMille,
+        shieldDurationPerRankPerMille,
+        shieldStacksPerRank,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
         keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });

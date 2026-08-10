@@ -61,6 +61,13 @@ import {
   talentFactor,
   talentResourceFactor,
   talentDotDurationFactor,
+  talentShieldAmountFactor,
+  talentShieldDurationFactor,
+  talentShieldStacksBonus,
+  talentControlCostFactor,
+  talentControlEffectFactor,
+  talentDecayStackFactor,
+  talentDecayDurationFactor,
   type TalentAllocation,
 } from '../progression/talents.js';
 
@@ -1914,16 +1921,25 @@ export class Combat {
 
     const control = spell.control;
     if (control === undefined) return;
-    if (this.controlValue < control.cost) {
+    // **Der Preis-Weg TEILT** (Issue #419, FIXATION). Als einziger der sieben:
+    // Ein Weg „billiger ausgeben" senkt den Preis, ein Faktor 1,2 darauf
+    // multipliziert hieße teurer.
+    //
+    // **Geklemmt auf mindestens 1** — ein Ausgeber, der nichts kostet, wäre
+    // keiner, und `controlValue >= 0` wäre bei Preis 0 immer wahr. Die
+    // Klemmung steht hier und nicht im Parser: Sie folgt aus der Verteilung,
+    // nicht aus den Daten.
+    const preis = Math.max(1, Math.round(control.cost / talentControlCostFactor(this.talents)));
+    if (this.controlValue < preis) {
       this.controlFailedValue++;
       return;
     }
-    this.controlValue -= control.cost;
-    this.controlSpentValue += control.cost;
+    this.controlValue -= preis;
+    this.controlSpentValue += preis;
     // **Der Mindesteinsatz** (Issue #683). Jeder Kontroll-Zauber geht hier
     // durch; die beiden Stellen weiter unten nehmen bei zwei Wirkungen
     // zusätzlich den REST und schreiben ihn eigens.
-    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, control.cost);
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, preis);
 
     // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
     // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
@@ -1931,6 +1947,11 @@ export class Combat {
     // **CAPSTONE loest alle drei aus** (Issue #478): der große Moment der
     // Schule. Kein neuer Mechanismus — er ruft, was die drei Ausgeber je
     // einzeln tun, und verbraucht dafür alle Punkte.
+    // **Der Wirkungs-Weg** (Issue #419, FIXATION). Einmal ausgerechnet und an
+    // ALLEN fünf Wirkungen benutzt — jede Wirkung einzeln zu multiplizieren
+    // liefe bei einer späteren Änderung auseinander, und `allThree` löst drei
+    // davon gleichzeitig aus.
+    const staerke = Math.round(control.amount * talentControlEffectFactor(this.talents));
     const alleDrei = control.effect === 'allThree';
     if (alleDrei) {
       // **Alle Punkte, wie bei WEDGE.** Das Raster sagt „verbraucht alle
@@ -1953,12 +1974,12 @@ export class Combat {
     if (control.effect === 'slowCast' || alleDrei) {
       // Der laufende Boss-Zauber trifft später; das Unterbrechen-Fenster wird
       // größer.
-      if (this.castingValue >= 0) this.castLandsAtMsValue += control.amount;
+      if (this.castingValue >= 0) this.castLandsAtMsValue += staerke;
     }
     if (control.effect === 'delayStrike' || alleDrei) {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
-      this.nextStrikeDelayMs += control.amount;
+      this.nextStrikeDelayMs += staerke;
     }
     if (control.effect === 'makeInterruptible') {
       // **PIN** (Issue #478): Der nächste Boss-Zauber wird unterbrechbar, auch
@@ -1970,7 +1991,7 @@ export class Combat {
       // wäre hier falsch. Ein Zauber, der schon läuft, ist entweder ohnehin
       // unterbrechbar oder trifft sofort — in beiden Fällen kommt PIN zu spät,
       // und das ist die Entscheidung, die er dem Spieler abverlangt.
-      this.pinWindowMsValue = control.amount;
+      this.pinWindowMsValue = staerke;
     }
     if (control.effect === 'convertToDamage') {
       // **Der Notausgang** (Issue #478, WEDGE): Gegen einen Boss ohne
@@ -1990,12 +2011,14 @@ export class Combat {
       // entsprach. Dann steht hier eine 0, und das ist richtig: Der Weg
       // wurde genommen, er hat nur nichts mehr vorgefunden.
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, rest);
-      this.pendingConvertedDamage = (control.cost + rest) * control.amount;
+      // `preis` statt `control.cost`: Wer billiger ausgibt, wandelt auch
+      // weniger um — sonst wäre der Preis-Weg zugleich ein Schadens-Weg.
+      this.pendingConvertedDamage = (preis + rest) * staerke;
     }
     if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
-      this.phaseHoldPercentValue = control.amount;
+      this.phaseHoldPercentValue = staerke;
       this.phaseHoldUntilMs = timeMs - this.fightStartedAtMs + PHASE_HOLD_DURATION_MS;
     }
   }
@@ -2016,16 +2039,27 @@ export class Combat {
       // **Stapeln bis zur Grenze, dann nicht weiter.** Ein weiterer Druck auf
       // eine volle Schicht erneuert die Laufzeit, erhöht aber den Betrag
       // nicht — sonst wäre die Obergrenze wirkungslos.
-      if (this.shieldStacksValue < shield.maxStacks) {
+      // **Die drei COAGULATION-Wege** (Issue #419). Alle drei einmal
+      // ausgerechnet und dann benutzt — `shield.amount` wird unten ZWEIMAL
+      // gelesen (Schicht und Stabilisierung), und zwei getrennte Rechnungen
+      // liefen bei einer späteren Änderung auseinander.
+      const dicke = Math.floor(shield.amount * talentShieldAmountFactor(this.talents));
+      const grenze = shield.maxStacks + talentShieldStacksBonus(this.talents);
+      if (this.shieldStacksValue < grenze) {
         this.shieldStacksValue++;
-        this.shieldValue += shield.amount;
+        this.shieldValue += dicke;
         // **Der Schutz drängt die Reaktion zurück** (Baustein 6; #247), um
         // seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim bloßen Erneuern:
         // Sonst wäre die Obergrenze wirkungslos, und das gilt hier wie für den
         // Schutz selbst.
-        this.stabilise(shield.amount);
+        //
+        // **Mit der GEHOBENEN Dicke**, nicht mit `shield.amount`: Sonst wäre
+        // die Schicht dicker und stabilisierte nach dem alten Wert — beides
+        // grün, beides falsch.
+        this.stabilise(dicke);
       }
-      this.shieldExpiresAtMs = seitBeginn + shield.durationMs;
+      this.shieldExpiresAtMs =
+        seitBeginn + Math.floor(shield.durationMs * talentShieldDurationFactor(this.talents));
     }
 
     // Weg 2 — Heilung.
@@ -2180,13 +2214,27 @@ export class Combat {
    * Kopie dieser Schleife wäre dieselbe Klasse Fehler mit einer anderen Zahl.
    */
   private addDecayStacks(anzahl: number, timeMs: number): void {
+    // **Der Aufbau-Weg wirkt HIER, nicht an den zwei Aufrufern** (#419,
+    // PUTREFACTION). `decay.stacks` und `dot.decayPerTick` laufen beide durch
+    // diese Stelle; den Faktor dort zweimal anzuwenden hieße, ihn bei einem
+    // dritten Weg zu vergessen.
+    //
+    // **Abgerundet, und die Null bleibt Null:** `Math.floor` auf einen
+    // Aufbau von 1 mit Faktor 1,4 ergibt 1 — der Weg zeigt sich erst, wenn
+    // die Summe eine ganze Zahl überschreitet. Aufrunden hieße, dass jeder
+    // erste Rang sofort einen Stapel schenkt.
+    anzahl = Math.floor(anzahl * talentDecayStackFactor(this.talents));
     if (anzahl <= 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     for (let i = 0; i < anzahl; i++) {
       if (this.decayCountValue >= this.decayCap) break;
       // Ans Ende, weil der neue am spätesten verfällt — die Liste bleibt damit
       // aufsteigend, ohne je zu sortieren.
-      this.decayExpiryMs[this.decayCountValue] = seitBeginn + DECAY_STACK_DURATION_MS;
+      // **Der Haltbarkeits-Weg** (#419). Er verlängert die Uhr JEDES neu
+      // gelegten Stapels; liegende bleiben, wie sie sind — sonst würde ein
+      // Talent rückwirkend wirken.
+      this.decayExpiryMs[this.decayCountValue] =
+        seitBeginn + Math.floor(DECAY_STACK_DURATION_MS * talentDecayDurationFactor(this.talents));
       this.decayCountValue++;
     }
     this.updateVulnerability();

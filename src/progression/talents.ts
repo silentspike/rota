@@ -110,6 +110,60 @@ export function talentDotDurationFactor(allocation: TalentAllocation): number {
 }
 
 /**
+ * Der Faktor auf den **Preis** der Kontroll-Wirkungen (FIXATION, Issue #419).
+ *
+ * **Er wird GETEILT, nicht multipliziert** — als einziger der sieben. Ein Weg
+ * „billiger ausgeben" senkt den Preis; ein Faktor 1,2 darauf multipliziert
+ * hieße teurer. Die Aufrufstelle im Kampf teilt deshalb und klemmt auf
+ * mindestens 1 Punkt: Ein Ausgeber, der nichts kostet, wäre keiner.
+ */
+export function talentControlCostFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.controlCostPerRankPerMille);
+}
+
+/** Der Faktor auf die **Stärke** der Kontroll-Wirkungen (FIXATION). */
+export function talentControlEffectFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.controlEffectPerRankPerMille);
+}
+
+/** Der Faktor auf die Zahl gelegter **Fäulnis-Stapel** (PUTREFACTION). */
+export function talentDecayStackFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.decayStackPerRankPerMille);
+}
+
+/** Der Faktor auf die **Haltbarkeit** der Fäulnis-Stapel (PUTREFACTION). */
+export function talentDecayDurationFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.decayDurationPerRankPerMille);
+}
+
+/** Der Faktor auf die **Dicke** der Schutzschicht (COAGULATION). */
+export function talentShieldAmountFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.shieldAmountPerRankPerMille);
+}
+
+/** Der Faktor auf die **Dauer** der Schutzschicht (COAGULATION). */
+export function talentShieldDurationFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.shieldDurationPerRankPerMille);
+}
+
+/**
+ * Wie viele **zusätzliche Stapel** die Schutzschicht verträgt (COAGULATION).
+ *
+ * **Kein Faktor, sondern eine ganze Zahl** — als einzige der sieben. Ein
+ * Faktor 1,5 auf `maxStacks: 3` ergäbe 4,5, und eine halbe Stapel-Erlaubnis
+ * gibt es nicht. Deshalb summiert diese Funktion Ränge statt Promille und
+ * gibt einen Zuschlag zurück, keinen Multiplikator. Dieselbe Wahl wie bei
+ * PUTRID BLOOMs `decayCap.bonus`.
+ */
+export function talentShieldStacksBonus(allocation: TalentAllocation): number {
+  let zuschlag = 0;
+  for (const talent of TALENTS) {
+    zuschlag += effectiveRanks(allocation, talent) * talent.shieldStacksPerRank;
+  }
+  return zuschlag;
+}
+
+/**
  * Summiert die Promille EINER Größe über alle verteilten Ränge.
  *
  * **Der Faktor entsteht als `1 + Summe/1000` aus ganzen Zahlen** — die
