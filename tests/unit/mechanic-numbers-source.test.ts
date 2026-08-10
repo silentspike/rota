@@ -18,7 +18,8 @@
  * sieht: Die Zahl SIEHT richtig aus.
  */
 import { describe, expect, it } from 'vitest';
-import { MAX_DECAY_STACKS } from '../../src/core/combat.js';
+import { DECAY_STACK_CAPACITY, MAX_DECAY_STACKS } from '../../src/core/combat.js';
+import { CALCINATION } from '../../src/core/data.js';
 
 const QUELLE = import.meta.glob('/src/render/hud.ts', {
   query: '?raw',
@@ -39,15 +40,24 @@ describe('Der Nenner wandert mit', () => {
     expect(hudQuelle().length).toBeGreaterThan(1000);
   });
 
-  it('nimmt MAX_DECAY_STACKS, statt die Zahl abzuschreiben', () => {
+  it('nimmt den Nenner AUS DEM KAMPF, statt die Zahl abzuschreiben', () => {
+    // # Warum hier seit #479 nicht mehr `MAX_DECAY_STACKS` steht
+    //
+    // Die Prüfung hieß bis PUTRID BLOOM „nimmt MAX_DECAY_STACKS". Das war
+    // richtig, solange die Grenze fest war — sie ist es nicht mehr: Der Zauber
+    // hebt sie für eine Weile, und ein HUD, das die Konstante zeichnet, zeigte
+    // dann „6 / 5".
+    //
+    // **Die Absicht der Prüfung bleibt dieselbe**, nur ihre Quelle wandert:
+    // Der Nenner darf nicht abgeschrieben sein. Statt der Konstante steht dort
+    // jetzt der Wert, den der Kampf führt — das ist strenger, nicht lockerer,
+    // denn er folgt auch der Anhebung.
     const quelle = hudQuelle();
-    expect(quelle, 'die Konstante muss benutzt werden').toContain('MAX_DECAY_STACKS');
-    // Und die Zeile, die den Nenner baut, nennt sie beim Namen.
     const nennerZeile = quelle
       .split('\n')
       .find((z) => z.includes('decayStacks') && z.includes('/'));
     expect(nennerZeile, 'die Nenner-Zeile fehlt').toBeDefined();
-    expect(nennerZeile, 'der Nenner ist abgeschrieben').toContain('MAX_DECAY_STACKS');
+    expect(nennerZeile, 'der Nenner ist abgeschrieben').toContain('decayStackCap');
   });
 
   it('SIEHT eine abgeschriebene Zahl — die Gegenprobe', () => {
@@ -61,5 +71,29 @@ describe('Der Nenner wandert mit', () => {
     // Steht hier, damit die Zahl EINMAL im Pruefstand auftaucht: Wer sie
     // aendert, sieht diesen Fall und den Kommentar dazu.
     expect(MAX_DECAY_STACKS).toBe(5);
+  });
+
+  it('die KAPAZITAET traegt jeden Zuschlag, den ein Zauber geben darf', () => {
+    // **Das ist der Wächter, den `data.ts` nicht stellen kann** (Issue #479):
+    // Die Konstanten stehen in `combat.ts`, und das importiert aus `data.ts` —
+    // ein Import in die Gegenrichtung wäre ein Zirkelbezug. Die Prüfung steht
+    // deshalb hier, wo beide Seiten erreichbar sind.
+    //
+    // Ein Zuschlag über die Kapazität hinaus hätte keinen Platz im Feld, und
+    // die Prüfsumme läse Werte, die es nicht gibt. `sim/build.rs` bricht dafür
+    // den Bau ab; diese Zeile ist das Gegenstück auf der Spiel-Seite.
+    const zuschlaege = CALCINATION.value.spells
+      .filter((s) => s.decayCap !== undefined)
+      .map((s) => ({ id: s.id, bonus: s.decayCap?.bonus ?? 0 }));
+    expect(
+      zuschlaege.length,
+      'kein Zauber hebt die Grenze — dann prüft dieser Fall nichts',
+    ).toBeGreaterThan(0);
+    for (const { id, bonus } of zuschlaege) {
+      expect(
+        MAX_DECAY_STACKS + bonus,
+        `${id} hebt die Grenze auf ${MAX_DECAY_STACKS + bonus}, die Struktur fasst ${DECAY_STACK_CAPACITY}`,
+      ).toBeLessThanOrEqual(DECAY_STACK_CAPACITY);
+    }
   });
 });
