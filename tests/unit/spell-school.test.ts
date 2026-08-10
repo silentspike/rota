@@ -132,6 +132,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'necrosis',
       // Issue #479 — DECAY, der neunte der Schule, ebenfalls am Ende.
       'decay',
+      // Issue #479 — PUTRID BLOOM, ebenfalls am Ende.
+      'putrid-bloom',
       'test-cast',
       'test-buff',
       'test-control',

@@ -136,6 +136,10 @@ fn ist_hilfszauber(spell: &Spell) -> bool {
         // selbst keinen. Ohne diese Zeile stuende er dauerhaft mit "TOT" in
         // der Tabelle, und `tests/report.rs` meldet das auch genau so.
         || spell.decay_ward.is_some()
+        // PUTRID BLOOM (Issue #479) — er hebt die Stapel-Grenze und macht
+        // selbst keinen Schaden. Ohne diese Zeile stuende er dauerhaft mit
+        // "TOT" in der Tabelle.
+        || spell.decay_cap.is_some()
         // Die drei Ausgabe-Zauber der Fixierung (#100). BIND gehoert NICHT
         // dazu: Er macht Schaden — das faengt jetzt schon die Frage darueber.
         || spell.control.is_some()

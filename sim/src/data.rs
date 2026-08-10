@@ -126,6 +126,20 @@ pub struct DecayWard {
     pub duration_ms: Millis,
 }
 
+/// Die Anhebung der Stapel-Grenze (PUTRID BLOOM, Issue #479).
+///
+/// Der Zuschlag muss in die feste Struktur passen: `MAX_DECAY_STACKS + bonus`
+/// darf `DECAY_STACK_CAPACITY` nicht ueberschreiten. `build.rs` bricht sonst
+/// ab — lieber der Bau als eine Pruefsumme, die Plaetze liest, die es nicht
+/// gibt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecayCap {
+    /// Um wie viele Plaetze die Grenze steigt.
+    pub bonus: u32,
+    /// Wie lange die Anhebung gilt.
+    pub duration_ms: Millis,
+}
+
 /// Ein Entlade-Zauber: verbraucht die Ressource und schlaegt dafuer zu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spender {
@@ -412,6 +426,8 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Die Anhebung der Stapel-Grenze (PUTRID BLOOM, Issue #479).
+    pub decay_cap: Option<DecayCap>,
     /// Rueckschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet.
     pub reflect: Option<Reflect>,
     /// Die Schwaechung nach Stapelzahl (DECAY, Issue #479).

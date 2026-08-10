@@ -1747,6 +1747,40 @@ fn emit_coagulation(out: &mut String, spell: &Value, whose: &str) {
         }
     }
 
+    match spell.get("decayCap") {
+        None | Some(Value::Null) => {
+            let _ = writeln!(out, "        decay_cap: None,");
+        }
+        Some(node) => {
+            let whose = format!("{whose}/decayCap");
+            let bonus = uint(node, "bonus", &whose);
+            let duration = uint(node, "durationMs", &whose);
+            assert!(bonus > 0, "{whose}: Zuschlag {bonus} bewirkt nichts");
+            assert!(duration > 0, "{whose}: decayCap ohne Laufzeit wirkt nie");
+            // **Die Kapazitaetsgrenze, und sie bricht den BAU.** Ein Zuschlag
+            // ueber die feste Struktur hinaus haette keinen Platz im Feld, und
+            // die Pruefsumme laese Werte, die es nicht gibt. Lieber hier
+            // abbrechen als still das Falsche rechnen — dieselbe Haltung wie
+            // bei `consumesAll` (Zeile 709).
+            //
+            // Die Zahlen stehen in `fight.rs` und werden hier abgeschrieben;
+            // `tests/decay_cap.rs` haelt beide gegeneinander fest.
+            assert!(
+                5 + bonus <= 8,
+                "{whose}: Zuschlag {bonus} fuehrt ueber die Kapazitaet 8 hinaus \
+                 (Grenze 5)"
+            );
+            assert!(
+                duration.is_multiple_of(RASTER_MS),
+                "{whose}: durationMs {duration} liegt nicht auf dem {RASTER_MS}-ms-Raster"
+            );
+            let _ = writeln!(
+                out,
+                "        decay_cap: Some(DecayCap {{ bonus: {bonus}, duration_ms: {duration} }}),"
+            );
+        }
+    }
+
     match spell.get("conversion") {
         None | Some(Value::Null) => {
             let _ = writeln!(out, "        conversion: None,");

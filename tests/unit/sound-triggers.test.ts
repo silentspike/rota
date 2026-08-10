@@ -146,6 +146,10 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     // hoert, ist im Kampf nur an kleineren Zahlen zu erkennen — und die liest
     // niemand mitten im Schlagabtausch.
     'decay',
+    // VORLAEUFIG (Issue #479): PUTRID BLOOM ebenso. Bei ihm haengt viel am
+    // Klang — die Anhebung ist im HUD nur eine groessere Zahl hinter dem
+    // Schraegstrich, und die sieht im Kampf niemand.
+    'putrid-bloom',
     'test-cast',
     'test-buff',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
