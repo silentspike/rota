@@ -74,6 +74,40 @@ export const QUALITY_HAS_EFFECT: readonly boolean[] = [false, false, false, true
  *
  * Muss mindestens 20 sein, sonst steht die Wachstums-Rekursion still:
  * `⌊b · 21/20⌋` ist für `b < 20` wieder `b`.
+ *
+ * # Die 190 steht zweimal, und das ist Absicht
+ *
+ * **Epic und Legendary tragen dasselbe Budget** — auf jeder Stufe von 1 bis
+ * 100, nicht nur zufällig auf einer. GAME-DESIGN 13.3 gibt Legendary keine
+ * zusätzlichen Werte:
+ *
+ * ```text
+ *   Epic        3 Affixe    —
+ *   Legendary   3+          ECHTER SONDEREFFEKT, der die Rotation ändert
+ * ```
+ *
+ * Das Pluszeichen meint den **Effekt**, nicht einen vierten Affix — so steht
+ * es bei {@link QUALITY_AFFIX_SLOTS}, das `[1, 2, 3, 3]` führt. Legendary
+ * unterscheidet sich durch etwas, das der Gegenstand **kann**, nicht durch
+ * mehr Zahlen. Gleiches Budget ist damit folgerichtig.
+ *
+ * # Wer das hier „repariert", macht es kaputt
+ *
+ * Am 2026-08-10 haben zwei Sitzungen die doppelte 190 unabhängig voneinander
+ * für einen Fehler gehalten — der Kommentar sagte damals nur „vorläufig", und
+ * die Begründung stand bei den Affix-Plätzen, wo sie beim Ändern des Budgets
+ * niemand liest.
+ *
+ * **Die Sorge dahinter ist berechtigt und trifft eine andere Stelle:**
+ * `QUALITY_HAS_EFFECT` (`[false, false, false, true]`) hat im Kampf **keinen
+ * Leser** — auf keiner der beiden Seiten; gemessen, es steht nur in
+ * Deklarationen, Prüffällen und der Paritäts-Weitergabe. Der Sondereffekt ist
+ * Legendarys einziges Merkmal, und er ist nicht gebaut (er bräuchte Topf 4,
+ * dessen Zuleitung fehlt — Gruppe B in `docs/AUSRUESTUNGS-RASTER.md`).
+ *
+ * Wer q3 hier anhebt, baut deshalb einen **zweiten** Unterschied ein, den 13.3
+ * nicht vorsieht, und verdeckt den echten. Ein Prüffall in
+ * `tests/unit/gear-budget.test.ts` hält die Gleichheit fest.
  */
 const QUALITY_BASE_BUDGET: readonly number[] = [100, 140, 190, 190];
 
