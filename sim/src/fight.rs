@@ -1938,6 +1938,21 @@ impl Fight {
             self.queue
                 .push(self.time + conversion.duration_ms, EventKind::Wakeup);
         }
+        // DECAY (Issue #479) — die Schwaechung anschalten. Die STAPELZAHL wird
+        // hier NICHT festgehalten: Sie wird beim Treffer gelesen, sonst zaehlte
+        // der Aufbau nach dem Wurf nicht mehr.
+        //
+        // **Das Wakeup gehoert dazu**, wie bei der Umwandlung darueber: Ohne
+        // es wuerde der Ablauf erst beim naechsten Ereignis bemerkt, und die
+        // Schwaechung haelte laenger als die Daten sagen — im Spiel dagegen
+        // laeuft die Uhr Takt fuer Takt. Genau daran liefen die Seiten
+        // auseinander.
+        if let Some(decay_ward) = spell.decay_ward {
+            self.decay_ward_permille = decay_ward.permille_per_stack;
+            self.decay_ward_until = Some(self.time + decay_ward.duration_ms);
+            self.queue
+                .push(self.time + decay_ward.duration_ms, EventKind::Wakeup);
+        }
 
         // Weg 3, andere Richtung — den Rueckschlag anschalten (RIPOSTE, #481).
         if let Some(reflect) = spell.reflect {
@@ -1970,21 +1985,6 @@ impl Fight {
         }
         self.reflected = self.reflected.saturating_add(zurueck);
         self.deal(self.reflect_spell, zurueck, LogKind::Damage);
-        // DECAY (Issue #479) — die Schwaechung anschalten. Die STAPELZAHL wird
-        // hier NICHT festgehalten: Sie wird beim Treffer gelesen, sonst zaehlte
-        // der Aufbau nach dem Wurf nicht mehr.
-        //
-        // **Das Wakeup gehoert dazu**, wie bei der Umwandlung darueber: Ohne
-        // es wuerde der Ablauf erst beim naechsten Ereignis bemerkt, und die
-        // Schwaechung haelte laenger als die Daten sagen — im Spiel dagegen
-        // laeuft die Uhr Takt fuer Takt. Genau daran liefen die Seiten
-        // auseinander.
-        if let Some(decay_ward) = spell.decay_ward {
-            self.decay_ward_permille = decay_ward.permille_per_stack;
-            self.decay_ward_until = Some(self.time + decay_ward.duration_ms);
-            self.queue
-                .push(self.time + decay_ward.duration_ms, EventKind::Wakeup);
-        }
     }
 
     /// Die drei Wirkungen aus GAME-DESIGN 4.1.
