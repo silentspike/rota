@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "_comment": "Die Instanzen (GAME-DESIGN 12.7, 13.4, 20.4).\n\n=== WARUM ES DIESE DATEI GIBT ===\nDie Zuordnung Boss->Instanz gab es schon: jeder Boss traegt `instance` als Kennung, und `data.ts` liest sie. Was fehlte, war die Instanz als eigenes OBJEKT — Name, Reihenfolge, Freischaltung.\nVorher standen Titel und Spielbarkeit HARTKODIERT in src/progression/boss-select.ts (INSTANZ_TITEL und SPIELBAR). Wer eine Instanz hinzufuegte, musste sie an zwei Stellen eintragen und konnte eine vergessen — genau die doppelte Wahrheit, die am 2026-08-10 schon beim Affix-Verlust zugeschlagen hat.\n\n=== DIE NUMMER IST NICHT DIE KENNUNG ===\n`number` ist die Nummer aus src/loot/rates.ts (1..INSTANCE_COUNT). Sie bestimmt Beute-Stufe und Qualitaets-Obergrenze (13.4). Die KENNUNG ist eine Zeichenkette ('instance-1'); beide auseinanderzuhalten ist noetig, weil `itemLevelOf` mit der Zahl rechnet und der Boss die Zeichenkette traegt.\nACHTUNG: app.ts uebergibt heute noch eine feste 1 an den Beute-Wurf. Diese Datei liefert die richtige Nummer, aber die Zeile in app.ts liest sie noch nicht — das ist ein eigener Schritt und ausdruecklich NICHT Teil von #421c.\n\n=== FREISCHALTUNG: NUR DER HAUPTPFAD ===\n12.7 nennt vier Kriterien NEBENEINANDER: Instanz abgeschlossen (Hauptpfad), Punkte-Schwelle (Ventil gegen Feststecken), Schwierigkeitsstufe, Meisterschafts-Schluessel (nur Geheim-Instanzen).\nHier steht NUR das erste: `requires` nennt die Instanz, die abgeschlossen sein muss. Die anderen drei sind bewusst nicht abgebildet — das Punkte-Ventil braucht eine Schwelle, die niemand entschieden hat, und Schwierigkeitsstufen gibt es im Spiel noch nicht (app.ts fuehrt eine feste `difficulty: 1`). Wer sie ergaenzt, ergaenzt Felder; die Struktur steht.\n\n=== level FEHLT WEITERHIN AN ALLEN BOSSEN ===\nKein Boss traegt ein `level`-Feld, also sind alle auf Stufe 1 (data.ts:2187 setzt 1, wenn es fehlt). `stufenBereich` steht deshalb NICHT in dieser Datei: Welcher Boss welche Stufe traegt, ist laut data.ts:1071 Inhalt und entscheidet E10. Eine Kurve hier einzutragen hiesse, sie nebenbei festzulegen.\n\n=== DIE REIHENFOLGE ===\n`order` ist die Reihenfolge in der Auswahl, nicht die Freischaltung. Beide auseinanderzuhalten lohnt: 12.7 sagt 'innerhalb einer freigeschalteten Instanz sind die Bosse frei waehlbar', also ist die Anzeige-Reihenfolge eine Frage der Oberflaeche und die Freischaltung eine des Fortschritts.",
+  "instances": [
+    {
+      "id": "prologue",
+      "name": "Prologue",
+      "number": 1,
+      "order": 0,
+      "requires": null
+    },
+    {
+      "id": "instance-1",
+      "name": "Instance One",
+      "number": 1,
+      "order": 1,
+      "requires": null
+    },
+    {
+      "id": "instance-2",
+      "name": "Instance Two",
+      "number": 2,
+      "order": 2,
+      "requires": "instance-1"
+    },
+    {
+      "id": "instance-3",
+      "name": "The Sealed Furnace",
+      "number": 3,
+      "order": 3,
+      "requires": "instance-2"
+    }
+  ]
+}
