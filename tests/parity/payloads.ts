@@ -345,6 +345,30 @@ export const WISP_NAME = 'wisp-verkuerzung';
 export const AETHER_NAME = 'aether-fenster';
 
 /**
+ * SUBLIMEs Merker über zwei Würfen (Issue #480).
+ *
+ * **Warum zwei Schadenszauber im Wechsel und nicht einer.** Ein freier GCD
+ * nützt nur, wenn ein Zauber bereit ist, den man werfen könnte. Gemessen mit
+ * KINDLE allein (1500 ms Abklingzeit, genau die GCD-Länge): `freesNextGcd`
+ * auf `true` und `false` ergaben beide 1500 Schaden — die Wirkung hatte
+ * keinen Platz.
+ *
+ * Mit WISP und DECANT daneben, die ebenfalls Schaden tragen und eigene
+ * Abklingzeiten haben, wird der geschenkte Wurf sichtbar: 1520 gegen 1500.
+ */
+export const SUBLIME_NAME = 'sublime-merker';
+
+/**
+ * Vergleichsdatei für CONDENSE (#480) — der zweite Merker-Zauber.
+ *
+ * Eigene Aufzeichnung statt eines Anbaus an `sublime-merker`, und zwar aus
+ * dem Grund, der bei AETHER einmal zugeschlagen hat: Ein zweiter Zauber in
+ * einer bestehenden Runde verändert die gemessene Größe der ersten. Dort
+ * verdoppelte sich der Sprung des Trägers, und der Fall blieb grün.
+ */
+export const CONDENSE_NAME = 'condense-merker';
+
+/**
  * Vergleichsdatei für ALEMBIC (#521) — der Rücksetzer, der ZWEIMAL fragt.
  *
  * Sie ist erst seit #528 baubar: Vorher lag der Auswahlmodus in `Session`,
@@ -3168,6 +3192,170 @@ export function aetherPayload(): Record<string, unknown> {
   };
 }
 
+const SUBLIME_BINDINGS = [
+  { slot: 0, spellId: 'sublime' },
+  { slot: 1, spellId: 'kindle' },
+  { slot: 2, spellId: 'wisp' },
+  { slot: 3, spellId: 'decant' },
+] as const;
+
+export function sublimePayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const sublime = combat.indexOf('sublime');
+  const ticks = 3000; // 30 s
+
+  const slots = slotMap(combat, SUBLIME_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Ob der Merker in diesem Takt stand — die Größe, um die es geht. */
+  const merker: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // SUBLIME zuerst, danach die drei Schadenszauber in fester Folge. Der
+    // geschenkte Wurf fällt auf den, der gerade bereit ist.
+    let gewaehlt = -1;
+    for (const name of ['sublime', 'kindle', 'wisp', 'decant']) {
+      const i = combat.indexOf(name);
+      if (i >= 0 && combat.isReady(alsSpellIndex(i), timeMs)) {
+        gewaehlt = i;
+        break;
+      }
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    // **Nach dem Wurf**, wie bei jeder Aufzeichnung: Die Rust-Seite nimmt die
+    // Prüfsumme am Ende des Taktes.
+    merker.push(combat.nextCastFreeGcd ? 1 : 0);
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: SUBLIME_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: SUBLIME_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    merker,
+    expected: {
+      /**
+       * **Die Größe, die SUBLIME bewegt.** Mit `freesNextGcd` fällt ein Wurf
+       * mehr in dieselbe Zeit — gemessen 1520 gegen 1500. Nicht die
+       * Prüfsumme: Die änderte sich auch, wenn der Merker nur gesetzt und nie
+       * verbraucht würde.
+       */
+      damageDealt: combat.damageDealt,
+      /**
+       * Die Zusicherung, dass der Lauf SUBLIME überhaupt wirft. Steht hier
+       * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
+       */
+      sublimeCasts: combat.castCount(alsSpellIndex(sublime)),
+      /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
+      merkerTakte: merker.reduce((a, b) => a + b, 0),
+    },
+  };
+}
+
+const CONDENSE_BINDINGS = [
+  { slot: 0, spellId: 'condense' },
+  { slot: 1, spellId: 'kindle' },
+  { slot: 2, spellId: 'wisp' },
+  { slot: 3, spellId: 'decant' },
+] as const;
+
+export function condensePayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  const condense = combat.indexOf('condense');
+  /**
+   * 30 s — CONDENSE hat 25 s Abklingzeit, kommt also zweimal dran.
+   *
+   * **Nicht länger.** Ein erster Entwurf lief 60 s und kam auf 4000 Schaden;
+   * `test-warden` hat 3000 Trefferpunkte. Der Simulator brach beim Tod des
+   * Bosses ab (4352 Takte), diese Seite lief die vollen 6000 weiter — und der
+   * Paritätsfall meldete „verschieden viele Takte" und „der Schaden geht
+   * auseinander", als wäre CONDENSE falsch gebaut. Er war es nicht: Die
+   * Aufzeichnung war zu lang.
+   */
+  const ticks = 3000;
+
+  const slots = slotMap(combat, CONDENSE_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+  /** Ob der Merker in diesem Takt stand — die Größe, um die es geht. */
+  const merker: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // CONDENSE zuerst, danach die drei Schadenszauber in fester Folge. Die
+    // Verdopplung fällt auf den, der gerade bereit ist.
+    let gewaehlt = -1;
+    for (const name of ['condense', 'kindle', 'wisp', 'decant']) {
+      const i = combat.indexOf(name);
+      if (i >= 0 && combat.isReady(alsSpellIndex(i), timeMs)) {
+        gewaehlt = i;
+        break;
+      }
+    }
+
+    if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
+      presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
+    }
+
+    // **Nach dem Wurf**, wie bei jeder Aufzeichnung: Die Rust-Seite nimmt die
+    // Prüfsumme am Ende des Taktes.
+    merker.push(combat.nextCastDoubles ? 1 : 0);
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: CONDENSE_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: CONDENSE_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    merker,
+    expected: {
+      /**
+       * **Die Größe, die CONDENSE bewegt** — der Schaden, nicht die Prüfsumme.
+       * Die änderte sich auch, wenn der Merker nur gesetzt und nie verbraucht
+       * würde.
+       *
+       * Am Einzelfall gemessen: 200 gegen 100, also exakt verdoppelt. Die
+       * Kontrolle setzt VAPOUR an dieselbe Stelle statt den Zauber wegzulassen
+       * — sonst unterschieden sich die Läufe um CONDENSE **und** um eine
+       * globale Wartezeit.
+       */
+      damageDealt: combat.damageDealt,
+      /**
+       * Die Zusicherung, dass der Lauf CONDENSE überhaupt wirft. Steht hier
+       * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
+       */
+      condenseCasts: combat.castCount(alsSpellIndex(condense)),
+      /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
+      merkerTakte: merker.reduce((a, b) => a + b, 0),
+    },
+  };
+}
+
 export function deckelPayload(): Record<string, unknown> {
   const boss = bossById('test-warden');
   if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
@@ -5292,6 +5480,96 @@ export function decayWardPayload(): Record<string, unknown> {
     expected: {
       damage: result.damage,
       // **Die tragende Zahl.** DECAY macht keinen Schaden, er nimmt welchen weg.
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+export const PUTRID_BLOOM_NAME = 'putrid-bloom';
+
+/** Die Leiste dieser Aufzeichnung. */
+const PUTRID_BLOOM_BINDINGS = [
+  { slot: 0, spellId: 'canker' },
+  { slot: 1, spellId: 'putrid-bloom' },
+  { slot: 2, spellId: 'rot' },
+  { slot: 3, spellId: 'kindle' },
+] as const;
+
+/**
+ * PUTRID BLOOM hebt die Stapel-Grenze, und der Aufbau geht darüber hinaus
+ * (Issue #479).
+ *
+ * # Die gemessene Größe ist der SCHADEN, nicht die Stapelzahl
+ *
+ * Die Zahl der Stapel steht in der Prüfsumme, aber die allein belegt nur, dass
+ * etwas anders ist — nicht, dass der Zauber im Spiel etwas bewirkt. Jeder
+ * Stapel hebt die Verwundbarkeit des Bosses, also schlägt KINDLE härter zu,
+ * sobald mehr als fünf liegen. Das ist eine Zahl, die das Spiel ohnehin führt.
+ *
+ * **KINDLE ist hier richtig**, obwohl er sonst ein schlechter Träger ist: Er
+ * misst keine ZEIT, sondern Schaden — und er gehört einer anderen Schule an.
+ * Steigt sein Schaden, kann das nur die Verwundbarkeit sein.
+ *
+ * # Die Reihenfolge ist die Aussage
+ *
+ * PUTRID BLOOM muss wirken, BEVOR die Grenze erreicht ist — sonst legt der
+ * Aufbau bei fünf ab, und die Anhebung fände keine leeren Plätze mehr vor.
+ * Deshalb steht er vor den Erzeugern in der Kette.
+ */
+function recordPutridBloom(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const canker = combat.indexOf('canker');
+  const bloom = combat.indexOf('putrid-bloom');
+  const rot = combat.indexOf('rot');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, PUTRID_BLOOM_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.isOffCooldown(bloom, timeMs)) press(bloom, tick, timeMs);
+    // **ROT ist der Grund, warum diese Aufzeichnung ueberhaupt etwas zeigt.**
+    // Mit canker und blight allein erreicht der Aufbau nur sechs Stapel — die
+    // gehobene Grenze von sieben wird nie beruehrt, und der Lauf ist mit und
+    // ohne Zauber identisch (gemessen: 880 gegen 880). ROT legt einen Stapel
+    // je Tick und bringt den Aufbau ueber die alte Grenze.
+    else if (combat.isOffCooldown(rot, timeMs)) press(rot, tick, timeMs);
+    else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: PUTRID_BLOOM_NAME, seed: 0, ticks, presses, bindings: PUTRID_BLOOM_BINDINGS };
+}
+
+export function putridBloomPayload(): Record<string, unknown> {
+  const recording = recordPutridBloom(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: PUTRID_BLOOM_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
       damageTaken: result.damageTaken,
       absorbed: result.absorbed,
       healed: result.healed,
