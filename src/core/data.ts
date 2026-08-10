@@ -277,6 +277,15 @@ export interface SpellDef {
    * lebt. Merker gehören in die Prüfsumme — warum, steht dort.
    */
   readonly freesNextGcd?: boolean;
+  /**
+   * Ob dieser Zauber den **nächsten** zweimal wirken lässt (CONDENSE, #480).
+   *
+   * Der zweite Merker, neben dem ersten statt am Ende — Merker sind eine
+   * eigene Sorte Feld, und vier verstreute wären schwerer zu pflegen als eine
+   * Gruppe. „Zweimal" heißt die volle Wirkung ein zweites Mal, nicht bloß
+   * doppelter Schaden.
+   */
+  readonly doublesNextCast?: boolean;
   /** Schutzschicht, falls der Zauber eine aufbaut (COAGULATION, Weg 1). */
   readonly shield?: ShieldDef;
   /** Heilung, falls der Zauber eine ist (Weg 2). */
@@ -1606,6 +1615,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   const unterbricht = raw['interrupt'] === true;
   const senktVerhaengnis = raw['clearsDoom'] === true;
   const befreitNaechsten = raw['freesNextGcd'] === true;
+  const verdoppeltNaechsten = raw['doublesNextCast'] === true;
   if (unterbricht && raw['triggersGcd'] !== false) {
     // Die Ausnahme aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Ein
     // Unterbrecher mit Wartezeit ließe sich nicht mehr zwischen zwei Zauber
@@ -1700,6 +1710,7 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     interrupt: unterbricht,
     clearsDoom: senktVerhaengnis,
     freesNextGcd: befreitNaechsten,
+    doublesNextCast: verdoppeltNaechsten,
     ...parseCoagulation(raw, where, problems),
     ...parseFixation(raw, where, problems),
     ...parsePutrefaction(raw, where, problems),

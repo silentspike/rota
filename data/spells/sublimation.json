@@ -125,6 +125,17 @@
       "castTimeMs": 0,
       "triggersGcd": true,
       "freesNextGcd": true
+    },
+    {
+      "_comment": "CONDENSE — der naechste Zauber wirkt zweimal (Issue #480).\n\nDER ZWEITE MERKER-ZAUBER, nach SUBLIME und nach derselben Bauart: ein Zustand,\nder bis zum naechsten Wurf lebt und dort verbraucht wird. Sein Feld steht in\nbeiden Pruefsummen NEBEN nextCastFreeGcd, damit die Merker als Gruppe\nbeisammenstehen statt einzeln ans Ende zu wandern.\n\nWAS 'ZWEIMAL' HEISST: die volle Wirkung ein zweites Mal — Schaden, Effekt ueber\nZeit, Vorrat, Verkuerzung. Nicht bloss doppelter Schaden. Das Raster begruendet\nihn mit 'das, was ein Ruecksetzer eigentlich verspricht': REFLUX setzt den\nnaechsten Zauber zurueck, der Spieler wirft ihn ein zweites Mal mit allem, was\ndazugehoert, und zahlt eine globale Wartezeit. CONDENSE liefert dasselbe ohne\nden zweiten Wurf. Waere nur der Schaden doppelt, waere er ein Schadens-Buff —\nund davon hat die Schule bereits welche.\n\nEINEN KRIT-WURF FUER BEIDE ANWENDUNGEN, nicht zwei. Die Regel steht in\nfight.rs ueber dem Wurf ('Ein Wurf fuer die ganze Wirkung') und ist beim\nSchluesseltalent aus #418 schon so gebaut, das denselben Satz traegt: 'wirkt\ndafuer ZWEIMAL'. Ein Zufallsstrom, der auf den zwei Seiten verschieden oft\ngedreht wird, laesst den ganzen folgenden Kampf auseinanderlaufen.\n\nVORLAEUFIGE ZAHLEN aus docs/ZAUBER-RASTER.md (CD 25 s); balanciert ist nichts.",
+      "id": "condense",
+      "name": "Condense",
+      "unlockLevel": 18,
+      "baseDamage": 0,
+      "cooldownMs": 25000,
+      "castTimeMs": 0,
+      "triggersGcd": true,
+      "doublesNextCast": true
     }
   ]
 }

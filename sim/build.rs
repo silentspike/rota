@@ -485,6 +485,15 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let _ = writeln!(out, "        frees_next_gcd: {befreit_naechsten},");
+    // CONDENSE (#480), der zweite Merker. Er steht bewusst NEBEN dem ersten
+    // und nicht am Ende der Datei: Merker sind eine eigene Sorte Feld, und
+    // vier von ihnen einzeln verstreut waeren schwerer zu pflegen als eine
+    // Gruppe. Dieselbe Ueberlegung wie in beiden Pruefsummen.
+    let verdoppelt_naechsten = spell
+        .get("doublesNextCast")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(out, "        doubles_next_cast: {verdoppelt_naechsten},");
     // Ein Unterbrecher, der die globale Wartezeit ausloest, waere die Ausnahme
     // aus GAME-DESIGN 6.6 mit falschem Vorzeichen: Er koennte nicht mehr
     // zwischen zwei Zauber gelegt werden, und der ganze Baustein waere tot.

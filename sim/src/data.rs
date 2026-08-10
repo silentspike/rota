@@ -390,6 +390,19 @@ pub struct Spell {
     /// Merker sind neu im Datenmodell (Issue #480), und sie haben eine
     /// Bedingung: Sie müssen in die Prüfsumme. Warum, steht dort.
     pub frees_next_gcd: bool,
+    /// Ob dieser Zauber den **nächsten** zweimal wirken lässt (CONDENSE,
+    /// Issue #480).
+    ///
+    /// Der zweite Merker, nach `frees_next_gcd` und mit derselben Bedingung:
+    /// Er gehört in die Prüfsumme. Er steht bewusst daneben statt am Ende der
+    /// Struktur — Merker sind eine eigene Sorte Feld, und vier verstreute
+    /// wären schwerer zu pflegen als eine Gruppe.
+    ///
+    /// **Was „zweimal" heißt**: die volle Wirkung ein zweites Mal, nicht bloß
+    /// doppelter Schaden. Ausgeführt wird sie mit **einem** Krit-Wurf für
+    /// beide Anwendungen — dieselbe Regel, nach der das Schlüsseltalent aus
+    /// Issue #418 gebaut ist, das denselben Satz trägt.
+    pub doubles_next_cast: bool,
     /// Ressourcen-Gewinn beim Wirken.
     pub resource_gain: u16,
     /// Brand-Effekt, falls der Zauber einen hat.

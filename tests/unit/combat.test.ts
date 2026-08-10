@@ -123,6 +123,8 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'aether',
       // Issue #480 — SUBLIME, hinter AETHER in derselben Schuldatei.
       'sublime',
+      // Issue #480 — CONDENSE, hinter SUBLIME in derselben Schuldatei.
+      'condense',
       // Die zwei der Zersetzung (Issue #97), ebenfalls hinten. Aus demselben
       // Grund wie oben: Die Reihenfolge IST hier die Aussage.
       'canker',
