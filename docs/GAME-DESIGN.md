@@ -2445,6 +2445,44 @@ Wegwerfarbeit.** Konkrete Zahlen: [`STEP1-SPEC.md`](STEP1-SPEC.md).
 > **Ausdrückliche Abgrenzung:** Es wird **nicht** geprüft, ob jeder Boss eine _andere_ Rotation
 > verlangt. Der Spieler soll spielen können, wie er will.
 
+### 20.4 Wo der Bestand steht — gemessen am 2026-08-10
+
+**Der Abstand zwischen Soll und Ist ist keine Schätzung.** Er wird gemessen, weil er zweimal aus
+dem Gedächtnis falsch angegeben wurde:
+
+```bash
+for f in data/spells/*.json; do echo -n "$(basename $f .json): "; jq '.spells|length' $f; done
+jq '.items|length' data/items.json
+ls data/bosses/*.json | grep -v "/test" | wc -l
+jq -r '[.trees[].school]|join(" ")' data/player/talents.json
+```
+
+| Bestand           |                     Soll |                             Ist | Quelle des Solls           |
+| ----------------- | -----------------------: | ------------------------------: | -------------------------- |
+| Zauber            |                        — |           **54** + 2 gemeinsame | Zauber-Raster abgearbeitet |
+| Talentbäume       |       5 Schulen + global |                           **6** | 12.5                       |
+| Talentwege        | 12 (+ SUBLIMATION offen) |           3 gebaut, 7 in Arbeit | `docs/TALENT-RASTER.md`    |
+| Schlüsseltalente  |                        5 |             **1** (CALCINATION) | #418                       |
+| **Ausrüstung**    |  zehn Plätze, vier Töpfe | **1 Gegenstand** (`test-relic`) | 13.0, 13.1b                |
+| **Bosse**         |   **68 in 14 Instanzen** |            **9 in 2 Instanzen** | 3.0                        |
+| Instanz-Zuordnung |    Teil des Datenmodells |                  **fehlt ganz** | —                          |
+
+**Entschieden vom Auftraggeber am 2026-08-10, nachdem ihm diese Zahlen vorlagen:**
+
+1. **Die Ausrüstung wird vor den Bossen gebaut.** Sie wirkt auf jeden Kampf und geht in jede
+   Schadensrechnung ein — ohne sie misst der Balance-Läufer einen Spieler ohne Werte. Es ist
+   derselbe Grund, aus dem im Juli der Zauber-Katalog vorgezogen wurde.
+2. **Bei den Bossen zuerst EINE Instanz vollständig**, samt Instanz-Datenmodell — nicht alle 68.
+   Danach wird gemessen, ob die Rotation sich wirklich ändert.
+
+Punkt 2 ist keine Einschränkung von Schritt 4, sondern seine Anwendung: „Inhalt in Wellen — Instanz
+für Instanz". Der Grund steht in 20.1 und gilt für Bosse besonders scharf: **Vier Bosse, die falsch
+gebaut sind, zieht man nach. Achtundsechzig nicht.**
+
+> **Vor jeder Planung nach dieser Tabelle die Befehle oben ausführen.** Am 2026-08-09 nannte das
+> Zauber-Raster 41 Zauber, am 2026-08-10 waren es 54 — beide Male hat die Messung den Fehler
+> gefunden, nicht das Lesen. Eine Bestandszahl ist ein Datum, keine Wahrheit.
+
 ---
 
 ## 21. Bewusst verworfen · außerhalb des Umfangs · für später
