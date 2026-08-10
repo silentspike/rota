@@ -1,31 +1,31 @@
 buff.factor                aether       2 -> 1        RUST-GEPRUEFT (sim/tests/parity_aether.rs, Pruefsumme Takt 150) — vitest meldet nur den Mess-Waechter
-buff.factor                distil       2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
-buff.factor                flashpoint   2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.factor                distil       2 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
+buff.factor                flashpoint   2 -> 1        geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
 buff.factor                griplock     2 -> 1        geschuetzt [3 Prueffaelle] (buff-ersetzung-ueber-zauber.test.ts)
 buff.factor                quicksilver  2 -> 1        geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
 buff.factor                slag         1.5 -> 0.75     geschuetzt [10 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, faktor-untergrenze.test.ts, slag.test.ts)
-buff.factor                virulence    2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.factor                virulence    2 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.gcds                  aether       8 -> 4        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
-buff.gcds                  distil       4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
-buff.gcds                  flashpoint   3 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  distil       4 -> 2        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
+buff.gcds                  flashpoint   3 -> 1        geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
 buff.gcds                  griplock     4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
 buff.gcds                  quicksilver  4 -> 2        geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
 buff.gcds                  slag         4 -> 2        geschuetzt [6 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)
-buff.gcds                  virulence    4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  virulence    4 -> 2        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.kind                  aether       0 -> 1        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
-buff.kind                  distil       0 -> 1        SCHWEIGT
-buff.kind                  flashpoint   0 -> 1        SCHWEIGT
+buff.kind                  distil       0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
+buff.kind                  flashpoint   0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.kind                  griplock     0 -> 1        geschuetzt [1 Prueffall] (buff-ersetzung-ueber-zauber.test.ts)
 buff.kind                  quicksilver  0 -> 1        SCHWEIGT
 buff.kind                  slag         1 -> 0        geschuetzt [4 Prueffaelle] (buff-expire-log.test.ts, buff-stapelung-ueber-zauber.test.ts)
-buff.kind                  virulence    0 -> 1        SCHWEIGT
+buff.kind                  virulence    0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.target                aether       cdreduce -> tick     RUST-GEPRUEFT (sim/tests/parity_aether.rs; zusaetzlich sim/tests/buff_targets.rs) — vitest meldet nur den Mess-Waechter
-buff.target                distil       cdreduce -> tick     NUR FRISCHE -> faktisch ungeschuetzt
-buff.target                flashpoint   resource -> tick     NUR FRISCHE -> faktisch ungeschuetzt
+buff.target                distil       cdreduce -> tick     geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
+buff.target                flashpoint   resource -> tick     geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
 buff.target                griplock     control -> tick     geschuetzt [3 Prueffaelle] (buff-ersetzung-ueber-zauber.test.ts)
 buff.target                quicksilver  convert -> tick     geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
 buff.target                slag         cap -> tick     geschuetzt [8 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)
-buff.target                virulence    stack -> tick     NUR FRISCHE -> faktisch ungeschuetzt
+buff.target                virulence    stack -> tick     geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 control.amountMs           capstone     2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
 control.amountMs           latch        4000 -> 2000     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.amountMs           stall        2000 -> 1000     geschuetzt [6 Prueffaelle] (kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
