@@ -139,6 +139,25 @@ pub struct ReplayResult {
     pub shield: Vec<u32>,
     /// Ob die Schwaechung je Takt liegt, als 0 oder 1.
     pub afflicted: Vec<u32>,
+    /// Wie viele Auswahlen des Ruecksetzers in diesem Takt offen standen.
+    ///
+    /// **Zwei Aufzeichnungen fuehren diesen Zustand und keine hat ihn
+    /// verglichen**: `cooldown-reset-run` als `armed` (0 oder 1),
+    /// `alembic-zwei-ladungen` als `ladungen` (0 bis 2). Der erste diente nur
+    /// als Zusatz in einer Fehlermeldung, der zweite wurde auf Plausibilitaet
+    /// geprueft ("kommt eine 2 vor?") — aber nie gegen diese Seite gehalten.
+    /// Die Zahl deckt beide ab: "scharf" ist "groesser als null".
+    ///
+    /// Das alte Feld hiess `reset_armed` — es diente nur als Zusatz in der Fehlermeldung, wenn eine
+    /// Pruefsumme abwich. Gemessen an `cooldown-reset-run`: 300 von 6000
+    /// Takten stehen auf 1, also ist es ein Wert, der etwas aussagt.
+    ///
+    /// Der Auswahlmodus steht in KEINER der beiden Pruefsummen. Er wirkt nur
+    /// mittelbar — ueber eine Abklingzeit, die er zuruecksetzt — und die steht
+    /// darin. Liefen beide Seiten im Zustand auseinander, faellt es also erst
+    /// auf, wenn er greift, und dann an einer anderen Stelle. Diese Spur
+    /// meldet es dort, wo es passiert.
+    pub reset_charges_left: Vec<u32>,
     /// Wann der laufende Boss-Zauber trifft, oder -1 — die Spur der Eskalation.
     pub cast_lands_at: Vec<i64>,
     /// Wie oft die Schwaechung entfernt wurde.
