@@ -43,24 +43,33 @@ Aussage auf Feld-Ebene ist in **beide** Richtungen falsch: Ein abgesicherter
 erster Träger verdeckt die Lücke dahinter, ein ungeschützter erklärt Zauber
 für ungeprüft, die es nicht sind.
 
-**109 Paare** über 37 Felder und 35 Zauber, alle gemessen. Der Bestand ist
+**116 Paare** über 41 Felder, alle gemessen. Der Bestand ist
 seit der ersten Messung gewachsen: 53 vor #540, 68 mit den fünf Verstärkern,
 90 mit den Textfeldern aus #633, 109 mit den fünf COAGULATION-Zaubern aus
-#481.
+#481, 116 mit den Zaubern aus #479 und #480.
+
+> **Die Zahl altert mit jedem neuen Zauber, und zwar still.** Sie stand hier
+> zweimal an einem Tag falsch: erst auf 68, während 109 gemessen waren; dann
+> auf 109, während sieben neue Paare aus fremden Zweigen dazugekommen waren.
+> Beide Male war das Merge grün — die Zahl steht in einem Text, den kein Test
+> liest.
+>
+> Wer hier eine Zahl liest, prüft sie gegen `groessen-abdeckung-messung.txt`,
+> bevor er sich auf sie stützt.
 
 ---
 
-## Das Ergebnis: 26 Lücken von 109
+## Das Ergebnis: 21 Lücken von 116
 
 | Sorte            | Paare | Was anschlägt                                                   |
 | ---------------- | ----- | --------------------------------------------------------------- |
-| **geschützt**    | 71    | mindestens ein Wirkungs-Fall                                    |
-| **nur Frische**  | 19    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie  |
-| **schweigt**     | 7     | nichts                                                          |
+| **geschützt**    | 83    | mindestens ein Wirkungs-Fall                                    |
+| **nur Frische**  | 16    | allein die Aufzeichnungs-Prüfung — ein Neu-Export beruhigt sie  |
+| **schweigt**     | 5     | nichts                                                          |
 | **strukturell**  | 6     | die Laufzeit-Prüfung, weil es keinen zweiten gültigen Wert gibt |
 | **rust-geprüft** | 6     | der Rust-Bau; vitest allein schweigt (siehe Kasten unten)       |
 
-**19 + 7 = 26 Paare melden keine Wirkungsprüfung.** Die sechs strukturellen
+**16 + 5 = 21 Paare melden keine Wirkungsprüfung.** Die sechs strukturellen
 und die sechs rust-geprüften sind keine Lücken: Bei den einen erzwingt der
 Typ den einzigen gültigen Wert, bei den anderen prüft die Rust-Seite, was
 vitest nicht sieht.
@@ -69,6 +78,25 @@ Diese Unterscheidung gehört in die Überschrift und nicht nur in den Text. Eine
 Zahl, die Nicht-Lücken als Lücken führt, fordert zu Arbeit auf, die niemand
 tun kann — derselbe Fehler wie eine Rangfolge, die Ungemessenes als Null
 ausweist.
+
+### Nachzug 2026-08-10: zwölf Lücken geschlossen
+
+`distil`, `flashpoint` und `virulence` hatten je **alle vier** Buff-Felder
+ohne Wirkungsprüfung — zwölf der 26 Lücken, alle demselben Muster aus #540
+folgend. `tests/unit/buff-groessen-540.test.ts` schließt sie in einem Zug:
+
+```text
+  flashpoint  resource   KINDLEs Hitze-Gewinn         3 -> 6
+  distil      cdreduce   WISPs Verkürzung an PYROCLASM  500 -> 1000
+  virulence   stack      FESTERs Schaden je Stapel     95 -> 114
+```
+
+Je Zauber vier Zusicherungen: der Faktor verdoppelt, der Zwilling **ersetzt**
+statt zu stapeln, das Fenster endet — und die **Kreuzprobe**, dass der Faktor
+die beiden FREMDEN Größen unberührt lässt. Ohne sie fiele ein vertauschtes
+`target` nicht auf: Der Faktor wirkte, nur woanders.
+
+Gegengeprüft: Jede der zwölf Mutationen macht mindestens einen Fall rot.
 
 ### `buff.kind` ist NICHT mehr unprüfbar
 
@@ -81,10 +109,10 @@ buff.kind  griplock     geschuetzt [1 Prueffall]  (buff-ersetzung-ueber-zauber.t
 buff.kind  slag         geschuetzt [4 Prueffaelle] (buff-expire-log, buff-stapelung-ueber-zauber)
 ```
 
-Die Lage gibt es also. Sie fehlt nur bei vier der sieben Träger (`distil`,
-`flashpoint`, `quicksilver`, `virulence`) — und das ist eine Lücke, keine
-Unmöglichkeit. Der Unterschied entscheidet darüber, ob jemand die Arbeit
-anfängt.
+Die Lage gibt es also. Sie fehlte nur bei vier der sieben Träger — und das war
+eine Lücke, keine Unmöglichkeit. Der Unterschied entscheidet darüber, ob
+jemand die Arbeit anfängt: Drei der vier (`distil`, `flashpoint`, `virulence`)
+sind mit dem Nachzug oben geschlossen, `quicksilver` steht noch offen.
 
 Rohdaten je Paar mit gefahrener Mutation und roten Dateien:
 [`groessen-abdeckung-messung.txt`](groessen-abdeckung-messung.txt).
@@ -112,14 +140,14 @@ sie das Richtige rechnen.**
 
 ### Wann das zuschlägt
 
-Heute ist keine der 109 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
+Heute ist keine der 116 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
 Befund betrifft die Werte, die **morgen** geändert werden — und der
 Balance-Läufer (#118) ist genau dafür gebaut. Wenn er anfängt, Zahlen
-vorzuschlagen, ist bei **26 von 109** kein Netz da.
+vorzuschlagen, ist bei **21 von 116** kein Netz da.
 
 ---
 
-## Die Schweiger: sieben im Lauf vom 2026-08-10
+## Die Schweiger: vier nach dem Nachzug vom 2026-08-10
 
 Die Abschnitte unter dieser Überschrift stammen aus den Läufen vom 2026-08-06
 und 2026-08-07 und beschreiben die damaligen zwölf. **Fünf von ihnen sind
