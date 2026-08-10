@@ -66,6 +66,7 @@ import {
   buffsPayload,
   buffCombatPayload,
   decayFactorPayload,
+  decayTalentPayload,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -539,6 +540,14 @@ writeFileSync(decayFactorPath, serialize(decayFactor), 'utf8');
 console.log(`geschrieben: ${decayFactorPath}`);
 console.log(
   `  Verwundbarkeit  Spur: ${decayFactor.factorAt.map((f) => f.vulnerability).join(' -> ')}`,
+);
+
+const decayTalent = decayTalentPayload();
+const decayTalentPath = join(here, 'recordings', 'decay-talent.json');
+writeFileSync(decayTalentPath, serialize(decayTalent), 'utf8');
+console.log(`geschrieben: ${decayTalentPath}`);
+console.log(
+  `  Mit Talent      Spur: ${decayTalent.factorAt.map((f) => f.vulnerability).join(' -> ')}`,
 );
 
 const buffCombat = buffCombatPayload();

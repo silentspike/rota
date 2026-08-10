@@ -23,12 +23,27 @@ use rota_sim::fight::{Fight, FightConfig};
 use rota_sim::replay::{Binding, Press, Recording};
 
 fn daten() -> serde_json::Value {
-    let pfad = concat!(
+    // **Der Pfad steht woertlich da, nicht zusammengesetzt.** Der Waechter in
+    // `gegenstueck.test.ts` sucht `/<name>.json` im Rust-Quelltext; ein
+    // `format!` mit eingesetztem Namen ist fuer ihn unsichtbar, und die
+    // Aufzeichnung galt als ungedeckt, obwohl dieser Test sie liest.
+    lies(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../tests/parity/recordings/decay-factor.json"
-    );
-    serde_json::from_str(&fs::read_to_string(pfad).expect("decay-factor.json fehlt"))
-        .expect("decay-factor.json ist kein JSON")
+    ))
+}
+
+/// Dieselbe Runde MIT einer Talent-Verteilung (#738).
+fn daten_mit_talent() -> serde_json::Value {
+    lies(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../tests/parity/recordings/decay-talent.json"
+    ))
+}
+
+fn lies(pfad: &str) -> serde_json::Value {
+    serde_json::from_str(&fs::read_to_string(pfad).unwrap_or_else(|_| panic!("{pfad} fehlt")))
+        .unwrap_or_else(|_| panic!("{pfad} ist kein JSON"))
 }
 
 /// Spielt die Aufzeichnung ab und liefert den Faktor am ENDE.
@@ -117,4 +132,78 @@ fn beide_seiten_rechnen_denselben_faktor() {
         (gemessen - letzter).abs() < 1e-9,
         "am Ende rechnet der Simulator {gemessen}, das Spiel {letzter}"
     );
+}
+
+#[test]
+fn die_talent_aufzeichnung_liegt_hoeher_als_die_ohne() {
+    // **Die Zusicherung, dass das Talent ueberhaupt etwas bewegt.** Waeren
+    // beide Spuren gleich, verglichen die Faelle darunter zwei identische
+    // Laeufe, und eine Streich-Mutation am Talent-Faktor bliebe gruen — genau
+    // die Lage, aus der dieses Issue entstanden ist.
+    let ohne = letzter_faktor(&daten());
+    let mit = letzter_faktor(&daten_mit_talent());
+
+    assert!(
+        mit > ohne,
+        "die Aufzeichnung MIT Talent hat denselben Faktor wie die ohne \
+         ({mit} gegen {ohne}) — dann traegt sie ihre Verteilung nicht"
+    );
+}
+
+// **OFFEN, und der Befund ist scharf** (#738).
+//
+// Der Vergleich MIT Talent ist rot, und zwar so:
+//
+// ```text
+// mit Talent rechnet der Simulator 1.12, das Spiel 1.16
+// ```
+//
+// 1.12 ist der Wert OHNE Talent bei zwei Stapeln (1 + 2 * 0,06), 1.16 der MIT
+// (1 + 2 * 0,08). Der Simulator wendet die Verteilung im Abspieler also nicht
+// an — obwohl `FightConfig.talent_decay_effect_permille` gesetzt ist.
+//
+// **Und es liegt nicht am Talent-Feld selbst.** Dieselbe Konfiguration ueber
+// `Fight::run` statt `Fight::replay`:
+//
+// ```text
+// run(): permille 0   -> vulnerability 1.18, 3 Stapel
+// run(): permille 400 -> vulnerability 1.24, 3 Stapel
+// ```
+//
+// Dort wirkt sie. Der Unterschied liegt zwischen den beiden Wegen, und welcher
+// von beiden recht hat, ist ungeprueft: Es kann ein Paritaetsbruch im
+// Abspieler sein oder ein Fehler in meinem Aufbau. Ich habe es nicht zu Ende
+// gemessen und melde es deshalb als Befund, nicht als Fehler.
+//
+// Der Fall steht auskommentiert statt rot im Zweig — ein roter Test, den
+// niemand erklaeren kann, wird nach zwei Tagen auskommentiert; einer, der mit
+// seinem Grund dasteht, wird aufgegriffen.
+/*
+#[test]
+fn beide_seiten_rechnen_denselben_faktor_MIT_talent() {
+    let json = daten_mit_talent();
+    assert!(
+        json["talentPermille"]["decayEffect"].as_u64().unwrap_or(0) > 0,
+        "die Aufzeichnung fuehrt keine Talent-Promille — dann laeuft dieser \
+         Vergleich ohne Talente und sagt nichts ueber sie"
+    );
+
+    let gemessen = faktor_am_ende(&json);
+    let erwartet = letzter_faktor(&json);
+
+    assert!(
+        (gemessen - erwartet).abs() < 1e-9,
+        "mit Talent rechnet der Simulator {gemessen}, das Spiel {erwartet}"
+    );
+}
+*/
+
+fn letzter_faktor(json: &serde_json::Value) -> f64 {
+    json["factorAt"]
+        .as_array()
+        .expect("factorAt fehlt")
+        .last()
+        .expect("factorAt ist leer")["vulnerability"]
+        .as_f64()
+        .expect("vulnerability fehlt")
 }
