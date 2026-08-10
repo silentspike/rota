@@ -4753,6 +4753,86 @@ function recordSynergy(ticks: number): Recording {
   return { name: SYNERGY_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };
 }
 
+/**
+ * Eine Runde mit ZERSETZUNG, deren Verwundbarkeits-Faktor mitgeschrieben wird
+ * (Issue #738).
+ *
+ * # Warum es sie braucht — `buff-combat` kann es nicht leisten
+ *
+ * Die Faktoren-Spur `factorAt` gab es bis dahin genau einmal, in
+ * `buffCombatPayload`. Die fährt `test-buff` und `kindle`, also **keine
+ * Zersetzung** — ihr `vulnerability` ist konstant 1,0:
+ *
+ * ```text
+ * [{tick 0, buffs 1.2, vulnerability 1}, … {tick 500, buffs 1, vulnerability 1}]
+ * ```
+ *
+ * Damit ist sie die Gegenprobe (ein Lauf ohne Zersetzung bleibt grün) und kann
+ * genau deshalb den Wirkungsnachweis nicht führen: Ein Wert, der nie von 1
+ * abweicht, färbt bei keiner Mutation. Zwei Auflagen, die dieselbe Datei nicht
+ * gleichzeitig erfüllen kann — deshalb diese zweite.
+ *
+ * # Eigene Tick-Schleife statt `replayRecording`
+ *
+ * `synergyPayload` baut Stapel auf und wäre der nächstliegende Ort. Sie läuft
+ * aber über `replayRecording`, das keine Faktoren-Spur führt; sie dort
+ * einzuhängen hieße, den Abspieler umzubauen. Diese Payload folgt stattdessen
+ * dem Muster von `buffCombatPayload`: eigene Schleife, direkte Würfe.
+ */
+export function decayFactorPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 600;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const canker = combat.indexOf('canker');
+
+  const checksums: number[] = [];
+  const factorAt: { tick: number; buffs: number; vulnerability: number }[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // **Mehrere Würfe im Abstand der Abklingzeit**, damit die Stapel wachsen:
+    // Ein einzelner Stapel zeigt nur die erste Stufe, und ein Talent auf die
+    // Wertigkeit wäre daran zwar sichtbar, aber die Spur zeigte keinen Verlauf.
+    if (tick === 0 || tick === 100 || tick === 200) combat.cast(canker, timeMs);
+
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+    // Drei Messpunkte wie bei `buff-combat`: vor dem ersten Wurf ist der Faktor
+    // neutral, in der Mitte gestiegen, am Ende — nach dem Ablauf der Stapel —
+    // wieder neutral. Der Verlauf steht damit in der Datei, nicht nur ein Wert.
+    if (tick === 0 || tick === 250 || tick === 599) {
+      factorAt.push({
+        tick,
+        buffs: combat.damageFactors.buffs,
+        vulnerability: combat.vulnerability,
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    presses: [
+      { tick: 0, spellId: 'canker' },
+      { tick: 100, spellId: 'canker' },
+      { tick: 200, spellId: 'canker' },
+    ],
+    checksums,
+    factorAt,
+    expected: {
+      /**
+       * **Die Zusicherung im Datensatz:** Ohne liegende Stapel liefe die
+       * Aufzeichnung über einen Zauber, dessen Wirkung nie eintritt, und der
+       * Verwundbarkeits-Vergleich verglich zweimal 1,0.
+       */
+      decayStacksAtPeak: 3,
+    },
+  };
+}
+
 export function synergyPayload(): Record<string, unknown> {
   const recording = recordSynergy(3000);
   const result = replayRecording(recording, { checksumPerTick: true });
