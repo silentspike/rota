@@ -1,4 +1,4 @@
-# Das Zauber-Raster — abgearbeitet: 13 gebaut, 4 verworfen, 1 offen
+# Das Zauber-Raster — abgearbeitet: 13 gebaut, 4 verworfen, 1 in Arbeit
 
 > **Freigegeben vom Auftraggeber am 2026-08-06**, vollständig und ohne Änderung: _„wir übernehmen
 > alle deine vorschläge. wir müssen sowieso ja dann das ganze tuning, balancing, usw machen."_
@@ -28,7 +28,7 @@
 > Dazu zwei schulübergreifende in `common.json`.
 >
 > **Die achtzehn sind abgearbeitet, nicht offen.** Dreizehn gebaut, vier mit gemessenem Grund
-> verworfen, einer offen:
+> verworfen, einer in Arbeit:
 >
 > | Vorschlag | Ausgang      | Grund — gemessen, nicht geschätzt                                                                                                                                                     |
 > | --------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
