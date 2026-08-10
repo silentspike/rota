@@ -161,6 +161,37 @@ export const NOT_ACTIVE = -1;
 export const MAX_DECAY_STACKS = 5;
 
 /**
+ * Wie viele Stapel die **Struktur** fasst — Feldlänge und Prüfsummen-Schleife
+ * (PUTRID BLOOM, Issue #479).
+ *
+ * # Warum zwei Konstanten, wo bisher eine reichte
+ *
+ * `MAX_DECAY_STACKS` ist die **Grenze**: Ab ihr legt kein Zauber mehr nach.
+ * PUTRID BLOOM hebt genau diese Grenze für eine Weile — und wäre sie zugleich
+ * die Feldlänge, änderte sich mit ihr die Zahl der Werte, die in die Prüfsumme
+ * gehen. Eine Prüfsumme, deren LÄNGE vom Spielverlauf abhängt, ist keine mehr:
+ * Zwei Läufe wären nicht vergleichbar, sobald einer den Zauber wirkt.
+ *
+ * Deshalb ist die Struktur **fest** und die Grenze beweglich. Die unbelegten
+ * Plätze mischen als 0 — das tat der Bau schon vorher so
+ * (`decayExpiryAt` gibt oberhalb der Zahl 0 zurück), es fällt hier nur nicht
+ * mehr mit der Grenze zusammen.
+ *
+ * # Warum acht
+ *
+ * Sie muss über jedem Wert liegen, den die Grenze je erreichen kann: fünf plus
+ * der größte Zuschlag, den ein Zauber gibt. PUTRID BLOOM gibt heute zwei; acht
+ * lässt Luft für einen zweiten Zauber derselben Art, ohne dass die Struktur
+ * erneut wächst — und jedes Wachstum kostet einen Neu-Export ALLER
+ * Aufzeichnungen.
+ *
+ * **Der Parser hält das nach**: `data.ts` weist einen `decayCap`-Zuschlag
+ * zurück, der über die Kapazität hinausführt. Eine Zahl, die nur hier steht,
+ * wäre eine Zusicherung ohne Wächter.
+ */
+export const DECAY_STACK_CAPACITY = 8;
+
+/**
  * Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht.
  *
  * **Entschieden, nicht offen** — Issue #224, 2026-08-05. Bis Issue #482 stand
@@ -465,7 +496,9 @@ export class Combat {
    * Ein Feld fester Länge statt einer wachsenden Liste: Der Kampf darf im
    * laufenden Bild nichts erzeugen (18.2).
    */
-  private readonly decayExpiryMs = new Float64Array(MAX_DECAY_STACKS);
+  // **Die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479). Das Feld ist
+  // fest; wie viele Plaetze davon belegt werden duerfen, sagt `decayCap`.
+  private readonly decayExpiryMs = new Float64Array(DECAY_STACK_CAPACITY);
 
   /** Wie viele Stapel gerade liegen. */
   private decayCountValue = 0;
@@ -719,6 +752,34 @@ export class Combat {
 
   /** Kampfzeit des Spielertods, oder -1. */
   private diedAtMsValue = -1;
+  /**
+   * **Der erste MERKER des Datenmodells** (SUBLIME, Issue #480).
+   *
+   * Steht auf `true`, wenn ein Zauber mit `freesNextGcd` geworfen wurde und
+   * der nächste deshalb keine globale Wartezeit auslöst. Er lebt genau bis zu
+   * diesem nächsten Wurf.
+   *
+   * # Warum er in der Prüfsumme steht
+   *
+   * Ein Kampfzustand, der nicht in der Prüfsumme steht, ist von der Parität
+   * **nicht erfasst**: Beide Seiten könnten ihn verschieden führen — einer
+   * verbraucht ihn beim nächsten Wurf, der andere beim übernächsten —, und
+   * keine Prüfung würde es bemerken. Die Zahlen stimmten weiter, bis
+   * irgendwann eine Rotation auseinanderliefe.
+   *
+   * Das gilt für jeden Merker, der noch kommt (CONDENSE, RETORT, PUTRID
+   * BLOOM, DECAY). Wer einen baut, hängt ihn dort an.
+   */
+  private nextCastFreeGcdValue = false;
+
+  /**
+   * Der zweite Merker (CONDENSE, #480): Der nächste Wurf wirkt zweimal.
+   *
+   * Steht neben seinem Nachbarn darüber und nicht am Ende der Felder —
+   * Merker sind eine eigene Sorte Zustand, und vier verstreute wären
+   * schwerer zu pflegen als eine Gruppe.
+   */
+  private nextCastDoublesValue = false;
 
   /** Gesamter erlittener Schaden, **nach** WARD. */
   private damageTakenValue = 0;
@@ -775,6 +836,44 @@ export class Combat {
 
   /** Anteil, den sie umwandelt, in Prozent. 0 heißt: keine läuft. */
   private conversionPercentValue = 0;
+
+  /**
+   * Um wie viele Plätze die Stapel-Grenze angehoben ist (PUTRID BLOOM, #479).
+   *
+   * `0` heißt: die Grenze ist `MAX_DECAY_STACKS`. Der Zuschlag gilt nur,
+   * solange `decayCapUntilMs` nicht abgelaufen ist — dieselbe Bauart wie die
+   * Umwandlung von TEMPER eine Zeile höher.
+   */
+  private decayCapBonusValue = 0;
+
+  /** Bis wann der Zuschlag gilt. -1 = keiner. */
+  private decayCapUntilMs = -1;
+
+  /**
+   * Die Grenze, die JETZT gilt.
+   *
+   * **Gedeckelt auf die Kapazität**, und das ist keine Vorsicht, sondern
+   * Notwendigkeit: Darüber hinaus gäbe es keinen Platz im Feld. Der Parser
+   * weist solche Daten schon zurück; diese Zeile ist die zweite Sperre für den
+   * Fall, dass der Zuschlag später aus einer anderen Quelle kommt.
+   */
+  private get decayCap(): number {
+    const offen = this.decayCapUntilMs >= 0 && this.nowMsForBuffs <= this.decayCapUntilMs;
+    return Math.min(DECAY_STACK_CAPACITY, MAX_DECAY_STACKS + (offen ? this.decayCapBonusValue : 0));
+  }
+
+  /**
+   * Bis wann DECAYs Schwächung läuft. -1 = keine (Issue #479).
+   *
+   * **Dieselbe Bauart wie `conversionUntilMs`** (TEMPER): ein Zustand für eine
+   * Weile, gemessen in Kampfzeit. Er steht in keiner Prüfsumme und muss es
+   * nicht — seine Wirkung zeigt sich in `playerHp`, und das mischt
+   * (`checksum.ts`). Genau so trägt `conversionUntilMs` seit #79.
+   */
+  private decayWardUntilMs = -1;
+
+  /** Promille je Stapel, solange die Schwächung läuft. 0 heißt: keine. */
+  private decayWardPermilleValue = 0;
 
   /** Wie viel Schutz die Umwandlung insgesamt erzeugt hat. */
   private convertedValue = 0;
@@ -841,6 +940,34 @@ export class Combat {
    * danach**.
    */
   private nextStrikeDelayMs = 0;
+
+  /**
+   * Ob der **nächste** Boss-Zauber unterbrechbar wird, auch wenn er es von
+   * Haus aus nicht ist (PIN, Issue #478).
+   *
+   * # Warum „der nächste" wörtlich zu nehmen ist
+   *
+   * Gelesen wird der Merker in `stepTimeline`, im Moment, in dem ein Eintrag
+   * **auslöst** — nicht während einer laufenden Wirkzeit. Wer ihn eine Zeile
+   * früher läse, machte den GERADE LAUFENDEN Zauber unterbrechbar; PIN
+   * befreite dann sich selbst statt den folgenden, und der Fall bliebe grün,
+   * weil ja etwas unterbrechbar wurde. Worker-2 hat genau diese Falle bei
+   * seinem Merker getroffen.
+   *
+   * **Dieselbe Bauart wie `nextStrikeDelayMs`** (STAY, Issue #100): ein Merker
+   * auf dem nächsten Zeitleisten-Eintrag, beim Auslösen verbraucht.
+   *
+   * # Warum eine ZEIT und kein Ja/Nein
+   *
+   * Ein `strike` trägt `castTimeMs: 0` — der Parser verlangt für
+   * `interruptibleCast` ausdrücklich mehr als null (`data.ts`). Ein Schlag,
+   * den PIN nur umetikettierte, wäre im selben Augenblick vorbei, in dem er
+   * beginnt: unterbrechbar auf dem Papier, nie unterbrechbar in der Hand.
+   * Also gibt PIN ihm ein Fenster, und dessen Länge steht in den DATEN.
+   *
+   * `0` heißt „kein Merker".
+   */
+  private pinWindowMsValue = 0;
 
   /** Um wie viele Prozentpunkte die Phasen-Schwelle gesenkt ist (ANCHOR). */
   private phaseHoldPercentValue = 0;
@@ -1678,6 +1805,50 @@ export class Combat {
     return this.controlSpentValue;
   }
 
+  /**
+   * Verbraucht den Merker aus SUBLIME, falls er steht (Issue #480).
+   *
+   * **Einmal gesetzt, einmal verbraucht**: Ein Merker, der stehen bliebe,
+   * machte aus einem einzelnen freien Wurf eine dauerhafte Befreiung.
+   */
+  private takeFreeGcd(): boolean {
+    if (!this.nextCastFreeGcdValue) return false;
+    this.nextCastFreeGcdValue = false;
+    return true;
+  }
+
+  /**
+   * Ob der nächste Wurf von der globalen Wartezeit befreit ist (#480).
+   *
+   * **Diese beiden stehen bewusst HIER und nicht bei `playerDead`.** Ein
+   * erster Entwurf setzte sie dorthin — und schnitt damit den Kommentarblock
+   * ab, den `measured-sizes-source.test.ts` über `get playerDead(` liest. Der
+   * Wächter wurde rot, ohne dass an `playerDead` etwas geändert war.
+   *
+   * Ein Einschub deutet nicht nur Reihenfolgen um, sondern auch Kommentare,
+   * die jemand als Datenquelle nutzt.
+   */
+  get nextCastFreeGcd(): boolean {
+    return this.nextCastFreeGcdValue;
+  }
+
+  /**
+   * Verbraucht den Merker aus CONDENSE, falls er steht (#480).
+   *
+   * Einmal gesetzt, einmal verbraucht — wie bei SUBLIME. Ein Merker, der
+   * stehen bliebe, machte aus einer einzelnen Verdopplung eine dauerhafte.
+   */
+  private takeDoubleCast(): boolean {
+    if (!this.nextCastDoublesValue) return false;
+    this.nextCastDoublesValue = false;
+    return true;
+  }
+
+  /** Ob der nächste Wurf zweimal wirkt (#480). */
+  get nextCastDoubles(): boolean {
+    return this.nextCastDoublesValue;
+  }
+
   /** Wie oft eine Kontroll-Wirkung mangels Punkten ins Leere lief. */
   /** ANGEZEIGT seit #294: "Control wasted" im aufgeklappten Bereich. */
   get controlFailed(): number {
@@ -1786,6 +1957,18 @@ export class Combat {
       // **Nur der nächste Eintrag.** Die folgenden stehen, wo sie stehen —
       // der Abstand dahinter schrumpft, und genau das ist der Preis.
       this.nextStrikeDelayMs += control.amount;
+    }
+    if (control.effect === 'makeInterruptible') {
+      // **PIN** (Issue #478): Der nächste Boss-Zauber wird unterbrechbar, auch
+      // wenn er es nicht war. Damit verbindet sich die Schule mit QUENCH — wer
+      // unterbrechen kann, braucht etwas zum Unterbrechen.
+      //
+      // **NICHT gegen den laufenden.** Der Merker wird erst gelesen, wenn der
+      // nächste Eintrag auslöst; ein `castingValue >= 0` wie bei `slowCast`
+      // wäre hier falsch. Ein Zauber, der schon läuft, ist entweder ohnehin
+      // unterbrechbar oder trifft sofort — in beiden Fällen kommt PIN zu spät,
+      // und das ist die Entscheidung, die er dem Spieler abverlangt.
+      this.pinWindowMsValue = control.amount;
     }
     if (control.effect === 'convertToDamage') {
       // **Der Notausgang** (Issue #478, WEDGE): Gegen einen Boss ohne
@@ -1913,6 +2096,31 @@ export class Combat {
       this.reflectUntilMs = seitBeginn + reflect.durationMs;
       this.reflectSpellIndex = index;
     }
+
+    // PUTRID BLOOM (Issue #479) — die Grenze anheben.
+    //
+    // **Liegende Stapel bleiben liegen, wenn die Anhebung ausläuft.** Die
+    // Grenze entscheidet nur, ob NACHGELEGT werden darf (`decayCount >=
+    // decayCap`); sie wirft nichts weg. Wer unter der Anhebung sieben Stapel
+    // aufbaut, behält sie bis zu ihrem eigenen Verfall — sonst wäre das
+    // Auslaufen ein zweiter, unsichtbarer Verfall, und die Uhren am Stapel
+    // logen.
+    const decayCap = spell.decayCap;
+    if (decayCap !== undefined) {
+      this.decayCapBonusValue = decayCap.bonus;
+      this.decayCapUntilMs = seitBeginn + decayCap.durationMs;
+    }
+
+    // DECAY (Issue #479) — die Schwächung anschalten. Die STAPELZAHL wird
+    // hier NICHT festgehalten: Sie wird beim Treffer gelesen, nicht beim
+    // Wirken. Wer sie hier einfröre, machte aus „schwächt nach Stapelzahl"
+    // ein „schwächt nach der Stapelzahl von vorhin" — und der Aufbau nach dem
+    // Wurf zählte nicht mehr.
+    const decayWard = spell.decayWard;
+    if (decayWard !== undefined) {
+      this.decayWardPermilleValue = decayWard.permillePerStack;
+      this.decayWardUntilMs = seitBeginn + decayWard.durationMs;
+    }
   }
 
   /**
@@ -1973,7 +2181,7 @@ export class Combat {
     if (anzahl <= 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     for (let i = 0; i < anzahl; i++) {
-      if (this.decayCountValue >= MAX_DECAY_STACKS) break;
+      if (this.decayCountValue >= this.decayCap) break;
       // Ans Ende, weil der neue am spätesten verfällt — die Liste bleibt damit
       // aufsteigend, ohne je zu sortieren.
       this.decayExpiryMs[this.decayCountValue] = seitBeginn + DECAY_STACK_DURATION_MS;
@@ -2505,6 +2713,17 @@ export class Combat {
   }
 
   /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
+  /**
+   * Die Stapel-Grenze, die JETZT gilt — für die Anzeige (PUTRID BLOOM, #479).
+   *
+   * Das HUD zeigt „3 / 5". Hebt der Zauber die Grenze, muss dort die GEHOBENE
+   * Zahl stehen; sonst stünde der Spieler bei „6 / 5" und hielte die Anzeige
+   * für kaputt statt den Zauber für wirksam.
+   */
+  get decayStackCap(): number {
+    return this.decayCap;
+  }
+
   get decayStacks(): number {
     return this.decayCountValue;
   }
@@ -2577,7 +2796,27 @@ export class Combat {
     // trotzdem da. Wer den Balance-Deckel eines Tages über 1000 ‰ setzt, soll
     // nicht erst durch geheilte Spieler darauf stossen. Ihn wegzulassen hiesse,
     // sich auf den Wert einer Datendatei zu verlassen.
-    const roh = PLAYER.wardReduction + this.worn.ward / 1000;
+    // **DECAY geht in dieselbe Summe** (Issue #479) — und damit auch unter
+    // denselben Deckel. Das ist die Entscheidung: Die Schwächung ist kein
+    // eigener Faktor neben WARD, sondern mehr WARD. Andernfalls ließe sich der
+    // Balance-Deckel (`wardCapPermille`) über die Fäulnis umgehen, und die
+    // Grenze, die COAGULATION ihren Gegenstand lässt, wäre für PUTREFACTION
+    // aufgehoben.
+    //
+    // **Die Stapelzahl wird HIER gelesen, nicht beim Wirken.** Wer nach dem
+    // Wurf weiter aufbaut, mindert mehr — „nach Stapelzahl" heißt nach der
+    // jetzigen, nicht nach der von damals.
+    // **In EINE Promille-Summe, dann EINMAL geteilt.** `(a + b) / 1000` und
+    // `a/1000 + b/1000` sind in Fliesskomma nicht dasselbe, und die Rust-Seite
+    // rechnet die erste Form (`incoming_with_gear` nimmt EINEN Promille-Wert).
+    // Zwei Divisionen hier ergäben eine Abweichung, die erst in der Prüfsumme
+    // auffiele und wie ein Rechenfehler im Kampf aussähe.
+    const seitBeginnFuerDecay = this.fightElapsedMs(timeMs);
+    const decayPermille =
+      this.decayWardUntilMs >= 0 && seitBeginnFuerDecay <= this.decayWardUntilMs
+        ? this.decayWardPermilleValue * this.decayCountValue
+        : 0;
+    const roh = PLAYER.wardReduction + (this.worn.ward + decayPermille) / 1000;
     const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
     const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
@@ -3387,7 +3626,19 @@ export class Combat {
       // Zeitpunkt an (STAY, Issue #100).
       this.nextStrikeDelayMs = 0;
       this.timelineIndexValue++;
-      if (eintrag.mechanic === 'interruptibleCast') {
+      // **PIN wird HIER gelesen und HIER verbraucht** (Issue #478) — im
+      // Auslöse-Moment des Eintrags, nicht während einer laufenden Wirkzeit.
+      // Eine Zeile früher gelesen, machte er den gerade laufenden Zauber
+      // unterbrechbar: PIN befreite sich selbst statt den nächsten, und der
+      // Fall bliebe GRÜN, weil ja etwas unterbrechbar wurde.
+      //
+      // Verbraucht wird er unabhängig davon, ob er etwas bewirkt hat. Traf er
+      // einen Eintrag, der ohnehin unterbrechbar ist, ist er verpufft — das
+      // ist die Entscheidung, die der Zauber dem Spieler abverlangt, und
+      // keine Buchhaltung, die ihn davor bewahrt.
+      const pinFenster = this.pinWindowMsValue;
+      this.pinWindowMsValue = 0;
+      if (eintrag.mechanic === 'interruptibleCast' || pinFenster > 0) {
         // Ob er trifft, entscheidet sich erst, wenn die Wirkzeit um ist — bis
         // dahin kann der Spieler ihn abbrechen.
         this.castingValue = index;
@@ -3399,7 +3650,15 @@ export class Combat {
         // Mit jedem Zyklus schrumpft das Fenster zum Unterbrechen. Die
         // Verkuerzung steht in den DATEN — sonst waere sie eine Regel des
         // Spiels statt eine Eigenschaft dieses Bosses.
-        this.castLandsAtMsValue = faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index);
+        // **Das Fenster von PIN gilt nur für einen Eintrag, der KEINES hat.**
+        // Traf er einen ohnehin unterbrechbaren, bleibt dessen eigene Wirkzeit
+        // samt Eskalation stehen — PIN darf einen schrumpfenden Zauber nicht
+        // heimlich wieder verlängern (#240: die Verkürzung ist eine Eigenschaft
+        // des Bosses, keine Regel des Spiels).
+        this.castLandsAtMsValue =
+          eintrag.mechanic === 'interruptibleCast'
+            ? faelligAtMs + this.escalatedCastTime(eintrag.castTimeMs, index)
+            : faelligAtMs + pinFenster;
       } else {
         // Trifft sofort. Nicht zu verhindern, nur auszuhalten.
         this.hitPlayer(eintrag.damage, timeMs);
@@ -3805,7 +4064,8 @@ export class Combat {
       this.playerCastingValue = index;
       this.playerCastStartedAtMsValue = timeMs;
       this.playerCastEndsAtMsValue = timeMs + wirkzeit;
-      if (spell.triggersGcd) this.gcd.trigger(timeMs);
+      // **Der Merker geht VOR der Eigenschaft** (SUBLIME, #480).
+      if (spell.triggersGcd && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
       // **Kein Protokoll-Eintrag für den Beginn.** Das Protokoll trägt die
       // Fehleranalyse und hat einen gemeinsamen Nummernraum mit dem Simulator
       // (#134); eine neue Art dafür verschöbe jede eingecheckte
@@ -3847,6 +4107,16 @@ export class Combat {
     // globale Wartezeit auslöst, steht weiter unten als `spell.triggersGcd` und
     // kommt aus den Daten — hier wäre eine zweite Stelle, an der dieselbe Regel
     // hängt, und zwei Stellen laufen auseinander.
+    // **Wirkt dieser Wurf zweimal?** (CONDENSE, Issue #480.)
+    //
+    // Der Merker wird HIER verbraucht, vor jeder Wirkung — das Setzen steht
+    // wie bei SUBLIME weit unten, hinter allem. Stünden beide beieinander,
+    // verdoppelte CONDENSE sich selbst statt den nächsten.
+    //
+    // Die Wurfzahl bleibt bei EINS: ein Wurf, der zweimal wirkt, kein zweiter
+    // Wurf. Eine Abklingzeit, eine Wartezeit, ein Cast-Eintrag im Log.
+    const anwendungen = this.takeDoubleCast() ? 2 : 1;
+
     if (spell.interrupt === true) this.interruptBossCast(timeMs);
 
     // **Das Verhängnis senken** (Baustein 2; Issue #561). Genau dieselbe Bauart
@@ -3907,68 +4177,108 @@ export class Combat {
     if (spell.extendShieldMs !== undefined) this.extendShield(timeMs, spell.extendShieldMs);
     if (spell.extendDecayMs !== undefined) this.extendDecayStacks(spell.extendDecayMs);
 
-    let damage = 0;
-    if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
-    if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
+    // **Die Schleife für CONDENSE** (#480): einmal, oder zweimal wenn der
+    // Merker stand.
+    //
+    // Sie umschliesst genau die MENGEN — die vier Schadensquellen und ihre
+    // Buchung. Die ZUSTÄNDE davor (unterbrechen, Verhängnis, Synergie-Fenster)
+    // und danach (Verstärkung, Brand) bleiben ausserhalb: Zweimal zu
+    // unterbrechen unterbricht nicht doppelt, und ein Fenster zweimal zu
+    // öffnen verschöbe seine Dauer.
+    //
+    // **Der Krit-Wurf fällt oben, EINMAL für beide Anwendungen** — dieselbe
+    // Regel wie beim Schlüsseltalent aus #418, das denselben Satz trägt.
+    //
+    // **Warum die Buchung mit hineingehört, obwohl sie hier eine Summe
+    // bucht**: Der Simulator ruft `deal` je Schadensquelle einzeln und legt
+    // damit je Quelle einen Log-Eintrag an. Dass beide Seiten heute gleich
+    // viele Einträge schreiben, liegt allein daran, dass kein Zauber ZWEI
+    // Quellen führt — der Kommentar über dem Schadens-Ereignis im Simulator
+    // sagt es ausdrücklich. CONDENSE erzeugt genau diesen Fall zum ersten Mal.
+    // Bliebe die Buchung draussen, schriebe der Simulator zwei Einträge und
+    // das Spiel einen.
+    let gesamtschaden = 0;
+    for (let anwendung = 0; anwendung < anwendungen; anwendung++) {
+      let damage = 0;
+      if (spell.baseDamage > 0) damage += computeDamage(spell.baseDamage, castFactors);
+      if (spell.consumesDots === true) damage += this.consumeActiveDots(timeMs);
+      // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
+      // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
+      // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
+      // Schaden macht.
+      if (this.pendingConvertedDamage > 0) {
+        damage += computeDamage(this.pendingConvertedDamage, castFactors);
+        this.pendingConvertedDamage = 0;
+      }
+
+      const spender = spell.spender;
+      if (spender !== undefined && spender.resource === this.school.resource.id) {
+        // **Das erste Schlüsseltalent** (Issue #418, GAME-DESIGN 13.09): „Der
+        // Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
+        // ZWEIMAL."
+        //
+        // Es trägt keine Zahl, sondern schaltet ein Verhalten um — deshalb
+        // steht hier eine Verzweigung und kein Faktor. Ein Schlüsseltalent, das
+        // sich als Faktor ausdrücken ließe, wäre keines.
+        const geteilt = this.hasKeystone(KEYSTONE_SPLIT_SPENDER);
+        // **Ganzzahlig geteilt, und der Rest bleibt liegen** (GAME-DESIGN 18.4).
+        // Bei 15 Hitze verbraucht jede Hälfte 7, eine bleibt übrig — nicht 7,5.
+        const proSchlag = geteilt ? Math.floor(this.resourceValue / 2) : this.resourceValue;
+        const schlaege = geteilt ? 2 : 1;
+
+        for (let i = 0; i < schlaege; i++) {
+          // **Der Vorrat wird VOR dem zweiten Schlag verbraucht**, sonst
+          // rechnete der zweite mit demselben Stand wie der erste — und aus
+          // „halb, dafür zweimal" würde „ganz, dafür zweimal".
+          const amount = geteilt ? Math.min(proSchlag, this.resourceValue) : this.resourceValue;
+          if (geteilt && amount === 0) break;
+
+          let raw = spender.damagePerPoint * amount;
+          if (amount >= spender.bonusThreshold) {
+            // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
+            raw *= spender.bonusMultiplier;
+            outcome.bonusApplied = true;
+          }
+          damage += computeDamage(raw, castFactors);
+          if (geteilt) this.resourceValue -= amount;
+          else if (spender.consumesAll) this.resourceValue = 0;
+        }
+      }
+
+      if (damage > 0) {
+        this.bookProgress(damage, index, timeMs);
+        this.convertDamageToShield(damage, timeMs);
+        this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
+      }
+      gesamtschaden += damage;
+    }
+
     // **NECROSIS räumt NACH seiner eigenen Berechnung ab** (Issue #479).
     //
-    // `castFactors` steht eine Zeile höher schon fest und trägt den
-    // Stapel-Bonus aus `perDecayStackPercent`. Der Entlader rechnet also MIT
-    // den Stapeln und nimmt sie erst danach weg — andersherum wäre er der
-    // einzige Zauber der Schule, der von der Fäulnis nichts hat.
+    // `castFactors` steht oben schon fest und trägt den Stapel-Bonus aus
+    // `perDecayStackPercent`. Der Entlader rechnet also MIT den Stapeln und
+    // nimmt sie erst danach weg — andersherum wäre er der einzige Zauber der
+    // Schule, der von der Fäulnis nichts hat.
     //
     // Er addiert nichts zu `damage`: Sein Ertrag steckt bereits im Faktor,
-    // nicht in einem zweiten Betrag. Das unterscheidet ihn von PYROCLASM
-    // eine Zeile höher, dessen Brände einen eigenen Betrag beisteuern.
+    // nicht in einem zweiten Betrag. Das unterscheidet ihn von PYROCLASM in
+    // der Schleife, dessen Brände einen eigenen Betrag beisteuern.
+    //
+    // **Er steht NACH der CONDENSE-Schleife und nicht darin** (#480): Stapel
+    // abzuräumen ist ein ZUSTAND, keine Menge. Ein zweiter Durchlauf fände
+    // ohnehin nichts mehr vor — aber die Stelle folgt der Regel, nicht dem
+    // Zufall, dass es hier egal wäre. Stünde er DAVOR, rechnete keine der
+    // beiden Anwendungen mit den Stapeln, und der Absatz oben wäre verletzt.
     if (spell.consumesDecayStacks === true) this.consumeDecayStacks();
-    // **Der umgewandelte Schaden geht durch dieselben Faktoren** (Issue #478):
-    // Krit, Widerstand, Verstärkung. Ein Treffer, den kein Faktor berührt,
-    // wäre der einzige im Spiel — und niemand fände es, weil er trotzdem
-    // Schaden macht.
-    if (this.pendingConvertedDamage > 0) {
-      damage += computeDamage(this.pendingConvertedDamage, castFactors);
-      this.pendingConvertedDamage = 0;
-    }
 
-    const spender = spell.spender;
-    if (spender !== undefined && spender.resource === this.school.resource.id) {
-      // **Das erste Schlüsseltalent** (Issue #418, GAME-DESIGN 13.09): „Der
-      // Entlade-Zauber verbraucht nur die HÄLFTE der Hitze, wirkt dafür
-      // ZWEIMAL."
-      //
-      // Es trägt keine Zahl, sondern schaltet ein Verhalten um — deshalb
-      // steht hier eine Verzweigung und kein Faktor. Ein Schlüsseltalent, das
-      // sich als Faktor ausdrücken ließe, wäre keines.
-      const geteilt = this.hasKeystone(KEYSTONE_SPLIT_SPENDER);
-      // **Ganzzahlig geteilt, und der Rest bleibt liegen** (GAME-DESIGN 18.4).
-      // Bei 15 Hitze verbraucht jede Hälfte 7, eine bleibt übrig — nicht 7,5.
-      const proSchlag = geteilt ? Math.floor(this.resourceValue / 2) : this.resourceValue;
-      const schlaege = geteilt ? 2 : 1;
-
-      for (let i = 0; i < schlaege; i++) {
-        // **Der Vorrat wird VOR dem zweiten Schlag verbraucht**, sonst
-        // rechnete der zweite mit demselben Stand wie der erste — und aus
-        // „halb, dafür zweimal" würde „ganz, dafür zweimal".
-        const amount = geteilt ? Math.min(proSchlag, this.resourceValue) : this.resourceValue;
-        if (geteilt && amount === 0) break;
-
-        let raw = spender.damagePerPoint * amount;
-        if (amount >= spender.bonusThreshold) {
-          // "ab 15 Hitze", nicht "über 14": Die Schwelle selbst zählt mit.
-          raw *= spender.bonusMultiplier;
-          outcome.bonusApplied = true;
-        }
-        damage += computeDamage(raw, castFactors);
-        if (geteilt) this.resourceValue -= amount;
-        else if (spender.consumesAll) this.resourceValue = 0;
-      }
-    }
-
+    // **Ein Schaden-Ereignis je WURF, mit der Summe** — nicht eines je
+    // Anwendung. Genau so steht es im Simulator, und der Kommentar dort
+    // begründet es: Das Spiel meldet einmal, auch wenn mehrere Quellen
+    // beigetragen haben. Deshalb steht dieses Ereignis ausserhalb der
+    // Schleife, während die Treffer-Buchung darin bleibt.
+    const damage = gesamtschaden;
     if (damage > 0) {
-      this.bookProgress(damage, index, timeMs);
-      this.convertDamageToShield(damage, timeMs);
-      this.reportHit(damage, HIT_DIRECT, kritet, timeMs);
-      this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, damage);
       this.events.emit(RULE_DAMAGE, index, damage, timeMs);
       // **Hier stand bis #177: „Krit ruht in Schritt 1, ein Auslöser wäre
       // toter Code — die Kennung steht bereit, der Ort ist benannt."** Der Ort
@@ -4022,13 +4332,30 @@ export class Combat {
     // die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start hier
     // verlängerte sie um die volle Länge, und aus „ein bis knapp zwei
     // Wartezeiten" (7.1) würden drei.
-    if (spell.triggersGcd && !wirkzeitLief) this.gcd.trigger(timeMs);
+    if (spell.triggersGcd && !wirkzeitLief && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
+
+    // **Den NÄCHSTEN Wurf befreien** (SUBLIME, #480). Bewusst HINTER beiden
+    // GCD-Stellen: Weiter oben hätte SUBLIME als Sofort-Zauber seinen eigenen
+    // Merker eine Zeile später verbraucht und sich selbst befreit statt den
+    // nächsten. Der Fehler wäre grün geblieben — die Wartezeit fiele ja aus,
+    // nur bei der falschen Zeile.
+    if (spell.freesNextGcd === true) this.nextCastFreeGcdValue = true;
+    if (spell.doublesNextCast === true) this.nextCastDoublesValue = true;
     this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
 
     this.log?.push(this.fightElapsedMs(timeMs), EVENT_CAST, index, damage);
     // Zuletzt: Die Wirkung ist abgeschlossen — Schaden, Effekt über Zeit,
     // Vorrat, Abklingzeit und Wartezeit stehen.
-    this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+    //
+    // **Das Ereignis feuert so oft, wie der Wurf gewirkt hat** (CONDENSE,
+    // #480) — der Cast-Eintrag darüber genau einmal. Daran hängen die beiden
+    // Mechaniken, die Mengen aufbauen: der Vorrat und die Verkürzung aller
+    // Abklingzeiten. Sie zweimal ansetzen zu lassen ist dieselbe Regel wie
+    // beim Schaden, und sie kostet keine Aufzählung — sie setzt dort an, wo
+    // die Mengen ohnehin entstehen.
+    for (let anwendung = 0; anwendung < anwendungen; anwendung++) {
+      this.events.emit(RULE_SPELL_CAST, index, damage, timeMs);
+    }
 
     // **Die Schwaechung ohne Heil-Loesung** (11.2, Baustein 8; Issue #240).
     // Steht dieser Zauber in `clearedBy`, ist sie weg — und Heilung steht dort
@@ -4468,6 +4795,9 @@ export class Combat {
     this.nextRunawayAtMs = this.boss.runaway?.perStepMs ?? 0;
     this.nextAfflictionAtMs = 0;
     this.nextStrikeDelayMs = 0;
+    // PIN (#478) — ein Merker, der einen Kampf überlebte, machte im nächsten
+    // einen Zauber unterbrechbar, den niemand dafür bezahlt hat.
+    this.pinWindowMsValue = 0;
 
     this.playerHpValue = this.vesselMax;
     this.diedAtMsValue = -1;
@@ -4523,6 +4853,14 @@ export class Combat {
     this.healOverTimeNextAtMs = 0;
     this.conversionUntilMs = -1;
     this.conversionPercentValue = 0;
+    // PUTRID BLOOM (#479) — eine Anhebung, die einen Kampf überlebte, gäbe im
+    // nächsten Plätze, die niemand bezahlt hat.
+    this.decayCapBonusValue = 0;
+    this.decayCapUntilMs = -1;
+    // DECAY (#479) — eine Schwächung, die einen Kampf überlebte, schützte im
+    // nächsten gratis.
+    this.decayWardUntilMs = -1;
+    this.decayWardPermilleValue = 0;
     this.convertedValue = 0;
     this.reflectUntilMs = -1;
     this.reflectPercentValue = 0;

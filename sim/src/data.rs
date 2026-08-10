@@ -112,6 +112,34 @@ pub enum BuffTarget {
     Cap,
 }
 
+/// Die Schwaechung des Boss-Schadens nach Stapelzahl (DECAY, Issue #479).
+///
+/// **Promille, nicht Prozent** — sie steht in derselben Summe wie `worn.ward`,
+/// und die rechnet in Promille. Damit faellt sie auch unter denselben Deckel
+/// (`ward_cap_permille`): Die Schwaechung ist kein eigener Faktor neben WARD,
+/// sondern mehr WARD.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecayWard {
+    /// Um wie viel Promille der eingehende Schaden je liegendem Stapel sinkt.
+    pub permille_per_stack: u32,
+    /// Wie lange die Schwaechung nach dem Wirken anhaelt.
+    pub duration_ms: Millis,
+}
+
+/// Die Anhebung der Stapel-Grenze (PUTRID BLOOM, Issue #479).
+///
+/// Der Zuschlag muss in die feste Struktur passen: `MAX_DECAY_STACKS + bonus`
+/// darf `DECAY_STACK_CAPACITY` nicht ueberschreiten. `build.rs` bricht sonst
+/// ab — lieber der Bau als eine Pruefsumme, die Plaetze liest, die es nicht
+/// gibt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecayCap {
+    /// Um wie viele Plaetze die Grenze steigt.
+    pub bonus: u32,
+    /// Wie lange die Anhebung gilt.
+    pub duration_ms: Millis,
+}
+
 /// Ein Entlade-Zauber: verbraucht die Ressource und schlaegt dafuer zu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spender {
@@ -270,6 +298,17 @@ pub enum ControlEffect {
     SlowCast,
     /// Einen Schlag verzoegern: Der Zeitleisten-Eintrag rueckt nach hinten.
     DelayStrike,
+    /// Den NAECHSTEN Boss-Zauber unterbrechbar machen (PIN, Issue #478).
+    ///
+    /// **Der Betrag ist die FENSTERLAENGE, nicht eine Verzoegerung.** Ein
+    /// `Strike` traegt keine Wirkzeit; ein Schlag, den PIN nur umetikettierte,
+    /// waere im selben Augenblick vorbei, in dem er beginnt. Also gibt PIN ihm
+    /// ein Fenster, und dessen Laenge steht in den Daten.
+    ///
+    /// **Dem naechsten, nicht dem laufenden.** Gelesen wird der Merker im
+    /// Ausloese-Moment eines Eintrags — eine Stelle frueher befreite der Zauber
+    /// sich selbst statt den folgenden.
+    MakeInterruptible,
     /// Eine Phase hinauszoegern: Die Schwelle sinkt voruebergehend.
     ///
     /// **Sie nimmt einen Wechsel nicht zurueck.** Die Phase kann nur steigen
@@ -338,6 +377,32 @@ pub struct Spell {
     /// WIE VIEL gesenkt wird, sagt der BOSS (`clear_amount`), nicht dieser
     /// Zauber — derselbe Aufbau wie bei `boss_heal.amount`.
     pub clears_doom: bool,
+    /// Ob dieser Zauber den **nächsten** von der globalen Wartezeit befreit
+    /// (SUBLIME, Issue #480).
+    ///
+    /// # Der Unterschied zu `triggers_gcd`
+    ///
+    /// `triggers_gcd` ist eine **Eigenschaft**: Sie steht in den Daten und
+    /// gilt für jeden Wurf dieses Zaubers gleich. Dieses Feld erzeugt einen
+    /// **Merker** — einen Zustand, der nach dem Wurf weiterlebt und beim
+    /// nächsten Zauber verbraucht wird.
+    ///
+    /// Merker sind neu im Datenmodell (Issue #480), und sie haben eine
+    /// Bedingung: Sie müssen in die Prüfsumme. Warum, steht dort.
+    pub frees_next_gcd: bool,
+    /// Ob dieser Zauber den **nächsten** zweimal wirken lässt (CONDENSE,
+    /// Issue #480).
+    ///
+    /// Der zweite Merker, nach `frees_next_gcd` und mit derselben Bedingung:
+    /// Er gehört in die Prüfsumme. Er steht bewusst daneben statt am Ende der
+    /// Struktur — Merker sind eine eigene Sorte Feld, und vier verstreute
+    /// wären schwerer zu pflegen als eine Gruppe.
+    ///
+    /// **Was „zweimal" heißt**: die volle Wirkung ein zweites Mal, nicht bloß
+    /// doppelter Schaden. Ausgeführt wird sie mit **einem** Krit-Wurf für
+    /// beide Anwendungen — dieselbe Regel, nach der das Schlüsseltalent aus
+    /// Issue #418 gebaut ist, das denselben Satz trägt.
+    pub doubles_next_cast: bool,
     /// Ressourcen-Gewinn beim Wirken.
     pub resource_gain: u16,
     /// Brand-Effekt, falls der Zauber einen hat.
@@ -387,8 +452,12 @@ pub struct Spell {
     pub heal: Option<Heal>,
     /// Schaden-in-Schutz-Umwandlung, falls der Zauber sie anschaltet (Weg 3).
     pub conversion: Option<Conversion>,
+    /// Die Anhebung der Stapel-Grenze (PUTRID BLOOM, Issue #479).
+    pub decay_cap: Option<DecayCap>,
     /// Rueckschlag auf eingehenden Schaden, falls der Zauber ihn anschaltet.
     pub reflect: Option<Reflect>,
+    /// Die Schwaechung nach Stapelzahl (DECAY, Issue #479).
+    pub decay_ward: Option<DecayWard>,
     /// Wie viele Zersetzungs-Stapel der Zauber anlegt (PUTREFACTION, #97).
     pub decay_stacks: u32,
     /// Um wie viel Prozent der eigene Schaden je liegendem Stapel steigt.

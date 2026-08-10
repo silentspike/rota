@@ -117,15 +117,35 @@ füllen kann** — das ist der Befund, der die Balance-Arbeit gestoppt hat.
 
 ## Vorschlag für die sieben neuen
 
-| #   | Name         | CD    | Rolle                                                                                        | Warum er fehlt                                                       |
-| --- | ------------ | ----- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 1   | `EMBER`      | 1,5 s | Füller, +2 Hitze, **kein Schaden** — dafür verlängert er alle laufenden Brände um einen Tick | Der Weg „länger halten" hat heute keinen Zauber                      |
-| 2   | `SCORIA`     | 8 s   | **Zweiter Entlader**: verbraucht nur die Hälfte der Hitze, schlägt zweimal                   | Gibt dem Weg „stärker entladen" eine Wahl statt eines Pflichtzaubers |
-| 3   | `FLASHPOINT` | 12 s  | Verdoppelt die Hitze-Erzeugung für drei Wartezeiten                                          | Der Weg „schneller aufbauen" braucht einen Höhepunkt                 |
-| 4   | `CINDER`     | 3 s   | Brand mit **kurzer** Laufzeit, hohe Tick-Zahl                                                | Heute sind beide Brände gleich lang — keine Erneuerungs-Entscheidung |
-| 5   | `FORGE`      | 30 s  | Wandelt Hitze in **Tempo** statt Schaden                                                     | Verbindet die Schule mit CATALYSIS, ohne eine Zahl zu erhöhen        |
-| 6   | `SLAG`       | 20 s  | Hitze-Obergrenze steigt, solange er läuft                                                    | Macht „aufsparen" zu einer echten Option                             |
-| 7   | `PYROCLASM`  | 45 s  | Der große Entlader: verbraucht Hitze **und** alle laufenden Brände                           | Ein Höhepunkt für lange Kämpfe                                       |
+| #     | Name         | CD    | Rolle                                                                                        | Warum er fehlt                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----- | ------------ | ----- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `EMBER`      | 1,5 s | Füller, +2 Hitze, **kein Schaden** — dafür verlängert er alle laufenden Brände um einen Tick | Der Weg „länger halten" hat heute keinen Zauber                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ~~2~~ | ~~`SCORIA`~~ | —     | **GESTRICHEN am 2026-08-10**                                                                 | Die Annahme war falsch: Den Teil-Verbrauch **gibt es bereits** — als Schlüsseltalent `split-spender` (`combat.ts:3739-3750`, `data/player/talents.json:49`), samt Doppelschlag (`const schlaege = geteilt ? 2 : 1`). Der Kommentar dort zitiert diese Raster-Zeile wörtlich. Der Zauber wäre eine zweite Umsetzung derselben Idee gewesen, bei gleichzeitiger Wirkung unklar. Entschieden vom Auftraggeber: „Zauber streichen, Talent behält es." |
+| 3     | `FLASHPOINT` | 12 s  | Verdoppelt die Hitze-Erzeugung für drei Wartezeiten                                          | Der Weg „schneller aufbauen" braucht einen Höhepunkt                                                                                                                                                                                                                                                                                                                                                                                              |
+| 4     | `CINDER`     | 3 s   | Brand mit **kurzer** Laufzeit, hohe Tick-Zahl                                                | Heute sind beide Brände gleich lang — keine Erneuerungs-Entscheidung                                                                                                                                                                                                                                                                                                                                                                              |
+| 5     | `FORGE`      | 30 s  | Wandelt Hitze in **Tempo** statt Schaden                                                     | Verbindet die Schule mit CATALYSIS, ohne eine Zahl zu erhöhen                                                                                                                                                                                                                                                                                                                                                                                     |
+| 6     | `SLAG`       | 20 s  | Hitze-Obergrenze steigt, solange er läuft                                                    | Macht „aufsparen" zu einer echten Option                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 7     | `PYROCLASM`  | 45 s  | Der große Entlader: verbraucht Hitze **und** alle laufenden Brände                           | Ein Höhepunkt für lange Kämpfe                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+### Der dritte Fall derselben Klasse
+
+`SCORIA` ist der dritte gestrichene Zauber, dessen Raster-Zeile eine **ungemessene
+Annahme über den Bestand** enthielt — nicht der dritte schwierige Zauber:
+
+| Zauber      | die Annahme                                    | gemessen                |
+| ----------- | ---------------------------------------------- | ----------------------- |
+| `CARRION`   | „die Stapel überleben den Phasenwechsel nicht" | sie tun es              |
+| `CONTAGION` | „die Stapel wirken nicht auf DoT-Ticks"        | sie tun es              |
+| `SCORIA`    | „es gibt keinen Teil-Verbrauch"                | es gibt ihn, als Talent |
+
+Alle drei hätten einen halben Tag gekostet, wenn sie gebaut worden wären. **Wo eine
+Raster-Zeile eine Aussage über den Bestand macht, gehört die Aussage gemessen, bevor der
+Zauber gemessen wird.**
+
+Bei `SCORIA` war die Annahme besonders gut versteckt: Der Quelltext des Talents
+**zitiert diese Raster-Zeile wörtlich** (`combat.ts:3739`). Wer nach einem Feldnamen
+suchte — `hits`, `multiStrike`, `strikeCount` — fand nichts und schloss daraus auf die
+Mechanik. Sie hing an einem Schalter, nicht an einem Feld.
 
 ## Was ich dabei nicht entschieden habe
 
