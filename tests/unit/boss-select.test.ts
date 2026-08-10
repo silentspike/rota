@@ -13,10 +13,20 @@ import { describe, expect, it } from 'vitest';
 import { BOSSES } from '../../src/core/data.js';
 import { waehlbareBosse } from '../../src/progression/boss-select.js';
 
-const waehlbar = waehlbareBosse(BOSSES);
+/**
+ * **Alles bezwungen** — der Zustand, in dem jede Instanz offen ist.
+ *
+ * Seit #421c filtert `waehlbareBosse` auch nach der Freischaltung (12.7).
+ * Die Fälle unten prüfen den **Filter gegen Prüf-Bosse**, nicht die
+ * Freischaltung; dafür brauchen sie einen Spielstand, in dem sie nicht
+ * greift. Die Freischaltung selbst hat eigene Fälle in `instanz-3.test.ts`.
+ */
+const ALLES_BEZWUNGEN = [...BOSSES.values()].map((e) => e.value.id);
+
+const waehlbar = waehlbareBosse(BOSSES, ALLES_BEZWUNGEN);
 const ids = waehlbar.map((b) => b.id);
 
-describe('die Auswahl enthält die acht gebauten Bosse und den Prolog', () => {
+describe('die Auswahl enthält die gebauten Bosse und den Prolog', () => {
   it('es gibt überhaupt etwas zu prüfen', () => {
     // Läse `BOSSES` leer — umbenannter Ordner, kaputtes Glob —, wäre alles
     // darunter trivial erfüllt.

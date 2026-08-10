@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BOSSES, bossById, INSTANCES, instanceById, type BossDef } from '../../src/core/data.js';
 import { runReference } from '../../src/devtools/reference-run.js';
-import { freigeschalteteInstanzen } from '../../src/progression/boss-select.js';
+import { freigeschalteteInstanzen, waehlbareBosse } from '../../src/progression/boss-select.js';
 import { itemLevelOf, qualityCapOf } from '../../src/loot/rates.js';
 
 /** Die vier der dritten Instanz, in der Reihenfolge des Kampfes. */
@@ -260,6 +260,42 @@ describe('Die Instanz-Nummer erreicht den Beute-Wurf', () => {
     // Der Wächter, der den Rückfall fängt. Ohne ihn stünde in einem Monat
     // wieder `instance: 1` da, und alle Prüfungen blieben grün.
     expect(appQuelle()).not.toMatch(/^\s*instance: 1,\s*$/m);
+  });
+
+  it('die AUSWAHL berücksichtigt die Freischaltung, nicht nur die Funktion', () => {
+    // **Das war der Fehler, den dieser Fall fängt.** `freigeschalteteInstanzen`
+    // stand gebaut und geprüft da — und wurde von niemandem gerufen.
+    // `waehlbareBosse` filterte nur nach „Instanz existiert", also wäre
+    // `instance-3` im Spiel sofort sichtbar gewesen.
+    //
+    // Gebaut, geprüft, nicht verdrahtet: dieselbe Klasse wie der stille
+    // Affix-Verlust und wie Topf 4. Die Prüffälle waren grün, weil sie die
+    // Funktion maßen und nicht ihren Aufruf.
+    const ohneSiege = waehlbareBosse(BOSSES, []).map((b) => b.id);
+    expect(ohneSiege, 'instance-3 ist ohne Siege sichtbar').not.toContain('boss-3-1');
+    expect(ohneSiege, 'der Prolog fehlt — dann käme niemand hinein').toContain('first-crucible');
+
+    const allesVorher = [
+      'boss-1-1',
+      'boss-1-2',
+      'boss-1-3',
+      'boss-1-4',
+      'boss-2-1',
+      'boss-2-2',
+      'boss-2-3',
+      'boss-2-4',
+    ];
+    const mitSiegen = waehlbareBosse(BOSSES, allesVorher).map((b) => b.id);
+    expect(mitSiegen, 'instance-3 öffnet sich nicht').toContain('boss-3-1');
+  });
+
+  it('app.ts übergibt der Auswahl den Spielstand', () => {
+    // Der Aufruf ist im Prüflauf nicht erreichbar (DOM). Ohne diesen Wächter
+    // könnte jemand das zweite Argument entfernen, und alle Fälle blieben
+    // grün — genau der Zustand, den dieser PR behebt.
+    expect(appQuelle()).toMatch(
+      /waehlbareBosse\(BOSSES, this\.persistence\.state\.defeatedBosses\)/,
+    );
   });
 
   it('die Nummern ergeben verschiedene Beutestufen — sonst wäre die Zeile Zierde', () => {

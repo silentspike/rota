@@ -501,7 +501,12 @@ export class App {
    * {@link selectBoss} — hier, nicht dort.
    */
   private buildBossSection(): HTMLElement {
-    return buildBossSelect(waehlbareBosse(BOSSES), this.combat.boss.id, (bossId) => {
+    // **Der Spielstand entscheidet mit** (12.7): Eine Instanz ist erst offen,
+    // wenn die davor vollständig bezwungen ist. Ohne dieses zweite Argument
+    // stünde `instance-3` sofort in der Auswahl — die Freischaltung wäre
+    // gebaut, geprüft und nicht angeschlossen.
+    const bosse = waehlbareBosse(BOSSES, this.persistence.state.defeatedBosses);
+    return buildBossSelect(bosse, this.combat.boss.id, (bossId) => {
       this.selectBoss(bossId);
     });
   }
