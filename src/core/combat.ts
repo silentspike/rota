@@ -161,6 +161,37 @@ export const NOT_ACTIVE = -1;
 export const MAX_DECAY_STACKS = 5;
 
 /**
+ * Wie viele Stapel die **Struktur** fasst — Feldlänge und Prüfsummen-Schleife
+ * (PUTRID BLOOM, Issue #479).
+ *
+ * # Warum zwei Konstanten, wo bisher eine reichte
+ *
+ * `MAX_DECAY_STACKS` ist die **Grenze**: Ab ihr legt kein Zauber mehr nach.
+ * PUTRID BLOOM hebt genau diese Grenze für eine Weile — und wäre sie zugleich
+ * die Feldlänge, änderte sich mit ihr die Zahl der Werte, die in die Prüfsumme
+ * gehen. Eine Prüfsumme, deren LÄNGE vom Spielverlauf abhängt, ist keine mehr:
+ * Zwei Läufe wären nicht vergleichbar, sobald einer den Zauber wirkt.
+ *
+ * Deshalb ist die Struktur **fest** und die Grenze beweglich. Die unbelegten
+ * Plätze mischen als 0 — das tat der Bau schon vorher so
+ * (`decayExpiryAt` gibt oberhalb der Zahl 0 zurück), es fällt hier nur nicht
+ * mehr mit der Grenze zusammen.
+ *
+ * # Warum acht
+ *
+ * Sie muss über jedem Wert liegen, den die Grenze je erreichen kann: fünf plus
+ * der größte Zuschlag, den ein Zauber gibt. PUTRID BLOOM gibt heute zwei; acht
+ * lässt Luft für einen zweiten Zauber derselben Art, ohne dass die Struktur
+ * erneut wächst — und jedes Wachstum kostet einen Neu-Export ALLER
+ * Aufzeichnungen.
+ *
+ * **Der Parser hält das nach**: `data.ts` weist einen `decayCap`-Zuschlag
+ * zurück, der über die Kapazität hinausführt. Eine Zahl, die nur hier steht,
+ * wäre eine Zusicherung ohne Wächter.
+ */
+export const DECAY_STACK_CAPACITY = 8;
+
+/**
  * Um wie viel Prozent ein Stapel den Schaden aller Quellen erhöht.
  *
  * **Entschieden, nicht offen** — Issue #224, 2026-08-05. Bis Issue #482 stand
@@ -465,7 +496,9 @@ export class Combat {
    * Ein Feld fester Länge statt einer wachsenden Liste: Der Kampf darf im
    * laufenden Bild nichts erzeugen (18.2).
    */
-  private readonly decayExpiryMs = new Float64Array(MAX_DECAY_STACKS);
+  // **Die KAPAZITAET, nicht die Grenze** (PUTRID BLOOM, #479). Das Feld ist
+  // fest; wie viele Plaetze davon belegt werden duerfen, sagt `decayCap`.
+  private readonly decayExpiryMs = new Float64Array(DECAY_STACK_CAPACITY);
 
   /** Wie viele Stapel gerade liegen. */
   private decayCountValue = 0;
@@ -775,6 +808,31 @@ export class Combat {
 
   /** Anteil, den sie umwandelt, in Prozent. 0 heißt: keine läuft. */
   private conversionPercentValue = 0;
+
+  /**
+   * Um wie viele Plätze die Stapel-Grenze angehoben ist (PUTRID BLOOM, #479).
+   *
+   * `0` heißt: die Grenze ist `MAX_DECAY_STACKS`. Der Zuschlag gilt nur,
+   * solange `decayCapUntilMs` nicht abgelaufen ist — dieselbe Bauart wie die
+   * Umwandlung von TEMPER eine Zeile höher.
+   */
+  private decayCapBonusValue = 0;
+
+  /** Bis wann der Zuschlag gilt. -1 = keiner. */
+  private decayCapUntilMs = -1;
+
+  /**
+   * Die Grenze, die JETZT gilt.
+   *
+   * **Gedeckelt auf die Kapazität**, und das ist keine Vorsicht, sondern
+   * Notwendigkeit: Darüber hinaus gäbe es keinen Platz im Feld. Der Parser
+   * weist solche Daten schon zurück; diese Zeile ist die zweite Sperre für den
+   * Fall, dass der Zuschlag später aus einer anderen Quelle kommt.
+   */
+  private get decayCap(): number {
+    const offen = this.decayCapUntilMs >= 0 && this.nowMsForBuffs <= this.decayCapUntilMs;
+    return Math.min(DECAY_STACK_CAPACITY, MAX_DECAY_STACKS + (offen ? this.decayCapBonusValue : 0));
+  }
 
   /**
    * Bis wann DECAYs Schwächung läuft. -1 = keine (Issue #479).
@@ -1967,6 +2025,20 @@ export class Combat {
       this.reflectSpellIndex = index;
     }
 
+    // PUTRID BLOOM (Issue #479) — die Grenze anheben.
+    //
+    // **Liegende Stapel bleiben liegen, wenn die Anhebung ausläuft.** Die
+    // Grenze entscheidet nur, ob NACHGELEGT werden darf (`decayCount >=
+    // decayCap`); sie wirft nichts weg. Wer unter der Anhebung sieben Stapel
+    // aufbaut, behält sie bis zu ihrem eigenen Verfall — sonst wäre das
+    // Auslaufen ein zweiter, unsichtbarer Verfall, und die Uhren am Stapel
+    // logen.
+    const decayCap = spell.decayCap;
+    if (decayCap !== undefined) {
+      this.decayCapBonusValue = decayCap.bonus;
+      this.decayCapUntilMs = seitBeginn + decayCap.durationMs;
+    }
+
     // DECAY (Issue #479) — die Schwächung anschalten. Die STAPELZAHL wird
     // hier NICHT festgehalten: Sie wird beim Treffer gelesen, nicht beim
     // Wirken. Wer sie hier einfröre, machte aus „schwächt nach Stapelzahl"
@@ -2037,7 +2109,7 @@ export class Combat {
     if (anzahl <= 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     for (let i = 0; i < anzahl; i++) {
-      if (this.decayCountValue >= MAX_DECAY_STACKS) break;
+      if (this.decayCountValue >= this.decayCap) break;
       // Ans Ende, weil der neue am spätesten verfällt — die Liste bleibt damit
       // aufsteigend, ohne je zu sortieren.
       this.decayExpiryMs[this.decayCountValue] = seitBeginn + DECAY_STACK_DURATION_MS;
@@ -2569,6 +2641,17 @@ export class Combat {
   }
 
   /** Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen. */
+  /**
+   * Die Stapel-Grenze, die JETZT gilt — für die Anzeige (PUTRID BLOOM, #479).
+   *
+   * Das HUD zeigt „3 / 5". Hebt der Zauber die Grenze, muss dort die GEHOBENE
+   * Zahl stehen; sonst stünde der Spieler bei „6 / 5" und hielte die Anzeige
+   * für kaputt statt den Zauber für wirksam.
+   */
+  get decayStackCap(): number {
+    return this.decayCap;
+  }
+
   get decayStacks(): number {
     return this.decayCountValue;
   }
@@ -4630,6 +4713,10 @@ export class Combat {
     this.healOverTimeNextAtMs = 0;
     this.conversionUntilMs = -1;
     this.conversionPercentValue = 0;
+    // PUTRID BLOOM (#479) — eine Anhebung, die einen Kampf überlebte, gäbe im
+    // nächsten Plätze, die niemand bezahlt hat.
+    this.decayCapBonusValue = 0;
+    this.decayCapUntilMs = -1;
     // DECAY (#479) — eine Schwächung, die einen Kampf überlebte, schützte im
     // nächsten gratis.
     this.decayWardUntilMs = -1;

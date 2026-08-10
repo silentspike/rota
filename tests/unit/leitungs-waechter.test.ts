@@ -88,6 +88,13 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
 
   // ---- Absicht: abgeleitet, die Quelle ist gedeckt ------------------------
   bossHpRemaining: 'abgeleitet aus damageDealt (gedeckt)',
+  // PUTRID BLOOM (Issue #479). Beide sind ABGELEITET aus zwei Werten, die die
+  // Prüfsumme führt: der festen Grenze und dem Zuschlag samt seiner Laufzeit.
+  // Eine eigene Leitung ins Ergebnis machte die Datei länger, nicht schärfer —
+  // und die Anhebung ist ohnehin nur sichtbar, WEIL mehr Stapel liegen, und
+  // die Stapel sind gedeckt.
+  decayCap: 'abgeleitet aus Grenze + Zuschlag (die Stapel selbst sind gedeckt)',
+  decayStackCap: 'nur die Anzeige-Form von decayCap',
   bossHpFraction: 'abgeleitet aus damageDealt (gedeckt)',
   bossHpPercent: 'abgeleitet aus damageDealt (gedeckt)',
   damageFactors: 'Zwischenwert der Schadensrechnung, kein Ergebnis',

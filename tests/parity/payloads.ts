@@ -5308,6 +5308,96 @@ export function decayWardPayload(): Record<string, unknown> {
   };
 }
 
+export const PUTRID_BLOOM_NAME = 'putrid-bloom';
+
+/** Die Leiste dieser Aufzeichnung. */
+const PUTRID_BLOOM_BINDINGS = [
+  { slot: 0, spellId: 'canker' },
+  { slot: 1, spellId: 'putrid-bloom' },
+  { slot: 2, spellId: 'rot' },
+  { slot: 3, spellId: 'kindle' },
+] as const;
+
+/**
+ * PUTRID BLOOM hebt die Stapel-Grenze, und der Aufbau geht darüber hinaus
+ * (Issue #479).
+ *
+ * # Die gemessene Größe ist der SCHADEN, nicht die Stapelzahl
+ *
+ * Die Zahl der Stapel steht in der Prüfsumme, aber die allein belegt nur, dass
+ * etwas anders ist — nicht, dass der Zauber im Spiel etwas bewirkt. Jeder
+ * Stapel hebt die Verwundbarkeit des Bosses, also schlägt KINDLE härter zu,
+ * sobald mehr als fünf liegen. Das ist eine Zahl, die das Spiel ohnehin führt.
+ *
+ * **KINDLE ist hier richtig**, obwohl er sonst ein schlechter Träger ist: Er
+ * misst keine ZEIT, sondern Schaden — und er gehört einer anderen Schule an.
+ * Steigt sein Schaden, kann das nur die Verwundbarkeit sein.
+ *
+ * # Die Reihenfolge ist die Aussage
+ *
+ * PUTRID BLOOM muss wirken, BEVOR die Grenze erreicht ist — sonst legt der
+ * Aufbau bei fünf ab, und die Anhebung fände keine leeren Plätze mehr vor.
+ * Deshalb steht er vor den Erzeugern in der Kette.
+ */
+function recordPutridBloom(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const canker = combat.indexOf('canker');
+  const bloom = combat.indexOf('putrid-bloom');
+  const rot = combat.indexOf('rot');
+  const kindle = combat.indexOf('kindle');
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, PUTRID_BLOOM_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.isOffCooldown(bloom, timeMs)) press(bloom, tick, timeMs);
+    // **ROT ist der Grund, warum diese Aufzeichnung ueberhaupt etwas zeigt.**
+    // Mit canker und blight allein erreicht der Aufbau nur sechs Stapel — die
+    // gehobene Grenze von sieben wird nie beruehrt, und der Lauf ist mit und
+    // ohne Zauber identisch (gemessen: 880 gegen 880). ROT legt einen Stapel
+    // je Tick und bringt den Aufbau ueber die alte Grenze.
+    else if (combat.isOffCooldown(rot, timeMs)) press(rot, tick, timeMs);
+    else if (combat.isOffCooldown(canker, timeMs)) press(canker, tick, timeMs);
+    else if (combat.isOffCooldown(kindle, timeMs)) press(kindle, tick, timeMs);
+  }
+
+  return { name: PUTRID_BLOOM_NAME, seed: 0, ticks, presses, bindings: PUTRID_BLOOM_BINDINGS };
+}
+
+export function putridBloomPayload(): Record<string, unknown> {
+  const recording = recordPutridBloom(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: PUTRID_BLOOM_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export function kernePayload(): Record<string, unknown> {
   const recording = recordKerne(3000);
   const result = replayRecording(recording, { checksumPerTick: true });

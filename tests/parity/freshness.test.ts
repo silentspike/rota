@@ -98,6 +98,7 @@ import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
+import eingecheckterBloom from './recordings/putrid-bloom.json';
 import eingecheckterPin from './recordings/pin-befreiung.json';
 import eingecheckterDecayWard from './recordings/decay-ward.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
@@ -159,6 +160,7 @@ import {
   extendEffectsPayload,
   coagulationNeuPayload,
   kernePayload,
+  putridBloomPayload,
   pinPayload,
   decayWardPayload,
   effluxPayload,
@@ -299,6 +301,11 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // CLASP, LATCH und PLATE werden nur hier gewirkt — veraltet die Datei,
     // ist der einzige Paritäts-Nachweis für alle drei weg (Issue #519).
     expect(eingecheckteKerne, HINWEIS).toEqual(kernePayload());
+  });
+
+  it('PUTRID BLOOMs Anhebung entspricht dem heutigen Spielstand', () => {
+    // PUTRID BLOOM wird NUR hier gewirkt (Issue #479).
+    expect(eingecheckterBloom, HINWEIS).toEqual(putridBloomPayload());
   });
 
   it('PINs Befreiung entspricht dem heutigen Spielstand', () => {
@@ -804,6 +811,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'extend-effects',
   'coagulation-neu',
   'kern-zauber',
+  'putrid-bloom',
   'pin-befreiung',
   'decay-ward',
   'efflux-restzeit',
