@@ -35,7 +35,62 @@ import { distributeBudget, MAX_ITEM_LEVEL, QUALITY_AFFIX_SLOTS, QUALITY_COUNT } 
 import { POOL_NAMES } from './pools.js';
 import { SLOT_COUNT } from './slots.js';
 import { basePermille, ESSENCE_AT_LEVEL_1, VESSEL_AT_LEVEL_1, WARD_AT_LEVEL_1 } from './sources.js';
-import { NOTHING_WORN, type WornValues } from './worn.js';
+import { feldFuerAffixArt, NOTHING_WORN, type WornValues } from './worn.js';
+
+/**
+ * Die Arten, die wirklich einen Wert am Spieler füllen.
+ *
+ * **Abgeleitet, nicht abgeschrieben** — sie steht nur in der Fehlermeldung.
+ * Eine zweite Liste von Hand wäre genau die zweite Wahrheit, deren Fehlen den
+ * stillen Verlust erst möglich gemacht hat.
+ */
+const WERTBARE_AFFIX_ARTEN: readonly string[] = POOL_NAMES.filter(
+  (kind) => feldFuerAffixArt(kind) !== null,
+);
+
+/**
+ * Prüft die Werte-Arten eines Eintrags und wirft beim ersten Fehler.
+ *
+ * # Warum das eine eigene Funktion ist
+ *
+ * Der Katalog wird beim Laden des Moduls geprüft (das `ITEMS`-IIFE unten).
+ * Eine Prüfung, die nur dort steht, lässt sich nicht messen, ohne
+ * `data/items.json` zu ändern — und eine Prüfung, die nie rot war, ist eine
+ * Behauptung. Derselbe Aufruf steht im Ladeweg; hier ist er auch erreichbar.
+ *
+ * # Zwei verschiedene Fehler, und der zweite ist der stille
+ *
+ * 1. **Die Art gibt es nicht** — ein Tippfehler. Fällt beim Laden auf.
+ * 2. **Die Art ist ein Topf ohne Wert.** `POOL_NAMES` führt die Töpfe aus
+ *    13.1b, `WornValues` die Werte, die der Kampf liest. `active` ist ein
+ *    Topf ohne Wert, weil aktive Verstärkungen im Kampf entstehen und nicht
+ *    auf einem Gegenstand stehen.
+ *
+ * Der zweite blieb bis #421b unbemerkt: Ein Eintrag mit `active` lud
+ * fehlerfrei und legte seinen Anteil in ein Feld, das niemand liest —
+ * gemessen **406 von 1219 Promille**, ohne Ausnahme, ohne roten Fall, ohne
+ * Log. Der Gegenstand sah vollwertig aus und war ein Drittel schwächer.
+ *
+ * **Die Prüfung gehört ins Laden und nicht in `wornFrom`:** Ein Katalog, der
+ * nicht lädt, ist sichtbar. Ein Kampf, der still weniger rechnet, nicht.
+ */
+export function pruefeAffixArten(id: string, affixKinds: readonly string[]): void {
+  for (const kind of affixKinds) {
+    if (!POOL_NAMES.includes(kind)) {
+      throw new Error(
+        `data/items.json: "${id}" nennt die Werte-Art "${kind}", die es nicht gibt. ` +
+          `Erlaubt: ${POOL_NAMES.join(', ')}`,
+      );
+    }
+    if (feldFuerAffixArt(kind) === null) {
+      throw new Error(
+        `data/items.json: "${id}" nennt die Werte-Art "${kind}", die zwar ein Topf ist, ` +
+          `aber keinen Wert am Spieler füllt. Ein Gegenstand damit wäre stillschweigend ` +
+          `schwächer. Wertbare Arten: ${WERTBARE_AFFIX_ARTEN.join(', ')}`,
+      );
+    }
+  }
+}
 
 /** Ein Eintrag im Katalog — Stufe, Qualität und Werte-Arten, keine Zahlen. */
 export interface ItemDef {
@@ -142,14 +197,7 @@ export const ITEMS: readonly ItemDef[] = (() => {
           `Qualität ${String(quality)} aber ${String(plaetze)} Affix-Plätze.`,
       );
     }
-    for (const kind of affixKinds) {
-      if (!POOL_NAMES.includes(kind)) {
-        throw new Error(
-          `data/items.json: "${id}" nennt die Werte-Art "${kind}", die es nicht gibt. ` +
-            `Erlaubt: ${POOL_NAMES.join(', ')}`,
-        );
-      }
-    }
+    pruefeAffixArten(id, affixKinds);
 
     alle.push({
       id,
@@ -213,9 +261,21 @@ export function wornFrom(items: readonly OwnedItemLike[]): WornValues {
     const anzahl = distributeBudget(def.itemLevel, def.quality, anteile);
     for (let i = 0; i < anzahl && i < def.affixKinds.length; i++) {
       const kind = def.affixKinds[i] ?? '';
-      // `yield` heisst im Wertesatz `yieldBonus` — das Wort ist in JavaScript
-      // belegt, und `worn.ts` nennt es deshalb anders.
-      const feld = kind === 'yield' ? 'yieldBonus' : kind;
+      // **Dieselbe Abbildung wie in der Katalog-Prüfung** — eine Wahrheit,
+      // zwei Aufrufer. Stünde sie hier ein zweites Mal als eigenes Ternary,
+      // könnte die Prüfung eine Art erlauben, die das Rechnen nicht kennt;
+      // genau diese Lücke war der stille Verlust.
+      //
+      // **Laut, nicht still.** Hierher kommt nichts, was `pruefeAffixArten`
+      // durchgelassen hat — aber wenn doch, dann als Ausnahme und nicht als
+      // ein Drittel weniger Werte.
+      const feld = feldFuerAffixArt(kind);
+      if (feld === null) {
+        throw new Error(
+          `wornFrom: "${besitz.itemId}" trägt die Werte-Art "${kind}" ohne Feld. ` +
+            `Der Ladeweg hätte das fangen müssen (pruefeAffixArten).`,
+        );
+      }
       summe[feld] = (summe[feld] ?? 0) + (anteile[i] ?? 0);
     }
   }
