@@ -86,6 +86,38 @@ Namen englisch (Gesetz 5), alchemistisch im Setting des Werks.
 |   5 | **Slow Rot**          |      13 | PUTREFACTION      | **Zersetzungs-Stapel verfallen nicht, solange ein DoT läuft.** Der Aufbau vor dem Schadensfenster wird zur Kernentscheidung statt zum Wettlauf     |
 |   6 | **The Whole Work**    |      14 | _schulunabhängig_ | **Der globale Cooldown sinkt um 100 ms.** Wirkt auf jede Zusammenstellung gleich, zwingt zu keiner — die letzte Instanz gibt Tempo, keine Richtung |
 
+> ### Die 100 ms wirken nur über den WECHSEL — und das ist entschieden, nicht übersehen
+>
+> Gemessen von Worker-2 bei PR #777, bevor die Zahl feststand:
+>
+> ```
+> zehn Sekunden        ohne   mit
+> KINDLE allein          7     7      ← keine Wirkung
+> KINDLE/SMOULDER        7     8
+> ```
+>
+> **Die kürzeste Abklingzeit im ganzen Bestand ist 1500 ms — genau die Wartezeit.**
+> Sinkt sie auf 1400, wird die Abklingzeit zur Bremse: Wer denselben Zauber
+> wiederholt, wartet ohnehin auf ihn und gewinnt nichts.
+>
+> **Der Auftraggeber hat die 100 ms am 2026-08-11 bestätigt**, nachdem ihm diese
+> Messung vorlag. Der Effekt belohnt damit **dichte Rotation** — den Wechsel
+> zwischen Zaubern statt der Wiederholung eines einzigen. Das ist der Kern des
+> Spiels, und die Bedingung ist die Eigenschaft des Effekts, nicht sein Mangel.
+>
+> **200 ms wurden ausdrücklich verworfen:** Sie würden auch beim Einzelzauber
+> greifen, wären aber 13 % mehr Würfe für _jede_ Zusammenstellung — der stärkste
+> Bonus im Katalog, bevor die anderen fünf überhaupt gebaut sind.
+>
+> **Folge für die Beschreibung im Spiel:** „Minus 100 ms" allein genügt nicht. Wer
+> mit einer Ein-Zauber-Rotation spielt, sieht keine Wirkung und hält den Satz für
+> kaputt. Die Bedingung muss im Text stehen.
+>
+> **Und eine Kreuzwirkung, die gewollt ist:** `buffs.ts` rechnet Verstärkungs-Fenster
+> in Vielfachen der Wartezeit („drei GCDs lang"). Sinkt sie, sinkt das Fenster mit —
+> 4200 statt 4500 ms. Das ist die Bedeutung der Einheit, keine Nebenwirkung; sie
+> steht als eigener Prüffall da, statt unbemerkt mitzulaufen.
+
 ### Warum diese fünf Effekte und nicht Zahlen
 
 Jeder greift in **die Entscheidung** ein, die der Plan als Kern der jeweiligen Schule
