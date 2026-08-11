@@ -93,7 +93,8 @@
       "control": {
         "cost": 8,
         "effect": "allThree",
-        "amountMs": 2000
+        "amountMs": 2000,
+        "amountPercent": 10
       }
     },
     {
