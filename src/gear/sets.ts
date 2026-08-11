@@ -231,3 +231,20 @@ export const SETS: readonly SetDef[] = ((): SetDef[] => {
     return { id, school: typeof s['school'] === 'string' ? s['school'] : '', tiers };
   });
 })();
+
+/**
+ * Der Rotations-Effekt des CALCINATION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > PYROCLASM lässt ein Drittel der angesammelten Hitze stehen, statt sie
+ * > vollständig zu verbrauchen.
+ *
+ * **Die Kennung steht hier und nicht im Kampf**, weil sie aus den Daten kommt:
+ * `data/sets.json` nennt sie, `activeRotationEffects` reicht sie durch, und der
+ * Kampf fragt sie ab. Ein abgetippter String an der Verbrauchsstelle wäre eine
+ * zweite Wahrheit — genau die Bauart, aus der `SET_BONUS_PERMILLE` kam.
+ *
+ * Er ist **der eine Effekt**, an dem die Leitung nachgewiesen wird
+ * (Entscheidung des Auftraggebers 2026-08-11: „Leitung zuerst, mit einem
+ * Effekt"). Die anderen fünf aus dem Katalog stehen aus.
+ */
+export const SET_EFFECT_ASHEN_REGIMEN = 'ashen-regimen';
