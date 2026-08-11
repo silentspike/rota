@@ -304,5 +304,82 @@
       "base": 10,
       "permille": 1252
     }
+  ],
+  "gearEffects": [
+    {
+      "legendaries": 0,
+      "setSharePermille": 0,
+      "permille": 0
+    },
+    {
+      "legendaries": 0,
+      "setSharePermille": 100,
+      "permille": 100
+    },
+    {
+      "legendaries": 0,
+      "setSharePermille": 300,
+      "permille": 300
+    },
+    {
+      "legendaries": 1,
+      "setSharePermille": 0,
+      "permille": 200
+    },
+    {
+      "legendaries": 1,
+      "setSharePermille": 100,
+      "permille": 300
+    },
+    {
+      "legendaries": 1,
+      "setSharePermille": 300,
+      "permille": 500
+    },
+    {
+      "legendaries": 2,
+      "setSharePermille": 0,
+      "permille": 400
+    },
+    {
+      "legendaries": 2,
+      "setSharePermille": 100,
+      "permille": 500
+    },
+    {
+      "legendaries": 2,
+      "setSharePermille": 300,
+      "permille": 700
+    }
+  ],
+  "setShares": [
+    {
+      "pieces": 0,
+      "permille": 0
+    },
+    {
+      "pieces": 1,
+      "permille": 0
+    },
+    {
+      "pieces": 2,
+      "permille": 100
+    },
+    {
+      "pieces": 3,
+      "permille": 100
+    },
+    {
+      "pieces": 4,
+      "permille": 300
+    },
+    {
+      "pieces": 5,
+      "permille": 300
+    },
+    {
+      "pieces": 6,
+      "permille": 300
+    }
   ]
 }
