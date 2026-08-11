@@ -44,7 +44,7 @@ import { NO_SET, SET_COUNT, SETS, countPieces, valueShareOf } from './sets.js';
 import {
   basePermille,
   ESSENCE_AT_LEVEL_1,
-  LEGENDARY_EFFECT_PERMILLE,
+  gearEffectsPermille,
   VESSEL_AT_LEVEL_1,
   WARD_AT_LEVEL_1,
 } from './sources.js';
@@ -354,11 +354,17 @@ export function wornFrom(items: readonly OwnedItemLike[]): WornValues {
   // **Die Rundung passiert EINMAL, auf die fertige Summe:** `valueShareOf`
   // liefert einen Bruch, `gearEffects` ist ganzzahlige Promille (18.4). Je
   // Bonus zu runden hiesse, den Rundungsfehler mit jeder Stufe zu wiederholen.
+  //
+  // **EINE Wahrheit, nicht zwei Wege** (Entscheidung 2026-08-11): Die Summe
+  // bildet `gearEffectsPermille` — dieselbe Funktion, die auch der Simulator
+  // hat. Hier stand vorher die Addition ausgeschrieben, während die Funktion
+  // daneben eine Pauschale von 150 je Satz-Stufe rechnete. Zwei Wege zu
+  // derselben Grösse laufen auseinander, sobald einer nachgezogen wird, und
+  // beide liefern plausible Zahlen.
   countPieces(saetzeAufPlatz, teileJeSatz);
   summe['gearEffects'] =
     (summe['gearEffects'] ?? 0) +
-    Math.round(valueShareOf(SETS, teileJeSatz) * 1000) +
-    legendaere * LEGENDARY_EFFECT_PERMILLE;
+    gearEffectsPermille(legendaere, Math.round(valueShareOf(SETS, teileJeSatz) * 1000));
 
   return getragen === 0 ? NOTHING_WORN : (summe as unknown as WornValues);
 }
