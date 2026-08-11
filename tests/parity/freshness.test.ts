@@ -27,6 +27,8 @@ import eingecheckteFehlgriffe from './recordings/misplays.json';
 import eingecheckteEreignisse from './recordings/rule-events.json';
 import eingecheckteVerstaerkungen from './recordings/buffs.json';
 import eingecheckterBuffKampf from './recordings/buff-combat.json';
+import eingecheckteZersetzungsSpur from './recordings/decay-factor.json';
+import eingecheckteTalentSpur from './recordings/decay-talent.json';
 import eingecheckteNeueFixierung from './recordings/fixation-spells.json';
 import eingecheckteProtokollArten from './recordings/log-kinds.json';
 import eingecheckterAuswahlmodus from './recordings/cooldown-reset.json';
@@ -154,6 +156,8 @@ import {
   synergyPayload,
   synergyHastePayload,
   buffCombatPayload,
+  decayFactorPayload,
+  decayTalentPayload,
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
@@ -212,6 +216,14 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // der Simulator prüfte gegen einen Stand, den das Spiel längst verlassen
     // hat, und beide wären grün.
     expect(eingecheckterBuffKampf, HINWEIS).toEqual(buffCombatPayload());
+  });
+
+  it('die Zersetzungs-Spur entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteZersetzungsSpur, HINWEIS).toEqual(decayFactorPayload());
+  });
+
+  it('die Talent-Spur entspricht dem heutigen Spielstand', () => {
+    expect(eingecheckteTalentSpur, HINWEIS).toEqual(decayTalentPayload());
   });
 
   it('die Synergie-Runde entspricht dem heutigen Spielstand', () => {
@@ -780,6 +792,8 @@ describe('Die Runde mit Fehlgriffen taugt als Prüffall (#95)', () => {
  */
 const MIT_FRISCHE_FALL: readonly string[] = [
   'buff-combat',
+  'decay-factor',
+  'decay-talent',
   'fixation-spells',
   'cooldown-precision',
   'primitives',
