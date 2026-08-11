@@ -22,9 +22,9 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { damageFactorList } from '../../src/devtools/index.js';
+import { damageFactorList, mitWiderstandDesZaubers } from '../../src/devtools/index.js';
 import { Combat } from '../../src/core/combat.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { CALCINATION, FIRST_CRUCIBLE, bossById } from '../../src/core/data.js';
 import { wornFrom } from '../../src/gear/catalog.js';
 import { NEUTRAL_FACTORS } from '../../src/core/damage.js';
 
@@ -77,6 +77,65 @@ describe('Der Aufriss liest die echten Faktoren', () => {
     expect(faktor(kampfMit('focus-mix'), 'essence')).toBeLessThan(
       faktor(kampfMit('focus-drive'), 'essence'),
     );
+  });
+});
+
+describe('Der Widerstand gehört zum Zauber, nicht zum letzten Wurf', () => {
+  /**
+   * **Gemessen im Browser am 2026-08-10**, gegen `boss-3-1` (CALCINATION 0.8):
+   *
+   * ```text
+   *   vor dem ersten Wurf   explainDamage('kindle').resistance = 1
+   *   nach einem KINDLE     dieselbe Abfrage                  = 0.8
+   * ```
+   *
+   * Der Schaden war beide Male 80 statt 100 — die Rechnung stimmte, der
+   * Aufriss nicht. `factors.resistance` wird erst beim Wirken gesetzt und
+   * trägt danach den Wert des **zuletzt gewirkten** Zaubers.
+   *
+   * Derselbe Fehler wie die acht Einsen davor, nur kleiner: ein Wert, der
+   * plausibel aussieht und aus der falschen Quelle stammt.
+   */
+  /** Der Widerstand aus der fertigen Liste, wie der Aufriss ihn zeigt. */
+  function widerstand(bossId: string, schule: string | null): number {
+    const boss = bossById(bossId);
+    expect(boss, `${bossId} fehlt`).toBeDefined();
+    const liste = mitWiderstandDesZaubers(
+      damageFactorList(NEUTRAL_FACTORS),
+      boss?.resistances ?? {},
+      schule,
+    );
+    return liste.find((f) => f.name === 'resistance')?.value ?? Number.NaN;
+  }
+
+  it('zeigt den Widerstand des gefragten Zaubers, auch VOR dem ersten Wurf', () => {
+    // **Der Kern.** `NEUTRAL_FACTORS` steht für den Zustand vor dem ersten
+    // Wurf: `resistance` ist dort 1. Der Aufriss muss trotzdem 0,8 zeigen,
+    // weil KINDLE zu CALCINATION gehört und boss-3-1 die Schule mindert.
+    expect(bossById('boss-3-1')?.resistances['CALCINATION'], 'die Daten tragen ihn nicht').toBe(
+      0.8,
+    );
+    expect(widerstand('boss-3-1', 'CALCINATION')).toBe(0.8);
+  });
+
+  it('GEGENPROBE: ein Boss ohne Widerstand ergibt 1', () => {
+    // Ohne sie wäre ein Aufriss, der IMMER etwas unter 1 zeigt, ebenfalls
+    // grün.
+    expect(widerstand('boss-3-2', 'CALCINATION')).toBe(1);
+  });
+
+  it('GEGENPROBE: eine FREMDE Schule wird nicht gemindert', () => {
+    // boss-3-1 mindert nur CALCINATION. Ein Zauber aus einer anderen Schule
+    // trifft ungehindert — sonst wäre der Widerstand ein Boss-Rabatt statt
+    // einer Aussage über die Schule (11.4).
+    expect(widerstand('boss-3-1', 'PUTREFACTION')).toBe(1);
+  });
+
+  it('und ein Zauber ohne Schule ebenfalls nicht', () => {
+    // `spell.school` ist `string | null` — schulübergreifende Zauber tragen
+    // `null`. Ohne diese Zeile führte ein `null` zu einem Nachschlagen mit
+    // dem Schlüssel "null".
+    expect(widerstand('boss-3-1', null)).toBe(1);
   });
 });
 
