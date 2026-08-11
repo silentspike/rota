@@ -42,8 +42,29 @@ describe('die Auswahl enthält die acht gebauten Bosse und den Prolog', () => {
     expect(ids).toContain('first-crucible');
   });
 
-  it('und sonst nichts: genau neun', () => {
-    expect(ids).toHaveLength(9);
+  it('und sonst nichts — als LISTE, nicht als Zahl', () => {
+    // **Bis #421c stand hier `toHaveLength(9)`.** Das war richtig, solange es
+    // neun waren, und maß die Menge statt der Identität: Wer einen Prüf-Boss
+    // hereinließ und gleichzeitig einen echten verlöre, bliebe grün.
+    //
+    // Mit `instance-3` sind es dreizehn. Die Zahl anzupassen hätte dieselbe
+    // Farbe gehabt und nichts mehr gemessen — deshalb steht hier jetzt, WER
+    // drin ist.
+    expect([...ids].sort()).toEqual([
+      'boss-1-1',
+      'boss-1-2',
+      'boss-1-3',
+      'boss-1-4',
+      'boss-2-1',
+      'boss-2-2',
+      'boss-2-3',
+      'boss-2-4',
+      'boss-3-1',
+      'boss-3-2',
+      'boss-3-3',
+      'boss-3-4',
+      'first-crucible',
+    ]);
   });
 });
 
