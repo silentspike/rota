@@ -263,6 +263,16 @@ export const SET_EFFECT_ASHEN_REGIMEN = 'ashen-regimen';
 export const SET_EFFECT_WHOLE_WORK = 'whole-work';
 
 /**
+ * Der Rotations-Effekt des PUTREFACTION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > Zersetzungs-Stapel verfallen nicht, solange ein DoT läuft.
+ *
+ * Der Aufbau vor dem Schadensfenster wird damit zur Kernentscheidung statt zum
+ * Wettlauf: Wer einen Fäulnis-Zauber am Laufen hält, hält auch die Stapel.
+ */
+export const SET_EFFECT_SLOW_ROT = 'slow-rot';
+
+/**
  * Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
  *
  * **Startwert, keine Balance-Entscheidung** (Orchestrator, 2026-08-11). Der

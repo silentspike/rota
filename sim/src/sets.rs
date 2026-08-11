@@ -144,6 +144,13 @@ pub fn active_rotation_effects(sets: &[SetDef], pieces: &[u32]) -> Vec<&'static 
 /// Gegenstueck: `SET_EFFECT_WHOLE_WORK` in `src/gear/sets.ts`.
 pub const SET_EFFECT_WHOLE_WORK: &str = "whole-work";
 
+/// Der Rotations-Effekt des PUTREFACTION-Sechsers (`docs/SATZ-KATALOG.md`).
+///
+/// > Zersetzungs-Stapel verfallen nicht, solange ein DoT laeuft.
+///
+/// Gegenstueck: `SET_EFFECT_SLOW_ROT` in `src/gear/sets.ts`.
+pub const SET_EFFECT_SLOW_ROT: &str = "slow-rot";
+
 /// Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
 ///
 /// **Startwert, keine Balance-Entscheidung** (Orchestrator, 2026-08-11). Der
