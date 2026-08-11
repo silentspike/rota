@@ -190,6 +190,73 @@ describe('KREUZPROBE: amountMs trägt weiterhin die Millisekunden-Wirkungen', ()
   it('und LATCH um seine eigenen 4000 — die Millisekunden werden je Zauber gelesen', () => {
     expect(ersterTreffer('latch', 6)).toBe(12500);
   });
+
+  it('eine 10, die als amountMs geschrieben wird, färbt einen WIRKUNGSfall', () => {
+    // **Gemessen, nicht behauptet.** Schreibt jemand CAPSTONEs Prozentzahl
+    // versehentlich ins Millisekunden-Feld — `{"amountMs": 10}` statt
+    // `{"amountMs": 2000, "amountPercent": 10}` —, wird der Fall darüber rot:
+    // Der Schlag käme bei 8510 statt 10500.
+    //
+    // Diese Zeile hält fest, WELCHE Prüfung das fängt. Die Senkung selbst
+    // fängt es NICHT: Bei fehlendem `amountPercent` fällt die Wirkstelle auf
+    // `amount` zurück, und das wären dieselben 10. Wer nur die Senkung prüft,
+    // sähe eine Vertauschung der Einheiten also nicht.
+    expect(ersterTreffer('capstone', 8)).toBe(10500);
+  });
+});
+
+describe('KREUZPROBE: die übrigen Kontroll-Zauber sind unverändert', () => {
+  /**
+   * Was der Parser aus den Daten macht — beide Betrags-Felder.
+   *
+   * **Der Umbau hat den Parser angefasst.** Ein zweites Feld einzuziehen ist
+   * genau die Art Änderung, die nebenbei etwas verschiebt: `||` hält beim
+   * ersten Wahrheitswert, und wer die Reihenfolge ändert, ändert vier Zauber
+   * mit.
+   */
+  function betraege(id: string): { amount: number; amountPercent: number } {
+    const combat = new Combat({
+      school: CALCINATION.value,
+      boss: bossById('test-phase') ?? FIRST_CRUCIBLE.value,
+    });
+    const spell = combat.spellAt(alsSpellIndex(combat.indexOf(id)));
+    const control = spell?.control;
+    expect(control, `${id} trägt keine Kontroll-Wirkung`).toBeDefined();
+    return { amount: control?.amount ?? -1, amountPercent: control?.amountPercent ?? -1 };
+  }
+
+  it('die vier Spezialisten tragen ihre eigene Zahl in `amount`', () => {
+    // Dieselben Werte wie vor dem Umbau — aus den Daten, je Zauber eine
+    // andere Einheit.
+    expect(betraege('stall').amount, 'STALL: 2000 ms').toBe(2000);
+    expect(betraege('latch').amount, 'LATCH: 4000 ms').toBe(4000);
+    expect(betraege('anchor').amount, 'ANCHOR: 10 Prozentpunkte').toBe(10);
+    expect(betraege('wedge').amount, 'WEDGE: 8 je Punkt').toBe(8);
+    expect(betraege('pin').amount, 'PIN: 2000 ms Fenster').toBe(2000);
+  });
+
+  it('und nur ANCHOR und CAPSTONE führen überhaupt eine Prozentzahl', () => {
+    // **Die eigentliche Kreuzprobe.** Stünde bei STALL plötzlich eine
+    // Prozentzahl, läse der Parser `amountMs` in beide Felder — und ein
+    // späterer `holdPhase`-Zauber bekäme Millisekunden als Prozente, genau
+    // der Fehler, den dieser Umbau behebt.
+    expect(betraege('stall').amountPercent, 'STALL führt eine Prozentzahl').toBe(0);
+    expect(betraege('latch').amountPercent).toBe(0);
+    expect(betraege('wedge').amountPercent).toBe(0);
+    expect(betraege('pin').amountPercent).toBe(0);
+
+    expect(betraege('anchor').amountPercent, 'ANCHOR verlor seine 10').toBe(10);
+    expect(betraege('capstone').amountPercent, 'CAPSTONE verlor seine 10').toBe(10);
+  });
+
+  it('CAPSTONE behält BEIDE Werte — das war vorher nicht möglich', () => {
+    // Der Kern des Umbaus, an den Daten gemessen statt am Typ abgelesen:
+    // Vorher hielt `||` beim ersten Wahrheitswert, und die 10 ging verloren.
+    const { amount, amountPercent } = betraege('capstone');
+    expect(amount, 'die Millisekunden fehlen').toBe(2000);
+    expect(amountPercent, 'die Prozentpunkte fehlen').toBe(10);
+    expect(amount).not.toBe(amountPercent);
+  });
 });
 
 describe('die Phase kann nur STEIGEN — eine Senkung danach holt sie nicht zurück', () => {
