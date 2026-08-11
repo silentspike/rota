@@ -626,15 +626,18 @@
   "factorAt": [
     {
       "tick": 0,
-      "buffs": 1.2
+      "buffs": 1.2,
+      "vulnerability": 1
     },
     {
       "tick": 150,
-      "buffs": 1.2
+      "buffs": 1.2,
+      "vulnerability": 1
     },
     {
       "tick": 500,
-      "buffs": 1
+      "buffs": 1,
+      "vulnerability": 1
     }
   ],
   "expected": {
