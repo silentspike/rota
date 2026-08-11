@@ -1,0 +1,36 @@
+{
+  "_comment": "Instanz 3, Boss 1 — der WIDERSTANDS-Boss (Issue #421c, GAME-DESIGN 11.4).\n\nSein Merkmal: Er ist der erste ausgelieferte Boss mit einem Widerstand ungleich 1. Bis #421c trug den nur `test-resistant`; die Mechanik stand seit E1 und kam im Spiel nirgends vor.\n\n11.4: Ein Widerstand senkt den Schaden EINER Schule. Er zwingt damit zu einer anderen Zusammenstellung, statt nur mehr Lebenspunkte zu verlangen — der Unterschied zwischen 'schwerer' und 'anders'.\n\nCALCINATION 0.8 heisst: minus 20 Prozent fuer die Schule, die heute als einzige eine volle Rotation fuellt. Die Zahl ist ein Platzhalter wie alle Balance-Zahlen; entschieden ist die ART des Unterschieds, nicht seine Groesse.\n\nLEBENSPUNKTE GEMESSEN, NICHT GESETZT: 4400. Der erste Entwurf stand bei 5600 und war UNBEZWINGBAR — der Widerstand senkt den Schaden, und 4768 reichten nicht. Mit 4400 faellt er bei 54010 ms, der spaeteste der vier; das passt zu seinem Merkmal, denn der Widerstand kostet Zeit, nicht Leben.\n\nKein `level`-Feld, wie kein anderer Boss eines traegt — welcher Boss welche Stufe hat, ist laut data.ts:1071 Inhalt und entscheidet E10.",
+  "schema": 1,
+  "id": "boss-3-1",
+  "name": "Slagmaw",
+  "instance": "instance-3",
+  "hp": 4400,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "resistances": {
+    "CALCINATION": 0.8
+  },
+  "timeline": [
+    {
+      "atMs": 12000,
+      "mechanic": "strike",
+      "name": "Molten Lash",
+      "damage": 380
+    },
+    {
+      "atMs": 30000,
+      "mechanic": "interruptibleCast",
+      "name": "Cinder Bloom",
+      "damage": 1200,
+      "castTimeMs": 3000
+    },
+    {
+      "atMs": 48000,
+      "mechanic": "strike",
+      "name": "Molten Lash",
+      "damage": 380
+    }
+  ],
+  "timelineLoopMs": 60000
+}
