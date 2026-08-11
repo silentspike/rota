@@ -13,6 +13,26 @@ updates:
       # an Kleinst-Updates, und der Overhead je Issue steigt (siehe WORKER-GUIDE).
       dev-dependencies:
         dependency-type: 'development'
+    ignore:
+      # TypeScript 7 blockiert das GANZE Sammel-Bündel, nicht nur sich selbst.
+      #
+      # Gemessen am 2026-08-11 in PR #758: Dependabot schlug TS 5.9.3 -> 7.0.2 vor,
+      # und `npm install` scheiterte, bevor irgendein Prüflauf begann:
+      #
+      #   npm error ERESOLVE could not resolve
+      #   While resolving: typescript-eslint@8.66.0
+      #   Found: typescript@7.0.2
+      #
+      # Folge: ALLE fünf CI-Stufen rot, obwohl die sechs anderen Updates im selben
+      # Bündel harmlos sind (eslint 10.8.0->10.8.1, vite 8.2.0->8.2.1, ...). Ein
+      # Sammel-PR ist nur so gut wie sein schlechtestes Paket — das ist der Preis
+      # der Bündelung, und er fällt hier zum ersten Mal an.
+      #
+      # Der Deckel gilt, bis typescript-eslint TS 7 unterstützt. Dann diese drei
+      # Zeilen entfernen und den Sprung als EIGENEN PR fahren, nicht im Bündel:
+      # ein Major-Wechsel der Sprache gehört einzeln geprüft.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: 'github-actions'
     directory: '/'
