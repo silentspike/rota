@@ -1,0 +1,37 @@
+{
+  "_comment": "Instanz 3, Boss 2 — der ENERGIE-Boss (Issue #421c).\n\nSein Merkmal: Er ist der erste ausgelieferte Boss mit einer Energieleiste. Bis #421c trugen die nur `test-stacked` und `test-vessel` — eine gebaute, gepruefte Mechanik, die im Spiel nirgends vorkam.\n\nDie Leiste fuellt sich mit der Zeit und entlaedt sich beim Schwellenwert in einen Schlag. Das setzt eine WEICHE Frist: Wer langsam ist, kassiert oefter, statt an einer harten Sekunde zu scheitern.\n\nperStepMs 1000 / amount 6 / threshold 100 heisst: alle 100/6 = rund 17 Sekunden ein Overload. Bei 60 s Ueberdruck sind das drei Entladungen. Die Zahlen sind Platzhalter; entschieden ist, dass dieser Boss ueber die Leiste laeuft und nicht ueber Lebenspunkte.\n\nLEBENSPUNKTE GEMESSEN: 4500. Der Druck kommt aus der Leiste, nicht aus der Menge. Der erste Entwurf stand bei 4800 und fiel bei GENAU 4800 Schaden — ein Gleichstand, der bei jeder Balance-Aenderung nach der falschen Seite kippt. Mit 4500 faellt er bei 44000 ms mit 4520 Schaden, gemessen an der Rotation `good`.",
+  "schema": 1,
+  "id": "boss-3-2",
+  "name": "The Bellows",
+  "instance": "instance-3",
+  "hp": 4500,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": {
+    "perStepMs": 1000,
+    "amount": 6,
+    "threshold": 100,
+    "resetTo": 0,
+    "onTrigger": {
+      "mechanic": "strike",
+      "name": "Overload",
+      "damage": 240
+    }
+  },
+  "resistances": {},
+  "timeline": [
+    {
+      "atMs": 20000,
+      "mechanic": "strike",
+      "name": "Backdraft",
+      "damage": 300
+    },
+    {
+      "atMs": 45000,
+      "mechanic": "strike",
+      "name": "Backdraft",
+      "damage": 300
+    }
+  ],
+  "timelineLoopMs": 60000
+}
