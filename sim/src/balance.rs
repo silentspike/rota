@@ -516,6 +516,11 @@ fn run_range(
         // nicht Ausbauten. Ein Verhalten, das eine Rotation umbaut, waere
         // hier ein zweiter beweglicher Teil.
         split_spender: false,
+        // Der Balance-Lauf misst Werte-Aufbauten; der Sechser-Effekt gehoert in
+        // den Prueflauf aus #118 und nicht hierher.
+        ashen_regimen: false,
+        whole_work: false,
+        slow_rot: false,
     });
 
     let mut out = Vec::with_capacity(len as usize);
