@@ -33,16 +33,26 @@ mehrerer Fehlgriffe.
 
 > ### ⚠ Diese Überschrift hieß „Die zwölf Wege" und stimmte dreifach nicht
 >
-> Gemessen am 2026-08-11 an `data/player/talents.json`:
+> Gemessen am 2026-08-11 gegen **`git show origin/main:data/player/talents.json`**, nach dem Merge
+> von #751 — nicht gegen den Arbeitsbaum:
 >
 > ```text
 >   CALCINATION    trunk build release hold  (+ Schlüsseltalent)
 >   FIXATION       trunk build cost effect
->   SUBLIMATION    trunk build release hold
+>   SUBLIMATION    trunk reduction charges threshold
 >   COAGULATION    trunk thicker longer stacks
 >   PUTREFACTION   trunk build effect duration
 >   GLOBAL         trunk build release hold
 > ```
+>
+> **Die SUBLIMATION-Zeile stand hier zwei Stunden lang falsch** — als
+> `trunk build release hold`, mit dem Zusatz „Gemessen am 2026-08-11". Sie war gegen `main`
+> gemessen, **während #751 noch offen war**, und das Datum ließ sie glaubwürdiger aussehen, als
+> sie war. Worker-1 hat es beanstandet, der Orchestrator hat es nachgemessen.
+>
+> Ein Messdatum belegt den Zeitpunkt, nicht den Bezugspunkt. Wer gegen `main` misst, während ein
+> PR auf genau diese Datei wartet, misst den Stand von gestern und schreibt das Datum von heute
+> darüber.
 >
 > |                            |                                    |
 > | -------------------------- | ---------------------------------- |
@@ -75,6 +85,15 @@ mehrerer Fehlgriffe.
 | **SUBLIMATION**  | Abzug       | `cooldownReductionMs`                    |     ? |     ? | keine neue    |
 |                  | Rücksetzer  | `cooldownResetCharges`                   |     ? |     ? | keine neue    |
 |                  | Schwelle    | `cooldownReductionBelowMs`               |     ? |     ? | keine neue    |
+
+> **SUBLIMATIONs drei Wege sind seit #751 gebaut**, und zwar mit je eigener Größe:
+> `sublimation-reduction` → `cooldownReductionPerRankPerMille`, `-charges` →
+> `cooldownResetChargesPerRank`, `-threshold` → `cooldownThresholdPerRankPerMille`.
+>
+> Die drei `?` in den Spalten TS und Rust bleiben stehen: Sie zählen die **Stellen**, die eine
+> Änderung anfassen muss, und die habe ich nicht gemessen. Eine geschätzte Zahl wäre hier
+> schlimmer als ein Fragezeichen — der Kasten oben verlangt ausdrücklich, sie vor jedem Bau neu
+> zu erheben.
 
 **Keiner der hier beschriebenen fünfzehn Wege braucht eine neue Prüfsummen-Zeile.** Gemessen: Alle
 bewegen Größen, die bereits in beiden Prüfsummen stehen.
@@ -128,20 +147,26 @@ Beide wären technisch baubar (je 1–2 Stellen, keine neue Prüfsummen-Zeile). 
 fachlich: Ein Weg, der einen Zauber verdoppelt, ist so wenig eine Wahl wie einer, der eine Mechanik
 verdoppelt.
 
-## Die Kennungen in `talents.json` lügen bei drei Wegen
+## Die Kennungen sind inzwischen sprechend — bei vier von sechs Bäumen
 
-Alle sechs Bäume tragen `trunk/build/release/hold`. Bei CALCINATION deckt sich das mit der Absicht,
-bei den anderen nicht:
+**Hier stand „Alle sechs Bäume tragen `trunk/build/release/hold`", und das ist überholt.** Gemessen
+gegen `git show origin/main:data/player/talents.json`:
 
+```text
+CALCINATION    trunk build release hold          deckt sich mit der Absicht
+GLOBAL         trunk build release hold          desgleichen
+FIXATION       trunk build cost effect           sprechend
+SUBLIMATION    trunk reduction charges threshold sprechend
+COAGULATION    trunk thicker longer stacks       sprechend
+PUTREFACTION   trunk build effect duration       sprechend
 ```
-FIXATION      build → PREIS         release → WIRKUNG
-PUTREFACTION  build → AUFBAU        release → HALTBARKEIT
-COAGULATION   build → dicker        release → länger       hold → mehr Stapel
-```
 
-Bei COAGULATION passt **keine einzige**. „Mehr Stapel" ist kein „halten". Die Kennungen werden beim
-Einbau der Wirkungen mitgezogen — sie sind Daten, kein öffentlicher Vertrag, und ein Spielstand,
-der sie referenziert, existiert noch nicht.
+Beim Einbau der Wirkungen (#751 und davor) sind die Kennungen mitgezogen worden. Der alte Befund —
+„`release` heißt bei COAGULATION _länger_, bei FIXATION _Wirkung_" — ist damit erledigt: Kein Baum
+außer CALCINATION und GLOBAL benutzt `release` oder `hold` überhaupt noch.
+
+Sie bleiben Daten, kein öffentlicher Vertrag; ein Spielstand, der sie referenziert, existiert
+weiterhin nicht.
 
 ## Drei Fallen, jede einmal bezahlt
 
@@ -159,16 +184,28 @@ der sie referenziert, existiert noch nicht.
 
 ## Was noch offen ist
 
-- **SUBLIMATIONs drei Wege — die STRUKTUR steht, die WIRKUNG nicht.** Gemessen am 2026-08-11:
-  Der Baum trägt `trunk/build/release/hold`, und alle vier bewegen `damagePerRankPerMille` — denselben
-  Topf. Dasselbe gilt für GLOBAL.
+- **SUBLIMATIONs drei Wege sind GEBAUT — und hier stand zweimal das Gegenteil.** Gemessen gegen
+  `git show origin/main:data/player/talents.json`, nach dem Merge von #751:
 
-  Das ist genau die Trennung, die dieses Dokument sonst macht (Struktur #721, Wirkung #723): Wer
-  „die Wege sind gebaut" liest, hält die vier Plätze für vier Entscheidungen. Sie sind heute
-  vier Wege zu derselben Zahl.
+  ```text
+  sublimation-trunk       damagePerRankPerMille            20
+  sublimation-reduction   cooldownReductionPerRankPerMille 100
+  sublimation-charges     cooldownResetChargesPerRank        1
+  sublimation-threshold   cooldownThresholdPerRankPerMille  60
+  ```
 
-  Sie waren **nie blockiert**, und die gegenteilige Aussage in diesem Dokument war zwei Stunden
-  lang falsch. Sechs der zwölf Zauber tragen Zahlen:
+  **Jeder Weg bewegt eine EIGENE Größe.** Genau das Gegenteil dessen, was hier stand: „alle vier
+  bewegen `damagePerRankPerMille` — denselben Topf". Diese Aussage war gegen `main` gemessen,
+  **während #751 noch offen war**, und trug trotzdem ein Messdatum.
+
+  Damit ist auch die Kreuzprobe-Regel (Falle 3 oben) für SUBLIMATION erfüllbar: Es gibt drei
+  verschiedene Größen, die einander unberührt lassen müssen. Solange alle vier auf denselben Topf
+  zeigten, war sie dort gar nicht baubar.
+
+  GLOBAL bewegt weiterhin dreimal `damagePerRankPerMille` (15 je Rang) — dort trifft die alte
+  Aussage zu, und dort allein.
+
+  Sechs der zwölf Zauber tragen die Zahlen, an denen die Wege greifen:
 
   ```
   cooldownReductionMs        vapour 1000 · wisp 500 · decant 2000 · ascend 10000
