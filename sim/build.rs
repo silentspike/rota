@@ -1962,9 +1962,34 @@ fn emit_fixation(out: &mut String, spell: &Value, whose: &str) {
                 );
             }
 
+            // **Die Prozent-Senkung eigens, mit Rueckfall auf `amount`**
+            // (Issue #478). Nur CAPSTONE fuehrt beide Felder, weil nur er alle
+            // drei Wirkungen ausloest und die zwei Einheiten sprechen.
+            //
+            // Der Rueckfall haelt alle anderen unveraendert: ANCHOR traegt nur
+            // `amountPercent`, also steht seine Zahl ohnehin in `amount` — und
+            // fuer `slowCast`, `delayStrike` und die zwei aus #478 wird das
+            // Feld nie gelesen.
+            //
+            // **Rueckfall auf 0, NICHT auf `amount`.** Ein erster Entwurf
+            // nahm `amount` als Standard — bei `slowCast` sind das 2000
+            // Millisekunden, und die Zusicherung darunter haette den Bau
+            // abgebrochen, weil 2000 keine gueltige Prozentzahl ist.
+            //
+            // 0 ist richtig und deckt sich mit der TS-Seite
+            // (`number(knoten['amountPercent'], 0)`): Wo die Wirkung keine
+            // Prozente spricht, wird das Feld nie gelesen, und `fight.rs`
+            // faellt bei 0 auf `amount` zurueck — wie `combat.ts`.
+            let amount_percent = opt_uint(node, "amountPercent", &whose, 0);
+            assert!(
+                amount_percent < 100,
+                "{whose}: amountPercent {amount_percent} verschoebe die Schwelle \
+                 unter null; die Phase kaeme dann nie"
+            );
             let _ = writeln!(
                 out,
-                "        control: Some(Control {{ cost: {cost}, effect: {effekt}, amount: {amount} }}),"
+                "        control: Some(Control {{ cost: {cost}, effect: {effekt}, \
+                 amount: {amount}, amount_percent: {amount_percent} }}),"
             );
         }
     }
