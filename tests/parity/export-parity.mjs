@@ -65,6 +65,8 @@ import { fileURLToPath } from 'node:url';
 import {
   buffsPayload,
   buffCombatPayload,
+  decayFactorPayload,
+  decayTalentPayload,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -531,6 +533,22 @@ writeFileSync(ruleEventsPath, serialize(ruleEvents), 'utf8');
 const buffs = buffsPayload();
 const buffsPath = join(here, 'recordings', 'buffs.json');
 writeFileSync(buffsPath, serialize(buffs), 'utf8');
+
+const decayFactor = decayFactorPayload();
+const decayFactorPath = join(here, 'recordings', 'decay-factor.json');
+writeFileSync(decayFactorPath, serialize(decayFactor), 'utf8');
+console.log(`geschrieben: ${decayFactorPath}`);
+console.log(
+  `  Verwundbarkeit  Spur: ${decayFactor.factorAt.map((f) => f.vulnerability).join(' -> ')}`,
+);
+
+const decayTalent = decayTalentPayload();
+const decayTalentPath = join(here, 'recordings', 'decay-talent.json');
+writeFileSync(decayTalentPath, serialize(decayTalent), 'utf8');
+console.log(`geschrieben: ${decayTalentPath}`);
+console.log(
+  `  Mit Talent      Spur: ${decayTalent.factorAt.map((f) => f.vulnerability).join(' -> ')}`,
+);
 
 const buffCombat = buffCombatPayload();
 const buffCombatPath = join(here, 'recordings', 'buff-combat.json');
