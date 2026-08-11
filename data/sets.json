@@ -7,9 +7,43 @@
       "school": "test",
       "name": "Test Set",
       "tiers": [
-        { "kind": 0, "share": 0.1, "effect": "" },
-        { "kind": 0, "share": 0.2, "effect": "" },
-        { "kind": 1, "share": 0, "effect": "ashen-regimen" }
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "ashen-regimen"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "school": "",
+      "name": "The Whole Work",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "whole-work"
+        }
       ]
     }
   ]
