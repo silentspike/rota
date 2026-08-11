@@ -40,7 +40,14 @@ import {
 } from './budget.js';
 import { POOL_NAMES } from './pools.js';
 import { SLOT_COUNT } from './slots.js';
-import { NO_SET, SET_COUNT, SETS, countPieces, valueShareOf } from './sets.js';
+import {
+  NO_SET,
+  SET_COUNT,
+  SETS,
+  activeRotationEffects,
+  countPieces,
+  valueShareOf,
+} from './sets.js';
 import {
   basePermille,
   ESSENCE_AT_LEVEL_1,
@@ -361,4 +368,36 @@ export function wornFrom(items: readonly OwnedItemLike[]): WornValues {
     legendaere * LEGENDARY_EFFECT_PERMILLE;
 
   return getragen === 0 ? NOTHING_WORN : (summe as unknown as WornValues);
+}
+
+/**
+ * Die **Rotations-Effekte**, die der getragene Aufbau auslöst (13.5).
+ *
+ * # Warum das nicht in `wornFrom` passt
+ *
+ * `WornValues` sind Zahlen — Anteile, die in Töpfe fliessen. Ein
+ * Rotations-Effekt ist keiner: Er trägt eine Kennung, auf die der Kampf
+ * reagiert, wie ein Schlüsseltalent. Ihn als Zahl zu führen hiesse, ihn an
+ * einer Stelle zu speichern, die niemand danach fragt — genau der Zustand, aus
+ * dem `gearEffects`, `upgradeSteps` und die Fundstufe kamen.
+ *
+ * # Nur was auf einem Platz liegt
+ *
+ * Dieselbe Regel wie bei den Werten: Ein Stück im Beutel trägt nichts bei,
+ * sonst wäre Sammeln stärker als Ausrüsten.
+ *
+ * Die Reihenfolge ist fest (erst nach Satz, dann nach Stufe) — `activeRotationEffects`
+ * begründet das: Spiel und Simulator müssen dieselbe Folge sehen (18.4).
+ */
+export function rotationEffectsFrom(items: readonly OwnedItemLike[]): string[] {
+  const saetzeAufPlatz: number[] = [];
+  for (const besitz of items) {
+    if (besitz.equippedSlot === null) continue;
+    const def = itemById(besitz.itemId);
+    if (def === undefined) continue;
+    saetzeAufPlatz.push(def.setId);
+  }
+  const teileJeSatz = new Int32Array(SET_COUNT);
+  countPieces(saetzeAufPlatz, teileJeSatz);
+  return activeRotationEffects(SETS, teileJeSatz);
 }
