@@ -210,6 +210,8 @@ export interface ReplayResult {
    * statt dessen.
    */
   readonly controlSpent: number;
+  /** Wie oft THE LONG GRIP gegriffen hat (13.5, Issue #480). */
+  readonly freeControlSpendCount: number;
   readonly controlFailed: number;
   /**
    * Die sechs Grössen, die Rust seit jeher im Ergebnis führt und das Spiel
@@ -545,6 +547,7 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     buffWindowSum: combat.buffWindowSum,
     synergyWindowSum: combat.synergyWindowSum,
     controlSpent: combat.controlSpent,
+    freeControlSpendCount: combat.freeControlSpendCount,
     controlFailed: combat.controlFailed,
     interruptsLanded: combat.interruptsLanded,
     interruptsMissed: combat.interruptsMissed,
