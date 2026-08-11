@@ -26,8 +26,14 @@
 > grep -A 8 'POOL_NAMES: readonly' src/gear/pools.ts
 > ```
 >
-> **Stand 2026-08-10**, gemessen an `main`: **1 Eintrag** (`test-relic`), auf Platz **0**.
-> **10 Plätze** im Code. **6 zugelassene Affix-Arten**, davon 5 mit Wirkung.
+> **Stand 2026-08-10, nach #741**, gemessen an `main`: **21 Einträge** — zwanzig plus
+> `test-relic` —, **alle zehn Plätze** belegt, je zehn `-mix` und `-drive`. **10 Plätze** im
+> Code. **6 zugelassene Affix-Arten**, davon 5 mit Wirkung.
+>
+> **Der Kasten hat sich an sich selbst bewährt.** Er stand hier mit „**1 Eintrag** (`test-relic`),
+> auf Platz **0**" — richtig zum Zeitpunkt des Schreibens und **drei Stunden später überholt**,
+> weil derselbe Vorschlag inzwischen gebaut war. Genau die Alterung, vor der er warnt; gefunden
+> wurde sie, weil jemand die Befehle darüber gefahren hat statt die Zahl zu lesen.
 >
 > **Der zweite Befehl ist mit Absicht ein Ablesen und kein Zählen.** Mein erster Versuch war
 > `grep -c 'export const SLOT_[A-Z]* ='` und meldete **11** — er zählte `SLOT_COUNT` mit. Eine
@@ -49,9 +55,18 @@ sie zuerst gesucht habe.**
 | der **Reihenfolge** der `affixKinds`    | **welche** der fünf wirksamen Arten ein Eintrag nennt |
 | der Qualität (wird beim Fall gewürfelt) | dem Platz                                             |
 
-Vorgeschlagen werden **20 Einträge**: zehn Plätze mal zwei Ausrichtungen. Es waren einmal drei —
-die dritte setzte auf `gearEffects`, und das ist seit dem 2026-08-10 kein Affix mehr. Dazu zwei
-Befunde, die beim Messen aufgefallen sind und beide ein eigenes Vorhaben sind.
+**Die zwanzig sind gebaut** (#741, gemergt): zehn Plätze mal zwei Ausrichtungen, dazu der
+unveränderte `test-relic`. Es waren einmal drei Ausrichtungen — die dritte setzte auf
+`gearEffects`, und das ist seit dem 2026-08-10 kein Affix mehr.
+
+Was hier steht, ist damit **kein Vorschlag mehr, sondern die Begründung des Gebauten**: warum es
+zwanzig sind, warum die Reihenfolge der `affixKinds` nichts bedeutet und woran die Vielfalt
+tatsächlich hängt. Dazu zwei Befunde, die beim Messen aufgefallen sind und beide ein eigenes
+Vorhaben sind.
+
+> **An den gebauten Einträgen nachgemessen** (`tests/unit/katalog-zwanzig.test.ts`):
+> `focus-mix` 2812, `focus-drive` 3458 — dieselben Zahlen wie an den Entwürfen, und über alle
+> zehn Plätze identisch. Der Platz ist ein Behälter (13.2) und trägt keine eigene Stärke.
 
 ---
 
@@ -65,7 +80,7 @@ der Zählung zu Kapitel 13 (Nachricht 6061):
 | Die sieben Werte | alle sieben auf **beiden** Seiten verdrahtet, mit Wirkstelle     |
 | Die zehn Plätze  | alle zehn im Code, in der Reihenfolge des Designs                |
 | Prüfsummen       | keine neue Zeile nötig — je Wert einzeln durch Mutation gemessen |
-| Der Katalog      | **ein** Eintrag                                                  |
+| Der Katalog      | **21** Einträge seit #741 — bei der Zählung war es **einer**     |
 
 Es ist ein Katalog, der in eine fertige Maschine gefüllt wird. **Die Maschine bestimmt aber, wie
 viel Vielfalt ein Katalog tragen kann** — und das musste gemessen werden, nicht gelesen.
