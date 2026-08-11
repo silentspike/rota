@@ -303,6 +303,15 @@ pub struct FightConfig {
     /// Faktor auf `max_stacks: 3` ergaebe Bruchteile, und eine halbe
     /// Stapel-Erlaubnis gibt es nicht.
     pub talent_shield_stacks_bonus: u32,
+    /// Promille auf den Abzug an Abklingzeit (SUBLIMATION).
+    pub talent_cooldown_reduction_permille: u32,
+    /// ZUSCHLAG auf die Ruecksetz-Ladungen (SUBLIMATION).
+    ///
+    /// **Eine ganze Zahl**, zweite dieser Art nach `talent_shield_stacks_bonus`
+    /// und aus demselben Grund: Ladungen sind zaehlbar, halbe gibt es nicht.
+    pub talent_cooldown_charges_bonus: u32,
+    /// Promille auf die Schwelle, ab der der Abzug greift (SUBLIMATION).
+    pub talent_cooldown_threshold_permille: u32,
     /// Stufe des Spielers (Issue #248).
     ///
     /// Sie wirkt auf die Grundwerte: Ein Kampf auf Stufe 50 hat andere
@@ -337,6 +346,9 @@ impl Default for FightConfig {
             talent_shield_amount_permille: 0,
             talent_shield_duration_permille: 0,
             talent_shield_stacks_bonus: 0,
+            talent_cooldown_reduction_permille: 0,
+            talent_cooldown_charges_bonus: 0,
+            talent_cooldown_threshold_permille: 0,
             player_level: 1,
         }
     }
@@ -758,6 +770,9 @@ pub struct Fight {
     talent_shield_amount_factor: f64,
     talent_shield_duration_factor: f64,
     talent_shield_stacks_bonus: u32,
+    talent_cooldown_reduction_factor: f64,
+    talent_cooldown_charges_bonus: u32,
+    talent_cooldown_threshold_permille: u32,
     tick_buffs: Buffs,
     stack_buffs: Buffs,
     cd_reduce_buffs: Buffs,
@@ -968,6 +983,13 @@ impl Fight {
             talent_shield_duration_factor: 1.0
                 + f64::from(config.talent_shield_duration_permille) / 1000.0,
             talent_shield_stacks_bonus: config.talent_shield_stacks_bonus,
+            talent_cooldown_reduction_factor: 1.0
+                + f64::from(config.talent_cooldown_reduction_permille) / 1000.0,
+            talent_cooldown_charges_bonus: config.talent_cooldown_charges_bonus,
+            // **Als Promille, nicht als Faktor** — anders als die acht darueber.
+            // Der Wert wird an `SublimationMechanic::new` weitergereicht, und
+            // die rechnet den Faktor selbst; zweimal umgerechnet driftete er.
+            talent_cooldown_threshold_permille: config.talent_cooldown_threshold_permille,
             tick_buffs: Buffs::new(),
             stack_buffs: Buffs::new(),
             cd_reduce_buffs: Buffs::new(),
@@ -1100,8 +1122,18 @@ impl Fight {
         // Verkuerzungen kommen aus den Zauber-Daten; wer nichts verkuerzt,
         // steht mit 0 in der Tabelle.
         let mut per_cast = [0; SPELL_COUNT];
+        // **Der Talent-Faktor gehoert an DIESE Stelle, nicht ans Ablesen.** Die
+        // Tabelle wird einmal gebaut und danach je Wirkung gelesen; ein Faktor
+        // beim Lesen liefe zwar auch, aber die Spiel-Seite rechnet ihn in
+        // `reductionOfSpell` ebenfalls auf den Rohwert. Gleiche Stelle, gleiche
+        // Rundung — sonst driften die Seiten um einen Millisekunden-Rest.
+        let faktor = self.talent_cooldown_reduction_factor;
         for (index, spell) in SPELLS.iter().enumerate() {
-            per_cast[index] = spell.cooldown_reduction_ms;
+            per_cast[index] = if spell.cooldown_reduction_ms == 0 {
+                0
+            } else {
+                (f64::from(spell.cooldown_reduction_ms) * faktor).round() as u32
+            };
         }
         self.events.register(
             "sublimation",
@@ -1111,6 +1143,7 @@ impl Fight {
                 per_cast,
                 std::rc::Rc::clone(&self.pending_shorten),
                 std::rc::Rc::clone(&self.sublimation_uses),
+                self.talent_cooldown_threshold_permille,
             )),
         );
     }
@@ -1454,9 +1487,21 @@ impl Fight {
                             // Druck bereits, und der Ruecksetzer wuerde nie
                             // gewirkt. Dieselbe Reihenfolge wie in
                             // `Session.apply`; AC4 von #223 haelt sie fest.
+                            // Der Zuschlag greift NACH der Pruefung, nicht in
+                            // ihr — sonst waere jeder Zauber ein Ruecksetzer,
+                            // sobald ein Rang verteilt ist.
                             if SPELLS[index].cooldown_reset_charges > 0 {
-                                self.reset_mode
-                                    .arm(index, SPELLS[index].cooldown_reset_charges);
+                                self.reset_mode.arm(
+                                    index,
+                                    SPELLS[index].cooldown_reset_charges.saturating_add(
+                                        // `cooldown_reset_charges` ist u8, der
+                                        // Zuschlag u32 wie die acht anderen
+                                        // Talent-Felder. Geklemmt statt
+                                        // gecastet: 300 Raenge waeren sonst 44.
+                                        u8::try_from(self.talent_cooldown_charges_bonus)
+                                            .unwrap_or(u8::MAX),
+                                    ),
+                                );
                             }
                         } else {
                             // Zu frueh gedrueckt. Das Spiel merkt sich den Druck
@@ -4697,6 +4742,18 @@ impl Fight {
     #[must_use]
     pub fn shield_absorbed(&self) -> u32 {
         self.shield_absorbed
+    }
+
+    /// Der Verwundbarkeits-Faktor aus den Faeulnis-Stapeln (Issue #738).
+    ///
+    /// **Das Gegenstueck zu `combat.vulnerability`** auf der Spiel-Seite
+    /// (`combat.ts:2868`), das dort von drei Pruefdateien gelesen wird. Auf
+    /// dieser Seite gab es keines — und die Paritaet uebertraegt `buffs`
+    /// takt-fuer-takt, `vulnerability` gar nicht. Zwei Faktoren derselben
+    /// Familie, einer verglichen, der andere nicht.
+    #[must_use]
+    pub fn vulnerability(&self) -> f64 {
+        self.factors.vulnerability
     }
 
     /// Wie viel Leben insgesamt zurueckgeholt wurde (Weg 2).

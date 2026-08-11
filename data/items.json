@@ -171,6 +171,46 @@
       "itemLevel": 40,
       "quality": 2,
       "affixKinds": ["essence", "purity", "catalysis"]
+    },
+    {
+      "id": "test-set-1",
+      "name": "Test Set Catalyst",
+      "slot": 1,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis"],
+      "boundToBoss": "test-warden",
+      "setId": 0
+    },
+    {
+      "id": "test-set-2",
+      "name": "Test Set Sigil",
+      "slot": 2,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis"],
+      "boundToBoss": "test-warden",
+      "setId": 0
+    },
+    {
+      "id": "test-set-3",
+      "name": "Test Set Relic",
+      "slot": 3,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis"],
+      "boundToBoss": "test-warden",
+      "setId": 0
+    },
+    {
+      "id": "test-set-4",
+      "name": "Test Set Grimoire",
+      "slot": 4,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis"],
+      "boundToBoss": "test-warden",
+      "setId": 0
     }
   ]
 }
