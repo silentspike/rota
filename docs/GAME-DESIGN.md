@@ -2458,19 +2458,19 @@ jq -r '[.trees[].paths[]] | map(select(.!="trunk")) | length' data/player/talent
 jq -r '.instances | length' data/instances.json
 ```
 
-| Bestand                     |                        Soll |                                   Ist | Quelle des Solls           |
-| --------------------------- | --------------------------: | ------------------------------------: | -------------------------- |
-| Zauber                      |                           — |                 **55** + 2 gemeinsame | Zauber-Raster abgearbeitet |
-| Talentbäume                 |          5 Schulen + global |                                 **6** | 12.5                       |
-| Talentwege                  |    18 (sechs Bäume à drei)  |                       **18** — gebaut | `docs/TALENT-RASTER.md`    |
-| — im Simulator geprüft      |            12 Talent-Felder |         **12** (#738 abgenommen)      | #738, PR #751              |
-| Schlüsseltalente            |                           5 |                   **1** (CALCINATION) | #418                       |
-| **Ausrüstung**              |     zehn Plätze, vier Töpfe | **20 spielbare** + 5 Prüf-Einträge    | 13.0, 13.1b                |
-| — Topf 4 (Sätze, Legendäre) |               angeschlossen | **angeschlossen** (PR #748)           | 13.1b                      |
-| — Satz-Katalog              |     sechs Sätze à drei Stufen |     **1 Prüfsatz**, kein echter Satz | `docs/SATZ-KATALOG.md`     |
-| **Bosse**                   |      **68 in 14 Instanzen** |                **13 in 4 Instanzen** | 3.0                        |
-| Instanz-Zuordnung           |       Teil des Datenmodells |                             vorhanden | `instance` je Boss         |
-| Instanz als Objekt          | Name, Stufen, Freischaltung |            **vorhanden** (PR #749)    | `data/instances.json`      |
+| Bestand                     |                        Soll |                                Ist | Quelle des Solls           |
+| --------------------------- | --------------------------: | ---------------------------------: | -------------------------- |
+| Zauber                      |                           — |              **55** + 2 gemeinsame | Zauber-Raster abgearbeitet |
+| Talentbäume                 |          5 Schulen + global |                              **6** | 12.5                       |
+| Talentwege                  |     18 (sechs Bäume à drei) |                    **18** — gebaut | `docs/TALENT-RASTER.md`    |
+| — im Simulator geprüft      |            12 Talent-Felder |           **12** (#738 abgenommen) | #738, PR #751              |
+| Schlüsseltalente            |                           5 |                **1** (CALCINATION) | #418                       |
+| **Ausrüstung**              |     zehn Plätze, vier Töpfe | **20 spielbare** + 5 Prüf-Einträge | 13.0, 13.1b                |
+| — Topf 4 (Sätze, Legendäre) |               angeschlossen |        **angeschlossen** (PR #748) | 13.1b                      |
+| — Satz-Katalog              |   sechs Sätze à drei Stufen |   **1 Prüfsatz**, kein echter Satz | `docs/SATZ-KATALOG.md`     |
+| **Bosse**                   |      **68 in 14 Instanzen** |              **13 in 4 Instanzen** | 3.0                        |
+| Instanz-Zuordnung           |       Teil des Datenmodells |                          vorhanden | `instance` je Boss         |
+| Instanz als Objekt          | Name, Stufen, Freischaltung |            **vorhanden** (PR #749) | `data/instances.json`      |
 
 > **Diese Zahlen stehen an zwei Orten, und das ist die Gefahr.** Dieselben Bestände führen die
 > Raster (`ZAUBER-RASTER.md`, `TALENT-RASTER.md`, `AUSRUESTUNGS-RASTER.md`). Am 2026-08-11 zog
