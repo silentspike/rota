@@ -64,6 +64,9 @@ import {
   talentShieldAmountFactor,
   talentShieldDurationFactor,
   talentShieldStacksBonus,
+  talentCooldownReductionFactor,
+  talentCooldownChargesBonus,
+  talentCooldownThresholdFactor,
   talentControlCostFactor,
   talentControlEffectFactor,
   talentControlGainFactor,
@@ -2788,7 +2791,10 @@ export class Combat {
     // wirkt, während der erste noch scharf steht, hat den ersten verschenkt —
     // dieselbe Regel wie bisher, nur jetzt mit Zahl. Aufaddieren wäre eine
     // Vorratshaltung, die es in diesem Spiel nirgends gibt.
-    this.resetChargesLeftValue = ladungen;
+    // **Der Zuschlag greift erst hier, nicht bei der Prüfung oben.** Wer ihn
+    // in `ladungen` zöge, machte aus jedem Zauber einen Rücksetzer, sobald ein
+    // Rang verteilt ist — `ladungen <= 0` wäre dann nie wahr.
+    this.resetChargesLeftValue = ladungen + talentCooldownChargesBonus(this.talents);
   }
 
   /**
@@ -4615,7 +4621,13 @@ export class Combat {
     // Wirken neu geholt — deshalb trägt ein zeitlich begrenzter Faktor an
     // dieser Stelle. Gemessen vor dem Bau: `shield.durationMs` tut das
     // NICHT (einmal beim Anlegen), und HARDEN gehört deshalb nicht hierher.
-    return roh === 0 ? 0 : Math.round(roh * this.cdReduceBuffs.factor(this.nowMsForBuffs));
+    return roh === 0
+      ? 0
+      : Math.round(
+          roh *
+            this.cdReduceBuffs.factor(this.nowMsForBuffs) *
+            talentCooldownReductionFactor(this.talents),
+        );
   }
 
   /**
@@ -4628,7 +4640,13 @@ export class Combat {
   reductionScopeOfSpell(spellIndex: number): { belowMs: number; longestOnly: boolean } {
     const spell = this.spells[spellIndex];
     return {
-      belowMs: spell?.cooldownReductionBelowMs ?? 0,
+      // **Die Schwelle wächst mit, der Abzug bleibt.** Ein höherer Wert lässt
+      // den Abzug auf mehr Zauber greifen (`ascend` trifft alles unter 10 s),
+      // ohne den Abzug selbst zu ändern — das ist der Unterschied zum Weg
+      // `reduction`, und die Kreuzprobe misst genau ihn.
+      belowMs: Math.round(
+        (spell?.cooldownReductionBelowMs ?? 0) * talentCooldownThresholdFactor(this.talents),
+      ),
       longestOnly: spell?.cooldownReductionLongestOnly === true,
     };
   }
