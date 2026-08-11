@@ -2339,6 +2339,16 @@ impl Fight {
         // fuenf, die auseinanderlaufen koennen.
         let control = Control {
             amount: (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32,
+            // **Die Phasen-Senkung traegt denselben Faktor, aber ihre eigene
+            // Zahl** (Issue #478). Bei 0 gilt `amount` — dieselbe Regel wie in
+            // `combat.ts`, damit beide Seiten bei einem Zauber ohne
+            // `amountPercent` dasselbe rechnen.
+            amount_percent: if control.amount_percent > 0 {
+                (f64::from(control.amount_percent) * self.talent_control_effect_factor).round()
+                    as u32
+            } else {
+                (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32
+            },
             ..control
         };
         // **CAPSTONE loest alle drei auf einmal aus** (Issue #478). Ein `match`
@@ -2415,12 +2425,23 @@ impl Fight {
             // steigen (`check_phase`) — laeuft die Fixierung waehrend einer
             // hoeheren Phase aus, faellt der Boss nicht zurueck.
             ControlEffect::HoldPhase => {
-                self.phase_hold_percent = control.amount;
+                // `amount_percent` statt `amount`: Bei CAPSTONE sind das 10
+                // Prozentpunkte statt seiner 2000 Millisekunden. Bei jedem
+                // anderen Zauber stehen in beiden Feldern dieselbe Zahl.
+                self.phase_hold_percent = control.amount_percent;
+                // **Dieselbe Frist fuer alle**, auch fuer CAPSTONE mit seinem
+                // zweiten Betrags-Feld: Sie gehoert zur WIRKUNG, nicht zum
+                // Zauber — sonst hiesse "hinauszoegern" bei jedem etwas
+                // anderes.
                 self.phase_hold_until = Some(self.time + PHASE_HOLD_DURATION_MS);
                 self.queue
                     .push(self.time + PHASE_HOLD_DURATION_MS, EventKind::Wakeup);
-                self.log
-                    .push(self.time, LogKind::ControlSpent, NO_SPELL, control.amount);
+                self.log.push(
+                    self.time,
+                    LogKind::ControlSpent,
+                    NO_SPELL,
+                    control.amount_percent,
+                );
             }
         }
     }
