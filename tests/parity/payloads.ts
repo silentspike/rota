@@ -82,6 +82,7 @@ import {
   WARD_AT_LEVEL_1,
   isPermanent,
   maxOf,
+  gearEffectsPermille,
   mixedBuild,
   permanentMax,
   pureBuild,
@@ -91,6 +92,7 @@ import {
   BONUS_ROTATION,
   BONUS_VALUE,
   NO_SET,
+  SETS,
   SET_COUNT,
   SET_TIERS,
   activeRotationEffects,
@@ -3996,7 +3998,7 @@ export function buffCombatPayload(): Record<string, unknown> {
 
   const checksums: number[] = [];
   /** Der Faktor an den Messpunkten — für AC1, damit „aktiv" nachweisbar ist. */
-  const factorAt: { tick: number; buffs: number }[] = [];
+  const factorAt: { tick: number; buffs: number; vulnerability: number }[] = [];
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
@@ -4010,7 +4012,15 @@ export function buffCombatPayload(): Record<string, unknown> {
 
     checksums.push(combatChecksum(combat, timeMs) >>> 0);
     if (tick === 0 || tick === 150 || tick === 500) {
-      factorAt.push({ tick, buffs: combat.damageFactors.buffs });
+      // **`vulnerability` gehört dazu, seit #738.** Beide sind Faktoren
+      // derselben Familie; bis dahin wurde nur `buffs` übertragen und
+      // verglichen, `vulnerability` gar nicht — obwohl die Spiel-Seite ihn
+      // seit Langem als Getter führt und drei Prüfdateien ihn lesen.
+      factorAt.push({
+        tick,
+        buffs: combat.damageFactors.buffs,
+        vulnerability: combat.vulnerability,
+      });
     }
   }
 
@@ -4648,6 +4658,38 @@ export function sourcesPayload(): Record<string, unknown> {
     }
   }
 
+  // **Topf 4 aus seinen Quellen** (Issue #480, Entscheidung 2026-08-11).
+  //
+  // Bis dahin war `gearEffectsPermille` auf beiden Seiten gebaut und durch
+  // NICHTS aneinander gebunden: Es gab je einen Fall im Spiel und einen im
+  // Simulator, aber keinen Vergleich. Die zwei Fassungen konnten
+  // auseinanderlaufen, ohne dass eine Zeile rot wurde.
+  //
+  // **Der Satz-Anteil wandert mit** — dieselbe Begründung wie bei `baseStats`
+  // darüber. Der Simulator lädt `data/sets.json` nicht; stünde nur die Summe
+  // hier, erwartete er eine Zahl, statt dieselbe Rechnung zu machen. Mit dem
+  // Anteil daneben rechnet er nach.
+  const gearEffects = [];
+  for (const legendaries of [0, 1, 2]) {
+    for (const setShare of [0, 100, 300]) {
+      gearEffects.push({
+        legendaries,
+        setSharePermille: setShare,
+        permille: gearEffectsPermille(legendaries, setShare),
+      });
+    }
+  }
+
+  // Der Anteil je getragener Teilezahl, aus den echten Daten. Die sechste
+  // Stufe trägt einen Rotations-Effekt und KEINEN Wert (13.5) — bei sechs
+  // Teilen muss derselbe Anteil herauskommen wie bei vier.
+  const setShares = [];
+  for (const teile of [0, 1, 2, 3, 4, 5, 6]) {
+    const pieces = new Int32Array(SET_COUNT);
+    pieces[0] = teile;
+    setShares.push({ pieces: teile, permille: Math.round(valueShareOf(SETS, pieces) * 1000) });
+  }
+
   return {
     schema: SCHEMA,
     budgetPerPermille: BUDGET_PER_PERMILLE,
@@ -4657,6 +4699,8 @@ export function sourcesPayload(): Record<string, unknown> {
     stats,
     affixes,
     baseStats,
+    gearEffects,
+    setShares,
   };
 }
 
@@ -4743,6 +4787,175 @@ function recordSynergy(ticks: number): Recording {
   }
 
   return { name: SYNERGY_NAME, seed: 0, ticks, presses, bindings: SYNERGY_BINDINGS };
+}
+
+/**
+ * Eine Runde mit ZERSETZUNG, deren Verwundbarkeits-Faktor mitgeschrieben wird
+ * (Issue #738).
+ *
+ * # Warum es sie braucht — `buff-combat` kann es nicht leisten
+ *
+ * Die Faktoren-Spur `factorAt` gab es bis dahin genau einmal, in
+ * `buffCombatPayload`. Die fährt `test-buff` und `kindle`, also **keine
+ * Zersetzung** — ihr `vulnerability` ist konstant 1,0:
+ *
+ * ```text
+ * [{tick 0, buffs 1.2, vulnerability 1}, … {tick 500, buffs 1, vulnerability 1}]
+ * ```
+ *
+ * Damit ist sie die Gegenprobe (ein Lauf ohne Zersetzung bleibt grün) und kann
+ * genau deshalb den Wirkungsnachweis nicht führen: Ein Wert, der nie von 1
+ * abweicht, färbt bei keiner Mutation. Zwei Auflagen, die dieselbe Datei nicht
+ * gleichzeitig erfüllen kann — deshalb diese zweite.
+ *
+ * # Eigene Tick-Schleife statt `replayRecording`
+ *
+ * `synergyPayload` baut Stapel auf und wäre der nächstliegende Ort. Sie läuft
+ * aber über `replayRecording`, das keine Faktoren-Spur führt; sie dort
+ * einzuhängen hieße, den Abspieler umzubauen. Diese Payload folgt stattdessen
+ * dem Muster von `buffCombatPayload`: eigene Schleife, direkte Würfe.
+ */
+export function decayFactorPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 600;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const canker = combat.indexOf('canker');
+
+  const checksums: number[] = [];
+  const factorAt: { tick: number; buffs: number; vulnerability: number }[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+
+    // **Mehrere Würfe im Abstand der Abklingzeit**, damit die Stapel wachsen:
+    // Ein einzelner Stapel zeigt nur die erste Stufe, und ein Talent auf die
+    // Wertigkeit wäre daran zwar sichtbar, aber die Spur zeigte keinen Verlauf.
+    if (tick === 0 || tick === 100 || tick === 200) combat.cast(canker, timeMs);
+
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+    // Drei Messpunkte wie bei `buff-combat`: vor dem ersten Wurf ist der Faktor
+    // neutral, in der Mitte gestiegen, am Ende — nach dem Ablauf der Stapel —
+    // wieder neutral. Der Verlauf steht damit in der Datei, nicht nur ein Wert.
+    if (tick === 0 || tick === 250 || tick === 599) {
+      factorAt.push({
+        tick,
+        buffs: combat.damageFactors.buffs,
+        vulnerability: combat.vulnerability,
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    presses: [
+      { tick: 0, spellId: 'canker' },
+      { tick: 100, spellId: 'canker' },
+      { tick: 200, spellId: 'canker' },
+    ],
+    checksums,
+    factorAt,
+    expected: {
+      /**
+       * **Die Zusicherung im Datensatz:** Ohne liegende Stapel liefe die
+       * Aufzeichnung über einen Zauber, dessen Wirkung nie eintritt, und der
+       * Verwundbarkeits-Vergleich verglich zweimal 1,0.
+       */
+      decayStacksAtPeak: 3,
+    },
+  };
+}
+
+/**
+ * Dieselbe Runde wie {@link decayFactorPayload}, aber MIT einer
+ * Talent-Verteilung (Issue #738).
+ *
+ * # Der Export-Weg, den es bis dahin nicht gab
+ *
+ * `combat.setTalents` existiert seit #419, und die Rust-Seite führt zwölf
+ * `talent_*`-Felder in `FightConfig`. Zwischen beiden fehlte jede Verbindung:
+ * Keine der 71 Aufzeichnungen trug eine Verteilung, also verglichen beide
+ * Seiten ausschließlich Läufe ohne Talente. Eine Streich-Mutation an einer
+ * Talent-Rechnung blieb deshalb grün — die Parität fuhr den Fall nie.
+ *
+ * # Warum eine eigene Datei statt eines Feldes in `decay-factor`
+ *
+ * `decay-factor.json` ist die **Gegenprobe**: ein Lauf ohne Talente, der grün
+ * bleiben muss. Trüge sie selbst eine Verteilung, gäbe es keine mehr — dieselbe
+ * Überlegung, aus der `buff-combat` neben ihr stehen bleibt.
+ *
+ * # Die Verteilung ist bewusst EIN Weg, nicht alle
+ *
+ * `putrefaction-effect` mit vollem Rang hebt die Verwundbarkeit je Stapel. Wer
+ * hier mehrere Wege setzte, bekäme eine Datei, die bei jeder beliebigen
+ * Talent-Änderung rot wird und nicht sagt, welche.
+ */
+export function decayTalentPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 600;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const canker = combat.indexOf('canker');
+
+  /** Voller Rang auf dem Wirkungs-Weg — fünf Ränge à 80 Promille. */
+  const talents = { 'putrefaction-effect': 5 };
+  // **VOR `beginFight`** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(talents);
+
+  const checksums: number[] = [];
+  const factorAt: { tick: number; buffs: number; vulnerability: number }[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (tick === 0 || tick === 100 || tick === 200) combat.cast(canker, timeMs);
+
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+    if (tick === 0 || tick === 250 || tick === 599) {
+      factorAt.push({
+        tick,
+        buffs: combat.damageFactors.buffs,
+        vulnerability: combat.vulnerability,
+      });
+    }
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    /**
+     * **Die Verteilung in BEIDEN Formen — und das ist eine Einschränkung.**
+     *
+     * `talents` sind die Ränge, wie der Spieler sie verteilt. `talentPermille`
+     * ist, was daraus folgt. Die zweite Form steht nur da, weil der Simulator
+     * die Talent-Daten **nicht kennt**: `sim/src/data.rs` führt keine
+     * `TALENTS`-Struktur, `build.rs` erzeugt keine, und ohne sie kann die
+     * Rust-Seite aus einem Rang keine Promille machen.
+     *
+     * Was dieser Vergleich deshalb NICHT prüft: ob beide Seiten Ränge gleich
+     * in Promille umrechnen. Er prüft, ob beide mit DENSELBEN Promille dasselbe
+     * rechnen. Die Umrechnung ist auf der Spiel-Seite durch
+     * `tests/unit/talent-wirkungen-2.test.ts` gedeckt, auf der Rust-Seite gibt
+     * es sie nicht — dort beginnt die Rechnung bei den Promille.
+     */
+    talents,
+    talentPermille: { decayEffect: 5 * 80 },
+    presses: [
+      { tick: 0, spellId: 'canker' },
+      { tick: 100, spellId: 'canker' },
+      { tick: 200, spellId: 'canker' },
+    ],
+    checksums,
+    factorAt,
+    expected: {
+      /** Die Zusicherung: ohne diese Differenz misst der Vergleich nichts. */
+      hoeherAlsOhneTalent: true,
+    },
+  };
 }
 
 export function synergyPayload(): Record<string, unknown> {
