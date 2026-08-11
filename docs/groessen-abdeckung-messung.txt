@@ -26,7 +26,8 @@ buff.target                griplock     control -> tick     geschuetzt [3 Prueff
 buff.target                quicksilver  convert -> tick     geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
 buff.target                slag         cap -> tick     geschuetzt [8 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)
 buff.target                virulence    stack -> tick     geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-control.amountMs           capstone     2000 -> 1000     NUR FRISCHE -> faktisch ungeschuetzt
+control.amountMs           capstone     2000 -> 1000     geschuetzt [2 Prueffaelle] (fixation-ausgeber.test.ts, capstone-senkung.test.ts)
+control.amountPercent      capstone     10 -> 5       geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts)
 control.amountMs           latch        4000 -> 2000     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.amountMs           stall        2000 -> 1000     geschuetzt [6 Prueffaelle] (kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
 control.amountMs           pin          2000 -> 1000     NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs)

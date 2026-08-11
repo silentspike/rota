@@ -2059,6 +2059,34 @@ export class Combat {
     // liefe bei einer späteren Änderung auseinander, und `allThree` löst drei
     // davon gleichzeitig aus.
     const staerke = Math.round(control.amount * talentControlEffectFactor(this.talents));
+    // **Die Phasen-Senkung hat ihre EIGENE Stärke** (Issue #478).
+    //
+    // `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
+    // Prozentpunkten. Für die drei Spezialisten fällt das nicht auf — jeder
+    // trägt genau eine Einheit. CAPSTONE löst als einziger alle drei aus, und
+    // seine 2000 Millisekunden landeten bis hierher im Prozent-Feld.
+    //
+    // Gemessen an `test-phase`, wann der Wechsel fiel:
+    //
+    // ```text
+    //   ohne Zauber    6010 ms
+    //   ANCHOR (10 %)  9010 ms   der Boss muss 10 % tiefer fallen
+    //   CAPSTONE      14010 ms   genau PHASE_HOLD_DURATION_MS nach dem Wurf
+    // ```
+    //
+    // 2000 Prozentpunkte sind keine Senkung, sondern eine Abschaltung: Der
+    // Wechsel fiel erst, als die Frist ablief. Der Plan verlangt „die
+    // Phasen-Schwelle SINKT vorübergehend" und „alle kaufen einen einzelnen
+    // Moment, keinen Zustand" — bei vollständiger Blockade muss man den
+    // Moment nicht TREFFEN, man muss nur irgendwann drücken.
+    //
+    // **Der Rückfall auf `staerke` ist kein Rest, sondern die Regel für alle
+    // anderen**: ANCHOR trägt nur `amountPercent`, also steht seine Zahl in
+    // beiden Feldern, und für ihn ändert sich nichts.
+    const senkung =
+      control.amountPercent > 0
+        ? Math.round(control.amountPercent * talentControlEffectFactor(this.talents))
+        : staerke;
     const alleDrei = control.effect === 'allThree';
     if (alleDrei) {
       // **Alle Punkte, wie bei WEDGE.** Das Raster sagt „verbraucht alle
@@ -2125,7 +2153,14 @@ export class Combat {
     if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
-      this.phaseHoldPercentValue = staerke;
+      //
+      // `senkung` statt `staerke`: siehe die Begründung oben. Für ANCHOR sind
+      // beide gleich, für CAPSTONE nicht.
+      this.phaseHoldPercentValue = senkung;
+      // **Dieselbe Frist für alle**, auch für CAPSTONE, der als einziger ein
+      // zweites Betrags-Feld hat. Der Plan: „Die Frist gilt für ALLE ZAUBER
+      // GLEICH — sie gehört zur Wirkung, nicht zum einzelnen Zauber; sonst
+      // hieße ‚hinauszögern' bei jedem etwas anderes."
       this.phaseHoldUntilMs = timeMs - this.fightStartedAtMs + PHASE_HOLD_DURATION_MS;
     }
   }

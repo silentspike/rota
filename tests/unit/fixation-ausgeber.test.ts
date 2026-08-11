@@ -184,19 +184,21 @@ describe('CAPSTONE trägt seine 2000 in ALLE drei Wirkungen (control.amountMs)',
     expect(CAPSTONE.ersterTreffer - WEDGE_REICHT.ersterTreffer).toBe(2000);
   });
 
-  it('dieselbe 2000 landet auch im Prozent-Feld der Phasen-Senkung', () => {
-    // **Keine Prozentzahl, und ein Nebeneffekt der geteilten Stärke**:
-    // `allThree` rechnet EINE Stärke aus und gibt sie an alle Wirkungen
-    // weiter. Für `slowCast` und `delayStrike` sind das Millisekunden; bei
-    // `holdPhase` landen dieselben 2000 in einem Prozent-Feld.
+  it('die Phasen-Senkung liest NICHT mehr dieselbe Zahl — sie hat ihr eigenes Feld', () => {
+    // **Hier stand `toBe(2000)`, und dieser Fall ist rot geworden — wie
+    // vorgesehen.** Sein früherer Kommentar sagte: „Der Fall hält den
+    // heutigen Stand fest, er rechtfertigt ihn nicht. Wird die Wirkung
+    // getrennt, gehört er nachgezogen — und genau das soll dann auffallen,
+    // statt still zu passieren."
     //
-    // Gemessen an `test-phase`: Der Wechsel fällt ohne Zauber bei 6010 ms,
-    // mit ANCHOR (10 %) bei 9010 — und mit CAPSTONE bei 14010, also genau
-    // `PHASE_HOLD_DURATION_MS` nach dem Wurf. Jede Zahl über 100 blockiert
-    // dort gleich vollständig; **eine Halbierung wäre an DIESER Wirkung
-    // unsichtbar.** Deshalb steht der Fall darüber und nicht dieser für die
-    // Größe ein.
-    expect(CAPSTONE.phaseHold, 'CAPSTONEs Stärke erreicht holdPhase nicht').toBe(2000);
+    // Getrennt wurde sie mit `control.amountPercent` (Entscheidung des
+    // Auftraggebers): 2000 Prozentpunkte waren keine Senkung, sondern eine
+    // Abschaltung des Wechsels für die volle Frist.
+    //
+    // Was diese Zeile noch prüft, ist die **Trennung**: `amountMs` darf die
+    // Senkung nicht mehr erreichen. Die Größe selbst deckt
+    // `capstone-senkung.test.ts` ab.
+    expect(CAPSTONE.phaseHold, 'die 2000 aus amountMs stehen wieder im Prozent-Feld').toBe(10);
   });
 
   it('und er verbraucht alle Punkte, nicht nur die acht', () => {

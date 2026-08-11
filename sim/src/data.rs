@@ -285,6 +285,25 @@ pub struct Control {
     pub effect: ControlEffect,
     /// Um wie viel — in Millisekunden oder Prozentpunkten, je nach Wirkung.
     pub amount: u32,
+    /// Die Senkung der Phasen-Schwelle in Prozentpunkten — **getrennt von
+    /// `amount`** (Issue #478).
+    ///
+    /// # Warum ein zweites Feld noetig war
+    ///
+    /// Fuer die drei Spezialisten reicht `amount`: Jeder kauft genau einen
+    /// Moment und misst ihn in einer Einheit. CAPSTONE loest als einziger
+    /// ALLE DREI Wirkungen aus, und die sprechen zwei Einheiten — `SlowCast`
+    /// und `DelayStrike` rechnen in Millisekunden, `HoldPhase` in
+    /// Prozentpunkten.
+    ///
+    /// Bis hierher bekam `HoldPhase` bei CAPSTONE dessen 2000 Millisekunden
+    /// als Prozentzahl. `boss_hp_percent + 2000` liegt ueber jeder Schwelle:
+    /// Der Wechsel war fuer die volle Frist ABGESCHALTET statt gesenkt.
+    ///
+    /// Bei jedem anderen Zauber steht hier derselbe Wert wie in `amount` —
+    /// `build.rs` faellt darauf zurueck, wenn die Daten kein `amountPercent`
+    /// fuehren.
+    pub amount_percent: u32,
 }
 
 /// Die drei Wirkungen aus GAME-DESIGN 4.1.
