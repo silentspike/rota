@@ -3,12 +3,8 @@ import { CAST_OK, Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs } from '../../src/core/haste.js';
-import {
-  LEGENDARY_EFFECT_PERMILLE,
-  SET_BONUS_PERMILLE,
-  SET_VALUE_TIERS,
-  gearEffectsPermille,
-} from '../../src/gear/sources.js';
+import { LEGENDARY_EFFECT_PERMILLE, gearEffectsPermille } from '../../src/gear/sources.js';
+import { BONUS_ROTATION, BONUS_VALUE, SETS, SET_COUNT, valueShareOf } from '../../src/gear/sets.js';
 import {
   NOTHING_WORN,
   critChance,
@@ -567,7 +563,7 @@ describe('Zwei Quellen, ein Topf (Issue #195)', () => {
       essence: 0,
       vessel: 0,
       ward: 0,
-      gearEffects: gearEffectsPermille(0, 1),
+      gearEffects: gearEffectsPermille(0, 150),
     });
     for (const c of [ohne, mit]) {
       c.beginFight(0);
@@ -596,7 +592,7 @@ describe('Zwei Quellen, ein Topf (Issue #195)', () => {
       essence: 0,
       vessel: 0,
       ward: 0,
-      gearEffects: gearEffectsPermille(1, 1),
+      gearEffects: gearEffectsPermille(1, 150),
     });
     beide.beginFight(0);
     beide.cast(beide.indexOf('kindle'), 0);
@@ -614,13 +610,66 @@ describe('Zwei Quellen, ein Topf (Issue #195)', () => {
   });
 
   it('rechnet die Summe der Quellen, nicht ihr Produkt — auch in der Zahl selbst', () => {
-    expect(gearEffectsPermille(1, 1)).toBe(LEGENDARY_EFFECT_PERMILLE + SET_BONUS_PERMILLE);
+    expect(gearEffectsPermille(1, 150)).toBe(LEGENDARY_EFFECT_PERMILLE + 150);
     expect(gearEffectsPermille(2, 0)).toBe(2 * LEGENDARY_EFFECT_PERMILLE);
     expect(gearEffectsPermille(0, 0)).toBe(0);
-    // Die oberste Satz-Stufe trägt Rotations-Effekte statt Werten (13.5) —
-    // mehr als SET_VALUE_TIERS Stufen bringen deshalb nichts mehr.
-    expect(gearEffectsPermille(0, 99)).toBe(SET_VALUE_TIERS * SET_BONUS_PERMILLE);
     // Und negative Eingaben erfinden nichts.
     expect(gearEffectsPermille(-1, -1)).toBe(0);
+  });
+
+  it('die oberste Satz-Stufe traegt nichts zum Topf bei — die Deckelung sitzt jetzt dort', () => {
+    // **Diese Zusicherung ist umgezogen, nicht verschwunden.** Bis zur
+    // Zusammenführung der zwei Wege stand hier
+    // `gearEffectsPermille(0, 99) === SET_VALUE_TIERS * SET_BONUS_PERMILLE`:
+    // Die Funktion selbst deckelte die Stufenzahl. Jetzt bekommt sie einen
+    // fertigen Anteil und kann nicht mehr wissen, woher er kommt — die
+    // Deckelung sitzt in `valueShareOf`, das nur `BONUS_VALUE`-Boni summiert.
+    //
+    // Ginge sie unterwegs verloren, trüge die sechste Satz-Stufe ihren
+    // Rotations-Effekt UND einen Werte-Bonus, und 13.5 wäre still gebrochen.
+    const alleSechs = new Int32Array(SET_COUNT);
+    alleSechs[0] = 6;
+    const nurVier = new Int32Array(SET_COUNT);
+    nurVier[0] = 4;
+
+    // **Mit einem Satz, dessen sechste Stufe einen Anteil TRÄGT.** Mit den
+    // echten `SETS` wäre dieser Fall grün, ohne die Filterung zu berühren: Der
+    // Lader setzt `share` bei einem Rotations-Bonus auf 0, also käme auch ohne
+    // jede Prüfung des `kind` dieselbe Zahl heraus.
+    //
+    // Gemessen, nicht vermutet: Die Mutation „`kind`-Prüfung in `valueShareOf`
+    // entfernen" liess diesen Fall in seiner ersten Fassung GRÜN. Zwei
+    // Schutzschichten, und er prüfte nur die äussere.
+    const satzMitFalschemSechser = [
+      {
+        id: 0,
+        school: 'test',
+        tiers: [
+          { kind: BONUS_VALUE, share: 0.1, effect: '' },
+          { kind: BONUS_VALUE, share: 0.2, effect: '' },
+          { kind: BONUS_ROTATION, share: 0.5, effect: 'test-rotation' },
+        ],
+      },
+    ];
+    expect(valueShareOf(satzMitFalschemSechser, alleSechs)).toBe(
+      valueShareOf(satzMitFalschemSechser, nurVier),
+    );
+    // ZUSICHERUNG: Bei vier Teilen ist überhaupt etwas da — sonst vergliche
+    // der Fall zwei Nullen und wäre auch im Schadensfall grün.
+    expect(valueShareOf(satzMitFalschemSechser, nurVier)).toBeGreaterThan(0);
+  });
+
+  it('und der Lader ist die zweite Schicht — er nimmt einem Rotations-Bonus den Anteil', () => {
+    // Die innere Schutzschicht, getrennt geprüft. Beide zusammen erklären,
+    // warum die Mutation oben zunächst nichts färbte: Selbst ohne Filterung in
+    // `valueShareOf` stünde in den geladenen Daten eine 0.
+    for (const satz of SETS) {
+      for (const bonus of satz.tiers) {
+        if (bonus.kind === BONUS_ROTATION) expect(bonus.share).toBe(0);
+      }
+    }
+    // ZUSICHERUNG: Es gibt überhaupt einen Rotations-Bonus zu prüfen.
+    const rotationen = SETS.flatMap((satz) => satz.tiers.filter((b) => b.kind === BONUS_ROTATION));
+    expect(rotationen.length).toBeGreaterThan(0);
   });
 });
