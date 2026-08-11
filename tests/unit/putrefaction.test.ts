@@ -167,7 +167,9 @@ describe('AC4 — die Obergrenze hält, und sie verbraucht nichts', () => {
     for (let i = 0; i < MAX_DECAY_STACKS; i++) ms = wirke(combat, 'canker', ms + 10);
     const aeltesteUhr = combat.decayExpiryAt(0);
 
-    ms = wirke(combat, 'canker', ms + 10);
+    // Der Rückgabewert wird hier bewusst nicht mehr aufgenommen: Es ist der
+    // letzte Wurf, und `ms` würde danach nur noch ungelesen herumstehen.
+    wirke(combat, 'canker', ms + 10);
     expect(combat.decayStacks).toBe(MAX_DECAY_STACKS);
     expect(
       combat.decayExpiryAt(0),
