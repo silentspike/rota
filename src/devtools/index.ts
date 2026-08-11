@@ -601,6 +601,42 @@ export function damageFactorList(
   ];
 }
 
+/**
+ * Den Widerstand des **gefragten** Zaubers in die Faktorenliste setzen.
+ *
+ * # Warum das nicht aus `factors.resistance` kommt
+ *
+ * `combat.ts` setzt diesen Faktor **erst beim Wirken**
+ * (`setDamageFactor('resistance', resistanceOfSpell[index])`). Vor dem ersten
+ * Wurf steht dort der Neutralwert 1, danach der Wert des **zuletzt
+ * gewirkten** Zaubers — beides sagt nichts über den Zauber, nach dem gefragt
+ * wurde.
+ *
+ * Gemessen im Browser am 2026-08-10 gegen `boss-3-1` (CALCINATION 0.8):
+ *
+ * ```text
+ *   vor dem ersten Wurf   explainDamage('kindle').resistance = 1
+ *   nach einem KINDLE     dieselbe Abfrage                  = 0.8
+ * ```
+ *
+ * Der Schaden war beide Male 80 statt 100 — die Rechnung stimmte, der Aufriss
+ * nicht. **Derselbe Fehler wie die acht Einsen davor**, nur kleiner: ein
+ * Wert, der plausibel aussieht und aus der falschen Quelle stammt.
+ *
+ * Die Abbildung ist dieselbe wie in `combat.ts:1111` beim Aufbau:
+ * `boss.resistances[spell.school] ?? 1`. Sie steht hier als eigene Funktion,
+ * damit ein Prüffall sie messen kann, ohne eine ganze `App` aufzubauen — sonst
+ * wäre die Korrektur wieder ungedeckt.
+ */
+export function mitWiderstandDesZaubers(
+  factors: readonly { readonly name: string; readonly value: number }[],
+  resistances: Readonly<Record<string, number>>,
+  school: string | null | undefined,
+): { readonly name: string; readonly value: number }[] {
+  const eigener = school === null || school === undefined ? 1 : (resistances[school] ?? 1);
+  return factors.map((f) => (f.name === 'resistance' ? { name: f.name, value: eigener } : f));
+}
+
 export function installDevTools(app: App): void {
   if (!__ROTA_DEVTOOLS__) return;
 
@@ -976,7 +1012,34 @@ export function installDevTools(app: App): void {
         spender === undefined
           ? 0
           : spender.damagePerPoint * resource * (bonusApplied ? spender.bonusMultiplier : 1);
-      const factors = damageFactorList(app.combat.damageFactors);
+      // **Der Widerstand DIESES Zaubers, nicht der des letzten Wurfs.**
+      //
+      // `factors.resistance` wird erst beim Wirken gesetzt
+      // (`setDamageFactor('resistance', resistanceOfSpell[index])`). Vor dem
+      // ersten Wurf steht dort der Neutralwert 1, danach der Wert des zuletzt
+      // gewirkten Zaubers — beides sagt nichts über den Zauber, nach dem
+      // gefragt wurde.
+      //
+      // Gemessen am 2026-08-10 gegen `boss-3-1` (CALCINATION 0.8):
+      //
+      // ```text
+      //   vor dem ersten Wurf   explainDamage('kindle').resistance = 1
+      //   nach einem KINDLE     dieselbe Abfrage                  = 0.8
+      // ```
+      //
+      // Der Schaden war beide Male 80 statt 100 — die Rechnung stimmte, der
+      // Aufriss nicht. **Das ist derselbe Fehler wie die acht Einsen davor**,
+      // nur kleiner: ein Wert, der plausibel aussieht und aus der falschen
+      // Quelle stammt.
+      //
+      // `resistanceOfSpell` ist privat; die Schule des Zaubers und die
+      // Widerstände des Bosses sind es nicht — und `combat.ts` bildet sie
+      // genauso ab (`boss.resistances[spell.school] ?? 1`).
+      const factors = mitWiderstandDesZaubers(
+        damageFactorList(app.combat.damageFactors),
+        app.combat.boss.resistances,
+        spell.school,
+      );
       let total = spell.baseDamage + spenderRaw;
       for (const factor of factors) total *= factor.value;
       return {

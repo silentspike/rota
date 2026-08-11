@@ -223,3 +223,78 @@ fn die_grundwerte_rechnen_auf_beiden_seiten_gleich() {
         "kein einziger Wert waechst mit der Stufe — die Kurve ist flach"
     );
 }
+
+/// Topf 4 rechnet auf beiden Seiten dieselbe Zahl aus denselben Quellen.
+///
+/// **Bis zur Entscheidung vom 2026-08-11 hing hier nichts aneinander.**
+/// `gearEffectsPermille` stand im Spiel und `gear_effects_permille` im
+/// Simulator, jedes mit einem eigenen Prueffall — aber es gab keinen
+/// Vergleich. Die zwei Fassungen konnten auseinanderlaufen, ohne dass eine
+/// Zeile rot wurde. Genau das ist die Luecke, die diese Datei fuer
+/// `base_permille` schon schliesst.
+#[test]
+fn topf_4_stimmt_mit_dem_spiel_ueberein() {
+    let json = data();
+    let eintraege = json["gearEffects"]
+        .as_array()
+        .expect("gearEffects fehlt — sources.json stammt aus einem Stand vor #480");
+    assert!(
+        eintraege.len() >= 9,
+        "nur {} Stuetzstellen — zu wenige",
+        eintraege.len()
+    );
+
+    let mut gesehen_ungleich_null = false;
+    for eintrag in eintraege {
+        let legendaries = u32_at(eintrag, "legendaries");
+        let share = u32_at(eintrag, "setSharePermille");
+        let erwartet = u32_at(eintrag, "permille");
+        let hier = rota_sim::sources::gear_effects_permille(legendaries, share);
+        assert_eq!(
+            hier, erwartet,
+            "{legendaries} legendaere, Satz-Anteil {share}: Simulator {hier}, Spiel {erwartet}"
+        );
+        if hier > 0 {
+            gesehen_ungleich_null = true;
+        }
+    }
+
+    // Ohne diesen Fall waere der Vergleich auch dann gruen, wenn beide Seiten
+    // durchgehend 0 lieferten — zwei uebereinstimmende Nullen.
+    assert!(
+        gesehen_ungleich_null,
+        "kein einziger Wert ist ungleich null — der Vergleich prueft nichts"
+    );
+}
+
+/// Der Satz-Anteil je Teilezahl — und die Deckelung auf der sechsten Stufe.
+///
+/// Der Simulator laedt `data/sets.json` nicht; das Spiel exportiert den Anteil
+/// deshalb als Stuetzstellen. Geprueft wird die EIGENSCHAFT, die 13.5
+/// vorschreibt: Die sechste Stufe traegt einen Rotations-Effekt und keinen
+/// Wert, also muessen sechs Teile denselben Anteil ergeben wie vier.
+#[test]
+fn die_sechste_satz_stufe_traegt_keinen_wert() {
+    let json = data();
+    let eintraege = json["setShares"]
+        .as_array()
+        .expect("setShares fehlt — sources.json stammt aus einem Stand vor #480");
+    let anteil = |teile: u32| -> u32 {
+        eintraege
+            .iter()
+            .find(|e| u32_at(e, "pieces") == teile)
+            .map(|e| u32_at(e, "permille"))
+            .unwrap_or_else(|| panic!("keine Stuetzstelle fuer {teile} Teile"))
+    };
+
+    assert_eq!(
+        anteil(6),
+        anteil(4),
+        "die sechste Stufe traegt einen Werte-Bonus, obwohl sie es nicht darf"
+    );
+    // Und die unteren Schwellen wirken sehr wohl — sonst waere die Gleichheit
+    // oben aus dem falschen Grund erfuellt.
+    assert!(anteil(4) > anteil(2), "die vierte Stufe traegt nichts bei");
+    assert!(anteil(2) > anteil(1), "die zweite Stufe traegt nichts bei");
+    assert_eq!(anteil(1), 0, "ein einzelnes Teil traegt schon etwas bei");
+}

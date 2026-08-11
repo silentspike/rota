@@ -155,6 +155,25 @@ mod tests {
             effect,
         }
     }
+    /// Ein Rotations-Bonus, der **faelschlich** einen Anteil traegt.
+    ///
+    /// Gebraucht fuer die Deckelungs-Pruefung: `rotation()` setzt `share` auf
+    /// 0, und damit ist jede Pruefung der Filterung gruen, ohne sie zu
+    /// beruehren — sie misst dann die Null, nicht das `kind`.
+    fn rotation_mit_wert(effect: &'static str) -> SetBonus {
+        SetBonus {
+            kind: BONUS_ROTATION,
+            share: 0.5,
+            effect,
+        }
+    }
+    fn satz_mit_falschem_sechser() -> SetDef {
+        SetDef {
+            id: 0,
+            school: "CALCINATION",
+            tiers: [wert(0.1), wert(0.2), rotation_mit_wert("test-a-sechser")],
+        }
+    }
     fn satz_a() -> SetDef {
         SetDef {
             id: 0,
@@ -177,6 +196,37 @@ mod tests {
         let pieces = [0u32; SET_COUNT];
         assert_eq!(value_share_of(&[satz_a()], &pieces), 0.0);
         assert!(active_rotation_effects(&[satz_a()], &pieces).is_empty());
+    }
+
+    #[test]
+    fn die_oberste_stufe_traegt_keine_werte() {
+        // 13.5: Rotations-Effekte auf der sechsten Stufe, Werte darunter.
+        //
+        // **Diese Zusicherung ist umgezogen, nicht verschwunden.** Bis zur
+        // Zusammenfuehrung der zwei Wege (2026-08-11) deckelte
+        // `gear_effects_permille` selbst die Stufenzahl. Jetzt bekommt es einen
+        // fertigen Anteil und kann nicht mehr wissen, woher er kommt — die
+        // Deckelung sitzt hier, weil `value_share_of` nur Werte-Boni summiert.
+        //
+        // **Mit einem Satz, dessen sechste Stufe einen Anteil TRAEGT.** Mit
+        // `satz_a()` waere der Fall gruen, ohne die Filterung zu beruehren:
+        // `rotation()` setzt `share` auf 0, also kaeme auch ohne jede Pruefung
+        // des `kind` dieselbe Zahl heraus. Auf der TS-Seite ist genau das
+        // gemessen worden — die Mutation liess den Fall in seiner ersten
+        // Fassung gruen.
+        let mut alle_sechs = [0u32; SET_COUNT];
+        alle_sechs[0] = 6;
+        let mut nur_vier = [0u32; SET_COUNT];
+        nur_vier[0] = 4;
+        let satz = satz_mit_falschem_sechser();
+        assert!(
+            (value_share_of(&[satz], &alle_sechs) - value_share_of(&[satz], &nur_vier)).abs()
+                < 1e-12,
+            "die sechste Stufe traegt einen Werte-Bonus, obwohl sie es nicht darf"
+        );
+        // ZUSICHERUNG: Bei vier Teilen ist ueberhaupt etwas da — sonst
+        // vergliche der Fall zwei Nullen und waere auch im Schadensfall gruen.
+        assert!(value_share_of(&[satz], &nur_vier) > 0.0);
     }
 
     #[test]
