@@ -54,6 +54,7 @@ import {
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
+import { SET_EFFECT_ASHEN_REGIMEN } from '../gear/sets.js';
 import {
   hasKeystone,
   KEYSTONE_SPLIT_SPENDER,
@@ -519,6 +520,15 @@ export class Combat {
 
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
   private worn: WornValues;
+
+  /**
+   * Die Rotations-Effekte der sechsten Satz-Stufen (13.5, Issue #480).
+   *
+   * Kennungen, keine Zahlen — sie stehen nicht in `WornValues`, weil sie dort
+   * ein Feld wären, das niemand liest. Der Kampf fragt sie über
+   * `hasSetEffect` ab, wie ein Schlüsseltalent.
+   */
+  private setEffects: string[] = [];
 
   /**
    * Die laufenden Verstärkungen (GAME-DESIGN 5, Issue #420).
@@ -1377,6 +1387,38 @@ export class Combat {
    */
   hasKeystone(keystone: string): boolean {
     return hasKeystone(this.talents, keystone);
+  }
+
+  /**
+   * Ob ein **Rotations-Effekt** eines Satzes wirkt (13.5, Issue #480).
+   *
+   * Die sechste Satz-Stufe trägt keinen Werte-Bonus, sondern eine Kennung, auf
+   * die der Kampf reagiert — dieselbe Bauart wie ein Schlüsseltalent, und
+   * deshalb dieselbe Abfrage daneben.
+   *
+   * **Nicht abgeleitet, sondern übergeben** — anders als `hasKeystone`. Der
+   * Grund: Die Talente stehen im Kampf, der Besitz nicht. `rotationEffectsFrom`
+   * rechnet ihn aus den getragenen Stücken, und das Ergebnis kommt herein wie
+   * `worn`. Zwei Wege in den Kampf, weil es zwei Quellen sind.
+   */
+  hasSetEffect(effect: string): boolean {
+    return this.setEffects.includes(effect);
+  }
+
+  /**
+   * Die Rotations-Effekte setzen — wie `setWorn`, mit derselben Sperre.
+   *
+   * Ein Effekt, der mitten im Kampf dazukommt, teilte den Lauf in zwei
+   * Rechnungen; die Prüfsumme beschriebe danach keinen der beiden.
+   */
+  setSetEffects(effects: readonly string[]): void {
+    if (this.stateValue === FIGHT_RUNNING && this.fightHasBegun) return;
+    this.setEffects = [...effects];
+  }
+
+  /** Die aktiven Rotations-Effekte — für Anzeige und Prüfung. */
+  get activeSetEffects(): readonly string[] {
+    return this.setEffects;
   }
 
   setTalents(allocation: TalentAllocation): void {
@@ -4380,7 +4422,23 @@ export class Combat {
           }
           damage += computeDamage(raw, castFactors);
           if (geteilt) this.resourceValue -= amount;
-          else if (spender.consumesAll) this.resourceValue = 0;
+          else if (spender.consumesAll) {
+            // **ASHEN REGIMEN** (13.5, Sechser-Bonus): Ein Drittel der
+            // angesammelten Hitze bleibt stehen, statt vollständig zu
+            // verbrauchen.
+            //
+            // **Abgerundet, und der Rest verfällt** (GAME-DESIGN 18.4): Bei
+            // 20 Hitze bleiben 6 stehen, nicht 6,67. Ein Bruchteil hier
+            // driftete über hunderte Würfe, und Spiel und Simulator müssten
+            // auf dieselbe Zahl kommen.
+            //
+            // **Nach dem Schaden, nicht davor**: `amount` ist oben schon in
+            // den Treffer eingegangen. Der Effekt schenkt Vorrat für den
+            // NÄCHSTEN Wurf; er verbilligt diesen hier nicht.
+            this.resourceValue = this.hasSetEffect(SET_EFFECT_ASHEN_REGIMEN)
+              ? Math.floor(amount / 3)
+              : 0;
+          }
         }
       }
 
