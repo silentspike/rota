@@ -137,6 +137,19 @@ pub fn active_rotation_effects(sets: &[SetDef], pieces: &[u32]) -> Vec<&'static 
     effekte
 }
 
+/// Der Rotations-Effekt des schulunabhaengigen Sechsers (`docs/SATZ-KATALOG.md`).
+///
+/// > Der globale Cooldown sinkt um [`WHOLE_WORK_GCD_REDUCTION_MS`].
+///
+/// Gegenstueck: `SET_EFFECT_WHOLE_WORK` in `src/gear/sets.ts`.
+pub const SET_EFFECT_WHOLE_WORK: &str = "whole-work";
+
+/// Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
+///
+/// **Startwert, keine Balance-Entscheidung** (Orchestrator, 2026-08-11). Der
+/// Prueflauf aus #118 misst, ob er traegt.
+pub const WHOLE_WORK_GCD_REDUCTION_MS: u32 = 100;
+
 #[cfg(test)]
 mod tests {
     use super::*;
