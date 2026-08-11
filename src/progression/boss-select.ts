@@ -24,26 +24,71 @@
  *
  * Spieltexte englisch (Design-Gesetz 5).
  */
-import type { BossDef, ParseResult } from '../core/data.js';
+import { INSTANCES, instanceById, type BossDef, type ParseResult } from '../core/data.js';
 
 /**
  * Welche Instanzen ein Spieler wählen darf.
  *
- * **Eine Positivliste, keine Ausschlussliste.** Von den 23 Datensätzen sind 14
- * Prüfwerkzeug, und ihre Instanz heißt uneinheitlich mal `testing`, mal
- * `test`. Wer `!== 'testing'` schriebe, ließe die `test`-Gruppe durch — und
- * die nächste Schreibweise ebenso. Ein neuer Prüf-Boss taucht so niemals
- * versehentlich in der Auswahl auf; ein neuer echter muss hier eingetragen
- * werden, und das ist die Richtung, in der ein Vergessen auffällt.
+ * **Eine Positivliste, keine Ausschlussliste.** Von den Datensätzen sind
+ * achtzehn Prüfwerkzeug, und ihre Instanz heißt uneinheitlich mal `testing`,
+ * mal `test`. Wer `!== 'testing'` schriebe, ließe die `test`-Gruppe durch —
+ * und die nächste Schreibweise ebenso.
+ *
+ * **Seit #421c aus `data/instances.json`, nicht mehr von Hand.**
+ *
+ * Hier standen bis dahin zwei Listen: `SPIELBAR` mit den Kennungen und
+ * `INSTANZ_TITEL` mit den Überschriften. Wer eine Instanz hinzufügte, musste
+ * beide pflegen und konnte eine vergessen — dieselbe doppelte Wahrheit, die
+ * am 2026-08-10 den stillen Affix-Verlust erzeugt hat.
+ *
+ * **Die Positivliste bleibt eine**, nur an einem Ort: Eine Instanz ist
+ * wählbar, wenn sie in `instances.json` steht. Prüf-Bosse tragen `testing`
+ * oder `test` und stehen dort nicht — sie tauchen also weiterhin nie
+ * versehentlich auf, und ein neuer echter muss eingetragen werden.
  */
-const SPIELBAR: readonly string[] = ['prologue', 'instance-1', 'instance-2'];
+function spielbareInstanzen(): readonly string[] {
+  return INSTANCES.map((i) => i.id);
+}
 
-/** Die Überschrift je Instanz. Englisch, wie alle Spieltexte. */
-const INSTANZ_TITEL: Readonly<Record<string, string>> = {
-  prologue: 'Prologue',
-  'instance-1': 'Instance One',
-  'instance-2': 'Instance Two',
-};
+/** Die Überschrift je Instanz — aus den Daten, englisch wie alle Spieltexte. */
+function instanzTitel(id: string): string {
+  return instanceById(id)?.name ?? id;
+}
+
+/**
+ * Welche Instanzen der Spieler betreten darf (GAME-DESIGN 12.7).
+ *
+ * **Nur der Hauptpfad.** 12.7 nennt vier Kriterien nebeneinander; hier zählt
+ * „Instanz abgeschlossen": Eine Instanz ist offen, wenn die in `requires`
+ * genannte vollständig bezwungen ist. Punkte-Schwelle, Schwierigkeitsstufe
+ * und Meisterschafts-Schlüssel fehlen bewusst — die Schwelle hat niemand
+ * entschieden, und Schwierigkeitsstufen gibt es im Spiel noch nicht.
+ *
+ * **Vollständig heißt: jeder Boss.** Eine Instanz, von der drei von vier
+ * liegen, ist nicht abgeschlossen — sonst hinge die Freischaltung daran,
+ * welchen Boss jemand zuerst wählt.
+ */
+export function freigeschalteteInstanzen(
+  besiegt: readonly string[],
+  alle: ReadonlyMap<string, ParseResult<BossDef>>,
+): readonly string[] {
+  const gefallen = new Set(besiegt);
+  const bosseJeInstanz = new Map<string, string[]>();
+  for (const eintrag of alle.values()) {
+    const liste = bosseJeInstanz.get(eintrag.value.instance) ?? [];
+    liste.push(eintrag.value.id);
+    bosseJeInstanz.set(eintrag.value.instance, liste);
+  }
+
+  const abgeschlossen = (id: string): boolean => {
+    const drin = bosseJeInstanz.get(id) ?? [];
+    // **Eine Instanz ohne Bosse gilt NICHT als abgeschlossen.** Sonst öffnete
+    // ein leerer Eintrag alles Folgende, und zwar lautlos.
+    return drin.length > 0 && drin.every((bossId) => gefallen.has(bossId));
+  };
+
+  return INSTANCES.filter((i) => i.requires === null || abgeschlossen(i.requires)).map((i) => i.id);
+}
 
 /** Die wählbaren Bosse, in der Reihenfolge der Datensätze. */
 export function waehlbareBosse(
@@ -51,7 +96,7 @@ export function waehlbareBosse(
 ): readonly BossDef[] {
   const out: BossDef[] = [];
   for (const eintrag of alle.values()) {
-    if (SPIELBAR.includes(eintrag.value.instance)) out.push(eintrag.value);
+    if (spielbareInstanzen().includes(eintrag.value.instance)) out.push(eintrag.value);
   }
   return out;
 }
@@ -80,13 +125,13 @@ export function buildBossSelect(
 ): HTMLElement {
   const wurzel = element('div', 'boss-select');
 
-  for (const instanz of SPIELBAR) {
+  for (const instanz of spielbareInstanzen()) {
     const drin = bosse.filter((b) => b.instance === instanz);
     if (drin.length === 0) continue;
 
     const gruppe = element('div', 'boss-select-group');
     gruppe.dataset.instance = instanz;
-    gruppe.appendChild(element('h4', 'boss-select-group-title', INSTANZ_TITEL[instanz] ?? instanz));
+    gruppe.appendChild(element('h4', 'boss-select-group-title', instanzTitel(instanz)));
 
     for (const boss of drin) {
       const knopf = document.createElement('button');
