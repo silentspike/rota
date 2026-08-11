@@ -74,6 +74,7 @@ impl SublimationMechanic {
         per_cast: [Millis; SPELL_COUNT],
         pending: PendingSlot,
         applications: Rc<Cell<u32>>,
+        threshold_permille: u32,
     ) -> Self {
         // **Die Auswahl-Tabellen entstehen HIER, nicht beim Aufrufer**
         // (Issue #518). `per_cast` kommt von aussen, weil `fight.rs` es aus
@@ -86,8 +87,18 @@ impl SublimationMechanic {
         // Kampfzustand, keine Rechnung.
         let mut below = [0; SPELL_COUNT];
         let mut longest_only = [false; SPELL_COUNT];
+        // Der Talent-Faktor auf die Schwelle kommt als Zahl herein, nicht als
+        // `FightConfig`: Die Mechanik kennt die Konfiguration sonst nirgends,
+        // und ein ganzes Config-Objekt fuer einen Promille-Wert machte sie
+        // davon abhaengig. Gerechnet wird wie auf der Spiel-Seite in
+        // `reductionScopeOfSpell` — Rohwert mal Faktor, dann gerundet.
+        let schwelle = 1.0 + f64::from(threshold_permille) / 1000.0;
         for (index, spell) in SPELLS.iter().enumerate() {
-            below[index] = spell.cooldown_reduction_below_ms;
+            below[index] = if spell.cooldown_reduction_below_ms == 0 {
+                0
+            } else {
+                (f64::from(spell.cooldown_reduction_below_ms) * schwelle).round() as Millis
+            };
             longest_only[index] = spell.cooldown_reduction_longest_only;
         }
 
@@ -201,7 +212,8 @@ mod tests {
     ) -> (SublimationMechanic, PendingSlot, Rc<Cell<u32>>) {
         let pending: PendingSlot = Rc::default();
         let applications = Rc::new(Cell::new(0));
-        let m = SublimationMechanic::new(per_cast, Rc::clone(&pending), Rc::clone(&applications));
+        let m =
+            SublimationMechanic::new(per_cast, Rc::clone(&pending), Rc::clone(&applications), 0);
         (m, pending, applications)
     }
 
