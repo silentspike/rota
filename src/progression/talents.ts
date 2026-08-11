@@ -178,6 +178,31 @@ export function talentShieldStacksBonus(allocation: TalentAllocation): number {
   return zuschlag;
 }
 
+/** Der Faktor auf den **Abzug** an Abklingzeit (SUBLIMATION). */
+export function talentCooldownReductionFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.cooldownReductionPerRankPerMille);
+}
+
+/**
+ * Wie viele **zusätzliche Rücksetz-Ladungen** dazukommen (SUBLIMATION).
+ *
+ * **Kein Faktor, sondern eine ganze Zahl** — zweite dieser Art nach
+ * `talentShieldStacksBonus`, aus demselben Grund: `cooldownResetCharges`
+ * zählt Ladungen, und ein Faktor 1,5 auf `reflux: 1` ergäbe 1,5.
+ */
+export function talentCooldownChargesBonus(allocation: TalentAllocation): number {
+  let zuschlag = 0;
+  for (const talent of TALENTS) {
+    zuschlag += effectiveRanks(allocation, talent) * talent.cooldownResetChargesPerRank;
+  }
+  return zuschlag;
+}
+
+/** Der Faktor auf die **Schwelle**, ab der der Abzug greift (SUBLIMATION). */
+export function talentCooldownThresholdFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.cooldownThresholdPerRankPerMille);
+}
+
 /**
  * Summiert die Promille EINER Größe über alle verteilten Ränge.
  *
