@@ -20,6 +20,8 @@ import { NO_SPELL } from '../core/session.js';
 import { HIT_DIRECT, HIT_DOT } from '../core/hits.js';
 import { combatChecksum } from '../core/checksum.js';
 import type { DamageFactors } from '../core/damage.js';
+import type { TalentAllocation } from '../progression/talents.js';
+import type { WornValues } from '../gear/worn.js';
 import { EVENT_NAMES, type LogEntry } from '../core/log.js';
 import { EVENT_NAMES as COMBAT_EVENT_NAMES, NO_KEY, eventIndex } from '../core/events.js';
 import { buildSoundReport, type SoundReport } from './sound-report.js';
@@ -193,6 +195,94 @@ export interface CombatSnapshot {
   readonly randomDraws: number[];
   /** Was beim Lesen der Spieldaten nicht stimmte. Leer heißt: alles in Ordnung. */
   readonly dataProblems: readonly string[];
+
+  // ===================================================================
+  // ALLE übrigen öffentlichen Größen des Kampfes (Issue #625).
+  //
+  // **Keine Auswahl, und das ist die Entscheidung.** Wer auswählt, muss
+  // wissen, welche Größe morgen gebraucht wird — und genau daran ist es
+  // zweimal an einem Tag gescheitert: Eine Sitzung suchte `bossEnergy`
+  // und `bossStacks`, eine andere `talentAllocation` und `level`. Beide
+  // Größen lagen in `Combat` bereit und waren nur nicht durchgereicht;
+  // beide Male hatte jemand früher eine sinnvolle Auswahl getroffen, die
+  // später nicht mehr passte.
+  //
+  // Ein Dev-Werkzeug hat keinen Grund zu filtern: Der Produktions-Bau
+  // entfernt es, es hat keinen Nutzer, den zu viele Felder verwirren, und
+  // ein vollständiger Schnappschuss aller Getter kostet **0,155 ms**
+  // (gemessen über 200 Durchläufe an `test-doomsayer`).
+  //
+  // `schnappschuss-vollstaendig.test.ts` hält das fest: Kommt ein Getter
+  // dazu und wird nicht durchgereicht, wird der Fall ROT.
+  // ===================================================================
+
+  readonly activeSetEffects: readonly string[];
+  readonly afflicted: boolean;
+  /**
+   * Auch die beiden Sammel-Getter, obwohl `damageFactors()` und `worn()` sie
+   * eigens führen.
+   *
+   * Sie standen als einzige noch außen vor, weil sie über eigene Abfragen
+   * erreichbar sind — und genau darin liegt die Falle: „irgendwo erreichbar"
+   * ist nicht „im Schnappschuss". Wer `combat()` liest, soll nicht wissen
+   * müssen, dass zwei Größen woanders wohnen.
+   */
+  readonly damageFactors: DamageFactors;
+  readonly wornValues: WornValues;
+  readonly afflictionsCleared: number;
+  readonly bossEnergy: number;
+  readonly bossEnergyTriggers: number;
+  readonly bossHealed: number;
+  readonly bossHpFraction: number;
+  readonly bossHpPercent: number;
+  readonly bossPhase: number;
+  readonly bossStacks: number;
+  readonly buffWindowSum: number;
+  readonly castingStartedAtMs: number;
+  readonly control: number;
+  readonly controlFailed: number;
+  readonly controlSpent: number;
+  readonly conversionPercent: number;
+  readonly converted: number;
+  readonly critFactorsMirrorBase: boolean;
+  readonly cycle: number;
+  readonly damageLostToRace: number;
+  readonly damageTaken: number;
+  readonly decayStackCap: number;
+  readonly decayStacks: number;
+  readonly diedAtMs: number;
+  readonly doom: number;
+  readonly doomCharges: number;
+  readonly healed: number;
+  readonly interruptsMissed: number;
+  readonly level: number;
+  readonly nextCastDoubles: boolean;
+  readonly nextCastFreeGcd: boolean;
+  readonly phaseHoldPercent: number;
+  readonly playerDamage: number;
+  readonly playerDead: boolean;
+  readonly playerHp: number;
+  readonly raceOpen: boolean;
+  readonly raceProgress: number;
+  readonly raceWon: boolean;
+  readonly reflectPercent: number;
+  readonly reflected: number;
+  readonly resetArmed: boolean;
+  readonly resetArmedFor: number;
+  readonly resetChargesLeft: number;
+  readonly resourceId: string;
+  readonly retortArmed: boolean;
+  readonly shield: number;
+  readonly shieldAbsorbed: number;
+  readonly shieldStacks: number;
+  readonly stabilised: number;
+  readonly synergyAvailable: number;
+  readonly synergyUsed: number;
+  readonly synergyWindowSum: number;
+  readonly talentAllocation: TalentAllocation;
+  readonly timelineIndex: number;
+  readonly vulnerability: number;
+  readonly wardReduction: number;
 }
 
 /**
@@ -812,6 +902,68 @@ export function installDevTools(app: App): void {
         spells,
         randomDraws: combat.random.drawCounts(),
         dataProblems: app.dataProblems,
+
+        // Alle übrigen Getter — siehe die Begründung am Typ. Alphabetisch,
+        // damit ein neuer sichtbar an seinen Platz gehört und nicht hinten
+        // angehängt wird.
+        activeSetEffects: combat.activeSetEffects,
+        afflicted: combat.afflicted,
+        damageFactors: combat.damageFactors,
+        wornValues: combat.wornValues,
+        afflictionsCleared: combat.afflictionsCleared,
+        bossEnergy: combat.bossEnergy,
+        bossEnergyTriggers: combat.bossEnergyTriggers,
+        bossHealed: combat.bossHealed,
+        bossHpFraction: combat.bossHpFraction,
+        bossHpPercent: combat.bossHpPercent,
+        bossPhase: combat.bossPhase,
+        bossStacks: combat.bossStacks,
+        buffWindowSum: combat.buffWindowSum,
+        castingStartedAtMs: combat.castingStartedAtMs,
+        control: combat.control,
+        controlFailed: combat.controlFailed,
+        controlSpent: combat.controlSpent,
+        conversionPercent: combat.conversionPercent,
+        converted: combat.converted,
+        critFactorsMirrorBase: combat.critFactorsMirrorBase,
+        cycle: combat.cycle,
+        damageLostToRace: combat.damageLostToRace,
+        damageTaken: combat.damageTaken,
+        decayStackCap: combat.decayStackCap,
+        decayStacks: combat.decayStacks,
+        diedAtMs: combat.diedAtMs,
+        doom: combat.doom,
+        doomCharges: combat.doomCharges,
+        healed: combat.healed,
+        interruptsMissed: combat.interruptsMissed,
+        level: combat.level,
+        nextCastDoubles: combat.nextCastDoubles,
+        nextCastFreeGcd: combat.nextCastFreeGcd,
+        phaseHoldPercent: combat.phaseHoldPercent,
+        playerDamage: combat.playerDamage,
+        playerDead: combat.playerDead,
+        playerHp: combat.playerHp,
+        raceOpen: combat.raceOpen,
+        raceProgress: combat.raceProgress,
+        raceWon: combat.raceWon,
+        reflectPercent: combat.reflectPercent,
+        reflected: combat.reflected,
+        resetArmed: combat.resetArmed,
+        resetArmedFor: combat.resetArmedFor,
+        resetChargesLeft: combat.resetChargesLeft,
+        resourceId: combat.resourceId,
+        retortArmed: combat.retortArmed,
+        shield: combat.shield,
+        shieldAbsorbed: combat.shieldAbsorbed,
+        shieldStacks: combat.shieldStacks,
+        stabilised: combat.stabilised,
+        synergyAvailable: combat.synergyAvailable,
+        synergyUsed: combat.synergyUsed,
+        synergyWindowSum: combat.synergyWindowSum,
+        talentAllocation: combat.talentAllocation,
+        timelineIndex: combat.timelineIndex,
+        vulnerability: combat.vulnerability,
+        wardReduction: combat.wardReduction,
       };
     },
     hud: () => {
