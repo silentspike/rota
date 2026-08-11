@@ -2653,6 +2653,18 @@ export interface TalentDef {
    * BLOOMs `decayCap.bonus`, aus demselben Grund.
    */
   readonly shieldStacksPerRank: number;
+  /** Um wie viel je Rang der Abklingzeit-**Abzug** wächst (SUBLIMATION, Promille). */
+  readonly cooldownReductionPerRankPerMille: number;
+  /**
+   * Wie viele **Rücksetz-Ladungen** je Rang dazukommen (SUBLIMATION).
+   *
+   * **Ein ganzzahliger ZUSCHLAG**, aus demselben Grund wie
+   * `shieldStacksPerRank`: `cooldownResetCharges` zählt Ladungen, und eine
+   * halbe Ladung gibt es nicht. Ein Faktor 1,5 auf `reflux: 1` ergäbe 1,5.
+   */
+  readonly cooldownResetChargesPerRank: number;
+  /** Um wie viel je Rang die **Schwelle** wächst, ab der der Abzug greift (Promille). */
+  readonly cooldownThresholdPerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
   /**
@@ -2722,6 +2734,9 @@ export const TALENTS: readonly TalentDef[] = (() => {
       const shieldAmountPerRankPerMille = number(t['shieldAmountPerRankPerMille'], 0);
       const shieldDurationPerRankPerMille = number(t['shieldDurationPerRankPerMille'], 0);
       const shieldStacksPerRank = number(t['shieldStacksPerRank'], 0);
+      const cooldownReductionPerRankPerMille = number(t['cooldownReductionPerRankPerMille'], 0);
+      const cooldownResetChargesPerRank = number(t['cooldownResetChargesPerRank'], 0);
+      const cooldownThresholdPerRankPerMille = number(t['cooldownThresholdPerRankPerMille'], 0);
       for (const [feld, wert] of [
         ['resourceGainPerRankPerMille', resourceGainPerRankPerMille],
         ['dotDurationPerRankPerMille', dotDurationPerRankPerMille],
@@ -2734,6 +2749,9 @@ export const TALENTS: readonly TalentDef[] = (() => {
         ['shieldAmountPerRankPerMille', shieldAmountPerRankPerMille],
         ['shieldDurationPerRankPerMille', shieldDurationPerRankPerMille],
         ['shieldStacksPerRank', shieldStacksPerRank],
+        ['cooldownReductionPerRankPerMille', cooldownReductionPerRankPerMille],
+        ['cooldownResetChargesPerRank', cooldownResetChargesPerRank],
+        ['cooldownThresholdPerRankPerMille', cooldownThresholdPerRankPerMille],
       ] as const) {
         if (wert < 0) {
           throw new Error(
@@ -2775,6 +2793,9 @@ export const TALENTS: readonly TalentDef[] = (() => {
         shieldAmountPerRankPerMille,
         shieldDurationPerRankPerMille,
         shieldStacksPerRank,
+        cooldownReductionPerRankPerMille,
+        cooldownResetChargesPerRank,
+        cooldownThresholdPerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
         keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });
