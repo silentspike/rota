@@ -520,6 +520,7 @@ fn run_range(
         // den Prueflauf aus #118 und nicht hierher.
         ashen_regimen: false,
         whole_work: false,
+        slow_rot: false,
     });
 
     let mut out = Vec::with_capacity(len as usize);

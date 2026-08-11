@@ -384,6 +384,32 @@ export interface ControlDef {
   readonly effect: string;
   /** Um wie viel: Millisekunden bei den ersten beiden, Prozentpunkte bei der dritten. */
   readonly amount: number;
+  /**
+   * Die Senkung der Phasen-Schwelle in Prozentpunkten — **getrennt von
+   * `amount`** (Issue #478).
+   *
+   * # Warum ein zweites Feld nötig war
+   *
+   * Der Parser liest `amountMs || amountPercent || amountPerPoint` in `amount`.
+   * Ein `||` hält beim ersten Wahrheitswert: Ein Zauber mit **beiden** Werten
+   * bekäme nur den ersten.
+   *
+   * Für die drei Spezialisten reicht das — jeder kauft genau einen Moment und
+   * misst ihn in einer Einheit. CAPSTONE löst als einziger **alle drei**
+   * Wirkungen aus, und die sprechen zwei verschiedene Einheiten:
+   * `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
+   * Prozentpunkten.
+   *
+   * Gemessen, was ohne dieses Feld geschah: CAPSTONEs 2000 landeten im
+   * Prozent-Feld, und `bossHpPercent + 2000` liegt über jeder Schwelle — der
+   * Phasenwechsel war für die volle Frist **abgeschaltet** statt gesenkt.
+   * Der Plan verlangt das Gegenteil: „Die Phasen-Schwelle SINKT
+   * vorübergehend", „alle kaufen einen einzelnen Moment, keinen Zustand".
+   *
+   * `0` heißt: Dieser Zauber senkt die Schwelle nicht über `amount` hinaus —
+   * dann gilt `amount`, wie bei ANCHOR.
+   */
+  readonly amountPercent: number;
 }
 
 /**
@@ -1572,6 +1598,16 @@ function parseFixation(
       number(knoten['amountMs'], 0) ||
       number(knoten['amountPercent'], 0) ||
       number(knoten['amountPerPoint'], 0);
+    // **Die Prozent-Senkung EIN ZWEITES MAL, und zwar für sich** (Issue #478).
+    //
+    // Die Zeile darüber hält beim ersten Wahrheitswert. Trägt ein Zauber
+    // `amountMs` UND `amountPercent` — das tut nur CAPSTONE, weil nur er alle
+    // drei Wirkungen auslöst —, ginge die Prozentzahl dort verloren.
+    //
+    // Fällt das Feld weg, steht hier 0, und die Wirkstelle greift auf `amount`
+    // zurück. Für ANCHOR, der nur `amountPercent` trägt, ändert sich damit
+    // nichts: Seine Zahl steht in beiden Feldern.
+    const amountPercent = number(knoten['amountPercent'], 0);
 
     if (cost <= 0) {
       // Eine Wirkung ohne Kosten wäre keine Ausgabe von Kontroll-Punkten,
@@ -1595,7 +1631,7 @@ function parseFixation(
     } else if (amount <= 0) {
       problems.push(`${where}: Die Kontroll-Wirkung "${effect}" hat keinen Betrag.`);
     } else {
-      out.control = { cost, effect, amount };
+      out.control = { cost, effect, amount, amountPercent };
     }
   }
 
