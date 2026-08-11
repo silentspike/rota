@@ -215,23 +215,34 @@ pub fn total_max(stat: usize, item_level: u32) -> u32 {
 /// mit Begruendungs-Anschein waere schlimmer als eine offen gesetzte (6.7).
 pub const LEGENDARY_EFFECT_PERMILLE: u32 = 200;
 
-/// Was ein **Satz-Bonus** je Werte-Stufe zu Topf 4 beitraegt, in Promille.
-/// **Vorlaeufig — der Wert wird gemessen (#118).**
-pub const SET_BONUS_PERMILLE: u32 = 150;
-
 /// Wie viele Satz-Stufen Werte-Boni tragen (13.5).
 ///
 /// Die oberste traegt Rotations-Effekte statt Werten. Abgeleitet aus
 /// [`crate::sets::SET_TIERS`], nicht abgetippt.
 pub const SET_VALUE_TIERS: u32 = crate::sets::SET_TIERS.len() as u32 - 1;
 
-/// Topf 4 aus getragenen legendaeren Effekten und Satz-Stufen.
+/// Topf 4 aus getragenen legendaeren Effekten und Satz-Boni.
 ///
 /// **Beide Quellen, eine Zahl** — der Zweck des gemeinsamen Topfes (13.1b):
 /// Innerhalb wird addiert, also konkurrieren sie, statt sich zu multiplizieren.
+///
+/// # Warum der Satz-Anteil hereingereicht wird und nicht die Stufenzahl
+///
+/// Bis zur Entscheidung vom 2026-08-11 stand hier `set_tiers` und daneben eine
+/// Pauschale `SET_BONUS_PERMILLE = 150` je erreichter Stufe. Damit gab es
+/// **zwei Wege zu derselben Groesse**: diesen, und den ueber
+/// [`crate::sets::value_share_of`], der die echten Anteile aus den Daten
+/// zieht. Zwei Wege zu einer Zahl laufen auseinander, sobald einer nachgezogen
+/// wird — und das faellt niemandem auf, weil beide plausible Zahlen liefern.
+///
+/// Jetzt gibt es einen: Der Aufrufer rechnet den Satz-Anteil aus den Daten und
+/// reicht ihn in Promille herein. Die Deckelung auf die Werte-Stufen sitzt
+/// damit in `value_share_of`, das nur Werte-Boni summiert.
+///
+/// Gegenstueck: `gearEffectsPermille` in `src/gear/sources.ts`.
 #[must_use]
-pub fn gear_effects_permille(legendaries: u32, set_tiers: u32) -> u32 {
-    legendaries * LEGENDARY_EFFECT_PERMILLE + set_tiers.min(SET_VALUE_TIERS) * SET_BONUS_PERMILLE
+pub fn gear_effects_permille(legendaries: u32, set_share_permille: u32) -> u32 {
+    legendaries * LEGENDARY_EFFECT_PERMILLE + set_share_permille
 }
 
 /// Der Aufbau, der **alles** auf einen Wert setzt.
@@ -374,8 +385,8 @@ mod tests {
         // staerker", belegt nichts — das gilt additiv wie multiplikativ. Die
         // Zahlen muessen AUSEINANDERLIEGEN.
         assert_eq!(
-            gear_effects_permille(1, 1),
-            LEGENDARY_EFFECT_PERMILLE + SET_BONUS_PERMILLE
+            gear_effects_permille(1, 150),
+            LEGENDARY_EFFECT_PERMILLE + 150
         );
 
         let additiv = 1.0 + 0.2 + 0.15;
@@ -386,21 +397,11 @@ mod tests {
         );
 
         let worn = WornValues {
-            gear_effects: gear_effects_permille(1, 1),
+            gear_effects: gear_effects_permille(1, 150),
             ..WornValues::none()
         };
         assert!((worn.gear_effect_factor() - additiv).abs() < 1e-12);
         assert!((worn.gear_effect_factor() - multiplikativ).abs() > 1e-3);
-    }
-
-    #[test]
-    fn die_oberste_satz_stufe_traegt_keine_werte() {
-        // 13.5: Rotations-Effekte auf der sechsten Stufe, Werte darunter.
-        assert_eq!(
-            gear_effects_permille(0, 99),
-            SET_VALUE_TIERS * SET_BONUS_PERMILLE
-        );
-        assert_eq!(SET_VALUE_TIERS, 2);
     }
 
     #[test]
