@@ -231,3 +231,52 @@ export const SETS: readonly SetDef[] = ((): SetDef[] => {
     return { id, school: typeof s['school'] === 'string' ? s['school'] : '', tiers };
   });
 })();
+
+/**
+ * Der Rotations-Effekt des CALCINATION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > PYROCLASM lässt ein Drittel der angesammelten Hitze stehen, statt sie
+ * > vollständig zu verbrauchen.
+ *
+ * **Die Kennung steht hier und nicht im Kampf**, weil sie aus den Daten kommt:
+ * `data/sets.json` nennt sie, `activeRotationEffects` reicht sie durch, und der
+ * Kampf fragt sie ab. Ein abgetippter String an der Verbrauchsstelle wäre eine
+ * zweite Wahrheit — genau die Bauart, aus der `SET_BONUS_PERMILLE` kam.
+ *
+ * Er ist **der eine Effekt**, an dem die Leitung nachgewiesen wird
+ * (Entscheidung des Auftraggebers 2026-08-11: „Leitung zuerst, mit einem
+ * Effekt"). Die anderen fünf aus dem Katalog stehen aus.
+ */
+export const SET_EFFECT_ASHEN_REGIMEN = 'ashen-regimen';
+
+/**
+ * Der Rotations-Effekt des schulunabhängigen Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > Der globale Cooldown sinkt um 100 ms.
+ *
+ * **Der einzige der sechs, der auf keine Schule begrenzt ist** — er wirkt auf
+ * jede Zusammenstellung gleich und zwingt zu keiner. Ein Vorentwurf belohnte
+ * Schulenvielfalt und wurde verworfen: Kombinieren ist ohnehin frei, und eine
+ * Mechanik, die dafür belohnt, macht aus einer freien Entscheidung eine
+ * gelenkte.
+ */
+export const SET_EFFECT_WHOLE_WORK = 'whole-work';
+
+/**
+ * Der Rotations-Effekt des PUTREFACTION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > Zersetzungs-Stapel verfallen nicht, solange ein DoT läuft.
+ *
+ * Der Aufbau vor dem Schadensfenster wird damit zur Kernentscheidung statt zum
+ * Wettlauf: Wer einen Fäulnis-Zauber am Laufen hält, hält auch die Stapel.
+ */
+export const SET_EFFECT_SLOW_ROT = 'slow-rot';
+
+/**
+ * Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
+ *
+ * **Startwert, keine Balance-Entscheidung** (Orchestrator, 2026-08-11). Der
+ * Prüflauf aus #118 misst, ob er trägt; bis dahin steht er hier, damit die
+ * Leitung überhaupt gebaut werden kann.
+ */
+export const WHOLE_WORK_GCD_REDUCTION_MS = 100;

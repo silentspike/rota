@@ -55,6 +55,12 @@ import {
   type WornValues,
 } from '../gear/worn.js';
 import {
+  SET_EFFECT_ASHEN_REGIMEN,
+  SET_EFFECT_SLOW_ROT,
+  SET_EFFECT_WHOLE_WORK,
+  WHOLE_WORK_GCD_REDUCTION_MS,
+} from '../gear/sets.js';
+import {
   hasKeystone,
   KEYSTONE_SPLIT_SPENDER,
   NO_TALENTS,
@@ -519,6 +525,15 @@ export class Combat {
 
   /** Die getragenen Sonderwerte (GAME-DESIGN 6.7). */
   private worn: WornValues;
+
+  /**
+   * Die Rotations-Effekte der sechsten Satz-Stufen (13.5, Issue #480).
+   *
+   * Kennungen, keine Zahlen — sie stehen nicht in `WornValues`, weil sie dort
+   * ein Feld wären, das niemand liest. Der Kampf fragt sie über
+   * `hasSetEffect` ab, wie ein Schlüsseltalent.
+   */
+  private setEffects: string[] = [];
 
   /**
    * Die laufenden Verstärkungen (GAME-DESIGN 5, Issue #420).
@@ -1379,6 +1394,57 @@ export class Combat {
     return hasKeystone(this.talents, keystone);
   }
 
+  /**
+   * Ob ein **Rotations-Effekt** eines Satzes wirkt (13.5, Issue #480).
+   *
+   * Die sechste Satz-Stufe trägt keinen Werte-Bonus, sondern eine Kennung, auf
+   * die der Kampf reagiert — dieselbe Bauart wie ein Schlüsseltalent, und
+   * deshalb dieselbe Abfrage daneben.
+   *
+   * **Nicht abgeleitet, sondern übergeben** — anders als `hasKeystone`. Der
+   * Grund: Die Talente stehen im Kampf, der Besitz nicht. `rotationEffectsFrom`
+   * rechnet ihn aus den getragenen Stücken, und das Ergebnis kommt herein wie
+   * `worn`. Zwei Wege in den Kampf, weil es zwei Quellen sind.
+   */
+  hasSetEffect(effect: string): boolean {
+    return this.setEffects.includes(effect);
+  }
+
+  /**
+   * Die Rotations-Effekte setzen — wie `setWorn`, mit derselben Sperre.
+   *
+   * Ein Effekt, der mitten im Kampf dazukommt, teilte den Lauf in zwei
+   * Rechnungen; die Prüfsumme beschriebe danach keinen der beiden.
+   */
+  setSetEffects(effects: readonly string[]): void {
+    if (this.stateValue === FIGHT_RUNNING && this.fightHasBegun) return;
+    this.setEffects = [...effects];
+    // **THE WHOLE WORK** (13.5, Sechser ohne Schulbindung): Die Wartezeit
+    // sinkt um 100 ms.
+    //
+    // **Hier abgeleitet und nicht an der Auslösestelle gerechnet.** Die
+    // Wartezeit wird an drei Stellen ausgelöst (`gcd.trigger`); ein Abzug an
+    // jeder davon wären drei Stellen, an denen er fehlen kann. `setLength`
+    // gibt es seit #177 genau dafür — sie hatte bis hierher **keinen
+    // Aufrufer ausserhalb der Prüffälle**, dieselbe Klasse wie
+    // `activeRotationEffects` vor #774.
+    //
+    // Die Länge steht damit an EINER Stelle, und `buffs.ts` rechnet
+    // Verstärkungs-Dauern in GCDs bereits gegen sie — der Effekt schlägt dort
+    // also mit durch, was gewollt ist und in `whole-work.test.ts` gemessen
+    // wird.
+    this.gcd.setLength(
+      this.setEffects.includes(SET_EFFECT_WHOLE_WORK)
+        ? GCD_MS - WHOLE_WORK_GCD_REDUCTION_MS
+        : GCD_MS,
+    );
+  }
+
+  /** Die aktiven Rotations-Effekte — für Anzeige und Prüfung. */
+  get activeSetEffects(): readonly string[] {
+    return this.setEffects;
+  }
+
   setTalents(allocation: TalentAllocation): void {
     // **Vollsperre, aus demselben Grund wie bei `setWorn`:** Talente setzen
     // einen Schadensfaktor, und ein Faktor, der sich mitten im Kampf ändert,
@@ -1993,6 +2059,34 @@ export class Combat {
     // liefe bei einer späteren Änderung auseinander, und `allThree` löst drei
     // davon gleichzeitig aus.
     const staerke = Math.round(control.amount * talentControlEffectFactor(this.talents));
+    // **Die Phasen-Senkung hat ihre EIGENE Stärke** (Issue #478).
+    //
+    // `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
+    // Prozentpunkten. Für die drei Spezialisten fällt das nicht auf — jeder
+    // trägt genau eine Einheit. CAPSTONE löst als einziger alle drei aus, und
+    // seine 2000 Millisekunden landeten bis hierher im Prozent-Feld.
+    //
+    // Gemessen an `test-phase`, wann der Wechsel fiel:
+    //
+    // ```text
+    //   ohne Zauber    6010 ms
+    //   ANCHOR (10 %)  9010 ms   der Boss muss 10 % tiefer fallen
+    //   CAPSTONE      14010 ms   genau PHASE_HOLD_DURATION_MS nach dem Wurf
+    // ```
+    //
+    // 2000 Prozentpunkte sind keine Senkung, sondern eine Abschaltung: Der
+    // Wechsel fiel erst, als die Frist ablief. Der Plan verlangt „die
+    // Phasen-Schwelle SINKT vorübergehend" und „alle kaufen einen einzelnen
+    // Moment, keinen Zustand" — bei vollständiger Blockade muss man den
+    // Moment nicht TREFFEN, man muss nur irgendwann drücken.
+    //
+    // **Der Rückfall auf `staerke` ist kein Rest, sondern die Regel für alle
+    // anderen**: ANCHOR trägt nur `amountPercent`, also steht seine Zahl in
+    // beiden Feldern, und für ihn ändert sich nichts.
+    const senkung =
+      control.amountPercent > 0
+        ? Math.round(control.amountPercent * talentControlEffectFactor(this.talents))
+        : staerke;
     const alleDrei = control.effect === 'allThree';
     if (alleDrei) {
       // **Alle Punkte, wie bei WEDGE.** Das Raster sagt „verbraucht alle
@@ -2059,7 +2153,14 @@ export class Combat {
     if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
-      this.phaseHoldPercentValue = staerke;
+      //
+      // `senkung` statt `staerke`: siehe die Begründung oben. Für ANCHOR sind
+      // beide gleich, für CAPSTONE nicht.
+      this.phaseHoldPercentValue = senkung;
+      // **Dieselbe Frist für alle**, auch für CAPSTONE, der als einziger ein
+      // zweites Betrags-Feld hat. Der Plan: „Die Frist gilt für ALLE ZAUBER
+      // GLEICH — sie gehört zur Wirkung, nicht zum einzelnen Zauber; sonst
+      // hieße ‚hinauszögern' bei jedem etwas anderes."
       this.phaseHoldUntilMs = timeMs - this.fightStartedAtMs + PHASE_HOLD_DURATION_MS;
     }
   }
@@ -2373,7 +2474,34 @@ export class Combat {
     this.setDamageFactor('buffs', this.buffs.factor(timeMs));
   }
 
+  /**
+   * Läuft gerade irgendein DoT auf dem Ziel?
+   *
+   * **Als eigene Abfrage und nicht inline**, weil `SLOW_ROT` sie braucht und
+   * die Bedingung sonst an der Verfallsstelle stünde — dort, wo sie beim
+   * nächsten Umbau übersehen wird. `dotRemainingMs` beantwortet dieselbe Frage
+   * je Zauber; hier geht es um „mindestens einer".
+   */
+  private hasRunningDot(timeMs: number): boolean {
+    for (let i = 0; i < this.dotExpiresAtMs.length; i++) {
+      const expires = this.dotExpiresAtMs[i] ?? NOT_ACTIVE;
+      if (expires !== NOT_ACTIVE && expires > timeMs) return true;
+    }
+    return false;
+  }
+
   private expirePutrefaction(timeMs: number): void {
+    // **SLOW ROT** (13.5, PUTREFACTION-Sechser): Solange ein DoT läuft,
+    // verfällt kein Zersetzungs-Stapel.
+    //
+    // **Aufgeschoben, nicht aufgehoben.** Die Verfallszeiten bleiben stehen;
+    // endet der letzte DoT, holt der nächste Durchlauf alles nach, was
+    // inzwischen fällig geworden ist. Ein Zurücksetzen der Zeiten wäre eine
+    // Verlängerung und damit ein zweiter Effekt.
+    //
+    // Der Aufbau vor dem Schadensfenster wird damit zur Kernentscheidung statt
+    // zum Wettlauf.
+    if (this.hasSetEffect(SET_EFFECT_SLOW_ROT) && this.hasRunningDot(timeMs)) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     let verfallen = 0;
     while (verfallen < this.decayCountValue && (this.decayExpiryMs[verfallen] ?? 0) <= seitBeginn) {
@@ -4380,7 +4508,23 @@ export class Combat {
           }
           damage += computeDamage(raw, castFactors);
           if (geteilt) this.resourceValue -= amount;
-          else if (spender.consumesAll) this.resourceValue = 0;
+          else if (spender.consumesAll) {
+            // **ASHEN REGIMEN** (13.5, Sechser-Bonus): Ein Drittel der
+            // angesammelten Hitze bleibt stehen, statt vollständig zu
+            // verbrauchen.
+            //
+            // **Abgerundet, und der Rest verfällt** (GAME-DESIGN 18.4): Bei
+            // 20 Hitze bleiben 6 stehen, nicht 6,67. Ein Bruchteil hier
+            // driftete über hunderte Würfe, und Spiel und Simulator müssten
+            // auf dieselbe Zahl kommen.
+            //
+            // **Nach dem Schaden, nicht davor**: `amount` ist oben schon in
+            // den Treffer eingegangen. Der Effekt schenkt Vorrat für den
+            // NÄCHSTEN Wurf; er verbilligt diesen hier nicht.
+            this.resourceValue = this.hasSetEffect(SET_EFFECT_ASHEN_REGIMEN)
+              ? Math.floor(amount / 3)
+              : 0;
+          }
         }
       }
 
