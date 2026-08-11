@@ -271,6 +271,10 @@ pub struct FightConfig {
     /// der einzige der sechs ohne Schulbindung — er wirkt auf jede
     /// Zusammenstellung gleich.
     pub whole_work: bool,
+    /// Ob der Satz-Effekt "slow-rot" wirkt (13.5, Issue #480).
+    ///
+    /// Zersetzungs-Stapel verfallen nicht, solange ein DoT laeuft.
+    pub slow_rot: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -354,6 +358,7 @@ impl Default for FightConfig {
             split_spender: false,
             ashen_regimen: false,
             whole_work: false,
+            slow_rot: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -814,6 +819,7 @@ pub struct Fight {
     split_spender: bool,
     ashen_regimen: bool,
     whole_work: bool,
+    slow_rot: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1105,6 +1111,7 @@ impl Fight {
             split_spender: config.split_spender,
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
+            slow_rot: config.slow_rot,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -2636,7 +2643,28 @@ impl Fight {
         gehoben.min(DECAY_STACK_CAPACITY)
     }
 
+    /// Laeuft gerade irgendein DoT auf dem Ziel?
+    ///
+    /// **Als eigene Abfrage und nicht inline**, weil `slow-rot` sie braucht und
+    /// die Bedingung sonst an der Verfallsstelle stuende — dort, wo sie beim
+    /// naechsten Umbau uebersehen wird. Gegenstueck: `hasRunningDot` im Spiel.
+    fn has_running_dot(&self) -> bool {
+        self.dot_expires_at
+            .iter()
+            .any(|ende| matches!(ende, Some(bis) if *bis > self.time))
+    }
+
     fn expire_putrefaction(&mut self) {
+        // **SLOW ROT** (13.5, PUTREFACTION-Sechser): Solange ein DoT laeuft,
+        // verfaellt kein Zersetzungs-Stapel.
+        //
+        // **Aufgeschoben, nicht aufgehoben.** Die Verfallszeiten bleiben
+        // stehen; endet der letzte DoT, holt der naechste Durchlauf alles nach,
+        // was inzwischen faellig wurde. Ein Zuruecksetzen der Zeiten waere eine
+        // Verlaengerung und damit ein zweiter Effekt.
+        if self.slow_rot && self.has_running_dot() {
+            return;
+        }
         let mut verfallen = 0;
         while verfallen < self.decay_count && self.decay_expiry[verfallen] <= self.time {
             verfallen += 1;

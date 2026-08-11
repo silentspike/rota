@@ -56,6 +56,7 @@ import {
 } from '../gear/worn.js';
 import {
   SET_EFFECT_ASHEN_REGIMEN,
+  SET_EFFECT_SLOW_ROT,
   SET_EFFECT_WHOLE_WORK,
   WHOLE_WORK_GCD_REDUCTION_MS,
 } from '../gear/sets.js';
@@ -2438,7 +2439,34 @@ export class Combat {
     this.setDamageFactor('buffs', this.buffs.factor(timeMs));
   }
 
+  /**
+   * Läuft gerade irgendein DoT auf dem Ziel?
+   *
+   * **Als eigene Abfrage und nicht inline**, weil `SLOW_ROT` sie braucht und
+   * die Bedingung sonst an der Verfallsstelle stünde — dort, wo sie beim
+   * nächsten Umbau übersehen wird. `dotRemainingMs` beantwortet dieselbe Frage
+   * je Zauber; hier geht es um „mindestens einer".
+   */
+  private hasRunningDot(timeMs: number): boolean {
+    for (let i = 0; i < this.dotExpiresAtMs.length; i++) {
+      const expires = this.dotExpiresAtMs[i] ?? NOT_ACTIVE;
+      if (expires !== NOT_ACTIVE && expires > timeMs) return true;
+    }
+    return false;
+  }
+
   private expirePutrefaction(timeMs: number): void {
+    // **SLOW ROT** (13.5, PUTREFACTION-Sechser): Solange ein DoT läuft,
+    // verfällt kein Zersetzungs-Stapel.
+    //
+    // **Aufgeschoben, nicht aufgehoben.** Die Verfallszeiten bleiben stehen;
+    // endet der letzte DoT, holt der nächste Durchlauf alles nach, was
+    // inzwischen fällig geworden ist. Ein Zurücksetzen der Zeiten wäre eine
+    // Verlängerung und damit ein zweiter Effekt.
+    //
+    // Der Aufbau vor dem Schadensfenster wird damit zur Kernentscheidung statt
+    // zum Wettlauf.
+    if (this.hasSetEffect(SET_EFFECT_SLOW_ROT) && this.hasRunningDot(timeMs)) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     let verfallen = 0;
     while (verfallen < this.decayCountValue && (this.decayExpiryMs[verfallen] ?? 0) <= seitBeginn) {
