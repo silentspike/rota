@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "_comment": "Ausrüstungs-Sätze (GAME-DESIGN 13.5). Drei Bonus-Stufen bei zwei, vier und sechs Teilen; Werte-Boni unten, Rotations-Effekte auf der sechsten. ACHTUNG: Hier steht heute NUR ein Prüfsatz (test-set), wie test-relic und test-warden einer ist — er ist an test-warden gebunden und fällt nicht als reguläre Beute. Die sechs echten Sätze mit Schul-Ausrichtung sind eine Design-Entscheidung und stehen aus; 13.5 gibt die Struktur vor, aber keine Zahl, und die harte Balance-Anforderung ('Satz-Boni und Affixe etwa gleichwertig') soll der Prüflauf aus #118 messen. Die Werte hier sind rund gewählt, damit niemand sie für balanciert hält.",
+  "sets": [
+    {
+      "id": 0,
+      "school": "test",
+      "name": "Test Set",
+      "tiers": [
+        { "kind": 0, "share": 0.1, "effect": "" },
+        { "kind": 0, "share": 0.2, "effect": "" },
+        { "kind": 1, "share": 0, "effect": "test-rotation" }
+      ]
+    }
+  ]
+}
