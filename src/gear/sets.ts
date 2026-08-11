@@ -36,6 +36,8 @@
  * erfundene Sätze, die nicht ausgeliefert werden.
  */
 
+import rawSets from '../../data/sets.json';
+
 /** Kein Satz — ein gewöhnliches Stück. */
 export const NO_SET = -1;
 
@@ -162,3 +164,70 @@ export function activeRotationEffects(
   }
   return effekte;
 }
+
+/**
+ * Die Sätze aus `data/sets.json`.
+ *
+ * # Warum sie geprüft und nicht nur gelesen werden
+ *
+ * Dieselbe Begründung wie beim Katalog: Ein Satz mit einer Kennung ausserhalb
+ * von `SET_COUNT` schriebe in `countPieces` an einem Feld vorbei — die
+ * Funktion überspringt ihn stillschweigend, und der Bonus fehlte einfach. Ein
+ * `share` als Zeichenkette verkettete sich in der Summe, statt sich zu
+ * addieren. Beides ergäbe plausible Zahlen und keinen Fehler.
+ *
+ * **Was hier heute steht, ist ein Prüfsatz.** Die sechs echten Sätze mit
+ * Schul-Ausrichtung sind eine Design-Entscheidung (13.5 gibt die Struktur vor,
+ * aber keine Zahl); der Balance-Prüflauf aus #118 soll sie messen. `test-set`
+ * hat dieselbe Bauart wie `test-relic` und `test-warden` und ist wie sie an
+ * einen Boss gebunden, damit er nicht als reguläre Beute fällt.
+ */
+export const SETS: readonly SetDef[] = ((): SetDef[] => {
+  const roh = (rawSets as { sets?: unknown }).sets;
+  if (!Array.isArray(roh)) {
+    throw new Error('data/sets.json: "sets" fehlt oder ist keine Liste');
+  }
+  return roh.map((eintrag) => {
+    const s = eintrag as Record<string, unknown>;
+    const id = Math.trunc(Number(s['id'] ?? -1));
+    if (!Number.isInteger(id) || id < 0 || id >= SET_COUNT) {
+      throw new Error(
+        `data/sets.json: Satz mit Kennung ${String(id)} — erlaubt sind 0 bis ${String(SET_COUNT - 1)}`,
+      );
+    }
+    const tiersRoh = s['tiers'];
+    if (!Array.isArray(tiersRoh) || tiersRoh.length !== SET_TIERS.length) {
+      throw new Error(
+        `data/sets.json: Satz ${String(id)} hat ${String(Array.isArray(tiersRoh) ? tiersRoh.length : 0)} Stufen — ` +
+          `es müssen ${String(SET_TIERS.length)} sein, eine je Schwelle aus SET_TIERS`,
+      );
+    }
+    const tiers = tiersRoh.map((bonusRoh, stufe) => {
+      const b = bonusRoh as Record<string, unknown>;
+      const kind = Math.trunc(Number(b['kind'] ?? -1));
+      if (kind !== BONUS_VALUE && kind !== BONUS_ROTATION) {
+        throw new Error(
+          `data/sets.json: Satz ${String(id)}, Stufe ${String(stufe)} hat Art ${String(kind)} — ` +
+            `erlaubt sind ${String(BONUS_VALUE)} (Wert) und ${String(BONUS_ROTATION)} (Rotation)`,
+        );
+      }
+      const share = Number(b['share'] ?? 0);
+      if (!Number.isFinite(share) || share < 0) {
+        throw new Error(
+          `data/sets.json: Satz ${String(id)}, Stufe ${String(stufe)} hat Anteil ${String(b['share'])}`,
+        );
+      }
+      const effect = typeof b['effect'] === 'string' ? b['effect'] : '';
+      // **Ein Rotations-Effekt ohne Kennung wirkt nie.** Er stünde in
+      // `activeRotationEffects` als leerer String und liefe ins Leere — der
+      // Satz sähe vollständig aus und hätte auf seiner höchsten Stufe nichts.
+      if (kind === BONUS_ROTATION && effect === '') {
+        throw new Error(
+          `data/sets.json: Satz ${String(id)}, Stufe ${String(stufe)} ist ein Rotations-Effekt ohne Kennung`,
+        );
+      }
+      return { kind, share: kind === BONUS_VALUE ? share : 0, effect };
+    });
+    return { id, school: typeof s['school'] === 'string' ? s['school'] : '', tiers };
+  });
+})();
