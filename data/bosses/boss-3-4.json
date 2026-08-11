@@ -1,0 +1,50 @@
+{
+  "_comment": "Instanz 3, Boss 4 — der PHASEN-Boss mit Verhaengnis (Issue #421c).\n\nSein Merkmal: zwei Phasen UND eine Verhaengnis-Uhr. Er ist der Abschluss der Instanz und der einzige der vier, der zwei Mechaniken zugleich traegt — boss-1-2 ist das Vorbild (doom plus phases).\n\nDas Verhaengnis ist die HARTE Frist: Laeuft die Uhr voll, ist der Kampf verloren. Anders als boss-3-3 laesst sich das nicht aussitzen, sondern nur abraeumen — `clearCharges` gibt dem Spieler genau zwei Gelegenheiten dazu.\n\nperStepMs 1000 / amount 2 / threshold 100 heisst 50 Sekunden bis zum ersten Voll; clearAmount 45 mit drei Ladungen gibt dem Spieler Luft. Bei 60 s Ueberdruck ist die Uhr knapp, aber nicht unmoeglich — genau die Lage, die 12.8 'viele Versuche, aber nicht frustrierend' nennt.\n\nDIE ZAHLEN SIND GEMESSEN, NICHT GESETZT. Der erste Entwurf stand bei amount 4 mit zwei Ladungen und 6000 Lebenspunkten und war UNBEZWINGBAR: 2400 Schaden von 6000, der Spieler starb an der Uhr. Genau der Zustand aus #672, wo `test-doomsayer` bei 5168 von 6400 stehenbleibt. Mit den Zahlen oben faellt der Boss bei 45010 ms mit 4620 Schaden — gemessen an der Rotation `good`, nachzulesen in tests/unit/instanz-3.test.ts.",
+  "schema": 1,
+  "id": "boss-3-4",
+  "name": "Sealkeeper",
+  "instance": "instance-3",
+  "hp": 4600,
+  "overpressureMs": 60000,
+  "phases": [
+    {
+      "atHpPercent": 60,
+      "name": "Second Seal"
+    },
+    {
+      "atHpPercent": 25,
+      "name": "Last Ember"
+    }
+  ],
+  "energy": null,
+  "doom": {
+    "perStepMs": 1000,
+    "amount": 2,
+    "threshold": 100,
+    "clearAmount": 45,
+    "clearCharges": 3
+  },
+  "resistances": {},
+  "timeline": [
+    {
+      "atMs": 18000,
+      "mechanic": "strike",
+      "name": "Seal Break",
+      "damage": 340
+    },
+    {
+      "atMs": 36000,
+      "mechanic": "interruptibleCast",
+      "name": "Final Seal",
+      "damage": 1400,
+      "castTimeMs": 3500
+    },
+    {
+      "atMs": 54000,
+      "mechanic": "strike",
+      "name": "Seal Break",
+      "damage": 340
+    }
+  ],
+  "timelineLoopMs": 60000
+}
