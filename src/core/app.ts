@@ -8,7 +8,14 @@
  */
 import { AudioFeedback } from './audio-bridge.js';
 import { Combat } from './combat.js';
-import { BOSSES, CALCINATION, FIRST_CRUCIBLE, bossById, type BossDef } from './data.js';
+import {
+  BOSSES,
+  CALCINATION,
+  FIRST_CRUCIBLE,
+  bossById,
+  instanceById,
+  type BossDef,
+} from './data.js';
 import { buildBossSelect, waehlbareBosse } from '../progression/boss-select.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
@@ -220,10 +227,24 @@ export class App {
         // aber aus derselben Wurzel, damit eine aufgezeichnete Runde ihre
         // Beute wiederholt.
         seed: 0,
-        // Wie `difficulty`: Ein Boss trägt seine Instanz als Kennung
-        // (`'prologue'`), die Zuordnung auf die Nummer aus `rates.ts` ist
-        // E6-Inhalt. Sobald es sie gibt, ist es diese Zeile.
-        instance: 1,
+        // **Die Instanz des Bosses, nicht mehr die feste 1** (#421c).
+        //
+        // Hier stand bis dahin `instance: 1` mit dem Vermerk „sobald es die
+        // Zuordnung gibt, ist es diese Zeile". `data/instances.json` gibt es
+        // jetzt, und damit greifen zwei Dinge, die vorher nirgends griffen:
+        //
+        //   `itemLevelOf(i, …) = (i-1)*6 + d*3 + e + 1`   die Beute-Stufe
+        //   `qualityCapOf(i)`                             die Obergrenze (13.4)
+        //
+        // Mit der festen 1 ließ ein Boss aus instance-2 dieselbe Beute fallen
+        // wie der Prolog-Boss, und die „Obergrenze durch Inhalt" aus 13.4 war
+        // überall dieselbe.
+        //
+        // **Unbekannte Instanz fällt auf 1 zurück, nicht auf 0.** Ein Boss,
+        // dessen Kennung in `instances.json` fehlt, ist ein Datenfehler — aber
+        // ein Kampf, der deswegen keine Beute wirft, wäre die schlechtere
+        // Antwort darauf. `itemLevelOf` klemmt ohnehin auf `[1, INSTANCE_COUNT]`.
+        instance: instanceById(this.combat.boss.instance)?.number ?? 1,
         endlessLevel: 0,
       });
       // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
@@ -480,7 +501,12 @@ export class App {
    * {@link selectBoss} — hier, nicht dort.
    */
   private buildBossSection(): HTMLElement {
-    return buildBossSelect(waehlbareBosse(BOSSES), this.combat.boss.id, (bossId) => {
+    // **Der Spielstand entscheidet mit** (12.7): Eine Instanz ist erst offen,
+    // wenn die davor vollständig bezwungen ist. Ohne dieses zweite Argument
+    // stünde `instance-3` sofort in der Auswahl — die Freischaltung wäre
+    // gebaut, geprüft und nicht angeschlossen.
+    const bosse = waehlbareBosse(BOSSES, this.persistence.state.defeatedBosses);
+    return buildBossSelect(bosse, this.combat.boss.id, (bossId) => {
       this.selectBoss(bossId);
     });
   }
