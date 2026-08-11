@@ -54,7 +54,12 @@ import {
   gearEffectFactor,
   type WornValues,
 } from '../gear/worn.js';
-import { SET_EFFECT_ASHEN_REGIMEN } from '../gear/sets.js';
+import {
+  SET_EFFECT_ASHEN_REGIMEN,
+  SET_EFFECT_SLOW_ROT,
+  SET_EFFECT_WHOLE_WORK,
+  WHOLE_WORK_GCD_REDUCTION_MS,
+} from '../gear/sets.js';
 import {
   hasKeystone,
   KEYSTONE_SPLIT_SPENDER,
@@ -1414,6 +1419,25 @@ export class Combat {
   setSetEffects(effects: readonly string[]): void {
     if (this.stateValue === FIGHT_RUNNING && this.fightHasBegun) return;
     this.setEffects = [...effects];
+    // **THE WHOLE WORK** (13.5, Sechser ohne Schulbindung): Die Wartezeit
+    // sinkt um 100 ms.
+    //
+    // **Hier abgeleitet und nicht an der Auslösestelle gerechnet.** Die
+    // Wartezeit wird an drei Stellen ausgelöst (`gcd.trigger`); ein Abzug an
+    // jeder davon wären drei Stellen, an denen er fehlen kann. `setLength`
+    // gibt es seit #177 genau dafür — sie hatte bis hierher **keinen
+    // Aufrufer ausserhalb der Prüffälle**, dieselbe Klasse wie
+    // `activeRotationEffects` vor #774.
+    //
+    // Die Länge steht damit an EINER Stelle, und `buffs.ts` rechnet
+    // Verstärkungs-Dauern in GCDs bereits gegen sie — der Effekt schlägt dort
+    // also mit durch, was gewollt ist und in `whole-work.test.ts` gemessen
+    // wird.
+    this.gcd.setLength(
+      this.setEffects.includes(SET_EFFECT_WHOLE_WORK)
+        ? GCD_MS - WHOLE_WORK_GCD_REDUCTION_MS
+        : GCD_MS,
+    );
   }
 
   /** Die aktiven Rotations-Effekte — für Anzeige und Prüfung. */
@@ -2450,7 +2474,34 @@ export class Combat {
     this.setDamageFactor('buffs', this.buffs.factor(timeMs));
   }
 
+  /**
+   * Läuft gerade irgendein DoT auf dem Ziel?
+   *
+   * **Als eigene Abfrage und nicht inline**, weil `SLOW_ROT` sie braucht und
+   * die Bedingung sonst an der Verfallsstelle stünde — dort, wo sie beim
+   * nächsten Umbau übersehen wird. `dotRemainingMs` beantwortet dieselbe Frage
+   * je Zauber; hier geht es um „mindestens einer".
+   */
+  private hasRunningDot(timeMs: number): boolean {
+    for (let i = 0; i < this.dotExpiresAtMs.length; i++) {
+      const expires = this.dotExpiresAtMs[i] ?? NOT_ACTIVE;
+      if (expires !== NOT_ACTIVE && expires > timeMs) return true;
+    }
+    return false;
+  }
+
   private expirePutrefaction(timeMs: number): void {
+    // **SLOW ROT** (13.5, PUTREFACTION-Sechser): Solange ein DoT läuft,
+    // verfällt kein Zersetzungs-Stapel.
+    //
+    // **Aufgeschoben, nicht aufgehoben.** Die Verfallszeiten bleiben stehen;
+    // endet der letzte DoT, holt der nächste Durchlauf alles nach, was
+    // inzwischen fällig geworden ist. Ein Zurücksetzen der Zeiten wäre eine
+    // Verlängerung und damit ein zweiter Effekt.
+    //
+    // Der Aufbau vor dem Schadensfenster wird damit zur Kernentscheidung statt
+    // zum Wettlauf.
+    if (this.hasSetEffect(SET_EFFECT_SLOW_ROT) && this.hasRunningDot(timeMs)) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     let verfallen = 0;
     while (verfallen < this.decayCountValue && (this.decayExpiryMs[verfallen] ?? 0) <= seitBeginn) {
