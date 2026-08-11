@@ -2457,15 +2457,18 @@ ls data/bosses/*.json | grep -v "/test" | wc -l
 jq -r '[.trees[].school]|join(" ")' data/player/talents.json
 ```
 
-| Bestand           |                     Soll |                             Ist | Quelle des Solls           |
-| ----------------- | -----------------------: | ------------------------------: | -------------------------- |
-| Zauber            |                        — |           **54** + 2 gemeinsame | Zauber-Raster abgearbeitet |
-| Talentbäume       |       5 Schulen + global |                           **6** | 12.5                       |
-| Talentwege        | 12 (+ SUBLIMATION offen) |           3 gebaut, 7 in Arbeit | `docs/TALENT-RASTER.md`    |
-| Schlüsseltalente  |                        5 |             **1** (CALCINATION) | #418                       |
-| **Ausrüstung**    |  zehn Plätze, vier Töpfe | **1 Gegenstand** (`test-relic`) | 13.0, 13.1b                |
-| **Bosse**         |   **68 in 14 Instanzen** |            **9 in 2 Instanzen** | 3.0                        |
-| Instanz-Zuordnung |    Teil des Datenmodells |                  **fehlt ganz** | —                          |
+| Bestand                     |                        Soll |                                  Ist | Quelle des Solls           |
+| --------------------------- | --------------------------: | -----------------------------------: | -------------------------- |
+| Zauber                      |                           — |                **54** + 2 gemeinsame | Zauber-Raster abgearbeitet |
+| Talentbäume                 |          5 Schulen + global |                                **6** | 12.5                       |
+| Talentwege                  |                          12 |                      **12** — gebaut | `docs/TALENT-RASTER.md`    |
+| — im Simulator geprüft      |                          12 |                  **10** (#738 offen) | #738                       |
+| Schlüsseltalente            |                           5 |                  **1** (CALCINATION) | #418                       |
+| **Ausrüstung**              |     zehn Plätze, vier Töpfe |        **21 Gegenstände**, 10 Plätze | 13.0, 13.1b                |
+| — Topf 4 (Sätze, Legendäre) |               angeschlossen | Leitung liegt, **nichts speist sie** | 13.1b                      |
+| **Bosse**                   |      **68 in 14 Instanzen** |                 **9 in 2 Instanzen** | 3.0                        |
+| Instanz-Zuordnung           |       Teil des Datenmodells |                            vorhanden | `instance` je Boss         |
+| Instanz als Objekt          | Name, Stufen, Freischaltung |                       **fehlt ganz** | `data/instances.json`      |
 
 **Entschieden vom Auftraggeber am 2026-08-10, nachdem ihm diese Zahlen vorlagen:**
 

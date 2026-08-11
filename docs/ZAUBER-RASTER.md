@@ -1,4 +1,4 @@
-# Das Zauber-Raster — abgearbeitet: 13 gebaut, 4 verworfen, 1 in Arbeit
+# Das Zauber-Raster — abgearbeitet: 14 gebaut, 4 verworfen, keiner offen
 
 > **Freigegeben vom Auftraggeber am 2026-08-06**, vollständig und ohne Änderung: _„wir übernehmen
 > alle deine vorschläge. wir müssen sowieso ja dann das ganze tuning, balancing, usw machen."_
@@ -20,29 +20,37 @@
 > done
 > ```
 >
-> **Stand 2026-08-10**, gemessen an `main`:
+> **Stand 2026-08-11**, gemessen an `main`:
 >
 > | Schule       | 09.08. |  heute | Zuwachs |
 > | ------------ | -----: | -----: | ------: |
 > | CALCINATION  |     10 |     10 |       — |
 > | FIXATION     |     10 |     11 |      +1 |
 > | PUTREFACTION |      6 |     10 |      +4 |
-> | SUBLIMATION  |      8 |     11 |      +3 |
+> | SUBLIMATION  |      8 |     12 |      +4 |
 > | COAGULATION  |      7 |     12 |      +5 |
-> |              | **41** | **54** | **+13** |
+> |              | **41** | **55** | **+14** |
+>
+> **Die Tabelle stand am 2026-08-10 auf 54 und war am selben Abend überholt** — `RETORT` kam als
+> zwölfter SUBLIMATION-Zauber dazu (#733, #743) und schloss damit den **letzten der achtzehn
+> Vorschläge**.
+>
+> Das ist derselbe Vorgang, den der Kasten beschreibt, zum dritten Mal an diesem Dokument: Am
+> 09.08. stand hier 41 statt der gemessenen 54, am 10.08. 54 statt 55. **Jedes Mal hat die
+> Messung es gefunden, nie das Lesen.**
 >
 > Dazu zwei schulübergreifende in `common.json`.
 >
-> **Die achtzehn sind abgearbeitet, nicht offen.** Dreizehn gebaut, vier mit gemessenem Grund
-> verworfen, einer in Arbeit:
+> **Die achtzehn sind abgearbeitet.** Vierzehn gebaut, vier mit gemessenem Grund verworfen,
+> **keiner mehr offen** — `RETORT` war der letzte und steht seit dem 2026-08-10 in den Daten:
 >
-> | Vorschlag | Ausgang      | Grund — gemessen, nicht geschätzt                                                                                                                                                     |
-> | --------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | CONTAGION | gestrichen   | Die Wirkung existiert bereits; ein zweiter Zauber dafür verdoppelt sie nur                                                                                                            |
-> | SCORIA    | gestrichen   | ebenso — `split_spender` steht in `fight.rs:3122`, das Talent behält die Idee                                                                                                         |
-> | MOOR      | verworfen    | `BuffTarget::Cap` wirkt auf `school.resource.cap`, und **nur CALCINATION führt eine Ressource**. `controlValue` hat keinen Deckel — die Größe, die MOOR bewegen sollte, gibt es nicht |
-> | FORGE     | verworfen    | dieselbe Klasse: die Größe existiert nicht                                                                                                                                            |
-> | RETORT    | **umgebaut** | Wird **vorher gerüstet**, nicht danach ausgelöst — siehe den Kasten darunter. Zugeteilt an Worker-2                                                                                   |
+> | Vorschlag | Ausgang    | Grund — gemessen, nicht geschätzt                                                                                                                                                     |
+> | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | CONTAGION | gestrichen | Die Wirkung existiert bereits; ein zweiter Zauber dafür verdoppelt sie nur                                                                                                            |
+> | SCORIA    | gestrichen | ebenso — `split_spender` steht in `fight.rs:3122`, das Talent behält die Idee                                                                                                         |
+> | MOOR      | verworfen  | `BuffTarget::Cap` wirkt auf `school.resource.cap`, und **nur CALCINATION führt eine Ressource**. `controlValue` hat keinen Deckel — die Größe, die MOOR bewegen sollte, gibt es nicht |
+> | FORGE     | verworfen  | dieselbe Klasse: die Größe existiert nicht                                                                                                                                            |
+> | RETORT    | **gebaut** | Wird **vorher gerüstet**, nicht danach ausgelöst — siehe den Kasten darunter. Steht seit #733/#743 als zwölfter SUBLIMATION-Zauber in den Daten; damit ist die Liste abgearbeitet     |
 >
 > ### RETORT wird präventiv gebaut, nicht reaktiv — entschieden am 2026-08-10
 >
