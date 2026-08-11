@@ -90,13 +90,31 @@ export function freigeschalteteInstanzen(
   return INSTANCES.filter((i) => i.requires === null || abgeschlossen(i.requires)).map((i) => i.id);
 }
 
-/** Die wählbaren Bosse, in der Reihenfolge der Datensätze. */
+/**
+ * Die wählbaren Bosse, in der Reihenfolge der Datensätze.
+ *
+ * # `besiegt` ist der Unterschied zwischen gebaut und angeschlossen
+ *
+ * Bis #421c filterte diese Funktion nur nach „Instanz existiert". Die
+ * Freischaltung aus 12.7 stand daneben in `freigeschalteteInstanzen` —
+ * gebaut, mit Prüffällen, **und von niemandem gerufen**. `instance-3` wäre
+ * damit sofort sichtbar gewesen, obwohl sie `instance-2` verlangt.
+ *
+ * Das ist dieselbe Klasse wie der stille Affix-Verlust und wie Topf 4: Eine
+ * Sache ist gebaut, geprüft und nicht verdrahtet — und die Prüffälle sind
+ * grün, weil sie die Funktion messen und nicht ihren Aufruf.
+ *
+ * **Ohne Argument bleibt es beim alten Verhalten**, damit ein Aufrufer, der
+ * den Spielstand nicht kennt, nicht versehentlich alles sperrt.
+ */
 export function waehlbareBosse(
   alle: ReadonlyMap<string, ParseResult<BossDef>>,
+  besiegt: readonly string[] = [],
 ): readonly BossDef[] {
+  const offen = freigeschalteteInstanzen(besiegt, alle);
   const out: BossDef[] = [];
   for (const eintrag of alle.values()) {
-    if (spielbareInstanzen().includes(eintrag.value.instance)) out.push(eintrag.value);
+    if (offen.includes(eintrag.value.instance)) out.push(eintrag.value);
   }
   return out;
 }
