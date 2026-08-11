@@ -80,6 +80,7 @@ use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
+use crate::sets::WHOLE_WORK_GCD_REDUCTION_MS;
 use crate::stacks::{PendingGain, StackMechanic};
 use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
@@ -264,6 +265,16 @@ pub struct FightConfig {
     /// `data/sets.json` nicht; welche Effekte ein Aufbau ausloest, rechnet das
     /// Spiel und reicht das Ergebnis herein — wie bei `worn`.
     pub ashen_regimen: bool,
+    /// Ob der Satz-Effekt "whole-work" wirkt (13.5, Issue #480).
+    ///
+    /// Der globale Cooldown sinkt um [`WHOLE_WORK_GCD_REDUCTION_MS`]. Er ist
+    /// der einzige der sechs ohne Schulbindung — er wirkt auf jede
+    /// Zusammenstellung gleich.
+    pub whole_work: bool,
+    /// Ob der Satz-Effekt "slow-rot" wirkt (13.5, Issue #480).
+    ///
+    /// Zersetzungs-Stapel verfallen nicht, solange ein DoT laeuft.
+    pub slow_rot: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -346,6 +357,8 @@ impl Default for FightConfig {
             worn: WornValues::none(),
             split_spender: false,
             ashen_regimen: false,
+            whole_work: false,
+            slow_rot: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -805,6 +818,8 @@ pub struct Fight {
     worn: WornValues,
     split_spender: bool,
     ashen_regimen: bool,
+    whole_work: bool,
+    slow_rot: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1095,6 +1110,8 @@ impl Fight {
             worn: config.worn,
             split_spender: config.split_spender,
             ashen_regimen: config.ashen_regimen,
+            whole_work: config.whole_work,
+            slow_rot: config.slow_rot,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -2647,7 +2664,28 @@ impl Fight {
         gehoben.min(DECAY_STACK_CAPACITY)
     }
 
+    /// Laeuft gerade irgendein DoT auf dem Ziel?
+    ///
+    /// **Als eigene Abfrage und nicht inline**, weil `slow-rot` sie braucht und
+    /// die Bedingung sonst an der Verfallsstelle stuende — dort, wo sie beim
+    /// naechsten Umbau uebersehen wird. Gegenstueck: `hasRunningDot` im Spiel.
+    fn has_running_dot(&self) -> bool {
+        self.dot_expires_at
+            .iter()
+            .any(|ende| matches!(ende, Some(bis) if *bis > self.time))
+    }
+
     fn expire_putrefaction(&mut self) {
+        // **SLOW ROT** (13.5, PUTREFACTION-Sechser): Solange ein DoT laeuft,
+        // verfaellt kein Zersetzungs-Stapel.
+        //
+        // **Aufgeschoben, nicht aufgehoben.** Die Verfallszeiten bleiben
+        // stehen; endet der letzte DoT, holt der naechste Durchlauf alles nach,
+        // was inzwischen faellig wurde. Ein Zuruecksetzen der Zeiten waere eine
+        // Verlaengerung und damit ein zweiter Effekt.
+        if self.slow_rot && self.has_running_dot() {
+            return;
+        }
         let mut verfallen = 0;
         while verfallen < self.decay_count && self.decay_expiry[verfallen] <= self.time {
             verfallen += 1;
@@ -3093,6 +3131,32 @@ impl Fight {
     ///
     /// Ohne getragene Ausruestung gibt sie `base_ms` unveraendert zurueck —
     /// siehe [`hasted_ms`], dort haengt AC7 daran.
+    /// Die Laenge der globalen Wartezeit — mit dem Satz-Effekt `whole-work`.
+    ///
+    /// **An EINER Stelle abgeleitet, nicht an jeder Ausloesestelle gerechnet.**
+    /// Die Wartezeit wird an zwei Stellen gesetzt; ein Abzug an jeder davon
+    /// waeren zwei Stellen, an denen er fehlen kann. Im Spiel steht dieselbe
+    /// Ableitung in `Combat.setSetEffects` ueber `GlobalCooldown.setLength`.
+    /// Die Wartezeit-Laenge fuer Prueffaelle.
+    ///
+    /// `gcd_length` ist privat, weil sie nur intern gebraucht wird — ein
+    /// Prueffall, der die Laenge selbst ablesen will, braucht trotzdem einen
+    /// Weg dorthin. Ohne ihn koennte er sie nur ueber die Wurfzahl erschliessen,
+    /// und dann waere nicht zu trennen, ob die Laenge oder die Abklingzeit die
+    /// Bremse ist.
+    #[must_use]
+    pub fn gcd_length_for_test(&self) -> Millis {
+        self.gcd_length()
+    }
+
+    fn gcd_length(&self) -> Millis {
+        if self.whole_work {
+            GCD_MS - Millis::from(WHOLE_WORK_GCD_REDUCTION_MS)
+        } else {
+            GCD_MS
+        }
+    }
+
     fn hasted(&self, base_ms: Millis) -> Millis {
         hasted_ms(base_ms, self.worn.catalysis)
     }
@@ -3700,7 +3764,7 @@ impl Fight {
             // **Der Merker geht VOR der Eigenschaft** (SUBLIME, #480): Ein
             // Zauber, der die Wartezeit sonst auslöste, tut es einmal nicht.
             if spell.triggers_gcd && !self.take_free_gcd() {
-                self.gcd_ready_at = snap_up(now + GCD_MS);
+                self.gcd_ready_at = snap_up(now + self.gcd_length());
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
             }
             self.queue.push(
@@ -4050,7 +4114,7 @@ impl Fight {
         // ist die Wartezeit beim BEGINN gestartet worden. Ein zweiter Start
         // hier verlaengerte sie um die volle Laenge.
         if spell.triggers_gcd && !wirkzeit_lief && !self.take_free_gcd() {
-            self.gcd_ready_at = snap_up(now + GCD_MS);
+            self.gcd_ready_at = snap_up(now + self.gcd_length());
             self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
         }
 
