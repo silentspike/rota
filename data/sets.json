@@ -45,6 +45,28 @@
           "effect": "whole-work"
         }
       ]
+    },
+    {
+      "id": 2,
+      "school": "PUTREFACTION",
+      "name": "Slow Rot",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "slow-rot"
+        }
+      ]
     }
   ]
 }

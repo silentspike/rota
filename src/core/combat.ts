@@ -56,6 +56,7 @@ import {
 } from '../gear/worn.js';
 import {
   SET_EFFECT_ASHEN_REGIMEN,
+  SET_EFFECT_SLOW_ROT,
   SET_EFFECT_WHOLE_WORK,
   WHOLE_WORK_GCD_REDUCTION_MS,
 } from '../gear/sets.js';
@@ -2058,6 +2059,34 @@ export class Combat {
     // liefe bei einer späteren Änderung auseinander, und `allThree` löst drei
     // davon gleichzeitig aus.
     const staerke = Math.round(control.amount * talentControlEffectFactor(this.talents));
+    // **Die Phasen-Senkung hat ihre EIGENE Stärke** (Issue #478).
+    //
+    // `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
+    // Prozentpunkten. Für die drei Spezialisten fällt das nicht auf — jeder
+    // trägt genau eine Einheit. CAPSTONE löst als einziger alle drei aus, und
+    // seine 2000 Millisekunden landeten bis hierher im Prozent-Feld.
+    //
+    // Gemessen an `test-phase`, wann der Wechsel fiel:
+    //
+    // ```text
+    //   ohne Zauber    6010 ms
+    //   ANCHOR (10 %)  9010 ms   der Boss muss 10 % tiefer fallen
+    //   CAPSTONE      14010 ms   genau PHASE_HOLD_DURATION_MS nach dem Wurf
+    // ```
+    //
+    // 2000 Prozentpunkte sind keine Senkung, sondern eine Abschaltung: Der
+    // Wechsel fiel erst, als die Frist ablief. Der Plan verlangt „die
+    // Phasen-Schwelle SINKT vorübergehend" und „alle kaufen einen einzelnen
+    // Moment, keinen Zustand" — bei vollständiger Blockade muss man den
+    // Moment nicht TREFFEN, man muss nur irgendwann drücken.
+    //
+    // **Der Rückfall auf `staerke` ist kein Rest, sondern die Regel für alle
+    // anderen**: ANCHOR trägt nur `amountPercent`, also steht seine Zahl in
+    // beiden Feldern, und für ihn ändert sich nichts.
+    const senkung =
+      control.amountPercent > 0
+        ? Math.round(control.amountPercent * talentControlEffectFactor(this.talents))
+        : staerke;
     const alleDrei = control.effect === 'allThree';
     if (alleDrei) {
       // **Alle Punkte, wie bei WEDGE.** Das Raster sagt „verbraucht alle
@@ -2124,7 +2153,14 @@ export class Combat {
     if (control.effect === 'holdPhase' || alleDrei) {
       // Die Schwelle sinkt vorübergehend. **Sie nimmt einen Wechsel nicht
       // zurück** — die Phase kann nur steigen.
-      this.phaseHoldPercentValue = staerke;
+      //
+      // `senkung` statt `staerke`: siehe die Begründung oben. Für ANCHOR sind
+      // beide gleich, für CAPSTONE nicht.
+      this.phaseHoldPercentValue = senkung;
+      // **Dieselbe Frist für alle**, auch für CAPSTONE, der als einziger ein
+      // zweites Betrags-Feld hat. Der Plan: „Die Frist gilt für ALLE ZAUBER
+      // GLEICH — sie gehört zur Wirkung, nicht zum einzelnen Zauber; sonst
+      // hieße ‚hinauszögern' bei jedem etwas anderes."
       this.phaseHoldUntilMs = timeMs - this.fightStartedAtMs + PHASE_HOLD_DURATION_MS;
     }
   }
@@ -2438,7 +2474,34 @@ export class Combat {
     this.setDamageFactor('buffs', this.buffs.factor(timeMs));
   }
 
+  /**
+   * Läuft gerade irgendein DoT auf dem Ziel?
+   *
+   * **Als eigene Abfrage und nicht inline**, weil `SLOW_ROT` sie braucht und
+   * die Bedingung sonst an der Verfallsstelle stünde — dort, wo sie beim
+   * nächsten Umbau übersehen wird. `dotRemainingMs` beantwortet dieselbe Frage
+   * je Zauber; hier geht es um „mindestens einer".
+   */
+  private hasRunningDot(timeMs: number): boolean {
+    for (let i = 0; i < this.dotExpiresAtMs.length; i++) {
+      const expires = this.dotExpiresAtMs[i] ?? NOT_ACTIVE;
+      if (expires !== NOT_ACTIVE && expires > timeMs) return true;
+    }
+    return false;
+  }
+
   private expirePutrefaction(timeMs: number): void {
+    // **SLOW ROT** (13.5, PUTREFACTION-Sechser): Solange ein DoT läuft,
+    // verfällt kein Zersetzungs-Stapel.
+    //
+    // **Aufgeschoben, nicht aufgehoben.** Die Verfallszeiten bleiben stehen;
+    // endet der letzte DoT, holt der nächste Durchlauf alles nach, was
+    // inzwischen fällig geworden ist. Ein Zurücksetzen der Zeiten wäre eine
+    // Verlängerung und damit ein zweiter Effekt.
+    //
+    // Der Aufbau vor dem Schadensfenster wird damit zur Kernentscheidung statt
+    // zum Wettlauf.
+    if (this.hasSetEffect(SET_EFFECT_SLOW_ROT) && this.hasRunningDot(timeMs)) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     let verfallen = 0;
     while (verfallen < this.decayCountValue && (this.decayExpiryMs[verfallen] ?? 0) <= seitBeginn) {
