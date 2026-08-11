@@ -108,6 +108,32 @@ function schicht(talente: Record<string, number>): number {
   return combat.shield;
 }
 
+/**
+ * Weg „longer": Wie lange die Schutzschicht hält, in Millisekunden.
+ *
+ * **Gemessen am Verfall, nicht an `shieldExpiresAtMs`** — das Feld ist privat,
+ * und ein Getter nur für die Probe wäre ein zweiter Messpunkt neben der Sache.
+ * Hier wird vorgespult, bis die Schicht wirklich weg ist; das ist die Größe,
+ * die der Spieler spürt.
+ *
+ * **Der Rückgabewert liegt einen Tick über der Dauer** (12010 statt 12000): Der
+ * Verfall wird beim ersten Schritt NACH dem Ablauf bemerkt, und `TICK_MS` ist
+ * 10. Die Fälle unten erwarten deshalb `dauer + TICK_MS`, nicht `dauer`.
+ *
+ * `crust` trägt `durationMs: 12000` und `cooldownMs: 6000` — beim ersten Bau
+ * dieser Funktion habe ich die Abklingzeit für die Dauer gehalten und 6000
+ * erwartet. Vier rote Fälle, und keiner davon lag am Talent.
+ */
+function dauer(talente: Record<string, number>): number {
+  const combat = kampf(talente);
+  wirf(combat, 'crust');
+  for (let t = TICK_MS; t <= 60_000; t += TICK_MS) {
+    combat.stepPassive(t);
+    if (combat.shield === 0) return t;
+  }
+  throw new Error('die Schutzschicht ist binnen 60 s nicht verfallen');
+}
+
 /** Weg „stacks": Wie viele Lagen CRUST übereinander legen kann. */
 function lagen(talente: Record<string, number>): number {
   const combat = kampf(talente);
@@ -229,6 +255,7 @@ describe('COAGULATION — drei Wege, drei Größen', () => {
   it('die Messlatte ohne Talente', () => {
     expect(schicht({}), 'CRUST baut nicht 900 Schutz auf').toBe(900);
     expect(lagen({}), 'CRUST stapelt sich nicht dreimal').toBe(3);
+    expect(dauer({}), 'CRUST hält nicht 12000 ms').toBe(12_000 + TICK_MS);
   });
 
   describe('thicker — die Dicke', () => {
@@ -239,6 +266,24 @@ describe('COAGULATION — drei Wege, drei Größen', () => {
     });
     it('lässt die FREMDEN Größen unberührt', () => {
       expect(lagen(TALENT), 'thicker wirkt auf die Zahl der Lagen').toBe(3);
+      // **Die Dauer gehört hierher, und ihr Fehlen war die Lücke.** Ohne diese
+      // Zeile blieb eine Vertauschung still: Trägt `thicker` statt
+      // `shieldAmountPerRankPerMille` das Dauer-Feld, bewegen `thicker` und
+      // `longer` dieselbe Größe — und nur der Wirkungsfall oben färbte, kein
+      // einziger Fall meldete die Dopplung.
+      expect(dauer(TALENT), 'thicker wirkt auf die Dauer').toBe(12_000 + TICK_MS);
+    });
+  });
+
+  describe('longer — die Haltbarkeit', () => {
+    const TALENT = { 'coagulation-longer': VOLL };
+    it('lässt die Schicht länger halten', () => {
+      // 80 Promille je Rang, fünf Ränge: Faktor 1,4 auf 12000 ergibt 16800.
+      expect(dauer(TALENT)).toBe(16_800 + TICK_MS);
+    });
+    it('lässt die FREMDEN Größen unberührt', () => {
+      expect(schicht(TALENT), 'longer wirkt auf die Dicke').toBe(900);
+      expect(lagen(TALENT), 'longer wirkt auf die Zahl der Lagen').toBe(3);
     });
   });
 
@@ -253,6 +298,7 @@ describe('COAGULATION — drei Wege, drei Größen', () => {
       // Lagen legt, hat mehr Schutz — das ist der Weg, nicht sein Fehler. Die
       // Kreuzprobe muss deshalb die erste Lage messen, nicht die Summe.
       expect(schicht(TALENT), 'stacks wirkt auf die Dicke je Lage').toBe(900);
+      expect(dauer(TALENT), 'stacks wirkt auf die Dauer').toBe(12_000 + TICK_MS);
     });
   });
 });
