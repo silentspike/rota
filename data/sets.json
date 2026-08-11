@@ -89,6 +89,28 @@
           "effect": "sealed-vessel"
         }
       ]
+    },
+    {
+      "id": 4,
+      "school": "SEPARATION",
+      "name": "The Long Grip",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "long-grip"
+        }
+      ]
     }
   ]
 }
