@@ -82,6 +82,7 @@ import {
   WARD_AT_LEVEL_1,
   isPermanent,
   maxOf,
+  gearEffectsPermille,
   mixedBuild,
   permanentMax,
   pureBuild,
@@ -91,6 +92,7 @@ import {
   BONUS_ROTATION,
   BONUS_VALUE,
   NO_SET,
+  SETS,
   SET_COUNT,
   SET_TIERS,
   activeRotationEffects,
@@ -4656,6 +4658,38 @@ export function sourcesPayload(): Record<string, unknown> {
     }
   }
 
+  // **Topf 4 aus seinen Quellen** (Issue #480, Entscheidung 2026-08-11).
+  //
+  // Bis dahin war `gearEffectsPermille` auf beiden Seiten gebaut und durch
+  // NICHTS aneinander gebunden: Es gab je einen Fall im Spiel und einen im
+  // Simulator, aber keinen Vergleich. Die zwei Fassungen konnten
+  // auseinanderlaufen, ohne dass eine Zeile rot wurde.
+  //
+  // **Der Satz-Anteil wandert mit** — dieselbe Begründung wie bei `baseStats`
+  // darüber. Der Simulator lädt `data/sets.json` nicht; stünde nur die Summe
+  // hier, erwartete er eine Zahl, statt dieselbe Rechnung zu machen. Mit dem
+  // Anteil daneben rechnet er nach.
+  const gearEffects = [];
+  for (const legendaries of [0, 1, 2]) {
+    for (const setShare of [0, 100, 300]) {
+      gearEffects.push({
+        legendaries,
+        setSharePermille: setShare,
+        permille: gearEffectsPermille(legendaries, setShare),
+      });
+    }
+  }
+
+  // Der Anteil je getragener Teilezahl, aus den echten Daten. Die sechste
+  // Stufe trägt einen Rotations-Effekt und KEINEN Wert (13.5) — bei sechs
+  // Teilen muss derselbe Anteil herauskommen wie bei vier.
+  const setShares = [];
+  for (const teile of [0, 1, 2, 3, 4, 5, 6]) {
+    const pieces = new Int32Array(SET_COUNT);
+    pieces[0] = teile;
+    setShares.push({ pieces: teile, permille: Math.round(valueShareOf(SETS, pieces) * 1000) });
+  }
+
   return {
     schema: SCHEMA,
     budgetPerPermille: BUDGET_PER_PERMILLE,
@@ -4665,6 +4699,8 @@ export function sourcesPayload(): Record<string, unknown> {
     stats,
     affixes,
     baseStats,
+    gearEffects,
+    setShares,
   };
 }
 
