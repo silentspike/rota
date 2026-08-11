@@ -31,10 +31,23 @@
  * die `affixKinds` nennen nur die Affixe.
  */
 import rawItems from '../../data/items.json';
-import { distributeBudget, MAX_ITEM_LEVEL, QUALITY_AFFIX_SLOTS, QUALITY_COUNT } from './budget.js';
+import {
+  distributeBudget,
+  MAX_ITEM_LEVEL,
+  QUALITY_AFFIX_SLOTS,
+  QUALITY_COUNT,
+  QUALITY_HAS_EFFECT,
+} from './budget.js';
 import { POOL_NAMES } from './pools.js';
 import { SLOT_COUNT } from './slots.js';
-import { basePermille, ESSENCE_AT_LEVEL_1, VESSEL_AT_LEVEL_1, WARD_AT_LEVEL_1 } from './sources.js';
+import { NO_SET, SET_COUNT, SETS, countPieces, valueShareOf } from './sets.js';
+import {
+  basePermille,
+  ESSENCE_AT_LEVEL_1,
+  LEGENDARY_EFFECT_PERMILLE,
+  VESSEL_AT_LEVEL_1,
+  WARD_AT_LEVEL_1,
+} from './sources.js';
 import { feldFuerAffixArt, NOTHING_WORN, type WornValues } from './worn.js';
 import { effectiveLevelOf, instanceQualityOf } from './instance.js';
 
@@ -115,6 +128,14 @@ export interface ItemDef {
    * fallen.
    */
   readonly boundToBoss: string;
+  /**
+   * Zu welchem Satz dieses Stück gehört, oder `NO_SET` (13.5).
+   *
+   * **Frei kombinierbar**: Satz-Teile passen auf beliebige Plätze, gezählt
+   * wird nur die Anzahl. Der Platz steht deshalb weiter in `slot` und hat mit
+   * der Satz-Zugehörigkeit nichts zu tun.
+   */
+  readonly setId: number;
 }
 
 /**
@@ -200,6 +221,17 @@ export const ITEMS: readonly ItemDef[] = (() => {
     }
     pruefeAffixArten(id, affixKinds);
 
+    // **Ein Satz ausserhalb der Zählung wäre still** (13.5): `countPieces`
+    // überspringt eine Kennung, die nicht in sein Feld passt — der Gegenstand
+    // sähe im Katalog wie ein Satz-Teil aus und zählte für keinen Satz.
+    const setId = t['setId'] === undefined ? NO_SET : Math.trunc(Number(t['setId']));
+    if (setId !== NO_SET && (!Number.isInteger(setId) || setId < 0 || setId >= SET_COUNT)) {
+      throw new Error(
+        `data/items.json: "${id}" gehört zu Satz ${String(setId)} — erlaubt sind ` +
+          `0 bis ${String(SET_COUNT - 1)} oder ${String(NO_SET)} für kein Satz-Teil.`,
+      );
+    }
+
     alle.push({
       id,
       name: typeof t['name'] === 'string' ? t['name'] : id,
@@ -208,6 +240,7 @@ export const ITEMS: readonly ItemDef[] = (() => {
       quality,
       affixKinds,
       boundToBoss: typeof t['boundToBoss'] === 'string' ? t['boundToBoss'] : '',
+      setId,
     });
   }
   return alle;
@@ -246,6 +279,10 @@ export function wornFrom(items: readonly OwnedItemLike[]): WornValues {
   const summe = { ...NOTHING_WORN } as Record<string, number>;
   const anteile: number[] = [0, 0, 0, 0];
   let getragen = 0;
+  /** Der Satz je getragenem Stück — `countPieces` zählt daraus (13.5). */
+  const saetzeAufPlatz: number[] = [];
+  const teileJeSatz = new Int32Array(SET_COUNT);
+  let legendaere = 0;
 
   for (const besitz of items) {
     if (besitz.equippedSlot === null) continue;
@@ -293,7 +330,35 @@ export function wornFrom(items: readonly OwnedItemLike[]): WornValues {
       }
       summe[feld] = (summe[feld] ?? 0) + (anteile[i] ?? 0);
     }
+
+    // Für Topf 4 unten: welcher Satz auf diesem Platz liegt, und ob das Stück
+    // einen legendären Effekt mitbringt.
+    saetzeAufPlatz.push(def.setId);
+    if (QUALITY_HAS_EFFECT[guete] === true) legendaere++;
   }
+
+  // **TOPF 4 — legendäre Effekte UND Satz-Boni, additiv** (13.1b, Issue #480).
+  //
+  // Die Leitung nach `gearEffects` lag seit Langem und war über einen Affix
+  // erreichbar; gespeist hat sie niemand. `countPieces` und `valueShareOf` in
+  // `sets.ts` hatten zusammen null Aufrufer — die Satz-Seite kam nie an, und
+  // ein legendäres Stück war in jeder messbaren Grösse ein Epic:
+  // `QUALITY_HAS_EFFECT` ist das einzige, was die beiden unterscheidet
+  // (gleicher Topf, gleiche Affix-Plätze), und niemand las es.
+  //
+  // **Addiert, nicht multipliziert**, weil sie EIN Topf sind: Lägen sie
+  // getrennt, schlüge die Kombination aus beidem jede andere Ausrichtung, und
+  // alles ohne Satz-Bonus bliebe liegen — die Lehre aus Diablo, die 13.1b
+  // zitiert.
+  //
+  // **Die Rundung passiert EINMAL, auf die fertige Summe:** `valueShareOf`
+  // liefert einen Bruch, `gearEffects` ist ganzzahlige Promille (18.4). Je
+  // Bonus zu runden hiesse, den Rundungsfehler mit jeder Stufe zu wiederholen.
+  countPieces(saetzeAufPlatz, teileJeSatz);
+  summe['gearEffects'] =
+    (summe['gearEffects'] ?? 0) +
+    Math.round(valueShareOf(SETS, teileJeSatz) * 1000) +
+    legendaere * LEGENDARY_EFFECT_PERMILLE;
 
   return getragen === 0 ? NOTHING_WORN : (summe as unknown as WornValues);
 }
