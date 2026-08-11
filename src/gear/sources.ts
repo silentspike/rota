@@ -321,27 +321,33 @@ export const SET_VALUE_TIERS = SET_TIERS.length - 1;
 export const LEGENDARY_EFFECT_PERMILLE = 200;
 
 /**
- * Was ein **Satz-Bonus** je Werte-Stufe zu Topf 4 beiträgt, in Promille.
- *
- * **Vorläufig — der Wert wird gemessen (#118).** 13.5 gibt nur die Struktur
- * vor: Werte-Boni auf den unteren Stufen (zwei und vier Teile),
- * Rotations-Effekte auf der sechsten.
- */
-export const SET_BONUS_PERMILLE = 150;
-
-/**
- * Topf 4 aus getragenen legendären Effekten und Satz-Stufen.
+ * Topf 4 aus getragenen legendären Effekten und Satz-Boni.
  *
  * **Beide Quellen, eine Zahl** — genau das ist der Zweck des gemeinsamen
  * Topfes (13.1b): Innerhalb wird addiert, also konkurrieren sie, statt sich zu
  * multiplizieren. Lägen sie getrennt, schlüge die Kombination aus beidem jede
  * andere Ausrichtung, und alles ohne Satz-Bonus würde liegen gelassen — die
  * Lehre aus Diablo, die 13.1b zitiert.
+ *
+ * # Warum der Satz-Anteil hereingereicht wird und nicht die Stufenzahl
+ *
+ * Bis Issue #480 stand hier `setTiers` und daneben eine Pauschale
+ * `SET_BONUS_PERMILLE = 150` je erreichter Stufe. Damit gab es **zwei Wege zu
+ * derselben Grösse**: diesen, und den über `valueShareOf`, der die echten
+ * Anteile aus `data/sets.json` zieht. Zwei Wege zu einer Zahl laufen
+ * auseinander, sobald einer nachgezogen wird — und das fällt niemandem auf,
+ * weil beide plausible Zahlen liefern.
+ *
+ * Jetzt gibt es einen: Der Aufrufer rechnet den Satz-Anteil aus den Daten und
+ * reicht ihn in Promille herein. Diese Funktion addiert nur noch, und beide
+ * Seiten rechnen aus **denselben Quellen** dieselbe Zahl.
+ *
+ * Gegenstück: `gear_effects_permille` in `sim/src/sources.rs`.
  */
-export function gearEffectsPermille(legendaries: number, setTiers: number): number {
+export function gearEffectsPermille(legendaries: number, setSharePermille: number): number {
   const l = legendaries > 0 ? legendaries : 0;
-  const t = setTiers > 0 ? Math.min(setTiers, SET_VALUE_TIERS) : 0;
-  return l * LEGENDARY_EFFECT_PERMILLE + t * SET_BONUS_PERMILLE;
+  const s = setSharePermille > 0 ? setSharePermille : 0;
+  return l * LEGENDARY_EFFECT_PERMILLE + s;
 }
 
 /**
