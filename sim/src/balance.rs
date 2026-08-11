@@ -479,8 +479,8 @@ fn run_range(
         // Er wirkt auf alle Rotationen gleich und verschoebe nur die Achse.
         // Wer ihn messen will, setzt `talents` in `config.factors`.
         talent_permille: 0,
-        // Die sieben aus #419, zweite Runde. Der Balance-Laeufer misst den
-        // Bestand OHNE Talente — wer sie messen will, setzt sie hier.
+        // Die zwoelf aus #419, zweite und dritte Runde. Der Balance-Laeufer
+        // misst den Bestand OHNE Talente — wer sie messen will, setzt sie hier.
         talent_control_gain_permille: 0,
         talent_decay_effect_permille: 0,
         talent_control_cost_permille: 0,
@@ -490,6 +490,9 @@ fn run_range(
         talent_shield_amount_permille: 0,
         talent_shield_duration_permille: 0,
         talent_shield_stacks_bonus: 0,
+        talent_cooldown_reduction_permille: 0,
+        talent_cooldown_charges_bonus: 0,
+        talent_cooldown_threshold_permille: 0,
         // **Die beiden ANDEREN Talent-Groessen kommen durch** (Issue #419) —
         // und das ist der Unterschied, der AC3 ueberhaupt erst messbar macht.
         //
