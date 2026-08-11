@@ -56,6 +56,30 @@ function boss(id: string): BossDef {
  * `runReference('good', …)` fährt stattdessen die Prioritätenliste, die auch
  * den Referenzlauf `4240 @ 40510` erzeugt. Damit fällt `first-crucible`, und
  * die Zahl sagt etwas über den Boss.
+ *
+ * # ⚠ Die Grenze dieses Kriteriums — für den NÄCHSTEN, der es kopiert
+ *
+ * `killedAtMs >= 0` taugt **nicht** für jeden Boss. Bei einem mit `race`
+ * versagt es, und zwar lautlos: Gemessen an `boss-2-4`, der ein Wettrennen
+ * trägt (Schwelle 1400 in 5000 ms) und bei verlorenem Rennen heilt:
+ *
+ * ```text
+ *   12s  dmg=800  heal=0    hpRest=4200   das Rennen läuft
+ *   16s  dmg=0    heal=800  hpRest=5000   verloren, der Boss heilt sich voll
+ *   24s  dmg=500  heal=800  hpRest=4500
+ * ```
+ *
+ * `damageDealt` zählt **netto**. Die Referenzrotation schafft die Schwelle
+ * nicht, der Boss steht am Ende bei voller Kraft, und `killedAtMs` bleibt −1
+ * — obwohl an der Begegnung nichts kaputt ist.
+ *
+ * **Fünf der dreizehn ausgelieferten Bosse fallen im Referenzlauf nicht**
+ * (boss-1-1, 1-2, 2-1, 2-2, 2-4). Für die vier hier trägt das Kriterium,
+ * weil keiner von ihnen ein `race` hat — gemessen, nicht angenommen.
+ *
+ * Wer eine spätere Instanz mit Wettrennen prüft, braucht ein anderes Maß:
+ * etwa „das Rennen wird gewonnen" (`raceWon`) statt „der Boss fällt". Sonst
+ * meldet der Fall vier unbezwingbare Bosse, die es nicht sind.
  */
 function lauf(bossId: string): { damage: number; killedAtMs: number; victory: boolean } {
   const ergebnis = runReference('good', { bossId }) as {
@@ -92,6 +116,30 @@ describe('Die vier sind bezwingbar — gespielt, nicht behauptet', () => {
     // fällt mit derselben Rotation nicht (1580 von 6400) — er ist damit der
     // ausgelieferte Beleg dafür, dass die Latte echt ist.
     expect(lauf('boss-1-2').victory).toBe(false);
+  });
+
+  it('und das Kriterium ist für DIESE vier überhaupt zuständig — keiner trägt ein Wettrennen', () => {
+    // **Der Wächter zum Warnkasten oben.** `killedAtMs >= 0` versagt lautlos
+    // bei einem Boss mit `race`: Wird das Rennen verloren, heilt er sich
+    // zurück, `damageDealt` zählt netto, und er bleibt stehen — ohne dass an
+    // der Begegnung etwas kaputt wäre.
+    //
+    // Gibt jemand einem der vier später ein Wettrennen, wird DIESER Fall rot
+    // und nennt den Namen. Ohne ihn bliebe der Bezwingbarkeits-Fall darüber
+    // grün, bis er es eines Tages nicht mehr ist — und dann sucht jemand den
+    // Fehler im Boss statt im Maßstab.
+    const mitRennen = VIER.filter((id) => boss(id).race !== null);
+    expect(
+      mitRennen,
+      `diese tragen ein Wettrennen, der Bezwingbarkeits-Maßstab passt nicht mehr: ${mitRennen.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('die Zusicherung dazu: es GIBT ausgelieferte Bosse mit Wettrennen', () => {
+    // Ohne sie wäre die Zeile darüber auch dann grün, wenn `race` gar nicht
+    // mehr existierte — und ein Wächter, der eine verschwundene Eigenschaft
+    // bewacht, meldet nie etwas.
+    expect(boss('boss-2-4').race, 'boss-2-4 trägt kein Wettrennen mehr').not.toBeNull();
   });
 });
 
