@@ -111,12 +111,10 @@ describe('AC1 — der Ring auf null ist die NIEDERLAGE', () => {
     // In Etappe 1 stand hier 13500 — nur der Spielerschaden. Der Prüffall war
     // richtig und ist es geblieben; was sich geändert hat, ist die Mechanik
     // unter ihm. Deshalb wird die Zahl hier gerechnet und nicht abgeschrieben.
-    let spieler = 0;
-    let tick = 0;
     let leerBeiMs = -1;
     for (let t = 0; t < 20000; t += TICK_MS) {
-      spieler = (Math.floor(t / 1500) + 1) * 100;
-      tick = Math.floor(t / RUNAWAY.runaway!.perStepMs) * RUNAWAY.runaway!.amount;
+      const spieler = (Math.floor(t / 1500) + 1) * 100;
+      const tick = Math.floor(t / RUNAWAY.runaway!.perStepMs) * RUNAWAY.runaway!.amount;
       if (spieler + tick >= RUNAWAY.hp) {
         leerBeiMs = t;
         break;
