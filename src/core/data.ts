@@ -18,6 +18,7 @@ import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawTestCast from '../../data/spells/test-cast.json';
 import rawTestBuff from '../../data/spells/test-buff.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
+import rawInstances from '../../data/instances.json';
 import rawPlayer from '../../data/player/base.json';
 import rawLevels from '../../data/player/levels.json';
 import rawReward from '../../data/player/reward.json';
@@ -2368,6 +2369,111 @@ export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
  * Design-Entscheidung und steht in GAME-DESIGN Kapitel 22 als offen. Sie hier
  * zu erfinden hieße, sie stillschweigend zu treffen.
  */
+/**
+ * Eine Instanz als eigenes Objekt (GAME-DESIGN 12.7, Issue #421c).
+ *
+ * # Warum das ein Objekt ist und nicht nur ein Feld am Boss
+ *
+ * Die **Zuordnung** Boss → Instanz gab es schon: Jeder Boss trägt `instance`
+ * als Kennung, und der Parser liest sie. Was fehlte, ist alles andere —
+ * Anzeigename, Reihenfolge, Freischaltung. Das stand bis #421c **hartkodiert**
+ * in `src/progression/boss-select.ts` (`INSTANZ_TITEL` und `SPIELBAR`): zwei
+ * Listen, die jeder Neuzugang an zwei Stellen brauchte.
+ *
+ * Dieselbe doppelte Wahrheit, die am 2026-08-10 schon den stillen
+ * Affix-Verlust erzeugt hat.
+ */
+export interface InstanceDef {
+  readonly id: string;
+  /** Anzeigename. Englisch, wie alle Spieltexte (Design-Gesetz 5). */
+  readonly name: string;
+  /**
+   * Die **Nummer** aus `src/loot/rates.ts` (1 bis `INSTANCE_COUNT`), von der
+   * Beute-Stufe und Qualitäts-Obergrenze abhängen (13.4).
+   *
+   * **Nicht die Kennung.** Der Boss trägt `'instance-1'` als Zeichenkette,
+   * `itemLevelOf` rechnet mit einer Zahl; beide auseinanderzuhalten ist der
+   * ganze Zweck dieses Feldes.
+   *
+   * **Heute liest es noch niemand:** `app.ts` übergibt dem Beute-Wurf eine
+   * feste `1`. Die Zeile dort ist ein eigener Schritt und ausdrücklich nicht
+   * Teil von #421c.
+   */
+  readonly number: number;
+  /** Reihenfolge in der Auswahl — nicht die Freischaltung. */
+  readonly order: number;
+  /**
+   * Welche Instanz **abgeschlossen** sein muss, oder `null`.
+   *
+   * 12.7 nennt vier Kriterien nebeneinander; hier steht nur das erste, der
+   * Hauptpfad. Punkte-Schwelle, Schwierigkeitsstufe und
+   * Meisterschafts-Schlüssel fehlen bewusst: Die Schwelle hat niemand
+   * entschieden, und Schwierigkeitsstufen gibt es im Spiel noch nicht.
+   */
+  readonly requires: string | null;
+}
+
+/**
+ * Alle Instanzen, nach `order` sortiert.
+ *
+ * **Harter Abbruch statt `problems`-Kanal**, wie bei `base.json` und
+ * `levels.json`: Das ist keine Inhaltsdatei, die ein Autor pflegt, sondern
+ * eine Voraussetzung. Eine Instanz, die auf sich selbst verweist oder auf
+ * eine, die es nicht gibt, macht die Freischaltung unentscheidbar — dann ist
+ * ein Abbruch ehrlicher als eine Auswahl, die stillschweigend leer bleibt.
+ */
+export const INSTANCES: readonly InstanceDef[] = (() => {
+  const roh = rawInstances as { instances?: unknown[] };
+  const alle: InstanceDef[] = [];
+  const gesehen = new Set<string>();
+
+  for (const eintrag of roh.instances ?? []) {
+    if (!isRecord(eintrag)) throw new Error('data/instances.json: ein Eintrag ist kein Objekt.');
+    const id = typeof eintrag['id'] === 'string' ? eintrag['id'] : '';
+    if (id.length === 0) throw new Error('data/instances.json: eine Instanz ohne Kennung.');
+    if (gesehen.has(id)) {
+      throw new Error(`data/instances.json: die Kennung "${id}" kommt zweimal vor.`);
+    }
+    gesehen.add(id);
+
+    const nummer = Math.trunc(number(eintrag['number'], 0));
+    if (nummer < 1) {
+      throw new Error(
+        `data/instances.json: "${id}" hat number ${String(nummer)} — die Beute-Stufe zählt ` +
+          `ab 1 (src/loot/rates.ts).`,
+      );
+    }
+    alle.push({
+      id,
+      name: typeof eintrag['name'] === 'string' ? eintrag['name'] : id,
+      number: nummer,
+      order: Math.trunc(number(eintrag['order'], 0)),
+      requires: typeof eintrag['requires'] === 'string' ? eintrag['requires'] : null,
+    });
+  }
+
+  // **Erst nach der Schleife prüfen.** Eine Instanz darf auf eine spätere
+  // verweisen, solange es sie gibt; wer das in der Schleife prüfte, verböte
+  // eine Reihenfolge in der Datei, die niemand festgelegt hat.
+  for (const instanz of alle) {
+    if (instanz.requires === null) continue;
+    if (instanz.requires === instanz.id) {
+      throw new Error(`data/instances.json: "${instanz.id}" verlangt sich selbst.`);
+    }
+    if (!gesehen.has(instanz.requires)) {
+      throw new Error(
+        `data/instances.json: "${instanz.id}" verlangt "${instanz.requires}", die es nicht gibt.`,
+      );
+    }
+  }
+  return [...alle].sort((a, b) => a.order - b.order);
+})();
+
+/** Eine Instanz nach ihrer Kennung, oder `undefined`. */
+export function instanceById(id: string): InstanceDef | undefined {
+  return INSTANCES.find((i) => i.id === id);
+}
+
 export const PLAYER: PlayerBaseDef = (() => {
   const roh = rawPlayer as Record<string, unknown>;
   const vessel = number(roh['vessel'], 0);
