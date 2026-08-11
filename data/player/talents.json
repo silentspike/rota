@@ -104,7 +104,7 @@
     {
       "id": "sublimation",
       "school": "SUBLIMATION",
-      "paths": ["trunk", "build", "release", "hold"],
+      "paths": ["trunk", "reduction", "charges", "threshold"],
       "talents": [
         {
           "id": "sublimation-trunk",
@@ -115,27 +115,27 @@
           "requires": null
         },
         {
-          "id": "sublimation-build",
+          "id": "sublimation-reduction",
           "name": "Steeper Ascent",
-          "path": "build",
+          "path": "reduction",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
+          "cooldownReductionPerRankPerMille": 100,
           "requires": "sublimation-trunk"
         },
         {
-          "id": "sublimation-release",
+          "id": "sublimation-charges",
           "name": "Cleaner Reset",
-          "path": "release",
+          "path": "charges",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
+          "cooldownResetChargesPerRank": 1,
           "requires": "sublimation-trunk"
         },
         {
-          "id": "sublimation-hold",
+          "id": "sublimation-threshold",
           "name": "Wider Draw",
-          "path": "hold",
+          "path": "threshold",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
+          "cooldownThresholdPerRankPerMille": 60,
           "requires": "sublimation-trunk"
         }
       ]
