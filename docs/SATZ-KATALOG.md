@@ -16,14 +16,14 @@ affects: [src/gear/sets.ts, data/items.json]
 
 ## Was der Plan vorgibt — und was daraus folgt
 
-| Vorgabe (Plan) | Folge für diesen Katalog |
-| --- | --- |
-| **6 Endgame-Instanzen à 6 Bosse**, ein Satz je Instanz | genau sechs Sätze |
-| **Jeder Satz zielt auf eine Schule** — „auch ungenutzte Zauber bekommen ihre Nische" | fünf Schulen, also **einer bleibt übrig** |
-| Drei Stufen: **2 / 4 / 6 Teile** | `SET_TIERS` steht, ist nicht vorläufig |
-| **Werte unten, Rotations-Effekte oben** | Stufe 2 und 4 tragen Anteile, Stufe 6 einen Effekt |
-| **Frei kombinierbar**, nur die Anzahl zählt | 4 von A plus 2 von B muss sich lohnen |
-| Satz-Boni **addieren**, Affixe **multiplizieren** | die Zahlen unten stehen gegen die Modellrechnung |
+| Vorgabe (Plan)                                                                       | Folge für diesen Katalog                           |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| **6 Endgame-Instanzen à 6 Bosse**, ein Satz je Instanz                               | genau sechs Sätze                                  |
+| **Jeder Satz zielt auf eine Schule** — „auch ungenutzte Zauber bekommen ihre Nische" | fünf Schulen, also **einer bleibt übrig**          |
+| Drei Stufen: **2 / 4 / 6 Teile**                                                     | `SET_TIERS` steht, ist nicht vorläufig             |
+| **Werte unten, Rotations-Effekte oben**                                              | Stufe 2 und 4 tragen Anteile, Stufe 6 einen Effekt |
+| **Frei kombinierbar**, nur die Anzahl zählt                                          | 4 von A plus 2 von B muss sich lohnen              |
+| Satz-Boni **addieren**, Affixe **multiplizieren**                                    | die Zahlen unten stehen gegen die Modellrechnung   |
 
 ### Der sechste Satz ist kein Rest
 
@@ -49,10 +49,10 @@ globalen Cooldown. Er hilft jeder Zusammenstellung gleich und zwingt zu keiner.
 
 ## Die Zahlen — und warum sie bewusst unter dem Affix-Aufbau liegen
 
-| Stufe | Bonus | Kumuliert |
-| ---: | --- | ---: |
-| **2 Teile** | +10 % Ausrüstungs-Anteil (Topf 4) | 10 % |
-| **4 Teile** | +20 % Ausrüstungs-Anteil | **30 %** |
+|       Stufe | Bonus                             |     Kumuliert |
+| ----------: | --------------------------------- | ------------: |
+| **2 Teile** | +10 % Ausrüstungs-Anteil (Topf 4) |          10 % |
+| **4 Teile** | +20 % Ausrüstungs-Anteil          |      **30 %** |
 | **6 Teile** | Rotations-Effekt, **kein Anteil** | 30 % + Effekt |
 
 Gegen die Modellrechnung des Plans bei Budget 0,30:
@@ -77,21 +77,21 @@ diese Kurve also schon, ohne dass sie je entschieden wurde.
 
 Namen englisch (Gesetz 5), alchemistisch im Setting des Werks.
 
-| # | Name | Instanz | Schule | Stufe 6 — Rotations-Effekt |
-| ---: | --- | ---: | --- | --- |
-| 1 | **Ashen Regimen** | 9 | CALCINATION | **PYROCLASM lässt ein Drittel der Hitze stehen.** Aus „alles oder nichts" wird eine Kette: entladen, nachlegen, wieder entladen |
-| 2 | **The Long Grip** | 10 | FIXATION | **Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts.** Belohnt, den Moment zu treffen, statt Punkte zu horten |
-| 3 | **Perpetual Draft** | 11 | SUBLIMATION | **Der Rücksetzer wirkt auf die zwei längsten Abklingzeiten statt auf eine.** Macht lange Zauber planbar statt zufällig |
-| 4 | **The Sealed Vessel** | 12 | COAGULATION | **Überschüssiger Schutz über der Obergrenze wird zu Schaden**, statt zu verfallen. Schließt den Kreis: Überleben zahlt auf Schaden ein |
-| 5 | **Slow Rot** | 13 | PUTREFACTION | **Zersetzungs-Stapel verfallen nicht, solange ein DoT läuft.** Der Aufbau vor dem Schadensfenster wird zur Kernentscheidung statt zum Wettlauf |
-| 6 | **The Whole Work** | 14 | *schulunabhängig* | **Der globale Cooldown sinkt um 100 ms.** Wirkt auf jede Zusammenstellung gleich, zwingt zu keiner — die letzte Instanz gibt Tempo, keine Richtung |
+|   # | Name                  | Instanz | Schule            | Stufe 6 — Rotations-Effekt                                                                                                                         |
+| --: | --------------------- | ------: | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+|   1 | **Ashen Regimen**     |       9 | CALCINATION       | **PYROCLASM lässt ein Drittel der Hitze stehen.** Aus „alles oder nichts" wird eine Kette: entladen, nachlegen, wieder entladen                    |
+|   2 | **The Long Grip**     |      10 | FIXATION          | **Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts.** Belohnt, den Moment zu treffen, statt Punkte zu horten                     |
+|   3 | **Perpetual Draft**   |      11 | SUBLIMATION       | **Der Rücksetzer wirkt auf die zwei längsten Abklingzeiten statt auf eine.** Macht lange Zauber planbar statt zufällig                             |
+|   4 | **The Sealed Vessel** |      12 | COAGULATION       | **Überschüssiger Schutz über der Obergrenze wird zu Schaden**, statt zu verfallen. Schließt den Kreis: Überleben zahlt auf Schaden ein             |
+|   5 | **Slow Rot**          |      13 | PUTREFACTION      | **Zersetzungs-Stapel verfallen nicht, solange ein DoT läuft.** Der Aufbau vor dem Schadensfenster wird zur Kernentscheidung statt zum Wettlauf     |
+|   6 | **The Whole Work**    |      14 | _schulunabhängig_ | **Der globale Cooldown sinkt um 100 ms.** Wirkt auf jede Zusammenstellung gleich, zwingt zu keiner — die letzte Instanz gibt Tempo, keine Richtung |
 
 ### Warum diese fünf Effekte und nicht Zahlen
 
 Jeder greift in **die Entscheidung** ein, die der Plan als Kern der jeweiligen Schule
 benennt, nicht in ihre Stärke:
 
-- CALCINATION: „*wann* entladen wird, ist echte Planung" → der Effekt macht aus einer
+- CALCINATION: „_wann_ entladen wird, ist echte Planung" → der Effekt macht aus einer
   Entscheidung eine Folge von Entscheidungen.
 - FIXATION: „ein Planungswerkzeug statt einer passiven Wirkung" → der Effekt belohnt
   Timing, nicht Vorrat.
@@ -104,12 +104,12 @@ benennt, nicht in ihre Stärke:
 
 ## Was ich NICHT entschieden habe
 
-| Offen | Warum |
-| --- | --- |
-| **Welche Gegenstände zu welchem Satz gehören** | Heute tragen alle 21 Einträge `setId` = kein Satz. Die Zuordnung ist Katalog-Arbeit und hängt an den Endgame-Instanzen, die es noch nicht gibt |
-| **Ob Stufe 6 überhaupt erreichbar ist** | Sechs Satzteile brauchen sechs Plätze aus derselben Instanz — das setzt voraus, dass eine Endgame-Instanz mindestens sechs verschiedene Plätze abwirft |
-| **Die genaue Wirkung in Zahlen** | „ein Drittel der Hitze", „2 s" sind Startwerte für die Messung, keine Balance-Entscheidung. Der Plan verlangt den Prüflauf „bester Satz-Aufbau gegen besten Affix-Aufbau je Ausrichtung" — erst der sagt, ob die Werte stimmen |
-| **Wie stark 100 ms wirklich sind** | Der GCD ist die Taktgröße des ganzen Spiels; 100 ms weniger heben JEDEN Zauber. Der Wert ist der vorsichtigste, der noch spürbar ist — er gehört als erster in den Prüflauf, weil er als einziger nicht auf eine Schule begrenzt bleibt |
+| Offen                                          | Warum                                                                                                                                                                                                                                   |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Welche Gegenstände zu welchem Satz gehören** | Heute tragen alle 21 Einträge `setId` = kein Satz. Die Zuordnung ist Katalog-Arbeit und hängt an den Endgame-Instanzen, die es noch nicht gibt                                                                                          |
+| **Ob Stufe 6 überhaupt erreichbar ist**        | Sechs Satzteile brauchen sechs Plätze aus derselben Instanz — das setzt voraus, dass eine Endgame-Instanz mindestens sechs verschiedene Plätze abwirft                                                                                  |
+| **Die genaue Wirkung in Zahlen**               | „ein Drittel der Hitze", „2 s" sind Startwerte für die Messung, keine Balance-Entscheidung. Der Plan verlangt den Prüflauf „bester Satz-Aufbau gegen besten Affix-Aufbau je Ausrichtung" — erst der sagt, ob die Werte stimmen          |
+| **Wie stark 100 ms wirklich sind**             | Der GCD ist die Taktgröße des ganzen Spiels; 100 ms weniger heben JEDEN Zauber. Der Wert ist der vorsichtigste, der noch spürbar ist — er gehört als erster in den Prüflauf, weil er als einziger nicht auf eine Schule begrenzt bleibt |
 
 ## Der Nachweis, den keiner dieser Effekte heute hätte
 
