@@ -253,6 +253,17 @@ pub struct FightConfig {
     /// Zauberliste — geht auf dieser Seite nicht: `SPELLS` ist statisch und
     /// wird an vierzig Stellen direkt gelesen.
     pub split_spender: bool,
+    /// Ob der Satz-Effekt "ashen-regimen" wirkt (13.5, Issue #480).
+    ///
+    /// Die sechste Satz-Stufe traegt keinen Werte-Bonus, sondern eine Kennung,
+    /// auf die der Kampf reagiert — dieselbe Bauart wie ein Schluesseltalent,
+    /// und deshalb dasselbe Feld daneben. Er laesst PYROCLASM ein Drittel der
+    /// angesammelten Hitze stehen, statt sie vollstaendig zu verbrauchen.
+    ///
+    /// **Als Wahrheitswert und nicht als Kennungsliste**: Der Simulator laedt
+    /// `data/sets.json` nicht; welche Effekte ein Aufbau ausloest, rechnet das
+    /// Spiel und reicht das Ergebnis herein — wie bei `worn`.
+    pub ashen_regimen: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -334,6 +345,7 @@ impl Default for FightConfig {
             boss: BOSS,
             worn: WornValues::none(),
             split_spender: false,
+            ashen_regimen: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -792,6 +804,7 @@ pub struct Fight {
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
     split_spender: bool,
+    ashen_regimen: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1081,6 +1094,7 @@ impl Fight {
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
             split_spender: config.split_spender,
+            ashen_regimen: config.ashen_regimen,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -3891,7 +3905,14 @@ impl Fight {
                     if geteilt {
                         self.resource -= spent;
                     } else {
-                        self.resource = 0;
+                        // **ASHEN REGIMEN** (13.5, Sechser-Bonus): Ein Drittel
+                        // der angesammelten Hitze bleibt stehen.
+                        //
+                        // Abgerundet, der Rest verfaellt (18.4) — bei 20 Hitze
+                        // bleiben 6 stehen, nicht 6,67. Nach dem Schaden, nicht
+                        // davor: `spent` ist oben schon eingegangen; der Effekt
+                        // schenkt Vorrat fuer den NAECHSTEN Wurf.
+                        self.resource = if self.ashen_regimen { spent / 3 } else { 0 };
                     }
                 }
             }
