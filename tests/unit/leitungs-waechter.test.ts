@@ -104,6 +104,13 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   level: 'Eingabe des Laufs, steht in der Aufzeichnung',
   wornValues: 'Eingabe des Laufs, steht in der Aufzeichnung',
   talentAllocation: 'Eingabe des Laufs',
+  // **Wie `talentAllocation`, nicht wie `wornValues`.** Die getragenen Werte
+  // stehen in den Aufzeichnungen (`worn`), die Rotations-Effekte nicht — der
+  // Simulator bekommt sie als Wahrheitswert in der `FightConfig`, genau wie
+  // das Schlüsseltalent `split_spender`, das ebenfalls in keiner Aufzeichnung
+  // steht. Ihre Wirkung ist auf beiden Seiten mit eigenen Fällen gedeckt
+  // (`ashen-regimen.test.ts` und `sim/tests/set_effect_ashen_regimen.rs`).
+  activeSetEffects: 'Eingabe des Laufs',
   wardReduction: 'Eingabe des Laufs',
   resourceId: 'Eigenschaft der Schule',
   resourceCap: 'Eigenschaft der Schule',
