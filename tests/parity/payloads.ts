@@ -7033,6 +7033,137 @@ export function instance2Payload(bossId: string, name: string): Record<string, u
   };
 }
 
+/**
+ * Die vier Bosse der dritten Instanz, je eine Aufzeichnung.
+ *
+ * # Warum es sie bis jetzt nicht gab — und woran das aufgefallen ist
+ *
+ * Instanz 1 und 2 haben je vier Aufzeichnungen und je einen Frische-Fall;
+ * Instanz 3 hatte **keine einzige**. Vier ausgelieferte Bosse standen damit
+ * ohne jeden Paritäts-Nachweis da: Spiel und Simulator konnten bei ihnen
+ * beliebig auseinanderlaufen, ohne dass etwas rot wurde.
+ *
+ * Aufgefallen ist das nicht beim Suchen danach, sondern bei einer Mutation:
+ * `energy.resetTo` von `boss-3-2` (Instanz 3) auf einen anderen Wert gesetzt,
+ * volle Suite — **2332 grün**, obwohl die Änderung nachweislich wirkt (drei
+ * Energie-Auslöser wurden fünf, der Spieler verlor 384 Lebenspunkte mehr).
+ * Dieselbe Mutation an `doom.clearCharges` von `boss-1-2` (Instanz 1) traf
+ * sofort die Frische-Prüfung. Der Unterschied zwischen beiden Messungen war
+ * nicht das Feld, sondern die Instanz.
+ *
+ * # Was auf der Leiste liegt, und warum
+ *
+ * Die vier Bosse tragen vier verschiedene Signaturen — `resistances` (3-1),
+ * `energy` (3-2), `stacks` (3-3), `doom` mit Phasen (3-4). Drei davon wirken
+ * von selbst auf den Spieler und brauchen keine Antwort auf der Leiste.
+ *
+ * **PURGE ist die Ausnahme und der Grund für den fünften Platz.** Er ist der
+ * einzige Zauber im Bestand mit `clearsDoom`. Ohne ihn zeichnete der Lauf für
+ * `boss-3-4` einen Kampf auf, in dem der Zähler ungebremst hochläuft — die
+ * Aufzeichnung beträfe dessen Signatur dann nur von außen, so wie eine ohne
+ * QUENCH die Unterbrechung nie zeigt (siehe `recordInstance1`).
+ *
+ * # Warum PURGE an der Schwelle drückt und nicht durchgehend
+ *
+ * `clearAmount` nimmt dem Zähler einen festen Betrag. Wer früher drückt,
+ * verschenkt die Differenz und hat die Ladung dann nicht, wenn sie zählt —
+ * die Wartezeit ist die Begrenzung, nicht ein Vorrat (siehe `combat.ts`,
+ * Doom-Takt). Die Bedingung liest den Betrag **aus dem Boss**, statt ihn hier
+ * zu wiederholen: Eine zweite Zahl neben der ersten wäre genau die doppelte
+ * Wahrheit, an der schon die Instanz-Liste in `boss-select.ts` gescheitert
+ * ist.
+ */
+export const INSTANCE3_NAMES = [
+  'instance3-boss-1',
+  'instance3-boss-2',
+  'instance3-boss-3',
+  'instance3-boss-4',
+] as const;
+
+const INSTANCE3_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+  { slot: 4, spellId: 'purge' },
+] as const;
+
+function recordInstance3(bossId: string, ticks: number): Recording {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE3_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  // Die Schwelle, ab der eine Senkung ihren vollen Betrag trägt. Bei Bossen
+  // ohne `doom` bleibt sie 0 — dann steht `combat.doom` dauerhaft auf 0, die
+  // Bedingung unten greift nie, und PURGE liegt zwar auf der Leiste, wird aber
+  // kein einziges Mal gedrückt. Genau das soll bei 3-1 bis 3-3 herauskommen.
+  const senkung = boss.doom?.clearAmount ?? 0;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    // Beim eigenen Tod endet die Aufzeichnung, wie in `recordInstance1`
+    // begründet (GAME-DESIGN A.3).
+    if (combat.playerDead) break;
+
+    // **Unterbrechen zuerst und ohne GCD-Prüfung** — QUENCH trägt
+    // `triggersGcd: false`, dieselbe Reihenfolge wie in `recordInstance2`.
+    if (combat.casting !== -1 && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+      continue;
+    }
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (senkung > 0 && combat.doom >= senkung && combat.isOffCooldown(idx('purge'), timeMs)) {
+      press(idx('purge'), tick, timeMs);
+    } else if (
+      !combat.isDotActive(idx('smoulder'), timeMs) &&
+      combat.isOffCooldown(idx('smoulder'), timeMs)
+    ) {
+      press(idx('smoulder'), tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(idx('pyre'), timeMs)) {
+      press(idx('pyre'), tick, timeMs);
+    } else if (combat.isOffCooldown(idx('kindle'), timeMs)) {
+      press(idx('kindle'), tick, timeMs);
+    }
+  }
+
+  return { name: bossId, seed: 0, ticks, presses, bindings: INSTANCE3_BINDINGS };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse der dritten Instanz. */
+export function instance3Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const recording = { ...recordInstance3(bossId, 6000), name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE3_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      diedAtMs: result.diedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const CAP_STAPELUNG_NAME = 'cap-stapelung';
 
 const CAP_STAPELUNG_BINDINGS = [

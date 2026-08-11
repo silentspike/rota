@@ -96,6 +96,10 @@ import eingecheckterZwei4 from './recordings/instance2-boss-4.json';
 import eingecheckterBoss2 from './recordings/instance1-boss-2.json';
 import eingecheckterBoss3 from './recordings/instance1-boss-3.json';
 import eingecheckterBoss4 from './recordings/instance1-boss-4.json';
+import eingecheckterDrei1 from './recordings/instance3-boss-1.json';
+import eingecheckterDrei2 from './recordings/instance3-boss-2.json';
+import eingecheckterDrei3 from './recordings/instance3-boss-3.json';
+import eingecheckterDrei4 from './recordings/instance3-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
@@ -166,6 +170,7 @@ import {
   tickRundungPayload,
   instance1Payload,
   instance2Payload,
+  instance3Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -254,6 +259,26 @@ describe('Gemeinsame Vergleichsdateien', () => {
     for (let i = 0; i < erwartet.length; i++) {
       expect(erwartet[i], HINWEIS).toEqual(
         instance2Payload(`boss-2-${i + 1}`, `instance2-boss-${i + 1}`),
+      );
+    }
+  });
+
+  it('die vier Bosse der dritten Instanz entsprechen dem heutigen Spielstand', () => {
+    // **Diese vier Zeilen gab es bis heute nicht** — und ihr Fehlen war
+    // unsichtbar, weil ein fehlender Fall nichts meldet. Gemessen: eine
+    // wirksame Änderung an `boss-3-2` (`energy.resetTo`) ließ die volle Suite
+    // mit 2332 grünen Fällen durchlaufen, während dieselbe Klasse Änderung an
+    // `boss-1-2` sofort hier oben anschlug. Der Unterschied war nicht das
+    // Feld, sondern die Instanz.
+    const erwartet = [
+      eingecheckterDrei1,
+      eingecheckterDrei2,
+      eingecheckterDrei3,
+      eingecheckterDrei4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance3Payload(`boss-3-${i + 1}`, `instance3-boss-${i + 1}`),
       );
     }
   });
@@ -850,6 +875,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance2-boss-2',
   'instance2-boss-3',
   'instance2-boss-4',
+  'instance3-boss-1',
+  'instance3-boss-2',
+  'instance3-boss-3',
+  'instance3-boss-4',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',
