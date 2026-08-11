@@ -8,7 +8,7 @@ buff.factor                virulence    2 -> 1        geschuetzt [1 Prueffall] (
 buff.gcds                  aether       8 -> 4        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
 buff.gcds                  distil       4 -> 2        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.gcds                  flashpoint   3 -> 1        geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
-buff.gcds                  griplock     4 -> 2        NUR FRISCHE -> faktisch ungeschuetzt
+buff.gcds                  griplock     4 -> 2        geschuetzt [2 Prueffaelle] (buff-fenster-und-art.test.ts)
 buff.gcds                  quicksilver  4 -> 2        geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
 buff.gcds                  slag         4 -> 2        geschuetzt [6 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)
 buff.gcds                  virulence    4 -> 2        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
@@ -16,7 +16,7 @@ buff.kind                  aether       0 -> 1        RUST-GEPRUEFT (sim/tests/p
 buff.kind                  distil       0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.kind                  flashpoint   0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.kind                  griplock     0 -> 1        geschuetzt [1 Prueffall] (buff-ersetzung-ueber-zauber.test.ts)
-buff.kind                  quicksilver  0 -> 1        SCHWEIGT
+buff.kind                  quicksilver  0 -> 1        geschuetzt [1 Prueffall] (buff-fenster-und-art.test.ts)
 buff.kind                  slag         1 -> 0        geschuetzt [4 Prueffaelle] (buff-expire-log.test.ts, buff-stapelung-ueber-zauber.test.ts)
 buff.kind                  virulence    0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
 buff.target                aether       cdreduce -> tick     RUST-GEPRUEFT (sim/tests/parity_aether.rs; zusaetzlich sim/tests/buff_targets.rs) — vitest meldet nur den Mess-Waechter
@@ -30,22 +30,22 @@ control.amountMs           capstone     2000 -> 1000     geschuetzt [2 Prueffael
 control.amountPercent      capstone     10 -> 5       geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts)
 control.amountMs           latch        4000 -> 2000     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.amountMs           stall        2000 -> 1000     geschuetzt [6 Prueffaelle] (kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
-control.amountMs           pin          2000 -> 1000     NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs)
+control.amountMs           pin          2000 -> 1000     geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts, pin-kontrolle.test.ts) + RUST (parity_pin.rs)
 control.amountMs           stay         3000 -> 1500     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.amountPerPoint     wedge        8 -> 4        geschuetzt [1 Prueffall] (wedge.test.ts)
-control.amountPercent      anchor       10 -> 5        NUR FRISCHE -> faktisch ungeschuetzt
+control.amountPercent      anchor       10 -> 5        geschuetzt [4 Prueffaelle] (capstone-senkung.test.ts, fixation-ausgeber.test.ts)
 control.cost               anchor       6 -> 3        geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)
 control.cost               capstone     8 -> 4        geschuetzt [1 Prueffall] (control-spent-log.test.ts)
-control.cost               latch        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+control.cost               latch        2 -> 1        geschuetzt [1 Prueffall] (fixation-ausgeber.test.ts)
 control.cost               stall        4 -> 2        geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, kontroll-leitung.test.ts)
-control.cost               pin          3 -> 6        NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs)
+control.cost               pin          3 -> 1        geschuetzt [1 Prueffall] (pin-kontrolle.test.ts) + RUST (parity_pin.rs)
 control.cost               stay         3 -> 1        geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)
-control.cost               wedge        3 -> 1        SCHWEIGT
+control.cost               wedge        3 -> 1        geschuetzt [2 Prueffaelle] (fixation-ausgeber.test.ts)
 control.effect             anchor       holdPhase -> slowCast geschuetzt [1 Prueffall] (anchor-phasenschwelle.test.ts)
 control.effect             capstone     allThree -> holdPhase geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, wedge.test.ts)
 control.effect             latch        delayStrike -> holdPhase geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.effect             stall        slowCast -> holdPhase geschuetzt [7 Prueffaelle] (boss-cast-display.test.ts, kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
-control.effect             pin          makeInterruptible -> delayStrike NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_pin.rs: damageTaken 96 statt 64)
+control.effect             pin          makeInterruptible -> holdPhase geschuetzt [3 Prueffaelle] (pin-kontrolle.test.ts) + RUST (parity_pin.rs: damageTaken 96 statt 64)
 control.effect             stay         delayStrike -> holdPhase geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
 control.effect             wedge        convertToDamage -> holdPhase geschuetzt [6 Prueffaelle] (control-spent-log.test.ts, efflux.test.ts, wedge.test.ts)
 conversion.durationMs      crucible-skin 6000 -> 3000     geschuetzt [1 Prueffall] (crucible-skin.test.ts)
@@ -53,11 +53,11 @@ conversion.durationMs      temper       10000 -> 5000     geschuetzt [2 Prueffae
 conversion.sharePercent    crucible-skin 50 -> 25       geschuetzt [1 Prueffall] (crucible-skin.test.ts)
 conversion.sharePercent    temper       25 -> 12       geschuetzt [4 Prueffaelle] (umwandlung-groessen.test.ts)
 convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [3 Prueffaelle] (combat.test.ts, data.test.ts, efflux.test.ts)
-convert.perSecond          efflux       12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
-decayWard.durationMs       decay        6000 -> 3000     SCHWEIGT -> die Aufzeichnung faerbt NICHT: ihr Fenster reicht auch halbiert fuer jeden Treffer
-decayWard.permillePerStack decay        40 -> 20       NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_decay_ward.rs: damageTaken)
-decayCap.bonus             putrid-bloom 2 -> 1        NUR FRISCHE (vitest) -> aber geschuetzt in RUST (parity_putrid_bloom.rs: Schaden 1985 gegen 1914) und durch mechanic-numbers-source.test.ts (Kapazitaetsgrenze)
-decayCap.durationMs        putrid-bloom 10000 -> 5000   NUR FRISCHE (vitest) -> beide Faelle faerben, weil das kuerzere Fenster den Aufbau frueher abschneidet
+convert.perSecond          efflux       12 -> 6        geschuetzt [2 Prueffaelle] (letzte-drei-groessen.test.ts)
+decayWard.durationMs       decay        6000 -> 3000     geschuetzt [2 Prueffaelle] (putrefaction-fenster.test.ts)
+decayWard.permillePerStack decay        40 -> 20       geschuetzt [2 Prueffaelle] (putrefaction-fenster.test.ts) + RUST (parity_decay_ward.rs: damageTaken)
+decayCap.bonus             putrid-bloom 2 -> 1        geschuetzt [3 Prueffaelle] (putrefaction-fenster.test.ts) + RUST (parity_putrid_bloom.rs)
+decayCap.durationMs        putrid-bloom 10000 -> 5000     geschuetzt [4 Prueffaelle] (putrefaction-fenster.test.ts)
 decay.stacks               blight       1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
 decay.stacks               canker       1 -> 0        geschuetzt [24 Prueffaelle] (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
 dot.decayPerTick           rot          1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
@@ -70,7 +70,7 @@ dot.refreshMode            rot          reset -> rota-mutation-ungueltig geschue
 dot.refreshMode            searing      reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [5 Prueffaelle] (bindungen-im-nachlauf.test.ts, combat.test.ts, data.test.ts...)
 dot.refreshMode            smoulder     reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [66 Prueffaelle] (active-dots.test.ts, buff-targets.test.ts, checksum-effectiveness.test.ts...)
 dot.tickDamage             cinder       30 -> 15       geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)
-dot.tickDamage             rot          25 -> 12       NUR FRISCHE -> faktisch ungeschuetzt
+dot.tickDamage             rot          25 -> 12       geschuetzt [3 Prueffaelle] (letzte-drei-groessen.test.ts)
 dot.tickDamage             searing      90 -> 45       geschuetzt [3 Prueffaelle] (bindungen-im-nachlauf.test.ts, dot-groessen.test.ts)
 dot.tickDamage             smoulder     40 -> 20       geschuetzt [27 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 dot.tickIntervalMs         cinder       1000 -> 500      geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)
@@ -89,7 +89,7 @@ heal.tickIntervalMs        poultice     1000 -> 500      geschuetzt [1 Prueffall
 reflect.durationMs         riposte      8000 -> 4000     geschuetzt [1 Prueffall] (riposte.test.ts)
 reflect.sharePercent       riposte      50 -> 25       geschuetzt [4 Prueffaelle] (riposte.test.ts)
 resourceGain.heat          bellows      8 -> 4        geschuetzt [4 Prueffaelle] (slag.test.ts)
-resourceGain.heat          ember        2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+resourceGain.heat          ember        2 -> 1        geschuetzt [1 Prueffall] (letzte-drei-groessen.test.ts)
 resourceGain.heat          kindle       3 -> 1        geschuetzt [33 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
 shield.amount              crucible-skin 1800 -> 900      geschuetzt [1 Prueffall] (crucible-skin.test.ts)
 shield.amount              crust        900 -> 450      geschuetzt [7 Prueffaelle] (instance-2-signaturen.test.ts, runaway-beatable.test.ts, suture.test.ts)
@@ -97,20 +97,20 @@ shield.amount              plate        2400 -> 1200     geschuetzt [1 Prueffall
 shield.amount              scab         200 -> 100      geschuetzt [3 Prueffaelle] (heilung-schild-groessen.test.ts, suture.test.ts)
 shield.durationMs          crucible-skin 6000 -> 3000     geschuetzt [2 Prueffaelle] (crucible-skin.test.ts)
 shield.durationMs          crust        12000 -> 6000     geschuetzt [1 Prueffall] (checksum-effectiveness.test.ts)
-shield.durationMs          plate        15000 -> 7500     NUR FRISCHE -> faktisch ungeschuetzt
-shield.durationMs          scab         8000 -> 4000     SCHWEIGT
+shield.durationMs          plate        15000 -> 7500     geschuetzt [4 Prueffaelle] (oberste-ebene-rest.test.ts, schild-dauer.test.ts)
+shield.durationMs          scab         8000 -> 4000     geschuetzt [2 Prueffaelle] (schild-dauer.test.ts)
 shield.maxStacks           crucible-skin 1 -> 0        geschuetzt [4 Prueffaelle] (combat.test.ts, crucible-skin.test.ts, data.test.ts)
 shield.maxStacks           crust        3 -> 1        geschuetzt [10 Prueffaelle] (boss-runaway.test.ts, progress-direction.test.ts, runaway-beatable.test.ts)
 shield.maxStacks           plate        1 -> 0        geschuetzt [3 Prueffaelle] (combat.test.ts, data.test.ts, riposte.test.ts)
 shield.maxStacks           scab         3 -> 1        geschuetzt [3 Prueffaelle] (coagulation-scab.test.ts, heilung-schild-groessen.test.ts, suture.test.ts)
 spender.bonusMultiplier    pyre         2 -> 1        geschuetzt [31 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-spender.bonusMultiplier    pyroclasm    2 -> 1        NUR FRISCHE -> faktisch ungeschuetzt
+spender.bonusMultiplier    pyroclasm    2 -> 1        geschuetzt [3 Prueffaelle] (pyroclasm-spender.test.ts)
 spender.bonusThreshold     pyre         15 -> 7        geschuetzt [22 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-spender.bonusThreshold     pyroclasm    15 -> 7        SCHWEIGT
+spender.bonusThreshold     pyroclasm    15 -> 7        geschuetzt [4 Prueffaelle] (pyroclasm-spender.test.ts)
 spender.consumesAll        pyre         True -> False    geschuetzt [24 Prueffaelle] (combat.test.ts, devtools-replay.test.ts, instance-1-signaturen.test.ts...)
 spender.consumesAll        pyroclasm    True -> False    RUST-GEPRUEFT (sim/build.rs:671 bricht ab) — vitest schweigt
 spender.damagePerPoint     pyre         12 -> 6        geschuetzt [35 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-spender.damagePerPoint     pyroclasm    12 -> 6        NUR FRISCHE -> faktisch ungeschuetzt
+spender.damagePerPoint     pyroclasm    12 -> 6        geschuetzt [5 Prueffaelle] (pyroclasm-spender.test.ts)
 spender.resource           pyre         heat -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [45 Prueffaelle] (combat.test.ts, composition-preview.test.ts, devtools-replay.test.ts...)
 spender.resource           pyroclasm    heat -> rota-mutation-ungueltig RUST-GEPRUEFT (sim/build.rs:664 bricht ab) — vitest schweigt
 synergy.partner            canker       fester -> searing  geschuetzt [6 Prueffaelle] (factor-triggers.test.ts, synergy.test.ts)
