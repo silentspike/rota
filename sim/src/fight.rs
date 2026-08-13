@@ -70,7 +70,7 @@ use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
 use crate::data::{
     stack_damage, stat_at_level, Boss, BossHealTrigger, BuffTarget, Control, ControlEffect, Doom,
-    Dot, Resource, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
+    Dot, Spell, TimelineEntry, TimelineKind, BOSS, PLAYER, RESOURCE, SPELLS, SPELL_COUNT,
 };
 use crate::event::{EventKind, EventQueue};
 use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
@@ -5399,12 +5399,6 @@ impl Fight {
     #[must_use]
     pub fn boss(&self) -> &'static Boss {
         self.boss
-    }
-
-    /// Die Schul-Mechanik.
-    #[must_use]
-    pub fn resource_data(&self) -> &'static Resource {
-        &RESOURCE
     }
 
     /// Das Kampfprotokoll.

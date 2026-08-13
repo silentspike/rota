@@ -19,5 +19,22 @@ serde_json = "1"
 # Nur fuer Tests: Der Nachweis, dass die einkompilierten Werte Feld fuer Feld
 # denen aus data/ entsprechen, liest das JSON ein zweites Mal — bewusst auf
 # einem anderen Weg als build.rs, sonst pruefte der Test seinen eigenen Fehler mit.
+#
+# `syn` liest die eigenen Quelldateien als Syntaxbaum — der Waechter gegen tote
+# oeffentliche Symbole (#815). Ein Zeilenmuster taete es NICHT: Bei der Messung
+# zu diesem Issue hat eine Textsuche dreimal falsch gezaehlt, einmal weil ein
+# Kommentar als Nutzung galt, einmal weil eine gleichnamige lokale Variable
+# mitzaehlte, einmal weil das Dateimuster keine Ziffern kannte.
+#
+# Es kostet KEIN zusaetzliches Paket: `serde_json` zieht `serde` zieht
+# `serde_derive` zieht `syn` — gemessen an Cargo.lock, 12 Pakete vorher wie
+# nachher. Und es beruehrt den Determinismus nicht, weil es weder in der
+# Bibliothek noch im Bau vorkommt.
 [dev-dependencies]
 serde_json = "1"
+syn = { version = "2", features = ["full", "visit"] }
+# Fuer die Token-Ebene: `syn` parst Makro-ARGUMENTE nicht als Baum — sie sind
+# ein TokenStream. Ohne dieses Paket waere jeder Aufruf in `assert_eq!` oder
+# `println!` unsichtbar, und der Waechter meldete zwoelf lebende Methoden als
+# tot (gemessen). `syn` zieht es ohnehin.
+proc-macro2 = "1"

@@ -86,7 +86,7 @@ mod parse;
 
 pub use parse::{parse, AplError, AplName};
 
-use crate::data::{Spell, MAX_LEVEL, RESOURCE, SPELLS, SPELL_COUNT};
+use crate::data::{Spell, MAX_LEVEL, RESOURCE, SPELLS};
 use crate::fight::Fight;
 use crate::time::{Millis, GCD_MS};
 
@@ -376,18 +376,6 @@ impl Apl {
             }
         }
         earliest
-    }
-
-    /// Prüft, dass jeder genannte Zauber existiert.
-    #[must_use]
-    pub fn spells_used(&self) -> Vec<usize> {
-        let mut used = Vec::with_capacity(SPELL_COUNT);
-        for rule in &self.rules {
-            if !used.contains(&rule.spell) {
-                used.push(rule.spell);
-            }
-        }
-        used
     }
 }
 

@@ -414,10 +414,23 @@ fn main() {
     let (a, d, s, b) = zeilen_nach_herkunft(&pool);
     println!("Suchraum");
     println!("  Kandidatenzeilen  {}", pool.len());
-    println!("    unbedingt       {a}");
-    println!("    Brand nachlegen {d}");
-    println!("    Entlade-Schwelle {s}");
-    println!("    Verstaerkungs-Fenster {b}");
+    // **Die Bezeichnungen kommen aus `Origin::label`, nicht aus diesen
+    // Zeilen** (Issue #815). Bis hierher standen sie doppelt: einmal in
+    // `rotation_search.rs` als Methode, einmal hier woertlich. Die Methode
+    // hatte deshalb keinen Aufrufer und galt als toter Code — sie war es
+    // nicht, sie war nur umgangen.
+    //
+    // Zwei Listen derselben vier Namen laufen beim naechsten Herkunfts-Typ
+    // auseinander: Wer ihn in `Origin` ergaenzt, bekommt hier keine Zeile und
+    // merkt es nicht, weil die Zahl einfach fehlt.
+    for (origin, zahl) in [
+        (Origin::Always, a),
+        (Origin::DotRefresh, d),
+        (Origin::SpenderThreshold, s),
+        (Origin::BuffWindow, b),
+    ] {
+        println!("    {:22} {zahl}", origin.label());
+    }
     println!();
 
     // Je Boss die gefundene Rotation — fuer den Kreuzvergleich unten (#509 AC3).
