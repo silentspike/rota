@@ -364,13 +364,36 @@ Der Lauf hat dann **keinen einzigen** Fall geprüft. Unterscheiden lässt es sic
 einem Griff:
 
 ```
-grep -c "test result: ok" <log>     0 statt 151  →  nichts lief
+grep -cE "^test .* \.\.\. (ok|FAILED)" <log>     0  →  nichts lief
 ```
 
-Bei einem echten Testfehler stehen die grünen Suiten daneben. Das ist die vierte
-Form von „der Lauf hat nicht stattgefunden" — nach _exit 0 trotz 101_, _stand noch
-in der Schlange_ und _Ausgabedatei 0 Bytes_ — und die einzige, die wie ein
-Testergebnis aussieht.
+**Nicht `grep -c "test result: ok"`** — diese Zeile fehlt auch bei einem Lauf, der
+sauber lief und rot war, denn dort steht `test result: FAILED`. Bei einem
+Vollstand über viele Suiten fällt der Unterschied nicht auf (150 grüne Suiten
+stehen daneben); bei `--test <einziges-ziel>` meldet der Griff einen
+Compilerabbruch, wo ein normaler roter Lauf war. Zähle die **Fallzeilen**, nicht
+die Suiten-Zusammenfassung.
+
+Das ist die vierte Form von „der Lauf hat nicht stattgefunden" — nach _exit 0
+trotz 101_, _stand noch in der Schlange_ und _Ausgabedatei 0 Bytes_.
+
+#### Die fünfte: ein Fall meldet grün, der rot ist
+
+In der Nacht auf den 2026-08-14 meldete ein Mutationslauf fünf Fälle richtig und
+**einen falsch** — der Fall, der die Wurfzahl vergleicht, stand mit `ok` da,
+obwohl die Zeile fehlte, die sie erhöht. Zwei Sitzungen haben daraufhin **neun
+Erklärungen** durchprobiert und alle neun widerlegt.
+
+Der Befund war nicht reproduzierbar: Derselbe Eingriff an derselben Zeile, von
+einer anderen Sitzung gefahren, färbte den Fall mit `left: 0, right: 3`.
+
+> **Bevor du erklärst, warum ein Ergebnis unmöglich ist: fahre es noch einmal.**
+> Eine Stunde Codelesen kostet mehr als ein zweiter Lauf — und findet nichts, wenn
+> im Code nichts ist.
+
+Diese Form ist die unangenehmste, weil sie sich nicht als Störung meldet: richtige
+Fallnamen, plausibles `rc`, ein einziger Wert daneben. Sie sieht aus wie ein
+Befund über den Code und ist einer über den Lauf.
 
 ### Ein neuer Zauber steht an drei Handlisten, und keine findet die andere
 
