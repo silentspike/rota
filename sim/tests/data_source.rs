@@ -31,8 +31,7 @@ const TEST_CAST_JSON: &str = include_str!("../../data/spells/test-cast.json");
 const TEST_BUFF_JSON: &str = include_str!("../../data/spells/test-buff.json");
 const TEST_CHANNEL_JSON: &str = include_str!("../../data/spells/test-channel.json");
 /// Der Pruef-Zauber zur HEILUNGS-Kanalisierung (Issue #323).
-const TEST_CHANNEL_HEAL_JSON: &str =
-    include_str!("../../data/spells/test-channel-heal.json");
+const TEST_CHANNEL_HEAL_JSON: &str = include_str!("../../data/spells/test-channel-heal.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
