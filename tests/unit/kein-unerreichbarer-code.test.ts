@@ -66,8 +66,13 @@ const EINSTIEGE = [
  * Die Liste ist ausdrücklich **kein Freibrief**. Sie hält den Zustand fest,
  * damit ein NEUNTER Fall auffällt — und der Fall darunter meldet, wenn ein
  * Eintrag verschwindet, damit sie nicht überlebt, was sie beschreibt.
+ *
+ * **Exportiert für den Symbol-Wächter** (`tote-symbole-waechter.test.ts`): Was
+ * hier steht, ist auf Dateiebene bereits erfasst. Ohne diesen Import meldete er
+ * `runLiveMetrics` ein zweites Mal — dieselbe Sache, andere Ebene, und die
+ * Ausnahme müsste an zwei Stellen gepflegt werden.
  */
-const BEKANNT_UNERREICHBAR: readonly string[] = [
+export const BEKANNT_UNERREICHBAR: readonly string[] = [
   // E7-5 (Issue #85) ist seit dem Anschluss des Archivs erreichbar: Die
   // Pruefeintraege in `data/archive/` geben der Ansicht etwas zu zeigen, der
   // Spielstand fuehrt `unlockedEntryIds`, und `app.ts` haengt beides in das
