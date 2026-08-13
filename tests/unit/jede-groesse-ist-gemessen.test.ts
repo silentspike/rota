@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Der Wächter zu Issue #547, AC5 — **er prüft die Vollständigkeit der
@@ -154,6 +155,53 @@ describe('AC5 — keine Größe ohne Messung', () => {
       `Diese Zeilen in ${MESSUNG} gehören zu Größen, die es im Bestand nicht ` +
         `mehr gibt. Sie gehören entfernt — eine Messung ohne Gegenstück sieht aus ` +
         `wie Abdeckung und ist keine.`,
+    ).toEqual([]);
+  });
+
+  /**
+   * Die dritte Richtung: Existieren die Prüffälle, auf die sich die Urteile
+   * berufen?
+   *
+   * # Was dieser Fall fängt — und was ausdrücklich nicht
+   *
+   * Ein Urteil lautet `geschuetzt [2 Prueffaelle] (pin-kontrolle.test.ts)`.
+   * Wird diese Datei gelöscht oder umbenannt, behauptet die Zeile weiter
+   * Schutz, und niemand merkt es: Die beiden Fälle oben prüfen nur, ob das
+   * **Paar** dasteht, nicht ob sein Urteil noch trägt.
+   *
+   * **Er fängt NICHT, dass ein Urteil inhaltlich veraltet.** Am 2026-08-11
+   * standen zwanzig Zeilen auf `NUR FRISCHE`, obwohl sie längst gedeckt
+   * waren — jede nannte gar keine Datei, also hätte dieser Fall geschwiegen.
+   * Dafür gibt es nur einen echten Weg, und er ist teuer: den vollen
+   * Mutationslauf über alle Paare (`tools/groessen-mutation.py`), rund eine
+   * Viertelstunde mit `--bail`. Das gehört nicht in jeden CI-Lauf, und die
+   * Frage, wohin dann, ist keine, die ein Prüffall beantwortet.
+   *
+   * Diese Grenze steht hier, damit niemand den billigen Wächter für den
+   * teuren hält.
+   */
+  it('jede genannte Prüffall-Datei gibt es wirklich', () => {
+    const text = readFileSync(MESSUNG, 'utf8');
+    const genannt = [...new Set([...text.matchAll(/([a-z0-9-]+\.test\.ts)/g)].map((t) => t[1]))];
+
+    // **Die Zusicherung zuerst.** Findet das Muster nichts — geändertes
+    // Format, umbenannte Endung —, wäre die Prüfung darunter trivial erfüllt.
+    expect(genannt.length, `${MESSUNG} nennt keine einzige Prüffall-Datei`).toBeGreaterThan(20);
+
+    const fehlend = genannt
+      .filter(
+        (name) =>
+          !existsSync(join('tests/unit', name as string)) &&
+          !existsSync(join('tests/parity', name as string)),
+      )
+      .sort();
+
+    expect(
+      fehlend,
+      `Diese Prüffälle werden in ${MESSUNG} als Schutz genannt, es gibt sie aber ` +
+        `nicht mehr: ${fehlend.join(', ')}\n\n` +
+        `Eine Zeile, die auf eine gelöschte Datei zeigt, behauptet Schutz, den ` +
+        `niemand mehr leistet.`,
     ).toEqual([]);
   });
 });

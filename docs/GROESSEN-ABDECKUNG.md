@@ -9,9 +9,41 @@ affects: [tests/unit, sim/tests, tests/parity]
 
 # Welche Größen im Zauber-Bestand geprüft sind — und welche nicht
 
-Zuletzt vollständig gemessen am **2026-08-10** (alle 109 Paare), Werkzeug
-`tools/groessen-mutation.py`. Erstmals erhoben am 2026-08-07 für Issue #547;
-die datierten Nachträge am Ende halten die Zwischenstände fest.
+Erstmals erhoben am 2026-08-07 für Issue #547, Werkzeug
+`tools/groessen-mutation.py`; die datierten Nachträge am Ende halten die
+Zwischenstände fest.
+
+> ### ⚠ Die Zahlen unten sind ein DATUM. Der Ist-Stand steht in zwei Befehlen
+>
+> ```bash
+> grep -cvE '^#|^$' docs/groessen-abdeckung-messung.txt   # gemessene Paare
+> grep -cE 'NUR FRISCHE|SCHWEIGT' docs/groessen-abdeckung-messung.txt   # offene
+> ```
+>
+> **Warum das hier steht.** Am 2026-08-11 führte dieses Dokument drei Zahlen,
+> die alle drei falsch waren — und zwei davon widersprachen einander:
+>
+> | Stelle    | sagte               | gemessen |
+> | --------- | ------------------- | -------- |
+> | Kopfzeile | „alle 109 Paare"    | 117      |
+> | unten     | „**116 Paare**"     | 117      |
+> | Ergebnis  | „21 Lücken von 116" | 20 offen |
+>
+> Beide Zahlen waren einmal richtig. Sie sind gealtert, weil jeder neue Zauber
+> die Menge verschiebt und niemand alle vier Stellen nachzieht — dieselbe
+> Alterung, die dieses Dokument bei den Zaubern beschreibt.
+>
+> Die Raster (`ZAUBER-RASTER.md`, `AUSRUESTUNGS-RASTER.md`) tragen deshalb seit
+> #753/#754 den **Befehl** statt der Zahl. Beim Ausrüstungs-Raster hat genau
+> das den nächsten Fehler gefangen: Im Dokument stand ein Eintrag, gemessen
+> waren es einundzwanzig.
+>
+> **Eine Zahl im Fließtext ist ein Beleg für einen Tag. Ein Befehl ist eine
+> Antwort für jeden Tag.**
+
+**Stand am 2026-08-11:** 117 Paare, davon 20 mit offenem Urteil. Nach dem
+Nachziehen der veralteten Urteile sind es 0 — wer das prüfen will, fährt die
+zwei Befehle oben, statt dieser Zeile zu glauben.
 
 **Die Frage.** Ein Prüffall, der nur die _Existenz_ einer Wirkung feststellt
 (`toBeGreaterThan(CAP)`), bleibt grün, wenn jemand ihre _Größe_ auf ein
@@ -43,7 +75,7 @@ Aussage auf Feld-Ebene ist in **beide** Richtungen falsch: Ein abgesicherter
 erster Träger verdeckt die Lücke dahinter, ein ungeschützter erklärt Zauber
 für ungeprüft, die es nicht sind.
 
-**116 Paare** über 41 Felder, alle gemessen. Der Bestand ist
+**117 Paare** über 41 Felder, alle gemessen (Stand 2026-08-11 — der Kasten oben nennt den Befehl). Der Bestand ist
 seit der ersten Messung gewachsen: 53 vor #540, 68 mit den fünf Verstärkern,
 90 mit den Textfeldern aus #633, 109 mit den fünf COAGULATION-Zaubern aus
 #481, 116 mit den Zaubern aus #479 und #480.
@@ -59,7 +91,7 @@ seit der ersten Messung gewachsen: 53 vor #540, 68 mit den fünf Verstärkern,
 
 ---
 
-## Das Ergebnis: 21 Lücken von 116
+## Das Ergebnis am 2026-08-07: 21 Lücken von 116
 
 | Sorte            | Paare | Was anschlägt                                                   |
 | ---------------- | ----- | --------------------------------------------------------------- |
@@ -140,10 +172,10 @@ sie das Richtige rechnen.**
 
 ### Wann das zuschlägt
 
-Heute ist keine der 116 Zahlen falsch, und beide Seiten rechnen sie gleich. Der
+Am 2026-08-07 war keine der 116 Zahlen falsch, und beide Seiten rechneten sie gleich. Der
 Befund betrifft die Werte, die **morgen** geändert werden — und der
 Balance-Läufer (#118) ist genau dafür gebaut. Wenn er anfängt, Zahlen
-vorzuschlagen, ist bei **21 von 116** kein Netz da.
+vorzuschlagen, war am 2026-08-07 bei **21 von 116** kein Netz da.
 
 ---
 
@@ -318,7 +350,7 @@ python3 tools/groessen-mutation.py 0 40     # Paare 0 bis 39
 python3 tools/groessen-mutation.py 40 109   # der Rest
 ```
 
-In Blöcken, weil ein Lauf über alle 109 Paare rund achtzig Minuten braucht —
+In Blöcken, weil ein voller Lauf rund achtzig Minuten braucht (gemessen 2026-08-07 über 109 Paare) —
 gemessen am 2026-08-10: zwanzig Minuten für vierzig Paare, knapp eine Stunde
 für die übrigen 69.
 
