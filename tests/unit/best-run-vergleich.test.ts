@@ -22,7 +22,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { comparableFromBest, isWellFormed, recordBest } from '../../src/analysis/best-run.js';
+import {
+  comparableFromBest,
+  isWellFormed,
+  recordBest,
+  usableBest,
+} from '../../src/analysis/best-run.js';
 import { compareRuns } from '../../src/analysis/run-compare.js';
 import type { BestRun } from '../../src/analysis/save-format.js';
 import { findForbiddenFields } from '../../src/analysis/save-format.js';
@@ -201,5 +206,75 @@ describe('AC4 — der Wächter gegen berechnete Werte bleibt scharf', () => {
       items: [{ itemId: 'x', upgradeSteps: 0, equippedSlot: null, damage: 40 }],
     } as never;
     expect(findForbiddenFields(stand)).toContain('damage');
+  });
+});
+
+describe('AC5 — metric und value bleiben wirksam, gerade beim runaway-Boss', () => {
+  /**
+   * Die Ergänzung aus 6717, und sie ist der eigentliche Grund, warum die
+   * sieben Zahlen DAZUKOMMEN statt zu ersetzen.
+   *
+   * Bei einem `runaway`-Boss ist die Frist immer voll ausgeschöpft — die
+   * Reserve ist dort konstant null und trennt keine zwei Siege (#256).
+   * Getrennt wird über `heldPercent`, und genau dafür trägt der Eintrag sein
+   * Mass. Hätte ich `metric` und `value` ersetzt, wäre bei diesem Boss **gar
+   * kein Bestlauf mehr bestimmbar**.
+   */
+  const HELD_LAUF = { ...LAUF, elapsedMs: 60_000 };
+
+  function eintrag(metric: 'reserve' | 'held', value: number): BestRun {
+    return {
+      bossId: 'test-runaway',
+      difficulty: 1,
+      metric,
+      value,
+      gameVersion: '0.1.0',
+      achievedAt: 1_800_000_000_000,
+      ...HELD_LAUF,
+    };
+  }
+
+  it('usableBest wählt nach `held` aus, wenn danach gefragt wird', () => {
+    const runs = [eintrag('held', 42)];
+    const { entry, discarded } = usableBest(runs, 'test-runaway', 1, 'held');
+    expect(discarded).toBeNull();
+    expect(entry?.value).toBe(42);
+  });
+
+  it('und VERWIRFT denselben Eintrag, wenn nach `reserve` gefragt wird', () => {
+    // Der teure Fall aus #256: Der Boss hat `runaway` bekommen oder verloren.
+    // Ohne `metric` liesse sich das nicht unterscheiden — der Eintrag trüge
+    // eine plausible Zahl der falschen Sorte, und 42 % stünden gegen
+    // Millisekunden.
+    const runs = [eintrag('held', 42)];
+    const { entry, discarded } = usableBest(runs, 'test-runaway', 1, 'reserve');
+    expect(entry).toBeNull();
+    expect(discarded).toContain('Mass');
+  });
+
+  it('`value` entscheidet weiterhin, was besser ist', () => {
+    // Grösser ist besser, bei beiden Massen (BEST_METRICS). Ein schlechterer
+    // Ring-Rest darf den Bestwert nicht überschreiben.
+    const { runs, improved } = recordBest([eintrag('held', 42)], {
+      bossId: 'test-runaway',
+      difficulty: 1,
+      metric: 'held',
+      value: 30,
+      gameVersion: '0.1.0',
+      at: 1_800_000_100_000,
+      comparison: HELD_LAUF,
+    });
+    expect(improved).toBe(false);
+    expect(runs[0]?.value).toBe(42);
+  });
+
+  it('ZUSICHERUNG: die sieben stehen daneben und stören nichts', () => {
+    // Beide Datensätze am selben Eintrag — der eine wählt den Bestlauf, der
+    // andere beschreibt ihn. Ohne diese Zeile bewiese der Block nur, dass
+    // `metric` weiterhin geht, nicht dass beides nebeneinander besteht.
+    const eintragMitBeidem = eintrag('held', 42);
+    expect(eintragMitBeidem.metric).toBe('held');
+    expect(eintragMitBeidem.value).toBe(42);
+    expect(comparableFromBest(eintragMitBeidem)?.elapsedMs).toBe(60_000);
   });
 });
