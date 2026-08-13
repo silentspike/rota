@@ -55,7 +55,9 @@ import {
   type WornValues,
 } from '../gear/worn.js';
 import {
+  PERPETUAL_DRAFT_EXTRA_CHARGE,
   SET_EFFECT_ASHEN_REGIMEN,
+  SET_EFFECT_PERPETUAL_DRAFT,
   SET_EFFECT_SLOW_ROT,
   SET_EFFECT_SEALED_VESSEL,
   SET_EFFECT_LONG_GRIP,
@@ -2976,7 +2978,15 @@ export class Combat {
     // **Der Zuschlag greift erst hier, nicht bei der Prüfung oben.** Wer ihn
     // in `ladungen` zöge, machte aus jedem Zauber einen Rücksetzer, sobald ein
     // Rang verteilt ist — `ladungen <= 0` wäre dann nie wahr.
-    this.resetChargesLeftValue = ladungen + talentCooldownChargesBonus(this.talents);
+    //
+    // `Perpetual Draft` ist der dritte Summand und ausdrücklich kein vierter
+    // Rechenweg (Auftraggeber, 2026-08-13): eine Summe mit drei Speisungen —
+    // Zauber-Eigenschaft, Talent, Satz-Effekt —, nicht drei Rechnungen. Er
+    // steht deshalb hier und nicht in einer eigenen Abfrage weiter unten.
+    this.resetChargesLeftValue =
+      ladungen +
+      talentCooldownChargesBonus(this.talents) +
+      (this.hasSetEffect(SET_EFFECT_PERPETUAL_DRAFT) ? PERPETUAL_DRAFT_EXTRA_CHARGE : 0);
   }
 
   /**
