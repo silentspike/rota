@@ -41,7 +41,7 @@
 
 use crate::apl::{Apl, Compare, Condition, Rule, Term, Value};
 use crate::balance::BalanceConfig;
-use crate::data::{BuffTarget, Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
+use crate::data::{BuffTarget, ControlEffect, Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
 use crate::time::GCD_MS;
 
 /// Ein Kandidat für eine Zeile der Prioritätenliste.
@@ -81,6 +81,22 @@ pub enum Origin {
     /// Befundes "drei von fuenf Schulen kommen in keiner besten Rotation vor"
     /// konnte ein Werkzeug-Befund sein statt ein Balance-Befund.
     BuffWindow,
+    /// Aus dem Fenster eines laufenden Boss-Zaubers (Issue #797).
+    ///
+    /// # Warum diese Art gefehlt hat
+    ///
+    /// Dieselbe Geschichte wie bei [`Origin::BuffWindow`], eine Ebene tiefer:
+    /// Bis #797 kannte die Sprache keinen laufenden Boss-Zauber, also konnte
+    /// die Suche keine Zeile bilden, die auf einen antwortet. Reaktionsspiel
+    /// war für sie nicht darstellbar — nicht schwach bewertet, sondern
+    /// unsichtbar.
+    ///
+    /// Gemessen hing #472 daran: An einem Boss mit einem Schlag, den man
+    /// abwenden MUSS, wählte der Balance-Läufer bei keinem Gewicht einen
+    /// FIXATION-Zauber. Der Befund „die Schulen liegen 67 % auseinander" war
+    /// damit zum Teil ein Werkzeug-Befund, kein Balance-Befund — genau der
+    /// Vorbehalt, unter dem schon #550 stand.
+    BossCastWindow,
 }
 
 impl Origin {
@@ -92,6 +108,7 @@ impl Origin {
             Self::DotRefresh => "Brand nachlegen",
             Self::SpenderThreshold => "Entlade-Schwelle",
             Self::BuffWindow => "Verstaerkungs-Fenster",
+            Self::BossCastWindow => "Boss wirkt",
         }
     }
 }
@@ -222,6 +239,44 @@ pub fn candidates_for(index: usize) -> Vec<Candidate> {
                 Value::Literal(1),
             ),
             origin: Origin::BuffWindow,
+        });
+    }
+
+    // **Zeilen, die auf einen laufenden Boss-Zauber antworten** (Issue #797).
+    //
+    // Ohne sie kann die Suche den neuen Wert lesen, aber nie wählen: Ein Wert,
+    // für den keine Kandidatenzeile existiert, taucht in keiner Rotation auf,
+    // ganz gleich wie nützlich er wäre. Genau daran hing #472 — der
+    // Balance-Läufer wählte bei keinem Gewicht einen FIXATION-Zauber, weil die
+    // Bedingung fehlte, unter der sie sich lohnen.
+    //
+    // **Nur für Zauber, die an einem Cast überhaupt etwas ausrichten.** Ein
+    // `kindle if boss.casting` wäre eine gültige Zeile und schlicht sinnlos:
+    // Sie verengt den Füller auf ein Fenster, ohne dort etwas zu gewinnen. Drei
+    // Sorten können es:
+    //
+    //   - der Unterbrecher (`interrupt`) beendet den Zauber
+    //   - `MakeInterruptible` (PIN) macht einen Schlag überhaupt erst angreifbar
+    //   - `SlowCast` (STALL) schiebt den Einschlag nach hinten
+    //
+    // `DelayStrike`, `HoldPhase` und `ConvertToDamage` stehen NICHT hier: Sie
+    // wirken auf die Zeitleiste oder den Vorrat, nicht auf einen laufenden
+    // Zauber. Eine Zeile `if boss.casting` würde sie auf ein Fenster
+    // einschränken, das für sie nichts bedeutet.
+    let antwortet_auf_cast = spell.interrupt
+        || spell.control.is_some_and(|c| {
+            matches!(
+                c.effect,
+                ControlEffect::MakeInterruptible
+                    | ControlEffect::SlowCast
+                    | ControlEffect::AllThree
+            )
+        });
+    if antwortet_auf_cast {
+        out.push(Candidate {
+            spell: index,
+            condition: single(Value::BossCasting, Compare::GreaterEqual, Value::Literal(1)),
+            origin: Origin::BossCastWindow,
         });
     }
 
