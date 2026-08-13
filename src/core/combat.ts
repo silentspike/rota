@@ -55,8 +55,12 @@ import {
   type WornValues,
 } from '../gear/worn.js';
 import {
+  PERPETUAL_DRAFT_EXTRA_CHARGE,
   SET_EFFECT_ASHEN_REGIMEN,
+  SET_EFFECT_PERPETUAL_DRAFT,
   SET_EFFECT_SLOW_ROT,
+  SET_EFFECT_SEALED_VESSEL,
+  SET_EFFECT_LONG_GRIP,
   SET_EFFECT_WHOLE_WORK,
   WHOLE_WORK_GCD_REDUCTION_MS,
 } from '../gear/sets.js';
@@ -967,6 +971,18 @@ export class Combat {
 
   /** Wie viele Punkte insgesamt ausgegeben wurden. */
   private controlSpentValue = 0;
+
+  /**
+   * Steht ein kostenloser Kontroll-Ausgeber bereit? (THE LONG GRIP, 13.5)
+   *
+   * Wird bei jedem Phasenwechsel gesetzt und vom ersten Ausgeber danach
+   * verbraucht. **Ein Ja/Nein, keine Zahl**: Zwei Wechsel ohne Ausgeber
+   * dazwischen sind ein freier Ausgeber, nicht zwei.
+   */
+  private freeControlSpendArmed = false;
+
+  /** Wie oft der Effekt gegriffen hat — für Anzeige und Prüfung. */
+  private freeControlSpends = 0;
 
   /**
    * Wie oft eine Wirkung mangels Punkten ins Leere lief.
@@ -1900,6 +1916,11 @@ export class Combat {
     return this.controlSpentValue;
   }
 
+  /** Wie oft THE LONG GRIP einen Ausgeber umsonst gemacht hat (13.5). */
+  get freeControlSpendCount(): number {
+    return this.freeControlSpends;
+  }
+
   /**
    * Verbraucht den Merker aus SUBLIME, falls er steht (Issue #480).
    *
@@ -2041,7 +2062,26 @@ export class Combat {
       this.controlFailedValue++;
       return;
     }
-    this.controlValue -= preis;
+    // **THE LONG GRIP** (13.5, FIXATION-Sechser): Der erste Ausgeber nach
+    // einem Phasenwechsel kostet nichts.
+    //
+    // **Der ABZUG entfällt, nicht die VORAUSSETZUNG.** Die Prüfung oben läuft
+    // unverändert: Man braucht die Punkte, gibt sie aber nicht aus. Die
+    // Klemmung auf Preis 1 begründet sich damit, dass `controlValue >= 0` bei
+    // Preis 0 immer wahr wäre — ein Effekt, der die Prüfung überspränge,
+    // umginge sie statt sie zu berücksichtigen.
+    //
+    // **Ein Ja/Nein, keine Zahl** — wie die drei Merker aus E10: Zwei
+    // Phasenwechsel ohne Ausgeber dazwischen sind ein freier Ausgeber, nicht
+    // zwei. Wer sie sammeln könnte, hortete Wechsel statt den Moment zu
+    // treffen, und der Effekt belohnte das Gegenteil seiner Begründung.
+    const umsonst = this.hasSetEffect(SET_EFFECT_LONG_GRIP) && this.freeControlSpendArmed;
+    if (umsonst) {
+      this.freeControlSpendArmed = false;
+      this.freeControlSpends++;
+    } else {
+      this.controlValue -= preis;
+    }
     this.controlSpentValue += preis;
     // **Der Mindesteinsatz** (Issue #683). Jeder Kontroll-Zauber geht hier
     // durch; die beiden Stellen weiter unten nehmen bei zwei Wirkungen
@@ -2187,6 +2227,22 @@ export class Combat {
       // liefen bei einer späteren Änderung auseinander.
       const dicke = Math.floor(shield.amount * talentShieldAmountFactor(this.talents));
       const grenze = shield.maxStacks + talentShieldStacksBonus(this.talents);
+      if (this.shieldStacksValue >= grenze && this.hasSetEffect(SET_EFFECT_SEALED_VESSEL)) {
+        // **THE SEALED VESSEL** (13.5, COAGULATION-Sechser): Was die volle
+        // Schicht nicht mehr aufnimmt, geht als Schaden hinaus.
+        //
+        // **Der Betrag, den dieser Druck BEIGETRAGEN HÄTTE** — also `dicke`
+        // mitsamt Talent-Faktor, nicht `shield.amount`. Sonst zahlte der
+        // Sechser nach dem alten Wert aus, während die Schicht nach dem neuen
+        // rechnet: beides plausibel, eines falsch.
+        //
+        // Er ersetzt nichts: Die Laufzeit wird unten weiter erneuert, und der
+        // Stapelstand bleibt an der Grenze. Der Effekt fügt nur hinzu, was
+        // vorher niemand bekam.
+        this.bookProgress(dicke, index, timeMs);
+        this.reportHit(dicke, HIT_DIRECT, false, timeMs);
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, dicke);
+      }
       if (this.shieldStacksValue < grenze) {
         this.shieldStacksValue++;
         this.shieldValue += dicke;
@@ -2922,7 +2978,15 @@ export class Combat {
     // **Der Zuschlag greift erst hier, nicht bei der Prüfung oben.** Wer ihn
     // in `ladungen` zöge, machte aus jedem Zauber einen Rücksetzer, sobald ein
     // Rang verteilt ist — `ladungen <= 0` wäre dann nie wahr.
-    this.resetChargesLeftValue = ladungen + talentCooldownChargesBonus(this.talents);
+    //
+    // `Perpetual Draft` ist der dritte Summand und ausdrücklich kein vierter
+    // Rechenweg (Auftraggeber, 2026-08-13): eine Summe mit drei Speisungen —
+    // Zauber-Eigenschaft, Talent, Satz-Effekt —, nicht drei Rechnungen. Er
+    // steht deshalb hier und nicht in einer eigenen Abfrage weiter unten.
+    this.resetChargesLeftValue =
+      ladungen +
+      talentCooldownChargesBonus(this.talents) +
+      (this.hasSetEffect(SET_EFFECT_PERPETUAL_DRAFT) ? PERPETUAL_DRAFT_EXTRA_CHARGE : 0);
   }
 
   /**
@@ -3976,6 +4040,10 @@ export class Combat {
       }
       if (neue > this.bossPhaseValue) {
         this.bossPhaseValue = neue;
+        // **THE LONG GRIP wird hier scharf gestellt** (13.5): beim WECHSEL,
+        // nicht beim Erreichen einer Phase. Ein Boss ohne Phasen kommt nie
+        // hierher, und der Effekt greift dort zu Recht nie.
+        this.freeControlSpendArmed = true;
         // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt für diesen einen
         // Wechsel. Der übernächste bekommt wieder die volle Schwelle — sonst
         // verschöbe ein Druck alle folgenden mit.
@@ -5108,6 +5176,8 @@ export class Combat {
     // hier stumpf nullt, baut genau den Unterschied ein, den die Kommentare
     // an den Feldern seit #96 verhindern.
     this.bossPhaseValue = 0;
+    this.freeControlSpendArmed = false;
+    this.freeControlSpends = 0;
     this.bossEnergyValue = 0;
     this.bossEnergyTriggersValue = 0;
     this.timelineIndexValue = 0;

@@ -80,7 +80,7 @@ use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
-use crate::sets::WHOLE_WORK_GCD_REDUCTION_MS;
+use crate::sets::{PERPETUAL_DRAFT_EXTRA_CHARGE, WHOLE_WORK_GCD_REDUCTION_MS};
 use crate::stacks::{PendingGain, StackMechanic};
 use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
@@ -275,6 +275,19 @@ pub struct FightConfig {
     ///
     /// Zersetzungs-Stapel verfallen nicht, solange ein DoT laeuft.
     pub slow_rot: bool,
+    /// Ob der Satz-Effekt "sealed-vessel" wirkt (13.5, Issue #480).
+    ///
+    /// Ueberschuessiger Schutz ueber der Stapel-Grenze wird zu Schaden.
+    pub sealed_vessel: bool,
+    /// Ob der Satz-Effekt "long-grip" wirkt (13.5, Issue #480).
+    ///
+    /// Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts —
+    /// der ABZUG entfaellt, die Voraussetzung bleibt.
+    pub long_grip: bool,
+    /// Ist `Perpetual Draft` aktiv (SUBLIMATION-Sechser)?
+    ///
+    /// Der Ruecksetzer bekommt [`PERPETUAL_DRAFT_EXTRA_CHARGE`] Ladungen mehr.
+    pub perpetual_draft: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -359,6 +372,9 @@ impl Default for FightConfig {
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
+            sealed_vessel: false,
+            long_grip: false,
+            perpetual_draft: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -820,6 +836,16 @@ pub struct Fight {
     ashen_regimen: bool,
     whole_work: bool,
     slow_rot: bool,
+    sealed_vessel: bool,
+    long_grip: bool,
+    /// Steht ein kostenloser Kontroll-Ausgeber bereit? (THE LONG GRIP)
+    ///
+    /// **Ein Ja/Nein, keine Zahl**: Zwei Phasenwechsel ohne Ausgeber dazwischen
+    /// sind ein freier Ausgeber, nicht zwei.
+    free_control_spend_armed: bool,
+    /// Wie oft der Effekt gegriffen hat — fuer die Pruefung.
+    free_control_spends: u32,
+    perpetual_draft: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1112,6 +1138,11 @@ impl Fight {
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
+            sealed_vessel: config.sealed_vessel,
+            long_grip: config.long_grip,
+            free_control_spend_armed: false,
+            free_control_spends: 0,
+            perpetual_draft: config.perpetual_draft,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -1524,14 +1555,25 @@ impl Fight {
                             if SPELLS[index].cooldown_reset_charges > 0 {
                                 self.reset_mode.arm(
                                     index,
-                                    SPELLS[index].cooldown_reset_charges.saturating_add(
-                                        // `cooldown_reset_charges` ist u8, der
-                                        // Zuschlag u32 wie die acht anderen
-                                        // Talent-Felder. Geklemmt statt
-                                        // gecastet: 300 Raenge waeren sonst 44.
-                                        u8::try_from(self.talent_cooldown_charges_bonus)
-                                            .unwrap_or(u8::MAX),
-                                    ),
+                                    SPELLS[index]
+                                        .cooldown_reset_charges
+                                        .saturating_add(
+                                            // `cooldown_reset_charges` ist u8, der
+                                            // Zuschlag u32 wie die acht anderen
+                                            // Talent-Felder. Geklemmt statt
+                                            // gecastet: 300 Raenge waeren sonst 44.
+                                            u8::try_from(self.talent_cooldown_charges_bonus)
+                                                .unwrap_or(u8::MAX),
+                                        )
+                                        // `Perpetual Draft` als DRITTER Summand
+                                        // derselben Summe, nicht als eigene
+                                        // Rechnung — genau wie auf der Spiel-Seite
+                                        // in `Combat.armResetIfNeeded`.
+                                        .saturating_add(if self.perpetual_draft {
+                                            PERPETUAL_DRAFT_EXTRA_CHARGE
+                                        } else {
+                                            0
+                                        }),
                                 );
                             }
                         } else {
@@ -2195,6 +2237,15 @@ impl Fight {
             // `shield.amount` wird zweimal gelesen (Schicht und Stabilisierung).
             let dicke = (f64::from(shield.amount) * self.talent_shield_amount_factor) as u32;
             let grenze = shield.max_stacks + self.talent_shield_stacks_bonus;
+            if self.shield_stacks >= grenze && self.sealed_vessel {
+                // **THE SEALED VESSEL** (13.5, COAGULATION-Sechser): Was die
+                // volle Schicht nicht mehr aufnimmt, geht als Schaden hinaus.
+                //
+                // Der Betrag, den dieser Druck BEIGETRAGEN HAETTE — also
+                // `dicke` mitsamt Talent-Faktor, nicht `shield.amount`.
+                // Er ersetzt nichts: Laufzeit und Stapelstand bleiben.
+                self.deal(index, dicke, LogKind::Damage);
+            }
             if self.shield_stacks < grenze {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(dicke);
@@ -2515,7 +2566,14 @@ impl Fight {
             self.control_failed += 1;
             return;
         }
-        self.control -= preis;
+        // **THE LONG GRIP** (13.5): Der ABZUG entfaellt, nicht die
+        // Voraussetzung — die Pruefung oben laeuft unveraendert.
+        if self.long_grip && self.free_control_spend_armed {
+            self.free_control_spend_armed = false;
+            self.free_control_spends += 1;
+        } else {
+            self.control -= preis;
+        }
         self.control_spent = self.control_spent.saturating_add(preis);
         self.apply_control_effect(control);
     }
@@ -2969,6 +3027,12 @@ impl Fight {
     #[must_use]
     pub fn control_points(&self) -> u32 {
         self.control
+    }
+
+    /// Wie oft THE LONG GRIP einen Ausgeber umsonst gemacht hat (13.5).
+    #[must_use]
+    pub fn free_control_spends(&self) -> u32 {
+        self.free_control_spends
     }
 
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
@@ -3705,6 +3769,9 @@ impl Fight {
         let neue = self.boss.phase_at(anteil);
         if neue > self.phase {
             self.phase = neue;
+            // **THE LONG GRIP wird hier scharf gestellt** (13.5): beim
+            // WECHSEL, nicht beim Erreichen einer Phase.
+            self.free_control_spend_armed = true;
             // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt fuer diesen
             // einen Wechsel. Der uebernaechste bekommt wieder die volle
             // Schwelle — sonst verschoebe ein Druck alle folgenden mit.
