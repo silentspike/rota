@@ -64,6 +64,7 @@ import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
 import eingecheckteWirkzeit from './recordings/cast-time.json';
+import eingecheckterKanal from './recordings/channel.json';
 import eingecheckteWiderstaende from './recordings/resistances.json';
 import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
 // **Diese zwei fehlten hier**, und das ist ein Befund und keine Ergänzung:
@@ -100,11 +101,16 @@ import eingecheckterDrei1 from './recordings/instance3-boss-1.json';
 import eingecheckterDrei2 from './recordings/instance3-boss-2.json';
 import eingecheckterDrei3 from './recordings/instance3-boss-3.json';
 import eingecheckterDrei4 from './recordings/instance3-boss-4.json';
+import eingecheckterVier1 from './recordings/instance4-boss-1.json';
+import eingecheckterVier2 from './recordings/instance4-boss-2.json';
+import eingecheckterVier3 from './recordings/instance4-boss-3.json';
+import eingecheckterVier4 from './recordings/instance4-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
+import eingecheckteVieleBraende from './recordings/ember-viele-braende.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
@@ -153,6 +159,7 @@ import {
   wornPayload,
   sourcesPayload,
   castTimePayload,
+  channelPayload,
   resistancePayload,
   resistanceMixedPayload,
   runawayProgressPayload,
@@ -171,9 +178,11 @@ import {
   instance1Payload,
   instance2Payload,
   instance3Payload,
+  instance4Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
+  manyDotsPayload,
   extendEffectsPayload,
   coagulationNeuPayload,
   kernePayload,
@@ -263,6 +272,24 @@ describe('Gemeinsame Vergleichsdateien', () => {
     }
   });
 
+  it('die vier Bosse der vierten Instanz entsprechen dem heutigen Spielstand', () => {
+    // Sie sind entstanden, weil `jeder-boss-hat-eine-aufzeichnung` sie
+    // eingefordert hat, als instance-4 in die Daten kam. Ohne diesen
+    // Frische-Fall wuerde der Simulator gegen sie pruefen und gruen bleiben,
+    // sobald eine Regel im Spiel wandert.
+    const erwartet = [
+      eingecheckterVier1,
+      eingecheckterVier2,
+      eingecheckterVier3,
+      eingecheckterVier4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance4Payload(`boss-4-${i + 1}`, `instance4-boss-${i + 1}`),
+      );
+    }
+  });
+
   it('die vier Bosse der dritten Instanz entsprechen dem heutigen Spielstand', () => {
     // **Diese vier Zeilen gab es bis heute nicht** — und ihr Fehlen war
     // unsichtbar, weil ein fehlender Fall nichts meldet. Gemessen: eine
@@ -318,6 +345,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
     // EMBER und PYROCLASM werden nur hier gewirkt (Issue #517).
     expect(eingecheckteBrandzeit, HINWEIS).toEqual(dotLifetimePayload());
+  });
+
+  it('die Viele-Brände-Runde entspricht dem heutigen Spielstand', () => {
+    // Die EINZIGE Aufzeichnung, in der EMBER auf MEHRERE Brände zugleich
+    // trifft (Issue #485). `dot-lifetime` fährt genau einen — dort sind „der
+    // erste" und „alle" dasselbe.
+    expect(eingecheckteVieleBraende, HINWEIS).toEqual(manyDotsPayload());
   });
 
   it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
@@ -569,6 +603,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
 
   it('der Lauf mit einer WIRKZEIT entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteWirkzeit, HINWEIS).toEqual(castTimePayload());
+  });
+
+  it('der Lauf mit einer KANALISIERUNG entspricht dem heutigen Spielstand', () => {
+    // Die einzige Aufzeichnung, in der eine Kanalisierung läuft UND mitten
+    // drin abbricht (#323). Ohne den Abbruch sähe sie aus wie ein Cast.
+    expect(eingecheckterKanal, HINWEIS).toEqual(channelPayload());
   });
 
   it('der Lauf gegen einen Boss mit WIDERSTAENDEN entspricht dem heutigen Spielstand', () => {
@@ -859,6 +899,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'worn-values',
   'sources',
   'cast-time',
+  'channel',
   'resistances',
   'resistances-mixed',
   'runaway-progress',
@@ -879,11 +920,16 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance3-boss-2',
   'instance3-boss-3',
   'instance3-boss-4',
+  'instance4-boss-1',
+  'instance4-boss-2',
+  'instance4-boss-3',
+  'instance4-boss-4',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',
   'instance1-boss-4',
   'dot-lifetime',
+  'ember-viele-braende',
   'extend-effects',
   'coagulation-neu',
   'kern-zauber',

@@ -80,7 +80,7 @@ use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
-use crate::sets::WHOLE_WORK_GCD_REDUCTION_MS;
+use crate::sets::{PERPETUAL_DRAFT_EXTRA_CHARGE, WHOLE_WORK_GCD_REDUCTION_MS};
 use crate::stacks::{PendingGain, StackMechanic};
 use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
@@ -291,6 +291,19 @@ pub struct FightConfig {
     ///
     /// Zersetzungs-Stapel verfallen nicht, solange ein DoT laeuft.
     pub slow_rot: bool,
+    /// Ob der Satz-Effekt "sealed-vessel" wirkt (13.5, Issue #480).
+    ///
+    /// Ueberschuessiger Schutz ueber der Stapel-Grenze wird zu Schaden.
+    pub sealed_vessel: bool,
+    /// Ob der Satz-Effekt "long-grip" wirkt (13.5, Issue #480).
+    ///
+    /// Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts —
+    /// der ABZUG entfaellt, die Voraussetzung bleibt.
+    pub long_grip: bool,
+    /// Ist `Perpetual Draft` aktiv (SUBLIMATION-Sechser)?
+    ///
+    /// Der Ruecksetzer bekommt [`PERPETUAL_DRAFT_EXTRA_CHARGE`] Ladungen mehr.
+    pub perpetual_draft: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -379,6 +392,9 @@ impl Default for FightConfig {
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
+            sealed_vessel: false,
+            long_grip: false,
+            perpetual_draft: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -854,6 +870,16 @@ pub struct Fight {
     ashen_regimen: bool,
     whole_work: bool,
     slow_rot: bool,
+    sealed_vessel: bool,
+    long_grip: bool,
+    /// Steht ein kostenloser Kontroll-Ausgeber bereit? (THE LONG GRIP)
+    ///
+    /// **Ein Ja/Nein, keine Zahl**: Zwei Phasenwechsel ohne Ausgeber dazwischen
+    /// sind ein freier Ausgeber, nicht zwei.
+    free_control_spend_armed: bool,
+    /// Wie oft der Effekt gegriffen hat — fuer die Pruefung.
+    free_control_spends: u32,
+    perpetual_draft: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1153,6 +1179,11 @@ impl Fight {
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
+            sealed_vessel: config.sealed_vessel,
+            long_grip: config.long_grip,
+            free_control_spend_armed: false,
+            free_control_spends: 0,
+            perpetual_draft: config.perpetual_draft,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -1591,14 +1622,25 @@ impl Fight {
                             } else if SPELLS[index].cooldown_reset_charges > 0 {
                                 self.reset_mode.arm(
                                     index,
-                                    SPELLS[index].cooldown_reset_charges.saturating_add(
-                                        // `cooldown_reset_charges` ist u8, der
-                                        // Zuschlag u32 wie die acht anderen
-                                        // Talent-Felder. Geklemmt statt
-                                        // gecastet: 300 Raenge waeren sonst 44.
-                                        u8::try_from(self.talent_cooldown_charges_bonus)
-                                            .unwrap_or(u8::MAX),
-                                    ),
+                                    SPELLS[index]
+                                        .cooldown_reset_charges
+                                        .saturating_add(
+                                            // `cooldown_reset_charges` ist u8, der
+                                            // Zuschlag u32 wie die acht anderen
+                                            // Talent-Felder. Geklemmt statt
+                                            // gecastet: 300 Raenge waeren sonst 44.
+                                            u8::try_from(self.talent_cooldown_charges_bonus)
+                                                .unwrap_or(u8::MAX),
+                                        )
+                                        // `Perpetual Draft` als DRITTER Summand
+                                        // derselben Summe, nicht als eigene
+                                        // Rechnung — genau wie auf der Spiel-Seite
+                                        // in `Combat.armResetIfNeeded`.
+                                        .saturating_add(if self.perpetual_draft {
+                                            PERPETUAL_DRAFT_EXTRA_CHARGE
+                                        } else {
+                                            0
+                                        }),
                                 );
                             }
                         } else {
@@ -2263,6 +2305,15 @@ impl Fight {
             // `shield.amount` wird zweimal gelesen (Schicht und Stabilisierung).
             let dicke = (f64::from(shield.amount) * self.talent_shield_amount_factor) as u32;
             let grenze = shield.max_stacks + self.talent_shield_stacks_bonus;
+            if self.shield_stacks >= grenze && self.sealed_vessel {
+                // **THE SEALED VESSEL** (13.5, COAGULATION-Sechser): Was die
+                // volle Schicht nicht mehr aufnimmt, geht als Schaden hinaus.
+                //
+                // Der Betrag, den dieser Druck BEIGETRAGEN HAETTE — also
+                // `dicke` mitsamt Talent-Faktor, nicht `shield.amount`.
+                // Er ersetzt nichts: Laufzeit und Stapelstand bleiben.
+                self.deal(index, dicke, LogKind::Damage);
+            }
             if self.shield_stacks < grenze {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(dicke);
@@ -2614,8 +2665,19 @@ impl Fight {
             self.control_failed += 1;
             return;
         }
+        // **Der Einsatz ist geklemmt** (#419, `partial_control`): ohne das
+        // Talent der volle Preis, mit ihm bei knappem Vorrat weniger.
         let einsatz = preis.min(self.control);
-        self.control -= einsatz;
+        // **THE LONG GRIP** (13.5): Der ABZUG entfaellt, nicht die
+        // Voraussetzung — die Pruefung oben laeuft unveraendert.
+        if self.long_grip && self.free_control_spend_armed {
+            self.free_control_spend_armed = false;
+            self.free_control_spends += 1;
+        } else {
+            // **Der EINSATZ, nicht der Preis** — sonst zoege ein anteiliger
+            // Ausgeber (#419) ab, was er gar nicht hatte.
+            self.control -= einsatz;
+        }
         self.control_spent = self.control_spent.saturating_add(einsatz);
         self.apply_control_effect(control, einsatz, preis);
     }
@@ -2733,12 +2795,6 @@ impl Fight {
             return false;
         }
         true
-    }
-
-    /// Ob der Nachlauf zum Zeitpunkt `at` noch offen ist — die Frage beim
-    /// EINREIHEN, ohne etwas abzuraeumen.
-    fn echo_offen_bei(&self, index: usize, at: Millis) -> bool {
-        self.decay_echo && self.decay_echo_until[index] > 0 && at <= self.decay_echo_until[index]
     }
 
     /// Laesst abgelaufene Stapel verfallen — **den aeltesten zuerst**.
@@ -3117,6 +3173,12 @@ impl Fight {
         self.control
     }
 
+    /// Wie oft THE LONG GRIP einen Ausgeber umsonst gemacht hat (13.5).
+    #[must_use]
+    pub fn free_control_spends(&self) -> u32 {
+        self.free_control_spends
+    }
+
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
     #[must_use]
     pub fn decay_stacks(&self) -> usize {
@@ -3278,6 +3340,9 @@ impl Fight {
             EventKind::AfflictionTick => self.affliction_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
+            EventKind::ChannelTick { spell, generation } => {
+                self.channel_tick(spell as usize, generation);
+            }
             EventKind::PlayerCastLands { spell, generation } => {
                 self.player_cast_lands(spell as usize, generation);
             }
@@ -3400,6 +3465,58 @@ impl Fight {
         }
     }
 
+    /// Eine Teilwirkung einer Kanalisierung (Issue #323, GAME-DESIGN 7.2).
+    ///
+    /// # Der Anteil kommt aus der Dauer
+    ///
+    /// `base_damage` ist die GESAMT-Wirkung und wird auf die Raster-Schritte
+    /// verteilt. Eine eigene Zahl "Schaden je Schritt" in den Daten waere eine
+    /// zweite Quelle fuer dieselbe Aussage — und die beiden liefen bei der
+    /// ersten Aenderung auseinander.
+    ///
+    /// Ganzzahlig abgerundet, der Rest verfaellt (18.4): 500 ueber 3 Schritte
+    /// geben je 166. Dieselbe Formel wie in `Combat::resolveChannelTick`.
+    ///
+    /// # Warum hier nicht `resolve_player_cast` steht
+    ///
+    /// Der loest die GANZE Wirkung auf — Synergie-Fenster, Koagulation,
+    /// Verhaengnis, Unterbrechen. Je Schritt getan hiesse das, ein
+    /// fuenfschrittiger Kanal oeffnete fuenf Fenster. Eine Kanalisierung teilt
+    /// ihren SCHADEN, nicht ihre Ereignisse.
+    fn channel_tick(&mut self, index: usize, generation: u16) {
+        // Veraltet: Die Kanalisierung wurde abgebrochen oder durch eine neue
+        // ersetzt; ihre restlichen Termine liegen noch in der Schlange.
+        if generation != self.player_cast_generation {
+            return;
+        }
+        if self.player_casting != Some(index) {
+            return;
+        }
+        let spell = &SPELLS[index];
+        if spell.channel_tick_ms == 0 || spell.base_damage == 0 {
+            return;
+        }
+        let schritte = spell.channel_ms / spell.channel_tick_ms;
+        if schritte == 0 {
+            return;
+        }
+
+        // Ein eigener Wurf je Schritt, aus Stream::DotTick — dieselbe Regel und
+        // derselbe Strom wie beim Brand-Tick (6.5, Issue #602).
+        let kritet = self.roll_crit(Stream::DotTick);
+        self.factors.resistance = self.resistance_by_spell[index];
+        let factors = self.factors_for(kritet);
+        let anteil = spell.base_damage / schritte;
+        // **Dieselbe Protokoll-Art wie ein Brand-Tick** und keine neue: Das
+        // Protokoll teilt seinen Nummernraum mit dem Spiel (#134), und eine
+        // neue Art verschoebe jede eingecheckte Vergleichsdatei.
+        let damage = self.deal(index, compute_damage(anteil, &factors), LogKind::DotTick);
+        self.emit_rule(RuleEvent::DotTick, index as i16, f64::from(damage));
+        if kritet {
+            self.emit_rule(RuleEvent::Crit, index as i16, f64::from(damage));
+        }
+    }
+
     fn dot_tick(&mut self, index: usize, generation: u16) {
         // Veraltet: Der Effekt wurde inzwischen erneuert, und `refreshMode:
         // "reset"` laesst die alte Anwendung verfallen (`STEP1-SPEC` 1.2).
@@ -3418,16 +3535,18 @@ impl Fight {
                 return;
             }
             self.add_decay_stacks(dot.decay_per_tick);
+            // **Immer vormerken, wie seit #485** — ob der Termin zaehlt,
+            // entscheidet `im_decay_echo` oben beim Abarbeiten. Die Kette
+            // endet dort von selbst: Ist der Nachlauf zu, kehrt diese Funktion
+            // zurueck, ohne einen weiteren Eintrag zu legen.
             let next = self.time + self.dot_interval(&dot);
-            if self.echo_offen_bei(index, next) {
-                self.queue.push(
-                    next,
-                    EventKind::DotTick {
-                        spell: index as u8,
-                        generation,
-                    },
-                );
-            }
+            self.queue.push(
+                next,
+                EventKind::DotTick {
+                    spell: index as u8,
+                    generation,
+                },
+            );
             return;
         }
 
@@ -3474,27 +3593,44 @@ impl Fight {
         self.merke_decay_echo(index, dot.decay_per_tick);
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
-        // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
-        // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
-        // 12 s Laufzeit bei 2 s Abstand ergeben **6** Ticks, der letzte genau
-        // beim Ablauf (`STEP1-SPEC` 1.2).
+        // Der naechste Tick wird IMMER vorgemerkt; ob er zaehlt, entscheidet
+        // `dot_active` beim Abarbeiten — oben in dieser Funktion.
         //
-        // **Der Nachlauf reiht ueber das Ende hinaus ein** — sonst gaebe es
-        // nach dem letzten lebenden Tick gar kein Ereignis mehr, an das er
-        // anknuepfen koennte. Die TS-Seite braucht das nicht: Dort laeuft eine
-        // Schleife ueber alle Zauber, hier haengt alles an der Warteschlange.
+        // # Warum nicht mehr `if next <= expires` (Issue #485)
+        //
+        // Bis hierher stand die Pruefung HIER, und damit stand die Laufzeit
+        // beim PLANEN fest. Eine Verlaengerung DANACH schob `expires` nach
+        // hinten, aber es lag kein Tick mehr in der Schlange und es wurde auch
+        // keiner nachgelegt: Der Brand brannte laenger und tickte nicht mehr.
+        //
+        // **Gemessen am 2026-08-13**, CINDER bei 0 und EMBER bei 4000:
+        //
+        // ```text
+        //   Simulator  120 Schaden
+        //   Spiel      150 Schaden   <- ein CINDER-Tick mehr
+        // ```
+        //
+        // Das Spiel hat recht: Es prueft bei jedem Schritt neu, und
+        // `STEP1-SPEC` 1.2 legt fest, dass der letzte Tick mit dem Ablauf
+        // zusammenfaellt. Die Entscheidung gehoert also an das Abarbeiten,
+        // nicht an das Planen.
+        //
+        // Die Kette endet weiterhin von selbst: Ist der Brand beim naechsten
+        // Termin abgelaufen, kehrt `dot_tick` oben ueber `!dot_active` zurueck,
+        // ohne zu ticken und ohne nachzulegen. Es liegt hoechstens EIN
+        // ueberzaehliger Eintrag je Brand in der Schlange.
+        //
+        // Die 12-s-Rechnung aus `STEP1-SPEC` 1.2 bleibt unberuehrt — sechs
+        // Ticks bei 2 s Abstand, der letzte genau beim Ablauf. Sie faellt jetzt
+        // nur eine Ebene spaeter.
         let next = self.time + self.dot_interval(&dot);
-        if self.dot_expires_at[index].is_some_and(|expires| next <= expires)
-            || self.echo_offen_bei(index, next)
-        {
-            self.queue.push(
-                next,
-                EventKind::DotTick {
-                    spell: index as u8,
-                    generation,
-                },
-            );
-        }
+        self.queue.push(
+            next,
+            EventKind::DotTick {
+                spell: index as u8,
+                generation,
+            },
+        );
     }
 
     /// Nimmt die liegende Schutzschicht weg und gibt zurueck, was davon als
@@ -3899,6 +4035,9 @@ impl Fight {
         let neue = self.boss.phase_at(anteil);
         if neue > self.phase {
             self.phase = neue;
+            // **THE LONG GRIP wird hier scharf gestellt** (13.5): beim
+            // WECHSEL, nicht beim Erreichen einer Phase.
+            self.free_control_spend_armed = true;
             // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt fuer diesen
             // einen Wechsel. Der uebernaechste bekommt wieder die volle
             // Schwelle — sonst verschoebe ein Druck alle folgenden mit.
@@ -3950,6 +4089,63 @@ impl Fight {
         // steht in `resolve_player_cast`, und daran haengt die zweite Haelfte
         // von 7.1: "Bei Abbruch geht der Zauber verloren, die Abklingzeit
         // laeuft aber nicht an."
+        // **Die Kanalisierung** (Issue #323, GAME-DESIGN 7.2). Sie steht VOR
+        // der Wirkzeit; der TS-Parser schliesst beides zugleich aus, die
+        // Reihenfolge ist also nur eine Lesart.
+        //
+        // **Design-Gesetz 1:** EIN Druck startet sie, dann laeuft sie von
+        // selbst. Kein gehaltener Zustand, keine zweite Taste — was folgt,
+        // haengt allein an der Uhr.
+        let channel = self.hasted(spell.channel_ms);
+        if channel > 0 {
+            self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
+            self.player_casting = Some(index);
+            self.player_cast_ends_at = snap_up(now + channel);
+            if spell.triggers_gcd && !self.take_free_gcd() {
+                self.gcd_ready_at = snap_up(now + self.gcd_length());
+                self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+            }
+            // **Alle Termine im Voraus**, nicht einer nach dem anderen: Die
+            // Schlange ist die einzige Zeitquelle des Simulators, und ein
+            // Termin, der erst beim vorigen entsteht, haengt an dessen
+            // Abarbeitung. Wird die Kanalisierung abgebrochen, bleiben die
+            // restlichen liegen und verfallen ueber die Generation.
+            let schritt = self.hasted(spell.channel_tick_ms);
+            if schritt > 0 {
+                let mut at = snap_up(now + schritt);
+                while at <= self.player_cast_ends_at {
+                    self.queue.push(
+                        at,
+                        EventKind::ChannelTick {
+                            spell: index as u8,
+                            generation: self.player_cast_generation,
+                        },
+                    );
+                    at += schritt;
+                }
+            }
+            // **Und das ENDE, sonst laeuft sie ewig.** Der Simulator kennt nur
+            // die Schlange; ohne diesen Termin bliebe `player_casting` gesetzt,
+            // und jeder spaetere Druck "braeche" eine laengst beendete
+            // Kanalisierung ab.
+            //
+            // **Gemessen, nicht befuerchtet:** Ohne diese Zeile zaehlte der
+            // Simulator 3 Abbrueche durch den Spieler, das Spiel 1 — bei
+            // identischen Pruefsummen in jedem Takt. Die Summe fuehrt den
+            // Zaehler nicht, deshalb waere es dort nie aufgefallen.
+            //
+            // `player_cast_lands` loest bei einer Kanalisierung NICHTS aus
+            // (ihre Wirkung ist ueber die Schritte gefallen) — es raeumt nur.
+            self.queue.push(
+                self.player_cast_ends_at,
+                EventKind::PlayerCastLands {
+                    spell: index as u8,
+                    generation: self.player_cast_generation,
+                },
+            );
+            return;
+        }
+
         let cast_time = self.hasted(spell.cast_time_ms);
         if cast_time > 0 {
             self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
@@ -3989,6 +4185,14 @@ impl Fight {
         }
         self.player_casting = None;
         self.player_cast_ends_at = 0;
+        // **Eine Kanalisierung loest am Ende NICHTS aus** (Issue #323): Ihre
+        // Wirkung ist ueber die Schritte bereits gefallen; ein Aufruf hier
+        // gaebe sie ein zweites Mal, in voller Hoehe. Der Termin dient allein
+        // dem Raeumen — genau wie in `Combat::stepPassive`, wo dieselbe
+        // Verzweigung steht.
+        if SPELLS[index].channel_ms > 0 {
+            return;
+        }
         self.resolve_player_cast(index, true);
     }
 

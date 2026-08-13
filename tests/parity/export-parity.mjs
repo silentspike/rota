@@ -104,12 +104,16 @@ import {
   instance1Payload,
   instance2Payload,
   instance3Payload,
+  instance4Payload,
   INSTANCE2_NAMES,
   INSTANCE1_NAMES,
   INSTANCE3_NAMES,
+  INSTANCE4_NAMES,
   cinderPayload,
   dotLifetimePayload,
+  manyDotsPayload,
   DOT_LIFETIME_NAME,
+  MANY_DOTS_NAME,
   extendEffectsPayload,
   EXTEND_EFFECTS_NAME,
   COAGULATION_NEU_NAME,
@@ -180,7 +184,9 @@ import {
   LEVEL_30_NAME,
   level30Payload,
   CAST_TIME_NAME,
+  CHANNEL_NAME,
   castTimePayload,
+  channelPayload,
   RESISTANCE_NAME,
   resistancePayload,
   RESISTANCE_MIXED_NAME,
@@ -249,6 +255,13 @@ const dotLifetime = dotLifetimePayload();
 const dotLifetimePath = join(here, 'recordings', `${DOT_LIFETIME_NAME}.json`);
 writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
 
+// EMBER auf DREI Braende zugleich (#485, AC3). `dot-lifetime` faehrt nur einen
+// — die Gegenprobe "verlaengere nur den ersten" lief dort durch alle 134
+// Rust-Suiten, ohne eine einzige rot zu faerben.
+const manyDots = manyDotsPayload();
+const manyDotsPath = join(here, 'recordings', `${MANY_DOTS_NAME}.json`);
+writeFileSync(manyDotsPath, serialize(manyDots), 'utf8');
+
 // Die neuen Zauber der COAGULATION (#481). Ohne sie waere ihre
 // Bitgleichheit eine Annahme — `coverage` sagt es woertlich.
 const coagulationNeu = coagulationNeuPayload();
@@ -300,6 +313,19 @@ for (let i = 0; i < INSTANCE2_NAMES.length; i++) {
 for (let i = 0; i < INSTANCE3_NAMES.length; i++) {
   const name = INSTANCE3_NAMES[i];
   const datensatz = instance3Payload(`boss-3-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+  console.log(
+    `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
+      `gefallen ${datensatz.expected.killedAtMs}, gestorben ${datensatz.expected.diedAtMs}, ` +
+      `Druecke ${datensatz.presses.length}`,
+  );
+}
+
+// Die vier Bosse der vierten Instanz. Sie entstehen, weil der Waechter
+// `jeder-boss-hat-eine-aufzeichnung` sie eingefordert hat — siehe payloads.ts.
+for (let i = 0; i < INSTANCE4_NAMES.length; i++) {
+  const name = INSTANCE4_NAMES[i];
+  const datensatz = instance4Payload(`boss-4-${i + 1}`, name);
   writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
   console.log(
     `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
@@ -408,6 +434,18 @@ console.log(`geschrieben: ${castTimePath}`);
 console.log(
   `  Wirkzeit      ${castTime.expected.testCastCasts} Wirkungen, ` +
     `${castTime.expected.castsInterrupted} abgebrochen`,
+);
+
+// Die Kanalisierung mit Abbruch mitten drin (#323, AC6). Ohne sie waere ihre
+// Bitgleichheit eine Annahme — und der Abbruch ist die Stelle, an der sich
+// "laufend" von "am Ende" ueberhaupt erst unterscheidet.
+const channel = channelPayload();
+const channelPath = join(here, 'recordings', `${CHANNEL_NAME}.json`);
+writeFileSync(channelPath, serialize(channel), 'utf8');
+console.log(`geschrieben: ${channelPath}`);
+console.log(
+  `  Kanal         ${channel.expected.damage} Schaden, ` +
+    `${channel.expected.castsCancelled} abgebrochen`,
 );
 
 const runawayProgress = runawayProgressPayload();

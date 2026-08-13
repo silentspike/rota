@@ -149,6 +149,8 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'test-cdreduce',
       'test-convert',
       'test-cap',
+      // Issue #323 — der Prüfzauber zur Kanalisierung, ganz am Ende.
+      'test-channel',
     ]);
   });
 

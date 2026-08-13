@@ -1759,6 +1759,94 @@ export function castTimePayload(): Record<string, unknown> {
   };
 }
 
+export const CHANNEL_NAME = 'channel';
+
+/**
+ * Die Kanalisierung mit Abbruch mitten drin (Issue #323, AC6).
+ *
+ * # Warum der Abbruch der ganze Zweck ist
+ *
+ * Eine Kanalisierung, die durchläuft, gibt am Ende dieselbe Summe wie ein
+ * Cast — beide Bauarten sähen gleich aus. Erst der Abbruch trennt sie: Der
+ * Cast verliert alles, die Kanalisierung behält den erreichten Anteil.
+ *
+ * Die Spur `playerCasting` geht mit, wie bei `cast-time`. Eine abweichende
+ * Prüfsumme sagt nur, DASS etwas anders ist; die Spur sagt, wann die
+ * Kanalisierung lief und wann sie endete — bei einem Abbruch springt sie auf
+ * -1, und zwar auf beiden Seiten im selben Takt.
+ */
+export function channelPayload(): Record<string, unknown> {
+  const recording = recordings().get(CHANNEL_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CHANNEL_NAME}`);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('Der Boss test-caster fehlt.');
+  const bindings = [
+    { slot: 0, spellId: 'kindle' },
+    { slot: 1, spellId: 'test-channel' },
+  ];
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für die Spur — dieselbe Bauart wie in
+  // `castTimePayload`: dieselben Eingaben, also derselbe Kampf.
+  const casting: number[] = [];
+  // **Und der Endtermin daneben** — wie bei `cast-time`. Er sagt, wann die
+  // Kanalisierung enden SOLLTE; springt er früher auf -1, war es ein Abbruch.
+  // Ohne ihn liesse sich ein zu früh beendeter Kanal nicht von einem
+  // abgebrochenen unterscheiden.
+  const endsAt: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (pressIndex < recording.presses.length && recording.presses[pressIndex]?.tick === tick) {
+      const press = recording.presses[pressIndex];
+      pressIndex++;
+      if (press === undefined) continue;
+      const binding = bindings.find((b) => b.slot === press.slot);
+      if (binding === undefined) continue;
+      combat.cast(combat.indexOf(binding.spellId), timeMs);
+    }
+    casting.push(combat.playerCasting);
+    endsAt.push(combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId: 'test-caster',
+    bindings,
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      castsCancelled: result.castsCancelled,
+      // **Beide Abbruch-Arten getrennt** (GAME-DESIGN 7.1). Die Pruefsumme
+      // fuehrt sie nicht: Ein geraeumter Zustand sieht gleich aus, egal WER
+      // ihn geraeumt hat. Zwei Umsetzungen, die den Abbruch verschieden
+      // zuordnen, liefen in der Summe nie auseinander.
+      castsInterrupted: result.castsInterrupted,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+    playerCasting: casting,
+    playerCastEndsAt: endsAt,
+  };
+}
+
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**
@@ -6195,6 +6283,97 @@ export function dotLifetimePayload(): Record<string, unknown> {
   };
 }
 
+/** Die Aufzeichnung, in der EMBER auf MEHRERE Brände zugleich trifft. */
+export const MANY_DOTS_NAME = 'ember-viele-braende';
+
+const MANY_DOTS_BINDINGS = [
+  { slot: 0, spellId: 'ember' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'searing' },
+  { slot: 3, spellId: 'cinder' },
+] as const;
+
+/**
+ * Drei Brände gleichzeitig, dann EMBER (Issue #485, AC3).
+ *
+ * # Warum `dot-lifetime` dafür nicht reicht — gemessen, nicht vermutet
+ *
+ * Jene Aufzeichnung fährt genau EINEN Brand (SMOULDER). Die Gegenprobe
+ * „verlängere nur den ersten laufenden Brand" — also der Fehler, vor dem AC3
+ * ausdrücklich warnt — lief am 2026-08-13 durch **alle 134** Rust-Suiten,
+ * ohne eine einzige rot zu färben. Mit einem Brand sind „der erste" und
+ * „alle" dasselbe.
+ *
+ * Drei Brände mit **verschiedenen Takten** (SMOULDER 2000, SEARING 2000,
+ * CINDER 1000) trennen zusätzlich „alle gefunden" von „allen denselben
+ * Betrag gegeben": Wer pauschal 2000 addiert, trifft CINDER falsch.
+ *
+ * PYROCLASM ist bewusst NICHT dabei. Er verbraucht die Brände und macht die
+ * Lage nach jeder Zündung wieder eindeutig — die Sache hier ist der Zugriff
+ * auf viele zugleich, nicht ihr Verbrauch. Das prüft `dot-lifetime`.
+ */
+function recordManyDots(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const ember = combat.indexOf('ember');
+  const braende = ['smoulder', 'searing', 'cinder'].map((id) => combat.indexOf(id));
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, MANY_DOTS_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Erst auffüllen, dann verlängern.** Ein erloschener Brand wird sofort
+    // nachgelegt; EMBER kommt nur zum Zug, wenn ALLE drei brennen. Sonst
+    // träfe er mal drei, mal einen, und die Aufzeichnung prüfte den
+    // Mehrfach-Zugriff nur gelegentlich.
+    const fehlend = braende.find(
+      (i) => !combat.isDotActive(i, timeMs) && combat.isOffCooldown(i, timeMs),
+    );
+    if (fehlend !== undefined) {
+      press(fehlend, tick, timeMs);
+    } else if (
+      braende.every((i) => combat.isDotActive(i, timeMs)) &&
+      combat.isOffCooldown(ember, timeMs)
+    ) {
+      press(ember, tick, timeMs);
+    }
+  }
+
+  return { name: MANY_DOTS_NAME, seed: 0, ticks, presses, bindings: MANY_DOTS_BINDINGS };
+}
+
+export function manyDotsPayload(): Record<string, unknown> {
+  const recording = recordManyDots(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: MANY_DOTS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 /** Die Aufzeichnung, in der HARDEN und SEPSIS gewirkt werden. */
 export const EXTEND_EFFECTS_NAME = 'extend-effects';
 
@@ -7149,6 +7328,109 @@ export function instance3Payload(bossId: string, name: string): Record<string, u
     tickMs: TICK_MS,
     bossId,
     bindings: INSTANCE3_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      diedAtMs: result.diedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/**
+ * Die vier Bosse der vierten Instanz, je eine Aufzeichnung.
+ *
+ * # Sie entstehen, weil ein Wächter sie eingefordert hat
+ *
+ * `jeder-boss-hat-eine-aufzeichnung.test.ts` (aus dem Instanz-3-Issue) geht vom
+ * BESTAND aus statt von den Dateien: Jeder Boss, dessen Instanz in
+ * `instances.json` steht, muss in einer Aufzeichnung vorkommen. Am Tag, an dem
+ * instance-4 eingetragen wurde, ist er rot geworden und hat die vier beim Namen
+ * genannt — ohne dass jemand daran denken musste.
+ *
+ * Genau dafür wurde er gebaut. Die vier Ansichten aus E7 und die Aufwertung aus
+ * E6-4 sind durch die Abnahme gegangen, weil niemand fragte, ob der Code je
+ * erreicht wird; hier fragt es eine Prüfung.
+ *
+ * # Warum dieselbe Leiste wie bei Instanz 3, aber ohne PURGE
+ *
+ * Keiner der vier trägt einen Verhängnis-Zähler, und PURGE ist der einzige
+ * Zauber mit `clearsDoom`. Er läge auf der Leiste, ohne je gedrückt zu werden —
+ * ein Platz, der nichts belegt. QUENCH bleibt: `boss-4-4` wirkt einen
+ * unterbrechbaren Zauber, dessen Fenster mit jeder Runde schrumpft.
+ */
+export const INSTANCE4_NAMES = [
+  'instance4-boss-1',
+  'instance4-boss-2',
+  'instance4-boss-3',
+  'instance4-boss-4',
+] as const;
+
+const INSTANCE4_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+] as const;
+
+function recordInstance4(bossId: string, ticks: number): Recording {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE4_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+
+    // **Unterbrechen zuerst und ohne GCD-Prüfung** — QUENCH trägt
+    // `triggersGcd: false`. Bei `boss-4-4` ist das die Signatur: Sein Fenster
+    // wird mit jeder Runde kürzer, und wer es verpasst, kassiert 700.
+    if (combat.casting !== -1 && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+      continue;
+    }
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (
+      !combat.isDotActive(idx('smoulder'), timeMs) &&
+      combat.isOffCooldown(idx('smoulder'), timeMs)
+    ) {
+      press(idx('smoulder'), tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(idx('pyre'), timeMs)) {
+      press(idx('pyre'), tick, timeMs);
+    } else if (combat.isOffCooldown(idx('kindle'), timeMs)) {
+      press(idx('kindle'), tick, timeMs);
+    }
+  }
+
+  return { name: bossId, seed: 0, ticks, presses, bindings: INSTANCE4_BINDINGS };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse der vierten Instanz. */
+export function instance4Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const recording = { ...recordInstance4(bossId, 6000), name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE4_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     expected: {
       damage: result.damage,
