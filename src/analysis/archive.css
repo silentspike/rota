@@ -59,6 +59,22 @@
   color: #7d766a;
 }
 
+/* Jedes Ziel trägt seinen eigenen Bezugspunkt.
+ *
+ * `.help-popover` liegt mit `top: 100%` unter seinem Ziel — aber nur, wenn das
+ * Ziel positioniert ist. Ohne diese Regel bezieht es sich auf den nächsten
+ * positionierten Vorfahren: Im Browser gemessen landete das Fenster einer
+ * Boss-Fähigkeit bei y = 900 in einem 900 px hohen Fenster, also exakt
+ * ausserhalb des Bildes. Im DOM war alles da, der Text abfragbar, die Grösse
+ * richtig — nur sah es niemand.
+ *
+ * Über das Merkmal und nicht über eine Liste von Klassen, aus demselben Grund
+ * wie `attachHelp` selbst: Wer ein neues Ziel auszeichnet, bekommt den
+ * Bezugspunkt mit und muss nicht wissen, dass es ihn gibt. */
+[data-help] {
+  position: relative;
+}
+
 /* Erklärfenster — es sitzt am Element, nicht in einem Menü. */
 .help-popover {
   position: absolute;

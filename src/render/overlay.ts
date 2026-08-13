@@ -25,7 +25,8 @@ import type { LevelUpDisplay } from '../analysis/level-up-display.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import { buildEfficiencyView, buildLossView } from '../analysis/analysis-view.js';
 import type { EfficiencyTable } from '../analysis/efficiency.js';
-import { buildCurveView } from '../analysis/history-view.js';
+import { buildComparisonView, buildCurveView } from '../analysis/history-view.js';
+import type { ComparedMetric } from '../analysis/run-compare.js';
 import type { RunCurve } from '../analysis/run-compare.js';
 import '../analysis/history.css';
 // Ohne diesen Import erscheint die Rangliste ungestylt: Die Datei wurde bis
@@ -117,6 +118,19 @@ export interface ResultView {
    * `null`; die eigene Kurve steht dann allein.
    */
   readonly curve: RunCurve | null;
+  /**
+   * Der Vergleich mit dem Bestlauf (Issue #82).
+   *
+   * `null` heißt: kein Vergleich möglich — es gibt keinen Bestlauf für diesen
+   * Boss, oder der gespeicherte stammt aus einer Fassung vor #82 und führt die
+   * sieben Vergleichszahlen nicht. Beides ist dasselbe für den Spieler: Es
+   * gibt nichts zu vergleichen.
+   *
+   * **Eine leere Liste wäre etwas anderes** und kommt hier nicht vor:
+   * `compareRuns` liefert immer alle sechs Kennzahlen, notfalls mit
+   * `best: null` in jeder.
+   */
+  readonly comparison: readonly ComparedMetric[] | null;
   /**
    * Die Punkte für diesen Lauf, **fertig gerechnet** (Issue #276).
    *
@@ -685,7 +699,7 @@ export class Overlay {
         ? 'none available'
         : `${summary.synergyUsed} of ${summary.synergyAvailable}`,
     );
-    this.fillDetail(summary, view.analysis, view.efficiency, view.curve);
+    this.fillDetail(summary, view.analysis, view.efficiency, view.curve, view.comparison);
   }
 
   /**
@@ -709,6 +723,7 @@ export class Overlay {
     analysis: LossReport | null,
     efficiency: EfficiencyTable | null,
     curve: RunCurve | null,
+    comparison: readonly ComparedMetric[] | null,
   ): void {
     this.detail.replaceChildren();
 
@@ -735,6 +750,19 @@ export class Overlay {
     // Vom Groben zum Feinen — dieselbe Ordnung, die 15.1 bis 15.3 vorgeben.
     if (efficiency !== null) {
       this.detail.appendChild(buildEfficiencyView(efficiency));
+      this.detail.appendChild(element('div', 'rota-divider'));
+    }
+
+    // **Der Vergleich mit dem Bestlauf** (Issue #82) — VOR der Kurve: Er
+    // beantwortet „war dieser Lauf besser als mein bester?", die Kurve
+    // „wann kam der Schaden?". Die Frage nach dem Fortschritt kommt zuerst.
+    //
+    // `buildComparisonView` stand seit E7-2 fertig gebaut da und hatte
+    // **keinen einzigen Aufrufer** — dieselbe Klasse wie `buildEfficiencyView`
+    // eine Zeile weiter oben und wie `setSetEffects` in #794. Diese Zeile ist
+    // der ganze Unterschied zwischen gebaut und erreichbar.
+    if (comparison !== null) {
+      this.detail.appendChild(buildComparisonView(comparison));
       this.detail.appendChild(element('div', 'rota-divider'));
     }
 
@@ -846,6 +874,23 @@ export class Overlay {
       this.gearCard.appendChild(root);
     }
     this.gearCard.hidden = false;
+  }
+
+  /**
+   * Die geführte Einführung über den Vorbereitungs-Bildschirm legen
+   * (AC4 von #811, GAME-DESIGN 17.3).
+   *
+   * **Sie hängt am Vorbereitungs-Bildschirm und nicht an der Wurzel**: Der
+   * Spieler sieht sie dort, wo er gleich losdrückt, und sie verschwindet mit
+   * ihm, wenn der Kampf beginnt. An der Wurzel bliebe sie über dem laufenden
+   * Kampf stehen.
+   *
+   * Sie räumt nicht auf und schliesst nichts: Das Fenster entfernt sich selbst,
+   * sobald einer seiner beiden Knöpfe gedrückt wird (`buildIntroduction`). Zwei
+   * Stellen, die dasselbe Fenster entfernen, wären eine zu viel.
+   */
+  showIntroduction(node: HTMLElement): void {
+    this.prepare.appendChild(node);
   }
 
   /**

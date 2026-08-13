@@ -16,7 +16,7 @@ import {
   instanceById,
   type BossDef,
 } from './data.js';
-import { buildBossSelect, waehlbareBosse } from '../progression/boss-select.js';
+import { buildBossSelect, mechanikenVon, waehlbareBosse } from '../progression/boss-select.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
   applyBindings,
@@ -39,8 +39,15 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { comparableFromBest, usableBest } from '../analysis/best-run.js';
+import { compareRuns, type ComparedMetric } from '../analysis/run-compare.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
+import { attachHelp, buildArchiveView, buildIntroduction } from '../analysis/archive-view.js';
+import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../analysis/help-data.js';
+import { markSeen, nextIntroduction } from '../analysis/help.js';
+import { buildArchive } from '../analysis/archive.js';
+import { ALL_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
 import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
 import '../analysis/history.css';
 import { pointsDisplayFor } from '../analysis/points-display.js';
@@ -59,6 +66,19 @@ import '../progression/composition.css';
 import '../progression/gear.css';
 import '../progression/talents.css';
 import '../progression/boss-select.css';
+// **Die Gestaltung für Archiv, Erklärfenster und Einführung** — sie war seit
+// #85 gebaut und wurde von NIEMANDEM geladen (gemessen an #811: kein einziger
+// Import auf `archive.css` im ganzen Baum; sie erschien nur im Bündel der
+// Prüfseite `docs/archive-check/`).
+//
+// Was der Browser daraus machte: `position: static`, kein Hintergrund, kein
+// Rahmen, 704 px breit — das Erklärfenster floss als nackter Text in die
+// Tabellenzelle. Im DOM alles richtig, auf dem Bildschirm unbrauchbar.
+//
+// Dieselbe Klasse wie „gebaut, grün, unerreichbar", nur eine Ebene tiefer:
+// Kein Prüffall fragt, ob eine Stilvorlage geladen wird, und `tsc` und
+// `eslint` erst recht nicht. Gefunden hat es `getComputedStyle` im Browser.
+import '../analysis/archive.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
@@ -291,11 +311,7 @@ export class App {
         onRestart: () => this.restart(),
         onBackToMenu: () => this.backToMenu(),
         onOpenHome: () => {
-          // **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim
-          // Start; ohne diesen Aufruf stünde dort, was damals galt. Im Browser
-          // gesehen: nach einem gewonnenen Kampf weiterhin „0 / 200".
-          this.refreshHome();
-          this.home.show();
+          this.openHome();
         },
       },
       // **Fertige Zeilen, nicht der Datensatz** (Issue #328): Ob ein Faktor
@@ -405,7 +421,45 @@ export class App {
       title: 'History',
       content: buildHistoryView(this.persistence.state.runHistory),
     });
+
+    // **Das Archiv** (GAME-DESIGN 17.4, Issue #85). `buildArchiveView` und
+    // `buildArchive` standen fertig gebaut da und hatten keinen Aufrufer —
+    // dieselbe Klasse wie `buildHistoryView` vor #82 und `setSetEffects` vor
+    // #794.
+    //
+    // HIER und nicht in der Auswertung: Das Archiv ist Rückschau über alles,
+    // was der Spieler gesehen hat. Nach einem einzelnen Kampf hätte es nichts
+    // zu suchen — dieselbe Begründung wie beim Verlauf darüber.
+    //
+    // **Die Einträge kommen aus `ALL_ARCHIVE_ENTRIES`, nicht aus
+    // `PLAYABLE_ARCHIVE_ENTRIES`**: Heute sind das ausschliesslich
+    // Prüfeinträge, und die ausgelieferte Liste wäre leer. Die Ansicht zeigte
+    // dann dauerhaft „Nothing recorded yet" — sichtbar gebaut, aber nicht
+    // belegbar. Sobald E10 echte Texte liefert, gehört hier die gefilterte
+    // Liste hin; der Vermerk steht in `archive-data.ts`.
+    this.home.addSection({
+      id: 'archive',
+      title: 'Archive',
+      content: this.buildArchiveSection(),
+    });
     parent.appendChild(this.home.root);
+
+    // **Die Erklärfenster** (AC2 von #811). `attachHelp` stand fertig gebaut
+    // da und war DOPPELT tot: kein Aufrufer, und kein einziger Knoten trug
+    // `data-help` — es hätte auch mit Aufruf geschwiegen. Das Issue nannte nur
+    // die erste Hälfte.
+    //
+    // **Über das Merkmal, nicht über eine Liste von Bereichen**: So bekommt
+    // eine Boss-Fähigkeit ihr Fenster durch dasselbe Zutun wie ein
+    // Zauber-Symbol oder ein Wert, und keine Gruppe kann vergessen werden,
+    // weil sie woanders im Baum steht.
+    //
+    // **Die Einträge kommen aus `ALL_HELP_ENTRIES`, nicht aus
+    // `PLAYABLE_HELP_ENTRIES`** — heute sind das ausschliesslich Prüfeinträge,
+    // und die ausgelieferte Liste wäre leer. Ohne Einträge erschiene kein
+    // einziges Fenster: sichtbar gebaut, aber nicht belegbar. Dieselbe
+    // Entscheidung wie beim Archiv (#85); der Vermerk steht in `help-data.ts`.
+    this.attachHelpToHome();
 
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
     // stummes, unsichtbares Spiel rechnet identisch (GAME-DESIGN 18.5).
@@ -451,6 +505,20 @@ export class App {
           ),
         };
       },
+      // **Der Vergleich mit dem Bestlauf** (E7-2, Issue #82).
+      //
+      // `compareRuns` und `buildComparisonView` standen seit E7-2 fertig
+      // gebaut da und hatten **keinen einzigen Aufrufer** — dieselbe Klasse
+      // wie `buildEfficiencyView` (#81) und `setSetEffects` (#794): gebaut,
+      // geprüft, für jeden Spieler unerreichbar. Diese Zeilen sind der ganze
+      // Unterschied.
+      //
+      // Der Bestlauf wird über Boss UND Schwierigkeit gesucht, mit demselben
+      // Maß, das `recordRun` schreiben würde. Passt es nicht — der Boss hat
+      // `runaway` bekommen oder verloren —, verwirft `usableBest` den Eintrag,
+      // und der Vergleich sagt UNBEKANNT statt Sekunden gegen Prozent zu
+      // halten.
+      () => this.comparisonForResult(),
     );
     this.loop = new GameLoop({
       simulation: this.session,
@@ -613,6 +681,56 @@ export class App {
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
+    // **Die geführte Einführung** (AC4 von #811, GAME-DESIGN 17.3). Zuletzt,
+    // nach `home.hide()`: Sie liegt über dem Vorbereitungs-Bildschirm, den der
+    // Spieler jetzt sieht — „an Ort und Stelle" heisst dort, wo die Mechanik
+    // gleich auftritt.
+    this.showIntroductionFor(gewaehlt);
+  }
+
+  /**
+   * Die Einführung zur ersten noch unbekannten Mechanik dieses Bosses.
+   *
+   * # Der Auslöser ist die WAHL, nicht der Takt im Kampf
+   *
+   * 17.3 sagt „beim ersten Auftreten einer Mechanik hält das Spiel kurz an".
+   * Hier hält nichts an, weil noch nichts läuft: Zwischen Wahl und erstem Takt
+   * liegt der Vorbereitungs-Bildschirm, und der Spieler begegnet der Mechanik
+   * genau hier zum ersten Mal.
+   *
+   * **Warum nicht mitten im Kampf:** Der Kampf ist der Gegenstand der Parität.
+   * Der Simulator kennt kein Anhalten; ein Halt im Spiel, den `sim/` nicht
+   * nachvollzieht, wäre eine Regel, die nur eine Seite kennt — und die bricht
+   * nicht sofort, sondern beim ersten Lauf, in dem jemand pausiert. Diese
+   * Auslegung liegt dem Auftraggeber vor; wandert der Auslöser, wandert diese
+   * Methode und sonst nichts.
+   *
+   * # Höchstens eine, und Überspringen zählt
+   *
+   * `nextIntroduction` liefert die erste ungesehene — mehrere Fenster
+   * übereinander wären keine Führung, sondern ein Stapel. Beide Knöpfe
+   * vermerken sie als gesehen, weil `buildIntroduction` beide gleich behandelt:
+   * Wer überspringt, will sie nicht wiedersehen.
+   */
+  private showIntroductionFor(boss: BossDef): void {
+    const stand = { seenMechanicIds: this.persistence.state.seenMechanicIds };
+    for (const mechanik of mechanikenVon(boss)) {
+      const faellig = nextIntroduction(ALL_INTRODUCTIONS, stand, mechanik);
+      if (faellig === null) continue;
+      this.overlay.showIntroduction(
+        buildIntroduction(faellig, (mechanicId) => {
+          // **Der Spielstand muss es annehmen, nicht nur die Rechnung.** Genau
+          // hier ist bei #85 die Kette gerissen: `recordRun` schaltete den
+          // Eintrag frei, und `persist` übertrug ihn nicht — ohne Fehler und
+          // ohne Hinweis, bei 2489 grünen Fällen.
+          this.persistence.persistSeenMechanics(
+            markSeen({ seenMechanicIds: this.persistence.state.seenMechanicIds }, mechanicId)
+              .seenMechanicIds,
+          );
+        }),
+      );
+      return;
+    }
   }
 
   /**
@@ -823,6 +941,24 @@ export class App {
    * trägt Stufe und Erfahrung; alles andere entsteht hier bei jedem Öffnen
    * neu. Ein einmal gebauter Bereich zeigte sonst, was beim Start galt.
    */
+  /**
+   * Das Player Home öffnen (Issue #188).
+   *
+   * **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim Start;
+   * ohne das stünde dort, was damals galt. Im Browser gesehen: nach einem
+   * gewonnenen Kampf weiterhin „0 / 200" — und bei #85 ein leeres Archiv,
+   * obwohl der Eintrag im Spielstand stand.
+   *
+   * **Als benannte Methode und nicht als anonymer Rückruf im Overlay-Aufbau.**
+   * Was namenlos ist, kann kein Fall fassen: Die Mutation „frische nicht auf"
+   * bliebe sonst grün. Dieselbe Lehre wie bei `comparisonForResult` (#82) und
+   * `parseSets` (#780), zum dritten Mal an diesem Tag.
+   */
+  openHome(): void {
+    this.refreshHome();
+    this.home.show();
+  }
+
   private refreshHome(): void {
     const stand = { level: this.persistence.state.level, xp: this.persistence.state.experience };
     this.home.replaceSection(
@@ -862,6 +998,53 @@ export class App {
     // es, auch nachdem der Spieler Stufe 2 erreicht hatte. Gefunden hat es
     // `talent-oberflaeche-anschluss.test.ts`, nicht das Lesen.
     this.home.replaceSection('talents', this.buildTalentSection());
+    // **Und das Archiv** (Issue #85), aus demselben Grund wie alles darüber:
+    // Ein Eintrag wird nach einem Sieg frei, und der Bildschirm entstand beim
+    // Start. Ohne diese Zeile stünde dort weiter „Nothing recorded yet", bis
+    // der Spieler die Seite neu lädt.
+    //
+    // Im Browser gesehen: Boss gefallen, `unlockedEntryIds` im Stand gesetzt,
+    // Archiv leer — und nach einem Neuladen war der Eintrag da. Genau der
+    // Fehler, den die Kommentare darüber für Stufe, Werte und Ausrüstung
+    // beschreiben.
+    this.home.replaceSection('archive', this.buildArchiveSection());
+    // **Und die Erklärfenster, aus demselben Grund wie alles darüber.** Jeder
+    // `replaceSection`-Aufruf wirft den alten Teilbaum weg — mitsamt der
+    // Zuhörer, die `attachHelp` daran gehängt hatte. Ohne diese Zeile hätten
+    // die Werte nach dem ersten Aufstieg kein Fenster mehr, und die Boss-Wahl
+    // nach dem ersten Wechsel keins.
+    //
+    // Genau die Klasse, die bei #85 zweimal 2489 grüne Fälle durchgelassen hat
+    // und erst im Browser aufgefallen ist.
+    this.attachHelpToHome();
+  }
+
+  /**
+   * Die Erklärfenster an alles hängen, was im Player Home `data-help` trägt.
+   *
+   * Als eigene Methode, weil sie an zwei Stellen gebraucht wird — beim Aufbau
+   * und nach jedem Auffrischen. Und als **benannte** Methode, damit ein
+   * Prüffall sie fassen kann: Was in einem anonymen Rückruf steckt, ist von
+   * aussen weder aufrufbar noch beobachtbar, und die Mutation läuft grün durch
+   * (gemessen bei `comparisonForResult` in #82 und `parseSets` in #780).
+   */
+  private attachHelpToHome(): void {
+    attachHelp(this.home.root, ALL_HELP_ENTRIES);
+  }
+
+  /**
+   * Der Archiv-Abschnitt, aus dem aktuellen Spielstand (Issue #85).
+   *
+   * Als eigene Methode, weil er an zwei Stellen gebraucht wird — beim Aufbau
+   * und bei jedem Auffrischen. Zwei Aufrufe von `buildArchive` mit denselben
+   * Zutaten wären zwei Stellen, die auseinanderlaufen können.
+   */
+  private buildArchiveSection(): HTMLElement {
+    return buildArchiveView(
+      buildArchive(ALL_ARCHIVE_ENTRIES, {
+        unlockedEntryIds: this.persistence.state.unlockedEntryIds,
+      }),
+    );
   }
 
   ready(): boolean {
@@ -896,6 +1079,35 @@ export class App {
   }
 
   /** Neuer Versuch: zurück in die Vorbereitung und sofort bereit machen. */
+  /**
+   * Der Vergleich des letzten Laufs mit dem Bestlauf (Issue #82).
+   *
+   * **Als benannte Methode und nicht als anonymer Rückruf.** Der Unterschied
+   * ist nicht Stil, sondern Prüfbarkeit: Steckt die Entscheidung in einer
+   * Funktion ohne Namen, kann kein Fall sie fassen — dann ist zwar
+   * angeschlossen, aber nichts hält den Anschluss fest. Gemessen: Mit dem
+   * anonymen Rückruf blieb die Mutation „gib immer `null` zurück" durch die
+   * ganze Suite grün. Dieselbe Lehre wie bei `parseSets` in #780.
+   *
+   * `null` heisst: kein Vergleich möglich. Drei Fälle, für den Spieler
+   * derselbe — es gab noch keinen Lauf, es gibt keinen Bestlauf für diesen
+   * Boss, oder der gespeicherte stammt aus einer Fassung vor #82.
+   */
+  comparisonForResult(): readonly ComparedMetric[] | null {
+    const summary = this.lastSummary;
+    if (summary === null) return null;
+    // Mit demselben Mass suchen, das `recordRun` schreiben würde. Passt es
+    // nicht — der Boss hat `runaway` bekommen oder verloren —, verwirft
+    // `usableBest` den Eintrag, statt Sekunden gegen Prozent zu halten.
+    const { entry } = usableBest(
+      this.persistence.state.bestRuns,
+      this.combat.boss.id,
+      1,
+      summary.heldPercent === null ? 'reserve' : 'held',
+    );
+    return compareRuns(summary, comparableFromBest(entry));
+  }
+
   restart(): void {
     this.backToMenu();
     this.ready();

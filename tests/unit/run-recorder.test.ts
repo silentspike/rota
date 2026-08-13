@@ -34,6 +34,8 @@ const LEER: RecordedState = {
   talentPoints: {},
   items: [],
   defeatedBosses: [],
+  unlockedEntryIds: [],
+  seenMechanicIds: [],
   level: 1,
   experience: 0,
 };
@@ -214,6 +216,8 @@ describe('Der uebergebene Stand bleibt unangetastet', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     };

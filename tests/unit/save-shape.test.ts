@@ -120,8 +120,8 @@ function echterWeg(stand: Record<string, unknown>): Record<string, unknown> {
 describe('AC4 — jedes zusammengesetzte Feld steht in ergaenzt() einzeln', () => {
   const FELDER = zusammengesetzteFelder();
 
-  it('es sind sieben, und der Wächter kennt sie ohne Pflege', () => {
-    // Fünf Listen und zwei Objekte. Die Zahl steht hier, damit ein Zuwachs
+  it('es sind neun, und der Wächter kennt sie ohne Pflege', () => {
+    // Sieben Listen und zwei Objekte. Die Zahl steht hier, damit ein Zuwachs
     // sichtbar wird — nicht als Bedingung, sondern als Merkposten: Wer sie
     // ändert, hat gerade ein Feld hinzugefügt oder entfernt und liest die
     // Prüfung darunter.
@@ -137,6 +137,21 @@ describe('AC4 — jedes zusammengesetzte Feld steht in ergaenzt() einzeln', () =
       'bindings',
       'bestRuns',
       'defeatedBosses',
+      // Issue #85: die freigeschalteten Archiv-Einträge. Die Reihenfolge
+      // kommt aus `emptySave()` und nicht von hier — sie steht dort neben
+      // `defeatedBosses`, weil beide dasselbe festhalten: was der Spieler
+      // schon erreicht oder gesehen hat.
+      'unlockedEntryIds',
+      // Issue #811: die gesehenen Einführungen. Sie stehen neben den
+      // Archiv-Einträgen darüber und aus demselben Grund — beide halten fest,
+      // was der Spieler schon gesehen hat, und beide sind Historie statt
+      // Rechnung (18.6).
+      //
+      // **Dieser Fall ist beim Hinzufügen rot geworden**, wie in #435 und wie
+      // #378 es vorgesehen hat. Der Fall darunter prüft mein neues Feld über
+      // `it.each` von selbst mit: Es überlebt einen Stand, der dort `null`
+      // trägt — gemessen, nicht angenommen.
+      'seenMechanicIds',
       'runHistory',
       'progressMarks',
     ]);
