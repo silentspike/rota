@@ -1,119 +1,80 @@
 import { describe, expect, it } from 'vitest';
 import { Combat, alsSpellIndex } from '../../src/core/combat.js';
-import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
+import { CALCINATION, FIRST_CRUCIBLE, TALENTS } from '../../src/core/data.js';
+import { talentDecayStackPermille } from '../../src/progression/talents.js';
 
 /**
- * Der Stapel-Aufbau sammelt den Rest, statt ihn abzuschneiden (Issue #419).
+ * Der Stapel-Aufbau sammelt den Rest — und heute speist ihn niemand (#419).
  *
- * # Warum
+ * # Was die Rechnung tut
  *
- * Bis zum 2026-08-13 stand in `addDecayStacks` ein `Math.floor` auf das
- * Produkt. Gemessen war der Aufbau-Weg damit **wirkungslos**: Alle drei
- * Quellen legen genau einen Stapel (canker 1, blight 1, rot 1), und bei
- * Basis 1 ändert ein Faktor erst ab 2,0 etwas.
+ * `floor(1 × 1,5)` ist wieder 1. Ein Faktor auf die Zahl gelegter Stapel war
+ * damit wirkungslos, solange jede Quelle genau einen legt (canker 1, blight 1,
+ * rot 1). Statt aufzurunden — das schenkte jedem ersten Rang einen Stapel —
+ * sammelt der Kampf den Rest: Was am ganzen fehlt, wartet auf den nächsten
+ * Wurf derselben Quelle.
  *
- * ```text
- *   floor(1 × 1,3) = 1     floor(1 × 1,5) = 1     floor(1 × 2,0) = 2
- * ```
+ * # Warum hier keine Wirkung mehr geprüft wird
  *
- * `putrefaction-build` trägt bei vollem Ausbau 1,5 — fünf Ränge, und kein
- * einziger Stapel mehr. Aufrunden verbietet der Datenkommentar (jeder erste
- * Rang schenkte sofort einen Stapel), also wartet der Rest jetzt auf den
- * nächsten Wurf.
+ * Der Umbau der vier Wege hat `putrefaction-build` von „legt Stapel" auf
+ * „hebt die Obergrenze" gestellt. Seither trägt **kein Talent** mehr
+ * `decayStackPerRankPerMille` — der Faktor ist null, und die Rechnung ist ein
+ * No-Op. Über ein Talent ist sie von dieser Seite nicht mehr erreichbar.
  *
- * # Drei Eigenschaften, drei Fälle
+ * Ihre Wirkung prüft deshalb `sim/tests/decay_rest.rs`: Dort steht der Faktor
+ * als Zahl in `FightConfig`, ohne Umweg über eine Verteilung. Die Folge
+ * `1, 3, 4` bei Faktor 1,5 steht dort mit derselben Begründung.
  *
- * Sammeln allein genügt nicht — der Rest muss **je Quelle** laufen und mit dem
- * Kampf **enden**. Ohne das Erste entschiede die Reihenfolge im Kampf über den
- * Stapel, ohne das Zweite hinge der erste Wurf an der Vorgeschichte. Beides
- * wäre gegen die Planbarkeit aus Gesetz 6.
+ * # Was hier steht, ist die LÜCKE
+ *
+ * Ein No-Op ist kein toter Zweig — er läuft bei jedem Stapel-Ereignis mit und
+ * ist korrekt. Aber ohne einen Fall, der ihn benennt, wäre nicht zu sehen,
+ * dass er heute nichts tut. Genau daran ist in diesem Projekt mehrfach Arbeit
+ * gestorben: gebaut, grün, und von niemandem erreicht.
  */
 
-/** Wirft CANKER sechsmal und gibt die Stapelzahl nach jedem Wurf. */
-function verlauf(talents?: Record<string, number>): number[] {
-  const combat = new Combat({
-    school: CALCINATION.value,
-    boss: FIRST_CRUCIBLE.value,
-    ...(talents === undefined ? {} : { talents }),
-  });
-  const canker = alsSpellIndex(combat.indexOf('canker'));
-  const werte: number[] = [];
-  for (let i = 0; i < 6; i++) {
-    combat.cast(canker, i * 3000);
-    werte.push(combat.decayStacks);
-  }
-  return werte;
-}
-
-describe('Die Zusicherung vor der Messung', () => {
-  it('CANKER legt genau EINEN Stapel je Wurf', () => {
-    // Der Träger des ganzen Vorhabens: Wäre die Basis größer, hätte schon der
-    // alte `floor` gewirkt und es gäbe nichts zu beheben.
-    expect(verlauf(), 'CANKER legt nicht mehr einen Stapel je Wurf').toEqual([1, 2, 3, 4, 5, 5]);
+describe('Die Zusicherung: die Quellen legen genau EINEN Stapel', () => {
+  it('CANKER legt einen — daran hing die ganze Rundungsfalle', () => {
+    const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+    combat.cast(alsSpellIndex(combat.indexOf('canker')), 0);
+    expect(combat.decayStacks, 'CANKER legt nicht genau einen Stapel').toBe(1);
   });
 });
 
-describe('Der Rest wird gesammelt', () => {
-  it('Faktor 1,5 legt bei jedem ZWEITEN Wurf einen Stapel mehr', () => {
-    // 5 Ränge à 100 Promille. Rechnung je Wurf, in Promille:
+describe('Heute speist KEIN Talent diesen Faktor', () => {
+  it('auch bei voll verteilten Talenten bleibt er null', () => {
+    // **Der Fall, der die Lücke sichtbar hält.** Er wird rot an dem Tag, an
+    // dem wieder ein Talent Stapel legt — und dann weiß der Nächste sofort:
+    // Die Rest-Rechnung tut wieder etwas, und `sim/tests/decay_rest.rs` prüft
+    // ab jetzt etwas, das ein Spieler auch erreichen kann.
     //
-    //   Wurf 1   1500 + 0    -> 1 Stapel, Rest 500
-    //   Wurf 2   1500 + 500  -> 2 Stapel, Rest 0
-    //   Wurf 3   1500 + 0    -> 1 Stapel, Rest 500
-    //
-    // Also 1, 3, 4, dann die Obergrenze bei 5.
-    expect(verlauf({ 'putrefaction-build': 5 })).toEqual([1, 3, 4, 5, 5, 5]);
-  });
+    // **Alle Talente auf vollem Rang**, nicht nur die verdächtigen: Ein neues
+    // Talent in einem beliebigen Baum würde sonst übersehen.
+    const alleVoll: Record<string, number> = {};
+    for (const talent of TALENTS) alleVoll[talent.id] = talent.maxRanks;
 
-  it('Faktor 1,3 legt bei jedem VIERTEN — der Rest wächst langsamer', () => {
-    // Der globale Weg, 5 × 60 Promille. Erst nach vier Würfen ist ein ganzer
-    // Stapel zusammen (4 × 300 = 1200).
-    expect(verlauf({ 'global-build': 5 })).toEqual([1, 2, 3, 5, 5, 5]);
-  });
-});
-
-describe('Der Rest läuft JE QUELLE', () => {
-  it('BLIGHT schiebt CANKERs Rest nicht über die Schwelle', () => {
-    // **Ohne diese Trennung entschiede die Reihenfolge im Kampf.** Zwei
-    // Quellen mit je Rest 500 ergäben zusammen einen Stapel, den keine von
-    // beiden allein verdient hat — und welche ihn bekäme, hinge daran, wer
-    // zufällig zuletzt geworfen hat.
-    const combat = new Combat({
-      school: CALCINATION.value,
-      boss: FIRST_CRUCIBLE.value,
-      talents: { 'putrefaction-build': 5 },
-    });
-    const canker = alsSpellIndex(combat.indexOf('canker'));
-    const blight = alsSpellIndex(combat.indexOf('blight'));
-
-    combat.cast(canker, 0); // 1 Stapel, CANKERs Rest 500
-    combat.cast(blight, 3000); // 1 Stapel, BLIGHTs Rest 500
-    expect(combat.decayStacks, 'ein Rest ist auf die andere Quelle übergelaufen').toBe(2);
-
-    // Erst der ZWEITE Wurf derselben Quelle löst den Extra-Stapel aus.
-    combat.cast(canker, 6000);
-    expect(combat.decayStacks, 'CANKERs eigener Rest hat nicht ausgelöst').toBe(4);
-  });
-});
-
-describe('Der Rest endet mit dem Kampf', () => {
-  it('ein neuer Kampf beginnt bei null', () => {
-    // **Sonst hinge der erste Wurf an der Vorgeschichte.** Zwei gleiche
-    // Eröffnungen legten verschieden viele Stapel, je nachdem was vorher lief.
-    const combat = new Combat({
-      school: CALCINATION.value,
-      boss: FIRST_CRUCIBLE.value,
-      talents: { 'putrefaction-build': 5 },
-    });
-    const canker = alsSpellIndex(combat.indexOf('canker'));
-    combat.cast(canker, 0);
-    expect(combat.decayStacks, 'der erste Wurf legt nicht einen Stapel').toBe(1);
-
-    combat.reset();
-    combat.cast(canker, 0);
     expect(
-      combat.decayStacks,
-      'nach dem Zurücksetzen wirkt noch ein Rest aus dem alten Kampf',
-    ).toBe(1);
+      talentDecayStackPermille(alleVoll),
+      'ein Talent legt wieder Stapel — dann ist der Restwert gespeist, und die ' +
+        'Wirkung gehört wieder auf diese Seite geprüft (siehe sim/tests/decay_rest.rs)',
+    ).toBe(0);
+  });
+
+  it('und die Rechnung bleibt deshalb ohne Wirkung', () => {
+    // Die Gegenprobe zur Zeile oben, eine Ebene tiefer: Was der Faktor null
+    // bedeutet, sieht man an den Stapeln — sechs Würfe, sechs Stapel bis zum
+    // Deckel, kein einziger zusätzlicher.
+    const combat = new Combat({
+      school: CALCINATION.value,
+      boss: FIRST_CRUCIBLE.value,
+      talents: { 'putrefaction-build': 5 },
+    });
+    const canker = alsSpellIndex(combat.indexOf('canker'));
+    const werte: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      combat.cast(canker, i * 3000);
+      werte.push(combat.decayStacks);
+    }
+    expect(werte, 'ein Wurf hat mehr als einen Stapel gelegt').toEqual([1, 2, 3, 4]);
   });
 });

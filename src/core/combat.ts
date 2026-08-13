@@ -499,6 +499,27 @@ export class Combat {
    * derselben Quelle. Je Quelle, weil sonst ein Zauber den Rest eines anderen
    * ueber die Schwelle schoebe — dann entschiede die Reihenfolge im Kampf
    * ueber den Stapel, und die Rotation waere nicht mehr planbar.
+   *
+   * # Seit dem Umbau der vier Wege speist ihn KEIN Talent
+   *
+   * `putrefaction-build` legte bis dahin Stapel und brauchte diese Rechnung:
+   * `floor(1 × 1,5)` ist wieder 1, der Weg war wirkungslos. Seit er die
+   * Obergrenze hebt statt nachzulegen, ist `decayStackPerRankPerMille`
+   * unbesetzt — der Faktor ist null, `decayRest` bleibt immer null, und die
+   * drei Zeilen sind ein No-Op.
+   *
+   * **Die Bauart bleibt trotzdem**, und das ist eine Entscheidung, keine
+   * Nachlässigkeit: Sie ist für JEDEN künftigen Stapel-Faktor richtig, und ein
+   * No-Op, der bei jedem Stapel-Ereignis mitläuft, ist kein toter Zweig — er
+   * hat nur keinen Eingabewert ungleich null.
+   *
+   * **Damit die Lücke nicht unsichtbar wird**, hält
+   * `tests/unit/decay-rest-sammeln.test.ts` fest, dass heute niemand ihn
+   * speist. Dieser Fall wird rot an dem Tag, an dem wieder ein Talent Stapel
+   * legt — und dann weiß der Nächste, dass die Rechnung wieder etwas tut.
+   *
+   * Ihre WIRKUNG prüft weiterhin `sim/tests/decay_rest.rs`: Dort steht der
+   * Faktor als Zahl in `FightConfig` und braucht keine Talent-Speisung.
    */
   private readonly decayRest: Float64Array;
   private readonly dotTicksLost: Int32Array;
@@ -2142,7 +2163,10 @@ export class Combat {
     // keiner, und `controlValue >= 0` wäre bei Preis 0 immer wahr. Die
     // Klemmung steht hier und nicht im Parser: Sie folgt aus der Verteilung,
     // nicht aus den Daten.
-    const preis = Math.max(talentDecayWardFactor(this.talents), Math.round(control.cost / talentControlCostFactor(this.talents)));
+    const preis = Math.max(
+      talentDecayWardFactor(this.talents),
+      Math.round(control.cost / talentControlCostFactor(this.talents)),
+    );
     // **FIXATIONs Schlüsseltalent** (#419): Der Zauber scheitert nicht mehr,
     // sondern wirkt mit dem, was da ist.
     //
@@ -2409,7 +2433,10 @@ export class Combat {
       // Takt. Eine eigene Zahl dafür könnte still von beiden abweichen.
       const abstand = Math.max(TICK_MS, heal.tickIntervalMs ?? TICK_MS);
       this.healOverTimeAmount = gewirkterBetrag;
-      this.healOverTimeSteps = Math.max(talentDecayWardFactor(this.talents), Math.round(heal.overMs / abstand));
+      this.healOverTimeSteps = Math.max(
+        talentDecayWardFactor(this.talents),
+        Math.round(heal.overMs / abstand),
+      );
       this.healOverTimeIntervalMs = abstand;
       this.healOverTimeDone = 0;
       this.healOverTimeCredited = 0;
@@ -3406,7 +3433,10 @@ export class Combat {
           )
         : 0;
     const roh = PLAYER.wardReduction + (this.worn.ward + decayPermille) / 1000;
-    const minderung = Math.min(talentDecayWardFactor(this.talents), Math.min(PLAYER.wardCapPermille / 1000, roh));
+    const minderung = Math.min(
+      talentDecayWardFactor(this.talents),
+      Math.min(PLAYER.wardCapPermille / 1000, roh),
+    );
     const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
     // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg talentDecayWardFactor(this.talents),
