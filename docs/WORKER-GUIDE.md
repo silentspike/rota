@@ -167,6 +167,31 @@ Erkennbar ist sie nur an einer Mutation, die den Träger selbst entfernt. Wähle
 für einen Fall dieser Art einen Wert, den das Verfahren **nicht** von allein
 findet — bei einer Suche also nicht ihren Favoriten.
 
+#### Die Schwester: eine falsche Messgröße, die in der Hälfte der Fälle stimmt
+
+Ein Prüfstand zur Heilungs-Kanalisierung maß `playerHp` vorher/nachher statt
+`healed`. Die Gesundheit ist aber die Summe aus allem — der Boss schlägt während
+der Messung weiter zu:
+
+```
+Abbruch-Fall     expected -1300 to be 300     FAILED
+Durchlauf-Fall   GRÜN
+```
+
+Der Durchlauf-Fall war grün, weil sein Fenster zufällig zwischen zwei
+Boss-Schlägen lag (`test-onslaught` trifft bei 5000, 12000, 19000 ms). Wäre nur
+er gebaut worden, hätte der ganze Prüfstand grün gemeldet — und die falsche
+Größe gemessen.
+
+> **Eine Messgröße, die immer falsch liegt, fällt auf. Eine, die manchmal
+> zufällig richtig herauskommt, sieht aus wie ein echter Fall mit einem echten
+> Fehler daneben.**
+
+Der Reflex ist dann, den roten Fall zu reparieren — und damit den einzigen
+Zeugen. Bevor du das tust: Prüfe, ob der **grüne** Fall dieselbe Größe misst.
+Widersprechen sich zwei Fälle, ist die geteilte Messgröße der erste Verdächtige,
+nicht der Fall, der rot ist.
+
 #### Beide Rechenseiten gleich falsch — die Parität schweigt
 
 Eine Kanalisierung ging auf keiner der beiden Seiten je auf Abklingzeit. Der
