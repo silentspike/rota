@@ -95,6 +95,23 @@ pub enum EventKind {
         /// Fortschrittszaehler der Zeitleiste, siehe [`EventKind::TimelineStep`].
         index: u32,
     },
+    /// Eine Teilwirkung einer **Kanalisierung** faellt an (Issue #323).
+    ///
+    /// Steht unmittelbar VOR [`EventKind::PlayerCastLands`], weil der Block im
+    /// Spiel genau dort steht (`Combat::stepPassive`). Die Reihenfolge ist
+    /// keine Geschmacksfrage: Ein abbrechender Schlag des Bosses laeuft vorher
+    /// und raeumt — dann faellt diese Teilwirkung nicht mehr, und genau das
+    /// heisst "der erreichte Anteil bleibt".
+    ChannelTick {
+        /// Index des Zaubers in `data::SPELLS`.
+        spell: u8,
+        /// Welcher Wirkvorgang gemeint ist — dieselbe Vorsichtsmassnahme wie
+        /// bei [`EventKind::PlayerCastLands`]. Eine abgebrochene Kanalisierung
+        /// laesst ihre restlichen Termine in der Schlange stehen; ohne diesen
+        /// Zaehler zahlte ein spaeterer Wurf desselben Zaubers sie nachtraeglich
+        /// aus.
+        generation: u16,
+    },
     /// Die Wirkzeit eines SPIELER-Zaubers ist um — er wirkt jetzt
     /// (GAME-DESIGN 7.1, Issue #304).
     ///
@@ -102,6 +119,11 @@ pub enum EventKind {
     /// in `Combat::stepPassive`: Ein abbrechender Schlag im selben Takt muss
     /// den Zauber noch erwischen koennen. Stuende die Aufloesung davor, kaeme
     /// der Schaden durch und der Abbruch ginge ins Leere.
+    ///
+    /// **Bei einer Kanalisierung raeumt dieser Termin nur** (Issue #323): Ihre
+    /// Wirkung ist ueber die Schritte bereits gefallen. Ohne ihn bliebe
+    /// `player_casting` gesetzt, und jeder spaetere Druck "braeche" eine
+    /// laengst beendete Kanalisierung ab — gemessen: 3 Abbrueche statt 1.
     PlayerCastLands {
         /// Index des Zaubers in `data::SPELLS`.
         spell: u8,
@@ -181,10 +203,20 @@ impl EventKind {
             // Spieler bekam geschenkt, was er haette verhindern muessen.
             EventKind::BossCastLands { .. } => 8,
             EventKind::TimelineStep { .. } => 9,
+            // **Die Teilwirkung einer Kanalisierung unmittelbar VOR der
+            // landenden Wirkzeit** (Issue #323) — dieselbe Stelle wie im Spiel,
+            // wo der Block in `Combat::stepPassive` direkt darueber steht.
+            //
+            // Der Abstand zu allem davor ist das Entscheidende: Ein
+            // abbrechender Schlag des Bosses (Rang 8) laeuft frueher und
+            // raeumt, dann faellt diese Teilwirkung nicht mehr. Genau das
+            // heisst "der erreichte Anteil bleibt" — und nichts darueber
+            // hinaus.
+            EventKind::ChannelTick { .. } => 10,
             // Die eigene Wirkzeit zuletzt unter den Zeit-Ereignissen und vor
             // dem Weckruf (Issue #304) — dieselbe Stelle wie im Spiel.
-            EventKind::PlayerCastLands { .. } => 10,
-            EventKind::Wakeup => 11,
+            EventKind::PlayerCastLands { .. } => 11,
+            EventKind::Wakeup => 12,
         }
     }
 }
