@@ -70,6 +70,20 @@ pub struct BalanceConfig {
     ///
     /// Nur die zweite Zahl gehoert in das 10-%-Kriterium aus GAME-DESIGN 20.3.
     pub stop_on_kill: bool,
+    /// Wie schwer verhinderter Schaden gegen angerichteten wiegt (Issue #472).
+    ///
+    /// **0.0 heisst: wie bisher, nur Schaden zaehlt.** Der Wert ist bewusst
+    /// Teil der Konfiguration und nicht fest verdrahtet — welche Gewichtung
+    /// richtig ist, haengt vom Boss ab und ist eine Balance-Entscheidung, keine
+    /// technische. Gemessen an boss-1-2: `pin` verhindert 280 Schaden und
+    /// kostet 3368 — dort lohnt es sich erst ab einem Gewicht um 12.
+    pub prevented_weight: f64,
+    /// Wieviel Schaden der Spieler OHNE Kontroll-Zauber einsteckt.
+    ///
+    /// Der Bezugspunkt fuer `prevented_weight`. Er steht in der Konfiguration,
+    /// weil ein Vergleichslauf je Messung die Laufzeit einer Suche
+    /// vervielfachte — sie braucht heute schon 1778 Messungen.
+    pub damage_taken_baseline: f64,
     /// Die Faktoren der Schadensformel.
     pub factors: DamageFactors,
     /// Gegen welchen Boss gerechnet wird.
@@ -99,6 +113,11 @@ impl Default for BalanceConfig {
             threads: 1,
             duration_ms: None,
             stop_on_kill: true,
+            // **0.0 haelt jede bestehende Messung gleich.** Wer die zweite
+            // Groesse will, setzt sie ausdruecklich — sonst waeren alle
+            // frueheren Balance-Zahlen still unvergleichbar geworden.
+            prevented_weight: 0.0,
+            damage_taken_baseline: 0.0,
             factors: NEUTRAL,
             // Ohne Talente — dieselbe Voreinstellung wie in `FightConfig`.
             talent_resource_permille: 0,
