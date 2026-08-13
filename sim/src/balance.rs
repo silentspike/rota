@@ -523,6 +523,7 @@ fn run_range(
         slow_rot: false,
         sealed_vessel: false,
         long_grip: false,
+        perpetual_draft: false,
     });
 
     let mut out = Vec::with_capacity(len as usize);
