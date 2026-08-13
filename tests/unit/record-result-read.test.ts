@@ -67,6 +67,7 @@ function felderVonRecordResult(): string[] {
     talentPoints: {},
     items: [],
     defeatedBosses: [],
+    unlockedEntryIds: [],
   };
   const abbruch = -1;
   expect(
