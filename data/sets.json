@@ -111,6 +111,28 @@
           "effect": "long-grip"
         }
       ]
+    },
+    {
+      "id": 5,
+      "school": "SUBLIMATION",
+      "name": "Perpetual Draft",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "perpetual-draft"
+        }
+      ]
     }
   ]
 }
