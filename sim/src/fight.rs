@@ -833,7 +833,10 @@ pub struct Fight {
     talent_decay_effect_factor: f64,
     talent_control_cost_factor: f64,
     talent_control_effect_factor: f64,
-    talent_decay_stack_factor: f64,
+    /// Die Promille des Aufbau-Weges — fuer die GANZZAHLIGE Rest-Rechnung.
+    talent_decay_stack_permille: u32,
+    /// Der gesammelte Rest je Quelle, in Promille (#419).
+    decay_rest: [u32; SPELL_COUNT],
     /// Der Talent-Topf OHNE Entlader-Zuschlag — die Grundlage, auf die
     /// `apply_spender_bonus` je Wirkung neu aufsetzt (#419).
     talents_base: f64,
@@ -1075,7 +1078,8 @@ impl Fight {
                 + f64::from(config.talent_control_cost_permille) / 1000.0,
             talent_control_effect_factor: 1.0
                 + f64::from(config.talent_control_effect_permille) / 1000.0,
-            talent_decay_stack_factor: 1.0 + f64::from(config.talent_decay_stack_permille) / 1000.0,
+            talent_decay_stack_permille: config.talent_decay_stack_permille,
+            decay_rest: [0; SPELL_COUNT],
             talents_base: config.factors.talents,
             talent_permille: config.talent_permille,
             talent_spender_damage_permille: config.talent_spender_damage_permille,
@@ -1841,6 +1845,9 @@ impl Fight {
         self.cast_lands_at = 0;
         self.control_spent = 0;
         self.decay_expiry = [0; DECAY_STACK_CAPACITY];
+        // Der gesammelte Rest endet mit dem Kampf (#419) — sonst haenge der
+        // erste Wurf des naechsten an der Vorgeschichte.
+        self.decay_rest = [0; SPELL_COUNT];
         // PUTRID BLOOM (#479) — eine Anhebung, die einen Kampf ueberlebte, gaebe
         // im naechsten Plaetze, die niemand bezahlt hat.
         self.decay_cap_bonus = 0;
@@ -2735,8 +2742,8 @@ impl Fight {
     ///
     /// **Die Obergrenze verbraucht nichts** — eine Wirkung darueber erneuert
     /// insbesondere nicht die Uhr des aeltesten Stapels.
-    fn apply_putrefaction(&mut self, spell: &Spell) {
-        self.add_decay_stacks(spell.decay_stacks);
+    fn apply_putrefaction(&mut self, index: usize, spell: &Spell) {
+        self.add_decay_stacks(index, spell.decay_stacks);
     }
 
     /// Stapel legen — die **eine** Stelle, an der das geschieht (Issue #498).
@@ -2747,12 +2754,32 @@ impl Fight {
     /// die Weckuhr **nicht zweimal** dastehen.
     ///
     /// Spiegelbild zu `addDecayStacks` in `src/core/combat.ts`.
-    fn add_decay_stacks(&mut self, anzahl: u32) {
+    fn add_decay_stacks(&mut self, quelle: usize, anzahl: u32) {
         // **Der Aufbau-Weg wirkt HIER** (#419), nicht an den zwei Aufrufern:
         // `decay.stacks` und `dot.decay_per_tick` laufen beide durch diese
-        // Stelle. Abgerundet — aufrunden hiesse, dass jeder erste Rang sofort
-        // einen Stapel schenkt.
-        let anzahl = (f64::from(anzahl) * self.talent_decay_stack_factor) as u32;
+        // Stelle.
+        //
+        // # Der Rest wird gesammelt, nicht weggeworfen
+        //
+        // Hier stand bis zum 2026-08-13 ein Abschneiden auf `u32`, und das war
+        // gemessen wirkungslos: Alle drei Quellen legen genau EINEN Stapel,
+        // und bei Basis 1 aendert ein Faktor erst ab 2,0 etwas. Aufrunden
+        // verbietet sich (jeder erste Rang schenkte einen Stapel), also wartet
+        // der Rest auf den naechsten Wurf DERSELBEN Quelle.
+        //
+        // **Ganzzahlig in Promille** — Spiegelbild von `addDecayStacks` in
+        // `src/core/combat.ts`. Ein Rest in `f64` liefe ueber den Kampf
+        // hinweg irgendwann in der letzten Stelle auseinander, und
+        // Bit-Paritaet ist nicht "fast gleich" (18.4).
+        let anzahl = if anzahl > 0 {
+            let gesamt =
+                anzahl * (1000 + self.talent_decay_stack_permille) + self.decay_rest[quelle];
+            let ganze = gesamt / 1000;
+            self.decay_rest[quelle] = gesamt - ganze * 1000;
+            ganze
+        } else {
+            0
+        };
         if anzahl == 0 {
             return;
         }
@@ -3571,7 +3598,7 @@ impl Fight {
             if !self.im_decay_echo(index) {
                 return;
             }
-            self.add_decay_stacks(dot.decay_per_tick);
+            self.add_decay_stacks(index, dot.decay_per_tick);
             // **Immer vormerken, wie seit #485** — ob der Termin zaehlt,
             // entscheidet `im_decay_echo` oben beim Abarbeiten. Die Kette
             // endet dort von selbst: Ist der Nachlauf zu, kehrt diese Funktion
@@ -3626,7 +3653,7 @@ impl Fight {
         // ueber das Ereignis wie der Hitze-Gewinn: Stapel sind keine
         // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
         // sie beim Wirken legt, sitzt ebenfalls direkt hier.
-        self.add_decay_stacks(dot.decay_per_tick);
+        self.add_decay_stacks(index, dot.decay_per_tick);
         // **Den Endpunkt des Nachlaufs fortschreiben, solange der Brand lebt**
         // (#419). Beim Erloeschen steht damit von selbst die Frist des
         // juengsten Stapels da — es braucht keine Stelle, die das Ende abpasst.
@@ -4303,7 +4330,7 @@ impl Fight {
         // zuschlagen soll — die Reihenfolge ist heute ohne Wirkung (keiner
         // macht beides) und deshalb jetzt festzulegen und nicht dann.
         self.apply_coagulation(index, spell);
-        self.apply_putrefaction(spell);
+        self.apply_putrefaction(index, spell);
         self.apply_fixation(spell);
         self.apply_conversion(spell, now);
         // **Erst pruefen, dann oeffnen** (#318). Ein Zauber, der sein eigener
