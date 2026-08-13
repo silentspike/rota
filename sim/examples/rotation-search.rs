@@ -124,11 +124,12 @@ fn parameter_zeile_mit(bosse: &[String], max_len: usize) {
     println!("           stop_on_kill=false, Faktoren=NEUTRAL, threads=1");
 }
 
-fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize) {
+fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize, usize) {
     let mut a = 0;
     let mut d = 0;
     let mut s = 0;
     let mut b = 0;
+    let mut c = 0;
     for k in pool {
         match k.origin {
             Origin::Always => a += 1,
@@ -137,9 +138,13 @@ fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize) {
             // Neu mit #553 — vorher konnte die Suche diese Zeile gar nicht
             // bilden, weil der Parser keine Buff-Fenster kannte.
             Origin::BuffWindow => b += 1,
+            // Neu mit #797 — vorher kannte die Sprache keinen laufenden
+            // Boss-Zauber, also konnte die Suche keine Zeile bilden, die auf
+            // einen antwortet.
+            Origin::BossCastWindow => c += 1,
         }
     }
-    (a, d, s, b)
+    (a, d, s, b, c)
 }
 
 /// Der Kreuzvergleich — der Kern von Issue #509.
@@ -411,7 +416,7 @@ fn main() {
     println!();
 
     let pool = all_candidates();
-    let (a, d, s, b) = zeilen_nach_herkunft(&pool);
+    let (a, d, s, b, c) = zeilen_nach_herkunft(&pool);
     println!("Suchraum");
     println!("  Kandidatenzeilen  {}", pool.len());
     // **Die Bezeichnungen kommen aus `Origin::label`, nicht aus diesen
@@ -428,6 +433,7 @@ fn main() {
         (Origin::DotRefresh, d),
         (Origin::SpenderThreshold, s),
         (Origin::BuffWindow, b),
+        (Origin::BossCastWindow, c),
     ] {
         println!("    {:22} {zahl}", origin.label());
     }
