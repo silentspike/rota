@@ -7164,6 +7164,109 @@ export function instance3Payload(bossId: string, name: string): Record<string, u
   };
 }
 
+/**
+ * Die vier Bosse der vierten Instanz, je eine Aufzeichnung.
+ *
+ * # Sie entstehen, weil ein Wächter sie eingefordert hat
+ *
+ * `jeder-boss-hat-eine-aufzeichnung.test.ts` (aus dem Instanz-3-Issue) geht vom
+ * BESTAND aus statt von den Dateien: Jeder Boss, dessen Instanz in
+ * `instances.json` steht, muss in einer Aufzeichnung vorkommen. Am Tag, an dem
+ * instance-4 eingetragen wurde, ist er rot geworden und hat die vier beim Namen
+ * genannt — ohne dass jemand daran denken musste.
+ *
+ * Genau dafür wurde er gebaut. Die vier Ansichten aus E7 und die Aufwertung aus
+ * E6-4 sind durch die Abnahme gegangen, weil niemand fragte, ob der Code je
+ * erreicht wird; hier fragt es eine Prüfung.
+ *
+ * # Warum dieselbe Leiste wie bei Instanz 3, aber ohne PURGE
+ *
+ * Keiner der vier trägt einen Verhängnis-Zähler, und PURGE ist der einzige
+ * Zauber mit `clearsDoom`. Er läge auf der Leiste, ohne je gedrückt zu werden —
+ * ein Platz, der nichts belegt. QUENCH bleibt: `boss-4-4` wirkt einen
+ * unterbrechbaren Zauber, dessen Fenster mit jeder Runde schrumpft.
+ */
+export const INSTANCE4_NAMES = [
+  'instance4-boss-1',
+  'instance4-boss-2',
+  'instance4-boss-3',
+  'instance4-boss-4',
+] as const;
+
+const INSTANCE4_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+] as const;
+
+function recordInstance4(bossId: string, ticks: number): Recording {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE4_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+
+    // **Unterbrechen zuerst und ohne GCD-Prüfung** — QUENCH trägt
+    // `triggersGcd: false`. Bei `boss-4-4` ist das die Signatur: Sein Fenster
+    // wird mit jeder Runde kürzer, und wer es verpasst, kassiert 700.
+    if (combat.casting !== -1 && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+      continue;
+    }
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (
+      !combat.isDotActive(idx('smoulder'), timeMs) &&
+      combat.isOffCooldown(idx('smoulder'), timeMs)
+    ) {
+      press(idx('smoulder'), tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(idx('pyre'), timeMs)) {
+      press(idx('pyre'), tick, timeMs);
+    } else if (combat.isOffCooldown(idx('kindle'), timeMs)) {
+      press(idx('kindle'), tick, timeMs);
+    }
+  }
+
+  return { name: bossId, seed: 0, ticks, presses, bindings: INSTANCE4_BINDINGS };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse der vierten Instanz. */
+export function instance4Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const recording = { ...recordInstance4(bossId, 6000), name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE4_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      diedAtMs: result.diedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const CAP_STAPELUNG_NAME = 'cap-stapelung';
 
 const CAP_STAPELUNG_BINDINGS = [

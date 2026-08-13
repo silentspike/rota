@@ -73,6 +73,10 @@ describe('die Auswahl enthält die gebauten Bosse und den Prolog', () => {
       'boss-3-2',
       'boss-3-3',
       'boss-3-4',
+      'boss-4-1',
+      'boss-4-2',
+      'boss-4-3',
+      'boss-4-4',
       'first-crucible',
     ]);
   });
