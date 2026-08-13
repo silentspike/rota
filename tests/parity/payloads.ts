@@ -6195,6 +6195,97 @@ export function dotLifetimePayload(): Record<string, unknown> {
   };
 }
 
+/** Die Aufzeichnung, in der EMBER auf MEHRERE Brände zugleich trifft. */
+export const MANY_DOTS_NAME = 'ember-viele-braende';
+
+const MANY_DOTS_BINDINGS = [
+  { slot: 0, spellId: 'ember' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'searing' },
+  { slot: 3, spellId: 'cinder' },
+] as const;
+
+/**
+ * Drei Brände gleichzeitig, dann EMBER (Issue #485, AC3).
+ *
+ * # Warum `dot-lifetime` dafür nicht reicht — gemessen, nicht vermutet
+ *
+ * Jene Aufzeichnung fährt genau EINEN Brand (SMOULDER). Die Gegenprobe
+ * „verlängere nur den ersten laufenden Brand" — also der Fehler, vor dem AC3
+ * ausdrücklich warnt — lief am 2026-08-13 durch **alle 134** Rust-Suiten,
+ * ohne eine einzige rot zu färben. Mit einem Brand sind „der erste" und
+ * „alle" dasselbe.
+ *
+ * Drei Brände mit **verschiedenen Takten** (SMOULDER 2000, SEARING 2000,
+ * CINDER 1000) trennen zusätzlich „alle gefunden" von „allen denselben
+ * Betrag gegeben": Wer pauschal 2000 addiert, trifft CINDER falsch.
+ *
+ * PYROCLASM ist bewusst NICHT dabei. Er verbraucht die Brände und macht die
+ * Lage nach jeder Zündung wieder eindeutig — die Sache hier ist der Zugriff
+ * auf viele zugleich, nicht ihr Verbrauch. Das prüft `dot-lifetime`.
+ */
+function recordManyDots(ticks: number): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
+  const ember = combat.indexOf('ember');
+  const braende = ['smoulder', 'searing', 'cinder'].map((id) => combat.indexOf(id));
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, MANY_DOTS_BINDINGS, presses);
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Erst auffüllen, dann verlängern.** Ein erloschener Brand wird sofort
+    // nachgelegt; EMBER kommt nur zum Zug, wenn ALLE drei brennen. Sonst
+    // träfe er mal drei, mal einen, und die Aufzeichnung prüfte den
+    // Mehrfach-Zugriff nur gelegentlich.
+    const fehlend = braende.find(
+      (i) => !combat.isDotActive(i, timeMs) && combat.isOffCooldown(i, timeMs),
+    );
+    if (fehlend !== undefined) {
+      press(fehlend, tick, timeMs);
+    } else if (
+      braende.every((i) => combat.isDotActive(i, timeMs)) &&
+      combat.isOffCooldown(ember, timeMs)
+    ) {
+      press(ember, tick, timeMs);
+    }
+  }
+
+  return { name: MANY_DOTS_NAME, seed: 0, ticks, presses, bindings: MANY_DOTS_BINDINGS };
+}
+
+export function manyDotsPayload(): Record<string, unknown> {
+  const recording = recordManyDots(3000);
+  const result = replayRecording(recording, { checksumPerTick: true });
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bindings: MANY_DOTS_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+  };
+}
+
 /** Die Aufzeichnung, in der HARDEN und SEPSIS gewirkt werden. */
 export const EXTEND_EFFECTS_NAME = 'extend-effects';
 
