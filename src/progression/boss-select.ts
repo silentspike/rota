@@ -25,6 +25,7 @@
  * Spieltexte englisch (Design-Gesetz 5).
  */
 import { INSTANCES, instanceById, type BossDef, type ParseResult } from '../core/data.js';
+import { bossIdOfMarkKey } from '../analysis/progress-mark.js';
 
 /**
  * Welche Instanzen ein Spieler wählen darf.
@@ -72,7 +73,17 @@ export function freigeschalteteInstanzen(
   besiegt: readonly string[],
   alle: ReadonlyMap<string, ParseResult<BossDef>>,
 ): readonly string[] {
-  const gefallen = new Set(besiegt);
+  // **Die Kennung aus dem Schlüssel lösen** (Fehlerbehebung 2026-08-11).
+  //
+  // `defeatedBosses` führt Schlüssel aus Kennung UND Stufe, gebildet über
+  // `markKey`. Bis hierher fragte diese Funktion nach der reinen Kennung —
+  // die beiden Mengen berührten sich nie, `abgeschlossen()` lieferte IMMER
+  // false, und keine Instanz mit `requires` wurde je freigeschaltet.
+  //
+  // Im Browser gemessen: vier Bosse besiegt, Instance Two blieb unsichtbar.
+  // Die Prüffälle waren grün, weil sie reine Kennungen übergaben — sie
+  // prüften die Funktion, nicht den Weg.
+  const gefallen = new Set(besiegt.map(bossIdOfMarkKey));
   const bosseJeInstanz = new Map<string, string[]>();
   for (const eintrag of alle.values()) {
     const liste = bosseJeInstanz.get(eintrag.value.instance) ?? [];

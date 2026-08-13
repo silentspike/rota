@@ -134,6 +134,40 @@ export function markKey(bossId: string, difficulty: number): string {
   return `${bossId}\0${difficulty}`;
 }
 
+/**
+ * Die Boss-Kennung aus einem Schlüssel zurück — die Umkehrung von `markKey`.
+ *
+ * # Warum sie hier steht und nicht beim Aufrufer
+ *
+ * Dieselbe Begründung wie bei `markKey` selbst, nur eine Ebene weiter: Wer den
+ * Schlüssel woanders zerlegt, zerlegt ihn irgendwann anders als er gebildet
+ * wurde. Genau das ist am 2026-08-11 passiert.
+ *
+ * `freigeschalteteInstanzen` (Issue #421c) las `defeatedBosses` und fragte
+ * darin nach der **reinen** Kennung — die Liste führt aber Schlüssel aus
+ * Kennung UND Stufe. Die beiden Mengen berührten sich nie:
+ *
+ * ```text
+ *   geschrieben   markKey('boss-1-1', 1)   ->  "boss-1-1\0 1"
+ *   gesucht       gefallen.has('boss-1-1')
+ * ```
+ *
+ * Ergebnis: Keine Instanz mit `requires` wurde je freigeschaltet. Im Browser
+ * gemessen — vier Bosse besiegt, Instance Two blieb unsichtbar.
+ *
+ * # Die Stufe fällt bewusst weg
+ *
+ * Für „Instanz abgeschlossen" (GAME-DESIGN 12.7) zählt, **dass** der Boss
+ * gefallen ist, nicht auf welcher Stufe. Wer ihn auf mythisch bezwingt, hat
+ * ihn erst recht bezwungen; eine Freischaltung, die ausgerechnet den
+ * schwereren Sieg nicht zählt, wäre die Umkehrung dessen, was sie belohnen
+ * soll.
+ */
+export function bossIdOfMarkKey(key: string): string {
+  const trenner = key.indexOf('\0');
+  return trenner < 0 ? key : key.slice(0, trenner);
+}
+
 /** Was ein Versuch an der Marke bewirkt hat. */
 export interface MarkUpdate {
   readonly marks: readonly ProgressMark[];
