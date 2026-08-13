@@ -252,21 +252,47 @@ fn die_zahl_der_wirkungen_stimmt_auf_beiden_seiten() {
         "Spiel und Simulator zaehlen die Kanalisierung verschieden oft"
     );
 
-    // **BEFUND, festgehalten statt stillschweigend hingenommen:** Die Zahl ist
-    // auf beiden Seiten 0. Eine Kanalisierung laeuft nie durch
-    // `resolve_player_cast` — dort steht der Zaehler —, und deshalb erscheint
-    // sie in `casts` nicht, auch wenn sie vollstaendig durchlaeuft.
+    // **HIER STAND `assert_eq!(im_spiel, 0)` — und die Zusicherung ist am
+    // 2026-08-13 gefallen, wie vorgesehen.**
     //
-    // Fuer die PARITAET ist das unbedenklich: Beide Seiten zaehlen gleich, und
-    // genau das prueft die Zeile darueber. Ob eine durchgelaufene
-    // Kanalisierung als Wirkung gezaehlt gehoert, ist eine Frage an den
-    // Katalog und nicht an den Simulator — sie steht in der Meldung zu #323.
+    // Der Kommentar davor hielt einen Befund fest: Eine Kanalisierung laeuft
+    // nie durch `resolve_player_cast`, wo der Zaehler steht, und erschien
+    // deshalb in `casts` nicht — auch wenn sie vollstaendig durchlief. Fuer die
+    // Paritaet war das unbedenklich, weil beide Seiten gleich falsch zaehlten,
+    // und die Frage "gehoert sie gezaehlt" ging als Meldung an #323.
     //
-    // Diese Zusicherung faellt, sobald jemand die Zaehlung aendert. Dann ist
-    // dieser Kommentar veraltet und der Fall sagt es.
+    // Die Antwort kam aus einer Messung, die den Fall entscheidet, ohne den
+    // Katalog zu fragen: Der Zauber mit WIRKZEIT hat dieselbe Bauart —
+    // beginnt, laeuft, loest auf — und wurde die ganze Zeit gezaehlt. Die
+    // Kanalisierung war der einzige Typ, der durchfiel. Das war keine
+    // Entscheidung, sondern dieselbe uebersprungene Stelle wie bei der
+    // Abklingzeit.
+    //
+    // **An ihre Stelle tritt die Gegenrichtung**, und die ist noetig: Ohne sie
+    // vergliche die Zusicherung oben wieder zwei Nullen, sobald die Zaehlung
+    // ein zweites Mal ausfaellt — "Spiel und Simulator zaehlen gleich" ist bei
+    // 0 == 0 genauso wahr wie bei 3 == 3.
+    assert!(
+        im_spiel > 0,
+        "die Kanalisierung wird nicht mehr gezaehlt — dann vergleicht die \
+         Zusicherung oben zwei Nullen und prueft nichts"
+    );
+
+    // **Und der SPIELBARE Kanalzauber daneben** (DECOCTION, #323). Der
+    // Prueffall oben nimmt `test-channel`, und der liegt ueber der
+    // Stufengrenze; eine Zaehlung, die nur fuer ihn stimmt, sagt nichts ueber
+    // den Zauber, den jemand wirklich drueckt.
+    let decoction = index_of("decoction").expect("decoction fehlt im Simulator");
+    let decoction_im_spiel = json["expected"]["casts"]["decoction"].as_u64().unwrap_or(0);
+    assert!(
+        decoction_im_spiel > 0,
+        "die Aufzeichnung wirkt DECOCTION gar nicht — dann prueft die Zeile \
+         darunter nichts"
+    );
     assert_eq!(
-        im_spiel, 0,
-        "die Kanalisierung wird jetzt gezaehlt — der Kommentar hier ist veraltet"
+        u64::from(result.casts[decoction]),
+        decoction_im_spiel,
+        "Spiel und Simulator zaehlen DECOCTION verschieden oft"
     );
 }
 
