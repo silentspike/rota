@@ -66,6 +66,58 @@
  * Namen in einer anderen Datei. Zehn solche Stellen gibt es. Die Richtung des
  * Irrtums ist bewusst gewählt: lieber ein totes Symbol übersehen als eins
  * melden, das über eine Sammelstelle sehr wohl benutzt wird.
+ *
+ * **3. Eine gleichnamige lokale Bindung zählt als Nutzung.** Heisst eine
+ * Schleifenvariable wie ein exportiertes Symbol, gilt dieses als benutzt.
+ *
+ * # Warum Grenze 3 hier steht und in Rust nicht
+ *
+ * Der Rust-Wächter (`sim/tests/tote_symbole.rs`, #815) löst genau das: Er
+ * zählt **Stellen** statt Namen, weil `syn` Pfade von Mustern trennt — ein
+ * `Path` ist eine Nutzung, ein `Pat` eine Bindung, zwei Knotenarten.
+ *
+ * **In TypeScript ist es derselbe `Identifier`-Knoten**, und ob er Nutzung
+ * oder Bindung ist, hängt am Elternknoten. Davon gibt es Dutzende Arten.
+ * Gemessen an einem Entwurf mit sechzehn aufgezählten Arten:
+ *
+ * ```text
+ *   Namens-Zählung     19 tote Symbole
+ *   Stellen-Entwurf    23 tote Symbole   -> alle vier neuen waren FEHLALARME
+ *
+ *   PAYOUT_KINDS            (typeof PAYOUT_KINDS)[number]      Typ-Abfrage
+ *   FORBIDDEN_NAME_PATTERNS for (const p of …)                 for-of
+ *   FRAME_HISTORY           new RingBufferF64(FRAME_HISTORY)   Argument
+ *   NUMBER_POOL_SIZE        capacity: number = NUMBER_POOL_SIZE Vorgabewert
+ * ```
+ *
+ * Vier Formen fehlten in einer Aufzählung von sechzehn — und eine
+ * Aufzählung, die jemand pflegen muss, ist genau die Bauart, die bei diesem
+ * Wächter schon zweimal falsch gemessen hat.
+ *
+ * ## Wann diese Grenze fällt — die Ablaufbedingung
+ *
+ * Eine Grenze ohne Ablaufbedingung wird zur Halde. Deshalb steht hier nicht
+ * nur, **dass** sie besteht, sondern was sie beendet:
+ *
+ * ```text
+ *   Weg      program.getTypeChecker() mit findAllReferences —
+ *            echte Typauflösung statt einer Aufzählung von Knotenarten
+ *   Kosten   der Wächter misst heute in rund 1,3 s (gemessen, vier Läufe
+ *            bei Last 18–35); ein volles TypeScript-Programm mit
+ *            Typauflösung kostet ein Vielfaches davon
+ *   Anlass   sobald ein Fehlalarm dieser Klasse TATSÄCHLICH vorkommt —
+ *            also ein Symbol als tot gemeldet wird, das nur wegen einer
+ *            gleichnamigen Bindung durchrutschte
+ *   Stand    heute sind es NULL. Gemessen: Die vier Kandidaten
+ *            (PAYOUT_KINDS, FORBIDDEN_NAME_PATTERNS, FRAME_HISTORY,
+ *            NUMBER_POOL_SIZE) sind alle echte Nutzungen in ihrer
+ *            eigenen Datei.
+ * ```
+ *
+ * Der Preis der Grenze ist heute also null Fehlalarme und ein möglicher
+ * übersehener Fund — die Richtung, die dieser Wächter durchgehend wählt.
+ *
+ * **Benannt ist sie brauchbar, unbenannt wäre sie es nicht.**
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, normalize } from 'node:path';
@@ -179,6 +231,63 @@ function alleQuellen(ordner: string): string[] {
   return out.map((p) => normalize(p));
 }
 
+/**
+ * **Wo überall eine Nutzung stehen kann** — und das ist mehr als `src` und
+ * `tests`.
+ *
+ * # Der Fehler, den diese Funktion behebt
+ *
+ * Bis hierher las der Wächter zwei Verzeichnisse. Neun Dateien standen
+ * daneben und wurden nie angesehen:
+ *
+ * ```text
+ *   docs/{analysis,archive,doom,history,persistence,save,stats,training}
+ *        -check/preview.ts
+ *   vite.config.ts
+ * ```
+ *
+ * Die Prüfseiten importieren aus `src/` — `Combat`, `Session`,
+ * `archive-view`, `help`. Ein Symbol, das **nur** dort benutzt wird, hätte
+ * der Wächter als tot gemeldet.
+ *
+ * **Was der Zuwachs kostet, gemessen statt geschätzt:**
+ *
+ * ```text
+ *   Dateien   372 -> 381   (src 118 + tests 254, dazu docs 8 + vite.config)
+ *   Messzeit  1288/1305 ms -> 1197/1389 ms
+ * ```
+ *
+ * Die Streuung zwischen zwei Läufen ist grösser als der Unterschied. Neun
+ * Dateien mehr kosten nichts Messbares.
+ *
+ * **Gemessen, bevor es gebaut wurde:** In den neun Dateien stehen 437
+ * Bezeichner, und keiner davon trifft heute einen Eintrag der Ausnahmeliste.
+ * Die Lücke hat also noch nichts falsch gemacht — sie war eine Falle, kein
+ * Schaden. Genau dieselbe Lücke hatte der Rust-Wächter (#815) mit
+ * `sim/examples/`, und dort kostete sie eine falsche Zahl: 21 statt 20.
+ *
+ * # Aus dem Verzeichnis gelesen, nicht aufgezählt
+ *
+ * Eine Liste von Ordnern müsste jemand pflegen, und beim nächsten neuen
+ * Verzeichnis fällt es niemandem auf. Deshalb die Frage ans Dateisystem, mit
+ * einer kurzen Sperrliste für das, was nachweislich kein Quelltext ist.
+ */
+const NICHT_LESEN = ['node_modules', 'dist', '.git', 'coverage', 'sim'];
+
+function alleTypeScriptDateien(): string[] {
+  const out: string[] = [];
+  const gehe = (wo: string): void => {
+    for (const eintrag of readdirSync(wo, { withFileTypes: true })) {
+      if (NICHT_LESEN.includes(eintrag.name)) continue;
+      const pfad = join(wo, eintrag.name);
+      if (eintrag.isDirectory()) gehe(pfad);
+      else if (eintrag.name.endsWith('.ts') && !eintrag.name.endsWith('.d.ts')) out.push(pfad);
+    }
+  };
+  gehe('.');
+  return out.map((p) => normalize(p));
+}
+
 function baumVon(datei: string): ts.SourceFile {
   return ts.createSourceFile(datei, readFileSync(datei, 'utf8'), ts.ScriptTarget.Latest, true);
 }
@@ -283,7 +392,10 @@ function messen(): { kandidaten: Stelle[]; tot: Stelle[]; nurZuWeit: Stelle[] } 
   const quellDateien = alleQuellen('src').filter(
     (d) => !d.endsWith('.test.ts') && !gedeckteDateien.has(d),
   );
-  const alle = [...alleQuellen('src'), ...alleQuellen('tests')];
+  // **Nutzungen kommen aus dem GANZEN Baum**, nicht aus zwei Verzeichnissen —
+  // siehe `alleTypeScriptDateien`. Die Kandidaten stammen weiterhin nur aus
+  // `src/`: Was in einer Prüfseite steht, ist kein ausgeliefertes Symbol.
+  const alle = alleTypeScriptDateien();
 
   const vorkommen = new Map<string, Map<string, number>>();
   const baeume = new Map<string, ts.SourceFile>();
@@ -311,6 +423,53 @@ describe('Kein exportiertes Wertsymbol ohne Nutzer', () => {
       tot.length + nurZuWeit.length,
       'kein einziges Symbol ohne Nutzer ausserhalb seiner Datei — die Zählung greift nicht',
     ).toBeGreaterThan(10);
+  });
+
+  it('die Prüfseiten unter docs/ werden gelesen — sie waren neun blinde Flecken', () => {
+    // **Der Fall zu Lücke 1**, und er hängt an einer Eigenschaft statt an einer
+    // Zahl: Wie viele Prüfseiten es gibt, ändert sich; dass sie gelesen werden,
+    // nicht.
+    //
+    // Belegt wird die WIRKUNG in einem zweiten Fall darunter — hier steht nur,
+    // dass die Dateien überhaupt im Blickfeld sind. Ohne diese Zeile könnte
+    // `alleTypeScriptDateien` sie stillschweigend wieder verlieren.
+    const gelesen = alleTypeScriptDateien();
+    const pruefseiten = gelesen.filter((d) => d.startsWith('docs/') && d.endsWith('preview.ts'));
+    expect(
+      pruefseiten.length,
+      `keine Prüfseite unter docs/ gelesen — genau die Lücke, die in Rust ` +
+        `sim/examples/ war (21 statt 20)`,
+    ).toBeGreaterThan(5);
+    expect(gelesen, 'vite.config.ts fehlt').toContain('vite.config.ts');
+  });
+
+  it('und eine Nutzung IN einer Prüfseite hält ein Symbol am Leben', () => {
+    // **Die Wirkung, nicht die Liste.** Der Fall darüber zeigt, dass die
+    // Dateien gelesen werden; dieser zeigt, dass es etwas ändert.
+    //
+    // Gebaut statt am Bestand gemessen: Heute wird kein Symbol ausschliesslich
+    // in einer Prüfseite benutzt (437 Bezeichner, kein Treffer in der
+    // Ausnahmeliste). Ein Fall am Bestand wäre deshalb grün, ohne etwas zu
+    // belegen — er prüfte die Abwesenheit eines Falls.
+    const kandidat: Stelle = { datei: 'src/x.ts', art: 'const', name: 'NUR_IN_DOCS' };
+
+    const ohneDocs = new Map<string, Map<string, number>>([
+      ['src/x.ts', new Map()],
+      ['src/andere.ts', new Map()],
+    ]);
+    expect(
+      einordnen([kandidat], ohneDocs).tot.map((s) => s.name),
+      'ohne die Prüfseite müsste das Symbol als tot gelten',
+    ).toEqual(['NUR_IN_DOCS']);
+
+    const mitDocs = new Map<string, Map<string, number>>([
+      ['src/x.ts', new Map()],
+      ['docs/x-check/preview.ts', new Map([['NUR_IN_DOCS', 1]])],
+    ]);
+    expect(
+      einordnen([kandidat], mitDocs).tot,
+      'die Nutzung in der Prüfseite wird nicht gesehen — die Lücke ist zurück',
+    ).toEqual([]);
   });
 
   it('Träger-Zusicherung — ein lebendes Symbol wird NICHT gemeldet', () => {
