@@ -433,8 +433,51 @@ pub struct SearchResult {
 /// Messungen statt 112. Gegen 15! = 1.307.674.368.000 ist beides nichts.
 #[must_use]
 pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchResult {
-    let mut chosen: Vec<Candidate> = Vec::new();
-    let mut offen: Vec<usize> = (0..pool.len()).collect();
+    greedy_from(config, pool, max_len, &[])
+}
+
+/// Dieselbe Suche, aber von einer **vorgegebenen Liste** aus (Issue #558).
+///
+/// # Der Mangel, den das behebt
+///
+/// Gemessen mit `--max-len 12` ueber fuenf Bosse (#509): Die fuer
+/// `test-metronome` gefundene Liste ist an VIER anderen Bossen besser als
+/// deren jeweils eigene gefundene — um 20,9, 30,7, 22,1 und 37,3 %.
+///
+/// Das ist kein Zufall, sondern die Bauart. [`greedy`] bricht ab, sobald keine
+/// EINZELNE weitere Zeile mehr messbar verbessert (`Stop::NoImprovement`) —
+/// bei Laenge 12 geschieht das schon nach acht Zeilen. Je groesser der Raum,
+/// desto frueher legt sich das Verfahren fest, und desto weiter kann der Punkt
+/// vom Optimum entfernt liegen. **Bei Laenge 6 tritt der Fall gar nicht auf**,
+/// weil die Laengengrenze vorher greift; der Mangel war dort unsichtbar.
+///
+/// # Warum ein Startpunkt und nicht ein besseres Verfahren
+///
+/// Ein Verfahren, das Paare findet, waere die gruendlichere Antwort und steht
+/// als AC2 in #558 offen. Der Startpunkt ist die billige, die den belegten
+/// Fall unmittelbar trifft: Was an einem Boss gut war, ist an einem anderen
+/// oft ein besserer Ausgangspunkt als die leere Liste — und von dort sucht
+/// dasselbe Verfahren weiter, statt die fremde Liste nur zu uebernehmen.
+///
+/// # Was er NICHT kann
+///
+/// Er findet nichts, was an keinem Boss gefunden wurde. Ein Paar, dessen
+/// beide Haelften einzeln verlieren, bleibt unsichtbar — das ist der
+/// eigentliche Gegenstand von #558 und durch diesen Nachlauf nicht erledigt.
+#[must_use]
+pub fn greedy_from(
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    max_len: usize,
+    start: &[Candidate],
+) -> SearchResult {
+    let mut chosen: Vec<Candidate> = start.to_vec();
+    // **Was schon in der Startliste steht, steht nicht mehr zur Wahl.** Sonst
+    // koennte dieselbe Zeile zweimal in der Rotation landen — die zweite waere
+    // unerreichbar, und die Laengengrenze verbraucht.
+    let mut offen: Vec<usize> = (0..pool.len())
+        .filter(|&i| !chosen.contains(&pool[i]))
+        .collect();
     let mut measured = 0;
 
     // **Der Bezugspunkt für „verhindert" wird HIER bestimmt, einmal** (#814).
@@ -462,7 +505,10 @@ pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Sea
     }
     let config = &config;
 
-    let mut best = measure(config, "leer", &chosen);
+    // Heisst „start" und nicht mehr „leer": Seit #558 kann hier eine
+    // vorgegebene Liste stehen, und ein Name, der das Gegenteil behauptet,
+    // schickt den naechsten Leser auf die falsche Faehrte.
+    let mut best = measure(config, "start", &chosen);
     let stop = loop {
         if chosen.len() >= max_len {
             break Stop::LengthLimit;

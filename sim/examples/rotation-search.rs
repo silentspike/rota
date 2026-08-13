@@ -20,7 +20,7 @@ use rota_sim::apl::AplName;
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, index_of, SPELLS};
 use rota_sim::factors::NEUTRAL;
-use rota_sim::rotation_search::{all_candidates, greedy, Candidate, Origin, Stop};
+use rota_sim::rotation_search::{all_candidates, greedy, greedy_from, Candidate, Origin, Stop};
 
 /// Durchgänge je gemessener Rotation.
 const RUNS: u32 = 50;
@@ -45,6 +45,27 @@ fn max_len_dieses_laufs() -> usize {
         }
     }
     MAX_LEN
+}
+
+/// Ob der Nachlauf aus #558 laufen soll — abschaltbar mit `--kein-nachlauf`.
+///
+/// # Warum ein Schalter und nicht einfach „es laeuft immer"
+///
+/// Der Nachlauf bringt die ACHTUNG-Zeile des Kreuzvergleichs zum Schweigen —
+/// das ist sein Zweck. Genau deshalb braucht es einen Weg, sie wieder zum
+/// Anschlagen zu bringen: **Ein Waechter, der nie mehr ausloesen kann, ist
+/// von einem toten nicht zu unterscheiden.** Ohne diesen Schalter waere die
+/// einzige Gegenprobe, den Nachlauf im Quelltext auszubauen — also mit einem
+/// Werkzeug zu messen, das es so nicht gibt.
+///
+/// Gemessen ueber dieselben fuenf Bosse bei `--max-len 12`:
+///
+/// ```text
+///   mit Nachlauf     keine ACHTUNG-Zeile, mittlerer Verlust 0,0 %
+///   --kein-nachlauf  ACHTUNG in 4 Paarungen, mittlerer Verlust 19,2 %
+/// ```
+fn nachlauf_gewuenscht() -> bool {
+    !std::env::args().any(|a| a == "--kein-nachlauf")
 }
 
 /// Die Bosse, gegen die gesucht wird (Schnitt 3 und AC1b).
@@ -147,6 +168,128 @@ fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize, usiz
     (a, d, s, b, c)
 }
 
+/// Was an einem Boss gefunden wurde.
+///
+/// **Die gewaehlten Zeilen stehen daneben, nicht nur die fertige Liste.** Der
+/// Nachlauf aus #558 braucht sie als Startpunkt, und aus einer `Apl` waeren
+/// sie nur durch erneutes Zerlegen zurueckzugewinnen — eine zweite Quelle fuer
+/// etwas, das die Suche schon weiss.
+struct Gefunden {
+    boss: String,
+    apl: rota_sim::apl::Apl,
+    wert: f64,
+    zeilen: Vec<Candidate>,
+}
+
+/// Der Nachlauf: jede fremde Liste als Startpunkt (Issue #558).
+///
+/// # Was gemessen wurde und warum es das braucht
+///
+/// Bei `--max-len 12` schlaegt die Liste von `test-metronome` an vier von
+/// fuenf Bossen deren EIGENE gefundene Liste — um bis zu 37,3 %. Die Referenz
+/// des Kreuzvergleichs ist damit nicht das Optimum, und jede Verlust-Zahl
+/// misst zum Teil die Schwaeche der Suche statt der Rotations-Tiefe.
+///
+/// # Das Verfahren
+///
+/// Fuer jeden Boss wird jede an einem ANDEREN Boss gefundene Liste als
+/// Startpunkt genommen und von dort weitergesucht. Das Beste aus allen
+/// Anlaeufen — einschliesslich des urspruenglichen — gewinnt.
+///
+/// **Uebernehmen allein reicht nicht.** Eine fremde Liste kann besser sein und
+/// trotzdem nicht das Beste, was von ihr aus erreichbar ist: `greedy` bricht
+/// bei Laenge 12 schon nach acht Zeilen ab, es ist also Platz. Deshalb
+/// `greedy_from` und nicht ein blosser Vergleich.
+///
+/// # Und EINE Runde reicht auch nicht — gemessen
+///
+/// Der erste Entwurf lief genau einmal durch. Er hob vier von fuenf Bossen um
+/// 21 bis 40 %, und die ACHTUNG-Zeile meldete danach trotzdem wieder vier
+/// Paarungen:
+///
+/// ```text
+///   test-resistant  38337 -> 53817  (+40,4 %)
+///   ...
+///   ACHTUNG: In 4 Paarungen ist die FREMDE Liste besser als die eigene.
+///     test-resistant schlaegt an test-onslaught dessen eigene um 10,8 %
+/// ```
+///
+/// Der Grund ist die Reihenfolge, nicht das Verfahren: `test-resistant` wurde
+/// IN DIESER RUNDE auf 53817 gehoben, und diese neue Liste stand keinem
+/// anderen Boss mehr als Startpunkt zur Verfuegung. **Eine Verbesserung ist
+/// selbst ein neuer Startpunkt** — deshalb laeuft es bis zum Fixpunkt.
+fn nachlauf(bosse: &[String], pool: &[Candidate], max_len: usize, gefundene: &mut [Gefunden]) {
+    println!("== Nachlauf mit fremden Startpunkten (Issue #558) ==");
+    println!();
+
+    // **Nach oben beschraenkt, aber nicht still.** Jede Runde hebt mindestens
+    // einen Wert, und der Suchraum ist endlich — das Verfahren terminiert von
+    // selbst. Die Grenze faengt nur den Fall ab, dass zwei Listen sich in
+    // winzigen Schritten gegenseitig hochschaukeln; greift sie, steht das als
+    // Zeile im Bericht statt als stille Kuerzung.
+    const MAX_RUNDEN: usize = 10;
+    let mut runde = 0;
+    loop {
+        runde += 1;
+        let veraendert = nachlauf_runde(bosse, pool, max_len, gefundene, runde);
+        if !veraendert {
+            println!("  Runde {runde}: keine Verbesserung mehr — Fixpunkt erreicht.");
+            break;
+        }
+        if runde >= MAX_RUNDEN {
+            println!("  ABBRUCH nach {MAX_RUNDEN} Runden, OHNE Fixpunkt. Die Zahlen unten sind");
+            println!("  damit nicht ausgereizt — die letzte Runde hat noch etwas gehoben.");
+            break;
+        }
+    }
+    println!();
+}
+
+/// Eine Runde des Nachlaufs. Gibt zurueck, ob sich etwas verbessert hat.
+fn nachlauf_runde(
+    bosse: &[String],
+    pool: &[Candidate],
+    max_len: usize,
+    gefundene: &mut [Gefunden],
+    runde: usize,
+) -> bool {
+    // Erst alle Startpunkte sammeln, dann anwenden: Sonst nimmt Boss 2 bereits
+    // die im selben Durchgang verbesserte Liste von Boss 1 als Startpunkt, und
+    // das Ergebnis haengt an der Reihenfolge der Bosse statt an der Sache.
+    let ausgangslisten: Vec<Vec<Candidate>> = gefundene.iter().map(|g| g.zeilen.clone()).collect();
+    let mut veraendert = false;
+
+    for (i, boss_id) in bosse.iter().enumerate() {
+        let config = config(boss_id);
+        let mut bestes: Option<(usize, rota_sim::rotation_search::SearchResult)> = None;
+        for (j, start) in ausgangslisten.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            let versuch = greedy_from(&config, pool, max_len, start);
+            let besser = match &bestes {
+                None => versuch.best.mean > gefundene[i].wert,
+                Some((_, bisher)) => versuch.best.mean > bisher.best.mean,
+            };
+            if besser {
+                bestes = Some((j, versuch));
+            }
+        }
+        if let Some((j, ergebnis)) = bestes {
+            let zuwachs = (ergebnis.best.mean - gefundene[i].wert) / gefundene[i].wert * 100.0;
+            println!(
+                "  Runde {runde}  {boss_id:<20} {:.0} -> {:.0} ({zuwachs:+.1} %) ueber {}",
+                gefundene[i].wert, ergebnis.best.mean, bosse[j]
+            );
+            gefundene[i].wert = ergebnis.best.mean;
+            gefundene[i].apl = ergebnis.best.apl.clone();
+            gefundene[i].zeilen = ergebnis.chosen;
+            veraendert = true;
+        }
+    }
+    veraendert
+}
+
 /// Der Kreuzvergleich — der Kern von Issue #509.
 ///
 /// # Die Frage
@@ -185,7 +328,7 @@ fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize, usiz
 /// Paare ueberhaupt etwas kosten. Ein Befund aus einem von fuenf Bossen ist ein
 /// anderer Befund als einer aus fuenf von fuenf — und die frohere Lesart war
 /// genau die, die dieses Issue verhindern soll.
-fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
+fn kreuzvergleich(gefundene: &[Gefunden]) {
     if gefundene.len() < 2 {
         println!("Kreuzvergleich uebersprungen — dafuer braucht es mindestens zwei Bosse.");
         println!("  Beispiel: --bosses first-crucible,test-onslaught,test-metronome");
@@ -199,13 +342,13 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
     for i in 0..gefundene.len() {
         for j in (i + 1)..gefundene.len() {
             let a: Vec<String> = gefundene[i]
-                .1
+                .apl
                 .to_string()
                 .lines()
                 .map(str::to_owned)
                 .collect();
             let b: Vec<String> = gefundene[j]
-                .1
+                .apl
                 .to_string()
                 .lines()
                 .map(str::to_owned)
@@ -214,8 +357,8 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
             let groesser = a.len().max(b.len()).max(1);
             println!(
                 "  {:<20} gegen {:<20} {gemeinsam} von {groesser} Zeilen gleich ({:.0} %)",
-                gefundene[i].0,
-                gefundene[j].0,
+                gefundene[i].boss,
+                gefundene[j].boss,
                 gemeinsam as f64 / groesser as f64 * 100.0
             );
         }
@@ -224,8 +367,8 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
 
     println!("Was kostet die FREMDE Rotation? (Zeile = gespielte Liste, Spalte = Boss)");
     print!("  {:<22}", "");
-    for (boss, _, _) in gefundene {
-        print!("{boss:>22}");
+    for g in gefundene {
+        print!("{:>22}", g.boss);
     }
     println!();
 
@@ -235,10 +378,12 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
     // Jetzt trifft die Tabelle und das Urteil dieselbe Sammlung.
     let mut fremde_verluste: Vec<(String, String, f64)> = Vec::new();
 
-    for (herkunft, apl, _) in gefundene {
+    for quelle in gefundene {
+        let herkunft = &quelle.boss;
         print!("  {:<22}", format!("von {herkunft}"));
-        for (boss_id, _, eigen) in gefundene {
-            let ergebnis = rota_sim::balance::run(&config(boss_id), apl);
+        for ziel in gefundene {
+            let (boss_id, eigen) = (&ziel.boss, ziel.wert);
+            let ergebnis = rota_sim::balance::run(&config(boss_id), &quelle.apl);
             // **Der Verlust gegen die EIGENE beste Rotation dieses Bosses.**
             // Nicht gegen die eigene Herkunft: Gefragt ist, was der Spieler an
             // DIESEM Boss verliert, wenn er die fremde Liste mitbringt.
@@ -440,7 +585,7 @@ fn main() {
     println!();
 
     // Je Boss die gefundene Rotation — fuer den Kreuzvergleich unten (#509 AC3).
-    let mut gefundene: Vec<(String, rota_sim::apl::Apl, f64)> = Vec::new();
+    let mut gefundene: Vec<Gefunden> = Vec::new();
     // Wer ueber ALLE Bosse mindestens einmal drankam (#509 AC4). Die Zahl je
     // Boss steht schon unten je Abschnitt; gefragt ist aber die andere: Welcher
     // Zauber ist NIRGENDS die beste Wahl. Von Hand aus fuenf Listen gebildet
@@ -516,13 +661,22 @@ fn main() {
             rota_sim::data::MAX_LEVEL
         );
         println!();
-        gefundene.push((
-            (*boss_id).clone(),
-            gefunden.best.apl.clone(),
-            gefunden.best.mean,
-        ));
+        gefundene.push(Gefunden {
+            boss: (*boss_id).clone(),
+            apl: gefunden.best.apl.clone(),
+            wert: gefunden.best.mean,
+            zeilen: gefunden.chosen,
+        });
     }
 
+    if nachlauf_gewuenscht() {
+        nachlauf(&bosse, &pool, max_len, &mut gefundene);
+    } else {
+        println!("== Nachlauf UEBERSPRUNGEN (--kein-nachlauf) ==");
+        println!("  Die Zahlen unten sind der Stand VOR #558 — zur Gegenprobe, dass die");
+        println!("  ACHTUNG-Zeile des Kreuzvergleichs noch anschlagen kann.");
+        println!();
+    }
     kreuzvergleich(&gefundene);
     nirgends_die_beste_wahl(&irgendwo_gewirkt, bosse.len());
 
