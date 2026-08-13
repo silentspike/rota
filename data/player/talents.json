@@ -98,6 +98,16 @@
           "requires": "fixation-trunk",
           "controlEffectPerRankPerMille": 60,
           "_comment": "WEG 3 VON DREI (#419): staerker wirken. Der Faktor liegt am EINGANG von applyFixation und gilt damit fuer alle fuenf Wirkungen samt CAPSTONEs 'alle drei' — eine Stelle statt fuenf, die auseinanderlaufen koennen. ALLE ZAHLEN VORLAEUFIG."
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER FIXATION (Issue #419), Bauart aus #418: ein VERHALTEN, keine Zahl.\n\nOhne es SCHEITERT ein Kontroll-Zauber, wenn der Vorrat nicht reicht — der Druck ist verloren, `controlFailed` zaehlt hoch, und wer FIXATION spielt, wartet auf genug Punkte.\n\nMit ihm wirkt er mit dem, was da ist: Einsatz und Wirkung sinken im GLEICHEN Verhaeltnis.\n\nWARUM DAS KEIN RABATT IST: Billiger waere ein Faktor. Hier aendert sich, OB der Zauber ueberhaupt stattfindet — und die Wirkung folgt dem Einsatz statt fest zu bleiben. Bei leerem Vorrat scheitert er weiterhin; ein Zauber, der aus nichts etwas macht, waere ein Fehler.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge.",
+          "id": "fixation-keystone",
+          "name": "Nothing Wasted",
+          "path": "cost",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "fixation-cost",
+          "keystone": "partial-control"
         }
       ]
     },
@@ -137,6 +147,16 @@
           "maxRanks": 5,
           "cooldownThresholdPerRankPerMille": 60,
           "requires": "sublimation-trunk"
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER SUBLIMATION (Issue #419), nach der Bauart aus #418: ein VERHALTEN, keine Zahl.\n\nOhne es schaltet ein Ruecksetzer einen AUSWAHLMODUS scharf — der naechste Tastendruck bestimmt, welche Abklingzeit faellt. Das kostet eine zusaetzliche Handlung und eine Entscheidung unter Zeitdruck.\n\nMit ihm trifft er den Zauber mit der LAENGSTEN Restzeit von selbst. Die Rotation verliert einen Tastendruck und gewinnt dafuer immer die schlechteste Wartezeit zurueck.\n\nWARUM DAS KEIN FAKTOR IST: Es aendert nicht, WIEVIEL zurueckgesetzt wird, sondern OB gewaehlt wird. Der Nachweis dafuer ist AC3 — ohne das Talent unterscheidet sich der Lauf in der REIHENFOLGE der Druecke, nicht nur in der Schadenszahl.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge. Es ist an oder aus.",
+          "id": "sublimation-keystone",
+          "name": "Certain Ascent",
+          "path": "reduction",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "sublimation-reduction",
+          "keystone": "auto-reset"
         }
       ]
     },
@@ -182,6 +202,16 @@
           "requires": "coagulation-trunk",
           "shieldStacksPerRank": 1,
           "_comment": "WEG 3 VON DREI (#419): mehr Stapel. **Ein ganzzahliger ZUSCHLAG, kein Faktor** — als einziger der zwoelf. Ein Faktor 1,5 auf maxStacks 3 ergaebe 4,5, und eine halbe Stapel-Erlaubnis gibt es nicht; jede Rundung waere eine zweite Entscheidung, die im Spiel anders fallen koennte als im Simulator. Dieselbe Wahl wie bei PUTRID BLOOMs decayCap.bonus. 1 je Rang, fuenf Raenge: CRUSTs 3 Stapel werden zu 8. ALLE ZAHLEN VORLAEUFIG."
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER COAGULATION (Issue #419), Bauart aus #418.\n\nOhne es ist die Schicht weg, sobald sie aufgebraucht ist — der naechste Schlag trifft voll. Mit ihm entsteht im selben Moment eine HALBE neue Schicht.\n\nDIE BEGRENZUNG IST DER KERN: einmal je gelegtem Schild. Ohne sie legte jeder Bruch nach, der naechste wieder, und die Schicht waere nicht mehr aufzubrauchen. Ein Schluesseltalent baut die Rotation um, es hebelt sie nicht aus.\n\nDer Schlag, der die Schicht bricht, kommt beim Spieler trotzdem an, soweit er sie uebersteigt — sonst waere das Talent ein Freischlag statt einer Nachlage.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge.",
+          "id": "coagulation-keystone",
+          "name": "Second Skin",
+          "path": "thicker",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "coagulation-thicker",
+          "keystone": "shield-refund"
         }
       ]
     },
@@ -227,6 +257,16 @@
           "requires": "putrefaction-trunk",
           "decayDurationPerRankPerMille": 60,
           "_comment": "WEG 3 VON DREI (#419): laenger halten. Er verlaengert die Uhr JEDES neu gelegten Stapels; liegende bleiben, wie sie sind — sonst wirkte ein Talent rueckwirkend. ALLE ZAHLEN VORLAEUFIG."
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER PUTREFACTION (Issue #419), Bauart aus #418.\n\nEin erloschener Brand legt WEITER STAPEL — bis die Lage vergangen ist, die bei seinem Ende lag.\n\nDER ERSTE ENTWURF WAR WIRKUNGSLOS, UND DAS WAR MESSBAR. Er liess beim Verfall eines Stapels jeden laufenden Brand einmal ticken; nur ueberlappen Brand-Laufzeit (~12 s) und Stapel-Laufzeit (~13,5 s ab dem Legen) im Normalfall gar nicht. Gemessen: t=12000 vier Stapel bei aktivem Brand, t=16000 zwei Stapel bei erloschenem. Genau diese Luecke fuellt der zweite Entwurf.\n\nNUR STAPEL, KEIN SCHADEN: Ein toter Brand, der weiter zuschlaegt, waere eine verlaengerte Laufzeit — die gibt es schon als Lasting Rot.\n\nUND ER ENDET: Massgeblich ist die Frist des juengsten Stapels beim Erloeschen; was der Nachlauf selbst legt, verlaengert ihn nicht. Ohne diese Grenze truege jeder neue Stapel den naechsten, und ein einziger Brand hielte die Zersetzung ohne weiteren Tastendruck endlos.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge.",
+          "id": "putrefaction-keystone",
+          "name": "Rot Outlives",
+          "path": "duration",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "putrefaction-duration",
+          "keystone": "decay-echo"
         }
       ]
     },
