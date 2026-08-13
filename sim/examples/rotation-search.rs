@@ -50,6 +50,38 @@ const MAX_LEN: usize = 6;
 /// an dem sie nichts zu tun haben.
 const BOSSES: &[&str] = &["first-crucible", "test-metronome"];
 
+/// Die Bosse dieses Laufs — Voreinstellung [`BOSSES`], oder `--bosses a,b,c`.
+///
+/// **Waehlbar seit #509**, und das ist keine Bequemlichkeit: Der Pruefstein
+/// fragt, ob ueber VERSCHIEDENE Bosse dieselbe Rotation gefunden wird. Wer
+/// dafuer jedes Mal eine Zeile im Quelltext aendert, misst mit einem Werkzeug,
+/// das nach der Messung anders aussieht als davor — und der Bericht nennt
+/// einen Befehl, den niemand nachfahren kann.
+fn bosse_dieses_laufs() -> Vec<String> {
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--bosses" {
+            let liste = args.next().unwrap_or_else(|| {
+                panic!(
+                    "Nach --bosses fehlt die Liste, etwa: --bosses first-crucible,test-onslaught"
+                )
+            });
+            let gewaehlt: Vec<String> = liste.split(',').map(|s| s.trim().to_owned()).collect();
+            // **Jeder Name wird geprueft, bevor gerechnet wird.** Ein Tippfehler
+            // darf nicht stillschweigend einen Boss weglassen: Der Bericht
+            // saehe dann vollstaendig aus und waere es nicht.
+            for id in &gewaehlt {
+                assert!(
+                    boss_by_id(id).is_some(),
+                    "Boss {id} kennt der Simulator nicht"
+                );
+            }
+            return gewaehlt;
+        }
+    }
+    BOSSES.iter().map(|s| (*s).to_owned()).collect()
+}
+
 fn config(boss_id: &str) -> BalanceConfig {
     let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
     BalanceConfig {
@@ -69,8 +101,8 @@ fn config(boss_id: &str) -> BalanceConfig {
 /// Die handgeschriebene Liste, gegen die gemessen wird (AC1).
 const STEP1_GOOD: &str = include_str!("../apl/step1-good.apl");
 
-fn parameter_zeile() {
-    println!("Parameter: RUNS={RUNS}, SEED={SEED}, MAX_LEN={MAX_LEN}, Bosse={BOSSES:?}");
+fn parameter_zeile_mit(bosse: &[String]) {
+    println!("Parameter: RUNS={RUNS}, SEED={SEED}, MAX_LEN={MAX_LEN}, Bosse={bosse:?}");
     println!("           stop_on_kill=false, Faktoren=NEUTRAL, threads=1");
 }
 
@@ -92,9 +124,112 @@ fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize) {
     (a, d, s, b)
 }
 
+/// Der Kreuzvergleich — der Kern von Issue #509.
+///
+/// # Die Frage
+///
+/// „Findet der Balance-Laeufer ueber verschiedene Bosse dieselbe Rotation?"
+/// Wenn ja, ist die Tiefe nicht da: Dann gibt es EINE beste Reihenfolge, und
+/// der Rest des Spiels ist Ausfuehrung (GAME-DESIGN 20.3).
+///
+/// # Zwei Zahlen, und die zweite ist die belastbare
+///
+/// **Gemeinsame Zeilen** sagen, wie aehnlich die gefundenen Listen aussehen.
+/// Das ist die schwaechere Zahl: Zwei Listen koennen sich in einer Zeile
+/// unterscheiden und trotzdem gleich viel wert sein.
+///
+/// **Was es KOSTET, die Rotation von Boss A gegen Boss B zu spielen** — das
+/// ist die Zahl, auf die es ankommt. Kostet es nichts, ist die Tiefe nicht da,
+/// und zwar unabhaengig davon, wie verschieden die Listen aussehen.
+fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
+    if gefundene.len() < 2 {
+        println!("Kreuzvergleich uebersprungen — dafuer braucht es mindestens zwei Bosse.");
+        println!("  Beispiel: --bosses first-crucible,test-onslaught,test-metronome");
+        println!();
+        return;
+    }
+
+    println!("== Kreuzvergleich (Issue #509 AC2 und AC3) ==");
+    println!();
+    println!("Wie aehnlich sehen die gefundenen Listen aus?");
+    for i in 0..gefundene.len() {
+        for j in (i + 1)..gefundene.len() {
+            let a: Vec<String> = gefundene[i]
+                .1
+                .to_string()
+                .lines()
+                .map(str::to_owned)
+                .collect();
+            let b: Vec<String> = gefundene[j]
+                .1
+                .to_string()
+                .lines()
+                .map(str::to_owned)
+                .collect();
+            let gemeinsam = a.iter().filter(|z| b.contains(z)).count();
+            let groesser = a.len().max(b.len()).max(1);
+            println!(
+                "  {:<20} gegen {:<20} {gemeinsam} von {groesser} Zeilen gleich ({:.0} %)",
+                gefundene[i].0,
+                gefundene[j].0,
+                gemeinsam as f64 / groesser as f64 * 100.0
+            );
+        }
+    }
+    println!();
+
+    println!("Was kostet die FREMDE Rotation? (Zeile = gespielte Liste, Spalte = Boss)");
+    print!("  {:<22}", "");
+    for (boss, _, _) in gefundene {
+        print!("{boss:>22}");
+    }
+    println!();
+
+    for (herkunft, apl, _) in gefundene {
+        print!("  {:<22}", format!("von {herkunft}"));
+        for (boss_id, _, eigen) in gefundene {
+            let ergebnis = rota_sim::balance::run(&config(boss_id), apl);
+            // **Der Verlust gegen die EIGENE beste Rotation dieses Bosses.**
+            // Nicht gegen die eigene Herkunft: Gefragt ist, was der Spieler an
+            // DIESEM Boss verliert, wenn er die fremde Liste mitbringt.
+            let verlust = (eigen - ergebnis.damage.mean) / eigen * 100.0;
+            print!(
+                "{:>22}",
+                format!("{:.0} ({verlust:+.1} %)", ergebnis.damage.mean)
+            );
+        }
+        println!();
+    }
+    println!();
+
+    // **Die Antwort in einem Satz, und sie steht im Bericht selbst.** Eine
+    // Tabelle, die jeder selbst auswerten muss, ist eine Zahl ohne Aussage.
+    let mut groesster_verlust: f64 = 0.0;
+    for (_, apl, _) in gefundene {
+        for (boss_id, _, eigen) in gefundene {
+            let ergebnis = rota_sim::balance::run(&config(boss_id), apl);
+            let verlust = (eigen - ergebnis.damage.mean) / eigen * 100.0;
+            if verlust > groesster_verlust {
+                groesster_verlust = verlust;
+            }
+        }
+    }
+    println!("Groesster Verlust durch eine fremde Rotation: {groesster_verlust:.1} %");
+    if groesster_verlust < 1.0 {
+        println!("  -> Es kostet praktisch NICHTS, ueberall dieselbe Liste zu spielen.");
+        println!("     Das ist der Befund aus GAME-DESIGN 20.3: keine Rotations-Tiefe.");
+    } else if groesster_verlust < 10.0 {
+        println!("  -> Es kostet etwas, aber wenig. Ob das reicht, ist eine Design-Frage.");
+    } else {
+        println!("  -> Die Rotation lohnt sich je Boss zu ueberdenken. Tiefe ist vorhanden.");
+    }
+    println!();
+}
+
 fn main() {
-    println!("== Rotations-Suche (Issue #237) ==");
-    parameter_zeile();
+    println!("== Rotations-Suche (Issue #237, Kreuzvergleich #509) ==");
+    let bosse = bosse_dieses_laufs();
+    parameter_zeile_mit(&bosse);
     println!();
 
     let pool = all_candidates();
@@ -107,7 +242,10 @@ fn main() {
     println!("    Verstaerkungs-Fenster {b}");
     println!();
 
-    for boss_id in BOSSES {
+    // Je Boss die gefundene Rotation — fuer den Kreuzvergleich unten (#509 AC3).
+    let mut gefundene: Vec<(String, rota_sim::apl::Apl, f64)> = Vec::new();
+
+    for boss_id in &bosse {
         let config = config(boss_id);
         let gefunden = greedy(&config, &pool, MAX_LEN);
         let hand = rota_sim::apl::parse(AplName("step1-good"), STEP1_GOOD)
@@ -171,7 +309,14 @@ fn main() {
             rota_sim::data::MAX_LEVEL
         );
         println!();
+        gefundene.push((
+            (*boss_id).clone(),
+            gefunden.best.apl.clone(),
+            gefunden.best.mean,
+        ));
     }
+
+    kreuzvergleich(&gefundene);
 
     println!("Was NICHT durchsucht wurde");
     println!("  1  Freie Bedingungssuche. Nicht der Aufwand ist der Grund, sondern die");
