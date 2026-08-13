@@ -521,6 +521,7 @@ fn run_range(
         ashen_regimen: false,
         whole_work: false,
         slow_rot: false,
+        sealed_vessel: false,
     });
 
     let mut out = Vec::with_capacity(len as usize);

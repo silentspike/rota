@@ -67,6 +67,28 @@
           "effect": "slow-rot"
         }
       ]
+    },
+    {
+      "id": 3,
+      "school": "COAGULATION",
+      "name": "The Sealed Vessel",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "sealed-vessel"
+        }
+      ]
     }
   ]
 }
