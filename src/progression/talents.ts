@@ -220,6 +220,19 @@ export function talentDecayDurationFactor(allocation: TalentAllocation): number 
   return faktorAus(allocation, (t) => t.decayDurationPerRankPerMille);
 }
 
+/**
+ * Der Faktor auf den Schaden der **Entlader** (GLOBAL, Issue #419).
+ *
+ * **Er landet im Talent-Topf, nicht in einem eigenen** (GAME-DESIGN 13.1b:
+ * innerhalb additiv, zwischen den Töpfen multiplikativ). Ein Entlader-Zuschlag
+ * ist ein Talent-Effekt wie jeder andere; ihm einen eigenen Topf zu geben
+ * hieße, ihn heimlich stärker zu machen als die Zahl daneben. Die Aufrufstelle
+ * addiert deshalb `Faktor − 1` auf `talentFactor`, statt zu multiplizieren.
+ */
+export function talentSpenderDamageFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.spenderDamagePerRankPerMille);
+}
+
 /** Der Faktor auf die **Dicke** der Schutzschicht (COAGULATION). */
 export function talentShieldAmountFactor(allocation: TalentAllocation): number {
   return faktorAus(allocation, (t) => t.shieldAmountPerRankPerMille);

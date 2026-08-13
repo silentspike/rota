@@ -284,28 +284,38 @@
           "requires": null
         },
         {
+          "_comment": "WEG 1 VON DREI IM GLOBALEN BAUM (#419, zweite Runde): AUFBAU in JEDER Schule.\n\nBIS HIERHER TRUGEN ALLE DREI WEGE DIESELBE GROESSE mit derselben Zahl (damagePerRankPerMille 15). Drei Wege, die dasselbe um denselben Betrag bewegen, koennen nicht 'jeder irgendwo die beste Wahl' sein — AC3 war fuer sie nicht erfuellbar, und zwar aus den Daten heraus, nicht aus dem Code. Der Auftraggeber hat entschieden, dass jeder Weg eine eigene Wirkung bekommt.\n\nDREI FELDER AN EINEM TALENT, KEINE NEUE BAUART: Der Faktor-Weg aus #417 summiert je Groesse ueber ALLE Talente. Ein globales Talent, das drei Aufbau-Felder traegt, speist damit automatisch alle drei Schul-Groessen — Hitze (CALCINATION), Kontroll-Punkte (FIXATION), Zersetzungs-Stapel (PUTREFACTION).\n\nEHRLICH ZU controlGain: Er ist im Balance-Laeufer heute NICHT messbar (gemessen: 1320 -> 1320). Er steht hier trotzdem, weil er fachlich in diesen Weg gehoert — aber der Prueffall belegt ihn NICHT, sondern nur die messbaren zwei. Ein Kommentar ersetzt keine Pruefung.\n\nZAHLEN VORLAEUFIG. 60 statt 100 je Rang, weil der Weg drei Groessen gleichzeitig hebt.",
           "id": "global-build",
           "name": "Greater Catalysis",
           "path": "build",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "global-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "global-trunk",
+          "resourceGainPerRankPerMille": 60,
+          "decayStackPerRankPerMille": 60,
+          "controlGainPerRankPerMille": 60
         },
         {
+          "_comment": "WEG 2 VON DREI IM GLOBALEN BAUM (#419, zweite Runde): die ENTLADER.\n\nEin Entlader ist ein Zauber, der etwas Angesammeltes einloest — `spender` bei CALCINATION und FIXATION, `consumesDecayStacks` bei PUTREFACTION. Der Weg haengt damit an einer EIGENSCHAFT, nicht an einer Schule.\n\nDIE EINZIGE NEUE WIRKSTELLE IN DIESEM VORHABEN, und sie folgt der Bauart aus #417 statt einer vierten: ein Promille-Faktor, der im TALENT-TOPF landet (13.1b, innerhalb additiv). `applySpenderBonus` setzt ihn je Wirkung neu, genau wie `applyDecayStackBonus` die Verwundbarkeit.\n\nGEMESSEN, BEVOR DAS FELD ENTSTAND — ein Weg auf eine Groesse, die niemand traegt, waere wertlos:\n\n  CALCINATION   pyre     1440 von 4520   31,9 %\n  PUTREFACTION  necrosis  880 von 2827   31,1 %\n  FIXATION      stall       0 von 1320    0,0 %\n\nFIXATIONs Ausgeber teilen keinen Schaden aus, sie verzoegern — dort greift der Weg nicht. Das ist der Preis dafuer, dass er an einer Eigenschaft haengt; er trifft dafuer JEDEN Entlader, auch kuenftige.\n\nZAHLEN VORLAEUFIG. 100 je Rang auf rund ein Drittel des Schadens ergibt bei vollem Ausbau etwa +16 % gesamt.",
           "id": "global-release",
           "name": "Greater Purity",
           "path": "release",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "global-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "global-trunk",
+          "spenderDamagePerRankPerMille": 100
         },
         {
+          "_comment": "WEG 3 VON DREI IM GLOBALEN BAUM (#419, zweite Runde): HALTBARKEIT in jeder Schule.\n\nBraende (CALCINATION), Zersetzungs-Stapel (PUTREFACTION) und die Schutzschicht (COAGULATION) halten laenger. Wieder drei bestehende Felder an einem Talent, keine neue Wirkstelle.\n\nEHRLICH ZU shieldDuration: Er ist im Balance-Laeufer heute NICHT messbar (gemessen: abgefangen 5340 -> 5340, weil die Schicht aufgebraucht wird, lange bevor ihre Frist ablaeuft). Er steht hier trotzdem, weil er fachlich in den Weg gehoert — der Prueffall belegt ihn NICHT.\n\nZAHLEN VORLAEUFIG, 60 je Rang wie bei Weg 1.",
           "id": "global-hold",
           "name": "Greater Vessel",
           "path": "hold",
           "maxRanks": 5,
-          "damagePerRankPerMille": 15,
-          "requires": "global-trunk"
+          "damagePerRankPerMille": 0,
+          "requires": "global-trunk",
+          "dotDurationPerRankPerMille": 60,
+          "decayDurationPerRankPerMille": 60,
+          "shieldDurationPerRankPerMille": 60
         }
       ]
     }

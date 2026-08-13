@@ -2882,6 +2882,27 @@ export interface TalentDef {
   readonly cooldownResetChargesPerRank: number;
   /** Um wie viel je Rang die **Schwelle** wächst, ab der der Abzug greift (Promille). */
   readonly cooldownThresholdPerRankPerMille: number;
+  /**
+   * Promille je Rang auf den Schaden der **Entlader** (GLOBAL, Issue #419).
+   *
+   * Entlader ist ein Zauber, der etwas Angesammeltes einlöst: `spender` bei
+   * CALCINATION und FIXATION, `consumesDecayStacks` bei PUTREFACTION. Der
+   * globale Weg „release" wirkt genau auf sie, statt wie bisher auf alles.
+   *
+   * **Gemessen, bevor dieses Feld entstand** — ein Weg auf eine Größe, die
+   * niemand trägt, wäre wertlos:
+   *
+   * ```text
+   *   CALCINATION   pyre     1440 von 4520   31,9 %
+   *   PUTREFACTION  necrosis  880 von 2827   31,1 %
+   *   FIXATION      stall       0 von 1320    0,0 %
+   * ```
+   *
+   * FIXATIONs Ausgeber teilen keinen Schaden aus, sie verzögern — dort greift
+   * der Weg also nicht. Das ist kein Fehler, sondern der Preis dafür, dass er
+   * an einer Eigenschaft hängt und nicht an einer Schule.
+   */
+  readonly spenderDamagePerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
   /**
@@ -2954,6 +2975,7 @@ export const TALENTS: readonly TalentDef[] = (() => {
       const cooldownReductionPerRankPerMille = number(t['cooldownReductionPerRankPerMille'], 0);
       const cooldownResetChargesPerRank = number(t['cooldownResetChargesPerRank'], 0);
       const cooldownThresholdPerRankPerMille = number(t['cooldownThresholdPerRankPerMille'], 0);
+      const spenderDamagePerRankPerMille = number(t['spenderDamagePerRankPerMille'], 0);
       for (const [feld, wert] of [
         ['resourceGainPerRankPerMille', resourceGainPerRankPerMille],
         ['dotDurationPerRankPerMille', dotDurationPerRankPerMille],
@@ -2969,6 +2991,7 @@ export const TALENTS: readonly TalentDef[] = (() => {
         ['cooldownReductionPerRankPerMille', cooldownReductionPerRankPerMille],
         ['cooldownResetChargesPerRank', cooldownResetChargesPerRank],
         ['cooldownThresholdPerRankPerMille', cooldownThresholdPerRankPerMille],
+        ['spenderDamagePerRankPerMille', spenderDamagePerRankPerMille],
       ] as const) {
         if (wert < 0) {
           throw new Error(
@@ -3013,6 +3036,7 @@ export const TALENTS: readonly TalentDef[] = (() => {
         cooldownReductionPerRankPerMille,
         cooldownResetChargesPerRank,
         cooldownThresholdPerRankPerMille,
+        spenderDamagePerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
         keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });
