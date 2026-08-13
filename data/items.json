@@ -211,6 +211,26 @@
       "affixKinds": ["catalysis"],
       "boundToBoss": "test-warden",
       "setId": 0
+    },
+    {
+      "id": "test-set-5",
+      "name": "Test Set Vessel",
+      "slot": 5,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis"],
+      "boundToBoss": "test-warden",
+      "setId": 0
+    },
+    {
+      "id": "test-set-6",
+      "name": "Test Set Mantle",
+      "slot": 6,
+      "itemLevel": 40,
+      "quality": 2,
+      "affixKinds": ["catalysis"],
+      "boundToBoss": "test-warden",
+      "setId": 0
     }
   ]
 }
