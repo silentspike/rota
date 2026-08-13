@@ -110,6 +110,19 @@ export const KEYSTONE_AUTO_RESET = 'auto-reset';
  */
 export const KEYSTONE_PARTIAL_CONTROL = 'partial-control';
 
+/**
+ * COAGULATIONs Schlüsseltalent (#419): Ein brechender Schild **legt nach**.
+ *
+ * Ohne das Talent ist die Schicht weg, sobald sie aufgebraucht ist — der
+ * nächste Schlag trifft voll. Mit ihm entsteht im selben Moment eine halbe
+ * neue Schicht, **einmal je gelegtem Schild**.
+ *
+ * Die Begrenzung ist der Kern: Ohne sie legte jeder Bruch nach, der nächste
+ * wieder, und die Schicht wäre nicht mehr aufzubrauchen. Ein Schlüsseltalent
+ * baut die Rotation um, es hebelt sie nicht aus.
+ */
+export const KEYSTONE_SHIELD_REFUND = 'shield-refund';
+
 /** Ob die Verteilung ein bestimmtes Verhalten freigeschaltet hat (#418). */
 export function hasKeystone(allocation: TalentAllocation, keystone: string): boolean {
   return TALENTS.some(

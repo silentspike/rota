@@ -202,6 +202,16 @@
           "requires": "coagulation-trunk",
           "shieldStacksPerRank": 1,
           "_comment": "WEG 3 VON DREI (#419): mehr Stapel. **Ein ganzzahliger ZUSCHLAG, kein Faktor** — als einziger der zwoelf. Ein Faktor 1,5 auf maxStacks 3 ergaebe 4,5, und eine halbe Stapel-Erlaubnis gibt es nicht; jede Rundung waere eine zweite Entscheidung, die im Spiel anders fallen koennte als im Simulator. Dieselbe Wahl wie bei PUTRID BLOOMs decayCap.bonus. 1 je Rang, fuenf Raenge: CRUSTs 3 Stapel werden zu 8. ALLE ZAHLEN VORLAEUFIG."
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER COAGULATION (Issue #419), Bauart aus #418.\n\nOhne es ist die Schicht weg, sobald sie aufgebraucht ist — der naechste Schlag trifft voll. Mit ihm entsteht im selben Moment eine HALBE neue Schicht.\n\nDIE BEGRENZUNG IST DER KERN: einmal je gelegtem Schild. Ohne sie legte jeder Bruch nach, der naechste wieder, und die Schicht waere nicht mehr aufzubrauchen. Ein Schluesseltalent baut die Rotation um, es hebelt sie nicht aus.\n\nDer Schlag, der die Schicht bricht, kommt beim Spieler trotzdem an, soweit er sie uebersteigt — sonst waere das Talent ein Freischlag statt einer Nachlage.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge.",
+          "id": "coagulation-keystone",
+          "name": "Second Skin",
+          "path": "thicker",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "coagulation-thicker",
+          "keystone": "shield-refund"
         }
       ]
     },

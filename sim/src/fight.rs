@@ -262,6 +262,8 @@ pub struct FightConfig {
     pub auto_reset: bool,
     /// Ob das Schluesseltalent "partial-control" verteilt ist (FIXATION, #419).
     pub partial_control: bool,
+    /// Ob das Schluesseltalent "shield-refund" verteilt ist (COAGULATION, #419).
+    pub shield_refund: bool,
     /// Ob der Satz-Effekt "ashen-regimen" wirkt (13.5, Issue #480).
     ///
     /// Die sechste Satz-Stufe traegt keinen Werte-Bonus, sondern eine Kennung,
@@ -366,6 +368,7 @@ impl Default for FightConfig {
             split_spender: false,
             auto_reset: false,
             partial_control: false,
+            shield_refund: false,
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
@@ -829,6 +832,11 @@ pub struct Fight {
     split_spender: bool,
     auto_reset: bool,
     partial_control: bool,
+    shield_refund: bool,
+    /// Wie dick die zuletzt gelegte Schicht war (fuer die Nachlage, #419).
+    shield_last_amount: u32,
+    /// Ob dieser Schild seine Nachlage schon bekommen hat.
+    shield_refund_used: bool,
     ashen_regimen: bool,
     whole_work: bool,
     slow_rot: bool,
@@ -1123,6 +1131,9 @@ impl Fight {
             split_spender: config.split_spender,
             auto_reset: config.auto_reset,
             partial_control: config.partial_control,
+            shield_refund: config.shield_refund,
+            shield_last_amount: 0,
+            shield_refund_used: false,
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
@@ -2238,6 +2249,10 @@ impl Fight {
             if self.shield_stacks < grenze {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(dicke);
+                // Fuer die Nachlage (#419): Der Bruch braucht die Dicke, und
+                // jede neu gelegte Schicht bekommt ihre eigene Nachlage.
+                self.shield_last_amount = dicke;
+                self.shield_refund_used = false;
                 // **Der Schutz draengt die Reaktion zurueck** (Baustein 6,
                 // #247), um seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim
                 // blossen Erneuern — sonst waere die Obergrenze wirkungslos.
@@ -3132,9 +3147,28 @@ impl Fight {
             self.log
                 .push(self.time, LogKind::ShieldAbsorb, NO_SPELL, abgefangen);
             if self.shield == 0 {
-                // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
-                self.shield_stacks = 0;
-                self.shield_expires_at = None;
+                // **COAGULATIONs Schluesseltalent** (#419): eine halbe Schicht
+                // kommt nach, EINMAL je gelegtem Schild. Abgerundet
+                // (GAME-DESIGN 18.4) und nur, wenn etwas uebrig bleibt.
+                //
+                // Kein frueher Ausstieg: Was die Schicht uebersteigt, muss
+                // weiter unten beim Spieler ankommen — sonst waere das Talent
+                // ein Freischlag statt einer Nachlage. Spiegelbild von
+                // `Combat.hitPlayer`.
+                let nachlage = if self.shield_refund {
+                    self.shield_last_amount / 2
+                } else {
+                    0
+                };
+                if nachlage > 0 && !self.shield_refund_used {
+                    self.shield_refund_used = true;
+                    self.shield = nachlage;
+                    self.shield_stacks = 1;
+                } else {
+                    // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+                    self.shield_stacks = 0;
+                    self.shield_expires_at = None;
+                }
             }
         }
 
