@@ -151,6 +151,122 @@ Bössen ankommt, damit die vorhandene Mechanik zur Wirkung kommt.
 Wie hart Bosse treffen sollen, ist eine Design-Entscheidung. Der
 Zusammenhang zwischen Bedrohung und Rotations-Tiefe ist gemessen.
 
+## Nachtrag: der Kreuzvergleich selbst (AC2, AC3, AC4)
+
+Gemessen am 2026-08-13 von Worker-3, mit dem Werkzeug aus PR #823. Der
+Abschnitt oben beantwortet die _ersetzte_ Frage; hier steht die
+**ursprüngliche**, jetzt mit dem Werkzeug, das sie messen kann.
+
+Fünf Bosse über vier Achsen: `first-crucible` (ohne Mechanik),
+`test-onslaught` (Zeitleiste **mit Todesgefahr**), `test-metronome`
+(Zeitleiste, 300 s), `test-gatekeeper` (Phasen), `test-resistant`
+(Widerstände).
+
+### AC2 — wie ähnlich sind die gefundenen Listen?
+
+| Paarung                              | gleiche Zeilen     |
+| ------------------------------------ | ------------------ |
+| `first-crucible` / `test-gatekeeper` | 6 von 6 (100 %)    |
+| `test-metronome` / `test-resistant`  | 6 von 6 (100 %)    |
+| `first-crucible` / `test-metronome`  | 5 von 6 (83 %)     |
+| `first-crucible` / `test-onslaught`  | **3 von 6 (50 %)** |
+| `test-onslaught` / `test-gatekeeper` | **3 von 6 (50 %)** |
+
+Zwei Paare sind **wörtlich identisch**. Der einzige Boss, der aus der Reihe
+fällt, ist `test-onslaught`.
+
+### AC3 — was kostet die fremde Rotation?
+
+Der Kern des Issues. Zeile = mitgebrachte Liste, Spalte = gespielter Boss:
+
+```text
+                        first-crucible   test-onslaught   test-metronome   test-gatekeeper   test-resistant
+  von first-crucible      9364 (+0,0 %)    3720 (+58,7 %)   47848 (+1,7 %)    18990 (+0,0 %)   37445 (+1,2 %)
+  von test-onslaught     7514 (+19,8 %)     9014 (+0,0 %)  39029 (+19,8 %)   15311 (+19,4 %)  30958 (+18,3 %)
+  von test-metronome       9275 (+1,0 %)   3457 (+61,6 %)   48672 (+0,0 %)    18802 (+1,0 %)   37902 (+0,0 %)
+  von test-gatekeeper      9364 (+0,0 %)   3720 (+58,7 %)   47848 (+1,7 %)    18990 (+0,0 %)   37445 (+1,2 %)
+  von test-resistant       9275 (+1,0 %)   3457 (+61,6 %)   48672 (+0,0 %)    18802 (+1,0 %)   37902 (+0,0 %)
+
+  Fremde Paarungen        20
+  Größter Verlust         61,6 %
+  Mittlerer Verlust        1,7 %
+  Paare über 10 %          8 von 20
+  In JEDER teuren Paarung steckt: test-onslaught
+```
+
+**Die Antwort auf AC3 lautet: es kostet fast nichts — außer an einem Boss.**
+Sechzehn der zwanzig Paarungen kosten unter 2 %; vier davon exakt 0,0 %.
+Alle acht teuren Paarungen haben `test-onslaught` auf einer der beiden
+Seiten, und zwar in beide Richtungen: seine Liste anderswo kostet 18–20 %,
+eine fremde Liste bei ihm 58–62 %.
+
+Das bestätigt den Befund oben aus einer völlig anderen Richtung. Dort wurde
+Mechanik für Mechanik abgeschaltet; hier wurde nichts abgeschaltet, sondern
+gemessen, was eine mitgebrachte Rotation kostet. **Beide Wege zeigen auf
+dieselbe Größe: Todesgefahr.**
+
+#### Ein Maximum ist keine Aussage — mein eigener Urteilssatz war falsch
+
+Das Werkzeug urteilte zuerst am größten Verlust: 61,6 % → _„Tiefe ist
+vorhanden."_ Das ist die falsche Lesart derselben Zahlen. Ein Maximum sagt,
+dass es EINEN Fall gibt; über die Regel sagt es nichts. Seither steht die
+Verteilung im Bericht, und das Urteil hängt am Mittelwert.
+
+### AC4 — welche Zauber kommen in KEINER Rotation vor?
+
+```text
+  über alle 5 Bosse gewirkt    9 von 57
+  in KEINER Rotation          48 von 57
+```
+
+Neun Zauber tragen alle fünf Rotationen: `pyre`, `searing`, `rot`,
+`smoulder`, `bellows`, `kindle`, `cinder`, `riposte`, `scab`. Die letzten
+drei kommen **ausschließlich** bei `test-onslaught` und `test-metronome` vor.
+
+Worker-1 hatte an zwei Bossen zwölf von fünfzehn gemessen. Mit fünf Bossen
+und 57 spielbaren Zaubern sind es 48 — Leitplanke 2 („jeder Zauber muss
+irgendwo die beste Wahl sein") ist damit **nicht** erfüllt.
+
+#### Die Zahl misst zum Teil die Suchlänge, nicht das Kit
+
+Bei sechs Zeilen je Liste können über fünf Bosse höchstens dreißig Zauber
+überhaupt vorkommen. Deshalb die Gegenprobe mit `--max-len 12`:
+
+| Suchlänge | gewirkt | tot | mittlerer Verlust |
+| --------- | ------- | --- | ----------------- |
+| 6         | 9       | 48  | 1,7 %             |
+| 12        | 16      | 41  | 19,2 %            |
+
+Sieben Zauber mehr, sieben tote weniger. **Die Zahl 48 gehört also zur Länge
+6, nicht zum Spiel** — und der Befund „Leitplanke 2 nicht erfüllt" bleibt
+trotzdem stehen, weil auch 41 weit von null entfernt ist.
+
+#### Und der Lauf mit Länge 12 fällt gar kein Urteil
+
+Das ist der wichtigste Befund dieser Messung, und er hätte fast als
+Ergebnis durchgehen können:
+
+```text
+  ACHTUNG: In 4 Paarungen ist die FREMDE Liste besser als die eigene.
+    test-metronome schlägt an first-crucible dessen eigene Liste um 20,9 %
+    test-metronome schlägt an test-onslaught dessen eigene Liste um 30,7 %
+    test-metronome schlägt an test-gatekeeper dessen eigene Liste um 22,1 %
+    test-metronome schlägt an test-resistant dessen eigene Liste um 37,3 %
+  -> KEIN Urteil. Erst die Suche verbessern, dann erneut vergleichen.
+```
+
+Der ganze Kreuzvergleich rechnet gegen die je Boss **gefundene** Liste und
+setzt damit voraus, dass sie dort die beste ist. Bei Länge 12 ist sie es
+nicht: Die Greedy-Suche legt sich im größeren Raum früher falsch fest. Die
+19,2 % oben sind deshalb **kein Beleg für Rotations-Tiefe**, sondern zum
+großen Teil der Abstand der Suche zum Optimum.
+
+Ohne diese Prüfung wäre die Meldung gewesen: _„Mit längeren Listen steigt der
+mittlere Verlust von 1,7 auf 19,2 % — die Tiefe ist doch da."_ Das wäre aus
+richtigen Zahlen der falsche Schluss gewesen.
+
+Bei Länge 6 tritt der Fall nicht auf; dort gibt es keine negative Paarung.
+
 ## Was NICHT gemessen ist
 
 **Der Widerstands-Fall ist ungeprüft, nicht widerlegt.** Ein Widerstand
@@ -164,13 +280,28 @@ auseinanderliegenden Zaubern könnte anders ausfallen.
 
 ## Die Messung wiederholen
 
-    # Boss-Liste in sim/examples/rotation-search.rs auf die zu messenden
-    # Bosse setzen, dann:
-    cargo remote -c -- run --release --example rotation-search
+Der Kreuzvergleich (AC2, AC3, AC4) — **beide Läufe, denn der zweite ist die
+Gegenprobe zum ersten:**
 
-    # Für eine Mechanik-Messung: das Feld in data/bosses/<boss>.json leeren
-    # (timeline: [], resistances: {}), Zustand VOR dem Lauf prüfen,
-    # danach `git checkout data/bosses/` und erneut prüfen.
+    cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+      --example rotation-search -- \
+      --bosses first-crucible,test-onslaught,test-metronome,test-gatekeeper,test-resistant
+
+    cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+      --example rotation-search -- \
+      --bosses first-crucible,test-onslaught,test-metronome,test-gatekeeper,test-resistant \
+      --max-len 12
+
+Beide Schalter sind seit #509 Argumente. **Vorher stand die Boss-Liste als
+Konstante im Quelltext** — wer sie zum Messen änderte, maß mit einem Werkzeug,
+das nach der Messung anders aussah als davor, und der Bericht nannte einen
+Befehl, den niemand nachfahren konnte.
+
+Für eine Mechanik-Messung (der Abschnitt oben):
+
+    # Das Feld in data/bosses/<boss>.json leeren (timeline: [],
+    # resistances: {}), Zustand VOR dem Lauf prüfen, danach
+    # `git checkout data/bosses/` und erneut prüfen.
 
 **Vor jedem Lauf den Zustand prüfen, nicht danach** — und die Auswertung
 muss `assert set(mit) == set(ohne)` enthalten. Warum, steht unten.
