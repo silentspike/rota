@@ -168,9 +168,31 @@ pub const QUALITY_HAS_EFFECT: [bool; QUALITY_COUNT] = [false, false, false, true
 /// beim Aendern des Budgets niemand liest.
 ///
 /// **Die Sorge dahinter ist berechtigt und trifft eine andere Stelle:**
-/// [`QUALITY_HAS_EFFECT`] hat im Kampf **keinen Leser**, auf keiner der beiden
-/// Seiten. Der Sondereffekt ist Legendarys einziges Merkmal, und er ist nicht
-/// gebaut — er braeuchte Topf 4, dessen Zuleitung fehlt.
+/// [`QUALITY_HAS_EFFECT`] hat **hier** keinen Leser, und das ist Absicht.
+///
+/// Bis Issue #480 stand hier "auf keiner der beiden Seiten" — das galt damals
+/// und stimmt seither nicht mehr. Die Spielseite liest es
+/// (`src/gear/catalog.ts:344`) und speist damit Topf 4 ueber
+/// `gearEffectsPermille`. Der Sondereffekt IST gebaut.
+///
+/// **Die Arbeitsteilung, die hier gilt:** `gear_effects` wird
+/// HEREINGEREICHT, nicht in [`distribute_budget`] abgeleitet. Der Waechter
+/// dafuer steht in `best_build.rs`:
+///
+/// ```text
+///   assert_eq!(worn.gear_effects, 0, "Topf 4 gehoert der anderen Seite");
+/// ```
+///
+/// Wer den Effekt hier ergaenzt, baut einen ZWEITEN Weg zu derselben Zahl.
+/// Zwei Wege laufen auseinander, sobald einer nachgezogen wird — und beide
+/// liefern weiter plausible Werte, weshalb es niemandem auffaellt. Wer den
+/// Wert braucht, rechnet ihn beim Aufrufer mit
+/// [`crate::sources::gear_effects_permille`].
+///
+/// **Dieser Absatz stand sechs Tage lang falsch da** und hat eine Messung in
+/// die Irre gefuehrt (#791): Er begruendete eine Luecke, die es nicht mehr gab,
+/// und beendete damit die Suche. Wer hier etwas liest, das eine Luecke
+/// begruendet, prueft den Stand — nicht den Text.
 ///
 /// Wer q3 hier anhebt, baut einen **zweiten** Unterschied ein, den 13.3 nicht
 /// vorsieht, und verdeckt den echten. Das TS-Gegenstueck traegt denselben

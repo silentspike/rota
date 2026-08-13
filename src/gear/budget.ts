@@ -99,11 +99,23 @@ export const QUALITY_HAS_EFFECT: readonly boolean[] = [false, false, false, true
  * niemand liest.
  *
  * **Die Sorge dahinter ist berechtigt und trifft eine andere Stelle:**
- * `QUALITY_HAS_EFFECT` (`[false, false, false, true]`) hat im Kampf **keinen
- * Leser** — auf keiner der beiden Seiten; gemessen, es steht nur in
- * Deklarationen, Prüffällen und der Paritäts-Weitergabe. Der Sondereffekt ist
- * Legendarys einziges Merkmal, und er ist nicht gebaut (er bräuchte Topf 4,
- * dessen Zuleitung fehlt — Gruppe B in `docs/AUSRUESTUNGS-RASTER.md`).
+ * `QUALITY_HAS_EFFECT` (`[false, false, false, true]`) hat **hier** keinen
+ * Leser, und das ist Absicht.
+ *
+ * Bis Issue #480 stand hier „auf keiner der beiden Seiten" — das galt damals
+ * und stimmt seither nicht mehr. `catalog.ts:344` liest es und speist damit
+ * Topf 4 über `gearEffectsPermille`. Der Sondereffekt **ist** gebaut.
+ *
+ * **Die Arbeitsteilung:** Topf 4 wird hereingereicht, nicht aus dem Budget
+ * abgeleitet. Auf der Rust-Seite wacht `best_build.rs` darüber
+ * (`assert_eq!(worn.gear_effects, 0, "Topf 4 gehoert der anderen Seite")`).
+ * Zwei Wege zu derselben Zahl laufen auseinander, sobald einer nachgezogen
+ * wird — und beide liefern weiter plausible Werte.
+ *
+ * **Dieser Absatz stand sechs Tage lang falsch da** und hat eine Messung in
+ * die Irre geführt (#791): Er begründete eine Lücke, die es nicht mehr gab.
+ * Wer hier etwas liest, das eine Lücke begründet, prüft den Stand — nicht den
+ * Text.
  *
  * Wer q3 hier anhebt, baut deshalb einen **zweiten** Unterschied ein, den 13.3
  * nicht vorsieht, und verdeckt den echten. Ein Prüffall in
