@@ -4233,6 +4233,22 @@ impl Fight {
             let ready_at = snap_up(now + self.hasted(spell.cooldown_ms));
             self.cooldown_ready_at[index] = ready_at;
             self.queue.push(ready_at, EventKind::Wakeup);
+            // **Und sie zaehlt als Wurf** — aus demselben Grund und an
+            // derselben Stelle. `casts` wird sonst nur in
+            // `resolve_player_cast` erhoeht, und die wird fuer
+            // Kanalisierungen uebersprungen.
+            //
+            // Gemessen im Spiel, das dieselbe Luecke hatte: Eine vollstaendig
+            // durchgelaufene DECOCTION teilte 360 Schaden aus und stand mit
+            // `cast_count` 0 da; der Zauber mit WIRKZEIT zaehlte bei gleicher
+            // Bauart auf 1.
+            //
+            // Hier wiegt es schwerer als im Spiel: `cast_count` ist die
+            // Groesse, mit der die Rust-Faelle ihre TRAEGER-Zusicherung bauen
+            // ("der Verkuerzer wurde nie gewirkt — die Probe hat keinen
+            // Traeger"). Bei einem Kanalzauber haette sie immer 0 gemeldet und
+            // damit einen laufenden Zauber fuer nie gewirkt gehalten.
+            self.casts[index] += 1;
             if spell.triggers_gcd && !self.take_free_gcd() {
                 self.gcd_ready_at = snap_up(now + self.gcd_length());
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
