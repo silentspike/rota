@@ -57,6 +57,7 @@ import {
 import {
   SET_EFFECT_ASHEN_REGIMEN,
   SET_EFFECT_SLOW_ROT,
+  SET_EFFECT_SEALED_VESSEL,
   SET_EFFECT_WHOLE_WORK,
   WHOLE_WORK_GCD_REDUCTION_MS,
 } from '../gear/sets.js';
@@ -2187,6 +2188,22 @@ export class Combat {
       // liefen bei einer späteren Änderung auseinander.
       const dicke = Math.floor(shield.amount * talentShieldAmountFactor(this.talents));
       const grenze = shield.maxStacks + talentShieldStacksBonus(this.talents);
+      if (this.shieldStacksValue >= grenze && this.hasSetEffect(SET_EFFECT_SEALED_VESSEL)) {
+        // **THE SEALED VESSEL** (13.5, COAGULATION-Sechser): Was die volle
+        // Schicht nicht mehr aufnimmt, geht als Schaden hinaus.
+        //
+        // **Der Betrag, den dieser Druck BEIGETRAGEN HÄTTE** — also `dicke`
+        // mitsamt Talent-Faktor, nicht `shield.amount`. Sonst zahlte der
+        // Sechser nach dem alten Wert aus, während die Schicht nach dem neuen
+        // rechnet: beides plausibel, eines falsch.
+        //
+        // Er ersetzt nichts: Die Laufzeit wird unten weiter erneuert, und der
+        // Stapelstand bleibt an der Grenze. Der Effekt fügt nur hinzu, was
+        // vorher niemand bekam.
+        this.bookProgress(dicke, index, timeMs);
+        this.reportHit(dicke, HIT_DIRECT, false, timeMs);
+        this.log?.push(this.fightElapsedMs(timeMs), EVENT_DAMAGE, index, dicke);
+      }
       if (this.shieldStacksValue < grenze) {
         this.shieldStacksValue++;
         this.shieldValue += dicke;
