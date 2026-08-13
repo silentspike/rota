@@ -12,9 +12,16 @@
  * > vorkommt, muss man KÖNNEN — beim zweiten Mal ist sie kein Ereignis mehr,
  * > sondern eine Anforderung.
  *
- * `runaway` bleibt draußen: Sein einziger Träger (`boss-2-3`) kehrt das Ziel
- * des Kampfes um, und ein zweiter Träger wäre dort eine Design-Entscheidung
- * statt einer Variation.
+ * # Warum `runaway` als einziger draußen bleibt
+ *
+ * Sein einziger Träger (`boss-2-3`) kehrt das **Ziel des Kampfes** um: Der Ring
+ * sinkt von selbst, und die Frist zu überstehen IST der Sieg. Ein zweiter
+ * Träger wäre deshalb keine Variation derselben Mechanik, sondern eine zweite
+ * Entscheidung darüber, **wie oft das Spiel sein Gewinnkriterium umdreht** —
+ * etwas anderes als ein zweiter Energie- oder Stapel-Boss.
+ *
+ * Damit bleiben genau vier für vier Bosse, ohne dass eine Mechanik doppelt
+ * vorkommt oder eine Stelle leer bleibt.
  *
  * # Was dieser Fall zusätzlich zu `instanz-3.test.ts` prüft
  *
