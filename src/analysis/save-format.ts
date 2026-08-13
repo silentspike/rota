@@ -87,6 +87,46 @@ export interface BestRun {
   readonly gameVersion: string;
   /** Zeitpunkt in ms seit 1970, damit der Verlauf eine Reihenfolge hat. */
   readonly achievedAt: number;
+
+  // ---------------------------------------------------------------------
+  // Der VERGLEICHS-Zustand (Issue #82). Sieben Zahlen, die `compareRuns`
+  // gegen den aktuellen Lauf hält.
+  //
+  // ZUSÄTZLICH und nicht anstelle von `metric`/`value`: Die beiden
+  // beantworten eine andere Frage. `metric` entscheidet, WONACH der
+  // Bestlauf gewählt wird — bei einem `runaway`-Boss ist die Frist immer
+  // voll ausgeschöpft, dort trennt die Reserve keine zwei Siege (#256) —,
+  // und `value` definiert „besser" (`attempt.value > previous`). Gemessen:
+  // `value` ist `remainingMs` oder `heldPercent`, und **keines von beiden**
+  // steht in dieser Liste. Sie zu ersetzen nähme dem Bestlauf sein
+  // Kriterium.
+  //
+  // WARUM GENAU DIESE SIEBEN und nicht die ganze `RunSummary`: Sie hat 29
+  // Felder, `compareRuns` liest sieben. Die übrigen 22 mitzuschleppen wäre
+  // der Faktor, den die Messung ausgeschlossen hat — darunter die einzigen
+  // Sammlungen (`idlePerSpell`, `eventCounts`). Alle sieben hier sind
+  // Skalare; ein Eintrag wächst um 7 Felder, nicht um ein Vielfaches.
+  //
+  // OPTIONAL, weil alte Spielstände sie nicht haben. `migrateBestRun`
+  // füllt sie nicht auf — ein Bestlauf ohne Vergleichsdaten ist kein
+  // Fehler, sondern ein Eintrag von vorher. Erfundene Nullen wären
+  // schlimmer: Der Spieler sähe „0 Schaden" als Bestwert.
+  // ---------------------------------------------------------------------
+
+  /** Ob der Lauf gewonnen wurde — zwei Kennzahlen gelten nur dann. */
+  readonly victory?: boolean;
+  /** Kampfdauer in ms. */
+  readonly elapsedMs?: number;
+  /** Ausgeteilter Schaden. */
+  readonly damage?: number;
+  /** Fortschritt in Prozent. */
+  readonly progressPercent?: number;
+  /** Zahl der Wirkungen. */
+  readonly casts?: number;
+  /** Verlorene Zeit, obwohl etwas bereit war. */
+  readonly lostTimeWithReadyMs?: number;
+  /** Verlorene Zeit, weil nichts bereit war. */
+  readonly lostTimeNothingReadyMs?: number;
 }
 
 /**
@@ -216,6 +256,35 @@ export interface SaveData {
   readonly bestRuns: readonly BestRun[];
   readonly defeatedBosses: readonly string[];
   /**
+   * Die freigeschalteten Archiv-Eintraege (GAME-DESIGN 17.4, Issue #85).
+   *
+   * **Kennungen und keine Texte.** Der Text steht in den Daten; hier steht
+   * nur, was der Spieler schon gesehen hat. Ihn mitzuspeichern hiesse, ihn
+   * beim naechsten Fassungswechsel zweimal zu haben — einmal alt im Stand,
+   * einmal neu in den Daten.
+   *
+   * **Was der Spieler GESEHEN hat, nicht wie oft er gewonnen hat**: Ein
+   * Eintrag erscheint einmal automatisch und danach nie wieder von selbst
+   * (17.4). Die Bedingung dafuer ist "noch nicht freigeschaltet" und nicht
+   * "erster Sieg" — das haelt auch, wenn ein Sieg nicht gezaehlt wurde.
+   */
+  readonly unlockedEntryIds: readonly string[];
+  /**
+   * Die Mechaniken, deren Einfuehrung der Spieler schon gesehen hat
+   * (GAME-DESIGN 17.3, Issue #811).
+   *
+   * **Genau wie `unlockedEntryIds` daneben, und aus demselben Grund**: Was
+   * hier steht, ist Historie und nichts Berechnetes (18.6). Der TEXT der
+   * Einfuehrung steht in den Daten; hier steht nur, was der Spieler schon
+   * gelesen hat.
+   *
+   * **Ueberspringen zaehlt als gesehen.** Wer den Knopf drueckt, will sie
+   * nicht wiedersehen — das ist sein Sinn. Stuende hier nur das Weiterlesen,
+   * erschiene sie beim naechsten Mal erneut, und der Knopf waere eine
+   * Vertroestung.
+   */
+  readonly seenMechanicIds: readonly string[];
+  /**
    * Alle Durchlaeufe (GAME-DESIGN 15.4).
    *
    * Bewusst aufgenommen, nicht nebenbei: Der Auftraggeber hat am 2026-08-04
@@ -243,6 +312,8 @@ export const ALLOWED_TOP_LEVEL: readonly string[] = [
   'bindings',
   'bestRuns',
   'defeatedBosses',
+  'unlockedEntryIds',
+  'seenMechanicIds',
   'runHistory',
   'progressMarks',
 ];
@@ -305,6 +376,20 @@ export const NAMED_EXCEPTIONS: readonly {
       'kommende Kämpfe zurück. Bedingung ist der Fassungsvermerk am selben ' +
       'Eintrag — ohne ihn sieht der Spieler beim Fassungswechsel einen Sprung ' +
       'und schreibt ihn sich selbst zu.',
+  },
+  {
+    parent: /^bestRuns\.\d+$/,
+    field: 'damage',
+    why:
+      'Der Bestlauf trägt seit #82 die sieben Zahlen, die der Vergleich liest ' +
+      '— eine davon heisst `damage`. Es ist dieselbe Unterscheidung wie beim ' +
+      'Verlauf eine Zeile höher: ein VERGANGENES Ergebnis, das nicht auf ' +
+      'kommende Kämpfe zurückwirkt. Der Fassungsvermerk steht am selben ' +
+      'Eintrag (`gameVersion`), und `usableBest` verwirft einen Eintrag ' +
+      'ohnehin, sobald sein Mass nicht mehr passt. GEMESSEN: von den sieben ' +
+      'trifft genau dieses eine Feld ein Verbotsmuster; die übrigen sechs ' +
+      '(victory, elapsedMs, progressPercent, casts, lostTimeWithReadyMs, ' +
+      'lostTimeNothingReadyMs) brauchen keine Ausnahme.',
   },
 ];
 

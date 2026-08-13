@@ -120,10 +120,18 @@ export const LIST_GUARDS: Readonly<Record<string, (entry: unknown) => boolean>> 
   progressMarks: isProgressMarkEntry,
   bestRuns: isBestRunWellFormed,
   items: isOwnedItem,
-  // Die drei einfachen: eine Liste von Kennungen. Ein leerer String wäre ein
+  // Die einfachen: eine Liste von Kennungen. Ein leerer String wäre ein
   // Zauber ohne Namen — im besten Fall unsichtbar, im schlechteren ein
   // Nachschlagen ins Leere.
   defeatedBosses: istKennung,
+  // Issue #85: dieselbe Prüfung, derselbe Grund. Eine leere Kennung im
+  // Archiv-Stand hiesse „ein Eintrag ohne Namen ist gesehen" — er liesse sich
+  // nie zuordnen und blockierte auch nichts, stünde aber für immer im Stand.
+  unlockedEntryIds: istKennung,
+  // Issue #811: dieselbe Prüfung, derselbe Grund. Eine leere Kennung hiesse
+  // „eine Mechanik ohne Namen ist gesehen" — sie unterdrückte keine Einführung
+  // und stünde trotzdem für immer im Stand.
+  seenMechanicIds: istKennung,
 };
 
 /**

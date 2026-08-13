@@ -24,7 +24,6 @@
  */
 import type { CombatLog } from '../core/log.js';
 import { EVENT_CRIT, EVENT_DAMAGE, EVENT_DOT_TICK } from '../core/log.js';
-import type { RunSummary } from '../core/summary.js';
 
 /** Ein abgetasteter Verlauf. */
 export interface RunCurve {
@@ -73,6 +72,31 @@ export function sampleDamageCurve(log: CombatLog, durationMs: number, stepMs = 1
 /** In welche Richtung „besser" zeigt. */
 export type Direction = 'higher' | 'lower';
 
+/**
+ * Was ein Lauf mitbringen muss, um verglichen zu werden (Issue #82).
+ *
+ * # Warum nicht einfach `RunSummary`
+ *
+ * Die hat 29 Felder, der Vergleich liest sieben. Verlangte `compareRuns` die
+ * ganze Zusammenfassung, müsste der Spielstand sie speichern — 22 Felder, die
+ * niemand liest, darunter die einzigen Sammlungen (`idlePerSpell`,
+ * `eventCounts`). Ein `BestRun` trägt deshalb genau diese sieben.
+ *
+ * **`RunSummary` erfüllt diesen Typ von selbst.** TypeScript vergleicht
+ * strukturell: Jede vorhandene Übergabe einer Zusammenfassung bleibt gültig,
+ * ohne eine einzige Zeile beim Aufrufer. Der Typ verengt, was verlangt wird —
+ * er verlangt nichts Neues.
+ */
+export interface ComparableRun {
+  readonly victory: boolean;
+  readonly elapsedMs: number;
+  readonly damage: number;
+  readonly progressPercent: number;
+  readonly casts: number;
+  readonly lostTimeWithReadyMs: number;
+  readonly lostTimeNothingReadyMs: number;
+}
+
 export interface ComparedMetric {
   readonly key: string;
   /** Beschriftung im Spiel — englisch (Design-Gesetz 5). */
@@ -97,7 +121,7 @@ const METRICS: readonly {
   key: string;
   label: string;
   better: Direction;
-  of: (run: RunSummary) => number;
+  of: (run: ComparableRun) => number;
   /**
    * Ob die Kennzahl nur zwischen zwei SIEGEN etwas aussagt.
    *
@@ -123,7 +147,7 @@ const METRICS: readonly {
  * `best` darf `null` sein — beim allerersten Durchlauf gibt es keinen
  * Bestlauf, und der Vergleich sagt das, statt gegen Nullen zu rechnen.
  */
-export function compareRuns(current: RunSummary, best: RunSummary | null): ComparedMetric[] {
+export function compareRuns(current: ComparableRun, best: ComparableRun | null): ComparedMetric[] {
   return METRICS.map((metric): ComparedMetric => {
     const currentValue = metric.of(current);
     if (best === null) {

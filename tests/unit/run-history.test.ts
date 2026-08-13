@@ -51,6 +51,8 @@ function stand(over: Partial<SaveData> = {}): SaveData {
     bindings: { '0': 'kindle' },
     bestRuns: [],
     defeatedBosses: [],
+    unlockedEntryIds: [],
+    seenMechanicIds: [],
     runHistory: [eintrag()],
     progressMarks: [],
     ...over,
@@ -77,17 +79,22 @@ describe('Die benannte Waechter-Ausnahme', () => {
           items: [{ itemId: 'x', upgradeSteps: 1, equippedSlot: null, damage: 40 } as never],
         }),
       ],
+      // **Nicht mehr „an einer Bestzeit".** Seit #82 trägt ein `BestRun` die
+      // sieben Vergleichszahlen, darunter `damage`, und dafür gibt es eine
+      // benannte Ausnahme auf `^bestRuns\.\d+$`. Der Nachweis bleibt aber
+      // derselbe: Sie gilt für DIESE Ebene und keine tiefere.
       [
-        'an einer Bestzeit',
+        'eine Ebene TIEFER in einer Bestzeit',
         stand({
           bestRuns: [
             {
               bossId: 'a',
               difficulty: 1,
-              timeMs: 1,
+              metric: 'reserve',
+              value: 1,
               gameVersion: '0.1.0',
               achievedAt: 1,
-              damage: 40,
+              detail: { damage: 40 },
             } as never,
           ],
         }),
