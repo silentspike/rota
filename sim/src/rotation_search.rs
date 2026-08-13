@@ -41,7 +41,7 @@
 
 use crate::apl::{Apl, Compare, Condition, Rule, Term, Value};
 use crate::balance::BalanceConfig;
-use crate::data::{BuffTarget, Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
+use crate::data::{BuffTarget, ControlEffect, Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
 use crate::time::GCD_MS;
 
 /// Ein Kandidat für eine Zeile der Prioritätenliste.
@@ -81,6 +81,22 @@ pub enum Origin {
     /// Befundes "drei von fuenf Schulen kommen in keiner besten Rotation vor"
     /// konnte ein Werkzeug-Befund sein statt ein Balance-Befund.
     BuffWindow,
+    /// Aus dem Fenster eines laufenden Boss-Zaubers (Issue #797).
+    ///
+    /// # Warum diese Art gefehlt hat
+    ///
+    /// Dieselbe Geschichte wie bei [`Origin::BuffWindow`], eine Ebene tiefer:
+    /// Bis #797 kannte die Sprache keinen laufenden Boss-Zauber, also konnte
+    /// die Suche keine Zeile bilden, die auf einen antwortet. Reaktionsspiel
+    /// war für sie nicht darstellbar — nicht schwach bewertet, sondern
+    /// unsichtbar.
+    ///
+    /// Gemessen hing #472 daran: An einem Boss mit einem Schlag, den man
+    /// abwenden MUSS, wählte der Balance-Läufer bei keinem Gewicht einen
+    /// FIXATION-Zauber. Der Befund „die Schulen liegen 67 % auseinander" war
+    /// damit zum Teil ein Werkzeug-Befund, kein Balance-Befund — genau der
+    /// Vorbehalt, unter dem schon #550 stand.
+    BossCastWindow,
 }
 
 impl Origin {
@@ -92,6 +108,7 @@ impl Origin {
             Self::DotRefresh => "Brand nachlegen",
             Self::SpenderThreshold => "Entlade-Schwelle",
             Self::BuffWindow => "Verstaerkungs-Fenster",
+            Self::BossCastWindow => "Boss wirkt",
         }
     }
 }
@@ -222,6 +239,44 @@ pub fn candidates_for(index: usize) -> Vec<Candidate> {
                 Value::Literal(1),
             ),
             origin: Origin::BuffWindow,
+        });
+    }
+
+    // **Zeilen, die auf einen laufenden Boss-Zauber antworten** (Issue #797).
+    //
+    // Ohne sie kann die Suche den neuen Wert lesen, aber nie wählen: Ein Wert,
+    // für den keine Kandidatenzeile existiert, taucht in keiner Rotation auf,
+    // ganz gleich wie nützlich er wäre. Genau daran hing #472 — der
+    // Balance-Läufer wählte bei keinem Gewicht einen FIXATION-Zauber, weil die
+    // Bedingung fehlte, unter der sie sich lohnen.
+    //
+    // **Nur für Zauber, die an einem Cast überhaupt etwas ausrichten.** Ein
+    // `kindle if boss.casting` wäre eine gültige Zeile und schlicht sinnlos:
+    // Sie verengt den Füller auf ein Fenster, ohne dort etwas zu gewinnen. Drei
+    // Sorten können es:
+    //
+    //   - der Unterbrecher (`interrupt`) beendet den Zauber
+    //   - `MakeInterruptible` (PIN) macht einen Schlag überhaupt erst angreifbar
+    //   - `SlowCast` (STALL) schiebt den Einschlag nach hinten
+    //
+    // `DelayStrike`, `HoldPhase` und `ConvertToDamage` stehen NICHT hier: Sie
+    // wirken auf die Zeitleiste oder den Vorrat, nicht auf einen laufenden
+    // Zauber. Eine Zeile `if boss.casting` würde sie auf ein Fenster
+    // einschränken, das für sie nichts bedeutet.
+    let antwortet_auf_cast = spell.interrupt
+        || spell.control.is_some_and(|c| {
+            matches!(
+                c.effect,
+                ControlEffect::MakeInterruptible
+                    | ControlEffect::SlowCast
+                    | ControlEffect::AllThree
+            )
+        });
+    if antwortet_auf_cast {
+        out.push(Candidate {
+            spell: index,
+            condition: single(Value::BossCasting, Compare::GreaterEqual, Value::Literal(1)),
+            origin: Origin::BossCastWindow,
         });
     }
 
@@ -378,8 +433,51 @@ pub struct SearchResult {
 /// Messungen statt 112. Gegen 15! = 1.307.674.368.000 ist beides nichts.
 #[must_use]
 pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchResult {
-    let mut chosen: Vec<Candidate> = Vec::new();
-    let mut offen: Vec<usize> = (0..pool.len()).collect();
+    greedy_from(config, pool, max_len, &[])
+}
+
+/// Dieselbe Suche, aber von einer **vorgegebenen Liste** aus (Issue #558).
+///
+/// # Der Mangel, den das behebt
+///
+/// Gemessen mit `--max-len 12` ueber fuenf Bosse (#509): Die fuer
+/// `test-metronome` gefundene Liste ist an VIER anderen Bossen besser als
+/// deren jeweils eigene gefundene — um 20,9, 30,7, 22,1 und 37,3 %.
+///
+/// Das ist kein Zufall, sondern die Bauart. [`greedy`] bricht ab, sobald keine
+/// EINZELNE weitere Zeile mehr messbar verbessert (`Stop::NoImprovement`) —
+/// bei Laenge 12 geschieht das schon nach acht Zeilen. Je groesser der Raum,
+/// desto frueher legt sich das Verfahren fest, und desto weiter kann der Punkt
+/// vom Optimum entfernt liegen. **Bei Laenge 6 tritt der Fall gar nicht auf**,
+/// weil die Laengengrenze vorher greift; der Mangel war dort unsichtbar.
+///
+/// # Warum ein Startpunkt und nicht ein besseres Verfahren
+///
+/// Ein Verfahren, das Paare findet, waere die gruendlichere Antwort und steht
+/// als AC2 in #558 offen. Der Startpunkt ist die billige, die den belegten
+/// Fall unmittelbar trifft: Was an einem Boss gut war, ist an einem anderen
+/// oft ein besserer Ausgangspunkt als die leere Liste — und von dort sucht
+/// dasselbe Verfahren weiter, statt die fremde Liste nur zu uebernehmen.
+///
+/// # Was er NICHT kann
+///
+/// Er findet nichts, was an keinem Boss gefunden wurde. Ein Paar, dessen
+/// beide Haelften einzeln verlieren, bleibt unsichtbar — das ist der
+/// eigentliche Gegenstand von #558 und durch diesen Nachlauf nicht erledigt.
+#[must_use]
+pub fn greedy_from(
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    max_len: usize,
+    start: &[Candidate],
+) -> SearchResult {
+    let mut chosen: Vec<Candidate> = start.to_vec();
+    // **Was schon in der Startliste steht, steht nicht mehr zur Wahl.** Sonst
+    // koennte dieselbe Zeile zweimal in der Rotation landen — die zweite waere
+    // unerreichbar, und die Laengengrenze verbraucht.
+    let mut offen: Vec<usize> = (0..pool.len())
+        .filter(|&i| !chosen.contains(&pool[i]))
+        .collect();
     let mut measured = 0;
 
     // **Der Bezugspunkt für „verhindert" wird HIER bestimmt, einmal** (#814).
@@ -407,7 +505,10 @@ pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Sea
     }
     let config = &config;
 
-    let mut best = measure(config, "leer", &chosen);
+    // Heisst „start" und nicht mehr „leer": Seit #558 kann hier eine
+    // vorgegebene Liste stehen, und ein Name, der das Gegenteil behauptet,
+    // schickt den naechsten Leser auf die falsche Faehrte.
+    let mut best = measure(config, "start", &chosen);
     let stop = loop {
         if chosen.len() >= max_len {
             break Stop::LengthLimit;

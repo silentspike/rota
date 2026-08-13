@@ -267,7 +267,67 @@ richtigen Zahlen der falsche Schluss gewesen.
 
 Bei Länge 6 tritt der Fall nicht auf; dort gibt es keine negative Paarung.
 
+#### Nachgetragen am 2026-08-13: die 19,2 % waren zu 100 % Suchschwäche
+
+Der Nachlauf aus #558 nimmt jede an einem anderen Boss gefundene Liste als
+Startpunkt und sucht von dort weiter — bis sich nichts mehr ändert.
+
+```text
+  Runde 1  first-crucible    9742 -> 11801 (+21,1 %) über test-onslaught
+  Runde 1  test-onslaught    9014 -> 11781 (+30,7 %) über test-metronome
+  Runde 1  test-gatekeeper  20058 -> 24494 (+22,1 %) über test-metronome
+  Runde 1  test-resistant   38337 -> 53817 (+40,4 %) über test-onslaught
+  Runde 2  first-crucible   11801 -> 12254  (+3,8 %) über test-resistant
+  Runde 2  test-onslaught   11781 -> 13054 (+10,8 %) über test-resistant
+  Runde 2  test-metronome   61115 -> 62507  (+2,3 %) über test-resistant
+  Runde 3: keine Verbesserung mehr — Fixpunkt erreicht.
+```
+
+| bei Länge 12      | vorher | nach dem Nachlauf |
+| ----------------- | ------ | ----------------- |
+| ACHTUNG-Paarungen | 4      | **0**             |
+| mittlerer Verlust | 19,2 % | **0,0 %**         |
+| größter Verlust   | 66,3 % | 9,8 %             |
+
+**Von den 19,2 % bleibt nichts übrig.** Was nach Rotations-Tiefe aussah, war
+vollständig der Abstand der Suche zum Optimum. Der Befund „es kostet fast
+nichts, überall dieselbe Liste zu spielen" gilt damit auch bei Länge 12 — er
+war dort vorher nur verdeckt.
+
+**Eine Runde reichte nicht**, und das gehört zum Befund: Der erste Entwurf
+lief einmal durch, hob vier Bosse um 21–40 % — und die ACHTUNG-Zeile meldete
+danach wieder vier Paarungen, nur andere. `test-resistant` war in derselben
+Runde auf 53817 gehoben worden, und diese neue Liste stand keinem anderen
+Boss mehr als Startpunkt zur Verfügung. Eine Verbesserung ist selbst ein
+neuer Startpunkt.
+
+**Der Wächter kann weiterhin anschlagen.** Das ist keine Behauptung, sondern
+ein Schalter:
+
+    --kein-nachlauf   ACHTUNG in 4 Paarungen, mittlerer Verlust 19,2 %
+    ohne den Schalter keine ACHTUNG-Zeile, mittlerer Verlust 0,0 %
+
+Die Schweige-Regel selbst ist unverändert (Schwelle weiter bei −0,5 %). Sie
+wurde nicht entschärft, sondern ihr Anlass beseitigt.
+
+**Bei Länge 6 findet der Nachlauf nichts** — Fixpunkt in Runde 1, keine Zahl
+bewegt sich (61,6 / 1,7 % / 8 von 20 / 48 tote Zauber). Der Mangel existierte
+dort wirklich nicht, und die AC4-Zahl 48 steht unverändert. Das ist zugleich
+die Gegenprobe dazu, dass der Nachlauf nicht einfach Zahlen schönt: Wo nichts
+zu holen ist, holt er nichts.
+
+**Was der Nachlauf nicht kann:** Er findet nichts, was an keinem Boss
+gefunden wurde. Ein Paar, dessen beide Hälften einzeln verlieren, bleibt
+unsichtbar — das ist die Paar-Blindheit aus #558 und hier **nicht** erledigt.
+
 ## Was NICHT gemessen ist
+
+**Alle Zahlen dieses Nachtrags stammen von PRÜF-Bossen.** Sieben von acht
+können den Spieler nicht töten; an ihnen entsteht keine Rotations-Entscheidung
+(siehe „Todesgefahr ändert die Rotation" oben). Das ist eine Eigenschaft der
+Prüfwerkzeuge, nicht des Spiels — der Kreuzvergleich sagt deshalb nichts
+darüber, wie tief die Rotation an einem echten Boss wäre, der ernsthaft
+bedroht.
 
 **Der Widerstands-Fall ist ungeprüft, nicht widerlegt.** Ein Widerstand
 könnte die Auswahl ändern, sobald ein Spieler Zauber aus mehreren Schulen
