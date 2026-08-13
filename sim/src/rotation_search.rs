@@ -381,6 +381,32 @@ pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Sea
     let mut chosen: Vec<Candidate> = Vec::new();
     let mut offen: Vec<usize> = (0..pool.len()).collect();
     let mut measured = 0;
+
+    // **Der Bezugspunkt für „verhindert" wird HIER bestimmt, einmal** (#814).
+    //
+    // Der geerbte Wert war `damage_taken_baseline: 0.0` aus dem Default, und
+    // damit rechnete die Formel `(0.0 - erlitten).max(0.0)` in jedem Fall zu
+    // null: eine Größe, die aussieht, als würde sie zählen, und es nie tut.
+    //
+    // **Die leere Rotation ist der natürliche Bezugspunkt.** Sie erleidet
+    // alles, was der Boss austeilt, weil ihm niemand in den Arm fällt. Was
+    // eine Rotation davon abwendet, ist genau ihre Leistung im Verhindern —
+    // und die Zahl bedeutet dasselbe an jedem Boss, ohne dass jemand sie je
+    // von Hand setzen muss.
+    //
+    // **Einmal, nicht je Messung.** Der geerbte Kommentar hat recht: Ein
+    // Vergleichslauf pro Messung vervielfachte eine Suche, die schon 1778
+    // Messungen braucht. Ein einziger Lauf vorweg kostet einen von 1778.
+    let mut config = *config;
+    if config.prevented_weight > 0.0 {
+        let leer = Apl {
+            name: "bezugspunkt".to_owned(),
+            rules: Vec::new(),
+        };
+        config.damage_taken_baseline = crate::balance::run(&config, &leer).damage_taken.mean;
+    }
+    let config = &config;
+
     let mut best = measure(config, "leer", &chosen);
     let stop = loop {
         if chosen.len() >= max_len {
