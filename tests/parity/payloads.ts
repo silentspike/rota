@@ -1759,6 +1759,94 @@ export function castTimePayload(): Record<string, unknown> {
   };
 }
 
+export const CHANNEL_NAME = 'channel';
+
+/**
+ * Die Kanalisierung mit Abbruch mitten drin (Issue #323, AC6).
+ *
+ * # Warum der Abbruch der ganze Zweck ist
+ *
+ * Eine Kanalisierung, die durchläuft, gibt am Ende dieselbe Summe wie ein
+ * Cast — beide Bauarten sähen gleich aus. Erst der Abbruch trennt sie: Der
+ * Cast verliert alles, die Kanalisierung behält den erreichten Anteil.
+ *
+ * Die Spur `playerCasting` geht mit, wie bei `cast-time`. Eine abweichende
+ * Prüfsumme sagt nur, DASS etwas anders ist; die Spur sagt, wann die
+ * Kanalisierung lief und wann sie endete — bei einem Abbruch springt sie auf
+ * -1, und zwar auf beiden Seiten im selben Takt.
+ */
+export function channelPayload(): Record<string, unknown> {
+  const recording = recordings().get(CHANNEL_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CHANNEL_NAME}`);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('Der Boss test-caster fehlt.');
+  const bindings = [
+    { slot: 0, spellId: 'kindle' },
+    { slot: 1, spellId: 'test-channel' },
+  ];
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für die Spur — dieselbe Bauart wie in
+  // `castTimePayload`: dieselben Eingaben, also derselbe Kampf.
+  const casting: number[] = [];
+  // **Und der Endtermin daneben** — wie bei `cast-time`. Er sagt, wann die
+  // Kanalisierung enden SOLLTE; springt er früher auf -1, war es ein Abbruch.
+  // Ohne ihn liesse sich ein zu früh beendeter Kanal nicht von einem
+  // abgebrochenen unterscheiden.
+  const endsAt: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (pressIndex < recording.presses.length && recording.presses[pressIndex]?.tick === tick) {
+      const press = recording.presses[pressIndex];
+      pressIndex++;
+      if (press === undefined) continue;
+      const binding = bindings.find((b) => b.slot === press.slot);
+      if (binding === undefined) continue;
+      combat.cast(combat.indexOf(binding.spellId), timeMs);
+    }
+    casting.push(combat.playerCasting);
+    endsAt.push(combat.playerCasting >= 0 ? combat.playerCastEndsAtMs : -1);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId: 'test-caster',
+    bindings,
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      castsCancelled: result.castsCancelled,
+      // **Beide Abbruch-Arten getrennt** (GAME-DESIGN 7.1). Die Pruefsumme
+      // fuehrt sie nicht: Ein geraeumter Zustand sieht gleich aus, egal WER
+      // ihn geraeumt hat. Zwei Umsetzungen, die den Abbruch verschieden
+      // zuordnen, liefen in der Summe nie auseinander.
+      castsInterrupted: result.castsInterrupted,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+    playerCasting: casting,
+    playerCastEndsAt: endsAt,
+  };
+}
+
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**

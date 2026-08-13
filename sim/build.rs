@@ -75,6 +75,11 @@ const TEST_CAST_JSON: &str = "../data/spells/test-cast.json";
 /// Feld auf `test-cast`, weil der dort der WIRKZEIT-Fall ist: Wer spaeter die
 /// Wirkzeit misst, haette sonst still eine Verstaerkung dabei.
 const TEST_BUFF_JSON: &str = "../data/spells/test-buff.json";
+/// Der Pruef-Zauber zur Kanalisierung (Issue #323). Eigene Datei aus zwei
+/// Gruenden: Der Parser lehnt Wirkzeit UND Kanalisierung am selben Zauber ab,
+/// und `test-cast` steht in sechs Aufzeichnungen — ein zweiter Pruefzweck
+/// darauf machte jede davon mehrdeutig.
+const TEST_CHANNEL_JSON: &str = "../data/spells/test-channel.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -102,6 +107,7 @@ fn main() {
     println!("cargo:rerun-if-changed={SPELLS_JSON}");
     println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
     println!("cargo:rerun-if-changed={TEST_BUFF_JSON}");
+    println!("cargo:rerun-if-changed={TEST_CHANNEL_JSON}");
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
     println!("cargo:rerun-if-changed={SUBLIMATION_JSON}");
@@ -123,6 +129,7 @@ fn main() {
     let putrefaction = read_json(PUTREFACTION_JSON);
     let test_cast = read_json(TEST_CAST_JSON);
     let test_buff = read_json(TEST_BUFF_JSON);
+    let test_channel = read_json(TEST_CHANNEL_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -150,6 +157,11 @@ fn main() {
             // Aufzeichnungen, und die Reihenfolge dieser Liste ist die
             // Zauberreihenfolge (Issue #408, GAME-DESIGN 18.7).
             ("test-buff.json", &test_buff),
+            // **Dahinter**, aus demselben Grund wie test-buff hinter test-cast:
+            // Die Reihenfolge dieser Liste IST die Zauberreihenfolge (#408,
+            // GAME-DESIGN 18.7), und bestehende Indizes duerfen sich nicht
+            // verschieben.
+            ("test-channel.json", &test_channel),
         ],
     );
 
@@ -449,6 +461,19 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         out,
         "        cast_time_ms: {},",
         uint(spell, "castTimeMs", &whose)
+    );
+    // Die Kanalisierung (Issue #323). Beides zugleich schliesst der
+    // TS-Parser aus; hier steht nur die Uebertragung, damit die Felder
+    // ueberhaupt auf beiden Seiten stehen.
+    let _ = writeln!(
+        out,
+        "        channel_ms: {},",
+        opt_uint(spell, "channelMs", &whose, 0)
+    );
+    let _ = writeln!(
+        out,
+        "        channel_tick_ms: {},",
+        opt_uint(spell, "channelTickMs", &whose, 0)
     );
     let _ = writeln!(
         out,
