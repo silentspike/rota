@@ -27,6 +27,7 @@ import {
 } from '../progression/bindings.js';
 import { buildComposition } from '../progression/composition-view.js';
 import { buildGearView } from '../progression/gear-view.js';
+import { buildTalentView } from '../progression/talent-view.js';
 import { SLOT_COUNT } from '../input/keys.js';
 import { GameLoop } from './loop.js';
 import { Session } from './session.js';
@@ -56,11 +57,14 @@ import '../progression/stats.css';
 import '../progression/levels.css';
 import '../progression/composition.css';
 import '../progression/gear.css';
+import '../progression/talents.css';
 import '../progression/boss-select.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
 import { rotationEffectsFrom, wornFrom } from '../gear/catalog.js';
+import { allocationProblem } from '../progression/talents.js';
+import { talentPointsAtLevel } from '../progression/unlocks.js';
 import { equip, equippedBySlot, unequip } from '../gear/equip.js';
 import type { OwnedItem } from '../analysis/save-format.js';
 
@@ -351,6 +355,19 @@ export class App {
       id: 'gear',
       title: 'Equipment',
       content: this.buildGearSection(),
+    });
+    // **Die Talente nach der Ausruestung, vor den Werten** (Issue #802): Sie
+    // sind wie Leiste und Ausruestung etwas, das der Spieler HIER aendert, und
+    // die Werte darunter folgen aus allen dreien.
+    //
+    // Bis zu diesem Abschnitt hatte `App.setTalents` genau einen Aufrufer
+    // ausserhalb der Pruefstuecke — in den Entwicklungswerkzeugen. Sechs
+    // Baeume und achtzehn Wege waren gebaut und fuer jeden Spieler
+    // unerreichbar.
+    this.home.addSection({
+      id: 'talents',
+      title: 'Talents',
+      content: this.buildTalentSection(),
     });
     this.home.addSection({
       id: 'stats',
@@ -727,6 +744,45 @@ export class App {
     this.refreshHome();
   }
 
+  /**
+   * Einen Talent-Rang setzen — der Weg, den die Ansicht nimmt (Issue #802).
+   *
+   * **Die Regel steht nicht hier**, sondern in `allocationProblem`. Diese
+   * Methode fragt sie und führt aus; eine zweite Fassung der Regel in der
+   * Oberfläche wäre die Stelle, an der beide auseinanderlaufen.
+   *
+   * Gibt `false` zurück, wenn die Verteilung abgelehnt wurde — dann bleibt der
+   * Stand, wie er war, und die Ansicht zeigt weiter die alte Zahl.
+   */
+  private applyTalentRank(talentId: string, ranks: number): boolean {
+    const neu = { ...this.persistence.state.talentPoints, [talentId]: ranks };
+    // Ein Talent mit null Rängen steht nicht im Spielstand — sonst wüchse er
+    // mit jedem Zurücknehmen um einen Eintrag, der nichts aussagt.
+    if (ranks <= 0) delete neu[talentId];
+    if (allocationProblem(neu, talentPointsAtLevel(this.persistence.state.level)) !== null) {
+      return false;
+    }
+    this.setTalents(neu);
+    return true;
+  }
+
+  private buildTalentSection(): HTMLElement {
+    return buildTalentView({
+      allocation: this.persistence.state.talentPoints,
+      punkte: talentPointsAtLevel(this.persistence.state.level),
+      // **Im Kampf wird nicht verteilt** (#425): `Combat.setTalents` sperrt
+      // sich, sobald der Kampf begonnen hat. Ein Knopf, der dann noch
+      // anbietet, verspräche etwas, das nicht ankommt.
+      //
+      // **Gefragt wird die SITZUNG, nicht der Kampf.** `combat.fightState`
+      // steht schon vor dem ersten Takt auf `FIGHT_RUNNING` (der Kommentar an
+      // dem Feld sagt es ausdrücklich) — eine Sperre darauf griffe immer, und
+      // die Ansicht wäre tot, bevor sie einmal benutzt wurde.
+      gesperrt: this.session.phase === PHASE_FIGHTING || this.session.phase === PHASE_COUNTDOWN,
+      onChange: (talentId, ranks) => this.applyTalentRank(talentId, ranks),
+    });
+  }
+
   setPlayerLevel(level: number): void {
     this.persistence.persistLevel(level);
     // Der Kampf rechnet ab jetzt mit der neuen Stufe (Issue #289).
@@ -797,6 +853,15 @@ export class App {
     // Stück verloren haben. Ohne diese Zeile zeigte die Liste weiter die alte
     // Wahl, und die Werte darüber die neue.
     this.home.replaceSection('gear', this.buildGearSection());
+    // **Die Talente gehören dazu** (Issue #802), und zwar aus zwei Gründen:
+    // Nach einem Stufenaufstieg stehen mehr Punkte zur Verfügung, und nach
+    // jedem gesetzten Punkt ändert sich, was noch anwählbar ist.
+    //
+    // Ohne diese Zeile war die Ansicht beim Aufbau eingefroren: Auf Stufe 1
+    // gibt es null Punkte, also waren alle Knöpfe gesperrt — und sie blieben
+    // es, auch nachdem der Spieler Stufe 2 erreicht hatte. Gefunden hat es
+    // `talent-oberflaeche-anschluss.test.ts`, nicht das Lesen.
+    this.home.replaceSection('talents', this.buildTalentSection());
   }
 
   ready(): boolean {
