@@ -45,7 +45,10 @@ describe('Die Zusicherung vor der Messung', () => {
     for (const weg of wege) {
       expect(weg?.damagePerRankPerMille, `${weg?.id} trägt weiter den Schadensfaktor`).toBe(0);
     }
-    expect(wege[0]?.resourceGainPerRankPerMille, 'build hebt keinen Aufbau').toBeGreaterThan(0);
+    expect(
+      wege[0]?.buildDamagePerRankPerMille,
+      'build hebt den Schaden der Aufbau-Zauber nicht',
+    ).toBeGreaterThan(0);
     expect(wege[1]?.spenderDamagePerRankPerMille, 'release hebt keine Entlader').toBeGreaterThan(0);
     expect(wege[2]?.dotDurationPerRankPerMille, 'hold hebt keine Haltbarkeit').toBeGreaterThan(0);
   });
@@ -109,23 +112,49 @@ describe('release — der Entlader-Weg', () => {
 });
 
 describe('build — der Aufbau-Weg', () => {
-  it('KINDLE gibt mehr Hitze', () => {
-    const ohne = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
-    const mit = new Combat({
-      school: CALCINATION.value,
-      boss: FIRST_CRUCIBLE.value,
-      talents: { 'global-build': 5 },
-    });
-    for (const combat of [ohne, mit]) {
+  it('KINDLE schlägt härter zu — seit dem Umbau der Aufbau-SCHADEN', () => {
+    // **Der Weg hob bis #419 die Aufbau-MENGE** (Hitze, Kontrollpunkte,
+    // Stapel) und verlor damit gegen `release` in jeder Rotation: Mehr Hitze
+    // wirkt über den Entlader, der Zuschlag wirkt direkt auf ihn — der direkte
+    // Weg schlägt den indirekten.
+    //
+    // Jetzt hebt er den Schaden der Zauber, die ANSAMMELN. Gemessen tragen die
+    // 81 % des Schadens einer Rotation mit Entlader und 100 % einer ohne;
+    // `build` und `release` heben damit verschiedene Zauber statt derselben
+    // Summe.
+    const schaden = (talents?: Record<string, number>) => {
+      const combat = new Combat({
+        school: CALCINATION.value,
+        boss: FIRST_CRUCIBLE.value,
+        ...(talents === undefined ? {} : { talents }),
+      });
       combat.cast(alsSpellIndex(combat.indexOf('kindle')), 0);
-    }
-    expect(
-      ohne.resource,
-      'KINDLE gibt gar keine Hitze — der Vergleich misst nichts',
-    ).toBeGreaterThan(0);
-    expect(mit.resource, 'der Aufbau-Weg hebt den Ressourcen-Gewinn nicht').toBeGreaterThan(
-      ohne.resource,
+      return combat.damageDealt;
+    };
+    const ohne = schaden();
+    expect(ohne, 'KINDLE teilt keinen Schaden aus — der Vergleich misst nichts').toBeGreaterThan(0);
+    expect(schaden({ 'global-build': 5 }), 'der Aufbau-Weg hebt den Schaden nicht').toBeGreaterThan(
+      ohne,
     );
+  });
+
+  it('und PYRE nicht — er sammelt nichts an', () => {
+    // **Die Trennschärfe.** Ohne diesen Fall wäre ein Zuschlag auf ALLE Zauber
+    // genauso grün — und `build` und `release` hätten wieder dieselbe Wirkung.
+    const schadenVon = (zauber: string, talents?: Record<string, number>) => {
+      const combat = new Combat({
+        school: CALCINATION.value,
+        boss: FIRST_CRUCIBLE.value,
+        ...(talents === undefined ? {} : { talents }),
+      });
+      for (let i = 0; i < 8; i++) combat.cast(alsSpellIndex(combat.indexOf('kindle')), i * 1500);
+      const vorher = combat.damageDealt;
+      combat.cast(alsSpellIndex(combat.indexOf(zauber)), 12000);
+      return combat.damageDealt - vorher;
+    };
+    const ohne = schadenVon('pyre');
+    expect(ohne, 'PYRE teilt keinen Schaden aus — der Vergleich misst nichts').toBeGreaterThan(0);
+    expect(schadenVon('pyre', { 'global-build': 5 }), 'der Aufbau-Weg trifft auch PYRE').toBe(ohne);
   });
 
   it('die Zersetzung hebt er bei den heutigen Zauberdaten NICHT — gemessen', () => {

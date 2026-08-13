@@ -129,7 +129,7 @@
           "name": "Steeper Ascent",
           "path": "reduction",
           "maxRanks": 5,
-          "cooldownReductionPerRankPerMille": 100,
+          "convertPerRankPerMille": 120,
           "requires": "sublimation-trunk"
         },
         {
@@ -235,7 +235,7 @@
           "maxRanks": 5,
           "damagePerRankPerMille": 0,
           "requires": "putrefaction-trunk",
-          "decayStackPerRankPerMille": 100,
+          "decayCapPerRankPerMille": 400,
           "_comment": "WEG 1 VON DREI (#419): schneller aufbauen. Er wirkt an der SAMMELSTELLE addDecayStacks, nicht an den zwei Aufrufern — decay.stacks und dot.decayPerTick laufen beide durch sie, und ein dritter Weg waere sonst vergessen. Abgerundet: Aufrunden hiesse, dass jeder erste Rang einen Stapel schenkt. ALLE ZAHLEN VORLAEUFIG."
         },
         {
@@ -255,7 +255,7 @@
           "maxRanks": 5,
           "damagePerRankPerMille": 0,
           "requires": "putrefaction-trunk",
-          "decayDurationPerRankPerMille": 60,
+          "decayWardPerRankPerMille": 120,
           "_comment": "WEG 3 VON DREI (#419): laenger halten. Er verlaengert die Uhr JEDES neu gelegten Stapels; liegende bleiben, wie sie sind — sonst wirkte ein Talent rueckwirkend. ALLE ZAHLEN VORLAEUFIG."
         },
         {
@@ -291,9 +291,7 @@
           "maxRanks": 5,
           "damagePerRankPerMille": 0,
           "requires": "global-trunk",
-          "resourceGainPerRankPerMille": 60,
-          "decayStackPerRankPerMille": 60,
-          "controlGainPerRankPerMille": 60
+"buildDamagePerRankPerMille": 25
         },
         {
           "_comment": "WEG 2 VON DREI IM GLOBALEN BAUM (#419, zweite Runde): die ENTLADER.\n\nEin Entlader ist ein Zauber, der etwas Angesammeltes einloest — `spender` bei CALCINATION und FIXATION, `consumesDecayStacks` bei PUTREFACTION. Der Weg haengt damit an einer EIGENSCHAFT, nicht an einer Schule.\n\nDIE EINZIGE NEUE WIRKSTELLE IN DIESEM VORHABEN, und sie folgt der Bauart aus #417 statt einer vierten: ein Promille-Faktor, der im TALENT-TOPF landet (13.1b, innerhalb additiv). `applySpenderBonus` setzt ihn je Wirkung neu, genau wie `applyDecayStackBonus` die Verwundbarkeit.\n\nGEMESSEN, BEVOR DAS FELD ENTSTAND — ein Weg auf eine Groesse, die niemand traegt, waere wertlos:\n\n  CALCINATION   pyre     1440 von 4520   31,9 %\n  PUTREFACTION  necrosis  880 von 2827   31,1 %\n  FIXATION      stall       0 von 1320    0,0 %\n\nFIXATIONs Ausgeber teilen keinen Schaden aus, sie verzoegern — dort greift der Weg nicht. Das ist der Preis dafuer, dass er an einer Eigenschaft haengt; er trifft dafuer JEDEN Entlader, auch kuenftige.\n\nZAHLEN VORLAEUFIG. 100 je Rang auf rund ein Drittel des Schadens ergibt bei vollem Ausbau etwa +16 % gesamt.",
