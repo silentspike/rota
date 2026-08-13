@@ -22,10 +22,11 @@
  *
  * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { App } from '../../src/core/app.js';
 import { attachHelp, buildIntroduction } from '../../src/analysis/archive-view.js';
 import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../../src/analysis/help-data.js';
-import { markSeen, nextIntroduction } from '../../src/analysis/help.js';
+import { helpFor, markSeen, nextIntroduction } from '../../src/analysis/help.js';
 import { buildStatOverview } from '../../src/progression/stat-overview-view.js';
 import { statOverview } from '../../src/progression/stat-overview.js';
 import { baseStats } from '../../src/progression/base-stats.js';
@@ -39,6 +40,30 @@ import { CALCINATION, bossById } from '../../src/core/data.js';
 import { NOTHING_WORN } from '../../src/gear/worn.js';
 
 const ERSTER = bossById('boss-1-1');
+
+function stubbeCanvas(): void {
+  const ctx: unknown = new Proxy(
+    {},
+    {
+      get: (_ziel, name) => (name === 'canvas' ? undefined : () => ctx),
+      set: () => true,
+    },
+  );
+  HTMLCanvasElement.prototype.getContext = ((): CanvasRenderingContext2D =>
+    ctx as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+}
+
+function baueApp(): App {
+  const parent = document.createElement('div');
+  document.body.appendChild(parent);
+  return new App(parent);
+}
+
+beforeEach(() => {
+  stubbeCanvas();
+  localStorage.clear();
+  document.body.innerHTML = '';
+});
 
 describe('AC3 — der Fachbegriff trägt seinen Klartext', () => {
   it('die Werte-Übersicht schreibt „ESSENCE (Strength of the substance)"', () => {
@@ -130,6 +155,88 @@ describe('AC2 — die Ansicht setzt das Merkmal, an dem das Fenster hängt', () 
     attachHelp(wurzel, ALL_HELP_ENTRIES);
     ziel.dispatchEvent(new MouseEvent('mouseenter'));
     expect(ziel.querySelector('.help-popover')).toBeNull();
+  });
+});
+
+describe('Der Anschluss selbst — nicht die Teile, sondern die Stelle, die sie verbindet', () => {
+  /**
+   * Ob ein Knoten wirklich einen Zuhörer hat, prüft nur der Zuhörer selbst.
+   *
+   * `dataset.helpAttached` wäre die bequeme Antwort und die falsche: Es ist
+   * eine Markierung, die `attachHelp` setzt — sie belegt, dass die Funktion
+   * lief, nicht dass ein Fenster erscheint. Hier wird das Ereignis ausgelöst
+   * und nachgesehen, was ankommt.
+   */
+  function zeigtFenster(ziel: HTMLElement): boolean {
+    ziel.dispatchEvent(new MouseEvent('mouseenter'));
+    const da = ziel.querySelector('.help-popover') !== null;
+    ziel.dispatchEvent(new MouseEvent('mouseleave'));
+    return da;
+  }
+
+  it('die App hängt die Fenster ans Player Home — beim Aufbau', () => {
+    // **Dieser Fall fehlte, und der Orchestrator hat es gemessen:**
+    // `attachHelpToHome` mit `return;` als erster Zeile liess alle 2556 Fälle
+    // grün. Die Methode ist der EINZIGE Anschluss der Erklärfenster; wird sie
+    // leer, hat kein Fenster mehr einen Zuhörer, und nichts merkt es.
+    //
+    // Die zehn Fälle darüber prüfen `attachHelp` an einem Baum, den sie selbst
+    // bauen — sie überspringen genau die Stelle, an der die App entscheidet,
+    // ob es überhaupt passiert. Dieselbe Klasse wie `comparisonForResult`
+    // (#82) und `setSetEffects` (#794), diesmal in meiner eigenen Arbeit.
+    const app = baueApp();
+    app.openHome();
+
+    const ziele = [...document.querySelectorAll<HTMLElement>('[data-help]')];
+    expect(ziele.length, 'kein einziges Ziel im Player Home').toBeGreaterThan(0);
+
+    const mitFenster = ziele.filter((z) => zeigtFenster(z));
+    expect(
+      mitFenster.length,
+      `${ziele.length} Ziele tragen data-help, aber keines öffnet ein Fenster — ` +
+        `der Anschluss in App.attachHelpToHome fehlt oder tut nichts`,
+    ).toBeGreaterThan(0);
+  });
+
+  // **Was dieser Fall NICHT leistet, gemessen statt vermutet:** Kappt man nur
+  // den Aufruf in `refreshHome` und lässt den beim Aufbau stehen, bleibt er
+  // GRÜN. `refreshHome` ersetzt nicht alle Bereiche — die Zusammenstellung
+  // etwa behält ihre Zuhörer, und „mindestens eines" ist dann erfüllt, während
+  // Werte und Boss-Wahl tot sind.
+  //
+  // Genau dafür steht der Fall darunter. Zwei Fälle, weil es zwei Wege gibt,
+  // und einer, der beide zugleich prüfte, prüfte in Wahrheit nur den
+  // bequemeren.
+
+  it('und nach jedem Auffrischen wieder — sonst sind sie nach dem ersten weg', () => {
+    // `refreshHome` ersetzt ganze Bereiche; der alte Teilbaum geht mitsamt
+    // seinen Zuhörern verloren. Ohne den zweiten Aufruf hätten die Werte nach
+    // dem ersten Aufstieg kein Fenster mehr und die Boss-Wahl nach dem ersten
+    // Wechsel keins — im Browser sichtbar, in einem Fall über `attachHelp`
+    // allein unsichtbar.
+    const app = baueApp();
+    app.openHome();
+    // Ein zweites Öffnen läuft durch `refreshHome` und tauscht die Bereiche.
+    app.openHome();
+
+    const ziel = document.querySelector<HTMLElement>('.stats-label[data-help]');
+    expect(ziel, 'kein Wert mit data-help nach dem Auffrischen').not.toBeNull();
+    expect(
+      zeigtFenster(ziel as HTMLElement),
+      'nach dem Auffrischen öffnet der Wert kein Fenster mehr',
+    ).toBe(true);
+  });
+
+  it('die Fenster tragen die Erklärung aus den Daten, nicht irgendeine', () => {
+    // Ohne diese Zeile bliebe offen, ob die App dieselbe Liste einhängt, die
+    // `help-data.ts` prüft — ein leeres Array wäre ebenso „angeschlossen".
+    const app = baueApp();
+    app.openHome();
+    const ziel = document.querySelector<HTMLElement>('.stats-label[data-help]') as HTMLElement;
+    ziel.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(ziel.querySelector('.help-effect')?.textContent).toBe(
+      helpFor(ALL_HELP_ENTRIES, ziel.dataset.help ?? '')?.effect,
+    );
   });
 });
 
