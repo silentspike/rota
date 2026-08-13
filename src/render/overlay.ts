@@ -23,7 +23,8 @@ import {
 import type { RunSummary } from '../core/summary.js';
 import type { LevelUpDisplay } from '../analysis/level-up-display.js';
 import type { LossReport } from '../analysis/loss-sources.js';
-import { buildLossView } from '../analysis/analysis-view.js';
+import { buildEfficiencyView, buildLossView } from '../analysis/analysis-view.js';
+import type { EfficiencyTable } from '../analysis/efficiency.js';
 // Ohne diesen Import erscheint die Rangliste ungestylt: Die Datei wurde bis
 // #280 nur vom Pruefblatt geladen (docs/analysis-check/), das sie selbst
 // einbindet.
@@ -92,6 +93,18 @@ export interface ResultView {
    * Genau diese zweite Rechenstelle hat #256 hier entfernt.
    */
   readonly analysis: LossReport | null;
+  /**
+   * Die Effizienz-Tabelle aus 15.2 (E7-1, Issue #81).
+   *
+   * `null` heißt „nicht gerechnet", nicht „alles null" — dieselbe
+   * Unterscheidung wie bei `analysis` darüber.
+   *
+   * **Sie wurde zwei Wochen lang gebaut und weggeworfen:** `analyzeRun`
+   * liefert sie zusammen mit den Verlustquellen, und `hud.ts` nahm bis heute
+   * nur `.losses`. Die Ansicht dazu (`buildEfficiencyView`) stand fertig
+   * daneben und hatte keinen einzigen Aufrufer.
+   */
+  readonly efficiency: EfficiencyTable | null;
   /**
    * Die Punkte für diesen Lauf, **fertig gerechnet** (Issue #276).
    *
@@ -660,7 +673,7 @@ export class Overlay {
         ? 'none available'
         : `${summary.synergyUsed} of ${summary.synergyAvailable}`,
     );
-    this.fillDetail(summary, view.analysis);
+    this.fillDetail(summary, view.analysis, view.efficiency);
   }
 
   /**
@@ -679,7 +692,11 @@ export class Overlay {
    * Ring über `undoProgress` zurück, statt Schaden zu buchen, und stehen hier
    * deshalb bei null.
    */
-  private fillDetail(summary: RunSummary, analysis: LossReport | null): void {
+  private fillDetail(
+    summary: RunSummary,
+    analysis: LossReport | null,
+    efficiency: EfficiencyTable | null,
+  ): void {
     this.detail.replaceChildren();
 
     // **Die Rangliste zuerst** (GAME-DESIGN 15.3, Issue #280). Sie ist die
@@ -692,6 +709,19 @@ export class Overlay {
     // ohne Adresse.
     if (analysis !== null) {
       this.detail.appendChild(buildLossView(analysis));
+      this.detail.appendChild(element('div', 'rota-divider'));
+    }
+
+    // **Die Effizienz-Tabelle aus 15.2** (E7-1, Issue #81) — hier, weil der
+    // Kommentar am Knopf sie seit jeher an diese Stelle verwiesen hat:
+    // „Die ausführliche Auswertung mit Effizienz-Tabelle und
+    // Bestlauf-Vergleich ist Epic E7."
+    //
+    // NACH der Rangliste und VOR der Rohliste: Die Rangliste sagt, WO die Zeit
+    // blieb; die Tabelle sagt, wie gut jeder einzelne Zauber genutzt wurde.
+    // Vom Groben zum Feinen — dieselbe Ordnung, die 15.1 bis 15.3 vorgeben.
+    if (efficiency !== null) {
+      this.detail.appendChild(buildEfficiencyView(efficiency));
       this.detail.appendChild(element('div', 'rota-divider'));
     }
     const umgekehrt = summary.reversed;

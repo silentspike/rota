@@ -18,6 +18,8 @@
  */
 import { heldOf, progressOf } from '../core/summary.js';
 import { analyzeRun, interruptDataFor, runDataFor } from '../analysis/run-analysis.js';
+import type { RunAnalysis } from '../analysis/run-analysis.js';
+import type { EfficiencyTable } from '../analysis/efficiency.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import type { Combat } from '../core/combat.js';
 import { GCD_MS } from '../core/gcd.js';
@@ -213,6 +215,7 @@ export class HudRenderer {
     remainingMs: number;
     heldPercent: number | null;
     analysis: LossReport | null;
+    efficiency: EfficiencyTable | null;
     damage: number;
     progressPercent: number;
     casts: number;
@@ -227,6 +230,7 @@ export class HudRenderer {
     remainingMs: 0,
     heldPercent: null,
     analysis: null,
+    efficiency: null,
     damage: 0,
     progressPercent: 0,
     casts: 0,
@@ -358,7 +362,7 @@ export class HudRenderer {
    * braucht die tatsächlich belegten Plätze, `interruptDataFor` die
    * Zeitleiste des Bosses.
    */
-  private analysisOf(combat: Combat, summary: RunSummary | null): LossReport | null {
+  private analysisOf(combat: Combat, summary: RunSummary | null): RunAnalysis | null {
     if (summary === null) return null;
     const belegte: number[] = [];
     for (let slot = 0; slot < SLOT_COUNT; slot++) {
@@ -376,7 +380,7 @@ export class HudRenderer {
       // Was der Boss zurückgedreht hat — aus dem Kampf, nicht aus der
       // Kurzfassung: Es ist keine Kennzahl des Spielers (Issue #218).
       bossHealed: combat.bossHealed,
-    }).losses;
+    });
   }
 
   /** Sichtbarkeit der HTML-Ebene nachziehen. Fasst nur bei Phasenwechsel an. */
@@ -417,10 +421,16 @@ export class HudRenderer {
     // Einmal beim Wechsel, nicht je Bild: Die Rechnung erzeugt Speicher und
     // darf das auch (GAME-DESIGN 18.2), aber nicht sechzig Mal in der
     // Sekunde. Dieselbe Regel wie bei der Kurzfassung.
-    view.analysis =
-      this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome
-        ? this.analysisOf(combat, view.summary)
-        : view.analysis;
+    // **Beide Teile aus EINEM Aufruf** (E7-1). `analyzeRun` liefert die
+    // Verlustquellen UND die Effizienz-Tabelle; bis heute nahm diese Stelle
+    // nur `.losses` und warf die Tabelle weg — gebaut, geprüft, nie gezeigt.
+    // Genau der Zustand, den der Kommentar bei `analysisOf` für die
+    // Verlustquellen beschreibt, eine Ebene weiter.
+    if (this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome) {
+      const gerechnet = this.analysisOf(combat, view.summary);
+      view.analysis = gerechnet?.losses ?? null;
+      view.efficiency = gerechnet?.table ?? null;
+    }
     // Die Marke wird beim selben Wechsel geholt wie die Kurzfassung -- nicht
     // je Bild. Sie aendert sich waehrend der Auswertung nicht.
     if (this.session.phase === PHASE_ENDED && this.session.outcome !== this.lastSummaryOutcome) {
