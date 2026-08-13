@@ -73,6 +73,10 @@ import {
   KEYSTONE_SHIELD_REFUND,
   NO_TALENTS,
   talentFactor,
+  talentBuildDamageFactor,
+  talentConvertFactor,
+  talentDecayCapBonus,
+  talentDecayWardFactor,
   talentSpenderDamageFactor,
   talentResourceFactor,
   talentDotDurationFactor,
@@ -139,7 +143,7 @@ export const CAST_STARTED = 5;
  *
  * Er ist am 2026-08-05 entfallen, weil der Auftraggeber die Regel umgedreht
  * hat: Die Wirkzeit sperrt **nichts**. Jede Wirkung bricht einen laufenden
- * Zauber ab, auch das Unterbrechen (GAME-DESIGN 7.1, „Was einen laufenden
+ * Zauber ab, auch das Unterbrechen (GAME-DESIGN 7.talentDecayWardFactor(this.talents), „Was einen laufenden
  * Zauber abbricht"). Ein Druck während der Wirkzeit ist damit kein
  * abgewiesener Druck mehr, sondern eine Entscheidung — und sie kostet den
  * laufenden Zauber.
@@ -179,7 +183,7 @@ export const NOT_ACTIVE = -1;
 // -- PUTREFACTION (Issue #97) --
 //
 // Die drei Größen der Zersetzungs-Stapel. **Alle drei sind vorläufig und
-// werden gemessen** (GAME-DESIGN 4.1, Teil F.6): Wie viel ein Stapel trägt,
+// werden gemessen** (GAME-DESIGN 4.talentDecayWardFactor(this.talents), Teil F.6): Wie viel ein Stapel trägt,
 // wie viele es höchstens gibt und wie lange sie halten, bestimmt der
 // Balance-Läufer — nicht diese Datei. Sie tragen bis dahin die Prüffälle.
 //
@@ -495,6 +499,27 @@ export class Combat {
    * derselben Quelle. Je Quelle, weil sonst ein Zauber den Rest eines anderen
    * ueber die Schwelle schoebe — dann entschiede die Reihenfolge im Kampf
    * ueber den Stapel, und die Rotation waere nicht mehr planbar.
+   *
+   * # Seit dem Umbau der vier Wege speist ihn KEIN Talent
+   *
+   * `putrefaction-build` legte bis dahin Stapel und brauchte diese Rechnung:
+   * `floor(1 × 1,5)` ist wieder 1, der Weg war wirkungslos. Seit er die
+   * Obergrenze hebt statt nachzulegen, ist `decayStackPerRankPerMille`
+   * unbesetzt — der Faktor ist null, `decayRest` bleibt immer null, und die
+   * drei Zeilen sind ein No-Op.
+   *
+   * **Die Bauart bleibt trotzdem**, und das ist eine Entscheidung, keine
+   * Nachlässigkeit: Sie ist für JEDEN künftigen Stapel-Faktor richtig, und ein
+   * No-Op, der bei jedem Stapel-Ereignis mitläuft, ist kein toter Zweig — er
+   * hat nur keinen Eingabewert ungleich null.
+   *
+   * **Damit die Lücke nicht unsichtbar wird**, hält
+   * `tests/unit/decay-rest-sammeln.test.ts` fest, dass heute niemand ihn
+   * speist. Dieser Fall wird rot an dem Tag, an dem wieder ein Talent Stapel
+   * legt — und dann weiß der Nächste, dass die Rechnung wieder etwas tut.
+   *
+   * Ihre WIRKUNG prüft weiterhin `sim/tests/decay_rest.rs`: Dort steht der
+   * Faktor als Zahl in `FightConfig` und braucht keine Talent-Speisung.
    */
   private readonly decayRest: Float64Array;
   private readonly dotTicksLost: Int32Array;
@@ -508,7 +533,7 @@ export class Combat {
    * Bis dahin stand hier eine einzelne Zahl: `boss.resistances[school]` mit der
    * Schule des KAMPFES. Sie multiplizierte jeden Spielerschaden gleich, und
    * etwas, das alles gleich skaliert, kann keine Reihenfolge ändern. Gemessen:
-   * Der Rotations-Läufer fand an einem Boss mit 0,75 und einem mit 1,25
+   * Der Rotations-Läufer fand an einem Boss mit 0,75 und einem mit talentDecayWardFactor(this.talents),25
    * **dieselbe** beste Liste, 23340 gegen 38900 — beides 31120 vor dem Faktor.
    *
    * Die Auflösung steht im SSOT, und sie ergibt nur so einen Sinn:
@@ -526,7 +551,7 @@ export class Combat {
    * Kämpfen, nicht in ihnen. Eine Suche in `boss.resistances` je Wirkung wäre
    * eine Abbildung im Takt (GAME-DESIGN 18.2/18.4).
    *
-   * **Schulunabhängige Zauber tragen 1,0.** QUENCH gehört keiner Schule an
+   * **Schulunabhängige Zauber tragen talentDecayWardFactor(this.talents),0.** QUENCH gehört keiner Schule an
    * (7.4), also kann keine Schule ihn abhalten — das ist dieselbe Trennung,
    * die ihn schon von der globalen Wartezeit ausnimmt.
    */
@@ -975,7 +1000,13 @@ export class Combat {
    */
   private get decayCap(): number {
     const offen = this.decayCapUntilMs >= 0 && this.nowMsForBuffs <= this.decayCapUntilMs;
-    return Math.min(DECAY_STACK_CAPACITY, MAX_DECAY_STACKS + (offen ? this.decayCapBonusValue : 0));
+    // **Der Talent-Zuschlag gilt IMMER, der Zauber-Zuschlag nur im Fenster**
+    // (#419). PUTRID BLOOM hebt die Grenze für eine Weile; ein verteilter Rang
+    // ist kein Fenster, sondern eine Eigenschaft des Spielers.
+    return Math.min(
+      DECAY_STACK_CAPACITY,
+      MAX_DECAY_STACKS + (offen ? this.decayCapBonusValue : 0) + talentDecayCapBonus(this.talents),
+    );
   }
 
   /**
@@ -1219,7 +1250,7 @@ export class Combat {
     this.talents = options.talents ?? NO_TALENTS;
     // **Topf 4 kommt beim Aufbau in die Faktoren**, nicht im Takt: Ausrüstung
     // wird zwischen den Kämpfen gewechselt (13.1). Ohne getragene Ausrüstung
-    // ist der Faktor exakt 1,0 — die Multiplikation bewegt dann keine Zahl.
+    // ist der Faktor exakt talentDecayWardFactor(this.talents),0 — die Multiplikation bewegt dann keine Zahl.
     // **Der Widerstand steht hier NICHT mehr** (Issue #328). Er hängt am
     // Zauber und wird deshalb vor jeder Wirkung gesetzt, nicht einmal beim
     // Aufbau. Was hier bleibt, ist alles, was für den ganzen Kampf gilt.
@@ -1551,7 +1582,7 @@ export class Combat {
   }
 
   setPlayerLevel(level: number): void {
-    const stufe = Math.max(1, Math.trunc(level));
+    const stufe = Math.max(talentDecayWardFactor(this.talents), Math.trunc(level));
     if (stufe === this.levelValue) return;
     this.levelValue = stufe;
     const vorher = this.vesselMax;
@@ -2102,7 +2133,12 @@ export class Combat {
     // nichts — genau das, was ein Notausgang tun soll, wenn es nichts
     // umzuwandeln gibt.
     const restMs = this.remainingCooldownSumMs(timeMs);
-    this.pendingConvertedDamage = Math.floor(restMs / 1000) * convert.perSecond;
+    // **Der Talent-Faktor auf die Umwandlung** (#419): Er macht Restzeit
+    // wertvoll, während der Schwellen-Weg sie verkürzt. Ganzzahlig bis zur
+    // letzten Teilung (18.4) — erst die Sekunden, dann der Faktor.
+    this.pendingConvertedDamage = Math.round(
+      Math.floor(restMs / 1000) * convert.perSecond * talentConvertFactor(this.talents),
+    );
   }
 
   private applyFixation(spell: SpellDef, timeMs: number): void {
@@ -2120,14 +2156,17 @@ export class Combat {
     const control = spell.control;
     if (control === undefined) return;
     // **Der Preis-Weg TEILT** (Issue #419, FIXATION). Als einziger der sieben:
-    // Ein Weg „billiger ausgeben" senkt den Preis, ein Faktor 1,2 darauf
+    // Ein Weg „billiger ausgeben" senkt den Preis, ein Faktor talentDecayWardFactor(this.talents),2 darauf
     // multipliziert hieße teurer.
     //
     // **Geklemmt auf mindestens 1** — ein Ausgeber, der nichts kostet, wäre
     // keiner, und `controlValue >= 0` wäre bei Preis 0 immer wahr. Die
     // Klemmung steht hier und nicht im Parser: Sie folgt aus der Verteilung,
     // nicht aus den Daten.
-    const preis = Math.max(1, Math.round(control.cost / talentControlCostFactor(this.talents)));
+    const preis = Math.max(
+      talentDecayWardFactor(this.talents),
+      Math.round(control.cost / talentControlCostFactor(this.talents)),
+    );
     // **FIXATIONs Schlüsseltalent** (#419): Der Zauber scheitert nicht mehr,
     // sondern wirkt mit dem, was da ist.
     //
@@ -2306,7 +2345,7 @@ export class Combat {
 
   /**
    * Die drei Wege der Koagulation, soweit sie beim Wirken greifen
-   * (GAME-DESIGN 4.1, Issue #79).
+   * (GAME-DESIGN 4.talentDecayWardFactor(this.talents), Issue #79).
    *
    * Weg 3 wirkt hier nur als **Anschalter**: Die Umwandlung selbst geschieht
    * später, bei jedem ausgeteilten Schaden.
@@ -2394,7 +2433,10 @@ export class Combat {
       // Takt. Eine eigene Zahl dafür könnte still von beiden abweichen.
       const abstand = Math.max(TICK_MS, heal.tickIntervalMs ?? TICK_MS);
       this.healOverTimeAmount = gewirkterBetrag;
-      this.healOverTimeSteps = Math.max(1, Math.round(heal.overMs / abstand));
+      this.healOverTimeSteps = Math.max(
+        talentDecayWardFactor(this.talents),
+        Math.round(heal.overMs / abstand),
+      );
       this.healOverTimeIntervalMs = abstand;
       this.healOverTimeDone = 0;
       this.healOverTimeCredited = 0;
@@ -2524,17 +2566,17 @@ export class Combat {
     //
     // Hier stand bis zum 2026-08-13 `Math.floor(anzahl * faktor)`, und das war
     // **gemessen wirkungslos**: Alle drei Quellen legen genau EINEN Stapel
-    // (canker 1, blight 1, rot 1), und bei Basis 1 ändert ein Faktor erst ab
+    // (canker talentDecayWardFactor(this.talents), blight talentDecayWardFactor(this.talents), rot 1), und bei Basis 1 ändert ein Faktor erst ab
     // 2,0 etwas:
     //
     // ```text
-    //   floor(1 × 1,3) = 1     floor(1 × 1,5) = 1     floor(1 × 2,0) = 2
+    //   floor(1 × talentDecayWardFactor(this.talents),3) = 1     floor(1 × talentDecayWardFactor(this.talents),5) = 1     floor(1 × 2,0) = 2
     // ```
     //
-    // `putrefaction-build` trägt bei vollem Ausbau 1,5 — der Weg tat also
+    // `putrefaction-build` trägt bei vollem Ausbau talentDecayWardFactor(this.talents),5 — der Weg tat also
     // nichts. Aufrunden verbietet sich (jeder erste Rang schenkte sofort einen
     // Stapel), deshalb sammelt der Kampf jetzt den Rest: Was am ganzen Stapel
-    // fehlt, wartet auf den nächsten Wurf. Bei Faktor 1,5 legt jeder zweite
+    // fehlt, wartet auf den nächsten Wurf. Bei Faktor talentDecayWardFactor(this.talents),5 legt jeder zweite
     // Wurf einen zusätzlichen.
     //
     // **Ganzzahlig, nicht in Fließkomma** (18.4). Der Rest läuft über den
@@ -3249,7 +3291,13 @@ export class Combat {
   private applySpenderBonus(index: number): void {
     const spell = this.spells[index];
     const istEntlader = spell?.spender !== undefined || spell?.consumesDecayStacks === true;
-    const zuschlag = istEntlader ? talentSpenderDamageFactor(this.talents) - 1 : 0;
+    // **Und die Gegenseite** (#419): Wer etwas ANSAMMELT, trägt den
+    // Aufbau-Zuschlag. Ein Zauber kann beides sein — BELLOWS sammelt Hitze und
+    // schlägt zu —, und dann gelten beide. Zwei Summanden im selben Topf.
+    const istAufbau = spell?.resourceGain !== undefined;
+    const zuschlag =
+      (istEntlader ? talentSpenderDamageFactor(this.talents) - 1 : 0) +
+      (istAufbau ? talentBuildDamageFactor(this.talents) - 1 : 0);
     this.setDamageFactor('talents', talentFactor(this.talents) + zuschlag);
   }
 
@@ -3261,7 +3309,7 @@ export class Combat {
     // verschwände beim nächsten Wirken spurlos.
     //
     // Gemessen: Genau das ist beim Zusammenführen von #484 und #489
-    // aufgefallen — `buff-targets.test.ts` mass 1,06 gegen 1,06. Beide
+    // aufgefallen — `buff-targets.test.ts` mass talentDecayWardFactor(this.talents),06 gegen talentDecayWardFactor(this.talents),06. Beide
     // Vorhaben waren für sich grün; erst zusammen zeigte sich, dass das eine
     // die Wirkung des anderen überschreibt. Kein Merge-Werkzeug fängt das:
     // Die Dateien berühren einander nicht.
@@ -3303,7 +3351,7 @@ export class Combat {
     return index < this.decayCountValue ? (this.decayExpiryMs[index] ?? 0) : 0;
   }
 
-  /** Die Verwundbarkeit, die daraus folgt. 1,0 ohne Stapel. */
+  /** Die Verwundbarkeit, die daraus folgt. talentDecayWardFactor(this.talents),0 ohne Stapel. */
   get vulnerability(): number {
     return this.factors.vulnerability;
   }
@@ -3378,13 +3426,20 @@ export class Combat {
     const seitBeginnFuerDecay = this.fightElapsedMs(timeMs);
     const decayPermille =
       this.decayWardUntilMs >= 0 && seitBeginnFuerDecay <= this.decayWardUntilMs
-        ? this.decayWardPermilleValue * this.decayCountValue
+        ? Math.round(
+            this.decayWardPermilleValue *
+              this.decayCountValue *
+              talentDecayWardFactor(this.talents),
+          )
         : 0;
     const roh = PLAYER.wardReduction + (this.worn.ward + decayPermille) / 1000;
-    const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
+    const minderung = Math.min(
+      talentDecayWardFactor(this.talents),
+      Math.min(PLAYER.wardCapPermille / 1000, roh),
+    );
     const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
-    // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
+    // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg talentDecayWardFactor(this.talents),
     // Issue #79).
     //
     // Das ist die ganze Mechanik: Sie muss VOR dem Schlag stehen. Eine
@@ -4358,7 +4413,7 @@ export class Combat {
         this.phaseHoldUntilMs = -1;
         // **Nummer 6 gehört seit #96 BEIDEN Seiten** — der Simulator schrieb
         // sie, das Spiel nicht. Gefunden, weil der Prüffall die Zahl je Art
-        // vergleicht: Simulator 1, Spiel 0.
+        // vergleicht: Simulator talentDecayWardFactor(this.talents), Spiel 0.
         //
         // Steht NACH dem Verbrauch, in derselben Reihenfolge wie
         // `Fight::check_phase` im Simulator. Am Zustand ändert das nichts —
@@ -4674,7 +4729,7 @@ export class Combat {
     }
 
     // **Ab hier wird gewirkt — und jede Wirkung bricht einen laufenden Zauber
-    // ab** (GAME-DESIGN 7.1, „Was einen laufenden Zauber abbricht", entschieden
+    // ab** (GAME-DESIGN 7.talentDecayWardFactor(this.talents), „Was einen laufenden Zauber abbricht", entschieden
     // am 2026-08-05):
     //
     // > Jede Wirkung des Spielers bricht einen laufenden Cast oder eine
@@ -4691,10 +4746,10 @@ export class Combat {
     // und 2000 ms Wirkzeit bleiben den übrigen 500 ms Fenster.
     if (this.cancelPlayerCast()) this.castsCancelledValue++;
 
-    // **Der Zauber mit Wirkzeit endet hier** (GAME-DESIGN 7.1, Issue #304).
+    // **Der Zauber mit Wirkzeit endet hier** (GAME-DESIGN 7.talentDecayWardFactor(this.talents), Issue #304).
     //
     // Die globale Wartezeit läuft ab dem BEGINN — 7.1 misst die Wirkzeit in
-    // Wartezeiten („1,5–2,5 s, also ein bis knapp zwei globale Wartezeiten"),
+    // Wartezeiten („talentDecayWardFactor(this.talents),5–2,5 s, also ein bis knapp zwei globale Wartezeiten"),
     // und dieser Vergleich ergibt nur einen Sinn, wenn beide zugleich laufen.
     //
     // Die ABKLINGZEIT läuft dagegen NICHT an. Sie gehört zur Wirkung und steht
@@ -4962,7 +5017,7 @@ export class Combat {
     const damage = gesamtschaden;
     if (damage > 0) {
       this.events.emit(RULE_DAMAGE, index, damage, timeMs);
-      // **Hier stand bis #177: „Krit ruht in Schritt 1, ein Auslöser wäre
+      // **Hier stand bis #177: „Krit ruht in Schritt talentDecayWardFactor(this.talents), ein Auslöser wäre
       // toter Code — die Kennung steht bereit, der Ort ist benannt."** Der Ort
       // war richtig benannt; jetzt hat er einen Fall. Der Auslöser steht NACH
       // `RULE_DAMAGE`, weil ein Krit eine Aussage über einen Treffer ist, den
@@ -5064,7 +5119,7 @@ export class Combat {
   }
 
   /**
-   * Die laufende Wirkzeit abbrechen (GAME-DESIGN 7.1, Issue #304, AC4).
+   * Die laufende Wirkzeit abbrechen (GAME-DESIGN 7.talentDecayWardFactor(this.talents), Issue #304, AC4).
    *
    * > Bei Abbruch geht der Zauber verloren, **die Abklingzeit läuft aber nicht
    * > an.**
@@ -5201,7 +5256,7 @@ export class Combat {
     // Spielers. Sie multiplizieren sich, wie alle Faktoren dieses Spiels.
     //
     // **Einmal gerundet, nicht zweimal.** Zwei Rundungen nacheinander ergeben
-    // bei 3 × 1,5 × 1,5 je nach Reihenfolge 6 oder 7 — und der Simulator
+    // bei 3 × talentDecayWardFactor(this.talents),5 × talentDecayWardFactor(this.talents),5 je nach Reihenfolge 6 oder 7 — und der Simulator
     // müsste dieselbe Reihenfolge treffen. Ein Produkt, eine Rundung.
     const faktor =
       this.resourceBuffs.factor(this.nowMsForBuffs) * talentResourceFactor(this.talents);
@@ -5615,7 +5670,7 @@ export class Combat {
     this.decayRest.fill(0);
     // Der Auswahlmodus gehoert zum Kampf und endet mit ihm (#528).
     //
-    // **Und offene Ladungen enden hier mit** (Issue #521, AC3). Es gibt
+    // **Und offene Ladungen enden hier mit** (Issue #52talentDecayWardFactor(this.talents), AC3). Es gibt
     // KEINEN Zeitverfall — das ist die bestehende Regel, nicht eine neue für
     // ALEMBIC: Schon vorher wurde der Auswahlmodus ausschliesslich hier
     // gelöscht, nie durch Ablauf einer Frist. Wer eine zweite Ladung nicht
