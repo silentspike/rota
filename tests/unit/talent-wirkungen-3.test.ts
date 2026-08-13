@@ -107,18 +107,18 @@ describe('SUBLIMATION — drei Wege, drei Größen', () => {
     expect(ladungen({}), 'RESET stellt nicht 1 Ladung scharf').toBe(1);
   });
 
-  describe('reduction — der Abzug', () => {
+  describe('reduction — seit dem Umbau die UMWANDLUNG', () => {
     const TALENT = { 'sublimation-reduction': VOLL };
-    it('zieht mehr ab', () => {
-      // 100 Promille je Rang, fünf Ränge: Faktor 1,5 auf 1000 ergibt 1500.
-      expect(abzug(TALENT)).toBe(1500);
-    });
-    it('wirkt auf JEDEN Zauber mit Abzug, nicht nur den gemessenen', () => {
-      // KLEIN trägt 500 statt 1000 — ein Faktor zeigt sich dort als 750, ein
-      // versehentlich fester Zuschlag als 1000. Die zweite Zahl trennt beides.
-      expect(abzug(TALENT, 'klein')).toBe(750);
-    });
-    it('lässt die FREMDEN Größen unberührt', () => {
+
+    it('lässt die FREMDEN Größen unberührt — auch den Abzug', () => {
+      // **Der Abzug gehört seit #419 nicht mehr dazu.** Der Weg hob ihn und
+      // verlor damit in jeder Rotation gegen `threshold`: Beide bewegten
+      // dieselbe Größe, einer breiter.
+      //
+      // Jetzt zieht er in die Gegenrichtung — EFFLUX macht lange Abklingzeiten
+      // WERTVOLL, während `threshold` sie verkürzt. Zwei Wege, die dieselbe
+      // Größe gegenläufig behandeln, können nicht denselben Sieger haben.
+      expect(abzug(TALENT), 'reduction wirkt noch auf den Abzug').toBe(1000);
       expect(schwelle(TALENT), 'reduction wirkt auf die Schwelle').toBe(10_000);
       expect(ladungen(TALENT), 'reduction wirkt auf die Ladungen').toBe(1);
     });

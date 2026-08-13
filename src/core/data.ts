@@ -2903,6 +2903,68 @@ export interface TalentDef {
    * an einer Eigenschaft hängt und nicht an einer Schule.
    */
   readonly spenderDamagePerRankPerMille: number;
+  /**
+   * Promille je Rang auf den Schaden der **Aufbau-Zauber** (GLOBAL, #419).
+   *
+   * Spiegelbild zu {@link spenderDamagePerRankPerMille}: Dort die Zauber, die
+   * etwas EINLÖSEN, hier die, die etwas ANSAMMELN (`resourceGain`).
+   *
+   * **Warum das ein anderer Weg ist und keine schwächere Variante:** Gemessen
+   * tragen die Aufbau-Zauber 81 % des Schadens einer Rotation mit Entlader
+   * (2200 von 2704) und 100 % einer ohne. Wer viele Füller wirft, gewinnt hier;
+   * wer den Entlader oft zündet, drüben. Beide heben verschiedene Zauber
+   * statt derselben Summe — genau die Trennung, an der der alte Weg scheiterte.
+   */
+  readonly buildDamagePerRankPerMille: number;
+  /**
+   * Wie viele **zusätzliche Zersetzungs-Stapel** je Rang liegen dürfen.
+   *
+   * **Ein ganzzahliger Zuschlag auf die OBERGRENZE**, nicht auf die Zahl der
+   * gelegten Stapel — und das ist der Unterschied, der den Weg wiederbelebt:
+   * `decayEffect` multipliziert die Wertigkeit JEDES Stapels, der alte
+   * `decayStack` legte gelegentlich einen dazu. Ein Weg auf die Summe schlug
+   * einen Weg auf einen Summanden.
+   *
+   * Gemessen liegt die Zersetzung zu 77 bis 84 % der Kampfzeit AM Deckel —
+   * dort bringt jeder zusätzliche Platz den vollen Wert, und die beiden Wege
+   * multiplizieren sich, statt zu konkurrieren.
+   *
+   * **In Promille, nicht als ganze Zahl** — und das ist gemessen, nicht
+   * gewählt: Ein Stapel je Rang (also +5 bei vollem Ausbau) macht den Weg
+   * dominant, dann ist `effect` tot statt umgekehrt. Die Kipp-Punkte:
+   *
+   * ```text
+   *   Zuschlag  +1    +2    +3
+   *   STAPEL    effect build build
+   *   ENTLADER  effect effect build
+   *   KARG      effect build build
+   * ```
+   *
+   * Bei +2 gewinnt jeder der beiden irgendwo — genau das verlangt AC3. 400
+   * Promille je Rang ergeben `floor(5 × 400 / 1000) = 2`, und Zwischenstufen
+   * bleiben möglich: drei Ränge geben einen Platz, fünf geben zwei.
+   */
+  readonly decayCapPerRankPerMille: number;
+  /**
+   * Promille je Rang auf den **Schutz je Zersetzungs-Stapel** (PUTREFACTION).
+   *
+   * **Der defensive Weg**: DECAY schwächt den Boss-Schaden um Promille JE
+   * liegendem Stapel (#479). Gemessen mindert das 16 bis 19 % — dieselben
+   * Stapel, die `decayEffect` in Schaden umsetzt, tragen hier den Schutz.
+   *
+   * Zwei Richtungen statt zweier Stärken: Deshalb kann dieser Weg gewinnen,
+   * wo der alte (längere Haltbarkeit) immer zweiter blieb.
+   */
+  readonly decayWardPerRankPerMille: number;
+  /**
+   * Promille je Rang auf EFFLUX' **Umwandlung** von Restzeit in Schaden.
+   *
+   * **Die Gegenrichtung zu `cooldownThreshold`**, und das ist der Kern: Der
+   * Schwellen-Weg VERKÜRZT Abklingzeiten, dieser macht sie WERTVOLL
+   * (`convert.perSecond`, #520). Zwei Wege, die dieselbe Größe in
+   * entgegengesetzte Richtungen ziehen, können nicht denselben Sieger haben.
+   */
+  readonly convertPerRankPerMille: number;
   /** Welches Talent vorher Ränge braucht, oder `null` beim Stamm. */
   readonly requires: string | null;
   /**
@@ -2976,6 +3038,10 @@ export const TALENTS: readonly TalentDef[] = (() => {
       const cooldownResetChargesPerRank = number(t['cooldownResetChargesPerRank'], 0);
       const cooldownThresholdPerRankPerMille = number(t['cooldownThresholdPerRankPerMille'], 0);
       const spenderDamagePerRankPerMille = number(t['spenderDamagePerRankPerMille'], 0);
+      const buildDamagePerRankPerMille = number(t['buildDamagePerRankPerMille'], 0);
+      const decayCapPerRankPerMille = number(t['decayCapPerRankPerMille'], 0);
+      const decayWardPerRankPerMille = number(t['decayWardPerRankPerMille'], 0);
+      const convertPerRankPerMille = number(t['convertPerRankPerMille'], 0);
       for (const [feld, wert] of [
         ['resourceGainPerRankPerMille', resourceGainPerRankPerMille],
         ['dotDurationPerRankPerMille', dotDurationPerRankPerMille],
@@ -2992,6 +3058,10 @@ export const TALENTS: readonly TalentDef[] = (() => {
         ['cooldownResetChargesPerRank', cooldownResetChargesPerRank],
         ['cooldownThresholdPerRankPerMille', cooldownThresholdPerRankPerMille],
         ['spenderDamagePerRankPerMille', spenderDamagePerRankPerMille],
+        ['buildDamagePerRankPerMille', buildDamagePerRankPerMille],
+        ['decayCapPerRankPerMille', decayCapPerRankPerMille],
+        ['decayWardPerRankPerMille', decayWardPerRankPerMille],
+        ['convertPerRankPerMille', convertPerRankPerMille],
       ] as const) {
         if (wert < 0) {
           throw new Error(
@@ -3037,6 +3107,10 @@ export const TALENTS: readonly TalentDef[] = (() => {
         cooldownResetChargesPerRank,
         cooldownThresholdPerRankPerMille,
         spenderDamagePerRankPerMille,
+        buildDamagePerRankPerMille,
+        decayCapPerRankPerMille,
+        decayWardPerRankPerMille,
+        convertPerRankPerMille,
         requires: typeof t['requires'] === 'string' ? t['requires'] : null,
         keystone: typeof t['keystone'] === 'string' ? t['keystone'] : null,
       });

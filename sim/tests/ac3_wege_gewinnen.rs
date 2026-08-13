@@ -153,11 +153,11 @@ fn jeder_calcination_weg_gewinnt_irgendwo() {
 #[test]
 fn zwei_globale_wege_gewinnen_je_eine_rotation() {
     let sieger = |text: &str| -> &'static str {
-        let build = schaden(text, |c| {
-            c.talent_resource_permille = 300;
-            c.talent_decay_stack_permille = 300;
-            c.talent_control_gain_permille = 300;
-        });
+        // **Seit dem Umbau ein Schadens-Zuschlag auf die AUFBAU-Zauber** (#419):
+        // 5 Raenge a 25 Promille. Der alte Weg hob drei Aufbau-GROESSEN und
+        // verlor gegen `release` in jeder Rotation — ein Weg auf die Summe
+        // schlaegt einen auf einen Summanden.
+        let build = schaden(text, |c| c.talent_build_damage_permille = 125);
         let release = schaden(text, |c| c.talent_spender_damage_permille = 500);
         let hold = schaden(text, |c| {
             c.talent_dot_duration_permille = 300;

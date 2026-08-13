@@ -123,6 +123,14 @@ pub struct BalanceConfig {
     pub talent_cooldown_threshold_permille: u32,
     /// Talent-Promille auf den Schaden der **Entlader** (GLOBAL, Issue #419).
     pub talent_spender_damage_permille: u32,
+    /// Talent-Promille auf den Schaden der **Aufbau-Zauber** (GLOBAL, #419).
+    pub talent_build_damage_permille: u32,
+    /// Zusaetzliche Zersetzungs-Stapel (PUTREFACTION, #419) — eine Anzahl.
+    pub talent_decay_cap_bonus: usize,
+    /// Talent-Promille auf den Schutz je Zersetzungs-Stapel (#419).
+    pub talent_decay_ward_permille: u32,
+    /// Talent-Promille auf EFFLUX' Umwandlung (SUBLIMATION, #419).
+    pub talent_convert_permille: u32,
 }
 
 impl Default for BalanceConfig {
@@ -155,6 +163,10 @@ impl Default for BalanceConfig {
             talent_cooldown_charges_bonus: 0,
             talent_cooldown_threshold_permille: 0,
             talent_spender_damage_permille: 0,
+            talent_build_damage_permille: 0,
+            talent_decay_cap_bonus: 0,
+            talent_decay_ward_permille: 0,
+            talent_convert_permille: 0,
             boss: BOSS,
             worn: WornValues::none(),
         }
@@ -553,6 +565,10 @@ fn run_range(
         talent_cooldown_charges_bonus: config.talent_cooldown_charges_bonus,
         talent_cooldown_threshold_permille: config.talent_cooldown_threshold_permille,
         talent_spender_damage_permille: config.talent_spender_damage_permille,
+        talent_build_damage_permille: config.talent_build_damage_permille,
+        talent_decay_cap_bonus: config.talent_decay_cap_bonus,
+        talent_decay_ward_permille: config.talent_decay_ward_permille,
+        talent_convert_permille: config.talent_convert_permille,
         // Der Balance-Laeufer misst OHNE Schluesseltalent — wie beim
         // Talent-Faktor daneben. Wer es messen will, setzt es hier.
         auto_reset: false,
