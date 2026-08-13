@@ -25,6 +25,7 @@ const LEER: RecordedState = {
   talentPoints: {},
   items: [],
   defeatedBosses: [],
+  unlockedEntryIds: [],
   level: 1,
   experience: 0,
 };

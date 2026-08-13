@@ -73,6 +73,7 @@ describe('Ohne Speicher laeuft das Spiel weiter', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
       level: 1,
       experience: 0,
     });
@@ -97,6 +98,7 @@ describe('Ein voller Speicher', () => {
         talentPoints: {},
         items: [],
         defeatedBosses: [],
+        unlockedEntryIds: [],
         level: 1,
         experience: 0,
       });
@@ -118,6 +120,7 @@ describe('Ein voller Speicher', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
       level: 1,
       experience: 0,
     });
@@ -138,6 +141,7 @@ describe('Der gewoehnliche Weg', () => {
         talentPoints: {},
         items: [],
         defeatedBosses: [],
+        unlockedEntryIds: [],
         level: 1,
         experience: 0,
       }),
@@ -163,6 +167,7 @@ describe('Der gewoehnliche Weg', () => {
         talentPoints: {},
         items: [],
         defeatedBosses: [],
+        unlockedEntryIds: [],
         level: 1,
         experience: 0,
       }),
@@ -195,6 +200,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
       level: 1,
       experience: 0,
     });
@@ -207,6 +213,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
       level: 1,
       experience: 0,
     });
@@ -227,6 +234,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
       level: 1,
       experience: 0,
     });
@@ -238,6 +246,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       talentPoints: {},
       items: [],
       defeatedBosses: [],
+      unlockedEntryIds: [],
       level: 1,
       experience: 0,
     });
@@ -277,6 +286,7 @@ describe('Ein Stand aus einer aelteren Fassung', () => {
         talentPoints: {},
         items: [],
         defeatedBosses: [],
+        unlockedEntryIds: [],
         level: 1,
         experience: 0,
       }),
@@ -320,6 +330,7 @@ describe('Ein voller Verlauf', () => {
         talentPoints: {},
         items: [],
         defeatedBosses: [],
+        unlockedEntryIds: [],
         level: 1,
         experience: 0,
       }),
