@@ -119,6 +119,12 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // Liste, die längst acht führte — wer ihn las, hielt die anderen für
   // klingend.
   const STUMM = new Set([
+    // VORLAEUFIG (Issue #323): DECOCTION ist die erste spielbare Kanalisierung.
+    // Ihr Klang muss etwas koennen, das bisher keiner tut — ueber vier Sekunden
+    // LAUFEN und beim Abbruch aufhoeren. Er entsteht ueber Suno (#487) und kann
+    // in keiner Claude-Sitzung entstehen: Claude kann nicht hoeren. Die
+    // Gegenrichtung unten holt ihn von selbst heraus, sobald er da ist.
+    'decoction',
     // VORLAEUFIG (Issue #523): HARDEN und SEPSIS sind gebaut, ihre Klaenge
     // entstehen ausserhalb dieses Zweigs (#487). Die Gegenrichtung unten holt
     // sie von selbst heraus, sobald der Klang da ist.

@@ -4768,6 +4768,43 @@ export class Combat {
       this.playerCastingValue = index;
       this.playerCastStartedAtMsValue = timeMs;
       this.playerCastEndsAtMsValue = timeMs + kanal;
+      // **Die Abklingzeit läuft HIER an, beim Beginn — anders als bei der
+      // Wirkzeit** (Issue #323). Der Absatz darüber sagt für den Cast: „Bei
+      // Abbruch geht der Zauber verloren, die Abklingzeit läuft aber nicht an"
+      // (GAME-DESIGN 7.1). Die Ausnahme steht unter einer Bedingung — der
+      // Zauber ist verloren —, und die trifft auf eine Kanalisierung nicht zu:
+      // Bei ihr bleibt der erreichte Anteil (7.2). Sie hat gewirkt, also zahlt
+      // sie.
+      //
+      // **Ohne diese Zeile war der Zauber nach vollem Durchlauf sofort wieder
+      // bereit** — gemessen am 2026-08-13 mit DECOCTION (`cooldownMs: 12000`):
+      // `isReady` stand 8000 ms nach dem Beginn eines 4000-ms-Kanals auf
+      // `true`. Die Abklingzeit stand in keinem Pfad, weil `resolvePlayerCast`
+      // — die einzige Stelle, die sie setzt — für Kanalisierungen ausdrücklich
+      // übersprungen wird.
+      //
+      // **Und der Abbruch war dadurch die bessere Rotation**, nicht die
+      // schlechtere: 24 s lang alle 1500 ms neu gestartet gaben 1440 Schaden,
+      // dreimal durchlaufen nur 720. Wer abbricht, nimmt den ersten Teilschritt
+      // mit und fängt sofort neu an — genau die Ausbeutung, die „der erreichte
+      // Anteil bleibt" nicht meint.
+      this.cooldownReadyAtMs[index] = timeMs + this.hasted(spell.cooldownMs);
+      // **Und sie zählt als Wurf** — aus demselben Grund und an derselben
+      // Stelle. `castCounts` wird sonst nur in `resolvePlayerCast` erhöht, und
+      // die wird für Kanalisierungen übersprungen.
+      //
+      // Gemessen am 2026-08-13, bevor diese Zeile stand: Eine vollständig
+      // durchgelaufene DECOCTION teilte 360 Schaden aus und stand mit
+      // `castCount` 0 da. Der Zauber mit WIRKZEIT — dieselbe Bauart, beginnt,
+      // läuft, löst auf — zählte dabei ganz normal auf 1. Die Kanalisierung war
+      // der einzige Typ, der durchfiel, und das war kein Entwurf, sondern
+      // dieselbe übersprungene Stelle wie bei der Abklingzeit.
+      //
+      // Die Folge trug weiter, als sie aussieht: Jede Auswertung über
+      // `castCount` sah den Zauber nicht — die Wurfzahl im Bild, die
+      // Rotationsanalyse, und in `sim/tests` die Zusicherung „der Träger wurde
+      // überhaupt gewirkt", die bei einem Kanalzauber immer 0 gemeldet hätte.
+      this.castCounts[index] = (this.castCounts[index] ?? 0) + 1;
       // Die erste Teilwirkung fällt NACH dem ersten Raster-Schritt, nicht
       // sofort: Sonst bekäme ein Kanal, der im selben Moment abbricht, schon
       // eine Wirkung — und „nach 0 s" ergäbe mehr als null.
