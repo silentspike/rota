@@ -25,6 +25,9 @@ import type { LevelUpDisplay } from '../analysis/level-up-display.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import { buildEfficiencyView, buildLossView } from '../analysis/analysis-view.js';
 import type { EfficiencyTable } from '../analysis/efficiency.js';
+import { buildCurveView } from '../analysis/history-view.js';
+import type { RunCurve } from '../analysis/run-compare.js';
+import '../analysis/history.css';
 // Ohne diesen Import erscheint die Rangliste ungestylt: Die Datei wurde bis
 // #280 nur vom Pruefblatt geladen (docs/analysis-check/), das sie selbst
 // einbindet.
@@ -105,6 +108,15 @@ export interface ResultView {
    * daneben und hatte keinen einzigen Aufrufer.
    */
   readonly efficiency: EfficiencyTable | null;
+  /**
+   * Die Schadenskurve dieses Laufs (E7-2, Issue #82).
+   *
+   * **Ohne Vergleichskurve**, und das ist gemessen und nicht vergessen: Der
+   * Spielstand fuehrt vom Bestlauf nur EINE Zahl (`BestRun.metric` und
+   * `.value`) — keine Kurve, keine Kurzfassung. `buildCurveView` nimmt dafuer
+   * `null`; die eigene Kurve steht dann allein.
+   */
+  readonly curve: RunCurve | null;
   /**
    * Die Punkte für diesen Lauf, **fertig gerechnet** (Issue #276).
    *
@@ -673,7 +685,7 @@ export class Overlay {
         ? 'none available'
         : `${summary.synergyUsed} of ${summary.synergyAvailable}`,
     );
-    this.fillDetail(summary, view.analysis, view.efficiency);
+    this.fillDetail(summary, view.analysis, view.efficiency, view.curve);
   }
 
   /**
@@ -696,6 +708,7 @@ export class Overlay {
     summary: RunSummary,
     analysis: LossReport | null,
     efficiency: EfficiencyTable | null,
+    curve: RunCurve | null,
   ): void {
     this.detail.replaceChildren();
 
@@ -722,6 +735,13 @@ export class Overlay {
     // Vom Groben zum Feinen — dieselbe Ordnung, die 15.1 bis 15.3 vorgeben.
     if (efficiency !== null) {
       this.detail.appendChild(buildEfficiencyView(efficiency));
+      this.detail.appendChild(element('div', 'rota-divider'));
+    }
+
+    // Die Kurve zeigt, WANN der Schaden kam — die Tabelle darueber, WIE GUT
+    // gewirkt wurde. Zusammen beantworten sie zwei verschiedene Fragen.
+    if (curve !== null) {
+      this.detail.appendChild(buildCurveView(curve, null));
       this.detail.appendChild(element('div', 'rota-divider'));
     }
     const umgekehrt = summary.reversed;

@@ -68,14 +68,22 @@ const EINSTIEGE = [
  * Eintrag verschwindet, damit sie nicht überlebt, was sie beschreibt.
  */
 const BEKANNT_UNERREICHBAR: readonly string[] = [
-  'src/analysis/archive-view.ts', // E7-5, Issue #85
-  'src/analysis/archive.ts', // E7-5, nur von archive-view gebraucht
-  'src/analysis/help.ts', // E7-5, nur von archive-view gebraucht
-  'src/analysis/history-view.ts', // E7-2, Issue #82
-  'src/analysis/run-compare.ts', // E7-2, nur von history-view gebraucht
-  'src/analysis/training-view.ts', // E7-4, Issue #84
-  'src/analysis/training.ts', // E7-4, nur von training-view gebraucht
-  'src/loot/upgrade.ts', // E6-4, Aufwertung nach GAME-DESIGN 13.6
+  // E7-5 (Issue #85) ist NICHT anschliessbar: Es gibt weder Archiv-Inhalte
+  // (kein `ArchiveEntry` irgendwo im Bestand) noch einen Ort im Spielstand
+  // fuer `unlockedEntryIds`. Die Ansicht wuerde eine leere Liste zeigen.
+  // Dieselbe Lage wie bei E6-4 — es fehlt nicht der Aufruf, sondern die Sache.
+  'src/analysis/archive-view.ts',
+  'src/analysis/archive.ts',
+  'src/analysis/help.ts',
+  // E7-4 zur Haelfte: Der Trainingsraum ist seit heute betretbar
+  // (`buildDummy` in app.ts), aber `runLiveMetrics` ist eine Bildschleife
+  // ueber laufende Kennzahlen und braucht einen aktiven Kampf. Im Player Home
+  // gaebe es nichts anzuzeigen; ein Ort, an dem nichts erscheint, ist
+  // schlechter als dieser Eintrag.
+  'src/analysis/training-view.ts',
+  // E6-4: Die Aufwertung braucht Material im Spielstand (`save-format.ts`)
+  // und eine Wanderung. Eigener Auftrag, bewusst nicht hier.
+  'src/loot/upgrade.ts',
 ];
 
 function alleQuellen(): string[] {
