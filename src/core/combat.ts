@@ -67,6 +67,10 @@ import {
 import {
   hasKeystone,
   KEYSTONE_SPLIT_SPENDER,
+  KEYSTONE_AUTO_RESET,
+  KEYSTONE_DECAY_ECHO,
+  KEYSTONE_PARTIAL_CONTROL,
+  KEYSTONE_SHIELD_REFUND,
   NO_TALENTS,
   talentFactor,
   talentResourceFactor,
@@ -468,6 +472,19 @@ export class Combat {
   private readonly damageBySpell: Float64Array;
   private readonly dotExpiresAtMs: Float64Array;
   private readonly dotNextTickAtMs: Float64Array;
+
+  /**
+   * Bis wann ein **erloschener** Brand noch Zersetzungs-Stapel legt (#419,
+   * PUTREFACTIONs Schlüsseltalent).
+   *
+   * Der Wert ist die Frist des jüngsten Stapels, der beim letzten Tick lag —
+   * fortgeschrieben, solange der Brand läuft, sodass beim Erlöschen von selbst
+   * der richtige Endpunkt dasteht. `NOT_ACTIVE` heißt: kein Nachlauf.
+   *
+   * **Gemessen in Kampfzeit** (`fightElapsedMs`), wie `decayExpiryMs`, aus dem
+   * er stammt — nicht in der Zeit des Aufrufers.
+   */
+  private readonly decayEchoUntilMs: Float64Array;
   private readonly dotTicksLost: Int32Array;
   private readonly dotTickCounts: Int32Array;
 
@@ -869,6 +886,21 @@ export class Combat {
 
   /** Wann sie verfällt, wenn sie nicht vorher aufgebraucht wird. -1 = keine. */
   private shieldExpiresAtMs = -1;
+  /**
+   * Wie dick die zuletzt gelegte Schicht war — für COAGULATIONs
+   * Schlüsseltalent (#419).
+   *
+   * Ohne diesen Merker wüsste der Bruch nicht, wovon er die Hälfte nachlegen
+   * soll: `shieldValue` ist in dem Moment gerade 0.
+   */
+  private shieldLastAmount = 0;
+  /**
+   * Ob dieser Schild seine Nachlage schon bekommen hat.
+   *
+   * **Die Begrenzung ist der Kern des Talents.** Ohne sie legte jeder Bruch
+   * nach, der nächste wieder, und die Schicht wäre nicht mehr aufzubrauchen.
+   */
+  private shieldRefundUsed = false;
 
   /**
    * Heilung über Zeit (POULTICE, Issue #481) — Gesamtbetrag, Anzahl der
@@ -1135,6 +1167,7 @@ export class Combat {
     this.damageBySpell = new Float64Array(count);
     this.dotExpiresAtMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotNextTickAtMs = new Float64Array(count).fill(NOT_ACTIVE);
+    this.decayEchoUntilMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotTicksLost = new Int32Array(count);
     this.dotTickCounts = new Int32Array(count);
     for (let i = 0; i < count; i++) this.indexById.set((this.spells[i] as SpellDef).id, i);
@@ -2082,10 +2115,26 @@ export class Combat {
     // Klemmung steht hier und nicht im Parser: Sie folgt aus der Verteilung,
     // nicht aus den Daten.
     const preis = Math.max(1, Math.round(control.cost / talentControlCostFactor(this.talents)));
-    if (this.controlValue < preis) {
+    // **FIXATIONs Schlüsseltalent** (#419): Der Zauber scheitert nicht mehr,
+    // sondern wirkt mit dem, was da ist.
+    //
+    // Ohne das Talent ist der Druck verloren, sobald der Vorrat nicht reicht.
+    // Mit ihm wird der Rest eingesetzt — und die Wirkung sinkt im selben
+    // Verhältnis (siehe `anteilNenner` unten). Das ist der Unterschied zu
+    // einem Rabatt: Billiger wäre ein Faktor, anteilig ist eine andere
+    // Rechnung, und genau das verlangt #418 von einem Schlüsseltalent.
+    //
+    // **Bei leerem Vorrat scheitert er weiterhin.** Ein Zauber, der aus nichts
+    // etwas macht, wäre kein Schlüsseltalent, sondern ein Fehler.
+    const anteilig = this.hasKeystone(KEYSTONE_PARTIAL_CONTROL);
+    if (this.controlValue < preis && (!anteilig || this.controlValue <= 0)) {
       this.controlFailedValue++;
       return;
     }
+    // **Der Einsatz ist geklemmt** (#419, `partial-control`): Ohne das Talent
+    // ist er der volle Preis, mit ihm bei knappem Vorrat weniger — und die
+    // Wirkung sinkt unten im selben Verhältnis.
+    const einsatz = Math.min(preis, this.controlValue);
     // **THE LONG GRIP** (13.5, FIXATION-Sechser): Der erste Ausgeber nach
     // einem Phasenwechsel kostet nichts.
     //
@@ -2104,13 +2153,15 @@ export class Combat {
       this.freeControlSpendArmed = false;
       this.freeControlSpends++;
     } else {
-      this.controlValue -= preis;
+      // **Der EINSATZ, nicht der Preis** — sonst zöge ein anteiliger Ausgeber
+      // (#419) den vollen Preis ab, den er gar nicht hatte.
+      this.controlValue -= einsatz;
     }
-    this.controlSpentValue += preis;
+    this.controlSpentValue += einsatz;
     // **Der Mindesteinsatz** (Issue #683). Jeder Kontroll-Zauber geht hier
     // durch; die beiden Stellen weiter unten nehmen bei zwei Wirkungen
     // zusätzlich den REST und schreiben ihn eigens.
-    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, preis);
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, einsatz);
 
     // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
     // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
@@ -2122,7 +2173,14 @@ export class Combat {
     // ALLEN fünf Wirkungen benutzt — jede Wirkung einzeln zu multiplizieren
     // liefe bei einer späteren Änderung auseinander, und `allThree` löst drei
     // davon gleichzeitig aus.
-    const staerke = Math.round(control.amount * talentControlEffectFactor(this.talents));
+    // **Der Anteil steckt IN der einen Rundung**, nicht daneben (GAME-DESIGN
+    // 18.4, ganzzahlig bis zur letzten Teilung). Wer erst rundet und dann
+    // teilt, bekommt auf der Rust-Seite eine andere Zahl — und die
+    // Bitgleichheit reisst an einer Stelle, die niemand mit dem Talent in
+    // Verbindung braechte.
+    const staerke = Math.round(
+      (control.amount * talentControlEffectFactor(this.talents) * einsatz) / preis,
+    );
     // **Die Phasen-Senkung hat ihre EIGENE Stärke** (Issue #478).
     //
     // `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
@@ -2147,9 +2205,13 @@ export class Combat {
     // **Der Rückfall auf `staerke` ist kein Rest, sondern die Regel für alle
     // anderen**: ANCHOR trägt nur `amountPercent`, also steht seine Zahl in
     // beiden Feldern, und für ihn ändert sich nichts.
+    // **Auch sie sinkt anteilig** (#419). Ohne das wäre das Schlüsseltalent
+    // bei ANCHOR ein reiner Rabatt: halber Einsatz, volle Senkung.
     const senkung =
       control.amountPercent > 0
-        ? Math.round(control.amountPercent * talentControlEffectFactor(this.talents))
+        ? Math.round(
+            (control.amountPercent * talentControlEffectFactor(this.talents) * einsatz) / preis,
+          )
         : staerke;
     const alleDrei = control.effect === 'allThree';
     if (alleDrei) {
@@ -2270,6 +2332,10 @@ export class Combat {
       if (this.shieldStacksValue < grenze) {
         this.shieldStacksValue++;
         this.shieldValue += dicke;
+        // Für die Nachlage (#419): Der Bruch braucht die Dicke, und jede neu
+        // gelegte Schicht bekommt ihre eigene Nachlage.
+        this.shieldLastAmount = dicke;
+        this.shieldRefundUsed = false;
         // **Der Schutz drängt die Reaktion zurück** (Baustein 6; #247), um
         // seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim bloßen Erneuern:
         // Sonst wäre die Obergrenze wirkungslos, und das gilt hier wie für den
@@ -2460,6 +2526,48 @@ export class Combat {
       this.decayCountValue++;
     }
     this.updateVulnerability();
+  }
+
+  /**
+   * Schreibt den Endpunkt des Nachlaufs fort (#419, `KEYSTONE_DECAY_ECHO`).
+   *
+   * **Nur für Brände, die überhaupt Stapel legen.** Ein Brand ohne
+   * `decayPerTick` bekommt keinen Endpunkt und damit keinen Nachlauf — sonst
+   * schaltete die Schleife nach seinem Ende einen Tick-Zeiger weiter, der
+   * nichts bewirkt.
+   *
+   * **Der jüngste Stapel gibt das Ende**, nicht der älteste: Er ist der letzte,
+   * der vergeht. Liegt gerade keiner, gibt es nichts nachzuhalten.
+   */
+  private merkeDecayEcho(index: number, decayPerTick: number): void {
+    if (decayPerTick <= 0) return;
+    this.decayEchoUntilMs[index] =
+      this.decayCountValue > 0
+        ? (this.decayExpiryMs[this.decayCountValue - 1] ?? NOT_ACTIVE)
+        : NOT_ACTIVE;
+  }
+
+  /**
+   * Ob ein erloschener Brand noch nachläuft — und räumt ihn ab, wenn nicht.
+   *
+   * **Hier endet die Selbstverstärkung.** Der Endpunkt stammt aus der Lage beim
+   * letzten lebenden Tick; was der Nachlauf selbst legt, verschiebt ihn nicht,
+   * weil `merkeDecayEcho` nur im lebenden Zweig aufgerufen wird. Ohne diese
+   * Trennung hielte ein einziger Brand seine Stapel für immer: Jeder neue
+   * Stapel schöbe die Frist vor sich her, und die Zersetzung liefe ohne
+   * weiteren Tastendruck endlos weiter.
+   */
+  private imDecayEcho(index: number, timeMs: number): boolean {
+    if (!this.hasKeystone(KEYSTONE_DECAY_ECHO)) return false;
+    const bis = this.decayEchoUntilMs[index] ?? NOT_ACTIVE;
+    if (bis === NOT_ACTIVE) return false;
+    // Auch die Stapel selbst müssen noch liegen: Wer sie anderweitig verliert
+    // (Phasenwechsel, Verzehr), verliert den Nachlauf mit ihnen.
+    if (this.decayCountValue <= 0 || this.fightElapsedMs(timeMs) > bis) {
+      this.decayEchoUntilMs[index] = NOT_ACTIVE;
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -2980,6 +3088,31 @@ export class Combat {
     return this.resetArmedForValue;
   }
 
+  /**
+   * Der Zauber mit der längsten Restzeit — ohne den Rücksetzer selbst.
+   *
+   * `-1`, wenn keiner auf Abklingzeit steht. **Bei Gleichstand der kleinere
+   * Platz**, damit beide Seiten dieselbe Wahl treffen: Der Simulator läuft
+   * über dieselbe Reihenfolge, und „irgendeiner davon" wäre der erste Riss in
+   * der Bitgleichheit.
+   *
+   * Der Rücksetzer selbst bleibt außen vor — er steht in dem Moment gerade
+   * frisch auf Abklingzeit und wäre sonst regelmäßig sein eigenes Ziel.
+   */
+  private laengsteRestzeit(ausser: number, timeMs: number): number {
+    let ziel = -1;
+    let laengste = 0;
+    for (let i = 0; i < this.spells.length; i++) {
+      if (i === ausser) continue;
+      const rest = this.cooldownRemainingMs(i, timeMs);
+      if (rest > laengste) {
+        laengste = rest;
+        ziel = i;
+      }
+    }
+    return ziel;
+  }
+
   /** Wie viele Auswahlen noch offen sind (Issue #521). */
   get resetChargesLeft(): number {
     return this.resetChargesLeftValue;
@@ -2991,9 +3124,28 @@ export class Combat {
    * **NACH der Wirkung, nie davor** — sonst wählte sein eigener Druck bereits,
    * und der Rücksetzer würde nie gewirkt.
    */
-  armResetIfNeeded(index: number): void {
+  armResetIfNeeded(index: number, timeMs: number): void {
     const ladungen = this.spells[index]?.cooldownResetCharges ?? 0;
     if (ladungen <= 0) return;
+
+    // **SUBLIMATIONs Schlüsseltalent** (#419): Der Rücksetzer wählt nicht
+    // mehr, sondern trifft die längste Restzeit von selbst.
+    //
+    // Wie bei `split-spender` steht hier eine Verzweigung und kein Faktor: Es
+    // ändert sich, WAS geschieht — der Auswahlmodus entfällt, und mit ihm der
+    // zusätzliche Tastendruck. Ein Talent, das sich als Zahl ausdrücken ließe,
+    // wäre kein Schlüsseltalent.
+    //
+    // **Die Ladungen fallen mit weg**, und das ist Absicht: Sie zählen
+    // Auswahlen, und es gibt keine mehr. Ein Zuschlag auf etwas, das nicht
+    // stattfindet, wäre eine Zahl ohne Wirkung — genau das, was #418 an einem
+    // Schlüsseltalent ausschließt.
+    if (this.hasKeystone(KEYSTONE_AUTO_RESET)) {
+      const ziel = this.laengsteRestzeit(index, timeMs);
+      if (ziel >= 0) this.clearCooldown(ziel);
+      return;
+    }
+
     this.resetArmedForValue = index;
     // **Überschreiben, nicht aufaddieren.** Wer einen zweiten Rücksetzer
     // wirkt, während der erste noch scharf steht, hat den ersten verschenkt —
@@ -3184,9 +3336,29 @@ export class Combat {
       this.shieldAbsorbedValue += abgefangen;
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_SHIELD_ABSORB, NO_SPELL_REF, abgefangen);
       if (this.shieldValue === 0) {
-        // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
-        this.shieldStacksValue = 0;
-        this.shieldExpiresAtMs = -1;
+        // **COAGULATIONs Schlüsseltalent** (#419): Der brechende Schild legt
+        // eine halbe Schicht nach — einmal je gelegtem Schild.
+        //
+        // Abgerundet (GAME-DESIGN 18.4) und nur, wenn dabei etwas übrig
+        // bleibt: Eine Nachlage von 0 wäre keine, würde aber den Merker
+        // verbrauchen und sähe im Verlauf wie eine aus.
+        const nachlage = this.hasKeystone(KEYSTONE_SHIELD_REFUND)
+          ? Math.floor(this.shieldLastAmount / 2)
+          : 0;
+        //
+        // **Kein `return` hier.** Der Schlag, der die Schicht bricht, kann
+        // mehr tragen, als sie auffängt; der Rest muss weiter unten beim
+        // Spieler ankommen. Ein früher Ausstieg verschluckte ihn — der Schild
+        // wäre dann nicht nur eine Nachlage wert, sondern ein Freischlag.
+        if (nachlage > 0 && !this.shieldRefundUsed) {
+          this.shieldRefundUsed = true;
+          this.shieldValue = nachlage;
+          this.shieldStacksValue = 1;
+        } else {
+          // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+          this.shieldStacksValue = 0;
+          this.shieldExpiresAtMs = -1;
+        }
       }
     }
 
@@ -3614,9 +3786,20 @@ export class Combat {
       const spell = this.spells[i] as SpellDef;
       const dot = spell.dot;
       if (dot === undefined) continue;
-      if (!this.isDotActive(i, timeMs)) continue;
       const nextTick = this.dotNextTickAtMs[i] ?? NOT_ACTIVE;
       if (nextTick === NOT_ACTIVE || timeMs < nextTick) continue;
+
+      // **Der Nachlauf eines erloschenen Brands** (#419, PUTREFACTIONs
+      // Schlüsseltalent). Er steht VOR der Schadensrechnung und steigt mit
+      // `continue` aus: Ein toter Brand legt Stapel, aber er schlägt nicht
+      // mehr zu. Trüge er auch Schaden, wäre er eine verlängerte Laufzeit —
+      // und die gibt es schon als „Lasting Rot".
+      if (!this.isDotActive(i, timeMs)) {
+        if (!this.imDecayEcho(i, timeMs)) continue;
+        this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
+        this.dotNextTickAtMs[i] = nextTick + this.dotInterval(dot);
+        continue;
+      }
 
       // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
       // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn gesetzt
@@ -3660,6 +3843,10 @@ export class Combat {
       // sie beim Wirken legt (`applyPutrefaction`), sitzt ebenfalls direkt im
       // Kampf. Zwei Wege für dieselbe Größe wären eine Stelle zu viel.
       this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
+      // **Den Endpunkt des Nachlaufs fortschreiben, solange der Brand lebt**
+      // (#419). Beim Erlöschen steht damit von selbst die Frist des jüngsten
+      // Stapels da — es braucht keine Stelle, die das Ende des Brands abpasst.
+      this.merkeDecayEcho(i, dot.decayPerTick ?? 0);
       // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
       // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
       // beisteuert, steht in seinen Daten, nicht im Kampfcode.
