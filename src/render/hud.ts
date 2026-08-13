@@ -20,7 +20,7 @@ import { heldOf, progressOf } from '../core/summary.js';
 import { analyzeRun, interruptDataFor, runDataFor } from '../analysis/run-analysis.js';
 import type { RunAnalysis } from '../analysis/run-analysis.js';
 import type { EfficiencyTable } from '../analysis/efficiency.js';
-import { sampleDamageCurve, type RunCurve } from '../analysis/run-compare.js';
+import { sampleDamageCurve, type ComparedMetric, type RunCurve } from '../analysis/run-compare.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import type { Combat } from '../core/combat.js';
 import { GCD_MS } from '../core/gcd.js';
@@ -218,6 +218,7 @@ export class HudRenderer {
     analysis: LossReport | null;
     efficiency: EfficiencyTable | null;
     curve: RunCurve | null;
+    comparison: readonly ComparedMetric[] | null;
     damage: number;
     progressPercent: number;
     casts: number;
@@ -234,6 +235,7 @@ export class HudRenderer {
     analysis: null,
     efficiency: null,
     curve: null,
+    comparison: null,
     damage: 0,
     progressPercent: 0,
     casts: 0,
@@ -278,6 +280,17 @@ export class HudRenderer {
       readonly xpGained: number | null;
       readonly levelUp: LevelUpDisplay | null;
     } = () => ({ xpGained: null, levelUp: null }),
+    /**
+     * Der Vergleich mit dem Bestlauf, oder `null` (Issue #82).
+     *
+     * **Als Zulieferung und nicht hier gerechnet** — dieselbe Trennung wie bei
+     * `markSource` und `pointsSource`: Der Vergleich braucht den Spielstand,
+     * und der HUD kennt ihn nicht. Wer ihm den Spielstand gäbe, lüde ihn ein,
+     * selbst zu entscheiden, welcher Bestlauf gemeint ist.
+     *
+     * **Ans Ende der Liste**, damit kein bestehender Aufruf sich verschiebt.
+     */
+    private readonly comparisonSource: () => readonly ComparedMetric[] | null = () => null,
   ) {
     this.mechanicSource = {
       slotCount: SLOT_COUNT,
@@ -441,6 +454,10 @@ export class HudRenderer {
       // Referenz.
       view.curve =
         view.summary === null ? null : sampleDamageCurve(this.session.log, view.summary.elapsedMs);
+      // **Der Vergleich, beim selben Wechsel** (Issue #82): Er ändert sich
+      // während der Auswertung nicht, und je Bild abzufragen hiesse, den
+      // Spielstand je Bild zu lesen.
+      view.comparison = this.comparisonSource();
     }
     // Die Marke wird beim selben Wechsel geholt wie die Kurzfassung -- nicht
     // je Bild. Sie aendert sich waehrend der Auswertung nicht.
