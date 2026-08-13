@@ -34,6 +34,7 @@ const LEER: RecordedState = {
   talentPoints: {},
   items: [],
   defeatedBosses: [],
+  unlockedEntryIds: [],
   level: 1,
   experience: 0,
 };
@@ -172,6 +173,7 @@ describe('Ein Sieg gibt Erfahrung — und jemand ruft die Rechnung wirklich auf'
         talentPoints: {},
         items: [],
         defeatedBosses: [],
+        unlockedEntryIds: [],
         level: ergebnis.level,
         experience: ergebnis.experience,
       };

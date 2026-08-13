@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "_comment": "PRUEF-EINTRAEGE FUER DIE ARCHIV-ANSICHT (Issue #85). Sie gehoeren NICHT zum Spiel und werden nie ausgeliefert: ihre Kennungen beginnen mit 'test-', und `PLAYABLE_ARCHIVE_ENTRIES` in src/analysis/archive-data.ts filtert genau darueber. Dieselbe Konvention wie test-cast (#304), test-buff (#420), test-channel (#323) und die test-*-Bosse in data/bosses/.\n\nWARUM PRUEFDATEN UND KEIN KATALOG-INHALT: Die ~150 echten Archiv-Texte sind ausdruecklich E10. Der Issue-Text sagt es woertlich ('Die ~150 Archiv-Texte selbst gehoeren zu E10 — hier entsteht nur die Ansicht'), und GAME-DESIGN Zeile 2620 fuehrt sie in der Tabelle der offenen Inhalte unter E10. Sie hier zu schreiben hiesse, 150 mal eine Entscheidung zu treffen, die dort ansteht — in einem Ton, den der Auftraggeber noch nicht abgenommen hat.\n\nWAS SIE TROTZDEM BELEGEN: Die Ansicht braucht Eintraege, sonst laesst sich weder pruefen, dass sie gliedert, noch dass ein Eintrag beim ersten Sieg erscheint und beim zweiten nicht mehr. Diese vier decken alle vier Stimmen aus GAME-DESIGN 17.4 ab und beide Ausloeser — mehr braucht die Ansicht nicht, weniger wuerde sie nicht tragen.\n\nDIE TEXTE SIND BEWUSST NUECHTERN: Sie beschreiben, WOFUER der Eintrag da ist, statt Stimmung zu erzeugen. Ein Pruefeintrag, der klingt wie ein echter, wandert beim naechsten Aufraeumen versehentlich in den Katalog.",
+  "entries": [
+    {
+      "id": "test-before-instance",
+      "instanceId": "instance-1",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "Test Entry — Before Instance",
+      "body": "A test record. It exists so the archive view has something to show before an instance begins. The real texts belong to E10."
+    },
+    {
+      "id": "test-after-kill",
+      "instanceId": "instance-1",
+      "trigger": "afterFirstKill",
+      "bossId": "boss-1-1",
+      "voice": "fragment",
+      "title": "Test Entry — After First Kill",
+      "body": "A test record tied to a single boss. It unlocks on the first victory and never again. The real texts belong to E10."
+    },
+    {
+      "id": "test-device-log",
+      "instanceId": "instance-1",
+      "trigger": "afterFirstKill",
+      "bossId": "boss-1-2",
+      "voice": "deviceLog",
+      "title": "Test Entry — Device Log",
+      "body": "A test record in the device-log voice. It exists so the view can be checked across all four voices. The real texts belong to E10."
+    },
+    {
+      "id": "test-other-voice",
+      "instanceId": "instance-2",
+      "trigger": "beforeInstance",
+      "voice": "other",
+      "title": "Test Entry — Other Voice",
+      "body": "A test record in the fourth voice, and in a second instance. Two instances are needed to check that the view groups them. The real texts belong to E10."
+    },
+    {
+      "id": "test-prologue-kill",
+      "instanceId": "prologue",
+      "trigger": "afterFirstKill",
+      "bossId": "first-crucible",
+      "voice": "ownNotes",
+      "title": "Test Entry — Prologue Victory",
+      "body": "A test record tied to the starting boss. It exists because the browser check needs a boss a player actually reaches on the first run. The real texts belong to E10."
+    }
+  ]
+}
