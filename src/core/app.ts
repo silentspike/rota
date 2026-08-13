@@ -57,7 +57,7 @@ import '../progression/boss-select.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
-import { wornFrom } from '../gear/catalog.js';
+import { rotationEffectsFrom, wornFrom } from '../gear/catalog.js';
 import { equip, equippedBySlot, unequip } from '../gear/equip.js';
 import type { OwnedItem } from '../analysis/save-format.js';
 
@@ -207,6 +207,23 @@ export class App {
     // die Kette `worn -> essenceFactor -> factors` war seit #282 verdrahtet
     // und begann bei einem Wert, den niemand füllte.
     this.combat.setWorn(wornFrom(this.persistence.state.items));
+
+    // **Die Rotations-Effekte der Sätze** (13.5, Issue #480). Zwei Quellen,
+    // zwei Wege in den Kampf: `wornFrom` bringt die Zahlen, `rotationEffectsFrom`
+    // die Kennungen der sechsten Satzstufen.
+    //
+    // **Diese Zeile fehlte seit #774**, und mit ihr die Wirkung von sechs
+    // Issues: Ashen Regimen, The Whole Work, Slow Rot, The Sealed Vessel,
+    // The Long Grip und Perpetual Draft waren gebaut, geprüft und
+    // paritätsgesichert — `hasSetEffect` gab für jeden Spieler immer `false`,
+    // weil `setEffects` nie befüllt wurde. Die Leitung war bis
+    // `rotationEffectsFrom` gebaut und endete dort an der Wand.
+    //
+    // Jeder Prüffall dazu war grün, weil jeder `setSetEffects` selbst rief —
+    // ein Fall, der den Setter bedient, IST die fehlende Speisung und kann sie
+    // nicht sehen. Gefunden hat es erst die Frage „wer ruft das im Betrieb?",
+    // gestellt an `setWorn` (2 Aufrufer) neben `setSetEffects` (0).
+    this.combat.setSetEffects(rotationEffectsFrom(this.persistence.state.items));
 
     // Am Kampfende festhalten, was der Versuch eingebracht hat. Der Beobachter
     // greift nicht ein -- ein Spiel ohne Spielstand rechnet identisch
@@ -633,6 +650,11 @@ export class App {
   setItems(items: readonly OwnedItem[]): void {
     this.persistence.persistItems(items);
     this.combat.setWorn(wornFrom(items));
+    // **Beide Wege, sonst hinkt einer nach.** Wer hier nur `setWorn` ruft,
+    // zieht die Zahlen nach und lässt die Effekte auf dem Stand des letzten
+    // Neuladens stehen — genau der Fehler, vor dem der Kommentar über dieser
+    // Methode für den Spielstand warnt, nur eine Ebene tiefer.
+    this.combat.setSetEffects(rotationEffectsFrom(items));
     this.refreshHome();
   }
 
