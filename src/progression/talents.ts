@@ -82,6 +82,75 @@ export function spentPoints(allocation: TalentAllocation): number {
  */
 export const KEYSTONE_SPLIT_SPENDER = 'split-spender';
 
+/**
+ * SUBLIMATIONs Schlüsseltalent (#419): Der Rücksetzer **wählt nicht mehr**.
+ *
+ * Ohne das Talent schaltet ein Rücksetzer einen Auswahlmodus scharf, und der
+ * nächste Tastendruck bestimmt, welche Abklingzeit fällt — er kostet also eine
+ * zusätzliche Handlung und eine Entscheidung unter Zeitdruck.
+ *
+ * Mit dem Talent trifft er von selbst den Zauber mit der **längsten
+ * Restzeit**. Das ist ein Verhalten und keine Zahl: Die Rotation verliert
+ * einen Tastendruck und gewinnt dafür die schlechteste aller Wartezeiten
+ * zurück — wer vorher den Auswahlmodus einplante, plant jetzt anders.
+ */
+export const KEYSTONE_AUTO_RESET = 'auto-reset';
+
+/**
+ * FIXATIONs Schlüsseltalent (#419): Ein Kontroll-Zauber **scheitert nicht mehr**.
+ *
+ * Ohne das Talent bricht er ab, wenn nicht genug Kontrolle da ist — der Druck
+ * ist verloren, und `controlFailed` zählt hoch. Wer FIXATION spielt, wartet
+ * deshalb, bis der Vorrat reicht.
+ *
+ * Mit dem Talent wirkt er mit dem, was da ist: Der Einsatz ist der halbe
+ * Vorrat statt des vollen Preises, und die **Wirkung sinkt im selben
+ * Verhältnis**. Das ist der Unterschied zu einem Rabatt — billiger wäre ein
+ * Faktor, anteilig ist eine andere Rechnung.
+ */
+export const KEYSTONE_PARTIAL_CONTROL = 'partial-control';
+
+/**
+ * COAGULATIONs Schlüsseltalent (#419): Ein brechender Schild **legt nach**.
+ *
+ * Ohne das Talent ist die Schicht weg, sobald sie aufgebraucht ist — der
+ * nächste Schlag trifft voll. Mit ihm entsteht im selben Moment eine halbe
+ * neue Schicht, **einmal je gelegtem Schild**.
+ *
+ * Die Begrenzung ist der Kern: Ohne sie legte jeder Bruch nach, der nächste
+ * wieder, und die Schicht wäre nicht mehr aufzubrauchen. Ein Schlüsseltalent
+ * baut die Rotation um, es hebelt sie nicht aus.
+ */
+export const KEYSTONE_SHIELD_REFUND = 'shield-refund';
+
+/**
+ * PUTREFACTIONs Schlüsseltalent (#419): Ein erloschener Brand **legt weiter
+ * Stapel**, bis die Lage vergangen ist, die bei seinem Ende lag.
+ *
+ * **Der erste Entwurf war wirkungslos, und das war messbar.** Er ließ beim
+ * Verfall eines Stapels jeden laufenden Brand einmal ticken — nur überlappen
+ * Brand-Laufzeit und Stapel-Laufzeit im Normalfall gar nicht:
+ *
+ * ```text
+ *   t=12000   4 Stapel   Brand AKTIV
+ *   t=16000   2 Stapel   Brand NICHT MEHR aktiv   <- hier verfällt der erste
+ * ```
+ *
+ * Genau diese Messung trägt jetzt das Talent: Bei t=16000 liegen Stapel, und
+ * der Brand ist aus. Die Lücke, in der der alte Entwurf nichts fand, ist die
+ * Zeit, die der neue füllt.
+ *
+ * **Der Nachlauf legt nur Stapel, keinen Schaden.** Ein toter Brand, der
+ * weiter zuschlägt, wäre eine verlängerte Laufzeit — das ist bereits „Lasting
+ * Rot". Hier wächst allein die Zersetzung.
+ *
+ * **Und er endet.** Maßgeblich ist die Frist des jüngsten Stapels, der beim
+ * Erlöschen lag; was der Nachlauf selbst legt, verlängert ihn nicht. Ohne
+ * diese Grenze hielte ein einziger Brand seine Stapel für immer am Leben,
+ * weil jeder neue Stapel den nächsten trüge.
+ */
+export const KEYSTONE_DECAY_ECHO = 'decay-echo';
+
 /** Ob die Verteilung ein bestimmtes Verhalten freigeschaltet hat (#418). */
 export function hasKeystone(allocation: TalentAllocation, keystone: string): boolean {
   return TALENTS.some(

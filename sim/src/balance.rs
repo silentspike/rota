@@ -493,6 +493,12 @@ fn run_range(
         talent_cooldown_reduction_permille: 0,
         talent_cooldown_charges_bonus: 0,
         talent_cooldown_threshold_permille: 0,
+        // Der Balance-Laeufer misst OHNE Schluesseltalent — wie beim
+        // Talent-Faktor daneben. Wer es messen will, setzt es hier.
+        auto_reset: false,
+        partial_control: false,
+        shield_refund: false,
+        decay_echo: false,
         // **Die beiden ANDEREN Talent-Groessen kommen durch** (Issue #419) —
         // und das ist der Unterschied, der AC3 ueberhaupt erst messbar macht.
         //

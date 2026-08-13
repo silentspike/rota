@@ -254,6 +254,22 @@ pub struct FightConfig {
     /// Zauberliste — geht auf dieser Seite nicht: `SPELLS` ist statisch und
     /// wird an vierzig Stellen direkt gelesen.
     pub split_spender: bool,
+    /// Ob das Schluesseltalent "auto-reset" verteilt ist (SUBLIMATION, #419).
+    ///
+    /// Dieselbe Bauart wie `split_spender` daneben: ein Verhalten, kein
+    /// Faktor. Der Ruecksetzer stellt dann keinen Auswahlmodus scharf,
+    /// sondern loescht sofort die LAENGSTE Restzeit.
+    pub auto_reset: bool,
+    /// Ob das Schluesseltalent "partial-control" verteilt ist (FIXATION, #419).
+    pub partial_control: bool,
+    /// Ob das Schluesseltalent "shield-refund" verteilt ist (COAGULATION, #419).
+    pub shield_refund: bool,
+    /// Ob das Schluesseltalent "decay-echo" verteilt ist (PUTREFACTION, #419).
+    ///
+    /// Ein erloschener Brand legt dann weiter Zersetzungs-Stapel — bis die
+    /// Lage vergangen ist, die bei seinem Ende lag. Nur Stapel, kein Schaden:
+    /// eine laengere Laufzeit gibt es schon als "Lasting Rot".
+    pub decay_echo: bool,
     /// Ob der Satz-Effekt "ashen-regimen" wirkt (13.5, Issue #480).
     ///
     /// Die sechste Satz-Stufe traegt keinen Werte-Bonus, sondern eine Kennung,
@@ -369,6 +385,10 @@ impl Default for FightConfig {
             boss: BOSS,
             worn: WornValues::none(),
             split_spender: false,
+            auto_reset: false,
+            partial_control: false,
+            shield_refund: false,
+            decay_echo: false,
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
@@ -833,6 +853,20 @@ pub struct Fight {
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
     split_spender: bool,
+    auto_reset: bool,
+    partial_control: bool,
+    shield_refund: bool,
+    decay_echo: bool,
+    /// Bis wann ein ERLOSCHENER Brand noch Stapel legt (#419, decay-echo).
+    ///
+    /// 0 heisst: kein Nachlauf. Der Wert ist die Frist des juengsten Stapels
+    /// beim letzten lebenden Tick — fortgeschrieben, solange der Brand laeuft,
+    /// sodass beim Erloeschen von selbst der richtige Endpunkt dasteht.
+    decay_echo_until: [Millis; SPELL_COUNT],
+    /// Wie dick die zuletzt gelegte Schicht war (fuer die Nachlage, #419).
+    shield_last_amount: u32,
+    /// Ob dieser Schild seine Nachlage schon bekommen hat.
+    shield_refund_used: bool,
     ashen_regimen: bool,
     whole_work: bool,
     slow_rot: bool,
@@ -1135,6 +1169,13 @@ impl Fight {
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
             split_spender: config.split_spender,
+            auto_reset: config.auto_reset,
+            partial_control: config.partial_control,
+            shield_refund: config.shield_refund,
+            decay_echo: config.decay_echo,
+            decay_echo_until: [0; SPELL_COUNT],
+            shield_last_amount: 0,
+            shield_refund_used: false,
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
@@ -1552,7 +1593,33 @@ impl Fight {
                             // Der Zuschlag greift NACH der Pruefung, nicht in
                             // ihr — sonst waere jeder Zauber ein Ruecksetzer,
                             // sobald ein Rang verteilt ist.
-                            if SPELLS[index].cooldown_reset_charges > 0 {
+                            if SPELLS[index].cooldown_reset_charges > 0 && self.auto_reset {
+                                // **SUBLIMATIONs Schluesseltalent** (#419):
+                                // keine Wahl mehr, sondern sofort die
+                                // LAENGSTE Restzeit. Bei Gleichstand der
+                                // kleinere Platz — dieselbe Regel wie in
+                                // `Combat.laengsteRestzeit`, sonst waehlen die
+                                // beiden Seiten verschieden und die
+                                // Bitgleichheit reisst genau hier.
+                                let mut ziel: Option<usize> = None;
+                                let mut laengste = 0u32;
+                                for i in 0..SPELLS.len() {
+                                    if i == index {
+                                        continue;
+                                    }
+                                    let rest = self.cooldown_remaining_ms(i);
+                                    if rest > laengste {
+                                        laengste = rest;
+                                        ziel = Some(i);
+                                    }
+                                }
+                                if let Some(i) = ziel {
+                                    // Dasselbe wie `Combat.clearCooldown`:
+                                    // die Bereitschaft auf 0 setzen, nicht
+                                    // abziehen.
+                                    self.cooldown_ready_at[i] = 0;
+                                }
+                            } else if SPELLS[index].cooldown_reset_charges > 0 {
                                 self.reset_mode.arm(
                                     index,
                                     SPELLS[index]
@@ -1778,6 +1845,7 @@ impl Fight {
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
         self.dot_expires_at = [None; SPELL_COUNT];
+        self.decay_echo_until = [0; SPELL_COUNT];
         self.dot_generation = [0; SPELL_COUNT];
         self.casts = [0; SPELL_COUNT];
         self.damage_by_spell = [0; SPELL_COUNT];
@@ -2249,6 +2317,10 @@ impl Fight {
             if self.shield_stacks < grenze {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(dicke);
+                // Fuer die Nachlage (#419): Der Bruch braucht die Dicke, und
+                // jede neu gelegte Schicht bekommt ihre eigene Nachlage.
+                self.shield_last_amount = dicke;
+                self.shield_refund_used = false;
                 // **Der Schutz draengt die Reaktion zurueck** (Baustein 6,
                 // #247), um seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim
                 // blossen Erneuern — sonst waere die Obergrenze wirkungslos.
@@ -2400,20 +2472,31 @@ impl Fight {
     ///
     /// Hier greift FIXATION wirklich in den **Kampfverlauf** ein — das ist,
     /// was sie von jeder anderen Schule unterscheidet.
-    fn apply_control_effect(&mut self, control: Control) {
+    fn apply_control_effect(&mut self, control: Control, einsatz: u32, preis: u32) {
         // **Der Wirkungs-Weg wirkt am EINGANG** (Issue #419, FIXATION). Der
         // Faktor auf `amount` gilt damit fuer alle fuenf Wirkungen und fuer
         // `AllThree`, das drei davon nacheinander aufruft — eine Zeile statt
         // fuenf, die auseinanderlaufen koennen.
         let control = Control {
-            amount: (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32,
+            // **Der Anteil steckt IN derselben Rundung wie im Spiel**
+            // (`combat.ts`, `staerke`). Wer erst rundet und dann teilt, bekommt
+            // eine andere Zahl — und die Bitgleichheit reisst an einer Stelle,
+            // die niemand mit dem Talent in Verbindung braechte.
+            amount: (f64::from(control.amount)
+                * self.talent_control_effect_factor
+                * f64::from(einsatz)
+                / f64::from(preis))
+            .round() as u32,
             // **Die Phasen-Senkung traegt denselben Faktor, aber ihre eigene
             // Zahl** (Issue #478). Bei 0 gilt `amount` — dieselbe Regel wie in
             // `combat.ts`, damit beide Seiten bei einem Zauber ohne
             // `amountPercent` dasselbe rechnen.
             amount_percent: if control.amount_percent > 0 {
-                (f64::from(control.amount_percent) * self.talent_control_effect_factor).round()
-                    as u32
+                (f64::from(control.amount_percent)
+                    * self.talent_control_effect_factor
+                    * f64::from(einsatz)
+                    / f64::from(preis))
+                .round() as u32
             } else {
                 (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32
             },
@@ -2429,10 +2512,20 @@ impl Fight {
                 ControlEffect::DelayStrike,
                 ControlEffect::HoldPhase,
             ] {
-                self.apply_control_effect(Control {
-                    effect: effekt,
-                    ..control
-                });
+                // **Neutral weiterreichen (1/1), nicht den Anteil.** Die
+                // Werte in `control` sind an dieser Stelle bereits skaliert;
+                // wer den Anteil hier erneut mitgibt, halbiert ihn ein
+                // zweites Mal. Das Spiel rechnet `staerke` genau einmal aus
+                // und gibt sie an alle drei Wirkungen weiter — dieselbe
+                // Reihenfolge, damit die Bitgleichheit haelt.
+                self.apply_control_effect(
+                    Control {
+                        effect: effekt,
+                        ..control
+                    },
+                    1,
+                    1,
+                );
             }
             return;
         }
@@ -2562,20 +2655,31 @@ impl Fight {
         // ein Ausgeber, der nichts kostet, waere keiner.
         let preis =
             ((f64::from(control.cost) / self.talent_control_cost_factor).round() as u32).max(1);
-        if self.control < preis {
+        // **FIXATIONs Schluesseltalent** (#419): Der Zauber scheitert nicht
+        // mehr, sondern wirkt mit dem, was da ist — und die Wirkung sinkt im
+        // selben Verhaeltnis. Spiegelbild von `Combat.applyControl`.
+        //
+        // Bei LEEREM Vorrat scheitert er weiterhin: Ein Zauber, der aus nichts
+        // etwas macht, waere kein Schluesseltalent, sondern ein Fehler.
+        if self.control < preis && (!self.partial_control || self.control == 0) {
             self.control_failed += 1;
             return;
         }
+        // **Der Einsatz ist geklemmt** (#419, `partial_control`): ohne das
+        // Talent der volle Preis, mit ihm bei knappem Vorrat weniger.
+        let einsatz = preis.min(self.control);
         // **THE LONG GRIP** (13.5): Der ABZUG entfaellt, nicht die
         // Voraussetzung — die Pruefung oben laeuft unveraendert.
         if self.long_grip && self.free_control_spend_armed {
             self.free_control_spend_armed = false;
             self.free_control_spends += 1;
         } else {
-            self.control -= preis;
+            // **Der EINSATZ, nicht der Preis** — sonst zoege ein anteiliger
+            // Ausgeber (#419) ab, was er gar nicht hatte.
+            self.control -= einsatz;
         }
-        self.control_spent = self.control_spent.saturating_add(preis);
-        self.apply_control_effect(control);
+        self.control_spent = self.control_spent.saturating_add(einsatz);
+        self.apply_control_effect(control, einsatz, preis);
     }
 
     /// Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 laeuft.
@@ -2651,6 +2755,46 @@ impl Fight {
                 .push(self.time + DECAY_STACK_DURATION_MS, EventKind::Wakeup);
         }
         self.update_vulnerability();
+    }
+
+    /// Schreibt den Endpunkt des Nachlaufs fort (#419, decay-echo).
+    ///
+    /// Spiegelbild zu `merkeDecayEcho` in `src/core/combat.ts`.
+    ///
+    /// **Nur fuer Braende, die ueberhaupt Stapel legen** — sonst reihte die
+    /// Warteschlange nach dem Ende Ticks ein, die nichts bewirken. Und der
+    /// JUENGSTE Stapel gibt das Ende, nicht der aelteste: Er ist der letzte,
+    /// der vergeht.
+    fn merke_decay_echo(&mut self, index: usize, decay_per_tick: u32) {
+        if decay_per_tick == 0 {
+            return;
+        }
+        self.decay_echo_until[index] = if self.decay_count > 0 {
+            self.decay_expiry[self.decay_count - 1]
+        } else {
+            0
+        };
+    }
+
+    /// Ob ein erloschener Brand jetzt noch nachlaeuft — und raeumt ihn ab,
+    /// wenn nicht. Spiegelbild zu `imDecayEcho` in `src/core/combat.ts`.
+    ///
+    /// **Hier endet die Selbstverstaerkung.** Der Endpunkt stammt aus der Lage
+    /// beim letzten LEBENDEN Tick; was der Nachlauf selbst legt, verschiebt
+    /// ihn nicht, weil `merke_decay_echo` nur im lebenden Zweig laeuft. Ohne
+    /// diese Trennung truege jeder neue Stapel den naechsten, und ein einziger
+    /// Brand hielte die Zersetzung ohne weiteren Tastendruck endlos.
+    fn im_decay_echo(&mut self, index: usize) -> bool {
+        if !self.decay_echo || self.decay_echo_until[index] == 0 {
+            return false;
+        }
+        // Auch die Stapel selbst muessen noch liegen: Wer sie anderweitig
+        // verliert (Phasenwechsel, Verzehr), verliert den Nachlauf mit ihnen.
+        if self.decay_count == 0 || self.time > self.decay_echo_until[index] {
+            self.decay_echo_until[index] = 0;
+            return false;
+        }
+        true
     }
 
     /// Laesst abgelaufene Stapel verfallen — **den aeltesten zuerst**.
@@ -3128,9 +3272,28 @@ impl Fight {
             self.log
                 .push(self.time, LogKind::ShieldAbsorb, NO_SPELL, abgefangen);
             if self.shield == 0 {
-                // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
-                self.shield_stacks = 0;
-                self.shield_expires_at = None;
+                // **COAGULATIONs Schluesseltalent** (#419): eine halbe Schicht
+                // kommt nach, EINMAL je gelegtem Schild. Abgerundet
+                // (GAME-DESIGN 18.4) und nur, wenn etwas uebrig bleibt.
+                //
+                // Kein frueher Ausstieg: Was die Schicht uebersteigt, muss
+                // weiter unten beim Spieler ankommen — sonst waere das Talent
+                // ein Freischlag statt einer Nachlage. Spiegelbild von
+                // `Combat.hitPlayer`.
+                let nachlage = if self.shield_refund {
+                    self.shield_last_amount / 2
+                } else {
+                    0
+                };
+                if nachlage > 0 && !self.shield_refund_used {
+                    self.shield_refund_used = true;
+                    self.shield = nachlage;
+                    self.shield_stacks = 1;
+                } else {
+                    // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+                    self.shield_stacks = 0;
+                    self.shield_expires_at = None;
+                }
             }
         }
 
@@ -3360,12 +3523,32 @@ impl Fight {
         if generation != self.dot_generation[index] {
             return;
         }
-        if !self.dot_active(index) {
-            return;
-        }
         let Some(dot) = SPELLS[index].dot else {
             return;
         };
+        if !self.dot_active(index) {
+            // **Der Nachlauf eines erloschenen Brands** (#419, decay-echo).
+            // Er legt Stapel und steigt dann aus: Ein toter Brand schlaegt
+            // nicht mehr zu. Truege er auch Schaden, waere er eine
+            // verlaengerte Laufzeit — und die gibt es schon als "Lasting Rot".
+            if !self.im_decay_echo(index) {
+                return;
+            }
+            self.add_decay_stacks(dot.decay_per_tick);
+            // **Immer vormerken, wie seit #485** — ob der Termin zaehlt,
+            // entscheidet `im_decay_echo` oben beim Abarbeiten. Die Kette
+            // endet dort von selbst: Ist der Nachlauf zu, kehrt diese Funktion
+            // zurueck, ohne einen weiteren Eintrag zu legen.
+            let next = self.time + self.dot_interval(&dot);
+            self.queue.push(
+                next,
+                EventKind::DotTick {
+                    spell: index as u8,
+                    generation,
+                },
+            );
+            return;
+        }
 
         // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
         // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn
@@ -3404,6 +3587,10 @@ impl Fight {
         // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
         // sie beim Wirken legt, sitzt ebenfalls direkt hier.
         self.add_decay_stacks(dot.decay_per_tick);
+        // **Den Endpunkt des Nachlaufs fortschreiben, solange der Brand lebt**
+        // (#419). Beim Erloeschen steht damit von selbst die Frist des
+        // juengsten Stapels da — es braucht keine Stelle, die das Ende abpasst.
+        self.merke_decay_echo(index, dot.decay_per_tick);
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
         // Der naechste Tick wird IMMER vorgemerkt; ob er zaehlt, entscheidet

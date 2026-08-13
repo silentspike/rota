@@ -287,7 +287,7 @@ describe('ALEMBIC — zwei Ladungen (#521)', () => {
     combat.cast(alsSpellIndex(lang), 0);
     combat.cast(alsSpellIndex(kurz), GCD_MS);
     combat.cast(alsSpellIndex(reset), 2 * GCD_MS);
-    combat.armResetIfNeeded(reset);
+    combat.armResetIfNeeded(reset, GCD_MS);
     expect(combat.resetChargesLeft).toBe(2);
 
     expect(combat.chooseForReset(alsSpellIndex(lang), 3 * GCD_MS)).toBe(true);
@@ -307,7 +307,7 @@ describe('ALEMBIC — zwei Ladungen (#521)', () => {
     const { combat, lang, reset } = aufbau();
     combat.cast(alsSpellIndex(lang), 0);
     combat.cast(alsSpellIndex(reset), GCD_MS);
-    combat.armResetIfNeeded(reset);
+    combat.armResetIfNeeded(reset, GCD_MS);
 
     expect(combat.chooseForReset(alsSpellIndex(lang), 2 * GCD_MS)).toBe(true);
     expect(
@@ -324,7 +324,7 @@ describe('ALEMBIC — zwei Ladungen (#521)', () => {
     const { combat, lang, reset } = aufbau();
     combat.cast(alsSpellIndex(lang), 0);
     combat.cast(alsSpellIndex(reset), GCD_MS);
-    combat.armResetIfNeeded(reset);
+    combat.armResetIfNeeded(reset, GCD_MS);
     combat.chooseForReset(alsSpellIndex(lang), 2 * GCD_MS);
 
     // Beliebig viel später — es gibt keine Frist.
@@ -343,7 +343,7 @@ describe('ALEMBIC — zwei Ladungen (#521)', () => {
     const reset = combat.indexOf('reset');
     combat.cast(alsSpellIndex(lang), 0);
     combat.cast(alsSpellIndex(reset), GCD_MS);
-    combat.armResetIfNeeded(reset);
+    combat.armResetIfNeeded(reset, GCD_MS);
     expect(combat.resetChargesLeft).toBe(1);
     expect(combat.chooseForReset(alsSpellIndex(lang), 2 * GCD_MS)).toBe(true);
     expect(combat.resetArmed).toBe(false);
