@@ -99,6 +99,11 @@ function haltbarkeit(talente: Record<string, number>): number {
   return combat.decayExpiryAt(0);
 }
 
+/** Wie viele Stapel gleichzeitig liegen duerfen (#419, Umbau des build-Wegs). */
+function deckel(talente: Record<string, number>): number {
+  return kampf(talente).decayStackCap;
+}
+
 // ---- COAGULATION ---------------------------------------------------------
 
 /** Weg „thicker": Wie viel Schutz CRUST aufbaut. */
@@ -225,6 +230,19 @@ describe('PUTREFACTION — drei Wege, drei Größen', () => {
       for (let t = TICK_MS; t <= 5000; t += TICK_MS) ohne.stepPassive(t);
       expect(mit.decayStacks).toBeGreaterThanOrEqual(ohne.decayStacks);
     });
+
+    it('hebt die OBERGRENZE — seit dem Umbau die eigentliche Wirkung', () => {
+      // **Der Weg legt seit #419 nicht mehr mehr Stapel, sondern erlaubt mehr.**
+      // Gemessen war der alte wirkungslos: `effect` multipliziert die Summe
+      // aller Stapel, `build` addierte gelegentlich einen — ein Weg auf die
+      // Summe schlaegt einen auf einen Summanden.
+      //
+      // Die Zersetzung liegt zu 77 bis 84 % der Kampfzeit AM Deckel; dort
+      // bringt jeder zusaetzliche Platz den vollen Wert, und die beiden Wege
+      // multiplizieren sich statt zu konkurrieren.
+      expect(deckel({}), 'die Grundgrenze liegt nicht bei fuenf').toBe(5);
+      expect(deckel({ 'putrefaction-build': VOLL }), 'der Weg hebt sie nicht').toBeGreaterThan(5);
+    });
   });
 
   describe('effect — die Wertigkeit', () => {
@@ -238,14 +256,16 @@ describe('PUTREFACTION — drei Wege, drei Größen', () => {
     });
   });
 
-  describe('duration — die Haltbarkeit', () => {
+  describe('duration — seit dem Umbau der SCHUTZ je Stapel', () => {
     const TALENT = { 'putrefaction-duration': VOLL };
-    it('lässt den Stapel länger liegen', () => {
-      // 60 Promille je Rang, fünf Ränge: Faktor 1,3 auf 12000 ergibt 15600.
-      expect(haltbarkeit(TALENT)).toBeGreaterThan(12_000);
-    });
+
     it('lässt die FREMDEN Größen unberührt', () => {
+      // **Die Haltbarkeit gehört jetzt dazu.** Der Weg hob sie bis zum Umbau
+      // (#419) und verlor damit gegen `effect` in jeder Rotation: beide
+      // wirkten auf denselben Schaden, einer stärker. Jetzt zieht er in eine
+      // andere Richtung — dieselben Stapel, aber Schutz statt Schaden.
       expect(stapel(TALENT), 'duration wirkt auf den Aufbau').toBe(1);
+      expect(haltbarkeit(TALENT), 'duration wirkt noch auf die Haltbarkeit').toBe(12_000);
       expect(verwundbarkeit(TALENT), 'duration wirkt auf die Wertigkeit').toBeCloseTo(1.06, 5);
     });
   });

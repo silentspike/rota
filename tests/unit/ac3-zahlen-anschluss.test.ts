@@ -28,7 +28,7 @@ const ERWARTET = [
   { id: 'calcination-release', feld: 'damagePerRankPerMille', jeRang: 25 },
   { id: 'calcination-hold', feld: 'dotDurationPerRankPerMille', jeRang: 100 },
   { id: 'global-release', feld: 'spenderDamagePerRankPerMille', jeRang: 100 },
-  { id: 'global-build', feld: 'resourceGainPerRankPerMille', jeRang: 60 },
+  { id: 'global-build', feld: 'buildDamagePerRankPerMille', jeRang: 25 },
   { id: 'global-hold', feld: 'dotDurationPerRankPerMille', jeRang: 60 },
 ] as const;
 

@@ -252,6 +252,47 @@ export function talentSpenderDamageFactor(allocation: TalentAllocation): number 
   return faktorAus(allocation, (t) => t.spenderDamagePerRankPerMille);
 }
 
+/**
+ * Der Faktor auf den Schaden der **Aufbau-Zauber** (GLOBAL, Issue #419).
+ *
+ * Spiegelbild zu {@link talentSpenderDamageFactor} und im selben Topf: Beide
+ * landen additiv im Talent-Faktor (13.1b), beide werden je Wirkung neu gesetzt.
+ * Ein Zauber kann beides sein — BELLOWS sammelt und schlägt zu —, und dann
+ * gelten beide Zuschläge.
+ */
+export function talentBuildDamageFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.buildDamagePerRankPerMille);
+}
+
+/**
+ * Wie viele zusätzliche Zersetzungs-Stapel die Verteilung erlaubt.
+ *
+ * **Das Ergebnis ist eine ANZAHL**, auch wenn die Eingabe Promille sind: Einen
+ * halben Stapel-Platz gibt es nicht. Die Promille erlauben nur, dass der Weg
+ * bei vollem Ausbau ZWEI Plätze gibt statt fünf — gemessen die Zahl, bei der
+ * er neben `effect` steht statt über ihm.
+ */
+export function talentDecayCapBonus(allocation: TalentAllocation): number {
+  let promille = 0;
+  for (const talent of TALENTS) {
+    promille += effectiveRanks(allocation, talent) * talent.decayCapPerRankPerMille;
+  }
+  // **Ganzzahlig abgerundet, wie überall bei Plätzen** (18.4): Einen halben
+  // Stapel-Platz gibt es nicht, und ein Rest wäre hier — anders als beim
+  // Aufbau — nicht sammelbar: Der Deckel ist ein Zustand, kein Ereignis.
+  return Math.floor(promille / 1000);
+}
+
+/** Der Faktor auf den **Schutz je Zersetzungs-Stapel** (PUTREFACTION). */
+export function talentDecayWardFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.decayWardPerRankPerMille);
+}
+
+/** Der Faktor auf EFFLUX' **Umwandlung** von Restzeit in Schaden. */
+export function talentConvertFactor(allocation: TalentAllocation): number {
+  return faktorAus(allocation, (t) => t.convertPerRankPerMille);
+}
+
 /** Der Faktor auf die **Dicke** der Schutzschicht (COAGULATION). */
 export function talentShieldAmountFactor(allocation: TalentAllocation): number {
   return faktorAus(allocation, (t) => t.shieldAmountPerRankPerMille);
