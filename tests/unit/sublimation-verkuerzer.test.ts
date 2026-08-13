@@ -148,7 +148,7 @@ describe('ALEMBIC gibt zwei Ladungen zum Zurücksetzen (cooldownResetCharges)', 
   function nachEinerWahl(id: string): { ladungen: number; nochArmed: boolean } {
     const combat = new Combat({ school: CALCINATION.value, boss: FIRST_CRUCIBLE.value });
     combat.stepPassive(0);
-    combat.armResetIfNeeded(combat.indexOf(id));
+    combat.armResetIfNeeded(combat.indexOf(id), 0);
     const ladungen = combat.resetChargesLeft;
     combat.chooseForReset(alsSpellIndex(combat.indexOf('plate')), 0);
     return { ladungen, nochArmed: combat.resetArmed };

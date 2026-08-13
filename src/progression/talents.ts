@@ -82,6 +82,34 @@ export function spentPoints(allocation: TalentAllocation): number {
  */
 export const KEYSTONE_SPLIT_SPENDER = 'split-spender';
 
+/**
+ * SUBLIMATIONs Schlüsseltalent (#419): Der Rücksetzer **wählt nicht mehr**.
+ *
+ * Ohne das Talent schaltet ein Rücksetzer einen Auswahlmodus scharf, und der
+ * nächste Tastendruck bestimmt, welche Abklingzeit fällt — er kostet also eine
+ * zusätzliche Handlung und eine Entscheidung unter Zeitdruck.
+ *
+ * Mit dem Talent trifft er von selbst den Zauber mit der **längsten
+ * Restzeit**. Das ist ein Verhalten und keine Zahl: Die Rotation verliert
+ * einen Tastendruck und gewinnt dafür die schlechteste aller Wartezeiten
+ * zurück — wer vorher den Auswahlmodus einplante, plant jetzt anders.
+ */
+export const KEYSTONE_AUTO_RESET = 'auto-reset';
+
+/**
+ * FIXATIONs Schlüsseltalent (#419): Ein Kontroll-Zauber **scheitert nicht mehr**.
+ *
+ * Ohne das Talent bricht er ab, wenn nicht genug Kontrolle da ist — der Druck
+ * ist verloren, und `controlFailed` zählt hoch. Wer FIXATION spielt, wartet
+ * deshalb, bis der Vorrat reicht.
+ *
+ * Mit dem Talent wirkt er mit dem, was da ist: Der Einsatz ist der halbe
+ * Vorrat statt des vollen Preises, und die **Wirkung sinkt im selben
+ * Verhältnis**. Das ist der Unterschied zu einem Rabatt — billiger wäre ein
+ * Faktor, anteilig ist eine andere Rechnung.
+ */
+export const KEYSTONE_PARTIAL_CONTROL = 'partial-control';
+
 /** Ob die Verteilung ein bestimmtes Verhalten freigeschaltet hat (#418). */
 export function hasKeystone(allocation: TalentAllocation, keystone: string): boolean {
   return TALENTS.some(

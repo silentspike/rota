@@ -63,6 +63,8 @@ import {
 import {
   hasKeystone,
   KEYSTONE_SPLIT_SPENDER,
+  KEYSTONE_AUTO_RESET,
+  KEYSTONE_PARTIAL_CONTROL,
   NO_TALENTS,
   talentFactor,
   talentResourceFactor,
@@ -2037,16 +2039,29 @@ export class Combat {
     // Klemmung steht hier und nicht im Parser: Sie folgt aus der Verteilung,
     // nicht aus den Daten.
     const preis = Math.max(1, Math.round(control.cost / talentControlCostFactor(this.talents)));
-    if (this.controlValue < preis) {
+    // **FIXATIONs Schlüsseltalent** (#419): Der Zauber scheitert nicht mehr,
+    // sondern wirkt mit dem, was da ist.
+    //
+    // Ohne das Talent ist der Druck verloren, sobald der Vorrat nicht reicht.
+    // Mit ihm wird der Rest eingesetzt — und die Wirkung sinkt im selben
+    // Verhältnis (siehe `anteilNenner` unten). Das ist der Unterschied zu
+    // einem Rabatt: Billiger wäre ein Faktor, anteilig ist eine andere
+    // Rechnung, und genau das verlangt #418 von einem Schlüsseltalent.
+    //
+    // **Bei leerem Vorrat scheitert er weiterhin.** Ein Zauber, der aus nichts
+    // etwas macht, wäre kein Schlüsseltalent, sondern ein Fehler.
+    const anteilig = this.hasKeystone(KEYSTONE_PARTIAL_CONTROL);
+    if (this.controlValue < preis && (!anteilig || this.controlValue <= 0)) {
       this.controlFailedValue++;
       return;
     }
-    this.controlValue -= preis;
-    this.controlSpentValue += preis;
+    const einsatz = Math.min(preis, this.controlValue);
+    this.controlValue -= einsatz;
+    this.controlSpentValue += einsatz;
     // **Der Mindesteinsatz** (Issue #683). Jeder Kontroll-Zauber geht hier
     // durch; die beiden Stellen weiter unten nehmen bei zwei Wirkungen
     // zusätzlich den REST und schreiben ihn eigens.
-    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, preis);
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_CONTROL_SPENT, NO_SPELL_REF, einsatz);
 
     // Die drei Wirkungen aus 4.1. Hier greift FIXATION wirklich in den
     // Kampfverlauf ein — das ist, was sie von jeder anderen Schule
@@ -2058,7 +2073,14 @@ export class Combat {
     // ALLEN fünf Wirkungen benutzt — jede Wirkung einzeln zu multiplizieren
     // liefe bei einer späteren Änderung auseinander, und `allThree` löst drei
     // davon gleichzeitig aus.
-    const staerke = Math.round(control.amount * talentControlEffectFactor(this.talents));
+    // **Der Anteil steckt IN der einen Rundung**, nicht daneben (GAME-DESIGN
+    // 18.4, ganzzahlig bis zur letzten Teilung). Wer erst rundet und dann
+    // teilt, bekommt auf der Rust-Seite eine andere Zahl — und die
+    // Bitgleichheit reisst an einer Stelle, die niemand mit dem Talent in
+    // Verbindung braechte.
+    const staerke = Math.round(
+      (control.amount * talentControlEffectFactor(this.talents) * einsatz) / preis,
+    );
     // **Die Phasen-Senkung hat ihre EIGENE Stärke** (Issue #478).
     //
     // `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
@@ -2083,9 +2105,13 @@ export class Combat {
     // **Der Rückfall auf `staerke` ist kein Rest, sondern die Regel für alle
     // anderen**: ANCHOR trägt nur `amountPercent`, also steht seine Zahl in
     // beiden Feldern, und für ihn ändert sich nichts.
+    // **Auch sie sinkt anteilig** (#419). Ohne das wäre das Schlüsseltalent
+    // bei ANCHOR ein reiner Rabatt: halber Einsatz, volle Senkung.
     const senkung =
       control.amountPercent > 0
-        ? Math.round(control.amountPercent * talentControlEffectFactor(this.talents))
+        ? Math.round(
+            (control.amountPercent * talentControlEffectFactor(this.talents) * einsatz) / preis,
+          )
         : staerke;
     const alleDrei = control.effect === 'allThree';
     if (alleDrei) {
@@ -2900,6 +2926,31 @@ export class Combat {
     return this.resetArmedForValue;
   }
 
+  /**
+   * Der Zauber mit der längsten Restzeit — ohne den Rücksetzer selbst.
+   *
+   * `-1`, wenn keiner auf Abklingzeit steht. **Bei Gleichstand der kleinere
+   * Platz**, damit beide Seiten dieselbe Wahl treffen: Der Simulator läuft
+   * über dieselbe Reihenfolge, und „irgendeiner davon" wäre der erste Riss in
+   * der Bitgleichheit.
+   *
+   * Der Rücksetzer selbst bleibt außen vor — er steht in dem Moment gerade
+   * frisch auf Abklingzeit und wäre sonst regelmäßig sein eigenes Ziel.
+   */
+  private laengsteRestzeit(ausser: number, timeMs: number): number {
+    let ziel = -1;
+    let laengste = 0;
+    for (let i = 0; i < this.spells.length; i++) {
+      if (i === ausser) continue;
+      const rest = this.cooldownRemainingMs(i, timeMs);
+      if (rest > laengste) {
+        laengste = rest;
+        ziel = i;
+      }
+    }
+    return ziel;
+  }
+
   /** Wie viele Auswahlen noch offen sind (Issue #521). */
   get resetChargesLeft(): number {
     return this.resetChargesLeftValue;
@@ -2911,9 +2962,28 @@ export class Combat {
    * **NACH der Wirkung, nie davor** — sonst wählte sein eigener Druck bereits,
    * und der Rücksetzer würde nie gewirkt.
    */
-  armResetIfNeeded(index: number): void {
+  armResetIfNeeded(index: number, timeMs: number): void {
     const ladungen = this.spells[index]?.cooldownResetCharges ?? 0;
     if (ladungen <= 0) return;
+
+    // **SUBLIMATIONs Schlüsseltalent** (#419): Der Rücksetzer wählt nicht
+    // mehr, sondern trifft die längste Restzeit von selbst.
+    //
+    // Wie bei `split-spender` steht hier eine Verzweigung und kein Faktor: Es
+    // ändert sich, WAS geschieht — der Auswahlmodus entfällt, und mit ihm der
+    // zusätzliche Tastendruck. Ein Talent, das sich als Zahl ausdrücken ließe,
+    // wäre kein Schlüsseltalent.
+    //
+    // **Die Ladungen fallen mit weg**, und das ist Absicht: Sie zählen
+    // Auswahlen, und es gibt keine mehr. Ein Zuschlag auf etwas, das nicht
+    // stattfindet, wäre eine Zahl ohne Wirkung — genau das, was #418 an einem
+    // Schlüsseltalent ausschließt.
+    if (this.hasKeystone(KEYSTONE_AUTO_RESET)) {
+      const ziel = this.laengsteRestzeit(index, timeMs);
+      if (ziel >= 0) this.clearCooldown(ziel);
+      return;
+    }
+
     this.resetArmedForValue = index;
     // **Überschreiben, nicht aufaddieren.** Wer einen zweiten Rücksetzer
     // wirkt, während der erste noch scharf steht, hat den ersten verschenkt —

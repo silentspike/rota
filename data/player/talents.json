@@ -98,6 +98,16 @@
           "requires": "fixation-trunk",
           "controlEffectPerRankPerMille": 60,
           "_comment": "WEG 3 VON DREI (#419): staerker wirken. Der Faktor liegt am EINGANG von applyFixation und gilt damit fuer alle fuenf Wirkungen samt CAPSTONEs 'alle drei' — eine Stelle statt fuenf, die auseinanderlaufen koennen. ALLE ZAHLEN VORLAEUFIG."
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER FIXATION (Issue #419), Bauart aus #418: ein VERHALTEN, keine Zahl.\n\nOhne es SCHEITERT ein Kontroll-Zauber, wenn der Vorrat nicht reicht — der Druck ist verloren, `controlFailed` zaehlt hoch, und wer FIXATION spielt, wartet auf genug Punkte.\n\nMit ihm wirkt er mit dem, was da ist: Einsatz und Wirkung sinken im GLEICHEN Verhaeltnis.\n\nWARUM DAS KEIN RABATT IST: Billiger waere ein Faktor. Hier aendert sich, OB der Zauber ueberhaupt stattfindet — und die Wirkung folgt dem Einsatz statt fest zu bleiben. Bei leerem Vorrat scheitert er weiterhin; ein Zauber, der aus nichts etwas macht, waere ein Fehler.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge.",
+          "id": "fixation-keystone",
+          "name": "Nothing Wasted",
+          "path": "cost",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "fixation-cost",
+          "keystone": "partial-control"
         }
       ]
     },
@@ -137,6 +147,16 @@
           "maxRanks": 5,
           "cooldownThresholdPerRankPerMille": 60,
           "requires": "sublimation-trunk"
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER SUBLIMATION (Issue #419), nach der Bauart aus #418: ein VERHALTEN, keine Zahl.\n\nOhne es schaltet ein Ruecksetzer einen AUSWAHLMODUS scharf — der naechste Tastendruck bestimmt, welche Abklingzeit faellt. Das kostet eine zusaetzliche Handlung und eine Entscheidung unter Zeitdruck.\n\nMit ihm trifft er den Zauber mit der LAENGSTEN Restzeit von selbst. Die Rotation verliert einen Tastendruck und gewinnt dafuer immer die schlechteste Wartezeit zurueck.\n\nWARUM DAS KEIN FAKTOR IST: Es aendert nicht, WIEVIEL zurueckgesetzt wird, sondern OB gewaehlt wird. Der Nachweis dafuer ist AC3 — ohne das Talent unterscheidet sich der Lauf in der REIHENFOLGE der Druecke, nicht nur in der Schadenszahl.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge. Es ist an oder aus.",
+          "id": "sublimation-keystone",
+          "name": "Certain Ascent",
+          "path": "reduction",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "sublimation-reduction",
+          "keystone": "auto-reset"
         }
       ]
     },

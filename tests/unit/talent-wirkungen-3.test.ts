@@ -96,7 +96,7 @@ function ladungen(talente: Record<string, number>, id = 'reset'): number {
   const index = alsSpellIndex(combat.indexOf(id));
   const ergebnis = combat.cast(index, 0);
   expect(ergebnis.result, `${id} wurde abgewiesen`).toBe(CAST_OK);
-  combat.armResetIfNeeded(index);
+  combat.armResetIfNeeded(index, 0);
   return combat.resetChargesLeft;
 }
 
@@ -138,7 +138,7 @@ describe('SUBLIMATION — drei Wege, drei Größen', () => {
       const combat = kampf(TALENT);
       const index = alsSpellIndex(combat.indexOf('stumpf'));
       expect(combat.cast(index, 0).result).toBe(CAST_OK);
-      combat.armResetIfNeeded(index);
+      combat.armResetIfNeeded(index, 0);
       expect(combat.resetChargesLeft, 'STUMPF wurde zum Rücksetzer').toBe(0);
     });
     it('lässt die FREMDEN Größen unberührt', () => {
