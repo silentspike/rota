@@ -1,0 +1,71 @@
+/*
+ * Die Talent-Ansicht (Issue #802).
+ *
+ * BEWUSST SCHLICHT. Die Karte aus GAME-DESIGN 12.5 — frei verschiebbar,
+ * zoombar, alle sechs Bäume auf einem Bildschirm — ist Issue #249 und ein
+ * eigenes Vorhaben. Hier geht es um Erreichbarkeit: Der Punkt muss sich setzen
+ * lassen. Was hier steht, reicht dafür und steht der Gestaltung nicht im Weg.
+ */
+
+.talents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.talents-points {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Der Satz, wenn im Kampf nicht verteilt werden darf — kein stummer Knopf. */
+.talents-locked {
+  margin: 0;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.talents-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.talents-tree-name {
+  margin: 0.35rem 0 0.1rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+}
+
+.talents-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Der Name trägt die Breite, damit die Knöpfe untereinander stehen. */
+.talents-name {
+  flex: 1 1 auto;
+  min-width: 12rem;
+}
+
+.talents-button {
+  min-width: 1.9rem;
+  cursor: pointer;
+}
+
+/*
+ * Ein gesperrter Knopf bleibt SICHTBAR, nur blass. Wer ihn ausblendete, nähme
+ * dem Spieler das Bild davon, was es überhaupt zu verteilen gibt.
+ */
+.talents-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.talents-locked-hint {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
