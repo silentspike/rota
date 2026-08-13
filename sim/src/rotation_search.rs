@@ -290,9 +290,26 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
             .collect(),
     };
     let result = crate::balance::run(config, &apl);
+    // **Verhinderter Schaden zaehlt mit** (Issue #472).
+    //
+    // Vorher stand hier `result.damage.mean` allein. Gemessen an boss-1-2:
+    // Acht von elf FIXATION-Zaubern tragen `baseDamage: 0`, kosten aber eine
+    // globale Wartezeit — sie waren damit in JEDER Runde der schlechteste Zug
+    // und kamen in keiner der acht besten Rotationen vor. Nicht weil sie
+    // schwach sind, sondern weil ihre Leistung in keiner Zahl stand, die die
+    // Suche ansieht.
+    //
+    // Dass sie ueberhaupt etwas leisten, ist belegt: Dieselbe Rotation mit
+    // `pin` vorne senkt `damage_taken` von 1720 auf 1440. Die Mechanik wirkt
+    // (`fight.rs:2405` verschiebt `cast_lands_at`), nur bewertet wurde sie nie.
+    //
+    // **Der Bezugspunkt ist `damage_taken_baseline` aus der Konfiguration**,
+    // nicht ein zweiter Lauf: Ein Vergleichslauf je Messung vervielfachte die
+    // Laufzeit einer Suche, die heute schon 1778 Messungen braucht.
+    let verhindert = (config.damage_taken_baseline - result.damage_taken.mean).max(0.0);
     Measured {
         apl,
-        mean: result.damage.mean,
+        mean: result.damage.mean + config.prevented_weight * verhindert,
         stderr: result.damage.stderr,
     }
 }
@@ -364,6 +381,32 @@ pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Sea
     let mut chosen: Vec<Candidate> = Vec::new();
     let mut offen: Vec<usize> = (0..pool.len()).collect();
     let mut measured = 0;
+
+    // **Der Bezugspunkt für „verhindert" wird HIER bestimmt, einmal** (#814).
+    //
+    // Der geerbte Wert war `damage_taken_baseline: 0.0` aus dem Default, und
+    // damit rechnete die Formel `(0.0 - erlitten).max(0.0)` in jedem Fall zu
+    // null: eine Größe, die aussieht, als würde sie zählen, und es nie tut.
+    //
+    // **Die leere Rotation ist der natürliche Bezugspunkt.** Sie erleidet
+    // alles, was der Boss austeilt, weil ihm niemand in den Arm fällt. Was
+    // eine Rotation davon abwendet, ist genau ihre Leistung im Verhindern —
+    // und die Zahl bedeutet dasselbe an jedem Boss, ohne dass jemand sie je
+    // von Hand setzen muss.
+    //
+    // **Einmal, nicht je Messung.** Der geerbte Kommentar hat recht: Ein
+    // Vergleichslauf pro Messung vervielfachte eine Suche, die schon 1778
+    // Messungen braucht. Ein einziger Lauf vorweg kostet einen von 1778.
+    let mut config = *config;
+    if config.prevented_weight > 0.0 {
+        let leer = Apl {
+            name: "bezugspunkt".to_owned(),
+            rules: Vec::new(),
+        };
+        config.damage_taken_baseline = crate::balance::run(&config, &leer).damage_taken.mean;
+    }
+    let config = &config;
+
     let mut best = measure(config, "leer", &chosen);
     let stop = loop {
         if chosen.len() >= max_len {
