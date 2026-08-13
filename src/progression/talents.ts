@@ -210,9 +210,28 @@ export function talentControlEffectFactor(allocation: TalentAllocation): number 
   return faktorAus(allocation, (t) => t.controlEffectPerRankPerMille);
 }
 
-/** Der Faktor auf die Zahl gelegter **Fäulnis-Stapel** (PUTREFACTION). */
-export function talentDecayStackFactor(allocation: TalentAllocation): number {
-  return faktorAus(allocation, (t) => t.decayStackPerRankPerMille);
+/**
+ * Dieselbe Größe wie {@link talentDecayStackFactor}, aber als **Promille**.
+ *
+ * # Warum es beide gibt
+ *
+ * Der Kampf sammelt beim Stapel-Aufbau den Rest (Issue #419): Was an einem
+ * ganzen Stapel fehlt, geht nicht verloren, sondern wartet auf den nächsten
+ * Wurf. Diese Rechnung läuft **ganzzahlig** — `anzahl × (1000 + Promille)`,
+ * dann durch 1000 geteilt.
+ *
+ * Mit dem Fließkomma-Faktor ginge es auch, und genau das wäre der Fehler: Ein
+ * Rest ist ein Zustand, der über den ganzen Kampf mitläuft. Zwei Umsetzungen,
+ * die ihn in `f64` führen, laufen irgendwann in der letzten Stelle
+ * auseinander — und die Bit-Parität ist nicht „fast gleich" (GAME-DESIGN
+ * 18.4). Ganze Zahlen können das nicht.
+ */
+export function talentDecayStackPermille(allocation: TalentAllocation): number {
+  let promille = 0;
+  for (const talent of TALENTS) {
+    promille += effectiveRanks(allocation, talent) * talent.decayStackPerRankPerMille;
+  }
+  return promille;
 }
 
 /** Der Faktor auf die **Haltbarkeit** der Fäulnis-Stapel (PUTREFACTION). */

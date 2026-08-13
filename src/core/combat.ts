@@ -86,7 +86,7 @@ import {
   talentControlEffectFactor,
   talentControlGainFactor,
   talentDecayEffectFactor,
-  talentDecayStackFactor,
+  talentDecayStackPermille,
   talentDecayDurationFactor,
   type TalentAllocation,
 } from '../progression/talents.js';
@@ -486,6 +486,17 @@ export class Combat {
    * er stammt — nicht in der Zeit des Aufrufers.
    */
   private readonly decayEchoUntilMs: Float64Array;
+
+  /**
+   * Der gesammelte REST des Stapel-Aufbaus, in Promille und **je Quelle**
+   * (#419).
+   *
+   * Was an einem ganzen Stapel fehlt, wartet hier auf den naechsten Wurf
+   * derselben Quelle. Je Quelle, weil sonst ein Zauber den Rest eines anderen
+   * ueber die Schwelle schoebe — dann entschiede die Reihenfolge im Kampf
+   * ueber den Stapel, und die Rotation waere nicht mehr planbar.
+   */
+  private readonly decayRest: Float64Array;
   private readonly dotTicksLost: Int32Array;
   private readonly dotTickCounts: Int32Array;
 
@@ -1169,6 +1180,7 @@ export class Combat {
     this.dotExpiresAtMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotNextTickAtMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.decayEchoUntilMs = new Float64Array(count).fill(NOT_ACTIVE);
+    this.decayRest = new Float64Array(count);
     this.dotTicksLost = new Int32Array(count);
     this.dotTickCounts = new Int32Array(count);
     for (let i = 0; i < count; i++) this.indexById.set((this.spells[i] as SpellDef).id, i);
@@ -2484,10 +2496,10 @@ export class Combat {
    * des ältesten Stapels. Sonst hielte man den Aufbau ewig oben, ohne je
    * nachzulegen, und „verfallen langsam" wäre wirkungslos.
    */
-  private applyPutrefaction(spell: SpellDef, timeMs: number): void {
+  private applyPutrefaction(index: number, spell: SpellDef, timeMs: number): void {
     const decay = spell.decay;
     if (decay === undefined) return;
-    this.addDecayStacks(decay.stacks, timeMs);
+    this.addDecayStacks(index, decay.stacks, timeMs);
   }
 
   /**
@@ -2502,17 +2514,43 @@ export class Combat {
    * wird an einer Stelle gelesen und an keiner angewandt (#484). Eine zweite
    * Kopie dieser Schleife wäre dieselbe Klasse Fehler mit einer anderen Zahl.
    */
-  private addDecayStacks(anzahl: number, timeMs: number): void {
+  private addDecayStacks(quelle: number, anzahl: number, timeMs: number): void {
     // **Der Aufbau-Weg wirkt HIER, nicht an den zwei Aufrufern** (#419,
     // PUTREFACTION). `decay.stacks` und `dot.decayPerTick` laufen beide durch
     // diese Stelle; den Faktor dort zweimal anzuwenden hieße, ihn bei einem
     // dritten Weg zu vergessen.
     //
-    // **Abgerundet, und die Null bleibt Null:** `Math.floor` auf einen
-    // Aufbau von 1 mit Faktor 1,4 ergibt 1 — der Weg zeigt sich erst, wenn
-    // die Summe eine ganze Zahl überschreitet. Aufrunden hieße, dass jeder
-    // erste Rang sofort einen Stapel schenkt.
-    anzahl = Math.floor(anzahl * talentDecayStackFactor(this.talents));
+    // # Der Rest wird gesammelt, nicht weggeworfen
+    //
+    // Hier stand bis zum 2026-08-13 `Math.floor(anzahl * faktor)`, und das war
+    // **gemessen wirkungslos**: Alle drei Quellen legen genau EINEN Stapel
+    // (canker 1, blight 1, rot 1), und bei Basis 1 ändert ein Faktor erst ab
+    // 2,0 etwas:
+    //
+    // ```text
+    //   floor(1 × 1,3) = 1     floor(1 × 1,5) = 1     floor(1 × 2,0) = 2
+    // ```
+    //
+    // `putrefaction-build` trägt bei vollem Ausbau 1,5 — der Weg tat also
+    // nichts. Aufrunden verbietet sich (jeder erste Rang schenkte sofort einen
+    // Stapel), deshalb sammelt der Kampf jetzt den Rest: Was am ganzen Stapel
+    // fehlt, wartet auf den nächsten Wurf. Bei Faktor 1,5 legt jeder zweite
+    // Wurf einen zusätzlichen.
+    //
+    // **Ganzzahlig, nicht in Fließkomma** (18.4). Der Rest läuft über den
+    // ganzen Kampf mit; zwei Umsetzungen, die ihn in `f64` führen, laufen
+    // irgendwann in der letzten Stelle auseinander, und Bit-Parität ist nicht
+    // „fast gleich".
+    //
+    // **Je Quelle, nicht global.** Sonst schöbe ein Zauber den Rest eines
+    // anderen über die Schwelle, und die Reihenfolge im Kampf entschiede über
+    // den Stapel — planbar wäre das nicht mehr (Gesetz 6).
+    if (anzahl > 0) {
+      const gesamt =
+        anzahl * (1000 + talentDecayStackPermille(this.talents)) + (this.decayRest[quelle] ?? 0);
+      anzahl = Math.floor(gesamt / 1000);
+      this.decayRest[quelle] = gesamt - anzahl * 1000;
+    }
     if (anzahl <= 0) return;
     const seitBeginn = this.fightElapsedMs(timeMs);
     for (let i = 0; i < anzahl; i++) {
@@ -3823,7 +3861,7 @@ export class Combat {
       // und die gibt es schon als „Lasting Rot".
       if (!this.isDotActive(i, timeMs)) {
         if (!this.imDecayEcho(i, timeMs)) continue;
-        this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
+        this.addDecayStacks(i, dot.decayPerTick ?? 0, timeMs);
         this.dotNextTickAtMs[i] = nextTick + this.dotInterval(dot);
         continue;
       }
@@ -3873,7 +3911,7 @@ export class Combat {
       // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
       // sie beim Wirken legt (`applyPutrefaction`), sitzt ebenfalls direkt im
       // Kampf. Zwei Wege für dieselbe Größe wären eine Stelle zu viel.
-      this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
+      this.addDecayStacks(i, dot.decayPerTick ?? 0, timeMs);
       // **Den Endpunkt des Nachlaufs fortschreiben, solange der Brand lebt**
       // (#419). Beim Erlöschen steht damit von selbst die Frist des jüngsten
       // Stapels da — es braucht keine Stelle, die das Ende des Brands abpasst.
@@ -4761,7 +4799,7 @@ export class Combat {
     this.applyCoagulation(spell, timeMs, index);
     this.applyFixation(spell, timeMs);
     this.applyConversion(spell, timeMs);
-    this.applyPutrefaction(spell, timeMs);
+    this.applyPutrefaction(index, spell, timeMs);
     this.openSynergyWindow(spell, timeMs);
 
     // **Ein Wurf für die ganze Wirkung**, und er fällt genau dann, wenn der
@@ -5569,6 +5607,12 @@ export class Combat {
 
     this.decayCountValue = 0;
     this.decayExpiryMs.fill(0);
+    // **Der gesammelte Rest endet mit dem Kampf** (#419). Ein Rest, der ihn
+    // überlebte, machte den ersten Wurf des nächsten Kampfes von der
+    // Vorgeschichte abhängig — zwei gleiche Eröffnungen legten verschieden
+    // viele Stapel, je nachdem was vorher lief. Das wäre gegen die
+    // Planbarkeit aus Gesetz 6.
+    this.decayRest.fill(0);
     // Der Auswahlmodus gehoert zum Kampf und endet mit ihm (#528).
     //
     // **Und offene Ladungen enden hier mit** (Issue #521, AC3). Es gibt
