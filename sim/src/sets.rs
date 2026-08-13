@@ -159,6 +159,15 @@ pub const SET_EFFECT_SLOW_ROT: &str = "slow-rot";
 ///
 /// Gegenstueck: `SET_EFFECT_SEALED_VESSEL` in `src/gear/sets.ts`.
 pub const SET_EFFECT_SEALED_VESSEL: &str = "sealed-vessel";
+/// Der Rotations-Effekt des FIXATION-Sechsers (`docs/SATZ-KATALOG.md`).
+///
+/// > Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts.
+///
+/// „Kostet nichts" hebt den ABZUG auf, nicht die VORAUSSETZUNG: Die Punkte
+/// muessen da sein, werden aber nicht ausgegeben.
+///
+/// Gegenstueck: `SET_EFFECT_LONG_GRIP` in `src/gear/sets.ts`.
+pub const SET_EFFECT_LONG_GRIP: &str = "long-grip";
 
 /// Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
 ///

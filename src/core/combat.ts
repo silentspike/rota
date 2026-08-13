@@ -58,6 +58,7 @@ import {
   SET_EFFECT_ASHEN_REGIMEN,
   SET_EFFECT_SLOW_ROT,
   SET_EFFECT_SEALED_VESSEL,
+  SET_EFFECT_LONG_GRIP,
   SET_EFFECT_WHOLE_WORK,
   WHOLE_WORK_GCD_REDUCTION_MS,
 } from '../gear/sets.js';
@@ -968,6 +969,18 @@ export class Combat {
 
   /** Wie viele Punkte insgesamt ausgegeben wurden. */
   private controlSpentValue = 0;
+
+  /**
+   * Steht ein kostenloser Kontroll-Ausgeber bereit? (THE LONG GRIP, 13.5)
+   *
+   * Wird bei jedem Phasenwechsel gesetzt und vom ersten Ausgeber danach
+   * verbraucht. **Ein Ja/Nein, keine Zahl**: Zwei Wechsel ohne Ausgeber
+   * dazwischen sind ein freier Ausgeber, nicht zwei.
+   */
+  private freeControlSpendArmed = false;
+
+  /** Wie oft der Effekt gegriffen hat — für Anzeige und Prüfung. */
+  private freeControlSpends = 0;
 
   /**
    * Wie oft eine Wirkung mangels Punkten ins Leere lief.
@@ -1901,6 +1914,11 @@ export class Combat {
     return this.controlSpentValue;
   }
 
+  /** Wie oft THE LONG GRIP einen Ausgeber umsonst gemacht hat (13.5). */
+  get freeControlSpendCount(): number {
+    return this.freeControlSpends;
+  }
+
   /**
    * Verbraucht den Merker aus SUBLIME, falls er steht (Issue #480).
    *
@@ -2042,7 +2060,26 @@ export class Combat {
       this.controlFailedValue++;
       return;
     }
-    this.controlValue -= preis;
+    // **THE LONG GRIP** (13.5, FIXATION-Sechser): Der erste Ausgeber nach
+    // einem Phasenwechsel kostet nichts.
+    //
+    // **Der ABZUG entfällt, nicht die VORAUSSETZUNG.** Die Prüfung oben läuft
+    // unverändert: Man braucht die Punkte, gibt sie aber nicht aus. Die
+    // Klemmung auf Preis 1 begründet sich damit, dass `controlValue >= 0` bei
+    // Preis 0 immer wahr wäre — ein Effekt, der die Prüfung überspränge,
+    // umginge sie statt sie zu berücksichtigen.
+    //
+    // **Ein Ja/Nein, keine Zahl** — wie die drei Merker aus E10: Zwei
+    // Phasenwechsel ohne Ausgeber dazwischen sind ein freier Ausgeber, nicht
+    // zwei. Wer sie sammeln könnte, hortete Wechsel statt den Moment zu
+    // treffen, und der Effekt belohnte das Gegenteil seiner Begründung.
+    const umsonst = this.hasSetEffect(SET_EFFECT_LONG_GRIP) && this.freeControlSpendArmed;
+    if (umsonst) {
+      this.freeControlSpendArmed = false;
+      this.freeControlSpends++;
+    } else {
+      this.controlValue -= preis;
+    }
     this.controlSpentValue += preis;
     // **Der Mindesteinsatz** (Issue #683). Jeder Kontroll-Zauber geht hier
     // durch; die beiden Stellen weiter unten nehmen bei zwei Wirkungen
@@ -3993,6 +4030,10 @@ export class Combat {
       }
       if (neue > this.bossPhaseValue) {
         this.bossPhaseValue = neue;
+        // **THE LONG GRIP wird hier scharf gestellt** (13.5): beim WECHSEL,
+        // nicht beim Erreichen einer Phase. Ein Boss ohne Phasen kommt nie
+        // hierher, und der Effekt greift dort zu Recht nie.
+        this.freeControlSpendArmed = true;
         // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt für diesen einen
         // Wechsel. Der übernächste bekommt wieder die volle Schwelle — sonst
         // verschöbe ein Druck alle folgenden mit.
@@ -5125,6 +5166,8 @@ export class Combat {
     // hier stumpf nullt, baut genau den Unterschied ein, den die Kommentare
     // an den Feldern seit #96 verhindern.
     this.bossPhaseValue = 0;
+    this.freeControlSpendArmed = false;
+    this.freeControlSpends = 0;
     this.bossEnergyValue = 0;
     this.bossEnergyTriggersValue = 0;
     this.timelineIndexValue = 0;

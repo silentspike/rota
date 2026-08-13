@@ -279,6 +279,11 @@ pub struct FightConfig {
     ///
     /// Ueberschuessiger Schutz ueber der Stapel-Grenze wird zu Schaden.
     pub sealed_vessel: bool,
+    /// Ob der Satz-Effekt "long-grip" wirkt (13.5, Issue #480).
+    ///
+    /// Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts —
+    /// der ABZUG entfaellt, die Voraussetzung bleibt.
+    pub long_grip: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -364,6 +369,7 @@ impl Default for FightConfig {
             whole_work: false,
             slow_rot: false,
             sealed_vessel: false,
+            long_grip: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -826,6 +832,14 @@ pub struct Fight {
     whole_work: bool,
     slow_rot: bool,
     sealed_vessel: bool,
+    long_grip: bool,
+    /// Steht ein kostenloser Kontroll-Ausgeber bereit? (THE LONG GRIP)
+    ///
+    /// **Ein Ja/Nein, keine Zahl**: Zwei Phasenwechsel ohne Ausgeber dazwischen
+    /// sind ein freier Ausgeber, nicht zwei.
+    free_control_spend_armed: bool,
+    /// Wie oft der Effekt gegriffen hat — fuer die Pruefung.
+    free_control_spends: u32,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1119,6 +1133,9 @@ impl Fight {
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
             sealed_vessel: config.sealed_vessel,
+            long_grip: config.long_grip,
+            free_control_spend_armed: false,
+            free_control_spends: 0,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -2531,7 +2548,14 @@ impl Fight {
             self.control_failed += 1;
             return;
         }
-        self.control -= preis;
+        // **THE LONG GRIP** (13.5): Der ABZUG entfaellt, nicht die
+        // Voraussetzung — die Pruefung oben laeuft unveraendert.
+        if self.long_grip && self.free_control_spend_armed {
+            self.free_control_spend_armed = false;
+            self.free_control_spends += 1;
+        } else {
+            self.control -= preis;
+        }
         self.control_spent = self.control_spent.saturating_add(preis);
         self.apply_control_effect(control);
     }
@@ -2985,6 +3009,12 @@ impl Fight {
     #[must_use]
     pub fn control_points(&self) -> u32 {
         self.control
+    }
+
+    /// Wie oft THE LONG GRIP einen Ausgeber umsonst gemacht hat (13.5).
+    #[must_use]
+    pub fn free_control_spends(&self) -> u32 {
+        self.free_control_spends
     }
 
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
@@ -3721,6 +3751,9 @@ impl Fight {
         let neue = self.boss.phase_at(anteil);
         if neue > self.phase {
             self.phase = neue;
+            // **THE LONG GRIP wird hier scharf gestellt** (13.5): beim
+            // WECHSEL, nicht beim Erreichen einer Phase.
+            self.free_control_spend_armed = true;
             // **Verbraucht** (GAME-DESIGN 4.2b): Die Senkung galt fuer diesen
             // einen Wechsel. Der uebernaechste bekommt wieder die volle
             // Schwelle — sonst verschoebe ein Druck alle folgenden mit.

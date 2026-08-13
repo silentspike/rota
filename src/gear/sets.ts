@@ -329,6 +329,26 @@ export const SET_EFFECT_SLOW_ROT = 'slow-rot';
 export const SET_EFFECT_SEALED_VESSEL = 'sealed-vessel';
 
 /**
+ * Der Rotations-Effekt des FIXATION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts.
+ *
+ * Belohnt, den Moment zu treffen, statt Punkte zu horten.
+ *
+ * # „Kostet nichts" heisst: wird nicht abgezogen, nicht: braucht nichts
+ *
+ * `combat.ts` klemmt den Preis ausdrücklich auf mindestens 1, mit der
+ * Begründung: „Ein Ausgeber, der nichts kostet, wäre keiner, und
+ * `controlValue >= 0` wäre bei Preis 0 immer wahr."
+ *
+ * Der Effekt hebt deshalb den **Abzug** auf, nicht die **Voraussetzung**: Man
+ * braucht die Punkte weiterhin, gibt sie aber nicht aus. Sonst liesse sich der
+ * Ausgeber mit null Punkten wirken, und die Klemmung wäre umgangen statt
+ * berücksichtigt.
+ */
+export const SET_EFFECT_LONG_GRIP = 'long-grip';
+
+/**
  * Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
  *
  * **Startwert, keine Balance-Entscheidung** (Orchestrator, 2026-08-11). Der
