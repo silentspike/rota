@@ -376,6 +376,19 @@ pub struct Spell {
     pub cooldown_ms: Millis,
     /// Wirkzeit. In Schritt 1 durchweg 0 (Sofort-Zauber).
     pub cast_time_ms: Millis,
+    /// Dauer einer **Kanalisierung**; 0 heisst keine (Issue #323).
+    ///
+    /// Der Unterschied zum Cast steht in der Aufloesung: Ein Cast wirkt am
+    /// Ende vollstaendig, eine Kanalisierung laufend ueber die Dauer. Bricht
+    /// sie ab, bleibt der erreichte Anteil — er ist bereits ausgezahlt.
+    ///
+    /// Gegenstueck: `channelMs` in `src/core/data.ts`.
+    pub channel_ms: Millis,
+    /// Abstand der Teilwirkungen einer Kanalisierung.
+    ///
+    /// Ein Raster und keine stetige Rechnung, damit Spiel (10-ms-Takt) und
+    /// Simulator (ereignisgesteuert) dieselben Zeitpunkte treffen (18.4).
+    pub channel_tick_ms: Millis,
     /// Ob der Zauber die globale Wartezeit ausloest.
     pub triggers_gcd: bool,
     /// Ob dieser Zauber einen laufenden Boss-Zauber **unterbricht**

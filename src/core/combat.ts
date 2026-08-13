@@ -683,6 +683,30 @@ export class Combat {
   private playerCastEndsAtMsValue = -1;
 
   /**
+   * Wann die nächste Teilwirkung einer Kanalisierung fällt; -1 heißt keine
+   * (Issue #323).
+   *
+   * # Warum die Kanalisierung DIESELBEN Cast-Felder benutzt
+   *
+   * `playerCasting`, `playerCastEndsAtMs` und `playerCastStartedAtMs` tragen
+   * sie mit. Das ist keine Sparsamkeit, sondern die Regel: „Jede Wirkung des
+   * Spielers bricht einen laufenden Cast **oder eine Kanalisierung** ab"
+   * (GAME-DESIGN 7.2). Läge sie in eigenen Feldern, bräuchte jeder Abbruchweg
+   * eine zweite Zeile — und die eine, die man vergisst, wäre der Fehler.
+   *
+   * Der Unterschied steht allein in der AUFLÖSUNG: Ein Cast löst am Ende
+   * einmal auf, eine Kanalisierung je Raster-Schritt ein Stück.
+   *
+   * # Warum der Abbruch keine anteilige Rechnung braucht
+   *
+   * Weil der Anteil schon ausgezahlt ist. Fällt die Wirkung wirklich laufend
+   * an, ist „der erreichte Anteil bleibt" kein Sonderfall, sondern das, was
+   * ohnehin passiert ist. Eine Rechnung „wie weit bin ich gekommen" beim
+   * Abbruch wäre eine zweite Quelle für dieselbe Zahl.
+   */
+  private playerChannelNextTickAtMsValue = -1;
+
+  /**
    * Uhrzeit, zu der die laufende Wirkzeit begonnen hat.
    *
    * **Nur für den Balken**, und deshalb bewusst NICHT in der Prüfsumme: Der
@@ -4014,13 +4038,40 @@ export class Combat {
     //
     // Im Simulator ist es derselbe Platz: `PlayerCastLands` steht zwischen
     // `BossCastLands` und `Wakeup` in der Rangfolge.
+    // **Die Teilwirkungen einer Kanalisierung** (Issue #323), VOR der
+    // Cast-Auflösung und an derselben Stelle in der Rangfolge: Ein
+    // abbrechender Schlag dieses Takts hat oben schon geräumt, und dann fällt
+    // hier nichts mehr — genau das ist „der erreichte Anteil".
+    //
+    // Eine `while`-Schleife und kein `if`: Bei einem Raster unter der
+    // Takt-Länge fielen sonst Schritte aus. Sie endet sicher, weil jeder
+    // Durchlauf den nächsten Termin um mindestens ein Raster nach hinten
+    // schiebt.
+    while (
+      this.playerChannelNextTickAtMsValue >= 0 &&
+      timeMs >= this.playerChannelNextTickAtMsValue &&
+      this.playerChannelNextTickAtMsValue <= this.playerCastEndsAtMsValue
+    ) {
+      const index = this.playerCastingValue;
+      const spell = index >= 0 ? this.spells[index] : undefined;
+      if (spell === undefined) break;
+      this.resolveChannelTick(index, spell, this.playerChannelNextTickAtMsValue);
+      this.playerChannelNextTickAtMsValue += this.hasted(spell.channelTickMs);
+    }
+
     if (this.playerCastingValue >= 0 && timeMs >= this.playerCastEndsAtMsValue) {
       const index = this.playerCastingValue;
       const spell = this.spells[index];
+      const warKanal = spell !== undefined && spell.channelMs > 0;
       this.playerCastingValue = NO_SPELL;
       this.playerCastEndsAtMsValue = -1;
       this.playerCastStartedAtMsValue = -1;
-      if (spell !== undefined) {
+      this.playerChannelNextTickAtMsValue = -1;
+      // **Eine Kanalisierung löst am Ende NICHTS aus.** Ihre Wirkung ist über
+      // die Dauer bereits gefallen; ein Aufruf hier gäbe sie ein zweites Mal,
+      // in voller Höhe. Der Unterschied zwischen den beiden Typen ist genau
+      // diese Zeile.
+      if (spell !== undefined && !warKanal) {
         this.resolvePlayerCast(index, spell, timeMs, this.deferredOutcome, true);
       }
     }
@@ -4394,6 +4445,27 @@ export class Combat {
     // deshalb in `resolvePlayerCast` — daran hängt die zweite Hälfte von
     // GAME-DESIGN 7.1: „Bei Abbruch geht der Zauber verloren, die Abklingzeit
     // läuft aber nicht an."
+    // **Die Kanalisierung** (Issue #323, GAME-DESIGN 7.2). Sie steht VOR der
+    // Wirkzeit, weil der Parser beides zugleich ausschliesst — die Reihenfolge
+    // ist damit keine Entscheidung, sondern nur eine Lesart.
+    //
+    // **Design-Gesetz 1:** EIN Tastendruck startet sie, dann läuft sie von
+    // selbst. Es gibt hier keinen gehaltenen Zustand und keine zweite Taste;
+    // was folgt, hängt allein an `timeMs`.
+    const kanal = this.hasted(spell.channelMs);
+    if (kanal > 0) {
+      this.playerCastingValue = index;
+      this.playerCastStartedAtMsValue = timeMs;
+      this.playerCastEndsAtMsValue = timeMs + kanal;
+      // Die erste Teilwirkung fällt NACH dem ersten Raster-Schritt, nicht
+      // sofort: Sonst bekäme ein Kanal, der im selben Moment abbricht, schon
+      // eine Wirkung — und „nach 0 s" ergäbe mehr als null.
+      this.playerChannelNextTickAtMsValue = timeMs + this.hasted(spell.channelTickMs);
+      if (spell.triggersGcd && !this.takeFreeGcd()) this.gcd.trigger(timeMs);
+      outcome.result = CAST_STARTED;
+      return outcome;
+    }
+
     const wirkzeit = this.hasted(spell.castTimeMs);
     if (wirkzeit > 0) {
       this.playerCastingValue = index;
@@ -4771,7 +4843,68 @@ export class Combat {
     this.playerCastingValue = NO_SPELL;
     this.playerCastEndsAtMsValue = -1;
     this.playerCastStartedAtMsValue = -1;
+    // **Nur räumen, nichts nachrechnen** (Issue #323). Der erreichte Anteil
+    // einer Kanalisierung ist bereits ausgezahlt — Schritt für Schritt, in
+    // `stepPassive`. Wer hier „wie weit bin ich gekommen" rechnete, hätte
+    // dieselbe Zahl aus zwei Quellen, und die zweite wäre die falsche.
+    //
+    // **Diese Zeile hält den Zustand sauber, sie bewirkt den Abbruch nicht.**
+    // Gemessen: Nimmt man sie heraus, bleiben alle zwölf Fälle grün — die
+    // Schleife oben steigt schon aus, weil `playerCastingValue` geräumt ist.
+    // Sie steht hier, damit das Feld nicht auf einen vergangenen Termin zeigt,
+    // während nichts läuft; wer es je ohne den Cast-Zustand liest, bekäme
+    // sonst eine Zahl, die nichts mehr bedeutet.
+    this.playerChannelNextTickAtMsValue = -1;
     return true;
+  }
+
+  /**
+   * Eine Teilwirkung einer Kanalisierung (Issue #323, GAME-DESIGN 7.2).
+   *
+   * # Der Anteil kommt aus der Dauer, nicht aus einer zweiten Zahl
+   *
+   * `baseDamage` ist die **Gesamt**-Wirkung; sie wird auf die Raster-Schritte
+   * verteilt. Eine eigene Zahl „Schaden je Schritt" in den Daten wäre eine
+   * zweite Quelle für dieselbe Aussage — und die beiden liefen bei der ersten
+   * Änderung auseinander.
+   *
+   * **Ganzzahlig abgerundet, der Rest verfällt** (GAME-DESIGN 18.4). Bei 500
+   * über 3 Schritte gibt jeder 166, nicht 166,67. Der Parser verlangt
+   * `channelMs % channelTickMs === 0`, damit wenigstens die Schrittzahl
+   * eindeutig ist; die Rundung des Betrags bleibt und ist auf beiden Seiten
+   * dieselbe Formel.
+   *
+   * # Warum hier nicht `resolvePlayerCast` steht
+   *
+   * Der löst die **ganze** Wirkung auf: Synergie-Fenster, Koagulation,
+   * Verhängnis, Unterbrechen. Das je Schritt zu tun hiesse, einen
+   * fünfschrittigen Kanal fünf Fenster öffnen zu lassen. Eine Kanalisierung
+   * teilt ihren SCHADEN, nicht ihre Ereignisse.
+   */
+  private resolveChannelTick(index: number, spell: SpellDef, timeMs: number): void {
+    const schritte = Math.floor(spell.channelMs / spell.channelTickMs);
+    if (schritte <= 0 || spell.baseDamage <= 0) return;
+    // **Ein eigener Wurf je Schritt**, und aus `STREAM_DOT_TICK` — dieselbe
+    // Regel und derselbe Strom wie beim Brand-Tick (GAME-DESIGN 6.5, Issue
+    // #602). Ein Wurf für die ganze Kanalisierung kritete sie entweder ganz
+    // oder gar nicht; ein Wurf aus `STREAM_CRIT` verschöbe die Würfe der
+    // gewirkten Zauber und liesse jeden folgenden Kampf auseinanderlaufen.
+    const kritet = this.rollCrit(STREAM_DOT_TICK);
+    // Auch eine Teilwirkung gehört ihrem Zauber und damit dessen Schule
+    // (Issue #328) — sonst trüge sie den Widerstand des zuletzt gewirkten.
+    this.setDamageFactor('resistance', this.resistanceOfSpell[index] ?? 1);
+    const anteil = Math.floor(spell.baseDamage / schritte);
+    const damage = computeDamage(anteil, this.factorsFor(kritet));
+    this.bookProgress(damage, alsSpellIndex(index), timeMs);
+    this.convertDamageToShield(damage, timeMs);
+    this.reportHit(damage, HIT_DOT, kritet, timeMs);
+    // **Dieselbe Protokoll-Art wie ein Brand-Tick** und keine neue: Das
+    // Protokoll hat einen gemeinsamen Nummernraum mit dem Simulator (#134),
+    // und eine neue Art verschöbe jede eingecheckte Vergleichsdatei. Die
+    // Aussage ist dieselbe — laufender Schaden, der nicht vom Drücken kommt.
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_DOT_TICK, index, damage);
+    if (kritet) this.events.emit(RULE_CRIT, index, damage, timeMs);
+    this.events.emit(RULE_DOT_TICK, index, damage, timeMs);
   }
 
   /**

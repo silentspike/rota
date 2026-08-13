@@ -184,7 +184,9 @@ import {
   LEVEL_30_NAME,
   level30Payload,
   CAST_TIME_NAME,
+  CHANNEL_NAME,
   castTimePayload,
+  channelPayload,
   RESISTANCE_NAME,
   resistancePayload,
   RESISTANCE_MIXED_NAME,
@@ -432,6 +434,18 @@ console.log(`geschrieben: ${castTimePath}`);
 console.log(
   `  Wirkzeit      ${castTime.expected.testCastCasts} Wirkungen, ` +
     `${castTime.expected.castsInterrupted} abgebrochen`,
+);
+
+// Die Kanalisierung mit Abbruch mitten drin (#323, AC6). Ohne sie waere ihre
+// Bitgleichheit eine Annahme — und der Abbruch ist die Stelle, an der sich
+// "laufend" von "am Ende" ueberhaupt erst unterscheidet.
+const channel = channelPayload();
+const channelPath = join(here, 'recordings', `${CHANNEL_NAME}.json`);
+writeFileSync(channelPath, serialize(channel), 'utf8');
+console.log(`geschrieben: ${channelPath}`);
+console.log(
+  `  Kanal         ${channel.expected.damage} Schaden, ` +
+    `${channel.expected.castsCancelled} abgebrochen`,
 );
 
 const runawayProgress = runawayProgressPayload();

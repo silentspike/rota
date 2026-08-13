@@ -29,6 +29,7 @@ const TEST_CAST_JSON: &str = include_str!("../../data/spells/test-cast.json");
 /// test-cast ganz am Ende: Die Reihenfolge dieser Liste ist die
 /// Zauberreihenfolge, und die steht in jeder Aufzeichnung.
 const TEST_BUFF_JSON: &str = include_str!("../../data/spells/test-buff.json");
+const TEST_CHANNEL_JSON: &str = include_str!("../../data/spells/test-channel.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
@@ -126,6 +127,8 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         serde_json::from_str(TEST_BUFF_JSON).expect("test-buff.json ist kein gueltiges JSON");
     let pruef: Value =
         serde_json::from_str(TEST_CAST_JSON).expect("test-cast.json ist kein gueltiges JSON");
+    let pruef_channel: Value =
+        serde_json::from_str(TEST_CHANNEL_JSON).expect("test-channel.json ist kein gueltiges JSON");
     // **Die Reihenfolge dieser Liste IST die Zauberreihenfolge** — sie bestimmt
     // die Indizes, und die stehen in jeder aufgezeichneten Runde. Neue Dateien
     // kommen hinten dazu, nie dazwischen.
@@ -138,6 +141,7 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         ("putrefaction.json", &zersetzung),
         ("test-cast.json", &pruef),
         ("test-buff.json", &pruef_buff),
+        ("test-channel.json", &pruef_channel),
     ]);
 
     assert_eq!(
