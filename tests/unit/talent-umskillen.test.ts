@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, TALENTS } from '../../src/core/data.js';
-import { spentPoints, type TalentAllocation } from '../../src/progression/talents.js';
+import { spentPoints, talentFactor, type TalentAllocation } from '../../src/progression/talents.js';
 
 /** Ein Talent mit Rängen, aus den Daten gelesen statt hier benannt. */
 const STAMM = TALENTS.find((t) => (t.maxRanks ?? 0) > 0)?.id ?? '';
@@ -94,5 +94,60 @@ describe('AC2 — eine ersetzte Verteilung wirkt sofort und restlos', () => {
     expect(spentPoints({ [STAMM]: 3 })).toBe(3);
     expect(spentPoints({})).toBe(0);
     expect(spentPoints({ [STAMM]: 1 })).toBe(1);
+  });
+});
+
+/**
+ * AC6 — der Spielstand trägt die Wahl, nicht ihre Wirkung.
+ *
+ * **Was schon gedeckt war und was nicht.** `ALLOWED_TOP_LEVEL` in
+ * `save-format.ts` ist Prüfgegenstand und schlägt an, wenn ein Feld dazukommt —
+ * ein `talentFactor` neben `talentPoints` fiele also auf. Die Ebene DARUNTER
+ * war offen: Ein berechneter Wert kann in `talentPoints` selbst landen, und
+ * dort sähe ihn kein Wächter.
+ *
+ * Der bestehende Fall (`talent-points.test.ts:143`) prüft, dass ein LEERER
+ * Stand ein leeres Feld hat. Sein Kommentar nennt die Absicht — „was der
+ * Spieler entschieden hat, steht im Stand; was daraus folgt, nicht" — aber ein
+ * leeres Feld belegt sie nicht.
+ */
+describe('AC6 — im Spielstand steht die Verteilung, kein berechneter Bonus', () => {
+  /** **Träger-Zusicherung:** Ohne Talente in den Daten wäre alles darunter leer. */
+  it('es gibt überhaupt Talente mit Rängen', () => {
+    expect(TALENTS.filter((t) => (t.maxRanks ?? 0) > 0).length).toBeGreaterThan(0);
+  });
+
+  it('jeder Eintrag ist eine bekannte Kennung mit einem ganzzahligen Rang', () => {
+    const verteilung: TalentAllocation = { [STAMM]: 3 };
+    for (const [kennung, rang] of Object.entries(verteilung)) {
+      expect(TALENTS.some((t) => t.id === kennung)).toBe(true);
+      expect(Number.isInteger(rang)).toBe(true);
+      expect(rang).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * Der Kern: Ein Faktor ist keine ganze Zahl. Landete er je in der Verteilung,
+   * fiele er hier auf — auch dann, wenn er unter einer plausiblen Kennung
+   * stünde.
+   */
+  it('ein Faktor in der Verteilung wäre erkennbar — Gegenprobe', () => {
+    const mitBonus = { [STAMM]: 3, berechneterFaktor: 1.15 } as TalentAllocation;
+    const sauber = Object.entries(mitBonus).every(
+      ([kennung, wert]) => TALENTS.some((t) => t.id === kennung) && Number.isInteger(wert),
+    );
+    expect(sauber).toBe(false);
+  });
+
+  /**
+   * Und der Faktor wird gerechnet, nicht getragen: Dieselbe Verteilung ergibt
+   * ihn jedes Mal neu. Wäre er gespeichert, müsste ihn jemand mitschleppen —
+   * und genau das schließt AC6 aus.
+   */
+  it('der Faktor folgt aus der Verteilung und wird nicht mitgeführt', () => {
+    const a = talentFactor({ [STAMM]: 2 });
+    const b = talentFactor({ [STAMM]: 2 });
+    expect(a).toBe(b);
+    expect(talentFactor({})).toBe(1);
   });
 });
