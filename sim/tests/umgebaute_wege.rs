@@ -31,30 +31,47 @@ use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::fight::{Fight, FightConfig};
 use rota_sim::replay::{Binding, Press, Recording};
 
-/// Wirft einen Zauber `wuerfe` mal und gibt die liegenden Stapel.
-fn stapel_nach(zauber: &str, wuerfe: u32, cap_bonus: usize) -> usize {
+/// Legt acht Stapel so schnell wie moeglich und misst SOFORT danach.
+///
+/// **Zwei Quellen im Wechsel** — CANKER hat 2000 ms Abklingzeit, BLIGHT 1500.
+/// Abwechselnd alle 150 Takte kommt jeder von beiden alle 300 Takte dran, also
+/// weit ueber seiner Abklingzeit: acht Wuerfe in 10,5 Sekunden.
+///
+/// **Und gemessen wird bei Takt 1060, nicht spaeter.** Ein Stapel haelt 12 s;
+/// mein erster Entwurf mass 300 Takte nach dem letzten Wurf und sah 4 statt 5,
+/// weil die ersten drei bereits verfallen waren. Der Deckel war richtig, der
+/// Messzeitpunkt falsch — und die Zahl sah aus wie ein Fehler im Code.
+fn stapel_nach_acht_wuerfen(cap_bonus: usize) -> usize {
     let boss = boss_by_id("first-crucible").expect("first-crucible fehlt");
-    let spell = index_of(zauber).unwrap_or_else(|| panic!("{zauber} fehlt"));
+    let canker = index_of("canker").expect("canker fehlt");
+    let blight = index_of("blight").expect("blight fehlt");
     let mut fight = Fight::new(FightConfig {
         boss,
         talent_decay_cap_bonus: cap_bonus,
         ..FightConfig::default()
     });
-    let presses: Vec<Press> = (0..wuerfe)
+    let presses: Vec<Press> = (0..8)
         .map(|i| Press {
-            tick: i * 200,
-            slot: 0,
+            tick: i * 150,
+            slot: u8::try_from(i % 2).expect("passt"),
         })
         .collect();
     fight.replay(
         &Recording {
             name: "cap".to_owned(),
             seed: 0,
-            ticks: wuerfe * 200 + 10,
-            bindings: vec![Binding {
-                slot: 0,
-                spell,
-            }],
+            // Letzter Wurf bei 1050, Ende bei 1060 — vor dem ersten Verfall.
+            ticks: 1060,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: canker,
+                },
+                Binding {
+                    slot: 1,
+                    spell: blight,
+                },
+            ],
             presses,
         },
         false,
@@ -66,9 +83,9 @@ fn stapel_nach(zauber: &str, wuerfe: u32, cap_bonus: usize) -> usize {
 /// fuenf liegen — sonst misst der Fall unten etwas anderes als er behauptet.
 #[test]
 fn ohne_zuschlag_liegt_der_deckel_bei_fuenf() {
-    // Zehn Wuerfe CANKER wollen zehn Stapel legen; der Deckel laesst fuenf zu.
+    // Acht Wuerfe wollen acht Stapel legen; der Deckel laesst fuenf zu.
     assert_eq!(
-        stapel_nach("canker", 10, 0),
+        stapel_nach_acht_wuerfen(0),
         5,
         "die Grundgrenze liegt nicht bei fuenf"
     );
@@ -77,7 +94,7 @@ fn ohne_zuschlag_liegt_der_deckel_bei_fuenf() {
 #[test]
 fn der_zuschlag_hebt_die_obergrenze() {
     assert_eq!(
-        stapel_nach("canker", 10, 2),
+        stapel_nach_acht_wuerfen(2),
         7,
         "zwei zusaetzliche Plaetze kommen nicht an"
     );
@@ -88,8 +105,10 @@ fn der_zuschlag_hebt_die_obergrenze() {
 /// Laenge vom Spielverlauf abhaengt, waere keine (#479).
 #[test]
 fn ueber_die_kapazitaet_hinaus_geht_es_nicht() {
+    // Acht Wuerfe koennen hoechstens acht legen — und genau da deckelt die
+    // Kapazitaet, obwohl der Zuschlag weit darueber liegt.
     assert_eq!(
-        stapel_nach("canker", 20, 99),
+        stapel_nach_acht_wuerfen(99),
         8,
         "der Zuschlag durchbricht die Kapazitaet"
     );
@@ -138,7 +157,10 @@ fn der_schutz_je_stapel_mindert_mehr() {
     };
 
     let ohne = erlitten(0);
-    assert!(ohne > 0, "der Boss trifft gar nicht — der Vergleich misst nichts");
+    assert!(
+        ohne > 0,
+        "der Boss trifft gar nicht — der Vergleich misst nichts"
+    );
     assert!(
         erlitten(600) < ohne,
         "der Schutz-Weg mindert nichts: {ohne} bleibt {ohne}"
