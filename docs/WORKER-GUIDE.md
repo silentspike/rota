@@ -279,6 +279,46 @@ npx vitest run … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?"
 **Der Exit-Code kommt aus `echo $?` direkt nach dem Befehl, nie aus der Datei.**
 Er kann von einer fremden Sitzung nicht überschrieben werden, der Dateiinhalt schon.
 
+#### Aber nicht bei einem Hintergrundlauf — dort gilt er dem Wrapper
+
+Am 2026-08-13 meldete die Harness **dreimal** „completed (exit code 0)" für Läufe,
+die es nicht waren:
+
+| Gemeldet    | Tatsächlich                             | Was der Code beschrieb |
+| ----------- | --------------------------------------- | ---------------------- |
+| exit code 0 | `101` in der Datei, ein roter Fall      | den Wrapper            |
+| exit code 0 | `124` — Zeitlimit                       | den Wrapper            |
+| completed   | Lauf stand noch in der `flock`-Schlange | den Wrapper            |
+
+> **Bei einem Hintergrundlauf beschreibt der gemeldete Code den Starter, nicht die
+> gestartete Arbeit.** „Fertig, Code 0" kann heißen: hat nie angefangen.
+
+Die Auflösung deckt beide Fälle ab — Rollen-Präfix gegen fremde Sitzungen, und der
+Code **in** der Datei statt in der Meldung:
+
+```
+cargo remote -c -- test … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?" >> /work/tmp/<rolle>-<zweck>.log
+```
+
+Mit Präfix kann die Datei nicht fremdbeschrieben werden, also ist ihr Inhalt sicher —
+und er gilt dem Lauf, nicht dem Wrapper. Bei einem **Vordergrund**-Befehl bleibt
+`echo $?` in derselben Shell richtig.
+
+### Zwei Mutationen auf derselben Seite sind kein zweiseitiger Nachweis
+
+Bei einer Änderung, die TypeScript **und** Rust berührt, belegen zwei Mutationen
+nur so viele Seiten, wie sie anfassen. Am 2026-08-13 prüften der Bauende und der
+Abnehmende dieselbe Änderung mit je einer Mutation — beide in `combat.ts`, eine an
+der neuen Zeile, eine an der alten. Das sah nach unabhängiger Doppelprüfung aus und
+war eine doppelte Prüfung **derselben Hälfte**.
+
+Die Rust-Zeile war nie mutiert. Ihr Anschluss stand nur als Ableitung da: „wenn Rust
+nicht zählte, wäre `casts` 0 gegen 3, also wird der Fall rot" — plausibel, und genau
+die Form, die diese Datei sonst nicht durchgehen lässt.
+
+> **Zähle bei der Abnahme nicht die Mutationen, sondern die Seiten, die sie
+> berühren.** Eine Änderung auf zwei Seiten braucht mindestens eine Mutation je Seite.
+
 ### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
 
 Ein Issue-Text, eine Nachricht von vorgestern, eine Zahl aus einer Übergabe — alle
