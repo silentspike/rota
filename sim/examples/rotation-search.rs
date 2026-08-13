@@ -62,14 +62,19 @@ fn bosse_dieses_laufs() -> Vec<String> {
     while let Some(a) = args.next() {
         if a == "--bosses" {
             let liste = args.next().unwrap_or_else(|| {
-                panic!("Nach --bosses fehlt die Liste, etwa: --bosses first-crucible,test-onslaught")
+                panic!(
+                    "Nach --bosses fehlt die Liste, etwa: --bosses first-crucible,test-onslaught"
+                )
             });
             let gewaehlt: Vec<String> = liste.split(',').map(|s| s.trim().to_owned()).collect();
             // **Jeder Name wird geprueft, bevor gerechnet wird.** Ein Tippfehler
             // darf nicht stillschweigend einen Boss weglassen: Der Bericht
             // saehe dann vollstaendig aus und waere es nicht.
             for id in &gewaehlt {
-                assert!(boss_by_id(id).is_some(), "Boss {id} kennt der Simulator nicht");
+                assert!(
+                    boss_by_id(id).is_some(),
+                    "Boss {id} kennt der Simulator nicht"
+                );
             }
             return gewaehlt;
         }
@@ -149,8 +154,18 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
     println!("Wie aehnlich sehen die gefundenen Listen aus?");
     for i in 0..gefundene.len() {
         for j in (i + 1)..gefundene.len() {
-            let a: Vec<String> = gefundene[i].1.to_string().lines().map(str::to_owned).collect();
-            let b: Vec<String> = gefundene[j].1.to_string().lines().map(str::to_owned).collect();
+            let a: Vec<String> = gefundene[i]
+                .1
+                .to_string()
+                .lines()
+                .map(str::to_owned)
+                .collect();
+            let b: Vec<String> = gefundene[j]
+                .1
+                .to_string()
+                .lines()
+                .map(str::to_owned)
+                .collect();
             let gemeinsam = a.iter().filter(|z| b.contains(z)).count();
             let groesser = a.len().max(b.len()).max(1);
             println!(
@@ -178,7 +193,10 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
             // Nicht gegen die eigene Herkunft: Gefragt ist, was der Spieler an
             // DIESEM Boss verliert, wenn er die fremde Liste mitbringt.
             let verlust = (eigen - ergebnis.damage.mean) / eigen * 100.0;
-            print!("{:>22}", format!("{:.0} ({verlust:+.1} %)", ergebnis.damage.mean));
+            print!(
+                "{:>22}",
+                format!("{:.0} ({verlust:+.1} %)", ergebnis.damage.mean)
+            );
         }
         println!();
     }
