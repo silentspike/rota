@@ -20,6 +20,7 @@ import { heldOf, progressOf } from '../core/summary.js';
 import { analyzeRun, interruptDataFor, runDataFor } from '../analysis/run-analysis.js';
 import type { RunAnalysis } from '../analysis/run-analysis.js';
 import type { EfficiencyTable } from '../analysis/efficiency.js';
+import { sampleDamageCurve, type RunCurve } from '../analysis/run-compare.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import type { Combat } from '../core/combat.js';
 import { GCD_MS } from '../core/gcd.js';
@@ -216,6 +217,7 @@ export class HudRenderer {
     heldPercent: number | null;
     analysis: LossReport | null;
     efficiency: EfficiencyTable | null;
+    curve: RunCurve | null;
     damage: number;
     progressPercent: number;
     casts: number;
@@ -231,6 +233,7 @@ export class HudRenderer {
     heldPercent: null,
     analysis: null,
     efficiency: null,
+    curve: null,
     damage: 0,
     progressPercent: 0,
     casts: 0,
@@ -430,6 +433,14 @@ export class HudRenderer {
       const gerechnet = this.analysisOf(combat, view.summary);
       view.analysis = gerechnet?.losses ?? null;
       view.efficiency = gerechnet?.table ?? null;
+      // **Die Schadenskurve dieses Laufs** (E7-2, Issue #82). Ohne
+      // Vergleichskurve: Der Spielstand fuehrt vom Bestlauf nur EINE Zahl
+      // (`BestRun.metric` und `.value`), keine Kurve und keine Kurzfassung.
+      // `buildCurveView` nimmt dafuer `null` — die eigene Kurve steht dann
+      // allein, und das ist eine ehrliche Anzeige statt einer erfundenen
+      // Referenz.
+      view.curve =
+        view.summary === null ? null : sampleDamageCurve(this.session.log, view.summary.elapsedMs);
     }
     // Die Marke wird beim selben Wechsel geholt wie die Kurzfassung -- nicht
     // je Bild. Sie aendert sich waehrend der Auswertung nicht.
