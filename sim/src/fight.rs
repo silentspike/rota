@@ -3303,20 +3303,44 @@ impl Fight {
         self.add_decay_stacks(dot.decay_per_tick);
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
-        // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
-        // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
-        // 12 s Laufzeit bei 2 s Abstand ergeben **6** Ticks, der letzte genau
-        // beim Ablauf (`STEP1-SPEC` 1.2).
+        // Der naechste Tick wird IMMER vorgemerkt; ob er zaehlt, entscheidet
+        // `dot_active` beim Abarbeiten — oben in dieser Funktion.
+        //
+        // # Warum nicht mehr `if next <= expires` (Issue #485)
+        //
+        // Bis hierher stand die Pruefung HIER, und damit stand die Laufzeit
+        // beim PLANEN fest. Eine Verlaengerung DANACH schob `expires` nach
+        // hinten, aber es lag kein Tick mehr in der Schlange und es wurde auch
+        // keiner nachgelegt: Der Brand brannte laenger und tickte nicht mehr.
+        //
+        // **Gemessen am 2026-08-13**, CINDER bei 0 und EMBER bei 4000:
+        //
+        // ```text
+        //   Simulator  120 Schaden
+        //   Spiel      150 Schaden   <- ein CINDER-Tick mehr
+        // ```
+        //
+        // Das Spiel hat recht: Es prueft bei jedem Schritt neu, und
+        // `STEP1-SPEC` 1.2 legt fest, dass der letzte Tick mit dem Ablauf
+        // zusammenfaellt. Die Entscheidung gehoert also an das Abarbeiten,
+        // nicht an das Planen.
+        //
+        // Die Kette endet weiterhin von selbst: Ist der Brand beim naechsten
+        // Termin abgelaufen, kehrt `dot_tick` oben ueber `!dot_active` zurueck,
+        // ohne zu ticken und ohne nachzulegen. Es liegt hoechstens EIN
+        // ueberzaehliger Eintrag je Brand in der Schlange.
+        //
+        // Die 12-s-Rechnung aus `STEP1-SPEC` 1.2 bleibt unberuehrt — sechs
+        // Ticks bei 2 s Abstand, der letzte genau beim Ablauf. Sie faellt jetzt
+        // nur eine Ebene spaeter.
         let next = self.time + self.dot_interval(&dot);
-        if self.dot_expires_at[index].is_some_and(|expires| next <= expires) {
-            self.queue.push(
-                next,
-                EventKind::DotTick {
-                    spell: index as u8,
-                    generation,
-                },
-            );
-        }
+        self.queue.push(
+            next,
+            EventKind::DotTick {
+                spell: index as u8,
+                generation,
+            },
+        );
     }
 
     /// Nimmt die liegende Schutzschicht weg und gibt zurueck, was davon als
