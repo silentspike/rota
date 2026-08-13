@@ -22,20 +22,50 @@
 //!
 //! # Was hier NICHT gemessen wird, und warum
 //!
-//! **Messung 1 — bester Satz-Aufbau gegen besten Affix-Aufbau — steht aus.**
-//! Am 2026-08-04 gemessen: Kein einziger Ausruestungs-Topf wird ausserhalb von
-//! `gear.rs` gelesen. `factors.gear_effects` wird ausschliesslich in
-//! `balance.rs` gesetzt, also kuenstlich in der Messung, nie aus echter
-//! Ausruestung. CATALYSIS und PURITY sind nirgends verdrahtet, YIELD ist
-//! wirkungslos, weil Krit ruht (`STEP1-SPEC` 2).
+//! **Messung 1 — bester Satz-Aufbau gegen besten Affix-Aufbau — steht aus,
+//! weil sie niemand gefahren hat.** Die Werkzeuge dafuer stehen bereit:
+//! [`crate::best_build::best_affix_build`],
+//! [`crate::best_build::tipping_set_bonus`] und [`crate::sources::set_build`].
 //!
-//! Ein Vergleich auf dieser Grundlage saehe aus wie "Saetze sind ueberlegen",
-//! waehrend in Wahrheit nur die Gegenseite nicht eingebaut ist. Die
-//! Topf-Arithmetik unten laesst sich trotzdem exakt rechnen — sie ist eine
+//! ## Hier stand bis #815 ein anderer Grund, und er war falsch
+//!
+//! > „Kein einziger Ausruestungs-Topf wird ausserhalb von `gear.rs` gelesen.
+//! > CATALYSIS und PURITY sind nirgends verdrahtet, YIELD ist wirkungslos,
+//! > weil Krit ruht."
+//!
+//! Das stimmte am 2026-08-04 und stimmt heute nicht mehr — **gemessen**, nicht
+//! erneut behauptet:
+//!
+//! ```text
+//!   CATALYSIS  src/core/combat.ts:3608  hastedMs(baseMs, this.worn.catalysis)
+//!              sim/src/fight.rs:3455    hasted_ms(base_ms, self.worn.catalysis)
+//!   PURITY     sim/src/gear.rs:431      pub fn crit_chance(&self)
+//!              sim/src/fight.rs:3517    self.rng.chance(stream, self.worn.crit_chance())
+//!   worn       sim/src/fight.rs:1167    config.factors.essence * config.worn.essence_factor()
+//!              src/core/app.ts:232      this.combat.setWorn(wornFrom(this.persistence.state.items))
+//! ```
+//!
+//! Die letzte Zeile ist die entscheidende: Das Spiel speist `worn` aus der
+//! **getragenen Ausruestung**, nicht nur die Messung.
+//!
+//! **Was dieser falsche Satz fast gekostet haette:** Bei #815 galten die drei
+//! Werkzeuge als toter Code — begruendet mit genau diesem Kommentar. Sie waren
+//! schon geloescht, als die Behauptung nachgemessen wurde. Ein Kommentar, der
+//! einen Zustand beschreibt, ist keine Messung dieses Zustands; er altert, und
+//! niemand merkt es.
+//!
+//! ## Was jetzt fehlt, ist der Lauf
+//!
+//! Gebraucht wird die Messung fuer #791 (Ausruestungs-Skalierung
+//! Gegenstandsstufe 1 gegen 13): `boss-1-2` faellt bei perfekter Rotation mit
+//! 0,19 % Reserve, und instance-3 soll hoeher liegen. Ohne die Skalierung ist
+//! das rechnerisch unbezwingbar.
+//!
+//! Die Topf-Arithmetik unten ist davon unabhaengig exakt — sie ist eine
 //! **Modellrechnung**, keine Messung am Kampf, und wird als solche benannt.
 
 use crate::factors::{compute_damage, DamageFactors};
-use crate::gear::{ValuePools, POOL_COUNT};
+use crate::gear::ValuePools;
 
 /// Die Faktoren aus den Toepfen, **jeder einzeln** — wie die Formel es heute
 /// tut.
@@ -192,12 +222,6 @@ pub fn tipping_surcharge(budget: f64, pools: u32) -> f64 {
         return 0.0;
     }
     tipping_point(budget, pools) / budget - 1.0
-}
-
-/// Wie viele Toepfe es gibt — fuer den Bericht.
-#[must_use]
-pub const fn pool_count() -> usize {
-    POOL_COUNT
 }
 
 #[cfg(test)]
