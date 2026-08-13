@@ -298,6 +298,58 @@ describe('DECOCTION gehört zu COAGULATION — die Umwandlung läuft MIT dem Kan
   });
 });
 
+describe('Eine Kanalisierung zählt als Wurf', () => {
+  /**
+   * # Der Befund (2026-08-13)
+   *
+   * `castCounts` wird an genau einer Stelle erhöht — in `resolvePlayerCast` —,
+   * und die wird für Kanalisierungen übersprungen. Eine vollständig
+   * durchgelaufene Kanalisierung teilte ihre ganze Wirkung aus und stand mit
+   * `castCount` **0** da.
+   *
+   * Dass es kein Entwurf war, zeigt der Zauber mit WIRKZEIT: dieselbe Bauart
+   * — beginnt, läuft, löst auf —, und er zählt ganz normal. Die Kanalisierung
+   * war der einzige Typ, der durchfiel.
+   */
+  it('nach vollem Durchlauf steht der Zähler auf eins', () => {
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    expect(combat.castCount(d.index), 'vor dem Wurf schon gezählt').toBe(0);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.dauer; t += 10) combat.stepPassive(t);
+
+    // Die Zusicherung daneben: Ohne sie könnte der Zähler auch dann auf 1
+    // stehen, wenn die Kanalisierung gar nichts ausgeteilt hat.
+    expect(combat.damageDealt, 'die Kanalisierung hat nichts gewirkt').toBe(
+      d.schritte * d.jeSchritt,
+    );
+    expect(combat.castCount(d.index)).toBe(1);
+  });
+
+  it('auch ein ABGEBROCHENER Kanal zählt — er hat gewirkt', () => {
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    const mitten = 2 * d.raster;
+    for (let t = 0; t <= mitten; t += 10) combat.stepPassive(t);
+    combat.cast(combat.indexOf('kindle'), mitten);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+    expect(combat.castCount(d.index)).toBe(1);
+  });
+
+  it('GEGENPROBE: der Zauber mit WIRKZEIT zählt genauso — er fiel nie durch', () => {
+    // Der Vergleich, an dem sich zeigt, dass die Lücke kein Entwurf war: Beide
+    // Typen beginnen, laufen und lösen auf. Nur einer wurde gezählt.
+    const combat = kampf();
+    const cast = combat.indexOf('test-cast');
+    const wirkzeit = combat.spellAt(cast)?.castTimeMs ?? 0;
+    expect(wirkzeit, 'test-cast hat keine Wirkzeit').toBeGreaterThan(0);
+    expect(combat.cast(cast, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= wirkzeit; t += 10) combat.stepPassive(t);
+    expect(combat.castCount(cast)).toBe(1);
+  });
+});
+
 describe('Die Abklingzeit läuft an — beim BEGINN, nicht am Ende', () => {
   /**
    * # Der Befund, aus dem diese Fälle entstanden sind (2026-08-13)
@@ -363,6 +415,58 @@ describe('Die Abklingzeit läuft an — beim BEGINN, nicht am Ende', () => {
       false,
     );
     expect(combat.isOffCooldown(d.index, abkling)).toBe(true);
+  });
+
+  it('OFFEN AM DESIGN: auch ein BOSS-Abbruch lässt sie zahlen', () => {
+    // **Dieser Fall hält eine Entscheidung fest, die GAME-DESIGN nicht trifft
+    // — damit sie nicht still bleibt.**
+    //
+    // Das Dokument kennt zwei Abbrucharten, und sie stehen in verschiedenen
+    // Absätzen:
+    //
+    // > 635  „Jede Wirkung des SPIELERS bricht einen laufenden Cast oder eine
+    // >       Kanalisierung ab. Jede, ohne Ausnahme."
+    // > 661  „Abbruch eines Zauberbalkens: nur durch bestimmte, vorher
+    // >       erkennbare BOSS-Angriffe. Normale Treffer stören nicht. Bei
+    // >       Abbruch geht der Zauber verloren, die Abklingzeit läuft aber
+    // >       nicht an."
+    //
+    // Die Ausnahme steht im Boss-Absatz, und ihre Begründung darunter ist eine
+    // über Boss-Angriffe: „Wer den Boss kennt, fängt den Zauber gar nicht erst
+    // an." Für den SELBST-Abbruch sagt das Design nichts — dort greift sie
+    // zweifach nicht, weil es kein Boss-Angriff ist und weil der Zauber nicht
+    // verloren geht.
+    //
+    // **Beim Boss-Abbruch einer KANALISIERUNG stimmt nur noch die Hälfte
+    // davon.** Es IST ein Boss-Angriff — aber der Zauber geht nicht verloren,
+    // der erreichte Anteil bleibt (7.2). Die Abklingzeit läuft hier trotzdem,
+    // weil sie beim Beginn gesetzt wird und diese eine Stelle beide Ausgänge
+    // deckt.
+    //
+    // Der Fall tritt wirklich ein und ist nicht theoretisch: `test-caster`
+    // unterbricht bei 9000 und 18000 ms, und die Kanal-Aufzeichnung fährt
+    // gegen genau diesen Boss — sie zählt zwei unterbrochene Zauber.
+    const caster = bossById('test-caster') as BossDef;
+    const combat = new Combat({ school: CALCINATION.value, boss: caster });
+    combat.beginFight(0);
+    const d = kanalDaten(combat);
+    const abkling = combat.spellAt(d.index)?.cooldownMs ?? 0;
+
+    // Bei 7000 beginnen, damit der Schlag bei 9000 mitten hineinfällt.
+    let t = 0;
+    for (; t < 7000; t += 10) combat.stepPassive(t);
+    expect(combat.cast(d.index, t).result).toBe(CAST_STARTED);
+    const beginn = t;
+    for (; t <= 9000; t += 10) combat.stepPassive(t);
+
+    // Die Zusicherung: Ohne einen echten Boss-Abbruch prüfte der Fall nichts.
+    expect(combat.castsInterrupted, 'der Boss hat gar nicht unterbrochen').toBeGreaterThan(0);
+    expect(combat.playerCasting, 'die Kanalisierung lief weiter').toBe(-1);
+    // Der erreichte Anteil ist geblieben — der Zauber ist nicht verloren.
+    expect(combat.damageDealt, 'nichts angekommen').toBeGreaterThan(0);
+    // Und sie zahlt trotzdem.
+    expect(combat.isOffCooldown(d.index, 9000)).toBe(false);
+    expect(combat.isOffCooldown(d.index, beginn + abkling)).toBe(true);
   });
 
   it('MESSUNG: Abbruch-Spam trägt nicht mehr ein als der Durchlauf', () => {
