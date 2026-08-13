@@ -192,6 +192,27 @@ Zeugen. Bevor du das tust: Prüfe, ob der **grüne** Fall dieselbe Größe misst
 Widersprechen sich zwei Fälle, ist die geteilte Messgröße der erste Verdächtige,
 nicht der Fall, der rot ist.
 
+##### Die Frage davor: was außer meiner Änderung bewegt diese Zahl?
+
+Am 2026-08-13 ist derselbe Griff **dreimal an einem Abend** danebengegangen, jedes
+Mal bei einer anderen Größe:
+
+| Gemessen                  | Wer sonst noch daran zieht                          |
+| ------------------------- | --------------------------------------------------- |
+| `playerHp` statt `healed` | der Boss schlägt während der Messung weiter zu      |
+| Vorrat statt Gewinn       | Hitze verfällt um 1 je 2000 ms (`calcination.json`) |
+| Schaden gesamt            | jede andere Quelle im selben Fenster                |
+
+Der zweite Fall meldete einen Verlauf `1 → 1 → 2 → 2 → 3` statt `1 → 2 → 3 → 4 → 5`
+und sah aus wie ein Baufehler. Die Umsetzung war richtig, die **Erwartung** falsch.
+
+> **Eine Zustandsgröße ist die Summe aus allem, was sie bewegt. Miss die
+> Bewegung, nicht den Stand** — `healed` statt `hp`, `gained` statt `resource`.
+
+Gibt es keine solche Größe, rechne die fremden Bewegungen **aus den Daten** mit,
+nie aus einer abgeschriebenen Rate: Eine Verfallsrate im Prüffall ist beim
+nächsten Datensatz falsch und meldet dann einen Baufehler, den es nicht gibt.
+
 #### Beide Rechenseiten gleich falsch — die Parität schweigt
 
 Eine Kanalisierung ging auf keiner der beiden Seiten je auf Abklingzeit. Der
