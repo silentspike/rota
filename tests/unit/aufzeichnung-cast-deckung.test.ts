@@ -75,12 +75,16 @@ function alleEintraege(): Eintrag[] {
         .filter((b) => UNTERBRECHER.has(b['spellId'] as string))
         .map((b) => b['slot'] as number),
     );
+    // **`?? 0` an jedem Indexzugriff, nicht nur am zweiten.** Ein Zugriff auf
+    // ein `Record<string, number>` liefert `number | undefined` — das sieht
+    // man nur, wenn `tsc` läuft. `vitest` prüft keine Typen: Der erste Entwurf
+    // war grün in der Testsuite und rot in der CI.
     const drucke = ((auf['presses'] ?? []) as Array<Record<string, number>>)
-      .filter((p) => plaetze.has(p['slot']))
-      .map((p) => p['tick'] * tickMs);
+      .filter((p) => plaetze.has(p['slot'] ?? -1))
+      .map((p) => (p['tick'] ?? 0) * tickMs);
 
     for (const cast of casts) {
-      const beginn = cast['atMs'];
+      const beginn = cast['atMs'] ?? 0;
       const ende = beginn + (cast['castTimeMs'] ?? 0);
       const lage: Lage =
         beginn >= deckung
