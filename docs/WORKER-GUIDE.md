@@ -22,6 +22,59 @@ refs:
 
 ---
 
+## Die teuerste Fehlerklasse des Projekts: gebaut, grün, unerreichbar
+
+**Am 2026-08-13 ist sie fünfmal an einem Tag aufgetreten**, in fünf verschiedenen
+Gestalten, von drei verschiedenen Sitzungen gefunden. Jedes Mal war der Code
+typgeprüft, jedes Mal waren die Prüfungen grün, jedes Mal kam die Fähigkeit im Spiel
+nicht an:
+
+| Fall                  | Was grün war                                 | Was fehlte                                                    |
+| --------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| `setSetEffects`       | sechs Effekte, jeder einzeln mutationsbelegt | **0 Aufrufer** — jeder Prüffall rief den Setter selbst        |
+| `extendActiveDots`    | 134 Rust-Suiten                              | verlängerte nur den **ersten** Brand; keine Suite färbte      |
+| `buildEfficiencyView` | Typprüfung, Lint, die Datenquelle daneben    | `analyzeRun(...).losses` — die Tabelle in derselben Zeile weg |
+| Archiv-Ansicht (#85)  | Ansicht angeschlossen, Issue geschlossen     | kein einziger `ArchiveEntry` **existiert**                    |
+| APL `boss.casting`    | 17 Werte in der Sprache, alle benutzt        | keiner für einen laufenden Boss-Zauber — Suche blind          |
+
+Das gemeinsame Muster: **Eine Prüfung, die den Fall nie erzeugt, kann ihn nicht
+finden — egal wie viele Suiten grün sind.**
+
+### Die zwei Fragen, die das fangen
+
+Stelle sie zu **jedem** fertigen Stück, bevor du „fertig" meldest:
+
+1. **Wer ruft das?** Nicht „gibt es Tests", sondern: Ruft der Weg des _Spielers_
+   dorthin? Ein Prüffall, der die Funktion selbst aufruft, belegt die Funktion, nicht
+   ihre Erreichbarkeit.
+2. **Existiert die Sache, oder nur der Typ?** Ein `interface` ohne eine einzige
+   Instanz, ein Feld ohne Wert im Spielstand, eine Ansicht ohne Inhalt — alle drei
+   sehen im Editor fertig aus.
+
+### Die Träger-Zusicherung — ohne sie ist eine Null wertlos
+
+Findest du „0 Aufrufer" oder „0 Treffer", **miss im selben Zug etwas, von dem du
+sicher weißt, dass es da ist.** Sonst hast du dein Suchmuster gemessen und nicht die
+Sache. Belegte Fehlalarme aus genau dieser Lücke:
+
+- `grep -rn 'isDefeated' tests/` → nichts. Die Datei enthält **ein NUL-Byte**, `grep`
+  hält sie für binär und schweigt **ohne Fehlercode**. Erst `grep -a` findet die drei
+  Treffer.
+- Fünf Klänge gemeldet als „KEIN SIGNAL" — das `awk`-Feld war falsch. Zwei bekannt
+  funktionierende Klänge im selben Lauf zeigten dasselbe und entlarvten das Muster.
+- Drei Simulator-Felder sahen ungedeckt aus, weil nur in `fight.rs` gesucht wurde. Sie
+  stehen in anderen Modulen.
+
+### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
+
+Ein Issue-Text, eine Nachricht von vorgestern, eine Zahl aus einer Übergabe — alle
+drei beschreiben den Stand von damals. **Am 2026-08-13 waren sieben Issues an ihrer
+Beschriftung falsch**; ihre Aussage galt zum Zeitpunkt des Schreibens und war beim
+Lesen überholt. Miss gegen `origin/main`, bevor du auf einer Zahl aufbaust — auch
+wenn sie vom Orchestrator kommt.
+
+---
+
 ## 1. Bevor du das erste Mal anfängst
 
 Lies in dieser Reihenfolge:
