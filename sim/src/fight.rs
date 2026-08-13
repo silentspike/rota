@@ -264,6 +264,12 @@ pub struct FightConfig {
     pub partial_control: bool,
     /// Ob das Schluesseltalent "shield-refund" verteilt ist (COAGULATION, #419).
     pub shield_refund: bool,
+    /// Promille auf den Schaden der **Entlader** (GLOBAL, Issue #419).
+    ///
+    /// Ein Entlader ist ein Zauber mit `spender` oder `consumes_decay_stacks`.
+    /// Der Zuschlag landet im TALENT-TOPF, additiv zu `talent_permille` —
+    /// dieselbe Rechnung wie `applySpenderBonus` im Spiel.
+    pub talent_spender_damage_permille: u32,
     /// Ob das Schluesseltalent "decay-echo" verteilt ist (PUTREFACTION, #419).
     ///
     /// Ein erloschener Brand legt dann weiter Zersetzungs-Stapel — bis die
@@ -396,6 +402,7 @@ impl Default for FightConfig {
             long_grip: false,
             perpetual_draft: false,
             talent_permille: 0,
+            talent_spender_damage_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
             talent_control_gain_permille: 0,
@@ -827,6 +834,11 @@ pub struct Fight {
     talent_control_cost_factor: f64,
     talent_control_effect_factor: f64,
     talent_decay_stack_factor: f64,
+    /// Der Talent-Topf OHNE Entlader-Zuschlag — die Grundlage, auf die
+    /// `apply_spender_bonus` je Wirkung neu aufsetzt (#419).
+    talents_base: f64,
+    talent_permille: u32,
+    talent_spender_damage_permille: u32,
     talent_decay_duration_factor: f64,
     talent_shield_amount_factor: f64,
     talent_shield_duration_factor: f64,
@@ -1064,6 +1076,9 @@ impl Fight {
             talent_control_effect_factor: 1.0
                 + f64::from(config.talent_control_effect_permille) / 1000.0,
             talent_decay_stack_factor: 1.0 + f64::from(config.talent_decay_stack_permille) / 1000.0,
+            talents_base: config.factors.talents,
+            talent_permille: config.talent_permille,
+            talent_spender_damage_permille: config.talent_spender_damage_permille,
             talent_decay_duration_factor: 1.0
                 + f64::from(config.talent_decay_duration_permille) / 1000.0,
             talent_shield_amount_factor: 1.0
@@ -3146,6 +3161,28 @@ impl Fight {
         summe
     }
 
+    /// Setzt den Talent-Topf fuer DIESEN Zauber (GLOBAL "release", #419).
+    ///
+    /// Spiegelbild zu `applySpenderBonus` in `src/core/combat.ts`.
+    ///
+    /// **Auch fuer Nicht-Entlader**, und das ist kein Leerlauf: Der Faktor ist
+    /// EIN Feld fuer alle Zauber. Setzte ihn nur der Entlader, bliebe sein
+    /// Zuschlag danach stehen und faerbte jeden folgenden Treffer.
+    ///
+    /// **Additiv im Promille-Raum**, wie im Spiel: `1 + (summe + zuschlag) /
+    /// 1000`. Zwei Faktoren zu multiplizieren ergaebe eine andere Zahl und
+    /// braeche die Paritaet in der letzten Stelle.
+    fn apply_spender_bonus(&mut self, index: usize) {
+        let ist_entlader = SPELLS[index].spender.is_some() || SPELLS[index].consumes_decay_stacks;
+        let zuschlag = if ist_entlader {
+            self.talent_spender_damage_permille
+        } else {
+            0
+        };
+        self.factors.talents =
+            self.talents_base * (1.0 + f64::from(self.talent_permille + zuschlag) / 1000.0);
+    }
+
     fn apply_decay_stack_bonus(&mut self, index: usize) {
         let pro_stapel = SPELLS[index].per_decay_stack_percent;
         // **Der Faktor aus `stack_buffs` gehoert auch hierher** (Issue #489).
@@ -3566,6 +3603,9 @@ impl Fight {
         // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
         // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
         self.apply_decay_stack_bonus(index);
+        // Und der Entlader-Zuschlag des globalen Weges (#419), an derselben
+        // Stelle und aus demselben Grund: Er gehoert der Wirkung.
+        self.apply_spender_bonus(index);
         let factors = self.factors_for(kritet);
         let tick_damage = self.deal(
             index,
@@ -4297,6 +4337,9 @@ impl Fight {
         // Der Stapel-Zuschlag DIESES Zaubers (#484) — aus demselben Grund wie
         // der Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf.
         self.apply_decay_stack_bonus(index);
+        // Und der Entlader-Zuschlag des globalen Weges (#419), an derselben
+        // Stelle und aus demselben Grund: Er gehoert der Wirkung.
+        self.apply_spender_bonus(index);
         // EMBER (Issue #517), VOR der Schadensrechnung: Ein Brand, den dieser
         // Zauber selbst legt, soll nicht schon verlaengert werden.
         if spell.dot_extend_ticks > 0 {

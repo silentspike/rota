@@ -121,6 +121,8 @@ pub struct BalanceConfig {
     pub talent_cooldown_charges_bonus: u32,
     /// Talent-Promille auf die **Schwelle** des Ruecksetzers (SUBLIMATION).
     pub talent_cooldown_threshold_permille: u32,
+    /// Talent-Promille auf den Schaden der **Entlader** (GLOBAL, Issue #419).
+    pub talent_spender_damage_permille: u32,
 }
 
 impl Default for BalanceConfig {
@@ -152,6 +154,7 @@ impl Default for BalanceConfig {
             talent_cooldown_reduction_permille: 0,
             talent_cooldown_charges_bonus: 0,
             talent_cooldown_threshold_permille: 0,
+            talent_spender_damage_permille: 0,
             boss: BOSS,
             worn: WornValues::none(),
         }
@@ -549,6 +552,7 @@ fn run_range(
         talent_cooldown_reduction_permille: config.talent_cooldown_reduction_permille,
         talent_cooldown_charges_bonus: config.talent_cooldown_charges_bonus,
         talent_cooldown_threshold_permille: config.talent_cooldown_threshold_permille,
+        talent_spender_damage_permille: config.talent_spender_damage_permille,
         // Der Balance-Laeufer misst OHNE Schluesseltalent — wie beim
         // Talent-Faktor daneben. Wer es messen will, setzt es hier.
         auto_reset: false,
