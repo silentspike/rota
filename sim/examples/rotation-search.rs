@@ -703,6 +703,52 @@ fn main() {
     println!("     Steht hier, weil es die naheliegendste Bauart ist und von aussen");
     println!("     vernuenftig aussieht.");
     println!();
+    // **Die Auflage aus #558.** Solange die Suche ihre eigene Blindheit nicht
+    // ausweist, liest jeder ihr Ergebnis als „diese Zauber taugen nichts" —
+    // und genau das ist im Projekt schon einmal passiert (#550 stand deshalb
+    // unter Vorbehalt).
+    println!("  5  PAARE, deren Haelften einzeln verlieren. Die Suche bewertet jede Zeile");
+    println!("     EINZELN. Eine Verstaerker-Zeile allein bringt nichts — erst das Paar aus");
+    println!("     Verstaerker und dem Zauber, der die Verstaerkung nutzt. Ein gieriges");
+    println!("     Verfahren kann ein solches Paar nicht finden.");
+    // **Beide Zahlen kommen aus DIESEM Lauf, nicht aus dem Fliesstext.** Eine
+    // verdrahtete 25 stimmte, bis jemand einen Verstaerker ergaenzt — und
+    // stuende dann als Beleg neben einer Zahl, die sie nicht mehr belegt.
+    //
+    // **Und die Zusicherung, ohne die die Null nichts bedeutet:** Sie zaehlt
+    // ueber ein Textmuster. Schreibt die APL-Ausgabe eines Tages nicht mehr
+    // `if buff.`, meldet dieser Bericht still „null Verstaerker-Zeilen" —
+    // richtig aussehend und aus dem falschen Grund. Deshalb wird an einer
+    // echten Kandidatenzeile geprueft, dass das Muster ueberhaupt entsteht.
+    let muster_traegt = pool
+        .iter()
+        .filter(|k| k.origin == Origin::BuffWindow)
+        .any(|k| k.rule().to_string().contains("if buff."));
+    assert!(
+        muster_traegt || b == 0,
+        "keine der {b} Verstaerkungs-Kandidatenzeilen enthaelt `if buff.` — dann zaehlt \
+         die Zahl unten die Schreibweise der APL-Ausgabe, nicht die gewaehlten Zeilen"
+    );
+    let gewaehlte_buff_zeilen: usize = gefundene
+        .iter()
+        .map(|g| {
+            g.apl
+                .to_string()
+                .lines()
+                .filter(|z| z.contains("if buff."))
+                .count()
+        })
+        .sum();
+    println!("     Gemessen in DIESEM Lauf: {b} der Kandidatenzeilen stammen aus Verstaerkungs-");
+    println!(
+        "     Fenstern, und ueber alle gefundenen Rotationen zusammen stehen {gewaehlte_buff_zeilen}"
+    );
+    println!("     davon in einer Liste. Der Nachlauf aus #558 aendert das nicht — er nimmt");
+    println!("     fremde Startpunkte, findet aber nichts, was an keinem Boss gefunden wurde.");
+    println!("     WER DIE LISTE DER NIE GEWIRKTEN ZAUBER ALS BALANCE-AUSSAGE LIEST, ZIEHT");
+    println!("     DESHALB EINEN ZU WEITEN SCHLUSS: Ein Verstaerker kann tragen und hier");
+    println!("     trotzdem stehen.");
+    println!();
     println!("Wie diese Zahlen zu lesen sind");
     println!("  Der Vorsprung der Suche ist klein — bei test-metronome 120 von 31000, also");
     println!("  0,4 %. Das ist KEIN magerer Erfolg der Suche, sondern ein Befund ueber die");
