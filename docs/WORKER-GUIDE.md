@@ -131,6 +131,55 @@ Die Prüfsumme führt den Zähler nicht. Bitgleichheit über alle Takte ist desh
 tragen, die in die Summe eingehen. Gefunden hat es erst eine Aufzeichnung, die den
 Abbruch wirklich fährt.
 
+### Was in einer namenlosen Funktion steckt, kann kein Fall greifen
+
+**Dreimal an einem Tag, an drei verschiedenen Stellen, von derselben Sitzung
+gefunden:**
+
+```
+parseSets              #780   anonymer Rückruf im Katalog-Aufbau
+comparisonForResult    #82    anonymer Rückruf in der HudRenderer-Konstruktion
+onOpenHome             #85    namenlose Funktion im Overlay-Aufbau
+```
+
+Jedes Mal war der Anschluss vorhanden und funktionierte im Browser. Jedes Mal lief
+die Mutation „gib immer null zurück" durch die **ganze** Suite grün — angeschlossen,
+aber nichts hielt den Anschluss fest. Erst als benannte Methode wurde er fassbar.
+
+Wer einen Rückruf schreibt, den ein Prüffall belegen soll, gibt ihm einen Namen.
+
+### Ein Kommentar, der eine Bedingung begründet, ist keine Prüfung ihrer Erreichbarkeit
+
+`decayCountValue <= 0` stand für den Fall, dass die Lage „anderweitig verschwindet"
+(Kommentar: _Phasenwechsel, Verzehr_). Die Mutation, die diese Bedingung entfernt,
+lief durch **alle** bestehenden Fälle — TS wie Rust, 6 von 6 bzw. 7 von 7 grün.
+
+Der Code war erreichbar, der Prüffall existierte, und trotzdem hat nie jemand die
+Verzweigung genommen. Nur der Kommentar behauptete, wozu sie da ist.
+
+> **Wer eine Bedingung schreibt, weil „sonst könnte X passieren", schuldet einen
+> Fall, in dem X passiert.**
+
+### Ein Lauf, dessen Ausgabe du nicht behältst, ist ein Lauf, den du nicht gemacht hast
+
+Ein Prüflauf färbte einmal rot, drei Wiederholungen danach grün. Der rote Lauf lief
+**ohne Umleitung** — als der Autor nachsah, war die Ausgabe weg. Damit ist nicht
+belegbar, welcher Fall gefallen ist, und der Befund ist verloren.
+
+Das ist die Umkehrung von „eine Zahl ohne Namen ist keine Aussage": Hier gab es
+weder das eine noch das andere.
+
+Umleiten kostet nichts — **mit Rollen-Präfix**, weil `/work/tmp` zwischen allen
+Sitzungen geteilt wird (858 Dateien am 2026-08-13, darunter Reihen aus fremden
+Vorgängen) und regelmäßig geleert wird:
+
+```
+npx vitest run … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?"
+```
+
+**Der Exit-Code kommt aus `echo $?` direkt nach dem Befehl, nie aus der Datei.**
+Er kann von einer fremden Sitzung nicht überschrieben werden, der Dateiinhalt schon.
+
 ### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
 
 Ein Issue-Text, eine Nachricht von vorgestern, eine Zahl aus einer Übergabe — alle
