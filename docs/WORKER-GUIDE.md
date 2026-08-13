@@ -115,6 +115,58 @@ nichts; einer, der bei vier färbt, benennt genau diese vier._
 Verschärftes Kriterium für jede Deckungsaussage: **gedeckt heißt, ein Test färbt, der
 nicht bei allen Varianten färbt.**
 
+#### Zu viel gefärbt ist auch kein Nachweis
+
+Am 2026-08-13 an zwei Aufgaben unabhängig belegt, in beide Richtungen:
+
+```
+#797 AC4   fight.rs: casting = None statt Some       32 Suiten färben
+           apl/mod.rs: BossCasting liest immer 0     GENAU EINE färbt
+
+#249 AC1   damage.ts: value *= factors.talents weg   21 Fälle in 11 Dateien
+           darunter freshness und hilfe-anschluss, die mit Talenten
+           nichts zu tun haben
+```
+
+Beide breiten Mutationen greifen in etwas ein, das **überall** gebraucht wird —
+den Cast-Zustand, die zentrale Schadensformel. Sie belegen, dass die Sache
+benutzt wird, nicht dass _der geprüfte Wert_ geprüft ist.
+
+> **32 rote Suiten sind kein Nachweis, sondern ein Immer-Färber mit anderem
+> Namen.**
+
+Wer bei der breiten Mutation stehenbleibt, meldet „Exit 101, färbt, erfüllt" —
+und niemand fragt nach. Die schmale Mutation, die genau eine Suite trifft, ist
+die Arbeit.
+
+#### Und färbt sie gar nicht, ist die Ursache offen
+
+Die Gegenrichtung, am selben Tag gefunden: Eine Mutation an der
+Unterbrecher-Liste färbte **nicht**, und das sah nach einem Mangel am Test aus.
+Gemessen war es ein Missgriff an der Mutation — die zwei Drücke im Cast-Fenster
+lagen auf `wisp`, und `wisp` stand nicht in der geänderten Liste.
+
+> **Eine Mutation, die nicht färbt, ist entweder ein Mangel am Test oder ein
+> Missgriff an der Mutation — und welches von beiden, entscheidet eine
+> Messung.**
+
+„Gegenprobe gefahren, färbt nicht" ist deshalb kein Ergebnis, sondern eine
+offene Frage.
+
+#### `vitest` und `cargo test` prüfen keine TypeScript-Typen
+
+Drei Typfehler in einer neuen Prüfdatei rutschten durch **zwei** grüne
+Nullproben — die des Bauenden und die des Abnehmenden — und fielen erst in der
+CI auf:
+
+```
+tests/unit/…(79,34)  TS2345: 'number | undefined' is not assignable to 'number'
+```
+
+`build` fährt `tsc --noEmit && vite build`. Ein grüner Testlauf belegt
+Verhalten, nicht Übersetzbarkeit. **Vor jedem PR `npm run build`**, nicht nur
+`vitest`.
+
 ### Die Prüfsumme führt nicht alles
 
 Bei einer Kanalisierung plante der Simulator die Teilwirkungen, aber **kein
