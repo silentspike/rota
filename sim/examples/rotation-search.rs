@@ -26,8 +26,26 @@ use rota_sim::rotation_search::{all_candidates, greedy, Candidate, Origin, Stop}
 const RUNS: u32 = 50;
 /// Startwert des ersten Durchgangs.
 const SEED: u32 = 0;
-/// Höchstlänge der gesuchten Listen.
+/// Höchstlänge der gesuchten Listen — Voreinstellung, oder `--max-len N`.
 const MAX_LEN: usize = 6;
+
+/// Die Höchstlänge dieses Laufs.
+///
+/// **Wählbar, weil die AC4-Zahl sonst zwei Dinge misst.** „48 von 57 Zaubern
+/// kommen in keiner Rotation vor" klingt nach einer Aussage über die Zauber —
+/// bei sechs Zeilen je Liste können aber über fünf Bosse höchstens dreißig
+/// überhaupt vorkommen. Ohne eine Gegenprobe mit längerer Liste wäre nicht zu
+/// trennen, was am Kit liegt und was an der Suchlänge.
+fn max_len_dieses_laufs() -> usize {
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--max-len" {
+            let wert = args.next().expect("Nach --max-len fehlt die Zahl");
+            return wert.parse().expect("--max-len braucht eine Zahl");
+        }
+    }
+    MAX_LEN
+}
 
 /// Die Bosse, gegen die gesucht wird (Schnitt 3 und AC1b).
 ///
@@ -101,8 +119,8 @@ fn config(boss_id: &str) -> BalanceConfig {
 /// Die handgeschriebene Liste, gegen die gemessen wird (AC1).
 const STEP1_GOOD: &str = include_str!("../apl/step1-good.apl");
 
-fn parameter_zeile_mit(bosse: &[String]) {
-    println!("Parameter: RUNS={RUNS}, SEED={SEED}, MAX_LEN={MAX_LEN}, Bosse={bosse:?}");
+fn parameter_zeile_mit(bosse: &[String], max_len: usize) {
+    println!("Parameter: RUNS={RUNS}, SEED={SEED}, MAX_LEN={max_len}, Bosse={bosse:?}");
     println!("           stop_on_kill=false, Faktoren=NEUTRAL, threads=1");
 }
 
@@ -141,6 +159,27 @@ fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize) {
 /// **Was es KOSTET, die Rotation von Boss A gegen Boss B zu spielen** — das
 /// ist die Zahl, auf die es ankommt. Kostet es nichts, ist die Tiefe nicht da,
 /// und zwar unabhaengig davon, wie verschieden die Listen aussehen.
+///
+/// # Warum das Urteil nicht am groessten Verlust haengt
+///
+/// **Der erste Entwurf tat genau das — und log.** Gemessen ueber fuenf Bosse:
+///
+/// ```text
+///   Groesster Verlust   61,6 %   -> „Tiefe ist vorhanden"
+///   Mittlerer Verlust    1,7 %
+///   Paare ueber 10 %     8 von 20
+/// ```
+///
+/// Alle acht teuren Paarungen haben `test-onslaught` auf einer der beiden
+/// Seiten — den einzigen Boss der Auswahl, der den Spieler toeten kann. Die
+/// uebrigen vier sind untereinander praktisch austauschbar (0,0 bis 1,7 %). Ein
+/// Maximum sagt, dass es EINEN Fall gibt; es sagt nichts darueber, ob die Sache
+/// traegt.
+///
+/// Deshalb steht jetzt die Verteilung da, und der Urteilssatz nennt, wie viele
+/// Paare ueberhaupt etwas kosten. Ein Befund aus einem von fuenf Bossen ist ein
+/// anderer Befund als einer aus fuenf von fuenf — und die frohere Lesart war
+/// genau die, die dieses Issue verhindern soll.
 fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
     if gefundene.len() < 2 {
         println!("Kreuzvergleich uebersprungen — dafuer braucht es mindestens zwei Bosse.");
@@ -185,6 +224,12 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
     }
     println!();
 
+    // **Einmal rechnen, zweimal lesen.** Der erste Entwurf fuhr `run` fuer die
+    // Tabelle und danach ein zweites Mal fuers Urteil — zwei Quellen fuer
+    // dieselbe Zahl, die auseinanderlaufen koennen, ohne dass es auffaellt.
+    // Jetzt trifft die Tabelle und das Urteil dieselbe Sammlung.
+    let mut fremde_verluste: Vec<(String, String, f64)> = Vec::new();
+
     for (herkunft, apl, _) in gefundene {
         print!("  {:<22}", format!("von {herkunft}"));
         for (boss_id, _, eigen) in gefundene {
@@ -197,31 +242,163 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
                 "{:>22}",
                 format!("{:.0} ({verlust:+.1} %)", ergebnis.damage.mean)
             );
+            if herkunft != boss_id {
+                fremde_verluste.push(((*herkunft).clone(), (*boss_id).clone(), verlust));
+            }
         }
         println!();
     }
     println!();
 
-    // **Die Antwort in einem Satz, und sie steht im Bericht selbst.** Eine
-    // Tabelle, die jeder selbst auswerten muss, ist eine Zahl ohne Aussage.
-    let mut groesster_verlust: f64 = 0.0;
-    for (_, apl, _) in gefundene {
-        for (boss_id, _, eigen) in gefundene {
-            let ergebnis = rota_sim::balance::run(&config(boss_id), apl);
-            let verlust = (eigen - ergebnis.damage.mean) / eigen * 100.0;
-            if verlust > groesster_verlust {
-                groesster_verlust = verlust;
-            }
-        }
+    urteil_ueber_die_tiefe(&fremde_verluste);
+}
+
+/// Welche Zauber sind ueber ALLE Bosse hinweg nie drangekommen (#509 AC4).
+///
+/// # Warum das nicht die Summe der Einzelzahlen ist
+///
+/// Je Boss steht oben „nie gewirkt 52 von 57". Diese Zahlen zu addieren oder
+/// die kleinste zu nehmen waere beides falsch: Gefragt ist die SCHNITTMENGE —
+/// wer bei keinem einzigen Boss die beste Wahl war. Ein Zauber, der nur gegen
+/// `test-onslaught` gewirkt wird, taucht in vier von fuenf Einzellisten auf und
+/// gehoert hier trotzdem nicht hin.
+///
+/// Das ist Leitplanke 2 aus GAME-DESIGN: „jeder Zauber muss irgendwo die beste
+/// Wahl sein." Die Zahl hier ist das direkte Mass dafuer.
+fn nirgends_die_beste_wahl(irgendwo_gewirkt: &[bool], anzahl_bosse: usize) {
+    let spielbar: Vec<usize> = (0..rota_sim::SPELL_COUNT)
+        .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
+        .collect();
+    let tot: Vec<&str> = spielbar
+        .iter()
+        .filter(|&&i| !irgendwo_gewirkt[i])
+        .map(|&i| SPELLS[i].id)
+        .collect();
+    let lebendig = spielbar.len() - tot.len();
+
+    println!("Welche Zauber sind NIRGENDS die beste Wahl? (Issue #509 AC4)");
+    println!(
+        "  ueber alle {anzahl_bosse} Bosse gewirkt   {lebendig} von {}",
+        spielbar.len()
+    );
+    println!(
+        "  in KEINER Rotation      {} von {}",
+        tot.len(),
+        spielbar.len()
+    );
+    if tot.is_empty() {
+        println!("  -> Leitplanke 2 ist erfuellt: jeder spielbare Zauber kommt irgendwo vor.");
+    } else {
+        println!("    {}", tot.join(", "));
+        println!("  -> Leitplanke 2 ist NICHT erfuellt. Die Zahl faellt erst, wenn es einen");
+        println!("     Boss gibt, an dem diese Zauber gebraucht werden — nicht durch mehr");
+        println!("     Zauber, sondern durch mehr Anlaesse.");
     }
-    println!("Groesster Verlust durch eine fremde Rotation: {groesster_verlust:.1} %");
-    if groesster_verlust < 1.0 {
-        println!("  -> Es kostet praktisch NICHTS, ueberall dieselbe Liste zu spielen.");
-        println!("     Das ist der Befund aus GAME-DESIGN 20.3: keine Rotations-Tiefe.");
-    } else if groesster_verlust < 10.0 {
-        println!("  -> Es kostet etwas, aber wenig. Ob das reicht, ist eine Design-Frage.");
+    println!();
+}
+
+/// Das Urteil ueber die Rotations-Tiefe — aus der Verteilung, nicht aus dem
+/// groessten Wert.
+///
+/// Die Diagonale steht nicht in `verluste`: Eine Liste gegen ihren eigenen Boss
+/// verliert per Definition nichts und wuerde den Mittelwert nach unten ziehen.
+fn urteil_ueber_die_tiefe(verluste: &[(String, String, f64)]) {
+    if verluste.is_empty() {
+        return;
+    }
+    let mut sortiert: Vec<f64> = verluste.iter().map(|(_, _, v)| *v).collect();
+    sortiert.sort_by(f64::total_cmp);
+    let groesster = sortiert.last().copied().unwrap_or(0.0);
+    let mittlerer = sortiert[sortiert.len() / 2];
+    let ueber_zehn = sortiert.iter().filter(|v| **v >= 10.0).count();
+
+    // **Die Zusicherung VOR dem Urteil: taugt die Referenz ueberhaupt?**
+    //
+    // Der ganze Kreuzvergleich rechnet den Verlust gegen die je Boss GEFUNDENE
+    // Liste. Das setzt voraus, dass sie an ihrem Boss die beste ist. Findet
+    // eine FREMDE Liste dort mehr Schaden, ist genau das widerlegt — dann misst
+    // die Matrix nicht mehr die Rotations-Tiefe, sondern wie weit die Suche am
+    // Optimum vorbeigegriffen hat.
+    //
+    // Gemessen bei `--max-len 12`: Die Liste von `test-metronome` ist an vier
+    // von fuenf Bossen besser als deren eigene, um bis zu 37 %. Das Urteil
+    // lautete trotzdem „Tiefe ist vorhanden" — aus einem mittleren Verlust von
+    // 19,2 %, der zum grossen Teil aus schwachen Referenzen stammte. Bei Laenge
+    // 6 tritt der Fall nicht auf; greedy legt sich im groesseren Raum frueher
+    // falsch fest.
+    let besser_als_referenz: Vec<&(String, String, f64)> =
+        verluste.iter().filter(|(_, _, v)| *v < -0.5).collect();
+
+    println!("Was der Kreuzvergleich ergibt (ohne die Diagonale)");
+    println!("  Fremde Paarungen        {}", sortiert.len());
+    println!("  Groesster Verlust       {groesster:.1} %");
+    println!("  Mittlerer Verlust       {mittlerer:.1} %");
+    println!(
+        "  Paare ueber 10 %        {ueber_zehn} von {}",
+        sortiert.len()
+    );
+
+    if !besser_als_referenz.is_empty() {
+        println!();
+        println!(
+            "  ACHTUNG: In {} Paarungen ist die FREMDE Liste besser als die eigene.",
+            besser_als_referenz.len()
+        );
+        for (von, gegen, v) in &besser_als_referenz {
+            println!(
+                "    {von} schlaegt an {gegen} dessen eigene Liste um {:.1} %",
+                -v
+            );
+        }
+        println!("  Damit ist die Referenz je Boss NICHT das Optimum, und die Zahlen oben");
+        println!("  messen zum Teil die Schwaeche der Suche statt der Rotations-Tiefe.");
+        println!("  -> KEIN Urteil. Erst die Suche verbessern, dann erneut vergleichen.");
+        println!();
+        return;
+    }
+
+    // **Der Mittelwert entscheidet, nicht das Maximum.** Ein einzelner Boss mit
+    // Todesgefahr hebt das Maximum auf 61 %, waehrend alle anderen Paare unter
+    // 2 % liegen — „Tiefe ist vorhanden" waere daraus die falsche Lesart.
+    if mittlerer < 1.0 {
+        println!("  -> Es kostet in der MEHRZAHL der Paarungen praktisch nichts, ueberall");
+        println!("     dieselbe Liste zu spielen. Das ist der Befund aus GAME-DESIGN 20.3:");
+        println!("     Rotations-Tiefe entsteht nicht von selbst.");
+    } else if mittlerer < 10.0 {
+        println!("  -> Es kostet in der Regel etwas, aber wenig. Ob das reicht, ist eine");
+        println!("     Design-Frage.");
     } else {
         println!("  -> Die Rotation lohnt sich je Boss zu ueberdenken. Tiefe ist vorhanden.");
+    }
+
+    if ueber_zehn > 0 {
+        // **Woher die Ausreisser kommen, gehoert daneben** — sonst liest man
+        // die Spanne als Eigenschaft aller Bosse.
+        //
+        // Und zwar von BEIDEN Seiten: Mein erster Entwurf sah nur die Spalte
+        // an und haette vier der acht teuren Paare uebersehen. Eine fremde
+        // Liste gegen `test-onslaught` zu spielen kostet 61 %, und SEINE Liste
+        // gegen einen anderen Boss kostet 19 % — beide Male ist derselbe Boss
+        // der Grund, einmal als Ziel und einmal als Herkunft.
+        let teuer: Vec<&(String, String, f64)> =
+            verluste.iter().filter(|(_, _, v)| *v >= 10.0).collect();
+        let mut beteiligt: Vec<&str> = teuer
+            .iter()
+            .flat_map(|(von, gegen, _)| [von.as_str(), gegen.as_str()])
+            .collect();
+        beteiligt.sort_unstable();
+        beteiligt.dedup();
+        let gemeinsam: Vec<&str> = beteiligt
+            .iter()
+            .copied()
+            .filter(|b| teuer.iter().all(|(von, gegen, _)| von == b || gegen == b))
+            .collect();
+        if gemeinsam.is_empty() {
+            println!("  Kein Boss kommt in allen teuren Paarungen vor — die Spanne verteilt sich.");
+        } else {
+            println!("  In JEDER teuren Paarung steckt: {}", gemeinsam.join(", "));
+            println!("     Die Spanne ist damit die Eigenschaft dieses Bosses, nicht des Spiels.");
+        }
     }
     println!();
 }
@@ -229,7 +406,8 @@ fn kreuzvergleich(gefundene: &[(String, rota_sim::apl::Apl, f64)]) {
 fn main() {
     println!("== Rotations-Suche (Issue #237, Kreuzvergleich #509) ==");
     let bosse = bosse_dieses_laufs();
-    parameter_zeile_mit(&bosse);
+    let max_len = max_len_dieses_laufs();
+    parameter_zeile_mit(&bosse, max_len);
     println!();
 
     let pool = all_candidates();
@@ -257,10 +435,15 @@ fn main() {
 
     // Je Boss die gefundene Rotation — fuer den Kreuzvergleich unten (#509 AC3).
     let mut gefundene: Vec<(String, rota_sim::apl::Apl, f64)> = Vec::new();
+    // Wer ueber ALLE Bosse mindestens einmal drankam (#509 AC4). Die Zahl je
+    // Boss steht schon unten je Abschnitt; gefragt ist aber die andere: Welcher
+    // Zauber ist NIRGENDS die beste Wahl. Von Hand aus fuenf Listen gebildet
+    // waere das eine zweite Rechnung neben der ersten.
+    let mut irgendwo_gewirkt: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
 
     for boss_id in &bosse {
         let config = config(boss_id);
-        let gefunden = greedy(&config, &pool, MAX_LEN);
+        let gefunden = greedy(&config, &pool, max_len);
         let hand = rota_sim::apl::parse(AplName("step1-good"), STEP1_GOOD)
             .expect("step1-good ist gueltig");
         let hand_result = rota_sim::balance::run(&config, &hand);
@@ -309,6 +492,11 @@ fn main() {
         let spielbar: Vec<usize> = (0..rota_sim::SPELL_COUNT)
             .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
             .collect();
+        for &i in &spielbar {
+            if lauf.casts[i] > 0 {
+                irgendwo_gewirkt[i] = true;
+            }
+        }
         let nie: Vec<&str> = spielbar
             .iter()
             .filter(|&&i| lauf.casts[i] == 0)
@@ -330,6 +518,7 @@ fn main() {
     }
 
     kreuzvergleich(&gefundene);
+    nirgends_die_beste_wahl(&irgendwo_gewirkt, bosse.len());
 
     println!("Was NICHT durchsucht wurde");
     println!("  1  Freie Bedingungssuche. Nicht der Aufwand ist der Grund, sondern die");
@@ -368,15 +557,15 @@ fn main() {
     println!("  unbekanntem Abstand nach oben.");
     println!();
     println!("Grenzen dieser Zahlen");
-    println!("  Dieser Bericht sucht Listen bis Laenge {MAX_LEN}.");
+    println!("  Dieser Bericht sucht Listen bis Laenge {max_len}.");
     println!();
     println!("  Die Laengengrenze ist SEPARAT geprueft, und zwar bei einer anderen Zahl:");
     println!("  In sim/tests/rotation_search.rs laeuft die Gegenprobe mit Laenge 4, weil");
     println!("  dort erschoepfend mitgemessen wird. Dort ergab eine Laenge mehr keinen");
     println!("  Unterschied — 5960,0 (205 Listen) gegen 5960,0 (325 Listen).");
     println!();
-    println!("  Die beiden Zahlen {MAX_LEN} und 4 gehoeren also zu verschiedenen Laeufen und");
-    println!("  duerfen nicht verwechselt werden. Fuer Laenge {MAX_LEN} selbst ist NICHT");
+    println!("  Die beiden Zahlen {max_len} und 4 gehoeren also zu verschiedenen Laeufen und");
+    println!("  duerfen nicht verwechselt werden. Fuer Laenge {max_len} selbst ist NICHT");
     println!("  geprueft, ob eine laengere Liste besser waere — erschoepfend waere das bei");
     println!("  siebzehn Kandidaten unerreichbar.");
     println!();
