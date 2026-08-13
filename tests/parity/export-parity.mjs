@@ -104,9 +104,11 @@ import {
   instance1Payload,
   instance2Payload,
   instance3Payload,
+  instance4Payload,
   INSTANCE2_NAMES,
   INSTANCE1_NAMES,
   INSTANCE3_NAMES,
+  INSTANCE4_NAMES,
   cinderPayload,
   dotLifetimePayload,
   DOT_LIFETIME_NAME,
@@ -300,6 +302,19 @@ for (let i = 0; i < INSTANCE2_NAMES.length; i++) {
 for (let i = 0; i < INSTANCE3_NAMES.length; i++) {
   const name = INSTANCE3_NAMES[i];
   const datensatz = instance3Payload(`boss-3-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+  console.log(
+    `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
+      `gefallen ${datensatz.expected.killedAtMs}, gestorben ${datensatz.expected.diedAtMs}, ` +
+      `Druecke ${datensatz.presses.length}`,
+  );
+}
+
+// Die vier Bosse der vierten Instanz. Sie entstehen, weil der Waechter
+// `jeder-boss-hat-eine-aufzeichnung` sie eingefordert hat — siehe payloads.ts.
+for (let i = 0; i < INSTANCE4_NAMES.length; i++) {
+  const name = INSTANCE4_NAMES[i];
+  const datensatz = instance4Payload(`boss-4-${i + 1}`, name);
   writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
   console.log(
     `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +

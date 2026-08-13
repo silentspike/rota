@@ -1,0 +1,32 @@
+{
+  "_comment": "ARBEITSNAME. Name und Thema gehoeren dem Auftraggeber.\n\nInstanz 4, Boss 4 — die LANGE VERKUERZUNG (zweiter Traeger von `escalation`).\n\n=== WARUM ER ANDERS GEBAUT IST ALS boss-1-1 ===\nBeide verkuerzen ihre Wirkzeit mit jeder Wiederholung. Die Form ist eine andere:\n\n    boss-1-1   -400 ms je Runde, Untergrenze 1200 ms, Start 2500 ms\n               -> nach DREI Runden am Boden, danach unveraenderlich\n    boss-4-4   -200 ms je Runde, Untergrenze  600 ms, Start 2600 ms\n               -> zehn Runden lang in Bewegung, und am Ende halb so viel Zeit\n\nboss-1-1 ist der EINSTIEG: Der Spieler lernt, dass eine Unterbrechung noetig ist, und die Frist steht schnell fest. Hier steht sie nie fest. Wer sich auf das Fenster der letzten Runde verlaesst, verpasst die naechste — und das Fenster wird am Ende kuerzer als jeder Zauber mit Wirkzeit im Spielerkit.\n\n=== WARUM DIE UNTERGRENZE 600 ms UND NICHT 0 ===\nBei 0 waere der Zauber irgendwann nicht mehr unterbrechbar, und die Begegnung kippte von schwer auf unmoeglich — ohne dass eine Zahl das ankuendigt. 600 ms sind knapp, aber ein Tastendruck passt hinein.\n\n=== escalation WIRKT NUR MIT WIEDERHOLUNG ===\nSie greift an der Zeitleiste, und die muss sich wiederholen (`timelineLoopMs`). Ohne sie gaebe es keine zweite Runde, in der etwas kuerzer sein koennte — der Baustein waere eingetragen und wirkungslos. Derselbe Zusammenhang steht bei boss-1-1.\n\nSIGNATUR-REGEL (GAME-DESIGN 11.1): Ein Fenster, das nie stehenbleibt.",
+  "schema": 1,
+  "id": "boss-4-4",
+  "name": "Instance Four, Fourth",
+  "instance": "instance-4",
+  "hp": 4600,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 4000,
+      "mechanic": "interruptibleCast",
+      "name": "Sealing Chant",
+      "damage": 700,
+      "castTimeMs": 2600
+    },
+    {
+      "atMs": 11000,
+      "mechanic": "strike",
+      "name": "Ash Fall",
+      "damage": 220
+    }
+  ],
+  "resistances": {},
+  "timelineLoopMs": 15000,
+  "escalation": {
+    "castTimeShrinkMs": 200,
+    "minCastTimeMs": 600
+  }
+}

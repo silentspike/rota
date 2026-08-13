@@ -100,6 +100,10 @@ import eingecheckterDrei1 from './recordings/instance3-boss-1.json';
 import eingecheckterDrei2 from './recordings/instance3-boss-2.json';
 import eingecheckterDrei3 from './recordings/instance3-boss-3.json';
 import eingecheckterDrei4 from './recordings/instance3-boss-4.json';
+import eingecheckterVier1 from './recordings/instance4-boss-1.json';
+import eingecheckterVier2 from './recordings/instance4-boss-2.json';
+import eingecheckterVier3 from './recordings/instance4-boss-3.json';
+import eingecheckterVier4 from './recordings/instance4-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
@@ -171,6 +175,7 @@ import {
   instance1Payload,
   instance2Payload,
   instance3Payload,
+  instance4Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -259,6 +264,24 @@ describe('Gemeinsame Vergleichsdateien', () => {
     for (let i = 0; i < erwartet.length; i++) {
       expect(erwartet[i], HINWEIS).toEqual(
         instance2Payload(`boss-2-${i + 1}`, `instance2-boss-${i + 1}`),
+      );
+    }
+  });
+
+  it('die vier Bosse der vierten Instanz entsprechen dem heutigen Spielstand', () => {
+    // Sie sind entstanden, weil `jeder-boss-hat-eine-aufzeichnung` sie
+    // eingefordert hat, als instance-4 in die Daten kam. Ohne diesen
+    // Frische-Fall wuerde der Simulator gegen sie pruefen und gruen bleiben,
+    // sobald eine Regel im Spiel wandert.
+    const erwartet = [
+      eingecheckterVier1,
+      eingecheckterVier2,
+      eingecheckterVier3,
+      eingecheckterVier4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance4Payload(`boss-4-${i + 1}`, `instance4-boss-${i + 1}`),
       );
     }
   });
@@ -879,6 +902,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance3-boss-2',
   'instance3-boss-3',
   'instance3-boss-4',
+  'instance4-boss-1',
+  'instance4-boss-2',
+  'instance4-boss-3',
+  'instance4-boss-4',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',
