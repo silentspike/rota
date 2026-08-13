@@ -42,6 +42,12 @@ export const RULE_EVENT_COUNT = 6;
 /**
  * Die Namen der sechs Ereignisse.
  *
+ * **Die Menge ist FEST und steht im Design** (GAME-DESIGN 18.3, „Feste
+ * Ereignismenge"). Ein siebtes für den Kanal-Schritt war am 2026-08-14 gebaut
+ * und ist wieder entfallen: Es hätte dem Absatz widersprochen, und über das
+ * Design entscheidet der Auftraggeber. Der Kanal-Schritt meldet sich deshalb
+ * als `dot.tick` — laufende Wirkung, die nicht vom Drücken kommt.
+ *
  * **Reihenfolge und Wortlaut sind Schnittstelle** — der Simulator führt
  * dieselbe Liste, und die Prüfsumme rührt die Kennnummer ein.
  */

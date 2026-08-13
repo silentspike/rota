@@ -37,6 +37,11 @@ pub const NO_SUBJECT: i16 = -1;
 /// **Die Kennnummern sind Schnittstelle.** Sie werden in die Pruefsumme
 /// eingeruehrt; wer sie umsortiert, macht jeden Vergleich mit dem Spiel
 /// ungueltig.
+///
+/// **Und die MENGE ist fest** — GAME-DESIGN 18.3 zaehlt sie auf. Ein siebtes
+/// Ereignis fuer den Kanal-Schritt war am 2026-08-14 gebaut und ist wieder
+/// entfallen: Das waere eine Design-Aenderung. Der Kanal-Schritt meldet sich
+/// als `DotTick`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum RuleEvent {

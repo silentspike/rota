@@ -2442,23 +2442,7 @@ export class Combat {
       this.healOverTimeCredited = 0;
       this.healOverTimeNextAtMs = seitBeginn + abstand;
     } else if (heal !== undefined) {
-      // **Nur bis zur vollen Anzeige.** Was darüber hinausginge, verpufft — es
-      // als Heilung zu zählen ließe einen Lauf mit voller Anzeige nach mehr
-      // Wirkung aussehen, als er gebraucht hat.
-      // Gedeckelt am Wert DIESER Stufe: Sonst heilte ein Spieler auf Stufe 30
-      // nur bis zum Grundwert, und die gewonnenen Punkte wären nach dem
-      // ersten Schaden fort.
-      const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
-      const wirklich = Math.min(gewirkterBetrag, fehlend);
-      if (wirklich > 0) {
-        this.playerHpValue += wirklich;
-        this.healedValue += wirklich;
-        // Auch die Heilung drängt zurück — mit dem Betrag, der WIRKLICH
-        // angekommen ist. Was über die volle Anzeige hinausginge, verpufft
-        // hier wie dort.
-        this.stabilise(wirklich);
-        this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
-      }
+      this.zahleHeilungAus(gewirkterBetrag, timeMs);
     }
 
     // Weg 3 — die Umwandlung anschalten.
@@ -5232,9 +5216,72 @@ export class Combat {
    * fünfschrittigen Kanal fünf Fenster öffnen zu lassen. Eine Kanalisierung
    * teilt ihren SCHADEN, nicht ihre Ereignisse.
    */
+  /**
+   * Heilung gutschreiben — die eine Stelle, an der sie ankommt.
+   *
+   * **Herausgezogen und nicht kopiert** (Issue #323): Der Sofort-Zauber und
+   * die Kanalisierung teilen sich diese Rechnung. Zwei Fassungen liefen bei
+   * der ersten Änderung auseinander, und die Abweichung fiele erst in einer
+   * Prüfsumme auf — als Zahl ohne Ursache.
+   *
+   * **Nur bis zur vollen Anzeige.** Was darüber hinausginge, verpufft: Es als
+   * Heilung zu zählen ließe einen Lauf mit voller Anzeige nach mehr Wirkung
+   * aussehen, als er gebraucht hat. Gedeckelt am Wert DIESER Stufe — sonst
+   * heilte ein Spieler auf Stufe 30 nur bis zum Grundwert, und die gewonnenen
+   * Punkte wären nach dem ersten Schaden fort.
+   */
+  private zahleHeilungAus(betrag: number, timeMs: number): void {
+    const fehlend = Math.max(0, this.vesselMax - this.playerHpValue);
+    const wirklich = Math.min(betrag, fehlend);
+    if (wirklich <= 0) return;
+    this.playerHpValue += wirklich;
+    this.healedValue += wirklich;
+    // Auch die Heilung drängt zurück — mit dem Betrag, der WIRKLICH angekommen
+    // ist. Was über die volle Anzeige hinausginge, verpufft hier wie dort.
+    this.stabilise(wirklich);
+    this.log?.push(this.fightElapsedMs(timeMs), EVENT_HEALED, NO_SPELL_REF, wirklich);
+  }
+
   private resolveChannelTick(index: number, spell: SpellDef, timeMs: number): void {
     const schritte = Math.floor(spell.channelMs / spell.channelTickMs);
-    if (schritte <= 0 || spell.baseDamage <= 0) return;
+    if (schritte <= 0) return;
+
+    // **Die HEILUNGS-Kanalisierung** (Issue #323, GAME-DESIGN 653). Sie ist
+    // der Fall, den der Auftraggeber wörtlich nennt — „eine Kanalisierung über
+    // 5 s für 500 Heilung, abgebrochen nach 3 s, hat 300 Heilung gegeben" —,
+    // und bis hierher tat sie NICHTS: Die Zeile darüber stieg bei
+    // `baseDamage <= 0` aus, bevor irgendetwas ausgezahlt wurde. Gemessen am
+    // 2026-08-13 an einem Zauber mit 500 Heilung und 5000 ms Kanal, während
+    // dem Spieler 1600 fehlten: geheilt wurden 0.
+    //
+    // Sie steht VOR dem Schaden, weil sie ohne ihn auskommt. Ein Zauber kann
+    // beides tragen; dann fällt beides, jedes aus seinem eigenen Betrag.
+    const heilung = spell.heal;
+    if (heilung !== undefined && heilung.amount > 0) {
+      // Derselbe Anteil wie beim Schaden: aus der Gesamtwirkung geteilt,
+      // ganzzahlig abgerundet, der Rest verfällt (GAME-DESIGN 18.4). Bei 500
+      // über 5 Schritte gibt jeder 100 — genau die Zahl des Beispiels.
+      this.zahleHeilungAus(Math.floor(heilung.amount / schritte), timeMs);
+    }
+
+    // **Der Schritt meldet sich IMMER** (Issue #323) — auch bei einem Kanal
+    // ohne Schaden. Daran hängt der Vorrat: `resourceGain` kam bisher über
+    // `RULE_SPELL_CAST`, und das sendet nur `resolvePlayerCast`, die der Kanal
+    // überspringt. Gemessen: ein Kanalzauber mit `resourceGain: {heat: 5}`
+    // stand nach einem vollen Kanal bei 0, während KINDLE 3 brachte.
+    //
+    // Stünde die Meldung erst hinter dem Schaden, bekäme ein reiner
+    // Heil-Kanal wieder nichts — und das ist genau der Zauber aus dem
+    // Design-Beispiel.
+    if (spell.baseDamage <= 0) {
+      // **Der Schritt meldet sich auch ohne Schaden** — sonst bekäme ein
+      // reiner Heil-Kanal keinen Vorrat, und das ist genau der Zauber aus dem
+      // Design-Beispiel. Als `dot.tick` und nicht als eigenes Ereignis: Die
+      // Ereignismenge ist FEST (GAME-DESIGN 18.3), und ein siebtes hätte dem
+      // Absatz widersprochen.
+      this.events.emit(RULE_DOT_TICK, index, 0, timeMs);
+      return;
+    }
     // **Ein eigener Wurf je Schritt**, und aus `STREAM_DOT_TICK` — dieselbe
     // Regel und derselbe Strom wie beim Brand-Tick (GAME-DESIGN 6.5, Issue
     // #602). Ein Wurf für die ganze Kanalisierung kritete sie entweder ganz
@@ -5300,8 +5347,65 @@ export class Combat {
     return Math.round(roh * faktor);
   }
 
-  /** Was ein Zauber je Tick seines Effekts über Zeit beisteuert. */
+  /**
+   * Was ein Zauber je SCHRITT seiner Kanalisierung beisteuert (Issue #323).
+   *
+   * # Geteilt wird der ROHWERT, nicht der fertige Betrag
+   *
+   * Das ist keine Kosmetik, sondern die Parität. Die beiden Seiten wenden die
+   * Faktoren an verschiedenen Stellen an: Das Spiel rechnet sie in
+   * `gainOfSpell` ein, der Simulator erst in `add_resource`, wenn der
+   * angesetzte Gewinn gebucht wird. Für einen ungeteilten Betrag ist das
+   * gleichwertig — es wird einmal gerundet.
+   *
+   * Mit einer Teilung dazwischen ist es das nicht mehr. Bei 5 Rohgewinn über
+   * 2 Schritte und einem Faktor von 1,5:
+   *
+   * ```text
+   * erst Faktor, dann teilen    floor(round(5 × 1,5) / 2) = floor(8 / 2) = 4
+   * erst teilen, dann Faktor    round(floor(5 / 2) × 1,5) = round(3)     = 3
+   * ```
+   *
+   * Deshalb teilt **jede** Seite den Rohwert und wendet die Faktoren danach an
+   * — dieselbe Reihenfolge, dieselbe eine Rundung.
+   *
+   * Ganzzahlig abgerundet, der Rest verfällt (GAME-DESIGN 18.4). Die Folge
+   * gehört genannt: Ein Zauber, der weniger beisteuert als er Schritte hat,
+   * gibt **nichts**. Bei 3 Hitze über 5 Schritte ist jeder Schritt 0.
+   */
+  gainOfChannelStep(spellIndex: number, resourceId: string): number {
+    const spell = this.spells[spellIndex];
+    if (spell === undefined || spell.channelTickMs <= 0) return 0;
+    const schritte = Math.floor(spell.channelMs / spell.channelTickMs);
+    if (schritte <= 0) return 0;
+    const anteil = Math.floor((spell.resourceGain?.[resourceId] ?? 0) / schritte);
+    if (anteil === 0) return 0;
+    // Dieselben zwei Faktoren und dieselbe EINE Rundung wie in `gainOfSpell`.
+    const faktor =
+      this.resourceBuffs.factor(this.nowMsForBuffs) * talentResourceFactor(this.talents);
+    return Math.round(anteil * faktor);
+  }
+
+  /**
+   * Was ein Zauber je Tick seines Effekts über Zeit beisteuert.
+   *
+   * **Ein Kanalzauber wird hier abgezweigt** (Issue #323). Sein Schritt meldet
+   * sich als `dot.tick` — die Ereignismenge ist fest (GAME-DESIGN 18.3), ein
+   * eigenes Ereignis für den Kanal wäre eine Design-Änderung. Was er beisteuert,
+   * steht aber in `resourceGain` und nicht in `dot.resourceGainPerTick`: Ein
+   * Kanalzauber hat gar keinen DoT, und ohne diese Abzweigung bekam er
+   * gemessen 0 Vorrat, während KINDLE 3 brachte.
+   */
   gainOfTick(spellIndex: number, resourceId: string): number {
+    const spell = this.spells[spellIndex];
+    if (spell !== undefined && spell.channelMs > 0) {
+      return this.gainOfChannelStep(spellIndex, resourceId);
+    }
+    return this.gainOfTickOfDot(spellIndex, resourceId);
+  }
+
+  /** Was ein Zauber je Tick seines BRANDES beisteuert. */
+  private gainOfTickOfDot(spellIndex: number, resourceId: string): number {
     return this.spells[spellIndex]?.dot?.resourceGainPerTick[resourceId] ?? 0;
   }
 
