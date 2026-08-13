@@ -290,9 +290,26 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
             .collect(),
     };
     let result = crate::balance::run(config, &apl);
+    // **Verhinderter Schaden zaehlt mit** (Issue #472).
+    //
+    // Vorher stand hier `result.damage.mean` allein. Gemessen an boss-1-2:
+    // Acht von elf FIXATION-Zaubern tragen `baseDamage: 0`, kosten aber eine
+    // globale Wartezeit — sie waren damit in JEDER Runde der schlechteste Zug
+    // und kamen in keiner der acht besten Rotationen vor. Nicht weil sie
+    // schwach sind, sondern weil ihre Leistung in keiner Zahl stand, die die
+    // Suche ansieht.
+    //
+    // Dass sie ueberhaupt etwas leisten, ist belegt: Dieselbe Rotation mit
+    // `pin` vorne senkt `damage_taken` von 1720 auf 1440. Die Mechanik wirkt
+    // (`fight.rs:2405` verschiebt `cast_lands_at`), nur bewertet wurde sie nie.
+    //
+    // **Der Bezugspunkt ist `damage_taken_baseline` aus der Konfiguration**,
+    // nicht ein zweiter Lauf: Ein Vergleichslauf je Messung vervielfachte die
+    // Laufzeit einer Suche, die heute schon 1778 Messungen braucht.
+    let verhindert = (config.damage_taken_baseline - result.damage_taken.mean).max(0.0);
     Measured {
         apl,
-        mean: result.damage.mean,
+        mean: result.damage.mean + config.prevented_weight * verhindert,
         stderr: result.damage.stderr,
     }
 }
