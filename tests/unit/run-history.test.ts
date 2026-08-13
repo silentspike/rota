@@ -51,6 +51,7 @@ function stand(over: Partial<SaveData> = {}): SaveData {
     bindings: { '0': 'kindle' },
     bestRuns: [],
     defeatedBosses: [],
+    unlockedEntryIds: [],
     runHistory: [eintrag()],
     progressMarks: [],
     ...over,

@@ -256,6 +256,20 @@ export interface SaveData {
   readonly bestRuns: readonly BestRun[];
   readonly defeatedBosses: readonly string[];
   /**
+   * Die freigeschalteten Archiv-Eintraege (GAME-DESIGN 17.4, Issue #85).
+   *
+   * **Kennungen und keine Texte.** Der Text steht in den Daten; hier steht
+   * nur, was der Spieler schon gesehen hat. Ihn mitzuspeichern hiesse, ihn
+   * beim naechsten Fassungswechsel zweimal zu haben — einmal alt im Stand,
+   * einmal neu in den Daten.
+   *
+   * **Was der Spieler GESEHEN hat, nicht wie oft er gewonnen hat**: Ein
+   * Eintrag erscheint einmal automatisch und danach nie wieder von selbst
+   * (17.4). Die Bedingung dafuer ist "noch nicht freigeschaltet" und nicht
+   * "erster Sieg" — das haelt auch, wenn ein Sieg nicht gezaehlt wurde.
+   */
+  readonly unlockedEntryIds: readonly string[];
+  /**
    * Alle Durchlaeufe (GAME-DESIGN 15.4).
    *
    * Bewusst aufgenommen, nicht nebenbei: Der Auftraggeber hat am 2026-08-04
@@ -283,6 +297,7 @@ export const ALLOWED_TOP_LEVEL: readonly string[] = [
   'bindings',
   'bestRuns',
   'defeatedBosses',
+  'unlockedEntryIds',
   'runHistory',
   'progressMarks',
 ];
