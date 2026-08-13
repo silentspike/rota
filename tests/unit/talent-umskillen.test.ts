@@ -18,6 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { RunPersistence } from '../../src/analysis/run-persistence.js';
 import { Combat } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, TALENTS } from '../../src/core/data.js';
 import { spentPoints, talentFactor, type TalentAllocation } from '../../src/progression/talents.js';
@@ -127,12 +128,39 @@ describe('AC6 — im Spielstand steht die Verteilung, kein berechneter Bonus', (
   });
 
   /**
-   * Der Kern: Ein Faktor ist keine ganze Zahl. Landete er je in der Verteilung,
-   * fiele er hier auf — auch dann, wenn er unter einer plausiblen Kennung
-   * stünde.
+   * **Der Kern: was der echte Speicherpfad ablegt.**
+   *
+   * Die erste Fassung dieses Falls baute sich ihr Gegenbeispiel selbst und
+   * prüfte dann den eigenen Filter — sie belegte, dass ein Faktor
+   * unterscheidbar WÄRE, nicht dass das Spiel ihn nicht schreibt. Der Grund
+   * war eine falsche Annahme: Es gebe keinen Pfad, der eine Verteilung
+   * speichert. Seit #802 gibt es ihn (`applyTalentRank` → `setTalents` →
+   * `persistTalents`), und damit ist der echte Weg messbar.
+   *
+   * Geprüft wird, was im Speicher LANDET — konstruiert hat das niemand.
    */
-  it('ein Faktor in der Verteilung wäre erkennbar — Gegenprobe', () => {
-    const mitBonus = { [STAMM]: 3, berechneterFaktor: 1.15 } as TalentAllocation;
+  it('der Speicherpfad legt nur Kennung und Rang ab', () => {
+    const daten = new Map<string, string>();
+    const store = {
+      getItem: (k: string) => daten.get(k) ?? null,
+      setItem: (k: string, v: string) => void daten.set(k, v),
+      removeItem: (k: string) => void daten.delete(k),
+    };
+    const stand = new RunPersistence('pruef', () => 1_000_000, store);
+    stand.persistTalents({ [STAMM]: 3 });
+
+    const abgelegt = stand.state.talentPoints as Record<string, unknown>;
+    expect(Object.keys(abgelegt)).toEqual([STAMM]);
+    for (const [kennung, wert] of Object.entries(abgelegt)) {
+      expect(TALENTS.some((t) => t.id === kennung)).toBe(true);
+      expect(Number.isInteger(wert)).toBe(true);
+    }
+
+    // **Die Gegenprobe: derselbe Weg mit einem abgeleiteten Wert.** Sie zeigt,
+    // dass die Prüfung oben ihn auch fände — ohne sie wäre „nur Kennung und
+    // Rang" auch erfüllt, wenn `persistTalents` gar nichts ablegte.
+    stand.persistTalents({ [STAMM]: 3, talentFactor: 1.15 });
+    const mitBonus = stand.state.talentPoints as Record<string, unknown>;
     const sauber = Object.entries(mitBonus).every(
       ([kennung, wert]) => TALENTS.some((t) => t.id === kennung) && Number.isInteger(wert),
     );
