@@ -34,8 +34,26 @@
 use rota_sim::data::SPELLS;
 use rota_sim::fight::{Fight, FightConfig};
 
-/// Der Zauber, dessen Abklingzeit gekuerzt wird.
-const ZIEL: usize = 43;
+/// Der Zauber, dessen Abklingzeit gekuerzt wird — AETHER, ueber seinen
+/// Bezeichner gesucht.
+///
+/// **Hier stand `const ZIEL: usize = 43`, und die Zahl ist am 2026-08-13
+/// gekippt.** DECOCTION (#323) kam an Position 20 in den Katalog und schob
+/// alles danach um eins: Index 43 zeigte auf DISTIL statt auf AETHER, und der
+/// Fall meldete "der Weg reduction wirkt im Simulator nicht" — er mass einen
+/// Zauber, den niemand kuerzt.
+///
+/// Der Kopf dieser Datei nennt AETHER beim Namen ("aether-Restzeit nach 30 s").
+/// Die Zahl daneben war eine zweite Quelle fuer dieselbe Aussage, und sie
+/// altert mit jedem neuen Zauber. Der Verkuerzer unten wird schon ueber seine
+/// EIGENSCHAFT gesucht, mit der Begruendung "der Katalog darf sich aendern" —
+/// das gilt hier genauso.
+fn ziel() -> usize {
+    SPELLS
+        .iter()
+        .position(|s| s.id == "aether")
+        .expect("AETHER fehlt im Katalog")
+}
 
 /// Der erste Zauber mit einem Abzug — der Katalog darf sich aendern.
 fn verkuerzer() -> usize {
@@ -47,8 +65,8 @@ fn verkuerzer() -> usize {
 
 /// Das Ziel einmal wirken, damit es auf Abklingzeit steht; danach nur kuerzen.
 fn takt(fight: &Fight) -> Option<usize> {
-    if fight.cast_count(ZIEL) == 0 && fight.cooldown_remaining_ms(ZIEL) == 0 {
-        return Some(ZIEL);
+    if fight.cast_count(ziel()) == 0 && fight.cooldown_remaining_ms(ziel()) == 0 {
+        return Some(ziel());
     }
     if fight.cooldown_remaining_ms(verkuerzer()) == 0 {
         return Some(verkuerzer());
@@ -63,7 +81,7 @@ fn restzeit(config: FightConfig) -> u32 {
         ..config
     });
     fight.run(takt);
-    fight.cooldown_remaining_ms(ZIEL)
+    fight.cooldown_remaining_ms(ziel())
 }
 
 #[test]
@@ -83,7 +101,7 @@ fn der_traeger_bewegt_ueberhaupt_etwas() {
         "der Verkuerzer wurde nie gewirkt — die Probe hat keinen Traeger"
     );
     assert!(
-        fight.cooldown_remaining_ms(ZIEL) < SPELLS[ZIEL].cooldown_ms,
+        fight.cooldown_remaining_ms(ziel()) < SPELLS[ziel()].cooldown_ms,
         "die Abklingzeit des Ziels wurde gar nicht gekuerzt — der Traeger \
          traegt zwar, trifft aber nichts"
     );
