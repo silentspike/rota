@@ -1,0 +1,33 @@
+{
+  "_comment": "ARBEITSNAME. Name und Thema gehoeren dem Auftraggeber.\n\nInstanz 4, Boss 3 — die SPAETE STEIGERUNG (zweiter Traeger von `stacks`).\n\n=== WARUM ER ANDERS GEBAUT IST ALS boss-3-3 ===\nBeide lassen den eingehenden Schaden mit der Zeit wachsen. Die Kurve ist eine andere:\n\n    boss-3-3   alle 4 s ein Stapel, +2 je Stapel, Deckel 4\n               -> nach 16 s am Maximum, danach KONSTANT\n    boss-4-3   alle 8 s ein Stapel, +4 je Stapel, Deckel 6\n               -> nach 48 s am Maximum, dafuer doppelt so steil\n\nBei boss-3-3 ist die Steigerung eine Anfangshuerde: Wer sie ueberlebt, hat den Rest des Kampfes dieselbe Last. Hier ist sie eine Uhr, die den ganzen Kampf ueber weiterlaeuft — der Deckel wird erst kurz vor dem Ueberdruck erreicht.\n\nDas verschiebt die Anforderung vom Ueberleben zum TEMPO: Nicht der Anfang ist gefaehrlich, sondern jede Sekunde, die man zu lange braucht.\n\n=== DER DECKEL IST TROTZDEM WICHTIG ===\nOhne ihn waere die Steigerung nicht schwer, sondern nur eine spaetere Form von unausweichlich. boss-3-3s Kommentar haelt das fest; hier gilt es genauso, nur weiter hinten.\n\nSIGNATUR-REGEL (GAME-DESIGN 11.1): Eine Frist, die erst spaet beisst — und dann haerter als bei ihrem ersten Traeger.",
+  "schema": 1,
+  "id": "boss-4-3",
+  "name": "Instance Four, Third",
+  "instance": "instance-4",
+  "hp": 4400,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "stacks": {
+    "perStepMs": 8000,
+    "baseDamage": 12,
+    "factor": 4,
+    "maxStacks": 6
+  },
+  "resistances": {},
+  "timeline": [
+    {
+      "atMs": 18000,
+      "mechanic": "strike",
+      "name": "Cinder Choir",
+      "damage": 240
+    },
+    {
+      "atMs": 42000,
+      "mechanic": "strike",
+      "name": "Cinder Choir",
+      "damage": 240
+    }
+  ],
+  "timelineLoopMs": 60000
+}
