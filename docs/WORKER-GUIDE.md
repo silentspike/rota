@@ -65,6 +65,72 @@ Sache. Belegte Fehlalarme aus genau dieser Lücke:
 - Drei Simulator-Felder sahen ungedeckt aus, weil nur in `fight.rs` gesucht wurde. Sie
   stehen in anderen Modulen.
 
+### Rot ist nicht gleich rot: nenne den Fall beim NAMEN
+
+Eine Zusicherung, die nur **ROT** verlangt, fängt keinen Fremdgrund. Am 2026-08-13
+meldete eine Sitzung dreizehn Felder als „gedeckt" — Zusicherung erfüllt, Exit-Code
+korrekt, Trefferzahl richtig, und **alle dreizehn waren falsch**. Der rote Fall hieß
+`parity_boss_state::ac1_beide_seiten_sehen_dieselbe_boss_menge` und kam von einer
+uncommitteten Prüfdatei im Arbeitsbaum. Erst der Name zeigte es.
+
+Daraus drei Regeln:
+
+1. **`git status` vor jeder Messung.** Eine uncommittete Boss- oder Zauberdatei färbt
+   die Parität **dauerhaft**: Der Simulator liest `data/bosses/` vom Dateisystem, das
+   Spiel hat seine Liste woanders. Was nur auf einer Seite ankommt, bricht
+   `parity_boss_state` bei jedem Lauf. (Ist die Datei auf **beiden** Seiten
+   eingebunden — `build.rs` _und_ `data.ts` —, entsteht kein Fremdgrund. Geprüft
+   gehört es trotzdem.)
+2. **Nullprobe vor der ersten Mutation.** Ist der Baum schon rot, bricht ab, statt
+   alles als gedeckt zu melden.
+3. **Rote Fälle beim Namen, mit Datei.** „2 von 13 rot" ist keine Aussage; „4 rot,
+   drei in `channel.test.ts`, einer in `freshness.test.ts`" ist eine.
+
+**Und: eine Zahl ohne Umfang ist nicht vergleichbar.** Dieselbe Mutation ergab
+einmal 2, einmal 4, einmal 5, einmal 6 rote Fälle — je nachdem, ob nur eine Datei
+oder die volle Suite lief und ob ein Fall zu dem Zeitpunkt schon existierte. Keine
+der vier Zahlen war falsch gemessen.
+
+### Immer-Färber: eine Bedingung, die immer erfüllt ist, ist kein Nachweis
+
+Frische-Prüfungen, Prüfsummen und Spielstand-Schnappschüsse färben bei **jeder**
+Datenänderung — ob die geänderte Sache wirkt, spielt keine Rolle. Von zwei Sitzungen
+unabhängig belegt, an verschiedenen Aufgaben:
+
+```
+clearsDoom          → "die vier Bosse der dritten Instanz entsprechen
+                       dem heutigen Spielstand"        freshness.test.ts
+consumesDecayStacks → "die_pruefsummen_stimmen_in_jedem_einzelnen_takt"
+```
+
+Nach dem Kriterium „färbt mindestens eine Prüfung" wären damit **alle** Felder
+gedeckt gewesen — eine Antwort, die nur bestätigt, dass die Daten angefasst wurden.
+
+**Welche Prüfungen dazugehören, wird gemessen, nicht geraten.** Eine Ausschlussliste
+(„freshness zählt nicht") erzeugt genau die falsch-positiven Befunde, die man sucht:
+Man weiß nicht, welche Tests noch in die Klasse fallen. Die Unterscheidung fällt aus
+der Messung selbst ab — _ein Test, der bei allen Varianten färbt, unterscheidet
+nichts; einer, der bei vier färbt, benennt genau diese vier._
+
+Verschärftes Kriterium für jede Deckungsaussage: **gedeckt heißt, ein Test färbt, der
+nicht bei allen Varianten färbt.**
+
+### Die Prüfsumme führt nicht alles
+
+Bei einer Kanalisierung plante der Simulator die Teilwirkungen, aber **kein
+Ende-Ereignis**. `player_casting` blieb gesetzt, und jeder spätere Tastendruck brach
+eine längst beendete Kanalisierung ab:
+
+```
+Simulator  3 Abbrüche          bei IDENTISCHEN Prüfsummen in jedem Takt
+Spiel      1 Abbruch
+```
+
+Die Prüfsumme führt den Zähler nicht. Bitgleichheit über alle Takte ist deshalb
+**kein** Beweis, dass beide Seiten dasselbe _tun_ — nur, dass sie dieselben Zahlen
+tragen, die in die Summe eingehen. Gefunden hat es erst eine Aufzeichnung, die den
+Abbruch wirklich fährt.
+
 ### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
 
 Ein Issue-Text, eine Nachricht von vorgestern, eine Zahl aus einer Übergabe — alle
