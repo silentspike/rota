@@ -153,6 +153,53 @@ lagen auf `wisp`, und `wisp` stand nicht in der geänderten Liste.
 „Gegenprobe gefahren, färbt nicht" ist deshalb kein Ergebnis, sondern eine
 offene Frage.
 
+#### Richtige Antwort aus falschem Grund — der grüne Fall, der grün bleibt
+
+Ein Fall prüfte, dass der vorgegebene Startpunkt in der gefundenen Liste steht,
+und nahm dafür `kandidaten[0]`. Bei der Mutation „Startliste wird ignoriert"
+blieb er **grün** — die Suche wählt diesen Kandidaten ohnehin, ganz ohne
+Startpunkt. Er meldete das Richtige und maß dabei nichts.
+
+> **Ein grüner Fall wird nie nachgeprüft. Deshalb überlebt genau diese Sorte
+> Fehler beliebig lange.**
+
+Erkennbar ist sie nur an einer Mutation, die den Träger selbst entfernt. Wähle
+für einen Fall dieser Art einen Wert, den das Verfahren **nicht** von allein
+findet — bei einer Suche also nicht ihren Favoriten.
+
+#### Beide Rechenseiten gleich falsch — die Parität schweigt
+
+Eine Kanalisierung ging auf keiner der beiden Seiten je auf Abklingzeit. Der
+Zauber war 8000 ms nach Beginn eines 4000-ms-Kanals wieder bereit, bei 12 s
+Abklingzeit, und Abbruch-Spam trug über 24 s **1440 Schaden gegen 720** beim
+Durchlaufen ein — abbrechen war die doppelt so gute Rotation.
+
+Die Paritätsprüfung war die ganze Zeit grün.
+
+> **Die Parität vergleicht zwei Rechnungen miteinander, nicht mit dem Design.
+> Ein symmetrischer Fehler ist für sie unsichtbar.**
+
+Sie fängt Auseinanderlaufen, nicht Falschheit. Was beide Seiten aus derselben
+Vorlage falsch übernehmen, bleibt liegen, bis jemand die Wirkung im Spiel
+misst. Für eine neue Mechanik gehört deshalb **eine Messung gegen das Design**
+dazu, nicht nur der Paritätslauf.
+
+#### Ein Kommentar mit Verfallsdatum funktioniert
+
+Die Gegenprobe dazu, am selben Abend: Eine Zusicherung trug den Satz „Diese
+Zusicherung fällt, sobald jemand die Zählung ändert. Dann ist dieser Kommentar
+veraltet und der Fall sagt es." Zwei Tage später änderte jemand die Zählung —
+und der Fall sagte es, wörtlich:
+
+```
+assertion failed: die Kanalisierung wird jetzt gezählt —
+                  der Kommentar hier ist veraltet
+left: 3   right: 0
+```
+
+Das ist die Antwort auf „Text altert schweigend": Ein Kommentar, der seine
+eigene Widerlegung als Prüffall mitbringt, altert **laut**.
+
 #### `vitest` und `cargo test` prüfen keine TypeScript-Typen
 
 Drei Typfehler in einer neuen Prüfdatei rutschten durch **zwei** grüne
