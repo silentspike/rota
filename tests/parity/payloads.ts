@@ -1780,10 +1780,16 @@ export function channelPayload(): Record<string, unknown> {
   if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CHANNEL_NAME}`);
   const boss = bossById('test-caster');
   if (boss === undefined) throw new Error('Der Boss test-caster fehlt.');
-  const bindings = [
-    { slot: 0, spellId: 'kindle' },
-    { slot: 1, spellId: 'test-channel' },
-  ];
+  // **Die Bindungen kommen aus der Aufzeichnung, nicht aus einer zweiten
+  // Liste** (Issue #323). Hier stand eine Abschrift von `CHANNEL_BINDINGS`;
+  // als DECOCTION auf Platz 2 dazukam, hätte sie den Zauber stumm
+  // weggelassen — die Drücke auf Platz 2 wären ins Leere gegangen, und die
+  // Aufzeichnung sähe unverändert richtig aus.
+  const bindings = recording.bindings;
+  // Die Zusicherung gehört dazu: `bindings` ist am Typ optional, und ohne sie
+  // fiele `replayRecording` auf die Vorgabe zurück — die Drücke landeten dann
+  // auf anderen Zaubern, und die Aufzeichnung sähe trotzdem vollständig aus.
+  if (bindings === undefined) throw new Error(`${CHANNEL_NAME}: Aufzeichnung ohne Bindungen`);
 
   const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
 

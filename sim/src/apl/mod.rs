@@ -118,6 +118,35 @@ pub enum Value {
     BossHp,
     /// Verbleibende Lebenspunkte in Prozent, ganzzahlig abgerundet.
     BossHpPercent,
+    /// Ob der Boss gerade einen Zauber wirkt (Issue #797).
+    ///
+    /// **Ohne diesen Wert war Reaktionsspiel für die Suche unausdrückbar.**
+    /// Der Spieler sieht den Cast (`src/render/hud.ts` führt `castStart` und
+    /// `casting`, dazu zwei Klänge) und kann antworten; die Rotationssuche
+    /// konnte es nicht. `QUENCH` und `PIN` waren nur über `time >= 15000`
+    /// ansteuerbar — also über eine fest verdrahtete Zahl aus der Zeitleiste
+    /// eines einzelnen Bosses.
+    ///
+    /// Was daran hing, ist gemessen (#472): An einem Boss mit einem Schlag,
+    /// den man abwenden MUSS, wählte der Balance-Läufer bei keinem Gewicht
+    /// einen FIXATION-Zauber. Nicht weil die Schule zu schwach ist, sondern
+    /// weil die Bedingung fehlte, unter der sie sich lohnt.
+    BossCasting,
+    /// Millisekunden, bis der laufende Boss-Zauber landet (Issue #797).
+    ///
+    /// **Warum das nicht aus `BossCasting` folgt:** Mit „wirkt gerade" lässt
+    /// sich nur „jetzt sofort" ausdrücken. PIN muss aber früh genug fallen,
+    /// dass QUENCH danach noch in sein Fenster trifft — das ist eine Aussage
+    /// über die Restzeit, nicht über den Zustand.
+    ///
+    /// **0, wenn nichts läuft** — dieselbe Übereinkunft wie [`Value::DotRemains`]
+    /// bei erloschenem Brand. Das ist unbequem: `boss.cast_remains < 2000`
+    /// trifft dann auch, wenn der Boss gar nichts wirkt, und jede Zeile muss
+    /// zusätzlich `boss.casting` prüfen. Ein sehr großer Ersatzwert wäre hier
+    /// bequemer gewesen, hätte aber zwei Bedeutungen von „remains" in
+    /// dieselbe Sprache gebracht — und die unbequeme Übereinkunft ist die,
+    /// die man später ohne Bruch ändern kann.
+    BossCastRemains,
     /// Verstrichene Kampfzeit.
     Time,
     /// Zeit bis zum Überdruck.
@@ -169,6 +198,8 @@ impl Value {
             Value::DotTicks(i) => Number::from(fight.dot_tick_count(i)),
             Value::BossHp => Number::from(fight.boss_hp_remaining()),
             Value::BossHpPercent => Number::from(fight.boss_hp_percent()),
+            Value::BossCasting => Number::from(u8::from(fight.casting().is_some())),
+            Value::BossCastRemains => Number::from(fight.boss_cast_remaining_ms()),
             Value::Time => Number::from(fight.time()),
             Value::FightRemains => Number::from(fight.fight_remaining_ms()),
             Value::Gcd => Number::from(GCD_MS),
@@ -184,21 +215,50 @@ impl Value {
     ///
     /// Genau diese Werte brauchen einen Weckruf — alle anderen ändern sich nur,
     /// wenn ohnehin ein Ereignis eintritt.
-    #[must_use]
+    ///
+    /// **Ein exhaustives `match` ohne Auffang-Zweig, und das ist der Punkt.**
+    ///
+    /// Hier stand ein `matches!`. Das ist nicht exhaustiv: Ein neuer Wert, den
+    /// niemand einträgt, gilt stillschweigend als zeitunabhängig, und der
+    /// Compiler schweigt dazu. Genau das ist beim Bau von [`Value::BossCastRemains`]
+    /// (#797) passiert — gefunden hat es kein Prüflauf, sondern das Lesen
+    /// dieser Liste.
+    ///
+    /// Mit `match` und ohne `_` ist es keine Warnung mehr, sondern ein Fehler
+    /// beim Übersetzen: Wer einen Wert hinzufügt, MUSS ihn einordnen. Die
+    /// Kosten sind zwei Zeilen pro neuem Wert; der Ertrag ist, dass die
+    /// Fehlentscheidung gar nicht erst compilieren kann.
     pub const fn is_time_dependent(self) -> bool {
-        matches!(
-            self,
+        match self {
+            // Diese Werte ändern sich mit der Uhr, ohne dass ein Ereignis
+            // eintritt — ohne Weckruf würde die Rotation ihr Fenster verpassen.
             Value::CooldownRemains(_)
-                | Value::CooldownReady(_)
-                | Value::DotRemains(_)
-                | Value::DotActive(_)
-                // Ein Fenster laeuft mit der Uhr ab, ohne dass ein Ereignis
-                // eintritt — ohne Weckruf wuerde die Rotation es verpassen.
-                | Value::BuffActive(_)
-                | Value::BuffRemains(_)
-                | Value::Time
-                | Value::FightRemains
-        )
+            | Value::CooldownReady(_)
+            | Value::DotRemains(_)
+            | Value::DotActive(_)
+            | Value::BuffActive(_)
+            | Value::BuffRemains(_)
+            | Value::Time
+            | Value::FightRemains
+            // Die Restzeit eines Boss-Zaubers sinkt mit jeder Millisekunde (#797).
+            | Value::BossCastRemains => true,
+            // Diese ändern sich nur an Ereignissen, die die Rotation ohnehin
+            // wecken.
+            //
+            // `BossCasting` gehört hierher, obwohl es einen Boss-Zauber
+            // betrifft: Sein Wert kippt an genau zwei Stellen — der Zauber
+            // beginnt, der Zauber landet. Beide sind Ereignisse.
+            Value::Literal(_)
+            | Value::Resource
+            | Value::DotTicks(_)
+            | Value::BossHp
+            | Value::BossHpPercent
+            | Value::BossCasting
+            | Value::Gcd
+            | Value::Decay
+            | Value::Shield
+            | Value::Control => false,
+        }
     }
 }
 
@@ -499,6 +559,8 @@ impl fmt::Display for Value {
             Self::DotTicks(i) => write!(f, "dot.{}.ticks", crate::data::SPELLS[*i].id),
             Self::BossHp => write!(f, "boss.hp"),
             Self::BossHpPercent => write!(f, "boss.hp_pct"),
+            Self::BossCasting => write!(f, "boss.casting"),
+            Self::BossCastRemains => write!(f, "boss.cast_remains"),
             Self::Time => write!(f, "time"),
             Self::FightRemains => write!(f, "fight.remains"),
             Self::Gcd => write!(f, "gcd"),
