@@ -102,7 +102,30 @@ beforeEach(() => {
 });
 
 describe('AC1 — der Wechsel im laufenden Spiel bringt den Effekt an', () => {
-  it('sechs angelegte Satzteile lösen ihn im Kampf aus', () => {
+  /**
+   * # Warum dieser eine Fall mehr Zeit bekommt (2026-08-13)
+   *
+   * Er ist unter Parallellast mit `Test timed out in 5000ms` umgefallen —
+   * nicht an seiner Aussage, sondern an der Uhr. Gemessen:
+   *
+   * ```text
+   * isoliert, dreimal        169 ms · 167 ms · 281 ms
+   * im vollen Lauf (254 Dateien, 2595 Fälle)          6445 ms
+   * ```
+   *
+   * Das ist eine Spreizung von etwa 1:23 gegen eine Grenze von 5000 ms. Der
+   * Fall baut eine ganze App samt DOM auf und fährt einen Kampf; unter voller
+   * Parallelität teilt er sich die Kerne mit allem anderen.
+   *
+   * **Die Grenze steht hier und nicht global.** Global hochgesetzt verlöre
+   * jeder andere Fall seinen Schutz gegen echte Hänger — und ein Fall, der
+   * wirklich hängt, soll weiter nach fünf Sekunden auffallen.
+   *
+   * In der CI ist ein Timeout genauso rot wie ein Fehler und verbrennt eine
+   * ganze Runde. 20 s lassen auch dann Luft, wenn die Maschine dreimal so
+   * langsam ist wie die gemessenen 6,4 s.
+   */
+  it('sechs angelegte Satzteile lösen ihn im Kampf aus', { timeout: 20_000 }, () => {
     const app = baueApp();
     // Vorher nicht — sonst zeigte der Fall unten nur, dass der Effekt
     // irgendwann irgendwie da ist.
