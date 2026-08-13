@@ -242,6 +242,8 @@ export interface CombatSnapshot {
   readonly control: number;
   readonly controlFailed: number;
   readonly controlSpent: number;
+  /** Wie oft THE LONG GRIP einen Ausgeber umsonst gemacht hat (13.5). */
+  readonly freeControlSpendCount: number;
   readonly conversionPercent: number;
   readonly converted: number;
   readonly critFactorsMirrorBase: boolean;
@@ -923,6 +925,7 @@ export function installDevTools(app: App): void {
         control: combat.control,
         controlFailed: combat.controlFailed,
         controlSpent: combat.controlSpent,
+        freeControlSpendCount: combat.freeControlSpendCount,
         conversionPercent: combat.conversionPercent,
         converted: combat.converted,
         critFactorsMirrorBase: combat.critFactorsMirrorBase,
