@@ -497,6 +497,7 @@ fn run_range(
         // Talent-Faktor daneben. Wer es messen will, setzt es hier.
         auto_reset: false,
         partial_control: false,
+        shield_refund: false,
         // **Die beiden ANDEREN Talent-Groessen kommen durch** (Issue #419) —
         // und das ist der Unterschied, der AC3 ueberhaupt erst messbar macht.
         //

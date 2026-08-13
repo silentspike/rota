@@ -65,6 +65,7 @@ import {
   KEYSTONE_SPLIT_SPENDER,
   KEYSTONE_AUTO_RESET,
   KEYSTONE_PARTIAL_CONTROL,
+  KEYSTONE_SHIELD_REFUND,
   NO_TALENTS,
   talentFactor,
   talentResourceFactor,
@@ -843,6 +844,21 @@ export class Combat {
 
   /** Wann sie verfällt, wenn sie nicht vorher aufgebraucht wird. -1 = keine. */
   private shieldExpiresAtMs = -1;
+  /**
+   * Wie dick die zuletzt gelegte Schicht war — für COAGULATIONs
+   * Schlüsseltalent (#419).
+   *
+   * Ohne diesen Merker wüsste der Bruch nicht, wovon er die Hälfte nachlegen
+   * soll: `shieldValue` ist in dem Moment gerade 0.
+   */
+  private shieldLastAmount = 0;
+  /**
+   * Ob dieser Schild seine Nachlage schon bekommen hat.
+   *
+   * **Die Begrenzung ist der Kern des Talents.** Ohne sie legte jeder Bruch
+   * nach, der nächste wieder, und die Schicht wäre nicht mehr aufzubrauchen.
+   */
+  private shieldRefundUsed = false;
 
   /**
    * Heilung über Zeit (POULTICE, Issue #481) — Gesamtbetrag, Anzahl der
@@ -2216,6 +2232,10 @@ export class Combat {
       if (this.shieldStacksValue < grenze) {
         this.shieldStacksValue++;
         this.shieldValue += dicke;
+        // Für die Nachlage (#419): Der Bruch braucht die Dicke, und jede neu
+        // gelegte Schicht bekommt ihre eigene Nachlage.
+        this.shieldLastAmount = dicke;
+        this.shieldRefundUsed = false;
         // **Der Schutz drängt die Reaktion zurück** (Baustein 6; #247), um
         // seinen EIGENEN Betrag. Nur beim Stapeln, nicht beim bloßen Erneuern:
         // Sonst wäre die Obergrenze wirkungslos, und das gilt hier wie für den
@@ -3166,9 +3186,29 @@ export class Combat {
       this.shieldAbsorbedValue += abgefangen;
       this.log?.push(this.fightElapsedMs(timeMs), EVENT_SHIELD_ABSORB, NO_SPELL_REF, abgefangen);
       if (this.shieldValue === 0) {
-        // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
-        this.shieldStacksValue = 0;
-        this.shieldExpiresAtMs = -1;
+        // **COAGULATIONs Schlüsseltalent** (#419): Der brechende Schild legt
+        // eine halbe Schicht nach — einmal je gelegtem Schild.
+        //
+        // Abgerundet (GAME-DESIGN 18.4) und nur, wenn dabei etwas übrig
+        // bleibt: Eine Nachlage von 0 wäre keine, würde aber den Merker
+        // verbrauchen und sähe im Verlauf wie eine aus.
+        const nachlage = this.hasKeystone(KEYSTONE_SHIELD_REFUND)
+          ? Math.floor(this.shieldLastAmount / 2)
+          : 0;
+        //
+        // **Kein `return` hier.** Der Schlag, der die Schicht bricht, kann
+        // mehr tragen, als sie auffängt; der Rest muss weiter unten beim
+        // Spieler ankommen. Ein früher Ausstieg verschluckte ihn — der Schild
+        // wäre dann nicht nur eine Nachlage wert, sondern ein Freischlag.
+        if (nachlage > 0 && !this.shieldRefundUsed) {
+          this.shieldRefundUsed = true;
+          this.shieldValue = nachlage;
+          this.shieldStacksValue = 1;
+        } else {
+          // Aufgebraucht: Die Stapel sind weg, nicht nur der Betrag.
+          this.shieldStacksValue = 0;
+          this.shieldExpiresAtMs = -1;
+        }
       }
     }
 
