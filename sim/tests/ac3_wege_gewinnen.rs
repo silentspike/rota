@@ -24,15 +24,35 @@
 //! gemeldet, und teils aus Gruenden, die keine Talent-Frage sind:
 //!
 //! ```text
-//!   putrefaction build      wirkungslos: floor(1 x 1,5) = 1
+//!   putrefaction build      gewinnt nur 24,4 % unter der besten Rotation
 //!   putrefaction duration   von `effect` in jeder Rotation geschlagen
-//!   sublimation  reduction  gewinnt nirgends
-//!   sublimation  charges    bewegt gar nichts
-//!   coagulation  longer     bewegt gar nichts
+//!   sublimation  reduction  gewinnt nur 65,7 % unter der besten Rotation
+//!   sublimation  charges    #814 — `run_apl` kennt den Auswahlmodus nicht
+//!   coagulation  longer     die Schicht zerbricht, bevor ihre Frist zaehlt
 //!   coagulation  stacks     gewinnt nur 44,6 % unter der besten Rotation
-//!   fixation     alle drei  die Mechanik aendert Summen nicht, nur Verteilung
+//!   fixation     alle drei  #814 — die Mechanik aendert Summen nicht
 //!   global       build      strukturell von `release` geschlagen
 //! ```
+//!
+//! **Die erste Zeile stand hier bis zum Restwert anders** („wirkungslos:
+//! floor(1 x 1,5) = 1"). Seit `putrefaction-build` den Rest sammelt, bewegt er
+//! messbar etwas — 2209 auf 2222, 3307 auf 3342. Gewinnen tut er trotzdem nur
+//! in einer schwachen Rotation, aber aus einem ANDEREN Grund, und ein
+//! Kommentar, der den alten nennt, schickte den naechsten auf die falsche
+//! Faehrte.
+//!
+//! # Das Muster hinter den vier „gewinnt nur unter der besten"
+//!
+//! Gemessen, nicht vermutet: `effect` multipliziert die SUMME aller Stapel,
+//! `build` addiert gelegentlich EINEN. Wer viele Stapel haelt, gewinnt mit
+//! `effect`; `build` kann nur vorn liegen, wo wenige liegen — und wenige
+//! Stapel heissen wenig Schaden, also eine Rotation, die ohnehin zurueckliegt.
+//!
+//! Dasselbe bei `global-build` gegen `global-release` und bei
+//! `sublimation-reduction` gegen `threshold`: **Ein Weg auf die Summe schlaegt
+//! einen Weg auf einen Summanden, und zwar in jeder Rotation, die viel von der
+//! Summe hat.** Das ist keine Zahlenfrage, sondern eine Folge der Bauart —
+//! andere Promille verschoeben die Grenze, nicht die Richtung.
 //!
 //! Diese Datei behauptet also nicht, AC3 sei erfuellt. Sie haelt fest, WO er
 //! es ist — damit der Teil nicht unbemerkt zurueckfaellt, waehrend am Rest
