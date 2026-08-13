@@ -350,6 +350,57 @@ Mit Präfix kann die Datei nicht fremdbeschrieben werden, also ist ihr Inhalt si
 und er gilt dem Lauf, nicht dem Wrapper. Bei einem **Vordergrund**-Befehl bleibt
 `echo $?` in derselben Shell richtig.
 
+#### Und `rc=101` heißt nicht immer „ein Fall ist rot"
+
+Ein Compilerfehler in **einem** Testziel bricht `cargo test` ab — auch mit
+`--no-fail-fast`, und mit derselben 101, die zwei rote Fälle liefern:
+
+```
+error[E0308]: mismatched types
+sim/tests/kanal_zaehlung.rs:120  expected fn pointer, found closure
+```
+
+Der Lauf hat dann **keinen einzigen** Fall geprüft. Unterscheiden lässt es sich in
+einem Griff:
+
+```
+grep -c "test result: ok" <log>     0 statt 151  →  nichts lief
+```
+
+Bei einem echten Testfehler stehen die grünen Suiten daneben. Das ist die vierte
+Form von „der Lauf hat nicht stattgefunden" — nach _exit 0 trotz 101_, _stand noch
+in der Schlange_ und _Ausgabedatei 0 Bytes_ — und die einzige, die wie ein
+Testergebnis aussieht.
+
+### Ein neuer Zauber steht an drei Handlisten, und keine findet die andere
+
+```
+src/core/data.ts          import + mitSchule(...)
+sim/build.rs              const + read_json + Liste
+sim/tests/data_source.rs  include_str + Liste
+```
+
+Fehlt die zweite, kennt der Simulator den Zauber nicht — 68 gegen 69, **jede**
+Prüfsumme läuft auseinander. Fehlt die dritte, meldet der Datenwächter
+`einkompiliert sind 69 Zauber, in der Datei stehen 68`.
+
+Am 2026-08-14 wurde der Zauber im Spiel gemessen (heilt 300 nach drei Schritten,
+500 voll) und daraus geschlossen, er sei da. Der Simulator kannte ihn nicht einmal.
+
+> **„Kommt er im Spiel an?" ist nicht „kennen ihn alle Seiten?"**
+
+Finden lassen sich die Listen mit `grep -rl "<zauberdatei>.json"` — **aber die Wahl
+der Referenzdatei entscheidet das Ergebnis:**
+
+| Referenz            | Treffer | Warum                                                 |
+| ------------------- | ------- | ----------------------------------------------------- |
+| `calcination.json`  | 12      | steht auch in Kommentaren, Beispielen, Prüfdaten      |
+| `test-channel.json` | 3       | ein junger Zauber steht **nur** in den Pflichtstellen |
+
+Nimm einen zuletzt hinzugefügten Zauber, nicht einen alten. Und prüfe die
+Trefferliste auf generierte Dateien: `sim/src/data.rs` nennt `calcination.json`
+zwar, ist aber Ausgabe von `build.rs` und keine Liste.
+
 ### Zwei Mutationen auf derselben Seite sind kein zweiseitiger Nachweis
 
 Bei einer Änderung, die TypeScript **und** Rust berührt, belegen zwei Mutationen
