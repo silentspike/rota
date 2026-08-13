@@ -22,6 +22,125 @@ refs:
 
 ---
 
+## Die teuerste Fehlerklasse des Projekts: gebaut, grün, unerreichbar
+
+**Am 2026-08-13 ist sie fünfmal an einem Tag aufgetreten**, in fünf verschiedenen
+Gestalten, von drei verschiedenen Sitzungen gefunden. Jedes Mal war der Code
+typgeprüft, jedes Mal waren die Prüfungen grün, jedes Mal kam die Fähigkeit im Spiel
+nicht an:
+
+| Fall                  | Was grün war                                 | Was fehlte                                                    |
+| --------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| `setSetEffects`       | sechs Effekte, jeder einzeln mutationsbelegt | **0 Aufrufer** — jeder Prüffall rief den Setter selbst        |
+| `extendActiveDots`    | 134 Rust-Suiten                              | verlängerte nur den **ersten** Brand; keine Suite färbte      |
+| `buildEfficiencyView` | Typprüfung, Lint, die Datenquelle daneben    | `analyzeRun(...).losses` — die Tabelle in derselben Zeile weg |
+| Archiv-Ansicht (#85)  | Ansicht angeschlossen, Issue geschlossen     | kein einziger `ArchiveEntry` **existiert**                    |
+| APL `boss.casting`    | 17 Werte in der Sprache, alle benutzt        | keiner für einen laufenden Boss-Zauber — Suche blind          |
+
+Das gemeinsame Muster: **Eine Prüfung, die den Fall nie erzeugt, kann ihn nicht
+finden — egal wie viele Suiten grün sind.**
+
+### Die zwei Fragen, die das fangen
+
+Stelle sie zu **jedem** fertigen Stück, bevor du „fertig" meldest:
+
+1. **Wer ruft das?** Nicht „gibt es Tests", sondern: Ruft der Weg des _Spielers_
+   dorthin? Ein Prüffall, der die Funktion selbst aufruft, belegt die Funktion, nicht
+   ihre Erreichbarkeit.
+2. **Existiert die Sache, oder nur der Typ?** Ein `interface` ohne eine einzige
+   Instanz, ein Feld ohne Wert im Spielstand, eine Ansicht ohne Inhalt — alle drei
+   sehen im Editor fertig aus.
+
+### Die Träger-Zusicherung — ohne sie ist eine Null wertlos
+
+Findest du „0 Aufrufer" oder „0 Treffer", **miss im selben Zug etwas, von dem du
+sicher weißt, dass es da ist.** Sonst hast du dein Suchmuster gemessen und nicht die
+Sache. Belegte Fehlalarme aus genau dieser Lücke:
+
+- `grep -rn 'isDefeated' tests/` → nichts. Die Datei enthält **ein NUL-Byte**, `grep`
+  hält sie für binär und schweigt **ohne Fehlercode**. Erst `grep -a` findet die drei
+  Treffer.
+- Fünf Klänge gemeldet als „KEIN SIGNAL" — das `awk`-Feld war falsch. Zwei bekannt
+  funktionierende Klänge im selben Lauf zeigten dasselbe und entlarvten das Muster.
+- Drei Simulator-Felder sahen ungedeckt aus, weil nur in `fight.rs` gesucht wurde. Sie
+  stehen in anderen Modulen.
+
+### Rot ist nicht gleich rot: nenne den Fall beim NAMEN
+
+Eine Zusicherung, die nur **ROT** verlangt, fängt keinen Fremdgrund. Am 2026-08-13
+meldete eine Sitzung dreizehn Felder als „gedeckt" — Zusicherung erfüllt, Exit-Code
+korrekt, Trefferzahl richtig, und **alle dreizehn waren falsch**. Der rote Fall hieß
+`parity_boss_state::ac1_beide_seiten_sehen_dieselbe_boss_menge` und kam von einer
+uncommitteten Prüfdatei im Arbeitsbaum. Erst der Name zeigte es.
+
+Daraus drei Regeln:
+
+1. **`git status` vor jeder Messung.** Eine uncommittete Boss- oder Zauberdatei färbt
+   die Parität **dauerhaft**: Der Simulator liest `data/bosses/` vom Dateisystem, das
+   Spiel hat seine Liste woanders. Was nur auf einer Seite ankommt, bricht
+   `parity_boss_state` bei jedem Lauf. (Ist die Datei auf **beiden** Seiten
+   eingebunden — `build.rs` _und_ `data.ts` —, entsteht kein Fremdgrund. Geprüft
+   gehört es trotzdem.)
+2. **Nullprobe vor der ersten Mutation.** Ist der Baum schon rot, bricht ab, statt
+   alles als gedeckt zu melden.
+3. **Rote Fälle beim Namen, mit Datei.** „2 von 13 rot" ist keine Aussage; „4 rot,
+   drei in `channel.test.ts`, einer in `freshness.test.ts`" ist eine.
+
+**Und: eine Zahl ohne Umfang ist nicht vergleichbar.** Dieselbe Mutation ergab
+einmal 2, einmal 4, einmal 5, einmal 6 rote Fälle — je nachdem, ob nur eine Datei
+oder die volle Suite lief und ob ein Fall zu dem Zeitpunkt schon existierte. Keine
+der vier Zahlen war falsch gemessen.
+
+### Immer-Färber: eine Bedingung, die immer erfüllt ist, ist kein Nachweis
+
+Frische-Prüfungen, Prüfsummen und Spielstand-Schnappschüsse färben bei **jeder**
+Datenänderung — ob die geänderte Sache wirkt, spielt keine Rolle. Von zwei Sitzungen
+unabhängig belegt, an verschiedenen Aufgaben:
+
+```
+clearsDoom          → "die vier Bosse der dritten Instanz entsprechen
+                       dem heutigen Spielstand"        freshness.test.ts
+consumesDecayStacks → "die_pruefsummen_stimmen_in_jedem_einzelnen_takt"
+```
+
+Nach dem Kriterium „färbt mindestens eine Prüfung" wären damit **alle** Felder
+gedeckt gewesen — eine Antwort, die nur bestätigt, dass die Daten angefasst wurden.
+
+**Welche Prüfungen dazugehören, wird gemessen, nicht geraten.** Eine Ausschlussliste
+(„freshness zählt nicht") erzeugt genau die falsch-positiven Befunde, die man sucht:
+Man weiß nicht, welche Tests noch in die Klasse fallen. Die Unterscheidung fällt aus
+der Messung selbst ab — _ein Test, der bei allen Varianten färbt, unterscheidet
+nichts; einer, der bei vier färbt, benennt genau diese vier._
+
+Verschärftes Kriterium für jede Deckungsaussage: **gedeckt heißt, ein Test färbt, der
+nicht bei allen Varianten färbt.**
+
+### Die Prüfsumme führt nicht alles
+
+Bei einer Kanalisierung plante der Simulator die Teilwirkungen, aber **kein
+Ende-Ereignis**. `player_casting` blieb gesetzt, und jeder spätere Tastendruck brach
+eine längst beendete Kanalisierung ab:
+
+```
+Simulator  3 Abbrüche          bei IDENTISCHEN Prüfsummen in jedem Takt
+Spiel      1 Abbruch
+```
+
+Die Prüfsumme führt den Zähler nicht. Bitgleichheit über alle Takte ist deshalb
+**kein** Beweis, dass beide Seiten dasselbe _tun_ — nur, dass sie dieselben Zahlen
+tragen, die in die Summe eingehen. Gefunden hat es erst eine Aufzeichnung, die den
+Abbruch wirklich fährt.
+
+### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
+
+Ein Issue-Text, eine Nachricht von vorgestern, eine Zahl aus einer Übergabe — alle
+drei beschreiben den Stand von damals. **Am 2026-08-13 waren sieben Issues an ihrer
+Beschriftung falsch**; ihre Aussage galt zum Zeitpunkt des Schreibens und war beim
+Lesen überholt. Miss gegen `origin/main`, bevor du auf einer Zahl aufbaust — auch
+wenn sie vom Orchestrator kommt.
+
+---
+
 ## 1. Bevor du das erste Mal anfängst
 
 Lies in dieser Reihenfolge:

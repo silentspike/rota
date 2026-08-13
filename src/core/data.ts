@@ -17,6 +17,7 @@ import rawSublimation from '../../data/spells/sublimation.json';
 import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawTestCast from '../../data/spells/test-cast.json';
 import rawTestBuff from '../../data/spells/test-buff.json';
+import rawTestChannel from '../../data/spells/test-channel.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawInstances from '../../data/instances.json';
 import rawPlayer from '../../data/player/base.json';
@@ -112,6 +113,40 @@ export interface SpellDef {
   readonly baseDamage: number;
   readonly cooldownMs: number;
   readonly castTimeMs: number;
+  /**
+   * Dauer einer **Kanalisierung** in Millisekunden; 0 heißt keine (Issue #323).
+   *
+   * # Der vierte Zauber-Typ, und wie er sich vom Cast unterscheidet
+   *
+   * | Typ | Wirkung fällt an | bei Abbruch |
+   * | --- | --- | --- |
+   * | Cast (`castTimeMs`) | am Ende, vollständig | alles verloren |
+   * | **Kanalisierung** | **laufend, über die Dauer** | **der erreichte Anteil bleibt** |
+   *
+   * Beispiel des Auftraggebers (GAME-DESIGN 7.2): 5 s für 500, abgebrochen
+   * nach 3 s, ergibt 300.
+   *
+   * **Design-Gesetz 1 bleibt unberührt.** Verboten ist das Tastenhalten, nicht
+   * die Kanalisierung: Sie startet mit EINEM Druck und läuft von selbst
+   * (GAME-DESIGN 108). Es gibt keine Stelle im Code, die eine gehaltene Taste
+   * kennt — der Zustand hängt allein an der Zeit.
+   *
+   * **Schliesst `castTimeMs` aus.** Beides zugleich wären zwei Auflösungen für
+   * denselben Zauber; der Parser lehnt das ab.
+   */
+  readonly channelMs: number;
+  /**
+   * Abstand der Teilwirkungen einer Kanalisierung in Millisekunden.
+   *
+   * **Ein Raster und keine stetige Rechnung** — aus demselben Grund wie bei
+   * den DoTs: Spiel und Simulator müssen bitgleich rechnen (18.4), und der
+   * eine läuft im 10-ms-Takt, der andere ereignisgesteuert. Nur auf einem
+   * festen Raster fallen dieselben Teilwirkungen zu denselben Zeitpunkten an.
+   *
+   * `channelMs` muss ein ganzzahliges Vielfaches davon sein; sonst bliebe ein
+   * Rest, dessen Behandlung zwischen den Seiten auseinanderliefe.
+   */
+  readonly channelTickMs: number;
   readonly triggersGcd: boolean;
   /**
    * Aus welcher Schule der Zauber stammt, oder `null` (Issue #270, AC0).
@@ -1738,6 +1773,35 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     }
   }
 
+  // **Die Kanalisierung** (Issue #323). Drei Prüfungen, und jede verhindert
+  // ein Auseinanderlaufen, das sonst erst in einer Prüfsumme auffiele.
+  const channelMs = number(raw['channelMs'], 0);
+  const channelTickMs = number(raw['channelTickMs'], 0);
+  if (channelMs > 0) {
+    // (1) Beides zugleich wären ZWEI Auflösungen für einen Zauber: eine am
+    // Ende und eine über die Dauer. Welche zuerst käme, entschiede die
+    // Reihenfolge im Code — auf beiden Seiten womöglich verschieden.
+    if (number(raw['castTimeMs'], 0) > 0) {
+      problems.push(
+        `${where}: hat Wirkzeit UND Kanalisierung — das sind zwei Auflösungen für einen Zauber.`,
+      );
+    }
+    // (2) Ohne Raster gäbe es keine Teilwirkungen, und die Kanalisierung wäre
+    // ein Cast mit anderem Namen.
+    if (channelTickMs <= 0) {
+      problems.push(`${where}: Kanalisierung ohne channelTickMs — es gäbe keine Teilwirkungen.`);
+    } else if (channelMs % channelTickMs !== 0) {
+      // (3) Ein Rest müsste irgendwohin: verfallen, den letzten Schritt
+      // vergrössern oder einen kürzeren anhängen. Drei Möglichkeiten, zwei
+      // Seiten — das ist genau die Stelle, an der Parität bricht.
+      problems.push(
+        `${where}: Kanal-Dauer ${channelMs} ist kein Vielfaches des Rasters ${channelTickMs}.`,
+      );
+    }
+  } else if (channelTickMs > 0) {
+    problems.push(`${where}: channelTickMs ohne channelMs — das Raster wirkt nie.`);
+  }
+
   return {
     ...(belowMs > 0 ? { cooldownReductionBelowMs: belowMs } : {}),
     ...(longestOnly ? { cooldownReductionLongestOnly: true } : {}),
@@ -1747,6 +1811,8 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     baseDamage: number(raw['baseDamage'], 0),
     cooldownMs,
     castTimeMs: number(raw['castTimeMs'], 0),
+    channelMs,
+    channelTickMs,
     triggersGcd: raw['triggersGcd'] !== false,
     ...(dotExtendTicks !== undefined ? { dotExtendTicks } : {}),
     ...(consumesDots ? { consumesDots } : {}),
@@ -2341,6 +2407,15 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...mitSchule(
         (rawTestBuff as Record<string, unknown>)['spells'],
         rawTestBuff as Record<string, unknown>,
+      ),
+      // **Und zuletzt der Prüf-Zauber zur Kanalisierung** (Issue #323).
+      // Eigene Datei aus zwei Gründen: Der Parser lehnt Wirkzeit UND
+      // Kanalisierung am selben Zauber ab — das sind zwei Auflösungen für
+      // einen Zauber —, und `test-cast` steht in sechs Aufzeichnungen. Seine
+      // Stellung ganz hinten hält die bestehenden Indizes fest (#408).
+      ...mitSchule(
+        (rawTestChannel as Record<string, unknown>)['spells'],
+        rawTestChannel as Record<string, unknown>,
       ),
     ],
   };

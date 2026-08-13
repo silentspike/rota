@@ -210,6 +210,8 @@ export interface ReplayResult {
    * statt dessen.
    */
   readonly controlSpent: number;
+  /** Wie oft THE LONG GRIP gegriffen hat (13.5, Issue #480). */
+  readonly freeControlSpendCount: number;
   readonly controlFailed: number;
   /**
    * Die sechs Grössen, die Rust seit jeher im Ergebnis führt und das Spiel
@@ -545,6 +547,7 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
     buffWindowSum: combat.buffWindowSum,
     synergyWindowSum: combat.synergyWindowSum,
     controlSpent: combat.controlSpent,
+    freeControlSpendCount: combat.freeControlSpendCount,
     controlFailed: combat.controlFailed,
     interruptsLanded: combat.interruptsLanded,
     interruptsMissed: combat.interruptsMissed,
@@ -932,6 +935,88 @@ const CAST_TIME_BINDINGS: readonly { slot: number; id: string }[] = [
  * den Wirkzeiten gar nichts, und eine Abweichung im gewoehnlichen Teil des
  * Kampfes fiele in dieser Aufzeichnung nicht auf.
  */
+/** Die Belegung der Kanal-Aufzeichnung (Issue #323). */
+const CHANNEL_BINDINGS: readonly { slot: number; id: string }[] = [
+  { slot: 0, id: 'kindle' },
+  { slot: 1, id: 'test-channel' },
+];
+
+/**
+ * Die Runde, in der eine KANALISIERUNG laeuft und mitten drin abbricht
+ * (Issue #323, AC6).
+ *
+ * | | |
+ * | --- | --- |
+ * | 0 ms | Die Kanalisierung beginnt; ihre Wirkung faellt in Schritten von 1000 ms |
+ * | 3000 ms | KINDLE bricht sie ab — drei von fuenf Schritten sind gefallen |
+ * | danach | Der Rest der Runde laeuft gewoehnlich weiter |
+ *
+ * **Der Abbruch MITTEN in der Kanalisierung ist der ganze Zweck.** Eine
+ * Aufzeichnung, die sie durchlaufen liesse, prueft nur die Summe — und die
+ * kaeme auch heraus, wenn eine Seite alles am Ende auszahlte statt laufend.
+ * Erst der Abbruch trennt die beiden Bauarten.
+ *
+ * Der Zeitpunkt ist gerechnet, nicht gewaehlt: Bei 1000 ms Raster liegt nach
+ * 3000 ms der dritte Schritt hinter uns und der vierte noch vor uns. Die
+ * globale Wartezeit (1500 ms) ist da laengst frei, der Druck wird also
+ * angenommen.
+ */
+function recordChannelRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const slotOf = new Map<number, number>();
+  for (const { slot, id } of CHANNEL_BINDINGS) slotOf.set(combat.indexOf(id), slot);
+  const kindle = combat.indexOf('kindle');
+  const kanal = combat.indexOf('test-channel');
+
+  const presses: RecordedPress[] = [];
+  // **Nur angenommene Drücke kommen in die Aufzeichnung** (`isCastAccepted`
+  // deckt CAST_OK und CAST_STARTED ab — eine Kanalisierung meldet das
+  // zweite). Ein abgelehnter Druck gehört nicht hinein: Beim Abspielen träfe
+  // er eine andere Lage und würde vielleicht angenommen.
+  const druecke = (index: number, tick: number, timeMs: number): void => {
+    const slot = slotOf.get(index);
+    if (slot === undefined) return;
+    if (!isCastAccepted(combat.cast(alsSpellIndex(index), timeMs).result)) return;
+    presses.push({ tick, slot });
+  };
+
+  let abgebrochen = false;
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.playerCasting >= 0) {
+      // **Genau EIN Abbruch, und zwar mitten drin.** Ohne ihn zeigte die
+      // Aufzeichnung nur eine durchgelaufene Kanalisierung, und „der
+      // erreichte Anteil bleibt" waere unbelegt.
+      if (abgebrochen || timeMs < 3000) continue;
+      abgebrochen = true;
+      druecke(kindle, tick, timeMs);
+      continue;
+    }
+
+    // Der Kanal, sobald er bereit ist; sonst KINDLE als Fueller. Ohne den
+    // Fueller liefe zwischen den Kanalisierungen nichts, und eine Abweichung
+    // im gewoehnlichen Teil des Kampfes fiele hier nicht auf.
+    if (combat.isOffCooldown(kanal, timeMs)) {
+      druecke(kanal, tick, timeMs);
+    } else {
+      druecke(kindle, tick, timeMs);
+    }
+  }
+
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: CHANNEL_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
+}
+
 function recordCastTimeRotation(name: string, ticks: number, boss: BossDef): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss });
   const slotOf = new Map<number, number>();
@@ -1202,6 +1287,10 @@ export function recordings(): Map<string, Recording> {
       // faellt bei 18 s, und der einzige Abbruch VON HAND, der keinen der
       // beiden Schlaege um seinen Fall bringt, liegt bei 20,5 s.
       builtIn.set('cast-time', recordCastTimeRotation('cast-time', 2400, casterBoss));
+      // Die Kanalisierung mit Abbruch mitten drin (#323, AC6). Derselbe
+      // Boss wie bei der Wirkzeit: Er schlaegt regelmaessig, und der
+      // gewoehnliche Teil des Kampfes ist damit auch hier gedeckt.
+      builtIn.set('channel', recordChannelRotation('channel', 2400, casterBoss));
     }
     const racer = bossById('test-racer');
     if (racer !== undefined) {

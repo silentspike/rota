@@ -67,6 +67,72 @@
           "effect": "slow-rot"
         }
       ]
+    },
+    {
+      "id": 3,
+      "school": "COAGULATION",
+      "name": "The Sealed Vessel",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "sealed-vessel"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "school": "SEPARATION",
+      "name": "The Long Grip",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "long-grip"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "school": "SUBLIMATION",
+      "name": "Perpetual Draft",
+      "tiers": [
+        {
+          "kind": 0,
+          "share": 0.1,
+          "effect": ""
+        },
+        {
+          "kind": 0,
+          "share": 0.2,
+          "effect": ""
+        },
+        {
+          "kind": 1,
+          "share": 0,
+          "effect": "perpetual-draft"
+        }
+      ]
     }
   ]
 }

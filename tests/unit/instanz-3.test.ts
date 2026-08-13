@@ -196,12 +196,17 @@ describe('Die vier unterscheiden sich — nicht nur in Lebenspunkten', () => {
 });
 
 describe('Das Instanz-Objekt und die Freischaltung (12.7)', () => {
-  it('führt alle vier Instanzen, nach Reihenfolge sortiert', () => {
+  it('führt alle Instanzen, nach Reihenfolge sortiert', () => {
+    // Die Liste wächst mit jeder Instanz — das ist Absicht und kein Wartungs-
+    // ärgernis: Eine Zahl (`toHaveLength`) bliebe grün, wenn eine Instanz
+    // verschwände und eine andere dazukäme. Wer hier eine Zeile ergänzt, hat
+    // die Reihenfolge bewusst angesehen.
     expect(INSTANCES.map((i) => i.id)).toEqual([
       'prologue',
       'instance-1',
       'instance-2',
       'instance-3',
+      'instance-4',
     ]);
   });
 
