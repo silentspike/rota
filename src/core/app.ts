@@ -16,7 +16,7 @@ import {
   instanceById,
   type BossDef,
 } from './data.js';
-import { buildBossSelect, waehlbareBosse } from '../progression/boss-select.js';
+import { buildBossSelect, mechanikenVon, waehlbareBosse } from '../progression/boss-select.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
   applyBindings,
@@ -42,7 +42,9 @@ import { comparableFromBest, usableBest } from '../analysis/best-run.js';
 import { compareRuns, type ComparedMetric } from '../analysis/run-compare.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
-import { buildArchiveView } from '../analysis/archive-view.js';
+import { attachHelp, buildArchiveView, buildIntroduction } from '../analysis/archive-view.js';
+import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../analysis/help-data.js';
+import { markSeen, nextIntroduction } from '../analysis/help.js';
 import { buildArchive } from '../analysis/archive.js';
 import { ALL_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
 import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
@@ -62,6 +64,19 @@ import '../progression/levels.css';
 import '../progression/composition.css';
 import '../progression/gear.css';
 import '../progression/boss-select.css';
+// **Die Gestaltung für Archiv, Erklärfenster und Einführung** — sie war seit
+// #85 gebaut und wurde von NIEMANDEM geladen (gemessen an #811: kein einziger
+// Import auf `archive.css` im ganzen Baum; sie erschien nur im Bündel der
+// Prüfseite `docs/archive-check/`).
+//
+// Was der Browser daraus machte: `position: static`, kein Hintergrund, kein
+// Rahmen, 704 px breit — das Erklärfenster floss als nackter Text in die
+// Tabellenzelle. Im DOM alles richtig, auf dem Bildschirm unbrauchbar.
+//
+// Dieselbe Klasse wie „gebaut, grün, unerreichbar", nur eine Ebene tiefer:
+// Kein Prüffall fragt, ob eine Stilvorlage geladen wird, und `tsc` und
+// `eslint` erst recht nicht. Gefunden hat es `getComputedStyle` im Browser.
+import '../analysis/archive.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
@@ -412,6 +427,23 @@ export class App {
     });
     parent.appendChild(this.home.root);
 
+    // **Die Erklärfenster** (AC2 von #811). `attachHelp` stand fertig gebaut
+    // da und war DOPPELT tot: kein Aufrufer, und kein einziger Knoten trug
+    // `data-help` — es hätte auch mit Aufruf geschwiegen. Das Issue nannte nur
+    // die erste Hälfte.
+    //
+    // **Über das Merkmal, nicht über eine Liste von Bereichen**: So bekommt
+    // eine Boss-Fähigkeit ihr Fenster durch dasselbe Zutun wie ein
+    // Zauber-Symbol oder ein Wert, und keine Gruppe kann vergessen werden,
+    // weil sie woanders im Baum steht.
+    //
+    // **Die Einträge kommen aus `ALL_HELP_ENTRIES`, nicht aus
+    // `PLAYABLE_HELP_ENTRIES`** — heute sind das ausschliesslich Prüfeinträge,
+    // und die ausgelieferte Liste wäre leer. Ohne Einträge erschiene kein
+    // einziges Fenster: sichtbar gebaut, aber nicht belegbar. Dieselbe
+    // Entscheidung wie beim Archiv (#85); der Vermerk steht in `help-data.ts`.
+    this.attachHelpToHome();
+
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
     // stummes, unsichtbares Spiel rechnet identisch (GAME-DESIGN 18.5).
     this.combat.onHit = (damage, kind, isCrit, big, timeMs): void => {
@@ -632,6 +664,56 @@ export class App {
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
+    // **Die geführte Einführung** (AC4 von #811, GAME-DESIGN 17.3). Zuletzt,
+    // nach `home.hide()`: Sie liegt über dem Vorbereitungs-Bildschirm, den der
+    // Spieler jetzt sieht — „an Ort und Stelle" heisst dort, wo die Mechanik
+    // gleich auftritt.
+    this.showIntroductionFor(gewaehlt);
+  }
+
+  /**
+   * Die Einführung zur ersten noch unbekannten Mechanik dieses Bosses.
+   *
+   * # Der Auslöser ist die WAHL, nicht der Takt im Kampf
+   *
+   * 17.3 sagt „beim ersten Auftreten einer Mechanik hält das Spiel kurz an".
+   * Hier hält nichts an, weil noch nichts läuft: Zwischen Wahl und erstem Takt
+   * liegt der Vorbereitungs-Bildschirm, und der Spieler begegnet der Mechanik
+   * genau hier zum ersten Mal.
+   *
+   * **Warum nicht mitten im Kampf:** Der Kampf ist der Gegenstand der Parität.
+   * Der Simulator kennt kein Anhalten; ein Halt im Spiel, den `sim/` nicht
+   * nachvollzieht, wäre eine Regel, die nur eine Seite kennt — und die bricht
+   * nicht sofort, sondern beim ersten Lauf, in dem jemand pausiert. Diese
+   * Auslegung liegt dem Auftraggeber vor; wandert der Auslöser, wandert diese
+   * Methode und sonst nichts.
+   *
+   * # Höchstens eine, und Überspringen zählt
+   *
+   * `nextIntroduction` liefert die erste ungesehene — mehrere Fenster
+   * übereinander wären keine Führung, sondern ein Stapel. Beide Knöpfe
+   * vermerken sie als gesehen, weil `buildIntroduction` beide gleich behandelt:
+   * Wer überspringt, will sie nicht wiedersehen.
+   */
+  private showIntroductionFor(boss: BossDef): void {
+    const stand = { seenMechanicIds: this.persistence.state.seenMechanicIds };
+    for (const mechanik of mechanikenVon(boss)) {
+      const faellig = nextIntroduction(ALL_INTRODUCTIONS, stand, mechanik);
+      if (faellig === null) continue;
+      this.overlay.showIntroduction(
+        buildIntroduction(faellig, (mechanicId) => {
+          // **Der Spielstand muss es annehmen, nicht nur die Rechnung.** Genau
+          // hier ist bei #85 die Kette gerissen: `recordRun` schaltete den
+          // Eintrag frei, und `persist` übertrug ihn nicht — ohne Fehler und
+          // ohne Hinweis, bei 2489 grünen Fällen.
+          this.persistence.persistSeenMechanics(
+            markSeen({ seenMechanicIds: this.persistence.state.seenMechanicIds }, mechanicId)
+              .seenMechanicIds,
+          );
+        }),
+      );
+      return;
+    }
   }
 
   /**
@@ -861,6 +943,28 @@ export class App {
     // Fehler, den die Kommentare darüber für Stufe, Werte und Ausrüstung
     // beschreiben.
     this.home.replaceSection('archive', this.buildArchiveSection());
+    // **Und die Erklärfenster, aus demselben Grund wie alles darüber.** Jeder
+    // `replaceSection`-Aufruf wirft den alten Teilbaum weg — mitsamt der
+    // Zuhörer, die `attachHelp` daran gehängt hatte. Ohne diese Zeile hätten
+    // die Werte nach dem ersten Aufstieg kein Fenster mehr, und die Boss-Wahl
+    // nach dem ersten Wechsel keins.
+    //
+    // Genau die Klasse, die bei #85 zweimal 2489 grüne Fälle durchgelassen hat
+    // und erst im Browser aufgefallen ist.
+    this.attachHelpToHome();
+  }
+
+  /**
+   * Die Erklärfenster an alles hängen, was im Player Home `data-help` trägt.
+   *
+   * Als eigene Methode, weil sie an zwei Stellen gebraucht wird — beim Aufbau
+   * und nach jedem Auffrischen. Und als **benannte** Methode, damit ein
+   * Prüffall sie fassen kann: Was in einem anonymen Rückruf steckt, ist von
+   * aussen weder aufrufbar noch beobachtbar, und die Mutation läuft grün durch
+   * (gemessen bei `comparisonForResult` in #82 und `parseSets` in #780).
+   */
+  private attachHelpToHome(): void {
+    attachHelp(this.home.root, ALL_HELP_ENTRIES);
   }
 
   /**

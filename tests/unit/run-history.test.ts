@@ -52,6 +52,7 @@ function stand(over: Partial<SaveData> = {}): SaveData {
     bestRuns: [],
     defeatedBosses: [],
     unlockedEntryIds: [],
+    seenMechanicIds: [],
     runHistory: [eintrag()],
     progressMarks: [],
     ...over,

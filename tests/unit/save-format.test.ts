@@ -40,6 +40,7 @@ function save(): SaveData {
     ],
     defeatedBosses: ['first-crucible'],
     unlockedEntryIds: [],
+    seenMechanicIds: [],
     runHistory: [],
     progressMarks: [],
   };

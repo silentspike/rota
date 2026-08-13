@@ -877,6 +877,23 @@ export class Overlay {
   }
 
   /**
+   * Die geführte Einführung über den Vorbereitungs-Bildschirm legen
+   * (AC4 von #811, GAME-DESIGN 17.3).
+   *
+   * **Sie hängt am Vorbereitungs-Bildschirm und nicht an der Wurzel**: Der
+   * Spieler sieht sie dort, wo er gleich losdrückt, und sie verschwindet mit
+   * ihm, wenn der Kampf beginnt. An der Wurzel bliebe sie über dem laufenden
+   * Kampf stehen.
+   *
+   * Sie räumt nicht auf und schliesst nichts: Das Fenster entfernt sich selbst,
+   * sobald einer seiner beiden Knöpfe gedrückt wird (`buildIntroduction`). Zwei
+   * Stellen, die dasselbe Fenster entfernen, wären eine zu viel.
+   */
+  showIntroduction(node: HTMLElement): void {
+    this.prepare.appendChild(node);
+  }
+
+  /**
    * Einen Fund zeigen (Issue E6-4, AC3 und AC5).
    *
    * Die Inszenierung staffelt sich nach Qualität: Common beiläufig, ein

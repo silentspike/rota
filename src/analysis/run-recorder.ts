@@ -138,6 +138,17 @@ export interface RecordedState {
    */
   readonly unlockedEntryIds: readonly string[];
   /**
+   * Die gesehenen Einfuehrungen (Issue #811).
+   *
+   * **Anders als die Zeile darueber entstehen sie NICHT hier.** Eine
+   * Einfuehrung wird gesehen, wenn der Spieler einen Boss waehlt, der eine
+   * neue Mechanik mitbringt — zwischen den Kaempfen, nicht in einem. Sie steht
+   * trotzdem in diesem Zustand, weil `persist` den ganzen Zustand schreibt:
+   * Fehlte sie hier, loeschte jeder abgeschlossene Lauf, was der Spieler
+   * vorher gelesen hat.
+   */
+  readonly seenMechanicIds: readonly string[];
+  /**
    * Die verteilten Talente (Issue #417).
    *
    * **Die Wahl des Spielers, nicht ihre Wirkung** (GAME-DESIGN 18.6): Was der
@@ -359,6 +370,9 @@ export function recordRun(
     progressMarks: mark.marks,
     bestRuns: best?.runs ?? state.bestRuns,
     unlockedEntryIds: archivDanach.unlockedEntryIds,
+    // **Unveraendert weitergereicht**, wie die Talente darunter: Ein Kampf
+    // zeigt keine Einfuehrung — das tut die Boss-Wahl davor (#811).
+    seenMechanicIds: state.seenMechanicIds,
     // **Unverändert weitergereicht**: Ein Kampf verteilt keine Talente — das
     // tut der Spieler zwischen den Kämpfen (GAME-DESIGN 12.4).
     talentPoints: state.talentPoints,

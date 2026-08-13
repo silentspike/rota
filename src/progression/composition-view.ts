@@ -27,6 +27,7 @@
  *
  * Spieltexte englisch (Design-Gesetz 5).
  */
+import { withPlainText } from '../analysis/help.js';
 import type { SpellDef } from '../core/data.js';
 import { spellAtSlot, type Bindings, bindProblem } from './bindings.js';
 import { barSlotsAtLevel, isSpellUnlocked } from './unlocks.js';
@@ -216,7 +217,12 @@ export function buildComposition(options: CompositionViewOptions): HTMLElement {
   for (const gruppe of groupBySchool(waehlbar)) {
     const block = element('div', 'composition-group');
     block.dataset.school = gruppe.school ?? 'none';
-    const titel = element('h4', 'composition-group-title', gruppe.label);
+    // **Der Schulname bekommt seinen Klartext daneben** (AC3 von #811):
+    // „COAGULATION (Survival)". Genau das Beispiel, das der Kopf von `help.ts`
+    // nennt — die Schule ist der Prozess-Name, den ein neuer Spieler zuerst
+    // liest und am wenigsten einordnen kann.
+    const titel = element('h4', 'composition-group-title', withPlainText(gruppe.label));
+    titel.dataset.help = gruppe.school ?? '';
     // Die Farbe steht am Element, nicht in der CSS-Datei: Sie kommt aus den
     // Daten (welche Schule), nicht aus der Gestaltung.
     if (gruppe.colour !== null) {
@@ -227,6 +233,11 @@ export function buildComposition(options: CompositionViewOptions): HTMLElement {
     for (const spell of gruppe.spells) {
       const zeile = element('div', 'composition-spell', spell.name);
       zeile.dataset.spell = spell.id;
+      // **Das Zauber-Symbol aus AC2.** Die Leiste im Kampf ist Zeichenfläche
+      // (GAME-DESIGN 18.1) und trägt kein Merkmal, an dem ein Erklärfenster
+      // hängen könnte. Hier steht derselbe Zauber in HTML — und hier stellt der
+      // Spieler zusammen, also hier will er wissen, was er nimmt.
+      zeile.dataset.help = spell.id;
       block.appendChild(zeile);
     }
     links.appendChild(block);

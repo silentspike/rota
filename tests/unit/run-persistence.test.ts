@@ -74,6 +74,7 @@ describe('Ohne Speicher laeuft das Spiel weiter', () => {
       items: [],
       defeatedBosses: [],
       unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     });
@@ -99,6 +100,7 @@ describe('Ein voller Speicher', () => {
         items: [],
         defeatedBosses: [],
         unlockedEntryIds: [],
+        seenMechanicIds: [],
         level: 1,
         experience: 0,
       });
@@ -121,6 +123,7 @@ describe('Ein voller Speicher', () => {
       items: [],
       defeatedBosses: [],
       unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     });
@@ -142,6 +145,7 @@ describe('Der gewoehnliche Weg', () => {
         items: [],
         defeatedBosses: [],
         unlockedEntryIds: [],
+        seenMechanicIds: [],
         level: 1,
         experience: 0,
       }),
@@ -168,6 +172,7 @@ describe('Der gewoehnliche Weg', () => {
         items: [],
         defeatedBosses: [],
         unlockedEntryIds: [],
+        seenMechanicIds: [],
         level: 1,
         experience: 0,
       }),
@@ -201,6 +206,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       items: [],
       defeatedBosses: [],
       unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     });
@@ -214,6 +220,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       items: [],
       defeatedBosses: [],
       unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     });
@@ -235,6 +242,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       items: [],
       defeatedBosses: [],
       unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     });
@@ -247,6 +255,7 @@ describe('Ein Fassungswechsel zwischen zwei Laeufen', () => {
       items: [],
       defeatedBosses: [],
       unlockedEntryIds: [],
+      seenMechanicIds: [],
       level: 1,
       experience: 0,
     });
@@ -287,6 +296,7 @@ describe('Ein Stand aus einer aelteren Fassung', () => {
         items: [],
         defeatedBosses: [],
         unlockedEntryIds: [],
+        seenMechanicIds: [],
         level: 1,
         experience: 0,
       }),
@@ -331,6 +341,7 @@ describe('Ein voller Verlauf', () => {
         items: [],
         defeatedBosses: [],
         unlockedEntryIds: [],
+        seenMechanicIds: [],
         level: 1,
         experience: 0,
       }),
