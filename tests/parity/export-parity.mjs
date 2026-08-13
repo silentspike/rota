@@ -103,8 +103,10 @@ import {
   TICK_RUNDUNG_NAME,
   instance1Payload,
   instance2Payload,
+  instance3Payload,
   INSTANCE2_NAMES,
   INSTANCE1_NAMES,
+  INSTANCE3_NAMES,
   cinderPayload,
   dotLifetimePayload,
   DOT_LIFETIME_NAME,
@@ -291,6 +293,19 @@ for (let i = 0; i < INSTANCE2_NAMES.length; i++) {
   const name = INSTANCE2_NAMES[i];
   const datensatz = instance2Payload(`boss-2-${i + 1}`, name);
   writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+}
+
+// Die vier Bosse der dritten Instanz. Sie hatten als einzige Instanz KEINE
+// Aufzeichnung — siehe die Begruendung bei `INSTANCE3_NAMES` in `payloads.ts`.
+for (let i = 0; i < INSTANCE3_NAMES.length; i++) {
+  const name = INSTANCE3_NAMES[i];
+  const datensatz = instance3Payload(`boss-3-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+  console.log(
+    `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
+      `gefallen ${datensatz.expected.killedAtMs}, gestorben ${datensatz.expected.diedAtMs}, ` +
+      `Druecke ${datensatz.presses.length}`,
+  );
 }
 
 const kerne = kernePayload();
