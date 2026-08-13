@@ -30,6 +30,7 @@
  * gehört dorthin, wo beide Seiten ohne neuen Import zusammenkommen.
  */
 import { BEST_METRICS, type BestMetric, type BestRun } from './save-format.js';
+import type { ComparableRun } from './run-compare.js';
 
 /** Was ein Lauf zum Bestwert beiträgt. */
 export interface BestAttempt {
@@ -39,6 +40,14 @@ export interface BestAttempt {
   readonly value: number;
   readonly gameVersion: string;
   readonly at: number;
+  /**
+   * Wie der Lauf aussah, für den späteren Vergleich (Issue #82).
+   *
+   * **Nur die sieben Zahlen, die `compareRuns` liest** — nicht die ganze
+   * `RunSummary` mit ihren 29 Feldern. Die übrigen 22 stünden im Spielstand
+   * und würde niemand lesen.
+   */
+  readonly comparison: ComparableRun;
 }
 
 /** Was die Fortschreibung ergeben hat. */
@@ -132,6 +141,19 @@ export function usableBest(
  * rechnen und immer null bekommen. Dieselbe Vorsorge wie in `recordAttempt`
  * (Issue #187), und aus demselben Grund.
  */
+/**
+ * Die Vergleichszahlen eines bestehenden Eintrags, zum Weiterreichen.
+ *
+ * Ein leeres Objekt, wenn er keine hat — dann bleibt der neue Eintrag ohne,
+ * und `comparableFromBest` gibt später `null`. Erfundene Nullen wären
+ * schlimmer als kein Vergleich: Der Spieler sähe „0 Schaden" als Bestwert.
+ */
+function uebernommen(entry: BestRun | null | undefined): Partial<ComparableRun> {
+  if (entry === null || entry === undefined) return {};
+  const vorhanden = comparableFromBest(entry);
+  return vorhanden ?? {};
+}
+
 export function recordBest(runs: readonly BestRun[], attempt: BestAttempt): BestUpdate {
   const { entry, discarded } = usableBest(runs, attempt.bossId, attempt.difficulty, attempt.metric);
   const previous = entry === null ? null : entry.value;
@@ -147,6 +169,16 @@ export function recordBest(runs: readonly BestRun[], attempt: BestAttempt): Best
     // Sie sagen, wann und worunter er entstand.
     gameVersion: improved || previous === null ? attempt.gameVersion : (entry?.gameVersion ?? ''),
     achievedAt: improved || previous === null ? attempt.at : (entry?.achievedAt ?? 0),
+    // **Die Vergleichszahlen gehören zum BESTWERT** (Issue #82), genau wie
+    // Fassung und Zeitpunkt eine Zeile höher: Sie beschreiben den Lauf, der
+    // den Bestwert hält — nicht den letzten Versuch. Wer sie immer
+    // überschriebe, vergliche den aktuellen Lauf gegen sich selbst und bekäme
+    // in jeder Kennzahl eine Null.
+    //
+    // Beim Verschlechtern bleiben deshalb die alten stehen. Sind gar keine da
+    // (Eintrag aus einer Fassung vor #82), bleibt es dabei: `comparableFromBest`
+    // gibt dann `null`, und der Vergleich sagt UNBEKANNT statt zu raten.
+    ...(improved || previous === null ? attempt.comparison : uebernommen(entry)),
   };
 
   const gesucht = key(attempt.bossId, attempt.difficulty);
@@ -155,4 +187,58 @@ export function recordBest(runs: readonly BestRun[], attempt: BestAttempt): Best
   if (index >= 0) naechste[index] = neu;
 
   return { runs: naechste, previous, improved, discarded };
+}
+
+/**
+ * Die Vergleichsdaten eines Bestlaufs, oder `null` (Issue #82).
+ *
+ * # Warum `null` und keine Nullen
+ *
+ * Ein Eintrag aus einem älteren Spielstand hat die sieben Felder nicht — sie
+ * sind in `BestRun` optional, damit er ohne Wanderung weiterlädt. Ihn mit
+ * Nullen aufzufüllen wäre schlimmer als kein Vergleich: Der Spieler sähe „0
+ * Schaden" als Bestwert und läge in jeder Kennzahl scheinbar vorn.
+ *
+ * `null` heißt dasselbe wie „es gibt noch keinen Bestlauf" — und genau so
+ * behandelt `compareRuns` es bereits: Alle Kennzahlen stehen auf UNBEKANNT,
+ * keine auf falsch.
+ *
+ * # Alle sieben oder keine
+ *
+ * Ein halb gefüllter Eintrag kann nicht entstehen (sie werden gemeinsam
+ * geschrieben), aber die Prüfung steht trotzdem auf allen: Ein Vergleich, dem
+ * einzelne Zahlen fehlen, zeigte eine Lücke mitten in der Tabelle, und niemand
+ * wüsste, ob sie vom Spielstand kommt oder von einem Fehler.
+ */
+export function comparableFromBest(best: BestRun | null): ComparableRun | null {
+  if (best === null) return null;
+  const {
+    victory,
+    elapsedMs,
+    damage,
+    progressPercent,
+    casts,
+    lostTimeWithReadyMs,
+    lostTimeNothingReadyMs,
+  } = best;
+  if (
+    typeof victory !== 'boolean' ||
+    typeof elapsedMs !== 'number' ||
+    typeof damage !== 'number' ||
+    typeof progressPercent !== 'number' ||
+    typeof casts !== 'number' ||
+    typeof lostTimeWithReadyMs !== 'number' ||
+    typeof lostTimeNothingReadyMs !== 'number'
+  ) {
+    return null;
+  }
+  return {
+    victory,
+    elapsedMs,
+    damage,
+    progressPercent,
+    casts,
+    lostTimeWithReadyMs,
+    lostTimeNothingReadyMs,
+  };
 }

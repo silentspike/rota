@@ -279,6 +279,23 @@ export function recordRun(
         value: summary.heldPercent === null ? summary.remainingMs : summary.heldPercent,
         gameVersion: context.gameVersion,
         at: context.at,
+        // **Die sieben Vergleichszahlen** (Issue #82). Sie stehen hier und
+        // nicht in `recordBest`: Dort läge eine zweite Stelle, die aus einer
+        // `RunSummary` auswählt, was verglichen wird — und die zweite wird
+        // beim Nachziehen vergessen.
+        //
+        // `summary` erfüllt `ComparableRun` strukturell; die Aufzählung ist
+        // trotzdem ausgeschrieben, damit im Spielstand genau diese sieben
+        // landen und nicht die ganzen 29 Felder.
+        comparison: {
+          victory: summary.victory,
+          elapsedMs: summary.elapsedMs,
+          damage: summary.damage,
+          progressPercent: summary.progressPercent,
+          casts: summary.casts,
+          lostTimeWithReadyMs: summary.lostTimeWithReadyMs,
+          lostTimeNothingReadyMs: summary.lostTimeNothingReadyMs,
+        },
       })
     : null;
 

@@ -38,6 +38,8 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { comparableFromBest, usableBest } from '../analysis/best-run.js';
+import { compareRuns, type ComparedMetric } from '../analysis/run-compare.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
 import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
@@ -434,6 +436,20 @@ export class App {
           ),
         };
       },
+      // **Der Vergleich mit dem Bestlauf** (E7-2, Issue #82).
+      //
+      // `compareRuns` und `buildComparisonView` standen seit E7-2 fertig
+      // gebaut da und hatten **keinen einzigen Aufrufer** — dieselbe Klasse
+      // wie `buildEfficiencyView` (#81) und `setSetEffects` (#794): gebaut,
+      // geprüft, für jeden Spieler unerreichbar. Diese Zeilen sind der ganze
+      // Unterschied.
+      //
+      // Der Bestlauf wird über Boss UND Schwierigkeit gesucht, mit demselben
+      // Maß, das `recordRun` schreiben würde. Passt es nicht — der Boss hat
+      // `runaway` bekommen oder verloren —, verwirft `usableBest` den Eintrag,
+      // und der Vergleich sagt UNBEKANNT statt Sekunden gegen Prozent zu
+      // halten.
+      () => this.comparisonForResult(),
     );
     this.loop = new GameLoop({
       simulation: this.session,
@@ -831,6 +847,35 @@ export class App {
   }
 
   /** Neuer Versuch: zurück in die Vorbereitung und sofort bereit machen. */
+  /**
+   * Der Vergleich des letzten Laufs mit dem Bestlauf (Issue #82).
+   *
+   * **Als benannte Methode und nicht als anonymer Rückruf.** Der Unterschied
+   * ist nicht Stil, sondern Prüfbarkeit: Steckt die Entscheidung in einer
+   * Funktion ohne Namen, kann kein Fall sie fassen — dann ist zwar
+   * angeschlossen, aber nichts hält den Anschluss fest. Gemessen: Mit dem
+   * anonymen Rückruf blieb die Mutation „gib immer `null` zurück" durch die
+   * ganze Suite grün. Dieselbe Lehre wie bei `parseSets` in #780.
+   *
+   * `null` heisst: kein Vergleich möglich. Drei Fälle, für den Spieler
+   * derselbe — es gab noch keinen Lauf, es gibt keinen Bestlauf für diesen
+   * Boss, oder der gespeicherte stammt aus einer Fassung vor #82.
+   */
+  comparisonForResult(): readonly ComparedMetric[] | null {
+    const summary = this.lastSummary;
+    if (summary === null) return null;
+    // Mit demselben Mass suchen, das `recordRun` schreiben würde. Passt es
+    // nicht — der Boss hat `runaway` bekommen oder verloren —, verwirft
+    // `usableBest` den Eintrag, statt Sekunden gegen Prozent zu halten.
+    const { entry } = usableBest(
+      this.persistence.state.bestRuns,
+      this.combat.boss.id,
+      1,
+      summary.heldPercent === null ? 'reserve' : 'held',
+    );
+    return compareRuns(summary, comparableFromBest(entry));
+  }
+
   restart(): void {
     this.backToMenu();
     this.ready();
