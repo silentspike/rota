@@ -89,6 +89,38 @@ pub struct BalanceConfig {
     pub talent_resource_permille: u32,
     /// Talent-Promille auf die **Laufzeit** der Brand-Effekte (Issue #419).
     pub talent_dot_duration_permille: u32,
+    /// Talent-Promille auf den **Schaden** (Issue #417).
+    ///
+    /// **Bis #419 stand er hier fest auf 0**, mit der Begruendung, er wirke auf
+    /// alle Rotationen gleich und verschoebe nur die Achse. Das stimmt, ist
+    /// aber kein Grund, ihn UNERREICHBAR zu machen: Wer den globalen Baum
+    /// gegen einen Schul-Weg abwaegt, braucht genau diesen Vergleich. Die
+    /// Voreinstellung bleibt 0, also aendert sich ohne Zutun nichts.
+    pub talent_permille: u32,
+    /// Talent-Promille auf den **Aufbau** der Kontroll-Punkte (FIXATION).
+    pub talent_control_gain_permille: u32,
+    /// Talent-Promille auf die **Wertigkeit** eines Faeulnis-Stapels.
+    pub talent_decay_effect_permille: u32,
+    /// Talent-Promille auf den **Preis** der Kontroll-Wirkungen (FIXATION).
+    pub talent_control_cost_permille: u32,
+    /// Talent-Promille auf die **Staerke** der Kontroll-Wirkungen (FIXATION).
+    pub talent_control_effect_permille: u32,
+    /// Talent-Promille auf die **Zahl** gelegter Faeulnis-Stapel.
+    pub talent_decay_stack_permille: u32,
+    /// Talent-Promille auf die **Haltbarkeit** der Faeulnis-Stapel.
+    pub talent_decay_duration_permille: u32,
+    /// Talent-Promille auf die **Dicke** der Schutzschicht (COAGULATION).
+    pub talent_shield_amount_permille: u32,
+    /// Talent-Promille auf die **Haltbarkeit** der Schutzschicht.
+    pub talent_shield_duration_permille: u32,
+    /// Zusaetzliche **Schicht-Stapel** (COAGULATION) — eine Anzahl, kein Faktor.
+    pub talent_shield_stacks_bonus: u32,
+    /// Talent-Promille auf die **Verkuerzung** der Abklingzeiten (SUBLIMATION).
+    pub talent_cooldown_reduction_permille: u32,
+    /// Zusaetzliche **Ruecksetzer-Ladungen** — eine Anzahl, kein Faktor.
+    pub talent_cooldown_charges_bonus: u32,
+    /// Talent-Promille auf die **Schwelle** des Ruecksetzers (SUBLIMATION).
+    pub talent_cooldown_threshold_permille: u32,
 }
 
 impl Default for BalanceConfig {
@@ -101,8 +133,25 @@ impl Default for BalanceConfig {
             stop_on_kill: true,
             factors: NEUTRAL,
             // Ohne Talente — dieselbe Voreinstellung wie in `FightConfig`.
+            //
+            // **Alle fuenfzehn stehen auf 0, und das ist der Punkt** (#419):
+            // Ein Bestandslauf misst weiter genau das, was er vorher mass. Wer
+            // einen Weg wiegen will, setzt IHN — und nur ihn.
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
+            talent_permille: 0,
+            talent_control_gain_permille: 0,
+            talent_decay_effect_permille: 0,
+            talent_control_cost_permille: 0,
+            talent_control_effect_permille: 0,
+            talent_decay_stack_permille: 0,
+            talent_decay_duration_permille: 0,
+            talent_shield_amount_permille: 0,
+            talent_shield_duration_permille: 0,
+            talent_shield_stacks_bonus: 0,
+            talent_cooldown_reduction_permille: 0,
+            talent_cooldown_charges_bonus: 0,
+            talent_cooldown_threshold_permille: 0,
             boss: BOSS,
             worn: WornValues::none(),
         }
@@ -475,24 +524,31 @@ fn run_range(
         factors: config.factors,
         boss: config.boss,
         worn: config.worn,
-        // **Der Talent-Faktor auf den SCHADEN bleibt bei 0** (Issue #417):
-        // Er wirkt auf alle Rotationen gleich und verschoebe nur die Achse.
-        // Wer ihn messen will, setzt `talents` in `config.factors`.
-        talent_permille: 0,
-        // Die zwoelf aus #419, zweite und dritte Runde. Der Balance-Laeufer
-        // misst den Bestand OHNE Talente — wer sie messen will, setzt sie hier.
-        talent_control_gain_permille: 0,
-        talent_decay_effect_permille: 0,
-        talent_control_cost_permille: 0,
-        talent_control_effect_permille: 0,
-        talent_decay_stack_permille: 0,
-        talent_decay_duration_permille: 0,
-        talent_shield_amount_permille: 0,
-        talent_shield_duration_permille: 0,
-        talent_shield_stacks_bonus: 0,
-        talent_cooldown_reduction_permille: 0,
-        talent_cooldown_charges_bonus: 0,
-        talent_cooldown_threshold_permille: 0,
+        // **Alle fuenfzehn kommen jetzt durch** (Issue #419, AC3).
+        //
+        // Bis hierher standen dreizehn davon an dieser Stelle fest auf 0, mit
+        // einer richtigen Begruendung — der Bestandslauf misst ohne Talente —
+        // und einer falschen Folge: Wer einen Weg wiegen wollte, KONNTE es
+        // nicht. Die Voreinstellung in `BalanceConfig` ist weiterhin 0; kein
+        // Bestandslauf verschiebt sich. Nur ist die Tuer jetzt da.
+        //
+        // **Dass ein Weg durchkommt, heisst nicht, dass er sich zeigt.** Ein
+        // Schild-Weg gegen einen Boss, der nicht zuschlaegt, bewegt weiterhin
+        // nichts — das ist der Befund aus #525 und der Grund, warum die Zahl
+        // "durchgereicht" und die Zahl "messbar" getrennt gemeldet werden.
+        talent_permille: config.talent_permille,
+        talent_control_gain_permille: config.talent_control_gain_permille,
+        talent_decay_effect_permille: config.talent_decay_effect_permille,
+        talent_control_cost_permille: config.talent_control_cost_permille,
+        talent_control_effect_permille: config.talent_control_effect_permille,
+        talent_decay_stack_permille: config.talent_decay_stack_permille,
+        talent_decay_duration_permille: config.talent_decay_duration_permille,
+        talent_shield_amount_permille: config.talent_shield_amount_permille,
+        talent_shield_duration_permille: config.talent_shield_duration_permille,
+        talent_shield_stacks_bonus: config.talent_shield_stacks_bonus,
+        talent_cooldown_reduction_permille: config.talent_cooldown_reduction_permille,
+        talent_cooldown_charges_bonus: config.talent_cooldown_charges_bonus,
+        talent_cooldown_threshold_permille: config.talent_cooldown_threshold_permille,
         // Der Balance-Laeufer misst OHNE Schluesseltalent — wie beim
         // Talent-Faktor daneben. Wer es messen will, setzt es hier.
         auto_reset: false,
