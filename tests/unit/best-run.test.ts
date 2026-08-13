@@ -30,6 +30,18 @@ function versuch(
     value: 20_000,
     gameVersion: FASSUNG,
     at: JETZT,
+    // Die sieben Vergleichszahlen (#82). Die Werte sind so gewählt, dass sie
+    // sich voneinander unterscheiden — eine Verwechslung zweier Felder fiele
+    // bei lauter Nullen nicht auf.
+    comparison: {
+      victory: true,
+      elapsedMs: 40_510,
+      damage: 4240,
+      progressPercent: 100,
+      casts: 28,
+      lostTimeWithReadyMs: 1200,
+      lostTimeNothingReadyMs: 3400,
+    },
     ...over,
   };
 }
