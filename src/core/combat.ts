@@ -73,6 +73,7 @@ import {
   KEYSTONE_SHIELD_REFUND,
   NO_TALENTS,
   talentFactor,
+  talentSpenderDamageFactor,
   talentResourceFactor,
   talentDotDurationFactor,
   talentShieldAmountFactor,
@@ -3188,6 +3189,32 @@ export class Combat {
     return true;
   }
 
+  /**
+   * Setzt den Talent-Topf für DIESEN Zauber (GLOBAL „release", Issue #419).
+   *
+   * Ein Entlader — `spender` oder `consumesDecayStacks` — trägt den Zuschlag
+   * des globalen Weges, jeder andere Zauber nicht.
+   *
+   * # Warum an jeder Wirkung neu, auch ohne Entlader
+   *
+   * Der Faktor ist EIN Feld für alle Zauber. Setzte ihn nur der Entlader,
+   * bliebe sein Zuschlag danach stehen und färbte jeden folgenden Treffer —
+   * ein Brand-Tick, ein Füller, alles. Deshalb schreibt diese Methode auch den
+   * gewöhnlichen Fall zurück, genau wie `applyDecayStackBonus` daneben.
+   *
+   * # Addiert, nicht multipliziert
+   *
+   * 13.1b: innerhalb eines Topfes additiv. `talentFactor` ist `1 + Summe/1000`;
+   * der Zuschlag kommt als `Faktor − 1` obendrauf und landet damit in derselben
+   * Summe. Multiplizieren machte aus einem Topf zwei.
+   */
+  private applySpenderBonus(index: number): void {
+    const spell = this.spells[index];
+    const istEntlader = spell?.spender !== undefined || spell?.consumesDecayStacks === true;
+    const zuschlag = istEntlader ? talentSpenderDamageFactor(this.talents) - 1 : 0;
+    this.setDamageFactor('talents', talentFactor(this.talents) + zuschlag);
+  }
+
   private applyDecayStackBonus(index: number): void {
     const proStapel = this.spells[index]?.perDecayStackPercent ?? 0;
     // **Der Faktor aus `stackBuffs` gehört auch hierher** (Issue #489). Diese
@@ -3817,6 +3844,10 @@ export class Combat {
       // Und derselbe Zuschlag wie beim Wirken: Ein Tick gehoert seinem Zauber
       // (#328), also traegt er auch dessen perDecayStackPercent (#484).
       this.applyDecayStackBonus(i);
+      // **Auch hier, obwohl ein Brand nie ein Entlader ist** (#419): Die
+      // Methode SETZT den Topf. Bliebe sie hier weg, truege jeder Tick nach
+      // einem Entlader dessen Zuschlag weiter.
+      this.applySpenderBonus(i);
       const damage = computeDamage(dot.tickDamage, this.factorsFor(kritet));
       // **Der Schleifenindex trägt die Marke** (Issue #444): `i` läuft über
       // dieselbe Liste, aus der `indexOf` seine Werte nimmt — es IST ein
@@ -4760,6 +4791,9 @@ export class Combat {
     // Der Stapel-Zuschlag DIESES Zaubers, aus demselben Grund wie der
     // Widerstand daneben: Er gehoert der Wirkung, nicht dem Kampf (#484).
     this.applyDecayStackBonus(index);
+    // Und der Entlader-Zuschlag des globalen Weges (#419), aus demselben Grund
+    // an derselben Stelle.
+    this.applySpenderBonus(index);
     const castFactors = this.factorsFor(kritet);
 
     // EMBER und PYROCLASM (Issue #517). Beide VOR der Schadensrechnung: EMBER,

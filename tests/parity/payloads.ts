@@ -5046,6 +5046,92 @@ export function decayTalentPayload(): Record<string, unknown> {
   };
 }
 
+/**
+ * Der Entlader-Weg des globalen Baums im Paritäts-Weg (Issue #419).
+ *
+ * # Warum eine eigene Aufzeichnung
+ *
+ * `decay-talent` deckt **einen** Weg ab, und ihr eigener Kommentar sagt, warum
+ * das so bleiben soll: Eine Datei mit mehreren Wegen wird bei jeder
+ * Talent-Änderung rot und sagt nicht, welche es war. Der Entlader-Zuschlag ist
+ * der erste Talent-Effekt, der **je Zauber** verschieden ausfällt — er braucht
+ * deshalb einen eigenen Vergleich.
+ *
+ * # Was hier bitgleich sein muss, und was die Datei allein nicht prüft
+ *
+ * Beide Seiten setzen den Talent-Topf vor jeder Wirkung neu: das Spiel in
+ * `applySpenderBonus`, der Simulator in `apply_spender_bonus`. Die Rechnung ist
+ * additiv im Promille-Raum (`1 + (Summe + Zuschlag) / 1000`) — multiplizierte
+ * eine Seite stattdessen, wiche sie in der letzten Stelle ab.
+ *
+ * Wie bei `decay-talent` steht die Verteilung in **beiden** Formen da: Der
+ * Simulator kennt die Talent-Daten nicht und beginnt bei den Promille.
+ *
+ * # KINDLE gehört dazu, und zwar als Gegenprobe im selben Lauf
+ *
+ * PYRE ist der Entlader, KINDLE ist keiner. Trüge der Zuschlag versehentlich
+ * auf alles, bliebe eine Datei mit nur PYRE trotzdem grün. Erst der Füller
+ * daneben macht den Unterschied sichtbar — gemessen: PYRE 480 → 720, KINDLE
+ * 100 → 100.
+ */
+export function spenderTalentPayload(): Record<string, unknown> {
+  const boss = FIRST_CRUCIBLE.value;
+  const ticks = 3000;
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const kindle = combat.indexOf('kindle');
+  const pyre = combat.indexOf('pyre');
+
+  /** Voller Rang auf dem Entlader-Weg — fünf Ränge à 100 Promille. */
+  const talents = { 'global-release': 5 };
+  // **VOR `beginFight`** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(talents);
+
+  const checksums: number[] = [];
+  const presses: { tick: number; spellId: string }[] = [];
+  let pyreDruecke = 0;
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    // **Die Rotation entscheidet an der Hitze, nicht an festen Takten.** Mein
+    // erster Entwurf setzte PYRE auf Takt 450 und 900 — bei 600 Takten Lauf
+    // lag der zweite ausserhalb, und die Aufzeichnung trug genau EINEN
+    // Entlader. Die Bedingung hier kann das nicht: Sie zündet, sobald genug
+    // da ist, und der Lauf zeigt beide Zauber mehrfach.
+    if (combat.gcd.isReady(timeMs)) {
+      const zuendet = combat.resource >= 15 && combat.isOffCooldown(pyre, timeMs);
+      const welcher = zuendet ? pyre : kindle;
+      if (combat.isOffCooldown(welcher, timeMs)) {
+        combat.cast(welcher, timeMs);
+        presses.push({ tick, spellId: zuendet ? 'pyre' : 'kindle' });
+        if (zuendet) pyreDruecke++;
+      }
+    }
+    checksums.push(combatChecksum(combat, timeMs) >>> 0);
+  }
+
+  return {
+    schema: SCHEMA,
+    ticks,
+    tickMs: TICK_MS,
+    bossId: boss.id,
+    talents,
+    talentPermille: { spenderDamage: 5 * 100 },
+    presses,
+    checksums,
+    expected: {
+      damage: combat.damageDealt,
+      /**
+       * **Die Zusicherung in den Datensatz** — ohne sie sähe eine Aufzeichnung
+       * ohne einen einzigen Entlader genauso aus wie diese, und der Vergleich
+       * bewiese für den Zuschlag nichts.
+       */
+      pyreCasts: pyreDruecke,
+      kindleCasts: presses.length - pyreDruecke,
+    },
+  };
+}
+
 export function synergyPayload(): Record<string, unknown> {
   const recording = recordSynergy(3000);
   const result = replayRecording(recording, { checksumPerTick: true });
