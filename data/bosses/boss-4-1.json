@@ -1,0 +1,29 @@
+{
+  "_comment": "ARBEITSNAME. Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile.\n\nInstanz 4, Boss 1 — der VERWUNDBARE (zweiter Traeger von `resistances`).\n\n=== WARUM ER ANDERS GEBAUT IST ALS boss-3-1 ===\nboss-3-1 traegt `resistances: {CALCINATION: 0.8}` — er WIDERSTEHT der Schule, jeder Zauber richtet weniger an. Dieser hier traegt 1.25 und kehrt die Richtung um: Dieselbe Rotation richtet MEHR an.\n\nDas ist nicht dieselbe Mechanik mit anderer Zahl, sondern ihre Gegenrichtung. Bis heute gab es Verwundbarkeit nur als Pruef-Boss (`test-vulnerable`, 1.25) — im ausgelieferten Spiel kam sie nicht vor, und der Spieler konnte den Baustein nur von einer Seite kennenlernen.\n\n=== WAS DIE UMKEHRUNG FUER DIE BEGEGNUNG BEDEUTET ===\nEin verwundbarer Boss ist leichter, nicht schwerer. Deshalb steht er am OBEREN Rand des Bandes (4700), waehrend boss-3-1 mit Widerstand bei 4400 liegt und trotzdem spaeter faellt. Die Lebenspunkte allein sagen bei diesen beiden nichts ueber die Anforderung — genau das macht den Baustein sichtbar.\n\nSIGNATUR-REGEL (GAME-DESIGN 11.1): Er belohnt Schaden, statt ihn zu bestrafen. Wer die Rotation sauber faehrt, sieht hier zum ersten Mal, was sie WIRKLICH leisten kann.\n\nHP GEMESSEN, nicht gesetzt: siehe tests/unit/instanz-4.test.ts — er faellt im Referenzlauf.",
+  "schema": 1,
+  "id": "boss-4-1",
+  "name": "Instance Four, First",
+  "instance": "instance-4",
+  "hp": 4700,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 12000,
+      "mechanic": "strike",
+      "name": "Brittle Lash",
+      "damage": 280
+    },
+    {
+      "atMs": 34000,
+      "mechanic": "strike",
+      "name": "Brittle Lash",
+      "damage": 280
+    }
+  ],
+  "resistances": {
+    "CALCINATION": 1.25
+  },
+  "timelineLoopMs": 60000
+}

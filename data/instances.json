@@ -29,6 +29,13 @@
       "number": 3,
       "order": 3,
       "requires": "instance-2"
+    },
+    {
+      "id": "instance-4",
+      "name": "Instance Four",
+      "number": 4,
+      "order": 4,
+      "requires": "instance-3"
     }
   ]
 }

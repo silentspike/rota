@@ -1,0 +1,31 @@
+{
+  "_comment": "ARBEITSNAME. Name und Thema gehoeren dem Auftraggeber.\n\nInstanz 4, Boss 2 — die TEILENTLADUNG (zweiter Traeger von `energy`).\n\n=== WARUM ER ANDERS GEBAUT IST ALS boss-3-2 ===\nBeide tragen eine Energieleiste, die sich fuellt und bei der Schwelle in einen Schlag entlaedt. Der Unterschied steht in EINEM Feld:\n\n    boss-3-2   resetTo 0    die Leiste faellt auf null zurueck\n    boss-4-2   resetTo 45   sie faellt nur bis 45 zurueck\n\nDamit ist der Rhythmus nicht mehr gleichmaessig. Bei boss-3-2 liegen zwischen zwei Overloads immer dieselben rund 17 Sekunden. Hier kommt der erste nach 20 s, jeder weitere nach 11 s — die Frist zieht sich zu, waehrend der Kampf laeuft.\n\n=== WARUM GERADE DIESES FELD ===\n`resetTo` stand in ALLEN drei Traegern auf 0 und war damit vom Standardwert nicht unterscheidbar. Gemessen am 2026-08-12: Der Wert von boss-3-2 auf 40 gesetzt, die Wirkung war eindeutig (drei Energie-Ausloeser wurden fuenf, der Spieler verlor 384 Lebenspunkte mehr) — und die volle Suite blieb mit 2332 gruenen Faellen stumm.\n\nEin Feld, das nur einen einzigen Wert traegt, ist gebaut und nicht in Gebrauch. Dieser Boss ist sein erster echter Traeger.\n\nSIGNATUR-REGEL (GAME-DESIGN 11.1): Eine Frist, die sich VERKUERZT. Wer den Anfang verschleppt, hat spaeter weniger Luft, nicht gleich viel.",
+  "schema": 1,
+  "id": "boss-4-2",
+  "name": "Instance Four, Second",
+  "instance": "instance-4",
+  "hp": 4500,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": {
+    "perStepMs": 1000,
+    "amount": 5,
+    "threshold": 100,
+    "resetTo": 45,
+    "onTrigger": {
+      "mechanic": "strike",
+      "name": "Backdraft Surge",
+      "damage": 200
+    }
+  },
+  "resistances": {},
+  "timeline": [
+    {
+      "atMs": 25000,
+      "mechanic": "strike",
+      "name": "Vent",
+      "damage": 260
+    }
+  ],
+  "timelineLoopMs": 60000
+}
