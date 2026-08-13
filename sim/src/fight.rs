@@ -275,6 +275,10 @@ pub struct FightConfig {
     ///
     /// Zersetzungs-Stapel verfallen nicht, solange ein DoT laeuft.
     pub slow_rot: bool,
+    /// Ob der Satz-Effekt "sealed-vessel" wirkt (13.5, Issue #480).
+    ///
+    /// Ueberschuessiger Schutz ueber der Stapel-Grenze wird zu Schaden.
+    pub sealed_vessel: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -359,6 +363,7 @@ impl Default for FightConfig {
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
+            sealed_vessel: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -820,6 +825,7 @@ pub struct Fight {
     ashen_regimen: bool,
     whole_work: bool,
     slow_rot: bool,
+    sealed_vessel: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1112,6 +1118,7 @@ impl Fight {
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
+            sealed_vessel: config.sealed_vessel,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -2195,6 +2202,15 @@ impl Fight {
             // `shield.amount` wird zweimal gelesen (Schicht und Stabilisierung).
             let dicke = (f64::from(shield.amount) * self.talent_shield_amount_factor) as u32;
             let grenze = shield.max_stacks + self.talent_shield_stacks_bonus;
+            if self.shield_stacks >= grenze && self.sealed_vessel {
+                // **THE SEALED VESSEL** (13.5, COAGULATION-Sechser): Was die
+                // volle Schicht nicht mehr aufnimmt, geht als Schaden hinaus.
+                //
+                // Der Betrag, den dieser Druck BEIGETRAGEN HAETTE — also
+                // `dicke` mitsamt Talent-Faktor, nicht `shield.amount`.
+                // Er ersetzt nichts: Laufzeit und Stapelstand bleiben.
+                self.deal(index, dicke, LogKind::Damage);
+            }
             if self.shield_stacks < grenze {
                 self.shield_stacks += 1;
                 self.shield = self.shield.saturating_add(dicke);
