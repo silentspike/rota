@@ -36,6 +36,9 @@ import {
 import type { RunSummary } from '../core/summary.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
+import { nextAutomaticEntry, unlock } from './archive.js';
+import { ALL_ARCHIVE_ENTRIES } from './archive-data.js';
+import { bossById } from '../core/data.js';
 import { recordDefeat } from './defeated.js';
 import { lootStreamFor } from '../loot/stream.js';
 import { rollLoot, type Drop } from '../loot/roll.js';
@@ -125,6 +128,15 @@ export interface RecordedState {
    * Weg von der Aufzeichnung bis zum Speicher haben.
    */
   readonly bestRuns: readonly BestRun[];
+  /**
+   * Die freigeschalteten Archiv-Eintraege (Issue #85).
+   *
+   * Hier und nicht nur in `SaveData`, aus demselben Grund wie `bestRuns` eine
+   * Zeile hoeher: Sie ENTSTEHEN hier — ein Sieg schaltet einen Eintrag frei,
+   * und dafuer muss die Kennung den Weg von der Aufzeichnung bis zum Speicher
+   * haben.
+   */
+  readonly unlockedEntryIds: readonly string[];
   /**
    * Die verteilten Talente (Issue #417).
    *
@@ -318,10 +330,35 @@ export function recordRun(
     best?.previous ?? null,
   );
 
+  // **Der Archiv-Eintrag zum ersten Sieg** (GAME-DESIGN 17.4, Issue #85).
+  //
+  // Die Bedingung ist "noch nicht freigeschaltet" und NICHT "erster Sieg" —
+  // das steht so in `nextAutomaticEntry` und ist robuster: Es hält auch dann,
+  // wenn ein Sieg nicht gezählt wurde oder der Spielstand von einem anderen
+  // Gerät kommt. Gezählt wird, was der Spieler gesehen hat.
+  //
+  // **Nur bei einem Sieg**, wie 17.4 es sagt: „nach jedem ersten Boss-Sieg".
+  // Eine Niederlage schaltet nichts frei; sie ist kein erster Sieg.
+  const archivZustand = { unlockedEntryIds: state.unlockedEntryIds };
+  const neuerEintrag = summary.victory
+    ? nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, archivZustand, {
+        trigger: 'afterFirstKill',
+        // **Die Kennung des Bosses, nicht `context.instance`.** Zwei
+        // verschiedene Dinge heissen hier `instance`: Der Kontext fuehrt eine
+        // ZAHL (die Beute-Instanz), die Boss-Daten eine KENNUNG
+        // (`'instance-1'`). Die Ansicht gliedert nach der Kennung.
+        instanceId: bossById(context.bossId)?.instance ?? '',
+        bossId: context.bossId,
+      })
+    : null;
+  const archivDanach =
+    neuerEintrag === null ? archivZustand : unlock(archivZustand, neuerEintrag.id);
+
   return {
     runHistory: appendRun(state.runHistory, entry),
     progressMarks: mark.marks,
     bestRuns: best?.runs ?? state.bestRuns,
+    unlockedEntryIds: archivDanach.unlockedEntryIds,
     // **Unverändert weitergereicht**: Ein Kampf verteilt keine Talente — das
     // tut der Spieler zwischen den Kämpfen (GAME-DESIGN 12.4).
     talentPoints: state.talentPoints,
