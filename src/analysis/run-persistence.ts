@@ -41,6 +41,7 @@ export function emptySave(gameVersion: string, now: number): SaveData {
     bindings: {},
     bestRuns: [],
     defeatedBosses: [],
+    unlockedEntryIds: [],
     runHistory: [],
     progressMarks: [],
   };
@@ -99,6 +100,10 @@ function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): S
     bestRuns: geladen.bestRuns ?? leer.bestRuns,
     items: geladen.items ?? leer.items,
     defeatedBosses: geladen.defeatedBosses ?? leer.defeatedBosses,
+    // Die Wanderung fuer #85. Ein Stand von vor dem Archiv hat das Feld
+    // nicht; ohne diese Zeile stuende dort `undefined`, und der erste Zugriff
+    // auf `.includes` braeche den Ladevorgang.
+    unlockedEntryIds: geladen.unlockedEntryIds ?? leer.unlockedEntryIds,
     // **Die beiden sind keine Listen, haben aber dieselbe Krankheit.** Ein
     // Wächter, der nur Arrays prüft, liesse sie stehen.
     talentPoints: geladen.talentPoints ?? leer.talentPoints,
@@ -174,6 +179,7 @@ export class RunPersistence {
       talentPoints: this.data.talentPoints,
       items: this.data.items,
       defeatedBosses: this.data.defeatedBosses,
+      unlockedEntryIds: this.data.unlockedEntryIds,
       level: this.data.level,
       experience: this.data.experience,
     };
@@ -235,6 +241,25 @@ export class RunPersistence {
    * Sie entsteht zu einem anderen Zeitpunkt — `persist` schreibt nach einem
    * Kampf, verteilt wird dazwischen.
    */
+  /**
+   * Nur die freigeschalteten Archiv-Einträge ablegen (Issue #85).
+   *
+   * Wie `persistItems` und `persistTalents`: Ein Eintrag wird auch ausserhalb
+   * eines Laufs frei — vor einer Instanz, nicht nur nach einem Sieg (17.4).
+   * Wer dafür `persist` mit einem ganzen `RecordResult` bräuchte, müsste einen
+   * Lauf erfinden, den es nicht gab.
+   */
+  persistUnlockedEntries(unlockedEntryIds: readonly string[]): boolean {
+    this.data = { ...this.data, savedAt: this.now(), unlockedEntryIds };
+    if (this.store === null) return false;
+    try {
+      this.slotValue = this.store.save(this.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Nur die Gegenstände ablegen (Issue #421a) — wie `persistTalents`. */
   persistItems(items: readonly OwnedItem[]): boolean {
     this.data = { ...this.data, savedAt: this.now(), items };
@@ -339,6 +364,12 @@ export class RunPersistence {
       // **Die Tatsache des Siegs, nicht seine Güte** (Issue #434): Die Güte
       // steht in `bestRuns`, und beide sehen heute zufällig gleich aus.
       defeatedBosses: next.defeatedBosses,
+      // **Und die freigeschalteten Archiv-Einträge** (Issue #85). Ohne diese
+      // Zeile rechnet `recordRun` die Freischaltung richtig aus, und der
+      // Spielstand nimmt sie nicht an — der Eintrag erscheint nie, und zwar
+      // ohne Fehler und ohne Hinweis. Gemessen im Browser: Boss gefallen,
+      // `defeatedBosses` gesetzt, `unlockedEntryIds` leer.
+      unlockedEntryIds: next.unlockedEntryIds,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
       // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge

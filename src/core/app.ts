@@ -38,8 +38,13 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { comparableFromBest, usableBest } from '../analysis/best-run.js';
+import { compareRuns, type ComparedMetric } from '../analysis/run-compare.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
+import { buildArchiveView } from '../analysis/archive-view.js';
+import { buildArchive } from '../analysis/archive.js';
+import { ALL_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
 import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
 import '../analysis/history.css';
 import { pointsDisplayFor } from '../analysis/points-display.js';
@@ -287,11 +292,7 @@ export class App {
         onRestart: () => this.restart(),
         onBackToMenu: () => this.backToMenu(),
         onOpenHome: () => {
-          // **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim
-          // Start; ohne diesen Aufruf stünde dort, was damals galt. Im Browser
-          // gesehen: nach einem gewonnenen Kampf weiterhin „0 / 200".
-          this.refreshHome();
-          this.home.show();
+          this.openHome();
         },
       },
       // **Fertige Zeilen, nicht der Datensatz** (Issue #328): Ob ein Faktor
@@ -388,6 +389,27 @@ export class App {
       title: 'History',
       content: buildHistoryView(this.persistence.state.runHistory),
     });
+
+    // **Das Archiv** (GAME-DESIGN 17.4, Issue #85). `buildArchiveView` und
+    // `buildArchive` standen fertig gebaut da und hatten keinen Aufrufer —
+    // dieselbe Klasse wie `buildHistoryView` vor #82 und `setSetEffects` vor
+    // #794.
+    //
+    // HIER und nicht in der Auswertung: Das Archiv ist Rückschau über alles,
+    // was der Spieler gesehen hat. Nach einem einzelnen Kampf hätte es nichts
+    // zu suchen — dieselbe Begründung wie beim Verlauf darüber.
+    //
+    // **Die Einträge kommen aus `ALL_ARCHIVE_ENTRIES`, nicht aus
+    // `PLAYABLE_ARCHIVE_ENTRIES`**: Heute sind das ausschliesslich
+    // Prüfeinträge, und die ausgelieferte Liste wäre leer. Die Ansicht zeigte
+    // dann dauerhaft „Nothing recorded yet" — sichtbar gebaut, aber nicht
+    // belegbar. Sobald E10 echte Texte liefert, gehört hier die gefilterte
+    // Liste hin; der Vermerk steht in `archive-data.ts`.
+    this.home.addSection({
+      id: 'archive',
+      title: 'Archive',
+      content: this.buildArchiveSection(),
+    });
     parent.appendChild(this.home.root);
 
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
@@ -434,6 +456,20 @@ export class App {
           ),
         };
       },
+      // **Der Vergleich mit dem Bestlauf** (E7-2, Issue #82).
+      //
+      // `compareRuns` und `buildComparisonView` standen seit E7-2 fertig
+      // gebaut da und hatten **keinen einzigen Aufrufer** — dieselbe Klasse
+      // wie `buildEfficiencyView` (#81) und `setSetEffects` (#794): gebaut,
+      // geprüft, für jeden Spieler unerreichbar. Diese Zeilen sind der ganze
+      // Unterschied.
+      //
+      // Der Bestlauf wird über Boss UND Schwierigkeit gesucht, mit demselben
+      // Maß, das `recordRun` schreiben würde. Passt es nicht — der Boss hat
+      // `runaway` bekommen oder verloren —, verwirft `usableBest` den Eintrag,
+      // und der Vergleich sagt UNBEKANNT statt Sekunden gegen Prozent zu
+      // halten.
+      () => this.comparisonForResult(),
     );
     this.loop = new GameLoop({
       simulation: this.session,
@@ -767,6 +803,24 @@ export class App {
    * trägt Stufe und Erfahrung; alles andere entsteht hier bei jedem Öffnen
    * neu. Ein einmal gebauter Bereich zeigte sonst, was beim Start galt.
    */
+  /**
+   * Das Player Home öffnen (Issue #188).
+   *
+   * **Vor dem Zeigen neu rechnen.** Der Bildschirm entsteht einmal beim Start;
+   * ohne das stünde dort, was damals galt. Im Browser gesehen: nach einem
+   * gewonnenen Kampf weiterhin „0 / 200" — und bei #85 ein leeres Archiv,
+   * obwohl der Eintrag im Spielstand stand.
+   *
+   * **Als benannte Methode und nicht als anonymer Rückruf im Overlay-Aufbau.**
+   * Was namenlos ist, kann kein Fall fassen: Die Mutation „frische nicht auf"
+   * bliebe sonst grün. Dieselbe Lehre wie bei `comparisonForResult` (#82) und
+   * `parseSets` (#780), zum dritten Mal an diesem Tag.
+   */
+  openHome(): void {
+    this.refreshHome();
+    this.home.show();
+  }
+
   private refreshHome(): void {
     const stand = { level: this.persistence.state.level, xp: this.persistence.state.experience };
     this.home.replaceSection(
@@ -797,6 +851,31 @@ export class App {
     // Stück verloren haben. Ohne diese Zeile zeigte die Liste weiter die alte
     // Wahl, und die Werte darüber die neue.
     this.home.replaceSection('gear', this.buildGearSection());
+    // **Und das Archiv** (Issue #85), aus demselben Grund wie alles darüber:
+    // Ein Eintrag wird nach einem Sieg frei, und der Bildschirm entstand beim
+    // Start. Ohne diese Zeile stünde dort weiter „Nothing recorded yet", bis
+    // der Spieler die Seite neu lädt.
+    //
+    // Im Browser gesehen: Boss gefallen, `unlockedEntryIds` im Stand gesetzt,
+    // Archiv leer — und nach einem Neuladen war der Eintrag da. Genau der
+    // Fehler, den die Kommentare darüber für Stufe, Werte und Ausrüstung
+    // beschreiben.
+    this.home.replaceSection('archive', this.buildArchiveSection());
+  }
+
+  /**
+   * Der Archiv-Abschnitt, aus dem aktuellen Spielstand (Issue #85).
+   *
+   * Als eigene Methode, weil er an zwei Stellen gebraucht wird — beim Aufbau
+   * und bei jedem Auffrischen. Zwei Aufrufe von `buildArchive` mit denselben
+   * Zutaten wären zwei Stellen, die auseinanderlaufen können.
+   */
+  private buildArchiveSection(): HTMLElement {
+    return buildArchiveView(
+      buildArchive(ALL_ARCHIVE_ENTRIES, {
+        unlockedEntryIds: this.persistence.state.unlockedEntryIds,
+      }),
+    );
   }
 
   ready(): boolean {
@@ -831,6 +910,35 @@ export class App {
   }
 
   /** Neuer Versuch: zurück in die Vorbereitung und sofort bereit machen. */
+  /**
+   * Der Vergleich des letzten Laufs mit dem Bestlauf (Issue #82).
+   *
+   * **Als benannte Methode und nicht als anonymer Rückruf.** Der Unterschied
+   * ist nicht Stil, sondern Prüfbarkeit: Steckt die Entscheidung in einer
+   * Funktion ohne Namen, kann kein Fall sie fassen — dann ist zwar
+   * angeschlossen, aber nichts hält den Anschluss fest. Gemessen: Mit dem
+   * anonymen Rückruf blieb die Mutation „gib immer `null` zurück" durch die
+   * ganze Suite grün. Dieselbe Lehre wie bei `parseSets` in #780.
+   *
+   * `null` heisst: kein Vergleich möglich. Drei Fälle, für den Spieler
+   * derselbe — es gab noch keinen Lauf, es gibt keinen Bestlauf für diesen
+   * Boss, oder der gespeicherte stammt aus einer Fassung vor #82.
+   */
+  comparisonForResult(): readonly ComparedMetric[] | null {
+    const summary = this.lastSummary;
+    if (summary === null) return null;
+    // Mit demselben Mass suchen, das `recordRun` schreiben würde. Passt es
+    // nicht — der Boss hat `runaway` bekommen oder verloren —, verwirft
+    // `usableBest` den Eintrag, statt Sekunden gegen Prozent zu halten.
+    const { entry } = usableBest(
+      this.persistence.state.bestRuns,
+      this.combat.boss.id,
+      1,
+      summary.heldPercent === null ? 'reserve' : 'held',
+    );
+    return compareRuns(summary, comparableFromBest(entry));
+  }
+
   restart(): void {
     this.backToMenu();
     this.ready();
