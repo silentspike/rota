@@ -216,3 +216,297 @@ describe('AC4 — jede eigene Wirkung bricht ab, auch das Unterbrechen', () => {
     expect(combat.playerCasting).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('DECOCTION gehört zu COAGULATION — die Umwandlung läuft MIT dem Kanal', () => {
+  /**
+   * # Warum dieser Block über der Schul-Zuordnung steht
+   *
+   * `"school": "COAGULATION"` in einer Datendatei ist eine Behauptung. Was sie
+   * trägt, ist GAME-DESIGN 176 — Weg 3 der Schule: *„Schaden-in-Schutz-
+   * Umwandlung, die einen Teil des ausgeteilten Schadens LAUFEND in Schutz
+   * verwandelt."*
+   *
+   * **„Laufend" ist genau die Kanalisierung.** Und die Stelle dafür steht schon
+   * im Kanal-Schritt: `resolveChannelTick` ruft `convertDamageToShield` bei
+   * jedem Teilschritt. Ohne einen Fall darüber wäre die Zuordnung eine Zeile in
+   * einer Datei, die niemand prüft.
+   *
+   * Die Umwandlung schaltet TEMPER an (25 % über 10 s, `data/spells/
+   * coagulation.json`) — sie ist keine Eigenschaft von DECOCTION, sondern eine
+   * der Schule. Genau deshalb ist die Gegenprobe unten nötig: Ohne sie zeigte
+   * der Fall nur, dass irgendwo Schutz entsteht.
+   */
+  function kanalMitSchutz(mitTemper: boolean): { schutz: number; schaden: number } {
+    const combat = kampf();
+    const dec = combat.indexOf('decoction');
+    const temper = combat.indexOf('temper');
+    let t = 0;
+    if (mitTemper) {
+      expect(combat.cast(temper, t).result, 'TEMPER wurde abgelehnt').toBe(CAST_OK);
+      // Über die globale Wartezeit hinweg, sonst weist der nächste Druck ab.
+      for (; t <= 1500; t += 10) combat.stepPassive(t);
+    }
+    const beginn = t;
+    expect(combat.cast(dec, t).result, 'DECOCTION wurde abgelehnt').toBe(CAST_STARTED);
+    const dauer = combat.spellAt(dec)?.channelMs ?? 0;
+    expect(dauer, 'DECOCTION kanalisiert gar nicht').toBeGreaterThan(0);
+    for (; t <= beginn + dauer; t += 10) combat.stepPassive(t);
+    return { schutz: combat.converted, schaden: combat.damageDealt };
+  }
+
+  it('der Schutz WÄCHST während der Kanalisierung — Schritt für Schritt', () => {
+    const combat = kampf();
+    const dec = combat.indexOf('decoction');
+    const temper = combat.indexOf('temper');
+    combat.cast(temper, 0);
+    let t = 0;
+    for (; t <= 1500; t += 10) combat.stepPassive(t);
+    combat.cast(dec, t);
+    const raster = combat.spellAt(dec)?.channelTickMs ?? 0;
+    const dauer = combat.spellAt(dec)?.channelMs ?? 0;
+    const beginn = t;
+
+    // **Der Verlauf, nicht nur der Endstand.** Ein Endstand allein liesse
+    // offen, ob der Schutz laufend anfällt oder in einem Sprung am Ende — und
+    // „laufend" ist das ganze Argument für die Schule.
+    const verlauf: number[] = [];
+    for (; t <= beginn + dauer; t += 10) {
+      combat.stepPassive(t);
+      if ((t - beginn) % raster === 0 && t > beginn) verlauf.push(combat.converted);
+    }
+
+    expect(verlauf.length, 'kein einziger Raster-Schritt gemessen').toBeGreaterThan(1);
+    expect(verlauf[0], 'nach dem ersten Schritt stand kein Schutz').toBeGreaterThan(0);
+    for (let i = 1; i < verlauf.length; i++) {
+      expect(
+        verlauf[i],
+        `Schritt ${i} hat nichts hinzugefügt: ${verlauf.join(' → ')}`,
+      ).toBeGreaterThan(verlauf[i - 1] ?? 0);
+    }
+  });
+
+  it('GEGENPROBE: ohne TEMPER entsteht KEIN Schutz — bei gleichem Schaden', () => {
+    const mit = kanalMitSchutz(true);
+    const ohne = kanalMitSchutz(false);
+    expect(ohne.schutz, 'ohne die Umwandlung entstand trotzdem Schutz').toBe(0);
+    expect(mit.schutz, 'mit der Umwandlung entstand kein Schutz').toBeGreaterThan(0);
+    // **Und der Schaden des Kanals ist in beiden Läufen derselbe.** Ohne diese
+    // Zeile könnte der Unterschied auch daher kommen, dass der eine Lauf mehr
+    // ausgeteilt hat — dann wäre nicht die Umwandlung gemessen, sondern die
+    // Rotation.
+    expect(mit.schaden, 'die beiden Läufe teilen unterschiedlich viel aus').toBe(ohne.schaden);
+  });
+});
+
+describe('Eine Kanalisierung zählt als Wurf', () => {
+  /**
+   * # Der Befund (2026-08-13)
+   *
+   * `castCounts` wird an genau einer Stelle erhöht — in `resolvePlayerCast` —,
+   * und die wird für Kanalisierungen übersprungen. Eine vollständig
+   * durchgelaufene Kanalisierung teilte ihre ganze Wirkung aus und stand mit
+   * `castCount` **0** da.
+   *
+   * Dass es kein Entwurf war, zeigt der Zauber mit WIRKZEIT: dieselbe Bauart
+   * — beginnt, läuft, löst auf —, und er zählt ganz normal. Die Kanalisierung
+   * war der einzige Typ, der durchfiel.
+   */
+  it('nach vollem Durchlauf steht der Zähler auf eins', () => {
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    expect(combat.castCount(d.index), 'vor dem Wurf schon gezählt').toBe(0);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.dauer; t += 10) combat.stepPassive(t);
+
+    // Die Zusicherung daneben: Ohne sie könnte der Zähler auch dann auf 1
+    // stehen, wenn die Kanalisierung gar nichts ausgeteilt hat.
+    expect(combat.damageDealt, 'die Kanalisierung hat nichts gewirkt').toBe(
+      d.schritte * d.jeSchritt,
+    );
+    expect(combat.castCount(d.index)).toBe(1);
+  });
+
+  it('auch ein ABGEBROCHENER Kanal zählt — er hat gewirkt', () => {
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    const mitten = 2 * d.raster;
+    for (let t = 0; t <= mitten; t += 10) combat.stepPassive(t);
+    combat.cast(combat.indexOf('kindle'), mitten);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+    expect(combat.castCount(d.index)).toBe(1);
+  });
+
+  it('GEGENPROBE: der Zauber mit WIRKZEIT zählt genauso — er fiel nie durch', () => {
+    // Der Vergleich, an dem sich zeigt, dass die Lücke kein Entwurf war: Beide
+    // Typen beginnen, laufen und lösen auf. Nur einer wurde gezählt.
+    const combat = kampf();
+    const cast = combat.indexOf('test-cast');
+    const wirkzeit = combat.spellAt(cast)?.castTimeMs ?? 0;
+    expect(wirkzeit, 'test-cast hat keine Wirkzeit').toBeGreaterThan(0);
+    expect(combat.cast(cast, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= wirkzeit; t += 10) combat.stepPassive(t);
+    expect(combat.castCount(cast)).toBe(1);
+  });
+});
+
+describe('Die Abklingzeit läuft an — beim BEGINN, nicht am Ende', () => {
+  /**
+   * # Der Befund, aus dem diese Fälle entstanden sind (2026-08-13)
+   *
+   * Die Abklingzeit stand in KEINEM Pfad einer Kanalisierung. Sie wird an genau
+   * einer Stelle gesetzt — in `resolvePlayerCast` —, und die wird für
+   * Kanalisierungen ausdrücklich übersprungen, weil ihre Wirkung schon über die
+   * Schritte gefallen ist. Was dabei mit übersprungen wurde, war die
+   * Abklingzeit.
+   *
+   * Gemessen an DECOCTION (`cooldownMs: 12000`, `channelMs: 4000`): 8000 ms nach
+   * dem Beginn stand `isReady` auf `true`. Der Zauber war nach vollem Durchlauf
+   * sofort wieder werfbar.
+   *
+   * # Warum beim BEGINN und nicht am Ende
+   *
+   * GAME-DESIGN 7.1 nimmt den Cast aus: *„Bei Abbruch geht der Zauber verloren,
+   * die Abklingzeit läuft aber nicht an."* Diese Ausnahme steht unter einer
+   * Bedingung — der Zauber ist verloren —, und bei einer Kanalisierung ist er
+   * das nicht: Der erreichte Anteil bleibt (7.2). Sie hat gewirkt, also zahlt
+   * sie. Am Beginn zu setzen deckt beide Ausgänge mit einer Stelle.
+   *
+   * **Das ist eine Design-Entscheidung, die das Dokument nicht ausdrücklich
+   * trifft.** Sie steht hier, damit ein Widerspruch dagegen eine Stelle hat.
+   */
+  it('nach vollem Durchlauf ist der Zauber NICHT sofort wieder bereit', () => {
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    const abkling = combat.spellAt(d.index)?.cooldownMs ?? 0;
+    // Die Zusicherung vor der Messung: Ein Prüfzauber ohne Abklingzeit machte
+    // jeden Fall hier grün, ohne etwas zu prüfen.
+    expect(abkling, 'der Prüfzauber hat gar keine Abklingzeit').toBeGreaterThan(d.dauer);
+
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.dauer; t += 10) combat.stepPassive(t);
+    expect(combat.playerCasting, 'die Kanalisierung lief noch').toBe(-1);
+
+    // **`isOffCooldown` und NICHT `isReady`** — der Unterschied ist hier die
+    // ganze Aussage. `isReady` schließt die globale Wartezeit ein; gemessen am
+    // 2026-08-13 blieb der Abbruch-Fall unten damit grün, obwohl die
+    // Abklingzeit gar nicht lief: Die Wartezeit des abbrechenden Zaubers
+    // sperrte ihn, und das sah genauso aus.
+    expect(combat.isOffCooldown(d.index, d.dauer), 'sofort nach dem Ende wieder frei').toBe(false);
+    // Und die Grenze selbst — einen Takt davor gesperrt, auf der Marke frei.
+    expect(combat.isOffCooldown(d.index, abkling - 10)).toBe(false);
+    expect(combat.isOffCooldown(d.index, abkling)).toBe(true);
+  });
+
+  it('auch ein ABBRUCH lässt sie anlaufen — der Anteil ist gefallen, also zahlt er', () => {
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    const abkling = combat.spellAt(d.index)?.cooldownMs ?? 0;
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    const mitten = 2 * d.raster;
+    for (let t = 0; t <= mitten; t += 10) combat.stepPassive(t);
+    combat.cast(combat.indexOf('kindle'), mitten);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+
+    // Wieder `isOffCooldown`: Bei `mitten` läuft die Wartezeit des Zaubers, der
+    // eben abgebrochen hat — `isReady` wäre hier auch ohne Abklingzeit `false`
+    // und bewiese nichts.
+    expect(combat.isOffCooldown(d.index, mitten), 'nach dem Abbruch sofort wieder frei').toBe(
+      false,
+    );
+    expect(combat.isOffCooldown(d.index, abkling)).toBe(true);
+  });
+
+  it('OFFEN AM DESIGN: auch ein BOSS-Abbruch lässt sie zahlen', () => {
+    // **Dieser Fall hält eine Entscheidung fest, die GAME-DESIGN nicht trifft
+    // — damit sie nicht still bleibt.**
+    //
+    // Das Dokument kennt zwei Abbrucharten, und sie stehen in verschiedenen
+    // Absätzen:
+    //
+    // > 635  „Jede Wirkung des SPIELERS bricht einen laufenden Cast oder eine
+    // >       Kanalisierung ab. Jede, ohne Ausnahme."
+    // > 661  „Abbruch eines Zauberbalkens: nur durch bestimmte, vorher
+    // >       erkennbare BOSS-Angriffe. Normale Treffer stören nicht. Bei
+    // >       Abbruch geht der Zauber verloren, die Abklingzeit läuft aber
+    // >       nicht an."
+    //
+    // Die Ausnahme steht im Boss-Absatz, und ihre Begründung darunter ist eine
+    // über Boss-Angriffe: „Wer den Boss kennt, fängt den Zauber gar nicht erst
+    // an." Für den SELBST-Abbruch sagt das Design nichts — dort greift sie
+    // zweifach nicht, weil es kein Boss-Angriff ist und weil der Zauber nicht
+    // verloren geht.
+    //
+    // **Beim Boss-Abbruch einer KANALISIERUNG stimmt nur noch die Hälfte
+    // davon.** Es IST ein Boss-Angriff — aber der Zauber geht nicht verloren,
+    // der erreichte Anteil bleibt (7.2). Die Abklingzeit läuft hier trotzdem,
+    // weil sie beim Beginn gesetzt wird und diese eine Stelle beide Ausgänge
+    // deckt.
+    //
+    // Der Fall tritt wirklich ein und ist nicht theoretisch: `test-caster`
+    // unterbricht bei 9000 und 18000 ms, und die Kanal-Aufzeichnung fährt
+    // gegen genau diesen Boss — sie zählt zwei unterbrochene Zauber.
+    const caster = bossById('test-caster') as BossDef;
+    const combat = new Combat({ school: CALCINATION.value, boss: caster });
+    combat.beginFight(0);
+    const d = kanalDaten(combat);
+    const abkling = combat.spellAt(d.index)?.cooldownMs ?? 0;
+
+    // Bei 7000 beginnen, damit der Schlag bei 9000 mitten hineinfällt.
+    let t = 0;
+    for (; t < 7000; t += 10) combat.stepPassive(t);
+    expect(combat.cast(d.index, t).result).toBe(CAST_STARTED);
+    const beginn = t;
+    for (; t <= 9000; t += 10) combat.stepPassive(t);
+
+    // Die Zusicherung: Ohne einen echten Boss-Abbruch prüfte der Fall nichts.
+    expect(combat.castsInterrupted, 'der Boss hat gar nicht unterbrochen').toBeGreaterThan(0);
+    expect(combat.playerCasting, 'die Kanalisierung lief weiter').toBe(-1);
+    // Der erreichte Anteil ist geblieben — der Zauber ist nicht verloren.
+    expect(combat.damageDealt, 'nichts angekommen').toBeGreaterThan(0);
+    // Und sie zahlt trotzdem.
+    expect(combat.isOffCooldown(d.index, 9000)).toBe(false);
+    expect(combat.isOffCooldown(d.index, beginn + abkling)).toBe(true);
+  });
+
+  it('MESSUNG: Abbruch-Spam trägt nicht mehr ein als der Durchlauf', () => {
+    // **Der eigentliche Schaden des Fehlers, und der Grund für die
+    // Entscheidung oben.** Ohne Abklingzeit war die beste Rotation, den Kanal
+    // nach dem ersten Schritt abzubrechen und sofort neu zu beginnen: Der
+    // Spieler nahm jeden Schritt mit, zahlte aber nie die Sperre.
+    //
+    // Gemessen vor der Behebung, über 24 s mit DECOCTION: 1440 gegen 720 — der
+    // Abbruch trug DOPPELT. Die Zahlen unten sind gerechnet, nicht
+    // abgeschrieben; nur ihr VERHÄLTNIS ist die Aussage.
+    function ertrag(neustartAlleMs: number, dauerMs: number): number {
+      const combat = kampf();
+      const { index } = kanalDaten(combat);
+      let letzterStart = -1e9;
+      for (let t = 0; t <= dauerMs; t += 10) {
+        combat.stepPassive(t);
+        if (t - letzterStart >= neustartAlleMs && combat.isReady(index, t)) {
+          const r = combat.cast(index, t).result;
+          if (r === CAST_OK || r === CAST_STARTED) letzterStart = t;
+        }
+      }
+      return combat.damageDealt;
+    }
+
+    const combat = kampf();
+    const d = kanalDaten(combat);
+    const abkling = combat.spellAt(d.index)?.cooldownMs ?? 0;
+    const dauer = 3 * abkling;
+    // **Der Spam-Lauf startet neu, sobald EIN Schritt gefallen ist** — das ist
+    // der optimale Missbrauch: den Anteil mitnehmen, sofort wieder anfangen.
+    // Die globale Wartezeit bremst zusätzlich, und zwar von selbst: Ein
+    // abgewiesener Druck setzt `letzterStart` nicht.
+    const spam = ertrag(d.raster, dauer);
+    const durchlauf = ertrag(abkling, dauer);
+
+    expect(durchlauf, 'der Kontroll-Lauf hat gar nichts getroffen').toBeGreaterThan(0);
+    expect(
+      spam,
+      `Abbruch-Spam ${spam} trägt mehr ein als Durchlauf ${durchlauf}`,
+    ).toBeLessThanOrEqual(durchlauf);
+  });
+});

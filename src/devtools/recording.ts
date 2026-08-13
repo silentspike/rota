@@ -939,6 +939,14 @@ const CAST_TIME_BINDINGS: readonly { slot: number; id: string }[] = [
 const CHANNEL_BINDINGS: readonly { slot: number; id: string }[] = [
   { slot: 0, id: 'kindle' },
   { slot: 1, id: 'test-channel' },
+  // **DECOCTION gehört dazu, weil er der SPIELBARE Kanalzauber ist**
+  // (Issue #323). `test-channel` liegt über der Stufengrenze und kommt in
+  // keinem Spielstand vor; eine Aufzeichnung, die nur ihn wirkt, belegte die
+  // Bitgleichheit für einen Zauber, den niemand je drückt. Er hat andere
+  // Kennzahlen (4000 ms über 4 Schritte statt 5000 über 5, 12 s Abklingzeit
+  // statt 8) — die Rundung des Anteils und die Sperre laufen damit auf beiden
+  // Seiten an je zwei verschiedenen Zahlen durch.
+  { slot: 2, id: 'decoction' },
 ];
 
 /**
@@ -967,6 +975,7 @@ function recordChannelRotation(name: string, ticks: number, boss: BossDef): Reco
   for (const { slot, id } of CHANNEL_BINDINGS) slotOf.set(combat.indexOf(id), slot);
   const kindle = combat.indexOf('kindle');
   const kanal = combat.indexOf('test-channel');
+  const decoction = combat.indexOf('decoction');
 
   const presses: RecordedPress[] = [];
   // **Nur angenommene Drücke kommen in die Aufzeichnung** (`isCastAccepted`
@@ -998,11 +1007,18 @@ function recordChannelRotation(name: string, ticks: number, boss: BossDef): Reco
       continue;
     }
 
-    // Der Kanal, sobald er bereit ist; sonst KINDLE als Fueller. Ohne den
-    // Fueller liefe zwischen den Kanalisierungen nichts, und eine Abweichung
-    // im gewoehnlichen Teil des Kampfes fiele hier nicht auf.
+    // Der Kanal, sobald er bereit ist; dann DECOCTION, sonst KINDLE als
+    // Fueller. Ohne den Fueller liefe zwischen den Kanalisierungen nichts, und
+    // eine Abweichung im gewoehnlichen Teil des Kampfes fiele hier nicht auf.
+    //
+    // **DECOCTION steht hinter `test-channel`, nicht davor.** Der Pruefzauber
+    // traegt den Abbruch aus AC6 und soll seine Lage behalten; DECOCTION fuellt
+    // dessen Abklingzeit und bringt damit den spielbaren Kanalzauber in die
+    // Aufzeichnung, ohne den geprueften Ablauf zu verschieben.
     if (combat.isOffCooldown(kanal, timeMs)) {
       druecke(kanal, tick, timeMs);
+    } else if (decoction >= 0 && combat.isOffCooldown(decoction, timeMs)) {
+      druecke(decoction, tick, timeMs);
     } else {
       druecke(kindle, tick, timeMs);
     }

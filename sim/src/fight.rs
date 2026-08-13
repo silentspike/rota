@@ -4211,6 +4211,44 @@ impl Fight {
             self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
             self.player_casting = Some(index);
             self.player_cast_ends_at = snap_up(now + channel);
+            // **Die Abklingzeit laeuft HIER an, beim Beginn — anders als bei
+            // der Wirkzeit** (Issue #323). Der Absatz oben sagt fuer den Cast:
+            // "Bei Abbruch geht der Zauber verloren, die Abklingzeit laeuft
+            // aber nicht an" (GAME-DESIGN 7.1). Die Ausnahme steht unter einer
+            // Bedingung — der Zauber ist verloren —, und die trifft auf eine
+            // Kanalisierung nicht zu: Bei ihr bleibt der erreichte Anteil
+            // (7.2). Sie hat gewirkt, also zahlt sie.
+            //
+            // **Ohne diese Zeilen stand die Abklingzeit in KEINEM Pfad**:
+            // `resolve_player_cast` setzt sie, und `player_cast_lands`
+            // ueberspringt den Aufruf fuer Kanalisierungen ausdruecklich.
+            // Gemessen am 2026-08-13 im Spiel, das dieselbe Luecke hatte:
+            // DECOCTION (`cooldown_ms: 12000`) war 8000 ms nach dem Beginn
+            // eines 4000-ms-Kanals wieder bereit, und Abbruch-Spam gab in 24 s
+            // 1440 Schaden gegen 720 beim Durchlauf.
+            //
+            // Der Wakeup gehoert dazu wie in `resolve_player_cast`: Die
+            // Schlange ist die einzige Zeitquelle: ohne ihn saehe der Simulator
+            // den Moment nicht, in dem der Zauber wieder bereit wird.
+            let ready_at = snap_up(now + self.hasted(spell.cooldown_ms));
+            self.cooldown_ready_at[index] = ready_at;
+            self.queue.push(ready_at, EventKind::Wakeup);
+            // **Und sie zaehlt als Wurf** — aus demselben Grund und an
+            // derselben Stelle. `casts` wird sonst nur in
+            // `resolve_player_cast` erhoeht, und die wird fuer
+            // Kanalisierungen uebersprungen.
+            //
+            // Gemessen im Spiel, das dieselbe Luecke hatte: Eine vollstaendig
+            // durchgelaufene DECOCTION teilte 360 Schaden aus und stand mit
+            // `cast_count` 0 da; der Zauber mit WIRKZEIT zaehlte bei gleicher
+            // Bauart auf 1.
+            //
+            // Hier wiegt es schwerer als im Spiel: `cast_count` ist die
+            // Groesse, mit der die Rust-Faelle ihre TRAEGER-Zusicherung bauen
+            // ("der Verkuerzer wurde nie gewirkt — die Probe hat keinen
+            // Traeger"). Bei einem Kanalzauber haette sie immer 0 gemeldet und
+            // damit einen laufenden Zauber fuer nie gewirkt gehalten.
+            self.casts[index] += 1;
             if spell.triggers_gcd && !self.take_free_gcd() {
                 self.gcd_ready_at = snap_up(now + self.gcd_length());
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
@@ -5281,6 +5319,26 @@ impl Fight {
     #[must_use]
     pub fn casting(&self) -> Option<usize> {
         self.casting
+    }
+
+    /// Millisekunden, bis der laufende Boss-Zauber landet (Issue #797).
+    ///
+    /// **0, wenn nichts laeuft** — dieselbe Uebereinkunft wie
+    /// `dot_remaining_ms` bei erloschenem Brand. Wer darauf eine Bedingung
+    /// baut, prueft zusaetzlich `casting()`; sonst trifft `< 2000` auch in
+    /// der Stille zwischen zwei Zaubern.
+    ///
+    /// **`saturating_sub` statt einer Subtraktion**: `cast_lands_at` liegt
+    /// normalerweise in der Zukunft, aber im Auslöse-Takt selbst sind beide
+    /// gleich — und eine Zeitleiste, die den Einschlag bereits verbucht hat,
+    /// während `casting` noch steht, gäbe es sonst als Unterlauf zurück.
+    #[must_use]
+    pub fn boss_cast_remaining_ms(&self) -> Millis {
+        if self.casting.is_some() {
+            self.cast_lands_at.saturating_sub(self.time)
+        } else {
+            0
+        }
     }
 
     /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.

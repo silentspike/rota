@@ -153,6 +153,99 @@ lagen auf `wisp`, und `wisp` stand nicht in der geänderten Liste.
 „Gegenprobe gefahren, färbt nicht" ist deshalb kein Ergebnis, sondern eine
 offene Frage.
 
+#### Richtige Antwort aus falschem Grund — der grüne Fall, der grün bleibt
+
+Ein Fall prüfte, dass der vorgegebene Startpunkt in der gefundenen Liste steht,
+und nahm dafür `kandidaten[0]`. Bei der Mutation „Startliste wird ignoriert"
+blieb er **grün** — die Suche wählt diesen Kandidaten ohnehin, ganz ohne
+Startpunkt. Er meldete das Richtige und maß dabei nichts.
+
+> **Ein grüner Fall wird nie nachgeprüft. Deshalb überlebt genau diese Sorte
+> Fehler beliebig lange.**
+
+Erkennbar ist sie nur an einer Mutation, die den Träger selbst entfernt. Wähle
+für einen Fall dieser Art einen Wert, den das Verfahren **nicht** von allein
+findet — bei einer Suche also nicht ihren Favoriten.
+
+#### Die Schwester: eine falsche Messgröße, die in der Hälfte der Fälle stimmt
+
+Ein Prüfstand zur Heilungs-Kanalisierung maß `playerHp` vorher/nachher statt
+`healed`. Die Gesundheit ist aber die Summe aus allem — der Boss schlägt während
+der Messung weiter zu:
+
+```
+Abbruch-Fall     expected -1300 to be 300     FAILED
+Durchlauf-Fall   GRÜN
+```
+
+Der Durchlauf-Fall war grün, weil sein Fenster zufällig zwischen zwei
+Boss-Schlägen lag (`test-onslaught` trifft bei 5000, 12000, 19000 ms). Wäre nur
+er gebaut worden, hätte der ganze Prüfstand grün gemeldet — und die falsche
+Größe gemessen.
+
+> **Eine Messgröße, die immer falsch liegt, fällt auf. Eine, die manchmal
+> zufällig richtig herauskommt, sieht aus wie ein echter Fall mit einem echten
+> Fehler daneben.**
+
+Der Reflex ist dann, den roten Fall zu reparieren — und damit den einzigen
+Zeugen. Bevor du das tust: Prüfe, ob der **grüne** Fall dieselbe Größe misst.
+Widersprechen sich zwei Fälle, ist die geteilte Messgröße der erste Verdächtige,
+nicht der Fall, der rot ist.
+
+##### Die Frage davor: was außer meiner Änderung bewegt diese Zahl?
+
+Am 2026-08-13 ist derselbe Griff **dreimal an einem Abend** danebengegangen, jedes
+Mal bei einer anderen Größe:
+
+| Gemessen                  | Wer sonst noch daran zieht                          |
+| ------------------------- | --------------------------------------------------- |
+| `playerHp` statt `healed` | der Boss schlägt während der Messung weiter zu      |
+| Vorrat statt Gewinn       | Hitze verfällt um 1 je 2000 ms (`calcination.json`) |
+| Schaden gesamt            | jede andere Quelle im selben Fenster                |
+
+Der zweite Fall meldete einen Verlauf `1 → 1 → 2 → 2 → 3` statt `1 → 2 → 3 → 4 → 5`
+und sah aus wie ein Baufehler. Die Umsetzung war richtig, die **Erwartung** falsch.
+
+> **Eine Zustandsgröße ist die Summe aus allem, was sie bewegt. Miss die
+> Bewegung, nicht den Stand** — `healed` statt `hp`, `gained` statt `resource`.
+
+Gibt es keine solche Größe, rechne die fremden Bewegungen **aus den Daten** mit,
+nie aus einer abgeschriebenen Rate: Eine Verfallsrate im Prüffall ist beim
+nächsten Datensatz falsch und meldet dann einen Baufehler, den es nicht gibt.
+
+#### Beide Rechenseiten gleich falsch — die Parität schweigt
+
+Eine Kanalisierung ging auf keiner der beiden Seiten je auf Abklingzeit. Der
+Zauber war 8000 ms nach Beginn eines 4000-ms-Kanals wieder bereit, bei 12 s
+Abklingzeit, und Abbruch-Spam trug über 24 s **1440 Schaden gegen 720** beim
+Durchlaufen ein — abbrechen war die doppelt so gute Rotation.
+
+Die Paritätsprüfung war die ganze Zeit grün.
+
+> **Die Parität vergleicht zwei Rechnungen miteinander, nicht mit dem Design.
+> Ein symmetrischer Fehler ist für sie unsichtbar.**
+
+Sie fängt Auseinanderlaufen, nicht Falschheit. Was beide Seiten aus derselben
+Vorlage falsch übernehmen, bleibt liegen, bis jemand die Wirkung im Spiel
+misst. Für eine neue Mechanik gehört deshalb **eine Messung gegen das Design**
+dazu, nicht nur der Paritätslauf.
+
+#### Ein Kommentar mit Verfallsdatum funktioniert
+
+Die Gegenprobe dazu, am selben Abend: Eine Zusicherung trug den Satz „Diese
+Zusicherung fällt, sobald jemand die Zählung ändert. Dann ist dieser Kommentar
+veraltet und der Fall sagt es." Zwei Tage später änderte jemand die Zählung —
+und der Fall sagte es, wörtlich:
+
+```
+assertion failed: die Kanalisierung wird jetzt gezählt —
+                  der Kommentar hier ist veraltet
+left: 3   right: 0
+```
+
+Das ist die Antwort auf „Text altert schweigend": Ein Kommentar, der seine
+eigene Widerlegung als Prüffall mitbringt, altert **laut**.
+
 #### `vitest` und `cargo test` prüfen keine TypeScript-Typen
 
 Drei Typfehler in einer neuen Prüfdatei rutschten durch **zwei** grüne
@@ -231,6 +324,46 @@ npx vitest run … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?"
 
 **Der Exit-Code kommt aus `echo $?` direkt nach dem Befehl, nie aus der Datei.**
 Er kann von einer fremden Sitzung nicht überschrieben werden, der Dateiinhalt schon.
+
+#### Aber nicht bei einem Hintergrundlauf — dort gilt er dem Wrapper
+
+Am 2026-08-13 meldete die Harness **dreimal** „completed (exit code 0)" für Läufe,
+die es nicht waren:
+
+| Gemeldet    | Tatsächlich                             | Was der Code beschrieb |
+| ----------- | --------------------------------------- | ---------------------- |
+| exit code 0 | `101` in der Datei, ein roter Fall      | den Wrapper            |
+| exit code 0 | `124` — Zeitlimit                       | den Wrapper            |
+| completed   | Lauf stand noch in der `flock`-Schlange | den Wrapper            |
+
+> **Bei einem Hintergrundlauf beschreibt der gemeldete Code den Starter, nicht die
+> gestartete Arbeit.** „Fertig, Code 0" kann heißen: hat nie angefangen.
+
+Die Auflösung deckt beide Fälle ab — Rollen-Präfix gegen fremde Sitzungen, und der
+Code **in** der Datei statt in der Meldung:
+
+```
+cargo remote -c -- test … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?" >> /work/tmp/<rolle>-<zweck>.log
+```
+
+Mit Präfix kann die Datei nicht fremdbeschrieben werden, also ist ihr Inhalt sicher —
+und er gilt dem Lauf, nicht dem Wrapper. Bei einem **Vordergrund**-Befehl bleibt
+`echo $?` in derselben Shell richtig.
+
+### Zwei Mutationen auf derselben Seite sind kein zweiseitiger Nachweis
+
+Bei einer Änderung, die TypeScript **und** Rust berührt, belegen zwei Mutationen
+nur so viele Seiten, wie sie anfassen. Am 2026-08-13 prüften der Bauende und der
+Abnehmende dieselbe Änderung mit je einer Mutation — beide in `combat.ts`, eine an
+der neuen Zeile, eine an der alten. Das sah nach unabhängiger Doppelprüfung aus und
+war eine doppelte Prüfung **derselben Hälfte**.
+
+Die Rust-Zeile war nie mutiert. Ihr Anschluss stand nur als Ableitung da: „wenn Rust
+nicht zählte, wäre `casts` 0 gegen 3, also wird der Fall rot" — plausibel, und genau
+die Form, die diese Datei sonst nicht durchgehen lässt.
+
+> **Zähle bei der Abnahme nicht die Mutationen, sondern die Seiten, die sie
+> berühren.** Eine Änderung auf zwei Seiten braucht mindestens eine Mutation je Seite.
 
 ### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
 
