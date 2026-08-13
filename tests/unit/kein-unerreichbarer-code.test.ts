@@ -66,15 +66,23 @@ const EINSTIEGE = [
  * Die Liste ist ausdrücklich **kein Freibrief**. Sie hält den Zustand fest,
  * damit ein NEUNTER Fall auffällt — und der Fall darunter meldet, wenn ein
  * Eintrag verschwindet, damit sie nicht überlebt, was sie beschreibt.
+ *
+ * **Exportiert für den Symbol-Wächter** (`tote-symbole-waechter.test.ts`): Was
+ * hier steht, ist auf Dateiebene bereits erfasst. Ohne diesen Import meldete er
+ * `runLiveMetrics` ein zweites Mal — dieselbe Sache, andere Ebene, und die
+ * Ausnahme müsste an zwei Stellen gepflegt werden.
  */
-const BEKANNT_UNERREICHBAR: readonly string[] = [
-  // E7-5 (Issue #85) ist NICHT anschliessbar: Es gibt weder Archiv-Inhalte
-  // (kein `ArchiveEntry` irgendwo im Bestand) noch einen Ort im Spielstand
-  // fuer `unlockedEntryIds`. Die Ansicht wuerde eine leere Liste zeigen.
-  // Dieselbe Lage wie bei E6-4 — es fehlt nicht der Aufruf, sondern die Sache.
-  'src/analysis/archive-view.ts',
-  'src/analysis/archive.ts',
-  'src/analysis/help.ts',
+export const BEKANNT_UNERREICHBAR: readonly string[] = [
+  // E7-5 (Issue #85) ist seit dem Anschluss des Archivs erreichbar: Die
+  // Pruefeintraege in `data/archive/` geben der Ansicht etwas zu zeigen, der
+  // Spielstand fuehrt `unlockedEntryIds`, und `app.ts` haengt beides in das
+  // Player Home. `help.ts` kommt ueber `archive-view.ts` mit.
+  //
+  // WAS DAMIT NOCH NICHT ERLEDIGT IST: `nextIntroduction` (die gefuehrte
+  // Einfuehrung, AC4 des Issues) hat weiterhin keinen Aufrufer. Sie steht
+  // NICHT in dieser Liste, weil der Waechter Dateien misst und ihre Datei
+  // erreichbar ist — toter Code INNERHALB einer erreichbaren Datei faellt
+  // durch sein Raster. Festgehalten, damit es nicht als gedeckt gilt.
   // E7-4 zur Haelfte: Der Trainingsraum ist seit heute betretbar
   // (`buildDummy` in app.ts), aber `runLiveMetrics` ist eine Bildschleife
   // ueber laufende Kennzahlen und braucht einen aktiven Kampf. Im Player Home

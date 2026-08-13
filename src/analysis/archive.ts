@@ -15,8 +15,19 @@
  * gehoeren zu Epic E10; hier entsteht die Ansicht und ihre Regel.
  */
 
+/**
+ * Die Ausloeser, als Liste (Issue #85).
+ *
+ * **Als Wert und nicht nur als Typ**: Der Parser in `archive-data.ts` muss zur
+ * Laufzeit pruefen koennen, ob ein Wert aus der Datei dazugehoert. Ein Typ
+ * allein verschwindet beim Uebersetzen, und die Pruefung waere eine
+ * ausgeschriebene Liste an zweiter Stelle — die beim naechsten Ausloeser
+ * vergessen wird.
+ */
+export const ARCHIVE_TRIGGERS = ['beforeInstance', 'afterFirstKill'] as const;
+
 /** Wodurch ein Eintrag zum ersten Mal ausgeloest wird. */
-export type ArchiveTrigger = 'beforeInstance' | 'afterFirstKill';
+export type ArchiveTrigger = (typeof ARCHIVE_TRIGGERS)[number];
 
 /**
  * Wer spricht (GAME-DESIGN 17.4).
@@ -24,7 +35,10 @@ export type ArchiveTrigger = 'beforeInstance' | 'afterFirstKill';
  * Die Stimme steht am Eintrag, weil das Archiv danach gliedert — und weil ein
  * Geraete-Protokoll anders gelesen wird als eine eigene Notiz.
  */
-export type ArchiveVoice = 'ownNotes' | 'fragment' | 'deviceLog' | 'other';
+export const ARCHIVE_VOICES = ['ownNotes', 'fragment', 'deviceLog', 'other'] as const;
+
+/** Wer spricht — siehe [`ARCHIVE_VOICES`]. */
+export type ArchiveVoice = (typeof ARCHIVE_VOICES)[number];
 
 export interface ArchiveEntry {
   readonly id: string;
