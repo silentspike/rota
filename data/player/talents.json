@@ -257,6 +257,16 @@
           "requires": "putrefaction-trunk",
           "decayDurationPerRankPerMille": 60,
           "_comment": "WEG 3 VON DREI (#419): laenger halten. Er verlaengert die Uhr JEDES neu gelegten Stapels; liegende bleiben, wie sie sind — sonst wirkte ein Talent rueckwirkend. ALLE ZAHLEN VORLAEUFIG."
+        },
+        {
+          "_comment": "DAS SCHLUESSELTALENT DER PUTREFACTION (Issue #419), Bauart aus #418.\n\nEin erloschener Brand legt WEITER STAPEL — bis die Lage vergangen ist, die bei seinem Ende lag.\n\nDER ERSTE ENTWURF WAR WIRKUNGSLOS, UND DAS WAR MESSBAR. Er liess beim Verfall eines Stapels jeden laufenden Brand einmal ticken; nur ueberlappen Brand-Laufzeit (~12 s) und Stapel-Laufzeit (~13,5 s ab dem Legen) im Normalfall gar nicht. Gemessen: t=12000 vier Stapel bei aktivem Brand, t=16000 zwei Stapel bei erloschenem. Genau diese Luecke fuellt der zweite Entwurf.\n\nNUR STAPEL, KEIN SCHADEN: Ein toter Brand, der weiter zuschlaegt, waere eine verlaengerte Laufzeit — die gibt es schon als Lasting Rot.\n\nUND ER ENDET: Massgeblich ist die Frist des juengsten Stapels beim Erloeschen; was der Nachlauf selbst legt, verlaengert ihn nicht. Ohne diese Grenze truege jeder neue Stapel den naechsten, und ein einziger Brand hielte die Zersetzung ohne weiteren Tastendruck endlos.\n\nmaxRanks 1: Ein Verhalten hat keine Raenge.",
+          "id": "putrefaction-keystone",
+          "name": "Rot Outlives",
+          "path": "duration",
+          "maxRanks": 1,
+          "damagePerRankPerMille": 0,
+          "requires": "putrefaction-duration",
+          "keystone": "decay-echo"
         }
       ]
     },
