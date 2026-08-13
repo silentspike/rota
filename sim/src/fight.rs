@@ -4211,6 +4211,28 @@ impl Fight {
             self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
             self.player_casting = Some(index);
             self.player_cast_ends_at = snap_up(now + channel);
+            // **Die Abklingzeit laeuft HIER an, beim Beginn — anders als bei
+            // der Wirkzeit** (Issue #323). Der Absatz oben sagt fuer den Cast:
+            // "Bei Abbruch geht der Zauber verloren, die Abklingzeit laeuft
+            // aber nicht an" (GAME-DESIGN 7.1). Die Ausnahme steht unter einer
+            // Bedingung — der Zauber ist verloren —, und die trifft auf eine
+            // Kanalisierung nicht zu: Bei ihr bleibt der erreichte Anteil
+            // (7.2). Sie hat gewirkt, also zahlt sie.
+            //
+            // **Ohne diese Zeilen stand die Abklingzeit in KEINEM Pfad**:
+            // `resolve_player_cast` setzt sie, und `player_cast_lands`
+            // ueberspringt den Aufruf fuer Kanalisierungen ausdruecklich.
+            // Gemessen am 2026-08-13 im Spiel, das dieselbe Luecke hatte:
+            // DECOCTION (`cooldown_ms: 12000`) war 8000 ms nach dem Beginn
+            // eines 4000-ms-Kanals wieder bereit, und Abbruch-Spam gab in 24 s
+            // 1440 Schaden gegen 720 beim Durchlauf.
+            //
+            // Der Wakeup gehoert dazu wie in `resolve_player_cast`: Die
+            // Schlange ist die einzige Zeitquelle: ohne ihn saehe der Simulator
+            // den Moment nicht, in dem der Zauber wieder bereit wird.
+            let ready_at = snap_up(now + self.hasted(spell.cooldown_ms));
+            self.cooldown_ready_at[index] = ready_at;
+            self.queue.push(ready_at, EventKind::Wakeup);
             if spell.triggers_gcd && !self.take_free_gcd() {
                 self.gcd_ready_at = snap_up(now + self.gcd_length());
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
