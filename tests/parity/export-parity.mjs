@@ -67,6 +67,7 @@ import {
   buffCombatPayload,
   decayFactorPayload,
   decayTalentPayload,
+  spenderTalentPayload,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -602,6 +603,12 @@ console.log(`geschrieben: ${decayTalentPath}`);
 console.log(
   `  Mit Talent      Spur: ${decayTalent.factorAt.map((f) => f.vulnerability).join(' -> ')}`,
 );
+
+const spenderTalent = spenderTalentPayload();
+const spenderTalentPath = join(here, 'recordings', 'spender-talent.json');
+writeFileSync(spenderTalentPath, serialize(spenderTalent), 'utf8');
+console.log(`geschrieben: ${spenderTalentPath}`);
+console.log(`  Entlader-Weg    Schaden: ${spenderTalent.expected.damage}`);
 
 const buffCombat = buffCombatPayload();
 const buffCombatPath = join(here, 'recordings', 'buff-combat.json');
