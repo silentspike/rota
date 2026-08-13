@@ -392,14 +392,22 @@ Am 2026-08-14 wurde der Zauber im Spiel gemessen (heilt 300 nach drei Schritten,
 Finden lassen sich die Listen mit `grep -rl "<zauberdatei>.json"` — **aber die Wahl
 der Referenzdatei entscheidet das Ergebnis:**
 
-| Referenz            | Treffer | Warum                                                 |
-| ------------------- | ------- | ----------------------------------------------------- |
-| `calcination.json`  | 12      | steht auch in Kommentaren, Beispielen, Prüfdaten      |
-| `test-channel.json` | 3       | ein junger Zauber steht **nur** in den Pflichtstellen |
+> **Eine Referenzdatei taugt nur, wenn sie ausschließlich an Pflichtstellen
+> steht.** Das trifft auf einen Prüfzauber zu (`test-cast`, `test-buff`,
+> `test-channel`), nicht auf eine Schuldatei.
 
-Nimm einen zuletzt hinzugefügten Zauber, nicht einen alten. Und prüfe die
-Trefferliste auf generierte Dateien: `sim/src/data.rs` nennt `calcination.json`
-zwar, ist aber Ausgabe von `build.rs` und keine Liste.
+Wer mit `calcination.json` sucht, bekommt jede Erwähnung aus Prüffällen und
+Kommentaren dazu und muss die Pflichtstellen selbst herauslesen; wer mit
+`test-channel.json` sucht, bekommt genau die Liste, die er abzuarbeiten hat.
+
+**Eine Trefferzahl steht hier bewusst nicht.** Sie hängt am Filter: Dieselbe
+Suche lieferte 12 Dateien mit `--include={*.ts,*.rs}` und 15 mit `*.json` und
+`*.py` dazu. Eine Zahl, die von der Werkzeugeinstellung abhängt, ist als Marke
+unbrauchbar — und wer sie im Guide liest, hält sie für eine Eigenschaft des
+Projekts.
+
+Prüfe die Trefferliste außerdem auf generierte Dateien: `sim/src/data.rs` nennt
+`calcination.json` zwar, ist aber Ausgabe von `build.rs` und keine Liste.
 
 ### Zwei Mutationen auf derselben Seite sind kein zweiseitiger Nachweis
 
