@@ -111,7 +111,9 @@ import {
   INSTANCE4_NAMES,
   cinderPayload,
   dotLifetimePayload,
+  manyDotsPayload,
   DOT_LIFETIME_NAME,
+  MANY_DOTS_NAME,
   extendEffectsPayload,
   EXTEND_EFFECTS_NAME,
   COAGULATION_NEU_NAME,
@@ -250,6 +252,13 @@ writeFileSync(cinderPath, serialize(cinder), 'utf8');
 const dotLifetime = dotLifetimePayload();
 const dotLifetimePath = join(here, 'recordings', `${DOT_LIFETIME_NAME}.json`);
 writeFileSync(dotLifetimePath, serialize(dotLifetime), 'utf8');
+
+// EMBER auf DREI Braende zugleich (#485, AC3). `dot-lifetime` faehrt nur einen
+// — die Gegenprobe "verlaengere nur den ersten" lief dort durch alle 134
+// Rust-Suiten, ohne eine einzige rot zu faerben.
+const manyDots = manyDotsPayload();
+const manyDotsPath = join(here, 'recordings', `${MANY_DOTS_NAME}.json`);
+writeFileSync(manyDotsPath, serialize(manyDots), 'utf8');
 
 // Die neuen Zauber der COAGULATION (#481). Ohne sie waere ihre
 // Bitgleichheit eine Annahme — `coverage` sagt es woertlich.

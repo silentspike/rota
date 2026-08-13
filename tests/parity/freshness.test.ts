@@ -109,6 +109,7 @@ import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
+import eingecheckteVieleBraende from './recordings/ember-viele-braende.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
 import eingecheckteCoagulationNeu from './recordings/coagulation-neu.json';
 import eingecheckteKerne from './recordings/kern-zauber.json';
@@ -179,6 +180,7 @@ import {
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
+  manyDotsPayload,
   extendEffectsPayload,
   coagulationNeuPayload,
   kernePayload,
@@ -341,6 +343,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('die Brandzeit-Runde entspricht dem heutigen Spielstand', () => {
     // EMBER und PYROCLASM werden nur hier gewirkt (Issue #517).
     expect(eingecheckteBrandzeit, HINWEIS).toEqual(dotLifetimePayload());
+  });
+
+  it('die Viele-Brände-Runde entspricht dem heutigen Spielstand', () => {
+    // Die EINZIGE Aufzeichnung, in der EMBER auf MEHRERE Brände zugleich
+    // trifft (Issue #485). `dot-lifetime` fährt genau einen — dort sind „der
+    // erste" und „alle" dasselbe.
+    expect(eingecheckteVieleBraende, HINWEIS).toEqual(manyDotsPayload());
   });
 
   it('die Verlängerungs-Runde entspricht dem heutigen Spielstand', () => {
@@ -911,6 +920,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance1-boss-3',
   'instance1-boss-4',
   'dot-lifetime',
+  'ember-viele-braende',
   'extend-effects',
   'coagulation-neu',
   'kern-zauber',
