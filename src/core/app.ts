@@ -39,6 +39,9 @@ import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './p
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
+import { buildHistoryView } from '../analysis/history-view.js';
+import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
+import '../analysis/history.css';
 import { pointsDisplayFor } from '../analysis/points-display.js';
 import type { RunSummary } from './summary.js';
 import { markDisplayFor } from '../analysis/mark-display.js';
@@ -358,6 +361,33 @@ export class App {
         statOverview(baseStats(this.persistence.state.level), this.combat.wornValues),
       ),
     });
+
+    // **Der Trainingsraum** (E7-4, Issue #84). `buildDummy` stand fertig da
+    // und hatte keinen Aufrufer — eine Puppe mit einer Milliarde Leben und
+    // 24 Stunden Ueberdruck, die niemand betreten konnte.
+    //
+    // Der Knopf startet mit `DEFAULT_DUMMY`. Das Einstellungs-Formular aus
+    // 19.2 (Widerstand, Gegenschlag, Wirkzauber) ist NICHT gebaut: Es gibt
+    // dafuer keine Ansicht, nur den Datentyp. Ein Knopf ohne Formular macht
+    // den Raum betretbar; ein Formular ohne Raum haette gar nichts gebracht.
+    this.home.addSection({
+      id: 'training',
+      title: 'Training',
+      content: this.buildTrainingSection(),
+    });
+
+    // **Der Verlauf ueber ALLE Durchlaeufe** (E7-2, Issue #82). Er stand
+    // fertig gebaut da und hatte keinen Aufrufer — der Bundler hat die Datei
+    // deshalb aus dem Spiel geworfen.
+    //
+    // HIER und nicht in der Auswertung: Was sich auf EINEN Lauf bezieht,
+    // gehoert zu dessen Zahlen; der Verlauf ueber alle ist Rueckschau und
+    // haette nach jedem einzelnen Kampf nichts zu suchen.
+    this.home.addSection({
+      id: 'history',
+      title: 'History',
+      content: buildHistoryView(this.persistence.state.runHistory),
+    });
     parent.appendChild(this.home.root);
 
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
@@ -563,6 +593,39 @@ export class App {
     // Die Widerstandszeilen entstehen dabei über `resistanceLines` — dieselbe
     // Stelle wie beim Aufbau, damit „hält ab" nicht zweimal entschieden wird.
     this.overlay.setBoss(gewaehlt.name, resistanceLines(gewaehlt.resistances));
+    this.backToMenu();
+    this.refreshHome();
+    this.home.hide();
+  }
+
+  /**
+   * Der Zugang zum Trainingsraum (E7-4, GAME-DESIGN 19.2).
+   *
+   * **Wie die Boss-Wahl gebaut, nicht daneben:** Der Bereich meldet nur den
+   * Wunsch; dass daraufhin ein Kampf beginnt, entscheidet diese Datei. Der
+   * Unterschied zu `selectBoss` ist die Herkunft des Gegners — die Puppe steht
+   * in keiner Datendatei, sie wird gerechnet.
+   */
+  private buildTrainingSection(): HTMLElement {
+    const wurzel = document.createElement('div');
+    wurzel.className = 'training-section';
+    const knopf = document.createElement('button');
+    knopf.type = 'button';
+    knopf.className = 'training-start';
+    // Spieltexte englisch (Design-Gesetz 5).
+    knopf.textContent = 'Enter Training Room';
+    knopf.addEventListener('click', () => {
+      this.startTraining();
+    });
+    wurzel.appendChild(knopf);
+    return wurzel;
+  }
+
+  /** Einen Uebungsdurchgang gegen die Puppe beginnen. */
+  private startTraining(): void {
+    const puppe = buildDummy(DEFAULT_DUMMY, this.combat.school.school);
+    this.combat.switchBoss(puppe);
+    this.overlay.setBoss(puppe.name, resistanceLines(puppe.resistances));
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
