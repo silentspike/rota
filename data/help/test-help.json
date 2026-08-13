@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "_comment": "PRUEF-EINTRAEGE FUER DAS HILFE-SYSTEM (Issue #811). Sie gehoeren NICHT zum Spiel: Die echten Erklaerungen sind Inhalt und gehoeren zu E10, wie die ~150 Archiv-Texte (GAME-DESIGN Zeile 2620).\n\nWARUM HIER KEIN 'test-'-PRAEFIX AN DEN KENNUNGEN STEHT, anders als bei test-cast (#304), test-buff (#420), test-channel (#323) und den Archiv-Eintraegen (#85): Die Kennung IST hier die Kupplung. `attachHelp` sucht `[data-help]` und gibt den Wert an `helpFor` weiter — steht am Wert ESSENCE das Merkmal `data-help=\"essence\"`, dann muss der Eintrag `essence` heissen. Ein Praefix machte das Fenster stumm, und die Pruefdaten belegten nichts.\n\nDAS TRENNMERKMAL IST DESHALB DIE DATEI, nicht die Kennung. Sobald E10 `data/help/help.json` liefert, kommen die ausgelieferten Eintraege von dort, und diese Datei bleibt, was sie ist. `help-data.ts` fuehrt beide Listen getrennt und sagt, welche wo hingehoert.\n\nDIE TEXTE SAGEN, WAS ETWAS TUT — NIE, WANN MAN ES BENUTZEN SOLLTE. 'Kindle builds heat' ist eine Erklaerung, 'cast Kindle before Pyre' waere eine Rotations-Empfehlung und damit genau das, was GAME-DESIGN 21.2 ausschliesst. tests/unit/help.test.ts wacht darueber.\n\nDIE TEXTE SIND BEWUSST NUECHTERN: Sie beschreiben die Sache, ohne Stimmung zu erzeugen. Ein Prueftext, der klingt wie ein echter, wandert beim naechsten Aufraeumen versehentlich in den Katalog.",
+  "entries": [
+    {
+      "id": "essence",
+      "subject": "stat",
+      "title": "ESSENCE",
+      "effect": "Raises the damage of every spell.",
+      "values": "A test record. Real numbers belong to E10."
+    },
+    {
+      "id": "vessel",
+      "subject": "stat",
+      "title": "VESSEL",
+      "effect": "Raises how much damage you can take before the run ends."
+    },
+    {
+      "id": "ward",
+      "subject": "stat",
+      "title": "WARD",
+      "effect": "Reduces the damage that reaches you."
+    },
+    {
+      "id": "catalysis",
+      "subject": "stat",
+      "title": "CATALYSIS",
+      "effect": "Shortens cast times and the global cooldown."
+    },
+    {
+      "id": "purity",
+      "subject": "stat",
+      "title": "PURITY",
+      "effect": "Raises how often a result is critical."
+    },
+    {
+      "id": "yield",
+      "subject": "stat",
+      "title": "YIELD",
+      "effect": "Raises how large a critical result is."
+    },
+    {
+      "id": "CALCINATION",
+      "subject": "school",
+      "title": "CALCINATION",
+      "effect": "Damage that keeps working after the cast, over time.",
+      "synergies": "Feeds the heat mechanic."
+    },
+    {
+      "id": "COAGULATION",
+      "subject": "school",
+      "title": "COAGULATION",
+      "effect": "Keeps the run alive: absorption and recovery."
+    },
+    {
+      "id": "kindle",
+      "subject": "spell",
+      "title": "Kindle",
+      "effect": "Deals damage and builds heat.",
+      "values": "A test record. Real numbers belong to E10.",
+      "synergies": "Heat is spent by other CALCINATION spells."
+    },
+    {
+      "id": "smoulder",
+      "subject": "spell",
+      "title": "Smoulder",
+      "effect": "Deals damage over time."
+    },
+    {
+      "id": "Kindling Roar",
+      "subject": "bossAbility",
+      "title": "Kindling Roar",
+      "effect": "A boss cast that can be interrupted while it runs.",
+      "values": "A test record. Real numbers belong to E10."
+    },
+    {
+      "id": "Backlash",
+      "subject": "bossAbility",
+      "title": "Backlash",
+      "effect": "A boss strike that lands at once and cannot be interrupted."
+    }
+  ],
+  "introductions": [
+    {
+      "mechanicId": "interruptibleCast",
+      "title": "Interruptible cast",
+      "body": "This target casts spells that take time to land. While the cast runs, it can be interrupted. A test record — the written introduction belongs to E10."
+    },
+    {
+      "mechanicId": "strike",
+      "title": "Strike",
+      "body": "This target hits at once, with no cast to interrupt. A test record — the written introduction belongs to E10."
+    }
+  ]
+}

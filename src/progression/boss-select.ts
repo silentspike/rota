@@ -138,6 +138,57 @@ function element(tag: string, className?: string, text?: string): HTMLElement {
 }
 
 /**
+ * Die Fähigkeiten eines Bosses, jede einmal.
+ *
+ * # Warum aus der Zeitleiste und nicht aus einem Feld `abilities`
+ *
+ * Weil es dieses Feld nicht gibt — gemessen an `BossDef`. Was ein Boss an
+ * Handlungen kann, steht in `timeline`, und jeder Eintrag trägt seinen
+ * englischen Anzeigenamen. Eine zweite Liste danebenzustellen hiesse, dieselbe
+ * Sache zweimal zu pflegen; die zweite wäre nach dem ersten neuen Boss falsch.
+ *
+ * # Der Name ist die Kennung, und das ist eine Feststellung, keine Wahl
+ *
+ * `TimelineEntryDef` hat kein Kennungsfeld. Der Name ist das Einzige, woran
+ * eine Erklärung hängen kann — und er ist auch das, was der Spieler liest.
+ *
+ * Mehrfach genannte Fähigkeiten erscheinen einmal: Ein Boss, der dreimal
+ * zuschlägt, kann eine Sache, nicht drei.
+ */
+/**
+ * Die Mechanik-Bausteine eines Bosses, jeder einmal, in ihrer Reihenfolge.
+ *
+ * Das ist die gröbere Ebene über [`faehigkeitenVon`]: „Kindling Roar" ist eine
+ * Fähigkeit, `interruptibleCast` die Mechanik dahinter. Die Einführung erklärt
+ * die Mechanik (17.3 sagt „beim ersten Auftreten einer Mechanik") — sonst
+ * bekäme der Spieler dieselbe Sache unter sechzig Namen erklärt.
+ *
+ * Die Reihenfolge ist die der Zeitleiste und damit die, in der er ihnen
+ * begegnet. Wer zuerst kommt, wird zuerst erklärt.
+ */
+export function mechanikenVon(boss: BossDef): readonly string[] {
+  const gesehen = new Set<string>();
+  const out: string[] = [];
+  for (const eintrag of boss.timeline) {
+    if (eintrag.mechanic === '' || gesehen.has(eintrag.mechanic)) continue;
+    gesehen.add(eintrag.mechanic);
+    out.push(eintrag.mechanic);
+  }
+  return out;
+}
+
+export function faehigkeitenVon(boss: BossDef): readonly string[] {
+  const gesehen = new Set<string>();
+  const out: string[] = [];
+  for (const eintrag of boss.timeline) {
+    if (eintrag.name === '' || gesehen.has(eintrag.name)) continue;
+    gesehen.add(eintrag.name);
+    out.push(eintrag.name);
+  }
+  return out;
+}
+
+/**
  * Den Bereich bauen.
  *
  * @param bosse Die wählbaren Bosse, bereits gefiltert.
@@ -176,6 +227,30 @@ export function buildBossSelect(
         onSelect(boss.id);
       });
       gruppe.appendChild(knopf);
+
+      // **Die Fähigkeiten unter dem Boss** (AC2 von #811, GAME-DESIGN 17.3:
+      // „Muss auch für Boss-Fähigkeiten funktionieren"). Sie stehen NEBEN dem
+      // Knopf und nicht darin: Ein Erklärfenster in einem Knopf wäre beim
+      // laufenden Boss unerreichbar, weil der Knopf dann abgeschaltet ist —
+      // und gerade dessen Fähigkeiten will man nachschlagen.
+      //
+      // Hier und nicht im Kampf: Die Leiste und der Ring sind Zeichenfläche
+      // (GAME-DESIGN 18.1) und tragen kein Merkmal, an dem ein Fenster hängen
+      // könnte. Die Wahl ist ausserdem der Ort, an dem 11.6 zeigen will,
+      // worauf man sich einlässt.
+      const koennen = faehigkeitenVon(boss);
+      if (koennen.length > 0) {
+        const liste = element('ul', 'boss-select-abilities');
+        for (const name of koennen) {
+          const zeile = element('li', 'boss-select-ability', name);
+          zeile.dataset.help = name;
+          // Über die Tastatur erreichbar, sonst bekäme die Erklärung nur, wer
+          // eine Maus benutzt — `attachHelp` hört auf `focus` genau dafür.
+          zeile.tabIndex = 0;
+          liste.appendChild(zeile);
+        }
+        gruppe.appendChild(liste);
+      }
     }
     wurzel.appendChild(gruppe);
   }

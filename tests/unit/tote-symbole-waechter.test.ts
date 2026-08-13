@@ -70,8 +70,23 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, normalize } from 'node:path';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BEKANNT_UNERREICHBAR } from './kein-unerreichbarer-code.test.js';
+
+/**
+ * Mehr Zeit als die üblichen fünf Sekunden — **für diese Datei allein**.
+ *
+ * Der Wächter parst den gesamten Baum unter `src/` und `tests/`. Das ist
+ * inhärent teuer: Gemessen 1,5 s allein, 7,5 s in der vollen Suite bei Last.
+ * Beim ersten Anlauf riss er deshalb zweimal die Grenze und meldete einen
+ * **Zeitablauf statt eines Befundes** — die schlechteste Art, rot zu werden,
+ * weil sie wie ein Fehler im geprüften Code aussieht.
+ *
+ * Der Speicher unten hilft ab dem zweiten Aufruf; der erste bleibt teuer.
+ * Global heraufzusetzen wäre falsch: Dann verstecken sich echte Hänger in
+ * jeder anderen Datei. Hier steht die Ausnahme dort, wo ihr Grund steht.
+ */
+vi.setConfig({ testTimeout: 60_000 });
 
 /** Eine Fundstelle: wo das Symbol steht und wie es heisst. */
 interface Stelle {
@@ -92,16 +107,15 @@ const schluessel = (s: Stelle): string => `${s.datei}#${s.name}`;
  * wenn ein Eintrag überholt ist — sonst überlebt die Liste, was sie beschreibt.
  */
 const AUSNAHMEN: Readonly<Record<string, string>> = {
-  // ---- OFFEN: sie gehören an #811, nicht in den Papierkorb ----------------
+  // ---- HIER STANDEN attachHelp UND buildIntroduction ----------------------
   //
-  // Beide stammen aus AC2 und AC4 von #85, die als eigenes Issue #811 laufen.
-  // Sie jetzt zu löschen hiesse, sie dort neu zu schreiben. **Die Ausnahme hat
-  // ein Ablaufdatum:** Sobald #811 sie anschliesst, wird der Fall „überholte
-  // Ausnahme" rot und die Zeilen fallen.
-  'src/analysis/archive-view.ts#attachHelp':
-    'OFFEN bis #811 (Hilfe-Fenster, AC2 von #85) — die Ansicht hängt, die Hilfe daran fehlt noch',
-  'src/analysis/archive-view.ts#buildIntroduction':
-    'OFFEN bis #811 (geführte Einführung, AC4 von #85) — baut den Text, den erst #811 aufruft',
+  // Sie trugen „OFFEN bis #811" mit Ablaufbedingung: „Sobald #811 sie
+  // anschliesst, wird der Fall ‚überholte Ausnahme' rot und die Zeilen fallen."
+  //
+  // **Genau das ist passiert.** #811 hat beide angeschlossen, der Fall wurde
+  // rot, und die Zeilen sind gefallen — nicht, weil jemand daran gedacht hat,
+  // sondern weil ein Prüffall es verlangt hat. Das ist der Unterschied zwischen
+  // einer Ausnahme mit Ablaufdatum und einer Halde.
 
   // ---- Absicht: vorgesehene Auslöser, deren Klänge schon im Verzeichnis stehen
   //
@@ -343,14 +357,27 @@ describe('Kein exportiertes Wertsymbol ohne Nutzer', () => {
   });
 
   it('jeder offene Eintrag nennt seine Ablaufbedingung', () => {
-    // **Damit die grüne Liste nicht als „alles in Ordnung" gelesen wird.** Die
-    // Zusicherung hängt an der EIGENSCHAFT, nicht an einem Namen: Ein Name
-    // altert mit seiner Behebung und meldet dann einen Fehler, der keiner ist.
+    // **Die Zusicherung hängt an der EIGENSCHAFT, nicht an einem Namen**: Ein
+    // Name altert mit seiner Behebung und meldet dann einen Fehler, der keiner
+    // ist.
+    //
+    // # Hier stand bis #811 eine zweite Bedingung, und sie war falsch gebaut
+    //
+    // ```text
+    //   expect(offen.length, 'kein einziger offener Befund — dann ist die
+    //                         Liste geschönt').toBeGreaterThan(0)
+    // ```
+    //
+    // Die Absicht war richtig: Eine grüne Liste soll nicht als „alles in
+    // Ordnung" gelesen werden. Die Bedingung war es nicht — sie verlangte,
+    // dass **immer mindestens ein Rest offen bleibt**. Als #811 die beiden
+    // letzten anschloss, wurde sie rot, und zwar für eine erledigte Sache.
+    //
+    // Ein Wächter, der fordert, dass es etwas Kaputtes gibt, hat keinen
+    // Zustand mehr, in dem er zufrieden ist. Was er leisten sollte, leistet
+    // der Fall darüber besser: Er meldet jede Ausnahme, die ihre Sache
+    // überlebt hat — und der hat #811 auch tatsächlich gefangen.
     const offen = Object.entries(AUSNAHMEN).filter(([, grund]) => grund.startsWith('OFFEN'));
-    expect(
-      offen.length,
-      'kein einziger offener Befund — dann ist die Liste geschönt',
-    ).toBeGreaterThan(0);
     for (const [name, grund] of offen)
       expect(grund, `${name} ist OFFEN, nennt aber kein Issue, das die Ausnahme beendet`).toMatch(
         /#\d+/,

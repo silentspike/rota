@@ -229,6 +229,7 @@ describe('AC4 — der SIEG schaltet frei, nicht die Ansicht', () => {
     items: [],
     defeatedBosses: [],
     unlockedEntryIds: [],
+    seenMechanicIds: [],
     level: 1,
     experience: 0,
   };
