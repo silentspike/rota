@@ -39,6 +39,7 @@ function save(level = 1): SaveData {
     bindings: { '0': 'kindle' },
     bestRuns: [],
     defeatedBosses: [],
+    unlockedEntryIds: [],
     runHistory: [],
     progressMarks: [],
   };
