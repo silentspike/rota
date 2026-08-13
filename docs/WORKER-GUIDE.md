@@ -130,7 +130,7 @@ Am 2026-08-13 an zwei Aufgaben unabhängig belegt, in beide Richtungen:
 
 Beide breiten Mutationen greifen in etwas ein, das **überall** gebraucht wird —
 den Cast-Zustand, die zentrale Schadensformel. Sie belegen, dass die Sache
-benutzt wird, nicht dass *der geprüfte Wert* geprüft ist.
+benutzt wird, nicht dass _der geprüfte Wert_ geprüft ist.
 
 > **32 rote Suiten sind kein Nachweis, sondern ein Immer-Färber mit anderem
 > Namen.**
