@@ -39,6 +39,7 @@ const LEER: RecordedState = {
   items: [],
   defeatedBosses: [],
   unlockedEntryIds: [],
+  seenMechanicIds: [],
   level: 1,
   experience: 0,
 };

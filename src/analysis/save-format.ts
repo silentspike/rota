@@ -270,6 +270,21 @@ export interface SaveData {
    */
   readonly unlockedEntryIds: readonly string[];
   /**
+   * Die Mechaniken, deren Einfuehrung der Spieler schon gesehen hat
+   * (GAME-DESIGN 17.3, Issue #811).
+   *
+   * **Genau wie `unlockedEntryIds` daneben, und aus demselben Grund**: Was
+   * hier steht, ist Historie und nichts Berechnetes (18.6). Der TEXT der
+   * Einfuehrung steht in den Daten; hier steht nur, was der Spieler schon
+   * gelesen hat.
+   *
+   * **Ueberspringen zaehlt als gesehen.** Wer den Knopf drueckt, will sie
+   * nicht wiedersehen — das ist sein Sinn. Stuende hier nur das Weiterlesen,
+   * erschiene sie beim naechsten Mal erneut, und der Knopf waere eine
+   * Vertroestung.
+   */
+  readonly seenMechanicIds: readonly string[];
+  /**
    * Alle Durchlaeufe (GAME-DESIGN 15.4).
    *
    * Bewusst aufgenommen, nicht nebenbei: Der Auftraggeber hat am 2026-08-04
@@ -298,6 +313,7 @@ export const ALLOWED_TOP_LEVEL: readonly string[] = [
   'bestRuns',
   'defeatedBosses',
   'unlockedEntryIds',
+  'seenMechanicIds',
   'runHistory',
   'progressMarks',
 ];

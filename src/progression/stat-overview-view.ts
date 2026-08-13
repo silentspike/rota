@@ -26,6 +26,7 @@
  *
  * Spieltexte englisch (Design-Gesetz 5).
  */
+import { withPlainText } from '../analysis/help.js';
 import { formatValue, type StatRow } from './stat-overview.js';
 
 function element(tag: string, className?: string, text?: string): HTMLElement {
@@ -60,7 +61,17 @@ export function buildStatOverview(rows: readonly StatRow[]): HTMLElement {
     // Text daneben.
     line.dataset.overCap = row.overCap === null ? 'no' : 'yes';
 
-    line.appendChild(element('td', 'stats-label', row.label));
+    // **Der Fachbegriff bekommt seinen Klartext daneben** (AC3 von #811,
+    // GAME-DESIGN 17.3): „ESSENCE (Strength of the substance)". Kennt
+    // `withPlainText` den Begriff nicht, bleibt er unverändert stehen — eine
+    // erfundene Erklärung wäre schlimmer als keine.
+    //
+    // Und dieselbe Zelle trägt die Kennung für das Erklärfenster (AC2). Beides
+    // gehört an den Namen, nicht an die Zahl: Wer nicht weiß, was ESSENCE ist,
+    // sieht auf das Wort.
+    const bezeichnung = element('td', 'stats-label', withPlainText(row.label));
+    bezeichnung.dataset.help = row.id;
+    line.appendChild(bezeichnung);
     line.appendChild(element('td', 'stats-value', formatValue(row.value, row.unit)));
 
     // Der Deckel steht nur da, wo es einen gibt. Ein leeres Feld mit Strich
