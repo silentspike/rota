@@ -80,6 +80,12 @@ const TEST_BUFF_JSON: &str = "../data/spells/test-buff.json";
 /// und `test-cast` steht in sechs Aufzeichnungen — ein zweiter Pruefzweck
 /// darauf machte jede davon mehrdeutig.
 const TEST_CHANNEL_JSON: &str = "../data/spells/test-channel.json";
+/// Der Pruef-Zauber zur HEILUNGS-Kanalisierung (Issue #323). Er traegt die
+/// Zahlen des Design-Beispiels woertlich (500 Heilung ueber 5 s); `test-channel`
+/// daneben bleibt der SCHADENS-Fall. Zwei Pruefzwecke an einem Zauber machten
+/// jede Messung mehrdeutig — dieselbe Begruendung wie bei test-buff neben
+/// test-cast.
+const TEST_CHANNEL_HEAL_JSON: &str = "../data/spells/test-channel-heal.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -108,6 +114,7 @@ fn main() {
     println!("cargo:rerun-if-changed={COMMON_SPELLS_JSON}");
     println!("cargo:rerun-if-changed={TEST_BUFF_JSON}");
     println!("cargo:rerun-if-changed={TEST_CHANNEL_JSON}");
+    println!("cargo:rerun-if-changed={TEST_CHANNEL_HEAL_JSON}");
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
     println!("cargo:rerun-if-changed={SUBLIMATION_JSON}");
@@ -130,6 +137,7 @@ fn main() {
     let test_cast = read_json(TEST_CAST_JSON);
     let test_buff = read_json(TEST_BUFF_JSON);
     let test_channel = read_json(TEST_CHANNEL_JSON);
+    let test_channel_heal = read_json(TEST_CHANNEL_HEAL_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -162,6 +170,11 @@ fn main() {
             // GAME-DESIGN 18.7), und bestehende Indizes duerfen sich nicht
             // verschieben.
             ("test-channel.json", &test_channel),
+            // **Und ganz zuletzt der Heil-Kanal**, aus demselben Grund: Die
+            // Reihenfolge dieser Liste IST die Zauberreihenfolge (#408,
+            // GAME-DESIGN 18.7). Hinten anzuhaengen laesst jeden bestehenden
+            // Index stehen.
+            ("test-channel-heal.json", &test_channel_heal),
         ],
     );
 

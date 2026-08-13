@@ -74,10 +74,15 @@ export class StackMechanic implements RuleReceiver {
     return this.gains;
   }
 
-  /** Die beiden Anmeldungen dieser Mechanik, als Daten. */
+  /** Die Anmeldungen dieser Mechanik, als Daten. */
   registrations(id: string): Registration[] {
     return [
       { id, on: RULE_SPELL_CAST },
+      // **Hier hängt auch die Kanalisierung** (Issue #323). Sie sendet kein
+      // `spell.cast` — das kommt aus `resolvePlayerCast`, die sie überspringt
+      // —, meldet ihren Schritt aber als `dot.tick`. Was ein Kanalzauber je
+      // Schritt beisteuert, entscheidet `gainOfTick`; ohne das bekam er
+      // gemessen 0 Vorrat, während KINDLE 3 brachte.
       { id, on: RULE_DOT_TICK },
     ];
   }

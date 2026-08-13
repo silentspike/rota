@@ -169,6 +169,9 @@ describe('Combat — Grundwerte aus den Datensätzen', () => {
       'test-convert',
       'test-cap',
       'test-channel',
+      // Issue #323 — der Prüfzauber zur HEILUNGS-Kanalisierung, hinter dem zur
+      // Schadens-Kanalisierung. Ganz am Ende, damit kein Index wandert.
+      'test-channel-heal',
     ]);
     expect(combat.boss.hp).toBe(4200);
     expect(combat.boss.overpressureMs).toBe(60_000);
