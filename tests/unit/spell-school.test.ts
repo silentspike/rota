@@ -76,6 +76,12 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'quicksilver',
       // Issue #481 — POULTICE, Heilung ueber Zeit (Weg 2 der Schule).
       'poultice',
+      // Issue #323 — DECOCTION, die erste spielbare Kanalisierung. Sie steht an
+      // ihrer fachlichen Stelle (Stufe 7, zwischen POULTICE und MEND) und
+      // schiebt die vier Zauber danach um eins. Genau dafür gibt es diese
+      // Liste: Die Verschiebung steht hier und in `spell-order.json`, nicht
+      // still in einer Aufzeichnung.
+      'decoction',
       // Issue #481 — MEND, ebenfalls Weg 2 und in der Reihenfolge des Rasters.
       // Er schiebt CRUCIBLE SKIN um eins nach hinten; das geschieht hier und
       // in `spell-order.json` sichtbar, nicht still (wie #268, #479).
