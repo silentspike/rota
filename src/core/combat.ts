@@ -64,6 +64,7 @@ import {
   hasKeystone,
   KEYSTONE_SPLIT_SPENDER,
   KEYSTONE_AUTO_RESET,
+  KEYSTONE_DECAY_ECHO,
   KEYSTONE_PARTIAL_CONTROL,
   KEYSTONE_SHIELD_REFUND,
   NO_TALENTS,
@@ -467,6 +468,19 @@ export class Combat {
   private readonly damageBySpell: Float64Array;
   private readonly dotExpiresAtMs: Float64Array;
   private readonly dotNextTickAtMs: Float64Array;
+
+  /**
+   * Bis wann ein **erloschener** Brand noch Zersetzungs-Stapel legt (#419,
+   * PUTREFACTIONs Schlüsseltalent).
+   *
+   * Der Wert ist die Frist des jüngsten Stapels, der beim letzten Tick lag —
+   * fortgeschrieben, solange der Brand läuft, sodass beim Erlöschen von selbst
+   * der richtige Endpunkt dasteht. `NOT_ACTIVE` heißt: kein Nachlauf.
+   *
+   * **Gemessen in Kampfzeit** (`fightElapsedMs`), wie `decayExpiryMs`, aus dem
+   * er stammt — nicht in der Zeit des Aufrufers.
+   */
+  private readonly decayEchoUntilMs: Float64Array;
   private readonly dotTicksLost: Int32Array;
   private readonly dotTickCounts: Int32Array;
 
@@ -1113,6 +1127,7 @@ export class Combat {
     this.damageBySpell = new Float64Array(count);
     this.dotExpiresAtMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotNextTickAtMs = new Float64Array(count).fill(NOT_ACTIVE);
+    this.decayEchoUntilMs = new Float64Array(count).fill(NOT_ACTIVE);
     this.dotTicksLost = new Int32Array(count);
     this.dotTickCounts = new Int32Array(count);
     for (let i = 0; i < count; i++) this.indexById.set((this.spells[i] as SpellDef).id, i);
@@ -2429,6 +2444,48 @@ export class Combat {
   }
 
   /**
+   * Schreibt den Endpunkt des Nachlaufs fort (#419, `KEYSTONE_DECAY_ECHO`).
+   *
+   * **Nur für Brände, die überhaupt Stapel legen.** Ein Brand ohne
+   * `decayPerTick` bekommt keinen Endpunkt und damit keinen Nachlauf — sonst
+   * schaltete die Schleife nach seinem Ende einen Tick-Zeiger weiter, der
+   * nichts bewirkt.
+   *
+   * **Der jüngste Stapel gibt das Ende**, nicht der älteste: Er ist der letzte,
+   * der vergeht. Liegt gerade keiner, gibt es nichts nachzuhalten.
+   */
+  private merkeDecayEcho(index: number, decayPerTick: number): void {
+    if (decayPerTick <= 0) return;
+    this.decayEchoUntilMs[index] =
+      this.decayCountValue > 0
+        ? (this.decayExpiryMs[this.decayCountValue - 1] ?? NOT_ACTIVE)
+        : NOT_ACTIVE;
+  }
+
+  /**
+   * Ob ein erloschener Brand noch nachläuft — und räumt ihn ab, wenn nicht.
+   *
+   * **Hier endet die Selbstverstärkung.** Der Endpunkt stammt aus der Lage beim
+   * letzten lebenden Tick; was der Nachlauf selbst legt, verschiebt ihn nicht,
+   * weil `merkeDecayEcho` nur im lebenden Zweig aufgerufen wird. Ohne diese
+   * Trennung hielte ein einziger Brand seine Stapel für immer: Jeder neue
+   * Stapel schöbe die Frist vor sich her, und die Zersetzung liefe ohne
+   * weiteren Tastendruck endlos weiter.
+   */
+  private imDecayEcho(index: number, timeMs: number): boolean {
+    if (!this.hasKeystone(KEYSTONE_DECAY_ECHO)) return false;
+    const bis = this.decayEchoUntilMs[index] ?? NOT_ACTIVE;
+    if (bis === NOT_ACTIVE) return false;
+    // Auch die Stapel selbst müssen noch liegen: Wer sie anderweitig verliert
+    // (Phasenwechsel, Verzehr), verliert den Nachlauf mit ihnen.
+    if (this.decayCountValue <= 0 || this.fightElapsedMs(timeMs) > bis) {
+      this.decayEchoUntilMs[index] = NOT_ACTIVE;
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Lässt abgelaufene Stapel verfallen — **den ältesten zuerst**.
    *
    * Die Liste steht aufsteigend, also stehen die abgelaufenen vorn. Was bleibt,
@@ -3636,9 +3693,20 @@ export class Combat {
       const spell = this.spells[i] as SpellDef;
       const dot = spell.dot;
       if (dot === undefined) continue;
-      if (!this.isDotActive(i, timeMs)) continue;
       const nextTick = this.dotNextTickAtMs[i] ?? NOT_ACTIVE;
       if (nextTick === NOT_ACTIVE || timeMs < nextTick) continue;
+
+      // **Der Nachlauf eines erloschenen Brands** (#419, PUTREFACTIONs
+      // Schlüsseltalent). Er steht VOR der Schadensrechnung und steigt mit
+      // `continue` aus: Ein toter Brand legt Stapel, aber er schlägt nicht
+      // mehr zu. Trüge er auch Schaden, wäre er eine verlängerte Laufzeit —
+      // und die gibt es schon als „Lasting Rot".
+      if (!this.isDotActive(i, timeMs)) {
+        if (!this.imDecayEcho(i, timeMs)) continue;
+        this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
+        this.dotNextTickAtMs[i] = nextTick + this.dotInterval(dot);
+        continue;
+      }
 
       // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
       // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn gesetzt
@@ -3682,6 +3750,10 @@ export class Combat {
       // sie beim Wirken legt (`applyPutrefaction`), sitzt ebenfalls direkt im
       // Kampf. Zwei Wege für dieselbe Größe wären eine Stelle zu viel.
       this.addDecayStacks(dot.decayPerTick ?? 0, timeMs);
+      // **Den Endpunkt des Nachlaufs fortschreiben, solange der Brand lebt**
+      // (#419). Beim Erlöschen steht damit von selbst die Frist des jüngsten
+      // Stapels da — es braucht keine Stelle, die das Ende des Brands abpasst.
+      this.merkeDecayEcho(i, dot.decayPerTick ?? 0);
       // Der Hitze-Gewinn stand bis E3-2 hier. Er hängt jetzt am Ereignis
       // `dot.tick` (`src/combat/schools/stacks.ts`) — was ein Zauber
       // beisteuert, steht in seinen Daten, nicht im Kampfcode.

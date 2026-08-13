@@ -123,6 +123,34 @@ export const KEYSTONE_PARTIAL_CONTROL = 'partial-control';
  */
 export const KEYSTONE_SHIELD_REFUND = 'shield-refund';
 
+/**
+ * PUTREFACTIONs Schlüsseltalent (#419): Ein erloschener Brand **legt weiter
+ * Stapel**, bis die Lage vergangen ist, die bei seinem Ende lag.
+ *
+ * **Der erste Entwurf war wirkungslos, und das war messbar.** Er ließ beim
+ * Verfall eines Stapels jeden laufenden Brand einmal ticken — nur überlappen
+ * Brand-Laufzeit und Stapel-Laufzeit im Normalfall gar nicht:
+ *
+ * ```text
+ *   t=12000   4 Stapel   Brand AKTIV
+ *   t=16000   2 Stapel   Brand NICHT MEHR aktiv   <- hier verfällt der erste
+ * ```
+ *
+ * Genau diese Messung trägt jetzt das Talent: Bei t=16000 liegen Stapel, und
+ * der Brand ist aus. Die Lücke, in der der alte Entwurf nichts fand, ist die
+ * Zeit, die der neue füllt.
+ *
+ * **Der Nachlauf legt nur Stapel, keinen Schaden.** Ein toter Brand, der
+ * weiter zuschlägt, wäre eine verlängerte Laufzeit — das ist bereits „Lasting
+ * Rot". Hier wächst allein die Zersetzung.
+ *
+ * **Und er endet.** Maßgeblich ist die Frist des jüngsten Stapels, der beim
+ * Erlöschen lag; was der Nachlauf selbst legt, verlängert ihn nicht. Ohne
+ * diese Grenze hielte ein einziger Brand seine Stapel für immer am Leben,
+ * weil jeder neue Stapel den nächsten trüge.
+ */
+export const KEYSTONE_DECAY_ECHO = 'decay-echo';
+
 /** Ob die Verteilung ein bestimmtes Verhalten freigeschaltet hat (#418). */
 export function hasKeystone(allocation: TalentAllocation, keystone: string): boolean {
   return TALENTS.some(

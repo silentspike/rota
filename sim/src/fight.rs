@@ -264,6 +264,12 @@ pub struct FightConfig {
     pub partial_control: bool,
     /// Ob das Schluesseltalent "shield-refund" verteilt ist (COAGULATION, #419).
     pub shield_refund: bool,
+    /// Ob das Schluesseltalent "decay-echo" verteilt ist (PUTREFACTION, #419).
+    ///
+    /// Ein erloschener Brand legt dann weiter Zersetzungs-Stapel — bis die
+    /// Lage vergangen ist, die bei seinem Ende lag. Nur Stapel, kein Schaden:
+    /// eine laengere Laufzeit gibt es schon als "Lasting Rot".
+    pub decay_echo: bool,
     /// Ob der Satz-Effekt "ashen-regimen" wirkt (13.5, Issue #480).
     ///
     /// Die sechste Satz-Stufe traegt keinen Werte-Bonus, sondern eine Kennung,
@@ -369,6 +375,7 @@ impl Default for FightConfig {
             auto_reset: false,
             partial_control: false,
             shield_refund: false,
+            decay_echo: false,
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
@@ -833,6 +840,13 @@ pub struct Fight {
     auto_reset: bool,
     partial_control: bool,
     shield_refund: bool,
+    decay_echo: bool,
+    /// Bis wann ein ERLOSCHENER Brand noch Stapel legt (#419, decay-echo).
+    ///
+    /// 0 heisst: kein Nachlauf. Der Wert ist die Frist des juengsten Stapels
+    /// beim letzten lebenden Tick — fortgeschrieben, solange der Brand laeuft,
+    /// sodass beim Erloeschen von selbst der richtige Endpunkt dasteht.
+    decay_echo_until: [Millis; SPELL_COUNT],
     /// Wie dick die zuletzt gelegte Schicht war (fuer die Nachlage, #419).
     shield_last_amount: u32,
     /// Ob dieser Schild seine Nachlage schon bekommen hat.
@@ -1132,6 +1146,8 @@ impl Fight {
             auto_reset: config.auto_reset,
             partial_control: config.partial_control,
             shield_refund: config.shield_refund,
+            decay_echo: config.decay_echo,
+            decay_echo_until: [0; SPELL_COUNT],
             shield_last_amount: 0,
             shield_refund_used: false,
             ashen_regimen: config.ashen_regimen,
@@ -1787,6 +1803,7 @@ impl Fight {
         self.cooldown_ready_at = [0; SPELL_COUNT];
         self.resource = 0;
         self.dot_expires_at = [None; SPELL_COUNT];
+        self.decay_echo_until = [0; SPELL_COUNT];
         self.dot_generation = [0; SPELL_COUNT];
         self.casts = [0; SPELL_COUNT];
         self.damage_by_spell = [0; SPELL_COUNT];
@@ -2678,6 +2695,52 @@ impl Fight {
         self.update_vulnerability();
     }
 
+    /// Schreibt den Endpunkt des Nachlaufs fort (#419, decay-echo).
+    ///
+    /// Spiegelbild zu `merkeDecayEcho` in `src/core/combat.ts`.
+    ///
+    /// **Nur fuer Braende, die ueberhaupt Stapel legen** — sonst reihte die
+    /// Warteschlange nach dem Ende Ticks ein, die nichts bewirken. Und der
+    /// JUENGSTE Stapel gibt das Ende, nicht der aelteste: Er ist der letzte,
+    /// der vergeht.
+    fn merke_decay_echo(&mut self, index: usize, decay_per_tick: u32) {
+        if decay_per_tick == 0 {
+            return;
+        }
+        self.decay_echo_until[index] = if self.decay_count > 0 {
+            self.decay_expiry[self.decay_count - 1]
+        } else {
+            0
+        };
+    }
+
+    /// Ob ein erloschener Brand jetzt noch nachlaeuft — und raeumt ihn ab,
+    /// wenn nicht. Spiegelbild zu `imDecayEcho` in `src/core/combat.ts`.
+    ///
+    /// **Hier endet die Selbstverstaerkung.** Der Endpunkt stammt aus der Lage
+    /// beim letzten LEBENDEN Tick; was der Nachlauf selbst legt, verschiebt
+    /// ihn nicht, weil `merke_decay_echo` nur im lebenden Zweig laeuft. Ohne
+    /// diese Trennung truege jeder neue Stapel den naechsten, und ein einziger
+    /// Brand hielte die Zersetzung ohne weiteren Tastendruck endlos.
+    fn im_decay_echo(&mut self, index: usize) -> bool {
+        if !self.decay_echo || self.decay_echo_until[index] == 0 {
+            return false;
+        }
+        // Auch die Stapel selbst muessen noch liegen: Wer sie anderweitig
+        // verliert (Phasenwechsel, Verzehr), verliert den Nachlauf mit ihnen.
+        if self.decay_count == 0 || self.time > self.decay_echo_until[index] {
+            self.decay_echo_until[index] = 0;
+            return false;
+        }
+        true
+    }
+
+    /// Ob der Nachlauf zum Zeitpunkt `at` noch offen ist — die Frage beim
+    /// EINREIHEN, ohne etwas abzuraeumen.
+    fn echo_offen_bei(&self, index: usize, at: Millis) -> bool {
+        self.decay_echo && self.decay_echo_until[index] > 0 && at <= self.decay_echo_until[index]
+    }
+
     /// Laesst abgelaufene Stapel verfallen — **den aeltesten zuerst**.
     /// Abgelaufene Verstaerkungen wegraeumen und den Faktor nachziehen (#420).
     ///
@@ -3343,12 +3406,30 @@ impl Fight {
         if generation != self.dot_generation[index] {
             return;
         }
-        if !self.dot_active(index) {
-            return;
-        }
         let Some(dot) = SPELLS[index].dot else {
             return;
         };
+        if !self.dot_active(index) {
+            // **Der Nachlauf eines erloschenen Brands** (#419, decay-echo).
+            // Er legt Stapel und steigt dann aus: Ein toter Brand schlaegt
+            // nicht mehr zu. Truege er auch Schaden, waere er eine
+            // verlaengerte Laufzeit — und die gibt es schon als "Lasting Rot".
+            if !self.im_decay_echo(index) {
+                return;
+            }
+            self.add_decay_stacks(dot.decay_per_tick);
+            let next = self.time + self.dot_interval(&dot);
+            if self.echo_offen_bei(index, next) {
+                self.queue.push(
+                    next,
+                    EventKind::DotTick {
+                        spell: index as u8,
+                        generation,
+                    },
+                );
+            }
+            return;
+        }
 
         // **Ein eigener Wurf je Tick** (GAME-DESIGN 6.5: „pro Zauber, pro
         // DoT-Tick und pro Heilung"). Nicht der Wurf der Wirkung, die ihn
@@ -3387,14 +3468,25 @@ impl Fight {
         // Schul-Ressource, sondern liegen auf dem Boss — und die Stelle, die
         // sie beim Wirken legt, sitzt ebenfalls direkt hier.
         self.add_decay_stacks(dot.decay_per_tick);
+        // **Den Endpunkt des Nachlaufs fortschreiben, solange der Brand lebt**
+        // (#419). Beim Erloeschen steht damit von selbst die Frist des
+        // juengsten Stapels da — es braucht keine Stelle, die das Ende abpasst.
+        self.merke_decay_echo(index, dot.decay_per_tick);
         // Der Hitze-Gewinn stand bis E3-2 hier. Er haengt jetzt am Ereignis.
 
         // Der naechste Tick nur, wenn er noch in die Laufzeit faellt. Das `<=`
         // ist dieselbe Entscheidung wie das `>=` in [`Fight::dot_active`]:
         // 12 s Laufzeit bei 2 s Abstand ergeben **6** Ticks, der letzte genau
         // beim Ablauf (`STEP1-SPEC` 1.2).
+        //
+        // **Der Nachlauf reiht ueber das Ende hinaus ein** — sonst gaebe es
+        // nach dem letzten lebenden Tick gar kein Ereignis mehr, an das er
+        // anknuepfen koennte. Die TS-Seite braucht das nicht: Dort laeuft eine
+        // Schleife ueber alle Zauber, hier haengt alles an der Warteschlange.
         let next = self.time + self.dot_interval(&dot);
-        if self.dot_expires_at[index].is_some_and(|expires| next <= expires) {
+        if self.dot_expires_at[index].is_some_and(|expires| next <= expires)
+            || self.echo_offen_bei(index, next)
+        {
             self.queue.push(
                 next,
                 EventKind::DotTick {
