@@ -5305,6 +5305,26 @@ impl Fight {
         self.casting
     }
 
+    /// Millisekunden, bis der laufende Boss-Zauber landet (Issue #797).
+    ///
+    /// **0, wenn nichts laeuft** — dieselbe Uebereinkunft wie
+    /// `dot_remaining_ms` bei erloschenem Brand. Wer darauf eine Bedingung
+    /// baut, prueft zusaetzlich `casting()`; sonst trifft `< 2000` auch in
+    /// der Stille zwischen zwei Zaubern.
+    ///
+    /// **`saturating_sub` statt einer Subtraktion**: `cast_lands_at` liegt
+    /// normalerweise in der Zukunft, aber im Auslöse-Takt selbst sind beide
+    /// gleich — und eine Zeitleiste, die den Einschlag bereits verbucht hat,
+    /// während `casting` noch steht, gäbe es sonst als Unterlauf zurück.
+    #[must_use]
+    pub fn boss_cast_remaining_ms(&self) -> Millis {
+        if self.casting.is_some() {
+            self.cast_lands_at.saturating_sub(self.time)
+        } else {
+            0
+        }
+    }
+
     /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
     #[must_use]
     pub fn interrupts_landed(&self) -> u32 {
