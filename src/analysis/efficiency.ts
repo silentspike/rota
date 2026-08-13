@@ -49,6 +49,19 @@ export interface SpellEfficiencyInput {
    * Spalte waere als Massstab wertlos.
    */
   readonly triggersGcd: boolean;
+  /**
+   * Wie oft der Brand dieses Zaubers getickt hat. 0 für Zauber ohne Brand.
+   *
+   * **Zusammen mit `lostDotTicks` erklärt diese Zahl eine Null** (Issue #806):
+   * Ein Zauber ohne Grundschaden, der oft gewirkt wurde und nie getickt hat,
+   * ist nicht schlecht gespielt — er wurde jedes Mal erneuert, bevor sein
+   * erster Tick fiel.
+   */
+  readonly dotTicks: number;
+  /** Ticks, die durch zu frühes Erneuern verfielen (`combat.lostDotTicks`). */
+  readonly lostDotTicks: number;
+  /** Ob der Zauber seinen Schaden ausschliesslich über den Brand macht. */
+  readonly damageOnlyFromDot: boolean;
 }
 
 export interface EfficiencyInput {
@@ -74,6 +87,30 @@ export interface SpellEfficiencyRow {
   readonly idleMs: number;
   readonly damage: number;
   readonly damageShare: number;
+  /**
+   * Warum diese Zeile so aussieht, wie sie aussieht — oder `null` (#806).
+   *
+   * # Wofür es das gibt
+   *
+   * SMOULDER hat 1500 ms Abklingzeit und 2000 ms bis zum ersten Tick, dazu
+   * `refreshMode: reset` und keinen Grundschaden. Wer ihn drückt, sobald die
+   * Taste bereit ist, wirft seinen eigenen Brand 500 ms vor dem ersten Tick
+   * weg. Gemessen über 30 Sekunden:
+   *
+   * ```text
+   *   auf Abklingzeit gedrückt   21 Wirkungen · 0 Ticks · 100 verloren · 0 Schaden
+   *   erst beim Auslaufen         3 Wirkungen · 15 Ticks · 0 verloren · 2400 Schaden
+   * ```
+   *
+   * Er ist `unlockLevel: 1` — der zweite Zauber, den jeder Spieler hat. Die
+   * naheliegendste Handlung eines Anfängers führt bei ihm zu gar keinem
+   * Schaden, und die Tabelle sagte bisher nur „0 %".
+   *
+   * **Der Satz ändert nichts am Spiel** (die Entscheidung aus GAME-DESIGN 7.2
+   * bleibt: Präzision wird als Können belohnt). Er sagt dem Spieler nur, was er
+   * sonst selbst herausrechnen müsste.
+   */
+  readonly note: string | null;
 }
 
 export interface EfficiencyTable {
@@ -121,6 +158,30 @@ export function availableWindows(elapsedMs: number, gcdMs: number): number {
   return Math.floor(elapsedMs / gcdMs) + 1;
 }
 
+/**
+ * Der Satz zu einer Zeile, oder `null` (Issue #806).
+ *
+ * **Nur wo er etwas erklärt.** Ein Hinweis an jeder Zeile wäre Rauschen; einer
+ * an der Zeile, die ohne ihn unverständlich ist, ist die Aussage.
+ *
+ * Die drei Fälle sind nach Schärfe geordnet: gar nicht getickt, mehr verloren
+ * als bekommen, überhaupt etwas verloren.
+ */
+function noteFor(spell: SpellEfficiencyInput): string | null {
+  if (!spell.damageOnlyFromDot || spell.casts <= 0) return null;
+  if (spell.dotTicks === 0) {
+    // **Der Fall aus #806.** Kein Tick trotz Wirkungen — der Brand kam nie an.
+    return `renewed before its first tick — ${String(spell.lostDotTicks)} ticks lost`;
+  }
+  if (spell.lostDotTicks > spell.dotTicks) {
+    return `renewed too early — ${String(spell.lostDotTicks)} ticks lost, ${String(spell.dotTicks)} landed`;
+  }
+  if (spell.lostDotTicks > 0) {
+    return `${String(spell.lostDotTicks)} ticks lost to early renewal`;
+  }
+  return null;
+}
+
 export function buildEfficiencyTable(input: EfficiencyInput): EfficiencyTable {
   const { elapsedMs, gcdMs, damage } = input;
   const castsMax = availableWindows(elapsedMs, gcdMs);
@@ -147,6 +208,7 @@ export function buildEfficiencyTable(input: EfficiencyInput): EfficiencyTable {
       idleMs: spell.idleMs,
       damage: spell.damage,
       damageShare: damage > 0 ? spell.damage / damage : 0,
+      note: noteFor(spell),
     };
   });
 

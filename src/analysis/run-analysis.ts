@@ -185,6 +185,11 @@ export function runDataFor(
       lostDotTicks: combat.lostDotTicks(index),
       damagePerTick: spell.dot?.tickDamage ?? 0,
       triggersGcd: spell.triggersGcd,
+      dotTicks: combat.dotTickCount(index),
+      // **Beides zusammen, nicht `baseDamage === 0` allein** (#806): Ein
+      // Zauber ohne Grundschaden UND ohne Brand macht gar keinen Schaden — für
+      // den erklärt der Satz nichts, er verwirrt nur.
+      damageOnlyFromDot: spell.baseDamage === 0 && spell.dot !== undefined,
     });
   }
   return rows;

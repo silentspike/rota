@@ -98,6 +98,23 @@ export function buildEfficiencyView(table: EfficiencyTable): HTMLElement {
     line.appendChild(element('td', 'efficiency-spell', row.spellId.toUpperCase()));
     for (const cell of cellsFor(row, table)) line.appendChild(element('td', undefined, cell));
     grid.appendChild(line);
+
+    // **Der Satz steht UNTER seiner Zeile, nicht in einer Spalte** (#806).
+    // Eine sechste Spalte wäre bei jedem Lauf für fast jeden Zauber leer, und
+    // eine leere Spalte macht die fünf danebenstehenden schmaler, ohne etwas
+    // zu sagen. Der Nachsatz erscheint nur, wo er etwas erklärt.
+    if (row.note !== null) {
+      const hinweis = document.createElement('tr');
+      hinweis.className = 'efficiency-note-row';
+      hinweis.dataset.noteFor = row.spellId;
+      const zelle = document.createElement('td');
+      // Über die ganze Breite: Kennung plus alle Spalten.
+      zelle.colSpan = table.columns.length + 1;
+      zelle.className = 'efficiency-note';
+      zelle.textContent = row.note;
+      hinweis.appendChild(zelle);
+      grid.appendChild(hinweis);
+    }
   }
 
   root.appendChild(grid);
