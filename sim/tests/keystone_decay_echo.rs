@@ -36,6 +36,47 @@ use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::fight::{Fight, FightConfig};
 use rota_sim::replay::{Binding, Press, Recording};
 
+/// Wirkt ROT auf Takt 0 und NECROSIS auf `verzehr_tick`, laeuft `ticks` Takte.
+///
+/// **Der Weg, die Stapel anderweitig zu verlieren.** NECROSIS traegt
+/// `consumesDecayStacks` — ohne ihn gaebe es im Kampf gar keine Stelle, an der
+/// die Lage verschwindet, waehrend die Uhr des Nachlaufs noch laeuft.
+fn mit_verzehr(ticks: u32, verzehr_tick: Option<u32>) -> usize {
+    let boss = boss_by_id("first-crucible").expect("first-crucible fehlt");
+    let rot = index_of("rot").expect("rot fehlt");
+    let necrosis = index_of("necrosis").expect("necrosis fehlt");
+
+    let mut fight = Fight::new(FightConfig {
+        boss,
+        decay_echo: true,
+        ..FightConfig::default()
+    });
+    let mut presses = vec![Press { tick: 0, slot: 0 }];
+    if let Some(tick) = verzehr_tick {
+        presses.push(Press { tick, slot: 1 });
+    }
+    fight.replay(
+        &Recording {
+            name: "verzehr".to_owned(),
+            seed: 0,
+            ticks,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: rot,
+                },
+                Binding {
+                    slot: 1,
+                    spell: necrosis,
+                },
+            ],
+            presses,
+        },
+        false,
+    );
+    fight.decay_stacks()
+}
+
 /// Wirkt ROT auf Takt 0 und laesst den Kampf `ticks` Takte laufen.
 ///
 /// Gibt (liegende Stapel, ausgeteilter Schaden, Brand-Ticks).
@@ -122,5 +163,56 @@ fn und_er_endet() {
         nach_rot(4000, true).0,
         0,
         "der Nachlauf darf sich nicht selbst tragen"
+    );
+}
+
+/// **Nach dem letzten Stapel kommt nichts mehr — im VERLAUF, nicht am Ende.**
+///
+/// Der Fall darueber misst einen einzigen Zeitpunkt und saehe nicht, wenn die
+/// Zersetzung zwischendurch auf null fiele und danach noch einmal anspraenge.
+#[test]
+fn nach_dem_letzten_stapel_kommt_nichts_nach() {
+    let mut werte = Vec::new();
+    for takte in (100..=4000).step_by(100) {
+        werte.push(nach_rot(takte, true).0);
+    }
+    assert!(
+        werte.iter().any(|&w| w > 0),
+        "im ganzen Verlauf liegt kein Stapel — der Fall misst nichts"
+    );
+    // **Die erste Null NACH dem ersten Stapel**, nicht die erste Null
+    // ueberhaupt: Zu Beginn liegt noch keiner, und `position(|w| w == 0)`
+    // zeigte auf den Anfang statt auf das Ende. Mein erster Entwurf tat genau
+    // das und meldete einen Fehler im Code, wo einer im Fall lag.
+    let erster_stapel = werte
+        .iter()
+        .position(|&w| w > 0)
+        .expect("im ganzen Verlauf liegt kein Stapel — der Fall misst nichts");
+    let erstes_ende = erster_stapel
+        + werte[erster_stapel..]
+            .iter()
+            .position(|&w| w == 0)
+            .expect("die Zersetzung endet im Lauf gar nicht — dann ist sie unbegrenzt");
+    assert!(
+        werte[erstes_ende..].iter().all(|&w| w == 0),
+        "nach dem letzten Stapel kam noch etwas nach: {werte:?}"
+    );
+}
+
+/// **Ein VERZEHR beendet den Nachlauf sofort — nicht erst die Uhr.**
+///
+/// Die zweite Grenze, und bis zu diesem Fall war sie ungeprueft: Eine Mutation,
+/// die die Stapel-Bedingung entfernt, lief durch alle anderen Faelle hindurch.
+#[test]
+fn ein_verzehr_beendet_den_nachlauf() {
+    // 600 Takte = 6000 ms: Der Brand (4000 ms) ist aus, der Nachlauf traegt.
+    assert!(
+        mit_verzehr(1200, None) > 0,
+        "ohne Verzehr liegt bei 12000 ms nichts — der Vergleich misst nichts"
+    );
+    assert_eq!(
+        mit_verzehr(1200, Some(600)),
+        0,
+        "nach dem Verzehr darf kein Stapel mehr nachkommen"
     );
 }
