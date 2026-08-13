@@ -846,7 +846,7 @@ export class Session implements Simulation {
         this.emit(EV_SPELL_CAST, spellIndex, timeMs);
         // Ein Rücksetzer stellt den Auswahlmodus scharf — erst NACH seiner
         // eigenen Wirkung, sonst wählte er sich selbst als nächsten Druck.
-        this.combat.armResetIfNeeded(spellIndex);
+        this.combat.armResetIfNeeded(spellIndex, timeMs);
       }
     } else {
       this.rejectedAtMs[slot] = timeMs;

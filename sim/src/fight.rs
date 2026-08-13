@@ -254,6 +254,14 @@ pub struct FightConfig {
     /// Zauberliste — geht auf dieser Seite nicht: `SPELLS` ist statisch und
     /// wird an vierzig Stellen direkt gelesen.
     pub split_spender: bool,
+    /// Ob das Schluesseltalent "auto-reset" verteilt ist (SUBLIMATION, #419).
+    ///
+    /// Dieselbe Bauart wie `split_spender` daneben: ein Verhalten, kein
+    /// Faktor. Der Ruecksetzer stellt dann keinen Auswahlmodus scharf,
+    /// sondern loescht sofort die LAENGSTE Restzeit.
+    pub auto_reset: bool,
+    /// Ob das Schluesseltalent "partial-control" verteilt ist (FIXATION, #419).
+    pub partial_control: bool,
     /// Ob der Satz-Effekt "ashen-regimen" wirkt (13.5, Issue #480).
     ///
     /// Die sechste Satz-Stufe traegt keinen Werte-Bonus, sondern eine Kennung,
@@ -356,6 +364,8 @@ impl Default for FightConfig {
             boss: BOSS,
             worn: WornValues::none(),
             split_spender: false,
+            auto_reset: false,
+            partial_control: false,
             ashen_regimen: false,
             whole_work: false,
             slow_rot: false,
@@ -817,6 +827,8 @@ pub struct Fight {
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
     split_spender: bool,
+    auto_reset: bool,
+    partial_control: bool,
     ashen_regimen: bool,
     whole_work: bool,
     slow_rot: bool,
@@ -1109,6 +1121,8 @@ impl Fight {
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
             split_spender: config.split_spender,
+            auto_reset: config.auto_reset,
+            partial_control: config.partial_control,
             ashen_regimen: config.ashen_regimen,
             whole_work: config.whole_work,
             slow_rot: config.slow_rot,
@@ -1521,7 +1535,33 @@ impl Fight {
                             // Der Zuschlag greift NACH der Pruefung, nicht in
                             // ihr — sonst waere jeder Zauber ein Ruecksetzer,
                             // sobald ein Rang verteilt ist.
-                            if SPELLS[index].cooldown_reset_charges > 0 {
+                            if SPELLS[index].cooldown_reset_charges > 0 && self.auto_reset {
+                                // **SUBLIMATIONs Schluesseltalent** (#419):
+                                // keine Wahl mehr, sondern sofort die
+                                // LAENGSTE Restzeit. Bei Gleichstand der
+                                // kleinere Platz — dieselbe Regel wie in
+                                // `Combat.laengsteRestzeit`, sonst waehlen die
+                                // beiden Seiten verschieden und die
+                                // Bitgleichheit reisst genau hier.
+                                let mut ziel: Option<usize> = None;
+                                let mut laengste = 0u32;
+                                for i in 0..SPELLS.len() {
+                                    if i == index {
+                                        continue;
+                                    }
+                                    let rest = self.cooldown_remaining_ms(i);
+                                    if rest > laengste {
+                                        laengste = rest;
+                                        ziel = Some(i);
+                                    }
+                                }
+                                if let Some(i) = ziel {
+                                    // Dasselbe wie `Combat.clearCooldown`:
+                                    // die Bereitschaft auf 0 setzen, nicht
+                                    // abziehen.
+                                    self.cooldown_ready_at[i] = 0;
+                                }
+                            } else if SPELLS[index].cooldown_reset_charges > 0 {
                                 self.reset_mode.arm(
                                     index,
                                     SPELLS[index].cooldown_reset_charges.saturating_add(
@@ -2349,20 +2389,31 @@ impl Fight {
     ///
     /// Hier greift FIXATION wirklich in den **Kampfverlauf** ein — das ist,
     /// was sie von jeder anderen Schule unterscheidet.
-    fn apply_control_effect(&mut self, control: Control) {
+    fn apply_control_effect(&mut self, control: Control, einsatz: u32, preis: u32) {
         // **Der Wirkungs-Weg wirkt am EINGANG** (Issue #419, FIXATION). Der
         // Faktor auf `amount` gilt damit fuer alle fuenf Wirkungen und fuer
         // `AllThree`, das drei davon nacheinander aufruft — eine Zeile statt
         // fuenf, die auseinanderlaufen koennen.
         let control = Control {
-            amount: (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32,
+            // **Der Anteil steckt IN derselben Rundung wie im Spiel**
+            // (`combat.ts`, `staerke`). Wer erst rundet und dann teilt, bekommt
+            // eine andere Zahl — und die Bitgleichheit reisst an einer Stelle,
+            // die niemand mit dem Talent in Verbindung braechte.
+            amount: (f64::from(control.amount)
+                * self.talent_control_effect_factor
+                * f64::from(einsatz)
+                / f64::from(preis))
+            .round() as u32,
             // **Die Phasen-Senkung traegt denselben Faktor, aber ihre eigene
             // Zahl** (Issue #478). Bei 0 gilt `amount` — dieselbe Regel wie in
             // `combat.ts`, damit beide Seiten bei einem Zauber ohne
             // `amountPercent` dasselbe rechnen.
             amount_percent: if control.amount_percent > 0 {
-                (f64::from(control.amount_percent) * self.talent_control_effect_factor).round()
-                    as u32
+                (f64::from(control.amount_percent)
+                    * self.talent_control_effect_factor
+                    * f64::from(einsatz)
+                    / f64::from(preis))
+                .round() as u32
             } else {
                 (f64::from(control.amount) * self.talent_control_effect_factor).round() as u32
             },
@@ -2378,10 +2429,20 @@ impl Fight {
                 ControlEffect::DelayStrike,
                 ControlEffect::HoldPhase,
             ] {
-                self.apply_control_effect(Control {
-                    effect: effekt,
-                    ..control
-                });
+                // **Neutral weiterreichen (1/1), nicht den Anteil.** Die
+                // Werte in `control` sind an dieser Stelle bereits skaliert;
+                // wer den Anteil hier erneut mitgibt, halbiert ihn ein
+                // zweites Mal. Das Spiel rechnet `staerke` genau einmal aus
+                // und gibt sie an alle drei Wirkungen weiter — dieselbe
+                // Reihenfolge, damit die Bitgleichheit haelt.
+                self.apply_control_effect(
+                    Control {
+                        effect: effekt,
+                        ..control
+                    },
+                    1,
+                    1,
+                );
             }
             return;
         }
@@ -2511,13 +2572,20 @@ impl Fight {
         // ein Ausgeber, der nichts kostet, waere keiner.
         let preis =
             ((f64::from(control.cost) / self.talent_control_cost_factor).round() as u32).max(1);
-        if self.control < preis {
+        // **FIXATIONs Schluesseltalent** (#419): Der Zauber scheitert nicht
+        // mehr, sondern wirkt mit dem, was da ist — und die Wirkung sinkt im
+        // selben Verhaeltnis. Spiegelbild von `Combat.applyControl`.
+        //
+        // Bei LEEREM Vorrat scheitert er weiterhin: Ein Zauber, der aus nichts
+        // etwas macht, waere kein Schluesseltalent, sondern ein Fehler.
+        if self.control < preis && (!self.partial_control || self.control == 0) {
             self.control_failed += 1;
             return;
         }
-        self.control -= preis;
-        self.control_spent = self.control_spent.saturating_add(preis);
-        self.apply_control_effect(control);
+        let einsatz = preis.min(self.control);
+        self.control -= einsatz;
+        self.control_spent = self.control_spent.saturating_add(einsatz);
+        self.apply_control_effect(control, einsatz, preis);
     }
 
     /// Wandelt ausgeteilten Schaden in Schutz um, solange Weg 3 laeuft.

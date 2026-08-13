@@ -3583,7 +3583,7 @@ export function alembicPayload(): Record<string, unknown> {
 
     if (gewaehlt >= 0 && combat.cast(alsSpellIndex(gewaehlt), timeMs).result === 0) {
       presses.push({ tick, slot: slotFor(slots, alsSpellIndex(gewaehlt), combat) });
-      combat.armResetIfNeeded(gewaehlt);
+      combat.armResetIfNeeded(gewaehlt, timeMs);
     }
     checksums.push(combatChecksum(combat, timeMs));
     ladungen.push(combat.resetChargesLeft);
