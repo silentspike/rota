@@ -67,7 +67,21 @@ const LAUF = {
   lostTimeNothingReadyMs: 3000,
 };
 
+/**
+ * Die Bildabrufe, die die App bestellt hat.
+ *
+ * `App` reicht `window.requestAnimationFrame` an die Schleife weiter. In
+ * jsdom liefe der Ruf irgendwann von selbst — hier wird er abgefangen, damit
+ * der Frame genau dann fällt, wenn der Fall ihn braucht.
+ */
+const abgefangeneFrames: FrameRequestCallback[] = [];
+
 beforeEach(() => {
+  abgefangeneFrames.length = 0;
+  window.requestAnimationFrame = ((ruf: FrameRequestCallback): number => {
+    abgefangeneFrames.push(ruf);
+    return abgefangeneFrames.length;
+  }) as typeof window.requestAnimationFrame;
   stubbeCanvas();
   localStorage.clear();
   document.body.innerHTML = '';
@@ -147,18 +161,17 @@ describe('AC3 — die letzte Meile: das Overlay ZEIGT ihn', () => {
    *   overlay: buildComparison…   zeigt ihn        <- HIER
    * ```
    *
-   * **Die mittlere Stufe ist hier NICHT abgedeckt, und das steht so da.**
-   * Gemessen: Setzt man `view.comparison = null` in `hud.ts`, bleibt jeder
-   * der 2437 Fälle grün. Ein Fall dafür bräuchte einen laufenden
-   * `HudRenderer` samt Oberfläche und Sitzung; den gibt es im Projekt
-   * nirgends, und ihn allein für diese Zeile zu bauen wäre mehr Attrappe als
-   * Prüfung.
+   * **Alle drei Stufen sind abgedeckt**, die mittlere seit AC4 unten.
    *
-   * Die Stufe ist stattdessen **im Browser** belegt (siehe PR-Text): Dort
-   * läuft die ganze Kette, und der Vergleich steht sichtbar in der
-   * Auswertung. Das ist eine Messung, aber keine Absicherung — wer die Zeile
-   * entfernt, merkt es erst beim nächsten Hinsehen. Lieber benannt als
-   * stillschweigend gelassen.
+   * Sie war es zunächst nicht: Ein `view.comparison = null` in `hud.ts` liess
+   * alle 2444 Fälle grün — die Stelle war von nichts gehalten. Mein erster
+   * Einwand lautete, ein Fall dafür bräuchte einen von Hand zusammengebauten
+   * `HudRenderer` und wäre mehr Attrappe als Prüfung.
+   *
+   * Das stimmte für den isolierten Renderer und war trotzdem der falsche
+   * Schluss: **`App` erzeugt ihn selbst** (`app.ts`, im Konstruktor). Wer die
+   * App baut und einen Frame fahren lässt, prüft die Kette und nicht den
+   * Zusammenbau.
    */
   /** Eine Kurzfassung aus einem wirklich gelaufenen Kampf. */
   function echteSummary() {
@@ -224,5 +237,56 @@ describe('AC3 — die letzte Meile: das Overlay ZEIGT ihn', () => {
     // Dokument vorkommt — etwa aus einer anderen Tabelle.
     const wurzel = ergebnis(null);
     expect(wurzel.textContent).not.toContain('PROGRESS');
+  });
+});
+
+describe('AC4 — die mittlere Stufe: die App fährt einen echten Frame', () => {
+  /**
+   * Der Fall, den es zuerst nicht gab.
+   *
+   * Zwischen `comparisonForResult()` und der Anzeige liegt eine Zeile in
+   * `hud.ts`: `view.comparison = this.comparisonSource()`. Sie war von nichts
+   * gehalten — auf `null` gekappt blieben alle 2444 Fälle grün.
+   *
+   * **Über `new App()` und nicht über einen eigenen `HudRenderer`.** Die App
+   * baut ihn selbst; wer ihn von Hand zusammensetzt, prüft den Zusammenbau
+   * statt die Sache. Der Bildabruf wird abgefangen, damit der Frame hier
+   * fällt und nicht irgendwann — sonst hinge der Fall an der Uhr des
+   * Rechners.
+   */
+  function frameFahren(app: App): void {
+    app.loop.start();
+    const rufe = [...abgefangeneFrames];
+    abgefangeneFrames.length = 0;
+    for (const ruf of rufe) ruf(performance.now());
+    app.loop.stop();
+  }
+
+  it('nach einem Lauf steht der Vergleich im Dokument', () => {
+    const app = baueApp();
+    app.session.startFight(0);
+    app.session.wipe(5000);
+    frameFahren(app);
+
+    const knopf = [...document.querySelectorAll('button')].find(
+      (b) => b.textContent === 'View Analysis',
+    );
+    expect(knopf, 'die Auswertung wurde nicht gezeigt').toBeDefined();
+    knopf?.click();
+
+    // Die Kennzahlen des Vergleichs — sie kommen NUR über die gekappte Zeile.
+    const text = document.body.textContent ?? '';
+    expect(text, 'der Vergleich fehlt im Dokument').toContain('PROGRESS');
+    expect(text).toContain('MISSED');
+  });
+
+  it('ZUSICHERUNG: ohne Frame steht er NICHT da', () => {
+    // Ohne diese Zeile bewiese der Fall oben nur, dass das Wort irgendwo im
+    // Dokument vorkommt — etwa aus einer anderen Tabelle.
+    const app = baueApp();
+    app.session.startFight(0);
+    app.session.wipe(5000);
+    // kein frameFahren
+    expect(document.body.textContent ?? '').not.toContain('MISSED');
   });
 });
