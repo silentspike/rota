@@ -80,12 +80,17 @@ impl StackMechanic {
             // dann teilen" eine 4, "erst teilen, dann Faktor" eine 3. Beide
             // Seiten teilen deshalb vor den Faktoren.
             per_tick[index] = if spell.channel_tick_ms > 0 && spell.channel_ms > 0 {
+                // `checked_div` statt `if schritte > 0` — clippy nennt die
+                // Handpruefung `manual_checked_div`, und sie ist hier wirklich
+                // nur Umweg: Eine Schrittzahl von 0 und eine Division, die
+                // keinen Wert liefert, sind dieselbe Aussage.
                 let schritte = spell.channel_ms / spell.channel_tick_ms;
-                if schritte > 0 {
-                    u16::try_from(u32::from(spell.resource_gain) / schritte).unwrap_or(0)
-                } else {
-                    0
-                }
+                u16::try_from(
+                    u32::from(spell.resource_gain)
+                        .checked_div(schritte)
+                        .unwrap_or(0),
+                )
+                .unwrap_or(0)
             } else {
                 spell.dot.map_or(0, |dot| dot.resource_gain_per_tick)
             };

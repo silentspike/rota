@@ -1,32 +1,42 @@
 //! Der Simulator zaehlt eine Kanalisierung als Wurf (Issue #323).
 //!
-//! # Warum diese Datei entstanden ist — ein Fall, der gruen blieb, obwohl er
-//! rot sein musste
+//! # Warum diese Datei entstanden ist — und warum sie bleibt
 //!
-//! In `parity_channel.rs` steht `die_zahl_der_wirkungen_stimmt_auf_beiden_seiten`.
-//! Er vergleicht `result.casts[test-channel]` gegen die Zahl aus der
-//! Aufzeichnung (3). Am 2026-08-14 wurde die Rust-Zeile
-//! `self.casts[index] += 1;` im Kanal-Zweig testweise entfernt. Erwartung:
-//! 0 gegen 3, also rot. Gemessen:
+//! Am 2026-08-14 sah es eine Stunde lang so aus, als gaebe es hier ein
+//! Phaenomen. In `parity_channel.rs` steht
+//! `die_zahl_der_wirkungen_stimmt_auf_beiden_seiten`; er vergleicht
+//! `result.casts` gegen die Zahl aus der Aufzeichnung. Ein Lauf mit
+//! ENTFERNTER Zaehlzeile meldete:
 //!
 //! ```text
 //! der_schluss_stand_stimmt                        FAILED
 //! die_pruefsummen_stimmen_in_jedem_einzelnen_takt FAILED
-//! die_zahl_der_wirkungen_stimmt_auf_beiden_seiten ok      <- der hier
+//! die_zahl_der_wirkungen_stimmt_auf_beiden_seiten ok      <- musste rot sein
 //! ```
 //!
-//! Der Fall lief (er steht namentlich im Protokoll des Laufs) und war gruen.
-//! Der Code sagt, dass das nicht sein kann: `result.casts` kommt aus
-//! `self.casts` (fight.rs, `casts: self.casts.to_vec()`), und es gibt genau
-//! zwei Stellen, die es erhoehen — den Kanal-Zweig und `resolve_player_cast`,
-//! die ein Kanal nie durchlaeuft.
+//! Neun Erklaerungen wurden einzeln ausgeschlossen — eine zweite Quelle fuer
+//! `casts`, eine dritte Zaehlstelle, ein Praefix-Treffer bei `index_of`, eine
+//! eigene Zaehlung in `replay.rs`, geteilter Zustand zwischen den Faellen und
+//! anderes. Im Code war nichts.
 //!
-//! **Die Erklaerung ist offen.** Solange sie es ist, haengt der Nachweis "der
-//! Simulator zaehlt Kanalisierungen" an einem Fall, dessen Verhalten wir nicht
-//! verstehen. Deshalb steht die Frage hier ein zweites Mal — direkt am
-//! Simulator, ohne Aufzeichnung, ohne Spiel-Vergleich, ohne
-//! Prueflauf-Umgebung. Wird der Zaehler wieder entfernt und dieser Fall bleibt
-//! gruen, ist der Zaehler nicht die Groesse, fuer die wir ihn halten.
+//! **Die Gegenmessung hat es aufgeloest:** Dieselbe Mutation, frisch gesetzt,
+//! ergab DREI rote Faelle — mit `left: 0, right: 3` genau dort, wo der Fall
+//! vorher gruen war. Der erste Lauf hatte etwas gemeldet, das nicht
+//! stattgefunden hat; woran es lag, ist nicht gemessen und wird deshalb hier
+//! nicht behauptet (denkbar: ein inkrementeller Build, der gegen eine aeltere
+//! Bibliothek gebunden hat).
+//!
+//! # Warum die Faelle trotzdem bleiben
+//!
+//! Nicht weil die Frage offen waere — sie ist beantwortet. Sondern weil sie
+//! die Zaehlung OHNE die Replay-Strecke sichern. Der Fall in
+//! `parity_channel.rs` misst beides zugleich: den Zaehler und den Weg ueber
+//! Aufzeichnung, `unwrap_or` und `replay()`. Wird er einmal rot, sagt er nicht,
+//! welches von beidem es war.
+//!
+//! Diese Datei trennt das. Und sie faengt kuenftig genau die Verwechslung, die
+//! hier eine Stunde gekostet hat: Ein Ergebnis, das aussieht wie eine Aussage
+//! ueber den Code, waehrend es eine ueber den Lauf war.
 
 use rota_sim::data::SPELLS;
 use rota_sim::fight::{Fight, FightConfig};
