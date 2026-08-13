@@ -3177,6 +3177,9 @@ impl Fight {
             EventKind::AfflictionTick => self.affliction_tick(),
             EventKind::TimelineStep { index } => self.timeline_step(index as usize),
             EventKind::BossCastLands { index } => self.boss_cast_lands(index as usize),
+            EventKind::ChannelTick { spell, generation } => {
+                self.channel_tick(spell as usize, generation);
+            }
             EventKind::PlayerCastLands { spell, generation } => {
                 self.player_cast_lands(spell as usize, generation);
             }
@@ -3296,6 +3299,58 @@ impl Fight {
             }
         } else {
             self.factors
+        }
+    }
+
+    /// Eine Teilwirkung einer Kanalisierung (Issue #323, GAME-DESIGN 7.2).
+    ///
+    /// # Der Anteil kommt aus der Dauer
+    ///
+    /// `base_damage` ist die GESAMT-Wirkung und wird auf die Raster-Schritte
+    /// verteilt. Eine eigene Zahl "Schaden je Schritt" in den Daten waere eine
+    /// zweite Quelle fuer dieselbe Aussage — und die beiden liefen bei der
+    /// ersten Aenderung auseinander.
+    ///
+    /// Ganzzahlig abgerundet, der Rest verfaellt (18.4): 500 ueber 3 Schritte
+    /// geben je 166. Dieselbe Formel wie in `Combat::resolveChannelTick`.
+    ///
+    /// # Warum hier nicht `resolve_player_cast` steht
+    ///
+    /// Der loest die GANZE Wirkung auf — Synergie-Fenster, Koagulation,
+    /// Verhaengnis, Unterbrechen. Je Schritt getan hiesse das, ein
+    /// fuenfschrittiger Kanal oeffnete fuenf Fenster. Eine Kanalisierung teilt
+    /// ihren SCHADEN, nicht ihre Ereignisse.
+    fn channel_tick(&mut self, index: usize, generation: u16) {
+        // Veraltet: Die Kanalisierung wurde abgebrochen oder durch eine neue
+        // ersetzt; ihre restlichen Termine liegen noch in der Schlange.
+        if generation != self.player_cast_generation {
+            return;
+        }
+        if self.player_casting != Some(index) {
+            return;
+        }
+        let spell = &SPELLS[index];
+        if spell.channel_tick_ms == 0 || spell.base_damage == 0 {
+            return;
+        }
+        let schritte = spell.channel_ms / spell.channel_tick_ms;
+        if schritte == 0 {
+            return;
+        }
+
+        // Ein eigener Wurf je Schritt, aus Stream::DotTick — dieselbe Regel und
+        // derselbe Strom wie beim Brand-Tick (6.5, Issue #602).
+        let kritet = self.roll_crit(Stream::DotTick);
+        self.factors.resistance = self.resistance_by_spell[index];
+        let factors = self.factors_for(kritet);
+        let anteil = spell.base_damage / schritte;
+        // **Dieselbe Protokoll-Art wie ein Brand-Tick** und keine neue: Das
+        // Protokoll teilt seinen Nummernraum mit dem Spiel (#134), und eine
+        // neue Art verschoebe jede eingecheckte Vergleichsdatei.
+        let damage = self.deal(index, compute_damage(anteil, &factors), LogKind::DotTick);
+        self.emit_rule(RuleEvent::DotTick, index as i16, f64::from(damage));
+        if kritet {
+            self.emit_rule(RuleEvent::Crit, index as i16, f64::from(damage));
         }
     }
 
@@ -3847,6 +3902,63 @@ impl Fight {
         // steht in `resolve_player_cast`, und daran haengt die zweite Haelfte
         // von 7.1: "Bei Abbruch geht der Zauber verloren, die Abklingzeit
         // laeuft aber nicht an."
+        // **Die Kanalisierung** (Issue #323, GAME-DESIGN 7.2). Sie steht VOR
+        // der Wirkzeit; der TS-Parser schliesst beides zugleich aus, die
+        // Reihenfolge ist also nur eine Lesart.
+        //
+        // **Design-Gesetz 1:** EIN Druck startet sie, dann laeuft sie von
+        // selbst. Kein gehaltener Zustand, keine zweite Taste — was folgt,
+        // haengt allein an der Uhr.
+        let channel = self.hasted(spell.channel_ms);
+        if channel > 0 {
+            self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
+            self.player_casting = Some(index);
+            self.player_cast_ends_at = snap_up(now + channel);
+            if spell.triggers_gcd && !self.take_free_gcd() {
+                self.gcd_ready_at = snap_up(now + self.gcd_length());
+                self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
+            }
+            // **Alle Termine im Voraus**, nicht einer nach dem anderen: Die
+            // Schlange ist die einzige Zeitquelle des Simulators, und ein
+            // Termin, der erst beim vorigen entsteht, haengt an dessen
+            // Abarbeitung. Wird die Kanalisierung abgebrochen, bleiben die
+            // restlichen liegen und verfallen ueber die Generation.
+            let schritt = self.hasted(spell.channel_tick_ms);
+            if schritt > 0 {
+                let mut at = snap_up(now + schritt);
+                while at <= self.player_cast_ends_at {
+                    self.queue.push(
+                        at,
+                        EventKind::ChannelTick {
+                            spell: index as u8,
+                            generation: self.player_cast_generation,
+                        },
+                    );
+                    at += schritt;
+                }
+            }
+            // **Und das ENDE, sonst laeuft sie ewig.** Der Simulator kennt nur
+            // die Schlange; ohne diesen Termin bliebe `player_casting` gesetzt,
+            // und jeder spaetere Druck "braeche" eine laengst beendete
+            // Kanalisierung ab.
+            //
+            // **Gemessen, nicht befuerchtet:** Ohne diese Zeile zaehlte der
+            // Simulator 3 Abbrueche durch den Spieler, das Spiel 1 — bei
+            // identischen Pruefsummen in jedem Takt. Die Summe fuehrt den
+            // Zaehler nicht, deshalb waere es dort nie aufgefallen.
+            //
+            // `player_cast_lands` loest bei einer Kanalisierung NICHTS aus
+            // (ihre Wirkung ist ueber die Schritte gefallen) — es raeumt nur.
+            self.queue.push(
+                self.player_cast_ends_at,
+                EventKind::PlayerCastLands {
+                    spell: index as u8,
+                    generation: self.player_cast_generation,
+                },
+            );
+            return;
+        }
+
         let cast_time = self.hasted(spell.cast_time_ms);
         if cast_time > 0 {
             self.player_cast_generation = self.player_cast_generation.wrapping_add(1);
@@ -3886,6 +3998,14 @@ impl Fight {
         }
         self.player_casting = None;
         self.player_cast_ends_at = 0;
+        // **Eine Kanalisierung loest am Ende NICHTS aus** (Issue #323): Ihre
+        // Wirkung ist ueber die Schritte bereits gefallen; ein Aufruf hier
+        // gaebe sie ein zweites Mal, in voller Hoehe. Der Termin dient allein
+        // dem Raeumen — genau wie in `Combat::stepPassive`, wo dieselbe
+        // Verzweigung steht.
+        if SPELLS[index].channel_ms > 0 {
+            return;
+        }
         self.resolve_player_cast(index, true);
     }
 

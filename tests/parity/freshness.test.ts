@@ -64,6 +64,7 @@ import eingecheckteUmrechnung from './recordings/haste.json';
 import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
 import eingecheckteWirkzeit from './recordings/cast-time.json';
+import eingecheckterKanal from './recordings/channel.json';
 import eingecheckteWiderstaende from './recordings/resistances.json';
 import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
 // **Diese zwei fehlten hier**, und das ist ein Befund und keine Ergänzung:
@@ -158,6 +159,7 @@ import {
   wornPayload,
   sourcesPayload,
   castTimePayload,
+  channelPayload,
   resistancePayload,
   resistanceMixedPayload,
   runawayProgressPayload,
@@ -603,6 +605,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteWirkzeit, HINWEIS).toEqual(castTimePayload());
   });
 
+  it('der Lauf mit einer KANALISIERUNG entspricht dem heutigen Spielstand', () => {
+    // Die einzige Aufzeichnung, in der eine Kanalisierung läuft UND mitten
+    // drin abbricht (#323). Ohne den Abbruch sähe sie aus wie ein Cast.
+    expect(eingecheckterKanal, HINWEIS).toEqual(channelPayload());
+  });
+
   it('der Lauf gegen einen Boss mit WIDERSTAENDEN entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteWiderstaende, HINWEIS).toEqual(resistancePayload());
   });
@@ -891,6 +899,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'worn-values',
   'sources',
   'cast-time',
+  'channel',
   'resistances',
   'resistances-mixed',
   'runaway-progress',

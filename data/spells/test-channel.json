@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "school": "CALCINATION",
+  "_comment": "DER PRUEF-ZAUBER ZUR KANALISIERUNG (Issue #323). Er gehoert NICHT zum Spiel und wird nie ausgeliefert: 'unlockLevel' liegt ueber der Stufengrenze aus data/player/levels.json (maxLevel 100), und beide Stellen, die dem Spieler Zauber anbieten, filtern darueber — src/progression/composition-view.ts (die Auswahl) und src/progression/bindings.ts (das Belegen). Er ist damit unsichtbar und nicht auf die Leiste zu bringen, steht aber im Index-Raum und ist fuer Prueffaelle und Aufzeichnungen ueber combat.indexOf('test-channel') erreichbar. Dieselbe Konvention wie test-cast (#304), test-buff (#420) und die test-*-Bosse in data/bosses/.\n\nWARUM EIN NEUER ZAUBER UND NICHT test-cast ERWEITERT: Der Parser lehnt Wirkzeit UND Kanalisierung am selben Zauber ausdruecklich ab — das sind zwei Aufloesungen fuer einen Zauber. Und welcher Zauber DES SPIELS kanalisiert, ist eine Katalog-Entscheidung nach GAME-DESIGN 22 und gehoert zu E10; sie hier mitzuentscheiden hiesse, sie ohne den Katalog zu treffen.\n\nDIE ZAHLEN SIND DAS DESIGN-BEISPIEL, nicht frei gewaehlt: GAME-DESIGN 7.2 nennt woertlich 'eine Kanalisierung ueber 5 s fuer 500, abgebrochen nach 3 s, hat 300 gegeben'. Genau das steht hier — 5000 ms Dauer, 1000 ms Raster, 500 Grundschaden. Damit ergibt jeder der fuenf Schritte 100, und der Abbruch nach drei Schritten laesst 300 stehen. Ein Prueffall kann die Zahl deshalb AUS DER DAUER rechnen statt sie abzuschreiben.\n\nDIE FOLGE, DIE NIEMAND UMGEHEN KANN: Die Zustands-Pruefsumme laeuft ueber ALLE Zauber (fuenf Werte je Zauber — src/core/checksum.ts und sim/src/fight.rs, checksum_at). Ein weiterer Zauber aendert damit jede Pruefsumme in jedem Takt, auf beiden Seiten identisch. Alle Vergleichsdateien unter tests/parity/recordings/ mussten deshalb neu exportiert werden. Dasselbe geschah zuletzt bei test-buff (#420) und davor bei test-cast (#304).\n\nDER REFERENZLAUF BLEIBT UNBERUEHRT: Er nutzt KINDLE, SMOULDER und PYRE (4240 Schaden bei 40510 ms). Ein Zauber, den niemand druecken kann, bewegt ihn nicht.",
+  "spells": [
+    {
+      "id": "test-channel",
+      "name": "Test Channel",
+      "unlockLevel": 101,
+      "baseDamage": 500,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "channelMs": 5000,
+      "channelTickMs": 1000,
+      "triggersGcd": true
+    }
+  ]
+}

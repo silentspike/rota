@@ -112,8 +112,8 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
   // Dazu die Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die kein
   // Spieler je auf die Leiste legt: `test-cast` (#304), `test-buff` (#420),
-  // die sechs Ziel-Prüfer aus #489/E10 und `test-cap` (#562). Alle spielbaren
-  // Zauber klingen.
+  // die sechs Ziel-Prüfer aus #489/E10, `test-cap` (#562) und `test-channel`
+  // (#323). Alle spielbaren Zauber klingen.
   //
   // Der Satz hier nannte bis #562 „die beiden Prüf-Zauber" und stand über einer
   // Liste, die längst acht führte — wer ihn las, hielt die anderen für
@@ -152,6 +152,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'putrid-bloom',
     'test-cast',
     'test-buff',
+    'test-channel',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
     // Er entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung
     // entstehen — Claude kann nicht hoeren, und ein erfundener Prompt im
