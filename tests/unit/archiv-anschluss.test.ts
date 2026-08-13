@@ -20,6 +20,24 @@
  * **Prüfdaten** in der Bauart von `test-set` und `test-channel`: erkennbar
  * Prüfung, über das Präfix `test-` von der ausgelieferten Liste getrennt.
  *
+ * # Ein flüchtiger roter Lauf, und was die Nachmessung ergab
+ *
+ * Am 2026-08-13 fiel EIN Fall aus der vollen Suite (1 von 2491), ohne dass
+ * der Name erfasst wurde — der Lauf lief ohne Umleitung, die Ausgabe war weg.
+ * Systemlast zu dem Zeitpunkt: **36,31**.
+ *
+ * Nachgemessen wurde diese Datei zusammen mit den zwei anderen jsdom-Dateien,
+ * zwanzig Läufe: **alle 32 grün, rc=0**, Last 12,0 bis 15,4. Der Orchestrator
+ * fuhr fünf eigene Läufe bei Last 20,7, ebenfalls sauber.
+ *
+ * **Das entlastet nicht, es grenzt nur ein.** Niemand hat bei Last 36
+ * gemessen; zwanzig grüne Läufe bei einem Drittel davon belegen nicht, dass
+ * es dort hält. Wer hier wieder einen roten Fall sieht: Er ist der Verdacht,
+ * und diesmal gehört der NAME in die Meldung.
+ *
+ * Diese Datei ist die schwerste der drei (3,8 s gegen 3,4 und 3,3) — sie baut
+ * in mehreren Fällen eine ganze `App` unter jsdom.
+ *
  * # Die Regel aus 17.4, die hier gemessen wird
  *
  * „Vor jeder Instanz und nach jedem **ersten** Boss-Sieg ein kurzer Text —
