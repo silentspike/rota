@@ -80,7 +80,7 @@ use crate::log::{CombatLog, LogKind, NO_SPELL};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
-use crate::sets::WHOLE_WORK_GCD_REDUCTION_MS;
+use crate::sets::{PERPETUAL_DRAFT_EXTRA_CHARGE, WHOLE_WORK_GCD_REDUCTION_MS};
 use crate::stacks::{PendingGain, StackMechanic};
 use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
@@ -284,6 +284,10 @@ pub struct FightConfig {
     /// Der erste Kontroll-Ausgeber nach jedem Phasenwechsel kostet nichts —
     /// der ABZUG entfaellt, die Voraussetzung bleibt.
     pub long_grip: bool,
+    /// Ist `Perpetual Draft` aktiv (SUBLIMATION-Sechser)?
+    ///
+    /// Der Ruecksetzer bekommt [`PERPETUAL_DRAFT_EXTRA_CHARGE`] Ladungen mehr.
+    pub perpetual_draft: bool,
     /// Die verteilten Talente als Promille-Summe (Issue #417).
     ///
     /// **Als fertige Summe und nicht als Verteilung**, anders als im Spiel: Der
@@ -370,6 +374,7 @@ impl Default for FightConfig {
             slow_rot: false,
             sealed_vessel: false,
             long_grip: false,
+            perpetual_draft: false,
             talent_permille: 0,
             talent_resource_permille: 0,
             talent_dot_duration_permille: 0,
@@ -840,6 +845,7 @@ pub struct Fight {
     free_control_spend_armed: bool,
     /// Wie oft der Effekt gegriffen hat — fuer die Pruefung.
     free_control_spends: u32,
+    perpetual_draft: bool,
 
     // -- Werkzeuge --
     queue: EventQueue,
@@ -1136,6 +1142,7 @@ impl Fight {
             long_grip: config.long_grip,
             free_control_spend_armed: false,
             free_control_spends: 0,
+            perpetual_draft: config.perpetual_draft,
             queue: EventQueue::with_capacity(EVENT_CAPACITY),
             log: CombatLog::with_capacity(config.log_capacity),
             rng: Streams::new(config.seed),
@@ -1548,14 +1555,25 @@ impl Fight {
                             if SPELLS[index].cooldown_reset_charges > 0 {
                                 self.reset_mode.arm(
                                     index,
-                                    SPELLS[index].cooldown_reset_charges.saturating_add(
-                                        // `cooldown_reset_charges` ist u8, der
-                                        // Zuschlag u32 wie die acht anderen
-                                        // Talent-Felder. Geklemmt statt
-                                        // gecastet: 300 Raenge waeren sonst 44.
-                                        u8::try_from(self.talent_cooldown_charges_bonus)
-                                            .unwrap_or(u8::MAX),
-                                    ),
+                                    SPELLS[index]
+                                        .cooldown_reset_charges
+                                        .saturating_add(
+                                            // `cooldown_reset_charges` ist u8, der
+                                            // Zuschlag u32 wie die acht anderen
+                                            // Talent-Felder. Geklemmt statt
+                                            // gecastet: 300 Raenge waeren sonst 44.
+                                            u8::try_from(self.talent_cooldown_charges_bonus)
+                                                .unwrap_or(u8::MAX),
+                                        )
+                                        // `Perpetual Draft` als DRITTER Summand
+                                        // derselben Summe, nicht als eigene
+                                        // Rechnung — genau wie auf der Spiel-Seite
+                                        // in `Combat.armResetIfNeeded`.
+                                        .saturating_add(if self.perpetual_draft {
+                                            PERPETUAL_DRAFT_EXTRA_CHARGE
+                                        } else {
+                                            0
+                                        }),
                                 );
                             }
                         } else {

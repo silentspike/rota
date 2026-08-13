@@ -175,6 +175,28 @@ pub const SET_EFFECT_LONG_GRIP: &str = "long-grip";
 /// Prueflauf aus #118 misst, ob er traegt.
 pub const WHOLE_WORK_GCD_REDUCTION_MS: u32 = 100;
 
+/// Der Rotations-Effekt des SUBLIMATION-Sechsers (`docs/SATZ-KATALOG.md`).
+///
+/// > Der Ruecksetzer bekommt eine Ladung mehr.
+///
+/// Der Katalog wollte urspruenglich „auf die zwei laengsten Abklingzeiten
+/// statt auf eine, macht lange Zauber planbar statt zufaellig". Der
+/// Ruecksetzer ist aber ein AUSWAHLMODUS — der Spieler waehlt, nichts ist
+/// zufaellig, und es gibt keine Auswahl nach Laenge. Entschieden
+/// (Auftraggeber, 2026-08-13): +1 Ladung ueber denselben Summenweg wie
+/// Zauber-Eigenschaft und Talent. Der Spieler waehlt zweimal statt einmal.
+///
+/// Gegenstueck: `SET_EFFECT_PERPETUAL_DRAFT` in `src/gear/sets.ts`.
+pub const SET_EFFECT_PERPETUAL_DRAFT: &str = "perpetual-draft";
+
+/// Wie viele Ladungen `Perpetual Draft` dem Ruecksetzer zulegt.
+///
+/// Gegenstueck: `PERPETUAL_DRAFT_EXTRA_CHARGE` in `src/gear/sets.ts`. Beide
+/// Seiten muessen dieselbe Zahl nennen, sonst laufen Spiel und Simulator
+/// auseinander, ohne dass eine Pruefsumme das zeigt — der Wert steht erst
+/// im Vergleich der Auswahl-Zahlen, nicht im Schaden.
+pub const PERPETUAL_DRAFT_EXTRA_CHARGE: u8 = 1;
+
 #[cfg(test)]
 mod tests {
     use super::*;

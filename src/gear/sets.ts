@@ -349,6 +349,29 @@ export const SET_EFFECT_SEALED_VESSEL = 'sealed-vessel';
 export const SET_EFFECT_LONG_GRIP = 'long-grip';
 
 /**
+ * Der Rotations-Effekt des SUBLIMATION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > Der Rücksetzer bekommt eine Ladung mehr.
+ *
+ * # Warum nicht das, was der Katalog wörtlich sagt
+ *
+ * Dort stand: „Der Rücksetzer wirkt auf die zwei längsten Abklingzeiten statt
+ * auf eine. Macht lange Zauber planbar statt zufällig."
+ *
+ * Gemessen ist der Rücksetzer aber ein **Auswahlmodus**: Er wird scharf
+ * gestellt, und der Spieler wählt den Zauber, dessen Abklingzeit fällt
+ * (`chooseReset`). Es gibt nichts Zufälliges, das planbar werden könnte, und
+ * keine Auswahl „nach Länge". Eine automatische Wahl der zwei längsten wäre
+ * kein Zusatz, sondern ein Umbau — und sie nähme dem Spieler genau die
+ * Entscheidung weg, die 12.x als Kern von SUBLIMATION nennt.
+ *
+ * Entschieden (Auftraggeber, 2026-08-13): **+1 Ladung**, über denselben Weg
+ * wie Zauber-Eigenschaft und Talent. „Auf zwei statt eine" ist damit erfüllt,
+ * ohne die Wahl zu automatisieren — der Spieler wählt zweimal statt einmal.
+ */
+export const SET_EFFECT_PERPETUAL_DRAFT = 'perpetual-draft';
+
+/**
  * Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
  *
  * **Startwert, keine Balance-Entscheidung** (Orchestrator, 2026-08-11). Der
@@ -356,3 +379,14 @@ export const SET_EFFECT_LONG_GRIP = 'long-grip';
  * Leitung überhaupt gebaut werden kann.
  */
 export const WHOLE_WORK_GCD_REDUCTION_MS = 100;
+
+/**
+ * Wie viele Ladungen `Perpetual Draft` dem Rücksetzer zulegt.
+ *
+ * **Eins, und das ist keine Balance-Zahl, sondern die Entscheidung selbst**
+ * (Auftraggeber, 2026-08-13). Der Katalog wollte „auf zwei statt auf eine";
+ * mit einer Grund-Ladung ergibt +1 genau das. Die Konstante steht hier, damit
+ * die Stelle in `combat.ts` benannt ist statt einer nackten `1` — und damit
+ * Spiel und Simulator sich auf dieselbe Zahl beziehen.
+ */
+export const PERPETUAL_DRAFT_EXTRA_CHARGE = 1;
