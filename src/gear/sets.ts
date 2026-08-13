@@ -182,11 +182,26 @@ export function activeRotationEffects(
  * hat dieselbe Bauart wie `test-relic` und `test-warden` und ist wie sie an
  * einen Boss gebunden, damit er nicht als reguläre Beute fällt.
  */
-export const SETS: readonly SetDef[] = ((): SetDef[] => {
-  const roh = (rawSets as { sets?: unknown }).sets;
+export const SETS: readonly SetDef[] = parseSets((rawSets as { sets?: unknown }).sets);
+
+/**
+ * Prüft und übersetzt die rohen Satz-Einträge.
+ *
+ * **Als eigene Funktion, nicht als Rumpf hinter `SETS`.** Solange das Prüfen
+ * in einer sofort ausgeführten Funktion steckte, liess sich keine einzige
+ * dieser Prüfungen belegen: Sie lief genau einmal, beim Laden des Moduls, mit
+ * genau den Daten aus `data/sets.json`. Ein Prüffall hätte die Datei selbst
+ * kaputtmachen müssen, um zu sehen, ob der Wächter greift — und damit jeden
+ * anderen Fall gleich mit.
+ *
+ * Alle Fehlermeldungen nennen weiter `data/sets.json`, weil das die einzige
+ * Quelle im Betrieb ist; nur Prüffälle reichen etwas anderes herein.
+ */
+export function parseSets(roh: unknown): SetDef[] {
   if (!Array.isArray(roh)) {
     throw new Error('data/sets.json: "sets" fehlt oder ist keine Liste');
   }
+  const vergeben = new Map<number, string>();
   return roh.map((eintrag) => {
     const s = eintrag as Record<string, unknown>;
     const id = Math.trunc(Number(s['id'] ?? -1));
@@ -195,6 +210,29 @@ export const SETS: readonly SetDef[] = ((): SetDef[] => {
         `data/sets.json: Satz mit Kennung ${String(id)} — erlaubt sind 0 bis ${String(SET_COUNT - 1)}`,
       );
     }
+    // **Zwei Sätze mit derselben Kennung wären still** (Issue #480). Die
+    // Kennung ist der Schlüssel in `countPieces`: Beide zählten dann auf
+    // dasselbe Feld, ihre Teile addierten sich, und BEIDE Sechser-Boni
+    // lösten bei sechs gemischten Teilen aus. Kein Fehler, keine Ausnahme —
+    // nur ein Satz, der doppelt so stark ist wie beschrieben.
+    //
+    // **Gemessen, nicht befürchtet:** Genau das ist am 2026-08-13 entstanden.
+    // Drei Zweige wurden einzeln von `main` gebaut, jeder suchte „die nächste
+    // freie Kennung", und alle drei sahen denselben Stand. Der Konflikt kam
+    // erst beim zweiten Merge — und beim Auflösen stand ein Satz zweimal in
+    // der Datei, ohne dass irgendetwas rot wurde.
+    //
+    // Eine Kennung, die aus dem BESTAND abgeleitet wird, ist nur so lange
+    // eindeutig, wie ein einziger Zweig sie ableitet.
+    const schon = vergeben.get(id);
+    if (schon !== undefined) {
+      throw new Error(
+        `data/sets.json: die Kennung ${String(id)} kommt zweimal vor — ` +
+          `"${schon}" und "${String(s['name'] ?? '?')}". Beide zählten in ` +
+          `countPieces auf dasselbe Feld, und ihre Sechser-Boni lösten gemeinsam aus.`,
+      );
+    }
+    vergeben.set(id, String(s['name'] ?? '?'));
     const tiersRoh = s['tiers'];
     if (!Array.isArray(tiersRoh) || tiersRoh.length !== SET_TIERS.length) {
       throw new Error(
@@ -230,7 +268,7 @@ export const SETS: readonly SetDef[] = ((): SetDef[] => {
     });
     return { id, school: typeof s['school'] === 'string' ? s['school'] : '', tiers };
   });
-})();
+}
 
 /**
  * Der Rotations-Effekt des CALCINATION-Sechsers (`docs/SATZ-KATALOG.md`).
@@ -271,6 +309,24 @@ export const SET_EFFECT_WHOLE_WORK = 'whole-work';
  * Wettlauf: Wer einen Fäulnis-Zauber am Laufen hält, hält auch die Stapel.
  */
 export const SET_EFFECT_SLOW_ROT = 'slow-rot';
+
+/**
+ * Der Rotations-Effekt des COAGULATION-Sechsers (`docs/SATZ-KATALOG.md`).
+ *
+ * > Überschüssiger Schutz über der Obergrenze wird zu Schaden, statt zu
+ * > verfallen. Schliesst den Kreis: Überleben zahlt auf Schaden ein.
+ *
+ * # Wie „überschüssig" hier gemessen wird
+ *
+ * Die Obergrenze ist eine **Stapel**-Grenze (`shield.maxStacks`, plus
+ * Talent-Bonus), keine Betrags-Grenze. Ein Druck auf eine volle Schicht
+ * erneuert heute die Laufzeit und erhöht den Betrag nicht — der Überschuss
+ * **entsteht also gar nicht erst**, statt zu verfallen.
+ *
+ * Der Katalog-Wortlaut ist an dieser Stelle ungenau; die gemeinte Stelle ist
+ * eindeutig. Überschuss ist der Betrag, den dieser Druck beigetragen HÄTTE.
+ */
+export const SET_EFFECT_SEALED_VESSEL = 'sealed-vessel';
 
 /**
  * Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.

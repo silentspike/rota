@@ -150,6 +150,15 @@ pub const SET_EFFECT_WHOLE_WORK: &str = "whole-work";
 ///
 /// Gegenstueck: `SET_EFFECT_SLOW_ROT` in `src/gear/sets.ts`.
 pub const SET_EFFECT_SLOW_ROT: &str = "slow-rot";
+/// Der Rotations-Effekt des COAGULATION-Sechsers (`docs/SATZ-KATALOG.md`).
+///
+/// > Ueberschuessiger Schutz ueber der Obergrenze wird zu Schaden.
+///
+/// Die Obergrenze ist eine STAPEL-Grenze; der Ueberschuss ist der Betrag, den
+/// ein Druck auf eine volle Schicht beigetragen haette.
+///
+/// Gegenstueck: `SET_EFFECT_SEALED_VESSEL` in `src/gear/sets.ts`.
+pub const SET_EFFECT_SEALED_VESSEL: &str = "sealed-vessel";
 
 /// Um wie viel `The Whole Work` die Wartezeit senkt, in Millisekunden.
 ///
