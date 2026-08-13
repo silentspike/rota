@@ -100,7 +100,15 @@ export function buildHelpPopover(entry: HelpEntry): HTMLElement {
  * woanders im Baum steht (AC2).
  */
 export function attachHelp(root: ParentNode, entries: readonly HelpEntry[]): () => void {
-  const targets = [...root.querySelectorAll<HTMLElement>('[data-help]')];
+  // **Wer schon versorgt ist, wird uebersprungen.** Das Player Home ersetzt
+  // einzelne Bereiche und laesst andere stehen (`refreshHome` in app.ts); ein
+  // zweiter Aufruf legte sonst ein zweites Paar Zuhoerer auf jeden Knoten, der
+  // stehen geblieben ist. Das Merkmal steht am Knoten, damit die Entscheidung
+  // dort faellt, wo sie gilt — eine Liste in dieser Funktion ueberlebte den
+  // Austausch des Bereichs nicht.
+  const targets = [...root.querySelectorAll<HTMLElement>('[data-help]')].filter(
+    (node) => node.dataset.helpAttached !== 'yes',
+  );
   let open: HTMLElement | null = null;
 
   const close = (): void => {
@@ -121,6 +129,7 @@ export function attachHelp(root: ParentNode, entries: readonly HelpEntry[]): () 
   };
 
   for (const target of targets) {
+    target.dataset.helpAttached = 'yes';
     target.addEventListener('mouseenter', () => {
       show(target);
     });

@@ -68,6 +68,7 @@ function felderVonRecordResult(): string[] {
     items: [],
     defeatedBosses: [],
     unlockedEntryIds: [],
+    seenMechanicIds: [],
   };
   const abbruch = -1;
   expect(

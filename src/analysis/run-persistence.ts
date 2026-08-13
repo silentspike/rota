@@ -42,6 +42,7 @@ export function emptySave(gameVersion: string, now: number): SaveData {
     bestRuns: [],
     defeatedBosses: [],
     unlockedEntryIds: [],
+    seenMechanicIds: [],
     runHistory: [],
     progressMarks: [],
   };
@@ -104,6 +105,11 @@ function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): S
     // nicht; ohne diese Zeile stuende dort `undefined`, und der erste Zugriff
     // auf `.includes` braeche den Ladevorgang.
     unlockedEntryIds: geladen.unlockedEntryIds ?? leer.unlockedEntryIds,
+    // Dieselbe Wanderung fuer #811. Ein Stand von vor der Einfuehrung hat das
+    // Feld nicht — ohne diese Zeile braeche `markSeen` beim ersten Zugriff auf
+    // `.includes`, und zwar an genau der Stelle, an der der Spieler zum ersten
+    // Mal etwas erklaert bekommen soll.
+    seenMechanicIds: geladen.seenMechanicIds ?? leer.seenMechanicIds,
     // **Die beiden sind keine Listen, haben aber dieselbe Krankheit.** Ein
     // Wächter, der nur Arrays prüft, liesse sie stehen.
     talentPoints: geladen.talentPoints ?? leer.talentPoints,
@@ -180,6 +186,7 @@ export class RunPersistence {
       items: this.data.items,
       defeatedBosses: this.data.defeatedBosses,
       unlockedEntryIds: this.data.unlockedEntryIds,
+      seenMechanicIds: this.data.seenMechanicIds,
       level: this.data.level,
       experience: this.data.experience,
     };
@@ -251,6 +258,25 @@ export class RunPersistence {
    */
   persistUnlockedEntries(unlockedEntryIds: readonly string[]): boolean {
     this.data = { ...this.data, savedAt: this.now(), unlockedEntryIds };
+    if (this.store === null) return false;
+    try {
+      this.slotValue = this.store.save(this.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Eine gesehene Einfuehrung festhalten (Issue #811).
+   *
+   * Wie `persistUnlockedEntries` daruber und aus demselben Grund: Sie wird
+   * ausserhalb eines Laufs gesehen — in der Boss-Wahl. Wer dafuer `persist`
+   * mit einem ganzen `RecordResult` braeuchte, muesste einen Lauf erfinden,
+   * den es nicht gab.
+   */
+  persistSeenMechanics(seenMechanicIds: readonly string[]): boolean {
+    this.data = { ...this.data, savedAt: this.now(), seenMechanicIds };
     if (this.store === null) return false;
     try {
       this.slotValue = this.store.save(this.data);
@@ -370,6 +396,13 @@ export class RunPersistence {
       // ohne Fehler und ohne Hinweis. Gemessen im Browser: Boss gefallen,
       // `defeatedBosses` gesetzt, `unlockedEntryIds` leer.
       unlockedEntryIds: next.unlockedEntryIds,
+      // **Und die gesehenen Einfuehrungen** (Issue #811). Sie entstehen nicht
+      // im Lauf, sondern davor — aber `persist` schreibt den ganzen Stand.
+      // Ohne diese Zeile loeschte der erste abgeschlossene Kampf, was der
+      // Spieler in der Boss-Wahl gelesen hat, und die Einfuehrung erschiene
+      // wieder. Dieselbe Klasse wie die Zeile darueber vor #85, nur in der
+      // Gegenrichtung.
+      seenMechanicIds: next.seenMechanicIds,
       // **Stufe und Erfahrung, sonst nichts vom Aufstieg** (Issue #248, AC5).
       // Was daraus folgt — Grundwerte, freigeschaltete Zauber, Leisten-Plätze
       // — wird bei jedem Aufruf neu gerechnet. Ein gespeicherter Wert ginge
