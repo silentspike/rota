@@ -48,7 +48,12 @@ import {
 } from '../analysis/run-compare.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
-import { attachHelp, buildArchiveView, buildIntroduction } from '../analysis/archive-view.js';
+import {
+  attachHelp,
+  buildArchiveView,
+  buildEntryPopup,
+  buildIntroduction,
+} from '../analysis/archive-view.js';
 import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../analysis/help-data.js';
 import { markSeen, nextIntroduction } from '../analysis/help.js';
 import { buildArchive } from '../analysis/archive.js';
@@ -313,6 +318,7 @@ export class App {
       if (this.lastRecord.counted) this.persistence.persist(this.lastRecord);
       this.lastMark = markDisplayFor(this.lastRecord, summary, this.combat.boss.id);
       this.lastSummary = summary;
+      this.showUnlockedEntry(this.lastRecord);
     };
 
     this.applyBindings();
@@ -733,6 +739,42 @@ export class App {
    * vermerken sie als gesehen, weil `buildIntroduction` beide gleich behandelt:
    * Wer überspringt, will sie nicht wiedersehen.
    */
+  /**
+   * Den frisch freigeschalteten Archiv-Eintrag zeigen (Issue #85, AC1).
+   *
+   * **Als benannte Methode und nicht als Rückruf im Konstruktor.** Dieselbe
+   * Lehre wie bei `comparisonForResult` (#82), `openHome` (#85) und
+   * `parseSets` (#780): Was namenlos ist, kann kein Fall fassen — die Mutation
+   * „zeig nie etwas" bliebe dann grün.
+   *
+   * # `null` heisst dreierlei und für den Spieler dasselbe
+   *
+   * Kein Sieg, kein Eintrag für diesen Boss, oder er war schon freigeschaltet.
+   * In allen drei Fällen erscheint nichts, und der dritte IST der zweite Teil
+   * von AC1: beim zweiten Sieg nicht mehr. Die Entscheidung darüber fällt in
+   * `nextAutomaticEntry` und nicht hier — zwei Stellen, die befinden, wären
+   * eine zu viel.
+   *
+   * # Die Reihenfolge gegen die Mechanik-Einführung
+   *
+   * Sie ist gegenstandslos, und das ist gemessen statt behauptet: Die
+   * Einführung erscheint in `selectBoss` (ihrem einzigen Aufrufer), also bei
+   * der WAHL des Bosses und auf dem Vorbereitungs-Bildschirm. Dieses Fenster
+   * erscheint in `session.onFinish`, also am KAMPFENDE und auf der
+   * Auswertung. Zwischen beiden liegt ein ganzer Kampf, und sie hängen an
+   * verschiedenen Bildschirmen (`prepare` gegen `result`).
+   *
+   * **Wenn dieser Absatz eines Tages nicht mehr stimmt** — etwa weil eine
+   * Einführung mitten im Kampf ausgelöst wird —, dann ist die Reihenfolge zu
+   * entscheiden, und zwar für den Archiv-Text zuerst: Er gehört zum eben
+   * Erreichten, die Einführung zum Kommenden.
+   */
+  private showUnlockedEntry(record: RecordResult): void {
+    const eintrag = record.unlockedEntry;
+    if (eintrag === null) return;
+    this.overlay.showArchiveEntry(buildEntryPopup(eintrag, () => undefined));
+  }
+
   private showIntroductionFor(boss: BossDef): void {
     const stand = { seenMechanicIds: this.persistence.state.seenMechanicIds };
     for (const mechanik of mechanikenVon(boss)) {
