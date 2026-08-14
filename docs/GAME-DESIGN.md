@@ -2494,7 +2494,7 @@ gebaut sind, zieht man nach. Achtundsechzig nicht.**
 > Zauber-Raster 41 Zauber, am 2026-08-10 waren es 54 — beide Male hat die Messung den Fehler
 > gefunden, nicht das Lesen. Eine Bestandszahl ist ein Datum, keine Wahrheit.
 
-### 20.4 Entschieden vom Auftraggeber am 2026-08-14
+### 20.5 Entschieden vom Auftraggeber am 2026-08-14
 
 Vier Fragen, die aus den Messreihen zu #791, #323 und #814 entstanden sind. Die
 Zahlen lagen ihm vor.
