@@ -5264,6 +5264,53 @@ export class Combat {
       this.zahleHeilungAus(Math.floor(heilung.amount / schritte), timeMs);
     }
 
+    // **Die SCHUTZ-Kanalisierung** (Issue #323, GAME-DESIGN 20.5 Punkt 3):
+    // „Ein Schutz-Kanal legt EINE Schicht, deren Betrag mit jedem Schritt
+    // steigt; bricht er ab, bleibt sie auf dem erreichten Wert stehen."
+    //
+    // **Der Unterschied zum normalen Schutz-Aufbau ist die Stapelzahl.** Ein
+    // gewirkter Schutzzauber legt je Wurf eine NEUE Schicht
+    // (`shieldStacksValue++`); dieser hier legt EINE und lässt sie wachsen.
+    // Die verworfene Variante — je Schritt eine Schicht — wäre bei `plate`
+    // (maxStacks 1) nach dem ersten Schritt am Anschlag gewesen, und vier von
+    // fünf Schritten hätten verpufft.
+    //
+    // Gemessen am 2026-08-14, bevor diese Zeilen standen: Der Prüfzauber lief
+    // fünf Schritte durch und legte 0 Schutz — die Auszahlung gab es nicht.
+    const schutz = spell.shield;
+    if (schutz !== undefined && schutz.amount > 0) {
+      const anteil = Math.floor(
+        (schutz.amount * talentShieldAmountFactor(this.talents)) / schritte,
+      );
+      if (anteil > 0) {
+        // **Die Stapelzahl steigt nur EINMAL**, beim ersten Schritt. Danach
+        // wächst der Betrag, und die Obergrenze bleibt unberührt — genau das
+        // meint „umgeht die Stapelgrenze" in 20.5.
+        if (this.shieldStacksValue === 0) {
+          this.shieldStacksValue = 1;
+          this.shieldRefundUsed = false;
+        }
+        this.shieldValue += anteil;
+        // **Die Nachlage bezieht sich auf die SCHICHT, und die ist die Summe**
+        // (Annahme 2, freigegeben am 2026-08-14). `shieldLastAmount` trägt
+        // deshalb den bisher erreichten Betrag, nicht den letzten Schritt:
+        // Der Bruch gibt eine halbe Schicht zurück, und eine halbe Schicht ist
+        // die Hälfte dessen, was dasteht.
+        this.shieldLastAmount = this.shieldValue;
+        // **Die Uhr startet mit JEDEM Schritt neu** (Annahme 1). Sonst liefe
+        // der Anfang einer Schicht ab, während ihr Ende noch wächst — ein
+        // Kanal, der länger dauert als seine Schicht hält, wäre in sich
+        // widersprüchlich.
+        this.shieldExpiresAtMs =
+          this.fightElapsedMs(timeMs) +
+          Math.floor(schutz.durationMs * talentShieldDurationFactor(this.talents));
+        // **Je Schritt um den Schritt-Betrag** (Annahme 3), dieselbe Regel wie
+        // beim Schaden. Wer nach drei von fünf Schritten abbricht, hat dreimal
+        // stabilisiert — „der erreichte Anteil bleibt" gilt auch hier.
+        this.stabilise(anteil);
+      }
+    }
+
     // **Der Schritt meldet sich IMMER** (Issue #323) — auch bei einem Kanal
     // ohne Schaden. Daran hängt der Vorrat: `resourceGain` kam bisher über
     // `RULE_SPELL_CAST`, und das sendet nur `resolvePlayerCast`, die der Kanal

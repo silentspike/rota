@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "school": "CALCINATION",
+  "_comment": "DER PRUEF-ZAUBER ZUR SCHUTZ-KANALISIERUNG (Issue #323). Er gehoert NICHT zum Spiel und wird nie ausgeliefert: 'unlockLevel' liegt ueber der Stufengrenze aus data/player/levels.json (maxLevel 100), und beide Stellen, die dem Spieler Zauber anbieten, filtern darueber. Dieselbe Konvention wie test-cast (#304), test-buff (#420), test-channel und test-channel-heal (#323).\n\nWARUM maxStacks 1, UND DAS IST DER GANZE PUNKT: Die verworfene Variante — je Schritt eine eigene Schicht — waere bei einer Obergrenze von 1 nach dem ERSTEN Schritt am Anschlag gewesen; vier von fuenf Schritten haetten verpufft (GAME-DESIGN 20.5, Punkt 3). Ein Pruefzauber mit maxStacks 3 haette das nicht gezeigt: Dort faellt der Unterschied erst beim vierten Schritt auf, und ein Fall mit drei Schritten waere gruen geblieben.\n\nDESHALB steht hier die schaerfste Zahl, die es im Katalog gibt — plate traegt sie ebenfalls. Wer die Umsetzung auf 'je Schritt eine Schicht' zurueckdreht, bekommt hier sofort einen roten Fall statt erst bei einem bestimmten Zauber.\n\nDIE ZAHLEN: 5000 ms ueber 1000 ms Raster sind fuenf Schritte, wie bei test-channel und test-channel-heal — dieselbe Teilung, damit die drei Wirkungsarten nebeneinander lesbar bleiben. 1000 Schutz ergeben 200 je Schritt, ohne Rundungsrest: Der Prueffall muss dann keinen Rest erklaeren, sondern nur die Teilung.\n\ndurationMs 20000 ist LAENGER als der Kanal (5000 ms). Das ist Absicht: Liefe die Schicht waehrend des Kanals ab, mischte der Fall zwei Fragen — das Wachsen und den Ablauf. Die Ablaufzeit startet mit JEDEM Schritt neu (entschieden am 2026-08-14, siehe unten); mit einer kurzen Dauer waere das nicht von 'laeuft gar nicht ab' zu unterscheiden.\n\nDIE DREI ANNAHMEN, die 20.5 offen laesst und die der Orchestrator am 2026-08-14 freigegeben hat:\n\n1. ABLAUFZEIT: Sie startet mit JEDEM Schritt neu. Sonst waere ein Kanal, der laenger dauert als seine Schicht haelt, in sich widerspruechlich — der Anfang liefe ab, waehrend das Ende noch waechst.\n\n2. NACHLAGE (KEYSTONE_SHIELD_REFUND): Sie gibt die halbe SUMME zurueck, nicht den halben Schritt. Die Nachlage bezieht sich auf die Schicht, und die Schicht IST die Summe.\n\n3. STABILISIERUNG (Baustein 6, #247): je Schritt um den Schritt-Betrag, nicht einmal um die Summe. Dieselbe Regel wie beim Schaden — und sie haelt 'der erreichte Anteil bleibt' auch hier durch: Wer nach drei Schritten abbricht, hat dreimal stabilisiert.\n\nAlle drei sind so gewaehlt, dass ein Abbruch nichts nachtraeglich entwertet.",
+  "spells": [
+    {
+      "id": "test-channel-shield",
+      "name": "Test Channel Shield",
+      "unlockLevel": 101,
+      "baseDamage": 0,
+      "cooldownMs": 8000,
+      "castTimeMs": 0,
+      "channelMs": 5000,
+      "channelTickMs": 1000,
+      "triggersGcd": true,
+      "shield": { "amount": 1000, "durationMs": 20000, "maxStacks": 1 }
+    }
+  ]
+}

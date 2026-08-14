@@ -19,6 +19,7 @@ import rawTestCast from '../../data/spells/test-cast.json';
 import rawTestBuff from '../../data/spells/test-buff.json';
 import rawTestChannel from '../../data/spells/test-channel.json';
 import rawTestChannelHeal from '../../data/spells/test-channel-heal.json';
+import rawTestChannelShield from '../../data/spells/test-channel-shield.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawInstances from '../../data/instances.json';
 import rawPlayer from '../../data/player/base.json';
@@ -2458,6 +2459,15 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...mitSchule(
         (rawTestChannelHeal as Record<string, unknown>)['spells'],
         rawTestChannelHeal as Record<string, unknown>,
+      ),
+      // **Und der Prüf-Zauber zur SCHUTZ-Kanalisierung** (Issue #323,
+      // GAME-DESIGN 20.5 Punkt 3). Er trägt `maxStacks: 1` — die schärfste
+      // Obergrenze im Katalog —, weil genau dort die verworfene Variante
+      // scheiterte: Je Schritt eine eigene Schicht wäre nach dem ersten am
+      // Anschlag.
+      ...mitSchule(
+        (rawTestChannelShield as Record<string, unknown>)['spells'],
+        rawTestChannelShield as Record<string, unknown>,
       ),
     ],
   };

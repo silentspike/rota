@@ -32,6 +32,9 @@ const TEST_BUFF_JSON: &str = include_str!("../../data/spells/test-buff.json");
 const TEST_CHANNEL_JSON: &str = include_str!("../../data/spells/test-channel.json");
 /// Der Pruef-Zauber zur HEILUNGS-Kanalisierung (Issue #323).
 const TEST_CHANNEL_HEAL_JSON: &str = include_str!("../../data/spells/test-channel-heal.json");
+/// Der Pruef-Zauber zur SCHUTZ-Kanalisierung (Issue #323).
+const TEST_CHANNEL_SHIELD_JSON: &str =
+    include_str!("../../data/spells/test-channel-shield.json");
 /// Der unveraenderte Inhalt der Boss-Datei.
 const BOSS_JSON: &str = include_str!("../../data/bosses/first-crucible.json");
 
@@ -133,6 +136,8 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         serde_json::from_str(TEST_CHANNEL_JSON).expect("test-channel.json ist kein gueltiges JSON");
     let pruef_channel_heal: Value = serde_json::from_str(TEST_CHANNEL_HEAL_JSON)
         .expect("test-channel-heal.json ist kein gueltiges JSON");
+    let pruef_channel_shield: Value = serde_json::from_str(TEST_CHANNEL_SHIELD_JSON)
+        .expect("test-channel-shield.json ist kein gueltiges JSON");
     // **Die Reihenfolge dieser Liste IST die Zauberreihenfolge** — sie bestimmt
     // die Indizes, und die stehen in jeder aufgezeichneten Runde. Neue Dateien
     // kommen hinten dazu, nie dazwischen.
@@ -147,6 +152,7 @@ fn ac5_jeder_zauber_stimmt_feld_fuer_feld_mit_der_datei_ueberein() {
         ("test-buff.json", &pruef_buff),
         ("test-channel.json", &pruef_channel),
         ("test-channel-heal.json", &pruef_channel_heal),
+        ("test-channel-shield.json", &pruef_channel_shield),
     ]);
 
     assert_eq!(

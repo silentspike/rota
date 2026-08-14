@@ -86,6 +86,10 @@ const TEST_CHANNEL_JSON: &str = "../data/spells/test-channel.json";
 /// jede Messung mehrdeutig — dieselbe Begruendung wie bei test-buff neben
 /// test-cast.
 const TEST_CHANNEL_HEAL_JSON: &str = "../data/spells/test-channel-heal.json";
+/// Der Pruef-Zauber zur SCHUTZ-Kanalisierung (Issue #323, GAME-DESIGN 20.5
+/// Punkt 3). `maxStacks: 1` ist Absicht: Dort scheiterte die verworfene
+/// Variante.
+const TEST_CHANNEL_SHIELD_JSON: &str = "../data/spells/test-channel-shield.json";
 /// Verzeichnis der Boss-Dateien, relativ zum Paketverzeichnis `sim/`.
 ///
 /// **Alle** Dateien darin werden eingelesen, nicht eine benannte. Das ist die
@@ -115,6 +119,7 @@ fn main() {
     println!("cargo:rerun-if-changed={TEST_BUFF_JSON}");
     println!("cargo:rerun-if-changed={TEST_CHANNEL_JSON}");
     println!("cargo:rerun-if-changed={TEST_CHANNEL_HEAL_JSON}");
+    println!("cargo:rerun-if-changed={TEST_CHANNEL_SHIELD_JSON}");
     println!("cargo:rerun-if-changed={COAGULATION_JSON}");
     println!("cargo:rerun-if-changed={FIXATION_JSON}");
     println!("cargo:rerun-if-changed={SUBLIMATION_JSON}");
@@ -138,6 +143,7 @@ fn main() {
     let test_buff = read_json(TEST_BUFF_JSON);
     let test_channel = read_json(TEST_CHANNEL_JSON);
     let test_channel_heal = read_json(TEST_CHANNEL_HEAL_JSON);
+    let test_channel_shield = read_json(TEST_CHANNEL_SHIELD_JSON);
     let bosses = read_bosses();
 
     let mut out = String::with_capacity(8 * 1024);
@@ -175,6 +181,9 @@ fn main() {
             // GAME-DESIGN 18.7). Hinten anzuhaengen laesst jeden bestehenden
             // Index stehen.
             ("test-channel-heal.json", &test_channel_heal),
+            // Ganz zuletzt, aus demselben Grund: Die Reihenfolge dieser Liste
+            // IST die Zauberreihenfolge (#408).
+            ("test-channel-shield.json", &test_channel_shield),
         ],
     );
 
