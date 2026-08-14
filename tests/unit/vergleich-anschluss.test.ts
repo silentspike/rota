@@ -31,12 +31,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../../src/core/app.js';
 import { compareRuns } from '../../src/analysis/run-compare.js';
-import { comparableFromBest } from '../../src/analysis/best-run.js';
-import { buildComparisonView } from '../../src/analysis/history-view.js';
+import { comparableFromBest, curveFromBest, isWellFormed } from '../../src/analysis/best-run.js';
+import { buildComparisonView, buildCurveView } from '../../src/analysis/history-view.js';
 import type { BestRun } from '../../src/analysis/save-format.js';
-import type { ComparedMetric } from '../../src/analysis/run-compare.js';
+import type { ComparedMetric, RunCurve } from '../../src/analysis/run-compare.js';
 import { Overlay } from '../../src/render/overlay.js';
-import { OUTCOME_OVERPRESSURE, OUTCOME_WIPE, PHASE_ENDED } from '../../src/core/phases.js';
+import {
+  OUTCOME_OVERPRESSURE,
+  OUTCOME_VICTORY,
+  OUTCOME_WIPE,
+  PHASE_ENDED,
+} from '../../src/core/phases.js';
 import { recordRun } from '../../src/analysis/run-recorder.js';
 import { Combat } from '../../src/core/combat.js';
 import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
@@ -385,5 +390,207 @@ describe('AC5 — der Verlauf im Player Home zeigt den EBEN gefahrenen Lauf', ()
     expect(document.body.textContent ?? '', 'die Ansicht blieb beim ersten Lauf stehen').toContain(
       '2 runs',
     );
+  });
+});
+
+describe('AC1 — ZWEI Kurven: der Bestlauf bringt seine eigene mit', () => {
+  /**
+   * Der letzte offene Punkt von #82, und der einzige, der eine Datenlücke war
+   * statt eines fehlenden Anschlusses.
+   *
+   * `buildCurveView(current, best)` konnte zwei Kurven seit E7-2. Was fehlte,
+   * war die zweite Quelle: Der Spielstand führte vom Bestlauf `metric` und
+   * `value` — zwei Zahlen, aus denen sich keine Linie rekonstruieren lässt.
+   * `overlay.ts` reichte deshalb fest `null` durch, mit einem Vermerk, dass
+   * das gemessen und nicht vergessen sei.
+   *
+   * # Die zwei Richtungen, und warum die zweite die wichtigere ist
+   *
+   * ```text
+   *   mit Kurve im Spielstand    ->  zwei Züge   <- das Kriterium
+   *   ohne Kurve (Altstand)      ->  ein Zug     <- der Bestandsschutz
+   * ```
+   *
+   * Ein Spielstand von vor dieser Änderung hat das Feld nicht. Bräche die
+   * Ansicht daran, kostete dieses Kriterium jeden bestehenden Spieler seine
+   * Auswertung — ein schlechterer Tausch als eine fehlende Linie.
+   */
+  const KURVE_A: RunCurve = { stepMs: 1000, points: [0, 100, 250, 400], durationMs: 3000 };
+  const KURVE_B: RunCurve = { stepMs: 1000, points: [0, 150, 300, 500], durationMs: 3000 };
+
+  it('mit gespeicherter Kurve zeichnet die Ansicht ZWEI Züge', () => {
+    const view = buildCurveView(KURVE_A, KURVE_B);
+    const zuege = view.querySelectorAll('polyline');
+    expect(zuege).toHaveLength(2);
+    // **Und sie zeigen verschiedene Läufe.** Zwei Züge mit identischen Punkten
+    // wären dieselbe Kurve zweimal — genau der Fehler, den der Orchestrator
+    // für den Screenshot ausgeschlossen hat („nicht dieselbe zweimal").
+    const punkte = [...zuege].map((z) => z.getAttribute('points'));
+    expect(punkte[0]).not.toBe(punkte[1]);
+    // Die Legende benennt beide, sonst weiss der Spieler nicht, welche welche ist.
+    expect(view.textContent).toContain('This run');
+    expect(view.textContent).toContain('Best');
+  });
+
+  it('OHNE gespeicherte Kurve zeichnet sie EINEN — und bricht nicht', () => {
+    const view = buildCurveView(KURVE_A, null);
+    expect(view.querySelectorAll('polyline')).toHaveLength(1);
+    expect(view.textContent).toContain('This run');
+    // Kein „Best" ohne Bestkurve: Eine Beschriftung ohne Linie wäre die
+    // Behauptung, da sei etwas zu sehen.
+    expect(view.textContent).not.toContain('Best');
+  });
+
+  it('ein Sieg legt die Kurve im Spielstand ab', () => {
+    // **Der Anschluss, nicht die Ansicht.** Ohne diesen Fall wäre belegt, dass
+    // zwei Kurven zeichenbar sind — nicht, dass je eine zweite entsteht.
+    const app = baueApp();
+    app.session.startFight(0);
+    app.session.wipe(5000);
+    const summary = { ...app.session.summary(5000), victory: true, heldPercent: null };
+    const ergebnis = recordRun(app.persistence.state, summary, OUTCOME_VICTORY, {
+      bossId: 'first-crucible',
+      difficulty: 1,
+      bossLevel: 1,
+      gameVersion: '0.1.0',
+      at: 1_800_000_000_000,
+      seed: 0,
+      instance: 1,
+      endlessLevel: 0,
+      curve: KURVE_A,
+    });
+    const best = ergebnis.bestRuns.find((r) => r.bossId === 'first-crucible');
+    expect(best, 'der Sieg hat keinen Bestlauf angelegt').toBeDefined();
+    expect(curveFromBest(best ?? null), 'der Bestlauf trägt keine Kurve').not.toBeNull();
+    expect(curveFromBest(best ?? null)?.points).toEqual(KURVE_A.points);
+  });
+
+  it('ein Bestlauf OHNE Kurve gibt null statt einer erfundenen Linie', () => {
+    // Der Altstand-Fall an der Lesestelle. `curveFromBest` darf hier nicht
+    // raten — eine gerade Null wäre die Behauptung, der Bestlauf habe keinen
+    // Schaden gemacht.
+    const alt: BestRun = {
+      bossId: 'first-crucible',
+      difficulty: 1,
+      metric: 'reserve',
+      value: 19_490,
+      gameVersion: '0.1.0',
+      achievedAt: 1_800_000_000_000,
+    };
+    expect(curveFromBest(alt)).toBeNull();
+  });
+
+  it('und eine BESCHÄDIGTE Kurve gibt ebenfalls null — ohne den Bestlauf zu verlieren', () => {
+    // Der gefährlichere Fall als „fehlt": vorhanden, aber unbrauchbar. Ein
+    // `stepMs: 0` teilte durch null, ein leeres `points` zeichnete eine Linie
+    // ohne Punkte. Beides käme durch eine blosse Anwesenheitsprüfung.
+    const grund: BestRun = {
+      bossId: 'first-crucible',
+      difficulty: 1,
+      metric: 'reserve',
+      value: 19_490,
+      gameVersion: '0.1.0',
+      achievedAt: 1_800_000_000_000,
+    };
+    expect(
+      curveFromBest({ ...grund, curve: { stepMs: 0, points: [1], durationMs: 10 } }),
+    ).toBeNull();
+    expect(
+      curveFromBest({ ...grund, curve: { stepMs: 1000, points: [], durationMs: 10 } }),
+    ).toBeNull();
+    expect(
+      curveFromBest({
+        ...grund,
+        curve: { stepMs: 1000, points: [1, Number.NaN], durationMs: 10 },
+      }),
+    ).toBeNull();
+    // **Die Zusicherung dazu**: Der Eintrag selbst bleibt gültig. Wäre die
+    // Prüfung in `isWellFormed` gelandet, verlöre der Spieler wegen einer
+    // kaputten Linie seinen ganzen Bestwert.
+    expect(isWellFormed({ ...grund, curve: { stepMs: 0, points: [], durationMs: 0 } })).toBe(true);
+  });
+});
+
+describe('AC1 — die mittlere Stufe: die Kurve des Bestlaufs kommt beim Spieler an', () => {
+  /**
+   * **Gemessen, dass dieser Fall nötig ist**, nicht vermutet: Kappt man in
+   * `hud.ts` die Zeile `view.bestCurve = this.bestCurveSource()` auf `null`,
+   * bleiben ohne ihn **alle 2645 Fälle grün**. Die zweite Kurve wäre gebaut,
+   * abgelegt, gelesen — und käme nie an.
+   *
+   * Dieselbe Klasse wie `view.comparison` in AC4 oben, wie `setSetEffects` in
+   * #794 und wie `buildHistoryView` vor #82. Sie trifft dieses Projekt immer
+   * wieder an derselben Stelle: dort, wo eine fertige Ansicht auf ihre Daten
+   * wartet.
+   *
+   * **Über `new App()` und einen echten Frame**, aus dem Grund, der bei AC4
+   * ausgeschrieben steht: Wer den Renderer von Hand zusammensetzt, prüft den
+   * Zusammenbau statt die Kette.
+   */
+  const BESTKURVE: RunCurve = { stepMs: 1000, points: [0, 500, 900, 1200], durationMs: 3000 };
+
+  function frameFahren(app: App): void {
+    app.loop.start();
+    const rufe = [...abgefangeneFrames];
+    abgefangeneFrames.length = 0;
+    for (const ruf of rufe) ruf(performance.now());
+    app.loop.stop();
+  }
+
+  /** Einen Bestlauf MIT Kurve in den Spielstand legen. */
+  function bestlaufMitKurve(app: App): void {
+    app.persistence.persist({
+      ...app.persistence.state,
+      bestRuns: [
+        {
+          bossId: app.combat.boss.id,
+          difficulty: 1,
+          metric: 'reserve',
+          value: 19_490,
+          gameVersion: '0.1.0',
+          achievedAt: 1_800_000_000_000,
+          curve: BESTKURVE,
+        },
+      ],
+    });
+  }
+
+  function auswertungOeffnen(app: App): string {
+    app.session.startFight(0);
+    app.session.wipe(5000);
+    frameFahren(app);
+    const knopf = [...document.querySelectorAll('button')].find(
+      (b) => b.textContent === 'View Analysis',
+    );
+    expect(knopf, 'die Auswertung wurde nicht gezeigt').toBeDefined();
+    knopf?.click();
+    return document.body.textContent ?? '';
+  }
+
+  it('mit Bestkurve im Spielstand zeigt die Auswertung ZWEI Züge', () => {
+    const app = baueApp();
+    bestlaufMitKurve(app);
+    // **ZUSICHERUNG in den Datensatz**: Ohne sie prüfte der Fall die Anzeige
+    // an einem Spielstand ohne Bestkurve und wäre grün, weil dann eben eine
+    // Linie richtig ist.
+    expect(
+      curveFromBest(app.persistence.state.bestRuns[0] ?? null),
+      'die Bestkurve steht gar nicht im Spielstand',
+    ).not.toBeNull();
+
+    auswertungOeffnen(app);
+
+    const kurven = document.querySelector('.curves');
+    expect(kurven, 'die Kurvenansicht fehlt in der Auswertung').not.toBeNull();
+    expect(kurven?.querySelectorAll('polyline')).toHaveLength(2);
+  });
+
+  it('GEGENPROBE: ohne Bestkurve zeigt sie EINEN', () => {
+    // Ohne diesen Fall bewiese der obige nur, dass irgendwo zwei Linien
+    // stehen — nicht, dass die zweite aus dem Spielstand kommt.
+    const app = baueApp();
+    auswertungOeffnen(app);
+    const kurven = document.querySelector('.curves');
+    expect(kurven?.querySelectorAll('polyline')).toHaveLength(1);
   });
 });
