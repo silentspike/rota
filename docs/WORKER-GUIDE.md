@@ -6676,3 +6676,92 @@ sondern ein Signal: Dort arbeitet jemand an einem Stand, den es nicht mehr gibt.
 in seine Diagnose ging, hätte in eine Nachfrage gehen können. Ein technischer Verdacht ist
 verlockend, weil er messbar ist — aber er erklärt nicht, warum die Zustellung bei allen anderen
 Nachrichten desselben Kanals funktionierte.
+
+### 8.99 Eine veraltete Zahl wird nicht durch eine neue ersetzt
+
+Im Bericht der Rotations-Suche stand `bei siebzehn Kandidaten unerreichbar`. Die Zahl war alt. Was
+dann passierte, ist der ganze Eintrag:
+
+```
+im Läufer stand    "siebzehn Kandidaten"
+Worker-1 vermutete  58        (die spielbaren Zauber)
+Orchestrator sagte  58        (bestätigt, ohne nachzusehen)
+gemessen            93        Kandidatenzeilen — beide falsch
+```
+
+Der Läufer zählt **Kandidatenzeilen**, nicht Zauber. Ein Zauber erzeugt mehrere Zeilen, je nach
+Herkunft (`Always`, `DotRefresh`, `BuffWindow`, …). Beide Korrekturversuche haben die veraltete
+Zahl durch eine neue ersetzt, die dasselbe Schicksal gehabt hätte — die eine sofort, die andere in
+drei Wochen.
+
+**Die richtige Antwort war, gar keine Zahl hinzuschreiben:**
+
+```rust
+println!("  {} Kandidatenzeilen unerreichbar.", pool.len());
+```
+
+Dieselbe Größe druckt derselbe Läufer zwanzig Zeilen weiter oben bereits ab. Sie war die ganze Zeit
+zur Hand.
+
+> **Eine veraltete Zahl wird nicht durch eine neue ersetzt, sondern durch ihre Quelle.** Wo das
+> nicht geht, hält ein Prüffall sie fest.
+
+Der Prüffall dazu heißt `die_kandidatenzahl_ist_nicht_fest_verdrahtet`. Gegenprobe: die Quelle
+wieder durch `93` ersetzen — genau dieser Fall wird rot, die vier anderen bleiben grün.
+
+**Woran man den Fall erkennt, bevor man ihn hat:** Eine Zahl im Fließtext, die eine Menge im Code
+beschreibt. Sie hat immer eine Quelle; die Frage ist nur, ob sie erreichbar ist. Ist sie es nicht,
+ist der Prüffall die zweitbeste Lösung — und „ich schreibe die aktuelle Zahl hin" die schlechteste,
+weil sie beim nächsten Mal wieder wie Sorgfalt aussieht.
+
+### 8.100 Eine Pfeilfunktion in `playwright-cli eval` bricht still
+
+Gemessen am 2026-08-14, drei Anläufe:
+
+```js
+eval "document.querySelectorAll('x').filter(s => s.ok)"        →  gar kein Ergebnis
+eval "document.querySelectorAll('x').filter(function(s){...})" →  liefert sofort
+```
+
+`playwright-cli eval` wickelt den übergebenen Ausdruck in `() => (...)`. Eine Pfeilfunktion darin
+kollidiert mit dieser Hülle, und der Aufruf gibt **nichts** zurück — keine Fehlermeldung, keine
+Ausnahme, kein leeres Array. Nur nichts.
+
+**Das sieht aus wie ein Befund über die Seite**, und zwar wie der Befund „da ist nichts". Dieselbe
+Klasse wie `undefined belegt gar nichts`: ein leeres Ergebnis, dessen Ursache im Werkzeug liegt und
+nicht im Gegenstand.
+
+Die Gegenprobe kostet einen Aufruf: dieselbe Abfrage ohne den Filter. Kommt dort etwas zurück, lag
+es an der Funktion — nicht an der Seite.
+
+### 8.101 Ein Prüffall, dessen Bedingung ohnehin gilt, misst nichts
+
+Zweimal an einem Tag, in verschiedenen Sitzungen:
+
+```
+Schutz-Kanal   Schicht hält 20000 ms, Kanal dauert 5000
+               "sie läuft während des Kanals nicht ab"  →  wahr, auch wenn die
+               Uhr nur EINMAL gesetzt würde. Der Fall wäre grün und sagte nichts.
+
+Rotation       Tastendrücke im Takt der Boss-Schläge
+               die Abbrüche fielen mit den Schlägen zusammen — nicht messbar,
+               welches von beidem gewirkt hat
+```
+
+Im ersten Fall hat der Bauende es **vor** dem Bau gemerkt und stattdessen die **Differenz** zweier
+Läufe gemessen:
+
+```
+durchgelaufen               letzter Schritt 5000 ms   Schicht weg ab 25010 ms
+Abbruch nach einem Schritt  letzter Schritt 1000 ms   Schicht weg ab 21010 ms
+```
+
+Die 4000 ms dazwischen sind die wandernde Uhr. Die Mutation „Uhr nur beim ersten Schritt" trifft
+genau sie: `expected 21010 to be 25010`.
+
+> Wo eine Bedingung durch die gewählten **Zahlen** ohnehin erfüllt ist, misst nicht der Zustand,
+> sondern die **Differenz** zweier Läufe, die sich nur in der geprüften Größe unterscheiden.
+
+Der Test dafür ist billig und gehört vor jeden Prüffall: **Welchen Wert müsste die Größe haben,
+damit dieser Fall rot wird?** Gibt es keinen — oder liegt er außerhalb dessen, was die Daten
+zulassen —, prüft der Fall nichts.
