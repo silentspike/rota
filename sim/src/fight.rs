@@ -3653,9 +3653,8 @@ impl Fight {
         // ersten Schritt am Anschlag gewesen.
         if let Some(shield) = spell.shield {
             if shield.amount > 0 {
-                let anteil =
-                    ((f64::from(shield.amount) * self.talent_shield_amount_factor) as u32)
-                        / schritte;
+                let anteil = ((f64::from(shield.amount) * self.talent_shield_amount_factor) as u32)
+                    / schritte;
                 if anteil > 0 {
                     // Die Stapelzahl steigt nur EINMAL, beim ersten Schritt.
                     if self.shield_stacks == 0 {
@@ -3669,8 +3668,7 @@ impl Fight {
                     // **Die Uhr startet mit JEDEM Schritt neu** (Annahme 1) —
                     // und der Wakeup gehoert dazu wie beim gewirkten Schutz:
                     // Die Schlange ist die einzige Zeitquelle des Simulators.
-                    let dauer = (f64::from(shield.duration_ms)
-                        * self.talent_shield_duration_factor)
+                    let dauer = (f64::from(shield.duration_ms) * self.talent_shield_duration_factor)
                         as Millis;
                     self.shield_expires_at = Some(self.time + dauer);
                     self.queue.push(self.time + dauer, EventKind::Wakeup);
