@@ -47,7 +47,7 @@ use rota_sim::gear::{
     budget_of, distribute_budget, WornValues, QUALITY_AFFIX_SLOTS, QUALITY_HAS_EFFECT,
     QUALITY_RARE, SLOT_COUNT,
 };
-use rota_sim::rotation_search::{all_candidates, greedy, greedy_from, greedy_opts};
+use rota_sim::rotation_search::{all_candidates, greedy, greedy_from, greedy_opts, Candidate};
 use rota_sim::sources::{
     gear_effects_permille, mixed_build, permanent_max, pure_build, STAT_CATALYSIS, STAT_PURITY,
 };
@@ -304,6 +304,38 @@ fn ac1_an_worker1s_zahl() {
     println!("  Sollwert bei Stufe 7 (feste Rotation, Worker-1): 15593");
     println!();
 
+    // **Der Kreuzvergleich ueber die Stufen** — das Werkzeug aus #509, hier
+    // auf eine andere Achse angewandt.
+    //
+    // Worker-1s 15593 stammen aus einer festen Liste, die ich nicht habe. Aber
+    // ich habe drei gefundene Listen, und die Frage ist dieselbe: Holt eine
+    // FREMDE Liste bei Stufe 7 mehr als die dort gefundene? Wenn ja, ist die
+    // Referenz nicht das Optimum, und der Einbruch ist Suchschwaeche — belegt
+    // ohne eine einzige fremde Zahl.
+    println!("  Kreuzvergleich ueber die Stufen (Zeile = Liste, Spalte = Stufe)");
+    let listen: Vec<(u32, rota_sim::apl::Apl)> = W1_DURCHSATZ
+        .iter()
+        .map(|&(stufe, _)| {
+            let cfg = config_w1(ausruestung_w1(stufe, QUALITY_RARE));
+            (stufe, greedy_opts(&cfg, &pool, 12, &[], true).best.apl)
+        })
+        .collect();
+    print!("    {:<14}", "");
+    for &(stufe, _) in &listen {
+        print!("{:>14}", format!("Stufe {stufe}"));
+    }
+    println!();
+    for (herkunft, apl) in &listen {
+        print!("    {:<14}", format!("von Stufe {herkunft}"));
+        for &(ziel, _) in &listen {
+            let cfg = config_w1(ausruestung_w1(ziel, QUALITY_RARE));
+            let wert = rota_sim::balance::run(&cfg, apl).damage.mean;
+            print!("{wert:>14.0}");
+        }
+        println!();
+    }
+    println!();
+
     // **Wenn die Paare es nicht sind — ist es dann die Startposition?**
     //
     // Der Sollwert stammt von einer FESTEN Liste. Eine Suche, die schlechter
@@ -311,6 +343,59 @@ fn ac1_an_worker1s_zahl() {
     // falschen Punkt oder sucht das Falsche. Der Nachlauf aus #558 kann den
     // ersten Fall beantworten: Startet man bei der Handschrift, kommt die
     // Suche dann hoeher?
+    // **Der Nachlauf, auf die Stufen-Achse angewandt** — das Fertigkriterium.
+    //
+    // Der Kreuzvergleich oben zeigt: Die bei Stufe 1 gefundene Liste holt bei
+    // Stufe 7 genau 15593, waehrend die dort gefundene bei 12671 stehenbleibt.
+    // Der Mangel ist also nicht der Kandidatenraum und nicht die Paar-Blindheit,
+    // sondern ein lokales Optimum — und dagegen ist der Nachlauf aus #558
+    // gebaut. Er tauscht Startpunkte zwischen BOSSEN; hier braucht es dieselbe
+    // Bewegung zwischen STUFEN.
+    println!("  Der Nachlauf ueber die Stufen (jede fremde Liste als Startpunkt)");
+    let mut werte: Vec<(u32, f64, Vec<Candidate>)> = W1_DURCHSATZ
+        .iter()
+        .map(|&(stufe, _)| {
+            let cfg = config_w1(ausruestung_w1(stufe, QUALITY_RARE));
+            let r = greedy_opts(&cfg, &pool, 12, &[], true);
+            (stufe, r.best.mean, r.chosen)
+        })
+        .collect();
+    // Bis zum Fixpunkt, aus demselben Grund wie bei den Bossen: Eine
+    // Verbesserung ist selbst ein neuer Startpunkt.
+    for runde in 1..=5 {
+        let ausgang: Vec<Vec<Candidate>> = werte.iter().map(|(_, _, z)| z.clone()).collect();
+        let mut veraendert = false;
+        for i in 0..werte.len() {
+            let cfg = config_w1(ausruestung_w1(werte[i].0, QUALITY_RARE));
+            for (j, start) in ausgang.iter().enumerate() {
+                if i == j {
+                    continue;
+                }
+                let versuch = greedy_from(&cfg, &pool, 12, start);
+                if versuch.best.mean > werte[i].1 {
+                    println!(
+                        "    Runde {runde}  Stufe {:<3} {:>9.0} -> {:>9.0} ueber Stufe {}",
+                        werte[i].0, werte[i].1, versuch.best.mean, werte[j].0
+                    );
+                    werte[i].1 = versuch.best.mean;
+                    werte[i].2 = versuch.chosen;
+                    veraendert = true;
+                }
+            }
+        }
+        if !veraendert {
+            println!("    Runde {runde}: keine Verbesserung mehr — Fixpunkt erreicht.");
+            break;
+        }
+    }
+    println!();
+    println!("    {:<10} {:>12} {:>12}", "Stufe", "nachher", "Sollwert");
+    for (stufe, wert, _) in &werte {
+        let soll = if *stufe == 7 { "15593" } else { "-" };
+        println!("    {stufe:<10} {wert:>12.0} {soll:>12}");
+    }
+    println!();
+
     // **Die Laenge, bevor das Verfahren verdaechtigt wird.**
     //
     // Bei `max_len = 6` kommt die Paar-Betrachtung kaum zum Zug: Sie verlangt
