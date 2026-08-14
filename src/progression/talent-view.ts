@@ -1,5 +1,6 @@
 import { TALENTS, type TalentDef } from '../core/data.js';
 import { effectiveRanks, spentPoints, type TalentAllocation } from './talents.js';
+import { withPlainText } from '../analysis/help.js';
 
 /**
  * Die Talent-Ansicht im Player Home (Issue #802).
@@ -98,7 +99,16 @@ export function buildTalentView(options: TalentViewOptions): HTMLElement {
   for (const baum of baeume()) {
     const block = element('div', 'talents-tree');
     block.dataset.tree = baum.id;
-    block.appendChild(element('h4', 'talents-tree-name', baum.id.toUpperCase()));
+    // **Mit Klartext daneben** (AC3 von #85, GAME-DESIGN 21.2): „CALCINATION
+    // (Damage over time)". Hier stand der rohe Name, während die
+    // Zusammenstellungs-Ansicht ihn längst mit Klartext zeigte — gemessen am
+    // 2026-08-14: fünf der zehn Vorkommen im Dokument trugen ihn, fünf nicht,
+    // und die fünf ohne waren alle hier.
+    //
+    // `withPlainText` gibt unbekannte Begriffe unverändert zurück. Das trifft
+    // den Baum `global`, der kein alchemistischer Prozess ist und deshalb auch
+    // keinen Klartext hat — er bleibt „GLOBAL", und das ist richtig so.
+    block.appendChild(element('h4', 'talents-tree-name', withPlainText(baum.id.toUpperCase())));
 
     for (const talent of baum.talente) {
       const zeile = element('div', 'talents-row');
