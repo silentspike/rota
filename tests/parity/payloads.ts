@@ -1338,11 +1338,8 @@ export function raceHealPayload(): Record<string, unknown> {
       // ihn nicht und soll ihn nicht führen — genau die Klasse, die bei #630
       // aus 38 Kandidaten herausgefiltert wurde. Dasselbe gilt für alle
       // übrigen `final*`-Felder dieser Datei.
-      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
-      // (Issue #659, AC4). Sie ist ein Momentanwert — der Fortschritt am ENDE des Laufs,
-      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
-      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
-      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       finalRaceProgress: combat.raceProgress,
       damageLostToRace: result.damageLostToRace,
       bossHealed: result.bossHealed,
@@ -2700,20 +2697,14 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     expected: {
       // `control` ist ein MOMENTANWERT (der Vorrat am Ende), kein Endwert im
       // Sinne des Ergebnisses — es führt ihn nicht. Bleibt bei `combat`.
-      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
-      // (Issue #659, AC4). Sie ist ein Momentanwert — der Kontroll-Vorrat am ENDE des Laufs,
-      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
-      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
-      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       control: combat.control,
       controlSpent: result.controlSpent,
       controlFailed: result.controlFailed,
       phaseHoldPercent: result.phaseHoldPercent,
-      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
-      // (Issue #659, AC4). Sie ist ein Momentanwert — die Phase am ENDE des Laufs,
-      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
-      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
-      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       finalPhase: combat.bossPhase,
       damageTaken: result.damageTaken,
       // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
