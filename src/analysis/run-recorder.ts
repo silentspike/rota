@@ -38,6 +38,7 @@ import type { RunCurve } from './run-compare.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
 import { nextAutomaticEntry, unlock } from './archive.js';
+import type { ArchiveEntry } from './archive.js';
 import { ALL_ARCHIVE_ENTRIES } from './archive-data.js';
 import { bossById } from '../core/data.js';
 import { recordDefeat } from './defeated.js';
@@ -209,6 +210,28 @@ export interface RecordResult extends RecordedState {
    */
   readonly drop: Drop | null;
   /**
+   * Der Archiv-Eintrag, den DIESER Sieg freigeschaltet hat, oder `null`
+   * (Issue #85, AC1).
+   *
+   * # Warum das Feld nötig ist, obwohl `unlockedEntryIds` daneben steht
+   *
+   * Jene Liste ist der ZUSTAND — alles, was der Spieler je freigeschaltet
+   * hat. Die Anzeige braucht die DIFFERENZ: welcher Eintrag gerade
+   * dazugekommen ist. Aus der Liste allein ist das nicht zu gewinnen, ohne
+   * den Stand von vorher aufzubewahren — an einer Stelle, die ihn nicht hat.
+   *
+   * `nextAutomaticEntry` rechnet ihn ohnehin aus (weiter unten in dieser
+   * Datei). Bis #85 wurde er nur zum Fortschreiben der Liste benutzt und
+   * danach verworfen; die Anzeige konnte deshalb nicht wissen, was sie
+   * zeigen soll.
+   *
+   * **`null` heisst hier dreierlei und für den Spieler dasselbe**: kein Sieg,
+   * kein Eintrag für diesen Boss, oder er war schon freigeschaltet. In allen
+   * drei Fällen erscheint kein Fenster — und das ist der Kern von AC1: beim
+   * ZWEITEN Sieg nicht mehr.
+   */
+  readonly unlockedEntry: ArchiveEntry | null;
+  /**
    * Punkte aus diesem Durchlauf, 0 ohne Sieg (Issue #276).
    *
    * **Eine Auszahlung, kein Konto.** Der Wert reist von hier zur Anzeige und
@@ -259,6 +282,8 @@ export function recordRun(
       mark: null,
       best: null,
       drop: null,
+      // Ein Abbruch schaltet nichts frei — er ist kein Sieg (GAME-DESIGN 17.4).
+      unlockedEntry: null,
       xpGained: 0,
       pointsGained: 0,
       leveledUp: false,
@@ -390,6 +415,10 @@ export function recordRun(
     : null;
   const archivDanach =
     neuerEintrag === null ? archivZustand : unlock(archivZustand, neuerEintrag.id);
+  // **Und er reist mit** (AC1 von #85). Bis hierher wurde `neuerEintrag` nur
+  // zum Fortschreiben der Liste benutzt und danach verworfen — die Anzeige
+  // konnte deshalb nicht wissen, WELCHER Eintrag gerade dazukam. `unlock`
+  // liefert nur den neuen Zustand, nicht die Differenz.
 
   return {
     runHistory: appendRun(state.runHistory, entry),
@@ -439,6 +468,11 @@ export function recordRun(
     mark,
     best,
     drop,
+    // **Der frisch freigeschaltete Eintrag** (AC1 von #85). Dieselbe Zeile wie
+    // `drop` darüber und aus demselben Grund: Was dieser Lauf eingebracht hat,
+    // gehört in den Rückgabewert — der Zustand daneben (`unlockedEntryIds`)
+    // sagt nur, was insgesamt gilt.
+    unlockedEntry: neuerEintrag,
     xpGained,
     pointsGained,
     leveledUp: nachher.level > state.level,
