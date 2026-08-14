@@ -2511,6 +2511,31 @@ Ausrüstung gerechnet zu werden, die man erst durch sie bekommt.
 Damit ist eine Annahme nötig, wie gründlich ein Spieler die Vorstufe abfarmt. Sie
 wird gesetzt und benannt, nicht geraten.
 
+**Ergänzt am 2026-08-14, nachdem die Annahme in drei Teilfragen zerfiel:**
+
+| Teilfrage           | Antwort                      | Woher                                     |
+| ------------------- | ---------------------------- | ----------------------------------------- |
+| Schwierigkeit       | **normal** (`d = 0`)         | folgt aus „beim ersten Betreten fordernd" |
+| Qualitätsverteilung | **berechnet**, nicht gesetzt | `weightsFor(instanz-1, 0, 0)`             |
+| Zahl der Plätze     | **alle zehn belegt**         | Entscheidung des Auftraggebers            |
+
+Die Qualität war zunächst als Design-Frage vorgelegt und ist keine: `PROGRESS_WEIGHTS`
+und `progressOf` liefern sie aus den Daten. Für Instanz 2 auf normal sind es
+**85 % common, 15 % rare** — der zuerst vorgeschlagene Wert („alle Plätze auf dem
+Deckel", also 100 % rare) hätte die Qualität um Faktor sechs überschätzt und jeden
+Boss zu schwer kalibriert.
+
+**Alle zehn Plätze** ist die härtere Annahme, und der Grund ist die Fehlerrichtung:
+Ein zu leichter Boss fällt beim Spielen auf und lässt sich nachziehen; ein zu
+schwerer vertreibt Spieler, bevor es jemand merkt.
+
+**Legendäre Funde gehören zu höheren Schwierigkeiten.** `qualityCapOf` erlaubt sie
+ab Instanz 9, aber `PROGRESS_WEIGHTS` gibt auf **normal** in keiner der vierzehn
+Instanzen etwas Legendäres her; Epic erscheint erst ab Instanz 13 mit 5 %. Das ist
+Absicht und bleibt so: Eine Schwierigkeitsstufe zählt in `progressOf` wie vier
+Instanzen (`raw = i - 1 + 4d + e`), und genau darin liegt ihr Zweck. Der Deckel
+begrenzt, was fallen **kann**; die Gewichte entscheiden, was fällt.
+
 **2. Der Aufschaukel-Effekt der Affix-Plätze: erst die Kalibrierung, dann neu
 messen.**
 
