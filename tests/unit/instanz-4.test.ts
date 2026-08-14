@@ -63,7 +63,11 @@ describe('Die vier sind bezwingbar — gespielt, nicht behauptet', () => {
     expect(
       ergebnis.victory,
       `${id} überlebt: ${ergebnis.damage} Schaden von ${b.hp} Lebenspunkten — ` +
-        `das ist der Zustand aus #672 (test-doomsayer: 5168 von 6400).`,
+        // Die alte Fassung nannte hier „test-doomsayer: 5168 von 6400". Beide
+        // Zahlen sind überholt und die zweite war nie richtig: Der Boss hat
+        // 999999 HP, die 6400 gehören boss-1-2 (gemessen 2026-08-14, #672).
+        // Was gemeint war, ist der Zustand SELBST — ein Boss, der stehenbleibt.
+        `das ist der Zustand aus #672: ein Lauf, der nicht durchkommt.`,
     ).toBe(true);
   });
 
