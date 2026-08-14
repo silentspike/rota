@@ -2627,6 +2627,49 @@ Die beiden verworfenen Wege und warum:
 Mechanik einführt, stehen zwei Fenster an. Welches zuerst kommt, ist nicht
 entschieden — wer es baut, legt eine Reihenfolge fest und schreibt sie hin.
 
+**7. Balance wird über den ganzen Raum gemessen, nicht über eine Rotation.**
+
+Entstanden aus der Frage, ob ein Talentweg „tot" ist, wenn er gegen die beste
+gefundene Rotation verliert. Die Antwort des Auftraggebers geht darüber hinaus und
+gilt für jede Balance-Aussage:
+
+> Es kommt immer darauf an, welche der Zauber ein Spieler **aktiv verwendet** und
+> wie viele Talentpunkte er hineingesetzt hat. Wir brauchen den Simulator, der
+> Millionen von Kombinationen prüfen kann — alle Zauber, alle Varianten, die ein
+> Spieler ausgerüstet haben kann, und das gegen die Talentpunkte verglichen.
+> Balancing bedeutet dann, dass Skills **und** Talente angepasst werden müssen.
+> **Spezialskillungen mit Spezialgear sollen sich ebenso lohnen.**
+
+Der letzte Satz ist das eigentliche Ziel, und er verwirft eine stillschweigende
+Annahme der bisherigen Messungen: Dass es _eine_ beste Rotation gibt, gegen die
+alles andere antritt. Gewollt ist das Gegenteil — mehrere Wege, die sich mit
+passender Ausrüstung und passender Talentverteilung **je für sich** lohnen.
+
+### Was das für heutige Befunde bedeutet
+
+| Befund                                                          | wie er heute gelesen wird | wie er zu lesen ist                                                                                    |
+| --------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| „37 von 58 Zaubern kommen in keiner besten Rotation vor" (#607) | die Zauber taugen nichts  | gemessen wurde **ein** Punkt im Raum: neutrale Ausrüstung, keine Talente                               |
+| „neun von zwölf Talentwegen sind tot" (#419)                    | die Wege sind zu schwach  | ihre Trägerzauber kommen in _dieser_ Rotation nicht dran — mit anderer Ausrüstung kann das anders sein |
+| „ein Affix-Platz bringt oben Faktor 7, unten nichts" (#791)     | ein Ausreißer             | ein Beleg dafür, dass der Raum nicht flach ist                                                         |
+
+**Keiner dieser Befunde ist falsch.** Sie messen alle dasselbe: einen Schnitt durch
+einen Raum, dessen andere Achsen festgehalten wurden.
+
+### Was der Simulator dafür können muss und heute nicht kann
+
+Gemessen am 2026-08-14: Der Balance-Läufer nimmt **eine** Zauberliste, **einen**
+Boss, **einen** Ausrüstungsstand, **eine** Talentbelegung. Die Rotationssuche
+variiert davon genau eine Achse — die Liste.
+
+Was fehlt, ist die Variation über Ausrüstung und Talente **gemeinsam mit** der
+Rotationssuche. Solange die fehlt, ist jede Aussage der Form „X gewinnt nirgends"
+eine Aussage über den abgesuchten Ausschnitt, nicht über das Spiel.
+
+**Das ist eine Anforderung an das Werkzeug, keine an die Balance.** Wer sie baut,
+misst zuerst, was ein vollständiger Durchlauf kostet — bei 58 Zaubern, zehn
+Ausrüstungsplätzen und rund 50 Talentpunkten ist „Millionen" keine Redewendung.
+
 ---
 
 ## 21. Bewusst verworfen · außerhalb des Umfangs · für später
