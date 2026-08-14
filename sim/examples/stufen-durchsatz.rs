@@ -48,7 +48,7 @@ use rota_sim::gear::{
     budget_of, distribute_budget, WornValues, QUALITY_HAS_EFFECT, QUALITY_NAMES, SLOT_COUNT,
 };
 use rota_sim::rotation_search::{all_candidates, greedy};
-use rota_sim::sources::gear_effects_permille;
+use rota_sim::sources::{base_permille, gear_effects_permille};
 
 /// Die Stufen, an denen gemessen wird — **Endpunkte 1 und 85 sind Pflicht.**
 ///
@@ -272,6 +272,96 @@ fn main() {
             "    Stufe {stufe:>3}  {:<10}  {woher:<28}  {wert:>10.0}  Faktor {faktor:>5.2}",
             QUALITY_NAMES[q]
         );
+    }
+    println!();
+
+    // MESSUNG 6 — MIT den Grundwerten, so wie das Spiel sie vergibt.
+    //
+    // `data/items.json` sagt: „Ein Gegenstand traegt IMMER die drei Grundwerte
+    // ESSENCE, VESSEL und WARD." Sie kommen aus `base_permille`, NICHT aus dem
+    // Affix-Budget. In den Messungen 0 bis 5 fehlen sie — dort ist `essence`
+    // eine der vier Affix-Arten, und weil `distribute_budget` bei EPIC nur drei
+    // Plaetze belegt, bekommt es reihum nie etwas.
+    //
+    // Messung 5 zeigt, wie schwer das wiegt: essence allein liefert auf Stufe 85
+    // 655432, catalysis nur 122317. Die Messungen davor haben also einen Spieler
+    // gerechnet, dem der staerkste Wert fehlt.
+    //
+    // Ob das die FAKTOREN verschiebt, ist damit noch nicht gesagt — der Wert
+    // fehlt in beiden Vergleichsgliedern und koennte sich kuerzen. Genau das
+    // misst diese Reihe.
+    // **Die 10 steht hier und nicht als Konstante** — auf der Rust-Seite gibt es
+    // sie nicht. `sim/src/sources.rs:111` erwähnt sie im Kommentar
+    // („stehen auf der TypeScript-Seite als `ESSENCE_AT_LEVEL_1`"), die Zahl
+    // selbst liegt in `src/gear/sources.ts:65`. Ein abgeschriebener Wert ist ein
+    // zweiter Weg zu derselben Zahl; hier ist er unvermeidlich, weil der
+    // Simulator keinen Katalog hat — also steht wenigstens die Fundstelle daneben.
+    const ESSENCE_AT_LEVEL_1: u32 = 10;
+    println!("  MESSUNG 6 — Affixe PLUS Grundwert essence (base_permille, Basis 10)");
+    let mut basis6 = 0.0;
+    for (stufe, woher) in STUFEN {
+        let mut worn = ausruestung(stufe, qualitaet_bei(stufe));
+        // Zehn Plaetze, jeder traegt den Grundwert seiner Stufe.
+        let grund =
+            base_permille(stufe, ESSENCE_AT_LEVEL_1) * u32::try_from(SLOT_COUNT).unwrap_or(1);
+        worn.essence += grund;
+        let wert = durchsatz(boss, worn);
+        if stufe == 1 {
+            basis6 = wert;
+        }
+        let faktor = if basis6 > 0.0 { wert / basis6 } else { 0.0 };
+        println!(
+            "    Stufe {stufe:>3}  {woher:<28}  Grundwert {grund:>6}  {wert:>12.0}  Faktor {faktor:>8.2}"
+        );
+    }
+    println!();
+
+    // MESSUNG 5 — GLEICHES Budget, jeweils auf EINE andere Groesse.
+    //
+    // Messung 3 und 4 sagen, dass die ZAHL der Toepfe den Faktor traegt. Sie
+    // sagen nicht, ob die vier Groessen gleich viel wert sind. Liegt CATALYSIS
+    // weit vorn, waere "die Zahl der Affix-Plaetze" die falsche Ueberschrift —
+    // dann traegt die AUSWAHL, nicht die Anzahl.
+    println!("  MESSUNG 5 — gleiches Budget, jeweils ALLES auf eine andere Groesse");
+    for stufe in [13u32, 85] {
+        let budget = budget_of(stufe, 1);
+        let je = u32::try_from(budget).unwrap_or(0) * u32::try_from(SLOT_COUNT).unwrap_or(1);
+        let vier = [
+            (
+                "catalysis",
+                WornValues {
+                    catalysis: je,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                "purity",
+                WornValues {
+                    purity: je,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                "yield",
+                WornValues {
+                    yield_bonus: je,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                "essence",
+                WornValues {
+                    essence: je,
+                    ..WornValues::none()
+                },
+            ),
+        ];
+        for (name, worn) in vier {
+            println!(
+                "    Stufe {stufe:>3}  nur {name:<10} {:>12.0}",
+                durchsatz(boss, worn)
+            );
+        }
     }
     println!();
 
