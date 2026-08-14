@@ -6674,9 +6674,27 @@ inboxes/team-lead.json                          existiert, wird geschrieben
 rota-ipc rollen                                 Kennung stimmt, Sitzung läuft
 ```
 
-Es war kein Zustellfehler. Die Nachrichten kamen an — sie wurden nur nicht gelesen, weil der
-Empfänger auf eine Messung konzentriert war. Gefunden hat er sie über `rota-ipc offen`, **nachdem**
-er eine Fertigmeldung geschickt hatte.
+Es war kein Zustellfehler im Sinne einer kaputten Einrichtung. Gefunden hat der Empfänger die
+Nachrichten über `rota-ipc offen`, **nachdem** er eine Fertigmeldung geschickt hatte.
+
+**Warum sie eine Stunde lang nicht in seinem Kontext erschienen, ist ungeklärt** — und diese Zeile
+stand hier zuerst anders. Der erste Entwurf behauptete „sie kamen an und wurden nicht gelesen", der
+zweite „gesammelte Zustellung mit 50 bis 82 Minuten Verzögerung". Beides waren Ursachen, die
+niemand gemessen hatte. Die Dateizeiten lassen mindestens drei Erklärungen zu:
+
+```
+mtime der fünf Dateien   12:41:55.011 … 12:41:56.506     1,8 Sekunden
+ihre Kopfzeilen          12:02:57     … 12:31:49         29 Minuten
+```
+
+Zeitgebunden (der Stau löst sich nach einer Weile), ereignisgebunden (er löst sich, wenn eine neue
+Nachricht ankommt oder ein Turn endet), oder etwas auf der Ablage-Seite hat die Dateien im Block
+angefasst. Der Empfänger arbeitete von 12:00 bis 13:21 ohne Unterbrechung durch und sah in dieser
+Zeit **keine einzige** — das spricht gegen bloße Verzögerung, beweist aber nichts.
+
+**Der Unterschied hätte die Lehre verändert:** Steht „Verzögerung" da, liest der nächste daraus, er
+müsse Geduld haben. Ist es ereignisgebunden, bekommt ein Worker, der lange durcharbeitet,
+**möglicherweise gar nichts** — und muss selbst nachsehen. Deshalb steht hier keine Ursache.
 
 **Was das gekostet hat, gemessen:**
 
@@ -6704,3 +6722,56 @@ sondern ein Signal: Dort arbeitet jemand an einem Stand, den es nicht mehr gibt.
 in seine Diagnose ging, hätte in eine Nachfrage gehen können. Ein technischer Verdacht ist
 verlockend, weil er messbar ist — aber er erklärt nicht, warum die Zustellung bei allen anderen
 Nachrichten desselben Kanals funktionierte.
+
+### 8.102 Zwei Texte in dieselbe Richtung ersetzen keine Struktur
+
+Am 2026-08-14 haben ein Worker und der Orchestrator gemeinsam einen Fehler diagnostiziert, den es
+nicht gab — und die Korrektur wäre der eigentliche Schaden gewesen.
+
+**Der Befund:** `sim/src/balance.rs` gibt drei Wertelisten unsortiert an `Statistics::from_sorted`,
+während fünf Nachbarlisten sortiert werden. Zwei Texte stützten die Diagnose:
+
+```
+der Funktionsname          from_sorted        klingt nach „erwartet aufsteigende Werte"
+ein Kommentar daneben      „ohne diese zwei Zeilen wäre der Median still falsch"
+```
+
+**Die Struktur sagte etwas anderes:**
+
+```
+pub struct Statistics { count, mean, stddev, stderr, … }   ← KEIN Median
+:305  let mut min = values[0]; for &value in values {…}    ← min/max per SCHLEIFE
+```
+
+`Statistics` hat keinen Median und keine Perzentile. Nichts an ihr hängt an der Reihenfolge. Und
+der Doc-Kommentar von `from_sorted` — zwölf Zeilen über dem Fund — sagt ausdrücklich:
+
+> Die Sortierung ist Voraussetzung und nicht Aufgabe dieser Funktion: Sie gehört zur **Herkunft**
+> der Werte (Startwert-Reihenfolge), nicht zur Größe des Werts. Nach Größe zu sortieren wäre für die
+> Summe stabiler, würde aber **verschleiern**, dass zwei Läufe verschiedene Durchgänge enthalten.
+
+Die geplante Korrektur (`sort_by(f64::total_cmp)`) sortiert nach **Größe** — genau das, was der
+Kommentar verwirft. Sie hätte eine dokumentierte Absicht zerstört und wäre grün durchgelaufen.
+
+### Was den Fall aufgedeckt hat, war nicht Sorgfalt
+
+Der Prüffall wollte `Statistics.median` lesen. Der Übersetzer meldete `no field 'median'`.
+
+> **Hätte ich `mean` statt `median` geschrieben, wäre alles grün gewesen und der Eingriff in `main`
+> gelandet.** — der Bauende
+
+Und die Abnahme hätte ihn durchgelassen: Eine Mutations-Gegenprobe fängt eine Änderung, die etwas
+**kaputt** macht. Sie fängt keine, die Funktionierendes durch anderes Funktionierendes ersetzt und
+dabei eine Absicht aufgibt, die nur im Kommentar steht.
+
+### Die Regel
+
+> Wo zwei Texte in dieselbe Richtung zeigen — ein Name und ein Kommentar —, ist die Versuchung am
+> größten, die **Struktur** nicht anzusehen. Genau dort gehört sie angesehen: Welche Felder hat der
+> Typ? Wie wird der Wert berechnet? Was sagt der Doc-Kommentar der Funktion selbst, nicht der ihres
+> Nachbarn?
+
+**Der zweite Teil ist der teurere:** Der Orchestrator hat den Befund nicht geprüft, sondern
+**erweitert** („es sind drei Stellen, nicht eine" — und die Größen benannt, die es nicht gibt). Eine
+erweiterte falsche Diagnose wiegt schwerer als die ursprüngliche, weil sie bestätigt aussieht. Wer
+einen fremden Befund aufstockt, prüft ihn zuerst — sonst verdoppelt er nur die Zuversicht.
