@@ -472,6 +472,30 @@ pub fn greedy(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Sea
 /// Er findet nichts, was an keinem Boss gefunden wurde. Ein Paar, dessen
 /// beide Haelften einzeln verlieren, bleibt unsichtbar — das ist der
 /// eigentliche Gegenstand von #558 und durch diesen Nachlauf nicht erledigt.
+///
+/// # ⚠ Das Ergebnis kann SCHLECHTER sein als eine freie Suche
+///
+/// Diese Funktion gibt zurueck, was von DIESEM Startpunkt aus erreichbar ist —
+/// mehr verspricht sie nicht. Ist die Startliste schon so lang wie `max_len`,
+/// greift sofort [`Stop::LengthLimit`]: Es wird gar nicht gesucht, und heraus
+/// kommt die fremde Liste, an der neuen Stelle gespielt.
+///
+/// Gemessen an `first-crucible` gegen `test-onslaught`:
+///
+/// ```text
+///   freie Suche an test-onslaught            6553
+///   von der first-crucible-Liste aus         3138
+/// ```
+///
+/// **Wer sie ohne Besser-Pruefung benutzt, verschlechtert sein Ergebnis**, und
+/// die Zahl sieht dabei plausibel aus. Der Aufrufer muss also vergleichen:
+///
+/// ```text
+///   if versuch.best.mean > bisher { uebernehmen }
+/// ```
+///
+/// Genau das tut der Nachlauf in `examples/rotation-search.rs`. Der Fall
+/// `ohne_besser_pruefung_verschlechtert_der_nachlauf` haelt die Falle fest.
 #[must_use]
 pub fn greedy_from(
     config: &BalanceConfig,
