@@ -218,6 +218,7 @@ export class HudRenderer {
     analysis: LossReport | null;
     efficiency: EfficiencyTable | null;
     curve: RunCurve | null;
+    bestCurve: RunCurve | null;
     comparison: readonly ComparedMetric[] | null;
     damage: number;
     progressPercent: number;
@@ -235,6 +236,7 @@ export class HudRenderer {
     analysis: null,
     efficiency: null,
     curve: null,
+    bestCurve: null,
     comparison: null,
     damage: 0,
     progressPercent: 0,
@@ -291,6 +293,17 @@ export class HudRenderer {
      * **Ans Ende der Liste**, damit kein bestehender Aufruf sich verschiebt.
      */
     private readonly comparisonSource: () => readonly ComparedMetric[] | null = () => null,
+    /**
+     * Die Schadenskurve des Bestlaufs, oder `null` (Issue #82, AC1).
+     *
+     * **Als Zulieferung, aus demselben Grund wie `comparisonSource` darüber**:
+     * Sie steht im Spielstand, und der HUD kennt ihn nicht.
+     *
+     * **Ans Ende der Liste**, damit kein bestehender Aufruf sich verschiebt.
+     * Der Vorgabewert `null` heisst dabei genau das, was er beim Spieler auch
+     * heisst: Es gibt keine zweite Kurve, also wird eine gezeichnet.
+     */
+    private readonly bestCurveSource: () => RunCurve | null = () => null,
   ) {
     this.mechanicSource = {
       slotCount: SLOT_COUNT,
@@ -446,14 +459,17 @@ export class HudRenderer {
       const gerechnet = this.analysisOf(combat, view.summary);
       view.analysis = gerechnet?.losses ?? null;
       view.efficiency = gerechnet?.table ?? null;
-      // **Die Schadenskurve dieses Laufs** (E7-2, Issue #82). Ohne
-      // Vergleichskurve: Der Spielstand fuehrt vom Bestlauf nur EINE Zahl
-      // (`BestRun.metric` und `.value`), keine Kurve und keine Kurzfassung.
-      // `buildCurveView` nimmt dafuer `null` — die eigene Kurve steht dann
-      // allein, und das ist eine ehrliche Anzeige statt einer erfundenen
-      // Referenz.
+      // **Die Schadenskurve dieses Laufs** (E7-2, Issue #82).
       view.curve =
         view.summary === null ? null : sampleDamageCurve(this.session.log, view.summary.elapsedMs);
+      // **Und die des Bestlaufs** — die zweite Kurve aus AC1. Hier stand
+      // nichts, solange der Spielstand keine fuehrte; seit `BestRun.curve`
+      // legt derselbe Sieg, der den Bestwert setzt, auch den Verlauf ab.
+      //
+      // Beim selben Wechsel wie alles andere hier: Der Spielstand aendert sich
+      // waehrend der Auswertung nicht, und je Bild zu lesen hiesse, ihn
+      // sechzig Mal in der Sekunde zu befragen.
+      view.bestCurve = this.bestCurveSource();
       // **Der Vergleich, beim selben Wechsel** (Issue #82): Er ändert sich
       // während der Auswertung nicht, und je Bild abzufragen hiesse, den
       // Spielstand je Bild zu lesen.

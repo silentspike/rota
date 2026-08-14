@@ -160,7 +160,14 @@ describe('AC3 — ein alter Spielstand lädt und verliert nichts', () => {
   });
 
   it('die Fassung ist gestiegen, damit ein neuer Stand sich zu erkennen gibt', () => {
-    expect(SAVE_SCHEMA).toBe(2);
+    // **Nicht mehr `toBe(2)`**, und der Grund ist die Aussage dieses Falls
+    // selbst: Er heißt „ist GESTIEGEN". Die exakte Zahl festzunageln prüfte
+    // die Tagesform statt der Sache — bei der nächsten Fassung wird er rot,
+    // ohne dass an #480 irgendetwas kaputt wäre. Genau das ist am 2026-08-14
+    // passiert, als #82 die Fassung auf 3 hob (`BestRun.curve`).
+    //
+    // Die geltende Zahl gehört in die MELDUNG, nicht in die Bedingung:
+    expect(SAVE_SCHEMA, `geltende Fassung: ${String(SAVE_SCHEMA)}`).toBeGreaterThanOrEqual(2);
   });
 });
 
