@@ -393,6 +393,14 @@ pub struct SearchResult {
     pub measured: usize,
     /// Warum die Suche aufgehoert hat.
     pub stop: Stop,
+    /// Wie viele PAARE ueberhaupt zur Wahl standen (Issue #558).
+    ///
+    /// **Ohne diese Zahl sagt „kein Unterschied" nichts.** Sie trennt die zwei
+    /// Faelle, die sonst gleich aussehen: Das Paar wurde geprueft und hat
+    /// verloren — oder es kam nie zur Wahl, weil die Laengengrenze vorher
+    /// griff. Gemessen ist genau das passiert: Bei `max_len = 6` ist die Liste
+    /// voll, bevor die Einzelzuege aufhoeren zu tragen.
+    pub paare_geprueft: usize,
 }
 
 /// Die Suche: jeder Kandidat wird an **jeder** Position probiert.
@@ -471,6 +479,28 @@ pub fn greedy_from(
     max_len: usize,
     start: &[Candidate],
 ) -> SearchResult {
+    greedy_opts(config, pool, max_len, start, true)
+}
+
+/// Dieselbe Suche mit abschaltbarer Paar-Betrachtung (Issue #558).
+///
+/// # Warum der Schalter Pflicht ist und nicht Bequemlichkeit
+///
+/// Ein Gewinn, der mit Paar-Suche gemessen wird, koennte auch vom Startpunkt
+/// des Nachlaufs stammen oder vom Rauschen. Nur wer dieselbe Stelle OHNE
+/// Paare messen kann, weiss, woran er liegt. Ohne den Schalter waere die
+/// einzige Gegenprobe, die Paar-Logik auszubauen — also mit einem Werkzeug zu
+/// messen, das es so nicht gibt.
+///
+/// `mit_paaren = false` ergibt exakt die Suche von vor #558.
+#[must_use]
+pub fn greedy_opts(
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    max_len: usize,
+    start: &[Candidate],
+    mit_paaren: bool,
+) -> SearchResult {
     let mut chosen: Vec<Candidate> = start.to_vec();
     // **Was schon in der Startliste steht, steht nicht mehr zur Wahl.** Sonst
     // koennte dieselbe Zeile zweimal in der Rotation landen — die zweite waere
@@ -479,6 +509,7 @@ pub fn greedy_from(
         .filter(|&i| !chosen.contains(&pool[i]))
         .collect();
     let mut measured = 0;
+    let mut paare_geprueft = 0;
 
     // **Der Bezugspunkt für „verhindert" wird HIER bestimmt, einmal** (#814).
     //
@@ -533,6 +564,61 @@ pub fn greedy_from(
                 }
             }
         }
+        // **Der Paar-Zug** (Issue #558). Er kommt NACH den Einzelzuegen und
+        // nur zum Zug, wenn kein einzelner mehr traegt — siehe
+        // [`paar_zuege`] fuer die Begruendung.
+        let mut bester_paar_zug: Option<(usize, usize, usize, Measured)> = None;
+        if mit_paaren && chosen.len() + 2 <= max_len {
+            let paare = paar_zuege(pool, &offen);
+            paare_geprueft += paare.len();
+            for (v_pos, n_pos) in paare {
+                for stelle in 0..=chosen.len() {
+                    let mut versuch = chosen.clone();
+                    versuch.insert(stelle, pool[offen[v_pos]].clone());
+                    versuch.insert(stelle + 1, pool[offen[n_pos]].clone());
+                    let gemessen = measure(config, "paar", &versuch);
+                    measured += 1;
+                    let besser = match &bester_paar_zug {
+                        None => true,
+                        Some((_, _, _, bisher)) => gemessen.mean > bisher.mean,
+                    };
+                    if besser {
+                        bester_paar_zug = Some((v_pos, n_pos, stelle, gemessen));
+                    }
+                }
+            }
+        }
+
+        let einzeln_traegt = bester_zug
+            .as_ref()
+            .is_some_and(|(_, _, m)| m.clearly_better_than(&best));
+
+        if !einzeln_traegt {
+            // **Hier und nur hier greift das Paar.** Solange ein einzelner Zug
+            // noch traegt, ist er billiger und die Suche laeuft wie bisher.
+            // Erst an der Stelle, an der `greedy` frueher aufgab, wird gefragt:
+            // Gibt es ein PAAR, dessen Haelften einzeln verloren haben?
+            let Some((v_pos, n_pos, stelle, gemessen)) = bester_paar_zug else {
+                break Stop::NoImprovement;
+            };
+            if !gemessen.clearly_better_than(&best) {
+                break Stop::NoImprovement;
+            }
+            chosen.insert(stelle, pool[offen[v_pos]].clone());
+            chosen.insert(stelle + 1, pool[offen[n_pos]].clone());
+            // Absteigend entfernen, sonst verschiebt die erste Entnahme den
+            // zweiten Index.
+            let (hoch, tief) = if v_pos > n_pos {
+                (v_pos, n_pos)
+            } else {
+                (n_pos, v_pos)
+            };
+            offen.remove(hoch);
+            offen.remove(tief);
+            best = gemessen;
+            continue;
+        }
+
         let Some((pos, stelle, gemessen)) = bester_zug else {
             break Stop::PoolExhausted;
         };
@@ -553,6 +639,92 @@ pub fn greedy_from(
         pool_size: pool.len(),
         measured,
         stop,
+        paare_geprueft,
+    }
+}
+
+/// Die Paare, die einzeln verlieren und zusammen tragen (Issue #558, AC2).
+///
+/// # Der Mangel, gemessen
+///
+/// Der Bericht der Rotations-Suche weist ihn selbst aus: 25 Kandidatenzeilen
+/// stammen aus Verstaerkungs-Fenstern, und ueber alle gefundenen Rotationen
+/// zusammen steht **keine einzige** davon in einer Liste.
+///
+/// Der Grund ist kein Zufall und keine Balance-Frage:
+///
+/// | Zeile | allein |
+/// | --- | --- |
+/// | `flashpoint` (der Verstaerker) | kostet einen GCD, bringt nichts |
+/// | `kindle if buff.flashpoint.active` | der Buff ist nie da, also tot |
+///
+/// Ein gieriges Verfahren probiert jede Zeile EINZELN. Beide verlieren, also
+/// nimmt es keine — und die zweite kann gar nicht gewinnen, solange die erste
+/// fehlt. **Das Paar ist die kleinste Einheit, die ueberhaupt etwas wert
+/// ist.**
+///
+/// # Woher die Paare kommen
+///
+/// Aus den DATEN, nicht aus einer gepflegten Liste. Eine Kandidatenzeile mit
+/// [`Origin::BuffWindow`] traegt den Verstaerker in ihrer Bedingung
+/// ([`Value::BuffActive`]); ihr Partner ist die unbedingte Zeile genau dieses
+/// Verstaerkers. Wer einen Verstaerker ergaenzt, bekommt seine Paare ohne
+/// Zutun — dieselbe Linie wie bei den Kandidatenzeilen selbst.
+///
+/// # Warum das billig bleibt
+///
+/// Nicht alle Paare aus allen Zeilen: Das waeren bei 88 Kandidaten 3828
+/// Paare mal Einfuegepositionen zum Quadrat — der Grund, aus dem AC2
+/// ausdruecklich auch „zu teuer" als Antwort zulaesst. Die Vorauswahl aus den
+/// Daten laesst davon die Paare uebrig, die eine Beziehung HABEN.
+///
+/// Dazu zwei Beschraenkungen, beide begruendet:
+///
+/// 1. **Der Verstaerker steht direkt vor dem Nutzer.** In einer
+///    Prioritaetenliste wird die erste erfuellte Zeile gewirkt; steht der
+///    Verstaerker darueber, kommt er dran, sobald er bereit ist, und der
+///    Nutzer greift in seinem Fenster. Das spart eine zweite freie Position
+///    (n statt n²) — und die Suche kann spaeter Zeilen dazwischenschieben,
+///    die Beschraenkung gilt nur fuer den Einfuege-Moment.
+/// 2. **Nur wenn kein einzelner Zug mehr traegt.** Solange die gewoehnliche
+///    Suche vorankommt, ist sie billiger. Das Paar wird erst dort gefragt, wo
+///    `greedy` frueher `Stop::NoImprovement` gemeldet hat.
+fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
+    let mut paare = Vec::new();
+    for (n_pos, &nutzer) in offen.iter().enumerate() {
+        if pool[nutzer].origin != Origin::BuffWindow {
+            continue;
+        }
+        // Der Verstaerker steht in der Bedingung der Nutzer-Zeile.
+        let Some(verstaerker) = buff_aus_bedingung(&pool[nutzer].condition) else {
+            continue;
+        };
+        // Sein Partner ist die UNBEDINGTE Zeile desselben Zaubers — die, die
+        // ihn ueberhaupt erst wirkt.
+        for (v_pos, &kandidat) in offen.iter().enumerate() {
+            if pool[kandidat].spell == verstaerker && pool[kandidat].origin == Origin::Always {
+                paare.push((v_pos, n_pos));
+            }
+        }
+    }
+    paare
+}
+
+/// Der Zauber, dessen Verstaerkung eine Bedingung abfragt.
+///
+/// Gibt `None` zurueck, sobald die Bedingung nicht die einfache Form aus
+/// [`candidates_for`] hat — eine Paarbildung auf gut Glueck waere schlechter
+/// als keine.
+fn buff_aus_bedingung(condition: &Condition) -> Option<usize> {
+    let [gruppe] = condition.groups.as_slice() else {
+        return None;
+    };
+    let [term] = gruppe.as_slice() else {
+        return None;
+    };
+    match term.left {
+        Value::BuffActive(i) => Some(i),
+        _ => None,
     }
 }
 
@@ -630,6 +802,10 @@ pub fn exhaustive(config: &BalanceConfig, pool: &[Candidate], max_len: usize) ->
         pool_size: pool.len(),
         measured,
         stop: Stop::PoolExhausted,
+        // Die erschoepfende Suche kennt keine Paare — sie prueft ohnehin jede
+        // Teilmenge, also auch jedes Paar. Null heisst hier „nicht noetig",
+        // nicht „nicht geprueft".
+        paare_geprueft: 0,
     }
 }
 
