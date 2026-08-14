@@ -135,6 +135,38 @@ fn main() {
         MINDESTENS
     );
 
+    // **GEGEN DIE ANDERE RICHTUNG — und die ist die gefährlichere.**
+    //
+    // Eine Untergrenze fängt nur, dass die Zahl FÄLLT. Wird die Zählung
+    // verwässert, steigt sie, und der Wächter meldet grün, ohne noch etwas zu
+    // messen. Gemessen am 2026-08-14 vom Orchestrator, an genau einem Zeichen:
+    //
+    // ```text
+    // if lauf.casts[i] > 0     ->     if lauf.casts[i] >= 0
+    //   Nullprobe   6 / 6 / 5 / 6,  über alle 11
+    //   Mutation    58 bei JEDEM Boss,  "BESTANDEN: 58 von 58 >= 11"
+    // ```
+    //
+    // `>= 0` ist wahr für jeden Zauber, auch für die 47, die nie gewirkt
+    // werden. Das ist ein Tippfehler, den ein Mensch macht — und danach läuft
+    // der Wächter jede Nacht grün, ohne je wieder etwas zu prüfen. Niemand
+    // merkt es, weil Grün der erwartete Zustand ist.
+    //
+    // **Und wenn eines Tages wirklich alle spielbaren Zauber vorkommen?** Dann
+    // wird diese Zeile rot, und das ist richtig so: Leitplanke 2 wäre erfüllt,
+    // das Issue erledigt, und dieser Wächter gehört dann überdacht statt
+    // weitergeschleppt. Eine rote Zeile mit dieser Meldung ist der bessere Weg
+    // dorthin als ein stilles Grün.
+    assert!(
+        gewirkt.len() < spielbar.len(),
+        "ALLE {} spielbaren Zauber gelten als gewirkt — die Zaehlung misst \
+         nichts mehr. Entweder ist die Bedingung in der Schleife oben \
+         verwaessert (`> 0` gegen `>= 0`), oder Leitplanke 2 ist erfuellt und \
+         dieser Waechter hat seinen Zweck verloren. Beides gehoert angesehen, \
+         keines uebergangen.",
+        spielbar.len()
+    );
+
     if gewirkt.len() < MINDESTENS {
         eprintln!(
             "FEHLGESCHLAGEN: nur {} von {} spielbaren Zaubern werden ueber die {} \
