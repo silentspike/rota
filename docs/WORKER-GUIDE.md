@@ -6634,3 +6634,45 @@ Ein fehlender Lauf ist kein Grund für eine Ausnahme, sondern für einen Lauf.
 tragfähige Form eingeführt und vom Bauenden umgesetzt. Beide hielten sie danach für sicher — der
 Bauende hat es so gesagt: _„sonst hätte ich meine drei Einträge gemessen statt sie zu begründen."_
 Wer eine Vorsichtsmaßnahme selbst einrichtet, prüft sie am seltensten.
+
+### 8.98 Eine zugestellte Nachricht ist keine gelesene
+
+Am 2026-08-14 lagen fünf Nachrichten des Orchestrators zwischen 26 und 39 Minuten in einem
+Postfach, während der Empfänger arbeitete. Der Kanal war dabei **fehlerfrei**:
+
+```
+~/.claude/teams/session-13b0d4fb/config.json   ipc-anker steht im Team
+inboxes/team-lead.json                          existiert, wird geschrieben
+rota-ipc rollen                                 Kennung stimmt, Sitzung läuft
+```
+
+Es war kein Zustellfehler. Die Nachrichten kamen an — sie wurden nur nicht gelesen, weil der
+Empfänger auf eine Messung konzentriert war. Gefunden hat er sie über `rota-ipc offen`, **nachdem**
+er eine Fertigmeldung geschickt hatte.
+
+**Was das gekostet hat, gemessen:**
+
+|                                            |                                                |
+| ------------------------------------------ | ---------------------------------------------- |
+| ein Aufbau mit drei statt sechs Läufen     | die geänderte Vorgabe stand in einer der fünf  |
+| eine zurückgezogene Fertigmeldung          | „von mir kommt nichts mehr" galt sechs Minuten |
+| 26 Minuten Wartezeit auf eine Entscheidung | sie war seit 26 Minuten getroffen              |
+
+Der Empfänger meldete: _„Ich hätte vor der Fertigmeldung ins Postfach gesehen, statt danach."_
+
+**Die Regel gilt für beide Seiten, und die zweite Hälfte ist die wichtigere:**
+
+> **Vor jeder Fertigmeldung `rota-ipc offen`** — eine Zuteilung, die sich geändert hat, macht die
+> Meldung wertlos.
+>
+> **Vor jeder neuen Zuteilung `rota-ipc offen`** — wer sendet, sieht als Einziger, dass die vorige
+> Nachricht unbeantwortet liegt. Der Empfänger im Tunnel sieht es nicht.
+
+Der Absender hat den besseren Blick darauf, denn `rota-ipc offen` zeigt ihm **seine eigenen**
+unbeantworteten Nachrichten mit Alter. Fünf Einträge zu derselben Rolle sind kein Zustellproblem,
+sondern ein Signal: Dort arbeitet jemand an einem Stand, den es nicht mehr gibt.
+
+**Was hier NICHT hilft:** den Kanal prüfen. Er war die ganze Zeit in Ordnung, und jede Minute, die
+in seine Diagnose ging, hätte in eine Nachfrage gehen können. Ein technischer Verdacht ist
+verlockend, weil er messbar ist — aber er erklärt nicht, warum die Zustellung bei allen anderen
+Nachrichten desselben Kanals funktionierte.
