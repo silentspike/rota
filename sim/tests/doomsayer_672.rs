@@ -19,7 +19,14 @@
 //! # Der Befund, den diese Fälle festhalten
 //!
 //! `test-doomsayer` trägt ZWEI Mechaniken: das Verhängnis (`doom`) und die
-//! Stapel (`stacks`, 20 mal Faktor 3 alle 2000 ms). Gemessen am 2026-08-14:
+//! Stapel (`stacks`). Deren Werte, aus der Bossdatei gelesen: `baseDamage 20`,
+//! `factor 3`, `maxStacks 4`, alle 2000 ms ein Stapel — also 20, 60, 180, 540
+//! je Schritt mit Deckel bei vier.
+//!
+//! **Die frühere Formulierung „20 Stapel mit Faktor 3" war falsch** und stand
+//! bis zum 2026-08-14 hier: Es sind 20 GRUNDSCHADEN und maximal VIER Stapel.
+//!
+//! Gemessen am 2026-08-14:
 //!
 //! ```text
 //!   Liste                     Schaden  purge  doom  erlitten  lebt
@@ -27,9 +34,29 @@
 //!   ohne purge (Gegenprobe)      2645      0   100      2800  false
 //! ```
 //!
-//! Wer das Verhängnis beherrscht, lebt länger — und länger heißt hier mehr
-//! Stapel. Der Kampf ist nicht am Verhängnis unüberlebbar, sondern an der
-//! Kombination.
+//! # WELCHE Mechanik allein tötet — nachgemessen mit abgeschalteter Gegenseite
+//!
+//! Die Zeilen oben zeigen, dass `purge` die Todesart verschiebt, aber nicht,
+//! welche Mechanik für sich genommen tödlich ist. `examples/doomsayer-mechaniken-672.rs`
+//! schaltet je eine ab (in einer Kopie des Boss, die Datei bleibt unberührt):
+//!
+//! ```text
+//!   A  nur doom            Tod 20000 ms   doom 100   erlitten     0
+//!   B  nur stacks          Tod 30000 ms   doom   0   erlitten  5392
+//!   C  beide               Tod 20000 ms   doom 100   erlitten  2800
+//! ```
+//!
+//! **Beide töten allein**, das Verhängnis zehn Sekunden früher. In A ist der
+//! erlittene Schaden 0 — der Verhängnis-Tod kommt nicht über den Lebensbalken,
+//! und das ist der Beleg für die Ursache statt eines Indizes.
+//!
+//! Damit ist auch geklärt, warum zwei Aussagen widersprüchlich schienen: „der
+//! Tod kommt vom Verhängnis" gilt OHNE `purge`, „er kommt von den Stapeln" MIT
+//! `purge`. Wer das Verhängnis beherrscht, lebt länger — und länger heißt hier
+//! mehr Stapel.
+//!
+//! Die Schwelle wird bei **20000 ms** erreicht (`threshold 100 / amount 5` =
+//! 20 Schritte à 1000 ms), nicht erst am Ende der Überdruckzeit bei 60000 ms.
 
 use rota_sim::apl::{parse, AplName};
 use rota_sim::data::{boss_by_id, index_of};
