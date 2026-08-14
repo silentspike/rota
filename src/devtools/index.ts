@@ -49,6 +49,8 @@ import {
   type ReferenceResult,
   type RotationName,
 } from './reference-run.js';
+import { erwarteterStand, bessereStuecke } from './expected-gear.js';
+import type { OwnedItemLike } from '../gear/catalog.js';
 
 /** Bilder, die vor der ersten Speicher-Messung verstreichen (Aufwärmen). */
 const WARMUP_FRAMES = 240;
@@ -623,6 +625,16 @@ export interface DevTools {
    * Werkzeug — im Spiel erscheint keine Referenz-Rotation (GAME-DESIGN 18.5).
    */
   simulate(rotation: RotationName, options?: ReferenceOptions): ReferenceResult;
+  /**
+   * Der erwartete Ausrüstungsstand einer Instanz (GAME-DESIGN 20.5).
+   *
+   * Der Maßstab, gegen den Bosse kalibriert werden — **nicht** der eines
+   * nackten Spielers. `plaetze` ist überschreibbar, um die Schranken zu
+   * rechnen; ohne Angabe alle zehn.
+   */
+  expectedGear(vorstufe: number, plaetze?: number): readonly OwnedItemLike[];
+  /** Wie viele Stücke über `common` liegen — aus den Fallgewichten gerechnet. */
+  expectedBetterPieces(vorstufe: number, plaetze: number): number;
   /** Abklingzeit über viele Zyklen messen (VERIFICATION § 3.3). */
   measureCooldown(spellId: string, cycles: number): CooldownMeasurement;
   // ------------------------------------------------- Klang und Musik (17.1)
@@ -1325,6 +1337,8 @@ export function installDevTools(app: App): void {
       ]);
     },
     simulate: (rotation, options) => runReference(rotation, options),
+    expectedGear: (vorstufe, plaetze) => erwarteterStand(vorstufe, plaetze),
+    expectedBetterPieces: (vorstufe, plaetze) => bessereStuecke(vorstufe, plaetze),
     measureCooldown: (spellId, cycles) => measureCooldown(spellId, cycles),
     sound: () => buildSoundReport(app),
     events: () => [...COMBAT_EVENT_NAMES],
