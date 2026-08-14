@@ -4342,6 +4342,15 @@ export function buffCombatPayload(): Record<string, unknown> {
       // seit Langem als Getter führt und drei Prüfdateien ihn lesen.
       factorAt.push({
         tick,
+        // **Verschachtelt, und trotzdem dieselbe Frage** (Issue #659, AC4,
+        // nachgetragen am 2026-08-14): `combat.damageFactors.buffs` steht nicht
+        // im `ReplayResult` — unter keinem Namen, auch nicht als Untergröße.
+        // Bleibt deshalb bei `combat`.
+        //
+        // Meine eigene Erhebung hatte diese Klasse ÜBERSEHEN: Das Muster suchte
+        // `feld: combat.getter` am Zeilenende, und `.buffs` dahinter ließ es
+        // durchfallen. Gefunden erst beim Gegenzählen mit einem robusteren
+        // Verfahren — dieselbe Klasse, gegen die dieses Issue selbst antritt.
         buffs: combat.damageFactors.buffs,
         // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
         // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des
@@ -5171,6 +5180,15 @@ export function decayFactorPayload(): Record<string, unknown> {
     if (tick === 0 || tick === 250 || tick === 599) {
       factorAt.push({
         tick,
+        // **Verschachtelt, und trotzdem dieselbe Frage** (Issue #659, AC4,
+        // nachgetragen am 2026-08-14): `combat.damageFactors.buffs` steht nicht
+        // im `ReplayResult` — unter keinem Namen, auch nicht als Untergröße.
+        // Bleibt deshalb bei `combat`.
+        //
+        // Meine eigene Erhebung hatte diese Klasse ÜBERSEHEN: Das Muster suchte
+        // `feld: combat.getter` am Zeilenende, und `.buffs` dahinter ließ es
+        // durchfallen. Gefunden erst beim Gegenzählen mit einem robusteren
+        // Verfahren — dieselbe Klasse, gegen die dieses Issue selbst antritt.
         buffs: combat.damageFactors.buffs,
         // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
         // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des Laufs,
@@ -5252,6 +5270,15 @@ export function decayTalentPayload(): Record<string, unknown> {
     if (tick === 0 || tick === 250 || tick === 599) {
       factorAt.push({
         tick,
+        // **Verschachtelt, und trotzdem dieselbe Frage** (Issue #659, AC4,
+        // nachgetragen am 2026-08-14): `combat.damageFactors.buffs` steht nicht
+        // im `ReplayResult` — unter keinem Namen, auch nicht als Untergröße.
+        // Bleibt deshalb bei `combat`.
+        //
+        // Meine eigene Erhebung hatte diese Klasse ÜBERSEHEN: Das Muster suchte
+        // `feld: combat.getter` am Zeilenende, und `.buffs` dahinter ließ es
+        // durchfallen. Gefunden erst beim Gegenzählen mit einem robusteren
+        // Verfahren — dieselbe Klasse, gegen die dieses Issue selbst antritt.
         buffs: combat.damageFactors.buffs,
         // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
         // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des Laufs,
