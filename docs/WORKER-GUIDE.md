@@ -6652,13 +6652,13 @@ er eine Fertigmeldung geschickt hatte.
 
 **Was das gekostet hat, gemessen:**
 
-| | |
-| --- | --- |
-| ein Aufbau mit drei statt sechs Läufen | die geänderte Vorgabe stand in einer der fünf |
-| eine zurückgezogene Fertigmeldung | „von mir kommt nichts mehr" galt sechs Minuten |
-| 26 Minuten Wartezeit auf eine Entscheidung | sie war seit 26 Minuten getroffen |
+|                                            |                                                |
+| ------------------------------------------ | ---------------------------------------------- |
+| ein Aufbau mit drei statt sechs Läufen     | die geänderte Vorgabe stand in einer der fünf  |
+| eine zurückgezogene Fertigmeldung          | „von mir kommt nichts mehr" galt sechs Minuten |
+| 26 Minuten Wartezeit auf eine Entscheidung | sie war seit 26 Minuten getroffen              |
 
-Der Empfänger meldete: *„Ich hätte vor der Fertigmeldung ins Postfach gesehen, statt danach."*
+Der Empfänger meldete: _„Ich hätte vor der Fertigmeldung ins Postfach gesehen, statt danach."_
 
 **Die Regel gilt für beide Seiten, und die zweite Hälfte ist die wichtigere:**
 
