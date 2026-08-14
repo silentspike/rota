@@ -293,6 +293,18 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
     pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: GEZIELTE_VERKUERZUNG_NAME, seed: 0, ticks, presses, bindings: GEZIELTE_BINDINGS },
+    // Diese Payload nennt keinen eigenen Boss — sie baut den Kampf direkt mit
+    // `FIRST_CRUCIBLE`, und der Ergebnis-Pfad braucht denselben.
+    { boss: FIRST_CRUCIBLE.value },
+  );
+
   return {
     schema: 1,
     name: GEZIELTE_VERKUERZUNG_NAME,
@@ -311,7 +323,7 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
       // `damageDealt` heisst im Ergebnis `damage` (recording.ts:500) — die
       // Gleichheit ist belegt. Diese Funktion hat aber KEINEN Nachlauf; eine
       // Umstellung waere der Einbau eines zweiten Laufs, also #653-Arbeit.
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       casts: {
         ascend: combat.castCount(alsSpellIndex(ascend)),
         decant: combat.castCount(alsSpellIndex(decant)),
@@ -893,6 +905,14 @@ export function doomPurgePayload(): Record<string, unknown> {
     { slot: 4, spellId: 'purge' },
   ];
 
+  // **Die Ergebnis-Größen kommen aus dem Ergebnis-Pfad** (Issue #659). Der
+  // Handlauf darunter bleibt — er liefert die Spuren je Takt, die
+  // `replayRecording` nicht führt. Aber `damage` und `diedAtMs` stehen im
+  // `ReplayResult` und werden dort aus denselben Gettern befüllt; sie hier aus
+  // `combat` zu lesen hiesse, eine Verfälschung im Ergebnis-Pfad nicht zu
+  // sehen.
+  const ergebnis = replayRecording(recording, { boss, bindings: belegung });
+
   const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
   const zaehler: number[] = [];
   const ladungen: number[] = [];
@@ -925,8 +945,8 @@ export function doomPurgePayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     boss: { hp: boss.hp, overpressureMs: boss.overpressureMs, doom: boss.doom },
     expected: {
-      damage: combat.damageDealt,
-      diedAtMs: combat.diedAtMs,
+      damage: ergebnis.damage,
+      diedAtMs: ergebnis.diedAtMs,
       // Die Zahl, um die es geht: wie oft gesenkt wurde.
       casts: combat.castCount(combat.indexOf('purge')),
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
@@ -2792,6 +2812,21 @@ export function logTaktePayload(): Record<string, unknown> {
     (takte[eintrag.type] ??= []).push(eintrag.timeMs);
   }
 
+  // **Die Ergebnis-Groessen kommen aus dem Ergebnis-Pfad** (Issue #659). Der
+  // Lauf oben erzeugt die Druecke; dieser hier spielt sie ueber
+  // `replayRecording` ab — denselben Weg, den auch die Rust-Seite vergleicht.
+  // `damageDealt` und `damageTaken` stehen im `ReplayResult` (als `damage`
+  // beziehungsweise `damageTaken`) und werden dort aus denselben Gettern
+  // befuellt. Sie hier aus `combat` zu lesen hiesse, eine Verfaelschung im
+  // Ergebnis-Pfad nicht zu sehen.
+  //
+  // Gemessen: Die Aufzeichnung bleibt dabei bit-identisch — beide Wege
+  // liefern dieselben Zahlen.
+  const ergebnis = replayRecording(
+    { name: LOG_TAKTE_NAME, seed: 0, ticks, presses, bindings: LOG_TAKTE_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: LOG_TAKTE_NAME,
@@ -2804,8 +2839,8 @@ export function logTaktePayload(): Record<string, unknown> {
     /** Zeitpunkte je Art, in Schreibreihenfolge. Der Simulator muss dieselben ergeben. */
     takte,
     expected: {
-      damageDealt: combat.damageDealt,
-      damageTaken: combat.damageTaken,
+      damageDealt: ergebnis.damage,
+      damageTaken: ergebnis.damageTaken,
       /**
        * **Die Zusicherung, dass die Lage überhaupt misst.** Steht hier eine
        * Null, hat die Energieleiste nie ausgelöst — dann vergleicht der
@@ -2945,6 +2980,16 @@ export function sublimationPayload(): Record<string, unknown> {
     pyreReadyAt.push(combat.cooldownRemainingMs(pyre, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: SUBLIMATION_NAME, seed: 0, ticks, presses, bindings: SUBLIMATION_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: SUBLIMATION_NAME,
@@ -2957,7 +3002,7 @@ export function sublimationPayload(): Record<string, unknown> {
     /** Restzeit von PYRE je Takt — die Größe, die VAPOUR wirklich bewegt. */
     pyreReadyAt,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       // **SLAG gehört in die Summe** (Issue #490). Er stand in der Leiste und
       // fehlte hier — das Feld hieß `casts` und zählte nur vier der fünf.
       //
@@ -3257,6 +3302,16 @@ export function aetherPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: AETHER_NAME, seed: 0, ticks, presses, bindings: AETHER_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: AETHER_NAME,
@@ -3268,7 +3323,7 @@ export function aetherPayload(): Record<string, unknown> {
     checksums,
     effluxRest,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * **Die Größe, die AETHER BEWEGT** — nicht die, die zeigt, dass er
        * geworfen wurde (Auflage aus #480/5646).
@@ -3348,6 +3403,16 @@ export function sublimePayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: SUBLIME_NAME, seed: 0, ticks, presses, bindings: SUBLIME_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: SUBLIME_NAME,
@@ -3365,7 +3430,7 @@ export function sublimePayload(): Record<string, unknown> {
        * Prüfsumme: Die änderte sich auch, wenn der Merker nur gesetzt und nie
        * verbraucht würde.
        */
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * Die Zusicherung, dass der Lauf SUBLIME überhaupt wirft. Steht hier
        * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
@@ -3433,6 +3498,16 @@ export function condensePayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: CONDENSE_NAME, seed: 0, ticks, presses, bindings: CONDENSE_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: CONDENSE_NAME,
@@ -3454,7 +3529,7 @@ export function condensePayload(): Record<string, unknown> {
        * — sonst unterschieden sich die Läufe um CONDENSE **und** um eine
        * globale Wartezeit.
        */
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * Die Zusicherung, dass der Lauf CONDENSE überhaupt wirft. Steht hier
        * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
@@ -3513,6 +3588,22 @@ export function kontrollFehlschlagPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groessen kommen aus dem Ergebnis-Pfad** (Issue #659).
+  // `damage`, `controlFailed` und `controlSpent` stehen im `ReplayResult` und
+  // werden dort aus denselben Gettern befuellt; sie hier aus `combat` zu lesen
+  // hiesse, eine Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben
+  // bleibt — er liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    {
+      name: KONTROLL_FEHLSCHLAG_NAME,
+      seed: 0,
+      ticks,
+      presses,
+      bindings: KONTROLL_FEHLSCHLAG_BINDINGS,
+    },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: KONTROLL_FEHLSCHLAG_NAME,
@@ -3524,18 +3615,18 @@ export function kontrollFehlschlagPayload(): Record<string, unknown> {
     checksums,
     vorrat,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * **Die Größe, um die es geht.** Sie stand bis hierher in genau einer
        * Aufzeichnung und dort mit null — und über alle 50 nachspielbaren
        * Runden gemessen schlug in keiner eine Kontrolle fehl.
        */
-      controlFailed: combat.controlFailed,
+      controlFailed: ergebnis.controlFailed,
       /**
        * Die Gegenrichtung: Ohne sie belegte der Fall nur, dass Ausgaben
        * scheitern — nicht, dass sie je gelingen.
        */
-      controlSpent: combat.controlSpent,
+      controlSpent: ergebnis.controlSpent,
       latchCasts: combat.castCount(alsSpellIndex(latch)),
       bindCasts: combat.castCount(alsSpellIndex(bind)),
     },
@@ -3683,6 +3774,16 @@ export function alembicPayload(): Record<string, unknown> {
     ladungen.push(combat.resetChargesLeft);
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: ALEMBIC_NAME, seed: 0, ticks, presses, bindings: ALEMBIC_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: ALEMBIC_NAME,
@@ -3694,7 +3795,7 @@ export function alembicPayload(): Record<string, unknown> {
     checksums,
     ladungen,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       alembicCasts: combat.castCount(alembic),
       /** Auswahlen, die wirklich eine Abklingzeit gelöscht haben. */
       auswahlen,
@@ -5126,6 +5227,16 @@ export function spenderTalentPayload(): Record<string, unknown> {
     presses,
     checksums,
     expected: {
+      // **Bleibt bei `combat`, und zwar aus dem Grund aus #653** (Issue #659,
+      // gemessen am 2026-08-14): Diese Aufzeichnung führt ihre Drücke mit
+      // `spellId` statt mit `slot` — siehe `presses.push({ tick, spellId })`
+      // oben. `replayRecording` spielt aber Plätze ab, keine Zaubernamen.
+      //
+      // Eine Umstellung bräuchte erst eine Aufzeichnung mit Plätzen UND
+      // Belegung und damit einen anderen `presses`-Block. Das ändert die
+      // Vergleichsdatei und ist kein Quellenwechsel mehr, sondern ein Umbau
+      // der Aufzeichnung — dieselbe Abwägung, die bei `buffCombatPayload`
+      // schon getroffen wurde.
       damage: combat.damageDealt,
       /**
        * **Die Zusicherung in den Datensatz** — ohne sie sähe eine Aufzeichnung
@@ -6014,6 +6125,16 @@ export function retortPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: RETORT_NAME, seed: 0, ticks, presses, bindings: RETORT_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: RETORT_NAME,
@@ -6039,7 +6160,7 @@ export function retortPayload(): Record<string, unknown> {
        * einen Wurf mehr in derselben Zeit — nicht die Prüfsumme, die änderte
        * sich auch, wenn der Merker nur gesetzt und nie verbraucht würde.
        */
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /** Die Zusicherung, dass der Lauf RETORT überhaupt wirft. */
       retortCasts: combat.castCount(alsSpellIndex(retort)),
       /**
@@ -7947,12 +8068,18 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
       absorbed: result.absorbed,
       healed: result.healed,
       converted: result.converted,
-      // **Aus dem Aufnahme-Lauf, nicht aus `replayRecording`** (RIPOSTE,
-      // Issue #481). `ReplayResult` führt den Rückschlag nicht; die beiden
-      // Läufe sind aber deckungsgleich — dieselbe Bindung, dieselben Drücke,
-      // derselbe Boss. Dass sie es sind, hält die Takt-Prüfsumme darunter
-      // fest: Liefen sie auseinander, wäre sie es auch.
-      reflected: combat.reflected,
+      // **Hier stand „`ReplayResult` führt den Rückschlag nicht" — und das war
+      // schon beim Schreiben falsch** (Issue #659, gemessen am 2026-08-14).
+      //
+      // `reflected` steht in `ReplayResult` (recording.ts, Feld und Befüllung)
+      // und kam dort im SELBEN Commit dazu wie dieser Kommentar: a0e72b0,
+      // RIPOSTE #481. Die Begründung hat also nie gestimmt; sie hat nur
+      // verhindert, dass jemand nachsieht.
+      //
+      // Das ist die teurere Sorte Kommentar: Eine Lücke mit „geht nicht, weil"
+      // zu begründen beendet die Suche — und wenn das „weil" nicht stimmt,
+      // beendet es sie für Jahre.
+      reflected: result.reflected,
       diedAtMs: result.diedAtMs,
       casts: weg === 'none' ? 0 : combat.castCount(neu),
       castsKindle: combat.castCount(kindle),
