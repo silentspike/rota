@@ -316,6 +316,28 @@ fn main() {
     }
     println!();
 
+    // MESSUNG 7 — die Gegenprobe zu vessel und ward.
+    //
+    // `data/items.json` nennt DREI Grundwerte: essence, vessel, ward. Messung 6
+    // gibt nur essence mit. Der Code sagt, warum das reichen sollte: `vessel_max`
+    // sind die Lebenspunkte (`fight.rs:600`), `ward` die Schadensreduktion — und
+    // dieser Aufbau faehrt `stop_on_kill: false`, der Spieler stirbt also nicht.
+    //
+    // **Das ist ein Code-Argument und damit keine Messung.** Wenn der Aufbau die
+    // beiden Groessen per Konstruktion wirkungslos macht, muss das sichtbar sein:
+    // gleiche Zahl wie Messung 6. Weicht sie ab, ist meine Begruendung falsch —
+    // und dann steht der PR auf einer Luecke, die ich fuer geschlossen hielt.
+    println!("  MESSUNG 7 — Gegenprobe: essence PLUS vessel PLUS ward");
+    for (stufe, _woher) in STUFEN {
+        let mut worn = ausruestung(stufe, qualitaet_bei(stufe));
+        let plaetze = u32::try_from(SLOT_COUNT).unwrap_or(1);
+        worn.essence += base_permille(stufe, ESSENCE_AT_LEVEL_1) * plaetze;
+        worn.vessel += base_permille(stufe, ESSENCE_AT_LEVEL_1) * plaetze;
+        worn.ward += base_permille(stufe, ESSENCE_AT_LEVEL_1) * plaetze;
+        println!("    Stufe {stufe:>3}  {:>12.0}", durchsatz(boss, worn));
+    }
+    println!();
+
     // MESSUNG 5 — GLEICHES Budget, jeweils auf EINE andere Groesse.
     //
     // Messung 3 und 4 sagen, dass die ZAHL der Toepfe den Faktor traegt. Sie
