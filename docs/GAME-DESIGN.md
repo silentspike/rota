@@ -2605,6 +2605,28 @@ Zwischen „mit unregelmäßiger Eingabe nicht schaffbar" und „unschaffbar" li
 Die 42 s sind eine Größenordnung, kein Messwert: Sie unterstellen gleichmäßigen
 Durchsatz, während die Aufbauphase vorn liegt.
 
+**6. Der Archiv-Text erscheint in einem eigenen Fenster über der Auswertung.**
+
+17.4 verlangt „nach jedem ersten Boss-Sieg ein kurzer Text", sagt aber nicht, wo er
+erscheint. Gemessen war der Zustand halb: Die Freischaltung läuft (ein Sieg setzt
+`unlockedEntryIds`), der Eintrag steht im Spielerheim vollständig da — nur erscheint
+nach dem Sieg nichts.
+
+**Entschieden: ein eigenes Fenster, gebaut wie die geführte Einführung** — dieselbe
+Bauart (`.intro`), dieselben Knöpfe (`CONTINUE`, `SKIP`). Der Grund ist, dass der
+Spieler die Geste bereits kennt und der Text nicht zu übersehen ist.
+
+Die beiden verworfenen Wege und warum:
+
+| Weg                              | verworfen, weil                                                      |
+| -------------------------------- | -------------------------------------------------------------------- |
+| Abschnitt in der Auswertung      | wird übersehen — dort stehen schon Punkte, Bestlauf-Vergleich, Stufe |
+| beim nächsten Betreten des Heims | der Zusammenhang zum Sieg geht verloren; AC1 sagt „beim ersten Sieg" |
+
+**Der Fall, der dabei zu ordnen ist:** Wenn derselbe Sieg gleichzeitig eine neue
+Mechanik einführt, stehen zwei Fenster an. Welches zuerst kommt, ist nicht
+entschieden — wer es baut, legt eine Reihenfolge fest und schreibt sie hin.
+
 ---
 
 ## 21. Bewusst verworfen · außerhalb des Umfangs · für später
