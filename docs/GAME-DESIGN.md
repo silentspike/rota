@@ -2571,6 +2571,40 @@ Damit braucht jede Balance-Aussage künftig zwei Zahlen. Das ist der Preis dafü
 heute als „gewinnt in keiner Zusammenstellung" gemessen, und ohne die zweite Größe
 bliebe offen, ob das an ihnen liegt oder am Messgerät.
 
+**5. Ein Boss soll rund 45 Sekunden brauchen — drei Viertel der Überdruckzeit.**
+
+Die Überdruckzeit steht bei allen siebzehn Bossen auf 60 000 ms, und Zeitablauf ist
+eine Niederlage (`combat.ts:4646`, `FIGHT_OVERPRESSURE`); der Kampf ist „Rotation
+gegen den Überdruck-Timer", Abschnitt 10). Damit war die Grenze gesetzt, aber nicht, wie
+knapp es sein soll.
+
+**Zielzeit: rund 45 s bei erwarteter Ausrüstung und guter Rotation.** Ein Viertel
+bleibt als Puffer — eine verpatzte Rotation kostet den Sieg noch nicht, zwei schon.
+
+Das ist der fehlende Übersetzer von Punkt 1 zu Zahlen. Aus einem gemessenen Durchsatz
+folgt die HP eines Bosses, statt sie zu justieren:
+
+```
+HP  =  Durchsatz mit erwarteter Ausrüstung (Punkt 1)  ×  45 s
+```
+
+**Gegenprobe am einzigen gebauten Boss, und sie geht auf.** Der Plan hält für
+`first-crucible` den optimalen Durchsatz fest — 5960 über 60 s, gefunden vom
+Balance-Läufer (#237, gemessen am 2026-08-06):
+
+```
+4200 HP / 5960 je 60 s   ≈  42 s
+```
+
+Der Prolog liegt damit schon auf der Zielzeit. Er ist **nicht** zu hart kalibriert:
+Zehn Läufe von Worker-3 blieben bei 4180 von 4200 stehen, aber das ist die Grenze
+seiner Eingabe (playwright, ein Prozess je Tastendruck) und nicht die des Kits.
+Zwischen „mit unregelmäßiger Eingabe nicht schaffbar" und „unschaffbar" liegen hier
+42 Prozent Überschuss.
+
+Die 42 s sind eine Größenordnung, kein Messwert: Sie unterstellen gleichmäßigen
+Durchsatz, während die Aufbauphase vorn liegt.
+
 ---
 
 ## 21. Bewusst verworfen · außerhalb des Umfangs · für später
