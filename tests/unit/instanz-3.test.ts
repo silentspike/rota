@@ -11,13 +11,36 @@
  *
  * # Die Bezwingbarkeit wird gespielt, nicht behauptet
  *
- * `#672` hat gezeigt, wie eine unbezwingbare Begegnung aussieht: `test-doomsayer`
- * kommt auf **5168 von 6400** Schaden und kann nicht gewinnen — das fiel erst
+ * `#672` hat gezeigt, wie eine unbezwingbare Begegnung aussieht — das fiel erst
  * auf, als jemand einen Lauf bis zum Ende fuhr. Ein Prüffall, der nur die Daten
  * liest, hätte ihn nie gefunden.
  *
  * Deshalb steht hier je Boss eine **gemessene Zahl**: der Schaden aus einem
  * vollen Lauf, gegen die Lebenspunkte des Bosses.
+ *
+ * # Die Zahl aus #672 stimmte nicht — korrigiert am 2026-08-14
+ *
+ * Hier stand bis dahin: _„`test-doomsayer` kommt auf **5168 von 6400** Schaden
+ * und kann nicht gewinnen."_ **Beide Zahlen sind überholt, und die zweite war
+ * nie richtig.**
+ *
+ * ```text
+ *   data/bosses/test-doomsayer.json    "hp": 999999
+ *   data/bosses/boss-1-2.json          "hp": 6400
+ * ```
+ *
+ * In der ganzen Historie der Boss-Datei steht genau eine HP-Zeile, und die
+ * lautet 999999. Die 6400 gehören `boss-1-2`. Mit 999999 Lebenspunkten ist
+ * `test-doomsayer` **per Bauart nicht tötbar** — er ist ein Prüf-Boss für die
+ * Verhängnis-Mechanik, kein Gegner, der fallen soll.
+ *
+ * Die 5168 waren der Schaden bis zum Tod des SPIELERS, gemessen vor E10.
+ * Heute sind es 9151, weil fünf E10-Zauber dazugekommen sind. Der Spieler
+ * stirbt weiterhin — am Verhängnis, bei 60000 ms.
+ *
+ * Der alte Satz bleibt oben als datierte Historie stehen, statt still ersetzt
+ * zu werden: Wer die Zahl anderswo zitiert findet, soll sehen, woher sie kam
+ * und warum sie fiel.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -104,7 +127,11 @@ describe('Die vier sind bezwingbar — gespielt, nicht behauptet', () => {
     expect(
       ergebnis.victory,
       `${id} überlebt: ${ergebnis.damage} Schaden von ${b.hp} Lebenspunkten — ` +
-        `das ist der Zustand aus #672 (test-doomsayer: 5168 von 6400).`,
+        // Die alte Fassung nannte hier „test-doomsayer: 5168 von 6400". Beide
+        // Zahlen sind überholt und die zweite war nie richtig: Der Boss hat
+        // 999999 HP, die 6400 gehören boss-1-2 (gemessen 2026-08-14, #672).
+        // Was gemeint war, ist der Zustand SELBST — ein Boss, der stehenbleibt.
+        `das ist der Zustand aus #672: ein Lauf, der nicht durchkommt.`,
     ).toBe(true);
   });
 
