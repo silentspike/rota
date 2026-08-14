@@ -101,7 +101,12 @@ fn faelle() -> Vec<Fall> {
                     k = versatz + pool.len() + 1;
                 }
             }
-            Fall { nummer: i, boss: BOSSE[i % BOSSE.len()], pool, max_len }
+            Fall {
+                nummer: i,
+                boss: BOSSE[i % BOSSE.len()],
+                pool,
+                max_len,
+            }
         })
         .collect()
 }
@@ -199,7 +204,10 @@ fn qd(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> (f64, usize
     let mut messungen = 0usize;
 
     let nische = |liste: &[Candidate]| {
-        let bedingt = liste.iter().filter(|c| !matches!(c.origin, Origin::Always)).count();
+        let bedingt = liste
+            .iter()
+            .filter(|c| !matches!(c.origin, Origin::Always))
+            .count();
         (liste.len(), bedingt)
     };
 
@@ -241,7 +249,10 @@ fn qd(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> (f64, usize
         }
     }
 
-    let bester = archiv.values().map(|(_, w)| *w).fold(f64::NEG_INFINITY, f64::max);
+    let bester = archiv
+        .values()
+        .map(|(_, w)| *w)
+        .fold(f64::NEG_INFINITY, f64::max);
     (bester, messungen, archiv.len())
 }
 
@@ -275,14 +286,19 @@ impl Bilanz {
 
     fn zeile(&self, name: &str) {
         let verfehlt = FAELLE - self.treffer;
-        let mittel = if verfehlt == 0 { 0.0 } else { self.regret_summe / verfehlt as f64 };
+        let mittel = if verfehlt == 0 {
+            0.0
+        } else {
+            self.regret_summe / verfehlt as f64
+        };
         println!(
             "  {name:<22} {:>2} / {FAELLE}  {:>5.1} %   {mittel:>7.2} %  {:>7.2} %   {:>8}   {}",
             self.treffer,
             self.treffer as f64 / FAELLE as f64 * 100.0,
             self.regret_max,
             self.messungen,
-            self.schlechtester.map_or("—".into(), |f| format!("Fall {f}")),
+            self.schlechtester
+                .map_or("—".into(), |f| format!("Fall {f}")),
         );
     }
 }
@@ -306,11 +322,16 @@ fn main() {
         let exakt = exhaustive(&cfg, &pool, 3);
         let (b, m) = beam(&cfg, &pool, 3, 30);
         println!("  ZUSICHERUNG n=6 L=3 k=30 (noetig waeren P(6,2)=30):");
-        println!("    erschoepfend {:.1} in {} Messungen", exakt.best.mean, exakt.measured);
+        println!(
+            "    erschoepfend {:.1} in {} Messungen",
+            exakt.best.mean, exakt.measured
+        );
         println!("    beam k=30    {b:.1} in {m} Messungen");
-        assert!((b - exakt.best.mean).abs() < 1e-9,
+        assert!(
+            (b - exakt.best.mean).abs() < 1e-9,
             "BEAM IST KAPUTT: bei k=30 darf nichts abgeschnitten werden, trotzdem {b} statt {}",
-            exakt.best.mean);
+            exakt.best.mean
+        );
         println!("    -> gleich, der Beam schneidet bei k=30 nichts ab");
         println!();
     }
@@ -365,7 +386,10 @@ fn main() {
             .sum::<usize>()
     );
     println!();
-    println!("  QD-Archiv: {:.1} Nischen je Fall im Mittel", nischen_gesamt as f64 / FAELLE as f64);
+    println!(
+        "  QD-Archiv: {:.1} Nischen je Fall im Mittel",
+        nischen_gesamt as f64 / FAELLE as f64
+    );
     println!();
     println!("  Regret-M ist das Mittel ueber die VERFEHLTEN Faelle, nicht ueber alle.");
 }
