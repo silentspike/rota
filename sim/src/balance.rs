@@ -469,6 +469,40 @@ impl BalanceResult {
     }
 }
 
+/// Die Todeszeitpunkte aus einer Stichprobe — **nur die Durchgaenge mit Toten**.
+///
+/// # Warum das eine eigene Funktion ist
+///
+/// Sie stand als drei Zeilen mitten in `run()`, und dort war sie nicht
+/// pruefbar: Ein gemischter Fall — manche Durchgaenge toedlich, andere nicht —
+/// laesst sich im Simulator nicht herstellen. Der einzige Zufall im Kampf
+/// (`fight.rs`, `roll_crit`) betrifft den SPIELER-Schaden; der erlittene
+/// Schaden folgt der Boss-Zeitleiste und ist deterministisch. Alle Durchgaenge
+/// sterben zur selben Millisekunde oder gar nicht.
+///
+/// Gemessen ueber drei Achsen (Dauer, Krit-Anteil, Schadenswert): kein
+/// Uebergangsbereich. `kindle` allein stirbt immer, die beste gefundene Liste
+/// gewinnt immer — auch ganz ohne Ausruestung.
+///
+/// **Als Funktion ist der Fall trotzdem pruefbar**, mit einer von Hand
+/// gemischten Liste. Das ist der Unterschied zwischen „nicht messbar" und
+/// „nicht pruefbar".
+///
+/// # Warum `filter_map` und nicht `map` mit 0
+///
+/// Ein ueberlebender Durchgang hat keinen Todeszeitpunkt — er hat nicht den
+/// Zeitpunkt 0. Wer ihn als Null mitzaehlt, halbiert bei halber Sterberate den
+/// Mittelwert und setzt das Minimum auf 0. Die Zahl saehe plausibel aus und
+/// waere falsch, und zwar genau bei den grenzwertigen Rotationen, um die es
+/// geht.
+#[must_use]
+pub fn todeszeiten(samples: &[Sample]) -> Vec<f64> {
+    samples
+        .iter()
+        .filter_map(|s| s.died_at_ms.map(f64::from))
+        .collect()
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
@@ -554,10 +588,7 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
     // Doc-Kommentar verwirft das Sortieren nach Groesse ausdruecklich, weil
     // es verschleiern wuerde, dass zwei Laeufe verschiedene Durchgaenge
     // enthalten. `samples` kommt bereits in dieser Reihenfolge.
-    let death_values: Vec<f64> = samples
-        .iter()
-        .filter_map(|s| s.died_at_ms.map(f64::from))
-        .collect();
+    let death_values = todeszeiten(&samples);
 
     BalanceResult {
         apl_name: apl.name.clone(),

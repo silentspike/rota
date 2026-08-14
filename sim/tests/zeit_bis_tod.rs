@@ -130,3 +130,75 @@ fn die_zweite_groesse_unterscheidet_was_die_summe_nicht_unterscheidet() {
         b.death_time_ms.mean
     );
 }
+
+/// **Der gemischte Fall — der einzige, der die Auswertung wirklich prueft.**
+///
+/// Im Simulator ist er nicht herstellbar: Der erlittene Schaden folgt der
+/// Boss-Zeitleiste und ist deterministisch, also sterben alle Durchgaenge zur
+/// selben Millisekunde oder gar keiner. Gemessen ueber drei Achsen (Dauer,
+/// Krit-Anteil, Schadenswert) gibt es keinen Uebergangsbereich.
+///
+/// Deshalb steht die Stichprobe hier von Hand. Sie prueft genau die
+/// Unterscheidung, die ein Lauf mit lauter Toten NICHT pruefen kann:
+/// `filter_map` gegen `map` mit einer 0 fuer Ueberlebende.
+mod gemischt {
+    use rota_sim::balance::{todeszeiten, Sample, Statistics};
+
+    fn probe(died_at_ms: Option<u32>) -> Sample {
+        Sample {
+            seed: 0,
+            damage: 100,
+            killed_at_ms: None,
+            damage_taken: 0,
+            absorbed: 0,
+            healed: 0,
+            boss_healed: 0,
+            died: died_at_ms.is_some(),
+            died_at_ms,
+        }
+    }
+
+    /// **Traeger-Zusicherung.** Die Stichprobe muss WIRKLICH gemischt sein —
+    /// sonst ist `filter_map` gleich `map` und der Fall unten zeigt nichts.
+    #[test]
+    fn die_probe_ist_gemischt() {
+        let proben = [
+            probe(Some(1000)),
+            probe(None),
+            probe(Some(3000)),
+            probe(None),
+        ];
+        let tote = proben.iter().filter(|s| s.died).count();
+        assert!(
+            tote > 0 && tote < proben.len(),
+            "die Stichprobe ist nicht gemischt: {tote} Tote von {}",
+            proben.len()
+        );
+    }
+
+    /// Ueberlebende zaehlen NICHT als Todeszeitpunkt 0.
+    #[test]
+    fn ueberlebende_stehen_nicht_als_null_in_der_statistik() {
+        let proben = [
+            probe(Some(1000)),
+            probe(None),
+            probe(Some(3000)),
+            probe(None),
+        ];
+        let werte = todeszeiten(&proben);
+
+        assert_eq!(werte.len(), 2, "die Ueberlebenden sind mitgezaehlt worden");
+
+        let stat = Statistics::from_sorted(&werte);
+        assert!(
+            (stat.mean - 2000.0).abs() < f64::EPSILON,
+            "Mittelwert {} statt 2000 — bei mitgezaehlten Nullen waere es 1000",
+            stat.mean
+        );
+        assert!(
+            stat.min > 0.0,
+            "Minimum ist {}, also steht ein Ueberlebender als Todeszeit 0 darin",
+            stat.min
+        );
+    }
+}
