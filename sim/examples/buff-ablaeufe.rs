@@ -158,4 +158,53 @@ fn main() {
          gefundene Rotation gar keine — und die Zahl sagt nichts ueber expire_buffs, sondern \
          nur ueber die Rotation."
     );
+
+    // **Die zweite Zusicherung: Zeigt das Protokoll ueberhaupt ALLES?**
+    //
+    // Die ganze Zaehlung oben liest `LogKind::BuffExpire` aus dem
+    // Kampfprotokoll. Das ist ein Ringpuffer mit `log_capacity` Plaetzen — bei
+    // Ueberlauf gehen die aeltesten Eintraege verloren, und die Zahl waere zu
+    // NIEDRIG. Genau in die Richtung, die das Ergebnis stuetzt.
+    //
+    // `overflowed()` beantwortet das direkt und billig. Eine Rasterprobe
+    // (Zustand zu vielen Zeitpunkten abtasten) haette dieselbe Frage
+    // umstaendlicher und ungenauer beantwortet: Sie findet nur, was zwischen
+    // zwei Abtastpunkten liegt, und sagt nichts ueber verlorene Eintraege.
+    println!("\n== Zusicherung: hat das Protokoll etwas verloren? ==\n");
+    let mut ueberlauf = 0_usize;
+    let mut hoechste_last = 0_usize;
+    for boss_id in BOSSE {
+        let boss = boss_by_id(boss_id).expect("Boss fehlt");
+        let config = BalanceConfig {
+            iterations: 20,
+            base_seed: 5,
+            threads: 2,
+            stop_on_kill: false,
+            duration_ms: Some(DAUER_MS),
+            boss,
+            ..BalanceConfig::default()
+        };
+        let apl = greedy(&config, &pool, 8).best.apl;
+        for seed in 0..KAEMPFE_JE_BOSS {
+            let mut fight = Fight::new(FightConfig {
+                seed,
+                boss,
+                duration_ms: Some(DAUER_MS),
+                stop_on_kill: false,
+                ..FightConfig::default()
+            });
+            let _ = fight.run_apl(&apl);
+            if fight.log().overflowed() {
+                ueberlauf += 1;
+            }
+            hoechste_last = hoechste_last.max(fight.log().len());
+        }
+    }
+    println!("  Kaempfe mit uebergelaufenem Protokoll: {ueberlauf} von {gesamt_kaempfe}");
+    println!("  hoechste Belegung: {hoechste_last} Eintraege");
+    assert_eq!(
+        ueberlauf, 0,
+        "{ueberlauf} Kaempfe haben Protokoll-Eintraege verloren — dann ist die Zahl der \
+         Ablaeufe oben zu NIEDRIG, und zwar in genau der Richtung, die das Ergebnis stuetzt"
+    );
 }
