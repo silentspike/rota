@@ -25,7 +25,7 @@
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::factors::NEUTRAL;
-use rota_sim::rotation_search::{candidates_for, greedy, greedy_from, Candidate};
+use rota_sim::rotation_search::{candidates_for, greedy, greedy_from, greedy_opts, Candidate};
 
 const MAX_LEN: usize = 4;
 
@@ -228,5 +228,77 @@ fn ein_fremder_startpunkt_fuehrt_woandershin() {
         ohne.best.apl.to_string(),
         mit.best.apl.to_string(),
         "mit und ohne Startpunkt kommt dieselbe Liste heraus — dann traegt `start` nichts"
+    );
+}
+
+/// **Die Falle im Nachlauf — gemessen, nicht vermutet.**
+///
+/// # Was ich hier ueber meinen eigenen Baustein gelernt habe
+///
+/// Ich hatte behauptet, der Nachlauf sei nie schlechter als die eigene Suche.
+/// Der Fall dazu wurde rot:
+///
+/// ```text
+///   der Nachlauf ist schlechter als die eigene Suche: 3138.0 gegen 6553.0
+/// ```
+///
+/// Und die Behauptung war falsch, nicht der Code. [`greedy_from`] gibt
+/// zurueck, was VON DIESEM STARTPUNKT AUS erreichbar ist — mehr verspricht es
+/// nicht. Ist die Startliste schon so lang wie `max_len`, greift sofort
+/// `Stop::LengthLimit`: Es wird gar nicht gesucht, und heraus kommt die fremde
+/// Liste, an der neuen Stelle gespielt. Taugt sie dort nichts, taugt das
+/// Ergebnis nichts.
+///
+/// **Der wesentliche Teil des Nachlaufs ist deshalb die Besser-Pruefung**, und
+/// die steht im Laeufer, nicht in der Bibliothek:
+///
+/// ```text
+///   if versuch.best.mean > bisher { uebernehmen }
+/// ```
+///
+/// Wer `greedy_from` ohne sie benutzt, verschlechtert sein Ergebnis, ohne dass
+/// es auffaellt — die Zahl sieht plausibel aus. Dieser Fall haelt die Falle
+/// fest, damit der Naechste sie nicht neu findet.
+#[test]
+fn ohne_besser_pruefung_verschlechtert_der_nachlauf() {
+    let kandidaten = pool(&["kindle", "smoulder", "pyre", "searing", "rot", "temper"]);
+    let a = config("first-crucible");
+    let b = config("test-onslaught");
+
+    let bei_a = greedy_opts(&a, &kandidaten, 4, &[], false);
+    let bei_b = greedy_opts(&b, &kandidaten, 4, &[], false);
+
+    // Die Zusicherung: Die beiden Suchen finden ueberhaupt Verschiedenes.
+    assert_ne!(
+        bei_a.best.apl.to_string(),
+        bei_b.best.apl.to_string(),
+        "beide Bosse liefern dieselbe Liste — dann gibt es keinen fremden Startpunkt"
+    );
+
+    let roh = greedy_from(&b, &kandidaten, 4, &bei_a.chosen);
+
+    // **Der Befund:** Der rohe Anlauf ist schlechter als die eigene Suche.
+    assert!(
+        roh.best.mean < bei_b.best.mean,
+        "der rohe Anlauf ist NICHT schlechter ({:.1} gegen {:.1}) — dann faengt dieser          Fall die Falle nicht mehr, und die Warnung darueber gehoert geprueft",
+        roh.best.mean,
+        bei_b.best.mean
+    );
+    // Und er wird sofort abgebrochen, weil die Startliste die Laenge fuellt.
+    assert_eq!(
+        roh.chosen.len(),
+        4,
+        "die Startliste fuellt die Laengengrenze nicht — dann liegt der Grund woanders"
+    );
+
+    // **Und so ist es richtig:** Das Beste aus beiden nehmen.
+    let nachlauf = if roh.best.mean > bei_b.best.mean {
+        roh.best.mean
+    } else {
+        bei_b.best.mean
+    };
+    assert!(
+        nachlauf >= bei_b.best.mean,
+        "mit Besser-Pruefung darf nichts verlorengehen"
     );
 }
