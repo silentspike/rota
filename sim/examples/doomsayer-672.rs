@@ -175,6 +175,8 @@ fn main() {
     );
     println!();
 
+    ueberlebt_ein_verlauf();
+
     println!("Was diese Zahlen NICHT sagen");
     println!(
         "  Der Abbruch der Suche war {:?} bei {} Zeilen. Bei LengthLimit ist",
@@ -184,4 +186,116 @@ fn main() {
     println!("  die Zahl die bei DIESER Laenge, nicht das Maximum.");
     println!("  Und die Schwelle 6400 ist die der Lebenspunkte von boss-1-2 — dieser");
     println!("  Boss hat {}, er ist per Bauart nicht toetbar.", boss.hp);
+}
+
+/// **Die Frage, die #672 haette stellen sollen: Kann ein Verlauf UEBERLEBEN?**
+///
+/// # Die Rechnung zuerst
+///
+/// ```text
+///   Anstieg      5 je 1000 ms   ->  300 ueber 60 s
+///   Senkung     40 je purge
+///   Abklingzeit  7500 ms        ->  8 Wirkungen moeglich, 320 Senkung
+///   Nachladen    clear_amount / amount * per_step_ms = 40/5*1000 = 8000 ms
+/// ```
+///
+/// **Nachladerate und Anstieg sind per Konstruktion gleich.** `recharge_ms`
+/// ist als `clear_amount / amount * per_step_ms` definiert — also genau die
+/// Zeit, in der der Zaehler um `clear_amount` steigt. In 8000 ms steigt er um
+/// 40, und genau dann kommt eine Ladung zurueck, die 40 senkt. Dazu zwei
+/// Ladungen im Vorrat, also 80 Puffer.
+///
+/// Rechnerisch ist der Kampf damit haltbar — wenn `purge` gewirkt wird, sobald
+/// eine Ladung da ist.
+///
+/// # Warum der gesuchte Verlauf trotzdem stirbt
+///
+/// Die Suche maximiert SCHADEN. `purge` macht keinen (`baseDamage: 0`), kostet
+/// aber einen GCD — sie nimmt ihn also nur so oft mit, wie es den Schaden nicht
+/// druckt. Gemessen: fuenf Wirkungen, wo neun Ladungen zur Verfuegung standen.
+///
+/// Der Unterschied ist kein Suchfehler, sondern das Ziel: Ein Laeufer, der auf
+/// Schaden optimiert, spielt nicht ums Ueberleben.
+fn ueberlebt_ein_verlauf() {
+    println!("Die neue Frage: kann ein Verlauf UEBERLEBEN?");
+    let boss = boss_by_id(BOSS).expect("Boss");
+    let doom = boss.doom.expect("test-doomsayer traegt doom");
+    let dauer = boss.overpressure_ms;
+    let anstieg = doom.amount * (dauer / doom.per_step_ms);
+    let nachlade_ms =
+        f64::from(doom.clear_amount) / f64::from(doom.amount) * f64::from(doom.per_step_ms);
+    println!(
+        "  Anstieg ueber {dauer} ms: {anstieg} · Senkung je purge: {} · Nachladen alle {nachlade_ms:.0} ms",
+        doom.clear_amount
+    );
+    // **Nachladen und Anstieg sind PER KONSTRUKTION gleich, nicht zufaellig.**
+    // `Fight::recharge_ms` ist als `clear_amount / amount * per_step_ms`
+    // definiert — also genau die Zeit, in der der Zaehler um `clear_amount`
+    // steigt.
+    //
+    // Mein erster Entwurf wollte das "pruefen" und verglich denselben Ausdruck
+    // mit sich selbst; er haette immer "exakt" gemeldet. Eine Zusicherung, die
+    // nicht scheitern kann, ist keine — deshalb steht hier die Herleitung statt
+    // eines Vergleichs.
+    println!(
+        "  In {nachlade_ms:.0} ms steigt der Zaehler um {} — genau so viel, wie eine",
+        doom.clear_amount
+    );
+    println!("  zurueckgekommene Ladung senkt (dieselbe Formel). Der Kampf ist damit");
+    println!("  rechnerisch haltbar, WENN purge gewirkt wird, sobald eine Ladung da ist.");
+    println!();
+
+    // Drei Listen, die `purge` verschieden hoch haengen. Die Suche stellt ihn
+    // nach hinten, weil er keinen Schaden macht — hier steht er oben.
+    let listen: &[(&str, &str)] = &[
+        (
+            "purge ganz oben",
+            "purge\npyre if heat >= 15\nsearing if dot.searing.remains < 1500\nrot\nsmoulder if dot.smoulder.remains < 1500\nkindle\n",
+        ),
+        (
+            "purge nach den Braenden",
+            "searing if dot.searing.remains < 1500\nsmoulder if dot.smoulder.remains < 1500\npurge\npyre if heat >= 15\nrot\nkindle\n",
+        ),
+        (
+            "ohne purge (Gegenprobe)",
+            "pyre if heat >= 15\nsearing if dot.searing.remains < 1500\nrot\nsmoulder if dot.smoulder.remains < 1500\nkindle\n",
+        ),
+    ];
+    // **Woran der Spieler stirbt, gehoert daneben.** Der Boss traegt ZWEI
+    // Mechaniken: das Verhaengnis (doom) und die Stapel (`stacks`, 20 mal
+    // Faktor 3 alle 2000 ms). Ein Tod bei doom weit unter der Schwelle kann
+    // nicht der Verhaengnis-Tod sein — und dann hilft mehr purge nicht.
+    println!(
+        "  {:<26} {:>9} {:>7} {:>7} {:>9} {:>7}",
+        "Liste", "Schaden", "purge", "doom", "erlitten", "lebt"
+    );
+    let purge = index_of("purge").expect("purge fehlt");
+    for (name, text) in listen {
+        let apl = rota_sim::apl::parse(rota_sim::apl::AplName("hand"), text).expect("gueltig");
+        let (f, r) = kampf(&apl, dauer);
+        println!(
+            "  {name:<26} {:>9} {:>7} {:>7} {:>9} {:>7}",
+            r.damage,
+            r.casts[purge],
+            f.doom(),
+            f.damage_taken(),
+            f.player_alive()
+        );
+        // **Die Todesart benennen, statt sie den Leser rechnen zu lassen.**
+        // doom an der Schwelle heisst Verhaengnis-Tod; doom darunter bei hohem
+        // erlittenem Schaden heisst: die ZWEITE Mechanik hat ihn geholt.
+        if !f.player_alive() {
+            let art = if f.doom() >= doom.threshold {
+                "Verhaengnis (doom an der Schwelle)"
+            } else {
+                "Stapel-Schaden — das Verhaengnis war im Griff"
+            };
+            println!("  {:<26} gestorben an: {art}", "");
+        }
+    }
+    println!();
+    println!("  Der Befund: purge WIRKT — mit ihm faellt doom von 100 auf 20 bis 40.");
+    println!("  Dann lebt der Spieler laenger und die Stapel holen ihn: 20 mal Faktor 3");
+    println!("  alle 2000 ms. Die Frage war, ob purge oft genug geht oder 40 gegen 5 je");
+    println!("  Sekunde grundsaetzlich zu wenig ist. Die Antwort ist: WEDER NOCH.");
 }
