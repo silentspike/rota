@@ -88,10 +88,11 @@ fn qualitaet_bei(stufe: u32) -> usize {
 /// beantwortete eine andere Frage — nämlich die nach dem Beitrag eines
 /// Fundstücks, nicht nach dem Stand einer Instanz.
 fn ausruestung(item_level: u32, quality: usize) -> WornValues {
-    let mut werte = [0u64; 4];
     let mut summe = WornValues::none();
     for _platz in 0..SLOT_COUNT {
-        werte = [0; 4];
+        // Die Deklaration steht IN der Schleife: Außerhalb wäre die erste
+        // Zuweisung nie gelesen, und `clippy -D warnings` bricht daran ab.
+        let mut werte = [0u64; 4];
         // **`belegt` kommt aus den DATEN, nicht aus einer Wahl hier.**
         //
         // `distribute_budget` liest `QUALITY_AFFIX_SLOTS = [1, 2, 3, 3]`
@@ -165,10 +166,11 @@ fn config(boss: &'static rota_sim::data::Boss, worn: WornValues) -> BalanceConfi
 /// Unterschied dann auf etwa 1,4, sind es die Töpfe. Bleibt er bei 20, sitzt
 /// er in einer einzelnen Größe — und dann ist die Frage, in welcher.
 fn ausruestung_eine_groesse(item_level: u32, quality: usize) -> WornValues {
-    let mut werte = [0u64; 4];
     let mut summe = WornValues::none();
     for _platz in 0..SLOT_COUNT {
-        werte = [0; 4];
+        // Die Deklaration steht IN der Schleife: Außerhalb wäre die erste
+        // Zuweisung nie gelesen, und `clippy -D warnings` bricht daran ab.
+        let mut werte = [0u64; 4];
         let belegt = distribute_budget(item_level, quality, &mut werte);
         for wert in werte.iter().take(belegt) {
             summe.catalysis += u32::try_from(*wert).unwrap_or(u32::MAX);
