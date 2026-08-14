@@ -198,7 +198,14 @@ export function buildHistoryView(history: readonly RunHistoryEntry[]): HTMLEleme
   const HEIGHT = 160;
 
   const root = element('section', 'history');
-  root.appendChild(element('h3', 'history-heading', 'OVER TIME'));
+  // **Die Größe gehört in die Überschrift** (Issue #82). Hier stand allein
+  // „OVER TIME": Der Spieler sah eine Form und konnte ihr nicht ansehen, was
+  // aufgetragen ist — die senkrechte Achse trägt den Schaden je Lauf
+  // (`entry.damage`, weiter unten), und das stand nirgends außer im Quelltext.
+  //
+  // Die Kurve daneben (`buildCurveView`) heißt seit jeher „DAMAGE OVER TIME"
+  // und hatte das Problem nie; diese Ansicht hat den Zusatz schlicht verloren.
+  root.appendChild(element('h3', 'history-heading', 'DAMAGE PER RUN, OVER TIME'));
 
   if (history.length === 0) {
     root.appendChild(element('p', 'history-empty', 'No runs recorded yet.'));

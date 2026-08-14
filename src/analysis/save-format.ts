@@ -38,8 +38,29 @@
  * darueber: Die gewuerfelte Stufe ist etwas, das der Spieler HAT — wie der
  * Platz, auf dem ein Stueck liegt. Was sie BEWIRKT (407 Katalyse), wird
  * weiterhin bei jedem Laden aus data/ gerechnet und nie gespeichert.
+ *
+ * 2 -> 3 (Issue #82): `BestRun` traegt `curve`, den Schadensverlauf des
+ * Bestlaufs. Dieselbe Lage wie 1 -> 2, Zeile fuer Zeile: Das Feld ist optional,
+ * ein Stand der Fassung 2 laedt also unveraendert weiter (`isWellFormed`
+ * verlangt es nicht, `curveFromBest` gibt dann `null`). Die Zahl steigt
+ * trotzdem, weil ein Stand der Fassung 3 in einer aelteren Spielfassung seine
+ * Kurve still verloere — beim naechsten Sieg waere sie weg, und der Spieler
+ * saehe wieder eine Kurve statt zwei, ohne je einen Fehler zu sehen.
+ *
+ * Der Verlust WAERE still: `cleanSave` filtert nur, was seine Formpruefung
+ * nicht besteht, und ein Bestlauf ohne `curve` besteht sie.
  */
-export const SAVE_SCHEMA = 2;
+export const SAVE_SCHEMA = 3;
+
+/**
+ * Der Schadensverlauf eines Laufs (Issue #82).
+ *
+ * **Nur der Typ**, kein Laufzeit-Code: Diese Datei sagt, was im Spielstand
+ * stehen darf, und beschreibt keine Rechnung. `sampleDamageCurve` in
+ * `run-compare.ts` erzeugt die Werte; hier steht ihre Form, weil `BestRun` sie
+ * ablegt.
+ */
+import type { RunCurve } from './run-compare.js';
 
 /**
  * Welche Groesse ein Bestwert traegt (Issue #377).
@@ -127,6 +148,28 @@ export interface BestRun {
   readonly lostTimeWithReadyMs?: number;
   /** Verlorene Zeit, weil nichts bereit war. */
   readonly lostTimeNothingReadyMs?: number;
+
+  /**
+   * Der Schadensverlauf des Bestlaufs (Issue #82, AC1 „zwei Kurven").
+   *
+   * **Warum eine Liste, wo daneben nur Skalare stehen.** Der Kommentar über
+   * den sieben Zahlen begründet, dass Sammlungen draußen bleiben. Diese hier
+   * ist die begründete Ausnahme, und der Grund ist nicht Bequemlichkeit,
+   * sondern das Kriterium: „zwei Kurven übereinander" lässt sich aus keiner
+   * Zahl rekonstruieren. Ohne sie zeichnet `buildCurveView` genau eine.
+   *
+   * **Die Größe ist gemessen, nicht geschätzt.** `sampleDamageCurve` tastet
+   * mit `stepMs = 1000` ab, ein 60-s-Kampf ergibt also 61 Zahlen. Selbst bei
+   * allen 68 geplanten Bossen mal vier Schwierigkeiten sind das rund 16 600
+   * Zahlen — etwa hundert Kilobyte gegen ein Limit von mehreren Megabyte.
+   *
+   * **OPTIONAL wie die sieben darüber**, und aus demselben Grund: Ein
+   * Spielstand von vor dieser Änderung hat sie nicht. `isWellFormed` verlangt
+   * sie nicht, und `curveFromBest` gibt `null` statt einer erfundenen Linie —
+   * eine gerade Null wäre die Behauptung, der Bestlauf habe keinen Schaden
+   * gemacht.
+   */
+  readonly curve?: RunCurve;
 }
 
 /**
