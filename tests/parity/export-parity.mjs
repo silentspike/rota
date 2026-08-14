@@ -186,8 +186,10 @@ import {
   level30Payload,
   CAST_TIME_NAME,
   CHANNEL_NAME,
+  CHANNEL_SHIELD_NAME,
   castTimePayload,
   channelPayload,
+  channelShieldPayload,
   RESISTANCE_NAME,
   resistancePayload,
   RESISTANCE_MIXED_NAME,
@@ -447,6 +449,18 @@ console.log(`geschrieben: ${channelPath}`);
 console.log(
   `  Kanal         ${channel.expected.damage} Schaden, ` +
     `${channel.expected.castsCancelled} abgebrochen`,
+);
+
+// Die SCHUTZ-Auszahlung der Kanalisierung (#323, GAME-DESIGN 20.5 Punkt 3).
+// Sie stand in beiden Umsetzungen und in keiner Aufzeichnung; eine Mutation im
+// Schutz-Zweig des Simulators liess am 2026-08-14 alle 165 Suiten gruen.
+const channelShield = channelShieldPayload();
+const channelShieldPath = join(here, 'recordings', `${CHANNEL_SHIELD_NAME}.json`);
+writeFileSync(channelShieldPath, serialize(channelShield), 'utf8');
+console.log(`geschrieben: ${channelShieldPath}`);
+console.log(
+  `  Kanal-Schutz  ${channelShield.expected.absorbed} abgefangen, ` +
+    `${channelShield.shieldTrace.filter((v) => v > 0).length} Takte mit Schicht`,
 );
 
 const runawayProgress = runawayProgressPayload();

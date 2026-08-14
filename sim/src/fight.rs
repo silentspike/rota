@@ -3676,6 +3676,43 @@ impl Fight {
             }
         }
 
+        // **Die SCHUTZ-Kanalisierung** (Issue #323, GAME-DESIGN 20.5 Punkt 3):
+        // "Ein Schutz-Kanal legt EINE Schicht, deren Betrag mit jedem Schritt
+        // steigt; bricht er ab, bleibt sie auf dem erreichten Wert stehen."
+        //
+        // **Der Unterschied zum normalen Aufbau ist die Stapelzahl.** Ein
+        // gewirkter Schutzzauber legt je Wurf eine NEUE Schicht
+        // (`shield_stacks += 1`); dieser hier legt EINE und laesst sie wachsen.
+        // Die verworfene Variante waere bei `plate` (max_stacks 1) nach dem
+        // ersten Schritt am Anschlag gewesen.
+        if let Some(shield) = spell.shield {
+            if shield.amount > 0 {
+                let anteil = ((f64::from(shield.amount) * self.talent_shield_amount_factor) as u32)
+                    / schritte;
+                if anteil > 0 {
+                    // Die Stapelzahl steigt nur EINMAL, beim ersten Schritt.
+                    if self.shield_stacks == 0 {
+                        self.shield_stacks = 1;
+                        self.shield_refund_used = false;
+                    }
+                    self.shield = self.shield.saturating_add(anteil);
+                    // Die Nachlage bezieht sich auf die SCHICHT, und die ist
+                    // die Summe (Annahme 2, freigegeben am 2026-08-14).
+                    self.shield_last_amount = self.shield;
+                    // **Die Uhr startet mit JEDEM Schritt neu** (Annahme 1) —
+                    // und der Wakeup gehoert dazu wie beim gewirkten Schutz:
+                    // Die Schlange ist die einzige Zeitquelle des Simulators.
+                    let dauer = (f64::from(shield.duration_ms) * self.talent_shield_duration_factor)
+                        as Millis;
+                    self.shield_expires_at = Some(self.time + dauer);
+                    self.queue.push(self.time + dauer, EventKind::Wakeup);
+                    // Je Schritt um den Schritt-Betrag (Annahme 3), dieselbe
+                    // Regel wie beim Schaden.
+                    self.stabilise(anteil);
+                }
+            }
+        }
+
         // **Der Schritt meldet sich IMMER** (Issue #323) — auch bei einem Kanal
         // ohne Schaden. Daran haengt der Vorrat; stuende die Meldung erst
         // hinter dem Schaden, bekaeme ein reiner Heil-Kanal wieder nichts, und

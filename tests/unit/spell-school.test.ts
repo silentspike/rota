@@ -161,6 +161,9 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       // Zahlen des Design-Beispiels (500 über 5 s); `test-channel` daneben
       // bleibt der Schadens-Fall, damit keine Messung still beides prüft.
       'test-channel-heal',
+      // Issue #323 — und der zur SCHUTZ-Kanalisierung dahinter. Er trägt
+      // `maxStacks: 1`, weil dort die verworfene Variante scheiterte.
+      'test-channel-shield',
     ]);
   });
 

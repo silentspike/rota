@@ -29,7 +29,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { alsSpellIndex, CAST_OK, CAST_STARTED, Combat } from '../../src/core/combat.js';
+import {
+  alsSpellIndex,
+  CAST_OK,
+  CAST_STARTED,
+  Combat,
+  isCastAccepted,
+} from '../../src/core/combat.js';
 import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
 
 const BOSS = bossById('test-warden') as BossDef;
@@ -765,5 +771,271 @@ describe('Die RESSOURCEN-Kanalisierung — „dasselbe gilt für Ressourcen"', (
     expect(combat.resource, 'nach dem Abbruch kam vom Kanal noch etwas nach').toBeLessThanOrEqual(
       nachAbbruch,
     );
+  });
+});
+
+describe('Die SCHUTZ-Kanalisierung — EINE Schicht, die über die Dauer wächst', () => {
+  /**
+   * # Die Entscheidung, und warum sie eine war
+   *
+   * GAME-DESIGN 20.5, Punkt 3 (entschieden am 2026-08-14):
+   *
+   * > Ein Schutz-Kanal legt **eine** Schicht, deren Betrag mit jedem Schritt
+   * > steigt; bricht er ab, bleibt sie auf dem erreichten Wert stehen.
+   *
+   * Die Gegenvariante — je Schritt eine eigene Schicht — ist ausdrücklich
+   * verworfen: Sie wäre bei `plate` (maxStacks 1) nach dem ERSTEN Schritt am
+   * Anschlag, und vier von fünf Schritten verpufften.
+   *
+   * **Der Prüfzauber trägt deshalb selbst `maxStacks: 1`.** Mit 3 wäre der
+   * Unterschied erst beim vierten Schritt sichtbar, und ein Fall mit drei
+   * Schritten bliebe grün, obwohl die falsche Variante gebaut wäre.
+   *
+   * **Gemessen vor dem Bau:** Derselbe Zauber lief fünf Schritte durch und
+   * legte 0 Schutz.
+   */
+  const SCHUTZ_BOSS = bossById('first-crucible') as BossDef;
+
+  function schutzDaten(combat: Combat) {
+    const index = combat.indexOf('test-channel-shield');
+    const spell = combat.spellAt(index);
+    const dauer = spell?.channelMs ?? 0;
+    const raster = spell?.channelTickMs ?? 0;
+    const gesamt = spell?.shield?.amount ?? 0;
+    const grenze = spell?.shield?.maxStacks ?? 0;
+    const schritte = raster > 0 ? Math.floor(dauer / raster) : 0;
+    return {
+      index,
+      dauer,
+      raster,
+      gesamt,
+      grenze,
+      schritte,
+      jeSchritt: schritte > 0 ? Math.floor(gesamt / schritte) : 0,
+    };
+  }
+
+  function schutzKampf(): Combat {
+    // **Ein Boss ohne Schläge.** Sonst verbraucht der erste Treffer die
+    // Schicht, und ein Fall über ihr Wachsen misst den Boss statt den Kanal.
+    const combat = new Combat({ school: CALCINATION.value, boss: SCHUTZ_BOSS });
+    combat.beginFight(0);
+    return combat;
+  }
+
+  it('ZUSICHERUNG: der Prüfzauber trägt die schärfste Obergrenze', () => {
+    // Ohne diese Zeile prüfte alles Folgende den bequemen Fall. `maxStacks: 1`
+    // ist der, an dem die verworfene Variante scheitert.
+    const d = schutzDaten(schutzKampf());
+    expect(d.grenze, 'der Prüfzauber hat nicht die Obergrenze 1').toBe(1);
+    expect(d.schritte, 'er kanalisiert nicht über mehrere Schritte').toBeGreaterThan(1);
+    expect(d.jeSchritt, 'je Schritt käme 0 an — dann prüft nichts').toBeGreaterThan(0);
+  });
+
+  it('der Betrag WÄCHST Schritt für Schritt, und es bleibt EINE Schicht', () => {
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.shield).toBe(0);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+
+    const verlauf: number[] = [];
+    const stapel: number[] = [];
+    for (let t = 0; t <= d.dauer; t += 10) {
+      combat.stepPassive(t);
+      if (t > 0 && t % d.raster === 0) {
+        verlauf.push(combat.shield);
+        stapel.push(combat.shieldStacks);
+      }
+    }
+
+    // Aus der Dauer gerechnet, nicht abgeschrieben.
+    expect(verlauf.length).toBe(d.schritte);
+    for (let i = 0; i < verlauf.length; i++) {
+      expect(verlauf[i], `nach Schritt ${i + 1}: ${verlauf.join(' → ')}`).toBe(
+        (i + 1) * d.jeSchritt,
+      );
+    }
+
+    // **Der Punkt, an dem sich die Varianten unterscheiden.** Je Schritt eine
+    // eigene Schicht hiesse hier: nach dem ersten Schritt Stapel 1 und dann
+    // nichts mehr — die Obergrenze ist erreicht, der Betrag bliebe stehen.
+    expect(stapel, `die Stapelzahl bewegt sich: ${stapel.join(' → ')}`).toEqual(
+      new Array(d.schritte).fill(1),
+    );
+  });
+
+  it('ein ABBRUCH friert sie auf dem erreichten Wert ein', () => {
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+
+    const abbruchAt = 3 * d.raster;
+    let t = 0;
+    for (; t <= abbruchAt; t += 10) combat.stepPassive(t);
+    const beiDrei = combat.shield;
+
+    combat.cast(combat.indexOf('kindle'), abbruchAt);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+    for (; t <= d.dauer + 2000; t += 10) combat.stepPassive(t);
+
+    expect(beiDrei).toBe(3 * d.jeSchritt);
+    // Eingefroren, nicht weitergewachsen und nicht verfallen.
+    expect(combat.shield, 'nach dem Abbruch hat sich die Schicht bewegt').toBe(beiDrei);
+    expect(combat.shieldStacks).toBe(1);
+  });
+
+  it('TRÄGER: der Schutz-Kanal legt ÜBERHAUPT etwas — wird bei 0 == 0 laut', () => {
+    // **Ohne ihn prüften die Fälle oben zwei Nullen.** Genau so war die Lage
+    // vor dem Bau: fünf Schritte, 0 Schutz, und „nach drei Schritten 3/5"
+    // wäre als `0 === 3 * 0` wahr gewesen.
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.raster; t += 10) combat.stepPassive(t);
+    expect(combat.shield, 'nach dem ersten Raster-Schritt kam KEIN Schutz an').toBeGreaterThan(0);
+  });
+
+  it('und vor dem ersten Raster-Schritt ist es NICHTS', () => {
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.raster - 10; t += 10) combat.stepPassive(t);
+    expect(combat.shield).toBe(0);
+  });
+
+  it('GEGENPROBE zur Variante: ein gewirkter Schutzzauber STAPELT, der Kanal nicht', () => {
+    // Der Unterschied in einem Fall. `scab` (maxStacks 3) legt je Wurf eine
+    // neue Schicht; der Kanal lässt EINE wachsen. Ohne diese Gegenprobe
+    // bewiese „Stapel bleibt 1" nur, dass der Zauber einmal gewirkt hat.
+    const combat = schutzKampf();
+    const scab = combat.indexOf('scab');
+    expect(combat.spellAt(scab)?.shield?.maxStacks ?? 0, 'scab stapelt nicht').toBeGreaterThan(1);
+    let t = 0;
+    for (let n = 0; n < 2; n++) {
+      combat.cast(scab, t);
+      for (const bis = t + 1600; t <= bis; t += 10) combat.stepPassive(t);
+    }
+    expect(combat.shieldStacks, 'zwei Würfe SCAB haben nicht gestapelt').toBeGreaterThan(1);
+  });
+
+  /**
+   * # Die Ablaufzeit — Annahme 1, und warum sie eine eigene Messung braucht
+   *
+   * Die Uhr startet mit **jedem** Schritt neu. Das ist eine der drei Annahmen,
+   * die GAME-DESIGN 20.5 offenlässt; sie ist am 2026-08-14 freigegeben worden.
+   *
+   * **Ein Fall der Form „die Schicht läuft während des Kanals nicht ab" würde
+   * das NICHT belegen.** Der Prüfzauber hält 20000 ms und kanalisiert 5000 —
+   * sie läuft dort auch dann nicht ab, wenn die Uhr nur einmal beim ersten
+   * Schritt gesetzt würde. Der Fall wäre grün und sagte nichts.
+   *
+   * Was die Annahme wirklich fasst, ist die **Differenz**: Wo die Schicht
+   * endet, hängt davon ab, wann der LETZTE Schritt fiel.
+   *
+   * | Kanal | letzter Schritt | Ende der Schicht |
+   * | --- | --- | --- |
+   * | läuft durch | 5000 ms | 25000 ms |
+   * | Abbruch nach einem Schritt | 1000 ms | 21000 ms |
+   *
+   * Die 4000 ms dazwischen SIND die wandernde Uhr. Würde sie nur einmal
+   * gesetzt, endeten beide bei 21000.
+   */
+  it('die Uhr WANDERT mit: wo die Schicht endet, hängt am LETZTEN Schritt', () => {
+    // Gemessen wird der erste Takt, in dem KEINE Schicht mehr steht — nicht
+    // der Ablaufzeitpunkt selbst. Der Ablauf greift bei „Zeit GRÖSSER als
+    // Endzeit", die Schicht steht bei 25000 ms also noch; weg ist sie im Takt
+    // danach. Die Differenz weiter unten ist von dieser Verschiebung frei,
+    // weil sie in beiden Messungen gleich ist.
+    const TAKT = 10;
+    const ersterTaktOhneSchicht = (abbruchNachMs: number): number => {
+      const combat = schutzKampf();
+      const d = schutzDaten(combat);
+      const dauer = combat.spellAt(d.index)?.shield?.durationMs ?? 0;
+      expect(dauer, 'der Prüfzauber trägt gar keine Schicht-Dauer').toBeGreaterThan(0);
+      expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+      // Der Abbruch geschieht durch einen anderen Zauber — dieselbe Bauart wie
+      // im Einfrier-Fall darüber.
+      // **Der Abbruch wird versucht, bis er ANGENOMMEN ist.** Ein einzelner
+      // Versuch bei `abbruchNachMs` reicht nicht: Die globale Wartezeit läuft
+      // beim Start des Kanals an (1500 ms), ein Druck bei 1000 ms wird also
+      // abgelehnt. Der erste Entwurf tat genau das — der Kanal lief in
+      // Wahrheit durch, die Messung stand auf -1, und die Zahl hätte einen
+      // Fehler in der Uhr behauptet, den es nicht gab.
+      let abgebrochen = false;
+      // **Erst ab dem Moment messen, in dem eine Schicht STEHT.** Vor dem
+      // ersten Raster-Schritt ist sie null, und ohne dieses Merker-Flag meldete
+      // die Messung 10 ms als „Ende" — gemessen, und der erste Entwurf ist
+      // genau darauf hereingefallen.
+      let stand = false;
+      // Weit über das erwartete Ende hinaus, damit ein Ablauf auch dann
+      // auffällt, wenn er später kommt als gedacht.
+      const bis = (abbruchNachMs === Number.POSITIVE_INFINITY ? d.dauer : abbruchNachMs) + dauer;
+      for (let t = 0; t <= bis + 2000; t += TAKT) {
+        combat.stepPassive(t);
+        if (!abgebrochen && t >= abbruchNachMs && abbruchNachMs < d.dauer) {
+          abgebrochen = isCastAccepted(combat.cast(combat.indexOf('kindle'), t).result);
+        }
+        if (combat.shield > 0) stand = true;
+        else if (stand) return t;
+      }
+      return -1;
+    };
+
+    const d = schutzDaten(schutzKampf());
+    const dauer = schutzKampf().spellAt(d.index)?.shield?.durationMs ?? 0;
+
+    // Durchgelaufen: der letzte Schritt fällt bei `d.dauer`, das Ende liegt
+    // eine volle Schicht-Dauer später. **Das ist zugleich Auflage 8, erste
+    // Hälfte:** nach dem letzten Schritt hält sie die VOLLE Dauer.
+    const endeDurchgelaufen = ersterTaktOhneSchicht(Number.POSITIVE_INFINITY);
+    expect(
+      endeDurchgelaufen,
+      'die Schicht lief im beobachteten Fenster gar nicht ab',
+    ).toBeGreaterThan(0);
+    expect(endeDurchgelaufen, `erster Takt ohne Schicht: ${endeDurchgelaufen} ms`).toBe(
+      d.dauer + dauer + TAKT,
+    );
+
+    // Abbruch nach EINEM Schritt: die Uhr steht dann auf dem ersten Schritt,
+    // und das Ende liegt genau `d.dauer - d.raster` früher.
+    const endeAbgebrochen = ersterTaktOhneSchicht(d.raster);
+    expect(
+      endeAbgebrochen,
+      'im abgebrochenen Lauf lief die Schicht gar nicht ab — dann vergleicht ' +
+        'die Zeile darunter eine Zahl mit -1',
+    ).toBeGreaterThan(0);
+    expect(endeAbgebrochen, `erster Takt ohne Schicht: ${endeAbgebrochen} ms`).toBe(
+      d.raster + dauer + TAKT,
+    );
+
+    // **Die eigentliche Aussage.** Ohne wandernde Uhr wären beide Zahlen
+    // gleich; der Abstand ist die Zeit zwischen erstem und letztem Schritt.
+    expect(
+      endeDurchgelaufen - endeAbgebrochen,
+      `durchgelaufen ${endeDurchgelaufen} ms, abgebrochen ${endeAbgebrochen} ms — ` +
+        'gleiche Zahlen hiessen: die Uhr wird nur einmal gesetzt',
+    ).toBe(d.dauer - d.raster);
+  });
+
+  it('während des Kanals läuft sie NICHT ab — auch nicht der erste Schritt', () => {
+    // Auflage 8, zweite Hälfte. Bei dieser Schicht-Dauer ist der Fall für sich
+    // genommen schwach (siehe der Kommentar oben), und er steht trotzdem hier:
+    // Er deckt die Richtung ab, in der ein Fehler NICHT über die Endzeit
+    // sichtbar würde — eine Schicht, die zwischendurch auf 0 fällt und beim
+    // nächsten Schritt neu anfängt, hätte dieselbe Endzeit und wäre über den
+    // Fall darüber nicht zu fassen.
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+
+    let eingebrochen = -1;
+    let hoechster = 0;
+    for (let t = 0; t <= d.dauer; t += 10) {
+      combat.stepPassive(t);
+      if (combat.shield < hoechster && eingebrochen < 0) eingebrochen = t;
+      hoechster = Math.max(hoechster, combat.shield);
+    }
+    expect(eingebrochen, `die Schicht fiel bei ${eingebrochen} ms zurück`).toBe(-1);
+    expect(hoechster, 'am Ende des Kanals stand die volle Summe').toBe(d.gesamt);
   });
 });
