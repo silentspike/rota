@@ -2511,6 +2511,31 @@ Ausrüstung gerechnet zu werden, die man erst durch sie bekommt.
 Damit ist eine Annahme nötig, wie gründlich ein Spieler die Vorstufe abfarmt. Sie
 wird gesetzt und benannt, nicht geraten.
 
+**Ergänzt am 2026-08-14, nachdem die Annahme in drei Teilfragen zerfiel:**
+
+| Teilfrage           | Antwort                      | Woher                                     |
+| ------------------- | ---------------------------- | ----------------------------------------- |
+| Schwierigkeit       | **normal** (`d = 0`)         | folgt aus „beim ersten Betreten fordernd" |
+| Qualitätsverteilung | **berechnet**, nicht gesetzt | `weightsFor(instanz-1, 0, 0)`             |
+| Zahl der Plätze     | **alle zehn belegt**         | Entscheidung des Auftraggebers            |
+
+Die Qualität war zunächst als Design-Frage vorgelegt und ist keine: `PROGRESS_WEIGHTS`
+und `progressOf` liefern sie aus den Daten. Für Instanz 2 auf normal sind es
+**85 % common, 15 % rare** — der zuerst vorgeschlagene Wert („alle Plätze auf dem
+Deckel", also 100 % rare) hätte die Qualität um Faktor sechs überschätzt und jeden
+Boss zu schwer kalibriert.
+
+**Alle zehn Plätze** ist die härtere Annahme, und der Grund ist die Fehlerrichtung:
+Ein zu leichter Boss fällt beim Spielen auf und lässt sich nachziehen; ein zu
+schwerer vertreibt Spieler, bevor es jemand merkt.
+
+**Legendäre Funde gehören zu höheren Schwierigkeiten.** `qualityCapOf` erlaubt sie
+ab Instanz 9, aber `PROGRESS_WEIGHTS` gibt auf **normal** in keiner der vierzehn
+Instanzen etwas Legendäres her; Epic erscheint erst ab Instanz 13 mit 5 %. Das ist
+Absicht und bleibt so: Eine Schwierigkeitsstufe zählt in `progressOf` wie vier
+Instanzen (`raw = i - 1 + 4d + e`), und genau darin liegt ihr Zweck. Der Deckel
+begrenzt, was fallen **kann**; die Gewichte entscheiden, was fällt.
+
 **2. Der Aufschaukel-Effekt der Affix-Plätze: erst die Kalibrierung, dann neu
 messen.**
 
@@ -2545,6 +2570,40 @@ Damit braucht jede Balance-Aussage künftig zwei Zahlen. Das ist der Preis dafü
 `fixation-build` und `fixation-cost` überhaupt einen Maßstab bekommen — beide sind
 heute als „gewinnt in keiner Zusammenstellung" gemessen, und ohne die zweite Größe
 bliebe offen, ob das an ihnen liegt oder am Messgerät.
+
+**5. Ein Boss soll rund 45 Sekunden brauchen — drei Viertel der Überdruckzeit.**
+
+Die Überdruckzeit steht bei allen siebzehn Bossen auf 60 000 ms, und Zeitablauf ist
+eine Niederlage (`combat.ts:4646`, `FIGHT_OVERPRESSURE`); der Kampf ist „Rotation
+gegen den Überdruck-Timer", Abschnitt 10). Damit war die Grenze gesetzt, aber nicht, wie
+knapp es sein soll.
+
+**Zielzeit: rund 45 s bei erwarteter Ausrüstung und guter Rotation.** Ein Viertel
+bleibt als Puffer — eine verpatzte Rotation kostet den Sieg noch nicht, zwei schon.
+
+Das ist der fehlende Übersetzer von Punkt 1 zu Zahlen. Aus einem gemessenen Durchsatz
+folgt die HP eines Bosses, statt sie zu justieren:
+
+```
+HP  =  Durchsatz mit erwarteter Ausrüstung (Punkt 1)  ×  45 s
+```
+
+**Gegenprobe am einzigen gebauten Boss, und sie geht auf.** Der Plan hält für
+`first-crucible` den optimalen Durchsatz fest — 5960 über 60 s, gefunden vom
+Balance-Läufer (#237, gemessen am 2026-08-06):
+
+```
+4200 HP / 5960 je 60 s   ≈  42 s
+```
+
+Der Prolog liegt damit schon auf der Zielzeit. Er ist **nicht** zu hart kalibriert:
+Zehn Läufe von Worker-3 blieben bei 4180 von 4200 stehen, aber das ist die Grenze
+seiner Eingabe (playwright, ein Prozess je Tastendruck) und nicht die des Kits.
+Zwischen „mit unregelmäßiger Eingabe nicht schaffbar" und „unschaffbar" liegen hier
+42 Prozent Überschuss.
+
+Die 42 s sind eine Größenordnung, kein Messwert: Sie unterstellen gleichmäßigen
+Durchsatz, während die Aufbauphase vorn liegt.
 
 ---
 

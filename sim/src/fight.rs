@@ -3295,6 +3295,40 @@ impl Fight {
         self.free_control_spends
     }
 
+    /// Der Stand des Verhaengnis-Zaehlers (Issue #672, AC3).
+    ///
+    /// # Warum es ihn gibt
+    ///
+    /// `sim/tests/verhaengnis_tod_log.rs` haelt seit #693 fest, was ohne ihn
+    /// fehlt: *„Ohne einen `doom`-Getter laesst sich von aussen nicht ablesen,
+    /// WORAN der Spieler gestorben ist."* Der Fall behilft sich seither mit
+    /// dem ZEITPUNKT — der Verhaengnis-Tod tritt nach `threshold / amount`
+    /// Schritten ein, und ein Eintrag zu genau dieser Zeit kann kein
+    /// Schadens-Tod sein.
+    ///
+    /// Das ist ein Indiz, kein Ablesen. AC3 von #672 verlangt mehr: Die Zahl
+    /// der Verhaengnis-Stapel im Verlauf soll SCHWANKEN — ein konstanter Wert
+    /// hiesse, die Mechanik kommt gar nicht vor. Dafuer muss man sie lesen
+    /// koennen.
+    ///
+    /// **Nur lesend.** Der Zaehler wird an `doom_tick` und `clear_doom`
+    /// gefuehrt; dieser Getter aendert nichts und geht in keine Pruefsumme ein.
+    #[must_use]
+    pub const fn doom(&self) -> u32 {
+        self.doom
+    }
+
+    /// Ob der Spieler noch lebt.
+    ///
+    /// Gehoert zur selben Frage: 9151 Schaden sind etwas anderes, wenn sie bis
+    /// zum Tod gerechnet sind statt ueber die volle Zeit. Der Lauf bricht beim
+    /// Spielertod ab (`run_with`), also steht hier nach dem Lauf, ob er ihn
+    /// ueberlebt hat.
+    #[must_use]
+    pub const fn player_alive(&self) -> bool {
+        self.died_at.is_none()
+    }
+
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
     #[must_use]
     pub fn decay_stacks(&self) -> usize {
