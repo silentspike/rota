@@ -46,6 +46,57 @@ export function buildEntry(entry: ArchiveEntry): HTMLElement {
 }
 
 /**
+ * Der frisch freigeschaltete Eintrag als Fenster ueber der Auswertung
+ * (Issue #85, AC1; GAME-DESIGN 20.5 Punkt 6).
+ *
+ * # Warum dieselbe Bauart wie die gefuehrte Einfuehrung
+ *
+ * Der Auftraggeber hat es so entschieden: `.intro`, CONTINUE und SKIP. Der
+ * Spieler kennt die Geste bereits, und der Text ist nicht zu uebersehen.
+ *
+ * Verworfen wurden: ein Abschnitt IN der Auswertung (dort stehen schon
+ * Punkte, Bestlauf-Vergleich und Stufe — er ginge unter) und der Weg ueber
+ * das Player Home (der Zusammenhang zum Sieg ginge verloren, und AC1 sagt
+ * „beim ersten Sieg").
+ *
+ * # Der Inhalt kommt aus `buildEntry`
+ *
+ * Nicht neu zusammengesetzt: Titel, Stimme und Text stehen im Archiv schon
+ * fertig da, und zwei Stellen, die einen Eintrag darstellen, gingen beim
+ * naechsten Feld auseinander.
+ *
+ * # Beide Knoepfe schliessen — und das ist kein Versehen
+ *
+ * Genau wie bei der Einfuehrung: Wer ueberspringt, will den Text nicht lesen,
+ * nicht ihn spaeter wiedersehen. Das Wiedersehen steht ohnehin frei, im
+ * Archiv des Player Home — dort ist der Eintrag ab sofort dauerhaft.
+ */
+export function buildEntryPopup(entry: ArchiveEntry, onDismiss: () => void): HTMLElement {
+  const box = element('div', 'intro archive-popup');
+  box.setAttribute('role', 'dialog');
+  box.dataset.entryId = entry.id;
+  box.appendChild(buildEntry(entry));
+
+  const actions = element('div', 'intro-actions');
+  for (const [label, className] of [
+    ['CONTINUE', 'intro-continue'],
+    ['SKIP', 'intro-skip'],
+  ] as const) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      onDismiss();
+      box.remove();
+    });
+    actions.appendChild(button);
+  }
+  box.appendChild(actions);
+  return box;
+}
+
+/**
  * Das Archiv, nach Instanz gegliedert.
  *
  * Bekommt bereits gefilterte Abschnitte — was freigeschaltet ist, entscheidet
