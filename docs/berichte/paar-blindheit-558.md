@@ -132,6 +132,26 @@ Der Nachlauf aus #558 — Startpunkte tauschen — löst es:
 **16474 liegt über der festen Liste**, weil der Nachlauf von ihr aus
 weitersucht statt sie nur zu übernehmen.
 
+### Die Falle darin, gemessen an meinem eigenen Baustein
+
+Ich hatte behauptet, der Nachlauf sei nie schlechter als die eigene Suche.
+Der Prüffall dazu wurde rot:
+
+```text
+der Nachlauf ist schlechter als die eigene Suche: 3138.0 gegen 6553.0
+```
+
+Die Behauptung war falsch, nicht der Code. `greedy_from` gibt zurück, was von
+**diesem** Startpunkt aus erreichbar ist — mehr verspricht es nicht. Ist die
+Startliste schon so lang wie `max_len`, greift sofort `Stop::LengthLimit`: Es
+wird gar nicht gesucht, und heraus kommt die fremde Liste, an der neuen Stelle
+gespielt. Taugt sie dort nichts, taugt das Ergebnis nichts.
+
+**Der wesentliche Teil des Nachlaufs ist deshalb die Besser-Prüfung**, und die
+steht im Läufer, nicht in der Bibliothek. Wer `greedy_from` ohne sie benutzt,
+verschlechtert sein Ergebnis, und die Zahl sieht dabei plausibel aus. Der Fall
+`ohne_besser_pruefung_verschlechtert_der_nachlauf` hält die Falle fest.
+
 ## Vier Fehlschlüsse unterwegs — alle an identischen Zahlen erkannt
 
 Keiner davon fiel durch einen roten Test auf. Alle vier verrieten sich durch
