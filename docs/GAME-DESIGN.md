@@ -2647,11 +2647,11 @@ passender Ausrüstung und passender Talentverteilung **je für sich** lohnen.
 
 ### Was das für heutige Befunde bedeutet
 
-| Befund                                                          | wie er heute gelesen wird | wie er zu lesen ist                                                                                    |
-| --------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| „37 von 58 Zaubern kommen in keiner besten Rotation vor" (#607) | die Zauber taugen nichts  | gemessen wurde **ein** Punkt im Raum: neutrale Ausrüstung, keine Talente                               |
-| „neun von zwölf Talentwegen sind tot" (#419)                    | die Wege sind zu schwach  | ihre Trägerzauber kommen in _dieser_ Rotation nicht dran — mit anderer Ausrüstung kann das anders sein |
-| „ein Affix-Platz bringt oben Faktor 7, unten nichts" (#791)     | ein Ausreißer             | ein Beleg dafür, dass der Raum nicht flach ist                                                         |
+| Befund                                                          | wie er heute gelesen wird | wie er zu lesen ist                                                                                                                       |
+| --------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| „37 von 58 Zaubern kommen in keiner besten Rotation vor" (#607) | die Zauber taugen nichts  | gemessen wurde **ein** Punkt im Raum: neutrale Ausrüstung, keine Talente                                                                  |
+| „Talentwege sind tot" (#419) — **Zahl zurückgezogen**           | die Wege sind zu schwach  | die Messung nahm zu jedem Träger die _bedingungslose_ Zeile; für einen Brand ist die nutzlos. Wie viele Wege wirklich tot sind, ist offen |
+| „ein Affix-Platz bringt oben Faktor 7, unten nichts" (#791)     | ein Ausreißer             | ein Beleg dafür, dass der Raum nicht flach ist                                                                                            |
 
 **Keiner dieser Befunde ist falsch.** Sie messen alle dasselbe: einen Schnitt durch
 einen Raum, dessen andere Achsen festgehalten wurden.
