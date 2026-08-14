@@ -227,6 +227,26 @@ pub struct Sample {
     pub boss_healed: u32,
     /// Ob der Spieler gestorben ist.
     pub died: bool,
+    /// **Wann** der Spieler gestorben ist, oder `None` (Issue #814).
+    ///
+    /// Das Gegenstueck zu [`Sample::killed_at_ms`]: die eine Zahl sagt, wann
+    /// der Boss fiel, diese, wann der Spieler fiel.
+    ///
+    /// # Warum die Summe allein nicht reicht
+    ///
+    /// Eine Mechanik, die Schaden nur VERSCHIEBT statt ihn zu verhindern, ist
+    /// fuer den Laeufer unsichtbar — am Ende steht dieselbe Summe. Das Issue
+    /// fuehrt das Zahlenpaar, an dem es auffiel:
+    ///
+    /// ```text
+    ///   40 s   ohne Ausgeber 4320   mit Ausgebern 4080   ->  240 gespart
+    ///   60 s   ohne Ausgeber 5000   mit Ausgebern 5000   ->  NICHTS gespart
+    /// ```
+    ///
+    /// Bei 60 Sekunden sagt die Summe nichts, obwohl die Mechanik wirkt.
+    /// GAME-DESIGN 20.5 Punkt 4 gibt dem Laeufer deshalb die Zeit bis zum Tod
+    /// als zweite Groesse — neben dem Durchsatz, nicht statt seiner.
+    pub died_at_ms: Option<Millis>,
 }
 
 /// Mittelwert und Streuung einer Messreihe.
@@ -375,6 +395,14 @@ pub struct BalanceResult {
     /// Schaden misst, ob Können sich lohnt; die Zeit misst, ob der Boss fällt.
     /// Wer sie vermengt, vergleicht einen abgebrochenen Lauf mit einem vollen.
     pub kill_time_ms: Statistics,
+    /// Zeit bis zum **Tod des Spielers** — die zweite Groesse aus 20.5 Punkt 4.
+    ///
+    /// **Neben dem Durchsatz, nicht statt seiner.** Zaehlt nur die Durchgaenge,
+    /// in denen der Spieler starb, wie [`BalanceResult::kill_time_ms`] nur die
+    /// gewonnenen zaehlt. Bei `deaths == 0` steht hier eine leere Statistik —
+    /// und das ist heute die haeufigste Lage: In der ganzen #607-Messreihe
+    /// starb der Spieler kein einziges Mal.
+    pub death_time_ms: Statistics,
     /// Alle Einzelergebnisse, nach Startwert sortiert.
     pub samples: Vec<Sample>,
 }
@@ -521,6 +549,15 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         .iter()
         .filter_map(|s| s.killed_at_ms.map(f64::from))
         .collect();
+    // **Ohne `sort_by`, wie `kill_values` daneben.** `from_sorted` erwartet
+    // die STARTWERT-Reihenfolge, nicht aufsteigende Groesse — sein
+    // Doc-Kommentar verwirft das Sortieren nach Groesse ausdruecklich, weil
+    // es verschleiern wuerde, dass zwei Laeufe verschiedene Durchgaenge
+    // enthalten. `samples` kommt bereits in dieser Reihenfolge.
+    let death_values: Vec<f64> = samples
+        .iter()
+        .filter_map(|s| s.died_at_ms.map(f64::from))
+        .collect();
 
     BalanceResult {
         apl_name: apl.name.clone(),
@@ -530,6 +567,7 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         damage: Statistics::from_sorted(&damage_values),
         kills: kill_values.len(),
         kill_time_ms: Statistics::from_sorted(&kill_values),
+        death_time_ms: Statistics::from_sorted(&death_values),
         damage_taken: Statistics::from_sorted(&taken_values),
         damage_incoming: Statistics::from_sorted(&incoming_values),
         absorbed: Statistics::from_sorted(&absorbed_values),
@@ -648,6 +686,7 @@ fn run_range(
             healed: fight.healed(),
             boss_healed: fight.boss_healed(),
             died: fight.player_dead(),
+            died_at_ms: fight.died_at_ms(),
         });
     }
     (out, casts)
