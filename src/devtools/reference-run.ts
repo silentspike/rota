@@ -15,6 +15,7 @@
  */
 import { bossById, CALCINATION, FIRST_CRUCIBLE } from '../core/data.js';
 import { Combat, FIGHT_RUNNING, type SpellIndex, alsSpellIndex } from '../core/combat.js';
+import type { WornValues } from '../gear/worn.js';
 import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 
@@ -139,6 +140,24 @@ export interface ReferenceOptions {
    * zwei Rotationen über dieselbe Zeit verglichen (STEP1-SPEC § 4).
    */
   readonly stopOnKill?: boolean;
+  /**
+   * Die getragene Ausrüstung. **Ohne Angabe bleibt der Läufer nackt** — genau
+   * wie vor Issue #791, Zeichen für Zeichen.
+   *
+   * # Warum ein zweiter Weg und kein geänderter erster
+   *
+   * GAME-DESIGN 20.5 verlangt, Bosse gegen den erwarteten Ausrüstungsstand
+   * ihrer Instanz zu kalibrieren statt gegen einen nackten Spieler. Der
+   * naheliegende Schritt wäre, hier fest Ausrüstung einzusetzen — und er wäre
+   * falsch: Der nackte Lauf ist ein **fester Bezugspunkt für Vergleiche**.
+   * Zwei Rotationen gegeneinander zu stellen, verlangt, dass sich zwischen den
+   * Läufen nur die Rotation ändert.
+   *
+   * Deshalb ist das hier ein Zusatz, kein Ersatz. Wer nichts übergibt, bekommt
+   * die Zahlen von gestern; wer kalibriert, übergibt den Stand ausdrücklich
+   * und sieht am Aufrufer, gegen was gerechnet wurde.
+   */
+  readonly worn?: WornValues;
 }
 
 /** Eine Runde nach fester Prioritätenliste durchrechnen. */
@@ -152,6 +171,7 @@ export interface ReferenceOptions {
  */
 const GUELTIGE_OPTIONEN: Required<{ [K in keyof ReferenceOptions]: true }> = {
   durationMs: true,
+  worn: true,
   stopOnKill: true,
   bossId: true,
 };
@@ -192,7 +212,16 @@ export function runReference(
   if (boss === undefined) {
     throw new Error(`Boss "${bossId}" gibt es nicht.`);
   }
-  const combat = new Combat({ school: CALCINATION.value, boss });
+  // **Das Feld wird weggelassen, nicht auf `undefined` gesetzt.** Unter
+  // `exactOptionalPropertyTypes` ist beides verschieden: `worn?: WornValues`
+  // erlaubt „fehlt", aber nicht „ist undefined". Ein durchgereichtes
+  // `options.worn` ist deshalb ein Übersetzungsfehler — den `vitest` nicht
+  // sieht, weil es keine Typen prüft (2618 grüne Fälle, `npm run build` rot).
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss,
+    ...(options.worn !== undefined ? { worn: options.worn } : {}),
+  });
   const index: Indices = {
     kindle: combat.indexOf('kindle'),
     smoulder: combat.indexOf('smoulder'),
