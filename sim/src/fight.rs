@@ -2321,6 +2321,32 @@ impl Fight {
         wirklich
     }
 
+    /// Heilung gutschreiben — die eine Stelle, an der sie ankommt.
+    ///
+    /// **Herausgezogen und nicht kopiert** (Issue #323): Der Sofort-Zauber und
+    /// die Kanalisierung teilen sich diese Rechnung. Zwei Fassungen liefen bei
+    /// der ersten Aenderung auseinander, und die Abweichung fiele erst in einer
+    /// Pruefsumme auf — als Zahl ohne Ursache.
+    ///
+    /// **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist keine
+    /// Heilung, sondern verpufft — und es als Heilung zu zaehlen liesse einen
+    /// Lauf mit voller Anzeige nach mehr Wirkung aussehen, als er gebraucht
+    /// hat.
+    fn zahle_heilung_aus(&mut self, betrag: u32, index: usize) {
+        let fehlend = self.vessel_max.saturating_sub(self.player_hp);
+        let wirklich = betrag.min(fehlend);
+        if wirklich == 0 {
+            return;
+        }
+        self.player_hp += wirklich;
+        self.healed = self.healed.saturating_add(wirklich);
+        // Auch die Heilung draengt zurueck — mit dem Betrag, der WIRKLICH
+        // angekommen ist.
+        self.stabilise(wirklich);
+        self.log
+            .push(self.time, LogKind::Healed, index as u8, wirklich);
+    }
+
     /// Die davonlaufende Reaktion zurueckdraengen (Baustein 6, Issue #247).
     ///
     /// **Schutz und Heilung um IHREN EIGENEN Betrag.** Eine zweite Zahl
@@ -2431,21 +2457,7 @@ impl Fight {
                 },
             );
         } else if spell.heal.is_some() {
-            // **Nur bis zur vollen Anzeige.** Was darueber hinausginge, ist
-            // keine Heilung, sondern verpufft — und es als Heilung zu zaehlen
-            // liesse einen Lauf mit voller Anzeige nach mehr Wirkung aussehen,
-            // als er gebraucht hat.
-            let fehlend = self.vessel_max.saturating_sub(self.player_hp);
-            let wirklich = gewirkter_betrag.min(fehlend);
-            if wirklich > 0 {
-                self.player_hp += wirklich;
-                self.healed = self.healed.saturating_add(wirklich);
-                // Auch die Heilung draengt zurueck — mit dem Betrag, der
-                // WIRKLICH angekommen ist.
-                self.stabilise(wirklich);
-                self.log
-                    .push(self.time, LogKind::Healed, index as u8, wirklich);
-            }
+            self.zahle_heilung_aus(gewirkter_betrag, index);
         }
 
         // Weg 3 — die Umwandlung anschalten.
@@ -3600,11 +3612,45 @@ impl Fight {
             return;
         }
         let spell = &SPELLS[index];
-        if spell.channel_tick_ms == 0 || spell.base_damage == 0 {
+        if spell.channel_tick_ms == 0 {
             return;
         }
         let schritte = spell.channel_ms / spell.channel_tick_ms;
         if schritte == 0 {
+            return;
+        }
+
+        // **Die HEILUNGS-Kanalisierung** (Issue #323, GAME-DESIGN 653). Sie
+        // ist der Fall, den der Auftraggeber woertlich nennt — "eine
+        // Kanalisierung ueber 5 s fuer 500 Heilung, abgebrochen nach 3 s, hat
+        // 300 Heilung gegeben" —, und bis hierher tat sie NICHTS: Die
+        // Bedingung oben stieg bei `base_damage == 0` aus, bevor irgendetwas
+        // ausgezahlt wurde. Gemessen im Spiel, das dieselbe Luecke hatte: 500
+        // Heilung ueber 5000 ms, waehrend dem Spieler 1600 fehlten — geheilt
+        // wurden 0.
+        //
+        // Sie steht VOR dem Schaden, weil sie ohne ihn auskommt. Ein Zauber
+        // kann beides tragen; dann faellt beides, jedes aus seinem eigenen
+        // Betrag.
+        if let Some(heal) = spell.heal {
+            if heal.amount > 0 {
+                // Derselbe Anteil wie beim Schaden: aus der Gesamtwirkung
+                // geteilt, ganzzahlig abgerundet, der Rest verfaellt
+                // (GAME-DESIGN 18.4). Bei 500 ueber 5 Schritte gibt jeder 100
+                // — genau die Zahl des Beispiels.
+                self.zahle_heilung_aus(heal.amount / schritte, index);
+            }
+        }
+
+        // **Der Schritt meldet sich IMMER** (Issue #323) — auch bei einem Kanal
+        // ohne Schaden. Daran haengt der Vorrat; stuende die Meldung erst
+        // hinter dem Schaden, bekaeme ein reiner Heil-Kanal wieder nichts, und
+        // das ist genau der Zauber aus dem Design-Beispiel.
+        //
+        // Als `DotTick` und nicht als eigenes Ereignis: Die Ereignismenge ist
+        // fest (GAME-DESIGN 18.3).
+        if spell.base_damage == 0 {
+            self.emit_rule(RuleEvent::DotTick, index as i16, 0.0);
             return;
         }
 

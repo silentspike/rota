@@ -157,6 +157,10 @@ describe('AC0 — die Herkunft steht am Zauber', () => {
       'test-cap',
       // Issue #323 — der Prüfzauber zur Kanalisierung, ganz am Ende.
       'test-channel',
+      // Issue #323 — und der zur HEILUNGS-Kanalisierung dahinter. Er trägt die
+      // Zahlen des Design-Beispiels (500 über 5 s); `test-channel` daneben
+      // bleibt der Schadens-Fall, damit keine Messung still beides prüft.
+      'test-channel-heal',
     ]);
   });
 
