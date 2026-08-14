@@ -19,7 +19,14 @@
 //! # Der Befund, den diese Fälle festhalten
 //!
 //! `test-doomsayer` trägt ZWEI Mechaniken: das Verhängnis (`doom`) und die
-//! Stapel (`stacks`, 20 mal Faktor 3 alle 2000 ms). Gemessen am 2026-08-14:
+//! Stapel (`stacks`). Deren Werte, aus der Bossdatei gelesen: `baseDamage 20`,
+//! `factor 3`, `maxStacks 4`, alle 2000 ms ein Stapel — also 20, 60, 180, 540
+//! je Schritt mit Deckel bei vier.
+//!
+//! **Die frühere Formulierung „20 Stapel mit Faktor 3" war falsch** und stand
+//! bis zum 2026-08-14 hier: Es sind 20 GRUNDSCHADEN und maximal VIER Stapel.
+//!
+//! Gemessen am 2026-08-14:
 //!
 //! ```text
 //!   Liste                     Schaden  purge  doom  erlitten  lebt
@@ -27,9 +34,42 @@
 //!   ohne purge (Gegenprobe)      2645      0   100      2800  false
 //! ```
 //!
-//! Wer das Verhängnis beherrscht, lebt länger — und länger heißt hier mehr
-//! Stapel. Der Kampf ist nicht am Verhängnis unüberlebbar, sondern an der
-//! Kombination.
+//! # WELCHE Mechanik tötet — die volle Matrix, mit abgeschalteter Gegenseite
+//!
+//! Die Zeilen oben zeigen, dass `purge` die Todesart verschiebt, aber nicht,
+//! welche Mechanik für sich genommen tödlich ist. `examples/doomsayer-mechaniken-672.rs`
+//! schaltet je eine ab (in einer Kopie des Boss, die Datei bleibt unberührt)
+//! und fährt jede Zeile zweimal — ohne und mit `purge`:
+//!
+//! ```text
+//!   OHNE purge
+//!     A1  nur doom       Tod 20000 ms   doom 100   erlitten     0
+//!     B1  nur stacks     Tod 30000 ms   doom   0   erlitten  5392
+//!     C1  beide          Tod 20000 ms   doom 100   erlitten  2800
+//!
+//!   MIT purge
+//!     A2  nur doom       ÜBERLEBT       doom  35   erlitten     0
+//!     B2  nur stacks     Tod 30000 ms   doom   0   erlitten  5392
+//!     C2  beide          Tod 30000 ms   doom  40   erlitten  5392
+//! ```
+//!
+//! Drei Befunde, die ohne die zweite Spalte nicht zu haben waren:
+//!
+//! 1. **Beide Mechaniken töten allein** (A1, B1) — das Verhängnis zehn
+//!    Sekunden früher.
+//! 2. **`purge` besiegt das Verhängnis vollständig** (A2): Für sich genommen
+//!    ist es mit dem Zauber nicht mehr tödlich, der Zähler bleibt bei 35 von
+//!    100. Was den Spieler dann noch holt, sind die Stapel.
+//! 3. **Der Widerspruch war keiner.** C1 stirbt am Verhängnis, C2 an den
+//!    Stapeln — zwei richtige Aussagen über zwei verschiedene Läufe.
+//!
+//! In A1 und A2 steht der erlittene Schaden auf **0**: Der Verhängnis-Tod läuft
+//! nicht über den Lebensbalken. Das belegt die Ursache, statt sie aus dem
+//! Zeitpunkt zu erschließen.
+//!
+//! Die Schwelle fällt bei **20000 ms** (`threshold 100 / amount 5` = 20
+//! Schritte à 1000 ms), nicht erst am Ende der Überdruckzeit bei 60000 ms — der
+//! Spieler stirbt nach einem Drittel der Begegnung, nicht an ihrem Ende.
 
 use rota_sim::apl::{parse, AplName};
 use rota_sim::data::{boss_by_id, index_of};
@@ -154,5 +194,74 @@ fn mit_purge_stirbt_er_an_der_zweiten_mechanik() {
          und der Befund aus Teil 3 stimmt nicht",
         f.doom(),
         doom.threshold
+    );
+}
+
+/// **`purge` besiegt das Verhängnis vollständig** — der stärkste Befund aus der
+/// Matrix, und der einzige, der ein ÜBERLEBEN zeigt.
+///
+/// Gemessen am 2026-08-14: Läuft der Boss nur mit `doom` (die Stapel in einer
+/// Kopie abgeschaltet), stirbt der Spieler ohne `purge` bei 20000 ms und
+/// überlebt mit `purge` die volle Überdruckzeit — der Zähler bleibt bei 35 von
+/// 100.
+///
+/// **Geprüft wird die Eigenschaft, nicht die 35**: Ohne den Zauber tot, mit ihm
+/// lebendig. Eine Bedingung auf den Zählerstand wäre bei jeder Balance-Änderung
+/// fällig, ohne je etwas anderes zu sagen.
+///
+/// **Die Bossdatei bleibt unberührt.** `Boss` ist `Copy`; abgeschaltet wird in
+/// einer Kopie, die über `Box::leak` die Lebensdauer bekommt, die `FightConfig`
+/// verlangt. In einem Prüflauf ist das unbedenklich — er läuft einmal und endet.
+#[test]
+fn purge_macht_das_verhaengnis_allein_ueberlebbar() {
+    let basis = boss_by_id(BOSS).expect("test-doomsayer fehlt");
+    let mut ohne_stapel = *basis;
+    ohne_stapel.stacks = None;
+    let boss: &'static rota_sim::data::Boss = Box::leak(Box::new(ohne_stapel));
+
+    let fahren = |text: &str| {
+        let apl = parse(AplName("fall"), text).expect("APL gültig");
+        let mut fight = Fight::new(FightConfig {
+            seed: 0,
+            boss,
+            duration_ms: Some(basis.overpressure_ms),
+            stop_on_kill: false,
+            ..FightConfig::default()
+        });
+        let ergebnis = fight.run_apl(&apl);
+        (fight, ergebnis)
+    };
+
+    let ohne = "pyre if heat >= 15\nsearing if dot.searing.remains < 1500\nkindle\n";
+    let mit = "purge\npyre if heat >= 15\nsearing if dot.searing.remains < 1500\nkindle\n";
+    let (f_ohne, _) = fahren(ohne);
+    let (f_mit, r_mit) = fahren(mit);
+    let purge = index_of("purge").expect("purge fehlt");
+
+    // Die Zusicherungen zuerst: Die Abschaltung hat gegriffen, und der Zauber
+    // kam dran. Ohne sie prüfte dieser Fall zwei gleiche Läufe an einem Boss,
+    // der noch beide Mechaniken trägt.
+    assert!(
+        boss.stacks.is_none(),
+        "die Stapel sind nicht abgeschaltet — dann misst dieser Fall die Kombination"
+    );
+    assert!(
+        basis.stacks.is_some(),
+        "der ECHTE Boss trägt keine Stapel mehr — dann schaltet dieser Fall nichts ab \
+         und vergleicht zweimal dasselbe"
+    );
+    assert!(r_mit.casts[purge] > 0, "purge wurde nie gewirkt");
+
+    assert!(
+        !f_ohne.player_alive(),
+        "ohne purge überlebt der Spieler das Verhängnis — dann ist es allein nicht tödlich, \
+         und der Befund aus der Matrix gilt nicht mehr"
+    );
+    assert!(
+        f_mit.player_alive(),
+        "MIT purge stirbt der Spieler trotzdem, bei doom {} von {} — der Zauber beherrscht \
+         die Mechanik nicht mehr",
+        f_mit.doom(),
+        basis.doom.expect("doom").threshold
     );
 }

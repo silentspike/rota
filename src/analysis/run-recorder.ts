@@ -34,6 +34,7 @@ import {
   OUTCOME_WIPE,
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
+import type { RunCurve } from './run-compare.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
 import { nextAutomaticEntry, unlock } from './archive.js';
@@ -113,6 +114,20 @@ export interface RecordContext {
   readonly instance: number;
   /** Stufe im Endlos-Modus, 0 ausserhalb. */
   readonly endlessLevel: number;
+  /**
+   * Der Schadensverlauf dieses Laufs (Issue #82, AC1 „zwei Kurven").
+   *
+   * **Im Kontext und nicht in `RunSummary`**: Die Kurve entsteht aus dem
+   * Kampfprotokoll (`sampleDamageCurve`), und die Kurzfassung führt keines.
+   * Der Kontext ist ohnehin die Stelle für das, was der Kampf selbst nicht
+   * weiss — Boss-Stufe, Fassung, Zeitpunkt stehen aus demselben Grund hier.
+   *
+   * **Optional**, weil ein Aufrufer ohne Protokoll sie nicht erfinden können
+   * soll. Fehlt sie, wird beim Sieg ein Bestlauf ohne Kurve abgelegt, und die
+   * Anzeige zeichnet eine statt zwei — derselbe Zustand wie bei einem
+   * Spielstand von vor dieser Änderung.
+   */
+  readonly curve?: RunCurve;
 }
 
 /** Der Stand, der fortgeschrieben wird. */
@@ -319,6 +334,17 @@ export function recordRun(
           lostTimeWithReadyMs: summary.lostTimeWithReadyMs,
           lostTimeNothingReadyMs: summary.lostTimeNothingReadyMs,
         },
+        // **Die Kurve kommt aus dem Kontext, nicht aus `summary`** (Issue #82,
+        // AC1): Sie wird aus dem Kampfprotokoll abgetastet, und `RunSummary`
+        // führt keines. Wer sie hier aus der Kurzfassung rechnen wollte,
+        // bräuchte das Protokoll an einer Stelle, die es nie hatte.
+        //
+        // Beim selben Aufruf wie die sieben Zahlen darüber, damit Kurve und
+        // Kennzahlen niemals zu verschiedenen Läufen gehören.
+        //
+        // Als bedingter Spread: Unter `exactOptionalPropertyTypes` ist ein
+        // ausgeschriebenes `undefined` etwas anderes als ein fehlendes Feld.
+        ...(context.curve === undefined ? {} : { curve: context.curve }),
       })
     : null;
 
