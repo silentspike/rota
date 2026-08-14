@@ -43,9 +43,17 @@ use rota_sim::balance::BalanceConfig;
 use rota_sim::data::boss_by_id;
 use rota_sim::data::SPELLS;
 use rota_sim::factors::NEUTRAL;
-use rota_sim::gear::{budget_of, distribute_budget, WornValues, QUALITY_AFFIX_SLOTS, QUALITY_RARE};
+use rota_sim::gear::{
+    budget_of, distribute_budget, WornValues, QUALITY_AFFIX_SLOTS, QUALITY_HAS_EFFECT,
+    QUALITY_RARE, SLOT_COUNT,
+};
 use rota_sim::rotation_search::{all_candidates, greedy, greedy_from, greedy_opts};
-use rota_sim::sources::{mixed_build, permanent_max, pure_build, STAT_CATALYSIS, STAT_PURITY};
+use rota_sim::sources::{
+    gear_effects_permille, mixed_build, permanent_max, pure_build, STAT_CATALYSIS, STAT_PURITY,
+};
+
+/// Die handgeschriebene Liste — dieselbe Quelle wie in `rotation-search`.
+const STEP1_GOOD: &str = include_str!("../apl/step1-good.apl");
 
 /// Eine benannte Verteilung des Budgets auf die getragenen Werte.
 type Variante = (&'static str, fn(u32) -> WornValues);
@@ -112,6 +120,59 @@ fn budget_gedrittelt(item_level: u32) -> WornValues {
         purity: drittel,
         yield_bonus: drittel,
         ..WornValues::none()
+    }
+}
+
+/// **Worker-1s Ausruestung, Zeile fuer Zeile nachgebaut** (aus `c743bb0`,
+/// `sim/examples/stufen-durchsatz.rs`).
+///
+/// # Warum meine sechs Versuche daneben lagen
+///
+/// Alle sechs verteilten das Budget EINMAL. Er verteilt es fuer **jeden der
+/// zehn Ausruestungsplaetze** und summiert — deshalb liegen seine Zahlen um
+/// eine Groessenordnung hoeher, und deshalb konnte ich sie mit keiner
+/// Verteilung treffen.
+///
+/// Die zweite Abweichung war die Kampfumgebung: `boss-1-2` statt
+/// `first-crucible`, 200 Durchgaenge auf vier Straengen statt 50 auf einem.
+fn ausruestung_w1(item_level: u32, quality: usize) -> WornValues {
+    let mut summe = WornValues::none();
+    for _platz in 0..SLOT_COUNT {
+        let mut werte = [0_u64; 4];
+        let belegt = distribute_budget(item_level, quality, &mut werte);
+        // Die Affix-Arten reihum auf die belegten Plaetze — so verteilt sich
+        // das Budget ueber die belegten Groessen, statt sich auf einer zu
+        // stapeln.
+        for (i, wert) in werte.iter().take(belegt).enumerate() {
+            let w = u32::try_from(*wert).unwrap_or(u32::MAX);
+            match i % 4 {
+                0 => summe.catalysis += w,
+                1 => summe.purity += w,
+                2 => summe.yield_bonus += w,
+                _ => summe.essence += w,
+            }
+        }
+    }
+    // Topf 4 wird hereingereicht, nicht abgeleitet — sonst waere LEGENDARY in
+    // dieser Messung ein EPIC.
+    let legendaere = if QUALITY_HAS_EFFECT[quality] {
+        u32::try_from(SLOT_COUNT).unwrap_or(0)
+    } else {
+        0
+    };
+    summe.gear_effects = gear_effects_permille(legendaere, 0);
+    summe
+}
+
+/// Seine Kampfumgebung — die fuenf Angaben aus Nachricht 7316, woertlich.
+fn config_w1(worn: WornValues) -> BalanceConfig {
+    BalanceConfig {
+        iterations: 200,
+        threads: 4,
+        stop_on_kill: false,
+        boss: boss_by_id("boss-1-2").expect("boss-1-2 fehlt"),
+        worn,
+        ..BalanceConfig::default()
     }
 }
 
@@ -191,8 +252,115 @@ fn main() {
     }
     println!();
 
+    ac1_an_worker1s_zahl();
     paar_suche_gegen_einzel();
     traegt_das_paar_ueberhaupt();
+}
+
+/// **AC1: der Nachweis an Worker-1s Messung** — mit seinem Aufbau, nicht mit
+/// meinem.
+///
+/// # Der Anker zuerst
+///
+/// Bevor irgendeine Aussage ueber die Paar-Suche faellt, muss `greedy` seine
+/// Zahlen treffen. Trifft es sie nicht, messe ich wieder etwas anderes als er,
+/// und „15593 erreicht" waere eine Behauptung ueber eine fremde Groesse.
+///
+/// ```text
+///   Stufe  1   13655
+///   Stufe  7   12671    <- MEHR Budget, WENIGER Durchsatz
+///   Stufe 13   19131
+///   Stufe  7   15593    mit fester Rotation statt greedy
+/// ```
+///
+/// Die 15593 sind der Sollwert: Was eine feste Liste dort holt, muss eine
+/// Suche mindestens auch holen. Zwischen 12671 und 15593 liegen die 19 %.
+fn ac1_an_worker1s_zahl() {
+    println!("== AC1: Worker-1s Pruefstein, mit SEINEM Aufbau ==");
+    println!("  Boss boss-1-2 · 200 Durchgaenge · 4 Straenge · stop_on_kill=false");
+    println!("  Ausruestung: distribute_budget je Platz, ueber alle {SLOT_COUNT} Plaetze");
+    println!();
+
+    let pool = all_candidates();
+    println!(
+        "  {:<8} {:>8} {:>12} {:>12} {:>12}",
+        "Stufe", "Budget", "greedy", "mit Paaren", "Worker-1"
+    );
+    for &(stufe, w1) in W1_DURCHSATZ {
+        let worn = ausruestung_w1(stufe, QUALITY_RARE);
+        let cfg = config_w1(worn);
+        let ohne = greedy_opts(&cfg, &pool, MAX_LEN, &[], false);
+        let mit = greedy_opts(&cfg, &pool, MAX_LEN, &[], true);
+        println!(
+            "  {:<8} {:>8} {:>12.0} {:>12.0} {:>12}",
+            stufe,
+            budget_of(stufe, QUALITY_RARE),
+            ohne.best.mean,
+            mit.best.mean,
+            w1
+        );
+    }
+    println!();
+    println!("  Sollwert bei Stufe 7 (feste Rotation, Worker-1): 15593");
+    println!();
+
+    // **Wenn die Paare es nicht sind — ist es dann die Startposition?**
+    //
+    // Der Sollwert stammt von einer FESTEN Liste. Eine Suche, die schlechter
+    // ist als eine Liste, die sie nicht gesucht hat, steht entweder am
+    // falschen Punkt oder sucht das Falsche. Der Nachlauf aus #558 kann den
+    // ersten Fall beantworten: Startet man bei der Handschrift, kommt die
+    // Suche dann hoeher?
+    // **Die Laenge, bevor das Verfahren verdaechtigt wird.**
+    //
+    // Bei `max_len = 6` kommt die Paar-Betrachtung kaum zum Zug: Sie verlangt
+    // zwei freie Plaetze (`chosen.len() + 2 <= max_len`), und die Liste ist
+    // vorher voll. Dieselbe Falle wie bei #509, wo „48 tote Zauber" zum Teil
+    // die Suchlaenge massen und nicht das Kit.
+    //
+    // Bevor also „die Paar-Suche hilft nicht" im Bericht steht, muss die Frage
+    // beantwortet sein, ob sie ueberhaupt Raum hatte.
+    println!("  Hatte die Paar-Suche ueberhaupt Raum? (Stufe 7, verschiedene Laengen)");
+    let cfg7 = config_w1(ausruestung_w1(7, QUALITY_RARE));
+    for laenge in [MAX_LEN, 8, 12] {
+        let ohne = greedy_opts(&cfg7, &pool, laenge, &[], false);
+        let mit = greedy_opts(&cfg7, &pool, laenge, &[], true);
+        println!(
+            "    Laenge {laenge:<3} ohne {:>9.0} ({} Zeilen, {:?})   mit {:>9.0} ({} Paare, {:?})",
+            ohne.best.mean,
+            ohne.chosen.len(),
+            ohne.stop,
+            mit.best.mean,
+            mit.paare_geprueft,
+            mit.stop
+        );
+    }
+    println!();
+
+    println!("  Und wenn es nicht die Paare sind — liegt es am Startpunkt?");
+    let hand = rota_sim::apl::parse(rota_sim::apl::AplName("step1-good"), STEP1_GOOD)
+        .expect("step1-good ist gueltig");
+    for &(stufe, _) in W1_DURCHSATZ {
+        let cfg = config_w1(ausruestung_w1(stufe, QUALITY_RARE));
+        let handwert = rota_sim::balance::run(&cfg, &hand).damage.mean;
+        // Die Handschrift als Startpunkt, dann weitersuchen.
+        let start: Vec<_> = pool
+            .iter()
+            .filter(|k| {
+                hand.rules
+                    .iter()
+                    .any(|r| r.spell == k.spell && r.condition == k.condition)
+            })
+            .cloned()
+            .collect();
+        let von_hand_aus = greedy_from(&cfg, &pool, MAX_LEN, &start);
+        println!(
+            "    Stufe {stufe:<3} Handschrift {handwert:>10.0}   von ihr aus gesucht {:>10.0}   ({} Startzeilen)",
+            von_hand_aus.best.mean,
+            start.len()
+        );
+    }
+    println!();
 }
 
 /// **Die Frage, ohne die der Befund oben nichts wert ist.**
