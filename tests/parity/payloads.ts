@@ -1915,6 +1915,93 @@ export function channelPayload(): Record<string, unknown> {
   };
 }
 
+export const CHANNEL_SHIELD_NAME = 'channel-schutz';
+
+/**
+ * Die SCHUTZ-Auszahlung der Kanalisierung (Issue #323, GAME-DESIGN 20.5
+ * Punkt 3).
+ *
+ * # Warum es diese Aufzeichnung neben `channel` gibt
+ *
+ * `channel` deckt den SCHADENS-Kanal ab. Der Schutz-Weg stand zwar in beiden
+ * Umsetzungen, aber in keiner Aufzeichnung — und damit in keinem Rust-Prüffall.
+ * **Gemessen am 2026-08-14:** Eine Mutation im Schutz-Zweig des Simulators
+ * (`anteil * 2`) liess 165 von 165 Suiten gruen.
+ *
+ * Die Spur `shieldTrace` geht mit, wie `playerCasting` bei `channel`. Sie ist
+ * die Zusicherung des Falls: Eine abweichende Prüfsumme sagt nur, DASS etwas
+ * anders ist; die Spur sagt, dass die Schicht über mehrere Schritte GEWACHSEN
+ * ist statt in einem Sprung zu fallen — und genau darin unterscheiden sich die
+ * gebaute und die verworfene Variante.
+ */
+export function channelShieldPayload(): Record<string, unknown> {
+  const recording = recordings().get(CHANNEL_SHIELD_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CHANNEL_SHIELD_NAME}`);
+  const boss = bossById('test-caster');
+  if (boss === undefined) throw new Error('Der Boss test-caster fehlt.');
+  const bindings = recording.bindings;
+  if (bindings === undefined)
+    throw new Error(`${CHANNEL_SHIELD_NAME}: Aufzeichnung ohne Bindungen`);
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für die Spur — dieselben Eingaben, also derselbe
+  // Kampf. Dieselbe Bauart wie in `channelPayload`.
+  const shieldTrace: number[] = [];
+  const shieldStacksTrace: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (pressIndex < recording.presses.length && recording.presses[pressIndex]?.tick === tick) {
+      const press = recording.presses[pressIndex];
+      pressIndex++;
+      if (press === undefined) continue;
+      const binding = bindings.find((b) => b.slot === press.slot);
+      if (binding === undefined) continue;
+      combat.cast(combat.indexOf(binding.spellId), timeMs);
+    }
+    shieldTrace.push(combat.shield);
+    shieldStacksTrace.push(combat.shieldStacks);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId: 'test-caster',
+    bindings,
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      // **Die zwei Zahlen, um die es hier geht.** Sie gehen in keine
+      // Prüfsumme ein (#576); ohne sie hinge der ganze Nachweis an `shield`
+      // und `playerHp` im Zustand, und ein Kanal, der seine Auszahlung
+      // verlöre, sähe in einem Takt ohne Schlag genauso aus wie einer, der
+      // pünktlich zahlt.
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      castsCancelled: result.castsCancelled,
+      castsInterrupted: result.castsInterrupted,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+    shieldTrace,
+    shieldStacksTrace,
+  };
+}
+
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**

@@ -160,6 +160,7 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
     'test-buff',
     'test-channel',
     'test-channel-heal',
+    'test-channel-shield',
     // VORLAEUFIG (Issue #561): PURGE senkt das Verhaengnis, sein Klang fehlt.
     // Er entsteht ueber Suno (#487) und kann in keiner Claude-Sitzung
     // entstehen — Claude kann nicht hoeren, und ein erfundener Prompt im

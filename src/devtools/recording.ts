@@ -950,6 +950,111 @@ const CHANNEL_BINDINGS: readonly { slot: number; id: string }[] = [
 ];
 
 /**
+ * Die Belegung der Aufzeichnung zum SCHUTZ-Kanal (Issue #323).
+ *
+ * `CHANNEL_BINDINGS` daneben deckt den SCHADENS-Kanal ab. Die Kanalisierung
+ * kann aber dreierlei auszahlen — Schaden, Heilung, Schutz (GAME-DESIGN 20.5) —
+ * und die zwei anderen Wege liefen bis hierher durch keine Aufzeichnung.
+ *
+ * **Gemessen am 2026-08-14, und deshalb gibt es diese Datei:** Eine Mutation
+ * im Schutz-Zweig des Simulators (`anteil * 2`) liess 165 von 165 Suiten gruen.
+ * Die Rust-Seite dieses Weges war unbelegt; „beide Seiten bitgleich" hiess dort
+ * „auf keiner Seite gemessen".
+ *
+ * **Der HEIL-Kanal steht hier NICHT dabei, und das ist gemessen.** Ein erster
+ * Entwurf nahm ihn auf Platz 2 mit. Er lief dreimal und zahlte `healed: 0` —
+ * der Schutz faengt bei `test-caster` alle 96 Schaden ab, der Spieler bleibt
+ * auf vollen Leben, und Ueberheilung zaehlt nicht. Eine Mutation im Heil-Zweig
+ * waere dadurch gruen geblieben; die Aufzeichnung haette eine Deckung
+ * behauptet, die sie nicht hat. Sein Loch bleibt offen und ist gemeldet —
+ * `test-caster` ist der EINZIGE Boss mit `interruptsPlayer`, und ohne Abbruch
+ * gaebe es fuer den Schutz-Kanal nichts zu zeigen.
+ */
+const CHANNEL_SHIELD_BINDINGS: readonly { slot: number; id: string }[] = [
+  { slot: 0, id: 'kindle' },
+  { slot: 1, id: 'test-channel-shield' },
+];
+
+/**
+ * Die Runde, in der ein SCHUTZ-Kanal laeuft und vom Boss abgebrochen wird
+ * (Issue #323, GAME-DESIGN 20.5 Punkt 3).
+ *
+ * | | |
+ * | --- | --- |
+ * | 0 ms | Der Schutz-Kanal beginnt; seine Schicht waechst je 1000 ms um 200 |
+ * | dazwischen | KINDLE fuellt die Abklingzeit |
+ * | 9000 ms | Ein Schlag mit `interruptsPlayer` bricht ab — die Schicht bleibt stehen |
+ *
+ * **Der Boss `test-caster` ist die Wahl, nicht die Bequemlichkeit.** Er ist der
+ * einzige mit `interruptsPlayer`, und genau darum geht es in Punkt 3: „bricht
+ * er ab, bleibt sie auf dem erreichten Wert stehen." Dass er zusaetzlich
+ * schlaegt, deckt die andere Haelfte — ohne eingehenden Schaden wuerde die
+ * Schicht nie abgetragen, und `absorbed` bliebe null.
+ */
+function recordChannelShieldRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const slotOf = new Map<number, number>();
+  for (const { slot, id } of CHANNEL_SHIELD_BINDINGS) slotOf.set(combat.indexOf(id), slot);
+  const kindle = combat.indexOf('kindle');
+  const schutz = combat.indexOf('test-channel-shield');
+
+  const presses: RecordedPress[] = [];
+  const druecke = (index: number, tick: number, timeMs: number): void => {
+    const slot = slotOf.get(index);
+    if (slot === undefined) return;
+    if (!isCastAccepted(combat.cast(alsSpellIndex(index), timeMs).result)) return;
+    presses.push({ tick, slot });
+  };
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+    // **Von Hand wird hier NICHT abgebrochen.** Den Abbruch besorgt der Boss
+    // bei 18000 ms, und das ist der Fall, um den es in Punkt 3 geht: Die
+    // Schicht bleibt auf dem erreichten Wert stehen. Ein zweiter Abbruch von
+    // Hand machte den Ablauf nur unuebersichtlicher, ohne etwas zu belegen,
+    // was `channel` daneben nicht schon traegt.
+    if (combat.playerCasting >= 0) continue;
+
+    // **Der zweite Kanal wartet bis 14500 ms, und die Zahl ist gerechnet.**
+    //
+    // Der naheliegende Bau — druecken, sobald die Abklingzeit frei ist — war
+    // der erste Entwurf, und er hat den Fall LEER gemacht: Die Abklingzeit von
+    // 8000 ms und das Raster von 1000 ms treffen die Schlagzeiten des Bosses
+    // (9000, 18000) genau. Beide Folgekanaele wurden im selben Takt
+    // abgebrochen, in dem ihr erster Schritt faellig war, und die Spur zeigte
+    // nach 5000 ms keinen einzigen Anstieg mehr. Gemessen, nicht vermutet.
+    //
+    // Damit fehlten zwei Faelle, die dieser Aufzeichnung ihren Wert geben:
+    //
+    // | ab 14500 ms | was er belegt |
+    // | --- | --- |
+    // | Schritte bei 15500, 16500, 17500 | die Schicht waechst auf einer BESTEHENDEN weiter |
+    // | Schlag bei 18000 bricht ab | und bleibt dann auf dem erreichten Wert stehen |
+    //
+    // Der erste ist der Unterschied zur verworfenen Variante: Dort stuende die
+    // zweite Kanalisierung vor `maxStacks: 1` und legte gar nichts nach.
+    const zweiterKanalFrei = timeMs < 6000 || timeMs >= 14500;
+    if (zweiterKanalFrei && combat.isOffCooldown(schutz, timeMs)) {
+      druecke(schutz, tick, timeMs);
+    } else {
+      druecke(kindle, tick, timeMs);
+    }
+  }
+
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: CHANNEL_SHIELD_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
+}
+
+/**
  * Die Runde, in der eine KANALISIERUNG laeuft und mitten drin abbricht
  * (Issue #323, AC6).
  *
@@ -1307,6 +1412,14 @@ export function recordings(): Map<string, Recording> {
       // Boss wie bei der Wirkzeit: Er schlaegt regelmaessig, und der
       // gewoehnliche Teil des Kampfes ist damit auch hier gedeckt.
       builtIn.set('channel', recordChannelRotation('channel', 2400, casterBoss));
+      // Die SCHUTZ-Auszahlung der Kanalisierung (#323, GAME-DESIGN 20.5
+      // Punkt 3). Dieselbe Laenge und derselbe Boss wie oben, damit der
+      // Unterschied zwischen den zwei Aufzeichnungen die Wirkung ist und nicht
+      // die Umstaende.
+      builtIn.set(
+        'channel-schutz',
+        recordChannelShieldRotation('channel-schutz', 2400, casterBoss),
+      );
     }
     const racer = bossById('test-racer');
     if (racer !== undefined) {

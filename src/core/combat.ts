@@ -5264,6 +5264,75 @@ export class Combat {
       this.zahleHeilungAus(Math.floor(heilung.amount / schritte), timeMs);
     }
 
+    // **Die SCHUTZ-Kanalisierung** (Issue #323, GAME-DESIGN 20.5 Punkt 3):
+    // „Ein Schutz-Kanal legt EINE Schicht, deren Betrag mit jedem Schritt
+    // steigt; bricht er ab, bleibt sie auf dem erreichten Wert stehen."
+    //
+    // **Der Unterschied zum normalen Schutz-Aufbau ist die Stapelzahl.** Ein
+    // gewirkter Schutzzauber legt je Wurf eine NEUE Schicht
+    // (`shieldStacksValue++`); dieser hier legt EINE und lässt sie wachsen.
+    // Die verworfene Variante — je Schritt eine Schicht — wäre bei `plate`
+    // (maxStacks 1) nach dem ersten Schritt am Anschlag gewesen, und vier von
+    // fünf Schritten hätten verpufft.
+    //
+    // Gemessen am 2026-08-14, bevor diese Zeilen standen: Der Prüfzauber lief
+    // fünf Schritte durch und legte 0 Schutz — die Auszahlung gab es nicht.
+    //
+    // # DAS VORBILD TAUGT NUR FÜR DIE HÄLFTE — wer es blind kopiert, baut
+    // einen Fehler ein
+    //
+    // Der Bau hier folgt `convertDamageToShield` (die Umwandlung aus TEMPER):
+    // Sie erhöht den Betrag der liegenden Schicht, **ohne** die Stapelzahl
+    // anzufassen, und ist damit das laufende Beispiel für „Betrag erhöhen ohne
+    // zu stapeln".
+    //
+    // **Für die Ablaufzeit taugt sie NICHT.** Sie setzt `shieldExpiresAtMs`
+    // gar nicht — umgewandelter Schutz läuft deshalb NIE ab. Gemessen am
+    // 2026-08-14 gegen `first-crucible` (ein Boss ohne Schläge): TEMPER plus
+    // drei KINDLE ergeben 75 Schutz, und dreissig Sekunden später stehen
+    // immer noch 75. Zur Gegenprobe derselbe Lauf mit einem gewirkten
+    // Schutzzauber: `scab` trägt 8000 ms und ist danach bei 0.
+    //
+    // Das widerspricht dem Modell aus GAME-DESIGN 260, wo `shield_expires_at`
+    // ein Feld der Schutzschicht ist.
+    //
+    // Der Befund ist gemeldet und ausdrücklich NICHT in #323 behoben — er
+    // braucht eine eigene Abnahme. Diese Zeilen setzen die Uhr deshalb selbst,
+    // statt sich auf das Vorbild zu verlassen.
+    const schutz = spell.shield;
+    if (schutz !== undefined && schutz.amount > 0) {
+      const anteil = Math.floor(
+        (schutz.amount * talentShieldAmountFactor(this.talents)) / schritte,
+      );
+      if (anteil > 0) {
+        // **Die Stapelzahl steigt nur EINMAL**, beim ersten Schritt. Danach
+        // wächst der Betrag, und die Obergrenze bleibt unberührt — genau das
+        // meint „umgeht die Stapelgrenze" in 20.5.
+        if (this.shieldStacksValue === 0) {
+          this.shieldStacksValue = 1;
+          this.shieldRefundUsed = false;
+        }
+        this.shieldValue += anteil;
+        // **Die Nachlage bezieht sich auf die SCHICHT, und die ist die Summe**
+        // (Annahme 2, freigegeben am 2026-08-14). `shieldLastAmount` trägt
+        // deshalb den bisher erreichten Betrag, nicht den letzten Schritt:
+        // Der Bruch gibt eine halbe Schicht zurück, und eine halbe Schicht ist
+        // die Hälfte dessen, was dasteht.
+        this.shieldLastAmount = this.shieldValue;
+        // **Die Uhr startet mit JEDEM Schritt neu** (Annahme 1). Sonst liefe
+        // der Anfang einer Schicht ab, während ihr Ende noch wächst — ein
+        // Kanal, der länger dauert als seine Schicht hält, wäre in sich
+        // widersprüchlich.
+        this.shieldExpiresAtMs =
+          this.fightElapsedMs(timeMs) +
+          Math.floor(schutz.durationMs * talentShieldDurationFactor(this.talents));
+        // **Je Schritt um den Schritt-Betrag** (Annahme 3), dieselbe Regel wie
+        // beim Schaden. Wer nach drei von fünf Schritten abbricht, hat dreimal
+        // stabilisiert — „der erreichte Anteil bleibt" gilt auch hier.
+        this.stabilise(anteil);
+      }
+    }
+
     // **Der Schritt meldet sich IMMER** (Issue #323) — auch bei einem Kanal
     // ohne Schaden. Daran hängt der Vorrat: `resourceGain` kam bisher über
     // `RULE_SPELL_CAST`, und das sendet nur `resolvePlayerCast`, die der Kanal
