@@ -36,7 +36,12 @@ import { buildComparisonView } from '../../src/analysis/history-view.js';
 import type { BestRun } from '../../src/analysis/save-format.js';
 import type { ComparedMetric } from '../../src/analysis/run-compare.js';
 import { Overlay } from '../../src/render/overlay.js';
-import { OUTCOME_WIPE, PHASE_ENDED } from '../../src/core/phases.js';
+import { OUTCOME_OVERPRESSURE, OUTCOME_WIPE, PHASE_ENDED } from '../../src/core/phases.js';
+import { recordRun } from '../../src/analysis/run-recorder.js';
+import { Combat } from '../../src/core/combat.js';
+import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
+import { Session } from '../../src/core/session.js';
+import { PressQueue } from '../../src/input/queue.js';
 
 /** jsdom bringt keinen Canvas-2D-Kontext mit; `Surface` wirft ohne ihn. */
 function stubbeCanvas(): void {
@@ -288,5 +293,97 @@ describe('AC4 — die mittlere Stufe: die App fährt einen echten Frame', () => 
     app.session.wipe(5000);
     // kein frameFahren
     expect(document.body.textContent ?? '').not.toContain('MISSED');
+  });
+});
+
+describe('AC5 — der Verlauf im Player Home zeigt den EBEN gefahrenen Lauf', () => {
+  /**
+   * Der Fehler, den erst der Browser gefunden hat — und der genau die Klasse
+   * hat, die in `refreshHome` schon sechsmal kommentiert steht (#289, #453,
+   * #802, #85, #613).
+   *
+   * Gemessen am 2026-08-14 unter `/rota-e9/`:
+   *
+   * ```text
+   *   Spielstand 64 Läufe   Ansicht „64 runs"
+   *   einen weiteren Kampf gefahren, dann ins Player Home
+   *   Spielstand 65 Läufe   Ansicht „64 runs"     <- eingefroren
+   *   Seite neu geladen     Ansicht „65 runs"
+   * ```
+   *
+   * Grund: `buildHistoryView` lief EINMAL beim Aufbau des Player Home. Der
+   * zuletzt gefahrene Lauf fehlte damit immer — ausgerechnet der, wegen dem
+   * man nachsieht.
+   *
+   * **Nicht über `session.wipe()`**, obwohl das der kürzeste Weg zu einem
+   * Kampfende wäre: `IGNORED_OUTCOMES` in `run-recorder.ts` führt
+   * `OUTCOME_WIPE`, ein abgebrochener Lauf wird also absichtlich NICHT
+   * aufgezeichnet. Der erste Entwurf dieses Falls lief genau da hinein — die
+   * Zusicherung unten fing es ab und meldete `expected 0 to be greater
+   * than 0`, statt der Ansicht die Schuld zu geben.
+   */
+  const KONTEXT = {
+    bossId: 'first-crucible',
+    difficulty: 1,
+    bossLevel: 1,
+    gameVersion: '0.1.0',
+    at: 1_800_000_000_000,
+    seed: 0,
+    instance: 1,
+    endlessLevel: 0,
+  };
+
+  /** Einen gewerteten Lauf in den Spielstand legen. */
+  function laufAblegen(app: App): void {
+    const boss = bossById('first-crucible') as BossDef;
+    const combat = new Combat({ school: CALCINATION.value, boss });
+    const session = new Session(new PressQueue(), combat);
+    session.startFight(0);
+    const summary = session.summary(60_000);
+    app.persistence.persist(
+      recordRun(app.persistence.state, summary, OUTCOME_OVERPRESSURE, KONTEXT),
+    );
+  }
+
+  it('ohne Neuladen steht der Lauf im Verlauf', () => {
+    const app = baueApp();
+    // Vorher: der leere Hinweis, aus `buildHistoryView`.
+    expect(document.body.textContent ?? '').toContain('No runs recorded yet');
+
+    laufAblegen(app);
+
+    // **ZUSICHERUNG in den Datensatz.** Ohne sie prüfte der Fall darunter die
+    // Ansicht an einem leeren Spielstand — und bliebe grün, weil dann eben
+    // nichts anzuzeigen ist.
+    expect(
+      app.persistence.state.runHistory.length,
+      'der Lauf steht gar nicht im Spielstand — dann sagt die Ansicht unten nichts',
+    ).toBeGreaterThan(0);
+
+    app.openHome();
+
+    const text = document.body.textContent ?? '';
+    expect(text, 'der Verlauf wurde beim Öffnen nicht aufgefrischt').not.toContain(
+      'No runs recorded yet',
+    );
+    expect(text).toContain('1 runs');
+  });
+
+  it('und ein ZWEITER Lauf erhöht die Zahl', () => {
+    // Ohne diesen Fall wäre nur belegt, dass die Ansicht einmal aufwacht. Der
+    // Fehler war aber ein Einfrieren: Die erste Zahl stand, jede weitere
+    // nicht mehr.
+    const app = baueApp();
+    laufAblegen(app);
+    app.openHome();
+    expect(document.body.textContent ?? '').toContain('1 runs');
+
+    laufAblegen(app);
+    expect(app.persistence.state.runHistory).toHaveLength(2);
+
+    app.openHome();
+    expect(document.body.textContent ?? '', 'die Ansicht blieb beim ersten Lauf stehen').toContain(
+      '2 runs',
+    );
   });
 });
