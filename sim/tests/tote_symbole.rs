@@ -135,10 +135,10 @@ fn ausnahmen() -> BTreeMap<&'static str, &'static str> {
             "src/gear.rs#POOL_ACTIVE",
             "Glied der Topf-Reihe, neben POOL_ESSENCE",
         ),
-        (
-            "src/gear.rs#QUALITY_RARE",
-            "Glied der Qualitaets-Reihe, neben QUALITY_EPIC",
-        ),
+        // QUALITY_RARE stand hier, bis `examples/pruefstein-558.rs` es benutzte
+        // (Issue #558): Der Pruefstein rechnet die Budget-Reihe fuer RARE
+        // nach, weil Worker-1 seine Gegenstands-Messung dort fuehrt. Der
+        // Waechter hat das von selbst gemeldet — genau wofuer er da ist.
         (
             "src/gear.rs#QUALITY_LEGENDARY",
             "Glied der Qualitaets-Reihe, neben QUALITY_EPIC",
