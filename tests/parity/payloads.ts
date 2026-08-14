@@ -849,12 +849,32 @@ export function bossStatePayload(): Record<string, unknown> {
       sequenceChecksum: result.sequenceChecksum,
       randomDraws: result.randomDraws,
       finalPhase: phasen[phasen.length - 1] ?? 0,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Zahl der
+      // Energie-Auslöser am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `energyTriggers` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // `energyTriggers` und `bossEnergyTriggers` (logTaktePayload) zeigen auf
       // dieselbe combat-Groesse — aber in VERSCHIEDENEN Vergleichsdateien.
       // Umbenennen hiesse, eine Paritaets-Aufzeichnung zu aendern; die
       // Verwechslungsgefahr entsteht nur, wenn zwei Namen nebeneinander stehen.
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte am
+      // ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `finalPlayerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
       //
@@ -1107,6 +1127,16 @@ export function doomStacksPayload(): Record<string, unknown> {
       // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
       // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalStacks: combat.bossStacks,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte am
+      // ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `finalPlayerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
       // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
@@ -2292,6 +2322,16 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     ticks,
     presses,
     expected: {
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte des
+      // Spielers zu diesem Zeitpunkt,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `playerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
       //
@@ -2456,6 +2496,16 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     ],
     presses,
     expected: {
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte des
+      // Spielers zu diesem Zeitpunkt,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `playerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
       //
@@ -2720,6 +2770,16 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
       // Die drei `castsX` darüber zählen JE ZAUBER; das Ergebnis führt nur
       // die Gesamtzahl. Beide bleiben bei `combat`.
       damageDealt: result.damage,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte des
+      // Spielers zu diesem Zeitpunkt,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `playerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
       // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
@@ -2881,6 +2941,17 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
       controlSpent: result.controlSpent,
       controlFailed: result.controlFailed,
       phaseHoldPercent: result.phaseHoldPercent,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Boss-Phase am ENDE
+      // des Laufs, keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im
+      // Ergebnis, unter keinem Namen.
+      //
+      // **Diese zwei Sätze fehlten bis zum 2026-08-14**, und der Vermerk
+      // begann mit „Dass die Zeile trotzdem nicht blind ist" — einem
+      // „trotzdem" ohne Bezug. Aufgefallen ist es erst, als die Vermerke
+      // maschinell gegen ihre Zeile gehalten wurden; beim Lesen wirkte er
+      // vollständig, weil der zweite Satz für sich Sinn ergibt.
+      //
       // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
       // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       finalPhase: combat.bossPhase,
@@ -3017,6 +3088,16 @@ export function logParityPayload(): Record<string, unknown> {
       shieldAbsorbed: result.absorbed,
       interruptsLanded: result.interruptsLanded,
       healed: result.healed,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — wie weit die
+      // Boss-Zeitleiste am ENDE abgearbeitet war,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `timelineIndex` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
       // `timelineLoopPayload` heißt sie `finalTimelineIndex`, hier
       // `timelineIndex` — beide lesen `combat.timelineIndex`.
@@ -3116,6 +3197,16 @@ export function logTaktePayload(): Record<string, unknown> {
     expected: {
       damageDealt: ergebnis.damage,
       damageTaken: ergebnis.damageTaken,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Zahl der
+      // Energie-Auslöser am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `bossEnergyTriggers` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       /**
        * **Die Zusicherung, dass die Lage überhaupt misst.** Steht hier eine
        * Null, hat die Energieleiste nie ausgelöst — dann vergleicht der
@@ -4260,10 +4351,30 @@ export function timelineLoopPayload(): Record<string, unknown> {
       damageTaken: result.damageTaken,
       interruptsLanded: result.interruptsLanded,
       interruptsMissed: result.interruptsMissed,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — wie weit die
+      // Boss-Zeitleiste am ENDE des Laufs abgearbeitet war, keine
+      // Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis, unter
+      // keinem Namen.
+      //
       // **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
       // `logParityPayload` heißt sie `timelineIndex`. Begründung dort — kurz:
       // verschiedene Vergleichsdateien, keine Begegnung in einer Datei.
+      //
+      // Der AC4-Teil fehlte hier bis zum 2026-08-14: Die Zeile trug ihre
+      // AC5-Begründung und keine AC4-Begründung. Zwei Auflagen an derselben
+      // Zeile, eine davon erfüllt — das sah beim Lesen vollständig aus.
       finalTimelineIndex: combat.timelineIndex,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte am
+      // ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `finalPlayerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
       // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
@@ -5956,6 +6067,16 @@ export function wardCapPayload(): Record<string, unknown> {
       totalPermilleUncapped: PLAYER.wardReduction * 1000 + wardPermille,
       expected: {
         damageTaken: result.damageTaken,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte des
+        // Spielers zu diesem Zeitpunkt,
+        // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+        // Stand: Das Ergebnis führt 41 Felder, und `playerHp` ist unter keinem
+        // Namen darunter.
+        //
+        // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+        // mutierte `combat`-Größe färbt Fälle mit Namen.
+        //
         // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
         // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
         //
@@ -8421,6 +8542,16 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
     bindings,
     presses,
     expected: {
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Lebenspunkte des
+      // Spielers zu diesem Zeitpunkt,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14 gegen den heutigen
+      // Stand: Das Ergebnis führt 41 Felder, und `playerHp` ist unter keinem
+      // Namen darunter.
+      //
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen.
+      //
       // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
       // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
       //
