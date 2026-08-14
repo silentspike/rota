@@ -39,8 +39,13 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
-import { comparableFromBest, usableBest } from '../analysis/best-run.js';
-import { compareRuns, type ComparedMetric } from '../analysis/run-compare.js';
+import { comparableFromBest, curveFromBest, usableBest } from '../analysis/best-run.js';
+import {
+  compareRuns,
+  sampleDamageCurve,
+  type ComparedMetric,
+  type RunCurve,
+} from '../analysis/run-compare.js';
 import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
 import { attachHelp, buildArchiveView, buildIntroduction } from '../analysis/archive-view.js';
@@ -290,6 +295,18 @@ export class App {
         // Antwort darauf. `itemLevelOf` klemmt ohnehin auf `[1, INSTANCE_COUNT]`.
         instance: instanceById(this.combat.boss.instance)?.number ?? 1,
         endlessLevel: 0,
+        // **Der Schadensverlauf dieses Laufs** (Issue #82, AC1 „zwei Kurven
+        // übereinander"). HIER und nicht im Rechner: Dies ist die Stelle, an
+        // der Kampfprotokoll und Spielstand zusammenkommen — `recordRun` sieht
+        // das Protokoll nie, und `RunSummary` führt keines.
+        //
+        // **Dieselbe Rechnung wie in `hud.ts`, und trotzdem keine Doppelung
+        // im schädlichen Sinn**: Dort entsteht die Kurve des GERADE
+        // gelaufenen Versuchs für die Anzeige, bei jedem Ausgang. Hier wird
+        // sie abgelegt, und nur ein Sieg legt etwas ab. Zusammengelegt müsste
+        // eine der beiden Stellen die andere fragen — die Anzeige den
+        // Spielstand oder der Spielstand die Anzeige.
+        curve: sampleDamageCurve(this.session.log, summary.elapsedMs),
       });
       // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
       // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
@@ -519,6 +536,10 @@ export class App {
       // und der Vergleich sagt UNBEKANNT statt Sekunden gegen Prozent zu
       // halten.
       () => this.comparisonForResult(),
+      // **Und die zweite Kurve** (Issue #82, AC1). Aus demselben Eintrag wie
+      // der Vergleich eine Zeile hoeher, damit Linie und Tabelle denselben
+      // Bestlauf zeigen.
+      () => this.bestCurveForResult(),
     );
     this.loop = new GameLoop({
       simulation: this.session,
@@ -1119,6 +1140,35 @@ export class App {
       summary.heldPercent === null ? 'reserve' : 'held',
     );
     return compareRuns(summary, comparableFromBest(entry));
+  }
+
+  /**
+   * Die Schadenskurve des Bestlaufs — die zweite Kurve aus AC1 (Issue #82).
+   *
+   * **Als benannte Methode und nicht als anonymer Rückruf**, aus demselben
+   * Grund wie `comparisonForResult` darüber: Was namenlos ist, kann kein Fall
+   * fassen. Bei `comparisonForResult` blieb die Mutation „gib immer `null`
+   * zurück" durch die ganze Suite grün, solange sie namenlos war.
+   *
+   * **Denselben Eintrag wie der Vergleich, über `usableBest`**: Die zweite
+   * Kurve muss zu den Zahlen daneben gehören. Wer sie aus einem anders
+   * gewählten Bestlauf holte, zeichnete eine Linie, die zu keiner Zeile der
+   * Tabelle passt.
+   *
+   * `null` heisst: keine zweite Kurve — kein Bestlauf, ein Spielstand von vor
+   * dieser Änderung, oder eine Kurve, deren Form nicht trägt. Für den Spieler
+   * ist das dasselbe: Es wird eine Kurve gezeichnet statt zwei.
+   */
+  bestCurveForResult(): RunCurve | null {
+    const summary = this.lastSummary;
+    if (summary === null) return null;
+    const { entry } = usableBest(
+      this.persistence.state.bestRuns,
+      this.combat.boss.id,
+      1,
+      summary.heldPercent === null ? 'reserve' : 'held',
+    );
+    return curveFromBest(entry);
   }
 
   restart(): void {

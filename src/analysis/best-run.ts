@@ -30,7 +30,7 @@
  * gehört dorthin, wo beide Seiten ohne neuen Import zusammenkommen.
  */
 import { BEST_METRICS, type BestMetric, type BestRun } from './save-format.js';
-import type { ComparableRun } from './run-compare.js';
+import type { ComparableRun, RunCurve } from './run-compare.js';
 
 /** Was ein Lauf zum Bestwert beiträgt. */
 export interface BestAttempt {
@@ -48,6 +48,18 @@ export interface BestAttempt {
    * und würde niemand lesen.
    */
   readonly comparison: ComparableRun;
+  /**
+   * Der Schadensverlauf dieses Versuchs (Issue #82, AC1 „zwei Kurven").
+   *
+   * **Getrennt von `comparison` und nicht darin**: Jene sieben Zahlen liest
+   * `compareRuns` für die Kennzahlen-Tabelle, diese Liste zeichnet
+   * `buildCurveView`. Zusammengelegt müsste `ComparableRun` eine Sammlung
+   * führen, die keine seiner Kennzahlen braucht.
+   *
+   * **Optional**, damit ein Aufrufer ohne Kampfprotokoll — es gibt ihn in den
+   * Prüffällen — nicht gezwungen ist, eine zu erfinden.
+   */
+  readonly curve?: RunCurve;
 }
 
 /** Was die Fortschreibung ergeben hat. */
@@ -154,6 +166,17 @@ function uebernommen(entry: BestRun | null | undefined): Partial<ComparableRun> 
   return vorhanden ?? {};
 }
 
+/**
+ * Die Kurve als Feld — oder gar kein Feld.
+ *
+ * Siehe die Fundstelle in `recordBest`: Unter `exactOptionalPropertyTypes`
+ * sind „fehlt" und „steht auf `undefined`" zwei verschiedene Dinge, und im
+ * abgelegten Stand soll es das erste sein.
+ */
+function kurveVon(curve: RunCurve | undefined): { curve?: RunCurve } {
+  return curve === undefined ? {} : { curve };
+}
+
 export function recordBest(runs: readonly BestRun[], attempt: BestAttempt): BestUpdate {
   const { entry, discarded } = usableBest(runs, attempt.bossId, attempt.difficulty, attempt.metric);
   const previous = entry === null ? null : entry.value;
@@ -179,6 +202,24 @@ export function recordBest(runs: readonly BestRun[], attempt: BestAttempt): Best
     // (Eintrag aus einer Fassung vor #82), bleibt es dabei: `comparableFromBest`
     // gibt dann `null`, und der Vergleich sagt UNBEKANNT statt zu raten.
     ...(improved || previous === null ? attempt.comparison : uebernommen(entry)),
+    // **Die Kurve folgt derselben Regel wie die sieben Zahlen darüber**
+    // (Issue #82): Sie gehört zum Lauf, der den Bestwert hält. Wer sie immer
+    // überschriebe, zeichnete zwei Kurven, die denselben Lauf zeigen — und
+    // genau das ist der Fehler, den der Kommentar oben für die Kennzahlen
+    // beschreibt, nur sichtbarer.
+    //
+    // **Exakt dieselbe Verzweigung wie eine Zeile höher, ohne Ausweichfall.**
+    // Ein besserer Lauf ohne Kurve löscht die alte, statt sie zu behalten: Sie
+    // gehörte dann zu einem überholten Lauf, während die sieben Zahlen daneben
+    // schon den neuen beschreiben. Eine Kurve, die zu anderen Zahlen gehört,
+    // ist schlechter als keine — die Anzeige zeichnet dann eine statt zwei,
+    // und das ist wahr.
+    //
+    // **Als bedingter Spread und nicht als `curve: …`**: Unter
+    // `exactOptionalPropertyTypes` ist „Feld fehlt" etwas anderes als „Feld
+    // steht auf `undefined`", und im Spielstand soll es fehlen — ein
+    // ausgeschriebenes `undefined` landete als `"curve": null` in der JSON.
+    ...kurveVon(improved || previous === null ? attempt.curve : entry?.curve),
   };
 
   const gesucht = key(attempt.bossId, attempt.difficulty);
@@ -241,4 +282,35 @@ export function comparableFromBest(best: BestRun | null): ComparableRun | null {
     lostTimeWithReadyMs,
     lostTimeNothingReadyMs,
   };
+}
+
+/**
+ * Der Schadensverlauf eines Bestlaufs, oder `null` (Issue #82, AC1).
+ *
+ * # Warum die Form hier geprüft wird und nicht in `isWellFormed`
+ *
+ * Weil die beiden Prüfungen verschiedene Folgen haben. `isWellFormed` ist der
+ * Filter von `cleanSave`: Was dort durchfällt, ist als ganzer Eintrag weg.
+ * Einen Bestlauf samt seinem Wert wegen einer beschädigten Kurve zu verlieren
+ * wäre die falsche Strafe — der Wert ist das, was der Spieler erreicht hat,
+ * die Kurve nur ihre Darstellung.
+ *
+ * Hier dagegen kostet ein Fehlschlag genau die Kurve: Die Anzeige zeichnet
+ * eine statt zwei, alles andere bleibt.
+ *
+ * # Was geprüft wird
+ *
+ * Nicht `typeof === 'object'` und fertig. Eine Kurve mit `points: []` ergäbe
+ * eine Linie ohne Punkte, eine mit `stepMs: 0` eine Division, deren Ergebnis
+ * niemand sehen will. Beides käme durch eine Anwesenheitsprüfung.
+ */
+export function curveFromBest(best: BestRun | null): RunCurve | null {
+  const kurve = best?.curve;
+  if (kurve === null || kurve === undefined || typeof kurve !== 'object') return null;
+  const { stepMs, points, durationMs } = kurve;
+  if (typeof stepMs !== 'number' || !Number.isFinite(stepMs) || stepMs <= 0) return null;
+  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) return null;
+  if (!Array.isArray(points) || points.length === 0) return null;
+  if (!points.every((wert) => typeof wert === 'number' && Number.isFinite(wert))) return null;
+  return { stepMs, points, durationMs };
 }
