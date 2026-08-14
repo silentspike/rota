@@ -3224,6 +3224,22 @@ Issue   E6: Ein Fund landet im Beutel und bleibt dort
 PR      feat(gear): ein Fund lässt sich anlegen — ohne Dev-Werkzeuge
 ```
 
+**Die erlaubten Typen, vollständig** (aus `.github/workflows/meta.yml`):
+
+```
+feat  fix  docs  chore  refactor  test  perf  ci  build
+```
+
+Kein anderer. Für eine **Messung** ist `docs:` richtig, wenn das Ergebnis ein Bericht
+oder ein Läufer ist, und `test:`, wenn ein Prüffall entsteht. `mess:` gibt es nicht —
+es ist am 2026-08-13/14 **dreimal** an derselben Stelle rot geworden (#805, #825,
+#844), weil der erste Fall beim Mergen still korrigiert wurde und der Autor nie
+erfuhr, dass sein Titel falsch war.
+
+> **Eine stille Korrektur behebt den Fall und lässt die Ursache stehen.** Wer beim
+> Abnehmen etwas an fremder Arbeit ändert — Titel, Format, Commit-Text —, meldet es
+> dem Autor. Eine Zeile reicht.
+
 ### 8.32 Eine Regel, deren Begründung eine andere Sitzung beseitigt hat
 
 Am 2026-08-06 meldeten drei Sitzungen unabhängig denselben Blocker: Ein neuer Zauber am Ende seiner
