@@ -6,17 +6,17 @@
  * nackten Spieler. Ob das überhaupt einen Unterschied macht — und wie groß er
  * ist — steht hier mit Zahlen, nicht als Ableitung.
  *
- * # Warum eine Spanne und keine Zahl
+ * # Warum hier trotzdem eine Spanne steht
  *
- * Der erwartete Stand hat drei Stellschrauben (Meldung 7463): Schwierigkeit,
- * Zahl der belegten Plätze, Qualität. Zwei davon sind geklärt — Schwierigkeit
- * **normal** (20.5: „beim ersten Betreten fordernd") und die Qualität aus
- * `weightsFor`. Die dritte, **wie viele der zehn Plätze belegt sind**, liegt
- * beim Auftraggeber.
+ * Der erwartete Stand hat drei Stellschrauben, und alle drei sind inzwischen
+ * geklärt (20.5): Schwierigkeit **normal**, Qualität aus `weightsFor`, **alle
+ * zehn Plätze**. Der gesetzte Stand ist damit der Fall `plaetze = 10`.
  *
- * Diese Datei rechnet deshalb die **Schranken** statt einer Zahl: drei Plätze
- * als unterer, zehn als oberer Fall. Wie der Auftraggeber auch entscheidet —
- * die Antwort liegt dazwischen und ist schon gemessen.
+ * Die drei Plätze bleiben als **unterer** Fall daneben stehen, und zwar
+ * absichtlich: Solange nur der obere gemessen ist, sagt eine Zahl über dem
+ * nackten Maßstab wenig — sie könnte allein an der Menge hängen. Erst dass
+ * **auch** der dünnste Stand darüber liegt, macht die Aussage „die heutige
+ * Kalibrierung ist systematisch zu niedrig" belastbar.
  *
  * # Was hier NICHT geprüft wird
  *
@@ -29,54 +29,7 @@ import { describe, expect, it } from 'vitest';
 
 import { wornFrom, type OwnedItemLike } from '../../src/gear/catalog.js';
 import { runReference } from '../../src/devtools/reference-run.js';
-import { itemLevelOf, qualityCapOf, weightsFor } from '../../src/loot/rates.js';
-import { QUALITY_COMMON } from '../../src/gear/budget.js';
-
-/** Ein Stück je Platz, alle aus der `-mix`-Ausrichtung (catalysis, purity, yield). */
-const STUECK_JE_PLATZ: readonly string[] = [
-  'focus-mix',
-  'catalyst-mix',
-  'sigil-mix',
-  'relic-mix',
-  'grimoire-mix',
-  'shard-mix',
-  'talisman-mix',
-  'phylactery-mix',
-  'anchor-mix',
-  'prism-mix',
-];
-
-/**
- * Der erwartete Stand eines Spielers, der Instanz `vorstufe` auf normal
- * gespielt hat und `plaetze` Stücke daraus trägt.
- *
- * **Die Qualität wird gerechnet, nicht gewählt.** `weightsFor` liefert die
- * Verteilung, und der Anteil oberhalb von common bestimmt, wie viele Stücke
- * die höhere Qualität tragen. Für Instanz 2 sind das 1500 von 10000 — bei
- * zehn Plätzen also anderthalb Stück, abgerundet eines.
- */
-function erwarteterStand(vorstufe: number, plaetze: number): readonly OwnedItemLike[] {
-  const itemLevel = itemLevelOf(vorstufe, 0, 0);
-  const gewichte = new Int32Array(4);
-  weightsFor(vorstufe, 0, 0, gewichte);
-  const gesamt = gewichte.reduce((a, b) => a + b, 0);
-  const anteilOberhalb = gesamt > 0 ? (gesamt - (gewichte[QUALITY_COMMON] ?? 0)) / gesamt : 0;
-  const bessere = Math.floor(plaetze * anteilOberhalb);
-
-  const raus: OwnedItemLike[] = [];
-  for (let platz = 0; platz < plaetze; platz++) {
-    const itemId = STUECK_JE_PLATZ[platz];
-    if (itemId === undefined) continue;
-    raus.push({
-      itemId,
-      upgradeSteps: 0,
-      equippedSlot: platz,
-      itemLevel,
-      quality: platz < bessere ? qualityCapOf(vorstufe) : QUALITY_COMMON,
-    });
-  }
-  return raus;
-}
+import { erwarteterStand } from '../../src/devtools/expected-gear.js';
 
 function durchsatz(items: readonly OwnedItemLike[]): number {
   return runReference('good', { stopOnKill: false, worn: wornFrom(items) }).damage;
