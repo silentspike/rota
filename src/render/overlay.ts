@@ -917,6 +917,35 @@ export class Overlay {
   }
 
   /**
+   * Den frisch freigeschalteten Archiv-Eintrag zeigen (Issue #85, AC1).
+   *
+   * **An `result` und nicht an `prepare`** — das ist der ganze Unterschied zur
+   * Methode darueber, und er ist der Grund, warum es zwei sind: Die
+   * Einfuehrung erklaert eine Mechanik VOR dem Kampf, dieses Fenster zeigt
+   * einen Text NACH dem Sieg. Wer beide auf denselben Bildschirm haengte,
+   * zeigte den Archiv-Text auf der Vorbereitung, wo er nichts zu suchen hat.
+   *
+   * Sie raeumt nicht auf, aus demselben Grund wie oben: Das Fenster entfernt
+   * sich selbst, sobald einer seiner Knoepfe gedrueckt wird.
+   */
+  showArchiveEntry(node: HTMLElement): void {
+    // **Direkt unter die Ueberschrift, nicht ans Ende** — und das ist der eine
+    // Punkt, an dem dieses Fenster von der Einfuehrung abweicht.
+    //
+    // Angehaengt (wie `showIntroduction` es tut) landete es auf der Auswertung
+    // GANZ UNTEN, hinter Kennzahlen, Erfahrung und vier Knoepfen. Im Browser
+    // gesehen: Der Spieler liest zuerst „Retry", „View Analysis", „Back to
+    // Menu", „Player Home" — und danach erst den Text. Die Begruendung des
+    // Auftraggebers fuer diese Variante war aber „der Text ist nicht zu
+    // uebersehen" (GAME-DESIGN 20.5 Punkt 6).
+    //
+    // Auf dem Vorbereitungs-Bildschirm stellt sich die Frage nicht: Dort steht
+    // wenig ueber der Einfuehrung. Die Bauart bleibt dieselbe, nur der Platz
+    // folgt dem Zweck.
+    this.result.insertBefore(node, this.resultHeadline.nextSibling);
+  }
+
+  /**
    * Einen Fund zeigen (Issue E6-4, AC3 und AC5).
    *
    * Die Inszenierung staffelt sich nach Qualität: Common beiläufig, ein

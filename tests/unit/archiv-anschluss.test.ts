@@ -358,3 +358,93 @@ function kurzfassungFuer(bossId: string) {
   session.startFight(0);
   return session.summary(1000);
 }
+
+describe('AC1 von #85 — der Eintrag ERSCHEINT beim ersten Sieg, beim zweiten nicht', () => {
+  /**
+   * Die Hälfte von AC1, die bis zum 2026-08-14 fehlte.
+   *
+   * Gemessen im Browser: Ein Sieg schaltete frei (`unlockedEntryIds` gesetzt,
+   * der Eintrag stand im Player Home) — aber es **erschien nichts**. AC1 sagt
+   * „erscheint beim ersten Sieg automatisch".
+   *
+   * Der Grund war keine tote Ansicht (`buildEntry` wird von `buildArchiveView`
+   * gerufen), sondern eine fehlende Auskunft: `nextAutomaticEntry` rechnete
+   * den neuen Eintrag aus, `recordRun` benutzte ihn zum Fortschreiben der
+   * Liste und **verwarf ihn dann**. Die Anzeige konnte nicht wissen, welcher
+   * Eintrag gerade dazukam — `unlockedEntryIds` ist der Zustand, nicht die
+   * Differenz.
+   *
+   * # Über einen ECHTEN Sieg, nicht über eine gesetzte Kurzfassung
+   *
+   * `setBossHpRemaining(0)` und ein Takt: Damit läuft der Weg, den auch der
+   * Spieler nimmt — `session.finish(OUTCOME_VICTORY)` ruft `onFinish`, und
+   * dort hängt der Aufruf. Eine von Hand gebaute `RunSummary` mit
+   * `victory: true` prüfte die Rechnung, nicht den Anschluss.
+   */
+  function siegFahren(app: App): void {
+    app.session.startFight(0);
+    // Der Countdown muss durch sein, bevor der Kampf zählt.
+    app.session.tick(5_000);
+    app.combat.setBossHpRemaining(0);
+    app.session.tick(6_000);
+  }
+
+  it('der erste Sieg zeigt das Fenster', () => {
+    const app = baueApp();
+    siegFahren(app);
+
+    // ZUSICHERUNG: Es war wirklich ein Sieg. Ohne sie prüfte der Fall darunter
+    // eine Niederlage und wäre grün, weil dann zu Recht nichts erscheint.
+    expect(app.lastRecord?.counted, 'der Lauf wurde nicht gezählt').toBe(true);
+    expect(
+      app.lastRecord?.unlockedEntry,
+      'der Sieg hat keinen Eintrag freigeschaltet — dann sagt der Fall nichts über die Anzeige',
+    ).not.toBeNull();
+
+    const fenster = document.querySelector('.archive-popup');
+    expect(fenster, 'kein Fenster nach dem ersten Sieg').not.toBeNull();
+    expect(fenster?.textContent).toContain('Prologue Victory');
+    // Die Knöpfe aus der Entscheidung (GAME-DESIGN 20.5 Punkt 6).
+    expect(fenster?.querySelector('.intro-continue')).not.toBeNull();
+    expect(fenster?.querySelector('.intro-skip')).not.toBeNull();
+  });
+
+  it('der ZWEITE Sieg zeigt es NICHT mehr', () => {
+    // Der Teil von AC1, der erst jetzt prüfbar ist: Solange gar nichts
+    // erschien, war er trivial erfüllt und sagte nichts.
+    const app = baueApp();
+    siegFahren(app);
+    document.querySelector('.archive-popup')?.remove();
+
+    // Zweiter Lauf auf demselben Spielstand.
+    app.restart();
+    siegFahren(app);
+
+    expect(app.lastRecord?.counted, 'der zweite Lauf wurde nicht gezählt').toBe(true);
+    expect(
+      app.lastRecord?.unlockedEntry,
+      'der zweite Sieg hat erneut freigeschaltet — dann greift „einmal automatisch" nicht',
+    ).toBeNull();
+    expect(document.querySelector('.archive-popup'), 'das Fenster kam ein zweites Mal').toBeNull();
+  });
+
+  it('ein ABBRUCH zeigt nichts', () => {
+    // Die dritte Seite: `IGNORED_OUTCOMES` führt den Abbruch, er ist kein
+    // erster Sieg. Ohne diesen Fall wäre eine Umsetzung grün, die nach jedem
+    // Kampfende irgendetwas zeigt.
+    const app = baueApp();
+    app.session.startFight(0);
+    app.session.tick(5_000);
+    app.session.wipe(6_000);
+    expect(document.querySelector('.archive-popup')).toBeNull();
+  });
+
+  it('der Knopf schliesst es', () => {
+    const app = baueApp();
+    siegFahren(app);
+    const fenster = document.querySelector('.archive-popup');
+    expect(fenster).not.toBeNull();
+    (fenster?.querySelector('.intro-skip') as HTMLButtonElement | null)?.click();
+    expect(document.querySelector('.archive-popup'), 'SKIP hat nicht geschlossen').toBeNull();
+  });
+});
