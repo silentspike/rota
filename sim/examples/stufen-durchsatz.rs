@@ -259,7 +259,18 @@ fn main() {
     println!();
 
     // MESSUNG 2 — Qualitaet gekoppelt, wie das Spiel sie vergibt.
-    println!("  MESSUNG 2 — Qualitaet gekoppelt (qualityCapOf), Stufe UND Qualitaet wachsen");
+    //
+    // **Der Faktor aus dieser Reihe ist eine UNTERGRENZE, keine Messung des
+    // Spiels.** Er kam als 376 nach main (PR #844) und wird seither zitiert.
+    //
+    // Der Grund steht in Messung 6: Hier bekommt der Spieler nur Affixe. Das
+    // Spiel gibt zusaetzlich IMMER die Grundwerte mit (`data/items.json`), und
+    // weil epic nur drei Affix-Plaetze hat, kam `essence` reihum nie dran —
+    // ausgerechnet die staerkste Groesse (Messung 5: 655432 gegen 122317).
+    //
+    // Mit dem Grundwert steht dort 2627 statt 376. Wer diese Zeile zitiert,
+    // zitiert einen Spieler, den es nicht gibt.
+    println!("  MESSUNG 2 — Qualitaet gekoppelt (qualityCapOf) — UNTERGRENZE, siehe Messung 6");
     let mut basis2 = 0.0;
     for (stufe, woher) in STUFEN {
         let q = qualitaet_bei(stufe);
