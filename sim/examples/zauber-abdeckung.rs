@@ -36,7 +36,12 @@ use rota_sim::apl::AplName;
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, SPELLS};
 use rota_sim::factors::NEUTRAL;
+use rota_sim::gear::{
+    distribute_budget, WornValues, QUALITY_HAS_EFFECT, QUALITY_LEGENDARY, QUALITY_NAMES,
+    QUALITY_RARE, SLOT_COUNT,
+};
 use rota_sim::rotation_search::{all_candidates, greedy};
+use rota_sim::sources::gear_effects_permille;
 
 /// Die vier Bosse der ERSTEN Instanz.
 ///
@@ -60,7 +65,7 @@ const SEED: u32 = 0;
 /// searing, smoulder`.
 const MINDESTENS: usize = 11;
 
-fn config(boss_id: &str) -> BalanceConfig {
+fn config(boss_id: &str, worn: WornValues) -> BalanceConfig {
     let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
     BalanceConfig {
         iterations: RUNS,
@@ -69,8 +74,111 @@ fn config(boss_id: &str) -> BalanceConfig {
         duration_ms: None,
         stop_on_kill: false,
         factors: NEUTRAL,
+        worn,
         boss,
         ..BalanceConfig::default()
+    }
+}
+
+/// Die zwei Ausrüstungsstände für AC4 (Issue #550).
+///
+/// **Zwei, weil einer die falsche Frage beantwortet.** Stufe 85 ist das
+/// Äusserste, was `itemLevelOf` vergibt (Instanz 14, Schwierigkeit 2) — dort
+/// zeigt sich, ob Ausrüstung überhaupt etwas verschieben KANN. Ein Spieler
+/// trägt sie in Instanz 1 aber nie; wer nur so misst, beantwortet eine Frage,
+/// die sich im Spiel nicht stellt.
+///
+/// Stufe 13 ist der Stand, mit dem ein Spieler die vierte Instanz betritt
+/// (`itemLevelOf(3, 0, 0)`, GAME-DESIGN 20.5 Punkt 1) — die höchste heute
+/// erreichbare Vorstufe. Dort steht die Frage, die das Spiel wirklich stellt.
+const AC4_STUFEN: [(u32, usize, &str); 2] = [
+    (13, QUALITY_RARE, "erreichbar heute (Vorstufe Instanz 4)"),
+    (
+        85,
+        QUALITY_LEGENDARY,
+        "Aeusserstes, was itemLevelOf vergibt",
+    ),
+];
+
+/// Der volle Satz auf einer Stufe und Qualität.
+///
+/// **Alle vier Töpfe belegt, aber auf zwei Wegen.** `distribute_budget` füllt
+/// drei — `QUALITY_AFFIX_SLOTS = [1, 2, 3, 3]` gibt auch LEGENDARY nicht mehr.
+/// Der vierte, `gear_effects`, gehört dem Aufrufer: `distribute_budget` rührt
+/// ihn nicht an, und `best_build.rs:246` hält das mit einer Zusicherung fest
+/// („Topf 4 gehoert der anderen Seite"). Gäbe es zwei Wege zu dieser Zahl,
+/// liefen sie auseinander, sobald einer nachgezogen wird — und beide lieferten
+/// weiter plausible Werte.
+///
+/// Ohne diese Zeilen wäre LEGENDARY hier ein EPIC: Beide haben drei
+/// Affix-Plätze, der einzige Unterschied ist `QUALITY_HAS_EFFECT`.
+///
+/// Dieselbe Bauart wie `ausruestung()` in `stufen-durchsatz.rs`: Was belegt
+/// wird, kommt aus `distribute_budget` und damit aus den Daten, nicht aus einer
+/// Wahl hier.
+fn voller_satz(stufe: u32, quality: usize) -> WornValues {
+    let mut summe = WornValues::none();
+    for _platz in 0..SLOT_COUNT {
+        let mut werte = [0u64; 4];
+        let belegt = distribute_budget(stufe, quality, &mut werte);
+        for (topf, wert) in werte.iter().take(belegt).enumerate() {
+            let w = u32::try_from(*wert).unwrap_or(u32::MAX);
+            match topf % 4 {
+                0 => summe.catalysis += w,
+                1 => summe.purity += w,
+                2 => summe.yield_bonus += w,
+                _ => summe.essence += w,
+            }
+        }
+    }
+    // Der vierte Topf, vom Aufrufer gerechnet — dieselbe Funktion, die auch
+    // die Spielseite benutzt. Satzanteil 0: diese Messung trägt keine Sätze.
+    // Nur LEGENDARY trägt einen Sondereffekt (`QUALITY_HAS_EFFECT`).
+    let legendaere = if QUALITY_HAS_EFFECT[quality] {
+        u32::try_from(SLOT_COUNT).unwrap_or(0)
+    } else {
+        0
+    };
+    summe.gear_effects = gear_effects_permille(legendaere, 0);
+    summe
+}
+
+/// Sucht je Boss die beste Rotation und trägt ein, welche Zauber im LAUF
+/// vorkamen.
+///
+/// **Was im Lauf vorkam, nicht was in der Liste steht.** Bei `boss-1-3` stand
+/// `kindle` am 2026-08-14 in der besten Liste und wurde trotzdem nie gewirkt:
+/// Die Bedingungen davor greifen immer. Wer die Liste zählte statt den Lauf,
+/// bekäme dort einen Zauber zu viel.
+fn erhebe(
+    pool: &[rota_sim::rotation_search::Candidate],
+    spielbar: &[usize],
+    irgendwo_gewirkt: &mut [bool],
+    worn: WornValues,
+    laut: bool,
+) {
+    for boss_id in BOSSE {
+        let cfg = config(boss_id, worn);
+        let gefunden = greedy(&cfg, pool, MAX_LEN);
+
+        let boss = boss_by_id(boss_id).expect("Boss");
+        let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
+            seed: SEED,
+            boss,
+            worn,
+            ..rota_sim::FightConfig::default()
+        });
+        let lauf = fight.run_apl(&gefunden.best.apl);
+        let mut hier = 0;
+        for &i in spielbar {
+            if lauf.casts[i] > 0 {
+                irgendwo_gewirkt[i] = true;
+                hier += 1;
+            }
+        }
+        if laut {
+            println!("  {boss_id:<10} {hier:>2} von {} gewirkt", spielbar.len());
+        }
     }
 }
 
@@ -84,30 +192,13 @@ fn main() {
         .collect();
     let mut irgendwo_gewirkt: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
 
-    for boss_id in BOSSE {
-        let cfg = config(boss_id);
-        let gefunden = greedy(&cfg, &pool, MAX_LEN);
-
-        // **Was im LAUF vorkam, nicht was in der Liste steht.** Bei `boss-1-3`
-        // stand `kindle` am 2026-08-14 in der besten Liste und wurde trotzdem
-        // nie gewirkt: Die Bedingungen davor greifen immer. Wer die Liste
-        // zählte statt den Lauf, bekäme dort einen Zauber zu viel.
-        let boss = boss_by_id(boss_id).expect("Boss");
-        let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
-            seed: SEED,
-            boss,
-            ..rota_sim::FightConfig::default()
-        });
-        let lauf = fight.run_apl(&gefunden.best.apl);
-        let mut hier = 0;
-        for &i in &spielbar {
-            if lauf.casts[i] > 0 {
-                irgendwo_gewirkt[i] = true;
-                hier += 1;
-            }
-        }
-        println!("  {boss_id:<10} {hier:>2} von {} gewirkt", spielbar.len());
-    }
+    erhebe(
+        &pool,
+        &spielbar,
+        &mut irgendwo_gewirkt,
+        WornValues::none(),
+        true,
+    );
 
     let gewirkt: Vec<&str> = spielbar
         .iter()
@@ -190,6 +281,88 @@ fn main() {
         spielbar.len(),
         MINDESTENS
     );
+
+    // **AC4 aus #550, hinter einem Schalter.** Die Frage lautet: Ändert
+    // Ausrüstung, WELCHE Zauber vorkommen — oder nur, wie viel Schaden sie
+    // machen?
+    //
+    // Hinter einem Schalter, weil der Nightly die Zahl täglich braucht und den
+    // Vergleich nicht: Er verdoppelt die Laufzeit und beantwortet eine Frage,
+    // die einmal gestellt war.
+    //
+    // **Zur Wortwahl der AC:** Sie verlangt „Faktoren ungleich NEUTRAL".
+    // `factors` (`DamageFactors`) und `worn` (`WornValues`) sind zwei Felder;
+    // Ausrüstung wirkt über `worn` — „der Weg, auf dem Ausruestung ueberhaupt
+    // messbar wird" (`balance.rs`, Feld-Kommentar, Issue #177). `factors` von
+    // Hand zu verstellen wäre eine Modellrechnung, keine Messung. Deshalb
+    // bewegt dieser Vergleich `worn`.
+    if std::env::args().any(|a| a == "--mit-ausruestung") {
+        println!();
+        println!("== AC4: dieselbe Erhebung MIT Ausruestung ==");
+        println!();
+        println!(
+            "  NEUTRAL                     {:>2} von {}   {}",
+            gewirkt.len(),
+            spielbar.len(),
+            gewirkt.join(", ")
+        );
+
+        for (stufe, quality, warum) in AC4_STUFEN {
+            let worn = voller_satz(stufe, quality);
+            // Die Zusicherung je Stand: Ein Satz ohne Werte sähe wie
+            // „verschiebt nichts" aus und wäre nur ein zweiter NEUTRAL-Lauf.
+            assert!(
+                worn.catalysis + worn.purity + worn.yield_bonus + worn.essence + worn.gear_effects
+                    > 0,
+                "der Satz auf Stufe {stufe} traegt keine Werte — dann ist der Vergleich \
+                 zwei mal NEUTRAL"
+            );
+
+            let mut mit: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
+            erhebe(&pool, &spielbar, &mut mit, worn, false);
+            let gewirkt_mit: Vec<&str> = spielbar
+                .iter()
+                .filter(|&&i| mit[i])
+                .map(|&i| SPELLS[i].id)
+                .collect();
+
+            println!();
+            println!("  Stufe {stufe}, {} — {warum}", QUALITY_NAMES[quality]);
+            println!(
+                "    worn: catalysis {}, purity {}, yield {}, essence {}, effects {}",
+                worn.catalysis, worn.purity, worn.yield_bonus, worn.essence, worn.gear_effects
+            );
+            println!(
+                "    ausgeruestet                {:>2} von {}   {}",
+                gewirkt_mit.len(),
+                spielbar.len(),
+                gewirkt_mit.join(", ")
+            );
+
+            let nur_neutral: Vec<&str> = gewirkt
+                .iter()
+                .filter(|z| !gewirkt_mit.contains(z))
+                .copied()
+                .collect();
+            let nur_mit: Vec<&str> = gewirkt_mit
+                .iter()
+                .filter(|z| !gewirkt.contains(z))
+                .copied()
+                .collect();
+
+            if nur_neutral.is_empty() && nur_mit.is_empty() {
+                println!("    -> VERSCHIEBT DIE AUSWAHL NICHT: dieselben Zauber.");
+            } else {
+                println!("    -> VERSCHIEBT DIE AUSWAHL:");
+                if !nur_neutral.is_empty() {
+                    println!("       faellt weg: {}", nur_neutral.join(", "));
+                }
+                if !nur_mit.is_empty() {
+                    println!("       kommt dazu: {}", nur_mit.join(", "));
+                }
+            }
+        }
+    }
 
     // Der Handschrift-Vergleich bleibt `rotation-search` überlassen; dieser
     // Läufer hält genau eine Zahl. `AplName` wird nur importiert, damit die
