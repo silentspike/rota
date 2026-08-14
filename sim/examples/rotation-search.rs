@@ -773,11 +773,35 @@ fn main() {
     println!("  Die beiden Zahlen {max_len} und 4 gehoeren also zu verschiedenen Laeufen und");
     println!("  duerfen nicht verwechselt werden. Fuer Laenge {max_len} selbst ist NICHT");
     println!("  geprueft, ob eine laengere Liste besser waere — erschoepfend waere das bei");
-    println!("  siebzehn Kandidaten unerreichbar.");
+    // **Die Zahl wird abgelesen, nicht geschrieben.** Hier stand „siebzehn" —
+    // gemessen sind es heute 93 Kandidatenzeilen. Eine feste Zahl im Fliesstext
+    // altert still, und der Laeufer kennt die richtige ohnehin (Zeile mit
+    // `Kandidatenzeilen` weiter oben).
+    println!("  {} Kandidatenzeilen unerreichbar.", pool.len());
     println!();
     println!("  DAS ERGEBNIS IST EINE UNTERGRENZE, KEIN BEWIESENES OPTIMUM.");
     println!("  Es sagt: besser als das hier wurde im abgesuchten Raum nichts gefunden.");
     println!("  Es sagt nicht, dass es nichts Besseres gibt.");
+    println!();
+    // **Die zweite Grenze, und sie ist nicht die Laenge** (Issue #558, AC4).
+    //
+    // Bis #558 fuegte die Suche Zeilen nur EINZELN ein. Ein Paar, dessen beide
+    // Haelften einzeln verlieren, war damit unauffindbar. `paar_zuege`
+    // (`sim/src/rotation_search.rs`) hat das behoben — aber nur fuer EINE Sorte
+    // Paar, und der Rest bleibt blind.
+    //
+    // **Warum der Satz hierher gehoert und nicht in ein Dokument:** Der Autor
+    // von #558 hat das Ergebnis dieses Laeufers als "diese Zauber taugen
+    // nichts" gelesen und ein Issue darauf gebaut. Wer die Ausgabe liest, liest
+    // diese Zeilen mit; ein Dokument daneben liest er nicht.
+    println!("  UND ES SUCHT NUR EINE SORTE ZUSAMMENSPIEL (Issue #558).");
+    println!("  Paare bildet es, wenn eine Zeile ein Verstaerker-FENSTER ist und ihre");
+    println!("  Bedingung den Verstaerker nennt. Alles andere sieht es nur, wenn schon");
+    println!("  eine Haelfte allein gewinnt:");
+    println!("    - Paare ohne Buff-Bedingung (gemessen: pin + quench, #558 AC1)");
+    println!("    - Dreiergruppen");
+    println!("    - Paare, deren beide Haelften ein Fenster sind");
+    println!("  Ein Zauber, der hier fehlt, ist deshalb NICHT belegt schwach.");
     let _ = index_of("kindle");
     let _ = Stop::NoImprovement;
 }

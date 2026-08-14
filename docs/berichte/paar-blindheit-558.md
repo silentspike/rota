@@ -186,6 +186,77 @@ nicht gefunden, weil die Suche bei Stufe 7 anders startet. Die Vermutung ging
 als Vorschlag raus, nicht als Befund — das war der Unterschied zwischen einer
 Notiz und einem Issue, das jemand bearbeitet hätte.
 
+## Nachtrag Worker-1, 2026-08-14 — AC1 an einem zweiten Paar, und AC4
+
+Der Bericht oben belegt AC2 und AC3 an dem Paar, das AC1 nennt: einem
+**Verstaerker**-Paar. Die Suche findet es seit `paar_zuege`. Dieser Nachtrag
+haelt fest, dass es eine zweite Sorte gibt, die sie weiterhin nicht findet.
+
+### `pin` + `quench` — ein Paar, das nicht aus Verstaerkung besteht
+
+`data/spells` sagt es im Kommentar von `pin` selbst:
+
+> „PIN — der naechste Boss-Zauber wird UNTERBRECHBAR. Das Raster nennt den
+> Zweck: _Verbindet die Schule mit quench_. Wer unterbrechen kann, braucht
+> etwas zum Unterbrechen."
+
+Keine der beiden Haelften traegt eine Buff-Bedingung. `paar_zuege` verlangt
+genau die — also sieht es dieses Paar nicht.
+
+### Gemessen: es traegt sich auch nicht
+
+Beste Liste fuer `boss-1-1` (6 Zeilen), Zeilen **ersetzt** statt eingefuegt:
+
+| Variante                                        | Zeit bis Sieg | Siege      |
+| ----------------------------------------------- | ------------: | ---------- |
+| BASIS                                           |         30010 | 1000/1000  |
+| nur `pin` (aether ersetzt)                      |         51500 | 1000/1000  |
+| `pin` + `quench` ohne Bedingung                 |             — | **0/1000** |
+| `pin` + `quench` **mit** `if boss.casting >= 1` |             — | **0/1000** |
+
+**Die Bedingung aendert nichts.** Und der Einzel-Tausch an derselben Stelle
+gewinnt noch — der Unterschied zwischen „gewinnt" und „gewinnt nie" liegt am
+zweiten Tausch, nicht am Aufbau. Beide Vorbehalte, die diese Messung zuerst
+hatte, sind damit ausgeraeumt.
+
+**Vermutung, nicht gemessen:** `boss-1-1` dauert in der besten Fassung zwei
+Zyklen, seine Casts liegen bei 3000 und 13000 ms. `quench` hat also wenige
+Gelegenheiten und zahlt trotzdem jedes Mal einen GCD. An einem Boss mit
+dichteren Casts koennte es anders aussehen.
+
+### Was das fuer AC1 bedeutet
+
+Zwei Paare, zwei verschiedene Antworten — und die Trennung ist der Ertrag:
+
+|                        | findet die Suche?         | traegt es sich?                    |
+| ---------------------- | ------------------------- | ---------------------------------- |
+| Verstaerker-Paar (AC1) | **ja**, seit `paar_zuege` | nein (225 geprueft, keins gewinnt) |
+| `pin` + `quench`       | **nein**                  | nein, auch nicht mit Bedingung     |
+
+Der blinde Fleck ist also kleiner geworden, aber nicht verschwunden.
+
+### AC4 — der Laeufer nennt das jetzt selbst
+
+`sim/examples/rotation-search.rs` gibt unter der Laengengrenze aus, dass er
+nur eine Sorte Zusammenspiel sucht, welche drei Faelle er nicht sieht, und den
+Satz, auf den es ankommt: **„Ein Zauber, der hier fehlt, ist deshalb NICHT
+belegt schwach."**
+
+Die Grenze allein waere eine Fussnote. Was aus ihr folgt, ist der Grund, aus
+dem #558 entstanden ist — der Autor las eine Abwesenheit als Schwaeche.
+
+`sim/tests/suchbericht_nennt_grenzen.rs` haelt es (fuenf Faelle, Mutation am
+Satz faerbt einen davon).
+
+### Eine Zahl, die dabei zweimal falsch war
+
+Im selben Block stand „bei siebzehn Kandidaten unerreichbar". Der erste
+Korrekturvorschlag lautete 58 — die Zahl der spielbaren Zauber. **Auch falsch:**
+Der Laeufer zaehlt _Kandidatenzeilen_, und davon gibt es 93.
+
+Dort steht deshalb jetzt keine Zahl, sondern `pool.len()` — dieselbe Groesse,
+die der Laeufer zwanzig Zeilen weiter oben ohnehin druckt.
+
 ## Was offen bleibt
 
 **Die Paar-Suche ist gebaut und findet an den heutigen Daten nichts.** Ob sie
