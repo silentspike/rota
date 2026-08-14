@@ -966,9 +966,42 @@ const CHANNEL_BINDINGS: readonly { slot: number; id: string }[] = [
  * der Schutz faengt bei `test-caster` alle 96 Schaden ab, der Spieler bleibt
  * auf vollen Leben, und Ueberheilung zaehlt nicht. Eine Mutation im Heil-Zweig
  * waere dadurch gruen geblieben; die Aufzeichnung haette eine Deckung
- * behauptet, die sie nicht hat. Sein Loch bleibt offen und ist gemeldet —
- * `test-caster` ist der EINZIGE Boss mit `interruptsPlayer`, und ohne Abbruch
- * gaebe es fuer den Schutz-Kanal nichts zu zeigen.
+ * behauptet, die sie nicht hat.
+ *
+ * # HIER STAND EINE ZU ENGE BEGRUENDUNG, und sie war laenger haltbar als ein
+ * Fehler im Code
+ *
+ * Bis zum 2026-08-14 endete dieser Absatz so:
+ *
+ * > `test-caster` ist der EINZIGE Boss mit `interruptsPlayer`, und ohne
+ * > Abbruch gaebe es fuer den Schutz-Kanal nichts zu zeigen.
+ *
+ * **Der zweite Halbsatz ist falsch.** Ein Kanal bricht auch VON HAND ab, durch
+ * einen eigenen Zauber; ein Boss mit `interruptsPlayer` ist EIN Weg, nicht der
+ * einzige. Der Gegenbeweis lag in derselben Datei: `recordChannelRotation`
+ * darueber bricht mit KINDLE ab (`castsCancelled: 1`), und der Prueffall
+ * „ein ABBRUCH friert sie auf dem erreichten Wert ein" laeuft gegen
+ * `first-crucible` — einen Boss OHNE JEDEN SCHLAG.
+ *
+ * Warum es trotzdem plausibel aussah: Der Satz stand neben richtigem Code, und
+ * niemand fuehrt eine Begruendung aus. Wer als naechster einen Kanal messen
+ * wollte, haette sich einen Boss mit `interruptsPlayer` gesucht — den es genau
+ * einmal gibt — statt einfach von Hand abzubrechen.
+ *
+ * **Der WAHRE Grund fuers Weglassen ist ein anderer und haengt an keinem
+ * Boss:** Ein Schutz-Kanal im selben Lauf macht die Heilung wirkungslos, weil
+ * er genau den Schaden abfaengt, den sie heilen muesste. Gemessen ueber
+ * 24 s (#323, Folge-PR):
+ *
+ * | Lauf | genommen | geheilt |
+ * | --- | --- | --- |
+ * | `boss-2-3` OHNE Schutz-Kanal | 1040 | 1020 |
+ * | `boss-2-3` MIT Schutz-Kanal | 40 | 0 |
+ * | `boss-4-4` MIT Schutz-Kanal | 0 | 0 |
+ *
+ * Ein haerter schlagender Boss verschiebt das, er loest es nicht. Deshalb hat
+ * der Heil-Kanal seine EIGENE Aufzeichnung (`CHANNEL_HEAL_BINDINGS` unten) und
+ * teilt sich keine mit dem Schutz.
  */
 const CHANNEL_SHIELD_BINDINGS: readonly { slot: number; id: string }[] = [
   { slot: 0, id: 'kindle' },
@@ -986,10 +1019,14 @@ const CHANNEL_SHIELD_BINDINGS: readonly { slot: number; id: string }[] = [
  * | 9000 ms | Ein Schlag mit `interruptsPlayer` bricht ab — die Schicht bleibt stehen |
  *
  * **Der Boss `test-caster` ist die Wahl, nicht die Bequemlichkeit.** Er ist der
- * einzige mit `interruptsPlayer`, und genau darum geht es in Punkt 3: „bricht
- * er ab, bleibt sie auf dem erreichten Wert stehen." Dass er zusaetzlich
- * schlaegt, deckt die andere Haelfte — ohne eingehenden Schaden wuerde die
- * Schicht nie abgetragen, und `absorbed` bliebe null.
+ * einzige mit `interruptsPlayer`, und dieser Lauf zeigt den Abbruch DURCH DEN
+ * BOSS — Punkt 3: „bricht er ab, bleibt sie auf dem erreichten Wert stehen."
+ * Dass er zusaetzlich schlaegt, deckt die andere Haelfte: ohne eingehenden
+ * Schaden wuerde die Schicht nie abgetragen, und `absorbed` bliebe null.
+ *
+ * **Der Abbruch durch den Boss ist EIN Weg, nicht der einzige.** Von Hand geht
+ * es auch, und `recordChannelHealRotation` unten tut genau das — siehe die
+ * Richtigstellung im Absatz ueber `CHANNEL_SHIELD_BINDINGS`.
  */
 function recordChannelShieldRotation(name: string, ticks: number, boss: BossDef): Recording {
   const combat = new Combat({ school: CALCINATION.value, boss });
@@ -1051,6 +1088,97 @@ function recordChannelShieldRotation(name: string, ticks: number, boss: BossDef)
     ticks,
     presses,
     bindings: CHANNEL_SHIELD_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
+  };
+}
+
+/**
+ * Die Belegung der Aufzeichnung zum HEIL-Kanal (Issue #323, Nachtrag zu #843).
+ *
+ * **Kein Schutz-Kanal daneben, und das ist der ganze Grund fuer eine eigene
+ * Datei** — die Zahlen stehen im Absatz ueber `CHANNEL_SHIELD_BINDINGS`.
+ *
+ * **Warum `boss-2-3`:** Ein Heil-Kanal zahlt nur aus, wenn dem Spieler etwas
+ * fehlt; Ueberheilung zaehlt nicht. Die Bosse unterscheiden sich darin um mehr
+ * als eine Groessenordnung, gemessen ueber 40 s mit demselben Kanal:
+ *
+ * | Boss | geheilt |
+ * | --- | --- |
+ * | `boss-2-3` | 1860 |
+ * | `boss-2-4` | 1700 |
+ * | `boss-4-4` | 1572 |
+ * | `test-caster` (aus dem Schutz-Lauf) | 96 |
+ *
+ * `test-caster` haette also auch hier eine Aufzeichnung ergeben — eine, in der
+ * `healed` fast nur aus Rundungsresten besteht und eine Mutation im Heil-Zweig
+ * kaum etwas verschiebt.
+ */
+const CHANNEL_HEAL_BINDINGS: readonly { slot: number; id: string }[] = [
+  { slot: 0, id: 'kindle' },
+  { slot: 1, id: 'test-channel-heal' },
+];
+
+/**
+ * Die Runde, in der ein HEIL-Kanal laeuft und VON HAND abgebrochen wird
+ * (Issue #323, Nachtrag zu #843).
+ *
+ * | | |
+ * | --- | --- |
+ * | 0 ms | Der Heil-Kanal beginnt; er zahlt je 1000 ms einen Fuenftel aus |
+ * | dazwischen | KINDLE fuellt die Abklingzeit und laesst den Boss zuschlagen |
+ * | 17000 ms | KINDLE bricht einen laufenden Kanal ab — der erreichte Anteil bleibt |
+ *
+ * **Der Abbruch VON HAND ist hier der Punkt, nicht nur ein Detail.** In #858
+ * stand die Behauptung, ohne einen Boss mit `interruptsPlayer` gaebe es bei
+ * einer Kanalisierung nichts zu zeigen. Das war falsch, und dieser Lauf ist
+ * der Gegenbeleg: `boss-2-3` bricht nichts ab, der Spieler tut es selbst.
+ */
+function recordChannelHealRotation(name: string, ticks: number, boss: BossDef): Recording {
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const slotOf = new Map<number, number>();
+  for (const { slot, id } of CHANNEL_HEAL_BINDINGS) slotOf.set(combat.indexOf(id), slot);
+  const kindle = combat.indexOf('kindle');
+  const heilung = combat.indexOf('test-channel-heal');
+
+  const presses: RecordedPress[] = [];
+  const druecke = (index: number, tick: number, timeMs: number): void => {
+    const slot = slotOf.get(index);
+    if (slot === undefined) return;
+    if (!isCastAccepted(combat.cast(alsSpellIndex(index), timeMs).result)) return;
+    presses.push({ tick, slot });
+  };
+
+  let abgebrochen = false;
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    if (combat.playerCasting >= 0) {
+      // **Genau EIN Abbruch, und zwar von Hand.** Der Zeitpunkt ist gewaehlt,
+      // nicht gerechnet: 17000 ms liegt spaet genug, dass der Spieler bis
+      // dahin Schaden genommen hat (der Kanal also wirklich heilt), und der
+      // dritte Kanal laeuft dort noch.
+      if (abgebrochen || timeMs < 17000) continue;
+      abgebrochen = true;
+      druecke(kindle, tick, timeMs);
+      continue;
+    }
+
+    if (combat.isOffCooldown(heilung, timeMs)) {
+      druecke(heilung, tick, timeMs);
+    } else {
+      druecke(kindle, tick, timeMs);
+    }
+  }
+
+  return {
+    name,
+    seed: 0,
+    ticks,
+    presses,
+    bindings: CHANNEL_HEAL_BINDINGS.map(({ slot, id }) => ({ slot, spellId: id })),
   };
 }
 
@@ -1419,6 +1547,17 @@ export function recordings(): Map<string, Recording> {
       builtIn.set(
         'channel-schutz',
         recordChannelShieldRotation('channel-schutz', 2400, casterBoss),
+      );
+    }
+    // Die HEIL-Auszahlung der Kanalisierung (#323, Nachtrag zu #843). Anderer
+    // Boss als oben, und das ist der Kern: `boss-2-3` schlaegt hart genug,
+    // dass dem Spieler etwas zu heilen fehlt — bei `test-caster` waeren es
+    // 96 statt 1860. Der Abbruch kommt hier von Hand.
+    const schlaegerBoss = bossById('boss-2-3');
+    if (schlaegerBoss !== undefined) {
+      builtIn.set(
+        'channel-heilung',
+        recordChannelHealRotation('channel-heilung', 2400, schlaegerBoss),
       );
     }
     const racer = bossById('test-racer');
