@@ -167,6 +167,52 @@ Erkennbar ist sie nur an einer Mutation, die den Träger selbst entfernt. Wähle
 für einen Fall dieser Art einen Wert, den das Verfahren **nicht** von allein
 findet — bei einer Suche also nicht ihren Favoriten.
 
+#### Die Schwester: eine falsche Messgröße, die in der Hälfte der Fälle stimmt
+
+Ein Prüfstand zur Heilungs-Kanalisierung maß `playerHp` vorher/nachher statt
+`healed`. Die Gesundheit ist aber die Summe aus allem — der Boss schlägt während
+der Messung weiter zu:
+
+```
+Abbruch-Fall     expected -1300 to be 300     FAILED
+Durchlauf-Fall   GRÜN
+```
+
+Der Durchlauf-Fall war grün, weil sein Fenster zufällig zwischen zwei
+Boss-Schlägen lag (`test-onslaught` trifft bei 5000, 12000, 19000 ms). Wäre nur
+er gebaut worden, hätte der ganze Prüfstand grün gemeldet — und die falsche
+Größe gemessen.
+
+> **Eine Messgröße, die immer falsch liegt, fällt auf. Eine, die manchmal
+> zufällig richtig herauskommt, sieht aus wie ein echter Fall mit einem echten
+> Fehler daneben.**
+
+Der Reflex ist dann, den roten Fall zu reparieren — und damit den einzigen
+Zeugen. Bevor du das tust: Prüfe, ob der **grüne** Fall dieselbe Größe misst.
+Widersprechen sich zwei Fälle, ist die geteilte Messgröße der erste Verdächtige,
+nicht der Fall, der rot ist.
+
+##### Die Frage davor: was außer meiner Änderung bewegt diese Zahl?
+
+Am 2026-08-13 ist derselbe Griff **dreimal an einem Abend** danebengegangen, jedes
+Mal bei einer anderen Größe:
+
+| Gemessen                  | Wer sonst noch daran zieht                          |
+| ------------------------- | --------------------------------------------------- |
+| `playerHp` statt `healed` | der Boss schlägt während der Messung weiter zu      |
+| Vorrat statt Gewinn       | Hitze verfällt um 1 je 2000 ms (`calcination.json`) |
+| Schaden gesamt            | jede andere Quelle im selben Fenster                |
+
+Der zweite Fall meldete einen Verlauf `1 → 1 → 2 → 2 → 3` statt `1 → 2 → 3 → 4 → 5`
+und sah aus wie ein Baufehler. Die Umsetzung war richtig, die **Erwartung** falsch.
+
+> **Eine Zustandsgröße ist die Summe aus allem, was sie bewegt. Miss die
+> Bewegung, nicht den Stand** — `healed` statt `hp`, `gained` statt `resource`.
+
+Gibt es keine solche Größe, rechne die fremden Bewegungen **aus den Daten** mit,
+nie aus einer abgeschriebenen Rate: Eine Verfallsrate im Prüffall ist beim
+nächsten Datensatz falsch und meldet dann einen Baufehler, den es nicht gibt.
+
 #### Beide Rechenseiten gleich falsch — die Parität schweigt
 
 Eine Kanalisierung ging auf keiner der beiden Seiten je auf Abklingzeit. Der
@@ -278,6 +324,128 @@ npx vitest run … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?"
 
 **Der Exit-Code kommt aus `echo $?` direkt nach dem Befehl, nie aus der Datei.**
 Er kann von einer fremden Sitzung nicht überschrieben werden, der Dateiinhalt schon.
+
+#### Aber nicht bei einem Hintergrundlauf — dort gilt er dem Wrapper
+
+Am 2026-08-13 meldete die Harness **dreimal** „completed (exit code 0)" für Läufe,
+die es nicht waren:
+
+| Gemeldet    | Tatsächlich                             | Was der Code beschrieb |
+| ----------- | --------------------------------------- | ---------------------- |
+| exit code 0 | `101` in der Datei, ein roter Fall      | den Wrapper            |
+| exit code 0 | `124` — Zeitlimit                       | den Wrapper            |
+| completed   | Lauf stand noch in der `flock`-Schlange | den Wrapper            |
+
+> **Bei einem Hintergrundlauf beschreibt der gemeldete Code den Starter, nicht die
+> gestartete Arbeit.** „Fertig, Code 0" kann heißen: hat nie angefangen.
+
+Die Auflösung deckt beide Fälle ab — Rollen-Präfix gegen fremde Sitzungen, und der
+Code **in** der Datei statt in der Meldung:
+
+```
+cargo remote -c -- test … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?" >> /work/tmp/<rolle>-<zweck>.log
+```
+
+Mit Präfix kann die Datei nicht fremdbeschrieben werden, also ist ihr Inhalt sicher —
+und er gilt dem Lauf, nicht dem Wrapper. Bei einem **Vordergrund**-Befehl bleibt
+`echo $?` in derselben Shell richtig.
+
+#### Und `rc=101` heißt nicht immer „ein Fall ist rot"
+
+Ein Compilerfehler in **einem** Testziel bricht `cargo test` ab — auch mit
+`--no-fail-fast`, und mit derselben 101, die zwei rote Fälle liefern:
+
+```
+error[E0308]: mismatched types
+sim/tests/kanal_zaehlung.rs:120  expected fn pointer, found closure
+```
+
+Der Lauf hat dann **keinen einzigen** Fall geprüft. Unterscheiden lässt es sich in
+einem Griff:
+
+```
+grep -cE "^test .* \.\.\. (ok|FAILED)" <log>     0  →  nichts lief
+```
+
+**Nicht `grep -c "test result: ok"`** — diese Zeile fehlt auch bei einem Lauf, der
+sauber lief und rot war, denn dort steht `test result: FAILED`. Bei einem
+Vollstand über viele Suiten fällt der Unterschied nicht auf (150 grüne Suiten
+stehen daneben); bei `--test <einziges-ziel>` meldet der Griff einen
+Compilerabbruch, wo ein normaler roter Lauf war. Zähle die **Fallzeilen**, nicht
+die Suiten-Zusammenfassung.
+
+Das ist die vierte Form von „der Lauf hat nicht stattgefunden" — nach _exit 0
+trotz 101_, _stand noch in der Schlange_ und _Ausgabedatei 0 Bytes_.
+
+#### Die fünfte: ein Fall meldet grün, der rot ist
+
+In der Nacht auf den 2026-08-14 meldete ein Mutationslauf fünf Fälle richtig und
+**einen falsch** — der Fall, der die Wurfzahl vergleicht, stand mit `ok` da,
+obwohl die Zeile fehlte, die sie erhöht. Zwei Sitzungen haben daraufhin **neun
+Erklärungen** durchprobiert und alle neun widerlegt.
+
+Der Befund war nicht reproduzierbar: Derselbe Eingriff an derselben Zeile, von
+einer anderen Sitzung gefahren, färbte den Fall mit `left: 0, right: 3`.
+
+> **Bevor du erklärst, warum ein Ergebnis unmöglich ist: fahre es noch einmal.**
+> Eine Stunde Codelesen kostet mehr als ein zweiter Lauf — und findet nichts, wenn
+> im Code nichts ist.
+
+Diese Form ist die unangenehmste, weil sie sich nicht als Störung meldet: richtige
+Fallnamen, plausibles `rc`, ein einziger Wert daneben. Sie sieht aus wie ein
+Befund über den Code und ist einer über den Lauf.
+
+### Ein neuer Zauber steht an drei Handlisten, und keine findet die andere
+
+```
+src/core/data.ts          import + mitSchule(...)
+sim/build.rs              const + read_json + Liste
+sim/tests/data_source.rs  include_str + Liste
+```
+
+Fehlt die zweite, kennt der Simulator den Zauber nicht — 68 gegen 69, **jede**
+Prüfsumme läuft auseinander. Fehlt die dritte, meldet der Datenwächter
+`einkompiliert sind 69 Zauber, in der Datei stehen 68`.
+
+Am 2026-08-14 wurde der Zauber im Spiel gemessen (heilt 300 nach drei Schritten,
+500 voll) und daraus geschlossen, er sei da. Der Simulator kannte ihn nicht einmal.
+
+> **„Kommt er im Spiel an?" ist nicht „kennen ihn alle Seiten?"**
+
+Finden lassen sich die Listen mit `grep -rl "<zauberdatei>.json"` — **aber die Wahl
+der Referenzdatei entscheidet das Ergebnis:**
+
+> **Eine Referenzdatei taugt nur, wenn sie ausschließlich an Pflichtstellen
+> steht.** Das trifft auf einen Prüfzauber zu (`test-cast`, `test-buff`,
+> `test-channel`), nicht auf eine Schuldatei.
+
+Wer mit `calcination.json` sucht, bekommt jede Erwähnung aus Prüffällen und
+Kommentaren dazu und muss die Pflichtstellen selbst herauslesen; wer mit
+`test-channel.json` sucht, bekommt genau die Liste, die er abzuarbeiten hat.
+
+**Eine Trefferzahl steht hier bewusst nicht.** Sie hängt am Filter: Dieselbe
+Suche lieferte 12 Dateien mit `--include={*.ts,*.rs}` und 15 mit `*.json` und
+`*.py` dazu. Eine Zahl, die von der Werkzeugeinstellung abhängt, ist als Marke
+unbrauchbar — und wer sie im Guide liest, hält sie für eine Eigenschaft des
+Projekts.
+
+Prüfe die Trefferliste außerdem auf generierte Dateien: `sim/src/data.rs` nennt
+`calcination.json` zwar, ist aber Ausgabe von `build.rs` und keine Liste.
+
+### Zwei Mutationen auf derselben Seite sind kein zweiseitiger Nachweis
+
+Bei einer Änderung, die TypeScript **und** Rust berührt, belegen zwei Mutationen
+nur so viele Seiten, wie sie anfassen. Am 2026-08-13 prüften der Bauende und der
+Abnehmende dieselbe Änderung mit je einer Mutation — beide in `combat.ts`, eine an
+der neuen Zeile, eine an der alten. Das sah nach unabhängiger Doppelprüfung aus und
+war eine doppelte Prüfung **derselben Hälfte**.
+
+Die Rust-Zeile war nie mutiert. Ihr Anschluss stand nur als Ableitung da: „wenn Rust
+nicht zählte, wäre `casts` 0 gegen 3, also wird der Fall rot" — plausibel, und genau
+die Form, die diese Datei sonst nicht durchgehen lässt.
+
+> **Zähle bei der Abnahme nicht die Mutationen, sondern die Seiten, die sie
+> berühren.** Eine Änderung auf zwei Seiten braucht mindestens eine Mutation je Seite.
 
 ### Und die Umkehrung: eine Zahl aus einem Dokument ist keine Messung
 
