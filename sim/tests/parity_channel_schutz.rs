@@ -27,6 +27,22 @@
 //! Die mittlere Zeile ist der Unterschied zur verworfenen Variante: Ein Kanal,
 //! der je Schritt eine NEUE Schicht legte, waere bei `maxStacks: 1` nach dem
 //! ersten Schritt am Anschlag gewesen und haette nichts mehr nachgelegt.
+//!
+//! WIE WEIT DIESER LAUF DIE ABLAUFZEIT DECKT — und wo er aufhoert
+//! --------------------------------------------------------------
+//! Die Uhr startet mit jedem Schritt neu (Annahme 1). Der letzte Schritt faellt
+//! bei 17500 ms, die Schicht haelt 20000 ms, ihr Ende liegt also bei 37500 ms —
+//! und damit HINTER dem Lauf (24000 ms).
+//!
+//! Trotzdem faengt dieser Prueistand die Regel, und zwar in einer Richtung:
+//! Wuerde die Uhr nur beim ERSTEN Schritt gesetzt, endete die Schicht schon bei
+//! 21000 ms und damit mitten im Lauf. Gemessen am 2026-08-14 mit genau dieser
+//! Mutation — zwei Faelle rot, erster abweichender Takt bei 21010 ms. Das ist
+//! derselbe Takt, an dem `channel.test.ts` auf der Spielseite anschlaegt.
+//!
+//! **Eine Uhr, die zu SPAET ablaeuft, faengt dieser Lauf nicht** — ihr Ende
+//! laege noch weiter hinten und bliebe ausserhalb des Fensters. Wer das decken
+//! will, muss den Lauf ueber 37500 ms hinaus verlaengern.
 use serde_json::Value;
 
 use rota_sim::data::{boss_by_id, index_of};
