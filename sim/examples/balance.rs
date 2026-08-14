@@ -64,7 +64,9 @@ fn main() -> ExitCode {
                  --boss <id>  gegen welchen Boss gerechnet wird; ohne ihn gegen\n              \
                  den Standard, der KEINEN Schaden austeilt\n\
                  --json Ausgabe als JSON statt als Text\n\n\
-                 Ausgegeben werden: Schaden, Siege, eingesteckter Schaden, Tode\n\
+                 Ausgegeben werden: Schaden, Siege, eingesteckter Schaden, Tode,\n\
+                 Zeit bis Sieg UND Zeit bis Tod (die zweite Balance-Groesse\n\
+                 aus GAME-DESIGN 20.5 Punkt 4)\n\
                  und die Wirkungen je Zauber."
             );
             return ExitCode::SUCCESS;
@@ -292,6 +294,18 @@ fn report(name: &str, result: &BalanceResult, sekunden: f64) {
     }
     if result.kills > 0 {
         zeile_stat("Zeit bis Sieg (ms)", &result.kill_time_ms);
+    }
+    // **Die zweite Balance-Groesse** (GAME-DESIGN 20.5 Punkt 4, Issue #814).
+    //
+    // Sie steht NEBEN der Zeit bis zum Sieg, nicht statt ihrer: Die eine sagt,
+    // wie schnell der Boss faellt, die andere, wie lange der Spieler durchhaelt.
+    // Eine Mechanik, die Schaden nur verschiebt, bewegt ausschliesslich die
+    // zweite — fuer die Summe ist sie unsichtbar.
+    //
+    // Ausgegeben nur, wenn es Tode gab. Bei `deaths == 0` waere die Statistik
+    // leer, und eine Zeile aus lauter Nullen liest sich wie eine Messung.
+    if result.deaths > 0 {
+        zeile_stat("Zeit bis Tod (ms)", &result.death_time_ms);
     }
     zeile(
         "Dauer",
