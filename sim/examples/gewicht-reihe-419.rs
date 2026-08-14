@@ -69,6 +69,15 @@ use rota_sim::{Fight, FightConfig};
 const GEWICHTE: [f64; 12] = [
     0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0,
 ];
+
+/// Die Bosse, an denen gemessen wird.
+///
+/// **Mehr als einer, und der Grund ist eine Einschraenkung meiner eigenen
+/// ersten Messung:** Eine Kurve an einem einzigen Boss sagt nichts darueber,
+/// ob sie verallgemeinerbar ist. `boss-2-3` traegt `runaway` und damit ein
+/// anderes Ziel — liegt die Kurve dort anders, ist eine Entscheidung ueber
+/// `prevented_weight` keine allgemeine, sondern eine ueber boss-1-1.
+const BOSSE: [&str; 3] = ["boss-1-1", "boss-1-2", "boss-2-3"];
 const ARTEN: [&str; 5] = ["Schaden", "Schutz", "Kontrolle", "Heilung", "sonstige"];
 
 /// Die abgeleitete Art eines Zaubers — siehe Kopf.
@@ -88,7 +97,14 @@ fn art(s: &Spell) -> &'static str {
 
 fn main() {
     let pool = all_candidates();
-    let boss = boss_by_id("boss-1-1").expect("boss-1-1 fehlt");
+    for boss_id in BOSSE {
+        messen(&pool, boss_id);
+    }
+}
+
+fn messen(pool: &[rota_sim::rotation_search::Candidate], boss_id: &str) {
+    println!("\n############  {boss_id}  ############\n");
+    let boss = boss_by_id(boss_id).expect("Boss fehlt");
 
     println!("== Wie viele Zauber es je Art gibt (der Bezugspunkt) ==\n  ");
     for a in ARTEN {
@@ -109,7 +125,7 @@ fn main() {
             prevented_weight: gewicht,
             ..BalanceConfig::default()
         };
-        let frei = greedy(&c, &pool, 8);
+        let frei = greedy(&c, pool, 8);
 
         // Einen Kampf mit der gefundenen Liste fahren: Schaden, erlittener
         // Schaden, und WELCHE Zauber wirklich gewirkt werden.
