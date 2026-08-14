@@ -2494,6 +2494,58 @@ gebaut sind, zieht man nach. Achtundsechzig nicht.**
 > Zauber-Raster 41 Zauber, am 2026-08-10 waren es 54 — beide Male hat die Messung den Fehler
 > gefunden, nicht das Lesen. Eine Bestandszahl ist ein Datum, keine Wahrheit.
 
+### 20.4 Entschieden vom Auftraggeber am 2026-08-14
+
+Vier Fragen, die aus den Messreihen zu #791, #323 und #814 entstanden sind. Die
+Zahlen lagen ihm vor.
+
+**1. Gegen welchen Ausrüstungsstand ein Boss kalibriert wird: gegen den ERWARTETEN
+STAND SEINER INSTANZ.**
+
+Ein Boss in Instanz 3 wird gegen die Ausrüstung gerechnet, die man in Instanz 2
+findet — nicht gegen einen nackten Spieler (der heutige Zustand, gemessen in
+`reference-run.ts:195`) und nicht gegen seine eigene Beute. Der Grund ist der
+Spielfortschritt: Jede Instanz soll beim ersten Betreten fordernd sein, ohne gegen
+Ausrüstung gerechnet zu werden, die man erst durch sie bekommt.
+
+Damit ist eine Annahme nötig, wie gründlich ein Spieler die Vorstufe abfarmt. Sie
+wird gesetzt und benannt, nicht geraten.
+
+**2. Der Aufschaukel-Effekt der Affix-Plätze: erst die Kalibrierung, dann neu
+messen.**
+
+Gemessen: Ein dritter Affix-Platz bringt bei gleichem Budget auf Gegenstandsstufe 85
+Faktor 7,11 und auf Stufe 13 nichts (0,98). Ursache ist die Multiplikation der Töpfe
+aus 13.1b — ein Produkt läuft der Summe erst bei großen Zahlen davon.
+
+**Es wird nichts daran geändert, bevor Punkt 1 umgesetzt ist.** Die heutigen Zahlen
+sind gegen einen Spieler gerechnet, den es im Spiel nicht gibt; ob der Effekt danach
+noch spürbar ist, ist eine Messung und keine Ableitung. Keine Design-Änderung auf
+Verdacht.
+
+**3. Schutz-Kanalisierungen: EINE Schicht, die über die Dauer wächst.**
+
+Schutz ist keine Zahl, sondern eine Schicht mit Stapelgrenze (`crust` 3, `plate` 1).
+„Ein Fünftel Schicht" ist im Modell nicht ausdrückbar. Ein Schutz-Kanal legt deshalb
+**eine** Schicht, deren Betrag mit jedem Schritt steigt; bricht er ab, bleibt sie auf
+dem erreichten Wert stehen.
+
+Das passt zu 7.2 („der erreichte Anteil bleibt") und umgeht die Stapelgrenze. Die
+Gegenvariante — je Schritt eine eigene Schicht — wäre bei `plate` nach dem ersten
+Schritt am Anschlag und machte denselben Zauber je nach Schutzart verschieden
+brauchbar.
+
+**4. Mechaniken, die Schaden VERSCHIEBEN: eine zweite Messgröße, Zeit bis zum Tod.**
+
+Der Balance-Läufer misst Summen. Eine Mechanik, die Schaden nur verschiebt statt ihn
+zu verhindern, ist für ihn unsichtbar — er kann nicht bewerten, ob sie etwas taugt
+(#814). Er bekommt deshalb **Zeit bis zum Tod** als zweite Größe neben dem Durchsatz.
+
+Damit braucht jede Balance-Aussage künftig zwei Zahlen. Das ist der Preis dafür, dass
+`fixation-build` und `fixation-cost` überhaupt einen Maßstab bekommen — beide sind
+heute als „gewinnt in keiner Zusammenstellung" gemessen, und ohne die zweite Größe
+bliebe offen, ob das an ihnen liegt oder am Messgerät.
+
 ---
 
 ## 21. Bewusst verworfen · außerhalb des Umfangs · für später
