@@ -998,6 +998,19 @@ export class App {
     // es, auch nachdem der Spieler Stufe 2 erreicht hatte. Gefunden hat es
     // `talent-oberflaeche-anschluss.test.ts`, nicht das Lesen.
     this.home.replaceSection('talents', this.buildTalentSection());
+    // **Und der Verlauf** (Issue #82) — dieselbe Klasse wie alles darüber, und
+    // sie hatte den Bereich erwischt, der von Haus aus über die Zeit spricht.
+    //
+    // Im Browser gemessen: Spielstand 64 Läufe, Ansicht „64 runs". Einen
+    // weiteren Kampf gefahren, dann ins Player Home — Spielstand 65, Ansicht
+    // weiter „64 runs". Nach einem Neuladen stimmte es wieder. Der Grund ist
+    // der aus den Kommentaren darüber: `buildHistoryView` lief EINMAL beim
+    // Aufbau, und ohne diese Zeile zeigte der Verlauf für immer den Stand vom
+    // Seitenaufruf.
+    //
+    // Der zuletzt gefahrene Lauf fehlte damit IMMER — ausgerechnet der, wegen
+    // dem man nachsieht.
+    this.home.replaceSection('history', buildHistoryView(this.persistence.state.runHistory));
     // **Und das Archiv** (Issue #85), aus demselben Grund wie alles darüber:
     // Ein Eintrag wird nach einem Sieg frei, und der Bildschirm entstand beim
     // Start. Ohne diese Zeile stünde dort weiter „Nothing recorded yet", bis
