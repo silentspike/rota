@@ -855,6 +855,23 @@ export function bossStatePayload(): Record<string, unknown> {
       // Verwechslungsgefahr entsteht nur, wenn zwei Namen nebeneinander stehen.
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `finalPlayerHp`, anderswo `playerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       finalPlayerHp: combat.playerHp,
       // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Der Wert stand
       // hier direkt neben `result.checksums` — dieselbe Zeile, zwei Quellen.
@@ -1090,6 +1107,14 @@ export function doomStacksPayload(): Record<string, unknown> {
       // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
       // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalStacks: combat.bossStacks,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
+      // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
+      // Zahlen (Endstand). Die letzten beiden sind dieselbe Größe unter zwei
+      // Namen — hier `finalPlayerHp`, anderswo `playerHp`.
+      //
+      // Beide bleiben: Die Ebene trennt sie in jeder Datei eindeutig, ein
+      // Umbenennen berührte acht Aufzeichnungen und fünf Rust-Teststellen.
       finalPlayerHp: combat.playerHp,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
@@ -2092,6 +2117,23 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     ticks,
     presses,
     expected: {
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       playerHp: combat.playerHp,
       damageTaken: result.damageTaken,
       diedAtMs: result.diedAtMs,
@@ -2239,6 +2281,23 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     ],
     presses,
     expected: {
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       playerHp: combat.playerHp,
       damageTaken: result.damageTaken,
       diedAtMs: result.diedAtMs,
@@ -2486,6 +2545,14 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
       // Die drei `castsX` darüber zählen JE ZAUBER; das Ergebnis führt nur
       // die Gesamtzahl. Beide bleiben bei `combat`.
       damageDealt: result.damage,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
+      // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
+      // Zahlen (Endstand). Die letzten beiden sind dieselbe Größe unter zwei
+      // Namen — hier `playerHp`, anderswo `finalPlayerHp`.
+      //
+      // Beide bleiben: Die Ebene trennt sie in jeder Datei eindeutig, ein
+      // Umbenennen berührte acht Aufzeichnungen und fünf Rust-Teststellen.
       playerHp: combat.playerHp,
       diedAtMs: result.diedAtMs,
       sequenceChecksum: sequence,
@@ -4028,6 +4095,14 @@ export function timelineLoopPayload(): Record<string, unknown> {
       // `logParityPayload` heißt sie `timelineIndex`. Begründung dort — kurz:
       // verschiedene Vergleichsdateien, keine Begegnung in einer Datei.
       finalTimelineIndex: combat.timelineIndex,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
+      // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
+      // Zahlen (Endstand). Die letzten beiden sind dieselbe Größe unter zwei
+      // Namen — hier `finalPlayerHp`, anderswo `playerHp`.
+      //
+      // Beide bleiben: Die Ebene trennt sie in jeder Datei eindeutig, ein
+      // Umbenennen berührte acht Aufzeichnungen und fünf Rust-Teststellen.
       finalPlayerHp: combat.playerHp,
     },
   };
@@ -5685,6 +5760,23 @@ export function wardCapPayload(): Record<string, unknown> {
       totalPermilleUncapped: PLAYER.wardReduction * 1000 + wardPermille,
       expected: {
         damageTaken: result.damageTaken,
+        // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+        // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+        //
+        //   /playerHp                     LISTE   Spur je Takt
+        //   /…/expected/playerHp          Zahl    Endstand
+        //   /expected/finalPlayerHp       Zahl    Endstand
+        //
+        // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+        // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+        // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+        //
+        // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+        // sie in jeder Datei eindeutig, während ein Umbenennen acht
+        // Aufzeichnungen und fünf Rust-Teststellen berührte
+        // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+        // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+        // kostet — statt es neu ermitteln zu müssen.
         playerHp: combat.playerHp,
         diedAtMs: result.diedAtMs,
         sequenceChecksum: sequence,
@@ -8133,6 +8225,23 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
     bindings,
     presses,
     expected: {
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       playerHp: combat.playerHp,
       damage: result.damage,
       damageTaken: result.damageTaken,
