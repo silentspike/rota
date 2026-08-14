@@ -895,6 +895,30 @@ Ein verwandter Fall: Wenn die neue Größe im Prüflauf überall **null** ist, k
 Bei E3-4 war die Parität grün, während die Schutzschicht auf einer Seite fehlte — in allen
 bestehenden Fällen war der Schutz null.
 
+### Eine Vergleichsanzeige prüfst du mit dem SCHLECHTEREN Lauf, nicht mit dem besseren
+
+_Gemessen an #82 (Bestlauf-Vergleich) am 2026-08-14, gilt aber für jede Anzeige, die zwei Läufe
+gegeneinanderhält._
+
+Der naheliegende Nachweis ist „zwei gute Läufe spielen und die Differenzen ansehen". Er kann die
+Anzeige **nicht** arbeiten sehen, und zwar aus zwei Gründen, die beide zählen:
+
+| Was du spielst              | Was die Differenz-Spalte zeigt                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| zwei **gleiche** Läufe      | überall `= 0`. Das Spiel ist deterministisch (Design-Gesetz 6) — die Null ist zwangsläufig |
+| einen **besseren** Lauf     | ebenfalls Nullen: Er überschreibt den Bestwert und vergleicht sich gegen **sich selbst**   |
+| einen **schlechteren** Lauf | echte Zahlen in beide Richtungen — der einzige Fall, der die Rechnung zeigt                |
+
+Am selben Tag traf dasselbe die zweite Kurve: Zwei Siege im selben Tastenrhythmus ergaben zwei
+**deckungsgleiche** Linien. Im DOM standen zwei `polyline`, im Bild war eine zu sehen — und das war
+kein Darstellungsfehler, sondern die Wahrheit über zwei identisch gespielte Läufe. Erst zwei Läufe
+mit **verschiedenem** Rhythmus (dichte Drücke gegen Drücke mit Pausen) machten aus dem Nachweis ein
+Bild, das etwas zeigt.
+
+**Die Regel dahinter:** Ein Nachweis für „X wird verglichen/gezeichnet" braucht zwei Eingaben, die
+sich in genau der Größe unterscheiden, um die es geht. Wer sie gleich wählt, fotografiert seine
+eigene Sorgfalt.
+
 **Daraus folgt eine Regel, die sich sofort anwenden lässt: Wo du eine _Wirkung_ nachweist, prüfe
 auf eine Ungleichung, nicht auf eine Zahl.**
 
@@ -2576,13 +2600,17 @@ Fünf Fälle, gesammelt am 2026-08-05 und vom Orchestrator im Quelltext nachgeme
 gemeinsam: **Der Aufruf sieht erfolgreich aus, und das Ergebnis sieht nach einem anderen Fehler
 aus.**
 
-| Werkzeug                     | Was passiert                                                                                                                                                                                                                                                                      |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `playwright-cli` Tastendruck | Der Eingabe-Router liest **`code`**, nicht `key` (`router.ts:121` `positionForCode(event.code)`). Ein Druck ohne `code` kommt nicht an — **ohne Fehlermeldung**                                                                                                                   |
-| Tastendruck ohne `keyup`     | zählt als **gehaltene** Taste: `router.ts:133` verwirft den zweiten Druck (`held[position] === 1`), und nur `handleKeyUp` setzt ihn zurück                                                                                                                                        |
-| `__rota.bindSlot`            | meldet `true` und bindet die **Sitzung** — die Zusammenstellungs-Ansicht liest den **Spielstand**. Zwei verschiedene Dinge. Und `bindSlot(slot, null)` tut gar nichts: `indexOf(null)` ist `-1`, der Aufruf meldet `false` („Zauber unbekannt") statt „Entbinden geht hier nicht" |
-| `npm run parity:export`      | **Exit-Code prüfen.** Ein Lauf mit Exit 127 ändert nichts und sieht aus wie „keine Änderung" — genau so blieb der Export acht Stunden lang kaputt, während vier PRs durchgingen (#277)                                                                                            |
-| `git checkout main`          | schlägt fehl, wenn eine andere Sitzung `main` hält. Dann `git checkout -b <neu> origin/main` oder `git checkout --detach origin/<zweig>`                                                                                                                                          |
+| Werkzeug                       | Was passiert                                                                                                                                                                                                                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `playwright-cli` Tastendruck   | Der Eingabe-Router liest **`code`**, nicht `key` (`router.ts:121` `positionForCode(event.code)`). Ein Druck ohne `code` kommt nicht an — **ohne Fehlermeldung**                                                                                                                   |
+| Tastendruck ohne `keyup`       | zählt als **gehaltene** Taste: `router.ts:133` verwirft den zweiten Druck (`held[position] === 1`), und nur `handleKeyUp` setzt ihn zurück                                                                                                                                        |
+| `__rota.bindSlot`              | meldet `true` und bindet die **Sitzung** — die Zusammenstellungs-Ansicht liest den **Spielstand**. Zwei verschiedene Dinge. Und `bindSlot(slot, null)` tut gar nichts: `indexOf(null)` ist `-1`, der Aufruf meldet `false` („Zauber unbekannt") statt „Entbinden geht hier nicht" |
+| `npm run parity:export`        | **Exit-Code prüfen.** Ein Lauf mit Exit 127 ändert nichts und sieht aus wie „keine Änderung" — genau so blieb der Export acht Stunden lang kaputt, während vier PRs durchgingen (#277)                                                                                            |
+| `git checkout main`            | schlägt fehl, wenn eine andere Sitzung `main` hält. Dann `git checkout -b <neu> origin/main` oder `git checkout --detach origin/<zweig>`                                                                                                                                          |
+| `playwright-cli` Sitzungsstart | startet mit **leerem `localStorage`**. Erspielte Siege sind nach einem Neubau nicht „gelöscht", sie waren **nie da**. Erst `Object.keys(localStorage)` lesen, dann den Spielstand-Code verdächtigen (2026-08-14, zwei Siege scheinbar verloren)                                   |
+| `__rota.input`                 | ist eine **Funktion**, kein Objekt: `__rota.input.pressed` ist `undefined`, `__rota.input().pressed` liefert den Zähler. Der Zugriff wirft nicht — er sieht aus wie „der Zähler zählt nicht"                                                                                      |
+| Dev-Bau-Dateiname              | heißt `main-*.js`, der Produktions-Bau `index-*.js`. Wer im ausgelieferten HTML nach `index-` sucht, um den Bau zu erkennen, misst die falsche Sache                                                                                                                              |
+| `__rota.setBossHp`             | wirkt **nur im laufenden Kampf**. Vor `ready()` gerufen, setzt der Kampfbeginn den Wert wieder auf voll — der Aufruf meldet nichts, und der Boss stirbt einfach nicht (2026-08-14)                                                                                                |
 
 **Der erste Fall hat an einem Tag zwei Sitzungen getroffen.** Der Orchestrator maß bei der Abnahme
 von #280 einen Kampf mit `Damage 0` und `100 % Leerlauf` und hätte daraus fast einen Befund an
