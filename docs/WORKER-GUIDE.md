@@ -895,6 +895,30 @@ Ein verwandter Fall: Wenn die neue Größe im Prüflauf überall **null** ist, k
 Bei E3-4 war die Parität grün, während die Schutzschicht auf einer Seite fehlte — in allen
 bestehenden Fällen war der Schutz null.
 
+### Eine Vergleichsanzeige prüfst du mit dem SCHLECHTEREN Lauf, nicht mit dem besseren
+
+_Gemessen an #82 (Bestlauf-Vergleich) am 2026-08-14, gilt aber für jede Anzeige, die zwei Läufe
+gegeneinanderhält._
+
+Der naheliegende Nachweis ist „zwei gute Läufe spielen und die Differenzen ansehen". Er kann die
+Anzeige **nicht** arbeiten sehen, und zwar aus zwei Gründen, die beide zählen:
+
+| Was du spielst              | Was die Differenz-Spalte zeigt                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| zwei **gleiche** Läufe      | überall `= 0`. Das Spiel ist deterministisch (Design-Gesetz 6) — die Null ist zwangsläufig |
+| einen **besseren** Lauf     | ebenfalls Nullen: Er überschreibt den Bestwert und vergleicht sich gegen **sich selbst**   |
+| einen **schlechteren** Lauf | echte Zahlen in beide Richtungen — der einzige Fall, der die Rechnung zeigt                |
+
+Am selben Tag traf dasselbe die zweite Kurve: Zwei Siege im selben Tastenrhythmus ergaben zwei
+**deckungsgleiche** Linien. Im DOM standen zwei `polyline`, im Bild war eine zu sehen — und das war
+kein Darstellungsfehler, sondern die Wahrheit über zwei identisch gespielte Läufe. Erst zwei Läufe
+mit **verschiedenem** Rhythmus (dichte Drücke gegen Drücke mit Pausen) machten aus dem Nachweis ein
+Bild, das etwas zeigt.
+
+**Die Regel dahinter:** Ein Nachweis für „X wird verglichen/gezeichnet" braucht zwei Eingaben, die
+sich in genau der Größe unterscheiden, um die es geht. Wer sie gleich wählt, fotografiert seine
+eigene Sorgfalt.
+
 **Daraus folgt eine Regel, die sich sofort anwenden lässt: Wo du eine _Wirkung_ nachweist, prüfe
 auf eine Ungleichung, nicht auf eine Zahl.**
 
@@ -2576,13 +2600,17 @@ Fünf Fälle, gesammelt am 2026-08-05 und vom Orchestrator im Quelltext nachgeme
 gemeinsam: **Der Aufruf sieht erfolgreich aus, und das Ergebnis sieht nach einem anderen Fehler
 aus.**
 
-| Werkzeug                     | Was passiert                                                                                                                                                                                                                                                                      |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `playwright-cli` Tastendruck | Der Eingabe-Router liest **`code`**, nicht `key` (`router.ts:121` `positionForCode(event.code)`). Ein Druck ohne `code` kommt nicht an — **ohne Fehlermeldung**                                                                                                                   |
-| Tastendruck ohne `keyup`     | zählt als **gehaltene** Taste: `router.ts:133` verwirft den zweiten Druck (`held[position] === 1`), und nur `handleKeyUp` setzt ihn zurück                                                                                                                                        |
-| `__rota.bindSlot`            | meldet `true` und bindet die **Sitzung** — die Zusammenstellungs-Ansicht liest den **Spielstand**. Zwei verschiedene Dinge. Und `bindSlot(slot, null)` tut gar nichts: `indexOf(null)` ist `-1`, der Aufruf meldet `false` („Zauber unbekannt") statt „Entbinden geht hier nicht" |
-| `npm run parity:export`      | **Exit-Code prüfen.** Ein Lauf mit Exit 127 ändert nichts und sieht aus wie „keine Änderung" — genau so blieb der Export acht Stunden lang kaputt, während vier PRs durchgingen (#277)                                                                                            |
-| `git checkout main`          | schlägt fehl, wenn eine andere Sitzung `main` hält. Dann `git checkout -b <neu> origin/main` oder `git checkout --detach origin/<zweig>`                                                                                                                                          |
+| Werkzeug                       | Was passiert                                                                                                                                                                                                                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `playwright-cli` Tastendruck   | Der Eingabe-Router liest **`code`**, nicht `key` (`router.ts:121` `positionForCode(event.code)`). Ein Druck ohne `code` kommt nicht an — **ohne Fehlermeldung**                                                                                                                   |
+| Tastendruck ohne `keyup`       | zählt als **gehaltene** Taste: `router.ts:133` verwirft den zweiten Druck (`held[position] === 1`), und nur `handleKeyUp` setzt ihn zurück                                                                                                                                        |
+| `__rota.bindSlot`              | meldet `true` und bindet die **Sitzung** — die Zusammenstellungs-Ansicht liest den **Spielstand**. Zwei verschiedene Dinge. Und `bindSlot(slot, null)` tut gar nichts: `indexOf(null)` ist `-1`, der Aufruf meldet `false` („Zauber unbekannt") statt „Entbinden geht hier nicht" |
+| `npm run parity:export`        | **Exit-Code prüfen.** Ein Lauf mit Exit 127 ändert nichts und sieht aus wie „keine Änderung" — genau so blieb der Export acht Stunden lang kaputt, während vier PRs durchgingen (#277)                                                                                            |
+| `git checkout main`            | schlägt fehl, wenn eine andere Sitzung `main` hält. Dann `git checkout -b <neu> origin/main` oder `git checkout --detach origin/<zweig>`                                                                                                                                          |
+| `playwright-cli` Sitzungsstart | startet mit **leerem `localStorage`**. Erspielte Siege sind nach einem Neubau nicht „gelöscht", sie waren **nie da**. Erst `Object.keys(localStorage)` lesen, dann den Spielstand-Code verdächtigen (2026-08-14, zwei Siege scheinbar verloren)                                   |
+| `__rota.input`                 | ist eine **Funktion**, kein Objekt: `__rota.input.pressed` ist `undefined`, `__rota.input().pressed` liefert den Zähler. Der Zugriff wirft nicht — er sieht aus wie „der Zähler zählt nicht"                                                                                      |
+| Dev-Bau-Dateiname              | heißt `main-*.js`, der Produktions-Bau `index-*.js`. Wer im ausgelieferten HTML nach `index-` sucht, um den Bau zu erkennen, misst die falsche Sache                                                                                                                              |
+| `__rota.setBossHp`             | wirkt **nur im laufenden Kampf**. Vor `ready()` gerufen, setzt der Kampfbeginn den Wert wieder auf voll — der Aufruf meldet nichts, und der Boss stirbt einfach nicht (2026-08-14)                                                                                                |
 
 **Der erste Fall hat an einem Tag zwei Sitzungen getroffen.** Der Orchestrator maß bei der Abnahme
 von #280 einen Kampf mit `Damage 0` und `100 % Leerlauf` und hätte daraus fast einen Befund an
@@ -6646,9 +6674,27 @@ inboxes/team-lead.json                          existiert, wird geschrieben
 rota-ipc rollen                                 Kennung stimmt, Sitzung läuft
 ```
 
-Es war kein Zustellfehler. Die Nachrichten kamen an — sie wurden nur nicht gelesen, weil der
-Empfänger auf eine Messung konzentriert war. Gefunden hat er sie über `rota-ipc offen`, **nachdem**
-er eine Fertigmeldung geschickt hatte.
+Es war kein Zustellfehler im Sinne einer kaputten Einrichtung. Gefunden hat der Empfänger die
+Nachrichten über `rota-ipc offen`, **nachdem** er eine Fertigmeldung geschickt hatte.
+
+**Warum sie eine Stunde lang nicht in seinem Kontext erschienen, ist ungeklärt** — und diese Zeile
+stand hier zuerst anders. Der erste Entwurf behauptete „sie kamen an und wurden nicht gelesen", der
+zweite „gesammelte Zustellung mit 50 bis 82 Minuten Verzögerung". Beides waren Ursachen, die
+niemand gemessen hatte. Die Dateizeiten lassen mindestens drei Erklärungen zu:
+
+```
+mtime der fünf Dateien   12:41:55.011 … 12:41:56.506     1,8 Sekunden
+ihre Kopfzeilen          12:02:57     … 12:31:49         29 Minuten
+```
+
+Zeitgebunden (der Stau löst sich nach einer Weile), ereignisgebunden (er löst sich, wenn eine neue
+Nachricht ankommt oder ein Turn endet), oder etwas auf der Ablage-Seite hat die Dateien im Block
+angefasst. Der Empfänger arbeitete von 12:00 bis 13:21 ohne Unterbrechung durch und sah in dieser
+Zeit **keine einzige** — das spricht gegen bloße Verzögerung, beweist aber nichts.
+
+**Der Unterschied hätte die Lehre verändert:** Steht „Verzögerung" da, liest der nächste daraus, er
+müsse Geduld haben. Ist es ereignisgebunden, bekommt ein Worker, der lange durcharbeitet,
+**möglicherweise gar nichts** — und muss selbst nachsehen. Deshalb steht hier keine Ursache.
 
 **Was das gekostet hat, gemessen:**
 
@@ -6765,3 +6811,56 @@ genau sie: `expected 21010 to be 25010`.
 Der Test dafür ist billig und gehört vor jeden Prüffall: **Welchen Wert müsste die Größe haben,
 damit dieser Fall rot wird?** Gibt es keinen — oder liegt er außerhalb dessen, was die Daten
 zulassen —, prüft der Fall nichts.
+
+### 8.102 Zwei Texte in dieselbe Richtung ersetzen keine Struktur
+
+Am 2026-08-14 haben ein Worker und der Orchestrator gemeinsam einen Fehler diagnostiziert, den es
+nicht gab — und die Korrektur wäre der eigentliche Schaden gewesen.
+
+**Der Befund:** `sim/src/balance.rs` gibt drei Wertelisten unsortiert an `Statistics::from_sorted`,
+während fünf Nachbarlisten sortiert werden. Zwei Texte stützten die Diagnose:
+
+```
+der Funktionsname          from_sorted        klingt nach „erwartet aufsteigende Werte"
+ein Kommentar daneben      „ohne diese zwei Zeilen wäre der Median still falsch"
+```
+
+**Die Struktur sagte etwas anderes:**
+
+```
+pub struct Statistics { count, mean, stddev, stderr, … }   ← KEIN Median
+:305  let mut min = values[0]; for &value in values {…}    ← min/max per SCHLEIFE
+```
+
+`Statistics` hat keinen Median und keine Perzentile. Nichts an ihr hängt an der Reihenfolge. Und
+der Doc-Kommentar von `from_sorted` — zwölf Zeilen über dem Fund — sagt ausdrücklich:
+
+> Die Sortierung ist Voraussetzung und nicht Aufgabe dieser Funktion: Sie gehört zur **Herkunft**
+> der Werte (Startwert-Reihenfolge), nicht zur Größe des Werts. Nach Größe zu sortieren wäre für die
+> Summe stabiler, würde aber **verschleiern**, dass zwei Läufe verschiedene Durchgänge enthalten.
+
+Die geplante Korrektur (`sort_by(f64::total_cmp)`) sortiert nach **Größe** — genau das, was der
+Kommentar verwirft. Sie hätte eine dokumentierte Absicht zerstört und wäre grün durchgelaufen.
+
+### Was den Fall aufgedeckt hat, war nicht Sorgfalt
+
+Der Prüffall wollte `Statistics.median` lesen. Der Übersetzer meldete `no field 'median'`.
+
+> **Hätte ich `mean` statt `median` geschrieben, wäre alles grün gewesen und der Eingriff in `main`
+> gelandet.** — der Bauende
+
+Und die Abnahme hätte ihn durchgelassen: Eine Mutations-Gegenprobe fängt eine Änderung, die etwas
+**kaputt** macht. Sie fängt keine, die Funktionierendes durch anderes Funktionierendes ersetzt und
+dabei eine Absicht aufgibt, die nur im Kommentar steht.
+
+### Die Regel
+
+> Wo zwei Texte in dieselbe Richtung zeigen — ein Name und ein Kommentar —, ist die Versuchung am
+> größten, die **Struktur** nicht anzusehen. Genau dort gehört sie angesehen: Welche Felder hat der
+> Typ? Wie wird der Wert berechnet? Was sagt der Doc-Kommentar der Funktion selbst, nicht der ihres
+> Nachbarn?
+
+**Der zweite Teil ist der teurere:** Der Orchestrator hat den Befund nicht geprüft, sondern
+**erweitert** („es sind drei Stellen, nicht eine" — und die Größen benannt, die es nicht gibt). Eine
+erweiterte falsche Diagnose wiegt schwerer als die ursprüngliche, weil sie bestätigt aussieht. Wer
+einen fremden Befund aufstockt, prüft ihn zuerst — sonst verdoppelt er nur die Zuversicht.

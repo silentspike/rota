@@ -111,13 +111,25 @@ export interface ResultView {
   readonly efficiency: EfficiencyTable | null;
   /**
    * Die Schadenskurve dieses Laufs (E7-2, Issue #82).
-   *
-   * **Ohne Vergleichskurve**, und das ist gemessen und nicht vergessen: Der
-   * Spielstand fuehrt vom Bestlauf nur EINE Zahl (`BestRun.metric` und
-   * `.value`) — keine Kurve, keine Kurzfassung. `buildCurveView` nimmt dafuer
-   * `null`; die eigene Kurve steht dann allein.
    */
   readonly curve: RunCurve | null;
+  /**
+   * Die Schadenskurve des BESTLAUFS — die zweite Kurve aus AC1.
+   *
+   * Hier stand bis zum 2026-08-14 der Vermerk, es gebe sie nicht: Der
+   * Spielstand fuehrte vom Bestlauf nur `metric` und `value`. Das stimmte und
+   * war der Grund, warum AC1 („zwei Kurven uebereinander") zu fuenf Sechsteln
+   * erfuellt war — die Differenzen standen, die zweite Linie fehlte.
+   *
+   * Seit `BestRun.curve` legt derselbe Sieg, der den Bestwert setzt, auch
+   * seinen Verlauf ab.
+   *
+   * **`null` bleibt der Normalfall und kein Fehler**: ein Spielstand von vor
+   * der Aenderung, ein Boss ohne Bestlauf, oder eine Kurve, deren Form nicht
+   * traegt (`curveFromBest`). Dann zeichnet `buildCurveView` genau eine Linie —
+   * so wie vorher, und ohne dass irgendwo etwas bricht.
+   */
+  readonly bestCurve: RunCurve | null;
   /**
    * Der Vergleich mit dem Bestlauf (Issue #82).
    *
@@ -699,7 +711,14 @@ export class Overlay {
         ? 'none available'
         : `${summary.synergyUsed} of ${summary.synergyAvailable}`,
     );
-    this.fillDetail(summary, view.analysis, view.efficiency, view.curve, view.comparison);
+    this.fillDetail(
+      summary,
+      view.analysis,
+      view.efficiency,
+      view.curve,
+      view.bestCurve,
+      view.comparison,
+    );
   }
 
   /**
@@ -723,6 +742,7 @@ export class Overlay {
     analysis: LossReport | null,
     efficiency: EfficiencyTable | null,
     curve: RunCurve | null,
+    bestCurve: RunCurve | null,
     comparison: readonly ComparedMetric[] | null,
   ): void {
     this.detail.replaceChildren();
@@ -769,7 +789,10 @@ export class Overlay {
     // Die Kurve zeigt, WANN der Schaden kam — die Tabelle darueber, WIE GUT
     // gewirkt wurde. Zusammen beantworten sie zwei verschiedene Fragen.
     if (curve !== null) {
-      this.detail.appendChild(buildCurveView(curve, null));
+      // **Die zweite Kurve ist der Bestlauf** (Issue #82, AC1). Hier stand
+      // `null`, solange der Spielstand keine fuehrte. `buildCurveView` konnte
+      // zwei schon immer — es fehlte allein die Quelle.
+      this.detail.appendChild(buildCurveView(curve, bestCurve));
       this.detail.appendChild(element('div', 'rota-divider'));
     }
     const umgekehrt = summary.reversed;
