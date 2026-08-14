@@ -334,6 +334,61 @@ Wer so einen Satz schreibt, nennt die Stelle mit Datei und Zeile, an der die Lü
 sitzt — dann fällt beim nächsten Lesen auf, wenn sie geschlossen wurde. Wer so einen
 Satz **liest**, sieht an der genannten Stelle nach, bevor er ihm folgt.
 
+### Befehl und Erfolgsmeldung nie im selben Aufruf
+
+Am 2026-08-14 stand in einer Meldung „Punkt 1 liegt in PR 855" — der Push war
+fehlgeschlagen (`hint: See the 'Note about fast-forwards'`), und die Behauptung war
+schon im Kanal, bevor ihr Beleg existierte. Derselbe Autor hatte Stunden vorher den
+umgekehrten Fall: ein Push, der Fehler meldete und trotzdem durch war.
+
+> **Wer Befehl und Meldung in einen Aufruf legt, meldet die Absicht statt des
+> Ergebnisses.** Erst ausführen, dann den Zustand ablesen, dann melden.
+
+Für Pushes heißt das: `git ls-remote --heads origin <zweig>` oder `gh pr view` **nach**
+dem Push, und der abgelesene Kopf-Hash gehört in die Meldung. Steht er nicht drin, ist
+er nicht geprüft.
+
+### `git diff a..b` vergleicht Endpunkte — deine neue Datei sieht aus wie fremder Verlust
+
+Zweimal am 2026-08-14, von zwei verschiedenen Sitzungen, beide Male knapp gefangen:
+
+```
+git diff --stat origin/main..HEAD
+  sim/examples/doomsayer-672.rs   187 ----------
+  sim/src/fight.rs                 34 ----------
+```
+
+Das las sich wie „mein `git add -A` hat fremden Code gelöscht". Tatsächlich ist der
+Zweig **hinter** `main`, und der Zwei-Punkte-Diff vergleicht die Endpunkte — fremde
+**neue** Dateien erscheinen darin als von dir gelöscht.
+
+```
+git diff --stat origin/main...HEAD     drei Punkte: nur was SEIT der Trennung dazukam
+gh pr view <nr> --json files           zweiter, unabhängiger Weg
+```
+
+> **Ein Befund, der aus dem falschen Operator kommt, liest sich wie ein echter.** Beide
+> Male wäre die Meldung präzise, plausibel und vollständig falsch gewesen — über
+> fremden Code.
+
+### `build` und `vitest` fangen verschiedene Klassen — keine ersetzt die andere
+
+Am 2026-08-14 dreimal: `vitest` grün, `npm run build` rot (Typfehler, zuletzt `TS2379`
+unter `exactOptionalPropertyTypes`). Und einmal umgekehrt: Bau grün, `vitest` rot, weil
+ein Wächter meldete, die neue Datei sei **von keinem Einstiegspunkt erreichbar** — zehn
+grüne eigene Prüfungen gegen Code, den der Bundler wegwirft.
+
+| Stufe            | fängt                            |
+| ---------------- | -------------------------------- |
+| `npm run build`  | Übersetzbarkeit (`tsc --noEmit`) |
+| `npm run lint`   | Form                             |
+| `npx vitest run` | Verhalten **und Erreichbarkeit** |
+
+Reihenfolge **build, lint, vitest**: Ein roter Bau entwertet den Testlauf danach (2618
+Fälle liefen gegen Code, der nicht übersetzte), und `tsc` scheitert in Sekunden, wo
+`vitest` Minuten braucht. Die Reihenfolge entscheidet nur, welcher Fehler früher
+auffällt — welche Klasse gefunden wird, entscheidet die Stufe.
+
 ### Ein Lauf, dessen Ausgabe du nicht behältst, ist ein Lauf, den du nicht gemacht hast
 
 Ein Prüflauf färbte einmal rot, drei Wiederholungen danach grün. Der rote Lauf lief
