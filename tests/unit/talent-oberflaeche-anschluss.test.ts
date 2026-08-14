@@ -179,3 +179,73 @@ describe('AC3 — die Grenze aus talentPointsAtLevel hält', () => {
     ).toBe(0);
   });
 });
+
+describe('AC3 von #85 — jeder Prozess-Name trägt seinen Klartext', () => {
+  /**
+   * Der Befund, aus dem dieser Block entstand (2026-08-14, im Browser
+   * gemessen): Von zehn Vorkommen der fünf Schulnamen im Dokument trugen
+   * **fünf** den Klartext und fünf nicht — und die fünf ohne waren allesamt
+   * die Überschriften der Talentbäume.
+   *
+   * ```text
+   *   composition-group-title   "CALCINATION (Damage over time)"   richtig
+   *   talents-tree-name         "CALCINATION"                      Lücke
+   * ```
+   *
+   * **Warum dieser Fall über ALLE Bäume läuft und nicht über einen.** Genau
+   * daran wäre die Lücke vorbeigegangen: Wer ein Beispiel prüft, prüft die
+   * Stelle, die schon stimmt. Das Kriterium sagt „JEDER Prozess-Name", und
+   * eine Prüfung, die das Wort ernst nimmt, muss zählen statt zu stichproben.
+   */
+  const PROZESSE: readonly (readonly [string, string])[] = [
+    ['CALCINATION', 'Damage over time'],
+    ['FIXATION', 'Control'],
+    ['SUBLIMATION', 'Cooldown control'],
+    ['COAGULATION', 'Survival'],
+    ['PUTREFACTION', 'Weakening'],
+  ];
+
+  it('alle fünf Baum-Überschriften nennen ihren Klartext', () => {
+    appMitPunkten();
+    const ueberschriften = [...document.querySelectorAll('.talents-tree-name')].map(
+      (e) => e.textContent ?? '',
+    );
+    // ZUSICHERUNG: Es gibt die Überschriften überhaupt. Ohne sie liefe die
+    // Schleife darunter über eine leere Liste und bestätigte alles.
+    expect(ueberschriften.length, 'keine Baum-Überschrift im Dokument').toBeGreaterThanOrEqual(6);
+
+    for (const [name, klartext] of PROZESSE) {
+      const zeile = ueberschriften.find((t) => t.includes(name));
+      expect(zeile, `der Baum ${name} fehlt in der Ansicht`).toBeDefined();
+      expect(zeile, `${name} steht ohne Klartext da`).toContain(klartext);
+    }
+  });
+
+  it('`global` bleibt ohne Klartext — er ist kein Prozess', () => {
+    // Die Gegenseite, die gleich bleiben muss: `withPlainText` erfindet
+    // nichts. Ohne diesen Fall wäre eine Umsetzung grün, die jedem Baum
+    // irgendeinen Klammerzusatz anhängt.
+    appMitPunkten();
+    const global = [...document.querySelectorAll('.talents-tree-name')]
+      .map((e) => e.textContent ?? '')
+      .find((t) => t.includes('GLOBAL'));
+    expect(global, 'der Baum GLOBAL fehlt').toBeDefined();
+    expect(global?.trim()).toBe('GLOBAL');
+  });
+
+  it('und die Zusammenstellung tut es weiterhin', () => {
+    // Die Stelle, die schon vor #85 stimmte. Sie steht hier, damit eine
+    // Änderung an `withPlainText` nicht die eine Ansicht repariert und die
+    // andere bricht.
+    appMitPunkten();
+    const titel = [...document.querySelectorAll('.composition-group-title')].map(
+      (e) => e.textContent ?? '',
+    );
+    expect(titel.length, 'keine Schul-Überschrift in der Zusammenstellung').toBeGreaterThan(0);
+    for (const [name, klartext] of PROZESSE) {
+      const zeile = titel.find((t) => t.includes(name));
+      expect(zeile, `${name} fehlt in der Zusammenstellung`).toBeDefined();
+      expect(zeile, `${name} steht dort ohne Klartext`).toContain(klartext);
+    }
+  });
+});
