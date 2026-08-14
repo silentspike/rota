@@ -65,6 +65,7 @@ import eingecheckteGetrageneWerte from './recordings/worn-values.json';
 import eingecheckteQuellen from './recordings/sources.json';
 import eingecheckteWirkzeit from './recordings/cast-time.json';
 import eingecheckterKanal from './recordings/channel.json';
+import eingecheckterSchutzKanal from './recordings/channel-schutz.json';
 import eingecheckteWiderstaende from './recordings/resistances.json';
 import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
 // **Diese zwei fehlten hier**, und das ist ein Befund und keine Ergänzung:
@@ -161,6 +162,7 @@ import {
   sourcesPayload,
   castTimePayload,
   channelPayload,
+  channelShieldPayload,
   resistancePayload,
   resistanceMixedPayload,
   runawayProgressPayload,
@@ -619,6 +621,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckterKanal, HINWEIS).toEqual(channelPayload());
   });
 
+  it('der Lauf mit einem SCHUTZ-Kanal entspricht dem heutigen Spielstand', () => {
+    // Die Schutz-Auszahlung der Kanalisierung (#323, GAME-DESIGN 20.5
+    // Punkt 3). Sie hing bis zum 2026-08-14 an keiner Aufzeichnung.
+    expect(eingecheckterSchutzKanal, HINWEIS).toEqual(channelShieldPayload());
+  });
+
   it('der Lauf gegen einen Boss mit WIDERSTAENDEN entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteWiderstaende, HINWEIS).toEqual(resistancePayload());
   });
@@ -908,6 +916,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'sources',
   'cast-time',
   'channel',
+  'channel-schutz',
   'resistances',
   'resistances-mixed',
   'runaway-progress',

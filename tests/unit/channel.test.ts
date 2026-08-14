@@ -767,3 +767,148 @@ describe('Die RESSOURCEN-Kanalisierung — „dasselbe gilt für Ressourcen"', (
     );
   });
 });
+
+describe('Die SCHUTZ-Kanalisierung — EINE Schicht, die über die Dauer wächst', () => {
+  /**
+   * # Die Entscheidung, und warum sie eine war
+   *
+   * GAME-DESIGN 20.5, Punkt 3 (entschieden am 2026-08-14):
+   *
+   * > Ein Schutz-Kanal legt **eine** Schicht, deren Betrag mit jedem Schritt
+   * > steigt; bricht er ab, bleibt sie auf dem erreichten Wert stehen.
+   *
+   * Die Gegenvariante — je Schritt eine eigene Schicht — ist ausdrücklich
+   * verworfen: Sie wäre bei `plate` (maxStacks 1) nach dem ERSTEN Schritt am
+   * Anschlag, und vier von fünf Schritten verpufften.
+   *
+   * **Der Prüfzauber trägt deshalb selbst `maxStacks: 1`.** Mit 3 wäre der
+   * Unterschied erst beim vierten Schritt sichtbar, und ein Fall mit drei
+   * Schritten bliebe grün, obwohl die falsche Variante gebaut wäre.
+   *
+   * **Gemessen vor dem Bau:** Derselbe Zauber lief fünf Schritte durch und
+   * legte 0 Schutz.
+   */
+  const SCHUTZ_BOSS = bossById('first-crucible') as BossDef;
+
+  function schutzDaten(combat: Combat) {
+    const index = combat.indexOf('test-channel-shield');
+    const spell = combat.spellAt(index);
+    const dauer = spell?.channelMs ?? 0;
+    const raster = spell?.channelTickMs ?? 0;
+    const gesamt = spell?.shield?.amount ?? 0;
+    const grenze = spell?.shield?.maxStacks ?? 0;
+    const schritte = raster > 0 ? Math.floor(dauer / raster) : 0;
+    return {
+      index,
+      dauer,
+      raster,
+      gesamt,
+      grenze,
+      schritte,
+      jeSchritt: schritte > 0 ? Math.floor(gesamt / schritte) : 0,
+    };
+  }
+
+  function schutzKampf(): Combat {
+    // **Ein Boss ohne Schläge.** Sonst verbraucht der erste Treffer die
+    // Schicht, und ein Fall über ihr Wachsen misst den Boss statt den Kanal.
+    const combat = new Combat({ school: CALCINATION.value, boss: SCHUTZ_BOSS });
+    combat.beginFight(0);
+    return combat;
+  }
+
+  it('ZUSICHERUNG: der Prüfzauber trägt die schärfste Obergrenze', () => {
+    // Ohne diese Zeile prüfte alles Folgende den bequemen Fall. `maxStacks: 1`
+    // ist der, an dem die verworfene Variante scheitert.
+    const d = schutzDaten(schutzKampf());
+    expect(d.grenze, 'der Prüfzauber hat nicht die Obergrenze 1').toBe(1);
+    expect(d.schritte, 'er kanalisiert nicht über mehrere Schritte').toBeGreaterThan(1);
+    expect(d.jeSchritt, 'je Schritt käme 0 an — dann prüft nichts').toBeGreaterThan(0);
+  });
+
+  it('der Betrag WÄCHST Schritt für Schritt, und es bleibt EINE Schicht', () => {
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.shield).toBe(0);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+
+    const verlauf: number[] = [];
+    const stapel: number[] = [];
+    for (let t = 0; t <= d.dauer; t += 10) {
+      combat.stepPassive(t);
+      if (t > 0 && t % d.raster === 0) {
+        verlauf.push(combat.shield);
+        stapel.push(combat.shieldStacks);
+      }
+    }
+
+    // Aus der Dauer gerechnet, nicht abgeschrieben.
+    expect(verlauf.length).toBe(d.schritte);
+    for (let i = 0; i < verlauf.length; i++) {
+      expect(verlauf[i], `nach Schritt ${i + 1}: ${verlauf.join(' → ')}`).toBe(
+        (i + 1) * d.jeSchritt,
+      );
+    }
+
+    // **Der Punkt, an dem sich die Varianten unterscheiden.** Je Schritt eine
+    // eigene Schicht hiesse hier: nach dem ersten Schritt Stapel 1 und dann
+    // nichts mehr — die Obergrenze ist erreicht, der Betrag bliebe stehen.
+    expect(stapel, `die Stapelzahl bewegt sich: ${stapel.join(' → ')}`).toEqual(
+      new Array(d.schritte).fill(1),
+    );
+  });
+
+  it('ein ABBRUCH friert sie auf dem erreichten Wert ein', () => {
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+
+    const abbruchAt = 3 * d.raster;
+    let t = 0;
+    for (; t <= abbruchAt; t += 10) combat.stepPassive(t);
+    const beiDrei = combat.shield;
+
+    combat.cast(combat.indexOf('kindle'), abbruchAt);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+    for (; t <= d.dauer + 2000; t += 10) combat.stepPassive(t);
+
+    expect(beiDrei).toBe(3 * d.jeSchritt);
+    // Eingefroren, nicht weitergewachsen und nicht verfallen.
+    expect(combat.shield, 'nach dem Abbruch hat sich die Schicht bewegt').toBe(beiDrei);
+    expect(combat.shieldStacks).toBe(1);
+  });
+
+  it('TRÄGER: der Schutz-Kanal legt ÜBERHAUPT etwas — wird bei 0 == 0 laut', () => {
+    // **Ohne ihn prüften die Fälle oben zwei Nullen.** Genau so war die Lage
+    // vor dem Bau: fünf Schritte, 0 Schutz, und „nach drei Schritten 3/5"
+    // wäre als `0 === 3 * 0` wahr gewesen.
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.raster; t += 10) combat.stepPassive(t);
+    expect(combat.shield, 'nach dem ersten Raster-Schritt kam KEIN Schutz an').toBeGreaterThan(0);
+  });
+
+  it('und vor dem ersten Raster-Schritt ist es NICHTS', () => {
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+    for (let t = 0; t <= d.raster - 10; t += 10) combat.stepPassive(t);
+    expect(combat.shield).toBe(0);
+  });
+
+  it('GEGENPROBE zur Variante: ein gewirkter Schutzzauber STAPELT, der Kanal nicht', () => {
+    // Der Unterschied in einem Fall. `scab` (maxStacks 3) legt je Wurf eine
+    // neue Schicht; der Kanal lässt EINE wachsen. Ohne diese Gegenprobe
+    // bewiese „Stapel bleibt 1" nur, dass der Zauber einmal gewirkt hat.
+    const combat = schutzKampf();
+    const scab = combat.indexOf('scab');
+    expect(combat.spellAt(scab)?.shield?.maxStacks ?? 0, 'scab stapelt nicht').toBeGreaterThan(1);
+    let t = 0;
+    for (let n = 0; n < 2; n++) {
+      combat.cast(scab, t);
+      for (const bis = t + 1600; t <= bis; t += 10) combat.stepPassive(t);
+    }
+    expect(combat.shieldStacks, 'zwei Würfe SCAB haben nicht gestapelt').toBeGreaterThan(1);
+  });
+});
