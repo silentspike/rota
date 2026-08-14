@@ -5277,6 +5277,28 @@ export class Combat {
     //
     // Gemessen am 2026-08-14, bevor diese Zeilen standen: Der Prüfzauber lief
     // fünf Schritte durch und legte 0 Schutz — die Auszahlung gab es nicht.
+    //
+    // # DAS VORBILD TAUGT NUR FÜR DIE HÄLFTE — wer es blind kopiert, baut
+    // einen Fehler ein
+    //
+    // Der Bau hier folgt `convertDamageToShield` (die Umwandlung aus TEMPER):
+    // Sie erhöht den Betrag der liegenden Schicht, **ohne** die Stapelzahl
+    // anzufassen, und ist damit das laufende Beispiel für „Betrag erhöhen ohne
+    // zu stapeln".
+    //
+    // **Für die Ablaufzeit taugt sie NICHT.** Sie setzt `shieldExpiresAtMs`
+    // gar nicht — umgewandelter Schutz läuft deshalb NIE ab. Gemessen am
+    // 2026-08-14 gegen `first-crucible` (ein Boss ohne Schläge): TEMPER plus
+    // drei KINDLE ergeben 75 Schutz, und dreissig Sekunden später stehen
+    // immer noch 75. Zur Gegenprobe derselbe Lauf mit einem gewirkten
+    // Schutzzauber: `scab` trägt 8000 ms und ist danach bei 0.
+    //
+    // Das widerspricht dem Modell aus GAME-DESIGN 260, wo `shield_expires_at`
+    // ein Feld der Schutzschicht ist.
+    //
+    // Der Befund ist gemeldet und ausdrücklich NICHT in #323 behoben — er
+    // braucht eine eigene Abnahme. Diese Zeilen setzen die Uhr deshalb selbst,
+    // statt sich auf das Vorbild zu verlassen.
     const schutz = spell.shield;
     if (schutz !== undefined && schutz.amount > 0) {
       const anteil = Math.floor(

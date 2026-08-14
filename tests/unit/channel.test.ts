@@ -29,7 +29,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { alsSpellIndex, CAST_OK, CAST_STARTED, Combat } from '../../src/core/combat.js';
+import {
+  alsSpellIndex,
+  CAST_OK,
+  CAST_STARTED,
+  Combat,
+  isCastAccepted,
+} from '../../src/core/combat.js';
 import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
 
 const BOSS = bossById('test-warden') as BossDef;
@@ -910,5 +916,126 @@ describe('Die SCHUTZ-Kanalisierung — EINE Schicht, die über die Dauer wächst
       for (const bis = t + 1600; t <= bis; t += 10) combat.stepPassive(t);
     }
     expect(combat.shieldStacks, 'zwei Würfe SCAB haben nicht gestapelt').toBeGreaterThan(1);
+  });
+
+  /**
+   * # Die Ablaufzeit — Annahme 1, und warum sie eine eigene Messung braucht
+   *
+   * Die Uhr startet mit **jedem** Schritt neu. Das ist eine der drei Annahmen,
+   * die GAME-DESIGN 20.5 offenlässt; sie ist am 2026-08-14 freigegeben worden.
+   *
+   * **Ein Fall der Form „die Schicht läuft während des Kanals nicht ab" würde
+   * das NICHT belegen.** Der Prüfzauber hält 20000 ms und kanalisiert 5000 —
+   * sie läuft dort auch dann nicht ab, wenn die Uhr nur einmal beim ersten
+   * Schritt gesetzt würde. Der Fall wäre grün und sagte nichts.
+   *
+   * Was die Annahme wirklich fasst, ist die **Differenz**: Wo die Schicht
+   * endet, hängt davon ab, wann der LETZTE Schritt fiel.
+   *
+   * | Kanal | letzter Schritt | Ende der Schicht |
+   * | --- | --- | --- |
+   * | läuft durch | 5000 ms | 25000 ms |
+   * | Abbruch nach einem Schritt | 1000 ms | 21000 ms |
+   *
+   * Die 4000 ms dazwischen SIND die wandernde Uhr. Würde sie nur einmal
+   * gesetzt, endeten beide bei 21000.
+   */
+  it('die Uhr WANDERT mit: wo die Schicht endet, hängt am LETZTEN Schritt', () => {
+    // Gemessen wird der erste Takt, in dem KEINE Schicht mehr steht — nicht
+    // der Ablaufzeitpunkt selbst. Der Ablauf greift bei „Zeit GRÖSSER als
+    // Endzeit", die Schicht steht bei 25000 ms also noch; weg ist sie im Takt
+    // danach. Die Differenz weiter unten ist von dieser Verschiebung frei,
+    // weil sie in beiden Messungen gleich ist.
+    const TAKT = 10;
+    const ersterTaktOhneSchicht = (abbruchNachMs: number): number => {
+      const combat = schutzKampf();
+      const d = schutzDaten(combat);
+      const dauer = combat.spellAt(d.index)?.shield?.durationMs ?? 0;
+      expect(dauer, 'der Prüfzauber trägt gar keine Schicht-Dauer').toBeGreaterThan(0);
+      expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+      // Der Abbruch geschieht durch einen anderen Zauber — dieselbe Bauart wie
+      // im Einfrier-Fall darüber.
+      // **Der Abbruch wird versucht, bis er ANGENOMMEN ist.** Ein einzelner
+      // Versuch bei `abbruchNachMs` reicht nicht: Die globale Wartezeit läuft
+      // beim Start des Kanals an (1500 ms), ein Druck bei 1000 ms wird also
+      // abgelehnt. Der erste Entwurf tat genau das — der Kanal lief in
+      // Wahrheit durch, die Messung stand auf -1, und die Zahl hätte einen
+      // Fehler in der Uhr behauptet, den es nicht gab.
+      let abgebrochen = false;
+      // **Erst ab dem Moment messen, in dem eine Schicht STEHT.** Vor dem
+      // ersten Raster-Schritt ist sie null, und ohne dieses Merker-Flag meldete
+      // die Messung 10 ms als „Ende" — gemessen, und der erste Entwurf ist
+      // genau darauf hereingefallen.
+      let stand = false;
+      // Weit über das erwartete Ende hinaus, damit ein Ablauf auch dann
+      // auffällt, wenn er später kommt als gedacht.
+      const bis = (abbruchNachMs === Number.POSITIVE_INFINITY ? d.dauer : abbruchNachMs) + dauer;
+      for (let t = 0; t <= bis + 2000; t += TAKT) {
+        combat.stepPassive(t);
+        if (!abgebrochen && t >= abbruchNachMs && abbruchNachMs < d.dauer) {
+          abgebrochen = isCastAccepted(combat.cast(combat.indexOf('kindle'), t).result);
+        }
+        if (combat.shield > 0) stand = true;
+        else if (stand) return t;
+      }
+      return -1;
+    };
+
+    const d = schutzDaten(schutzKampf());
+    const dauer = schutzKampf().spellAt(d.index)?.shield?.durationMs ?? 0;
+
+    // Durchgelaufen: der letzte Schritt fällt bei `d.dauer`, das Ende liegt
+    // eine volle Schicht-Dauer später. **Das ist zugleich Auflage 8, erste
+    // Hälfte:** nach dem letzten Schritt hält sie die VOLLE Dauer.
+    const endeDurchgelaufen = ersterTaktOhneSchicht(Number.POSITIVE_INFINITY);
+    expect(
+      endeDurchgelaufen,
+      'die Schicht lief im beobachteten Fenster gar nicht ab',
+    ).toBeGreaterThan(0);
+    expect(endeDurchgelaufen, `erster Takt ohne Schicht: ${endeDurchgelaufen} ms`).toBe(
+      d.dauer + dauer + TAKT,
+    );
+
+    // Abbruch nach EINEM Schritt: die Uhr steht dann auf dem ersten Schritt,
+    // und das Ende liegt genau `d.dauer - d.raster` früher.
+    const endeAbgebrochen = ersterTaktOhneSchicht(d.raster);
+    expect(
+      endeAbgebrochen,
+      'im abgebrochenen Lauf lief die Schicht gar nicht ab — dann vergleicht ' +
+        'die Zeile darunter eine Zahl mit -1',
+    ).toBeGreaterThan(0);
+    expect(endeAbgebrochen, `erster Takt ohne Schicht: ${endeAbgebrochen} ms`).toBe(
+      d.raster + dauer + TAKT,
+    );
+
+    // **Die eigentliche Aussage.** Ohne wandernde Uhr wären beide Zahlen
+    // gleich; der Abstand ist die Zeit zwischen erstem und letztem Schritt.
+    expect(
+      endeDurchgelaufen - endeAbgebrochen,
+      `durchgelaufen ${endeDurchgelaufen} ms, abgebrochen ${endeAbgebrochen} ms — ` +
+        'gleiche Zahlen hiessen: die Uhr wird nur einmal gesetzt',
+    ).toBe(d.dauer - d.raster);
+  });
+
+  it('während des Kanals läuft sie NICHT ab — auch nicht der erste Schritt', () => {
+    // Auflage 8, zweite Hälfte. Bei dieser Schicht-Dauer ist der Fall für sich
+    // genommen schwach (siehe der Kommentar oben), und er steht trotzdem hier:
+    // Er deckt die Richtung ab, in der ein Fehler NICHT über die Endzeit
+    // sichtbar würde — eine Schicht, die zwischendurch auf 0 fällt und beim
+    // nächsten Schritt neu anfängt, hätte dieselbe Endzeit und wäre über den
+    // Fall darüber nicht zu fassen.
+    const combat = schutzKampf();
+    const d = schutzDaten(combat);
+    expect(combat.cast(d.index, 0).result).toBe(CAST_STARTED);
+
+    let eingebrochen = -1;
+    let hoechster = 0;
+    for (let t = 0; t <= d.dauer; t += 10) {
+      combat.stepPassive(t);
+      if (combat.shield < hoechster && eingebrochen < 0) eingebrochen = t;
+      hoechster = Math.max(hoechster, combat.shield);
+    }
+    expect(eingebrochen, `die Schicht fiel bei ${eingebrochen} ms zurück`).toBe(-1);
+    expect(hoechster, 'am Ende des Kanals stand die volle Summe').toBe(d.gesamt);
   });
 });
