@@ -66,6 +66,7 @@ import eingecheckteQuellen from './recordings/sources.json';
 import eingecheckteWirkzeit from './recordings/cast-time.json';
 import eingecheckterKanal from './recordings/channel.json';
 import eingecheckterSchutzKanal from './recordings/channel-schutz.json';
+import eingecheckterHeilKanal from './recordings/channel-heilung.json';
 import eingecheckteWiderstaende from './recordings/resistances.json';
 import eingecheckteGemischteLeiste from './recordings/resistances-mixed.json';
 // **Diese zwei fehlten hier**, und das ist ein Befund und keine Ergänzung:
@@ -163,6 +164,7 @@ import {
   castTimePayload,
   channelPayload,
   channelShieldPayload,
+  channelHealPayload,
   resistancePayload,
   resistanceMixedPayload,
   runawayProgressPayload,
@@ -627,6 +629,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckterSchutzKanal, HINWEIS).toEqual(channelShieldPayload());
   });
 
+  it('der Lauf mit einem HEIL-Kanal entspricht dem heutigen Spielstand', () => {
+    // Die Heil-Auszahlung der Kanalisierung (#323, Nachtrag zu #843). Eigene
+    // Aufzeichnung, weil ein Schutz-Kanal im selben Lauf die Heilung
+    // wirkungslos macht.
+    expect(eingecheckterHeilKanal, HINWEIS).toEqual(channelHealPayload());
+  });
+
   it('der Lauf gegen einen Boss mit WIDERSTAENDEN entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteWiderstaende, HINWEIS).toEqual(resistancePayload());
   });
@@ -917,6 +926,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'cast-time',
   'channel',
   'channel-schutz',
+  'channel-heilung',
   'resistances',
   'resistances-mixed',
   'runaway-progress',

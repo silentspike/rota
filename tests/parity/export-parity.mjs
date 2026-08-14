@@ -187,9 +187,11 @@ import {
   CAST_TIME_NAME,
   CHANNEL_NAME,
   CHANNEL_SHIELD_NAME,
+  CHANNEL_HEAL_NAME,
   castTimePayload,
   channelPayload,
   channelShieldPayload,
+  channelHealPayload,
   RESISTANCE_NAME,
   resistancePayload,
   RESISTANCE_MIXED_NAME,
@@ -461,6 +463,18 @@ console.log(`geschrieben: ${channelShieldPath}`);
 console.log(
   `  Kanal-Schutz  ${channelShield.expected.absorbed} abgefangen, ` +
     `${channelShield.shieldTrace.filter((v) => v > 0).length} Takte mit Schicht`,
+);
+
+// Die HEIL-Auszahlung der Kanalisierung (#323, Nachtrag zu #843). Eigene Datei
+// und anderer Boss, weil ein Schutz-Kanal im selben Lauf die Heilung
+// wirkungslos machte — gemessen: 1020 geheilt ohne ihn, 0 mit ihm.
+const channelHeal = channelHealPayload();
+const channelHealPath = join(here, 'recordings', `${CHANNEL_HEAL_NAME}.json`);
+writeFileSync(channelHealPath, serialize(channelHeal), 'utf8');
+console.log(`geschrieben: ${channelHealPath}`);
+console.log(
+  `  Kanal-Heilung ${channelHeal.expected.healed} geheilt, ` +
+    `${channelHeal.expected.castsCancelled} von Hand abgebrochen`,
 );
 
 const runawayProgress = runawayProgressPayload();

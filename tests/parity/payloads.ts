@@ -2002,6 +2002,97 @@ export function channelShieldPayload(): Record<string, unknown> {
   };
 }
 
+export const CHANNEL_HEAL_NAME = 'channel-heilung';
+
+/**
+ * Die HEIL-Auszahlung der Kanalisierung (Issue #323, Nachtrag zu #843).
+ *
+ * # Warum sie NICHT in `channel-schutz` mit hineinpasst
+ *
+ * Die zwei Kanäle stehen in Konkurrenz: Der Schutz fängt genau den Schaden ab,
+ * den die Heilung heilen müsste, und Überheilung zählt nicht. Gemessen am
+ * 2026-08-14 über 24 s:
+ *
+ * | Lauf | genommen | geheilt |
+ * | --- | --- | --- |
+ * | `boss-2-3` OHNE Schutz-Kanal | 1040 | 1020 |
+ * | `boss-2-3` MIT Schutz-Kanal | 40 | 0 |
+ * | `boss-4-4` MIT Schutz-Kanal | 0 | 0 |
+ *
+ * Eine gemeinsame Aufzeichnung enthielte also zwei Kanäle und prüfte einen —
+ * sie sähe nach doppelter Deckung aus und wäre einfache.
+ *
+ * Die Spur `healedTrace` geht mit, wie `shieldTrace` beim Schutz. Sie ist die
+ * Zusicherung des Falls: Sie zeigt, dass die Heilung SCHRITTWEISE fällt und
+ * nicht in einem Betrag am Ende — und dass nach dem Abbruch bei 17000 ms
+ * nichts mehr nachkommt.
+ */
+export function channelHealPayload(): Record<string, unknown> {
+  const recording = recordings().get(CHANNEL_HEAL_NAME);
+  if (recording === undefined) throw new Error(`Unbekannte Aufzeichnung: ${CHANNEL_HEAL_NAME}`);
+  const boss = bossById('boss-2-3');
+  if (boss === undefined) throw new Error('Der Boss boss-2-3 fehlt.');
+  const bindings = recording.bindings;
+  if (bindings === undefined) throw new Error(`${CHANNEL_HEAL_NAME}: Aufzeichnung ohne Bindungen`);
+
+  const result = replayRecording(recording, { checksumPerTick: true, boss, bindings });
+
+  // Der zweite Durchgang für die Spuren — dieselben Eingaben, also derselbe
+  // Kampf. Dieselbe Bauart wie in `channelShieldPayload`.
+  const healedTrace: number[] = [];
+  const hpTrace: number[] = [];
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
+  let pressIndex = 0;
+  for (let tick = 0; tick < recording.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    while (pressIndex < recording.presses.length && recording.presses[pressIndex]?.tick === tick) {
+      const press = recording.presses[pressIndex];
+      pressIndex++;
+      if (press === undefined) continue;
+      const binding = bindings.find((b) => b.slot === press.slot);
+      if (binding === undefined) continue;
+      combat.cast(combat.indexOf(binding.spellId), timeMs);
+    }
+    healedTrace.push(combat.healed);
+    hpTrace.push(combat.playerHp);
+  }
+
+  return {
+    schema: SCHEMA,
+    name: recording.name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId: 'boss-2-3',
+    bindings,
+    presses: recording.presses.map((press) => ({ tick: press.tick, slot: press.slot })),
+    expected: {
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      // **Die Zahl, um die es hier geht.** Sie geht in keine Prüfsumme ein
+      // (#576) — ohne sie hinge der Nachweis allein an `playerHp`, und ein
+      // Kanal, der seine Auszahlung verlöre, sähe in einem Takt ohne
+      // Boss-Schlag genauso aus wie einer, der pünktlich zahlt.
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      castsCancelled: result.castsCancelled,
+      castsInterrupted: result.castsInterrupted,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+    },
+    checksums: result.checksums,
+    healedTrace,
+    hpTrace,
+  };
+}
+
 export const TRIAL_BLOCKS_NAME = 'trial-blocks';
 
 /**
