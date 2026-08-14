@@ -305,6 +305,35 @@ Verzweigung genommen. Nur der Kommentar behauptete, wozu sie da ist.
 > **Wer eine Bedingung schreibt, weil „sonst könnte X passieren", schuldet einen
 > Fall, in dem X passiert.**
 
+#### Und ein „geht nicht, weil" beendet die Suche — auch wenn das „weil" nie stimmte
+
+In `payloads.ts` stand über einer Zeile:
+
+> „Aus dem Aufnahme-Lauf, nicht aus `replayRecording` (RIPOSTE, Issue #481).
+> `ReplayResult` **führt den Rückschlag nicht**."
+
+Gemessen am 2026-08-14:
+
+```
+recording.ts:118   readonly reflected: number;
+recording.ts:520   reflected: combat.reflected,
+git log -S         beide aus a0e72b0 — demselben Commit wie der Kommentar
+```
+
+**Das Feld kam im selben Commit dazu wie der Satz, der seine Existenz bestreitet.**
+Die Begründung hat nie gestimmt; sie hat nur verhindert, dass jemand nachsieht.
+
+Am selben Tag derselbe Fall in `gear.rs`: „`QUALITY_HAS_EFFECT` hat im Kampf keinen
+Leser, auf keiner der beiden Seiten" — die Spielseite las es seit #480, also seit
+sechs Tagen. Auch dort stand daneben eine Warnung, hier nichts zu „reparieren".
+
+> **Eine Lücke, die mit „geht nicht, weil" begründet ist, wird nicht nachgeprüft.
+> Stimmt das „weil" nicht, ist die Lücke unsichtbar, solange der Satz dasteht.**
+
+Wer so einen Satz schreibt, nennt die Stelle mit Datei und Zeile, an der die Lücke
+sitzt — dann fällt beim nächsten Lesen auf, wenn sie geschlossen wurde. Wer so einen
+Satz **liest**, sieht an der genannten Stelle nach, bevor er ihm folgt.
+
 ### Ein Lauf, dessen Ausgabe du nicht behältst, ist ein Lauf, den du nicht gemacht hast
 
 Ein Prüflauf färbte einmal rot, drei Wiederholungen danach grün. Der rote Lauf lief
