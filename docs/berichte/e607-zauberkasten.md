@@ -169,12 +169,51 @@ Tode über ALLE Läufe dieser Messreihe:   0 von 1000, in jedem einzelnen
 schlechtesten, an keinem Boss, bei keiner Listenlänge. Jede Niederlage ist ein
 Überdruck.
 
-### Damit ist AC2 keine Beobachtung mehr, sondern eine Folgerung
+### Warum der Spieler nicht stirbt — nicht, weil er es nicht könnte
 
-Ein Zauber, der heilt, schützt oder Schaden abfängt, zahlt einen GCD für eine
-Wirkung auf einen Ausgang, **der nie über Sieg oder Niederlage entscheidet**.
-Er kann nicht gewinnen — nicht weil er zu schwach ist, sondern weil seine Größe
-nicht gezählt wird.
+Der naheliegende Schluss wäre „kein Boss kann den Spieler töten". **Er ist
+falsch**, und die Rechnung dagegen ist einfach:
+
+```
+boss-1-1   timelineLoopMs 15000, Summe je Zyklus 2100
+           (900 bei 3000 ms, 300 bei 8000 ms, 900 bei 13000 ms)
+Spieler    vessel 5000                        (data/player/base.json)
+```
+
+Über die vollen 60 Sekunden Überdruckzeit wären das vier Zyklen und 8400 roher
+Schaden gegen 5000 Lebenspunkte. **Der Boss kann töten.**
+
+Gemessen im Basislauf, nach WARD und Schutzschicht:
+
+```
+angekommen 2640, davon abgefangen 720   →  netto erlitten 1920
+in 30010 ms                             →  64 Lebenspunkte je Sekunde
+5000 Lebenspunkte reichen damit für     →  78151 ms
+Überdruck von boss-1-1                  →  60000 ms
+```
+
+**Der Spieler würde nach rund 78 Sekunden sterben. Der Kampf endet nach 60.**
+
+Der Abstand ist Faktor 1,3 — nicht zwei, nicht zehn. Der Spieler überlebt
+nicht, weil ihm nichts gefährlich wird, sondern weil der Kampf vorher aufhört.
+
+### Und er verteidigt sich dabei nicht
+
+```
+quench (einziger Zauber mit interrupt: true) in den Basislisten:  0 mal
+Spieler geheilt im Basislauf:                                     0
+```
+
+Keine der drei besten Rotationen enthält den Unterbrecher, und geheilt wird
+nicht. Der Spieler überlebt **ohne jede Verteidigungshandlung** — weil er
+schnell genug ist, nicht weil er sich schützt.
+
+### Damit steht AC2 als Folgerung
+
+Ein Zauber, der heilt oder schützt, zahlt einen GCD für eine Wirkung auf einen
+Ausgang, der in der zur Verfügung stehenden Zeit **nie** über Sieg oder
+Niederlage entscheidet. Nicht weil er zu schwach ist — weil der Kampf endet,
+bevor seine Größe zählt.
 
 Das erklärt zugleich, warum 19 der 21 lebenden Zauber `baseDamage 0` haben und
 trotzdem gewinnen: Sie wirken über DoT, Spender und Verstärkung auf denselben
@@ -182,41 +221,48 @@ einen Ausgang.
 
 ## AC4 — was eine zweite tragfähige Zusammenstellung bräuchte
 
-**Nicht neue Zauber. Einen zweiten Ausgang, der zählt.**
+**Nicht neue Zauber. Zeit, in der die anderen vier Ausgänge zählen.**
 
-### Die Zahl
-
-Der schlimmste gemessene Kampf für den Spieler (`pin` an `boss-1-1`):
+### Die Zahl, und sie ist kleiner als erwartet
 
 ```
-eingehend gesamt   6000
-davon abgefangen   1440     →  tatsächlich erlitten   4560
-Spieler geheilt    2000     →  netto                  2560
-Lebenspunkte                                          5000   (data/player/base.json)
+Tod des Spielers bei aktueller Schadensrate    78151 ms
+Überdruck-Grenze von boss-1-1                  60000 ms
+                                               ────────
+Abstand                                        Faktor 1,30
 ```
 
-**Der Spieler verliert gut die Hälfte seiner Lebenspunkte — im ungünstigsten
-Fall der ganzen Messreihe, bei einer absichtlich verschlechterten Rotation.**
+**Dreißig Prozent.** Ein Kampf, der dreißig Prozent länger dauert — oder eine
+Schadensrate, die dreißig Prozent höher liegt — macht den Tod zur Möglichkeit,
+und ab da kauft ein Schutz- oder Heilzauber etwas, das seinen GCD wert ist.
 
-Damit der Tod überhaupt eine Möglichkeit wird, müsste der eingehende Schaden
-etwa **Faktor 2** höher liegen. Erst dann entscheidet `damage_taken` einen
-Kampf, und erst dann kauft ein Schutz- oder Heilzauber etwas, das seinen GCD
-wert ist.
+Die eigenen AC2-Zahlen zeigen, dass dieser Bereich real erreicht wird: Die
+Varianten mit toten Zaubern brauchen 48000 bis 59000 ms statt 30000. **Sie
+kämpfen bereits in der Zone, in der Verteidigung zählen würde** — sie kommen
+nur nicht dort an, weil die Suche sie vorher verwirft.
+
+### Ein Hebel, der bereits existiert und nicht benutzt wird
+
+`quench` unterbricht, und bei `boss-1-1` sind 1800 von 2100 Schaden je Zyklus
+unterbrechbar (86 %), bei `boss-2-2` 2200 von 2400 (92 %). Ein unterbrochener
+Cast macht **null** Schaden, nicht weniger (`src/core/combat.ts:3510`).
+
+Die Verteidigung ist also gebaut. Sie lohnt sich nur nicht, solange ein GCD
+mehr Schaden mehr wert ist als ein verhinderter Schlag.
 
 ### Warum das billiger ist als neue Zauber
 
 Die 37 toten Zauber bedienen bereits 24 verschiedene Wirkungsarten, davon 16
-bei genau einem Zauber. Das Material liegt vor; was fehlt, ist ein Grund, es zu
-benutzen. Ein neuer Zauber auf denselben einen Ausgang wäre der zweiundzwanzigste
-Weg, Schaden zu machen.
+bei genau einem Zauber. Das Material liegt vor; was fehlt, ist Zeit, in der es
+etwas kauft. Ein neuer Zauber auf denselben einen Ausgang wäre der
+zweiundzwanzigste Weg, Schaden zu machen.
 
-### Was diese Zahl nicht sagt
+### Was diese Zahlen nicht sagen
 
-Sie ist **kein Balance-Vorschlag**. Ob ein Boss doppelt so hart schlagen soll —
-oder ob stattdessen die Lebenspunkte sinken, die Heilung schwächer wird oder
-eine Mechanik den Schaden nur verschiebt — ist eine Design-Entscheidung. Hier
-steht die Schwelle, ab der die anderen vier Ausgänge überhaupt messbar werden,
-nicht der Weg dorthin.
+Sie sind **kein Balance-Vorschlag**. Ob die Überdruckzeit steigt, die Bosse
+härter schlagen oder die Lebenspunkte sinken — das ist eine
+Design-Entscheidung. Hier steht die Schwelle, ab der die anderen vier Ausgänge
+messbar werden, nicht der Weg dorthin.
 
 ## Was nicht geprüft ist
 
@@ -226,6 +272,10 @@ nicht der Weg dorthin.
   ist nicht ausgeschlossen — `cinder` (1 → 10 von 17) zeigt, dass die Stelle
   zählt.
 - **Die 37** bleibt Obergrenze (drei Bosse an `LengthLimit`).
+- **Die 78151 ms gelten für einen Boss und eine Rotation.** Sie sind aus einem
+  Basislauf hochgerechnet (1920 erlittener Schaden in 30010 ms), nicht durch
+  einen Kampf über 78 Sekunden belegt. Ob die Rate über die volle Zeit konstant
+  bleibt, ist offen — `escalation` in `boss-1-1.json` spricht eher dagegen.
 - **Ob die Faktoren „zu schwer" oder „zu leicht" bedeuten** — dazu gehört die
   zweite Messgröße aus GAME-DESIGN 20.5 Punkt 4, Zeit bis zum Tod, und die
   greift erst, wenn der Tod möglich ist.
