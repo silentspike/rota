@@ -1072,8 +1072,23 @@ export function doomStacksPayload(): Record<string, unknown> {
       // Takt-Prüfsummen übereinstimmten.
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
       sequenceChecksum: sequence,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — der Verhängnis-Zähler am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalDoom: combat.doom,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Ladungen am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalDoomCharges: combat.doomCharges,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Stapel am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalStacks: combat.bossStacks,
       finalPlayerHp: combat.playerHp,
     },
@@ -1298,6 +1313,11 @@ export function raceHealPayload(): Record<string, unknown> {
       // ihn nicht und soll ihn nicht führen — genau die Klasse, die bei #630
       // aus 38 Kandidaten herausgefiltert wurde. Dasselbe gilt für alle
       // übrigen `final*`-Felder dieser Datei.
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — der Fortschritt am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalRaceProgress: combat.raceProgress,
       damageLostToRace: result.damageLostToRace,
       bossHealed: result.bossHealed,
@@ -2613,10 +2633,20 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     expected: {
       // `control` ist ein MOMENTANWERT (der Vorrat am Ende), kein Endwert im
       // Sinne des Ergebnisses — es führt ihn nicht. Bleibt bei `combat`.
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — der Kontroll-Vorrat am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       control: combat.control,
       controlSpent: result.controlSpent,
       controlFailed: result.controlFailed,
       phaseHoldPercent: result.phaseHoldPercent,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Phase am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalPhase: combat.bossPhase,
       damageTaken: result.damageTaken,
       // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
@@ -2751,6 +2781,15 @@ export function logParityPayload(): Record<string, unknown> {
       shieldAbsorbed: result.absorbed,
       interruptsLanded: result.interruptsLanded,
       healed: result.healed,
+      // **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
+      // `timelineLoopPayload` heißt sie `finalTimelineIndex`, hier
+      // `timelineIndex` — beide lesen `combat.timelineIndex`.
+      //
+      // Beide bleiben, aus demselben Grund wie beim Energie-Paar: Sie stehen
+      // in verschiedenen Vergleichsdateien (`log-parity` und
+      // `timeline-loop`) und begegnen sich in keiner. Umbenennen änderte eine
+      // Aufzeichnung, ohne die Verwechslungsgefahr zu senken — die entsteht
+      // erst, wenn zwei Namen nebeneinander stehen.
       timelineIndex: combat.timelineIndex,
       // `logEntries` zählt EINTRÄGE DIESES Protokolls, nicht des Nachlaufs —
       // der führt ein eigenes. Bleibt bei `log`.
@@ -2846,6 +2885,18 @@ export function logTaktePayload(): Record<string, unknown> {
        * Null, hat die Energieleiste nie ausgelöst — dann vergleicht der
        * Prüffall gegenüber zwei leere Listen und ist grün, ohne etwas über
        * Art 8 zu sagen. Genau das war der Zustand vor diesem Issue.
+       *
+       * **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
+       * `bossStatePayload` heißt sie `energyTriggers`, hier
+       * `bossEnergyTriggers` — beide lesen `combat.bossEnergyTriggers`.
+       *
+       * Sie bleiben beide, und das ist entschieden, nicht bequem: Die zwei
+       * Namen stehen in VERSCHIEDENEN Vergleichsdateien (`boss-state` und
+       * `log-takte`), begegnen sich also in keiner Datei. Ein Umbenennen
+       * änderte eine Paritäts-Aufzeichnung, ohne dass ein Leser dadurch
+       * weniger verwechseln könnte — die Verwechslungsgefahr entsteht erst,
+       * wenn zwei Namen nebeneinander stehen. Der Hinweis steht an beiden
+       * Zeilen, damit das nicht neu ermittelt werden muss.
        */
       bossEnergyTriggers: combat.bossEnergyTriggers,
       logEntries: log.length,
@@ -3973,6 +4024,9 @@ export function timelineLoopPayload(): Record<string, unknown> {
       damageTaken: result.damageTaken,
       interruptsLanded: result.interruptsLanded,
       interruptsMissed: result.interruptsMissed,
+      // **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
+      // `logParityPayload` heißt sie `timelineIndex`. Begründung dort — kurz:
+      // verschiedene Vergleichsdateien, keine Begegnung in einer Datei.
       finalTimelineIndex: combat.timelineIndex,
       finalPlayerHp: combat.playerHp,
     },
@@ -4214,6 +4268,13 @@ export function buffCombatPayload(): Record<string, unknown> {
       factorAt.push({
         tick,
         buffs: combat.damageFactors.buffs,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des
+        // Laufs, kein Ergebnis. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+        // unter keinem Namen.
+        //
+        // Der Vermerk allein wäre eine Behauptung; belegt ist er durch AC6:
+        // `combat.vulnerability` mutiert → drei Fälle rot mit Namen.
         vulnerability: combat.vulnerability,
       });
     }
@@ -5036,6 +5097,11 @@ export function decayFactorPayload(): Record<string, unknown> {
       factorAt.push({
         tick,
         buffs: combat.damageFactors.buffs,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des Laufs,
+        // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+        // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+        // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
         vulnerability: combat.vulnerability,
       });
     }
@@ -5112,6 +5178,11 @@ export function decayTalentPayload(): Record<string, unknown> {
       factorAt.push({
         tick,
         buffs: combat.damageFactors.buffs,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des Laufs,
+        // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+        // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+        // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
         vulnerability: combat.vulnerability,
       });
     }
