@@ -510,3 +510,260 @@ describe('Die Abklingzeit läuft an — beim BEGINN, nicht am Ende', () => {
     ).toBeLessThanOrEqual(durchlauf);
   });
 });
+
+describe('Die HEILUNGS-Kanalisierung — das wörtliche Beispiel des Auftraggebers', () => {
+  /**
+   * # Der Fall, den #323 bis zuletzt nicht konnte
+   *
+   * GAME-DESIGN 653 nennt ihn wörtlich: *„Eine Kanalisierung über 5 s für 500
+   * HEILUNG, abgebrochen nach 3 s, hat 300 Heilung gegeben. Dasselbe gilt für
+   * Schadens- und Ressourcen-Kanalisierungen."*
+   *
+   * Der Hauptfall des Absatzes ist also die HEILUNG; DECOCTION (#832) ist die
+   * Ableitung „dasselbe gilt für Schadens-Kanalisierungen". Und ausgerechnet
+   * der Hauptfall tat nichts: `resolveChannelTick` stieg bei `baseDamage <= 0`
+   * aus, bevor irgendetwas ausgezahlt wurde.
+   *
+   * **Die Gegenprobe, vor dem Bau gemessen und hier festgehalten:** Derselbe
+   * Zauber heilte 0, während dem Spieler 1600 fehlten. Ohne diese Zahl wäre
+   * nicht belegt, dass hier eine Lücke geschlossen und nicht bloß ein
+   * Datensatz angelegt wurde.
+   */
+  const HEIL_BOSS = bossById('test-onslaught') as BossDef;
+
+  /** Die Kennzahlen des Heil-Prüfzaubers — abgelesen, nicht angenommen. */
+  function heilDaten(combat: Combat) {
+    const index = combat.indexOf('test-channel-heal');
+    const spell = combat.spellAt(index);
+    const dauer = spell?.channelMs ?? 0;
+    const raster = spell?.channelTickMs ?? 0;
+    const gesamt = spell?.heal?.amount ?? 0;
+    const schritte = raster > 0 ? Math.floor(dauer / raster) : 0;
+    return { index, dauer, raster, gesamt, schritte, jeSchritt: Math.floor(gesamt / schritte) };
+  }
+
+  /**
+   * Ein Kampf, in dem Gesundheit FEHLT — sonst heilt auch eine funktionierende
+   * Heilung nichts, und der Fall wäre grün, ohne etwas zu prüfen.
+   *
+   * # Gemessen wird `healed`, NICHT die Gesundheit
+   *
+   * Der erste Entwurf verglich `playerHp` vorher und nachher. Der Abbruch-Fall
+   * meldete daraufhin `expected -1300 to be 300`: Der Boss schlägt während der
+   * Messung weiter zu, und die Gesundheit ist die Summe aus allem, was ihr
+   * zustösst. `healed` führt nur, was die Heilung beigetragen hat.
+   *
+   * Der Durchlauf-Fall war dabei **grün** — sein Fenster lag zufällig zwischen
+   * zwei Schlägen (`test-onslaught` trifft bei 5000, 12_000 und 19_000). Eine
+   * falsche Messgrösse, die in einem von zwei Fällen das richtige Ergebnis
+   * liefert, ist die unangenehmere Sorte.
+   */
+  function verwundet(): { combat: Combat; abMs: number } {
+    const combat = new Combat({ school: CALCINATION.value, boss: HEIL_BOSS });
+    combat.beginFight(0);
+    const voll = combat.playerHp;
+    let t = 0;
+    for (; t <= 6000; t += 10) combat.stepPassive(t);
+    expect(combat.playerHp, 'dem Spieler fehlt nichts — dann prüft der Fall nichts').toBeLessThan(
+      voll,
+    );
+    return { combat, abMs: t };
+  }
+
+  it('ZUSICHERUNG: der Prüfzauber IST der aus dem Design-Beispiel', () => {
+    // 5 s, 500 Heilung, fünf Schritte à 100. Nur dann ist „300 nach 3 s" das
+    // Beispiel und nicht eine beliebige Zahl.
+    const d = heilDaten(new Combat({ school: CALCINATION.value, boss: HEIL_BOSS }));
+    expect(d.dauer).toBe(5000);
+    expect(d.gesamt).toBe(500);
+    expect(d.schritte).toBe(5);
+    expect(d.jeSchritt).toBe(100);
+  });
+
+  it('läuft sie durch, sind 500 geheilt', () => {
+    const { combat, abMs } = verwundet();
+    const d = heilDaten(combat);
+    const vorher = combat.healed;
+    expect(combat.cast(d.index, abMs).result).toBe(CAST_STARTED);
+    let t = abMs;
+    for (; t <= abMs + d.dauer; t += 10) combat.stepPassive(t);
+    // Aus der Dauer gerechnet, nicht abgeschrieben.
+    expect(combat.healed - vorher).toBe(d.schritte * d.jeSchritt);
+  });
+
+  it('nach 3 von 5 Schritten abgebrochen bleiben 300 — die Zahl des Auftraggebers', () => {
+    const { combat, abMs } = verwundet();
+    const d = heilDaten(combat);
+    const vorher = combat.healed;
+    expect(combat.cast(d.index, abMs).result).toBe(CAST_STARTED);
+
+    const abbruchAt = abMs + 3 * d.raster;
+    let t = abMs;
+    for (; t <= abbruchAt; t += 10) combat.stepPassive(t);
+    const beiDrei = combat.healed - vorher;
+
+    // Eine eigene Wirkung bricht ab (GAME-DESIGN 635).
+    combat.cast(combat.indexOf('kindle'), abbruchAt);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+    for (; t <= abMs + d.dauer + 2000; t += 10) combat.stepPassive(t);
+
+    expect(beiDrei).toBe(3 * d.jeSchritt);
+    // Und danach kommt nichts mehr nach — der Rest ist verloren, nicht
+    // aufgeschoben.
+    expect(combat.healed - vorher).toBe(beiDrei);
+  });
+
+  it('die Zahlen aus dem Design: 300 von 500', () => {
+    // Dieselbe Aussage in den Zahlen des Auftraggebers. Sie steht hier UND
+    // oben gerechnet: Stimmt eine der beiden nicht mehr, ist entweder die
+    // Rechnung falsch oder der Prüfzauber ein anderer.
+    const d = heilDaten(new Combat({ school: CALCINATION.value, boss: HEIL_BOSS }));
+    expect(3 * d.jeSchritt).toBe(300);
+    expect(d.gesamt).toBe(500);
+  });
+
+  it('TRÄGER: der Heil-Kanal heilt ÜBERHAUPT — wird bei 0 == 0 laut', () => {
+    // **Der Wächter, der anschlägt, wenn der Heil-Kanal wieder durchfällt.**
+    // Ohne ihn verglichen die Fälle oben zwei Nullen, sobald die Auszahlung
+    // ausfällt: „nach 3 Schritten 300" wäre dann `0 === 3 * 0`, und das ist
+    // wahr. Genau so war die Lage vor dem Bau — der Zauber heilte 0, und
+    // niemand hätte es gemerkt.
+    const { combat, abMs } = verwundet();
+    const d = heilDaten(combat);
+    expect(d.jeSchritt, 'der Prüfzauber heilt je Schritt 0 — dann prüft nichts').toBeGreaterThan(0);
+    const vorher = combat.healed;
+    expect(combat.cast(d.index, abMs).result).toBe(CAST_STARTED);
+    let t = abMs;
+    for (; t <= abMs + d.raster; t += 10) combat.stepPassive(t);
+    expect(
+      combat.healed - vorher,
+      'nach dem ersten Raster-Schritt kam KEINE Heilung an',
+    ).toBeGreaterThan(0);
+  });
+
+  it('und vor dem ersten Raster-Schritt ist es NICHTS', () => {
+    // Der Gegenpol: Ein Heil-Kanal, der sofort alles gäbe, wäre ein
+    // Sofort-Zauber mit Nachlauf.
+    const { combat, abMs } = verwundet();
+    const d = heilDaten(combat);
+    const vorher = combat.healed;
+    expect(combat.cast(d.index, abMs).result).toBe(CAST_STARTED);
+    let t = abMs;
+    for (; t <= abMs + d.raster - 10; t += 10) combat.stepPassive(t);
+    expect(combat.healed).toBe(vorher);
+  });
+});
+
+describe('Die RESSOURCEN-Kanalisierung — „dasselbe gilt für Ressourcen"', () => {
+  /**
+   * # Der dritte Satz des Design-Absatzes
+   *
+   * GAME-DESIGN 653 endet mit: *„Dasselbe gilt für Schadens- und
+   * Ressourcen-Kanalisierungen."* Der Schaden lief seit #832, die Heilung seit
+   * diesem Zweig — der Vorrat gar nicht.
+   *
+   * **Gemessen, bevor gebaut wurde:** Ein Kanalzauber mit
+   * `resourceGain: {heat: 5}` stand nach einem vollen Kanal bei **0**, während
+   * KINDLE 3 brachte. Der Grund war kein Rechenfehler, sondern ein fehlender
+   * Weg: `resourceGain` hängt an `RULE_SPELL_CAST`, und das Ereignis sendet nur
+   * `resolvePlayerCast` — die der Kanal überspringt. Der Kanal-Schritt sendete
+   * `RULE_DOT_TICK`, und daran hängt `gainOfTick` mit `dot.resourceGainPerTick`:
+   * ein anderes Feld, das ein Kanalzauber nicht hat.
+   *
+   * Deshalb gibt es `RULE_CHANNEL_TICK` — angehängt und nicht eingeschoben,
+   * damit keine bestehende Kennnummer wandert.
+   */
+  const RES_BOSS = bossById('test-onslaught') as BossDef;
+
+  function kanalMitVorrat() {
+    const combat = new Combat({ school: CALCINATION.value, boss: RES_BOSS });
+    combat.beginFight(0);
+    const index = combat.indexOf('test-channel-heal');
+    const spell = combat.spellAt(index);
+    const schritte = Math.floor((spell?.channelMs ?? 0) / (spell?.channelTickMs ?? 1));
+    const roh = spell?.resourceGain?.[combat.resourceId] ?? 0;
+    return { combat, index, schritte, roh };
+  }
+
+  it('TRÄGER: der Prüfzauber trägt überhaupt einen Vorrats-Gewinn', () => {
+    // **Ohne diese Zusicherung prüfte der Fall unten 0 gegen 0.** Genau so war
+    // die Lage vor dem Bau, und sie sah aus wie ein bestandener Fall.
+    const { roh, schritte } = kanalMitVorrat();
+    expect(roh, 'der Prüfzauber trägt keinen resourceGain').toBeGreaterThan(0);
+    expect(
+      Math.floor(roh / schritte),
+      `${roh} über ${schritte} Schritte ergibt je Schritt 0 — dann prüft der Fall nichts`,
+    ).toBeGreaterThan(0);
+  });
+
+  it('der Vorrat wächst SCHRITT FÜR SCHRITT, nicht am Ende', () => {
+    const { combat, index, schritte, roh } = kanalMitVorrat();
+    const jeSchritt = Math.floor(roh / schritte);
+    const raster = combat.spellAt(index)?.channelTickMs ?? 0;
+    expect(combat.resource).toBe(0);
+    expect(combat.cast(index, 0).result).toBe(CAST_STARTED);
+
+    const verlauf: number[] = [];
+    for (let t = 0; t <= schritte * raster; t += 10) {
+      combat.stepPassive(t);
+      if (t > 0 && t % raster === 0) verlauf.push(combat.resource);
+    }
+
+    // **Der VERFALL gehört in die Erwartung, nicht in eine Ausrede.** Der erste
+    // Entwurf verglich gegen `(i + 1) * jeSchritt` und meldete
+    // `1 → 1 → 2 → 2 → 3: expected 1 to be 2`. Die Umsetzung war richtig: Hitze
+    // verfällt um `decayAmount` alle `decayPerStepMs` (hier 1 je 2000 ms), und
+    // der Vorrat wächst und schwindet zugleich.
+    //
+    // Gerechnet aus den Schul-Daten, nicht abgeschrieben — sonst stünde die
+    // Verfallsrate hier ein zweites Mal und liefe bei der ersten Änderung von
+    // den Daten weg.
+    const vorrat = CALCINATION.value.resource;
+    expect(verlauf.length).toBe(schritte);
+    for (let i = 0; i < verlauf.length; i++) {
+      const t = (i + 1) * raster;
+      const zerfallen = vorrat.decayAmount * Math.floor(t / vorrat.decayPerStepMs);
+      expect(verlauf[i], `nach Schritt ${i + 1}: ${verlauf.join(' → ')}`).toBe(
+        (i + 1) * jeSchritt - zerfallen,
+      );
+    }
+    // Und die Aussage, die der Verfall nicht verwischt: Am Ende steht MEHR als
+    // am Anfang. Ohne sie könnte ein Kanal, der gar nichts beisteuert, hier
+    // durchlaufen, solange der Verfall die Zahlen zufällig trifft.
+    expect(
+      verlauf[verlauf.length - 1],
+      'der Kanal hat unterm Strich nichts gebracht',
+    ).toBeGreaterThan(0);
+  });
+
+  it('bei Abbruch bleibt der erreichte Anteil — auch beim Vorrat', () => {
+    const { combat, index, schritte, roh } = kanalMitVorrat();
+    const jeSchritt = Math.floor(roh / schritte);
+    const raster = combat.spellAt(index)?.channelTickMs ?? 0;
+    expect(combat.cast(index, 0).result).toBe(CAST_STARTED);
+
+    const abbruchAt = 3 * raster;
+    let t = 0;
+    for (; t <= abbruchAt; t += 10) combat.stepPassive(t);
+    const beiDrei = combat.resource;
+    // KINDLE bricht ab — und bringt seinen EIGENEN Gewinn mit, deshalb wird
+    // ab hier die Differenz gemessen und nicht der Endstand.
+    combat.cast(combat.indexOf('kindle'), abbruchAt);
+    expect(combat.playerCasting, 'der Abbruch hat nicht gegriffen').toBe(-1);
+    const nachAbbruch = combat.resource;
+    for (; t <= schritte * raster + 2000; t += 10) combat.stepPassive(t);
+
+    // Wieder mit dem Verfall gerechnet (siehe oben): Bei 3 Schritten à 1000 ms
+    // ist einmal `decayPerStepMs` vergangen.
+    const vorrat = CALCINATION.value.resource;
+    const zerfallen = vorrat.decayAmount * Math.floor(abbruchAt / vorrat.decayPerStepMs);
+    expect(beiDrei).toBe(3 * jeSchritt - zerfallen);
+    // **Der eigentliche Punkt:** Nach dem Abbruch kommt vom KANAL nichts mehr
+    // nach. Gemessen wird gegen den Stand direkt nach dem Abbruch, weil KINDLE
+    // seinen eigenen Gewinn mitbringt — und weil der Verfall weiterläuft, darf
+    // die Zahl nur SINKEN, nicht steigen.
+    expect(combat.resource, 'nach dem Abbruch kam vom Kanal noch etwas nach').toBeLessThanOrEqual(
+      nachAbbruch,
+    );
+  });
+});

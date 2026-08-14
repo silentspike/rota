@@ -18,6 +18,7 @@ import rawPutrefaction from '../../data/spells/putrefaction.json';
 import rawTestCast from '../../data/spells/test-cast.json';
 import rawTestBuff from '../../data/spells/test-buff.json';
 import rawTestChannel from '../../data/spells/test-channel.json';
+import rawTestChannelHeal from '../../data/spells/test-channel-heal.json';
 import rawBoss from '../../data/bosses/first-crucible.json';
 import rawInstances from '../../data/instances.json';
 import rawPlayer from '../../data/player/base.json';
@@ -1798,6 +1799,36 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
         `${where}: Kanal-Dauer ${channelMs} ist kein Vielfaches des Rasters ${channelTickMs}.`,
       );
     }
+    // (4) Eine Heilung ÜBER ZEIT am selben Zauber wären wieder zwei
+    // Auflösungen (Issue #323). Der Unterschied ist nicht kosmetisch: Ein HoT
+    // läuft nach, während der Spieler weiterdrückt; eine Kanalisierung bindet
+    // ihn, und jede eigene Wirkung bricht sie ab (GAME-DESIGN 635). Beides
+    // zugleich hiesse, dass ein Abbruch die eine Hälfte beendet und die andere
+    // weiterlaufen lässt.
+    const heilRaw = raw['heal'];
+    if (typeof heilRaw === 'object' && heilRaw !== null) {
+      const h = heilRaw as Record<string, unknown>;
+      if (number(h['overMs'], 0) > 0) {
+        problems.push(
+          `${where}: Kanalisierung UND heal.overMs — das sind zwei Auflösungen für eine Heilung.`,
+        );
+      }
+      // (5) Ein Betrag, der vom Zustand abhängt, ist bei einer Kanalisierung
+      // zweideutig: Steht er beim BEGINN fest oder wird er je Schritt neu
+      // gerechnet? Die Sofortheilung beantwortet das für sich („der Betrag
+      // steht beim Wirken fest"), für die Verteilung über Schritte ist es
+      // nicht entschieden — und ein Kanal, der unterwegs stärker wird,
+      // während der Boss zuschlägt, wäre eine andere Mechanik.
+      //
+      // Lieber hier laut als still: Die Umsetzung zahlt heute `amount`
+      // anteilig aus und würde die beiden Felder wortlos übergehen.
+      if (number(h['perMissingPercent'], 0) > 0 || number(h['fromShieldPercent'], 0) > 0) {
+        problems.push(
+          `${where}: Kanalisierung mit zustandsabhängiger Heilung ` +
+            `(perMissingPercent/fromShieldPercent) — der Zeitpunkt des Betrags ist nicht entschieden.`,
+        );
+      }
+    }
   } else if (channelTickMs > 0) {
     problems.push(`${where}: channelTickMs ohne channelMs — das Raster wirkt nie.`);
   }
@@ -2416,6 +2447,17 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
       ...mitSchule(
         (rawTestChannel as Record<string, unknown>)['spells'],
         rawTestChannel as Record<string, unknown>,
+      ),
+      // **Und der Prüf-Zauber zur HEILUNGS-Kanalisierung** (Issue #323). Er
+      // steht neben `test-channel` und nicht darin: Der trägt `baseDamage` und
+      // prüft den Schadens-Kanal; eine Heilung daran vermischte zwei
+      // Prüfzwecke, genau wie bei `test-buff` neben `test-cast`.
+      //
+      // Er trägt die Zahlen des Design-Beispiels wörtlich (GAME-DESIGN 653):
+      // 500 Heilung über 5 s, nach 3 s abgebrochen bleiben 300.
+      ...mitSchule(
+        (rawTestChannelHeal as Record<string, unknown>)['spells'],
+        rawTestChannelHeal as Record<string, unknown>,
       ),
     ],
   };

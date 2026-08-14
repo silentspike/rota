@@ -64,7 +64,36 @@ impl StackMechanic {
         let mut per_tick = [0; SPELL_COUNT];
         for (index, spell) in SPELLS.iter().enumerate() {
             per_cast[index] = spell.resource_gain;
-            per_tick[index] = spell.dot.map_or(0, |dot| dot.resource_gain_per_tick);
+            // **Ein Kanalzauber wird hier abgezweigt** (Issue #323). Sein
+            // Schritt meldet sich als `DotTick` — die Ereignismenge ist fest
+            // (GAME-DESIGN 18.3) —, aber was er beisteuert, steht in
+            // `resource_gain` und nicht in `dot.resource_gain_per_tick`: Er hat
+            // gar keinen DoT. Ohne das bekam er gemessen 0 Vorrat, waehrend
+            // KINDLE 3 brachte.
+            //
+            // **Der ROHWERT wird geteilt, nicht der fertige Betrag.** Die
+            // Faktoren (FLASHPOINT-Fenster, Talent-Verteilung) kommen erst in
+            // `Fight::add_resource` dazu; das Spiel rechnet sie schon in
+            // `gainOfChannelStep` ein. Fuer einen ungeteilten Betrag ist das
+            // gleichwertig — mit einer Teilung dazwischen nicht mehr: Bei 5
+            // Rohgewinn ueber 2 Schritte und Faktor 1,5 gaebe "erst Faktor,
+            // dann teilen" eine 4, "erst teilen, dann Faktor" eine 3. Beide
+            // Seiten teilen deshalb vor den Faktoren.
+            per_tick[index] = if spell.channel_tick_ms > 0 && spell.channel_ms > 0 {
+                // `checked_div` statt `if schritte > 0` — clippy nennt die
+                // Handpruefung `manual_checked_div`, und sie ist hier wirklich
+                // nur Umweg: Eine Schrittzahl von 0 und eine Division, die
+                // keinen Wert liefert, sind dieselbe Aussage.
+                let schritte = spell.channel_ms / spell.channel_tick_ms;
+                u16::try_from(
+                    u32::from(spell.resource_gain)
+                        .checked_div(schritte)
+                        .unwrap_or(0),
+                )
+                .unwrap_or(0)
+            } else {
+                spell.dot.map_or(0, |dot| dot.resource_gain_per_tick)
+            };
         }
         Self {
             per_cast,
