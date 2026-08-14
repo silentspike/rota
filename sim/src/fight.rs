@@ -3329,6 +3329,20 @@ impl Fight {
         self.died_at.is_none()
     }
 
+    /// **Wann** der Spieler gestorben ist, `None` wenn er lebt.
+    ///
+    /// [`Self::player_alive`] beantwortet das Ob, und das genuegte, solange nur
+    /// eine Mechanik in Frage kam. Sobald zwei Mechaniken toeten koennen, ist
+    /// der ZEITPUNKT die Antwort: Wer je eine abschaltet und beide Laeufe
+    /// nebeneinanderlegt, liest daran ab, welche allein toetet und welche nur
+    /// mitlaeuft (`examples/doomsayer-mechaniken-672.rs`).
+    ///
+    /// **Nur lesend**, wie die beiden Getter darueber.
+    #[must_use]
+    pub const fn died_at_ms(&self) -> Option<Millis> {
+        self.died_at
+    }
+
     /// Wie viele Zersetzungs-Stapel gerade auf dem Boss liegen.
     #[must_use]
     pub fn decay_stacks(&self) -> usize {
