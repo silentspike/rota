@@ -123,7 +123,11 @@ fn main() {
     // Drei Arten, wie der Auftrag sie nennt. Erzeugt wird jede moegliche
     // Aenderung ihrer Art, nicht eine Auswahl — sonst haenge das Ergebnis
     // daran, welche ich gewaehlt haette.
-    let mut varianten: Vec<(&'static str, Apl)> = Vec::new();
+    // Die Position ist Teil der Kennzeichnung, nicht nur die Art: Fuer die
+    // Frage nach inkrementeller Auswertung zaehlt, WO die Aenderung sitzt.
+    // Eine Einfuegung an Position 8 laesst den ganzen Anfang unberuehrt, eine
+    // an Position 1 nichts.
+    let mut varianten: Vec<(&'static str, usize, Apl)> = Vec::new();
 
     // 1. Eine Zeile durch eine andere ersetzen.
     for pos in 0..basis.len() {
@@ -133,7 +137,7 @@ fn main() {
             }
             let mut neu = basis.clone();
             neu[pos] = ersatz.clone();
-            varianten.push(("getauscht", liste("v", &neu)));
+            varianten.push(("getauscht", pos, liste("v", &neu)));
         }
     }
     // 2. Eine Zeile einfuegen.
@@ -141,7 +145,7 @@ fn main() {
         for zusatz in pool.iter().take(25) {
             let mut neu = basis.clone();
             neu.insert(pos, zusatz.clone());
-            varianten.push(("eingefuegt", liste("v", &neu)));
+            varianten.push(("eingefuegt", pos, liste("v", &neu)));
         }
     }
     // 3. Zwei Zeilen vertauschen.
@@ -149,7 +153,7 @@ fn main() {
         for b in (a + 1)..basis.len() {
             let mut neu = basis.clone();
             neu.swap(a, b);
-            varianten.push(("vertauscht", liste("v", &neu)));
+            varianten.push(("vertauscht", a, liste("v", &neu)));
         }
     }
 
@@ -165,8 +169,11 @@ fn main() {
     let mut identisch = 0_usize;
     let mut erste_abweichung: Vec<usize> = Vec::new();
     let mut je_art: Vec<(&'static str, usize, usize)> = Vec::new();
+    // Nach Art UND Position: die eigentliche Aussage fuer inkrementelle
+    // Auswertung. Eine Einfuegung weit hinten laesst den Anfang unberuehrt.
+    let mut je_stelle: Vec<((&'static str, usize), usize, usize)> = Vec::new();
 
-    for (art, apl) in &varianten {
+    for (art, pos, apl) in &varianten {
         let folge = entscheidungen(apl);
         let gemeinsam = basis_folge
             .iter()
@@ -183,6 +190,13 @@ fn main() {
                 *summe += gemeinsam;
             }
             None => je_art.push((art, 1, gemeinsam)),
+        }
+        match je_stelle.iter_mut().find(|(k, _, _)| *k == (art, *pos)) {
+            Some((_, anzahl, summe)) => {
+                *anzahl += 1;
+                *summe += gemeinsam;
+            }
+            None => je_stelle.push(((art, *pos), 1, gemeinsam)),
         }
     }
 
@@ -215,6 +229,25 @@ fn main() {
     for (art, anzahl, summe) in &je_art {
         println!(
             "    {art:<12} {anzahl:>5} Varianten, mittlerer gemeinsamer Praefix {:.1}",
+            *summe as f64 / *anzahl as f64
+        );
+    }
+
+    // **Nach Art UND Position**, und das ist die Zahl, an der eine
+    // Entscheidung ueber inkrementelle Auswertung wirklich haengt: Der
+    // Mittelwert ueber alle Einfuegungen verdeckt, dass eine Einfuegung ganz
+    // hinten den ganzen Anfang unberuehrt laesst und eine ganz vorne nichts.
+    println!("\n  Je Art UND Position der Aenderung:\n");
+    je_stelle.sort_by_key(|((art, pos), _, _)| (*art, *pos));
+    let mut letzte_art = "";
+    for ((art, pos), anzahl, summe) in &je_stelle {
+        if *art != letzte_art {
+            println!();
+            letzte_art = art;
+        }
+        println!(
+            "    {art:<12} Position {pos:>2}: {anzahl:>4} Varianten, mittlerer gemeinsamer \
+             Praefix {:>5.1}",
             *summe as f64 / *anzahl as f64
         );
     }
