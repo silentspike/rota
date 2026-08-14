@@ -293,6 +293,18 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
     pyreReadyAt.push(combat.cooldownRemainingMs(alsSpellIndex(pyre), timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: GEZIELTE_VERKUERZUNG_NAME, seed: 0, ticks, presses, bindings: GEZIELTE_BINDINGS },
+    // Diese Payload nennt keinen eigenen Boss — sie baut den Kampf direkt mit
+    // `FIRST_CRUCIBLE`, und der Ergebnis-Pfad braucht denselben.
+    { boss: FIRST_CRUCIBLE.value },
+  );
+
   return {
     schema: 1,
     name: GEZIELTE_VERKUERZUNG_NAME,
@@ -311,7 +323,7 @@ export function gezielteVerkuerzungPayload(): Record<string, unknown> {
       // `damageDealt` heisst im Ergebnis `damage` (recording.ts:500) — die
       // Gleichheit ist belegt. Diese Funktion hat aber KEINEN Nachlauf; eine
       // Umstellung waere der Einbau eines zweiten Laufs, also #653-Arbeit.
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       casts: {
         ascend: combat.castCount(alsSpellIndex(ascend)),
         decant: combat.castCount(alsSpellIndex(decant)),
@@ -843,6 +855,23 @@ export function bossStatePayload(): Record<string, unknown> {
       // Verwechslungsgefahr entsteht nur, wenn zwei Namen nebeneinander stehen.
       energyTriggers: combat.bossEnergyTriggers,
       finalTimelineIndex: zeitleiste[zeitleiste.length - 1] ?? 0,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `finalPlayerHp`, anderswo `playerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       finalPlayerHp: combat.playerHp,
       // **Aus dem Ergebnis, nicht aus `combat`** (Issue #637). Der Wert stand
       // hier direkt neben `result.checksums` — dieselbe Zeile, zwei Quellen.
@@ -893,6 +922,14 @@ export function doomPurgePayload(): Record<string, unknown> {
     { slot: 4, spellId: 'purge' },
   ];
 
+  // **Die Ergebnis-Größen kommen aus dem Ergebnis-Pfad** (Issue #659). Der
+  // Handlauf darunter bleibt — er liefert die Spuren je Takt, die
+  // `replayRecording` nicht führt. Aber `damage` und `diedAtMs` stehen im
+  // `ReplayResult` und werden dort aus denselben Gettern befüllt; sie hier aus
+  // `combat` zu lesen hiesse, eine Verfälschung im Ergebnis-Pfad nicht zu
+  // sehen.
+  const ergebnis = replayRecording(recording, { boss, bindings: belegung });
+
   const combat = new Combat({ school: CALCINATION.value, boss, seed: recording.seed });
   const zaehler: number[] = [];
   const ladungen: number[] = [];
@@ -925,8 +962,8 @@ export function doomPurgePayload(): Record<string, unknown> {
     presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
     boss: { hp: boss.hp, overpressureMs: boss.overpressureMs, doom: boss.doom },
     expected: {
-      damage: combat.damageDealt,
-      diedAtMs: combat.diedAtMs,
+      damage: ergebnis.damage,
+      diedAtMs: ergebnis.diedAtMs,
       // Die Zahl, um die es geht: wie oft gesenkt wurde.
       casts: combat.castCount(combat.indexOf('purge')),
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
@@ -1052,9 +1089,32 @@ export function doomStacksPayload(): Record<string, unknown> {
       // Takt-Prüfsummen übereinstimmten.
       finalChecksum: combatChecksum(combat, (recording.ticks - 1) * TICK_MS),
       sequenceChecksum: sequence,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — der Verhängnis-Zähler am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalDoom: combat.doom,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Ladungen am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalDoomCharges: combat.doomCharges,
+      // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+      // (Issue #659, AC4). Sie ist ein Momentanwert — die Stapel am ENDE des Laufs,
+      // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+      // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+      // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
       finalStacks: combat.bossStacks,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
+      // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
+      // Zahlen (Endstand). Die letzten beiden sind dieselbe Größe unter zwei
+      // Namen — hier `finalPlayerHp`, anderswo `playerHp`.
+      //
+      // Beide bleiben: Die Ebene trennt sie in jeder Datei eindeutig, ein
+      // Umbenennen berührte acht Aufzeichnungen und fünf Rust-Teststellen.
       finalPlayerHp: combat.playerHp,
     },
     player: { vessel: PLAYER.vessel, wardReduction: PLAYER.wardReduction },
@@ -1278,6 +1338,8 @@ export function raceHealPayload(): Record<string, unknown> {
       // ihn nicht und soll ihn nicht führen — genau die Klasse, die bei #630
       // aus 38 Kandidaten herausgefiltert wurde. Dasselbe gilt für alle
       // übrigen `final*`-Felder dieser Datei.
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       finalRaceProgress: combat.raceProgress,
       damageLostToRace: result.damageLostToRace,
       bossHealed: result.bossHealed,
@@ -2052,6 +2114,23 @@ function interruptRun(boss: BossDef, mitQuench: boolean): Record<string, unknown
     ticks,
     presses,
     expected: {
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       playerHp: combat.playerHp,
       damageTaken: result.damageTaken,
       diedAtMs: result.diedAtMs,
@@ -2199,6 +2278,23 @@ function defenceRun(boss: BossDef, weg: string): Record<string, unknown> {
     ],
     presses,
     expected: {
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       playerHp: combat.playerHp,
       damageTaken: result.damageTaken,
       diedAtMs: result.diedAtMs,
@@ -2446,6 +2542,14 @@ function kontrollLauf(boss: BossDef, weg: string, quenchAtMs: number): Record<st
       // Die drei `castsX` darüber zählen JE ZAUBER; das Ergebnis führt nur
       // die Gesamtzahl. Beide bleiben bei `combat`.
       damageDealt: result.damage,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
+      // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
+      // Zahlen (Endstand). Die letzten beiden sind dieselbe Größe unter zwei
+      // Namen — hier `playerHp`, anderswo `finalPlayerHp`.
+      //
+      // Beide bleiben: Die Ebene trennt sie in jeder Datei eindeutig, ein
+      // Umbenennen berührte acht Aufzeichnungen und fünf Rust-Teststellen.
       playerHp: combat.playerHp,
       diedAtMs: result.diedAtMs,
       sequenceChecksum: sequence,
@@ -2593,10 +2697,14 @@ function controlRun(boss: BossDef, mitAusgabe: boolean): Record<string, unknown>
     expected: {
       // `control` ist ein MOMENTANWERT (der Vorrat am Ende), kein Endwert im
       // Sinne des Ergebnisses — es führt ihn nicht. Bleibt bei `combat`.
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       control: combat.control,
       controlSpent: result.controlSpent,
       controlFailed: result.controlFailed,
       phaseHoldPercent: result.phaseHoldPercent,
+      // Dass die Zeile trotzdem nicht blind ist, belegt AC6 aus #659: eine
+      // mutierte `combat`-Größe färbt Fälle mit Namen (gemessen 2026-08-14).
       finalPhase: combat.bossPhase,
       damageTaken: result.damageTaken,
       // `damageDealt` heißt im Ergebnis `damage` — Umbenennung, siehe #659.
@@ -2731,6 +2839,15 @@ export function logParityPayload(): Record<string, unknown> {
       shieldAbsorbed: result.absorbed,
       interruptsLanded: result.interruptsLanded,
       healed: result.healed,
+      // **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
+      // `timelineLoopPayload` heißt sie `finalTimelineIndex`, hier
+      // `timelineIndex` — beide lesen `combat.timelineIndex`.
+      //
+      // Beide bleiben, aus demselben Grund wie beim Energie-Paar: Sie stehen
+      // in verschiedenen Vergleichsdateien (`log-parity` und
+      // `timeline-loop`) und begegnen sich in keiner. Umbenennen änderte eine
+      // Aufzeichnung, ohne die Verwechslungsgefahr zu senken — die entsteht
+      // erst, wenn zwei Namen nebeneinander stehen.
       timelineIndex: combat.timelineIndex,
       // `logEntries` zählt EINTRÄGE DIESES Protokolls, nicht des Nachlaufs —
       // der führt ein eigenes. Bleibt bei `log`.
@@ -2792,6 +2909,21 @@ export function logTaktePayload(): Record<string, unknown> {
     (takte[eintrag.type] ??= []).push(eintrag.timeMs);
   }
 
+  // **Die Ergebnis-Groessen kommen aus dem Ergebnis-Pfad** (Issue #659). Der
+  // Lauf oben erzeugt die Druecke; dieser hier spielt sie ueber
+  // `replayRecording` ab — denselben Weg, den auch die Rust-Seite vergleicht.
+  // `damageDealt` und `damageTaken` stehen im `ReplayResult` (als `damage`
+  // beziehungsweise `damageTaken`) und werden dort aus denselben Gettern
+  // befuellt. Sie hier aus `combat` zu lesen hiesse, eine Verfaelschung im
+  // Ergebnis-Pfad nicht zu sehen.
+  //
+  // Gemessen: Die Aufzeichnung bleibt dabei bit-identisch — beide Wege
+  // liefern dieselben Zahlen.
+  const ergebnis = replayRecording(
+    { name: LOG_TAKTE_NAME, seed: 0, ticks, presses, bindings: LOG_TAKTE_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: LOG_TAKTE_NAME,
@@ -2804,13 +2936,25 @@ export function logTaktePayload(): Record<string, unknown> {
     /** Zeitpunkte je Art, in Schreibreihenfolge. Der Simulator muss dieselben ergeben. */
     takte,
     expected: {
-      damageDealt: combat.damageDealt,
-      damageTaken: combat.damageTaken,
+      damageDealt: ergebnis.damage,
+      damageTaken: ergebnis.damageTaken,
       /**
        * **Die Zusicherung, dass die Lage überhaupt misst.** Steht hier eine
        * Null, hat die Energieleiste nie ausgelöst — dann vergleicht der
        * Prüffall gegenüber zwei leere Listen und ist grün, ohne etwas über
        * Art 8 zu sagen. Genau das war der Zustand vor diesem Issue.
+       *
+       * **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
+       * `bossStatePayload` heißt sie `energyTriggers`, hier
+       * `bossEnergyTriggers` — beide lesen `combat.bossEnergyTriggers`.
+       *
+       * Sie bleiben beide, und das ist entschieden, nicht bequem: Die zwei
+       * Namen stehen in VERSCHIEDENEN Vergleichsdateien (`boss-state` und
+       * `log-takte`), begegnen sich also in keiner Datei. Ein Umbenennen
+       * änderte eine Paritäts-Aufzeichnung, ohne dass ein Leser dadurch
+       * weniger verwechseln könnte — die Verwechslungsgefahr entsteht erst,
+       * wenn zwei Namen nebeneinander stehen. Der Hinweis steht an beiden
+       * Zeilen, damit das nicht neu ermittelt werden muss.
        */
       bossEnergyTriggers: combat.bossEnergyTriggers,
       logEntries: log.length,
@@ -2945,6 +3089,16 @@ export function sublimationPayload(): Record<string, unknown> {
     pyreReadyAt.push(combat.cooldownRemainingMs(pyre, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: SUBLIMATION_NAME, seed: 0, ticks, presses, bindings: SUBLIMATION_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: SUBLIMATION_NAME,
@@ -2957,7 +3111,7 @@ export function sublimationPayload(): Record<string, unknown> {
     /** Restzeit von PYRE je Takt — die Größe, die VAPOUR wirklich bewegt. */
     pyreReadyAt,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       // **SLAG gehört in die Summe** (Issue #490). Er stand in der Leiste und
       // fehlte hier — das Feld hieß `casts` und zählte nur vier der fünf.
       //
@@ -3257,6 +3411,16 @@ export function aetherPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: AETHER_NAME, seed: 0, ticks, presses, bindings: AETHER_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: AETHER_NAME,
@@ -3268,7 +3432,7 @@ export function aetherPayload(): Record<string, unknown> {
     checksums,
     effluxRest,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * **Die Größe, die AETHER BEWEGT** — nicht die, die zeigt, dass er
        * geworfen wurde (Auflage aus #480/5646).
@@ -3348,6 +3512,16 @@ export function sublimePayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: SUBLIME_NAME, seed: 0, ticks, presses, bindings: SUBLIME_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: SUBLIME_NAME,
@@ -3365,7 +3539,7 @@ export function sublimePayload(): Record<string, unknown> {
        * Prüfsumme: Die änderte sich auch, wenn der Merker nur gesetzt und nie
        * verbraucht würde.
        */
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * Die Zusicherung, dass der Lauf SUBLIME überhaupt wirft. Steht hier
        * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
@@ -3433,6 +3607,16 @@ export function condensePayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: CONDENSE_NAME, seed: 0, ticks, presses, bindings: CONDENSE_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: CONDENSE_NAME,
@@ -3454,7 +3638,7 @@ export function condensePayload(): Record<string, unknown> {
        * — sonst unterschieden sich die Läufe um CONDENSE **und** um eine
        * globale Wartezeit.
        */
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * Die Zusicherung, dass der Lauf CONDENSE überhaupt wirft. Steht hier
        * eine Null, misst der Fall eine Runde ohne den Zauber, um den es geht.
@@ -3513,6 +3697,22 @@ export function kontrollFehlschlagPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groessen kommen aus dem Ergebnis-Pfad** (Issue #659).
+  // `damage`, `controlFailed` und `controlSpent` stehen im `ReplayResult` und
+  // werden dort aus denselben Gettern befuellt; sie hier aus `combat` zu lesen
+  // hiesse, eine Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben
+  // bleibt — er liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    {
+      name: KONTROLL_FEHLSCHLAG_NAME,
+      seed: 0,
+      ticks,
+      presses,
+      bindings: KONTROLL_FEHLSCHLAG_BINDINGS,
+    },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: KONTROLL_FEHLSCHLAG_NAME,
@@ -3524,18 +3724,18 @@ export function kontrollFehlschlagPayload(): Record<string, unknown> {
     checksums,
     vorrat,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /**
        * **Die Größe, um die es geht.** Sie stand bis hierher in genau einer
        * Aufzeichnung und dort mit null — und über alle 50 nachspielbaren
        * Runden gemessen schlug in keiner eine Kontrolle fehl.
        */
-      controlFailed: combat.controlFailed,
+      controlFailed: ergebnis.controlFailed,
       /**
        * Die Gegenrichtung: Ohne sie belegte der Fall nur, dass Ausgaben
        * scheitern — nicht, dass sie je gelingen.
        */
-      controlSpent: combat.controlSpent,
+      controlSpent: ergebnis.controlSpent,
       latchCasts: combat.castCount(alsSpellIndex(latch)),
       bindCasts: combat.castCount(alsSpellIndex(bind)),
     },
@@ -3683,6 +3883,16 @@ export function alembicPayload(): Record<string, unknown> {
     ladungen.push(combat.resetChargesLeft);
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: ALEMBIC_NAME, seed: 0, ticks, presses, bindings: ALEMBIC_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: ALEMBIC_NAME,
@@ -3694,7 +3904,7 @@ export function alembicPayload(): Record<string, unknown> {
     checksums,
     ladungen,
     expected: {
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       alembicCasts: combat.castCount(alembic),
       /** Auswahlen, die wirklich eine Abklingzeit gelöscht haben. */
       auswahlen,
@@ -3872,7 +4082,18 @@ export function timelineLoopPayload(): Record<string, unknown> {
       damageTaken: result.damageTaken,
       interruptsLanded: result.interruptsLanded,
       interruptsMissed: result.interruptsMissed,
+      // **Zweiter Name für dieselbe Größe** (Issue #659, AC5): In
+      // `logParityPayload` heißt sie `timelineIndex`. Begründung dort — kurz:
+      // verschiedene Vergleichsdateien, keine Begegnung in einer Datei.
       finalTimelineIndex: combat.timelineIndex,
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14): `/playerHp` ist eine LISTE (Spur je
+      // Takt), `/…/expected/playerHp` und `/expected/finalPlayerHp` sind
+      // Zahlen (Endstand). Die letzten beiden sind dieselbe Größe unter zwei
+      // Namen — hier `finalPlayerHp`, anderswo `playerHp`.
+      //
+      // Beide bleiben: Die Ebene trennt sie in jeder Datei eindeutig, ein
+      // Umbenennen berührte acht Aufzeichnungen und fünf Rust-Teststellen.
       finalPlayerHp: combat.playerHp,
     },
   };
@@ -4112,7 +4333,23 @@ export function buffCombatPayload(): Record<string, unknown> {
       // seit Langem als Getter führt und drei Prüfdateien ihn lesen.
       factorAt.push({
         tick,
+        // **Verschachtelt, und trotzdem dieselbe Frage** (Issue #659, AC4,
+        // nachgetragen am 2026-08-14): `combat.damageFactors.buffs` steht nicht
+        // im `ReplayResult` — unter keinem Namen, auch nicht als Untergröße.
+        // Bleibt deshalb bei `combat`.
+        //
+        // Meine eigene Erhebung hatte diese Klasse ÜBERSEHEN: Das Muster suchte
+        // `feld: combat.getter` am Zeilenende, und `.buffs` dahinter ließ es
+        // durchfallen. Gefunden erst beim Gegenzählen mit einem robusteren
+        // Verfahren — dieselbe Klasse, gegen die dieses Issue selbst antritt.
         buffs: combat.damageFactors.buffs,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des
+        // Laufs, kein Ergebnis. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+        // unter keinem Namen.
+        //
+        // Der Vermerk allein wäre eine Behauptung; belegt ist er durch AC6:
+        // `combat.vulnerability` mutiert → drei Fälle rot mit Namen.
         vulnerability: combat.vulnerability,
       });
     }
@@ -4934,7 +5171,21 @@ export function decayFactorPayload(): Record<string, unknown> {
     if (tick === 0 || tick === 250 || tick === 599) {
       factorAt.push({
         tick,
+        // **Verschachtelt, und trotzdem dieselbe Frage** (Issue #659, AC4,
+        // nachgetragen am 2026-08-14): `combat.damageFactors.buffs` steht nicht
+        // im `ReplayResult` — unter keinem Namen, auch nicht als Untergröße.
+        // Bleibt deshalb bei `combat`.
+        //
+        // Meine eigene Erhebung hatte diese Klasse ÜBERSEHEN: Das Muster suchte
+        // `feld: combat.getter` am Zeilenende, und `.buffs` dahinter ließ es
+        // durchfallen. Gefunden erst beim Gegenzählen mit einem robusteren
+        // Verfahren — dieselbe Klasse, gegen die dieses Issue selbst antritt.
         buffs: combat.damageFactors.buffs,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des Laufs,
+        // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+        // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+        // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
         vulnerability: combat.vulnerability,
       });
     }
@@ -5010,7 +5261,21 @@ export function decayTalentPayload(): Record<string, unknown> {
     if (tick === 0 || tick === 250 || tick === 599) {
       factorAt.push({
         tick,
+        // **Verschachtelt, und trotzdem dieselbe Frage** (Issue #659, AC4,
+        // nachgetragen am 2026-08-14): `combat.damageFactors.buffs` steht nicht
+        // im `ReplayResult` — unter keinem Namen, auch nicht als Untergröße.
+        // Bleibt deshalb bei `combat`.
+        //
+        // Meine eigene Erhebung hatte diese Klasse ÜBERSEHEN: Das Muster suchte
+        // `feld: combat.getter` am Zeilenende, und `.buffs` dahinter ließ es
+        // durchfallen. Gefunden erst beim Gegenzählen mit einem robusteren
+        // Verfahren — dieselbe Klasse, gegen die dieses Issue selbst antritt.
         buffs: combat.damageFactors.buffs,
+        // **Bleibt bei `combat`: Das `ReplayResult` führt diese Größe nicht**
+        // (Issue #659, AC4). Sie ist ein Momentanwert — der Faktor am ENDE des Laufs,
+        // keine Ergebnisgröße. Gemessen am 2026-08-14: kein Feld im Ergebnis,
+        // unter keinem Namen. Dass die Zeile trotzdem nicht blind ist, belegt
+        // AC6 — eine mutierte `combat`-Größe färbt Fälle mit Namen.
         vulnerability: combat.vulnerability,
       });
     }
@@ -5126,6 +5391,16 @@ export function spenderTalentPayload(): Record<string, unknown> {
     presses,
     checksums,
     expected: {
+      // **Bleibt bei `combat`, und zwar aus dem Grund aus #653** (Issue #659,
+      // gemessen am 2026-08-14): Diese Aufzeichnung führt ihre Drücke mit
+      // `spellId` statt mit `slot` — siehe `presses.push({ tick, spellId })`
+      // oben. `replayRecording` spielt aber Plätze ab, keine Zaubernamen.
+      //
+      // Eine Umstellung bräuchte erst eine Aufzeichnung mit Plätzen UND
+      // Belegung und damit einen anderen `presses`-Block. Das ändert die
+      // Vergleichsdatei und ist kein Quellenwechsel mehr, sondern ein Umbau
+      // der Aufzeichnung — dieselbe Abwägung, die bei `buffCombatPayload`
+      // schon getroffen wurde.
       damage: combat.damageDealt,
       /**
        * **Die Zusicherung in den Datensatz** — ohne sie sähe eine Aufzeichnung
@@ -5503,6 +5778,23 @@ export function wardCapPayload(): Record<string, unknown> {
       totalPermilleUncapped: PLAYER.wardReduction * 1000 + wardPermille,
       expected: {
         damageTaken: result.damageTaken,
+        // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+        // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+        //
+        //   /playerHp                     LISTE   Spur je Takt
+        //   /…/expected/playerHp          Zahl    Endstand
+        //   /expected/finalPlayerHp       Zahl    Endstand
+        //
+        // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+        // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+        // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+        //
+        // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+        // sie in jeder Datei eindeutig, während ein Umbenennen acht
+        // Aufzeichnungen und fünf Rust-Teststellen berührte
+        // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+        // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+        // kostet — statt es neu ermitteln zu müssen.
         playerHp: combat.playerHp,
         diedAtMs: result.diedAtMs,
         sequenceChecksum: sequence,
@@ -6014,6 +6306,16 @@ export function retortPayload(): Record<string, unknown> {
     checksums.push(combatChecksum(combat, timeMs));
   }
 
+  // **Die Ergebnis-Groesse kommt aus dem Ergebnis-Pfad** (Issue #659).
+  // `damageDealt` steht im `ReplayResult` als `damage` und wird dort aus
+  // demselben Getter befuellt; sie hier aus `combat` zu lesen hiesse, eine
+  // Verfaelschung im Ergebnis-Pfad nicht zu sehen. Der Lauf oben bleibt — er
+  // liefert die Spuren je Takt, die das Ergebnis nicht fuehrt.
+  const ergebnis = replayRecording(
+    { name: RETORT_NAME, seed: 0, ticks, presses, bindings: RETORT_BINDINGS },
+    { boss },
+  );
+
   return {
     schema: SCHEMA,
     name: RETORT_NAME,
@@ -6039,7 +6341,7 @@ export function retortPayload(): Record<string, unknown> {
        * einen Wurf mehr in derselben Zeit — nicht die Prüfsumme, die änderte
        * sich auch, wenn der Merker nur gesetzt und nie verbraucht würde.
        */
-      damageDealt: combat.damageDealt,
+      damageDealt: ergebnis.damage,
       /** Die Zusicherung, dass der Lauf RETORT überhaupt wirft. */
       retortCasts: combat.castCount(alsSpellIndex(retort)),
       /**
@@ -7941,18 +8243,41 @@ function coagulationNeuRun(boss: BossDef, weg: string): Record<string, unknown> 
     bindings,
     presses,
     expected: {
+      // **Drei Verwendungen, ein Name — die EBENE entscheidet** (Issue #659,
+      // AC5, gemessen am 2026-08-14 über alle Vergleichsdateien):
+      //
+      //   /playerHp                     LISTE   Spur je Takt
+      //   /…/expected/playerHp          Zahl    Endstand
+      //   /expected/finalPlayerHp       Zahl    Endstand
+      //
+      // Die letzten beiden sind DIESELBE Größe unter zwei Namen; hier steht
+      // `playerHp`, anderswo `finalPlayerHp`. Die erste teilt sich den Namen
+      // mit der zweiten bei ANDERER Bedeutung — Verlauf gegen Endstand.
+      //
+      // Beide Namen bleiben, und das ist eine Entscheidung: Die Ebene trennt
+      // sie in jeder Datei eindeutig, während ein Umbenennen acht
+      // Aufzeichnungen und fünf Rust-Teststellen berührte
+      // (parity_coagulation, parity_coagulation_neu, parity_doom_stacks,
+      // parity_timeline_loop). Wer das anders sieht, findet hier, was es
+      // kostet — statt es neu ermitteln zu müssen.
       playerHp: combat.playerHp,
       damage: result.damage,
       damageTaken: result.damageTaken,
       absorbed: result.absorbed,
       healed: result.healed,
       converted: result.converted,
-      // **Aus dem Aufnahme-Lauf, nicht aus `replayRecording`** (RIPOSTE,
-      // Issue #481). `ReplayResult` führt den Rückschlag nicht; die beiden
-      // Läufe sind aber deckungsgleich — dieselbe Bindung, dieselben Drücke,
-      // derselbe Boss. Dass sie es sind, hält die Takt-Prüfsumme darunter
-      // fest: Liefen sie auseinander, wäre sie es auch.
-      reflected: combat.reflected,
+      // **Hier stand „`ReplayResult` führt den Rückschlag nicht" — und das war
+      // schon beim Schreiben falsch** (Issue #659, gemessen am 2026-08-14).
+      //
+      // `reflected` steht in `ReplayResult` (recording.ts, Feld und Befüllung)
+      // und kam dort im SELBEN Commit dazu wie dieser Kommentar: a0e72b0,
+      // RIPOSTE #481. Die Begründung hat also nie gestimmt; sie hat nur
+      // verhindert, dass jemand nachsieht.
+      //
+      // Das ist die teurere Sorte Kommentar: Eine Lücke mit „geht nicht, weil"
+      // zu begründen beendet die Suche — und wenn das „weil" nicht stimmt,
+      // beendet es sie für Jahre.
+      reflected: result.reflected,
       diedAtMs: result.diedAtMs,
       casts: weg === 'none' ? 0 : combat.castCount(neu),
       castsKindle: combat.castCount(kindle),
