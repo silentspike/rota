@@ -60,6 +60,11 @@ fn folge(boss_id: &str, apl: &Apl, f: DamageFactors) -> Vec<(u32, u8)> {
 
 /// Wie lange lief der Kampf? Ein frueherer Sieg ist eine Trace-Aenderung,
 /// auch wenn die Cast-Folge bis dahin gleich war.
+///
+/// Wird von der Vormessung selbst nicht aufgerufen — sie vergleicht nur die
+/// Cast-Folge. Die Funktion bleibt, weil die Dauer der zweite Weg ist, auf dem
+/// eine Zahlenaenderung sichtbar wird, und #910 sie braucht.
+#[allow(dead_code)]
 fn dauer(boss_id: &str, apl: &Apl, f: DamageFactors) -> u32 {
     let boss = boss_by_id(boss_id).expect("Boss fehlt");
     let mut fight = Fight::new(FightConfig {
