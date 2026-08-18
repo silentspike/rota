@@ -467,6 +467,75 @@ impl BalanceResult {
                 .join(",")
         )
     }
+
+    /// Der Lauf als **roher Ergebnisentwurf**, ohne jede Bewertung (Issue #913).
+    ///
+    /// # Warum diese Funktion und nicht ein zweites Schema
+    ///
+    /// Das Ergebnisschema aus [`crate::speicher`] ist die Abbildung genau
+    /// dieses Ergebnissatzes. Ohne diese Funktion waere es ein Nachbau daneben:
+    /// gebaut, gruen und von keinem Lauf je gefuellt.
+    ///
+    /// # Die Destrukturierung ohne `..` ist Absicht
+    ///
+    /// Sie bricht den Bau, wenn dieser Ergebnissatz ein Feld dazubekommt. Der
+    /// dann faellige Satz lautet nicht "das Feld eintragen", sondern: **gehoert
+    /// es ins rohe Ergebnis oder ist es eine Laufmetadatei?** Ohne den Bruch
+    /// waere die Voreinstellung "wird stillschweigend nicht gespeichert" — und
+    /// das faellt niemandem auf, weil der Speicher weiter plausibel aussieht.
+    ///
+    /// Vier Felder gehen bewusst **nicht** in den Vektor:
+    ///
+    /// | Feld | Warum nicht |
+    /// | --- | --- |
+    /// | `apl_name` | benennt den **Aufbau** — gehoert in den Schluessel, nicht ins Ergebnis |
+    /// | `base_seed` | Teil des Laufvertrags, nicht des Gemessenen |
+    /// | `threads` | reine Rechenaufteilung; sie darf das Ergebnis nicht beruehren |
+    /// | `samples` | die Rohdaten **hinter** den Kennzahlen, nicht das Ergebnis selbst |
+    ///
+    /// `kills` und `deaths` sind `usize` und werden auf `u32` verengt. Bei
+    /// [`u32::MAX`] Durchgaengen liefe der Simulator laenger als das Universum
+    /// alt ist; die Saettigung ist trotzdem ausdruecklich hingeschrieben, weil
+    /// ein stiller Ueberlauf schlimmer waere als eine falsche Zahl, die man
+    /// sieht.
+    #[must_use]
+    pub fn ergebnisentwurf(&self) -> crate::speicher::Ergebnisentwurf {
+        use crate::speicher::{Ergebnisentwurf, Siegzahl, Wirkungszahlen};
+
+        let BalanceResult {
+            apl_name: _,
+            iterations,
+            base_seed: _,
+            threads: _,
+            damage,
+            kills,
+            damage_taken,
+            damage_incoming,
+            absorbed,
+            healed,
+            boss_healed,
+            deaths,
+            casts,
+            kill_time_ms,
+            death_time_ms,
+            samples: _,
+        } = self;
+
+        Ergebnisentwurf {
+            schaden: Some(*damage),
+            erlittener_schaden: Some(*damage_taken),
+            eingehender_schaden: Some(*damage_incoming),
+            absorption: Some(*absorbed),
+            heilung: Some(*healed),
+            boss_heilung: Some(*boss_healed),
+            siegzeit_ms: Some(*kill_time_ms),
+            todeszeit_ms: Some(*death_time_ms),
+            durchgaenge: Some(*iterations),
+            siege: Some(Siegzahl(u32::try_from(*kills).unwrap_or(u32::MAX))),
+            tode: Some(u32::try_from(*deaths).unwrap_or(u32::MAX)),
+            wirkungen: Some(Wirkungszahlen(casts.clone())),
+        }
+    }
 }
 
 /// Die Todeszeitpunkte aus einer Stichprobe — **nur die Durchgaenge mit Toten**.
