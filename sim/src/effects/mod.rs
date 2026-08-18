@@ -241,14 +241,25 @@ pub enum StackingSemantics {
 ///
 /// Die Frage „welche Zufallsquellen sind ueberhaupt aktiv?" wird hieraus
 /// beantwortet — und nicht aus einer gepflegten Liste.
+///
+/// # Warum hier ein [`Stream`] steht und keine Zeichenkette
+///
+/// Bis Issue #966 trug die Variante einen freien `&'static str`. Der driftete
+/// sofort: `build.rs` schrieb `"dot-tick"`, waehrend der Strom in
+/// [`crate::rng`] `"dotTick"` heisst. **Die Zeichenkette zeigte auf nichts**,
+/// und keine Pruefung konnte das melden — genau die stille Sorte Fehler, gegen
+/// die dieses Modul gebaut ist.
+///
+/// Mit der echten Aufzaehlung ist ein Tippfehler ein Uebersetzungsfehler, und
+/// ein neu hinzugefuegter Strom faellt in [`RandomSourceMask`] auf.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RandomnessSemantics {
     /// Kein Zufall beteiligt.
     Deterministic,
     /// Zieht einen Krit-Wurf.
     CritRoll,
-    /// Zieht aus einem anderen benannten Strom.
-    Stream(&'static str),
+    /// Zieht aus einem benannten Strom des Simulators.
+    Stream(crate::rng::Stream),
     /// Nicht angegeben.
     Unknown,
 }
@@ -260,6 +271,95 @@ impl RandomnessSemantics {
     /// nicht deterministisch.
     pub fn ist_deterministisch(self) -> bool {
         matches!(self, RandomnessSemantics::Deterministic)
+    }
+
+    /// Welche Stroeme dieser Effekt anfassen kann.
+    ///
+    /// Der Beitrag eines einzelnen Knotens zur [`RandomSourceMask`].
+    pub fn quellen(self) -> RandomSourceMask {
+        match self {
+            RandomnessSemantics::Deterministic => RandomSourceMask::KEINE,
+            RandomnessSemantics::CritRoll => RandomSourceMask::einer(crate::rng::Stream::Crit),
+            RandomnessSemantics::Stream(s) => RandomSourceMask::einer(s),
+            // Unbekannt heisst **alle**, nicht keine: Wer nichts angibt, darf
+            // nicht schneller sein als wer etwas angibt.
+            RandomnessSemantics::Unknown => RandomSourceMask::ALLE,
+        }
+    }
+}
+
+/// Welche Zufallsquellen ueber eine Menge von Effekten hinweg aktiv sind.
+///
+/// # Wofuer das gebraucht wird (Issue #966, AC3)
+///
+/// Ein Lauf, in dem **keine** Zufallsquelle aktiv ist, ist zwischen zwei
+/// Durchgaengen identisch — er darf auf **einen** Durchgang reduziert werden.
+/// Diese Maske ist die Grundlage dafuer.
+///
+/// # Was sie NICHT sagt
+///
+/// Sie nennt die Quellen, die die **Beschreibung** kennt. Ob eine davon im
+/// konkreten Lauf tatsaechlich zieht, haengt zusaetzlich an der Konfiguration
+/// — bei PURITY auf null gibt es keinen Krit, obwohl Knoten `CritRoll`
+/// tragen. **Leere Maske ist deshalb hinreichend fuer „ein Durchgang genuegt",
+/// nicht notwendig.** Wer das verwechselt, reduziert einen Lauf, der streut.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RandomSourceMask(pub u8);
+
+impl RandomSourceMask {
+    /// Keine Quelle aktiv.
+    pub const KEINE: RandomSourceMask = RandomSourceMask(0);
+
+    /// Alle Stroeme — der konservative Wert bei fehlender Angabe.
+    ///
+    /// Abgeleitet aus [`crate::rng::STREAM_COUNT`] und **nicht** als Zahl
+    /// hingeschrieben: Ein neuer Strom weitet den Wert von selbst.
+    pub const ALLE: RandomSourceMask =
+        RandomSourceMask(((1u16 << crate::rng::STREAM_COUNT) - 1) as u8);
+
+    /// Genau ein Strom.
+    pub const fn einer(strom: crate::rng::Stream) -> RandomSourceMask {
+        RandomSourceMask(1 << (strom as u8))
+    }
+
+    /// Vereinigung.
+    pub const fn union(self, other: RandomSourceMask) -> RandomSourceMask {
+        RandomSourceMask(self.0 | other.0)
+    }
+
+    /// Ob dieser Strom enthalten ist.
+    pub const fn enthaelt(self, strom: crate::rng::Stream) -> bool {
+        (self.0 & (1 << (strom as u8))) != 0
+    }
+
+    /// Ob gar keine Quelle aktiv ist.
+    pub const fn ist_leer(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Wie viele Quellen aktiv sind.
+    pub const fn anzahl(self) -> u32 {
+        self.0.count_ones()
+    }
+
+    /// Ob ein Lauf auf **einen** Durchgang reduziert werden darf.
+    ///
+    /// Nur bei leerer Maske. Siehe die Einschraenkung am Typ: Die Antwort ist
+    /// hinreichend, nicht notwendig — ein Lauf mit gesetzter Maske kann
+    /// trotzdem deterministisch sein, wenn die Konfiguration die Quelle
+    /// stilllegt. Diese Funktion behauptet darueber nichts.
+    pub const fn ein_durchgang_genuegt(self) -> bool {
+        self.ist_leer()
+    }
+
+    /// Die Quellen einer ganzen Wirkungsbeschreibung.
+    ///
+    /// **Erzeugt, nicht gepflegt** — der Kern von AC3: Die Maske entsteht aus
+    /// den Knoten, nicht aus einer Liste daneben.
+    pub fn aus_knoten(knoten: &[EffectNode]) -> RandomSourceMask {
+        knoten.iter().fold(RandomSourceMask::KEINE, |acc, n| {
+            acc.union(n.randomness.quellen())
+        })
     }
 }
 
@@ -282,16 +382,153 @@ pub enum MonotonicDirection {
 ///
 /// **Ohne diesen Bezug ist der Hinweis wertlos.** Grundschaden ist monoton
 /// bezueglich erwartetem Schaden an einem gewoehnlichen Boss bei stabilem
-/// Trace — und **nicht** bezueglich Sieg an einem Boss, bei dem ein Ring auf
-/// null die Niederlage ist.
+/// Trace — und **nicht** bezueglich der drei Zielgroessen darunter.
+///
+/// Die drei Gegenbeispiele stehen als eigene Varianten und nicht als Kommentar,
+/// weil sie sonst niemand pruefen koennte (Issue #966, AC4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MonotonicityDomain {
     /// Erwarteter Schaden, gewoehnlicher Boss, stabiler Trace.
+    ///
+    /// Der **einzige** Bezug, fuer den ein Hinweis aus der
+    /// Wirkungsbeschreibung ueberhaupt sinnvoll ist.
     ExpectedDamageStableTrace,
-    /// Sieg oder Niederlage als Zielgroesse.
+    /// Sieg oder Niederlage an einem Boss mit **umgekehrter** Bedingung.
+    ///
+    /// Wo ein Ring auf null die Niederlage ist, kann mehr Schaden schlechter
+    /// sein. Der Zusammenhang kehrt sich um, statt schwaecher zu werden.
     VictoryOutcome,
+    /// Zeit bis zum Sieg **ueber einen Phasenwechsel hinweg**.
+    ///
+    /// Mehr Schaden kann eine Phase frueher ausloesen und den Kampf dadurch
+    /// verlaengern. Die Zielgroesse ist stueckweise monoton und im Ganzen
+    /// nicht.
+    TimeToVictoryAcrossPhase,
+    /// Ein Ziel mit **Lebenspunkt-Praedikat**.
+    ///
+    /// Wo eine Mechanik an einer Lebenspunkt-Schwelle haengt („unter 30 %"),
+    /// entscheidet nicht die Hoehe des Schadens, sondern auf welcher Seite der
+    /// Schwelle man landet.
+    HpPredicate,
     /// Kein Bezug angegeben.
     Unspecified,
+}
+
+/// Woraus ein Monotonie-**Zertifikat** entsteht.
+///
+/// # Warum es das als eigenen Typ gibt
+///
+/// Der Hinweis am Knoten ist **eine** von vier Zutaten. Ohne die anderen drei
+/// gibt es kein Zertifikat — und wer den Hinweis dafuer haelt, baut eine
+/// Optimierung auf eine Vermutung. Diese Struktur macht die fehlenden Zutaten
+/// **benennbar**, statt sie in einem Kommentar zu erwaehnen.
+///
+/// Aus der Wirkungsbeschreibung allein ist [`ZertifikatsBedarf::vollstaendig`]
+/// **nie** erfuellt. Das ist keine Einschraenkung dieser Umsetzung, sondern die
+/// Aussage von Issue #966: Der Hinweis ist kein Zertifikat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ZertifikatsBedarf {
+    /// Die Wirkungsbeschreibung — dieses Modul.
+    pub wirkungsbeschreibung: bool,
+    /// Die Semantik des konkreten Bosses.
+    pub bosssemantik: bool,
+    /// Die Zielfunktion, ueber die optimiert wird.
+    pub zielfunktion: bool,
+    /// Die Trace-Region, in der die Aussage gelten soll.
+    pub trace_region: bool,
+}
+
+impl ZertifikatsBedarf {
+    /// Was die Wirkungsbeschreibung **allein** beisteuert.
+    pub const AUS_HINWEIS_ALLEIN: ZertifikatsBedarf = ZertifikatsBedarf {
+        wirkungsbeschreibung: true,
+        bosssemantik: false,
+        zielfunktion: false,
+        trace_region: false,
+    };
+
+    /// Alle vier Zutaten liegen vor.
+    pub const VOLLSTAENDIG: ZertifikatsBedarf = ZertifikatsBedarf {
+        wirkungsbeschreibung: true,
+        bosssemantik: true,
+        zielfunktion: true,
+        trace_region: true,
+    };
+
+    /// Ob alle vier Zutaten vorliegen.
+    pub const fn vollstaendig(self) -> bool {
+        self.wirkungsbeschreibung && self.bosssemantik && self.zielfunktion && self.trace_region
+    }
+
+    /// Welche Zutaten fehlen — fuer die Meldung.
+    pub fn fehlend(self) -> Vec<&'static str> {
+        let mut f = Vec::new();
+        if !self.wirkungsbeschreibung {
+            f.push("Wirkungsbeschreibung");
+        }
+        if !self.bosssemantik {
+            f.push("Bosssemantik");
+        }
+        if !self.zielfunktion {
+            f.push("Zielfunktion");
+        }
+        if !self.trace_region {
+            f.push("Trace-Region");
+        }
+        f
+    }
+}
+
+/// Warum ein Monotonie-Zertifikat verweigert wird.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZertifikatVerweigert {
+    /// Der Hinweis nennt keine Richtung.
+    KeinHinweis,
+    /// Der Hinweis gilt fuer einen anderen Bezug als den gefragten.
+    FalscherBezug {
+        /// Wofuer der Hinweis gilt.
+        hinweis: MonotonicityDomain,
+        /// Wonach gefragt wurde.
+        gefragt: MonotonicityDomain,
+    },
+    /// Der Hinweis sagt „monoton", aber es fehlen Zutaten.
+    ///
+    /// **Der wichtigste Fall.** Er ist der Grund, warum diese Funktion
+    /// existiert: Ein zutreffender Hinweis reicht nicht.
+    ZutatenFehlen,
+    /// Der Effekt verzweigt am Kontrollfluss.
+    KontrollflussVerzweigt,
+}
+
+/// Ob ein Monotonie-Zertifikat ausgestellt werden darf.
+///
+/// # Diese Funktion sagt fast immer nein — das ist ihr Zweck
+///
+/// Sie ist die Stelle, an der aus einem **Hinweis** kein **Zertifikat** wird.
+/// Mit [`ZertifikatsBedarf::AUS_HINWEIS_ALLEIN`] verweigert sie **immer**,
+/// auch wenn der Hinweis „monoton" sagt und der Bezug passt.
+pub fn zertifikat(
+    hinweis: LocalMonotonicityHint,
+    gefragt: MonotonicityDomain,
+    bedarf: ZertifikatsBedarf,
+    knoten: &EffectNode,
+) -> Result<(), ZertifikatVerweigert> {
+    if matches!(hinweis.direction, MonotonicDirection::Unknown) {
+        return Err(ZertifikatVerweigert::KeinHinweis);
+    }
+    if !hinweis.traegt_fuer(gefragt) {
+        return Err(ZertifikatVerweigert::FalscherBezug {
+            hinweis: hinweis.domain,
+            gefragt,
+        });
+    }
+    if knoten.control_flow_effect.verzweigt() {
+        return Err(ZertifikatVerweigert::KontrollflussVerzweigt);
+    }
+    if !bedarf.vollstaendig() {
+        return Err(ZertifikatVerweigert::ZutatenFehlen);
+    }
+    Ok(())
 }
 
 /// Ein Monotonie-**Hinweis** — kein Zertifikat.
@@ -368,6 +605,83 @@ impl Bounds {
     /// Ob beide Grenzen bekannt sind — nur dann ist die Schranke eng.
     pub const fn ist_eng(self) -> bool {
         self.min.is_some() && self.max.is_some()
+    }
+
+    /// Die Huelle zweier Bereiche.
+    ///
+    /// **Eine unbekannte Grenze steckt an**: Wer `None` mit `Some` vereinigt,
+    /// bekommt `None`. Andersherum waere die Huelle enger als einer ihrer
+    /// Teile, und eine erfundene Schranke ist schlimmer als keine.
+    pub fn huelle(self, other: Bounds) -> Bounds {
+        Bounds {
+            min: match (self.min, other.min) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                _ => None,
+            },
+            max: match (self.max, other.max) {
+                (Some(a), Some(b)) => Some(a.max(b)),
+                _ => None,
+            },
+        }
+    }
+}
+
+/// Was der numerische Vertrag aus der Wirkungsbeschreibung bekommt.
+///
+/// # Wofuer (Issue #966, AC5)
+///
+/// Die Wertebereiche der Knoten sind die **Eingabe** fuer den numerischen
+/// Vertrag: Aus ihnen folgt, in welchem Bereich sich Zwischenergebnisse
+/// bewegen und ob eine Festkomma- oder Ganzzahl-Darstellung traegt.
+///
+/// Dieses Modul stellt sie bereit; den Vertrag selbst schliesst es nicht.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NumerischerVertrag {
+    /// Die Huelle aller bekannten Bereiche.
+    pub huelle: Bounds,
+    /// Wie viele Knoten eine **enge** Schranke tragen.
+    pub mit_enger_schranke: usize,
+    /// Wie viele Knoten gar keine Schranke tragen.
+    ///
+    /// Steht getrennt, weil die Huelle allein das verschweigt: Ein einziger
+    /// Knoten ohne Obergrenze macht die Huelle offen, und dann sieht sie
+    /// genauso aus wie bei hundert solchen Knoten.
+    pub ohne_schranke: usize,
+    /// Wie viele Knoten insgesamt eingegangen sind.
+    pub knoten: usize,
+}
+
+impl NumerischerVertrag {
+    /// Die Bereiche einer ganzen Wirkungsbeschreibung.
+    pub fn aus_knoten(knoten: &[EffectNode]) -> NumerischerVertrag {
+        let mut huelle: Option<Bounds> = None;
+        let mut mit_enger_schranke = 0;
+        let mut ohne_schranke = 0;
+        for n in knoten {
+            if n.numeric_bounds.ist_eng() {
+                mit_enger_schranke += 1;
+            }
+            if n.numeric_bounds == Bounds::UNKNOWN {
+                ohne_schranke += 1;
+            }
+            huelle = Some(match huelle {
+                None => n.numeric_bounds,
+                Some(h) => h.huelle(n.numeric_bounds),
+            });
+        }
+        NumerischerVertrag {
+            huelle: huelle.unwrap_or(Bounds::UNKNOWN),
+            mit_enger_schranke,
+            ohne_schranke,
+            knoten: knoten.len(),
+        }
+    }
+
+    /// Ob der Vertrag auf einer **geschlossenen** Huelle steht.
+    ///
+    /// Nur dann laesst sich eine Darstellung waehlen, ohne zu raten.
+    pub const fn traegt(&self) -> bool {
+        self.huelle.ist_eng()
     }
 }
 
