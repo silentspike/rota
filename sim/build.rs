@@ -2196,13 +2196,18 @@ fn emit_effects(
     weitere: &[(&str, &Value)],
     bosses: &[(String, Value)],
 ) {
+    // **Vor allem anderen**: Ohne vollstaendige Zuordnung prueft der Rest zu
+    // wenig, und das faellt sonst nicht auf.
+    pruefe_zuordnung_vollstaendig();
+
     let mut knoten: Vec<Knoten> = Vec::new();
     for (spell, _) in zauber_liste(spells, weitere) {
         let vorher = knoten.len();
         knoten_fuer_zauber(&mut knoten, spell);
         // Sofort nach dem Erzeugen und nicht am Ende: So nennt die Meldung den
         // Zauber, bei dem es klemmt, statt nur eine Gesamtzahl.
-        pruefe_wirkung_vollstaendig(spell, knoten.len() - vorher);
+        let bausteine: Vec<String> = knoten[vorher..].iter().map(|k| k.op.clone()).collect();
+        pruefe_wirkung_vollstaendig(spell, &bausteine);
     }
     for (datei, boss) in bosses {
         let vorher = knoten.len();
@@ -2838,22 +2843,94 @@ fn traegt_wirkung(v: &Value) -> bool {
 /// tatsaechlich erzeugt hat. Liest der Leser ein Feld falsch (etwa ein Objekt
 /// als Zahl), entsteht kein Knoten, und **diese** Pruefung meldet es. Eine
 /// Pruefung, die denselben Leser benutzt, haette denselben blinden Fleck.
-fn pruefe_wirkung_vollstaendig(spell: &Value, erzeugt: usize) {
+fn pruefe_wirkung_vollstaendig(spell: &Value, erzeugte_bausteine: &[String]) {
     let id = spell
         .get("id")
         .and_then(Value::as_str)
         .unwrap_or("<ohne id>");
-    let getragen: Vec<&str> = WIRKUNGSFELDER
+
+    // **Jedes Feld einzeln**, nicht „hat der Zauber irgendeinen Knoten".
+    // Der Unterschied ist der ganze Punkt: Ein Zauber mit Grundschaden UND
+    // Heilung hat einen Knoten, auch wenn die Heilung ungelesen bleibt — eine
+    // Zaehlung ueber ZAUBER haette das nie gemeldet.
+    let mut fehlend: Vec<(&str, &str)> = Vec::new();
+    for (feld, erwarteter_baustein) in FELD_ZU_BAUSTEIN {
+        if !spell.get(*feld).is_some_and(traegt_wirkung) {
+            continue;
+        }
+        if !erzeugte_bausteine.iter().any(|b| b == erwarteter_baustein) {
+            fehlend.push((feld, erwarteter_baustein));
+        }
+    }
+    assert!(
+        fehlend.is_empty(),
+        "Zauber \"{id}\" traegt Wirkungsfelder, fuer die kein passender Knoten entstanden ist: \
+         {fehlend:?} (Feld, erwarteter Baustein). Erzeugt wurden {erzeugte_bausteine:?}. \
+         Das ist der stille Fehler aus Issue #911 — wahrscheinlich liest `knoten_fuer_zauber` \
+         eines dieser Felder mit dem falschen JSON-Typ (so geschehen bei `resourceGain`, einem \
+         Objekt und keiner Zahl)."
+    );
+}
+
+/// Welcher Baustein zu welchem Zauber-Feld gehoert.
+///
+/// # Warum diese Tabelle keine „gepflegte Liste" im schlechten Sinn ist
+///
+/// Sie ist eine, aber eine **abgesicherte**: [`pruefe_zuordnung_vollstaendig`]
+/// bricht den Bau, wenn ein Feld aus [`WIRKUNGSFELDER`] hier fehlt. Eine Liste,
+/// deren Unvollstaendigkeit laut auffaellt, ist etwas anderes als eine, deren
+/// Drift still bleibt — und genau darum geht es in Issue #911.
+///
+/// Mehrere Felder duerfen auf denselben Baustein zeigen: `shield` und
+/// `extendShieldMs` sind beide eine Schutzschicht.
+const FELD_ZU_BAUSTEIN: &[(&str, &str)] = &[
+    ("baseDamage", "DealDamage"),
+    ("perDecayStackPercent", "DealDamage"),
+    ("dot", "ApplyDot"),
+    ("dotExtendTicks", "ApplyDot"),
+    ("buff", "ApplyBuff"),
+    ("decayCap", "ApplyBuff"),
+    ("decayWard", "ApplyBuff"),
+    ("synergy", "ApplyBuff"),
+    ("resourceGain", "ModifyResource"),
+    ("spender", "ModifyResource"),
+    ("controlGain", "ModifyResource"),
+    ("cooldownReductionMs", "ReduceCooldown"),
+    ("cooldownResetCharges", "ResetCooldown"),
+    ("freesNextGcd", "FreeNextGcd"),
+    ("doublesNextCast", "FreeNextGcd"),
+    ("refundsInterruptedGcd", "FreeNextGcd"),
+    ("heal", "Heal"),
+    ("shield", "Shield"),
+    ("extendShieldMs", "Shield"),
+    ("conversion", "ConvertDamage"),
+    ("convert", "ConvertDamage"),
+    ("reflect", "ConvertDamage"),
+    ("control", "ChangeBossState"),
+    ("clearsDoom", "ChangeBossState"),
+    ("interrupt", "ChangeBossState"),
+    ("consumesDecayStacks", "ChangeBossState"),
+    ("decay", "ChangeBossState"),
+    ("consumesDots", "ChangeBossState"),
+    ("extendDecayMs", "ChangeBossState"),
+];
+
+/// Bricht den Bau, wenn ein Wirkungsfeld keinen Baustein zugeordnet bekommt.
+///
+/// Ohne diese Pruefung waere [`FELD_ZU_BAUSTEIN`] genau die Sorte Liste, gegen
+/// die Issue #911 gebaut ist: Wer ein Feld zu [`WIRKUNGSFELDER`] hinzufuegt und
+/// die Zuordnung vergisst, bekaeme eine Pruefung, die dieses Feld stillschweigend
+/// uebergeht — und die Luecke saehe aus wie Abdeckung.
+fn pruefe_zuordnung_vollstaendig() {
+    let ohne: Vec<&&str> = WIRKUNGSFELDER
         .iter()
-        .copied()
-        .filter(|f| spell.get(*f).is_some_and(traegt_wirkung))
+        .filter(|f| !FELD_ZU_BAUSTEIN.iter().any(|(feld, _)| feld == *f))
         .collect();
     assert!(
-        getragen.is_empty() || erzeugt > 0,
-        "Zauber \"{id}\" traegt Wirkungsfelder {getragen:?}, hat aber KEINEN Knoten in der \
-         Wirkungsbeschreibung. Das ist der stille Fehler aus Issue #911: Wahrscheinlich liest \
-         `knoten_fuer_zauber` eines dieser Felder mit dem falschen JSON-Typ (so geschehen bei \
-         `resourceGain`, einem Objekt und keiner Zahl)."
+        ohne.is_empty(),
+        "Diese Wirkungsfelder haben keinen Eintrag in FELD_ZU_BAUSTEIN: {ohne:?}. Damit \
+         wuerde `pruefe_wirkung_vollstaendig` sie stillschweigend uebergehen, und die Luecke \
+         saehe aus wie Abdeckung."
     );
 }
 
