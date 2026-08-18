@@ -157,35 +157,36 @@ fn main() {
     // Die Reihenfolge dieser Liste bestimmt die Zauber-Indizes. Sie ist
     // dieselbe wie in `src/core/data.ts` (Konstante `CALCINATION`) und darf
     // nur HINTEN wachsen.
-    emit_spells(
-        &mut out,
-        &spells,
-        &[
-            ("common.json", &common),
-            ("coagulation.json", &coagulation),
-            ("fixation.json", &fixation),
-            ("sublimation.json", &sublimation),
-            ("putrefaction.json", &putrefaction),
-            ("test-cast.json", &test_cast),
-            // **Ganz zuletzt**, hinter test-cast: Dessen Index steht in sechs
-            // Aufzeichnungen, und die Reihenfolge dieser Liste ist die
-            // Zauberreihenfolge (Issue #408, GAME-DESIGN 18.7).
-            ("test-buff.json", &test_buff),
-            // **Dahinter**, aus demselben Grund wie test-buff hinter test-cast:
-            // Die Reihenfolge dieser Liste IST die Zauberreihenfolge (#408,
-            // GAME-DESIGN 18.7), und bestehende Indizes duerfen sich nicht
-            // verschieben.
-            ("test-channel.json", &test_channel),
-            // **Und ganz zuletzt der Heil-Kanal**, aus demselben Grund: Die
-            // Reihenfolge dieser Liste IST die Zauberreihenfolge (#408,
-            // GAME-DESIGN 18.7). Hinten anzuhaengen laesst jeden bestehenden
-            // Index stehen.
-            ("test-channel-heal.json", &test_channel_heal),
-            // Ganz zuletzt, aus demselben Grund: Die Reihenfolge dieser Liste
-            // IST die Zauberreihenfolge (#408).
-            ("test-channel-shield.json", &test_channel_shield),
-        ],
-    );
+    // **Eine** Liste der Zusatz-Dateien, zweimal benutzt: fuer die
+    // Zauber-Tabelle und fuer die Wirkungsbeschreibung (Issue #911). Zwei
+    // getrennte Aufzaehlungen koennten auseinanderlaufen, und der Fehler waere
+    // still — ein Zauber ohne Wirkungsbeschreibung faellt nirgends auf.
+    let weitere: [(&str, &Value); 10] = [
+        ("common.json", &common),
+        ("coagulation.json", &coagulation),
+        ("fixation.json", &fixation),
+        ("sublimation.json", &sublimation),
+        ("putrefaction.json", &putrefaction),
+        ("test-cast.json", &test_cast),
+        // **Ganz zuletzt**, hinter test-cast: Dessen Index steht in sechs
+        // Aufzeichnungen, und die Reihenfolge dieser Liste ist die
+        // Zauberreihenfolge (Issue #408, GAME-DESIGN 18.7).
+        ("test-buff.json", &test_buff),
+        // **Dahinter**, aus demselben Grund wie test-buff hinter test-cast:
+        // Die Reihenfolge dieser Liste IST die Zauberreihenfolge (#408,
+        // GAME-DESIGN 18.7), und bestehende Indizes duerfen sich nicht
+        // verschieben.
+        ("test-channel.json", &test_channel),
+        // **Und ganz zuletzt der Heil-Kanal**, aus demselben Grund: Die
+        // Reihenfolge dieser Liste IST die Zauberreihenfolge (#408,
+        // GAME-DESIGN 18.7). Hinten anzuhaengen laesst jeden bestehenden
+        // Index stehen.
+        ("test-channel-heal.json", &test_channel_heal),
+        // Ganz zuletzt, aus demselben Grund: Die Reihenfolge dieser Liste
+        // IST die Zauberreihenfolge (#408).
+        ("test-channel-shield.json", &test_channel_shield),
+    ];
+    emit_spells(&mut out, &spells, &weitere);
 
     // **Vor allem anderen, was die Ressource betrifft** (Issue #506).
     // `spells` ist calcination.json — die einzige Datei, die heute eine
@@ -201,6 +202,10 @@ fn main() {
     emit_bosses(&mut out, &bosses);
     emit_player(&mut out, &read_json(PLAYER_JSON));
     emit_levels(&mut out, &read_json(LEVELS_JSON));
+    // Issue #911: die Wirkungsbeschreibung, aus denselben Dateien wie alles
+    // darueber. Sie steht zuletzt, weil sie nichts erzeugt, worauf die anderen
+    // sich stuetzen — sie beschreibt nur, was die anderen bereits tragen.
+    emit_effects(&mut out, &spells, &weitere, &bosses);
 
     let dest = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR fehlt")).join("data_generated.rs");
     fs::write(&dest, out).unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", dest.display()));
@@ -387,12 +392,16 @@ fn emit_resource(out: &mut String, spells: &Value) {
 /// **Die Reihenfolge ist die Aussage.** Sie bestimmt die Indizes, und die
 /// stehen in jeder aufgezeichneten Runde; wer eine Datei dazwischenschiebt,
 /// deutet jede alte Aufzeichnung still um.
-fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
-    let resource_id = text(
-        spells.get("resource").expect("resource geprueft"),
-        "id",
-        "calcination.json/resource",
-    );
+/// Die Zauber aller Dateien in **einer** festen Reihenfolge.
+///
+/// Ausgelagert, weil zwei Stellen sie brauchen: [`emit_spells`] fuer die
+/// Zauber-Tabelle und [`emit_effects`] fuer die Wirkungsbeschreibung (Issue
+/// #911). Zwei getrennte Aufbauten waeren zwei Listen, die auseinanderlaufen
+/// koennen — und genau diese Sorte Drift ist der Anlass fuer #911.
+fn zauber_liste<'a>(
+    spells: &'a Value,
+    weitere: &[(&str, &'a Value)],
+) -> Vec<(&'a Value, Option<&'a str>)> {
     let list = spells
         .get("spells")
         .and_then(Value::as_array)
@@ -419,6 +428,17 @@ fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
         let schule = quelle.get("school").and_then(Value::as_str);
         list.extend(eintraege.iter().map(|s| (s, schule)));
     }
+    list
+}
+
+fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
+    let resource_id = text(
+        spells.get("resource").expect("resource geprueft"),
+        "id",
+        "calcination.json/resource",
+    );
+
+    let list = zauber_liste(spells, weitere);
 
     let _ = writeln!(
         out,
@@ -2040,4 +2060,578 @@ fn emit_fixation(out: &mut String, spell: &Value, whose: &str) {
             );
         }
     }
+}
+
+// ------------------------------------------- Wirkungsbeschreibung (Issue #911)
+
+/// Die Boss-Schluessel, deren Semantik dieser Bau **kennt**.
+///
+/// Alles, was hier nicht steht, wird zu einer Signatur **ohne** Semantik — und
+/// loest damit den konservativen Rueckfall aus. Das ist der Zweck der Liste:
+/// Ein neues Zusatz-System in den Bossdaten soll nicht still als „harmlos"
+/// durchlaufen, sondern langsam werden, bis jemand es einordnet.
+///
+/// > Bei der Planung stand „sieben Zusatz-Systeme in den Bossdaten" — nachgezaehlt
+/// > waren es elf. Genau diese Liste haette den Irrtum gemeldet.
+const BEKANNTE_BOSS_SCHLUESSEL: &[&str] = &[
+    // Kopfdaten, keine Wirkung
+    "schema",
+    "id",
+    "name",
+    "instance",
+    "hp",
+    "overpressureMs",
+    "_comment",
+    // Die elf Zusatz-Systeme
+    "timeline",
+    "phases",
+    "energy",
+    "doom",
+    "affliction",
+    "race",
+    "runaway",
+    "stacks",
+    "escalation",
+    "bossHeal",
+    "timelineLoopMs",
+    "resistances",
+];
+
+/// Ein Knoten der Wirkungsbeschreibung, wie er in den erzeugten Quelltext geht.
+///
+/// Alle Felder sind fertige Rust-Ausdruecke. Der Aufbau geht ueber
+/// [`Knoten::konservativ`] und die Aktualisierungs-Syntax: Wer ein Feld
+/// weglaesst, bekommt den vorsichtigen Wert und nicht den guenstigen.
+struct Knoten {
+    op: String,
+    trigger: &'static str,
+    target: &'static str,
+    reads: String,
+    writes: String,
+    timing: &'static str,
+    stacking: &'static str,
+    randomness: String,
+    monotonie: String,
+    bounds: String,
+    control_flow: String,
+    origin: String,
+}
+
+impl Knoten {
+    /// Ein Knoten, der nichts ueber sich behauptet.
+    ///
+    /// Jedes Feld steht auf dem Wert, der den Rueckfall ausloest. Wer etwas
+    /// weiss, ueberschreibt es einzeln — wer nichts weiss, bleibt langsam.
+    fn konservativ(op: &str, origin: String) -> Knoten {
+        Knoten {
+            op: op.to_string(),
+            trigger: "Trigger::Unknown",
+            target: "Target::Unknown",
+            reads: "StateMask::UNKNOWN".to_string(),
+            writes: "StateMask::UNKNOWN".to_string(),
+            timing: "TimingSemantics::Unknown",
+            stacking: "StackingSemantics::Unknown",
+            randomness: "RandomnessSemantics::Unknown".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: "ControlFlowEffect::UNKNOWN".to_string(),
+            origin,
+        }
+    }
+}
+
+/// Schreibt einen Knoten als Rust-Literal.
+fn emit_knoten(out: &mut String, k: &Knoten) {
+    let p = "crate::effects";
+    let _ = writeln!(out, "    {p}::EffectNode {{");
+    let _ = writeln!(out, "        op: {p}::EffectOp::{},", k.op);
+    let _ = writeln!(out, "        trigger: {p}::{},", k.trigger);
+    let _ = writeln!(out, "        target: {p}::{},", k.target);
+    let _ = writeln!(out, "        reads: {},", maske(&k.reads));
+    let _ = writeln!(out, "        writes: {},", maske(&k.writes));
+    let _ = writeln!(out, "        timing: {p}::{},", k.timing);
+    let _ = writeln!(out, "        stacking: {p}::{},", k.stacking);
+    let _ = writeln!(out, "        randomness: {p}::{},", k.randomness);
+    let _ = writeln!(out, "        monotonicity: {p}::{},", k.monotonie);
+    let _ = writeln!(out, "        numeric_bounds: {p}::{},", k.bounds);
+    let _ = writeln!(out, "        control_flow_effect: {p}::{},", k.control_flow);
+    let _ = writeln!(out, "        origin: {:?},", k.origin);
+    let _ = writeln!(out, "    }},");
+}
+
+/// Setzt den Modulpfad vor jeden `StateMask`-Namen eines Masken-Ausdrucks.
+///
+/// Damit bleiben die Masken oben in diesem Bau kurz lesbar
+/// (`StateMask::RESOURCE.union(StateMask::DOTS)`) und im erzeugten Quelltext
+/// trotzdem vollstaendig qualifiziert — dort gibt es kein `use`.
+fn maske(ausdruck: &str) -> String {
+    ausdruck.replace("StateMask::", "crate::effects::StateMask::")
+}
+
+/// Verbindet mehrere Masken zu einem Ausdruck.
+fn masken(teile: &[&str]) -> String {
+    match teile.split_first() {
+        None => "StateMask::EMPTY".to_string(),
+        Some((erste, rest)) => {
+            let mut s = format!("StateMask::{erste}");
+            for r in rest {
+                s.push_str(&format!(".union(StateMask::{r})"));
+            }
+            s
+        }
+    }
+}
+
+/// Erzeugt die Wirkungsbeschreibung aus Zaubern und Bossen (Issue #911).
+///
+/// # Warum das hier steht und nicht von Hand gepflegt wird
+///
+/// Eine gepflegte Liste driftet gegen die Daten, und der Fehler ist still.
+/// Diese Knoten entstehen aus denselben Dateien wie die Zauber-Tabelle
+/// daneben — dieselbe Reihenfolge, dieselbe Quelle
+/// ([`zauber_liste`]).
+fn emit_effects(
+    out: &mut String,
+    spells: &Value,
+    weitere: &[(&str, &Value)],
+    bosses: &[(String, Value)],
+) {
+    let mut knoten: Vec<Knoten> = Vec::new();
+    for (spell, _) in zauber_liste(spells, weitere) {
+        let vorher = knoten.len();
+        knoten_fuer_zauber(&mut knoten, spell);
+        // Sofort nach dem Erzeugen und nicht am Ende: So nennt die Meldung den
+        // Zauber, bei dem es klemmt, statt nur eine Gesamtzahl.
+        pruefe_wirkung_vollstaendig(spell, knoten.len() - vorher);
+    }
+    for (datei, boss) in bosses {
+        knoten_fuer_boss(&mut knoten, datei, boss);
+    }
+
+    let _ = writeln!(
+        out,
+        "/// Die Wirkungsbeschreibung aller Zauber und Bosse (Issue #911).\n\
+         ///\n\
+         /// **Erzeugt aus `data/*.json`, nicht gepflegt.** Wer einen Zauber\n\
+         /// aendert, aendert diese Liste mit; wer ein unbekanntes Feld in eine\n\
+         /// Bossdatei schreibt, bekommt einen Knoten ohne Semantik und damit\n\
+         /// ueberall den konservativen Rueckfall."
+    );
+    let _ = writeln!(
+        out,
+        "pub static EFFECT_NODES: &[crate::effects::EffectNode] = &["
+    );
+    for k in &knoten {
+        emit_knoten(out, k);
+    }
+    let _ = writeln!(out, "];\n");
+}
+
+/// Die Knoten eines einzelnen Zaubers.
+///
+/// # Die Semantik hier ist gemessen, nicht angenommen
+///
+/// - **Brand-Effekte sind `Live`, nicht `Snapshot`**: `Fight::dot_tick` setzt
+///   Widerstand und Stapel-Zuschlag bei **jedem** Tick neu und ruft erst dann
+///   `compute_damage`. Ein festgehaltener Wert waere hier schlicht falsch.
+/// - **Brand-Ticks ziehen aus `Stream::DotTick`**, nicht aus `Stream::Crit`
+///   (Issue #602): Ein Tick darf die Wuerfe der gewirkten Zauber nicht
+///   verschieben.
+/// - **Heilung wuerfelt nicht.** `Stream::Heal` existiert, wird im Kampf aber
+///   an keiner Stelle gezogen — gemessen ueber alle Aufrufe von `roll_crit`.
+fn knoten_fuer_zauber(knoten: &mut Vec<Knoten>, spell: &Value) {
+    let id = spell
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("<ohne id>")
+        .to_string();
+    let zahl = |feld: &str| spell.get(feld).and_then(Value::as_u64).unwrap_or(0);
+    let ja = |feld: &str| spell.get(feld).and_then(Value::as_bool).unwrap_or(false);
+    let hat = |feld: &str| spell.get(feld).is_some();
+
+    let kanal = zahl("channelMs") > 0;
+
+    if zahl("baseDamage") > 0 {
+        knoten.push(Knoten {
+            trigger: if kanal {
+                "Trigger::OnTick"
+            } else {
+                "Trigger::OnCast"
+            },
+            target: "Target::Boss",
+            reads: masken(&["RESOURCE", "BUFFS", "DECAY_STACKS", "RNG"]),
+            writes: masken(&["BOSS_HP", "RNG"]),
+            // Ein Kanal liest bei jedem Tick neu, ein einzelner Wurf nicht.
+            timing: if kanal {
+                "TimingSemantics::Live"
+            } else {
+                "TimingSemantics::Immediate"
+            },
+            stacking: "StackingSemantics::None",
+            randomness: "RandomnessSemantics::CritRoll".to_string(),
+            monotonie: monotonie_steigend(),
+            // Nach oben offen: Verstaerkungen und Stapel-Zuschlaege heben den
+            // Grundwert an. Eine Obergrenze waere hier eine Behauptung.
+            bounds: "Bounds { min: Some(0), max: None }".to_string(),
+            // Der Schaden selbst verzweigt nicht — WANN ein Kampf endet, ist
+            // Sache der Boss-Semantik und steht an deren Knoten.
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("DealDamage", id.clone())
+        });
+    }
+
+    if hat("dot") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Boss",
+            reads: masken(&["BUFFS", "DECAY_STACKS", "RNG"]),
+            writes: masken(&["DOTS", "BOSS_HP", "DECAY_STACKS", "RNG"]),
+            // Gemessen in `Fight::dot_tick`: Widerstand und Zuschlaege werden
+            // beim Tick gesetzt, nicht beim Auflegen.
+            timing: "TimingSemantics::Live",
+            stacking: "StackingSemantics::Refresh",
+            randomness: "RandomnessSemantics::Stream(\"dot-tick\")".to_string(),
+            monotonie: monotonie_steigend(),
+            bounds: "Bounds { min: Some(0), max: None }".to_string(),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ApplyDot", id.clone())
+        });
+    }
+
+    if hat("buff") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["BUFFS"]),
+            writes: masken(&["BUFFS"]),
+            timing: "TimingSemantics::Snapshot",
+            stacking: "StackingSemantics::Refresh",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds { min: Some(0), max: None }".to_string(),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ApplyBuff", id.clone())
+        });
+    }
+
+    if ressourcen_gewinn(spell) > 0 || hat("spender") {
+        let gewinn = ressourcen_gewinn(spell) as i64;
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["RESOURCE"]),
+            writes: masken(&["RESOURCE"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Additive",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: monotonie_steigend(),
+            // Der Entlader kennt seine Obergrenze nicht aus diesem Feld — dann
+            // bleibt die Schranke offen statt geraten.
+            bounds: if hat("spender") {
+                "Bounds { min: None, max: Some(0) }".to_string()
+            } else {
+                format!("Bounds::exact(0, {gewinn})")
+            },
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ModifyResource", id.clone())
+        });
+    }
+
+    if zahl("cooldownReductionMs") > 0 {
+        let wert = zahl("cooldownReductionMs") as i64;
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::AllCooldowns",
+            reads: masken(&["COOLDOWNS"]),
+            writes: masken(&["COOLDOWNS"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Additive",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: monotonie_steigend(),
+            // Hier IST die Schranke eng, und das ist der Unterschied: Nur
+            // deshalb bleibt die Zahl moeglicher Aktionen ableitbar.
+            bounds: format!("Bounds::exact(0, {wert})"),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ReduceCooldown", id.clone())
+        });
+    }
+
+    if zahl("cooldownResetCharges") > 0 {
+        let ladungen = zahl("cooldownResetCharges") as i64;
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::OneCooldown",
+            reads: masken(&["COOLDOWNS"]),
+            writes: masken(&["COOLDOWNS"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::None",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: monotonie_steigend(),
+            bounds: format!("Bounds::exact(0, {ladungen})"),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ResetCooldown", id.clone())
+        });
+    }
+
+    if ja("freesNextGcd") || ja("doublesNextCast") || ja("refundsInterruptedGcd") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["GCD"]),
+            writes: masken(&["GCD"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Replace",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            // Genau EIN naechster Wurf, nie mehr — deshalb eine enge Schranke.
+            bounds: "Bounds::exact(0, 1)".to_string(),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("FreeNextGcd", id.clone())
+        });
+    }
+
+    if hat("heal") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["PLAYER_HP"]),
+            writes: masken(&["PLAYER_HP"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Additive",
+            // Gemessen: `Stream::Heal` wird im Kampf nirgends gezogen.
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds { min: Some(0), max: None }".to_string(),
+            // Am Erhalt des Spielers haengt der Abbruch des Kampfes.
+            control_flow: "ControlFlowEffect { branches_on_damage: false, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("Heal", id.clone())
+        });
+    }
+
+    if hat("shield") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["SHIELD"]),
+            writes: masken(&["SHIELD"]),
+            timing: "TimingSemantics::Snapshot",
+            stacking: "StackingSemantics::Replace",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds { min: Some(0), max: None }".to_string(),
+            control_flow: "ControlFlowEffect { branches_on_damage: false, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("Shield", id.clone())
+        });
+    }
+
+    if hat("conversion") || hat("convert") || hat("reflect") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["SHIELD", "PLAYER_HP", "BOSS_HP"]),
+            writes: masken(&["SHIELD", "PLAYER_HP", "BOSS_HP"]),
+            // Die Umwandlung liest den Schaden, wenn er anfaellt — also live.
+            timing: "TimingSemantics::Live",
+            stacking: "StackingSemantics::Replace",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: "ControlFlowEffect { branches_on_damage: true, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("ConvertDamage", id.clone())
+        });
+    }
+}
+
+/// Der Monotonie-**Hinweis** fuer eine steigende Wirkung.
+///
+/// Immer mit Bezug. Ein Hinweis ohne Bezug waere ein Zertifikat, das keines
+/// ist — und genau davor warnt AC6.
+fn monotonie_steigend() -> String {
+    "LocalMonotonicityHint { direction: crate::effects::MonotonicDirection::Increasing, \
+     domain: crate::effects::MonotonicityDomain::ExpectedDamageStableTrace }"
+        .to_string()
+}
+
+/// Die Knoten eines Bosses — je Zusatz-System eine Signatur.
+///
+/// # AC4: auch eine Signatur deklariert ihre Semantik
+///
+/// Liefe jede ungewoehnliche Mechanik als allgemeine Signatur durch, braeche der
+/// Bau **nie** mehr — und die 68 geplanten Bosse tragen per Design je eine
+/// einmalige Regel. Deshalb bekommt jedes **bekannte** System hier seine
+/// Semantik, und jedes **unbekannte** einen Knoten ohne: langsam, nie falsch.
+fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
+    let id = boss
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or(datei)
+        .to_string();
+
+    let Some(felder) = boss.as_object() else {
+        return;
+    };
+
+    if felder.contains_key("phases") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnPhaseChange",
+            target: "Target::Boss",
+            reads: masken(&["BOSS_HP", "PHASE"]),
+            writes: masken(&["PHASE", "TIMELINE"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Replace",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: "ControlFlowEffect { branches_on_damage: false, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("ChangePhase", format!("{id}/phases"))
+        });
+    }
+
+    // Die uebrigen zehn bekannten Systeme. Jedes bekommt eine Signatur MIT
+    // Semantik — der Unterschied zu einem unbekannten Feld ist genau das.
+    for (schluessel, verzweigt_am_sieg) in [
+        ("energy", false),
+        ("doom", true),
+        ("affliction", false),
+        ("race", true),
+        ("runaway", true),
+        ("stacks", false),
+        ("escalation", false),
+        ("bossHeal", false),
+        ("timelineLoopMs", false),
+        ("resistances", false),
+    ] {
+        if !felder.contains_key(schluessel) {
+            continue;
+        }
+        knoten.push(Knoten {
+            op: format!("CustomSignature(crate::effects::SignatureId({schluessel:?}))"),
+            trigger: "Trigger::OnTimeline",
+            target: "Target::Boss",
+            reads: masken(&["BOSS_SYSTEMS", "TIMELINE", "BOSS_HP", "PLAYER_HP"]),
+            writes: masken(&["BOSS_SYSTEMS", "BOSS_HP", "PLAYER_HP"]),
+            timing: "TimingSemantics::Live",
+            stacking: "StackingSemantics::Additive",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: format!(
+                "ControlFlowEffect {{ branches_on_damage: false, branches_on_hp: true, \
+                 branches_on_victory: {verzweigt_am_sieg}, unknown: false }}"
+            ),
+            ..Knoten::konservativ("", format!("{id}/{schluessel}"))
+        });
+    }
+
+    // Und jetzt das Gegenteil: alles, was dieser Bau NICHT kennt.
+    for schluessel in felder.keys() {
+        if BEKANNTE_BOSS_SCHLUESSEL.contains(&schluessel.as_str()) {
+            continue;
+        }
+        // Ein Knoten ganz ohne Semantik. Jede registrierte Analyse geht darauf
+        // in den Rueckfall — gewollt, und der einzige Weg, ein neues
+        // Zusatz-System nicht still durchgehen zu lassen.
+        knoten.push(Knoten::konservativ(
+            &format!("CustomSignature(crate::effects::SignatureId({schluessel:?}))"),
+            format!("{id}/{schluessel}"),
+        ));
+    }
+}
+
+/// Der Ressourcen-Gewinn eines Zaubers.
+///
+/// # Warum das nicht `as_u64` sein darf
+///
+/// `resourceGain` ist ein **Objekt** (`{"heat": 3}`), keine Zahl — als einziges
+/// der Zahlenfelder eines Zaubers. Ein `as_u64()` darauf liefert stillschweigend
+/// `None`, und der Zauber verschwindet aus der Wirkungsbeschreibung, ohne dass
+/// irgendetwas rot wird.
+///
+/// **Gemessen beim Bau von Issue #911:** Genau so fehlten vier von sechs
+/// Zaubern mit Ressourcen-Wirkung (kindle, bellows, ember, test-channel-heal) —
+/// die Liste sah vollstaendig aus und war es nicht. Dagegen steht jetzt
+/// zusaetzlich [`pruefe_wirkung_vollstaendig`], das ohne diesen Leser auskommt.
+fn ressourcen_gewinn(spell: &Value) -> u64 {
+    match spell.get("resourceGain") {
+        Some(Value::Number(n)) => n.as_u64().unwrap_or(0),
+        // Es gibt genau eine Ressource (`pruefe_nur_eine_ressource`), deshalb
+        // ist das Maximum zugleich der einzige Wert.
+        Some(Value::Object(map)) => map.values().filter_map(Value::as_u64).max().unwrap_or(0),
+        _ => 0,
+    }
+}
+
+/// Die Felder eines Zaubers, die eine Wirkung beschreiben.
+///
+/// Bewusst **ohne** die Kopfdaten (`id`, `name`, `unlockLevel`, Zeiten): Wer
+/// eines dieser Felder traegt, muss in der Wirkungsbeschreibung vorkommen.
+const WIRKUNGSFELDER: &[&str] = &[
+    "baseDamage",
+    "dot",
+    "buff",
+    "resourceGain",
+    "spender",
+    "cooldownReductionMs",
+    "cooldownResetCharges",
+    "freesNextGcd",
+    "doublesNextCast",
+    "refundsInterruptedGcd",
+    "heal",
+    "shield",
+    "conversion",
+    "convert",
+    "reflect",
+];
+
+/// Ob ein JSON-Wert eine Wirkung traegt — **typunabhaengig**.
+///
+/// Zahl ungleich null, `true`, nicht-leeres Objekt, nicht-leere Liste, nicht-leerer
+/// Text. Diese Funktion kennt kein einziges Feld beim Namen und benutzt keinen
+/// der Leser oben. Genau darin liegt ihr Wert: Sie kann nicht denselben
+/// Typfehler machen wie der Leser, den sie absichert.
+fn traegt_wirkung(v: &Value) -> bool {
+    match v {
+        Value::Null => false,
+        Value::Bool(b) => *b,
+        Value::Number(n) => n.as_f64().is_some_and(|x| x != 0.0),
+        Value::String(s) => !s.is_empty(),
+        Value::Array(a) => !a.is_empty(),
+        Value::Object(o) => !o.is_empty(),
+    }
+}
+
+/// Bricht den Bau, wenn ein Zauber mit Wirkung keinen Knoten bekommen hat.
+///
+/// # Warum diese Pruefung nicht zirkulaer ist
+///
+/// Sie stellt die Frage auf der **JSON-Ebene** — traegt das Feld irgendeinen
+/// nicht-leeren Wert? — und vergleicht mit dem, was [`knoten_fuer_zauber`]
+/// tatsaechlich erzeugt hat. Liest der Leser ein Feld falsch (etwa ein Objekt
+/// als Zahl), entsteht kein Knoten, und **diese** Pruefung meldet es. Eine
+/// Pruefung, die denselben Leser benutzt, haette denselben blinden Fleck.
+fn pruefe_wirkung_vollstaendig(spell: &Value, erzeugt: usize) {
+    let id = spell
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("<ohne id>");
+    let getragen: Vec<&str> = WIRKUNGSFELDER
+        .iter()
+        .copied()
+        .filter(|f| spell.get(*f).is_some_and(traegt_wirkung))
+        .collect();
+    assert!(
+        getragen.is_empty() || erzeugt > 0,
+        "Zauber \"{id}\" traegt Wirkungsfelder {getragen:?}, hat aber KEINEN Knoten in der \
+         Wirkungsbeschreibung. Das ist der stille Fehler aus Issue #911: Wahrscheinlich liest \
+         `knoten_fuer_zauber` eines dieser Felder mit dem falschen JSON-Typ (so geschehen bei \
+         `resourceGain`, einem Objekt und keiner Zahl)."
+    );
 }
