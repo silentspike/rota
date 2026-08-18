@@ -283,3 +283,78 @@ fn jeder_zauber_hat_mindestens_einen_knoten() {
         SPELLS.len()
     );
 }
+
+#[test]
+fn jede_boss_zeitleiste_ist_beschrieben() {
+    // # Die groesste Luecke der ersten Fassung
+    //
+    // Alle 35 Bosse fuehren eine `timeline`, und sie erzeugte **keinen
+    // einzigen Knoten** — die Schlaege des Bosses, seine Kernmechanik, standen
+    // in keiner Beschreibung.
+    //
+    // Auffallen konnte das nicht: Jeder Boss hatte trotzdem Knoten, allein
+    // wegen `resistances`. Eine Zaehlung „35 von 35 Bossen beschrieben" war
+    // richtig und wertlos, weil sie **Bosse** zaehlte statt **Wirkungen**.
+    // Dieser Fall zaehlt Wirkungen.
+    let mut fehlend: Vec<&str> = Vec::new();
+    let mut erwartet = 0usize;
+    for boss in rota_sim::data::BOSSES.iter() {
+        if boss.timeline.is_empty() {
+            continue;
+        }
+        erwartet += 1;
+        let praefix = format!("{}/timeline:", boss.id);
+        if !EFFECT_NODES.iter().any(|n| n.origin.starts_with(&praefix)) {
+            fehlend.push(boss.id);
+        }
+    }
+    assert!(
+        erwartet > 0,
+        "Kein Boss fuehrt eine Zeitleiste — dann prueft dieser Fall nichts."
+    );
+    assert!(
+        fehlend.is_empty(),
+        "{} von {erwartet} Bossen mit Zeitleiste haben keinen Knoten dafuer: {fehlend:?}",
+        fehlend.len()
+    );
+}
+
+#[test]
+fn kein_knoten_beschreibt_eine_wirkung_die_es_nicht_gibt() {
+    // # Der Fehler in die andere Richtung
+    //
+    // Die erste Fassung fragte `contains_key` statt nach dem Inhalt. Ergebnis:
+    // Knoten fuer `energy: null` (29 von 33 Bossen), fuer `resistances: {}`
+    // (31 von 35) und fuer `phases: []` (26 von 33) — lauter beschriebene
+    // Wirkungen, die es nicht gibt.
+    //
+    // Das ist harmloser als eine Luecke, weil der konservative Weg nur langsam
+    // ist und nicht falsch. Aber es macht die Beschreibung fuer ihren Zweck
+    // unbrauchbar: „welche Ereigniskanaele braucht dieser Kampf" haette bei
+    // fast jedem Boss alle genannt.
+    let mut falsch: Vec<String> = Vec::new();
+    for boss in rota_sim::data::BOSSES.iter() {
+        let hat_knoten = |feld: &str| {
+            EFFECT_NODES
+                .iter()
+                .any(|n| n.origin == format!("{}/{feld}", boss.id))
+        };
+        if boss.energy.is_none() && hat_knoten("energy") {
+            falsch.push(format!("{}/energy", boss.id));
+        }
+        if boss.doom.is_none() && hat_knoten("doom") {
+            falsch.push(format!("{}/doom", boss.id));
+        }
+        if boss.phases.is_empty() && hat_knoten("phases") {
+            falsch.push(format!("{}/phases", boss.id));
+        }
+        if boss.resistances.is_empty() && hat_knoten("resistances") {
+            falsch.push(format!("{}/resistances", boss.id));
+        }
+    }
+    assert!(
+        falsch.is_empty(),
+        "{} Knoten beschreiben eine Wirkung, die der Boss gar nicht hat: {falsch:?}",
+        falsch.len()
+    );
+}
