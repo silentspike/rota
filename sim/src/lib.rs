@@ -61,6 +61,8 @@ pub mod balance;
 pub mod best_build;
 // Issue E3-5: Verstaerkungen und Synergie-Fenster.
 pub mod buffs;
+// Issue #959: die Werte-Deckel je Wirkgroesse, als Tabelle.
+pub mod caps;
 pub mod checksum;
 // Issue E3-3c: der Cooldown-Ruecksetzer als Auswahlmodus.
 pub mod cooldown_reset;
