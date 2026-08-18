@@ -256,6 +256,44 @@ fn der_trockenlauf_weist_seine_unsicherheit_aus() {
 }
 
 #[test]
+fn jede_rate_traegt_ihre_strangzahl() {
+    // EINE RATE OHNE STRANGZAHL IST NICHT DEUTBAR, und das ist am 2026-08-18
+    // teuer geworden: Die Planzahl aus GAME-DESIGN (350 000) und ein gemessener
+    // Wert von 38 474 sahen nach Faktor neun aus. Sie sind es nicht — die eine
+    // gilt für sechzehn Stränge, die andere für einen. Zwei Zahlen ohne ihre
+    // Bedingung sahen aus wie ein Fehler.
+    let (_, json, _) = rufe(&["explain", "--boss", "boss-1-1", "--json"]);
+    assert!(
+        json.contains("\"threads\":1"),
+        "die Vorgabe-Rate nennt ihre Strangzahl nicht:\n{json}"
+    );
+
+    // Eine angegebene Rate gilt für die Strangzahl des Aufrufs.
+    let (_, json, _) = rufe(&[
+        "explain",
+        "--boss",
+        "boss-1-1",
+        "--rate",
+        "260000",
+        "--threads",
+        "16",
+        "--json",
+    ]);
+    assert!(
+        json.contains("\"threads\":16"),
+        "eine angegebene Rate uebernimmt die Strangzahl nicht:\n{json}"
+    );
+
+    // Und in der Textausgabe steht sie ebenfalls — sie ist der Ort, an dem
+    // die meisten sie lesen.
+    let (_, text, _) = rufe(&["explain", "--boss", "boss-1-1"]);
+    assert!(
+        text.contains("Kaempfen je Sekunde auf 1 Strang"),
+        "die Textausgabe nennt die Strangzahl nicht:\n{text}"
+    );
+}
+
+#[test]
 fn der_trockenlauf_laeuft_in_sekunden() {
     // AC3. Gemessen wird der GROESSTE sinnvolle Fall — ein Lauf, der Tage
     // braeuchte, muss trotzdem in Sekunden vorhergesagt sein.

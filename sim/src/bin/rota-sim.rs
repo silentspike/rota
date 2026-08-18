@@ -1000,9 +1000,16 @@ impl Default for ExplainOptionen {
 
 /// Kaempfe je Sekunde, wenn niemand eine eigene Rate nennt.
 ///
+/// **Sie gilt fuer EINEN Strang**, und ohne diese Angabe ist eine Rate nicht
+/// deutbar. Das ist kein Formalismus, sondern am 2026-08-18 teuer geworden:
+/// Ich hielt die Planzahl aus GAME-DESIGN (350 000 bis 365 000) fuer einen
+/// Widerspruch zu meinen gemessenen 38 474 — Faktor neun. Sie ist keiner. Die
+/// Planzahl meint den Vollausbau mit sechzehn Straengen; nachgemessen wurden
+/// dort 258 354. Zwei Zahlen ohne ihre Strangzahl sahen aus wie ein Fehler.
+///
 /// **Gemessen, nicht angenommen** — aber die Messung ist der Grund, warum
 /// diese Zahl mit Vorsicht zu geniessen ist. Fuenf Laeufe von
-/// `rota-sim bench --fights 20000` im Release-Bau auf einem Strang, alle am
+/// `rota-sim bench --fights 20000` im Release-Bau auf EINEM Strang, alle am
 /// 2026-08-18 auf derselben Maschine:
 ///
 /// ```text
@@ -1021,6 +1028,12 @@ impl Default for ExplainOptionen {
 /// Die Zahl steht bewusst hier und nicht in der Bibliothek — sie ist eine
 /// Eigenschaft dieses Rechners, keine des Simulators.
 const RATE_VORGABE: f64 = 45_000.0;
+
+/// Fuer wie viele Straenge [`RATE_VORGABE`] gilt.
+///
+/// Steht als eigene Konstante da, damit die Zahl und ihre Bedingung nicht
+/// auseinanderlaufen koennen — und sie geht in jede Ausgabe mit ein.
+const RATE_VORGABE_STRAENGE: usize = 1;
 
 /// Um welchen Faktor die gemessene Rate an einem Tag geschwankt hat.
 ///
@@ -1235,7 +1248,7 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
              \"measurements\":{{\"min\":{},\"max\":{},\"singles\":{},\"pairs\":{}}},\
              \"fights\":{{\"min\":{},\"max\":{}}},\
              \"seconds\":{{\"min\":{:?},\"max\":{:?}}},\
-             \"rate\":{{\"fightsPerSecond\":{:?},\"source\":{:?}}},\
+             \"rate\":{{\"fightsPerSecond\":{:?},\"source\":{:?},\"threads\":{}}},\
              \"memoryBytes\":{},\"fightsRun\":{}}}",
             boss.id,
             schaetzung.pool,
@@ -1255,6 +1268,14 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
                 "angegeben"
             } else {
                 "Vorgabe"
+            },
+            // **Die Strangzahl gehoert zur Rate**, sonst ist sie nicht
+            // deutbar. Eine angegebene Rate gilt fuer die Strangzahl des
+            // Aufrufs; die Vorgabe fuer die, auf der sie gemessen wurde.
+            if optionen.rate.is_some() {
+                optionen.threads
+            } else {
+                RATE_VORGABE_STRAENGE
             },
             speicher,
             kaempfe_gerechnet(),
@@ -1294,11 +1315,16 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
         dauer_lesbar(dauer_max)
     );
     println!(
-        "  bei einer Rate von   {rate:.0} Kaempfen je Sekunde ({})",
+        "  bei einer Rate von   {rate:.0} Kaempfen je Sekunde auf {} Strang/Straengen ({})",
+        if optionen.rate.is_some() {
+            optionen.threads
+        } else {
+            RATE_VORGABE_STRAENGE
+        },
         if optionen.rate.is_some() {
             "von dir angegeben"
         } else {
-            "Vorgabe, auf EINEM Strang gemessen"
+            "Vorgabe, gemessen"
         }
     );
     println!(
