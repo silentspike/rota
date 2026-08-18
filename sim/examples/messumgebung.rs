@@ -1251,6 +1251,26 @@ fn eine_rate(
     //    Prozess trifft, ist ein Ausreisser; der Median ist genau das
     //    Werkzeug, das ihn nicht mitzaehlt. Der Ausreisser verschwindet damit
     //    nicht aus der Welt, er verschiebt nur nicht mehr das Ergebnis.
+    // **Vorlauf, bevor die Uhr laeuft.**
+    //
+    // Diese Funktion hatte lange keinen — `miss` waermt zwei Sekunden vor, die
+    // A/B- und A,A-Reihe gar nicht. Das war ein Mangel, und er ist behoben.
+    //
+    // **Er erklaert die Streuung NICHT.** Die Vermutung lag nahe und wurde
+    // geprueft: In den sechs Reihen vom 2026-08-18 liegen die ersten zwei
+    // Paare nur in EINER unter dem Median der uebrigen — und zwar in genau der,
+    // an der die Vermutung entstand. In einer anderen wird es ohne die ersten
+    // Paare sogar schlechter.
+    //
+    // Ein struktureller Mangel, der ueberall gilt, kann keinen Unterschied
+    // erklaeren, der nur an einer Stelle auftritt. Der Vorlauf steht hier, weil
+    // eine Messung mit ihm besser ist als eine ohne — nicht, weil er ein
+    // Raetsel loest.
+    let warm = Instant::now();
+    while warm.elapsed() < AUFWAERMDAUER {
+        let _ = suche(fall, &config, &pool);
+    }
+
     let teile = ab_teilbloecke();
     let mut teilraten = Vec::with_capacity(teile);
     let je_teil = messdauer() / u32::try_from(teile).unwrap_or(1);
@@ -1373,6 +1393,44 @@ fn ab_reihe(
         }
     );
 
+    // **Vorlauf-Pruefung — eine Hypothese, die geprueft und gefallen ist.**
+    //
+    // In der A,A-Reihe vom 2026-08-18 17:07 lagen die vier niedrigsten Werte
+    // genau in den Paaren 1 und 2, in BEIDEN Durchgaengen. Ohne sie fiel die
+    // Streuung von 9,51 auf 5,02 Prozent. Naheliegende Erklaerung: ein
+    // fehlender Vorlauf, also kalte Caches und ungewaermter Allokator. Sie
+    // hatte sogar eine Entsprechung im Code — diese Funktion waermte nicht auf,
+    // waehrend `miss` zwei Sekunden vorheizt.
+    //
+    // **Geprueft an den fuenf FRUEHEREN Reihen**, deren Rohwerte schon vorlagen,
+    // als die Hypothese entstand — sie koennen von ihr nicht beeinflusst sein:
+    //
+    // ```text
+    //   Reihe                         unter dem Median?   Streuung alle -> ohne
+    //   8 Kerne, 20 s (fremde Last)        0 / 4           28,25 % -> 26,69 %
+    //   8 Kerne, 20 s (ruhig)              2 / 4            3,53 % ->  3,39 %
+    //   8 Kerne, 40 s                      1 / 4            4,93 % ->  4,95 %
+    //   4 Kerne, 20 s (ruhig)              3 / 4           10,78 % ->  9,58 %
+    //   4 Kerne, 20 s (ruhig)              2 / 4           11,68 % -> 11,68 %
+    //   4 Kerne, A,A (die FUNDreihe)       4 / 4            9,51 % ->  5,02 %
+    // ```
+    //
+    // Bei Zufall waeren zwei von vier zu erwarten. **Der Effekt existiert nur
+    // dort, wo nach ihm gesucht wurde** — und in einer Reihe wird es ohne
+    // Vorlauf sogar schlechter. Waere der Vorlauf die Ursache, muesste er in
+    // allen sechs auftreten; allen sechs fehlte er.
+    //
+    // Die Zahl bleibt trotzdem im Bericht: Ein Effekt, der einmal auftrat, kann
+    // wiederkommen, und dann soll er sichtbar sein statt in der Gesamtstreuung
+    // zu verschwinden.
+    let _ = writeln!(
+        bericht,
+        "  Vorlauf-Pruefung: Liegen die Paare 1 und 2 unter dem Median der\n\
+         \x20 uebrigen? Als Ursache der Streuung ist das WIDERLEGT (siehe unten),\n\
+         \x20 die Zahl steht trotzdem in jedem Bericht — ein Effekt, der einmal\n\
+         \x20 auftrat, kann wiederkommen.\n"
+    );
+
     let mut a = Vec::with_capacity(paare);
     let mut b = Vec::with_capacity(paare);
     let mut verworfen = 0usize;
@@ -1461,6 +1519,87 @@ fn ab_reihe(
             "\n  {verworfen} Bloecke verworfen, weil die Maschine waehrend der \
              Messung unruhig war."
         );
+    }
+
+    // **Trifft die Vorhersage?** Zwei Rechnungen, beide auf denselben Daten.
+    {
+        let werte: Vec<(usize, f64)> = a
+            .iter()
+            .chain(b.iter())
+            .enumerate()
+            .map(|(i, w)| (i % paare.max(1), w.rate))
+            .collect();
+        let vorlauf: Vec<f64> = werte
+            .iter()
+            .filter(|(paar, _)| *paar < 2)
+            .map(|(_, r)| *r)
+            .collect();
+        let rest: Vec<f64> = werte
+            .iter()
+            .filter(|(paar, _)| *paar >= 2)
+            .map(|(_, r)| *r)
+            .collect();
+
+        if vorlauf.len() >= 2 && rest.len() >= 4 {
+            let mut v = vorlauf.clone();
+            let mut r = rest.clone();
+            let med_vorlauf = median(&mut v);
+            let med_rest = median(&mut r);
+            let spanne = |werte: &[f64]| -> f64 {
+                let max = werte.iter().copied().fold(f64::MIN, f64::max);
+                let min = werte.iter().copied().fold(f64::MAX, f64::min);
+                let mut k = werte.to_vec();
+                let m = median(&mut k);
+                if m > 0.0 {
+                    (max - min) / m * 100.0
+                } else {
+                    f64::NAN
+                }
+            };
+            let unter = vorlauf.iter().filter(|x| **x < med_rest).count();
+
+            let _ = writeln!(bericht, "\n  Pruefung der Vorhersage");
+            let _ = writeln!(
+                bericht,
+                "    Paare 1 und 2   {} Werte   Median {:>9.2}/s",
+                vorlauf.len(),
+                med_vorlauf
+            );
+            let _ = writeln!(
+                bericht,
+                "    uebrige Paare   {} Werte   Median {:>9.2}/s   Streuung {:>6.2} %",
+                rest.len(),
+                med_rest,
+                spanne(&rest)
+            );
+            let mut alles: Vec<f64> = werte.iter().map(|(_, r)| *r).collect();
+            let _ = writeln!(
+                bericht,
+                "    alle Werte      {} Werte   Median {:>9.2}/s   Streuung {:>6.2} %",
+                alles.len(),
+                median(&mut alles),
+                spanne(&werte.iter().map(|(_, r)| *r).collect::<Vec<f64>>())
+            );
+            let _ = writeln!(
+                bericht,
+                "    {} von {} Vorlaufwerten liegen unter dem Median der uebrigen — {}",
+                unter,
+                vorlauf.len(),
+                if unter == vorlauf.len() {
+                    "VORHERSAGE GETROFFEN"
+                } else if unter * 2 > vorlauf.len() {
+                    "teilweise getroffen"
+                } else {
+                    "VORHERSAGE VERFEHLT"
+                }
+            );
+            let _ = writeln!(
+                bericht,
+                "    Ohne Vorlauf faellt die Streuung von {:.2} auf {:.2} Prozent.",
+                spanne(&werte.iter().map(|(_, r)| *r).collect::<Vec<f64>>()),
+                spanne(&rest)
+            );
+        }
     }
 
     // **Folgt die Streuung dem Takt?** (Auflage aus 8194)
