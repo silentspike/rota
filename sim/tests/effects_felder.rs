@@ -242,6 +242,101 @@ fn felder() -> Vec<(&'static str, Vec<Setzer>)> {
     ]
 }
 
+/// Welche Analysen ein Feld tatsaechlich lesen — **gemessen, nicht gepflegt**.
+///
+/// Eine von Hand geschriebene Liste („`trigger` hat zwei Leser") waere genau
+/// die Sorte, gegen die dieses Modul gebaut ist: Sie altert still, sobald
+/// jemand einen Leser ergaenzt oder entfernt. Diese Funktion probiert stattdessen
+/// alle Werte durch und sammelt die Analysen, deren Ergebnis sich aendert.
+fn leser_von(werte: &[Setzer]) -> Vec<&'static str> {
+    let mut leser: Vec<&'static str> = Vec::new();
+    for op in BASIS_BAUSTEINE {
+        let mut ergebnisse: Vec<Vec<AnalysisResult>> = Vec::new();
+        for setzen in werte {
+            let mut knoten = beispielknoten(*op);
+            setzen(&mut knoten);
+            ergebnisse.push(alle_analysen(&knoten));
+        }
+        // Je Analyse pruefen, ob sie ueber die Werte hinweg variiert.
+        for i in 0..ergebnisse[0].len() {
+            let erstes = &ergebnisse[0][i];
+            if ergebnisse.iter().any(|e| e[i] != *erstes) {
+                let name = erstes.pass.0;
+                if !leser.contains(&name) {
+                    leser.push(name);
+                }
+            }
+        }
+    }
+    leser.sort_unstable();
+    leser
+}
+
+#[test]
+fn mehrfach_gelesene_felder_sind_benannt() {
+    // # Warum dieser Fall existiert
+    //
+    // `kein_feld_ohne_leser` prueft „hat MINDESTENS EINEN Leser", nicht „jeder
+    // Leser wirkt". Ein Feld mit zwei Lesern bleibt gelesen, wenn man einen
+    // abklemmt — und der Waechter bleibt zu Recht gruen.
+    //
+    // **Genau daran ist am 2026-08-18 eine Abnahme fast gescheitert.** Der
+    // Orchestrator klemmte einen der zwei `trigger`-Leser ab, sah Gruen und
+    // stand kurz davor, „der Waechter greift nicht" zu melden. Er hatte recht
+    // mit der Beobachtung und waere zum falschen Schluss gekommen.
+    //
+    // > Eine Mutation, die nur EINEN von mehreren Lesern trifft, belegt ueber
+    // > den Waechter nichts.
+    //
+    // Wer ihn zum Anschlagen bringen will, muss **alle** Leser eines Feldes
+    // treffen. Welche das sind, sieht man dem Code nicht an — deshalb steht es
+    // hier, und zwar **gemessen** statt aufgeschrieben.
+    let mut mehrfach: Vec<(&str, Vec<&'static str>)> = Vec::new();
+    for (name, werte) in felder() {
+        let leser = leser_von(&werte);
+        assert!(
+            !leser.is_empty(),
+            "Feld '{name}' hat keinen Leser — das faengt `kein_feld_ohne_leser`, und dieser \
+             Fall waere dann ohnehin gegenstandslos."
+        );
+        if leser.len() > 1 {
+            mehrfach.push((name, leser));
+        }
+    }
+    // Die Zahl steht in der MELDUNG, nicht in der Bedingung: Sie darf wachsen.
+    eprintln!(
+        "Felder mit mehr als einem Leser ({} Stueck):",
+        mehrfach.len()
+    );
+    for (name, leser) in &mehrfach {
+        eprintln!("  {name}: {leser:?}");
+    }
+    assert!(
+        !mehrfach.is_empty(),
+        "Kein einziges Feld hat mehrere Leser. Dann ist die Warnung dieses Falls \
+         gegenstandslos — und wahrscheinlich stimmt die Messung nicht."
+    );
+}
+
+/// Kein Feld des Wirkungsknotens darf ohne Leser sein (Stop-Bedingung #966).
+///
+/// # Wer diesen Waechter pruefen will, muss ALLE Leser eines Feldes treffen
+///
+/// Er prueft „hat **mindestens einen** Leser", nicht „jeder Leser wirkt". **8
+/// der 10 Felder haben mehr als einen** — gemessen, siehe
+/// [`mehrfach_gelesene_felder_sind_benannt`], das die Liste ausgibt. Wer einen
+/// davon abklemmt, sieht Gruen, und das ist die richtige Antwort.
+///
+/// > **Eine Mutation, die nur einen von mehreren Lesern trifft, belegt ueber
+/// > diesen Waechter nichts.**
+///
+/// Am 2026-08-18 ist eine Abnahme fast daran gescheitert: Ein abgeklemmter
+/// `trigger`-Leser liess den Fall gruen, und beinahe waere „der Waechter greift
+/// nicht" gemeldet worden — die Beobachtung stimmte, der Schluss nicht.
+///
+/// Die Liste der Leser steht bewusst **nicht** hier als Text. Sie wuerde
+/// altern, sobald jemand einen Leser ergaenzt, und waere dann genau die
+/// gepflegte Liste, gegen die dieses ganze Modul gebaut ist.
 #[test]
 fn kein_feld_ohne_leser() {
     let mut ohne: Vec<&str> = Vec::new();
