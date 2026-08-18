@@ -246,3 +246,40 @@ fn ein_knoten_ohne_semantik_in_den_echten_daten_faellt_ueberall_zurueck() {
         );
     }
 }
+
+#[test]
+fn jeder_zauber_hat_mindestens_einen_knoten() {
+    // # Die Pruefung, die von Anfang an gefehlt hat
+    //
+    // Beim ersten Bau von #911 bekamen **13 von 70** Zaubern gar keinen
+    // Knoten: die sieben Kontroll-Zauber, `purge`, `quench`, `harden`,
+    // `sepsis`, `decay` und `putrid-bloom`. Der Bau war gruen, alle
+    // Zusicherungen hielten, und die Beschreibung war fuer ein Fuenftel der
+    // Zauber blind.
+    //
+    // Die Einzelpruefungen darueber konnten das nicht finden: Sie fragen je
+    // Wirkungsart, und wer gar keine der geprueften Arten traegt, faellt durch
+    // jedes Raster. **Dieser Fall fragt von der anderen Seite** — nicht „hat
+    // jede Art ihre Zauber?", sondern „hat jeder Zauber seine Beschreibung?".
+    //
+    // Ein Zauber ohne jede Wirkung ist selbst ein Befund und kein Grund, diese
+    // Zusicherung aufzuweichen.
+    let mut ohne: Vec<&str> = Vec::new();
+    for spell in SPELLS.iter() {
+        if !EFFECT_NODES.iter().any(|n| n.origin == spell.id) {
+            ohne.push(spell.id);
+        }
+    }
+    assert!(
+        !SPELLS.is_empty(),
+        "Es gibt keine Zauber — dann prueft dieser Fall nichts."
+    );
+    assert!(
+        ohne.is_empty(),
+        "{} von {} Zaubern haben KEINEN einzigen Knoten in der Wirkungsbeschreibung: \
+         {ohne:?}. Entweder liest `knoten_fuer_zauber` ihre Felder nicht, oder ein neues \
+         Wirkungsfeld ist noch nirgends eingeordnet.",
+        ohne.len(),
+        SPELLS.len()
+    );
+}
