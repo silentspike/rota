@@ -1314,12 +1314,17 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
         dauer_lesbar(dauer_min),
         dauer_lesbar(dauer_max)
     );
+    let raten_straenge = if optionen.rate.is_some() {
+        optionen.threads
+    } else {
+        RATE_VORGABE_STRAENGE
+    };
     println!(
-        "  bei einer Rate von   {rate:.0} Kaempfen je Sekunde auf {} Strang/Straengen ({})",
-        if optionen.rate.is_some() {
-            optionen.threads
+        "  bei einer Rate von   {rate:.0} Kaempfen je Sekunde auf {raten_straenge} {} ({})",
+        if raten_straenge == 1 {
+            "Strang"
         } else {
-            RATE_VORGABE_STRAENGE
+            "Straengen"
         },
         if optionen.rate.is_some() {
             "von dir angegeben"
