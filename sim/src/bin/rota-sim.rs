@@ -37,8 +37,11 @@ use std::time::Instant;
 
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig, BalanceResult};
+use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
+use rota_sim::replay::EmbeddedRecording;
 use rota_sim::rotation_search::{all_candidates, greedy, paar_zuege, Candidate, SearchResult};
+use rota_sim::{Fight, FightConfig};
 
 // ---------------------------------------------------------------------------
 // Der Kampfzaehler
@@ -141,7 +144,7 @@ fn fuehre_aus(argumente: &[String]) -> Result<ExitCode, String> {
         "run" => befehl_run(rest),
         "bench" => befehl_bench(rest),
         "data" => befehl_data(rest),
-        "verify" => Ok(platzhalter("verify", HILFE_VERIFY, GRUND_VERIFY, rest)),
+        "verify" => befehl_verify(rest),
         "hosts" => Ok(platzhalter("hosts", HILFE_HOSTS, GRUND_HOSTS, rest)),
         "status" => Ok(platzhalter("status", HILFE_STATUS, GRUND_STATUS, rest)),
         "explain" => befehl_explain(rest),
@@ -186,7 +189,7 @@ AUFRUF
 BEFEHLE
   run        eine Suche oder einen Balance-Lauf fahren und die Zahlen ausgeben
   bench      den Durchsatz messen: wie viele Kaempfe je Sekunde dieser Rechner schafft
-  verify     Paritaet gegen die Browser-Seite und Selbsttests fahren (noch nicht gebaut)
+  verify     der Selbsttest: habe ich richtig gemessen? Vier Pruefungen auf einmal
   hosts      die verfuegbaren Bau- und Rechen-Rechner auflisten (noch nicht gebaut)
   status     einen laufenden Lauf anzeigen (noch nicht gebaut)
   explain    zeigen, was ein Lauf TAETE, ohne ihn zu starten: Umfang und Kosten
@@ -346,37 +349,47 @@ PHAENOTYPEN
 const HILFE_VERIFY: &str = "\
 rota-sim verify
 
-  Wird pruefen, ob der Simulator dieselben Zahlen liefert wie das Spiel im
-  Browser, und dabei auch, ob mehrere Rechner untereinander uebereinstimmen.
-  Weicht einer ab, ist das ein Hinweis auf einen Fehler — hier oder dort, und
-  er wird gemeldet statt weggerechnet.
+  Beantwortet die Frage 'habe ich richtig gemessen?', ohne dass man den Aufbau
+  des Simulators kennen muss. Vier Pruefungen in einem Aufruf: Paritaet gegen
+  das Spiel, Stabilitaet der Trace-Hashes, Determinismus ueber Straenge und
+  Bitgleichheit gegen einen zweiten Rechner.
 
-  NOCH NICHT GEBAUT.
+  Ein bestandener Selbsttest ist KEINE Abnahme. Er prueft die Grundlage, nicht
+  das Ergebnis.
 
 BEISPIELE
-  # was der Aufruf heute tut: er sagt, was ihm fehlt
+  # der Selbsttest, so wie man ihn braucht
   rota-sim verify
 
-  # und der Griff, der heute schon prueft, ob dieser Bau die Daten hat
-  rota-sim data
+  # nur den Fingerabdruck ausgeben — das fragt die Gegenstelle ab
+  rota-sim verify --print-fingerprint
 
-WEG HEUTE OHNE DIESEN BEFEHL
-  Der Vergleich fuer EINEN Rechner liegt als Beispiel vor:
+OPTIONEN
+  --peer <ziel>          ein zweiter Rechner fuer die Bitgleichheit, als
+                         BENUTZER@RECHNER — etwa 'root@10.0.0.155'. Er
+                         braucht dasselbe Programm im Pfad. Ist er nicht
+                         erreichbar, wird die Pruefung UEBERSPRUNGEN, nicht
+                         als gescheitert gewertet.
 
-    cargo remote -c --manifest-path sim/Cargo.toml -- run --release --example parity";
+                         **Dieser Aufruf steht bewusst NICHT unter
+                         BEISPIELE.** Die Pruefstrecke fuehrt jedes Beispiel
+                         von dort aus — und ein Test, der einen fremden
+                         Rechner ueber das Netz anspricht, gehoert nicht in
+                         eine Pruefstrecke. Gemessen kostete er dort achtzig
+                         Sekunden und haette bei jedem Lauf eine SSH-Sitzung
+                         auf den Bau-Server geoeffnet.
+  --print-fingerprint    nur den Fingerabdruck dieses Baus, eine Zeile.
+  --help                 dieser Text.
 
-/// Was `verify` braucht und noch nicht hat.
-const GRUND_VERIFY: &str = "\
-Was fehlt: der Vergleich mit der Browser-Seite ueber mehrere Rechner. Die
-Pruefdateien und der Vergleich fuer EINEN Rechner liegen bereits als Beispiel
-vor und laufen heute so:
+WAS ER NICHT LEISTET
+  Er prueft die Aufzeichnungen mit der Pruefsumme des LETZTEN Takts. Eine
+  Abweichung zeigt sich damit, aber nicht der Takt, in dem sie beginnt. Wer
+  das braucht:
 
-  cargo remote -c --manifest-path sim/Cargo.toml -- run --release --example parity
+    cargo test --manifest-path sim/Cargo.toml --test parity_recording
 
-Der Unterbefehl fasst das zusammen, sobald es die Rechner-Verwaltung gibt —
-siehe hosts. Beides gehoert in ein eigenes Issue des Epics rota-sim.
-
-Was er ausserdem kann, steht in:  rota-sim verify --help";
+  Und er prueft nur die Dateien, die eine abspielbare Runde beschreiben. Wie
+  viele das von wie vielen sind, sagt er in seiner Ausgabe.";
 
 /// Die Hilfe von `hosts` — ebenfalls ohne Ziffer.
 const HILFE_HOSTS: &str = "\
@@ -966,6 +979,470 @@ fn zerlege_bench(argumente: &[String]) -> Result<BenchOptionen, String> {
     }
     Ok(optionen)
 }
+
+// ---------------------------------------------------------------------------
+// verify — der Selbsttest
+// ---------------------------------------------------------------------------
+
+/// Wie eine Einzelpruefung ausgegangen ist.
+///
+/// **Drei Zustaende, nicht zwei.** Eine Pruefung, die nicht laufen konnte, ist
+/// weder bestanden noch durchgefallen — und sie als bestanden zu zaehlen waere
+/// genau der Fehler, den dieser Befehl aufdecken soll (#970, AC5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Pruefergebnis {
+    Bestanden(String),
+    Gescheitert(String),
+    Uebersprungen(String),
+}
+
+impl Pruefergebnis {
+    const fn marke(&self) -> &'static str {
+        match self {
+            Self::Bestanden(_) => "BESTANDEN",
+            Self::Gescheitert(_) => "GESCHEITERT",
+            Self::Uebersprungen(_) => "UEBERSPRUNGEN",
+        }
+    }
+
+    fn text(&self) -> &str {
+        match self {
+            Self::Bestanden(t) | Self::Gescheitert(t) | Self::Uebersprungen(t) => t,
+        }
+    }
+
+    const fn ist_gescheitert(&self) -> bool {
+        matches!(self, Self::Gescheitert(_))
+    }
+}
+
+/// Alle Aufzeichnungen einmal abgespielt, mit ihrer Pruefsumme.
+///
+/// # Warum das gesammelt wird und nicht je Pruefung neu
+///
+/// Drei der vier Pruefungen brauchen dieselben Werte: die Paritaet vergleicht
+/// sie mit der Datei, der Fingerabdruck mischt sie zu einer Zahl, und die
+/// Trace-Hashes brauchen sie als ersten von zwei Laeufen. Sie einzeln zu
+/// rechnen hiess, dieselben 65 Runden VIERMAL abzuspielen.
+///
+/// Gemessen im Debug-Bau: 28,5 Sekunden vorher. Da die Pruefstrecke jedes
+/// Beispiel aus der Hilfe ausfuehrt und `rota-sim verify` eines davon ist,
+/// zahlt das jeder Testlauf.
+fn spiele_alle_ab() -> Vec<(&'static EmbeddedRecording, Option<u32>)> {
+    data::RECORDINGS
+        .iter()
+        .map(|eintrag| (eintrag, spiele_ab(eintrag)))
+        .collect()
+}
+
+/// Spielt eine eingebettete Aufzeichnung ab und liefert die Pruefsumme des
+/// letzten Takts.
+fn spiele_ab(eintrag: &EmbeddedRecording) -> Option<u32> {
+    let boss = match eintrag.boss_id {
+        Some(id) => data::boss_by_id(id)?,
+        None => FightConfig::default().boss,
+    };
+    let recording = eintrag.to_recording();
+    let mut fight = Fight::new(FightConfig {
+        seed: eintrag.seed,
+        boss,
+        ..FightConfig::default()
+    });
+    fight.replay(&recording, true).checksums.last().copied()
+}
+
+/// Aufzeichnungen, die sich aus der DATEI ALLEIN nicht abspielen lassen.
+///
+/// # Der Befund dahinter
+///
+/// Die Dateien unter `tests/parity/recordings/` sind nicht selbsttragend. Ein
+/// Teil ihrer Einstellungen steht im zugehoerigen Test, nicht in der Datei —
+/// `parity_decay_ward.rs` setzt `boss_by_id("test-onslaught")` fest, obwohl
+/// `decay-ward.json` keinen Boss nennt. Gemessen am 2026-08-18: 32 der
+/// `parity_*`-Tests setzen einen Boss auf diese Weise.
+///
+/// Wer sie ohne dieses Wissen abspielt, bekommt eine Abweichung, die wie ein
+/// Fehler im Simulator aussieht und keiner ist.
+///
+/// # Warum eine Liste und keine Zahl
+///
+/// Jeder Eintrag hat einen EIGENEN Grund. Eine Zahl ("acht weichen ab") waere
+/// erfuellt, sobald irgendwelche acht abweichen — auch andere.
+///
+/// # Warum sie nicht still altert
+///
+/// [`pruefe_paritaet`] meldet auch den umgekehrten Fall: Steht eine
+/// Aufzeichnung hier und stimmt sie ploetzlich, ist die Ausnahme ueberholt und
+/// gehoert heraus. Ohne das waere die Liste nach dem ersten Ausbau eine
+/// Sammlung von Behauptungen, die niemand mehr prueft.
+const BEKANNTE_AUSNAHMEN: [(&str, &str); 8] = [
+    (
+        "decay-ward",
+        "der Boss steht im Test (test-onslaught), nicht in der Datei",
+    ),
+    (
+        "pin-befreiung",
+        "der Boss steht im Test (test-caster), nicht in der Datei",
+    ),
+    ("krit-umwandlung", "braucht getragene Ausruestung (worn)"),
+    ("synergy-haste", "braucht getragene Ausruestung (worn)"),
+    ("tick-rundung", "braucht getragene Ausruestung (worn)"),
+    ("worn-values", "braucht getragene Ausruestung (worn)"),
+    ("level-30", "braucht eine Spielerstufe (playerLevel)"),
+    (
+        "retort-erstattung",
+        "braucht eine Spielerstufe (playerLevel)",
+    ),
+];
+
+/// Der Grund, aus dem eine Aufzeichnung bekanntermassen abweicht.
+fn ausnahmegrund(name: &str) -> Option<&'static str> {
+    BEKANNTE_AUSNAHMEN
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, grund)| *grund)
+}
+
+/// **Paritaet**: Der Simulator muss dieselben Zahlen liefern wie das Spiel.
+///
+/// Geprueft wird jede eingebettete Aufzeichnung gegen die Pruefsumme ihres
+/// letzten Takts, wie das Spiel sie geschrieben hat.
+fn pruefe_paritaet(gespielt: &[(&EmbeddedRecording, Option<u32>)]) -> Pruefergebnis {
+    let mut abweichungen = Vec::new();
+    let mut bekannte = 0usize;
+    let mut ueberholte = Vec::new();
+    let mut geprueft = 0usize;
+
+    for (eintrag, ergebnis) in gespielt {
+        let Some(gemessen) = *ergebnis else {
+            abweichungen.push(format!("{}: nicht abspielbar", eintrag.name));
+            continue;
+        };
+        geprueft += 1;
+        let stimmt = gemessen == eintrag.final_checksum;
+        match (stimmt, ausnahmegrund(eintrag.name)) {
+            (true, None) => {}
+            // **Der umgekehrte Fall, und er ist der wichtigere**: Eine
+            // Ausnahme, die nicht mehr noetig ist, verdeckt ab jetzt eine
+            // echte Abweichung.
+            (true, Some(grund)) => ueberholte.push(format!("{} ({grund})", eintrag.name)),
+            (false, Some(_)) => bekannte += 1,
+            (false, None) => abweichungen.push(format!(
+                "{}: erwartet {}, gerechnet {}",
+                eintrag.name, eintrag.final_checksum, gemessen
+            )),
+        }
+    }
+
+    let bekannt_satz = if bekannte == 0 {
+        String::new()
+    } else {
+        format!(
+            "\n      {bekannte} weitere weichen bekanntermassen ab, weil ihre Einstellungen \
+             im Test stehen und nicht in der Datei — siehe BEKANNTE_AUSNAHMEN"
+        )
+    };
+
+    if !abweichungen.is_empty() {
+        return Pruefergebnis::Gescheitert(format!(
+            "{} von {geprueft} Runden weichen UNERWARTET ab:\n      {}{bekannt_satz}",
+            abweichungen.len(),
+            abweichungen.join("\n      ")
+        ));
+    }
+    if !ueberholte.is_empty() {
+        return Pruefergebnis::Gescheitert(format!(
+            "{} Ausnahme(n) sind ueberholt — sie stimmen jetzt und gehoeren aus der Liste:\
+             \n      {}\n      Solange sie drinstehen, verdecken sie eine echte Abweichung.",
+            ueberholte.len(),
+            ueberholte.join("\n      ")
+        ));
+    }
+    Pruefergebnis::Bestanden(format!(
+        "{} von {geprueft} aufgezeichneten Runden stimmen ueberein{bekannt_satz}",
+        geprueft - bekannte
+    ))
+}
+
+/// **Trace-Hashes**: Derselbe Lauf muss dieselbe Pruefsummen-Kette ergeben.
+///
+/// Das ist NICHT dasselbe wie die Paritaet. Dort wird gegen das Spiel geprueft,
+/// hier gegen den Simulator selbst: Zweimal abgespielt muss Zeichen fuer
+/// Zeichen dasselbe herauskommen. Ein nichtdeterministischer Kern faellt hier
+/// auf, auch wenn er zufaellig die richtige Endzahl trifft.
+fn pruefe_trace_hashes() -> Pruefergebnis {
+    let mut abweichungen = Vec::new();
+    let mut takte = 0usize;
+    for eintrag in &data::RECORDINGS {
+        let boss = match eintrag.boss_id {
+            Some(id) => match data::boss_by_id(id) {
+                Some(b) => b,
+                None => continue,
+            },
+            None => FightConfig::default().boss,
+        };
+        let recording = eintrag.to_recording();
+        let lauf = |()| {
+            let mut fight = Fight::new(FightConfig {
+                seed: eintrag.seed,
+                boss,
+                ..FightConfig::default()
+            });
+            fight.replay(&recording, true)
+        };
+        let erst = lauf(());
+        let zweit = lauf(());
+        takte += erst.checksums.len();
+        if erst.checksums != zweit.checksums {
+            let stelle = erst
+                .checksums
+                .iter()
+                .zip(zweit.checksums.iter())
+                .position(|(a, b)| a != b);
+            abweichungen.push(format!(
+                "{}: zwei Laeufe gehen auseinander, zuerst im Takt {}",
+                eintrag.name,
+                stelle.map_or_else(|| "?".to_owned(), |s| s.to_string())
+            ));
+        }
+        if erst.sequence_checksum != zweit.sequence_checksum {
+            abweichungen.push(format!("{}: Folgen-Pruefsumme instabil", eintrag.name));
+        }
+    }
+    if abweichungen.is_empty() {
+        Pruefergebnis::Bestanden(format!(
+            "{takte} Takt-Pruefsummen zweimal gerechnet, alle gleich"
+        ))
+    } else {
+        Pruefergebnis::Gescheitert(abweichungen.join("\n      "))
+    }
+}
+
+/// **Determinismus unter Drosselung**: Das Ergebnis darf nicht davon abhaengen,
+/// wie schnell oder ueber wie viele Straenge gerechnet wird.
+///
+/// Ein Balance-Lauf wird ueber eine, zwei und vier Straenge gefahren. Kommen
+/// verschiedene Zahlen heraus, haengt das Ergebnis an der Aufteilung — und
+/// jede Messung auf einer anderen Maschine waere damit unvergleichbar.
+fn pruefe_determinismus() -> Pruefergebnis {
+    let Ok((_, apl)) = lade_apl(None) else {
+        return Pruefergebnis::Uebersprungen(
+            "die mitgelieferte Rotation liess sich nicht lesen".to_owned(),
+        );
+    };
+    let mut werte = Vec::new();
+    for threads in [1usize, 2, 4] {
+        let config = BalanceConfig {
+            iterations: 40,
+            threads,
+            ..BalanceConfig::default()
+        };
+        let ergebnis = rechne_lauf(&config, &apl);
+        werte.push((threads, ergebnis.damage.mean, ergebnis.kills));
+    }
+    let (_, erste_mean, erste_kills) = werte[0];
+    let abweichend: Vec<String> = werte
+        .iter()
+        .filter(|(_, mean, kills)| {
+            // Bitgleich, nicht "nahe genug": Der Simulator rechnet in
+            // ganzen Zahlen, ein Unterschied waere ein echter Fehler.
+            (*mean - erste_mean).abs() > f64::EPSILON || *kills != erste_kills
+        })
+        .map(|(t, mean, kills)| format!("{t} Straenge: {mean} / {kills} Siege"))
+        .collect();
+    if abweichend.is_empty() {
+        Pruefergebnis::Bestanden(format!(
+            "ein, zwei und vier Straenge liefern {erste_mean} und {erste_kills} Siege"
+        ))
+    } else {
+        Pruefergebnis::Gescheitert(format!(
+            "ein Strang liefert {erste_mean} / {erste_kills} Siege, aber:\n      {}",
+            abweichend.join("\n      ")
+        ))
+    }
+}
+
+/// Der Fingerabdruck dieses Baus — eine Zahl ueber alle Aufzeichnungen.
+///
+/// # Warum selbst gebildet
+///
+/// Der in #970 genannte Wert `0x42210c39918563b9` steht nirgends im Bestand,
+/// und er ist 63-bittig, waehrend `checksum.rs` durchgehend in `u32` rechnet.
+/// Er kann also nicht aus diesem Mechanismus stammen. Der Orchestrator hat ihn
+/// daraufhin zurueckgezogen; dieser Fingerabdruck ist der belegte Ersatz.
+fn fingerabdruck(gespielt: &[(&EmbeddedRecording, Option<u32>)]) -> u32 {
+    let mut hash = FNV_OFFSET;
+    for (eintrag, ergebnis) in gespielt {
+        // Der NAME geht mit ein: Sonst ergaeben zwei Baue mit derselben
+        // Zahlenmenge, aber verschiedenen Aufzeichnungen denselben Abdruck.
+        hash = mix_named_int(hash, "recording", eintrag.name.len() as i32);
+        match ergebnis {
+            Some(wert) => hash = mix_named_int(hash, "checksum", *wert as i32),
+            None => hash = mix_named_int(hash, "unplayable", 0),
+        }
+    }
+    hash
+}
+
+/// **Bitgleichheit ueber Rechner**: Derselbe Bau muss anderswo dieselbe Zahl
+/// ergeben.
+///
+/// Ist kein zweiter Rechner erreichbar, wird die Pruefung UEBERSPRUNGEN und
+/// sagt das — sie scheitert nicht (#970, AC5). In der CI ist das der
+/// Normalfall.
+fn pruefe_bitgleichheit(
+    gegenstelle: Option<&str>,
+    gespielt: &[(&EmbeddedRecording, Option<u32>)],
+) -> Pruefergebnis {
+    let eigener = fingerabdruck(gespielt);
+    let Some(host) = gegenstelle else {
+        return Pruefergebnis::Uebersprungen(format!(
+            "kein zweiter Rechner angegeben; eigener Fingerabdruck 0x{eigener:08x}\n      \
+             Mit einem zweiten:  rota-sim verify --peer BENUTZER@RECHNER"
+        ));
+    };
+    let ausgabe = std::process::Command::new("ssh")
+        .args([
+            // BatchMode: nie nach einem Passwort fragen — ein Selbsttest, der
+            // auf eine Eingabe wartet, blockiert die Pruefstrecke still.
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=5",
+            // **Ohne diese Zeile dauert ein unerreichbarer NAME achtzig
+            // Sekunden**, gemessen: ConnectTimeout greift erst nach der
+            // Namensaufloesung, und die laeuft ueber jeden Nameserver einzeln.
+            // Mit `-o AddressFamily=inet` bleibt es bei einem Durchgang.
+            "-o",
+            "AddressFamily=inet",
+            host,
+            "rota-sim verify --print-fingerprint",
+        ])
+        .output();
+    let Ok(ausgabe) = ausgabe else {
+        return Pruefergebnis::Uebersprungen(format!(
+            "{host} nicht erreichbar; eigener Fingerabdruck 0x{eigener:08x}"
+        ));
+    };
+    if !ausgabe.status.success() {
+        return Pruefergebnis::Uebersprungen(format!(
+            "{host} antwortete nicht mit einem Fingerabdruck; eigener 0x{eigener:08x}"
+        ));
+    }
+    let fremd_roh = String::from_utf8_lossy(&ausgabe.stdout).trim().to_owned();
+    vergleiche_fingerabdruecke(eigener, &fremd_roh, host)
+}
+
+/// Entscheidet, ob zwei Fingerabdruecke zusammenpassen.
+///
+/// **Getrennt von der Beschaffung**, damit die Entscheidung ohne einen zweiten
+/// Rechner pruefbar ist. Ein Vergleich, den man nur mit SSH ausloesen kann,
+/// laesst sich nicht absichtlich brechen — und eine Pruefung, die nie
+/// nachweislich angeschlagen hat, ist keine (#970, AC4).
+fn vergleiche_fingerabdruecke(eigener: u32, fremd_roh: &str, host: &str) -> Pruefergebnis {
+    let Ok(fremd) = u32::from_str_radix(fremd_roh.trim().trim_start_matches("0x"), 16) else {
+        return Pruefergebnis::Uebersprungen(format!(
+            "{host} lieferte '{fremd_roh}', keine Zahl; eigener 0x{eigener:08x}"
+        ));
+    };
+    if fremd == eigener {
+        Pruefergebnis::Bestanden(format!("0x{eigener:08x} auf beiden Rechnern"))
+    } else {
+        Pruefergebnis::Gescheitert(format!(
+            "hier 0x{eigener:08x}, auf {host} 0x{fremd:08x} — die Baue sind nicht bitgleich"
+        ))
+    }
+}
+
+fn befehl_verify(argumente: &[String]) -> Result<ExitCode, String> {
+    let mut gegenstelle: Option<String> = None;
+    let mut nur_fingerabdruck = false;
+    let mut i = 0;
+    while i < argumente.len() {
+        let name = argumente[i].as_str();
+        match name {
+            "--help" | "-h" => {
+                println!("{HILFE_VERIFY}");
+                return Ok(ExitCode::SUCCESS);
+            }
+            "--peer" => gegenstelle = Some(hole_wert(argumente, &mut i, name)?),
+            // Fuer die Gegenstelle: nur die Zahl, damit ssh sie lesen kann.
+            "--print-fingerprint" => nur_fingerabdruck = true,
+            anderes => return Err(unbekannte_angabe("verify", anderes, &ANGABEN_VERIFY)),
+        }
+        i += 1;
+    }
+
+    // **Einmal abspielen, dreimal auswerten.** Die Reihenfolge ist wichtig:
+    // Ohne die gesammelten Werte rechnete jede Pruefung dieselben Runden neu.
+    let gespielt = spiele_alle_ab();
+
+    if nur_fingerabdruck {
+        println!("0x{:08x}", fingerabdruck(&gespielt));
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let pruefungen = [
+        ("Paritaet gegen das Spiel", pruefe_paritaet(&gespielt)),
+        ("Trace-Hashes", pruefe_trace_hashes()),
+        ("Determinismus ueber Straenge", pruefe_determinismus()),
+        (
+            "Bitgleichheit ueber Rechner",
+            pruefe_bitgleichheit(gegenstelle.as_deref(), &gespielt),
+        ),
+    ];
+
+    println!("{}", "=".repeat(72));
+    println!("ROTA — Selbsttest");
+    println!("{}", "=".repeat(72));
+    println!();
+    for (name, ergebnis) in &pruefungen {
+        println!("{:<13} {name}", ergebnis.marke());
+        println!("      {}", ergebnis.text());
+        println!();
+    }
+
+    let gescheitert: Vec<&str> = pruefungen
+        .iter()
+        .filter(|(_, e)| e.ist_gescheitert())
+        .map(|(n, _)| *n)
+        .collect();
+
+    println!("{}", "-".repeat(72));
+    if gescheitert.is_empty() {
+        println!("ERGEBNIS: BESTANDEN");
+    } else {
+        println!("ERGEBNIS: NICHT BESTANDEN");
+        println!("Gescheitert: {}", gescheitert.join(", "));
+    }
+    println!();
+    println!("WAS DIESER SELBSTTEST NICHT IST");
+    println!(
+        "  Er prueft {} der {} Dateien in tests/parity/recordings/. Die uebrigen {}",
+        data::RECORDINGS.len(),
+        data::RECORDING_FILES_TOTAL,
+        data::RECORDINGS_SKIPPED
+    );
+    println!("  beschreiben keine abspielbare Runde — es sind Pruefdaten fuer");
+    println!("  Ausruestung, Ereignisstroeme und Buff-Ablaeufe.");
+    println!();
+    println!("  Und er traegt nur die Pruefsumme des LETZTEN Takts. Eine Abweichung");
+    println!("  zeigt sich, aber nicht der Takt, in dem sie beginnt. Dafuer:");
+    println!("    cargo test --manifest-path sim/Cargo.toml --test parity_recording");
+    println!();
+    println!("  Ein bestandener Selbsttest ist keine Abnahme eines Issues.");
+    println!();
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+
+    Ok(if gescheitert.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
+}
+
+/// Die Angaben, die `verify` kennt.
+const ANGABEN_VERIFY: [&str; 4] = ["--peer", "--print-fingerprint", "--help", "-h"];
 
 // ---------------------------------------------------------------------------
 // explain — der Trockenlauf
@@ -1796,14 +2273,14 @@ mod tests {
         // Wortwoertlich: keine ZIFFER. Ein Platzhalter, der eine Zahl nennt,
         // ist von einem Ergebnis nicht zu unterscheiden.
         //
-        // `explain` stand hier, bis #969 ihn gebaut hat. Er gibt jetzt Zahlen
-        // aus, und das ist sein Zweck — die Zusicherung gilt nur noch fuer die
-        // drei, die wirklich leer sind.
-        for (name, grund) in [
-            ("verify", GRUND_VERIFY),
-            ("hosts", GRUND_HOSTS),
-            ("status", GRUND_STATUS),
-        ] {
+        // `explain` stand hier, bis #969 ihn gebaut hat, `verify` bis #970.
+        // Beide geben jetzt Zahlen aus, und das ist ihr Zweck — die
+        // Zusicherung gilt nur noch fuer die zwei, die wirklich leer sind.
+        //
+        // **Diese Liste ist die Stelle, an der ein Ausbau sichtbar wird.** Wer
+        // einen Platzhalter fuellt und sie vergisst, bekommt einen roten Test
+        // statt einer Zusicherung, die nichts mehr sichert.
+        for (name, grund) in [("hosts", GRUND_HOSTS), ("status", GRUND_STATUS)] {
             assert!(
                 !grund.chars().any(|z| z.is_ascii_digit()),
                 "der Grund von {name} enthaelt eine Ziffer"
