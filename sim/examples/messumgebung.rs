@@ -642,6 +642,37 @@ fn auslagerung() -> Option<u64> {
     Some(hole("pswpin ")? + hole("pswpout ")?)
 }
 
+/// Mittlerer Takt der erlaubten Kerne, in MHz.
+///
+/// # Warum das mitgemessen wird
+///
+/// Auf dieser Maschine steht das Plattform-Profil auf `performance`, der
+/// Governor aber auf `powersave` (gemessen 2026-08-18 von Worker-2). Auf einem
+/// Laptop-Ryzen heisst das: Der Takt folgt der Last mit Verzoegerung und faellt
+/// in Pausen ab — gemessen 2386 MHz bei einer Obergrenze von 4680.
+///
+/// Genau das erzeugt Streuung zwischen IDENTISCHEN Laeufen: Der eine faengt
+/// bei hohem Takt an, der naechste bei niedrigem, und ein 20-Sekunden-Block
+/// ist kurz genug, dass die Rampe ins Ergebnis durchschlaegt.
+///
+/// **Gemessen wird nur, nicht gestellt.** Das Profil beruehrt die ganze
+/// Maschine und alle Sitzungen darauf.
+fn takt_mhz(kerne: &[usize]) -> Option<f64> {
+    let mut summe = 0f64;
+    let mut anzahl = 0usize;
+    for k in kerne {
+        let pfad = format!("/sys/devices/system/cpu/cpu{k}/cpufreq/scaling_cur_freq");
+        if let Ok(text) = fs::read_to_string(&pfad) {
+            if let Ok(khz) = text.trim().parse::<f64>() {
+                summe += khz / 1000.0;
+                anzahl += 1;
+            }
+        }
+    }
+    #[allow(clippy::cast_precision_loss)]
+    (anzahl > 0).then(|| summe / anzahl as f64)
+}
+
 /// Wie oft die CPU wegen Hitze gedrosselt hat.
 ///
 /// Auf einem Laptop ist das der haeufigste Grund, warum derselbe Lauf zweimal
@@ -1186,6 +1217,8 @@ struct Blockwert {
     psi_max: f64,
     /// Kontextwechsel je Sekunde waehrend des Blocks.
     ctxt_rate: f64,
+    /// Mittlerer Takt waehrend des Blocks, in MHz.
+    takt_mhz: f64,
 }
 
 fn eine_rate(
@@ -1230,6 +1263,8 @@ fn eine_rate(
     // naechsten fuenf Minuten nichts — er ist eine Momentaufnahme, und eine
     // Messung ist keine.
     let mut psi_max: f64 = 0.0;
+    let mut takte: Vec<f64> = Vec::with_capacity(teile);
+    let erlaubt = erlaubte_kerne().unwrap_or_default();
     let ctxt_vor = kontextwechsel();
     let gesamt_start = Instant::now();
 
@@ -1250,6 +1285,9 @@ fn eine_rate(
         if let Some(p) = psi_some_avg10("/proc/pressure/cpu") {
             psi_max = psi_max.max(p);
         }
+        if let Some(t) = takt_mhz(&erlaubt) {
+            takte.push(t);
+        }
     }
 
     let gesamt = gesamt_start.elapsed().as_secs_f64();
@@ -1262,10 +1300,16 @@ fn eine_rate(
     diagnostics::disable();
     diagnostics::reset();
 
+    let takt = if takte.is_empty() {
+        f64::NAN
+    } else {
+        median(&mut takte)
+    };
     (!teilraten.is_empty()).then(|| Blockwert {
         rate: median(&mut teilraten),
         psi_max,
         ctxt_rate,
+        takt_mhz: takt,
     })
 }
 
@@ -1296,7 +1340,13 @@ fn median(werte: &mut [f64]) -> f64 {
 ///
 /// Das Issue sagt es und begruendet es: „Zwei Laeufe genuegen ausdruecklich
 /// nicht — sie koennen zufaellig uebereinstimmen."
-fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32) -> bool {
+fn ab_reihe(
+    bericht: &mut String,
+    threads: usize,
+    paare: usize,
+    durchgaenge: u32,
+    gleiche_variante: bool,
+) -> bool {
     // Der billigste Lastfall genuegt: Gemessen wird die MESSUMGEBUNG, nicht
     // der Kampf. Ein teurer Fall verlaengert die Reihe, ohne die Streuung
     // aussagekraeftiger zu machen.
@@ -1304,13 +1354,23 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
 
     let _ = writeln!(
         bericht,
-        "\nA/B-Wechselreihe ueber Lastfall \"{}\", {paare} Paare, \
-         je {durchgaenge} Durchgaenge",
+        "\n{} ueber Lastfall \"{}\", {paare} Paare, je {durchgaenge} Durchgaenge",
+        if gleiche_variante {
+            "A,A-Reihe"
+        } else {
+            "A/B-Wechselreihe"
+        },
         fall.name
     );
     let _ = writeln!(
         bericht,
-        "  A = Erfassung AUS   B = Erfassung AN (beide mit gebautem Merkmal)\n"
+        "{}",
+        if gleiche_variante {
+            "  BEIDE Durchgaenge mit Erfassung AUS — die Spalten heissen A1 und A2.\n\
+             \x20 Streut auch das, liegt die Ursache nicht zwischen zwei Aufrufen.\n"
+        } else {
+            "  A = Erfassung AUS   B = Erfassung AN (beide mit gebautem Merkmal)\n"
+        }
     );
 
     let mut a = Vec::with_capacity(paare);
@@ -1319,7 +1379,15 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
     for i in 0..paare {
         // Die Reihenfolge innerhalb eines Paares wechselt mit, sonst steht A
         // immer direkt hinter B und erbt dessen Nachlauf.
-        let (erst, dann) = if i % 2 == 0 {
+        let (erst, dann) = if gleiche_variante {
+            // A,A: ZWEIMAL DIESELBE VARIANTE hintereinander im selben Aufruf.
+            //
+            // Die Frage dahinter (Auftrag 8184): Streut auch das, dann liegt
+            // die Ursache NICHT zwischen zwei Aufrufen — also nicht an fremder
+            // Last, die zwischendurch kommt und geht, sondern im Verfahren
+            // selbst oder in einer Restlast, die dauerhaft anliegt.
+            (false, false)
+        } else if i % 2 == 0 {
             (false, true)
         } else {
             (true, false)
@@ -1332,7 +1400,12 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
         // verworfen und die Zahl der Verwuerfe unten ausgewiesen — nicht still
         // weggelassen. Wer nur die uebrigen sieht, haelt eine unruhige
         // Maschine fuer eine ruhige, und das ist der teurere Irrtum.
-        for (erfassung, wert) in [(erst, r1), (dann, r2)] {
+        // Im A,A-Modus unterscheiden sich die beiden Durchgaenge NICHT in der
+        // Erfassung, sondern nur in ihrer Stellung. `nach_b` traegt deshalb die
+        // Zuordnung, nicht `erfassung` — sonst landeten beide im selben Topf
+        // und der Bericht koennte sie nicht einzeln ausweisen, was der Auftrag
+        // ausdruecklich verlangt.
+        for (nach_b, erfassung, wert) in [(false, erst, r1), (true, dann, r2)] {
             let Some(w) = wert else { continue };
             if w.psi_max > PSI_CPU_MAX {
                 verworfen += 1;
@@ -1341,13 +1414,18 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
                     "  Paar {:>2}   {} VERWORFEN — PSI cpu stieg auf {:.2} \
                      (Grenze {PSI_CPU_MAX:.2}), {:.0} Kontextwechsel/s",
                     i + 1,
-                    if erfassung { "B" } else { "A" },
+                    match (gleiche_variante, nach_b, erfassung) {
+                        (true, false, _) => "A1",
+                        (true, true, _) => "A2",
+                        (false, _, true) => "B",
+                        (false, _, false) => "A",
+                    },
                     w.psi_max,
                     w.ctxt_rate
                 );
                 continue;
             }
-            if erfassung {
+            if nach_b {
                 b.push(w);
             } else {
                 a.push(w);
@@ -1360,15 +1438,19 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
         if a.len() != vor_a || b.len() != vor_b {
             let _ = writeln!(
                 bericht,
-                "  Paar {:>2}   A {:>10.2}/s   B {:>10.2}/s   PSI bis {:>5.2} / {:>5.2}   \
-                 ctxt/s {:>7.0} / {:>7.0}",
+                "  Paar {:>2}   {} {:>10.2}/s   {} {:>10.2}/s   PSI bis {:>5.2} / {:>5.2}   \
+                 ctxt/s {:>7.0} / {:>7.0}   MHz {:>6.0} / {:>6.0}",
                 i + 1,
+                if gleiche_variante { "A1" } else { "A " },
                 a.last().map_or(f64::NAN, |w| w.rate),
+                if gleiche_variante { "A2" } else { "B " },
                 b.last().map_or(f64::NAN, |w| w.rate),
                 a.last().map_or(f64::NAN, |w| w.psi_max),
                 b.last().map_or(f64::NAN, |w| w.psi_max),
                 a.last().map_or(f64::NAN, |w| w.ctxt_rate),
                 b.last().map_or(f64::NAN, |w| w.ctxt_rate),
+                a.last().map_or(f64::NAN, |w| w.takt_mhz),
+                b.last().map_or(f64::NAN, |w| w.takt_mhz),
             );
         }
     }
@@ -1379,6 +1461,98 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
             "\n  {verworfen} Bloecke verworfen, weil die Maschine waehrend der \
              Messung unruhig war."
         );
+    }
+
+    // **Folgt die Streuung dem Takt?** (Auflage aus 8194)
+    //
+    // Nicht „schwankt der Takt ja/nein" — das ordnet jedem Fall genau eine
+    // Ursache zu, obwohl bei Streuung meist mehrere zusammenwirken. Gefragt
+    // ist, wie viel Streuung BEI GLEICHEM TAKT uebrig bleibt:
+    //
+    //   folgt dem Takt, Reststreuung klein   -> der Governor
+    //   folgt dem Takt, Reststreuung gross   -> beides
+    //   unabhaengig vom Takt                 -> Verfahren oder Restlast
+    {
+        let alle: Vec<&Blockwert> = a.iter().chain(b.iter()).collect();
+        let mit_takt: Vec<&&Blockwert> = alle.iter().filter(|w| w.takt_mhz.is_finite()).collect();
+        if mit_takt.len() >= 4 {
+            let mut takte: Vec<f64> = mit_takt.iter().map(|w| w.takt_mhz).collect();
+            let takt_mitte = median(&mut takte);
+            let spanne = |werte: &[f64]| -> f64 {
+                if werte.len() < 2 {
+                    return f64::NAN;
+                }
+                let max = werte.iter().copied().fold(f64::MIN, f64::max);
+                let min = werte.iter().copied().fold(f64::MAX, f64::min);
+                let mut k = werte.to_vec();
+                let m = median(&mut k);
+                if m > 0.0 {
+                    (max - min) / m * 100.0
+                } else {
+                    f64::NAN
+                }
+            };
+            let unten: Vec<f64> = mit_takt
+                .iter()
+                .filter(|w| w.takt_mhz <= takt_mitte)
+                .map(|w| w.rate)
+                .collect();
+            let oben: Vec<f64> = mit_takt
+                .iter()
+                .filter(|w| w.takt_mhz > takt_mitte)
+                .map(|w| w.rate)
+                .collect();
+            let mut u = unten.clone();
+            let mut o = oben.clone();
+
+            let _ = writeln!(
+                bericht,
+                "\n  Takt und Streuung — geteilt am Median {takt_mitte:.0} MHz"
+            );
+            let _ = writeln!(
+                bericht,
+                "    unteres Band  {:>2} Bloecke   Median {:>9.2}/s   Reststreuung {:>6.2} %",
+                unten.len(),
+                median(&mut u),
+                spanne(&unten)
+            );
+            let _ = writeln!(
+                bericht,
+                "    oberes Band   {:>2} Bloecke   Median {:>9.2}/s   Reststreuung {:>6.2} %",
+                oben.len(),
+                median(&mut o),
+                spanne(&oben)
+            );
+            let mut alle_raten: Vec<f64> = mit_takt.iter().map(|w| w.rate).collect();
+            let gesamt = spanne(&alle_raten);
+            let _ = writeln!(
+                bericht,
+                "    ueber alles  {:>2} Bloecke   Median {:>9.2}/s   Streuung     {:>6.2} %",
+                mit_takt.len(),
+                median(&mut alle_raten),
+                gesamt
+            );
+            let rest = spanne(&unten).max(spanne(&oben));
+            let _ = writeln!(
+                bericht,
+                "    Bleibt bei gleichem Takt {:.2} % von {:.2} % — {}",
+                rest,
+                gesamt,
+                if !rest.is_finite() || !gesamt.is_finite() {
+                    "zu wenige Bloecke je Band fuer eine Aussage"
+                } else if rest < gesamt * 0.5 {
+                    "die Streuung folgt dem Takt"
+                } else {
+                    "der Takt erklaert sie NICHT allein"
+                }
+            );
+        } else {
+            let _ = writeln!(
+                bericht,
+                "\n  Takt und Streuung: zu wenige Bloecke mit Taktwert ({}).",
+                mit_takt.len()
+            );
+        }
     }
 
     // **Zweites Verwurfsignal: Verdraengung.**
@@ -1518,10 +1692,11 @@ fn ab_reihe(bericht: &mut String, threads: usize, paare: usize, durchgaenge: u32
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let ab_modus = args.iter().any(|a| a == "--ab");
+    let aa_modus = args.iter().any(|a| a == "--aa");
+    let ab_modus = aa_modus || args.iter().any(|a| a == "--ab");
     let paare: usize = args
         .iter()
-        .position(|a| a == "--ab")
+        .position(|a| a == "--ab" || a == "--aa")
         .and_then(|i| args.get(i + 1))
         .and_then(|s| s.parse().ok())
         .unwrap_or(8);
@@ -1703,7 +1878,7 @@ fn main() {
 
     // --- A/B-Wechselreihe, wenn danach gefragt ---
     if ab_modus {
-        let bestanden = ab_reihe(&mut bericht, threads, paare, durchgaenge);
+        let bestanden = ab_reihe(&mut bericht, threads, paare, durchgaenge, aa_modus);
         print!("{bericht}");
         std::process::exit(i32::from(!bestanden));
     }
