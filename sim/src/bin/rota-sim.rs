@@ -132,7 +132,7 @@ BEFEHLE
 
 BEISPIELE
   # schnellster Einstieg: die beste Rotation gegen einen Boss suchen
-  rota-sim run --boss boss-1-1
+  rota-sim run --boss boss-1-1 --iterations 20 --max-len 3
 
   # welche Boss-Kennungen es gibt
   rota-sim data bosses
@@ -156,17 +156,24 @@ rota-sim run
   an jeder Stelle die Ergaenzung, die den Durchsatz am staerksten hebt.
 
 BEISPIELE
-  # schnellster Einstieg: ein Boss, Voreinstellungen
-  rota-sim run --boss boss-1-1
+  # schnellster Einstieg: ein Boss, klein gerechnet
+  rota-sim run --boss boss-1-1 --iterations 20 --max-len 3
 
   # eine vorhandene Rotationsdatei messen statt zu suchen
   rota-sim run --boss boss-1-1 --apl sim/apl/step1-good.apl
 
   # dieselben Zahlen maschinenlesbar, fuer jq und Skripte
-  rota-sim run --boss boss-1-1 --json
+  rota-sim run --boss boss-1-1 --iterations 20 --max-len 3 --json
 
   # genauer: mehr Durchgaenge je Messung, ueber vier Straenge, laengere Liste
   rota-sim run --boss boss-1-1 --iterations 100 --threads 4 --max-len 4
+
+  Die Beispiele nennen ihre Zahlen ausdruecklich, statt die Voreinstellungen zu
+  nehmen. Der Grund ist die Pruefstrecke: Sie fuehrt jedes Beispiel von hier aus,
+  und zwar im Debug-Bau, wo der Kern rund achtzehnmal langsamer ist. Ohne Zahlen
+  kostete allein dieser Abschnitt dort ueber dreissig Sekunden. Weglassen darf
+  man sie natuerlich — dann gelten die Voreinstellungen, und der Lauf dauert
+  laenger und misst genauer.
 
 OPTIONEN
   --boss <id>        gegen welchen Boss gerechnet wird.
@@ -485,21 +492,31 @@ impl Default for RunOptionen {
             boss_id: None,
             apl_pfad: None,
             suche: Suchart::Greedy,
-            // DIE VOREINSTELLUNGEN SIND AN DER PRUEFSTRECKE GEMESSEN, nicht
-            // geschaetzt (#968, AC4): Jedes Beispiel aus der Hilfe wird
-            // ausgefuehrt, und Tests laufen im DEBUG-Bau, wo der Kern rund
-            // achtzehnmal langsamer ist.
+            // Vier Zeilen sind die Laenge, mit der die Suchguete-Reihe misst.
+            max_len: 4,
+            // **Bewusst weniger als die tausend von `BalanceConfig::default`.**
+            // Eine Suche misst nicht einmal, sondern hunderte Male; mit tausend
+            // Durchgaengen je Messung waere der Aufruf aus der Hilfe keiner,
+            // den man ausprobiert. Wer genauer will, setzt --iterations.
             //
-            //   iterations 50, max_len 4   10,0 s im Debug
-            //   iterations 20, max_len 3    1,9 s im Debug
+            // # Warum hier keine kleinere Zahl steht, obwohl die Pruefstrecke
+            //   davon profitierte
             //
-            // Die Genauigkeit kostet das kaum: Solange kein Krit existiert
-            // (PURITY = 0), zieht kein Kampf aus den Zufallsstroemen und alle
-            // Durchgaenge sind gleich — der Standardfehler ist null, ob man
-            // zwanzigmal rechnet oder tausendmal. Wer genauer will, setzt
-            // --iterations; die Hilfe zeigt genau das als Beispiel.
-            max_len: 3,
-            iterations: 20,
+            // Sie stand kurzzeitig auf zwanzig, begruendet damit, dass der
+            // Standardfehler ohnehin null sei. Das stimmt — aber nur, solange
+            // `WornValues::purity` null ist, und das ist ein VORGABEWERT
+            // (`gear.rs`, "Kritchance"), kein Zustand des Simulators. Sobald
+            // jemand Ausruestung setzbar macht, gaebe es Krit, Zufallsziehungen
+            // und eine Streuung — und zwanzig Durchgaenge waeren zu wenig, ohne
+            // dass irgendetwas rot wuerde. Der Lauf meldete dann einen zu
+            // kleinen Standardfehler, keinen Fehler.
+            //
+            // Ein Waechter dagegen liesse sich heute nicht pruefen: Er koennte
+            // erst anschlagen, wenn es die Aenderung gibt, die er abfangen soll.
+            // Deshalb steht hier der Wert, der ohne Begruendung auskommt — und
+            // die Beispiele in der Hilfe nennen ihre Zahlen ausdruecklich,
+            // damit die Pruefstrecke trotzdem schnell bleibt.
+            iterations: 50,
             threads: 1,
             seed: 0,
             json: false,
