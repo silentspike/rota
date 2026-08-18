@@ -2205,7 +2205,10 @@ fn emit_effects(
         pruefe_wirkung_vollstaendig(spell, knoten.len() - vorher);
     }
     for (datei, boss) in bosses {
+        let vorher = knoten.len();
         knoten_fuer_boss(&mut knoten, datei, boss);
+        let herkuenfte: Vec<String> = knoten[vorher..].iter().map(|k| k.origin.clone()).collect();
+        pruefe_boss_wirkung_vollstaendig(boss, datei, &herkuenfte);
     }
 
     let _ = writeln!(
@@ -2600,7 +2603,12 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
         return;
     };
 
-    if felder.contains_key("phases") {
+    // `traegt_wirkung` und nicht `contains_key`: 33 Bossdateien FUEHREN das Feld
+    // `phases`, aber nur 7 haben eine nicht-leere Liste. Ein Knoten fuer
+    // `phases: []` beschriebe eine Wirkung, die es nicht gibt — der Fehler in
+    // die andere Richtung, und er macht Aussagen wie „welche Ereigniskanaele
+    // braucht dieser Kampf" unbrauchbar.
+    if felder.get("phases").is_some_and(traegt_wirkung) {
         knoten.push(Knoten {
             trigger: "Trigger::OnPhaseChange",
             target: "Target::Boss",
@@ -2618,6 +2626,75 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
         });
     }
 
+    // ---- Die Zeitleiste: was der Boss TUT ---------------------------------
+    //
+    // **Das war die groesste Luecke der ersten Fassung.** Alle 35 Bosse fuehren
+    // eine `timeline`, und sie erzeugte keinen einzigen Knoten — die Schlaege
+    // des Bosses, seine Kernmechanik, standen in keiner Beschreibung. Dass
+    // trotzdem jeder Boss Knoten hatte, lag allein an `resistances`; die
+    // Zaehlung „35 von 35 Bossen beschrieben" war also richtig und wertlos.
+    //
+    // Je vorkommender Mechanik ein eigener Knoten, mit eigener Herkunft: Sonst
+    // liesse sich ein Boss, der nur schlaegt, nicht von einem unterscheiden,
+    // der auch unterbrechbar zaubert.
+    let mut mechaniken: Vec<&str> = boss
+        .get("timeline")
+        .and_then(Value::as_array)
+        .map(|eintraege| {
+            eintraege
+                .iter()
+                .filter_map(|e| e.get("mechanic").and_then(Value::as_str))
+                .collect()
+        })
+        .unwrap_or_default();
+    mechaniken.sort_unstable();
+    mechaniken.dedup();
+    for mechanik in mechaniken {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnTimeline",
+            target: "Target::Player",
+            reads: masken(&["TIMELINE", "PHASE", "SHIELD"]),
+            writes: masken(&["PLAYER_HP", "SHIELD", "TIMELINE"]),
+            timing: "TimingSemantics::Live",
+            stacking: "StackingSemantics::None",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds { min: Some(0), max: None }".to_string(),
+            // Ein Schlag kann den Spieler toeten — hier haengt der Abbruch des
+            // Kampfes wirklich am Schaden, anders als beim Spieler-Schaden.
+            control_flow: "ControlFlowEffect { branches_on_damage: true, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("DealDamage", format!("{id}/timeline:{mechanik}"))
+        });
+    }
+
+    // Der Ueberdruck — die harte Zeitgrenze des Kampfes. Er entscheidet ueber
+    // Sieg und Niederlage und ist damit der Fall, vor dem AC6 ausdruecklich
+    // warnt: Hier traegt kein Monotonie-Hinweis.
+    if boss
+        .get("overpressureMs")
+        .and_then(Value::as_u64)
+        .is_some_and(|v| v > 0)
+    {
+        knoten.push(Knoten {
+            op: "CustomSignature(crate::effects::SignatureId(\"overpressure\"))".to_string(),
+            trigger: "Trigger::OnTimeline",
+            target: "Target::Player",
+            reads: masken(&["TIMELINE", "BOSS_HP"]),
+            writes: masken(&["PLAYER_HP"]),
+            timing: "TimingSemantics::Live",
+            stacking: "StackingSemantics::None",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: "ControlFlowEffect { branches_on_damage: false, \
+                           branches_on_hp: true, branches_on_victory: true, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("", format!("{id}/overpressureMs"))
+        });
+    }
+
     // Die uebrigen zehn bekannten Systeme. Jedes bekommt eine Signatur MIT
     // Semantik — der Unterschied zu einem unbekannten Feld ist genau das.
     for (schluessel, verzweigt_am_sieg) in [
@@ -2632,7 +2709,10 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
         ("timelineLoopMs", false),
         ("resistances", false),
     ] {
-        if !felder.contains_key(schluessel) {
+        // Aus demselben Grund wie bei `phases` oben: `energy: null` bei 29 von
+        // 33 Bossen, `resistances: {}` bei 31 von 35. Wer hier `contains_key`
+        // fragt, beschreibt lauter Wirkungen, die es nicht gibt.
+        if !felder.get(schluessel).is_some_and(traegt_wirkung) {
             continue;
         }
         knoten.push(Knoten {
@@ -2774,5 +2854,59 @@ fn pruefe_wirkung_vollstaendig(spell: &Value, erzeugt: usize) {
          Wirkungsbeschreibung. Das ist der stille Fehler aus Issue #911: Wahrscheinlich liest \
          `knoten_fuer_zauber` eines dieser Felder mit dem falschen JSON-Typ (so geschehen bei \
          `resourceGain`, einem Objekt und keiner Zahl)."
+    );
+}
+
+/// Boss-Felder, die keine Wirkung beschreiben, sondern den Boss benennen.
+///
+/// Alles andere muss in der Wirkungsbeschreibung vorkommen — geprueft von
+/// [`pruefe_boss_wirkung_vollstaendig`].
+const BOSS_KOPFDATEN: &[&str] = &["schema", "id", "name", "instance", "hp", "_comment"];
+
+/// Bricht den Bau, wenn ein wirkungstragendes Boss-Feld keinen Knoten hat.
+///
+/// # Das Gegenstueck zu [`pruefe_wirkung_vollstaendig`], und es hat gefehlt
+///
+/// Auf der Zauber-Seite war die Frage „hat jeder Zauber seine Beschreibung?"
+/// nachgetragen worden — auf der Boss-Seite nicht, und dort war die groessere
+/// Luecke: **Alle 35 Bosse fuehren eine `timeline`, und sie erzeugte keinen
+/// einzigen Knoten.** Die Schlaege des Bosses, seine Kernmechanik, standen in
+/// keiner Beschreibung.
+///
+/// Auffallen konnte das nicht, weil jeder Boss trotzdem Knoten hatte — allein
+/// wegen `resistances`. Die Zaehlung „35 von 35 Bossen beschrieben" war richtig
+/// und wertlos: Sie zaehlte Bosse, nicht Wirkungen. **Diese Pruefung zaehlt
+/// Wirkungen.**
+fn pruefe_boss_wirkung_vollstaendig(boss: &Value, datei: &str, herkuenfte: &[String]) {
+    let id = boss.get("id").and_then(Value::as_str).unwrap_or(datei);
+    let Some(felder) = boss.as_object() else {
+        return;
+    };
+    let mut fehlend: Vec<&str> = Vec::new();
+    for (schluessel, wert) in felder {
+        if BOSS_KOPFDATEN.contains(&schluessel.as_str()) {
+            continue;
+        }
+        if !traegt_wirkung(wert) {
+            // Ein leeres oder auf `null` gesetztes Feld beschreibt nichts und
+            // soll auch keinen Knoten haben.
+            continue;
+        }
+        // Die Zeitleiste erzeugt Knoten je Mechanik, also mit Doppelpunkt im
+        // Namen; die uebrigen genau einen mit dem Feldnamen.
+        let praefix = format!("{id}/{schluessel}");
+        if !herkuenfte
+            .iter()
+            .any(|h| *h == praefix || h.starts_with(&format!("{praefix}:")))
+        {
+            fehlend.push(schluessel);
+        }
+    }
+    assert!(
+        fehlend.is_empty(),
+        "Boss \"{id}\" traegt die Felder {fehlend:?} mit Inhalt, aber kein Knoten der \
+         Wirkungsbeschreibung nennt sie. Genau so blieb die `timeline` aller 35 Bosse \
+         unbeschrieben, waehrend jeder Boss dank `resistances` Knoten hatte — eine Zaehlung \
+         ueber BOSSE haette das nie gemeldet, nur eine ueber WIRKUNGEN."
     );
 }
