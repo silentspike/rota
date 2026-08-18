@@ -12,7 +12,9 @@
 //! des Monotonie-Hinweises (AC6).
 
 use rota_sim::effects::passes::{anzahl_analysen, beispielknoten, namen, REGISTRY};
-use rota_sim::effects::registry::{alle_analysen, alle_konservativ, AnalysisPassId, Verdict};
+use rota_sim::effects::registry::{
+    alle_analysen, alle_konservativ, AnalysisPassId, Evidence, Verdict,
+};
 use rota_sim::effects::{
     ConservativeFallback, EffectNode, EffectOp, LocalMonotonicityHint, MonotonicDirection,
     MonotonicityDomain, SignatureId, StateMask,
@@ -304,4 +306,53 @@ fn jeder_registrierte_pass_nennt_seinen_eigenen_namen() {
             ergebnis.pass
         );
     }
+}
+
+#[test]
+fn jede_analyse_unterscheidet_an_den_echten_daten_etwas() {
+    // # Die Frage eine Ebene hoeher: zaehle ich Analysen oder Unterscheidungen?
+    //
+    // `jede_der_acht_fragen_hat_ihre_analyse` prueft, dass acht Analysen
+    // REGISTRIERT sind. Das ist eine Zaehlung ueber Traeger und sagt nichts
+    // darueber, ob eine von ihnen etwas TUT. Eine Analyse, die ueber alle 218
+    // echten Knoten hinweg immer dasselbe Verdikt liefert, ist ein Name ohne
+    // Inhalt — und keine der bisherigen Pruefungen haette das gemeldet.
+    //
+    // Genau diese Verwechslung von Traeger und Wirkung war in Issue #911
+    // viermal der Fehler. Dies ist der fuenfte Ort, an dem sie moeglich waere.
+    use rota_sim::data::EFFECT_NODES;
+
+    assert!(
+        !EFFECT_NODES.is_empty(),
+        "Ohne Knoten prueft dieser Fall nichts."
+    );
+    let mut stumpf: Vec<String> = Vec::new();
+    for pass in REGISTRY {
+        // **Das vollstaendige Ergebnis, nicht nur das Verdikt.** Drei der
+        // Analysen sind BESCHREIBEND statt entscheidend: `invalidation`,
+        // `event-channels` und `random-sources` antworten immer `Permits`,
+        // und ihre eigentliche Aussage steckt in der `evidence` — der
+        // Schreibmaske, den Kanaelen, der Zufallsquelle. Wer nur das Verdikt
+        // ansieht, misst bei ihnen neben der Wirkung vorbei.
+        let mut gesehen: Vec<(Verdict, Evidence)> = Vec::new();
+        for knoten in EFFECT_NODES.iter() {
+            let r = pass.analyze_dyn(knoten);
+            if !gesehen
+                .iter()
+                .any(|(v, e)| *v == r.verdict && *e == r.evidence)
+            {
+                gesehen.push((r.verdict, r.evidence));
+            }
+        }
+        if gesehen.len() < 2 {
+            stumpf.push(format!("{} (immer {:?})", pass.id(), gesehen));
+        }
+    }
+    assert!(
+        stumpf.is_empty(),
+        "Diese Analysen antworten ueber alle {} echten Knoten hinweg IMMER dasselbe und \
+         unterscheiden damit nichts: {stumpf:?}. Eine registrierte Analyse ist noch keine \
+         wirksame.",
+        EFFECT_NODES.len()
+    );
 }

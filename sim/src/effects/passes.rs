@@ -14,6 +14,26 @@
 //! Rueckfall. Erst danach urteilt er ueber den Baustein. Andersherum waere ein
 //! Knoten ohne Semantik im guenstigen Fall schnell — und „unbekannt" waere
 //! damit schneller als „bekannt", also genau falsch herum.
+//!
+//! # Drei der acht sind BESCHREIBEND, nicht entscheidend
+//!
+//! [`InvalidationPass`], [`EventChannelPass`] und [`RandomSourcePass`]
+//! beantworten keine Ja/Nein-Frage, sondern eine nach dem **Was**: welche
+//! Ergebnisse ungueltig werden, welche Kanaele der Kampf braucht, welche
+//! Zufallsquelle aktiv ist. Ihr Verdikt ist deshalb ueber alle vollstaendig
+//! beschriebenen Knoten hinweg konstant [`Permits`](super::registry::Verdict);
+//! ihre eigentliche Aussage steht in der [`Evidence`].
+//!
+//! **Wer sie am Verdikt misst, misst neben der Wirkung vorbei.** Genau das ist
+//! beim Bau passiert: Ein Prueffall, der „unterscheidet jede Analyse etwas?"
+//! ueber das Verdikt fragte, meldete diese drei als stumpf — sie waren es
+//! nicht. Der Fall vergleicht jetzt das vollstaendige Ergebnis, und die
+//! Unterscheidung liegt dort, wo sie hingehoert.
+//!
+//! Fuer die uebrigen fuenf traegt das Verdikt die Antwort, und der Unterschied
+//! zwischen `Forbids` und `Conservative` ist dort wesentlich: bekannt
+//! ausgeschlossen gegen unbekannt und deshalb ausgeschlossen. Siehe
+//! [`Verdict`](super::registry::Verdict).
 
 use super::registry::{AnalysisPassId, AnalysisResult, EffectAnalysisPass, Evidence};
 use super::{

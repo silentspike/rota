@@ -7,8 +7,9 @@
 //! bekommt eine Pruefung, die weiterhin acht bestaetigt. Genau diese Sorte
 //! Drift ist der Anlass fuer Issue #911.
 //!
-//! Deshalb entsteht die Liste aus dem Makro [`registry!`], und ihre Laenge ist
-//! [`REGISTRY`]`.len()` — ein abgeleiteter Wert, kein gepflegter.
+//! Deshalb entsteht die Liste aus dem Makro `registry!`, und ihre Laenge ist
+//! `REGISTRY.len()` — ein abgeleiteter Wert, kein gepflegter. Beide stehen in
+//! [`super::passes`], weil das Makro sein `static` am Aufrufort erzeugt.
 //!
 //! Die Pruefungen lauten entsprechend „**jede registrierte** Analyse", nie
 //! „alle acht". Die Zahl gehoert in die **Meldung**, damit ein Befund lesbar
