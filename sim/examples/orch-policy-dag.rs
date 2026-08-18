@@ -116,7 +116,9 @@ fn entscheidungen_b(boss_id: &str, apl: &Apl) -> Vec<(u32, u8)> {
         .collect()
 }
 
-fn entscheidungen(apl: &Apl) -> Vec<(u32, u8)> { entscheidungen_b(BOSS, apl) }
+fn entscheidungen(apl: &Apl) -> Vec<(u32, u8)> {
+    entscheidungen_b(BOSS, apl)
+}
 
 fn liste(zeilen: &[Candidate]) -> Apl {
     Apl {
@@ -308,7 +310,10 @@ fn main() {
     // groesste benannte Schwaeche der Messung.
     println!();
     println!("== Teilung an vier Bossen, Basislaenge 5 ==");
-    println!("{:<12} {:>10} {:>10} {:>12} {:>12}", "Boss", "Kandidat.", "Teilung", "Aequivalenz", "Rest-DAG");
+    println!(
+        "{:<12} {:>10} {:>10} {:>12} {:>12}",
+        "Boss", "Kandidat.", "Teilung", "Aequivalenz", "Rest-DAG"
+    );
     for b in BOSSE {
         let Some(bo) = boss_by_id(b) else { continue };
         let c = BalanceConfig { boss: bo, ..config };
@@ -324,11 +329,19 @@ fn main() {
         }
         let (_, _, f) = faktor(&folgen);
         let mut kl: BTreeMap<Vec<(u32, u8)>, usize> = BTreeMap::new();
-        for x in &folgen { *kl.entry(x.clone()).or_default() += 1; }
+        for x in &folgen {
+            *kl.entry(x.clone()).or_default() += 1;
+        }
         let einz: Vec<Vec<(u32, u8)>> = kl.keys().cloned().collect();
         let (_, _, f2) = faktor(&einz);
-        println!("{:<12} {:>10} {:>9.2}x {:>11.2}x {:>11.2}x",
-                 b, folgen.len(), f, folgen.len() as f64 / kl.len() as f64, f2);
+        println!(
+            "{:<12} {:>10} {:>9.2}x {:>11.2}x {:>11.2}x",
+            b,
+            folgen.len(),
+            f,
+            folgen.len() as f64 / kl.len() as f64,
+            f2
+        );
     }
     println!();
 

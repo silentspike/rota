@@ -44,7 +44,7 @@ fn folge(boss_id: &str, apl: &Apl, f: DamageFactors) -> Vec<(u32, u8)> {
         seed: SEED,
         boss,
         duration_ms: Some(DAUER_MS),
-        stop_on_kill: true,          // ENTSCHEIDEND: sonst aendert Schaden nichts
+        stop_on_kill: true, // ENTSCHEIDEND: sonst aendert Schaden nichts
         factors: f,
         ..FightConfig::default()
     });
@@ -71,8 +71,14 @@ fn dauer(boss_id: &str, apl: &Apl, f: DamageFactors) -> u32 {
         ..FightConfig::default()
     });
     let _ = fight.run_apl(apl);
-    fight.log().entries().into_iter().filter(|e| e.kind == LogKind::Cast)
-        .map(|e| e.time).max().unwrap_or(0)
+    fight
+        .log()
+        .entries()
+        .into_iter()
+        .filter(|e| e.kind == LogKind::Cast)
+        .map(|e| e.time)
+        .max()
+        .unwrap_or(0)
 }
 
 /// Setzt EINE Groesse auf `wert`, alle anderen neutral.
@@ -134,8 +140,16 @@ fn main() {
     let extrem = folge(BOSSE[0], &apl, mit("essence", 1000.0));
     println!(
         "  Faktor 1000        -> Folge {}   {}",
-        if extrem == basis { "IDENTISCH" } else { "abweichend" },
-        if extrem == basis { "*** der Messweg misst nichts ***" } else { "OK" }
+        if extrem == basis {
+            "IDENTISCH"
+        } else {
+            "abweichend"
+        },
+        if extrem == basis {
+            "*** der Messweg misst nichts ***"
+        } else {
+            "OK"
+        }
     );
     println!();
 
