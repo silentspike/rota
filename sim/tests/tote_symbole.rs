@@ -139,10 +139,13 @@ fn ausnahmen() -> BTreeMap<&'static str, &'static str> {
         // (Issue #558): Der Pruefstein rechnet die Budget-Reihe fuer RARE
         // nach, weil Worker-1 seine Gegenstands-Messung dort fuehrt. Der
         // Waechter hat das von selbst gemeldet — genau wofuer er da ist.
-        (
-            "src/gear.rs#QUALITY_LEGENDARY",
-            "Glied der Qualitaets-Reihe, neben QUALITY_EPIC",
-        ),
+        //
+        // QUALITY_LEGENDARY stand daneben, bis `examples/zauber-abdeckung.rs`
+        // es benutzte (Issue #550, AC4): Der Ausruestungs-Vergleich braucht den
+        // hoechsten Stand, weil nur LEGENDARY einen Sondereffekt traegt
+        // (`QUALITY_HAS_EFFECT`) — mit EPIC waere der obere Fall keiner.
+        // Wieder hat der Waechter es gemeldet, und wieder in der CI: Ich hatte
+        // `cargo test` vor dem Push nicht gefahren, nur clippy und den Laeufer.
         (
             "src/sources.rs#SOURCE_TALENTS",
             "Glied der Quellen-Reihe, neben SOURCE_AFFIXES",
