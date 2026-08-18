@@ -18,30 +18,8 @@
 //! einem Promille. Bei einer kurzen liegt er über einem Prozent, und **deshalb
 //! stehen sie überhaupt drin**.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
-
-const PROGRAMM: &str = env!("CARGO_BIN_EXE_rota-sim");
-
-fn wurzel() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("sim/ hat ein Elternverzeichnis")
-        .to_path_buf()
-}
-
-fn rufe(argumente: &[&str]) -> (i32, String, String) {
-    let ausgabe = Command::new(PROGRAMM)
-        .args(argumente)
-        .current_dir(wurzel())
-        .output()
-        .unwrap_or_else(|fehler| panic!("{PROGRAMM} liess sich nicht starten: {fehler}"));
-    (
-        ausgabe.status.code().unwrap_or(-1),
-        String::from_utf8_lossy(&ausgabe.stdout).into_owned(),
-        String::from_utf8_lossy(&ausgabe.stderr).into_owned(),
-    )
-}
+mod gemeinsam;
+use gemeinsam::rufe;
 
 /// Liest eine Zahl aus einer JSON-Ausgabe, ohne einen JSON-Parser.
 ///
