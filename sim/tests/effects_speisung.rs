@@ -171,24 +171,45 @@ fn alle_elf_boss_systeme_sind_beschrieben() {
 }
 
 #[test]
-fn die_echten_knoten_sind_nicht_alle_konservativ() {
-    // Waeren sie es, waere die ganze Beschreibung wertlos: Jede Optimierung
-    // fiele zurueck, und niemand merkte den Unterschied zu „gar keine
+fn jede_baustein_art_bekommt_wenigstens_eine_erlaubnis() {
+    // # Auch hier: je ART, nicht ueber die Gesamtheit
+    //
+    // Die erste Fassung fragte „bekommt IRGENDEIN Knoten eine Erlaubnis?".
+    // Das ist grün, sobald **ein einziger** von 218 durchkommt — und waere es
+    // auch dann, wenn eine ganze Baustein-Art durchgehend blockiert waere.
+    // Wieder eine Zaehlung ueber die Gesamtheit statt je Element; in Issue
+    // #911 war genau diese Verwechslung fuenfmal der Fehler.
+    //
+    // Waere eine Art durchgehend blockiert, waere ihre Beschreibung fuer jede
+    // Optimierung wertlos, und niemand merkte den Unterschied zu „gar keine
     // Beschreibung".
-    let mut mit_erlaubnis = 0usize;
+    let mut arten: Vec<(&str, usize, usize)> = Vec::new();
     for knoten in EFFECT_NODES.iter() {
-        if alle_analysen(knoten)
+        let art = knoten.op.name();
+        let erlaubt = alle_analysen(knoten)
             .iter()
-            .any(|r| matches!(r.verdict, Verdict::Permits))
-        {
-            mit_erlaubnis += 1;
+            .any(|r| matches!(r.verdict, Verdict::Permits));
+        match arten.iter_mut().find(|(a, _, _)| *a == art) {
+            Some(eintrag) => {
+                eintrag.1 += 1;
+                eintrag.2 += usize::from(erlaubt);
+            }
+            None => arten.push((art, 1, usize::from(erlaubt))),
         }
     }
     assert!(
-        mit_erlaubnis > 0,
-        "Kein einziger der {} Knoten bekommt von irgendeiner Analyse eine Erlaubnis. Dann ist \
-         die Beschreibung eine gebaute Leitung ohne Anschluss.",
-        EFFECT_NODES.len()
+        !arten.is_empty(),
+        "Keine Bausteine in den Daten — dann prueft dieser Fall nichts."
+    );
+    let blockiert: Vec<&str> = arten
+        .iter()
+        .filter(|(_, _, mit)| *mit == 0)
+        .map(|(a, _, _)| *a)
+        .collect();
+    assert!(
+        blockiert.is_empty(),
+        "Diese Baustein-Arten bekommen von KEINER Analyse je eine Erlaubnis: {blockiert:?}. \
+         Ihre Beschreibung ist damit fuer jede Optimierung wertlos. Verteilung: {arten:?}"
     );
 }
 
