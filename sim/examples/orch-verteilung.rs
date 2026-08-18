@@ -45,10 +45,7 @@ fn main() {
     let kerne = std::thread::available_parallelism()
         .map(std::num::NonZeroUsize::get)
         .unwrap_or(1);
-    let threads: usize = argv
-        .get(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(kerne);
+    let threads: usize = argv.get(1).and_then(|s| s.parse().ok()).unwrap_or(kerne);
 
     println!("== System ==");
     println!("  verfuegbare Straenge   {kerne}");
@@ -120,7 +117,9 @@ fn main() {
     };
     let mut summe = 0.0f64;
     for boss_id in ["boss-1-1", "boss-1-2", "boss-1-3", "boss-1-4"] {
-        let Some(b) = boss_by_id(boss_id) else { continue };
+        let Some(b) = boss_by_id(boss_id) else {
+            continue;
+        };
         for seed in [1u32, 7, 42] {
             let c = BalanceConfig {
                 iterations: 200,
@@ -151,7 +150,7 @@ fn main() {
     // `{:.10}` rundet. Zwei f64, die sich im letzten Bit unterscheiden,
     // drucken dieselbe Zeile — genau der Messfehler, den dieser Lauf
     // aufdecken soll. Deshalb wird jeder Wert als Bitmuster gehasht.
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;          // FNV-1a, 64 bit
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a, 64 bit
     let mut mische = |bits: u64| {
         for b in bits.to_le_bytes() {
             h ^= u64::from(b);
@@ -160,7 +159,9 @@ fn main() {
     };
     let mut werte = 0usize;
     for boss_id in ["boss-1-1", "boss-1-2", "boss-1-3", "boss-1-4"] {
-        let Some(b) = boss_by_id(boss_id) else { continue };
+        let Some(b) = boss_by_id(boss_id) else {
+            continue;
+        };
         for seed in [1u32, 7, 42] {
             let c = BalanceConfig {
                 iterations: 200,
@@ -174,13 +175,23 @@ fn main() {
             };
             let r = rota_sim::balance::run(&c, &apl);
             // Jeder Gleitkommawert als BITMUSTER, nicht als Text.
-            for v in [r.damage.mean, r.damage_taken.mean, r.healed.mean, r.absorbed.mean] {
+            for v in [
+                r.damage.mean,
+                r.damage_taken.mean,
+                r.healed.mean,
+                r.absorbed.mean,
+            ] {
                 mische(v.to_bits());
                 werte += 1;
             }
             // min/max ebenso als Bitmuster — ein Trace-Unterschied darf nicht
             // durchrutschen, nur weil die Mittelwerte zufaellig gleich sind.
-            for v in [r.damage.min, r.damage.max, r.damage_taken.min, r.damage_taken.max] {
+            for v in [
+                r.damage.min,
+                r.damage.max,
+                r.damage_taken.min,
+                r.damage_taken.max,
+            ] {
                 mische(v.to_bits());
                 werte += 1;
             }
@@ -217,11 +228,22 @@ fn main() {
     // mit ZEHN gleichzeitigen Systemen statt hoechstens vier.
     if let Some(lastboss) = boss_by_id(LAST) {
         let c = BalanceConfig {
-            iterations: KAEMPFE / 4, base_seed: SEED, threads,
-            duration_ms: None, stop_on_kill: false,
-            factors: NEUTRAL, boss: lastboss, ..BalanceConfig::default()
+            iterations: KAEMPFE / 4,
+            base_seed: SEED,
+            threads,
+            duration_ms: None,
+            stop_on_kill: false,
+            factors: NEUTRAL,
+            boss: lastboss,
+            ..BalanceConfig::default()
         };
-        let _ = rota_sim::balance::run(&BalanceConfig { iterations: 2000, ..c }, &apl);
+        let _ = rota_sim::balance::run(
+            &BalanceConfig {
+                iterations: 2000,
+                ..c
+            },
+            &apl,
+        );
         let t = Instant::now();
         let r = rota_sim::balance::run(&c, &apl);
         let d = t.elapsed();
@@ -229,7 +251,10 @@ fn main() {
         println!("== Endausbau-Lastprofil (orch-maxload, 10 Systeme) ==");
         println!("  KAEMPFE JE SEKUNDE     {ps:.0}");
         println!("  je Kampf               {:.2} us", 1e6 / ps);
-        println!("  gegen boss-1-1         Faktor {:.2}x langsamer", pro_s / ps);
+        println!(
+            "  gegen boss-1-1         Faktor {:.2}x langsamer",
+            pro_s / ps
+        );
         println!("  Schaden mean           {:.1}", r.damage.mean);
         println!();
     } else {
