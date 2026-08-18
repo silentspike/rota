@@ -67,6 +67,8 @@ pub mod checksum;
 // Issue E3-3c: der Cooldown-Ruecksetzer als Auswahlmodus.
 pub mod cooldown_reset;
 pub mod data;
+// Issue #896: Zaehler fuer den Diagnosepfad — Schlangenlaenge, `expire_buffs`.
+pub mod diagnostics;
 // Issue #911: die typisierte Wirkungsbeschreibung und ihre erzeugten Analysen.
 pub mod effects;
 pub mod event;
