@@ -79,16 +79,31 @@ fn fuehre_aus(argumente: &[String]) -> Result<ExitCode, String> {
         "run" => befehl_run(rest),
         "bench" => befehl_bench(rest),
         "data" => befehl_data(rest),
-        "verify" => Ok(platzhalter("verify", GRUND_VERIFY)),
-        "hosts" => Ok(platzhalter("hosts", GRUND_HOSTS)),
-        "status" => Ok(platzhalter("status", GRUND_STATUS)),
-        "explain" => Ok(platzhalter("explain", GRUND_EXPLAIN)),
-        anderes => Err(format!(
-            "Unbekannter Befehl: {anderes}\n\n\
-             Moeglich sind: run, bench, verify, hosts, status, explain, data\n\
-             Alle mit einem Satz Zweck:  rota-sim --help"
+        "verify" => Ok(platzhalter("verify", HILFE_VERIFY, GRUND_VERIFY, rest)),
+        "hosts" => Ok(platzhalter("hosts", HILFE_HOSTS, GRUND_HOSTS, rest)),
+        "status" => Ok(platzhalter("status", HILFE_STATUS, GRUND_STATUS, rest)),
+        "explain" => Ok(platzhalter("explain", HILFE_EXPLAIN, GRUND_EXPLAIN, rest)),
+        anderes => Err(fehler_mit_ausweg(
+            &format!("Den Befehl '{anderes}' gibt es nicht."),
+            aehnlichster_befehl(anderes).map(|treffer| format!("Meintest du '{treffer}'?")),
+            "Alle anzeigen:  rota-sim --help",
         )),
     }
+}
+
+/// Die sieben Unterbefehle, in der Reihenfolge der Hilfe.
+const BEFEHLE: [&str; 7] = [
+    "run", "bench", "verify", "hosts", "status", "explain", "data",
+];
+
+/// Der Unterbefehl, der einer Fehleingabe am naechsten kommt.
+fn aehnlichster_befehl(eingabe: &str) -> Option<&'static str> {
+    BEFEHLE
+        .iter()
+        .map(|befehl| (*befehl, distanz(eingabe, befehl)))
+        .filter(|(_, d)| *d <= 3)
+        .min_by_key(|(_, d)| *d)
+        .map(|(befehl, _)| befehl)
 }
 
 // ---------------------------------------------------------------------------
@@ -97,10 +112,14 @@ fn fuehre_aus(argumente: &[String]) -> Result<ExitCode, String> {
 
 /// Die Hilfe der obersten Ebene: jeder Unterbefehl mit einem Satz Zweck.
 const HILFE_WURZEL: &str = "\
-rota-sim — der Simulator von ROTA auf der Kommandozeile
+rota-sim
+
+  Der Simulator von ROTA auf der Kommandozeile: dieselben Kampfregeln wie das
+  Spiel, tausendfach schneller. Er sucht Rotationen, misst Durchsatz und zeigt,
+  was in diesem Bau an Bossen und Zaubern steckt.
 
 AUFRUF
-  rota-sim <BEFEHL> [OPTIONEN]
+  rota-sim BEFEHL [OPTIONEN]
 
 BEFEHLE
   run        eine Suche oder einen Balance-Lauf fahren und die Zahlen ausgeben
@@ -111,14 +130,15 @@ BEFEHLE
   explain    zeigen, was ein Lauf TAETE, ohne ihn zu starten (noch nicht gebaut)
   data       die einkompilierten Inhalte pruefen: Bosse, Zauber, Kandidatenzeilen
 
-ZUERST AUSPROBIEREN
+BEISPIELE
+  # schnellster Einstieg: die beste Rotation gegen einen Boss suchen
   rota-sim run --boss boss-1-1
+
+  # welche Boss-Kennungen es gibt
   rota-sim data bosses
 
-HILFE JE BEFEHL
+  # die Hilfe eines einzelnen Befehls, mit seinen eigenen Beispielen
   rota-sim run --help
-  rota-sim bench --help
-  rota-sim data --help
 
 WO DAS PROGRAMM LAEUFT
   Der Bau laeuft auf einem entfernten Rechner:
@@ -127,23 +147,26 @@ WO DAS PROGRAMM LAEUFT
   Im Debug-Bau ist der Kern rund achtzehnmal langsamer — fuer einen Blick
   genuegt das, fuer tausend Durchgaenge nicht.";
 
-/// Die Hilfe von `run` — mit vollstaendigen, lauffaehigen Beispielen.
+/// Die Hilfe von `run` — Zweck zuerst, dann vollstaendige, lauffaehige Beispiele.
 const HILFE_RUN: &str = "\
-rota-sim run — eine Suche oder einen Balance-Lauf fahren
+rota-sim run
 
-BEISPIELE, die genau so laufen
+  Sucht die beste Rotation gegen einen Boss — oder misst eine, die es schon
+  gibt. Die Suche baut die Prioritaetenliste Zeile fuer Zeile auf und behaelt
+  an jeder Stelle die Ergaenzung, die den Durchsatz am staerksten hebt.
 
-  # Die beste Rotation gegen einen Boss suchen (Voreinstellung: greedy)
+BEISPIELE
+  # schnellster Einstieg: ein Boss, Voreinstellungen
   rota-sim run --boss boss-1-1
 
-  # Eine vorhandene Rotationsdatei messen statt zu suchen
+  # eine vorhandene Rotationsdatei messen statt zu suchen
   rota-sim run --boss boss-1-1 --apl sim/apl/step1-good.apl
 
-  # Dieselben Zahlen maschinenlesbar, fuer jq und Skripte
+  # dieselben Zahlen maschinenlesbar, fuer jq und Skripte
   rota-sim run --boss boss-1-1 --json
 
-  # Genauer messen: mehr Durchgaenge, mehr Straenge, laengere Rotation
-  rota-sim run --boss boss-1-1 --iterations 1000 --threads 4 --max-len 6
+  # genauer: mehr Durchgaenge je Messung, ueber vier Straenge, laengere Liste
+  rota-sim run --boss boss-1-1 --iterations 100 --threads 4 --max-len 4
 
 OPTIONEN
   --boss <id>        gegen welchen Boss gerechnet wird.
@@ -167,19 +190,22 @@ WAS AUSGEGEBEN WIRD
   Schaden, Tode und die Wirkungen je Zauber. Bei einer Suche zusaetzlich die
   gefundene Rotation und wie viele Messungen sie gekostet hat.";
 
-/// Die Hilfe von `bench`.
+/// Die Hilfe von `bench` — Zweck zuerst, dann Beispiele.
 const HILFE_BENCH: &str = "\
-rota-sim bench — den Durchsatz dieses Rechners messen
+rota-sim bench
 
-BEISPIELE, die genau so laufen
+  Misst, wie viele Kaempfe dieser Rechner je Sekunde schafft. Die Zahl sagt,
+  wie gross ein Lauf werden darf, bevor er die Geduld ueberschreitet — und sie
+  verraet, ob eine Maschine gerade belegt ist.
 
-  # Der schnelle Blick
+BEISPIELE
+  # schnellster Einstieg: Voreinstellungen
   rota-sim bench
 
-  # Genauer, mit mehr Kaempfen und ueber vier Straenge
+  # genauer, mit mehr Kaempfen und ueber vier Straenge
   rota-sim bench --fights 20000 --threads 4
 
-  # Maschinenlesbar
+  # maschinenlesbar
   rota-sim bench --json
 
 OPTIONEN
@@ -195,22 +221,25 @@ WAS DIE ZAHL BEDEUTET
   vergleicht, vergleicht deshalb nur Laeufe desselben Baus auf demselben
   Rechner — und sagt dazu, ob die Maschine ruhig war.";
 
-/// Die Hilfe von `data`.
+/// Die Hilfe von `data` — Zweck zuerst, dann Beispiele.
 const HILFE_DATA: &str = "\
-rota-sim data — die einkompilierten Inhalte pruefen
+rota-sim data
 
-BEISPIELE, die genau so laufen
+  Zeigt, was in diesem Bau steckt: welche Bosse und Zauber es gibt und wie
+  viele Kandidatenzeilen die Suche zu waehlen hat. Der erste Griff, wenn eine
+  Kennung nicht angenommen wird oder eine Zahl unerwartet aussieht.
 
-  # Die Uebersicht: wie viel wovon steckt in diesem Bau
+BEISPIELE
+  # schnellster Einstieg: die Uebersicht
   rota-sim data
 
-  # Alle Boss-Kennungen, wie --boss sie erwartet
+  # alle Boss-Kennungen, wie --boss sie erwartet
   rota-sim data bosses
 
-  # Alle Zauber mit Kennung und Name
+  # alle Zauber mit Kennung und Name
   rota-sim data spells
 
-  # Wie viele Kandidatenzeilen die Suche zu waehlen hat
+  # wie viele Kandidatenzeilen die Suche zu waehlen hat
   rota-sim data candidates
 
 UNTERPUNKTE
@@ -240,6 +269,33 @@ PHAENOTYPEN
 // Platzhalter
 // ---------------------------------------------------------------------------
 
+/// Die Hilfe von `verify`.
+///
+/// **Ohne eine einzige Ziffer**, wie die Ausgabe des Befehls selbst — dann ist
+/// die Zusicherung aus #897 auch fuer den Hilfe-Aufruf erfuellt und muss nicht
+/// zwischen zwei Aufrufarten unterscheiden.
+const HILFE_VERIFY: &str = "\
+rota-sim verify
+
+  Wird pruefen, ob der Simulator dieselben Zahlen liefert wie das Spiel im
+  Browser, und dabei auch, ob mehrere Rechner untereinander uebereinstimmen.
+  Weicht einer ab, ist das ein Hinweis auf einen Fehler — hier oder dort, und
+  er wird gemeldet statt weggerechnet.
+
+  NOCH NICHT GEBAUT.
+
+BEISPIELE
+  # was der Aufruf heute tut: er sagt, was ihm fehlt
+  rota-sim verify
+
+  # und der Griff, der heute schon prueft, ob dieser Bau die Daten hat
+  rota-sim data
+
+WEG HEUTE OHNE DIESEN BEFEHL
+  Der Vergleich fuer EINEN Rechner liegt als Beispiel vor:
+
+    cargo remote -c --manifest-path sim/Cargo.toml -- run --release --example parity";
+
 /// Was `verify` braucht und noch nicht hat.
 const GRUND_VERIFY: &str = "\
 Was fehlt: der Vergleich mit der Browser-Seite ueber mehrere Rechner. Die
@@ -249,7 +305,26 @@ vor und laufen heute so:
   cargo remote -c --manifest-path sim/Cargo.toml -- run --release --example parity
 
 Der Unterbefehl fasst das zusammen, sobald es die Rechner-Verwaltung gibt —
-siehe hosts. Beides gehoert in ein eigenes Issue des Epics rota-sim.";
+siehe hosts. Beides gehoert in ein eigenes Issue des Epics rota-sim.
+
+Was er ausserdem kann, steht in:  rota-sim verify --help";
+
+/// Die Hilfe von `hosts` — ebenfalls ohne Ziffer.
+const HILFE_HOSTS: &str = "\
+rota-sim hosts
+
+  Wird die Rechner auflisten, auf die ein Lauf verteilt werden kann, jeden mit
+  seiner gemessenen Leistung. Ohne diese Messung waere die Liste irrefuehrend:
+  Zwei Rechner mit gleicher Kernzahl schaffen nicht gleich viele Kaempfe.
+
+  NOCH NICHT GEBAUT.
+
+BEISPIELE
+  # was der Aufruf heute tut: er sagt, was ihm fehlt
+  rota-sim hosts
+
+  # den Durchsatz DIESES Rechners misst heute schon
+  rota-sim bench";
 
 /// Was `hosts` braucht und noch nicht hat.
 const GRUND_HOSTS: &str = "\
@@ -260,6 +335,26 @@ verteilt, verteilt falsch.
 
 Den Durchsatz DIESES Rechners misst heute schon:
 
+  rota-sim bench
+
+Was er ausserdem kann, steht in:  rota-sim hosts --help";
+
+/// Die Hilfe von `status` — ebenfalls ohne Ziffer.
+const HILFE_STATUS: &str = "\
+rota-sim status
+
+  Wird zeigen, wie weit ein laufender Lauf gekommen ist, ohne ihn zu stoeren.
+  Sinnvoll erst, wenn Laeufe im Hintergrund oder auf fremden Rechnern
+  stattfinden — heute laeuft jede Messung im Vordergrund und endet mit ihrer
+  eigenen Ausgabe.
+
+  NOCH NICHT GEBAUT.
+
+BEISPIELE
+  # was der Aufruf heute tut: er sagt, was ihm fehlt
+  rota-sim status
+
+  # wie lange ein Lauf ueberhaupt dauern wird, schaetzt heute
   rota-sim bench";
 
 /// Was `status` braucht und noch nicht hat.
@@ -269,7 +364,27 @@ Messung im Vordergrund und endet mit ihrer Ausgabe; es gibt nichts, was
 zwischendurch nach seinem Zustand gefragt werden koennte.
 
 Der Unterbefehl bekommt erst einen Sinn, wenn Laeufe im Hintergrund oder auf
-fremden Rechnern laufen — siehe hosts.";
+fremden Rechnern laufen — siehe hosts.
+
+Was er ausserdem kann, steht in:  rota-sim status --help";
+
+/// Die Hilfe von `explain` — ebenfalls ohne Ziffer.
+const HILFE_EXPLAIN: &str = "\
+rota-sim explain
+
+  Wird sagen, was ein Lauf taete, ohne ihn zu starten: wie viele Messungen er
+  braucht und wie lange sie dauern. Die zweite Haelfte ist die interessante —
+  ein Trockenlauf, der nur die Einstellungen wiederholt, beantwortet die Frage
+  nicht.
+
+  NOCH NICHT GEBAUT.
+
+BEISPIELE
+  # was der Aufruf heute tut: er sagt, was ihm fehlt
+  rota-sim explain
+
+  # wie viele Kandidatenzeilen zur Wahl stehen, sagt heute schon
+  rota-sim data candidates";
 
 /// Was `explain` braucht und noch nicht hat.
 const GRUND_EXPLAIN: &str = "\
@@ -280,21 +395,61 @@ dauert. Dafuer fehlt die Kalibrierung aus hosts.
 
 Wie viele Kandidatenzeilen zur Wahl stehen, sagt heute schon:
 
-  rota-sim data candidates";
+  rota-sim data candidates
 
-/// Gibt aus, was einem noch nicht gebauten Unterbefehl fehlt.
+Was er ausserdem kann, steht in:  rota-sim explain --help";
+
+/// Gibt aus, was einem noch nicht gebauten Unterbefehl fehlt — oder seine Hilfe.
 ///
-/// **Ohne eine einzige Ziffer.** Ein Platzhalter, der eine Zahl nennt, ist von
-/// einem Ergebnis nicht zu unterscheiden — und eine plausible falsche Zahl ist
-/// schlimmer als keine. Der Test `platzhalter_nennen_keine_zahl` haelt das
-/// fest; er prueft die AUSGABE, nicht die Absicht.
+/// **Ohne eine einzige Ziffer**, in beiden Faellen. Ein Platzhalter, der eine
+/// Zahl nennt, ist von einem Ergebnis nicht zu unterscheiden — und eine
+/// plausible falsche Zahl ist schlimmer als keine. Der Test
+/// `platzhalter_nennen_keine_zahl` haelt das fest; er prueft die AUSGABE,
+/// nicht die Absicht.
 ///
-/// Der Rueckgabewert ist bewusst ein Fehlschlag: Ein Skript, das den Befehl
-/// ruft und nur den Rueckgabewert prueft, soll nicht denken, es habe gemessen.
-fn platzhalter(name: &str, grund: &str) -> ExitCode {
+/// Der Rueckgabewert ohne `--help` ist bewusst ein Fehlschlag: Ein Skript, das
+/// den Befehl ruft und nur den Rueckgabewert prueft, soll nicht denken, es
+/// habe gemessen. **Mit `--help` ist er Erfolg** — wer nach der Hilfe fragt,
+/// hat keinen Fehler gemacht.
+fn platzhalter(name: &str, hilfe: &str, grund: &str, argumente: &[String]) -> ExitCode {
+    if argumente.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{hilfe}");
+        return ExitCode::SUCCESS;
+    }
     println!("rota-sim {name} — noch nicht gebaut.\n");
     println!("{grund}");
     ExitCode::FAILURE
+}
+
+// DIE HILFE WIRD NICHT HIER GEPRUEFT, sondern in `tests/rota_sim_beispiele.rs`.
+//
+// Das ist Absicht. Wer die Beispiele aus einer KONSTANTE liest, prueft den
+// Text; wer sie aus der AUSGABE des gebauten Programms liest, prueft das
+// Werkzeug. Nur die zweite Fassung faengt einen Fehler in der Ausgabe selbst —
+// und sie kann die Beispiele anschliessend ausfuehren, was #968 AC4 verlangt.
+//
+// Eine Kopie der Zerlegeregel hier waere eine zweite Quelle fuer dieselbe
+// Frage, und die beiden liefen irgendwann auseinander.
+
+/// Baut eine Fehlermeldung in der Form aus #968, AC3.
+///
+/// ```text
+/// FEHLER  Boss 'boss-2-5' gibt es nicht.
+///         Meintest du 'boss-2-4'?
+///         Alle anzeigen:  rota-sim data bosses
+/// ```
+///
+/// **Der Ausweg ist Pflicht, der Vorschlag nicht.** Ein Vorschlag entsteht nur,
+/// wenn etwas nahe genug liegt; ein geratener fuehrt weiter weg als keiner.
+/// Ein Ausweg dagegen laesst sich immer nennen — und ohne ihn ist die Meldung
+/// nur die Feststellung, dass es nicht ging.
+fn fehler_mit_ausweg(was: &str, vorschlag: Option<String>, ausweg: &str) -> String {
+    let mut zeilen = vec![format!("FEHLER  {was}")];
+    if let Some(satz) = vorschlag {
+        zeilen.push(format!("        {satz}"));
+    }
+    zeilen.push(format!("        {ausweg}"));
+    zeilen.join("\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -330,13 +485,21 @@ impl Default for RunOptionen {
             boss_id: None,
             apl_pfad: None,
             suche: Suchart::Greedy,
-            // Vier Zeilen sind die Laenge, mit der die Suchguete-Reihe misst.
-            max_len: 4,
-            // **Bewusst weniger als die tausend von `BalanceConfig::default`.**
-            // Eine Suche misst nicht einmal, sondern hunderte Male; mit tausend
-            // Durchgaengen je Messung waere der Aufruf aus der Hilfe keiner,
-            // den man ausprobiert. Wer genauer will, setzt --iterations.
-            iterations: 50,
+            // DIE VOREINSTELLUNGEN SIND AN DER PRUEFSTRECKE GEMESSEN, nicht
+            // geschaetzt (#968, AC4): Jedes Beispiel aus der Hilfe wird
+            // ausgefuehrt, und Tests laufen im DEBUG-Bau, wo der Kern rund
+            // achtzehnmal langsamer ist.
+            //
+            //   iterations 50, max_len 4   10,0 s im Debug
+            //   iterations 20, max_len 3    1,9 s im Debug
+            //
+            // Die Genauigkeit kostet das kaum: Solange kein Krit existiert
+            // (PURITY = 0), zieht kein Kampf aus den Zufallsstroemen und alle
+            // Durchgaenge sind gleich — der Standardfehler ist null, ob man
+            // zwanzigmal rechnet oder tausendmal. Wer genauer will, setzt
+            // --iterations; die Hilfe zeigt genau das als Beispiel.
+            max_len: 3,
+            iterations: 20,
             threads: 1,
             seed: 0,
             json: false,
@@ -409,8 +572,10 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
                     "greedy" => Suchart::Greedy,
                     "none" => Suchart::Keine,
                     anderes => {
-                        return Err(format!(
-                            "--search kennt {anderes} nicht. Moeglich: greedy, none"
+                        return Err(fehler_mit_ausweg(
+                            &format!("Die Suchart '{anderes}' gibt es nicht."),
+                            Some("Moeglich sind: 'greedy', 'none'".to_owned()),
+                            "Mit Beispielen:  rota-sim run --help",
                         ))
                     }
                 };
@@ -419,27 +584,71 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
             "--iterations" => optionen.iterations = hole_zahl(argumente, &mut i, name)?,
             "--threads" => optionen.threads = hole_zahl(argumente, &mut i, name)?,
             "--seed" => optionen.seed = hole_zahl(argumente, &mut i, name)?,
-            anderes => return Err(unbekannte_angabe("run", anderes)),
+            anderes => return Err(unbekannte_angabe("run", anderes, &ANGABEN_RUN)),
         }
         i += 1;
     }
     if optionen.iterations == 0 {
-        return Err("--iterations muss groesser als null sein.".to_owned());
+        return Err(fehler_mit_ausweg(
+            "'--iterations' muss groesser als null sein.",
+            Some("Ein Lauf ohne Durchgang hat nichts gerechnet, und sein Mittelwert waere trotzdem eine Zahl.".to_owned()),
+            "Mit Beispielen:  rota-sim run --help",
+        ));
     }
     if optionen.max_len == 0 {
-        return Err("--max-len muss groesser als null sein.".to_owned());
+        return Err(fehler_mit_ausweg(
+            "'--max-len' muss groesser als null sein.",
+            Some("Eine Rotation ohne Zeile ist keine Rotation.".to_owned()),
+            "Mit Beispielen:  rota-sim run --help",
+        ));
     }
     Ok(optionen)
 }
+
+/// Die Angaben, die `run` kennt — Grundlage fuer den Vorschlag bei Tippfehlern.
+const ANGABEN_RUN: [&str; 10] = [
+    "--boss",
+    "--apl",
+    "--search",
+    "--max-len",
+    "--iterations",
+    "--threads",
+    "--seed",
+    "--json",
+    "--help",
+    "-h",
+];
+
+/// Die Angaben, die `bench` kennt.
+const ANGABEN_BENCH: [&str; 6] = ["--boss", "--fights", "--threads", "--json", "--help", "-h"];
+
+/// Die Angaben, die `data` kennt.
+const ANGABEN_DATA: [&str; 3] = ["--json", "--help", "-h"];
+
+/// Die Unterpunkte von `data`.
+const UNTERPUNKTE_DATA: [&str; 3] = ["bosses", "spells", "candidates"];
 
 /// Laedt die zu messende Rotation — aus einer Datei oder die mitgelieferte.
 fn lade_apl(pfad: Option<&str>) -> Result<(String, Apl), String> {
     match pfad {
         Some(p) => {
-            let text = std::fs::read_to_string(p)
-                .map_err(|fehler| format!("{p} ist nicht lesbar: {fehler}\n\nDer Pfad ist relativ zum Wurzelverzeichnis des Projekts, also sim/apl/DATEI.apl."))?;
-            let apl = parse(AplName(p), &text)
-                .map_err(|fehler| format!("{p} ist fehlerhaft:\n{fehler}"))?;
+            let text = std::fs::read_to_string(p).map_err(|fehler| {
+                fehler_mit_ausweg(
+                    &format!("Die Datei '{p}' ist nicht lesbar: {fehler}"),
+                    Some(
+                        "Der Pfad gilt vom Wurzelverzeichnis des Projekts aus, also sim/apl/DATEI.apl."
+                            .to_owned(),
+                    ),
+                    "Vorhandene Rotationen:  ls sim/apl/",
+                )
+            })?;
+            let apl = parse(AplName(p), &text).map_err(|fehler| {
+                fehler_mit_ausweg(
+                    &format!("Die Datei '{p}' ist fehlerhaft."),
+                    Some(fehler.to_string()),
+                    "Die Form mit Beispielen:  rota-sim run --help",
+                )
+            })?;
             Ok((p.to_owned(), apl))
         }
         None => {
@@ -648,12 +857,16 @@ fn zerlege_bench(argumente: &[String]) -> Result<BenchOptionen, String> {
             "--boss" => optionen.boss_id = Some(hole_wert(argumente, &mut i, name)?),
             "--fights" => optionen.fights = hole_zahl(argumente, &mut i, name)?,
             "--threads" => optionen.threads = hole_zahl(argumente, &mut i, name)?,
-            anderes => return Err(unbekannte_angabe("bench", anderes)),
+            anderes => return Err(unbekannte_angabe("bench", anderes, &ANGABEN_BENCH)),
         }
         i += 1;
     }
     if optionen.fights == 0 {
-        return Err("--fights muss groesser als null sein.".to_owned());
+        return Err(fehler_mit_ausweg(
+            "'--fights' muss groesser als null sein.",
+            Some("Null Kaempfe je Sekunde waere durch null geteilt, nicht gemessen.".to_owned()),
+            "Mit Beispielen:  rota-sim bench --help",
+        ));
     }
     Ok(optionen)
 }
@@ -672,7 +885,9 @@ fn befehl_data(argumente: &[String]) -> Result<ExitCode, String> {
                 return Ok(ExitCode::SUCCESS);
             }
             "--json" => json = true,
-            anderes if anderes.starts_with('-') => return Err(unbekannte_angabe("data", anderes)),
+            anderes if anderes.starts_with('-') => {
+                return Err(unbekannte_angabe("data", anderes, &ANGABEN_DATA))
+            }
             anderes => unterpunkt = Some(anderes.to_owned()),
         }
     }
@@ -683,11 +898,17 @@ fn befehl_data(argumente: &[String]) -> Result<ExitCode, String> {
         Some("spells") => data_spells(json),
         Some("candidates") => data_candidates(json),
         Some(anderes) => {
-            return Err(format!(
-                "data kennt {anderes} nicht.\n\n\
-                 Moeglich sind: bosses, spells, candidates — oder gar nichts fuer die Uebersicht.\n\
-                 Alles mit Beispielen:  rota-sim data --help"
-            ))
+            let vorschlag = UNTERPUNKTE_DATA
+                .iter()
+                .map(|kandidat| (*kandidat, distanz(anderes, kandidat)))
+                .filter(|(_, d)| *d <= 3)
+                .min_by_key(|(_, d)| *d)
+                .map(|(treffer, _)| format!("Meintest du '{treffer}'?"));
+            return Err(fehler_mit_ausweg(
+                &format!("Den Unterpunkt '{anderes}' kennt 'data' nicht."),
+                vorschlag,
+                "Alle anzeigen:  rota-sim data --help",
+            ));
         }
     }
     Ok(ExitCode::SUCCESS)
@@ -831,12 +1052,11 @@ fn waehle_boss(id: Option<&str>) -> Result<&'static Boss, String> {
     if let Some(boss) = data::boss_by_id(id) {
         return Ok(boss);
     }
-    let mut meldung = format!("Unbekannter Boss: {id}\n");
-    if let Some(vorschlag) = aehnlichster_boss(id) {
-        meldung.push_str(&format!("\nMeintest du {vorschlag}?\n"));
-    }
-    meldung.push_str("\nAlle Kennungen zeigt:  rota-sim data bosses");
-    Err(meldung)
+    Err(fehler_mit_ausweg(
+        &format!("Boss '{id}' gibt es nicht."),
+        aehnlichster_boss(id).map(|treffer| format!("Meintest du '{treffer}'?")),
+        "Alle anzeigen:  rota-sim data bosses",
+    ))
 }
 
 /// Der Boss mit der kleinsten Editierdistanz zur Eingabe.
@@ -922,10 +1142,13 @@ fn distanz(a: &str, b: &str) -> usize {
 /// Holt den Wert hinter einer Angabe und schiebt den Zeiger weiter.
 fn hole_wert(argumente: &[String], i: &mut usize, name: &str) -> Result<String, String> {
     *i += 1;
-    argumente
-        .get(*i)
-        .cloned()
-        .ok_or_else(|| format!("Nach {name} fehlt der Wert."))
+    argumente.get(*i).cloned().ok_or_else(|| {
+        fehler_mit_ausweg(
+            &format!("Nach '{name}' fehlt der Wert."),
+            None,
+            "Die Form mit Beispielen:  rota-sim run --help",
+        )
+    })
 }
 
 /// Wie [`hole_wert`], nur als Zahl.
@@ -935,15 +1158,31 @@ fn hole_zahl<T: std::str::FromStr>(
     name: &str,
 ) -> Result<T, String> {
     let roh = hole_wert(argumente, i, name)?;
-    roh.parse()
-        .map_err(|_| format!("{name} braucht eine ganze Zahl, bekommen hat es {roh}."))
+    roh.parse().map_err(|_| {
+        fehler_mit_ausweg(
+            &format!("'{name}' braucht eine ganze Zahl, bekommen hat es '{roh}'."),
+            None,
+            "Die Form mit Beispielen:  rota-sim run --help",
+        )
+    })
 }
 
 /// Die Meldung fuer eine Angabe, die es an dieser Stelle nicht gibt.
-fn unbekannte_angabe(befehl: &str, angabe: &str) -> String {
-    format!(
-        "Unbekannte Angabe fuer {befehl}: {angabe}\n\n\
-         Alle Angaben mit Beispielen:  rota-sim {befehl} --help"
+///
+/// Der Vorschlag kommt aus den Angaben, die DIESER Unterbefehl kennt — ein
+/// Treffer aus einem fremden Unterbefehl waere schlimmer als keiner, weil er
+/// zum naechsten Fehlversuch fuehrt.
+fn unbekannte_angabe(befehl: &str, angabe: &str, bekannte: &[&str]) -> String {
+    let vorschlag = bekannte
+        .iter()
+        .map(|kandidat| (*kandidat, distanz(angabe, kandidat)))
+        .filter(|(_, d)| *d <= 3)
+        .min_by_key(|(_, d)| *d)
+        .map(|(treffer, _)| format!("Meintest du '{treffer}'?"));
+    fehler_mit_ausweg(
+        &format!("Die Angabe '{angabe}' kennt '{befehl}' nicht."),
+        vorschlag,
+        &format!("Alle anzeigen:  rota-sim {befehl} --help"),
     )
 }
 
@@ -971,25 +1210,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn jede_hilfe_zeigt_mindestens_zwei_lauffaehige_beispiele() {
-        // Ein Beispiel ist lauffaehig, wenn es mit dem Programmnamen anfaengt.
-        // Eine Optionsliste erfuellt das nicht — und genau darum geht es.
-        for (name, text) in [
-            ("run", HILFE_RUN),
-            ("bench", HILFE_BENCH),
-            ("data", HILFE_DATA),
-        ] {
-            let beispiele = text
-                .lines()
-                .filter(|zeile| zeile.trim_start().starts_with("rota-sim "))
-                .count();
-            assert!(
-                beispiele >= 2,
-                "die Hilfe von {name} zeigt nur {beispiele} Beispiel(e)"
-            );
-        }
-    }
+    // DIE DREI HILFE-PRUEFUNGEN STEHEN IN tests/rota_sim_beispiele.rs:
+    // Zahl der Beispiele, Zweck vor dem ersten Abschnitt, und dass die
+    // Aufrufzeile nicht als Beispiel zaehlt. Dort lesen sie die AUSGABE des
+    // gebauten Programms statt dieser Konstanten — und koennen die Beispiele
+    // anschliessend ausfuehren, was #968 AC4 verlangt.
 
     #[test]
     fn platzhalter_nennen_keine_zahl() {
