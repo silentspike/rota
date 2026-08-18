@@ -256,7 +256,11 @@ fn die_platzhalter_nennen_beim_aufruf_keine_zahl() {
     // Uebernommen aus #897 und hier verschaerft: Auch die HILFE der Platzhalter
     // bleibt ohne Ziffer, damit die Zusicherung nicht zwischen zwei Aufrufarten
     // unterscheiden muss.
-    for name in ["verify", "hosts", "status", "explain"] {
+    //
+    // `explain` gehoerte dazu, bis #969 ihn gebaut hat. Er gibt jetzt Zahlen
+    // aus und einen Rueckgabewert von null — die Liste hier ist der Ort, an dem
+    // dieser Uebergang sichtbar wird.
+    for name in ["verify", "hosts", "status"] {
         let (code, stdout, stderr) = rufe(&[name]);
         assert_eq!(code, 1, "'{name}' gab {code} zurueck statt eins");
         assert!(stderr.is_empty(), "'{name}' schrieb auf den Fehlerkanal");
