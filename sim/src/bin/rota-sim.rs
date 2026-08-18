@@ -32,12 +32,74 @@
 //! erzeugt `clap` nicht — sie sind von Hand geschrieben, mit oder ohne Kiste.
 
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig, BalanceResult};
 use rota_sim::data::{self, Boss};
-use rota_sim::rotation_search::{all_candidates, greedy, Candidate, SearchResult};
+use rota_sim::rotation_search::{all_candidates, greedy, paar_zuege, Candidate, SearchResult};
+
+// ---------------------------------------------------------------------------
+// Der Kampfzaehler
+// ---------------------------------------------------------------------------
+
+/// Wie viele Kaempfe dieser Aufruf gerechnet hat.
+///
+/// # Wofuer er da ist
+///
+/// `rota-sim explain` verspricht, KEINEN Kampf zu starten (#969, AC2). Das ist
+/// eine Aussage, die man nicht an der Laufzeit ablesen kann — ein schneller
+/// Lauf ist kein Beweis, und ein langsamer Rechner macht aus einem sauberen
+/// Trockenlauf einen verdaechtigen.
+///
+/// Deshalb zaehlt dieser Zaehler mit, und jeder Befehl gibt seinen Stand aus.
+/// Nach `explain` steht dort null, nach `run` mehr als null.
+///
+/// # Warum er im Programm sitzt und nicht im Kern
+///
+/// Der Kern wird nicht angefasst — er traegt die Bitgleichheit mit dem Spiel.
+/// Gezaehlt wird stattdessen an den zwei Stellen, an denen DIESES Programm
+/// Kaempfe anstoesst: [`rechne_lauf`] und [`suche`]. Wer eine dritte Stelle
+/// hinzufuegt und den Zaehler vergisst, faellt beim Test
+/// `nach_run_steht_der_zaehler_ueber_null` nicht auf — das ist die Grenze
+/// dieser Bauart, und sie steht hier, statt verschwiegen zu werden.
+static KAEMPFE: AtomicU64 = AtomicU64::new(0);
+
+/// Zaehlt Kaempfe dazu.
+fn zaehle(kaempfe: u64) {
+    KAEMPFE.fetch_add(kaempfe, Ordering::Relaxed);
+}
+
+/// Der Stand des Zaehlers.
+fn kaempfe_gerechnet() -> u64 {
+    KAEMPFE.load(Ordering::Relaxed)
+}
+
+/// Ein Balance-Lauf — die einzige Stelle, an der dieses Programm
+/// [`rota_sim::balance::run`] ruft.
+fn rechne_lauf(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
+    zaehle(u64::from(config.iterations));
+    run(config, apl)
+}
+
+/// Eine Suche — die einzige Stelle, an der dieses Programm [`greedy`] ruft.
+///
+/// **Die zwei Messungen obendrauf sind kein Rundungsfehler.** `greedy_opts`
+/// misst einmal die Startliste und einmal die gefundene, und beide zaehlt
+/// `SearchResult::measured` NICHT mit (nachgelesen in `rotation_search.rs`).
+/// Wer die Kampfzahl aus `measured` allein rechnet, liegt bei einer kurzen
+/// Suche mehrere Prozent daneben.
+fn suche(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchResult {
+    let ergebnis = greedy(config, pool, max_len);
+    let messungen = ergebnis.measured as u64 + MESSUNGEN_AUSSERHALB;
+    zaehle(messungen * u64::from(config.iterations));
+    ergebnis
+}
+
+/// Die Messungen, die `greedy_opts` fährt, ohne sie in `measured` zu zaehlen:
+/// die Startliste und die gefundene Liste.
+const MESSUNGEN_AUSSERHALB: u64 = 2;
 
 /// Die gute Rotation aus Schritt 1 — die Voreinstellung fuer einen Lauf ohne
 /// eigene Datei.
@@ -82,7 +144,7 @@ fn fuehre_aus(argumente: &[String]) -> Result<ExitCode, String> {
         "verify" => Ok(platzhalter("verify", HILFE_VERIFY, GRUND_VERIFY, rest)),
         "hosts" => Ok(platzhalter("hosts", HILFE_HOSTS, GRUND_HOSTS, rest)),
         "status" => Ok(platzhalter("status", HILFE_STATUS, GRUND_STATUS, rest)),
-        "explain" => Ok(platzhalter("explain", HILFE_EXPLAIN, GRUND_EXPLAIN, rest)),
+        "explain" => befehl_explain(rest),
         anderes => Err(fehler_mit_ausweg(
             &format!("Den Befehl '{anderes}' gibt es nicht."),
             aehnlichster_befehl(anderes).map(|treffer| format!("Meintest du '{treffer}'?")),
@@ -127,7 +189,7 @@ BEFEHLE
   verify     Paritaet gegen die Browser-Seite und Selbsttests fahren (noch nicht gebaut)
   hosts      die verfuegbaren Bau- und Rechen-Rechner auflisten (noch nicht gebaut)
   status     einen laufenden Lauf anzeigen (noch nicht gebaut)
-  explain    zeigen, was ein Lauf TAETE, ohne ihn zu starten (noch nicht gebaut)
+  explain    zeigen, was ein Lauf TAETE, ohne ihn zu starten: Umfang und Kosten
   data       die einkompilierten Inhalte pruefen: Bosse, Zauber, Kandidatenzeilen
 
 BEISPIELE
@@ -375,36 +437,49 @@ fremden Rechnern laufen — siehe hosts.
 
 Was er ausserdem kann, steht in:  rota-sim status --help";
 
-/// Die Hilfe von `explain` — ebenfalls ohne Ziffer.
+/// Die Hilfe von `explain`.
 const HILFE_EXPLAIN: &str = "\
 rota-sim explain
 
-  Wird sagen, was ein Lauf taete, ohne ihn zu starten: wie viele Messungen er
-  braucht und wie lange sie dauern. Die zweite Haelfte ist die interessante —
-  ein Trockenlauf, der nur die Einstellungen wiederholt, beantwortet die Frage
-  nicht.
-
-  NOCH NICHT GEBAUT.
+  Sagt, was ein Lauf TAETE, ohne ihn zu starten: wie viele Kandidatenzeilen zur
+  Wahl stehen, wie viele Messungen und Kaempfe daraus werden, wie lange das
+  dauert und wie viel Speicher es braucht. Bei Laeufen ueber Stunden ist das
+  der Unterbefehl, der einen falsch eingestellten Lauf ueber Nacht verhindert.
 
 BEISPIELE
-  # was der Aufruf heute tut: er sagt, was ihm fehlt
-  rota-sim explain
+  # was der Voreinstellungs-Lauf gegen einen Boss kosten wuerde
+  rota-sim explain --boss boss-1-1
 
-  # wie viele Kandidatenzeilen zur Wahl stehen, sagt heute schon
-  rota-sim data candidates";
+  # ein grosser Lauf, bevor man ihn ueber Nacht anwirft
+  rota-sim explain --boss boss-1-1 --iterations 1000 --max-len 8
 
-/// Was `explain` braucht und noch nicht hat.
-const GRUND_EXPLAIN: &str = "\
-Was fehlt: die Kostenschaetzung. Ein Trockenlauf, der nur die Einstellungen
-wiederholt, ist keine Antwort auf die Frage 'was taete dieser Lauf' — die
-interessante Haelfte ist, wie viele Messungen er braucht und wie lange das
-dauert. Dafuer fehlt die Kalibrierung aus hosts.
+  # maschinenlesbar
+  rota-sim explain --boss boss-1-1 --json
 
-Wie viele Kandidatenzeilen zur Wahl stehen, sagt heute schon:
+OPTIONEN
+  --boss <id>        gegen welchen Boss gerechnet wuerde.
+  --max-len <n>      wie viele Zeilen die gesuchte Rotation hoechstens haette.
+  --iterations <n>   wie viele Kaempfe je Messung.
+  --threads <n>      ueber wie viele Straenge.
+  --rate <n>         Kaempfe je Sekunde dieser Maschine. Ohne die Angabe gilt
+                     ein gemessener Erfahrungswert — siehe UNSICHERHEIT.
+  --json             Ausgabe als JSON statt als Text.
+  --help             dieser Text.
 
-  rota-sim data candidates
+UNSICHERHEIT
+  Zwei der ausgegebenen Zahlen sind exakt und zwei sind geschaetzt, und die
+  Ausgabe sagt bei jeder, welche von beiden sie ist.
 
-Was er ausserdem kann, steht in:  rota-sim explain --help";
+  EXAKT sind die Kandidatenzeilen und die Zahl der Messungen. Sie folgen aus
+  der Bauart der Suche, nicht aus Messwerten.
+
+  GESCHAETZT sind Dauer und Speicher. Die Dauer haengt an der Rate dieser
+  Maschine und dieses Baus — im Debug-Bau ist der Kern rund achtzehnmal
+  langsamer als im Release. Die eigene Rate bestimmt:  rota-sim bench
+
+  UND EINE ZAHL IST EINE SPANNE, keine Zahl: Die Suche kann jederzeit
+  abbrechen, wenn keine Zeile mehr traegt. Die Ausgabe nennt deshalb ein
+  Minimum (die erste Runde) und ein Maximum (alle Runden).";
 
 /// Gibt aus, was einem noch nicht gebauten Unterbefehl fehlt — oder seine Hilfe.
 ///
@@ -548,7 +623,7 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
     let start = Instant::now();
     if sucht {
         let pool = all_candidates();
-        let ergebnis = greedy(&config, &pool, optionen.max_len);
+        let ergebnis = suche(&config, &pool, optionen.max_len);
         let dauer = start.elapsed().as_secs_f64();
         if optionen.json {
             println!("{}", such_json(&ergebnis, boss, dauer));
@@ -557,7 +632,7 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         }
     } else {
         let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
-        let ergebnis = run(&config, &apl);
+        let ergebnis = rechne_lauf(&config, &apl);
         let dauer = start.elapsed().as_secs_f64();
         if optionen.json {
             println!(
@@ -716,6 +791,7 @@ fn berichte_lauf(name: &str, ergebnis: &BalanceResult, boss: &Boss, dauer: f64) 
     }
     println!();
     println!("Gerechnet in {dauer:.2} Sekunden.");
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
 }
 
 fn berichte_suche(ergebnis: &SearchResult, boss: &Boss, config: &BalanceConfig, dauer: f64) {
@@ -750,6 +826,7 @@ fn berichte_suche(ergebnis: &SearchResult, boss: &Boss, config: &BalanceConfig, 
     }
     println!();
     println!("Gerechnet in {dauer:.2} Sekunden.");
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
 }
 
 fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64) -> String {
@@ -822,7 +899,7 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
     };
 
     let start = Instant::now();
-    let ergebnis = run(&config, &apl);
+    let ergebnis = rechne_lauf(&config, &apl);
     let sekunden = start.elapsed().as_secs_f64();
     // Nie durch null teilen: Ein Lauf, der unter der Aufloesung der Uhr bleibt,
     // hat keinen messbaren Durchsatz — und eine unendliche Zahl waere die
@@ -859,6 +936,8 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
             ergebnis.damage.mean
         );
         println!("Laeufen ab, hat der Lauf nicht dasselbe gerechnet.");
+        println!();
+        println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -887,6 +966,485 @@ fn zerlege_bench(argumente: &[String]) -> Result<BenchOptionen, String> {
     }
     Ok(optionen)
 }
+
+// ---------------------------------------------------------------------------
+// explain — der Trockenlauf
+// ---------------------------------------------------------------------------
+
+/// Die Einstellungen von `explain`.
+#[derive(Debug, Clone, PartialEq)]
+struct ExplainOptionen {
+    boss_id: Option<String>,
+    max_len: usize,
+    iterations: u32,
+    threads: usize,
+    rate: Option<f64>,
+    json: bool,
+    hilfe: bool,
+}
+
+impl Default for ExplainOptionen {
+    fn default() -> Self {
+        let vorgabe = RunOptionen::default();
+        Self {
+            boss_id: None,
+            max_len: vorgabe.max_len,
+            iterations: vorgabe.iterations,
+            threads: vorgabe.threads,
+            rate: None,
+            json: false,
+            hilfe: false,
+        }
+    }
+}
+
+/// Kaempfe je Sekunde, wenn niemand eine eigene Rate nennt.
+///
+/// **Sie gilt fuer EINEN Strang**, und ohne diese Angabe ist eine Rate nicht
+/// deutbar. Das ist kein Formalismus, sondern am 2026-08-18 teuer geworden:
+/// Ich hielt die Planzahl aus GAME-DESIGN (350 000 bis 365 000) fuer einen
+/// Widerspruch zu meinen gemessenen 38 474 — Faktor neun. Sie ist keiner. Die
+/// Planzahl meint den Vollausbau mit sechzehn Straengen; nachgemessen wurden
+/// dort 258 354. Zwei Zahlen ohne ihre Strangzahl sahen aus wie ein Fehler.
+///
+/// **Gemessen, nicht angenommen** — aber die Messung ist der Grund, warum
+/// diese Zahl mit Vorsicht zu geniessen ist. Fuenf Laeufe von
+/// `rota-sim bench --fights 20000` im Release-Bau auf EINEM Strang, alle am
+/// 2026-08-18 auf derselben Maschine:
+///
+/// ```text
+///   38474   39913   50979   56970   51957
+/// ```
+///
+/// **Faktor 1,5 zwischen der langsamsten und der schnellsten Messung.** Der
+/// Unterschied ist die Last: Die beiden niedrigen entstanden, waehrend
+/// nebenher gebaut wurde, die drei hohen bei `load average` um fuenf auf
+/// sechzehn Kernen. Die Kontrollzeile (Schaden je Kampf) war in allen fuenf
+/// Laeufen gleich — gerechnet wurde also jedes Mal dasselbe.
+///
+/// Der Wert hier ist die Mitte, gerundet. Er taugt fuer eine Groessenordnung,
+/// nicht fuer eine Zusage, und [`RATE_SCHWANKUNG`] sagt das in der Ausgabe.
+///
+/// Die Zahl steht bewusst hier und nicht in der Bibliothek — sie ist eine
+/// Eigenschaft dieses Rechners, keine des Simulators.
+const RATE_VORGABE: f64 = 45_000.0;
+
+/// Fuer wie viele Straenge [`RATE_VORGABE`] gilt.
+///
+/// Steht als eigene Konstante da, damit die Zahl und ihre Bedingung nicht
+/// auseinanderlaufen koennen — und sie geht in jede Ausgabe mit ein.
+const RATE_VORGABE_STRAENGE: usize = 1;
+
+/// Um welchen Faktor die gemessene Rate an einem Tag geschwankt hat.
+///
+/// Steht in der Ausgabe, damit niemand die geschaetzte Dauer fuer eine Zusage
+/// haelt. Wer es genauer braucht, misst die eigene Rate mit `rota-sim bench`
+/// **auf der Maschine, die den Lauf dann faehrt** — und moeglichst dann, wenn
+/// sie so belegt ist wie waehrend des Laufs.
+const RATE_SCHWANKUNG: f64 = 1.5;
+
+/// Ab welcher geschaetzten Dauer der Trockenlauf ablehnt (#969, AC5).
+///
+/// Ein Jahr ist nicht die Grenze der Geduld, sondern die der Sinnhaftigkeit:
+/// Ein Lauf, der so lange braucht, wird nicht anders eingestellt, sondern
+/// anders gestellt. Die Schwelle ist grosszuegig, damit ein ernst gemeinter
+/// Lauf ueber ein Wochenende nicht abgelehnt wird.
+const DAUER_ABLEHNUNG_SEKUNDEN: f64 = 365.0 * 24.0 * 3600.0;
+
+/// Was ein Lauf kosten wuerde — ohne einen einzigen Kampf.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Schaetzung {
+    /// Kandidatenzeilen, die zur Wahl stehen.
+    pool: usize,
+    /// Messungen, wenn die Suche bis zur Laengengrenze laeuft.
+    messungen_max: u64,
+    /// Messungen, wenn sie nach der ersten Runde abbricht.
+    messungen_min: u64,
+    /// Einzelzuege im Maximum — der Anteil, der exakt feststeht.
+    einzelzuege: u64,
+    /// Paar-Zuege im Maximum.
+    paarzuege: u64,
+}
+
+/// Rechnet aus, was eine Suche kosten wuerde.
+///
+/// # Warum das exakt geht und nicht geschaetzt werden muss
+///
+/// `greedy_opts` misst in Runde k fuer jeden offenen Kandidaten an jeder
+/// Einfuegeposition. Bei Pool n und Runde k sind das `(n - k + 1) * k`
+/// Einzelzuege — beides folgt aus der Schleife, nicht aus Messwerten.
+///
+/// Die Paar-Zuege kommen aus [`paar_zuege`], das ebenfalls keinen Kampfwert
+/// liest. Nur WELCHE Kandidaten in spaeteren Runden noch offen sind, haengt
+/// am Ergebnis — deshalb ist ihre Zahl fuer Runde eins exakt und darueber eine
+/// Obergrenze.
+///
+/// # Die zwei Messungen, die `measured` nicht zaehlt
+///
+/// Die Startliste und die gefundene Liste. Sie stehen als
+/// [`MESSUNGEN_AUSSERHALB`] in beiden Zahlen — sonst laege der Trockenlauf bei
+/// einer kurzen Suche mehrere Prozent zu niedrig, und zwar systematisch.
+fn schaetze(pool: &[Candidate], max_len: usize) -> Schaetzung {
+    let n = pool.len();
+    let offen: Vec<usize> = (0..n).collect();
+    // Fuer Runde eins exakt; fuer spaetere eine Obergrenze, weil dort weniger
+    // Kandidaten offen sind.
+    let paare_runde_eins = paar_zuege(pool, &offen).len() as u64;
+
+    let mut einzelzuege = 0u64;
+    let mut paarzuege = 0u64;
+    let mut erste_runde = 0u64;
+    for k in 1..=max_len {
+        if k > n {
+            break;
+        }
+        let einzeln = (n - k + 1) as u64 * k as u64;
+        einzelzuege += einzeln;
+        // Die Paar-Betrachtung laeuft nur, solange zwei Zeilen noch in die
+        // Laengengrenze passen.
+        let paare = if (k - 1) + 2 <= max_len {
+            paare_runde_eins * k as u64
+        } else {
+            0
+        };
+        paarzuege += paare;
+        if k == 1 {
+            erste_runde = einzeln + paare;
+        }
+    }
+
+    Schaetzung {
+        pool: n,
+        messungen_max: einzelzuege + paarzuege + MESSUNGEN_AUSSERHALB,
+        messungen_min: erste_runde + MESSUNGEN_AUSSERHALB,
+        einzelzuege,
+        paarzuege,
+    }
+}
+
+/// Der Speicher, den die Stichprobe eines Laufs belegt.
+///
+/// Der groesste Einzelposten ist `BalanceResult::samples` — ein Eintrag je
+/// Durchgang. Andere Puffer (der Kampf selbst, die Kandidatenlisten) sind
+/// dagegen klein und konstant; sie sind hier NICHT enthalten, und die Ausgabe
+/// sagt das.
+fn speicher_bytes(iterations: u32) -> u64 {
+    std::mem::size_of::<rota_sim::balance::Sample>() as u64 * u64::from(iterations)
+}
+
+/// Eine Groesse in der Einheit, in der sie noch etwas aussagt.
+///
+/// „0,0 MB" fuer zweitausend Bytes sieht aus wie ein nicht gebauter Posten und
+/// ist genau der Eindruck, den ein Trockenlauf nicht erwecken darf.
+fn groesse(bytes: u64) -> String {
+    if bytes < 1024 {
+        return format!("{bytes} Bytes");
+    }
+    let kb = bytes as f64 / 1024.0;
+    if kb < 1024.0 {
+        return format!("{kb:.1} KB");
+    }
+    let mb = kb / 1024.0;
+    if mb < 1024.0 {
+        return format!("{mb:.1} MB");
+    }
+    format!("{:.1} GB", mb / 1024.0)
+}
+
+/// Eine Dauer in einer Form, die man lesen kann.
+fn dauer_lesbar(sekunden: f64) -> String {
+    if !sekunden.is_finite() {
+        return "nicht bestimmbar".to_owned();
+    }
+    if sekunden < 90.0 {
+        return format!("{sekunden:.1} Sekunden");
+    }
+    let minuten = sekunden / 60.0;
+    if minuten < 90.0 {
+        return format!("{minuten:.1} Minuten");
+    }
+    let stunden = minuten / 60.0;
+    if stunden < 48.0 {
+        return format!("{stunden:.1} Stunden");
+    }
+    let tage = stunden / 24.0;
+    if tage < 730.0 {
+        return format!("{tage:.1} Tage");
+    }
+    format!("{:.1} Jahre", tage / 365.0)
+}
+
+fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
+    let optionen = zerlege_explain(argumente)?;
+    if optionen.hilfe {
+        println!("{HILFE_EXPLAIN}");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let boss = waehle_boss(optionen.boss_id.as_deref())?;
+    let pool = all_candidates();
+
+    // AC5, erster Fall: strukturell unerfuellbar. Eine Rotation kann nicht
+    // mehr Zeilen haben, als es Kandidaten gibt — das faellt hier auf und
+    // nicht nach der halben Nacht.
+    if optionen.max_len > pool.len() {
+        return Err(fehler_mit_ausweg(
+            &format!(
+                "Eine Rotation mit {} Zeilen gibt es nicht — es stehen nur {} Kandidatenzeilen zur Wahl.",
+                optionen.max_len,
+                pool.len()
+            ),
+            Some(format!(
+                "Hoechstens '--max-len {}' ist erfuellbar.",
+                pool.len()
+            )),
+            "Die Kandidatenzeilen zaehlt:  rota-sim data candidates",
+        ));
+    }
+
+    let schaetzung = schaetze(&pool, optionen.max_len);
+    let rate = optionen.rate.unwrap_or(RATE_VORGABE);
+    let kaempfe_max = schaetzung.messungen_max * u64::from(optionen.iterations);
+    let kaempfe_min = schaetzung.messungen_min * u64::from(optionen.iterations);
+    // **Die Spanne traegt BEIDE Unsicherheiten**, nicht nur eine.
+    //
+    // Die erste ist die Suche selbst: Sie kann nach der ersten Runde abbrechen
+    // oder bis zur Laengengrenze laufen. Die zweite ist die Rate — und die
+    // wurde beim Bauen dieses Befehls teuer gelernt: Die erste Fassung teilte
+    // nur durch die Vorgabe-Rate, sagte "0,13 bis 1,18 Sekunden" und der
+    // tatsaechliche Lauf brauchte 1,31. Eine Schaetzung, deren Spanne die
+    // bekannte Unsicherheit nicht enthaelt, ist zu schmal — und eine zu schmale
+    // Spanne ist schlimmer als eine weite, weil sie Genauigkeit vortaeuscht.
+    //
+    // Wer eine eigene Rate nennt, bekommt die Weitung NICHT: Er hat auf seiner
+    // Maschine gemessen und weiss, was er tut.
+    let weitung = if optionen.rate.is_some() {
+        1.0
+    } else {
+        RATE_SCHWANKUNG
+    };
+    let dauer_max = kaempfe_max as f64 / rate * weitung;
+    let dauer_min = kaempfe_min as f64 / rate / weitung;
+    let speicher = speicher_bytes(optionen.iterations);
+
+    // AC5, zweiter Fall: rechnerisch moeglich, praktisch nicht.
+    if dauer_max > DAUER_ABLEHNUNG_SEKUNDEN {
+        return Err(fehler_mit_ausweg(
+            &format!(
+                "Dieser Lauf braeuchte hoechstens {} — das lehnt der Trockenlauf ab.",
+                dauer_lesbar(dauer_max)
+            ),
+            Some(format!(
+                "Die Grenze liegt bei {}. Kleiner werden laesst sich ueber --max-len oder --iterations.",
+                dauer_lesbar(DAUER_ABLEHNUNG_SEKUNDEN)
+            )),
+            "Was die Stellschrauben tun:  rota-sim explain --help",
+        ));
+    }
+
+    if optionen.json {
+        println!(
+            "{{\"boss\":{:?},\"poolSize\":{},\"maxLen\":{},\"iterations\":{},\"threads\":{},\
+             \"measurements\":{{\"min\":{},\"max\":{},\"singles\":{},\"pairs\":{}}},\
+             \"fights\":{{\"min\":{},\"max\":{}}},\
+             \"seconds\":{{\"min\":{:?},\"max\":{:?}}},\
+             \"rate\":{{\"fightsPerSecond\":{:?},\"source\":{:?},\"threads\":{}}},\
+             \"memoryBytes\":{},\"fightsRun\":{}}}",
+            boss.id,
+            schaetzung.pool,
+            optionen.max_len,
+            optionen.iterations,
+            optionen.threads,
+            schaetzung.messungen_min,
+            schaetzung.messungen_max,
+            schaetzung.einzelzuege,
+            schaetzung.paarzuege,
+            kaempfe_min,
+            kaempfe_max,
+            dauer_min,
+            dauer_max,
+            rate,
+            if optionen.rate.is_some() {
+                "angegeben"
+            } else {
+                "Vorgabe"
+            },
+            // **Die Strangzahl gehoert zur Rate**, sonst ist sie nicht
+            // deutbar. Eine angegebene Rate gilt fuer die Strangzahl des
+            // Aufrufs; die Vorgabe fuer die, auf der sie gemessen wurde.
+            if optionen.rate.is_some() {
+                optionen.threads
+            } else {
+                RATE_VORGABE_STRAENGE
+            },
+            speicher,
+            kaempfe_gerechnet(),
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    println!("{}", "=".repeat(72));
+    println!("ROTA — Trockenlauf gegen {} ({})", boss.name, boss.id);
+    println!("{}", "=".repeat(72));
+    println!();
+    println!("WAS FESTSTEHT");
+    println!("  Kandidatenzeilen     {}", schaetzung.pool);
+    println!(
+        "  Messungen            {} bis {}",
+        schaetzung.messungen_min, schaetzung.messungen_max
+    );
+    println!(
+        "  davon Einzelzuege    {}  ({:.0} Prozent)",
+        schaetzung.einzelzuege,
+        anteil(schaetzung.einzelzuege, schaetzung.messungen_max)
+    );
+    println!(
+        "  davon Paar-Zuege     {}  ({:.0} Prozent)",
+        schaetzung.paarzuege,
+        anteil(schaetzung.paarzuege, schaetzung.messungen_max)
+    );
+    println!(
+        "  Kaempfe              {} bis {}   ({} Durchgaenge je Messung)",
+        kaempfe_min, kaempfe_max, optionen.iterations
+    );
+    println!();
+    println!("WAS GESCHAETZT IST");
+    println!(
+        "  Dauer                {} bis {}",
+        dauer_lesbar(dauer_min),
+        dauer_lesbar(dauer_max)
+    );
+    let raten_straenge = if optionen.rate.is_some() {
+        optionen.threads
+    } else {
+        RATE_VORGABE_STRAENGE
+    };
+    println!(
+        "  bei einer Rate von   {rate:.0} Kaempfen je Sekunde auf {raten_straenge} {} ({})",
+        if raten_straenge == 1 {
+            "Strang"
+        } else {
+            "Straengen"
+        },
+        if optionen.rate.is_some() {
+            "von dir angegeben"
+        } else {
+            "Vorgabe, gemessen"
+        }
+    );
+    println!(
+        "  Speicher             {} fuer die Stichprobe",
+        groesse(speicher)
+    );
+    println!();
+    println!("RECHNER");
+    println!("  Beteiligt            einer, dieser hier");
+    println!("  Mehr als einer geht noch nicht — siehe:  rota-sim hosts");
+    if optionen.threads > 1 {
+        println!(
+            "  Die Dauer oben gilt fuer EINEN Strang. Mit {} Straengen wird sie",
+            optionen.threads
+        );
+        println!("  kleiner, aber nicht um den Faktor — die eigene Zahl misst:");
+        println!("    rota-sim bench --threads {}", optionen.threads);
+    }
+    println!();
+    println!("UNSICHERHEIT");
+    println!("  Die Spanne bei Messungen und Kaempfen ist keine Ungenauigkeit,");
+    println!("  sondern die Suche selbst: Sie bricht ab, sobald keine Zeile mehr");
+    println!("  traegt. Das Minimum ist die erste Runde, das Maximum sind alle.");
+    println!();
+    println!("  Die Dauer haengt zusaetzlich an Maschine und Bau. Im Debug-Bau ist");
+    println!("  der Kern rund achtzehnmal langsamer als im Release.");
+    if optionen.rate.is_none() {
+        println!();
+        println!("  DIE VORGABE-RATE IST EINE GROESSENORDNUNG, KEINE ZUSAGE: Fuenf",);
+        println!(
+            "  Messungen an einem Tag auf derselben Maschine lagen um Faktor {RATE_SCHWANKUNG}"
+        );
+        println!("  auseinander, je nach Last. Die Dauer oben kann also entsprechend");
+        println!("  daneben liegen. Die eigene Rate misst:  rota-sim bench");
+    }
+    println!();
+    println!("  Der Speicher nennt nur die Stichprobe — den groessten Posten. Was");
+    println!("  der Kampf selbst belegt, ist klein und konstant und fehlt hier.");
+    println!();
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Anteil in Prozent, ohne Sturz bei null.
+fn anteil(teil: u64, ganzes: u64) -> f64 {
+    if ganzes == 0 {
+        return 0.0;
+    }
+    teil as f64 * 100.0 / ganzes as f64
+}
+
+fn zerlege_explain(argumente: &[String]) -> Result<ExplainOptionen, String> {
+    let mut optionen = ExplainOptionen::default();
+    let mut i = 0;
+    while i < argumente.len() {
+        let name = argumente[i].as_str();
+        match name {
+            "--help" | "-h" => optionen.hilfe = true,
+            "--json" => optionen.json = true,
+            "--boss" => optionen.boss_id = Some(hole_wert(argumente, &mut i, name)?),
+            "--max-len" => optionen.max_len = hole_zahl(argumente, &mut i, name)?,
+            "--iterations" => optionen.iterations = hole_zahl(argumente, &mut i, name)?,
+            "--threads" => optionen.threads = hole_zahl(argumente, &mut i, name)?,
+            "--rate" => {
+                let roh = hole_wert(argumente, &mut i, name)?;
+                let wert: f64 = roh.parse().map_err(|_| {
+                    fehler_mit_ausweg(
+                        &format!("'--rate' braucht eine Zahl, bekommen hat es '{roh}'."),
+                        None,
+                        "Die eigene Rate misst:  rota-sim bench",
+                    )
+                })?;
+                if wert <= 0.0 || !wert.is_finite() {
+                    return Err(fehler_mit_ausweg(
+                        "'--rate' muss groesser als null sein.",
+                        Some(
+                            "Bei null Kaempfen je Sekunde dauert jeder Lauf unendlich.".to_owned(),
+                        ),
+                        "Die eigene Rate misst:  rota-sim bench",
+                    ));
+                }
+                optionen.rate = Some(wert);
+            }
+            anderes => return Err(unbekannte_angabe("explain", anderes, &ANGABEN_EXPLAIN)),
+        }
+        i += 1;
+    }
+    if optionen.iterations == 0 {
+        return Err(fehler_mit_ausweg(
+            "'--iterations' muss groesser als null sein.",
+            Some("Ein Lauf ohne Durchgang hat nichts gerechnet.".to_owned()),
+            "Mit Beispielen:  rota-sim explain --help",
+        ));
+    }
+    if optionen.max_len == 0 {
+        return Err(fehler_mit_ausweg(
+            "'--max-len' muss groesser als null sein.",
+            Some("Eine Rotation ohne Zeile ist keine Rotation.".to_owned()),
+            "Mit Beispielen:  rota-sim explain --help",
+        ));
+    }
+    Ok(optionen)
+}
+
+/// Die Angaben, die `explain` kennt.
+const ANGABEN_EXPLAIN: [&str; 8] = [
+    "--boss",
+    "--max-len",
+    "--iterations",
+    "--threads",
+    "--rate",
+    "--json",
+    "--help",
+    "-h",
+];
 
 // ---------------------------------------------------------------------------
 // data
@@ -1237,11 +1795,14 @@ mod tests {
     fn platzhalter_nennen_keine_zahl() {
         // Wortwoertlich: keine ZIFFER. Ein Platzhalter, der eine Zahl nennt,
         // ist von einem Ergebnis nicht zu unterscheiden.
+        //
+        // `explain` stand hier, bis #969 ihn gebaut hat. Er gibt jetzt Zahlen
+        // aus, und das ist sein Zweck — die Zusicherung gilt nur noch fuer die
+        // drei, die wirklich leer sind.
         for (name, grund) in [
             ("verify", GRUND_VERIFY),
             ("hosts", GRUND_HOSTS),
             ("status", GRUND_STATUS),
-            ("explain", GRUND_EXPLAIN),
         ] {
             assert!(
                 !grund.chars().any(|z| z.is_ascii_digit()),
