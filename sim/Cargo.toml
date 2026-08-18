@@ -55,7 +55,7 @@ serde_json = "1"
 # Bibliothek noch im Bau vorkommt.
 [dev-dependencies]
 serde_json = "1"
-syn = { version = "2", features = ["full", "visit"] }
+syn = { version = "3", features = ["full", "visit"] }
 # Fuer die Token-Ebene: `syn` parst Makro-ARGUMENTE nicht als Baum — sie sind
 # ein TokenStream. Ohne dieses Paket waere jeder Aufruf in `assert_eq!` oder
 # `println!` unsichtbar, und der Waechter meldete zwoelf lebende Methoden als
