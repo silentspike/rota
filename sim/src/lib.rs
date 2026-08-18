@@ -92,6 +92,8 @@ pub mod rules_event;
 pub mod sets;
 // Issue #178: die fuenf Quellen der Sonderwerte.
 pub mod sources;
+// Issue #913: Ergebnis und Bewertung getrennt speichern.
+pub mod speicher;
 // Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
 pub mod stacks;
 // Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
