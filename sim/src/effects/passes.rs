@@ -37,8 +37,8 @@
 
 use super::registry::{AnalysisPassId, AnalysisResult, EffectAnalysisPass, Evidence};
 use super::{
-    Bounds, EffectNode, EffectOp, MonotonicityDomain, RandomnessSemantics, StateMask,
-    TimingSemantics,
+    Bounds, EffectNode, EffectOp, MonotonicityDomain, RandomnessSemantics, StackingSemantics,
+    StateMask, Target, TimingSemantics, Trigger,
 };
 
 // Die Registry. Sie steht am Anfang der Datei, damit die Liste beim Lesen vor
@@ -151,18 +151,28 @@ impl EffectAnalysisPass for ActionBoundPass {
             EffectOp::ReduceCooldown | EffectOp::ResetCooldown | EffectOp::FreeNextGcd => {
                 // Diese drei erzeugen zusaetzliche Aktionen im selben Zeitraum.
                 // Ohne enge Schranke ist die Zahl der Aktionen unbeschraenkt.
-                if node.numeric_bounds.ist_eng() {
-                    AnalysisResult::erlaubt(
+                //
+                // **`stacking` ist die zweite Quelle einer Schranke**
+                // (Issue #966): Eine gedeckelte Stapelung begrenzt die Zahl der
+                // Zusatz-Aktionen genauso wirksam wie ein enger Wertebereich,
+                // und ohne diesen Zweig bliebe das Feld ungelesen.
+                let schranke = match node.stacking {
+                    StackingSemantics::Capped(grenze) => Some(Bounds::exact(0, i64::from(grenze))),
+                    StackingSemantics::None => Some(Bounds::exact(0, 1)),
+                    _ if node.numeric_bounds.ist_eng() => Some(node.numeric_bounds),
+                    _ => None,
+                };
+                match schranke {
+                    Some(bounds) => AnalysisResult::erlaubt(
                         Self::ID,
-                        Evidence::Schranke(node.numeric_bounds),
+                        Evidence::Schranke(bounds),
                         "erzeugt Zusatz-Aktionen, aber mit enger Schranke",
-                    )
-                } else {
-                    AnalysisResult::konservativ(
+                    ),
+                    None => AnalysisResult::konservativ(
                         Self::ID,
                         Evidence::Aktionsgrenze(None),
                         "erzeugt Zusatz-Aktionen ohne enge Schranke — keine Obergrenze ableitbar",
-                    )
+                    ),
                 }
             }
             EffectOp::DealDamage
@@ -171,11 +181,33 @@ impl EffectAnalysisPass for ActionBoundPass {
             | EffectOp::ModifyResource
             | EffectOp::Heal
             | EffectOp::Shield
-            | EffectOp::ConvertDamage => AnalysisResult::erlaubt(
-                Self::ID,
-                Evidence::Schranke(node.numeric_bounds),
-                "veraendert die Zahl moeglicher Aktionen nicht",
-            ),
+            | EffectOp::ConvertDamage => {
+                // **Hier liest die Analyse `trigger`** (Issue #966).
+                //
+                // Ein Effekt, der beim Wirken ausgeloest wird, kommt so oft
+                // vor wie der Zauber gewirkt wird — die Zahl der Aktionen
+                // begrenzt sich selbst. Ein Effekt, der bei jedem Tick oder
+                // von der Zeitleiste ausgeloest wird, skaliert dagegen mit der
+                // KAMPFDAUER, und die steht hier nicht zur Verfuegung.
+                match node.trigger {
+                    Trigger::OnCast => AnalysisResult::erlaubt(
+                        Self::ID,
+                        Evidence::Schranke(node.numeric_bounds),
+                        "beim Wirken ausgeloest — begrenzt sich mit der Zahl der Wuerfe",
+                    ),
+                    Trigger::OnTick
+                    | Trigger::OnExpire
+                    | Trigger::OnTimeline
+                    | Trigger::OnPhaseChange => AnalysisResult::konservativ(
+                        Self::ID,
+                        Evidence::Aktionsgrenze(None),
+                        "skaliert mit der Kampfdauer — ohne sie keine Obergrenze ableitbar",
+                    ),
+                    Trigger::Unknown => {
+                        AnalysisResult::konservativ(Self::ID, Evidence::Aktionsgrenze(None), LUECKE)
+                    }
+                }
+            }
             EffectOp::ChangeBossState | EffectOp::ChangePhase => AnalysisResult::konservativ(
                 Self::ID,
                 Evidence::Aktionsgrenze(None),
@@ -290,18 +322,50 @@ impl EffectAnalysisPass for CacheReusePass {
                 }
             }
             EffectOp::ApplyDot | EffectOp::ApplyBuff => {
-                if festgehalten {
-                    AnalysisResult::erlaubt(
-                        Self::ID,
-                        Evidence::Keine,
-                        "beim Auflegen festgehalten — wiederverwendbar",
-                    )
-                } else {
-                    AnalysisResult::verboten(
+                if !festgehalten {
+                    return AnalysisResult::verboten(
                         Self::ID,
                         Evidence::Keine,
                         "liest bei jedem Tick neu — nicht wiederverwendbar",
-                    )
+                    );
+                }
+                // **Hier liest die Analyse `stacking`** (Issue #966).
+                //
+                // Bis dahin ging das Feld nur in die Lueckenpruefung ein.
+                // Sachlich entscheidet es aber genau hier: Wer den vorherigen
+                // Zustand ERSETZT, macht jeden gespeicherten Rechenweg
+                // wertlos. Wer nur die Restlaufzeit erneuert oder verlaengert,
+                // laesst den Weg gelten und aendert bloss, wie lange er gilt.
+                // Wer stapelt, aendert die Hoehe — der Weg gilt je Stapel
+                // weiter, aber nur bei bekannter Obergrenze.
+                match node.stacking {
+                    StackingSemantics::Replace => AnalysisResult::verboten(
+                        Self::ID,
+                        Evidence::Keine,
+                        "ersetzt den vorherigen Zustand — der gespeicherte Weg ist wertlos",
+                    ),
+                    StackingSemantics::None
+                    | StackingSemantics::Refresh
+                    | StackingSemantics::Extend => AnalysisResult::erlaubt(
+                        Self::ID,
+                        Evidence::Keine,
+                        "beim Auflegen festgehalten, Laufzeit unabhaengig — wiederverwendbar",
+                    ),
+                    StackingSemantics::Capped(grenze) => AnalysisResult::erlaubt(
+                        Self::ID,
+                        Evidence::Schranke(Bounds::exact(0, i64::from(grenze))),
+                        "stapelt bis zu einer bekannten Grenze — je Stapelzahl wiederverwendbar",
+                    ),
+                    StackingSemantics::Additive => AnalysisResult::verboten(
+                        Self::ID,
+                        Evidence::Keine,
+                        "stapelt ohne Grenze — die Zahl der Rechenwege ist unbeschraenkt",
+                    ),
+                    // Von `hat_luecke` abgefangen; steht fuer die
+                    // Vollstaendigkeit des `match`.
+                    StackingSemantics::Unknown => {
+                        AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE)
+                    }
                 }
             }
             EffectOp::ModifyResource
@@ -372,6 +436,21 @@ impl EffectAnalysisPass for InvalidationPass {
                 node.writes
             }
         };
+        // **Die Reichweite des Ziels weitet die Invalidierung** (Issue #966).
+        //
+        // Hier traegt `target` etwas, das in `writes` NICHT steckt: Die
+        // Schreibmaske sagt „Abklingzeiten", das Ziel sagt, ob **alle** oder
+        // **eine** gemeint ist. Wer auf alle wirkt, macht jedes gespeicherte
+        // Ergebnis ueber Abklingzeiten ungueltig; wer auf eine wirkt, nur die
+        // eine — und diese Unterscheidung ist der Grund, warum das Feld
+        // existiert.
+        let masken = match node.target {
+            Target::AllCooldowns => masken.union(StateMask::COOLDOWNS),
+            Target::OneCooldown => masken,
+            Target::Boss => masken.union(StateMask::BOSS_HP),
+            Target::Player => masken.union(StateMask::PLAYER_HP),
+            Target::Unknown => StateMask::UNKNOWN,
+        };
         if masken.is_empty() {
             AnalysisResult::erlaubt(
                 Self::ID,
@@ -431,10 +510,35 @@ impl EffectAnalysisPass for EventChannelPass {
             EffectOp::ChangePhase => node.reads.union(node.writes).union(StateMask::PHASE),
             EffectOp::CustomSignature(_) => node.reads.union(node.writes),
         };
+        // **Der Ausloeser bringt seinen eigenen Kanal mit** (Issue #966).
+        //
+        // Bis dahin ging `trigger` nur in die Lueckenpruefung ein: Es zaehlte,
+        // DASS er gesetzt ist, nicht WELCHER. Sachlich ist der Unterschied
+        // aber genau hier: Wer von der Zeitleiste ausgeloest wird, braucht den
+        // Zeitleisten-Kanal; wer beim Wirken ausgeloest wird, haengt an der
+        // globalen Wartezeit; wer bei jedem Tick laeuft, am Tick-Kanal.
+        let ausloeser = match node.trigger {
+            Trigger::OnCast => StateMask::GCD,
+            Trigger::OnTick | Trigger::OnExpire => StateMask::DOTS,
+            Trigger::OnTimeline => StateMask::TIMELINE,
+            Trigger::OnPhaseChange => StateMask::PHASE.union(StateMask::TIMELINE),
+            // Von `hat_luecke` oben bereits abgefangen; der Zweig steht, damit
+            // ein neuer Ausloeser hier nicht uebersehen wird.
+            Trigger::Unknown => StateMask::UNKNOWN,
+        };
+        // **Und das Ziel bringt die Seite mit, auf der gearbeitet wird.**
+        // Derselbe Grund: Ohne diesen Zweig waere `target` ein Feld, dessen
+        // Wert niemanden interessiert.
+        let ziel = match node.target {
+            Target::Boss => StateMask::BOSS_HP,
+            Target::Player => StateMask::PLAYER_HP.union(StateMask::SHIELD),
+            Target::AllCooldowns | Target::OneCooldown => StateMask::COOLDOWNS,
+            Target::Unknown => StateMask::UNKNOWN,
+        };
         AnalysisResult::erlaubt(
             Self::ID,
-            Evidence::Kanaele(kanaele),
-            "die Kanaele folgen aus Lese- und Schreibmaske des Bausteins",
+            Evidence::Kanaele(kanaele.union(ausloeser).union(ziel)),
+            "die Kanaele folgen aus Baustein, Ausloeser und Ziel",
         )
     }
 }
