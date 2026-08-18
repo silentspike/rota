@@ -2446,6 +2446,129 @@ fn knoten_fuer_zauber(knoten: &mut Vec<Knoten>, spell: &Value) {
             ..Knoten::konservativ("ConvertDamage", id.clone())
         });
     }
+
+    // ---- Wirkungen auf den Boss-Zustand ----------------------------------
+    //
+    // Alle mit `ChangeBossState`, dem Baustein fuer Bosszustaende ohne eigene
+    // Variante. **Kein neuer Baustein**: Die Aufzaehlung aus AC0 ist fest, und
+    // ein zusaetzlicher waere hier auch sachlich falsch — was diese Felder
+    // gemeinsam haben, ist genau, dass sie am Boss etwas veraendern.
+    //
+    // Ohne diesen Block bekamen 13 von 70 Zaubern gar keinen Knoten: die
+    // sieben Kontroll-Zauber, `purge`, `quench`, `harden`, `sepsis`, `decay`
+    // und `putrid-bloom`. Gemessen, nicht vermutet.
+    if hat("control") || ja("clearsDoom") || ja("interrupt") || ja("consumesDecayStacks") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Boss",
+            reads: masken(&["BOSS_SYSTEMS", "TIMELINE", "DECAY_STACKS"]),
+            writes: masken(&["BOSS_SYSTEMS", "TIMELINE", "DECAY_STACKS"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Replace",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            // Kontrolle greift in die Zeitleiste ein: WANN der Boss schlaegt,
+            // entscheidet mit ueber Leben und Tod des Spielers.
+            control_flow: "ControlFlowEffect { branches_on_damage: false, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("ChangeBossState", id.clone())
+        });
+    }
+
+    // Zersetzungs-Stapel liegen auf dem BOSS, nicht beim Spieler — so steht es
+    // auch in `Fight::dot_tick`: „Stapel sind keine Schul-Ressource, sondern
+    // liegen auf dem Boss".
+    if hat("decay") || ja("consumesDots") || zahl("extendDecayMs") > 0 {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Boss",
+            reads: masken(&["DECAY_STACKS", "DOTS"]),
+            writes: masken(&["DECAY_STACKS", "DOTS"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Additive",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ChangeBossState", id.clone())
+        });
+    }
+
+    // Kontrollpunkte sind eine eigene Groesse neben der Schul-Ressource.
+    if zahl("controlGain") > 0 {
+        let gewinn = zahl("controlGain") as i64;
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["RESOURCE"]),
+            writes: masken(&["RESOURCE"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Additive",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: monotonie_steigend(),
+            bounds: format!("Bounds::exact(0, {gewinn})"),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ModifyResource", id.clone())
+        });
+    }
+
+    // Zeitlich begrenzte Zustaende des Spielers: die angehobene Stapel-Grenze,
+    // die Schwaechung nach Stapelzahl und das Synergie-Fenster.
+    if hat("decayCap") || hat("decayWard") || hat("synergy") {
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["BUFFS", "DECAY_STACKS"]),
+            writes: masken(&["BUFFS"]),
+            timing: "TimingSemantics::Snapshot",
+            stacking: "StackingSemantics::Replace",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: "Bounds::UNKNOWN".to_string(),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ApplyBuff", id.clone())
+        });
+    }
+
+    // Einen laufenden Brand verlaengern.
+    if zahl("dotExtendTicks") > 0 {
+        let ticks = zahl("dotExtendTicks") as i64;
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Boss",
+            reads: masken(&["DOTS"]),
+            writes: masken(&["DOTS"]),
+            timing: "TimingSemantics::Live",
+            stacking: "StackingSemantics::Extend",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: monotonie_steigend(),
+            bounds: format!("Bounds::exact(0, {ticks})"),
+            control_flow: "ControlFlowEffect::NONE".to_string(),
+            ..Knoten::konservativ("ApplyDot", id.clone())
+        });
+    }
+
+    // Die Schutzschicht verlaengern (HARDEN).
+    if zahl("extendShieldMs") > 0 {
+        let ms = zahl("extendShieldMs") as i64;
+        knoten.push(Knoten {
+            trigger: "Trigger::OnCast",
+            target: "Target::Player",
+            reads: masken(&["SHIELD"]),
+            writes: masken(&["SHIELD"]),
+            timing: "TimingSemantics::Immediate",
+            stacking: "StackingSemantics::Extend",
+            randomness: "RandomnessSemantics::Deterministic".to_string(),
+            monotonie: "LocalMonotonicityHint::UNKNOWN".to_string(),
+            bounds: format!("Bounds::exact(0, {ms})"),
+            control_flow: "ControlFlowEffect { branches_on_damage: false, \
+                           branches_on_hp: true, branches_on_victory: false, unknown: false }"
+                .to_string(),
+            ..Knoten::konservativ("Shield", id.clone())
+        });
+    }
 }
 
 /// Der Monotonie-**Hinweis** fuer eine steigende Wirkung.
@@ -2589,6 +2712,24 @@ const WIRKUNGSFELDER: &[&str] = &[
     "conversion",
     "convert",
     "reflect",
+    // Die zweite Haelfte, nachgetragen: Ohne sie bekamen 13 von 70 Zaubern
+    // gar keinen Knoten, und diese Pruefung schwieg dazu — sie kannte die
+    // Felder nicht. Eine Liste, die nur die Haelfte nennt, sichert nur die
+    // Haelfte ab, und das sieht von aussen aus wie eine ganze.
+    "control",
+    "controlGain",
+    "clearsDoom",
+    "interrupt",
+    "decay",
+    "decayCap",
+    "decayWard",
+    "dotExtendTicks",
+    "consumesDots",
+    "consumesDecayStacks",
+    "extendShieldMs",
+    "extendDecayMs",
+    "perDecayStackPercent",
+    "synergy",
 ];
 
 /// Ob ein JSON-Wert eine Wirkung traegt — **typunabhaengig**.
