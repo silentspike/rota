@@ -296,6 +296,115 @@ fn main() {
     // messbar wird" (`balance.rs`, Feld-Kommentar, Issue #177). `factors` von
     // Hand zu verstellen wäre eine Modellrechnung, keine Messung. Deshalb
     // bewegt dieser Vergleich `worn`.
+    // **Welcher Topf traegt den Kollaps?** (Auftrag 7985)
+    //
+    // Der volle Satz auf Stufe 85 laesst 1 von 58 Zaubern uebrig. Welche der
+    // fuenf Groessen das verursacht, war eine Vermutung — hier wird sie
+    // gemessen, indem je Lauf nur EINE gesetzt wird.
+    //
+    // **Ein einzelner Topf ist kein realer Ausruestungsstand**, und das ist
+    // Absicht: `distribute_budget` verteilt ein Budget ueber die belegten
+    // Toepfe, und wer die Frage „welcher allein" stellt, muss sie einzeln
+    // setzen. Die Werte sind die aus dem vollen Satz (Stufe 85, LEGENDARY),
+    // damit der Vergleich derselbe ist.
+    if std::env::args().any(|a| a == "--toepfe-einzeln") {
+        let voll = voller_satz(85, QUALITY_LEGENDARY);
+        println!();
+        println!("== Welcher Topf traegt den Kollaps? (Auftrag 7985) ==");
+        println!();
+        println!("  Bezug: voller Satz Stufe 85 LEGENDARY = 1 von 58");
+        println!("  Je Zeile ist NUR die genannte Groesse gesetzt, der Rest 0.");
+        println!();
+        println!("  Topf            Wert   gewirkt   Zauber");
+
+        let einzeln: [(&str, WornValues); 5] = [
+            (
+                "catalysis",
+                WornValues {
+                    catalysis: voll.catalysis,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                "purity",
+                WornValues {
+                    purity: voll.purity,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                "yield_bonus",
+                WornValues {
+                    yield_bonus: voll.yield_bonus,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                // **Im vollen Satz steht essence auf 0** — `distribute_budget`
+                // belegt bei drei Affix-Plaetzen die ersten drei Groessen. Hier
+                // steht er trotzdem mit dem Wert der anderen, um die Frage zu
+                // beantworten, ob er es KOENNTE.
+                "essence (haette)",
+                WornValues {
+                    essence: voll.catalysis,
+                    ..WornValues::none()
+                },
+            ),
+            (
+                "gear_effects",
+                WornValues {
+                    gear_effects: voll.gear_effects,
+                    ..WornValues::none()
+                },
+            ),
+        ];
+
+        for (name, worn) in einzeln {
+            let mut mit: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
+            erhebe(&pool, &spielbar, &mut mit, worn, false);
+            let zauber: Vec<&str> = spielbar
+                .iter()
+                .filter(|&&i| mit[i])
+                .map(|&i| SPELLS[i].id)
+                .collect();
+            let wert =
+                worn.catalysis + worn.purity + worn.yield_bonus + worn.essence + worn.gear_effects;
+            println!(
+                "  {name:<16} {wert:>6}   {:>2} von {}   {}",
+                zauber.len(),
+                spielbar.len(),
+                zauber.join(", ")
+            );
+        }
+
+        // **Die Schwellenreihe** — vier Stuetzstellen ueber die
+        // Groessenordnungen, damit sichtbar wird, WO es kippt und nicht nur
+        // DASS es kippt. Sie laeuft auf dem Topf, der oben allein traegt;
+        // steht dort keiner, sagt die Reihe das ebenso deutlich.
+        println!();
+        println!("  Schwellenreihe auf catalysis (die Vermutung aus 7985):");
+        println!("  Wert     gewirkt   Zauber");
+        for wert in [1000u32, 4000, 12000, 36000] {
+            let worn = WornValues {
+                catalysis: wert,
+                ..WornValues::none()
+            };
+            let mut mit: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
+            erhebe(&pool, &spielbar, &mut mit, worn, false);
+            let zauber: Vec<&str> = spielbar
+                .iter()
+                .filter(|&&i| mit[i])
+                .map(|&i| SPELLS[i].id)
+                .collect();
+            println!(
+                "  {wert:>6}    {:>2} von {}   {}",
+                zauber.len(),
+                spielbar.len(),
+                zauber.join(", ")
+            );
+        }
+    }
+
     if std::env::args().any(|a| a == "--mit-ausruestung") {
         println!();
         println!("== AC4: dieselbe Erhebung MIT Ausruestung ==");
