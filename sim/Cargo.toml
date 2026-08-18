@@ -5,6 +5,18 @@ edition = "2021"
 publish = false
 description = "ROTA-Simulator — dieselben Kampfregeln wie das Spiel, ereignisgesteuert und deterministisch"
 
+# Der Einstiegspunkt (#897). Cargo faende `src/bin/rota-sim.rs` auch von selbst;
+# der Abschnitt steht trotzdem hier, damit der Pfad an einer Stelle ausgesprochen
+# ist, die man liest, bevor man den Quelltext durchsucht.
+#
+# ER BRINGT KEINE ABHAENGIGKEIT MIT, und das ist keine Nachlaessigkeit, sondern
+# der Grund, warum der Argument-Zerleger von Hand geschrieben ist: In Cargo gilt
+# `[dependencies]` fuer ALLE Ziele eines Pakets. Ein `clap` hier waere ein `clap`
+# in der Bibliothek — und damit bei jedem, der sie einbindet.
+[[bin]]
+name = "rota-sim"
+path = "src/bin/rota-sim.rs"
+
 # Die Bibliothek selbst hat KEINE Abhaengigkeiten. Das ist Absicht: Eine Kiste,
 # die im Schritt Speicher anfordert oder ihre Zufallszahlen zwischen zwei
 # Fassungen anders erzeugt, wuerde den Determinismus aus GAME-DESIGN 18.4

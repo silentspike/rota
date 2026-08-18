@@ -9,6 +9,13 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` gehört dazu, weil ein BASISWECHSEL keiner der Standardtypen ist
+    # (opened, synchronize, reopened). Am 2026-08-18 gemessen an PR #890: Er war
+    # gegen einen anderen Zweig geöffnet worden, also lief die CI nie an. Als der
+    # Basiszweig danach auf main umsprang, lief sie WIEDER nicht — der PR trug
+    # daraufhin genau einen Check, und alles Übrige fehlte einfach. Ein Stand
+    # ohne Prüfung sieht dabei aus wie ein Stand ohne Fehler.
+    types: [opened, synchronize, reopened, edited]
     branches: [main]
 
 # Ein neuer Push bricht den vorherigen Lauf ab.
