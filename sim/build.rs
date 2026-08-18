@@ -2298,7 +2298,10 @@ fn knoten_fuer_zauber(knoten: &mut Vec<Knoten>, spell: &Value) {
             // beim Tick gesetzt, nicht beim Auflegen.
             timing: "TimingSemantics::Live",
             stacking: "StackingSemantics::Refresh",
-            randomness: "RandomnessSemantics::Stream(\"dot-tick\")".to_string(),
+            // **Der echte Strom, nicht sein Name** (Issue #966). Hier stand
+            // `"dot-tick"`, waehrend der Strom in `rng.rs` `"dotTick"` heisst —
+            // die Zeichenkette zeigte auf nichts, und nichts hat es gemeldet.
+            randomness: "RandomnessSemantics::Stream(crate::rng::Stream::DotTick)".to_string(),
             monotonie: monotonie_steigend(),
             bounds: "Bounds { min: Some(0), max: None }".to_string(),
             control_flow: "ControlFlowEffect::NONE".to_string(),
