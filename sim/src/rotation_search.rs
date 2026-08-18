@@ -713,7 +713,23 @@ pub fn greedy_opts(
 /// 2. **Nur wenn kein einzelner Zug mehr traegt.** Solange die gewoehnliche
 ///    Suche vorankommt, ist sie billiger. Das Paar wird erst dort gefragt, wo
 ///    `greedy` frueher `Stop::NoImprovement` gemeldet hat.
-fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
+///
+/// # Warum sie oeffentlich ist (#969)
+///
+/// Der Trockenlauf `rota-sim explain` sagt voraus, wie viele Messungen eine
+/// Suche kostet, ohne sie zu fahren. Die Einzelzuege ergeben sich aus Pool und
+/// Laenge; die Paar-Zuege nicht — sie haengen daran, welche Kandidaten ein
+/// Verstaerkungs-Fenster tragen und ob der passende Verstaerker im Pool steht.
+///
+/// **Diese Zahl ist datenabhaengig, aber NICHT messabhaengig**: Die Funktion
+/// liest nur `origin`, `condition` und `spell`, keinen einzigen Kampfwert. Sie
+/// laesst sich also im Trockenlauf rufen, ohne AC2 zu verletzen.
+///
+/// Der Trockenlauf koennte sie auch nachbauen — und genau das soll er nicht.
+/// Ein Nachbau antwortet plausibel aus einer zweiten Quelle und laeuft beim
+/// naechsten Kriterium hier auseinander, ohne dass etwas rot wird.
+#[must_use]
+pub fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
     let mut paare = Vec::new();
     for (n_pos, &nutzer) in offen.iter().enumerate() {
         if pool[nutzer].origin != Origin::BuffWindow {
