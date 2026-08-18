@@ -142,6 +142,18 @@ impl Decide for Rotation {
 /// **nachfordern** wuerde, und das waere eine Speicheranforderung im Schritt.
 const EVENT_CAPACITY: usize = 256;
 
+// Die Eimer des Diagnose-Histogramms decken genau 0 bis EVENT_CAPACITY ab
+// (#896). Wer hier 256 in 512 aendert und dort nichts, bekaeme ab 257 offenen
+// Ereignissen nur noch Untergrenzen gemeldet — leise, weil ein Ueberlaufzaehler
+// aussieht wie eine grosse Schlange und nicht wie ein Messfehler.
+//
+// Eine Zusicherung zur BAUZEIT und kein Prueffall: Sie kann nicht uebersprungen
+// werden, und sie steht dort, wo die Zahl geaendert wird.
+const _: () = assert!(
+    crate::diagnostics::QUEUE_BUCKETS == EVENT_CAPACITY + 1,
+    "diagnostics::QUEUE_BUCKETS muss EVENT_CAPACITY + 1 sein"
+);
+
 /// Wie lange die Phasen-Senkung aus ANCHOR gilt (GAME-DESIGN 4.2b).
 ///
 /// **Vorlaeufig, nicht balanciert.** Die Frist ist Katalog-Inhalt und steht in
@@ -1405,6 +1417,14 @@ impl Fight {
                 self.apply(event.kind);
             }
 
+            // Der Diagnosepfad (#896). **Hier und nicht in der inneren
+            // Schleife:** Gefragt ist, wie viele Ereignisse zwischen zwei
+            // Zeitpunkten offen stehen — das ist die Zahl, in der die Halde
+            // logarithmisch rechnet. Mitten in Phase 1 gemessen, saehe man
+            // stattdessen den Abbau des gerade faelligen Buendels.
+            #[cfg(feature = "diagnostics")]
+            crate::diagnostics::note_queue_len(self.queue.len());
+
             // Phase 2 — Sieg-Pruefung, an derselben Stelle wie in der Referenz.
             if self.killed_at.is_none() && self.damage >= self.boss.hp {
                 self.killed_at = Some(now);
@@ -1444,8 +1464,28 @@ impl Fight {
                 }
             }
 
+            // Der Trace-Hash (#896), an derselben Stelle wie im Abspiel-Pfad:
+            // nach der Entscheidung, wenn der Takt fertig ist.
+            //
+            // **Der Schalter wird VOR `checksum_at` geprueft.** Als Argument
+            // ausgewertet, liefe die Pruefsumme auch bei ausgeschalteter
+            // Erfassung mit — und AC6 dieses Issues verlangt, dass die
+            // Instrumentierung im Suchpfad nichts kostet.
+            #[cfg(feature = "diagnostics")]
+            if crate::diagnostics::is_trace_enabled() {
+                let hash = self.checksum_at(now);
+                crate::diagnostics::note_state(hash);
+            }
+
             self.schedule_decision_wakeup(decider, now);
         }
+
+        // Der Diagnosepfad (#896). **Hier und nicht am Anfang:** Gezaehlt wird,
+        // was fertig gerechnet ist. Ein Kampf, der oben abbricht, gehoert nicht
+        // in einen Durchsatz — sonst zaehlte der Nenner Arbeit mit, die nie
+        // stattgefunden hat.
+        #[cfg(feature = "diagnostics")]
+        crate::diagnostics::note_fight();
 
         self.result()
     }
@@ -2901,6 +2941,13 @@ impl Fight {
         for maske in masken {
             self.log_expired(maske);
         }
+
+        // Der Diagnosepfad (#896). Ein Treffer ist ein Aufruf, der ueberhaupt
+        // etwas abgeraeumt hat — **ueber alle acht Masken**, nicht nur ueber
+        // die achte: Die Frage lautet, wie oft dieser Aufruf vergeblich war,
+        // und er ist es nur, wenn keine einzige Art etwas verloren hat.
+        #[cfg(feature = "diagnostics")]
+        crate::diagnostics::note_expire(masken.iter().any(|&m| m != 0));
 
         // **Die achte liest ihren Rueckgabewert schon immer.** `== 0` heisst
         // weiterhin „nichts abgelaufen" — die Maske hat dieselbe Null wie die

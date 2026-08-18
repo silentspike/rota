@@ -17,6 +17,17 @@ description = "ROTA-Simulator — dieselben Kampfregeln wie das Spiel, ereignisg
 name = "rota-sim"
 path = "src/bin/rota-sim.rs"
 
+# Merkmalsschalter. Voreingestellt ist KEINER — die CI baut und prueft ohne sie
+# (`.github/workflows/ci.yml`), und der Kampf soll im Normalbetrieb genau den
+# Code enthalten, der auch gemessen wird.
+#
+# `diagnostics` schaltet die Aufrufstellen in `src/fight.rs` frei, an denen der
+# Kampf seine Schlangenlaenge und die Treffer von `expire_buffs` meldet (#896).
+# Die Auswertung in `src/diagnostics.rs` steht bewusst NICHT hinter dem
+# Schalter — sonst liefe kein einziger ihrer Prueffaelle in der CI.
+[features]
+diagnostics = []
+
 # Die Bibliothek selbst hat KEINE Abhaengigkeiten. Das ist Absicht: Eine Kiste,
 # die im Schritt Speicher anfordert oder ihre Zufallszahlen zwischen zwei
 # Fassungen anders erzeugt, wuerde den Determinismus aus GAME-DESIGN 18.4
