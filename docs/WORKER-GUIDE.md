@@ -7100,3 +7100,83 @@ dabei eine Absicht aufgibt, die nur im Kommentar steht.
 **erweitert** („es sind drei Stellen, nicht eine" — und die Größen benannt, die es nicht gibt). Eine
 erweiterte falsche Diagnose wiegt schwerer als die ursprüngliche, weil sie bestätigt aussieht. Wer
 einen fremden Befund aufstockt, prüft ihn zuerst — sonst verdoppelt er nur die Zuversicht.
+
+### 8.103 In einer Prioritätenliste gewinnt die erste wirkbare Regel — auch beim Messen
+
+Am 2026-08-19 sollte gemessen werden, ob ein Kontroll-Kit einen tödlichen Schlag abwenden kann.
+Die Kontrollrotation lautete:
+
+```
+tether
+pin if time >= 11000
+kindle
+```
+
+Das Ergebnis: Der Spieler starb, `damage_taken` war mit und ohne Kit exakt gleich. Daraus wurde
+gemeldet, PIN wirke an diesem Boss nicht — ein Befund über die **Fähigkeit**.
+
+Er war falsch. Nachgezählt wurde, was überhaupt geworfen wurde:
+
+```
+tether-Würfe   8
+pin-Würfe      0
+```
+
+`tether` hat 1500 ms Abklingzeit und ist damit praktisch immer wirkbar. In einer Prioritätenliste
+gewinnt die **erste Regel, deren Zauber wirkbar ist** — also stand `tether` jedem Durchgang im Weg,
+und `pin` kam nie an die Reihe. Mit `pin` an erster Stelle überlebte derselbe Spieler denselben
+Schlag unversehrt (5000 von 5000 Lebenspunkten).
+
+> Ein Zauber, der **nie geworfen wurde**, ist am Ergebnis nicht von einem **wirkungslosen** zu
+> unterscheiden. Beide erzeugen dieselbe Zahl.
+
+Deshalb gehört zu jeder Messung an einer Fähigkeit die Gegenfrage: **Kam sie überhaupt zum Zug?**
+Die Antwort steht in `casts` und kostet eine Zeile. Ohne sie misst die Rotation ihre eigene
+Reihenfolge statt der Sache.
+
+Dasselbe am selben Tag, eine Ebene höher: Zwei Sitzungen hatten unabhängig voneinander die
+Schild-Obergrenze berechnet, indem sie drei Zeilen einer APL als drei Tastendrücke addierten —
+3500 gegen 4200. Eine Prioritätenliste ist eine **Vorschrift für die ganze Kampfzeit**, keine Folge
+von Drücken; beide Rechnungen addierten etwas, das der Kampf so nicht tut.
+
+Die gemessene Obergrenze war dann 4200 — also **eine der beiden geratenen Zahlen, aus falscher
+Herleitung richtig**. Das ist der unangenehmere Ausgang: Ein Irrtum, der zufällig das richtige
+Ergebnis liefert, wird nicht nachgeprüft. Bestätigt hat die Zahl erst der Lauf, nicht die
+Übereinstimmung.
+
+### 8.104 Eine Verzögerung sieht aus wie eine Verhinderung, wenn man zu früh misst
+
+Derselbe Aufbau, unmittelbar danach. Gemessen wurde, ob der Schlag abgewendet ist — an den
+Lebenspunkten kurz nach seinem Zeitpunkt:
+
+```
+Schlag laut Zeitleiste   12000 ms
+gemessen bei             12100 ms
+
+ohne quench   Leben 5000   sieht abgewendet aus
+mit quench    Leben 5000   ist abgewendet
+```
+
+Beide Varianten zeigen volle Lebenspunkte. Der Grund steht in den Zauberdaten: PIN öffnet ein
+Fenster von 2000 ms (`amountMs`) — der Schlag wird zum laufenden Zauber und landet erst bei
+14000 ms. Bei 12100 gemessen ist er schlicht **noch unterwegs**.
+
+Erst hinter dem Ende der verschobenen Wirkung trennen sich die beiden:
+
+```
+gemessen bei 15000 ms
+
+ohne quench   Leben 0      nur verzögert
+mit quench    Leben 5000   wirklich verhindert
+```
+
+> Der Messzeitpunkt muss hinter der **gesamten** Wirkung liegen, nicht hinter ihrem **Anfang**. Bei
+> allem, was verschiebt statt verhindert — Wirkzeiten, Fenster, aufgeschobene Einschläge —, gehört
+> die Probe ans Ende der Verschiebung.
+
+Die Falle ist besonders heimtückisch, weil die zu frühe Messung das **erwünschte** Ergebnis zeigt:
+volle Lebenspunkte, genau wie erhofft. Wer sie meldet, meldet einen Erfolg, den es nicht gibt.
+
+Die Gegenfrage kostet nichts: **Wie lange dauert die Wirkung, die ich messe — und liegt mein
+Messpunkt dahinter?** Steht in den Daten eine Dauer (`amountMs`, `castTimeMs`, `durationMs`), ist
+sie die Untergrenze für den Messzeitpunkt.
