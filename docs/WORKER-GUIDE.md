@@ -390,6 +390,32 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 > Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
 
+### Ein grüner clippy-Lauf ist kein Nachweis gegen Immer-Wahr-Zusicherungen
+
+clippy fängt die einfachste Form der Klasse — zwei verglichene Konstanten:
+
+```rust
+assert!((1usize << 14) > 15 * 100, ...)   // error: this assertion is always `true`
+```
+
+Die schwerere fängt es **nicht**, weil sie keine Konstante ist:
+
+```rust
+assert!(b.alle_ableitbaren_erfuellt() || !b.alle_ableitbaren_erfuellt())
+```
+
+Beide am 2026-08-19, beim selben Autor, zwei Stunden auseinander — die zweite **nachdem**
+er die erste als Werkzeugfund gemeldet hatte. Sein Satz dazu: **Kennen schützt nicht
+davor.** Wissen sitzt im Text, nicht in der Hand.
+
+> Der Werkzeugfund deckt nur den einfachsten Teil ab. Wer aus grünem clippy schließt, es
+> stehe keine Immer-Wahr-Zusicherung im Code, hört genau dort auf zu suchen, wo die
+> schwereren Fälle anfangen.
+
+Dieselbe Familie wie der Abschnitt unten: Ein Wächter prüft, was er prüft, und sein
+Schweigen ist kein Freispruch. Die verlässliche Gegenprobe bleibt die Mutation — den Fall
+absichtlich brechen und sehen, ob er rot wird.
+
 ### Eine Messumgebung erkennt nur Störungen ihrer eigenen Bauart
 
 Worker-2s Messumgebung bricht bei **Schwankung** ab. Zwei Minuten gleichmäßige Fremdlast
