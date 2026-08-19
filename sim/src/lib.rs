@@ -75,6 +75,9 @@ pub mod cooldown_reset;
 pub mod data;
 // Issue #896: Zaehler fuer den Diagnosepfad — Schlangenlaenge, `expire_buffs`.
 pub mod diagnostics;
+// Issue #940: Parameterdomaenen — der Bereich, in dem ein Optimierer suchen
+// darf, samt Monotonie-Zertifikat MIT Geltungsbereich.
+pub mod domaene;
 // Issue #908: wie viele Durchgaenge genuegen — abgeleitet, nicht `purity == 0`.
 pub mod durchgaenge;
 // Issue #911: die typisierte Wirkungsbeschreibung und ihre erzeugten Analysen.
