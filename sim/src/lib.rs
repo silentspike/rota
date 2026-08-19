@@ -106,9 +106,14 @@ pub mod sources;
 pub mod speicher;
 // Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
 pub mod stacks;
+// Issue #915: gestaffelte Stichprobe ohne feste Obergrenze, jederzeit gueltig.
+pub mod stichprobe;
 // Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
 pub mod sublimation;
 pub mod time;
+// Issue #915: exakte Krit-Verteilung und zaehlerbasierter Zufall — NEBEN dem
+// Kampf, weil drei Paritaets-Aufzeichnungen wirklich wuerfeln.
+pub mod verteilung;
 
 pub use apl::{Apl, AplError};
 pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
