@@ -300,6 +300,101 @@ fn vertauschte_paketreihenfolge_liefert_denselben_fingerabdruck() {
     assert_eq!(a.count, 24);
 }
 
+/// Der Fall, der belegt, dass Festkomma **nötig** ist — nicht nur, dass es geht.
+///
+/// # Warum es diesen zweiten AC4-Fall gibt
+///
+/// Der Fall darüber prüft die Reihenfolgeunabhängigkeit an Werten aus dem
+/// üblichen Bereich. Die sind für f64 **zu gutmütig**, und zwar aus einem
+/// Grund, den man nicht sieht: Jeder Wert wird mit [`SKALA`] = 10⁶ skaliert,
+/// das Quadrat ist damit ein Vielfaches von 10¹² und enthält den Faktor
+/// 2¹² = 4096. Solange die Quadratsumme klein genug ist, dass ihr ULP unter
+/// 4096 bleibt, liegt **jede** Zwischensumme exakt auf dem f64-Raster — und
+/// eine auf f64 umgestellte Vereinigung liefert zufällig dieselbe Zahl.
+///
+/// Gemessen: Mit der Vereinigung auf `f64` umgebaut blieben **20 von 20**
+/// Prüffällen grün. Genau die Regression, gegen die AC4 geschrieben ist.
+///
+/// # Warum ausgerechnet diese Zahlen
+///
+/// Ein sehr großer Beitrag neben vielen kleinen, jeder in einem **eigenen
+/// Paket**: So wird jeder kleine einzeln addiert. Liegt er unter dem halben
+/// ULP des großen, verschwindet er dabei — während dieselben Beiträge, zuerst
+/// untereinander summiert, zusammen mehr als ein ULP ergeben.
+///
+/// Die Bedingung dafür rechnet der Fall **selbst nach** (siehe unten). Ohne
+/// das wäre er beim nächsten Mal genauso still wirkungslos wie sein Vorgänger:
+/// „mehr Durchgänge" allein genügt nicht — bei 104 sind alle Reihenfolgen noch
+/// gleich, bei 200 nicht, bei 256 wieder doch. Größe ist keine Garantie,
+/// Struktur schon.
+#[test]
+fn festkomma_ist_noetig_und_nicht_nur_moeglich() {
+    // Klassenbreite so, dass beide Werte in Klassen fallen statt in den
+    // Überlauf — sonst trüge das Histogramm den Unterschied statt der Summe.
+    let einteilung = || ExactHistogram::neu(0, 1_000_000, 4096);
+    const GROSS: u32 = 200_000_000;
+    const KLEINE: u32 = 16;
+
+    let mut grosses_paket = TrialAccumulator::neu(einteilung());
+    grosses_paket.trage_ein(0, GROSS, true).expect("frisch");
+
+    let kleine_pakete: Vec<TrialAccumulator> = (1..=KLEINE)
+        .map(|id| {
+            let mut a = TrialAccumulator::neu(einteilung());
+            a.trage_ein(id, 1, false).expect("frisch");
+            a
+        })
+        .collect();
+
+    // Die Voraussetzung, die den Fall trägt — nachgerechnet statt geglaubt.
+    let gross_quadrat = grosses_paket.sum_squares;
+    let klein_quadrat = kleine_pakete[0].sum_squares;
+    let bits = 128 - gross_quadrat.leading_zeros();
+    let ulp: i128 = 1 << (bits - 1 - 52);
+    assert!(
+        klein_quadrat < ulp / 2,
+        "Dieser Fall trägt nur, solange ein kleiner Beitrag ({klein_quadrat}) unter dem \
+         halben ULP des großen ({}) liegt. Sonst rundet f64 nichts weg, beide Reihenfolgen \
+         stimmen überein, und der Fall wird STILL wirkungslos — genau das ist seinem \
+         Vorgänger passiert.",
+        ulp / 2
+    );
+
+    // Reihenfolge A: die kleinen zuerst untereinander, dann der große.
+    let mut a = kleine_pakete[0].clone();
+    for p in &kleine_pakete[1..] {
+        a.vereinige(p).expect("disjunkt");
+    }
+    a.vereinige(&grosses_paket).expect("disjunkt");
+
+    // Reihenfolge B: der große zuerst, dann die kleinen einzeln.
+    let mut b = grosses_paket.clone();
+    for p in &kleine_pakete {
+        b.vereinige(p).expect("disjunkt");
+    }
+
+    println!(
+        "AC4-STRUKTUR  A = {:#018x}   B = {:#018x}   sum_squares = {}",
+        a.fingerabdruck(),
+        b.fingerabdruck(),
+        a.sum_squares
+    );
+
+    assert_eq!(
+        a.sum_squares, b.sum_squares,
+        "Die Quadratsumme muss EXAKT gleich sein. Auf f64 umgestellt liefert dieselbe \
+         Rechnung 4.00000000000000159e28 gegen 3.99999999999999983e28 — nachgerechnet, \
+         bevor dieser Fall geschrieben wurde."
+    );
+    assert_eq!(
+        a.fingerabdruck(),
+        b.fingerabdruck(),
+        "und damit auch der Fingerabdruck"
+    );
+    assert_eq!(a.count, u64::from(KLEINE) + 1);
+    assert_eq!(a.trial_ids.bereichszahl(), 1, "0..17 ist ein Bereich");
+}
+
 #[test]
 fn kontrollprobe_gleitkomma_in_ankunftsreihenfolge_aendert_den_wert() {
     // Die Probe, ohne die AC4 nur belegte, dass zwei Zahlen gleich sind: An
