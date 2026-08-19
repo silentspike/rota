@@ -16,9 +16,14 @@
 //! [`ZertifikatVerweigert`], gebaut unter Issue #966. Dieses Modul **benutzt**
 //! sie.
 //!
-//! > Zwei Aufzählungen derselben vier Fälle driften unabhängig. Dann
-//! > zertifiziert das Zertifikat gegen eine Kopie, während der Kampf gegen das
-//! > Original rechnet — und keine der beiden Seiten sieht es.
+//! > Zwei Aufzählungen derselben Fälle driften unabhängig. Dann zertifiziert
+//! > das Zertifikat gegen eine Kopie, während der Kampf gegen das Original
+//! > rechnet — und keine der beiden Seiten sieht es.
+//!
+//! Wie schnell das eintritt, zeigt `f-940-zaubervielfalt`: Wenige Stunden nach
+//! diesem Modul kam [`MonotonicityDomain::SpellDiversity`] als **fünfte**
+//! Variante dazu. Eine Kopie hätte hier vier Fälle geführt und die Aussage,
+//! auf die es ankommt, gar nicht ausdrücken können.
 
 use crate::caps::{Deckel, Traeger, Wirkgroesse, WIRKGROESSEN};
 use crate::effects::{
@@ -541,9 +546,10 @@ mod tests {
     /// ergeben 4. Bezüglich Schaden steigend, bezüglich Zaubervielfalt streng
     /// fallend.
     ///
-    /// Die Zaubervielfalt hat in [`MonotonicityDomain`] **keine Variante**;
-    /// geprüft wird deshalb gegen die drei Gegenbeispiele, die es gibt. Der
-    /// fehlende vierte Bezug ist gemeldet, nicht stillschweigend ersetzt.
+    /// Die Zaubervielfalt hat seit `f-940-zaubervielfalt` eine **eigene
+    /// Variante** ([`MonotonicityDomain::SpellDiversity`]). Bis dahin stand der
+    /// Fall nur im Kommentar — die Aussage, die `catalysis` gefährlich macht,
+    /// ließ sich im Typ gar nicht hinschreiben.
     #[test]
     fn catalysis_traegt_fuer_schaden_und_fuer_nichts_sonst() {
         let z = MonotonieZertifikat {
@@ -564,6 +570,9 @@ mod tests {
             MonotonicityDomain::VictoryOutcome,
             MonotonicityDomain::TimeToVictoryAcrossPhase,
             MonotonicityDomain::HpPredicate,
+            // Seit f-940-zaubervielfalt der vierte — und der einzige, für den
+            // eine Messung vorliegt statt einer Überlegung.
+            MonotonicityDomain::SpellDiversity,
         ] {
             assert!(
                 z.traegt_fuer(anderer).is_err(),
@@ -572,10 +581,96 @@ mod tests {
             abgelehnt += 1;
         }
         assert_eq!(
-            abgelehnt, 3,
-            "Trägerzusicherung: alle drei Gegenbeispiele wurden gefragt"
+            abgelehnt, 4,
+            "Trägerzusicherung: alle vier Gegenbeispiele wurden gefragt"
         );
         println!("catalysis: 1 Bezug getragen, {abgelehnt} abgelehnt");
+    }
+
+    /// **AC2: Die Zaubervielfalt ist ein eigener Bezug — und catalysis fällt
+    /// bezüglich ihr.**
+    ///
+    /// Der Fall, für den `f-940-zaubervielfalt` entschieden wurde. Er prüft
+    /// nicht nur, dass ein Schadens-Zertifikat für sie NICHT trägt (das tut
+    /// [`catalysis_traegt_fuer_schaden_und_fuer_nichts_sonst`]), sondern dass
+    /// die Variante **als Bezug taugt**: Ein Zertifikat MIT diesem Bezug trägt
+    /// für ihn und für nichts anderes.
+    ///
+    /// # Warum dieser Fall Pflicht ist und nicht Zugabe
+    ///
+    /// Eine neue Aufzählungs-Variante bricht hier **keinen Bau**: Über
+    /// [`MonotonicityDomain`] gibt es nirgends einen erschöpfenden `match`,
+    /// geprüft wird mit `matches!` und `==`. Ohne diesen Fall wäre die Variante
+    /// also eine, die niemand erzeugt und niemand prüft — dieselbe Lage wie
+    /// [`TraceRegionBezug::StueckweiseZwischenSprungstellen`], nur andersherum:
+    /// dort tot, weil niemand sie erzeugt, hier tot, weil niemand sie prüft.
+    #[test]
+    fn die_zaubervielfalt_ist_ein_eigener_bezug() {
+        // Ein Zertifikat, das AUSDRÜCKLICH für die Zaubervielfalt gilt — und
+        // zwar mit der Richtung, die gemessen ist: FALLEND.
+        let vielfalt = MonotonieZertifikat {
+            direction: MonotonicDirection::Decreasing,
+            domain: MonotonicityDomain::SpellDiversity,
+            bedarf: ZertifikatsBedarf::VOLLSTAENDIG,
+            trace_region: TraceRegionBezug::StabilerTrace,
+            preconditions: &["gemessen an catalysis: 1000 Promille -> 10 von 58, 36000 -> 4"],
+        };
+
+        // 1. Es trägt für seinen eigenen Bezug.
+        assert_eq!(
+            vielfalt.traegt_fuer(MonotonicityDomain::SpellDiversity),
+            Ok(()),
+            "Trägerzusicherung: ohne diese Zeile könnte traegt_fuer für die neue \
+             Variante konstant ablehnen, und alles Weitere wäre grün und leer"
+        );
+
+        // 2. Und für keinen anderen — auch nicht für den Schaden.
+        let mut abgelehnt = 0;
+        for anderer in [
+            MonotonicityDomain::ExpectedDamageStableTrace,
+            MonotonicityDomain::VictoryOutcome,
+            MonotonicityDomain::TimeToVictoryAcrossPhase,
+            MonotonicityDomain::HpPredicate,
+        ] {
+            assert_eq!(
+                vielfalt.traegt_fuer(anderer),
+                Err(ZertifikatVerweigert::FalscherBezug {
+                    hinweis: MonotonicityDomain::SpellDiversity,
+                    gefragt: anderer,
+                }),
+                "{anderer:?}: ein Vielfalts-Zertifikat darf hier nicht tragen, \
+                 und die Ablehnung muss den FALSCHEN BEZUG nennen"
+            );
+            abgelehnt += 1;
+        }
+        assert_eq!(abgelehnt, 4, "alle vier anderen Bezüge wurden gefragt");
+
+        // 3. **Die Richtungen sind entgegengesetzt — das ist der ganze Punkt.**
+        //
+        // Derselbe Parameter, zwei Bezüge, zwei Richtungen. Wer nur „monoton"
+        // sagt, sagt je nach Bezug das Gegenteil.
+        let schaden = MonotonieZertifikat {
+            direction: MonotonicDirection::Increasing,
+            domain: MonotonicityDomain::ExpectedDamageStableTrace,
+            ..vielfalt
+        };
+        assert_ne!(
+            schaden.direction, vielfalt.direction,
+            "steigend bezüglich Schaden, fallend bezüglich Vielfalt — wären die \
+             Richtungen gleich, wäre der Fall gegenstandslos"
+        );
+        assert_eq!(
+            schaden.traegt_fuer(MonotonicityDomain::ExpectedDamageStableTrace),
+            Ok(())
+        );
+        assert!(schaden
+            .traegt_fuer(MonotonicityDomain::SpellDiversity)
+            .is_err());
+
+        println!(
+            "catalysis: {:?} bezüglich Schaden, {:?} bezüglich Vielfalt, {abgelehnt} Bezüge abgelehnt",
+            schaden.direction, vielfalt.direction
+        );
     }
 
     /// **AC4: Die Abhängigkeiten folgen aus der Tabelle.**
