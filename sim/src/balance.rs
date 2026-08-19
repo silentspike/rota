@@ -621,12 +621,82 @@ pub fn siege(samples: &[Sample], boss: &Boss) -> usize {
         .iter()
         .filter(|s| {
             if umgekehrt {
-                s.killed_at_ms.is_none() && s.died_at_ms.is_none()
+                // **`s.died`, nicht `s.died_at_ms.is_none()`** — gemeldet von
+                // Worker-3, und der Einwand traegt: `Sample` fuehrt den Tod in
+                // ZWEI Feldern, und `objective::Outcome::of` liest `died`. Zwei
+                // Lesarten im selben Auswertungspfad sichern einander nicht;
+                // liefen sie je auseinander, ergaeben Vertrag und Simulator
+                // verschiedene Siegzahlen, und der Prueffall auf ihre
+                // Uebereinstimmung fiele zu Recht — ohne zu sagen, warum.
+                //
+                // Heute KOENNEN sie nicht auseinanderlaufen, beide kommen aus
+                // `Fight::died_at`:
+                //
+                // ```text
+                // player_dead()  ->  self.died_at.is_some()   fight.rs:5493
+                // died_at_ms()   ->  self.died_at             fight.rs:3389
+                // ```
+                //
+                // Das ist der Grund, warum es bisher nichts kostete — und genau
+                // deshalb faellt es niemandem auf, wenn eine der beiden
+                // Funktionen sich aendert. `pruefe_todesfelder` haelt die
+                // Gleichheit deshalb als Zusicherung fest.
+                s.killed_at_ms.is_none() && !s.died
             } else {
                 s.killed_at_ms.is_some()
             }
         })
         .count()
+}
+
+/// Ob die beiden Todes-Felder eines Durchgangs dasselbe sagen.
+///
+/// # Warum es diese Funktion gibt
+///
+/// [`Sample`] fuehrt den Tod des Spielers doppelt: `died` als Wahrheitswert und
+/// `died_at_ms` als Zeitpunkt. Beide entstehen aus `Fight::died_at`, sind heute
+/// also zwangslaeufig gleich — aber **nichts haelt das fest**. Wer eine der
+/// beiden Quellfunktionen aendert, laesst sie auseinanderlaufen, und die
+/// Auswertung liest je nach Stelle die eine oder die andere:
+///
+/// ```text
+/// balance::siege             liest  died
+/// objective::Outcome::of     liest  died
+/// frueher: balance::siege    las    died_at_ms.is_none()
+/// ```
+///
+/// **Zwei Felder fuer dieselbe Sache sichern einander nicht.** Ein Prueffall
+/// ueber echte Durchgaenge tut es — deshalb steht diese Funktion oeffentlich und
+/// nicht als `debug_assert` im Erzeugungspfad: Ein `debug_assert` liefe in der
+/// CI mit, aber nicht im Release-Messlauf, und dort entstehen die Zahlen.
+///
+/// Gefunden hat den Mangel Worker-3, an meinem eigenen Fix aus PR #1000.
+#[must_use]
+pub fn todesfelder_stimmen(samples: &[Sample]) -> bool {
+    erster_todesfeld_widerspruch(samples).is_none()
+}
+
+/// Der erste Durchgang, dessen Todes-Felder einander widersprechen.
+///
+/// # Warum das nicht `bool` genuegt
+///
+/// Gemeldet von Worker-3: [`todesfelder_stimmen`] sagt, DASS etwas nicht stimmt,
+/// aber nicht WO. Bei einem einzigen abweichenden Durchgang unter tausend
+/// stuende in der Fehlermeldung „die Felder stimmen nicht" — und die Suche
+/// danach faengt bei null an.
+///
+/// **Ein Waechter wird genau in dem Moment gelesen, in dem er anschlaegt.** Was
+/// er dann nicht sagt, kostet Suchzeit, und zwar unter Zeitdruck.
+///
+/// Zurueck kommt der **Startwert** des Durchgangs, nicht sein Index: Der
+/// Startwert bestimmt den Durchgang vollstaendig und laesst sich einzeln
+/// nachfahren, ein Index in einer Stichprobe nicht.
+#[must_use]
+pub fn erster_todesfeld_widerspruch(samples: &[Sample]) -> Option<u32> {
+    samples
+        .iter()
+        .find(|s| s.died != s.died_at_ms.is_some())
+        .map(|s| s.seed)
 }
 
 /// Rechnet einen Balance-Lauf.
