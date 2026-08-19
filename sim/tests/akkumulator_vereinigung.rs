@@ -388,6 +388,44 @@ fn der_fingerabdruck_haengt_an_jedem_feld() {
         "andere KENNUNGEN bei gleichen Werten — sonst waere AC2 im Fingerabdruck unsichtbar"
     );
 
+    // Die QUADRATSUMME isoliert. Sie ist das Feld, das am leichtesten aus dem
+    // Fingerabdruck faellt, ohne dass es auffaellt: Summe, Kennungen, Siege und
+    // Klassenbesetzung bleiben hier alle gleich.
+    //
+    // {1, 5} und {3, 3} haben dieselbe Summe (6) und — bei Klassenbreite 10 —
+    // dieselbe Klasse. Ihre Quadratsummen sind 26 gegen 18.
+    let mut streuend = TrialAccumulator::neu(ExactHistogram::neu(0, 10, 4));
+    streuend.trage_ein(0, 1, false).expect("frisch");
+    streuend.trage_ein(1, 5, false).expect("frisch");
+    let mut gleichmaessig = TrialAccumulator::neu(ExactHistogram::neu(0, 10, 4));
+    gleichmaessig.trage_ein(0, 3, false).expect("frisch");
+    gleichmaessig.trage_ein(1, 3, false).expect("frisch");
+
+    assert_eq!(
+        streuend.sum, gleichmaessig.sum,
+        "gleiche Summe — Voraussetzung"
+    );
+    assert_eq!(
+        streuend.trial_ids, gleichmaessig.trial_ids,
+        "gleiche Kennungen"
+    );
+    assert_eq!(streuend.win_count, gleichmaessig.win_count, "gleiche Siege");
+    assert_eq!(
+        streuend.quantiles, gleichmaessig.quantiles,
+        "gleiche Klassenbesetzung — sonst traegt das Histogramm den Unterschied"
+    );
+    assert_ne!(
+        streuend.sum_squares, gleichmaessig.sum_squares,
+        "und NUR die Quadratsumme unterscheidet sich"
+    );
+    assert_ne!(
+        streuend.fingerabdruck(),
+        gleichmaessig.fingerabdruck(),
+        "Faellt die Quadratsumme aus dem Fingerabdruck, sind zwei Ergebnisse mit voellig \
+         verschiedener Streuung nicht mehr unterscheidbar — und AC4 waere fuer dieses Feld \
+         ungedeckt. Gemessen mit der Mutationsprobe: genau das war der Fall."
+    );
+
     let mut andere_siege = TrialAccumulator::neu(histogramm());
     for i in 0..6 {
         let wert = 100 + (i * 37) % 901;

@@ -554,6 +554,12 @@ impl TrialAccumulator {
             return Err(Vereinigungsfehler::DurchgaengeUeberschneidenSich);
         }
 
+        // Absichtlich doppelt: `ExactHistogram::vereinige` prueft dasselbe noch
+        // einmal. Hier steht es, damit die Ablehnung **vor** jeder Aenderung
+        // faellt und `self` unberuehrt bleibt; dort, damit der Histogramm-Typ
+        // fuer sich allein sicher ist. Gemessen mit der Mutationsprobe: Faellt
+        // nur eine der beiden, faengt die andere den Fall — belegen laesst sich
+        // die Deckung deshalb nur, wenn man beide entfernt.
         if !self.quantiles.gleiche_einteilung(&other.quantiles) {
             return Err(Vereinigungsfehler::EinteilungVerschieden);
         }
