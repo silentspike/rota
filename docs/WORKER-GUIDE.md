@@ -390,6 +390,29 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 > Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
 
+### Melde den ZUSTAND, nicht die Absicht
+
+> „Ich habe X gebaut" statt „ich setze deine Entscheidung um."
+
+Am 2026-08-19 haben Orchestrator und Worker-3 denselben Schlüssel **dreimal** umbenennen
+lassen, weil beide auf einen Stand antworteten, den der andere schon verlassen hatte. Die
+Laufzeit der Nachrichten erklärt die erste Kreuzung; die zweite und dritte entstanden, weil
+keine Meldung ihren gemessenen Zustand mitführte.
+
+Die Regel hat zwei Hälften, und beide sind nötig:
+
+- **Wer meldet**, nennt den gemessenen Zustand — `grep`-Treffer, Zeilennummer, Dateiname.
+  Nicht was er umgesetzt hat, sondern was jetzt dasteht.
+- **Wer anweist**, misst nach, bevor er eine laufende Umsetzung dreht. Eine Anweisung auf
+  einen vermuteten Zustand ist eine Vermutung mit Befehlsform.
+
+Der Grund für die erste Hälfte: Sie legt die Last in den Text, wo sie stehenbleibt — nicht
+auf die Aufmerksamkeit im richtigen Moment, auf die an diesem Tag dreimal kein Verlass war.
+
+Und wenn zwei Anweisungen sich widersprechen: **nicht raten, welche die spätere Absicht
+trägt.** Den gemessenen Zustand melden und auf einen Satz warten, der sich darauf bezieht.
+Worker-3 hat genau das getan und damit einen vierten Umbau verhindert.
+
 ### Wer etwas zurückdreht, sucht nach dem ALTEN Namen — nicht nach dem neuen
 
 Worker-3 hat am 2026-08-19 eine Umbenennung zurückgenommen. Zwei Stellen blieben mit dem
