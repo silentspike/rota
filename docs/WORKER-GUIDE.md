@@ -390,6 +390,64 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 > Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
 
+### `--test SUITE` beim Arbeiten, `--all-targets` erst vor der Fertigmeldung
+
+Gemessen über 21,4 Stunden und 495 `cargo remote`-Aufrufe (2026-08-19), Median je Aufruf:
+
+| | `--all-targets` | gezielt `--test X` | Faktor |
+|---|---:|---:|---:|
+| Worker-1 | 25,3 s (130×) | 4,5 s (7×) | **5,6** |
+| Worker-2 | 10,4 s (40×) | 4,0 s (36×) | 2,6 |
+| Worker-3 | 10,4 s (56×) | 19,1 s (13×) | 0,5 — umgekehrt |
+
+Worker-1 fuhr **66 %** seiner Läufe breit, Worker-2 nur 28 %. Wären zwei Drittel davon
+gezielt gelaufen, hätte er **30 Minuten** gespart — bei gleichem Ergebnis, denn ein
+gezielter Lauf prüft, woran man gerade arbeitet.
+
+```bash
+cargo remote -c -- test --test meine_suite     # beim Arbeiten
+cargo remote -c -- test --all-targets          # einmal, vor der Fertigmeldung
+```
+
+**Die Zeile für Worker-3 ist der Grund, warum das keine Pflicht ist**: Bei ihm war gezielt
+*langsamer*. Wer eine Suite anfasst, die selten gebaut wird, zahlt die Übersetzung neu.
+Miss deinen eigenen Fall, statt die Regel zu glauben — `date` vor und nach dem Aufruf.
+
+> Vor der Fertigmeldung gilt weiter `--all-targets`. Ein gezielter Lauf sagt nichts über
+> die Ziele, die er nicht angefasst hat.
+
+### Sammle zusammenhängende Änderungen, dann baue einmal
+
+Der Bau ist der größte Einzelposten der Werkzeugzeit — 5,18 von 9,62 Stunden (54 %) über
+denselben Zeitraum. Jeder Aufruf kostet Sync und Übersetzung, unabhängig davon, wie klein
+die Änderung war.
+
+Wer drei Dateien nacheinander ändert und dazwischen dreimal baut, zahlt dreimal für
+denselben Zustand. Die Ausnahme ist der Fall, in dem der Bau die *Frage beantwortet*
+(„kompiliert das überhaupt?") — dann ist er die Messung und kein Aufwand.
+
+### Eine Übergabe je abgeschlossenem Issue, nicht je Erkenntnis
+
+Übergabedateien unter `/work/rota-ipc/uebergabe-*.md` sollen einer nachfolgenden Sitzung
+ersparen, dasselbe zweimal zu erarbeiten. Eine Übergabe je Erkenntnis erreicht das
+Gegenteil: Wer fünf Dateien vorfindet, liest keine davon.
+
+> Eine Datei je abgeschlossenem Issue. Was darin steht: was fertig wurde, was halbfertig
+> liegt, und die Befunde, die sonst mit der Sitzung verlorengingen — **nicht** der Verlauf.
+
+Ist die Übergabe abgearbeitet, lösche sie. Eine veraltete ist schlimmer als keine.
+
+### Eine Quittung ist ein Satz — ein Befund ist so lang wie nötig
+
+Die Bestätigung einer Nachricht trägt **das verstandene Vorhaben in einem Satz**. Sie ist
+kein Ort für Analyse: Der Absender prüft daran, ob er verstanden wurde, und ein Absatz
+verzögert nur, wann er es merkt.
+
+Was du *gefunden* hast, gehört in eine **neue** Nachricht und darf dort so lang sein, wie
+die Sache es braucht. Am 2026-08-19 waren die wertvollsten Meldungen des Tages lang — zwei
+sich neutralisierende Vorzeichenfehler, sechs Prüfsummen für einen Bestand, eine sechs Tage
+alte Baseline. Keine davon hätte in einen Satz gepasst, und keine gehörte in eine Quittung.
+
 ### Eine Sammel-Prüfsumme gilt nur gegen sich selbst
 
 Dieselben 35 Dateien, ein Bestand, alle byteweise identisch — **sechs Aufrufe, sechs
