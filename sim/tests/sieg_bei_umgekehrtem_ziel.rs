@@ -40,9 +40,13 @@
 //! des Ziels, sondern ein zusätzlicher Verlustweg — deshalb prüft jeder Fall
 //! hier beide Richtungen und nicht nur die auffällige.
 
-use rota_sim::balance::{siege, Sample};
+use rota_sim::apl::{parse, AplName};
+use rota_sim::balance::{run, siege, todesfelder_stimmen, BalanceConfig, Sample};
 use rota_sim::data::boss_by_id;
 use rota_sim::time::Millis;
+
+/// Eine schadensstarke Liste — der Spieler haelt hier nicht durch.
+const VIEL_SCHADEN: &str = include_str!("../apl/e607-flashpoint.apl");
 
 /// Ein Durchgang mit frei gesetztem Ausgang.
 ///
@@ -192,4 +196,64 @@ fn ohne_durchgaenge_gibt_es_null_siege_und_keinen_absturz() {
         let boss = boss_by_id(id).expect("Boss fehlt");
         assert_eq!(siege(&leer, boss), 0, "{id}: leere Menge, null Siege");
     }
+}
+
+/// Die beiden Todes-Felder sagen an ECHTEN Durchgängen dasselbe.
+///
+/// # Warum dieser Fall nötig ist
+///
+/// `Sample` führt den Tod doppelt: `died` als Wahrheitswert, `died_at_ms` als
+/// Zeitpunkt. Beide entstehen aus `Fight::died_at` (`player_dead()` ist
+/// `died_at.is_some()`, `died_at_ms()` ist `died_at`) — sie können heute nicht
+/// auseinanderlaufen.
+///
+/// **Aber nichts hielt das fest.** Meine erste Fassung von `siege` las
+/// `died_at_ms.is_none()`, während `objective::Outcome::of` `died` liest — zwei
+/// Lesarten im selben Auswertungspfad. Worker-3 hat das gemeldet: Liefen sie je
+/// auseinander, ergäben Vertrag und Simulator verschiedene Siegzahlen, und der
+/// Prüffall auf ihre Übereinstimmung fiele zu Recht, ohne zu sagen warum.
+///
+/// # Warum über echte Läufe und nicht über gesetzte Werte
+///
+/// Die übrigen Fälle dieser Datei setzen beide Felder von Hand — sie können die
+/// Frage deshalb gar nicht beantworten. Sie fragen, wie ein Ausgang **gedeutet**
+/// wird; dieser fragt, ob der Kampf ihn **konsistent erzeugt**.
+#[test]
+fn die_beiden_todesfelder_sagen_an_echten_durchgaengen_dasselbe() {
+    // boss-2-2 statt boss-1-1: Dort stirbt der Spieler nachweislich (der Befund
+    // aus Issue #581 nennt "Tod bei 15000 ms"). Ein Lauf, in dem NIEMAND
+    // stirbt, ließe die Zusicherung leer durchlaufen — beide Felder wären
+    // überall false, und die Gleichheit hielte trivial.
+    let boss = boss_by_id("boss-2-2").expect("boss-2-2 fehlt");
+    let apl = parse(AplName("e607-flashpoint"), VIEL_SCHADEN).expect("die Liste ist gueltig");
+    let ergebnis = run(
+        &BalanceConfig {
+            iterations: 20,
+            base_seed: 4242,
+            threads: 1,
+            boss,
+            ..BalanceConfig::default()
+        },
+        &apl,
+    );
+
+    // **Die Kontrollzeile, ohne die der Fall nichts belegt.** Stirbt in keinem
+    // Durchgang jemand, sind beide Felder überall false und die Gleichheit
+    // hält, ohne den Fall berührt zu haben.
+    let tode = ergebnis.samples.iter().filter(|s| s.died).count();
+    assert!(
+        tode > 0,
+        "Kontrollzeile: in diesem Lauf muss mindestens ein Durchgang mit dem Tod \
+         des Spielers enden, sonst prueft die Zusicherung darunter eine Menge \
+         aus lauter false — gemessen: {tode} von {}",
+        ergebnis.samples.len()
+    );
+
+    assert!(
+        todesfelder_stimmen(&ergebnis.samples),
+        "`died` und `died_at_ms.is_some()` sagen Verschiedenes. Beide entstehen \
+         aus Fight::died_at — laufen sie auseinander, hat jemand player_dead() \
+         oder died_at_ms() geaendert, und die Auswertung liest je nach Stelle \
+         das eine oder das andere"
+    );
 }
