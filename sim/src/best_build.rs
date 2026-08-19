@@ -111,6 +111,28 @@ fn splits(budget: u32, step: u32) -> Vec<WornValues> {
 /// beste zurück — gemessen am Mittelwert, denn hier geht es um die Spitze und
 /// nicht um einen Vergleich zweier Kandidaten.
 ///
+/// # Warum ein Raster und nicht eine Halbierung (Issue #940)
+///
+/// **Die Rastersuche ist teuer, und sie bleibt es mit Absicht.** Sie geht den
+/// Raum in Schritten von [`SEARCH_STEP_PERMILLE`] ab und überspringt nichts;
+/// der Vergleich unten verfolgt nur das Maximum und verwirft keine Region.
+/// Damit setzt sie **keine Monotonie voraus** — und kann deshalb an einem Boss
+/// mit umgekehrter Bedingung nicht das falsche Optimum finden.
+///
+/// Eine Halbierung wäre schneller und hier **falsch**: Sie setzt voraus, dass
+/// mehr Wert ein besseres Ergebnis liefert. Das gilt bezüglich erwartetem
+/// Schaden bei stabilem Trace — und nicht bezüglich Sieg an einem Boss mit
+/// umgekehrter Bedingung, Zeit bis zum Sieg über einen Phasenwechsel oder
+/// eines Ziels mit Lebenspunkt-Prädikat.
+///
+/// > Wer hier halbiert oder Kandidaten per Dominanz verwirft, muss vorher
+/// > [`crate::domaene::ParameterDomain::binaersuche_erlaubt`] fragen. Ohne
+/// > vollständiges Zertifikat lehnt sie ab, und die Ablehnung nennt ihren
+/// > Grund.
+///
+/// Der Hinweis steht hier und nicht nur in `domaene.rs`, weil dies die Stelle
+/// ist, die jemand liest, der die Laufzeit senken will.
+///
 /// # Panics
 ///
 /// Nie: `splits` liefert für jedes Budget mindestens eine Aufteilung (die mit

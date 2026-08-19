@@ -157,6 +157,17 @@ jobs:
           fi
           echo "Keine versteckten Steuerzeichen im eigenen Quelltext gefunden."
 
+      # Zwei Sitzungen, die vom selben Stand abzweigen, vergeben dieselbe
+      # naechste Abschnittsnummer. Aufgefallen ist das am 2026-08-19 nur, weil
+      # beide Bloecke am Dateiende standen und git einen Konflikt meldete —
+      # an verschiedenen Stellen waere der Merge glatt durchgelaufen.
+      # Steht hier und nicht in einem eigenen Job: Der Schritt kostet
+      # Millisekunden und braucht dieselbe Voraussetzung wie prettier — gar
+      # keine.
+      - name: Abschnittsnummern in den Dokumenten
+        shell: bash
+        run: bash tools/guide-abschnittsnummern.sh
+
   typecheck:
     needs: changes
     if: needs.changes.outputs.code == 'true'
