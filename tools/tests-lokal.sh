@@ -20,6 +20,35 @@
 # rustbuild baut, die Zielmaschine führt aus. Ein fertiges Binary zu starten
 # ist kein cargo-Aufruf.
 #
+# **DOC-TESTS SIND HIER NICHT ENTHALTEN — und zwar bauartbedingt.**
+#
+# Sie sind kein Binary. Sie entstehen erst, wenn `cargo test` die Beispiele aus
+# den Doc-Kommentaren übersetzt und ausführt; ein Verfahren, das gebaute
+# Testbinaries startet, findet nichts zum Starten. Das galt seit der ersten
+# Fassung und ist nie aufgefallen, weil „alles grün" nach Vollständigkeit
+# klingt.
+#
+# Gemessen am 2026-08-19 an PR #1005:
+#
+#     `cargo test`                     lokal 1068   CI 1073   Differenz 5
+#     `--all-targets --features …`     lokal 1096   CI 1096   Differenz 0
+#
+# Die zweite Zeile ist die Gegenprobe, die aus der Beobachtung einen Befund
+# macht: `--all-targets` schließt Doc-Tests aus, dort gibt es auch in der CI
+# null Doc-Test-Blöcke — und prompt keine Differenz. Ein Zählfehler müsste in
+# BEIDEN Schritten auftreten.
+#
+# Die fünf, aus dem CI-Log von PR #1005:
+#
+#     sim/src/apl/parse.rs  - apl::parse::AplName (line 78)
+#     sim/src/apl/parse.rs  - apl::parse::AplName (line 69)  - compile fail
+#     sim/src/haste.rs      - haste::hasted_ms (line 89)
+#     sim/src/lib.rs        - (line 29)
+#     sim/src/time.rs       - time::snap_up (line 41)
+#
+# Wer eine Zusicherung in einem dieser Doc-Kommentare bricht, sieht es hier
+# NICHT und erst in der CI. Wer sie braucht: `cargo test` OHNE `--all-targets`.
+#
 # Aufruf:  bash tools/tests-lokal.sh <norun-log> [worktree-wurzel]
 #
 # Ohne zweites Argument wird die Wurzel aus dem Aufrufort abgeleitet — das
