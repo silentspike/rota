@@ -30,6 +30,13 @@ pub const BUFF_KIND_CAPACITY: usize = 8;
 /// Keine Verstaerkung dieser Art.
 const NOT_ACTIVE: i64 = -1;
 
+/// Wert von [`Buffs::next_expiry_at`], wenn nichts laeuft.
+///
+/// `i64::MAX` und nicht [`NOT_ACTIVE`]: Der Vorabtest fragt `now <
+/// next_expiry_at`, und mit `-1` waere er bei einem leeren Satz **immer
+/// falsch** — also genau dort wirkungslos, wo er am meisten spart.
+const NICHTS_LAEUFT_AB: i64 = i64::MAX;
+
 /// Die laufenden Verstaerkungen.
 ///
 /// Je Art hoechstens eine — die Stapel-Regel steckt in der Datenstruktur und
@@ -39,6 +46,29 @@ const NOT_ACTIVE: i64 = -1;
 pub struct Buffs {
     factors: [f64; BUFF_KIND_CAPACITY],
     expires_at: [i64; BUFF_KIND_CAPACITY],
+    /// Der frueheste Zeitpunkt, zu dem hier ueberhaupt etwas ablaufen kann
+    /// (Issue #909, Punkt 1).
+    ///
+    /// # Wofuer
+    ///
+    /// [`Buffs::expire`] lief bisher bei **jedem** Zeitschritt ueber alle
+    /// Arten, auch wenn nichts anstand. Gemessen ueber 145 750 400 Aufrufe im
+    /// LNS-Lauf: **0,63 Prozent** raeumten etwas ab — 99,37 Prozent waren
+    /// vergeblich. Und `Fight::expire_buffs` ruft acht solche Sammlungen auf,
+    /// je Zeitschritt also 64 Vergleiche fuer meist nichts.
+    ///
+    /// # Die Zusicherung, an der alles haengt
+    ///
+    /// Dieser Wert ist **hoechstens** so gross wie der kleinste aktive
+    /// Eintrag in `expires_at` — nie groesser. Damit ist der Vorabtest
+    /// *konservativ*: Er ueberspringt nur Durchlaeufe, in denen sicher nichts
+    /// ablaufen kann. Waere er zu gross, verschwaende eine Verstaerkung nicht
+    /// zum richtigen Zeitpunkt, und das Ergebnis aenderte sich — genau das,
+    /// was AC2 verbietet.
+    ///
+    /// [`Buffs::pruefe_invariante`] rechnet das nach; `expire` prueft es in
+    /// Debug-Bauten bei jedem Aufruf.
+    next_expiry_at: i64,
     replacements: u32,
     expirations: u32,
 }
@@ -56,9 +86,45 @@ impl Buffs {
         Self {
             factors: [1.0; BUFF_KIND_CAPACITY],
             expires_at: [NOT_ACTIVE; BUFF_KIND_CAPACITY],
+            next_expiry_at: NICHTS_LAEUFT_AB,
             replacements: 0,
             expirations: 0,
         }
+    }
+
+    /// Rechnet [`Buffs::next_expiry_at`] aus dem Feld neu aus.
+    ///
+    /// Nur dort aufgerufen, wo etwas **verschwindet** (`expire`): Beim
+    /// Hinzufuegen genuegt das Minimum mit dem neuen Wert, und das ist
+    /// billiger.
+    fn nachrechnen(&mut self) {
+        let mut frueheste = NICHTS_LAEUFT_AB;
+        for kind in 0..BUFF_KIND_CAPACITY {
+            let until = self.expires_at[kind];
+            if until != NOT_ACTIVE && until < frueheste {
+                frueheste = until;
+            }
+        }
+        self.next_expiry_at = frueheste;
+    }
+
+    /// Ob die Zusicherung gilt: `next_expiry_at` ist hoechstens der kleinste
+    /// aktive Eintrag.
+    ///
+    /// Steht oeffentlich, damit ein Prueffall sie an einem echten Kampf
+    /// nachrechnen kann und nicht nur an von Hand gesetzten Werten. Ein
+    /// `debug_assert` allein liefe in der CI mit — aber nicht im
+    /// Release-Messlauf, und genau dort entstehen die Zahlen.
+    #[must_use]
+    pub fn pruefe_invariante(&self) -> bool {
+        let mut frueheste = NICHTS_LAEUFT_AB;
+        for kind in 0..BUFF_KIND_CAPACITY {
+            let until = self.expires_at[kind];
+            if until != NOT_ACTIVE && until < frueheste {
+                frueheste = until;
+            }
+        }
+        self.next_expiry_at <= frueheste
     }
 
     /// Wie oft eine Art ersetzt wurde, statt danebenzustehen.
@@ -104,6 +170,12 @@ impl Buffs {
         }
         self.factors[kind] = factor;
         self.expires_at[kind] = expires_at;
+        // Minimum statt Nachrechnen: Ein neuer Eintrag kann den fruehesten
+        // Zeitpunkt nur VORVERLEGEN, nie verschieben. Das haelt die
+        // Zusicherung und kostet einen Vergleich statt acht.
+        if expires_at != NOT_ACTIVE && expires_at < self.next_expiry_at {
+            self.next_expiry_at = expires_at;
+        }
         true
     }
 
@@ -172,6 +244,18 @@ impl Buffs {
     /// @returns Bitmaske der abgelaufenen Arten — Bit `k` gesetzt heisst
     ///          „Art `k` ist abgelaufen". `0` heisst „keine", wie zuvor.
     pub fn expire(&mut self, now: Millis) -> u32 {
+        debug_assert!(
+            self.pruefe_invariante(),
+            "next_expiry_at ist groesser als der kleinste aktive Eintrag — der Vorabtest \
+             wuerde einen Ablauf verschlucken und das Ergebnis aendern"
+        );
+        // Der Vorabtest aus Issue #909, Punkt 1. Gemessen sind 99,37 Prozent
+        // der Aufrufe vergeblich; hier enden sie nach einem Vergleich statt
+        // nach acht.
+        if i64::from(now) < self.next_expiry_at {
+            return 0;
+        }
+
         let mut ended = 0;
         for kind in 0..BUFF_KIND_CAPACITY {
             let until = self.expires_at[kind];
@@ -183,6 +267,10 @@ impl Buffs {
             ended |= 1u32 << kind;
             self.expirations += 1;
         }
+        // Hier MUSS nachgerechnet werden: Was verschwindet, kann den
+        // fruehesten Zeitpunkt nach HINTEN schieben, und dafuer genuegt kein
+        // Minimum. Der Durchlauf ist ohnehin schon gelaufen.
+        self.nachrechnen();
         ended
     }
 
@@ -208,6 +296,7 @@ impl Buffs {
     pub fn reset(&mut self) {
         self.factors = [1.0; BUFF_KIND_CAPACITY];
         self.expires_at = [NOT_ACTIVE; BUFF_KIND_CAPACITY];
+        self.next_expiry_at = NICHTS_LAEUFT_AB;
         self.replacements = 0;
         self.expirations = 0;
     }
