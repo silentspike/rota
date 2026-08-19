@@ -223,85 +223,76 @@ fn ohne_durchgaenge_gibt_es_null_siege_und_keinen_absturz() {
 /// Die übrigen Fälle dieser Datei setzen beide Felder von Hand — sie können die
 /// Frage deshalb gar nicht beantworten. Sie fragen, wie ein Ausgang **gedeutet**
 /// wird; dieser fragt, ob der Kampf ihn **konsistent erzeugt**.
+///
+/// # Warum zwei Lagen und EINE Zusicherung darüber
+///
+/// Der Aufbau ist Worker-3s, und er ist der Grund, warum meine erste Fassung
+/// nicht genügte. Sie fuhr nur die Lage, in der gestorben wird, und verlangte
+/// „mindestens ein Tod". Eine **Umkehrung** von `todesfelder_stimmen` hätte sie
+/// nicht gefangen: Bei zwanzig Toten ist auch `died != died_at_ms.is_some()`
+/// überall gleich falsch, der Vergleich bleibt einheitlich, der Fall grün.
+///
+/// Die Zusicherung darüber ist ebenfalls seine:
+///
+/// ```text
+/// mit_tod > 0  &&  mit_tod < geprueft
+/// ```
+///
+/// **Eine** Zusicherung für beide Richtungen statt zweier Kontrollzeilen in zwei
+/// Läufen — sie kann nicht halb erfüllt sein. Zwei getrennte Zeilen können es:
+/// Wer die zweite Lage später auf denselben Boss umstellt, hat wieder eine
+/// Richtung, und beide Zeilen bleiben grün.
 #[test]
 fn die_beiden_todesfelder_sagen_an_echten_durchgaengen_dasselbe() {
-    // boss-2-2 statt boss-1-1: Dort stirbt der Spieler nachweislich (der Befund
-    // aus Issue #581 nennt "Tod bei 15000 ms"). Ein Lauf, in dem NIEMAND
-    // stirbt, ließe die Zusicherung leer durchlaufen — beide Felder wären
-    // überall false, und die Gleichheit hielte trivial.
-    let boss = boss_by_id("boss-2-2").expect("boss-2-2 fehlt");
-    let apl = parse(AplName("e607-flashpoint"), VIEL_SCHADEN).expect("die Liste ist gueltig");
-    let ergebnis = run(
-        &BalanceConfig {
-            iterations: 20,
-            base_seed: 4242,
-            threads: 1,
-            boss,
-            ..BalanceConfig::default()
-        },
-        &apl,
-    );
+    // Zwei Lagen, absichtlich an den Enden: In der ersten stirbt der Spieler in
+    // jedem Durchgang, in der zweiten in keinem. Worker-3 hat beide unabhängig
+    // gemessen (Erkundungstabelle zu #939, seed 4242): 20 von 20 gegen 0 von 20.
+    // Die Kontrollzeile ist damit nicht knapp erfüllt, sondern vollständig — die
+    // Form, die eine falsche Antwort nicht zufällig trifft.
+    let lagen = [
+        ("e607-flashpoint", VIEL_SCHADEN, "boss-2-2"),
+        ("e939-schutz", SPARSAM, "boss-2-3"),
+    ];
 
-    // **Die Kontrollzeile, ohne die der Fall nichts belegt.** Stirbt in keinem
-    // Durchgang jemand, sind beide Felder überall false und die Gleichheit
-    // hält, ohne den Fall berührt zu haben.
-    let tode = ergebnis.samples.iter().filter(|s| s.died).count();
+    let mut geprueft = 0usize;
+    let mut mit_tod = 0usize;
+
+    for (name, quelle, boss_id) in lagen {
+        let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("{boss_id} fehlt"));
+        let apl = parse(AplName(name), quelle).expect("die eingebaute Liste ist gueltig");
+        let ergebnis = run(
+            &BalanceConfig {
+                iterations: 20,
+                base_seed: 4242,
+                threads: 1,
+                boss,
+                ..BalanceConfig::default()
+            },
+            &apl,
+        );
+
+        assert!(
+            todesfelder_stimmen(&ergebnis.samples),
+            "{name} gegen {boss_id}: `died` und `died_at_ms.is_some()` sagen \
+             Verschiedenes, zuerst im Durchgang mit Startwert {:?}. Beide \
+             entstehen aus Fight::died_at — laufen sie auseinander, hat jemand \
+             player_dead() oder died_at_ms() geaendert",
+            erster_todesfeld_widerspruch(&ergebnis.samples)
+        );
+
+        geprueft += ergebnis.samples.len();
+        mit_tod += ergebnis.samples.iter().filter(|s| s.died).count();
+    }
+
+    assert_eq!(geprueft, 40, "erwartet 40 Durchgaenge, gemessen {geprueft}");
+
+    // **Die Zusicherung, auf die es ankommt** (Worker-3). Sie verlangt BEIDE
+    // Richtungen in einer Zeile: Ohne einen Todesfall sind beide Felder überall
+    // false und die Gleichheit hält trivial; ohne einen Überlebenden bliebe die
+    // Gegenrichtung ungeprüft und eine Umkehrung ginge durch.
     assert!(
-        tode > 0,
-        "Kontrollzeile: in diesem Lauf muss mindestens ein Durchgang mit dem Tod \
-         des Spielers enden, sonst prueft die Zusicherung darunter eine Menge \
-         aus lauter false — gemessen: {tode} von {}",
-        ergebnis.samples.len()
-    );
-
-    assert!(
-        todesfelder_stimmen(&ergebnis.samples),
-        "`died` und `died_at_ms.is_some()` sagen Verschiedenes, zuerst im \
-         Durchgang mit Startwert {:?}. Beide entstehen aus Fight::died_at — \
-         laufen sie auseinander, hat jemand player_dead() oder died_at_ms() \
-         geaendert, und die Auswertung liest je nach Stelle das eine oder das \
-         andere",
-        erster_todesfeld_widerspruch(&ergebnis.samples)
-    );
-
-    // ---- Die ZWEITE Lage, und sie ist Worker-3s Beitrag ----
-    //
-    // Der Lauf darüber prüft die Gleichheit dort, wo GESTORBEN wird. Eine
-    // Umkehrung von `todesfelder_stimmen` — `s.died != s.died_at_ms.is_some()`
-    // — würde er nicht fangen: Bei zwanzig Toten wäre auch die Umkehrung
-    // überall gleich falsch und der Vergleich einheitlich.
-    //
-    // Deshalb ein zweiter Lauf, in dem NIEMAND stirbt. Erst beide Lagen
-    // zusammen prüfen die Gleichheit in beide Richtungen.
-    //
-    // Worker-3 hat das am laufenden Programm gemessen, bevor es hier stand:
-    // vierzig Durchgänge in zwei Lagen, zwanzig mit Tod und zwanzig ohne, keine
-    // Abweichung. Meine erste Fassung hatte nur die eine Lage.
-    let sanft = boss_by_id("boss-2-3").expect("boss-2-3 fehlt");
-    let schutz = parse(AplName("e939-schutz"), SPARSAM).expect("die Liste ist gueltig");
-    let ohne_tod = run(
-        &BalanceConfig {
-            iterations: 20,
-            base_seed: 4242,
-            threads: 1,
-            boss: sanft,
-            ..BalanceConfig::default()
-        },
-        &schutz,
-    );
-
-    let tode_ohne = ohne_tod.samples.iter().filter(|s| s.died).count();
-    assert_eq!(
-        tode_ohne, 0,
-        "Kontrollzeile der zweiten Lage: hier darf NIEMAND sterben, sonst ist es \
-         dieselbe Lage wie oben und die Gegenrichtung bleibt ungeprueft"
-    );
-
-    assert!(
-        todesfelder_stimmen(&ohne_tod.samples),
-        "auch ohne einen einzigen Todesfall muessen beide Felder dasselbe sagen \
-         — eine Umkehrung der Gleichheit faellt genau hier auf und nicht oben. \
-         Zuerst abweichend: Startwert {:?}",
-        erster_todesfeld_widerspruch(&ohne_tod.samples)
+        mit_tod > 0 && mit_tod < geprueft,
+        "beide Haelften noetig: {mit_tod} Tode von {geprueft}. Null heisst, die \
+         Gleichheit haelt trivial; alle heisst, die Gegenrichtung ist ungeprueft"
     );
 }
