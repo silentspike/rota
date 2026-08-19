@@ -302,6 +302,83 @@ fn ac8_kontrollprobe_am_gewoehnlichen_boss() {
     );
 }
 
+/// Die Speisungs-Tabelle im Modulkopf, **gemessen statt behauptet**.
+///
+/// Der Kopf von `objective.rs` sagt, welche Stufen aus einem Balance-Ergebnis
+/// speisbar sind. Eine solche Tabelle altert lautlos: Wer spaeter eine Stufe
+/// anschliesst oder eine Speisung verliert, aendert den Text nicht mit.
+///
+/// Hier stehen die Zahlen als Zusicherung. Aendert sich eine, ist entweder die
+/// Speisung gewachsen — dann gehoert die Tabelle nachgezogen — oder etwas ist
+/// abgerissen.
+#[test]
+fn die_speisung_traegt_genau_die_angekuendigten_stufen() {
+    let vertrag = vertrag();
+
+    // Gewoehnlicher Boss: Stufen 1, 4, 5 und 7.
+    let gewoehnlich = boss("boss-1-1");
+    let messung = CandidateMeasurement::from_balance_result(
+        &lauf(&liste("e607-flashpoint", VIEL_SCHADEN), gewoehnlich),
+        gewoehnlich,
+        &vertrag,
+        Some(0.0),
+    );
+    assert_eq!(
+        messung.stages.measured_count(),
+        4,
+        "erwartet: Erfolgsabstand, Zielband, Siegzeit, Aenderungskosten"
+    );
+    for stufe in [
+        RankingStage::MechanicQuality,
+        RankingStage::Robustness,
+        RankingStage::ResourceEfficiency,
+    ] {
+        assert_eq!(
+            messung.stages.get(stufe),
+            StageValue::Unmeasured,
+            "{} ist heute nicht speisbar",
+            stufe.name()
+        );
+    }
+    // Stufe 2 bleibt ungemessen, weil dieser Vertrag keine Lebensgrenze traegt
+    // — nicht, weil sie unspeisbar waere. Der Unterschied steht in der Tabelle.
+    assert_eq!(
+        messung.stages.get(RankingStage::SurvivalReserve),
+        StageValue::Unmeasured
+    );
+    let mit_grenze = RunContract {
+        vessel_max: Some(10_000),
+        ..vertrag
+    };
+    let reicher = CandidateMeasurement::from_balance_result(
+        &lauf(&liste("e607-flashpoint", VIEL_SCHADEN), gewoehnlich),
+        gewoehnlich,
+        &mit_grenze,
+        Some(0.0),
+    );
+    assert_eq!(
+        reicher.stages.measured_count(),
+        5,
+        "mit Lebensgrenze kommt die Ueberlebensreserve dazu"
+    );
+
+    // Umgekehrter Boss: eine Stufe weniger, weil die Siegzeit dort die Frist
+    // ist und fuer jeden Sieger gleich.
+    let umgekehrt = boss("boss-2-3");
+    let umgekehrte_messung = CandidateMeasurement::from_balance_result(
+        &lauf(&liste("e939-schutz", SPARSAM), umgekehrt),
+        umgekehrt,
+        &vertrag,
+        Some(0.0),
+    );
+    assert_eq!(umgekehrte_messung.stages.measured_count(), 3);
+    assert_eq!(
+        umgekehrte_messung.stages.get(RankingStage::TimeToWin),
+        StageValue::Unmeasured,
+        "am umgekehrten Boss entscheidet die Siegzeit nichts"
+    );
+}
+
 /// Der Simulator selbst kennt die Umkehrung nicht — dieser Fall haelt das fest.
 ///
 /// Nicht als Mangel dieses Moduls, sondern als Begruendung dafuer, dass
@@ -314,7 +391,10 @@ fn die_rohe_siegzahl_ist_am_umgekehrten_boss_invertiert() {
     let ergebnis = lauf(&liste("e939-schutz", SPARSAM), umgekehrt);
     let (siege, _, _) = zaehle_ausgaenge(&ergebnis, WinCondition::of(umgekehrt));
 
-    assert_eq!(siege, DURCHGAENGE as usize, "der Vertrag sieht lauter Siege");
+    assert_eq!(
+        siege, DURCHGAENGE as usize,
+        "der Vertrag sieht lauter Siege"
+    );
     assert_eq!(
         ergebnis.kills, 0,
         "die rohe Zahl sieht keinen einzigen — die beiden meinen Verschiedenes"

@@ -22,7 +22,10 @@ const LISTEN: [(&str, &str); 9] = [
     ("e607-basis", include_str!("../apl/e607-basis.apl")),
     ("e607-crust", include_str!("../apl/e607-crust.apl")),
     ("e607-decoction", include_str!("../apl/e607-decoction.apl")),
-    ("e607-flashpoint", include_str!("../apl/e607-flashpoint.apl")),
+    (
+        "e607-flashpoint",
+        include_str!("../apl/e607-flashpoint.apl"),
+    ),
     ("e607b-crust", include_str!("../apl/e607b-crust.apl")),
     ("e607b-poultice", include_str!("../apl/e607b-poultice.apl")),
     ("e607b-wisp", include_str!("../apl/e607b-wisp.apl")),
