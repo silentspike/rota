@@ -60,6 +60,8 @@ pub mod akkumulator;
 // Issue #908: der kritische Treffer analytisch — NEBEN dem Kampf, nicht darin.
 pub mod analytisch;
 pub mod apl;
+// Issue #915: Austauschbarkeit von Treffern — abgeleitet, nicht angenommen.
+pub mod austausch;
 pub mod balance;
 // Issue #118: die Suche nach dem besten Aufbau.
 pub mod best_build;
