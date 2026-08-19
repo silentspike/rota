@@ -232,8 +232,8 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       # Der erste Lauf bleibt unberührt: Er sichert zu, dass die Bibliothek
-      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 25 Prüffälle
-      # dazu, die `cargo test` allein NIE ausführt — aus zwei verschiedenen
+      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 28 Prüffälle
+      # dazu, die `cargo test` allein NIE ausführt — aus DREI verschiedenen
       # Gründen, die man leicht für einen hält:
       #
       #   --features diagnostics   sim/tests/diagnose_im_kampf.rs      8 Fälle
@@ -245,6 +245,23 @@ jobs:
       #                            sim/examples/trace-stabilitaet.rs   3 Fälle
       #        `cargo test` BAUT Beispiele, führt ihre `#[test]` aber nicht aus.
       #        `main()` läuft dabei nie — nur die Prüffälle.
+      #
+      #   --features diagnostics   sim/src/balance.rs                  3 Fälle
+      #        `balance::tests::ac3_der_reduzierte_lauf_rechnet_genau_einen_kampf`
+      #        `balance::tests::ac3_auch_der_suchpfad_rechnet_nur_einen_kampf`
+      #        `balance::tests::ac6_ein_kampflauf_bestimmt_keine_auspraegung_neu`
+      #        Diese drei stehen NICHT in einer eigenen Datei, sondern einzeln
+      #        hinter `#[cfg(feature = "diagnostics")]` IN der Bibliothek. Wer
+      #        die Zusatzfälle über Dateien sucht, findet sie deshalb nicht —
+      #        bis zum 2026-08-19 stand hier „25 Prüffälle aus ZWEI Gründen",
+      #        und die drei fehlten in der Zahl.
+      #
+      #        Gefunden über einen Vergleich der `--list`-Ausgaben beider
+      #        Bauten: `cargo test --no-run` gegen `--all-targets --features
+      #        diagnostics`, die Namen mit `comm -13` gegeneinander gehalten.
+      #        Die lib-Suite geht dabei von 186 auf 189. Wer die Zahl erneut
+      #        prüfen will, nimmt denselben Weg — eine Zahl allein wäre in
+      #        einem Jahr wieder eine unbelegte Angabe.
       #
       # Die 8 sind die wichtigsten: Sie prüfen, ob die Auswertung überhaupt
       # etwas zu rechnen BEKOMMT. Die 7 in diagnostics.rs prüfen nur, dass sie
