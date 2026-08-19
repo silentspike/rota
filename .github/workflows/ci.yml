@@ -80,7 +80,18 @@ jobs:
             # tests/unit/ci-sim-filter.test.ts aus den include_str!-Zeilen
             # selbst. Eine von Hand gefuehrte Abschrift kann nicht bemerken,
             # dass ihr ein Eintrag fehlt (#134, #138, #159, und hier).
-            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$)')"
+            # .github/workflows/ci.yml MUSS dabei sein: Diese Datei enthaelt die
+            # Befehle der sim-Stufe selbst. Ohne sie im Muster aendert jemand den
+            # Testbefehl — streicht --all-targets, faellt ein Merkmal weg, wird
+            # ein Schritt entfernt —, die Stufe laeuft NICHT, und ci-pass meldet
+            # gruen. Gemessen an PR #995: Die Aenderung, die zwei Testbefehle
+            # daraus macht, hat den sim-Job auf "skipping" gesetzt. Sie konnte
+            # sich selbst nicht pruefen.
+            #
+            # Dieselbe Klasse wie #134, #138, #159 und die Zeilen darueber, nur
+            # eine Ebene hoeher: Dort fehlten Eingaben der Pruefung im Muster,
+            # hier fehlt die DEFINITION der Pruefung.
+            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)')"
             # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
             # "code": alles außer reiner Dokumentation.
             #
@@ -220,6 +231,25 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+      # Der erste Lauf bleibt unberührt: Er sichert zu, dass die Bibliothek
+      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 25 Prüffälle
+      # dazu, die `cargo test` allein NIE ausführt — aus zwei verschiedenen
+      # Gründen, die man leicht für einen hält:
+      #
+      #   --features diagnostics   sim/tests/diagnose_im_kampf.rs      8 Fälle
+      #        Die Datei trägt `#![cfg(feature = "diagnostics")]`. Ohne das
+      #        Merkmal übersetzt sie zu einer LEEREN Suite und meldet
+      #        „test result: ok. 0 passed" — grün, und sie hat nichts angesehen.
+      #
+      #   --all-targets            sim/examples/messumgebung.rs       14 Fälle
+      #                            sim/examples/trace-stabilitaet.rs   3 Fälle
+      #        `cargo test` BAUT Beispiele, führt ihre `#[test]` aber nicht aus.
+      #        `main()` läuft dabei nie — nur die Prüffälle.
+      #
+      # Die 8 sind die wichtigsten: Sie prüfen, ob die Auswertung überhaupt
+      # etwas zu rechnen BEKOMMT. Die 7 in diagnostics.rs prüfen nur, dass sie
+      # rechnet — und blieben grün, wenn der Kampf die Zähler nie füttert.
+      - run: cargo test --all-targets --features diagnostics
 
   # ------------------------------------------------------------------- Parität
   # Aufgezeichnete Runden müssen in Spiel UND Simulator denselben Wert ergeben
