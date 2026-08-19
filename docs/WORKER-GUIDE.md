@@ -7100,3 +7100,623 @@ dabei eine Absicht aufgibt, die nur im Kommentar steht.
 **erweitert** („es sind drei Stellen, nicht eine" — und die Größen benannt, die es nicht gibt). Eine
 erweiterte falsche Diagnose wiegt schwerer als die ursprüngliche, weil sie bestätigt aussieht. Wer
 einen fremden Befund aufstockt, prüft ihn zuerst — sonst verdoppelt er nur die Zuversicht.
+
+### 8.103 Eine Kontrollzeile braucht beide Richtungen
+
+Am 2026-08-19 prüfte ein Worker, ob ein Release-Binary seinen Stand trägt. Vier Merkmale wurden als
+**fehlend** gemeldet. Er hätte einen Neubau angestoßen, der nichts geändert hätte.
+
+Seine Kontrollzeile war halb:
+
+```
+geprüft:      eine ERFUNDENE Zeichenkette wird NICHT gefunden       ✓
+NICHT geprüft: eine ECHTE Zeichenkette WIRD gefunden
+```
+
+Die fehlende Hälfte war genau die, auf die es ankam. Der Gegentest mit Zeichenketten, die drinstehen
+müssen (`rota-sim`, `bosses`, `spells`, `candidates` — alle vier gefunden), stellte die Frage erst
+richtig: _Der Suchweg findet grundsätzlich etwas, aber die gesuchten nicht._ Ursache war `ugrep`, das
+Binärdateien ohne `-a` stillschweigend überspringt.
+
+> **Eine Kontrollzeile prüft zwei Dinge, nicht eines:** dass etwas Abwesendes nicht gefunden wird,
+> **und** dass etwas Vorhandenes gefunden wird. Nur eine davon ist die Hälfte, die man gerade nicht
+> braucht.
+
+**Ein Nullbefund ist eine Aussage über den Gegenstand UND über den Messweg.** Ohne die positive
+Hälfte ist nicht unterscheidbar, welches von beiden gerade null ergeben hat.
+
+### 8.104 Zählen findet Kandidaten, Erreichbarkeit trennt sie
+
+Am 2026-08-19 zählte ein Worker, wie oft jedes Feld seiner neuen Struktur in Prüffällen vorkommt.
+Zwei Nullen, zwei echte Lücken — die Zählung fand, was das Suchen nach bekannten Fehlerklassen
+nicht gefunden hatte.
+
+> „Das Suchen nach Klassen findet, was ich schon kenne. Das Zählen findet, was ich übersehen habe."
+
+**Eine Ebene weiter kippte die Regel.** Dieselbe Zählung über Funktionen und Typen ergab drei
+Nullen — und **keine davon war eine Lücke**:
+
+```
+abhaengigkeiten_fuer   0 Nennungen   ABER erreichbar über alle_domaenen()
+domaene_fuer           0             dito
+ParameterDomain        0             dito
+```
+
+Die Zählung beantwortet _„wird es genannt"_, nicht _„wird es geprüft"_. Bei Feldern fällt beides
+zusammen, weil ein Feld nur über seinen Namen erreichbar ist. Bei Funktionen nicht.
+
+**Das Verfahren hat deshalb zwei Schritte:**
+
+1. **Zählen**, was von wie vielen Fällen genannt wird. Eine Null ist ein **Kandidat**.
+2. Für jede Null: **Ist es über einen anderen Weg erreichbar?** Dann ist es keine Lücke. Bleibt es
+   unerreichbar, oder gibt es einen Zweig, den kein heutiger Aufrufer erzeugen kann — dann ist es eine.
+
+Ohne (2) baut man Deckung für Erreichbares und übersieht das Unerreichbare: In diesem Fall drei
+falsche Kandidaten, und der eine echte Zweig (eine `pub`-Funktion mit einem Namen, den es nicht gibt
+— über den einzigen Aufrufer nie erreichbar) wäre durchgefallen.
+
+**Und eine dritte Frage kommt bei Aufzählungen dazu:** Zwei tote Varianten sahen in der Zählung
+gleich aus. Eine wurde gestrichen (sie wäre _nie_ ableitbar geworden — die nötige Zuordnung gibt es
+in den Daten nicht), die andere behalten (sie wird ableitbar, sobald eine benannte Quelle liefert).
+Der Unterschied ist nicht _„heute unbenutzt"_, sondern _„wird es je erzeugbar"_.
+
+### 8.105 Eine Abhilfe darf die Spur nicht entfernen
+
+Am 2026-08-19 gab der Orchestrator eine Regel gegen einen leeren `grep -c`-Wert aus:
+
+```bash
+n=${n:-0}     # FALSCH
+```
+
+Ein Worker hat sie zerlegt, bevor sie Schaden anrichtete:
+
+> „Die Abhilfe macht aus _nicht gemessen_ ein _gemessen, null gefunden_ — und das ist die
+> gefährlichere der beiden Aussagen, weil sie wie ein Ergebnis aussieht. Heute ist die Bedingung
+> wenigstens mit `integer expected` und Exit 2 abgebrochen. Das war eine Spur. **Wir hätten den
+> ugrep-Befund mit dieser Regel nie gefunden.**"
+
+Das war nicht abstrakt: Der Befund aus 8.103 war eine Stunde zuvor nur entstanden, **weil etwas laut
+kaputtging**. Die Regel hätte dasselbe Ereignis zu einer ruhigen Null gemacht.
+
+**Was stattdessen gilt** — gefahren, nicht ausgedacht:
+
+```bash
+n=$(grep -ac MUSTER DATEI)
+[ -n "$n" ] || { echo "MESSUNG FEHLGESCHLAGEN: kein Wert für $DATEI" >&2; exit 1; }
+```
+
+Das `-a` gehört in denselben Aufruf — sonst behandelt man nur das Symptom. Und feiner noch: **OHNE
+MESSWERT** (die Messung fand nicht statt) ist von **STUMM** (0 Fälle gelaufen) zu trennen. Beides ist
+kein Bestehen, aber es sind zwei verschiedene Befunde, und wer sie zusammenwirft, sucht den Fehler an
+der falschen Stelle.
+
+> **Vor jeder Abhilfe die Frage:** _Woran hätte man gemerkt, dass es kaputt ist — und ist das danach
+> noch da?_ Wenn die Antwort nein lautet, behebt man die Meldung statt der Sache.
+
+Es verletzt außerdem eine Regel, die anderswo längst gilt: _ein Lauf mit null ausgeführten Tests gilt
+als fehlgeschlagen, nicht als bestanden._
+
+### 8.106 Eine Fehlermeldung, die nur eine Richtung kennt
+
+Am 2026-08-19 wurde ein neuer Prüffall beim ersten Lauf rot — und die Meldung beschrieb den Fall
+nicht, der eingetreten war:
+
+```
+"in [plate, crucible-skin] stehen 0 Stapel statt einem"
+left: 0   right: 1
+```
+
+Die Träger-Zusicherung prüfte, dass ein zweiter Schutzzauber **abprallt** — das geschieht beim
+**Aufbau**. Geschrieben war sie gegen den Messzeitpunkt am Ende, zu dem die Schicht längst abgelaufen
+ist. Die alte Fehlermeldung sprach nur von _„mehr als einem Stapel"_ und ließ den Leser in die falsche
+Richtung suchen.
+
+**Behoben mit einer Meldung, die beide Ausgänge benennt:**
+
+> „**MEHR** heißt: der zweite Zauber hat etwas beigetragen. **WENIGER** heißt: die Schicht ist schon
+> weg, dann ist der Zeitpunkt falsch gewählt und alles Weitere misst ins Leere."
+
+Das ist 8.103 auf der Ausgabeseite. Eine Zusicherung, die nur eine Abweichungsrichtung erklärt, ist im
+roten Fall schlimmer als gar keine Erklärung — sie liest sich wie ein Beleg, und wer sie sieht, glaubt
+zu wissen, was schiefging.
+
+**Dieselbe Prüfung gilt für die Zusicherung selbst:** Ein Fall, dessen Fehlermeldung etwas
+_behauptet_, was er nicht prüft („der Hinweis nennt die richtige Richtung UND den richtigen Bezug"),
+gehört ergänzt — entweder prüft er es, oder die Meldung sagt es nicht.
+
+### 8.107 In einer Prioritätenliste gewinnt die erste wirkbare Regel — auch beim Messen
+
+Am 2026-08-19 sollte gemessen werden, ob ein Kontroll-Kit einen tödlichen Schlag abwenden kann.
+Die Kontrollrotation lautete:
+
+```
+tether
+pin if time >= 11000
+kindle
+```
+
+Das Ergebnis: Der Spieler starb, `damage_taken` war mit und ohne Kit exakt gleich. Daraus wurde
+gemeldet, PIN wirke an diesem Boss nicht — ein Befund über die **Fähigkeit**.
+
+Er war falsch. Nachgezählt wurde, was überhaupt geworfen wurde:
+
+```
+tether-Würfe   8
+pin-Würfe      0
+```
+
+`tether` hat 1500 ms Abklingzeit und ist damit praktisch immer wirkbar. In einer Prioritätenliste
+gewinnt die **erste Regel, deren Zauber wirkbar ist** — also stand `tether` jedem Durchgang im Weg,
+und `pin` kam nie an die Reihe. Mit `pin` an erster Stelle überlebte derselbe Spieler denselben
+Schlag unversehrt (5000 von 5000 Lebenspunkten).
+
+> Ein Zauber, der **nie geworfen wurde**, ist am Ergebnis nicht von einem **wirkungslosen** zu
+> unterscheiden. Beide erzeugen dieselbe Zahl.
+
+Deshalb gehört zu jeder Messung an einer Fähigkeit die Gegenfrage: **Kam sie überhaupt zum Zug?**
+Die Antwort steht in `casts` und kostet eine Zeile. Ohne sie misst die Rotation ihre eigene
+Reihenfolge statt der Sache.
+
+Dasselbe am selben Tag, eine Ebene höher: Zwei Sitzungen hatten unabhängig voneinander die
+Schild-Obergrenze berechnet, indem sie drei Zeilen einer APL als drei Tastendrücke addierten —
+3500 gegen 4200. Eine Prioritätenliste ist eine **Vorschrift für die ganze Kampfzeit**, keine Folge
+von Drücken; beide Rechnungen addierten etwas, das der Kampf so nicht tut.
+
+Die gemessene Obergrenze war dann 4200 — also **eine der beiden geratenen Zahlen, aus falscher
+Herleitung richtig**. Das ist der unangenehmere Ausgang: Ein Irrtum, der zufällig das richtige
+Ergebnis liefert, wird nicht nachgeprüft. Bestätigt hat die Zahl erst der Lauf, nicht die
+Übereinstimmung.
+
+### 8.108 Eine Verzögerung sieht aus wie eine Verhinderung, wenn man zu früh misst
+
+Derselbe Aufbau, unmittelbar danach. Gemessen wurde, ob der Schlag abgewendet ist — an den
+Lebenspunkten kurz nach seinem Zeitpunkt:
+
+```
+Schlag laut Zeitleiste   12000 ms
+gemessen bei             12100 ms
+
+ohne quench   Leben 5000   sieht abgewendet aus
+mit quench    Leben 5000   ist abgewendet
+```
+
+Beide Varianten zeigen volle Lebenspunkte. Der Grund steht in den Zauberdaten: PIN öffnet ein
+Fenster von 2000 ms (`amountMs`) — der Schlag wird zum laufenden Zauber und landet erst bei
+14000 ms. Bei 12100 gemessen ist er schlicht **noch unterwegs**.
+
+Erst hinter dem Ende der verschobenen Wirkung trennen sich die beiden:
+
+```
+gemessen bei 15000 ms
+
+ohne quench   Leben 0      nur verzögert
+mit quench    Leben 5000   wirklich verhindert
+```
+
+> Der Messzeitpunkt muss hinter der **gesamten** Wirkung liegen, nicht hinter ihrem **Anfang**. Bei
+> allem, was verschiebt statt verhindert — Wirkzeiten, Fenster, aufgeschobene Einschläge —, gehört
+> die Probe ans Ende der Verschiebung.
+
+Die Falle ist besonders heimtückisch, weil die zu frühe Messung das **erwünschte** Ergebnis zeigt:
+volle Lebenspunkte, genau wie erhofft. Wer sie meldet, meldet einen Erfolg, den es nicht gibt.
+
+Die Gegenfrage kostet nichts: **Wie lange dauert die Wirkung, die ich messe — und liegt mein
+Messpunkt dahinter?** Steht in den Daten eine Dauer (`amountMs`, `castTimeMs`, `durationMs`), ist
+sie die Untergrenze für den Messzeitpunkt.
+
+### 8.109 Eine Aufzeichnung ist ein Schnappschuss — neue Daten erreichen sie nicht von selbst
+
+Am 2026-08-19 kamen zwei Bossdateien dazu. Der Bau lief, `clippy` und `fmt` waren grün, die neuen
+Prüffälle bestanden. Erst der volle lokale Lauf über alle 212 Ziele fand den Bruch:
+
+```
+parity_boss_state::ac1_beide_seiten_sehen_dieselbe_boss_menge   FAILED
+
+  "Spiel und Simulator kennen verschiedene Bosse.
+   Liegt eine neue Datei unter data/bosses/, die eine Seite nicht liest?"
+
+  left  (Spiel)      35 Bosse
+  right (Simulator)  37 Bosse
+```
+
+Die Spiel-Seite liest `data/bosses/` über `import.meta.glob` und **würde** die neuen Dateien
+kennen. Die Liste im Test kommt aber nicht von dort, sondern aus einer **Aufzeichnung**:
+`tests/parity/recordings/vessel-phases.json`, Feld `allBossIds`, 35 Einträge — geschrieben von
+`tests/parity/payloads.ts` und erneuert nur durch `npm run parity:export`.
+
+> Eine Aufzeichnung hält den Stand fest, den die Daten **zum Zeitpunkt des Exports** hatten. Sie
+> altert bei jeder neuen Datendatei, und sie tut es lautlos, weil sie selbst gültig bleibt.
+
+**Wo der Hinweis hätte stehen müssen.** Gemessen: `parity:export` kommt im Guide viermal vor — und
+jedes Mal im Zusammenhang mit _roten Paritätstests_, also mit dem Aufräumen hinterher. Kein
+einziges Mal als Schritt beim **Anlegen** einer Datendatei. Bei `data/bosses/` liegt keine
+Hinweisdatei, und der ausführliche `_comment` in `boss-1-1.json` — der zwei andere Fallen benennt
+(`escalation` wirkt nur mit `timelineLoopMs`; alle Einträge müssen in den Schleifenrahmen passen) —
+kennt diese dritte nicht.
+
+Damit trifft der Hinweis den Bauenden erst **am Ende** einer langen Kette: anlegen, bauen, prüfen,
+den vollen Lauf fahren. Wer nur die Ziele seines Issues fährt, bekommt ihn gar nicht.
+
+**Der Wächter fehlte nicht — er kam nur spät.** `parity_boss_state` ist gut gebaut: Die
+Fehlermeldung nennt die Ursache und stellt sogar die richtige Frage („Liegt eine neue Datei unter
+`data/bosses/`?"). Das ist der Unterschied zu 8.93: Dort fängt ein Wächter die Sache nicht. Hier
+fängt er sie zuverlässig, aber erst hinter dem Punkt, an dem man sie billig behoben hätte.
+
+Praktisch: **Wer eine Datei unter `data/` anlegt, prüft, welche Aufzeichnungen ihren Bestand
+mitführen** — und fährt den vollen lokalen Lauf, nicht nur die Ziele des eigenen Issues. Der Lauf
+über alle Ziele kostete hier 131 Sekunden und war der einzige Grund, warum der Bruch vor der CI
+auffiel.
+
+### 8.110 Die Quelle beschreibt etwas anderes als das, wonach gefragt wurde
+
+An einem einzigen Abend fünfmal, in fünf verschiedenen Werkzeugen, von vier verschiedenen
+Sitzungen. Jedes Mal lieferte die Quelle eine Antwort, die **richtig war** — nur auf eine andere
+Frage.
+
+```
+Quelle                        sieht aus wie          ist tatsächlich
+────────────────────────────────────────────────────────────────────────────────
+vessel-phases.json            der Bossbestand        der Bestand beim letzten Export
+refs/remotes/origin           die Zweige am Server   die Zweige beim letzten fetch
+mergeable                     "darf gemergt werden"  "es gibt keinen Konflikt"
+DATEIEN=(...) im Wächter      die Dokumente          zwei davon
+gh pr list --author @me       meine PRs              die PRs des Kontos
+die eigene Notiz              der aktuelle Stand     der Stand beim Ablesen
+ir-chk=1291/1297              das Ergebnis           der Stand in diesem Moment
+```
+
+Damit sind **alle drei Zeitrichtungen** beisammen: eine Quelle von gestern (Aufzeichnung, Cache),
+eine Ablesung von vorhin (die eigene Notiz) — und eine Zahl von **mittendrin**. Die letzte ist die
+heimtückischste, weil sie in demselben Augenblick entsteht, in dem man sie liest: `ir-chk=1291/1297`
+ist ein Fortschrittsbalken und sieht aus wie ein Endstand. Aus ihm entstand die Zahl „1300
+Dateien", die einen halben Abend lang als Begründung einer Regel herumstand.
+
+**Drei Spielarten, und sie unterscheiden sich in der Abhilfe:**
+
+Die ersten beiden zeigen einen **alten** Zustand. `vessel-phases.json` kannte 35 Bosse, während
+das Verzeichnis 37 hatte; `refs/remotes/origin` führte 199 Zweige, während der Server 59 hatte —
+140 davon längst gelöscht. Ein `fetch` ohne `--prune` räumt nichts weg. Abhilfe: die Quelle
+erneuern oder den Server fragen (`git ls-remote`).
+
+Die letzten drei zeigen einen **anderen Gegenstand**. `mergeable` beantwortet die Konfliktfrage,
+nicht die Merge-Frage — gemessen an zwei PRs im selben Augenblick:
+
+```
+#1010  mergeable=MERGEABLE  mergeStateStatus=CLEAN     darf
+#1012  mergeable=MERGEABLE  mergeStateStatus=BLOCKED   darf nicht
+```
+
+Dasselbe `mergeable`, entgegengesetztes Ergebnis. `gh pr list --author @me` zeigt das **Konto**,
+nicht die **Rolle** — vier Sitzungen teilen eines, und wer den Befehl als Selbstprüfung liest,
+sieht fremde Arbeit und hält sie für seine. Oder umgekehrt, und das ist schlimmer: Wer „da läuft
+ja was" denkt, sucht nicht weiter nach dem eigenen, das nirgends steht. Abhilfe: die Frage an die
+Stelle verlagern, wo sie beantwortbar ist.
+
+Die sechste betrifft **nicht die Quelle, sondern den Leser** — und sie ist die häufigste, weil sie
+keine Voraussetzung hat außer Zeitablauf. Ich hatte in einer Nachricht gemeldet, ein PR brauche
+noch einen `update-branch`. Der Messwert dazu war zwanzig Minuten alt; der Lauf war längst
+angestoßen worden. **Meine Quelle war nicht veraltet, meine Ablesung war es** — sie hätte
+geantwortet, wenn ich sie vor dem Absenden nochmal gefragt hätte. Abhilfe: genau das.
+
+| Spielart           | Abhilfe                                                         |
+| ------------------ | --------------------------------------------------------------- |
+| alter Zustand      | Quelle erneuern oder den Server fragen                          |
+| anderer Gegenstand | die Frage dorthin verlagern, wo sie beantwortbar ist            |
+| alte Ablesung      | vor dem Absenden nochmal fragen **und die Antwort abschreiben** |
+| wandernder Bezug   | die Schwelle an etwas binden, das mitwandert                    |
+
+> **Der Zusatz ist nicht überflüssig.** Dieselbe Person hat die Ablesung dreimal an einem Abend
+> versäumt — beim dritten Mal in genau dem Absatz, der die Abhilfe ankündigte. Und dabei war die
+> Messung **gefahren**: Die frische Ausgabe stand daneben, verwendet wurde die erinnerte Zahl aus
+> drei Minuten zuvor. Zwischen „frisch messen" und „das Gemessene hinschreiben" liegt ein Schritt,
+> den man für selbstverständlich hält.
+>
+> Was hilft, ist billiger als Vorsatz: **die Uhrzeit der Ablesung dazuschreiben.** Eine Zahl ohne
+> Zeitpunkt behauptet Gegenwart; eine mit Zeitpunkt lädt zum Nachrechnen ein — auch den, der sie
+> geschrieben hat.
+>
+> **Und diese Abhilfe braucht ihren eigenen Vorbehalt.** Beim vierten Mal an demselben Abend war
+> es die _Uhrzeit selbst_, die nicht stimmte: `22:49:12` geschrieben, während die Ausgabe
+> `22:48:34` sagte — um 38 Sekunden in die Zukunft geschätzt, also genau das getan, was die
+> Angabe verhindern soll. Eine erfundene Uhrzeit ist schlimmer als keine: Sie **beglaubigt** eine
+> Ablesung, die so nicht stattfand.
+>
+> Deshalb: `date` und die Messung in **einem** Befehl, und beides aus dessen Ausgabe abschreiben.
+> Eine Maßnahme gegen einen Fehler, die denselben Fehler enthalten kann, erzeugt Vertrauen, wo
+> vorher Unsicherheit war.
+
+**Und dann hilft auch das Abschreiben nicht mehr — der Schritt muss weg.** Nach dem vierten Fall
+war klar, dass jede Fassung der Regel wieder ein Vorsatz ist: „nochmal fragen", „die Antwort
+abschreiben", „die Uhrzeit dazu". Alle drei sind an demselben Abend gescheitert, der letzte in dem
+Absatz, der ihn einführte.
+
+Was trägt, ist **Mechanik statt Disziplin** — die Ausgabe darf nicht durch den Kopf gehen:
+
+```bash
+rota-ipc senden Orchestrator - <<ENDE
+Stand $(date +%H:%M:%S):
+$(gh pr checks 1013 | grep -c pass) von $(gh pr checks 1013 | wc -l) grün
+ENDE
+```
+
+Kein `<<'ENDE'` mit Anführungszeichen — dann setzt die Shell die Befehle selbst ein. Was in der
+Nachricht steht, **ist** die Ausgabe; es gibt keinen Schritt dazwischen, in dem eine erinnerte
+Zahl gewinnen kann.
+
+**Der Weg hat einen Preis, und der ist zu kennen.** Ohne Anführungszeichen führt die Shell auch
+alles andere aus, was sie erkennt — `$` und Backticks im Fließtext. In genau dieser Meldung ist so
+ein Wort verschwunden: Ein in Backticks gesetztes `continue` wurde als Befehl aufgerufen, bash
+antwortete „only meaningful in a for, while, or until loop", und an der Stelle blieb nichts. Der
+Versand meldete Erfolg.
+
+> Auch hier war der **Fehler** laut — die Meldung stand in der Ausgabe. Aber die **Wirkung** war
+> still: In der Nachricht fehlte nur ein Wort, der Satz las sich fast normal.
+
+Also: Zahlen und Uhrzeiten über `$(…)` im ungequoteten Dokument — und im Fließtext dann keine
+Backticks um Bezeichner. Wer beides braucht, schreibt zwei Nachrichten.
+
+> **Der eigentliche Grund ist nicht, dass der mechanische Weg nie versagt.** Er versagte beim
+> ersten Versuch sofort, bei beiden Beteiligten, am selben falsch escapten `awk`. Aber er versagte
+> **laut**: Wo eine Zahl stehen sollte, stand eine Fehlermeldung, die niemand für ein Ergebnis
+> halten kann. Der Vorsatz versagt **still** — eine erinnerte Zahl sieht aus wie eine abgelesene.
+>
+> Ein Werkzeug, das falsch bedient wird und dabei kaputtgeht, ist besser als eines, das falsch
+> bedient wird und weiterläuft. Das ist 8.105 von der anderen Seite: Eine Abhilfe soll laut
+> kaputtgehen.
+
+**Und eine vierte Spielart, die keine Quelle betrifft, sondern eine Zusicherung.** Die
+Kontrollzeile des Wächters war selbst eine Schwelle mit Bezugsgröße: „weniger als **zehn**
+Nummern" ergab Sinn, solange nur zwei große Dokumente geprüft wurden. Sobald der Bezug sich
+änderte — fünf Dokumente, davon drei kleine —, wurde aus der Zusicherung eine **Blende**.
+
+|                          | sieht aus wie             | ist tatsächlich                                                  |
+| ------------------------ | ------------------------- | ---------------------------------------------------------------- |
+| eine Schwelle im Wächter | „das Muster greift nicht" | „diese Datei ist kleiner als die zwei, für die ich gebaut wurde" |
+
+> **Rot aus dem falschen Grund ist schlimmer als grün aus dem falschen Grund.** Bei grün sucht
+> wenigstens noch jemand weiter. Bei rot hat man ein Ergebnis in der Hand, arbeitet es ab — und der
+> echte Befund liegt darunter.
+
+Eine Schwelle ist eine Zahl mit Bezugsgröße. Wo der Bezug wandern kann, gehört die Schwelle an
+etwas gebunden, das mitwandert: Hier prüft sie jetzt nicht mehr „genug Treffer", sondern
+„Dateiauswahl und Zählung finden dasselbe" — eine Aussage über das Werkzeug statt über das
+Dokument.
+
+**Ein Nachtrag, der beim Beheben entstand.** Die Zeile `DATEIEN=(...)` oben ist inzwischen
+korrigiert — der Wächter liest die Dokumente jetzt ab, statt sie aufzuzählen. Und dabei fiel eine
+zweite Schicht derselben Klasse auf, eine Ebene tiefer:
+
+Der Wächter trug eine Kontrollzeile gegen seinen eigenen blinden Fleck — _findet das Muster
+weniger als **zehn** Nummern, brich ab, statt „keine Dubletten" zu melden_. Die Schwelle stammte
+aus der Zeit, als er nur zwei große Dateien kannte (91 und 77 Nummern). Sobald er alle fünf las,
+brach sie bei den kleinen ab: `STEP1-SPEC.md` trägt 4, `VERIFICATION.md` 5.
+
+Gemessen mit einer künstlich eingebauten Dublette in `VERIFICATION.md`: **Sie wurde nicht
+gemeldet.** Der Wächter war rot — aber wegen der Schwelle, und der `continue` dahinter übersprang
+die Dublettenprüfung. Rot aus dem falschen Grund, und der echte Befund fiel unter den Tisch.
+
+> Eine Schutzmaßnahme, deren Schwelle aus einem anderen Zusammenhang stammt, **verdeckt genau das,
+> wovor sie schützen soll** — und sie tut es, während sie Alarm schlägt.
+
+Die Schwelle ist jetzt 1 und prüft etwas anderes: Die Dateiauswahl nimmt nur Dokumente **mit**
+Treffern. Findet die Zählung darin trotzdem keinen, sind die beiden Muster im Skript
+auseinandergelaufen — ein Fehler im Werkzeug, kein Befund über das Dokument.
+
+**Warum dieser Teil so ausführlich ist.** Der Fehler trat an einem Abend sechsmal auf — viermal bei
+dem, der den Abschnitt schreibt, zweimal bei dem, der ihn anregte, und jedes Mal in einer Nachricht
+_über_ genau diesen Fehler. Wer hier „mehr aufpassen" liest, hat den Beleg vor sich, dass das nicht
+reicht.
+
+**Die Fehlerrichtung ist nicht symmetrisch**, und das entscheidet, wie teuer der Irrtum wird:
+
+| Frage                       | veralteter Cache zeigt    |                          |
+| --------------------------- | ------------------------- | ------------------------ |
+| „Ist X **schon** irgendwo?" | zu viele                  | die vorsichtige Richtung |
+| „Ist X **nirgends** mehr?"  | Zweige, die es nicht gibt | die gefährliche          |
+
+Beide traten an diesem Abend auf. Eine Zweig-Zuteilung lief über den Cache — gefährliche Richtung;
+alle 16 Zweige existierten noch, aber das war Glück. Eine `--contains`-Prüfung ebenfalls —
+vorsichtige Richtung; sie **konnte** nicht falsch ausgehen, weil schon der zu große Cache nichts
+fand.
+
+> Vor dem Schluss aus einer Quelle: **Welchen Zustand beschreibt sie, und wann ist er entstanden?**
+> Und wenn die Antwort in die falsche Richtung irren kann — ist das die vorsichtige Richtung oder
+> die gefährliche?
+
+**Warum das kein Sorgfaltsproblem ist.** Alle fünf Quellen waren in Ordnung. Keine war kaputt,
+keine log. Vier Sitzungen haben unabhängig voneinander dieselbe Bewegung gemacht: die
+naheliegendste Quelle gelesen und ihre Antwort für die eigene Frage genommen. Was die Fälle
+aufgedeckt hat, war jedes Mal **eine zweite Ablesung aus einer anderen Richtung** — nie das
+Nachdenken über die erste.
+
+### 8.111 Eine Mutation, die nichts bewirkt, sieht aus wie eine fehlende Deckung
+
+Am 2026-08-19 lief eine Mutationsserie über `sim/src/domaene.rs`. Sechzehn von siebzehn
+Mutationen machten den erwarteten Prüffall rot. Eine blieb grün:
+
+```rust
+// vorher
+let erster = treffer.next()?;
+// mutiert
+let erster = treffer.next().unwrap_or(&WIRKGROESSEN[0]);
+```
+
+Erwartet war rot in `abhaengigkeiten_unterscheiden_drei_faelle`, dem Fall für einen Namen,
+den es nicht gibt. Der naheliegende Schluss: Der Prüffall deckt den Zweig nicht.
+
+**Er deckt ihn.** Durchgespielt für einen unbekannten Namen:
+
+```
+treffer ist leer
+treffer.next()          -> None -> unwrap_or -> erster = WIRKGROESSEN[0]
+treffer.next()          -> None
+.map(|_| erster.name)   -> NONE
+```
+
+Die Mutation ändert den **ersten** `next()`, aber der **zweite** entscheidet. Ihr Effekt wird
+eine Zeile später aufgehoben. Eine wirksame Fassung — ein unbekannter Name liefert `Some` —
+machte den Fall sofort rot.
+
+> Wird eine Mutation nicht rot, prüfe zuerst, ob sie überhaupt wirkt: Erreicht der gefahrene
+> Weg die geänderte Stelle, und überlebt ihr Effekt bis zum Ergebnis? Erst wenn beides ja ist,
+> ist es eine Deckungslücke. Sonst hat man eine Zeile geändert, die keinen Unterschied macht,
+> und meldet einen Prüffall als blind, der sieht.
+
+### 8.112 Wo nichts brechen kann, braucht es eine Mutation, die es beweist
+
+Am 2026-08-19 kam `MonotonicityDomain::SpellDiversity` als fünfte Variante dazu. Vor dem Bau
+wurde gezählt, wie viele Stellen brechen würden:
+
+```
+erschöpfende matches über MonotonicityDomain     0
+Kontrolle: matches in passes.rs überhaupt       15   (alle über EffectOp)
+Vorkommen außerhalb domaene.rs                  13   (alle matches!/==)
+```
+
+Keine. Der Bau lief grün durch — wie vorhergesagt. **Und genau das ist die Gefahr:** Eine
+Variante, die keinen Bau bricht, ist eine Variante ohne Wächter. Niemand merkt, wenn sie
+nirgends behandelt wird.
+
+Zwei Läufe zusammen machen daraus eine Aussage:
+
+|                                  |                                                             |
+| -------------------------------- | ----------------------------------------------------------- |
+| **V0** Bau nach der Änderung     | bricht nicht — als **Vorhersage** notiert, nicht als Erfolg |
+| **V1** Variante wieder entfernen | bricht an 5 Stellen                                         |
+
+> Ohne V1 wäre „nichts bricht" nicht von „nichts benutzt sie" zu unterscheiden. Und V0 gehört
+> als Vorhersage hingeschrieben, bevor gebaut wird: Ein grüner Bau sieht sonst wie eine
+> Bestätigung aus und ist in Wahrheit nur die Abwesenheit einer Überraschung.
+
+Dieser Abschnitt ist der einzige dieser Reihe, der von einem Fall handelt, in dem **nichts
+passiert**. Die übrigen setzen an einem sichtbaren Fehler an — einer roten Zeile, einem
+falschen Exit-Code, einer irreführenden Ausgabe. Hier gibt es nichts zu sehen, und genau
+deshalb braucht es die Gegenprobe.
+
+V1 traf mit fünf statt der vorhergesagten sechs Stellen. Der Grund war ein Zählfehler, kein
+Mangel: Von sieben Nennungen sind zwei Doc-Kommentare — und das Prüfmuster kannte nur `///`,
+nicht `//!`.
+
+### 8.113 Ein Zähler, der bei null einen Fehler-Exit liefert, alarmiert im guten Fall
+
+Die bessere Art, CI-Checks zu zählen, ist **nicht bestanden** statt **bestanden** — ein
+übersprungener Job tarnt sich sonst als grüne Liste. Am 2026-08-19 meldete ein
+Hintergrundlauf dazu:
+
+```
+Background command "CI von #1014 abwarten" failed with exit code 1
+```
+
+Die CI war grün, 11 von 11. Der Exit stammte aus der Zählzeile selbst:
+
+```bash
+gh pr checks 1014 | grep -avc "pass"     # 0 Treffer -> grep gibt Exit 1
+```
+
+`grep -c` antwortet auf „wie viele" nicht nur mit einer Zahl, sondern zusätzlich mit einem
+Zustand. Als **letzter** Befehl einer Kette setzt dieser Zustand den Exit-Code des ganzen
+Blocks — und zwar genau dann, wenn das Ergebnis das gewünschte ist.
+
+> Die Zählweise bleibt richtig. Nur darf ein Zähler, der bei null einen Fehler-Exit liefert,
+> nicht am Ende einer Kette stehen: `|| true` anhängen, oder eine Ausgabe danach setzen. Ein
+> falscher Exit-Code neben einer richtigen Zahl ist gefährlicher als beides falsch — er
+> beglaubigt nichts und alarmiert trotzdem.
+
+### 8.114 Ein `ps`-Filter nach Programmnamen kann nicht nach Rolle trennen
+
+Eine Fensterabgabe wird mit einer Prozessliste belegt. Am 2026-08-19 lautete sie:
+
+```bash
+ps -eo pid,args | grep -E "vitest|tsc|cargo|rota_sim|tests-lokal"
+```
+
+Sie lieferte drei Zeilen — und keine davon gehörte der meldenden Sitzung:
+
+```
+/bin/bash -c ... cd /work/rota-worktrees/e9 ... cargo-remote-fmt
+/bin/bash /home/jan/bin/cargo-remote-fmt
+ssh root@10.0.0.155 cd '/tmp/cargo-remote-fmt/e9' && rustup update ...
+```
+
+`cargo-remote-fmt`, `vitest`, `cargo`, `tests-lokal` laufen in allen Worktrees gleich. Der
+Programmname sagt nichts darüber, **wer** den Prozess gestartet hat. Was trennt, ist der Pfad:
+
+```bash
+ps -eo pid,args | grep "rota-worktrees/e1\b"      # 0
+ps -eo pid,args | grep "cargo-remote-fmt/e1\b"    # 0
+```
+
+> Eine Abgabe-Prozessliste ohne Pfadfilter belegt nur, dass _irgendwer_ nichts tut. Sie kann
+> eine fremde Messung zeigen und wie die eigene aussehen — oder die eigene übersehen, weil sie
+> unter einem Namen läuft, den der Filter nicht kennt.
+
+Derselbe Fehler steckte in `rota-fenster`: Es filterte nach `messumgebung|tests-lokal|target/debug/deps`
+und meldete deshalb „es rechnet etwas", während der Lauf einer anderen Sitzung gehörte.
+
+### 8.115 Eine Folgerung wandert mit der Messung, wenn sie danebensteht
+
+Am 2026-08-19 wurde ein drei Wochen alter Zweig vermessen:
+
+```
+feat/e7-1-loss-analysis   641 neue Zeilen, 155 in main, 486 eigen
+                          src/analysis/losses.ts        FEHLT in main
+                          tests/unit/losses.test.ts     FEHLT in main
+                          src/analysis/report-view.ts   FEHLT in main
+```
+
+Daraus wurde im selben Absatz gefolgert: _ein ganzes Modul, das nirgends steht._ Die Zahlen
+stimmten. Die Folgerung war falsch — in main existiert `src/analysis/loss-sources.ts`,
+dieselbe Sache unter anderem Namen, umfangreicher und mit fünf Aufrufern.
+
+Ein Zeilenvergleich kann das nicht finden: Die zweite Umsetzung hat andere Dateinamen, andere
+Funktionsnamen, andere Struktur. **„Die Datei fehlt in main" und „die Sache fehlt in main" sind
+zwei verschiedene Aussagen** — gemessen war die erste, nahegelegt die zweite.
+
+**Der Orchestrator hat die Folgerung mit übernommen** und sie als Fund in einen Bericht an den
+Auftraggeber geschrieben — an einem Tag, an dem er dreimal selbst darüber geschrieben hatte,
+dass eine Angabe ohne ihren Bezug weiterwandert.
+
+> Trenne, was gemessen ist, von dem, was daraus folgt — durch einen eigenen Absatz oder ein
+> Wort davor. Eine Folgerung, die neben der Zahl steht, sieht aus wie ihr Teil und wandert mit
+> ihr weiter. Wer eine fremde Messung zusammenfasst, schreibt dazu, **wer** gefolgert hat.
+
+Der Name gehört hier hin, und zwar auf Wunsch des Betroffenen: „Ohne den Namen liest sich das
+wie ein Anfängerfehler. Mit dem Namen liest es sich wie das, was es ist — ein Fehler, den man
+auch macht, wenn man ihn kennt."
+
+### 8.116 Befehl und Meldung im selben Aufruf machen aus der Meldung eine Vorhersage
+
+Am 2026-08-19 wurde dreimal innerhalb von zwei Stunden dasselbe gemeldet, was nicht gemessen
+war. Jedes Mal stand der Meldungstext im selben Aufruf wie der Befehl — also fest, bevor die
+Ausgabe existierte:
+
+```
+Meldung                     behauptet          gemessen
+────────────────────────────────────────────────────────────
+Abgabe-Prozessliste         "keine Zeile"      14 Zeilen
+dieselbe, nachgebessert     "keine Zeile"       3 Zeilen (fremde Sitzung)
+Zeilenzahl eines Entwurfs   118                154
+```
+
+Im dritten Fall gab **derselbe Aufruf** die richtige Zahl zwei Zeilen weiter oben aus. Sie stand
+vor dem Verfasser, während er die falsche hinschrieb.
+
+Ein Text, der vor seiner Messung entsteht, ist keine Meldung, sondern eine Vorhersage — und er
+wird gelesen, als wäre er abgelesen. Der Empfänger kann den Unterschied nicht sehen: Beide
+Fassungen stehen in derselben Nachricht, in derselben Form, mit derselben Bestimmtheit.
+
+> Die Abhilfe ist keine Regel, sondern eine **Reihenfolge**: erst messen, dann schreiben, nie
+> beides in einem Aufruf. Eine Regel kann man zu befolgen vergessen; eine Reihenfolge hält man
+> ein oder nicht, und man sieht es am Aufruf.
+
+**Die Klasse ist nicht die Unaufmerksamkeit eines Einzelnen.** Am selben Abend, mit derselben
+Klasse vor Augen:
+
+- Worker-3 beging seine viermal — beim dritten Mal in dem Absatz, der sie beschreibt, beim
+  vierten in der Abhilfe selbst.
+- Der Orchestrator zweimal, davon einmal in der Nachricht, in der er einem anderen die
+  mechanische Abhilfe erklärte.
+- Worker-1 dreimal, während er diesen Abschnitt vorbereitete.
+
+Drei von vier Sitzungen, an einem Abend. Wer daraus schließt, er müsse nur aufmerksamer sein,
+hat den Abschnitt nicht verstanden: Alle drei kannten die Klasse, als sie sie begingen.

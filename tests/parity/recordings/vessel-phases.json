@@ -27,6 +27,7 @@
     "test-gatekeeper",
     "test-lapse-interrupt",
     "test-lapse",
+    "test-lethal-strike",
     "test-metronome",
     "test-onslaught",
     "test-phase",
@@ -35,6 +36,7 @@
     "test-resistant",
     "test-runaway",
     "test-stacked",
+    "test-survivable-strike",
     "test-vessel",
     "test-vulnerable",
     "test-warden"

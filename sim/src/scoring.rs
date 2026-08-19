@@ -9,8 +9,9 @@
 //! # Warum der Ausschluss hart ist und nicht warnt
 //!
 //! Im selben Verzeichnis wie die Spielbosse liegen Pruef- und Lastprofile, die
-//! absichtlich extreme Werte tragen: `test-runaway` laeuft aus dem Ruder,
-//! `test-lethal-cast` toetet zuverlaessig. **Eine Elite, die versehentlich
+//! absichtlich extreme Werte tragen: `test-runaway` traegt eine umgekehrte
+//! Siegbedingung, und ein Grossteil von ihnen steht auf 999999 Lebenspunkten,
+//! damit der Kampf nicht von selbst endet. **Eine Elite, die versehentlich
 //! gegen so einen Boss optimiert wurde, sieht im Ergebnis vollkommen plausibel
 //! aus** — sie hat eine Zahl, einen Aufbau, einen Trace, und sie ist wertlos.
 //!
