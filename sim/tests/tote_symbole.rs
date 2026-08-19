@@ -45,6 +45,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use syn::visit::Visit;
 
+// `wurzel()` wird gebraucht, `programm()` und `rufe()` nicht — sie gehoeren zu
+// den Suiten, die das gebaute Programm starten.
+#[allow(dead_code)]
+mod gemeinsam;
+
 /// Wo ein oeffentliches Symbol steht.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Stelle {
@@ -324,8 +329,29 @@ impl<'ast> Visit<'ast> for Nutzungen {
 
 // ------------------------------------------------------------------- Messung
 
+/// Das Paketverzeichnis `sim/`, **zur Laufzeit** bestimmt.
+///
+/// # Warum `.join("sim")` und nicht `gemeinsam::wurzel()` allein
+///
+/// Die beiden Funktionen heissen gleich und meinen Verschiedenes:
+///
+/// | Funktion | liefert |
+/// | --- | --- |
+/// | `gemeinsam::wurzel()` | die **Repo-Wurzel** (enthält `sim/` und `data/`) |
+/// | diese hier | das Paket **`sim/`** — eine Ebene tiefer |
+///
+/// Wer die eine durch die andere ersetzt, sucht die Rust-Dateien eine Ebene zu
+/// hoch und findet **keine**. Und „keine gefunden" ist hier genau die Meldung,
+/// die bei einem kaputten Suchweg ohnehin erscheint (*„nur 0 oeffentliche
+/// Symbole gefunden — die Suche greift nicht"*): Die Reparatur sähe aus wie
+/// der Fehlschlag, den sie behebt.
+///
+/// # Warum nicht mehr `env!("CARGO_MANIFEST_DIR")`
+///
+/// Das wird zur Bauzeit eingesetzt und trug nach einem Bau auf rustbuild
+/// dessen Pfad. Messung und Begründung stehen in `parity_decay_factor.rs`.
 fn wurzel() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    gemeinsam::wurzel().join("sim")
 }
 
 /// Alle Rust-Dateien unter `sim/`, **ohne `target/`**.
