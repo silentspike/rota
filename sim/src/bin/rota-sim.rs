@@ -41,6 +41,10 @@ use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
 use rota_sim::replay::EmbeddedRecording;
 use rota_sim::rotation_search::{all_candidates, greedy, paar_zuege, Candidate, SearchResult};
+// Nachbereitung #897: die Klassifikation aus #981 statt einer eigenen Zaehlung.
+// Eine Quelle fuer die Frage, was eine Spielinstanz ist — und die Bau-Bruecke
+// aus #981 AC4 gilt damit auch fuer diese Ausgabe.
+use rota_sim::scoring::{probe_bosses, ScoringSet};
 use rota_sim::{Fight, FightConfig};
 
 // ---------------------------------------------------------------------------
@@ -1968,13 +1972,37 @@ fn befehl_data(argumente: &[String]) -> Result<ExitCode, String> {
 
 fn data_uebersicht(json: bool) {
     let kandidaten = all_candidates();
-    let instanzen = anzahl_instanzen();
+    let wertung = ScoringSet::all_scored();
+    let spielinstanzen = wertung.groups().len();
+    let profile = probe_bosses();
+    let pruefprofile = belegte_instanzen(&profile);
+
     if json {
         println!(
-            "{{\"bosses\":{},\"spells\":{},\"instances\":{},\"candidates\":{}}}",
+            // **Jeder Schluessel traegt das Wort, das im Klartext daneben
+            // steht** — die Ausgabe wird zusammengehalten, nicht der Code:
+            //
+            //     gameInstances  <->  "Spielinstanzen"
+            //     probeProfiles  <->  "Profilen"
+            //     scoredBosses   <->  "wertungsfaehig"
+            //
+            // Ein Schluessel mit dem Code-Begriff (`scoredInstances`, nach
+            // `ScoringSet` aus #981) braeuchte eine Uebersetzungstabelle zum
+            // Klartext — und eine Tabelle zwischen zwei Namen fuer dieselbe
+            // Sache ist die Stelle, die spaeter auseinanderlaeuft. Der
+            // Code-Begriff steht ohnehin im Code; die Ausgabe ist fuer den, der
+            // sie liest.
+            //
+            // `probeProfiles` und nicht `probeInstances`: `test` und `testing`
+            // sind keine Spielorte, die jemand betritt.
+            "{{\"bosses\":{},\"spells\":{},\"scoredBosses\":{},\"gameInstances\":{},\
+             \"probeBosses\":{},\"probeProfiles\":{},\"candidates\":{}}}",
             data::BOSSES.len(),
             data::SPELL_COUNT,
-            instanzen,
+            wertung.len(),
+            spielinstanzen,
+            profile.len(),
+            pruefprofile,
             kandidaten.len()
         );
         return;
@@ -1982,11 +2010,37 @@ fn data_uebersicht(json: bool) {
     println!("Einkompilierte Inhalte dieses Baus");
     println!();
     println!("  Bosse              {}", data::BOSSES.len());
+    println!(
+        "    wertungsfaehig   {} in {spielinstanzen} Spielinstanzen",
+        wertung.len()
+    );
+    println!(
+        "    Pruefprofile     {} in {pruefprofile} Profilen — in KEINER Wertung",
+        profile.len()
+    );
     println!("  Zauber             {}", data::SPELL_COUNT);
-    println!("  Instanzen          {instanzen}");
     println!("  Kandidatenzeilen   {}", kandidaten.len());
     println!();
     println!("Einzeln:  rota-sim data bosses | spells | candidates");
+}
+
+/// Wie viele verschiedene `instance`-Werte diese Bosse belegen.
+///
+/// **Belegte, nicht erlaubte.** [`data::SCORED_INSTANCES`] nennt die Werte, die
+/// eine Spielinstanz benennen DUERFEN; hier steht, wie viele davon tatsaechlich
+/// Bosse haben. Eine Instanz ohne Bosse waere sonst eine Zahl in der Uebersicht,
+/// hinter der nichts steht.
+///
+/// Ohne Container mit Streuung — GAME-DESIGN 18.4 verbietet Hash-Abbildungen
+/// dort, wo die Reihenfolge in ein Ergebnis einfliessen koennte.
+fn belegte_instanzen(bosse: &[&'static data::Boss]) -> usize {
+    let mut gesehen: Vec<&'static str> = Vec::new();
+    for boss in bosse {
+        if !gesehen.contains(&boss.instance) {
+            gesehen.push(boss.instance);
+        }
+    }
+    gesehen.len()
 }
 
 fn data_bosses(json: bool) {
@@ -2071,21 +2125,6 @@ fn data_candidates(json: bool) {
     }
     println!();
     println!("  {:<28} {}", "zusammen", kandidaten.len());
-}
-
-/// Zaehlt die verschiedenen Instanzen ueber die Bosse.
-///
-/// Ohne Container mit Streuung — GAME-DESIGN 18.4 verbietet Hash-Abbildungen
-/// dort, wo die Reihenfolge in ein Ergebnis einfliessen koennte. Bei
-/// zweistelligen Zahlen ist die lineare Suche ohnehin nicht messbar langsamer.
-fn anzahl_instanzen() -> usize {
-    let mut gesehen: Vec<&'static str> = Vec::new();
-    for boss in data::BOSSES {
-        if !gesehen.contains(&boss.instance) {
-            gesehen.push(boss.instance);
-        }
-    }
-    gesehen.len()
 }
 
 // ---------------------------------------------------------------------------
@@ -2414,13 +2453,60 @@ mod tests {
         assert!(fehler.contains("rota-sim --help"), "{fehler}");
     }
 
+    /// Die Zaehlung TRENNT, statt zu addieren — geprueft an der Methode.
+    ///
+    /// # Woher die alte Sieben kam
+    ///
+    /// Bis zur Nachbereitung von #897 zaehlte `anzahl_instanzen()` die
+    /// verschiedenen `instance`-Werte ueber ALLE Bosse und kam auf 7. Die Zahl
+    /// war fuer ihre Frage richtig und las sich trotzdem falsch: Es gibt
+    /// **fuenf** Spielinstanzen; die zwei uebrigen Werte sind Pruefprofile, die
+    /// kein Spieler je sieht.
+    ///
+    /// # Warum hier keine Zahl allein steht
+    ///
+    /// Ein `assert_eq!(spielinstanzen, 5)` wuerde auch rot, wenn jemand eine
+    /// echte Instanz **entfernt** — das ist eine Aussage ueber den Bestand,
+    /// nicht ueber die Zaehlweise. Dieser Fall prueft stattdessen die
+    /// Eigenschaft, die der alten Methode fehlte: Es gibt **zwei** belegte
+    /// Klassen, beide sind echt kleiner als das Ganze, und zusammen ergeben sie
+    /// es genau. Eine Zaehlung, die addiert, liefert fuer die eine Klasse das
+    /// Ganze — und faellt an der dritten Zusicherung.
+    ///
+    /// Die Bestandszahlen stehen darunter, ausdruecklich getrennt.
     #[test]
-    fn die_instanzen_werden_ohne_doppelte_gezaehlt() {
-        let anzahl = anzahl_instanzen();
-        assert!(anzahl > 0, "es gibt keine Instanz");
+    fn die_zaehlung_trennt_statt_zu_addieren() {
+        let alle: Vec<&'static Boss> = data::BOSSES.iter().collect();
+        let insgesamt = belegte_instanzen(&alle);
+        let spielinstanzen = ScoringSet::all_scored().groups().len();
+        let profile = probe_bosses();
+        let pruefprofile = belegte_instanzen(&profile);
+
         assert!(
-            anzahl <= data::BOSSES.len(),
-            "es gibt mehr Instanzen als Bosse: {anzahl}"
+            spielinstanzen > 0 && pruefprofile > 0,
+            "beide Klassen muessen belegt sein: {spielinstanzen} und {pruefprofile}"
         );
+        assert!(
+            spielinstanzen < insgesamt && pruefprofile < insgesamt,
+            "eine Klasse umfasst alle {insgesamt} belegten Werte — dann wird addiert \
+             statt getrennt: {spielinstanzen} und {pruefprofile}"
+        );
+        assert_eq!(
+            spielinstanzen + pruefprofile,
+            insgesamt,
+            "die Trennung teilt dieselbe Menge auf, ohne Rest und ohne Doppel"
+        );
+    }
+
+    /// Die Zahlen des Bestands — getrennt vom Fall darueber, weil sie eine
+    /// andere Frage beantworten.
+    ///
+    /// Faellt dieser Fall, hat sich der Datenbestand geaendert. Faellt der
+    /// darueber, hat sich die Zaehlweise geaendert. Zwei Ursachen, zwei
+    /// Meldungen.
+    #[test]
+    fn die_zahlen_des_bestands() {
+        assert_eq!(ScoringSet::all_scored().groups().len(), 5);
+        assert_eq!(belegte_instanzen(&probe_bosses()), 2);
     }
 }
