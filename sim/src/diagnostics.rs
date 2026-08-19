@@ -76,6 +76,8 @@ pub struct Counters {
     trace: u32,
     /// Wie viele Zustaende in [`Counters::trace`] eingegangen sind.
     trace_states: u64,
+    /// Neubestimmungen einer Ausruestungs-Auspraegung (Issue #908, AC6).
+    gear_budgets: u64,
 }
 
 impl Default for Counters {
@@ -90,6 +92,7 @@ impl Default for Counters {
             fights: 0,
             trace: crate::checksum::FNV_OFFSET,
             trace_states: 0,
+            gear_budgets: 0,
         }
     }
 }
@@ -130,6 +133,19 @@ impl Counters {
     #[must_use]
     pub const fn expire_hits(&self) -> u64 {
         self.expire_hits
+    }
+
+    /// Neubestimmungen einer Ausruestungs-Auspraegung (Issue #908, AC6).
+    ///
+    /// **Null heisst hier etwas anderes als bei den uebrigen Zaehlern.** Bei
+    /// [`Counters::samples`] belegt eine Null, dass nicht gemessen wurde. Hier
+    /// ist Null das Ziel: Wer die Auspraegungen nachschlaegt, bestimmt sie
+    /// nicht neu. Damit die Null etwas belegt, muss derselbe Zaehler an einer
+    /// anderen Stelle nachweislich **hochgehen** — sonst ist sie nur die
+    /// Abwesenheit einer Messung.
+    #[must_use]
+    pub const fn gear_budgets(&self) -> u64 {
+        self.gear_budgets
     }
 
     /// Vollstaendig durchgerechnete Kaempfe.
@@ -337,6 +353,18 @@ pub fn note_fight() {
         return;
     }
     COUNTERS.with(|c| c.borrow_mut().fights += 1);
+}
+
+/// Traegt eine **Neubestimmung** einer Ausruestungs-Auspraegung ein (#908, AC6).
+///
+/// Gezaehlt wird in [`crate::gear::budget_of`] — der Stelle, an der das Budget
+/// einer Stufe in einer Schleife hochgerechnet wird, statt nachgeschlagen zu
+/// werden. Ein Nachschlagen erhoeht den Zaehler nicht.
+pub fn note_gear_budget() {
+    if !is_enabled() {
+        return;
+    }
+    COUNTERS.with(|c| c.borrow_mut().gear_budgets += 1);
 }
 
 /// Traegt einen Zustand in den Trace-Hash ein.

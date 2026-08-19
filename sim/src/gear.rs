@@ -206,6 +206,57 @@ const GROWTH_DENOMINATOR: u64 = 20;
 /// Hoechste Gegenstandsstufe, die gerechnet wird.
 pub const MAX_ITEM_LEVEL: u32 = 100;
 
+/// Die eigentliche Rechnung — **eine** Formel, zwei Verwendungen.
+///
+/// Sie ist `const`, damit [`BUDGET_TABELLE`] sie zur Uebersetzungszeit
+/// auswerten kann. Damit gibt es keine zweite Fassung in `build.rs`, die neben
+/// dieser altern koennte: Tabelle und Rechnung stammen aus derselben Zeile.
+const fn budget_berechnet(item_level: u32, quality: usize) -> u64 {
+    if quality >= QUALITY_COUNT || item_level < 1 || item_level > MAX_ITEM_LEVEL {
+        return 0;
+    }
+    let mut budget = QUALITY_BASE_BUDGET[quality];
+    let mut stufe = 1;
+    while stufe < item_level {
+        budget = budget * GROWTH_NUMERATOR / GROWTH_DENOMINATOR;
+        stufe += 1;
+    }
+    budget
+}
+
+/// Alle Auspraegungen in einem dichten Feld (Issue #908, AC6).
+///
+/// `(MAX_ITEM_LEVEL + 1) * QUALITY_COUNT` Eintraege zu je acht Byte. Der Platz
+/// auf Index 0 bleibt leer und wird nie gelesen — er kostet vier Werte und
+/// spart an jeder Lesestelle eine Verschiebung um eins.
+static BUDGET_TABELLE: [[u64; QUALITY_COUNT]; MAX_ITEM_LEVEL as usize + 1] = {
+    let mut tabelle = [[0u64; QUALITY_COUNT]; MAX_ITEM_LEVEL as usize + 1];
+    let mut stufe = 0usize;
+    while stufe <= MAX_ITEM_LEVEL as usize {
+        let mut guete = 0usize;
+        while guete < QUALITY_COUNT {
+            tabelle[stufe][guete] = budget_berechnet(stufe as u32, guete);
+            guete += 1;
+        }
+        stufe += 1;
+    }
+    tabelle
+};
+
+/// Das Budget **neu ausrechnen**, statt es nachzuschlagen.
+///
+/// Existiert für den Nachweis zu AC6: Ohne eine Stelle, die den Zähler
+/// nachweislich bewegt, wäre die Null in [`crate::diagnostics::Counters::gear_budgets`]
+/// nur die Abwesenheit einer Messung. Zugleich ist sie die **Gegenprobe** zur
+/// Tabelle — zwei Wege zum selben Wert, einer davon der, den es vorher gab.
+#[must_use]
+pub fn budget_neu_berechnen(item_level: u32, quality: usize) -> u64 {
+    #[cfg(feature = "diagnostics")]
+    crate::diagnostics::note_gear_budget();
+
+    budget_berechnet(item_level, quality)
+}
+
 /// Das Werte-Budget eines Gegenstands.
 ///
 /// **Durchweg ganzzahlig.** Ein `powf(1.05, stufe)` waere der naheliegende Weg
@@ -218,11 +269,11 @@ pub fn budget_of(item_level: u32, quality: usize) -> u64 {
     if quality >= QUALITY_COUNT || !(1..=MAX_ITEM_LEVEL).contains(&item_level) {
         return 0;
     }
-    let mut budget = QUALITY_BASE_BUDGET[quality];
-    for _ in 1..item_level {
-        budget = budget * GROWTH_NUMERATOR / GROWTH_DENOMINATOR;
-    }
-    budget
+    // **Nachgeschlagen, nicht gerechnet** (Issue #908, AC6). Die Tabelle
+    // entsteht zur Uebersetzungszeit aus derselben Funktion, die auch
+    // [`budget_neu_berechnen`] ruft — es gibt keine zweite Formel, die
+    // auseinanderlaufen koennte.
+    BUDGET_TABELLE[item_level as usize][quality]
 }
 
 /// Was der Werte-Platz `index` von `budget` bekommt — gleichmaessig verteilt,
@@ -471,6 +522,69 @@ impl WornValues {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **Die Gegenprobe zur Vorübersetzung** (Issue #908, AC6).
+    ///
+    /// Die Tabelle entsteht aus derselben `const fn`, die auch
+    /// [`budget_neu_berechnen`] ruft — dieser Fall belegt also nicht, dass zwei
+    /// Formeln übereinstimmen, sondern dass die **Tabellenbildung** stimmt:
+    /// dass jeder Platz den Wert seiner eigenen Stufe trägt und nicht den des
+    /// Nachbarn. Genau das ist der Fehler, der bei einer Index-Verschiebung
+    /// entsteht und den kein Stichprobenwert findet.
+    #[test]
+    fn die_tabelle_traegt_an_jedem_platz_den_wert_ihrer_stufe() {
+        let mut geprueft = 0;
+        let mut von_null_verschieden = 0;
+
+        for stufe in 0..=MAX_ITEM_LEVEL {
+            for guete in 0..QUALITY_COUNT {
+                let nachgeschlagen = budget_of(stufe, guete);
+                let gerechnet = budget_neu_berechnen(stufe, guete);
+                assert_eq!(
+                    nachgeschlagen, gerechnet,
+                    "Stufe {stufe}, Güte {guete}: Tabelle {nachgeschlagen}, \
+                     gerechnet {gerechnet}"
+                );
+                geprueft += 1;
+                if nachgeschlagen != 0 {
+                    von_null_verschieden += 1;
+                }
+            }
+        }
+
+        assert_eq!(
+            geprueft,
+            (MAX_ITEM_LEVEL as usize + 1) * QUALITY_COUNT,
+            "Trägerzusicherung: es wurden wirklich alle Plätze angesehen"
+        );
+        assert_eq!(
+            von_null_verschieden,
+            MAX_ITEM_LEVEL as usize * QUALITY_COUNT,
+            "Trägerzusicherung: nur der Platz auf Stufe 0 ist leer — wären alle \
+             null, verglichen wir Nullen mit Nullen"
+        );
+    }
+
+    /// Die Verschiebung, die der Vergleich oben fangen MUSS.
+    ///
+    /// Nachbarstufen unterscheiden sich, sonst wäre eine um eins verrutschte
+    /// Tabelle nicht von einer richtigen zu unterscheiden. Das ist keine
+    /// Selbstverständlichkeit: Bei ganzzahligem Wachstum von 21/20 stehen
+    /// kleine Budgets über mehrere Stufen still.
+    #[test]
+    fn benachbarte_stufen_tragen_verschiedene_werte() {
+        let mut gleich_zu_vorgaenger = 0;
+        for stufe in 2..=MAX_ITEM_LEVEL {
+            if budget_of(stufe, 0) == budget_of(stufe - 1, 0) {
+                gleich_zu_vorgaenger += 1;
+            }
+        }
+        assert!(
+            gleich_zu_vorgaenger < MAX_ITEM_LEVEL as usize / 2,
+            "zu viele Stufen sind wertgleich ({gleich_zu_vorgaenger}) — dann \
+             fände der Tabellenvergleich eine Verschiebung nicht"
+        );
+    }
 
     #[test]
     fn gleiche_toepfe_addieren_verschiedene_multiplizieren() {
