@@ -29,15 +29,27 @@ use rota_sim::data::{boss_by_id, index_of};
 use rota_sim::replay::{first_divergence, Binding, Press, Recording};
 use rota_sim::{Fight, FightConfig, TICK_MS};
 
+// `wurzel()` wird gebraucht, `programm()` und `rufe()` nicht — sie gehoeren zu
+// den Suiten, die das gebaute Programm starten.
+#[allow(dead_code)]
+mod gemeinsam;
+
+/// Die Aufzeichnung, **zur Laufzeit** gefunden statt zur Bauzeit eingesetzt.
+///
+/// `env!("CARGO_MANIFEST_DIR")` stand hier bis 2026-08-19 und trug nach einem
+/// Bau auf rustbuild dessen Pfad. Dass der Test trotzdem lief, lag an einem
+/// Symlink, den `cargo remote` bei jedem Bau anlegt — und daraus wurde eine
+/// Reihenfolge-Abhängigkeit: nach einem Neustart rot, nach dem nächsten Bau
+/// grün, ohne dass sich eine Zeile geändert hätte. Ausführlich in
+/// `parity_decay_factor.rs`, dort steht die Messung.
+///
+/// **Der Name bleibt als Literal stehen**, mit dem Schrägstrich davor:
+/// `gegenstueck.test.ts` sucht `/<name>.json` im Rust-Quelltext und meldet
+/// sonst diese Aufzeichnung als ungedeckt, obwohl dieser Test sie liest.
 fn daten() -> Value {
-    // **Der Pfad steht woertlich da, nicht zusammengesetzt** — der Waechter in
-    // `gegenstueck.test.ts` sucht `/<name>.json` im Rust-Quelltext.
-    let pfad = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../tests/parity/recordings/spender-talent.json"
-    );
-    serde_json::from_str(&fs::read_to_string(pfad).unwrap_or_else(|_| panic!("{pfad} fehlt")))
-        .unwrap_or_else(|_| panic!("{pfad} ist kein JSON"))
+    let pfad = gemeinsam::wurzel().join("tests/parity/recordings/spender-talent.json");
+    let text = fs::read_to_string(&pfad).unwrap_or_else(|_| panic!("{} fehlt", pfad.display()));
+    serde_json::from_str(&text).unwrap_or_else(|_| panic!("{} ist kein JSON", pfad.display()))
 }
 
 /// Baut aus den `presses` der Aufzeichnung eine abspielbare Runde.
