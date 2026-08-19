@@ -55,6 +55,8 @@
 
 #![warn(missing_docs)]
 
+// Issue #967: Durchgaenge ergaenzbar speichern statt fertig.
+pub mod akkumulator;
 pub mod apl;
 pub mod balance;
 // Issue #118: die Suche nach dem besten Aufbau.
