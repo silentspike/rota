@@ -92,6 +92,17 @@ fn mit_krit(config: &BalanceConfig, apl: &Apl) -> f64 {
     run(&BalanceConfig { worn, ..*config }, apl).damage.mean
 }
 
+/// Die Gewichtung selbst — **eine** Stelle, zwei Verwendungen.
+///
+/// Steht hier und nicht inline, damit der Nachweis in den Prüffällen dieselbe
+/// Rechnung prüft, die im Betrieb läuft. Ein Nachbau im Testmodul bliebe grün,
+/// wenn jemand diese Zeile ändert — er antwortete plausibel aus einer zweiten
+/// Quelle.
+#[must_use]
+pub fn gewichtet(p: f64, mit_krit: f64, ohne_krit: f64) -> f64 {
+    p * mit_krit + (1.0 - p) * ohne_krit
+}
+
 /// Der Erwartungswert des Schadens — exakt, ohne Monte-Carlo.
 ///
 /// Gibt `None` zurück, wenn die Voraussetzung nicht gilt. **Nicht** einen
@@ -122,13 +133,22 @@ pub fn erwarteter_schaden(config: &BalanceConfig, apl: &Apl) -> Option<f64> {
         return None;
     }
     let p = config.worn.crit_chance();
-    Some(p * mit_krit(config, apl) + (1.0 - p) * ohne_krit(config, apl))
+    Some(gewichtet(p, mit_krit(config, apl), ohne_krit(config, apl)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::apl::{parse, AplName};
+    use crate::{compute_damage, DamageFactors, NEUTRAL};
+
+    /// Schadensfaktoren mit einem einzigen gesetzten Krit-Wert.
+    ///
+    /// Heißt bewusst nicht `mit_krit` — so hieße sie wie die Modulfunktion, die
+    /// einen ganzen Lauf fährt.
+    fn krit_faktor(crit: f64) -> DamageFactors {
+        DamageFactors { crit, ..NEUTRAL }
+    }
 
     const GOOD: &str = include_str!("../apl/step1-good.apl");
 
@@ -198,12 +218,19 @@ mod tests {
         );
     }
 
-    /// **Der Kern: der analytische Wert liegt exakt auf der Gewichtung.**
+    /// **ERLÄUTERUNG, KEIN WÄCHTER — bitte nicht mitzählen.**
     ///
-    /// Verglichen wird nicht gegen eine gespeicherte Zahl, sondern gegen die
-    /// beiden Randläufe, aus denen er entsteht — und gegen die Bedingung, dass
-    /// er echt dazwischen liegt. Läge er außerhalb, wäre die Gewichtung falsch
-    /// herum oder ein Randlauf nicht das, was sein Name sagt.
+    /// Dieser Fall prüft die Formel gegen ihre eigenen Bestandteile:
+    /// `e == 0,5·b + 0,5·a`, wobei `e` genau so gebildet wird. Er **kann nicht
+    /// scheitern**, solange die Gewichtung symmetrisch bleibt — in der
+    /// Mutationsprobe mit vertauschten Gewichten blieb er grün, während die
+    /// beiden anderen rot wurden.
+    ///
+    /// Er steht hier, weil er die Rechnung dokumentiert und die Randbedingung
+    /// festhält (der Erwartungswert liegt echt zwischen den beiden Läufen).
+    /// Zugesichert wird die Richtigkeit woanders: von
+    /// [`Self::die_vollstaendige_aufzaehlung_stimmt_bitgleich_mit_der_formel`]
+    /// und vom Vergleich gegen gewürfelte Läufe.
     #[test]
     fn der_erwartungswert_liegt_exakt_auf_der_gewichtung() {
         let apl = gute_liste();
@@ -226,6 +253,104 @@ mod tests {
             e.to_bits(),
             (0.5 * b + 0.5 * a).to_bits(),
             "bei halber Chance ist es genau die Mitte"
+        );
+    }
+
+    /// **Der strenge Nachweis: vollständige Aufzählung statt Stichprobe.**
+    ///
+    /// Bei `k` Krit-Würfen gibt es 2^k Ausgänge. Jeden einzeln rechnen, mit
+    /// seiner Wahrscheinlichkeit gewichten, aufsummieren — das **ist** der
+    /// gewürfelte Erwartungswert, nicht seine Schätzung. Dagegen ist
+    /// Bitgleichheit eine sinnvolle Forderung; gegen eine Stichprobe wäre sie
+    /// es nicht.
+    ///
+    /// Warum das nötig ist, obwohl der Monte-Carlo-Vergleich weiter unten
+    /// grün ist: Eine Schranke von „vier Standardfehlern" ließe einen
+    /// Rechenfehler von einem Promille unentdeckt, und sie wird **still
+    /// schwächer**, sobald jemand die Durchgangszahl senkt. Eine Zusicherung,
+    /// deren Wirksamkeit an einer Zahl hängt, die niemand mehr ansieht, ist
+    /// keine.
+    #[test]
+    fn die_vollstaendige_aufzaehlung_stimmt_bitgleich_mit_der_formel() {
+        // Realistische Basisschäden, ungerade Werte dabei: Bei glatten Zahlen
+        // fiele die Rundung nicht an, und genau an ihr hängt die Sache.
+        let basen: [u32; 8] = [7, 13, 40, 41, 99, 100, 137, 250];
+        let p: f64 = 0.25;
+        let krit: f64 = 1.5;
+
+        let k = basen.len();
+        // **Die Voraussetzungen stehen als Zusicherung im Fall, nicht im
+        // Kommentar** — er soll rot werden, wenn jemand sie ihm wegzieht.
+        assert!(
+            k >= 2,
+            "mit weniger als zwei Würfen gäbe es keinen Ausgang, in dem MEHRERE \
+             Treffer kriten — und genau dort unterscheiden sich Marginalisieren \
+             und Erwartungswert-Einsetzen"
+        );
+        assert!(
+            k <= 16,
+            "2^{k} Ausgänge wären nicht mehr vertretbar zu rechnen"
+        );
+
+        let ohne: Vec<f64> = basen
+            .iter()
+            .map(|b| f64::from(compute_damage(*b, &NEUTRAL)))
+            .collect();
+        let mit: Vec<f64> = basen
+            .iter()
+            .map(|b| f64::from(compute_damage(*b, &krit_faktor(krit))))
+            .collect();
+
+        assert!(
+            ohne.iter().zip(&mit).any(|(a, b)| a != b),
+            "Trägerzusicherung: der Krit ändert an mindestens einem Treffer etwas"
+        );
+
+        // Alle 2^k Ausgänge, jeder mit seiner Wahrscheinlichkeit.
+        let mut aufgezaehlt = 0.0f64;
+        let mut wahrscheinlichkeit_gesamt = 0.0f64;
+        let mut ausgaenge_mit_mehreren_krits = 0;
+        for maske in 0u32..(1u32 << k) {
+            let mut schaden = 0.0f64;
+            let mut kritend = 0u32;
+            for (i, (a, b)) in ohne.iter().zip(&mit).enumerate() {
+                if maske & (1 << i) == 0 {
+                    schaden += a;
+                } else {
+                    schaden += b;
+                    kritend += 1;
+                }
+            }
+            if kritend >= 2 {
+                ausgaenge_mit_mehreren_krits += 1;
+            }
+            let w = p.powi(kritend as i32) * (1.0 - p).powi((k as u32 - kritend) as i32);
+            wahrscheinlichkeit_gesamt += w;
+            aufgezaehlt += w * schaden;
+        }
+
+        assert!(
+            ausgaenge_mit_mehreren_krits > 0,
+            "Trägerzusicherung: es gibt Ausgänge, in denen MEHRERE Treffer kriten \
+             ({ausgaenge_mit_mehreren_krits}) — sonst prüfte der Fall den \
+             Sonderfall, in dem beide Rechenwege ohnehin übereinstimmen"
+        );
+
+        // **Dieselbe Funktion, die auch im Betrieb rechnet** — kein Nachbau.
+        // Sonst bliebe dieser Fall grün, wenn jemand die Gewichtung ändert.
+        let formel = gewichtet(p, mit.iter().sum::<f64>(), ohne.iter().sum::<f64>());
+
+        println!(
+            "aufgezählt {aufgezaehlt:.12}, Formel {formel:.12}, \
+             Differenz {:.3e}, Wahrscheinlichkeitssumme {wahrscheinlichkeit_gesamt:.12}",
+            (aufgezaehlt - formel).abs()
+        );
+
+        assert_eq!(
+            aufgezaehlt.to_bits(),
+            formel.to_bits(),
+            "die vollständige Aufzählung ({aufgezaehlt}) und die Formel ({formel}) \
+             weichen ab — die Gewichtung trifft den gewürfelten Erwartungswert nicht"
         );
     }
 
