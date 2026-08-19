@@ -327,6 +327,16 @@ impl RandomSourceMask {
         RandomSourceMask(self.0 | other.0)
     }
 
+    /// Schnitt.
+    ///
+    /// Gebraucht fuer die zweite Ableitungsstufe in [`crate::durchgaenge`]:
+    /// Eine Quelle ist im Lauf nur aktiv, wenn die Beschreibung sie nennt
+    /// **und** die Konfiguration sie ziehen laesst. Die Vereinigung wuerde dort
+    /// nie reduzieren.
+    pub const fn schnitt(self, other: RandomSourceMask) -> RandomSourceMask {
+        RandomSourceMask(self.0 & other.0)
+    }
+
     /// Ob dieser Strom enthalten ist.
     pub const fn enthaelt(self, strom: crate::rng::Stream) -> bool {
         (self.0 & (1 << (strom as u8))) != 0
