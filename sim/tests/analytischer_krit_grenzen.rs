@@ -19,7 +19,126 @@
 //! bleibt auch dann gültig, wenn AC4 anders gebaut wird, als ich vorschlage —
 //! sie beschreibt eine Eigenschaft der Rundung, keine Entwurfsentscheidung.
 
+use rota_sim::data::EFFECT_NODES;
+use rota_sim::effects::passes::AnalyticCritPass;
+use rota_sim::effects::registry::{EffectAnalysisPass, Verdict};
+use rota_sim::effects::EffectOp;
 use rota_sim::{compute_damage, DamageFactors, NEUTRAL};
+
+/// **Wo der analytische Krit erlaubt ist — abgeleitet, nicht gepflegt** (AC4).
+///
+/// Diese Frage ist unabhängig davon, *wo* er später rechnet (im Kampf oder
+/// neben ihm): Sie wird aus der Wirkungsbeschreibung beantwortet, nicht aus
+/// einer Liste daneben. Genau das verlangt AC4 mit „die Prüfung darauf ist
+/// abgeleitet, nicht gepflegt".
+///
+/// Die Zahlen stehen in der **Meldung**, nicht in der Bedingung. Eine
+/// festgenagelte Zahl wäre bei jedem neuen Effekt still falsch; das Issue nennt
+/// sie selbst „eine Momentaufnahme, kein Kriterium".
+#[test]
+fn die_erlaubnis_wird_je_knoten_aus_der_beschreibung_abgeleitet() {
+    let mut erlaubt = 0;
+    let mut verboten = 0;
+    let mut konservativ = 0;
+
+    for node in EFFECT_NODES {
+        match AnalyticCritPass.analyze(node).verdict {
+            Verdict::Permits => erlaubt += 1,
+            Verdict::Forbids => verboten += 1,
+            Verdict::Conservative => konservativ += 1,
+        }
+    }
+
+    assert_eq!(
+        erlaubt + verboten + konservativ,
+        EFFECT_NODES.len(),
+        "Trägerzusicherung: jeder Knoten hat genau ein Verdikt bekommen"
+    );
+    assert!(
+        !EFFECT_NODES.is_empty(),
+        "Trägerzusicherung: es gibt überhaupt Knoten — sonst zählte dieser Fall Nullen"
+    );
+
+    // **Zweiseitig, sonst belegt die Zählung nichts.** Eine Analyse, die alles
+    // erlaubt, bestünde eine einseitige Prüfung ebenso wie eine, die richtig
+    // unterscheidet — und wäre der gefährlichere Fehler von beiden.
+    assert!(
+        erlaubt > 0,
+        "keine einzige Stelle erlaubt — dann wäre AC4 gegenstandslos"
+    );
+    assert!(
+        verboten > 0,
+        "keine einzige Stelle verboten — dann unterscheidet die Analyse nicht, \
+         sie stimmt nur zu"
+    );
+
+    println!(
+        "analytic-crit über {} Knoten: {erlaubt} erlaubt, {verboten} verboten, \
+         {konservativ} konservativ",
+        EFFECT_NODES.len()
+    );
+}
+
+/// **Die faire Vergleichsgröße zur Zahl im Issue.**
+///
+/// Über alle Knoten gerechnet ist die Erlaubnis-Quote niedrig — aber das sagt
+/// wenig, weil die meisten Knoten gar keinen Schaden austeilen und schon
+/// deshalb ausscheiden. Die Frage „wie weit trägt der analytische Krit"
+/// beantwortet nur der Anteil unter den **Schadens**-Knoten.
+#[test]
+fn unter_den_schadensknoten_ist_die_quote_eine_andere() {
+    let schadensknoten: Vec<_> = EFFECT_NODES
+        .iter()
+        .filter(|n| matches!(n.op, EffectOp::DealDamage | EffectOp::ApplyDot))
+        .collect();
+
+    let erlaubt = schadensknoten
+        .iter()
+        .filter(|n| matches!(AnalyticCritPass.analyze(n).verdict, Verdict::Permits))
+        .count();
+
+    assert!(
+        !schadensknoten.is_empty(),
+        "Trägerzusicherung: es gibt überhaupt Schadensknoten"
+    );
+    assert!(
+        erlaubt <= schadensknoten.len(),
+        "mehr erlaubt als vorhanden — die Filterung passt nicht zusammen"
+    );
+
+    // **Warum die übrigen ausscheiden, ist die verwertbare Zahl.** „Verzweigt"
+    // ist eine Eigenschaft und bleibt; „Lücke" ist ein Datenmangel und ließe
+    // sich beheben. Wer nur die Quote kennt, weiß nicht, welche der beiden
+    // Zahlen er vor sich hat.
+    let mut wegen_verzweigung = 0;
+    let mut wegen_luecke = 0;
+    let mut anderer_grund = 0;
+    for n in &schadensknoten {
+        let ergebnis = AnalyticCritPass.analyze(n);
+        match ergebnis.verdict {
+            Verdict::Permits => {}
+            Verdict::Conservative => wegen_luecke += 1,
+            Verdict::Forbids => {
+                if ergebnis.reason.contains("Verzweigung") {
+                    wegen_verzweigung += 1;
+                } else {
+                    anderer_grund += 1;
+                }
+            }
+        }
+    }
+
+    println!(
+        "Schadensknoten: {erlaubt} von {} erlaubt (alle übrigen {} Knoten teilen \
+         keinen Schaden aus)",
+        schadensknoten.len(),
+        EFFECT_NODES.len() - schadensknoten.len()
+    );
+    println!(
+        "  abgelehnt: {wegen_verzweigung} wegen Verzweigung, {wegen_luecke} wegen \
+         fehlender Angabe, {anderer_grund} aus anderem Grund"
+    );
+}
 
 /// Faktoren mit einem einzigen gesetzten Krit-Wert.
 fn mit_krit(crit: f64) -> DamageFactors {
