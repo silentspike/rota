@@ -38,7 +38,8 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
-use std::time::{Duration, Instant};
+use std::sync::OnceLock;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, Boss, SPELLS};
@@ -1219,6 +1220,61 @@ struct Blockwert {
     ctxt_rate: f64,
     /// Mittlerer Takt waehrend des Blocks, in MHz.
     takt_mhz: f64,
+    /// Sekunden seit Laufbeginn, als dieser Block ANFING.
+    ///
+    /// # Wofuer, wenn der Bericht doch eine Reihenfolge hat
+    ///
+    /// Um eine fremde Stoerung einem Block zuzuordnen. Am 2026-08-19 wurde
+    /// waehrend einer A,A-Reihe neunmal gebaut, und die Frage war, welcher
+    /// Block es abbekommen hat. Ohne dieses Feld ging das nur ueber eine
+    /// Rueckrechnung: Gesamtdauer durch Blockzahl, dann mal Index.
+    ///
+    /// **Diese Rechnung ist falsch, und ihr Fehler waechst mit dem Index.**
+    /// Sie setzt gleich lange Bloecke voraus; tatsaechlich kommen je Block
+    /// [`AUFWAERMDAUER`] dazu, Teilbloecke enden nicht auf die Sekunde, und
+    /// verworfene Bloecke stehen gar nicht erst im Bericht. Die Zuordnung war
+    /// damals nur an EINER Stelle belegbar — dort, wo zwei unabhaengige
+    /// Quellen zufaellig zusammenfielen.
+    ///
+    /// Gemessen hat dieses Feld den Fehler nicht.
+    seit_beginn_s: f64,
+}
+
+/// Wann dieser Lauf angefangen hat — einmal gesetzt, danach unveraenderlich.
+///
+/// Gehalten werden **beide** Zeitrechnungen, und das hat je einen Grund:
+///
+/// | Wert | wofuer |
+/// | --- | --- |
+/// | [`Instant`] | die Abstaende je Block — monoton, springt nicht bei einer Zeitumstellung |
+/// | Unix-Sekunde | der Bezug nach aussen — eindeutig, ohne Zeitzone |
+///
+/// # Warum keine Uhrzeit
+///
+/// Die Standardbibliothek kennt den Zeitzonen-Offset nicht, und das Projekt
+/// hat keine Zeit-Abhaengigkeit (kein `chrono`, kein `jiff`; im ganzen Repo
+/// keine Verwendung von `SystemTime` ausser dieser). Eine Ausgabe in UTC waere
+/// die naheliegende Loesung und die gefaehrlichere: Bau-Logs, IPC-Nachrichten
+/// und `ps` sind Lokalzeit, im Sommer zwei Stunden daneben. Ein Bericht, der
+/// „18:26" sagt, waehrend das Bau-Log „20:26" sagt, erzeugt genau die
+/// Verwechslung, gegen die dieses Feld gebaut ist.
+///
+/// Die Unix-Sekunde ist unmissverstaendlich, und `date -d @<sekunde>` macht
+/// daraus Lokalzeit — einmal je Lauf statt einmal je Block.
+static LAUFBEGINN: OnceLock<(Instant, u64)> = OnceLock::new();
+
+/// Sekunden seit dem ersten Aufruf dieser Funktion im Prozess.
+fn seit_beginn_s() -> f64 {
+    laufbeginn().0.elapsed().as_secs_f64()
+}
+
+fn laufbeginn() -> &'static (Instant, u64) {
+    LAUFBEGINN.get_or_init(|| {
+        let unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        (Instant::now(), unix)
+    })
 }
 
 fn eine_rate(
@@ -1227,6 +1283,10 @@ fn eine_rate(
     durchgaenge: u32,
     erfassung: bool,
 ) -> Option<Blockwert> {
+    // **Vor dem Aufwaermen abgelesen, nicht danach.** Die Zeit soll sagen,
+    // wann dieser Block die Maschine zu belasten anfing — eine fremde
+    // Stoerung trifft das Aufwaermen genauso wie die Messung.
+    let angefangen_s = seit_beginn_s();
     let boss = boss_by_id(fall.boss)?;
     let config = config_fuer(boss, threads);
     let pool = pool_fuer(fall.pool, &all_candidates());
@@ -1330,7 +1390,87 @@ fn eine_rate(
         psi_max,
         ctxt_rate,
         takt_mhz: takt,
+        seit_beginn_s: angefangen_s,
     })
+}
+
+/// Der Wert, den DIESES Paar beigetragen hat — oder `None`, wenn es keinen gab.
+///
+/// # Der Fehler, den diese Funktion behebt
+///
+/// Die Ausgabezeile las beide Spalten über `last()`. Ein verworfener Block
+/// landet nicht im Vektor; `last()` lieferte dann den letzten **nicht**
+/// verworfenen Wert — also einen Block aus einem **früheren Paar**. Der
+/// Bericht zeigte fremde Zahlen, ohne es zu sagen.
+///
+/// Gemessen am 2026-08-19, drei aufeinanderfolgende Zeilen eines echten Laufs:
+///
+/// ```text
+///   Paar 4   A1 55010.66   A2 57215.12   ...   ab 372.0 / 310.0 s
+///   Paar 5   A1 60559.48   A2 57215.12   ...   ab 496.0 / 310.0 s
+///   Paar 6   A1 60559.48   A2 59603.32   ...   ab 496.0 / 682.0 s
+/// ```
+///
+/// `57215.12/s bei 310.0 s` ist Paar **3**s B-Wert, dreimal wiederholt.
+///
+/// **Aufgefallen ist es nur an der Zeit.** Eine wiederholte Rate von 57215/s
+/// sieht aus wie eine Messung; eine Zeitspalte, die rückwärts läuft, sieht
+/// nach nichts aus. Der Fehler betraf Rate, PSI, Kontextwechsel und Takt
+/// genauso und stand seit dem 2026-08-18 in dieser Datei.
+///
+/// Auf die Mediane wirkte er sich **nicht** aus — die rechnen über die
+/// Vektoren, nicht über die Ausgabe. Betroffen war jede einzeln zitierte
+/// Zeile.
+fn aus_diesem_paar(werte: &[Blockwert], vorher: usize) -> Option<&Blockwert> {
+    (werte.len() > vorher).then(|| werte.last()).flatten()
+}
+
+/// Taugen die mitgeschriebenen Blockzeiten fuer eine Stoerungsanalyse?
+///
+/// # Warum strenge Monotonie und nicht nur Monotonie
+///
+/// Eine konstante Folge ist monoton. Genau sie entsteht aber bei dem Fehler,
+/// den diese Pruefung fangen soll: ein Feld, das einmal gesetzt und danach
+/// nicht mehr aktualisiert wird. Es traege in jedem Block dieselbe Zahl, waere
+/// monoton, laege im Lauf-Zeitraum — und waere wertlos.
+///
+/// Deshalb zwei Bedingungen statt einer: Die Zeiten muessen **wachsen**, und
+/// sie muessen im Lauf liegen. Die zweite allein faengt eine eingefrorene Uhr
+/// nicht, die erste allein faengt eine Uhr nicht, die aus einer anderen
+/// Zeitrechnung stammt.
+fn zeiten_taugen(zeiten: &[f64], lauf_dauer_s: f64) -> Result<(), String> {
+    if zeiten.len() < 2 {
+        return Err(format!(
+            "nur {} Blockzeit(en) — zu wenig, um eine Reihenfolge zu belegen",
+            zeiten.len()
+        ));
+    }
+    for paar in zeiten.windows(2) {
+        if paar[1] <= paar[0] {
+            return Err(format!(
+                "die Blockzeiten wachsen nicht: {:.3} s folgt auf {:.3} s. \
+                 Eine eingefrorene Uhr sieht genauso aus wie eine langsame.",
+                paar[1], paar[0]
+            ));
+        }
+    }
+    // Ab hier sind mindestens zwei Werte sicher — oben geprueft. Der Zugriff
+    // auf den ersten und letzten braucht deshalb keine zweite Fallunterscheidung.
+    let letzte = *zeiten.last().expect("mindestens zwei Werte");
+    if letzte > lauf_dauer_s {
+        return Err(format!(
+            "eine Blockzeit ({letzte:.3} s) liegt hinter dem Ende des Laufs \
+             ({lauf_dauer_s:.3} s) — sie stammt dann nicht aus diesem Lauf"
+        ));
+    }
+    let erste = zeiten[0];
+    if erste < 0.0 {
+        return Err(format!(
+            "eine Blockzeit ist negativ ({erste:.3} s) — vor dem Laufbeginn hat \
+             nichts stattgefunden"
+        ));
+    }
+    Ok(())
 }
 
 /// Der Median einer Messreihe.
@@ -1434,6 +1574,8 @@ fn ab_reihe(
     let mut a = Vec::with_capacity(paare);
     let mut b = Vec::with_capacity(paare);
     let mut verworfen = 0usize;
+    let mut alle_zeiten: Vec<f64> = Vec::with_capacity(paare * 2);
+    let mut zeiten_ok = true;
     for i in 0..paare {
         // Die Reihenfolge innerhalb eines Paares wechselt mit, sonst steht A
         // immer direkt hinter B und erbt dessen Nachlauf.
@@ -1465,12 +1607,22 @@ fn ab_reihe(
         // ausdruecklich verlangt.
         for (nach_b, erfassung, wert) in [(false, erst, r1), (true, dann, r2)] {
             let Some(w) = wert else { continue };
+            // **In Messreihenfolge gesammelt, samt der verworfenen.** Wer sie
+            // ausliesse, saehe eine Luecke im Zeitverlauf genau dort, wo die
+            // Stoerung war — und die Pruefung darunter liefe ueber einen
+            // Verlauf, den es so nie gab.
+            alle_zeiten.push(w.seit_beginn_s);
             if w.psi_max > PSI_CPU_MAX {
                 verworfen += 1;
                 let _ = writeln!(
                     bericht,
+                    // **Die Zeit gehoert gerade hier hin.** Ein verworfener
+                    // Block ist der wahrscheinlichste Treffer einer fremden
+                    // Stoerung — und der einzige, der aus der Reihe
+                    // verschwindet. Ohne seine Zeit sucht man ihn spaeter
+                    // zwischen den uebrigen.
                     "  Paar {:>2}   {} VERWORFEN — PSI cpu stieg auf {:.2} \
-                     (Grenze {PSI_CPU_MAX:.2}), {:.0} Kontextwechsel/s",
+                     (Grenze {PSI_CPU_MAX:.2}), {:.0} Kontextwechsel/s, ab {:.1} s",
                     i + 1,
                     match (gleiche_variante, nach_b, erfassung) {
                         (true, false, _) => "A1",
@@ -1479,7 +1631,8 @@ fn ab_reihe(
                         (false, _, false) => "A",
                     },
                     w.psi_max,
-                    w.ctxt_rate
+                    w.ctxt_rate,
+                    w.seit_beginn_s
                 );
                 continue;
             }
@@ -1494,21 +1647,36 @@ fn ab_reihe(
         // Sonst stuende hier eine Zeile aus lauter NaN unter der Zeile, die
         // schon erklaert hat, warum — zweimal dasselbe, einmal unlesbar.
         if a.len() != vor_a || b.len() != vor_b {
+            // **Je Spalte pruefen, nicht je Zeile.** Wurde nur EINE Seite
+            // verworfen, traegt die andere weiterhin bei — die verworfene
+            // darf dann aber nicht ueber `last()` gelesen werden, sonst zeigt
+            // sie den Wert eines FRUEHEREN Paares. Siehe [`aus_diesem_paar`].
+            let aw = aus_diesem_paar(&a, vor_a);
+            let bw = aus_diesem_paar(&b, vor_b);
+            let z =
+                |w: Option<&Blockwert>, hol: fn(&Blockwert) -> f64, breite: usize, nach: usize| {
+                    w.map_or_else(
+                        || format!("{:>breite$}", "n/v"),
+                        |b| format!("{:>breite$.nach$}", hol(b)),
+                    )
+                };
             let _ = writeln!(
                 bericht,
-                "  Paar {:>2}   {} {:>10.2}/s   {} {:>10.2}/s   PSI bis {:>5.2} / {:>5.2}   \
-                 ctxt/s {:>7.0} / {:>7.0}   MHz {:>6.0} / {:>6.0}",
+                "  Paar {:>2}   {} {}/s   {} {}/s   PSI bis {} / {}   \
+                 ctxt/s {} / {}   MHz {} / {}   ab {} / {} s",
                 i + 1,
                 if gleiche_variante { "A1" } else { "A " },
-                a.last().map_or(f64::NAN, |w| w.rate),
+                z(aw, |w| w.rate, 10, 2),
                 if gleiche_variante { "A2" } else { "B " },
-                b.last().map_or(f64::NAN, |w| w.rate),
-                a.last().map_or(f64::NAN, |w| w.psi_max),
-                b.last().map_or(f64::NAN, |w| w.psi_max),
-                a.last().map_or(f64::NAN, |w| w.ctxt_rate),
-                b.last().map_or(f64::NAN, |w| w.ctxt_rate),
-                a.last().map_or(f64::NAN, |w| w.takt_mhz),
-                b.last().map_or(f64::NAN, |w| w.takt_mhz),
+                z(bw, |w| w.rate, 10, 2),
+                z(aw, |w| w.psi_max, 5, 2),
+                z(bw, |w| w.psi_max, 5, 2),
+                z(aw, |w| w.ctxt_rate, 7, 0),
+                z(bw, |w| w.ctxt_rate, 7, 0),
+                z(aw, |w| w.takt_mhz, 6, 0),
+                z(bw, |w| w.takt_mhz, 6, 0),
+                z(aw, |w| w.seit_beginn_s, 7, 1),
+                z(bw, |w| w.seit_beginn_s, 7, 1),
             );
         }
     }
@@ -1519,6 +1687,43 @@ fn ab_reihe(
             "\n  {verworfen} Bloecke verworfen, weil die Maschine waehrend der \
              Messung unruhig war."
         );
+    }
+
+    // **Die Blockzeiten pruefen sich selbst, sonst sind sie nur ein Feld.**
+    //
+    // Ein Wert, den niemand prueft, ist tot: Er kann einfrieren, aus einer
+    // anderen Zeitrechnung stammen oder gar nicht gesetzt werden, und der
+    // Bericht saehe unveraendert aus. Erst diese Pruefung macht aus der Zahl
+    // eine Zusicherung.
+    // Die Obergrenze ist der Stand JETZT, am Ende der Reihe — jede Blockzeit
+    // muss davor liegen. (Nicht die Reihendauer: Die Blockzeiten zaehlen ab
+    // Laufbeginn, nicht ab Reihenbeginn, und ein Vergleich gegen die Dauer
+    // waere um den Vorlauf des Berichts daneben.)
+    let jetzt_s = seit_beginn_s();
+    match zeiten_taugen(&alle_zeiten, jetzt_s) {
+        Ok(()) => {
+            let _ = writeln!(
+                bericht,
+                "\n  Blockzeiten: {} Werte, streng wachsend, von {:.1} bis {:.1} s \
+                 nach Laufbeginn.\n  \x20 Eine fremde Stoerung mit Zeitstempel laesst \
+                 sich damit ohne Rueckrechnung zuordnen.",
+                alle_zeiten.len(),
+                alle_zeiten.first().copied().unwrap_or(f64::NAN),
+                alle_zeiten.last().copied().unwrap_or(f64::NAN),
+            );
+        }
+        Err(grund) => {
+            // Kein blosser Hinweis: Eine Messumgebung, die ihre eigene
+            // Zusicherung nicht haelt, blockiert alles Weitere (#896,
+            // Stop conditions). Ein Vermerk im Fliesstext wuerde ueberlesen.
+            let _ = writeln!(
+                bericht,
+                "\n  BLOCKZEITEN UNBRAUCHBAR — {grund}\n  \x20 Die Streuungszahlen \
+                 oben stehen weiter; die ZUORDNUNG einer Stoerung zu einem Block \
+                 ist mit diesem Lauf nicht moeglich."
+            );
+            zeiten_ok = false;
+        }
     }
 
     // **Trifft die Vorhersage?** Zwei Rechnungen, beide auf denselben Daten.
@@ -1818,6 +2023,11 @@ fn ab_reihe(
         "  AC6  Unterschied innerhalb der Streuung       {}",
         if ac6 { "PASS" } else { "FAIL" }
     );
+    let _ = writeln!(
+        bericht,
+        "  Blockzeiten brauchbar                         {}",
+        if zeiten_ok { "PASS" } else { "FAIL" }
+    );
     if !ac1 {
         let _ = writeln!(
             bericht,
@@ -1826,10 +2036,21 @@ fn ab_reihe(
              conditions)."
         );
     }
-    ac1 && ac6
+    // **Die Blockzeiten zaehlen mit.** Nicht weil sie die Streuung beruehren —
+    // die steht unabhaengig davon —, sondern weil ein Bericht mit unbrauchbaren
+    // Zeiten spaeter fuer eine Stoerungsanalyse herangezogen wuerde, fuer die
+    // er nicht taugt. Ein Ruecklauf mit Exit 0 waere die Einladung dazu.
+    ac1 && ac6 && zeiten_ok
 }
 
 fn main() {
+    // **Als Erstes, vor allem anderen.** [`LAUFBEGINN`] setzt sich beim ersten
+    // Aufruf selbst; geschaehe der irgendwo mitten im Programm, hiesse
+    // „Laufbeginn" in Wahrheit „als der Bericht angefangen wurde" — und jede
+    // Blockzeit waere um die Zeit davor zu klein. Der Fehler waere klein und
+    // deshalb schwer zu finden.
+    let _ = laufbeginn();
+
     let args: Vec<String> = std::env::args().collect();
     let aa_modus = args.iter().any(|a| a == "--aa");
     let ab_modus = aa_modus || args.iter().any(|a| a == "--ab");
@@ -1931,6 +2152,14 @@ fn main() {
         )
     );
     let _ = writeln!(bericht, "  Straenge               {threads}");
+    // **Der Bezugspunkt fuer jede Blockzeit im Bericht.** Als Unix-Sekunde,
+    // weil sie eindeutig ist; `date -d @<sekunde>` macht daraus Lokalzeit.
+    // Einmal je Lauf umrechnen statt bei jedem Block raten.
+    let _ = writeln!(
+        bericht,
+        "  Laufbeginn             {} (Unix-Sekunde; date -d @… gibt Lokalzeit)",
+        laufbeginn().1
+    );
     let _ = writeln!(
         bericht,
         "  Instrumentierung       {}",
@@ -2228,6 +2457,99 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ein Blockwert zum Prüfen — die Zahlen sind beliebig, nur unterscheidbar.
+    fn probe(rate: f64, zeit: f64) -> Blockwert {
+        Blockwert {
+            rate,
+            psi_max: 1.0,
+            ctxt_rate: 10_000.0,
+            takt_mhz: 2_000.0,
+            seit_beginn_s: zeit,
+        }
+    }
+
+    /// **Der Fall, für den `aus_diesem_paar` gebaut ist.**
+    ///
+    /// Der Vektor ist gewachsen — dann gehört der letzte Wert zu diesem Paar.
+    #[test]
+    fn ein_beigetragener_block_wird_geliefert() {
+        let werte = vec![probe(100.0, 0.0), probe(200.0, 62.0)];
+        let w = aus_diesem_paar(&werte, 1).expect("gewachsen, also ein Wert");
+        assert!((w.rate - 200.0).abs() < 1e-9);
+        assert!((w.seit_beginn_s - 62.0).abs() < 1e-9);
+    }
+
+    /// **Der Fehler von vorher, als Prüffall.**
+    ///
+    /// Der Vektor ist NICHT gewachsen — der Block wurde verworfen. `last()`
+    /// allein lieferte hier den Wert des vorigen Paares (100.0 bei 0.0 s) und
+    /// der Bericht zeigte ihn, als wäre er gemessen worden.
+    #[test]
+    fn ein_verworfener_block_liefert_keinen_fremden_wert() {
+        let werte = vec![probe(100.0, 0.0)];
+        assert!(
+            aus_diesem_paar(&werte, 1).is_none(),
+            "nicht gewachsen heisst verworfen — dann darf hier KEIN Wert stehen, \
+             erst recht nicht der des vorigen Paares"
+        );
+        // Und die Gegenprobe zum leeren Vektor, damit die Null nicht der
+        // einzige Grund ist, warum None herauskommt.
+        assert!(aus_diesem_paar(&[], 0).is_none());
+    }
+
+    /// Brauchbare Blockzeiten kommen durch — die Gegenprobe zu allem darunter.
+    ///
+    /// Ohne sie wäre nicht zu unterscheiden, ob die Prüfung die Fehler fängt
+    /// oder ob sie **alles** ablehnt.
+    #[test]
+    fn wachsende_blockzeiten_gehen_durch() {
+        assert!(zeiten_taugen(&[0.0, 12.5, 25.1, 37.8], 40.0).is_ok());
+    }
+
+    /// **Der Fall, für den dieses Feld überhaupt geprüft wird.**
+    ///
+    /// Eine konstante Folge ist monoton, liegt im Lauf-Zeitraum und ist
+    /// trotzdem wertlos: Genau so sähe ein Feld aus, das einmal gesetzt und nie
+    /// aktualisiert wird. Eine Prüfung auf bloße Monotonie wäre hier grün — und
+    /// damit ein Wächter, der den einzigen Fehler durchlässt, gegen den er
+    /// gebaut ist.
+    #[test]
+    fn eine_eingefrorene_uhr_faellt_durch() {
+        let fehler = zeiten_taugen(&[7.0, 7.0, 7.0, 7.0], 40.0)
+            .expect_err("konstante Zeiten müssen abgelehnt werden");
+        assert!(
+            fehler.contains("wachsen nicht"),
+            "die Meldung soll den Grund nennen: {fehler}"
+        );
+    }
+
+    #[test]
+    fn ruecklaeufige_blockzeiten_fallen_durch() {
+        assert!(zeiten_taugen(&[0.0, 20.0, 10.0], 40.0).is_err());
+    }
+
+    /// Eine Zeit hinter dem Laufende stammt aus einer anderen Zeitrechnung.
+    ///
+    /// Das ist der Fehler, den eine Monotonie-Prüfung allein NICHT fängt:
+    /// Unix-Sekunden statt Sekunden seit Laufbeginn wachsen einwandfrei — sie
+    /// liegen nur um eineinhalb Milliarden daneben.
+    #[test]
+    fn eine_zeit_hinter_dem_laufende_faellt_durch() {
+        let fehler = zeiten_taugen(&[0.0, 10.0, 1_755_600_000.0], 40.0)
+            .expect_err("eine Zeit hinter dem Laufende muss abgelehnt werden");
+        assert!(
+            fehler.contains("hinter dem Ende"),
+            "die Meldung soll den Grund nennen: {fehler}"
+        );
+    }
+
+    /// Ein einzelner Wert belegt keine Reihenfolge.
+    #[test]
+    fn weniger_als_zwei_blockzeiten_belegen_nichts() {
+        assert!(zeiten_taugen(&[], 40.0).is_err());
+        assert!(zeiten_taugen(&[1.0], 40.0).is_err());
+    }
 
     /// Der Parser muss die ECHTE Zeilenform treffen, nicht eine gedachte.
     ///

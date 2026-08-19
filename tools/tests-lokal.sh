@@ -67,7 +67,7 @@ cd "$WURZEL" || exit 1
 #
 # **`deps/` UND `examples/`.** Bis zum 2026-08-19 stand hier nur `deps/`, und
 # damit fielen bei `--all-targets` still 31 Ziele heraus — darunter zwei mit
-# zusammen 17 Prueffaellen (`messumgebung`, `trace_stabilitaet`), die dieses
+# zusammen 24 Prueffaellen (`messumgebung`, `trace_stabilitaet`), die dieses
 # Skript nie ausgefuehrt hat. Aufgefallen ist es an einer Differenz in fremden
 # Zahlen: 202 Ziele beim Orchestrator gegen 171 bei mir, 171 + 31 = 202.
 #

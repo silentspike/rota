@@ -243,7 +243,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       # Der erste Lauf bleibt unberührt: Er sichert zu, dass die Bibliothek
-      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 28 Prüffälle
+      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 35 Prüffälle
       # dazu, die `cargo test` allein NIE ausführt — aus DREI verschiedenen
       # Gründen, die man leicht für einen hält:
       #
@@ -252,7 +252,7 @@ jobs:
       #        Merkmal übersetzt sie zu einer LEEREN Suite und meldet
       #        „test result: ok. 0 passed" — grün, und sie hat nichts angesehen.
       #
-      #   --all-targets            sim/examples/messumgebung.rs       14 Fälle
+      #   --all-targets            sim/examples/messumgebung.rs       21 Fälle
       #                            sim/examples/trace-stabilitaet.rs   3 Fälle
       #        `cargo test` BAUT Beispiele, führt ihre `#[test]` aber nicht aus.
       #        `main()` läuft dabei nie — nur die Prüffälle.
