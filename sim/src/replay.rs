@@ -60,6 +60,74 @@ pub struct Recording {
     pub presses: Vec<Press>,
 }
 
+/// Eine Aufzeichnung, wie `build.rs` sie zur Bauzeit einkompiliert (#970).
+///
+/// # Warum es diesen zweiten Typ gibt
+///
+/// [`Recording`] traegt `String` und `Vec` — beides laesst sich nicht in einer
+/// `static` ablegen. Diese Fassung traegt nur geliehene Scheiben und ist damit
+/// einkompilierbar; [`EmbeddedRecording::to_recording`] macht daraus die
+/// gewoehnliche Form.
+///
+/// # Wofuer
+///
+/// `rota-sim verify` prueft die Paritaet **ohne Werkzeugkette**. Ein `[[bin]]`
+/// ist kein Test und hat keinen Zugriff auf `serde_json`, das nur unter
+/// `[dev-dependencies]` steht — es kann `tests/parity/recordings/*.json` also
+/// nicht lesen. Zur Bauzeit eingebettet braucht es zur Laufzeit kein JSON, und
+/// die Bibliothek bleibt abhaengigkeitsfrei.
+///
+/// # Was NICHT eingebettet ist
+///
+/// Die Pruefsumme **je Takt**. Sie macht 2,64 MB der 2,73 MB aus; eingebettet
+/// ist nur die letzte. Damit sagt eine Abweichung, DASS eine Aufzeichnung
+/// auseinandergeht, nicht in welchem Takt — das bleibt
+/// `cargo test --test parity_recording` vorbehalten, und `verify` sagt es.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmbeddedRecording {
+    /// Dateiname ohne Endung, wie er in `tests/parity/recordings/` steht.
+    pub name: &'static str,
+    /// Startwert der Zufallsstroeme.
+    pub seed: u32,
+    /// Dauer in Takten.
+    pub ticks: u32,
+    /// Die Belegung: (Platz, Zauber-Index).
+    pub bindings: &'static [(u8, usize)],
+    /// Die Tastendruecke: (Takt, Platz).
+    pub presses: &'static [(u32, u8)],
+    /// Die Pruefsumme des LETZTEN Takts, wie die Datei sie nennt.
+    pub final_checksum: u32,
+    /// Gegen welchen Boss aufgezeichnet wurde, falls die Datei einen nennt.
+    ///
+    /// **Ohne dieses Feld waere die Haelfte der Pruefungen falsch-rot.** Eine
+    /// Runde gegen `boss-2-1` ergibt gegen den Standard-Boss andere
+    /// Pruefsummen — und der Fehlschlag saehe aus wie eine Abweichung im
+    /// Simulator, obwohl nur der Gegner ein anderer war.
+    pub boss_id: Option<&'static str>,
+}
+
+impl EmbeddedRecording {
+    /// Macht daraus die gewoehnliche [`Recording`]-Form.
+    #[must_use]
+    pub fn to_recording(&self) -> Recording {
+        Recording {
+            name: self.name.to_owned(),
+            seed: self.seed,
+            ticks: self.ticks,
+            bindings: self
+                .bindings
+                .iter()
+                .map(|&(slot, spell)| Binding { slot, spell })
+                .collect(),
+            presses: self
+                .presses
+                .iter()
+                .map(|&(tick, slot)| Press { tick, slot })
+                .collect(),
+        }
+    }
+}
+
 impl Recording {
     /// Welcher Zauber auf einem Platz liegt.
     ///

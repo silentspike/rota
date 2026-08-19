@@ -55,16 +55,26 @@
 
 #![warn(missing_docs)]
 
+// Issue #967: Durchgaenge ergaenzbar speichern statt fertig.
+pub mod akkumulator;
+// Issue #908: der kritische Treffer analytisch — NEBEN dem Kampf, nicht darin.
+pub mod analytisch;
 pub mod apl;
 pub mod balance;
 // Issue #118: die Suche nach dem besten Aufbau.
 pub mod best_build;
 // Issue E3-5: Verstaerkungen und Synergie-Fenster.
 pub mod buffs;
+// Issue #959: die Werte-Deckel je Wirkgroesse, als Tabelle.
+pub mod caps;
 pub mod checksum;
 // Issue E3-3c: der Cooldown-Ruecksetzer als Auswahlmodus.
 pub mod cooldown_reset;
 pub mod data;
+// Issue #896: Zaehler fuer den Diagnosepfad — Schlangenlaenge, `expire_buffs`.
+pub mod diagnostics;
+// Issue #908: wie viele Durchgaenge genuegen — abgeleitet, nicht `purity == 0`.
+pub mod durchgaenge;
 // Issue #911: die typisierte Wirkungsbeschreibung und ihre erzeugten Analysen.
 pub mod effects;
 pub mod event;
@@ -76,10 +86,14 @@ pub mod gear_balance;
 // Issue #177: Tempo wirkt auf Zeiten.
 pub mod haste;
 pub mod log;
+// Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
+pub mod objective;
 pub mod replay;
 pub mod report;
 pub mod rng;
 pub mod rotation;
+// Issue #981: Wertungsmenge und Instanzgruppen — welche Bosse zaehlen.
+pub mod scoring;
 // Issue #237: die Suche nach der besten Rotation.
 pub mod rotation_search;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
@@ -88,6 +102,8 @@ pub mod rules_event;
 pub mod sets;
 // Issue #178: die fuenf Quellen der Sonderwerte.
 pub mod sources;
+// Issue #913: Ergebnis und Bewertung getrennt speichern.
+pub mod speicher;
 // Issue E3-2: die Stapel-Mechanik der Schulen, als Ereignis-Empfaenger.
 pub mod stacks;
 // Issue E3-3: die Verkuerzung der Abklingzeiten (SUBLIMATION).
