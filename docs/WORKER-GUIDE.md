@@ -381,6 +381,29 @@ das Ende — nicht der Anfang und nicht die Dauer. Wer daraus eine Spanne bildet
 eine Näherung; das ist brauchbar, **wenn sie als Näherung gekennzeichnet ist**, und
 unbrauchbar, wenn nicht.
 
+### Nach einer Freigabe zuerst das kurze Stück fahren, nicht das lange
+
+Worker-1s eigene Lehre aus dem 2026-08-19, und sie geht über den Vorfall hinaus: Eine
+Freigabe kann zurückgenommen werden, und die Rücknahme braucht Zeit für den Weg. Wer nach
+einem zwei Stunden langen Fenster sofort den Gesamtlauf startet, macht eine Kehrtwende
+teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
+
+> Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
+
+### Eine Messumgebung erkennt nur Störungen ihrer eigenen Bauart
+
+Worker-2s Messumgebung bricht bei **Schwankung** ab. Zwei Minuten gleichmäßige Fremdlast
+erzeugen aber keine Schwankung, sondern eine **Verschiebung** — für die Umgebung sieht das
+aus wie eine langsamere Maschine, und ein Block, der knapp unter der Schwelle bleibt,
+sieht wie ein Ergebnis aus. Deshalb war der Lauf am 2026-08-19 nicht zu retten, obwohl
+die Schutzschwelle nie ansprang.
+
+> **Das Schweigen eines Wächters ist kein Freispruch für den Rest.** Er prüft, was er
+> prüft. Dieselbe Familie wie „die Absicherung erbt den blinden Fleck ihrer Annahme".
+
+Praktisch: Wenn ein Schutz nur eine Störungsart fängt, gehört in die Meldung, **welche**
+— und dass die andere ungeprüft blieb.
+
 ### Wer mit einem Muster auf Prozesse zeigt, zeigt auch auf den Zeiger
 
 Zwei Fälle am 2026-08-19, in beide Richtungen:
