@@ -113,6 +113,73 @@ fn der_schluessel_ordnet_wie_der_dreifache_vergleich() {
     }
 }
 
+/// Die Größen, auf denen die AC6-Entscheidung steht (Issue #909).
+///
+/// # Warum dieser Fall existiert
+///
+/// AC6 — „der Ereigniskalender bringt zu wenig" — ist mit **Cache-Zeilen**
+/// begründet: Ein Eintrag ist 16 Byte, eine Zeile fasst vier, und der Median
+/// von sieben Einträgen berührt damit 1,75 Zeilen. Ein Kalender müsste einen
+/// Eimer-Index rechnen und über einen Zeiger auf eine *nicht benachbarte* Zeile
+/// greifen; das ist nicht zu unterbieten.
+///
+/// Gemessen wurde das mit einem Wegwerf-Programm, das danach gelöscht war —
+/// **die Zahl stand im Bericht, der Beleg nirgends.** Der Orchestrator hat
+/// genau das beanstandet: eine Entscheidung auf einer Messung, die niemand
+/// wiederholen kann.
+///
+/// Hier ist die Messung wieder da, und zwar als **Wächter**: Wer `EventKind`
+/// um eine Variante mit größerem Inhalt erweitert, lässt den Eintrag wachsen —
+/// dann fällt dieser Fall, und in genau dem Moment ist die Grundlage der
+/// AC6-Entscheidung hinfällig. Ohne ihn wüchse der Eintrag still, die Schlange
+/// bräuchte mehr Zeilen, und die Begründung „1,75 Zeilen" stünde weiter im
+/// Issue.
+#[test]
+fn ein_eintrag_bleibt_bei_sechzehn_byte() {
+    use std::mem::size_of;
+
+    assert_eq!(
+        size_of::<Schluessel>(),
+        8,
+        "Der Schlüssel ist ein u64 — wächst er, stimmt die Bitaufteilung aus AC5 nicht mehr."
+    );
+    assert_eq!(
+        size_of::<EventKind>(),
+        8,
+        "EventKind trägt heute höchstens zwei kleine Felder. Eine Variante mit größerem \
+         Inhalt bläht JEDEN Eintrag auf — auch die, die sie nicht benutzen."
+    );
+
+    let eintrag = size_of::<(Schluessel, EventKind)>();
+    assert_eq!(eintrag, 16, "ein Eintrag im festen Feld");
+
+    // Die eigentliche Aussage von AC6, als Rechnung statt als Behauptung.
+    const CACHE_ZEILE: usize = 64;
+    assert_eq!(
+        CACHE_ZEILE / eintrag,
+        4,
+        "Eine Cache-Zeile fasst VIER Einträge. Daran hängt die AC6-Entscheidung: Der \
+         Median von sieben Einträgen berührt 1,75 Zeilen, und das kann ein Eimer-Index \
+         plus Zeigerverfolgung nicht unterbieten."
+    );
+
+    // p50 = 7 (gemessen über 147 Millionen Stichproben, Messumgebung #896).
+    let zeilen_im_median = (7 * eintrag) as f64 / CACHE_ZEILE as f64;
+    assert!(
+        zeilen_im_median < 2.0,
+        "Der Median muss unter ZWEI Cache-Zeilen bleiben, sonst trägt die Begründung \
+         gegen den Ereigniskalender nicht mehr. Gemessen: {zeilen_im_median}"
+    );
+
+    // Und das Feld als Ganzes — es soll in den L1 passen, nicht bloß irgendwohin.
+    assert_eq!(
+        FELD_KAPAZITAET * eintrag,
+        768,
+        "48 Plätze zu 16 Byte = 768 Byte = 12 Cache-Zeilen. Wächst der Eintrag, wächst \
+         das mit — und die Wahl der Feldgröße wäre neu zu begründen."
+    );
+}
+
 // ------------------------------------------------------------------- AC4
 
 #[test]
