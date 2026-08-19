@@ -390,6 +390,25 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 > Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
 
+### Wer etwas zurückdreht, sucht nach dem ALTEN Namen — nicht nach dem neuen
+
+Worker-3 hat am 2026-08-19 eine Umbenennung zurückgenommen. Zwei Stellen blieben mit dem
+alten Namen stehen, und **beide wären grün gewesen**: eine war nur Modul-Dokumentation,
+die andere ein Prüffall, der danach etwas anderes prüfte als sein Name sagte. Der Bau
+fängt keins von beidem.
+
+```bash
+grep -rn "<der zurückgenommene Name>" .    # das fängt es
+```
+
+Der Grund ist asymmetrisch: Beim Einführen eines Namens erzwingt der Compiler die
+Vollständigkeit — was ihn nicht kennt, bricht. Beim Zurücknehmen erzwingt er nichts, denn
+der alte Name ist ja wieder gültig. Übrig bleiben Text und Testnamen, die still weiter das
+Falsche behaupten.
+
+Dazu gehört: **Ein Testname, der nach dem Umbau zu viel behauptet, ist ein Befund** — nicht
+etwas, das man beim Aufräumen stillschweigend mitzieht.
+
 ### Ein grüner clippy-Lauf ist kein Nachweis gegen Immer-Wahr-Zusicherungen
 
 clippy fängt die einfachste Form der Klasse — zwei verglichene Konstanten:
