@@ -7101,7 +7101,130 @@ dabei eine Absicht aufgibt, die nur im Kommentar steht.
 erweiterte falsche Diagnose wiegt schwerer als die ursprüngliche, weil sie bestätigt aussieht. Wer
 einen fremden Befund aufstockt, prüft ihn zuerst — sonst verdoppelt er nur die Zuversicht.
 
-### 8.103 In einer Prioritätenliste gewinnt die erste wirkbare Regel — auch beim Messen
+### 8.103 Eine Kontrollzeile braucht beide Richtungen
+
+Am 2026-08-19 prüfte ein Worker, ob ein Release-Binary seinen Stand trägt. Vier Merkmale wurden als
+**fehlend** gemeldet. Er hätte einen Neubau angestoßen, der nichts geändert hätte.
+
+Seine Kontrollzeile war halb:
+
+```
+geprüft:      eine ERFUNDENE Zeichenkette wird NICHT gefunden       ✓
+NICHT geprüft: eine ECHTE Zeichenkette WIRD gefunden
+```
+
+Die fehlende Hälfte war genau die, auf die es ankam. Der Gegentest mit Zeichenketten, die drinstehen
+müssen (`rota-sim`, `bosses`, `spells`, `candidates` — alle vier gefunden), stellte die Frage erst
+richtig: _Der Suchweg findet grundsätzlich etwas, aber die gesuchten nicht._ Ursache war `ugrep`, das
+Binärdateien ohne `-a` stillschweigend überspringt.
+
+> **Eine Kontrollzeile prüft zwei Dinge, nicht eines:** dass etwas Abwesendes nicht gefunden wird,
+> **und** dass etwas Vorhandenes gefunden wird. Nur eine davon ist die Hälfte, die man gerade nicht
+> braucht.
+
+**Ein Nullbefund ist eine Aussage über den Gegenstand UND über den Messweg.** Ohne die positive
+Hälfte ist nicht unterscheidbar, welches von beiden gerade null ergeben hat.
+
+### 8.104 Zählen findet Kandidaten, Erreichbarkeit trennt sie
+
+Am 2026-08-19 zählte ein Worker, wie oft jedes Feld seiner neuen Struktur in Prüffällen vorkommt.
+Zwei Nullen, zwei echte Lücken — die Zählung fand, was das Suchen nach bekannten Fehlerklassen
+nicht gefunden hatte.
+
+> „Das Suchen nach Klassen findet, was ich schon kenne. Das Zählen findet, was ich übersehen habe."
+
+**Eine Ebene weiter kippte die Regel.** Dieselbe Zählung über Funktionen und Typen ergab drei
+Nullen — und **keine davon war eine Lücke**:
+
+```
+abhaengigkeiten_fuer   0 Nennungen   ABER erreichbar über alle_domaenen()
+domaene_fuer           0             dito
+ParameterDomain        0             dito
+```
+
+Die Zählung beantwortet _„wird es genannt"_, nicht _„wird es geprüft"_. Bei Feldern fällt beides
+zusammen, weil ein Feld nur über seinen Namen erreichbar ist. Bei Funktionen nicht.
+
+**Das Verfahren hat deshalb zwei Schritte:**
+
+1. **Zählen**, was von wie vielen Fällen genannt wird. Eine Null ist ein **Kandidat**.
+2. Für jede Null: **Ist es über einen anderen Weg erreichbar?** Dann ist es keine Lücke. Bleibt es
+   unerreichbar, oder gibt es einen Zweig, den kein heutiger Aufrufer erzeugen kann — dann ist es eine.
+
+Ohne (2) baut man Deckung für Erreichbares und übersieht das Unerreichbare: In diesem Fall drei
+falsche Kandidaten, und der eine echte Zweig (eine `pub`-Funktion mit einem Namen, den es nicht gibt
+— über den einzigen Aufrufer nie erreichbar) wäre durchgefallen.
+
+**Und eine dritte Frage kommt bei Aufzählungen dazu:** Zwei tote Varianten sahen in der Zählung
+gleich aus. Eine wurde gestrichen (sie wäre _nie_ ableitbar geworden — die nötige Zuordnung gibt es
+in den Daten nicht), die andere behalten (sie wird ableitbar, sobald eine benannte Quelle liefert).
+Der Unterschied ist nicht _„heute unbenutzt"_, sondern _„wird es je erzeugbar"_.
+
+### 8.105 Eine Abhilfe darf die Spur nicht entfernen
+
+Am 2026-08-19 gab der Orchestrator eine Regel gegen einen leeren `grep -c`-Wert aus:
+
+```bash
+n=${n:-0}     # FALSCH
+```
+
+Ein Worker hat sie zerlegt, bevor sie Schaden anrichtete:
+
+> „Die Abhilfe macht aus _nicht gemessen_ ein _gemessen, null gefunden_ — und das ist die
+> gefährlichere der beiden Aussagen, weil sie wie ein Ergebnis aussieht. Heute ist die Bedingung
+> wenigstens mit `integer expected` und Exit 2 abgebrochen. Das war eine Spur. **Wir hätten den
+> ugrep-Befund mit dieser Regel nie gefunden.**"
+
+Das war nicht abstrakt: Der Befund aus 8.103 war eine Stunde zuvor nur entstanden, **weil etwas laut
+kaputtging**. Die Regel hätte dasselbe Ereignis zu einer ruhigen Null gemacht.
+
+**Was stattdessen gilt** — gefahren, nicht ausgedacht:
+
+```bash
+n=$(grep -ac MUSTER DATEI)
+[ -n "$n" ] || { echo "MESSUNG FEHLGESCHLAGEN: kein Wert für $DATEI" >&2; exit 1; }
+```
+
+Das `-a` gehört in denselben Aufruf — sonst behandelt man nur das Symptom. Und feiner noch: **OHNE
+MESSWERT** (die Messung fand nicht statt) ist von **STUMM** (0 Fälle gelaufen) zu trennen. Beides ist
+kein Bestehen, aber es sind zwei verschiedene Befunde, und wer sie zusammenwirft, sucht den Fehler an
+der falschen Stelle.
+
+> **Vor jeder Abhilfe die Frage:** _Woran hätte man gemerkt, dass es kaputt ist — und ist das danach
+> noch da?_ Wenn die Antwort nein lautet, behebt man die Meldung statt der Sache.
+
+Es verletzt außerdem eine Regel, die anderswo längst gilt: _ein Lauf mit null ausgeführten Tests gilt
+als fehlgeschlagen, nicht als bestanden._
+
+### 8.106 Eine Fehlermeldung, die nur eine Richtung kennt
+
+Am 2026-08-19 wurde ein neuer Prüffall beim ersten Lauf rot — und die Meldung beschrieb den Fall
+nicht, der eingetreten war:
+
+```
+"in [plate, crucible-skin] stehen 0 Stapel statt einem"
+left: 0   right: 1
+```
+
+Die Träger-Zusicherung prüfte, dass ein zweiter Schutzzauber **abprallt** — das geschieht beim
+**Aufbau**. Geschrieben war sie gegen den Messzeitpunkt am Ende, zu dem die Schicht längst abgelaufen
+ist. Die alte Fehlermeldung sprach nur von _„mehr als einem Stapel"_ und ließ den Leser in die falsche
+Richtung suchen.
+
+**Behoben mit einer Meldung, die beide Ausgänge benennt:**
+
+> „**MEHR** heißt: der zweite Zauber hat etwas beigetragen. **WENIGER** heißt: die Schicht ist schon
+> weg, dann ist der Zeitpunkt falsch gewählt und alles Weitere misst ins Leere."
+
+Das ist 8.103 auf der Ausgabeseite. Eine Zusicherung, die nur eine Abweichungsrichtung erklärt, ist im
+roten Fall schlimmer als gar keine Erklärung — sie liest sich wie ein Beleg, und wer sie sieht, glaubt
+zu wissen, was schiefging.
+
+**Dieselbe Prüfung gilt für die Zusicherung selbst:** Ein Fall, dessen Fehlermeldung etwas
+_behauptet_, was er nicht prüft („der Hinweis nennt die richtige Richtung UND den richtigen Bezug"),
+gehört ergänzt — entweder prüft er es, oder die Meldung sagt es nicht.
+
+### 8.107 In einer Prioritätenliste gewinnt die erste wirkbare Regel — auch beim Messen
 
 Am 2026-08-19 sollte gemessen werden, ob ein Kontroll-Kit einen tödlichen Schlag abwenden kann.
 Die Kontrollrotation lautete:
@@ -7144,7 +7267,7 @@ Herleitung richtig**. Das ist der unangenehmere Ausgang: Ein Irrtum, der zufäll
 Ergebnis liefert, wird nicht nachgeprüft. Bestätigt hat die Zahl erst der Lauf, nicht die
 Übereinstimmung.
 
-### 8.104 Eine Verzögerung sieht aus wie eine Verhinderung, wenn man zu früh misst
+### 8.108 Eine Verzögerung sieht aus wie eine Verhinderung, wenn man zu früh misst
 
 Derselbe Aufbau, unmittelbar danach. Gemessen wurde, ob der Schlag abgewendet ist — an den
 Lebenspunkten kurz nach seinem Zeitpunkt:
@@ -7181,7 +7304,7 @@ Die Gegenfrage kostet nichts: **Wie lange dauert die Wirkung, die ich messe — 
 Messpunkt dahinter?** Steht in den Daten eine Dauer (`amountMs`, `castTimeMs`, `durationMs`), ist
 sie die Untergrenze für den Messzeitpunkt.
 
-### 8.105 Eine Aufzeichnung ist ein Schnappschuss — neue Daten erreichen sie nicht von selbst
+### 8.109 Eine Aufzeichnung ist ein Schnappschuss — neue Daten erreichen sie nicht von selbst
 
 Am 2026-08-19 kamen zwei Bossdateien dazu. Der Bau lief, `clippy` und `fmt` waren grün, die neuen
 Prüffälle bestanden. Erst der volle lokale Lauf über alle 212 Ziele fand den Bruch:
