@@ -976,8 +976,9 @@ const SCORED_INSTANCES: [&str; 5] = [
 
 /// Die `instance`-Werte der Pruef- und Lastprofile.
 ///
-/// Diese Bosse tragen absichtlich extreme Werte — `test-runaway` laeuft aus dem
-/// Ruder, `test-lethal-cast` toetet zuverlaessig. Sie liegen im selben
+/// Diese Bosse tragen absichtlich extreme Werte — `test-runaway` traegt eine
+/// umgekehrte Siegbedingung, ein Grossteil von ihnen steht auf 999999 Leben,
+/// damit der Kampf nicht von selbst endet. Sie liegen im selben
 /// Verzeichnis wie die Spielbosse, und genau das ist die Gefahr: Eine Elite,
 /// die versehentlich gegen einen von ihnen optimiert wurde, sieht im Ergebnis
 /// vollkommen plausibel aus.

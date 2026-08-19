@@ -11,9 +11,19 @@ use rota_sim::scoring::{
 };
 
 /// Die Zahlen des Bestands, gemessen gegen `origin/main` (AC6).
+///
+/// **`PRUEFPROFILE` ist am 2026-08-19 von 18 auf 20 gewachsen**, und die
+/// Herkunft gehört dazu: 18 war der Stand aus #981; dazu kamen
+/// `test-lethal-strike` und `test-survivable-strike` aus #797 — die beiden
+/// Zwillinge für AC5, beide in der Instanz `testing`.
+///
+/// **`WERTUNGSFAEHIG` bleibt bei 17.** Das ist kein Zufall, sondern die Probe:
+/// Läge eines der neuen Profile versehentlich in einer gewerteten Instanz,
+/// müsste diese Zahl mitwachsen. Eine unveränderte Konstante als Beleg ist
+/// stärker als eine angepasste.
 const WERTUNGSFAEHIG: usize = 17;
 const GRUPPEN: usize = 5;
-const PRUEFPROFILE: usize = 18;
+const PRUEFPROFILE: usize = 20;
 
 fn boss(id: &str) -> &'static Boss {
     data::boss_by_id(id).unwrap_or_else(|| panic!("Boss {id} fehlt im Datensatz"))
