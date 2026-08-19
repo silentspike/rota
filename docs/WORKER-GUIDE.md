@@ -7346,3 +7346,377 @@ Praktisch: **Wer eine Datei unter `data/` anlegt, prüft, welche Aufzeichnungen 
 mitführen** — und fährt den vollen lokalen Lauf, nicht nur die Ziele des eigenen Issues. Der Lauf
 über alle Ziele kostete hier 131 Sekunden und war der einzige Grund, warum der Bruch vor der CI
 auffiel.
+
+### 8.110 Die Quelle beschreibt etwas anderes als das, wonach gefragt wurde
+
+An einem einzigen Abend fünfmal, in fünf verschiedenen Werkzeugen, von vier verschiedenen
+Sitzungen. Jedes Mal lieferte die Quelle eine Antwort, die **richtig war** — nur auf eine andere
+Frage.
+
+```
+Quelle                        sieht aus wie          ist tatsächlich
+────────────────────────────────────────────────────────────────────────────────
+vessel-phases.json            der Bossbestand        der Bestand beim letzten Export
+refs/remotes/origin           die Zweige am Server   die Zweige beim letzten fetch
+mergeable                     "darf gemergt werden"  "es gibt keinen Konflikt"
+DATEIEN=(...) im Wächter      die Dokumente          zwei davon
+gh pr list --author @me       meine PRs              die PRs des Kontos
+die eigene Notiz              der aktuelle Stand     der Stand beim Ablesen
+ir-chk=1291/1297              das Ergebnis           der Stand in diesem Moment
+```
+
+Damit sind **alle drei Zeitrichtungen** beisammen: eine Quelle von gestern (Aufzeichnung, Cache),
+eine Ablesung von vorhin (die eigene Notiz) — und eine Zahl von **mittendrin**. Die letzte ist die
+heimtückischste, weil sie in demselben Augenblick entsteht, in dem man sie liest: `ir-chk=1291/1297`
+ist ein Fortschrittsbalken und sieht aus wie ein Endstand. Aus ihm entstand die Zahl „1300
+Dateien", die einen halben Abend lang als Begründung einer Regel herumstand.
+
+**Drei Spielarten, und sie unterscheiden sich in der Abhilfe:**
+
+Die ersten beiden zeigen einen **alten** Zustand. `vessel-phases.json` kannte 35 Bosse, während
+das Verzeichnis 37 hatte; `refs/remotes/origin` führte 199 Zweige, während der Server 59 hatte —
+140 davon längst gelöscht. Ein `fetch` ohne `--prune` räumt nichts weg. Abhilfe: die Quelle
+erneuern oder den Server fragen (`git ls-remote`).
+
+Die letzten drei zeigen einen **anderen Gegenstand**. `mergeable` beantwortet die Konfliktfrage,
+nicht die Merge-Frage — gemessen an zwei PRs im selben Augenblick:
+
+```
+#1010  mergeable=MERGEABLE  mergeStateStatus=CLEAN     darf
+#1012  mergeable=MERGEABLE  mergeStateStatus=BLOCKED   darf nicht
+```
+
+Dasselbe `mergeable`, entgegengesetztes Ergebnis. `gh pr list --author @me` zeigt das **Konto**,
+nicht die **Rolle** — vier Sitzungen teilen eines, und wer den Befehl als Selbstprüfung liest,
+sieht fremde Arbeit und hält sie für seine. Oder umgekehrt, und das ist schlimmer: Wer „da läuft
+ja was" denkt, sucht nicht weiter nach dem eigenen, das nirgends steht. Abhilfe: die Frage an die
+Stelle verlagern, wo sie beantwortbar ist.
+
+Die sechste betrifft **nicht die Quelle, sondern den Leser** — und sie ist die häufigste, weil sie
+keine Voraussetzung hat außer Zeitablauf. Ich hatte in einer Nachricht gemeldet, ein PR brauche
+noch einen `update-branch`. Der Messwert dazu war zwanzig Minuten alt; der Lauf war längst
+angestoßen worden. **Meine Quelle war nicht veraltet, meine Ablesung war es** — sie hätte
+geantwortet, wenn ich sie vor dem Absenden nochmal gefragt hätte. Abhilfe: genau das.
+
+| Spielart           | Abhilfe                                                         |
+| ------------------ | --------------------------------------------------------------- |
+| alter Zustand      | Quelle erneuern oder den Server fragen                          |
+| anderer Gegenstand | die Frage dorthin verlagern, wo sie beantwortbar ist            |
+| alte Ablesung      | vor dem Absenden nochmal fragen **und die Antwort abschreiben** |
+| wandernder Bezug   | die Schwelle an etwas binden, das mitwandert                    |
+
+> **Der Zusatz ist nicht überflüssig.** Dieselbe Person hat die Ablesung dreimal an einem Abend
+> versäumt — beim dritten Mal in genau dem Absatz, der die Abhilfe ankündigte. Und dabei war die
+> Messung **gefahren**: Die frische Ausgabe stand daneben, verwendet wurde die erinnerte Zahl aus
+> drei Minuten zuvor. Zwischen „frisch messen" und „das Gemessene hinschreiben" liegt ein Schritt,
+> den man für selbstverständlich hält.
+>
+> Was hilft, ist billiger als Vorsatz: **die Uhrzeit der Ablesung dazuschreiben.** Eine Zahl ohne
+> Zeitpunkt behauptet Gegenwart; eine mit Zeitpunkt lädt zum Nachrechnen ein — auch den, der sie
+> geschrieben hat.
+>
+> **Und diese Abhilfe braucht ihren eigenen Vorbehalt.** Beim vierten Mal an demselben Abend war
+> es die _Uhrzeit selbst_, die nicht stimmte: `22:49:12` geschrieben, während die Ausgabe
+> `22:48:34` sagte — um 38 Sekunden in die Zukunft geschätzt, also genau das getan, was die
+> Angabe verhindern soll. Eine erfundene Uhrzeit ist schlimmer als keine: Sie **beglaubigt** eine
+> Ablesung, die so nicht stattfand.
+>
+> Deshalb: `date` und die Messung in **einem** Befehl, und beides aus dessen Ausgabe abschreiben.
+> Eine Maßnahme gegen einen Fehler, die denselben Fehler enthalten kann, erzeugt Vertrauen, wo
+> vorher Unsicherheit war.
+
+**Und dann hilft auch das Abschreiben nicht mehr — der Schritt muss weg.** Nach dem vierten Fall
+war klar, dass jede Fassung der Regel wieder ein Vorsatz ist: „nochmal fragen", „die Antwort
+abschreiben", „die Uhrzeit dazu". Alle drei sind an demselben Abend gescheitert, der letzte in dem
+Absatz, der ihn einführte.
+
+Was trägt, ist **Mechanik statt Disziplin** — die Ausgabe darf nicht durch den Kopf gehen:
+
+```bash
+rota-ipc senden Orchestrator - <<ENDE
+Stand $(date +%H:%M:%S):
+$(gh pr checks 1013 | grep -c pass) von $(gh pr checks 1013 | wc -l) grün
+ENDE
+```
+
+Kein `<<'ENDE'` mit Anführungszeichen — dann setzt die Shell die Befehle selbst ein. Was in der
+Nachricht steht, **ist** die Ausgabe; es gibt keinen Schritt dazwischen, in dem eine erinnerte
+Zahl gewinnen kann.
+
+**Der Weg hat einen Preis, und der ist zu kennen.** Ohne Anführungszeichen führt die Shell auch
+alles andere aus, was sie erkennt — `$` und Backticks im Fließtext. In genau dieser Meldung ist so
+ein Wort verschwunden: Ein in Backticks gesetztes `continue` wurde als Befehl aufgerufen, bash
+antwortete „only meaningful in a for, while, or until loop", und an der Stelle blieb nichts. Der
+Versand meldete Erfolg.
+
+> Auch hier war der **Fehler** laut — die Meldung stand in der Ausgabe. Aber die **Wirkung** war
+> still: In der Nachricht fehlte nur ein Wort, der Satz las sich fast normal.
+
+Also: Zahlen und Uhrzeiten über `$(…)` im ungequoteten Dokument — und im Fließtext dann keine
+Backticks um Bezeichner. Wer beides braucht, schreibt zwei Nachrichten.
+
+> **Der eigentliche Grund ist nicht, dass der mechanische Weg nie versagt.** Er versagte beim
+> ersten Versuch sofort, bei beiden Beteiligten, am selben falsch escapten `awk`. Aber er versagte
+> **laut**: Wo eine Zahl stehen sollte, stand eine Fehlermeldung, die niemand für ein Ergebnis
+> halten kann. Der Vorsatz versagt **still** — eine erinnerte Zahl sieht aus wie eine abgelesene.
+>
+> Ein Werkzeug, das falsch bedient wird und dabei kaputtgeht, ist besser als eines, das falsch
+> bedient wird und weiterläuft. Das ist 8.105 von der anderen Seite: Eine Abhilfe soll laut
+> kaputtgehen.
+
+**Und eine vierte Spielart, die keine Quelle betrifft, sondern eine Zusicherung.** Die
+Kontrollzeile des Wächters war selbst eine Schwelle mit Bezugsgröße: „weniger als **zehn**
+Nummern" ergab Sinn, solange nur zwei große Dokumente geprüft wurden. Sobald der Bezug sich
+änderte — fünf Dokumente, davon drei kleine —, wurde aus der Zusicherung eine **Blende**.
+
+|                          | sieht aus wie             | ist tatsächlich                                                  |
+| ------------------------ | ------------------------- | ---------------------------------------------------------------- |
+| eine Schwelle im Wächter | „das Muster greift nicht" | „diese Datei ist kleiner als die zwei, für die ich gebaut wurde" |
+
+> **Rot aus dem falschen Grund ist schlimmer als grün aus dem falschen Grund.** Bei grün sucht
+> wenigstens noch jemand weiter. Bei rot hat man ein Ergebnis in der Hand, arbeitet es ab — und der
+> echte Befund liegt darunter.
+
+Eine Schwelle ist eine Zahl mit Bezugsgröße. Wo der Bezug wandern kann, gehört die Schwelle an
+etwas gebunden, das mitwandert: Hier prüft sie jetzt nicht mehr „genug Treffer", sondern
+„Dateiauswahl und Zählung finden dasselbe" — eine Aussage über das Werkzeug statt über das
+Dokument.
+
+**Ein Nachtrag, der beim Beheben entstand.** Die Zeile `DATEIEN=(...)` oben ist inzwischen
+korrigiert — der Wächter liest die Dokumente jetzt ab, statt sie aufzuzählen. Und dabei fiel eine
+zweite Schicht derselben Klasse auf, eine Ebene tiefer:
+
+Der Wächter trug eine Kontrollzeile gegen seinen eigenen blinden Fleck — _findet das Muster
+weniger als **zehn** Nummern, brich ab, statt „keine Dubletten" zu melden_. Die Schwelle stammte
+aus der Zeit, als er nur zwei große Dateien kannte (91 und 77 Nummern). Sobald er alle fünf las,
+brach sie bei den kleinen ab: `STEP1-SPEC.md` trägt 4, `VERIFICATION.md` 5.
+
+Gemessen mit einer künstlich eingebauten Dublette in `VERIFICATION.md`: **Sie wurde nicht
+gemeldet.** Der Wächter war rot — aber wegen der Schwelle, und der `continue` dahinter übersprang
+die Dublettenprüfung. Rot aus dem falschen Grund, und der echte Befund fiel unter den Tisch.
+
+> Eine Schutzmaßnahme, deren Schwelle aus einem anderen Zusammenhang stammt, **verdeckt genau das,
+> wovor sie schützen soll** — und sie tut es, während sie Alarm schlägt.
+
+Die Schwelle ist jetzt 1 und prüft etwas anderes: Die Dateiauswahl nimmt nur Dokumente **mit**
+Treffern. Findet die Zählung darin trotzdem keinen, sind die beiden Muster im Skript
+auseinandergelaufen — ein Fehler im Werkzeug, kein Befund über das Dokument.
+
+**Warum dieser Teil so ausführlich ist.** Der Fehler trat an einem Abend sechsmal auf — viermal bei
+dem, der den Abschnitt schreibt, zweimal bei dem, der ihn anregte, und jedes Mal in einer Nachricht
+_über_ genau diesen Fehler. Wer hier „mehr aufpassen" liest, hat den Beleg vor sich, dass das nicht
+reicht.
+
+**Die Fehlerrichtung ist nicht symmetrisch**, und das entscheidet, wie teuer der Irrtum wird:
+
+| Frage                       | veralteter Cache zeigt    |                          |
+| --------------------------- | ------------------------- | ------------------------ |
+| „Ist X **schon** irgendwo?" | zu viele                  | die vorsichtige Richtung |
+| „Ist X **nirgends** mehr?"  | Zweige, die es nicht gibt | die gefährliche          |
+
+Beide traten an diesem Abend auf. Eine Zweig-Zuteilung lief über den Cache — gefährliche Richtung;
+alle 16 Zweige existierten noch, aber das war Glück. Eine `--contains`-Prüfung ebenfalls —
+vorsichtige Richtung; sie **konnte** nicht falsch ausgehen, weil schon der zu große Cache nichts
+fand.
+
+> Vor dem Schluss aus einer Quelle: **Welchen Zustand beschreibt sie, und wann ist er entstanden?**
+> Und wenn die Antwort in die falsche Richtung irren kann — ist das die vorsichtige Richtung oder
+> die gefährliche?
+
+**Warum das kein Sorgfaltsproblem ist.** Alle fünf Quellen waren in Ordnung. Keine war kaputt,
+keine log. Vier Sitzungen haben unabhängig voneinander dieselbe Bewegung gemacht: die
+naheliegendste Quelle gelesen und ihre Antwort für die eigene Frage genommen. Was die Fälle
+aufgedeckt hat, war jedes Mal **eine zweite Ablesung aus einer anderen Richtung** — nie das
+Nachdenken über die erste.
+
+### 8.111 Eine Mutation, die nichts bewirkt, sieht aus wie eine fehlende Deckung
+
+Am 2026-08-19 lief eine Mutationsserie über `sim/src/domaene.rs`. Sechzehn von siebzehn
+Mutationen machten den erwarteten Prüffall rot. Eine blieb grün:
+
+```rust
+// vorher
+let erster = treffer.next()?;
+// mutiert
+let erster = treffer.next().unwrap_or(&WIRKGROESSEN[0]);
+```
+
+Erwartet war rot in `abhaengigkeiten_unterscheiden_drei_faelle`, dem Fall für einen Namen,
+den es nicht gibt. Der naheliegende Schluss: Der Prüffall deckt den Zweig nicht.
+
+**Er deckt ihn.** Durchgespielt für einen unbekannten Namen:
+
+```
+treffer ist leer
+treffer.next()          -> None -> unwrap_or -> erster = WIRKGROESSEN[0]
+treffer.next()          -> None
+.map(|_| erster.name)   -> NONE
+```
+
+Die Mutation ändert den **ersten** `next()`, aber der **zweite** entscheidet. Ihr Effekt wird
+eine Zeile später aufgehoben. Eine wirksame Fassung — ein unbekannter Name liefert `Some` —
+machte den Fall sofort rot.
+
+> Wird eine Mutation nicht rot, prüfe zuerst, ob sie überhaupt wirkt: Erreicht der gefahrene
+> Weg die geänderte Stelle, und überlebt ihr Effekt bis zum Ergebnis? Erst wenn beides ja ist,
+> ist es eine Deckungslücke. Sonst hat man eine Zeile geändert, die keinen Unterschied macht,
+> und meldet einen Prüffall als blind, der sieht.
+
+### 8.112 Wo nichts brechen kann, braucht es eine Mutation, die es beweist
+
+Am 2026-08-19 kam `MonotonicityDomain::SpellDiversity` als fünfte Variante dazu. Vor dem Bau
+wurde gezählt, wie viele Stellen brechen würden:
+
+```
+erschöpfende matches über MonotonicityDomain     0
+Kontrolle: matches in passes.rs überhaupt       15   (alle über EffectOp)
+Vorkommen außerhalb domaene.rs                  13   (alle matches!/==)
+```
+
+Keine. Der Bau lief grün durch — wie vorhergesagt. **Und genau das ist die Gefahr:** Eine
+Variante, die keinen Bau bricht, ist eine Variante ohne Wächter. Niemand merkt, wenn sie
+nirgends behandelt wird.
+
+Zwei Läufe zusammen machen daraus eine Aussage:
+
+|                                  |                                                             |
+| -------------------------------- | ----------------------------------------------------------- |
+| **V0** Bau nach der Änderung     | bricht nicht — als **Vorhersage** notiert, nicht als Erfolg |
+| **V1** Variante wieder entfernen | bricht an 5 Stellen                                         |
+
+> Ohne V1 wäre „nichts bricht" nicht von „nichts benutzt sie" zu unterscheiden. Und V0 gehört
+> als Vorhersage hingeschrieben, bevor gebaut wird: Ein grüner Bau sieht sonst wie eine
+> Bestätigung aus und ist in Wahrheit nur die Abwesenheit einer Überraschung.
+
+Dieser Abschnitt ist der einzige dieser Reihe, der von einem Fall handelt, in dem **nichts
+passiert**. Die übrigen setzen an einem sichtbaren Fehler an — einer roten Zeile, einem
+falschen Exit-Code, einer irreführenden Ausgabe. Hier gibt es nichts zu sehen, und genau
+deshalb braucht es die Gegenprobe.
+
+V1 traf mit fünf statt der vorhergesagten sechs Stellen. Der Grund war ein Zählfehler, kein
+Mangel: Von sieben Nennungen sind zwei Doc-Kommentare — und das Prüfmuster kannte nur `///`,
+nicht `//!`.
+
+### 8.113 Ein Zähler, der bei null einen Fehler-Exit liefert, alarmiert im guten Fall
+
+Die bessere Art, CI-Checks zu zählen, ist **nicht bestanden** statt **bestanden** — ein
+übersprungener Job tarnt sich sonst als grüne Liste. Am 2026-08-19 meldete ein
+Hintergrundlauf dazu:
+
+```
+Background command "CI von #1014 abwarten" failed with exit code 1
+```
+
+Die CI war grün, 11 von 11. Der Exit stammte aus der Zählzeile selbst:
+
+```bash
+gh pr checks 1014 | grep -avc "pass"     # 0 Treffer -> grep gibt Exit 1
+```
+
+`grep -c` antwortet auf „wie viele" nicht nur mit einer Zahl, sondern zusätzlich mit einem
+Zustand. Als **letzter** Befehl einer Kette setzt dieser Zustand den Exit-Code des ganzen
+Blocks — und zwar genau dann, wenn das Ergebnis das gewünschte ist.
+
+> Die Zählweise bleibt richtig. Nur darf ein Zähler, der bei null einen Fehler-Exit liefert,
+> nicht am Ende einer Kette stehen: `|| true` anhängen, oder eine Ausgabe danach setzen. Ein
+> falscher Exit-Code neben einer richtigen Zahl ist gefährlicher als beides falsch — er
+> beglaubigt nichts und alarmiert trotzdem.
+
+### 8.114 Ein `ps`-Filter nach Programmnamen kann nicht nach Rolle trennen
+
+Eine Fensterabgabe wird mit einer Prozessliste belegt. Am 2026-08-19 lautete sie:
+
+```bash
+ps -eo pid,args | grep -E "vitest|tsc|cargo|rota_sim|tests-lokal"
+```
+
+Sie lieferte drei Zeilen — und keine davon gehörte der meldenden Sitzung:
+
+```
+/bin/bash -c ... cd /work/rota-worktrees/e9 ... cargo-remote-fmt
+/bin/bash /home/jan/bin/cargo-remote-fmt
+ssh root@10.0.0.155 cd '/tmp/cargo-remote-fmt/e9' && rustup update ...
+```
+
+`cargo-remote-fmt`, `vitest`, `cargo`, `tests-lokal` laufen in allen Worktrees gleich. Der
+Programmname sagt nichts darüber, **wer** den Prozess gestartet hat. Was trennt, ist der Pfad:
+
+```bash
+ps -eo pid,args | grep "rota-worktrees/e1\b"      # 0
+ps -eo pid,args | grep "cargo-remote-fmt/e1\b"    # 0
+```
+
+> Eine Abgabe-Prozessliste ohne Pfadfilter belegt nur, dass _irgendwer_ nichts tut. Sie kann
+> eine fremde Messung zeigen und wie die eigene aussehen — oder die eigene übersehen, weil sie
+> unter einem Namen läuft, den der Filter nicht kennt.
+
+Derselbe Fehler steckte in `rota-fenster`: Es filterte nach `messumgebung|tests-lokal|target/debug/deps`
+und meldete deshalb „es rechnet etwas", während der Lauf einer anderen Sitzung gehörte.
+
+### 8.115 Eine Folgerung wandert mit der Messung, wenn sie danebensteht
+
+Am 2026-08-19 wurde ein drei Wochen alter Zweig vermessen:
+
+```
+feat/e7-1-loss-analysis   641 neue Zeilen, 155 in main, 486 eigen
+                          src/analysis/losses.ts        FEHLT in main
+                          tests/unit/losses.test.ts     FEHLT in main
+                          src/analysis/report-view.ts   FEHLT in main
+```
+
+Daraus wurde im selben Absatz gefolgert: _ein ganzes Modul, das nirgends steht._ Die Zahlen
+stimmten. Die Folgerung war falsch — in main existiert `src/analysis/loss-sources.ts`,
+dieselbe Sache unter anderem Namen, umfangreicher und mit fünf Aufrufern.
+
+Ein Zeilenvergleich kann das nicht finden: Die zweite Umsetzung hat andere Dateinamen, andere
+Funktionsnamen, andere Struktur. **„Die Datei fehlt in main" und „die Sache fehlt in main" sind
+zwei verschiedene Aussagen** — gemessen war die erste, nahegelegt die zweite.
+
+**Der Orchestrator hat die Folgerung mit übernommen** und sie als Fund in einen Bericht an den
+Auftraggeber geschrieben — an einem Tag, an dem er dreimal selbst darüber geschrieben hatte,
+dass eine Angabe ohne ihren Bezug weiterwandert.
+
+> Trenne, was gemessen ist, von dem, was daraus folgt — durch einen eigenen Absatz oder ein
+> Wort davor. Eine Folgerung, die neben der Zahl steht, sieht aus wie ihr Teil und wandert mit
+> ihr weiter. Wer eine fremde Messung zusammenfasst, schreibt dazu, **wer** gefolgert hat.
+
+Der Name gehört hier hin, und zwar auf Wunsch des Betroffenen: „Ohne den Namen liest sich das
+wie ein Anfängerfehler. Mit dem Namen liest es sich wie das, was es ist — ein Fehler, den man
+auch macht, wenn man ihn kennt."
+
+### 8.116 Befehl und Meldung im selben Aufruf machen aus der Meldung eine Vorhersage
+
+Am 2026-08-19 wurde dreimal innerhalb von zwei Stunden dasselbe gemeldet, was nicht gemessen
+war. Jedes Mal stand der Meldungstext im selben Aufruf wie der Befehl — also fest, bevor die
+Ausgabe existierte:
+
+```
+Meldung                     behauptet          gemessen
+────────────────────────────────────────────────────────────
+Abgabe-Prozessliste         "keine Zeile"      14 Zeilen
+dieselbe, nachgebessert     "keine Zeile"       3 Zeilen (fremde Sitzung)
+Zeilenzahl eines Entwurfs   118                154
+```
+
+Im dritten Fall gab **derselbe Aufruf** die richtige Zahl zwei Zeilen weiter oben aus. Sie stand
+vor dem Verfasser, während er die falsche hinschrieb.
+
+Ein Text, der vor seiner Messung entsteht, ist keine Meldung, sondern eine Vorhersage — und er
+wird gelesen, als wäre er abgelesen. Der Empfänger kann den Unterschied nicht sehen: Beide
+Fassungen stehen in derselben Nachricht, in derselben Form, mit derselben Bestimmtheit.
+
+> Die Abhilfe ist keine Regel, sondern eine **Reihenfolge**: erst messen, dann schreiben, nie
+> beides in einem Aufruf. Eine Regel kann man zu befolgen vergessen; eine Reihenfolge hält man
+> ein oder nicht, und man sieht es am Aufruf.
+
+**Die Klasse ist nicht die Unaufmerksamkeit eines Einzelnen.** Am selben Abend, mit derselben
+Klasse vor Augen:
+
+- Worker-3 beging seine viermal — beim dritten Mal in dem Absatz, der sie beschreibt, beim
+  vierten in der Abhilfe selbst.
+- Der Orchestrator zweimal, davon einmal in der Nachricht, in der er einem anderen die
+  mechanische Abhilfe erklärte.
+- Worker-1 dreimal, während er diesen Abschnitt vorbereitete.
+
+Drei von vier Sitzungen, an einem Abend. Wer daraus schließt, er müsse nur aufmerksamer sein,
+hat den Abschnitt nicht verstanden: Alle drei kannten die Klasse, als sie sie begingen.
