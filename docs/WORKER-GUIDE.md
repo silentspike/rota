@@ -348,6 +348,242 @@ Für Pushes heißt das: `git ls-remote --heads origin <zweig>` oder `gh pr view`
 dem Push, und der abgelesene Kopf-Hash gehört in die Meldung. Steht er nicht drin, ist
 er nicht geprüft.
 
+### Ein Lauf über 60 Sekunden wird ANGEKÜNDIGT, bevor er startet
+
+Nicht fragen, ob jemand misst — **sagen, dass du rechnest.** Eine Zeile mit geschätzter
+Dauer, bevor der Befehl läuft:
+
+```bash
+rota-ipc senden Orchestrator "RECHNE JETZT: Gesamtlauf über 206 Suiten, etwa 3 Minuten."
+```
+
+**Warum das Nachsehen allein nicht reicht** — Worker-3 hat die Lücke am 2026-08-19
+gemessen, und zwar an einem Fall, in dem er die Regel korrekt befolgt hatte:
+
+| Zeit     | Was geschah                                                  |
+| -------- | ------------------------------------------------------------ |
+| 11:06:02 | `rota-ipc offen` geprüft — **nichts lag an**                 |
+| 11:06:07 | Gesamtlauf gestartet                                         |
+| 11:06:20 | Halte-Anweisung des Orchestrators kam an                     |
+| 11:08:46 | Lauf endete — zweieinhalb Minuten Fremdlast in einer Messung |
+
+> **Vor dem Lauf prüfen fängt nur, was vor dem Lauf da war.** Bei einem Lauf von
+> zweieinhalb Minuten ist das Fenster für eine eintreffende Anordnung genau so lang wie
+> der Lauf selbst.
+
+Die Ankündigung dreht die Richtung um: Der Orchestrator kann eine Messung um zwei
+Minuten verschieben, statt sie zu verlieren. Für den Messenden ist das billiger — er
+bekommt die Anordnung **vor** dem Start statt mittendrin.
+
+**Zweite Hälfte derselben Regel: `date` vor und nach dem Befehl.** Angekündigt vorher,
+abgelesen nachher. Die `mtime` einer Logdatei ist der Zeitpunkt des _Schreibens_, also
+das Ende — nicht der Anfang und nicht die Dauer. Wer daraus eine Spanne bildet, liefert
+eine Näherung; das ist brauchbar, **wenn sie als Näherung gekennzeichnet ist**, und
+unbrauchbar, wenn nicht.
+
+### Nach einer Freigabe zuerst das kurze Stück fahren, nicht das lange
+
+Worker-1s eigene Lehre aus dem 2026-08-19, und sie geht über den Vorfall hinaus: Eine
+Freigabe kann zurückgenommen werden, und die Rücknahme braucht Zeit für den Weg. Wer nach
+einem zwei Stunden langen Fenster sofort den Gesamtlauf startet, macht eine Kehrtwende
+teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
+
+> Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
+
+### `--test SUITE` beim Arbeiten, `--all-targets` erst vor der Fertigmeldung
+
+Gemessen über 21,4 Stunden und 495 `cargo remote`-Aufrufe (2026-08-19), Median je Aufruf:
+
+|          | `--all-targets` | gezielt `--test X` |          Faktor |
+| -------- | --------------: | -----------------: | --------------: |
+| Worker-1 |   25,3 s (130×) |         4,5 s (7×) |         **5,6** |
+| Worker-2 |    10,4 s (40×) |        4,0 s (36×) |             2,6 |
+| Worker-3 |    10,4 s (56×) |       19,1 s (13×) | 0,5 — umgekehrt |
+
+Worker-1 fuhr **66 %** seiner Läufe breit, Worker-2 nur 28 %. Wären zwei Drittel davon
+gezielt gelaufen, hätte er **30 Minuten** gespart — bei gleichem Ergebnis, denn ein
+gezielter Lauf prüft, woran man gerade arbeitet.
+
+```bash
+cargo remote -c -- test --test meine_suite     # beim Arbeiten
+cargo remote -c -- test --all-targets          # einmal, vor der Fertigmeldung
+```
+
+**Die Zeile für Worker-3 ist der Grund, warum das keine Pflicht ist**: Bei ihm war gezielt
+_langsamer_. Wer eine Suite anfasst, die selten gebaut wird, zahlt die Übersetzung neu.
+Miss deinen eigenen Fall, statt die Regel zu glauben — `date` vor und nach dem Aufruf.
+
+> Vor der Fertigmeldung gilt weiter `--all-targets`. Ein gezielter Lauf sagt nichts über
+> die Ziele, die er nicht angefasst hat.
+
+### Sammle zusammenhängende Änderungen, dann baue einmal
+
+Der Bau ist der größte Einzelposten der Werkzeugzeit — 5,18 von 9,62 Stunden (54 %) über
+denselben Zeitraum. Jeder Aufruf kostet Sync und Übersetzung, unabhängig davon, wie klein
+die Änderung war.
+
+Wer drei Dateien nacheinander ändert und dazwischen dreimal baut, zahlt dreimal für
+denselben Zustand. Die Ausnahme ist der Fall, in dem der Bau die _Frage beantwortet_
+(„kompiliert das überhaupt?") — dann ist er die Messung und kein Aufwand.
+
+### Eine Übergabe je abgeschlossenem Issue, nicht je Erkenntnis
+
+Übergabedateien unter `/work/rota-ipc/uebergabe-*.md` sollen einer nachfolgenden Sitzung
+ersparen, dasselbe zweimal zu erarbeiten. Eine Übergabe je Erkenntnis erreicht das
+Gegenteil: Wer fünf Dateien vorfindet, liest keine davon.
+
+> Eine Datei je abgeschlossenem Issue. Was darin steht: was fertig wurde, was halbfertig
+> liegt, und die Befunde, die sonst mit der Sitzung verlorengingen — **nicht** der Verlauf.
+
+Ist die Übergabe abgearbeitet, lösche sie. Eine veraltete ist schlimmer als keine.
+
+### Eine Quittung ist ein Satz — ein Befund ist so lang wie nötig
+
+Die Bestätigung einer Nachricht trägt **das verstandene Vorhaben in einem Satz**. Sie ist
+kein Ort für Analyse: Der Absender prüft daran, ob er verstanden wurde, und ein Absatz
+verzögert nur, wann er es merkt.
+
+Was du _gefunden_ hast, gehört in eine **neue** Nachricht und darf dort so lang sein, wie
+die Sache es braucht. Am 2026-08-19 waren die wertvollsten Meldungen des Tages lang — zwei
+sich neutralisierende Vorzeichenfehler, sechs Prüfsummen für einen Bestand, eine sechs Tage
+alte Baseline. Keine davon hätte in einen Satz gepasst, und keine gehörte in eine Quittung.
+
+### Eine Sammel-Prüfsumme gilt nur gegen sich selbst
+
+Dieselben 35 Dateien, ein Bestand, alle byteweise identisch — **sechs Aufrufe, sechs
+Zahlen** (gemessen am 2026-08-19):
+
+```
+aadc161d76cad693   sha256sum data/bosses/*.json | sha256sum
+89168e30e59e04fc   dasselbe aus dem Elternverzeichnis (e9/data/bosses)
+f9520242211bc0a3   dasselbe mit absolutem Pfad
+70c16203803d97fb   cat data/bosses/*.json | sha256sum
+bbef6e5e858a993c   Hashes ohne Zeilenumbruch (| tr -d '\n' |)
+6c2fe783788b84db   Hashes MIT Zeilenumbruch
+```
+
+`sha256sum` schreibt **den Pfad in seine Ausgabe** — wer die Ausgabe weiterhasht, hasht den
+Pfad mit. Und selbst die beiden pfadfreien Wege (`cat` gegen Hash-Liste) liefern
+verschiedene Zahlen: „pfadunabhängig" reicht als Absprache nicht, es muss dieselbe _Kette_
+sein.
+
+> Eine Sammel-Prüfsumme taugt als Nachweis **vorher gegen nachher im selben Baum mit
+> demselben Aufruf**. Sie taugt **nicht** als Vergleichswert zwischen zwei Bäumen oder zwei
+> Personen.
+
+**Halte die Liste fest, nicht die Summe:**
+
+```bash
+sha256sum data/bosses/*.json > vorher.txt
+# ... Arbeit ...
+sha256sum data/bosses/*.json > nachher.txt
+diff vorher.txt nachher.txt
+```
+
+Der Diff sagt außerdem, **welche** Datei sich geändert hat. Eine abweichende Summe sagt nur,
+dass etwas anders ist — bei 35 Dateien der Unterschied zwischen einer Antwort und einer
+Suche.
+
+### Melde den ZUSTAND, nicht die Absicht
+
+> „Ich habe X gebaut" statt „ich setze deine Entscheidung um."
+
+Am 2026-08-19 haben Orchestrator und Worker-3 denselben Schlüssel **dreimal** umbenennen
+lassen, weil beide auf einen Stand antworteten, den der andere schon verlassen hatte. Die
+Laufzeit der Nachrichten erklärt die erste Kreuzung; die zweite und dritte entstanden, weil
+keine Meldung ihren gemessenen Zustand mitführte.
+
+Die Regel hat zwei Hälften, und beide sind nötig:
+
+- **Wer meldet**, nennt den gemessenen Zustand — `grep`-Treffer, Zeilennummer, Dateiname.
+  Nicht was er umgesetzt hat, sondern was jetzt dasteht.
+- **Wer anweist**, misst nach, bevor er eine laufende Umsetzung dreht. Eine Anweisung auf
+  einen vermuteten Zustand ist eine Vermutung mit Befehlsform.
+
+Der Grund für die erste Hälfte: Sie legt die Last in den Text, wo sie stehenbleibt — nicht
+auf die Aufmerksamkeit im richtigen Moment, auf die an diesem Tag dreimal kein Verlass war.
+
+Und wenn zwei Anweisungen sich widersprechen: **nicht raten, welche die spätere Absicht
+trägt.** Den gemessenen Zustand melden und auf einen Satz warten, der sich darauf bezieht.
+Worker-3 hat genau das getan und damit einen vierten Umbau verhindert.
+
+### Wer etwas zurückdreht, sucht nach dem ALTEN Namen — nicht nach dem neuen
+
+Worker-3 hat am 2026-08-19 eine Umbenennung zurückgenommen. Zwei Stellen blieben mit dem
+alten Namen stehen, und **beide wären grün gewesen**: eine war nur Modul-Dokumentation,
+die andere ein Prüffall, der danach etwas anderes prüfte als sein Name sagte. Der Bau
+fängt keins von beidem.
+
+```bash
+grep -rn "<der zurückgenommene Name>" .    # das fängt es
+```
+
+Der Grund ist asymmetrisch: Beim Einführen eines Namens erzwingt der Compiler die
+Vollständigkeit — was ihn nicht kennt, bricht. Beim Zurücknehmen erzwingt er nichts, denn
+der alte Name ist ja wieder gültig. Übrig bleiben Text und Testnamen, die still weiter das
+Falsche behaupten.
+
+Dazu gehört: **Ein Testname, der nach dem Umbau zu viel behauptet, ist ein Befund** — nicht
+etwas, das man beim Aufräumen stillschweigend mitzieht.
+
+### Ein grüner clippy-Lauf ist kein Nachweis gegen Immer-Wahr-Zusicherungen
+
+clippy fängt die einfachste Form der Klasse — zwei verglichene Konstanten:
+
+```rust
+assert!((1usize << 14) > 15 * 100, ...)   // error: this assertion is always `true`
+```
+
+Die schwerere fängt es **nicht**, weil sie keine Konstante ist:
+
+```rust
+assert!(b.alle_ableitbaren_erfuellt() || !b.alle_ableitbaren_erfuellt())
+```
+
+Beide am 2026-08-19, beim selben Autor, zwei Stunden auseinander — die zweite **nachdem**
+er die erste als Werkzeugfund gemeldet hatte. Sein Satz dazu: **Kennen schützt nicht
+davor.** Wissen sitzt im Text, nicht in der Hand.
+
+> Der Werkzeugfund deckt nur den einfachsten Teil ab. Wer aus grünem clippy schließt, es
+> stehe keine Immer-Wahr-Zusicherung im Code, hört genau dort auf zu suchen, wo die
+> schwereren Fälle anfangen.
+
+Dieselbe Familie wie der Abschnitt unten: Ein Wächter prüft, was er prüft, und sein
+Schweigen ist kein Freispruch. Die verlässliche Gegenprobe bleibt die Mutation — den Fall
+absichtlich brechen und sehen, ob er rot wird.
+
+### Eine Messumgebung erkennt nur Störungen ihrer eigenen Bauart
+
+Worker-2s Messumgebung bricht bei **Schwankung** ab. Zwei Minuten gleichmäßige Fremdlast
+erzeugen aber keine Schwankung, sondern eine **Verschiebung** — für die Umgebung sieht das
+aus wie eine langsamere Maschine, und ein Block, der knapp unter der Schwelle bleibt,
+sieht wie ein Ergebnis aus. Deshalb war der Lauf am 2026-08-19 nicht zu retten, obwohl
+die Schutzschwelle nie ansprang.
+
+> **Das Schweigen eines Wächters ist kein Freispruch für den Rest.** Er prüft, was er
+> prüft. Dieselbe Familie wie „die Absicherung erbt den blinden Fleck ihrer Annahme".
+
+Praktisch: Wenn ein Schutz nur eine Störungsart fängt, gehört in die Meldung, **welche**
+— und dass die andere ungeprüft blieb.
+
+### Wer mit einem Muster auf Prozesse zeigt, zeigt auch auf den Zeiger
+
+Zwei Fälle am 2026-08-19, in beide Richtungen:
+
+```bash
+pkill -f "binaries/mess-k32"              # traf sich selbst, Exit 144
+until ! pgrep -f "mess-k32"; do ... done  # fand sich selbst — lief 39 Minuten ins Leere
+```
+
+Der erste tötete den Aufruf, der aufräumen sollte; die Bestätigung an den Orchestrator
+ging dabei unter. Der zweite konnte **nie** zurückkehren, weil das Muster in der eigenen
+Kommandozeile stand — und verdeckte, dass zwei Sitzungen gleichzeitig aufeinander
+warteten.
+
+> Sicher ist die **PID**, oder ein Muster, das die eigene Zeile nicht enthält. Und wenn
+> du auf einen fremden Prozess wartest: frage seinen Zustand ab, statt auf die Abwesenheit
+> eines Musters zu warten.
+
 ### `git diff a..b` vergleicht Endpunkte — deine neue Datei sieht aus wie fremder Verlust
 
 Zweimal am 2026-08-14, von zwei verschiedenen Sitzungen, beide Male knapp gefangen:
