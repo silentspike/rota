@@ -30,17 +30,17 @@ Zeitlücken, Fehlerklassen, Datei-Zugriffe, IPC-Volumen, Token-Verbrauch. Die Sk
 
 ## Die Bilanz
 
-| Größe | Wert |
-| --- | --- |
-| Kalenderzeit | 21,4 h |
-| verfügbare Worker-Stunden | 64,2 h (3 × 21,4) |
-| **messbarer Leerlauf** (Fertigmeldung → nächste Zuteilung) | **33,9 h = 53 %** |
-| Werkzeugzeit gesamt (alle drei) | 9,62 h = 15 % |
-| davon Bau (remote) | 5,18 h = 54 % der Werkzeugzeit |
-| abgeschlossene Issues | 11 |
-| Werkzeugaufrufe | 2 564, davon Bash 1 913 (75 %) |
-| Werkzeug-Fehlerquote | 0,8–1,0 % |
-| Output-Tokens | 6,1 Mio (2,17 / 2,16 / 1,83 Mio) |
+| Größe                                                      | Wert                             |
+| ---------------------------------------------------------- | -------------------------------- |
+| Kalenderzeit                                               | 21,4 h                           |
+| verfügbare Worker-Stunden                                  | 64,2 h (3 × 21,4)                |
+| **messbarer Leerlauf** (Fertigmeldung → nächste Zuteilung) | **33,9 h = 53 %**                |
+| Werkzeugzeit gesamt (alle drei)                            | 9,62 h = 15 %                    |
+| davon Bau (remote)                                         | 5,18 h = 54 % der Werkzeugzeit   |
+| abgeschlossene Issues                                      | 11                               |
+| Werkzeugaufrufe                                            | 2 564, davon Bash 1 913 (75 %)   |
+| Werkzeug-Fehlerquote                                       | 0,8–1,0 %                        |
+| Output-Tokens                                              | 6,1 Mio (2,17 / 2,16 / 1,83 Mio) |
 
 **Die Fehlerquote von 0,8 % ist der wichtigste Kontext für alles Folgende.** Die Worker machen
 kaum Werkzeugfehler. Was den Durchsatz bremst, ist nicht Ungenauigkeit — es ist Wartezeit und
@@ -113,7 +113,7 @@ ihn allein, beim Orchestrator kostet es alle drei.
    Aufzeichnungen). Keine davon brauchte eine Frage.
 
 > Die Prüfung ist immer dieselbe: **Steht es im Plan oder in GAME-DESIGN?** Dann lesen statt
-> fragen. Und vor jedem `/ask` gehört in den Text, *wo* nachgesehen wurde und dass die Stelle
+> fragen. Und vor jedem `/ask` gehört in den Text, _wo_ nachgesehen wurde und dass die Stelle
 > schweigt — wer das nicht schreiben kann, hat nicht nachgesehen.
 >
 > `/ask` bleibt richtig für: Änderungen **am** Design, neue Issues (untersagt), Erweiterungen
@@ -132,7 +132,7 @@ Vorrat verschiebt die Latenz von der teuren auf die billige Seite. Und er ist bi
 jede Aufsicht: Ein Worker mit Vorrat stoppt nicht, also muss ihn niemand wecken.
 
 **Risiko und Grenze:** Ein Vorrat kann veralten (das Issue wird von jemand anderem erledigt, die
-Voraussetzung fällt weg). Deshalb *„sofern main es noch trägt"* — die Bestandsmessung, die
+Voraussetzung fällt weg). Deshalb _„sofern main es noch trägt"_ — die Bestandsmessung, die
 Regel 5b ohnehin verlangt, entscheidet.
 
 ### Vorschlag 1b — Die Fertigmeldung erzeugt eine Aufgabe beim Orchestrator
@@ -163,19 +163,19 @@ ohne Issue, der zehn Minuten nichts tut, wartet mit Sicherheit.
 Der Bau ist mit 54 % der größte Posten der Werkzeugzeit. Der Vergleich zwischen den Workern
 zeigt, dass das keine Naturkonstante ist:
 
-| | Läufe | Summe | **Median** | Max |
-| --- | ---: | ---: | ---: | ---: |
-| Worker-1, `cargo remote … test --no-run` ohne Filter | 48 | **114,4 min** | **58,3 s** | 601 s |
-| Worker-2, dieselbe Form | 53 | 47,9 min | **10,1 s** | 261 s |
-| Worker-3, dieselbe Form | 65 | 43,6 min | **9,6 s** | 239 s |
+|                                                      | Läufe |         Summe | **Median** |   Max |
+| ---------------------------------------------------- | ----: | ------------: | ---------: | ----: |
+| Worker-1, `cargo remote … test --no-run` ohne Filter |    48 | **114,4 min** | **58,3 s** | 601 s |
+| Worker-2, dieselbe Form                              |    53 |      47,9 min | **10,1 s** | 261 s |
+| Worker-3, dieselbe Form                              |    65 |      43,6 min |  **9,6 s** | 239 s |
 
 **Dieselbe Befehlsform, Faktor 6 im Median.** Und der Grund liegt daneben:
 
-| | `--test X` (eine Suite) | `--all-targets` |
-| --- | ---: | ---: |
-| Worker-1 | **7 Läufe** | 56 Läufe, 55,9 min |
-| Worker-2 | **36 Läufe**, Median 4,0 s | 8 Läufe |
-| Worker-3 | 13 Läufe | 15 Läufe |
+|          |    `--test X` (eine Suite) |    `--all-targets` |
+| -------- | -------------------------: | -----------------: |
+| Worker-1 |                **7 Läufe** | 56 Läufe, 55,9 min |
+| Worker-2 | **36 Läufe**, Median 4,0 s |            8 Läufe |
+| Worker-3 |                   13 Läufe |           15 Läufe |
 
 Worker-2 baut **gezielt**, Worker-1 **breit**. Zwei Läufe von Worker-1 endeten im 600-Sekunden-Timeout
 — 20 Minuten, die nichts geliefert haben.
@@ -187,13 +187,13 @@ Befund. Task #14 verlangte, sie zu prüfen: Wenn die Wahl der Befehlsform die Ur
 muss der Unterschied **innerhalb derselben Form** verschwinden. Alle 495 `cargo remote`-Aufrufe,
 nach Form klassifiziert, Median in Sekunden:
 
-| Form | Worker-1 | Worker-2 | Worker-3 | Spanne |
-| --- | ---: | ---: | ---: | ---: |
-| `--all-targets` | 25,3 (130×) | 10,4 (40×) | 10,4 (56×) | Faktor 2,4 |
-| `build` | **155,4** (39×) | 7,4 (31×) | 5,8 (29×) | **Faktor 26,9** |
-| gezielt `--test` | 4,5 (7×) | 4,0 (36×) | 19,1 (13×) | Faktor 4,8 |
-| nur bauen (`--no-run`) | 0,8 (2×) | **184,8** (15×) | 37,7 (35×) | Faktor 245 |
-| **Gesamt** | **17,0** (198×) | **6,5** (145×) | **8,9** (152×) | Faktor 2,6 |
+| Form                   |        Worker-1 |        Worker-2 |       Worker-3 |          Spanne |
+| ---------------------- | --------------: | --------------: | -------------: | --------------: |
+| `--all-targets`        |     25,3 (130×) |      10,4 (40×) |     10,4 (56×) |      Faktor 2,4 |
+| `build`                | **155,4** (39×) |       7,4 (31×) |      5,8 (29×) | **Faktor 26,9** |
+| gezielt `--test`       |        4,5 (7×) |       4,0 (36×) |     19,1 (13×) |      Faktor 4,8 |
+| nur bauen (`--no-run`) |        0,8 (2×) | **184,8** (15×) |     37,7 (35×) |      Faktor 245 |
+| **Gesamt**             | **17,0** (198×) |  **6,5** (145×) | **8,9** (152×) |      Faktor 2,6 |
 
 **Drei Dinge stimmen nicht mit der ersten Auswertung:**
 
@@ -263,11 +263,11 @@ Testdatei. Zwei Zahlen, und die Ursache ist entweder gefunden oder ausgeschlosse
 
 ## Bremse 3: Verwaltung — 18 bis 25 % der Werkzeug-Turns
 
-| | Code-Edits | IPC-Turns | Buchhaltung (`.md`) | Verwaltungsanteil |
-| --- | ---: | ---: | ---: | ---: |
-| Worker-1 | 145 | 126 | 40 | 18,2 % |
-| Worker-2 | 111 | 153 | 57 | **24,7 %** |
-| Worker-3 | 148 | 129 | 40 | 20,6 % |
+|          | Code-Edits | IPC-Turns | Buchhaltung (`.md`) | Verwaltungsanteil |
+| -------- | ---------: | --------: | ------------------: | ----------------: |
+| Worker-1 |        145 |       126 |                  40 |            18,2 % |
+| Worker-2 |        111 |       153 |                  57 |        **24,7 %** |
+| Worker-3 |        148 |       129 |                  40 |            20,6 % |
 
 Auffällig sind die Übergabe-Dateien: **17× bearbeitet** (Worker-2), **23×** (Worker-3). Dazu
 `MEMORY.md` 11×.
@@ -318,13 +318,13 @@ Bash-Dominanz erklärt und ich es sonst als Befund missverstanden hätte.
 
 Damit die Vorschläge nicht an der falschen Stelle ansetzen:
 
-| Vermutung | Messung |
-| --- | --- |
-| Die Worker machen viele Werkzeugfehler | **0,8–1,0 %.** 22 Fehler auf 2 564 Aufrufe |
-| Sie lesen dieselben Dateien mehrfach | **0 Dateien** bei Worker-2 und Worker-3 |
-| Sie wiederholen Befehle | außer `cd` und Bau-Aufrufen kaum; die „Wiederholungen" sind Bauläufe nach Änderungen |
-| Kontextverluste kosten Zeit | **1 Compaction** bei Worker-3 im ganzen Zeitraum |
-| Die Testläufe sind der Engpass | 1,21 h gegen 5,18 h Bau |
+| Vermutung                              | Messung                                                                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------ |
+| Die Worker machen viele Werkzeugfehler | **0,8–1,0 %.** 22 Fehler auf 2 564 Aufrufe                                           |
+| Sie lesen dieselben Dateien mehrfach   | **0 Dateien** bei Worker-2 und Worker-3                                              |
+| Sie wiederholen Befehle                | außer `cd` und Bau-Aufrufen kaum; die „Wiederholungen" sind Bauläufe nach Änderungen |
+| Kontextverluste kosten Zeit            | **1 Compaction** bei Worker-3 im ganzen Zeitraum                                     |
+| Die Testläufe sind der Engpass         | 1,21 h gegen 5,18 h Bau                                                              |
 
 ## Rechnung: was die Vorschläge wert wären
 

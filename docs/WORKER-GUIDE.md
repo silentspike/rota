@@ -360,11 +360,11 @@ rota-ipc senden Orchestrator "RECHNE JETZT: Gesamtlauf über 206 Suiten, etwa 3 
 **Warum das Nachsehen allein nicht reicht** — Worker-3 hat die Lücke am 2026-08-19
 gemessen, und zwar an einem Fall, in dem er die Regel korrekt befolgt hatte:
 
-| Zeit | Was geschah |
-|---|---|
-| 11:06:02 | `rota-ipc offen` geprüft — **nichts lag an** |
-| 11:06:07 | Gesamtlauf gestartet |
-| 11:06:20 | Halte-Anweisung des Orchestrators kam an |
+| Zeit     | Was geschah                                                  |
+| -------- | ------------------------------------------------------------ |
+| 11:06:02 | `rota-ipc offen` geprüft — **nichts lag an**                 |
+| 11:06:07 | Gesamtlauf gestartet                                         |
+| 11:06:20 | Halte-Anweisung des Orchestrators kam an                     |
 | 11:08:46 | Lauf endete — zweieinhalb Minuten Fremdlast in einer Messung |
 
 > **Vor dem Lauf prüfen fängt nur, was vor dem Lauf da war.** Bei einem Lauf von
@@ -376,7 +376,7 @@ Minuten verschieben, statt sie zu verlieren. Für den Messenden ist das billiger
 bekommt die Anordnung **vor** dem Start statt mittendrin.
 
 **Zweite Hälfte derselben Regel: `date` vor und nach dem Befehl.** Angekündigt vorher,
-abgelesen nachher. Die `mtime` einer Logdatei ist der Zeitpunkt des *Schreibens*, also
+abgelesen nachher. Die `mtime` einer Logdatei ist der Zeitpunkt des _Schreibens_, also
 das Ende — nicht der Anfang und nicht die Dauer. Wer daraus eine Spanne bildet, liefert
 eine Näherung; das ist brauchbar, **wenn sie als Näherung gekennzeichnet ist**, und
 unbrauchbar, wenn nicht.
@@ -394,11 +394,11 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 Gemessen über 21,4 Stunden und 495 `cargo remote`-Aufrufe (2026-08-19), Median je Aufruf:
 
-| | `--all-targets` | gezielt `--test X` | Faktor |
-|---|---:|---:|---:|
-| Worker-1 | 25,3 s (130×) | 4,5 s (7×) | **5,6** |
-| Worker-2 | 10,4 s (40×) | 4,0 s (36×) | 2,6 |
-| Worker-3 | 10,4 s (56×) | 19,1 s (13×) | 0,5 — umgekehrt |
+|          | `--all-targets` | gezielt `--test X` |          Faktor |
+| -------- | --------------: | -----------------: | --------------: |
+| Worker-1 |   25,3 s (130×) |         4,5 s (7×) |         **5,6** |
+| Worker-2 |    10,4 s (40×) |        4,0 s (36×) |             2,6 |
+| Worker-3 |    10,4 s (56×) |       19,1 s (13×) | 0,5 — umgekehrt |
 
 Worker-1 fuhr **66 %** seiner Läufe breit, Worker-2 nur 28 %. Wären zwei Drittel davon
 gezielt gelaufen, hätte er **30 Minuten** gespart — bei gleichem Ergebnis, denn ein
@@ -410,7 +410,7 @@ cargo remote -c -- test --all-targets          # einmal, vor der Fertigmeldung
 ```
 
 **Die Zeile für Worker-3 ist der Grund, warum das keine Pflicht ist**: Bei ihm war gezielt
-*langsamer*. Wer eine Suite anfasst, die selten gebaut wird, zahlt die Übersetzung neu.
+_langsamer_. Wer eine Suite anfasst, die selten gebaut wird, zahlt die Übersetzung neu.
 Miss deinen eigenen Fall, statt die Regel zu glauben — `date` vor und nach dem Aufruf.
 
 > Vor der Fertigmeldung gilt weiter `--all-targets`. Ein gezielter Lauf sagt nichts über
@@ -423,7 +423,7 @@ denselben Zeitraum. Jeder Aufruf kostet Sync und Übersetzung, unabhängig davon
 die Änderung war.
 
 Wer drei Dateien nacheinander ändert und dazwischen dreimal baut, zahlt dreimal für
-denselben Zustand. Die Ausnahme ist der Fall, in dem der Bau die *Frage beantwortet*
+denselben Zustand. Die Ausnahme ist der Fall, in dem der Bau die _Frage beantwortet_
 („kompiliert das überhaupt?") — dann ist er die Messung und kein Aufwand.
 
 ### Eine Übergabe je abgeschlossenem Issue, nicht je Erkenntnis
@@ -443,7 +443,7 @@ Die Bestätigung einer Nachricht trägt **das verstandene Vorhaben in einem Satz
 kein Ort für Analyse: Der Absender prüft daran, ob er verstanden wurde, und ein Absatz
 verzögert nur, wann er es merkt.
 
-Was du *gefunden* hast, gehört in eine **neue** Nachricht und darf dort so lang sein, wie
+Was du _gefunden_ hast, gehört in eine **neue** Nachricht und darf dort so lang sein, wie
 die Sache es braucht. Am 2026-08-19 waren die wertvollsten Meldungen des Tages lang — zwei
 sich neutralisierende Vorzeichenfehler, sechs Prüfsummen für einen Bestand, eine sechs Tage
 alte Baseline. Keine davon hätte in einen Satz gepasst, und keine gehörte in eine Quittung.
@@ -464,7 +464,7 @@ bbef6e5e858a993c   Hashes ohne Zeilenumbruch (| tr -d '\n' |)
 
 `sha256sum` schreibt **den Pfad in seine Ausgabe** — wer die Ausgabe weiterhasht, hasht den
 Pfad mit. Und selbst die beiden pfadfreien Wege (`cat` gegen Hash-Liste) liefern
-verschiedene Zahlen: „pfadunabhängig" reicht als Absprache nicht, es muss dieselbe *Kette*
+verschiedene Zahlen: „pfadunabhängig" reicht als Absprache nicht, es muss dieselbe _Kette_
 sein.
 
 > Eine Sammel-Prüfsumme taugt als Nachweis **vorher gegen nachher im selben Baum mit
