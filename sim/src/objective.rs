@@ -1002,7 +1002,8 @@ impl BalanceObjective {
 
         let mut silent = StageSet::empty();
         for stage in self.lexicographic_dimensions {
-            let (Some(left), Some(right)) = (a.score.get(stage).value(), b.score.get(stage).value())
+            let (Some(left), Some(right)) =
+                (a.score.get(stage).value(), b.score.get(stage).value())
             else {
                 silent.insert(stage);
                 continue;

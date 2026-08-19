@@ -15,6 +15,30 @@ use rota_sim::objective::{
     STAGE_COUNT,
 };
 
+/// Die Rangfolge, wie Issue #939 sie vorgibt — **unabhaengig hingeschrieben**.
+///
+/// # Warum nicht `RANKING_ORDER`
+///
+/// Ein Prueffall, der seine Erwartung aus der Konstante bezieht, die er
+/// pruefen soll, prueft nur, dass der Code mit sich selbst uebereinstimmt.
+/// Gemessen: Beim Vertauschen der Stufen 1 und 2 in `RANKING_ORDER` blieb ein
+/// solcher Fall gruen — er sortierte seine Paare gleich mit.
+///
+/// Das ist hier zweimal hintereinander passiert, auf zwei Ebenen: erst im
+/// Fall, der DASS statt WO prueft, dann im Paar-Fall, der seine Paare aus der
+/// mutierten Liste bildete. Die Vorgabe gehoert deshalb hierher, in den Test,
+/// wo sie nur von Hand geaendert werden kann.
+const VORGABE: [RankingStage; STAGE_COUNT] = [
+    RankingStage::SuccessMargin,
+    RankingStage::SurvivalReserve,
+    RankingStage::MechanicQuality,
+    RankingStage::TargetBandDistance,
+    RankingStage::TimeToWin,
+    RankingStage::Robustness,
+    RankingStage::DesignerChangeCost,
+    RankingStage::ResourceEfficiency,
+];
+
 /// Eine Messung, bei der **jede** Stufe einen Wert traegt.
 ///
 /// Der Ausgangspunkt fuer jeden Stufen-Prueffall: Nur wenn alle Stufen
@@ -193,10 +217,57 @@ fn nicht_gemessen_ist_nicht_erfuellt() {
         !urteil.feasible,
         "eine geforderte Bedingung ohne Messwert macht unzulaessig, nicht zulaessig"
     );
-    assert!(urteil.violations.contains(&Violation::MechanicProbabilityTooLow {
-        decisive: None,
-        threshold: 0.999,
-    }));
+    assert!(urteil
+        .violations
+        .contains(&Violation::MechanicProbabilityTooLow {
+            decisive: None,
+            threshold: 0.999,
+        }));
+}
+
+/// Die harte Bedingung „Mechanikerfolg" wirkt, **sobald** sie gespeist wird.
+///
+/// # Warum dieser Fall gebraucht wird
+///
+/// Die Schwelle steht in [`FeasibilityThresholds::DECIDED`] auf `None`, weil
+/// heute kein Mechanikwert den Kampf verlaesst. Damit ist der ganze Zweig im
+/// Alltag unbenutzt — und ein unbenutzter Zweig ist eine Leitung, von der
+/// niemand weiss, ob sie angeschlossen ist. Dieser Fall speist sie von Hand
+/// und prueft beide Richtungen.
+#[test]
+fn mechanikerfolg_wirkt_sobald_er_gemessen_ist() {
+    let vertrag = BalanceObjective {
+        hard_constraints: FeasibilityThresholds {
+            min_win_probability: None,
+            min_mechanic_probability: Some(0.999),
+        },
+        ..BalanceObjective::decided()
+    };
+    let grundmessung = CandidateMeasurement {
+        feasibility: CandidateFeasibility {
+            encounter_win_condition: Probability::Exact(1.0),
+            mandatory_mechanics_solved: Probability::Unmeasured,
+            parameter_bounds: BoundsVerdict::Within,
+        },
+        stages: alle_stufen(1.0),
+    };
+
+    assert!(
+        !vertrag.judge(&grundmessung).feasible,
+        "ohne Messwert bleibt die geforderte Bedingung unerfuellt"
+    );
+    assert!(
+        vertrag
+            .judge(&grundmessung.with_mechanics(Probability::Exact(0.9995)))
+            .feasible,
+        "ueber der Schwelle wird der Kandidat zulaessig"
+    );
+    assert!(
+        !vertrag
+            .judge(&grundmessung.with_mechanics(Probability::Exact(0.998)))
+            .feasible,
+        "knapp darunter nicht — sonst pruefte die Schwelle nichts"
+    );
 }
 
 // ------------------------------------------------------------------- AC3
@@ -396,14 +467,18 @@ fn ac6_die_reihenfolge_ist_die_entschiedene() {
     );
 }
 
-/// AC6 — jede Stufe entscheidet an ihrem Platz, und keine frueher.
+/// AC6 — jede Stufe kommt ueberhaupt zum Zug.
 ///
 /// Fuer jede Stufe k: Alle Stufen sind gleich, nur k weicht ab. Dann muss
-/// **k** entschieden haben. Das nagelt die Reihenfolge fest, nicht nur ihre
-/// Aufzaehlung — eine vertauschte Rangfolge faellt hier auf, eine bloss
-/// umsortierte Konstante nicht.
+/// **k** entschieden haben.
+///
+/// **Was dieser Fall NICHT prueft, obwohl der Name es einmal behauptete:** den
+/// PLATZ der Stufe. Gemessen am 2026-08-19 mit vertauschten Stufen 1 und 2 —
+/// er blieb gruen, weil eine allein abweichende Stufe an jedem Platz
+/// entscheidet. Den Platz nagelt
+/// [`ac6_jedes_paar_haelt_die_reihenfolge`] fest.
 #[test]
-fn ac6_jede_stufe_entscheidet_an_ihrem_platz() {
+fn ac6_jede_stufe_kommt_zum_zug() {
     let vertrag = BalanceObjective::decided();
     for stufe in RANKING_ORDER {
         let mut besser = alle_stufen(1.0);
@@ -422,6 +497,60 @@ fn ac6_jede_stufe_entscheidet_an_ihrem_platz() {
             "in diesem Aufbau ist jede Stufe gemessen"
         );
     }
+}
+
+/// AC6 — **der Platz** jeder Stufe, paarweise festgenagelt.
+///
+/// Fuer jedes Paar `(i, j)` mit `i` vor `j`: Ein Kandidat, der auf `i` vorn
+/// und auf `j` hinten liegt, muss gewinnen — und `i` muss es entschieden
+/// haben. Achtundzwanzig Paare, und zusammen lassen sie genau eine
+/// Reihenfolge zu.
+///
+/// # Warum es diesen Fall gibt
+///
+/// Am 2026-08-19 habe ich die Stufen 1 und 2 in `RANKING_ORDER` vertauscht,
+/// um zu sehen, welche Prueffaelle das faengt. Es war genau **einer**: der,
+/// der die Reihenfolge abliest. Der Fall darueber hiess damals „jede Stufe
+/// entscheidet an ihrem Platz" und blieb gruen — er prueft, DASS jede Stufe
+/// entscheidet, nicht WO sie steht.
+///
+/// Eine abgelesene Liste und eine geprüfte Ordnung sind zweierlei: Die Liste
+/// laesst sich mit der Rangfolge zusammen umsortieren, ohne dass etwas rot
+/// wird. Dieser Fall nicht.
+#[test]
+fn ac6_jedes_paar_haelt_die_reihenfolge() {
+    let vertrag = BalanceObjective::decided();
+    let mut geprueft = 0;
+
+    for (platz_vorn, vorn) in VORGABE.iter().enumerate() {
+        for hinten in VORGABE.iter().skip(platz_vorn + 1) {
+            let mut a = alle_stufen(0.0);
+            a.set(*vorn, StageValue::Measured(1.0));
+            let mut b = alle_stufen(0.0);
+            b.set(*hinten, StageValue::Measured(1.0));
+
+            let vergleich = vertrag.compare(&zulaessig(a), &zulaessig(b));
+            assert_eq!(
+                vergleich.ordering,
+                Ordering::Greater,
+                "{} steht vor {} und muss deshalb gewinnen",
+                vorn.name(),
+                hinten.name()
+            );
+            assert_eq!(
+                vergleich.decided_by,
+                Decision::Stage(*vorn),
+                "entschieden haette die vordere Stufe {}",
+                vorn.name()
+            );
+            geprueft += 1;
+        }
+    }
+
+    // Die Zahl gehoert in den Datensatz: Bei acht Stufen sind es 8*7/2 Paare.
+    // Steht hier eine kleinere Zahl, hat die Schleife weniger geprueft als der
+    // Name verspricht — und das faellt sonst nicht auf, weil alles gruen ist.
+    assert_eq!(geprueft, 28, "acht Stufen ergeben 28 geordnete Paare");
 }
 
 /// AC6 — eine hoehere Stufe schlaegt jede tiefere, egal wie gross der
