@@ -130,18 +130,27 @@ fn ac8_verletzte_siegbedingung_schlaegt_jede_gute_zahl() {
 
     // ---- Die Zusicherung, dass dieser Fall die Sache wirklich beruehrt ----
     //
-    // `BalanceResult::kills` zaehlt, wie oft der Ring aufgebraucht wurde. Am
-    // umgekehrten Boss ist das die Niederlage. Steht hier eines Tages 0, dann
-    // hat jemand die Siegzahl im Simulator repariert — dann ist dieser Test
-    // nicht falsch, aber seine Begruendung ist es, und beides gehoert
-    // nachgezogen.
+    // **NACHGEZOGEN am 2026-08-19, wie die Vorfassung es vorgesehen hatte.**
+    // Sie stand hier woertlich: „Steht hier eines Tages 0, dann hat jemand die
+    // Siegzahl im Simulator repariert — dann ist dieser Test nicht falsch, aber
+    // seine Begruendung ist es, und beides gehoert nachgezogen."
+    //
+    // Genau das ist geschehen. `balance::siege` fuehrt die Umkehrung jetzt
+    // (`fight.rs` bleibt unberuehrt, weil `killed_at` auch `stop_on_kill`
+    // ausloest und in die Trace-Hashes eingeht). Die rohe Zahl meldet damit
+    // dasselbe wie der Vertrag.
+    //
+    // Der Fall verliert dadurch NICHT seinen Zweck: Er belegt weiterhin, dass
+    // der schadensstarke Kandidat hier keinen einzigen Sieg holt — nur eben
+    // ohne den Umweg ueber eine Zahl, die das Gegenteil sagte.
     assert_eq!(
-        schaden_lauf.kills, DURCHGAENGE as usize,
-        "die rohe Siegzahl meldet hier das Gegenteil des tatsaechlichen Ausgangs"
+        schaden_lauf.kills, 0,
+        "der schadensstarke Kandidat gewinnt am umgekehrten Boss nicht ein \
+         einziges Mal — seit dem Fix sagt das auch die rohe Siegzahl"
     );
     assert!(
-        (schaden_lauf.kill_rate() - 1.0).abs() < 1e-12,
-        "und die rohe Quote meldet hundert Prozent Siege, wo null Siege sind"
+        schaden_lauf.kill_rate().abs() < 1e-12,
+        "und die rohe Quote meldet null Prozent, nicht mehr hundert"
     );
 
     // ---- Und der schadensstarke Kandidat ist wirklich der staerkere ----
@@ -379,14 +388,31 @@ fn die_speisung_traegt_genau_die_angekuendigten_stufen() {
     );
 }
 
-/// Der Simulator selbst kennt die Umkehrung nicht — dieser Fall haelt das fest.
+/// Vertrag und rohe Siegzahl meinen am umgekehrten Boss dasselbe.
 ///
-/// Nicht als Mangel dieses Moduls, sondern als Begruendung dafuer, dass
+/// # Wofuer dieser Fall vorher stand
+///
+/// Er hiess `die_rohe_siegzahl_ist_am_umgekehrten_boss_invertiert` und hielt
+/// einen Bestandsfehler fest: `BalanceResult::kills` zaehlte, wie oft die
+/// Lebenspunkte fielen — am umgekehrten Boss ist das die Niederlage. Der Fall
+/// war die Begruendung dafuer, dass
 /// [`CandidateMeasurement::from_balance_result`] die Ausgaenge neu bestimmt,
-/// statt `kills` zu uebernehmen. Faellt der Fall eines Tages um, ist der
-/// Simulator repariert worden — und dann darf die Umgehung hier verschwinden.
+/// statt `kills` zu uebernehmen. Seine Doku sagte: „Faellt der Fall eines Tages
+/// um, ist der Simulator repariert worden."
+///
+/// # Was jetzt geprueft wird
+///
+/// Der Simulator ist repariert (`balance::siege`, 2026-08-19). Der Fall prueft
+/// deshalb die **Uebereinstimmung** statt der Abweichung — und das ist die
+/// schaerfere Zusicherung: Sie faellt sowohl, wenn die Umkehrung wieder
+/// verschwindet, als auch, wenn der Vertrag anfinge, etwas anderes zu meinen
+/// als der Simulator.
+///
+/// Die Umgehung in `from_balance_result` bleibt trotzdem. Sie bestimmt die
+/// Ausgaenge aus der Siegbedingung, nicht aus einer fremden Zahl — dass die
+/// fremde Zahl heute stimmt, macht die Abhaengigkeit von ihr nicht besser.
 #[test]
-fn die_rohe_siegzahl_ist_am_umgekehrten_boss_invertiert() {
+fn vertrag_und_rohe_siegzahl_stimmen_am_umgekehrten_boss_ueberein() {
     let umgekehrt = boss("boss-2-3");
     let ergebnis = lauf(&liste("e939-schutz", SPARSAM), umgekehrt);
     let (siege, _, _) = zaehle_ausgaenge(&ergebnis, WinCondition::of(umgekehrt));
@@ -396,8 +422,8 @@ fn die_rohe_siegzahl_ist_am_umgekehrten_boss_invertiert() {
         "der Vertrag sieht lauter Siege"
     );
     assert_eq!(
-        ergebnis.kills, 0,
-        "die rohe Zahl sieht keinen einzigen — die beiden meinen Verschiedenes"
+        ergebnis.kills, DURCHGAENGE as usize,
+        "und die rohe Zahl seit dem Fix ebenso — bis zum 2026-08-19 stand hier 0"
     );
 
     // Und die Wahrscheinlichkeit aus dem Vertrag ist exakt, nicht gestichprobt:
