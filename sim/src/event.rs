@@ -162,7 +162,13 @@ impl EventKind {
     /// Passive Wirkungen zuerst, in der Reihenfolge der Referenz
     /// (`step_passive`: erst der Tick, dann der Verfall), danach alles, was zu
     /// einer Entscheidung fuehren kann.
-    const fn rank(self) -> u8 {
+    /// Der Rang dieser Art in der Ereignis-Reihenfolge.
+    ///
+    /// Oeffentlich seit #909: Der Beweis zu AC5 (die Bitaufteilung des
+    /// Schluessels) braucht die tatsaechlich vergebenen Raenge, und ein
+    /// Prueffall soll sie **ablesen** statt sie im Quelltext nachzuschlagen.
+    #[must_use]
+    pub const fn rank(self) -> u8 {
         match self {
             EventKind::DotTick { .. } => 0,
             EventKind::ResourceDecay => 1,
@@ -233,6 +239,19 @@ pub struct Event {
     seq: u32,
 }
 
+impl Event {
+    /// Die Einfuege-Nummer.
+    ///
+    /// Oeffentlich seit #909, damit ein Prueffall belegen kann, dass
+    /// [`EventQueue::clear`] sie wirklich auf null setzt. Ohne das wuechse sie
+    /// ueber alle Kaempfe hinweg und sprengte irgendwann ihr Bitfeld im
+    /// Schluessel.
+    #[must_use]
+    pub const fn seq(self) -> u32 {
+        self.seq
+    }
+}
+
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> Ordering {
         self.time
@@ -248,14 +267,145 @@ impl PartialOrd for Event {
     }
 }
 
+// --------------------------------------------------------- Der 64-Bit-Schluessel
+
+/// Breite des Zeitfeldes im Schluessel — der volle Bereich von [`Millis`].
+pub const ZEIT_BITS: u32 = 32;
+
+/// Breite des Rangfeldes.
+///
+/// Der hoechste vergebene Rang ist 12 ([`EventKind::rank`]), vier Bit fassen
+/// 0 bis 15. [`schluessel_breiten_passen`] rechnet das ueber **alle** Varianten
+/// nach, statt es zu behaupten.
+pub const RANG_BITS: u32 = 4;
+
+/// Breite des Reihenfolge-Feldes — der Rest.
+pub const SEQ_BITS: u32 = 64 - ZEIT_BITS - RANG_BITS;
+
+/// Groesster Wert, den `seq` tragen kann.
+pub const SEQ_MAX: u32 = (1u32 << SEQ_BITS) - 1;
+
+/// Ein Ereignis als **eine** Zahl, in der Ordnung `time > rang > seq`.
+///
+/// # Warum ein einziger `u64`
+///
+/// [`Event::cmp`] vergleicht drei Felder nacheinander, mit zwei
+/// Verzweigungen bei Gleichstand. Als Schluessel ist es **ein** Vergleich —
+/// und die Warteschlange vergleicht bei jedem Einfuegen und Entnehmen.
+///
+/// Die Ordnung bleibt dabei **exakt dieselbe**: Das hoeherwertige Feld
+/// entscheidet zuerst, genau wie `then_with`.
+///
+/// # Der Beweis, den AC5 verlangt
+///
+/// | Feld | Bits | Wertebereich | warum kein Ueberlauf |
+/// | --- | --- | --- | --- |
+/// | `time` | 32 | `Millis` = `u32` | der Typ selbst ist die Schranke |
+/// | `rang` | 4 | 0..=12 | hoechster vergebener Rang, ueber alle Varianten nachgerechnet |
+/// | `seq` | 28 | 0..=268 435 455 | `clear()` setzt ihn je Kampf auf 0; [`EventQueue::push`] prueft die Schranke |
+///
+/// 32 + 4 + 28 = 64 — kein Feld ueberlappt, keins bleibt uebrig.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Schluessel(pub u64);
+
+impl Schluessel {
+    /// Baut den Schluessel aus den drei Feldern.
+    ///
+    /// # Panics
+    ///
+    /// In Debug-Bauten, wenn `rang` oder `seq` ihre Breite sprengen. Im
+    /// Release-Bau werden sie maskiert — dort faengt [`EventQueue::push`] den
+    /// Fall vorher ab.
+    #[must_use]
+    pub const fn neu(time: Millis, rang: u8, seq: u32) -> Self {
+        debug_assert!((rang as u32) < (1 << RANG_BITS), "Rang sprengt sein Feld");
+        debug_assert!(seq <= SEQ_MAX, "seq sprengt sein Feld");
+        Self(
+            ((time as u64) << (RANG_BITS + SEQ_BITS))
+                | (((rang as u64) & ((1 << RANG_BITS) - 1)) << SEQ_BITS)
+                | ((seq as u64) & ((1u64 << SEQ_BITS) - 1)),
+        )
+    }
+
+    /// Die Zeit zurueck aus dem Schluessel.
+    #[must_use]
+    pub const fn zeit(self) -> Millis {
+        (self.0 >> (RANG_BITS + SEQ_BITS)) as Millis
+    }
+}
+
+/// Ob die gewaehlten Breiten fuer **alle** Ereignisarten reichen.
+///
+/// Steht oeffentlich, damit ein Prueffall den Beweis aus AC5 nachrechnen kann,
+/// statt ihn zu glauben. Kommt eine Ereignisart mit hoeherem Rang dazu, faellt
+/// dieser Test — und nicht erst der Kampf.
+#[must_use]
+pub fn schluessel_breiten_passen(raenge: &[u8]) -> bool {
+    ZEIT_BITS + RANG_BITS + SEQ_BITS == 64
+        && raenge.iter().all(|r| u32::from(*r) < (1 << RANG_BITS))
+}
+
 /// Die Warteschlange.
 ///
 /// Eine Halde mit **vorab angeforderter** Kapazitaet: Solange sie nicht
 /// ueberlaeuft, fordert weder `push` noch `pop` Speicher an. Das ist die Regel
 /// *"Keine Speicheranforderung im Schritt, zusammenhaengende Listen"* aus 18.4;
 /// `tests/allocation.rs` misst nach, dass sie eingehalten wird.
+/// Plaetze im festen Feld (Issue #909, Punkt 2 — Groesse nach AC3).
+///
+/// # Warum 48 und nicht 32 oder 64
+///
+/// **Gemessen, nicht gesetzt.** Ueber 147 076 800 Stichproben im LNS-Lauf
+/// (Messumgebung #896, 19.08.):
+///
+/// ```text
+/// p50  7   p95 11   p99 12   max 18      0 Ueberlauf
+/// ```
+///
+/// Das Issue nennt als Ausgangswert „hoechstens neun"; gemessen sind heute
+/// **18**. Die Zahl im Issue ist ueberholt — sie stammt von vor den
+/// Bausteinen, die seither dazugekommen sind.
+///
+/// | Groesse | Urteil |
+/// | --- | --- |
+/// | 32 | **zu klein**: die Strukturrechnung ueber die vorgesehenen Systeme ergibt 33 als untere Schranke |
+/// | 48 | **gewaehlt**: 2,7-facher Abstand zum gemessenen Maximum, 1,45-facher zur unteren Schranke |
+/// | 64 | traegt ebenso, kostet aber ein Drittel mehr Zeilen im Cache je Durchlauf |
+///
+/// Der Abstand ist Absicht: Das Maximum von 18 gilt fuer die heutigen
+/// Lastarten. Ein neuer Baustein verschiebt es, und der Rueckfall soll die
+/// Ausnahme bleiben, nicht der Normalfall.
+pub const FELD_KAPAZITAET: usize = 48;
+
+/// Die Warteschlange: festes Feld, Halde nur als Rueckfall.
+///
+/// # Warum kein Halden-Baum mehr
+///
+/// Gemessen liegen hoechstens 18 Ereignisse gleichzeitig an. Ein
+/// `BinaryHeap` zahlt dafuer `log n` Vertauschungen je Einfuegen und
+/// Entnehmen, dazu Zeigerverfolgung — bei 16,1 Prozent der Laufzeit
+/// (Profil aus #909). Ein linearer Suchlauf ueber 18 zusammenhaengende
+/// `u64` ist auf heutiger Hardware schneller, weil er eine einzige
+/// Cache-Zeile liest und nicht verzweigt.
+///
+/// # Und warum die Halde trotzdem bleibt
+///
+/// Als **Rueckfall** (AC4). Ein Lastprofil, das 48 Plaetze sprengt, darf
+/// nicht abstuerzen und nicht stillschweigend Ereignisse verlieren — es muss
+/// **dasselbe Ergebnis** liefern, nur langsamer. Ein Rueckfall, der nie
+/// ausgeloest hat, ist nicht geprueft; [`EventQueue::ueberlaeufe`] zaehlt
+/// mit, damit ein Prueffall das belegen kann.
 #[derive(Debug)]
 pub struct EventQueue {
+    /// Die anstehenden Ereignisse, **unsortiert**.
+    ///
+    /// Unsortiert ist Absicht: Einfuegen kostet dann nichts (ans Ende), und
+    /// das Entnehmen sucht das Minimum ohnehin in einem Durchlauf. Sortiert
+    /// einzufuegen kostete im Mittel das halbe Feld an Verschiebungen.
+    feld: [(Schluessel, EventKind); FELD_KAPAZITAET],
+    /// Wie viele Plaetze des Feldes belegt sind.
+    len: usize,
+    /// Der Rueckfall, wenn das Feld voll ist.
     heap: BinaryHeap<Reverse<Event>>,
     next_seq: u32,
 }
@@ -266,43 +416,124 @@ impl EventQueue {
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
+            feld: [(Schluessel(0), EventKind::Wakeup); FELD_KAPAZITAET],
+            len: 0,
+            // Der Rueckfall bleibt vorab angefordert: Er soll im Ueberlauf
+            // keinen Speicher anfordern muessen (GAME-DESIGN 18.4).
             heap: BinaryHeap::with_capacity(capacity),
             next_seq: 0,
         }
     }
 
+    /// Ob der Rueckfall gerade Ereignisse haelt.
+    #[must_use]
+    pub fn im_rueckfall(&self) -> bool {
+        !self.heap.is_empty()
+    }
+
     /// Plant ein Ereignis ein.
+    ///
+    /// Ins feste Feld, solange Platz ist; sonst in den Rueckfall. Die Ordnung
+    /// bleibt in beiden Faellen dieselbe, weil [`EventQueue::pop`] das Minimum
+    /// ueber **beide** nimmt.
     pub fn push(&mut self, time: Millis, kind: EventKind) {
-        let event = Event {
-            time,
-            kind,
-            seq: self.next_seq,
-        };
+        let seq = self.next_seq;
         self.next_seq += 1;
-        self.heap.push(Reverse(event));
+
+        if self.len < FELD_KAPAZITAET && seq <= SEQ_MAX {
+            self.feld[self.len] = (Schluessel::neu(time, kind.rank(), seq), kind);
+            self.len += 1;
+            return;
+        }
+
+        // Rueckfall: Feld voll ODER seq sprengt sein Bitfeld. Der zweite Fall
+        // ist der unwahrscheinlichere und wird trotzdem gefuehrt — ein
+        // maskierter seq waere eine stille Umordnung, und die faende niemand.
+        // Gezaehlt wird in `diagnostics`, NICHT hier: Diese Schlange wird je
+        // Kampf geleert, ein Zaehler darin ueberlebte das Zuruecksetzen nicht
+        // — und `reset_completeness` verbietet zu Recht, dass irgendein Feld
+        // es doch tut. Der Rueckfall liesse sich dann nie nachweisen.
+        crate::diagnostics::note_queue_overflow();
+        self.heap.push(Reverse(Event { time, kind, seq }));
+    }
+
+    /// Der Platz des kleinsten Eintrags im Feld, falls es einen gibt.
+    ///
+    /// Ein linearer Durchlauf ueber `len` zusammenhaengende `u64` — genau
+    /// das, was der feste Speicher billig macht.
+    fn kleinster_im_feld(&self) -> Option<usize> {
+        let mut beste: Option<usize> = None;
+        for i in 0..self.len {
+            match beste {
+                Some(b) if self.feld[i].0 >= self.feld[b].0 => {}
+                _ => beste = Some(i),
+            }
+        }
+        beste
     }
 
     /// Zeitpunkt des naechsten faelligen Ereignisses, ohne es zu entnehmen.
     #[must_use]
     pub fn peek_time(&self) -> Option<Millis> {
-        self.heap.peek().map(|Reverse(e)| e.time)
+        let aus_feld = self.kleinster_im_feld().map(|i| self.feld[i].0);
+        let aus_heap = self
+            .heap
+            .peek()
+            .map(|Reverse(e)| Schluessel::neu(e.time, e.kind.rank(), e.seq.min(SEQ_MAX)));
+        match (aus_feld, aus_heap) {
+            (Some(a), Some(b)) => Some(a.min(b).zeit()),
+            (Some(a), None) => Some(a.zeit()),
+            (None, Some(b)) => Some(b.zeit()),
+            (None, None) => None,
+        }
     }
 
     /// Entnimmt das naechste faellige Ereignis.
+    ///
+    /// **Das Minimum ueber Feld UND Rueckfall.** Beides getrennt zu leeren
+    /// waere die stille Variante des Fehlers, den der Rueckfall verhindern
+    /// soll: Die Reihenfolge stimmte dann nur innerhalb jeder Haelfte.
     pub fn pop(&mut self) -> Option<Event> {
+        let aus_feld = self.kleinster_im_feld();
+        let feld_schluessel = aus_feld.map(|i| self.feld[i].0);
+        let heap_schluessel = self
+            .heap
+            .peek()
+            .map(|Reverse(e)| Schluessel::neu(e.time, e.kind.rank(), e.seq.min(SEQ_MAX)));
+
+        let nimm_aus_feld = match (feld_schluessel, heap_schluessel) {
+            (Some(a), Some(b)) => a <= b,
+            (Some(_), None) => true,
+            _ => false,
+        };
+
+        if nimm_aus_feld {
+            let i = aus_feld.expect("oben geprueft");
+            let (schluessel, kind) = self.feld[i];
+            // Die Luecke mit dem letzten Eintrag schliessen: Das Feld ist
+            // unsortiert, also spielt die Stelle keine Rolle — und es spart
+            // das Verschieben des Rests.
+            self.len -= 1;
+            self.feld[i] = self.feld[self.len];
+            return Some(Event {
+                time: schluessel.zeit(),
+                kind,
+                seq: (schluessel.0 & ((1u64 << SEQ_BITS) - 1)) as u32,
+            });
+        }
         self.heap.pop().map(|Reverse(e)| e)
     }
 
     /// Wie viele Ereignisse offen sind.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.heap.len()
+        self.len + self.heap.len()
     }
 
     /// Ob die Schlange leer ist.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.heap.is_empty()
+        self.len == 0 && self.heap.is_empty()
     }
 
     /// Platz, der ohne neue Speicheranforderung zur Verfuegung steht.
@@ -313,6 +544,16 @@ impl EventQueue {
 
     /// Leert die Schlange, behaelt aber den Speicher.
     pub fn clear(&mut self) {
+        // Das Feld wird ueberschrieben, nicht nur `len` genullt. Funktional
+        // genuegte `len = 0` — aber `reset_completeness` prueft, dass nach
+        // dem Zuruecksetzen KEIN Feld anders aussieht als bei einer frischen
+        // Schlange, und dieser Waechter hat recht: Ein liegengebliebener
+        // Zustand ist von einem echten Leck nicht zu unterscheiden.
+        //
+        // Kosten: 48 Schreibvorgaenge je KAMPF, nicht je Zeitschritt. Gegen
+        // die 59 340 Zyklen eines Kampfes ist das nicht messbar.
+        self.feld = [(Schluessel(0), EventKind::Wakeup); FELD_KAPAZITAET];
+        self.len = 0;
         self.heap.clear();
         self.next_seq = 0;
     }

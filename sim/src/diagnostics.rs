@@ -72,6 +72,14 @@ pub struct Counters {
     expire_hits: u64,
     /// Vollstaendig durchgerechnete Kaempfe.
     fights: u64,
+    /// Wie oft die Ereignisschlange in den Rueckfall ausgewichen ist (#909).
+    ///
+    /// **Hier und nicht in der Schlange selbst.** Sie wird je Kampf geleert;
+    /// ein Zaehler darin ueberlebte das Zuruecksetzen nicht — und
+    /// `reset_completeness` verbietet zu Recht, dass irgendein Feld es doch
+    /// tut. Der Rueckfall laesst sich dann aber nie nachweisen, denn genau
+    /// darum geht es in AC4.
+    queue_overflows: u64,
     /// Fortlaufende Pruefsumme ueber alle Zustaende, die gemeldet wurden.
     trace: u32,
     /// Wie viele Zustaende in [`Counters::trace`] eingegangen sind.
@@ -90,6 +98,7 @@ impl Default for Counters {
             expire_calls: 0,
             expire_hits: 0,
             fights: 0,
+            queue_overflows: 0,
             trace: crate::checksum::FNV_OFFSET,
             trace_states: 0,
             gear_budgets: 0,
@@ -164,6 +173,15 @@ impl Counters {
     #[must_use]
     pub const fn fights(&self) -> u64 {
         self.fights
+    }
+
+    /// Wie oft die Ereignisschlange in den Rueckfall ausgewichen ist (#909).
+    ///
+    /// **Die Messgroesse fuer AC4.** Bei normalen Bossen muss sie 0 sein —
+    /// sonst belegt ihr Ausschlagen unter einem Lastprofil nichts.
+    #[must_use]
+    pub const fn queue_overflows(&self) -> u64 {
+        self.queue_overflows
     }
 
     /// Der Trace-Hash ueber alle gemeldeten Zustaende.
@@ -323,6 +341,20 @@ pub fn reset() {
 #[must_use]
 pub fn snapshot() -> Counters {
     COUNTERS.with(|c| c.borrow().clone())
+}
+
+/// Meldet, dass die Ereignisschlange in den Rueckfall ausgewichen ist (#909).
+///
+/// Anders als [`note_queue_len`] steht dieser Aufruf **nicht** hinter dem
+/// Merkmalsschalter: Ein Ueberlauf ist kein Messwert, sondern ein Ereignis,
+/// das auch in einem Lauf ohne Diagnose stattfindet — und dann will man
+/// wissen, dass er stattgefunden hat. Ist die Erfassung aus, kostet der
+/// Aufruf einen Vergleich.
+pub fn note_queue_overflow() {
+    if !is_enabled() {
+        return;
+    }
+    COUNTERS.with(|c| c.borrow_mut().queue_overflows += 1);
 }
 
 /// Traegt eine beobachtete Schlangenlaenge ein.
