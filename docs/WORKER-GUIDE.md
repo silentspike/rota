@@ -7403,6 +7403,7 @@ geantwortet, wenn ich sie vor dem Absenden nochmal gefragt hätte. Abhilfe: gena
 | alter Zustand      | Quelle erneuern oder den Server fragen                          |
 | anderer Gegenstand | die Frage dorthin verlagern, wo sie beantwortbar ist            |
 | alte Ablesung      | vor dem Absenden nochmal fragen **und die Antwort abschreiben** |
+| wandernder Bezug   | die Schwelle an etwas binden, das mitwandert                    |
 
 > **Der Zusatz ist nicht überflüssig.** Dieselbe Person hat die Ablesung dreimal an einem Abend
 > versäumt — beim dritten Mal in genau dem Absatz, der die Abhilfe ankündigte. Und dabei war die
@@ -7442,6 +7443,18 @@ Kein `<<'ENDE'` mit Anführungszeichen — dann setzt die Shell die Befehle selb
 Nachricht steht, **ist** die Ausgabe; es gibt keinen Schritt dazwischen, in dem eine erinnerte
 Zahl gewinnen kann.
 
+**Der Weg hat einen Preis, und der ist zu kennen.** Ohne Anführungszeichen führt die Shell auch
+alles andere aus, was sie erkennt — `$` und Backticks im Fließtext. In genau dieser Meldung ist so
+ein Wort verschwunden: Ein in Backticks gesetztes `continue` wurde als Befehl aufgerufen, bash
+antwortete „only meaningful in a for, while, or until loop", und an der Stelle blieb nichts. Der
+Versand meldete Erfolg.
+
+> Auch hier war der **Fehler** laut — die Meldung stand in der Ausgabe. Aber die **Wirkung** war
+> still: In der Nachricht fehlte nur ein Wort, der Satz las sich fast normal.
+
+Also: Zahlen und Uhrzeiten über `$(…)` im ungequoteten Dokument — und im Fließtext dann keine
+Backticks um Bezeichner. Wer beides braucht, schreibt zwei Nachrichten.
+
 > **Der eigentliche Grund ist nicht, dass der mechanische Weg nie versagt.** Er versagte beim
 > ersten Versuch sofort, bei beiden Beteiligten, am selben falsch escapten `awk`. Aber er versagte
 > **laut**: Wo eine Zahl stehen sollte, stand eine Fehlermeldung, die niemand für ein Ergebnis
@@ -7450,6 +7463,24 @@ Zahl gewinnen kann.
 > Ein Werkzeug, das falsch bedient wird und dabei kaputtgeht, ist besser als eines, das falsch
 > bedient wird und weiterläuft. Das ist 8.105 von der anderen Seite: Eine Abhilfe soll laut
 > kaputtgehen.
+
+**Und eine vierte Spielart, die keine Quelle betrifft, sondern eine Zusicherung.** Die
+Kontrollzeile des Wächters war selbst eine Schwelle mit Bezugsgröße: „weniger als **zehn**
+Nummern" ergab Sinn, solange nur zwei große Dokumente geprüft wurden. Sobald der Bezug sich
+änderte — fünf Dokumente, davon drei kleine —, wurde aus der Zusicherung eine **Blende**.
+
+|                          | sieht aus wie             | ist tatsächlich                                                  |
+| ------------------------ | ------------------------- | ---------------------------------------------------------------- |
+| eine Schwelle im Wächter | „das Muster greift nicht" | „diese Datei ist kleiner als die zwei, für die ich gebaut wurde" |
+
+> **Rot aus dem falschen Grund ist schlimmer als grün aus dem falschen Grund.** Bei grün sucht
+> wenigstens noch jemand weiter. Bei rot hat man ein Ergebnis in der Hand, arbeitet es ab — und der
+> echte Befund liegt darunter.
+
+Eine Schwelle ist eine Zahl mit Bezugsgröße. Wo der Bezug wandern kann, gehört die Schwelle an
+etwas gebunden, das mitwandert: Hier prüft sie jetzt nicht mehr „genug Treffer", sondern
+„Dateiauswahl und Zählung finden dasselbe" — eine Aussage über das Werkzeug statt über das
+Dokument.
 
 **Ein Nachtrag, der beim Beheben entstand.** Die Zeile `DATEIEN=(...)` oben ist inzwischen
 korrigiert — der Wächter liest die Dokumente jetzt ab, statt sie aufzuzählen. Und dabei fiel eine
