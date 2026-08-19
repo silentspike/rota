@@ -1024,6 +1024,67 @@ mod tests {
         );
     }
 
+    /// **AC6: der Zähler steht auf null — und das belegt nur etwas, weil er
+    /// vorher nachweislich hochgegangen ist.**
+    ///
+    /// Das Issue verlangt den Nachweis „über einen Zähler der Neubestimmungen"
+    /// und schreibt bei AC5 die Regel dazu: „Ein Zähler, der immer null war,
+    /// belegt nichts." Deshalb zwei Messungen statt einer — erst ein direkter
+    /// Aufruf, der den Zähler bewegt, dann der Lauf, in dem er stillstehen soll.
+    #[cfg(feature = "diagnostics")]
+    #[test]
+    fn ac6_ein_kampflauf_bestimmt_keine_auspraegung_neu() {
+        use crate::diagnostics;
+
+        let apl = gute_liste();
+        let config = BalanceConfig {
+            iterations: 5,
+            base_seed: 3,
+            threads: 1,
+            ..BalanceConfig::default()
+        };
+
+        diagnostics::enable();
+
+        diagnostics::reset();
+        let _ = crate::gear::budget_neu_berechnen(50, 1);
+        let nach_direktem_aufruf = diagnostics::snapshot().gear_budgets();
+
+        // Und die andere Seite derselben Frage: Nachschlagen zählt NICHT.
+        diagnostics::reset();
+        let _ = crate::gear::budget_of(50, 1);
+        let nach_nachschlagen = diagnostics::snapshot().gear_budgets();
+
+        diagnostics::reset();
+        let ergebnis = run_intern(&config, &apl, true);
+        let im_kampflauf = diagnostics::snapshot().gear_budgets();
+        let kaempfe = diagnostics::snapshot().fights();
+
+        diagnostics::disable();
+
+        assert_eq!(
+            nach_direktem_aufruf, 1,
+            "Trägerzusicherung: der Zähler bewegt sich überhaupt — ohne das wäre \
+             die Null unten nur die Abwesenheit einer Messung"
+        );
+        assert_eq!(
+            nach_nachschlagen, 0,
+            "budget_of schlägt nach und rechnet nicht — das ist AC6 in einer Zeile"
+        );
+        assert!(
+            kaempfe > 0,
+            "Trägerzusicherung: der Lauf hat wirklich gekämpft ({kaempfe})"
+        );
+        assert!(
+            ergebnis.damage.mean > 0.0,
+            "Trägerzusicherung: und dabei Schaden gemacht"
+        );
+        assert_eq!(
+            im_kampflauf, 0,
+            "ein Balance-Lauf darf keine Ausrüstungs-Ausprägung neu bestimmen"
+        );
+    }
+
     /// Die Gegenprobe: Wo gewürfelt wird, darf **nicht** reduziert werden.
     ///
     /// Ohne diesen Fall belegte der obige nichts — eine Reduktion, die immer

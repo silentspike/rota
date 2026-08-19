@@ -46,7 +46,10 @@ fn erwartungswert_einsetzen_trifft_das_gewuerfelte_mittel_nicht() {
     let erwarteter_faktor = 1.0 + p * (crit_faktor - 1.0);
     let analytisch = compute_damage(basis, &mit_krit(erwarteter_faktor));
 
-    assert_eq!(ohne_krit, 10, "Kontrollzeile: ohne Krit bleibt es die Basis");
+    assert_eq!(
+        ohne_krit, 10,
+        "Kontrollzeile: ohne Krit bleibt es die Basis"
+    );
     assert_eq!(mit_krit_wert, 15, "Kontrollzeile: 10 * 1,5 ist glatt");
     assert_eq!(
         gewuerfeltes_mittel, 12.5,
