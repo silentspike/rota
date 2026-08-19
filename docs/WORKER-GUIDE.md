@@ -7346,3 +7346,134 @@ Praktisch: **Wer eine Datei unter `data/` anlegt, prüft, welche Aufzeichnungen 
 mitführen** — und fährt den vollen lokalen Lauf, nicht nur die Ziele des eigenen Issues. Der Lauf
 über alle Ziele kostete hier 131 Sekunden und war der einzige Grund, warum der Bruch vor der CI
 auffiel.
+
+### 8.110 Die Quelle beschreibt etwas anderes als das, wonach gefragt wurde
+
+An einem einzigen Abend fünfmal, in fünf verschiedenen Werkzeugen, von vier verschiedenen
+Sitzungen. Jedes Mal lieferte die Quelle eine Antwort, die **richtig war** — nur auf eine andere
+Frage.
+
+```
+Quelle                        sieht aus wie          ist tatsächlich
+────────────────────────────────────────────────────────────────────────────────
+vessel-phases.json            der Bossbestand        der Bestand beim letzten Export
+refs/remotes/origin           die Zweige am Server   die Zweige beim letzten fetch
+mergeable                     "darf gemergt werden"  "es gibt keinen Konflikt"
+DATEIEN=(...) im Wächter      die Dokumente          zwei davon
+gh pr list --author @me       meine PRs              die PRs des Kontos
+die eigene Notiz              der aktuelle Stand     der Stand beim Ablesen
+ir-chk=1291/1297              das Ergebnis           der Stand in diesem Moment
+```
+
+Damit sind **alle drei Zeitrichtungen** beisammen: eine Quelle von gestern (Aufzeichnung, Cache),
+eine Ablesung von vorhin (die eigene Notiz) — und eine Zahl von **mittendrin**. Die letzte ist die
+heimtückischste, weil sie in demselben Augenblick entsteht, in dem man sie liest: `ir-chk=1291/1297`
+ist ein Fortschrittsbalken und sieht aus wie ein Endstand. Aus ihm entstand die Zahl „1300
+Dateien", die einen halben Abend lang als Begründung einer Regel herumstand.
+
+**Drei Spielarten, und sie unterscheiden sich in der Abhilfe:**
+
+Die ersten beiden zeigen einen **alten** Zustand. `vessel-phases.json` kannte 35 Bosse, während
+das Verzeichnis 37 hatte; `refs/remotes/origin` führte 199 Zweige, während der Server 59 hatte —
+140 davon längst gelöscht. Ein `fetch` ohne `--prune` räumt nichts weg. Abhilfe: die Quelle
+erneuern oder den Server fragen (`git ls-remote`).
+
+Die letzten drei zeigen einen **anderen Gegenstand**. `mergeable` beantwortet die Konfliktfrage,
+nicht die Merge-Frage — gemessen an zwei PRs im selben Augenblick:
+
+```
+#1010  mergeable=MERGEABLE  mergeStateStatus=CLEAN     darf
+#1012  mergeable=MERGEABLE  mergeStateStatus=BLOCKED   darf nicht
+```
+
+Dasselbe `mergeable`, entgegengesetztes Ergebnis. `gh pr list --author @me` zeigt das **Konto**,
+nicht die **Rolle** — vier Sitzungen teilen eines, und wer den Befehl als Selbstprüfung liest,
+sieht fremde Arbeit und hält sie für seine. Oder umgekehrt, und das ist schlimmer: Wer „da läuft
+ja was" denkt, sucht nicht weiter nach dem eigenen, das nirgends steht. Abhilfe: die Frage an die
+Stelle verlagern, wo sie beantwortbar ist.
+
+Die sechste betrifft **nicht die Quelle, sondern den Leser** — und sie ist die häufigste, weil sie
+keine Voraussetzung hat außer Zeitablauf. Ich hatte in einer Nachricht gemeldet, ein PR brauche
+noch einen `update-branch`. Der Messwert dazu war zwanzig Minuten alt; der Lauf war längst
+angestoßen worden. **Meine Quelle war nicht veraltet, meine Ablesung war es** — sie hätte
+geantwortet, wenn ich sie vor dem Absenden nochmal gefragt hätte. Abhilfe: genau das.
+
+| Spielart           | Abhilfe                                                         |
+| ------------------ | --------------------------------------------------------------- |
+| alter Zustand      | Quelle erneuern oder den Server fragen                          |
+| anderer Gegenstand | die Frage dorthin verlagern, wo sie beantwortbar ist            |
+| alte Ablesung      | vor dem Absenden nochmal fragen **und die Antwort abschreiben** |
+
+> **Der Zusatz ist nicht überflüssig.** Dieselbe Person hat die Ablesung dreimal an einem Abend
+> versäumt — beim dritten Mal in genau dem Absatz, der die Abhilfe ankündigte. Und dabei war die
+> Messung **gefahren**: Die frische Ausgabe stand daneben, verwendet wurde die erinnerte Zahl aus
+> drei Minuten zuvor. Zwischen „frisch messen" und „das Gemessene hinschreiben" liegt ein Schritt,
+> den man für selbstverständlich hält.
+>
+> Was hilft, ist billiger als Vorsatz: **die Uhrzeit der Ablesung dazuschreiben.** Eine Zahl ohne
+> Zeitpunkt behauptet Gegenwart; eine mit Zeitpunkt lädt zum Nachrechnen ein — auch den, der sie
+> geschrieben hat.
+>
+> **Und diese Abhilfe braucht ihren eigenen Vorbehalt.** Beim vierten Mal an demselben Abend war
+> es die _Uhrzeit selbst_, die nicht stimmte: `22:49:12` geschrieben, während die Ausgabe
+> `22:48:34` sagte — um 38 Sekunden in die Zukunft geschätzt, also genau das getan, was die
+> Angabe verhindern soll. Eine erfundene Uhrzeit ist schlimmer als keine: Sie **beglaubigt** eine
+> Ablesung, die so nicht stattfand.
+>
+> Deshalb: `date` und die Messung in **einem** Befehl, und beides aus dessen Ausgabe abschreiben.
+> Eine Maßnahme gegen einen Fehler, die denselben Fehler enthalten kann, erzeugt Vertrauen, wo
+> vorher Unsicherheit war.
+
+**Und dann hilft auch das Abschreiben nicht mehr — der Schritt muss weg.** Nach dem vierten Fall
+war klar, dass jede Fassung der Regel wieder ein Vorsatz ist: „nochmal fragen", „die Antwort
+abschreiben", „die Uhrzeit dazu". Alle drei sind an demselben Abend gescheitert, der letzte in dem
+Absatz, der ihn einführte.
+
+Was trägt, ist **Mechanik statt Disziplin** — die Ausgabe darf nicht durch den Kopf gehen:
+
+```bash
+rota-ipc senden Orchestrator - <<ENDE
+Stand $(date +%H:%M:%S):
+$(gh pr checks 1013 | grep -c pass) von $(gh pr checks 1013 | wc -l) grün
+ENDE
+```
+
+Kein `<<'ENDE'` mit Anführungszeichen — dann setzt die Shell die Befehle selbst ein. Was in der
+Nachricht steht, **ist** die Ausgabe; es gibt keinen Schritt dazwischen, in dem eine erinnerte
+Zahl gewinnen kann.
+
+> **Der eigentliche Grund ist nicht, dass der mechanische Weg nie versagt.** Er versagte beim
+> ersten Versuch sofort, bei beiden Beteiligten, am selben falsch escapten `awk`. Aber er versagte
+> **laut**: Wo eine Zahl stehen sollte, stand eine Fehlermeldung, die niemand für ein Ergebnis
+> halten kann. Der Vorsatz versagt **still** — eine erinnerte Zahl sieht aus wie eine abgelesene.
+>
+> Ein Werkzeug, das falsch bedient wird und dabei kaputtgeht, ist besser als eines, das falsch
+> bedient wird und weiterläuft. Das ist 8.105 von der anderen Seite: Eine Abhilfe soll laut
+> kaputtgehen.
+
+**Warum dieser Teil so ausführlich ist.** Der Fehler trat an einem Abend sechsmal auf — viermal bei
+dem, der den Abschnitt schreibt, zweimal bei dem, der ihn anregte, und jedes Mal in einer Nachricht
+_über_ genau diesen Fehler. Wer hier „mehr aufpassen" liest, hat den Beleg vor sich, dass das nicht
+reicht.
+
+**Die Fehlerrichtung ist nicht symmetrisch**, und das entscheidet, wie teuer der Irrtum wird:
+
+| Frage                       | veralteter Cache zeigt    |                          |
+| --------------------------- | ------------------------- | ------------------------ |
+| „Ist X **schon** irgendwo?" | zu viele                  | die vorsichtige Richtung |
+| „Ist X **nirgends** mehr?"  | Zweige, die es nicht gibt | die gefährliche          |
+
+Beide traten an diesem Abend auf. Eine Zweig-Zuteilung lief über den Cache — gefährliche Richtung;
+alle 16 Zweige existierten noch, aber das war Glück. Eine `--contains`-Prüfung ebenfalls —
+vorsichtige Richtung; sie **konnte** nicht falsch ausgehen, weil schon der zu große Cache nichts
+fand.
+
+> Vor dem Schluss aus einer Quelle: **Welchen Zustand beschreibt sie, und wann ist er entstanden?**
+> Und wenn die Antwort in die falsche Richtung irren kann — ist das die vorsichtige Richtung oder
+> die gefährliche?
+
+**Warum das kein Sorgfaltsproblem ist.** Alle fünf Quellen waren in Ordnung. Keine war kaputt,
+keine log. Vier Sitzungen haben unabhängig voneinander dieselbe Bewegung gemacht: die
+naheliegendste Quelle gelesen und ihre Antwort für die eigene Frage genommen. Was die Fälle
+aufgedeckt hat, war jedes Mal **eine zweite Ablesung aus einer anderen Richtung** — nie das
+Nachdenken über die erste.
