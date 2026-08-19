@@ -1,0 +1,21 @@
+{
+  "_comment": "ARBEITSNAME (Issue #797). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile. Wer auf die Namen wartet, baut vier Monate keinen Boss.\n\nDIE KONTROLLE ZU test-lethal-strike, kein Spielboss. Die beiden sind ZWILLINGE und unterscheiden sich in GENAU EINER ZAHL: dem Schaden des Schlags (4600 hier gegen 18400 dort). Alles andere ist identisch — Zeitleiste, Zeitpunkt, Leben, Mechanik.\n\nWARUM DAS SO SEIN MUSS: AC5 verlangt neben dem Nachweis eine TRAEGER-ZUSICHERUNG — an einem Boss OHNE den unabwendbaren Schlag soll FIXATION weiter draussen bleiben. Nimmt man dafuer einen beliebigen bestehenden Boss, unterscheiden sich die beiden Laeufe in ALLEM: Zeitleiste, Leben, Mechaniken. Ein Unterschied im Ergebnis waere dann nicht dem Schlag zuzuordnen. Ein Zwilling macht daraus einen Kontrollversuch mit EINER Variablen.\n\nWer eine der beiden Dateien aendert, muss die andere mitdenken. Laufen sie auseinander, misst die Traeger-Zusicherung etwas anderes als das, was sie zu messen behauptet — und sie tut es lautlos.\n\nDIE 4600 IST GEWAEHLT, NICHT GEMESSEN: die halbe Obergrenze (9200 = Schicht 4200 + Leben 5000), damit der Abstand eindeutig ist. Der Spieler haelt diesen Schlag selbst OHNE Schutzschicht aus, allein mit seinen 5000 Lebenspunkten.\n\n  Ein KNAPP aushaltbarer Schlag waere ein zweiter Grenzfall — dann haetten wir zwei Messungen derselben Sache statt einer Messung und einer Kontrolle. Der Kontrollfall soll eindeutig sein, nicht anspruchsvoll.\n\nDie Herleitung der 18400 und der Obergrenze steht vollstaendig in test-lethal-strike.json; sie ist nachrechenbar in sim/tests/verteidigungs_obergrenze.rs.",
+  "schema": 1,
+  "id": "test-survivable-strike",
+  "name": "Survivable Strike Probe",
+  "instance": "testing",
+  "hp": 5200,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 12000,
+      "mechanic": "strike",
+      "name": "Sunder",
+      "damage": 4600
+    }
+  ],
+  "resistances": {},
+  "timelineLoopMs": null
+}

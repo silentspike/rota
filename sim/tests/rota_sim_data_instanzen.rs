@@ -21,10 +21,27 @@ mod gemeinsam;
 use gemeinsam::rufe;
 
 /// Die Zahlen des Bestands, gemessen gegen `origin/main` (siehe #981, AC6).
+///
+/// # Warum sie fest hier stehen und nicht aus den Daten abgeleitet werden
+///
+/// Eine Erwartung, die mit dem Prüfling mitwächst, kann nicht scheitern. Diese
+/// hier sollen scheitern, sobald sich der Bestand ändert — dann ist die
+/// Änderung sichtbar, statt still durchzugehen.
+///
+/// **`PRUEFBOSSE` ist am 2026-08-19 zum ersten Mal ausgelöst worden**, und die
+/// Herkunft der neuen Zahl gehört dazu: 18 war der Stand aus #981; dazu kamen
+/// `test-lethal-strike` und `test-survivable-strike` aus #797 (die beiden
+/// Zwillinge für AC5, beide in der Instanz `testing`). Ohne diese Zeile wäre
+/// die 20 in vier Wochen eine Zahl ohne Beleg.
+///
+/// **`WERTUNGSFAEHIG` bleibt bei 17, und das ist die eigentliche Probe:** Wäre
+/// eines der beiden neuen Profile versehentlich in einer gewerteten Instanz
+/// gelandet, müsste diese Zahl auf 19 springen. Sie tut es nicht — damit ist
+/// die Trennung zwischen Prüfprofil und Spielboss gemessen statt behauptet.
 const SPIELINSTANZEN: usize = 5;
 const PRUEFPROFILE: usize = 2;
 const WERTUNGSFAEHIG: usize = 17;
-const PRUEFBOSSE: usize = 18;
+const PRUEFBOSSE: usize = 20;
 
 #[test]
 fn die_json_ausgabe_trennt_spielinstanzen_von_pruefprofilen() {

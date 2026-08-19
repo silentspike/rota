@@ -1,0 +1,21 @@
+{
+  "_comment": "ARBEITSNAME (Issue #797). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile. Wer auf die Namen wartet, baut vier Monate keinen Boss.\n\nPRUEFPROFIL FUER #797 AC5, kein Spielboss. Er traegt EINEN Schlag, den man verhindern MUSS — das ist die Lage, in der sich ein FIXATION-Zauber lohnen soll.\n\nZWILLING: test-survivable-strike ist derselbe Boss mit kleinerem Schaden (4600 statt 18400) und dient als KONTROLLE. Die beiden unterscheiden sich in GENAU EINER ZAHL. Wer einen von beiden aendert, muss den anderen mitdenken, sonst vergleicht die Traeger-Zusicherung aus AC5 zwei Dinge, die sich in mehr als dem Schlag unterscheiden.\n\nWOHER DIE 18400 KOMMT — und das steht hier, damit sie nicht das Schicksal der 7999 aus dem Issue-Text teilt (die stammte aus einem Boss, den es in keinem Zweig je gab, und war deshalb nicht nachrechenbar):\n\n  Gemessen wurde die OBERGRENZE dessen, was ein Spieler an Verteidigung aufbauen kann: 9200 = Schutzschicht 4200 + Leben 5000. Die 4200 sind das MAXIMUM ueber ALLE 64 Anordnungen der vier spielbaren Schilde (plate, crucible-skin, crust, scab), nicht der Wert einer gewaehlten Rotation — eine APL ist eine Prioritaetsliste, und welche Reihenfolge am meisten traegt, laesst sich nicht ausrechnen, weil die Schichten unterschiedlich lange halten.\n\n  Nachrechenbar in sim/tests/verteidigungs_obergrenze.rs. Der Prueffall MISST die Zahl in einem echten Kampf, statt sie aus den Zauberdaten nachzubauen; aendert sich ein Betrag, eine Stapelgrenze oder ein Talent, aendert sich die Messung mit.\n\n  18400 = 2 x 9200. Der FAKTOR 2 statt eines Zuschlags aus zwei Gruenden: Er traegt auch dann, wenn sich die gesamte Verteidigung VERDOPPELT — mehr, als ein einzelner Balance-Durchgang je tut. Und er ist skaleninvariant: Ein Zuschlag wie 'tausend darueber' haengt an der heutigen Zahlenskala und waere bedeutungslos, wenn das Spiel eines Tages auf andere Groessenordnungen umgestellt wird.\n\nWARUM strike UND NICHT interruptibleCast: Ein unterbrechbarer Cast stellt die Frage gar nicht — QUENCH loest ihn allein, ohne FIXATION. Genau daran ist der erste Pruef-Boss zu diesem Issue gescheitert. Nur PIN oeffnet einem strike ein Fenster, in dem er unterbrechbar wird (fight.rs, TimelineKind::Strike if pin_fenster > 0).\n\nWARUM atMs 12000: derselbe Zeitpunkt, an dem die Obergrenze gemessen wird. Frueher waere die Verteidigung noch nicht aufgebaut und die Zahl zu streng, spaeter waeren Schichten abgelaufen und sie zu milde.\n\nWARUM timelineLoopMs null: boss-1-1 traegt die Lehre, dass alle Eintraege in den Schleifenrahmen passen muessen — ein Eintrag bei 27000 in einer 15000er Schleife lief RUECKWAERTS und erzeugte einen Paritaetsbruch. Bei einem einzigen Eintrag ohne Schleife stellt sich die Frage nicht.\n\nWARUM hp 5200 UND NICHT 999999 wie bei anderen Pruefprofilen: Der Balance-Laeufer braucht eine DPS-Wertung. Gegen einen Boss, der praktisch nicht faellt, haette die Suche kein Ziel.",
+  "schema": 1,
+  "id": "test-lethal-strike",
+  "name": "Lethal Strike Probe",
+  "instance": "testing",
+  "hp": 5200,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 12000,
+      "mechanic": "strike",
+      "name": "Sunder",
+      "damage": 18400
+    }
+  ],
+  "resistances": {},
+  "timelineLoopMs": null
+}
