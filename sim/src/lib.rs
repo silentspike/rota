@@ -92,6 +92,8 @@ pub mod replay;
 pub mod report;
 pub mod rng;
 pub mod rotation;
+// Issue #981: Wertungsmenge und Instanzgruppen — welche Bosse zaehlen.
+pub mod scoring;
 // Issue #237: die Suche nach der besten Rotation.
 pub mod rotation_search;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die

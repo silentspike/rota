@@ -212,7 +212,12 @@ fn main() {
         ("sublimation.json", &sublimation),
         ("putrefaction.json", &putrefaction),
     ]);
-    emit_bosses(&mut out, &bosses);
+    // Issue #981: Die Schulenmenge entsteht aus denselben Zauberdateien, die
+    // schon `weitere` fuehrt — abgeleitet, nicht aufgeschrieben. Sie geht in
+    // die Bosse, weil dort die Widerstands-Schluessel dagegen geprueft werden.
+    let schulen_menge = schulen(&spells, &weitere);
+    emit_instance_classes(&mut out);
+    emit_bosses(&mut out, &bosses, &schulen_menge);
     emit_player(&mut out, &read_json(PLAYER_JSON));
     emit_levels(&mut out, &read_json(LEVELS_JSON));
     // Issue #911: die Wirkungsbeschreibung, aus denselben Dateien wie alles
@@ -952,7 +957,85 @@ fn pruefe_zeitleiste(name: &str, boss: &Value) {
     );
 }
 
-fn emit_bosses(out: &mut String, bosses: &[(String, Value)]) {
+/// Die `instance`-Werte, die eine **Spielinstanz** benennen (Issue #981, AC1).
+///
+/// # Warum eine Liste von INSTANZEN und keine von Bossen
+///
+/// Das Issue verbietet eine Liste von Boss-Kennungen, weil sie bei jedem neuen
+/// Boss altert — lautlos. Eine Liste von Instanzen altert nicht mit den Bossen,
+/// sondern nur mit dem Spielaufbau, und **ein unbekannter Wert bricht den Bau**
+/// (AC4). Ein neuer Boss in `instance-2` braucht hier keine Zeile; ein neuer
+/// Boss in `instance-5` erzwingt eine Entscheidung, statt still durchzugehen.
+const SCORED_INSTANCES: [&str; 5] = [
+    "prologue",
+    "instance-1",
+    "instance-2",
+    "instance-3",
+    "instance-4",
+];
+
+/// Die `instance`-Werte der Pruef- und Lastprofile.
+///
+/// Diese Bosse tragen absichtlich extreme Werte — `test-runaway` laeuft aus dem
+/// Ruder, `test-lethal-cast` toetet zuverlaessig. Sie liegen im selben
+/// Verzeichnis wie die Spielbosse, und genau das ist die Gefahr: Eine Elite,
+/// die versehentlich gegen einen von ihnen optimiert wurde, sieht im Ergebnis
+/// vollkommen plausibel aus.
+const PROBE_INSTANCES: [&str; 2] = ["test", "testing"];
+
+/// Schreibt die Klassifikation als Daten, damit die Laufzeit sie **liest**
+/// statt sie ein zweites Mal aufzuschreiben.
+///
+/// Zwei Listen an zwei Stellen laufen auseinander, und der Fehler ist still:
+/// Der Bau bricht dann bei einem Wert, den die Laufzeit fuer gueltig haelt,
+/// oder umgekehrt. Dieselbe Falle wie bei `RASTER_MS` — nur dass sie sich hier
+/// ganz vermeiden laesst, weil es sich um Daten und nicht um eine Zahl im
+/// Bauskript handelt.
+fn emit_instance_classes(out: &mut String) {
+    let _ = writeln!(
+        out,
+        "/// Die `instance`-Werte, die eine Spielinstanz benennen (Issue #981).\n\
+         ///\n\
+         /// **Erzeugt aus `build.rs`.** Dort steht die Regel, und dort bricht der\n\
+         /// Bau, wenn ein Boss einen Wert traegt, der in keiner der beiden Listen\n\
+         /// steht. Diese Konstante ist die Leseseite derselben Quelle."
+    );
+    let _ = writeln!(
+        out,
+        "pub const SCORED_INSTANCES: [&str; {}] = {:?};\n",
+        SCORED_INSTANCES.len(),
+        SCORED_INSTANCES
+    );
+    let _ = writeln!(
+        out,
+        "/// Die `instance`-Werte der Pruef- und Lastprofile (Issue #981)."
+    );
+    let _ = writeln!(
+        out,
+        "pub const PROBE_INSTANCES: [&str; {}] = {:?};\n",
+        PROBE_INSTANCES.len(),
+        PROBE_INSTANCES
+    );
+}
+
+/// Prueft den `instance`-Wert eines Bosses (Issue #981, AC4).
+///
+/// **Bricht den Bau**, statt zu warnen. Ein Boss ohne zuordenbare Klasse waere
+/// sonst entweder stillschweigend wertungsfaehig — dann verfaelscht ein
+/// Lastprofil jede Elite — oder stillschweigend ausgeschlossen, dann fehlt ein
+/// Spielboss in der Wertung und niemand sieht es.
+fn pruefe_instanz(boss: &Value, whose: &str) {
+    let instance = text(boss, "instance", whose);
+    assert!(
+        SCORED_INSTANCES.contains(&instance) || PROBE_INSTANCES.contains(&instance),
+        "{whose}: instance \"{instance}\" ist keiner Klasse zugeordnet.\n\
+         Wertungsfaehig sind {SCORED_INSTANCES:?}, Pruefprofile sind {PROBE_INSTANCES:?}.\n\
+         Trag den Wert in build.rs ein — in SCORED_INSTANCES, wenn Spieler diese \
+         Bosse sehen, sonst in PROBE_INSTANCES."
+    );
+}
+
+fn emit_bosses(out: &mut String, bosses: &[(String, Value)], schulen: &[String]) {
     let _ = writeln!(
         out,
         "/// Anzahl der Bosse. Feste Groesse, damit Listen ueber Bosse ohne\n\
@@ -967,7 +1050,8 @@ fn emit_bosses(out: &mut String, bosses: &[(String, Value)]) {
     );
     let _ = writeln!(out, "pub static BOSSES: [Boss; BOSS_COUNT] = [");
     for (name, boss) in bosses {
-        emit_boss(out, boss, name);
+        pruefe_instanz(boss, name);
+        emit_boss(out, boss, name, schulen);
     }
     let _ = writeln!(out, "];\n");
 
@@ -985,7 +1069,7 @@ fn emit_bosses(out: &mut String, bosses: &[(String, Value)]) {
     let _ = writeln!(out, "pub static BOSS: &Boss = &BOSSES[{default}];\n");
 }
 
-fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
+fn emit_boss(out: &mut String, boss: &Value, whose: &str, schulen: &[String]) {
     let _ = writeln!(out, "    Boss {{");
     let _ = writeln!(out, "        id: {:?},", text(boss, "id", whose));
     let _ = writeln!(out, "        name: {:?},", text(boss, "name", whose));
@@ -1020,7 +1104,7 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
     emit_escalation(out, boss, whose);
     emit_affliction(out, boss, whose);
     emit_timeline(out, boss, whose);
-    emit_resistances(out, boss, whose);
+    emit_resistances(out, boss, whose, schulen);
     let _ = writeln!(out, "    }},");
 }
 
@@ -1036,7 +1120,39 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str) {
 /// Als Liste von Paaren und nicht als eine Zahl fuer `SCHOOL`: Die Zuordnung
 /// steht so in den Daten, und ein Bau-Skript, das sie hier schon aufloest,
 /// verlegt eine Regel aus den Daten in den Uebersetzungsvorgang.
-fn emit_resistances(out: &mut String, boss: &Value, whose: &str) {
+/// Die Schulen, wie die **Zauberdaten** sie fuehren (Issue #981, AC7).
+///
+/// # Abgeleitet, nicht aufgeschrieben
+///
+/// Eine hingeschriebene Liste haette denselben Mangel wie die Sache, gegen die
+/// sie schuetzt: Sie altert, sobald jemand eine Schule hinzufuegt, und der
+/// Fehler waere still. Die Menge entsteht deshalb aus dem Feld `school` auf
+/// **Datei**-Ebene — dort, wo es im Bestand steht; `common.json` traegt keines,
+/// und seine Zauber gehoeren folglich keiner Schule an.
+fn schulen(spells: &Value, weitere: &[(&str, &Value)]) -> Vec<String> {
+    let mut namen: Vec<String> = Vec::new();
+    let eigene = spells.get("school").and_then(Value::as_str);
+    for schule in std::iter::once(eigene)
+        .chain(
+            weitere
+                .iter()
+                .map(|(_, quelle)| quelle.get("school").and_then(Value::as_str)),
+        )
+        .flatten()
+    {
+        if !namen.iter().any(|vorhanden| vorhanden == schule) {
+            namen.push(schule.to_string());
+        }
+    }
+    assert!(
+        !namen.is_empty(),
+        "Keine einzige Schule in den Zauberdaten gefunden — die Ableitung greift nicht, \
+         und eine leere Menge liesse jeden Widerstands-Schluessel durchfallen"
+    );
+    namen
+}
+
+fn emit_resistances(out: &mut String, boss: &Value, whose: &str, schulen: &[String]) {
     let Some(map) = boss.get("resistances").and_then(Value::as_object) else {
         let _ = writeln!(out, "        resistances: &[],");
         return;
@@ -1047,6 +1163,17 @@ fn emit_resistances(out: &mut String, boss: &Value, whose: &str) {
     }
     let _ = writeln!(out, "        resistances: &[");
     for (school, faktor) in map {
+        // **Der SCHLUESSEL, nicht nur der Wert** (Issue #981, AC7). Bis dahin
+        // pruefte diese Schleife nur, dass der Wert eine Zahl ueber null ist.
+        // Ein Eintrag `"CALZINATION": 0.5` ginge still durch: `resistance_for`
+        // schlaegt mit Vorgabe 1.0 nach, der Widerstand griffe NIE, und der
+        // Boss waere widerstandslos — waehrend seine Daten das Gegenteil sagen.
+        assert!(
+            schulen.iter().any(|bekannt| bekannt == school),
+            "{whose}: Widerstand \"{school}\" benennt keine Schule.\n\
+             Bekannt sind {schulen:?} — abgeleitet aus dem Feld \"school\" der \
+             Zauberdateien, nicht aus einer Liste im Quelltext."
+        );
         let wert = faktor
             .as_f64()
             .unwrap_or_else(|| panic!("{whose}: Widerstand \"{school}\" ist keine Zahl"));
