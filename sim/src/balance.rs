@@ -673,7 +673,30 @@ pub fn siege(samples: &[Sample], boss: &Boss) -> usize {
 /// Gefunden hat den Mangel Worker-3, an meinem eigenen Fix aus PR #1000.
 #[must_use]
 pub fn todesfelder_stimmen(samples: &[Sample]) -> bool {
-    samples.iter().all(|s| s.died == s.died_at_ms.is_some())
+    erster_todesfeld_widerspruch(samples).is_none()
+}
+
+/// Der erste Durchgang, dessen Todes-Felder einander widersprechen.
+///
+/// # Warum das nicht `bool` genuegt
+///
+/// Gemeldet von Worker-3: [`todesfelder_stimmen`] sagt, DASS etwas nicht stimmt,
+/// aber nicht WO. Bei einem einzigen abweichenden Durchgang unter tausend
+/// stuende in der Fehlermeldung „die Felder stimmen nicht" — und die Suche
+/// danach faengt bei null an.
+///
+/// **Ein Waechter wird genau in dem Moment gelesen, in dem er anschlaegt.** Was
+/// er dann nicht sagt, kostet Suchzeit, und zwar unter Zeitdruck.
+///
+/// Zurueck kommt der **Startwert** des Durchgangs, nicht sein Index: Der
+/// Startwert bestimmt den Durchgang vollstaendig und laesst sich einzeln
+/// nachfahren, ein Index in einer Stichprobe nicht.
+#[must_use]
+pub fn erster_todesfeld_widerspruch(samples: &[Sample]) -> Option<u32> {
+    samples
+        .iter()
+        .find(|s| s.died != s.died_at_ms.is_some())
+        .map(|s| s.seed)
 }
 
 /// Rechnet einen Balance-Lauf.
