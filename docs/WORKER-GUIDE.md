@@ -7115,7 +7115,7 @@ NICHT geprüft: eine ECHTE Zeichenkette WIRD gefunden
 
 Die fehlende Hälfte war genau die, auf die es ankam. Der Gegentest mit Zeichenketten, die drinstehen
 müssen (`rota-sim`, `bosses`, `spells`, `candidates` — alle vier gefunden), stellte die Frage erst
-richtig: *Der Suchweg findet grundsätzlich etwas, aber die gesuchten nicht.* Ursache war `ugrep`, das
+richtig: _Der Suchweg findet grundsätzlich etwas, aber die gesuchten nicht._ Ursache war `ugrep`, das
 Binärdateien ohne `-a` stillschweigend überspringt.
 
 > **Eine Kontrollzeile prüft zwei Dinge, nicht eines:** dass etwas Abwesendes nicht gefunden wird,
@@ -7142,7 +7142,7 @@ domaene_fuer           0             dito
 ParameterDomain        0             dito
 ```
 
-Die Zählung beantwortet *„wird es genannt"*, nicht *„wird es geprüft"*. Bei Feldern fällt beides
+Die Zählung beantwortet _„wird es genannt"_, nicht _„wird es geprüft"_. Bei Feldern fällt beides
 zusammen, weil ein Feld nur über seinen Namen erreichbar ist. Bei Funktionen nicht.
 
 **Das Verfahren hat deshalb zwei Schritte:**
@@ -7156,9 +7156,9 @@ falsche Kandidaten, und der eine echte Zweig (eine `pub`-Funktion mit einem Name
 — über den einzigen Aufrufer nie erreichbar) wäre durchgefallen.
 
 **Und eine dritte Frage kommt bei Aufzählungen dazu:** Zwei tote Varianten sahen in der Zählung
-gleich aus. Eine wurde gestrichen (sie wäre *nie* ableitbar geworden — die nötige Zuordnung gibt es
+gleich aus. Eine wurde gestrichen (sie wäre _nie_ ableitbar geworden — die nötige Zuordnung gibt es
 in den Daten nicht), die andere behalten (sie wird ableitbar, sobald eine benannte Quelle liefert).
-Der Unterschied ist nicht *„heute unbenutzt"*, sondern *„wird es je erzeugbar"*.
+Der Unterschied ist nicht _„heute unbenutzt"_, sondern _„wird es je erzeugbar"_.
 
 ### 8.105 Eine Abhilfe darf die Spur nicht entfernen
 
@@ -7170,7 +7170,7 @@ n=${n:-0}     # FALSCH
 
 Ein Worker hat sie zerlegt, bevor sie Schaden anrichtete:
 
-> „Die Abhilfe macht aus *nicht gemessen* ein *gemessen, null gefunden* — und das ist die
+> „Die Abhilfe macht aus _nicht gemessen_ ein _gemessen, null gefunden_ — und das ist die
 > gefährlichere der beiden Aussagen, weil sie wie ein Ergebnis aussieht. Heute ist die Bedingung
 > wenigstens mit `integer expected` und Exit 2 abgebrochen. Das war eine Spur. **Wir hätten den
 > ugrep-Befund mit dieser Regel nie gefunden.**"
@@ -7190,11 +7190,11 @@ MESSWERT** (die Messung fand nicht statt) ist von **STUMM** (0 Fälle gelaufen) 
 kein Bestehen, aber es sind zwei verschiedene Befunde, und wer sie zusammenwirft, sucht den Fehler an
 der falschen Stelle.
 
-> **Vor jeder Abhilfe die Frage:** *Woran hätte man gemerkt, dass es kaputt ist — und ist das danach
-> noch da?* Wenn die Antwort nein lautet, behebt man die Meldung statt der Sache.
+> **Vor jeder Abhilfe die Frage:** _Woran hätte man gemerkt, dass es kaputt ist — und ist das danach
+> noch da?_ Wenn die Antwort nein lautet, behebt man die Meldung statt der Sache.
 
-Es verletzt außerdem eine Regel, die anderswo längst gilt: *ein Lauf mit null ausgeführten Tests gilt
-als fehlgeschlagen, nicht als bestanden.*
+Es verletzt außerdem eine Regel, die anderswo längst gilt: _ein Lauf mit null ausgeführten Tests gilt
+als fehlgeschlagen, nicht als bestanden._
 
 ### 8.106 Eine Fehlermeldung, die nur eine Richtung kennt
 
@@ -7208,7 +7208,7 @@ left: 0   right: 1
 
 Die Träger-Zusicherung prüfte, dass ein zweiter Schutzzauber **abprallt** — das geschieht beim
 **Aufbau**. Geschrieben war sie gegen den Messzeitpunkt am Ende, zu dem die Schicht längst abgelaufen
-ist. Die alte Fehlermeldung sprach nur von *„mehr als einem Stapel"* und ließ den Leser in die falsche
+ist. Die alte Fehlermeldung sprach nur von _„mehr als einem Stapel"_ und ließ den Leser in die falsche
 Richtung suchen.
 
 **Behoben mit einer Meldung, die beide Ausgänge benennt:**
@@ -7221,5 +7221,5 @@ roten Fall schlimmer als gar keine Erklärung — sie liest sich wie ein Beleg, 
 zu wissen, was schiefging.
 
 **Dieselbe Prüfung gilt für die Zusicherung selbst:** Ein Fall, dessen Fehlermeldung etwas
-*behauptet*, was er nicht prüft („der Hinweis nennt die richtige Richtung UND den richtigen Bezug"),
+_behauptet_, was er nicht prüft („der Hinweis nennt die richtige Richtung UND den richtigen Bezug"),
 gehört ergänzt — entweder prüft er es, oder die Meldung sagt es nicht.
