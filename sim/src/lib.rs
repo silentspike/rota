@@ -57,6 +57,8 @@
 
 // Issue #967: Durchgaenge ergaenzbar speichern statt fertig.
 pub mod akkumulator;
+// Issue #908: der kritische Treffer analytisch — NEBEN dem Kampf, nicht darin.
+pub mod analytisch;
 pub mod apl;
 pub mod balance;
 // Issue #118: die Suche nach dem besten Aufbau.
@@ -71,6 +73,8 @@ pub mod cooldown_reset;
 pub mod data;
 // Issue #896: Zaehler fuer den Diagnosepfad — Schlangenlaenge, `expire_buffs`.
 pub mod diagnostics;
+// Issue #908: wie viele Durchgaenge genuegen — abgeleitet, nicht `purity == 0`.
+pub mod durchgaenge;
 // Issue #911: die typisierte Wirkungsbeschreibung und ihre erzeugten Analysen.
 pub mod effects;
 pub mod event;
@@ -88,6 +92,8 @@ pub mod replay;
 pub mod report;
 pub mod rng;
 pub mod rotation;
+// Issue #981: Wertungsmenge und Instanzgruppen — welche Bosse zaehlen.
+pub mod scoring;
 // Issue #237: die Suche nach der besten Rotation.
 pub mod rotation_search;
 // Issue E3-1b: das Empfaenger-Ereignis-System. Diese eine Zeile ist die
