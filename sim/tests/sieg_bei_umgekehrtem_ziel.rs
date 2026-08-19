@@ -41,7 +41,9 @@
 //! hier beide Richtungen und nicht nur die auffällige.
 
 use rota_sim::apl::{parse, AplName};
-use rota_sim::balance::{run, siege, todesfelder_stimmen, BalanceConfig, Sample};
+use rota_sim::balance::{
+    erster_todesfeld_widerspruch, run, siege, todesfelder_stimmen, BalanceConfig, Sample,
+};
 use rota_sim::data::boss_by_id;
 use rota_sim::time::Millis;
 
@@ -254,10 +256,12 @@ fn die_beiden_todesfelder_sagen_an_echten_durchgaengen_dasselbe() {
 
     assert!(
         todesfelder_stimmen(&ergebnis.samples),
-        "`died` und `died_at_ms.is_some()` sagen Verschiedenes. Beide entstehen \
-         aus Fight::died_at — laufen sie auseinander, hat jemand player_dead() \
-         oder died_at_ms() geaendert, und die Auswertung liest je nach Stelle \
-         das eine oder das andere"
+        "`died` und `died_at_ms.is_some()` sagen Verschiedenes, zuerst im \
+         Durchgang mit Startwert {:?}. Beide entstehen aus Fight::died_at — \
+         laufen sie auseinander, hat jemand player_dead() oder died_at_ms() \
+         geaendert, und die Auswertung liest je nach Stelle das eine oder das \
+         andere",
+        erster_todesfeld_widerspruch(&ergebnis.samples)
     );
 
     // ---- Die ZWEITE Lage, und sie ist Worker-3s Beitrag ----
@@ -296,6 +300,8 @@ fn die_beiden_todesfelder_sagen_an_echten_durchgaengen_dasselbe() {
     assert!(
         todesfelder_stimmen(&ohne_tod.samples),
         "auch ohne einen einzigen Todesfall muessen beide Felder dasselbe sagen \
-         — eine Umkehrung der Gleichheit faellt genau hier auf und nicht oben"
+         — eine Umkehrung der Gleichheit faellt genau hier auf und nicht oben. \
+         Zuerst abweichend: Startwert {:?}",
+        erster_todesfeld_widerspruch(&ohne_tod.samples)
     );
 }
