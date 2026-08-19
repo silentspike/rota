@@ -39,19 +39,26 @@ mod gemeinsam;
 /// `/tmp/builds/<id>/sim/../tests/parity/recordings/decay-factor.json` — ein
 /// Pfad, den es hier nicht gibt.
 ///
-/// **Er funktionierte trotzdem, und genau das war das Problem:**
-/// `cargo remote` legt bei jedem Bau einen Symlink `/tmp/builds/<id>` auf das
-/// Arbeitsverzeichnis an. Daraus wird eine Reihenfolge-Abhängigkeit, die in
-/// keiner Datei steht:
+/// **Er funktionierte trotzdem, und genau das war das Problem:** Unter
+/// `/tmp/builds/<id>` liegt ein Symlink auf das Arbeitsverzeichnis, und die
+/// `<id>` ist ein Hash über den Pfad — für dasselbe Verzeichnis also immer
+/// dieselbe. Damit löst sich der eingebrannte Pfad hier auf, und der Test war
+/// grün, ohne dass sein Code die Datei hätte finden können.
 ///
-/// | Zustand | Ergebnis |
-/// | --- | --- |
-/// | nach einem Neustart, `/tmp` leer | dieser Test **rot** |
-/// | nach dem nächsten Bau | derselbe Test **grün** |
+/// Gemessen am 2026-08-19, derselbe Stand, derselbe Befehl, der Symlink als
+/// einziger Unterschied: ohne ihn Exit 101 und vier rote Fälle, mit ihm vier
+/// grüne.
 ///
-/// Gemessen am 2026-08-19: Ohne den Symlink Exit 101 und vier rote Fälle, mit
-/// ihm vier grüne — derselbe Stand, derselbe Befehl. Und wer die roten Ziele
-/// untersuchen will, baut zuerst und findet sie grün.
+/// **Was daran ungemessen ist:** Wer den Symlink anlegt. Dass `cargo remote`
+/// ihn bei jedem Bau erneuert, wäre die naheliegende Erklärung und ist
+/// widerlegt — die Symlinks tragen das Datum des *ersten* Baus, nicht des
+/// letzten (einer vom 18.08. 17:51 überlebte rund zwanzig Bauten am 19.08.).
+/// Ob das Werkzeug ihn anlegt, wenn er fehlt, oder ob ihn jemand von Hand
+/// gesetzt hat, ist offen.
+///
+/// Sicher ist nur die eine Richtung: Nach einem Neustart ist `/tmp` leer und
+/// dieser Test rot. Und wer ihn dann untersuchen will, baut zuerst — und wenn
+/// der Symlink dabei wiederkehrt, findet er ihn grün.
 ///
 /// # Warum der Name als Literal stehen bleibt
 ///
