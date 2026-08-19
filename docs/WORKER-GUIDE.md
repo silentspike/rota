@@ -348,6 +348,57 @@ Für Pushes heißt das: `git ls-remote --heads origin <zweig>` oder `gh pr view`
 dem Push, und der abgelesene Kopf-Hash gehört in die Meldung. Steht er nicht drin, ist
 er nicht geprüft.
 
+### Ein Lauf über 60 Sekunden wird ANGEKÜNDIGT, bevor er startet
+
+Nicht fragen, ob jemand misst — **sagen, dass du rechnest.** Eine Zeile mit geschätzter
+Dauer, bevor der Befehl läuft:
+
+```bash
+rota-ipc senden Orchestrator "RECHNE JETZT: Gesamtlauf über 206 Suiten, etwa 3 Minuten."
+```
+
+**Warum das Nachsehen allein nicht reicht** — Worker-3 hat die Lücke am 2026-08-19
+gemessen, und zwar an einem Fall, in dem er die Regel korrekt befolgt hatte:
+
+| Zeit | Was geschah |
+|---|---|
+| 11:06:02 | `rota-ipc offen` geprüft — **nichts lag an** |
+| 11:06:07 | Gesamtlauf gestartet |
+| 11:06:20 | Halte-Anweisung des Orchestrators kam an |
+| 11:08:46 | Lauf endete — zweieinhalb Minuten Fremdlast in einer Messung |
+
+> **Vor dem Lauf prüfen fängt nur, was vor dem Lauf da war.** Bei einem Lauf von
+> zweieinhalb Minuten ist das Fenster für eine eintreffende Anordnung genau so lang wie
+> der Lauf selbst.
+
+Die Ankündigung dreht die Richtung um: Der Orchestrator kann eine Messung um zwei
+Minuten verschieben, statt sie zu verlieren. Für den Messenden ist das billiger — er
+bekommt die Anordnung **vor** dem Start statt mittendrin.
+
+**Zweite Hälfte derselben Regel: `date` vor und nach dem Befehl.** Angekündigt vorher,
+abgelesen nachher. Die `mtime` einer Logdatei ist der Zeitpunkt des *Schreibens*, also
+das Ende — nicht der Anfang und nicht die Dauer. Wer daraus eine Spanne bildet, liefert
+eine Näherung; das ist brauchbar, **wenn sie als Näherung gekennzeichnet ist**, und
+unbrauchbar, wenn nicht.
+
+### Wer mit einem Muster auf Prozesse zeigt, zeigt auch auf den Zeiger
+
+Zwei Fälle am 2026-08-19, in beide Richtungen:
+
+```bash
+pkill -f "binaries/mess-k32"              # traf sich selbst, Exit 144
+until ! pgrep -f "mess-k32"; do ... done  # fand sich selbst — lief 39 Minuten ins Leere
+```
+
+Der erste tötete den Aufruf, der aufräumen sollte; die Bestätigung an den Orchestrator
+ging dabei unter. Der zweite konnte **nie** zurückkehren, weil das Muster in der eigenen
+Kommandozeile stand — und verdeckte, dass zwei Sitzungen gleichzeitig aufeinander
+warteten.
+
+> Sicher ist die **PID**, oder ein Muster, das die eigene Zeile nicht enthält. Und wenn
+> du auf einen fremden Prozess wartest: frage seinen Zustand ab, statt auf die Abwesenheit
+> eines Musters zu warten.
+
 ### `git diff a..b` vergleicht Endpunkte — deine neue Datei sieht aus wie fremder Verlust
 
 Zweimal am 2026-08-14, von zwei verschiedenen Sitzungen, beide Male knapp gefangen:
