@@ -57,6 +57,8 @@
 
 // Issue #967: Durchgaenge ergaenzbar speichern statt fertig.
 pub mod akkumulator;
+// Issue #908: der kritische Treffer analytisch — NEBEN dem Kampf, nicht darin.
+pub mod analytisch;
 pub mod apl;
 pub mod balance;
 // Issue #118: die Suche nach dem besten Aufbau.
