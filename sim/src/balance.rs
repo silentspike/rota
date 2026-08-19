@@ -572,6 +572,63 @@ pub fn todeszeiten(samples: &[Sample]) -> Vec<f64> {
         .collect()
 }
 
+/// Wie viele Durchgaenge **gewonnen** wurden — mit der Umkehrung des Ziels.
+///
+/// # Warum das nicht `killed_at_ms.is_some()` ist
+///
+/// `killed_at_ms` sagt: der ausgeteilte Schaden hat die Lebenspunkte des Bosses
+/// erreicht. Bei einem Boss mit `runaway` ist genau das die **Niederlage** —
+/// der Ring ist auf null gelaufen, der Ueberdruck entsteht. Der Sieg ist dort
+/// das Ueberstehen der Frist.
+///
+/// Das Spiel fuehrt diese Unterscheidung seit Issue #247 (`combat.ts`,
+/// `checkDefeat`):
+///
+/// ```text
+///              | Ring auf 0 | Zeit abgelaufen
+/// gewoehnlich  | Sieg       | Niederlage
+/// runaway      | Niederlage | Sieg
+/// ```
+///
+/// Der Simulator fuehrte sie nicht. Gemessen am 2026-08-19, je 20 Durchgaenge
+/// gegen `boss-2-3`:
+///
+/// ```text
+/// apl/e939-schutz.apl       uebersteht die Frist   kills meldete  0
+/// apl/e607-flashpoint.apl   erzeugt Ueberdruck     kills meldete 20
+/// ```
+///
+/// In **beide** Richtungen das Gegenteil. Betroffen waren `kills`,
+/// `kill_rate()`, die Siegzahl im Ergebnisspeicher und die Ausgabe von
+/// `rota-sim run`.
+///
+/// # Warum hier und nicht in `fight.rs`
+///
+/// `killed_at` loest auch `stop_on_kill` aus und geht in die Trace-Hashes ein.
+/// Dort die Bedeutung zu drehen hiesse, jede Paritaets-Aufzeichnung zu brechen
+/// — und die Aufzeichnungen sind richtig: Beide Seiten erkennen dieselbe
+/// Schwelle im selben Takt. Falsch war allein, sie als Sieg zu **deuten**.
+///
+/// # Der Spielertod dreht sich nicht mit
+///
+/// Die Umkehrung betrifft das ZIEL, nicht den eigenen Tod. Ein toter Spieler
+/// hat auch dann verloren, wenn der Boss davonlaeuft — sonst gewaenne er durch
+/// Sterben. `combat.ts` haelt denselben Satz an derselben Stelle fest.
+#[must_use]
+pub fn siege(samples: &[Sample], boss: &Boss) -> usize {
+    let umgekehrt = boss.runaway.is_some();
+    samples
+        .iter()
+        .filter(|s| {
+            if umgekehrt {
+                s.killed_at_ms.is_none() && s.died_at_ms.is_none()
+            } else {
+                s.killed_at_ms.is_some()
+            }
+        })
+        .count()
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
@@ -665,7 +722,14 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         base_seed: config.base_seed,
         threads,
         damage: Statistics::from_sorted(&damage_values),
-        kills: kill_values.len(),
+        // **Nicht `kill_values.len()`** — das zaehlte bei einem Boss mit
+        // umgekehrtem Ziel die Niederlagen. Siehe `siege`.
+        kills: siege(&samples, config.boss),
+        // `kill_time_ms` bleibt der Zeitpunkt, zu dem die Lebenspunkte fielen.
+        // Bei einem umgekehrten Boss ist das die Zeit bis zum UEBERDRUCK, nicht
+        // bis zum Sieg — die Groesse ist dieselbe geblieben, nur ihr Name passt
+        // dort nicht. Sie umzubenennen waere eine Schnittstellenaenderung an
+        // einer Stelle, die dieses Issue nicht anfasst.
         kill_time_ms: Statistics::from_sorted(&kill_values),
         death_time_ms: Statistics::from_sorted(&death_values),
         damage_taken: Statistics::from_sorted(&taken_values),
