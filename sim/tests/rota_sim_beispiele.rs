@@ -21,11 +21,8 @@
 //! mit `FEHLER`. Ein Beispiel, dessen Angabe es nicht mehr gibt, landet dort —
 //! egal welchen Rueckgabewert es hat.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
-
-/// Das gebaute Programm. Cargo setzt die Variable fuer Integrationstests.
-const PROGRAMM: &str = env!("CARGO_BIN_EXE_rota-sim");
+mod gemeinsam;
+use gemeinsam::rufe;
 
 /// Die Unterbefehle, deren Hilfe geprueft wird — plus die Wurzel.
 ///
@@ -36,34 +33,6 @@ const PROGRAMM: &str = env!("CARGO_BIN_EXE_rota-sim");
 const UNTERBEFEHLE: [&str; 7] = [
     "run", "bench", "verify", "hosts", "status", "explain", "data",
 ];
-
-/// Das Wurzelverzeichnis des Projekts.
-///
-/// Cargo startet Integrationstests im Paketverzeichnis (`sim/`), die Beispiele
-/// aus der Hilfe gelten aber vom Projekt-Wurzelverzeichnis aus — dort steht
-/// `sim/apl/step1-good.apl`. Ohne diesen Wechsel scheitert genau das eine
-/// Beispiel, das eine Datei nennt, und zwar mit einer Meldung ueber einen
-/// Pfad, der voellig richtig ist.
-fn wurzel() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("sim/ hat ein Elternverzeichnis")
-        .to_path_buf()
-}
-
-/// Ruft das Programm mit den Argumenten und liefert (Rueckgabewert, stdout, stderr).
-fn rufe(argumente: &[&str]) -> (i32, String, String) {
-    let ausgabe = Command::new(PROGRAMM)
-        .args(argumente)
-        .current_dir(wurzel())
-        .output()
-        .unwrap_or_else(|fehler| panic!("{PROGRAMM} liess sich nicht starten: {fehler}"));
-    (
-        ausgabe.status.code().unwrap_or(-1),
-        String::from_utf8_lossy(&ausgabe.stdout).into_owned(),
-        String::from_utf8_lossy(&ausgabe.stderr).into_owned(),
-    )
-}
 
 /// Ist die Zeile eine Abschnittsueberschrift?
 ///
@@ -256,7 +225,13 @@ fn die_platzhalter_nennen_beim_aufruf_keine_zahl() {
     // Uebernommen aus #897 und hier verschaerft: Auch die HILFE der Platzhalter
     // bleibt ohne Ziffer, damit die Zusicherung nicht zwischen zwei Aufrufarten
     // unterscheiden muss.
-    for name in ["verify", "hosts", "status", "explain"] {
+    //
+    // `explain` gehoerte dazu, bis #969 ihn gebaut hat. Er gibt jetzt Zahlen
+    // aus und einen Rueckgabewert von null — die Liste hier ist der Ort, an dem
+    // dieser Uebergang sichtbar wird.
+    // `verify` gehörte dazu, bis #970 ihn gebaut hat — derselbe Übergang wie
+    // bei `explain` mit #969. Zwei bleiben.
+    for name in ["hosts", "status"] {
         let (code, stdout, stderr) = rufe(&[name]);
         assert_eq!(code, 1, "'{name}' gab {code} zurueck statt eins");
         assert!(stderr.is_empty(), "'{name}' schrieb auf den Fehlerkanal");
