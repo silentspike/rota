@@ -96,6 +96,16 @@ const TEST_CHANNEL_SHIELD_JSON: &str = "../data/spells/test-channel-shield.json"
 /// Bedingung fuer AC1 aus Issue #96: Ein neuer Boss entsteht als Datendatei,
 /// ohne dass eine Zeile Programmcode geaendert wird.
 const BOSSES_DIR: &str = "../data/bosses";
+
+/// Die aufgezeichneten Runden, die `rota-sim verify` gegen den Simulator haelt
+/// (#970).
+///
+/// **Sie liegen unter `tests/`, werden aber NICHT nur von Tests gebraucht.**
+/// Ein `[[bin]]` hat keinen Zugriff auf `serde_json` — das steht unter
+/// `[dev-dependencies]` —, kann die Dateien also nicht lesen. Eingebettet
+/// braucht der Selbsttest zur Laufzeit kein JSON, und die Bibliothek bleibt
+/// abhaengigkeitsfrei.
+const RECORDINGS_DIR: &str = "../tests/parity/recordings";
 /// Die Grundwerte des Spielers, relativ zum Paketverzeichnis `sim/`.
 const PLAYER_JSON: &str = "../data/player/base.json";
 const LEVELS_JSON: &str = "../data/player/levels.json";
@@ -131,6 +141,9 @@ fn main() {
     println!("cargo:rerun-if-changed={BOSSES_DIR}");
     println!("cargo:rerun-if-changed={PLAYER_JSON}");
     println!("cargo:rerun-if-changed={LEVELS_JSON}");
+    // Auf das Verzeichnis, aus demselben Grund wie bei den Bossen: Eine neue
+    // Aufzeichnung soll den Bau ausloesen, nicht stillschweigend fehlen.
+    println!("cargo:rerun-if-changed={RECORDINGS_DIR}");
     println!("cargo:rerun-if-changed=build.rs");
 
     let spells = read_json(SPELLS_JSON);
@@ -206,6 +219,18 @@ fn main() {
     // darueber. Sie steht zuletzt, weil sie nichts erzeugt, worauf die anderen
     // sich stuetzen — sie beschreibt nur, was die anderen bereits tragen.
     emit_effects(&mut out, &spells, &weitere, &bosses);
+    // **Nach den Zaubern**, weil die Belegung einer Aufzeichnung Zauber-NAMEN
+    // nennt und hier zu Indizes aufgeloest wird (#970).
+    //
+    // Die Reihenfolge kommt aus `zauber_liste` — derselben Quelle, aus der
+    // auch die Zauber-Tabelle und die Wirkungsbeschreibung entstehen. Sie ein
+    // drittes Mal zusammenzusetzen waere genau die Drift, gegen die #911 die
+    // Funktion ausgelagert hat.
+    let spell_ids: Vec<String> = zauber_liste(&spells, &weitere)
+        .iter()
+        .map(|(spell, _)| text(spell, "id", "calcination.json/spells[]").to_owned())
+        .collect();
+    emit_recordings(&mut out, &spell_ids);
 
     let dest = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR fehlt")).join("data_generated.rs");
     fs::write(&dest, out).unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", dest.display()));
@@ -394,9 +419,9 @@ fn emit_resource(out: &mut String, spells: &Value) {
 /// deutet jede alte Aufzeichnung still um.
 /// Die Zauber aller Dateien in **einer** festen Reihenfolge.
 ///
-/// Ausgelagert, weil zwei Stellen sie brauchen: [`emit_spells`] fuer die
-/// Zauber-Tabelle und [`emit_effects`] fuer die Wirkungsbeschreibung (Issue
-/// #911). Zwei getrennte Aufbauten waeren zwei Listen, die auseinanderlaufen
+/// Ausgelagert, weil DREI Stellen sie brauchen: [`emit_spells`] fuer die
+/// Zauber-Tabelle, [`emit_effects`] fuer die Wirkungsbeschreibung (Issue #911)
+/// und [`emit_recordings`] fuer die Belegung der Aufzeichnungen (Issue #970). Zwei getrennte Aufbauten waeren zwei Listen, die auseinanderlaufen
 /// koennen — und genau diese Sorte Drift ist der Anlass fuer #911.
 fn zauber_liste<'a>(
     spells: &'a Value,
@@ -2298,7 +2323,10 @@ fn knoten_fuer_zauber(knoten: &mut Vec<Knoten>, spell: &Value) {
             // beim Tick gesetzt, nicht beim Auflegen.
             timing: "TimingSemantics::Live",
             stacking: "StackingSemantics::Refresh",
-            randomness: "RandomnessSemantics::Stream(\"dot-tick\")".to_string(),
+            // **Der echte Strom, nicht sein Name** (Issue #966). Hier stand
+            // `"dot-tick"`, waehrend der Strom in `rng.rs` `"dotTick"` heisst —
+            // die Zeichenkette zeigte auf nichts, und nichts hat es gemeldet.
+            randomness: "RandomnessSemantics::Stream(crate::rng::Stream::DotTick)".to_string(),
             monotonie: monotonie_steigend(),
             bounds: "Bounds { min: Some(0), max: None }".to_string(),
             control_flow: "ControlFlowEffect::NONE".to_string(),
@@ -2986,4 +3014,206 @@ fn pruefe_boss_wirkung_vollstaendig(boss: &Value, datei: &str, herkuenfte: &[Str
          unbeschrieben, waehrend jeder Boss dank `resistances` Knoten hatte — eine Zaehlung \
          ueber BOSSE haette das nie gemeldet, nur eine ueber WIRKUNGEN."
     );
+}
+
+// ------------------------------------------------------- Aufzeichnungen (#970)
+
+/// Kompiliert die aufgezeichneten Runden ein, die `rota-sim verify` prueft.
+///
+/// # Warum nur ein Teil der Dateien
+///
+/// `tests/parity/recordings/` enthaelt 86 Dateien in 47 verschiedenen Formen.
+/// Die wenigsten sind aufgezeichnete Runden: Darunter liegen Pruefdaten fuer
+/// Ausruestung, fuer Ereignisstroeme, fuer Buff-Ablaeufe — Dinge, die keinen
+/// Kampf nachspielen und keine Belegung haben. Gemessen am 2026-08-18 tragen
+/// **65 von 86** die vier Felder, die eine Runde ausmachen; die groesste Datei
+/// von allen (`coagulation.json`, 665 KB) ist keine.
+///
+/// Die Auswahl ist deshalb keine Stichprobe, sondern die vollstaendige Menge
+/// derer, die sich abspielen lassen. Wieviele es waren, steht als Konstante im
+/// Generat — sonst waere aus "65" spaeter eine Zahl ohne Bezug.
+///
+/// # Warum nur die letzte Pruefsumme
+///
+/// Alle Takt-Pruefsummen waeren 230 999 Werte und rund 2,64 MB Rust-Code; die
+/// letzte je Aufzeichnung sind 65 Werte. Faktor dreissig. Der Preis steht im
+/// Doc von [`rota_sim::replay::EmbeddedRecording`] und in der Ausgabe von
+/// `verify`: Eine Abweichung zeigt sich, aber nicht der Takt, in dem sie
+/// beginnt.
+fn emit_recordings(out: &mut String, spell_ids: &[String]) {
+    let dir = Path::new(RECORDINGS_DIR);
+    let mut dateien: Vec<PathBuf> = fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("{RECORDINGS_DIR} nicht lesbar: {e}"))
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+        .collect();
+    dateien.sort();
+    let gesamt = dateien.len();
+    assert!(gesamt > 0, "{RECORDINGS_DIR} enthaelt keine Datei");
+
+    let mut brauchbar = Vec::new();
+    let mut fremder_zauber = 0usize;
+
+    for pfad in &dateien {
+        let json = read_json_at(pfad);
+        let Some(eintrag) = lies_aufzeichnung(&json, pfad, spell_ids, &mut fremder_zauber) else {
+            continue;
+        };
+        brauchbar.push(eintrag);
+    }
+
+    let _ = writeln!(
+        out,
+        "/// Aufgezeichnete Runden, zur Bauzeit aus `tests/parity/recordings/`\n\
+         /// eingebettet (#970).\n\
+         ///\n\
+         /// Sie tragen NUR die Pruefsumme des letzten Takts. Eine Abweichung\n\
+         /// zeigt damit, DASS eine Aufzeichnung auseinandergeht — nicht, in\n\
+         /// welchem Takt. Dafuer gibt es `cargo test --test parity_recording`."
+    );
+    let _ = writeln!(
+        out,
+        "pub static RECORDINGS: [crate::replay::EmbeddedRecording; {}] = [",
+        brauchbar.len()
+    );
+    for a in &brauchbar {
+        let _ = writeln!(out, "    crate::replay::EmbeddedRecording {{");
+        let _ = writeln!(out, "        name: {:?},", a.name);
+        let _ = writeln!(out, "        seed: {},", a.seed);
+        let _ = writeln!(out, "        ticks: {},", a.ticks);
+        let _ = write!(out, "        bindings: &[");
+        for (slot, spell) in &a.bindings {
+            let _ = write!(out, "({slot}, {spell}),");
+        }
+        let _ = writeln!(out, "],");
+        let _ = write!(out, "        presses: &[");
+        for (tick, slot) in &a.presses {
+            let _ = write!(out, "({tick}, {slot}),");
+        }
+        let _ = writeln!(out, "],");
+        let _ = writeln!(out, "        final_checksum: {},", a.final_checksum);
+        match &a.boss_id {
+            Some(id) => let_boss(out, id),
+            None => {
+                let _ = writeln!(out, "        boss_id: None,");
+            }
+        }
+        let _ = writeln!(out, "    }},");
+    }
+    let _ = writeln!(out, "];\n");
+
+    // **Die drei Zahlen gehoeren ins Generat, nicht in einen Kommentar.**
+    // `verify` nennt sie in seiner Ausgabe; ohne sie waere "65 geprueft" eine
+    // Zahl ohne Bezugsgroesse, und niemand saehe, dass 21 Dateien gar keine
+    // Aufzeichnungen sind.
+    let _ = writeln!(
+        out,
+        "/// Wie viele Dateien in `tests/parity/recordings/` liegen — auch die,\n\
+         /// die keine Aufzeichnung sind.\n\
+         pub const RECORDING_FILES_TOTAL: usize = {gesamt};\n"
+    );
+    let _ = writeln!(
+        out,
+        "/// Wie viele davon uebersprungen wurden, weil sie keine abspielbare\n\
+         /// Runde beschreiben (fehlende Belegung, keine Tastendruecke, keine\n\
+         /// Pruefsummen).\n\
+         pub const RECORDINGS_SKIPPED: usize = {};\n",
+        gesamt - brauchbar.len()
+    );
+    let _ = writeln!(
+        out,
+        "/// Wie viele uebersprungen wurden, weil sie einen Zauber nennen, den\n\
+         /// dieser Bau nicht kennt. Teilmenge von [`RECORDINGS_SKIPPED`].\n\
+         pub const RECORDINGS_SKIPPED_UNKNOWN_SPELL: usize = {fremder_zauber};\n"
+    );
+}
+
+/// Liest eine Datei als Aufzeichnung — oder `None`, wenn sie keine ist.
+///
+/// Die Felder sind dieselben, die `tests/parity_recording.rs` liest. Fehlt
+/// eines, ist die Datei keine Runde; das ist kein Fehler, sondern der
+/// Normalfall fuer einundzwanzig der Dateien.
+#[allow(clippy::type_complexity)]
+fn lies_aufzeichnung(
+    json: &Value,
+    pfad: &Path,
+    spell_ids: &[String],
+    fremder_zauber: &mut usize,
+) -> Option<Aufzeichnung> {
+    let bindings_json = json.get("bindings")?.as_array()?;
+    let presses_json = json.get("presses")?.as_array()?;
+    let ticks = u32::try_from(json.get("ticks")?.as_u64()?).ok()?;
+    let checksums = json.get("checksums")?.as_array()?;
+    let letzte = checksums.last()?.as_u64()?;
+    let final_checksum = u32::try_from(letzte).ok()?;
+
+    let mut bindings = Vec::with_capacity(bindings_json.len());
+    for eintrag in bindings_json {
+        let spell_id = eintrag.get("spellId")?.as_str()?;
+        let slot = u8::try_from(eintrag.get("slot")?.as_u64()?).ok()?;
+        // **Ein unbekannter Zauber ist kein Baufehler.** Eine Aufzeichnung
+        // kann aus einer Zeit stammen, in der es einen Zauber gab, den es
+        // heute nicht mehr gibt — dann laesst sie sich nicht abspielen, und
+        // der Bau soll deshalb nicht abbrechen. Gezaehlt wird es trotzdem.
+        let Some(index) = spell_ids.iter().position(|id| id == spell_id) else {
+            *fremder_zauber += 1;
+            return None;
+        };
+        bindings.push((slot, index));
+    }
+
+    let mut presses = Vec::with_capacity(presses_json.len());
+    for eintrag in presses_json {
+        let tick = u32::try_from(eintrag.get("tick")?.as_u64()?).ok()?;
+        let slot = u8::try_from(eintrag.get("slot")?.as_u64()?).ok()?;
+        presses.push((tick, slot));
+    }
+
+    // Der Startwert fehlt in manchen Dateien; das Spiel schreibt ihn nur, wo
+    // er etwas aendert. Null ist derselbe Vorgabewert wie in `FightConfig`.
+    let seed = json
+        .get("seed")
+        .and_then(Value::as_u64)
+        .and_then(|s| u32::try_from(s).ok())
+        .unwrap_or(0);
+
+    let name = pfad
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    let boss_id = json
+        .get("bossId")
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned);
+
+    Some(Aufzeichnung {
+        name,
+        seed,
+        ticks,
+        bindings,
+        presses,
+        final_checksum,
+        boss_id,
+    })
+}
+
+/// Was `lies_aufzeichnung` einer Datei entnimmt.
+///
+/// Als Struktur statt als Tupel, seit `bossId` dazukam: Ein Tupel mit sieben
+/// Feldern, davon zwei vom selben Typ, ist die naechste Stelle, an der jemand
+/// zwei Werte vertauscht — und der Fehler waere still.
+struct Aufzeichnung {
+    name: String,
+    seed: u32,
+    ticks: u32,
+    bindings: Vec<(u8, usize)>,
+    presses: Vec<(u32, u8)>,
+    final_checksum: u32,
+    boss_id: Option<String>,
+}
+
+/// Schreibt die Boss-Kennung einer Aufzeichnung ins Generat.
+fn let_boss(out: &mut String, id: &str) {
+    let _ = writeln!(out, "        boss_id: Some({id:?}),");
 }
