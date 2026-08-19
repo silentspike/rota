@@ -48,6 +48,9 @@ use rota_sim::time::Millis;
 /// Eine schadensstarke Liste — der Spieler haelt hier nicht durch.
 const VIEL_SCHADEN: &str = include_str!("../apl/e607-flashpoint.apl");
 
+/// Eine sparsame Liste — sie uebersteht die Frist, ohne zu sterben.
+const SPARSAM: &str = include_str!("../apl/e939-schutz.apl");
+
 /// Ein Durchgang mit frei gesetztem Ausgang.
 ///
 /// Die übrigen Felder tragen Nullen: Dieser Prüfstand fragt allein, wie ein
@@ -255,5 +258,44 @@ fn die_beiden_todesfelder_sagen_an_echten_durchgaengen_dasselbe() {
          aus Fight::died_at — laufen sie auseinander, hat jemand player_dead() \
          oder died_at_ms() geaendert, und die Auswertung liest je nach Stelle \
          das eine oder das andere"
+    );
+
+    // ---- Die ZWEITE Lage, und sie ist Worker-3s Beitrag ----
+    //
+    // Der Lauf darüber prüft die Gleichheit dort, wo GESTORBEN wird. Eine
+    // Umkehrung von `todesfelder_stimmen` — `s.died != s.died_at_ms.is_some()`
+    // — würde er nicht fangen: Bei zwanzig Toten wäre auch die Umkehrung
+    // überall gleich falsch und der Vergleich einheitlich.
+    //
+    // Deshalb ein zweiter Lauf, in dem NIEMAND stirbt. Erst beide Lagen
+    // zusammen prüfen die Gleichheit in beide Richtungen.
+    //
+    // Worker-3 hat das am laufenden Programm gemessen, bevor es hier stand:
+    // vierzig Durchgänge in zwei Lagen, zwanzig mit Tod und zwanzig ohne, keine
+    // Abweichung. Meine erste Fassung hatte nur die eine Lage.
+    let sanft = boss_by_id("boss-2-3").expect("boss-2-3 fehlt");
+    let schutz = parse(AplName("e939-schutz"), SPARSAM).expect("die Liste ist gueltig");
+    let ohne_tod = run(
+        &BalanceConfig {
+            iterations: 20,
+            base_seed: 4242,
+            threads: 1,
+            boss: sanft,
+            ..BalanceConfig::default()
+        },
+        &schutz,
+    );
+
+    let tode_ohne = ohne_tod.samples.iter().filter(|s| s.died).count();
+    assert_eq!(
+        tode_ohne, 0,
+        "Kontrollzeile der zweiten Lage: hier darf NIEMAND sterben, sonst ist es \
+         dieselbe Lage wie oben und die Gegenrichtung bleibt ungeprueft"
+    );
+
+    assert!(
+        todesfelder_stimmen(&ohne_tod.samples),
+        "auch ohne einen einzigen Todesfall muessen beide Felder dasselbe sagen \
+         — eine Umkehrung der Gleichheit faellt genau hier auf und nicht oben"
     );
 }
