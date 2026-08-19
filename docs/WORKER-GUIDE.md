@@ -7528,3 +7528,195 @@ keine log. Vier Sitzungen haben unabhängig voneinander dieselbe Bewegung gemach
 naheliegendste Quelle gelesen und ihre Antwort für die eigene Frage genommen. Was die Fälle
 aufgedeckt hat, war jedes Mal **eine zweite Ablesung aus einer anderen Richtung** — nie das
 Nachdenken über die erste.
+
+### 8.111 Eine Mutation, die nichts bewirkt, sieht aus wie eine fehlende Deckung
+
+Am 2026-08-19 lief eine Mutationsserie über `sim/src/domaene.rs`. Sechzehn von siebzehn
+Mutationen machten den erwarteten Prüffall rot. Eine blieb grün:
+
+```rust
+// vorher
+let erster = treffer.next()?;
+// mutiert
+let erster = treffer.next().unwrap_or(&WIRKGROESSEN[0]);
+```
+
+Erwartet war rot in `abhaengigkeiten_unterscheiden_drei_faelle`, dem Fall für einen Namen,
+den es nicht gibt. Der naheliegende Schluss: Der Prüffall deckt den Zweig nicht.
+
+**Er deckt ihn.** Durchgespielt für einen unbekannten Namen:
+
+```
+treffer ist leer
+treffer.next()          -> None -> unwrap_or -> erster = WIRKGROESSEN[0]
+treffer.next()          -> None
+.map(|_| erster.name)   -> NONE
+```
+
+Die Mutation ändert den **ersten** `next()`, aber der **zweite** entscheidet. Ihr Effekt wird
+eine Zeile später aufgehoben. Eine wirksame Fassung — ein unbekannter Name liefert `Some` —
+machte den Fall sofort rot.
+
+> Wird eine Mutation nicht rot, prüfe zuerst, ob sie überhaupt wirkt: Erreicht der gefahrene
+> Weg die geänderte Stelle, und überlebt ihr Effekt bis zum Ergebnis? Erst wenn beides ja ist,
+> ist es eine Deckungslücke. Sonst hat man eine Zeile geändert, die keinen Unterschied macht,
+> und meldet einen Prüffall als blind, der sieht.
+
+### 8.112 Wo nichts brechen kann, braucht es eine Mutation, die es beweist
+
+Am 2026-08-19 kam `MonotonicityDomain::SpellDiversity` als fünfte Variante dazu. Vor dem Bau
+wurde gezählt, wie viele Stellen brechen würden:
+
+```
+erschöpfende matches über MonotonicityDomain     0
+Kontrolle: matches in passes.rs überhaupt       15   (alle über EffectOp)
+Vorkommen außerhalb domaene.rs                  13   (alle matches!/==)
+```
+
+Keine. Der Bau lief grün durch — wie vorhergesagt. **Und genau das ist die Gefahr:** Eine
+Variante, die keinen Bau bricht, ist eine Variante ohne Wächter. Niemand merkt, wenn sie
+nirgends behandelt wird.
+
+Zwei Läufe zusammen machen daraus eine Aussage:
+
+|                                  |                                                             |
+| -------------------------------- | ----------------------------------------------------------- |
+| **V0** Bau nach der Änderung     | bricht nicht — als **Vorhersage** notiert, nicht als Erfolg |
+| **V1** Variante wieder entfernen | bricht an 5 Stellen                                         |
+
+> Ohne V1 wäre „nichts bricht" nicht von „nichts benutzt sie" zu unterscheiden. Und V0 gehört
+> als Vorhersage hingeschrieben, bevor gebaut wird: Ein grüner Bau sieht sonst wie eine
+> Bestätigung aus und ist in Wahrheit nur die Abwesenheit einer Überraschung.
+
+Dieser Abschnitt ist der einzige dieser Reihe, der von einem Fall handelt, in dem **nichts
+passiert**. Die übrigen setzen an einem sichtbaren Fehler an — einer roten Zeile, einem
+falschen Exit-Code, einer irreführenden Ausgabe. Hier gibt es nichts zu sehen, und genau
+deshalb braucht es die Gegenprobe.
+
+V1 traf mit fünf statt der vorhergesagten sechs Stellen. Der Grund war ein Zählfehler, kein
+Mangel: Von sieben Nennungen sind zwei Doc-Kommentare — und das Prüfmuster kannte nur `///`,
+nicht `//!`.
+
+### 8.113 Ein Zähler, der bei null einen Fehler-Exit liefert, alarmiert im guten Fall
+
+Die bessere Art, CI-Checks zu zählen, ist **nicht bestanden** statt **bestanden** — ein
+übersprungener Job tarnt sich sonst als grüne Liste. Am 2026-08-19 meldete ein
+Hintergrundlauf dazu:
+
+```
+Background command "CI von #1014 abwarten" failed with exit code 1
+```
+
+Die CI war grün, 11 von 11. Der Exit stammte aus der Zählzeile selbst:
+
+```bash
+gh pr checks 1014 | grep -avc "pass"     # 0 Treffer -> grep gibt Exit 1
+```
+
+`grep -c` antwortet auf „wie viele" nicht nur mit einer Zahl, sondern zusätzlich mit einem
+Zustand. Als **letzter** Befehl einer Kette setzt dieser Zustand den Exit-Code des ganzen
+Blocks — und zwar genau dann, wenn das Ergebnis das gewünschte ist.
+
+> Die Zählweise bleibt richtig. Nur darf ein Zähler, der bei null einen Fehler-Exit liefert,
+> nicht am Ende einer Kette stehen: `|| true` anhängen, oder eine Ausgabe danach setzen. Ein
+> falscher Exit-Code neben einer richtigen Zahl ist gefährlicher als beides falsch — er
+> beglaubigt nichts und alarmiert trotzdem.
+
+### 8.114 Ein `ps`-Filter nach Programmnamen kann nicht nach Rolle trennen
+
+Eine Fensterabgabe wird mit einer Prozessliste belegt. Am 2026-08-19 lautete sie:
+
+```bash
+ps -eo pid,args | grep -E "vitest|tsc|cargo|rota_sim|tests-lokal"
+```
+
+Sie lieferte drei Zeilen — und keine davon gehörte der meldenden Sitzung:
+
+```
+/bin/bash -c ... cd /work/rota-worktrees/e9 ... cargo-remote-fmt
+/bin/bash /home/jan/bin/cargo-remote-fmt
+ssh root@10.0.0.155 cd '/tmp/cargo-remote-fmt/e9' && rustup update ...
+```
+
+`cargo-remote-fmt`, `vitest`, `cargo`, `tests-lokal` laufen in allen Worktrees gleich. Der
+Programmname sagt nichts darüber, **wer** den Prozess gestartet hat. Was trennt, ist der Pfad:
+
+```bash
+ps -eo pid,args | grep "rota-worktrees/e1\b"      # 0
+ps -eo pid,args | grep "cargo-remote-fmt/e1\b"    # 0
+```
+
+> Eine Abgabe-Prozessliste ohne Pfadfilter belegt nur, dass _irgendwer_ nichts tut. Sie kann
+> eine fremde Messung zeigen und wie die eigene aussehen — oder die eigene übersehen, weil sie
+> unter einem Namen läuft, den der Filter nicht kennt.
+
+Derselbe Fehler steckte in `rota-fenster`: Es filterte nach `messumgebung|tests-lokal|target/debug/deps`
+und meldete deshalb „es rechnet etwas", während der Lauf einer anderen Sitzung gehörte.
+
+### 8.115 Eine Folgerung wandert mit der Messung, wenn sie danebensteht
+
+Am 2026-08-19 wurde ein drei Wochen alter Zweig vermessen:
+
+```
+feat/e7-1-loss-analysis   641 neue Zeilen, 155 in main, 486 eigen
+                          src/analysis/losses.ts        FEHLT in main
+                          tests/unit/losses.test.ts     FEHLT in main
+                          src/analysis/report-view.ts   FEHLT in main
+```
+
+Daraus wurde im selben Absatz gefolgert: _ein ganzes Modul, das nirgends steht._ Die Zahlen
+stimmten. Die Folgerung war falsch — in main existiert `src/analysis/loss-sources.ts`,
+dieselbe Sache unter anderem Namen, umfangreicher und mit fünf Aufrufern.
+
+Ein Zeilenvergleich kann das nicht finden: Die zweite Umsetzung hat andere Dateinamen, andere
+Funktionsnamen, andere Struktur. **„Die Datei fehlt in main" und „die Sache fehlt in main" sind
+zwei verschiedene Aussagen** — gemessen war die erste, nahegelegt die zweite.
+
+**Der Orchestrator hat die Folgerung mit übernommen** und sie als Fund in einen Bericht an den
+Auftraggeber geschrieben — an einem Tag, an dem er dreimal selbst darüber geschrieben hatte,
+dass eine Angabe ohne ihren Bezug weiterwandert.
+
+> Trenne, was gemessen ist, von dem, was daraus folgt — durch einen eigenen Absatz oder ein
+> Wort davor. Eine Folgerung, die neben der Zahl steht, sieht aus wie ihr Teil und wandert mit
+> ihr weiter. Wer eine fremde Messung zusammenfasst, schreibt dazu, **wer** gefolgert hat.
+
+Der Name gehört hier hin, und zwar auf Wunsch des Betroffenen: „Ohne den Namen liest sich das
+wie ein Anfängerfehler. Mit dem Namen liest es sich wie das, was es ist — ein Fehler, den man
+auch macht, wenn man ihn kennt."
+
+### 8.116 Befehl und Meldung im selben Aufruf machen aus der Meldung eine Vorhersage
+
+Am 2026-08-19 wurde dreimal innerhalb von zwei Stunden dasselbe gemeldet, was nicht gemessen
+war. Jedes Mal stand der Meldungstext im selben Aufruf wie der Befehl — also fest, bevor die
+Ausgabe existierte:
+
+```
+Meldung                     behauptet          gemessen
+────────────────────────────────────────────────────────────
+Abgabe-Prozessliste         "keine Zeile"      14 Zeilen
+dieselbe, nachgebessert     "keine Zeile"       3 Zeilen (fremde Sitzung)
+Zeilenzahl eines Entwurfs   118                154
+```
+
+Im dritten Fall gab **derselbe Aufruf** die richtige Zahl zwei Zeilen weiter oben aus. Sie stand
+vor dem Verfasser, während er die falsche hinschrieb.
+
+Ein Text, der vor seiner Messung entsteht, ist keine Meldung, sondern eine Vorhersage — und er
+wird gelesen, als wäre er abgelesen. Der Empfänger kann den Unterschied nicht sehen: Beide
+Fassungen stehen in derselben Nachricht, in derselben Form, mit derselben Bestimmtheit.
+
+> Die Abhilfe ist keine Regel, sondern eine **Reihenfolge**: erst messen, dann schreiben, nie
+> beides in einem Aufruf. Eine Regel kann man zu befolgen vergessen; eine Reihenfolge hält man
+> ein oder nicht, und man sieht es am Aufruf.
+
+**Die Klasse ist nicht die Unaufmerksamkeit eines Einzelnen.** Am selben Abend, mit derselben
+Klasse vor Augen:
+
+- Worker-3 beging seine viermal — beim dritten Mal in dem Absatz, der sie beschreibt, beim
+  vierten in der Abhilfe selbst.
+- Der Orchestrator zweimal, davon einmal in der Nachricht, in der er einem anderen die
+  mechanische Abhilfe erklärte.
+- Worker-1 dreimal, während er diesen Abschnitt vorbereitete.
+
+Drei von vier Sitzungen, an einem Abend. Wer daraus schließt, er müsse nur aufmerksamer sein,
+hat den Abschnitt nicht verstanden: Alle drei kannten die Klasse, als sie sie begingen.
