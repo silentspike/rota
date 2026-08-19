@@ -7451,6 +7451,26 @@ Zahl gewinnen kann.
 > bedient wird und weiterläuft. Das ist 8.105 von der anderen Seite: Eine Abhilfe soll laut
 > kaputtgehen.
 
+**Ein Nachtrag, der beim Beheben entstand.** Die Zeile `DATEIEN=(...)` oben ist inzwischen
+korrigiert — der Wächter liest die Dokumente jetzt ab, statt sie aufzuzählen. Und dabei fiel eine
+zweite Schicht derselben Klasse auf, eine Ebene tiefer:
+
+Der Wächter trug eine Kontrollzeile gegen seinen eigenen blinden Fleck — _findet das Muster
+weniger als **zehn** Nummern, brich ab, statt „keine Dubletten" zu melden_. Die Schwelle stammte
+aus der Zeit, als er nur zwei große Dateien kannte (91 und 77 Nummern). Sobald er alle fünf las,
+brach sie bei den kleinen ab: `STEP1-SPEC.md` trägt 4, `VERIFICATION.md` 5.
+
+Gemessen mit einer künstlich eingebauten Dublette in `VERIFICATION.md`: **Sie wurde nicht
+gemeldet.** Der Wächter war rot — aber wegen der Schwelle, und der `continue` dahinter übersprang
+die Dublettenprüfung. Rot aus dem falschen Grund, und der echte Befund fiel unter den Tisch.
+
+> Eine Schutzmaßnahme, deren Schwelle aus einem anderen Zusammenhang stammt, **verdeckt genau das,
+> wovor sie schützen soll** — und sie tut es, während sie Alarm schlägt.
+
+Die Schwelle ist jetzt 1 und prüft etwas anderes: Die Dateiauswahl nimmt nur Dokumente **mit**
+Treffern. Findet die Zählung darin trotzdem keinen, sind die beiden Muster im Skript
+auseinandergelaufen — ein Fehler im Werkzeug, kein Befund über das Dokument.
+
 **Warum dieser Teil so ausführlich ist.** Der Fehler trat an einem Abend sechsmal auf — viermal bei
 dem, der den Abschnitt schreibt, zweimal bei dem, der ihn anregte, und jedes Mal in einer Nachricht
 _über_ genau diesen Fehler. Wer hier „mehr aufpassen" liest, hat den Beleg vor sich, dass das nicht

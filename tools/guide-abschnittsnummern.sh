@@ -29,7 +29,33 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-DATEIEN=(docs/WORKER-GUIDE.md docs/GAME-DESIGN.md)
+# **Abgelesen, nicht aufgezaehlt.** Die erste Fassung trug zwei Dateinamen fest
+# im Skript — und deckte damit zwei von fuenf Dokumenten ab, die
+# Abschnittsnummern tragen (suno-sfx.md, VERIFICATION.md und STEP1-SPEC.md
+# fehlten). Ein sechstes Dokument haette der Waechter nie zu sehen bekommen,
+# und er haette weiter brav "keine doppelt" gemeldet — ueber die zwei, die er
+# kannte.
+#
+# Eine Liste dort, wo eine Ablesung hingehoert: Der Waechter waechst dann nicht
+# mit dem Bestand, sondern muss gepflegt werden — und wer ihn pflegen muesste,
+# weiss nicht, dass er es muesste.
+DATEIEN=()
+for kandidat in docs/*.md; do
+  [ -f "$kandidat" ] || continue
+  # Nur Dokumente mit Abschnittsnummern. Die uebrigen zu pruefen waere nicht
+  # falsch, aber die Kontrollzeile unten wuerde sie als "Muster greift nicht"
+  # melden — und ein Waechter, der bei jedem Lauf ueber harmlose Dateien
+  # meckert, wird abgeschaltet.
+  if grep -qE '^#{2,4} [0-9]+\.[0-9]+ ' "$kandidat"; then
+    DATEIEN+=("$kandidat")
+  fi
+done
+
+if [ "${#DATEIEN[@]}" -eq 0 ]; then
+  echo "::error::Kein Dokument unter docs/ traegt Abschnittsnummern — das Muster greift nicht." >&2
+  exit 1
+fi
+
 fehler=0
 
 for datei in "${DATEIEN[@]}"; do
@@ -40,12 +66,27 @@ for datei in "${DATEIEN[@]}"; do
 
   # **Kontrollzeile, und sie ist der Grund, warum das Ergebnis etwas heisst.**
   # Findet das Muster gar nichts, meldet die Dublettenpruefung darunter
-  # "keine Dubletten" — ein gruenes Ergebnis aus dem falschen Grund. Genau die
-  # halbe Kontrolle, die im Guide unter 8.103 steht.
+  # "keine Dubletten" — ein gruenes Ergebnis aus dem falschen Grund.
+  #
+  # DIE SCHWELLE WAR ZUERST 10 UND WAR FALSCH. Sie stammte aus der Zeit, als
+  # das Skript nur den WORKER-GUIDE und GAME-DESIGN kannte (91 und 77
+  # Nummern). Seit die Dateien abgelesen statt aufgezaehlt werden, sind auch
+  # kleine dabei: STEP1-SPEC.md traegt 4, VERIFICATION.md 5. Die Schwelle
+  # brach dort ab — MIT `continue`, also VOR der Dublettenpruefung.
+  #
+  # Gemessen: Eine kuenstlich eingebaute Dublette in VERIFICATION.md wurde
+  # NICHT gemeldet. Der Waechter war rot, aber aus dem falschen Grund, und der
+  # echte Befund fiel unter den Tisch. Die Schutzmassnahme verdeckte genau
+  # das, wovor sie schuetzen sollte.
+  #
+  # DIE RICHTIGE SCHWELLE IST 1, und sie prueft jetzt etwas anderes: Die
+  # Dateiauswahl oben nimmt nur Dateien MIT Treffern. Findet die Zaehlung hier
+  # trotzdem keinen, sind die beiden Muster auseinandergelaufen — und das ist
+  # ein Fehler im Skript selbst, kein Befund ueber das Dokument.
   anzahl=$(printf '%s\n' "$nummern" | grep -c . || true)
-  if [ "$anzahl" -lt 10 ]; then
-    echo "::error file=$datei::Nur $anzahl Abschnittsnummern gefunden — das Muster greift nicht." >&2
-    echo "  Erwartet werden Ueberschriften der Form '### 8.103 Titel'." >&2
+  if [ "$anzahl" -lt 1 ]; then
+    echo "::error file=$datei::Die Auswahl fand Abschnittsnummern, die Zaehlung nicht." >&2
+    echo "  Die beiden Muster im Skript sind auseinandergelaufen." >&2
     fehler=1
     continue
   fi
