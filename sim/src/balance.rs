@@ -572,6 +572,133 @@ pub fn todeszeiten(samples: &[Sample]) -> Vec<f64> {
         .collect()
 }
 
+/// Wie viele Durchgaenge **gewonnen** wurden — mit der Umkehrung des Ziels.
+///
+/// # Warum das nicht `killed_at_ms.is_some()` ist
+///
+/// `killed_at_ms` sagt: der ausgeteilte Schaden hat die Lebenspunkte des Bosses
+/// erreicht. Bei einem Boss mit `runaway` ist genau das die **Niederlage** —
+/// der Ring ist auf null gelaufen, der Ueberdruck entsteht. Der Sieg ist dort
+/// das Ueberstehen der Frist.
+///
+/// Das Spiel fuehrt diese Unterscheidung seit Issue #247 (`combat.ts`,
+/// `checkDefeat`):
+///
+/// ```text
+///              | Ring auf 0 | Zeit abgelaufen
+/// gewoehnlich  | Sieg       | Niederlage
+/// runaway      | Niederlage | Sieg
+/// ```
+///
+/// Der Simulator fuehrte sie nicht. Gemessen am 2026-08-19, je 20 Durchgaenge
+/// gegen `boss-2-3`:
+///
+/// ```text
+/// apl/e939-schutz.apl       uebersteht die Frist   kills meldete  0
+/// apl/e607-flashpoint.apl   erzeugt Ueberdruck     kills meldete 20
+/// ```
+///
+/// In **beide** Richtungen das Gegenteil. Betroffen waren `kills`,
+/// `kill_rate()`, die Siegzahl im Ergebnisspeicher und die Ausgabe von
+/// `rota-sim run`.
+///
+/// # Warum hier und nicht in `fight.rs`
+///
+/// `killed_at` loest auch `stop_on_kill` aus und geht in die Trace-Hashes ein.
+/// Dort die Bedeutung zu drehen hiesse, jede Paritaets-Aufzeichnung zu brechen
+/// — und die Aufzeichnungen sind richtig: Beide Seiten erkennen dieselbe
+/// Schwelle im selben Takt. Falsch war allein, sie als Sieg zu **deuten**.
+///
+/// # Der Spielertod dreht sich nicht mit
+///
+/// Die Umkehrung betrifft das ZIEL, nicht den eigenen Tod. Ein toter Spieler
+/// hat auch dann verloren, wenn der Boss davonlaeuft — sonst gewaenne er durch
+/// Sterben. `combat.ts` haelt denselben Satz an derselben Stelle fest.
+#[must_use]
+pub fn siege(samples: &[Sample], boss: &Boss) -> usize {
+    let umgekehrt = boss.runaway.is_some();
+    samples
+        .iter()
+        .filter(|s| {
+            if umgekehrt {
+                // **`s.died`, nicht `s.died_at_ms.is_none()`** — gemeldet von
+                // Worker-3, und der Einwand traegt: `Sample` fuehrt den Tod in
+                // ZWEI Feldern, und `objective::Outcome::of` liest `died`. Zwei
+                // Lesarten im selben Auswertungspfad sichern einander nicht;
+                // liefen sie je auseinander, ergaeben Vertrag und Simulator
+                // verschiedene Siegzahlen, und der Prueffall auf ihre
+                // Uebereinstimmung fiele zu Recht — ohne zu sagen, warum.
+                //
+                // Heute KOENNEN sie nicht auseinanderlaufen, beide kommen aus
+                // `Fight::died_at`:
+                //
+                // ```text
+                // player_dead()  ->  self.died_at.is_some()   fight.rs:5493
+                // died_at_ms()   ->  self.died_at             fight.rs:3389
+                // ```
+                //
+                // Das ist der Grund, warum es bisher nichts kostete — und genau
+                // deshalb faellt es niemandem auf, wenn eine der beiden
+                // Funktionen sich aendert. `pruefe_todesfelder` haelt die
+                // Gleichheit deshalb als Zusicherung fest.
+                s.killed_at_ms.is_none() && !s.died
+            } else {
+                s.killed_at_ms.is_some()
+            }
+        })
+        .count()
+}
+
+/// Ob die beiden Todes-Felder eines Durchgangs dasselbe sagen.
+///
+/// # Warum es diese Funktion gibt
+///
+/// [`Sample`] fuehrt den Tod des Spielers doppelt: `died` als Wahrheitswert und
+/// `died_at_ms` als Zeitpunkt. Beide entstehen aus `Fight::died_at`, sind heute
+/// also zwangslaeufig gleich — aber **nichts haelt das fest**. Wer eine der
+/// beiden Quellfunktionen aendert, laesst sie auseinanderlaufen, und die
+/// Auswertung liest je nach Stelle die eine oder die andere:
+///
+/// ```text
+/// balance::siege             liest  died
+/// objective::Outcome::of     liest  died
+/// frueher: balance::siege    las    died_at_ms.is_none()
+/// ```
+///
+/// **Zwei Felder fuer dieselbe Sache sichern einander nicht.** Ein Prueffall
+/// ueber echte Durchgaenge tut es — deshalb steht diese Funktion oeffentlich und
+/// nicht als `debug_assert` im Erzeugungspfad: Ein `debug_assert` liefe in der
+/// CI mit, aber nicht im Release-Messlauf, und dort entstehen die Zahlen.
+///
+/// Gefunden hat den Mangel Worker-3, an meinem eigenen Fix aus PR #1000.
+#[must_use]
+pub fn todesfelder_stimmen(samples: &[Sample]) -> bool {
+    erster_todesfeld_widerspruch(samples).is_none()
+}
+
+/// Der erste Durchgang, dessen Todes-Felder einander widersprechen.
+///
+/// # Warum das nicht `bool` genuegt
+///
+/// Gemeldet von Worker-3: [`todesfelder_stimmen`] sagt, DASS etwas nicht stimmt,
+/// aber nicht WO. Bei einem einzigen abweichenden Durchgang unter tausend
+/// stuende in der Fehlermeldung „die Felder stimmen nicht" — und die Suche
+/// danach faengt bei null an.
+///
+/// **Ein Waechter wird genau in dem Moment gelesen, in dem er anschlaegt.** Was
+/// er dann nicht sagt, kostet Suchzeit, und zwar unter Zeitdruck.
+///
+/// Zurueck kommt der **Startwert** des Durchgangs, nicht sein Index: Der
+/// Startwert bestimmt den Durchgang vollstaendig und laesst sich einzeln
+/// nachfahren, ein Index in einer Stichprobe nicht.
+#[must_use]
+pub fn erster_todesfeld_widerspruch(samples: &[Sample]) -> Option<u32> {
+    samples
+        .iter()
+        .find(|s| s.died != s.died_at_ms.is_some())
+        .map(|s| s.seed)
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
@@ -580,12 +707,57 @@ pub fn todeszeiten(samples: &[Sample]) -> Vec<f64> {
 /// und ein stillschweigend gekürzter Mittelwert wäre schlimmer als ein Abbruch.
 #[must_use]
 pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
+    run_intern(config, apl, true)
+}
+
+/// Wie [`run`], aber die Reduktion aus #908 lässt sich abschalten.
+///
+/// **Der Bezugslauf für AC3.** „Bitgleich wie vorher" ist keine Aussage über
+/// eine gespeicherte Zahl, sondern über zwei Läufe derselben Konfiguration —
+/// und den zweiten kann nur erzeugen, wer die Reduktion ausschalten kann. Ohne
+/// diesen Schalter bliebe die Gleichheit behauptet.
+pub(crate) fn run_intern(config: &BalanceConfig, apl: &Apl, reduktion: bool) -> BalanceResult {
     let threads = config.threads.max(1);
     let iterations = config.iterations;
 
     let mut casts_total = [0u32; crate::data::SPELL_COUNT];
-    let mut samples: Vec<Sample> = if threads == 1 || iterations < 2 {
-        let (s, c) = run_range(config, apl, 0, iterations);
+    let mut samples: Vec<Sample> = if reduktion
+        && iterations > 1
+        && crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn)
+    {
+        // **Ein Durchgang statt fuenfzig bis zweihundert** (Issue #908, AC1).
+        //
+        // Die Bedingung ist abgeleitet, nicht `purity == 0`: Sobald irgendetwas
+        // wuerfelt, faellt sie von selbst auf `false` zurueck. Siehe
+        // [`crate::durchgaenge`].
+        let (einer, casts_eines, wuerfe) = run_range(config, apl, 0, 1);
+
+        // **Die Voraussetzung wird nachgeprueft, nicht geglaubt** (Auflage 2).
+        // Beschreibt ein Effekt seine Quelle falsch, reduziert die Ableitung
+        // einen Lauf, der streut — und das Ergebnis saehe plausibel aus. Diese
+        // Zeile ist die einzige Stelle, an der das auffaellt.
+        assert_eq!(
+            wuerfe, 0,
+            "reduziert auf einen Durchgang, aber es wurde {wuerfe}-mal gezogen — \
+             die abgeleitete Quellenmaske passt nicht zum Lauf"
+        );
+
+        // Der eine Kampf wird **vervielfacht statt hochgerechnet**: Die
+        // Statistik bekommt dieselbe Zahl von Werten in derselben Reihenfolge
+        // wie vorher und rechnet Zeile fuer Zeile denselben Weg. Eine
+        // geschlossene Formel waere schneller und nicht mehr bitgleich.
+        let muster = einer[0];
+        for (ziel, n) in casts_total.iter_mut().zip(casts_eines.iter()) {
+            *ziel = n * iterations;
+        }
+        (0..iterations)
+            .map(|index| Sample {
+                seed: config.base_seed.wrapping_add(index),
+                ..muster
+            })
+            .collect()
+    } else if threads == 1 || iterations < 2 {
+        let (s, c, _) = run_range(config, apl, 0, iterations);
         casts_total = c;
         s
     } else {
@@ -616,7 +788,7 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
             for handle in handles {
-                let (s, c) = handle.join().expect("ein Strang ist abgestuerzt");
+                let (s, c, _) = handle.join().expect("ein Strang ist abgestuerzt");
                 for (i, n) in c.iter().enumerate() {
                     casts_total[i] += *n;
                 }
@@ -665,7 +837,14 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
         base_seed: config.base_seed,
         threads,
         damage: Statistics::from_sorted(&damage_values),
-        kills: kill_values.len(),
+        // **Nicht `kill_values.len()`** — das zaehlte bei einem Boss mit
+        // umgekehrtem Ziel die Niederlagen. Siehe `siege`.
+        kills: siege(&samples, config.boss),
+        // `kill_time_ms` bleibt der Zeitpunkt, zu dem die Lebenspunkte fielen.
+        // Bei einem umgekehrten Boss ist das die Zeit bis zum UEBERDRUCK, nicht
+        // bis zum Sieg — die Groesse ist dieselbe geblieben, nur ihr Name passt
+        // dort nicht. Sie umzubenennen waere eine Schnittstellenaenderung an
+        // einer Stelle, die dieses Issue nicht anfasst.
         kill_time_ms: Statistics::from_sorted(&kill_values),
         death_time_ms: Statistics::from_sorted(&death_values),
         damage_taken: Statistics::from_sorted(&taken_values),
@@ -688,7 +867,7 @@ fn run_range(
     apl: &Apl,
     offset: u32,
     len: u32,
-) -> (Vec<Sample>, [u32; crate::data::SPELL_COUNT]) {
+) -> (Vec<Sample>, [u32; crate::data::SPELL_COUNT], u32) {
     let mut fight = Fight::new(FightConfig {
         seed: config.base_seed.wrapping_add(offset),
         duration_ms: config.duration_ms,
@@ -770,10 +949,16 @@ fn run_range(
     // fuehrt sie je Zauber, der Laeufer hat sie bisher weggeworfen. Ohne sie
     // brauchte jede Zauber-Messung eine isolierende Rotation (#517, #523).
     let mut casts = [0u32; crate::data::SPELL_COUNT];
+    // **Wie oft ueberhaupt gewuerfelt wurde** (Issue #908). Der Laeufer hat die
+    // Zahl bisher weggeworfen; sie ist die Nachpruefung fuer den reduzierten
+    // Pfad in [`run`] — nicht der Beleg, dass die Ableitung richtig gerechnet
+    // hat, sondern der, dass ihre Voraussetzung wirklich galt.
+    let mut wuerfe = 0u32;
     for index in 0..len {
         let seed = config.base_seed.wrapping_add(offset + index);
         fight.reset(seed);
         let result = fight.run_apl(apl);
+        wuerfe += result.random_draws;
         for (i, n) in result.casts.iter().enumerate() {
             casts[i] += *n;
         }
@@ -789,13 +974,285 @@ fn run_range(
             died_at_ms: fight.died_at_ms(),
         });
     }
-    (out, casts)
+    (out, casts, wuerfe)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{factor_value, with_factor, FACTOR_NAMES};
+    use super::{factor_value, run_intern, with_factor, BalanceConfig, FACTOR_NAMES};
+    use crate::apl::{parse, AplName};
     use crate::factors::{DamageFactors, NEUTRAL};
+
+    /// Die gute Rotation, wie sie im Repository liegt.
+    const GOOD: &str = include_str!("../apl/step1-good.apl");
+
+    fn gute_liste() -> crate::apl::Apl {
+        parse(AplName("step1-good"), GOOD).expect("die eingebaute Liste ist gültig")
+    }
+
+    /// **AC3: bitgleich, nicht „ungefähr gleich"** (Issue #908).
+    ///
+    /// Verglichen werden zwei Läufe **derselben** Konfiguration — einmal mit
+    /// Reduktion, einmal ohne. Eine gespeicherte Zahl täte es nicht: Sie würde
+    /// mit jeder Balance-Änderung altern, und dann wüsste niemand mehr, ob die
+    /// Abweichung von der Reduktion kommt oder von den Daten.
+    #[test]
+    fn ac3_reduzierter_lauf_ist_bitgleich_mit_dem_vollen() {
+        let apl = gute_liste();
+        let config = BalanceConfig {
+            iterations: 20,
+            base_seed: 4242,
+            threads: 1,
+            ..BalanceConfig::default()
+        };
+
+        // **Trägerzusicherung:** Ohne sie prüfte der Fall zwei identische
+        // Läufe — beide unreduziert — und wäre grün, ohne die Reduktion je
+        // berührt zu haben.
+        assert!(
+            crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn),
+            "die Reduktion greift bei dieser Konfiguration gar nicht"
+        );
+
+        let reduziert = run_intern(&config, &apl, true);
+        let voll = run_intern(&config, &apl, false);
+
+        assert_eq!(
+            reduziert.samples, voll.samples,
+            "die Durchgänge selbst weichen ab"
+        );
+        assert_eq!(
+            reduziert.damage.count, voll.damage.count,
+            "der reduzierte Lauf muss dieselbe ANZAHL Werte ausweisen, nicht einen"
+        );
+        assert_eq!(
+            reduziert.damage.mean.to_bits(),
+            voll.damage.mean.to_bits(),
+            "Mittelwert: {} gegen {}",
+            reduziert.damage.mean,
+            voll.damage.mean
+        );
+        assert_eq!(
+            reduziert.damage.stddev.to_bits(),
+            voll.damage.stddev.to_bits()
+        );
+        assert_eq!(
+            reduziert.damage_taken.mean.to_bits(),
+            voll.damage_taken.mean.to_bits()
+        );
+        assert_eq!(reduziert.kills, voll.kills);
+        assert_eq!(reduziert.casts, voll.casts, "die Cast-Zahlen weichen ab");
+    }
+
+    /// **AC3, zweite Hälfte: der Faktor — gezählt, nicht gestoppt.**
+    ///
+    /// Das Issue verlangt „ein Fünfzigstel bis ein Zweihundertstel der
+    /// Kampfzahl". Eine Zeitmessung wäre der naheliegende Beleg und der
+    /// schlechtere: Auf dieser Maschine streuten zwei identische Läufe
+    /// desselben Verfahrens um 2,01 % und 10,51 % (#896 AC1). Der Kampfzähler
+    /// aus derselben Messumgebung ist exakt und vom Takt des Rechners
+    /// unabhängig.
+    ///
+    /// `threads: 1` ist nicht Bequemlichkeit: Die Zähler sind **strang-lokal**,
+    /// ein mehrsträngiger Lauf ließe den Hauptstrang nichts sehen.
+    #[cfg(feature = "diagnostics")]
+    #[test]
+    fn ac3_der_reduzierte_lauf_rechnet_genau_einen_kampf() {
+        use crate::diagnostics;
+
+        let apl = gute_liste();
+        let config = BalanceConfig {
+            iterations: 50,
+            base_seed: 7,
+            threads: 1,
+            ..BalanceConfig::default()
+        };
+
+        diagnostics::enable();
+
+        diagnostics::reset();
+        let ergebnis_reduziert = run_intern(&config, &apl, true);
+        let kaempfe_reduziert = diagnostics::snapshot().fights();
+
+        diagnostics::reset();
+        let ergebnis_voll = run_intern(&config, &apl, false);
+        let kaempfe_voll = diagnostics::snapshot().fights();
+
+        diagnostics::disable();
+
+        assert_eq!(
+            kaempfe_voll, 50,
+            "Trägerzusicherung: der unreduzierte Lauf rechnet wirklich 50 Kämpfe \
+             — sonst verglichen wir zwei reduzierte Läufe"
+        );
+        assert_eq!(
+            kaempfe_reduziert, 1,
+            "der reduzierte Lauf darf genau einen Kampf rechnen"
+        );
+
+        // Und das Ergebnis ist dabei dasselbe geblieben — der Faktor ist nur
+        // dann ein Gewinn, wenn er nichts kostet.
+        assert_eq!(ergebnis_reduziert.samples, ergebnis_voll.samples);
+        assert_eq!(
+            ergebnis_reduziert.damage.mean.to_bits(),
+            ergebnis_voll.damage.mean.to_bits()
+        );
+    }
+
+    /// **AC3 spricht vom SUCHLAUF, nicht vom Balance-Lauf.**
+    ///
+    /// Dass der Suchlauf über [`run`] geht, steht in einer einzigen Zeile
+    /// (`rotation_search::measure`). Aus ihr zu schließen, die Reduktion greife
+    /// dort ebenfalls, wäre eine Ableitung — und genau diese Sorte Ableitung
+    /// („der Baustein ist da, also wirkt er") hat sich in diesem Modul heute
+    /// zweimal als falsch erwiesen. Also gemessen.
+    #[cfg(feature = "diagnostics")]
+    #[test]
+    fn ac3_auch_der_suchpfad_rechnet_nur_einen_kampf() {
+        use crate::diagnostics;
+        use crate::rotation_search::{candidates_for, measure};
+
+        let pool = candidates_for(0);
+        assert!(
+            !pool.is_empty(),
+            "Trägerzusicherung: es gibt überhaupt Kandidaten zu messen"
+        );
+        let gewaehlt = &pool[..1];
+
+        let mut streuend = crate::gear::WornValues::none();
+        streuend.purity = 500;
+
+        let basis = BalanceConfig {
+            iterations: 50,
+            base_seed: 11,
+            threads: 1,
+            ..BalanceConfig::default()
+        };
+
+        diagnostics::enable();
+
+        diagnostics::reset();
+        let _ = measure(&basis, "probe-ohne-krit", gewaehlt);
+        let kaempfe_reduziert = diagnostics::snapshot().fights();
+
+        diagnostics::reset();
+        let _ = measure(
+            &BalanceConfig {
+                worn: streuend,
+                ..basis
+            },
+            "probe-mit-krit",
+            gewaehlt,
+        );
+        let kaempfe_streuend = diagnostics::snapshot().fights();
+
+        diagnostics::disable();
+
+        assert_eq!(
+            kaempfe_streuend, 50,
+            "Kontrollzeile: wo gewürfelt wird, rechnet auch der Suchpfad alle 50"
+        );
+        assert_eq!(
+            kaempfe_reduziert, 1,
+            "der Suchpfad muss die Reduktion mitbekommen, nicht nur der Balance-Lauf"
+        );
+    }
+
+    /// **AC6: der Zähler steht auf null — und das belegt nur etwas, weil er
+    /// vorher nachweislich hochgegangen ist.**
+    ///
+    /// Das Issue verlangt den Nachweis „über einen Zähler der Neubestimmungen"
+    /// und schreibt bei AC5 die Regel dazu: „Ein Zähler, der immer null war,
+    /// belegt nichts." Deshalb zwei Messungen statt einer — erst ein direkter
+    /// Aufruf, der den Zähler bewegt, dann der Lauf, in dem er stillstehen soll.
+    #[cfg(feature = "diagnostics")]
+    #[test]
+    fn ac6_ein_kampflauf_bestimmt_keine_auspraegung_neu() {
+        use crate::diagnostics;
+
+        let apl = gute_liste();
+        let config = BalanceConfig {
+            iterations: 5,
+            base_seed: 3,
+            threads: 1,
+            ..BalanceConfig::default()
+        };
+
+        diagnostics::enable();
+
+        diagnostics::reset();
+        let _ = crate::gear::budget_neu_berechnen(50, 1);
+        let nach_direktem_aufruf = diagnostics::snapshot().gear_budgets();
+
+        // Und die andere Seite derselben Frage: Nachschlagen zählt NICHT.
+        diagnostics::reset();
+        let _ = crate::gear::budget_of(50, 1);
+        let nach_nachschlagen = diagnostics::snapshot().gear_budgets();
+
+        diagnostics::reset();
+        let ergebnis = run_intern(&config, &apl, true);
+        let im_kampflauf = diagnostics::snapshot().gear_budgets();
+        let kaempfe = diagnostics::snapshot().fights();
+
+        diagnostics::disable();
+
+        assert_eq!(
+            nach_direktem_aufruf, 1,
+            "Trägerzusicherung: der Zähler bewegt sich überhaupt — ohne das wäre \
+             die Null unten nur die Abwesenheit einer Messung"
+        );
+        assert_eq!(
+            nach_nachschlagen, 0,
+            "budget_of schlägt nach und rechnet nicht — das ist AC6 in einer Zeile"
+        );
+        assert!(
+            kaempfe > 0,
+            "Trägerzusicherung: der Lauf hat wirklich gekämpft ({kaempfe})"
+        );
+        assert!(
+            ergebnis.damage.mean > 0.0,
+            "Trägerzusicherung: und dabei Schaden gemacht"
+        );
+        assert_eq!(
+            im_kampflauf, 0,
+            "ein Balance-Lauf darf keine Ausrüstungs-Ausprägung neu bestimmen"
+        );
+    }
+
+    /// Die Gegenprobe: Wo gewürfelt wird, darf **nicht** reduziert werden.
+    ///
+    /// Ohne diesen Fall belegte der obige nichts — eine Reduktion, die immer
+    /// zuschlägt, bestünde ihn ebenfalls.
+    #[test]
+    fn ac1_bei_halber_krit_chance_wird_nicht_reduziert() {
+        let apl = gute_liste();
+        let mut worn = crate::gear::WornValues::none();
+        worn.purity = 500;
+        let config = BalanceConfig {
+            iterations: 8,
+            base_seed: 99,
+            threads: 1,
+            worn,
+            ..BalanceConfig::default()
+        };
+
+        assert!(
+            !crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn),
+            "bei halber Chance darf die Ableitung nicht reduzieren"
+        );
+
+        let a = run_intern(&config, &apl, true);
+        let b = run_intern(&config, &apl, false);
+        assert_eq!(
+            a.samples, b.samples,
+            "der Schalter darf am unreduzierten Pfad nichts ändern"
+        );
+        assert!(
+            a.samples.iter().any(|s| s.damage != a.samples[0].damage),
+            "Trägerzusicherung: hier streuen die Durchgänge wirklich — sonst \
+             wäre der Fall von der Reduktion gar nicht zu unterscheiden"
+        );
+    }
 
     /// **Waechter: Jeder Faktor der Struktur steht in der Liste** (Issue #159).
     ///
