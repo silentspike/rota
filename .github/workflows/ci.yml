@@ -80,7 +80,18 @@ jobs:
             # tests/unit/ci-sim-filter.test.ts aus den include_str!-Zeilen
             # selbst. Eine von Hand gefuehrte Abschrift kann nicht bemerken,
             # dass ihr ein Eintrag fehlt (#134, #138, #159, und hier).
-            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$)')"
+            # .github/workflows/ci.yml MUSS dabei sein: Diese Datei enthaelt die
+            # Befehle der sim-Stufe selbst. Ohne sie im Muster aendert jemand den
+            # Testbefehl — streicht --all-targets, faellt ein Merkmal weg, wird
+            # ein Schritt entfernt —, die Stufe laeuft NICHT, und ci-pass meldet
+            # gruen. Gemessen an PR #995: Die Aenderung, die zwei Testbefehle
+            # daraus macht, hat den sim-Job auf "skipping" gesetzt. Sie konnte
+            # sich selbst nicht pruefen.
+            #
+            # Dieselbe Klasse wie #134, #138, #159 und die Zeilen darueber, nur
+            # eine Ebene hoeher: Dort fehlten Eingaben der Pruefung im Muster,
+            # hier fehlt die DEFINITION der Pruefung.
+            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)')"
             # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
             # "code": alles außer reiner Dokumentation.
             #
