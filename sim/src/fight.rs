@@ -5519,6 +5519,66 @@ impl Fight {
         }
     }
 
+    /// Millisekunden, bis der naechste Zeitleisten-Eintrag ansteht (Issue #797).
+    ///
+    /// **Der Wert, der PIN ueberhaupt planbar macht.** `boss.casting` und
+    /// `boss.cast_remains` beschreiben den LAUFENDEN Zauber. PIN gilt laut
+    /// Zauberdaten dem naechsten und verpufft an einem ohnehin
+    /// unterbrechbaren — fuer ihn fehlte ein Wert fuer „ein Schlag steht
+    /// BEVOR".
+    ///
+    /// # Was er zaehlt
+    ///
+    /// Den Zeitpunkt, zu dem der Kampf den naechsten Eintrag faellig stellt:
+    /// samt Schleifenrechnung aus [`Fight::timeline_at`] und samt
+    /// `next_strike_delay`, der Verzoegerung aus STAY (#100). Ohne die
+    /// Verzoegerung wiche der Wert von dem ab, was
+    /// [`Fight::schedule_next_timeline_step`] tatsaechlich einplant.
+    ///
+    /// # Was er NICHT zaehlt
+    ///
+    /// Ob der Eintrag auch feuert. Ein Eintrag mit `phase` wird uebersprungen,
+    /// wenn der Boss die Phase bis dahin nicht erreicht hat — und geprueft
+    /// wird das erst zum Faelligkeitszeitpunkt, weil sich die Phase bis dahin
+    /// noch aendern kann. Der Wert sagt „wann der naechste Eintrag ANSTEHT",
+    /// nicht „wann der naechste Schlag LANDET".
+    ///
+    /// Das ist ehrlich statt ungenau: Es ist dieselbe Information, die der
+    /// Spieler hat — er sieht die Zeitleiste ja auch nicht in die Zukunft.
+    ///
+    /// # Wenn kein Schlag mehr kommt
+    ///
+    /// Dann die **verbleibende Kampfzeit**, derselbe Wert wie `fight.remains`.
+    /// Das ist die Definition und kein Naeherungswert: „der naechste Schlag
+    /// kommt nach dem Kampfende, also nie". `naechster_schlag_endet_wie_der_kampf`
+    /// in `next_strike_in.rs` nagelt die Gleichheit fest.
+    ///
+    /// **Zwei Wege fuehren hierher, und beide bedeuten dasselbe.** Entweder
+    /// die Zeitleiste ist zu Ende (`timeline_at` gibt `None`) — oder der
+    /// naechste Eintrag liegt jenseits des Kampfendes. Der zweite Fall ist
+    /// nicht offensichtlich: `schedule_next_timeline_step` plant nur ein, was
+    /// `< duration_ms` faellig wird. Ein Eintrag bei 30000 in einem Kampf
+    /// ueber 20000 ms feuert nie, und ohne das `min` haette der Wert dafuer
+    /// eine Wartezeit gemeldet, die niemand erlebt.
+    ///
+    /// **Warum hier nicht 0 wie bei [`Fight::boss_cast_remaining_ms`]:** Dort
+    /// faengt `boss.casting` den leeren Fall ab. Hier gibt es keinen solchen
+    /// Zustandswert — eine 0 wuerde `boss.next_strike_in < 2000` am Kampfende
+    /// DAUERHAFT zutreffen lassen, und zwar genau in der Lage, in der nichts
+    /// mehr kommt. Mit der Restzeit trifft die Zeile nur in den letzten zwei
+    /// Sekunden, und dort ist sie gleichgueltig.
+    #[must_use]
+    pub fn next_strike_in_ms(&self) -> Millis {
+        let bis_kampfende = self.fight_remaining_ms();
+        match self.timeline_at(self.timeline_index) {
+            Some((_, at_ms)) => at_ms
+                .saturating_add(self.next_strike_delay)
+                .saturating_sub(self.time)
+                .min(bis_kampfende),
+            None => bis_kampfende,
+        }
+    }
+
     /// Wie oft der Spieler einen Boss-Zauber unterbrochen hat.
     #[must_use]
     pub fn interrupts_landed(&self) -> u32 {
