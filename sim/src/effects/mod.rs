@@ -420,6 +420,30 @@ pub enum MonotonicityDomain {
     /// entscheidet nicht die Hoehe des Schadens, sondern auf welcher Seite der
     /// Schwelle man landet.
     HpPredicate,
+    /// **Zaubervielfalt** — wie viele Zauber sich noch lohnen (Issue #940).
+    ///
+    /// Der Bezug, an dem sich zeigt, warum „monoton" ohne Bezugsgroesse
+    /// gefaehrlich ist. Gemessen an `catalysis`:
+    ///
+    /// ```text
+    ///  1 000 Promille  ->  10 von 58 Zaubern lohnend
+    /// 36 000 Promille  ->   4
+    /// ```
+    ///
+    /// Bezueglich [`Self::ExpectedDamageStableTrace`] ist der Parameter monoton
+    /// **steigend**. Bezueglich dieses Bezugs ist er streng **fallend** — und
+    /// die zweite Groesse ist die, die das Spiel interessiert.
+    ///
+    /// Ein Zertifikat „catalysis ist monoton" waere damit nicht falsch, sondern
+    /// **gefaehrlich**: „monoton" ohne Bezug liest sich wie „unbedenklich", und
+    /// hier ist es das Gegenteil.
+    ///
+    /// # Warum die Variante hier steht und nicht in `domaene.rs`
+    ///
+    /// Eine zweite Aufzaehlung derselben Bezugsgroessen wuerde unabhaengig
+    /// driften. Dann zertifiziert das Zertifikat gegen eine Kopie, waehrend der
+    /// Kampf gegen das Original rechnet.
+    SpellDiversity,
     /// Kein Bezug angegeben.
     Unspecified,
 }
