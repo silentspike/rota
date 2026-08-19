@@ -7180,3 +7180,46 @@ volle Lebenspunkte, genau wie erhofft. Wer sie meldet, meldet einen Erfolg, den 
 Die Gegenfrage kostet nichts: **Wie lange dauert die Wirkung, die ich messe — und liegt mein
 Messpunkt dahinter?** Steht in den Daten eine Dauer (`amountMs`, `castTimeMs`, `durationMs`), ist
 sie die Untergrenze für den Messzeitpunkt.
+
+### 8.105 Eine Aufzeichnung ist ein Schnappschuss — neue Daten erreichen sie nicht von selbst
+
+Am 2026-08-19 kamen zwei Bossdateien dazu. Der Bau lief, `clippy` und `fmt` waren grün, die neuen
+Prüffälle bestanden. Erst der volle lokale Lauf über alle 212 Ziele fand den Bruch:
+
+```
+parity_boss_state::ac1_beide_seiten_sehen_dieselbe_boss_menge   FAILED
+
+  "Spiel und Simulator kennen verschiedene Bosse.
+   Liegt eine neue Datei unter data/bosses/, die eine Seite nicht liest?"
+
+  left  (Spiel)      35 Bosse
+  right (Simulator)  37 Bosse
+```
+
+Die Spiel-Seite liest `data/bosses/` über `import.meta.glob` und **würde** die neuen Dateien
+kennen. Die Liste im Test kommt aber nicht von dort, sondern aus einer **Aufzeichnung**:
+`tests/parity/recordings/vessel-phases.json`, Feld `allBossIds`, 35 Einträge — geschrieben von
+`tests/parity/payloads.ts` und erneuert nur durch `npm run parity:export`.
+
+> Eine Aufzeichnung hält den Stand fest, den die Daten **zum Zeitpunkt des Exports** hatten. Sie
+> altert bei jeder neuen Datendatei, und sie tut es lautlos, weil sie selbst gültig bleibt.
+
+**Wo der Hinweis hätte stehen müssen.** Gemessen: `parity:export` kommt im Guide viermal vor — und
+jedes Mal im Zusammenhang mit _roten Paritätstests_, also mit dem Aufräumen hinterher. Kein
+einziges Mal als Schritt beim **Anlegen** einer Datendatei. Bei `data/bosses/` liegt keine
+Hinweisdatei, und der ausführliche `_comment` in `boss-1-1.json` — der zwei andere Fallen benennt
+(`escalation` wirkt nur mit `timelineLoopMs`; alle Einträge müssen in den Schleifenrahmen passen) —
+kennt diese dritte nicht.
+
+Damit trifft der Hinweis den Bauenden erst **am Ende** einer langen Kette: anlegen, bauen, prüfen,
+den vollen Lauf fahren. Wer nur die Ziele seines Issues fährt, bekommt ihn gar nicht.
+
+**Der Wächter fehlte nicht — er kam nur spät.** `parity_boss_state` ist gut gebaut: Die
+Fehlermeldung nennt die Ursache und stellt sogar die richtige Frage („Liegt eine neue Datei unter
+`data/bosses/`?"). Das ist der Unterschied zu 8.93: Dort fängt ein Wächter die Sache nicht. Hier
+fängt er sie zuverlässig, aber erst hinter dem Punkt, an dem man sie billig behoben hätte.
+
+Praktisch: **Wer eine Datei unter `data/` anlegt, prüft, welche Aufzeichnungen ihren Bestand
+mitführen** — und fährt den vollen lokalen Lauf, nicht nur die Ziele des eigenen Issues. Der Lauf
+über alle Ziele kostete hier 131 Sekunden und war der einzige Grund, warum der Bruch vor der CI
+auffiel.
