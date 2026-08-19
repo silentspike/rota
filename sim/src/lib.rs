@@ -82,6 +82,8 @@ pub mod gear_balance;
 // Issue #177: Tempo wirkt auf Zeiten.
 pub mod haste;
 pub mod log;
+// Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
+pub mod objective;
 pub mod replay;
 pub mod report;
 pub mod rng;
