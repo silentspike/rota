@@ -17,33 +17,69 @@
 //! bei keiner Mutation.
 
 use std::fs;
+use std::path::PathBuf;
 
 use rota_sim::data::{boss_by_id, SPELLS};
 use rota_sim::fight::{Fight, FightConfig};
 use rota_sim::replay::{Binding, Press, Recording};
 
+// `wurzel()` wird gebraucht, `programm()` und `rufe()` nicht — sie gehoeren
+// zu den Suiten, die das gebaute Programm starten. Ohne das `allow` faellt
+// `clippy -D warnings` ueber die ungenutzten Nachbarn, und die Warnung staende
+// in einer fremden Datei.
+#[allow(dead_code)]
+mod gemeinsam;
+
+/// Der Pfad einer Aufzeichnung, **zur Laufzeit** bestimmt.
+///
+/// # Warum nicht mehr `env!("CARGO_MANIFEST_DIR")`
+///
+/// Das wird zur **Bauzeit** eingesetzt. Dieses Projekt baut auf rustbuild und
+/// führt auf dem Laptop aus; im Binary stand danach
+/// `/tmp/builds/<id>/sim/../tests/parity/recordings/decay-factor.json` — ein
+/// Pfad, den es hier nicht gibt.
+///
+/// **Er funktionierte trotzdem, und genau das war das Problem:**
+/// `cargo remote` legt bei jedem Bau einen Symlink `/tmp/builds/<id>` auf das
+/// Arbeitsverzeichnis an. Daraus wird eine Reihenfolge-Abhängigkeit, die in
+/// keiner Datei steht:
+///
+/// | Zustand | Ergebnis |
+/// | --- | --- |
+/// | nach einem Neustart, `/tmp` leer | dieser Test **rot** |
+/// | nach dem nächsten Bau | derselbe Test **grün** |
+///
+/// Gemessen am 2026-08-19: Ohne den Symlink Exit 101 und vier rote Fälle, mit
+/// ihm vier grüne — derselbe Stand, derselbe Befehl. Und wer die roten Ziele
+/// untersuchen will, baut zuerst und findet sie grün.
+///
+/// # Warum der Name als Literal stehen bleibt
+///
+/// `tests/parity/gegenstueck.test.ts` sucht `/<name>.json` **im Rust-Quelltext**
+/// und meldet jede Aufzeichnung als ungedeckt, die es dort nicht findet. Ein
+/// `format!` mit eingesetztem Namen wäre für ihn unsichtbar. Der Schrägstrich
+/// vor dem Namen ist dabei das, worauf es ankommt — sein eigener Prüffall zeigt
+/// es: `recordings/dot-lifetime.json` deckt `dot-lifetime`, `lifetime.json`
+/// deckt `lifetime` nicht.
+fn aufzeichnung(name_mit_pfad: &str) -> PathBuf {
+    gemeinsam::wurzel().join(name_mit_pfad)
+}
+
 fn daten() -> serde_json::Value {
-    // **Der Pfad steht woertlich da, nicht zusammengesetzt.** Der Waechter in
-    // `gegenstueck.test.ts` sucht `/<name>.json` im Rust-Quelltext; ein
-    // `format!` mit eingesetztem Namen ist fuer ihn unsichtbar, und die
-    // Aufzeichnung galt als ungedeckt, obwohl dieser Test sie liest.
-    lies(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../tests/parity/recordings/decay-factor.json"
-    ))
+    lies(&aufzeichnung("tests/parity/recordings/decay-factor.json"))
 }
 
 /// Dieselbe Runde MIT einer Talent-Verteilung (#738).
 fn daten_mit_talent() -> serde_json::Value {
-    lies(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../tests/parity/recordings/decay-talent.json"
-    ))
+    lies(&aufzeichnung("tests/parity/recordings/decay-talent.json"))
 }
 
-fn lies(pfad: &str) -> serde_json::Value {
-    serde_json::from_str(&fs::read_to_string(pfad).unwrap_or_else(|_| panic!("{pfad} fehlt")))
-        .unwrap_or_else(|_| panic!("{pfad} ist kein JSON"))
+fn lies(pfad: &std::path::Path) -> serde_json::Value {
+    // `display()` statt `{pfad}`: Ein `Path` hat kein `Display`, und die
+    // Meldung soll den gesuchten Ort nennen — sie ist der einzige Hinweis,
+    // wenn die Datei fehlt.
+    let text = fs::read_to_string(pfad).unwrap_or_else(|_| panic!("{} fehlt", pfad.display()));
+    serde_json::from_str(&text).unwrap_or_else(|_| panic!("{} ist kein JSON", pfad.display()))
 }
 
 /// Spielt die Aufzeichnung ab und liefert den Faktor am ENDE.
