@@ -390,6 +390,42 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 > Die Freigabe sagt „jetzt darfst du", nicht „jetzt bleibt es so".
 
+### Eine Sammel-Prüfsumme gilt nur gegen sich selbst
+
+Dieselben 35 Dateien, ein Bestand, alle byteweise identisch — **sechs Aufrufe, sechs
+Zahlen** (gemessen am 2026-08-19):
+
+```
+aadc161d76cad693   sha256sum data/bosses/*.json | sha256sum
+89168e30e59e04fc   dasselbe aus dem Elternverzeichnis (e9/data/bosses)
+f9520242211bc0a3   dasselbe mit absolutem Pfad
+70c16203803d97fb   cat data/bosses/*.json | sha256sum
+bbef6e5e858a993c   Hashes ohne Zeilenumbruch (| tr -d '\n' |)
+6c2fe783788b84db   Hashes MIT Zeilenumbruch
+```
+
+`sha256sum` schreibt **den Pfad in seine Ausgabe** — wer die Ausgabe weiterhasht, hasht den
+Pfad mit. Und selbst die beiden pfadfreien Wege (`cat` gegen Hash-Liste) liefern
+verschiedene Zahlen: „pfadunabhängig" reicht als Absprache nicht, es muss dieselbe *Kette*
+sein.
+
+> Eine Sammel-Prüfsumme taugt als Nachweis **vorher gegen nachher im selben Baum mit
+> demselben Aufruf**. Sie taugt **nicht** als Vergleichswert zwischen zwei Bäumen oder zwei
+> Personen.
+
+**Halte die Liste fest, nicht die Summe:**
+
+```bash
+sha256sum data/bosses/*.json > vorher.txt
+# ... Arbeit ...
+sha256sum data/bosses/*.json > nachher.txt
+diff vorher.txt nachher.txt
+```
+
+Der Diff sagt außerdem, **welche** Datei sich geändert hat. Eine abweichende Summe sagt nur,
+dass etwas anders ist — bei 35 Dateien der Unterschied zwischen einer Antwort und einer
+Suche.
+
 ### Melde den ZUSTAND, nicht die Absicht
 
 > „Ich habe X gebaut" statt „ich setze deine Entscheidung um."
