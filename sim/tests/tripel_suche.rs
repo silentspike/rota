@@ -150,8 +150,20 @@ fn die_gruppe_entsteht_aus_den_daten() {
 fn die_raenge_im_block_stimmen() {
     let pool = all_candidates();
     let offen: Vec<usize> = (0..pool.len()).collect();
+    let gruppen = tripel_zuege(&pool, &offen);
 
-    for (zeile_pos, unterbrecher_pos, erzeuger_pos) in tripel_zuege(&pool, &offen) {
+    // **Trägerzeile** (#1042): Ohne sie prüft eine leere Liste nullmal, und der
+    // Fall wäre grün, ohne einen einzigen Rang angesehen zu haben. Eine Schleife
+    // ist keine Zusicherung — sie ist eine Zusicherung **mal Anzahl**, und bei
+    // null ist das Ergebnis wahr.
+    assert!(
+        !gruppen.is_empty(),
+        "keine einzige Dreiergruppe aus {} Kandidatenzeilen — dann laeuft die \
+         Schleife unten nullmal und dieser Fall prueft nichts",
+        pool.len()
+    );
+
+    for (zeile_pos, unterbrecher_pos, erzeuger_pos) in gruppen {
         assert_eq!(
             pool[offen[zeile_pos]].origin,
             Origin::NextStrikeWindow,
@@ -432,6 +444,17 @@ fn am_ueberlebbaren_zwilling_aendert_sich_nichts() {
     let nur_paare = greedy_zuege(&cfg, &pool, MAX_LEN, &[], Zuege::MIT_PAAREN);
     let mit_gruppen = greedy_zuege(&cfg, &pool, MAX_LEN, &[], Zuege::ALLE);
 
+    // **Trägerzeile** (#1042): Lieferten BEIDE Suchen eine leere Rotation, wäre
+    // alles darunter erfüllt — leer gleich leer, und PIN steht in keiner. Der
+    // Fall wäre grün und hätte zwei Nichtse verglichen.
+    assert!(
+        !nur_paare.chosen.is_empty() && !mit_gruppen.chosen.is_empty(),
+        "eine der beiden Suchen hat gar keine Rotation gefunden ({} gegen {} \
+         Zeilen) — dann vergleicht dieser Fall zwei Nichtse",
+        nur_paare.chosen.len(),
+        mit_gruppen.chosen.len()
+    );
+
     assert!(
         !waehlt_pin(&mit_gruppen),
         "am ueberlebbaren Zwilling bringt PIN nichts; wird er dort gewaehlt, \
@@ -466,6 +489,17 @@ fn an_einem_gewoehnlichen_boss_bleibt_die_rotation_gleich() {
 
     let nur_paare = greedy_zuege(&cfg, &pool, MAX_LEN, &[], Zuege::MIT_PAAREN);
     let mit_gruppen = greedy_zuege(&cfg, &pool, MAX_LEN, &[], Zuege::ALLE);
+
+    // **Trägerzeile** (#1042), dieselbe wie am Zwilling: Zwei leere Rotationen
+    // sind gleich, und der Vergleich darunter wäre grün, ohne etwas gesehen zu
+    // haben.
+    assert!(
+        !nur_paare.chosen.is_empty() && !mit_gruppen.chosen.is_empty(),
+        "eine der beiden Suchen hat gar keine Rotation gefunden ({} gegen {} \
+         Zeilen) — dann vergleicht dieser Fall zwei Nichtse",
+        nur_paare.chosen.len(),
+        mit_gruppen.chosen.len()
+    );
 
     assert_eq!(
         zeilen(&nur_paare),
