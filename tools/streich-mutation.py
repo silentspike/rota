@@ -101,6 +101,22 @@ def rote_namen(ausgabe):
 def schreibe(ziel, ergebnisse):
     zeilen = ["| Feld | Zauber | Ergebnis | Detail |", "| --- | ---: | --- | --- |"]
     zeilen += [f"| `{f}` | {n} | {s} | {d} |" for f, s, n, d in ergebnisse]
+    # Die Fußnote steht in der TABELLE, nicht nur im Quelltext dieses Werkzeugs:
+    # Gelesen wird die Tabelle, und die Zahl in der Detail-Spalte lädt zur
+    # falschen Deutung ein, solange nichts danebensteht.
+    zeilen += [
+        "",
+        f"{len(ergebnisse)} Felder gefahren.",
+        "",
+        "Die Zahl in *Detail* zählt **Namen**, nicht gefärbte Fälle: Die Auswertung",
+        "dedupliziert (`dict.fromkeys`), und ein Testname wie",
+        "`die_pruefsumme_stimmt_in_jedem_takt` steht in 38 Dateien und erscheint",
+        "als ein Eintrag. Die Zahl ist eine Untergrenze.",
+        "",
+        "**BAU** heißt: Die Streichung bricht den Bau, es lief keine einzige Prüfung.",
+        "Das ist etwas anderes als **ROT** — dort hat eine Prüfung die Streichung",
+        "bemerkt. Ein Feld mit BAU ist *ungeprüft*, nicht *gedeckt*.",
+    ]
     ziel.write_text("\n".join(zeilen) + "\n")
 
 
@@ -280,7 +296,16 @@ def main():
                 namen = rote_namen(aus_r) + rote_namen(aus_t)
                 roh[feld] = namen
                 (WURZEL / args.roh).write_text(json.dumps(roh, indent=1, ensure_ascii=False))
-                detail = f"{len(namen)} Faelle" if namen else "rot ohne benannten Fall"
+                # "NAMEN", nicht "Faelle" — und das ist keine Wortklauberei:
+                # `rote_namen()` endet auf `dict.fromkeys`, dedupliziert also.
+                # `die_pruefsumme_stimmt_in_jedem_takt` steht in 38 Testdateien
+                # und erscheint hier als EIN Eintrag. Die Zahl ist damit eine
+                # Untergrenze der gefärbten Fälle, keine Fallzahl.
+                #
+                # Bis zum 2026-08-22 stand "Faelle" da. Wer die Spalte las, hielt
+                # eine 8 für acht gefärbte Prüfungen; es können achtzig gewesen
+                # sein, verteilt auf acht Namen.
+                detail = f"{len(namen)} Namen" if namen else "rot ohne benannten Fall"
             else:
                 stand, detail = "GRUEN", "beide Suiten gruen"
             ergebnisse.append((feld, stand, getroffen, detail))
