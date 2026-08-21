@@ -2672,10 +2672,9 @@ ENDE
 
 > **Die Anführungszeichen um `'ENDE'` gehören dazu.** Ohne sie führt die Shell aus, was sie im
 > Fließtext erkennt — `$…` und alles in Backticks. Die Nachricht geht trotzdem raus, nur fehlt an
-> der Stelle ein Wort, und der Satz liest sich fast normal. Der ganze Preis steht in
-> [8.110](#8110-die-quelle-beschreibt-etwas-anderes-als-das-wonach-gefragt-wurde); wer Zahlen aus
-> Befehlen einsetzen will und deshalb ohne Anführungszeichen arbeitet, verzichtet im selben
-> Dokument auf Backticks.
+> der Stelle ein Wort, und der Satz liest sich fast normal. Der ganze Fall steht in
+> [8.33](#833-die-shell-führt-aus-was-du-zitieren-wolltest); wer Zahlen aus Befehlen einsetzen will
+> und deshalb ohne Anführungszeichen arbeitet, verzichtet im selben Dokument auf Backticks.
 
 **Jede Nachricht, die du bekommst, bestätigst du sofort** — mit dem verstandenen Vorhaben in
 einem Satz, nicht nur „erhalten":
@@ -3685,6 +3684,32 @@ Erfolgsmeldung stand darunter.
 > **Stiller Datenverlust mit Erfolgsmeldung.** Wer den Kommentar nicht nachliest, erfährt nie, dass
 > die Hälfte seiner Verweise fehlt. Und man liest ihn nicht nach — man hat ihn ja gerade
 > geschrieben.
+
+#### Der Preis des bewussten Weglassens
+
+Manchmal lässt man die Anführungszeichen **absichtlich** weg — etwa um Zahlen über `$(…)` direkt
+aus einem Befehl in die Nachricht zu setzen, statt sie abzuschreiben. Das ist ein guter Grund, und
+er hat einen Preis:
+
+Ohne Anführungszeichen führt die Shell auch alles andere aus, was sie erkennt — `$` **und
+Backticks im Fließtext**. In einer Meldung vom 2026-08-19 ist so ein Wort verschwunden: Ein in
+Backticks gesetztes `continue` wurde als Befehl aufgerufen, bash antwortete „only meaningful in a
+for, while, or until loop", und an der Stelle blieb nichts. Der Versand meldete Erfolg.
+
+Am 2026-08-21 traf es eine Standsabfrage an drei Sitzungen, diesmal ohne den Vorsatz — das Heredoc
+war schlicht ungequotet. Zwei Bezeichner fehlten in der zugestellten Nachricht:
+
+```
+"... importiert — ein Symbol, das es nicht gibt"     davor stand ein Modulpfad
+"Ein Filter auf  zaehlt uebersprungene Jobs mit"     davor stand eine Bedingung
+```
+
+> Der **Fehler** war beide Male laut — bash schrieb „command not found" in die Ausgabe. Die
+> **Wirkung** war still: In der Nachricht fehlte je ein Wort, der Satz las sich fast normal weiter.
+> Die Lautstärke half nicht, weil daneben drei Erfolgsmeldungen standen.
+
+**Also: Zahlen und Uhrzeiten über `$(…)` im ungequoteten Dokument — und im Fließtext dann keine
+Backticks um Bezeichner. Wer beides braucht, schreibt zwei Nachrichten.**
 
 Dieselbe Falle greift bei `$(...)`, bei `$VARIABLE` und bei `!` in interaktiven Shells. Sie trifft
 **jeden** Text mit Markdown-Code-Auszeichnung, und das ist hier so gut wie jeder Text.
@@ -7450,17 +7475,10 @@ Kein `<<'ENDE'` mit Anführungszeichen — dann setzt die Shell die Befehle selb
 Nachricht steht, **ist** die Ausgabe; es gibt keinen Schritt dazwischen, in dem eine erinnerte
 Zahl gewinnen kann.
 
-**Der Weg hat einen Preis, und der ist zu kennen.** Ohne Anführungszeichen führt die Shell auch
-alles andere aus, was sie erkennt — `$` und Backticks im Fließtext. In genau dieser Meldung ist so
-ein Wort verschwunden: Ein in Backticks gesetztes `continue` wurde als Befehl aufgerufen, bash
-antwortete „only meaningful in a for, while, or until loop", und an der Stelle blieb nichts. Der
-Versand meldete Erfolg.
-
-> Auch hier war der **Fehler** laut — die Meldung stand in der Ausgabe. Aber die **Wirkung** war
-> still: In der Nachricht fehlte nur ein Wort, der Satz las sich fast normal.
-
-Also: Zahlen und Uhrzeiten über `$(…)` im ungequoteten Dokument — und im Fließtext dann keine
-Backticks um Bezeichner. Wer beides braucht, schreibt zwei Nachrichten.
+**Der Weg hat einen Preis**, und er steht dort, wo man ihn sucht:
+[8.33](#833-die-shell-führt-aus-was-du-zitieren-wolltest), Unterabschnitt „Der Preis des bewussten
+Weglassens". Kurz: Ohne Anführungszeichen führt die Shell auch Backticks im Fließtext aus. Wer
+Zahlen über `$(…)` einsetzen will, verzichtet im selben Dokument auf Backticks um Bezeichner.
 
 > **Der eigentliche Grund ist nicht, dass der mechanische Weg nie versagt.** Er versagte beim
 > ersten Versuch sofort, bei beiden Beteiligten, am selben falsch escapten `awk`. Aber er versagte
@@ -7836,45 +7854,66 @@ Das ist kein Sonderfall dieses einen Abschnitts. Es ist der Grund, warum eine Pr
 Erwartung und ihrem Datum** aufgeschrieben gehört: Nur so fällt auf, dass sie nicht mehr das
 misst, wofür sie gebaut wurde.
 
-### 8.118 Eine Regel unter fremder Überschrift wird an dem Tag nicht gefunden, an dem sie gilt
+### 8.118 Ein Text ohne eigene Überschrift ist nicht auffindbar, sondern nur vorhanden
 
-Am 2026-08-21 hat der Orchestrator eine Standsabfrage an drei Sitzungen mit `<<ENDE` statt
-`<<'ENDE'` geöffnet. Zwei Bezeichner in Backticks wurden als Befehl ausgeführt und fehlten in der
-zugestellten Nachricht:
+Der Guide führt 146 Unterabschnitte. Manche davon sind **Nachträge im Rumpf eines anderen
+Abschnitts** — Fließtext, dem keine Überschrift vorangeht. Sie stehen dort, weil sie dort
+_entstanden_ sind: beim Aufschreiben eines anderen Gedankens fiel etwas ab, das für sich gilt.
+
+Ein solcher Text ist im Inhaltsverzeichnis nicht sichtbar, und die Volltextsuche findet ihn nur,
+wenn man schon weiß, wonach man sucht. **Er ist vorhanden und nicht auffindbar** — zwei Zustände,
+die man leicht verwechselt, weil beide sich beim Schreiben gleich anfühlen.
+
+Der gemessene Fall, gefunden am 2026-08-21:
 
 ```
-"... importiert — ein Symbol, das es nicht gibt"        davor stand: rota_sim::factors::ORCH_F
-"Ein Filter auf  zaehlt uebersprungene Jobs mit"        davor stand: conclusion != "SUCCESS"
+Überschrift 8.110                     Zeile 7350
+der Preis-Absatz dazu                 Zeile 7453
+Zwischenüberschriften dazwischen      KEINE
+Querverweise zwischen 8.33 und 8.110  0 in beide Richtungen
 ```
 
-**Die Regel dagegen stand zu diesem Zeitpunkt seit Tagen im Guide** — vollständig, mit einem
-Beispielfall, der demselben Muster folgt, und sogar mit der Handlungsanweisung („wer beides
-braucht, schreibt zwei Nachrichten").
+Der Absatz beschreibt, was es kostet, ein Here-Dokument **bewusst** ohne Anführungszeichen zu
+öffnen. Der Schutz davor steht in [8.33](#833-die-shell-führt-aus-was-du-zitieren-wolltest), unter
+einer Überschrift, die man findet. Die beiden wussten nichts voneinander: Wer bei 8.33 landete,
+erfuhr nichts vom Preis; wer den Preis-Absatz fand, erfuhr nichts vom Schutz.
 
-Sie wurde nicht gefunden, und der Grund ist ihr **Ort**: Sie steht als Nachtrag in 8.110, dessen
-Überschrift von etwas anderem handelt — davon, dass eine Quelle etwas anderes beschreibt als das,
-wonach gefragt wurde. Wer eine Nachricht schreibt, sucht dort nicht. Das Inhaltsverzeichnis führt
-sie nicht, die Volltextsuche findet sie nur, wenn man schon weiß, wonach man sucht.
+Er steht jetzt als Unterabschnitt bei 8.33, mit einem Verweis von 8.110 zurück.
 
-> **Der Ort einer Regel ist Teil der Regel.** Sie muss dort stehen, wo die Arbeit stattfindet, für
-> die sie gilt — nicht dort, wo sie beim Aufschreiben gerade hergeleitet wurde.
+#### Der Anlass war ein Fehlschluss, und der gehört dazu
 
-Die Herleitung darf bleiben, wo sie ist; sie gehört zum Gedankengang. Was fehlt, ist der **Hinweis
-am Ort des Gebrauchs**. Deshalb steht die Warnung jetzt in [§ 6](#6-melde-format), zwei Zeilen unter
-dem Befehl, den man ohnehin kopiert — mit einem Verweis auf 8.110 statt einer zweiten Fassung des
-Textes.
+Aufgefallen ist die Stelle, weil der Orchestrator in genau diese Falle lief — ungequotetes
+Heredoc, zwei Bezeichner von der Shell ausgeführt. Sein erster Schluss lautete: _„Die Regel war
+unauffindbar, deshalb ist es passiert."_
 
-#### Warum keine Kopie
+**Das war falsch, und ein Worker hat es gemessen.** 8.33 existierte seit langem, mit passender
+Überschrift, und beschreibt genau diesen Fehler. Der Fall wäre durch sie verhindert worden.
 
-Zwei Fassungen derselben Regel laufen auseinander, sobald eine davon ergänzt wird — und dann gilt
-die, die zufällig gelesen wurde. Ein Verweis kann veralten, eine Kopie **widerspricht**. Wo eine
-Regel zweimal gebraucht wird, steht sie einmal ausführlich und einmal als Zeile mit Sprungziel.
+> Die Regel war auffindbar. Sie wurde nicht gesucht.
 
-**Die Probe, ob eine Regel auffindbar ist**, hat nichts mit ihrem Inhalt zu tun:
+Das ist der unbequemere Befund von beiden: „Der Ort war falsch" entlastet den, der stolpert; „ich
+habe nicht nachgesehen" nicht. Wer aus einem eigenen Fehler eine Regel ableitet, sollte prüfen, ob
+die Regel den Fehler wirklich erklärt — sonst schreibt er eine Entlastung auf und hält sie für eine
+Lehre.
 
-> Bei welcher Tätigkeit greift sie? Steht sie in dem Abschnitt, den man **während** dieser
-> Tätigkeit liest?
+Der Befund über den Ort **bleibt** trotzdem gültig; er hängt nur nicht an diesem Fall, sondern an
+der Messung oben. Das ist der Unterschied zwischen einer Regel und ihrem Anlass.
 
-Ist die Antwort nein, ist sie aufgeschrieben und nicht in Kraft. Das ist die Guide-Fassung von
-[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push-prüfe-jeden-eigenen-commit-einzeln) — dort war der Zweig weiter als die Meldung,
-hier ist die Regel geschrieben und trotzdem nicht wirksam.
+#### Die Probe, ob ein Text auffindbar ist
+
+Sie hat nichts mit seinem Inhalt zu tun:
+
+> Bei welcher Tätigkeit gilt er? Steht er unter einer Überschrift, die jemand liest, **während** er
+> diese Tätigkeit ausführt?
+
+Ist die Antwort nein, ist er aufgeschrieben und nicht in Kraft.
+
+#### Verweis statt Kopie
+
+Zwei Fassungen derselben Regel laufen auseinander, sobald eine ergänzt wird — dann gilt die, die
+zufällig gelesen wurde. Ein Verweis kann veralten, eine Kopie **widerspricht**. Wo eine Regel an
+zwei Stellen gebraucht wird, steht sie einmal ausführlich und einmal als Zeile mit Sprungziel.
+
+Deshalb steht in [§ 6](#6-melde-format) nur ein Zweizeiler mit Sprungziel und nicht der Text selbst.
+`tools/guide-anker.sh` hält die Sprungziele gültig: Ein Verweis altert mit der Überschrift, auf die
+er zeigt, und meldete das vorher nicht.
