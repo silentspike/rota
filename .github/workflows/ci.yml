@@ -168,6 +168,10 @@ jobs:
         shell: bash
         run: bash tools/guide-abschnittsnummern.sh
 
+      - name: Interne Verweise in den Dokumenten
+        shell: bash
+        run: bash tools/guide-anker.sh
+
   typecheck:
     needs: changes
     if: needs.changes.outputs.code == 'true'
