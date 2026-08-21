@@ -17,12 +17,12 @@ affects:
 > **SSOT für alles, was die Simulation betrifft.** Bei einem Widerspruch gewinnt dieses
 > Dokument.
 >
-> | Dokument | Rolle |
-> | --- | --- |
-> | **dieses** | die Entscheidungen und die Zahlen mit ihrem Vorbehalt |
+> | Dokument                                     | Rolle                                                  |
+> | -------------------------------------------- | ------------------------------------------------------ |
+> | **dieses**                                   | die Entscheidungen und die Zahlen mit ihrem Vorbehalt  |
 > | `~/.claude/plans/greedy-skipping-russell.md` | der Gesamtplan des Spiels — Umfang, Epics, Reihenfolge |
-> | `docs/GAME-DESIGN.md` | das Design — Mechanik, Formeln, Bausteine |
-> | `docs/SIM-MESSUNGEN.md` | die Messgrundlage: Läufer, Einstellungen, Rohwerte |
+> | `docs/GAME-DESIGN.md`                        | das Design — Mechanik, Formeln, Bausteine              |
+> | `docs/SIM-MESSUNGEN.md`                      | die Messgrundlage: Läufer, Einstellungen, Rohwerte     |
 >
 > `SIM-MESSUNGEN.md` ist am Bestand geschrieben. Wo eine seiner Zahlen **Teil 1** widerspricht,
 > gilt Teil 1.
@@ -52,12 +52,12 @@ Referenzprofil "standard"
 **Bei weniger Rechnern bleibt die Arbeit gleich — nur die ETA wächst.** Das ist der Zweck des
 eingefrorenen Arbeitsbudgets (E21.0): Ein Rechnerausfall darf das **Ergebnis** nicht ändern.
 
-| verfügbar | Ergebnis | Zeit |
-| --- | --- | --- |
-| alle drei | vollständig | Ziel 2–4 h |
-| Laptop + proxmox | **identisch** | länger |
-| nur Laptop | **identisch** | nochmals länger |
-| `--hard-deadline` | Teilergebnis | fest, mit `AnytimePartial` |
+| verfügbar         | Ergebnis      | Zeit                       |
+| ----------------- | ------------- | -------------------------- |
+| alle drei         | vollständig   | Ziel 2–4 h                 |
+| Laptop + proxmox  | **identisch** | länger                     |
+| nur Laptop        | **identisch** | nochmals länger            |
+| `--hard-deadline` | Teilergebnis  | fest, mit `AnytimePartial` |
 
 **Was ausdrücklich nicht zugesichert wird:** den Vollraum zu rechnen. Bei 350 000 Kämpfen/s
 bräuchte allein der **reduzierte** Raum 2,8·10²⁵ Jahre. Kein Issue in diesem Plan darf mit
@@ -65,13 +65,13 @@ bräuchte allein der **reduzierte** Raum 2,8·10²⁵ Jahre. Kein Issue in diese
 
 **Der Weg dorthin sind vier Hebel, in dieser Rangfolge:**
 
-| Hebel | Faktor | gilt für | wo |
-| --- | ---: | --- | --- |
-| **1. nicht simulieren, was feststeht** | 50–200× | **nur** Läufe mit `purity = 0` und 50–200 identischen Durchgängen | E11.1 |
-| | 1,7× | **nur** den Greedy-Einfügeoperator (41–52 % gemessen) | E11.4 |
-| **2. nicht zweimal rechnen** | 1,8× | Suffix-Wiederverwendung — **überlappt mit Hebel 1** | E11.4b, E11.4f, E19 |
-| **3. Kernel** | 1,29–1,34× | das Abnahmeziel 470 000 gegen 350 000–365 000 | E11.2 |
-| **4. mehr Rechner** | 1,94× | **projizierte Summe**, kein Verbundlauf | E15.5 |
+| Hebel                                  |     Faktor | gilt für                                                          | wo                  |
+| -------------------------------------- | ---------: | ----------------------------------------------------------------- | ------------------- |
+| **1. nicht simulieren, was feststeht** |    50–200× | **nur** Läufe mit `purity = 0` und 50–200 identischen Durchgängen | E11.1               |
+|                                        |       1,7× | **nur** den Greedy-Einfügeoperator (41–52 % gemessen)             | E11.4               |
+| **2. nicht zweimal rechnen**           |       1,8× | Suffix-Wiederverwendung — **überlappt mit Hebel 1**               | E11.4b, E11.4f, E19 |
+| **3. Kernel**                          | 1,29–1,34× | das Abnahmeziel 470 000 gegen 350 000–365 000                     | E11.2               |
+| **4. mehr Rechner**                    |      1,94× | **projizierte Summe**, kein Verbundlauf                           | E15.5               |
 
 > **Diese Faktoren sind nicht multiplizierbar, und drei davon sind enger, als sie aussehen.**
 >
@@ -119,11 +119,9 @@ darin darf so tun.
 
 ---
 
-
 ---
 
 ## Teil 1 — Der Maßstab: Endausbau, nicht Bestand
-
 
 > **Nachgetragen am 2026-08-14 auf Einwand des Auftraggebers, und der Einwand ist
 > grundsätzlich:** _„Wir haben doch nie vom Bestand geredet, sondern immer vom Endausbau!
@@ -138,8 +136,8 @@ darin darf so tun.
 | Größe                           | Bestand                               | Plan (V1)           | Faktor     |
 | ------------------------------- | ------------------------------------- | ------------------- | ---------- |
 | Bosse (Instanz)                 | **16** (4 Instanzen à 4) + 1 Prolog   | **68**              | **4,25**   |
-| **Aufstiegs-Instanzen à 4**     | **4 von 8**                           | 8  (= 32 Bosse)     | 2,0        |
-| **Endgame-Instanzen à 6**       | **0 von 6**                           | 6  (= 36 Bosse)     | **∞**      |
+| **Aufstiegs-Instanzen à 4**     | **4 von 8**                           | 8 (= 32 Bosse)      | 2,0        |
+| **Endgame-Instanzen à 6**       | **0 von 6**                           | 6 (= 36 Bosse)      | **∞**      |
 | Zauber                          | 58 (10+13+2+11+10+12)                 | 60                  | 1,03       |
 | Leistenplätze                   | 12                                    | **12–16**           | bis 1,33   |
 | **Mechanik-Arten in Bossdaten** | **2** (`strike`, `interruptibleCast`) | **15–20 Bausteine** | **bis 10** |
@@ -196,18 +194,18 @@ und `interruptibleCast` (22). Der Plan sieht 15–20 Bausteine vor.
 
 ### Welche Aussagen dadurch wackeln — und welche nicht
 
-| Messung                                        | hängt ab von                    | im Endausbau                                                    |
-| ---------------------------------------------- | ------------------------------- | --------------------------------------------------------------- |
-| **Queue max 9**                                | gleichzeitig laufenden Systemen | **wächst** — bis 20 Bausteine statt 2                           |
-| **`expire_buffs` findet fast nie etwas**       | wie viele Verstärkungen laufen  | **wird kleiner als Hebel** — 6 Sets, Legendäre, mehr Mechaniken |
-| **Krit an 15 von 17 analytisch**               | Zahl der HP-Phasen-Bosse        | **unbekannt** — 51 Bosse sind nicht entworfen                   |
-| **Homogenität: größte Gruppe 30**              | Zauber- und Bosszahl            | **unbekannt**                                                   |
-| **Gear 56 Phänotypen**                         | 27 Gegenstände, ein Set         | **5 412** — schon hochgerechnet                                 |
-| `expire_buffs` 23,8 % / Heap 16,1 % der Zyklen | Kernelstruktur                  | **bleibt** — Struktur ändert sich nicht                         |
-| APL nur 4,1 %                                  | Kernelstruktur                  | **bleibt**                                                      |
-| LNS 91,7 % > greedy 83,3 %                     | Suchverfahren                   | **bleibt** — Verfahrensvergleich, nicht Datenmenge              |
+| Messung                                        | hängt ab von                    | im Endausbau                                                        |
+| ---------------------------------------------- | ------------------------------- | ------------------------------------------------------------------- |
+| **Queue max 9**                                | gleichzeitig laufenden Systemen | **wächst** — bis 20 Bausteine statt 2                               |
+| **`expire_buffs` findet fast nie etwas**       | wie viele Verstärkungen laufen  | **wird kleiner als Hebel** — 6 Sets, Legendäre, mehr Mechaniken     |
+| **Krit an 15 von 17 analytisch**               | Zahl der HP-Phasen-Bosse        | **unbekannt** — 51 Bosse sind nicht entworfen                       |
+| **Homogenität: größte Gruppe 30**              | Zauber- und Bosszahl            | **unbekannt**                                                       |
+| **Gear 56 Phänotypen**                         | 27 Gegenstände, ein Set         | **5 412** — schon hochgerechnet                                     |
+| `expire_buffs` 23,8 % / Heap 16,1 % der Zyklen | Kernelstruktur                  | **bleibt** — Struktur ändert sich nicht                             |
+| APL nur 4,1 %                                  | Kernelstruktur                  | **bleibt**                                                          |
+| LNS 91,7 % > greedy 83,3 %                     | Suchverfahren                   | **bleibt** — Verfahrensvergleich, nicht Datenmenge                  |
 | ~~Position p → Präfix p~~                      | **WIDERLEGT**                   | gilt nur für gefundene Rotationen; 99,1 % weichen vorher ab (E11.4) |
-| Talente Faktor 234                             | Talentstruktur                  | **ändert sich** — 15 Zweige statt 6                             |
+| Talente Faktor 234                             | Talentstruktur                  | **ändert sich** — 15 Zweige statt 6                                 |
 
 **Die Kernel-Anteile bleiben, die Kapazitäten wackeln.** Das ist die Trennlinie: Wo eine
 Messung eine _Struktur_ misst (welcher Code kostet wie viel), trägt sie. Wo sie eine _Menge_
@@ -299,9 +297,9 @@ wackelt — eine spätere Zeile kann die Abklingzeit einer früheren ändern.
 
 **2. `runaway` kehrt die Siegbedingung um — „mehr Schaden" ist dort falsch.** § 11.2, Baustein 6:
 
-|                   | Ring auf 0                      | Zeit abgelaufen              |
-| ----------------- | ------------------------------- | ---------------------------- |
-| gewöhnlicher Boss | **Sieg**                        | Niederlage                   |
+|                   | Ring auf 0                      | Zeit abgelaufen               |
+| ----------------- | ------------------------------- | ----------------------------- |
+| gewöhnlicher Boss | **Sieg**                        | Niederlage                    |
 | `runaway`         | Niederlage (die Reaktion kippt) | **Sieg** (sie ist eingedämmt) |
 
 Schaden senkt den Ring, **Schutz und Heilung heben ihn**. Jede Zielfunktion der Form „maximiere
@@ -361,15 +359,12 @@ generierten Code, sonst wächst die Codegröße mit dem Spielinhalt.
 
 ---
 
-
 ---
 
 ## Teil 2 — Die Ausgangslage: Simulator und Hardware
 
-
 _Was heute dasteht, worauf es läuft, und was davon im Endausbau trägt. **Die Messwege stehen
 in `docs/SIM-MESSUNGEN.md`**; hier stehen die Zahlen mit ihrem Vorbehalt aus Teil 1._
-
 
 ### 2.1 Drei Rechner, vollständig aufgenommen
 
@@ -384,18 +379,18 @@ derselbe i7-3930K, nur ein Container darauf.
 
 **Prozessoren**
 
-| | **Laptop** (Ziel) | **gonet** `10.0.0.106` | **proxmox** `10.0.0.69` |
-| --- | --- | --- | --- |
-| Modell | Ryzen 9 5900HS | Core i7-3930K | Core i5-1235U |
-| Mikroarchitektur | Zen 3 (2021) | Sandy Bridge-E (**2011**) | Alder Lake (2022) |
-| Kerne / Stränge | 8 / 16 | 6 / 12 | **2 P + 8 E** / 12 |
-| Takt max | 3 301 MHz | 3 800 MHz | 4 400 (P) · 3 300 (E) |
-| Takt min | 423 MHz | 1 200 MHz | 400 MHz |
-| BogoMIPS | 6 588 | 6 404 | 4 992 |
-| L1d / L1i | 256 + 256 KiB | 192 + 192 KiB | 352 + 576 KiB |
-| **L2 je Kern** | **512 KiB** (4 MiB / 8) | **256 KiB** (1,5 MiB / 6) | 1,25 MiB (P) · 512 KiB (E) |
-| L3 | 16 MiB | 12 MiB | 12 MiB |
-| NUMA-Knoten | 1 | 1 | 1 |
+|                  | **Laptop** (Ziel)       | **gonet** `10.0.0.106`    | **proxmox** `10.0.0.69`    |
+| ---------------- | ----------------------- | ------------------------- | -------------------------- |
+| Modell           | Ryzen 9 5900HS          | Core i7-3930K             | Core i5-1235U              |
+| Mikroarchitektur | Zen 3 (2021)            | Sandy Bridge-E (**2011**) | Alder Lake (2022)          |
+| Kerne / Stränge  | 8 / 16                  | 6 / 12                    | **2 P + 8 E** / 12         |
+| Takt max         | 3 301 MHz               | 3 800 MHz                 | 4 400 (P) · 3 300 (E)      |
+| Takt min         | 423 MHz                 | 1 200 MHz                 | 400 MHz                    |
+| BogoMIPS         | 6 588                   | 6 404                     | 4 992                      |
+| L1d / L1i        | 256 + 256 KiB           | 192 + 192 KiB             | 352 + 576 KiB              |
+| **L2 je Kern**   | **512 KiB** (4 MiB / 8) | **256 KiB** (1,5 MiB / 6) | 1,25 MiB (P) · 512 KiB (E) |
+| L3               | 16 MiB                  | 12 MiB                    | 12 MiB                     |
+| NUMA-Knoten      | 1                       | 1                         | 1                          |
 
 > **Der i5-1235U ist heterogen, und das ist kein Detail.** Von seinen 12 Strängen liegen nur
 > **vier** auf zwei P-Cores (4,4 GHz, mit HT); die anderen acht sind E-Cores (Gracemont,
@@ -407,23 +402,23 @@ derselbe i7-3930K, nur ein Container darauf.
 
 **Befehlssätze** — das entscheidet, welcher Rechner E11.7 überhaupt fahren kann
 
-| | Laptop | gonet | proxmox |
-| --- | --- | --- | --- |
-| SSE … SSE4.2 | ja | ja | ja |
-| **AVX** | ja | ja | ja |
-| **AVX2** | **ja** | **nein** | **ja** |
-| **FMA** | **ja** | **nein** | **ja** |
-| AVX-512 | nein | nein | nein (Consumer-ADL) |
-| BMI1 / BMI2 | ja | **nein** | ja |
-| F16C | ja | **nein** | ja |
-| ADX | ja | **nein** | ja |
-| AES / PCLMULQDQ | ja | ja | ja |
-| VAES / VPCLMULQDQ | ja | **nein** | ja |
-| SHA-NI | ja | **nein** | ja |
-| RDRAND / RDSEED | ja | **nein** | ja |
-| CLFLUSHOPT / CLWB | ja | **nein** | ja |
-| AVX-VNNI | nein | nein | **ja** |
-| GFNI · SERIALIZE · WAITPKG | nein | nein | **ja** |
+|                            | Laptop | gonet    | proxmox             |
+| -------------------------- | ------ | -------- | ------------------- |
+| SSE … SSE4.2               | ja     | ja       | ja                  |
+| **AVX**                    | ja     | ja       | ja                  |
+| **AVX2**                   | **ja** | **nein** | **ja**              |
+| **FMA**                    | **ja** | **nein** | **ja**              |
+| AVX-512                    | nein   | nein     | nein (Consumer-ADL) |
+| BMI1 / BMI2                | ja     | **nein** | ja                  |
+| F16C                       | ja     | **nein** | ja                  |
+| ADX                        | ja     | **nein** | ja                  |
+| AES / PCLMULQDQ            | ja     | ja       | ja                  |
+| VAES / VPCLMULQDQ          | ja     | **nein** | ja                  |
+| SHA-NI                     | ja     | **nein** | ja                  |
+| RDRAND / RDSEED            | ja     | **nein** | ja                  |
+| CLFLUSHOPT / CLWB          | ja     | **nein** | ja                  |
+| AVX-VNNI                   | nein   | nein     | **ja**              |
+| GFNI · SERIALIZE · WAITPKG | nein   | nein     | **ja**              |
 
 **gonet fehlt alles nach 2013.** Kein AVX2, kein FMA, kein BMI — der E11.7-Pfad ist dort nicht
 lauffähig, und selbst der skalare Code verliert `bmi2`-Bitoperationen, die `BitSet<96>` aus
@@ -435,25 +430,25 @@ Erweiterung. Erwähnt, damit niemand später darauf baut.
 
 **Arbeitsspeicher**
 
-| | Laptop | gonet | proxmox |
-| --- | --- | --- | --- |
-| Bestückt | 2 × 8 GiB **LPDDR4-4266** (verlötet) | 4 Module **DDR3-1333** | 2 × 16 GiB **DDR4-3200** |
-| gesamt | 14,9 GiB nutzbar | 39 GiB | 30 GiB |
-| im Betrieb frei | **~2 GiB** — der Engpass | ~12 GiB | ~7 GiB |
-| zram | 10 GiB | — | 4 GiB |
+|                 | Laptop                               | gonet                  | proxmox                  |
+| --------------- | ------------------------------------ | ---------------------- | ------------------------ |
+| Bestückt        | 2 × 8 GiB **LPDDR4-4266** (verlötet) | 4 Module **DDR3-1333** | 2 × 16 GiB **DDR4-3200** |
+| gesamt          | 14,9 GiB nutzbar                     | 39 GiB                 | 30 GiB                   |
+| im Betrieb frei | **~2 GiB** — der Engpass             | ~12 GiB                | ~7 GiB                   |
+| zram            | 10 GiB                               | —                      | 4 GiB                    |
 
 **DDR3-1333 gegen DDR4-3200 ist Faktor 2,4 in der Bandbreite** — bei einem Kernel, der auf
 `Fight` mit 5 600 Byte je Kampf arbeitet, trägt das zum gemessenen Rückstand von gonet bei.
 
 **Grafik** — nur für E13 relevant, und dort ernüchternd
 
-| | Laptop | gonet | proxmox |
-| --- | --- | --- | --- |
-| dediziert | **NVIDIA RTX 3050 Ti Mobile**, GA107M | **AMD Radeon RX 470/480/570/580** (Ellesmere) | — |
-| VRAM | 4 096 MiB | (Polaris, 4–8 GB) | — |
-| Compute Capability | **8,6** | — (GCN 4) | — |
-| Treiber | 580.142 | — | — |
-| integriert | AMD Radeon Vega (Cezanne) | — | Intel Iris Xe (Alder Lake-UP3 GT2) |
+|                    | Laptop                                | gonet                                         | proxmox                            |
+| ------------------ | ------------------------------------- | --------------------------------------------- | ---------------------------------- |
+| dediziert          | **NVIDIA RTX 3050 Ti Mobile**, GA107M | **AMD Radeon RX 470/480/570/580** (Ellesmere) | —                                  |
+| VRAM               | 4 096 MiB                             | (Polaris, 4–8 GB)                             | —                                  |
+| Compute Capability | **8,6**                               | — (GCN 4)                                     | —                                  |
+| Treiber            | 580.142                               | —                                             | —                                  |
+| integriert         | AMD Radeon Vega (Cezanne)             | —                                             | Intel Iris Xe (Alder Lake-UP3 GT2) |
 
 > **Das ändert die Voraussetzung von E13.** Der Plan führt dort „CUDA" — und **nur eine der drei
 > Maschinen hat NVIDIA**. gonets Radeon kann kein CUDA (ROCm oder Vulkan wären ein anderer
@@ -462,12 +457,12 @@ Erweiterung. Erwähnt, damit niemand später darauf baut.
 
 **Massenspeicher** — für die Simulation fast bedeutungslos, hier der Vollständigkeit halber
 
-| | Laptop | gonet | proxmox |
-| --- | --- | --- | --- |
-| System | Crucial **CT2000P310SSD2**, 2 TB NVMe | Samsung **870 QVO 4 TB** SATA (QLC) | Samsung **MZVLQ256HBJD** 256 GB NVMe |
-| Dateisystem | btrfs, zstd:3 | ZFS `rpool` 3,62 T | ZFS `rpool` 236 G |
-| Belegung | 83 % (148 GB frei) | **93 %** (230 G frei) | **83 %** (39,8 G frei) |
-| weitere | zram 10 G | 7,3 T HDD · 16,4 T USB-HDD · `backuppool` 84 % | `usbpool` 952 G über **ASM2464 (USB4)**, 34 % |
+|             | Laptop                                | gonet                                          | proxmox                                       |
+| ----------- | ------------------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| System      | Crucial **CT2000P310SSD2**, 2 TB NVMe | Samsung **870 QVO 4 TB** SATA (QLC)            | Samsung **MZVLQ256HBJD** 256 GB NVMe          |
+| Dateisystem | btrfs, zstd:3                         | ZFS `rpool` 3,62 T                             | ZFS `rpool` 236 G                             |
+| Belegung    | 83 % (148 GB frei)                    | **93 %** (230 G frei)                          | **83 %** (39,8 G frei)                        |
+| weitere     | zram 10 G                             | 7,3 T HDD · 16,4 T USB-HDD · `backuppool` 84 % | `usbpool` 952 G über **ASM2464 (USB4)**, 34 % |
 
 **Warum das für ROTA fast nichts entscheidet:** Der Simulator liest beim Start ein paar
 Kilobyte JSON und rechnet danach vollständig im Speicher — gemessen **97 page-faults auf
@@ -477,20 +472,20 @@ gonet sind nur 230 GB frei.
 
 #### Zusammengefasst: Belastung und Eignung
 
-| System                   | Str. | AVX2/FMA | Belastung im Betrieb                        |
-| ------------------------ | ---: | -------- | ------------------------------------------- |
-| Laptop (Ziel)            |   16 | **ja**   | die Arbeitsmaschine selbst, RAM-Engpass     |
-| gonet `10.0.0.106`       |   12 | **nein** | Load ~3,0 dauerhaft: rustbuild, CI-Runner, pki |
-| proxmox `10.0.0.69`      |   12 | **ja**   | Load ~0,2 — praktisch im Leerlauf            |
+| System              | Str. | AVX2/FMA | Belastung im Betrieb                           |
+| ------------------- | ---: | -------- | ---------------------------------------------- |
+| Laptop (Ziel)       |   16 | **ja**   | die Arbeitsmaschine selbst, RAM-Engpass        |
+| gonet `10.0.0.106`  |   12 | **nein** | Load ~3,0 dauerhaft: rustbuild, CI-Runner, pki |
+| proxmox `10.0.0.69` |   12 | **ja**   | Load ~0,2 — praktisch im Leerlauf              |
 
 **Gemessen** (`sim/examples/orch-verteilung.rs`, dasselbe Binary, 200 000 Kämpfe, feste
 Rotation, Aufwärmlauf davor):
 
-| System            | Kämpfe/s    | je Kampf | Load währenddessen |
-| ----------------- | ----------: | -------: | ------------------ |
-| Laptop, 16 Str.   | 210 094     |  4,76 µs | 1,96 — **gedrückt** |
-| gonet, 12 Str.    | 121 689     |  8,22 µs | 2,75 — gedrückt     |
-| proxmox, 12 Str.  | **221 688** |  4,51 µs | 0,73 — ruhig        |
+| System           |    Kämpfe/s | je Kampf | Load währenddessen  |
+| ---------------- | ----------: | -------: | ------------------- |
+| Laptop, 16 Str.  |     210 094 |  4,76 µs | 1,96 — **gedrückt** |
+| gonet, 12 Str.   |     121 689 |  8,22 µs | 2,75 — gedrückt     |
+| proxmox, 12 Str. | **221 688** |  4,51 µs | 0,73 — ruhig        |
 
 > **Der lokale Wert ist nicht die Laptop-Leistung.** Die ruhige Baseline liegt bei
 > **350 000–365 000** (`docs/SIM-MESSUNGEN.md`); während dieser Messung waren 12 von 14 GB
@@ -555,14 +550,14 @@ RTT zu gonet      1,33 ms          bei 2,74 µs je Kampf  =  485 Kämpfe
 RTT zu proxmox    1,69 ms                                =  617 Kämpfe
 ```
 
-| Arbeitseinheit                          | Kämpfe        | Rechenzeit | gegen 1,5 ms RTT |
-| --------------------------------------- | ------------: | ---------: | ---------------- |
-| ein Kandidat                            |             1 |     2,7 µs | **550× Overhead** |
-| eine `greedy_opts`-Runde (Länge 5)      |           528 |     1,4 ms | **1,0×** — sinnlos |
-| eine vollständige greedy-Suche          |        ~1 900 |     5,2 ms | 29 %             |
-| eine LNS-Suche                          |       ~10 000 |      27 ms | 6 %              |
-| ein Boss × alle Gear-Phänotypen (heute) |       ~56 000 |     153 ms | 1 %              |
-| Orakel-Tabelle im Endausbau             |       368 016 |      1,0 s | 0,15 %           |
+| Arbeitseinheit                          |  Kämpfe | Rechenzeit | gegen 1,5 ms RTT   |
+| --------------------------------------- | ------: | ---------: | ------------------ |
+| ein Kandidat                            |       1 |     2,7 µs | **550× Overhead**  |
+| eine `greedy_opts`-Runde (Länge 5)      |     528 |     1,4 ms | **1,0×** — sinnlos |
+| eine vollständige greedy-Suche          |  ~1 900 |     5,2 ms | 29 %               |
+| eine LNS-Suche                          | ~10 000 |      27 ms | 6 %                |
+| ein Boss × alle Gear-Phänotypen (heute) | ~56 000 |     153 ms | 1 %                |
+| Orakel-Tabelle im Endausbau             | 368 016 |      1,0 s | 0,15 %             |
 
 **Eine ganze Suchrunde ist genau eine Netzwerk-Roundtrip wert.** Wer innerhalb einer Suche
 verteilt, verschenkt die Hälfte der gewonnenen Zeit an Latenz — und LNS ist ohnehin sequenziell,
@@ -580,12 +575,12 @@ Fortschritts-Läufe. Dort sind die Pakete unabhängig und der Netzanteil klein.
 
 #### Die Einordnung, die über die Reihenfolge entscheidet
 
-| Maßnahme                              | Faktor             | Aufwand                    |
-| ------------------------------------- | ------------------ | -------------------------- |
-| E11.1 `purity == 0` → ein Lauf        | **50–200×**        | eine Bedingung             |
-| E11.2 Kernel                          | ~1,66×             | zwei Umbauten              |
-| E11.4 inkrementell                    | ~1,8×              | großer Umbau               |
-| **Verteilung auf drei Rechner**       | **1,94×**          | Paketformat + Verteilweg   |
+| Maßnahme                        | Faktor      | Aufwand                  |
+| ------------------------------- | ----------- | ------------------------ |
+| E11.1 `purity == 0` → ein Lauf  | **50–200×** | eine Bedingung           |
+| E11.2 Kernel                    | ~1,66×      | zwei Umbauten            |
+| E11.4 inkrementell              | ~1,8×       | großer Umbau             |
+| **Verteilung auf drei Rechner** | **1,94×**   | Paketformat + Verteilweg |
 
 **Gemessen an Aufwand und Nutzen ist die Verteilung nicht der beste Hebel** — solange im Plan
 noch ein Faktor 50–200 ungehoben liegt, wäre sie die falsche Reihenfolge. Aber sie hat drei
@@ -619,7 +614,6 @@ Ergebnis-Einsammlung. Sie gehört als eigenes, kleines Issue **nach** E11.1 und 
 Arbeit.
 
 ---
-
 
 ---
 
@@ -687,7 +681,6 @@ keinen Fortschritt zeigt, nach einem Absturz von vorn beginnt und nur von seinen
 bedient werden kann, ist im Alltag nicht benutzbar — unabhängig davon, wie schnell sein Kernel
 rechnet.
 
-
 ---
 
 ## Teil 4 — Die Epics, in Umsetzungsreihenfolge
@@ -703,20 +696,20 @@ Bedingung nennt, ergänzt sie diese Tabelle — sie ersetzt sie nicht._
 > E16 erzeugt wird**. Eine Reihenfolge, die ihren eigenen Voraussetzungen widerspricht, ist
 > schlimmer als keine.
 
-| Phase | Issues | warum in dieser Reihenfolge |
-| --- | --- | --- |
-| **A0 — Identitäten, bevor irgendetwas gebaut wird** | **Issue-Registry** · `LogicalTaskId`+WorkUnit-Vertrag · `JobKey v2` · RNG-Verträge (Kampf **und** Suche) · `ResultGuarantee v2` · `RunManifest v3` + Commit-Vertrag · kanonisches Wire-Format | Ohne Einstiegspunkt können die anderen Sitzungen nichts starten; ohne Metrikvertrag misst niemand vergleichbar. **E11.0 vor E15.2**, weil die Anzeige seine Zähler braucht |
-| **A0b — bedienbar und messbar** | **E20** (Grundgerüst) · **E11.0** |
-| **A1 — sehen, bevor man optimiert** | E15.2 · E15.3 · E11.0b | Fortschritt und Diagnose stehen auf E11.0. Die Lastprofile ebenfalls |
-| **B — semantische Grundlage** | **E16** · E19 · RNG-Vertrag · **E14.0** (nur die Deckel) | **E16 zuerst**: E11.1, E11.4d, E11.5b, E15.4 und E21.1 beziehen ihre Korrektheit daraus. E19 früh, weil Nachrüsten teuer ist. Die Werte-Deckel früh, weil sie Festkomma, AVX2-Integer und GPU blockieren |
-| **C — die kostenlose Nicht-Simulation** | E11.1 · E11.1b | Der Faktor 50–200 liegt hier — **aber erst, wenn E16 sagen kann, welche Zufallsquellen aktiv sind** |
-| **D — Kernel und Zustand** | E11.2 · E11.4 · E11.4d | 39,9 % der Zyklen, plus der kompakte Zustand |
-| **E — nicht zweimal rechnen** | E11.4b · E11.4f · E11.3 · E11.3a · E18 | Router und Cache bündeln, was B–D erzeugt haben. E11.3 **misst**, bevor E11.3a **beweist** |
-| **F — Betrieb** | E11.4c · E15.0 · E15.1 · E15.4 · E17 · E15.5 · E21.7 | Erst jetzt lohnt Verteilung: vorher würde sie verschwendete Arbeit verteilen |
-| **G — Suche und Balance** | E11.5 · E11.5a–c · **E11.5d** · E21.0 · E21.0b · E21.1–E21.4 · **E12** | Setzt die Vorgaben aus 6.1 voraus — sie stehen seit dem 2026-08-17 |
-| **H — rohe Leistung** | E11.6 · E11.7 · E11.7b · E11.7c · **E14 vollständig** · E13 · **E15.0b** (hängt an E13) | Jeder Faktor hier ist kleiner als jeder in B–E |
-| **Z — die einzige Abnahme, die zählt** | **E11.0c** | Ganz zuletzt: Es misst eine **vollständige Kampagne** über alle Schichten. Es hängt damit an E11.0, E11.4b/c, E13, E15.0–E15.5, E17, E19 und E21 — nicht nur an E11.0 und E20 |
-| **fortlaufend** | E11.4e · E21.6 | Fortschritts-Simulation, sobald der Ergebnis-Cache steht |
+| Phase                                               | Issues                                                                                                                                                                                        | warum in dieser Reihenfolge                                                                                                                                                                              |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A0 — Identitäten, bevor irgendetwas gebaut wird** | **Issue-Registry** · `LogicalTaskId`+WorkUnit-Vertrag · `JobKey v2` · RNG-Verträge (Kampf **und** Suche) · `ResultGuarantee v2` · `RunManifest v3` + Commit-Vertrag · kanonisches Wire-Format | Ohne Einstiegspunkt können die anderen Sitzungen nichts starten; ohne Metrikvertrag misst niemand vergleichbar. **E11.0 vor E15.2**, weil die Anzeige seine Zähler braucht                               |
+| **A0b — bedienbar und messbar**                     | **E20** (Grundgerüst) · **E11.0**                                                                                                                                                             |
+| **A1 — sehen, bevor man optimiert**                 | E15.2 · E15.3 · E11.0b                                                                                                                                                                        | Fortschritt und Diagnose stehen auf E11.0. Die Lastprofile ebenfalls                                                                                                                                     |
+| **B — semantische Grundlage**                       | **E16** · E19 · RNG-Vertrag · **E14.0** (nur die Deckel)                                                                                                                                      | **E16 zuerst**: E11.1, E11.4d, E11.5b, E15.4 und E21.1 beziehen ihre Korrektheit daraus. E19 früh, weil Nachrüsten teuer ist. Die Werte-Deckel früh, weil sie Festkomma, AVX2-Integer und GPU blockieren |
+| **C — die kostenlose Nicht-Simulation**             | E11.1 · E11.1b                                                                                                                                                                                | Der Faktor 50–200 liegt hier — **aber erst, wenn E16 sagen kann, welche Zufallsquellen aktiv sind**                                                                                                      |
+| **D — Kernel und Zustand**                          | E11.2 · E11.4 · E11.4d                                                                                                                                                                        | 39,9 % der Zyklen, plus der kompakte Zustand                                                                                                                                                             |
+| **E — nicht zweimal rechnen**                       | E11.4b · E11.4f · E11.3 · E11.3a · E18                                                                                                                                                        | Router und Cache bündeln, was B–D erzeugt haben. E11.3 **misst**, bevor E11.3a **beweist**                                                                                                               |
+| **F — Betrieb**                                     | E11.4c · E15.0 · E15.1 · E15.4 · E17 · E15.5 · E21.7                                                                                                                                          | Erst jetzt lohnt Verteilung: vorher würde sie verschwendete Arbeit verteilen                                                                                                                             |
+| **G — Suche und Balance**                           | E11.5 · E11.5a–c · **E11.5d** · E21.0 · E21.0b · E21.1–E21.4 · **E12**                                                                                                                        | Setzt die Vorgaben aus 6.1 voraus — sie stehen seit dem 2026-08-17                                                                                                                                       |
+| **H — rohe Leistung**                               | E11.6 · E11.7 · E11.7b · E11.7c · **E14 vollständig** · E13 · **E15.0b** (hängt an E13)                                                                                                       | Jeder Faktor hier ist kleiner als jeder in B–E                                                                                                                                                           |
+| **Z — die einzige Abnahme, die zählt**              | **E11.0c**                                                                                                                                                                                    | Ganz zuletzt: Es misst eine **vollständige Kampagne** über alle Schichten. Es hängt damit an E11.0, E11.4b/c, E13, E15.0–E15.5, E17, E19 und E21 — nicht nur an E11.0 und E20                            |
+| **fortlaufend**                                     | E11.4e · E21.6                                                                                                                                                                                | Fortschritts-Simulation, sobald der Ergebnis-Cache steht                                                                                                                                                 |
 
 **Die Rangfolge folgt aus den Faktoren, nicht aus Vorlieben:**
 
@@ -734,54 +727,54 @@ Bedingung nennt, ergänzt sie diese Tabelle — sie ersetzt sie nicht._
 _Die Phasen oben sagen **wann**, diese Tabelle sagt **warum**. Ein Issue ohne erfüllte
 Voraussetzung wird nicht vorgezogen — die Voraussetzung ist der Grund für die Phase._
 
-| Issue | hängt an | Anmerkung |
-| --- | --- | --- |
-| E11.0 · E11.0b | — | Einstieg |
-| E11.1 · E11.1b | E11.0 · **E16** (`StochasticSourceMask`) · RNG-Vertrag | „keine aktive Zufallsquelle" ist eine ABGELEITETE Bedingung |
-| E11.2 | E11.0b (Kapazität aus dem Lastprofil) | |
-| E11.3 → E11.3a | E11.0 | E11.3 **misst**, E11.3a **beweist** |
-| E11.4 | E11.2 | enthält `SearchFight`/`AuditFight` |
-| E11.4b | E11.4d (Kostenschätzung), E19 | Router braucht die Cachetrennung |
-| E11.4c | — | wird von E15.1 und E15.5 vorausgesetzt |
-| E11.4d | **E16** | die Abhängigkeitsmaske wird erzeugt, nicht gepflegt |
-| E11.4e | E11.4b (die Orakel-Tabelle **ist** der Cache) | → E21.6 löst sie exakt |
-| E11.4f | E11.4 | lohnt erst nach dem „ändert nichts"-Zweig |
-| E11.5 | Zielvertrag und Nischen-Achsen aus 6.1 | beide entschieden, kein Blocker mehr |
-| E11.5a | E11.5 | |
-| E11.5b | **E16** (`UpperBoundCapability`) | ohne sie ist die Schranke unsicher |
-| E11.5c | Encounter-Aggregation (Teil 6) | |
-| **E11.5d** | E11.5b · E11.4f · **E16** | exakter APL-Löser — **Voraussetzung für jedes `CertifiedOptimal`/`CertifiedNecessary`** |
-| E11.6 → E11.7 → E11.7b → E11.7c | E11.0 | jede Stufe misst gegen dieselbe Baseline |
-| E13 | **E14**, E11.7 | ohne Festkomma ist der GPU-Pfad offen |
-| E14 | Werte-Deckel (Teil 6) | **Leistungs-Engpass**, nicht Detail |
-| E15.0 | — | liefert `HostPerfVector` für alles Verteilte |
-| E15.1 | E11.4c | Stränge parken statt beenden |
-| E15.2 | E11.0 (Metriken) | |
-| E15.3 | E15.2 | |
-| E15.4 | E11.4b (`StructuralKey`) | |
-| E15.5 | E15.0, E11.4c | |
-| E16 | — | **Voraussetzung für E11.4d, E11.5b, E15.4, E21.1** |
-| E17 | E15.5 (Leases zurückholen) | |
-| E18 | E11.3a, E11.5b | |
-| E19 | — | **je später, desto teurer** |
-| E20 | — | die anderen Sitzungen brauchen es früh |
-| E21.0 | — | **hardwareunabhängig**: das Budget kommt aus dem Referenzprofil, nicht aus der Kalibrierung. Nur **E21.0b** braucht E15.0 |
-| E21.1 | **E16** | welche Wechselwirkungen zählen überhaupt |
-| E21.2 | E11.4b, E11.5a | |
-| E21.3 | **E12.6** · E21.1 · E11.5c | aggregiert die `ViabilityEvidence` aus E12.6 — **kein Zyklus**: E12.6 hängt NICHT an E21.3 |
-| E21.4 | E20 | |
-| E21.6 | E11.4e | |
-| E21.7 | E19, E15.4 | |
-| **E11.0c-core** | E11.0 · E11.4b/c · E15.0–E15.5 · E17 · E19 · E21.0–E21.7 | **PFLICHT.** CPU-only · ein und drei Rechner · Drosselung · Rechnerausfall · Fortsetzen · Cache kalt und warm |
-| **E11.0c-gpu** | E11.0c-core · **E13** | **BEDINGT** — nur wenn E13 seinen Break-even-Vertrag bestanden hat. Eine nie rentable GPU darf die Standardkampagne nicht unabnehmbar machen |
-| **E14.0–E14.6** | Werte-Deckel (6.1) | ausgeschrieben in Teil 4.5 |
-| **E15.0b** | E15.0, E13 | gemeinsame CPU-/GPU-Kalibrierung |
-| **E15.3b** | E15.3 | hostrelative Diagnoseschwellen |
-| **E16.1** | E16 | vollständige `EffectNode`-Semantik statt Opcode-Liste |
-| **E19.1** | E19 | `TrialAccumulator` — Durchgänge ergänzbar statt fertig |
-| **E21.0b** | E21.0 | **Machbarkeitsprüfung**: passt die Pflichtarbeit ins Budget? |
-| **E21.1b** | E21.1 | unabhängiger Abdeckungs-Verifizierer |
-| **E21.3b** | E21.3 | campaignweite statistische Fehlerkontrolle |
+| Issue                           | hängt an                                                 | Anmerkung                                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| E11.0 · E11.0b                  | —                                                        | Einstieg                                                                                                                                     |
+| E11.1 · E11.1b                  | E11.0 · **E16** (`StochasticSourceMask`) · RNG-Vertrag   | „keine aktive Zufallsquelle" ist eine ABGELEITETE Bedingung                                                                                  |
+| E11.2                           | E11.0b (Kapazität aus dem Lastprofil)                    |                                                                                                                                              |
+| E11.3 → E11.3a                  | E11.0                                                    | E11.3 **misst**, E11.3a **beweist**                                                                                                          |
+| E11.4                           | E11.2                                                    | enthält `SearchFight`/`AuditFight`                                                                                                           |
+| E11.4b                          | E11.4d (Kostenschätzung), E19                            | Router braucht die Cachetrennung                                                                                                             |
+| E11.4c                          | —                                                        | wird von E15.1 und E15.5 vorausgesetzt                                                                                                       |
+| E11.4d                          | **E16**                                                  | die Abhängigkeitsmaske wird erzeugt, nicht gepflegt                                                                                          |
+| E11.4e                          | E11.4b (die Orakel-Tabelle **ist** der Cache)            | → E21.6 löst sie exakt                                                                                                                       |
+| E11.4f                          | E11.4                                                    | lohnt erst nach dem „ändert nichts"-Zweig                                                                                                    |
+| E11.5                           | Zielvertrag und Nischen-Achsen aus 6.1                   | beide entschieden, kein Blocker mehr                                                                                                         |
+| E11.5a                          | E11.5                                                    |                                                                                                                                              |
+| E11.5b                          | **E16** (`UpperBoundCapability`)                         | ohne sie ist die Schranke unsicher                                                                                                           |
+| E11.5c                          | Encounter-Aggregation (Teil 6)                           |                                                                                                                                              |
+| **E11.5d**                      | E11.5b · E11.4f · **E16**                                | exakter APL-Löser — **Voraussetzung für jedes `CertifiedOptimal`/`CertifiedNecessary`**                                                      |
+| E11.6 → E11.7 → E11.7b → E11.7c | E11.0                                                    | jede Stufe misst gegen dieselbe Baseline                                                                                                     |
+| E13                             | **E14**, E11.7                                           | ohne Festkomma ist der GPU-Pfad offen                                                                                                        |
+| E14                             | Werte-Deckel (Teil 6)                                    | **Leistungs-Engpass**, nicht Detail                                                                                                          |
+| E15.0                           | —                                                        | liefert `HostPerfVector` für alles Verteilte                                                                                                 |
+| E15.1                           | E11.4c                                                   | Stränge parken statt beenden                                                                                                                 |
+| E15.2                           | E11.0 (Metriken)                                         |                                                                                                                                              |
+| E15.3                           | E15.2                                                    |                                                                                                                                              |
+| E15.4                           | E11.4b (`StructuralKey`)                                 |                                                                                                                                              |
+| E15.5                           | E15.0, E11.4c                                            |                                                                                                                                              |
+| E16                             | —                                                        | **Voraussetzung für E11.4d, E11.5b, E15.4, E21.1**                                                                                           |
+| E17                             | E15.5 (Leases zurückholen)                               |                                                                                                                                              |
+| E18                             | E11.3a, E11.5b                                           |                                                                                                                                              |
+| E19                             | —                                                        | **je später, desto teurer**                                                                                                                  |
+| E20                             | —                                                        | die anderen Sitzungen brauchen es früh                                                                                                       |
+| E21.0                           | —                                                        | **hardwareunabhängig**: das Budget kommt aus dem Referenzprofil, nicht aus der Kalibrierung. Nur **E21.0b** braucht E15.0                    |
+| E21.1                           | **E16**                                                  | welche Wechselwirkungen zählen überhaupt                                                                                                     |
+| E21.2                           | E11.4b, E11.5a                                           |                                                                                                                                              |
+| E21.3                           | **E12.6** · E21.1 · E11.5c                               | aggregiert die `ViabilityEvidence` aus E12.6 — **kein Zyklus**: E12.6 hängt NICHT an E21.3                                                   |
+| E21.4                           | E20                                                      |                                                                                                                                              |
+| E21.6                           | E11.4e                                                   |                                                                                                                                              |
+| E21.7                           | E19, E15.4                                               |                                                                                                                                              |
+| **E11.0c-core**                 | E11.0 · E11.4b/c · E15.0–E15.5 · E17 · E19 · E21.0–E21.7 | **PFLICHT.** CPU-only · ein und drei Rechner · Drosselung · Rechnerausfall · Fortsetzen · Cache kalt und warm                                |
+| **E11.0c-gpu**                  | E11.0c-core · **E13**                                    | **BEDINGT** — nur wenn E13 seinen Break-even-Vertrag bestanden hat. Eine nie rentable GPU darf die Standardkampagne nicht unabnehmbar machen |
+| **E14.0–E14.6**                 | Werte-Deckel (6.1)                                       | ausgeschrieben in Teil 4.5                                                                                                                   |
+| **E15.0b**                      | E15.0, E13                                               | gemeinsame CPU-/GPU-Kalibrierung                                                                                                             |
+| **E15.3b**                      | E15.3                                                    | hostrelative Diagnoseschwellen                                                                                                               |
+| **E16.1**                       | E16                                                      | vollständige `EffectNode`-Semantik statt Opcode-Liste                                                                                        |
+| **E19.1**                       | E19                                                      | `TrialAccumulator` — Durchgänge ergänzbar statt fertig                                                                                       |
+| **E21.0b**                      | E21.0                                                    | **Machbarkeitsprüfung**: passt die Pflichtarbeit ins Budget?                                                                                 |
+| **E21.1b**                      | E21.1                                                    | unabhängiger Abdeckungs-Verifizierer                                                                                                         |
+| **E21.3b**                      | E21.3                                                    | campaignweite statistische Fehlerkontrolle                                                                                                   |
 
 **E16 taucht viermal als Voraussetzung auf.** Das ist kein Zufall: Es ist das einzige Bauteil,
 von dem vier andere ihre Korrektheit beziehen — und ohne das die Fehler still werden.
@@ -790,19 +783,19 @@ von dem vier andere ihre Korrektheit beziehen — und ohne das die Fehler still 
 
 Nach dem Muster der Epic-Tabelle in `greedy-skipping-russell.md`:
 
-| Epic                                 | Issues | Inhalt                                                                                                                                                                                                                                                                                                                                                                                                                                  | Reihenfolge                                                 |
-| ------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| **E11 — Simulator-Architektur**      | **23** | (0) Messumgebung mit Boss-Suite und Metriken · (0b) **Endausbau-Stellvertreter** · (1) kostenlose exakte Gewinne · (1b) Crit-Verteilungs-DP + gestaffelte Stichprobe · (2) Kernel: `expire_buffs` und Ereignisschlange · (3) Trace-Stabilität messen · (3a) Breakpoint-Compiler und Trace-Regionen · (4) inkrementelle Auswertung + `SearchFight`/`AuditFight` · (4b) Evaluator-Router mit Kostenmodell · (4c) Produktions-Scheduler · (4d) `CompiledBuild` + Abhängigkeitsmaske · (4e) Fortschritts-Simulation · (4f) Policy-Äquivalenz · (5) LNS · (5a) adaptive Operatoren · (5b) exakte Löser + B\&B-Orakel · (5c) Boss-Active-Set · (6) Compiler und PGO · (7) AVX2 · (7b) Kernel-Spezialisierung | nach E2; (5) und (5c) zusätzlich nach den Design-Entscheidungen |
-| **E12 — Balance-Optimierer**         | **10** | **Ausführlich in Teil 4.4.** (0) Ziel und Nebenbedingungen · (1) parametrische Trace-Zellen · (2) minimaler Buff über die inverse Treppenfunktion · (3) blockweise Trust-Region · (4) Warm-Start der inneren Suche · (5) Boss-Constraint-Generation · (6) Nischenverlust und tote Zauber · (7) Herausforderer-Phase · (8) exakte Abschlussprüfung | nach E11.5 |
-| **E13 — GPU-Bulk-Auswerter**         | offen  | Ledger-Stapel, Kandidat × Boss, Monte-Carlo-Finalisten. **Backend-Grenze offen halten** (`Cuda \| VulkanCompute \| None`), nicht auf CUDA festlegen: nur der Laptop hat NVIDIA (RTX 3050 Ti, 4 GB, cc 8.6), gonets Polaris und proxmox' Iris Xe kämen allenfalls über Vulkan-Compute in Frage — zu entscheiden **durch Kalibrierung, nicht durch Festannahme**. **Hängt an E14**: ein exakter GPU-Pfad in `f64` ist auf einer mobilen Consumer-GPU fraglich; mit dem Festkomma-Vertrag wird er wahrscheinlicher. **Drosselung über kurze Batches und Einschaltdauer**, nicht über Stromprioritäten — die sind nur ein Hinweis und unterbrechen laufende Arbeit nicht |                                                                                                                                                                                                                                                                                                                                                                                  | nach E11.7 **und** einer Break-even-Messung                 |
-| **E15 — Betriebsarchitektur**        | **9**  | _(inkl. E15.0b gemeinsame CPU-/GPU-Kalibrierung und E15.3b hostrelative Schwellen)_ | (0) Fähigkeitserhebung mit Kalibrierlauf · (1) Ressourcen-Balancer, Drosselung ohne Abbruch · (2) Fortschritt, Durchsatz, zweigeteilte ETA · (3) Engpasserkennung mit Diagnoseregeln · (4) Invalidierungs-Matrix · (5) Verteilung 1 + n mit Ausfall und Ausschluss · (6) verzweigungsfreie Auswahl. **Ausführlich in Teil 4.5** | (2)+(3) **vor** den großen E11-Umbauten; (0)+(5) nach E11.1/E11.2 |
-| **E14 — Numerischer Vertrag**        | offen  | Fixed-Point, Bereichsbeweis, Rundungsregel. **Entscheidet auch, wie die Wahrscheinlichkeitsmasse der Crit-DP geführt wird** (E11.1b) und ob ein exakter GPU-Pfad möglich ist (E13)                                                                                                                                                                                                                                                       | vertagt (6.1) — die Deckel-Entscheidung ist getroffen, der Bedarf entsteht erst mit der Last                                |
-| **E16 — Wirkungs-IR**                | **3**  | typisierte Effekt-Opcodes · daraus abgeleitete Abhängigkeits-, Kernel-, Schranken- und Invalidierungsanalysen · ein neuer Opcode **bricht den Bau**, bis er überall eingeordnet ist. **Ausführlich in Teil 4.6**                                                                                                                                                                                                                            | **vor** E11.4d und E11.5b                                   |
-| **E17 — Lauf-Zustand**               | **3**  | Manifest und Journal · Anhalten an sicheren Punkten · Fortsetzen mit Bitgleichheits-Nachweis nach `SIGKILL`                                                                                                                                                                                                                                                                                                                              | sobald ein Lauf über eine Stunde dauert                     |
-| **E18 — Nicht-Simulation, Rest**     | **2**  | sparsame Ledger-Differenz (`Parameter → Terme`) · frühe Schranken **im** Kampf, boss- und zielabhängig                                                                                                                                                                                                                                                                                                                                   | nach E11.3a und E11.5b                                      |
-| **E19 — Cachetrennung**              | **1**  | `CombatOutcome` / `Score` / `SearchArchive` getrennt — macht die offene Objective-Entscheidung billig                                                                                                                                                                                                                                                                                                                                    | **früh**, je später desto teurer                            |
-| **E20 — Kommandozeile**              | **4**  | ein Einstiegspunkt statt 30 Beispiele · `--help` mit lauffähigen Beispielen · `explain` als Trockenlauf · `verify` als Selbsttest                                                                                                                                                                                                                                                                                                        | **früh** — die anderen Sitzungen brauchen es                |
-| **E21 — Laufzeitvertrag**            | **9**  | (0) `RunContract`, Arbeitsbudget einfrieren statt Zeit abschneiden · (1) beschränkte t-Wege-Abdeckung statt „Rest bleibt Stichprobe" · (2) globaler Budgetverteiler + Stufenprüfung · (3) Qualitätszertifikat · (4) Kampagnenprofile, Vollraum ablehnen · (6) Markov/MDP-Fortschritt · (7) dauerhafter Ergebnisspeicher über Läufe. **Ausführlich in Teil 4.7** | **beantwortet die Betriebsfrage** — nach E15.0, parallel zu E11 |
+| Epic                             | Issues | Inhalt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Reihenfolge                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **E11 — Simulator-Architektur**  | **23** | (0) Messumgebung mit Boss-Suite und Metriken · (0b) **Endausbau-Stellvertreter** · (1) kostenlose exakte Gewinne · (1b) Crit-Verteilungs-DP + gestaffelte Stichprobe · (2) Kernel: `expire_buffs` und Ereignisschlange · (3) Trace-Stabilität messen · (3a) Breakpoint-Compiler und Trace-Regionen · (4) inkrementelle Auswertung + `SearchFight`/`AuditFight` · (4b) Evaluator-Router mit Kostenmodell · (4c) Produktions-Scheduler · (4d) `CompiledBuild` + Abhängigkeitsmaske · (4e) Fortschritts-Simulation · (4f) Policy-Äquivalenz · (5) LNS · (5a) adaptive Operatoren · (5b) exakte Löser + B\&B-Orakel · (5c) Boss-Active-Set · (6) Compiler und PGO · (7) AVX2 · (7b) Kernel-Spezialisierung | nach E2; (5) und (5c) zusätzlich nach den Design-Entscheidungen                                                                                                                                                                                                                                                                 |
+| **E12 — Balance-Optimierer**     | **10** | **Ausführlich in Teil 4.4.** (0) Ziel und Nebenbedingungen · (1) parametrische Trace-Zellen · (2) minimaler Buff über die inverse Treppenfunktion · (3) blockweise Trust-Region · (4) Warm-Start der inneren Suche · (5) Boss-Constraint-Generation · (6) Nischenverlust und tote Zauber · (7) Herausforderer-Phase · (8) exakte Abschlussprüfung                                                                                                                                                                                                                                                                                                                                                      | nach E11.5                                                                                                                                                                                                                                                                                                                      |
+| **E13 — GPU-Bulk-Auswerter**     | offen  | Ledger-Stapel, Kandidat × Boss, Monte-Carlo-Finalisten. **Backend-Grenze offen halten** (`Cuda \| VulkanCompute \| None`), nicht auf CUDA festlegen: nur der Laptop hat NVIDIA (RTX 3050 Ti, 4 GB, cc 8.6), gonets Polaris und proxmox' Iris Xe kämen allenfalls über Vulkan-Compute in Frage — zu entscheiden **durch Kalibrierung, nicht durch Festannahme**. **Hängt an E14**: ein exakter GPU-Pfad in `f64` ist auf einer mobilen Consumer-GPU fraglich; mit dem Festkomma-Vertrag wird er wahrscheinlicher. **Drosselung über kurze Batches und Einschaltdauer**, nicht über Stromprioritäten — die sind nur ein Hinweis und unterbrechen laufende Arbeit nicht                                   |                                                                                                                                                                                                                                                                                                                                 | nach E11.7 **und** einer Break-even-Messung                       |
+| **E15 — Betriebsarchitektur**    | **9**  | _(inkl. E15.0b gemeinsame CPU-/GPU-Kalibrierung und E15.3b hostrelative Schwellen)_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | (0) Fähigkeitserhebung mit Kalibrierlauf · (1) Ressourcen-Balancer, Drosselung ohne Abbruch · (2) Fortschritt, Durchsatz, zweigeteilte ETA · (3) Engpasserkennung mit Diagnoseregeln · (4) Invalidierungs-Matrix · (5) Verteilung 1 + n mit Ausfall und Ausschluss · (6) verzweigungsfreie Auswahl. **Ausführlich in Teil 4.5** | (2)+(3) **vor** den großen E11-Umbauten; (0)+(5) nach E11.1/E11.2 |
+| **E14 — Numerischer Vertrag**    | offen  | Fixed-Point, Bereichsbeweis, Rundungsregel. **Entscheidet auch, wie die Wahrscheinlichkeitsmasse der Crit-DP geführt wird** (E11.1b) und ob ein exakter GPU-Pfad möglich ist (E13)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | vertagt (6.1) — die Deckel-Entscheidung ist getroffen, der Bedarf entsteht erst mit der Last                                                                                                                                                                                                                                    |
+| **E16 — Wirkungs-IR**            | **3**  | typisierte Effekt-Opcodes · daraus abgeleitete Abhängigkeits-, Kernel-, Schranken- und Invalidierungsanalysen · ein neuer Opcode **bricht den Bau**, bis er überall eingeordnet ist. **Ausführlich in Teil 4.6**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | **vor** E11.4d und E11.5b                                                                                                                                                                                                                                                                                                       |
+| **E17 — Lauf-Zustand**           | **3**  | Manifest und Journal · Anhalten an sicheren Punkten · Fortsetzen mit Bitgleichheits-Nachweis nach `SIGKILL`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | sobald ein Lauf über eine Stunde dauert                                                                                                                                                                                                                                                                                         |
+| **E18 — Nicht-Simulation, Rest** | **2**  | sparsame Ledger-Differenz (`Parameter → Terme`) · frühe Schranken **im** Kampf, boss- und zielabhängig                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | nach E11.3a und E11.5b                                                                                                                                                                                                                                                                                                          |
+| **E19 — Cachetrennung**          | **1**  | `CombatOutcome` / `Score` / `SearchArchive` getrennt — macht die offene Objective-Entscheidung billig                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **früh**, je später desto teurer                                                                                                                                                                                                                                                                                                |
+| **E20 — Kommandozeile**          | **4**  | ein Einstiegspunkt statt 30 Beispiele · `--help` mit lauffähigen Beispielen · `explain` als Trockenlauf · `verify` als Selbsttest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **früh** — die anderen Sitzungen brauchen es                                                                                                                                                                                                                                                                                    |
+| **E21 — Laufzeitvertrag**        | **9**  | (0) `RunContract`, Arbeitsbudget einfrieren statt Zeit abschneiden · (1) beschränkte t-Wege-Abdeckung statt „Rest bleibt Stichprobe" · (2) globaler Budgetverteiler + Stufenprüfung · (3) Qualitätszertifikat · (4) Kampagnenprofile, Vollraum ablehnen · (6) Markov/MDP-Fortschritt · (7) dauerhafter Ergebnisspeicher über Läufe. **Ausführlich in Teil 4.7**                                                                                                                                                                                                                                                                                                                                        | **beantwortet die Betriebsfrage** — nach E15.0, parallel zu E11                                                                                                                                                                                                                                                                 |
 
 **E12 ist der wichtigste dieser drei**, und er fehlte in meiner ersten Fassung ganz. E11 macht
 den Simulator schnell und die **innere** Buildsuche gut. Es beantwortet aber nicht die Frage,
@@ -870,12 +863,9 @@ gemeinsamer WASM-Kern — der würde die Paritätsprüfung nicht lösen, sondern
 
 ---
 
-
 ---
 
-
 ### 4.3 E11 — Simulator-Architektur
-
 
 ### E11.0 — Belastbare Messumgebung
 
@@ -1003,7 +993,6 @@ Auftraggeber im Interview **mehrfach betont** hat:
 Genau das ist der Prüfboss. Er ist keine Erfindung dieses Plans, sondern eine Zusage, die schon
 gegeben wurde und bisher nicht gemessen wird.
 
-
 ### E11.0c — Die End-to-End-Kampagnenmessung
 
 **Alle Faktoren dieses Plans sind Einzelmessungen.** Kernel, Cache, Suffix, Verteilung — jeder
@@ -1070,12 +1059,12 @@ dieselben ResultGuarantees
 
 Vier Maßnahmen, keine ändert eine Spielregel, alle sind belegt:
 
-| #   | Maßnahme                                            | Beleg                               | erwarteter Gewinn                       |
-| --- | --------------------------------------------------- | ----------------------------------- | --------------------------------------- |
-| 1   | **keine Zufallsquelle aktiv** → ein Lauf statt 50–200 | gemessen: 0,0 Würfe je Kampf bei `purity = 0` | Faktor 50–200, solange die Bedingung gilt |
-| 2   | Analytischer Krit, **wo `crit_affects_control_flow()` falsch ist** | heute 15 von 17 — das ist eine Momentaufnahme, **kein Kriterium** | ersetzt Monte-Carlo dort vollständig |
-| 3   | `requires` im Talent-**Generator** statt als Filter | gemessen: 93,3 % des Rohraums       | keine ungültige Verteilung mehr erzeugt |
-| 4   | Gear-Phänotypen beim Start vorkompilieren           | 56 heute, 5 412 im Endausbau        | passt in ein dichtes Array              |
+| #   | Maßnahme                                                           | Beleg                                                             | erwarteter Gewinn                         |
+| --- | ------------------------------------------------------------------ | ----------------------------------------------------------------- | ----------------------------------------- |
+| 1   | **keine Zufallsquelle aktiv** → ein Lauf statt 50–200              | gemessen: 0,0 Würfe je Kampf bei `purity = 0`                     | Faktor 50–200, solange die Bedingung gilt |
+| 2   | Analytischer Krit, **wo `crit_affects_control_flow()` falsch ist** | heute 15 von 17 — das ist eine Momentaufnahme, **kein Kriterium** | ersetzt Monte-Carlo dort vollständig      |
+| 3   | `requires` im Talent-**Generator** statt als Filter                | gemessen: 93,3 % des Rohraums                                     | keine ungültige Verteilung mehr erzeugt   |
+| 4   | Gear-Phänotypen beim Start vorkompilieren                          | 56 heute, 5 412 im Endausbau                                      | passt in ein dichtes Array                |
 
 **Maßnahme 1 ist der größte Einzelgewinn im ganzen Epic** und kostet eine Bedingung. Sie steht
 zuerst.
@@ -1216,7 +1205,7 @@ Stopp, wenn   Obergrenze(Kandidat) < Untergrenze(EINGEFRORENER Amtsinhaber)
 > ohnehin der falsche Weg: Importance Sampling, Splitting oder ein Likelihood-Quotienten-Test
 > erreichen dieselbe Aussage mit Größenordnungen weniger Kämpfen.
 
-**Voraussetzung ist ein zählerbasierter Zufall**, der denselben Wurf an dieselbe *semantische*
+**Voraussetzung ist ein zählerbasierter Zufall**, der denselben Wurf an dieselbe _semantische_
 Stelle bindet statt an die Reihenfolge der Ziehungen. Nur dann ist die **gepaarte Differenz**
 zweier Kandidaten aussagekräftig — und die hat deutlich weniger Streuung als zwei unabhängige
 Mittelwerte.
@@ -1258,7 +1247,7 @@ Plausibilitätsprüfung, kein Beweis:
 2. **Massenerhalt**: die Wahrscheinlichkeitsmasse ergibt 1, innerhalb der Toleranz des
    numerischen Vertrags.
 3. **Bekannte Binomialfälle**: Erwartungswert und Varianz stimmen mit der geschlossenen Formel.
-4. **Phasenübergänge**: die Wahrscheinlichkeit, Phase *k* zu erreichen, stimmt einzeln.
+4. **Phasenübergänge**: die Wahrscheinlichkeit, Phase _k_ zu erreichen, stimmt einzeln.
 5. **Erst danach** Monte-Carlo als statistische Gegenkontrolle.
 
 > **„Exakt" ist hier zweideutig, und der Unterschied gehört nach E14.** Der DP ist
@@ -1525,13 +1514,13 @@ und zwar still.
 
 **Abnahme je Operator statt einer Quote für alle:**
 
-| Operator | Korrektheit | Leistung |
-| --- | --- | --- |
-| Greedy-Einfügen | gegen Vollsimulation | Prüffall reproduziert **40,9–51,6 %** |
-| Entfernen | erster Divergenzpunkt korrekt | gemessener Gewinn, **keine feste Quote** |
-| Tauschen | erster Divergenzpunkt korrekt | gemessener Gewinn |
-| LNS zerstören/reparieren | bitgleiches Suchergebnis | End-to-End-Gewinn |
-| Zahlenänderung | Trace-/Wächter-Nachweis | Anteil über Ledger und Suffix |
+| Operator                 | Korrektheit                   | Leistung                                 |
+| ------------------------ | ----------------------------- | ---------------------------------------- |
+| Greedy-Einfügen          | gegen Vollsimulation          | Prüffall reproduziert **40,9–51,6 %**    |
+| Entfernen                | erster Divergenzpunkt korrekt | gemessener Gewinn, **keine feste Quote** |
+| Tauschen                 | erster Divergenzpunkt korrekt | gemessener Gewinn                        |
+| LNS zerstören/reparieren | bitgleiches Suchergebnis      | End-to-End-Gewinn                        |
+| Zahlenänderung           | Trace-/Wächter-Nachweis       | Anteil über Ledger und Suffix            |
 
 **Ein globales `≥ 1,8×` gehört erst nach E11.0c in ein SLA.**
 
@@ -1658,8 +1647,8 @@ CostEstimate { expected_cycles, expected_memory, expected_batch_size, confidence
 ```
 
 Damit sind zwei Entscheidungen möglich, die eine rein semantische Reihenfolge nicht treffen
-kann: *„kleines Ledger mit teurer Gültigkeitsprüfung oder billiger skalarer Kampf?"* und
-*„noch auf einen AVX2-Batch warten oder jetzt rechnen?"*
+kann: _„kleines Ledger mit teurer Gültigkeitsprüfung oder billiger skalarer Kampf?"_ und
+_„noch auf einen AVX2-Batch warten oder jetzt rechnen?"_
 
 **Fertig, wenn:** ein realer LNS-Lauf je Zweig druckt: Trefferquote, gemessenes `L`, `I`, `F`
 — und die daraus **berechnete** Break-even-Schwelle daneben. Liegt ein Zweig unter seiner
@@ -1888,7 +1877,7 @@ Kandidaten als „ändert nichts" erkennt, hat den größten Teil der Äquivalen
 die größte Klasse **ist** die unveränderte Basis. E11.4f lohnt erst für die restlichen 312.
 
 > **NACHGESCHÄRFT am 2026-08-14, dritte Runde — und das ist kein Detail.** Das Verfahren oben
-> beweist **nicht**, dass zwei Rotationen auf *allen erreichbaren* Zuständen gleich sind. Es
+> beweist **nicht**, dass zwei Rotationen auf _allen erreichbaren_ Zuständen gleich sind. Es
 > beweist nur, dass auf den **bisher beobachteten** Masken kein Unterschied auftrat. Eine
 > erreichbare, aber noch nie gesehene Maske kann sie später trennen.
 >
@@ -1903,11 +1892,11 @@ enum PolicyEquivalence {
 }
 ```
 
-| Grad | darf verwendet werden für |
-| --- | --- |
+| Grad              | darf verwendet werden für                                         |
+| ----------------- | ----------------------------------------------------------------- |
 | `TraceLocalExact` | Cache und Suffix-Auswertung — dort ist der Trace der Bezugsrahmen |
-| `FormallyProven` | **Reduktion des Suchraums** |
-| `ObservedOnly` | **nur Priorisierung.** Finale Kandidaten werden einzeln gerechnet |
+| `FormallyProven`  | **Reduktion des Suchraums**                                       |
+| `ObservedOnly`    | **nur Priorisierung.** Finale Kandidaten werden einzeln gerechnet |
 
 **Der Beweis ist erreichbar**, weil der Horizont endlich ist. Symbolische Erreichbarkeitsanalyse
 oder beschränkte Modellprüfung liefert `FormallyProven` — ein eigener Schritt, kein Nebenprodukt
@@ -1916,9 +1905,9 @@ der Messung.
 > **Die Tiefe darf aber nicht auf „40 Entscheidungen" fest verdrahtet werden.** Diese Zahl gilt
 > für den heutigen Bestand. `freesNextGcd`, `refundsInterruptedGcd`, `doublesNextCast` und die
 > Abklingzeit-Rücksetzer — **alle neun in `sublimation.json** — verändern genau sie (siehe
-> E11.5b). Die maximale Tiefe folgt aus `UpperBoundCapability`; ist keine sichere Schranke
-> ableitbar, wird nach Zeit- und Ereigniszuständen statt nach Entscheidungszahl geprüft, und
-> bei Zeitüberschreitung bleibt die Klasse `ObservedOnly`.
+E11.5b). Die maximale Tiefe folgt aus `UpperBoundCapability`; ist keine sichere Schranke
+ableitbar, wird nach Zeit- und Ereigniszuständen statt nach Entscheidungszahl geprüft, und
+bei Zeitüberschreitung bleibt die Klasse `ObservedOnly`.
 >
 > **Und bei Zufall gilt die Äquivalenz nur, wenn sie für alle gekoppelten Ausgänge gilt** —
 > nicht für einen Startwert.
@@ -2101,12 +2090,12 @@ auch?
 „LNS" ist ein Rahmen, kein Verfahren. Was fehlt, sind die Operatoren und die Frage, wie viel
 Budget jeder bekommt.
 
-| Ebene        | Operatoren                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------- |
-| Rotation     | eine Zeile ersetzen · 2–4 Zeilen zerstören und reparieren · Teilfolge umordnen · bedingt ↔ unbedingt     |
-| Talente      | einen Zweig leeren · Punkte verschieben · Schlüsseltalent erzwingen · mit der Talent-DP gültig reparieren |
-| Ausrüstung   | Nachbar-Phänotyp · dominantes Affix wechseln · Setstufe aktivieren · legendäre Maske ändern              |
-| **gekoppelt** | Zauber wechseln **+** abhängige Talente **+** Ausrüstung neu ausrichten **+** Rotation lokal reparieren |
+| Ebene         | Operatoren                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| Rotation      | eine Zeile ersetzen · 2–4 Zeilen zerstören und reparieren · Teilfolge umordnen · bedingt ↔ unbedingt      |
+| Talente       | einen Zweig leeren · Punkte verschieben · Schlüsseltalent erzwingen · mit der Talent-DP gültig reparieren |
+| Ausrüstung    | Nachbar-Phänotyp · dominantes Affix wechseln · Setstufe aktivieren · legendäre Maske ändern               |
+| **gekoppelt** | Zauber wechseln **+** abhängige Talente **+** Ausrüstung neu ausrichten **+** Rotation lokal reparieren   |
 
 **Die gekoppelten Operatoren sind der Punkt.** Ein neu eingesetzter Zauber wirkt sonst
 künstlich schwach, weil Talente und Ausrüstung noch auf den alten ausgerichtet sind — und
@@ -2153,16 +2142,16 @@ das Ergebnis die feste Gewichtung**, und die Bandit-Ebene entfällt.
 **Die Erkenntnis, die der Plan bisher nicht ausspricht:** Verschiedene Projektionen brauchen
 verschiedene Verfahren. Ein Universal-Suchalgorithmus ist für keine davon der beste.
 
-| Projektion                   | Verfahren                              |
-| ---------------------------- | -------------------------------------- |
-| Talentpunkte                 | DP über Baum und Punktsumme (steht)    |
-| Ausrüstungsplätze            | DP / Meet-in-the-Middle + Phänotyp-Dedup |
-| Set- und Legendär-Kombinationen | Constraint-Solver                   |
-| Zauberpaare                  | vollständige kleine Aufzählung          |
-| Rotation                     | LNS, mit B&B als Referenz               |
-| numerische Zauberwerte       | Trace-Region + inverse Treppenfunktion (E12.2) |
-| Krit an Phasenbossen         | Verteilungs-DP (E11.1b)                |
-| Bossmenge                    | Constraint-Generation (E11.5c)         |
+| Projektion                      | Verfahren                                      |
+| ------------------------------- | ---------------------------------------------- |
+| Talentpunkte                    | DP über Baum und Punktsumme (steht)            |
+| Ausrüstungsplätze               | DP / Meet-in-the-Middle + Phänotyp-Dedup       |
+| Set- und Legendär-Kombinationen | Constraint-Solver                              |
+| Zauberpaare                     | vollständige kleine Aufzählung                 |
+| Rotation                        | LNS, mit B&B als Referenz                      |
+| numerische Zauberwerte          | Trace-Region + inverse Treppenfunktion (E12.2) |
+| Krit an Phasenbossen            | Verteilungs-DP (E11.1b)                        |
+| Bossmenge                       | Constraint-Generation (E11.5c)                 |
 
 **Das Optimum-Orakel.**
 
@@ -2246,11 +2235,11 @@ UpperBoundCapability {
 
 **Drei Stufen, und die dritte ist die wichtigste:**
 
-| Fall | Schranke |
-| --- | --- |
-| alle Effektklassen des Builds werden von der Herleitung abgedeckt | **enge Schranke**, volles Pruning |
-| nur ein sicherer Höchstschaden je verbleibendem Takt bekannt | **lockere Schranke**, schwaches Pruning |
-| eine Effektklasse ist nicht abgedeckt | **kein Pruning** — B&B läuft ohne Schranke oder gar nicht |
+| Fall                                                              | Schranke                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------- |
+| alle Effektklassen des Builds werden von der Herleitung abgedeckt | **enge Schranke**, volles Pruning                         |
+| nur ein sicherer Höchstschaden je verbleibendem Takt bekannt      | **lockere Schranke**, schwaches Pruning                   |
+| eine Effektklasse ist nicht abgedeckt                             | **kein Pruning** — B&B läuft ohne Schranke oder gar nicht |
 
 **Eine Effektart darf nie stillschweigend vergessen werden.** Deshalb wird
 `UpperBoundCapability` nicht von Hand gepflegt, sondern aus der Wirkungs-IR erzeugt (Teil 4.6) —
@@ -2507,8 +2496,6 @@ Kriterium.** Abgenommen wird über die **Break-even-Marge** aus E13.
 
 ---
 
-
-
 ### 4.4 E12 — Der Balance-Optimierer
 
 _Bis 2026-08-14 stand E12 nur als Tabellenzeile und als Ablaufskizze in Teil 4.7. **Das war die
@@ -2532,7 +2519,7 @@ BalanceObjective {
 ```
 
 **Diese fünf Bedingungen gehören auf drei verschiedene Ebenen** — ein einzelner Kandidat kann
-gar nicht erfüllen, dass *jeder Zauber* eine Nische hat:
+gar nicht erfüllen, dass _jeder Zauber_ eine Nische hat:
 
 ```rust
 CandidateFeasibility {          // gilt für EINEN Kandidaten
@@ -2742,8 +2729,8 @@ Wechsel findet. Ein Prüffall, der ohne die Hülle das falsche Ergebnis liefert,
 Ohne ihn ist nicht belegt, dass die Korrektur nötig war.
 
 > **Und die Monotonie, die eine Binärsuche braucht, ist nicht die des Schadens.** Monoton sein
-> muss das **Entscheidungsprädikat** — *„existiert ein Build mit Zauber X, der das Zielband
-> erreicht?"*. Dass mehr Grundschaden mehr Schaden ergibt, sagt darüber nichts.
+> muss das **Entscheidungsprädikat** — _„existiert ein Build mit Zauber X, der das Zielband
+> erreicht?"_. Dass mehr Grundschaden mehr Schaden ergibt, sagt darüber nichts.
 
 **Wo Monotonie nicht bescheinigt ist, gilt sie nicht:** `runaway`, Schwellenbedingungen in
 Kandidatenzeilen (`heat >= 15`), schadensabhängige Effekte. Dort läuft E12.3.
@@ -2846,21 +2833,20 @@ vollständiges Zertifikat · **reproduzierbare Lauf-Kennung** (E17).
 
 #### Zuschnitt
 
-| Issue | Inhalt | hängt an |
-| --- | --- | --- |
-| **E12.0** | Zielvertrag: harte Bedingungen, Rangfolge, Abdeckungspflichten | Objective-Entscheidung (6.1) |
-| **E12.1** | Parameterdomänen mit Monotonie-Bescheinigung | **E16**, Werte-Deckel (6.1) |
-| **E12.2** | ein Parameter exakt | E11.3a, E12.1 |
-| **E12.2b** | parametrische Herausforderer-Hülle, `ParametricOutcome` | E12.2, E11.5 |
-| **E12.3** | gekoppelte Parameter | E12.2 |
-| **E12.4** | Warm-Start aus dem Archiv | E11.5a, E15.4 |
-| **E12.5** | Encounter-Constraint-Generation | E11.5c |
-| **E12.6** | Viabilität: `ViabilityEvidence` je Scope berechnen | E12.0 · **E11.5d** (für `CertifiedOptimal`) — **NICHT E21.3** |
-| **E12.7** | Herausforderer | E12.6 |
-| **E12.8** | Abschlussprüfung | alle |
+| Issue      | Inhalt                                                         | hängt an                                                      |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| **E12.0**  | Zielvertrag: harte Bedingungen, Rangfolge, Abdeckungspflichten | Objective-Entscheidung (6.1)                                  |
+| **E12.1**  | Parameterdomänen mit Monotonie-Bescheinigung                   | **E16**, Werte-Deckel (6.1)                                   |
+| **E12.2**  | ein Parameter exakt                                            | E11.3a, E12.1                                                 |
+| **E12.2b** | parametrische Herausforderer-Hülle, `ParametricOutcome`        | E12.2, E11.5                                                  |
+| **E12.3**  | gekoppelte Parameter                                           | E12.2                                                         |
+| **E12.4**  | Warm-Start aus dem Archiv                                      | E11.5a, E15.4                                                 |
+| **E12.5**  | Encounter-Constraint-Generation                                | E11.5c                                                        |
+| **E12.6**  | Viabilität: `ViabilityEvidence` je Scope berechnen             | E12.0 · **E11.5d** (für `CertifiedOptimal`) — **NICHT E21.3** |
+| **E12.7**  | Herausforderer                                                 | E12.6                                                         |
+| **E12.8**  | Abschlussprüfung                                               | alle                                                          |
 
 ### 4.5 E13 und E14 — GPU und numerischer Vertrag
-
 
 ### E14 — Der Werte-Deckel ist ein Leistungs-Engpass, deshalb vorziehen
 
@@ -2883,14 +2869,14 @@ dieselbe Runde wie die Objective-Entscheidung.
 
 ##### E14, ausgeschrieben
 
-| Issue | Inhalt |
-| --- | --- |
-| **E14.0** | Werte-Deckel je Wirkgröße — die Entscheidung aus Teil 6.1, als Tabelle |
-| **E14.1** | Skalierung je Datentyp: wie viele Nachkommastellen trägt welche Größe |
-| **E14.2** | **Überlaufbeweis** für jede Rechenkette, mit Zwischenwertbreiten |
-| **E14.3** | Rundungsregel und Verhalten negativer Werte |
-| **E14.4** | **JavaScript-Grenze** — siehe unten |
-| **E14.5** | Parität über CPU / SIMD / GPU / TypeScript |
+| Issue     | Inhalt                                                                  |
+| --------- | ----------------------------------------------------------------------- |
+| **E14.0** | Werte-Deckel je Wirkgröße — die Entscheidung aus Teil 6.1, als Tabelle  |
+| **E14.1** | Skalierung je Datentyp: wie viele Nachkommastellen trägt welche Größe   |
+| **E14.2** | **Überlaufbeweis** für jede Rechenkette, mit Zwischenwertbreiten        |
+| **E14.3** | Rundungsregel und Verhalten negativer Werte                             |
+| **E14.4** | **JavaScript-Grenze** — siehe unten                                     |
+| **E14.5** | Parität über CPU / SIMD / GPU / TypeScript                              |
 | **E14.6** | numerischer Fehler der Krit-DP (E11.1b): `f64`, Festkomma oder rational |
 
 **Fertig, wenn** — je Teil-Issue ein prüfbarer Satz, nicht ein Thema:
@@ -3004,9 +2990,7 @@ homogener SIMD-Batch           AoSoA<4> für f64
 (Packen, Transponieren, Restbahnen, Divergenz, Zurückschreiben) gehören **in `CostEstimate`**,
 sonst wählt der Router den SIMD-Pfad auch dort, wo das Umpacken teurer ist als der Gewinn.
 
-
 ### 4.6 E15 — Betriebsarchitektur
-
 
 _Nachgetragen 2026-08-14 auf Auftrag des Auftraggebers. E11 macht den Simulator **schnell**;
 dieser Teil macht ihn **betreibbar**: drosselbar in einer geteilten Umgebung, beobachtbar
@@ -3057,13 +3041,13 @@ derselben Arbeit — aber **nicht zwei Sekunden lang**.
 > Artefakt-Hash × Kernelklasse × Taktregime) **gespeichert** und beim nächsten Lauf nur kurz
 > bestätigt. Er erfasst in einer Zahl, was aus Flags nicht ableitbar ist:
 
-| was Flags nicht sagen | Beispiel aus unserem Bestand |
-| --------------------- | ---------------------------- |
-| heterogene Kerne      | i5-1235U meldet 12 Stränge — vier davon auf P-Cores, acht auf E-Cores |
-| Fremdlast             | gonet läuft dauerhaft bei Load 3–7; 12 Stränge sind nie 12 Stränge |
-| Speicherbandbreite    | DDR3-1333 gegen DDR4-3200, Faktor 2,4 — steht in keinem CPU-Flag |
-| Drosselung durch Wärme | der 5900HS ist ein 35-W-Mobilchip mit gemeinsamem Budget für CPU und iGPU |
-| Container-Grenzen     | ein LXC mit `cpulimit` meldet die Kerne des Hosts, darf sie aber nicht nutzen |
+| was Flags nicht sagen  | Beispiel aus unserem Bestand                                                  |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| heterogene Kerne       | i5-1235U meldet 12 Stränge — vier davon auf P-Cores, acht auf E-Cores         |
+| Fremdlast              | gonet läuft dauerhaft bei Load 3–7; 12 Stränge sind nie 12 Stränge            |
+| Speicherbandbreite     | DDR3-1333 gegen DDR4-3200, Faktor 2,4 — steht in keinem CPU-Flag              |
+| Drosselung durch Wärme | der 5900HS ist ein 35-W-Mobilchip mit gemeinsamem Budget für CPU und iGPU     |
+| Container-Grenzen      | ein LXC mit `cpulimit` meldet die Kerne des Hosts, darf sie aber nicht nutzen |
 
 **Deshalb wird Arbeit nach gemessenen Raten verteilt, nie nach Kernzahl.** Die Kalibrierung
 wiederholt sich bei jedem Lauf und zusätzlich, wenn die gemessene Rate um mehr als 25 % von der
@@ -3117,11 +3101,11 @@ zurückweichen — **ohne den Lauf zu verlieren** und **ohne das Ergebnis zu än
 
 #### Drei Stellschrauben, drei Mechanismen
 
-| Ressource | Mechanismus | Reaktionszeit |
-| --------- | ----------- | ------------- |
-| **CPU** | Stränge **parken**, nicht beenden. Jeder Strang prüft zwischen zwei Chunks eine Marke und legt sich schlafen. **Chunks werden in Millisekunden bemessen, nicht in Kandidaten** (Kasten unten). | eine Chunk-Länge |
-| **RAM** | **Nicht nur der Ergebnis-Cache** (siehe Kasten). Ein zentrales Budget senkt die Teilbudgets nach Kosten-Nutzen; Verworfenes wird **neu gerechnet**, nicht vermisst. | sofort |
-| **GPU** | Batch-Größe senken, im Grenzfall das Backend abmelden — der Router (E11.4b) fällt dann auf den CPU-Pfad zurück, weil er ohnehin jeden Zweig als optional führt. | ein Batch |
+| Ressource | Mechanismus                                                                                                                                                                                    | Reaktionszeit    |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| **CPU**   | Stränge **parken**, nicht beenden. Jeder Strang prüft zwischen zwei Chunks eine Marke und legt sich schlafen. **Chunks werden in Millisekunden bemessen, nicht in Kandidaten** (Kasten unten). | eine Chunk-Länge |
+| **RAM**   | **Nicht nur der Ergebnis-Cache** (siehe Kasten). Ein zentrales Budget senkt die Teilbudgets nach Kosten-Nutzen; Verworfenes wird **neu gerechnet**, nicht vermisst.                            | sofort           |
+| **GPU**   | Batch-Größe senken, im Grenzfall das Backend abmelden — der Router (E11.4b) fällt dann auf den CPU-Pfad zurück, weil er ohnehin jeden Zweig als optional führt.                                | ein Batch        |
 
 **Warum das ohne Abbruch geht, ist eine Eigenschaft der Architektur, keine Zusatzarbeit:** Der
 Scheduler aus E11.4c vergibt Arbeit über einen Zähler und schreibt nach `result[candidate_id]`.
@@ -3278,13 +3262,13 @@ Schnell weg, langsam zurück — ein symmetrischer Regler verbringt seine Zeit m
 
 **Fünf Betriebsprofile statt einer Zahl:**
 
-| Profil | Verhalten |
-| --- | --- |
-| `max` | volle lokale CPU- und GPU-Auslastung |
-| `balanced` | Laptop behält 2 Kerne und VRAM-Reserve — **Voreinstellung dort** |
-| `background` | `cpu.idle`, niedrigstes Gewicht, GPU aus |
-| `remote-only` | lokal nur Koordinator und Anzeige |
-| `custom` | ausdrückliche Grenzen |
+| Profil        | Verhalten                                                        |
+| ------------- | ---------------------------------------------------------------- |
+| `max`         | volle lokale CPU- und GPU-Auslastung                             |
+| `balanced`    | Laptop behält 2 Kerne und VRAM-Reserve — **Voreinstellung dort** |
+| `background`  | `cpu.idle`, niedrigstes Gewicht, GPU aus                         |
+| `remote-only` | lokal nur Koordinator und Anzeige                                |
+| `custom`      | ausdrückliche Grenzen                                            |
 
 **Der Sonderfall Laptop:** Er ist die Maschine, an der gearbeitet wird. Dort gilt zusätzlich
 eine Obergrenze, die nicht der Regler setzt, sondern der Nutzer.
@@ -3295,7 +3279,7 @@ eine Obergrenze, die nicht der Regler setzt, sondern der Nutzer.
 >
 > ```yaml
 > reserved_physical_cores: 2
-> reserved_cpu_set: auto            # die zwei Kerne SAMT SMT-Geschwistern
+> reserved_cpu_set: auto # die zwei Kerne SAMT SMT-Geschwistern
 > use_smt_siblings_of_compute_cores: true
 > ```
 >
@@ -3383,11 +3367,11 @@ laufen die beiden weit auseinander — und **nur die zweite ist die Zahl, auf di
 
 #### Die ETA muss zwei Fälle unterscheiden, sonst lügt sie
 
-| Art der Arbeit | Menge vorher bekannt? | was angezeigt wird |
-| -------------- | --------------------- | ------------------ |
-| Sweep, Orakel-Tabelle, Parameterreihe | **ja** | echte ETA aus Restmenge / gleitendem Durchsatz |
-| Greedy mit fester Länge | ja (Runden × Kandidaten) | echte ETA |
-| **LNS, MAP-Elites, Loop-until-dry** | **nein** — läuft bis Konvergenz | **keine ETA.** Stattdessen: „Bestes seit mm:ss unverändert" plus Rundenzahl |
+| Art der Arbeit                        | Menge vorher bekannt?           | was angezeigt wird                                                          |
+| ------------------------------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| Sweep, Orakel-Tabelle, Parameterreihe | **ja**                          | echte ETA aus Restmenge / gleitendem Durchsatz                              |
+| Greedy mit fester Länge               | ja (Runden × Kandidaten)        | echte ETA                                                                   |
+| **LNS, MAP-Elites, Loop-until-dry**   | **nein** — läuft bis Konvergenz | **keine ETA.** Stattdessen: „Bestes seit mm:ss unverändert" plus Rundenzahl |
 
 **Eine ETA für eine offene Suche wäre eine erfundene Zahl.** Der Ersatz ist die aussagekräftigere
 Angabe: Wie lange hat sich nichts mehr verbessert? Danach entscheidet ein Mensch, ob er
@@ -3398,7 +3382,7 @@ Lauf: Nach einer Drosselung oder einem Systemausfall wäre der Gesamtmittelwert 
 
 > **NACHGESCHÄRFT am 2026-08-14: Kandidaten sind nicht gleich teuer.** Ein Cache-Treffer und ein
 > voller Phasenboss-Kampf unterscheiden sich um Größenordnungen. `Restkandidaten geteilt durch
-> Kandidaten je Sekunde` wäre deshalb eine Zahl, die genau dann falsch wird, wenn der Router
+Kandidaten je Sekunde` wäre deshalb eine Zahl, die genau dann falsch wird, wenn der Router
 > gut arbeitet — also immer.
 >
 > **Die Gewichte liegen bereits vor:** `CostEstimate.expected_cycles` aus E11.4b.
@@ -3458,11 +3442,17 @@ genau die Bandbreite, die sie messen soll.
 und **JSON Lines** in eine Datei für alles andere. Kein zweiter Zähler, keine zweite Wahrheit.
 
 ```json
-{ "schema_version": 1, "run_id": "...", "event": "progress",
+{
+  "schema_version": 1,
+  "run_id": "...",
+  "event": "progress",
   "timestamp_utc": "2026-08-15T20:31:12.123456Z",
   "elapsed_ns": 123456789,
-  "host_id": "proxmox", "host_sequence": 4812,
-  "phase": "E11.5", "metrics": { } }
+  "host_id": "proxmox",
+  "host_sequence": 4812,
+  "phase": "E11.5",
+  "metrics": {}
+}
 ```
 
 **Beides, nicht eines.** `elapsed_ns` für lokale Dauern (immun gegen Zeitumstellung), **UTC für
@@ -3513,15 +3503,15 @@ Belegung der Ereignisschlange · Trefferquote von expire_buffs
 > **Und `perf_event_open` ist eine Fähigkeit, keine Selbstverständlichkeit** — Container können
 > sie sperren; dann fällt die Diagnose auf Zeitmessung und PSI zurück, statt auszufallen.
 
-| Beobachtung (relativ zur Host-Baseline) | Diagnose | nächster Schritt |
-| ----------- | -------- | ---------------- |
-| IPC deutlich unter Baseline **und** Fehlsprünge deutlich darüber | verzweigungsgebunden | E11.7b Kernel-Spezialisierung, PGO |
-| L2-Fehlgriffe hoch, L3 niedrig | Zustand zu groß für L2 | `SearchFight` weiter verdichten (E11.4) |
-| Stränge warten > 15 % | Chunks zu groß oder zu wenige | Chunk-Größe senken |
-| Netzwerkwartezeit > 10 % | Pakete zu klein | Paketgröße erhöhen (Teil 2.1-Tabelle) |
-| Cache-Trefferquote unter Break-even | dieser Zweig lohnt nicht | Zweig abschalten (E11.4b) |
-| `expire_buffs`-Trefferquote > 20 % | die Annahme aus E11.2 gilt nicht mehr | neu messen, Endausbau erreicht |
-| Ereignisschlange > 80 % voll | Kapazität wird knapp | **vor** dem Überlauf handeln (E11.0b) |
+| Beobachtung (relativ zur Host-Baseline)                          | Diagnose                              | nächster Schritt                        |
+| ---------------------------------------------------------------- | ------------------------------------- | --------------------------------------- |
+| IPC deutlich unter Baseline **und** Fehlsprünge deutlich darüber | verzweigungsgebunden                  | E11.7b Kernel-Spezialisierung, PGO      |
+| L2-Fehlgriffe hoch, L3 niedrig                                   | Zustand zu groß für L2                | `SearchFight` weiter verdichten (E11.4) |
+| Stränge warten > 15 %                                            | Chunks zu groß oder zu wenige         | Chunk-Größe senken                      |
+| Netzwerkwartezeit > 10 %                                         | Pakete zu klein                       | Paketgröße erhöhen (Teil 2.1-Tabelle)   |
+| Cache-Trefferquote unter Break-even                              | dieser Zweig lohnt nicht              | Zweig abschalten (E11.4b)               |
+| `expire_buffs`-Trefferquote > 20 %                               | die Annahme aus E11.2 gilt nicht mehr | neu messen, Endausbau erreicht          |
+| Ereignisschlange > 80 % voll                                     | Kapazität wird knapp                  | **vor** dem Überlauf handeln (E11.0b)   |
 
 **Die vorletzte Zeile ist der eigentliche Zweck dieses Issues.** Jede Optimierung von E11 beruht
 auf einer heute gemessenen Verteilung. Der Engpasswächter ist das Bauteil, das **meldet, wann
@@ -3554,7 +3544,7 @@ ProgressionResult            Fortschritts-Simulation               (E11.4e)
 
 > **Drei Ebenen reichten, solange nur der Kampfpfad persistent war.** Mit Pareto-Archiv,
 > Abdeckungszertifikat und Fortschritts-Orakel gibt es sechs Aussagen mit **verschiedener**
-> Lebensdauer. Beispiel *neuer Boss*: Outcomes gültig · Scores gültig, sofern die Gewichtung
+> Lebensdauer. Beispiel _neuer Boss_: Outcomes gültig · Scores gültig, sofern die Gewichtung
 > bleibt · Pareto-Lage womöglich neu · Optimalität neu · **Abdeckungszertifikat ungültig**, weil
 > neue Pflichttupel entstanden sind · Fortschritt abhängig von Freischaltung und Beute.
 >
@@ -3563,22 +3553,22 @@ ProgressionResult            Fortschritts-Simulation               (E11.4e)
 > **Trace-Struktur** bleibt innerhalb der Region gültig, das **Outcome wird parametrisch neu
 > ausgewertet** — nur die Vollsimulation entfällt.
 
-| Änderung | Outcome | Score | Optimalität |
-| --- | --- | --- | --- |
-| **neuer Boss** | **gültig** | neu, **falls** die Encounter-Gewichtung sich ändert | **neu** — ein Encounter kam dazu |
-| **neue Instanz** | **gültig** | dito | **neu** |
-| **neuer Zauber** | **gültig** — alte Rotationen liefern weiter dasselbe | **gültig** | **ungültig** — alte Elites werden Warm-Start (E12.4) |
-| **Objective geändert** | **gültig** | neu rechnen (Mikrosekunden) | ungültig, Suche **warm** fortsetzen |
-| **`baseDamage` geändert** | nur betroffene Kandidaten (Rückwärtsindex) | dito | betroffene Nischen |
-| **Abklingzeit geändert** | Trace nur bei Regionswechsel (E11.3a) | dito | dito |
-| **Gegenstand, bekannter Phänotyp** | **gültig** | **gültig** | **gültig** |
-| **Gegenstand, neuer Phänotyp** | nur der neue fehlt | dito | betroffene Nische |
-| **neues Affix** | Gear-Phänotypen neu | dito | betroffene Nischen |
-| **Satz- oder legendärer Effekt** | nur passende Masken | dito | dito |
-| **neues Talent** | Talent-Phänotypen und DP | dito | betroffene Zweige |
-| **Schwierigkeitsstufe** | nur diese Stufe | dito | dito |
-| **Fallrate / Beutetabelle / Aufwertregel** | **gültig** | **gültig** | **gültig** — nur die Fortschritts-Simulation kippt |
-| **Balance-Parameter global** | nur betroffene Kandidaten | alle Scores | alle Aussagen |
+| Änderung                                   | Outcome                                              | Score                                               | Optimalität                                          |
+| ------------------------------------------ | ---------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- |
+| **neuer Boss**                             | **gültig**                                           | neu, **falls** die Encounter-Gewichtung sich ändert | **neu** — ein Encounter kam dazu                     |
+| **neue Instanz**                           | **gültig**                                           | dito                                                | **neu**                                              |
+| **neuer Zauber**                           | **gültig** — alte Rotationen liefern weiter dasselbe | **gültig**                                          | **ungültig** — alte Elites werden Warm-Start (E12.4) |
+| **Objective geändert**                     | **gültig**                                           | neu rechnen (Mikrosekunden)                         | ungültig, Suche **warm** fortsetzen                  |
+| **`baseDamage` geändert**                  | nur betroffene Kandidaten (Rückwärtsindex)           | dito                                                | betroffene Nischen                                   |
+| **Abklingzeit geändert**                   | Trace nur bei Regionswechsel (E11.3a)                | dito                                                | dito                                                 |
+| **Gegenstand, bekannter Phänotyp**         | **gültig**                                           | **gültig**                                          | **gültig**                                           |
+| **Gegenstand, neuer Phänotyp**             | nur der neue fehlt                                   | dito                                                | betroffene Nische                                    |
+| **neues Affix**                            | Gear-Phänotypen neu                                  | dito                                                | betroffene Nischen                                   |
+| **Satz- oder legendärer Effekt**           | nur passende Masken                                  | dito                                                | dito                                                 |
+| **neues Talent**                           | Talent-Phänotypen und DP                             | dito                                                | betroffene Zweige                                    |
+| **Schwierigkeitsstufe**                    | nur diese Stufe                                      | dito                                                | dito                                                 |
+| **Fallrate / Beutetabelle / Aufwertregel** | **gültig**                                           | **gültig**                                          | **gültig** — nur die Fortschritts-Simulation kippt   |
+| **Balance-Parameter global**               | nur betroffene Kandidaten                            | alle Scores                                         | alle Aussagen                                        |
 
 **Die letzte Zeile ist der Grund, warum E11.3a und E12 zusammengehören:** Ein Balance-Durchgang
 ändert Zahlen, keine Strukturen. Wer die Traces behält, rechnet nur die Zahlen neu.
@@ -3592,13 +3582,13 @@ ProgressionResult            Fortschritts-Simulation               (E11.4e)
 > SearchOptimality   "das war das Beste"       — eine Aussage über die Suche
 > ```
 >
-> | Änderung | Outcome | Score | Optimalität |
-> | --- | --- | --- | --- |
-> | **neuer Zauber** | **gültig** | **gültig** | **ungültig** — alte Elites werden Warm-Start |
-> | **Objective geändert** | **gültig** | neu rechnen | ungültig, Suche **warm** fortsetzen |
-> | neuer Gegenstand, **bekannter Phänotyp** | **gültig** | gültig | gültig |
-> | neuer Gegenstand, **neuer Phänotyp** | nur der neue fehlt | dito | betroffene Nische |
-> | **neue Fallrate / Beutetabelle** | **gültig** | **gültig** | **gültig** — nur die Fortschritts-Simulation kippt |
+> | Änderung                                 | Outcome            | Score       | Optimalität                                        |
+> | ---------------------------------------- | ------------------ | ----------- | -------------------------------------------------- |
+> | **neuer Zauber**                         | **gültig**         | **gültig**  | **ungültig** — alte Elites werden Warm-Start       |
+> | **Objective geändert**                   | **gültig**         | neu rechnen | ungültig, Suche **warm** fortsetzen                |
+> | neuer Gegenstand, **bekannter Phänotyp** | **gültig**         | gültig      | gültig                                             |
+> | neuer Gegenstand, **neuer Phänotyp**     | nur der neue fehlt | dito        | betroffene Nische                                  |
+> | **neue Fallrate / Beutetabelle**         | **gültig**         | **gültig**  | **gültig** — nur die Fortschritts-Simulation kippt |
 >
 > **Die zweite Zeile ist die wertvollste** — mit einer Bedingung. Die Objective-Entscheidung
 > steht noch aus (Teil 6); wenn der Cache den **rohen Ergebnisvektor** hält statt einer
@@ -3811,25 +3801,25 @@ bereit), nicht mit Arithmetik.
 > Spezialisierung und PGO (Bad Speculation), BOLT (Frontend), Datenlayout (Memory) oder SIMD
 > (Core) der richtige Hebel ist. **Die Entscheidung gegen einen allgemeinen Assembler-Kernel
 > bleibt richtig — nur ihre Begründung wird genauer.** Das bestimmt, welche Hardware-Eigenschaft überhaupt etwas ändern
-kann.
+> kann.
 
 #### Befehlssätze, einzeln durchgegangen
 
-| Befehlssatz | vorhanden | trägt für ROTA? |
-| ----------- | --------- | --------------- |
-| **AVX2** | Laptop, proxmox | **nur für homogene Batches** (E11.7). `f64` heißt 4 Lanes, nicht 8 — und der Kernel selbst ist nicht vektorisierbar, weil jede Rotation anders verzweigt |
-| **FMA** | Laptop, proxmox | **vorhanden, im heutigen Ergebnisvertrag NICHT verwendet** — es ändert die Rundung, und die Parität hängt an `Math.round`-Gleichheit. Erst nach E14 neu zu bewerten |
-| **POPCNT** | Laptop, proxmox, **gonet** | **ja, eigene Erweiterung** — nicht Teil von BMI1. Populationszählung in `RuleBits`/`SpellBits`. **gonet hat sie** (SSE4.2-Zeitalter) |
-| **BMI1** (`TZCNT`, `BLSR`) | Laptop, proxmox | **ja** — Bit-Iteration in `RuleBits<WORDS>`/`SpellBits<WORDS>` (E11.4). Compiler nutzt sie mit dem **expliziten Zielprofil**, nicht mit `native`. **gonet: nein** |
-| **BMI2** | Laptop, proxmox | **nein**, solange kein `PDEP`/`PEXT`-Muster nachgewiesen ist |
-| **AVX-512** | **nirgends** | entfällt. Zen 3 hat es nicht, Consumer-Alder-Lake hat es deaktiviert |
-| **SHA-NI** | Laptop, proxmox | **nein.** Die Prüfsumme läuft nur im `replay`-Pfad (`fight.rs:1471`), nicht im heißen Pfad — und sie ist ein FNV-Mix, kein SHA |
-| **AES, VAES, PCLMULQDQ** | Laptop, proxmox | **nein.** Keine Verschlüsselung im Simulator |
-| **AVX-VNNI** | **nur proxmox** | **nein.** Integer-Skalarprodukt für neuronale Netze; unser Kernel rechnet `f64` |
-| **GFNI, SERIALIZE, WAITPKG** | nur proxmox | **nein.** Galois-Feld-Arithmetik, Speicherordnung, Warteschleifen — nichts davon im heißen Pfad |
-| **F16C** | Laptop, proxmox | **nein.** Halbe Genauigkeit ist mit der Paritätsauflage unvereinbar |
-| **RDRAND/RDSEED** | Laptop, proxmox | **nein, und ausdrücklich nicht.** Der Zufall muss reproduzierbar sein — ein Hardware-Zufallszahlengeber ist genau das Gegenteil |
-| **CLWB, CLFLUSHOPT** | Laptop, proxmox | **nein — sie laden nichts vor.** Beide schreiben zurück bzw. verwerfen Cache-Zeilen. Vorladen wäre `PREFETCHT0/T1/NTA`; bei kleinen, vorhersehbar durchlaufenen Checkpoints genügt der Hardware-Vorlader vermutlich. **Manuelles Vorladen erst nach einem gemessenen Cache-Stall** |
+| Befehlssatz                  | vorhanden                  | trägt für ROTA?                                                                                                                                                                                                                                                                    |
+| ---------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AVX2**                     | Laptop, proxmox            | **nur für homogene Batches** (E11.7). `f64` heißt 4 Lanes, nicht 8 — und der Kernel selbst ist nicht vektorisierbar, weil jede Rotation anders verzweigt                                                                                                                           |
+| **FMA**                      | Laptop, proxmox            | **vorhanden, im heutigen Ergebnisvertrag NICHT verwendet** — es ändert die Rundung, und die Parität hängt an `Math.round`-Gleichheit. Erst nach E14 neu zu bewerten                                                                                                                |
+| **POPCNT**                   | Laptop, proxmox, **gonet** | **ja, eigene Erweiterung** — nicht Teil von BMI1. Populationszählung in `RuleBits`/`SpellBits`. **gonet hat sie** (SSE4.2-Zeitalter)                                                                                                                                               |
+| **BMI1** (`TZCNT`, `BLSR`)   | Laptop, proxmox            | **ja** — Bit-Iteration in `RuleBits<WORDS>`/`SpellBits<WORDS>` (E11.4). Compiler nutzt sie mit dem **expliziten Zielprofil**, nicht mit `native`. **gonet: nein**                                                                                                                  |
+| **BMI2**                     | Laptop, proxmox            | **nein**, solange kein `PDEP`/`PEXT`-Muster nachgewiesen ist                                                                                                                                                                                                                       |
+| **AVX-512**                  | **nirgends**               | entfällt. Zen 3 hat es nicht, Consumer-Alder-Lake hat es deaktiviert                                                                                                                                                                                                               |
+| **SHA-NI**                   | Laptop, proxmox            | **nein.** Die Prüfsumme läuft nur im `replay`-Pfad (`fight.rs:1471`), nicht im heißen Pfad — und sie ist ein FNV-Mix, kein SHA                                                                                                                                                     |
+| **AES, VAES, PCLMULQDQ**     | Laptop, proxmox            | **nein.** Keine Verschlüsselung im Simulator                                                                                                                                                                                                                                       |
+| **AVX-VNNI**                 | **nur proxmox**            | **nein.** Integer-Skalarprodukt für neuronale Netze; unser Kernel rechnet `f64`                                                                                                                                                                                                    |
+| **GFNI, SERIALIZE, WAITPKG** | nur proxmox                | **nein.** Galois-Feld-Arithmetik, Speicherordnung, Warteschleifen — nichts davon im heißen Pfad                                                                                                                                                                                    |
+| **F16C**                     | Laptop, proxmox            | **nein.** Halbe Genauigkeit ist mit der Paritätsauflage unvereinbar                                                                                                                                                                                                                |
+| **RDRAND/RDSEED**            | Laptop, proxmox            | **nein, und ausdrücklich nicht.** Der Zufall muss reproduzierbar sein — ein Hardware-Zufallszahlengeber ist genau das Gegenteil                                                                                                                                                    |
+| **CLWB, CLFLUSHOPT**         | Laptop, proxmox            | **nein — sie laden nichts vor.** Beide schreiben zurück bzw. verwerfen Cache-Zeilen. Vorladen wäre `PREFETCHT0/T1/NTA`; bei kleinen, vorhersehbar durchlaufenen Checkpoints genügt der Hardware-Vorlader vermutlich. **Manuelles Vorladen erst nach einem gemessenen Cache-Stall** |
 
 **Zusammengefasst: Von den exotischen Befehlssätzen trägt keiner.** Was trägt, sind AVX2/FMA für
 Batches und — weniger sichtbar — **BMI1 plus `POPCNT`** für die Bitmengen: `TZCNT` und
@@ -3847,12 +3837,12 @@ verbessert die Vorhersage nicht.
 
 **Was an derselben Stelle tatsächlich hilft, steht schon im Plan:**
 
-| Maßnahme | wirkt auf | wo |
-| -------- | --------- | -- |
-| PGO mit echter Boss-/Build-Mischung | Sprungvorhersage und Codeanordnung | E11.6 |
-| Kernel-Spezialisierung je Merkmalsmaske | **entfernt Zweige, statt sie vorherzusagen** | E11.7b |
-| verzweigungsfreie Auswahl (`cmov`) an wenigen heißen Stellen | unvorhersagbare Sprünge | **neu, als Teilschritt von E11.7b** |
-| Datenlayout: aktive Zauber statt 70er-Arrays | Cache-Fehlgriffe | E11.4 |
+| Maßnahme                                                     | wirkt auf                                    | wo                                  |
+| ------------------------------------------------------------ | -------------------------------------------- | ----------------------------------- |
+| PGO mit echter Boss-/Build-Mischung                          | Sprungvorhersage und Codeanordnung           | E11.6                               |
+| Kernel-Spezialisierung je Merkmalsmaske                      | **entfernt Zweige, statt sie vorherzusagen** | E11.7b                              |
+| verzweigungsfreie Auswahl (`cmov`) an wenigen heißen Stellen | unvorhersagbare Sprünge                      | **neu, als Teilschritt von E11.7b** |
+| Datenlayout: aktive Zauber statt 70er-Arrays                 | Cache-Fehlgriffe                             | E11.4                               |
 
 **Drei Prüfpunkte gehören dazu, bevor überhaupt an Assembler zu denken ist** — sie kosten
 Prozentpunkte, keine Größenordnungen, aber sie sind messbar:
@@ -3922,9 +3912,9 @@ divergente Warps, und das ist der Fall, in dem eine GPU am schlechtesten ist.
 > erfüllt sind: E14 abgeschlossen · alle einfacheren GPU-Pfade gemessen · ein repräsentativer
 > **homogener** Vollkampf-Batch existiert · End-to-End-Gewinn **inklusive** Packen, Transfers und
 > CPU-Taktverlust zu erwarten. Bringt der Versuch nichts, bleibt er dauerhaft aus. **Was auf die GPU
-gehört**, sind die homogenen Teile: Ledger-Auswertungen, Kandidat × Boss, Krit-Verteilungen.
-Genau so steht es in E13, und die Break-even-Schwelle (50 000–100 000 Kandidaten je Batch) ist
-der Prüfstein.
+> gehört**, sind die homogenen Teile: Ledger-Auswertungen, Kandidat × Boss, Krit-Verteilungen.
+> Genau so steht es in E13, und die Break-even-Schwelle (50 000–100 000 Kandidaten je Batch) ist
+> der Prüfstein.
 
 **Die iGPUs sind voreingestellt aus — aber nicht ausgeschlossen.**
 
@@ -3966,25 +3956,23 @@ Teil Anhang B.2.6 sagt „polyglott: nein, außer CUDA-C". **Für den heißen Re
 richtig.** Für die Suite als Ganzes ist es zu streng — der kalte Pfad darf andere Werkzeuge
 benutzen, weil er die Parität nicht berührt:
 
-| Bestandteil | Sprache |
-| --- | --- |
-| **Kampfkernel, Scheduler, Router** | **Rust — einsprachig, keine Ausnahme** |
-| SIMD | Rust `std::arch` (kein `std::simd`, nightly) |
-| NVIDIA-GPU | CUDA-C++ hinter schmaler C-Schnittstelle |
-| Abdeckungsmatrizen (E21.1) | Constraint-Löser, **kalter Pfad** |
-| formale Nachweise (E11.4f `FormallyProven`) | SMT-Löser, **kalter Pfad** |
-| gestufte Spezialisierung (E11.7c) | Cranelift |
-| Auswertung, Diagramme | Python, **nur offline** |
-| Browser-Referenz | TypeScript (Parität, gesetzt) |
+| Bestandteil                                 | Sprache                                      |
+| ------------------------------------------- | -------------------------------------------- |
+| **Kampfkernel, Scheduler, Router**          | **Rust — einsprachig, keine Ausnahme**       |
+| SIMD                                        | Rust `std::arch` (kein `std::simd`, nightly) |
+| NVIDIA-GPU                                  | CUDA-C++ hinter schmaler C-Schnittstelle     |
+| Abdeckungsmatrizen (E21.1)                  | Constraint-Löser, **kalter Pfad**            |
+| formale Nachweise (E11.4f `FormallyProven`) | SMT-Löser, **kalter Pfad**                   |
+| gestufte Spezialisierung (E11.7c)           | Cranelift                                    |
+| Auswertung, Diagramme                       | Python, **nur offline**                      |
+| Browser-Referenz                            | TypeScript (Parität, gesetzt)                |
 
 > **Der Grundsatz: polyglott beim Planen, Beweisen und auf der GPU — einsprachig im heißen
 > Pfad.** Und: C++ oder Zig machen den CPU-Kernel **nicht** schneller. Bei gleichem
 > LLVM-Unterbau entscheiden Datenlayout, Algorithmus und Verzweigungsverhalten, nicht der Name
 > der Sprache.
 
-
 ### 4.7 E16 bis E20 — Bauteile und Bedienung
-
 
 ### E16 — Die Wirkungs-IR: der Abhängigkeitsgraph darf nicht von Hand gepflegt werden
 
@@ -4043,8 +4031,8 @@ Invalidierungskanten.
 > Ereigniskanäle und Invalidierungskanten **ableiten** statt annehmen.
 >
 > **Monotonie ist dabei keine Eigenschaft eines Effekts allein.** `baseDamage` ist monoton
-> bezüglich *erwartetem Schaden an einem gewöhnlichen Boss bei stabilem Trace* — und **nicht**
-> bezüglich *Sieg an einem `runaway`-Boss*, *Kill-Zeit über einen Phasenwechsel* oder eines
+> bezüglich _erwartetem Schaden an einem gewöhnlichen Boss bei stabilem Trace_ — und **nicht**
+> bezüglich _Sieg an einem `runaway`-Boss_, _Kill-Zeit über einen Phasenwechsel_ oder eines
 > Scores mit HP-Prädikaten. Ein einzelnes Enum am Knoten wäre zu vertrauensselig:
 >
 > ```rust
@@ -4071,9 +4059,9 @@ Invalidierungskanten.
 >                            fn analyze(&self, node: &EffectNode) -> AnalysisResult; }
 > ```
 >
-> Eine **erzeugte Registry** listet die Pflichtanalysen, und der Test lautet: *ein neuer Opcode
+> Eine **erzeugte Registry** listet die Pflichtanalysen, und der Test lautet: _ein neuer Opcode
 > oder eine `CustomSignature` ohne vollständige Semantik lässt **jede registrierte** Analyse
-> fehlschlagen* — nicht „alle sechs".
+> fehlschlagen_ — nicht „alle sechs".
 
 > **`CustomSignature` ist genau das Schlupfloch, das diese Zusicherung aufheben würde.** Wenn
 > jede ungewöhnliche Mechanik als `CustomSignature(id)` durchläuft, bricht der Bau **nie** mehr
@@ -4225,12 +4213,12 @@ bisheriger Wert + sichere optimistische Restschranke  <  EINGEFRORENER Amtsinhab
 
 **Die Schranke muss boss- und zielabhängig sein**, sonst ist sie falsch:
 
-| Bossart | Restschranke |
-| --- | --- |
-| gewöhnlich | maximal erreichbarer Restschaden |
-| `runaway` | erreichbare Ring-Intervalle — **nicht** Schaden, der Ring läuft umgekehrt |
-| Überlebensboss | obere Schranke der Überlebenswahrscheinlichkeit bzw. Restheilung |
-| Unterbrechungsboss | verbleibende Lösbarkeit der Pflichtmechanik |
+| Bossart            | Restschranke                                                              |
+| ------------------ | ------------------------------------------------------------------------- |
+| gewöhnlich         | maximal erreichbarer Restschaden                                          |
+| `runaway`          | erreichbare Ring-Intervalle — **nicht** Schaden, der Ring läuft umgekehrt |
+| Überlebensboss     | obere Schranke der Überlebenswahrscheinlichkeit bzw. Restheilung          |
+| Unterbrechungsboss | verbleibende Lösbarkeit der Pflichtmechanik                               |
 
 Bei einer lexikographischen Zielfunktion wird ein **Schrankenvektor** geführt, kein Skalar —
 und ein Kandidat darf erst verworfen werden, wenn er in der **ersten noch unterscheidenden**
@@ -4356,9 +4344,7 @@ Unterbefehl ins Werkzeug; der Rest bleibt, wo er ist.
 `verify` besteht. **Das wird an einer echten Sitzung geprüft, nicht behauptet** — es ist die
 einzige Abnahme in diesem Plan, die ein Mensch und kein Messwert entscheidet.
 
-
 ### 4.8 E21 — Laufzeitvertrag und Qualitätszertifikat
-
 
 _Nachgetragen 2026-08-14 aus dem vierten externen Urteil. Es trifft die Betriebsanforderung,
 um die es dem Auftraggeber eigentlich geht — und die dieser Plan bisher nicht beantwortet:_
@@ -4596,8 +4582,8 @@ gültigem Zeugen**.
 > }
 > ```
 >
-> Bei einer APL-Prioritätskante lautet der Zeuge: *beide Regeln gültig, beide Zauber bereit,
-> die Reihenfolge entschied tatsächlich*. **Ohne das ist die Matrix eine
+> Bei einer APL-Prioritätskante lautet der Zeuge: _beide Regeln gültig, beide Zauber bereit,
+> die Reihenfolge entschied tatsächlich_. **Ohne das ist die Matrix eine
 > Aktivierungsabdeckung, keine Interaktionsabdeckung** — und genau der Unterschied ist der
 > Zweck der Übung.
 
@@ -4703,14 +4689,14 @@ Dreier-Abdeckung und 38 offenen Zellen: ja, gezielt. Bei 100 % und 0: nein.
 
 ### E21.4 — Kampagnenprofile statt freier Parameter
 
-| Profil | Zielzeit | Umfang |
-| --- | ---: | --- |
-| `smoke` | 1–5 min | Parität, Datenprüfung, wenige Referenzprojektionen |
-| `impact` | 5–30 min | **nur die von einer Änderung betroffene Abhängigkeitsscheibe** (E15.4) |
-| `interactive` | 30–60 min | lokale Balance-Iteration mit Warm-Starts |
+| Profil         |  Zielzeit | Umfang                                                                                         |
+| -------------- | --------: | ---------------------------------------------------------------------------------------------- |
+| `smoke`        |   1–5 min | Parität, Datenprüfung, wenige Referenzprojektionen                                             |
+| `impact`       |  5–30 min | **nur die von einer Änderung betroffene Abhängigkeitsscheibe** (E15.4)                         |
+| `interactive`  | 30–60 min | lokale Balance-Iteration mit Warm-Starts                                                       |
 | **`standard`** | **2–4 h** | alle Pflichtprojektionen · Nischenabdeckung · adaptives LNS · Herausforderer · Abschluss-Audit |
-| `deep` | 8–12 h | größere Wechselwirkungsabdeckung, mehr Neustarts, stärkere Herausforderer |
-| `release` | 12–24 h | volle Matrix: 68 Bosse × Schwierigkeiten × Fortschritt × Referenzprüfungen |
+| `deep`         |    8–12 h | größere Wechselwirkungsabdeckung, mehr Neustarts, stärkere Herausforderer                      |
+| `release`      |   12–24 h | volle Matrix: 68 Bosse × Schwierigkeiten × Fortschritt × Referenzprüfungen                     |
 
 **Und der Vollraum wird nicht angeboten, sondern abgelehnt** — mit einem Vorschlag statt einer
 Fehlermeldung:
@@ -4738,10 +4724,10 @@ HYPOTHETISCH × 1,8                    ≈ 1,64 Mio. aufgelöste Kandidaten/s
 ```
 
 | Laufzeit | aufgelöste Kandidaten — **illustratives Szenario, keine konservative Prognose** |
-| ---: | ---: |
-| 30 min | ≈ 3,0 Mrd. |
-| 2 h | ≈ 11,8 Mrd. |
-| 4 h | ≈ 23,6 Mrd. |
+| -------: | ------------------------------------------------------------------------------: |
+|   30 min |                                                                      ≈ 3,0 Mrd. |
+|      2 h |                                                                     ≈ 11,8 Mrd. |
+|      4 h |                                                                     ≈ 23,6 Mrd. |
 
 **Ohne** sparsame Ledger-Differenz, GPU, dauerhaften Ergebnisspeicher, Boss-Active-Set und
 Abdeckungsmatrix — die kommen obendrauf.
@@ -4817,7 +4803,7 @@ Markow-Entscheidungsprozess; **Monte-Carlo bleibt der Rückfall**, wenn der Zust
 
 ### E21.7 — Der dauerhafte Ergebnisspeicher: wichtiger als 10 % CPU
 
-**E17 sichert den Zustand *eines laufenden* Laufs.** Was fehlt, ist die Wiederverwendung
+**E17 sichert den Zustand _eines laufenden_ Laufs.** Was fehlt, ist die Wiederverwendung
 **über Läufe hinweg** — und im echten Arbeitsablauf ist das der größere Hebel.
 
 ```
@@ -4869,21 +4855,21 @@ Scherben klein und entbehrlich.
 **Zielwerte für die fertige Suite, keine gemessenen Zusagen** — sie machen prüfbar, ob der Plan
 sein eigenes Versprechen einlöst:
 
-| Änderung | Zielzeit |
-| --- | ---: |
-| `baseDamage` eines Zaubers | Sekunden bis Minuten |
-| Talentwert ohne Strukturänderung | Sekunden bis Minuten |
-| Abklingzeit oder Wirkzeit eines Zaubers | Minuten |
-| neuer Gegenstand, **bekannter Phänotyp** | **keine Kampfrechnung** |
-| neuer Gegenstand, neuer Phänotyp | Minuten |
-| neuer Satz- oder legendärer Effekt | 30 min – 4 h |
-| neuer Boss | 10–60 min |
-| neue Instanz mit 4–6 Bossen | 1–4 h |
-| neuer Zauber | 1–4 h (`standard`) |
-| neues Affix | 1–4 h |
-| **vollständiger Standard-Balance-Lauf** | **2–4 h** |
-| tiefer Release-Lauf | 8–24 h |
-| Vollraum | **wird nicht angeboten** |
+| Änderung                                 |                 Zielzeit |
+| ---------------------------------------- | -----------------------: |
+| `baseDamage` eines Zaubers               |     Sekunden bis Minuten |
+| Talentwert ohne Strukturänderung         |     Sekunden bis Minuten |
+| Abklingzeit oder Wirkzeit eines Zaubers  |                  Minuten |
+| neuer Gegenstand, **bekannter Phänotyp** |  **keine Kampfrechnung** |
+| neuer Gegenstand, neuer Phänotyp         |                  Minuten |
+| neuer Satz- oder legendärer Effekt       |             30 min – 4 h |
+| neuer Boss                               |                10–60 min |
+| neue Instanz mit 4–6 Bossen              |                    1–4 h |
+| neuer Zauber                             |       1–4 h (`standard`) |
+| neues Affix                              |                    1–4 h |
+| **vollständiger Standard-Balance-Lauf**  |                **2–4 h** |
+| tiefer Release-Lauf                      |                   8–24 h |
+| Vollraum                                 | **wird nicht angeboten** |
 
 ## Teil 5 — Auflagen, die jedes Issue binden
 
@@ -5011,13 +4997,13 @@ Issue setzt sie voraus und darf ihnen nicht widersprechen.
 
 #### Der Zielvertrag
 
-| Vorgabe                | Wert                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| Form der Zielfunktion  | **lexikographische Rangfolge**, harte Bedingungen vor allen Dimensionen         |
-| Grobstruktur           | **Überleben → Schaden → Ressourcen**                                            |
-| „Überleben" misst      | **Siegwahrscheinlichkeit** über die Zufallsströme, nicht Restleben              |
-| Zulässigkeitsschwelle  | **Sieg ≥ 99 %, Mechanikerfolg ≥ 99,9 %** — nachgewiesen über die **untere Konfidenzgrenze**, nie über den Schätzwert |
-| Schwellen sind         | **versionierte Felder des Laufvertrags**, keine globalen Konstanten — ein Endgame-Boss darf mehr Sicherheit verlangen als ein Instanz-1-Boss |
+| Vorgabe               | Wert                                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Form der Zielfunktion | **lexikographische Rangfolge**, harte Bedingungen vor allen Dimensionen                                                                      |
+| Grobstruktur          | **Überleben → Schaden → Ressourcen**                                                                                                         |
+| „Überleben" misst     | **Siegwahrscheinlichkeit** über die Zufallsströme, nicht Restleben                                                                           |
+| Zulässigkeitsschwelle | **Sieg ≥ 99 %, Mechanikerfolg ≥ 99,9 %** — nachgewiesen über die **untere Konfidenzgrenze**, nie über den Schätzwert                         |
+| Schwellen sind        | **versionierte Felder des Laufvertrags**, keine globalen Konstanten — ein Endgame-Boss darf mehr Sicherheit verlangen als ein Instanz-1-Boss |
 
 **Die ausgeschriebene Rangfolge steht in E12.0** und hat acht Stufen. Die Grobstruktur oben ist
 ihre Zusammenfassung, nicht ihr Ersatz: Stufen 1–2 sind „Überleben", Stufe 5 ist „Schaden",
@@ -5048,11 +5034,11 @@ korrekt ist, wird über die Menge zur Fehlerquelle.
 
 #### Zusammenfassung über Bosse
 
-| Vorgabe                       | Wert                                                                  |
-| ----------------------------- | --------------------------------------------------------------------- |
-| über alle Bosse hinweg        | **keine** globale Zusammenfassung, keine globale Elite                |
-| innerhalb einer Instanz       | **schwächster Boss zählt** — eine Instanz läuft man mit einer Rotation |
-| Test- und Prüfbosse           | **maschinell aus jeder Wertung ausgeschlossen**, der Bau bricht bei Verstoß |
+| Vorgabe                 | Wert                                                                        |
+| ----------------------- | --------------------------------------------------------------------------- |
+| über alle Bosse hinweg  | **keine** globale Zusammenfassung, keine globale Elite                      |
+| innerhalb einer Instanz | **schwächster Boss zählt** — eine Instanz läuft man mit einer Rotation      |
+| Test- und Prüfbosse     | **maschinell aus jeder Wertung ausgeschlossen**, der Bau bricht bei Verstoß |
 
 **Gemessen am 2026-08-17:** Die Instanzstruktur trägt das ohne Umbau — jeder Spielboss hat
 genau eine `instance`: vier Instanzen mit je vier Bossen, dazu `prologue` mit
@@ -5064,12 +5050,12 @@ Warnung ausgeführt.
 
 #### Werte-Deckel und Startwerte
 
-| Vorgabe                | Wert                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| Höhe der Deckel        | **technisch maximal** — so hoch, wie Überlaufbeweis und Browser-Grenze es tragen      |
-| Rolle des Deckels      | **Rechenschranke, keine Balance-Aussage**                                             |
-| Base Values            | **Bestand ist Startpunkt**, der Optimierer verschiebt sie innerhalb des Deckels       |
-| zusätzlich             | ein **Vergleichslauf von neutralen Startwerten**, um den Einfluss des Startpunkts zu messen |
+| Vorgabe           | Wert                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| Höhe der Deckel   | **technisch maximal** — so hoch, wie Überlaufbeweis und Browser-Grenze es tragen            |
+| Rolle des Deckels | **Rechenschranke, keine Balance-Aussage**                                                   |
+| Base Values       | **Bestand ist Startpunkt**, der Optimierer verschiebt sie innerhalb des Deckels             |
+| zusätzlich        | ein **Vergleichslauf von neutralen Startwerten**, um den Einfluss des Startpunkts zu messen |
 
 Der Deckel begrenzt den **Suchraum**, nicht das Ergebnis — er ist eine Eingabe der Suche und
 wird von ihr nicht mitbalanciert. Andernfalls verschiebt der Optimierer seine eigene Grenze
@@ -5082,10 +5068,10 @@ gemeldet** — sie ist dann ein Befund, keine Randbedingung.
 
 #### Vielfalt
 
-| Vorgabe          | Wert                                                                     |
-| ---------------- | ------------------------------------------------------------------------ |
-| erste Achse      | **Zauberschule**                                                         |
-| weitere Achsen   | **zwei bis drei aus der Wirkungsbeschreibung abgeleitet** (E16.0, E16.1) |
+| Vorgabe        | Wert                                                                     |
+| -------------- | ------------------------------------------------------------------------ |
+| erste Achse    | **Zauberschule**                                                         |
+| weitere Achsen | **zwei bis drei aus der Wirkungsbeschreibung abgeleitet** (E16.0, E16.1) |
 
 Schulen allein genügen nicht: Zwei Feuer-Aufbauten können sich vollkommen verschieden spielen
 und gälten als dieselbe Nische — dann findet die Suche genau die Vielfalt nicht, die gesucht
@@ -5094,10 +5080,10 @@ werden, weil Frost-Aufbauten sich rechnerisch wie Feuer verhalten. Deshalb beide
 
 #### Bossmechanik und das Kontroll-Loch
 
-| Vorgabe                          | Wert                                                            |
-| -------------------------------- | --------------------------------------------------------------- |
+| Vorgabe                          | Wert                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------- |
 | HP-Phasen                        | **bleiben selten** — Bestand: **2 von 17** (`boss-1-2`, `boss-3-4`, je 2 Phasen) |
-| laufender Boss-Zauber in der APL | **wird aufgenommen** (`boss.casting` plus Restzeit)             |
+| laufender Boss-Zauber in der APL | **wird aufgenommen** (`boss.casting` plus Restzeit)                              |
 
 Das zweite ist kein Widerspruch zum ersten. Die Suchsprache kennt Bosszustände längst —
 `BossHp`, `BossHpPercent`, `Control`, `DotActive` und weitere stehen im `enum Value`. Es fehlt
@@ -5111,7 +5097,6 @@ deterministisch — anders als `BossHpPercent`, das am zufälligen Schadensverla
 das, kostet die Aufnahme den analytischen Krit-Pfad nichts.
 
 ---
-
 
 ---
 
@@ -5226,14 +5211,14 @@ je Baum mit anschließender Faltung über das Punktebudget sollte reichen; sie i
 
 #### Weiterhin offen, mit Grund
 
-| offen | betrifft | warum es (noch) nicht geht |
-| --- | --- | --- |
-| **Queue-Verteilung am Lastprofil** | E11.0b, E11.2 | Die Instrumentierung in `fight.rs` fehlt — sie ist Teil von E11.0 |
-| **`expire_buffs`-Trefferquote im Endausbau** | E11.2 | dieselbe Instrumentierung |
-| **Talent-Phänotypen, exakt** | E11.1 | braucht die faktorisierte DP, nicht die naive Aufzählung |
-| **Cache-Trefferquote in einem realen LNS-Lauf** | E11.4b | setzt E11.4b voraus — Code existiert nicht |
-| **Bitgleichheit über AVX2/FMA** | E11.7, E14 | setzt E11.7 voraus — der Nachweis in Teil 2.1 gilt für den **skalaren** Pfad |
-| **Ob ein LXC unter Dauerlast die Nodes stört** | E15.5 | **es gibt keinen LXC.** Alle bisherigen Messungen liefen direkt als root auf dem Host, per `scp`+`ssh`. Der Plan beschreibt `cpuunits` und cgroup v2 — beides ungetestet. Einen Container anzulegen ist ein Eingriff in die Infrastruktur und braucht eine Freigabe |
+| offen                                           | betrifft      | warum es (noch) nicht geht                                                                                                                                                                                                                                          |
+| ----------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Queue-Verteilung am Lastprofil**              | E11.0b, E11.2 | Die Instrumentierung in `fight.rs` fehlt — sie ist Teil von E11.0                                                                                                                                                                                                   |
+| **`expire_buffs`-Trefferquote im Endausbau**    | E11.2         | dieselbe Instrumentierung                                                                                                                                                                                                                                           |
+| **Talent-Phänotypen, exakt**                    | E11.1         | braucht die faktorisierte DP, nicht die naive Aufzählung                                                                                                                                                                                                            |
+| **Cache-Trefferquote in einem realen LNS-Lauf** | E11.4b        | setzt E11.4b voraus — Code existiert nicht                                                                                                                                                                                                                          |
+| **Bitgleichheit über AVX2/FMA**                 | E11.7, E14    | setzt E11.7 voraus — der Nachweis in Teil 2.1 gilt für den **skalaren** Pfad                                                                                                                                                                                        |
+| **Ob ein LXC unter Dauerlast die Nodes stört**  | E15.5         | **es gibt keinen LXC.** Alle bisherigen Messungen liefen direkt als root auf dem Host, per `scp`+`ssh`. Der Plan beschreibt `cpuunits` und cgroup v2 — beides ungetestet. Einen Container anzulegen ist ein Eingriff in die Infrastruktur und braucht eine Freigabe |
 
 ### 6.3 Was dieser Plan bewusst nicht löst
 
@@ -5245,7 +5230,6 @@ kippt erst mit zustandsabhängigen Kandidatenzeilen) · **Assembler als allgemei
 ---
 
 ## Anhang A — Die Messungen, auf die sich dieser Plan stützt
-
 
 Alle in `docs/SIM-MESSUNGEN.md` mit ihrem Läufer und ihren Einstellungen. Die für E11
 tragenden:
@@ -5353,7 +5337,6 @@ mehr Zaubern und längeren Listen. **Der Abstand zwischen beiden — und damit d
 DAG — wird dadurch eher größer.** Der Haste-Faktor 1,00 kann nicht steigen: mehr Zauber je Build
 heißt mehr verschiedene Basiszeiten, also feiner zerschnittene Intervalle.
 
-
 ---
 
 ## Anhang B — Die geprüften externen Vorschläge
@@ -5362,7 +5345,6 @@ _Vier externe Architekturvorschläge sind in diesen Plan eingegangen. Dieser Anh
 **was geprüft wurde und was dabei herauskam** — er ist Beleg, nicht Planung. Wer umsetzt,
 braucht ihn nicht; wer wissen will, warum eine Entscheidung so und nicht anders fiel, findet
 sie hier._
-
 
 ### B.1 Erster Vorschlag — die Zahlen und drei Überdehnungen
 
@@ -5512,19 +5494,19 @@ Fallnamen selbst ein. Der Satz des Workers dazu ist die Regel:
 
 Wer den Unterschied nicht macht, verlässt sich beim nächsten Mal auf eine Einsicht, die er
 nie hatte. Dasselbe gilt spiegelbildlich für den umgekehrten Fehler — aus einer richtigen
-Messung eine falsche Regel abzuleiten: **Eine Messung belegt, *was* schiefging, nicht *welche
-Regel* gelten soll.** Dazwischen liegt die Frage, ob es einen bekannten Weg gibt, den man
+Messung eine falsche Regel abzuleiten: **Eine Messung belegt, _was_ schiefging, nicht _welche
+Regel_ gelten soll.** Dazwischen liegt die Frage, ob es einen bekannten Weg gibt, den man
 gerade nicht gegangen ist. Eine falsche Regel mit einer echten Messung darunter ist
 gefährlicher als eine ohne, weil die Zahl das Nachdenken beendet.
 
 **`--all-targets` ist beim Testen NICHT die gründlichere Variante, sondern ein anderer
 Ausschnitt.** Am 2026-08-18 gemessen, drei Läufe gegen denselben Stand:
 
-| Aufruf | Umfang | was fehlt |
-| --- | --- | --- |
-| `cargo test` (**der CI-Befehl**, `ci.yml:222`) | 164 Suiten, 903 Tests | — |
-| `cargo test --all-targets` | 187 Ziele, 898 Tests | **alle 5 Doc-Tests** |
-| lokal über die Binaries | 163 Ziele, 898 Tests | ebenfalls die Doc-Tests |
+| Aufruf                                         | Umfang                | was fehlt               |
+| ---------------------------------------------- | --------------------- | ----------------------- |
+| `cargo test` (**der CI-Befehl**, `ci.yml:222`) | 164 Suiten, 903 Tests | —                       |
+| `cargo test --all-targets`                     | 187 Ziele, 898 Tests  | **alle 5 Doc-Tests**    |
+| lokal über die Binaries                        | 163 Ziele, 898 Tests  | ebenfalls die Doc-Tests |
 
 `--all-targets` fährt die 24 Beispiele mit, die **null** Prüffälle tragen, und dafür keine
 Doc-Tests. Mehr Ziele, weniger Tests. Wer nur die Zielzahl vergleicht, hält den größeren Lauf
@@ -5555,11 +5537,11 @@ dort **nicht** gilt, sind Zeiten (121 689 gegen 210 094 Kämpfe/s, siehe Tabelle
 
 Zwei Fallen, beide gemessen, beide kosten sonst einen falschen Befund:
 
-| Falle | Symptom | Ursache |
-| --- | --- | --- |
-| falsches Arbeitsverzeichnis | „data/spells fehlt", 13 Fälle | `cargo test` setzt CWD auf `sim/`, eine eigene Schleife nicht. Tests lesen `../data/…` |
-| eingebrannte Baupfade | „/tmp/builds/…/decay-factor.json fehlt" | `env!("CARGO_MANIFEST_DIR")` und `env!("CARGO_BIN_EXE_*")` werden zur **Bauzeit** ersetzt |
-| eingefrorene Datenlage | Prüffall meldet einen Boss, den es nicht mehr gibt | `build.rs` kompiliert `data/` ein. Das Binary kennt den Stand seines **Baus**, nicht den der Platte |
+| Falle                       | Symptom                                            | Ursache                                                                                             |
+| --------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| falsches Arbeitsverzeichnis | „data/spells fehlt", 13 Fälle                      | `cargo test` setzt CWD auf `sim/`, eine eigene Schleife nicht. Tests lesen `../data/…`              |
+| eingebrannte Baupfade       | „/tmp/builds/…/decay-factor.json fehlt"            | `env!("CARGO_MANIFEST_DIR")` und `env!("CARGO_BIN_EXE_*")` werden zur **Bauzeit** ersetzt           |
+| eingefrorene Datenlage      | Prüffall meldet einen Boss, den es nicht mehr gibt | `build.rs` kompiliert `data/` ein. Das Binary kennt den Stand seines **Baus**, nicht den der Platte |
 
 **Die dritte Falle ist die teuerste, weil ihre Fehlermeldung stimmt.** Am 2026-08-19 war
 `parity_boss_state::ac1_beide_seiten_sehen_dieselbe_boss_menge` rot, weil eine untrackte Datei
@@ -5601,7 +5583,7 @@ Der Verweis wird deshalb einmal je Arbeitsplatz gesetzt und bleibt gültig.
 
 #### B.1.6a Eine Durchsatzmessung und ein Testlauf schließen einander aus
 
-*Am 2026-08-19 dreimal aufgetreten, zweimal beinahe von mir verursacht.*
+_Am 2026-08-19 dreimal aufgetreten, zweimal beinahe von mir verursacht._
 
 Die Messumgebung aus #896 bricht ab, sobald die Rate während der Messung schwankt. Worker-2s
 erster Versuch für #909 AC1 scheiterte deshalb in **allen acht Lastarten** — Ursache war
@@ -5613,11 +5595,11 @@ Das ist kein Fehler eines Workers, sondern eine **Belegung, die koordiniert werd
 **Was auf dieser Maschine liegt und was nicht** — die Unterscheidung, die ich zuerst nicht
 gemacht hatte:
 
-| Schritt | Wo er läuft | belastet die Messung |
-| --- | --- | --- |
-| `cargo remote -c -- test --no-run` | rustbuild, CT 155 | nein |
-| CI (`gh pr update-branch`, Läufe) | Runner CT 150 in gonet | nein |
-| **Ausführen der Testbinaries** | **hier** | **ja** |
+| Schritt                            | Wo er läuft            | belastet die Messung |
+| ---------------------------------- | ---------------------- | -------------------- |
+| `cargo remote -c -- test --no-run` | rustbuild, CT 155      | nein                 |
+| CI (`gh pr update-branch`, Läufe)  | Runner CT 150 in gonet | nein                 |
+| **Ausführen der Testbinaries**     | **hier**               | **ja**               |
 
 Ein Abnahmelauf über 200 Ziele mit acht Strängen ist damit dieselbe Belegung, über die sich
 der blockierte Worker beschwert — nur vom Orchestrator. **Ich hätte das Fenster zugesagt und
@@ -5661,9 +5643,9 @@ drei Sekunden vorher gestartet war.
 ```
 
 Worker-1 hat die Freigabe **sinngemäß statt wörtlich** gelesen, an `ps` nachgemessen (etimes 3)
-und sich zurückgehalten. Sein Satz dazu ist der Grund, warum es zählt: *„Praktisch kostet mich
+und sich zurückgehalten. Sein Satz dazu ist der Grund, warum es zählt: _„Praktisch kostet mich
 das nichts — ich sage es, weil die Freigabe beim nächsten Mal jemanden treffen könnte, der
-etwas zu rechnen hat."*
+etwas zu rechnen hat."_
 
 **Und ein Fenster gilt erst als offen, wenn beide anderen quittiert haben UND `pgrep` leer
 ist** — nicht, wenn die Anordnung raus ist. Am 2026-08-19 wurde einem messenden Worker der
@@ -5675,8 +5657,8 @@ Fertigmeldung — ein Gesamtlauf ist die Handlung, die andere stört.
 
 #### B.1.6a-2 Die Streuung hing an der Abschnittsdauer, nicht an der Fremdlast
 
-*Der Befund relativiert den Abschnitt darüber, und das ist der Grund, warum er direkt darunter
-steht.*
+_Der Befund relativiert den Abschnitt darüber, und das ist der Grund, warum er direkt darunter
+steht._
 
 Nach zwei Stunden Fenster-Koordination — Anordnungen, Reihenfolgen, Prioritäten — hat Worker-2
 die eigentliche Ursache gefunden, und sie hat mit Fremdlast **nichts** zu tun:
@@ -5715,16 +5697,16 @@ lag bei 40 Minuten. Gefragt statt gerechnet hätte es sofort geklärt.
 
 #### B.1.6b Der Simulator zählt bei umgekehrtem Ziel die Niederlagen als Siege
 
-*Gefunden von Worker-3 beim Bau von #939, am Quelltext gemeldet und später am laufenden
-Programm belegt. Vom Orchestrator mit eigenen Befehlen nachgemessen.*
+_Gefunden von Worker-3 beim Bau von #939, am Quelltext gemeldet und später am laufenden
+Programm belegt. Vom Orchestrator mit eigenen Befehlen nachgemessen._
 
 **Das Spiel unterscheidet, der Simulator nicht.** `combat.ts:4615` führt die Umkehrung als
 Tabelle:
 
-| | Ring auf 0 | Zeit abgelaufen |
-| --- | --- | --- |
-| gewöhnlich | Sieg | Niederlage |
-| `runaway` | **Niederlage** | **Sieg** |
+|            | Ring auf 0     | Zeit abgelaufen |
+| ---------- | -------------- | --------------- |
+| gewöhnlich | Sieg           | Niederlage      |
+| `runaway`  | **Niederlage** | **Sieg**        |
 
 ```ts
 const umgekehrt = this.boss.runaway !== null;
@@ -5774,11 +5756,11 @@ unkommentiert.
 Am 2026-08-19 entstanden an drei Stellen unabhängig dieselbe Entscheidung, von drei
 verschiedenen Rollen:
 
-| Wo | Statt eines Wertes | Quelle |
-| --- | --- | --- |
-| `erwarteter_schaden` bei `stop_on_kill` | `None` | #908, AC4 |
-| ein Messblock mit PSI über der Schwelle | `ABBRUCH` | #896, Messumgebung |
-| die gestaffelte Stichprobe bei Budgetende | `UNGEKLÄRT` | #915, AC3 |
+| Wo                                        | Statt eines Wertes | Quelle             |
+| ----------------------------------------- | ------------------ | ------------------ |
+| `erwarteter_schaden` bei `stop_on_kill`   | `None`             | #908, AC4          |
+| ein Messblock mit PSI über der Schwelle   | `ABBRUCH`          | #896, Messumgebung |
+| die gestaffelte Stichprobe bei Budgetende | `UNGEKLÄRT`        | #915, AC3          |
 
 **Der gemeinsame Kern ist nicht Vorsicht, sondern Unterscheidbarkeit.** Worker-1s Formulierung:
 
@@ -5813,16 +5795,16 @@ einen `match` ohne Auffangzweig verlangt.
 
 #### B.1.6c Ein Fehler neben einem Erfolg wird als Erfolg gelesen
 
-*Der Satz ist Worker-3s. Er beschreibt eine Fehlerklasse, die am 2026-08-19 in drei
-verschiedenen Gestalten auftrat.*
+_Der Satz ist Worker-3s. Er beschreibt eine Fehlerklasse, die am 2026-08-19 in drei
+verschiedenen Gestalten auftrat._
 
 **Die drei Gestalten:**
 
-| Wo | Was gemeldet wurde | Was daneben stand |
-| --- | --- | --- |
-| CI, `diagnose_im_kampf` | `running 0 tests` | `test result: ok` |
-| `rota-ipc senden` | `bash: todesfelder_stimmen: command not found` | `Nachricht zugestellt` |
-| Prüffall „drei gegen eins" | nichts | grün, obwohl der Name mehr verspricht |
+| Wo                         | Was gemeldet wurde                             | Was daneben stand                     |
+| -------------------------- | ---------------------------------------------- | ------------------------------------- |
+| CI, `diagnose_im_kampf`    | `running 0 tests`                              | `test result: ok`                     |
+| `rota-ipc senden`          | `bash: todesfelder_stimmen: command not found` | `Nachricht zugestellt`                |
+| Prüffall „drei gegen eins" | nichts                                         | grün, obwohl der Name mehr verspricht |
 
 In allen drei Fällen war die Information **vorhanden** und wurde von einer daneben
 stehenden Erfolgsmeldung überstimmt.
@@ -5884,7 +5866,7 @@ Zeile daneben; ein `&& melde_erfolg` sieht sie nicht.
 3. **Bei `head`: nicht `pipefail`, sondern `${PIPESTATUS[0]}`.**
 
 **Warum Regel 3 eine eigene Regel ist und keine Alternative** — Worker-3 hat es als Verdacht
-aus Vorwissen gemeldet und ausdrücklich als *nicht gemessen* gekennzeichnet, weil er im
+aus Vorwissen gemeldet und ausdrücklich als _nicht gemessen_ gekennzeichnet, weil er im
 Messfenster nichts ausführen durfte. Nachgemessen:
 
 ```
@@ -5897,14 +5879,14 @@ Messfenster nichts ausführen durfte. Nachgemessen:
 `head` schließt die Pipe, sobald es genug hat; der Schreiber links bekommt SIGPIPE und endet
 mit 141. **Mit `pipefail` wird daraus ein Fehlschlag der ganzen Kette, obwohl nichts
 schiefging** — und zwar genau dann, wenn die Ausgabe lang genug ist. Ein `pipefail` als
-Pauschalregel hätte also den *umgekehrten* Fehler eingebaut: Fehlalarm statt verschluckter
+Pauschalregel hätte also den _umgekehrten_ Fehler eingebaut: Fehlalarm statt verschluckter
 Meldung.
 
 Die beiden Kontrollzeilen sind der Grund, warum die Regel so und nicht allgemeiner steht: Bei
 `tail` und bei kurzer Ausgabe bleibt `pipefail` folgenlos. Der Unterschied liegt nicht am
 Werkzeug, sondern daran, **ob das rechte Glied die Pipe vorzeitig schließt**.
 
-> Der Vorgang ist selbst ein Beispiel für den Abschnitt: Ein Vorbehalt, der als *Verdacht*
+> Der Vorgang ist selbst ein Beispiel für den Abschnitt: Ein Vorbehalt, der als _Verdacht_
 > gemeldet und als solcher gekennzeichnet wurde, hat eine falsche Regel verhindert, die schon
 > im Plan stand.
 
@@ -5925,20 +5907,20 @@ bash: nichtvorhanden999: command not found
 
 Die Rangfolge der Gefährlichkeit ist nicht die, die man erwartet:
 
-| Filter | Was passiert | Was man sieht |
-| --- | --- | --- |
-| `tail` | verschluckt | nichts |
-| `grep` | verschluckt | nichts |
-| `uniq -c` | **addiert** | eine Zahl, die falsch ist |
+| Filter    | Was passiert | Was man sieht             |
+| --------- | ------------ | ------------------------- |
+| `tail`    | verschluckt  | nichts                    |
+| `grep`    | verschluckt  | nichts                    |
+| `uniq -c` | **addiert**  | eine Zahl, die falsch ist |
 
-Worker-1s Satz: *„Bei `uniq -c` wird der Fehler sogar zum Erfolg addiert."* Das ist
+Worker-1s Satz: _„Bei `uniq -c` wird der Fehler sogar zum Erfolg addiert."_ Das ist
 schlimmer als Verschlucken, weil eine falsche Zahl nach einer Messung aussieht.
 
 **4. Regel:** Ein aggregierender Filter (`uniq -c`, `wc -l`, `awk` mit Summe) darf **nie**
 stderr mitlesen.
 
-**Präzisierung von Worker-3, und sie ist nötig:** *„Nie stderr mitlesen" heißt nicht „stderr
-wegwerfen."* Wer es weglässt, verliert die Panics und damit den Grund, warum ein Ziel rot war.
+**Präzisierung von Worker-3, und sie ist nötig:** _„Nie stderr mitlesen" heißt nicht „stderr
+wegwerfen."_ Wer es weglässt, verliert die Panics und damit den Grund, warum ein Ziel rot war.
 Die Regel trägt als **Trennen statt Zusammenführen** — zwei Ströme, zwei Zwecke: der eine wird
 gezählt, der andere gelesen.
 
@@ -5956,8 +5938,8 @@ seq 1 200000 | head -3     ->  141      <- die Kontrollzeile
 Ohne die dritte Zeile hieße die Null nur, dass der Aufbau kein SIGPIPE erzeugt. Mit ihr heißt
 sie: **der Aufbau kann es, `grep -q` tut es nicht.**
 
-Sein Satz dazu ist die eigentliche Regel: *„Früh fertig und die Pipe so schließen, dass SIGPIPE
-entsteht, sind zwei verschiedene Dinge."* Man sieht es einem Werkzeug weder am Namen noch an
+Sein Satz dazu ist die eigentliche Regel: _„Früh fertig und die Pipe so schließen, dass SIGPIPE
+entsteht, sind zwei verschiedene Dinge."_ Man sieht es einem Werkzeug weder am Namen noch an
 seiner Logik an — **die Eigenschaft ist gemessen oder unbekannt.** Zwei Zeilen, mit `head` als
 Kontrollzeile daneben.
 
@@ -5983,8 +5965,8 @@ echo "PUSH EXIT: $?"          <- der Exit von tail, nicht von push
 **Aufgefallen ist es ihm nicht.** Getragen hat eine Zustandsabfrage danach (`git rev-parse HEAD`
 gegen `origin/zweig`, zweimal derselbe Hash) — und die war zufällig da, nicht geplant.
 
-Seine Folgerung: *„Nicht der Exit-Code ist die Absicherung, sondern die Abfrage des Zustands
-danach. Ein Exit-Code kann durch eine Pipe verlorengehen; ein abgefragter Zustand nicht."*
+Seine Folgerung: _„Nicht der Exit-Code ist die Absicherung, sondern die Abfrage des Zustands
+danach. Ein Exit-Code kann durch eine Pipe verlorengehen; ein abgefragter Zustand nicht."_
 
 Punkt 2 beseitigt die Ursache, Punkt 3 die falsche Meldung — **aber nur Punkt 1 fängt auch das,
 woran niemand gedacht hat.** Deshalb steht er zuerst.
@@ -5995,8 +5977,8 @@ Nebenbei: `gh issue close` kennt kein `--comment-file`. Der Weg ist `gh issue co
 **Und eine Zahl ohne Fehlerbalken liest sich als exakt.** Worker-3 hat einen Störzeitraum als
 `09:26:14 bis 09:31:35` gemeldet — das waren die **mtimes**, also Endzeiten. Seine Last begann
 früher, wie viel früher war nicht mehr feststellbar. Der Leser hielt die Untergrenze für
-scharf, weil nichts daneben stand, das sie als offen kennzeichnet. Richtig wäre gewesen: *„ab
-spätestens 09:26:14, Beginn unbekannt."*
+scharf, weil nichts daneben stand, das sie als offen kennzeichnet. Richtig wäre gewesen: _„ab
+spätestens 09:26:14, Beginn unbekannt."_
 
 > Eine Dateizeit belegt, wann etwas **aufhörte**, nie wann es anfing. Wer einen Störzeitraum
 > meldet, schreibt den Beginn mit, **während** er läuft — hinterher ist er nicht mehr da.
@@ -6027,7 +6009,7 @@ Der Lauf hatte drei von acht Lastarten gemeldet und keine Abschlusszeile. Ohne d
 Datei sah die Auswertung aus wie ein Lauf, den es nie gab.
 
 > **Nachtrag zur Beweislage:** Der Orchestrator hatte genau diese Ursache als Hypothese
-> hingeschrieben und als *ungemessen* gekennzeichnet — obwohl sie in zwei Minuten an einem
+> hingeschrieben und als _ungemessen_ gekennzeichnet — obwohl sie in zwei Minuten an einem
 > eigenen Hintergrundjob prüfbar gewesen wäre.
 
 **Wann eine Kennzeichnung trägt und wann sie eine Ersatzhandlung ist.** Der erste Anlauf dieses
@@ -6042,10 +6024,10 @@ Das Kriterium ist eine Frage: **Kann ich die Messung jetzt fahren, ohne eine Reg
 Und die Antwort hat **drei** Ausgänge, nicht zwei — den dritten hat Worker-3 aus #939
 nachgetragen:
 
-| Lage | Was die Kennzeichnung dann ist |
-| --- | --- |
-| **messbar jetzt** | Ersatzhandlung — dann messen statt kennzeichnen |
-| **messbar später** | das Richtige — Messung nachliefern, sobald es geht |
+| Lage                    | Was die Kennzeichnung dann ist                                      |
+| ----------------------- | ------------------------------------------------------------------- |
+| **messbar jetzt**       | Ersatzhandlung — dann messen statt kennzeichnen                     |
+| **messbar später**      | das Richtige — Messung nachliefern, sobald es geht                  |
 | **heute nicht messbar** | **das Ergebnis** — und sie gehört in den Code, nicht in die Meldung |
 
 Alle drei traten am 2026-08-19 auf:
@@ -6103,11 +6085,11 @@ man, dass eine Prüfung nichts angesehen hat?**
 
 **Lücke 1 — 25 Prüffälle liefen nie.** Der Schritt lautete `cargo test`, ohne Schalter:
 
-| Ursache | Datei | Fälle |
-| --- | --- | --- |
-| Merkmalsschalter | `sim/tests/diagnose_im_kampf.rs` | 8 |
-| fehlende Ziele | `sim/examples/messumgebung.rs` | 14 |
-| | `sim/examples/trace-stabilitaet.rs` | 3 |
+| Ursache          | Datei                               | Fälle |
+| ---------------- | ----------------------------------- | ----- |
+| Merkmalsschalter | `sim/tests/diagnose_im_kampf.rs`    | 8     |
+| fehlende Ziele   | `sim/examples/messumgebung.rs`      | 14    |
+|                  | `sim/examples/trace-stabilitaet.rs` | 3     |
 
 Die erste Ursache ist die gefährliche. `diagnose_im_kampf.rs` trägt
 `#![cfg(feature = "diagnostics")]` und übersetzt ohne das Merkmal zu einer **leeren Suite**.
@@ -6127,8 +6109,8 @@ führt ihre `#[test]` aber nicht aus. Beides sieht im Log gleich aus.
 Der Schritt heißt jetzt:
 
 ```yaml
-- run: cargo test                                        # bleibt unberührt
-- run: cargo test --all-targets --features diagnostics   # kommt dazu
+- run: cargo test # bleibt unberührt
+- run: cargo test --all-targets --features diagnostics # kommt dazu
 ```
 
 Der erste Lauf bleibt, weil er eine eigene Zusicherung trägt: Die Bibliothek übersetzt **ohne**
@@ -6216,12 +6198,12 @@ Startwert. Der Fall ist also genau der, für den der DAG gebaut wäre.
 die echten Cast-Folgen aus dem Kampfprotokoll. Zwei Rotationen mit identischem Präfix haben
 danach denselben Zustand — ein DAG müsste dieses Präfix einmal rechnen.
 
-| Größe                                | Basislänge 2 | Basislänge 5 |
-| ------------------------------------ | -----------: | -----------: |
-| Kandidaten in der Runde              |          273 |          528 |
-| Entscheidungen zusammen              |        8 385 |       21 074 |
-| einzigartige Zustände                |        3 789 |       11 041 |
-| **Teilungsfaktor**                   |    **2,21×** |    **1,91×** |
+| Größe                   | Basislänge 2 | Basislänge 5 |
+| ----------------------- | -----------: | -----------: |
+| Kandidaten in der Runde |          273 |          528 |
+| Entscheidungen zusammen |        8 385 |       21 074 |
+| einzigartige Zustände   |        3 789 |       11 041 |
+| **Teilungsfaktor**      |    **2,21×** |    **1,91×** |
 
 Erster Befund: **1,91×, nicht 3–4×.** Das allein wäre kein Ausschlusskriterium. Der zweite
 Befund ist es:
@@ -6331,10 +6313,10 @@ snap_up(scaled)                       // auf das nächste Vielfache von 10
 
 | Basiszeit | verschiedene Werte | von 3001 | Faktor |
 | --------: | -----------------: | -------: | -----: |
-|   1 500 ms |                113 |    3 001 |  26,6× |
-|   3 000 ms |                226 |    3 001 |  13,3× |
-|   8 000 ms |                601 |    3 001 |   5,0× |
-|  30 000 ms |              1 716 |    3 001 |   1,7× |
+|  1 500 ms |                113 |    3 001 |  26,6× |
+|  3 000 ms |                226 |    3 001 |  13,3× |
+|  8 000 ms |                601 |    3 001 |   5,0× |
+| 30 000 ms |              1 716 |    3 001 |   1,7× |
 
 **Und hier bricht die Verallgemeinerung.** Ein Build nutzt nicht eine Zeit, sondern zwölf bis
 sechzehn. Die Zellen des Builds sind die Schnittmenge aller Einzelzellen — und die ist fast
@@ -6446,52 +6428,52 @@ Korrektur in E11.4b.
 
 #### B.2.6 Was übernommen wird, und in welcher Form
 
-| # | Punkt des Urteils | Urteil | wohin |
-| - | ----------------- | ------ | ----- |
-| 1 | Multi-Policy Decision DAG | **1,07× gemessen** | verworfen; die Zahl geht als Abnahmekriterium nach E11.4 |
-| 2 | Macro-Transition-Cache | misst dieselbe Größe | verworfen mit 1 |
-| 2b | **Control-/Reward-State-Trennung** | eigenständig richtig | **E11.4d**, schärft den Cache-Schlüssel |
-| 3 | Symbolische Trace-Regionen | richtig | **E11.3a**, ersetzt die ±-Messung als Nachweis |
-| 4 | Breakpoint-Zellen für Statwerte | **Faktor 1,00 gemessen** | nur für zauber-lokale Parameter, → E12.1 |
-| 5 | Inverse Treppenfunktion | bestätigt | **E12.2** |
-| 6 | Exakte Crit-Verteilungs-DP | richtig | **E11.1b** |
-| 7 | A*/Branch-and-Bound als Orakel | richtig, mit Vorbehalt | **E11.5b** |
-| 8 | Pareto-/Antichain-Pruning | richtig, mit Beweispflicht | **E11.5b**, Teilschritt |
-| 9 | Policy-Äquivalenz | **1,77× gemessen — trägt** | **E11.4f** |
-| 10 | Partial-Order Reduction | 0,82 % gemessen | Voraussetzung notiert, nicht gebaut |
-| 11 | Boss-Active-Set | richtig, **Endausbau-Punkt** | **E11.5c** |
-| 12 | Adaptive LNS mit Bandit | richtig | **E11.5a** |
-| 13 | Sequential Racing | richtig, aber erst bei `purity > 0` | **E11.1b**, zweiter Teil |
-| 14 | Projection Planner | richtig als Ordnungsprinzip | Teil 6, kein eigenes Issue |
-| 15 | Router-Kostenmodell | **findet meinen Fehler** | E11.4b korrigiert |
-| 16 | Kernel-Spezialisierung | richtig, mein Feld war folgenlos | **E11.7b** |
-| 17 | `SearchFight` / `AuditFight` | richtig | E11.4, ausformuliert |
-| 18 | `ResultGuarantee` statt „alles Näherung" | richtig als Semantik | Teil 4 präzisiert |
-| 19 | Verteilte Ausführung, zweiter Rechner | **kollidiert mit einer Vorgabe** | Teil 2.1 |
+| #   | Punkt des Urteils                        | Urteil                              | wohin                                                    |
+| --- | ---------------------------------------- | ----------------------------------- | -------------------------------------------------------- |
+| 1   | Multi-Policy Decision DAG                | **1,07× gemessen**                  | verworfen; die Zahl geht als Abnahmekriterium nach E11.4 |
+| 2   | Macro-Transition-Cache                   | misst dieselbe Größe                | verworfen mit 1                                          |
+| 2b  | **Control-/Reward-State-Trennung**       | eigenständig richtig                | **E11.4d**, schärft den Cache-Schlüssel                  |
+| 3   | Symbolische Trace-Regionen               | richtig                             | **E11.3a**, ersetzt die ±-Messung als Nachweis           |
+| 4   | Breakpoint-Zellen für Statwerte          | **Faktor 1,00 gemessen**            | nur für zauber-lokale Parameter, → E12.1                 |
+| 5   | Inverse Treppenfunktion                  | bestätigt                           | **E12.2**                                                |
+| 6   | Exakte Crit-Verteilungs-DP               | richtig                             | **E11.1b**                                               |
+| 7   | A*/Branch-and-Bound als Orakel           | richtig, mit Vorbehalt              | **E11.5b**                                               |
+| 8   | Pareto-/Antichain-Pruning                | richtig, mit Beweispflicht          | **E11.5b**, Teilschritt                                  |
+| 9   | Policy-Äquivalenz                        | **1,77× gemessen — trägt**          | **E11.4f**                                               |
+| 10  | Partial-Order Reduction                  | 0,82 % gemessen                     | Voraussetzung notiert, nicht gebaut                      |
+| 11  | Boss-Active-Set                          | richtig, **Endausbau-Punkt**        | **E11.5c**                                               |
+| 12  | Adaptive LNS mit Bandit                  | richtig                             | **E11.5a**                                               |
+| 13  | Sequential Racing                        | richtig, aber erst bei `purity > 0` | **E11.1b**, zweiter Teil                                 |
+| 14  | Projection Planner                       | richtig als Ordnungsprinzip         | Teil 6, kein eigenes Issue                               |
+| 15  | Router-Kostenmodell                      | **findet meinen Fehler**            | E11.4b korrigiert                                        |
+| 16  | Kernel-Spezialisierung                   | richtig, mein Feld war folgenlos    | **E11.7b**                                               |
+| 17  | `SearchFight` / `AuditFight`             | richtig                             | E11.4, ausformuliert                                     |
+| 18  | `ResultGuarantee` statt „alles Näherung" | richtig als Semantik                | Teil 4 präzisiert                                        |
+| 19  | Verteilte Ausführung, zweiter Rechner    | **kollidiert mit einer Vorgabe**    | Teil 2.1                                                 |
 
 ### B.3 Wo dieser Plan von den Vorschlägen abweicht
 
-| Vorschlag                                   | mein Plan                                                   | Grund                                                                 |
-| ------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| Vorschlag                                   | mein Plan                                                   | Grund                                                                                                                                         |
+| ------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Trace-Ledger als Phase 3 bauen              | erst **messen**, ob Traces bei Zahlenänderungen stabil sind | Die Messung ist inzwischen gefahren: **1–5 % Stabilität** (Teil 6.2). Die Reihenfolge war richtig — der Ledger lebt, aber mit schmaler Region |
-| `Fight::new` in Phase 2 ersetzen            | später, eigenes Issue                                       | 97 page-faults auf 200 000 Kämpfe — der Pfad allokiert nicht          |
-| Event-Kalender als Endfassung               | erst nach `next_expiry_at` + festes Array **neu messen**    | der Rest könnte zu klein sein für den Umbau                           |
-| BOLT in Phase 5                             | **bedingter A/B-Test nach PGO**                             | Ein fehlendes Werkzeug ist ein Einrichtungszustand, keine Architekturentscheidung — Auslöser ist ein Frontend-/I-Cache-Befund aus E15.3 |
-| CUDA als Phase 8                            | eigenes Epic, nicht Teil von E11                            | `nvcc` fehlt, Gruppen zu klein                                        |
-| Same-Spell-Subsumption als exakte Reduktion | ja, aber als **kleiner** Posten                             | gemessen ~21 % bei Länge 12, Faktor 1,27                              |
-| Kompakter Zustand als eigene Maßnahme       | in E11.4 gebündelt                                          | 40 Checkpoints à 5,6 KB passen sonst nicht in den Cache               |
+| `Fight::new` in Phase 2 ersetzen            | später, eigenes Issue                                       | 97 page-faults auf 200 000 Kämpfe — der Pfad allokiert nicht                                                                                  |
+| Event-Kalender als Endfassung               | erst nach `next_expiry_at` + festes Array **neu messen**    | der Rest könnte zu klein sein für den Umbau                                                                                                   |
+| BOLT in Phase 5                             | **bedingter A/B-Test nach PGO**                             | Ein fehlendes Werkzeug ist ein Einrichtungszustand, keine Architekturentscheidung — Auslöser ist ein Frontend-/I-Cache-Befund aus E15.3       |
+| CUDA als Phase 8                            | eigenes Epic, nicht Teil von E11                            | `nvcc` fehlt, Gruppen zu klein                                                                                                                |
+| Same-Spell-Subsumption als exakte Reduktion | ja, aber als **kleiner** Posten                             | gemessen ~21 % bei Länge 12, Faktor 1,27                                                                                                      |
+| Kompakter Zustand als eigene Maßnahme       | in E11.4 gebündelt                                          | 40 Checkpoints à 5,6 KB passen sonst nicht in den Cache                                                                                       |
 
 **Und gegenüber dem zweiten Urteil** (Belege in Teil 1c):
 
-| Urteil | mein Plan | Grund |
-| ------ | --------- | ----- |
-| Multi-Policy DAG als stärkste fehlende Maßnahme | **verworfen**, die Zahl geht als Kriterium nach E11.4 | gemessen 1,07× nach Deduplizierung; 216 von 528 Kandidaten ändern nichts |
-| Macro-Transition-Cache als eigene Ebene | **verworfen** | „einzigartige Übergänge" **ist** die Trie-Knotenzahl — dieselbe Messung |
-| Breakpoint-Zellen für Statwerte | nur für **zauber-lokale** Parameter | über einen globalen Tempo-Wert gemessen: Faktor **1,00** bei 14 Zaubern |
-| Partial-Order Reduction über Bedingungen | **nicht gebaut**, als Voraussetzung notiert | 0,82 % der Paare; die Bedingungen ordnen sich, statt sich auszuschließen |
-| Verteilte Ausführung auf dem zweiten Rechner | **nicht in E11** | kein AVX2, kein FMA — er kann E11.7 nicht ausführen; und die Vorgabe des Auftraggebers steht dagegen |
-| „Ledger gestorben, wenn 1 % kippt" | **mein Fehler**, korrigiert | ein schmales Intervall reicht, wenn der Optimierer genau darin sucht |
-| Cache-Schwelle 15 % | **mein Fehler**, durch Break-even ersetzt | die Schwelle ist pro Auswertungspfad verschieden |
-| Projection **Planner** als eigenes Bauteil | als Zuordnungstabelle in E11.5b | die Zuordnung ist statisch — sie braucht keinen eigenen Entscheider |
+| Urteil                                          | mein Plan                                             | Grund                                                                                                |
+| ----------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Multi-Policy DAG als stärkste fehlende Maßnahme | **verworfen**, die Zahl geht als Kriterium nach E11.4 | gemessen 1,07× nach Deduplizierung; 216 von 528 Kandidaten ändern nichts                             |
+| Macro-Transition-Cache als eigene Ebene         | **verworfen**                                         | „einzigartige Übergänge" **ist** die Trie-Knotenzahl — dieselbe Messung                              |
+| Breakpoint-Zellen für Statwerte                 | nur für **zauber-lokale** Parameter                   | über einen globalen Tempo-Wert gemessen: Faktor **1,00** bei 14 Zaubern                              |
+| Partial-Order Reduction über Bedingungen        | **nicht gebaut**, als Voraussetzung notiert           | 0,82 % der Paare; die Bedingungen ordnen sich, statt sich auszuschließen                             |
+| Verteilte Ausführung auf dem zweiten Rechner    | **nicht in E11**                                      | kein AVX2, kein FMA — er kann E11.7 nicht ausführen; und die Vorgabe des Auftraggebers steht dagegen |
+| „Ledger gestorben, wenn 1 % kippt"              | **mein Fehler**, korrigiert                           | ein schmales Intervall reicht, wenn der Optimierer genau darin sucht                                 |
+| Cache-Schwelle 15 %                             | **mein Fehler**, durch Break-even ersetzt             | die Schwelle ist pro Auswertungspfad verschieden                                                     |
+| Projection **Planner** als eigenes Bauteil      | als Zuordnungstabelle in E11.5b                       | die Zuordnung ist statisch — sie braucht keinen eigenen Entscheider                                  |
 
 ---

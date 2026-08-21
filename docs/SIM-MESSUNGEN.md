@@ -104,13 +104,13 @@ LÄSST DURCH (45), die dichtesten:
   quench    X  35×   Marker  96×   73 %
 ```
 
-| | heute | Endausbau |
-| --- | --- | --- |
-| Kandidatenzeilen / Länge | 93 / 12 | ~96 / 16 |
-| Permutationen | 1,995e23 | **1,386e31** |
-| sperrende Zeilen | 12 | ~13 |
-| nach Reduktion | 4,026e22 | 1,308e30 |
-| **Faktor** | **4,96** | **10,6** |
+|                          | heute    | Endausbau    |
+| ------------------------ | -------- | ------------ |
+| Kandidatenzeilen / Länge | 93 / 12  | ~96 / 16     |
+| Permutationen            | 1,995e23 | **1,386e31** |
+| sperrende Zeilen         | 12       | ~13          |
+| nach Reduktion           | 4,026e22 | 1,308e30     |
+| **Faktor**               | **4,96** | **10,6**     |
 
 Der Endausbau vergrößert den Raum um Faktor 7·10⁷ (vier Leistenplätze mehr wiegen schwerer
 als zwei Zauber mehr) und die Reduktion wächst nur auf 10,6.
@@ -160,19 +160,19 @@ reicht mit großem Sicherheitsabstand** — das ist eine Schätzung, keine Messu
 
 `perf record` über 150 000 Kämpfe, nach Symbol:
 
-| Bereich | Branch-Misses | Zyklen |
-| --- | ---: | ---: |
-| **`expire_buffs`** | **20,2 %** | **23,8 %** |
-| **`BinaryHeap::pop`** | **15,6 %** | **13,3 %** |
-| `resolve_player_cast` | 11,7 % | 11,7 % |
-| `apply` (Event-Dispatch) | 10,6 % | 7,0 % |
-| `Apl::next_wakeup` | 8,2 % | 8,6 % |
-| `RuleEvents::emit` | 7,7 % | 6,5 % |
-| `Fight::new` | 2,6 % | 4,2 % |
-| **APL-Auswertung** (`decide` + `Condition::holds` + `Value::read`) | **5,1 %** | **4,1 %** |
-| Schadenspfad (`deal`, `cast`, `hit_player`) | ~3,0 % | ~2,4 % |
-| `Event::partial_cmp` | 1,6 % | 1,6 % |
-| `BinaryHeap::push` | — | 1,2 % |
+| Bereich                                                            | Branch-Misses |     Zyklen |
+| ------------------------------------------------------------------ | ------------: | ---------: |
+| **`expire_buffs`**                                                 |    **20,2 %** | **23,8 %** |
+| **`BinaryHeap::pop`**                                              |    **15,6 %** | **13,3 %** |
+| `resolve_player_cast`                                              |        11,7 % |     11,7 % |
+| `apply` (Event-Dispatch)                                           |        10,6 % |      7,0 % |
+| `Apl::next_wakeup`                                                 |         8,2 % |      8,6 % |
+| `RuleEvents::emit`                                                 |         7,7 % |      6,5 % |
+| `Fight::new`                                                       |         2,6 % |      4,2 % |
+| **APL-Auswertung** (`decide` + `Condition::holds` + `Value::read`) |     **5,1 %** |  **4,1 %** |
+| Schadenspfad (`deal`, `cast`, `hit_player`)                        |        ~3,0 % |     ~2,4 % |
+| `Event::partial_cmp`                                               |         1,6 % |      1,6 % |
+| `BinaryHeap::push`                                                 |             — |      1,2 % |
 
 **Das kippt die naheliegende Annahme.** Die APL-Bedingungsauswertung — der offensichtliche
 Kandidat für „branchless machen" — kostet **4 %**. Sie zu optimieren wäre verlorene Mühe.
@@ -266,17 +266,17 @@ Anteile.
 **Heute aufgetretene Werte**, 280 Kämpfe über alle 35 Bosse, voll bestückt
 (alle Affixe auf 1000 Promille, Talente 300 ‰):
 
-| Faktor | Minimum | Maximum |
-| --- | ---: | ---: |
-| `essence` | 2,0000 | 2,0000 |
-| `talents` | 1,3000 | 1,3000 |
-| `gear_effects` | 1,5000 | 1,5000 |
-| `buffs` | 1,0000 | 1,0000 |
-| `synergy` | 1,0000 | 1,0000 |
-| `resistance` | **0,7500** | **1,2500** |
-| `vulnerability` | 1,0000 | 1,0000 |
-| `crit` | 2,5000 | 2,5000 |
-| `base_damage` | 40 | 384 |
+| Faktor          |    Minimum |    Maximum |
+| --------------- | ---------: | ---------: |
+| `essence`       |     2,0000 |     2,0000 |
+| `talents`       |     1,3000 |     1,3000 |
+| `gear_effects`  |     1,5000 |     1,5000 |
+| `buffs`         |     1,0000 |     1,0000 |
+| `synergy`       |     1,0000 |     1,0000 |
+| `resistance`    | **0,7500** | **1,2500** |
+| `vulnerability` |     1,0000 |     1,0000 |
+| `crit`          |     2,5000 |     2,5000 |
+| `base_damage`   |         40 |        384 |
 
 ```
 Produkt der acht Faktoren    7,3125 bis 12,1875
@@ -349,11 +349,11 @@ Stufe 85, legendary         1 von 58   nur noch searing
 **Ausrüstung verschiebt die Auswahl nicht nur — bei voller Bestückung vernichtet sie sie.**
 Von elf lohnenden Zaubern bleibt **einer**.
 
-Das trifft Leitplanke 2 aus dem Design frontal: *„jeder Zauber muss irgendwo die beste Wahl
-sein."* Im Endgame ist er es nicht — dort ist es immer derselbe.
+Das trifft Leitplanke 2 aus dem Design frontal: _„jeder Zauber muss irgendwo die beste Wahl
+sein."_ Im Endgame ist er es nicht — dort ist es immer derselbe.
 
 **Damit ist der Werte-Deckel aus dem Plan keine Fixed-Point-Frage mehr, sondern eine
-Spielfrage.** Der Plan formuliert ihn als Fairness-Argument (*„ab da wird es reines Können"*);
+Spielfrage.** Der Plan formuliert ihn als Fairness-Argument (_„ab da wird es reines Können"_);
 gemessen ist er die Bedingung dafür, dass das Zauberbuch überhaupt benutzt wird. Ohne ihn
 konvergiert jede Rotation im Endausbau auf denselben einen Zauber.
 
@@ -405,7 +405,7 @@ Bei 38–40 Varianten je Position kein einziger Ausreißer. **Der wiederverwendb
 vor dem Lauf bekannt** — das ist eine Invariante, keine Verteilung, und genau das braucht
 Differential Simulation.
 
-Beim **Einfügen** liegt der Präfix *über* der Position, weil die neue Zeile oft gar nicht
+Beim **Einfügen** liegt der Präfix _über_ der Position, weil die neue Zeile oft gar nicht
 drankommt; ans Ende eingefügt bleibt die Folge vollständig gleich. **Und Einfügen ist genau
 das, was `greedy` in jeder Runde an jeder Position tut.**
 
@@ -415,7 +415,7 @@ wertvollste Teil der ganzen Messreihe.
 
 **Eine Abweichung vom Auftrag, die richtig war:** Ich hatte `checksum_at` je Zeitschritt
 vorgegeben. Worker-3 hat stattdessen die Cast-Folge verglichen, mit der Begründung: die
-Prüfsumme sagt, *dass* sich der Zustand unterscheidet, nicht *an der wievielten Entscheidung*.
+Prüfsumme sagt, _dass_ sich der Zustand unterscheidet, nicht _an der wievielten Entscheidung_.
 Meine Frage war nach der Entscheidung.
 
 ---
@@ -518,8 +518,8 @@ die erschöpfende Suche das 33-fache für die restlichen 8,3 Punkte.
 >
 > **`greedy` fügt an jeder Position ein, mein Beam hängt nur an.**
 > (`rotation_search.rs:579` und `:655` — `versuch.insert(stelle, …)`.) Das ist derselbe
-> Mechanismus, der im Projekt schon einmal gemessen wurde: *„gierig (nur anhängen) 4000,0
-> gegen einfügen an jeder Stelle 5960,0."*
+> Mechanismus, der im Projekt schon einmal gemessen wurde: _„gierig (nur anhängen) 4000,0
+> gegen einfügen an jeder Stelle 5960,0."_
 >
 > Damit erklärt sich die ganze Spalte: `beam k=1` liegt unter `greedy`, weil ihm das Einfügen
 > fehlt; `beam k=10` liegt darüber, weil die Breite den Nachteil überkompensiert. Die
@@ -568,7 +568,7 @@ Frage:
 
 1. Der Katalog hat nur **drei Affix-Muster** auf 27 Stücken (11× `catalysis,purity,yield`,
    10× `catalysis,essence,purity`, 6× `catalysis`), und alle tragen Level 40, Qualität epic.
-2. **Die Summe ist kommutativ.** Für den Kampf zählt, *wie viele* Stücke jedes Musters man
+2. **Die Summe ist kommutativ.** Für den Kampf zählt, _wie viele_ Stücke jedes Musters man
    trägt — nicht welche und nicht auf welchem Platz.
 
 > Solange Ausrüstung nur über additive Werte wirkt, ist der Phänotyp-Raum die Zahl der
@@ -595,7 +595,7 @@ Die Sätze 1 bis 5 haben NULL Gegenstände.
 **Fünf der sechs Sätze sind im Spiel nicht zusammensetzbar**, egal wie man die 27 Stücke
 kombiniert. Die Satz-Effekt-Maske ist heute faktisch eindimensional. Für die Architektur
 ändert das nichts — der Platz für die Maske muss vorgesehen werden, weil der Plan sechs Sätze
-je Endgame-Instanz vorsieht. Für die *Zahl* 312 heißt es: sie gilt für einen Katalog mit
+je Endgame-Instanz vorsieht. Für die _Zahl_ 312 heißt es: sie gilt für einen Katalog mit
 **einem** belegten Satz.
 
 ### Teil A2, Ausrüstung im Endausbau: **Faktor 1162 — die Faltung wird stärker**
@@ -657,8 +657,8 @@ mehrdeutig auf Paar-Ebene:    26 von 83
 Zahl damit korrigiert.
 
 **Die beiden Mehrdeutigkeits-Zahlen zählen Verschiedenes** und sind kein Widerspruch: 75
-Werte entstehen aus mehr als einem *Stammvektor* (bloße Umverteilung derselben Punktzahl),
-26 aus mehr als einem *(Summe, release)-Paar* — also aus strukturell verschiedenen Wegen.
+Werte entstehen aus mehr als einem _Stammvektor_ (bloße Umverteilung derselben Punktzahl),
+26 aus mehr als einem _(Summe, release)-Paar_ — also aus strukturell verschiedenen Wegen.
 Die zweite ist die interessantere.
 
 **Die Ursache ist eine einzige Design-Entscheidung: alle sechs Stämme tragen dasselbe
@@ -712,8 +712,8 @@ nach den Faltungen   Talent-Phänotypen   1,37·10¹⁴   (Faktor 234)
 ```
 
 Bei 350 000 Kämpfen/s bräuchte der reduzierte Raum immer noch **2,8·10²⁵ Jahre**. Das ist die
-Zahl, die den Plan bestätigt: *„Der Vollraum bleibt unerreichbar — erschöpfend gerechnet
-werden nur die Projektionen."* Kanonisierung um Faktor 360 000 ändert daran nichts; sie macht
+Zahl, die den Plan bestätigt: _„Der Vollraum bleibt unerreichbar — erschöpfend gerechnet
+werden nur die Projektionen."_ Kanonisierung um Faktor 360 000 ändert daran nichts; sie macht
 die **Projektionen** billiger, nicht den Vollraum machbar.
 
 ### Ein Befund, der die Talentzahl erst deutbar macht
@@ -816,16 +816,16 @@ man gegen einen Bereich, der bei Stufe 100 sechsstellig wird.
 
 ## Der Stand in einer Tabelle
 
-| # | Messung | Ergebnis | selbst nachgemessen |
-| --- | --- | --- | --- |
-| 1 | EventQueue-Belegung | max **9**, p95 8, EVENT_CAPACITY 28× zu groß | ja |
-| 2 | Branch-Misses nach Bereich | `expire_buffs` 23,8 %, Heap 16,1 %, **APL nur 4,1 %** | ja |
-| 3 | Trace-Wiederverwendung | **Position p → Präfix p, null Streuung** | ja |
-| 4A | Gear-Phänotypen heute | 17 496 → 56, **Faktor 312** | nein (Läufer nicht gepusht) |
-| 4A2 | Gear-Phänotypen Endausbau | 6 291 456 → 5 412, **Faktor 1 162** | nein (dito) |
-| 4B | Talent-Phänotypen | 19 456 → 83, **Faktor 234** (Obergrenze) | ja, zweifach |
-| 5 | Homogenität | 76 Gestalten, **null Einzelgänger**, größte 30 | ja |
-| 6 | Fixed-Point-Bereiche | heute Produkt 7,3–12,2 · **Endausbau unbeschränkt, Deckel fehlt** | ja |
-| 7 | Suchqualität | **LNS 91,7 %** > beam k=10 85,0 % > greedy 83,3 % — alle fünf Verfahren | ja |
-| 8 | Always-Spells | **Faktor 5,0** (Endausbau 10,6) — nicht 140 000 | ja |
-| — | Durchsatz 5900HS | **350 000–365 000 Kämpfe/s** ±12 %, zweimal korrigiert | ja |
+| #   | Messung                    | Ergebnis                                                                | selbst nachgemessen         |
+| --- | -------------------------- | ----------------------------------------------------------------------- | --------------------------- |
+| 1   | EventQueue-Belegung        | max **9**, p95 8, EVENT_CAPACITY 28× zu groß                            | ja                          |
+| 2   | Branch-Misses nach Bereich | `expire_buffs` 23,8 %, Heap 16,1 %, **APL nur 4,1 %**                   | ja                          |
+| 3   | Trace-Wiederverwendung     | **Position p → Präfix p, null Streuung**                                | ja                          |
+| 4A  | Gear-Phänotypen heute      | 17 496 → 56, **Faktor 312**                                             | nein (Läufer nicht gepusht) |
+| 4A2 | Gear-Phänotypen Endausbau  | 6 291 456 → 5 412, **Faktor 1 162**                                     | nein (dito)                 |
+| 4B  | Talent-Phänotypen          | 19 456 → 83, **Faktor 234** (Obergrenze)                                | ja, zweifach                |
+| 5   | Homogenität                | 76 Gestalten, **null Einzelgänger**, größte 30                          | ja                          |
+| 6   | Fixed-Point-Bereiche       | heute Produkt 7,3–12,2 · **Endausbau unbeschränkt, Deckel fehlt**       | ja                          |
+| 7   | Suchqualität               | **LNS 91,7 %** > beam k=10 85,0 % > greedy 83,3 % — alle fünf Verfahren | ja                          |
+| 8   | Always-Spells              | **Faktor 5,0** (Endausbau 10,6) — nicht 140 000                         | ja                          |
+| —   | Durchsatz 5900HS           | **350 000–365 000 Kämpfe/s** ±12 %, zweimal korrigiert                  | ja                          |
