@@ -8430,3 +8430,240 @@ anderes Ergebnis liefern als das vorgelegte.
 Das ist [8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen)
 für den Abnehmenden statt für den Messenden: Ein Filter, der nur nach dem sucht, was jemand anders
 gefunden hat, findet nichts anderes.
+
+### 8.125 Eine Zahl über eine versionierte Datei braucht ihren Commit
+
+Der Satz aus 8.28 lautet: eine Zahl ohne ihren Befehl ist keine Messung. Bei einer **versionierten**
+Datei reicht das nicht — dieselbe Zeile liefert zwei Antworten, je nachdem, wann man sie fährt.
+
+Am 2026-08-21 gemessen, an derselben Datei:
+
+```
+origin/main                          6479
+Commit VOR dem prettier-Commit       6497
+KONTROLLE: SIM-DURCHSATZ-ANALYSE.md   365   (prettier fasste sie nicht an)
+```
+
+Beide richtig. Dazwischen lag ein Formatier-Commit desselben Autors: 544 hinzu, 562 entfernt, 18
+Zeilen weniger.
+
+**Das Bösartige:** Bei den anderen Doppelzahlen des Tages (1073 gegen 1337 Bytes, 58 gegen 121
+Abschnitte, 3 gegen 6 Aufrufe) zeigte der Befehl, welche Menge gemeint war — dort war die
+Bezugsgröße ein *wovon*. Hier ist sie ein *wann*, und **der Befehl ist kein Ausweis mehr**.
+
+Verschärfend: Der Autor hatte den Formatier-Lauf im selben Text erwähnt und sogar die
+*Wort*differenz eigens aufgeklärt (46 102 gegen 46 101, ein JSON-Beispiel). Die *Zeilen*zahl daneben
+blieb aus dem Stand davor. **Eine Kennzahl geprüft, die andere nicht mitgezogen.**
+
+> Erwähnt ein Text eine Umformung, gehören *alle* Kennzahlen darin nachgezogen — nicht nur die, die
+> gerade aufgefallen ist.
+
+Und die knappste Fassung, von Worker-1:
+
+> Eine Zahl ohne ihren Befehl ist keine Messung, sondern eine Behauptung mit Nachkommastellen.
+
+### 8.126 Ein Archiv ist ein Suchraum
+
+Wer nach einer Projektregel sucht, sucht in **Dateien**. Eine Regel, die per Nachricht kam, kommt
+dort nie an — die Suche ist nicht zu ungenau, sie ist am falschen Ort.
+
+Am 2026-08-21 vier Runden zu derselben Sache, keine bestätigte die vorige:
+
+| Behauptung                        | gemessen                                     |
+| --------------------------------- | -------------------------------------------- |
+| „die Regel steht nirgends"        | sie steht prominent, mehrfach                |
+| „13 Stellen widersprechen ihr"    | es sind **28**                               |
+| „sind sie älter als die Regel?"   | 25 ja, **2 nein**                            |
+| „hat sie alle Sitzungen erreicht?"| **ja, alle drei**                            |
+
+Der Meldende hatte die Regel **drei Tage vorher selbst quittiert**, in eigenen Worten, 23 Sekunden
+nach Eingang. Er hat im Repository gesucht; sie lag in seinem Postfach.
+
+Und die zwei jüngeren Stellen stammten vom Orchestrator — aus einem Commit **einen Tag nachdem** er
+die Regel eigenhändig an alle drei Sitzungen verteilt hatte.
+
+**How to apply:**
+
+- Bei „diese Regel steht nirgends": zuerst das **eigene Archiv** durchsuchen, dann die Dateien.
+- Wer eine Regel verteilt hat, ist **kein Sonderfall bei ihrer Prüfung**. Sind die eigenen Commits
+  der einzige Treffer, ist das der Befund und kein Störgeräusch.
+- Beim Widerlegen einer Vermutung: den **entlastenden** Ausgang zuerst prüfen und ihn benennen, wenn
+  er nicht zutrifft.
+
+### 8.127 Wer eine Datei mehrfach nachzieht, prüft sie danach gegen sich selbst
+
+Vier Nachträge an einer Datei sind vier Gelegenheiten, etwas stehenzulassen. Jede Ergänzung ist für
+sich richtig; keine prüft die vorigen mit.
+
+Am 2026-08-21 an einer Übergabedatei, die an einem Abend viermal nachgezogen wurde:
+
+```
+"DotRefresh"                    0 Vorkommen   <- der wichtigste Befund des Abends
+"39 in echten APL-Dateien"      steht noch da <- eine Stunde vorher widerlegt
+#1034 als OFFEN                 ist gemergt
+Kopfdatum 21:25                 im Text stehen 22:02 und 22:05
+```
+
+Die Datei gab sich selbst als älter aus als ihren Inhalt, und sie trug ein Wirkungsmaß, das
+gemessen widerlegt war. **Der Nächste hätte gegen die 39 gemessen.**
+
+Die Prüfung war ein Dreizeiler: grep auf den überholten Begriff, grep auf den neuen, Kopfdatum gegen
+die jüngste Uhrzeit im Text. Sie fand, was vier sorgfältige Ergänzungen übersehen hatten.
+
+Und der verwandte Fall, zweimal am selben Abend: Ein Edit an derselben Datei schlug fehl, weil der
+Autor gegen den Text prüfte, den er **im Kopf** hatte — und die Kürzung stammte von ihm selbst,
+Stunden vorher.
+
+> Nach einer eigenen Kürzung ist der eigene Gedächtnisstand **systematisch** veraltet, nicht
+> zufällig. Die alte Fassung ist im Kopf lebendiger, weil man sie öfter gelesen hat.
+
+Das Werkzeug fing es beide Male: `Edit` scheitert laut, wenn das Muster nicht passt. Über die Shell
+wäre es ein stiller Fehlschlag mit Erfolgsmeldung gewesen.
+
+### 8.128 Ein Befund mit Sternchen wird beim nächsten Lesen ohne Sternchen zitiert
+
+Ein Vorbehalt hält genau so lange, wie jemand ihn mitliest. Danach steht die Zahl allein da.
+
+Am 2026-08-21 hat ein Worker eine eigene Beobachtung **zurückgezogen**, statt sie mit Vorbehalt
+stehenzulassen: Seine Laufzeit-Notizen (5 s gegen 88 s) waren unter Fremdlast entstanden, die ein
+anderer verursacht hatte.
+
+> Ein Befund mit Sternchen wird beim nächsten Lesen ohne Sternchen zitiert.
+
+Die Unterscheidung, die er gleich mitlieferte, gehört dazu: Zurückgenommen wurde der **Befund**,
+nicht die **Entscheidung**, die darauf stand — die war eine Vermutung, und er hatte sie vorher als
+solche benannt.
+
+Und der Fall, aus dem der Satz stammt: Derselbe Worker hatte eine Reihenfolge mit einer Messung an
+einem kleinen Pool begründet, also mit Vorbehalt. Zwei Nachrichten später zitierte er sie ohne den
+Vorbehalt und baute darauf eine Drehung, die falsch war.
+
+### 8.129 Der Fehlertext ist der einzige Teil, den kein grüner Lauf ausführt
+
+Der Text im **Gutfall** wird gelesen und stimmt. Der Text im **Fehlerfall** wird selten gelesen und
+ist deshalb ungeprüft — er ist die Stelle, an der Behauptungen überleben.
+
+Am 2026-08-21 **fünfmal**, in drei Dateien, von zwei Sitzungen, jedes Mal im Rot-Zweig:
+
+| die Zusicherung prüfte           | ihr Fehlertext behauptete                            |
+| -------------------------------- | ---------------------------------------------------- |
+| nur den Exit-Code                | „Fehlalarm" — es gab keine Messung                    |
+| eine von zwei Zeilenformen       | „nichts gemessen" — gemessen wurde sehr wohl          |
+| `code==1 && grep -q '…'`         | „kein Alarm" — Exit war 1, nur der Text hatte gewechselt |
+| Exit 1                           | „alarmiert" — es war die **Trägerzeile** des Wächters  |
+| zwei UND-Bedingungen             | nannte nur eine davon                                 |
+
+Alle fünf sahen im grünen Lauf identisch aus. **Keine wurde beim Lesen gefunden.**
+
+Die Verallgemeinerung, von Worker-2:
+
+> Exit 1 heißt nicht zwangsläufig „alarmiert".
+
+Und die Erklärung, warum Aufmerksamkeit hier nicht hilft:
+
+> Beim Lesen war sie unsichtbar; sie steht in einer Zeile, die im Gutfall nie gedruckt wird.
+
+**How to apply:**
+
+- **Eine Mutation je Teilbedingung.** Bei `A && B` zwei Mutationen: eine, die nur A reißen lässt,
+  eine für B. Fällt beide Male derselbe Text, prüft die Zusicherung zwei Dinge und trennt eines.
+- Ein Fehlertext **nennt das Gemessene**, er behauptet keine Ursache. „Exit 1, aber nur 0 Dateien
+  geprüft" statt „Fehlalarm".
+- Nach einer Korrektur **alle** Mutationen neu fahren, nicht nur die gemeldete. Der vierte und
+  fünfte Fall oben kamen genau daher.
+- Achte auf den **leiseren** Fall: „Kein Vorrat" gab Exit 1, „Vorrat auf ein geschlossenes Issue"
+  gab 0 — der schlimmere Zustand war der stillere.
+
+### 8.130 Eine negative Kontrolle findet den falschen Pfad nicht
+
+Eine Kontrollzeile, die selbst 0 liefern soll, prüft die **Zählung** — nicht den **Pfad**.
+
+Am 2026-08-21 gemessen: Jemand meldete „Instanzen: 0 von 14" und ließ eine Kontrolle mitlaufen.
+
+```
+KONTROLLE   data/zzznie/   ->   0
+```
+
+Sie belegt, dass die Zählung nicht einfach alles findet. Sie kann aber nicht unterscheiden zwischen
+**„der Pfad ist leer"** und **„den Pfad gibt es nicht"** — beides liefert 0, genau wie das erfundene
+Verzeichnis. Gesucht wurde `data/instances/` als *Verzeichnis*; es gibt `data/instances.json` als
+*Datei*, mit fünf Instanzen und allen 17 Bossen zugeordnet.
+
+**Die Kontrollzeile hat den Fall bestätigt, den sie hätte ausschließen sollen.**
+
+In derselben Messung lief für die Zauber eine **positive** Kontrolle mit („`common` muss 2 sein") —
+die fing eine falsche Zählung sofort.
+
+> Wer eine **Null** meldet, braucht eine **positive** Kontrolle: etwas, von dem er weiß, dass es da
+> ist und gefunden werden **muss**.
+
+Und die Anwendung auf Prozesse, vom selben Abend: Eine Trägerzeile, die einen Prozess benutzt, den
+das Werkzeug per Definition nicht zählt (`sleep`), belegt nichts. **Die Trägerzeile braucht einen
+Träger, den der Träger auch trägt.**
+
+### 8.131 Die Prüfumgebung muss die Suchumgebung sein
+
+Ein Prüffall, der eine **Suche** absichert, muss dieselbe Konfiguration fahren wie die Suche selbst.
+Weicht ein Feld ab, misst er eine andere Frage — und ist grün.
+
+Am 2026-08-21 in einem Prüffall gefunden, der eine Stunde alt war und dessen Autor ihn selbst
+geschrieben hatte:
+
+```
+Suche      BalanceConfig { stop_on_kill: false, … }   ausdrücklich gesetzt
+Prüfung    FightConfig   { ..default() }              also TRUE
+Boss       5200 Lebenspunkte, tödlicher Schlag bei 12000 ms
+```
+
+Fällt der Boss vor dem Schlag, endet der Kampf, **der Schlag kommt nie**, und „überlebt" ist trivial
+wahr. Der Fall hätte gemessen, wie schnell die Rotation tötet.
+
+**Er wäre durch alles durchgegangen**, was an dem Abend dafür gebaut wurde: Die Trägerzeile hätte
+gehalten, die unabhängig erzeugte Mutation hätte ihn nicht rot gemacht, und das Abnahmekriterium
+„acht grün, genau einer rot" hätte *null rot* gezeigt — was man für „Mutation zu grob" gehalten und
+an der Mutation repariert hätte.
+
+Die Ebene, auf der das liegt:
+
+| Frage                                       | Absicherung           |
+| ------------------------------------------- | --------------------- |
+| Hat die Messung stattgefunden?              | Trägerzeile (8.129)   |
+| War sie *währenddessen* gültig?             | Selbstabbruch         |
+| Misst sie **den Gegenstand**, den ich suchte? | **diese Regel**       |
+
+**How to apply:** Die Konfiguration der Suche und die der Prüfung Feld für Feld nebeneinanderlegen.
+**Abweichen kann nur, was jemand angefasst hat** — Vorgabewerte stimmen überein, weil niemand sie
+gewählt hat. Also zuerst dort nachsehen, wo die Suche etwas *ausdrücklich* setzt; das ist die kurze
+Liste, und der Fehler steckt fast sicher darin.
+
+`..default()` in einer Prüfung ist ein Risiko, kein Komfort: Es übernimmt still jede Vorgabe, die
+jemand anderswo bewusst überschrieben hat.
+
+### 8.132 Zwei unabhängige Messungen belegen nur bei verschiedenen Fehlerquellen
+
+Eine Übereinstimmung zweier unabhängiger Leute sieht wie eine Bestätigung aus. Sie ist nur dann
+eine, wenn beide **verschiedene Fehlerquellen** hatten.
+
+Am 2026-08-21 sollte eine Mutation unabhängig benannt werden, weil ein selbst entworfener Prüffall
+an dem Abend zweimal die falsche Frage gestellt hatte. Zwei Sitzungen kamen unabhängig auf dieselbe
+Stelle — und der Orchestrator verbuchte das als Bestätigung.
+
+Die Gegenfrage kam von einem der beiden:
+
+> Zwei Leute, die unabhängig denselben Fehler machen, sehen wie eine Bestätigung aus.
+
+Sie war berechtigt und traf nicht zu (nachgelesen, nicht erinnert). Aber die Klasse ist neu: Bei
+8.124 entsteht die falsche Bestätigung durch **Übernahme**. Hier entstünde sie **ohne jede
+Übernahme** — eine Kopplung im Code, die beide übersehen konnten.
+
+> Bei zwei Leuten, die denselben Code vor sich haben, sind die Fehlerquellen nicht automatisch
+> verschieden.
+
+Der Ertrag der Trennung war ohnehin ein anderer: **nicht die Einigkeit, sondern dass jeder etwas
+hatte, was der andere nicht hatte.** Der eine kannte den Code und hatte die präzise Mutation; der
+andere kannte ihn nicht und dachte deshalb über die *Struktur der Aussage* nach.
+
+Daraus folgt **keine** Regel, jemanden unwissend zu halten — die Gegenfrage hing an der Frage, nicht
+am Unwissen. Was folgt: Unabhängigkeit richtet sich gegen die **Lösung** eines anderen, nie gegen
+den **Gegenstand**. Wer den Gegenstand nicht kennt, liefert eine Vermutung, und eine Vermutung ist
+als Kontrolle wertlos, weil sie nicht scheitern kann.
