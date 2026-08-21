@@ -12,18 +12,37 @@ use rota_sim::apl::Value;
 use rota_sim::data::{ControlEffect, SPELLS, SPELL_COUNT};
 use rota_sim::rotation_search::{all_candidates, Origin};
 
-/// Zauber, die an einem laufenden Boss-Zauber überhaupt etwas ausrichten.
+/// Zauber, die an einem **laufenden** Boss-Zauber etwas ausrichten.
+///
+/// # `MakeInterruptible` stand hier und war falsch (#797)
+///
+/// PIN trägt diese Wirkung, und die Liste zählte ihn deshalb mit. Die
+/// Zauberdaten sagen aber zweierlei über ihn, und beides widerspricht dem
+/// „laufenden" Zauber:
+///
+/// > Den **NAECHSTEN** Boss-Zauber unterbrechbar machen.
+/// > Traf er einen ohnehin unterbrechbaren, **verpufft** er.
+///
+/// Die erzeugte Zeile `pin if boss.casting` feuerte damit genau dann, wenn PIN
+/// nichts ausrichtet: Es läuft ja schon etwas. Sie war gültig, wählbar und
+/// wirkungslos — **formal erfüllt, sachlich leer**, und in jedem Bericht sah
+/// sie aus wie Abdeckung.
+///
+/// PIN hat seit #797 seine eigene Zeile über `Origin::NextStrikeWindow` und
+/// `boss.next_strike_in`; `sim/tests/next_strike_in.rs` hält sie fest. Die
+/// beiden Richtungen unten sichern hier, dass er nicht **beide** trägt.
+///
+/// **Und `AllThree` gehört weiterhin dazu, obwohl der Name das Gegenteil
+/// nahelegt:** CAPSTONE ruft `SlowCast`, `DelayStrike` und `HoldPhase`
+/// (`Fight::apply_control_effect`) — es dehnt einen laufenden Zauber, macht
+/// aber nichts unterbrechbar. Wer „alle drei bisherigen Wirkungen" als die drei
+/// im `enum` davor liest, zählt `MakeInterruptible` mit und liegt falsch.
 fn antwortet_auf_cast(index: usize) -> bool {
     let spell = &SPELLS[index];
     spell.interrupt
-        || spell.control.is_some_and(|c| {
-            matches!(
-                c.effect,
-                ControlEffect::MakeInterruptible
-                    | ControlEffect::SlowCast
-                    | ControlEffect::AllThree
-            )
-        })
+        || spell
+            .control
+            .is_some_and(|c| matches!(c.effect, ControlEffect::SlowCast | ControlEffect::AllThree))
 }
 
 /// **Träger-Zusicherung, und sie steht vorn.**
@@ -64,6 +83,49 @@ fn ac2_genau_die_antwortenden_zauber_bekommen_eine_zeile() {
          antworten können. Zu wenige heißt: die Suche kann sie nicht wählen. \
          Zu viele heißt: sie misst Rotationen, in denen die Zeile nichts tut."
     );
+}
+
+/// Wer einen Schlag erst **angreifbar macht**, bekommt hier keine Zeile.
+///
+/// # Warum das eigens dasteht, obwohl der Fall darüber es mit abdeckt
+///
+/// `ac2_genau_die_antwortenden_zauber_bekommen_eine_zeile` vergleicht zwei
+/// Listen. Wandert `MakeInterruptible` eines Tages wieder in `antwortet_auf_cast`
+/// zurück, wandern **beide** Listen mit, und der Vergleich bleibt grün — der
+/// Prüffall misst dann seine eigene Änderung.
+///
+/// Diese Zeile hängt nicht an der Hilfsfunktion, sondern an der Wirkung aus den
+/// Daten. Sie kann deshalb scheitern, wo der Vergleich es nicht kann.
+#[test]
+fn ac2_wer_erst_angreifbar_macht_gehoert_nicht_hierher() {
+    let mit_cast_zeile: Vec<&str> = all_candidates()
+        .iter()
+        .filter(|c| c.origin == Origin::BossCastWindow)
+        .map(|c| SPELLS[c.spell].id)
+        .collect();
+
+    let macht_angreifbar: Vec<&str> = (0..SPELL_COUNT)
+        .filter(|i| {
+            SPELLS[*i]
+                .control
+                .is_some_and(|c| c.effect == ControlEffect::MakeInterruptible)
+        })
+        .map(|i| SPELLS[i].id)
+        .collect();
+
+    assert!(
+        !macht_angreifbar.is_empty(),
+        "kein Zauber traegt MakeInterruptible — dann belegt diese Zeile nichts"
+    );
+    for zauber in &macht_angreifbar {
+        assert!(
+            !mit_cast_zeile.contains(zauber),
+            "{zauber} macht den NAECHSTEN Eintrag angreifbar und verpufft an \
+             einem ohnehin unterbrechbaren; eine Zeile `if boss.casting` \
+             feuert bei ihm genau dann, wenn er nichts ausrichtet. \
+             Zeilen auf den laufenden Cast: {mit_cast_zeile:?}"
+        );
+    }
 }
 
 /// Die Zeile muss den NEUEN Wert lesen — sonst steht dort eine Bedingung, die
