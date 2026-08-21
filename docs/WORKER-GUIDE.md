@@ -7876,5 +7876,5 @@ Regel zweimal gebraucht wird, steht sie einmal ausführlich und einmal als Zeile
 > Tätigkeit liest?
 
 Ist die Antwort nein, ist sie aufgeschrieben und nicht in Kraft. Das ist die Guide-Fassung von
-[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push) — dort war der Zweig weiter als die Meldung,
+[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push-prüfe-jeden-eigenen-commit-einzeln) — dort war der Zweig weiter als die Meldung,
 hier ist die Regel geschrieben und trotzdem nicht wirksam.
