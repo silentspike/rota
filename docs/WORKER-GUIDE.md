@@ -8018,3 +8018,92 @@ die Meldung eine Vorhersage, hier ist sie die Antwort auf eine andere Frage — 
 Nachhinein wie ein Ergebnis aus.
 
 **Vor jeder Zahl, die in eine Meldung geht: Gehört der Exit-Code zu dem Befehl, über den ich rede?**
+
+#### Die vierte Ausprägung: die Bedingung, die nie zutrifft
+
+Die drei Fälle oben erzeugen eine **falsche Zahl** — man fängt sie, indem man die Zahl anzweifelt.
+Es gibt eine vierte, die gar keinen Wert erzeugt und deshalb nichts zum Anzweifeln bietet:
+
+```bash
+git diff --cached --name-only | grep -E "\.json$" | sed 's/^/  GEFAHR: /' \
+  || echo "  keine"
+```
+
+Gemeint war: Treffer → Warnung, kein Treffer → Entwarnung. Gemessen, mit beiden Eingaben
+nachgestellt:
+
+| Fall                  | Ausgabe               |                                   |
+| --------------------- | --------------------- | --------------------------------- |
+| es gibt einen Treffer | `GEFAHR: rollen.json` | richtig                           |
+| kein Treffer          | _nichts_              | die Entwarnung **fehlt**          |
+| gar nichts zu prüfen  | _nichts_              | von Fall 2 nicht zu unterscheiden |
+
+```
+grep allein, kein Treffer     Exit 1
+grep | sed, kein Treffer      Exit 0      ← sed ist mit leerer Eingabe zufrieden
+```
+
+Das `||` hängt am Ende der Pipe, also an `sed`. **Die Entwarnung konnte nie erscheinen — auch dann
+nicht, wenn alles in Ordnung war.**
+
+> Ihr stummer Zustand ist von ihrem guten Zustand nicht zu unterscheiden. Wer sie liest, sieht
+> Schweigen und hält es für Entwarnung.
+
+Sie fällt nur auf, wenn man den **guten** Fall absichtlich herstellt und merkt, dass die
+Bestätigung ausbleibt. Das ist dieselbe Probe wie in
+[8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen), nur in
+die andere Richtung: dort muss ein Fund kommen, hier eine Entwarnung.
+
+**Nicht `pipefail` ist die Abhilfe** — damit wäre der zweite Fall zwar richtig, ein `head` in der
+Kette lieferte aber 141 durch SIGPIPE. Der tragfähige Weg fragt nach dem **Inhalt** statt nach dem
+Erfolg eines Werkzeugs:
+
+```bash
+treffer=$(git diff --cached --name-only | grep -E "\.json$")
+if [ -n "$treffer" ]; then echo "GEFAHR: $treffer"; else echo "keine"; fi
+```
+
+> **Eine Pipe hat so viele Exit-Codes wie Stufen, und `$?` wie `||` sehen nur den letzten — der
+> oft der harmloseste ist.**
+
+Der Fall wurde bemerkt, weil daneben die sieben betroffenen Dateien namentlich ausgegeben wurden.
+Die Liste war die echte Absicherung; der `grep` war Zierrat, der sich als Absicherung ausgab. Die
+richtige Antwort kam aus dem falschen Grund — und das fällt niemandem auf, weil das Ergebnis
+stimmt.
+
+### 8.121 `fmt` mit Exit 0 belegt, dass der Code parst — nicht, dass er übersetzt
+
+`cargo fmt` und `cargo-remote-fmt` bauen den Syntaxbaum auf und schreiben ihn formatiert zurück.
+Dafür muss der Text **parsen**. Ob die Namen darin existieren, ob die Typen zusammenpassen, ob ein
+Aufruf die richtige Zahl von Argumenten hat — das prüft der Formatierer nicht und kann es nicht
+prüfen.
+
+Am 2026-08-21 gemessen, und der Beleg ist einem Worker zugefallen, statt gesucht worden zu sein:
+
+```
+Beim Umbenennen einer Schleifenvariablen blieb eine Fehlermeldung darunter stehen,
+die weiter den alten Namen benutzte — einen Namen, den es nicht mehr gab.
+
+cargo-remote-fmt darüber:  EXIT 0
+```
+
+Der Code **übersetzt nicht**. Der Formatierer meldet Erfolg.
+
+Der Satz „fmt belegt, dass es parst, nicht dass es typt" stand vorher mehrfach in Meldungen — als
+**Ableitung**. Seit diesem Lauf ist er gemessen, an einem echten Baum, mit einem Fehler, den der
+Messende selbst erzeugt hatte.
+
+#### Der Zusatz, der ihn erst gefährlich macht
+
+Der Fehler entstand **beim Beheben eines anderen Fehlers**. Genau in dem Moment, in dem man mit
+einem neuen am wenigsten rechnet: Die Aufmerksamkeit liegt auf der Stelle, die man gerade repariert,
+nicht auf den Stellen, die davon abhängen.
+
+Derselbe Worker hat an einem Nachmittag **drei** Mängel beim Beheben der jeweils vorigen selbst
+eingebaut.
+
+> **Ein grünes `fmt` ist kein Prüfstand, sondern eine Formatierung.** Wer nach einer Änderung nur
+> `fmt` fährt und „Exit 0" meldet, meldet, dass die Datei lesbar ist.
+
+Der einzige Lauf, der etwas über die Übersetzbarkeit sagt, ist `clippy --all-targets` oder
+`cargo test --no-run`. Und er zählt nur, wenn er **nach** der letzten Änderung lief — nicht davor.
