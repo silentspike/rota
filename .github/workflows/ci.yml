@@ -172,6 +172,18 @@ jobs:
         shell: bash
         run: bash tools/guide-anker.sh
 
+      # Ein Lauf auf dem Bauserver misst eine andere Maschine als die, fuer die
+      # gebaut wird (rustbuild hat kein AVX2/FMA). Am 2026-08-21 standen 28
+      # Stellen im Repository, die genau das empfahlen — acht davon im
+      # WORKER-GUIDE selbst. Steht hier und nicht in einem eigenen Job: Der
+      # Schritt liest Dateien und braucht keine Voraussetzung.
+      #
+      # Exit 1 = es gibt Laeufe, 2 = der Suchraum war zu eng, 3 = eine geduldete
+      # Ausnahme ist ueberholt. Alle drei sollen die CI anhalten.
+      - name: Kein Lauf auf dem Bauserver
+        shell: bash
+        run: bash tools/remote-nur-bauen.sh
+
   typecheck:
     needs: changes
     if: needs.changes.outputs.code == 'true'
