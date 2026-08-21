@@ -42,7 +42,7 @@
 use crate::apl::{Apl, Compare, Condition, Rule, Term, Value};
 use crate::balance::BalanceConfig;
 use crate::data::{BuffTarget, ControlEffect, Spell, MAX_LEVEL, SPELLS, SPELL_COUNT};
-use crate::time::GCD_MS;
+use crate::time::{Millis, GCD_MS};
 
 /// Ein Kandidat für eine Zeile der Prioritätenliste.
 ///
@@ -97,9 +97,85 @@ pub enum Origin {
     /// damit zum Teil ein Werkzeug-Befund, kein Balance-Befund — genau der
     /// Vorbehalt, unter dem schon #550 stand.
     BossCastWindow,
+    /// Aus dem Fenster vor dem nächsten Boss-Schlag (Issue #797).
+    ///
+    /// # Warum [`Origin::BossCastWindow`] dafür nicht reicht
+    ///
+    /// Der beschreibt den *laufenden* Zauber, und PIN wirkt auf den
+    /// **nächsten**. Bis #797 stand PIN trotzdem dort — die erzeugte Zeile
+    /// `pin if boss.casting` war gültig, wählbar und nutzlos: Sie feuert genau
+    /// dann, wenn schon etwas läuft, und laut Zauberdaten verpufft PIN an
+    /// einem ohnehin unterbrechbaren Eintrag.
+    ///
+    /// Das ist der teurere Fehler von beiden. Eine fehlende Zeile fällt beim
+    /// Zählen auf; eine vorhandene, die nichts ausrichtet, sieht in jedem
+    /// Bericht aus wie Abdeckung.
+    NextStrikeWindow,
 }
 
+/// Wie früh vor einem Schlag die Suche PIN einplant.
+///
+/// **Gemessen, nicht gewählt** — `pin_fenster_ist_gemessen` in
+/// `sim/tests/next_strike_in.rs` fährt die Reihe und hält fest, welche Werte
+/// eine überlebende Rotation finden.
+///
+/// Die Zahl kann nicht beliebig klein sein: Die Prioritätenliste wird an
+/// GCD-Grenzen ausgewertet, und ein Fenster unter einem GCD kann zwischen zwei
+/// Auswertungen komplett verstreichen. Sie kann auch nicht beliebig groß sein —
+/// PIN kostet drei Kontroll-Punkte und einen GCD, und `pin_window` hält bis
+/// zum nächsten Eintrag, gleich welcher es ist. Wer zu früh drückt, bezahlt
+/// den Zauber an einen Eintrag, der ihn nicht braucht.
+pub const NEXT_STRIKE_FENSTER_MS: Millis = 3000;
+
 impl Origin {
+    /// Alle Herkunftsarten, in fester Reihenfolge.
+    ///
+    /// # Wozu die Liste gebraucht wird
+    ///
+    /// Der Bericht aus AC4 zählt die Kandidatenzeilen je Herkunft. Bis #797
+    /// führte er dafür eine **eigene**, wörtlich hingeschriebene Aufzählung —
+    /// und der Kommentar daneben sagte den Fehler voraus, den sie erlaubt:
+    /// „Wer einen Herkunfts-Typ in `Origin` ergänzt, bekommt hier keine Zeile
+    /// und merkt es nicht, weil die Zahl einfach fehlt."
+    ///
+    /// Genau das ist beim Bau von [`Origin::NextStrikeWindow`] eingetreten.
+    /// Der Übersetzer fing das `match` in der Zählung — die Aufzählung in der
+    /// Ausgabe fing er nicht, weil ein Feld-Literal keine Vollständigkeit
+    /// kennt.
+    ///
+    /// # Was diese Liste absichert und was nicht
+    ///
+    /// [`Origin::ordnung`] ist ein exhaustives `match`: Wer eine Art ergänzt,
+    /// **muss** ihr dort einen Platz geben, sonst übersetzt es nicht. Dass sie
+    /// auch hier steht, erzwingt der Übersetzer **nicht** — dafür prüft der
+    /// Bericht seine eigene Summe gegen die Gesamtzahl der Zeilen, und
+    /// `jede_herkunft_steht_in_der_liste` prüft es unabhängig davon.
+    pub const ALL: &'static [Origin] = &[
+        Origin::Always,
+        Origin::DotRefresh,
+        Origin::SpenderThreshold,
+        Origin::BuffWindow,
+        Origin::BossCastWindow,
+        Origin::NextStrikeWindow,
+    ];
+
+    /// Der Platz dieser Art in [`Origin::ALL`].
+    ///
+    /// **Exhaustiv und ohne Auffang-Zweig**, aus demselben Grund wie
+    /// `Value::is_time_dependent`: Ein `_ => 0` würde zwei Arten auf denselben
+    /// Zähler legen, und der Bericht wäre still falsch statt laut kaputt.
+    #[must_use]
+    pub const fn ordnung(self) -> usize {
+        match self {
+            Self::Always => 0,
+            Self::DotRefresh => 1,
+            Self::SpenderThreshold => 2,
+            Self::BuffWindow => 3,
+            Self::BossCastWindow => 4,
+            Self::NextStrikeWindow => 5,
+        }
+    }
+
     /// Kurzbezeichnung für den Bericht.
     #[must_use]
     pub const fn label(self) -> &'static str {
@@ -109,6 +185,7 @@ impl Origin {
             Self::SpenderThreshold => "Entlade-Schwelle",
             Self::BuffWindow => "Verstaerkungs-Fenster",
             Self::BossCastWindow => "Boss wirkt",
+            Self::NextStrikeWindow => "Schlag steht bevor",
         }
     }
 }
@@ -256,27 +333,51 @@ pub fn candidates_for(index: usize) -> Vec<Candidate> {
     // Sorten können es:
     //
     //   - der Unterbrecher (`interrupt`) beendet den Zauber
-    //   - `MakeInterruptible` (PIN) macht einen Schlag überhaupt erst angreifbar
-    //   - `SlowCast` (STALL) schiebt den Einschlag nach hinten
+    //   - `SlowCast` (STALL, und über `AllThree` auch CAPSTONE) dehnt ihn
     //
     // `DelayStrike`, `HoldPhase` und `ConvertToDamage` stehen NICHT hier: Sie
     // wirken auf die Zeitleiste oder den Vorrat, nicht auf einen laufenden
     // Zauber. Eine Zeile `if boss.casting` würde sie auf ein Fenster
     // einschränken, das für sie nichts bedeutet.
+    //
+    // **`MakeInterruptible` (PIN) stand hier und war falsch** (#797, AC2). Der
+    // Zauber wirkt laut Daten auf den NÄCHSTEN Eintrag, und traf er einen
+    // ohnehin unterbrechbaren, verpufft er — `pin if boss.casting` feuerte
+    // also genau dann, wenn PIN nichts ausrichtet. Die Zeile war formal
+    // erfüllt und sachlich leer; sie steht jetzt weiter unten mit dem Wert,
+    // der zu ihr passt.
     let antwortet_auf_cast = spell.interrupt
-        || spell.control.is_some_and(|c| {
-            matches!(
-                c.effect,
-                ControlEffect::MakeInterruptible
-                    | ControlEffect::SlowCast
-                    | ControlEffect::AllThree
-            )
-        });
+        || spell
+            .control
+            .is_some_and(|c| matches!(c.effect, ControlEffect::SlowCast | ControlEffect::AllThree));
     if antwortet_auf_cast {
         out.push(Candidate {
             spell: index,
             condition: single(Value::BossCasting, Compare::GreaterEqual, Value::Literal(1)),
             origin: Origin::BossCastWindow,
+        });
+    }
+
+    // **Zeilen, die einen Schlag vorbereiten, bevor er fällt** (Issue #797).
+    //
+    // Nur `MakeInterruptible` kommt hierher, und `AllThree` ausdrücklich
+    // NICHT: CAPSTONE ruft `SlowCast`, `DelayStrike` und `HoldPhase` auf
+    // (`Fight::apply_control_effect`) — unterbrechbar macht es nichts. Der
+    // Doc-Kommentar am Datentyp sagt „alle drei bisherigen Wirkungen", und wer
+    // daraus die drei VOR `AllThree` stehenden liest, zählt `MakeInterruptible`
+    // mit. Die Liste im Code ist die Quelle, nicht die Reihenfolge im `enum`.
+    if spell
+        .control
+        .is_some_and(|c| c.effect == ControlEffect::MakeInterruptible)
+    {
+        out.push(Candidate {
+            spell: index,
+            condition: single(
+                Value::BossNextStrikeIn,
+                Compare::LessEqual,
+                Value::Literal(i64::from(NEXT_STRIKE_FENSTER_MS)),
+            ),
+            origin: Origin::NextStrikeWindow,
         });
     }
 
@@ -747,6 +848,32 @@ pub fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
             }
         }
     }
+
+    // **Die zweite Beziehung: erst angreifbar machen, dann unterbrechen**
+    // (Issue #797). Dieselbe Bauart wie oben, anderer Gegenstand.
+    //
+    // PIN gibt dem naechsten Schlag ein Fenster, in dem er ueberhaupt
+    // unterbrechbar ist; QUENCH beendet ihn darin. Keine Haelfte traegt
+    // allein — PIN kostet einen GCD und bringt fuer sich nichts, QUENCH
+    // findet ohne PIN nie einen laufenden Zauber. Gemessen: Ohne dieses Paar
+    // waehlt die Suche die PIN-Zeile bei KEINEM Gewicht auf das Verhinderte
+    // (0, 1, 5, 20, 100 geprueft).
+    //
+    // **Die Reihenfolge ist nicht beliebig.** Eingefuegt wird der erste Teil
+    // ueber den zweiten, und PIN muss fallen, BEVOR der Schlag kommt. Umgekehrt
+    // stuende der Unterbrecher ueber einem Zauber, der ihm erst sein Ziel
+    // verschafft.
+    for (n_pos, &nutzer) in offen.iter().enumerate() {
+        if pool[nutzer].origin != Origin::BossCastWindow || !SPELLS[pool[nutzer].spell].interrupt {
+            continue;
+        }
+        for (v_pos, &kandidat) in offen.iter().enumerate() {
+            if pool[kandidat].origin == Origin::NextStrikeWindow {
+                paare.push((v_pos, n_pos));
+            }
+        }
+    }
+
     paare
 }
 
