@@ -392,6 +392,11 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 ### `--test SUITE` beim Arbeiten, `--all-targets` erst vor der Fertigmeldung
 
+> **Beim Läufer mit `--apl` ist der Pfad `sim/apl/…`, nicht `apl/…`** — er startet im
+> Workspace-Root. Die Fehlermeldung nennt den übergebenen Pfad und sieht deshalb aus
+> wie ein Sync-Problem; zwei Sitzungen haben genau das diagnostiziert und lagen falsch:
+> [8.52](#852-ein-werkzeug-befund-der-beim-finder-bleibt-wird-neu-erarbeitet).
+
 Gemessen über 21,4 Stunden und 495 `cargo remote`-Aufrufe (2026-08-19), Median je Aufruf:
 
 |          | `--all-targets` | gezielt `--test X` |          Faktor |
@@ -1098,6 +1103,12 @@ welche AC und warum. Das ist ein völlig normaler Ausgang und besser als eine ge
 ---
 
 ## 5. Was als Nachweis gilt — und was nicht
+
+> **Wer eine Liste ERZEUGT, braucht darin einen Fall, dessen Antwort er vorher kennt.**
+> Ohne diesen Anker ist eine Liste nicht von einem stummen Werkzeug zu unterscheiden —
+> und das gilt auch, wenn sie plausibel und ungleichförmig aussieht. Die Regel steht
+> unter einem Symptom, das man meistens nicht hat, wenn man sie braucht:
+> [8.59](#859-eine-liste-in-der-alle-zeilen-gleich-aussehen-ist-verdächtig).
 
 | Gilt als Nachweis                    | Gilt NICHT                        |
 | ------------------------------------ | --------------------------------- |
@@ -2658,6 +2669,11 @@ Erlaubt und erwünscht ist stattdessen die ehrliche Einschätzung:
 ---
 
 ## 6. Melde-Format
+
+> **Wer einen Merge meldet, nennt den Commit**, den er gemergt hat — sonst kann der
+> Empfänger nicht sehen, ob es seiner ist. Die Regel steht unter einer Überschrift über
+> PR-Semantik, wo beim Schreiben einer Meldung niemand sucht:
+> [8.65](#865-gemergt-ist-eine-aussage-über-einen-pr-nicht-über-einen-zweig).
 
 Das schickst du am Ende jedes Issues an den Orchestrator:
 
