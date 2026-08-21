@@ -7720,3 +7720,111 @@ Klasse vor Augen:
 
 Drei von vier Sitzungen, an einem Abend. Wer daraus schließt, er müsse nur aufmerksamer sein,
 hat den Abschnitt nicht verstanden: Alle drei kannten die Klasse, als sie sie begingen.
+
+### 8.117 Eine Kontrollzeile prüft die Arithmetik zwischen zwei Zahlen, nicht ihre Herkunft
+
+Am 2026-08-20 wurde für eine Übergabe nachgemessen, wie viele APL-Werte einen Weckruf brauchen
+und wie viele einen bekommen. Der Bereich lief über die ganze Funktion:
+
+```bash
+awk '/fn is_time_dependent/,/^    }/' sim/src/apl/mod.rs | grep -oE "Value::[A-Za-z]+" | sort -u
+```
+
+Ergebnis: **19 zeitabhängige Werte**, davon 6 behandelt, also 13 ohne Weckruf. Dazu die
+Kontrollzeile:
+
+```
+6 behandelt + 13 Differenz = 19 zeitabhängig        ✓ geht auf
+```
+
+**Sie ging auf und war trotzdem falsch.** Die Funktion ist ein `match` mit zwei Zweigen — 9 Werte
+liefern `true`, 10 liefern `false`. Der Bereich sammelte beide ein. Zeitabhängig sind 9, nicht 19;
+ohne Weckruf sind 3, nicht 13.
+
+Die Kontrollzeile konnte das nicht fangen, weil **beide Summanden aus demselben Aufruf stammten**.
+Der Bereichsfehler bewegte die 19 und die 13 gemeinsam — ihre Differenz blieb stimmig, während
+beide falsch waren. Eine Summenprobe verrechnet zwei Zahlen miteinander; über ihre Herkunft sagt
+sie nichts.
+
+> **Eine Kontrolle, die der Fehler mitbewegt, ist keine Kontrolle.** Sie muss aus einer Quelle
+> kommen, die der vermutete Fehler nicht erreicht — sonst bestätigt sie ihn, statt ihn zu prüfen.
+
+**Die tragende Probe las den anderen Zweig:**
+
+```
+von den 10 Werten mit "=> false" steht KEINER in switch_point        (erwartet 0)
+```
+
+Diese kann der Bereichsfehler nicht bestehen. Hätte der Bereich beide Zweige vermischt, wären
+`false`-Werte als „behandelt" aufgetaucht — die Probe hätte einen Treffer gemeldet statt null.
+
+#### Warum das eine Verschärfung von 8.103 ist und keine Wiederholung
+
+8.103 verlangt **beide Richtungen**: Etwas Abwesendes wird nicht gefunden, etwas Vorhandenes wird
+gefunden. Dort trug die Regel, weil der Fehler (`ugrep` überspringt Binärdateien) die positive
+Hälfte _nicht_ mitbewegte — die echten Zeichenketten wurden ja auch nicht gefunden.
+
+Hier hätten beide Richtungen nichts genützt. Der Fehler saß im Bereich, und der Bereich speist
+jede Zählung, die aus ihm stammt — in jede Richtung.
+
+|         | 8.103                                 | 8.117                                   |
+| ------- | ------------------------------------- | --------------------------------------- |
+| Frage   | zeigt der Messweg überhaupt etwas an? | erreicht der Fehler auch die Kontrolle? |
+| Abhilfe | zweite Richtung                       | zweite **Quelle**                       |
+
+#### Was diesen Fall gefangen hat, war Glück
+
+Nicht die Kontrollzeile. Die neue Zahl (19) widersprach einer erinnerten (9), und daraufhin wurde
+die Funktion im Wortlaut gelesen. Wäre die grobe Messung die erste gewesen, hätte niemand einen
+Anlass zum Zweifeln gehabt: eine plausible Zahl mit aufgehender Kontrollzeile, gemeldet an einen
+Empfänger, der die Quelle nicht sieht.
+
+**Erinnerung ist kein Prüfmittel** — dieselbe Sitzung hatte am Vorabend fünfmal belegt, dass sie
+trügt. Dass sie hier rettete, macht sie nicht zu einer Methode.
+
+#### Auch die berichtigte Kontrollzeile hat diese Bauart
+
+```
+9 true + 10 false = 19 Varianten gesamt             ✓ geht auf
+```
+
+Beide Zahlen kommen wieder aus derselben Datei, demselben `match`. Sie ist nützlich — sie fängt
+eine übersehene Variante — aber sie ist **kein** Beleg dafür, dass die Zuordnung zu `true` und
+`false` stimmt. Das leistet nur die Probe aus dem anderen Zweig.
+
+> Wer eine Kontrollzeile schreibt, beantwortet zuerst: **Welchen Fehler soll sie fangen, und
+> erreicht dieser Fehler sie selbst?** Bleibt die zweite Antwort „ja", ist die Zeile Zierrat mit
+> dem Aussehen eines Beweises.
+
+#### Nachtrag vom 2026-08-21: die Probe selbst altert
+
+Die oben empfohlene Probe — _„von den 10 Werten mit `=> false` steht keiner in
+`switch_point`"_ — war am 20.08. richtig und ist es heute nicht mehr, ohne dass jemand einen
+Fehler gemacht hätte. PR #1018 hat den Auffang-Zweig `_ => None` entfernt und **jeden** Wert
+einzeln eingetragen, auch die, die `None` bleiben:
+
+```
+Probe gegen main am 20.08.        0 Treffer   besteht
+dieselbe Probe nach #1018        10 Treffer   FEHLALARM
+```
+
+Die zehn `false`-Werte stehen jetzt sämtlich in `switch_point` — mit `=> None` und
+Begründung. Das ist eine **Verbesserung** des Codes: Ohne Auffang-Zweig muss jeder neue Wert
+dort beantwortet werden, sichtbar statt stillschweigend. Genau diese Verbesserung macht die
+Probe unbrauchbar.
+
+**Die Frage, die sie stellen sollte, bleibt gültig** — nur ihr Merkmal nicht:
+
+|        | Merkmal                                            | trägt bis                   |
+| ------ | -------------------------------------------------- | --------------------------- |
+| damals | _steht der Wert in `switch_point`?_                | #1018                       |
+| danach | _liefert er dort einen Umschlagpunkt oder `None`?_ | bis zur nächsten Umstellung |
+
+> Eine Probe hängt an einer Codeform, nicht nur an einer Frage. Wird die Form besser, kann die
+> Probe schlechter werden — und sie meldet das nicht selbst, sondern schlägt Alarm. Wer eine
+> Probe aus diesem Guide übernimmt, prüft zuerst, ob ihr Merkmal im heutigen Code noch dasselbe
+> unterscheidet.
+
+Das ist kein Sonderfall dieses einen Abschnitts. Es ist der Grund, warum eine Probe **mit ihrer
+Erwartung und ihrem Datum** aufgeschrieben gehört: Nur so fällt auf, dass sie nicht mehr das
+misst, wofür sie gebaut wurde.
