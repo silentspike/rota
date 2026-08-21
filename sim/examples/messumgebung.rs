@@ -1500,6 +1500,42 @@ fn median(werte: &mut [f64]) -> f64 {
 ///
 /// Das Issue sagt es und begruendet es: „Zwei Laeufe genuegen ausdruecklich
 /// nicht — sie koennen zufaellig uebereinstimmen."
+/// Das Urteil ueber eine A/B-Reihe — ohne Messung, ohne Bericht, ohne Uhr.
+///
+/// WOZU ES DAS GIBT. Bis zum 2026-08-21 stand die Verknuepfung als
+/// `ac1 && ac6 && zeiten_ok` am Ende von `ab_reihe`, also hinter 540 Zeilen
+/// Messung. Um sie zu erreichen, musste eine vollstaendige Reihe gelingen —
+/// vier Anlaeufe starben vorher an `BLOCKED`, jeder aus einem anderen Grund.
+/// Das war keine Pechserie, sondern die Bauweise: Eine Aussage ueber eine
+/// Verknuepfung hing an Maschinenlast, mit der sie nichts zu tun hat.
+struct Bewertung {
+    ac1: bool,
+    ac6: bool,
+    zeiten_ok: bool,
+}
+
+impl Bewertung {
+    /// **Die Blockzeiten zaehlen mit.** Nicht weil sie die Streuung beruehren —
+    /// die steht unabhaengig davon —, sondern weil ein Bericht mit unbrauchbaren
+    /// Zeiten spaeter fuer eine Stoerungsanalyse herangezogen wuerde, fuer die er
+    /// nicht taugt. Ein Ruecklauf mit Exit 0 waere die Einladung dazu.
+    fn bestanden(&self) -> bool {
+        self.ac1 && self.ac6 && self.zeiten_ok
+    }
+}
+
+/// Die beiden Kriterien aus den drei Kennzahlen, mit der Zeitpruefung daneben.
+///
+/// `unterschied`, `streu_a` und `streu_b` sind Anteile, keine Prozente: 0.03
+/// ist die Drei-Prozent-Schwelle aus #896.
+fn bewerte(streu_a: f64, streu_b: f64, unterschied: f64, zeiten_ok: bool) -> Bewertung {
+    Bewertung {
+        ac1: streu_a < 0.03 && streu_b < 0.03,
+        ac6: unterschied <= streu_a.max(streu_b),
+        zeiten_ok,
+    }
+}
+
 fn ab_reihe(
     bericht: &mut String,
     threads: usize,
@@ -2011,24 +2047,23 @@ fn ab_reihe(
         unterschied * 100.0
     );
 
-    let ac1 = streu_a < 0.03 && streu_b < 0.03;
-    let ac6 = unterschied <= streu_a.max(streu_b);
+    let bewertung = bewerte(streu_a, streu_b, unterschied, zeiten_ok);
     let _ = writeln!(
         bericht,
         "\n  AC1  Streuung unter 3 %                       {}",
-        if ac1 { "PASS" } else { "FAIL" }
+        if bewertung.ac1 { "PASS" } else { "FAIL" }
     );
     let _ = writeln!(
         bericht,
         "  AC6  Unterschied innerhalb der Streuung       {}",
-        if ac6 { "PASS" } else { "FAIL" }
+        if bewertung.ac6 { "PASS" } else { "FAIL" }
     );
     let _ = writeln!(
         bericht,
         "  Blockzeiten brauchbar                         {}",
-        if zeiten_ok { "PASS" } else { "FAIL" }
+        if bewertung.zeiten_ok { "PASS" } else { "FAIL" }
     );
-    if !ac1 {
+    if !bewertung.ac1 {
         let _ = writeln!(
             bericht,
             "\n  Das Kriterium wird NICHT gesenkt. Eine Messumgebung, die ihre \
@@ -2036,11 +2071,7 @@ fn ab_reihe(
              conditions)."
         );
     }
-    // **Die Blockzeiten zaehlen mit.** Nicht weil sie die Streuung beruehren —
-    // die steht unabhaengig davon —, sondern weil ein Bericht mit unbrauchbaren
-    // Zeiten spaeter fuer eine Stoerungsanalyse herangezogen wuerde, fuer die
-    // er nicht taugt. Ein Ruecklauf mit Exit 0 waere die Einladung dazu.
-    ac1 && ac6 && zeiten_ok
+    bewertung.bestanden()
 }
 
 fn main() {
@@ -2822,5 +2853,63 @@ mod lastfaelle_machen_etwas {
                 k.origin
             );
         }
+    }
+}
+
+/// Die Verknuepfung der drei Kriterien (#896).
+///
+/// Eigenes Modul, weil diese Faelle mit den Lastfaellen darueber nichts zu tun
+/// haben: Sie brauchen keinen Kampf, keine Uhr und keine Maschine.
+#[cfg(test)]
+mod bewertung_verknuepft_die_kriterien {
+    use super::*;
+
+    //
+    // Bis zum 2026-08-21 war sie nur ueber einen vollstaendigen Messlauf
+    // erreichbar; vier Anlaeufe starben vorher an BLOCKED. Diese drei Faelle
+    // pruefen sie in Millisekunden — und der mittlere ist der Grund, warum es
+    // sie gibt.
+    //
+    // WAS SIE NICHT BELEGEN: dass `ab_reihe` `bestanden()` auch zurueckgibt.
+    // Diese eine Zeile bleibt ungeprueft. Die Luecke ist damit nicht
+    // geschlossen, sondern von 540 Zeilen auf eine geschrumpft, die bei jedem
+    // Lesen sichtbar ist.
+
+    // Ein Satz Werte fuer alle drei Faelle, damit "einziger Unterschied ist das
+    // letzte Argument" auch dann noch stimmt, wenn jemand die Zahlen anfasst.
+    // Streuung 1,0 % und 1,2 %, Unterschied 0,5 % — alle drei Kriterien halten.
+    const GUT_A: f64 = 0.01;
+    const GUT_B: f64 = 0.012;
+    const GUT_UNTERSCHIED: f64 = 0.005;
+
+    #[test]
+    fn gute_werte_bestehen() {
+        let b = bewerte(GUT_A, GUT_B, GUT_UNTERSCHIED, true);
+        assert!(b.ac1, "1,0 % und 1,2 % liegen unter der 3-%-Schwelle");
+        assert!(b.ac6, "0,5 % liegt innerhalb der groesseren Streuung 1,2 %");
+        assert!(b.bestanden());
+    }
+
+    #[test]
+    fn unbrauchbare_blockzeiten_kippen_das_urteil() {
+        // DER VERDRAHTUNGSNACHWEIS. Einziger Unterschied zum Fall darueber ist
+        // das letzte Argument — ac1 und ac6 bleiben beweisbar unberuehrt.
+        let b = bewerte(GUT_A, GUT_B, GUT_UNTERSCHIED, false);
+        assert!(b.ac1, "ac1 darf sich nicht mitbewegen");
+        assert!(b.ac6, "ac6 darf sich nicht mitbewegen");
+        assert!(
+            !b.bestanden(),
+            "zeiten_ok=false muss das Gesamturteil kippen, obwohl AC1 und AC6 halten"
+        );
+    }
+
+    #[test]
+    fn zu_grosse_streuung_kippt_trotz_brauchbarer_zeiten() {
+        // Die Gegenrichtung: Ohne sie belegt der Fall oben nur, dass IRGENDEIN
+        // false das Urteil kippt — nicht, dass jeder Teil einzeln zaehlt.
+        let b = bewerte(0.04, GUT_B, GUT_UNTERSCHIED, true);
+        assert!(!b.ac1, "4 % liegen ueber der Schwelle");
+        assert!(b.zeiten_ok);
+        assert!(!b.bestanden());
     }
 }
