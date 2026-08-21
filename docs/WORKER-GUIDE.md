@@ -8162,3 +8162,33 @@ zweimal dasselbe Schweigen gehört.
 Und bei mehrzeiligen Quellen — Markdown, YAML, formatiertem Code — gehört `tr '\n' ' '` oder
 `grep -z` dazu, bevor man aus einer Null etwas schließt. Ein Zeilenumbruch ist kein Fehler in der
 Datei; er ist einer im Muster.
+
+#### Der Abschnitt wurde zehn Minuten nach seiner Entstehung von seinem Autor gebrochen
+
+Beim Nachmessen einer Symlink-Umstellung — ob `~/bin/<werkzeug>` und die versionierte Datei
+wirklich **ein** Objekt sind — entstand nebenbei diese Zeile:
+
+```bash
+[ "$(stat -c%i ~/bin/$W)" = "$(stat -c%i /work/rota-ipc/$W)" ]
+```
+
+Sie meldete für alle drei geprüften Werkzeuge **VERSCHIEDEN**. Eine parallel gefahrene Schreibprobe
+— Datei über `~/bin` ändern, `git status` im Repo ansehen — meldete gleichzeitig **BESTANDEN**.
+
+Zwei Prüfungen, ein Gegenstand, gegensätzliche Antworten. Aufgeklärt:
+
+```
+stat -c%i    ~/bin/rota-fenster    28395432     folgt dem Symlink NICHT
+stat -L -c%i ~/bin/rota-fenster    57220451     folgt ihm
+stat -c%i    /work/rota-ipc/…      57220451
+```
+
+Die Symlinks waren richtig. **Die Prüfzeile war falsch** — sie verglich die Inode des Symlinks
+selbst mit der ihres Ziels, und die sind naturgemäß verschieden.
+
+> Der Widerspruch war der Glücksfall. Hätte nur die Inode-Zeile existiert, wäre eine korrekte
+> Umstellung als fehlgeschlagen gemeldet worden — mit einer Zahl daneben, die überzeugend aussieht.
+
+Es ist derselbe Bau wie oben: eine Prüfung, nebenbei in einer Zeile geschrieben, ohne sie selbst zu
+prüfen. Dass ihr Autor den Abschnitt darüber zehn Minuten vorher verfasst hatte, ändert nichts
+daran — **eine Regel schützt nicht den, der sie aufschreibt.**
