@@ -7795,3 +7795,36 @@ eine übersehene Variante — aber sie ist **kein** Beleg dafür, dass die Zuord
 > Wer eine Kontrollzeile schreibt, beantwortet zuerst: **Welchen Fehler soll sie fangen, und
 > erreicht dieser Fehler sie selbst?** Bleibt die zweite Antwort „ja", ist die Zeile Zierrat mit
 > dem Aussehen eines Beweises.
+
+#### Nachtrag vom 2026-08-21: die Probe selbst altert
+
+Die oben empfohlene Probe — _„von den 10 Werten mit `=> false` steht keiner in
+`switch_point`"_ — war am 20.08. richtig und ist es heute nicht mehr, ohne dass jemand einen
+Fehler gemacht hätte. PR #1018 hat den Auffang-Zweig `_ => None` entfernt und **jeden** Wert
+einzeln eingetragen, auch die, die `None` bleiben:
+
+```
+Probe gegen main am 20.08.        0 Treffer   besteht
+dieselbe Probe nach #1018        10 Treffer   FEHLALARM
+```
+
+Die zehn `false`-Werte stehen jetzt sämtlich in `switch_point` — mit `=> None` und
+Begründung. Das ist eine **Verbesserung** des Codes: Ohne Auffang-Zweig muss jeder neue Wert
+dort beantwortet werden, sichtbar statt stillschweigend. Genau diese Verbesserung macht die
+Probe unbrauchbar.
+
+**Die Frage, die sie stellen sollte, bleibt gültig** — nur ihr Merkmal nicht:
+
+|        | Merkmal                                            | trägt bis                   |
+| ------ | -------------------------------------------------- | --------------------------- |
+| damals | _steht der Wert in `switch_point`?_                | #1018                       |
+| danach | _liefert er dort einen Umschlagpunkt oder `None`?_ | bis zur nächsten Umstellung |
+
+> Eine Probe hängt an einer Codeform, nicht nur an einer Frage. Wird die Form besser, kann die
+> Probe schlechter werden — und sie meldet das nicht selbst, sondern schlägt Alarm. Wer eine
+> Probe aus diesem Guide übernimmt, prüft zuerst, ob ihr Merkmal im heutigen Code noch dasselbe
+> unterscheidet.
+
+Das ist kein Sonderfall dieses einen Abschnitts. Es ist der Grund, warum eine Probe **mit ihrer
+Erwartung und ihrem Datum** aufgeschrieben gehört: Nur so fällt auf, dass sie nicht mehr das
+misst, wofür sie gebaut wurde.
