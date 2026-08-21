@@ -8346,3 +8346,60 @@ Das ist [8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-
 in seiner schärfsten Form: Der Kontrollfall muss nicht nur existieren, er muss **in jeder Datei
 liegen, über die der Filter eine Aussage machen soll.** Ein Anker im Guide belegt nichts über eine
 CLAUDE.md.
+
+### 8.124 Wer nachmisst, stellt die Frage neu — er prüft nicht die Antwort
+
+Eine Nachmessung, die die **vorgelegte Liste als Eingabe** nimmt, kann den Fehler des Vorlegenden
+nicht finden. Sie kann ihn nur bestätigen — und dann sieht er aus wie zweimal belegt.
+
+Am 2026-08-21 gemessen. Ein Worker meldete fünf Befehle, die in einer Hilfe fehlen. Der Abnehmende
+prüfte nach, mit Tabelle und Kontrollzeile:
+
+```bash
+for B in auftraggeber eingang pruefe vorrat wartung; do
+  echo "$H" | grep -qw "$B" && echo "  $B  in der Hilfe" || echo "  $B  FEHLT"
+done
+```
+
+```
+auftraggeber  FEHLT     senden      in der Hilfe
+eingang       FEHLT     antworten   in der Hilfe
+pruefe        FEHLT     rollen      in der Hilfe
+vorrat        FEHLT     offen       in der Hilfe
+wartung       FEHLT
+```
+
+**Jede Zeile stimmte. Die Kontrollzeile trennte tatsächlich.** Und das Ergebnis war unvollständig:
+Es fehlten **acht**, nicht fünf. Die drei übrigen standen nie zur Debatte, weil sie nicht in der
+Eingabe standen.
+
+| gestellte Frage                   | Antwort                              |
+| --------------------------------- | ------------------------------------ |
+| „Stehen diese fünf in der Hilfe?" | nein, alle fünf fehlen — **richtig** |
+| „Welche fehlen?"                  | acht — **nie gestellt**              |
+
+> Beide Beteiligten hielten die Zahl danach für doppelt geprüft. Sie war **einmal geprüft und einmal
+> nachvollzogen.**
+
+Das ist gefährlicher als ein einzelner Irrtum: Es verdoppelt die Zuversicht, ohne die Deckung zu
+verdoppeln.
+
+#### Was den Fehler gefunden hat
+
+Ein Wächter, der **beide Seiten selbst erzeugt** und vergleicht — Befehle aus dem Syntaxbaum, Hilfe
+aus dem Text, den der Nutzer sieht. Er nimmt keine Liste entgegen.
+
+Das war kein Verdienst der Sorgfalt: Er wurde so gebaut, weil eine Liste daneben auseinanderlaufen
+kann, nicht weil jemand die Zahl bezweifelt hätte.
+
+#### Die Regel
+
+> **Bei einer Liste heißt Nachmessen: die Gegenliste selbst erzeugen, nicht die vorgelegte abhaken.**
+
+Der Unterschied kostet nichts und ist von außen unsichtbar — beide Wege liefern eine Tabelle, beide
+haben eine Kontrollzeile, beide sehen nach unabhängiger Prüfung aus. Nur einer davon **kann** ein
+anderes Ergebnis liefern als das vorgelegte.
+
+Das ist [8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen)
+für den Abnehmenden statt für den Messenden: Ein Filter, der nur nach dem sucht, was jemand anders
+gefunden hat, findet nichts anderes.
