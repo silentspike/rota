@@ -8861,3 +8861,85 @@ hält — wurde erwogen und verworfen, mit zwei Gründen vom Autor selbst:
    ein `grep` nach `SIGNATUR:`, das `Sein Merkmal:` nicht sieht (8.27).
 2. **Ein Wächter, den man nicht fahren kann, ist schlimmer als keiner**, weil er nach
    Absicherung aussieht (8.28).
+
+### 8.137 Eine Zahl, die zum Verdacht passt, bestätigt ihn nicht
+
+Wer eine Beobachtung hat und eine Zahl findet, die zu ihr passt, hält an. **Die Zahl ist nur
+mit dem Verdacht vereinbar — sie belegt ihn nicht.** Fast jede Zahl hat eine zweite Erklärung,
+und oft ist die zweite die richtige.
+
+Am 2026-08-22 zweimal innerhalb einer Stunde, beide Male vom Orchestrator:
+
+| Beobachtung                                                                                | die erste Erklärung                                       | die richtige                                                                         |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Spieler kommt mit **5000 Leben** (voll) aus einem Kampf, in dem ein tödlicher Schlag fällt | der Kampf war vorher zu Ende, der Boss (5200 hp) gefallen | die Rotation hat den Schlag **abgewehrt** — der Kommentar nannte „je zwei PIN-Würfe" |
+| Ein Werkzeug ordnet Prozesse einem Worktree zu                                             | „es liest `/proc/<pid>/cwd`"                              | es sucht den Pfad in den **ps-Argumenten**; `grep -c "/proc"` ergibt **0**           |
+
+Der zweite Fall hat eine eigene Ursache: Derselbe Zusammenhang war einmal **von Hand**
+hergestellt worden (`readlink /proc/$pid/cwd`), und die Erinnerung an die **eigene Handlung**
+wurde für Kenntnis des **Werkzeugs** gehalten. Der Satz stand danach in einer
+Aufgabenbeschreibung, einem Issue und einer Zuteilung.
+
+#### Beide Widerlegungen standen im Nachbarcode
+
+Nicht in einem Lauf, nicht in einer Messung — in derselben Datei-Familie, ungelesen:
+
+```rust
+assert!(!ueberlebt(&ohne),
+  "ohne PIN ist der Schlag unabwendbar — ueberlebt der Spieler auch so,
+   misst der Fall nicht mehr, was er zu messen vorgibt");
+```
+
+Fiele der Boss vor dem Schlag, überlebte der Spieler auch ohne `PIN`, und **diese** Zusicherung
+wäre rot. Sie ist grün. Damit war die These widerlegt, bevor sie aufgeschrieben wurde.
+
+#### Was daraus folgt
+
+- Vor jedem Befund, der auf einer Zahl ruht: **Was könnte diese Zahl sonst noch bedeuten?**
+  Nicht „ist die Zahl richtig", sondern „ist meine Ursache die einzige, die sie erzeugt".
+- **Weiterlesen, bevor man meldet.** Ein Befund nach halber Lektüre ist ein Verdacht.
+- Bei einer Aussage über ein Werkzeug: **nachsehen, nicht erinnern** — besonders, wenn man
+  denselben Zusammenhang einmal von Hand hergestellt hat.
+- Melden mit der Angabe, **welcher Lauf den Verdacht klären würde**. Dann ist es ein Verdacht
+  und keine Behauptung, und niemand arbeitet vier Stunden an einer Sache, die im Nachbarcode
+  schon widerlegt ist.
+
+### 8.138 Wer den Bezugspunkt wechselt, wechselt ihn nicht für alle Teilfragen
+
+Eine Messung gegen einen bestimmten Stand (`origin/main`, ein Commit, ein Tag) bekommt ihren
+Bezugspunkt bewusst. **Die Teilfragen daneben bekommen ihn nicht** — weil sie nicht wie
+Messungen aussehen.
+
+Am 2026-08-22 meldete ein Worker sechs Befunde und schrieb ausdrücklich dazu:
+
+> „Alles gegen `origin/main` gemessen, Hash 4f637fc — **NICHT** gegen meinen Arbeitszweig.
+> Der zeigt 22 Bosse und 6 Instanzen, weil meine vier darin liegen; das wäre der falsche
+> Bezugspunkt gewesen."
+
+Richtig, sorgfältig — und in derselben Meldung stand: **„Diese Datei gibt es nicht"** über eine
+Datei, die es in genau diesem Commit gibt. Die Dateiliste stammte aus dem Arbeitsbaum, und der
+stand auf einem Stand von vor dem Merge, der sie hinzufügte.
+
+**Es traf ausgerechnet die eine Frage, in der Arbeitsbaum und `main` verschieden antworten.**
+Von 27 Dateien, die `origin/main` gegenüber seinem Stand ändert, waren drei genau die gesuchten.
+
+#### Warum es keine Nachlässigkeit ist
+
+_„Welche Dateien gibt es"_ sieht nicht wie eine Messung aus. Es sieht aus wie **Nachsehen**.
+Ein `ls` bekommt keinen Bezugspunkt, weil niemand ihn dort vermutet.
+
+#### Was daraus folgt
+
+Für Teilfragen, die wie Nachsehen aussehen — _existiert X_, _welche gibt es_, _wie viele
+Dateien_ —, gilt derselbe Bezugspunkt wie für die Messung:
+
+```
+git ls-tree -r --name-only <ref> -- <pfad>     statt   ls <pfad>
+git show <ref>:<datei>                          statt   cat <datei>
+git ls-tree -r --name-only <ref> | wc -l        statt   find … | wc -l
+```
+
+Verwandt: 8.127 (wer eine Datei mehrfach nachzieht, prüft sie gegen sich selbst) und der
+Nachbarfall am selben Tag — Zauber gezählt, indem die **Dateien** unter `data/spells` gezählt
+wurden; dort liegt eine Datei je **Schule**. Ergebnis 11 statt 56, gefangen von der
+mitlaufenden Kontrolle („`crust` muss existieren" meldete FALSE).
