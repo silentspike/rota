@@ -54,11 +54,27 @@
 //! | `dot.<zauber>.active` | Brand-Effekt läuft |
 //! | `dot.<zauber>.remains` | Restlaufzeit in ms |
 //! | `dot.<zauber>.ticks` | Bisherige Ticks |
+//! | `buff.<zauber>.active` | Verstärkung dieses Zaubers läuft |
+//! | `buff.<zauber>.remains` | Ihre Restlaufzeit in ms |
 //! | `boss.hp` | Verbleibende Lebenspunkte |
 //! | `boss.hp_pct` | Verbleibende Lebenspunkte in Prozent (ganzzahlig) |
+//! | `boss.casting` | Ein Boss-Zauber läuft gerade |
+//! | `boss.cast_remains` | Zeit bis der **laufende** Zauber landet, in ms |
+//! | `boss.next_strike_in` | Zeit bis der **nächste** Eintrag ansteht, in ms |
 //! | `time` | Verstrichene Kampfzeit in ms |
 //! | `fight.remains` | Zeit bis zum Überdruck in ms |
 //! | `gcd` | Die globale Wartezeit als Zahl |
+//! | `decay` | Stapel der Schwächung (PUTREFACTION) |
+//! | `shield` | Die Schutzschicht (COAGULATION) |
+//! | `control` | Kontroll-Punkte (FIXATION) |
+//!
+//! **Sieben dieser Zeilen fehlten bis #797**, obwohl der Parser die Werte längst
+//! las: die drei Schul-Mechaniken aus #526, die beiden Verstärkungs-Werte aus
+//! #553 und `boss.casting`/`boss.cast_remains` aus #797 selbst. Eine Tabelle
+//! neben einer Aufzählung im Code läuft auseinander, und niemand merkt es —
+//! `alle_dokumentierten_werte_lassen_sich_lesen` in
+//! `sim/tests/apl_dokumentierte_werte.rs` fängt seitdem wenigstens die eine
+//! Richtung.
 //!
 //! Zahlen sind ganzzahlig. Zeiten dürfen `1500`, `1500ms` oder `1.5s` heißen —
 //! immer ganzzahlig gerechnet, denn Fließkomma-Zeit ist die erste Regel, die
@@ -147,6 +163,28 @@ pub enum Value {
     /// dieselbe Sprache gebracht — und die unbequeme Übereinkunft ist die,
     /// die man später ohne Bruch ändern kann.
     BossCastRemains,
+    /// Millisekunden, bis der nächste Zeitleisten-Eintrag ansteht (Issue #797).
+    ///
+    /// **Warum das nicht aus [`Value::BossCastRemains`] folgt:** Der beschreibt
+    /// den *laufenden* Zauber. PIN gilt laut Zauberdaten dem **nächsten** und
+    /// verpufft, wenn er einen ohnehin unterbrechbaren trifft — mit
+    /// `boss.cast_remains` lässt sich also gar keine brauchbare Zeile für ihn
+    /// bilden. Genau daran ist AC2 von #797 gescheitert: `pin if boss.casting`
+    /// feuert in dem Moment, in dem PIN wirkungslos ist.
+    ///
+    /// **Wenn kein Schlag mehr kommt, die verbleibende Kampfzeit** — also
+    /// derselbe Wert wie [`Value::FightRemains`]. Das ist die Übereinkunft,
+    /// und sie ist eine andere als bei `BossCastRemains` (dort 0). Der Grund
+    /// ist nicht Bequemlichkeit: Für den laufenden Zauber gibt es mit
+    /// [`Value::BossCasting`] einen Zustandswert, der den leeren Fall abfängt;
+    /// für den kommenden gibt es keinen. Eine 0 träfe `< 2000` am Kampfende
+    /// dauerhaft — ausgerechnet dort, wo nichts mehr kommt.
+    ///
+    /// **Er sagt „ansteht", nicht „landet".** Ein Eintrag mit `phase` wird
+    /// übersprungen, wenn der Boss die Phase bis dahin nicht erreicht hat, und
+    /// geprüft wird das erst zum Fälligkeitszeitpunkt. Der Simulator kann es
+    /// nicht besser wissen — und der Spieler weiß es auch nicht.
+    BossNextStrikeIn,
     /// Verstrichene Kampfzeit.
     Time,
     /// Zeit bis zum Überdruck.
@@ -200,6 +238,7 @@ impl Value {
             Value::BossHpPercent => Number::from(fight.boss_hp_percent()),
             Value::BossCasting => Number::from(u8::from(fight.casting().is_some())),
             Value::BossCastRemains => Number::from(fight.boss_cast_remaining_ms()),
+            Value::BossNextStrikeIn => Number::from(fight.next_strike_in_ms()),
             Value::Time => Number::from(fight.time()),
             Value::FightRemains => Number::from(fight.fight_remaining_ms()),
             Value::Gcd => Number::from(GCD_MS),
@@ -241,7 +280,12 @@ impl Value {
             | Value::Time
             | Value::FightRemains
             // Die Restzeit eines Boss-Zaubers sinkt mit jeder Millisekunde (#797).
-            | Value::BossCastRemains => true,
+            | Value::BossCastRemains
+            // Und die Zeit bis zum nächsten Schlag ebenso (#797). Der Wecker
+            // ist hier nicht Beiwerk, sondern der Zweck: Ein Fenster wie
+            // `boss.next_strike_in <= 2500` öffnet sich ausschließlich durch
+            // Verstreichen — es gibt kein Ereignis, das es aufstößt.
+            | Value::BossNextStrikeIn => true,
             // Diese ändern sich nur an Ereignissen, die die Rotation ohnehin
             // wecken.
             //
@@ -444,6 +488,27 @@ impl Apl {
 /// Alle diese Werte laufen **gleichmäßig herunter** (Restzeiten) oder **hinauf**
 /// (die Uhr), je Millisekunde um eins. Der Umschlagpunkt ist damit eine einfache
 /// Rechnung und keine Suche.
+///
+/// # Exhaustiv, seit hier ein Wert durchgefallen ist (#797)
+///
+/// **Hier stand ein `_ => None`, und das war die eigentliche Lücke.**
+/// [`Value::is_time_dependent`] ist bewusst exhaustiv, damit ein neuer Wert
+/// eingeordnet werden MUSS — aber diese Einordnung entscheidet nur, ob
+/// [`Apl::next_wakeup`] den Wert überhaupt ansieht. Terminiert wird der Weckruf
+/// **hier**, und der Auffang-Zweig gab für jeden nicht eingetragenen Wert
+/// stillschweigend „kein Umschlagpunkt" zurück.
+///
+/// Gemessen an `Value::BossNextStrikeIn`: Der Wert stand ordnungsgemäß in
+/// `is_time_dependent`, und trotzdem wurde kein Weckruf gestellt. Die Bedingung
+/// schlug erst um, wenn ein **fremdes** Ereignis den Kampf ohnehin anhielt —
+/// die gemessenen Wurfzeitpunkte lagen auf einem 1000-ms-Raster statt auf dem
+/// Umschlagpunkt (10000 statt 9000, 8000 statt 7500), und bei einem engen
+/// Fenster fiel die Entscheidung gar nicht.
+///
+/// **Das ist der Wächter am falschen Ende**: Er stand an der Frage „hängt der
+/// Wert an der Uhr?" statt an der Frage „wann schlägt er um?". Die zweite ist
+/// die, deren Antwort gebraucht wird. Ohne Auffang-Zweig muss jeder neue Wert
+/// hier beantwortet werden — auch mit `None`, dann aber sichtbar und begründet.
 fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis> {
     let now = fight.time();
     let at = |remaining_now: Millis, target: Number| -> Option<Millis> {
@@ -472,7 +537,48 @@ fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis
             (target > now).then_some(target)
         }
         Value::FightRemains => at(fight.fight_remaining_ms(), threshold),
-        _ => None,
+        // Der Wert, für den diese Funktion exhaustiv gemacht wurde (#797). Er
+        // sinkt je Millisekunde um eins wie jede Restzeit — und anders als bei
+        // den Werten darunter gibt es KEIN Ereignis, das das Fenster öffnet:
+        // Der Zeitleisten-Eintrag ist eingeplant, aber erst zu seiner
+        // Fälligkeit. Eine Zeile `boss.next_strike_in <= 3000` fragt nach dem
+        // Zeitpunkt 3000 ms DAVOR, und dort steht nichts in der Schlange.
+        Value::BossNextStrikeIn => at(fight.next_strike_in_ms(), threshold),
+        // **Ab hier: kein Umschlagpunkt, und zwar mit Grund.**
+        //
+        // Diese Werte hängen zwar an der Uhr, aber ihr Umschlag fällt mit
+        // einem Ereignis zusammen, das den Kampf ohnehin anhält:
+        //
+        //   BuffActive/BuffRemains  die Verstärkung stellt beim Wirken einen
+        //                           Weckruf auf ihr Ende (`fight.rs`, „Dauer
+        //                           UND Wakeup mit demselben Wert")
+        //   BossCastRemains         der Einschlag steht als `BossCastLands`
+        //                           in der Schlange
+        //
+        // **Für `BossCastRemains` ist das nur die halbe Wahrheit**, und das
+        // gehört hier hin statt in ein Gedächtnis: Das Ereignis liegt am ENDE
+        // des Casts. Eine Zeile `boss.cast_remains < 500` will 500 ms davor
+        // entscheiden und wird bis heute nur bemerkt, wenn zufällig etwas
+        // anderes weckt — dieselbe Lücke, die `BossNextStrikeIn` oben
+        // geschlossen bekommt. Sie wird hier NICHT mitgeschlossen: Ein
+        // zusätzlicher Weckruf ändert gefundene Rotationen und damit gemessene
+        // Zahlen, und das ist eine eigene Entscheidung mit eigener Messung.
+        Value::BuffActive(_) | Value::BuffRemains(_) | Value::BossCastRemains => None,
+        // Und diese ändern sich überhaupt nicht durch bloßes Verstreichen —
+        // `is_time_dependent` sortiert sie als `false` ein, und
+        // `Apl::next_wakeup` fragt hier gar nicht erst nach. Der Zweig steht
+        // trotzdem, weil ohne ihn der Auffang-Zweig zurückkäme, den diese
+        // Funktion gerade losgeworden ist.
+        Value::Literal(_)
+        | Value::Resource
+        | Value::DotTicks(_)
+        | Value::BossHp
+        | Value::BossHpPercent
+        | Value::BossCasting
+        | Value::Gcd
+        | Value::Decay
+        | Value::Shield
+        | Value::Control => None,
     }
 }
 
@@ -561,6 +667,7 @@ impl fmt::Display for Value {
             Self::BossHpPercent => write!(f, "boss.hp_pct"),
             Self::BossCasting => write!(f, "boss.casting"),
             Self::BossCastRemains => write!(f, "boss.cast_remains"),
+            Self::BossNextStrikeIn => write!(f, "boss.next_strike_in"),
             Self::Time => write!(f, "time"),
             Self::FightRemains => write!(f, "fight.remains"),
             Self::Gcd => write!(f, "gcd"),
