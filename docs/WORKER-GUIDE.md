@@ -2670,6 +2670,13 @@ ENDE
 **Nicht mehr in den Chat kopieren.** Der Auftraggeber war früher der Transportweg; seit dem
 2026-07-28 schreiben die Sitzungen einander direkt. Einzelheiten in [`IPC.md`](IPC.md).
 
+> **Die Anführungszeichen um `'ENDE'` gehören dazu.** Ohne sie führt die Shell aus, was sie im
+> Fließtext erkennt — `$…` und alles in Backticks. Die Nachricht geht trotzdem raus, nur fehlt an
+> der Stelle ein Wort, und der Satz liest sich fast normal. Der ganze Preis steht in
+> [8.110](#8110-die-quelle-beschreibt-etwas-anderes-als-das-wonach-gefragt-wurde); wer Zahlen aus
+> Befehlen einsetzen will und deshalb ohne Anführungszeichen arbeitet, verzichtet im selben
+> Dokument auf Backticks.
+
 **Jede Nachricht, die du bekommst, bestätigst du sofort** — mit dem verstandenen Vorhaben in
 einem Satz, nicht nur „erhalten":
 
@@ -6227,7 +6234,7 @@ git rev-list --count HEAD..origin/main    # muss 0 sein, sonst misst du die Verg
 
 Der teure Fall ist nicht die falsche Zeile, sondern was daraus folgt: Eine fertige Arbeit als offen
 zu melden schickt jemanden los, sie ein zweites Mal zu bauen. Das ist dieselbe Klasse wie
-[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push), nur mit vertauschten Rollen — dort war der
+[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push-prüfe-jeden-eigenen-commit-einzeln), nur mit vertauschten Rollen — dort war der
 Zweig weiter als die Meldung, hier ist die Messung hinter dem Zweig.
 
 ### 8.80 Ein Check-Rollup führt Läufe, keine Zustände
@@ -7828,3 +7835,46 @@ Probe unbrauchbar.
 Das ist kein Sonderfall dieses einen Abschnitts. Es ist der Grund, warum eine Probe **mit ihrer
 Erwartung und ihrem Datum** aufgeschrieben gehört: Nur so fällt auf, dass sie nicht mehr das
 misst, wofür sie gebaut wurde.
+
+### 8.118 Eine Regel unter fremder Überschrift wird an dem Tag nicht gefunden, an dem sie gilt
+
+Am 2026-08-21 hat der Orchestrator eine Standsabfrage an drei Sitzungen mit `<<ENDE` statt
+`<<'ENDE'` geöffnet. Zwei Bezeichner in Backticks wurden als Befehl ausgeführt und fehlten in der
+zugestellten Nachricht:
+
+```
+"... importiert — ein Symbol, das es nicht gibt"        davor stand: rota_sim::factors::ORCH_F
+"Ein Filter auf  zaehlt uebersprungene Jobs mit"        davor stand: conclusion != "SUCCESS"
+```
+
+**Die Regel dagegen stand zu diesem Zeitpunkt seit Tagen im Guide** — vollständig, mit einem
+Beispielfall, der demselben Muster folgt, und sogar mit der Handlungsanweisung („wer beides
+braucht, schreibt zwei Nachrichten").
+
+Sie wurde nicht gefunden, und der Grund ist ihr **Ort**: Sie steht als Nachtrag in 8.110, dessen
+Überschrift von etwas anderem handelt — davon, dass eine Quelle etwas anderes beschreibt als das,
+wonach gefragt wurde. Wer eine Nachricht schreibt, sucht dort nicht. Das Inhaltsverzeichnis führt
+sie nicht, die Volltextsuche findet sie nur, wenn man schon weiß, wonach man sucht.
+
+> **Der Ort einer Regel ist Teil der Regel.** Sie muss dort stehen, wo die Arbeit stattfindet, für
+> die sie gilt — nicht dort, wo sie beim Aufschreiben gerade hergeleitet wurde.
+
+Die Herleitung darf bleiben, wo sie ist; sie gehört zum Gedankengang. Was fehlt, ist der **Hinweis
+am Ort des Gebrauchs**. Deshalb steht die Warnung jetzt in [§ 6](#6-melde-format), zwei Zeilen unter
+dem Befehl, den man ohnehin kopiert — mit einem Verweis auf 8.110 statt einer zweiten Fassung des
+Textes.
+
+#### Warum keine Kopie
+
+Zwei Fassungen derselben Regel laufen auseinander, sobald eine davon ergänzt wird — und dann gilt
+die, die zufällig gelesen wurde. Ein Verweis kann veralten, eine Kopie **widerspricht**. Wo eine
+Regel zweimal gebraucht wird, steht sie einmal ausführlich und einmal als Zeile mit Sprungziel.
+
+**Die Probe, ob eine Regel auffindbar ist**, hat nichts mit ihrem Inhalt zu tun:
+
+> Bei welcher Tätigkeit greift sie? Steht sie in dem Abschnitt, den man **während** dieser
+> Tätigkeit liest?
+
+Ist die Antwort nein, ist sie aufgeschrieben und nicht in Kraft. Das ist die Guide-Fassung von
+[8.72](#872-gemergt-sagt-nichts-über-den-letzten-push-prüfe-jeden-eigenen-commit-einzeln) — dort war der Zweig weiter als die Meldung,
+hier ist die Regel geschrieben und trotzdem nicht wirksam.
