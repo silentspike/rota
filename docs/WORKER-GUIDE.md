@@ -8449,13 +8449,13 @@ Zeilen weniger.
 
 **Das Bösartige:** Bei den anderen Doppelzahlen des Tages (1073 gegen 1337 Bytes, 58 gegen 121
 Abschnitte, 3 gegen 6 Aufrufe) zeigte der Befehl, welche Menge gemeint war — dort war die
-Bezugsgröße ein *wovon*. Hier ist sie ein *wann*, und **der Befehl ist kein Ausweis mehr**.
+Bezugsgröße ein _wovon_. Hier ist sie ein _wann_, und **der Befehl ist kein Ausweis mehr**.
 
 Verschärfend: Der Autor hatte den Formatier-Lauf im selben Text erwähnt und sogar die
 *Wort*differenz eigens aufgeklärt (46 102 gegen 46 101, ein JSON-Beispiel). Die *Zeilen*zahl daneben
 blieb aus dem Stand davor. **Eine Kennzahl geprüft, die andere nicht mitgezogen.**
 
-> Erwähnt ein Text eine Umformung, gehören *alle* Kennzahlen darin nachgezogen — nicht nur die, die
+> Erwähnt ein Text eine Umformung, gehören _alle_ Kennzahlen darin nachgezogen — nicht nur die, die
 > gerade aufgefallen ist.
 
 Und die knappste Fassung, von Worker-1:
@@ -8469,12 +8469,12 @@ dort nie an — die Suche ist nicht zu ungenau, sie ist am falschen Ort.
 
 Am 2026-08-21 vier Runden zu derselben Sache, keine bestätigte die vorige:
 
-| Behauptung                        | gemessen                                     |
-| --------------------------------- | -------------------------------------------- |
-| „die Regel steht nirgends"        | sie steht prominent, mehrfach                |
-| „13 Stellen widersprechen ihr"    | es sind **28**                               |
-| „sind sie älter als die Regel?"   | 25 ja, **2 nein**                            |
-| „hat sie alle Sitzungen erreicht?"| **ja, alle drei**                            |
+| Behauptung                         | gemessen                      |
+| ---------------------------------- | ----------------------------- |
+| „die Regel steht nirgends"         | sie steht prominent, mehrfach |
+| „13 Stellen widersprechen ihr"     | es sind **28**                |
+| „sind sie älter als die Regel?"    | 25 ja, **2 nein**             |
+| „hat sie alle Sitzungen erreicht?" | **ja, alle drei**             |
 
 Der Meldende hatte die Regel **drei Tage vorher selbst quittiert**, in eigenen Worten, 23 Sekunden
 nach Eingang. Er hat im Repository gesucht; sie lag in seinem Postfach.
@@ -8545,13 +8545,13 @@ ist deshalb ungeprüft — er ist die Stelle, an der Behauptungen überleben.
 
 Am 2026-08-21 **fünfmal**, in drei Dateien, von zwei Sitzungen, jedes Mal im Rot-Zweig:
 
-| die Zusicherung prüfte           | ihr Fehlertext behauptete                            |
-| -------------------------------- | ---------------------------------------------------- |
-| nur den Exit-Code                | „Fehlalarm" — es gab keine Messung                    |
-| eine von zwei Zeilenformen       | „nichts gemessen" — gemessen wurde sehr wohl          |
-| `code==1 && grep -q '…'`         | „kein Alarm" — Exit war 1, nur der Text hatte gewechselt |
-| Exit 1                           | „alarmiert" — es war die **Trägerzeile** des Wächters  |
-| zwei UND-Bedingungen             | nannte nur eine davon                                 |
+| die Zusicherung prüfte     | ihr Fehlertext behauptete                                |
+| -------------------------- | -------------------------------------------------------- |
+| nur den Exit-Code          | „Fehlalarm" — es gab keine Messung                       |
+| eine von zwei Zeilenformen | „nichts gemessen" — gemessen wurde sehr wohl             |
+| `code==1 && grep -q '…'`   | „kein Alarm" — Exit war 1, nur der Text hatte gewechselt |
+| Exit 1                     | „alarmiert" — es war die **Trägerzeile** des Wächters    |
+| zwei UND-Bedingungen       | nannte nur eine davon                                    |
 
 Alle fünf sahen im grünen Lauf identisch aus. **Keine wurde beim Lesen gefunden.**
 
@@ -8586,8 +8586,8 @@ KONTROLLE   data/zzznie/   ->   0
 
 Sie belegt, dass die Zählung nicht einfach alles findet. Sie kann aber nicht unterscheiden zwischen
 **„der Pfad ist leer"** und **„den Pfad gibt es nicht"** — beides liefert 0, genau wie das erfundene
-Verzeichnis. Gesucht wurde `data/instances/` als *Verzeichnis*; es gibt `data/instances.json` als
-*Datei*, mit fünf Instanzen und allen 17 Bossen zugeordnet.
+Verzeichnis. Gesucht wurde `data/instances/` als _Verzeichnis_; es gibt `data/instances.json` als
+_Datei_, mit fünf Instanzen und allen 17 Bossen zugeordnet.
 
 **Die Kontrollzeile hat den Fall bestätigt, den sie hätte ausschließen sollen.**
 
@@ -8620,16 +8620,16 @@ wahr. Der Fall hätte gemessen, wie schnell die Rotation tötet.
 
 **Er wäre durch alles durchgegangen**, was an dem Abend dafür gebaut wurde: Die Trägerzeile hätte
 gehalten, die unabhängig erzeugte Mutation hätte ihn nicht rot gemacht, und das Abnahmekriterium
-„acht grün, genau einer rot" hätte *null rot* gezeigt — was man für „Mutation zu grob" gehalten und
+„acht grün, genau einer rot" hätte _null rot_ gezeigt — was man für „Mutation zu grob" gehalten und
 an der Mutation repariert hätte.
 
 Die Ebene, auf der das liegt:
 
-| Frage                                       | Absicherung           |
-| ------------------------------------------- | --------------------- |
-| Hat die Messung stattgefunden?              | Trägerzeile (8.129)   |
-| War sie *währenddessen* gültig?             | Selbstabbruch         |
-| Misst sie **den Gegenstand**, den ich suchte? | **diese Regel**       |
+| Frage                                         | Absicherung         |
+| --------------------------------------------- | ------------------- |
+| Hat die Messung stattgefunden?                | Trägerzeile (8.129) |
+| War sie _währenddessen_ gültig?               | Selbstabbruch       |
+| Misst sie **den Gegenstand**, den ich suchte? | **diese Regel**     |
 
 **How to apply — und die Prüffrage ist schmaler als „alle Felder vergleichen":**
 
@@ -8640,7 +8640,7 @@ sondern weil sie in beiden Fassungen aus derselben Quelle kommen. Die Frage laut
 > Welche Felder habe ich in der einen Umgebung **ausdrücklich gesetzt**? Genau die gehören in die
 > andere übertragen.
 
-Das ist billiger *und* vollständiger. Wer alle Felder vergleicht, hat im Fund oben Glück gehabt,
+Das ist billiger _und_ vollständiger. Wer alle Felder vergleicht, hat im Fund oben Glück gehabt,
 dass es nur eines war.
 
 `..default()` in einer Prüfung ist ein Risiko, kein Komfort: Es übernimmt still jede Vorgabe, die
@@ -8668,7 +8668,7 @@ Sie war berechtigt und traf nicht zu (nachgelesen, nicht erinnert). Aber die Kla
 
 Der Ertrag der Trennung war ohnehin ein anderer: **nicht die Einigkeit, sondern dass jeder etwas
 hatte, was der andere nicht hatte.** Der eine kannte den Code und hatte die präzise Mutation; der
-andere kannte ihn nicht und dachte deshalb über die *Struktur der Aussage* nach.
+andere kannte ihn nicht und dachte deshalb über die _Struktur der Aussage_ nach.
 
 Daraus folgt **keine** Regel, jemanden unwissend zu halten — die Gegenfrage hing an der Frage, nicht
 am Unwissen. Was folgt: Unabhängigkeit richtet sich gegen die **Lösung** eines anderen, nie gegen
@@ -8684,11 +8684,11 @@ unabhängig davon, aus welchem Verzeichnis sie aufgerufen werden.
 **Es macht sie abhängig davon, wo sie LIEGEN.** Am 2026-08-21 dreimal an einem Abend, von zwei
 Sitzungen:
 
-| Werkzeug | kopiert nach | Ergebnis |
-| --- | --- | --- |
-| `rota-fenster` | `/work/tmp` | `git ls-files` lief in `/work` statt im Repository |
-| `ac6-gegenprobe.sh` | Prozess-Substitution | `$0` ist ein `/dev/fd/`-Pfad, `cd` landet außerhalb |
-| `streich-mutation.py` | `/work/tmp` | `FileNotFoundError: /work/data/spells/calcination.json` |
+| Werkzeug              | kopiert nach         | Ergebnis                                                |
+| --------------------- | -------------------- | ------------------------------------------------------- |
+| `rota-fenster`        | `/work/tmp`          | `git ls-files` lief in `/work` statt im Repository      |
+| `ac6-gegenprobe.sh`   | Prozess-Substitution | `$0` ist ein `/dev/fd/`-Pfad, `cd` landet außerhalb     |
+| `streich-mutation.py` | `/work/tmp`          | `FileNotFoundError: /work/data/spells/calcination.json` |
 
 Der dritte Fall bricht laut ab. Die ersten beiden **nicht** — sie liefern eine plausible Zahl aus
 dem falschen Verzeichnis. Beim ersten fing es nur die Kontrollzeile: Der Lauf meldete Exit 2 und
@@ -8745,5 +8745,96 @@ etwas prüft.
 - Der Fall muss die **Gegenrichtung** enthalten: Wird auch etwas durchgelassen? Sonst belegt er nur,
   dass irgendetwas abbricht.
 - Und wer eine Zahl aus einem Lauf von innen meldet (hier: 96,7 % Durchlassrate), sagt dazu, dass sie
-  von innen stammt. Der Erbauer hat es getan, unaufgefordert: *„Sie stammt aus meinem Lauf, nicht aus
-  deinem — und sie ist die Zahl, an der das Werkzeug scheitern könnte."*
+  von innen stammt. Der Erbauer hat es getan, unaufgefordert: _„Sie stammt aus meinem Lauf, nicht aus
+  deinem — und sie ist die Zahl, an der das Werkzeug scheitern könnte."_
+
+### 8.135 Ein Wächter, der sich selbst durchsucht, meldet seine eigene Ausnahme
+
+Ein Wächter, der Dateien nach einem verbotenen Muster durchsucht, liest in aller Regel
+**alle** versionierten Dateien — sich selbst eingeschlossen. Trägt er eine Liste benannter
+Ausnahmen, steht das verbotene Muster damit in seinem eigenen Quelltext. Er findet es und
+meldet es.
+
+**Der Ausnahme-Mechanismus macht den Wächter dann rot, statt ihn grün zu halten.**
+
+Gemessen am 2026-08-22 an `tools/remote-nur-bauen.sh` — zweimal derselbe Aufbau, eine echte
+Fundstelle, eine passende Ausnahme dafür. Unterschied ist allein der **Musterstring** im
+Ausnahme-Eintrag:
+
+```
+Muster "cargo remote -c -- test"          (nennt den Befehl)
+  tools/remote-nur-bauen.sh:71: ("tools/orch-probe.py", "cargo remote -c -- test"): …
+  GEDULDET  tools/orch-probe.py:1: …
+  1191 versionierte Dateien gelesen, 1 Laeufe gefunden, 1 geduldet.
+  EXIT=1     <- rot, obwohl die einzige echte Fundstelle geduldet ist
+
+Muster "--no-fail-fast --all-targets"     (nennt nur die Flags)
+  1191 versionierte Dateien gelesen, 0 Laeufe gefunden, 1 geduldet.
+  EXIT=0
+```
+
+#### Warum es monatelang nicht auffällt
+
+Der einzige Eintrag, den dieser Wächter je hatte, nannte **nur die Flags**. Damit griff das
+Verbotsmuster auf der Ausnahmezeile nicht, und der Wächter war grün — **aus einem Grund, den
+niemand gewählt hat**. Wer stattdessen den vollen Befehl notiert hätte (die naheliegendere
+Wahl, weil ein Ausnahme-Eintrag erklären soll, _was_ geduldet wird), hätte den Wächter sofort
+rot bekommen und die Ursache nicht gefunden.
+
+Das ist die Umkehrung von 8.129: Dort war der Fehlertext ungeprüft, weil kein grüner Lauf ihn
+ausführt. Hier ist der **Ausnahme-Zweig** ungeprüft, weil ihn niemand betritt, solange die
+Liste leer ist. Beide Male steht die Absicherung da und sieht vollständig aus.
+
+#### Was daraus folgt
+
+- **Ein Wächter mit Ausnahme-Liste braucht eine Probe, die eine Ausnahme wirklich einträgt.**
+  Eine leere Liste beweist über den Mechanismus gar nichts.
+- **Der Selbstfund darf nicht pauschal abgeschaltet werden.** Wer die Wächter-Datei aus dem
+  Suchraum nimmt, baut genau die Lücke ein, gegen die der Wächter schützt — dann steht der
+  Verstoß eben dort. Zu prüfen ist die _Ausnahmezeile_, nicht die _Datei_.
+- Dasselbe gilt für jedes Werkzeug, das ein Muster sucht und das Muster im eigenen Quelltext
+  führt: Sperrlisten, Lint-Regeln, `grep`-Wächter über Formulierungen.
+
+### 8.136 Eine Zahl über den eigenen Gegenstand veraltet still, eine Aufzählung nicht
+
+Ein Kommentar, der schreibt „drei Bausteine", wird falsch, sobald sich die **Zählweise**
+ändert — ohne dass jemand eine Zeile Code angefasst hat. Ein Kommentar, der die Bausteine
+**beim Namen nennt**, überlebt denselben Wechsel unbeschadet.
+
+Gemessen am 2026-08-22: Nachdem herauskam, dass GAME-DESIGN 11.2 **neun** Bausteine nennt und
+nicht acht (der neunte steht in der Zeitleiste statt in einem Boss-Feld), waren sechs Sätze in
+vier Dateien falsch geworden. Keine davon war je verändert worden.
+
+| stand da                             | ist richtig                                       |
+| ------------------------------------ | ------------------------------------------------- |
+| „Drei Bausteine und zwei Phasen"     | vier                                              |
+| „boss-2-4 ist der einzige mit drei"  | boss-2-4 hat vier; drei haben drei                |
+| „runaway mit einem zweiten Baustein" | mit einem zweiten **Feld**-Baustein; es sind drei |
+| „fünf der acht Bausteine"            | der acht **Feld**-Bausteine                       |
+
+#### Die Regel
+
+> **Zahlen über den eigenen Gegenstand durch Aufzählungen ersetzen.**
+> „drei Bausteine" → „`energy`, `doom` und `escalation`".
+
+Eine Aufzählung ist gegen die Zählweise immun, weil sie nicht zählt. Und sie braucht keinen
+Wächter — das ist ihr eigentlicher Vorteil. Es ist dieselbe Regel, die beim Boss-Wächter schon
+einmal gelernt wurde (Liste statt Zahl), nur auf Prosa angewandt.
+
+#### Die Abgrenzung, die dazugehört
+
+Zahlen über den **Bestand** lassen sich nicht aufzählen — „boss-2-4 ist der bausteinreichste"
+ist ein Vergleich über alles, was es gerade gibt. Dort gehört stattdessen dazu, **wann** und
+**gegen welchen Suchraum** gemessen wurde. Sonst tauscht man eine stille Veraltung gegen eine
+andere.
+
+#### Warum kein Wächter
+
+Der naheliegende Gegenvorschlag — ein Prüffall, der Fließtext gegen die tatsächliche Zahl
+hält — wurde erwogen und verworfen, mit zwei Gründen vom Autor selbst:
+
+1. **Er hängt an Formulierungen.** Die sechs falschen Sätze oben waren alle verschieden
+   gebaut. Ein Wächter, der die nächste Form nicht kennt, meldet **grün** — dieselbe Falle wie
+   ein `grep` nach `SIGNATUR:`, das `Sein Merkmal:` nicht sieht (8.27).
+2. **Ein Wächter, den man nicht fahren kann, ist schlimmer als keiner**, weil er nach
+   Absicherung aussieht (8.28).
