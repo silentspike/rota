@@ -552,18 +552,21 @@ fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis
         //   BuffActive/BuffRemains  die Verstärkung stellt beim Wirken einen
         //                           Weckruf auf ihr Ende (`fight.rs`, „Dauer
         //                           UND Wakeup mit demselben Wert")
-        //   BossCastRemains         der Einschlag steht als `BossCastLands`
-        //                           in der Schlange
+        Value::BuffActive(_) | Value::BuffRemains(_) => None,
+        // **Der Cast-Rest hat seit #797 einen eigenen Umschlagpunkt** — er
+        // stand vorher eine Zeile höher bei den Werten ohne, und das war nur
+        // die halbe Wahrheit.
         //
-        // **Für `BossCastRemains` ist das nur die halbe Wahrheit**, und das
-        // gehört hier hin statt in ein Gedächtnis: Das Ereignis liegt am ENDE
-        // des Casts. Eine Zeile `boss.cast_remains < 500` will 500 ms davor
-        // entscheiden und wird bis heute nur bemerkt, wenn zufällig etwas
-        // anderes weckt — dieselbe Lücke, die `BossNextStrikeIn` oben
-        // geschlossen bekommt. Sie wird hier NICHT mitgeschlossen: Ein
-        // zusätzlicher Weckruf ändert gefundene Rotationen und damit gemessene
-        // Zahlen, und das ist eine eigene Entscheidung mit eigener Messung.
-        Value::BuffActive(_) | Value::BuffRemains(_) | Value::BossCastRemains => None,
+        // `BossCastLands` liegt am ENDE des Casts. Eine Zeile
+        // `boss.cast_remains > 0` kippt genau dort und wird deshalb ohnehin
+        // bemerkt. Eine Zeile `boss.cast_remains < 500` will 500 ms DAVOR
+        // entscheiden, und dort steht nichts in der Schlange — sie wurde nur
+        // bemerkt, wenn zufällig etwas anderes weckte.
+        //
+        // Gemessen an `apl_boss_cast.rs`: Der Fall mit `> 0` ändert sich durch
+        // diesen Zweig nicht, der Fall mit `< 500` schon. Die beiden stehen
+        // dort nebeneinander, weil der erste die Frage nicht beantworten kann.
+        Value::BossCastRemains => at(fight.boss_cast_remaining_ms(), threshold),
         // Und diese ändern sich überhaupt nicht durch bloßes Verstreichen —
         // `is_time_dependent` sortiert sie als `false` ein, und
         // `Apl::next_wakeup` fragt hier gar nicht erst nach. Der Zweig steht
