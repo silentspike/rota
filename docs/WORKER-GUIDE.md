@@ -7968,3 +7968,227 @@ von Hand       13 Kandidaten geprüft, der Rest dem Filter geglaubt
 
 Die letzte Zeile ist die unbequemste und die wichtigste. Sie sagt, wo die Messung endet und das
 Vertrauen anfängt.
+
+### 8.120 Der Exit-Code hinter einer Pipe gehört dem letzten Glied
+
+`$?` nach einer Pipe meldet den Status des **letzten** Befehls in der Kette, nicht den des ersten.
+Wer die Ausgabe eines Werkzeugs filtert und danach den Code abliest, misst `grep`, `tail` oder
+`head` — nie das Werkzeug.
+
+Am 2026-08-21 in **drei Sitzungen an einem Tag**, jedes Mal mit einer anderen Ausprägung:
+
+| Sitzung | Aufruf                               | gemeldet           | tatsächlich                               |
+| ------- | ------------------------------------ | ------------------ | ----------------------------------------- |
+| A       | `rebase … \| tail`                   | `REBASE-EXIT: 0`   | `rebase` brach an unstaged changes ab     |
+| B       | `werkzeug … \| grep`                 | `EXIT: 0`          | Exit 1, wie er sollte                     |
+| C       | `cargo test … \| grep … \| head -20` | „alle Suiten grün" | drei Suiten fehlgeschlagen, abgeschnitten |
+
+**In allen drei Fällen stand die Wahrheit direkt daneben.** Bei A der Fehlertext eine Zeile über der
+falschen Zahl, bei B die richtige Ausgabe im selben Block, bei C die fehlgeschlagenen Suiten
+unterhalb der zwanzigsten Zeile. Niemand hat etwas übersehen, was schwer zu sehen war — der Blick
+ging auf die Zahl, weil sie danebenstand und wie das Ergebnis aussah.
+
+> Das ist kein Anfängerfehler, den man sich abgewöhnt. Es ist eine Eigenschaft der Shell, die genau
+> dann zuschlägt, wenn man die Ausgabe **filtern** will — also wenn sie lang ist, also wenn man sie
+> nicht liest.
+
+#### Zwei Wege, und der zweite ist der bessere
+
+```bash
+# 1. Ausgabe in eine Datei, Exit direkt hinter dem Befehl
+cargo test > /work/tmp/<rolle>-lauf.txt 2>&1
+echo "EXIT=$?"                # gehört zu cargo, nichts dazwischen
+grep -c FAILED /work/tmp/<rolle>-lauf.txt
+
+# 2. PIPESTATUS, wenn die Pipe stehen bleiben soll
+werkzeug | grep muster
+echo "EXIT=${PIPESTATUS[0]}"  # der ERSTE, nicht der letzte
+```
+
+Der erste Weg hat den Nebennutzen, dass die vollständige Ausgabe erhalten bleibt: Fall C wäre auch
+mit korrektem Exit-Code falsch gelesen worden, weil `head -20` die Zeilen **entfernt** hat, nicht
+nur den Code verfälscht.
+
+#### Wann es besonders teuer wird
+
+Wenn die Zahl in eine Meldung wandert. Dann liest sie jemand, der den Aufruf nicht gesehen hat, und
+für ihn ist sie eine Messung. Das ist die Verbindung zu
+[8.116](#8116-befehl-und-meldung-im-selben-aufruf-machen-aus-der-meldung-eine-vorhersage): Dort war
+die Meldung eine Vorhersage, hier ist sie die Antwort auf eine andere Frage — beides sieht im
+Nachhinein wie ein Ergebnis aus.
+
+**Vor jeder Zahl, die in eine Meldung geht: Gehört der Exit-Code zu dem Befehl, über den ich rede?**
+
+#### Die vierte Ausprägung: die Bedingung, die nie zutrifft
+
+Die drei Fälle oben erzeugen eine **falsche Zahl** — man fängt sie, indem man die Zahl anzweifelt.
+Es gibt eine vierte, die gar keinen Wert erzeugt und deshalb nichts zum Anzweifeln bietet:
+
+```bash
+git diff --cached --name-only | grep -E "\.json$" | sed 's/^/  GEFAHR: /' \
+  || echo "  keine"
+```
+
+Gemeint war: Treffer → Warnung, kein Treffer → Entwarnung. Gemessen, mit beiden Eingaben
+nachgestellt:
+
+| Fall                  | Ausgabe               |                                   |
+| --------------------- | --------------------- | --------------------------------- |
+| es gibt einen Treffer | `GEFAHR: rollen.json` | richtig                           |
+| kein Treffer          | _nichts_              | die Entwarnung **fehlt**          |
+| gar nichts zu prüfen  | _nichts_              | von Fall 2 nicht zu unterscheiden |
+
+```
+grep allein, kein Treffer     Exit 1
+grep | sed, kein Treffer      Exit 0      ← sed ist mit leerer Eingabe zufrieden
+```
+
+Das `||` hängt am Ende der Pipe, also an `sed`. **Die Entwarnung konnte nie erscheinen — auch dann
+nicht, wenn alles in Ordnung war.**
+
+> Ihr stummer Zustand ist von ihrem guten Zustand nicht zu unterscheiden. Wer sie liest, sieht
+> Schweigen und hält es für Entwarnung.
+
+Sie fällt nur auf, wenn man den **guten** Fall absichtlich herstellt und merkt, dass die
+Bestätigung ausbleibt. Das ist dieselbe Probe wie in
+[8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen), nur in
+die andere Richtung: dort muss ein Fund kommen, hier eine Entwarnung.
+
+**Nicht `pipefail` ist die Abhilfe** — damit wäre der zweite Fall zwar richtig, ein `head` in der
+Kette lieferte aber 141 durch SIGPIPE. Der tragfähige Weg fragt nach dem **Inhalt** statt nach dem
+Erfolg eines Werkzeugs:
+
+```bash
+treffer=$(git diff --cached --name-only | grep -E "\.json$")
+if [ -n "$treffer" ]; then echo "GEFAHR: $treffer"; else echo "keine"; fi
+```
+
+> **Eine Pipe hat so viele Exit-Codes wie Stufen, und `$?` wie `||` sehen nur den letzten — der
+> oft der harmloseste ist.**
+
+Der Fall wurde bemerkt, weil daneben die sieben betroffenen Dateien namentlich ausgegeben wurden.
+Die Liste war die echte Absicherung; der `grep` war Zierrat, der sich als Absicherung ausgab. Die
+richtige Antwort kam aus dem falschen Grund — und das fällt niemandem auf, weil das Ergebnis
+stimmt.
+
+### 8.121 `fmt` mit Exit 0 belegt, dass der Code parst — nicht, dass er übersetzt
+
+`cargo fmt` und `cargo-remote-fmt` bauen den Syntaxbaum auf und schreiben ihn formatiert zurück.
+Dafür muss der Text **parsen**. Ob die Namen darin existieren, ob die Typen zusammenpassen, ob ein
+Aufruf die richtige Zahl von Argumenten hat — das prüft der Formatierer nicht und kann es nicht
+prüfen.
+
+Am 2026-08-21 gemessen, und der Beleg ist einem Worker zugefallen, statt gesucht worden zu sein:
+
+```
+Beim Umbenennen einer Schleifenvariablen blieb eine Fehlermeldung darunter stehen,
+die weiter den alten Namen benutzte — einen Namen, den es nicht mehr gab.
+
+cargo-remote-fmt darüber:  EXIT 0
+```
+
+Der Code **übersetzt nicht**. Der Formatierer meldet Erfolg.
+
+Der Satz „fmt belegt, dass es parst, nicht dass es typt" stand vorher mehrfach in Meldungen — als
+**Ableitung**. Seit diesem Lauf ist er gemessen, an einem echten Baum, mit einem Fehler, den der
+Messende selbst erzeugt hatte.
+
+#### Der Zusatz, der ihn erst gefährlich macht
+
+Der Fehler entstand **beim Beheben eines anderen Fehlers**. Genau in dem Moment, in dem man mit
+einem neuen am wenigsten rechnet: Die Aufmerksamkeit liegt auf der Stelle, die man gerade repariert,
+nicht auf den Stellen, die davon abhängen.
+
+Derselbe Worker hat an einem Nachmittag **drei** Mängel beim Beheben der jeweils vorigen selbst
+eingebaut.
+
+> **Ein grünes `fmt` ist kein Prüfstand, sondern eine Formatierung.** Wer nach einer Änderung nur
+> `fmt` fährt und „Exit 0" meldet, meldet, dass die Datei lesbar ist.
+
+Der einzige Lauf, der etwas über die Übersetzbarkeit sagt, ist `clippy --all-targets` oder
+`cargo test --no-run`. Und er zählt nur, wenn er **nach** der letzten Änderung lief — nicht davor.
+
+### 8.122 Eine Absicherung ist Code und verdient dieselbe Skepsis wie das, was sie absichert
+
+Am 2026-08-21 hat ein Worker in **derselben Aufgabe zweimal** eine Prüfung gebaut, die nichts prüfte
+— während die Arbeit selbst jedes Mal richtig war.
+
+|              | die Prüfung                          | was sie tat                                                                                                |
+| ------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| erster Fall  | `… \| grep \| sed \|\| echo "keine"` | die Entwarnung konnte nie feuern ([8.120](#8120-der-exit-code-hinter-einer-pipe-gehört-dem-letzten-glied)) |
+| zweiter Fall | `grep -c "<Satz>" datei`             | Treffer **und** Kontrolle beide `0`                                                                        |
+
+Der zweite ist der lehrreichere. Er wollte belegen, dass ein neu geschriebener Abschnitt wirklich in
+der Datei steht:
+
+```
+grep -c "Zierrat, der sich als Absicherung ausgab"  uebergabe.md   ->  0
+grep -c "diesen-satz-gibt-es-nicht"                 uebergabe.md   ->  0
+```
+
+Der Satz **stand drin** — im Markdown über zwei Zeilen umbrochen, das Muster war einzeilig.
+Nachgewiesen mit `tr '\n' ' '` und einzeiligen Fragmenten: 1, 1, 1, Kontrolle 0.
+
+> **Gefangen hat es nicht der Wert, sondern dass beide Werte gleich waren.** Ein Detektor, dessen
+> erwarteter Treffer und dessen Kontrolle dasselbe sagen, misst nichts — er sagt nur, dass er
+> nichts findet, und das tut er in beiden Welten.
+
+#### Die Diagnose verschiebt sich
+
+Naheliegend wäre „ich prüfe zu wenig". Die Formulierung des Messenden trifft es genauer:
+
+> Nicht „ich prüfe zu wenig", sondern **„ich schreibe die Prüfung nebenbei, in einer Zeile, ohne sie
+> selbst zu prüfen"**.
+
+Das erklärt, warum es gerade den trifft, der sorgfältig arbeitet: Die Absicherung entsteht **neben**
+der eigentlichen Arbeit, in einem Moment, in dem die Aufmerksamkeit woanders liegt. Sie bekommt
+keinen eigenen Gedanken, weil sie ja nur bestätigen soll, was man schon weiß.
+
+Genau deshalb ist sie gefährlich. Eine Prüfung, die man ernst nimmt, würde man gegenprüfen; eine,
+die man nebenbei schreibt, glaubt man.
+
+#### Die Probe
+
+Sie ist billig und dieselbe wie in
+[8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen), nur auf
+die eigene Prüfzeile angewandt:
+
+> **Kann diese Zeile ein anderes Ergebnis liefern als das, das sie gerade geliefert hat?**
+
+Bei `grep -c` mit erwartetem Treffer heißt das: Stelle sicher, dass die Kontrolle einen **anderen**
+Wert liefert als der erwartete Treffer. Sind beide gleich, hat man nicht gemessen, sondern
+zweimal dasselbe Schweigen gehört.
+
+Und bei mehrzeiligen Quellen — Markdown, YAML, formatiertem Code — gehört `tr '\n' ' '` oder
+`grep -z` dazu, bevor man aus einer Null etwas schließt. Ein Zeilenumbruch ist kein Fehler in der
+Datei; er ist einer im Muster.
+
+#### Der Abschnitt wurde zehn Minuten nach seiner Entstehung von seinem Autor gebrochen
+
+Beim Nachmessen einer Symlink-Umstellung — ob `~/bin/<werkzeug>` und die versionierte Datei
+wirklich **ein** Objekt sind — entstand nebenbei diese Zeile:
+
+```bash
+[ "$(stat -c%i ~/bin/$W)" = "$(stat -c%i /work/rota-ipc/$W)" ]
+```
+
+Sie meldete für alle drei geprüften Werkzeuge **VERSCHIEDEN**. Eine parallel gefahrene Schreibprobe
+— Datei über `~/bin` ändern, `git status` im Repo ansehen — meldete gleichzeitig **BESTANDEN**.
+
+Zwei Prüfungen, ein Gegenstand, gegensätzliche Antworten. Aufgeklärt:
+
+```
+stat -c%i    ~/bin/rota-fenster    28395432     folgt dem Symlink NICHT
+stat -L -c%i ~/bin/rota-fenster    57220451     folgt ihm
+stat -c%i    /work/rota-ipc/…      57220451
+```
+
+Die Symlinks waren richtig. **Die Prüfzeile war falsch** — sie verglich die Inode des Symlinks
+selbst mit der ihres Ziels, und die sind naturgemäß verschieden.
+
+> Der Widerspruch war der Glücksfall. Hätte nur die Inode-Zeile existiert, wäre eine korrekte
+> Umstellung als fehlgeschlagen gemeldet worden — mit einer Zahl daneben, die überzeugend aussieht.
+
+Es ist derselbe Bau wie oben: eine Prüfung, nebenbei in einer Zeile geschrieben, ohne sie selbst zu
+prüfen. Dass ihr Autor den Abschnitt darüber zehn Minuten vorher verfasst hatte, ändert nichts
+daran — **eine Regel schützt nicht den, der sie aufschreibt.**
