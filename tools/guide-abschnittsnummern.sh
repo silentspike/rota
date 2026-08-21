@@ -29,6 +29,25 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# **Codebloecke zaehlen nicht mit.** Eine Zeile wie `### 8.110 …` innerhalb
+# eines ```-Blocks ist BEISPIELTEXT, keine Ueberschrift. Ohne diesen Filter
+# meldete der Waechter sie als Dublette — und verbot damit eine legitime
+# Schreibweise: Wer im Guide zeigen will, wie eine Ueberschrift aussieht, kann
+# sie nicht zitieren (#1023).
+#
+# GELEERT, NICHT GELOESCHT. Die Zeilen bleiben als leere Zeilen stehen, damit
+# `grep -n` weiter die ECHTEN Zeilennummern der Datei meldet. Ein Filter, der
+# Zeilen entfernt, haette die Fundstellen-Ausgabe um die Zahl der Codezeilen
+# verschoben — und eine Fundstelle, die auf die falsche Zeile zeigt, ist
+# schlimmer als keine.
+ohne_codebloecke() {
+  awk '
+    /^[[:space:]]*(```|~~~)/ { drin = !drin; print ""; next }
+    drin                     { print ""; next }
+                             { print }
+  ' "$1"
+}
+
 # **Abgelesen, nicht aufgezaehlt.** Die erste Fassung trug zwei Dateinamen fest
 # im Skript — und deckte damit zwei von fuenf Dokumenten ab, die
 # Abschnittsnummern tragen (suno-sfx.md, VERIFICATION.md und STEP1-SPEC.md
@@ -46,7 +65,17 @@ for kandidat in docs/*.md; do
   # falsch, aber die Kontrollzeile unten wuerde sie als "Muster greift nicht"
   # melden — und ein Waechter, der bei jedem Lauf ueber harmlose Dateien
   # meckert, wird abgeschaltet.
-  if grep -qE '^#{2,4} [0-9]+\.[0-9]+ ' "$kandidat"; then
+  # **Kein `grep -q` hinter dem Filter.** `-q` beendet nach dem ersten Treffer,
+  # awk bekommt SIGPIPE und endet mit 141 — und `set -o pipefail` macht daraus
+  # eine rote Pipe. Die Datei fiele dann aus der Auswahl, OBWOHL sie Nummern
+  # traegt.
+  #
+  # Gemessen beim Bau von #1023: Mit `-q` blieb von fuenf Dokumenten genau
+  # eines uebrig (STEP1-SPEC.md, 4 Nummern) — das kleinste. Bei ihm war awk
+  # fertig, bevor grep abbrach. Die vier groesseren verschwanden lautlos, und
+  # der Waechter meldete Exit 0.
+  treffer=$(ohne_codebloecke "$kandidat" | grep -cE '^#{2,4} [0-9]+\.[0-9]+ ' || true)
+  if [ "$treffer" -gt 0 ]; then
     DATEIEN+=("$kandidat")
   fi
 done
@@ -62,7 +91,7 @@ for datei in "${DATEIEN[@]}"; do
   [ -f "$datei" ] || continue
 
   # Alle Abschnittsnummern der Form "### <Ziffern>.<Ziffern> "
-  nummern=$(grep -oE '^#{2,4} [0-9]+\.[0-9]+ ' "$datei" | awk '{print $2}' || true)
+  nummern=$(ohne_codebloecke "$datei" | grep -oE '^#{2,4} [0-9]+\.[0-9]+ ' | awk '{print $2}' || true)
 
   # **Kontrollzeile, und sie ist der Grund, warum das Ergebnis etwas heisst.**
   # Findet das Muster gar nichts, meldet die Dublettenpruefung darunter
@@ -97,7 +126,7 @@ for datei in "${DATEIEN[@]}"; do
     while read -r n; do
       [ -z "$n" ] && continue
       echo "  $n kommt mehrfach vor:" >&2
-      grep -nE "^#{2,4} ${n//./\\.} " "$datei" | sed 's/^/    /' >&2
+      ohne_codebloecke "$datei" | grep -nE "^#{2,4} ${n//./\\.} " | sed 's/^/    /' >&2
     done <<<"$doppelte"
     echo "  Zwei Sitzungen haben dieselbe Nummer vergeben. Die spaetere zieht" >&2
     echo "  weiter, der Inhalt bleibt." >&2
