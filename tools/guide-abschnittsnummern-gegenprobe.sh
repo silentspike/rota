@@ -23,6 +23,15 @@
 # Deshalb leert der Filter die Zeilen, statt sie zu entfernen. D ist der
 # einzige Fall, der eine schwächere Fassung von einer richtigen unterscheidet.
 #
+# DIE MELDETEXTE DES WÄCHTERS SIND EINE SCHNITTSTELLE, kein Beiwerk. Diese
+# Gegenprobe prüft je Fall den Exit-Code UND den Text — ein Exit-Code allein
+# sagt nicht, WARUM. Damit hängt sie an Formulierungen wie „Doppelt vergebene"
+# und „Abschnittsnummern, keine doppelt": **Wer sie im Wächter umformuliert,
+# bricht diese Datei.** Das ist gewollt (die Alternative wäre eine Gegenprobe,
+# die zwei Fälle nicht trennt) — aber es gehört gewusst, und die ROT-Zeilen
+# sagen es: „die GEGENPROBE passt nicht mehr" ist eine andere Diagnose als
+# „der Wächter ist kaputt".
+#
 # Fasst docs/VERIFICATION.md an und stellt die Datei danach wieder her, auch
 # bei Abbruch.
 set -uo pipefail
@@ -61,6 +70,14 @@ melde() {  # melde <ok|ROT> <name> <text…>
 }
 
 # --- C: gesunder Lauf -------------------------------------------------------
+#
+# C zählt bewusst NUR die unauffällige Zeilenform, anders als Fall A. Das ist
+# kein Versehen: C verlangt zusätzlich `code = 0`. Gäbe es hier eine echte
+# Dublette, wäre der Code 1 und C schon deshalb rot — die alarmierende
+# Zeilenform kann in einem bestandenen Fall C gar nicht vorkommen.
+#
+# Und die ROT-Zeile nennt beide Werte, nicht eine vermutete Ursache: Der Leser
+# sieht, welche der zwei Bedingungen gerissen ist.
 aus=$(bash "$WAECHTER" 2>&1); code=$?
 dateien=$(grep -c 'Abschnittsnummern, keine doppelt' <<<"$aus" || true)
 if [ "$code" = 0 ] && [ "$dateien" -ge 5 ]; then
@@ -108,10 +125,31 @@ printf '\n### %s Eine echte Dublette, ausserhalb jedes Codeblocks\n' "$NUMMER" >
 DUBLETTEN_ZEILE=$(grep -nE "^#{2,4} ${NUMMER//./\\.} Eine echte" "$OPFER" | cut -d: -f1)
 aus=$(bash "$WAECHTER" 2>&1); code=$?
 
-if [ "$code" = 1 ] && grep -q 'Doppelt vergebene' <<<"$aus"; then
-  melde ok "B echte Dublette" "Alarm, Exit 1"
+# **Zwei Bedingungen, ZWEI Diagnosen.** Ein gemeinsamer ELSE-Zweig für
+# `code = 1 && Text gefunden` behauptet die Ursache, die er für
+# wahrscheinlicher hält — dasselbe wie in Fall A, nur eine Ebene höher.
+#
+# Gemessen vom Orchestrator mit einer vierten Mutation, die NUR die Wortwahl
+# des Wächters änderte ("Doppelt" -> "Mehrfach"): B meldete "Exit 1, kein
+# Alarm — der Wächter findet nichts mehr". Beides falsch. Der Wächter hatte
+# alarmiert (Exit 1 stand in derselben Zeile) und die Dublette gefunden, nur
+# mit anderem Wortlaut. Die richtige Diagnose ist: die GEGENPROBE passt nicht
+# mehr, nicht der Wächter.
+if [ "$code" != 1 ]; then
+  melde ROT "B echte Dublette" "kein Alarm, Exit $code — der Waechter findet die Dublette nicht"
+elif grep -q 'Muster greift nicht' <<<"$aus"; then
+  # DRITTER Zweig, beim Bauen des zweiten gefunden: Exit 1 heisst nicht
+  # zwangslaeufig "alarmiert". Der Waechter hat eine Traegerzeile, die
+  # ebenfalls 1 liefert — dann hat er gar keine Datei angesehen, und die
+  # Gegenprobe ist voellig in Ordnung. Ohne diesen Zweig behauptete B genau
+  # das Gegenteil.
+  melde ROT "B echte Dublette" "Exit 1, aber der Waechter fand keine Datei — kein Alarm, sondern seine Traegerzeile"
+  grep -m1 '::error' <<<"$aus" | sed 's/^/        tatsaechlich: /'
+elif ! grep -q 'Doppelt vergebene' <<<"$aus"; then
+  melde ROT "B echte Dublette" "Alarm ausgeloest (Exit 1), aber die erwartete Meldung fehlt — die GEGENPROBE passt nicht mehr"
+  grep -m1 '::error' <<<"$aus" | sed 's/^/        tatsaechlich: /'
 else
-  melde ROT "B echte Dublette" "Exit $code, kein Alarm — der Waechter findet nichts mehr"
+  melde ok "B echte Dublette" "Alarm, Exit 1"
 fi
 
 # D: Die gemeldeten Zeilennummern muessen die ECHTEN sein. Ein Filter, der
