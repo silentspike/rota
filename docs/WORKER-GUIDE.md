@@ -8631,10 +8631,17 @@ Die Ebene, auf der das liegt:
 | War sie *währenddessen* gültig?             | Selbstabbruch         |
 | Misst sie **den Gegenstand**, den ich suchte? | **diese Regel**       |
 
-**How to apply:** Die Konfiguration der Suche und die der Prüfung Feld für Feld nebeneinanderlegen.
-**Abweichen kann nur, was jemand angefasst hat** — Vorgabewerte stimmen überein, weil niemand sie
-gewählt hat. Also zuerst dort nachsehen, wo die Suche etwas *ausdrücklich* setzt; das ist die kurze
-Liste, und der Fehler steckt fast sicher darin.
+**How to apply — und die Prüffrage ist schmaler als „alle Felder vergleichen":**
+
+**Abweichen kann nur, was jemand angefasst hat.** Vorgabewerte stimmen nicht aus Glück überein,
+sondern weil sie in beiden Fassungen aus derselben Quelle kommen. Die Frage lautet also nicht
+„stimmen alle Felder?", sondern:
+
+> Welche Felder habe ich in der einen Umgebung **ausdrücklich gesetzt**? Genau die gehören in die
+> andere übertragen.
+
+Das ist billiger *und* vollständiger. Wer alle Felder vergleicht, hat im Fund oben Glück gehabt,
+dass es nur eines war.
 
 `..default()` in einer Prüfung ist ein Risiko, kein Komfort: Es übernimmt still jede Vorgabe, die
 jemand anderswo bewusst überschrieben hat.
@@ -8667,3 +8674,36 @@ Daraus folgt **keine** Regel, jemanden unwissend zu halten — die Gegenfrage hi
 am Unwissen. Was folgt: Unabhängigkeit richtet sich gegen die **Lösung** eines anderen, nie gegen
 den **Gegenstand**. Wer den Gegenstand nicht kennt, liefert eine Vermutung, und eine Vermutung ist
 als Kontrolle wertlos, weil sie nicht scheitern kann.
+
+### 8.133 Ein Werkzeug, das seine Wurzel aus dem eigenen Ort ableitet, verträgt keinen Umzug
+
+Viele Werkzeuge hier bestimmen ihr Arbeitsverzeichnis aus ihrem eigenen Pfad — `cd
+"$(dirname "$0")/.."` in Shell, `__file__/../..` in Python. Das ist richtig gebaut: Es macht sie
+unabhängig davon, aus welchem Verzeichnis sie aufgerufen werden.
+
+**Es macht sie abhängig davon, wo sie LIEGEN.** Am 2026-08-21 dreimal an einem Abend, von zwei
+Sitzungen:
+
+| Werkzeug | kopiert nach | Ergebnis |
+| --- | --- | --- |
+| `rota-fenster` | `/work/tmp` | `git ls-files` lief in `/work` statt im Repository |
+| `ac6-gegenprobe.sh` | Prozess-Substitution | `$0` ist ein `/dev/fd/`-Pfad, `cd` landet außerhalb |
+| `streich-mutation.py` | `/work/tmp` | `FileNotFoundError: /work/data/spells/calcination.json` |
+
+Der dritte Fall bricht laut ab. Die ersten beiden **nicht** — sie liefern eine plausible Zahl aus
+dem falschen Verzeichnis. Beim ersten fing es nur die Kontrollzeile: Der Lauf meldete Exit 2 und
+nannte zwei Kontrolldateien als nicht erreicht, statt eine kleine Trefferzahl auszugeben.
+
+**How to apply:**
+
+- Werkzeuge **am Ort lassen**. Wer eine Fassung aus einem anderen Zweig braucht, checkt sie an ihren
+  Platz aus (`git show <ref>:pfad > pfad`), statt sie nach `/work/tmp` zu legen.
+- Muss eine Kopie sein: den Wurzelpfad **ausdrücklich** übergeben, wenn das Werkzeug es zulässt.
+  `tools/tests-lokal.sh` nimmt ihn als zweites Argument, genau dafür.
+- Und für jede Messung mit einem kopierten Werkzeug: eine **positive** Kontrolle (8.130). „0 Treffer"
+  und „falsches Verzeichnis" sehen gleich aus.
+
+Der Fall mit der Prozess-Substitution ist der stillste: `bash <(git show ref:datei)` sieht nach einem
+sauberen Weg aus, eine fremde Fassung zu fahren. Aufgelöst wurde er, indem der Ausführende die Frage
+wechselte — statt den Fehler zu deuten, verglich er die Prüfsummen der lokalen und der gemergten
+Datei und stellte fest, dass sie identisch waren; damit galt der lokale Lauf.
