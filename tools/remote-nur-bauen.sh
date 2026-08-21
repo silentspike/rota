@@ -59,10 +59,15 @@ KONTROLLE = [".cargo-remote.toml", "tools/streich-mutation.py"]
 #
 # Erkannt am INHALT, nicht an der Zeilennummer — die wandert bei jeder Aenderung
 # darueber.
-AUSNAHMEN = {
-    ("tools/streich-mutation.py", "--no-fail-fast --all-targets"):
-        "#1045 — ausfuehrender Code, eigenes Issue, Verhaltensaenderung",
-}
+# Leer, und das ist der Sollzustand. Der eine Eintrag, der hier stand, betraf
+# `tools/streich-mutation.py` — er war ausdruecklich befristet auf die Dauer von
+# #1045, und mit dem Umbau des Skripts auf "remote bauen, lokal fahren" gibt es
+# die Zeile nicht mehr.
+#
+# Ein Eintrag hier ist keine Erlaubnis auf Dauer, sondern eine Schuld: Er nennt
+# das Issue, das ihn wieder entfernt. Steht ein Grund ohne Issue-Nummer da, ist
+# die Frist unbestimmt — dann fehlt der Termin, an dem jemand nachsieht.
+AUSNAHMEN = {}
 
 dateien = subprocess.run(["git", "ls-files"], capture_output=True, text=True).stdout.split("\n")
 treffer = []

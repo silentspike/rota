@@ -57,6 +57,19 @@
 # /work/tmp: Wer sie brauchte, musste sie kopieren und anpassen, und die
 # Fassung mit den teuer gelernten Korrekturen darin war nur einem zugaenglich.
 set -u
+# --alle-namen: ALLE roten Testnamen ausgeben statt der ersten drei.
+#
+# WARUM ES DEN SCHALTER GIBT: `tools/streich-mutation.py` klassifiziert Felder
+# ueber die VOLLSTAENDIGE Liste der roten Faelle — ein Test, der bei jeder
+# Streichung faerbt, unterscheidet nichts; einer, der bei vieren faerbt, benennt
+# genau diese vier. Im letzten Durchgang trugen 57 von 58 Feldern mehr als drei
+# rote Namen, das groesste 164. Die Kappung unten ist fuer eine
+# Abgabe-Zusammenfassung richtig und fuer diese Auswertung toedlich.
+#
+# VORGABE UNVERAENDERT: Ohne den Schalter ist die Ausgabe byteweise dieselbe
+# wie vorher.
+ALLE_NAMEN=0
+if [ "${1:-}" = "--alle-namen" ]; then ALLE_NAMEN=1; shift; fi
 LOG=${1:?Log von 'cargo remote -c -- test --no-run' angeben}
 WURZEL=${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 [ -d "$WURZEL/sim" ] || { echo "Keine sim/ unter $WURZEL — falsche Wurzel?"; exit 1; }
@@ -145,7 +158,19 @@ for b in "${BINARIES[@]}"; do
     ROT_LISTE="$ROT_LISTE\n  $b (Exit $code, ${f:-?} rot)"
     # Die gescheiterten Fälle stehen auf stdout, die Panics auf stderr —
     # beide gehören in den Bericht, deshalb beide Dateien.
-    grep -E "^test .*FAILED" "$aus" | head -3 | sed 's/^/      /'
+    if [ "$ALLE_NAMEN" -eq 1 ]; then
+      # Die Zahl VOR der Liste: Wer 164 Zeilen sieht, kann ihre Vollstaendigkeit
+      # sonst nur durch Nachzaehlen pruefen.
+      anzahl=$(grep -cE "^test .*FAILED$" "$aus")
+      echo "      $anzahl rote Namen:"
+      grep -E "^test .*FAILED$" "$aus" | sed 's/^/      /'
+    else
+      # OHNE Zeilenende-Anker, woertlich wie vor #1045. Das Muster zaehlt die
+      # Ergebniszeile ("test result: FAILED. …") mit, wenn weniger als drei
+      # Faelle rot sind — ein Bestandsfehler, der hier NICHT behoben wird:
+      # Auflage aus #1045 ist, dass die Vorgabe-Ausgabe unveraendert bleibt.
+      grep -E "^test .*FAILED" "$aus" | head -3 | sed 's/^/      /'
+    fi
     grep -E "panicked at" "$err" | head -2 | sed 's/^/      /'
   fi
   rm -f "$aus" "$err"
