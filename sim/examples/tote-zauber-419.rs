@@ -1,8 +1,9 @@
 //! Kommt ein Zauber in seiner BESTEN Bedingung dran? (#419 AC3, Vorarbeit)
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
 //!   --example tote-zauber-419
+//! ./target/release/examples/tote-zauber-419
 //! ```
 //!
 //! # Der Fehler, gegen den dieser Laeufer gebaut ist — mein eigener
