@@ -8762,8 +8762,8 @@ Fundstelle, eine passende Ausnahme dafür. Unterschied ist allein der **Musterst
 Ausnahme-Eintrag:
 
 ```
-Muster "cargo remote -c -- test"          (nennt den Befehl)
-  tools/remote-nur-bauen.sh:71: ("tools/orch-probe.py", "cargo remote -c -- test"): …
+Muster "cargo remote -c … test"           (nennt den Befehl)
+  tools/remote-nur-bauen.sh:71: ("tools/orch-probe.py", "cargo remote -c … test"): …
   GEDULDET  tools/orch-probe.py:1: …
   1191 versionierte Dateien gelesen, 1 Laeufe gefunden, 1 geduldet.
   EXIT=1     <- rot, obwohl die einzige echte Fundstelle geduldet ist
@@ -8772,6 +8772,29 @@ Muster "--no-fail-fast --all-targets"     (nennt nur die Flags)
   1191 versionierte Dateien gelesen, 0 Laeufe gefunden, 1 geduldet.
   EXIT=0
 ```
+
+#### Dieser Abschnitt ist selbst darüber gestolpert
+
+Die zwei Zeilen oben schrieben den Beispiel-Befehl zuerst **wörtlich**. Der CI-Job `lint`
+wurde daraufhin rot:
+
+```
+docs/WORKER-GUIDE.md:8766: tools/remote-nur-bauen.sh:71: ("tools/orch-probe.py", …
+1190 versionierte Dateien gelesen, 2 Laeufe gefunden, 0 geduldet.
+```
+
+**Wer über den Wächter schreibt, kann seinen Gegenstand nicht nennen.** Das ist derselbe
+Mechanismus eine Ebene weiter: nicht die Ausnahmezeile im Wächter, sondern das Zitat in der
+Dokumentation über ihn.
+
+Deshalb steht dort jetzt `…` statt `--`. Das ist eine Notlösung und keine gute:
+
+- **`docs/` aus dem Suchraum zu nehmen wäre falsch.** 25 der 28 Fundstellen, aus denen der
+  Wächter entstand, standen in Dokumentation. Genau dort schützt er.
+- Eine **Ausnahme einzutragen** geht nicht — das ist der Fehler aus #1061.
+
+Ein Wächter über Befehlszeilen macht das Schreiben über Befehlszeilen unmöglich. Wer einen
+solchen baut, braucht von Anfang an eine Form, in der ein Beispiel zitiert werden darf.
 
 #### Warum es monatelang nicht auffällt
 
