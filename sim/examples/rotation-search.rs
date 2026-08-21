@@ -145,27 +145,26 @@ fn parameter_zeile_mit(bosse: &[String], max_len: usize) {
     println!("           stop_on_kill=false, Faktoren=NEUTRAL, threads=1");
 }
 
-fn zeilen_nach_herkunft(pool: &[Candidate]) -> (usize, usize, usize, usize, usize) {
-    let mut a = 0;
-    let mut d = 0;
-    let mut s = 0;
-    let mut b = 0;
-    let mut c = 0;
+/// Wie viele Kandidatenzeilen je Herkunft entstanden sind.
+///
+/// **Über `Origin::ALL` gezählt, nicht über eine eigene Aufzählung** (#797).
+/// Bis hierher gab die Funktion ein Fünfer-Tupel zurück, das die Ausgabestelle
+/// von Hand wieder auseinandernahm — zwei Listen derselben Namen, und der
+/// Kommentar dort sagte voraus, was beim nächsten Herkunfts-Typ passiert:
+/// keine Zeile, keine Meldung, nur eine fehlende Zahl.
+///
+/// Beim Bau von `Origin::NextStrikeWindow` ist genau das eingetreten. Der
+/// Übersetzer fing das `match` in der Zählung; die Aufzählung in der Ausgabe
+/// fing er nicht.
+fn zeilen_nach_herkunft(pool: &[Candidate]) -> Vec<(Origin, usize)> {
+    let mut zaehler = vec![0usize; Origin::ALL.len()];
     for k in pool {
-        match k.origin {
-            Origin::Always => a += 1,
-            Origin::DotRefresh => d += 1,
-            Origin::SpenderThreshold => s += 1,
-            // Neu mit #553 — vorher konnte die Suche diese Zeile gar nicht
-            // bilden, weil der Parser keine Buff-Fenster kannte.
-            Origin::BuffWindow => b += 1,
-            // Neu mit #797 — vorher kannte die Sprache keinen laufenden
-            // Boss-Zauber, also konnte die Suche keine Zeile bilden, die auf
-            // einen antwortet.
-            Origin::BossCastWindow => c += 1,
-        }
+        zaehler[k.origin.ordnung()] += 1;
     }
-    (a, d, s, b, c)
+    Origin::ALL
+        .iter()
+        .map(|o| (*o, zaehler[o.ordnung()]))
+        .collect()
 }
 
 /// Was an einem Boss gefunden wurde.
@@ -561,27 +560,36 @@ fn main() {
     println!();
 
     let pool = all_candidates();
-    let (a, d, s, b, c) = zeilen_nach_herkunft(&pool);
+    let nach_herkunft = zeilen_nach_herkunft(&pool);
     println!("Suchraum");
     println!("  Kandidatenzeilen  {}", pool.len());
-    // **Die Bezeichnungen kommen aus `Origin::label`, nicht aus diesen
-    // Zeilen** (Issue #815). Bis hierher standen sie doppelt: einmal in
-    // `rotation_search.rs` als Methode, einmal hier woertlich. Die Methode
-    // hatte deshalb keinen Aufrufer und galt als toter Code — sie war es
-    // nicht, sie war nur umgangen.
-    //
-    // Zwei Listen derselben vier Namen laufen beim naechsten Herkunfts-Typ
-    // auseinander: Wer ihn in `Origin` ergaenzt, bekommt hier keine Zeile und
-    // merkt es nicht, weil die Zahl einfach fehlt.
-    for (origin, zahl) in [
-        (Origin::Always, a),
-        (Origin::DotRefresh, d),
-        (Origin::SpenderThreshold, s),
-        (Origin::BuffWindow, b),
-        (Origin::BossCastWindow, c),
-    ] {
+    // **Die Bezeichnungen kommen aus `Origin::label`, und die Arten aus
+    // `Origin::ALL`** (Issues #815 und #797). Beides stand hier einmal
+    // woertlich; die zweite Liste ist beim Ergaenzen einer Art auseinander-
+    // gelaufen, genau wie der Kommentar an dieser Stelle es vorhergesagt hat.
+    for (origin, zahl) in &nach_herkunft {
         println!("    {:22} {zahl}", origin.label());
     }
+    // **Der Bericht prueft seine eigene Vollstaendigkeit** (#797). Fehlt eine
+    // Art in `Origin::ALL`, zaehlt sie hier niemand mit, und die Summe bleibt
+    // unter der Gesamtzahl. Der Uebersetzer kann das nicht fangen — ein
+    // Feld-Literal kennt keine Vollstaendigkeit —, diese Zeile schon.
+    // Die Zahl der Verstaerkungs-Zeilen wird unten noch einmal gebraucht. Sie
+    // kommt aus derselben Aufschluesselung wie die Ausgabe — eine zweite
+    // Zaehlung waere eine zweite Quelle fuer dieselbe Zahl.
+    let buff_zeilen: usize = nach_herkunft
+        .iter()
+        .find(|(o, _)| *o == Origin::BuffWindow)
+        .map_or(0, |(_, zahl)| *zahl);
+    let summe: usize = nach_herkunft.iter().map(|(_, zahl)| zahl).sum();
+    assert_eq!(
+        summe,
+        pool.len(),
+        "die Aufschluesselung deckt nur {summe} der {} Kandidatenzeilen ab — \
+         dann fehlt eine Herkunftsart in Origin::ALL, und ihre Zeilen tauchen \
+         in keiner Zahl auf",
+        pool.len()
+    );
     println!();
 
     // Je Boss die gefundene Rotation — fuer den Kreuzvergleich unten (#509 AC3).
@@ -725,8 +733,8 @@ fn main() {
         .filter(|k| k.origin == Origin::BuffWindow)
         .any(|k| k.rule().to_string().contains("if buff."));
     assert!(
-        muster_traegt || b == 0,
-        "keine der {b} Verstaerkungs-Kandidatenzeilen enthaelt `if buff.` — dann zaehlt \
+        muster_traegt || buff_zeilen == 0,
+        "keine der {buff_zeilen} Verstaerkungs-Kandidatenzeilen enthaelt `if buff.` — dann zaehlt \
          die Zahl unten die Schreibweise der APL-Ausgabe, nicht die gewaehlten Zeilen"
     );
     let gewaehlte_buff_zeilen: usize = gefundene
@@ -739,7 +747,9 @@ fn main() {
                 .count()
         })
         .sum();
-    println!("     Gemessen in DIESEM Lauf: {b} der Kandidatenzeilen stammen aus Verstaerkungs-");
+    println!(
+        "     Gemessen in DIESEM Lauf: {buff_zeilen} der Kandidatenzeilen stammen aus Verstaerkungs-"
+    );
     println!(
         "     Fenstern, und ueber alle gefundenen Rotationen zusammen stehen {gewaehlte_buff_zeilen}"
     );
