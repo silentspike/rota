@@ -7968,3 +7968,53 @@ von Hand       13 Kandidaten geprüft, der Rest dem Filter geglaubt
 
 Die letzte Zeile ist die unbequemste und die wichtigste. Sie sagt, wo die Messung endet und das
 Vertrauen anfängt.
+
+### 8.120 Der Exit-Code hinter einer Pipe gehört dem letzten Glied
+
+`$?` nach einer Pipe meldet den Status des **letzten** Befehls in der Kette, nicht den des ersten.
+Wer die Ausgabe eines Werkzeugs filtert und danach den Code abliest, misst `grep`, `tail` oder
+`head` — nie das Werkzeug.
+
+Am 2026-08-21 in **drei Sitzungen an einem Tag**, jedes Mal mit einer anderen Ausprägung:
+
+| Sitzung | Aufruf                               | gemeldet           | tatsächlich                               |
+| ------- | ------------------------------------ | ------------------ | ----------------------------------------- |
+| A       | `rebase … \| tail`                   | `REBASE-EXIT: 0`   | `rebase` brach an unstaged changes ab     |
+| B       | `werkzeug … \| grep`                 | `EXIT: 0`          | Exit 1, wie er sollte                     |
+| C       | `cargo test … \| grep … \| head -20` | „alle Suiten grün" | drei Suiten fehlgeschlagen, abgeschnitten |
+
+**In allen drei Fällen stand die Wahrheit direkt daneben.** Bei A der Fehlertext eine Zeile über der
+falschen Zahl, bei B die richtige Ausgabe im selben Block, bei C die fehlgeschlagenen Suiten
+unterhalb der zwanzigsten Zeile. Niemand hat etwas übersehen, was schwer zu sehen war — der Blick
+ging auf die Zahl, weil sie danebenstand und wie das Ergebnis aussah.
+
+> Das ist kein Anfängerfehler, den man sich abgewöhnt. Es ist eine Eigenschaft der Shell, die genau
+> dann zuschlägt, wenn man die Ausgabe **filtern** will — also wenn sie lang ist, also wenn man sie
+> nicht liest.
+
+#### Zwei Wege, und der zweite ist der bessere
+
+```bash
+# 1. Ausgabe in eine Datei, Exit direkt hinter dem Befehl
+cargo test > /work/tmp/<rolle>-lauf.txt 2>&1
+echo "EXIT=$?"                # gehört zu cargo, nichts dazwischen
+grep -c FAILED /work/tmp/<rolle>-lauf.txt
+
+# 2. PIPESTATUS, wenn die Pipe stehen bleiben soll
+werkzeug | grep muster
+echo "EXIT=${PIPESTATUS[0]}"  # der ERSTE, nicht der letzte
+```
+
+Der erste Weg hat den Nebennutzen, dass die vollständige Ausgabe erhalten bleibt: Fall C wäre auch
+mit korrektem Exit-Code falsch gelesen worden, weil `head -20` die Zeilen **entfernt** hat, nicht
+nur den Code verfälscht.
+
+#### Wann es besonders teuer wird
+
+Wenn die Zahl in eine Meldung wandert. Dann liest sie jemand, der den Aufruf nicht gesehen hat, und
+für ihn ist sie eine Messung. Das ist die Verbindung zu
+[8.116](#8116-befehl-und-meldung-im-selben-aufruf-machen-aus-der-meldung-eine-vorhersage): Dort war
+die Meldung eine Vorhersage, hier ist sie die Antwort auf eine andere Frage — beides sieht im
+Nachhinein wie ein Ergebnis aus.
+
+**Vor jeder Zahl, die in eine Meldung geht: Gehört der Exit-Code zu dem Befehl, über den ich rede?**
