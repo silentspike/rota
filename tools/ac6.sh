@@ -33,7 +33,14 @@ schuldig=0
 for p in tests/parity/recordings/*.json; do
   git show "$BASIS:$p" 2>/dev/null | jq -S "$STRIP" > /work/tmp/ac6-a.json || {
     # Neue Datei im Zweig: es gibt nichts zu vergleichen, das ist kein Fehler.
-    git cat-file -e "$BASIS:$p" 2>/dev/null || { echo "  neu im Zweig: $(basename "$p")"; continue; }
+    git cat-file -e "$BASIS:$p" 2>/dev/null || {
+      # "Neu im Zweig" heisst nicht "ungeprueft". Ohne diese Zeile springt der
+      # `continue` an Zeile 38 vorbei, wo jq die Datei ansehen wuerde — und
+      # eine kaputte neue Aufzeichnung erzeugt dann byteweise dieselbe Ausgabe
+      # wie eine gueltige, samt Exit 0 (#1035, Fall C).
+      jq -S "$STRIP" "$p" > /dev/null \
+        || { echo "ABBRUCH lesen $p (neu im Zweig, aber unlesbar)"; exit 2; }
+      echo "  neu im Zweig: $(basename "$p")"; continue; }
     echo "ABBRUCH lesen $p"; exit 2; }
   jq -S "$STRIP" "$p" > /work/tmp/ac6-b.json || { echo "ABBRUCH lesen $p"; exit 2; }
   bewegt=$(jq -rn --slurpfile a /work/tmp/ac6-a.json --slurpfile b /work/tmp/ac6-b.json \
