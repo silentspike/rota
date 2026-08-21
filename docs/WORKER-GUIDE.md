@@ -7941,6 +7941,35 @@ verschiedene Abschnitte, völlig plausibel. Die Regel im Rumpf galt trotzdem.
 > Eine Überschrift, die ein Symptom nennt, verbirgt jede Regel darunter, die ohne dieses Symptom
 > gilt. Wer die Regel braucht, hat das Symptom meistens nicht — sonst wüsste er schon Bescheid.
 
+#### Dritte Form: eine Stichwortspalte ersetzt die Überschrift — kein Fund
+
+Die dritte Form kam beim **Verwerfen**, nicht beim Finden, und erst sie macht das Kriterium
+benutzbar. Ohne sie wäre jede allgemeine Überschrift verdächtig.
+
+Im Guide steht ein Abschnitt „8. Technische Rahmenbedingungen (aus CLAUDE.md)" — **dieselbe
+Überschrift** wie beim `--base`-Fall oben, und darunter „NIEMALS eigene HTTP-Server starten". Das
+ist trotzdem kein Fund:
+
+|                        | Form                                                        | auffindbar? |
+| ---------------------- | ----------------------------------------------------------- | ----------- |
+| `--base`-Regel         | Fließtext-Unterpunkt, tief im Abschnitt                     | nein        |
+| „keine eigenen Server" | Tabellenzeile `\| Dev-Server \| nginx …, niemals eigene \|` | **ja**      |
+
+Wer „Dev-Server" sucht, findet die Zeile. **Die allgemeine Überschrift schadet nicht, weil das
+Schlagwort danebensteht.**
+
+Damit hat das Kriterium drei Formen:
+
+```
+(a) Tätigkeit passt nicht zur Überschrift        Fund
+(b) Regel ist ALLGEMEINER als ihre Überschrift   Fund
+(c) Überschrift allgemein, aber Stichwort steht
+    in einer Tabellenspalte                      KEIN Fund
+```
+
+Und (c) ist nicht nur ein Abgrenzungskriterium, sondern eine **Abhilfe**: Wo eine Stichwortspalte
+steht, braucht es keine eigene Überschrift.
+
 #### Verweis statt Kopie
 
 Zwei Fassungen derselben Regel laufen auseinander, sobald eine ergänzt wird — dann gilt die, die
@@ -8243,3 +8272,56 @@ selbst mit der ihres Ziels, und die sind naturgemäß verschieden.
 Es ist derselbe Bau wie oben: eine Prüfung, nebenbei in einer Zeile geschrieben, ohne sie selbst zu
 prüfen. Dass ihr Autor den Abschnitt darüber zehn Minuten vorher verfasst hatte, ändert nichts
 daran — **eine Regel schützt nicht den, der sie aufschreibt.**
+
+### 8.123 Die Fenstergröße eines Filters gehört zur Struktur der Datei, nicht zum Filter
+
+Wer einen Text nach zusammengehörenden Stellen durchsucht — Tätigkeit hier, Regel dort —, braucht
+ein Fenster: wie weit dürfen die beiden auseinanderliegen und noch als zusammengehörig gelten?
+
+**Diese Zahl hängt an der Datei, nicht an der Frage.** Und ein Filter, der sie fest eingebaut hat,
+liefert in der jeweils anderen Sorte Datei ein Ergebnis, das plausibel aussieht und falsch ist.
+
+Am 2026-08-21 in einer einzigen Prüfung dreimal gemessen, jedes Mal mit plausiblem Ergebnis:
+
+|     | Fehler                                                 | Wirkung                                      |
+| --- | ------------------------------------------------------ | -------------------------------------------- |
+| 1   | Fenster = ein Absatz                                   | 9 Treffer, **der bekannte Fall nicht dabei** |
+| 2   | nur `###` als Überschriftsebene                        | Scheinfund durch falsche Zuordnung           |
+| 3   | Fenster überschreitet Abschnittsgrenze → **verworfen** | stiller Nullbefund über eine ganze Datei     |
+
+Der dritte ist der gefährlichste. Die geprüfte Datei ist kleinteilig gegliedert — 19 Abschnitte auf
+370 Zeilen —, und ein 18-Zeilen-Fenster überschreitet dort fast immer eine Grenze:
+
+```
+Fenster mit Tätigkeit UND Normativ:  46
+davon verworfen (Überschrift drin):  38
+Titel nennt das Muster:               3
+Titel nennt ein Alltagswort:          5
+DURCHGEKOMMEN:                        0
+```
+
+„Dort ist nichts" wäre gemeldet worden. Nachgezählt ohne Fenster, abschnittsweise, waren es
+tatsächlich null — aber **aus einem anderen Grund**, und der ist der eigentliche Befund:
+
+> In einer kleinteilig gegliederten Datei steht jede Regel dicht unter _ihrer_ Überschrift. Das
+> gesuchte Problem entsteht in **langen** Abschnitten.
+
+Also:
+
+```
+lange Abschnitte    gleitendes Fenster    sonst zu viele Treffer
+kurze Abschnitte    ganzer Abschnitt      sonst gar keine
+```
+
+#### Was die drei Fehler verbindet
+
+Jedes Mal war das Ergebnis plausibel. Neun Kandidaten sind eine Zahl, bei der niemand stutzt; null
+in einer fremden Datei auch nicht.
+
+> Der Unterschied zwischen dem ersten und dem dritten Fehler war nicht die Sorgfalt, sondern dass
+> beim dritten ein **Kontrollfall** vorlag, an dem es auffiel.
+
+Das ist [8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen)
+in seiner schärfsten Form: Der Kontrollfall muss nicht nur existieren, er muss **in jeder Datei
+liegen, über die der Filter eine Aussage machen soll.** Ein Anker im Guide belegt nichts über eine
+CLAUDE.md.
