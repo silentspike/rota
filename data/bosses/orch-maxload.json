@@ -48,10 +48,7 @@
     "atMs": 8000,
     "perStepMs": 1500,
     "damage": 1,
-    "clearedBy": [
-      "quench",
-      "temper"
-    ]
+    "clearedBy": ["quench", "temper"]
   },
   "race": {
     "atMs": 12000,
