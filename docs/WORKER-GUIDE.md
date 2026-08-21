@@ -392,6 +392,15 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 ### `--test SUITE` beim Arbeiten, `--all-targets` erst vor der Fertigmeldung
 
+> **`cargo remote` BAUT, es FÄHRT NICHT.** rustbuild hat kein AVX2/FMA — ein Lauf
+> dort misst eine andere Maschine als die, für die gebaut wird. Erlaubt sind
+> `build`, `test --no-run`, `clippy` und `cargo-remote-fmt`; ausgeführt wird
+> lokal. Die Regel mit ihren Messwerten steht in `/work/.claude/CLAUDE.md` unter
+> „Rust — Remote-Build", der Wächter dazu ist `tools/remote-nur-bauen.sh`.
+>
+> Am 2026-08-21 standen 28 Stellen im Repository, die das Gegenteil empfahlen —
+> acht davon in diesem Dokument, zwei in diesem Abschnitt (#1040).
+
 > **Beim Läufer mit `--apl` ist der Pfad `sim/apl/…`, nicht `apl/…`** — er startet im
 > Workspace-Root. Die Fehlermeldung nennt den übergebenen Pfad und sieht deshalb aus
 > wie ein Sync-Problem; zwei Sitzungen haben genau das diagnostiziert und lagen falsch:
@@ -410,8 +419,10 @@ gezielt gelaufen, hätte er **30 Minuten** gespart — bei gleichem Ergebnis, de
 gezielter Lauf prüft, woran man gerade arbeitet.
 
 ```bash
-cargo remote -c -- test --test meine_suite     # beim Arbeiten
-cargo remote -c -- test --all-targets          # einmal, vor der Fertigmeldung
+cargo remote -c -- test --no-run --test meine_suite > /work/tmp/bau.log     # beim Arbeiten
+bash tools/tests-lokal.sh /work/tmp/bau.log
+cargo remote -c -- test --no-run --all-targets > /work/tmp/bau.log          # einmal, vor der Fertigmeldung
+bash tools/tests-lokal.sh /work/tmp/bau.log
 ```
 
 **Die Zeile für Worker-3 ist der Grund, warum das keine Pflicht ist**: Bei ihm war gezielt
@@ -668,7 +679,7 @@ Die Auflösung deckt beide Fälle ab — Rollen-Präfix gegen fremde Sitzungen, 
 Code **in** der Datei statt in der Meldung:
 
 ```
-cargo remote -c -- test … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?" >> /work/tmp/<rolle>-<zweck>.log
+cargo remote -c -- test --no-run … > /work/tmp/<rolle>-<zweck>.log 2>&1 ; echo "rc=$?" >> /work/tmp/<rolle>-<zweck>.log
 ```
 
 Mit Präfix kann die Datei nicht fremdbeschrieben werden, also ist ihr Inhalt sicher —
@@ -3538,7 +3549,8 @@ trotzdem an einer geschweiften Klammer scheitern.
 npm run lint && npm test && npm run build        # TypeScript-Seite
 cargo remote -c -- clippy --all-targets -- -D warnings   # Rust: Stil
 bash ~/bin/cargo-remote-fmt --check              # Rust: Format, CI-Version
-cargo remote -c -- test --no-fail-fast           # Rust: Verhalten
+cargo remote -c -- test --no-run --no-fail-fast > /work/tmp/bau.log           # Rust: Verhalten
+bash tools/tests-lokal.sh /work/tmp/bau.log
 ```
 
 > **`cargo-remote-fmt` statt `cargo remote -- fmt`:** Das Skript trifft die Stable-Version der
@@ -3823,7 +3835,8 @@ durchgerutscht wäre. Zusammengetragen von Worker-2, der sie selbst geführt und
 ```bash
 npx tsc --noEmit
 npx vitest run
-cargo remote -c -- test --no-fail-fast
+cargo remote -c -- test --no-run --no-fail-fast > /work/tmp/bau.log
+bash tools/tests-lokal.sh /work/tmp/bau.log
 cargo remote -c -- clippy --all-targets -- -D warnings
 bash ~/bin/cargo-remote-fmt --check
 git merge-base --is-ancestor <Basis> HEAD       # nur wenn du auf fremder Basis sitzt
@@ -4702,10 +4715,11 @@ zwanzig Minuten und zwang ein Kriterium auf einen anderen Messweg.
 #### Die drei Aufrufe, damit es kein drittes Mal gibt
 
 ```bash
-cargo remote -c --manifest-path sim/Cargo.toml -- test --no-fail-fast
+cargo remote -c --manifest-path sim/Cargo.toml -- test --no-run --no-fail-fast > /work/tmp/bau.log
+bash tools/tests-lokal.sh /work/tmp/bau.log
 cargo remote -c --manifest-path sim/Cargo.toml -- clippy --all-targets -- -D warnings
-cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
-  --example balance -- --apl sim/apl/DATEI.apl --boss test-metronome --iterations 200 --json
+cargo remote -c --manifest-path sim/Cargo.toml -- build --release --example balance
+./target/release/examples/balance --apl sim/apl/DATEI.apl --boss test-metronome --iterations 200 --json
 ```
 
 `--manifest-path` statt `cd sim` ist dabei kein Stil, sondern eine Gegenmaßnahme: **Der Weg hin
@@ -6393,7 +6407,8 @@ genau dort der gesuchte Test, und alles danach läuft **nie**.
 Am 2026-08-08 an derselben Mutation gemessen (`race_won` auf `true`, `fight.rs:1278`):
 
 ```
-cargo remote -c --manifest-path sim/Cargo.toml -- test
+cargo remote -c --manifest-path sim/Cargo.toml -- test --no-run > /work/tmp/bau.log
+bash tools/tests-lokal.sh /work/tmp/bau.log
     67 Ergebniszeilen   435 Tests   1 gefallen
 dasselbe mit --no-fail-fast
     97 Ergebniszeilen   605 Tests   1 gefallen

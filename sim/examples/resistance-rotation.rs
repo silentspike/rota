@@ -1,7 +1,8 @@
 //! Aendern Widerstaende die beste Rotation? (Issue #328, AC6)
 //!
 //! ```text
-//! cargo remote -c -- run --release --example resistance-rotation
+//! cargo remote -c -- build --release --example resistance-rotation
+//! ./target/release/examples/resistance-rotation
 //! ```
 //!
 //! Zwei Boesse, ein Feld Unterschied: `test-resistant` haelt Kalzination mit

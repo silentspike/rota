@@ -1,7 +1,8 @@
 //! Der Bericht der Rotations-Suche (Issue #237, AC4 und AC1b).
 //!
 //! ```text
-//! cargo remote -c -- run --release --example rotation-search
+//! cargo remote -c -- build --release --example rotation-search
+//! ./target/release/examples/rotation-search
 //! ```
 //!
 //! # Warum dieser Bericht seine eigenen Parameter druckt
