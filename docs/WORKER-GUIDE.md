@@ -8707,3 +8707,43 @@ Der Fall mit der Prozess-Substitution ist der stillste: `bash <(git show ref:dat
 sauberen Weg aus, eine fremde Fassung zu fahren. Aufgelöst wurde er, indem der Ausführende die Frage
 wechselte — statt den Fehler zu deuten, verglich er die Prüfsummen der lokalen und der gemergten
 Datei und stellte fest, dass sie identisch waren; damit galt der lokale Lauf.
+
+### 8.134 Eine Gegenprobe, die die Funktion direkt aufruft, prüft nicht den Weg dorthin
+
+8.131 sagt: Die Prüfumgebung muss die Suchumgebung sein. Eine Ebene höher gilt dasselbe zwischen
+**Prüfstand und Benutzungsweg**.
+
+Am 2026-08-22 an einer Sendeweg-Sperre gemessen. Ihr Erbauer hatte sie zweifach belegt: über 9915
+echte Archivnachrichten und über gebaute Einzelfälle. Beides **von innen** — die Gegenprobe
+importiert die Prüffunktion und ruft sie auf.
+
+Der Abnehmende hat sie stattdessen **benutzt**: drei Nachrichten über den normalen Sendeweg
+abgesetzt, durch bash, durch das Werkzeug, bis in die Zustellung.
+
+```
+A  zustandsändernder Befehl in Backticks        EXIT 2, abgelehnt
+B  derselbe in einfachen Anführungszeichen
+   PLUS ein lesender Befehl in Backticks        EXIT 0, zugestellt
+C  derselbe in Dollar-Klammern                  EXIT 2, abgelehnt
+```
+
+Die Einordnung stammt vom Erbauer selbst:
+
+> Meine Gegenprobe ruft die Prüffunktion direkt auf. Wäre zwischen dieser Funktion und dem Sendeweg
+> etwas kaputt — ein vergessener Aufruf, ein abgefangener Fehler —, hätte meine Probe es nicht
+> gesehen. Deine schon.
+
+**Eine Gegenprobe von innen belegt, dass die Logik stimmt. Sie belegt nicht, dass sie erreicht wird.**
+Das ist derselbe Fehler wie ein Wächter, der im Repository liegt und in keiner CI-Stufe steht
+(8.130) — nur eine Ebene kleiner und schwerer zu sehen, weil die Gegenprobe grün ist und tatsächlich
+etwas prüft.
+
+**How to apply:**
+
+- Zu jeder Gegenprobe von innen mindestens **ein** Fall über den Weg, den ein Benutzer nimmt. Einer
+  reicht — er prüft die Verdrahtung, nicht die Logik.
+- Der Fall muss die **Gegenrichtung** enthalten: Wird auch etwas durchgelassen? Sonst belegt er nur,
+  dass irgendetwas abbricht.
+- Und wer eine Zahl aus einem Lauf von innen meldet (hier: 96,7 % Durchlassrate), sagt dazu, dass sie
+  von innen stammt. Der Erbauer hat es getan, unaufgefordert: *„Sie stammt aus meinem Lauf, nicht aus
+  deinem — und sie ist die Zahl, an der das Werkzeug scheitern könnte."*
