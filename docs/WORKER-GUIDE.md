@@ -8999,3 +8999,83 @@ Trägerzeile gehört dann auf die Differenz, nicht auf eine Vorbedingung.
 Verwandt: 8.129 (der Fehlertext ist der einzige ungeprüfte Teil) und 8.131 (die Prüfumgebung
 muss die Suchumgebung sein) — dieselbe Familie: eine Absicherung, die grün ist, weil sie die
 falsche Frage stellt.
+
+### 8.140 Eine Prüfung, die einen Zweig nicht betreten kann, sagt über ihn nichts
+
+Eine Gegenprobe, die den geprüften Code mit **erfundenen** Eingaben aufruft, erreicht manche
+Zweige nie — und ist über sie grün, ohne sie je ausgeführt zu haben.
+
+Gemessen am 2026-08-22 an einem Werkzeug, das Prozesse einem Verzeichnis zuordnet. Die
+Gegenprobe rief die echte Entscheidungsfunktion auf, mit nachgebauten `ps`-Zeilen:
+
+```
+"992 42 0.0 npm exec vitest run"
+```
+
+Für die erfundene PID 992 liefert `readlink /proc/992/cwd` **immer** `None`. Der Zweig, der
+das Arbeitsverzeichnis befragt, wurde **nie betreten**. Fünf grüne Richtungen, davon eine
+ausdrücklich für diesen Fall gebaut — und keine hat ihn erreicht.
+
+Der Fehler, den sie nicht sah, stand danach im Werkzeug: Drei Dauerläufer wurden fälschlich
+zugeordnet, weil sie ihr Arbeitsverzeichnis von der Sitzung erbten, die sie startete.
+
+> Gefunden wurde es **nicht durch die Gegenprobe**, sondern weil der Autor nach dem Einbau die
+> Ausgabe des Werkzeugs abgelesen hat.
+
+#### Die dritte Frage
+
+Wir haben inzwischen drei Ebenen, und diese liegt unter den beiden anderen:
+
+| Frage                                              | Absicherung                 |
+| -------------------------------------------------- | --------------------------- |
+| Hat die Messung stattgefunden?                     | Trägerzeile (8.129, 8.139)  |
+| Misst sie den Gegenstand?                          | Umgebungsgleichheit (8.131) |
+| **Kann die Prüfung den Zweig überhaupt betreten?** | **dieser Abschnitt**        |
+
+#### Wie man es prüft
+
+- Bei jeder Gegenprobe mit nachgebauten Eingaben: **welche Zweige kann diese Eingabe nicht
+  erreichen?** Ein Zweig, der ein Betriebssystem-Objekt befragt (`/proc`, Datei, Netz), ist mit
+  erfundenen Kennungen unerreichbar.
+- Die Abhilfe ist ein **echter** Fall: ein wirklich gestarteter Prozess, eine wirklich angelegte
+  Datei. Er kostet mehr — und er ist der einzige, der den Zweig betritt.
+- **Kreuze die Bedingungen**, wenn zwei Wege zum selben Ergebnis führen können. Beispiel aus
+  derselben Arbeit:
+
+  ```
+  Probe A   Programm außerhalb des Projekts, Arbeitsverzeichnis DRIN    darf nicht zählen
+  Probe B   Projektpfad im ARGUMENT, Arbeitsverzeichnis außerhalb        muss zählen
+  ```
+
+  Ohne die Kreuzung bestünde eine Fassung, die schlicht immer das Arbeitsverzeichnis nimmt:
+  Probe A stünde fälschlich drin, aber Probe B wäre **zufällig auch richtig**. Zwei richtige
+  Antworten aus einem falschen Verfahren.
+
+### 8.141 Anwesenheit ist nicht Wirksamkeit
+
+Ein Eintrag, der **existiert**, ist nicht dasselbe wie einer, der **wirkt**. Beim Zählen sieht
+man den Unterschied nicht — die Liste ist gleich lang.
+
+Am 2026-08-22 dreimal an einem Tag, jedes Mal in einer Zahl, die weitergegeben wurde:
+
+| gezählt                      | gemeldet                     | richtig                                               |
+| ---------------------------- | ---------------------------- | ----------------------------------------------------- |
+| `k in boss` über acht Felder | „jeder Boss trägt `energy`"  | `boss.get(k)` → 15 von 17 tragen `None`               |
+| Einträge in `sets.json`      | „6 Sätze — **vollständig**"  | fünf haben **null** Gegenstände, einer ist anlegbar   |
+| Einträge in `instances.json` | „5 Instanz-Themen und Namen" | vier heißen `Instance One`, `Two`, `Four`, `Prologue` |
+
+Die zweite und dritte standen bereits in einer **Frage an den Auftraggeber**, mit der er über
+den weiteren Verlauf entscheiden sollte. Beide mussten zurückgezogen werden.
+
+Der bittere Teil: Der erste Fall war Stunden vorher passiert und aufgeschrieben. Er hat den
+zweiten nicht verhindert, weil er unter „Boss-Felder" abgelegt war und die neue Arbeit
+„Bestandsaufnahme" hieß — dasselbe Muster wie bei der Merge-Base-Regel, die den Fehler nicht
+verhinderte, weil die Arbeit „Prüfwerkzeug" hieß.
+
+#### Wie man es prüft
+
+- Beim Zählen einer Datenmenge **die Wirksamkeitsfrage mitstellen**: Wird der Eintrag gelesen?
+  Ist sein Wert von Null verschieden? Kann ein Spieler ihn erreichen?
+- `k in d` → `d.get(k) is not None`; „6 Sätze definiert" → „wie viele sind **anlegbar**?"
+- Die Gegenprobe ist billig: eine Zeile, die zählt, wie viele Einträge **leer** sind. Steht dort
+  eine hohe Zahl, war die erste Zählung eine über Schlüssel.
