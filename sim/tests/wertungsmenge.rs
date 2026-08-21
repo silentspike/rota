@@ -21,9 +21,15 @@ use rota_sim::scoring::{
 /// Läge eines der neuen Profile versehentlich in einer gewerteten Instanz,
 /// müsste diese Zahl mitwachsen. Eine unveränderte Konstante als Beleg ist
 /// stärker als eine angepasste.
+///
+/// **`PRUEFPROFILE` ist am 2026-08-21 von 20 auf 21 gewachsen** — `orch-maxload`
+/// aus #905, das Lastprofil für die Durchsatz-Messungen. Es liegt in der Instanz
+/// `testing`, und `WERTUNGSFAEHIG` steht deshalb weiterhin auf 17. Genau diese
+/// unveränderte Zahl ist der Beleg, dass das Profil nicht versehentlich in einer
+/// gewerteten Instanz gelandet ist.
 const WERTUNGSFAEHIG: usize = 17;
 const GRUPPEN: usize = 5;
-const PRUEFPROFILE: usize = 20;
+const PRUEFPROFILE: usize = 21;
 
 fn boss(id: &str) -> &'static Boss {
     data::boss_by_id(id).unwrap_or_else(|| panic!("Boss {id} fehlt im Datensatz"))
@@ -331,8 +337,15 @@ fn ac7_jeder_widerstands_schluessel_benennt_eine_schule() {
     }
     // Die Zahl in den Datensatz: Faende dieser Fall null Schluessel, waere er
     // gruen und wertlos.
+    //
+    // 4 -> 6 am 2026-08-21 durch `orch-maxload` (#905). Es traegt zwei Eintraege,
+    // und der zweite ist der bemerkenswerte: **SUBLIMATION war bis dahin von
+    // keinem Boss als Widerstand gefuehrt.** Bis zu diesem Datum stand in allen
+    // Widerstaenden des Bestands nur CALCINATION — der Fall oben ("benennt eine
+    // Schule") war also gegen genau einen Schluessel gruen und haette einen
+    // Tippfehler in jeder anderen Schule nie bemerkt.
     assert_eq!(
-        geprueft, 4,
-        "erwartet 4 Widerstands-Schluessel im Bestand, gemessen {geprueft}"
+        geprueft, 6,
+        "erwartet 6 Widerstands-Schluessel im Bestand, gemessen {geprueft}"
     );
 }
