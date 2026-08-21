@@ -8430,3 +8430,434 @@ anderes Ergebnis liefern als das vorgelegte.
 Das ist [8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen)
 für den Abnehmenden statt für den Messenden: Ein Filter, der nur nach dem sucht, was jemand anders
 gefunden hat, findet nichts anderes.
+
+### 8.125 Eine Zahl über eine versionierte Datei braucht ihren Commit
+
+Der Satz aus 8.28 lautet: eine Zahl ohne ihren Befehl ist keine Messung. Bei einer **versionierten**
+Datei reicht das nicht — dieselbe Zeile liefert zwei Antworten, je nachdem, wann man sie fährt.
+
+Am 2026-08-21 gemessen, an derselben Datei:
+
+```
+origin/main                          6479
+Commit VOR dem prettier-Commit       6497
+KONTROLLE: SIM-DURCHSATZ-ANALYSE.md   365   (prettier fasste sie nicht an)
+```
+
+Beide richtig. Dazwischen lag ein Formatier-Commit desselben Autors: 544 hinzu, 562 entfernt, 18
+Zeilen weniger.
+
+**Das Bösartige:** Bei den anderen Doppelzahlen des Tages (1073 gegen 1337 Bytes, 58 gegen 121
+Abschnitte, 3 gegen 6 Aufrufe) zeigte der Befehl, welche Menge gemeint war — dort war die
+Bezugsgröße ein _wovon_. Hier ist sie ein _wann_, und **der Befehl ist kein Ausweis mehr**.
+
+Verschärfend: Der Autor hatte den Formatier-Lauf im selben Text erwähnt und sogar die
+*Wort*differenz eigens aufgeklärt (46 102 gegen 46 101, ein JSON-Beispiel). Die *Zeilen*zahl daneben
+blieb aus dem Stand davor. **Eine Kennzahl geprüft, die andere nicht mitgezogen.**
+
+> Erwähnt ein Text eine Umformung, gehören _alle_ Kennzahlen darin nachgezogen — nicht nur die, die
+> gerade aufgefallen ist.
+
+Und die knappste Fassung, von Worker-1:
+
+> Eine Zahl ohne ihren Befehl ist keine Messung, sondern eine Behauptung mit Nachkommastellen.
+
+### 8.126 Ein Archiv ist ein Suchraum
+
+Wer nach einer Projektregel sucht, sucht in **Dateien**. Eine Regel, die per Nachricht kam, kommt
+dort nie an — die Suche ist nicht zu ungenau, sie ist am falschen Ort.
+
+Am 2026-08-21 vier Runden zu derselben Sache, keine bestätigte die vorige:
+
+| Behauptung                         | gemessen                      |
+| ---------------------------------- | ----------------------------- |
+| „die Regel steht nirgends"         | sie steht prominent, mehrfach |
+| „13 Stellen widersprechen ihr"     | es sind **28**                |
+| „sind sie älter als die Regel?"    | 25 ja, **2 nein**             |
+| „hat sie alle Sitzungen erreicht?" | **ja, alle drei**             |
+
+Der Meldende hatte die Regel **drei Tage vorher selbst quittiert**, in eigenen Worten, 23 Sekunden
+nach Eingang. Er hat im Repository gesucht; sie lag in seinem Postfach.
+
+Und die zwei jüngeren Stellen stammten vom Orchestrator — aus einem Commit **einen Tag nachdem** er
+die Regel eigenhändig an alle drei Sitzungen verteilt hatte.
+
+**How to apply:**
+
+- Bei „diese Regel steht nirgends": zuerst das **eigene Archiv** durchsuchen, dann die Dateien.
+- Wer eine Regel verteilt hat, ist **kein Sonderfall bei ihrer Prüfung**. Sind die eigenen Commits
+  der einzige Treffer, ist das der Befund und kein Störgeräusch.
+- Beim Widerlegen einer Vermutung: den **entlastenden** Ausgang zuerst prüfen und ihn benennen, wenn
+  er nicht zutrifft.
+
+### 8.127 Wer eine Datei mehrfach nachzieht, prüft sie danach gegen sich selbst
+
+Vier Nachträge an einer Datei sind vier Gelegenheiten, etwas stehenzulassen. Jede Ergänzung ist für
+sich richtig; keine prüft die vorigen mit.
+
+Am 2026-08-21 an einer Übergabedatei, die an einem Abend viermal nachgezogen wurde:
+
+```
+"DotRefresh"                    0 Vorkommen   <- der wichtigste Befund des Abends
+"39 in echten APL-Dateien"      steht noch da <- eine Stunde vorher widerlegt
+#1034 als OFFEN                 ist gemergt
+Kopfdatum 21:25                 im Text stehen 22:02 und 22:05
+```
+
+Die Datei gab sich selbst als älter aus als ihren Inhalt, und sie trug ein Wirkungsmaß, das
+gemessen widerlegt war. **Der Nächste hätte gegen die 39 gemessen.**
+
+Die Prüfung war ein Dreizeiler: grep auf den überholten Begriff, grep auf den neuen, Kopfdatum gegen
+die jüngste Uhrzeit im Text. Sie fand, was vier sorgfältige Ergänzungen übersehen hatten.
+
+Und der verwandte Fall, zweimal am selben Abend: Ein Edit an derselben Datei schlug fehl, weil der
+Autor gegen den Text prüfte, den er **im Kopf** hatte — und die Kürzung stammte von ihm selbst,
+Stunden vorher.
+
+> Nach einer eigenen Kürzung ist der eigene Gedächtnisstand **systematisch** veraltet, nicht
+> zufällig. Die alte Fassung ist im Kopf lebendiger, weil man sie öfter gelesen hat.
+
+Das Werkzeug fing es beide Male: `Edit` scheitert laut, wenn das Muster nicht passt. Über die Shell
+wäre es ein stiller Fehlschlag mit Erfolgsmeldung gewesen.
+
+### 8.128 Ein Befund mit Sternchen wird beim nächsten Lesen ohne Sternchen zitiert
+
+Ein Vorbehalt hält genau so lange, wie jemand ihn mitliest. Danach steht die Zahl allein da.
+
+Am 2026-08-21 hat ein Worker eine eigene Beobachtung **zurückgezogen**, statt sie mit Vorbehalt
+stehenzulassen: Seine Laufzeit-Notizen (5 s gegen 88 s) waren unter Fremdlast entstanden, die ein
+anderer verursacht hatte.
+
+> Ein Befund mit Sternchen wird beim nächsten Lesen ohne Sternchen zitiert.
+
+Die Unterscheidung, die er gleich mitlieferte, gehört dazu: Zurückgenommen wurde der **Befund**,
+nicht die **Entscheidung**, die darauf stand — die war eine Vermutung, und er hatte sie vorher als
+solche benannt.
+
+Und der Fall, aus dem der Satz stammt: Derselbe Worker hatte eine Reihenfolge mit einer Messung an
+einem kleinen Pool begründet, also mit Vorbehalt. Zwei Nachrichten später zitierte er sie ohne den
+Vorbehalt und baute darauf eine Drehung, die falsch war.
+
+### 8.129 Der Fehlertext ist der einzige Teil, den kein grüner Lauf ausführt
+
+Der Text im **Gutfall** wird gelesen und stimmt. Der Text im **Fehlerfall** wird selten gelesen und
+ist deshalb ungeprüft — er ist die Stelle, an der Behauptungen überleben.
+
+Am 2026-08-21 **fünfmal**, in drei Dateien, von zwei Sitzungen, jedes Mal im Rot-Zweig:
+
+| die Zusicherung prüfte     | ihr Fehlertext behauptete                                |
+| -------------------------- | -------------------------------------------------------- |
+| nur den Exit-Code          | „Fehlalarm" — es gab keine Messung                       |
+| eine von zwei Zeilenformen | „nichts gemessen" — gemessen wurde sehr wohl             |
+| `code==1 && grep -q '…'`   | „kein Alarm" — Exit war 1, nur der Text hatte gewechselt |
+| Exit 1                     | „alarmiert" — es war die **Trägerzeile** des Wächters    |
+| zwei UND-Bedingungen       | nannte nur eine davon                                    |
+
+Alle fünf sahen im grünen Lauf identisch aus. **Keine wurde beim Lesen gefunden.**
+
+Die Verallgemeinerung, von Worker-2:
+
+> Exit 1 heißt nicht zwangsläufig „alarmiert".
+
+Und die Erklärung, warum Aufmerksamkeit hier nicht hilft:
+
+> Beim Lesen war sie unsichtbar; sie steht in einer Zeile, die im Gutfall nie gedruckt wird.
+
+**How to apply:**
+
+- **Eine Mutation je Teilbedingung.** Bei `A && B` zwei Mutationen: eine, die nur A reißen lässt,
+  eine für B. Fällt beide Male derselbe Text, prüft die Zusicherung zwei Dinge und trennt eines.
+- Ein Fehlertext **nennt das Gemessene**, er behauptet keine Ursache. „Exit 1, aber nur 0 Dateien
+  geprüft" statt „Fehlalarm".
+- Nach einer Korrektur **alle** Mutationen neu fahren, nicht nur die gemeldete. Der vierte und
+  fünfte Fall oben kamen genau daher.
+- Achte auf den **leiseren** Fall: „Kein Vorrat" gab Exit 1, „Vorrat auf ein geschlossenes Issue"
+  gab 0 — der schlimmere Zustand war der stillere.
+
+### 8.130 Eine negative Kontrolle findet den falschen Pfad nicht
+
+Eine Kontrollzeile, die selbst 0 liefern soll, prüft die **Zählung** — nicht den **Pfad**.
+
+Am 2026-08-21 gemessen: Jemand meldete „Instanzen: 0 von 14" und ließ eine Kontrolle mitlaufen.
+
+```
+KONTROLLE   data/zzznie/   ->   0
+```
+
+Sie belegt, dass die Zählung nicht einfach alles findet. Sie kann aber nicht unterscheiden zwischen
+**„der Pfad ist leer"** und **„den Pfad gibt es nicht"** — beides liefert 0, genau wie das erfundene
+Verzeichnis. Gesucht wurde `data/instances/` als _Verzeichnis_; es gibt `data/instances.json` als
+_Datei_, mit fünf Instanzen und allen 17 Bossen zugeordnet.
+
+**Die Kontrollzeile hat den Fall bestätigt, den sie hätte ausschließen sollen.**
+
+In derselben Messung lief für die Zauber eine **positive** Kontrolle mit („`common` muss 2 sein") —
+die fing eine falsche Zählung sofort.
+
+> Wer eine **Null** meldet, braucht eine **positive** Kontrolle: etwas, von dem er weiß, dass es da
+> ist und gefunden werden **muss**.
+
+Und die Anwendung auf Prozesse, vom selben Abend: Eine Trägerzeile, die einen Prozess benutzt, den
+das Werkzeug per Definition nicht zählt (`sleep`), belegt nichts. **Die Trägerzeile braucht einen
+Träger, den der Träger auch trägt.**
+
+### 8.131 Die Prüfumgebung muss die Suchumgebung sein
+
+Ein Prüffall, der eine **Suche** absichert, muss dieselbe Konfiguration fahren wie die Suche selbst.
+Weicht ein Feld ab, misst er eine andere Frage — und ist grün.
+
+Am 2026-08-21 in einem Prüffall gefunden, der eine Stunde alt war und dessen Autor ihn selbst
+geschrieben hatte:
+
+```
+Suche      BalanceConfig { stop_on_kill: false, … }   ausdrücklich gesetzt
+Prüfung    FightConfig   { ..default() }              also TRUE
+Boss       5200 Lebenspunkte, tödlicher Schlag bei 12000 ms
+```
+
+Fällt der Boss vor dem Schlag, endet der Kampf, **der Schlag kommt nie**, und „überlebt" ist trivial
+wahr. Der Fall hätte gemessen, wie schnell die Rotation tötet.
+
+**Er wäre durch alles durchgegangen**, was an dem Abend dafür gebaut wurde: Die Trägerzeile hätte
+gehalten, die unabhängig erzeugte Mutation hätte ihn nicht rot gemacht, und das Abnahmekriterium
+„acht grün, genau einer rot" hätte _null rot_ gezeigt — was man für „Mutation zu grob" gehalten und
+an der Mutation repariert hätte.
+
+Die Ebene, auf der das liegt:
+
+| Frage                                         | Absicherung         |
+| --------------------------------------------- | ------------------- |
+| Hat die Messung stattgefunden?                | Trägerzeile (8.129) |
+| War sie _währenddessen_ gültig?               | Selbstabbruch       |
+| Misst sie **den Gegenstand**, den ich suchte? | **diese Regel**     |
+
+**How to apply — und die Prüffrage ist schmaler als „alle Felder vergleichen":**
+
+**Abweichen kann nur, was jemand angefasst hat.** Vorgabewerte stimmen nicht aus Glück überein,
+sondern weil sie in beiden Fassungen aus derselben Quelle kommen. Die Frage lautet also nicht
+„stimmen alle Felder?", sondern:
+
+> Welche Felder habe ich in der einen Umgebung **ausdrücklich gesetzt**? Genau die gehören in die
+> andere übertragen.
+
+Das ist billiger _und_ vollständiger. Wer alle Felder vergleicht, hat im Fund oben Glück gehabt,
+dass es nur eines war.
+
+`..default()` in einer Prüfung ist ein Risiko, kein Komfort: Es übernimmt still jede Vorgabe, die
+jemand anderswo bewusst überschrieben hat.
+
+### 8.132 Zwei unabhängige Messungen belegen nur bei verschiedenen Fehlerquellen
+
+Eine Übereinstimmung zweier unabhängiger Leute sieht wie eine Bestätigung aus. Sie ist nur dann
+eine, wenn beide **verschiedene Fehlerquellen** hatten.
+
+Am 2026-08-21 sollte eine Mutation unabhängig benannt werden, weil ein selbst entworfener Prüffall
+an dem Abend zweimal die falsche Frage gestellt hatte. Zwei Sitzungen kamen unabhängig auf dieselbe
+Stelle — und der Orchestrator verbuchte das als Bestätigung.
+
+Die Gegenfrage kam von einem der beiden:
+
+> Zwei Leute, die unabhängig denselben Fehler machen, sehen wie eine Bestätigung aus.
+
+Sie war berechtigt und traf nicht zu (nachgelesen, nicht erinnert). Aber die Klasse ist neu: Bei
+8.124 entsteht die falsche Bestätigung durch **Übernahme**. Hier entstünde sie **ohne jede
+Übernahme** — eine Kopplung im Code, die beide übersehen konnten.
+
+> Bei zwei Leuten, die denselben Code vor sich haben, sind die Fehlerquellen nicht automatisch
+> verschieden.
+
+Der Ertrag der Trennung war ohnehin ein anderer: **nicht die Einigkeit, sondern dass jeder etwas
+hatte, was der andere nicht hatte.** Der eine kannte den Code und hatte die präzise Mutation; der
+andere kannte ihn nicht und dachte deshalb über die _Struktur der Aussage_ nach.
+
+Daraus folgt **keine** Regel, jemanden unwissend zu halten — die Gegenfrage hing an der Frage, nicht
+am Unwissen. Was folgt: Unabhängigkeit richtet sich gegen die **Lösung** eines anderen, nie gegen
+den **Gegenstand**. Wer den Gegenstand nicht kennt, liefert eine Vermutung, und eine Vermutung ist
+als Kontrolle wertlos, weil sie nicht scheitern kann.
+
+### 8.133 Ein Werkzeug, das seine Wurzel aus dem eigenen Ort ableitet, verträgt keinen Umzug
+
+Viele Werkzeuge hier bestimmen ihr Arbeitsverzeichnis aus ihrem eigenen Pfad — `cd
+"$(dirname "$0")/.."` in Shell, `__file__/../..` in Python. Das ist richtig gebaut: Es macht sie
+unabhängig davon, aus welchem Verzeichnis sie aufgerufen werden.
+
+**Es macht sie abhängig davon, wo sie LIEGEN.** Am 2026-08-21 dreimal an einem Abend, von zwei
+Sitzungen:
+
+| Werkzeug              | kopiert nach         | Ergebnis                                                |
+| --------------------- | -------------------- | ------------------------------------------------------- |
+| `rota-fenster`        | `/work/tmp`          | `git ls-files` lief in `/work` statt im Repository      |
+| `ac6-gegenprobe.sh`   | Prozess-Substitution | `$0` ist ein `/dev/fd/`-Pfad, `cd` landet außerhalb     |
+| `streich-mutation.py` | `/work/tmp`          | `FileNotFoundError: /work/data/spells/calcination.json` |
+
+Der dritte Fall bricht laut ab. Die ersten beiden **nicht** — sie liefern eine plausible Zahl aus
+dem falschen Verzeichnis. Beim ersten fing es nur die Kontrollzeile: Der Lauf meldete Exit 2 und
+nannte zwei Kontrolldateien als nicht erreicht, statt eine kleine Trefferzahl auszugeben.
+
+**How to apply:**
+
+- Werkzeuge **am Ort lassen**. Wer eine Fassung aus einem anderen Zweig braucht, checkt sie an ihren
+  Platz aus (`git show <ref>:pfad > pfad`), statt sie nach `/work/tmp` zu legen.
+- Muss eine Kopie sein: den Wurzelpfad **ausdrücklich** übergeben, wenn das Werkzeug es zulässt.
+  `tools/tests-lokal.sh` nimmt ihn als zweites Argument, genau dafür.
+- Und für jede Messung mit einem kopierten Werkzeug: eine **positive** Kontrolle (8.130). „0 Treffer"
+  und „falsches Verzeichnis" sehen gleich aus.
+
+Der Fall mit der Prozess-Substitution ist der stillste: `bash <(git show ref:datei)` sieht nach einem
+sauberen Weg aus, eine fremde Fassung zu fahren. Aufgelöst wurde er, indem der Ausführende die Frage
+wechselte — statt den Fehler zu deuten, verglich er die Prüfsummen der lokalen und der gemergten
+Datei und stellte fest, dass sie identisch waren; damit galt der lokale Lauf.
+
+### 8.134 Eine Gegenprobe, die die Funktion direkt aufruft, prüft nicht den Weg dorthin
+
+8.131 sagt: Die Prüfumgebung muss die Suchumgebung sein. Eine Ebene höher gilt dasselbe zwischen
+**Prüfstand und Benutzungsweg**.
+
+Am 2026-08-22 an einer Sendeweg-Sperre gemessen. Ihr Erbauer hatte sie zweifach belegt: über 9915
+echte Archivnachrichten und über gebaute Einzelfälle. Beides **von innen** — die Gegenprobe
+importiert die Prüffunktion und ruft sie auf.
+
+Der Abnehmende hat sie stattdessen **benutzt**: drei Nachrichten über den normalen Sendeweg
+abgesetzt, durch bash, durch das Werkzeug, bis in die Zustellung.
+
+```
+A  zustandsändernder Befehl in Backticks        EXIT 2, abgelehnt
+B  derselbe in einfachen Anführungszeichen
+   PLUS ein lesender Befehl in Backticks        EXIT 0, zugestellt
+C  derselbe in Dollar-Klammern                  EXIT 2, abgelehnt
+```
+
+Die Einordnung stammt vom Erbauer selbst:
+
+> Meine Gegenprobe ruft die Prüffunktion direkt auf. Wäre zwischen dieser Funktion und dem Sendeweg
+> etwas kaputt — ein vergessener Aufruf, ein abgefangener Fehler —, hätte meine Probe es nicht
+> gesehen. Deine schon.
+
+**Eine Gegenprobe von innen belegt, dass die Logik stimmt. Sie belegt nicht, dass sie erreicht wird.**
+Das ist derselbe Fehler wie ein Wächter, der im Repository liegt und in keiner CI-Stufe steht
+(8.130) — nur eine Ebene kleiner und schwerer zu sehen, weil die Gegenprobe grün ist und tatsächlich
+etwas prüft.
+
+**How to apply:**
+
+- Zu jeder Gegenprobe von innen mindestens **ein** Fall über den Weg, den ein Benutzer nimmt. Einer
+  reicht — er prüft die Verdrahtung, nicht die Logik.
+- Der Fall muss die **Gegenrichtung** enthalten: Wird auch etwas durchgelassen? Sonst belegt er nur,
+  dass irgendetwas abbricht.
+- Und wer eine Zahl aus einem Lauf von innen meldet (hier: 96,7 % Durchlassrate), sagt dazu, dass sie
+  von innen stammt. Der Erbauer hat es getan, unaufgefordert: _„Sie stammt aus meinem Lauf, nicht aus
+  deinem — und sie ist die Zahl, an der das Werkzeug scheitern könnte."_
+
+### 8.135 Ein Wächter, der sich selbst durchsucht, meldet seine eigene Ausnahme
+
+Ein Wächter, der Dateien nach einem verbotenen Muster durchsucht, liest in aller Regel
+**alle** versionierten Dateien — sich selbst eingeschlossen. Trägt er eine Liste benannter
+Ausnahmen, steht das verbotene Muster damit in seinem eigenen Quelltext. Er findet es und
+meldet es.
+
+**Der Ausnahme-Mechanismus macht den Wächter dann rot, statt ihn grün zu halten.**
+
+Gemessen am 2026-08-22 an `tools/remote-nur-bauen.sh` — zweimal derselbe Aufbau, eine echte
+Fundstelle, eine passende Ausnahme dafür. Unterschied ist allein der **Musterstring** im
+Ausnahme-Eintrag:
+
+```
+Muster "cargo remote -c … test"           (nennt den Befehl)
+  tools/remote-nur-bauen.sh:71: ("tools/orch-probe.py", "cargo remote -c … test"): …
+  GEDULDET  tools/orch-probe.py:1: …
+  1191 versionierte Dateien gelesen, 1 Laeufe gefunden, 1 geduldet.
+  EXIT=1     <- rot, obwohl die einzige echte Fundstelle geduldet ist
+
+Muster "--no-fail-fast --all-targets"     (nennt nur die Flags)
+  1191 versionierte Dateien gelesen, 0 Laeufe gefunden, 1 geduldet.
+  EXIT=0
+```
+
+#### Dieser Abschnitt ist selbst darüber gestolpert
+
+Die zwei Zeilen oben schrieben den Beispiel-Befehl zuerst **wörtlich**. Der CI-Job `lint`
+wurde daraufhin rot:
+
+```
+docs/WORKER-GUIDE.md:8766: tools/remote-nur-bauen.sh:71: ("tools/orch-probe.py", …
+1190 versionierte Dateien gelesen, 2 Laeufe gefunden, 0 geduldet.
+```
+
+**Wer über den Wächter schreibt, kann seinen Gegenstand nicht nennen.** Das ist derselbe
+Mechanismus eine Ebene weiter: nicht die Ausnahmezeile im Wächter, sondern das Zitat in der
+Dokumentation über ihn.
+
+Deshalb steht dort jetzt `…` statt `--`. Das ist eine Notlösung und keine gute:
+
+- **`docs/` aus dem Suchraum zu nehmen wäre falsch.** 25 der 28 Fundstellen, aus denen der
+  Wächter entstand, standen in Dokumentation. Genau dort schützt er.
+- Eine **Ausnahme einzutragen** geht nicht — das ist der Fehler aus #1061.
+
+Ein Wächter über Befehlszeilen macht das Schreiben über Befehlszeilen unmöglich. Wer einen
+solchen baut, braucht von Anfang an eine Form, in der ein Beispiel zitiert werden darf.
+
+#### Warum es monatelang nicht auffällt
+
+Der einzige Eintrag, den dieser Wächter je hatte, nannte **nur die Flags**. Damit griff das
+Verbotsmuster auf der Ausnahmezeile nicht, und der Wächter war grün — **aus einem Grund, den
+niemand gewählt hat**. Wer stattdessen den vollen Befehl notiert hätte (die naheliegendere
+Wahl, weil ein Ausnahme-Eintrag erklären soll, _was_ geduldet wird), hätte den Wächter sofort
+rot bekommen und die Ursache nicht gefunden.
+
+Das ist die Umkehrung von 8.129: Dort war der Fehlertext ungeprüft, weil kein grüner Lauf ihn
+ausführt. Hier ist der **Ausnahme-Zweig** ungeprüft, weil ihn niemand betritt, solange die
+Liste leer ist. Beide Male steht die Absicherung da und sieht vollständig aus.
+
+#### Was daraus folgt
+
+- **Ein Wächter mit Ausnahme-Liste braucht eine Probe, die eine Ausnahme wirklich einträgt.**
+  Eine leere Liste beweist über den Mechanismus gar nichts.
+- **Der Selbstfund darf nicht pauschal abgeschaltet werden.** Wer die Wächter-Datei aus dem
+  Suchraum nimmt, baut genau die Lücke ein, gegen die der Wächter schützt — dann steht der
+  Verstoß eben dort. Zu prüfen ist die _Ausnahmezeile_, nicht die _Datei_.
+- Dasselbe gilt für jedes Werkzeug, das ein Muster sucht und das Muster im eigenen Quelltext
+  führt: Sperrlisten, Lint-Regeln, `grep`-Wächter über Formulierungen.
+
+### 8.136 Eine Zahl über den eigenen Gegenstand veraltet still, eine Aufzählung nicht
+
+Ein Kommentar, der schreibt „drei Bausteine", wird falsch, sobald sich die **Zählweise**
+ändert — ohne dass jemand eine Zeile Code angefasst hat. Ein Kommentar, der die Bausteine
+**beim Namen nennt**, überlebt denselben Wechsel unbeschadet.
+
+Gemessen am 2026-08-22: Nachdem herauskam, dass GAME-DESIGN 11.2 **neun** Bausteine nennt und
+nicht acht (der neunte steht in der Zeitleiste statt in einem Boss-Feld), waren sechs Sätze in
+vier Dateien falsch geworden. Keine davon war je verändert worden.
+
+| stand da                             | ist richtig                                       |
+| ------------------------------------ | ------------------------------------------------- |
+| „Drei Bausteine und zwei Phasen"     | vier                                              |
+| „boss-2-4 ist der einzige mit drei"  | boss-2-4 hat vier; drei haben drei                |
+| „runaway mit einem zweiten Baustein" | mit einem zweiten **Feld**-Baustein; es sind drei |
+| „fünf der acht Bausteine"            | der acht **Feld**-Bausteine                       |
+
+#### Die Regel
+
+> **Zahlen über den eigenen Gegenstand durch Aufzählungen ersetzen.**
+> „drei Bausteine" → „`energy`, `doom` und `escalation`".
+
+Eine Aufzählung ist gegen die Zählweise immun, weil sie nicht zählt. Und sie braucht keinen
+Wächter — das ist ihr eigentlicher Vorteil. Es ist dieselbe Regel, die beim Boss-Wächter schon
+einmal gelernt wurde (Liste statt Zahl), nur auf Prosa angewandt.
+
+#### Die Abgrenzung, die dazugehört
+
+Zahlen über den **Bestand** lassen sich nicht aufzählen — „boss-2-4 ist der bausteinreichste"
+ist ein Vergleich über alles, was es gerade gibt. Dort gehört stattdessen dazu, **wann** und
+**gegen welchen Suchraum** gemessen wurde. Sonst tauscht man eine stille Veraltung gegen eine
+andere.
+
+#### Warum kein Wächter
+
+Der naheliegende Gegenvorschlag — ein Prüffall, der Fließtext gegen die tatsächliche Zahl
+hält — wurde erwogen und verworfen, mit zwei Gründen vom Autor selbst:
+
+1. **Er hängt an Formulierungen.** Die sechs falschen Sätze oben waren alle verschieden
+   gebaut. Ein Wächter, der die nächste Form nicht kennt, meldet **grün** — dieselbe Falle wie
+   ein `grep` nach `SIGNATUR:`, das `Sein Merkmal:` nicht sieht (8.27).
+2. **Ein Wächter, den man nicht fahren kann, ist schlimmer als keiner**, weil er nach
+   Absicherung aussieht (8.28).
