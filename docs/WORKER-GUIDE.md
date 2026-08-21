@@ -2670,6 +2670,10 @@ ENDE
 **Nicht mehr in den Chat kopieren.** Der Auftraggeber war früher der Transportweg; seit dem
 2026-07-28 schreiben die Sitzungen einander direkt. Einzelheiten in [`IPC.md`](IPC.md).
 
+> **Wer einen Merge meldet, nennt den Commit**, den er gemergt hat — nicht nur die PR-Nummer.
+> Warum das den Unterschied macht, steht in
+> [8.65](#865-gemergt-ist-eine-aussage-über-einen-pr-nicht-über-einen-zweig).
+
 > **Die Anführungszeichen um `'ENDE'` gehören dazu.** Ohne sie führt die Shell aus, was sie im
 > Fließtext erkennt — `$…` und alles in Backticks. Die Nachricht geht trotzdem raus, nur fehlt an
 > der Stelle ein Wort, und der Satz liest sich fast normal. Der ganze Fall steht in
@@ -7917,3 +7921,50 @@ zwei Stellen gebraucht wird, steht sie einmal ausführlich und einmal als Zeile 
 Deshalb steht in [§ 6](#6-melde-format) nur ein Zweizeiler mit Sprungziel und nicht der Text selbst.
 `tools/guide-anker.sh` hält die Sprungziele gültig: Ein Verweis altert mit der Überschrift, auf die
 er zeigt, und meldete das vorher nicht.
+
+### 8.119 Ein Filter ohne mitgeführten Kontrollfall ist von außen nicht zu beurteilen
+
+Wer eine Menge nach einem Merkmal durchsucht, bekommt eine Zahl. Ob die Zahl etwas taugt, sieht man
+ihr nicht an — ein zu enger Filter liefert ein **plausibles** Ergebnis, kein leeres.
+
+Gemessen am 2026-08-21, bei der Suche nach Regeln, die unter fremder Überschrift stehen:
+
+| Versuch        | Treffer von 181     | Befund                                                          |
+| -------------- | ------------------- | --------------------------------------------------------------- |
+| erster Filter  | **82**              | Rauschen — fast die Hälfte                                      |
+| zweiter Filter | **9**               | sauber formatiert, plausibel — **und der bekannte Fall fehlte** |
+| dritter Filter | 9 + 1 Fehlzuordnung | kannte nur `###`, nicht `##`                                    |
+| vierter        | 1                   | trifft den bekannten Fall                                       |
+
+**Der zweite ist der gefährliche.** Neun Kandidaten sind eine Zahl, bei der niemand stutzt. Hätte
+der Messende keinen Fall mitgeführt, von dem er vorher wusste, dass er da sein muss, wäre das
+Ergebnis als Befund weitergegeben worden — und der einzige gesicherte Fall wäre nicht darin
+gewesen.
+
+Die Ursache war nicht Nachlässigkeit, sondern ein zu enges Fenster: Der Filter verlangte Tätigkeit
+und normatives Wort im selben Absatz; im bekannten Fall standen sie 14 Zeilen auseinander, mit drei
+Leerzeilen dazwischen.
+
+> **Ein Filter, der den bekannten Fall nicht findet, ist nicht ungenau — er ist unbrauchbar.** Und
+> ohne mitgeführten Kontrollfall ist der Unterschied von außen unsichtbar, weil beide Ergebnisse
+> gleich aussehen.
+
+Das ist die schärfere Fassung von „ein Wächter muss einmal angeschlagen haben": Er muss an einem
+Fall anschlagen, von dem man **vor** dem Lauf weiß, dass er vorhanden ist. Ein Wächter, der irgendwo
+rot wird, beweist nur, dass er rot werden kann.
+
+#### Was in die Meldung gehört
+
+Eine Trefferzahl allein ist eine Aussage über den Gegenstand. Erst mit der Reichweite wird sie eine
+Aussage über den Filter — und nur die kann jemand anderes weiterverwenden:
+
+```
+erfasst        6 Tätigkeiten: melden, committen, pushen, PR, rebase, browser
+NICHT erfasst  messen, bauen, testen, Fenster, Issue-Abnahme, Design-Fragen
+erkannt an     Liste normativer Wörter (immer/nie/gehört/muss/Also:)
+Fenster        18 Zeilen — ein Gedanke, der weiter auseinanderläuft, entgeht
+von Hand       13 Kandidaten geprüft, der Rest dem Filter geglaubt
+```
+
+Die letzte Zeile ist die unbequemste und die wichtigste. Sie sagt, wo die Messung endet und das
+Vertrauen anfängt.
