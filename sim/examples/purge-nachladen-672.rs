@@ -2,8 +2,9 @@
 //! `clearCharges` auf 2 steht?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
 //!   --example purge-nachladen-672
+//! ./target/release/examples/purge-nachladen-672
 //! ```
 //!
 //! # Die Frage hinter der Frage

@@ -2,8 +2,9 @@
 //! `purge` daran?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
 //!   --example doomsayer-mechaniken-672
+//! ./target/release/examples/doomsayer-mechaniken-672
 //! ```
 //!
 //! # Der Widerspruch, der diesen Laeufer noetig macht

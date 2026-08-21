@@ -1,7 +1,8 @@
 //! Ab welchem Widerstand aendert sich die beste Rotation? (Messung zu #328, AC6)
 //!
 //! ```text
-//! cargo remote -c -- run --release --example resistance-threshold
+//! cargo remote -c -- build --release --example resistance-threshold
+//! ./target/release/examples/resistance-threshold
 //! ```
 //!
 //! Der Boss wird hier im Code gebaut und nicht aus den Daten gelesen: Gesucht

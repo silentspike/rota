@@ -343,12 +343,12 @@ auseinanderliegenden Zaubern könnte anders ausfallen.
 Der Kreuzvergleich (AC2, AC3, AC4) — **beide Läufe, denn der zweite ist die
 Gegenprobe zum ersten:**
 
-    cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
-      --example rotation-search -- \
+    cargo remote -c --manifest-path sim/Cargo.toml -- build --release --example rotation-search
+    ./target/release/examples/rotation-search \
       --bosses first-crucible,test-onslaught,test-metronome,test-gatekeeper,test-resistant
 
-    cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
-      --example rotation-search -- \
+    cargo remote -c --manifest-path sim/Cargo.toml -- build --release --example rotation-search
+    ./target/release/examples/rotation-search \
       --bosses first-crucible,test-onslaught,test-metronome,test-gatekeeper,test-resistant \
       --max-len 12
 

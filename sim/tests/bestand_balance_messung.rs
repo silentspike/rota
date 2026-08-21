@@ -11,7 +11,9 @@
 //! Aufruf — die Fälle stehen hinter `#[ignore]` und laufen nur auf Zuruf:
 //!
 //! ```text
-//! cargo remote -c -- test --test bestand_balance_messung -- --ignored --nocapture
+//! cargo remote -c -- test --no-run --test bestand_balance_messung > /work/tmp/bau.log
+//! # Pfad des Binaries steht im Bauprotokoll; dann LOKAL aus sim/ starten:
+//! (cd sim && ../target/debug/deps/bestand_balance_messung-<hash> --ignored --nocapture)
 //! ```
 //!
 //! # Warum `#[ignore]` hier richtig ist — und in `rotation_search.rs` falsch war

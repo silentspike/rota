@@ -5,6 +5,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'target/**', // Rust-Bauartefakte; `cargo doc` legt dort JS ab
       'node_modules/**',
       'sim/**', // Rust — hat eigene Prüfung (clippy, rustfmt)
       'docs/**',

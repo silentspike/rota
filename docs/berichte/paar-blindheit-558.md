@@ -270,8 +270,9 @@ trägt jede seiner Zahlen die Startposition der Suche mit.
 
 ## Die Messung wiederholen
 
-    cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+    cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
       --example pruefstein-558
+    ./target/release/examples/pruefstein-558
 
 Der Läufer bricht laut ab, wenn die Budget-Reihe nicht mehr zu Worker-1s
 Messung passt — dann misst er eine andere Größe als sie, und jeder Vergleich

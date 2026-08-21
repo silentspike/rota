@@ -96,7 +96,8 @@ Für Rust-Projekte unter `/work` gilt: **remote bauen**, um den Laptop zu entlas
 
 ```bash
 cargo remote -c -- build          # das -c ist PFLICHT
-cargo remote -c -- test
+cargo remote -c -- test --no-run > /work/tmp/bau.log
+bash tools/tests-lokal.sh /work/tmp/bau.log
 cargo remote -c -- clippy --all-targets -- -D warnings
 cargo-remote-fmt                  # NICHT `cargo remote -- fmt`
 cargo-remote-fmt --check          # CI-Parität, vor jedem Push
