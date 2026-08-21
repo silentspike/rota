@@ -7912,6 +7912,35 @@ Sie hat nichts mit seinem Inhalt zu tun:
 
 Ist die Antwort nein, ist er aufgeschrieben und nicht in Kraft.
 
+#### Zweite Sorte: die Regel ist allgemeiner als ihre Überschrift
+
+Der Fall oben ist der leichter zu findende — Überschrift und Regel handeln von **verschiedenen
+Dingen**. Es gibt eine zweite, die schwerer wiegt, weil der Abschnitt thematisch passt und nur zu
+eng gefasst ist.
+
+Gemessen am 2026-08-21, gefunden von einem Worker in einem Abschnitt, den er selbst gebraucht
+hätte:
+
+```
+Abschnitt 8.59  „Eine Liste, in der alle Zeilen gleich aussehen, ist verdächtig"
+
+im Rumpf:  „Wer eine Liste erzeugt, braucht darin mindestens einen Fall, dessen
+            Antwort er vorher kennt; ohne diesen Anker ist eine gleichförmige
+            Liste nicht von einem stummen Werkzeug zu unterscheiden."
+```
+
+Das ist wörtlich die Regel, die derselbe Worker eine Stunde vorher gebraucht hat — der
+Kontrollfall, an dem sein Filter kalibriert wurde ([8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen)).
+Er ist selbst darauf gekommen, weil er den Fall zufällig kannte. **Gesucht und gefunden hat er die
+Regel nicht.**
+
+Und die Überschrift hätte ihn auch bei gutem Willen nicht hingeführt: Sie beschreibt ein
+**Symptom** — alle Zeilen sehen gleich aus. Seine Liste sah nicht gleich aus; neun Kandidaten,
+verschiedene Abschnitte, völlig plausibel. Die Regel im Rumpf galt trotzdem.
+
+> Eine Überschrift, die ein Symptom nennt, verbirgt jede Regel darunter, die ohne dieses Symptom
+> gilt. Wer die Regel braucht, hat das Symptom meistens nicht — sonst wüsste er schon Bescheid.
+
 #### Verweis statt Kopie
 
 Zwei Fassungen derselben Regel laufen auseinander, sobald eine ergänzt wird — dann gilt die, die
@@ -8008,6 +8037,28 @@ echo "EXIT=${PIPESTATUS[0]}"  # der ERSTE, nicht der letzte
 Der erste Weg hat den Nebennutzen, dass die vollständige Ausgabe erhalten bleibt: Fall C wäre auch
 mit korrektem Exit-Code falsch gelesen worden, weil `head -20` die Zeilen **entfernt** hat, nicht
 nur den Code verfälscht.
+
+##### `PIPESTATUS[0]` hat eine Ausnahme, und sie ist von außen nicht zu sehen
+
+Der zweite Weg versagt, sobald `head` die Pipe schließt, **bevor** das Programm fertig ist. Dann
+stirbt es am SIGPIPE, und `PIPESTATUS[0]` gibt diesen Tod treu wieder — einen Code, den es ohne die
+Pipe nie gegeben hätte:
+
+```
+rota-ipc gibtesnicht  (1 Zeile)  | head -3    PIPESTATUS[0] = 2     richtig
+rota-mutationsprobe  (2 Zeilen)  | head -1    PIPESTATUS[0] = 120   das Programm liefert 2
+seq 1 1000000                    | head -1    PIPESTATUS[0] = 141   SIGPIPE
+```
+
+Der Unterschied ist die **Ausgabelänge**: Schreibt das Programm weniger, als `head` nimmt, ist es
+fertig, bevor die Pipe schließt. Schreibt es mehr, wird es getötet.
+
+> `PIPESTATUS[0]` ist nicht generell unbrauchbar — es ist unbrauchbar, sobald das Programm mehr
+> schreibt, als der Filter nimmt. **Und das weiß man vorher meistens nicht.**
+
+Deshalb bleibt die strenge Form die einzig verlässliche: **Hängt ein Ergebnis am Exit-Code, gehört
+keine Pipe dazwischen.** Umleiten, Code direkt lesen, danach filtern. Alles andere ist eine
+Abkürzung mit einer Ausnahme, die man ihr nicht ansieht.
 
 #### Wann es besonders teuer wird
 
