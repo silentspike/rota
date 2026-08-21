@@ -34,6 +34,15 @@ use gemeinsam::rufe;
 /// Zwillinge für AC5, beide in der Instanz `testing`). Ohne diese Zeile wäre
 /// die 20 in vier Wochen eine Zahl ohne Beleg.
 ///
+/// **Am 2026-08-20 ein zweites Mal ausgelöst, auf 21:** `orch-maxload.json`, das
+/// Lastprofil des Orchestrators, lag bis dahin ungetrackt in einem einzigen
+/// Arbeitsbaum. Es ist auf ausdrückliche Freigabe hin aufgenommen worden
+/// (Fragenseite `f-905-lastprofil`) — und zwar mit `instance: "testing"` statt
+/// `"prologue"`. Genau daran hängt, dass diese Zeile die einzige ist, die sich
+/// ändert: Mit `"prologue"` wäre ein Messwerkzeug als Spielboss gezählt worden,
+/// `WERTUNGSFAEHIG` wäre auf 18 gesprungen und die Trennung, die dieser Test
+/// misst, wäre stillschweigend aufgehoben.
+///
 /// **`WERTUNGSFAEHIG` bleibt bei 17, und das ist die eigentliche Probe:** Wäre
 /// eines der beiden neuen Profile versehentlich in einer gewerteten Instanz
 /// gelandet, müsste diese Zahl auf 19 springen. Sie tut es nicht — damit ist
@@ -41,7 +50,7 @@ use gemeinsam::rufe;
 const SPIELINSTANZEN: usize = 5;
 const PRUEFPROFILE: usize = 2;
 const WERTUNGSFAEHIG: usize = 17;
-const PRUEFBOSSE: usize = 20;
+const PRUEFBOSSE: usize = 21;
 
 #[test]
 fn die_json_ausgabe_trennt_spielinstanzen_von_pruefprofilen() {
