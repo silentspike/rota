@@ -7958,6 +7958,27 @@ ist trotzdem kein Fund:
 Wer „Dev-Server" sucht, findet die Zeile. **Die allgemeine Überschrift schadet nicht, weil das
 Schlagwort danebensteht.**
 
+##### Die Grenze von (c): eine Spalte, kein fetter Satzanfang
+
+Nicht jedes hervorgehobene Stichwort ersetzt eine Überschrift. Der Unterschied ist **Scanbarkeit**:
+
+|                   | Form                                                                       | ersetzt die Überschrift?                            |
+| ----------------- | -------------------------------------------------------------------------- | --------------------------------------------------- |
+| Tabellenspalte    | alle Stichworte untereinander, linksbündig                                 | **ja** — mit dem Auge in einer Bewegung zu erfassen |
+| fetter Satzanfang | in einer Zeile mit dem Fließtext, eingerückt unter einem fremden Oberpunkt | **nein**                                            |
+
+Gemessen am `--base`-Fall in `CLAUDE.md`: Die Regel steht dort auf **Verschachtelungsebene 3**, als
+Unterpunkt von „Dev-Server", mit fettem Satzanfang. Wer die Liste überfliegt, sieht zuerst
+„Dev-Server" — das Stichwort der Regel geht in der Zeile unter.
+
+> **Nicht „es gibt ein Stichwort" macht auffindbar, sondern „die Stichworte stehen in einer Spalte
+> nebeneinander".**
+
+Diese Grenze kam von dem Worker, der (c) gefunden hatte — beim Versuch, sie auf einen zweiten Fall
+anzuwenden. Ohne sie hätte (c) Fälle mitgedeckt, die sie nicht decken soll, und weil (c) das
+**Ausschluss**kriterium ist, wäre der Schaden still: Funde, die keine mehr sind, ohne dass jemand
+widerspricht.
+
 Damit hat das Kriterium drei Formen:
 
 ```
