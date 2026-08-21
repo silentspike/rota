@@ -24,20 +24,20 @@ Durchgänge bitgleich dasselbe Ergebnis (mehrfach gemessen: Streuung 0,0).
 
 ## 2. Die Achsen des Kombinationsraums
 
-| Achse | heute im Bestand | Ziel laut Plan |
-| --- | --- | --- |
-| **Zauber** | 58 spielbar | 60 |
-| Leistenplätze | 12 auf Höchststufe (2 zu Beginn, 10 durch Aufstieg) | unverändert |
-| **Kandidatenzeilen** | 93 | wächst mit den Zaubern |
-| **Ausrüstungsplätze** | 10 | unverändert |
-| Affix-Arten | 4 in den Daten (`catalysis`, `essence`, `purity`, `yield`), 6 im Design | 6 |
-| Affix-Plätze je Stück | 1 / 2 / 3 / 3 nach Qualität (common … legendary) | unverändert |
-| Gegenstandsstufen | 1 bis 85 | unverändert |
-| **Talentbäume** | 6 | 15 Zweige |
-| Talente | 29 | ~50 |
-| **Talentpunkte** | 50 verteilbar (voller Ausbau bräuchte 113) | ~50 |
-| **Bosse** | 17 echte (plus 18 Prüf-Bosse) | 68 |
-| Schwierigkeiten | 4 | 4 |
+| Achse                 | heute im Bestand                                                        | Ziel laut Plan         |
+| --------------------- | ----------------------------------------------------------------------- | ---------------------- |
+| **Zauber**            | 58 spielbar                                                             | 60                     |
+| Leistenplätze         | 12 auf Höchststufe (2 zu Beginn, 10 durch Aufstieg)                     | unverändert            |
+| **Kandidatenzeilen**  | 93                                                                      | wächst mit den Zaubern |
+| **Ausrüstungsplätze** | 10                                                                      | unverändert            |
+| Affix-Arten           | 4 in den Daten (`catalysis`, `essence`, `purity`, `yield`), 6 im Design | 6                      |
+| Affix-Plätze je Stück | 1 / 2 / 3 / 3 nach Qualität (common … legendary)                        | unverändert            |
+| Gegenstandsstufen     | 1 bis 85                                                                | unverändert            |
+| **Talentbäume**       | 6                                                                       | 15 Zweige              |
+| Talente               | 29                                                                      | ~50                    |
+| **Talentpunkte**      | 50 verteilbar (voller Ausbau bräuchte 113)                              | ~50                    |
+| **Bosse**             | 17 echte (plus 18 Prüf-Bosse)                                           | 68                     |
+| Schwierigkeiten       | 4                                                                       | 4                      |
 
 **„Kandidatenzeile" statt „Zauber":** Eine Rotation ist eine geordnete Liste von Zeilen der
 Form `zauber if bedingung`. Derselbe Zauber erzeugt mehrere Zeilen — bedingungslos, an ein
@@ -201,7 +201,7 @@ Lauf zweimal dieselbe Zahl liefert. Diese Sortierung muss jede Parallelisierung 
 > ebenso lohnen.**
 
 Der letzte Satz ist das Ziel und verwirft eine Annahme, auf der alle bisherigen Messungen
-standen: dass es *eine* beste Rotation gibt, gegen die alles andere antritt. Gewollt ist
+standen: dass es _eine_ beste Rotation gibt, gegen die alles andere antritt. Gewollt ist
 das Gegenteil — **mehrere Wege, die sich mit passender Ausrüstung und passender
 Talentverteilung je für sich lohnen.**
 
@@ -209,13 +209,13 @@ Daraus folgt eine andere Fragestellung als „finde das Optimum":
 
 1. **Nicht ein Maximum, sondern eine Menge lokaler Maxima.** Für jede Zusammenstellung
    (Zauberauswahl + Ausrüstungsprofil + Talentverteilung) die beste Rotation — und dann die
-   Frage, ob diese Zusammenstellung mit *ihrer* besten Rotation konkurrenzfähig ist.
+   Frage, ob diese Zusammenstellung mit _ihrer_ besten Rotation konkurrenzfähig ist.
 2. **Die Achsen sind gekoppelt.** Ein Talent, das Brand-Dauer verlängert, ändert die optimale
    Rotation. Ein Affix, das Abklingzeiten verkürzt, ebenso. Man kann nicht erst die Rotation
    optimieren und dann die Ausrüstung.
 3. **Das Ergebnis ist eine Balance-Aussage, keine Empfehlung.** Gesucht wird nicht die beste
    Zusammenstellung für den Spieler, sondern die Antwort: Welche Zauber/Talente/Affixe
-   gewinnen *nirgends* — und welche Zahl müsste man ändern, damit sie irgendwo gewinnen?
+   gewinnen _nirgends_ — und welche Zahl müsste man ändern, damit sie irgendwo gewinnen?
 
 ---
 
@@ -225,7 +225,7 @@ Daraus folgt eine andere Fragestellung als „finde das Optimum":
    Es ist aber blind für Zusammenspiel, das erst ab drei Zeilen entsteht, und für Paare ohne
    Verstärkerbeziehung. Was ersetzt oder ergänzt es sinnvoll — Beam Search, genetische
    Verfahren, Simulated Annealing, Monte-Carlo-Baumsuche, ganzzahlige Programmierung? Was
-   passt zu einer Zielfunktion, die *ein Simulationslauf* ist und keine geschlossene Formel?
+   passt zu einer Zielfunktion, die _ein Simulationslauf_ ist und keine geschlossene Formel?
 
 2. **Gekoppelte Achsen.** Wie sucht man in einem Raum, dessen Teilräume sich gegenseitig
    bedingen, ohne das Produkt aller Achsen zu durchlaufen? Abwechselnde Optimierung? Ein
