@@ -112,6 +112,63 @@ fn ac1_beide_werte_treffen_dasselbe_fenster_wie_die_zeitangabe() {
     );
 }
 
+/// **Der Zwilling zu `ac1_beide_werte_treffen_dasselbe_fenster_wie_die_zeitangabe`
+/// — und er steht daneben, weil jener die Frage nicht beantworten KANN.**
+///
+/// Beide fragen, ob `boss.cast_remains` das Fenster trifft, das es beschreibt.
+/// Sie unterscheiden sich in genau einer Sache: der **Schwelle**.
+///
+/// | | Schwelle | kippt bei | dort in der Schlange |
+/// | --- | --- | --- | --- |
+/// | oben | `> 0` | Cast-Ende | `BossCastLands` — weckt ohnehin |
+/// | hier | `<= 500` | 500 ms davor | **nichts** |
+///
+/// Deshalb ist der obere grün, ob `switch_point` den Wert kennt oder nicht: Er
+/// wird an seinem Umschlagpunkt von einem fremden Ereignis geweckt. Dieser
+/// hier hängt am Weckruf und **nur** an ihm.
+///
+/// **Wer einen der beiden als Doppelung entfernt, nimmt entweder den
+/// Wirkungsnachweis weg oder die Kontrolle.** Gemessen am 2026-08-21: Mit
+/// `switch_point`-Eintrag sind beide grün; wird der Eintrag auf `None`
+/// zurückgesetzt, bleibt der obere grün und dieser wird rot.
+///
+/// **Warum `<=` und nicht `<`** — das ist keine Kosmetik, sondern gemessen:
+///
+/// ```text
+/// cast_remains <= 500 and casting   ->  1     trifft das Fenster
+/// cast_remains <  500 and casting   ->  0     trifft es NIE
+/// time >= 27501 and time < 28000    ->  1     das gleichwertige Zeitfenster
+/// ```
+///
+/// Der Weckruf landet auf dem Zeitpunkt, an dem `cast_remains` den Schwellwert
+/// ERREICHT. Bei `<= 500` ist die Bedingung dort erfüllt; bei `< 500` nicht, und
+/// ein zweiter Weckruf kommt nicht mehr — `at(500, 500)` ergibt `delta == 0` und
+/// damit `None`. Ein strikter Vergleich verpasst seinen eigenen Umschlagpunkt
+/// um eine Millisekunde und wird danach nur noch von fremden Ereignissen
+/// bemerkt. Gemeldet am 2026-08-21; hier steht die Schwelle, die misst.
+///
+/// Die Zeitangabe als Kontrolle ist dieselbe Bauart wie oben und aus demselben
+/// Grund erlaubt: Sie darf messen, was gebaut werden soll, aber es nicht
+/// ersetzen. „Fusion Call" beginnt bei 25000 ms und läuft 3000 ms — die letzten
+/// 500 ms sind 27500 bis 28000.
+#[test]
+fn ac1_die_engere_schwelle_haengt_am_weckruf_und_trifft_dasselbe_fenster() {
+    let ueber_restzeit = wuerfe(
+        "kindle if boss.cast_remains <= 500 and boss.casting\npurge\n",
+        "kindle",
+    );
+    let ueber_zeit = wuerfe(
+        "kindle if time >= 27500 and time < 28000\npurge\n",
+        "kindle",
+    );
+    assert_eq!(
+        ueber_restzeit, ueber_zeit,
+        "cast_remains <= 500 ergab {ueber_restzeit}, das gleichwertige Zeitfenster \
+         {ueber_zeit}. Weichen sie ab, wird die Bedingung nicht zum richtigen \
+         Zeitpunkt geprüft — dann fehlt `BossCastRemains` in `switch_point`."
+    );
+}
+
 /// **0, wenn nichts läuft** — die unbequeme Übereinkunft aus `Value`, hier
 /// festgehalten. Ändert sie jemand auf einen großen Ersatzwert, bricht dieser
 /// Fall, und das ist beabsichtigt: Jede bestehende Zeile mit
