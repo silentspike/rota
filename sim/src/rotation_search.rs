@@ -502,6 +502,15 @@ pub struct SearchResult {
     /// griff. Gemessen ist genau das passiert: Bei `max_len = 6` ist die Liste
     /// voll, bevor die Einzelzuege aufhoeren zu tragen.
     pub paare_geprueft: usize,
+    /// Wie viele DREIERGRUPPEN ueberhaupt zur Wahl standen (Issue #797).
+    ///
+    /// Dieselbe Aufgabe wie [`SearchResult::paare_geprueft`], eine Stufe
+    /// weiter — und hier ist sie noch noetiger: Eine Dreiergruppe braucht drei
+    /// freie Plaetze (`chosen.len() + 3 <= max_len`), also greift die
+    /// Laengengrenze frueher als beim Paar. „Kein Unterschied" kann deshalb
+    /// heissen: geprueft und verloren, ODER die Liste war schon zu voll, ODER
+    /// eine der drei Mengen in [`tripel_zuege`] war leer.
+    pub tripel_geprueft: usize,
 }
 
 /// Die Suche: jeder Kandidat wird an **jeder** Position probiert.
@@ -618,6 +627,12 @@ pub fn greedy_from(
 /// messen, das es so nicht gibt.
 ///
 /// `mit_paaren = false` ergibt exakt die Suche von vor #558.
+///
+/// **Seit #797 schaltet dieses Flag beides**: Paare und Dreiergruppen. Wer die
+/// zwei getrennt messen will — und für die Gegenprobe zum Tripel-Zug muss man
+/// das —, nimmt [`greedy_zuege`]. Der Grund für die Kopplung hier ist der
+/// Zweck des Schalters: `false` heißt „nur Einzelzüge, wie vor #558", und eine
+/// Dreiergruppe ist kein Einzelzug.
 #[must_use]
 pub fn greedy_opts(
     config: &BalanceConfig,
@@ -626,6 +641,74 @@ pub fn greedy_opts(
     start: &[Candidate],
     mit_paaren: bool,
 ) -> SearchResult {
+    greedy_zuege(
+        config,
+        pool,
+        max_len,
+        start,
+        Zuege {
+            paare: mit_paaren,
+            tripel: mit_paaren,
+        },
+    )
+}
+
+/// Welche zusammengesetzten Züge die Suche betrachten darf.
+///
+/// # Warum das ein eigener Typ ist und kein zweites `bool`
+///
+/// Zwei Wahrheitswerte hintereinander im Aufruf (`…, true, false)`) sind an der
+/// Aufrufstelle nicht lesbar, und beim Vertauschen ändert sich das Ergebnis
+/// ohne Fehlermeldung. Der Fall `paar_und_tripel_lassen_sich_getrennt_messen`
+/// hängt genau daran: Er misst dieselbe Stelle einmal mit und einmal ohne
+/// Dreiergruppen, und eine vertauschte Zeile hätte dort zwei gleiche Zahlen
+/// erzeugt — die aussehen wie „kein Unterschied".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Zuege {
+    /// Paare aus [`paar_zuege`] (Issue #558).
+    pub paare: bool,
+    /// Dreiergruppen aus [`tripel_zuege`] (Issue #797).
+    pub tripel: bool,
+}
+
+impl Zuege {
+    /// Nur Einzelzüge — die Suche von vor #558.
+    pub const NUR_EINZELN: Self = Self {
+        paare: false,
+        tripel: false,
+    };
+    /// Einzelzüge und Paare — die Suche zwischen #558 und #797.
+    pub const MIT_PAAREN: Self = Self {
+        paare: true,
+        tripel: false,
+    };
+    /// Alles, was die Suche heute kann.
+    pub const ALLE: Self = Self {
+        paare: true,
+        tripel: true,
+    };
+}
+
+/// Dieselbe Suche mit getrennt schaltbaren Paaren und Dreiergruppen (#797).
+///
+/// # Warum die Trennung Pflicht ist
+///
+/// Dieselbe Begründung wie bei `mit_paaren` in #558, eine Stufe weiter: Ein
+/// Gewinn, der mit Dreiergruppen gemessen wird, könnte auch von den Paaren
+/// kommen. Nur wer dieselbe Stelle mit Paaren **und ohne** Dreiergruppen messen
+/// kann, weiß, welche Stufe ihn gebracht hat.
+///
+/// Ohne diesen Schalter wäre die einzige Gegenprobe, die Tripel-Logik wieder
+/// auszubauen — also mit einem Werkzeug zu messen, das man dafür verändert.
+#[must_use]
+pub fn greedy_zuege(
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    max_len: usize,
+    start: &[Candidate],
+    zuege: Zuege,
+) -> SearchResult {
+    let mit_paaren = zuege.paare;
     let mut chosen: Vec<Candidate> = start.to_vec();
     // **Was schon in der Startliste steht, steht nicht mehr zur Wahl.** Sonst
     // koennte dieselbe Zeile zweimal in der Rotation landen — die zweite waere
@@ -635,6 +718,7 @@ pub fn greedy_opts(
         .collect();
     let mut measured = 0;
     let mut paare_geprueft = 0;
+    let mut tripel_geprueft = 0;
 
     // **Der Bezugspunkt für „verhindert" wird HIER bestimmt, einmal** (#814).
     //
@@ -718,11 +802,104 @@ pub fn greedy_opts(
             .as_ref()
             .is_some_and(|(_, _, m)| m.clearly_better_than(&best));
 
+        // **Der Dreiergruppen-Zug** (Issue #797).
+        //
+        // **`!einzeln_traegt` steht hier in der Bedingung, und das ist kein
+        // Beiwerk.** Der erste Entwurf rechnete die Gruppen in JEDER Runde und
+        // benutzte sie nur, wenn kein Einzelzug mehr trug — mit einem Kommentar
+        // daneben, der „solange etwas Billigeres traegt, wird das Teurere nicht
+        // gefragt" behauptete. Gefragt wurde es doch, jede Runde, und bezahlt
+        // wurde es auch: drei Einfuegungen je Gruppe und Stelle.
+        //
+        // Der Kommentar beschrieb die BENUTZUNG und las sich wie eine Aussage
+        // ueber die KOSTEN. Jetzt beschreibt er den Code.
+        //
+        // (Der Paar-Zug darueber rechnet weiterhin in jeder Runde. Das ist
+        // Bestand aus #558, nicht Gegenstand dieses Issues — aber wer dort
+        // Laufzeit sucht, findet sie hier beschrieben.)
+        let mut bester_tripel_zug: Option<(usize, usize, usize, usize, Measured)> = None;
+        if !einzeln_traegt && zuege.tripel && chosen.len() + 3 <= max_len {
+            let gruppen = tripel_zuege(pool, &offen);
+            tripel_geprueft += gruppen.len();
+            // **Die Namen folgen der Ordnung aus [`tripel_zuege`]**, nicht der
+            // Reihenfolge, in der die Glieder gedacht wurden: erst der
+            // Unterbrecher, dann die Zeile darum, dann der Erzeuger. Sie hiessen
+            // hier einmal `p_pos, q_pos, e_pos` — nach dem Drehen der Ordnung
+            // trug `p_pos` den Unterbrecher, und der naechste Leser haette das
+            // Gegenteil dessen gelesen, was der Code tut.
+            for (unterbrecher, zeile, erzeuger) in gruppen {
+                for stelle in 0..=chosen.len() {
+                    let mut versuch = chosen.clone();
+                    versuch.insert(stelle, pool[offen[unterbrecher]].clone());
+                    versuch.insert(stelle + 1, pool[offen[zeile]].clone());
+                    versuch.insert(stelle + 2, pool[offen[erzeuger]].clone());
+                    let gemessen = measure(config, "tripel", &versuch);
+                    measured += 1;
+                    let besser = match &bester_tripel_zug {
+                        None => true,
+                        Some((_, _, _, _, bisher)) => gemessen.mean > bisher.mean,
+                    };
+                    if besser {
+                        bester_tripel_zug = Some((unterbrecher, zeile, erzeuger, stelle, gemessen));
+                    }
+                }
+            }
+        }
+
         if !einzeln_traegt {
-            // **Hier und nur hier greift das Paar.** Solange ein einzelner Zug
-            // noch traegt, ist er billiger und die Suche laeuft wie bisher.
-            // Erst an der Stelle, an der `greedy` frueher aufgab, wird gefragt:
-            // Gibt es ein PAAR, dessen Haelften einzeln verloren haben?
+            // **Hier und nur hier greifen Paar und Dreiergruppe.** Solange ein
+            // einzelner Zug noch traegt, ist er billiger und die Suche laeuft
+            // wie bisher. Erst an der Stelle, an der `greedy` frueher aufgab,
+            // wird gefragt: Gibt es eine Gruppe, deren Glieder einzeln
+            // verloren haben?
+            //
+            // **Das Paar hat Vorrang vor der Dreiergruppe, wenn beide tragen**
+            // — und zwar bei GLEICHEM Messwert. Es verbraucht eine
+            // Listenposition weniger, und die Laengengrenze ist knapp: Was hier
+            // an Platz draufgeht, fehlt spaeter jeder weiteren Zeile. Ist die
+            // Dreiergruppe echt besser, gewinnt sie.
+            let paar_wert = bester_paar_zug.as_ref().map(|(_, _, _, m)| m.mean);
+            let tripel_wert = bester_tripel_zug.as_ref().map(|(_, _, _, _, m)| m.mean);
+            let tripel_gewinnt = match (paar_wert, tripel_wert) {
+                (None, Some(_)) => true,
+                (Some(p), Some(t)) => t > p,
+                _ => false,
+            };
+
+            if tripel_gewinnt {
+                let Some((unterbrecher, zeile, erzeuger, stelle, gemessen)) = bester_tripel_zug
+                else {
+                    break Stop::NoImprovement;
+                };
+                if !gemessen.clearly_better_than(&best) {
+                    break Stop::NoImprovement;
+                }
+                chosen.insert(stelle, pool[offen[unterbrecher]].clone());
+                chosen.insert(stelle + 1, pool[offen[zeile]].clone());
+                chosen.insert(stelle + 2, pool[offen[erzeuger]].clone());
+                // **Absteigend entfernen**, sonst verschiebt die erste
+                // Entnahme die uebrigen Indizes. Bei zwei Gliedern reichte ein
+                // Vergleich; bei drei wird sortiert, weil jede Handrechnung
+                // hier genau der Fehler waere, den die Sortierung erspart.
+                //
+                // Die drei koennen nicht gleich sein: Sie stammen aus drei
+                // Schleifen ueber sich gegenseitig ausschliessende Herkuenfte
+                // (NextStrikeWindow, BossCastWindow, Always). Waere das eines
+                // Tages nicht mehr so, entfernte die Schleife denselben Platz
+                // zweimal und nähme einen fremden Kandidaten mit.
+                let mut raus = [unterbrecher, zeile, erzeuger];
+                raus.sort_unstable();
+                debug_assert!(
+                    raus[0] != raus[1] && raus[1] != raus[2],
+                    "eine Dreiergruppe nennt denselben Platz zweimal: {raus:?}"
+                );
+                for pos in raus.iter().rev() {
+                    offen.remove(*pos);
+                }
+                best = gemessen;
+                continue;
+            }
+
             let Some((v_pos, n_pos, stelle, gemessen)) = bester_paar_zug else {
                 break Stop::NoImprovement;
             };
@@ -765,6 +942,7 @@ pub fn greedy_opts(
         measured,
         stop,
         paare_geprueft,
+        tripel_geprueft,
     }
 }
 
@@ -859,12 +1037,35 @@ pub fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
     // waehlt die Suche die PIN-Zeile bei KEINEM Gewicht auf das Verhinderte
     // (0, 1, 5, 20, 100 geprueft).
     //
-    // **Die Reihenfolge ist nicht beliebig.** Eingefuegt wird der erste Teil
-    // ueber den zweiten, und PIN muss fallen, BEVOR der Schlag kommt. Umgekehrt
-    // stuende der Unterbrecher ueber einem Zauber, der ihm erst sein Ziel
-    // verschafft.
-    for (n_pos, &nutzer) in offen.iter().enumerate() {
-        if pool[nutzer].origin != Origin::BossCastWindow || !SPELLS[pool[nutzer].spell].interrupt {
+    // **PIN STEHT OBEN — und diese Reihenfolge ist gemessen, nicht abgeleitet.**
+    //
+    // Sie war zwischendurch gedreht. Die Begruendung dafuer klang gut: Eine
+    // Prioritaetenliste ist keine Sequenz, sie wird bei jeder Entscheidung neu
+    // von oben gelesen; steht PIN oben, koennte er in dem Takt gewinnen, in dem
+    // der Boss GERADE wirkt, und der Unterbrecher kaeme zu spaet.
+    //
+    // GEMESSEN AN `test-metronome` (Schleife 6000 ms, unterbrechbarer Cast UND
+    // Schlag, also die Lage, in der sich die beiden Bedingungen ueberlappen):
+    //
+    // ```text
+    //   PIN oben       2776 Leben       67 PIN-Wuerfe
+    //   QUENCH oben    2768 Leben       67 PIN-Wuerfe
+    // ```
+    //
+    // PIN oben ist besser. Die Ableitung war plausibel und falsch, und der
+    // Unterschied ist klein (8 von 5000) — aber der Simulator ist
+    // deterministisch (GAME-DESIGN 18.4), also ist er reproduzierbar und kein
+    // Rauschen.
+    //
+    // **Der erste Messversuch konnte die Frage gar nicht beantworten**: Er fuhr
+    // `test-lethal-strike` mit EINEM Eintrag und ohne Schleife und ergab
+    // Gleichstand — dort kann die Ueberlappung nicht eintreten.
+    // `die_reihenfolge_im_block_ist_gemessen` faehrt sie deshalb an den Bossen,
+    // an denen sie entscheidbar ist.
+    for (n_pos, &unterbrecher) in offen.iter().enumerate() {
+        if pool[unterbrecher].origin != Origin::BossCastWindow
+            || !SPELLS[pool[unterbrecher].spell].interrupt
+        {
             continue;
         }
         for (v_pos, &kandidat) in offen.iter().enumerate() {
@@ -875,6 +1076,121 @@ pub fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
     }
 
     paare
+}
+
+/// Die Dreiergruppen, die auch als Paar noch verlieren (Issue #797).
+///
+/// # Warum zwei hier nicht reichen
+///
+/// [`paar_zuege`] bildet fuer PIN das Paar „angreifbar machen, dann
+/// unterbrechen". Gemessen wird es gebildet und gewinnt trotzdem nichts — und
+/// der Grund steht in den Zauberdaten: **PIN kostet drei Kontroll-Punkte**, die
+/// im Kampf erst erzeugt werden muessen.
+///
+/// ```text
+/// Erzeuger   erzeugt Kontroll-Punkte      allein: ein mittelmaessiger Fueller
+/// PIN        macht den Schlag angreifbar  allein: NICHT WIRKBAR
+/// QUENCH     unterbricht ihn              allein: findet nie etwas Laufendes
+/// ```
+///
+/// Keine der drei traegt allein, und **auch kein Paar daraus**: Ohne Erzeuger
+/// ist PIN nicht wirkbar, ohne PIN hat QUENCH nichts zu unterbrechen, und
+/// Erzeuger plus QUENCH ohne PIN ist nur ein Fueller mit einer toten Zeile.
+/// Die kleinste Einheit, die etwas wert ist, hat hier drei Glieder.
+///
+/// # Warum es trotzdem billig bleibt
+///
+/// **Kein Suchraum aus drei Freiheitsgraden.** Alle drei Glieder folgen aus den
+/// Daten, so wie das Paar aus #558 aus dem Verstaerker in der Bedingung folgt:
+///
+/// 1. Der Ausgangspunkt ist eine [`Origin::NextStrikeWindow`]-Zeile.
+/// 2. Der Unterbrecher ist die [`Origin::BossCastWindow`]-Zeile eines Zaubers
+///    mit `interrupt`.
+/// 3. Der Erzeuger ist die unbedingte Zeile eines Zaubers mit
+///    `control_gain > 0` — und nur dann, wenn der Ausgangspunkt ueberhaupt
+///    Kontroll-Punkte **kostet**.
+///
+/// Bei den heutigen Daten sind das 1 x 1 x 3 Gruppen. Waere eine der drei
+/// Mengen leer, entstuende gar keine — das ist der Unterschied zwischen einer
+/// abgelesenen Beziehung und einer Sonderregel fuer einen Zauber.
+///
+/// # Die Reihenfolge ist nicht beliebig — und sie ist GEMESSEN
+///
+/// Eingefuegt wird in der zurueckgegebenen Ordnung, und eine Prioritaetenliste
+/// wird bei **jeder** Entscheidung von oben gelesen. Herauskommt:
+///
+/// ```text
+/// 1  die Zeile darum    `pin if boss.next_strike_in <= X`
+/// 2  der Unterbrecher   `quench if boss.casting`
+/// 3  der Erzeuger       unbedingt, fuellt die Kontroll-Punkte
+/// ```
+///
+/// **Der Erzeuger steht unten**, weil seine unbedingte Zeile in jedem Takt
+/// trifft, in dem seine Abklingzeit gefallen ist — bei `bind` jeden GCD.
+/// Stuende er oben, kaeme PIN nie an die Reihe, und die Gruppe waere aus
+/// demselben Grund tot, aus dem sie gebaut wurde.
+///
+/// **PIN steht ueber dem Unterbrecher, und das ist gegen meine Ableitung.**
+/// Sie lautete: Eine Prioritaetenliste ist keine Sequenz; steht PIN oben,
+/// koennte er in dem Takt gewinnen, in dem der Boss GERADE wirkt, und der
+/// Unterbrecher kaeme zu spaet. Das klang zwingend.
+///
+/// Gemessen an `test-metronome` — Schleife 6000 ms, unterbrechbarer Cast UND
+/// Schlag, also die Lage, in der sich beide Bedingungen ueberlappen:
+///
+/// ```text
+///   PIN oben       2776 Leben       67 PIN-Wuerfe
+///   QUENCH oben    2768 Leben       67 PIN-Wuerfe
+/// ```
+///
+/// Der Unterschied ist klein (8 von 5000), aber der Simulator ist
+/// deterministisch (GAME-DESIGN 18.4) — er ist reproduzierbar und kein
+/// Rauschen.
+///
+/// **Der erste Messversuch konnte die Frage gar nicht beantworten.** Er fuhr
+/// `test-lethal-strike`: EIN Eintrag, keine Schleife, Ergebnis Gleichstand.
+/// Dort kann die Ueberlappung nicht eintreten — ein Fall, der genau den Fall
+/// nicht enthaelt, fuer den er gebaut wurde.
+/// `die_reihenfolge_im_block_ist_gemessen` faehrt sie deshalb an den Bossen,
+/// an denen sie entscheidbar ist.
+#[must_use]
+pub fn tripel_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize, usize)> {
+    let mut gruppen = Vec::new();
+
+    for (p_pos, &pin) in offen.iter().enumerate() {
+        if pool[pin].origin != Origin::NextStrikeWindow {
+            continue;
+        }
+        // **Nur wenn der Zauber ueberhaupt bezahlt werden muss.** Kostet er
+        // nichts, ist der Erzeuger kein Glied der Gruppe, sondern eine
+        // beliebige dritte Zeile — und die zu suchen waere der Suchraum, den
+        // diese Funktion gerade vermeidet.
+        let Some(kosten) = SPELLS[pool[pin].spell].control.map(|c| c.cost) else {
+            continue;
+        };
+        if kosten == 0 {
+            continue;
+        }
+
+        for (q_pos, &quench) in offen.iter().enumerate() {
+            if pool[quench].origin != Origin::BossCastWindow
+                || !SPELLS[pool[quench].spell].interrupt
+            {
+                continue;
+            }
+            for (e_pos, &erzeuger) in offen.iter().enumerate() {
+                if pool[erzeuger].origin == Origin::Always
+                    && SPELLS[pool[erzeuger].spell].control_gain > 0
+                {
+                    // Die Zeile darum, dann der Unterbrecher, dann der Erzeuger
+                    // — gemessen, siehe Doc-Kommentar.
+                    gruppen.push((p_pos, q_pos, e_pos));
+                }
+            }
+        }
+    }
+
+    gruppen
 }
 
 /// Der Zauber, dessen Verstaerkung eine Bedingung abfragt.
@@ -973,6 +1289,9 @@ pub fn exhaustive(config: &BalanceConfig, pool: &[Candidate], max_len: usize) ->
         // Teilmenge, also auch jedes Paar. Null heisst hier „nicht noetig",
         // nicht „nicht geprueft".
         paare_geprueft: 0,
+        // Dasselbe fuer Dreiergruppen (#797): Wer jede Teilmenge prueft, prueft
+        // auch jede Dreiergruppe. Die Null steht hier aus demselben Grund.
+        tripel_geprueft: 0,
     }
 }
 
