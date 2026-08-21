@@ -2686,10 +2686,6 @@ ENDE
 **Nicht mehr in den Chat kopieren.** Der Auftraggeber war früher der Transportweg; seit dem
 2026-07-28 schreiben die Sitzungen einander direkt. Einzelheiten in [`IPC.md`](IPC.md).
 
-> **Wer einen Merge meldet, nennt den Commit**, den er gemergt hat — nicht nur die PR-Nummer.
-> Warum das den Unterschied macht, steht in
-> [8.65](#865-gemergt-ist-eine-aussage-über-einen-pr-nicht-über-einen-zweig).
-
 > **Die Anführungszeichen um `'ENDE'` gehören dazu.** Ohne sie führt die Shell aus, was sie im
 > Fließtext erkennt — `$…` und alles in Backticks. Die Nachricht geht trotzdem raus, nur fehlt an
 > der Stelle ein Wort, und der Satz liest sich fast normal. Der ganze Fall steht in
