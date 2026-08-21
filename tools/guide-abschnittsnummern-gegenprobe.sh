@@ -71,16 +71,35 @@ else
 fi
 
 # --- A: Beispiel im Codeblock darf NICHT ausloesen ---------------------------
+#
+# **Exit 0 allein genuegt hier nicht.** "Kein Alarm" und "gar nichts gemessen"
+# sehen von aussen gleich aus: Ein Waechter, der keine Datei findet, alarmiert
+# auch nicht. Deshalb zaehlt A die geprueften Dateien mit — erst dann heisst
+# Exit 0 wirklich "kein Fehlalarm".
+#
+# Gefunden vom Orchestrator mit einer dritten Mutation (Filter leert ALLES,
+# nicht nur Codebloecke): A wurde rot und meldete "Fehlalarm auf Beispieltext".
+# Es gab keinen Fehlalarm — es gab keine Messung. Die ROT-Zeile nennt jetzt,
+# WAS gemessen wurde, statt eine Ursache zu behaupten.
 {
   printf '\n<!-- gegenprobe-1023 -->\n\n```text\n'
   printf '### %s Beispieltext, keine Ueberschrift\n' "$NUMMER"
   printf '```\n'
 } >> "$OPFER"
 aus=$(bash "$WAECHTER" 2>&1); code=$?
-if [ "$code" = 0 ]; then
-  melde ok "A Beispiel im Codeblock" "kein Alarm, Exit 0"
+# ZWEI Zeilenformen zaehlen als "geprueft": die unauffaellige Meldung UND der
+# Alarm. Ein erster Versuch zaehlte nur "keine doppelt" — unter der Mutation
+# "Filter raus" meldete A dann "nur 4 Dateien, nichts gemessen", obwohl sehr
+# wohl gemessen worden war: Die fuenfte Datei war die alarmierende. Die
+# Diagnose waere falsch gewesen, und zwar in die bequeme Richtung.
+geprueft=$(grep -cE 'Abschnittsnummern, keine doppelt|Doppelt vergebene' <<<"$aus" || true)
+if [ "$code" = 0 ] && [ "$geprueft" -ge 5 ]; then
+  melde ok "A Beispiel im Codeblock" "kein Alarm, Exit 0, $geprueft Dateien geprueft"
+elif [ "$geprueft" -lt 5 ]; then
+  melde ROT "A Beispiel im Codeblock" "Exit $code, aber nur $geprueft Dateien geprueft — nichts gemessen, nicht 'kein Alarm'"
+  printf "%s\n" "$aus" | head -3 | sed 's/^/        /'
 else
-  melde ROT "A Beispiel im Codeblock" "Exit $code — Fehlalarm auf Beispieltext"
+  melde ROT "A Beispiel im Codeblock" "Exit $code bei $geprueft geprueften Dateien — Fehlalarm auf Beispieltext"
   grep -A3 'Doppelt' <<<"$aus" | sed 's/^/        /'
 fi
 
@@ -106,11 +125,18 @@ else
 fi
 
 # Und die Beispielzeile darf NICHT dabei sein.
+#
+# **Dieselbe Voraussetzung wie D:** "X ist nicht dabei" ist trivial erfuellt,
+# wenn gar nichts dabei ist. Ohne die Pruefung auf nicht-leere Fundstellen war
+# diese Zeile unter der dritten Mutation des Orchestrators gruen — waehrend die
+# Fundstellen leer waren und die vier Zeilen darueber rot.
 BEISPIEL_ZEILE=$(grep -nE "^#{2,4} ${NUMMER//./\\.} Beispieltext" "$OPFER" | cut -d: -f1)
-if grep -qE "(^| )$BEISPIEL_ZEILE( |$)" <<<"$gemeldet"; then
+if [ -z "${gemeldet// /}" ]; then
+  melde ROT "D Beispielzeile ausgeschlossen" "keine Fundstellen — die Pruefung waere leer erfuellt"
+elif grep -qE "(^| )$BEISPIEL_ZEILE( |$)" <<<"$gemeldet"; then
   melde ROT "D Beispielzeile ausgeschlossen" "Zeile $BEISPIEL_ZEILE steht in den Fundstellen"
 else
-  melde ok "D Beispielzeile ausgeschlossen" "Zeile $BEISPIEL_ZEILE fehlt in den Fundstellen"
+  melde ok "D Beispielzeile ausgeschlossen" "Zeile $BEISPIEL_ZEILE fehlt unter $gemeldet"
 fi
 
 cp "$SICHERUNG" "$OPFER"
