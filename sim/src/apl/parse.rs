@@ -361,6 +361,7 @@ fn parse_value(
         ["boss", "hp_pct"] => return Ok(Value::BossHpPercent),
         ["boss", "casting"] => return Ok(Value::BossCasting),
         ["boss", "cast_remains"] => return Ok(Value::BossCastRemains),
+        ["boss", "next_strike_in"] => return Ok(Value::BossNextStrikeIn),
         ["fight", "remains"] => return Ok(Value::FightRemains),
         ["cooldown", spell, field] => {
             let index = lookup_spell(spell, token, fail)?;
