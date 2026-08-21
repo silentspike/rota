@@ -8107,3 +8107,58 @@ eingebaut.
 
 Der einzige Lauf, der etwas über die Übersetzbarkeit sagt, ist `clippy --all-targets` oder
 `cargo test --no-run`. Und er zählt nur, wenn er **nach** der letzten Änderung lief — nicht davor.
+
+### 8.122 Eine Absicherung ist Code und verdient dieselbe Skepsis wie das, was sie absichert
+
+Am 2026-08-21 hat ein Worker in **derselben Aufgabe zweimal** eine Prüfung gebaut, die nichts prüfte
+— während die Arbeit selbst jedes Mal richtig war.
+
+|              | die Prüfung                          | was sie tat                                                                                                |
+| ------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| erster Fall  | `… \| grep \| sed \|\| echo "keine"` | die Entwarnung konnte nie feuern ([8.120](#8120-der-exit-code-hinter-einer-pipe-gehört-dem-letzten-glied)) |
+| zweiter Fall | `grep -c "<Satz>" datei`             | Treffer **und** Kontrolle beide `0`                                                                        |
+
+Der zweite ist der lehrreichere. Er wollte belegen, dass ein neu geschriebener Abschnitt wirklich in
+der Datei steht:
+
+```
+grep -c "Zierrat, der sich als Absicherung ausgab"  uebergabe.md   ->  0
+grep -c "diesen-satz-gibt-es-nicht"                 uebergabe.md   ->  0
+```
+
+Der Satz **stand drin** — im Markdown über zwei Zeilen umbrochen, das Muster war einzeilig.
+Nachgewiesen mit `tr '\n' ' '` und einzeiligen Fragmenten: 1, 1, 1, Kontrolle 0.
+
+> **Gefangen hat es nicht der Wert, sondern dass beide Werte gleich waren.** Ein Detektor, dessen
+> erwarteter Treffer und dessen Kontrolle dasselbe sagen, misst nichts — er sagt nur, dass er
+> nichts findet, und das tut er in beiden Welten.
+
+#### Die Diagnose verschiebt sich
+
+Naheliegend wäre „ich prüfe zu wenig". Die Formulierung des Messenden trifft es genauer:
+
+> Nicht „ich prüfe zu wenig", sondern **„ich schreibe die Prüfung nebenbei, in einer Zeile, ohne sie
+> selbst zu prüfen"**.
+
+Das erklärt, warum es gerade den trifft, der sorgfältig arbeitet: Die Absicherung entsteht **neben**
+der eigentlichen Arbeit, in einem Moment, in dem die Aufmerksamkeit woanders liegt. Sie bekommt
+keinen eigenen Gedanken, weil sie ja nur bestätigen soll, was man schon weiß.
+
+Genau deshalb ist sie gefährlich. Eine Prüfung, die man ernst nimmt, würde man gegenprüfen; eine,
+die man nebenbei schreibt, glaubt man.
+
+#### Die Probe
+
+Sie ist billig und dieselbe wie in
+[8.119](#8119-ein-filter-ohne-mitgeführten-kontrollfall-ist-von-außen-nicht-zu-beurteilen), nur auf
+die eigene Prüfzeile angewandt:
+
+> **Kann diese Zeile ein anderes Ergebnis liefern als das, das sie gerade geliefert hat?**
+
+Bei `grep -c` mit erwartetem Treffer heißt das: Stelle sicher, dass die Kontrolle einen **anderen**
+Wert liefert als der erwartete Treffer. Sind beide gleich, hat man nicht gemessen, sondern
+zweimal dasselbe Schweigen gehört.
+
+Und bei mehrzeiligen Quellen — Markdown, YAML, formatiertem Code — gehört `tr '\n' ' '` oder
+`grep -z` dazu, bevor man aus einer Null etwas schließt. Ein Zeilenumbruch ist kein Fehler in der
+Datei; er ist einer im Muster.
