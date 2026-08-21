@@ -104,6 +104,10 @@ def schreibe(ziel, ergebnisse):
     ziel.write_text("\n".join(zeilen) + "\n")
 
 
+# Das Bauprotokoll: tests-lokal.sh liest die Binary-Pfade daraus.
+BAU_LOG = "/work/tmp/e1-1045-bau.log"
+
+
 def lauf(befehl, timeout):
     p = subprocess.run(befehl, shell=True, cwd=WURZEL, capture_output=True, text=True, timeout=timeout)
     return p.returncode, (p.stdout + p.stderr)
@@ -139,7 +143,18 @@ def main():
     # Die Unterscheidung "Frische färbte" gegen "Wirkung färbte auch" braucht
     # die VOLLSTÄNDIGE Liste der roten Fälle. Deshalb laufen beide Suiten hier
     # bis zum Ende durch, und die Auswertung erfolgt über die Namen.
-    rust = "cargo remote -c -- test --no-fail-fast --all-targets"
+    # ZWEI SCHRITTE STATT EINEM (#1045): rustbuild BAUT, die Zielmaschine
+    # FUEHRT AUS. rustbuild hat kein AVX2/FMA — ein Lauf dort misst eine andere
+    # Maschine als die, fuer die gebaut wird (/work/.claude/CLAUDE.md,
+    # "Rust — Remote-Build").
+    #
+    # `--alle-namen` IST PFLICHT, nicht Geschmackssache: Ohne den Schalter kappt
+    # tests-lokal.sh bei DREI roten Namen. Die Klassifikation unten braucht die
+    # vollstaendige Liste — im letzten Durchgang trugen 57 von 58 Feldern mehr
+    # als drei, das groesste 164. Mit der Kappung liefe alles durch und die
+    # Auswertung waere Unsinn, ohne einen einzigen roten Lauf.
+    rust_bau = "cargo remote -c -- test --no-run --all-targets"
+    rust_lauf = f"bash tools/tests-lokal.sh --alle-namen {BAU_LOG}"
     ts = "npx vitest run"
 
     wo = blattfelder()
@@ -170,7 +185,15 @@ def main():
     # zu lesen: "eine Prüfung färbt" traf zu, die Zahl stimmte, der Exit-Code
     # stimmte. Nur der Name verriet es.
     print("Nullprobe (ohne Mutation) ...", flush=True)
-    rc_r, _ = lauf(rust, args.timeout)
+    # AUCH HIER ZWEI SCHRITTE. Die Nullprobe MUSS bauen: Ohne den Bau faehrt sie
+    # gegen Binaries aus einem frueheren Lauf und misst einen Baum, der so gar
+    # nicht mehr existiert.
+    rc_bau, aus_bau = lauf(f"{rust_bau} > {BAU_LOG} 2>&1", args.timeout)
+    if "error: could not compile" in aus_bau or rc_bau != 0:
+        print(f"ABBRUCH: Der Bau bricht schon vor der ersten Mutation "
+              f"(rc={rc_bau}). Siehe {BAU_LOG}.")
+        return 3
+    rc_r, _ = lauf(rust_lauf, args.timeout)
     rc_t, _ = lauf(ts, args.timeout)
     if rc_r != 0 or rc_t != 0:
         print(f"ABBRUCH: Der Baum ist schon vor der ersten Mutation rot "
@@ -211,8 +234,37 @@ def main():
                 continue
 
             t0 = time.monotonic()
-            rc_r, aus_r = lauf(rust, args.timeout)
-            gebrochen = "error: could not compile" in aus_r or "error[E" in aus_r
+            # `rc_bau != 0` STEHT VORNE, und zwar aus einem gemessenen Grund:
+            # Ein Panic in `build.rs` bricht den Bau mit Exit 101, schreibt aber
+            # WEDER "could not compile" NOCH "error[E" ins Log — dort steht
+            # "failed to run custom build command" und "panicked at". Gemessen am
+            # 2026-08-21 durch Streichen eines Pflichtfeldes: beide Textmuster
+            # fanden nichts, der Exit-Code war 101.
+            #
+            # Das Textmuster stammt aus dem Bestand und war dort HARMLOS: `cargo
+            # test` faehrt bei gebrochenem Bau nichts, `rc_r` wurde ungleich 0,
+            # und der Fall landete als ROT statt BAU — falsch einsortiert, aber
+            # ohne falsche Zahlen. NACH DEM UMBAU waere er gefaehrlich: Ohne
+            # `gebrochen` liefe der lokale Lauf gegen die ALTEN Binaries und
+            # meldete die Namen des VORIGEN Feldes.
+            #
+            # DER BAU-FEHLER ENTSTEHT IM ERSTEN SCHRITT, nicht im zweiten.
+            # Wuerde `gebrochen` die LAUF-Ausgabe pruefen, saehe ein Feld,
+            # dessen Mutation den Bau bricht, aus wie eines, das nichts bewirkt —
+            # also wie totes Gewicht, das man entfernen kann.
+            rc_bau, aus_bau = lauf(f"{rust_bau} > {BAU_LOG} 2>&1", args.timeout)
+            aus_bau += pathlib.Path(BAU_LOG).read_text() if pathlib.Path(BAU_LOG).exists() else ""
+            gebrochen = (rc_bau != 0 or "error: could not compile" in aus_bau
+                         or "error[E" in aus_bau)
+
+            # BRICHT DER BAU, WIRD NICHT GEFAHREN. Die alten Binaries liegen
+            # noch lokal — ein Lauf gegen sie waere gruen und misst DAS VORIGE
+            # FELD. Bei `cargo test` gab es diesen Fall nicht: Dort baut und
+            # faehrt derselbe Aufruf.
+            if gebrochen:
+                rc_r, aus_r = rc_bau, aus_bau
+            else:
+                rc_r, aus_r = lauf(rust_lauf, args.timeout)
             rc_t, aus_t = lauf(ts, args.timeout)
             dauer = time.monotonic() - t0
 
