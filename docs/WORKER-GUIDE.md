@@ -8904,6 +8904,22 @@ wäre rot. Sie ist grün. Damit war die These widerlegt, bevor sie aufgeschriebe
   und keine Behauptung, und niemand arbeitet vier Stunden an einer Sache, die im Nachbarcode
   schon widerlegt ist.
 
+#### Die Rücknahme kann denselben Fehler in der Gegenrichtung machen
+
+Der erste Fall oben wurde zurückgenommen, nachdem der Nachbarcode ihn widerlegte. **Die
+Rücknahme ging zu weit**, und ein Gegenleser hat es gefangen:
+
+Die Widerlegung galt für `test-lethal-strike`. Der beanstandete Prüffall fährt aber **vier
+andere Bosse** mit eigenen Zeitleisten — für die sagt sie nichts. Einer davon trägt sogar
+genau dieselben 5200 Lebenspunkte, und derselbe Autor sichert für den anderen Boss
+ausdrücklich ab, was hier geerbt wird.
+
+> Erst zu weit behauptet, dann zu weit zurückgenommen — beide Male, weil **eine** Erklärung auf
+> **alle** Fälle übertragen wurde.
+
+Ein Beleg deckt genau den Fall, an dem er gemessen wurde. Beim Zurücknehmen gilt dieselbe
+Sorgfalt wie beim Behaupten.
+
 ### 8.138 Wer den Bezugspunkt wechselt, wechselt ihn nicht für alle Teilfragen
 
 Eine Messung gegen einen bestimmten Stand (`origin/main`, ein Commit, ein Tag) bekommt ihren
@@ -8943,3 +8959,43 @@ Verwandt: 8.127 (wer eine Datei mehrfach nachzieht, prüft sie gegen sich selbst
 Nachbarfall am selben Tag — Zauber gezählt, indem die **Dateien** unter `data/spells` gezählt
 wurden; dort liegt eine Datei je **Schule**. Ergebnis 11 statt 56, gefangen von der
 mitlaufenden Kontrolle („`crust` muss existieren" meldete FALSE).
+
+### 8.139 Eine Trägerzeile muss die Größe sichern, die verglichen wird
+
+Eine Trägerzeile sichert, dass die Messung **stattgefunden hat**. Sie muss dafür die Größe
+prüfen, die am Ende **verglichen** wird — nicht eine daneben, die plausibel aussieht.
+
+Gemessen am 2026-08-22 in einem Fall, der zwei Rotationen vergleicht und als Ergebnis das
+übrige Leben des Spielers nimmt:
+
+```rust
+// die Trägerzeile
+assert!(pin_gebaut > 0 || pin_vertauscht > 0, "PIN wurde in KEINEM der beiden Laeufe geworfen …");
+
+// die eigentliche Zusicherung
+assert!(leben_gebaut >= leben_vertauscht, …);
+```
+
+Sie verlangt, dass `PIN` **geworfen** wurde. Sie verlangt **nicht**, dass die beiden
+Leben-Zahlen sich unterscheiden.
+
+**Der Fall kann damit leer laufen, ohne dass es auffällt:** Töten beide Rotationen den Boss zur
+selben Zeit, sind beide Zahlen gleich, `>=` ist grün, und gemessen wurde nichts. Ein
+Gleichstand aus Wirkungsgleichheit sieht für die Trägerzeile aus wie ein durchgeführter
+Vergleich.
+
+Die Datei beschreibt diesen Zustand sogar selbst — für einen **anderen** Boss, den sie deshalb
+aussortiert („Gleichstand, und der ist zwangsläufig"). Für die vier verwendeten wurde dieselbe
+Frage nicht gestellt.
+
+#### Die Prüffrage
+
+> Bei einer Zusicherung der Form `a >= b` oder `a == b`: **Was garantiert, dass `a` und `b`
+> überhaupt verschieden sein können?**
+
+Ist die Antwort „nichts", ist der grüne Lauf mit einem leeren Vergleich vereinbar. Die
+Trägerzeile gehört dann auf die Differenz, nicht auf eine Vorbedingung.
+
+Verwandt: 8.129 (der Fehlertext ist der einzige ungeprüfte Teil) und 8.131 (die Prüfumgebung
+muss die Suchumgebung sein) — dieselbe Familie: eine Absicherung, die grün ist, weil sie die
+falsche Frage stellt.
