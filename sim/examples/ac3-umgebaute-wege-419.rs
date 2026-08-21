@@ -1,8 +1,9 @@
 //! #419 AC3: Gewinnen die VIER UMGEBAUTEN Wege jetzt irgendwo?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
 //!   --example ac3-umgebaute-wege-419
+//! ./target/release/examples/ac3-umgebaute-wege-419
 //! ```
 //!
 //! # Warum dieser Laeufer noetig ist

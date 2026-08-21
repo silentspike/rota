@@ -1,8 +1,9 @@
 //! Die Gewichts-Kurve: Was waehlt die Suche bei welchem `prevented_weight`?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- run --release \
+//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
 //!   --example gewicht-reihe-419
+//! ./target/release/examples/gewicht-reihe-419
 //! ```
 //!
 //! # Die Frage, die dieser Laeufer beantwortet

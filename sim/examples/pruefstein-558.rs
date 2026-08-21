@@ -36,7 +36,8 @@
 //! erfinden, die zufaellig passt.
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- run --release --example pruefstein-558
+//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release --example pruefstein-558
+//! ./target/release/examples/pruefstein-558
 //! ```
 
 use rota_sim::balance::BalanceConfig;
