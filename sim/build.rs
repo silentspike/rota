@@ -542,11 +542,27 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
         "        channel_ms: {},",
         opt_uint(spell, "channelMs", &whose, 0)
     );
-    let _ = writeln!(
-        out,
-        "        channel_tick_ms: {},",
-        opt_uint(spell, "channelTickMs", &whose, 0)
+    // **`channelTickMs` MUSS auf dem Raster liegen** (Issue #1104).
+    //
+    // Der Abstand wird in `fight.rs` zum Termin gerechnet: Der ERSTE Tick geht
+    // durch `snap_up`, die folgenden nicht — dort steht `at += schritt`. Und
+    // `hasted_ms` rastert zwar sein Ergebnis, kehrt aber bei Tempo 0 mit dem
+    // ROHEN Wert zurueck (`haste.rs`, `if permille == 0 { return base_ms }`).
+    // Ohne Tempo ist der Rohwert also der Schritt.
+    //
+    // Ein `channelTickMs: 333` legte damit Termine auf 333, 666, 999 — neben
+    // das 10-ms-Raster des Spiels. Die TypeScript-Seite prueft heute, dass
+    // `channelMs` ein Vielfaches von `channelTickMs` ist; sie prueft NICHT,
+    // dass der Tick selbst darstellbar ist. Zwei Rasterfragen, und nur eine
+    // davon war beantwortet.
+    let channel_tick = opt_uint(spell, "channelTickMs", &whose, 0);
+    assert!(
+        channel_tick.is_multiple_of(RASTER_MS),
+        "{whose}: channelTickMs {channel_tick} liegt nicht auf dem \
+         {RASTER_MS}-ms-Raster des Spiels — die Teilwirkungen nach der ersten \
+         laegen zwischen zwei Takten"
     );
+    let _ = writeln!(out, "        channel_tick_ms: {channel_tick},");
     let _ = writeln!(
         out,
         "        triggers_gcd: {},",
@@ -636,11 +652,27 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
             .and_then(Value::as_bool)
             .unwrap_or(false)
     );
-    let _ = writeln!(
-        out,
-        "        cooldown_reduction_ms: {},",
-        opt_uint(spell, "cooldownReductionMs", &whose, 0)
+    // **`cooldownReductionMs` MUSS auf dem Raster liegen** (Issue #1104).
+    //
+    // `sublimation.rs`, `shorten_cooldowns`: `*slot = slot.saturating_sub(
+    // order.amount).max(now)` — ohne `snap_up`. Ein ungerasterter Betrag
+    // verschiebt die Bereitschaft neben den Takt, und der Zauber waere im
+    // Simulator zu einem Zeitpunkt bereit, den das Spiel nicht kennt.
+    //
+    // `cooldownReductionBelowMs` steht bewusst NICHT unter derselben Regel:
+    // Es ist eine VERGLEICHSSCHWELLE (`slot - now >= below` in derselben
+    // Datei), kein Zeitpunkt. Ein Wert daneben verschiebt, WELCHE Abklingzeit
+    // erfasst wird, erzeugt aber keinen Termin zwischen zwei Takten. Der
+    // Unterschied ist nicht die Einheit — beide heissen `…Ms` —, sondern was
+    // aus dem Wert wird.
+    let cd_reduction = opt_uint(spell, "cooldownReductionMs", &whose, 0);
+    assert!(
+        cd_reduction.is_multiple_of(RASTER_MS),
+        "{whose}: cooldownReductionMs {cd_reduction} liegt nicht auf dem \
+         {RASTER_MS}-ms-Raster des Spiels — die verkuerzte Abklingzeit endete \
+         zwischen zwei Takten"
     );
+    let _ = writeln!(out, "        cooldown_reduction_ms: {cd_reduction},");
     // **Eine ANZAHL statt eines Ja/Nein** (Issue #521). Die alte Form
     // `armsCooldownReset: true` liest sich weiter als 1 — sonst verlöre ein
     // Datensatz aus der Zeit davor still seine Wirkung, und der Bau meldete
