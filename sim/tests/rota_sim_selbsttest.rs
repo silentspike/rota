@@ -174,9 +174,14 @@ fn der_selbsttest_sagt_was_er_nicht_prueft() {
     // etwas fehlte.
     //
     // Ein Muster wie `der \d+ Dateien` prüfte dasselbe und überlebte den
-    // nächsten Zauber. Der Umbau ist ein eigenes Issue und steht hier bewusst
+    // nächsten Zauber. Der Umbau ist **Issue #1097** und steht hier bewusst
     // nicht drin: Wer eine Prüfung im selben Zug ändert, in dem er ihre Ursache
     // beseitigt, hat sie danach nicht mehr geprüft.
+    //
+    // Dieselbe Klasse traf am selben Tag `wertungsmenge.rs:67` — dort stand ein
+    // Beispielwert (`instance-5`), wo eine Eigenschaft gemeint war. Von den
+    // sechs `contains`-Zusicherungen dieser Datei ist diese hier die einzige
+    // mit einer festgenagelten Zahl (gezählt am 2026-08-22 gegen `origin/main`).
     assert!(
         stdout.contains("der 90 Dateien"),
         "die Bezugsgroesse fehlt — 'x geprueft' ohne 'von wie vielen':\n{stdout}"
