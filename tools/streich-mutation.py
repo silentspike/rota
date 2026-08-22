@@ -26,6 +26,7 @@ allen 57 Zaubern und sind Stammdaten, keine Wirkfelder — sie bleiben draußen.
 import argparse
 import collections
 import json
+import os
 import pathlib
 import signal
 import subprocess
@@ -124,9 +125,62 @@ def schreibe(ziel, ergebnisse):
 BAU_LOG = "/work/tmp/e1-1045-bau.log"
 
 
+# Der gerade laufende Kindprozess, damit der SIGTERM-Handler ihn erreicht.
+# Ohne diese Verbindung weiß der Handler nicht, was er aufräumen soll.
+_LAUFEND = None
+
+
 def lauf(befehl, timeout):
-    p = subprocess.run(befehl, shell=True, cwd=WURZEL, capture_output=True, text=True, timeout=timeout)
-    return p.returncode, (p.stdout + p.stderr)
+    # `start_new_session=True` gibt dem KIND eine eigene Prozessgruppe — nicht
+    # diesem Prozess. Das ist der Unterschied, auf den es ankommt:
+    #
+    #   os.setsid() hier      der ganze Durchgang verlässt seine Sitzung und
+    #                         verhält sich bei Terminal-Signalen anders
+    #   hier am Kind          nur `npm`/`cargo` und deren Enkel bilden eine
+    #                         Gruppe; dieser Prozess bleibt, wo er war
+    #
+    # Und es macht AC3 strukturell wahr statt nur wahrscheinlich: `killpg` auf
+    # die Gruppe des eigenen Kindes KANN keinen fremden Prozess treffen. Ein
+    # Muster-basiertes Aufräumen (`pkill node`) könnte es, und auf dieser
+    # Maschine laufen sechs Claude-Sitzungen und der Browser des Auftraggebers.
+    global _LAUFEND
+    p = subprocess.Popen(befehl, shell=True, cwd=WURZEL, text=True,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         start_new_session=True)
+    _LAUFEND = p
+    try:
+        aus, _ = p.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # Auch der Timeout muss die GRUPPE treffen. Am 2026-08-22 überlebten
+        # vier vitest-Worker mit je 99 % CPU den Tod ihres Vaters und rechneten
+        # in einer Endlosschleife weiter.
+        _gruppe_beenden(p)
+        raise
+    finally:
+        _LAUFEND = None
+    return p.returncode, (aus or "")
+
+
+def _gruppe_beenden(p):
+    """Beendet die Prozessgruppe eines Kindes, erst freundlich, dann hart."""
+    if p is None or p.poll() is not None:
+        return
+    try:
+        gid = os.getpgid(p.pid)
+    except ProcessLookupError:
+        return
+    for signal_nr, gnade in ((signal.SIGTERM, 5), (signal.SIGKILL, 0)):
+        try:
+            os.killpg(gid, signal_nr)
+        except ProcessLookupError:
+            return
+        if not gnade:
+            return
+        try:
+            p.wait(timeout=gnade)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def main():
@@ -137,7 +191,20 @@ def main():
     # Bash-Timeout griff nach zehn Minuten, und `searing` stand danach ohne
     # `dot.tickDamage` im Baum. Jeder folgende Lauf hätte gegen kaputte Daten
     # gemessen, ohne dass etwas darauf hingewiesen hätte.
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    #
+    # UND ER MUSS DIE KINDER MITNEHMEN. `sys.exit()` allein beendet nur diesen
+    # Prozess; die Enkel laufen weiter, und zwar gerade dann, wenn es weh tut:
+    # Ein Abbruch passiert, wenn eine Messung schiefläuft — also wenn die
+    # Maschine ohnehin unter Druck steht. Am 2026-08-22 rechneten nach einem
+    # SIGTERM vier verwaiste vitest-Worker mit je 99 % CPU weiter, in der
+    # Endlosschleife des gerade gefahrenen Feldes. Sie mussten von Hand gesucht
+    # werden, und die nächste Messung wäre gegen eine Maschine unter Volllast
+    # gelaufen.
+    def _abbruch(*_):
+        _gruppe_beenden(_LAUFEND)
+        sys.exit(143)
+
+    signal.signal(signal.SIGTERM, _abbruch)
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--feld", help="nur dieses Feld (Trägerprobe)")
