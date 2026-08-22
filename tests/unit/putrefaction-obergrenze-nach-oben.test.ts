@@ -55,18 +55,26 @@
  *
  * # Die zwei Trägerzeilen, und warum es zwei sind
  *
- * `stapelndeWuerfeImFenster` zählt, wie viele stapelnde Würfe überhaupt
- * gelangen. Ist die Zahl nicht größer als die erwartete Grenze, bindet die
- * Wurfzahl — dann sagt der Höchststand nichts über `decayCap.bonus`.
+ * `restImFensterNachDemHoechststand` misst, wie viel Fenster nach dem letzten
+ * Anstieg übrig blieb. Stünde der Höchststand erst am Ende, wäre das Fenster
+ * nicht ausgereizt, sondern abgelaufen.
  *
  * `wuerfeNachDemHoechststand` zählt die Würfe **nach** dem letzten Anstieg. Sie
  * belegt dasselbe von der anderen Seite: Es wurde weitergeworfen, und die Zahl
  * stieg nicht mehr.
  *
- * Die erste kann trügen, wenn die Würfe früh liegen und die Stapel verfallen;
- * die zweite, wenn der Höchststand erst am Fensterende fällt. **Zusammen decken
- * sie beide Fälle ab** — und die erste Fassung dieser Datei ist an der zweiten
- * gescheitert, bevor sie eine falsche Zahl melden konnte.
+ * **Beide zählen Zeit und Würfe, nicht Stapel** — und das ist eine Lehre aus
+ * der zweiten Fassung: Dort zählte eine Zeile die stapelnden WÜRFE und verlangte
+ * mehr davon, als die Grenze hoch ist. Sie fiel bei sechs, obwohl der Höchststand
+ * längst stimmte: ROT liefert **vier** Stapel je Wurf über seine Ticks. Wer
+ * Würfe zählt, wo Stapel gemeint sind, misst an einer Stelle, an der das
+ * Verhältnis nicht eins zu eins ist.
+ *
+ * Die erste Fassung dieser Datei ist an `wuerfeNachDemHoechststand` gescheitert,
+ * bevor sie eine falsche Zahl melden konnte — und die zweite an einer
+ * Trägerzeile, die selbst falsch gebaut war. Beide Male hat der Fall etwas über
+ * sich selbst gesagt statt über `decayCap.bonus`, und beide Male war das
+ * richtig.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -93,9 +101,9 @@ interface Messung {
   readonly wurfBei: number;
   /** Der höchste Stand, der im Fenster je gleichzeitig lag. */
   readonly hoechststand: number;
-  /** Gelungene stapelnde Würfe im Fenster insgesamt. */
-  readonly stapelndeWuerfeImFenster: number;
-  /** Davon die nach dem letzten Anstieg des Höchststands. */
+  /** Wie viel Fenster nach dem letzten Anstieg noch übrig war, in ms. */
+  readonly restImFensterNachDemHoechststand: number;
+  /** Gelungene stapelnde Würfe nach dem letzten Anstieg des Höchststands. */
   readonly wuerfeNachDemHoechststand: number;
 }
 
@@ -121,7 +129,7 @@ function messen(): Messung {
 
   let wurfBei = -1;
   let hoechststand = 0;
-  let stapelndeWuerfeImFenster = 0;
+  let hoechstErreichtBei = -1;
   let wuerfeNachDemHoechststand = 0;
 
   for (let tick = 0; tick < 3000; tick++) {
@@ -139,21 +147,26 @@ function messen(): Messung {
           break;
         }
       }
-      if (gelungen && imFenster) {
-        stapelndeWuerfeImFenster += 1;
-        wuerfeNachDemHoechststand += 1;
-      }
+      if (gelungen && imFenster) wuerfeNachDemHoechststand += 1;
     }
 
     if (imFenster && combat.decayStacks > hoechststand) {
       hoechststand = combat.decayStacks;
+      hoechstErreichtBei = timeMs;
       // Der Zähler beginnt beim NEUEN Höchststand von vorn: Würfe, die
       // stattfanden, während die Zahl noch stieg, belegen nichts über die
       // Grenze — sie zeigen nur, dass es weiterging.
       wuerfeNachDemHoechststand = 0;
     }
   }
-  return { wurfBei, hoechststand, stapelndeWuerfeImFenster, wuerfeNachDemHoechststand };
+  const restImFensterNachDemHoechststand =
+    hoechstErreichtBei < 0 ? 0 : wurfBei + FENSTER_MS - hoechstErreichtBei;
+  return {
+    wurfBei,
+    hoechststand,
+    restImFensterNachDemHoechststand,
+    wuerfeNachDemHoechststand,
+  };
 }
 
 const GEMESSEN = messen();
@@ -165,14 +178,19 @@ describe('der Träger trägt — sonst misst nichts darunter etwas', () => {
     expect(GEMESSEN.wurfBei, 'PUTRID BLOOM kam nicht zustande').toBeGreaterThanOrEqual(0);
   });
 
-  it('es wurde öfter gestapelt, als die Grenze zulässt', () => {
-    // Erste Trägerzeile: Wären es weniger Würfe als die Grenze, käme der
-    // Höchststand aus der Wurfzahl und nicht aus `decayCap.bonus`.
+  it('der Höchststand fiel lange vor dem Fensterende', () => {
+    // Erste Trägerzeile: Stünde er erst am Ende, wäre nicht das Fenster
+    // ausgereizt, sondern abgelaufen — dann sagte die Zahl darunter nur, wie
+    // weit man in zehn Sekunden kommt.
+    //
+    // **Die Schwelle ist zwei globale Wartezeiten** (2 × 1500 ms), also
+    // mindestens zwei weitere Wurfgelegenheiten. Sie ist aus `GCD_MS`
+    // hergeleitet und nicht so lange gedreht worden, bis der Fall grün wurde.
     expect(
-      GEMESSEN.stapelndeWuerfeImFenster,
-      'im Fenster gelangen nicht mehr stapelnde Würfe als die Grenze hoch ist — ' +
-        'dann bindet die Wurfzahl, und die Zahl darunter misst den Zufall',
-    ).toBeGreaterThan(MAX_DECAY_STACKS + 3);
+      GEMESSEN.restImFensterNachDemHoechststand,
+      'der Höchststand fiel erst kurz vor dem Fensterende — dann ist nicht ' +
+        'belegt, dass die Grenze gebremst hat und nicht die Zeit',
+    ).toBeGreaterThanOrEqual(3000);
   });
 
   it('die Grenze bindet, nicht die Wurfzahl', () => {
