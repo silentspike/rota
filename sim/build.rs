@@ -966,12 +966,13 @@ fn pruefe_zeitleiste(name: &str, boss: &Value) {
 /// sondern nur mit dem Spielaufbau, und **ein unbekannter Wert bricht den Bau**
 /// (AC4). Ein neuer Boss in `instance-2` braucht hier keine Zeile; ein neuer
 /// Boss in `instance-5` erzwingt eine Entscheidung, statt still durchzugehen.
-const SCORED_INSTANCES: [&str; 5] = [
+const SCORED_INSTANCES: [&str; 6] = [
     "prologue",
     "instance-1",
     "instance-2",
     "instance-3",
     "instance-4",
+    "instance-5",
 ];
 
 /// Die `instance`-Werte der Pruef- und Lastprofile.

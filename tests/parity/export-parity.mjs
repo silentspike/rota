@@ -106,10 +106,12 @@ import {
   instance2Payload,
   instance3Payload,
   instance4Payload,
+  instance5Payload,
   INSTANCE2_NAMES,
   INSTANCE1_NAMES,
   INSTANCE3_NAMES,
   INSTANCE4_NAMES,
+  INSTANCE5_NAMES,
   cinderPayload,
   dotLifetimePayload,
   manyDotsPayload,
@@ -331,6 +333,19 @@ for (let i = 0; i < INSTANCE3_NAMES.length; i++) {
 for (let i = 0; i < INSTANCE4_NAMES.length; i++) {
   const name = INSTANCE4_NAMES[i];
   const datensatz = instance4Payload(`boss-4-${i + 1}`, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+  console.log(
+    `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
+      `gefallen ${datensatz.expected.killedAtMs}, gestorben ${datensatz.expected.diedAtMs}, ` +
+      `Druecke ${datensatz.presses.length}`,
+  );
+}
+
+// Die vier Bosse der fünften Instanz. Derselbe Grund wie bei der vierten — der
+// Wächter hat sie am Tag ihres Eintrags beim Namen genannt.
+for (let i = 0; i < INSTANCE5_NAMES.length; i++) {
+  const name = INSTANCE5_NAMES[i];
+  const datensatz = instance5Payload(`boss-5-${i + 1}`, name);
   writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
   console.log(
     `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
