@@ -54,7 +54,17 @@ while true; do
   while read -r pid cpu cmd; do
     [ -z "${pid:-}" ] && continue
     ist_eigen "$pid" && continue
-    cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || continue
+    # FEHLGESCHLAGENES readlink IST KEIN GRUND ZU SCHWEIGEN. Bei Prozessen
+    # anderer Benutzer — root zumal — ist /proc/<pid>/cwd nicht lesbar. Ein
+    # `continue` an dieser Stelle macht sie unsichtbar, und zwar lautlos:
+    # In der Nacht zum 2026-08-22 lief ein proxmox-backup-client mit 85 % CPU
+    # durch einen Messdurchgang und stand in keiner einzigen Protokollzeile.
+    #
+    # Ein Prozess, dessen Herkunft ich nicht feststellen kann, ist erst recht
+    # fremd. Er wird gemeldet, mit "?" statt eines Pfades.
+    if ! cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null); then
+      cwd="?($(ps -o user= -p "$pid" 2>/dev/null | tr -d ' '))"
+    fi
     case "$cwd" in
       "$MEIN_BAUM"*) continue ;;   # meine eigene Messung, keine Fremdlast
     esac
