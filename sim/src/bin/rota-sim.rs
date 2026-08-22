@@ -2506,7 +2506,7 @@ mod tests {
     /// Meldungen.
     #[test]
     fn die_zahlen_des_bestands() {
-        assert_eq!(ScoringSet::all_scored().groups().len(), 5);
+        assert_eq!(ScoringSet::all_scored().groups().len(), 6);
         assert_eq!(belegte_instanzen(&probe_bosses()), 2);
     }
 }
