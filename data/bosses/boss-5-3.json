@@ -1,0 +1,30 @@
+{
+  "_comment": "ARBEITSNAME (Issue E11, Instanz 5). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile.\n\nENTSCHIEDEN AM 2026-08-22, 06:31:22 UTC: Bausteinwahl, Signatur und Zeitleiste sind FREI (fragen/antworten/f-instanz5-signaturen-2.json, Option [freigeben], Lesart (a)). Der Vermerk oben bleibt stehen — Namen und Thema hat sich der Auftraggeber ausdruecklich weiter vorbehalten. Ausfuehrlich in boss-5-1.\n\nInstanz 5, Boss 3 — DIE BESCHLEUNIGTE EINDAEMMUNG. Erster Boss, der `runaway` mit einem zweiten Feld-Baustein kombiniert, und der zweite runaway-Traeger ueberhaupt (nach boss-2-3).\n\n  SEINE BAUSTEINE, aufgezaehlt statt gezaehlt: `runaway`, `escalation` und der unterbrechbare Zauber (Quickening Chant). Eine Zahl staende hier falsch, sobald sich die ZAEHLWEISE aendert — genau das ist am 2026-08-22 passiert, als herauskam, dass 11.2 neun Bausteine nennt und nicht acht (WORKER-GUIDE 8.136). Die Aufzaehlung ueberlebt es, weil sie nicht zaehlt. Der neunte Baustein hat kein eigenes Feld — er steht als `mechanic: interruptibleCast` in der Zeitleiste, und wer nur Felder zaehlt, uebersieht ihn. Hier ist er nicht Beiwerk: `escalation` wirkt AUF ihn, indem sie seine Wirkzeit verkuerzt.\n\nSIGNATUR: Die Verkuerzung macht das Stabilisieren schneller und den Zerfall haeufiger. Wer zu frueh auf Schutz umschaltet, verliert die Zeit; wer zu spaet umschaltet, holt den Ring nicht mehr.\n\nDIE BEDINGUNG AUS #394 IST GEPRUEFT, nicht angenommen. Ein Boss mit `runaway` braucht einen Stabilisierer, der OHNE eingehenden Schaden wirkt — sonst ist die Haelfte des Weges wirkungslos, und niemand sieht es. Gemessen an data/spells/coagulation.json am 2026-08-22: Schutz oder Heilung tragen `crust`, `scab`, `plate`, `crucible-skin`, `salve`, `poultice`, `mend` und `suture`. Unabhaengig von eingehendem Schaden wirken davon alle ausser den letzten beiden — `mend` skaliert mit fehlenden Lebenspunkten, `suture` mit vorhandenem Schutz.\n\n  Tragend sind crust (900 Schutz, 12000 ms, bis drei Stapel) und plate (2400, 15000 ms, einer). Sie kosten Zeit, nicht Schaden — und genau das ist die Spannung des Bausteins.\n\n  Der Simulator sagt es an der Stelle, an der es wirkt (fight.rs, `stabilise`): 'Schutz und Heilung um IHREN EIGENEN Betrag. TEMPER bleibt draussen: Er wandelt ausgeteilten Schaden in Schutz — damit stabilisierte man DURCH Schaden machen, und die Bedingung des Bausteins waere aufgehoben.'\n\nWARUM DIE KOMBINATION TRAEGT UND NICHT NUR ZWEI DINGE NEBENEINANDER SIND: `escalation` verkuerzt Zauberzeiten — auch die des Schutzes. Beide Bausteine greifen also an derselben Groesse an, der Zeit. Ohne die Verkuerzung waere Stabilisieren eine feste Entscheidung; mit ihr verschiebt sich der richtige Zeitpunkt waehrend des Kampfes.\n\nDER UNTERSCHIED ZU boss-1-1 UND boss-4-4 (den beiden anderen escalation-Traegern): Dort ist die Verkuerzung eine Verschaerfung DESSELBEN — boss-1-1 laesst die Wirkzeit zweier unterbrechbarer Zauber schrumpfen (die Unterbrechung wird enger), boss-4-4 traegt sie als 'ein Fenster, das nie stehenbleibt'. In beiden Faellen wird eine Aufgabe schwerer, die von Anfang an dieselbe war. Hier wirkt die Verkuerzung auf ZWEI Seiten zugleich, und zwar gegenlaeufig: Der Schutzzauber wird billiger in Zeit, der Zerfall wird haeufiger. Das verschiebt die richtige Antwort waehrend des Kampfes, statt sie zu verteuern.\n\nDER UNTERSCHIED ZU boss-2-3 (dem ersten runaway-Traeger): Dort ist das umgekehrte Ziel die ganze Aufgabe, und KOAGULATION entscheidet den Kampf. Hier bleibt sie noetig, aber ihr Takt aendert sich unter dem Kampf.\n\nZAHLEN UNGEMESSEN. hp, runaway.amount, escalation.castTimeShrinkMs und die Zeitleiste sind Platzhalter im Bestandsrahmen. Sie kommen aus dem Balance-Laeufer.\n\nBESONDERS ZU MESSEN, und das ist die Falle dieses Bosses: ob der Ring ueberhaupt gehalten werden kann. Ein umgekehrtes Ziel, das unerreichbar ist, sieht in jeder Schaffbarkeits-Messung aus wie ein schwerer Boss — nicht wie ein kaputter.",
+  "schema": 1,
+  "id": "boss-5-3",
+  "instance": "instance-5",
+  "name": "Instance Five, Third",
+  "hp": 4700,
+  "overpressureMs": 60000,
+  "phases": [],
+  "resistances": {},
+  "runaway": {
+    "perStepMs": 1000,
+    "amount": 70
+  },
+  "escalation": {
+    "castTimeShrinkMs": 300,
+    "minCastTimeMs": 900
+  },
+  "timeline": [
+    {
+      "atMs": 4000,
+      "mechanic": "interruptibleCast",
+      "name": "Quickening Chant",
+      "damage": 600,
+      "castTimeMs": 2400
+    },
+    { "atMs": 10000, "mechanic": "strike", "name": "Slippage", "damage": 240 }
+  ],
+  "timelineLoopMs": 14000
+}
