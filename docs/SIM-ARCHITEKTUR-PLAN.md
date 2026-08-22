@@ -46,7 +46,7 @@ Referenzprofil "standard"
   Profil         balanced — `reserved_physical_cores: 2` auf dem Laptop
                  (NICHT zwei SMT-Stränge: bei 8C/16T sind das 12 statt 14 Stränge)
   Datenstand     versionierter Endausbau-Datensatz
-  Vertrag        versionierter RunContract
+  Vertrag        versionierter CampaignRunContract
 ```
 
 **Bei weniger Rechnern bleibt die Arbeit gleich — nur die ETA wächst.** Das ist der Zweck des
@@ -660,7 +660,7 @@ wer nur eines davon umsetzt, sollte hier nachsehen, wo es hingehört._
   └───────────────────────────────────────────────────────────────────────┘
           ↓
   ┌─ Vertrag und Bedienung ──────────────────────────────────────────────┐
-  │  RunContract mit eingefrorenem Arbeitsbudget  ·  Kampagnenprofile     │
+  │  CampaignRunContract mit eingefrorenem Arbeitsbudget  ·  Kampagnenprofile     │
   │  Qualitätszertifikat  ·  rota-sim mit --help          E20 · E21       │
   └───────────────────────────────────────────────────────────────────────┘
 ```
@@ -795,7 +795,7 @@ Nach dem Muster der Epic-Tabelle in `greedy-skipping-russell.md`:
 | **E18 — Nicht-Simulation, Rest** | **2**  | sparsame Ledger-Differenz (`Parameter → Terme`) · frühe Schranken **im** Kampf, boss- und zielabhängig                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | nach E11.3a und E11.5b                                                                                                                                                                                                                                                                                                          |
 | **E19 — Cachetrennung**          | **1**  | `CombatOutcome` / `Score` / `SearchArchive` getrennt — macht die offene Objective-Entscheidung billig                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **früh**, je später desto teurer                                                                                                                                                                                                                                                                                                |
 | **E20 — Kommandozeile**          | **4**  | ein Einstiegspunkt statt 30 Beispiele · `--help` mit lauffähigen Beispielen · `explain` als Trockenlauf · `verify` als Selbsttest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **früh** — die anderen Sitzungen brauchen es                                                                                                                                                                                                                                                                                    |
-| **E21 — Laufzeitvertrag**        | **9**  | (0) `RunContract`, Arbeitsbudget einfrieren statt Zeit abschneiden · (1) beschränkte t-Wege-Abdeckung statt „Rest bleibt Stichprobe" · (2) globaler Budgetverteiler + Stufenprüfung · (3) Qualitätszertifikat · (4) Kampagnenprofile, Vollraum ablehnen · (6) Markov/MDP-Fortschritt · (7) dauerhafter Ergebnisspeicher über Läufe. **Ausführlich in Teil 4.7**                                                                                                                                                                                                                                                                                                                                        | **beantwortet die Betriebsfrage** — nach E15.0, parallel zu E11                                                                                                                                                                                                                                                                 |
+| **E21 — Laufzeitvertrag**        | **9**  | (0) `CampaignRunContract`, Arbeitsbudget einfrieren statt Zeit abschneiden · (1) beschränkte t-Wege-Abdeckung statt „Rest bleibt Stichprobe" · (2) globaler Budgetverteiler + Stufenprüfung · (3) Qualitätszertifikat · (4) Kampagnenprofile, Vollraum ablehnen · (6) Markov/MDP-Fortschritt · (7) dauerhafter Ergebnisspeicher über Läufe. **Ausführlich in Teil 4.7**                                                                                                                                                                                                                                                                                                                                        | **beantwortet die Betriebsfrage** — nach E15.0, parallel zu E11                                                                                                                                                                                                                                                                 |
 
 **E12 ist der wichtigste dieser drei**, und er fehlte in meiner ersten Fassung ganz. E11 macht
 den Simulator schnell und die **innere** Buildsuche gut. Es beantwortet aber nicht die Frage,
@@ -1040,7 +1040,7 @@ GPU-Ausfall, CPU-Rückfall.
 **Fertig, wenn** — und die Wanduhr allein genügt nicht:
 
 ```
-dieselbe CampaignDefinition und derselbe RunContract
+dieselbe CampaignDefinition und derselbe CampaignRunContract
 dieselbe LOGISCHE Aufgabenmenge in allen Varianten
 dasselbe Qualitätszertifikat
 dieselben Elites und Pareto-Fronten
@@ -4432,8 +4432,25 @@ ResultGuarantee::AnytimePartial { work_completed, work_planned }
 Das ergänzt die vier Garantiearten aus Teil 4 um die fünfte, die im Betrieb am häufigsten
 vorkommt.
 
+> **`CampaignRunContract` und `RunContract` sind zwei verschiedene Dinge — der Plan hat sie
+> bis zum 2026-08-22 beide `RunContract` genannt.**
+>
+> | | trägt | Stand |
+> | --- | --- | --- |
+> | **`RunContract`** (Zielvertrag, Abschnitt 2582) | die Schwellen 99 % / 99,9 %, `determinism`, `target_band`, `vessel_max` | **gebaut**, `sim/src/objective.rs:432`, aus #939, zwei Prüfdateien hängen daran |
+> | **`CampaignRunContract`** (Laufvertrag, hier) | Mission, Arbeitsbudget, Fristen, Projektionen | E21.0, #914 |
+>
+> **Null Überschneidung in den Feldern.** Der eine sagt, was ein guter Kandidat erfüllen muss;
+> der andere, wie viel überhaupt gerechnet wird. Gefunden hat es Worker-1 beim Bau von #914,
+> dessen AC0 lautet: „Der Laufvertrag ist die Struktur aus dem Plan, nicht eine neu erfundene" —
+> und der Plan bot zwei an.
+>
+> Umbenannt wurde der **hier beschriebene**, nicht der gebaute: Eine Umbenennung im Code fasst
+> fremde Prüfdateien an, für einen Namen, den #914 ohnehin neu vergibt. Das Risiko gehört zur
+> neuen Änderung, nicht zur alten.
+
 ```rust
-struct RunContract {
+struct CampaignRunContract {
     mission:                   Mission,
     target_wall_time:          Duration,
     campaign_definition_hash:  Hash,             // WOHER das Budget stammt
@@ -4662,7 +4679,7 @@ Zauber, Viabilität nach E12.6 (alle sechs Zustände, wörtlich):
    NotFoundWithinBudget                     2 / 60      ← das ist ein SUCH-Befund
    Unresolved                               2 / 60      Nische zu eng oder Schranken zu locker
 
-   verlangte Garantie laut RunContract:  standard = mindestens WitnessedViable
+   verlangte Garantie laut CampaignRunContract:  standard = mindestens WitnessedViable
 
 skalarer Abschluss-Audit               bestanden
 stochastische Garantie                     99,0 %   (campaignweit, siehe unten)
