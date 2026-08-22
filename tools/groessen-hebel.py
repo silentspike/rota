@@ -151,7 +151,14 @@ def exportieren():
 
 def main():
     von, bis = int(sys.argv[1]), int(sys.argv[2])
-    zeilen = [z.split() for z in (WURZEL / 'docs/groessen-abdeckung-messung.txt').read_text().splitlines()]
+    # Kommentar- und Leerzeilen fliegen raus, BEVOR gesplittet wird (#1094).
+    # Die Datei trug bis zum 2026-08-22 keinen Kopf; seit sie die geprüfte
+    # Richtung ausweist, hat sie einen. Ohne diesen Filter stünde `#` in z[0]
+    # und ein Wort des Kopftextes in z[1] — der Zeilenfilter darunter griffe
+    # heute zufällig nicht, weil der Kopf weder SCHWEIGT noch FRISCHE nennt.
+    # Auf einen Zufall soll er sich nicht verlassen.
+    roh = (WURZEL / 'docs/groessen-abdeckung-messung.txt').read_text().splitlines()
+    zeilen = [z.split() for z in roh if z.strip() and not z.lstrip().startswith('#')]
     # Nur die ungeschützten — für die geschützten ist die Rangfolge gegenstandslos.
     offen = [(z[0], z[1]) for z in zeilen if 'SCHWEIGT' in z or 'FRISCHE' in ' '.join(z)]
 
