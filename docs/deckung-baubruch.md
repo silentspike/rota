@@ -332,6 +332,35 @@ Für das Differenzverfahren ist das unschädlich, und zwar geprüft statt angeno
 Suiten stehen in **jeder** der sieben Rot-Listen, und die Differenz ist mechanisch gebildet
 (`comm -13` gegen die Liste des Bezugslaufs), nicht nach Augenmaß.
 
+### Die Differenz trennt Last nicht von Wert — und die Last ist nicht erfasst
+
+Das Verfahren nimmt jede Suite als _neu rot_, die im Mutationslauf färbt und im Bezugslauf nicht.
+Es sieht dabei nicht, **warum** sie färbt. Drei Schranken im Bestand färben unter Fremdlast rot,
+ohne dass die mutierte Zahl sie erreicht hätte (gemessen am 2026-08-22, Refs #1092):
+
+| Ort                                     | Schranke                                                       |
+| --------------------------------------- | -------------------------------------------------------------- |
+| `sim/tests/balance.rs:186`              | `dauer.as_secs() < 60`                                         |
+| `sim/tests/rota_sim_trockenlauf.rs:291` | `dauer.as_secs() < 5`                                          |
+| `vitest`, Vorgabe, **jeder** TS-Fall    | `testTimeout` 5000 ms — `vite.config.ts:54-57` setzt ihn nicht |
+
+**Die Last während der sieben Durchgänge ist nicht erfasst.** Das Zyklus-Skript hat keine
+protokolliert, und in den Läufen steht keine. Das ist eine **Lücke, keine Null** — wer die Zahlen
+unten prüft, weiß nicht, wie ruhig die Maschine dabei war.
+
+Was es gibt, sind Prozessablesungen aus fremder Hand: Zwischen 08:22 und 08:41 hat der
+Orchestrator viermal nachgesehen, welche Prozesse rechnen, und jedes Mal liefen ausschließlich
+die dieses Arbeitsbaums. Die sieben Rust-Durchgänge lagen zwischen 08:12 und 08:42. Das ist keine
+Lastmessung, aber es beantwortet die engere Frage „lief außer mir jemand" für vier Zeitpunkte im
+Messfenster.
+
+**Die Mitigation ist die Spezifität der Suiten, nicht das Verfahren.** Eine last-bedingte
+Rotfärbung trifft eine **beliebige** Suite — nicht ausgerechnet die, die den mutierten Zauber
+trägt. Bei `convert.perSecond`, `decayCap.bonus` und `control.amountPercent` färbt je genau die
+fachlich passende, und das ist selbst der Beleg gegen Last als Ursache. Bei 52, 44 und 49 trägt
+dasselbe Argument nicht in derselben Schärfe; dort könnten einzelne last-bedingte Rote enthalten
+sein, ohne dass sich die Aussage ändert — sie lautet „flächig gedeckt", nicht „genau 52".
+
 ### Was hier nicht gemessen ist
 
 Ob die 28 Felder der Gruppe B auf der **TypeScript-Seite** ebenfalls gelesen werden. Gemessen
