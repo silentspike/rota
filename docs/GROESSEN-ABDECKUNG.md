@@ -13,12 +13,25 @@ Erstmals erhoben am 2026-08-07 für Issue #547, Werkzeug
 `tools/groessen-mutation.py`; die datierten Nachträge am Ende halten die
 Zwischenstände fest.
 
-> ### ⚠ Die Zahlen unten sind ein DATUM. Der Ist-Stand steht in zwei Befehlen
+> ### ⚠ Die Zahlen unten sind ein DATUM. Der Ist-Stand steht in vier Befehlen
 >
 > ```bash
 > grep -cvE '^#|^$' docs/groessen-abdeckung-messung.txt   # gemessene Paare
 > grep -cE 'NUR FRISCHE|SCHWEIGT' docs/groessen-abdeckung-messung.txt   # offene
+> grep -c 'GEGENRICHTUNG: nicht gemessen' docs/groessen-abdeckung-messung.txt
+> grep -cE 'GEGENRICHTUNG: gemessen' docs/groessen-abdeckung-messung.txt
 > ```
+>
+> **Die letzten beiden gibt es seit #1094**, und sie beantworten eine Frage, die
+> die ersten beiden nie gestellt haben: _in welcher Richtung_ geprüft wurde. Bis
+> zum 2026-08-22 hieß `geschuetzt` in dieser Datei durchweg „gegen **Senken**
+> geschützt" — bei 87 von 87 Zahlen-Größen, weil `tools/groessen-hebel.py`
+> `vorher // 2` rechnet. Die Richtung stand in jeder Zeile (`2 -> 1`), nur las
+> sie niemand als Einschränkung.
+>
+> **Dass die dritte Zahl groß ist, ist der ehrliche Ausgangszustand.** Eine
+> Spalte, die überall `gedeckt` zeigt, wäre der Beweis, dass niemand gemessen
+> hat.
 >
 > **Warum das hier steht.** Am 2026-08-11 führte dieses Dokument drei Zahlen,
 > die alle drei falsch waren — und zwei davon widersprachen einander:
