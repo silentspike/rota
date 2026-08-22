@@ -462,12 +462,10 @@ impl CampaignRunContract {
             // Ein Vorgabewert an dieser Stelle waere eine Frist, die niemand
             // verlangt hat (AC5).
             match self.hard_deadline {
-                Some(DeadlinePolicy::WallClockUtc { deadline_unix_s }) => format!(
-                    "{{\"kind\":\"wallClockUtc\",\"deadlineUnixS\":{deadline_unix_s}}}"
-                ),
-                Some(DeadlinePolicy::ActiveRuntime { remaining_ms }) => format!(
-                    "{{\"kind\":\"activeRuntime\",\"remainingMs\":{remaining_ms}}}"
-                ),
+                Some(DeadlinePolicy::WallClockUtc { deadline_unix_s }) =>
+                    format!("{{\"kind\":\"wallClockUtc\",\"deadlineUnixS\":{deadline_unix_s}}}"),
+                Some(DeadlinePolicy::ActiveRuntime { remaining_ms }) =>
+                    format!("{{\"kind\":\"activeRuntime\",\"remainingMs\":{remaining_ms}}}"),
                 None => "null".to_string(),
             },
             format_args!(

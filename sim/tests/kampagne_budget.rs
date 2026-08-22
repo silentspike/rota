@@ -441,7 +441,11 @@ fn ac3_das_referenzprofil_nennt_mindestressourcen() {
              Maschine gibt.",
             h.name
         );
-        assert!(h.max_rtt_ms > 0, "{}: keine Obergrenze für die Umlaufzeit", h.name);
+        assert!(
+            h.max_rtt_ms > 0,
+            "{}: keine Obergrenze für die Umlaufzeit",
+            h.name
+        );
         assert!(
             h.min_bandwidth_mibit_s > 0,
             "{}: keine Untergrenze für die Bandbreite",
