@@ -146,6 +146,9 @@ def main():
     ap.add_argument("--roh", default="/work/tmp/e1-mutation-namen.json",
                     help="alle roten Testnamen je Feld, Grundlage der Auswertung")
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--nur-bau", action="store_true",
+                    help="nur bauen, nicht fahren — beantwortet 'bricht die "
+                         "Streichung den Bau?' in rund 45 s statt 4 min je Feld")
     args = ap.parse_args()
 
     # `--no-fail-fast` UND kein `--bail`, obwohl beides den Lauf vervielfacht.
@@ -209,15 +212,28 @@ def main():
         print(f"ABBRUCH: Der Bau bricht schon vor der ersten Mutation "
               f"(rc={rc_bau}). Siehe {BAU_LOG}.")
         return 3
-    rc_r, _ = lauf(rust_lauf, args.timeout)
-    rc_t, _ = lauf(ts, args.timeout)
-    if rc_r != 0 or rc_t != 0:
-        print(f"ABBRUCH: Der Baum ist schon vor der ersten Mutation rot "
-              f"(rust={rc_r}, ts={rc_t}). Jedes Feld sähe gedeckt aus.")
-        return 3
-    print("Nullprobe gruen — gemessen wird gegen einen sauberen Baum.\n", flush=True)
+    if args.nur_bau:
+        # Die Suiten bleiben stehen, und die Nullprobe schrumpft entsprechend:
+        # Sie kann nur noch zusichern, dass der Bau VOR der ersten Mutation
+        # steht — das hat der Aufruf oben bereits getan. Ein roter Baum bliebe
+        # hier unentdeckt; er kann das Ergebnis aber auch nicht verfälschen,
+        # weil kein Testergebnis in die Klassifikation eingeht.
+        print("Nullprobe: Bau steht. Suiten bleiben aus (--nur-bau).\n", flush=True)
+    else:
+        rc_r, _ = lauf(rust_lauf, args.timeout)
+        rc_t, _ = lauf(ts, args.timeout)
+        if rc_r != 0 or rc_t != 0:
+            print(f"ABBRUCH: Der Baum ist schon vor der ersten Mutation rot "
+                  f"(rust={rc_r}, ts={rc_t}). Jedes Feld sähe gedeckt aus.")
+            return 3
+        print("Nullprobe gruen — gemessen wird gegen einen sauberen Baum.\n", flush=True)
 
-    print(f"{len(felder)} Felder, je ein Lauf beider Suiten\n", flush=True)
+    # Die Kopfzeile nennt, WAS gefahren wird — im Nur-Bau-Modus ist das etwas
+    # anderes, und ein Protokoll, das "je ein Lauf beider Suiten" behauptet,
+    # während keine Suite läuft, ist später nicht mehr auseinanderzuhalten.
+    print(f"{len(felder)} Felder, "
+          f"{'nur Bau, keine Suite' if args.nur_bau else 'je ein Lauf beider Suiten'}\n",
+          flush=True)
     ergebnisse = []
     roh = {}
     for i, feld in enumerate(felder, 1):
@@ -277,6 +293,32 @@ def main():
             # noch lokal — ein Lauf gegen sie waere gruen und misst DAS VORIGE
             # FELD. Bei `cargo test` gab es diesen Fall nicht: Dort baut und
             # faehrt derselbe Aufruf.
+            # NUR-BAU: Hier endet der Durchgang für dieses Feld. Der Modus
+            # beantwortet EINE Frage — "bricht die Streichung den Bau?" — und
+            # zwar in rund 45 s statt vier Minuten.
+            #
+            # WAS ER NICHT BEANTWORTET, und das gehört an die Stelle, an der
+            # jemand ihn benutzt:
+            #
+            #   GRUEN gegen ROT   entsteht erst aus dem Lauf. "kein BAU" heißt
+            #                     NICHT "gedeckt".
+            #   HAENGT            Ein Feld, dessen Streichung eine Endlosschleife
+            #                     erzeugt, baut sauber. `channelTickMs` gemessen
+            #                     am 2026-08-22: vier vitest-Worker, je 99 %,
+            #                     über 770 CPU-Sekunden, kein Ende in Sicht.
+            #   OOM               Ein an Speichermangel gestorbener Lauf liefert
+            #                     rc != 0 und sähe im vollen Weg wie ROT aus.
+            #                     Hier fällt er gar nicht erst an.
+            if args.nur_bau:
+                dauer = time.monotonic() - t0
+                stand = "BAU" if gebrochen else "baut"
+                detail = "Build bricht ab" if gebrochen else "Bau geht durch"
+                ergebnisse.append((feld, stand, getroffen, detail))
+                print(f"[{i}/{len(felder)}] {feld:<38} {stand:<6} {getroffen:>2} Zauber  "
+                      f"{detail}  ({dauer:.0f} s)", flush=True)
+                schreibe(WURZEL / args.aus, ergebnisse)
+                continue
+
             if gebrochen:
                 rc_r, aus_r = rc_bau, aus_bau
             else:
