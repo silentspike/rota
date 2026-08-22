@@ -28,16 +28,21 @@
 > | FIXATION     |     10 |     11 |      +1 |
 > | PUTREFACTION |      6 |     10 |      +4 |
 > | SUBLIMATION  |      8 |     12 |      +4 |
-> | COAGULATION  |      7 |     12 |      +5 |
-> |              | **41** | **55** | **+14** |
+> | COAGULATION  |      7 |     13 |      +6 |
+> |              | **41** | **56** | **+15** |
 >
 > **Die Tabelle stand am 2026-08-10 auf 54 und war am selben Abend überholt** — `RETORT` kam als
 > zwölfter SUBLIMATION-Zauber dazu (#733, #743) und schloss damit den **letzten der achtzehn
 > Vorschläge**.
 >
-> Das ist derselbe Vorgang, den der Kasten beschreibt, zum dritten Mal an diesem Dokument: Am
-> 09.08. stand hier 41 statt der gemessenen 54, am 10.08. 54 statt 55. **Jedes Mal hat die
-> Messung es gefunden, nie das Lesen.**
+> Das ist derselbe Vorgang, den der Kasten beschreibt, zum **vierten** Mal an diesem Dokument: Am
+> 09.08. stand hier 41 statt der gemessenen 54, am 10.08. 54 statt 55, und bis zum 2026-08-22
+> 55 statt 56. **Jedes Mal hat die Messung es gefunden, nie das Lesen.**
+>
+> Das vierte Mal war `DECOCTION` (2026-08-13, `1b4ac11d`), der dreizehnte COAGULATION-Zauber.
+> Er kam **zwei Tage nach** dem letzten Nachziehen dieser Tabelle — und GAME-DESIGN 20.4 trug
+> dieselbe 55 und wurde am 14.08. angefasst, ohne dass sie mitging. Zwei Orte, eine Zahl,
+> neun Tage auseinandergelaufen.
 >
 > Dazu zwei schulübergreifende in `common.json`.
 >
@@ -135,8 +140,13 @@ Die Entscheidung des Auftraggebers dazu:
 nicht als Vorschlag. Was **entschieden** ist: welcher Zauber es gibt, welche Rolle er in der
 Schul-Mechanik spielt, und warum er fehlt.
 
-**Die Abklingzeiten folgen dem Muster der vorhandenen:** 1,5 s für Füller, 3–15 s für Wirkungen,
-20–45 s für Höhepunkte. Auch das ist eine Ordnung, keine Balance.
+**Die Abklingzeiten folgen dem Muster der vorhandenen:** 1,5 s für Füller, 2–15 s für Wirkungen,
+18–60 s für Höhepunkte. Auch das ist eine Ordnung, keine Balance.
+
+> **Nachgemessen am 2026-08-22** über alle 58 Zauber mit `cooldownMs`: Die Spanne reicht von
+> 1,5 s bis 60 s. Vorher stand hier „3–15 s" und weiter unten „5–15 s" für dieselbe Sache, dazu
+> „20–45 s" gegen „30–45 s" — vier Zahlen für zwei Gruppen. Die Untergrenzen trafen `canker`
+> (2 s) nicht, die Obergrenzen `aether` (60 s) nicht.
 
 **Zwei Namen sind ersetzt**, weil sie die Regel „ein- bis zweisilbig, passt auf ein 48-Pixel-Symbol"
 brechen: `FORGE` → `FORGE`, `PYROCLASM` → `PYROCLASM`.
@@ -202,8 +212,8 @@ Mechanik. Sie hing an einem Schalter, nicht an einem Feld.
 ## Was ich dabei nicht entschieden habe
 
 **Alle Zahlen sind Platzhalter.** Sie stehen da, damit der Balance-Läufer etwas zu messen hat —
-nicht als Vorschlag. Die Abklingzeiten folgen dem Muster der vorhandenen (1,5 s für Füller, 5–15 s
-für Wirkungen, 30–45 s für Höhepunkte).
+nicht als Vorschlag. Die Abklingzeiten folgen dem Muster der vorhandenen (1,5 s für Füller, 2–15 s
+für Wirkungen, 18–60 s für Höhepunkte) — dieselben Zahlen wie oben, nachgemessen am 2026-08-22.
 
 **Die Namen sind englisch und ein- bis zweisilbig**, wie die vorhandenen (GAME-DESIGN: „Ein
 Zaubername steht auf einem Symbol von 48 Pixeln"). `FORGE` und `PYROCLASM` brechen das
