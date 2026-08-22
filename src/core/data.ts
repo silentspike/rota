@@ -1711,6 +1711,23 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   // Die zwei Angaben, die aus "verkürze alles" eine Auswahl machen
   // (Issue #518). Beide sind optional; fehlen sie, bleibt es beim Alten.
   const belowMs = number(raw['cooldownReductionBelowMs'], 0);
+  if (belowMs < 0) problems.push(`${where}: cooldownReductionBelowMs ist negativ.`);
+  if (!Number.isInteger(belowMs)) {
+    problems.push(`${where}: cooldownReductionBelowMs ${belowMs} ist nicht ganzzahlig.`);
+  }
+  // **KEIN Raster auf `cooldownReductionBelowMs`, und das ist entschieden**
+  // (Issue #1104). Es ist eine VERGLEICHSSCHWELLE — `slot - now >= below` —
+  // und wird nie zu einem Termin. Ein Wert daneben verschiebt, WELCHE
+  // Abklingzeit erfasst wird, erzeugt aber keinen Zeitpunkt zwischen zwei
+  // Takten.
+  //
+  // Der Unterschied zu `cooldownReductionMs` ist nicht die Einheit — beide
+  // heißen `…Ms` —, sondern was aus dem Wert wird. Ein Schweigen, das wie eine
+  // Ausnahme aussieht, ist keine; deshalb steht hier die Begründung und nicht
+  // nur die fehlende Zeile.
+  //
+  // Vorzeichen und Ganzzahligkeit prüfte bis #1104 gar nichts: `number(…, 0)`
+  // nimmt jede Zahl. Das ist nachgezogen.
   const longestOnly = raw['cooldownReductionLongestOnly'] === true;
   // EMBER und PYROCLASM (Issue #517). Beide Felder fehlen bei jedem
   // bisherigen Zauber — das ist der Normalfall und kein Mangel.
@@ -1748,6 +1765,16 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     if (cooldownReductionMs < 0) problems.push(`${where}: Verkürzung ist negativ.`);
     if (!Number.isInteger(cooldownReductionMs)) {
       problems.push(`${where}: Verkürzung ${cooldownReductionMs} ist nicht ganzzahlig.`);
+    } else if (cooldownReductionMs % TICK_MS !== 0) {
+      // **Raster, seit Issue #1104.** Der Betrag wird von einer Abklingzeit
+      // abgezogen (`sublimation.ts` bzw. `shorten_cooldowns` drüben), und
+      // keine der beiden Seiten hebt das Ergebnis aufs Raster. Ein Wert
+      // daneben machte den Zauber zu einem Zeitpunkt bereit, den der
+      // 10-ms-Takt nicht kennt.
+      problems.push(
+        `${where}: cooldownReductionMs ${cooldownReductionMs} liegt nicht auf dem ` +
+          `${TICK_MS}-ms-Raster — die verkürzte Abklingzeit endete zwischen zwei Takten.`,
+      );
     }
   }
 
@@ -1792,6 +1819,19 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // ein Cast mit anderem Namen.
     if (channelTickMs <= 0) {
       problems.push(`${where}: Kanalisierung ohne channelTickMs — es gäbe keine Teilwirkungen.`);
+    } else if (channelTickMs % TICK_MS !== 0) {
+      // (2b) **Zwei Rasterfragen, und bis Issue #1104 war nur eine
+      // beantwortet.** Die Prüfung darunter stellt sicher, dass `channelMs`
+      // ein Vielfaches des TICKS ist. Ob der Tick selbst darstellbar ist,
+      // fragte niemand — und `fight.rs` hebt nur den ERSTEN Termin aufs
+      // Raster (`snap_up`), die folgenden entstehen mit `at += schritt`.
+      //
+      // Ein `channelTickMs: 333` legte damit Teilwirkungen auf 333, 666, 999.
+      // Der Simulator löste dort aus, das Spiel im 10-ms-Takt nicht.
+      problems.push(
+        `${where}: channelTickMs ${channelTickMs} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          `die Teilwirkungen nach der ersten lägen zwischen zwei Takten.`,
+      );
     } else if (channelMs % channelTickMs !== 0) {
       // (3) Ein Rest müsste irgendwohin: verfallen, den letzten Schritt
       // vergrössern oder einen kürzeren anhängen. Drei Möglichkeiten, zwei
