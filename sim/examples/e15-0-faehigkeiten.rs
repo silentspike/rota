@@ -598,7 +598,7 @@ fn main() {
     // Funktion, an der die Entscheidung wirklich hängt.
     let ein_durchgang = ein_durchgang_genuegt(EFFECT_NODES, &WornValues::none());
     let ein_durchgang_hier = ein_durchgang_genuegt(EFFECT_NODES, &worn_mit_zufall());
-    println!("== Was die Referenz von 2026-08-16 gemessen hat ==");
+    println!("== Warum die Referenz gilt und die heutige orch-Zahl nicht ==");
     println!(
         "  mit WornValues::none()   ein_durchgang_genuegt = {ein_durchgang}{}",
         if ein_durchgang {
@@ -616,8 +616,11 @@ fn main() {
         }
     );
     println!(
-        "  orch-verteilung, das die Referenz erhoben hat, faehrt `none()` — es meldet\n\
-         \x20 heute 9 788 279 Kaempfe je Sekunde auf diesem Laptop und 9 861 417 auf gonet."
+        "  orch-verteilung faehrt `none()`. Es ist EINEN TAG AELTER als die Reduktion\n\
+         \x20 (b2244dc6 vom 18.08. gegen 7af79720 vom 19.08.) — seine Referenzwerte sind\n\
+         \x20 echte Durchsatzzahlen. Was es HEUTE meldet, ist es nicht: 9 788 279 auf\n\
+         \x20 diesem Laptop, Zaehler aus der Anforderung und Nenner aus einem Lauf.\n\
+         \x20 Repariert im selben PR."
     );
     println!();
 
@@ -639,11 +642,15 @@ fn main() {
                 println!("  AC1 ERFUELLT.");
             } else {
                 println!(
-                    "  AC1 NICHT ERFUELLT. Das ist ein Ergebnis und keine Panne — die Referenz\n\
-                     \x20 stammt vom 2026-08-16 und wurde mit `orch-verteilung` erhoben. Dasselbe\n\
-                     \x20 Programm meldet heute auf gonet 9 861 417 Kaempfe je Sekunde, weil die\n\
-                     \x20 Reduktion aus #908 einen Durchgang statt aller rechnet. Wer die Zahlen\n\
-                     \x20 vergleicht, vergleicht zwei verschiedene Arbeiten."
+                    "  AC1 NICHT ERFUELLT — und die Ursache ist NICHT belegt.\n\
+                     \x20\n\
+                     \x20 Die Referenz gilt: Das Werkzeug, das sie erhoben hat, ist aelter als die\n\
+                     \x20 Reduktion aus #908. Und diese Kalibrierung misst mit echtem Zufall, also\n\
+                     \x20 gegen denselben Bestand — auf proxmox trifft sie auf 0,4 Prozent.\n\
+                     \x20\n\
+                     \x20 Woher die Abweichung hier kommt, ist offen. Verdacht: Fremdlast auf\n\
+                     \x20 einem geteilten Knoten. NICHT gemessen, und deshalb steht hier ein\n\
+                     \x20 Verdacht und kein Grund."
                 );
             }
         }

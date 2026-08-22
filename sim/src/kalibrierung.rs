@@ -757,20 +757,30 @@ impl Profil {
 ///   proxmox Core i5-1235U    221 688            Load 0,73, AVX2+FMA+VNNI
 /// ```
 ///
-/// **Sie stammen vom 2026-08-16 und sind mit `orch-verteilung` erhoben** —
-/// dem Programm, das die Referenz erzeugt hat.
+/// **Sie sind mit `orch-verteilung` erhoben und sie gelten.**
 ///
-/// # Warum diese Zahlen mit Vorsicht zu lesen sind
+/// # Warum sie gelten, obwohl dasselbe Programm heute Millionen meldet
 ///
-/// Am 2026-08-22 meldet dasselbe Programm auf gonet **9 861 417** Kämpfe je
-/// Sekunde. Der Grund ist nicht schnellere Hardware, sondern die Reduktion aus
-/// Issue #908: `balance::run` erkennt seither, dass ohne Zufall jeder Kampf
-/// denselben Ausgang hat, und rechnet EINEN Durchgang statt aller. Die Zahl
-/// 200 000 steht weiterhin im Bericht.
+/// Am 2026-08-22 meldet `orch-verteilung` auf gonet **9 861 417** Kämpfe je
+/// Sekunde. Das ist keine schnellere Hardware und keine veraltete Referenz,
+/// sondern eine kaputte Rate: Zähler aus der angeforderten Menge, Nenner aus
+/// der Dauer eines einzigen Laufs.
 ///
-/// Die Referenz misst also einen Bestand, den es so nicht mehr gibt. Eine
-/// Kalibrierung, die sie treffen will, muss mit echtem Zufall messen — dann
-/// rechnet der Simulator wieder alle Durchgänge.
+/// Die Zeitachse entscheidet, welche der beiden Zahlen falsch ist:
+///
+/// ```text
+///   b2244dc6  2026-08-18  orch-verteilung mit "KAEMPFE JE SEKUNDE"
+///   7af79720  2026-08-19  die Reduktion aus #908
+/// ```
+///
+/// **Das Werkzeug ist einen Tag älter als die Reduktion.** Seine Referenzwerte
+/// stammen aus der Zeit davor und sind echte Durchsatzzahlen über 200 000
+/// gerechnete Kämpfe. Die Zahl von heute ist die kaputte.
+///
+/// Eine Kalibrierung, die sie treffen will, muss deshalb mit echtem Zufall
+/// messen — dann greift die Reduktion nicht, und es wird gegen denselben
+/// Bestand gemessen wie damals. Dass proxmox auf 0,4 Prozent trifft, ist der
+/// Beleg: Zwei verschiedene Welten träfen sich nicht auf drei Stellen.
 #[must_use]
 pub fn referenz_fights_per_s(host: &str) -> Option<f64> {
     match host {
