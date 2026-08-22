@@ -64,11 +64,40 @@ fn ac1_jeder_boss_traegt_eine_klasse() {
     // irgendwo einzeln aufgezaehlt waeren.
     assert_eq!(BossClass::of("instance-2"), Some(BossClass::Scored));
     assert_eq!(BossClass::of("testing"), Some(BossClass::Probe));
+
+    // **Der Negativfall stand bis zum 2026-08-22 auf `instance-5`, und das war
+    // die falsche Wahl.** Er wollte "ein Wert, den es nicht gibt" pruefen und
+    // nahm dafuer den naechsten, den es noch nicht gab — bis Instanz 5 gebaut
+    // wurde. Dann meldete er `Some(Scored)` statt `None`, ohne dass an der
+    // gepruesten Eigenschaft etwas fehlte.
+    //
+    // Der Ersatz ist ein Wert, der als Instanzname nie gewaehlt wird. Er
+    // waechst nicht in den Bestand hinein, und derselbe Fall haelt auch bei
+    // Instanz 6.
     assert_eq!(
-        BossClass::of("instance-5"),
+        BossClass::of("kein-solcher-instanzwert"),
         None,
         "ein unbekannter Wert hat keine Klasse — und bricht im Bau"
     );
+
+    // **Die veraltungssichere Fassung derselben Aussage**, und sie ist der
+    // eigentliche Gegenstand: Ein Wert hat genau dann eine Klasse, wenn er in
+    // einer der beiden Listen steht — und zwar die, zu deren Liste er gehoert.
+    // Wer eine Instanz hinzufuegt, muss hier nichts anfassen.
+    for i in data::SCORED_INSTANCES {
+        assert_eq!(
+            BossClass::of(i),
+            Some(BossClass::Scored),
+            "{i} steht in SCORED_INSTANCES und muesste gewertet sein"
+        );
+    }
+    for i in data::PROBE_INSTANCES {
+        assert_eq!(
+            BossClass::of(i),
+            Some(BossClass::Probe),
+            "{i} steht in PROBE_INSTANCES und muesste ein Pruefprofil sein"
+        );
+    }
 }
 
 /// Es gibt keine Liste von Boss-Kennungen im Quelltext.
