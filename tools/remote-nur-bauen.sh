@@ -25,6 +25,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# **Warnt, wenn ein ANDERER gerade das Messfenster hält** (#1049). Blockiert
+# nicht; Grenzen der Warnung stehen in der Datei selbst.
+bash tools/fenster-warnung.sh || true
+
 python3 - "$@" <<'PY'
 import re, subprocess, sys
 
