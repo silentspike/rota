@@ -1041,7 +1041,14 @@ pub fn greedy_zuege(
     SearchResult {
         best: measure(config, "gefunden", &chosen),
         chosen,
-        pool_size: pool.len() - ergaenzt.len(),
+        // Die ÜBERGEBENE Zahl, zurückgerechnet aus dem erweiterten Vorrat.
+        //
+        // `ergaenzung.len()` und nicht `ergaenzt.len()`: Beide sind heute
+        // gleich lang, weil die Namensliste ein schlichtes `map` ohne
+        // Entdopplung ist. Sie hängt aber an der DARSTELLUNG — wer die
+        // Meldeliste später lesbarer macht und doppelte Namen zusammenfasst,
+        // ändert damit still diese Zahl. Der Vorrat selbst kann das nicht.
+        pool_size: pool.len() - ergaenzung.len(),
         ergaenzt,
 
         measured,
