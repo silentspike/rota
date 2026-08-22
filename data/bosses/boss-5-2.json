@@ -1,0 +1,27 @@
+{
+  "_comment": "ARBEITSNAME (Issue E11, Instanz 5). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist spaeter eine Zeile.\n\nENTSCHIEDEN AM 2026-08-22, 06:31:22 UTC: Bausteinwahl, Signatur und Zeitleiste sind FREI (fragen/antworten/f-instanz5-signaturen-2.json, Option [freigeben], Lesart (a)). Der Vermerk oben bleibt stehen — Namen und Thema hat sich der Auftraggeber ausdruecklich weiter vorbehalten. Ausfuehrlich in boss-5-1.\n\nInstanz 5, Boss 2 — DAS TEURE AUFSPAREN. Erster Boss im Spiel, der `stacks` mit einem zweiten Baustein kombiniert.\n\nSIGNATUR: Wer Schaden fuer das Rennen aufspart, zahlt ihn im Stapel — und wer den Stapel kleinhaelt, verfehlt die Schwelle. Das Rennen liegt SPAET (32000 ms), der Stapel waechst von Anfang an. Beide Wege sind einzeln bedienbar und schliessen einander aus.\n\nWARUM DAS EINE REGEL IST UND KEIN ZUFALL: `stacks` bestraft Zeit, `race` bestraft zu wenig Schaden in einem Fenster. Wer das Fenster sicher schaffen will, spart Abklingzeiten auf — und verlaengert damit die Zeit, in der der Stapel waechst. Die Ersparnis und die Kosten liegen in derselben Groesse.\n\nDER UNTERSCHIED ZU boss-2-4 (dem bausteinreichsten Boss des Bestands — vier, wenn man den unterbrechbaren Zauber mitzaehlt, wie 11.2 es verlangt): Dort KOLLIDIEREN race und bossHeal zeitlich — ein Fenster, in dem zwei Dinge zugleich verlangt werden. Hier liegen sie AUSEINANDER, und trotzdem stehen sie einander im Weg: nicht ueber die Uhr, sondern ueber die Ressource. Das ist der Grund, warum diese Kombination etwas anderes ist als eine weitere Kollision.\n\nDER UNTERSCHIED ZU boss-2-2 UND boss-1-4 (den uebrigen race-Traegern): Bei boss-2-2 liegt das Fenster INMITTEN einer laufenden Belastung und kollidiert mit einem Zauber, der 1400 Schaden bringt — die Frage ist, ob man zwei Dinge gleichzeitig schafft. boss-1-4 setzt keinen race, sondern bossHeal; er steht hier nur, damit die Aufzaehlung nicht so aussieht, als sei sie vollstaendig, wenn sie es nicht ist. Bei mir kollidiert im Fenster GAR NICHTS — die Schwierigkeit liegt vor dem Fenster, in der Vorbereitung darauf, und sie bezahlt sich nach dem Fenster.\n\nDER UNTERSCHIED ZU boss-3-3 UND boss-4-3 (den beiden anderen stacks-Traegern): Dort ist der Stapel die einzige Uhr, und die Antwort lautet 'schneller sein'. Hier gibt es eine zweite Uhr, die genau das bestraft.\n\nZAHLEN UNGEMESSEN. hp, stacks.baseDamage, race.threshold und die Zeitleiste sind Platzhalter im Bestandsrahmen. Sie kommen aus dem Balance-Laeufer: schaffbar mit Restzeit, mindestens 10 Prozent Unterschied zwischen guter und schlechter Rotation.\n\nBESONDERS ZU MESSEN: ob die Schwelle des Rennens ueberhaupt erreichbar ist, waehrend der Stapel laeuft. Ein Rennen, das niemand gewinnen kann, sieht in der Schaffbarkeits-Messung aus wie ein schwerer Boss.",
+  "schema": 1,
+  "id": "boss-5-2",
+  "instance": "instance-5",
+  "name": "Instance Five, Second",
+  "hp": 4500,
+  "overpressureMs": 60000,
+  "phases": [],
+  "resistances": {},
+  "stacks": {
+    "perStepMs": 4000,
+    "baseDamage": 14,
+    "factor": 2,
+    "maxStacks": 4
+  },
+  "race": {
+    "atMs": 32000,
+    "windowMs": 6000,
+    "threshold": 1100
+  },
+  "timeline": [
+    { "atMs": 12000, "mechanic": "strike", "name": "Settling Ash", "damage": 280 },
+    { "atMs": 48000, "mechanic": "strike", "name": "Settling Ash", "damage": 280 }
+  ],
+  "timelineLoopMs": 60000
+}

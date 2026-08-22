@@ -27,8 +27,18 @@ use rota_sim::scoring::{
 /// `testing`, und `WERTUNGSFAEHIG` steht deshalb weiterhin auf 17. Genau diese
 /// unveränderte Zahl ist der Beleg, dass das Profil nicht versehentlich in einer
 /// gewerteten Instanz gelandet ist.
-const WERTUNGSFAEHIG: usize = 17;
-const GRUPPEN: usize = 5;
+///
+/// **Am 2026-08-22 sind beide Zahlen gewachsen, und diesmal zu Recht:** Instanz
+/// 5 ist entschieden, ihre vier Bosse tragen `instance: "instance-5"` und sind
+/// eingecheckt. `WERTUNGSFAEHIG` geht auf 21, `GRUPPEN` auf 6.
+///
+/// **Die zwei Absätze darüber werden dadurch nicht falsch.** Sie sagen, warum
+/// die Zahl bei einem _Prüfprofil_ nicht wachsen darf — nicht, dass sie nie
+/// wächst. Die Probe ist damit unverändert: Wer diese Zeile ändert, prüft das
+/// Feld `instance` der neuen Bosse. `test` und `testing` gehören nach
+/// `PRUEFPROFILE`, alles andere hierher.
+const WERTUNGSFAEHIG: usize = 21;
+const GRUPPEN: usize = 6;
 const PRUEFPROFILE: usize = 21;
 
 fn boss(id: &str) -> &'static Boss {
