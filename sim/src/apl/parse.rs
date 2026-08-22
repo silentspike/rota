@@ -351,6 +351,10 @@ fn parse_value(
         // hierher konnte nur CALCINATION bedingen — ueber `heat`.
         "decay" => return Ok(Value::Decay),
         "shield" => return Ok(Value::Shield),
+        "doom" => return Ok(Value::Doom),
+        "doom_charges" => return Ok(Value::DoomCharges),
+        "afflicted" => return Ok(Value::Afflicted),
+        "race_progress" => return Ok(Value::RaceProgress),
         "control" => return Ok(Value::Control),
         _ => {}
     }

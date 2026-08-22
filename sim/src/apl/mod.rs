@@ -67,6 +67,23 @@
 //! | `decay` | Stapel der Schwächung (PUTREFACTION) |
 //! | `shield` | Die Schutzschicht (COAGULATION) |
 //! | `control` | Kontroll-Punkte (FIXATION) |
+//! | `doom` | Stand der Verhängnis-Uhr (Baustein 4) |
+//! | `doom_charges` | Wie viele Senkungen noch übrig sind |
+//! | `afflicted` | Liegt die Schwächung an? (Baustein 5) |
+//! | `race_progress` | Stand des Rings (Baustein 8, Datenfeld `runaway`) |
+//!
+//! **Die letzten vier fehlten bis #1074** — und zwar nicht nur in dieser
+//! Tabelle, sondern in der Sprache. Drei der neun Bausteine aus
+//! GAME-DESIGN 11.2 waren für eine Rotation unsichtbar: Ihre Zustände liefen
+//! im Kampf mit und standen in der Prüfsumme, aber keine Bedingung kam an sie
+//! heran.
+//!
+//! Das äußerte sich nicht als Fehler, sondern als Stille. Der Balance-Läufer
+//! maß an einem `doom`-Boss, wie viel Schaden eine Liste nebenbei macht — nicht
+//! ob sie die Uhr bedient. **Ein Boss, dessen Signatur auf `doom` beruht, war
+//! für die Suche derselbe Boss ohne `doom`.** Dass die Suche an verschiedenen
+//! Bossen dieselbe Rotation fand, hat man für fehlende Boss-Vielfalt gehalten;
+//! es könnte fehlende Abfragbarkeit gewesen sein.
 //!
 //! **Sieben dieser Zeilen fehlten bis #797**, obwohl der Parser die Werte längst
 //! las: die drei Schul-Mechaniken aus #526, die beiden Verstärkungs-Werte aus
@@ -201,6 +218,39 @@ pub enum Value {
     Shield,
     /// Die Kontroll-Punkte (FIXATION, Issue #526).
     Control,
+    /// Der Stand der Verhaengnis-Uhr (Baustein 4, Issue #1074).
+    ///
+    /// # Warum drei Bausteine bis hierher unsichtbar waren
+    ///
+    /// `doom`, `affliction` und `runaway` sind drei der neun Bausteine aus
+    /// GAME-DESIGN 11.2. Ihre Zustaende wurden im Kampf gefuehrt und standen
+    /// in der Pruefsumme — nur konnte die Sprache sie nicht abfragen.
+    ///
+    /// Die Folge war keine Fehlfunktion, sondern eine STILLE: Der
+    /// Balance-Laeufer misst an einem `doom`-Boss, wie viel Schaden eine
+    /// Rotation nebenbei macht, nicht ob sie die Uhr bedient. Ein Boss, dessen
+    /// Signatur auf `doom` beruht, war fuer die Suche derselbe Boss OHNE
+    /// `doom`.
+    Doom,
+    /// Wie viele Senkungen der Verhaengnis-Uhr noch uebrig sind.
+    ///
+    /// Ohne diesen Wert kann eine Rotation nicht zwischen "senken, solange es
+    /// geht" und "die letzte Senkung aufheben" unterscheiden — und genau darin
+    /// besteht der Baustein bei `boss-1-2`: zwei Senkungen, wer die zweite zu
+    /// frueh verbraucht, verliert.
+    DoomCharges,
+    /// Liegt die Schwaechung gerade an? (Baustein 5, Issue #1074)
+    ///
+    /// Der Zustand heisst im Kampf `afflicted`, der Baustein `affliction`.
+    /// Ohne diesen Wert liess sich die Reinigung nur bedingungslos oder nach
+    /// Abklingzeit werfen — also nach der Uhr statt nach dem Zustand.
+    Afflicted,
+    /// Der Stand des Rings (Baustein 8, Datenfeld `runaway`, Issue #1074).
+    ///
+    /// Bisher war nur der Umweg ueber [`Value::Shield`] moeglich: „habe ich
+    /// Schutz" statt „wie weit ist der Ring". Das fragt die WIRKUNG ab statt
+    /// der Ursache und traegt nur, solange Schutz und Ring gekoppelt sind.
+    RaceProgress,
     /// Laeuft das Fenster der Verstaerkung, die dieser Zauber legt? (#553)
     ///
     /// # Warum nach ZAUBER und nicht nach Art
@@ -244,6 +294,10 @@ impl Value {
             Value::Gcd => Number::from(GCD_MS),
             Value::Decay => Number::from(u32::try_from(fight.decay_stacks()).unwrap_or(u32::MAX)),
             Value::Shield => Number::from(fight.shield()),
+            Value::Doom => Number::from(fight.doom()),
+            Value::DoomCharges => Number::from(fight.doom_charges()),
+            Value::Afflicted => Number::from(u32::from(fight.afflicted())),
+            Value::RaceProgress => Number::from(fight.race_progress()),
             Value::Control => Number::from(fight.control_points()),
             Value::BuffActive(i) => Number::from(u8::from(fight.buff_active(i))),
             Value::BuffRemains(i) => Number::from(fight.buff_remaining_ms(i)),
@@ -301,6 +355,10 @@ impl Value {
             | Value::Gcd
             | Value::Decay
             | Value::Shield
+            | Value::Doom
+            | Value::DoomCharges
+            | Value::Afflicted
+            | Value::RaceProgress
             | Value::Control => false,
         }
     }
@@ -581,6 +639,10 @@ fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis
         | Value::Gcd
         | Value::Decay
         | Value::Shield
+        | Value::Doom
+        | Value::DoomCharges
+        | Value::Afflicted
+        | Value::RaceProgress
         | Value::Control => None,
     }
 }
@@ -676,6 +738,10 @@ impl fmt::Display for Value {
             Self::Gcd => write!(f, "gcd"),
             Self::Decay => write!(f, "decay"),
             Self::Shield => write!(f, "shield"),
+            Self::Doom => write!(f, "doom"),
+            Self::DoomCharges => write!(f, "doom_charges"),
+            Self::Afflicted => write!(f, "afflicted"),
+            Self::RaceProgress => write!(f, "race_progress"),
             Self::Control => write!(f, "control"),
             Self::BuffActive(i) => write!(f, "buff.{}.active", crate::data::SPELLS[*i].id),
             Self::BuffRemains(i) => write!(f, "buff.{}.remains", crate::data::SPELLS[*i].id),
