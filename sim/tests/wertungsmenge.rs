@@ -27,8 +27,18 @@ use rota_sim::scoring::{
 /// `testing`, und `WERTUNGSFAEHIG` steht deshalb weiterhin auf 17. Genau diese
 /// unveränderte Zahl ist der Beleg, dass das Profil nicht versehentlich in einer
 /// gewerteten Instanz gelandet ist.
-const WERTUNGSFAEHIG: usize = 17;
-const GRUPPEN: usize = 5;
+///
+/// **Am 2026-08-22 sind beide Zahlen gewachsen, und diesmal zu Recht:** Instanz
+/// 5 ist entschieden, ihre vier Bosse tragen `instance: "instance-5"` und sind
+/// eingecheckt. `WERTUNGSFAEHIG` geht auf 21, `GRUPPEN` auf 6.
+///
+/// **Die zwei Absätze darüber werden dadurch nicht falsch.** Sie sagen, warum
+/// die Zahl bei einem _Prüfprofil_ nicht wachsen darf — nicht, dass sie nie
+/// wächst. Die Probe ist damit unverändert: Wer diese Zeile ändert, prüft das
+/// Feld `instance` der neuen Bosse. `test` und `testing` gehören nach
+/// `PRUEFPROFILE`, alles andere hierher.
+const WERTUNGSFAEHIG: usize = 21;
+const GRUPPEN: usize = 6;
 const PRUEFPROFILE: usize = 21;
 
 fn boss(id: &str) -> &'static Boss {
@@ -54,11 +64,47 @@ fn ac1_jeder_boss_traegt_eine_klasse() {
     // irgendwo einzeln aufgezaehlt waeren.
     assert_eq!(BossClass::of("instance-2"), Some(BossClass::Scored));
     assert_eq!(BossClass::of("testing"), Some(BossClass::Probe));
+
+    // **Der Negativfall stand bis zum 2026-08-22 auf `instance-5`, und das war
+    // die falsche Wahl.** Er wollte "ein Wert, den es nicht gibt" pruefen und
+    // nahm dafuer den naechsten, den es noch nicht gab — bis Instanz 5 gebaut
+    // wurde. Dann meldete er `Some(Scored)` statt `None`, ohne dass an der
+    // gepruesten Eigenschaft etwas fehlte.
+    //
+    // Der Ersatz ist ein Wert, der als Instanzname nie gewaehlt wird. Er
+    // waechst nicht in den Bestand hinein, und derselbe Fall haelt auch bei
+    // Instanz 6.
+    // Der zweite Halbsatz der Meldung ist geprueft und nicht behauptet:
+    // `build.rs:1029` (`pruefe_instanz`) bricht mit einem `assert!`, wenn ein
+    // Boss einen `instance`-Wert traegt, der in keiner der beiden Listen steht;
+    // aufgerufen wird sie in `build.rs:1055` fuer jeden Boss. Er gilt fuer einen
+    // Boss in einer Datei — der Aufruf hier mit einem freien String bricht
+    // nichts, und genau deshalb steht er hier pruefbar.
     assert_eq!(
-        BossClass::of("instance-5"),
+        BossClass::of("kein-solcher-instanzwert"),
         None,
-        "ein unbekannter Wert hat keine Klasse — und bricht im Bau"
+        "ein unbekannter Wert hat keine Klasse — und ein Boss mit so einem Wert \
+         bricht im Bau (build.rs:1029, aufgerufen in 1055)"
     );
+
+    // **Die veraltungssichere Fassung derselben Aussage**, und sie ist der
+    // eigentliche Gegenstand: Ein Wert hat genau dann eine Klasse, wenn er in
+    // einer der beiden Listen steht — und zwar die, zu deren Liste er gehoert.
+    // Wer eine Instanz hinzufuegt, muss hier nichts anfassen.
+    for i in data::SCORED_INSTANCES {
+        assert_eq!(
+            BossClass::of(i),
+            Some(BossClass::Scored),
+            "{i} steht in SCORED_INSTANCES und muesste gewertet sein"
+        );
+    }
+    for i in data::PROBE_INSTANCES {
+        assert_eq!(
+            BossClass::of(i),
+            Some(BossClass::Probe),
+            "{i} steht in PROBE_INSTANCES und muesste ein Pruefprofil sein"
+        );
+    }
 }
 
 /// Es gibt keine Liste von Boss-Kennungen im Quelltext.
