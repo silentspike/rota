@@ -57,6 +57,12 @@
 # /work/tmp: Wer sie brauchte, musste sie kopieren und anpassen, und die
 # Fassung mit den teuer gelernten Korrekturen darin war nur einem zugaenglich.
 set -u
+
+# **Warnt, wenn ein ANDERER gerade das Messfenster hält** (#1049). Blockiert
+# nicht — wer wissentlich in fremdem Fenster rechnet, darf das; er soll es nur
+# nicht versehentlich tun. Grenzen der Warnung stehen in der Datei selbst.
+bash "$(dirname "${BASH_SOURCE[0]}")/fenster-warnung.sh" || true
+
 # --alle-namen: ALLE roten Testnamen ausgeben statt der ersten drei.
 #
 # WARUM ES DEN SCHALTER GIBT: `tools/streich-mutation.py` klassifiziert Felder

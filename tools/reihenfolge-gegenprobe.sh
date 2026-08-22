@@ -13,6 +13,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# **Warnt, wenn ein ANDERER gerade das Messfenster hält** (#1049). Blockiert
+# nicht; Grenzen der Warnung stehen in der Datei selbst.
+bash tools/fenster-warnung.sh || true
+
 # **Zwei Dateien, nicht eine** — und das ist der Kern der Sache:
 #
 #   „vorne"  = an den Anfang der ERSTEN Quelle  (calcination.json)

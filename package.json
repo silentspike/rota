@@ -6,16 +6,27 @@
   "description": "ROTA — Spell-Rotation-DPS-Game im Browser",
   "scripts": {
     "dev": "vite",
+    "predev": "bash tools/fenster-warnung.sh",
     "build": "tsc --noEmit && vite build",
+    "prebuild": "bash tools/fenster-warnung.sh",
     "preview": "vite preview",
+    "prepreview": "bash tools/fenster-warnung.sh",
     "soundboard": "vite build --mode development && echo '\\nAbhoer-Soundboard: http://localhost:8000/rota/soundboard.html'",
+    "presoundboard": "bash tools/fenster-warnung.sh",
     "typecheck": "tsc --noEmit",
+    "pretypecheck": "bash tools/fenster-warnung.sh",
     "lint": "eslint . && prettier --check .",
+    "prelint": "bash tools/fenster-warnung.sh",
     "format": "prettier --write .",
+    "preformat": "bash tools/fenster-warnung.sh",
     "test": "vitest run",
+    "pretest": "bash tools/fenster-warnung.sh",
     "test:watch": "vitest",
+    "pretest:watch": "bash tools/fenster-warnung.sh",
     "test:parity": "vitest run tests/parity",
-    "parity:export": "vite-node tests/parity/export-parity.mjs"
+    "pretest:parity": "bash tools/fenster-warnung.sh",
+    "parity:export": "vite-node tests/parity/export-parity.mjs",
+    "preparity:export": "bash tools/fenster-warnung.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
