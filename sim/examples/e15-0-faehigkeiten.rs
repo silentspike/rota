@@ -44,7 +44,8 @@ use std::time::Duration;
 use rota_sim::akkumulator::TrialIdSet;
 use rota_sim::apl::{Apl, Rule};
 use rota_sim::balance::{self, BalanceConfig};
-use rota_sim::data::boss_by_id;
+use rota_sim::data::{boss_by_id, EFFECT_NODES};
+use rota_sim::durchgaenge::ein_durchgang_genuegt;
 use rota_sim::factors::NEUTRAL;
 use rota_sim::gear::WornValues;
 use rota_sim::gear_balance;
@@ -52,7 +53,7 @@ use rota_sim::hostcaps::{drucksignale, erlaubte_kerne, kernvorraete, psi_some_av
 use rota_sim::kalibrierung::{
     abweichung_von_referenz, bestaetigen, gespeicherte_rate, kalibriere, kontrolllauf_feste_dauer,
     profildatei, profilverzeichnis, referenz_fights_per_s, schluessel_erheben, Arbeitsart,
-    Bestaetigung, HostPerfVector, Profil, RateModel, AC1_TOLERANZ, STREUUNG_MAX,
+    Bestaetigung, HostPerfVector, Profil, RateModel, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
 };
 use rota_sim::rotation_search::{all_candidates, greedy};
 use rota_sim::verteilung::{verteilung_ueber, Treffer};
@@ -134,7 +135,7 @@ fn feste_rotation() -> Apl {
 fn miss(art: Arbeitsart, arbeit: impl FnMut() -> f64) -> RateModel {
     let r = kalibriere(arbeit);
     println!(
-        "  {:<20} {:>14.1} {:<22} Streuung {:>6.2} %  {:>3} Abschnitte  {:>6} ms  PSI {:>5}  Drift {:>6}  {:?}",
+        "  {:<20} {:>14.1} {:<22} Streuung {:>6.2} %  {:>3} Abschnitte  {:>6} ms  PSI {:>5}  Drift {:>7}  {:?}",
         art.schluessel(),
         r.rate_per_s,
         art.einheit(),
@@ -143,8 +144,20 @@ fn miss(art: Arbeitsart, arbeit: impl FnMut() -> f64) -> RateModel {
         r.duration_ms,
         r.psi_cpu
             .map_or_else(|| "—".to_owned(), |p| format!("{p:.1}%")),
-        r.takt_drift
-            .map_or_else(|| "—".to_owned(), |d| format!("{:.1}%", d * 100.0)),
+        // **Die Drift wird markiert, nicht bewertet.** Sie bricht seit dem
+        // 2026-08-22 nichts mehr ab (die Begründung steht bei
+        // `TAKT_DRIFT_MAX`), aber wer eine auffällige Rate erklärt, will sie
+        // sehen — und `TAKT_DRIFT_MAX` sagt, ab wann sie auffällig ist.
+        r.takt_drift.map_or_else(
+            || "—".to_owned(),
+            |d| {
+                format!(
+                    "{:.1}%{}",
+                    d * 100.0,
+                    if d > TAKT_DRIFT_MAX { "!" } else { " " }
+                )
+            },
+        ),
         r.reason
     );
     r
@@ -263,17 +276,7 @@ fn main() {
     let threads = caps.threads_usable.max(1);
     let cfg_voll = config(threads, KAEMPFE_JE_PAKET);
     let scalar_full_fight = miss(Arbeitsart::ScalarFullFight, || {
-        // **Die Zahl kommt aus dem Ergebnis, nicht aus der Konfiguration.**
-        // `iterations` ist ein Wunsch; `damage.count` ist, was wirklich
-        // gerechnet wurde. Beim ersten Lauf dieses Programms lagen zwischen
-        // beiden ein Faktor 20 000, weil die Reduktion aus #908 griff.
         let r = balance::run(&cfg_voll, &apl);
-        assert!(
-            r.damage.count > 1,
-            "nur {} Durchgang gerechnet — die Reduktion aus #908 hat gegriffen, \
-             und die Rate waere um Groessenordnungen zu hoch",
-            r.damage.count
-        );
         #[allow(clippy::cast_precision_loss)]
         {
             r.damage.count as f64
@@ -579,6 +582,45 @@ fn main() {
     println!();
 
     // -------------------------------------------------------- AC1: Referenz
+    //
+    // **Der Beleg dafür, dass die Referenz eine andere Arbeit misst**, steht
+    // hier und nicht in einer Nachricht: ein einziger Lauf mit
+    // `WornValues::none()` — der Einstellung, mit der die Referenz erhoben
+    // wurde. Er kostet Millisekunden und beantwortet die Frage, die den
+    // ganzen Vergleich trägt.
+    // **`damage.count` beantwortet die Frage NICHT**, und das ist der zweite
+    // Anlauf dieser Stelle: Die Reduktion aus #908 rechnet einen Kampf und
+    // VERVIELFACHT ihn — `(0..iterations).map(|i| Sample { seed: .., ..muster })`
+    // in `balance.rs`. Die Statistik bekommt dieselbe Zahl von Werten wie ohne
+    // Reduktion, also ist `count` immer `iterations`.
+    //
+    // Eine Zusicherung darauf konnte nie scheitern. Gefragt wird deshalb die
+    // Funktion, an der die Entscheidung wirklich hängt.
+    let ein_durchgang = ein_durchgang_genuegt(EFFECT_NODES, &WornValues::none());
+    let ein_durchgang_hier = ein_durchgang_genuegt(EFFECT_NODES, &worn_mit_zufall());
+    println!("== Was die Referenz von 2026-08-16 gemessen hat ==");
+    println!(
+        "  mit WornValues::none()   ein_durchgang_genuegt = {ein_durchgang}{}",
+        if ein_durchgang {
+            "   <- EIN Kampf statt aller, dann vervielfacht"
+        } else {
+            "   <- alle Kaempfe werden gerechnet"
+        }
+    );
+    println!(
+        "  mit purity 375           ein_durchgang_genuegt = {ein_durchgang_hier}{}",
+        if ein_durchgang_hier {
+            "   <- die Messung oben waere wertlos"
+        } else {
+            "   <- die Messung oben rechnet echte Kaempfe"
+        }
+    );
+    println!(
+        "  orch-verteilung, das die Referenz erhoben hat, faehrt `none()` — es meldet\n\
+         \x20 heute 9 788 279 Kaempfe je Sekunde auf diesem Laptop und 9 861 417 auf gonet."
+    );
+    println!();
+
     println!("== AC1: gegen die Referenz aus #912 ==");
     match abweichung_von_referenz(&profil.schluessel.host, vektor.scalar_full_fight.rate_per_s) {
         None => println!(

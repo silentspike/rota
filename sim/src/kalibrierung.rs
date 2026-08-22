@@ -776,9 +776,14 @@ pub fn referenz_fights_per_s(host: &str) -> Option<f64> {
     match host {
         h if h.contains("gonet") => Some(121_689.0),
         h if h.contains("proxmox") => Some(221_688.0),
-        // Der Laptop meldet seinen Hostnamen anders als die zwei Server; er
-        // ist der Rechner, auf dem der Simulator entwickelt wird.
-        h if h.contains("laptop") || h.contains("tuxedo") || h.contains("rota") => Some(210_094.0),
+        // **Der Laptop heißt `linux.fritz.box`** — gemessen am 2026-08-22,
+        // nicht geraten. Der erste Anlauf dieser Funktion prüfte auf „laptop",
+        // „tuxedo" und „rota" und fand nichts; AC1 stand daraufhin als „nicht
+        // prüfbar" da, obwohl die Referenz existiert und der Rechner der
+        // wichtigste der drei ist.
+        //
+        // Ein Hostname ist eine Ablesung wie jede andere.
+        h if h.contains("linux.fritz.box") || h.contains("laptop") => Some(210_094.0),
         _ => None,
     }
 }
@@ -1250,6 +1255,7 @@ mod tests {
         // **Ein unbekannter Rechner bekommt `None`, keine Null.** Eine Null
         // ergäbe eine Abweichung von minus hundert Prozent und damit einen
         // Befund, wo gar keine Referenz existiert.
+        assert_eq!(referenz_fights_per_s("linux.fritz.box"), Some(210_094.0));
         assert_eq!(referenz_fights_per_s("irgendwas"), None);
         assert_eq!(abweichung_von_referenz("irgendwas", 1000.0), None);
     }
