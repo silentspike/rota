@@ -204,6 +204,29 @@ fn main() {
     println!();
 
     // ---- Durchsatz. Zwei Laeufe: der erste waermt, der zweite zaehlt.
+    //
+    // **DIE RATE IST SEIT #908 NICHT MEHR IMMER EINE DURCHSATZMESSUNG**, und
+    // das steht hier, weil die Zahl sonst zwei verschiedene Dinge bedeutet und
+    // beide gleich aussehen (Issue #912).
+    //
+    // `balance::run` rechnet seit dem 2026-08-19 (7af79720) EINEN Kampf statt
+    // aller, wenn nachweislich nichts wuerfelt — und vervielfacht ihn dann auf
+    // `iterations`. Die Statistik hat danach wirklich 200 000 Werte, aber
+    // gerechnet wurde einer.
+    //
+    // Dieses Werkzeug ist einen Tag AELTER (b2244dc6, 2026-08-18). Seine
+    // Referenzwerte — 210 094 auf dem Laptop, 121 689 auf gonet — stammen
+    // aus der Zeit davor und sind echte Durchsatzzahlen. Die Zahl, die es
+    // HEUTE meldet, ist es nicht: Zaehler aus der Anforderung, Nenner aus
+    // einem einzigen Lauf. Gemessen am 2026-08-22: 9 788 279 auf dem Laptop.
+    //
+    // Es gibt im `BalanceResult` kein Feld fuer die tatsaechlich gerechneten
+    // Kaempfe — `iterations` ist die angeforderte Zahl, und das ist dort
+    // richtig. Deshalb wird die Bedingung gefragt, an der die Reduktion haengt.
+    let reduziert = rota_sim::durchgaenge::ein_durchgang_genuegt(
+        rota_sim::data::EFFECT_NODES,
+        &config(threads, KAEMPFE).worn,
+    );
     let _ = rota_sim::balance::run(&config(threads, KAEMPFE / 10), &apl);
     let t0 = Instant::now();
     let ergebnis = rota_sim::balance::run(&config(threads, KAEMPFE), &apl);
@@ -212,7 +235,20 @@ fn main() {
 
     println!("== Durchsatz ==");
     println!("  Dauer                  {:.3} s", dauer.as_secs_f64());
-    println!("  KAEMPFE JE SEKUNDE     {pro_s:.0}");
+    if reduziert {
+        println!("  KAEMPFE JE SEKUNDE     {pro_s:.0}   <== KEINE DURCHSATZMESSUNG");
+        println!(
+            "  ACHTUNG: `ein_durchgang_genuegt` ist WAHR — es wurde EIN Kampf gerechnet\n\
+             \x20 und auf {KAEMPFE} vervielfacht. Die Zahl oben teilt die angeforderte Menge\n\
+             \x20 durch die Dauer eines einzigen Laufs.\n\
+             \x20\n\
+             \x20 Wer einen Durchsatz braucht, misst mit getragenen Werten, bei denen\n\
+             \x20 wirklich gewuerfelt wird — etwa `purity = 375`. Siehe\n\
+             \x20 `examples/e15-0-faehigkeiten.rs` (Issue #912)."
+        );
+    } else {
+        println!("  KAEMPFE JE SEKUNDE     {pro_s:.0}");
+    }
     println!("  je Kampf               {:.2} us", 1e6 / pro_s);
     println!(
         "  Gegenprobe mean        {:.10}   (muss zur Probe oben passen: {})",
