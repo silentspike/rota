@@ -52,6 +52,19 @@
 //! Weicht ein späterer Lauf ab, ist die erste Frage nicht „hat sich der Sucher
 //! geändert", sondern „messe ich denselben Aufbau": gleiche Bosse, gleiches
 //! `MAX_LEN`, gleiche Iterationszahl, gleicher Vorrat.
+//!
+//! ## Dieselben Zahlen stehen auch in #1085 — welche gilt
+//!
+//! Das ist **bewusste Doppelung**, keine Nachlässigkeit: Das Issue erklärt,
+//! *warum* gemessen wurde; diese Datei erlaubt, es *nachzufahren*.
+//!
+//! **Laufen sie auseinander, gilt die Datei.** Sie lässt sich starten, das
+//! Issue nicht. Ein Widerspruch zwischen beiden ist deshalb kein Streitfall,
+//! sondern ein Hinweis, dass jemand das Issue nicht nachgezogen hat.
+//!
+//! Der Satz steht hier, weil zwei Stellen, die dieselbe Zahl führen, ohne
+//! Angabe welche gilt regelmäßig auseinanderlaufen — und dann streiten zwei
+//! Leute über eine Zahl statt über die Sache.
 
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, SPELLS};
