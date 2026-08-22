@@ -31,9 +31,22 @@
 //! ist ihre Schwäche: Sie kann von `reference-run.ts` abweichen, ohne dass es
 //! auffällt. Automatisch ableiten ließe sie sich nicht — drüben stehen
 //! TypeScript-Funktionen, keine Werteliste. Wer `reference-run.ts` um einen
-//! Wert erweitert, muss sie hier nachtragen; wer es vergisst, bekommt einen
-//! roten Wächter statt einer stillen Lücke, und das ist die richtige Richtung
-//! des Fehlers.
+//! Wert erweitert, muss sie hier nachtragen.
+//!
+//! **Die Drift hat zwei Richtungen, und nur eine fällt auf:**
+//!
+//! | drüben | hier | Wächter | Folge |
+//! | --- | --- | --- | --- |
+//! | Wert **ergänzt** | nicht nachgetragen | zu streng | **rot**, sichtbar |
+//! | Wert **entfernt** | nicht nachgetragen | zu lax | **stille Lücke** |
+//!
+//! Die zweite Richtung ist **nicht gedeckt** — und sie ist genau die, gegen
+//! die dieser Wächter gebaut ist. Wer drüben einen Wert wegnimmt und hier
+//! nichts ändert, bekommt eine Zuordnung, die mehr durchlässt als es Werte
+//! gibt, ohne dass etwas rot wird.
+//!
+//! Das steht hier und nicht nur im Issue, weil ein Satz, der eine halbe
+//! Schwäche als harmlos beschreibt, das Nachdenken beendet.
 
 use rota_sim::apl::{parse, AplName, Value};
 
