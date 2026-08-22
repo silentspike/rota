@@ -1,9 +1,46 @@
 //! Belastbare Messumgebung — misst, und bricht ab, wenn sie es nicht kann (#896)
 //!
 //! ```text
+//! # BAUEN — entfernt:
 //! cargo remote -c --manifest-path sim/Cargo.toml -- \
-//!   run --release --features diagnostics --example messumgebung
+//!   build --release --features diagnostics --example messumgebung
+//!
+//! # FAHREN — hier, auf der Maschine, die die Baseline nennt,
+//! # und GEBUNDEN, sonst bricht der Läufer selbst mit BLOCKED ab:
+//! taskset -c 0-7 ./target/release/examples/messumgebung
 //! ```
+//!
+//! Der Pfad ist `target/` in der **Worktree-Wurzel**, nicht `sim/target/` —
+//! der Workspace baut gemeinsam, und `sim/target` gibt es nicht. Dieselbe Form
+//! wie in `rotation-search.rs` und `buff-ablaeufe.rs`.
+//!
+//! Ohne `taskset` meldet er „BLOCKED — keine Kernbindung" und endet mit Exit 2:
+//! Darf der Prozess alle Kerne benutzen, entscheidet der Scheduler, wo
+//! gerechnet wird, und zwei Läufe sind nicht vergleichbar.
+//!
+//! # Der Aufruf, der hier bis zum 2026-08-22 stand, hat auf der falschen Maschine gemessen
+//!
+//! Er lautete `cargo remote … -- run …`. Das ist `run`, nicht `build` — der
+//! Läufer lief damit auf **rustbuild** und maß den Bauserver.
+//!
+//! Das Issue verbietet das auf seiner ersten Seite („Die Messläufe gehören
+//! nicht auf den Bauserver"), und `/work/.claude/CLAUDE.md` beziffert den
+//! Unterschied: **210 094 gegen 121 689 Kämpfe/s**, weil rustbuild kein
+//! AVX2/FMA hat. Zweiundvierzig Prozent — mehr als jede Streuung, die dieser
+//! Läufer abfangen soll, und mehr als jede Beschleunigung, die der
+//! Architekturplan anstrebt.
+//!
+//! **Es ist nicht theoretisch:** Weiter unten in dieser Datei steht der
+//! Vorfall selbst — am 2026-08-18 brach der Bauserver einen Lauf mit „PSI io
+//! 20,37" ab. Der Läufer *ist* dort gelaufen. Nur die Druckprüfung hat
+//! verhindert, dass eine Zahl herauskam, und sie hat dabei den falschen Fehler
+//! gemeldet: „die Maschine ist unruhig" statt „das ist die falsche Maschine".
+//!
+//! Deshalb steht die Maschinenkennung jetzt im Berichtskopf (siehe
+//! [`maschine`]). **Keine Sperre und keine weiße Liste** — eine harte
+//! Bedingung „mindestens 16 Kerne" nagelte die Messumgebung an ein Modell,
+//! und das wäre geraten. Die Angabe sagt nur, WO gemessen wurde; ohne sie
+//! lässt sich ein Bericht nachträglich nicht mehr zuordnen.
 //!
 //! # Warum es diesen Laeufer gibt
 //!
@@ -780,6 +817,48 @@ fn kerne_gesamt() -> usize {
     })
 }
 
+/// Das CPU-Modell aus `/proc/cpuinfo`, für den Berichtskopf.
+///
+/// # Warum eine Angabe und keine Bedingung
+///
+/// Der Läufer prüft heute den DRUCK auf der Maschine, aber nicht, WELCHE
+/// Maschine es ist. Beides sind verschiedene Fragen, und die zweite ist die
+/// teurere: rustbuild und der Laptop unterscheiden sich um 42 Prozent im
+/// Durchsatz (210 094 gegen 121 689 Kämpfe/s, `/work/.claude/CLAUDE.md`),
+/// weil dem Bauserver AVX2/FMA fehlt. Ein Bericht ohne diese Zeile lässt sich
+/// nachträglich nicht mehr zuordnen — und eine Zahl ohne ihren Bezugspunkt
+/// ist keine Messung, sondern eine Behauptung mit Nachkommastellen.
+///
+/// **Bewusst keine Sperre.** „Nur auf einem 5900HS" wäre eine Bedingung, die
+/// niemand entschieden hat: Die Baseline nennt diese Maschine als
+/// *Bezugspunkt*, nicht als Voraussetzung. Wer bewusst woanders misst, soll
+/// das können — es soll nur im Bericht stehen.
+///
+/// `None`, wenn `/proc/cpuinfo` fehlt oder keine `model name`-Zeile trägt.
+/// Auf ARM ist das der Normalfall und kein Fehler.
+fn maschine() -> Option<String> {
+    let text = fs::read_to_string("/proc/cpuinfo").ok()?;
+    let modell = modell_aus_text(&text)?;
+    Some(format!("{modell} ({} Kerne)", kerne_gesamt()))
+}
+
+/// Das Modell aus dem Text — getrennt vom Lesen, damit es prüfbar ist.
+///
+/// Dieselbe Zweiteilung wie bei [`psi_some_avg10`] und [`psi_aus_text`]: Eine
+/// Funktion, die `/proc` liest, lässt sich nicht gegen eine erfundene Eingabe
+/// halten, und dann prüft der Fall nur, ob die Maschine ein `/proc` hat.
+fn modell_aus_text(text: &str) -> Option<String> {
+    text.lines()
+        // **Erst am Doppelpunkt trennen, dann den Schlüssel GANZ vergleichen.**
+        // Ein `starts_with("model name")` träfe auch ein Feld namens
+        // `model names` — aufgefallen beim Schreiben des Prüffalls dafür, nicht
+        // beim Schreiben der Funktion.
+        .filter_map(|z| z.split_once(':'))
+        .find(|(schluessel, _)| schluessel.trim() == "model name")
+        .map(|(_, wert)| wert.trim().to_string())
+        .filter(|wert| !wert.is_empty())
+}
+
 // ---------------------------------------------------------------------------
 // Die sechs Metriken
 // ---------------------------------------------------------------------------
@@ -1156,7 +1235,23 @@ fn miss(fall: &Lastfall, threads: usize) -> Result<Ergebnis, String> {
         // MESSUNG und kein Platzhalter: An dieser 1,0 sieht man spaeter, ob
         // eine Abkuerzung ueberhaupt greift.
         full_fight_ratio: Wert::Zahl(1.0),
-        time_to_best: Wert::Zahl(time_to_best.as_secs_f64()),
+        time_to_best: if fall.verfahren == Verfahren::Kampf {
+            // **Dieselbe Behandlung wie die zwei Nachbarn, und aus demselben
+            // Grund.** Eine Lastart SUCHT nicht — es gibt kein „bestes
+            // Ergebnis", zu dem eine Zeit gemessen werden könnte. Was hier bis
+            // zum 2026-08-22 stand, war die Dauer des letzten Kampfblocks, und
+            // die druckte sich als `0.0000`.
+            //
+            // Das liest sich wie „sofort gefunden" und ist in Wahrheit „nie
+            // gesucht" — genau die Verwechslung, gegen die [`Wert::Fehlt`] in
+            // diesem Läufer gebaut ist. Sichtbar wurde sie erst im Bericht:
+            // sechs Lastfälle mit `0.0000` neben zwei mit `n/v (keine Suche)`,
+            // während `resolved_candidates` und `verified_elites` daneben
+            // längst richtig lagen.
+            Wert::Fehlt("keine Suche")
+        } else {
+            Wert::Zahl(time_to_best.as_secs_f64())
+        },
         // Ein Suchlauf, der durchgelaufen ist, ist ein bestaetigtes Ergebnis:
         // `greedy` misst jede Zeile ueber den skalaren Referenzpfad, es gibt
         // keinen schnellen Pfad, der etwas ueberspringen koennte.
@@ -1629,6 +1724,26 @@ fn ab_reihe(
             (true, false)
         };
         let (vor_a, vor_b) = (a.len(), b.len());
+        // **Fortschritt nach stderr, wie in [`miss`] — und hier nötiger als
+        // dort.** Die Begründung steht dort schon: „Ein Läufer, der zwanzig
+        // Minuten schweigt und dann alles auf einmal druckt, ist von einem
+        // hängenden nicht zu unterscheiden", und der Autor hat am 2026-08-18
+        // deshalb zwei Läufe abgebrochen, ohne ihren Stand zu kennen.
+        //
+        // Sie galt für `miss` (acht Lastfälle, je 20 s) und fehlte
+        // ausgerechnet in DIESER Funktion, dem längsten Modus überhaupt: acht
+        // Paare zu je zwei Durchgängen. Gemessen am 2026-08-22 — nach einer
+        // Minute bei 99,9 % CPU war die Ausgabedatei noch leer, und ein
+        // hängender Lauf hätte genauso ausgesehen.
+        //
+        // Auch das ist NICHT die Fortschrittsanzeige, die #896 ausschließt:
+        // Die meint eine Anzeige während eines Suchlaufs. Hier steht nur,
+        // welches von N Paaren gerade läuft.
+        eprintln!(
+            "  [{}] Paar {}/{paare} …",
+            if gleiche_variante { "A,A" } else { "A/B" },
+            i + 1
+        );
         let r1 = eine_rate(fall, threads, durchgaenge, erst);
         let r2 = eine_rate(fall, threads, durchgaenge, dann);
 
@@ -2099,6 +2214,17 @@ fn main() {
     let mut bericht = String::new();
     let _ = writeln!(bericht, "MESSUMGEBUNG (#896)");
     let _ = writeln!(bericht, "===================\n");
+    // **Der Bezugspunkt steht VOR den Zahlen, nicht darunter.** Ein Bericht,
+    // dessen Maschine man erst am Ende erfährt, wird oben gelesen und unten
+    // abgebrochen. Und er steht auch dann da, wenn der Lauf gleich darauf
+    // wegen Systemdruck abbricht — gerade dann ist die Frage „welche Maschine
+    // war das überhaupt" die erste, die jemand stellt.
+    let _ = match maschine() {
+        Some(m) => writeln!(bericht, "Maschine: {m}\n"),
+        // Nicht „unbekannt" verschweigen: Eine fehlende Angabe ist selbst eine
+        // Auskunft über die Umgebung, in der gemessen wurde.
+        None => writeln!(bericht, "Maschine: nicht lesbar (/proc/cpuinfo)\n"),
+    };
 
     // --- Nur die Trace-Hashes, wenn danach gefragt ---
     //
@@ -2599,6 +2725,50 @@ mod tests {
             psi_aus_text(mit_full),
             Some(0.63),
             "die full-Zeile darf nicht gelesen werden"
+        );
+    }
+
+    /// Der Modellname muss aus der ECHTEN Zeilenform kommen, nicht aus einer
+    /// gedachten — dieselbe Auflage wie bei PSI eine Zeile höher.
+    ///
+    /// Der Ausschnitt stammt Zeichen für Zeichen aus `/proc/cpuinfo` dieser
+    /// Maschine, aufgenommen am 2026-08-22. Die führenden Leerzeichen hinter
+    /// dem Doppelpunkt und der Tabulator davor sind echt und der Grund, warum
+    /// hier `trim()` steht.
+    #[test]
+    fn modell_liest_die_echte_zeilenform() {
+        let echt = "processor\t: 0\n\
+                    vendor_id\t: AuthenticAMD\n\
+                    model name\t: AMD Ryzen 9 5900HS with Radeon Graphics\n\
+                    stepping\t: 0\n";
+        assert_eq!(
+            modell_aus_text(echt).as_deref(),
+            Some("AMD Ryzen 9 5900HS with Radeon Graphics")
+        );
+    }
+
+    /// **Eine fehlende Angabe ist keine leere Angabe.**
+    ///
+    /// Ein `Some("")` im Berichtskopf sähe aus wie eine Maschine ohne Namen und
+    /// wäre in Wahrheit ein kaputter Parser — genau die Verwechslung, gegen die
+    /// [`Wert::Fehlt`] in diesem Läufer gebaut ist.
+    #[test]
+    fn modell_ohne_zeile_ist_keine_leere_angabe() {
+        assert_eq!(modell_aus_text(""), None);
+        assert_eq!(
+            modell_aus_text("processor\t: 0\nvendor_id\t: AuthenticAMD\n"),
+            None,
+            "keine model-name-Zeile — das ist keine leere Angabe, sondern keine"
+        );
+        assert_eq!(
+            modell_aus_text("model name\t:   \n"),
+            None,
+            "leerer Wert ist keine Auskunft"
+        );
+        assert_eq!(
+            modell_aus_text("model names\t: etwas\n"),
+            None,
+            "ein anderes Feld, das mit demselben Wort beginnt, gilt nicht"
         );
     }
 
