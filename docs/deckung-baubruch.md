@@ -148,3 +148,124 @@ Herkunft wird jetzt als `?(benutzer)` gemeldet statt verschwiegen.
 Auf die Klassifikation wirkt sich das nicht aus: Gemessen wurde ein **Bau** auf rustbuild,
 und ein Bau hat keine Zeitschranken. Fremdlast auf dieser Maschine kann ihn verlangsamen,
 nicht sein Ergebnis ändern.
+
+## Die Einteilung der 34 Bau-Felder (Refs #1076)
+
+Erstellt am 2026-08-22 ohne Lauf, gelesen aus `sim/build.rs`, `sim/src/data.rs` und
+`sim/src/fight.rs`.
+
+> **`BAU` heißt „keine gemessene Deckung", nicht „ungedeckt".** Ein Feld, dessen Streichung den
+> Bau bricht, kann sehr wohl geprüft sein — die Streich-Methode kann es nur nicht zeigen, weil
+> nach dem Baubruch keine Prüfung mehr läuft. Wer diese Einteilung liest, schreibt deshalb nicht
+> ungeprüft Tests für etwas, das längst geprüft ist: Die Gruppen sagen, **welche Absicherung
+> sinnvoll wäre**, nicht dass keine existiert.
+
+### Gruppe A — Bauzeit-Zusicherungen: 4 Felder, kein Prüffall möglich
+
+Diese vier werden von `build.rs` gelesen, geprüft und **verworfen**. Sie landen in keiner
+Rust-Struktur; der Simulator sieht sie nie.
+
+| Feld                  | eingelesen in   | Zusicherung                      | zulässige Werte |
+| --------------------- | --------------- | -------------------------------- | --------------- |
+| `convert.from`        | `build.rs:2107` | `assert_eq!(from, "cooldown")`   | genau einer     |
+| `spender.resource`    | `build.rs:836`  | `assert_eq!(named, resource_id)` | genau einer     |
+| `spender.consumesAll` | `build.rs:843`  | `assert!(consumes_all)`          | nur `true`      |
+| `dot.refreshMode`     | `build.rs:789`  | `assert_eq!(mode, "reset")`      | nur `"reset"`   |
+
+> **Einer der vier war schon so eingeordnet, drei nicht.** In der Tabelle oben trägt
+> `spender.consumesAll` als altes Urteil `GESICHERT (build.rs)` — genau diese Kategorie. Die
+> anderen drei stehen dort als `gedeckt`, obwohl für sie dasselbe gilt. Das alte Urteil ist bei
+> ihnen also nicht falsch, sondern zu grob: Es sagt „geprüft", wo „durch den Bau erzwungen"
+> zutrifft.
+
+**Ein Prüffall wäre hier wertlos.** Der Wert lässt sich nicht variieren, ohne dass der Bau
+bricht — die `BAU`-Meldung _ist_ die Absicherung und nicht ihr Fehlen.
+
+`spender.resource` ist der wertvollste der vier: Er prüft, dass ein Zauber dieselbe Ressource
+verbraucht, die seine Schule führt — eine Kreuzprobe zwischen zwei Datendateien, die sonst
+niemand zieht.
+
+**Das ist nicht die Klasse der Faktoren-Töpfe aus #420.** Dort lag eine Zahl, die niemand las;
+hier liegt eine Zusicherung, die genau einmal wirkt und dann nicht mehr gebraucht wird.
+
+### Gruppe B — Zahlen in einer Rechnung: 28 Felder, Prüffall billig und wirksam
+
+Alle fließen in eine Rust-Struktur **und** werden in `fight.rs` gelesen. Je Feld eine
+Fundstelle:
+
+| Feld                                                                           | gelesen in                                           |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `spender.damagePerPoint`                                                       | `fight.rs:4709`                                      |
+| `spender.bonusThreshold`                                                       | `fight.rs:4710`                                      |
+| `spender.bonusMultiplier`                                                      | `fight.rs:4711`                                      |
+| `dot.tickDamage`                                                               | `fight.rs:3273`                                      |
+| `dot.tickIntervalMs`, `dot.durationMs`                                         | über `Dot`, mit `tick_damage` zusammen               |
+| `shield.amount`, `shield.durationMs`                                           | `fight.rs`, 20 Stellen über `self.shield`            |
+| `shield.maxStacks`                                                             | `fight.rs:2418`                                      |
+| `heal.amount`, `heal.tickIntervalMs`                                           | `fight.rs:2483`                                      |
+| `reflect.sharePercent`, `reflect.durationMs`                                   | `self.reflect_percent`, `self.reflect_until`         |
+| `conversion.sharePercent`, `conversion.durationMs`                             | `self.conversion_percent`                            |
+| `decayCap.bonus`, `decayCap.durationMs`                                        | `self.decay_cap_bonus`                               |
+| `decayWard.permillePerStack`, `decayWard.durationMs`                           | `self.decay_ward_permille`                           |
+| `convert.perSecond`                                                            | `fight.rs`, in der Schadensrechnung                  |
+| `control.cost`, `control.effect`, `control.amountMs`, `control.amountPerPoint` | `fight.rs`, 12 Stellen über `amount`                 |
+| `control.amountPercent`                                                        | `fight.rs:2591`, eigenes Feld `amount_percent`       |
+| `buff.kind`, `buff.factor`, `buff.gcds`                                        | `fight.rs:4795` `apply_for_gcds(kind, factor, gcds)` |
+| `resourceGain.heat`, `dot.resourceGainPerTick.heat`                            | `fight.rs`, Ressourcenaufbau                         |
+
+**Für diese ist ein Prüffall billig:** Der Wert steht in einer Rechnung, eine Änderung verschiebt
+eine Zahl im Kampf.
+
+> **`control.amountMs` und `.amountPerPoint` teilen sich ein Rust-Feld, `.amountPercent` nicht.**
+> `build.rs:2149-2161` wählt nach `control.effect` aus, welches JSON-Feld gelesen wird:
+>
+> | `effect`                                                   | gelesenes Feld   | Rust-Feld        |
+> | ---------------------------------------------------------- | ---------------- | ---------------- |
+> | `slowCast`, `delayStrike`, `allThree`, `makeInterruptible` | `amountMs`       | `amount`         |
+> | `convertToDamage`                                          | `amountPerPoint` | `amount`         |
+> | `holdPhase`                                                | `amountPercent`  | `amount_percent` |
+>
+> **Ein Prüffall auf `amountMs` deckt `amountPerPoint` mit, aber `amountPercent` nicht** —
+> `data.rs:306` führt es als eigenes Feld, `build.rs:2204` liest es getrennt ein, und
+> `fight.rs:2591` liest es getrennt aus.
+>
+> **Der Grund steht daneben, und es ist ein Fehler, den es wirklich gab:** Die Wirkungen sprechen
+> zwei Einheiten — `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
+> Prozentpunkten. Solange beide dasselbe Feld benutzten, bekam `holdPhase` bei `CAPSTONE` dessen
+> 2000 Millisekunden als Prozentzahl; `boss_hp_percent + 2000` liegt über jeder Schwelle, und der
+> Phasenwechsel war **für die volle Frist abgeschaltet statt gesenkt**. `allThree` braucht beide
+> Einheiten gleichzeitig — deshalb sind es zwei Felder.
+>
+> Dazu eine Stelle, die beim Bauen eines Prüffalls zu kennen ist: Für `PIN` bedeutet `amountMs`
+> etwas anderes als bei `delayStrike` — dort ist es die **Fensterlänge**, mit der ein Schlag ohne
+> Wirkzeit unterbrechbar wird, keine Verzögerung. Der Kommentar in `build.rs:2157` sagt es
+> ausdrücklich („Dasselbe Feld, andere Bedeutung"). Ein Prüffall auf `amountMs` deckt also zwei
+> Bedeutungen.
+
+### Gruppe C — Kennungen und Namen: keine
+
+Unter den 34 ist kein reines Namensfeld. Die vier Textfelder (`convert.from`, `spender.resource`,
+`dot.refreshMode`, `control.effect`) sind entweder Zusicherungen (Gruppe A) oder
+Auswahlschalter, die eine Rechnung steuern (`control.effect`, Gruppe B).
+
+### AC4 — Felder, die von keinem Pfad gelesen werden: keine
+
+Geprüft wurde in zwei Schritten:
+
+1. **Struktur:** Für jedes der zwölf betroffenen `data.rs`-Structs (`Convert`, `Dot`, `Buff`,
+   `DecayWard`, `DecayCap`, `Spender`, `Shield`, `Heal`, `Conversion`, `Reflect`, `Control`,
+   `ResourceGain`) die Feldliste gelesen. Vier JSON-Felder haben dort keine Entsprechung — das
+   sind genau die aus Gruppe A.
+2. **Leser:** Für jede der zwölf Strukturen gemessen, ob sie in `fight.rs` gelesen wird. Alle
+   zwölf werden gelesen; für die selteneren (`reflect`, `conversion`, `decayCap`, `decayWard`,
+   `convert`) zusätzlich im Kontext nachgesehen, dass **beide** ihrer Felder verwendet werden.
+
+**Die Liste ist leer, und das ist ein Ergebnis, kein Ausbleiben.** Kein Feld unter den 34 ist
+gebaut und ungelesen. Die vier aus Gruppe A werden gelesen — nur eben zur Bauzeit und nicht im
+Kampf.
+
+### Was hier nicht gemessen ist
+
+Ob die 28 Felder der Gruppe B auf der **TypeScript-Seite** ebenfalls gelesen werden. Gemessen
+wurden `fight.rs`, `balance.rs` und `gear.rs`, nicht `src/core/`. Für die Frage „ist ein Prüffall
+billig" reicht die Rust-Seite; für die Parität nicht.
