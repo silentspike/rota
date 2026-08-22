@@ -2529,6 +2529,15 @@ jq -r '.instances | length' data/instances.json
 | Instanz-Zuordnung           |       Teil des Datenmodells |                          vorhanden | `instance` je Boss         |
 | Instanz als Objekt          | Name, Stufen, Freischaltung |            **vorhanden** (PR #749) | `data/instances.json`      |
 
+> **Der eine anlegbare Satz trägt den Effekt `ashen-regimen`.** In `data/sets.json` heißt er
+> „Test Set" — der Anzeigename ist ein Prüftext, der Effektname der richtige. Sechs Gegenstände
+> tragen seine `setId`, und sie heißen ebenfalls „Test Set …".
+>
+> **Das ist eine Angabe über die Daten und kein Namensvorschlag.** Der Satz-Katalog nennt an
+> dieser Stelle „Ashen Regimen", trägt aber in seiner Überschrift das Wort _Vorschlag_ — welchen
+> Namen der Satz bekommt, entscheidet der Auftraggeber. Hier steht deshalb der Effekt und nicht
+> der Name, damit die Zeile darüber nachprüfbar ist, ohne etwas vorwegzunehmen.
+
 > **Diese Zahlen stehen an zwei Orten, und das ist die Gefahr.** Dieselben Bestände führen die
 > Raster (`ZAUBER-RASTER.md`, `TALENT-RASTER.md`, `AUSRUESTUNGS-RASTER.md`). Am 2026-08-11 zog
 > jemand dort auf 55 und 18 nach — hier standen weiterhin 54 und 12. Beide Dokumente waren
