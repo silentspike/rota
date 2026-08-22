@@ -43,13 +43,25 @@ use gemeinsam::rufe;
 /// `WERTUNGSFAEHIG` wäre auf 18 gesprungen und die Trennung, die dieser Test
 /// misst, wäre stillschweigend aufgehoben.
 ///
-/// **`WERTUNGSFAEHIG` bleibt bei 17, und das ist die eigentliche Probe:** Wäre
+/// **`WERTUNGSFAEHIG` blieb bei 17, und das war die eigentliche Probe:** Wäre
 /// eines der beiden neuen Profile versehentlich in einer gewerteten Instanz
-/// gelandet, müsste diese Zahl auf 19 springen. Sie tut es nicht — damit ist
-/// die Trennung zwischen Prüfprofil und Spielboss gemessen statt behauptet.
-const SPIELINSTANZEN: usize = 5;
+/// gelandet, hätte diese Zahl auf 19 springen müssen. Sie tat es nicht — damit
+/// war die Trennung zwischen Prüfprofil und Spielboss gemessen statt behauptet.
+///
+/// **Am 2026-08-22 ist sie zum ersten Mal aus dem richtigen Grund gesprungen,
+/// auf 21:** Instanz 5 ist entschieden und ihre vier Bosse sind eingecheckt.
+/// Der Absatz darüber bleibt gültig — er begründet, warum 17 damals _nicht_
+/// wachsen durfte, und nicht, dass 17 für immer die richtige Zahl ist.
+///
+/// **Der Unterschied ist der Grund, nicht die Zahl.** Vier Prüfprofile hätten
+/// dieselben 21 ergeben und wären ein Fehler gewesen; vier Spielbosse in einer
+/// gewerteten Instanz ergeben sie und sind der Sollzustand. Wer diese Zeile
+/// beim nächsten Mal ändert, prüft zuerst das Feld `instance` der neuen Bosse:
+/// Steht dort `test` oder `testing`, gehört die Änderung nicht hierher, sondern
+/// nach `PRUEFBOSSE`.
+const SPIELINSTANZEN: usize = 6;
 const PRUEFPROFILE: usize = 2;
-const WERTUNGSFAEHIG: usize = 17;
+const WERTUNGSFAEHIG: usize = 21;
 const PRUEFBOSSE: usize = 21;
 
 #[test]
